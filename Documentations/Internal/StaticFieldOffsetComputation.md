@@ -103,7 +103,7 @@ resilient 的本质是「编译当前二进制时不知道字段布局，但运�
 
 ### 已有基础设施
 
-- **按依赖名解析镜像**：`Sources/MachOExtensions/DyldCache+.swift` 的 `machOFile(by mode:)` —— 按 install name / image name 从 dyld shared cache 捞 `MachOFile`。系统 Swift 库、Foundation、SwiftUI 等都在 cache 里，这条路已通。
+- **按依赖名解析镜像**：上游包 `MachOKitExtensions` 的 `DyldCache+.swift` 的 `machOFile(by mode:)` —— 按 install name / image name 从 dyld shared cache 捞 `MachOFile`。系统 Swift 库、Foundation、SwiftUI 等都在 cache 里，这条路已通。
 - **符号索引**：`Sources/MachOSymbols/SymbolIndexStore.swift` —— 按 name/offset 建索引。
 - **ReadingContext 抽象**：`MachOContext` 已把「从哪个镜像读」参数化，扩展成多镜像顺理成章。
 
@@ -238,7 +238,7 @@ fixed-layout 非泛型（单镜像）         直接读 vector，几乎零成本
 | MetadataInitialization 分流信号 | `Models/Type/TypeContextDescriptorFlags.swift`、`Models/Metadata/MetadataInitialization/` |
 | enum 静态布局算法 | `Sources/SwiftInspection/EnumLayoutCalculator.swift`、`SpareBitAnalyzer.swift`、`BitMask.swift` |
 | 现有 field rendering（runtime 依赖点） | `Sources/SwiftDeclarationRendering/FieldLayoutRenderer.swift`（`:98-110` fieldOffsets、`:189-203` substitution、`:388-420` 节点替换骨架、`:497` deref runtime metadata vector）、`FieldLayoutRenderer+Enum.swift:113-148`（payloadSize/XI 全靠 runtime VWT） |
-| dyld cache 取镜像 / 符号索引 | `Sources/MachOExtensions/DyldCache+.swift`（`machOFile(by:)`）、`Sources/MachOSymbols/SymbolIndexStore.swift` |
+| dyld cache 取镜像 / 符号索引 | 上游包 `MachOKitExtensions` 的 `DyldCache+.swift`（`machOFile(by:)`）、`Sources/MachOSymbols/SymbolIndexStore.swift` |
 | InProcess-only runtime 桥 | `Sources/MachOSwiftSection/Runtime/RuntimeFunctions.swift` |
 | 泛型 specialization（runtime 编排，可作 ground truth/fallback） | `Sources/SwiftSpecialization/GenericSpecializer.swift`、`ConformanceProvider.swift`（已静态、可复用） |
 | ObjC ivar / class_ro_t | MachOObjCSection `ObjCIvarListProtocol`、`ClassROData`；本项目用例 `Sources/SwiftInspection/ClassHierarchyDumper.swift`、`Sources/TypeIndexing/ObjCInterfaceIndexer.swift` |

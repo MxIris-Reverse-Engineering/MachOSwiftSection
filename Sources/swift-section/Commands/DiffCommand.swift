@@ -1,4 +1,5 @@
 import SwiftInterface
+import SwiftIndexing
 import SwiftDiffing
 import Foundation
 import MachOKit
@@ -73,12 +74,16 @@ struct DiffCommand: AsyncParsableCommand {
             let oldMachO = try loadMachO(at: oldPath)
             let newMachO = try loadMachO(at: newPath)
 
+            // A sink on both sides: the renderer hands each builder's dispatcher
+            // to its printers, so this is what puts a dropped declaration on
+            // stderr instead of leaving it to `Dispatcher`'s os_log floor, which
+            // a CLI operator never sees.
             log("Indexing old binary…")
-            let oldBuilder = SwiftDiffableInterfaceBuilder(in: oldMachO)
+            let oldBuilder = SwiftDiffableInterfaceBuilder(eventHandlers: [ConsoleEventHandler()], in: oldMachO)
             try await oldBuilder.prepare()
 
             log("Indexing new binary…")
-            let newBuilder = SwiftDiffableInterfaceBuilder(in: newMachO)
+            let newBuilder = SwiftDiffableInterfaceBuilder(eventHandlers: [ConsoleEventHandler()], in: newMachO)
             try await newBuilder.prepare()
 
             // Only the `--fail-on-breaking` CI gate needs the ABI diff on the
@@ -228,6 +233,10 @@ struct DiffCommand: AsyncParsableCommand {
     }
 
     private func log(_ message: String) {
-        FileHandle.standardError.write(Data((message + "\n").utf8))
+        // `fputs`, not `FileHandle.standardError.write(_:)`: that overload is the
+        // Objective-C bridge and raises `NSFileHandleOperationException` on a
+        // closed or broken stderr, which Swift cannot catch — a diagnostic would
+        // abort the command instead of being printed.
+        fputs(message + "\n", stderr)
     }
 }

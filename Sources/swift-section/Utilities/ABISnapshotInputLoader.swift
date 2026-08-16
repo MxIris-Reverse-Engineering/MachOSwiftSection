@@ -2,6 +2,7 @@ import Foundation
 import MachOKit
 import MachOFoundation
 import SwiftDiffing
+import SwiftIndexing
 import SwiftInterface
 
 /// Shared input plumbing for the ABI commands (`snapshot` / `diff` /
@@ -56,7 +57,9 @@ enum ABISnapshotInputLoader {
             cacheImagePath: cacheImagePath,
             architecture: architecture
         )
-        let builder = SwiftDiffableInterfaceBuilder(in: machOFile)
+        // Shared by `snapshot` / `evolution` / `diff`'s snapshot inputs, so this
+        // is where those three get a stderr sink for anything indexing drops.
+        let builder = SwiftDiffableInterfaceBuilder(eventHandlers: [ConsoleEventHandler()], in: machOFile)
         try await builder.prepare()
         let cacheImageSuffix = [cacheImageName, cacheImagePath].compactMap { $0 }.first.map { " (\($0))" } ?? ""
         let provenance = ABIProvenance(

@@ -110,6 +110,8 @@ struct EvolutionCommand: AsyncParsableCommand {
     }
 
     private func log(_ message: String) {
-        FileHandle.standardError.write(Data((message + "\n").utf8))
+        // See `DiffCommand.log`: the raising `FileHandle` overload aborts the
+        // process on a closed or broken stderr.
+        fputs(message + "\n", stderr)
     }
 }

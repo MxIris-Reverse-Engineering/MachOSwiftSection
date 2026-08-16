@@ -4,6 +4,7 @@ import Foundation
 import MachOSwiftSection
 import MachOKit
 import Demangling
+@_spi(Internals) import MachOSymbols
 import OrderedCollections
 @_spi(Internals) import SwiftInspection
 
@@ -594,7 +595,7 @@ extension GenericSpecializer {
             guard let typeDefinition = conformanceProvider.typeDefinition(for: typeName) else {
                 return nil
             }
-            let isGeneric = typeDefinition.type.typeContextDescriptorWrapper.typeContextDescriptor.layout.flags.isGeneric
+            let isGeneric = typeDefinition.typeContextDescriptorWrapper.typeContextDescriptor.layout.flags.isGeneric
             if options.contains(.excludeGenerics), isGeneric {
                 return nil
             }
@@ -627,7 +628,7 @@ extension GenericSpecializer {
         for requirement in requirements {
             guard case .baseClass(let demangledNode, _) = requirement else { continue }
             let typeNode = demangledNode.first(of: .type) ?? demangledNode
-            return TypeName(node: typeNode, kind: .class)
+            return TypeName(node: InternedNodeReferenceCache.shared.reference(interning: typeNode), kind: .class)
         }
         return nil
     }
@@ -653,7 +654,7 @@ extension GenericSpecializer {
                 reason: "Type not found in indexer"
             )
         }
-        return (typeDefinitionEntry.value.type.typeContextDescriptorWrapper, typeDefinitionEntry.machO)
+        return (typeDefinitionEntry.value.typeContextDescriptorWrapper, typeDefinitionEntry.machO)
     }
 
     /// Build the descriptor + inner specializer pair that drives
@@ -949,7 +950,7 @@ extension GenericSpecializer where MachO == MachOImage {
                     let descriptor: MachOSwiftSection.`Protocol`
                     do {
                         descriptor = try MachOSwiftSection.`Protocol`(
-                            descriptor: protocolDef.value.protocol.descriptor.asPointerWrapper(in: protocolDef.machO)
+                            descriptor: protocolDef.value.protocolDescriptor.asPointerWrapper(in: protocolDef.machO)
                         )
                     } catch {
                         // Indexer found the entry but materializing the
@@ -1835,7 +1836,7 @@ extension GenericSpecializer where MachO == MachOImage {
 
         // Create in-process protocol descriptor and use runtime conformance check
         let protocolDescriptor = try MachOSwiftSection.`Protocol`(
-            descriptor: protocolDef.value.protocol.descriptor.asPointerWrapper(in: protocolDef.machO)
+            descriptor: protocolDef.value.protocolDescriptor.asPointerWrapper(in: protocolDef.machO)
         )
 
         guard let witnessTable = try RuntimeFunctions.conformsToProtocol(
@@ -1973,7 +1974,7 @@ extension GenericSpecializer where MachO == MachOImage {
         step: AssociatedPathInfo.Step,
         allProtocolDefinitions: OrderedDictionary<ProtocolName, MachOIndexedValue<MachO, ProtocolDefinition>>
     ) throws -> Metadata {
-        let stepProtocolName = ProtocolName(node: step.protocolNode)
+        let stepProtocolName = ProtocolName(node: InternedNodeReferenceCache.shared.reference(interning: step.protocolNode, in: machO))
         guard let entry = allProtocolDefinitions[stepProtocolName] else {
             throw AssociatedTypeResolutionError.missingAssociatedTypeRefMachOAndProtocol(protocolTypeNode: step.protocolNode)
         }
@@ -1981,7 +1982,7 @@ extension GenericSpecializer where MachO == MachOImage {
         let stepProtocol: MachOSwiftSection.`Protocol`
         do {
             stepProtocol = try MachOSwiftSection.`Protocol`(
-                descriptor: entry.value.protocol.descriptor.asPointerWrapper(in: entry.machO)
+                descriptor: entry.value.protocolDescriptor.asPointerWrapper(in: entry.machO)
             )
         } catch {
             throw AssociatedTypeResolutionError.failedToCreateAssociatedTypeRefProtocol(underlyingError: error)

@@ -39,8 +39,39 @@ extension MachOIndexedValue: Sendable where Value: Sendable {}
 
 @_spi(Support)
 public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentableWithCache>: Sendable {
+    /// Indexing-local carrier for a nested type's resolved-but-unlinked
+    /// parent context (evolution proposal 0002). Lives only for the duration
+    /// of `indexTypes()` — it replaced the stored
+    /// `TypeDefinition.parentContext` property, which kept a second
+    /// fully-parsed `TypeContextWrapper` inline on every affected definition
+    /// with no reader after indexing.
+    private enum UnlinkedParentContext {
+        case `extension`(ExtensionContext)
+        case type(TypeContextWrapper)
+        case symbol(Symbol)
+    }
+
+    /// Snapshot of the six public statistics accessors' answers, frozen at
+    /// the end of `prepare()` immediately before the section-wrapper
+    /// populations are released (evolution proposal 0002). The accessors
+    /// read this snapshot, so they keep answering after the arrays they
+    /// were once computed from are gone; before preparation every count
+    /// is 0, matching the empty arrays they mirror.
+    @usableFromInline
+    struct PreparationStatistics: Sendable {
+        @usableFromInline var numberOfTypes: Int = 0
+        @usableFromInline var numberOfEnums: Int = 0
+        @usableFromInline var numberOfStructs: Int = 0
+        @usableFromInline var numberOfClasses: Int = 0
+        @usableFromInline var numberOfProtocols: Int = 0
+        @usableFromInline var numberOfProtocolConformances: Int = 0
+    }
+
     @usableFromInline
     final class Storage: Sendable {
+        @usableFromInline @Mutex
+        var preparationStatistics: PreparationStatistics = .init()
+
         @usableFromInline @Mutex
         var types: [TypeContextWrapper] = []
 
@@ -53,11 +84,14 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
         @usableFromInline @Mutex
         var associatedTypes: [AssociatedType] = []
 
+        /// Name-level forward map of the conformance section (evolution
+        /// proposal 0002): which protocols each type conforms to. This is
+        /// the only per-(type, protocol) fact any post-indexing consumer
+        /// reads — the parsed `ProtocolConformance` / `AssociatedType`
+        /// values that previously backed the keyed maps here are indexing
+        /// transients now, released when `prepare()` finishes.
         @usableFromInline @Mutex
-        var protocolConformancesByTypeName: OrderedDictionary<TypeName, OrderedDictionary<ProtocolName, ProtocolConformance>> = [:]
-
-        @usableFromInline @Mutex
-        var associatedTypesByTypeName: OrderedDictionary<TypeName, OrderedDictionary<ProtocolName, AssociatedType>> = [:]
+        var conformingProtocolNamesByTypeName: OrderedDictionary<TypeName, OrderedSet<ProtocolName>> = [:]
 
         @usableFromInline @Mutex
         var conformingTypesByProtocolName: OrderedDictionary<ProtocolName, OrderedSet<TypeName>> = [:]
@@ -95,12 +129,7 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
 
     @usableFromInline
     struct AllStorageCache: @unchecked Sendable {
-        var allTypes: [MachOIndexedValue<MachO, TypeContextWrapper>]?
-        var allProtocols: [MachOIndexedValue<MachO, MachOSwiftSection.`Protocol`>]?
-        var allProtocolConformances: [MachOIndexedValue<MachO, ProtocolConformance>]?
-        var allAssociatedTypes: [MachOIndexedValue<MachO, AssociatedType>]?
-        var allProtocolConformancesByTypeName: OrderedDictionary<TypeName, OrderedDictionary<ProtocolName, MachOIndexedValue<MachO, ProtocolConformance>>>?
-        var allAssociatedTypesByTypeName: OrderedDictionary<TypeName, OrderedDictionary<ProtocolName, MachOIndexedValue<MachO, AssociatedType>>>?
+        var allConformingProtocolNamesByTypeName: OrderedDictionary<TypeName, OrderedSet<ProtocolName>>?
         var allConformingTypesByProtocolName: OrderedDictionary<ProtocolName, OrderedSet<MachOIndexedValue<MachO, TypeName>>>?
         var allRootTypeDefinitions: OrderedDictionary<TypeName, MachOIndexedValue<MachO, TypeDefinition>>?
         var allAllTypeDefinitions: OrderedDictionary<TypeName, MachOIndexedValue<MachO, TypeDefinition>>?
@@ -129,19 +158,12 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
     @usableFromInline
     var allStorageCache: AllStorageCache = .init()
 
-    let eventDispatcher: SwiftIndexEvents.Dispatcher = .init()
+    /// `package` so a renderer driving this indexer can hand the same dispatcher
+    /// to its printers, keeping one sink set for the whole run.
+    package let eventDispatcher: SwiftIndexEvents.Dispatcher = .init()
 
     @Mutex
     private var isPrepared: Bool = false
-
-    /// `true` when this indexer's ``prepare()`` was the call that populated
-    /// the process-wide ``SymbolIndexStore`` entry for ``machO``. Used so
-    /// ``deinit`` can drop the entry on the way out and avoid leaking a
-    /// per-binary symbol index for the rest of the process lifetime.
-    /// Stays `false` when some other caller had already built the entry —
-    /// in that case the entry is shared state we don't own.
-    @Mutex
-    private var didTriggerSymbolIndexStoreCache: Bool = false
 
     public init(configuration: SwiftDeclarationIndexConfiguration = .init(), eventHandlers: [SwiftIndexEvents.Handler] = [], in machO: MachO) {
         self.machO = machO
@@ -149,11 +171,42 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
         eventDispatcher.addHandlers(eventHandlers)
     }
 
+    /// Evicts the per-image caches this indexer's `prepare()` was the one to
+    /// build, and only when it is the image's LAST live indexer — an
+    /// earlier-deinitializing sibling must never wipe caches out from under a
+    /// still-live one (the survivor's already-built names would keep an
+    /// orphaned store alive while new names land in a fresh one, splitting the
+    /// `store ===` fast paths for the rest of its lifetime). PR #103 review,
+    /// finding M6; the per-cache split is the follow-up round.
     deinit {
-        if didTriggerSymbolIndexStoreCache {
-            @Dependency(\.symbolIndexStore)
-            var symbolIndexStore
-            symbolIndexStore.remove(for: machO)
+        PerImageCacheEvictionRegistry.deregisterLiveIndexer(
+            ObjectIdentifier(self),
+            forImageIdentifier: machO.identifier
+        ) { claims in
+            if claims.symbolStore {
+                @Dependency(\.symbolIndexStore)
+                var symbolIndexStore
+                symbolIndexStore.remove(for: machO)
+            }
+            // Claimed separately from the symbol store: both of these are also
+            // populated by SwiftLayout, the renderers and SwiftSpecialization,
+            // so "this indexer built the symbol store" says nothing about who
+            // built these.
+            //
+            // The memo is never left behind when the interned store goes — its
+            // values are references INTO that store, so keeping it would pin the
+            // store's buffers and the eviction would reclaim nothing. That
+            // pairing is enforced by `Claims.normalized`, which the registry
+            // applies before calling this, rather than by these three
+            // independent branches: as three separate flags the combination
+            // "drop the store, keep the memo" was reachable, and it freed
+            // nothing at all.
+            if claims.internedNames {
+                InternedNodeReferenceCache.shared.remove(for: machO)
+            }
+            if claims.demangleMemo {
+                MetadataReader.removeCache(for: machO)
+            }
         }
     }
 
@@ -174,6 +227,32 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
 
     public func removeSubIndexer(at index: Int) {
         subIndexers.remove(at: index)
+        allStorageCache = AllStorageCache()
+    }
+
+    /// Detaches a previously registered sub-indexer by identity, the inverse of
+    /// `addSubIndexer(_:)`. No-op when it was never registered.
+    ///
+    /// Registration is what keeps a per-image indexer — and therefore its whole
+    /// declaration graph, including the `NodeStore` its definitions reference —
+    /// alive for as long as the aggregate lives. Dropping the last reference
+    /// lets the sub-indexer deinit, which in turn evicts its `SymbolIndexStore`
+    /// entry (see this type's `deinit`), so per-image memory is actually
+    /// reclaimed. Callers that hold the indexer rather than its position should
+    /// prefer this over the index-based overload.
+    ///
+    /// The search and the removal share one critical section: looking the
+    /// position up through the property's getter and then removing it through
+    /// `removeSubIndexer(at:)` would take the lock twice, and a concurrent
+    /// removal in between would either detach the wrong sub-indexer or trap on
+    /// an out-of-range index.
+    public func removeSubIndexer(_ subIndexer: SwiftDeclarationIndexer<MachO>) {
+        let didRemoveSubIndexer = _subIndexers.withLock { registeredSubIndexers in
+            guard let index = registeredSubIndexers.firstIndex(where: { $0 === subIndexer }) else { return false }
+            registeredSubIndexers.remove(at: index)
+            return true
+        }
+        guard didRemoveSubIndexer else { return }
         allStorageCache = AllStorageCache()
     }
 
@@ -225,17 +304,31 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
         @Dependency(\.symbolIndexStore)
         var symbolIndexStore
 
-        // Sample membership **before** kicking off the build. If nobody else
-        // had populated the entry by the time we check, the upcoming
-        // `prepareWithProgress` call is the one that will install it — even
-        // if a concurrent caller races us into the actual build, we still
-        // accept ownership of the cleanup so a stray entry never outlives
-        // the indexer that asked for it. False positives here (we claim
-        // ownership of an entry someone else then rebuilds) are fine: the
-        // worst case is a redundant rebuild in another indexer after we
-        // tear down, which is exactly the pre-cache status quo.
-        if !symbolIndexStore.contains(in: machO) {
-            didTriggerSymbolIndexStoreCache = true
+        // Sample membership **before** kicking off the build, and register this
+        // indexer as a live user of the image's caches. Each cache is sampled
+        // on its own: whichever ones are absent now are the ones this
+        // `prepare()` is about to install, so those — and only those — are
+        // claimed. A claim means "an indexer built this entry", never which
+        // one; the eviction itself runs in the deinit of the image's LAST live
+        // indexer, so a shared entry never disappears under a live sibling.
+        // False-positive claims (an entry someone else then rebuilds) are fine:
+        // the worst case is a redundant rebuild after every indexer is gone,
+        // which is exactly the pre-cache status quo. Entries built by
+        // non-indexer callers are never claimed and never evicted here — and
+        // since SwiftLayout / the renderers / SwiftSpecialization populate the
+        // interned-name store and the demangle memo without any symbol store,
+        // that guarantee only holds if the three are sampled separately.
+        PerImageCacheEvictionRegistry.registerLiveIndexer(
+            ObjectIdentifier(self),
+            forImageIdentifier: machO.identifier
+        ) {
+            // Inside the registry's lock — see `registerLiveIndexer`. As
+            // argument expressions these ran before it was taken.
+            .init(
+                symbolStore: !symbolIndexStore.contains(in: machO),
+                internedNames: !InternedNodeReferenceCache.shared.contains(in: machO),
+                demangleMemo: !MetadataReader.cacheExists(for: machO)
+            )
         }
 
         eventDispatcher.dispatch(.extractionStarted(section: .symbolIndex))
@@ -252,6 +345,31 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
             eventDispatcher.dispatch(.phaseTransition(phase: .indexing, state: .failed(error)))
             throw error
         }
+
+        // Freeze the public statistics BEFORE the wrapper populations are
+        // released below — post-preparation is the accessors' only useful
+        // reading time, and without this snapshot they would silently
+        // answer 0 (indistinguishable from an empty binary).
+        let indexedTypes = currentStorage.types
+        currentStorage.preparationStatistics = PreparationStatistics(
+            numberOfTypes: indexedTypes.count,
+            numberOfEnums: indexedTypes.count(where: \.isEnum),
+            numberOfStructs: indexedTypes.count(where: \.isStruct),
+            numberOfClasses: indexedTypes.count(where: \.isClass),
+            numberOfProtocols: currentStorage.protocols.count,
+            numberOfProtocolConformances: currentStorage.protocolConformances.count
+        )
+
+        // The section-wrapper populations are inputs to the index passes and
+        // nothing else (evolution proposal 0002): every fact a post-indexing
+        // consumer needs has been frozen onto the definitions or the
+        // name-level maps above. Releasing them here drops the eagerly
+        // parsed trailing-object arrays (`[ResilientWitness]` chief among
+        // them) for the indexer's whole lifetime.
+        currentStorage.types = []
+        currentStorage.protocols = []
+        currentStorage.protocolConformances = []
+        currentStorage.associatedTypes = []
 
         eventDispatcher.dispatch(.phaseTransition(phase: .preparation, state: .completed))
 
@@ -332,6 +450,15 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
         var nestedTypeCount = 0
         var extensionTypeCount = 0
 
+        // Indexing-local carrier for the resolved-but-unlinked parent context
+        // of a nested type (evolution proposal 0002): written by the nesting
+        // walk below, read once by the synthetic-extension pass, released when
+        // this function returns. It was previously a stored
+        // `TypeDefinition.parentContext` property, which retained a second
+        // fully-parsed `TypeContextWrapper` on every affected definition for
+        // the definition's lifetime with no reader after this function.
+        var unlinkedParentContextsByTypeName: [TypeName: UnlinkedParentContext] = [:]
+
         for type in currentStorage.types {
             guard let typeName = try? type.typeName(in: machO), let childDefinition = currentModuleTypeDefinitions[typeName] else {
                 continue
@@ -343,7 +470,7 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
             parentLoop: while let currentContextOrSymbol = parentContext {
                 switch currentContextOrSymbol {
                 case .symbol(let symbol):
-                    childDefinition.parentContext = .symbol(symbol)
+                    unlinkedParentContextsByTypeName[typeName] = .symbol(symbol)
                     break parentLoop
                 case .element(let currentContext):
                     if case .type(let typeContext) = currentContext, let parentTypeName = try? typeContext.typeName(in: machO) {
@@ -352,13 +479,13 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
                             parentDefinition.typeChildren.append(childDefinition)
                             resolvedParentName = parentTypeName.name
                         } else {
-                            childDefinition.parentContext = .type(typeContext)
+                            unlinkedParentContextsByTypeName[typeName] = .type(typeContext)
                             resolvedParentName = parentTypeName.name
                         }
                         nestedTypeCount += 1
                         break parentLoop
                     } else if case .extension(let extensionContext) = currentContext {
-                        childDefinition.parentContext = .extension(extensionContext)
+                        unlinkedParentContextsByTypeName[typeName] = .extension(extensionContext)
                         extensionTypeCount += 1
                         break parentLoop
                     }
@@ -372,21 +499,21 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
         var rootTypeDefinitions: OrderedDictionary<TypeName, TypeDefinition> = [:]
 
         for (typeName, typeDefinition) in currentModuleTypeDefinitions {
-            if typeDefinition.parent == nil, typeDefinition.parentContext == nil {
+            if typeDefinition.parent == nil, unlinkedParentContextsByTypeName[typeName] == nil {
                 rootTypeDefinitions[typeName] = typeDefinition
-            } else if let parentContext = typeDefinition.parentContext {
+            } else if let parentContext = unlinkedParentContextsByTypeName[typeName] {
                 switch parentContext {
                 case .extension(let extensionContext):
                     guard let extendedContextMangledName = extensionContext.extendedContextMangledName else { continue }
                     guard let extensionTypeNode = try MetadataReader.demangleType(for: extendedContextMangledName, in: machO).first(of: .type) else { continue }
                     guard let extensionTypeKind = extensionTypeNode.typeKind else { continue }
 
-                    let extensionTypeName = TypeName(node: extensionTypeNode, kind: extensionTypeKind)
+                    let extensionTypeName = TypeName(node: InternedNodeReferenceCache.shared.reference(interning: extensionTypeNode, in: machO), kind: extensionTypeKind)
 
-                    var genericSignature: Node?
+                    var genericSignature: NodeReference?
 
                     if let currentRequirements = extensionContext.genericContext?.uniqueCurrentRequirements(in: machO), !currentRequirements.isEmpty {
-                        genericSignature = try MetadataReader.buildGenericSignature(for: currentRequirements, in: machO)
+                        genericSignature = try MetadataReader.buildGenericSignature(for: currentRequirements, in: machO).map { InternedNodeReferenceCache.shared.reference(interning: $0, in: machO) }
                     }
 
                     let extensionDefinition = try ExtensionDefinition(extensionName: extensionTypeName.extensionName, genericSignature: genericSignature, protocolConformance: nil, in: machO)
@@ -399,7 +526,7 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
                     currentStorage.typeExtensionDefinitions[extensionDefinition.extensionName, default: []].append(extensionDefinition)
                 case .symbol(let symbol):
                     guard let type = try MetadataReader.demangleType(for: symbol, in: machO)?.first(of: .type), let kind = type.typeKind else { continue }
-                    let parentTypeName = TypeName(node: type, kind: kind)
+                    let parentTypeName = TypeName(node: InternedNodeReferenceCache.shared.reference(interning: type, in: machO), kind: kind)
                     let extensionDefinition = try ExtensionDefinition(extensionName: parentTypeName.extensionName, genericSignature: nil, protocolConformance: nil, in: machO)
                     extensionDefinition.types = [typeDefinition]
                     currentStorage.typeExtensionDefinitions[extensionDefinition.extensionName, default: []].append(extensionDefinition)
@@ -449,10 +576,10 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
                     } else if let extensionContext = protocolDefinition.extensionContext, let extendedContextMangledName = extensionContext.extendedContextMangledName {
                         guard let typeNode = try MetadataReader.demangleType(for: extendedContextMangledName, in: machO).first(of: .type) else { continue }
                         guard let typeKind = typeNode.typeKind else { continue }
-                        let typeName = TypeName(node: typeNode, kind: typeKind)
-                        var genericSignature: Node?
+                        let typeName = TypeName(node: InternedNodeReferenceCache.shared.reference(interning: typeNode, in: machO), kind: typeKind)
+                        var genericSignature: NodeReference?
                         if let currentRequirements = extensionContext.genericContext?.uniqueCurrentRequirements(in: machO), !currentRequirements.isEmpty {
-                            genericSignature = try MetadataReader.buildGenericSignature(for: currentRequirements, in: machO)
+                            genericSignature = try MetadataReader.buildGenericSignature(for: currentRequirements, in: machO).map { InternedNodeReferenceCache.shared.reference(interning: $0, in: machO) }
                         }
                         let extensionDefinition = try ExtensionDefinition(extensionName: typeName.extensionName, genericSignature: genericSignature, protocolConformance: nil, in: machO)
                         extensionDefinition.protocols = [protocolDefinition]
@@ -461,7 +588,7 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
 
                     successfulCount += 1
 
-                    eventDispatcher.dispatch(.protocolProcessed(context: SwiftIndexEvents.ProtocolContext(protocolName: protocolName.name, requirementCount: protocolDefinition.protocol.requirements.count)))
+                    eventDispatcher.dispatch(.protocolProcessed(context: SwiftIndexEvents.ProtocolContext(protocolName: protocolName.name, requirementCount: proto.requirements.count)))
                 } else {
                     failedCount += 1
                 }
@@ -489,6 +616,7 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
                 protocolName = try conformance.protocolName(in: machO)
                 if let typeName, let protocolName {
                     protocolConformancesByTypeName[typeName, default: [:]][protocolName] = conformance
+                    currentStorage.conformingProtocolNamesByTypeName[typeName, default: []].append(protocolName)
                     currentStorage.conformingTypesByProtocolName[protocolName, default: []].append(typeName)
                     eventDispatcher.dispatch(.conformanceFound(context: SwiftIndexEvents.ConformanceContext(typeName: typeName.name, protocolName: protocolName.name)))
                 } else {
@@ -501,8 +629,6 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
                 failedConformances += 1
             }
         }
-
-        currentStorage.protocolConformancesByTypeName = protocolConformancesByTypeName
 
         var associatedTypesByTypeName: OrderedDictionary<TypeName, OrderedDictionary<ProtocolName, AssociatedType>> = [:]
         var failedAssociatedTypes = 0
@@ -527,7 +653,6 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
                 failedAssociatedTypes += 1
             }
         }
-        currentStorage.associatedTypesByTypeName = associatedTypesByTypeName
         var associatedTypesByTypeNameCopy = associatedTypesByTypeName
 
         var conformanceExtensionDefinitions: OrderedDictionary<ExtensionName, [ExtensionDefinition]> = [:]
@@ -546,7 +671,7 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
                     }
 
                     let conformanceAssociatedTypes = associatedType.map { [$0] } ?? []
-                    let extensionDefinition = try ExtensionDefinition(extensionName: typeName.extensionName, genericSignature: MetadataReader.buildGenericSignature(for: protocolConformance.conditionalRequirements, in: machO), protocolConformance: protocolConformance, conformingProtocolName: protocolName, associatedTypes: conformanceAssociatedTypes, resolvedAssociatedTypeWitnesses: resolvedWitnessProjections(of: conformanceAssociatedTypes), in: machO)
+                    let extensionDefinition = try ExtensionDefinition(extensionName: typeName.extensionName, genericSignature: MetadataReader.buildGenericSignature(for: protocolConformance.conditionalRequirements, in: machO).map { InternedNodeReferenceCache.shared.reference(interning: $0, in: machO) }, protocolConformance: protocolConformance, conformingProtocolName: protocolName, associatedTypes: conformanceAssociatedTypes, resolvedAssociatedTypeWitnesses: resolvedWitnessProjections(of: conformanceAssociatedTypes), in: machO)
                     extensionDefinition.isRetroactive = protocolConformance.flags.isRetroactive
                     conformanceExtensionDefinitions[extensionDefinition.extensionName, default: []].append(extensionDefinition)
                     extensionCount += 1
@@ -578,7 +703,7 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
             var primaryTypealiasOnly: ExtensionDefinition? = nil
             var preservedExtensions: [ExtensionDefinition] = []
             for extensionDefinition in extensions {
-                let isTypealiasOnly = extensionDefinition.protocolConformance == nil
+                let isTypealiasOnly = extensionDefinition.protocolConformanceDescriptor == nil
                     && extensionDefinition.genericSignature == nil
                     && extensionDefinition.types.isEmpty
                     && extensionDefinition.protocols.isEmpty
@@ -655,14 +780,19 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
         var typeAliasExtensionCount = 0
         var failedExtensions = 0
 
-        for (node, memberSymbols) in memberSymbolsByName {
+        for (typeNodeKey, memberSymbols) in memberSymbolsByName {
+            let node = typeNodeKey.reference
+            // The async overload (upstream `DemanglingNode.print(using:) async`,
+            // present since 0.5.1) suspends the task instead of blocking a
+            // cooperative worker when the walk moves to a large-stack thread —
+            // restoring the pre-migration `await node.print` semantics.
             let name = await node.print(using: .interfaceTypeBuilderOnly)
             guard let typeInfo = symbolIndexStore.typeInfo(for: name, in: machO) else {
                 eventDispatcher.dispatch(.extensionTargetNotFound(targetName: name))
                 continue
             }
 
-            func extensionDefinition(of kind: ExtensionKind, for memberSymbolsByKind: OrderedDictionary<SymbolIndexStore.MemberKind, [DemangledSymbol]>, genericSignature: Node?) throws -> ExtensionDefinition {
+            func extensionDefinition(of kind: ExtensionKind, for memberSymbolsByKind: OrderedDictionary<SymbolIndexStore.MemberKind, [DemangledSymbol]>, genericSignature: NodeReference?) throws -> ExtensionDefinition {
                 let extensionDefinition = try ExtensionDefinition(extensionName: .init(node: node, kind: kind), genericSignature: genericSignature, protocolConformance: nil, in: machO)
                 var memberCount = 0
 
@@ -707,7 +837,7 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
                 return extensionDefinition
             }
 
-            var memberSymbolsByGenericSignature: OrderedDictionary<Node, OrderedDictionary<SymbolIndexStore.MemberKind, [DemangledSymbol]>> = [:]
+            var memberSymbolsByGenericSignature: OrderedDictionary<NodeReference, OrderedDictionary<SymbolIndexStore.MemberKind, [DemangledSymbol]>> = [:]
             var memberSymbolsByKind: OrderedDictionary<SymbolIndexStore.MemberKind, [DemangledSymbol]> = [:]
 
             for (kind, memberSymbols) in memberSymbols {
@@ -787,23 +917,15 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
 // MARK: - Current Storage Property Mappings
 
 extension SwiftDeclarationIndexer {
-    @inlinable
-    public var types: [TypeContextWrapper] { currentStorage.types }
+    // The section-wrapper populations (`types` / `protocols` /
+    // `protocolConformances` / `associatedTypes`) and the parsed-value keyed
+    // maps that used to be projected here are indexing transients since
+    // evolution proposal 0002 — released when `prepare()` finishes, so they
+    // no longer have a public projection. The name-level maps below are the
+    // retained conformance facts.
 
     @inlinable
-    public var protocols: [MachOSwiftSection.`Protocol`] { currentStorage.protocols }
-
-    @inlinable
-    public var protocolConformances: [ProtocolConformance] { currentStorage.protocolConformances }
-
-    @inlinable
-    public var associatedTypes: [AssociatedType] { currentStorage.associatedTypes }
-
-    @inlinable
-    public var protocolConformancesByTypeName: OrderedDictionary<TypeName, OrderedDictionary<ProtocolName, ProtocolConformance>> { currentStorage.protocolConformancesByTypeName }
-
-    @inlinable
-    public var associatedTypesByTypeName: OrderedDictionary<TypeName, OrderedDictionary<ProtocolName, AssociatedType>> { currentStorage.associatedTypesByTypeName }
+    public var conformingProtocolNamesByTypeName: OrderedDictionary<TypeName, OrderedSet<ProtocolName>> { currentStorage.conformingProtocolNamesByTypeName }
 
     @inlinable
     public var conformingTypesByProtocolName: OrderedDictionary<ProtocolName, OrderedSet<TypeName>> { currentStorage.conformingTypesByProtocolName }
@@ -850,55 +972,15 @@ extension SwiftDeclarationIndexer {
 // populated its cache will not propagate, so reorganize hierarchies before the
 // first read.
 extension SwiftDeclarationIndexer {
-    public var allTypes: [MachOIndexedValue<MachO, TypeContextWrapper>] {
-        if let cached = allStorageCache.allTypes { return cached }
-        let result = currentStorage.types.map { MachOIndexedValue(machO: machO, value: $0) } + subIndexers.flatMap { $0.allTypes }
-        allStorageCache.allTypes = result
-        return result
-    }
-
-    public var allProtocols: [MachOIndexedValue<MachO, MachOSwiftSection.`Protocol`>] {
-        if let cached = allStorageCache.allProtocols { return cached }
-        let result = currentStorage.protocols.map { MachOIndexedValue(machO: machO, value: $0) } + subIndexers.flatMap { $0.allProtocols }
-        allStorageCache.allProtocols = result
-        return result
-    }
-
-    public var allProtocolConformances: [MachOIndexedValue<MachO, ProtocolConformance>] {
-        if let cached = allStorageCache.allProtocolConformances { return cached }
-        let result = currentStorage.protocolConformances.map { MachOIndexedValue(machO: machO, value: $0) } + subIndexers.flatMap { $0.allProtocolConformances }
-        allStorageCache.allProtocolConformances = result
-        return result
-    }
-
-    public var allAssociatedTypes: [MachOIndexedValue<MachO, AssociatedType>] {
-        if let cached = allStorageCache.allAssociatedTypes { return cached }
-        let result = currentStorage.associatedTypes.map { MachOIndexedValue(machO: machO, value: $0) } + subIndexers.flatMap { $0.allAssociatedTypes }
-        allStorageCache.allAssociatedTypes = result
-        return result
-    }
-
-    public var allProtocolConformancesByTypeName: OrderedDictionary<TypeName, OrderedDictionary<ProtocolName, MachOIndexedValue<MachO, ProtocolConformance>>> {
-        if let cached = allStorageCache.allProtocolConformancesByTypeName { return cached }
-        var result: OrderedDictionary<TypeName, OrderedDictionary<ProtocolName, MachOIndexedValue<MachO, ProtocolConformance>>> = currentStorage.protocolConformancesByTypeName.mapValues { $0.mapValues { .init(machO: machO, value: $0) } }
+    public var allConformingProtocolNamesByTypeName: OrderedDictionary<TypeName, OrderedSet<ProtocolName>> {
+        if let cached = allStorageCache.allConformingProtocolNamesByTypeName { return cached }
+        var result = currentStorage.conformingProtocolNamesByTypeName
         for subIndexer in subIndexers {
-            for (typeName, conformances) in subIndexer.allProtocolConformancesByTypeName {
-                result[typeName, default: [:]].merge(conformances) { current, _ in current }
+            for (typeName, protocolNames) in subIndexer.allConformingProtocolNamesByTypeName {
+                result[typeName, default: []].formUnion(protocolNames)
             }
         }
-        allStorageCache.allProtocolConformancesByTypeName = result
-        return result
-    }
-
-    public var allAssociatedTypesByTypeName: OrderedDictionary<TypeName, OrderedDictionary<ProtocolName, MachOIndexedValue<MachO, AssociatedType>>> {
-        if let cached = allStorageCache.allAssociatedTypesByTypeName { return cached }
-        var result: OrderedDictionary<TypeName, OrderedDictionary<ProtocolName, MachOIndexedValue<MachO, AssociatedType>>> = currentStorage.associatedTypesByTypeName.mapValues { $0.mapValues { .init(machO: machO, value: $0) } }
-        for subIndexer in subIndexers {
-            for (typeName, associatedTypes) in subIndexer.allAssociatedTypesByTypeName {
-                result[typeName, default: [:]].merge(associatedTypes) { current, _ in current }
-            }
-        }
-        allStorageCache.allAssociatedTypesByTypeName = result
+        allStorageCache.allConformingProtocolNamesByTypeName = result
         return result
     }
 
@@ -1022,22 +1104,167 @@ extension SwiftDeclarationIndexer {
 
 // MARK: - Statistics
 
+// Answered from the `PreparationStatistics` snapshot frozen at the end of
+// `prepare()` — the backing arrays are indexing transients released there
+// (evolution proposal 0002), so reading them directly would return 0 for
+// the accessors' whole useful lifetime.
 extension SwiftDeclarationIndexer {
     @inlinable
-    public var numberOfTypes: Int { currentStorage.types.count }
+    public var numberOfTypes: Int { currentStorage.preparationStatistics.numberOfTypes }
 
     @inlinable
-    public var numberOfEnums: Int { currentStorage.types.filter { $0.isEnum }.count }
+    public var numberOfEnums: Int { currentStorage.preparationStatistics.numberOfEnums }
 
     @inlinable
-    public var numberOfStructs: Int { currentStorage.types.filter { $0.isStruct }.count }
+    public var numberOfStructs: Int { currentStorage.preparationStatistics.numberOfStructs }
 
     @inlinable
-    public var numberOfClasses: Int { currentStorage.types.filter { $0.isClass }.count }
+    public var numberOfClasses: Int { currentStorage.preparationStatistics.numberOfClasses }
 
     @inlinable
-    public var numberOfProtocols: Int { currentStorage.protocols.count }
+    public var numberOfProtocols: Int { currentStorage.preparationStatistics.numberOfProtocols }
 
     @inlinable
-    public var numberOfProtocolConformances: Int { currentStorage.protocolConformances.count }
+    public var numberOfProtocolConformances: Int { currentStorage.preparationStatistics.numberOfProtocolConformances }
+}
+
+// MARK: - Per-Image Cache Eviction Coordination
+
+/// Process-wide coordination for the per-image cache cleanup in the
+/// indexer's `deinit` (PR #103 review, finding M6).
+///
+/// Eviction ownership is claimed per IMAGE — by whichever indexer's
+/// `prepare()` found the symbol-store entry absent and therefore built it —
+/// while the eviction itself is deferred to the image's LAST live indexer.
+/// An owner deinitializing earlier must not wipe the three per-image caches
+/// (symbol store, interned-name store, demangle memo) out from under a
+/// still-live sibling: the survivor's already-built names would keep an
+/// orphaned store alive while new names land in a fresh one, splitting the
+/// `store ===` fast paths for the rest of its lifetime. Entries built by
+/// non-indexer callers are never claimed and therefore never evicted here —
+/// the pre-existing contract, now enforced per image instead of per
+/// indexer.
+private enum PerImageCacheEvictionRegistry {
+    /// Which of the three per-image caches this image's indexers are entitled
+    /// to evict.
+    ///
+    /// Claimed PER CACHE rather than once for all three: the symbol store is
+    /// the only one an indexer's `prepare()` necessarily builds. The
+    /// interned-name store and the `MetadataReader` demangle memo are also
+    /// populated by SwiftLayout, `SwiftDeclarationRendering` and
+    /// `SwiftSpecialization` — a "dump the image, then build its interface"
+    /// sequence fills both without ever touching the symbol store. Under a
+    /// single combined claim that sequence either evicts caches from under
+    /// live non-indexer work (claim taken) or leaks all three (claim refused);
+    /// per-cache claims give the right answer in both directions.
+    struct Claims {
+        var symbolStore: Bool = false
+        var internedNames: Bool = false
+        var demangleMemo: Bool = false
+
+        static let none = Claims()
+
+        mutating func formUnion(_ other: Claims) {
+            symbolStore = symbolStore || other.symbolStore
+            internedNames = internedNames || other.internedNames
+            demangleMemo = demangleMemo || other.demangleMemo
+        }
+
+        /// Pairs the two claims that cannot be honoured independently.
+        ///
+        /// The demangle memo's values are `NodeReference`s into the interned
+        /// store, and a surviving reference keeps that store's buffers alive —
+        /// `InternedNodeReferenceCache`'s own documentation states it: "Eviction
+        /// reclaims nothing while external references survive." So dropping the
+        /// store while keeping the memo frees nothing at all, which is the exact
+        /// inverse of what the eviction exists to do.
+        ///
+        /// One-way on purpose. Dropping the memo does not require dropping the
+        /// store (other holders may legitimately remain); dropping the store
+        /// does require dropping the memo. Both caches are keyed per image, so
+        /// this pairs one image's two halves and nothing wider.
+        ///
+        /// This restores a binding that existed before the claims were split per
+        /// cache: the three used to be evicted together, and the comment
+        /// explaining why the memo must follow the store outlived the code that
+        /// made it true.
+        var normalized: Claims {
+            var result = self
+            if result.internedNames {
+                result.demangleMemo = true
+            }
+            return result
+        }
+    }
+
+    private struct ImageEntry {
+        /// Identity-keyed rather than counted: registration is idempotent per
+        /// indexer, so a double `prepare()` cannot inflate the population and
+        /// strand the entry above zero forever (which would leak all three
+        /// caches for the process lifetime). `prepare()`'s `isPrepared` guard
+        /// is a plain check-then-set on an async entry point, so a concurrent
+        /// second call genuinely reaches the registration.
+        var liveIndexers: Set<ObjectIdentifier> = []
+        var claims: Claims = .none
+    }
+
+    private static let registryLock = NSLock()
+
+    private nonisolated(unsafe) static var entriesByImageIdentifier: [AnyHashable: ImageEntry] = [:]
+
+    /// - Parameter sampleClaims: Tests cache membership. Taken as a closure so
+    ///   it runs **under the lock**, in the same critical section as the
+    ///   registration it decides. Passed as an already-computed `Claims` it was
+    ///   evaluated at the call site, before the lock: a sibling's `deinit`
+    ///   landing in that window let this indexer observe the caches as present,
+    ///   claim nothing, register into an entry the sibling then removed, rebuild
+    ///   all three, and hold no claim to evict them — leaking a symbol store
+    ///   (185,988 rows on SwiftUI) plus its arena for the process lifetime.
+    static func registerLiveIndexer(
+        _ indexerIdentity: ObjectIdentifier,
+        forImageIdentifier imageIdentifier: AnyHashable,
+        samplingClaims sampleClaims: () -> Claims
+    ) {
+        registryLock.lock()
+        defer { registryLock.unlock() }
+        var imageEntry = entriesByImageIdentifier[imageIdentifier, default: ImageEntry()]
+        let isFirstRegistration = imageEntry.liveIndexers.insert(indexerIdentity).inserted
+        // Only a first registration contributes claims: a re-entrant
+        // `prepare()` samples the caches its own earlier pass just built and
+        // would otherwise answer "nobody had this, so I claim it" backwards.
+        if isFirstRegistration {
+            imageEntry.claims.formUnion(sampleClaims())
+        }
+        entriesByImageIdentifier[imageIdentifier] = imageEntry
+    }
+
+    /// Deregisters, and — only if this was the image's LAST live indexer, so a
+    /// shared entry never disappears under a live sibling — evicts.
+    ///
+    /// - Parameter evict: Runs **under the lock**, in the same critical section
+    ///   as the deregistration. Returning the claims and evicting afterwards
+    ///   left a second window beyond the one `registerLiveIndexer` closes:
+    ///   between this indexer leaving the lock and the caches actually going, a
+    ///   sibling samples them as still present and claims nothing. Closing only
+    ///   the sampling side would have moved the race rather than removed it.
+    ///
+    ///   Calling out under the lock is safe here because none of the three
+    ///   evictions re-enters this registry; `registryLock` is a plain `NSLock`
+    ///   and would deadlock if one ever did.
+    static func deregisterLiveIndexer(
+        _ indexerIdentity: ObjectIdentifier,
+        forImageIdentifier imageIdentifier: AnyHashable,
+        evicting evict: (Claims) -> Void
+    ) {
+        registryLock.lock()
+        defer { registryLock.unlock() }
+        guard var imageEntry = entriesByImageIdentifier[imageIdentifier] else { return }
+        imageEntry.liveIndexers.remove(indexerIdentity)
+        guard imageEntry.liveIndexers.isEmpty else {
+            entriesByImageIdentifier[imageIdentifier] = imageEntry
+            return
+        }
+        entriesByImageIdentifier.removeValue(forKey: imageIdentifier)
+        evict(imageEntry.claims.normalized)
+    }
 }

@@ -22,3 +22,4 @@ PrecompiledLibraries/swift-syntax/.swiftpm/xcode/package.xcworkspace/contents.xc
 Tests/Projects/SymbolTests/DerivedData
 .omc
 .swiftpm/xcode/xcshareddata/xcschemes
+__pycache__/

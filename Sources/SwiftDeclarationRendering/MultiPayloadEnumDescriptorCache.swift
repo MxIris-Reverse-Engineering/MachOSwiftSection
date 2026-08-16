@@ -20,6 +20,12 @@ import FoundationToolbox
 ///   thrown error suppressing every multi-payload enum's layout comments.
 /// - **Linearity**: the section is scanned and demangled once per image, not
 ///   once per rendered enum.
+/// Reports what it had to skip through `#log`, never a stream: stdout carries
+/// the generated Swift (issue #102), and a raising `FileHandle` write aborts the
+/// host on a closed or broken stderr. It also sits below the event layer —
+/// `SwiftIndexEvents` lives in `SwiftDeclaration`, which depends on this module —
+/// so there is no dispatcher here to report through.
+@Loggable(.private, subsystem: "com.machoswiftsection.swift-declaration-rendering", category: "MultiPayloadEnumDescriptorCache")
 final class MultiPayloadEnumDescriptorCache: SharedCache<MultiPayloadEnumDescriptorCache.Storage>, @unchecked Sendable {
     static let shared = MultiPayloadEnumDescriptorCache()
 
@@ -37,20 +43,47 @@ final class MultiPayloadEnumDescriptorCache: SharedCache<MultiPayloadEnumDescrip
         var multiPayloadEnumDescriptorByNode: [Node: MultiPayloadEnumDescriptor] = [:]
 
         do {
-            for multiPayloadEnumDescriptor in try machO.swift.multiPayloadEnumDescriptors {
-                let mangledTypeName = try multiPayloadEnumDescriptor.mangledTypeName(in: machO)
-
-                let node = try MetadataReader.demangleType(for: mangledTypeName, in: machO)
-
-                multiPayloadEnumDescriptorByNode[node] = multiPayloadEnumDescriptor
-            }
+            multiPayloadEnumDescriptorByNode = Self.indexDescriptors(try machO.swift.multiPayloadEnumDescriptors, in: machO)
         } catch {
-            print(error)
+            // The section read itself failed, so there is no descriptor list to
+            // index at all.
+            #log(.error, "\(String(describing: error), privacy: .public)")
         }
 
         let storage = Storage()
         storage.multiPayloadEnumDescriptorByNode = multiPayloadEnumDescriptorByNode
         return storage
+    }
+
+    /// Indexes a `__swift5_mpenum` descriptor sequence into the node-keyed map.
+    ///
+    /// Separated from `buildStorage` so the per-descriptor error contract is
+    /// unit-testable: a deliberately unreadable descriptor can be spliced into
+    /// the sequence, which the section-backed property cannot express.
+    static func indexDescriptors<MachO: MachOSwiftSectionRepresentableWithCache>(
+        _ multiPayloadEnumDescriptors: some Sequence<MultiPayloadEnumDescriptor>,
+        in machO: MachO
+    ) -> [Node: MultiPayloadEnumDescriptor] {
+        var multiPayloadEnumDescriptorByNode: [Node: MultiPayloadEnumDescriptor] = [:]
+        for multiPayloadEnumDescriptor in multiPayloadEnumDescriptors {
+            // Caught PER DESCRIPTOR, not around the loop: a loop-level catch
+            // exits on the first bad record, so every descriptor after it is
+            // missing from the published map and its enum silently falls back to
+            // `calculateTaggedMultiPayload` — a WRONG layout, not a missing one,
+            // and memoized for the image's lifetime by the enclosing
+            // `SharedCache`.
+            do {
+                let mangledTypeName = try multiPayloadEnumDescriptor.mangledTypeName(in: machO)
+
+                let node = try MetadataReader.demangleType(for: mangledTypeName, in: machO)
+
+                multiPayloadEnumDescriptorByNode[node] = multiPayloadEnumDescriptor
+            } catch {
+                #log(.error, "skipped one descriptor: \(String(describing: error), privacy: .public)")
+                continue
+            }
+        }
+        return multiPayloadEnumDescriptorByNode
     }
 
     func multiPayloadEnumDescriptor(for node: Node, in machO: some MachOSwiftSectionRepresentableWithCache) -> MultiPayloadEnumDescriptor? {

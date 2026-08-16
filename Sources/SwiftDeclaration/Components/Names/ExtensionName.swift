@@ -3,8 +3,8 @@ import Semantic
 import Demangling
 
 @MemberwiseInit(.public)
-public struct ExtensionName: DefinitionName, Hashable, Sendable, Codable {
-    public let node: Node
+public struct ExtensionName: DefinitionName, Hashable, Sendable {
+    public let node: NodeReference
 
     public let kind: ExtensionKind
 
@@ -31,5 +31,20 @@ extension ExtensionName {
         case .protocol: return true
         default: return false
         }
+    }
+}
+
+// MARK: - Structural Hashable
+
+// See `TypeName`: names hash and compare by node STRUCTURE, not by
+// `NodeReference`'s store-identity `Hashable`.
+extension ExtensionName {
+    public static func == (lhs: ExtensionName, rhs: ExtensionName) -> Bool {
+        lhs.kind == rhs.kind && lhs.node.structurallyEquals(rhs.node)
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(kind)
+        node.structuralHash(into: &hasher)
     }
 }

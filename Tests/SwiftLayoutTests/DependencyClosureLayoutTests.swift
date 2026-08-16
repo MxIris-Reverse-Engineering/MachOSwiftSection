@@ -26,7 +26,12 @@ import MachOFixtureSupport
 ///     `Int` → instance size 24, so `ResilientChild.extraField` is at 24;
 ///     `Object` is an empty Swift root class → instance size 16, so
 ///     `ResilientObjCStubChild.stubField` is at 16.
-@Suite
+/// Declares `SymbolTestsHelper` even though it never names the fixture case:
+/// the dependency closure below reaches that binary by a hand-built path, which
+/// is precisely why its sharing with `SwiftIndexingTests.PerImageCacheEvictionTests`
+/// went unnoticed. That suite asserts on the per-image caches this one populates,
+/// so both must declare the exclusion — one-sided is no exclusion at all.
+@Suite(ExclusiveImageAccess(.SymbolTestsHelper))
 final class DependencyClosureLayoutTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
 
     /// The on-disk path to the `SymbolTestsHelper` framework binary, derived

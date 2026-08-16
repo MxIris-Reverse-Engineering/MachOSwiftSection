@@ -71,7 +71,12 @@ extension StrippedSymbolicRequirement {
 }
 
 public final class ProtocolDefinition: Definition, MutableDefinition {
-    public let `protocol`: MachOSwiftSection.`Protocol`
+    /// The protocol's descriptor reference (evolution proposal 0002). The
+    /// full `MachOSwiftSection.Protocol` — requirement arrays included — is
+    /// rebuilt on demand via `materializedProtocol(in:)` instead of living
+    /// on every definition for its lifetime; the name is frozen separately
+    /// in `protocolName`.
+    public let protocolDescriptor: ProtocolDescriptor
 
     public let protocolName: ProtocolName
 
@@ -121,34 +126,60 @@ public final class ProtocolDefinition: Definition, MutableDefinition {
             !subscripts.isEmpty || !staticVariables.isEmpty || !staticFunctions.isEmpty || !staticSubscripts.isEmpty || !allocators.isEmpty || !constructors.isEmpty || !strippedSymbolicRequirements.isEmpty
     }
 
+    /// The initializer still receives the full wrapper — the indexer holds
+    /// one from the section sweep anyway — but only its descriptor reference
+    /// is retained.
     public init<MachO: MachOSwiftSectionRepresentableWithCache>(`protocol`: MachOSwiftSection.`Protocol`, in machO: MachO) throws {
-        self.protocol = `protocol`
+        self.protocolDescriptor = `protocol`.descriptor
         let node = try MetadataReader.demangleContext(for: .protocol(`protocol`.descriptor), in: machO)
-        self.protocolName = ProtocolName(node: node)
+        self.protocolName = ProtocolName(node: InternedNodeReferenceCache.shared.reference(interning: node, in: machO))
+    }
+
+    /// Test/tooling surface: constructs a definition around a RAW descriptor
+    /// reference, no parsed wrapper required — error-contract tests use it to
+    /// build a definition whose materialization deterministically fails
+    /// (a real descriptor layout re-wrapped at an out-of-bounds offset).
+    /// Mirrors `ExtensionDefinition`'s descriptor-only initializer.
+    package init(protocolDescriptor: ProtocolDescriptor, protocolName: ProtocolName) {
+        self.protocolDescriptor = protocolDescriptor
+        self.protocolName = protocolName
+    }
+
+    /// Rebuilds the full `MachOSwiftSection.Protocol` (requirement arrays
+    /// included) from the retained descriptor. Materialization discipline
+    /// (evolution proposal 0002): call at most once per operation and thread
+    /// the result through as a local variable — the result is deliberately
+    /// not cached.
+    public func materializedProtocol<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> MachOSwiftSection.`Protocol` {
+        try MachOSwiftSection.`Protocol`(descriptor: protocolDescriptor, in: machO)
     }
 
     package func index<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) async throws {
         guard !isIndexed else { return }
+        let dumpedProtocol = try materializedProtocol(in: machO)
         let name = protocolName.name
-        func _symbol(for symbols: Symbols, visitedNodes: borrowing OrderedSet<Node> = []) throws -> DemangledSymbol? {
+        // Structurally keyed: `demangleSymbolReference` returns references from
+        // different stores, and store-identity equality would let the same
+        // implementation symbol be claimed by two requirements.
+        func _symbol(for symbols: Symbols, visitedNodes: borrowing OrderedSet<StructuralNodeReferenceKey> = []) throws -> DemangledSymbol? {
             for symbol in symbols {
-                if let node = try? MetadataReader.demangleSymbol(for: symbol, in: machO), let protocolNode = node.first(of: .protocol), protocolNode.print(using: .interfaceTypeBuilderOnly) == name, !visitedNodes.contains(node) {
+                if let node = MetadataReader.demangleSymbolReference(for: symbol, in: machO), let protocolNode = node.first(of: .protocol), protocolNode.print(using: .interfaceTypeBuilderOnly) == name, !visitedNodes.contains(StructuralNodeReferenceKey(node)) {
                     return .init(symbol: symbol, demangledNode: node)
                 }
             }
             return nil
         }
-        associatedTypes = try `protocol`.descriptor.associatedTypes(in: machO)
+        associatedTypes = try protocolDescriptor.associatedTypes(in: machO)
 
         var requirementMemberSymbolsByKind: OrderedDictionary<SymbolIndexStore.MemberKind, [DemangledSymbolWithOffset]> = [:]
         var defaultImplementationMemberSymbolsByKind: OrderedDictionary<SymbolIndexStore.MemberKind, [DemangledSymbolWithOffset]> = [:]
 
-        var requirementVisitedNodes: OrderedSet<Node> = []
-        var defaultImplementationVisitedNodes: OrderedSet<Node> = []
+        var requirementVisitedNodes: OrderedSet<StructuralNodeReferenceKey> = []
+        var defaultImplementationVisitedNodes: OrderedSet<StructuralNodeReferenceKey> = []
 
         var offsetOfPWT = 0
 
-        for requirement in `protocol`.requirements {
+        for requirement in dumpedProtocol.requirements {
             offsetOfPWT.offset(of: StoredPointer.self)
             if requirement.layout.defaultImplementation.isValid {
                 defaultedRequirementPWTOffsets.insert(offsetOfPWT)
@@ -157,10 +188,10 @@ public final class ProtocolDefinition: Definition, MutableDefinition {
                 strippedSymbolicRequirements.append(.init(requirement: requirement, pwtOffset: offsetOfPWT))
                 continue
             }
-            requirementVisitedNodes.append(symbol.demangledNode)
+            requirementVisitedNodes.append(StructuralNodeReferenceKey(symbol.demangledNode))
             addSymbol(.init(base: symbol, offset: offsetOfPWT), memberSymbolsByKind: &requirementMemberSymbolsByKind, inExtension: false)
             if let symbols = try requirement.defaultImplementationSymbols(in: machO), let defaultImplementationSymbol = try _symbol(for: symbols, visitedNodes: defaultImplementationVisitedNodes) {
-                defaultImplementationVisitedNodes.append(defaultImplementationSymbol.demangledNode)
+                defaultImplementationVisitedNodes.append(StructuralNodeReferenceKey(defaultImplementationSymbol.demangledNode))
                 addSymbol(.init(base: defaultImplementationSymbol, offset: offsetOfPWT), memberSymbolsByKind: &defaultImplementationMemberSymbolsByKind, inExtension: true)
             }
         }

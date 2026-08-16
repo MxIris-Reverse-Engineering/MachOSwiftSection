@@ -28,7 +28,12 @@ extension SwiftDeclarationPrinter {
     /// `var value: A`).
     @SemanticStringBuilder
     public func printField(_ field: FieldDefinition, level: Int, substitutedTypeNode: Node? = nil) async -> SemanticString {
-        await printCatchedThrowing {
+        // A stored field is reported as `.variable` — the event vocabulary has
+        // no separate field kind, and a stored property is what it renders as.
+        await printCatchedThrowing(
+            dispatchingTo: eventDispatcher,
+            context: .init(name: field.name, kind: .variable)
+        ) {
             try await printThrowingField(field, level: level, substitutedTypeNode: substitutedTypeNode)
         }
     }
@@ -39,7 +44,7 @@ extension SwiftDeclarationPrinter {
         MemberDeclaration(field.name)
         Standard(":")
         Space()
-        try await printThrowingType(substitutedTypeNode ?? field.typeNode, isProtocol: false, level: level)
+        try await printThrowingType(substitutedTypeNode ?? field.typeNode.materialize(), isProtocol: false, level: level)
     }
 
     /// Renders a single enum case (`case name`, `case name(Payload)`, or
@@ -62,7 +67,7 @@ extension SwiftDeclarationPrinter {
             MemberDeclaration(field.name)
         }
 
-        let payloadTypeNode = substitutedTypeNode ?? field.typeNode
+        let payloadTypeNode = substitutedTypeNode ?? field.typeNode.materialize()
         let payload = await printType(payloadTypeNode, isProtocol: false, level: level)
         let payloadText = payload.string
         if !payloadText.isEmpty, payloadText != "()" {
@@ -105,7 +110,7 @@ extension SwiftDeclarationPrinter {
         MemberDeclaration(field.name)
 
         if field.flags.contains(.hasMangledTypeName) {
-            let payloadTypeNode = substitutedTypeNode ?? field.typeNode
+            let payloadTypeNode = substitutedTypeNode ?? field.typeNode.materialize()
             let payload = try await printThrowingType(payloadTypeNode, isProtocol: false, level: level)
             if !payload.string.isEmpty {
                 if payloadTypeNode.firstChild?.isKind(of: .tuple) ?? false {

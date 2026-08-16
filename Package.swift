@@ -204,13 +204,14 @@ extension Package.Dependency {
         ),
         remote: .package(
             url: "https://github.com/MxIris-Reverse-Engineering/swift-demangling",
-            // Pinned below 0.5.0: that release reshaped `NodePrinterTarget`
-            // (`write(_:context:)` / `pushTypeReferenceScope(_:)` take
-            // `@autoclosure` parameters and lost their default implementations)
-            // and dropped `Node: Codable`. The adoption lives on
-            // feature/node-store-migration; until it lands, an open upper bound
-            // silently floats main onto an incompatible demangler.
-            "0.4.5" ..< "0.5.0",
+            // The node-store migration adopts 0.5.x: that release reshaped
+            // `NodePrinterTarget` (`write(_:context:)` /
+            // `pushTypeReferenceScope(_:)` take `@autoclosure` parameters and
+            // lost their default implementations) and dropped `Node: Codable`.
+            // The upper bound stays closed for the same reason the pre-adoption
+            // pin had one — an open bound silently floats this package onto the
+            // next demangler release's source breaks.
+            "0.5.1" ..< "0.6.0",
         ),
     )
 
@@ -513,6 +514,12 @@ extension Target {
             .product(.MachOObjCSection),
             .product(.Semantic),
             .product(.Demangling),
+            // `@Loggable` / `#log` for `SwiftIndexEvents.Dispatcher`'s
+            // zero-handler floor, same as every other logging site in the
+            // package. The macro also supplies the `#available` fallback to
+            // `os_log` that a bare `os.Logger` would need here — this package
+            // deploys to macOS 10.15, below `Logger`'s macOS 11.
+            .product(name: "FoundationToolbox", package: "FrameworkToolbox"),
             .target(.MachOSwiftSection),
             .target(.SwiftInspection),
             .target(.SwiftDeclarationRendering),
@@ -600,6 +607,7 @@ extension Target {
             .product(.MachOObjCSection),
             .product(.Semantic),
             .product(.Demangling),
+            .target(.MachOSymbols),
             .target(.MachOSwiftSection),
             .target(.SwiftInspection),
             .target(.Utilities),
@@ -767,6 +775,7 @@ extension Target {
             .target(.MachOSymbols),
             .target(.MachOTestingSupport),
             .target(.MachOFixtureSupport),
+            .product(.Demangling),
         ],
         swiftSettings: testSettings,
     )
@@ -786,6 +795,7 @@ extension Target {
         name: "MachOCachesTests",
         dependencies: [
             .target(.MachOCaches),
+            .product(.MachOKitExtensions),
         ],
         swiftSettings: testSettings,
     )
@@ -855,6 +865,7 @@ extension Target {
             .target(.SwiftPrinting),
             .target(.SwiftSpecialization),
             .target(.SwiftInterface),
+            .product(.MachOKitExtensions),
             .target(.MachOTestingSupport),
             .target(.MachOFixtureSupport),
             .product(name: "SnapshotTesting", package: "swift-snapshot-testing"),
@@ -930,6 +941,7 @@ extension Target {
             .target(.SwiftIndexing),
             .target(.SwiftPrinting),
             .target(.SwiftAttributeInference),
+            .target(.SwiftInspection),
             .target(.MachOTestingSupport),
             .target(.MachOFixtureSupport),
         ],
@@ -1053,7 +1065,7 @@ let package = Package(
         .RegenerateBaselinesPlugin,
 
         // Testing
-//        .MachOSymbolsTests,
+        .MachOSymbolsTests,
         .MachOSwiftSectionTests,
         .MachOCachesTests,
         .SwiftInspectionTests,

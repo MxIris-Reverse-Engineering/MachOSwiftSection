@@ -135,6 +135,10 @@ public struct OSLogEventHandler: SwiftIndexEvents.Handler {
         case .definitionPrintFailed(let context, let error):
             logger.error("Failed to print \(context.kind.description) '\(context.name)': \(String(describing: error))")
 
+        case .renderingDegraded(let context, let error):
+            let subject = context.subject.map { " for \($0)" } ?? ""
+            logger.error("Degraded \(context.source.description)\(subject): \(String(describing: error))")
+
         case .symbolIndexProgress(let currentCount, let totalCount):
             logger.trace("Symbol index progress: \(currentCount)/\(totalCount)")
         }
@@ -182,7 +186,12 @@ public struct OSLogEventHandler: SwiftIndexEvents.Handler {
     }
 }
 
-/// A simple event handler that prints summary information to the console.
+/// A simple event handler that reports summary information to the console.
+///
+/// This is the handler a CLI host attaches: it puts diagnostics on **stderr**,
+/// where an operator's terminal, `2>` redirect and CI log all pick them up —
+/// the reason `SwiftIndexEvents.Dispatcher`'s own floor (os_log) is only a
+/// floor. Issue #102 reported the CI case directly.
 public struct ConsoleEventHandler: SwiftIndexEvents.Handler {
     public init() {}
 
@@ -191,40 +200,60 @@ public struct ConsoleEventHandler: SwiftIndexEvents.Handler {
 
         switch event {
         case .extractionCompleted(let result):
-            print("[\(timestamp)] [INFO] Extracted \(result.count) \(sectionName(result.section))")
+            report("[\(timestamp)] [INFO] Extracted \(result.count) \(sectionName(result.section))")
 
         case .typeIndexingCompleted(let result):
-            print("[\(timestamp)] [INFO] Types: \(result.successful) successful, \(result.failed) failed, \(result.cImportedSkipped) C-imported skipped, \(result.nestedTypes) nested, \(result.extensionTypes) in extensions")
+            report("[\(timestamp)] [INFO] Types: \(result.successful) successful, \(result.failed) failed, \(result.cImportedSkipped) C-imported skipped, \(result.nestedTypes) nested, \(result.extensionTypes) in extensions")
 
         case .protocolIndexingCompleted(let result):
-            print("[\(timestamp)] [INFO] Protocols: \(result.successful) successful, \(result.failed) failed")
+            report("[\(timestamp)] [INFO] Protocols: \(result.successful) successful, \(result.failed) failed")
 
         case .conformanceIndexingCompleted(let result):
-            print("[\(timestamp)] [INFO] Conformances: \(result.extensionCount) extensions, \(result.failedConformances + result.failedAssociatedTypes + result.failedExtensions) failed")
+            report("[\(timestamp)] [INFO] Conformances: \(result.extensionCount) extensions, \(result.failedConformances + result.failedAssociatedTypes + result.failedExtensions) failed")
 
         case .extensionIndexingCompleted(let result):
-            print("[\(timestamp)] [INFO] Extensions: \(result.typeExtensions) type, \(result.protocolExtensions) protocol, \(result.typeAliasExtensions) typealias, \(result.failed) failed")
+            report("[\(timestamp)] [INFO] Extensions: \(result.typeExtensions) type, \(result.protocolExtensions) protocol, \(result.typeAliasExtensions) typealias, \(result.failed) failed")
 
         case .moduleCollectionCompleted(let result):
-            print("[\(timestamp)] [INFO] Found \(result.moduleCount) modules to import")
+            report("[\(timestamp)] [INFO] Found \(result.moduleCount) modules to import")
 
         case .phaseTransition(let phase, let state):
             let phaseName = phaseName(phase)
             switch state {
             case .completed:
-                print("[\(timestamp)] [SUCCESS] \(phaseName.capitalized) completed")
+                report("[\(timestamp)] [SUCCESS] \(phaseName.capitalized) completed")
             case .failed(let error):
-                print("[\(timestamp)] [ERROR] \(phaseName.capitalized) failed: \(String(describing: error))")
+                report("[\(timestamp)] [ERROR] \(phaseName.capitalized) failed: \(String(describing: error))")
             case .started:
                 break // Ignore started events for console output
             }
 
         case .definitionPrintFailed(let context, let error):
-            print("[\(timestamp)] [ERROR] Failed to print \(context.kind.description) '\(context.name)': \(String(describing: error))")
+            report("[\(timestamp)] [ERROR] Failed to print \(context.kind.description) '\(context.name)': \(String(describing: error))")
+
+        case .renderingDegraded(let context, let error):
+            let subject = context.subject.map { " for \($0)" } ?? ""
+            report("[\(timestamp)] [ERROR] Degraded \(context.source)\(subject): \(String(describing: error))")
 
         default:
             break // Ignore other detailed events
         }
+    }
+
+    /// The single write site, on stderr.
+    ///
+    /// stdout carries the generated Swift / JSON (`InterfaceCommand`,
+    /// `DumpCommand`, `SnapshotCommand`), so a diagnostic printed there lands
+    /// inside the product output and corrupts any piped or redirected run —
+    /// issue #102 measured exactly that, a bare `unexpected(at: 8)` embedded in
+    /// a multi-megabyte interface.
+    ///
+    /// `fputs`, not `FileHandle.standardError.write(_:)`: that overload is the
+    /// Objective-C bridge and raises `NSFileHandleOperationException` when the
+    /// stream is closed or broken. Swift cannot catch an ObjC exception, so it
+    /// aborts the host process — turning a degradation report into a crash.
+    private func report(_ message: String) {
+        fputs(message + "\n", stderr)
     }
 
     private func phaseName(_ phase: SwiftIndexEvents.Phase) -> String {

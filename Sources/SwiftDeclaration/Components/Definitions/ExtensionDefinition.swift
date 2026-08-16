@@ -11,9 +11,19 @@ import SwiftStdlibToolbox
 public final class ExtensionDefinition: Definition, MutableDefinition {
     public let extensionName: ExtensionName
 
-    public let genericSignature: Node?
+    public let genericSignature: NodeReference?
 
-    public let protocolConformance: ProtocolConformance?
+    /// The conformance's descriptor reference (evolution proposal 0002), or
+    /// `nil` for member / typealias-only extensions. The full
+    /// `ProtocolConformance` — resilient witnesses and the rest of its
+    /// trailing objects — is rebuilt on demand via
+    /// `materializedProtocolConformance(in:)` instead of living on every
+    /// conformance extension for its lifetime.
+    ///
+    /// One documented exception: `missingSymbolWitnesses` below copies the
+    /// witnesses this extension could not resolve to a symbol, so an extension
+    /// that has any does retain that subset for its lifetime.
+    public let protocolConformanceDescriptor: ProtocolConformanceDescriptor?
 
     /// The conformed protocol, resolved to a Mach-O-free name at index time.
     /// Non-nil only for conformance extensions; the target's typealias-only
@@ -50,6 +60,16 @@ public final class ExtensionDefinition: Definition, MutableDefinition {
 
     public package(set) var isRetroactive: Bool = false
 
+    /// Resilient witnesses `index(in:)` could not resolve to an implementation
+    /// symbol.
+    ///
+    /// The one `[ResilientWitness]` that survives proposal 0002's descriptor
+    /// slimming (see `protocolConformanceDescriptor`) — retained deliberately as
+    /// an SPI-consumer surface for inspecting stripped conformances, with no
+    /// in-package consumer today. Note `index(in:)` appends without resetting,
+    /// so a re-entry after a mid-loop throw would record an entry twice; that is
+    /// inert only because nothing reads the array. Anything that starts reading
+    /// it must clear it at the top of `index(in:)` first.
     public package(set) var missingSymbolWitnesses: [ResilientWitness] = []
 
     public package(set) var orderedMembers: [OrderedMember] = []
@@ -60,24 +80,52 @@ public final class ExtensionDefinition: Definition, MutableDefinition {
         !variables.isEmpty || !functions.isEmpty || !staticVariables.isEmpty || !staticFunctions.isEmpty || !allocators.isEmpty || !constructors.isEmpty || !staticSubscripts.isEmpty || !subscripts.isEmpty
     }
 
-    public init<MachO: MachOSwiftSectionRepresentableWithCache>(extensionName: ExtensionName, genericSignature: Node?, protocolConformance: ProtocolConformance?, conformingProtocolName: ProtocolName? = nil, associatedTypes: [AssociatedType] = [], resolvedAssociatedTypeWitnesses: [AssociatedTypeWitnessProjection] = [], in machO: MachO) throws {
+    /// The initializer still receives the full `ProtocolConformance` — the
+    /// indexer materializes the whole conformance section anyway to derive
+    /// attribution — but only its descriptor reference is retained, so the
+    /// parsed wrapper is released once the indexer's grouping pass ends. Its
+    /// `[ResilientWitness]` goes with it, except for the unresolvable subset
+    /// `index(in:)` copies onto `missingSymbolWitnesses`.
+    public init<MachO: MachOSwiftSectionRepresentableWithCache>(extensionName: ExtensionName, genericSignature: NodeReference?, protocolConformance: ProtocolConformance?, conformingProtocolName: ProtocolName? = nil, associatedTypes: [AssociatedType] = [], resolvedAssociatedTypeWitnesses: [AssociatedTypeWitnessProjection] = [], in machO: MachO) throws {
         self.extensionName = extensionName
         self.genericSignature = genericSignature
-        self.protocolConformance = protocolConformance
+        self.protocolConformanceDescriptor = protocolConformance?.descriptor
         self.conformingProtocolName = conformingProtocolName
         self.associatedTypes = associatedTypes
         self.resolvedAssociatedTypeWitnesses = resolvedAssociatedTypeWitnesses
     }
 
     /// Mach-O-free initializer for pure-value construction (tests, tooling).
-    /// Carries no `ProtocolConformance` — only the frozen attribution fields.
-    package init(extensionName: ExtensionName, genericSignature: Node?, conformingProtocolName: ProtocolName? = nil, resolvedAssociatedTypeWitnesses: [AssociatedTypeWitnessProjection] = []) {
+    /// Carries no conformance descriptor — only the frozen attribution fields.
+    package init(extensionName: ExtensionName, genericSignature: NodeReference?, conformingProtocolName: ProtocolName? = nil, resolvedAssociatedTypeWitnesses: [AssociatedTypeWitnessProjection] = []) {
         self.extensionName = extensionName
         self.genericSignature = genericSignature
-        self.protocolConformance = nil
+        self.protocolConformanceDescriptor = nil
         self.conformingProtocolName = conformingProtocolName
         self.associatedTypes = []
         self.resolvedAssociatedTypeWitnesses = resolvedAssociatedTypeWitnesses
+    }
+
+    /// Test/tooling surface: constructs a definition around a RAW descriptor
+    /// reference, no parsed wrapper required — error-contract tests use it to
+    /// build a definition whose materialization deterministically fails
+    /// (a real descriptor layout re-wrapped at an out-of-bounds offset).
+    package init(extensionName: ExtensionName, genericSignature: NodeReference?, protocolConformanceDescriptor: ProtocolConformanceDescriptor?) {
+        self.extensionName = extensionName
+        self.genericSignature = genericSignature
+        self.protocolConformanceDescriptor = protocolConformanceDescriptor
+        self.conformingProtocolName = nil
+        self.associatedTypes = []
+        self.resolvedAssociatedTypeWitnesses = []
+    }
+
+    /// Rebuilds the full `ProtocolConformance` (trailing objects included)
+    /// from the retained descriptor; `nil` for member / typealias-only
+    /// extensions. Materialization discipline (evolution proposal 0002):
+    /// call at most once per operation and thread the result through as a
+    /// local variable — the result is deliberately not cached.
+    public func materializedProtocolConformance<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> ProtocolConformance? {
+        try protocolConformanceDescriptor.map { try ProtocolConformance(descriptor: $0, in: machO) }
     }
 
     /// Folds another definition's associated types (and their frozen witness
@@ -92,35 +140,53 @@ public final class ExtensionDefinition: Definition, MutableDefinition {
     package func index<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) async throws {
         guard !isIndexed else { return }
 
-        guard let protocolConformance, !protocolConformance.resilientWitnesses.isEmpty else { return }
+        // Cheap pre-check on the retained descriptor keeps the typealias-only
+        // majority from materializing at all; the one materialization below
+        // is this operation's single allowed one (proposal 0002). Both early
+        // returns are COMPLETED indexings ("nothing to index"), so they must
+        // set `isIndexed` — otherwise every later consumer (the printer's
+        // three probes plus the diffable builder) re-enters the whole
+        // materialization per print. A thrown materialization deliberately
+        // leaves the flag unset so a failed read can be retried.
+        guard protocolConformanceDescriptor != nil else {
+            isIndexed = true
+            return
+        }
+        guard let protocolConformance = try materializedProtocolConformance(in: machO), !protocolConformance.resilientWitnesses.isEmpty else {
+            isIndexed = true
+            return
+        }
 
-        func _symbol(for symbols: Symbols, typeName: String, visitedNodes: borrowing OrderedSet<Node> = []) throws -> DemangledSymbol? {
+        // Structurally keyed: `demangleSymbolReference` returns references from
+        // different stores, and store-identity equality would let the same
+        // implementation symbol be claimed by two witnesses.
+        func _symbol(for symbols: Symbols, typeName: String, visitedNodes: borrowing OrderedSet<StructuralNodeReferenceKey> = []) throws -> DemangledSymbol? {
             for symbol in symbols {
-                if let node = try? MetadataReader.demangleSymbol(for: symbol, in: machO), let protocolConformanceNode = node.first(of: .protocolConformance), let symbolTypeName = protocolConformanceNode.children.first?.print(using: .interfaceTypeBuilderOnly), symbolTypeName == typeName || PrimitiveTypeMappingCache.shared.storage(in: machO)?.primitiveType(for: typeName) == symbolTypeName, !visitedNodes.contains(node) {
+                if let node = MetadataReader.demangleSymbolReference(for: symbol, in: machO), let protocolConformanceNode = node.first(of: .protocolConformance), let symbolTypeName = protocolConformanceNode.children.first?.print(using: .interfaceTypeBuilderOnly), symbolTypeName == typeName || PrimitiveTypeMappingCache.shared.storage(in: machO)?.primitiveType(for: typeName) == symbolTypeName, !visitedNodes.contains(StructuralNodeReferenceKey(node)) {
                     return .init(symbol: symbol, demangledNode: node)
                 }
             }
             return nil
         }
-        var visitedNodes: OrderedSet<Node> = []
+        var visitedNodes: OrderedSet<StructuralNodeReferenceKey> = []
         var memberSymbolsByKind: OrderedDictionary<SymbolIndexStore.MemberKind, [DemangledSymbolWithOffset]> = [:]
 
         for resilientWitness in protocolConformance.resilientWitnesses {
             if let symbols = try resilientWitness.implementationSymbols(in: machO), let symbol = try _symbol(for: symbols, typeName: extensionName.name, visitedNodes: visitedNodes) {
-                _ = visitedNodes.append(symbol.demangledNode)
+                _ = visitedNodes.append(StructuralNodeReferenceKey(symbol.demangledNode))
                 addSymbol(.init(symbol), memberSymbolsByKind: &memberSymbolsByKind, inExtension: true)
             } else if let requirement = try resilientWitness.requirement(in: machO) {
                 switch requirement {
                 case .symbol(let symbol):
-                    if let demangledNode = try? MetadataReader.demangleSymbol(for: symbol, in: machO) {
+                    if let demangledNode = MetadataReader.demangleSymbolReference(for: symbol, in: machO) {
                         addSymbol(.init(.init(symbol: symbol, demangledNode: demangledNode)), memberSymbolsByKind: &memberSymbolsByKind, inExtension: true)
                     }
                 case .element(let element):
                     if let symbols = try await Symbols.resolve(from: element.offset, in: machO), let symbol = try _symbol(for: symbols, typeName: extensionName.name, visitedNodes: visitedNodes) {
-                        _ = visitedNodes.append(symbol.demangledNode)
+                        _ = visitedNodes.append(StructuralNodeReferenceKey(symbol.demangledNode))
                         addSymbol(.init(symbol), memberSymbolsByKind: &memberSymbolsByKind, inExtension: true)
                     } else if let defaultImplementationSymbols = try element.defaultImplementationSymbols(in: machO), let symbol = try _symbol(for: defaultImplementationSymbols, typeName: extensionName.name, visitedNodes: visitedNodes) {
-                        _ = visitedNodes.append(symbol.demangledNode)
+                        _ = visitedNodes.append(StructuralNodeReferenceKey(symbol.demangledNode))
                         addSymbol(.init(symbol), memberSymbolsByKind: &memberSymbolsByKind, inExtension: true)
                     } else if !element.defaultImplementation.isNull {
                         missingSymbolWitnesses.append(resilientWitness)
