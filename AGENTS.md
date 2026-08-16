@@ -253,6 +253,28 @@ final class Foo {
 
 Tests use `MACHO_SWIFT_SECTION_SILENT_TEST=1` to suppress verbose output.
 
+**Sharing a fixture image across suites:** a suite that asserts on *whole-process
+state derived from an image* — the per-image caches, most of all — must declare
+`ExclusiveImageAccess(.TheFixture)` (`MachOTestingSupport`), **and so must every
+other suite touching that image**. A one-sided declaration excludes nothing.
+
+Neither of the obvious alternatives works. `.serialized` orders tests *within*
+one container only — its own documentation says it "does not affect the execution
+of a test relative to its peers or to unrelated tests" — and `swift test` links
+every target into one process, so unrelated suites still interleave. A custom
+global actor does not work either: these tests are `async`, and `await` yields the
+actor, so an actor buys "no concurrent execution" but not "no interleaving",
+which is what a clear-then-assert sequence needs. `ExclusiveImageAccess` is a
+`TestScoping` trait, and that scope wraps the whole test body including its
+suspension points.
+
+Do NOT assert exclusivity in a doc comment. `PerImageCacheEvictionTests` claimed
+in prose to run against "an image no other suite indexes"; that was true of every
+suite naming the image through `MachOFileName` and false in fact, because
+`SwiftLayoutTests.DependencyClosureLayoutTests` reached the same binary through a
+hand-built path. `grep ExclusiveImageAccess` finds every declared user; grepping
+a fixture case name does not.
+
 **Pointer-authentication verification trap:** a `swift test` process never enforces pointer authentication, even when built and reported as arm64e (`--triple arm64e-apple-macosx`; auth fixups are strip-applied in that environment, so signed slots read back as bare pointers). Any signature-handling claim "verified because the suite passed as arm64e" is a placebo — verify by spawning a real arm64e child process instead, as `Arm64eSignedVWTPointerTests` does (canary-gated; skipped on hosts without the `-arm64e_preview_abi` boot-arg, e.g. GitHub-hosted runners). See evolution proposal 0004.
 
 Tests read Mach-O files from Xcode frameworks and dyld shared cache for real-world validation.

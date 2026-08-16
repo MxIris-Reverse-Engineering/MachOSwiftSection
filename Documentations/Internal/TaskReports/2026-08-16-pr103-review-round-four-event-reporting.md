@@ -65,6 +65,28 @@ CLI 侧 5 处只换安全写法（`fputs` / `fwrite`）。
 
 该约定已写进 **AGENTS.md 新增的 Logging 一节**（全项目日志一律 `@Loggable` + `#log`，禁用 `os.Logger` / 裸 `os_log` / `OSLog(subsystem:category:)`），这样下一个人不必重走这条弯路。
 
+### 跨 suite 的 fixture 互斥（发现 [10] 的修复）
+
+`PerImageCacheEvictionTests` 头注释声称跑在「no other suite indexes」的镜像上。**成因值得记**：这话对每一个用 `MachOFileName` 命名该镜像的 suite 都成立，但 `SwiftLayoutTests.DependencyClosureLayoutTests` 是**手工拼路径**进来的，按 fixture 枚举名搜索永远搜不到它。
+
+试过并否掉的两条：
+
+- **`.serialized`**：文档明说 "does not affect the execution of a test relative to its peers or to unrelated tests"，只管容器内。
+- **自定义全局 actor**（用户提议）：测试全是 `async`，`await` 会让出 actor —— actor 保证「无并发」而非「无交错」，而 clear-then-assert 需要的是后者。
+
+最终用 `TestScoping` trait（Swift 6.1+），它的 scope 包住整个测试体、含所有挂起点。
+
+**实测确定的两个关键点**（写了个临时探针跑一次，比读文档可靠）：
+
+1. `provideScope` **只在测试函数层调用，从不在 suite 层** —— 所以非重入锁不会自我嵌套死锁。文档只说「取决于 test 和 testCase 的值」，没展开。
+2. `testCase` **恒为 `some`**，连非参数化测试也是，不能拿它区分层级。
+
+顺带证实了默认确实并行：探针的 enter/exit 顺序完全交错。
+
+**Swift 6 严格并发的一处妥协**：测试体是非 `Sendable` 闭包，传进 actor 方法会被拒（`sending value of non-Sendable type … risks causing data races`）。于是把**锁状态**（`acquire`/`release`，在 actor 上）和**临界区**（body，留在调用方隔离域）拆开。释放走显式 catch 而非 `defer` —— `defer` 里不能 `await`。
+
+**测试自带反证**：同 key 8 个并发抢 → 最大并发持有者 == 1；不同 key 6 个并发 → > 1。结构与 yield 次数完全相同，只有 key 不同。第二条通过才使第一条有意义 —— 否则 `== 1` 可能只因为根本没并发而平凡成立。
+
 ### 单侧 header 的语义修正
 
 `guard let old = ..., let new = ...` 从左到右短路，旧侧失败时新侧根本没渲染。改为两侧各自渲染后决议，且必须用**三态** `HeaderOutcome`（`absent` / `rendered` / `failed`）——第一版用 `SemanticString?` 把「这侧不存在」和「渲染失败」混同，测试当场抓到：`.added` 路径拿空串顶替了失败侧。

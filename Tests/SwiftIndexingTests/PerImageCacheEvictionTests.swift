@@ -27,12 +27,22 @@ import MachOFixtureSupport
 ///    store alone evicted caches that non-indexer work had built and was still
 ///    using — the follow-up round of the same finding.
 ///
-/// Runs against `SymbolTestsHelper` — an image no other suite indexes — so
-/// the cache-membership assertions cannot race a concurrently-running
-/// suite's indexer lifecycle. Each test starts from a cleared slate because the
-/// suite is serialized and a previous test's residue would otherwise decide the
-/// claims under test.
-@Suite(.serialized)
+/// Runs against `SymbolTestsHelper` under `ExclusiveImageAccess`, which
+/// serializes every suite declaring that image — including ones in other test
+/// targets. The prose this replaces claimed the image was one "no other suite
+/// indexes", which was false: `SwiftLayoutTests.DependencyClosureLayoutTests`
+/// resolves through the same binary, reaching it by a hand-built path rather
+/// than through `MachOFileName`, so searching for the fixture case could not
+/// find it. Without the exclusion these assertions race that suite's indexing —
+/// in both directions, since clearing the caches here splits an interned store
+/// it is reading mid-resolution.
+///
+/// `.serialized` on top of that is still needed, but for a different reason: it
+/// orders tests *within* this suite, so a previous test's residue does not
+/// decide the claims under test. It does nothing across suites — its own
+/// documentation says it "does not affect the execution of a test relative to
+/// its peers or to unrelated tests".
+@Suite(.serialized, ExclusiveImageAccess(.SymbolTestsHelper))
 final class PerImageCacheEvictionTests: MachOFileTests, @unchecked Sendable {
     override class var fileName: MachOFileName { .SymbolTestsHelper }
 
