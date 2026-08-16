@@ -66,6 +66,73 @@ final class PerImageCacheEvictionTests: MachOFileTests, @unchecked Sendable {
         return true
     }
 
+    /// The memo must never outlive the interned store its values point into.
+    ///
+    /// The memo holds `NodeReference`s into that store, and a surviving
+    /// reference keeps the store's buffers alive — `InternedNodeReferenceCache`
+    /// says so itself: "Eviction reclaims nothing while external references
+    /// survive." So the combination "evict the store, keep the memo" is not a
+    /// partial win, it frees **nothing**, which is the exact inverse of what
+    /// this eviction exists to do. It became reachable when the three claims
+    /// started being sampled and honoured independently.
+    ///
+    /// Reaching that combination needs `interned: absent, memo: present`, and
+    /// the obvious route does not produce it — `MetadataReader.demangleContext`
+    /// populates BOTH (verified: a "seed the memo only" helper left the store
+    /// present too). This state arises the way it does in production instead:
+    /// the cache's memory-pressure eviction drops the interned store without
+    /// touching the memo, which is exactly the split modelled here.
+    @Test func evictingTheInternedStoreAlsoEvictsTheMemoReferencingIt() async throws {
+        let unsafeMachOFile = machOFile
+        clearAllPerImageCaches(for: unsafeMachOFile)
+
+        try populateNonIndexerCaches(for: unsafeMachOFile)
+        // Model a memory-pressure eviction: the interned store goes, the memo
+        // (whose values point into it) stays.
+        InternedNodeReferenceCache.shared.remove(for: unsafeMachOFile)
+        try #require(
+            !InternedNodeReferenceCache.shared.contains(in: unsafeMachOFile),
+            "the store must be absent, or the indexer will not claim it and this test stops being about the pairing"
+        )
+        try #require(
+            MetadataReader.cacheExists(for: unsafeMachOFile),
+            "the memo must survive that eviction, or there is no unpaired memo to leave behind"
+        )
+
+        var indexer: SwiftDeclarationIndexer<MachOFile>? = SwiftDeclarationIndexer(in: unsafeMachOFile)
+        try await indexer?.prepare()
+        try #require(InternedNodeReferenceCache.shared.contains(in: unsafeMachOFile))
+
+        indexer = nil
+
+        #expect(
+            !InternedNodeReferenceCache.shared.contains(in: unsafeMachOFile),
+            "the indexer rebuilt the interned store, so it claimed it and its deinit must drop it"
+        )
+        #expect(
+            !MetadataReader.cacheExists(for: unsafeMachOFile),
+            "the memo references the interned store just dropped; left behind it pins that store's buffers and the eviction reclaims nothing"
+        )
+    }
+
+    /// Each index-then-release cycle must clean up after itself, or a
+    /// browse-release-browse sequence accumulates one pinned arena per round.
+    @Test func repeatedIndexCyclesLeaveNothingBehind() async throws {
+        let unsafeMachOFile = machOFile
+        clearAllPerImageCaches(for: unsafeMachOFile)
+
+        for cycle in 1 ... 3 {
+            var indexer: SwiftDeclarationIndexer<MachOFile>? = SwiftDeclarationIndexer(in: unsafeMachOFile)
+            try await indexer?.prepare()
+            try #require(SymbolIndexStore.shared.contains(in: unsafeMachOFile))
+            indexer = nil
+
+            #expect(!SymbolIndexStore.shared.contains(in: unsafeMachOFile), "cycle \(cycle) left the symbol store behind")
+            #expect(!InternedNodeReferenceCache.shared.contains(in: unsafeMachOFile), "cycle \(cycle) left the interned store behind")
+            #expect(!MetadataReader.cacheExists(for: unsafeMachOFile), "cycle \(cycle) left the demangle memo behind")
+        }
+    }
+
     @Test func survivingIndexerKeepsPerImageCaches() async throws {
         let unsafeMachOFile = machOFile
         clearAllPerImageCaches(for: unsafeMachOFile)
