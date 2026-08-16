@@ -16,11 +16,13 @@ import OrderedCollections
 /// `NestedSpecializationLogging` in `SwiftSpecialization`, which carries the
 /// depth-limit diagnostic onto `TypeDefinition` for the same reason.
 ///
-/// Internal, not `private`: a `private` protocol caps its extension members at
-/// `private` too, and `#log` expands inside the conformer, where that is not
-/// visible.
-@Loggable(.internal, subsystem: "com.machoswiftsection.swift-declaration-rendering", category: "OpaqueTypeRewriter")
-protocol OpaqueTypeRewriteLogging {}
+/// `fileprivate`, not `private`: the conformer lives in this file, so file scope
+/// is exactly the reach needed — and it keeps a purely local logging helper out
+/// of the module's namespace. `private` does NOT work: it caps the generated
+/// extension members at `private`, and `#log` expands inside the conformer,
+/// where that is not visible.
+@Loggable(.fileprivate, subsystem: "com.machoswiftsection.swift-declaration-rendering", category: "OpaqueTypeRewriter")
+fileprivate protocol OpaqueTypeRewriteLogging {}
 
 /// Receives an opaque-type rewrite failure so the caller can route it.
 ///

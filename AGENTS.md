@@ -238,13 +238,14 @@ final class Foo {
 - **Generic types take the protocol form.** Applied to a *type*, the macro expands to a static **stored** property, which a generic type cannot have (`static stored properties not supported in generic types`). Applied to a *protocol* it expands to **computed** properties in an extension, so any conformer works:
 
   ```swift
-  @Loggable(.internal, subsystem: "com.machoswiftsection.<module>", category: "<TypeName>")
-  protocol FooLogging {}
+  // Conformer in the same file — the usual case.
+  @Loggable(.fileprivate, subsystem: "com.machoswiftsection.<module>", category: "<TypeName>")
+  fileprivate protocol FooLogging {}
 
   final class Foo<Element>: FooLogging { /* `#log` resolves here */ }
   ```
 
-  The protocol must be **`internal`** — a `private` protocol caps its extension members at `private`, and `#log` expands inside the conformer, where that is not visible (`'logger' is inaccessible due to 'private' protection level`). Existing instances: `NestedSpecializationLogging` (SwiftSpecialization), `OpaqueTypeRewriteLogging` (SwiftDeclarationRendering).
+  Scope it as tightly as the conformers allow: `fileprivate` when they share the file (keeps a purely local helper out of the module namespace), `internal` only when they do not. **`private` does not work** at either position — it caps the generated extension members at `private`, and `#log` expands inside the conformer, where that is not visible (`'logger' is inaccessible due to 'private' protection level`, alongside a spurious-looking `does not conform to protocol`). Existing instances: `OpaqueTypeRewriteLogging` (SwiftDeclarationRendering, `fileprivate`), `NestedSpecializationLogging` (SwiftSpecialization, `internal` — its conformer `TypeDefinition` is in another module).
 - **Keep subsystem/category strings stable** across refactors: RuntimeViewer filters its log stream on them.
 - Logging is the **floor**, not the reporting path. Anything a host should see goes through `SwiftIndexEvents` first — see the `SwiftDeclaration` entry above and [Documentations/Internal/EventBasedDegradationReporting.md](Documentations/Internal/EventBasedDegradationReporting.md).
 

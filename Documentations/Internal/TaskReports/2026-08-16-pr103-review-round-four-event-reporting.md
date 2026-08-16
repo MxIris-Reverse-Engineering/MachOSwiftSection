@@ -61,7 +61,7 @@ CLI 侧 5 处只换安全写法（`fputs` / `fwrite`）。
 
 **判定是错的**：项目里所有 `@Loggable` 用法都是经 **`FoundationToolbox`** 拿到宏的。三处已全部改回 `@Loggable` / `#log`，四处文档同步更正。
 
-顺带确认两件事：宏自带的 `#available` 回退**已经覆盖**了「`os.Logger` 要 macOS 11 而本包下限 10.15」，不需要手写；泛型类型（`OpaqueTypeRewriter<MachO>`）不能直接标注（展开成 static stored property），走**协议式** `@Loggable` —— 项目里 `NestedSpecializationLogging` 早有同形先例，协议须为 internal，否则成员被压到 `private` 而 `#log` 在遵循者内看不见。
+顺带确认两件事：宏自带的 `#available` 回退**已经覆盖**了「`os.Logger` 要 macOS 11 而本包下限 10.15」，不需要手写；泛型类型（`OpaqueTypeRewriter<MachO>`）不能直接标注（展开成 static stored property），走**协议式** `@Loggable` —— 项目里 `NestedSpecializationLogging` 早有同形先例，访问级别按遵循者范围收紧（同文件用 `fileprivate`，跨文件才 `internal`），但**不能用 `private`** —— 它会把成员一并压到 `private`，而 `#log` 在遵循者内部展开、看不见。
 
 该约定已写进 **AGENTS.md 新增的 Logging 一节**（全项目日志一律 `@Loggable` + `#log`，禁用 `os.Logger` / 裸 `os_log` / `OSLog(subsystem:category:)`），这样下一个人不必重走这条弯路。
 

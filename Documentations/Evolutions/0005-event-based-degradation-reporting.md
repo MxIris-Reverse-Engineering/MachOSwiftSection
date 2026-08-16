@@ -153,7 +153,7 @@ RuntimeViewer 是已知消费者：它装的是 `OSLogEventHandler`，本案对�
 
 **二、`SwiftDeclarationRendering` 里的两处够不到事件类型。** `Node+OpaqueType` 和 `MultiPayloadEnumDescriptorCache` 都在这个模块，而 `SwiftDeclaration`（事件所在）**依赖**它 —— 反向引用会成环。前者改为闭包注入（`OpaqueTypeDegradationReporter`，接口路径注入 dispatch 闭包、`SwiftDump` 路径落日志地板），后者没有注入点，直接落地板。这不算破例：地板正是 `Dispatcher` 兜底的同一个落点，区别只在有没有 sink 可接。
 
-**泛型类型的 `@Loggable`：加在协议上。** `OpaqueTypeRewriter<MachO>` 是泛型类，直接标注会报 `static stored properties not supported in generic types`。`@Loggable` 加在**协议**上时展开的是 extension 里的**计算**属性，任何遵循者（泛型与否）都能用 `#log` —— 项目里 `SwiftSpecialization.NestedSpecializationLogging` 就是这个形状。协议必须是 internal：`private` 协议会把 extension 成员一并压到 `private`，而 `#log` 在遵循者内部展开，那里看不见。
+**泛型类型的 `@Loggable`：加在协议上。** `OpaqueTypeRewriter<MachO>` 是泛型类，直接标注会报 `static stored properties not supported in generic types`。`@Loggable` 加在**协议**上时展开的是 extension 里的**计算**属性，任何遵循者（泛型与否）都能用 `#log` —— 项目里 `SwiftSpecialization.NestedSpecializationLogging` 就是这个形状。访问级别按遵循者的实际范围收紧：同文件用 `fileprivate`（`OpaqueTypeRewriteLogging` 就是），跨文件/跨模块才 `internal`（`NestedSpecializationLogging` 的遵循者在另一个模块）。**但不能用 `private`** —— 它会把 extension 成员一并压到 `private`，而 `#log` 在遵循者内部展开，那里看不见。
 
 **三、printer 改为可注入 dispatcher，而不是让 builder 存 handlers。** 提案写「builder 把 `eventHandlers` 传给两个 printer」，但 `SwiftIndexEvents.Handler` 不是 `Sendable`，存进 `Sendable` 的 `SwiftDiffableInterfaceBuilder` 编译不过。改成给 `SwiftDeclarationPrinter` 加一个 package 级、接受现成 `Dispatcher` 的初始化器，renderer 传 `indexer.eventDispatcher`。结果更好：diff 路径的 indexer 和 printer 共用一个 dispatcher，宿主装一次 handler 两边都覆盖。`SwiftDeclarationIndexer.eventDispatcher` 与 `SwiftDeclarationPrinter.eventDispatcher` 因此从 internal 提升为 `package`。
 

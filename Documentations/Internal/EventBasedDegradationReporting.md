@@ -61,15 +61,17 @@
 应用在**协议**上时展开的是 extension 里的**计算**属性，任何遵循者（泛型与否）都能用 `#log`：
 
 ```swift
-@Loggable(.internal, subsystem: "…", category: "OpaqueTypeRewriter")
-protocol OpaqueTypeRewriteLogging {}
+@Loggable(.fileprivate, subsystem: "…", category: "OpaqueTypeRewriter")
+fileprivate protocol OpaqueTypeRewriteLogging {}
 
 private final class OpaqueTypeRewriter<MachO: …>: Node.Rewriter, OpaqueTypeRewriteLogging { … }
 ```
 
 `SwiftSpecialization` 的 `NestedSpecializationLogging` 是同一形状（把深度限制诊断挂到 `TypeDefinition` 上）。
 
-**协议必须是 internal**：`private` 协议会把 extension 成员一并压到 `private`，而 `#log` 在遵循者内部展开，那里看不见 —— 症状是 `'logger' is inaccessible due to 'private' protection level` 加一条 `does not conform to protocol`。
+**按遵循者的实际范围收紧访问级别**：遵循者同文件就用 `fileprivate`（这里就是，纯局部的辅助协议没必要进模块命名空间），跨文件/跨模块才用 `internal`（`NestedSpecializationLogging` 的遵循者 `TypeDefinition` 在另一个模块，所以它是 internal）。
+
+**但 `private` 不行**：它会把生成的 extension 成员一并压到 `private`，而 `#log` 在遵循者内部展开，那里看不见 —— 症状是 `'logger' is inaccessible due to 'private' protection level`，外加一条看着莫名其妙的 `does not conform to protocol`。
 
 ### 2. `SwiftDeclarationRendering` 够不到事件类型
 
