@@ -3,6 +3,17 @@ import Foundation
 import Semantic
 
 extension SemanticString: @retroactive NodePrinterTarget {
+    /// The atom count, which is what the printer's delta probe needs: a
+    /// non-empty `write` appends exactly one atom (empty-stringed components
+    /// are dropped when atoms are built), so the value changes whenever
+    /// something was actually emitted.
+    ///
+    /// Deliberately not the rendered text's length — the requirement exists
+    /// because `String.count` fails that contract: appending a combining mark
+    /// merges into the preceding grapheme cluster and leaves the count
+    /// unchanged, silently dropping a qualified-name separator.
+    public var writtenUnitCount: Int { count }
+
     public mutating func pushTypeReferenceScope(_ node: @autoclosure () -> Node?) {
         // A failed remangle degrades to a nil (barrier) scope: the span's
         // tokens carry no identity rather than inheriting the enclosing

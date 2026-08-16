@@ -78,14 +78,14 @@ extension TypeNodePrintable {
         guard let context = name.children.first else { return }
 
         if shouldPrintContext(context) {
-            let currentPos = target.count
+            let writtenUnitCountBeforeContext = target.writtenUnitCount
             if context.kind == .module {
                 let siblingIdentifier = name.children.at(1)?.text
                 await printModule(context, siblingIdentifier: siblingIdentifier)
                 // The module→type dot stays inside this leaf's scope so a
                 // fully-qualified top-level name (`AppKit.MenuItem`) selects
                 // as one span.
-                if target.count != currentPos {
+                if target.writtenUnitCount != writtenUnitCountBeforeContext {
                     target.write(".")
                 }
             } else {
@@ -95,7 +95,7 @@ extension TypeNodePrintable {
                 // belongs to neither — emit it under a barrier, otherwise it
                 // fuses onto this leaf's span (`.Locator`) and gets selected
                 // with it.
-                if target.count != currentPos {
+                if target.writtenUnitCount != writtenUnitCountBeforeContext {
                     target.pushTypeReferenceScope(nil)
                     target.write(".")
                     target.popTypeReferenceScope()
