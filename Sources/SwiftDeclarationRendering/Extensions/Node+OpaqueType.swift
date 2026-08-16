@@ -1,20 +1,26 @@
 import Foundation
-import os
+import FoundationToolbox
 import MachOKit
 import MachOSwiftSection
 import Demangling
 import OrderedCollections
 @_spi(Internals) import SwiftInspection
 
-/// Floor for a rewrite failure the caller did not take over.
+/// Carries the logging floor onto the rewriter.
 ///
-/// A file-scope `OSLog` rather than `@Loggable` on the rewriter: the rewriter is
-/// generic over its `MachO` reader, and the macro expands to a static stored
-/// property, which a generic type cannot have.
-private let opaqueTypeRewriteLog = OSLog(
-    subsystem: "com.machoswiftsection.swift-declaration-rendering",
-    category: "OpaqueTypeRewriter"
-)
+/// `@Loggable` on a **protocol** rather than on the rewriter itself: the
+/// rewriter is generic over its `MachO` reader, and applied to a type the macro
+/// expands to a static *stored* property, which a generic type cannot have. On a
+/// protocol it expands to computed properties in an extension instead, so any
+/// conformer — generic or not — gets `logger` and can use `#log`. Same shape as
+/// `NestedSpecializationLogging` in `SwiftSpecialization`, which carries the
+/// depth-limit diagnostic onto `TypeDefinition` for the same reason.
+///
+/// Internal, not `private`: a `private` protocol caps its extension members at
+/// `private` too, and `#log` expands inside the conformer, where that is not
+/// visible.
+@Loggable(.internal, subsystem: "com.machoswiftsection.swift-declaration-rendering", category: "OpaqueTypeRewriter")
+protocol OpaqueTypeRewriteLogging {}
 
 /// Receives an opaque-type rewrite failure so the caller can route it.
 ///
@@ -57,7 +63,7 @@ extension Node {
         }
     }
 
-    private final class OpaqueTypeRewriter<MachO: MachOSwiftSectionRepresentableWithCache>: Node.Rewriter {
+    private final class OpaqueTypeRewriter<MachO: MachOSwiftSectionRepresentableWithCache>: Node.Rewriter, OpaqueTypeRewriteLogging {
         let machO: MachO
 
         let reportDegradation: OpaqueTypeDegradationReporter?
@@ -129,12 +135,7 @@ extension Node {
                 if let reportDegradation {
                     reportDegradation(error)
                 } else {
-                    os_log(
-                        .error,
-                        log: opaqueTypeRewriteLog,
-                        "opaque type rewrite failed: %{public}@",
-                        String(describing: error)
-                    )
+                    #log(.error, "opaque type rewrite failed: \(String(describing: error), privacy: .public)")
                 }
             }
             return node

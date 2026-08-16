@@ -1,23 +1,10 @@
 import Foundation
-import os
 import MachOKit
 import MachOSwiftSection
 import Demangling
 import FoundationToolbox
 @_spi(Internals) import MachOCaches
 @_spi(Internals) import SwiftInspection
-
-/// Where this cache reports what it had to skip.
-///
-/// os_log, never a stream: stdout carries the generated Swift (issue #102), and
-/// a raising `FileHandle` write aborts the host on a closed or broken stderr.
-/// This cache is also below the event layer — `SwiftIndexEvents` lives in
-/// `SwiftDeclaration`, which depends on this module — so it has no dispatcher to
-/// reach for.
-private let multiPayloadEnumIndexLog = OSLog(
-    subsystem: "com.machoswiftsection.swift-declaration-rendering",
-    category: "MultiPayloadEnumDescriptorCache"
-)
 
 /// Per-image index of `__swift5_mpenum` descriptors keyed by their demangled
 /// type node.
@@ -33,6 +20,12 @@ private let multiPayloadEnumIndexLog = OSLog(
 ///   thrown error suppressing every multi-payload enum's layout comments.
 /// - **Linearity**: the section is scanned and demangled once per image, not
 ///   once per rendered enum.
+/// Reports what it had to skip through `#log`, never a stream: stdout carries
+/// the generated Swift (issue #102), and a raising `FileHandle` write aborts the
+/// host on a closed or broken stderr. It also sits below the event layer —
+/// `SwiftIndexEvents` lives in `SwiftDeclaration`, which depends on this module —
+/// so there is no dispatcher here to report through.
+@Loggable(.private, subsystem: "com.machoswiftsection.swift-declaration-rendering", category: "MultiPayloadEnumDescriptorCache")
 final class MultiPayloadEnumDescriptorCache: SharedCache<MultiPayloadEnumDescriptorCache.Storage>, @unchecked Sendable {
     static let shared = MultiPayloadEnumDescriptorCache()
 
@@ -54,12 +47,7 @@ final class MultiPayloadEnumDescriptorCache: SharedCache<MultiPayloadEnumDescrip
         } catch {
             // The section read itself failed, so there is no descriptor list to
             // index at all.
-            os_log(
-                .error,
-                log: multiPayloadEnumIndexLog,
-                "%{public}@",
-                String(describing: error)
-            )
+            #log(.error, "\(String(describing: error), privacy: .public)")
         }
 
         let storage = Storage()
@@ -91,12 +79,7 @@ final class MultiPayloadEnumDescriptorCache: SharedCache<MultiPayloadEnumDescrip
 
                 multiPayloadEnumDescriptorByNode[node] = multiPayloadEnumDescriptor
             } catch {
-                os_log(
-                    .error,
-                    log: multiPayloadEnumIndexLog,
-                    "skipped one descriptor: %{public}@",
-                    String(describing: error)
-                )
+                #log(.error, "skipped one descriptor: \(String(describing: error), privacy: .public)")
                 continue
             }
         }

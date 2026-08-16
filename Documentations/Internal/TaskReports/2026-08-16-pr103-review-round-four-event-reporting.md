@@ -51,10 +51,19 @@ CLI 侧 5 处只换安全写法（`fputs` / `fwrite`）。
 
 | 计划 | 实际 | 原因 |
 |---|---|---|
-| `@Loggable` / `#log` | `os_log` + 文件级 `OSLog` | 远端 `FrameworkToolbox 0.4.x` 不暴露 `OSToolbox` product（本地开发版有，只看本地会判断错）；`os.Logger` 要 macOS 11 而本包下限 10.15 |
-| 两处也走事件 | 闭包注入 + os_log | `SwiftDeclaration` **依赖** `SwiftDeclarationRendering`，反向引用成环 |
+| 两处也走事件 | 闭包注入 + 日志地板 | `SwiftDeclaration` **依赖** `SwiftDeclarationRendering`，反向引用成环 |
 | builder 存 `[Handler]` | 注入 `Dispatcher` | `Handler` 非 `Sendable`，存不进 `Sendable` 的 builder。结果更好：indexer 与 printer 共用一个 |
 | 退役 `StandardStreamCapture` | 连私有 stdout 捕获一起改源码扫描 | 同类隐患，且会被并行 suite 的输出假失败 |
+
+### 一次自己造成的弯路：误判 `@Loggable` 不可用
+
+给 `SwiftDeclaration` 加 `OSToolbox` product 依赖（因为宏的声明文件在那个目录下），SPM 报 product 不存在，我据此判定「这里用不了 `@Loggable`」，临时改用裸 `os_log` 并把这个结论写进了四处文档。
+
+**判定是错的**：项目里所有 `@Loggable` 用法都是经 **`FoundationToolbox`** 拿到宏的。三处已全部改回 `@Loggable` / `#log`，四处文档同步更正。
+
+顺带确认两件事：宏自带的 `#available` 回退**已经覆盖**了「`os.Logger` 要 macOS 11 而本包下限 10.15」，不需要手写；泛型类型（`OpaqueTypeRewriter<MachO>`）不能直接标注（展开成 static stored property），走**协议式** `@Loggable` —— 项目里 `NestedSpecializationLogging` 早有同形先例，协议须为 internal，否则成员被压到 `private` 而 `#log` 在遵循者内看不见。
+
+该约定已写进 **AGENTS.md 新增的 Logging 一节**（全项目日志一律 `@Loggable` + `#log`，禁用 `os.Logger` / 裸 `os_log` / `OSLog(subsystem:category:)`），这样下一个人不必重走这条弯路。
 
 ### 单侧 header 的语义修正
 

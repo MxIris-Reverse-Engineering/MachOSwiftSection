@@ -4,7 +4,9 @@
 
 ## 一句话契约
 
-**库代码不写进程流。** 渲染失败、索引跳过、依赖加载不上，一律派发 `SwiftIndexEvents`；落点由宿主装的 `Handler` 决定。库唯一允许的直接输出是 os_log，且只作为「没有 sink 时不至于全哑」的地板。
+**库代码不写进程流。** 渲染失败、索引跳过、依赖加载不上，一律派发 `SwiftIndexEvents`；落点由宿主装的 `Handler` 决定。库唯一允许的直接输出是 `#log`（写进统一日志），且只作为「没有 sink 时不至于全哑」的地板。
+
+> 写法一律 `@Loggable` + `#log`，泛型类型走协议式 `@Loggable`。全项目约定见 AGENTS.md 的 **Logging** 一节；本文下面第 1 / 1b 条记的是踩过的坑。
 
 判断落点的两条硬约束，是这套分层存在的全部理由：
 
@@ -44,15 +46,30 @@
 
 ## 四条走不通的近路
 
-### 1. 不能用 `@Loggable` / `#log`
+### 1. `@Loggable` 的 product 是 `FoundationToolbox`，不是 `OSToolbox`
 
-项目别处（`RuntimeFieldLayoutBackend`、`SymbolIndexStore`）在用，所以第一反应是复用。**但 `SwiftDeclaration` 用不了**：宏在 `OSToolbox` 里，而项目依赖的是**远端** `FrameworkToolbox 0.4.x`，它不暴露 `OSToolbox` product。本地开发版仓库有这个 product，所以只看本地仓库会判断错 —— 加了依赖才发现 SPM 解析不到。
+宏的声明文件在 `Sources/OSToolbox/Macros/LoggableMacro.swift`，所以第一反应是给 target 加 `OSToolbox` product 依赖 —— SPM 报 `product 'OSToolbox' … not found`，据此很容易误判成「这里用不了 `@Loggable`」。
 
-退回 `os.Logger` 同样不行：它要 macOS 11 / iOS 14，本包部署到 **macOS 10.15 / iOS 13**。
+**实际上项目里所有用法都是经 `FoundationToolbox` 拿到宏的**（`RuntimeFieldLayoutBackend`、`SymbolIndexStore` 都只 import 它）。加 `.product(name: "FoundationToolbox", package: "FrameworkToolbox")` 即可。
 
-最终用 `os_log` + 文件级 `OSLog` 常量（自 macOS 10.12 可用，两个限制都不沾）。
+这也顺带解决了部署下限问题：本包部署到 **macOS 10.15 / iOS 13**，低于 `os.Logger` 的 macOS 11 / iOS 14，而 `@Loggable` 展开时自带 `#available` 回退到 `os_log`。所以**不要**为了绕开下限而手写 `os.Logger` 或裸 `os_log`。
 
-**另一个陷阱**：`@Loggable` 展开成 static stored property，**泛型类型用不了**（`OpaqueTypeRewriter<MachO>` 就撞上了：`static stored properties not supported in generic types`）。泛型类型要日志就用文件级 `OSLog`。
+### 1b. 泛型类型的 `@Loggable`：加在协议上
+
+`@Loggable` 应用在**类型**上时展开成 static **stored** property，泛型类型不支持 —— `OpaqueTypeRewriter<MachO>` 会报 `static stored properties not supported in generic types`。
+
+应用在**协议**上时展开的是 extension 里的**计算**属性，任何遵循者（泛型与否）都能用 `#log`：
+
+```swift
+@Loggable(.internal, subsystem: "…", category: "OpaqueTypeRewriter")
+protocol OpaqueTypeRewriteLogging {}
+
+private final class OpaqueTypeRewriter<MachO: …>: Node.Rewriter, OpaqueTypeRewriteLogging { … }
+```
+
+`SwiftSpecialization` 的 `NestedSpecializationLogging` 是同一形状（把深度限制诊断挂到 `TypeDefinition` 上）。
+
+**协议必须是 internal**：`private` 协议会把 extension 成员一并压到 `private`，而 `#log` 在遵循者内部展开，那里看不见 —— 症状是 `'logger' is inaccessible due to 'private' protection level` 加一条 `does not conform to protocol`。
 
 ### 2. `SwiftDeclarationRendering` 够不到事件类型
 

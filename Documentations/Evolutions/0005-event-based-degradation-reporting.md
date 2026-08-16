@@ -103,7 +103,7 @@ public func dispatch(_ event: Payload) {
 
 ## 替代方案考量
 
-- **全部换成 `@Loggable` / `#log`**：库侧 9 处直接走 os_log。被否——CLI 用户在终端、`2>err.txt` 和 CI 日志里都看不到任何东西，比现状更糟，直接违背 issue #102 的报告场景（他抱怨的正是 CI/管道日志）。落点必须可由宿主决定。
+- **库侧 9 处直接写日志、不走事件**（无论用 `@Loggable` 还是别的写法）：被否——日志进统一日志系统，CLI 用户在终端、`2>err.txt` 和 CI 日志里都看不到任何东西，比现状更糟，直接违背 issue #102 的报告场景（他抱怨的正是 CI/管道日志）。落点必须可由宿主决定。注意这否掉的是**「日志取代事件」**，不是 `@Loggable` 这个写法——地板本身就是用 `@Loggable` / `#log` 写的。
 - **全部换成 `fputs`，不动架构**：一行一处，风险最低。被否——只解决 crash，不解决「库替宿主选落点」和「diff 路径 sink 从未接上」，[4][5][6] 三条静默丢失原样保留，且 `StandardStreamCapture` 那个会挂死 `swift test` 的 fd 重定向工具还得继续维护。
 - **给每个降级点加专属事件 case**（5 个新 case）：语义最精确。被否——公开 API 面扩大 5 倍，而这些位置的消费方式完全一致（记一笔、继续走），一个带来源枚举的通用 case 足够；日后某个来源真需要结构化字段再单独拆。
 - **让 `Dispatcher` 默认自带一个 handler**：省掉 `dispatch` 里的分支。被否——「默认 handler 可被 `removeAllHandlers()` 移除」会让兜底重新变成黑洞，而兜底的全部意义就是不可移除。
@@ -149,9 +149,11 @@ RuntimeViewer 是已知消费者：它装的是 `OSLogEventHandler`，本案对�
 
 四处，都是实现时撞到的硬约束，不是改主意。
 
-**一、兜底用 `os_log` 而不是 `@Loggable` / `#log`。** 提案写「复用项目已在用的 `@Loggable`」，实现时发现 `SwiftDeclaration` 用不了：那个宏在 `OSToolbox` 里，而项目依赖的是**远端** `FrameworkToolbox 0.4.x`，它不暴露 `OSToolbox` product（本地开发版仓库有，所以最初判断错了）。退回 `os.Logger` 也不行 —— 它要 macOS 11 / iOS 14，而本包部署到 macOS 10.15 / iOS 13。`os_log` 自 macOS 10.12 起可用，两个限制都不沾。行为等价（同一套 subsystem/category，RuntimeViewer 的日志过滤器照常匹配）。
+**一、兜底按提案用 `@Loggable` / `#log`，但中途绕过一次弯路。** 实现时先给 `SwiftDeclaration` 加了 `OSToolbox` product 依赖（因为宏的声明文件在那个目录下），SPM 报 product 不存在，我据此判定「`@Loggable` 在这里用不了」并临时改用 `os_log`。**这个判定是错的**：项目里所有 `@Loggable` 用法（`RuntimeFieldLayoutBackend`、`SymbolIndexStore`）都是经 **`FoundationToolbox`** 拿到宏的，加这个 product 依赖即可。三处 os_log 已全部改回 `@Loggable` / `#log`，宏自带的 `#available` 回退也顺带解决了「`os.Logger` 要 macOS 11 而本包下限 10.15」这个约束。
 
-**二、`SwiftDeclarationRendering` 里的两处够不到事件类型。** `Node+OpaqueType` 和 `MultiPayloadEnumDescriptorCache` 都在这个模块，而 `SwiftDeclaration`（事件所在）**依赖**它 —— 反向引用会成环。前者改为闭包注入（`OpaqueTypeDegradationReporter`，接口路径注入 dispatch 闭包、`SwiftDump` 路径落 os_log），后者没有注入点，直接落 os_log。这不算破例：os_log 正是 `Dispatcher` 兜底的同一个落点，区别只在有没有 sink 可接。
+**二、`SwiftDeclarationRendering` 里的两处够不到事件类型。** `Node+OpaqueType` 和 `MultiPayloadEnumDescriptorCache` 都在这个模块，而 `SwiftDeclaration`（事件所在）**依赖**它 —— 反向引用会成环。前者改为闭包注入（`OpaqueTypeDegradationReporter`，接口路径注入 dispatch 闭包、`SwiftDump` 路径落日志地板），后者没有注入点，直接落地板。这不算破例：地板正是 `Dispatcher` 兜底的同一个落点，区别只在有没有 sink 可接。
+
+**泛型类型的 `@Loggable`：加在协议上。** `OpaqueTypeRewriter<MachO>` 是泛型类，直接标注会报 `static stored properties not supported in generic types`。`@Loggable` 加在**协议**上时展开的是 extension 里的**计算**属性，任何遵循者（泛型与否）都能用 `#log` —— 项目里 `SwiftSpecialization.NestedSpecializationLogging` 就是这个形状。协议必须是 internal：`private` 协议会把 extension 成员一并压到 `private`，而 `#log` 在遵循者内部展开，那里看不见。
 
 **三、printer 改为可注入 dispatcher，而不是让 builder 存 handlers。** 提案写「builder 把 `eventHandlers` 传给两个 printer」，但 `SwiftIndexEvents.Handler` 不是 `Sendable`，存进 `Sendable` 的 `SwiftDiffableInterfaceBuilder` 编译不过。改成给 `SwiftDeclarationPrinter` 加一个 package 级、接受现成 `Dispatcher` 的初始化器，renderer 传 `indexer.eventDispatcher`。结果更好：diff 路径的 indexer 和 printer 共用一个 dispatcher，宿主装一次 handler 两边都覆盖。`SwiftDeclarationIndexer.eventDispatcher` 与 `SwiftDeclarationPrinter.eventDispatcher` 因此从 internal 提升为 `package`。
 

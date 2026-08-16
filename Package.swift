@@ -528,6 +528,12 @@ extension Target {
             .product(.MachOObjCSection),
             .product(.Semantic),
             .product(.Demangling),
+            // `@Loggable` / `#log` for `SwiftIndexEvents.Dispatcher`'s
+            // zero-handler floor, same as every other logging site in the
+            // package. The macro also supplies the `#available` fallback to
+            // `os_log` that a bare `os.Logger` would need here — this package
+            // deploys to macOS 10.15, below `Logger`'s macOS 11.
+            .product(name: "FoundationToolbox", package: "FrameworkToolbox"),
             .target(.MachOSwiftSection),
             .target(.SwiftInspection),
             .target(.SwiftDeclarationRendering),

@@ -1,6 +1,6 @@
 import MemberwiseInit
 import Foundation
-import os
+import FoundationToolbox
 import SwiftStdlibToolbox
 
 /// A namespace for all event-related types used by `SwiftInterfaceBuilder`.
@@ -80,20 +80,8 @@ public enum SwiftIndexEvents {
     }
 
     /// Dispatches `SwiftInterfaceBuilder` events to registered handlers.
+    @Loggable(.private, subsystem: "com.machoswiftsection.swift-declaration", category: "SwiftIndexEvents.unhandled")
     public final class Dispatcher: Sendable {
-        /// Destination for ``reportUnhandled(_:)``.
-        ///
-        /// `OSLog` + `os_log` rather than `Logger` / `@Loggable`: `Logger` needs
-        /// macOS 11 / iOS 14 and this package deploys back to macOS 10.15 /
-        /// iOS 13, while `OSToolbox`'s `@Loggable` (which would paper over that
-        /// with an `#available` fallback) is not among the products the pinned
-        /// `FrameworkToolbox` exposes. `os_log` has been available since
-        /// macOS 10.12, so it needs neither.
-        private static let unhandledEventLog = OSLog(
-            subsystem: "com.machoswiftsection.swift-declaration",
-            category: "SwiftIndexEvents.unhandled"
-        )
-
         @Mutex
         private var handlers: [Handler] = []
 
@@ -144,12 +132,7 @@ public enum SwiftIndexEvents {
         /// nothing, and logging every one of them would bury the failures.
         private func reportUnhandled(_ event: Payload) {
             guard let description = event.unhandledFailureDescription else { return }
-            os_log(
-                .error,
-                log: Self.unhandledEventLog,
-                "no event handler attached; %{public}@",
-                description
-            )
+            #log(.error, "no event handler attached; \(description, privacy: .public)")
         }
     }
 

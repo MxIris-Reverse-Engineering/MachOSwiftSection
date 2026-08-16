@@ -163,17 +163,6 @@ final class PrintFailureEventTests: MachOFileTests, @unchecked Sendable {
     /// once instead of the one path a test happens to drive — the same trade this
     /// PR already made for the NodeStore invariant.
     @Test func libraryModulesWriteToNoProcessStream() throws {
-        let sourcesDirectory = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()  // SwiftInterfaceTests
-            .deletingLastPathComponent()  // Tests
-            .deletingLastPathComponent()  // package root
-            .appendingPathComponent("Sources")
-
-        // The CLI is the host, not a library: stderr is its diagnostic channel
-        // and stdout its product output, so both are legitimate there. Testing
-        // support is likewise not shipped in a library.
-        let hostModules: Set<String> = ["swift-section", "MachOTestingSupport"]
-
         // A `Handler` IS the sink — writing to a stream is the whole job of the
         // one a CLI host attaches. This is the layer where the choice is
         // legitimate, which is the point of routing everything through it.
@@ -195,13 +184,7 @@ final class PrintFailureEventTests: MachOFileTests, @unchecked Sendable {
         ]
 
         var offendingLines: [String] = []
-        let enumerator = try #require(FileManager.default.enumerator(at: sourcesDirectory, includingPropertiesForKeys: nil))
-        for case let fileURL as URL in enumerator where fileURL.pathExtension == "swift" {
-            let moduleName = fileURL.pathComponents
-                .drop(while: { $0 != "Sources" })
-                .dropFirst()
-                .first
-            if let moduleName, hostModules.contains(moduleName) { continue }
+        for fileURL in try Self.swiftSourceFiles() {
             if sinkImplementations.contains(fileURL.lastPathComponent) { continue }
             if knownBaselineDebt.contains(fileURL.lastPathComponent) { continue }
 
@@ -235,6 +218,76 @@ final class PrintFailureEventTests: MachOFileTests, @unchecked Sendable {
         )
     }
 
+    /// Logging goes through `@Loggable` + `#log`, never a hand-rolled
+    /// `os.Logger` / `os_log` / `OSLog` (AGENTS.md, "Logging").
+    ///
+    /// The macro is not a style preference here: it expands with the
+    /// `#available(macOS 11, …)` fallback to `os_log` that this package needs,
+    /// since it deploys to macOS 10.15 — below `os.Logger`. Hand-rolling either
+    /// half loses that, and hand-rolling `os_log` to dodge it (which this batch
+    /// did, briefly) loses the shared subsystem/category conventions RuntimeViewer
+    /// filters on.
+    @Test func libraryModulesLogThroughTheLoggableMacro() throws {
+        // `OSLogEventHandler` takes its subsystem and category as *runtime*
+        // parameters, which `@Loggable` cannot express — it fixes both at compile
+        // time. A host-configurable sink is the one legitimate `Logger` here.
+        let configurableSinks: Set<String> = ["SwiftIndexEventsHandlers.swift"]
+        // Belongs to the commented-out `TypeIndexing` target, so it compiles
+        // nowhere. Listed rather than fixed: changing dead code buys no
+        // verification. If that target is ever revived, convert it first.
+        let excludedFromBuild: Set<String> = ["SDKIndexer.swift"]
+
+        var offendingLines: [String] = []
+        for fileURL in try Self.swiftSourceFiles() {
+            if configurableSinks.contains(fileURL.lastPathComponent) { continue }
+            if excludedFromBuild.contains(fileURL.lastPathComponent) { continue }
+
+            let contents = try String(contentsOf: fileURL, encoding: .utf8)
+            for (lineNumber, line) in contents.components(separatedBy: .newlines).enumerated() {
+                let code = line.trimmingCharacters(in: .whitespaces)
+                guard !code.hasPrefix("//"), !code.hasPrefix("///") else { continue }
+                guard Self.containsBareCall(to: "os_log", in: code)
+                    || Self.containsBareCall(to: "OSLog", in: code)
+                    || Self.containsBareCall(to: "Logger", in: code)
+                else { continue }
+                offendingLines.append("\(fileURL.lastPathComponent):\(lineNumber + 1): \(code)")
+            }
+        }
+
+        #expect(
+            offendingLines.isEmpty,
+            """
+            log through `@Loggable` + `#log` (protocol-form `@Loggable` for generic types), \
+            never a hand-rolled logger:
+            \(offendingLines.joined(separator: "\n"))
+            """
+        )
+    }
+
+    /// Every `.swift` file under `Sources/`, minus the modules that are hosts
+    /// rather than libraries: the CLI's stderr is its diagnostic channel and its
+    /// stdout its product output, and testing support ships in neither.
+    private static func swiftSourceFiles() throws -> [URL] {
+        let sourcesDirectory = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()  // SwiftInterfaceTests
+            .deletingLastPathComponent()  // Tests
+            .deletingLastPathComponent()  // package root
+            .appendingPathComponent("Sources")
+        let hostModules: Set<String> = ["swift-section", "MachOTestingSupport"]
+
+        let enumerator = try #require(FileManager.default.enumerator(at: sourcesDirectory, includingPropertiesForKeys: nil))
+        var files: [URL] = []
+        for case let fileURL as URL in enumerator where fileURL.pathExtension == "swift" {
+            let moduleName = fileURL.pathComponents
+                .drop(while: { $0 != "Sources" })
+                .dropFirst()
+                .first
+            if let moduleName, hostModules.contains(moduleName) { continue }
+            files.append(fileURL)
+        }
+        return files
+    }
+
     /// Is `name(` called as a function here, rather than as a member of
     /// something? `node.print(using:)` is this library's rendering API and must
     /// not be mistaken for the stdlib's `print`.
@@ -265,6 +318,12 @@ final class PrintFailureEventTests: MachOFileTests, @unchecked Sendable {
         // A declaration of that API reads like a bare call and is filtered
         // separately — `public func print() -> SemanticString` is not a write.
         #expect("public func print() -> SemanticString {".contains("func print("))
+
+        // The logging scan rides on the same predicate.
+        #expect(Self.containsBareCall(to: "Logger", in: "let logger = Logger(subsystem: s, category: c)"))
+        #expect(Self.containsBareCall(to: "os_log", in: "os_log(.error, log: someLog, \"boom\")"))
+        // `@Loggable`-generated access is a member read, not a bare call.
+        #expect(!Self.containsBareCall(to: "Logger", in: "Self.logger.error(\"boom\")"))
     }
 
     /// A failure with no *definition identity* must still be reported.
