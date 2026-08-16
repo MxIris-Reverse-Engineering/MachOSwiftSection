@@ -594,7 +594,7 @@ extension Node {
             }
 
             if child.kind == .enum || child.kind == .structure || child.kind == .class || child.kind == .protocol {
-                return .createTransient(kind: .type, contents: .none, children: [child])
+                return .createTransient(kind: .type, children: [child])
             }
 
             for child in child.children {

@@ -443,7 +443,15 @@ struct RuntimeFieldLayoutBackend {
         let substitutedChildren = node.children.map {
             substitutingGenericParameters(in: $0, parentMetadata: parentMetadata, layout: layout)
         }
-        return Node.createTransient(kind: node.kind, contents: node.contents, children: Array(substitutedChildren))
+        // Contents and children are mutually exclusive in a node's payload, so
+        // the two cases take different factories. A leaf (an identifier's text,
+        // an index) has no children and MUST be rebuilt through the
+        // contents-only form — rebuilding it children-only would drop the text
+        // and blank out every name in the substituted tree.
+        guard !substitutedChildren.isEmpty else {
+            return Node.createTransient(kind: node.kind, contents: node.contents)
+        }
+        return Node.createTransient(kind: node.kind, children: Array(substitutedChildren))
     }
 
     /// Resolves a `.type` key-argument slot to its concrete `Any.Type`.
