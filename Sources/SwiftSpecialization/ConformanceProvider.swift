@@ -4,6 +4,7 @@ import Foundation
 import MachOSwiftSection
 import OrderedCollections
 import Demangling
+@_spi(Internals) import MachOSymbols
 @_spi(Internals) import SwiftInspection
 
 // MARK: - ConformanceProvider Protocol
@@ -127,11 +128,11 @@ extension IndexerConformanceProvider: ConformanceProvider {
     }
 
     public func doesType(_ typeName: TypeName, conformTo protocolName: ProtocolName) -> Bool {
-        indexer.allProtocolConformancesByTypeName[typeName]?[protocolName] != nil
+        indexer.allConformingProtocolNamesByTypeName[typeName]?.contains(protocolName) == true
     }
 
     public func conformances(of typeName: TypeName) -> [ProtocolName] {
-        Array(indexer.allProtocolConformancesByTypeName[typeName]?.keys ?? [])
+        Array(indexer.allConformingProtocolNamesByTypeName[typeName] ?? [])
     }
 
     public var allTypeNames: [TypeName] {
@@ -184,8 +185,34 @@ extension IndexerConformanceProvider: ConformanceProvider {
         var map: [String: [TypeName]] = [:]
         for (childTypeName, entry) in indexer.allAllTypeDefinitions {
             guard childTypeName.kind == .class else { continue }
-            guard case .class(let classWrapper) = entry.value.type else { continue }
+            guard case .class(let classDescriptor) = entry.value.typeContextDescriptorWrapper else { continue }
 
+            // The superclass reference can live in the wrapper's trailing
+            // objects (resilient superclass), so this map build materializes
+            // the class wrapper — once per class, cached with the map
+            // (materialization discipline, proposal 0002).
+            //
+            // Caught separately from the `superclassNode` read below. Before
+            // proposal 0002 the wrapper came from a stored property and could
+            // not fail here, so the single `catch` that follows was written for
+            // one cause only; folding the new one into it drops the class from
+            // the subclass map with no trace, and `subclasses(of:)` then narrows
+            // a specialization search by a candidate that silently went missing.
+            let classWrapper: Class
+            do {
+                classWrapper = try Class(descriptor: classDescriptor, in: entry.machO)
+            } catch {
+                indexer.eventDispatcher.dispatch(
+                    .renderingDegraded(
+                        context: .init(source: .subclassMap, subject: childTypeName.name),
+                        error: error
+                    )
+                )
+                continue
+            }
+
+            // A missing / unreadable superclass link is the ordinary "this class
+            // has no usable parent" case and stays silent.
             var superNode: Node?
             do {
                 superNode = try classWrapper.superclassNode(in: entry.machO)
@@ -211,7 +238,7 @@ extension IndexerConformanceProvider: ConformanceProvider {
             guard let superNode = superNode.first(of: .type) else {
                 continue
             }
-            let superTypeName = TypeName(node: superNode, kind: .class)
+            let superTypeName = TypeName(node: InternedNodeReferenceCache.shared.reference(interning: superNode, in: entry.machO), kind: .class)
             map[superTypeName.name, default: []].append(childTypeName)
         }
 

@@ -112,10 +112,10 @@ extension STCoreTests {
 extension STCoreTests {
     @Test func structTestConformances() async throws {
         let indexer = try await preparedIndexer()
-        let conformancesByType = indexer.protocolConformancesByTypeName
+        let conformingProtocolNamesByType = indexer.conformingProtocolNamesByTypeName
 
-        let structTestConformances = conformancesByType.first { $0.key.name.hasSuffix(".StructTest") }
-        let protocolNames = try #require(structTestConformances?.value.keys.map(\.name))
+        let structTestConformances = conformingProtocolNamesByType.first { $0.key.name.hasSuffix(".StructTest") }
+        let protocolNames = try #require(structTestConformances?.value.map(\.name))
 
         #expect(protocolNames.contains(where: { $0.hasSuffix(".ProtocolTest") }))
         #expect(protocolNames.contains(where: { $0.hasSuffix(".ProtocolWitnessTableTest") }))
@@ -123,10 +123,10 @@ extension STCoreTests {
 
     @Test func genericReqConformance() async throws {
         let indexer = try await preparedIndexer()
-        let conformancesByType = indexer.protocolConformancesByTypeName
+        let conformingProtocolNamesByType = indexer.conformingProtocolNamesByTypeName
 
-        let genericConformances = conformancesByType.first { $0.key.name.hasSuffix(".GenericRequirementTest") }
-        let protocolNames = try #require(genericConformances?.value.keys.map(\.name))
+        let genericConformances = conformingProtocolNamesByType.first { $0.key.name.hasSuffix(".GenericRequirementTest") }
+        let protocolNames = try #require(genericConformances?.value.map(\.name))
 
         #expect(protocolNames.contains(where: { $0.hasSuffix(".ProtocolTest") }))
     }
@@ -437,6 +437,158 @@ extension STCoreTests {
             #expect(pwtOffsets[index - 1] <= pwtOffsets[index],
                     "PWT offsets not ascending: \(pwtOffsets[index - 1]) > \(pwtOffsets[index])")
         }
+    }
+}
+
+// MARK: - Post-Preparation Statistics
+
+extension STCoreTests {
+    /// The six public statistics accessors must keep answering after
+    /// `prepare()` releases the section-wrapper populations (evolution
+    /// proposal 0002): the only useful time to read them is post-preparation,
+    /// and a silent 0 is indistinguishable from an empty binary.
+    @Test func statisticsRemainAvailableAfterPreparation() async throws {
+        let indexer = try await preparedIndexer()
+
+        #expect(indexer.numberOfTypes > 0)
+        #expect(indexer.numberOfEnums > 0)
+        #expect(indexer.numberOfStructs > 0)
+        #expect(indexer.numberOfClasses > 0)
+        #expect(indexer.numberOfProtocols > 0)
+        #expect(indexer.numberOfProtocolConformances > 0)
+
+        // `TypeContextWrapper` is exactly {enum, struct, class}, so the
+        // partition must sum back to the total.
+        #expect(indexer.numberOfTypes == indexer.numberOfEnums + indexer.numberOfStructs + indexer.numberOfClasses)
+    }
+}
+
+// MARK: - Extension Indexing Completion
+
+extension STCoreTests {
+    /// A descriptor-less (typealias-only) extension takes `index(in:)`'s
+    /// early return; that return must still mark the definition as indexed,
+    /// or every later consumer (`printExtensionDefinition`,
+    /// `printDefinition`, the diffable builder) re-enters the whole
+    /// materialization path.
+    @Test func descriptorLessExtensionIndexingMarksCompletion() async throws {
+        let indexer = try await preparedIndexer()
+        let donorExtensionDefinition = try #require(
+            [
+                indexer.typeExtensionDefinitions,
+                indexer.protocolExtensionDefinitions,
+                indexer.typeAliasExtensionDefinitions,
+                indexer.conformanceExtensionDefinitions,
+            ]
+            .flatMap { $0.values.flatMap { $0 } }
+            .first
+        )
+        let descriptorLessExtensionDefinition = ExtensionDefinition(
+            extensionName: donorExtensionDefinition.extensionName,
+            genericSignature: nil
+        )
+        nonisolated(unsafe) let unsafeExtensionDefinition = descriptorLessExtensionDefinition
+        let unsafeMachOFile = machOFile
+        try await unsafeExtensionDefinition.index(in: unsafeMachOFile)
+        #expect(unsafeExtensionDefinition.isIndexed)
+    }
+
+    /// Sweep shape: after one `index(in:)` pass over every extension bucket
+    /// (the diffable builder's exact loop), every definition must be marked
+    /// indexed — covering both early-return shapes present in the fixture
+    /// (no conformance descriptor / conformance without resilient witnesses).
+    @Test func everyIndexedExtensionIsMarkedIndexed() async throws {
+        let indexer = try await preparedIndexer()
+        let unsafeMachOFile = machOFile
+        for bucket in [
+            indexer.typeExtensionDefinitions,
+            indexer.protocolExtensionDefinitions,
+            indexer.typeAliasExtensionDefinitions,
+            indexer.conformanceExtensionDefinitions,
+        ] {
+            for extensionDefinition in bucket.values.flatMap({ $0 }) {
+                nonisolated(unsafe) let unsafeExtensionDefinition = extensionDefinition
+                try await unsafeExtensionDefinition.index(in: unsafeMachOFile)
+                #expect(
+                    unsafeExtensionDefinition.isIndexed,
+                    "\(extensionDefinition.extensionName.name) completed index(in:) without being marked indexed"
+                )
+            }
+        }
+    }
+}
+
+// MARK: - Extension Header Error Contract
+
+extension STCoreTests {
+    /// The public `printExtensionHeader` must PROPAGATE a thrown conformance
+    /// materialization, matching the error contract of the `index(in:)` that
+    /// precedes it on every in-repo path (both run the same
+    /// materialization, so in-repo the throw is unreachable — but an
+    /// external caller invoking the public entry directly on an un-indexed
+    /// definition would otherwise get a confidently wrong `extension Foo`
+    /// header with the conformance clause, `@retroactive`, and global-actor
+    /// markers silently missing).
+    @Test func printExtensionHeaderPropagatesMaterializationFailure() async throws {
+        let indexer = try await preparedIndexer()
+        let donorExtensionDefinition = try #require(
+            indexer.conformanceExtensionDefinitions.values.flatMap { $0 }
+                .first { $0.protocolConformanceDescriptor != nil }
+        )
+        let realDescriptor = try #require(donorExtensionDefinition.protocolConformanceDescriptor)
+        // A real descriptor layout re-wrapped at an offset far past the
+        // fixture's end of file: every relative resolve inside the
+        // materialization computes an out-of-bounds read and throws.
+        let unreadableDescriptor = ProtocolConformanceDescriptor(layout: realDescriptor.layout, offset: 0x0FFF_FFF0)
+        let unreadableExtensionDefinition = ExtensionDefinition(
+            extensionName: donorExtensionDefinition.extensionName,
+            genericSignature: nil,
+            protocolConformanceDescriptor: unreadableDescriptor
+        )
+
+        nonisolated(unsafe) let unsafeExtensionDefinition = unreadableExtensionDefinition
+        nonisolated(unsafe) let unsafePrinter = SwiftDeclarationPrinter(in: machOFile)
+        await #expect(throws: (any Error).self) {
+            _ = try await unsafePrinter.printExtensionHeader(unsafeExtensionDefinition, level: 1)
+        }
+    }
+}
+
+// MARK: - Nested Child Print Degradation
+
+extension STCoreTests {
+    /// A nested child whose descriptor cannot be read must drop ONLY itself:
+    /// the same per-definition catch `printRoot` applies at the top level,
+    /// pushed down into the nested-children loops. Before the fix the
+    /// child's throw escaped `printTypeDefinition` and the top-level catch
+    /// discarded the whole enclosing type.
+    @Test func corruptNestedChildDropsOnlyItself() async throws {
+        let indexer = try await preparedIndexer()
+        let parentDefinition = try #require(findTypeDefinition(named: "StructTest", in: indexer))
+        let donorDefinition = try #require(findTypeDefinition(named: "FinalClassTest", in: indexer))
+
+        // A real struct descriptor's layout re-wrapped at an offset far past
+        // the fixture's end of file: every read the child's indexing
+        // performs is out of bounds and throws deterministically.
+        let realStructDefinition = try #require(findTypeDefinition(named: "GenericStructNonRequirement", in: indexer))
+        guard case .struct(let realStructDescriptor) = realStructDefinition.typeContextDescriptorWrapper else {
+            Issue.record("GenericStructNonRequirement is expected to be a struct")
+            return
+        }
+        let unreadableDescriptor = StructDescriptor(layout: realStructDescriptor.layout, offset: 0x0FFF_FFF0)
+        let corruptChildDefinition = TypeDefinition(
+            typeContextDescriptorWrapper: .struct(unreadableDescriptor),
+            typeName: donorDefinition.typeName,
+            isSpecialized: false
+        )
+        parentDefinition.typeChildren.append(corruptChildDefinition)
+
+        nonisolated(unsafe) let unsafeParentDefinition = parentDefinition
+        nonisolated(unsafe) let unsafePrinter = SwiftDeclarationPrinter(in: machOFile)
+        let renderedParent = try await unsafePrinter.printTypeDefinition(unsafeParentDefinition).string
+
+        #expect(renderedParent.contains("StructTest"), "the enclosing type must keep printing")
+        #expect(!renderedParent.contains("FinalClassTest"), "the corrupt child must be dropped, not rendered")
     }
 }
 

@@ -163,7 +163,7 @@ extension SwiftDeclarationPrinter {
             let rootNode = thunkSymbol.demangledNode
             guard let functionNode = rootNode.children.first(where: { $0.kind != .distributedThunk }) else { continue }
             guard let contextNode = functionNode.children.first else { continue }
-            let thunkTypeName = Node.create(kind: .type, child: contextNode).print(using: .interfaceTypeBuilderOnly)
+            let thunkTypeName = Node.create(kind: .type, child: contextNode.materialize()).print(using: .interfaceTypeBuilderOnly)
             if thunkTypeName == currentTypeName {
                 return true
             }
@@ -249,7 +249,10 @@ extension SwiftDeclarationPrinter {
             Space()
             Standard("=")
             Space()
-            try await resolver.resolve(for: MetadataReader.demangleType(for: record.mangledTypeName, in: machO).resolveOpaqueType(in: machO))
+            try await resolver.resolve(
+                for: MetadataReader.demangleType(for: record.mangledTypeName, in: machO)
+                    .resolveOpaqueType(in: machO, reportingDegradationTo: opaqueTypeDegradationReporter(subject: record.name))
+            )
             if offset.isEnd {
                 BreakLine()
             }
@@ -301,8 +304,11 @@ extension SwiftDeclarationPrinter {
     /// whole type's rendering throw — it does not degrade into a silently
     /// empty line. The diff renderer keeps its own per-member catch via
     /// `printField` / `printEnumCase`.
+    /// `typeContext` is the caller's materialized wrapper for this print
+    /// operation (proposal 0002) — `printTypeDefinition` materializes once
+    /// and threads it into both the header renderer and this function.
     @SemanticStringBuilder
-    func renderModelFields(_ typeDefinition: TypeDefinition, level: Int) async throws -> SemanticString {
+    func renderModelFields(_ typeDefinition: TypeDefinition, typeContext: TypeContextWrapper, level: Int) async throws -> SemanticString {
         let isEnum = typeDefinition.typeName.kind == .enum
 
         // Shared metadata-comment renderer (single source of truth with
@@ -324,8 +330,8 @@ extension SwiftDeclarationPrinter {
             staticFieldLayoutProvider: staticFieldLayoutProvider(),
             staticLayoutDependencyResolution: configuration.staticLayoutDependencyResolution
         )
-        let fieldLayoutRenderer = FieldLayoutRenderer(type: typeDefinition.type, metadata: typeDefinition.metadata, machO: machO, configuration: renderConfiguration)
-        let fieldRecords = try typeDefinition.type.contextDescriptorWrapper.typeContextDescriptor?.fieldDescriptor(in: machO).records(in: machO) ?? []
+        let fieldLayoutRenderer = FieldLayoutRenderer(type: typeContext, metadata: typeDefinition.metadata, machO: machO, configuration: renderConfiguration)
+        let fieldRecords = try typeDefinition.typeContextDescriptorWrapper.typeContextDescriptor.fieldDescriptor(in: machO).records(in: machO)
         let fieldOffsets = isEnum ? nil : fieldLayoutRenderer.fieldOffsets
 
         // Specialized definitions substitute each field's generic-parameter

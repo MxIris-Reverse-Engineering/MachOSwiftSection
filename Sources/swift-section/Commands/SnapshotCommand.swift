@@ -34,8 +34,16 @@ struct SnapshotCommand: AsyncParsableCommand {
             try encoded.write(to: URL(fileURLWithPath: outputPath), options: .atomic)
             log("Snapshot written to \(outputPath)")
         } else {
-            FileHandle.standardOutput.write(encoded)
-            FileHandle.standardOutput.write(Data("\n".utf8))
+            // `fwrite`, not `FileHandle.standardOutput.write(_:)`. This is the
+            // command's product output, not a diagnostic, but it took the same
+            // raising Objective-C overload — so `swift-section snapshot … | head`
+            // aborted the process rather than stopping cleanly.
+            // `write(contentsOf:)` would be the throwing Swift spelling, but it
+            // needs macOS 10.15.4 and this package deploys to 10.15.
+            encoded.withUnsafeBytes { buffer in
+                _ = fwrite(buffer.baseAddress, 1, buffer.count, stdout)
+            }
+            fputs("\n", stdout)
         }
     }
 
@@ -48,6 +56,8 @@ struct SnapshotCommand: AsyncParsableCommand {
     }
 
     private func log(_ message: String) {
-        FileHandle.standardError.write(Data((message + "\n").utf8))
+        // See `DiffCommand.log`: the raising `FileHandle` overload aborts the
+        // process on a closed or broken stderr.
+        fputs(message + "\n", stderr)
     }
 }

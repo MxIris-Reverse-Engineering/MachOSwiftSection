@@ -247,7 +247,7 @@ struct GenericArgumentEnvironment {
             rewrittenChildren.append(rewrittenChild)
         }
         guard hasChildrenChanged else { return node }
-        return Node.create(kind: node.kind, contents: node.contents, children: rewrittenChildren)
+        return Node.create(kind: node.kind, children: rewrittenChildren)
     }
 
     /// Substitutes a tuple node, flattening any element that is a concrete

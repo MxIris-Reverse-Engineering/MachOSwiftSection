@@ -1,7 +1,7 @@
 import Foundation
 import FoundationToolbox
 import Semantic
-import Demangling
+@_spi(Internals) import Demangling
 import MachOKit
 import MachOSwiftSection
 import SwiftLayout
@@ -425,7 +425,7 @@ struct RuntimeFieldLayoutBackend {
             case .type:
                 if let argumentType = boundGenericArgumentType(atSlot: slot, totalKeyArguments: layout.totalKeyArguments, of: parentMetadata),
                    let argumentMangledString = _mangledTypeName(argumentType),
-                   let argumentNode = try? demangleAsNode(argumentMangledString, isType: true) {
+                   let argumentNode = try? demangleAsNodeTransient(argumentMangledString, isType: true) {
                     return innerTypeNode(of: argumentNode)
                 }
             case .value:
@@ -443,7 +443,15 @@ struct RuntimeFieldLayoutBackend {
         let substitutedChildren = node.children.map {
             substitutingGenericParameters(in: $0, parentMetadata: parentMetadata, layout: layout)
         }
-        return Node.create(kind: node.kind, contents: node.contents, children: Array(substitutedChildren))
+        // Contents and children are mutually exclusive in a node's payload, so
+        // the two cases take different factories. A leaf (an identifier's text,
+        // an index) has no children and MUST be rebuilt through the
+        // contents-only form — rebuilding it children-only would drop the text
+        // and blank out every name in the substituted tree.
+        guard !substitutedChildren.isEmpty else {
+            return Node.createTransient(kind: node.kind, contents: node.contents)
+        }
+        return Node.createTransient(kind: node.kind, children: Array(substitutedChildren))
     }
 
     /// Resolves a `.type` key-argument slot to its concrete `Any.Type`.
@@ -465,9 +473,9 @@ struct RuntimeFieldLayoutBackend {
         guard let word = genericArgumentWord(atSlot: slot, totalKeyArguments: totalKeyArguments, of: parentMetadata) else { return nil }
         let value = Int(bitPattern: word)
         if value >= 0 {
-            return Node.create(kind: .integer, contents: .index(UInt64(value)))
+            return Node.createTransient(kind: .integer, contents: .index(UInt64(value)))
         } else {
-            return Node.create(kind: .negativeInteger, contents: .index(UInt64(value.magnitude)))
+            return Node.createTransient(kind: .negativeInteger, contents: .index(UInt64(value.magnitude)))
         }
     }
 
@@ -496,7 +504,7 @@ struct RuntimeFieldLayoutBackend {
         guard let countWord = genericArgumentWord(atSlot: shapeClassSlot, totalKeyArguments: layout.totalKeyArguments, of: parentMetadata) else { return nil }
         let elementCount = Int(bitPattern: countWord)
         guard elementCount >= 0, elementCount <= packElementCountLimit else { return nil }
-        if elementCount == 0 { return Node.create(kind: .pack, children: []) }
+        if elementCount == 0 { return Node.createTransient(kind: .pack, children: []) }
 
         // Pack pointer: low bit is the on-heap lifetime flag — strip it.
         guard let packWord = genericArgumentWord(atSlot: packSlot, totalKeyArguments: layout.totalKeyArguments, of: parentMetadata) else { return nil }
@@ -513,10 +521,10 @@ struct RuntimeFieldLayoutBackend {
                   let elementPointer = UnsafeRawPointer(bitPattern: elementWord) else { return nil }
             let elementType = unsafeBitCast(elementPointer, to: Any.Type.self)
             guard let elementMangledString = _mangledTypeName(elementType),
-                  let elementNode = try? demangleAsNode(elementMangledString, isType: true) else { return nil }
+                  let elementNode = try? demangleAsNodeTransient(elementMangledString, isType: true) else { return nil }
             elementNodes.append(elementNode)
         }
-        return Node.create(kind: .pack, children: elementNodes)
+        return Node.createTransient(kind: .pack, children: elementNodes)
     }
 
     /// Reads the raw word at an absolute slot of `parentMetadata`'s inline

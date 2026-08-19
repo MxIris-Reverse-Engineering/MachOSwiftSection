@@ -106,6 +106,14 @@ bug 长期隐身的典型原因。
 - baseline 漂移经逐行审查**只含 offset/address/pointer 字段**（fixture 二进制增大导致的统一
   平移 +6336），无任何语义字段变化；两份快照的 diff 是**纯新增**（238 行插入、0 删除），
   既有输出一字未改——说明本修复没有改变任何既有 fixture 类型的渲染结果。
+- **整文件基线已重录**为 `MachOSwiftSection-Baselines/main-7410710/`（62 份，取代
+  `main-27726bc/`，后续迭代以新版为准）。相对旧基线差异 **6/62**，全部是本修复的预期修正：
+  只出现在带布局注释的 `-full` 变体上，且 6 份差异文件的**非注释内容哈希逐份相同**（声明结构
+  零变化）。`DyldCache` 18/18 与 `Image` 6/6 逐字节一致——`Image` 走 MachOImage 路径、字段
+  偏移直读运行时 metadata，**它一字未变正是修复的旁证**（静态侧向 ground truth 收敛）。
+  旧基线抓到的第二个真实案例：`SwiftData.WeakAnyPersistentObject.boxed`
+  （`weak var boxed: (any PersistentModel)?`）从 8 字节修正为 16，其后的
+  `persistentIdentifier` 从 `0x8` 修正到 `0x10`。
 
 ## 与计划的偏差
 

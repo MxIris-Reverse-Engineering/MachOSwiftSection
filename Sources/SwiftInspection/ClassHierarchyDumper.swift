@@ -1,5 +1,5 @@
 import Foundation
-import Demangling
+@_spi(Internals) import Demangling
 import MachOKit
 import MachOKitExtensions
 import MachOFoundation
@@ -76,6 +76,6 @@ extension ObjCClass64.Layout: @retroactive LayoutProtocol, @unchecked @retroacti
 
 extension String {
     fileprivate var demangledString: String {
-        (try? demangleAsNode(self))?.print(using: .interfaceType) ?? self
+        (try? demangleAsNodeTransient(self))?.print(using: .interfaceType) ?? self
     }
 }

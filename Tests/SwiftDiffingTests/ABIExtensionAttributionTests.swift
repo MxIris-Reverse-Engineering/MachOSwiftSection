@@ -25,18 +25,18 @@ struct ABIExtensionAttributionTests {
     }
 
     private func protocolName(_ name: String) -> ProtocolName {
-        ProtocolName(node: Node.create(kind: .type, child: Node.create(kind: .protocol, children: [
+        ProtocolName(node: NodeReference(interning: Node.create(kind: .type, child: Node.create(kind: .protocol, children: [
             Node.create(kind: .module, text: "M"),
             Node.create(kind: .identifier, text: name),
-        ])))
+        ]))))
     }
 
     private func extensionName(_ target: String) -> ExtensionName {
-        ExtensionName(node: targetNode(target), kind: .type(.struct))
+        ExtensionName(node: NodeReference(interning: targetNode(target)), kind: .type(.struct))
     }
 
-    private func whereClause(_ text: String) -> Node {
-        Node.create(kind: .identifier, text: text)
+    private func whereClause(_ text: String) -> NodeReference {
+        NodeReference(interning: Node.create(kind: .identifier, text: text))
     }
 
     private func function(_ name: String) -> FunctionDefinition {
@@ -46,10 +46,10 @@ struct ABIExtensionAttributionTests {
             Node.create(kind: .type),
         ])
         return FunctionDefinition(
-            node: node,
+            node: makeNodeReference(node),
             name: name,
             kind: .function,
-            symbol: DemangledSymbol(symbol: Symbol(offset: 0, name: "$s_\(name)"), demangledNode: node),
+            symbol: DemangledSymbol(symbol: Symbol(offset: 0, name: "$s_\(name)"), demangledNode: makeNodeReference(node)),
             isGlobalOrStatic: false,
             methodDescriptor: nil,
             offset: nil,
@@ -181,4 +181,10 @@ struct ABIExtensionAttributionTests {
         primary.definition.absorbAssociatedTypes(of: secondary.definition)
         #expect(primary.definition.resolvedAssociatedTypeWitnesses.map(\.name) == ["Element", "Index"])
     }
+}
+
+private func makeNodeReference(_ node: Node) -> NodeReference {
+    var nodeStoreBuilder = NodeStoreBuilder()
+    let nodeIndex = nodeStoreBuilder.intern(node)
+    return nodeStoreBuilder.freeze().reference(at: nodeIndex)
 }

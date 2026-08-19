@@ -1,3 +1,4 @@
+import Foundation
 import SwiftDeclaration
 @_spi(Support) import SwiftIndexing
 @_spi(Support) import SwiftPrinting
@@ -95,7 +96,9 @@ public final class SwiftInterfaceBuilder<MachO: FieldLayoutRenderable>: Sendable
             do {
                 try await extraDataProvider.setup()
             } catch {
-                print(error)
+                eventDispatcher.dispatch(
+                    .renderingDegraded(context: .init(source: .extraDataProvider), error: error)
+                )
             }
         }
 
@@ -120,7 +123,13 @@ public final class SwiftInterfaceBuilder<MachO: FieldLayoutRenderable>: Sendable
     public func printRoot() async throws -> SemanticString {
         ImportsBlock(OrderedSet(Self.internalModules + importedModules).sorted())
 
-        await printCatchedThrowing {
+        // The two globals blocks carry no printing context because they cannot
+        // fail as a block: `printVariable` / `printFunction` are non-throwing —
+        // each already catches per member and dispatches its own
+        // `definitionPrintFailed`. These wrappers are belt-and-braces, so there
+        // is no definition identity to attribute a block-level failure to, and
+        // they report as `.definitionBlock` degradations instead.
+        await printCatchedThrowing(dispatchingTo: eventDispatcher, degradationSource: .definitionBlock) {
             await BlockList {
                 for variable in indexer.globalVariableDefinitions {
                     await printer.printVariable(variable, level: 0)
@@ -128,7 +137,7 @@ public final class SwiftInterfaceBuilder<MachO: FieldLayoutRenderable>: Sendable
             }
         }
 
-        await printCatchedThrowing {
+        await printCatchedThrowing(dispatchingTo: eventDispatcher, degradationSource: .definitionBlock) {
             await BlockList {
                 for function in indexer.globalFunctionDefinitions {
                     await printer.printFunction(function, level: 0)
@@ -136,50 +145,70 @@ public final class SwiftInterfaceBuilder<MachO: FieldLayoutRenderable>: Sendable
             }
         }
 
-        await printCatchedThrowing {
-            try await BlockList {
-                for typeDefinition in indexer.rootTypeDefinitions.values {
+        // Each definition is caught individually: one definition whose
+        // printing throws (e.g. an unresolvable reference in a legacy or
+        // damaged binary) drops only itself, never the whole block. A
+        // block-level catch used to blank every type of the interface the
+        // moment a single one threw.
+        await BlockList {
+            for typeDefinition in indexer.rootTypeDefinitions.values {
+                await printCatchedThrowing(
+                    dispatchingTo: eventDispatcher,
+                    context: .init(name: typeDefinition.typeName.name, kind: .type)
+                ) {
                     try await printer.printTypeDefinition(typeDefinition)
                 }
             }
         }
 
-        await printCatchedThrowing {
-            try await BlockList {
-                // Specialized variants live on each `TypeDefinition` rather
-                // than on the indexer (the indexer is intentionally agnostic
-                // of user-driven specialization). Walk every type definition
-                // in the module and surface any specialized children it has
-                // accumulated through `specialize(with:in:)`.
-                for typeDefinition in indexer.allTypeDefinitions.values {
-                    for specialized in typeDefinition.specializedChildren {
+        await BlockList {
+            // Specialized variants live on each `TypeDefinition` rather
+            // than on the indexer (the indexer is intentionally agnostic
+            // of user-driven specialization). Walk every type definition
+            // in the module and surface any specialized children it has
+            // accumulated through `specialize(with:in:)`.
+            for typeDefinition in indexer.allTypeDefinitions.values {
+                for specialized in typeDefinition.specializedChildren {
+                    await printCatchedThrowing(
+                        dispatchingTo: eventDispatcher,
+                        context: .init(name: specialized.typeName.name, kind: .type)
+                    ) {
                         try await printer.printTypeDefinition(specialized)
                     }
                 }
             }
         }
 
-        await printCatchedThrowing {
-            try await BlockList {
-                for protocolDefinition in indexer.rootProtocolDefinitions.values {
+        await BlockList {
+            for protocolDefinition in indexer.rootProtocolDefinitions.values {
+                await printCatchedThrowing(
+                    dispatchingTo: eventDispatcher,
+                    context: .init(name: protocolDefinition.protocolName.name, kind: .protocol)
+                ) {
                     try await printer.printProtocolDefinition(protocolDefinition)
                 }
             }
         }
 
-        await printCatchedThrowing {
-            try await BlockList {
-                for protocolDefinition in indexer.rootProtocolDefinitions.values.filterNonNil(\.parent) {
-                    for extensionDefinition in protocolDefinition.defaultImplementationExtensions {
+        await BlockList {
+            for protocolDefinition in indexer.rootProtocolDefinitions.values.filterNonNil(\.parent) {
+                for extensionDefinition in protocolDefinition.defaultImplementationExtensions {
+                    await printCatchedThrowing(
+                        dispatchingTo: eventDispatcher,
+                        context: .init(name: extensionDefinition.extensionName.name, kind: .extension)
+                    ) {
                         try await printer.printExtensionDefinition(extensionDefinition)
                     }
                 }
             }
         }
 
-        await printCatchedThrowing {
-            try await BlockList {
-                for extensionDefinition in allExtensionDefinitions {
+        await BlockList {
+            for extensionDefinition in allExtensionDefinitions {
+                await printCatchedThrowing(
+                    dispatchingTo: eventDispatcher,
+                    context: .init(name: extensionDefinition.extensionName.name, kind: .extension)
+                ) {
                     try await printer.printExtensionDefinition(extensionDefinition)
                 }
             }

@@ -5,7 +5,8 @@
 - **备份**: `backup/main-before-0.14.1-rewind`（分支 + 同名带日期 tag
   `backup/main-before-0.14.1-rewind-2026-08-06`），本地与 `origin` 双份，均指向重写前的
   main tip `621f6fa`
-- **关联**: [ProjectEvolutionLog.md](../ProjectEvolutionLog.md) 第 26 节
+- **关联**: [ProjectEvolutionLog.md](../ProjectEvolutionLog.md) 第 30 节（回退当时记为第 26
+  节，随后的 rebase 按编年把 node-store 四节移回 23–26，本节顺延为 30——见下方第 7 节）
 
 ## 1. 问题
 
@@ -118,10 +119,31 @@ node-store 的全部工作与被重写掉的 merge 提交都可完整还原。
 
 ## 6. 偏差与遗留
 
-- ProjectEvolutionLog 的节号在两条历史里不再一致：备份分支上第 27/28/29 节 = 新 main
-  上的第 23/24/25 节。将来 `feature/node-store-migration` 合回 main 时，这个文件必然
-  再次冲突，届时需要把 node-store 的四节插回并重新编号。这是选择重写历史的已知代价，
-  也是唯一一处需要人工照顾的地方。
+- ProjectEvolutionLog 的节号在回退期间两条历史不一致（备份分支第 27/28/29 节 = 回退后
+  main 的第 23/24/25 节），这是选择重写历史的已知代价，也是唯一一处需要人工照顾的地方。
+  **已于同日随 rebase 处理完毕**，见下条。
 - node-store 分支带来的能力（符号索引 NodeStore 化、性能批次、旧格式 `LC_DYLD_INFO`
-  bind 支持、系统框架渲染 A/B 验证流程）**暂时不在 main 上**。其中「大重构必跑 A/B
+  bind 支持、系统框架渲染 A/B 验证流程）在回退期间不在 main 上。其中「大重构必跑 A/B
   验证」这条 AGENTS.md 规则也随之回退——它是 node-store 分支引入的。
+
+## 7. 后续：同日把 node-store 分支 rebase 到重写后的 main 上
+
+回退完成后，`feature/node-store-migration` 随即以
+
+```bash
+git rebase --onto main 439ecca f31711c
+```
+
+落到新 main 上。选这个区间而非 `git rebase main <branch>` 的理由：`439ecca..f31711c`
+恰好是 node-store 的**纯工作线**（36 个提交、0 个 merge），四个已 cherry-pick 的
+SwiftLayout 修复位于 `f31711c` **之上**，因而天然被排除——不必依赖 patch-id 去重（它们
+的 `ProjectEvolutionLog.md` 部分已被改过，patch-id 本来就对不上，会误判为新提交）。
+
+- **唯一冲突**：`Package.swift` 的 swift-demangling pin，出现在第 22/36 个提交
+  （`cf368cc build: track swift-demangling's feature/node-store branch`）。取 node-store
+  侧（`branch: "feature/node-store"`）以保持该提交原本的语义演进，后续的 `1234f41`
+  （0.5.0）与 `2d69c63`（0.5.1）照常覆盖它，终态回到 `from: "0.5.1"`。
+- **ProjectEvolutionLog 按编年恢复原样**：node-store 四节回到 23–26（工作时间
+  08-02~08-03），SwiftLayout 三节回到原本的 27–29（08-04~08-06），本次回退的记录成为
+  第 30 节。注意这里自动合并**不会**报冲突却会留下重复编号（两侧各有 23–26 节），是
+  需要人工核对的语义问题，不是文本冲突。此后重新合入 main 不再需要重新编号。

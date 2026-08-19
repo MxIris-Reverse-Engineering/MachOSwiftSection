@@ -39,6 +39,36 @@ final class MultiPayloadEnumDescriptorCacheTests: MachOSwiftSectionFixtureTests,
         }
     }
 
+    /// The per-descriptor error contract, stated by this type's own doc
+    /// comment: one unreadable descriptor degrades **only its own enum**.
+    ///
+    /// Splices a deliberately unreadable descriptor (a real layout re-wrapped
+    /// far past the fixture's end of file, so every relative resolve throws)
+    /// into the middle of the real descriptor list. With a loop-level `catch`
+    /// the throw exits the whole loop, so every descriptor AFTER the bad one is
+    /// missing from the published map and its enum silently falls back to the
+    /// tagged projection — a wrong layout, not a missing one, memoized for the
+    /// image's lifetime because the map is a `SharedCache` entry.
+    @MainActor
+    @Test func oneUnreadableDescriptorDoesNotDropTheOnesAfterIt() throws {
+        let realDescriptors = try machOFile.swift.multiPayloadEnumDescriptors
+        try #require(realDescriptors.count >= 2, "fixture must carry at least two multi-payload enum descriptors for this test to be meaningful")
+
+        let unreadableDescriptor = MultiPayloadEnumDescriptor(layout: realDescriptors[0].layout, offset: 0x0FFF_FFF0)
+        let splicedDescriptors = [unreadableDescriptor] + realDescriptors
+
+        let indexedDescriptorByNode = MultiPayloadEnumDescriptorCache.indexDescriptors(splicedDescriptors, in: machOFile)
+
+        for realDescriptor in realDescriptors {
+            let mangledTypeName = try realDescriptor.mangledTypeName(in: machOFile)
+            let node = try MetadataReader.demangleType(for: mangledTypeName, in: machOFile)
+            #expect(
+                indexedDescriptorByNode[node] != nil,
+                "a descriptor after the unreadable one was dropped — the catch is truncating the map instead of skipping one entry"
+            )
+        }
+    }
+
     /// A lookup miss is a plain `nil`, never an error — the caller's
     /// tagged-projection fallback depends on that (the pre-refactor
     /// degradation contract for enums whose descriptor could not be indexed).

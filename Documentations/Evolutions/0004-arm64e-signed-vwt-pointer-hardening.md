@@ -5,7 +5,7 @@
 - **创建日期**: 2026-08-09
 - **最后更新**: 2026-08-09
 - **所属愿景**: 无
-- **关联提案**: 无（与 0002/0003 的内存线正交；崩溃场景与 0002 的下游验收同在 RV 注入路径上被发现。0002/0003 的提案文件在 `feature/node-store-migration` 分支上，尚未并入 main）
+- **关联提案**: 无（与 [0002](0002-declaration-model-descriptor-slimming.md)/[0003](0003-symbol-row-bucket-flattening.md) 的内存线正交；崩溃场景与 0002 的下游验收同在 RV 注入路径上被发现）
 - **实现分支 / PR**: `main`（用户裁定：基线旧 bug、影响面大，不并入优化分支，直接在 main 修复；提案随之从 `feature/node-store-migration` 迁至 main）
 - **配套文档**: [RuntimeEnumCaseProjection.md](../Internal/RuntimeEnumCaseProjection.md)（其 arm64e 验证记录将由本案修正）；崩溃报告由 RV 侧会话提供（App Store 主二进制，macOS 26.6，注入 RuntimeViewer 后导出 interface 崩溃）
 
@@ -137,7 +137,7 @@ guard let tablePointer = try? signedTablePointer.stripPointerTags() else { retur
 2. ✅ 回归测试落为 `Tests/SwiftInspectionTests/Arm64eSignedVWTPointerTests.swift`（行为层 + 探针层）。**修复前取证**：行为层测试使测试进程死于 signal 11（SIGSEGV——复刻崩溃报告的 fault）；探针层 `raw` 模式子进程先打印 `slotCarriesTagBits=1` 再 SIGSEGV（shell 视角 exit 139），`strip` 模式解引用 + witness round trip 全通。**修复后**：三测全绿。
 3. ✅ 全量 `swift test --skip IntegrationTests` 1303/1303（250 suites）全绿。期间按 AGENTS.md 环境漂移纪律排查掉一次 158 issue 的假阳性——主 checkout 的 fixture 二进制（8 月 2 日构建）比 main 的 fixture 源码（8 月 5/6 日两个 commit）旧，重建后归零，与本修复无关。
 4. ✅ 文档修正同批：RuntimeEnumCaseProjection.md（失实验证记录改写、表指针 strip 与陷阱记录、新回归形态）+ AGENTS.md（SwiftInspection 段修正 + Test Environment 补 PAC 验证陷阱一段）。
-5. 待办：RV 侧真机验证（对面协调）：注入 arm64e 应用 + Print Enum Layout，确认崩溃消失。注意 RV 工作树当前适配的是 `feature/node-store-migration` 的 0002 API，验证需待该分支并入 main 后的合流构建（或 RV 暂以 main 构建）。
+5. 待办：RV 侧真机验证（对面协调）：注入 arm64e 应用 + Print Enum Layout，确认崩溃消失。合流已发生——`feature/node-store-migration` 已 rebase 到含本案两 commit 的 main 之上，RV 直接以该分支构建即可验证（其 0002 适配无需回退）。
 
 ## 决策日志
 
@@ -148,3 +148,4 @@ guard let tablePointer = try? signedTablePointer.stripPointerTags() else { retur
 | 2026-08-09 | In Review → Accepted，迁至 main | 用户审核通过（「审核通过，开始实现」），并裁定实施基线改为 **main**——本 bug 是 main 上就有的基线问题、影响面大，不与 `feature/node-store-migration` 的内存优化线捆绑；提案文件随之从该分支迁到 main（分支上三个未推送的提案 commit 撤下，编号 0004 不变）。 |
 | 2026-08-09 | 实施期修正：「符号层」断言升级为「行为层」断言 | 原方案断言 `SwiftInspection` 构建产物含 `stripPointerTags` 的 mangled 符号。实施时查实其见证力不足：`stripPointerTags` 是 `package` 函数，静态链接后其**定义**符号无论有无调用方都出现在测试产物符号表里，而「projector 引用了它」这一事实在链接后与定义不可分辨——接线被删时断言照样绿。改为行为断言：fake metadata 的 VWT 槽置崩溃报告指针的 tag 位型 `0x0041_8000_0000_0000`（全部高于 VA 掩码，任何架构裸解引用必 fault），过真实 `projectCasePatterns` 入口——直接验证 strip 行为本身，严格强于符号断言且同样处处可跑（含 GitHub CI）。 |
 | 2026-08-09 | Accepted → Implemented | 按「先崩后过」实施：行为层测试在未修复代码上使测试进程死于 signal 11（SIGSEGV），探针层 `raw` 模式 arm64e 子进程证实槽带签名并 SIGSEGV（exit 139）、`strip` 模式 witness round trip 全通；应用 strip 修复后新套件 3 测全绿，全量 1303/1303（250 suites）全绿。文档修正同批。剩余：落地步骤 5 的 RV 侧真机验证（对面协调）。 |
+| 2026-08-09 | 分支合流对账 | 用户指示将 `feature/node-store-migration` rebase 到 main（54 commit 重放，本案修复与测试零冲突随基线进入分支历史）；0001–0004 自此同库同历史，本文件的跨分支表述与提案总表随之对账（0004 行补入总表、关联提案恢复文件链接、落地步骤 5 的合流前提已满足）。 |

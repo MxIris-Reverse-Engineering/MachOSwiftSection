@@ -1,4 +1,4 @@
-import Demangling
+@_spi(Internals) import Demangling
 import MachOKit
 import MachOSwiftSection
 
@@ -84,15 +84,17 @@ package enum SpecializedMetadataNodeSubstitution {
         return nil
     }
 
-    /// Shared wrapper around `_mangledTypeName` + `demangleAsNode` so the
-    /// SwiftStdlib-availability + nil-handling lives in exactly one spot for
-    /// both field-type and dumped-type substitution.
+    /// Shared wrapper around `_mangledTypeName` + `demangleAsNodeTransient`
+    /// so the SwiftStdlib-availability + nil-handling lives in exactly one
+    /// spot for both field-type and dumped-type substitution. Transient
+    /// demangle: callers render the node and drop it, so the tree must not
+    /// be interned into the global `NodeCache`.
     private static func demangledNode(forMetatype metatype: Any.Type) -> Node? {
         // `_mangledTypeName` is `SwiftStdlib 5.3` — translates to macOS 11 /
         // iOS 14 / tvOS 14 / watchOS 7. Fall back to nil on older runtimes
         // so callers stay on the unbound representation.
         guard #available(macOS 11, iOS 14, tvOS 14, watchOS 7, *) else { return nil }
         guard let resolvedMangledString = _mangledTypeName(metatype) else { return nil }
-        return try? demangleAsNode(resolvedMangledString, isType: true)
+        return try? demangleAsNodeTransient(resolvedMangledString, isType: true)
     }
 }

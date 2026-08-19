@@ -149,14 +149,6 @@ extension Package.Dependency {
         ),
         remote: .package(
             url: "https://github.com/MxIris-Reverse-Engineering/MachOKit.git",
-            // A range rather than `exact:`, for the same reason as
-            // MachOObjCSection below. RuntimeViewer depends on this package and
-            // on MachOKit directly, so an exact requirement here deadlocks
-            // resolution the moment the app moves to a newer patch — which is
-            // exactly what `0.52.101` did. The lower bound is `0.52.101`
-            // because it fixes ObjC header info lookup in dyld subcaches; the
-            // upper bound stops at the next minor, where this line is free to
-            // break again.
             "0.52.101" ..< "0.53.0",
         ),
     )
@@ -183,15 +175,7 @@ extension Package.Dependency {
         ),
         remote: .package(
             url: "https://github.com/MxIris-Reverse-Engineering/MachOObjCSection.git",
-            // A range rather than `exact:`. RuntimeViewer depends on this
-            // package and on MachOObjCSection directly, so an exact requirement
-            // here deadlocks resolution the moment the app moves to a newer
-            // patch: two `exact:` requirements on one package have no solution
-            // regardless of source compatibility. The lower bound is `0.8.104`
-            // because `0.8.103` moved the ObjC relationship reverse tables out
-            // of `ObjCIndexing`; the upper bound stops at the next minor, where
-            // that line is free to break again.
-            "0.8.104" ..< "0.9.0",
+            "0.8.105" ..< "0.9.0",
         ),
     )
 }
@@ -204,13 +188,7 @@ extension Package.Dependency {
         ),
         remote: .package(
             url: "https://github.com/MxIris-Reverse-Engineering/swift-demangling",
-            // Pinned below 0.5.0: that release reshaped `NodePrinterTarget`
-            // (`write(_:context:)` / `pushTypeReferenceScope(_:)` take
-            // `@autoclosure` parameters and lost their default implementations)
-            // and dropped `Node: Codable`. The adoption lives on
-            // feature/node-store-migration; until it lands, an open upper bound
-            // silently floats main onto an incompatible demangler.
-            "0.4.5" ..< "0.5.0",
+            "0.6.0" ..< "0.7.0",
         ),
     )
 
@@ -513,6 +491,12 @@ extension Target {
             .product(.MachOObjCSection),
             .product(.Semantic),
             .product(.Demangling),
+            // `@Loggable` / `#log` for `SwiftIndexEvents.Dispatcher`'s
+            // zero-handler floor, same as every other logging site in the
+            // package. The macro also supplies the `#available` fallback to
+            // `os_log` that a bare `os.Logger` would need here — this package
+            // deploys to macOS 10.15, below `Logger`'s macOS 11.
+            .product(name: "FoundationToolbox", package: "FrameworkToolbox"),
             .target(.MachOSwiftSection),
             .target(.SwiftInspection),
             .target(.SwiftDeclarationRendering),
@@ -600,6 +584,7 @@ extension Target {
             .product(.MachOObjCSection),
             .product(.Semantic),
             .product(.Demangling),
+            .target(.MachOSymbols),
             .target(.MachOSwiftSection),
             .target(.SwiftInspection),
             .target(.Utilities),
@@ -767,6 +752,7 @@ extension Target {
             .target(.MachOSymbols),
             .target(.MachOTestingSupport),
             .target(.MachOFixtureSupport),
+            .product(.Demangling),
         ],
         swiftSettings: testSettings,
     )
@@ -786,6 +772,7 @@ extension Target {
         name: "MachOCachesTests",
         dependencies: [
             .target(.MachOCaches),
+            .product(.MachOKitExtensions),
         ],
         swiftSettings: testSettings,
     )
@@ -855,6 +842,7 @@ extension Target {
             .target(.SwiftPrinting),
             .target(.SwiftSpecialization),
             .target(.SwiftInterface),
+            .product(.MachOKitExtensions),
             .target(.MachOTestingSupport),
             .target(.MachOFixtureSupport),
             .product(name: "SnapshotTesting", package: "swift-snapshot-testing"),
@@ -930,6 +918,7 @@ extension Target {
             .target(.SwiftIndexing),
             .target(.SwiftPrinting),
             .target(.SwiftAttributeInference),
+            .target(.SwiftInspection),
             .target(.MachOTestingSupport),
             .target(.MachOFixtureSupport),
         ],
@@ -1053,7 +1042,7 @@ let package = Package(
         .RegenerateBaselinesPlugin,
 
         // Testing
-//        .MachOSymbolsTests,
+        .MachOSymbolsTests,
         .MachOSwiftSectionTests,
         .MachOCachesTests,
         .SwiftInspectionTests,

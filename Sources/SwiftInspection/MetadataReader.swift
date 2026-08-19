@@ -1,6 +1,6 @@
 import Foundation
 import MachOKit
-import Demangling
+@_spi(Internals) import Demangling
 import MachOFoundation
 import SwiftStdlibToolbox
 import MachOSwiftSection
@@ -35,6 +35,31 @@ extension MetadataReader {
 
     public static func demangleSymbol<MachO: MachOSwiftSectionRepresentableWithCache>(for symbol: Symbol, in machO: MachO) throws -> Node? {
         return SymbolIndexStore.shared.demangledNode(for: symbol, in: machO)
+    }
+
+    /// Store-backed variant of `demangleSymbol(for:in:)`: returns a
+    /// `NodeReference` into the image's frozen node store (or a per-symbol
+    /// mini store for symbols outside the build sweep) without materializing
+    /// a `Node` tree.
+    public static func demangleSymbolReference<MachO: MachOSwiftSectionRepresentableWithCache>(for symbol: Symbol, in machO: MachO) -> NodeReference? {
+        return SymbolIndexStore.shared.demangledNodeReference(for: symbol, in: machO)
+    }
+
+    /// Drops the per-image demangle memo so the next query rebuilds it.
+    ///
+    /// Wired into `SwiftDeclarationIndexer`'s per-image cleanup alongside the
+    /// symbol store and interned-name bucket removals: the memo's values are
+    /// references into that interned scope store, so leaving the memo behind
+    /// would keep the dropped store's buffers alive.
+    public static func removeCache(for machO: some MachOSwiftSectionRepresentableWithCache) {
+        MetadataReaderCache.shared.remove(for: machO)
+    }
+
+    /// Non-creating membership probe for the per-image demangle memo —
+    /// test-support surface for the indexer's cache-eviction contract
+    /// (`PerImageCacheEvictionTests`).
+    package static func cacheExists(for machO: some MachOSwiftSectionRepresentableWithCache) -> Bool {
+        MetadataReaderCache.shared.contains(in: machO)
     }
 
     public static func demangleContext<MachO: MachOSwiftSectionRepresentableWithCache>(for context: ContextDescriptorWrapper, in machO: MachO) throws -> Node {
@@ -98,7 +123,7 @@ extension MetadataReader {
     }
 
     public static func demangleSymbol(for symbol: Symbol) throws -> Node? {
-        return try demangleAsNode(symbol.name)
+        return try demangleAsNodeTransient(symbol.name)
     }
 
     public static func demangleContext(for context: ContextDescriptorWrapper) throws -> Node {
@@ -182,7 +207,7 @@ extension MetadataReader {
                     failed = true
                     break
                 }
-                requirementNodes.append(Node.create(kind: .dependentGenericConformanceRequirement, children: [subject, proto]))
+                requirementNodes.append(Node.createTransient(kind: .dependentGenericConformanceRequirement, children: [subject, proto]))
             case .type(let relativeDirectPointer):
                 let typeAddress = try context.addressFromOffset(contentOffset)
                 let mangledName = try relativeDirectPointer.resolve(at: typeAddress, in: context)
@@ -198,10 +223,10 @@ extension MetadataReader {
                     nodeKind = .dependentGenericConformanceRequirement
                 }
 
-                requirementNodes.append(Node.create(kind: nodeKind, children: [subject, type]))
+                requirementNodes.append(Node.createTransient(kind: nodeKind, children: [subject, type]))
             case .layout(let genericRequirementLayoutKind):
                 if genericRequirementLayoutKind == .class {
-                    requirementNodes.append(Node.create(kind: .dependentGenericLayoutRequirement, children: [subject, .create(kind: .identifier, text: "C")]))
+                    requirementNodes.append(Node.createTransient(kind: .dependentGenericLayoutRequirement, children: [subject, .createTransient(kind: .identifier, text: "C")]))
                 } else {
                     failed = true
                 }
@@ -209,15 +234,15 @@ extension MetadataReader {
                 break
             case .invertedProtocols(let invertedProtocols):
                 if invertedProtocols.protocols.hasCopyable {
-                    requirementNodes.append(Node.create(kind: .dependentGenericInverseConformanceRequirement, children: [
+                    requirementNodes.append(Node.createTransient(kind: .dependentGenericInverseConformanceRequirement, children: [
                         subject,
-                        .create(kind: .index, index: UInt64(MachOSwiftSection.InvertibleProtocolKind.copyable.rawValue)),
+                        .createTransient(kind: .index, index: UInt64(MachOSwiftSection.InvertibleProtocolKind.copyable.rawValue)),
                     ]))
                 }
                 if invertedProtocols.protocols.hasEscapable {
-                    requirementNodes.append(Node.create(kind: .dependentGenericInverseConformanceRequirement, children: [
+                    requirementNodes.append(Node.createTransient(kind: .dependentGenericInverseConformanceRequirement, children: [
                         subject,
-                        .create(kind: .index, index: UInt64(MachOSwiftSection.InvertibleProtocolKind.escapable.rawValue)),
+                        .createTransient(kind: .index, index: UInt64(MachOSwiftSection.InvertibleProtocolKind.escapable.rawValue)),
                     ]))
                 }
             }
@@ -225,7 +250,7 @@ extension MetadataReader {
         if failed || requirementNodes.isEmpty {
             return nil
         } else {
-            return Node.create(kind: .dependentGenericSignature, children: requirementNodes)
+            return Node.createTransient(kind: .dependentGenericSignature, children: requirementNodes)
         }
     }
 
@@ -264,9 +289,9 @@ extension MetadataReader {
                             if let opaqueTypeDescriptor = contextWrapper.opaqueTypeDescriptor {
                                 if let machOImageContext = context as? MachOContext<MachOImage> {
                                     let absoluteAddress = machOImageContext.machO.ptr.bitPattern.int + opaqueTypeDescriptor.offset
-                                    result = .create(kind: .opaqueTypeDescriptorSymbolicReference, index: UInt64(absoluteAddress))
+                                    result = .createTransient(kind: .opaqueTypeDescriptorSymbolicReference, index: UInt64(absoluteAddress))
                                 } else {
-                                    result = .create(kind: .opaqueTypeDescriptorSymbolicReference, index: opaqueTypeDescriptor.offset.cast())
+                                    result = .createTransient(kind: .opaqueTypeDescriptorSymbolicReference, index: opaqueTypeDescriptor.offset.cast())
                                 }
                             } else {
                                 result = try buildContextMangling(context: .element(contextWrapper), in: context)
@@ -278,9 +303,9 @@ extension MetadataReader {
                             if case .element(let element) = resolvableElement, let opaqueTypeDescriptor = element.opaqueTypeDescriptor {
                                 if let machOImageContext = context as? MachOContext<MachOImage> {
                                     let absoluteAddress = machOImageContext.machO.ptr.bitPattern.int + opaqueTypeDescriptor.offset
-                                    result = .create(kind: .opaqueTypeDescriptorSymbolicReference, index: UInt64(absoluteAddress))
+                                    result = .createTransient(kind: .opaqueTypeDescriptorSymbolicReference, index: UInt64(absoluteAddress))
                                 } else {
-                                    result = .create(kind: .opaqueTypeDescriptorSymbolicReference, index: opaqueTypeDescriptor.offset.cast())
+                                    result = .createTransient(kind: .opaqueTypeDescriptorSymbolicReference, index: opaqueTypeDescriptor.offset.cast())
                                 }
                             } else {
                                 result = try buildContextMangling(context: resolvableElement, in: context)
@@ -291,21 +316,21 @@ extension MetadataReader {
                     // The symbolic reference points at a resolver function, but we can't
                     // execute code in the target process to resolve it from here.
                     let rawPointerOffset = try RelativeDirectRawPointer(relativeOffset: relativeOffset).resolveDirectAddress(at: context.addressFromOffset(offset), in: context)
-                    result = try .create(kind: .accessorFunctionReference, index: context.offsetFromAddress(rawPointerOffset).cast())
+                    result = try .createTransient(kind: .accessorFunctionReference, index: context.offsetFromAddress(rawPointerOffset).cast())
                 case .uniqueExtendedExistentialTypeShape:
                     let extendedExistentialTypeShape = try RelativeDirectPointer<ExtendedExistentialTypeShape>(relativeOffset: relativeOffset).resolve(at: baseAddress, in: context)
                     let existentialType = try extendedExistentialTypeShape.existentialType(in: context)
-                    result = try .create(kind: .uniqueExtendedExistentialTypeShapeSymbolicReference, inlineChildren: demangle(for: existentialType, kind: .type, in: context).children)
+                    result = try .createTransient(kind: .uniqueExtendedExistentialTypeShapeSymbolicReference, inlineChildren: demangle(for: existentialType, kind: .type, in: context).children)
                 case .nonUniqueExtendedExistentialTypeShape:
                     let nonUniqueExtendedExistentialTypeShape = try RelativeDirectPointer<NonUniqueExtendedExistentialTypeShape>(relativeOffset: relativeOffset).resolve(at: baseAddress, in: context)
                     let existentialType = try nonUniqueExtendedExistentialTypeShape.existentialType(in: context)
-                    result = try .create(kind: .nonUniqueExtendedExistentialTypeShapeSymbolicReference, inlineChildren: demangle(for: existentialType, kind: .type, in: context).children)
+                    result = try .createTransient(kind: .nonUniqueExtendedExistentialTypeShapeSymbolicReference, inlineChildren: demangle(for: existentialType, kind: .type, in: context).children)
                 case .objectiveCProtocol:
                     let relativePointer = RelativeDirectPointer<RelativeObjCProtocolPrefix>(relativeOffset: relativeOffset)
                     let objcProtocol = try relativePointer.resolve(at: baseAddress, in: context)
                     let protocolMangledName = try objcProtocol.mangledName(in: context)
                     let name = protocolMangledName.symbolString
-                    result = try demangleAsNode(name).typeSymbol
+                    result = try demangleAsNodeTransient(name).typeSymbol
                 }
                 return result
             } catch {
@@ -315,9 +340,9 @@ extension MetadataReader {
         let result: Node
         switch kind {
         case .type:
-            result = try demangleAsNode(stringValue, isType: true, symbolicReferenceResolver: symbolicReferenceResolver)
+            result = try demangleAsNodeTransient(stringValue, isType: true, symbolicReferenceResolver: symbolicReferenceResolver)
         case .symbol:
-            result = try demangleAsNode(stringValue, isType: false, symbolicReferenceResolver: symbolicReferenceResolver)
+            result = try demangleAsNodeTransient(stringValue, isType: false, symbolicReferenceResolver: symbolicReferenceResolver)
         }
         return result
     }
@@ -340,7 +365,7 @@ extension MetadataReader {
         switch context {
         case .type,
              .protocol:
-            top = .create(kind: .type, children: [demangling])
+            top = .createTransient(kind: .type, children: [demangling])
         default:
             top = demangling
         }
@@ -387,7 +412,7 @@ extension MetadataReader {
             if nameNode != nil {
                 return true
             } else if let namedContext = context.namedContextDescriptor {
-                nameNode = try .create(kind: .identifier, text: namedContext.name(in: readingContext))
+                nameNode = try .createTransient(kind: .identifier, text: namedContext.name(in: readingContext))
                 return true
             } else {
                 return false
@@ -413,9 +438,9 @@ extension MetadataReader {
             guard let extendedContext = try extensionContext.extendedContext(in: readingContext) else { return nil }
             guard let demangledExtendedContext = try demangle(for: extendedContext, kind: .type, in: readingContext).extensionSymbol else { return nil }
             if let requirements = try extensionContext.genericContext(in: readingContext)?.requirements, let signatureNode = try buildGenericSignature(for: requirements, in: readingContext) {
-                return Node.create(kind: .extension, children: [parentDemangling, demangledExtendedContext, signatureNode])
+                return Node.createTransient(kind: .extension, children: [parentDemangling, demangledExtendedContext, signatureNode])
             } else {
-                return Node.create(kind: .extension, children: [parentDemangling, demangledExtendedContext])
+                return Node.createTransient(kind: .extension, children: [parentDemangling, demangledExtendedContext])
             }
         case .anonymous:
             // Look up symbol using the context's symbol lookup capability
@@ -424,9 +449,9 @@ extension MetadataReader {
                let privateDeclName = try? symbol.demangledNode.first(of: Node.Kind.privateDeclName),
                let privateDeclNameIdentifier = privateDeclName.children.first {
                 if let parentDemangling {
-                    return Node.create(kind: .anonymousContext, children: [privateDeclNameIdentifier, parentDemangling])
+                    return Node.createTransient(kind: .anonymousContext, children: [privateDeclNameIdentifier, parentDemangling])
                 } else {
-                    return Node.create(kind: .anonymousContext, children: [privateDeclNameIdentifier])
+                    return Node.createTransient(kind: .anonymousContext, children: [privateDeclNameIdentifier])
                 }
             }
             return parentDemangling
@@ -435,7 +460,7 @@ extension MetadataReader {
                 return nil
             }
             guard let moduleContext = context.moduleContextDescriptor else { return nil }
-            return try .create(kind: .module, text: moduleContext.name(in: readingContext))
+            return try .createTransient(kind: .module, text: moduleContext.name(in: readingContext))
         case .opaqueType:
             guard let parentDescriptorResult else { return nil }
             if parentDemangling?.kind == .anonymousContext {
@@ -445,10 +470,10 @@ extension MetadataReader {
                 if mangledNode.kind == .global {
                     mangledNode = mangledNode.children[0]
                 }
-                let opaqueNode = Node.create(kind: .opaqueReturnTypeOf, children: [mangledNode])
+                let opaqueNode = Node.createTransient(kind: .opaqueReturnTypeOf, children: [mangledNode])
                 return opaqueNode
             } else if let parentDemangling, parentDemangling.kind == .module {
-                let opaqueNode = Node.create(kind: .opaqueReturnTypeOf, children: [parentDemangling])
+                let opaqueNode = Node.createTransient(kind: .opaqueReturnTypeOf, children: [parentDemangling])
                 return opaqueNode
             } else {
                 return nil
@@ -461,10 +486,10 @@ extension MetadataReader {
             if parentDemangling.children.count < 2 {
                 return nil
             }
-            nameNode = Node.create(kind: .privateDeclName, children: [parentDemangling.children[0], nameNode])
+            nameNode = Node.createTransient(kind: .privateDeclName, children: [parentDemangling.children[0], nameNode])
             parentDemangling = parentDemangling.children[1]
         }
-        let demangling = Node.create(kind: kind, children: [parentDemangling, nameNode])
+        let demangling = Node.createTransient(kind: kind, children: [parentDemangling, nameNode])
 
         return demangling
     }
@@ -529,7 +554,7 @@ extension MetadataReader {
                     }
                     return demangled
                 } else {
-                    return Node.create(kind: .protocol, children: [.create(kind: .module, text: objcModule), .create(kind: .identifier, text: name)])
+                    return Node.createTransient(kind: .protocol, children: [.createTransient(kind: .module, text: objcModule), .createTransient(kind: .identifier, text: name)])
                 }
             }
         case .swiftPointer(let swiftPointer):
@@ -544,7 +569,7 @@ extension MetadataReader {
     }
 
     fileprivate static func _buildContextManglingForSymbol<Context: ReadingContext>(_ symbol: Symbol, in context: Context) throws -> Node? {
-        var demangledSymbol = try demangleAsNode(symbol.name)
+        var demangledSymbol = try demangleAsNodeTransient(symbol.name)
         if demangledSymbol.kind == .global {
             demangledSymbol = demangledSymbol.children[0]
         }
@@ -569,7 +594,7 @@ extension Node {
             }
 
             if child.kind == .enum || child.kind == .structure || child.kind == .class || child.kind == .protocol {
-                return .create(kind: .type, contents: .none, children: [child])
+                return .createTransient(kind: .type, children: [child])
             }
 
             for child in child.children {
@@ -617,6 +642,15 @@ extension Node {
     }
 }
 
+/// Memoizes `MetadataReader`'s expensive demangling work (mangled-name /
+/// context-descriptor / symbol-context builds) per image and per process.
+///
+/// The dictionaries deduplicate the *work*; the trees live as `NodeReference`s
+/// in the `InternedNodeReferenceCache` scope stores, which deduplicate the
+/// *storage* against the declaration model's interned name trees. A hit
+/// materializes a fresh tree, so the cache retains no class `Node` and the
+/// returned instances are never shared across calls — key long-lived state
+/// structurally, never by `ObjectIdentifier` of a returned node.
 private final class MetadataReaderCache: SharedCache<MetadataReaderCache.Storage>, @unchecked Sendable {
     fileprivate static let shared = MetadataReaderCache()
 
@@ -640,15 +674,17 @@ private final class MetadataReaderCache: SharedCache<MetadataReaderCache.Storage
 
     final class Storage {
         @Mutex
-        fileprivate var nodeForMangledNameBox: [MangledNameBox: Node] = [:]
+        fileprivate var nodeReferenceForMangledNameBox: [MangledNameBox: NodeReference] = [:]
 
         /// Cache for context descriptor demangling results, keyed by descriptor offset.
         @Mutex
-        fileprivate var nodeForContextOffset: [Int: Node] = [:]
+        fileprivate var nodeReferenceForContextOffset: [Int: NodeReference] = [:]
 
         /// Cache for symbol-based context mangling results, keyed by symbol name.
+        /// A stored `nil` is a cached rejection verdict: the build already
+        /// answered "no context mangling" once and is never retried.
         @Mutex
-        fileprivate var nodeForSymbolName: [String: Node?] = [:]
+        fileprivate var nodeReferenceForSymbolName: [String: NodeReference?] = [:]
     }
 
     override func buildStorage<MachO: MachORepresentableWithCache>(for machO: MachO) -> Storage? {
@@ -660,21 +696,21 @@ private final class MetadataReaderCache: SharedCache<MetadataReaderCache.Storage
     }
 
     func demangleType<MachO: MachOSwiftSectionRepresentableWithCache>(for mangledName: MangledName, in machO: MachO) throws -> Node {
-        if let node = storage(in: machO)?.nodeForMangledNameBox[MangledNameBox(mangledName)] {
-            return node
+        if let reference = storage(in: machO)?.nodeReferenceForMangledNameBox[MangledNameBox(mangledName)] {
+            return reference.materialize()
         } else {
             let node = try MetadataReader._demangleType(for: mangledName, in: machO)
-            storage(in: machO)?.nodeForMangledNameBox[MangledNameBox(mangledName)] = node
+            storage(in: machO)?.nodeReferenceForMangledNameBox[MangledNameBox(mangledName)] = InternedNodeReferenceCache.shared.reference(interning: node, in: machO)
             return node
         }
     }
 
     func demangleType(for mangledName: MangledName) throws -> Node {
-        if let node = storage()?.nodeForMangledNameBox[MangledNameBox(mangledName)] {
-            return node
+        if let reference = storage()?.nodeReferenceForMangledNameBox[MangledNameBox(mangledName)] {
+            return reference.materialize()
         } else {
             let node = try MetadataReader._demangleType(for: mangledName)
-            storage()?.nodeForMangledNameBox[MangledNameBox(mangledName)] = node
+            storage()?.nodeReferenceForMangledNameBox[MangledNameBox(mangledName)] = InternedNodeReferenceCache.shared.reference(interning: node)
             return node
         }
     }
@@ -683,22 +719,22 @@ private final class MetadataReaderCache: SharedCache<MetadataReaderCache.Storage
 
     func demangleContext<MachO: MachOSwiftSectionRepresentableWithCache>(for context: ContextDescriptorWrapper, in machO: MachO) throws -> Node {
         let key = context.contextDescriptor.offset
-        if let node = storage(in: machO)?.nodeForContextOffset[key] {
-            return node
+        if let reference = storage(in: machO)?.nodeReferenceForContextOffset[key] {
+            return reference.materialize()
         } else {
             let node = try MetadataReader._demangleContext(for: context, in: machO)
-            storage(in: machO)?.nodeForContextOffset[key] = node
+            storage(in: machO)?.nodeReferenceForContextOffset[key] = InternedNodeReferenceCache.shared.reference(interning: node, in: machO)
             return node
         }
     }
 
     func demangleContext(for context: ContextDescriptorWrapper) throws -> Node {
         let key = context.contextDescriptor.offset
-        if let node = storage()?.nodeForContextOffset[key] {
-            return node
+        if let reference = storage()?.nodeReferenceForContextOffset[key] {
+            return reference.materialize()
         } else {
             let node = try MetadataReader._demangleContext(for: context)
-            storage()?.nodeForContextOffset[key] = node
+            storage()?.nodeReferenceForContextOffset[key] = InternedNodeReferenceCache.shared.reference(interning: node)
             return node
         }
     }
@@ -707,22 +743,24 @@ private final class MetadataReaderCache: SharedCache<MetadataReaderCache.Storage
 
     func buildContextManglingForSymbol<MachO: MachOSwiftSectionRepresentableWithCache>(_ symbol: Symbol, in machO: MachO) throws -> Node? {
         let key = symbol.name
-        if let cached = storage(in: machO)?.nodeForSymbolName[key] {
-            return cached
+        if let cachedVerdict = storage(in: machO)?.nodeReferenceForSymbolName[key] {
+            return cachedVerdict?.materialize()
         } else {
             let node = try MetadataReader._buildContextManglingForSymbol(symbol, in: machO.context)
-            storage(in: machO)?.nodeForSymbolName[key] = node
+            // updateValue: a plain subscript assignment of a nil verdict would
+            // remove the key instead of caching the rejection.
+            storage(in: machO)?.nodeReferenceForSymbolName.updateValue(node.map { InternedNodeReferenceCache.shared.reference(interning: $0, in: machO) }, forKey: key)
             return node
         }
     }
 
     func buildContextManglingForSymbol(_ symbol: Symbol) throws -> Node? {
         let key = symbol.name
-        if let cached = storage()?.nodeForSymbolName[key] {
-            return cached
+        if let cachedVerdict = storage()?.nodeReferenceForSymbolName[key] {
+            return cachedVerdict?.materialize()
         } else {
             let node = try MetadataReader._buildContextManglingForSymbol(symbol, in: InProcessContext.shared)
-            storage()?.nodeForSymbolName[key] = node
+            storage()?.nodeReferenceForSymbolName.updateValue(node.map { InternedNodeReferenceCache.shared.reference(interning: $0) }, forKey: key)
             return node
         }
     }

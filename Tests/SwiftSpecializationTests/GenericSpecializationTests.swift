@@ -549,7 +549,7 @@ struct GenericSpecializationTests {
                 indexer: try await indexer
             )
             let request = try specializer.makeRequest(
-                for: entry.value.type.typeContextDescriptorWrapper
+                for: entry.value.typeContextDescriptorWrapper
             )
             #expect(request.parameters.count == 2, "Result<Success, Failure: Error> has two type parameters")
             let parameterNames = request.parameters.map(\.name)

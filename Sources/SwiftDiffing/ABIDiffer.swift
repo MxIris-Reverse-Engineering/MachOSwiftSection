@@ -245,7 +245,7 @@ public struct ABIDiffer: Sendable {
     /// on top of the shared members.
     func memberRecords(of definition: TypeDefinition) -> [MemberRecord] {
         var records = sharedMemberRecords(of: definition)
-        if case .enum = definition.type {
+        if case .enum = definition.typeContextDescriptorWrapper {
             for (tag, field) in definition.fields.enumerated() {
                 records.append(.makeCase(field, tag: tag))
             }
