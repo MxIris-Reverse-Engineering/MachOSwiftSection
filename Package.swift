@@ -149,14 +149,6 @@ extension Package.Dependency {
         ),
         remote: .package(
             url: "https://github.com/MxIris-Reverse-Engineering/MachOKit.git",
-            // A range rather than `exact:`, for the same reason as
-            // MachOObjCSection below. RuntimeViewer depends on this package and
-            // on MachOKit directly, so an exact requirement here deadlocks
-            // resolution the moment the app moves to a newer patch — which is
-            // exactly what `0.52.101` did. The lower bound is `0.52.101`
-            // because it fixes ObjC header info lookup in dyld subcaches; the
-            // upper bound stops at the next minor, where this line is free to
-            // break again.
             "0.52.101" ..< "0.53.0",
         ),
     )
@@ -183,15 +175,7 @@ extension Package.Dependency {
         ),
         remote: .package(
             url: "https://github.com/MxIris-Reverse-Engineering/MachOObjCSection.git",
-            // A range rather than `exact:`. RuntimeViewer depends on this
-            // package and on MachOObjCSection directly, so an exact requirement
-            // here deadlocks resolution the moment the app moves to a newer
-            // patch: two `exact:` requirements on one package have no solution
-            // regardless of source compatibility. The lower bound is `0.8.104`
-            // because `0.8.103` moved the ObjC relationship reverse tables out
-            // of `ObjCIndexing`; the upper bound stops at the next minor, where
-            // that line is free to break again.
-            "0.8.104" ..< "0.9.0",
+            "0.8.105" ..< "0.9.0",
         ),
     )
 }
@@ -204,14 +188,7 @@ extension Package.Dependency {
         ),
         remote: .package(
             url: "https://github.com/MxIris-Reverse-Engineering/swift-demangling",
-            // The node-store migration adopts 0.5.x: that release reshaped
-            // `NodePrinterTarget` (`write(_:context:)` /
-            // `pushTypeReferenceScope(_:)` take `@autoclosure` parameters and
-            // lost their default implementations) and dropped `Node: Codable`.
-            // The upper bound stays closed for the same reason the pre-adoption
-            // pin had one — an open bound silently floats this package onto the
-            // next demangler release's source breaks.
-            "0.5.1" ..< "0.6.0",
+            "0.6.0" ..< "0.7.0",
         ),
     )
 
