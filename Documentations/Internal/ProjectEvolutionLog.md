@@ -522,7 +522,7 @@
   - **流程固化**：新增 [`Scripts/run-rendering-ab-verification.py`](../../Scripts/run-rendering-ab-verification.py)（自动构建双侧、三部分渲染、逐对 diff、差异非零退出；归档 cache 缺失回退当前系统 cache，指定模拟器缺失回退现有 runtime）与流程文档 [SystemFrameworkRenderingVerification.md](SystemFrameworkRenderingVerification.md)；AGENTS.md 增设「大重构后必跑」规则，并把 `RenderingVerificationTests` 登记为 IntegrationTests 禁跑规则的唯一例外。
 - **关键决策**：cache 镜像一律 `-p` 全路径（iOSSupport 副本消歧）；模拟器一律 `-a arm64`（15.5/18.5 为 fat 二进制）；MachOImage 双侧必须同一次开机会话（memberAddress 依赖 per-boot cache slide）；interface 输出走 `-o` 使时间戳日志与被比对内容分离。
 - **关联文档**：[SystemFrameworkRenderingVerification.md](SystemFrameworkRenderingVerification.md)、[TaskReports/2026-08-03-system-framework-rendering-ab.md](TaskReports/2026-08-03-system-framework-rendering-ab.md)。
-- **对应版本**：0.14.0 之后未发布区间（`feature/node-store-migration` 分支）。
+- **对应版本**：`0.16.0`（`feature/node-store-migration` → `next` 合并批次）。
 
 ---
 
@@ -536,7 +536,7 @@
   - 新增 `LegacyDyldInfoBindTests`（fixture 用 `swiftc -target arm64-apple-macosx11.0` 在测试内即时编译强制旧格式；红 7 → 仅 fix 2 剩 4 → 双修复全绿的阶梯实测留档）。
 - **效果**：iOS 15.5 模拟器 interface：Combine 10 → 6907 行、WidgetKit 17 → 2795 行、SwiftUI 139 → 81157 行，解析错误全部归零（SwiftUI 7616 个 conformance 全数解析）；全量 1315 测试 / 250 套件绿，现代二进制快照逐字节不变。旧格式输入的 interface 输出自此与 main 合理不一致（feature 更完整），main 合并后恢复对等。
 - **关联文档**：[TaskReports/2026-08-03-legacy-dyld-info-bind-support.md](TaskReports/2026-08-03-legacy-dyld-info-bind-support.md)（含完整的无调试器调试方法学 walkthrough）、[SystemFrameworkRenderingVerification.md](SystemFrameworkRenderingVerification.md)。
-- **对应版本**：0.14.0 之后未发布区间（`feature/node-store-migration` 分支）。
+- **对应版本**：`0.16.0`（`feature/node-store-migration` → `next` 合并批次）。
 
 ---
 
@@ -574,7 +574,7 @@
 - **文档**：[StaticLayoutEngine.md](StaticLayoutEngine.md)（新增 pitfall 条目 + 测试清单）、
   [TaskReports/2026-08-04-foreign-struct-top-level-layout.md](TaskReports/2026-08-04-foreign-struct-top-level-layout.md)
   （含 ②③④ 的完整裁决记录与普查 harness 说明）。
-- **对应版本**：未发版（main，0.14.1 之后）。
+- **对应版本**：`0.15.0`（main，0.14.1 之后）。
 
 ---
 
@@ -614,7 +614,7 @@
 - **文档**：[StaticLayoutEngine.md](StaticLayoutEngine.md)（核心算法 / pitfall / 已知偏差表 /
   后续工作四处改写，硬骨头条目标记已解决）、AGENTS.md（`EnumLayoutBridge` 条目重写）、
   [TaskReports/2026-08-05-generic-fixed-mpe-spare-bits.md](TaskReports/2026-08-05-generic-fixed-mpe-spare-bits.md)。
-- **对应版本**：未发版（main，0.14.1 之后，紧接第 27 节）。
+- **对应版本**：`0.15.0`（main，0.14.1 之后，紧接第 27 节）。
 
 ## 29. 嵌套字段偏移展开的环守卫（indirect case 不下钻 + 路径环检测）
 
@@ -654,7 +654,7 @@
   `depth < 16`，遍历的是嵌套类型**声明**树（天然无环），不属同类，不改。
 - **文档**：[NestedFieldOffsetCycleGuard.md](NestedFieldOffsetCycleGuard.md)、
   [TaskReports/2026-08-06-nested-field-offset-cycle-guard.md](TaskReports/2026-08-06-nested-field-offset-cycle-guard.md)。
-- **对应版本**：未发版（main，0.14.1 之后，紧接第 28 节）。
+- **对应版本**：`0.15.0`（main，0.14.1 之后，紧接第 28 节）。
 
 ---
 
@@ -705,7 +705,7 @@
   上一条「不再需要重新编号」的承诺因此只对**本分支自己的节**成立：main 每落一个
   批次，本文末尾就要接一节新的，这是编年账本的常态，不是重新编号。
 - **文档**：[TaskReports/2026-08-06-main-rewind-onto-0.14.1.md](TaskReports/2026-08-06-main-rewind-onto-0.14.1.md)。
-- **对应版本**：`0.14.1`（main 与该 tag 之间此后仅有第 27–29、31 节的四个修复批次）。
+- **对应版本**：`0.15.0`（0.14.1 与该 tag 之间只有第 27–29、31 节的四个修复批次）。
 
 ---
 
@@ -734,7 +734,7 @@
   关键字）；interface / diff / dump 三路全覆盖，无新解析。
 - **文档**：[ClassMemberKeywordRecovery.md](ClassMemberKeywordRecovery.md)、
   [TaskReports/2026-08-07-class-member-keyword-recovery.md](TaskReports/2026-08-07-class-member-keyword-recovery.md)。
-- **对应版本**：`0.14.1` 之后、下一次 bump 之前。
+- **对应版本**：`0.16.0`。
 
 ---
 
@@ -748,7 +748,7 @@
 - **关键决策**：三条「每树/每类型/每晚到名字铸小 store」的流水线（`InternedNodeReferenceCache`、`TypeDefinition` 字段树批量 store、`lateDemangledNode`）**不动**——它们是对上游「builder 一次性 freeze」缺口的正确规避，等 swift-demangling 提案 0010（`SharedNodeStore`，Draft）落地后统一汇入每镜像共享 store。
 - **文档**：[NodeStoreMigrationPlan.md](NodeStoreMigrationPlan.md)「内存图驱动的驻留收口（2026-08-08）」一节；AGENTS.md Stage 5c 站点清单同步。
 - **补记（2026-08-08 同日，第三项落地）**：上游 0010（`SharedNodeStore`）当日 Implemented，本仓库迁移设计（[SharedNodeStoreMigration.md](SharedNodeStoreMigration.md)）经批准后同日实施：`InternedNodeReferenceCache` 退役哈希桶层、外壳换持每 scope 一个 `SharedNodeStore`（31 个调用点零波及）；`TypeDefinition.index` 字段树两阶段收敛为直接 intern 进镜像 store（去重范围从单类型扩到全镜像）；`lateDemangledNode` 换 `Storage` 自持的 side store、「loser 弃店」删除。全量 1337 tests 全绿且与迁移前同数，缓存与 late-path 的八条行为测试未改一行原样通过。用户裁决豁免「上游先 push」前置条件（无 sibling 环境在上游 push 前不可构建，知情接受）。RV 五镜像 memory graph 实景复测闭环：`NodeStore` 实例 **14,451 → 15（−99.9%）**，存活 `Node` 208,809 → 207,489（预期内小降），数字已回填上游 0010 决策日志。
-- **对应版本**：`0.14.1` 之后、下一次 bump 之前（`feature/node-store-migration` 分支）。
+- **对应版本**：`0.16.0`（`feature/node-store-migration` 分支）。
 
 ---
 
@@ -761,7 +761,7 @@
 - **验证**：全量 1337 tests 同数全绿；渲染 A/B 96 对逐字节一致（三 reader 路径 × dump/interface）；性能持平（72 对场景总耗时 ±0.2%，受控交错测量中位 71.3s vs 70.9s）；RV 五镜像 memory graph 实景复测存活 class `Node` **207,489 → 44（−99.98%）**、`NodeStore` 持平 15——远低于方案预期 ≲23k 的原因（跨测量上下文相减的假象人口、两个预期残留源在索引负载下不运行）记录于设计文档。
 - **附带发现**：本地 sibling 依赖生效需「兄弟目录存在 + `USING_LOCAL_DEPENDENCIES=1`」双条件，旧 scratch 的 manifest 求值缓存会掩盖后者——已补进 AGENTS.md 环境漂移检查第 2 条。
 - **文档**：[MetadataReaderCacheRetirement.md](MetadataReaderCacheRetirement.md)、[TaskReports/2026-08-08-metadata-reader-cache-retirement.md](TaskReports/2026-08-08-metadata-reader-cache-retirement.md)；[DeclarationModelMemoryFootprint.md](DeclarationModelMemoryFootprint.md) 后记标注该项结论失效。
-- **对应版本**：`0.14.1` 之后、下一次 bump 之前（`feature/node-store-migration` 分支）。
+- **对应版本**：`0.16.0`（`feature/node-store-migration` 分支）。
 
 ---
 
@@ -773,7 +773,7 @@
 - **关键决策 / 实施偏差**：`Span`/`UTF8Span` 运行时可用性 macOS 26+、本包部署下限 10.15 → 字节访问层改 `UnsafeBufferPointer`（closure-scoped 形态不变）；`RigidArray` 的 class 属性 borrow 人体工学要 SE-0507 → 精确容量 `Array` 拷贝、免掉 `BasicContainers` 依赖；`Optional<NodeIndex>` 哨兵搭车项放弃（`NodeIndex` 构造器上游 internal）。均记入提案决策日志。
 - **验证**：等价性测试 4 项全绿（字节级判定 vs `String.isSwiftSymbol` 全符号表逐条一致、mapped 收集 vs String 收集全等、二分逐行自洽、detach 物化正确）；全量 1341 tests / 256 suites 全绿（前 1337 + 新增 4）；渲染 A/B 96 对逐字节一致、性能持平（详见提案落地记录）；RV 五镜像实景复测同日闭环——footprint 稳态 **445 → 322 MB（−28%）**、堆存活 355 → 283.3 MiB、`SymbolIndexStore` 簇 214.6 → 120.9 MiB、驻留符号名 StringStorage 如预期消失（−42.8 万个），无回归旁证。
 - **文档**：[Evolutions/0001-symbol-name-offsetization.md](../Evolutions/0001-symbol-name-offsetization.md)（提案全生命周期）、[TaskReports/2026-08-08-symbol-name-offsetization.md](TaskReports/2026-08-08-symbol-name-offsetization.md)。
-- **对应版本**：`0.14.1` 之后、下一次 bump 之前（`feature/node-store-migration` 分支）。
+- **对应版本**：`0.16.0`（`feature/node-store-migration` 分支）。
 
 ---
 
@@ -784,7 +784,7 @@
 - **落地**：`SymbolRowBucket`（`RandomAccessCollection`）替换四处 `[UInt32]` 桶：单元素 case 内联在字典槽里，收到第二个元素才落堆数组；迭代序保持插入序，查询输出与旧桶逐字节一致。fixture 上单元素桶占比 87.6%。
 - **验证**：全量 1343 tests 全绿；渲染 A/B 七对（含 dyld cache 两对）逐字节一致。下游 RV 复测超预期：`[UInt32]` 簇 38.8 → **7.2 MiB**（预期 15–20），碎数组人口坍缩为 5 个桶字典。
 - **文档**：[Evolutions/0003-symbol-row-bucket-flattening.md](../Evolutions/0003-symbol-row-bucket-flattening.md)（提案全生命周期）。
-- **对应版本**：`0.14.1` 之后、下一次 bump 之前（`feature/node-store-migration` 分支）。
+- **对应版本**：`0.16.0`（`feature/node-store-migration` 分支）。
 
 ---
 
@@ -797,7 +797,7 @@
 - **验证**：全量 1343 全绿；渲染 A/B 七对逐字节一致（debug 与 release 双构建）；实例尺寸 `TypeDefinition` 1272 → **384 B**、`ExtensionDefinition` 640 → **224 B**、`ProtocolDefinition` 440 → **384 B**，回归守卫 `DeclarationModelInstanceSizeTests` 钉住上限。下游 RV 五镜像复测全部达标、三项超预期：稳态 322 → **262 MB**、堆存活 283 → 209.6 MiB、解析簇 33.4 → 3.3 MiB、索引瞬态峰值 808 → 613 MB。五镜像稳态全程曲线：842 → 470–480 → ~450 → 322（0001）→ **262 MB**（0002+0003）。
 - **后记**：机械迁移漏审了读人口数组的六个公开统计属性（清退后静默归零）——由 PR #103 review 发现（H1）并在第 37 节的批次里修复；教训已记入 0002 决策日志（编译器驱动的迁移看不见「语义在、数值错」的调用面）。
 - **文档**：[Evolutions/0002-declaration-model-descriptor-slimming.md](../Evolutions/0002-declaration-model-descriptor-slimming.md)（提案全生命周期）、[DeclarationModelMemoryFootprint.md](DeclarationModelMemoryFootprint.md)（后记复量）。
-- **对应版本**：`0.14.1` 之后、下一次 bump 之前（`feature/node-store-migration` 分支）。
+- **对应版本**：`0.16.0`（`feature/node-store-migration` 分支）。
 
 ---
 
@@ -809,7 +809,7 @@
 - **裁决（3 条，记入 [ReviewAdjudications.md](ReviewAdjudications.md) A4–A6）**：M2 卸载后悬垂指针——实验证明 Darwin 把含 Swift 内容的镜像全部 pin 死（连无类 dylib 都不 unmap）、唯一能卸载的纯 C 镜像不产生 mapped 行，触发面结构性不存在；M5 建议的 detach 时拷贝 node store——定义自身 `node` 字段同店引用，拷贝零回收，改为文档写准 + 共享契约测试钉住；L3 建议的 achievable-rank 早退——机制不可靠（会复发跨 subcache 误解析）且全扫描实测仅 43 ms，强制配套的 plain-`.dylib` 端到端用例落地。
 - **实施期修订（留痕于清单文档）**：H3 的 `Int(segment)` trap 被推翻（segment 是 4-bit opcode immediate）；M1 的渲染路径失败被 review 会话自行推翻（库内不可达）并降级为 Low；L3 的开销估计被测量推翻。每条修复先写修复前失败的回归测试（M3 的 precondition trap、M6 的三缓存被抽、L1 的整型丢弃等均有失败实录），验证全程走本地兄弟依赖环境（B1 未决期间 CI 不可用）。
 - **文档**：[Roadmaps/2026-08-09-pr103-review-findings.md](../../Roadmaps/2026-08-09-pr103-review-findings.md)（原始清单 + 修订注记）、[ReviewAdjudications.md](ReviewAdjudications.md)（A4–A6）、[TaskReports/2026-08-09-pr103-review-fix-implementation.md](TaskReports/2026-08-09-pr103-review-fix-implementation.md)。
-- **对应版本**：`0.14.1` 之后、下一次 bump 之前（`feature/node-store-migration` 分支）。
+- **对应版本**：`0.16.0`（`feature/node-store-migration` 分支）。
 
 ---
 
@@ -823,7 +823,7 @@
 - **上游发版**：移植已由用户于同日推送并打出 `MachOKitExtensions 0.1.1`。核验过 tag 内容与本地通过测试的副本逐字节一致，并摘掉本地软链、强制远端解析后重跑：相关 17 个测试与全量 1408 测试均退出码 0。本仓库 pin 随之从 `from: "0.1.0"` 收紧到 `from: "0.1.1"`（真实下限——两个测试套在 `0.1.0` 上无法编译），本地解析与 CI 就此一致。
 - **遗留**：`swift-demangling` 的 `0.5.1` tag 不含 `SharedNodeStore` 与 `NodeStoreBuilder.reserveCapacity(expectedSymbolCount:)`，PR #103 的 B1 仍未解——这是 CI 唯一剩下的阻塞项，本地验证仍需 `USING_LOCAL_DEPENDENCIES=1` + 兄弟目录取 `swift-demangling`。
 - **文档**：[TaskReports/2026-08-10-rebase-onto-0.15.0-and-upstream-port.md](TaskReports/2026-08-10-rebase-onto-0.15.0-and-upstream-port.md)。
-- **对应版本**：`0.15.0` 之后、下一次 bump 之前（`feature/node-store-migration` 分支）。
+- **对应版本**：`0.16.0`（`feature/node-store-migration` 分支）。
 
 ---
 
@@ -838,7 +838,7 @@
 - **上游合流**：`swift-demangling` 同期修掉畸形符号的 SIGTRAP / 整数溢出 / 死循环（模糊语料 trap 与 hang 归零）。这与 A2 是同一条线的两端——在此之前 `printCatchedThrowing` 就算 catch 了也拦不住进程级信号，两边合上后 per-definition catch 才真正成立。
 - **验证**：全量 1413 测试 / 266 suite / `swift test` 退出码 0；A/B 脚本新增 5 条标准库自测；依赖 pin 分两轮（先 `6eb3fc7` 确认自身改动，再 `5d2b476` 复跑）以分离变量。
 - **文档**：[TaskReports/2026-08-13-pr103-review-round-two-fixes.md](TaskReports/2026-08-13-pr103-review-round-two-fixes.md)、[ReviewAdjudications.md](ReviewAdjudications.md)（A7–A8）、提案 0001 兼容性一节更正、AGENTS.md 的 opaque 索引与缓存回收两段同步。
-- **对应版本**：`0.15.1` 之后、下一次 bump 之前（`feature/node-store-migration` 分支）。
+- **对应版本**：`0.16.0`（`feature/node-store-migration` 分支）。
 
 ---
 
@@ -857,7 +857,7 @@
 - **裁决（4 条，记入 [ReviewAdjudications.md](ReviewAdjudications.md) A9–A12）**：A9 键类型（推翻旧裁决、已修）；A10 `OrderedMember.minSymbolOffset` 的 String 分配**是误报**（`.offset` 命中 `DemangledSymbol` 的具体属性，SE-0195 下具体成员优先于 `@dynamicMemberLookup`；附全 `Sources/` 13 处 `.symbol.` 的穷尽普查）；A11 `SwiftDiffableInterfaceBuilder` 无 per-definition catch（与 main 字面零 diff，非本 PR 回归，但记入「本 PR 让失败面变宽」的 caveat）；A12 每次操作重复 materialize（照 A3 先例先测量）。`NodeStoreMigrationOpenIssues.md` 第 3 条标记为被 A9 取代，两份平行台账合一。
 - **验证（批次 3）**：全量 **1424 tests / 269 suites，退出码 0，零 issue**。
 - **文档**：[TaskReports/2026-08-14-pr103-review-round-three-fixes.md](TaskReports/2026-08-14-pr103-review-round-three-fixes.md)、[ReviewAdjudications.md](ReviewAdjudications.md)（A9–A12）、[Roadmaps/2026-08-14-pr103-review-round-three-findings.md](../../Roadmaps/2026-08-14-pr103-review-round-three-findings.md)（唯一仍 OPEN 的发现 + 本轮四问对自己的三处更正）。
-- **对应版本**：`0.15.1` 之后、下一次 bump 之前（`feature/node-store-migration` 分支）。
+- **对应版本**：`0.16.0`（`feature/node-store-migration` 分支）。
 
 ---
 
@@ -876,7 +876,7 @@
 - **落地（续，缓存驱逐两条 [2][3]）**：`Claims.normalized` 恢复「扔驻留仓库 ⇒ 必扔 demangle 备忘录」的单向绑定 —— 备忘录的值是指向仓库的 `NodeReference`，仓库文档原话 "Eviction reclaims nothing while external references survive"，所以「扔仓库留备忘录」不是部分成功而是**完全无效**；该绑定 8/9 存在、8/13 拆 claim 时被移除，解释它的注释却留在原地。TOCTOU 两处窗口一起关：`registerLiveIndexer` 改收采样闭包（锁内采样），`deregisterLiveIndexer` 改收驱逐闭包（锁内驱逐）—— 只关采样那半会把竞态从「注册前」搬到「注销后」而非消除。**一个被诊断否定的怀疑**：曾疑心采样位置太晚（注册在 `prepare()` 第 62 行之后，中间有子 indexer prepare 与四段 section 读取），实测显示那些读取不填这两个缓存，清空后 prepare 再释放三者都正确认领并清除。**一个差点漏过的测试陷阱**：第一版绑定测试红了但**红错断言** —— 我假设 `MetadataReader.demangleContext` 只填备忘录，实际两个都填，于是 indexer 正确地不认领仓库、而我的断言是错的；靠一轮状态诊断才发现，否则会用一个测着别的东西的测试"验证"修复。修正版用生产中真实可达的路径构造目标组合（内存压力驱逐清仓库、不清备忘录）。
 - **验证**：14 处危险写法清零（`grep` 剩余命中全是注释）；三个受影响套件 11 tests 全绿；缓存两条红→绿闭环（去绑定红在备忘录断言，恢复后 5 tests 全绿）；全量套件退出码 0。
 - **文档**：[Evolutions/0005](../Evolutions/0005-event-based-degradation-reporting.md)（含「实施中偏离提案的地方」四条）、[EventBasedDegradationReporting.md](EventBasedDegradationReporting.md)（分层契约 + 四条走不通的近路）、[TaskReports/2026-08-16-pr103-review-round-four-event-reporting.md](TaskReports/2026-08-16-pr103-review-round-four-event-reporting.md)。
-- **对应版本**：`0.15.1` 之后、下一次 bump 之前（`feature/node-store-migration` 分支）。
+- **对应版本**：`0.16.0`（`feature/node-store-migration` 分支）。
 
 ---
 
