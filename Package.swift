@@ -111,7 +111,13 @@ var dependencies: [Package.Dependency] = [
     .package(url: "https://github.com/gohanlon/swift-memberwise-init-macro", from: "0.6.0"),
 
     .package(url: "https://github.com/pointfreeco/swift-dependencies", from: "1.9.4"),
-    
+
+    // TypeIndexing (all its sources are `#if os(macOS)`; both products carry
+    // a macOS-only platform condition on the target dependency)
+    .package(url: "https://github.com/Mx-Iris/SourceKitD", from: "0.1.0"),
+    .package(url: "https://github.com/MxIris-DeveloperTool/swift-apinotes", from: "0.1.0"),
+
+
     // CLI
     .package(url: "https://github.com/onevcat/Rainbow", from: "4.0.0"),
 
@@ -615,21 +621,23 @@ extension Target {
         ],
     )
 
-//    static let TypeIndexing = Target.target(
-//        name: "TypeIndexing",
-//        dependencies: [
-//            .target(.SwiftInterface),
-//            .target(.Utilities),
-//            .product(.SwiftSyntax),
-//            .product(.SwiftParser),
-//            .product(.SwiftSyntaxBuilder),
-//            .product(.MachOObjCSection),
-//            .product(name: "Clang", package: "swift-clang"),
-//            .product(name: "SourceKitD", package: "SourceKitD", condition: .when(platforms: [.macOS])),
-//            .product(name: "BinaryCodable", package: "BinaryCodable"),
-//            .product(name: "APINotes", package: "swift-apinotes", condition: .when(platforms: [.macOS])),
-//        ]
-//    )
+    /// Module-attribution index for `__C` types (evolution proposal 0008):
+    /// resolves `__C.NSString` to `Foundation.NSString` via SourceKit-generated
+    /// module interfaces (substructure, no SwiftSyntax), APINotes renames, and
+    /// a lazy ObjC-metadata index over the binary's dependencies. Every source
+    /// file is `#if os(macOS)`.
+    static let TypeIndexing = Target.target(
+        name: "TypeIndexing",
+        dependencies: [
+            .target(.SwiftInterface),
+            .product(.MachOKit),
+            .product(name: "ObjCIndexing", package: "MachOObjCSection"),
+            .product(name: "ObjCMetadataSource", package: "MachOObjCSection"),
+            .product(name: "FoundationToolbox", package: "FrameworkToolbox"),
+            .product(name: "SourceKitD", package: "SourceKitD", condition: .when(platforms: [.macOS])),
+            .product(name: "APINotes", package: "swift-apinotes", condition: .when(platforms: [.macOS])),
+        ],
+    )
 
     static let swift_section = Target.executableTarget(
         name: "swift-section",
@@ -641,6 +649,7 @@ extension Target {
             .target(.SwiftPrinting),
             .target(.SwiftDiffing),
             .target(.SwiftInterface),
+            .target(.TypeIndexing),
             .product(name: "Rainbow", package: "Rainbow"),
             .product(name: "ArgumentParser", package: "swift-argument-parser"),
         ],
@@ -824,15 +833,13 @@ extension Target {
         swiftSettings: testSettings,
     )
 
-//    static let TypeIndexingTests = Target.testTarget(
-//        name: "TypeIndexingTests",
-//        dependencies: [
-//            .target(.TypeIndexing),
-//            .target(.MachOTestingSupport),
-//            .target(.MachOFixtureSupport),
-//        ],
-//        swiftSettings: testSettings
-//    )
+    static let TypeIndexingTests = Target.testTarget(
+        name: "TypeIndexingTests",
+        dependencies: [
+            .target(.TypeIndexing),
+        ],
+        swiftSettings: testSettings,
+    )
 
     static let SwiftInterfaceTests = Target.testTarget(
         name: "SwiftInterfaceTests",
@@ -970,7 +977,7 @@ extension Target {
             .target(.SwiftPrinting),
             .target(.SwiftInterface),
             .target(.SwiftDiffing),
-//            .target(.TypeIndexing),
+            .target(.TypeIndexing),
             .target(.MachOTestingSupport),
             .target(.MachOFixtureSupport),
             .product(.MachOKit),
@@ -1000,7 +1007,7 @@ let package = Package(
         .library(.SwiftPrinting),
         .library(.SwiftSpecialization),
         .library(.SwiftInterface),
-//        .library(.TypeIndexing),
+        .library(.TypeIndexing),
         .executable(.swift_section),
     ],
     dependencies: dependencies,
@@ -1028,7 +1035,7 @@ let package = Package(
         .SwiftPrinting,
         .SwiftSpecialization,
         .SwiftInterface,
-//        .TypeIndexing,
+        .TypeIndexing,
         .MachOMacros,
         .MachOFixtureSupport,
         .MachOTestingSupport,
@@ -1049,7 +1056,7 @@ let package = Package(
         .SwiftOutputTransformerTests,
         .SwiftLayoutTests,
         .SwiftDumpTests,
-//        .TypeIndexingTests,
+        .TypeIndexingTests,
         .SwiftPrintingTests,
         .SwiftDeclarationRenderingTests,
         .SwiftAttributeInferenceTests,

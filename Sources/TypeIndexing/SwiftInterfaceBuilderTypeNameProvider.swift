@@ -1,36 +1,49 @@
 #if os(macOS)
+
 import MachOKit
 import MachOSwiftSection
+import ObjCMetadataSource
 import SwiftInterface
 
+/// The `SwiftInterfaceBuilder` extra-data provider that restores real module
+/// names for `__C` / `__ObjC` types: attach it and the printer's
+/// `moduleName(forTypeName:)` delegate resolves `__C.NSString` to
+/// `Foundation.NSString` through a ``TypeDatabase`` built for the indexed
+/// binary's platform and dependency set.
 @available(macOS 13.0, *)
-public final class SwiftInterfaceBuilderTypeNameProvider<MachO: MachOSwiftSectionRepresentableWithCache & Sendable>: SwiftInterfaceBuilderExtraDataProvider, Sendable {
+public final class SwiftInterfaceBuilderTypeNameProvider<MachO: MachOSwiftSectionRepresentableWithCache & ObjCMetadataSource & Sendable>: SwiftInterfaceBuilderExtraDataProvider, Sendable {
     public let machO: MachO
 
     private let typeDatabase: TypeDatabase<MachO>
 
     private let dependencies: SwiftInterfaceBuilderDependencies<MachO>
 
+    /// Fails when the binary carries no build-version load command mapping to
+    /// a known SDK platform — without a platform there is no SDK to index.
     public init?(machO: MachO, dependencies: SwiftInterfaceBuilderDependencies<MachO>) {
-        self.machO = machO
-        self.dependencies = dependencies
         guard let platform = machO.loadCommands.buildVersionCommand?.platform.sdkPlatform else {
             return nil
         }
-        self.typeDatabase = .init(platform: platform)
+        self.machO = machO
+        self.dependencies = dependencies
+        self.typeDatabase = TypeDatabase(platform: platform)
     }
 
     public func setup() async throws {
-        let dependencyModules = Set(dependencies.dependencies.map(\.imagePath.lastPathComponent.deletingPathExtension.deletingPathExtension.strippedLibSwiftPrefix))
-        try await typeDatabase.index(dependencies: dependencies.dependencies) { dependencyModules.contains($0) }
+        // Index only the SDK modules the binary actually links: the module
+        // filter is keyed on the dependency images' module names, which is
+        // what makes first-run indexing minutes-of-modules instead of the
+        // whole SDK.
+        let dependencyModuleNames = Set(dependencies.dependencies.map { TypeDatabase<MachO>.moduleName(forImagePath: $0.imagePath) })
+        try await typeDatabase.index(dependencies: dependencies.dependencies) { dependencyModuleNames.contains($0) }
     }
 
     public func moduleName(forTypeName typeName: String) async -> String? {
-        typeDatabase.moduleName(forTypeName: typeName)
+        await typeDatabase.moduleName(forTypeName: typeName)
     }
 
     public func swiftName(forCName cName: String) async -> String? {
-        typeDatabase.swiftName(forCName: cName)
+        await typeDatabase.swiftName(forCName: cName)
     }
 }
 
@@ -76,15 +89,6 @@ extension LoadCommandsProtocol {
             }
         }
         return nil
-    }
-}
-
-extension String {
-    var strippedLibSwiftPrefix: String {
-        if hasPrefix("libswift") {
-            return String(dropFirst("libswift".count))
-        }
-        return self
     }
 }
 

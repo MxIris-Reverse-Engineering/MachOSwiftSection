@@ -880,6 +880,21 @@
 
 ---
 
+## 42. TypeIndexing 重启：`__C` 模块归属解析（提案 0008）
+
+- **时间段**：2026-08-21 ~ 2026-08-22（`feature/type-indexing-revival`，基于 `next`，独立 worktree）。
+- **动机**：`Sources/TypeIndexing`（`__C.NSString` → `Foundation.NSString` 的模块归属索引）自 Swift 6 迁移期被整体注释出 `Package.swift`；打印侧 delegate 挂接点一直是活的，唯一 provider 实现却不参与编译。用户要求修复重启。
+- **禁用主因与修法**：历史实现在 SDK 扫描时对**每个**发现的 `.swiftmodule` 当场跑 sourcekitd 生成全模块 interface，依赖过滤在其后才生效——首次索引小时级。重构为发现与生成分离：扫描只做文件发现（秒级），interface 生成下沉到依赖过滤之后，配 per-module、按 SDK 精确构建（`Version-ProductBuildVersion`）分层的 JSON 缓存。实测 fixture 依赖面只生成 9 个模块条目、首次 33 秒、缓存命中 10 秒。
+- **两条用户裁定**：① 旧 ObjCDump 自建索引器删除，私有类归属改用 MachOObjCSection 的 `ObjCIndexing`（下限 0.8.105，泛型 `ObjCMetadataSource` indexer），做成查询 miss 才逐依赖 image 索引的懒路径；② SwiftSyntax 不进运行时依赖（体积数十 MB，而 `TypeDatabase` 只消费类型名清单）——类型名提取改走 `editor.open.interface` + `key.enablesubstructure` 的结构树（探针实测完整可用，兜底行级解析器按提案条款不再编写），extension 嵌套键错误在新提取器里结构性消失。
+- **顺带修掉的正确性 bug**：APINotes 双向表 `moduleName` 字段被写成 swiftName（修复 + 复现测试）；缓存无 SDK 版本导致 Xcode 升级吃旧数据；sourcekitd 路径硬编码 `/Applications/Xcode.app`（改从 `xcode-select -p` 派生）；`SwiftModule.write` 写错路径（随重构消亡）。APINotes 归属注册放宽到每个列出的实体（`__C.X` 的 X 是 C 名，归属与 Swift 侧可见性无关）。
+- **规范整改**：全模块 `@Loggable` + `#log`，`PrintFailureEventTests` 的 `SDKIndexer.swift` 豁免移除（其注释原话 "If that target is ever revived, convert it first"）。踩到并记档的坑：`@Loggable` 直接类型形态在 `@available(macOS 13.0, *)` 类型上被 emit-module 拒绝（宏展开的 static stored logger 自带更高 availability；单 target 编译只是 warning）——全模块改 protocol 形态。
+- **提案编号避让**：立项用 0006，实施当天发现 `main` 上并行会话同日登记 0005–0007 三个 Draft（其 0006 为 Extension 容器去重），避让至 **0008**；`main` 新 0005 与 `next` 既有 0005 的互撞是既有漂移，留待两线合并裁决。
+- **验证**：整包构建零 error；`TypeIndexingTests` 23 个纯单测（提取器 / import 扫描 / APINotes / 合并优先级 / 缓存）全绿；全套 1456 tests / 275 suites 退出码 0；端到端（fixture `SymbolTestsCore`）baseline 21 处 `__C.` → 0 处，diff 全部行都是模块名替换（`Foundation.NSObject`、`CoreFoundation.CFStringRef`、APINotes 改名的 `Foundation.Decimal`），缓存命中输出逐字节一致。CLI 入口 `swift-section interface --resolve-c-module-names`（默认关，默认输出字节不变）。
+- **文档**：[Evolutions/0008](../Evolutions/0008-type-indexing-revival.md)、[TypeIndexingPipeline.md](TypeIndexingPipeline.md)（含与提案的差异：swift-dependencies 未引入、兜底解析器未编写）、[TaskReports/2026-08-22-type-indexing-revival.md](TaskReports/2026-08-22-type-indexing-revival.md)、AGENTS.md 架构节新增 TypeIndexing 条目。
+- **对应版本**：未随本批 bump（`feature/type-indexing-revival` 待并入 `next`）。
+
+---
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节

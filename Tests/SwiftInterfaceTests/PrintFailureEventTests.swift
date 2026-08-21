@@ -232,15 +232,10 @@ final class PrintFailureEventTests: MachOFileTests, @unchecked Sendable {
         // parameters, which `@Loggable` cannot express — it fixes both at compile
         // time. A host-configurable sink is the one legitimate `Logger` here.
         let configurableSinks: Set<String> = ["SwiftIndexEventsHandlers.swift"]
-        // Belongs to the commented-out `TypeIndexing` target, so it compiles
-        // nowhere. Listed rather than fixed: changing dead code buys no
-        // verification. If that target is ever revived, convert it first.
-        let excludedFromBuild: Set<String> = ["SDKIndexer.swift"]
 
         var offendingLines: [String] = []
         for fileURL in try Self.swiftSourceFiles() {
             if configurableSinks.contains(fileURL.lastPathComponent) { continue }
-            if excludedFromBuild.contains(fileURL.lastPathComponent) { continue }
 
             let contents = try String(contentsOf: fileURL, encoding: .utf8)
             for (lineNumber, line) in contents.components(separatedBy: .newlines).enumerated() {

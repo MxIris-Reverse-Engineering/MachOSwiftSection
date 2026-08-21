@@ -7,6 +7,9 @@ import MachOFoundation
 import MachOSwiftSection
 import SwiftInterface
 import ArgumentParser
+#if os(macOS)
+import TypeIndexing
+#endif
 
 struct InterfaceCommand: AsyncParsableCommand {
     static let configuration: CommandConfiguration = .init(
@@ -28,6 +31,9 @@ struct InterfaceCommand: AsyncParsableCommand {
 
     @Flag(help: "Parse opaque return value, this option is an experimental feature and may result in parsing errors for complex return types.")
     var parseOpaqueReturnType: Bool = false
+
+    @Flag(help: "Resolve __C/__ObjC type module names to their real modules (__C.NSString -> Foundation.NSString) by indexing the SDK modules the binary links, its APINotes, and its dependencies' ObjC metadata. Requires Xcode; the first run per SDK generates module interfaces through sourcekitd and caches the extraction.")
+    var resolveCModuleNames: Bool = false
 
     @Flag(help: "Generate field offset and PWT offset comments, if possible")
     var emitOffsetComments: Bool = false
@@ -86,6 +92,27 @@ struct InterfaceCommand: AsyncParsableCommand {
 
         if parseOpaqueReturnType {
             builder.addExtraDataProvider(SwiftInterfaceBuilderOpaqueTypeProvider(machO: machOFile))
+        }
+
+        if resolveCModuleNames {
+            #if os(macOS)
+            if #available(macOS 13.0, *) {
+                let providerDependencies = SwiftInterfaceBuilderDependencies(
+                    machO: machOFile,
+                    paths: [.usesSystemDyldSharedCache],
+                    eventHandlers: [ConsoleEventHandler()]
+                )
+                if let typeNameProvider = SwiftInterfaceBuilderTypeNameProvider(machO: machOFile, dependencies: providerDependencies) {
+                    builder.addExtraDataProvider(typeNameProvider)
+                } else {
+                    fputs("warning: --resolve-c-module-names ignored: the binary carries no build-version command mapping to a known SDK platform\n", stderr)
+                }
+            } else {
+                fputs("warning: --resolve-c-module-names requires macOS 13 or later\n", stderr)
+            }
+            #else
+            fputs("warning: --resolve-c-module-names is only available on macOS\n", stderr)
+            #endif
         }
 
         print("Preparing to build Swift interface...")
