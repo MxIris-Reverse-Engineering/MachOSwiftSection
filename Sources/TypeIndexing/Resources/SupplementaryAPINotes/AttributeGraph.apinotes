@@ -1,0 +1,24 @@
+# Community type mappings for AttributeGraph (private framework, no SDK
+# module). Sources: reverse-engineered headers, e.g.
+#   typedef struct AG_BRIDGED_TYPE(id) AGGraphStorage *AGGraphRef AG_SWIFT_NAME(Graph);
+#
+# Every CF-bridged type registers BOTH spellings, because both reach Swift
+# manglings: the typedef name (`AGGraphRef`, signature references) goes under
+# Typedefs, the storage/tag name (`AGGraphStorage`, field-metadata foreign
+# descriptors) goes under Tags. See Documentations/SupplementaryTypeMappings.md
+# for the contribution guide.
+Name: AttributeGraph
+Typedefs:
+- Name: AGGraphRef
+  SwiftName: Graph
+- Name: AGSubgraphRef
+  SwiftName: Subgraph
+- Name: AGGraphContextRef
+  SwiftName: GraphContext
+Tags:
+- Name: AGGraphStorage
+  SwiftName: Graph
+- Name: AGSubgraphStorage
+  SwiftName: Subgraph
+- Name: AGGraphContextStorage
+  SwiftName: GraphContext

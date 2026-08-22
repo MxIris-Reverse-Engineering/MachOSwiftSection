@@ -637,6 +637,11 @@ extension Target {
             .product(name: "SourceKitD", package: "SourceKitD", condition: .when(platforms: [.macOS])),
             .product(name: "APINotes", package: "swift-apinotes", condition: .when(platforms: [.macOS])),
         ],
+        resources: [
+            // Community-contributed supplementary APINotes bundles (evolution
+            // proposal 0009): type mappings for frameworks with no SDK module.
+            .copy("Resources/SupplementaryAPINotes"),
+        ],
     )
 
     static let swift_section = Target.executableTarget(

@@ -35,6 +35,9 @@ struct InterfaceCommand: AsyncParsableCommand {
     @Flag(help: "Resolve __C/__ObjC type module names to their real modules (__C.NSString -> Foundation.NSString) by indexing the SDK modules the binary links, its APINotes, and its dependencies' ObjC metadata. Requires Xcode; the first run per SDK generates module interfaces through sourcekitd and caches the extraction.")
     var resolveCModuleNames: Bool = false
 
+    @Option(name: .customLong("supplementary-apinotes"), help: "A supplementary .apinotes file (or a directory of them) of community type mappings for frameworks with no SDK module, loaded on top of the built-in bundles. Repeatable; later paths override earlier ones. Only used with --resolve-c-module-names.", completion: .file())
+    var supplementaryAPINotesPaths: [String] = []
+
     @Flag(help: "Generate field offset and PWT offset comments, if possible")
     var emitOffsetComments: Bool = false
 
@@ -102,7 +105,8 @@ struct InterfaceCommand: AsyncParsableCommand {
                     paths: [.usesSystemDyldSharedCache],
                     eventHandlers: [ConsoleEventHandler()]
                 )
-                if let typeNameProvider = SwiftInterfaceBuilderTypeNameProvider(machO: machOFile, dependencies: providerDependencies) {
+                let supplementaryAPINotesURLs = supplementaryAPINotesPaths.map { URL(fileURLWithPath: $0) }
+                if let typeNameProvider = SwiftInterfaceBuilderTypeNameProvider(machO: machOFile, dependencies: providerDependencies, supplementaryAPINotesURLs: supplementaryAPINotesURLs) {
                     builder.addExtraDataProvider(typeNameProvider)
                 } else {
                     fputs("warning: --resolve-c-module-names ignored: the binary carries no build-version command mapping to a known SDK platform\n", stderr)
@@ -113,6 +117,8 @@ struct InterfaceCommand: AsyncParsableCommand {
             #else
             fputs("warning: --resolve-c-module-names is only available on macOS\n", stderr)
             #endif
+        } else if !supplementaryAPINotesPaths.isEmpty {
+            fputs("warning: --supplementary-apinotes has no effect without --resolve-c-module-names\n", stderr)
         }
 
         print("Preparing to build Swift interface...")

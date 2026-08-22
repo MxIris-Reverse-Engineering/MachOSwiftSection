@@ -29,6 +29,11 @@ import SwiftPrinting
 package actor TypeDatabase<MachO: ObjCMetadataSource & Sendable> {
     private let platform: SDKPlatform
 
+    /// Host-supplied supplementary APINotes locations (files or directories),
+    /// loaded after the built-in bundles so they overwrite them (evolution
+    /// proposal 0009).
+    private let supplementaryAPINotesURLs: [URL]
+
     private let sourceKitManager = SourceKitManager()
 
     /// Type name → declaring module, merged from interfaces then APINotes.
@@ -44,8 +49,9 @@ package actor TypeDatabase<MachO: ObjCMetadataSource & Sendable> {
     /// dropped (logged), not retried.
     private var unindexedDependencies: [MachO] = []
 
-    package init(platform: SDKPlatform) {
+    package init(platform: SDKPlatform, supplementaryAPINotesURLs: [URL] = []) {
         self.platform = platform
+        self.supplementaryAPINotesURLs = supplementaryAPINotesURLs
     }
 
     // MARK: - Indexing
@@ -82,6 +88,8 @@ package actor TypeDatabase<MachO: ObjCMetadataSource & Sendable> {
 
         register(moduleEntries: entries)
         register(apiNotesIndex: APINotesIndex(files: discovery.apiNotesFiles))
+        register(supplementaryAPINotesFiles: SupplementaryAPINotesLoader.builtinFiles()
+            + SupplementaryAPINotesLoader.files(atSupplementaryLocations: supplementaryAPINotesURLs))
         register(dependencies: dependencies)
     }
 
@@ -99,8 +107,32 @@ package actor TypeDatabase<MachO: ObjCMetadataSource & Sendable> {
     /// any interface-derived entry for the same name.
     package func register(apiNotesIndex: APINotesIndex) {
         self.apiNotesIndex = apiNotesIndex
-        for (cName, moduleName) in apiNotesIndex.moduleNamesByCName {
+        registerAttribution(fromAPINotesIndex: apiNotesIndex)
+    }
+
+    /// Registers supplementary APINotes bundles (evolution proposal 0009) on
+    /// top of whatever is already indexed: their entries append into the same
+    /// `APINotesIndex`, where later files overwrite earlier same-name entries
+    /// — so calling this after `register(apiNotesIndex:)` gives supplementary
+    /// mappings the last word over SDK ones. Attribution is then re-synced
+    /// from the index, whose internal ordering already reflects the override.
+    package func register(supplementaryAPINotesFiles supplementaryFiles: [APINotesFile]) {
+        apiNotesIndex.register(files: supplementaryFiles)
+        registerAttribution(fromAPINotesIndex: apiNotesIndex)
+    }
+
+    private func registerAttribution(fromAPINotesIndex attributionIndex: APINotesIndex) {
+        for (cName, moduleName) in attributionIndex.moduleNamesByCName {
             moduleNamesByTypeName[cName] = moduleName
+        }
+        // The renamed Swift spelling reaches manglings too: a foreign
+        // descriptor the consuming binary emits records the *imported* name
+        // (`__C.Graph` for an `AG_SWIFT_NAME(Graph)` type), so it needs
+        // attribution alongside the C spellings. Nested renames
+        // (`ProcessInfo.ActivityOptions`) never appear as one identifier and
+        // are skipped.
+        for (swiftName, originalCName) in attributionIndex.cNamesBySwiftName where !swiftName.contains(".") {
+            moduleNamesByTypeName[swiftName] = originalCName.moduleName
         }
     }
 

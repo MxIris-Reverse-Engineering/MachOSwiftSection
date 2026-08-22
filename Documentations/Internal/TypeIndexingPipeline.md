@@ -1,20 +1,21 @@
 # TypeIndexing：`__C` 模块归属索引管线实现说明
 
-> 本文是 evolution 提案 [0008](../Evolutions/0008-type-indexing-revival.md)（TypeIndexing 重启）的配套实现说明，面向维护者：记录实际落地的管线、与提案的差异、缓存布局与已知降级。
+> 本文是 evolution 提案 [0008](../Evolutions/0008-type-indexing-revival.md)（TypeIndexing 重启）与 [0009](../Evolutions/0009-community-type-mapping-bundles.md)（补充映射包）的配套实现说明，面向维护者：记录实际落地的管线、与提案的差异、缓存布局与已知降级。
 
 ## 这个模块做什么
 
-打印管线遇到 `__C` / `__ObjC` module 节点时（`NodePrintable.printModule`），会拿 sibling identifier 问 delegate 的 `moduleName(forTypeName:)`（带 `Ref` 后缀剥除回退）。`TypeIndexing` 提供唯一的 provider 实现 `SwiftInterfaceBuilderTypeNameProvider`：挂上它之后，`__C.NSString` 打印为 `Foundation.NSString`。CLI 入口是 `swift-section interface --resolve-c-module-names`；库入口是 `builder.addExtraDataProvider(SwiftInterfaceBuilderTypeNameProvider(machO:dependencies:))`。
+打印管线遇到 `__C` / `__ObjC` module 节点时（`NodePrintable.printModule`），会拿 sibling identifier 问 delegate 的 `moduleName(forTypeName:)`（带 `Ref` 后缀剥除回退）。`TypeIndexing` 提供唯一的 provider 实现 `SwiftInterfaceBuilderTypeNameProvider`：挂上它之后，`__C.NSString` 打印为 `Foundation.NSString`。CLI 入口是 `swift-section interface --resolve-c-module-names`（补充映射包经 `--supplementary-apinotes` 追加）；库入口是 `builder.addExtraDataProvider(SwiftInterfaceBuilderTypeNameProvider(machO:dependencies:supplementaryAPINotesURLs:))`（末参数带默认值）。
 
 ## 查询数据流（三源合并，优先级从高到低）
 
 ```
 moduleName(forTypeName: "NSString")
-    1. moduleNamesByTypeName   ← Swift interface 类型名（低）+ APINotes C 名（高，后写覆盖）
+    1. moduleNamesByTypeName   ← Swift interface 类型名（低）+ APINotes C 名与 SwiftName 拼写
+                                  （高，后写覆盖；SDK APINotes → 内置补充包 → 宿主补充包）
     2. objcModuleNamesByTypeName ← ObjC 元数据懒索引（最低，只补缺）
 
 swiftName(forCName: "CFStringRef", category:)   ← identifier 重写（见下节）
-    1. APINotes 改名表（按声明类别隔离）
+    1. APINotes 改名表（按声明类别隔离；补充包条目同表、后写覆盖）
     2. CF `Ref` 剥除规则（剥后名必须存在于归属表；protocol 类别不适用）
 ```
 
@@ -32,6 +33,18 @@ module 名替换之外，`__C` 类型的 **identifier 本身**也可能是 Swift
 - **APINotes**：`.apinotes` 是编译器视角的权威归属记录，`APINotesIndex` 把**每个列出的实体**（含无 `SwiftName` 改名、含 `SwiftPrivate`）的 C 名注册到声明模块，后写覆盖 interface 名。双向改名表（`swiftName(forCName:)` / `cName(forSwiftName:)`）只收非 `SwiftPrivate` 的改名实体。
 - **ObjC 懒索引**：前两层 miss 才按依赖顺序逐 image 构造 MachOObjCSection `ObjCIndexing` 的 `ObjCInterfaceIndexer`、`prepare()`、并入 class / protocol / C struct / union 名 → image 模块名，命中即止。已索引 image 的结果缓存在 actor 内；索引失败的 image 记日志后丢弃不重试。依赖耗尽后 miss 只花一次字典探查。
 
+## 补充映射包：私有框架的外部知识入口（提案 0009）
+
+AttributeGraph 这类私有框架在 SDK 里没有任何模块（无头文件、无 swiftmodule、无 apinotes），三源全 miss；而 `AG_SWIFT_NAME(Graph)` 的改名只活在头文件 attribute 里、二进制零残留，原理上不可恢复。[提案 0009](../Evolutions/0009-community-type-mapping-bundles.md) 的补充映射包就是这份外部知识的入口：映射用**标准 `.apinotes` 格式**表达（零新格式，直接进 `APINotesIndex` 既有管线，类别隔离天然携带），两层来源——库内置 SPM resource（`Sources/TypeIndexing/Resources/SupplementaryAPINotes/*.apinotes`，社区经 PR 贡献）+ 宿主/CLI 追加路径（`--supplementary-apinotes`，可重复，文件或目录）。覆盖顺序：SDK APINotes → 内置包 → 宿主追加包，`APINotesIndex.register(files:)` 的后写覆盖即优先级实现。面向贡献者的公开指引见 [SupplementaryTypeMappings.md](../SupplementaryTypeMappings.md)。
+
+**同一个 CF-bridged 类型有三种 mangling 形态**（AG probe 实测：手造 clang module 复刻 `objc_bridge` + `swift_name` 声明，5 处引用全解析为 `AttributeGraph.Graph` / `.Subgraph`），各自的覆盖机制不同：
+
+1. **typedef 名**（`__C.AGGraphRef`，符号签名，typealias node → `.other` 类别）：`Typedefs` 条目的改名表命中。
+2. **storage / tag 名**（`__C.AGGraphStorage`，字段元数据的 foreign **class** descriptor，`.objcClass` 类别）：条目按 C 语义归 `Tags`（值类型表），所以 `.objcClass` 查询在 class 表 miss 后**回退值类型表**。安全性论证：C 的 tag namespace 与 ObjC class namespace 理论上可同名共存，但 class 表先查先赢，「改名只在 tag 侧、同名 ObjC class 又真被引用」无已知真实实例；protocol 表仍绝不回退（`NSObject` 隔离不动）。系统 dyld cache 的 SwiftUI 里实测存在孤立的 `AGGraphStorage` descriptor 名，即此形态。
+3. **导入名直出**（`__C.Graph`，probe 实测：消费方二进制 emit 的 foreign descriptor 记录的是 **swift_name 之后**的拼写）：identifier 已是最终拼写、无需也无从改名，缺的只是归属——因此 `TypeDatabase` 的归属同步（`registerAttribution(fromAPINotesIndex:)`）把改名反查表（`cNamesBySwiftName`）的 **SwiftName 拼写也登进归属表**（带点的嵌套改名如 `ProcessInfo.ActivityOptions` 不会以单 identifier 出现，跳过）。此登记对 SDK APINotes 同样生效（`NSDecimal → Decimal` 的 `__C.Decimal` 引用同理受益）。
+
+内置包收录立场：**宁缺毋滥**——首发 AttributeGraph 只收录有头文件级一手证据的条目（Graph / Subgraph / GraphContext，双拼写各一条）；条目错了输出跟着错，PR review 对引用证据的审查是唯一防线。
+
 ## 管线分层（每层一个类型，一文件）
 
 | 类型 | 职责 | 关键点 |
@@ -42,10 +55,11 @@ module 名替换之外，`__C` 类型的 **identifier 本身**也可能是 Swift
 | `InterfaceDeclarationNode` | substructure 的值类型投影 | `other` 节点的子树在转换时即丢弃 |
 | `InterfaceTypeNameExtractor` | 值树 → fully-qualified 类型名（纯函数） | extension 节点用被扩展类型名（可带点）作限定前缀、自身不入清单——旧 SwiftSyntax 解析器的 extension 嵌套键错误在此结构性消失 |
 | `SDKIndexer` | SDK 文件发现（秒级，零 sourcekitd） | `.swiftmodule` 目录 `skipDescendants`；同名模块先到先得（search path 优先级） |
-| `APINotesFile` / `APINotesIndex` | `.apinotes` 解析与三张名表 | 修复历史 bug：C 名 → Swift 名映射的 `moduleName` 字段曾被写成 swiftName |
+| `APINotesFile` / `APINotesIndex` | `.apinotes` 解析与三张名表 | 修复历史 bug：C 名 → Swift 名映射的 `moduleName` 字段曾被写成 swiftName；`register(files:)` 可追加（后写覆盖，补充包优先级的实现点） |
+| `SupplementaryAPINotesLoader` | 补充映射包枚举与解析（提案 0009） | 内置 `Bundle.module` 资源按文件名排序；宿主路径可为文件或目录（目录取浅层 `.apinotes`）；解析失败逐文件记日志跳过 |
 | `ModuleIndexCacheEntry` / `ModuleIndexCache` | per-module JSON 缓存 | 见下节 |
 | `ModuleInterfaceIndexer` | 单模块管线：缓存 → 生成 → 提取 → 回写 | 单模块失败记日志返回 `nil`，不作废整轮索引；submodule interface 并入主模块条目（归属永远写顶层模块名） |
-| `TypeDatabase` | actor：三源合并 + 懒索引 + 查询 | `register(moduleEntries:)` / `register(apiNotesIndex:)` / `register(dependencies:)` 三步公开为 package API，合并优先级因此可脱离 sourcekitd 单测 |
+| `TypeDatabase` | actor：三源合并 + 懒索引 + 查询 | `register(moduleEntries:)` / `register(apiNotesIndex:)` / `register(supplementaryAPINotesFiles:)` / `register(dependencies:)` 四步公开为 package API，合并优先级因此可脱离 sourcekitd 单测 |
 | `SwiftInterfaceBuilderTypeNameProvider` | 对接 `SwiftInterfaceBuilder` 的 provider | 模块过滤 = 依赖 image 名集合（`TypeDatabase.moduleName(forImagePath:)`：剥全部扩展名 + `libswift` 前缀） |
 
 ## 缓存布局
@@ -86,4 +100,4 @@ TypeIndexing 的类型都标 `@available(macOS 13.0, *)`（包部署下限是 ma
 - Identifier 重写只覆盖类型引用（`printType` 的 nominal 路径）；成员级 SwiftName 改名（selector → Swift 方法名等）不在本案，另立提案。
 - 依赖 image 的模块名取自 image 文件名（`libobjc.A.dylib` → `libobjc`），与 Swift module 名在少数 dylib 上不一致；影响仅限私有类型归属的显示名。
 - CLI 的 provider 依赖集用 `.usesSystemDyldSharedCache`（被检查二进制的依赖按本机 dyld cache 解析）；跨版本 / 跨平台二进制的依赖解析不在 CLI 默认路径覆盖内。
-- **声明模块完全不在依赖列表里时三层全 miss**：类型只出现在签名 / 元数据、二进制没有对该框架的任何符号引用时，链接器不会记 `LC_LOAD_DYLIB`（探针实测：只声明 `CGContext` 字段而不调 CG 函数，CoreGraphics 就不在依赖里），依赖过滤自然不会索引该模块，`__C.` 原样保留。真实二进制里用一个类型几乎必调它的函数（或至少链 overlay），所以实际影响很小；若将来遇到，可选增强是把过滤集合扩到依赖闭包（传递依赖）。
+- **声明模块完全不在依赖列表里时三层全 miss**：类型只出现在签名 / 元数据、二进制没有对该框架的任何符号引用时，链接器不会记 `LC_LOAD_DYLIB`（探针实测：只声明 `CGContext` 字段而不调 CG 函数，CoreGraphics 就不在依赖里），依赖过滤自然不会索引该模块，`__C.` 原样保留。真实二进制里用一个类型几乎必调它的函数（或至少链 overlay），所以实际影响很小；若将来遇到，可选增强是把过滤集合扩到依赖闭包（传递依赖）。补充映射包（提案 0009）不受此限：它不参与依赖过滤，条目覆盖到就能解析——SDK 里根本没有模块的私有框架（AttributeGraph）正是靠它。

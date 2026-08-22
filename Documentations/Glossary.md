@@ -96,6 +96,13 @@ sweep 覆盖范围之外的名字走的旁路：demangle 后 intern 进 `Storage
 
 - **主要出现在**：`Sources/MachOSymbols/StructuralNodeReferenceKey.swift`；键位清单见 AGENTS.md「Symbol indexing」段
 
+### supplementary APINotes bundle（补充映射包）
+
+TypeIndexing 的外部知识入口：标准 `.apinotes` 格式的社区类型映射文件，为 **SDK 里没有模块的私有框架**（AttributeGraph 等）提供 `__C` 类型的归属与改名——这类框架的 `swift_name` 改名只活在头文件里、二进制零残留，原理上不可恢复，只能靠外部知识。两层来源：库内置 SPM resource（社区经 PR 贡献）+ 宿主/CLI 追加路径（`--supplementary-apinotes`）；覆盖顺序 SDK APINotes → 内置 → 宿主，后写覆盖同名。CF-bridged 类型须登记两个 C 拼写（typedef 名进 Typedefs、storage tag 名进 Tags），第三种 mangling 形态（导入名直出）由 SwiftName 自动派生。
+
+- **主要出现在**：`Sources/TypeIndexing/SupplementaryAPINotes.swift`、`Sources/TypeIndexing/Resources/SupplementaryAPINotes/`
+- **延伸阅读**：[提案 0009](Evolutions/0009-community-type-mapping-bundles.md)、[SupplementaryTypeMappings.md](SupplementaryTypeMappings.md)（公开贡献指引）、[TypeIndexingPipeline.md](Internal/TypeIndexingPipeline.md)
+
 ### sweep（构建扫描）
 
 对一个镜像的**全量符号一遍扫过**的批处理构建过程：`SymbolIndexStore` 首次索引某镜像时，`buildStorageSweep` 遍历整张符号表 + export trie，收集行、对每个 Swift 符号 demangle 一次、把结果分类进各查询索引——与之相对的是查询期的按需单点操作。RuntimeViewer 语境里「按需索引 sweep」指用户打开某镜像才触发这一遍构建；sweep 期的临时缓冲是瞬态内存峰值的来源（完即释放）。

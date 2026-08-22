@@ -51,6 +51,14 @@ package struct APINotesIndex: Sendable {
     package private(set) var moduleNamesByCName: [String: String] = [:]
 
     package init(files: [APINotesFile]) {
+        register(files: files)
+    }
+
+    /// Appends more files to the index. Within every table a later entry
+    /// overwrites an earlier same-name one — the ordering hook the
+    /// supplementary-bundle merge priority rides on (evolution proposal 0009:
+    /// SDK APINotes, then built-in bundles, then host-supplied bundles).
+    package mutating func register(files: [APINotesFile]) {
         for file in files {
             let module = file.apiNotesModule
             registerEntities(module.classes, declaredIn: file.moduleName, into: \.classSwiftNamesByCName)
@@ -66,10 +74,20 @@ package struct APINotesIndex: Sendable {
     /// value-type then class tables, but never the protocol table — protocol
     /// references always mangle as protocols, and the `NSObject` name split
     /// is exactly what that isolation protects.
+    ///
+    /// `.objcClass` falls back to the value-type table on a class-table miss:
+    /// a CF-bridged type reaches field metadata as a *foreign class* node
+    /// spelled with its C tag name (`AGGraphStorage`, `CGContext` — the
+    /// consuming binary emits a class-kind foreign descriptor for it), while
+    /// its APINotes entry sits under `Tags`/`Typedefs` per C semantics. A tag
+    /// and an ObjC class live in different C namespaces so they *can* share a
+    /// name in principle, but the class table is consulted first, and a
+    /// rename that exists only tag-side while a same-named distinct ObjC
+    /// class is being referenced has no known real-world instance.
     package func swiftName(forCName cName: String, category: CImportedTypeNameCategory) -> Name? {
         switch category {
         case .objcClass:
-            return classSwiftNamesByCName[cName]
+            return classSwiftNamesByCName[cName] ?? valueTypeSwiftNamesByCName[cName]
         case .objcProtocol:
             return protocolSwiftNamesByCName[cName]
         case .valueType:

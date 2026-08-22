@@ -12,3 +12,4 @@
 | [0004](0004-arm64e-signed-vwt-pointer-hardening.md) | arm64e 签名 VWT 指针加固：进程内裸读 strip + 真 PAC 环境的回归验证形态 | Implemented |
 | [0005](0005-event-based-degradation-reporting.md) | 降级上报统一走事件：库侧不再自选落点，Dispatcher 兜底零 handler | Implemented |
 | [0008](0008-type-indexing-revival.md) | TypeIndexing 重启：`__C` 类型模块归属解析的索引管线修复与重构（0006 → 0008 避让 `main` 并行提案占号） | Implemented |
+| [0009](0009-community-type-mapping-bundles.md) | 社区类型映射包：私有框架 `__C` 类型的补充 APINotes 加载（AttributeGraph 等） | Implemented |

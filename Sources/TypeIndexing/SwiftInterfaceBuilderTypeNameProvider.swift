@@ -1,5 +1,6 @@
 #if os(macOS)
 
+import Foundation
 import MachOKit
 import MachOSwiftSection
 import ObjCMetadataSource
@@ -21,13 +22,17 @@ public final class SwiftInterfaceBuilderTypeNameProvider<MachO: MachOSwiftSectio
 
     /// Fails when the binary carries no build-version load command mapping to
     /// a known SDK platform — without a platform there is no SDK to index.
-    public init?(machO: MachO, dependencies: SwiftInterfaceBuilderDependencies<MachO>) {
+    ///
+    /// `supplementaryAPINotesURLs` names extra `.apinotes` files or
+    /// directories of community type mappings (evolution proposal 0009),
+    /// loaded after the library's built-in bundles so they overwrite them.
+    public init?(machO: MachO, dependencies: SwiftInterfaceBuilderDependencies<MachO>, supplementaryAPINotesURLs: [URL] = []) {
         guard let platform = machO.loadCommands.buildVersionCommand?.platform.sdkPlatform else {
             return nil
         }
         self.machO = machO
         self.dependencies = dependencies
-        self.typeDatabase = TypeDatabase(platform: platform)
+        self.typeDatabase = TypeDatabase(platform: platform, supplementaryAPINotesURLs: supplementaryAPINotesURLs)
     }
 
     public func setup() async throws {
