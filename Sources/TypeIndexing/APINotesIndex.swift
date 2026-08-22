@@ -2,9 +2,16 @@
 
 import APINotes
 import Foundation
+import SwiftPrinting
 
 /// The name mappings mined from a set of `.apinotes` files: C name ↔ Swift
 /// name (for `SwiftName` renames) and C name → declaring module.
+///
+/// Rename tables are split **per declaration category**, because a C name is
+/// only unique per category: ObjC declares both a class and a protocol named
+/// `NSObject`, and only the protocol carries a `SwiftName` rename
+/// (`NSObjectProtocol`) — one merged table rewrote every class reference with
+/// the protocol's rename.
 ///
 /// Built once from parsed files and immutable afterwards; the owning
 /// `TypeDatabase` actor provides all synchronization.
@@ -21,11 +28,19 @@ package struct APINotesIndex: Sendable {
         }
     }
 
-    /// C name → renamed Swift name, e.g. `NSActivityOptions` →
-    /// `ProcessInfo.ActivityOptions` (declared in Foundation).
-    package private(set) var swiftNamesByCName: [String: Name] = [:]
+    /// C class name → renamed Swift name (`Classes` entries).
+    package private(set) var classSwiftNamesByCName: [String: Name] = [:]
 
-    /// Renamed Swift name → original C name, the reverse direction.
+    /// C protocol name → renamed Swift name (`Protocols` entries, e.g.
+    /// `NSObject` → `NSObjectProtocol`).
+    package private(set) var protocolSwiftNamesByCName: [String: Name] = [:]
+
+    /// C tag / enumerator / typedef name → renamed Swift name, e.g.
+    /// `NSActivityOptions` → `ProcessInfo.ActivityOptions`.
+    package private(set) var valueTypeSwiftNamesByCName: [String: Name] = [:]
+
+    /// Renamed Swift name → original C name, all categories merged (renamed
+    /// spellings do not collide the way C names do).
     package private(set) var cNamesBySwiftName: [String: Name] = [:]
 
     /// C name → declaring module, for **every** listed entity, renamed or
@@ -38,16 +53,30 @@ package struct APINotesIndex: Sendable {
     package init(files: [APINotesFile]) {
         for file in files {
             let module = file.apiNotesModule
-            registerEntities(module.classes, declaredIn: file.moduleName)
-            registerEntities(module.protocols, declaredIn: file.moduleName)
-            registerEntities(module.tags, declaredIn: file.moduleName)
-            registerEntities(module.enumerators, declaredIn: file.moduleName)
-            registerEntities(module.typedefs, declaredIn: file.moduleName)
+            registerEntities(module.classes, declaredIn: file.moduleName, into: \.classSwiftNamesByCName)
+            registerEntities(module.protocols, declaredIn: file.moduleName, into: \.protocolSwiftNamesByCName)
+            registerEntities(module.tags, declaredIn: file.moduleName, into: \.valueTypeSwiftNamesByCName)
+            registerEntities(module.enumerators, declaredIn: file.moduleName, into: \.valueTypeSwiftNamesByCName)
+            registerEntities(module.typedefs, declaredIn: file.moduleName, into: \.valueTypeSwiftNamesByCName)
         }
     }
 
-    package func swiftName(forCName cName: String) -> Name? {
-        swiftNamesByCName[cName]
+    /// The rename for `cName` in `category`. `.other` (a reference whose
+    /// mangling does not pin the category, e.g. a typealias) consults the
+    /// value-type then class tables, but never the protocol table — protocol
+    /// references always mangle as protocols, and the `NSObject` name split
+    /// is exactly what that isolation protects.
+    package func swiftName(forCName cName: String, category: CImportedTypeNameCategory) -> Name? {
+        switch category {
+        case .objcClass:
+            return classSwiftNamesByCName[cName]
+        case .objcProtocol:
+            return protocolSwiftNamesByCName[cName]
+        case .valueType:
+            return valueTypeSwiftNamesByCName[cName]
+        case .other:
+            return valueTypeSwiftNamesByCName[cName] ?? classSwiftNamesByCName[cName]
+        }
     }
 
     package func cName(forSwiftName swiftName: String) -> Name? {
@@ -58,13 +87,17 @@ package struct APINotesIndex: Sendable {
         moduleNamesByCName[cName]
     }
 
-    private mutating func registerEntities(_ entities: [some CommonEntity]?, declaredIn moduleName: String) {
+    private mutating func registerEntities(
+        _ entities: [some CommonEntity]?,
+        declaredIn moduleName: String,
+        into renameTable: WritableKeyPath<Self, [String: Name]>
+    ) {
         guard let entities else { return }
         for entity in entities {
             let cName = entity.name
             moduleNamesByCName[cName] = moduleName
             guard let swiftName = entity.swiftName, entity.isSwiftPrivate != true else { continue }
-            swiftNamesByCName[cName] = Name(moduleName: moduleName, name: swiftName)
+            self[keyPath: renameTable][cName] = Name(moduleName: moduleName, name: swiftName)
             cNamesBySwiftName[swiftName] = Name(moduleName: moduleName, name: cName)
         }
     }

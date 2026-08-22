@@ -1,6 +1,7 @@
 #if os(macOS)
 
 import Foundation
+import SwiftPrinting
 import Testing
 @testable import TypeIndexing
 
@@ -39,9 +40,33 @@ struct APINotesIndexTests {
     @Test
     func swiftNameLookupCarriesTheDeclaringModule() throws {
         let index = try Self.makeIndex()
-        let swiftName = index.swiftName(forCName: "TSTRenamedThing")
+        let swiftName = index.swiftName(forCName: "TSTRenamedThing", category: .objcClass)
         #expect(swiftName?.name == "RenamedThing")
         #expect(swiftName?.moduleName == "TestModule")
+    }
+
+    /// ObjC declares both a class and a protocol named `NSObject`, and only
+    /// the protocol is renamed — the tables must be category-isolated so the
+    /// protocol's rename never rewrites class references.
+    @Test
+    func renameTablesAreCategoryIsolated() throws {
+        let apiNotesYAML = """
+        Name: ObjectiveC
+        Classes:
+        - Name: NSObject
+        Protocols:
+        - Name: NSObject
+          SwiftName: NSObjectProtocol
+        """
+        let temporaryFileURL = FileManager.default.temporaryDirectory
+            .appending(component: "APINotesIndexTests-\(UUID().uuidString).apinotes")
+        try apiNotesYAML.write(to: temporaryFileURL, atomically: true, encoding: .utf8)
+        defer { try? FileManager.default.removeItem(at: temporaryFileURL) }
+        let index = try APINotesIndex(files: [APINotesFile(path: temporaryFileURL.path(percentEncoded: false))])
+
+        #expect(index.swiftName(forCName: "NSObject", category: .objcProtocol)?.name == "NSObjectProtocol")
+        #expect(index.swiftName(forCName: "NSObject", category: .objcClass) == nil)
+        #expect(index.swiftName(forCName: "NSObject", category: .other) == nil)
     }
 
     @Test
@@ -68,7 +93,7 @@ struct APINotesIndexTests {
     func swiftPrivateEntitiesAreAttributedButNotRenamed() throws {
         let index = try Self.makeIndex()
         #expect(index.moduleName(forCName: "TSTPrivateThing") == "TestModule")
-        #expect(index.swiftName(forCName: "TSTPrivateThing") == nil)
+        #expect(index.swiftName(forCName: "TSTPrivateThing", category: .objcClass) == nil)
         #expect(index.cName(forSwiftName: "__PrivateThing") == nil)
     }
 }

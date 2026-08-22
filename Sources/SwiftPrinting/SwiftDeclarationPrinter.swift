@@ -662,8 +662,8 @@ extension SwiftDeclarationPrinter: NodePrintableDelegate {
         await typeNameResolvers.asyncFirstNonNil { await $0.moduleName(forTypeName: typeName) }
     }
 
-    public func swiftName(forCName cName: String) async -> String? {
-        await typeNameResolvers.asyncFirstNonNil { await $0.swiftName(forCName: cName) }
+    public func swiftName(forCName cName: String, category: CImportedTypeNameCategory) async -> String? {
+        await typeNameResolvers.asyncFirstNonNil { await $0.swiftName(forCName: cName, category: category) }
     }
 
     public func opaqueType(forNode node: Node, index: Int?) async -> String? {

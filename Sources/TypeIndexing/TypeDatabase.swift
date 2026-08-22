@@ -5,6 +5,7 @@ import FoundationToolbox
 import MachOKit
 import ObjCIndexing
 import ObjCMetadataSource
+import SwiftPrinting
 
 /// The `__C` module-attribution database: answers "which module declares the
 /// type named X" for the ObjC/C-imported types Swift manglings spell as
@@ -130,8 +131,29 @@ package actor TypeDatabase<MachO: ObjCMetadataSource & Sendable> {
         return nil
     }
 
-    package func swiftName(forCName cName: String) -> String? {
-        apiNotesIndex.swiftName(forCName: cName)?.name
+    /// The Swift spelling of a C-imported type name, when it differs from the
+    /// C one. Two sources, in order:
+    ///
+    /// 1. **APINotes renames**, per declaration category (`NSDecimal` →
+    ///    `Decimal`; the protocol-only `NSObject` → `NSObjectProtocol` rename
+    ///    never touches class references).
+    /// 2. **The CF bridge rule**: ClangImporter imports a `CF…Ref` typedef as
+    ///    the `Ref`-stripped native class (`CFStringRef` → `CFString`), while
+    ///    manglings record the C spelling. The stripped name qualifies only
+    ///    when it actually exists in the attribution table — so an ObjC class
+    ///    that merely happens to end in `Ref` is never rewritten — and never
+    ///    applies to protocol references (there is no CF protocol convention).
+    package func swiftName(forCName cName: String, category: CImportedTypeNameCategory) -> String? {
+        if let renamedName = apiNotesIndex.swiftName(forCName: cName, category: category) {
+            return renamedName.name
+        }
+        if category != .objcProtocol, cName.hasSuffix("Ref") {
+            let strippedName = String(cName.dropLast(3))
+            if !strippedName.isEmpty, moduleNamesByTypeName[strippedName] != nil {
+                return strippedName
+            }
+        }
+        return nil
     }
 
     // MARK: - Lazy ObjC Indexing

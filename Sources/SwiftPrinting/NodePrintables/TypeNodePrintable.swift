@@ -77,11 +77,12 @@ extension TypeNodePrintable {
         }
         guard let context = name.children.first else { return }
 
+        var resolvedCImportedModule = false
         if shouldPrintContext(context) {
             let writtenUnitCountBeforeContext = target.writtenUnitCount
             if context.kind == .module {
                 let siblingIdentifier = name.children.at(1)?.text
-                await printModule(context, siblingIdentifier: siblingIdentifier)
+                resolvedCImportedModule = await printModule(context, siblingIdentifier: siblingIdentifier)
                 // The module→type dot stays inside this leaf's scope so a
                 // fully-qualified top-level name (`AppKit.MenuItem`) selects
                 // as one span.
@@ -106,7 +107,22 @@ extension TypeNodePrintable {
         if let one = name.children.at(1) {
             if one.kind != .privateDeclName {
                 if one.kind == .identifier {
-                    await printIdentifier(one, parentKind: name.kind)
+                    // A resolved C-imported module may pair with an identifier
+                    // whose C spelling differs from its Swift one — `__C`'s
+                    // `CFStringRef` imports as `CFString` (ClangImporter strips
+                    // the CF `Ref` suffix). Rewrite only when the module itself
+                    // resolved, so an unresolved `__C.CFStringRef` never
+                    // renders as the half-translated `__C.CFString` — and pass
+                    // the reference's declaration category, because a C name
+                    // can denote a class and a protocol at once (`NSObject`).
+                    if resolvedCImportedModule,
+                       let identifierText = one.text,
+                       let delegate,
+                       let swiftSpelling = await delegate.swiftName(forCName: identifierText, category: CImportedTypeNameCategory(nodeKind: name.kind)) {
+                        target.write(swiftSpelling, context: .context(for: one, parentKind: name.kind, state: .printIdentifier))
+                    } else {
+                        await printIdentifier(one, parentKind: name.kind)
+                    }
                 } else {
                     _ = await printName(one)
                 }

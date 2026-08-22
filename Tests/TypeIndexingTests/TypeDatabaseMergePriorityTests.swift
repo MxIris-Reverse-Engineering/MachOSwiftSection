@@ -2,6 +2,7 @@
 
 import Foundation
 import MachOKit
+import SwiftPrinting
 import Testing
 @testable import TypeIndexing
 
@@ -58,8 +59,63 @@ struct TypeDatabaseMergePriorityTests {
           SwiftName: Thing.Options
         """)
         await typeDatabase.register(apiNotesIndex: apiNotesIndex)
-        #expect(await typeDatabase.swiftName(forCName: "TSTOptions") == "Thing.Options")
-        #expect(await typeDatabase.swiftName(forCName: "TSTUnknown") == nil)
+        #expect(await typeDatabase.swiftName(forCName: "TSTOptions", category: .valueType) == "Thing.Options")
+        #expect(await typeDatabase.swiftName(forCName: "TSTUnknown", category: .valueType) == nil)
+    }
+
+    /// The category split end-to-end through the database: the protocol-only
+    /// `NSObject` → `NSObjectProtocol` rename applies to protocol references
+    /// and never to class references.
+    @Test
+    func nsObjectClassAndProtocolReferencesResolveSeparately() async throws {
+        let typeDatabase = TypeDatabase<MachOFile>(platform: .macOS)
+        let apiNotesIndex = try Self.makeAPINotesIndex(yaml: """
+        Name: ObjectiveC
+        Classes:
+        - Name: NSObject
+        Protocols:
+        - Name: NSObject
+          SwiftName: NSObjectProtocol
+        """)
+        await typeDatabase.register(apiNotesIndex: apiNotesIndex)
+        #expect(await typeDatabase.swiftName(forCName: "NSObject", category: .objcProtocol) == "NSObjectProtocol")
+        #expect(await typeDatabase.swiftName(forCName: "NSObject", category: .objcClass) == nil)
+    }
+
+    /// `CFStringRef` is the C spelling of the natively-bridged `CFString`
+    /// class (ClangImporter strips the CF `Ref` suffix), so the Swift-name
+    /// lookup must translate it whenever the stripped name really exists —
+    /// and must not touch a name whose stripped form is unknown.
+    @Test
+    func cfRefSpellingsTranslateToTheirStrippedSwiftNames() async {
+        let typeDatabase = TypeDatabase<MachOFile>(platform: .macOS)
+        await typeDatabase.register(moduleEntries: [
+            ModuleIndexCacheEntry(moduleName: "CoreFoundation", typeNames: ["CFString", "CFStringRef"], subModuleNames: []),
+        ])
+        #expect(await typeDatabase.swiftName(forCName: "CFStringRef", category: .other) == "CFString")
+        #expect(await typeDatabase.swiftName(forCName: "CFStringRef", category: .objcClass) == "CFString")
+        #expect(await typeDatabase.swiftName(forCName: "CFStringRef", category: .objcProtocol) == nil)
+        #expect(await typeDatabase.swiftName(forCName: "SomeUnknownRef", category: .other) == nil)
+        #expect(await typeDatabase.swiftName(forCName: "CFString", category: .other) == nil)
+        #expect(await typeDatabase.swiftName(forCName: "Ref", category: .other) == nil)
+    }
+
+    /// An APINotes rename outranks the CF `Ref`-stripping rule for the same
+    /// C name — the compiler's own record wins.
+    @Test
+    func apiNotesRenameOutranksTheCFRefRule() async throws {
+        let typeDatabase = TypeDatabase<MachOFile>(platform: .macOS)
+        await typeDatabase.register(moduleEntries: [
+            ModuleIndexCacheEntry(moduleName: "TestModule", typeNames: ["TSTThing"], subModuleNames: []),
+        ])
+        let apiNotesIndex = try Self.makeAPINotesIndex(yaml: """
+        Name: TestModule
+        Typedefs:
+        - Name: TSTThingRef
+          SwiftName: RenamedThing
+        """)
+        await typeDatabase.register(apiNotesIndex: apiNotesIndex)
+        #expect(await typeDatabase.swiftName(forCName: "TSTThingRef", category: .other) == "RenamedThing")
     }
 
     @Test

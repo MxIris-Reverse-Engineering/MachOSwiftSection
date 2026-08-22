@@ -4,6 +4,7 @@ import MachOKit
 import MachOSwiftSection
 import ObjCMetadataSource
 import SwiftInterface
+import SwiftPrinting
 
 /// The `SwiftInterfaceBuilder` extra-data provider that restores real module
 /// names for `__C` / `__ObjC` types: attach it and the printer's
@@ -42,8 +43,8 @@ public final class SwiftInterfaceBuilderTypeNameProvider<MachO: MachOSwiftSectio
         await typeDatabase.moduleName(forTypeName: typeName)
     }
 
-    public func swiftName(forCName cName: String) async -> String? {
-        await typeDatabase.swiftName(forCName: cName)
+    public func swiftName(forCName cName: String, category: CImportedTypeNameCategory) async -> String? {
+        await typeDatabase.swiftName(forCName: cName, category: category)
     }
 }
 

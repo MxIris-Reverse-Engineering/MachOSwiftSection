@@ -12,7 +12,20 @@
 moduleName(forTypeName: "NSString")
     1. moduleNamesByTypeName   ← Swift interface 类型名（低）+ APINotes C 名（高，后写覆盖）
     2. objcModuleNamesByTypeName ← ObjC 元数据懒索引（最低，只补缺）
+
+swiftName(forCName: "CFStringRef", category:)   ← identifier 重写（见下节）
+    1. APINotes 改名表（按声明类别隔离）
+    2. CF `Ref` 剥除规则（剥后名必须存在于归属表；protocol 类别不适用）
 ```
+
+## Identifier 重写：C 拼写 → Swift 拼写（用户指正驱动）
+
+module 名替换之外，`__C` 类型的 **identifier 本身**也可能是 Swift 里不存在的 C 拼写——首轮端到端输出的 `CoreFoundation.CFStringRef` 被用户指正：`CFStringRef` 是 C 侧 typedef 名，ClangImporter 剥 `Ref` 后缀桥接为原生 class `CFString`。落地为打印侧对 `swiftName(forCName:category:)` 的消费（该协议方法此前零消费者）：
+
+- **只在 module 解析成功时重写**（`printModule` 返回是否命中），未解析的 `__C.CFStringRef` 绝不渲染成半吊子 `__C.CFString`。
+- **查询必须带声明类别**（`CImportedTypeNameCategory`，由 mangling 的 `Node.Kind` 映射：class / protocol / 值类型 / other）。这是第一版合并改名表当场踩出的回归：ObjC 的 class `NSObject` 与 protocol `NSObject` 同名，APINotes 只把 **protocol** 改名为 `NSObjectProtocol`——类别盲查让所有 class 继承行都被错写成 `NSObjectProtocol`（而 protocol 继承行反而是被修对的）。`APINotesIndex` 的改名表按 Classes / Protocols / 值类型（Tags + Enumerators + Typedefs）三张隔离，`.other`（typealias 等 mangling 不定类别的引用）查值类型表再查 class 表、**永不查 protocol 表**。
+- **CF `Ref` 剥除**是 APINotes miss 后的兜底规则：`Ref` 结尾且剥后名真实存在于归属表才重写（碰巧以 `Ref` 结尾的 ObjC 类不受影响），protocol 类别不适用（无 CF protocol 惯例）。
+- 归属表（`moduleNamesByCName`）不拆类别——同名实体同模块，归属无歧义。
 
 - **Swift interface 类型名**：对二进制依赖命中的每个 SDK 模块，经 sourcekitd `editor.open.interface`（带 `key.enablesubstructure`）生成含 ObjC 导入声明的 Swift 视角 interface，`InterfaceTypeNameExtractor` 从结构树提取 fully-qualified 类型名。**不用 SwiftSyntax**（体积裁定，见提案 A′ 节）；`.swiftinterface` 文件也不可用——它只含 Swift 声明，而本功能主要目标恰是 ObjC 导入类型。
 - **APINotes**：`.apinotes` 是编译器视角的权威归属记录，`APINotesIndex` 把**每个列出的实体**（含无 `SwiftName` 改名、含 `SwiftPrivate`）的 C 名注册到声明模块，后写覆盖 interface 名。双向改名表（`swiftName(forCName:)` / `cName(forSwiftName:)`）只收非 `SwiftPrivate` 的改名实体。
@@ -69,6 +82,6 @@ TypeIndexing 的类型都标 `@available(macOS 13.0, *)`（包部署下限是 ma
 ## 已知限制
 
 - 整个 target 是 macOS-only（`#if os(macOS)` 全文件 + 依赖的 `.when(platforms: [.macOS])` 条件），且运行时要求 macOS 13+ 与本机 Xcode（sourcekitd）。
-- `swiftName(forCName:)` 的打印侧消费不存在——`NodePrintable` 目前从不调用它（提案非目标，渲染替换另立提案）。
+- Identifier 重写只覆盖类型引用（`printType` 的 nominal 路径）；成员级 SwiftName 改名（selector → Swift 方法名等）不在本案，另立提案。
 - 依赖 image 的模块名取自 image 文件名（`libobjc.A.dylib` → `libobjc`），与 Swift module 名在少数 dylib 上不一致；影响仅限私有类型归属的显示名。
 - CLI 的 provider 依赖集用 `.usesSystemDyldSharedCache`（被检查二进制的依赖按本机 dyld cache 解析）；跨版本 / 跨平台二进制的依赖解析不在 CLI 默认路径覆盖内。

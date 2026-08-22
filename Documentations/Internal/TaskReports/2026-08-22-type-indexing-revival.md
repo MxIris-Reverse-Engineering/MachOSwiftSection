@@ -38,6 +38,12 @@
 - 端到端（fixture `SymbolTestsCore`，依赖面 Foundation + overlays）：baseline 21 处 `__C.` → 加 flag 后 **0 处**，diff 全部行都是模块名替换（`Foundation.NSObject` / `CoreFoundation.CFStringRef` / APINotes 改名的 `Foundation.Decimal`），无任何意外差异。首次运行 33 秒（含 sourcekitd 索引），缓存命中后 10 秒、输出逐字节一致；缓存目录只出现依赖过滤命中的 9 个模块条目（历史实现是全 SDK 数百个）。
 - 全套 `swift test --skip IntegrationTests` 退出码见提交前终验（成败只认退出码，不认 xcsift 摘要）。
 
+## 追加批次：identifier 重写（用户指正驱动，同日）
+
+首轮端到端交付后用户指正：`CoreFoundation.CFStringRef` 是 Swift 里不存在的拼写——`CFStringRef` 是 C 侧 typedef 名，ClangImporter 剥 `Ref` 桥接为原生 class `CFString`（`CF_BRIDGED_TYPE` / `objc_bridge` attribute 家族）。据此把「非目标」中的 C 名 → Swift 名渲染替换局部收进本案：打印侧在 `__C` module 解析成功时对 identifier 消费 `swiftName(forCName:category:)`（该协议方法此前零消费者），数据侧补 CF `Ref` 剥除规则。
+
+第一版**当场踩出一个回归并当场修复**：合并的 APINotes 改名表让 protocol-only 的 `NSObject` → `NSObjectProtocol` 改名重写了所有 class 继承行。教训是 C 名只在声明类别内唯一——`TypeNameResolvable.swiftName` 签名加 `CImportedTypeNameCategory`（由 mangling 的 `Node.Kind` 映射），`APINotesIndex` 改名表按 Classes / Protocols / 值类型三张隔离，`.other` 永不查 protocol 表，CF 规则对 protocol 类别关闭。修正后 e2e 与初版正确基线的 diff 只剩三处该变的（两处 CF、一处 protocol 继承行改对成 `NSObjectProtocol`），class 行与 superclass 约束行全部保持 `NSObject`。回归用例已钉进 `APINotesIndexTests.renameTablesAreCategoryIsolated` 与 `TypeDatabaseMergePriorityTests.nsObjectClassAndProtocolReferencesResolveSeparately`。
+
 ## 与提案的偏差
 
 见实现说明「与提案的差异」：swift-dependencies 未引入（register 步骤替代注入框架）；兜底行级解析器未编写（substructure 实测可用，按提案条款定夺）；APINotes 归属注册比历史实现更宽（含无改名与 `SwiftPrivate` 实体）。
