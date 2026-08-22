@@ -28,4 +28,12 @@ public struct FunctionDefinition: Sendable {
     /// type-level members (`static` is implicitly final), and for allocators
     /// (`final` is not a valid initializer modifier).
     public var isFinal: Bool = false
+
+    /// Set on conformance-extension members whose witness resolved through
+    /// the protocol requirement's DEFAULT implementation (evolution proposal
+    /// 0007): the code lives in a protocol extension, not on the conforming
+    /// type — several such witnesses typically share one identical-code-folded
+    /// address, which is why they used to read as suspicious same-address
+    /// "members" of the type (issue #106 §5).
+    public var isProtocolExtensionDefault: Bool = false
 }

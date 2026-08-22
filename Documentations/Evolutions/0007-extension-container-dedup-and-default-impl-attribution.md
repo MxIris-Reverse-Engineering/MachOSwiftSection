@@ -1,13 +1,13 @@
 # 0007 - Extension 容器索引期去重与协议默认实现归属标注
 
-- **状态**: Accepted
+- **状态**: Implemented
 - **作者**: JH
 - **创建日期**: 2026-08-22
 - **最后更新**: 2026-08-22
 - **所属愿景**: 无
 - **关联提案**: [0006](0006-final-keyword-and-lazy-accessor-type-recovery.md)、[0008](0008-interface-header-and-export-status-annotations.md)（同一 issue 的其余批次）
-- **实现分支 / PR**: 待定
-- **配套文档**: 待定 —— 落地时登记实现说明 / 使用指南的链接
+- **实现分支 / PR**: `feature/0007-extension-container-dedup`（叠于 `feature/0006-final-and-lazy-recovery` 之上）
+- **配套文档**: [ExtensionContainerUnification.md](../Internal/ExtensionContainerUnification.md)（实现说明）
 
 ## 摘要
 
@@ -123,3 +123,5 @@ AGENTS.md 的 SwiftIndexing / SwiftDiffing 条目、[PerConformanceAttribution.m
 |------|------|------|
 | 2026-08-22 | Created as Draft | 源自 issue #106 第 5 点调研；用户决定：索引期合并（非仅打印分组）、默认实现原地标注（不搬家）。 |
 | 2026-08-22 | Draft → Accepted | 用户批准三批全做（「全部做」+「开工」）。原编号 0006 因 next 上编号顺延改为 0007；排在 0006（final + lazy）之后实施。 |
+| 2026-08-22 | In Progress → Implemented | 实现完成于 `feature/0007-extension-container-dedup`（叠于 0006 分支，待并入 next）。全量 1443 tests 全绿（SwiftDiffingTests 全绿 = 快照格式零扰动实证）；`ExtensionContainerUnificationTests` 四用例；SourceEditor 复测重复头全部归一且 0006 哨兵保持；interface 快照四块纯迁移。**收尾两判**：配套文档已写并登记（[ExtensionContainerUnification.md](../Internal/ExtensionContainerUnification.md)，含与提案的差异与已知残余）；无需登记新术语（attachment / print suppression 为描述性短语）。 |
+| 2026-08-22 | 双产线推测证实 + 设计转向（SourceEditor 实测驱动） | （1）重复实测为**两份**非三份：`ProtocolDefinition.index()` 的 descriptor 派生尾随副本 + `indexExtensions()` 的符号扫描桶副本，且两份成员不一致——per-requirement 默认实现解析在 ICF 折叠地址上丢成员，尾随副本反而更少（`SourceEditorSelectionObserver` 尾随 1 个成员、桶副本 2 个）；第三份未在当前 next 复现。（2）**「容器键下沉 + 索引期从桶合并」被格式冻结否决**：四个扩展桶是 `ABIModule` 的直接输入，从桶移除定义会让容器从 ABI 快照消失。转向「附着 + 打印抑制」——协议的符号扫描块附着到 `defaultImplementationExtensions` 尾随渲染，同一对象留桶并打 `isAttachedToProtocolDefinition`，顶层打印跳过；桶内同身份合并对快照无影响（差分器本就按键分组）。（3）descriptor 合成降级为 fallback（符号扫描是超集）。（4）「签名分桶扩展到 functions」被否——函数/下标的成员级 `where` 合法且已渲染，扩展分桶只会制造更多块；改为仅折叠空 requirement 的变量签名桶。（5）伴生修复：`updateConfiguration` 的 re-prepare 因 `isPrepared` 从不复位而恒 no-op；修复后成为桶重置的确定性测试入口。（6）issue 点名的 `SourceEditorView.elide` 三兄弟经 `nm` 证实是真类成员被 ICF 折叠（0006 的 `Tq` 门处理），非误归属默认实现；`protocol-extension default` 标注仍按提案落地（interface+dump 两路），但在已验框架上不触发（首选 witness 符号分支总命中）。（7）已知残余：typealias-only 块与成员块的裸头并存（P1-9 残余，跨桶合并动快照格式，不做）。 |

@@ -60,6 +60,16 @@ public final class ExtensionDefinition: Definition, MutableDefinition {
 
     public package(set) var isRetroactive: Bool = false
 
+    /// Set by the indexer's container-unification pass (evolution proposal
+    /// 0007) when this symbol-scan protocol-extension block was attached to
+    /// its `ProtocolDefinition.defaultImplementationExtensions` — the
+    /// top-level interface then renders it trailing the protocol declaration
+    /// and skips it in the extensions block, so the same block no longer
+    /// prints twice. The definition deliberately STAYS in the indexer's
+    /// bucket: the ABI-diff layer snapshots containers from the buckets, and
+    /// removing it there would silently drop the container from snapshots.
+    public package(set) var isAttachedToProtocolDefinition: Bool = false
+
     /// Resilient witnesses `index(in:)` could not resolve to an implementation
     /// symbol.
     ///
@@ -137,6 +147,31 @@ public final class ExtensionDefinition: Definition, MutableDefinition {
         }
     }
 
+    /// Folds another definition's members and nested declarations into this
+    /// one — the indexer's same-container-identity merge (evolution proposal
+    /// 0007): two `ExtensionDefinition`s under the same extension name with
+    /// the same (protocol, where-clause, retroactive) identity are one source
+    /// container that different producers discovered separately (the
+    /// nested-type discovery vs the member-symbol scan), so their contents
+    /// belong in one printed block. The producers see disjoint content, so
+    /// this appends without member-level dedup; `orderedMembers` is rebuilt
+    /// to interleave the union by offset.
+    package func absorbMembers(of other: ExtensionDefinition) {
+        types.append(contentsOf: other.types)
+        protocols.append(contentsOf: other.protocols)
+        allocators.append(contentsOf: other.allocators)
+        constructors.append(contentsOf: other.constructors)
+        variables.append(contentsOf: other.variables)
+        functions.append(contentsOf: other.functions)
+        subscripts.append(contentsOf: other.subscripts)
+        staticVariables.append(contentsOf: other.staticVariables)
+        staticFunctions.append(contentsOf: other.staticFunctions)
+        staticSubscripts.append(contentsOf: other.staticSubscripts)
+        missingSymbolWitnesses.append(contentsOf: other.missingSymbolWitnesses)
+        absorbAssociatedTypes(of: other)
+        orderedMembers = OrderedMember.offsetOrdered(OrderedMember.allMembers(from: self))
+    }
+
     package func index<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) async throws {
         guard !isIndexed else { return }
 
@@ -170,6 +205,7 @@ public final class ExtensionDefinition: Definition, MutableDefinition {
         }
         var visitedNodes: OrderedSet<StructuralNodeReferenceKey> = []
         var memberSymbolsByKind: OrderedDictionary<SymbolIndexStore.MemberKind, [DemangledSymbolWithOffset]> = [:]
+        var defaultImplementationSymbolNames: Set<String> = []
 
         for resilientWitness in protocolConformance.resilientWitnesses {
             if let symbols = try resilientWitness.implementationSymbols(in: machO), let symbol = try _symbol(for: symbols, typeName: extensionName.name, visitedNodes: visitedNodes) {
@@ -187,6 +223,12 @@ public final class ExtensionDefinition: Definition, MutableDefinition {
                         addSymbol(.init(symbol), memberSymbolsByKind: &memberSymbolsByKind, inExtension: true)
                     } else if let defaultImplementationSymbols = try element.defaultImplementationSymbols(in: machO), let symbol = try _symbol(for: defaultImplementationSymbols, typeName: extensionName.name, visitedNodes: visitedNodes) {
                         _ = visitedNodes.append(StructuralNodeReferenceKey(symbol.demangledNode))
+                        // The witness resolved through the requirement's
+                        // DEFAULT implementation — the code lives in a
+                        // protocol extension, not on the conforming type
+                        // (evolution proposal 0007). Remember the symbol so
+                        // the built member can carry the fact.
+                        defaultImplementationSymbolNames.insert(symbol.name)
                         addSymbol(.init(symbol), memberSymbolsByKind: &memberSymbolsByKind, inExtension: true)
                     } else if !element.defaultImplementation.isNull {
                         missingSymbolWitnesses.append(resilientWitness)
@@ -205,8 +247,42 @@ public final class ExtensionDefinition: Definition, MutableDefinition {
 
         setDefinitions(for: memberSymbolsByKind, inExtension: true)
 
+        if !defaultImplementationSymbolNames.isEmpty {
+            markProtocolExtensionDefaults(named: defaultImplementationSymbolNames)
+        }
+
         orderedMembers = OrderedMember.offsetOrdered(OrderedMember.allMembers(from: self))
 
         isIndexed = true
+    }
+
+    /// Marks the members whose witness resolved through a protocol
+    /// requirement's default implementation, matched back by mangled symbol
+    /// name after `setDefinitions` built them.
+    private func markProtocolExtensionDefaults(named symbolNames: Set<String>) {
+        for index in functions.indices where symbolNames.contains(functions[index].symbol.name) {
+            functions[index].isProtocolExtensionDefault = true
+        }
+        for index in staticFunctions.indices where symbolNames.contains(staticFunctions[index].symbol.name) {
+            staticFunctions[index].isProtocolExtensionDefault = true
+        }
+        for index in allocators.indices where symbolNames.contains(allocators[index].symbol.name) {
+            allocators[index].isProtocolExtensionDefault = true
+        }
+        for index in constructors.indices where symbolNames.contains(constructors[index].symbol.name) {
+            constructors[index].isProtocolExtensionDefault = true
+        }
+        for index in variables.indices where variables[index].accessors.contains(where: { symbolNames.contains($0.symbol.name) }) {
+            variables[index].isProtocolExtensionDefault = true
+        }
+        for index in staticVariables.indices where staticVariables[index].accessors.contains(where: { symbolNames.contains($0.symbol.name) }) {
+            staticVariables[index].isProtocolExtensionDefault = true
+        }
+        for index in subscripts.indices where subscripts[index].accessors.contains(where: { symbolNames.contains($0.symbol.name) }) {
+            subscripts[index].isProtocolExtensionDefault = true
+        }
+        for index in staticSubscripts.indices where staticSubscripts[index].accessors.contains(where: { symbolNames.contains($0.symbol.name) }) {
+            staticSubscripts[index].isProtocolExtensionDefault = true
+        }
     }
 }

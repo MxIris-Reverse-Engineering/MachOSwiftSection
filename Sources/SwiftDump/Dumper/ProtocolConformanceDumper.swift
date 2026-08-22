@@ -118,6 +118,15 @@ package struct ProtocolConformanceDumper<MachO: FieldLayoutRenderable>: Conforme
                                 try await demangleResolver.resolve(for: node)
                             } else if let defaultImplementationSymbols = try element.defaultImplementationSymbols(in: machO), let node = Self.demangledSymbol(for: defaultImplementationSymbols, typeName: typeNameString, visitedNodes: visitedNodes, in: machO)?.demangledNode {
                                 _ = visitedNodes.append(StructuralNodeReferenceKey(node))
+                                // Qualifies the address comment above
+                                // (evolution proposal 0007): this witness
+                                // resolved to a protocol-extension DEFAULT
+                                // implementation, not code on the conforming
+                                // type.
+                                if configuration.printMemberAddress {
+                                    InlineComment("protocol-extension default")
+                                    Space()
+                                }
                                 try await demangleResolver.resolve(for: node)
                             } else if !element.defaultImplementation.isNull {
                                 FunctionDeclaration(machO.addressString(forOffset: element.defaultImplementation.resolveDirectOffset(from: element.offset(of: \.defaultImplementation))).insertSubFunctionPrefix)

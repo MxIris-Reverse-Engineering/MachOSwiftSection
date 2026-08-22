@@ -23,4 +23,10 @@ public struct VariableDefinition: Sendable, AccessorRepresentable {
     /// to. Always `false` outside class bodies (extensions, protocols, value
     /// types) and for type-level members (`static` is implicitly final).
     public var isFinal: Bool = false
+
+    /// Set on conformance-extension members whose witness resolved through
+    /// the protocol requirement's DEFAULT implementation (evolution proposal
+    /// 0007) — the code lives in a protocol extension, not on the conforming
+    /// type. See `FunctionDefinition.isProtocolExtensionDefault`.
+    public var isProtocolExtensionDefault: Bool = false
 }

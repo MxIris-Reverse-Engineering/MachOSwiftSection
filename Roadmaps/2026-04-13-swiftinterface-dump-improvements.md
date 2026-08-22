@@ -320,6 +320,8 @@ The emitted sets come from one per-protocol synthesized-associated-type extensio
 
 **Effort.** Medium (1 day). Main work is getting the grouping key right.
 
+**Status update (evolution 0007).** The typealias-only merge shipped earlier was generalized by the extension-container unification (`unifyExtensionContainers()`): same-(protocol, where-fingerprint, retroactive) eager definitions now merge within every bucket, and a protocol's symbol-scan extension blocks attach to the protocol declaration (the issue #106 §5 duplicate-block fix). One deliberate residual remains: a bare `extension X { typealias … }` block (this item's merge representative, kept in the conformance bucket for its assocwitness attribution) can still share header text with the type's member block — merging that pair would move content across buckets and change the frozen ABI-snapshot format. See [ExtensionContainerUnification.md](../Documentations/Internal/ExtensionContainerUnification.md).
+
 ---
 
 ### P1-10. Synthesized `Equatable` / `Hashable` members appear in both the type body and the conformance extension
