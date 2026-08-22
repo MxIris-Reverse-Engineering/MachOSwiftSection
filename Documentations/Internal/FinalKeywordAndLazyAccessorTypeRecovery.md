@@ -15,7 +15,7 @@ class 成员是否 `final` 决定调用方走 dispatch thunk 还是直接符号�
 
 **`@objc` 且无 descriptor ⇒ `@objc dynamic`，绝不标 `final`。** `@objc dynamic` 成员经 objc_msgSend 派发，没有 vtable 条目，但完全可覆写——按裸判据必然误标。模型路径在 `applyThunkAttributes` 之后标记并按 `attributes.contains(.objc)` 排除（这决定了标记块必须排在 thunk 归因之后、`orderedMembers` 构建之前——OrderedMember 持有值拷贝，晚了改不动）；dump 路径用 thunk 成员名集合做同样的排除。非 dynamic 的 `@objc` 成员有 Swift vtable 条目，本来就被 descriptor 判据排除，不受影响。
 
-**证据门是三层的，宁缺勿错。** （a）只有非 actor class 且 `vTableDescriptorHeader != nil` 才可能标记——actor 不可子类化，没 header 的类与 final class 不可分；（b）stored 属性还要求 accessor 组确实 join 上（`accessors.isEmpty` ⇒ 不标——符号被 strip 时缺席不是证据）；（c）`@objc` 排除如上。任何一层不满足都静默降级为不打 `final`。
+**证据门是四层的，宁缺勿错。** （a）只有非 actor class 且 `vTableDescriptorHeader != nil` 才可能标记——actor 不可子类化，没 header 的类与 final class 不可分；（b）stored 属性还要求 accessor 组确实 join 上（`accessors.isEmpty` ⇒ 不标——符号被 strip 时缺席不是证据）；（c）`@objc` 排除如上；（d）**`Tq` method-descriptor 符号作负证据**——成员名存在 `Tq` 符号即证明 vtable 条目在场，绝不标 `final`，无论地址 join 说什么。（d）是在真实二进制上抓到的：SourceEditor 把 1128 个空实现 ICF 折叠到同一地址（`SourceEditorView.elide` 等五个类成员在内），descriptor→implementation-symbol 的地址 join 在这种地址上配不上对，函数没有 accessor-join 那样的门，全体误标 `final`；而 `Tq` 是每成员一个、地址唯一的数据符号，不受折叠影响。函数与属性按成员名匹配（重载中任一带 `Tq` 即全组不标——保守方向）；下标共名，按 `.subscript` 子树的结构键精确匹配（与 `DefinitionBuilder.subscripts` 的分组键同一抽取，第一版「任一下标 `Tq` 即全部不标」把 fixture 里合法的 `final subscript` 一起挡了）。任何一层不满足都静默降级为不打 `final`。回归钉死在 `FinalKeywordICFRegressionTests`（环境门控于 Xcode 的 SourceEditor 在场）。
 
 **final class 的成员会获得成员级 `final`，这是接受的行为而非 bug。** final class 因 designated init 的 vtable 条目仍带 vtable header（实测 `Enums.SinglePayloadBoxClass`），门挡不住它。类级 `final` 没有 ABI 位（ClassMemberKeywordRecovery.md 查证过），成员级标记如实反映「无动态派发条目」，对重建场景的链接语义恰好正确；输出比源码啰嗦（源码里 final class 的成员不写 `final`），但诚实。
 
@@ -53,8 +53,9 @@ Sources/SwiftDump/
 ## 验证
 
 - `Tests/SwiftInterfaceTests/FinalMemberRecoveryTests.swift`——针对 fixture 矩阵类 `VTableEntryVariants.FinalMembersTest`（final/plain × 存储/lazy/计算属性/方法/下标全组合）的五个用例：渲染层 final 配对、lazy 访问器类型、stored var 的 vtable 注释邻接性、模型层 isFinal/accessors/accessorTypeNode 事实。
-- 快照回归：interface 整模块快照 + dump 的 `enums`/`genericFieldLayout`/`vTableEntryVariants` 快照，逐行审查过（真阳性：fixture 里声明为 `final` 的成员、final class 的成员、被归到 body 的 extension 成员；async 三成员从误标回到正确形态并新增 `override`）。
-- 对真实 resilient 框架与 `nm` dispatch thunk 的对照抽查见提案落地步骤 7（待办）。
+- `Tests/SwiftInterfaceTests/FinalKeywordICFRegressionTests.swift`——对 Xcode 真实 `SourceEditor.framework`（issue #106 的原始对象）的回归：ICF 折叠地址上带 `Tq` 的成员（`elide` 等）不标 `final`；正例 `SourceEditorDataSource.languageService`（getter 无 `Tq`、lazy）打印 `final lazy var languageService: SourceEditor.SourceEditorLanguageService`——issue 第 1、4 点在原始二进制上的合体验证。机器无 Xcode 时整套跳过。
+- 快照回归：interface 整模块快照 + dump 的 `enums`/`genericFieldLayout`/`vTableEntryVariants` 快照，逐行审查过（真阳性：fixture 里声明为 `final` 的成员、final class 的成员、被归到 body 的 extension 成员；async 三成员从误标回到正确形态并新增 `override`）。`Tq` 门对 fixture 快照零扰动（fixture 无 ICF 折叠，`Tq` 证据与 join 结论一致）。
+- `nm` 对照：`elide`（`Tq`+`Tj` 在场 ⇒ 非 final）与 `languageService`（仅直接符号 ⇒ final）已逐符号核对。
 
 ## 已知降级
 

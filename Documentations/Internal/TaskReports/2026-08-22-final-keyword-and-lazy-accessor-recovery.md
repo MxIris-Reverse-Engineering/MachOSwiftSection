@@ -38,7 +38,7 @@ issue #106 是把本库 dump 拿去手写可编译 `.swiftinterface`（重建 Xc
 - `FinalMemberRecoveryTests` 五用例：渲染层 final 配对（全矩阵正反断言）、lazy 访问器类型（`lazy var lazyProperty: Swift.String` 非 Optional）、plain stored var 的 getter/setter vtable 注释邻接 + final stored var 无注释、模型层 `isFinal`/`accessors`/`accessorTypeNode` 事实。
 - 快照重录并逐行审查：interface 整模块 + dump `enums`/`genericFieldLayout`/`vTableEntryVariants`；全部变更可归因（真 final、final class 成员、body 化 extension 成员、async 修复、lazy 类型、新矩阵类）。
 - 全量 `swift test --skip IntegrationTests`：1438 tests，除 fixture 重建引发的 136 条 ABI 基线 offset 漂移外全绿；`regen-baselines` 后 59 个基线文件 96 行 diff **全部为 offset 字面量**（无语义变更），复跑收敛。
-- 未做：对真实 resilient 框架与 `nm` dispatch thunk 的对照抽查（提案落地步骤 7，留待有 SourceEditor 二进制的环境）。
+- 真实框架对照（首次提交后、0007 开工前补做）：对 Xcode `SourceEditor.framework` 生成整模块 interface 并与 `nm` 逐符号核对，**当场抓到第四类误标**——1128 个空实现被 ICF 折叠到同一地址，descriptor→symbol 地址 join 配不上对，`SourceEditorView.elide` 等带 `Tq` 的真类成员被标 `final`。修复为第四道门（成员名存在 `Tq` method-descriptor 符号即绝不标，`Tq` 是每成员唯一地址的数据符号、ICF 免疫），interface/dump 两路同步，回归钉死在环境门控的 `FinalKeywordICFRegressionTests`；正例 `SourceEditorDataSource.languageService` 在原始二进制上打印 `final lazy var languageService: SourceEditor.SourceEditorLanguageService`（issue 第 1、4 点合体）。fixture 快照零扰动。
 
 ## 与计划的偏离
 

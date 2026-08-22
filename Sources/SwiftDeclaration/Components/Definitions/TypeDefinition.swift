@@ -409,19 +409,50 @@ public final class TypeDefinition: Definition {
         // the member values.
         if classCanRecoverFinalMembers {
             let objcThunkMemberNames = Set(symbolIndexStore.thunkAttributeMembers(of: .objCAttribute, for: name, in: machO).filter { !$0.isStatic }.map(\.memberName))
-            for index in functions.indices where functions[index].methodDescriptor == nil && !functions[index].attributes.contains(.objc) {
+            // Fourth gate — `Tq` method-descriptor SYMBOLS as negative
+            // evidence: they are per-member data symbols at unique addresses,
+            // immune to the identical-code-folding that defeats the
+            // descriptor→implementation-symbol join (SourceEditor folds 1128
+            // empty implementations onto one address, where the join cannot
+            // pair descriptors with members and every folded member would
+            // read as `final`). A member name with a `Tq` symbol provably has
+            // a vtable entry — never `final`, even when the join missed it.
+            var methodDescriptorSymbolMemberNames: Set<String> = []
+            var subscriptMethodDescriptorNodeKeys: Set<StructuralNodeReferenceKey> = []
+            let instanceMemberKinds: [SymbolIndexStore.MemberKind] = [
+                .function(inExtension: false, isStatic: false),
+                .variable(inExtension: false, isStatic: false, isStorage: false),
+                .subscript(inExtension: false, isStatic: false),
+            ]
+            for kind in instanceMemberKinds {
+                for descriptorSymbol in symbolIndexStore.methodDescriptorMemberSymbols(of: kind, for: name, in: machO) {
+                    if let functionName = descriptorSymbol.demangledNode.first(of: .function)?.identifier {
+                        methodDescriptorSymbolMemberNames.insert(functionName)
+                    } else if let variableName = descriptorSymbol.demangledNode.first(of: .variable)?.identifier {
+                        methodDescriptorSymbolMemberNames.insert(variableName)
+                    } else if let subscriptNode = descriptorSymbol.demangledNode.first(of: .subscript) {
+                        // Overloaded subscripts share one name, so they key on
+                        // the subscript subtree — the same extraction
+                        // `DefinitionBuilder.subscripts` groups accessors by.
+                        subscriptMethodDescriptorNodeKeys.insert(StructuralNodeReferenceKey(subscriptNode))
+                    }
+                }
+            }
+            for index in functions.indices where functions[index].methodDescriptor == nil && !functions[index].attributes.contains(.objc) && !methodDescriptorSymbolMemberNames.contains(functions[index].name) {
                 functions[index].isFinal = true
             }
-            for index in variables.indices where !variables[index].accessors.isEmpty && !variables[index].hasVTableAccessor && !variables[index].attributes.contains(.objc) {
+            for index in variables.indices where !variables[index].accessors.isEmpty && !variables[index].hasVTableAccessor && !variables[index].attributes.contains(.objc) && !methodDescriptorSymbolMemberNames.contains(variables[index].name) {
                 variables[index].isFinal = true
             }
             for index in subscripts.indices where !subscripts[index].accessors.isEmpty && !subscripts[index].hasVTableAccessor && !subscripts[index].attributes.contains(.objc) {
+                let subscriptNodeKey = subscripts[index].node.first(of: .subscript).map { StructuralNodeReferenceKey($0) }
+                if let subscriptNodeKey, subscriptMethodDescriptorNodeKeys.contains(subscriptNodeKey) { continue }
                 subscripts[index].isFinal = true
             }
             // Stored `let`s are not overridable to begin with, so `final` on
             // them is pure noise — only stored `var`s (field records carrying
             // the IsVar flag) participate.
-            for index in indexedFields.indices where indexedFields[index].flags.contains(.isVariable) && !indexedFields[index].accessors.isEmpty && !indexedFields[index].hasVTableAccessor && !objcThunkMemberNames.contains(indexedFields[index].name) {
+            for index in indexedFields.indices where indexedFields[index].flags.contains(.isVariable) && !indexedFields[index].accessors.isEmpty && !indexedFields[index].hasVTableAccessor && !objcThunkMemberNames.contains(indexedFields[index].name) && !methodDescriptorSymbolMemberNames.contains(indexedFields[index].name) {
                 indexedFields[index].isFinal = true
             }
         }
