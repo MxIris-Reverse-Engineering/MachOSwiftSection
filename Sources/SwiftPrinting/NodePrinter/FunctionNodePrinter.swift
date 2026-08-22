@@ -16,6 +16,8 @@ struct FunctionNodePrinter: InterfaceNodePrintable {
 
     private let isClassMember: Bool
 
+    private let isFinal: Bool
+
     private(set) weak var delegate: (any NodePrintableDelegate)?
 
     private(set) var isProtocol: Bool = false
@@ -28,9 +30,10 @@ struct FunctionNodePrinter: InterfaceNodePrintable {
 
     private(set) var targetNode: Node?
 
-    init(isOverride: Bool, isClassMember: Bool = false, delegate: (any NodePrintableDelegate)? = nil) {
+    init(isOverride: Bool, isClassMember: Bool = false, isFinal: Bool = false, delegate: (any NodePrintableDelegate)? = nil) {
         self.isOverride = isOverride
         self.isClassMember = isClassMember
+        self.isFinal = isFinal
         self.delegate = delegate
     }
 
@@ -39,6 +42,10 @@ struct FunctionNodePrinter: InterfaceNodePrintable {
     }
 
     mutating func printRoot(_ node: Node) async throws -> SemanticString {
+        if isFinal {
+            target.write("final", context: .context(state: .printKeyword))
+            target.writeSpace()
+        }
         if isOverride {
             target.write("override", context: .context(state: .printKeyword))
             target.writeSpace()

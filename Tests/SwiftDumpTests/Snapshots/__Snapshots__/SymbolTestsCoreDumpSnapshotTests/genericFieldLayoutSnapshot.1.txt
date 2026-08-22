@@ -926,8 +926,8 @@ class SymbolTestsCore.GenericFieldLayout.ClassBoundGenericBaseClass<A> where A: 
     method descriptor for SymbolTestsCore.GenericFieldLayout.ClassBoundGenericBaseClass.baseElement.setter : A
 }
 class SymbolTestsCore.GenericFieldLayout.ClassBoundGenericSubclass<A>: SymbolTestsCore.GenericFieldLayout.ClassBoundGenericBaseClass<A> where A: AnyObject {
-    var subclassElement: A
-    var subclassIdentifier: Swift.Int64
+    final var subclassElement: A
+    final var subclassIdentifier: Swift.Int64
 
     /* [ Init ] */ SymbolTestsCore.GenericFieldLayout.ClassBoundGenericSubclass.__allocating_init(baseElement: A, subclassElement: A, subclassIdentifier: Swift.Int64) -> SymbolTestsCore.GenericFieldLayout.ClassBoundGenericSubclass<A>
 
@@ -957,8 +957,8 @@ class SymbolTestsCore.GenericFieldLayout.ClassBoundGenericSubclass<A>: SymbolTes
     method descriptor for SymbolTestsCore.GenericFieldLayout.ClassBoundGenericSubclass.__allocating_init(baseElement: A, subclassElement: A, subclassIdentifier: Swift.Int64) -> SymbolTestsCore.GenericFieldLayout.ClassBoundGenericSubclass<A>
 }
 class SymbolTestsCore.GenericFieldLayout.ClassBoundGenericNSObjectSubclass<A>: NSObject where A: AnyObject {
-    var element: A
-    var identifier: Swift.Int
+    final var element: A
+    final var identifier: Swift.Int
 
     /* [ Init ] */ SymbolTestsCore.GenericFieldLayout.ClassBoundGenericNSObjectSubclass.__allocating_init(element: A, identifier: Swift.Int) -> SymbolTestsCore.GenericFieldLayout.ClassBoundGenericNSObjectSubclass<A>
 

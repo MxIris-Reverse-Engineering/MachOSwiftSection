@@ -4,6 +4,19 @@ import MachOSwiftSection
 import OrderedCollections
 
 package enum DefinitionBuilder {
+    /// The output of `variablesProduct(...)`: the computed-variable definitions
+    /// plus the accessor groups that were suppressed because their name matches
+    /// a stored field record (the property renders once, from the field
+    /// descriptor, not from the accessor symbols). The suppressed groups carry
+    /// the resolved method descriptors / vtable slots, so the caller can fold
+    /// the dispatch facts (`final`, vtable comments, the lazy getter's
+    /// caller-facing type) onto the matching `FieldDefinition` instead of
+    /// discarding them.
+    package struct VariablesBuildProduct {
+        package let variables: [VariableDefinition]
+        package let storedPropertyAccessorsByFieldName: [String: [Accessor]]
+    }
+
     package static func variables(
         for demangledSymbols: [DemangledSymbolWithOffset],
         fieldNames: borrowing Set<String> = [],
@@ -13,6 +26,26 @@ package enum DefinitionBuilder {
         implOffsetVTableSlotLookup: [Int: Int] = [:],
         isGlobalOrStatic: Bool
     ) -> [VariableDefinition] {
+        variablesProduct(
+            for: demangledSymbols,
+            fieldNames: fieldNames,
+            methodDescriptorLookup: methodDescriptorLookup,
+            vtableOffsetLookup: vtableOffsetLookup,
+            implOffsetDescriptorLookup: implOffsetDescriptorLookup,
+            implOffsetVTableSlotLookup: implOffsetVTableSlotLookup,
+            isGlobalOrStatic: isGlobalOrStatic
+        ).variables
+    }
+
+    package static func variablesProduct(
+        for demangledSymbols: [DemangledSymbolWithOffset],
+        fieldNames: borrowing Set<String> = [],
+        methodDescriptorLookup: [StructuralNodeReferenceKey: MethodDescriptorWrapper] = [:],
+        vtableOffsetLookup: [StructuralNodeReferenceKey: Int] = [:],
+        implOffsetDescriptorLookup: [Int: MethodDescriptorWrapper] = [:],
+        implOffsetVTableSlotLookup: [Int: Int] = [:],
+        isGlobalOrStatic: Bool
+    ) -> VariablesBuildProduct {
         var variables: [VariableDefinition] = []
         var accessorsByName: [String: [Accessor]] = [:]
         for demangledSymbol in demangledSymbols {
@@ -26,8 +59,12 @@ package enum DefinitionBuilder {
             accessorsByName[name, default: []].append(.init(kind: kind, symbol: demangledSymbol.base.detachedFromSharedTable(), methodDescriptor: descriptor, offset: demangledSymbol.offset, vtableOffset: vtableOffset))
         }
 
+        var storedPropertyAccessorsByFieldName: [String: [Accessor]] = [:]
         for (name, accessors) in accessorsByName.sorted(by: { $0.key < $1.key }) {
-            guard !fieldNames.contains(name) else { continue }
+            guard !fieldNames.contains(name) else {
+                storedPropertyAccessorsByFieldName[name] = accessors
+                continue
+            }
             let nodes = accessors.map(\.symbol.demangledNode)
             guard let node = nodes.first(where: { $0.contains(.getter) || !$0.hasAccessor }) else { continue }
             var variableDefinition = VariableDefinition(node: node, name: name, accessors: accessors, isGlobalOrStatic: isGlobalOrStatic)
@@ -36,7 +73,7 @@ package enum DefinitionBuilder {
             }
             variables.append(variableDefinition)
         }
-        return variables
+        return VariablesBuildProduct(variables: variables, storedPropertyAccessorsByFieldName: storedPropertyAccessorsByFieldName)
     }
 
     package static func subscripts(

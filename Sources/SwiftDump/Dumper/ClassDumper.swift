@@ -145,6 +145,16 @@ package struct ClassDumper<MachO: FieldLayoutRenderable>: TypedDumper {
                 autoResolveAccessorMetadata: false
             )
             let fieldOffsets = fieldLayoutRenderer.fieldOffsets
+            // `final` recovery for stored `var`s (evolution proposal 0006),
+            // mirroring the model path in `TypeDefinition.index`: a stored
+            // `var` whose accessors occupy no vtable slot was declared
+            // `final`. Both sets stay empty when the evidence is missing
+            // (actor, no vtable header, stripped symbols), and a name absent
+            // from `storedAccessorFieldNames` never gets marked — absence of
+            // evidence is not `final`.
+            let canRecoverFinalFields = dumped.vTableDescriptorHeader != nil && !dumped.descriptor.isActor
+            let vtableAccessorNames = canRecoverFinalFields ? vtableAccessorFieldNames() : []
+            let storedAccessorNames = canRecoverFinalFields ? try await storedAccessorFieldNames() : []
             for (offset, fieldRecord) in try dumped.descriptor.fieldDescriptor(in: machO).records(in: machO).offsetEnumerated() {
                 BreakLine()
 
@@ -158,7 +168,13 @@ package struct ClassDumper<MachO: FieldLayoutRenderable>: TypedDumper {
 
                 let fieldName = try fieldRecord.fieldName(in: machO)
 
-                fieldDeclarationKeywords(for: fieldRecord, typeNode: demangledTypeNode, fieldName: fieldName)
+                let strippedFieldName = fieldName.stripLazyPrefix
+                let isFinalField = canRecoverFinalFields
+                    && fieldRecord.flags.contains(.isVariadic)
+                    && storedAccessorNames.contains(strippedFieldName)
+                    && !vtableAccessorNames.contains(strippedFieldName)
+
+                fieldDeclarationKeywords(for: fieldRecord, typeNode: demangledTypeNode, fieldName: fieldName, isFinal: isFinalField)
 
                 MemberDeclaration(fieldName.stripLazyPrefix)
 
@@ -451,6 +467,45 @@ package struct ClassDumper<MachO: FieldLayoutRenderable>: TypedDumper {
         } else {
             Error("Symbol not found")
         }
+    }
+
+    /// Field names (lazy-stripped) whose getter/setter/modify/read accessors
+    /// occupy vtable slots — i.e. the stored `var`s that were NOT declared
+    /// `final`. Paired with `storedAccessorFieldNames()` (the evidence gate)
+    /// by `fields` to recover the `final` keyword on the remaining stored
+    /// `var`s (evolution proposal 0006).
+    private func vtableAccessorFieldNames() -> Set<String> {
+        var names: Set<String> = []
+        let accessorKinds: Set<MethodDescriptorKind> = [.getter, .setter, .modifyCoroutine, .readCoroutine]
+        for descriptor in dumped.methodDescriptors where accessorKinds.contains(descriptor.flags.kind) {
+            guard let symbols = try? descriptor.implementationSymbols(in: machO) else { continue }
+            for symbol in symbols {
+                guard let node = MetadataReader.demangleSymbolReference(for: symbol, in: machO),
+                      let variableName = node.first(of: .variable)?.identifier else { continue }
+                names.insert(variableName)
+            }
+        }
+        return names
+    }
+
+    /// Field names for which instance-variable accessor symbols exist at all —
+    /// the evidence gate for `final` recovery: a name with no accessor symbol
+    /// (stripped symbol table) cannot testify either way and stays unmarked.
+    /// `@objc` members are excluded outright: without a vtable descriptor they
+    /// dispatch through the ObjC runtime (`@objc dynamic`) — overridable, so
+    /// never `final` (same exclusion as the model path in
+    /// `TypeDefinition.index`).
+    private func storedAccessorFieldNames() async throws -> Set<String> {
+        let interfaceNameString = try await interfaceName.string
+        var names: Set<String> = []
+        for symbol in symbolIndexStore.memberSymbols(of: .variable(inExtension: false, isStatic: false, isStorage: false), for: interfaceNameString, in: machO) {
+            guard let variableName = symbol.demangledNode.first(of: .variable)?.identifier else { continue }
+            names.insert(variableName)
+        }
+        for objcMember in symbolIndexStore.thunkAttributeMembers(of: .objCAttribute, for: interfaceNameString, in: machO) where !objcMember.isStatic {
+            names.remove(objcMember.memberName)
+        }
+        return names
     }
 
     package func validNode(for symbols: Symbols, visitedNodes: borrowing OrderedSet<StructuralNodeReferenceKey> = []) async throws -> NodeReference? {

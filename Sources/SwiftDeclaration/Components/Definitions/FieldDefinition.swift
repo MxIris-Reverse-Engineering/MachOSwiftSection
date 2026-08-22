@@ -27,4 +27,25 @@ public struct FieldDefinition: Sendable {
     public let name: String
     public let typeNode: NodeReference
     public let flags: FieldFlags
+
+    /// Accessors resolved from the symbol table for this stored property
+    /// (getter/setter/modify), carrying the vtable method descriptors and
+    /// slots where the owning class's vtable attribution succeeded. Empty when
+    /// no accessor symbol joined — enum cases, stripped symbol tables, or
+    /// fields the indexer never saw accessor symbols for.
+    public var accessors: [Accessor] = []
+
+    /// The caller-facing type from the getter symbol. Differs from `typeNode`
+    /// for lazy storage, whose field record carries the `Optional` storage
+    /// type rather than the type callers see.
+    public var accessorTypeNode: NodeReference? = nil
+
+    /// Recovered `final` (evolution proposal 0006): inside a class whose
+    /// vtable was readable, a stored `var` whose joined accessors carry no
+    /// vtable method descriptor was declared `final`. Set at index time;
+    /// stays `false` whenever the evidence is missing (no accessor join, no
+    /// vtable, value type, actor).
+    public var isFinal: Bool = false
+
+    public var hasVTableAccessor: Bool { accessors.contains { $0.methodDescriptor != nil } }
 }

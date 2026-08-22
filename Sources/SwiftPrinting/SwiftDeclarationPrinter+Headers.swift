@@ -321,7 +321,9 @@ extension SwiftDeclarationPrinter {
             printFieldOffset: configuration.printFieldOffset,
             printTypeLayout: configuration.printTypeLayout,
             printEnumLayout: configuration.printEnumLayout,
+            printVTableOffset: configuration.printVTableOffset,
             printExpandedFieldOffsets: configuration.printExpandedFieldOffsets,
+            vtableOffsetTransformer: configuration.vtableOffsetTransformer,
             fieldOffsetTransformer: configuration.fieldOffsetTransformer,
             expandedFieldOffsetTransformer: configuration.expandedFieldOffsetTransformer,
             typeLayoutTransformer: configuration.typeLayoutTransformer,
@@ -363,6 +365,18 @@ extension SwiftDeclarationPrinter {
                     try await fieldLayoutRenderer.enumCaseComments(forCaseAtIndex: offset.index, mangledTypeName: mangledTypeName, enumLayout: enumLayout)
                 } else {
                     try await fieldLayoutRenderer.storedFieldComments(forFieldAtIndex: offset.index, mangledTypeName: mangledTypeName, fieldOffsets: fieldOffsets)
+                }
+            }
+            // A non-final stored `var`'s getter/setter occupy vtable slots
+            // (evolution proposal 0006) — surface them with the same comment
+            // the computed members get, so a stored property without any
+            // vtable comment genuinely is statically dispatched rather than
+            // silently unattributed (issue #106 §1).
+            if !isEnum, configuration.printVTableOffset {
+                for accessor in field.accessors {
+                    if let accessorVTableOffset = accessor.vtableOffset {
+                        renderConfiguration.vtableOffsetComment(slotOffset: accessorVTableOffset, label: accessor.kind.addressLabel)
+                    }
                 }
             }
             let substitutedTypeNode: Node? = {
