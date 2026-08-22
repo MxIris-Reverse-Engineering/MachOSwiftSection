@@ -125,6 +125,12 @@ public final class SwiftInterfaceBuilder<MachO: FieldLayoutRenderable>: Sendable
 
     @SemanticStringBuilder
     public func printRoot() async throws -> SemanticString {
+        // Leading header (evolution proposal 0008), deliberately independent
+        // of the imports block below — flag-gated, default absent.
+        if let interfaceHeaderInfo = configuration.interfaceHeaderInfo {
+            InterfaceHeaderBlock(interfaceHeaderInfo)
+        }
+
         ImportsBlock(OrderedSet(Self.internalModules + importedModules).sorted())
 
         // The two globals blocks carry no printing context because they cannot

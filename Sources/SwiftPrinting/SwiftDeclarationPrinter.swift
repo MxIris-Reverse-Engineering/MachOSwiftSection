@@ -502,6 +502,17 @@ public final class SwiftDeclarationPrinter<MachO: FieldLayoutRenderable>: Sendab
                 if printMemberAddress, function.isProtocolExtensionDefault {
                     Comment("protocol-extension default")
                 }
+                // Export status is only ruled on for members whose OWN
+                // symbols are the linkage surface: an `override` links
+                // through the PARENT's dispatch thunk and an `@objc` member
+                // dispatches through objc_msgSend, so both routinely carry
+                // zero exported symbols of their own while being perfectly
+                // reachable — annotating them would be a false positive
+                // (verified on the fixture: `public override` and
+                // `@objc public dynamic` members both trie-miss).
+                if configuration.printExportStatus, !function.isOverride, !function.attributes.contains(.objc) {
+                    ExportStatusComment(isExported: exportVerdict(forSymbolNames: [function.symbol.name]), emit: true)
+                }
                 await printFunction(function, level: level)
 
             case .variable(let variable):
@@ -512,6 +523,9 @@ public final class SwiftDeclarationPrinter<MachO: FieldLayoutRenderable>: Sendab
                 }
                 if printMemberAddress, variable.isProtocolExtensionDefault {
                     Comment("protocol-extension default")
+                }
+                if configuration.printExportStatus, !variable.isOverride, !variable.attributes.contains(.objc) {
+                    ExportStatusComment(isExported: exportVerdict(forSymbolNames: variable.accessors.map(\.symbol.name)), emit: true)
                 }
                 await printVariable(variable, level: level)
 
@@ -524,9 +538,30 @@ public final class SwiftDeclarationPrinter<MachO: FieldLayoutRenderable>: Sendab
                 if printMemberAddress, `subscript`.isProtocolExtensionDefault {
                     Comment("protocol-extension default")
                 }
+                if configuration.printExportStatus, !`subscript`.isOverride, !`subscript`.attributes.contains(.objc) {
+                    ExportStatusComment(isExported: exportVerdict(forSymbolNames: `subscript`.accessors.map(\.symbol.name)), emit: true)
+                }
                 await printSubscript(`subscript`, level: level)
             }
         }
+    }
+
+    /// The member-level export verdict backing `ExportStatusComment`
+    /// (evolution proposal 0008): `false` only when EVERY symbol of the
+    /// member provably lacks an export-trie entry, `true` as soon as one is
+    /// exported, `nil` when there is no evidence to rule on — no symbols
+    /// joined, or the image carries no export information at all — so the
+    /// annotation never fires on a guess.
+    private func exportVerdict(forSymbolNames symbolNames: [String]) -> Bool? {
+        guard !symbolNames.isEmpty else { return nil }
+        @Dependency(\.symbolIndexStore) var symbolIndexStore
+        for symbolName in symbolNames {
+            guard let isExported = symbolIndexStore.isExportedIncludingDerivedSymbols(name: symbolName, in: machO) else { return nil }
+            if isExported {
+                return true
+            }
+        }
+        return false
     }
 
     @SemanticStringBuilder

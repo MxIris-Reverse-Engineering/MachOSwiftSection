@@ -50,6 +50,12 @@ struct InterfaceCommand: AsyncParsableCommand {
     @Flag(help: "Sort members by binary layout offset instead of grouping by category")
     var sortMembersByOffset: Bool = false
 
+    @Flag(help: "Emit a leading header comment block (generator, image path, UUID, architecture, library-evolution detection, unrecoverable-facts notes)")
+    var emitHeader: Bool = false
+
+    @Flag(help: "Annotate members none of whose symbols have an export-trie entry with a `not exported` comment")
+    var emitExportStatus: Bool = false
+
     @Option(name: .shortAndLong, help: "The color scheme for the output.")
     var colorScheme: SemanticColorScheme = .none
 
@@ -64,6 +70,7 @@ struct InterfaceCommand: AsyncParsableCommand {
             printExpandedFieldOffsets: emitExpandedFieldOffsets,
             printMemberAddress: emitMemberAddresses,
             printVTableOffset: emitVtableOffsets,
+            printExportStatus: emitExportStatus,
             memberSortOrder: sortMembersByOffset ? .byOffset : .byCategory,
             printTypeLayout: emitTypeLayout,
             printEnumLayout: emitEnumLayout
@@ -75,12 +82,20 @@ struct InterfaceCommand: AsyncParsableCommand {
             printConfiguration.applyTransformersEnablingCommentKinds(transformers)
         }
 
-        let configuration = SwiftInterfaceBuilderConfiguration(
+        var configuration = SwiftInterfaceBuilderConfiguration(
             indexConfiguration: .init(
                 showCImportedTypes: showCImportedTypes
             ),
             printConfiguration: printConfiguration
         )
+
+        if emitHeader {
+            configuration.interfaceHeaderInfo = InterfaceHeaderInfo(
+                machO: machOFile,
+                generatorName: "swift-section",
+                generatorVersion: BundledVersion.value
+            )
+        }
 
         let builder = try SwiftInterfaceBuilder(configuration: configuration, eventHandlers: [ConsoleEventHandler()], in: machOFile)
 

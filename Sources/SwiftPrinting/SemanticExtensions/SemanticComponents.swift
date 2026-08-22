@@ -83,6 +83,30 @@ struct VTableOffsetComment: SemanticStringComponent {
     }
 }
 
+// MARK: - Export Status Comment
+
+/// A `not exported` comment (evolution proposal 0008): emitted only when
+/// the member's symbols provably have no export-trie entry. `isExported`
+/// `nil` means "no verdict" — no export information in the image, or no
+/// symbol evidence on the member — and emits nothing, so the annotation
+/// never guesses.
+struct ExportStatusComment: SemanticStringComponent {
+    let isExported: Bool?
+
+    let emit: Bool
+
+    init(isExported: Bool?, emit: Bool) {
+        self.isExported = isExported
+        self.emit = emit
+    }
+
+    package func buildComponents() -> [AtomicComponent] {
+        guard emit, isExported == false else { return [] }
+
+        return Comment("not exported").buildComponents()
+    }
+}
+
 // MARK: - Imports Block
 
 /// A block of import statements.

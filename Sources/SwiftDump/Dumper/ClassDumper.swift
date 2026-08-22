@@ -352,6 +352,10 @@ package struct ClassDumper<MachO: FieldLayoutRenderable>: TypedDumper {
                         configuration.memberAddressComment(offset: symbol.offset, addressString: machO.addressString(forOffset: symbol.offset))
                     }
 
+                    if configuration.printExportStatus, symbolIndexStore.isExportedIncludingDerivedSymbols(name: symbol.name, in: machO) == false {
+                        configuration.exportStatusComment()
+                    }
+
                     Indent(level: 1)
 
                     try await demangleResolver.resolve(for: symbol.demangledNode)
@@ -376,6 +380,10 @@ package struct ClassDumper<MachO: FieldLayoutRenderable>: TypedDumper {
 
                     if configuration.printMemberAddress {
                         configuration.memberAddressComment(offset: symbol.offset, addressString: machO.addressString(forOffset: symbol.offset))
+                    }
+
+                    if configuration.printExportStatus, symbolIndexStore.isExportedIncludingDerivedSymbols(name: symbol.name, in: machO) == false {
+                        configuration.exportStatusComment()
                     }
 
                     Indent(level: 1)

@@ -63,6 +63,12 @@ public struct DeclarationRenderConfiguration: Sendable {
     public var printVTableOffset: Bool = false
     public var printExpandedFieldOffsets: Bool = false
     public var printConformancePWTAddress: Bool = false
+
+    /// Emit a `// not exported` comment on member-symbol lines whose symbol
+    /// has no export-trie entry (evolution proposal 0008). A symbol-table
+    /// FACT, not an access-level guess; nothing is emitted when the image
+    /// carries no export information.
+    public var printExportStatus: Bool = false
     public var memberAddressTransformer: MemberAddressTransformer? = nil
     public var vtableOffsetTransformer: VTableOffsetTransformer? = nil
     public var fieldOffsetTransformer: FieldOffsetTransformer? = nil
@@ -107,6 +113,18 @@ extension DeclarationRenderConfiguration {
         } else {
             Comment("Address: 0x\(addressString)")
         }
+        BreakLine()
+    }
+
+    /// Builds a `not exported` comment line (evolution proposal 0008),
+    /// emitted by the dumpers next to a member-symbol line whose symbol
+    /// provably has no export-trie entry.
+    ///
+    /// The returned ``SemanticString`` includes indentation and a trailing line break.
+    @SemanticStringBuilder
+    package func exportStatusComment() -> SemanticString {
+        indentString
+        Comment("not exported")
         BreakLine()
     }
 
