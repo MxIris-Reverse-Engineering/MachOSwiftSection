@@ -13,14 +13,14 @@ enum GenericParamDescriptorBaseline {
     }
 
     static let layoutRequirementParam0 = Entry(
-    offset: 0x40f50,
+    offset: 0x413d0,
     layoutRawValue: 0x80,
     hasKeyArgument: true,
     kindRawValue: 0x0
     )
 
     static let parameterPackParam0 = Entry(
-    offset: 0x42084,
+    offset: 0x42504,
     layoutRawValue: 0x81,
     hasKeyArgument: true,
     kindRawValue: 0x1
