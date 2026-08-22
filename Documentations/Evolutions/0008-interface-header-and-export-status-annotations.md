@@ -1,13 +1,13 @@
 # 0008 - Interface 文件头部（元数据 + library evolution + 不可恢复项）与导出状态标注
 
-- **状态**: Accepted
+- **状态**: Implemented
 - **作者**: JH
 - **创建日期**: 2026-08-22
 - **最后更新**: 2026-08-22
 - **所属愿景**: 无
 - **关联提案**: [0006](0006-final-keyword-and-lazy-accessor-type-recovery.md)、[0007](0007-extension-container-dedup-and-default-impl-attribution.md)（同一 issue 的其余批次）
-- **实现分支 / PR**: 待定
-- **配套文档**: 待定 —— 落地时登记实现说明 / 使用指南的链接
+- **实现分支 / PR**: `feature/0008-interface-header-and-export-status`
+- **配套文档**: [InterfaceHeaderAndExportStatusAnnotations.md](../Internal/InterfaceHeaderAndExportStatusAnnotations.md)（实现说明）；任务报告 [2026-08-22-interface-header-and-export-status.md](../Internal/TaskReports/2026-08-22-interface-header-and-export-status.md)
 
 ## 摘要
 
@@ -135,3 +135,5 @@ README 的 CLI 选项段、AGENTS.md、`Roadmaps/2026-04-13-swiftinterface-dump-
 |------|------|------|
 | 2026-08-22 | Created as Draft | 源自 issue #106 第 2、3、8 点调研；用户决定：公共组件 + printRoot 接入、注释类挂 flag 默认关、等第 6 点重构落地后开工。 |
 | 2026-08-22 | Draft → Accepted | 用户批准三批全做（「全部做」+「开工」）。原编号 0007 因 next 上编号顺延改为 0008；实施顺序在 0006、0007 之后，且前置等待 issue #106 第 6 点重构落地。 |
+| 2026-08-22 | Accepted → In Progress | 用户指示「继续推进下一个提案」，覆盖此前的等待决策——§6 重构仍未上 next（`origin/next` 停在 a03d0f1b，远端亦无其特性分支），但实际冲突面仅 `printRoot` 里 `ImportsBlock` 之前插头部的数行；接线做成对 `ImportsBlock` 零侵入以最小化未来合并冲突。步骤 0 的 next 基线复核已完成：`SymbolIndexStore` 为 0001 offset 化形态，export trie 循环在 `buildStorageSweep`（带 `existingRow == nil` 与 `offset != nil` 两筛）；新增关键事实——symtab 两条收集腿都过滤 `nlist.isExternal`（只收本地符号），导出符号仅经 trie 腿建行，导出集必须独立显式收集。分支基于 0007 栈（`feature/0007-extension-container-dedup`）继续叠加。 |
+| 2026-08-22 | In Progress → Implemented | 全部五步落地，四套 22 新测试 + 全量 1465 测试绿，SourceEditor 复核 §3 场景精确解决（`updateLineNumberDisplay` 带 `not exported`，public API 不误标）。与提案的三处实质偏差（均实证驱动，详见实现说明）：(1) `isExported` 裸名查询在 evolution 构建上全量假阳性——public 成员实现符号 local、外部经导出 `Tj` 派发——追加 `isExportedIncludingDerivedSymbols`（`Tj`/`Tq`/`Tu`/`TjTu` 派生形态），发射侧一律用它；(2) 发射豁免 `override`（经父类 thunk 可达）与 `@objc`（经 msgSend 可达），conformance witness 故意不豁免；(3) `generatorVersion` 拆为 `generatorName`+`generatorVersion`。**配套文档判断**：写实现说明 [InterfaceHeaderAndExportStatusAnnotations.md](../Internal/InterfaceHeaderAndExportStatusAnnotations.md)（豁免逻辑与三态语义是从 API 签名看不出的契约），不另写使用指南（README CLI 段已承载调用方所需）。**术语判断**：登记 Glossary 两条——derived symbol forms（派生符号形态）、export status（导出状态标注）。 |
