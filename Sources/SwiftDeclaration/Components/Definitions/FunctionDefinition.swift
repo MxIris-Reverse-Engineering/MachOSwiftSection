@@ -15,7 +15,12 @@ public struct FunctionDefinition: Sendable {
     public let vtableOffset: Int?
     public var attributes: [SwiftAttribute] = []
 
-    public var isOverride: Bool { methodDescriptor?.isMethodOverride ?? methodDescriptor?.isMethodDefaultOverride ?? false }
+    // `||`, not a `??` chain: `??` is right-associative, so
+    // `a?.x ?? a?.y ?? false` parses as `a?.x ?? (a?.y ?? false)` — with a
+    // non-nil descriptor the left side is always `.some(bool)` and the
+    // default-override predicate is never consulted (the historical form
+    // returned `false` for every `.methodDefaultOverride` wrapper).
+    public var isOverride: Bool { (methodDescriptor?.isMethodOverride ?? false) || (methodDescriptor?.isMethodDefaultOverride ?? false) }
 
     /// A type-level function with a vtable method descriptor was declared `class`:
     /// `static` members are implicitly final and never get one (mangling cannot tell them apart).
