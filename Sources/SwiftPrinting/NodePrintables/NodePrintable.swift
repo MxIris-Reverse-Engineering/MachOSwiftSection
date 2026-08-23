@@ -110,15 +110,22 @@ extension NodePrintable {
         return true
     }
 
-    mutating func printModule(_ node: Node, siblingIdentifier: String? = nil) async {
+    /// Returns whether a C-imported module spelling (`__C` / `__ObjC`) was
+    /// resolved to its real module — the caller uses that to decide whether
+    /// the sibling identifier may be rewritten to its Swift spelling too.
+    @discardableResult
+    mutating func printModule(_ node: Node, siblingIdentifier: String? = nil) async -> Bool {
         var moduleName = node.text ?? ""
+        var resolvedCImportedModule = false
         if moduleName == objcModule || moduleName == cModule,
            let identifier = siblingIdentifier,
            let delegate,
            let updatedModuleName = await or(await delegate.moduleName(forTypeName: identifier), await delegate.moduleName(forTypeName: identifier.strippedRefSuffix)) {
             moduleName = updatedModuleName
+            resolvedCImportedModule = true
         }
         target.write(moduleName, context: .context(for: node, state: .printModule))
+        return resolvedCImportedModule
     }
 
     mutating func printIdentifier(_ node: Node, parentKind: Node.Kind? = nil) async {
