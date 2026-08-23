@@ -200,13 +200,25 @@ public final class ProtocolDefinition: Definition, MutableDefinition {
 
         orderedMembers = OrderedMember.pwtOrdered(OrderedMember.allMembers(from: self))
 
-        let extensionDefinition = try ExtensionDefinition(extensionName: protocolName.extensionName, genericSignature: nil, protocolConformance: nil, in: machO)
+        // Descriptor-derived synthesis is the FALLBACK only: when the module
+        // was indexed by `SwiftDeclarationIndexer`, its container-unification
+        // pass (evolution proposal 0007) already attached the symbol-scan
+        // protocol-extension blocks here — a superset of what the requirement
+        // walk above can resolve (the per-requirement default-implementation
+        // resolution loses members to identical-code-folded addresses, which
+        // is how the trailing copy used to render fewer members than the
+        // extensions-block copy of the same block). Only a standalone
+        // `ProtocolDefinition` (SPI use, no module indexer) still needs the
+        // synthesis.
+        if defaultImplementationExtensions.isEmpty {
+            let extensionDefinition = try ExtensionDefinition(extensionName: protocolName.extensionName, genericSignature: nil, protocolConformance: nil, in: machO)
 
-        extensionDefinition.setDefinitions(for: defaultImplementationMemberSymbolsByKind, inExtension: true)
-        extensionDefinition.orderedMembers = OrderedMember.offsetOrdered(OrderedMember.allMembers(from: extensionDefinition))
+            extensionDefinition.setDefinitions(for: defaultImplementationMemberSymbolsByKind, inExtension: true)
+            extensionDefinition.orderedMembers = OrderedMember.offsetOrdered(OrderedMember.allMembers(from: extensionDefinition))
 
-        if extensionDefinition.hasMembers {
-            defaultImplementationExtensions = [extensionDefinition]
+            if extensionDefinition.hasMembers {
+                defaultImplementationExtensions = [extensionDefinition]
+            }
         }
 
         isIndexed = true

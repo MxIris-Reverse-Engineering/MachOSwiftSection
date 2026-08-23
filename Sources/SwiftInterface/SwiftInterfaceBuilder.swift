@@ -41,7 +41,11 @@ public final class SwiftInterfaceBuilder<MachO: FieldLayoutRenderable>: Sendable
     private let eventDispatcher: SwiftIndexEvents.Dispatcher
 
     private var allExtensionDefinitions: [ExtensionDefinition] {
+        // Attached definitions render trailing their protocol declaration
+        // (evolution proposal 0007) — repeating them here was the duplicate
+        // `extension P` block issue #106 §5 reported.
         (indexer.typeExtensionDefinitions.values.flatMap { $0 } + indexer.protocolExtensionDefinitions.values.flatMap { $0 } + indexer.typeAliasExtensionDefinitions.values.flatMap { $0 } + indexer.conformanceExtensionDefinitions.values.flatMap { $0 })
+            .filter { !$0.isAttachedToProtocolDefinition }
     }
 
     /// Creates a new Swift interface builder for the given Mach-O binary.
@@ -191,7 +195,15 @@ public final class SwiftInterfaceBuilder<MachO: FieldLayoutRenderable>: Sendable
         }
 
         await BlockList {
-            for protocolDefinition in indexer.rootProtocolDefinitions.values.filterNonNil(\.parent) {
+            // NESTED protocols' default-implementation / protocol-extension
+            // blocks: the per-protocol printer emits them trailing TOP-LEVEL
+            // protocol declarations only (extension blocks cannot nest inside
+            // a parent's body), so nested protocols' blocks surface here at
+            // the top level instead. This loop was dead before evolution
+            // proposal 0007 — it filtered ROOT protocols on `parent != nil`,
+            // which no root ever satisfies, so nested protocols' blocks never
+            // printed at all.
+            for protocolDefinition in indexer.allProtocolDefinitions.values where protocolDefinition.parent != nil {
                 for extensionDefinition in protocolDefinition.defaultImplementationExtensions {
                     await printCatchedThrowing(
                         dispatchingTo: eventDispatcher,

@@ -894,6 +894,21 @@
 
 ---
 
+## 43. issue #106 次批：extension 容器统一与协议默认实现归属
+
+- **时间段**：2026-08-22（`feature/0007-extension-container-dedup`，叠于 0006 分支）。
+- **动机**：issue #106 §5——同一 `extension P` 块被重复打印（SourceEditor 两打协议各两份），若干「类成员」共享同一折叠地址被读成协议默认实现。
+- **双产线证实与成员不一致的意外发现**：副本一来自 `ProtocolDefinition.index()` 按协议 descriptor 的 per-requirement 默认实现合成（尾随协议渲染），副本二来自 `indexExtensions()` 的符号表扫描桶。两份成员**不一致**——per-requirement 解析在 ICF 折叠地址上配不齐符号，尾随副本反而更少。故合并方向不是「删一份」而是「符号扫描超集为准，descriptor 合成降级为 fallback」。
+- **设计转向：附着 + 打印抑制**。原案「容器键下沉 + 索引期从桶合并」被格式冻结否决：四个扩展桶是 `ABIModule` 的直接输入，从桶移除定义 = 容器从 ABI 快照消失（旧基线对比出虚假 removed）。落地形态：协议的符号扫描块附着到 `defaultImplementationExtensions`（尾随协议渲染），同一对象留桶打 `isAttachedToProtocolDefinition`，顶层打印跳过；桶内同身份合并（急切定义限定——conformance-backed 惰性解析，prepare 期合并会丢成员）对快照无影响，差分器本就按键分组。SwiftDiffingTests 全绿实证零扰动。
+- **顺带修复三处**：`printRoot` 嵌套协议扩展块循环恒空（root 上过滤 `parent != nil`）——fixture 协议全部命名空间嵌套，修复后四块纯迁移到 protocols 区之后；`updateConfiguration` 的 re-prepare 因 `isPrepared` 从不复位恒 no-op——修复后成为四桶入口重置的确定性测试入口；空 requirement 的变量签名桶渲染成与 catch-all 相同的裸头——折叠进 catch-all。
+- **被否的方案**：签名分桶扩展到 functions/subscripts（成员级 `where` 合法且信息完整，扩展只会制造更多块）；跨桶合并 typealias-only 块与成员块（动快照格式）——裸头并存记为 P1-9 残余。
+- **`protocol-extension default` 标注**：模型（`isProtocolExtensionDefault`）+ interface/dump 两路渲染（`--emit-member-addresses` 门控）落地；SourceEditor 上不触发（witness 实现符号分支总命中），属休眠防御。issue 点名的 `elide` 三兄弟经 `nm` 证实是真类成员被 ICF 折叠——第 42 节 `Tq` 门的辖区，非归属错误。
+- **验证**：`ExtensionContainerUnificationTests` 四用例（成员级容器身份全桶唯一、协议扩展块尾随且唯一、桶内身份唯一、配置往返幂等）；SourceEditor 重复头全部归一且 0006 哨兵保持；interface 快照四块纯迁移；全量套件绿。
+- **文档**：[Evolutions/0007](../Evolutions/0007-extension-container-dedup-and-default-impl-attribution.md)、[ExtensionContainerUnification.md](ExtensionContainerUnification.md)、AGENTS.md SwiftIndexing 段新条目。
+- **对应版本**：待发布（与 0006 同线）。
+
+---
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节

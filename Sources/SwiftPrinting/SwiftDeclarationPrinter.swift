@@ -495,6 +495,13 @@ public final class SwiftDeclarationPrinter<MachO: FieldLayoutRenderable>: Sendab
                 OffsetComment(prefix: offsetCommentPrefix, offset: function.offset, emit: emitOffsetComment)
                 VTableOffsetComment(vtableOffset: function.vtableOffset, emit: printVTableOffset, transformer: vtableTransformerClosure)
                 AddressComment(addressString: memberAddressString(forOffset: function.symbol.offset), emit: printMemberAddress)
+                // Qualifies the address above (evolution proposal 0007): the
+                // witness resolved to a protocol-extension DEFAULT — the code
+                // lives on the protocol, and several such witnesses typically
+                // share one identical-code-folded address.
+                if printMemberAddress, function.isProtocolExtensionDefault {
+                    Comment("protocol-extension default")
+                }
                 await printFunction(function, level: level)
 
             case .variable(let variable):
@@ -503,6 +510,9 @@ public final class SwiftDeclarationPrinter<MachO: FieldLayoutRenderable>: Sendab
                     VTableOffsetComment(vtableOffset: accessor.vtableOffset, label: accessor.kind.addressLabel, emit: printVTableOffset, transformer: vtableTransformerClosure)
                     AddressComment(addressString: memberAddressString(forOffset: accessor.symbol.offset), label: accessor.kind.addressLabel, emit: printMemberAddress)
                 }
+                if printMemberAddress, variable.isProtocolExtensionDefault {
+                    Comment("protocol-extension default")
+                }
                 await printVariable(variable, level: level)
 
             case .subscript(let `subscript`):
@@ -510,6 +520,9 @@ public final class SwiftDeclarationPrinter<MachO: FieldLayoutRenderable>: Sendab
                 for accessor in `subscript`.accessors {
                     VTableOffsetComment(vtableOffset: accessor.vtableOffset, label: accessor.kind.addressLabel, emit: printVTableOffset, transformer: vtableTransformerClosure)
                     AddressComment(addressString: memberAddressString(forOffset: accessor.symbol.offset), label: accessor.kind.addressLabel, emit: printMemberAddress)
+                }
+                if printMemberAddress, `subscript`.isProtocolExtensionDefault {
+                    Comment("protocol-extension default")
                 }
                 await printSubscript(`subscript`, level: level)
             }

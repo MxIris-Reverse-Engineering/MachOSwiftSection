@@ -3237,6 +3237,28 @@ protocol DescriptorBackedSwiftProtocol {
     func describe() -> Swift.Int
 }
 
+extension SymbolTestsCore.DefaultImplementationVariants.BasicDefaultProtocol {
+    func withDefaultAndGeneric<A1>(_: A1) -> A1
+    func withDefault() -> Swift.String
+}
+extension SymbolTestsCore.DefaultImplementationVariants.ConstrainedDefaultProtocol {
+    func isEqualTo(_: Self.Element) -> Swift.Bool where Self.Element: Swift.Equatable
+    func isLessThan(_: Self.Element) -> Swift.Bool where Self.Element: Swift.Comparable
+    func computeHash() -> Swift.Int where Self.Element: Swift.Hashable, Self.Element: Swift.Sendable
+    func identityCheck(_: Self.Element) -> Swift.Bool where Self.Element: AnyObject
+}
+extension SymbolTestsCore.Extensions.ExtensionProtocol {
+    func matches(_: Self.Item) -> Swift.Bool where Self.Item: Swift.Equatable
+    func isLessThan(_: Self.Item) -> Swift.Bool where Self.Item: Swift.Comparable
+}
+extension SymbolTestsCore.Protocols.ProtocolTest {
+    static var body: Self.Body? {
+        get
+    }
+
+    static func test(lhs: Self.Body, rhs: Self) -> Swift.Bool
+}
+
 extension SymbolTestsCore.GenericFieldLayout.SameTypePinnedOuter where A == Swift.Int64 {
     struct ScalarPinnedInner {
         // Field offset: 0x0
@@ -3324,27 +3346,6 @@ extension SymbolTestsCore.Extensions.ExtensionBaseStruct {
     func isEqualTo(_: SymbolTestsCore.Extensions.ExtensionBaseStruct<A>) -> Swift.Bool where A: Swift.Equatable
     func isLessThan(_: SymbolTestsCore.Extensions.ExtensionBaseStruct<A>) -> Swift.Bool where A: Swift.Comparable
     func computeHash() -> Swift.Int where A: Swift.Hashable, A: Swift.Sendable
-}
-extension SymbolTestsCore.Protocols.ProtocolTest {
-    static var body: Self.Body? {
-        get
-    }
-
-    static func test(lhs: Self.Body, rhs: Self) -> Swift.Bool
-}
-extension SymbolTestsCore.DefaultImplementationVariants.ConstrainedDefaultProtocol {
-    func isEqualTo(_: Self.Element) -> Swift.Bool where Self.Element: Swift.Equatable
-    func isLessThan(_: Self.Element) -> Swift.Bool where Self.Element: Swift.Comparable
-    func computeHash() -> Swift.Int where Self.Element: Swift.Hashable, Self.Element: Swift.Sendable
-    func identityCheck(_: Self.Element) -> Swift.Bool where Self.Element: AnyObject
-}
-extension SymbolTestsCore.Extensions.ExtensionProtocol {
-    func matches(_: Self.Item) -> Swift.Bool where Self.Item: Swift.Equatable
-    func isLessThan(_: Self.Item) -> Swift.Bool where Self.Item: Swift.Comparable
-}
-extension SymbolTestsCore.DefaultImplementationVariants.BasicDefaultProtocol {
-    func withDefaultAndGeneric<A1>(_: A1) -> A1
-    func withDefault() -> Swift.String
 }
 extension SymbolTestsCore.Actors.ActorTest: Swift.Actor {
     var unownedExecutor: Swift.UnownedSerialExecutor {
