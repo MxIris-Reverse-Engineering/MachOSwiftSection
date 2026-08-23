@@ -10,6 +10,7 @@ extension Keyword {
         case `struct`
         case `enum`
         case distributed
+        case final
         case `lazy`
         case `weak`
         case `unowned`

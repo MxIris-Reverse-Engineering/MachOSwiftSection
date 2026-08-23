@@ -19,6 +19,12 @@ public struct SwiftDeclarationPrintConfiguration: Equatable, Sendable {
     public var printMemberAddress: Bool = false
     public var printVTableOffset: Bool = false
     public var printPWTOffset: Bool = false
+
+    /// Emit a `// not exported` comment on members none of whose symbols
+    /// have an export-trie entry (evolution proposal 0008). A symbol-table
+    /// FACT, not an access-level guess; nothing is emitted when the image
+    /// carries no export information.
+    public var printExportStatus: Bool = false
     public var memberSortOrder: SwiftDeclarationMemberSortOrder = .byCategory
     public var printTypeLayout: Bool = false
     public var printEnumLayout: Bool = false

@@ -164,7 +164,30 @@
 
 ---
 
-## A13 — CF `Ref` 剥除规则不加「原名已在索引」守卫（PR #110 review 发现 8）
+## A13 — 导出状态标注在 stripped 二进制上因 `To` thunk 缺失而豁免失效（PR #111 review A4）
+
+- **裁决**：误报（2026-08-23）。
+- **发现**（review 原话大意）：interface 路径的 `@objc` 豁免依赖 `SwiftAttribute.objc`，而它由 `MemberAttributeInferrer` 从符号表里的 `To` thunk 推断——dyld cache 镜像或剥了 local 符号的二进制没有该符号，豁免失效，每个 `@objc dynamic` 成员都会被标 `// not exported`。
+- **复现 / 是否误报**：**误报——触发条件自相矛盾**（同侪复核后一致确认，成因表述从「To 与实现符号同生共死」修正为更严密的模型构造论证）。成员定义是**符号驱动**的：`FunctionDefinition.symbol` 非可选，`DefinitionBuilder` 的全部构造点都从 `DemangledSymbol` 建。要触发假阳性须同时满足：成员在模型里（实现符号在）、该成员全形态 trie-miss（确实不导出）、且是 `@objc dynamic`。逐端封死：① 剥离场景——不导出的 `@objc dynamic` 成员的实现符号必然是 local symtab 符号，剥掉后成员根本不进模型，无行可标；② 未剥离场景——实现符号与 `To` thunk 同在，属性推断得出，豁免生效；③ 导出的 `@objc dynamic` 成员——派生查询直接命中 `true`，压根不发标注。
+- **与 main 基线对比**：标注是 PR #111 新增，无基线可比。
+- **既往修复**：无。
+- **复审条件**：出现「实现符号保留而 `To` thunk 被选择性剥除」的真实输入（自定义 strip 脚本 / 非常规链接产物）。届时 dump 侧已有的 `containsSymbol(named: name + "To")` 口径可以直接搬到 interface 侧作第二道豁免。
+
+---
+
+## A14 — `not exported` 注释不走 OutputTransformer token-template 机制（PR #111 review B2）
+
+- **裁决**：不修（2026-08-23）。
+- **发现**：`DeclarationRenderConfiguration` 里其他注释种类（member address / field offset / vtable offset / type layout / enum layout）都有 `…Transformer` 闭包槽并经 `applyTransformers(_:)` 物化为 token 模板；`not exported` 硬编码，没有 `Transformer.SwiftExportStatus` 模块、没有 `--…-template` CLI 选项，RuntimeViewer 设置界面与 `--transformer-config` 都控制不了它。
+- **复现 / 是否误报**：属实，非误报——机制差异客观存在。
+- **与 main 基线对比**：PR #111 新增，无基线。
+- **为什么不修**：transformer 机制的价值在**有变量 token 的注释**（offset、address、size/stride、case 字节模式——模板决定这些值如何呈现）。`not exported` 是零参数的固定事实陈述，模板化只能改文案措辞，而措辞恰恰是这个标注的语义承重部分（「符号表事实、非访问级别猜测」的措辞边界是提案审议的产物，开放自定义反而请人破坏它）。RuntimeViewer 若需要开关，`printExportStatus` 这一个 Bool 就是全部所需表面。
+- **既往修复**：无。
+- **复审条件**：出现真实的自定义需求（如本地化、或工具链要求不同 marker 文本）；届时补一个单 token（`${status}`）模块即可，机制上无障碍。
+
+---
+
+## A15 — CF `Ref` 剥除规则不加「原名已在索引」守卫（PR #110 review 发现 8）
 
 - **裁决**：不修守卫（2026-08-23）。
 - **发现**：review 建议在剥除前查 `moduleNamesByTypeName[cName] == nil`，避免「`XxxRef` 本身是索引里真实存在的类型时被误剥」。
@@ -174,7 +197,7 @@
 
 ---
 
-## A14 — interface 输出的 import 列表不含被解析出的真模块（PR #110 review 发现 11）
+## A16 — interface 输出的 import 列表不含被解析出的真模块（PR #110 review 发现 11）
 
 - **裁决**：不修（2026-08-23）。
 - **发现**：`--resolve-c-module-names` 后 body 里出现 `CoreFoundation.CFString`，import 列表却没有 `import CoreFoundation`。
@@ -183,7 +206,7 @@
 
 ---
 
-## A15 — `TypeDatabase` 懒索引循环的 actor 重入窗口（PR #110 review 发现 12）
+## A17 — `TypeDatabase` 懒索引循环的 actor 重入窗口（PR #110 review 发现 12）
 
 - **裁决**：暂不修（2026-08-23）。
 - **发现**：`moduleName(forTypeName:)` 的 `while` 循环在 `removeFirst()` 之后 `await indexObjCMetadata(of:)`，actor 重入可让两个并发查询交错弹出依赖，索引结果仍正确但一个 image 可能被并发索引两次（浪费，不腐化状态）。
@@ -192,16 +215,16 @@
 
 ---
 
-## A16 — 补充 APINotes 条目可覆盖任意同名 SDK 条目（PR #110 review 发现 13）
+## A18 — 补充 APINotes 条目可覆盖任意同名 SDK 条目（PR #110 review 发现 13）
 
 - **裁决**：不修（2026-08-23）。
 - **发现**：用户提供的补充文件对同名 C 名后写覆盖，不限于它自己声明的模块——理论上可劫持无关 SDK 类型的归属。
-- **这是不是刻意设计**：是。提案 0009 明确把「覆盖 SDK 条目」列为修正官方数据错误的通道（「碰到直接替换」是用户原话）；补充文件是用户自己提供的，信任边界在用户手里。实测 SDK apinotes 与 AttributeGraph 样例无名字冲突。
+- **这是不是刻意设计**：是。提案 0010 明确把「覆盖 SDK 条目」列为修正官方数据错误的通道（「碰到直接替换」是用户原话）；补充文件是用户自己提供的，信任边界在用户手里。实测 SDK apinotes 与 AttributeGraph 样例无名字冲突。
 - **复审条件**：出现真实的意外覆盖报告——届时可加「补充条目限制在其声明模块的 C 名前缀」的可选严格模式。
 
 ---
 
-## A17 — `printModule` 对 `__C` identifier 的双查询（PR #110 review 发现 14）
+## A19 — `printModule` 对 `__C` identifier 的双查询（PR #110 review 发现 14）
 
 - **裁决**：不修（2026-08-23，微优化）。
 - **发现**：review 原文称「绝大多数引用都要查两次」；核实后 `or` 的第二参数是 `@autoclosure`（`Utilities/OrFunctions.swift`），仅在第一查询 miss 时才发生第二次。

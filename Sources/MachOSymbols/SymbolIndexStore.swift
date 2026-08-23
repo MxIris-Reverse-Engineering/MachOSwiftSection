@@ -200,6 +200,49 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
 
         let thunkAttributeMembersByKindAndTypeName: [Node.Kind: [String: [ThunkAttributeMember]]]
 
+        /// Export-trie facts for the image (evolution proposal 0008), the
+        /// backing for `isExported(name:)`. Collected explicitly during the
+        /// build sweep because no existing structure records them: both
+        /// symtab collection legs filter on `!nlist.isExternal` (local
+        /// symbols only), so an exported symbol's row is minted by the
+        /// export-trie leg — but that leg's row-minting is *conditional*
+        /// (only names the symtab missed, only entries carrying an offset),
+        /// so "row came from the trie leg" is not recoverable after the
+        /// fact and offset-less re-export entries never mint a row at all.
+        struct ExportFacts {
+            /// One bit per `symbolTable` row: set when the row's name has an
+            /// export-trie entry. Sized `(rowCount + 63) / 64` words — ~23 KB
+            /// for a 185k-row SwiftUI-scale table.
+            var exportedRowBitmap: [UInt64] = []
+
+            /// Exported Swift names with no row home: offset-less trie
+            /// entries (re-exports) and names whose row minting was refused
+            /// by the packed-reference budget. Expected empty or tiny.
+            var exportedSwiftNamesWithoutRows: Set<String> = []
+
+            /// `false` when the image's export-trie enumeration yielded no
+            /// entries at all (stripped-of-exports or static-style input) —
+            /// then "not exported" is not a meaningful distinction and
+            /// `isExported(name:)` answers `nil` rather than `false`.
+            var hasExportInformation: Bool = false
+        }
+
+        let exportFacts: ExportFacts
+
+        /// Whether `name` has an export-trie entry in this image:
+        /// `true`/`false` per the trie, or `nil` when the image carries no
+        /// export information at all (see `ExportFacts.hasExportInformation`).
+        /// Only Swift names are recorded, matching the table's population —
+        /// callers query with mangled member-symbol names.
+        func isExported(name: String) -> Bool? {
+            guard exportFacts.hasExportInformation else { return nil }
+            if let row = symbolTable.row(forName: name) {
+                let rowIndex = Int(row)
+                return exportFacts.exportedRowBitmap[rowIndex >> 6] & (1 << UInt64(rowIndex & 63)) != 0
+            }
+            return exportFacts.exportedSwiftNamesWithoutRows.contains(name)
+        }
+
         /// Symbols demangled after the store was frozen (rare path: lookups
         /// for names that were not part of the build sweep). The frozen main
         /// arena cannot grow, so late names go into this appendable per-image
@@ -226,12 +269,14 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
             symbolTable: SymbolTable,
             rootNodeIndexByTableRow: [NodeStore.NodeIndex?],
             symbolRowsByOffset: [Int: SymbolRowBucket],
+            exportFacts: ExportFacts,
             rowIndexes: consuming RowIndexes
         ) {
             self.nodeStore = nodeStore
             self.symbolTable = symbolTable
             self.rootNodeIndexByTableRow = rootNodeIndexByTableRow
             self.symbolRowsByOffset = symbolRowsByOffset
+            self.exportFacts = exportFacts
             self.typeInfoByName = rowIndexes.typeInfoByName
             self.globalSymbolRowsByKind = rowIndexes.globalSymbolRowsByKind
             self.opaqueTypeDescriptorSymbolRowByNodeIndex = rowIndexes.opaqueTypeDescriptorSymbolRowByNodeIndex
@@ -533,8 +578,30 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
             }
         }
 
-        for exportedSymbol in machO.exportedSymbols where exportedSymbol.name.isSwiftSymbol {
-            if let rawOffset = exportedSymbol.offset, tableBuilder.existingRow(forName: exportedSymbol.name) == nil {
+        // The same single pass also collects the export facts (evolution
+        // proposal 0008): every Swift trie name is recorded as exported —
+        // by row when it has one, by name otherwise — because nothing else
+        // remembers trie membership (the symtab legs above collect local
+        // symbols only, and the row minting below is conditional). Bits are
+        // set in the bitmap directly (row indices only grow, so the word
+        // array grows monotonically; the final row count is settled at
+        // freeze below, where the array is padded to full width).
+        var sawAnyExportedSymbol = false
+        var exportFacts = Storage.ExportFacts()
+        func recordExportedRow(_ row: UInt32) {
+            let wordIndex = Int(row) >> 6
+            while exportFacts.exportedRowBitmap.count <= wordIndex {
+                exportFacts.exportedRowBitmap.append(0)
+            }
+            exportFacts.exportedRowBitmap[wordIndex] |= 1 << UInt64(Int(row) & 63)
+        }
+        for exportedSymbol in machO.exportedSymbols {
+            sawAnyExportedSymbol = true
+            let name = exportedSymbol.name
+            guard name.isSwiftSymbol else { continue }
+            if let existingRow = tableBuilder.existingRow(forName: name) {
+                recordExportedRow(existingRow)
+            } else if let rawOffset = exportedSymbol.offset {
                 var canonicalOffset = rawOffset
                 if machO is MachOFile {
                     canonicalOffset += machO.startOffset
@@ -544,10 +611,20 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
                 // check is never needed here. Export-trie names are decoded
                 // strings with no home in the mapped string table, so they
                 // take the private-buffer overload on every reader.
-                guard let (row, isNewRow) = tableBuilder.canonicalRow(forName: exportedSymbol.name, canonicalOffset: canonicalOffset, isExternal: false) else { continue }
+                guard let (row, isNewRow) = tableBuilder.canonicalRow(forName: name, canonicalOffset: canonicalOffset, isExternal: false) else {
+                    // Refused by the packed-reference budget — the export
+                    // fact still stands, it just has no row home.
+                    exportFacts.exportedSwiftNamesWithoutRows.insert(name)
+                    continue
+                }
                 registerRow(row, rawOffset: rawOffset, canonicalOffset: canonicalOffset, isNewRow: isNewRow)
+                recordExportedRow(row)
+            } else {
+                // Offset-less trie entry (a re-export): exported, no row.
+                exportFacts.exportedSwiftNamesWithoutRows.insert(name)
             }
         }
+        exportFacts.hasExportInformation = sawAnyExportedSymbol
 
         // Freezing here drops the build-time dedup dictionary and sorts the
         // name-order permutation; the demangle sweep below reads names back
@@ -556,6 +633,14 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
         // byte-span entry lands, see proposal 0001's upstream-interface
         // section).
         let symbolTable = tableBuilder.freeze()
+
+        // Row count is final after freeze (freezing sorts a permutation, it
+        // never renumbers or adds rows); pad the bitmap to full width so
+        // lookups never bounds-check.
+        let exportedRowBitmapWordCount = (symbolTable.rowCount + 63) / 64
+        while exportFacts.exportedRowBitmap.count < exportedRowBitmapWordCount {
+            exportFacts.exportedRowBitmap.append(0)
+        }
 
         // Single sequential sweep: demangle each symbol cache-free onto a
         // transient tree, classify on that tree, and intern the result into
@@ -628,6 +713,7 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
             symbolTable: symbolTable,
             rootNodeIndexByTableRow: rootNodeIndexByTableRow,
             symbolRowsByOffset: symbolRowsByOffset,
+            exportFacts: exportFacts,
             rowIndexes: rowIndexes
         )
     }
@@ -826,6 +912,64 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
     public func symbols<MachO: MachORepresentableWithCache>(of kinds: Node.Kind..., in machO: MachO) -> [DemangledSymbol] {
         guard let storage = storage(in: machO) else { return [] }
         return kinds.map { storage.demangledSymbols(atRows: storage.symbolRowsByKind[$0] ?? []) }.reduce(into: []) { $0 += $1 }
+    }
+
+    /// The number of symbols of `kinds` — O(1) per kind on the row index,
+    /// for callers (the interface header's dispatch-thunk count) that need
+    /// only the count and would otherwise materialize a `DemangledSymbol`
+    /// array to throw it away.
+    public func symbolCount<MachO: MachORepresentableWithCache>(of kinds: Node.Kind..., in machO: MachO) -> Int {
+        guard let storage = storage(in: machO) else { return 0 }
+        return kinds.reduce(0) { $0 + (storage.symbolRowsByKind[$1]?.count ?? 0) }
+    }
+
+    /// Whether the mangled `name` has an export-trie entry in `machO`
+    /// (evolution proposal 0008). Answers a symbol-table FACT, not an
+    /// access level: `false` means "no export-trie entry for this name",
+    /// which is what a `// not exported` annotation may honestly claim.
+    /// Returns `nil` when the image carries no export information at all
+    /// (no trie, or the store is unavailable) — then the distinction is
+    /// meaningless and callers should not annotate.
+    public func isExported<MachO: MachORepresentableWithCache>(name: String, in machO: MachO) -> Bool? {
+        guard let storage = storage(in: machO) else { return nil }
+        return storage.isExported(name: name)
+    }
+
+    /// Whether the build sweep collected a symbol with exactly this name —
+    /// presence in the symtab/trie population, regardless of export status.
+    /// Backs the dump path's `@objc` exemption (evolution proposal 0008):
+    /// an `@objc` member's ObjC entry point is its implementation name plus
+    /// the `To` thunk suffix, so presence of that name identifies the
+    /// member as objc_msgSend-reachable without demangling anything.
+    public func containsSymbol<MachO: MachORepresentableWithCache>(named name: String, in machO: MachO) -> Bool {
+        guard let storage = storage(in: machO) else { return false }
+        return storage.symbolTable.row(forName: name) != nil
+    }
+
+    /// The mangled suffixes deriving a member's exported entry points from
+    /// its implementation symbol: `Tj` dispatch thunk, `Tq` method
+    /// descriptor, `Tu` async function pointer, and the thunk's own async
+    /// pointer `TjTu`. Swift mangling appends them verbatim.
+    private static let derivedExportSuffixes = ["Tj", "Tq", "Tu", "TjTu"]
+
+    /// `isExported(name:in:)` extended over the member's derived
+    /// entry-point forms. A library-evolution build routinely keeps the
+    /// implementation symbol private while exporting the `Tj` dispatch
+    /// thunk (external callers dispatch through it) — so an implementation
+    /// symbol missing from the trie proves nothing on its own, and a
+    /// member is honestly "not exported" only when NONE of its forms are
+    /// (issue #106 verified exactly this way: an export-table search for
+    /// any symbol of the member).
+    public func isExportedIncludingDerivedSymbols<MachO: MachORepresentableWithCache>(name: String, in machO: MachO) -> Bool? {
+        guard let storage = storage(in: machO) else { return nil }
+        guard let isExported = storage.isExported(name: name) else { return nil }
+        if isExported {
+            return true
+        }
+        for suffix in Self.derivedExportSuffixes where storage.isExported(name: name + suffix) == true {
+            return true
+        }
+        return false
     }
 
     /// Returns the pre-extracted thunk-attribute members whose parent type

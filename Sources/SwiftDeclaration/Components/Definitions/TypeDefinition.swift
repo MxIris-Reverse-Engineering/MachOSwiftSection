@@ -206,9 +206,17 @@ public final class TypeDefinition: Definition {
             }
             indexedFields.append(FieldDefinition(name: name.stripLazyPrefix, typeNode: InternedNodeReferenceCache.shared.reference(interning: typeNode, in: machO), flags: fieldFlags))
         }
-        self.fields = indexedFields
+        // `self.fields` is assigned after the member build below, once the
+        // stored-property accessor groups have been folded back in.
 
-        let fieldNames = Set(fields.map(\.name))
+        let fieldNames = Set(indexedFields.map(\.name))
+
+        // `final` recovery evidence gate (evolution proposal 0006): only a
+        // non-actor class whose vtable trailing objects are present can
+        // testify that a descriptor-less member is `final` — actors cannot be
+        // subclassed, and a class without a vtable header is indistinguishable
+        // from a `final` class, so both stay unmarked.
+        var classCanRecoverFinalMembers = false
 
         var methodDescriptorLookup: [StructuralNodeReferenceKey: MethodDescriptorWrapper] = [:]
         var vtableOffsetLookup: [StructuralNodeReferenceKey: Int] = [:]
@@ -224,6 +232,7 @@ public final class TypeDefinition: Definition {
             var visitedNodes: OrderedSet<StructuralNodeReferenceKey> = []
             let typeNode = try MetadataReader.demangleContext(for: .type(.class(classWrapper.descriptor)), in: machO)
             let vtableBaseOffset = classWrapper.vTableDescriptorHeader.map { Int($0.layout.vTableOffset) }
+            classCanRecoverFinalMembers = classWrapper.vTableDescriptorHeader != nil && !classDescriptor.isActor
 
             // Build offset-based fallback lookups. Uniqueness must be checked against
             // ALL descriptor kinds (method + override + defaultOverride), because
@@ -260,9 +269,10 @@ public final class TypeDefinition: Definition {
                 guard let overrideSymbol = demangledOverrideSymbol(for: symbols, typeNode: typeNode, visitedNodes: visitedNodes, in: machO) else { continue }
                 let node = overrideSymbol.demangledNode
                 visitedNodes.append(StructuralNodeReferenceKey(node))
-                methodDescriptorLookup[StructuralNodeReferenceKey(node)] = .method(descriptor)
+                let joinKey = memberJoinKey(for: node, in: machO)
+                methodDescriptorLookup[joinKey] = .method(descriptor)
                 if let vtableBaseOffset {
-                    vtableOffsetLookup[StructuralNodeReferenceKey(node)] = vtableBaseOffset + index
+                    vtableOffsetLookup[joinKey] = vtableBaseOffset + index
                 }
             }
             var parentVTableCache = ParentClassVTableCache()
@@ -272,10 +282,11 @@ public final class TypeDefinition: Definition {
                 guard let overrideSymbol = demangledOverrideSymbol(for: symbols, typeNode: typeNode, visitedNodes: visitedNodes, in: machO) else { continue }
                 let node = overrideSymbol.demangledNode
                 visitedNodes.append(StructuralNodeReferenceKey(node))
-                methodDescriptorLookup[StructuralNodeReferenceKey(node)] = .methodOverride(descriptor)
+                let joinKey = memberJoinKey(for: node, in: machO)
+                methodDescriptorLookup[joinKey] = .methodOverride(descriptor)
 
                 if let vtableSlot = try? parentVTableCache.slotIndex(for: descriptor, in: machO) {
-                    vtableOffsetLookup[StructuralNodeReferenceKey(node)] = vtableSlot
+                    vtableOffsetLookup[joinKey] = vtableSlot
                 }
             }
             for descriptor in classWrapper.methodDefaultOverrideDescriptors {
@@ -283,7 +294,7 @@ public final class TypeDefinition: Definition {
                 guard let overrideSymbol = demangledOverrideSymbol(for: symbols, typeNode: typeNode, visitedNodes: visitedNodes, in: machO) else { continue }
                 let node = overrideSymbol.demangledNode
                 visitedNodes.append(StructuralNodeReferenceKey(node))
-                methodDescriptorLookup[StructuralNodeReferenceKey(node)] = .methodDefaultOverride(descriptor)
+                methodDescriptorLookup[memberJoinKey(for: node, in: machO)] = .methodDefaultOverride(descriptor)
             }
         }
 
@@ -305,7 +316,7 @@ public final class TypeDefinition: Definition {
         deallocatorSymbol = symbolIndexStore.memberSymbols(of: .deallocator, for: typeName.name, in: machO).first?.detachedFromSharedTable()
         destructorSymbol = symbolIndexStore.memberSymbols(of: .destructor, for: typeName.name, in: machO).first?.detachedFromSharedTable()
 
-        variables = DefinitionBuilder.variables(
+        let variablesProduct = DefinitionBuilder.variablesProduct(
             for: symbolIndexStore.memberSymbols(of: .variable(inExtension: false, isStatic: false, isStorage: false), for: name, node: node, in: machO).map { .init(base: $0, offset: nil) },
             fieldNames: fieldNames,
             methodDescriptorLookup: methodDescriptorLookup,
@@ -314,6 +325,22 @@ public final class TypeDefinition: Definition {
             implOffsetVTableSlotLookup: implOffsetVTableSlotLookup,
             isGlobalOrStatic: false
         )
+        variables = variablesProduct.variables
+
+        // Fold the stored-property accessor groups (suppressed from
+        // `variables` so the property still renders once, from the field
+        // descriptor) back onto their fields: the resolved method descriptors
+        // carry the dispatch facts (vtable slots, `final`), and a lazy field's
+        // getter carries the caller-facing type its storage record hides.
+        for index in indexedFields.indices {
+            guard let accessors = variablesProduct.storedPropertyAccessorsByFieldName[indexedFields[index].name] else { continue }
+            indexedFields[index].accessors = accessors
+            if indexedFields[index].flags.contains(.isLazy),
+               let getterNode = accessors.first(where: { $0.kind == .getter })?.symbol.demangledNode,
+               let accessorTypeNode = getterNode.first(of: .variable)?.children.first(of: .type) {
+                indexedFields[index].accessorTypeNode = accessorTypeNode
+            }
+        }
 
         staticVariables = DefinitionBuilder.variables(
             for: symbolIndexStore.memberSymbols(
@@ -368,6 +395,68 @@ public final class TypeDefinition: Definition {
 
         // Cross-reference @objc and @nonobjc thunk symbols with built definitions
         applyThunkAttributes(symbolIndexStore: symbolIndexStore, typeName: name, in: machO)
+
+        // `final` recovery (evolution proposal 0006) — the mirror image of the
+        // `class`/`static` recovery documented in ClassMemberKeywordRecovery.md:
+        // a class member with no vtable method descriptor has no dynamic
+        // dispatch entry, which is exactly what declaring it `final` compiles
+        // to. Two exclusions keep the honest side of the ledger: a member
+        // whose accessor symbols never joined stays unmarked (absence of
+        // evidence is not `final`), and an `@objc` member without a descriptor
+        // dispatches through the ObjC runtime (`@objc dynamic`) — overridable,
+        // so never `final`. Runs after `applyThunkAttributes` (the `@objc`
+        // evidence) and before `orderedMembers` is built below, which copies
+        // the member values.
+        if classCanRecoverFinalMembers {
+            let objcThunkMemberNames = Set(symbolIndexStore.thunkAttributeMembers(of: .objCAttribute, for: name, in: machO).filter { !$0.isStatic }.map(\.memberName))
+            // Fourth gate — `Tq` method-descriptor SYMBOLS as negative
+            // evidence: they are per-member data symbols at unique addresses,
+            // immune to the identical-code-folding that defeats the
+            // descriptor→implementation-symbol join (SourceEditor folds 1128
+            // empty implementations onto one address, where the join cannot
+            // pair descriptors with members and every folded member would
+            // read as `final`). A member name with a `Tq` symbol provably has
+            // a vtable entry — never `final`, even when the join missed it.
+            var methodDescriptorSymbolMemberNames: Set<String> = []
+            var subscriptMethodDescriptorNodeKeys: Set<StructuralNodeReferenceKey> = []
+            let instanceMemberKinds: [SymbolIndexStore.MemberKind] = [
+                .function(inExtension: false, isStatic: false),
+                .variable(inExtension: false, isStatic: false, isStorage: false),
+                .subscript(inExtension: false, isStatic: false),
+            ]
+            for kind in instanceMemberKinds {
+                for descriptorSymbol in symbolIndexStore.methodDescriptorMemberSymbols(of: kind, for: name, in: machO) {
+                    if let functionName = descriptorSymbol.demangledNode.first(of: .function)?.identifier {
+                        methodDescriptorSymbolMemberNames.insert(functionName)
+                    } else if let variableName = descriptorSymbol.demangledNode.first(of: .variable)?.identifier {
+                        methodDescriptorSymbolMemberNames.insert(variableName)
+                    } else if let subscriptNode = descriptorSymbol.demangledNode.first(of: .subscript) {
+                        // Overloaded subscripts share one name, so they key on
+                        // the subscript subtree — the same extraction
+                        // `DefinitionBuilder.subscripts` groups accessors by.
+                        subscriptMethodDescriptorNodeKeys.insert(StructuralNodeReferenceKey(subscriptNode))
+                    }
+                }
+            }
+            for index in functions.indices where functions[index].methodDescriptor == nil && !functions[index].attributes.contains(.objc) && !methodDescriptorSymbolMemberNames.contains(functions[index].name) {
+                functions[index].isFinal = true
+            }
+            for index in variables.indices where !variables[index].accessors.isEmpty && !variables[index].hasVTableAccessor && !variables[index].attributes.contains(.objc) && !methodDescriptorSymbolMemberNames.contains(variables[index].name) {
+                variables[index].isFinal = true
+            }
+            for index in subscripts.indices where !subscripts[index].accessors.isEmpty && !subscripts[index].hasVTableAccessor && !subscripts[index].attributes.contains(.objc) {
+                let subscriptNodeKey = subscripts[index].node.first(of: .subscript).map { StructuralNodeReferenceKey($0) }
+                if let subscriptNodeKey, subscriptMethodDescriptorNodeKeys.contains(subscriptNodeKey) { continue }
+                subscripts[index].isFinal = true
+            }
+            // Stored `let`s are not overridable to begin with, so `final` on
+            // them is pure noise — only stored `var`s (field records carrying
+            // the IsVar flag) participate.
+            for index in indexedFields.indices where indexedFields[index].flags.contains(.isVariable) && !indexedFields[index].accessors.isEmpty && !indexedFields[index].hasVTableAccessor && !objcThunkMemberNames.contains(indexedFields[index].name) && !methodDescriptorSymbolMemberNames.contains(indexedFields[index].name) {
+                indexedFields[index].isFinal = true
+            }
+        }
+        self.fields = indexedFields
 
         // P1-10: drop body-side copies of auto-synthesized Equatable / Hashable /
         // Codable / CaseIterable / RawRepresentable / CodingKey members. The

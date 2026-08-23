@@ -45,7 +45,7 @@ package struct SDKDiscovery: Sendable {
 /// This is pure file-system discovery — it never touches sourcekitd, so a full
 /// SDK scan is fast. The historical design generated every discovered module's
 /// interface *during* the scan, which made first-time indexing hour-scale and
-/// made the caller's module filter pointless (evolution proposal 0008).
+/// made the caller's module filter pointless (evolution proposal 0009).
 @available(macOS 13.0, *)
 package struct SDKIndexer {
     package let platform: SDKPlatform

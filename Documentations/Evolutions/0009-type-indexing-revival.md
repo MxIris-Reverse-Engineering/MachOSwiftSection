@@ -1,4 +1,4 @@
-# 0008 - TypeIndexing 重启：`__C` 类型模块归属解析的索引管线修复与重构
+# 0009 - TypeIndexing 重启：`__C` 类型模块归属解析的索引管线修复与重构
 
 - **状态**: Implemented
 - **作者**: JH
@@ -210,3 +210,4 @@ RuntimeViewer 将来接入只需构造 provider 并 `addExtraDataProvider`，无
 - 2026-08-22：落地步骤 1 的 go / no-go 闸门通过（scratchpad 探针包实测，Xcode 26 / macOS 26.5 SDK）：SourceKitD 0.1.0 与 swift-apinotes 在 Swift 6.2 下编译通过；`editor.open.interface` + `key.enablesubstructure` 返回完整 substructure（节点带 kind + name，嵌套类型与 extension 节点齐全，ObjectiveC / CoreGraphics 两模块验证）；APINotes 解析真实 `Foundation.apinotes` 正常（100 class + 113 tag 改名，含点分限定 SwiftName）。**A′ 主路成立，兜底行级解析器不再编写**。
 - 2026-08-22：编号从 0006 避让至 0008——`main` 上的并行会话同日登记了 0005–0007 三个 Draft（其 0006 为「Extension 容器索引期去重」），避免合并时撞文件名。注意 `main` 新登记的 0005 与 `next` 已有的 0005（事件化降级上报，Implemented）也已互撞，该冲突非本案引入，留待两线合并时裁决。
 - 2026-08-22：用户指正首轮端到端输出——`CoreFoundation.CFStringRef` 是 Swift 里不存在的拼写：`CFStringRef` 是 C 侧 typedef 名，ClangImporter 剥 `Ref` 后缀桥接为原生 class `CFString`。据此把「非目标」里的 C 名 → Swift 名渲染替换**局部收进本案**：打印侧在 `__C` module 解析成功时对 identifier 消费 `swiftName(forCName:)`（此前该协议方法零消费者），数据侧在 APINotes miss 后补 CF `Ref` 剥除规则（剥后名必须真实存在于归属表）。完整的改名渲染（含成员级）仍另立提案。
+- 2026-08-23：两线合并的编号终审——`main` 线的 0006/0007/0008（其 0008 为「interface header 与导出状态标注」）先并入 `next`，按「后合并者重排」原则本案由 0008 重排为 **0009**，续作提案（补充映射）由 0009 重排为 0010。本文历史叙述中自称的「0008」均指本案。

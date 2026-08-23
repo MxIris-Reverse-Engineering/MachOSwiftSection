@@ -621,7 +621,7 @@ extension Target {
         ],
     )
 
-    /// Module-attribution index for `__C` types (evolution proposal 0008):
+    /// Module-attribution index for `__C` types (evolution proposal 0009):
     /// resolves `__C.NSString` to `Foundation.NSString` via SourceKit-generated
     /// module interfaces (substructure, no SwiftSyntax), APINotes renames, and
     /// a lazy ObjC-metadata index over the binary's dependencies. Every source

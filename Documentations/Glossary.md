@@ -38,12 +38,26 @@
 - **延伸阅读**：[提案 0003](Evolutions/0003-symbol-row-bucket-flattening.md)
 - **延伸阅读**：[提案 0003](Evolutions/0003-symbol-row-bucket-flattening.md)
 
+### derived symbol forms（派生符号形态）
+
+一个成员实现符号经追加后缀派生出的入口符号：`Tj`（dispatch thunk）、`Tq`（method descriptor）、`Tu`（async function pointer）、`TjTu`。library-evolution 构建的常态是**实现符号不导出、`Tj` 导出**（外部调用方经 thunk 派发），所以判断成员导出状态必须查全形态（`isExportedIncludingDerivedSymbols`）——裸查实现符号会把整个 resilient 库误判为未导出。
+
+- **主要出现在**：`Sources/MachOSymbols/SymbolIndexStore.swift`
+- **延伸阅读**：[提案 0008](Evolutions/0008-interface-header-and-export-status-annotations.md)、[InterfaceHeaderAndExportStatusAnnotations.md](Internal/InterfaceHeaderAndExportStatusAnnotations.md)
+
 ### detach（脱表，`detachedFromSharedTable()`）
 
 把一个查询期 vend 出来的 `DemangledSymbol` 从共享 `SymbolTable` 上摘下来、换成自带单行表的独立值。共享表对「vend 十万个、随手丢弃」是正确的取舍，但**存进声明模型的长命值必须先 detach**——一个存活值会把整张表（几十万行 + 对镜像映射内存的引用）钉在内存里，让按镜像回收失效。六个存储点由 `SymbolTableRetentionTests` 钉住；查询路径**不要** detach。
 
 - **主要出现在**：`Sources/MachOSymbols/DemangledSymbol.swift`、AGENTS.md「Symbol indexing」段
 - **延伸阅读**：[提案 0001](Evolutions/0001-symbol-name-offsetization.md)
+
+### export status（导出状态标注，`// not exported`）
+
+`--emit-export-status` 门控的成员标注：成员的**所有**符号（含派生形态）都不在 export trie 时打 `// not exported`。语义是**符号表事实**而非访问级别猜测（`internal`/`fileprivate`/`private` 不可恢复，见 roadmap L-16）；`override` 与 `@objc` 成员豁免（分别经父类 thunk / objc_msgSend 可达，自有符号零导出是编译器常态）；镜像无导出信息时三态查询答 `nil`、不发射。
+
+- **主要出现在**：`Sources/SwiftPrinting/SwiftDeclarationPrinter.swift`（`renderMember`）、三个 Dumper 的 member-symbol 循环
+- **延伸阅读**：[提案 0008](Evolutions/0008-interface-header-and-export-status-annotations.md)、[InterfaceHeaderAndExportStatusAnnotations.md](Internal/InterfaceHeaderAndExportStatusAnnotations.md)
 
 ### late-name 路径（`lateDemangledNode(forName:)`）
 
@@ -101,7 +115,7 @@ sweep 覆盖范围之外的名字走的旁路：demangle 后 intern 进 `Storage
 TypeIndexing 的外部知识入口：标准 `.apinotes` 格式的**用户自备**类型映射文件，为 **SDK 里没有模块的私有框架**（AttributeGraph 等）提供 `__C` 类型的归属与改名——这类框架的 `swift_name` 改名只活在头文件里、二进制零残留，原理上不可恢复，只能靠外部知识。库自身不内置任何映射（首版的内置 SPM resource bundle 因 `Bundle.module` 分发即崩问题在 review 后移除）；宿主经 provider 的 `supplementaryAPINotesURLs:`、CLI 经 `--supplementary-apinotes` 传入，覆盖顺序 SDK APINotes → 用户文件按传入序，后写覆盖同名。CF-bridged 类型须登记两个 C 拼写（typedef 名进 Typedefs、storage tag 名进 Tags），第三种 mangling 形态（导入名直出）由 SwiftName 自动派生。
 
 - **主要出现在**：`Sources/TypeIndexing/SupplementaryAPINotes.swift`
-- **延伸阅读**：[提案 0009](Evolutions/0009-community-type-mapping-bundles.md)、[SupplementaryTypeMappings.md](SupplementaryTypeMappings.md)（公开使用指引）、[TypeIndexingPipeline.md](Internal/TypeIndexingPipeline.md)
+- **延伸阅读**：[提案 0010](Evolutions/0010-community-type-mapping-bundles.md)、[SupplementaryTypeMappings.md](SupplementaryTypeMappings.md)（公开使用指引）、[TypeIndexingPipeline.md](Internal/TypeIndexingPipeline.md)
 
 ### sweep（构建扫描）
 

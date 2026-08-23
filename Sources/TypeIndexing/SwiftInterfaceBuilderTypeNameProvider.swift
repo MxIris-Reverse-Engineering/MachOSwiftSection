@@ -24,7 +24,7 @@ public final class SwiftInterfaceBuilderTypeNameProvider<MachO: MachOSwiftSectio
     /// a known SDK platform — without a platform there is no SDK to index.
     ///
     /// `supplementaryAPINotesURLs` names `.apinotes` files or directories of
-    /// user-provided type mappings (evolution proposal 0009), loaded after
+    /// user-provided type mappings (evolution proposal 0010), loaded after
     /// the SDK's own APINotes so they overwrite them.
     public init?(machO: MachO, dependencies: SwiftInterfaceBuilderDependencies<MachO>, supplementaryAPINotesURLs: [URL] = []) {
         guard let platform = machO.loadCommands.buildVersionCommand?.platform.sdkPlatform else {

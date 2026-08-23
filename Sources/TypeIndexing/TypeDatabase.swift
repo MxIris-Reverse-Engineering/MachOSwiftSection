@@ -31,7 +31,7 @@ package actor TypeDatabase<MachO: ObjCMetadataSource & Sendable> {
 
     /// User-supplied supplementary APINotes locations (files or directories),
     /// loaded after the SDK's own APINotes so they overwrite them (evolution
-    /// proposal 0009). The library ships no mappings of its own.
+    /// proposal 0010). The library ships no mappings of its own.
     private let supplementaryAPINotesURLs: [URL]
 
     private let sourceKitManager = SourceKitManager()
@@ -121,7 +121,7 @@ package actor TypeDatabase<MachO: ObjCMetadataSource & Sendable> {
         registerAttribution(fromAPINotesIndex: apiNotesIndex)
     }
 
-    /// Registers supplementary APINotes bundles (evolution proposal 0009) on
+    /// Registers supplementary APINotes bundles (evolution proposal 0010) on
     /// top of whatever is already indexed: their entries append into the same
     /// `APINotesIndex`, where later files overwrite earlier same-name entries
     /// — so calling this after `register(apiNotesIndex:)` gives supplementary

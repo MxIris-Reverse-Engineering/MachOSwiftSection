@@ -4,7 +4,7 @@ import Foundation
 import FoundationToolbox
 
 /// Loads supplementary `.apinotes` files: user-provided type mappings for
-/// frameworks the SDK carries no module for (evolution proposal 0009).
+/// frameworks the SDK carries no module for (evolution proposal 0010).
 /// AttributeGraph is the canonical case — its `AG_SWIFT_NAME` renames live
 /// only in headers the SDK never ships, so `AttributeGraph.Graph` is
 /// unrecoverable from any binary and must come from external knowledge.

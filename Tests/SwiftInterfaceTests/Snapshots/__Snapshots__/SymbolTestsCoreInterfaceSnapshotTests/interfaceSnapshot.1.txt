@@ -106,8 +106,8 @@ enum Actors {
     class GlobalActorIsolatedConformanceTest {
         init()
 
-        func customIsolatedRequirement()
-        func isolatedRequirement()
+        final func customIsolatedRequirement()
+        final func isolatedRequirement()
 
         deinit
     }
@@ -381,7 +381,7 @@ enum Classes {
         weak var weakDelegate: Swift.AnyObject?
         // Field offset: 0x30
         // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 2147483646)
-        lazy var lazyProperty: Swift.String?
+        lazy var lazyProperty: Swift.String
 
         init(constantProperty: Swift.String, variableProperty: Swift.Int)
 
@@ -912,7 +912,7 @@ enum Enums {
     class SinglePayloadBoxClass {
         // Field offset: 0x10
         // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
-        var value: Swift.Int
+        final var value: Swift.Int
 
         init(value: Swift.Int)
 
@@ -1915,10 +1915,10 @@ enum GenericFieldLayout {
     class ClassBoundGenericSubclass<A>: SymbolTestsCore.GenericFieldLayout.ClassBoundGenericBaseClass<A> where A: AnyObject {
         // Field offset: 0x18
         // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 2147483647)
-        var subclassElement: A
+        final var subclassElement: A
         // Field offset: 0x20
         // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
-        var subclassIdentifier: Swift.Int64
+        final var subclassIdentifier: Swift.Int64
 
         init(baseElement: A, subclassElement: A, subclassIdentifier: Swift.Int64)
         init(baseElement: A)
@@ -1928,10 +1928,10 @@ enum GenericFieldLayout {
     class ClassBoundGenericNSObjectSubclass<A>: __C.NSObject where A: AnyObject {
         // Field offset: 0x8
         // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 2147483647)
-        var element: A
+        final var element: A
         // Field offset: 0x10
         // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
-        var identifier: Swift.Int
+        final var identifier: Swift.Int
 
         @objc init(element: A, identifier: Swift.Int)
         @objc init()
@@ -3000,7 +3000,7 @@ enum VTableEntryVariants {
         func throwingMethod() throws -> Swift.Int
         func asyncMethod() async -> Swift.Int
         func asyncThrowingMethod() async throws -> Swift.Int
-        func finalMethod()
+        final func finalMethod()
 
         deinit
     }
@@ -3009,7 +3009,7 @@ enum VTableEntryVariants {
 
         override func overridableMethod() -> Swift.Int
         override func throwingMethod() throws -> Swift.Int
-        func asyncMethod() async -> Swift.Int
+        override func asyncMethod() async -> Swift.Int
 
         deinit
     }
@@ -3024,7 +3024,50 @@ enum VTableEntryVariants {
         override init()
 
         override func overridableMethod() -> Swift.Int
-        func asyncMethod() async -> Swift.Int
+        override func asyncMethod() async -> Swift.Int
+
+        deinit
+    }
+    class FinalMembersTest {
+        // Field offset: 0x10
+        // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
+        final var finalStoredProperty: Swift.Int
+        // Field offset: 0x18
+        // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
+        var plainStoredProperty: Swift.Int
+        // Field offset: 0x20
+        // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
+        let constantStoredProperty: Swift.Int
+        // Field offset: 0x28
+        // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 2147483646)
+        final lazy var finalLazyProperty: Swift.String
+        // Field offset: 0x38
+        // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 2147483646)
+        lazy var plainLazyProperty: Swift.String
+
+        init()
+
+        final var finalComputedProperty: Swift.Int {
+            get
+        }
+        var plainComputedProperty: Swift.Int {
+            get
+            set
+        }
+
+        func plainMethod()
+        final func finalMethod()
+
+        subscript(plainIndex: Swift.Int) -> Swift.Int {
+            get
+            set
+        }
+        final subscript(finalIndex: Swift.Int) -> Swift.Int {
+            get
+        }
+
+        static func classMethod()
+        static func staticMethod()
 
         deinit
     }
@@ -3194,6 +3237,28 @@ protocol DescriptorBackedSwiftProtocol {
     func describe() -> Swift.Int
 }
 
+extension SymbolTestsCore.DefaultImplementationVariants.BasicDefaultProtocol {
+    func withDefaultAndGeneric<A1>(_: A1) -> A1
+    func withDefault() -> Swift.String
+}
+extension SymbolTestsCore.DefaultImplementationVariants.ConstrainedDefaultProtocol {
+    func isEqualTo(_: Self.Element) -> Swift.Bool where Self.Element: Swift.Equatable
+    func isLessThan(_: Self.Element) -> Swift.Bool where Self.Element: Swift.Comparable
+    func computeHash() -> Swift.Int where Self.Element: Swift.Hashable, Self.Element: Swift.Sendable
+    func identityCheck(_: Self.Element) -> Swift.Bool where Self.Element: AnyObject
+}
+extension SymbolTestsCore.Extensions.ExtensionProtocol {
+    func matches(_: Self.Item) -> Swift.Bool where Self.Item: Swift.Equatable
+    func isLessThan(_: Self.Item) -> Swift.Bool where Self.Item: Swift.Comparable
+}
+extension SymbolTestsCore.Protocols.ProtocolTest {
+    static var body: Self.Body? {
+        get
+    }
+
+    static func test(lhs: Self.Body, rhs: Self) -> Swift.Bool
+}
+
 extension SymbolTestsCore.GenericFieldLayout.SameTypePinnedOuter where A == Swift.Int64 {
     struct ScalarPinnedInner {
         // Field offset: 0x0
@@ -3281,27 +3346,6 @@ extension SymbolTestsCore.Extensions.ExtensionBaseStruct {
     func isEqualTo(_: SymbolTestsCore.Extensions.ExtensionBaseStruct<A>) -> Swift.Bool where A: Swift.Equatable
     func isLessThan(_: SymbolTestsCore.Extensions.ExtensionBaseStruct<A>) -> Swift.Bool where A: Swift.Comparable
     func computeHash() -> Swift.Int where A: Swift.Hashable, A: Swift.Sendable
-}
-extension SymbolTestsCore.Protocols.ProtocolTest {
-    static var body: Self.Body? {
-        get
-    }
-
-    static func test(lhs: Self.Body, rhs: Self) -> Swift.Bool
-}
-extension SymbolTestsCore.DefaultImplementationVariants.ConstrainedDefaultProtocol {
-    func isEqualTo(_: Self.Element) -> Swift.Bool where Self.Element: Swift.Equatable
-    func isLessThan(_: Self.Element) -> Swift.Bool where Self.Element: Swift.Comparable
-    func computeHash() -> Swift.Int where Self.Element: Swift.Hashable, Self.Element: Swift.Sendable
-    func identityCheck(_: Self.Element) -> Swift.Bool where Self.Element: AnyObject
-}
-extension SymbolTestsCore.Extensions.ExtensionProtocol {
-    func matches(_: Self.Item) -> Swift.Bool where Self.Item: Swift.Equatable
-    func isLessThan(_: Self.Item) -> Swift.Bool where Self.Item: Swift.Comparable
-}
-extension SymbolTestsCore.DefaultImplementationVariants.BasicDefaultProtocol {
-    func withDefaultAndGeneric<A1>(_: A1) -> A1
-    func withDefault() -> Swift.String
 }
 extension SymbolTestsCore.Actors.ActorTest: Swift.Actor {
     var unownedExecutor: Swift.UnownedSerialExecutor {

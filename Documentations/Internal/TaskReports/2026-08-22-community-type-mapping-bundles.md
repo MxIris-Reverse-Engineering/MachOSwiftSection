@@ -1,4 +1,6 @@
-# 2026-08-22：社区类型映射包（提案 0009）
+# 2026-08-22：社区类型映射包（提案 0010）
+
+> 编号说明：本报告写作时提案编号为 0009（重启案为 0008），2026-08-23 两线合并时分别重排为 0010 / 0009；下文历史提法保留原号。另注：本报告记录的「内置 SPM resource 包」在次日的 PR #110 review 后按用户裁定移除，见 [2026-08-23-pr110-review-fixes.md](2026-08-23-pr110-review-fixes.md)。
 
 ## 问题
 
@@ -15,7 +17,7 @@
 
 ## 最终方案
 
-提案 [0009](../../Evolutions/0009-community-type-mapping-bundles.md)（用户批准后实施）：
+提案 [0010](../../Evolutions/0010-community-type-mapping-bundles.md)（用户批准后实施）：
 
 - 补充映射包 = 标准 `.apinotes` 文件；两层来源——库内置 SPM resource（`Sources/TypeIndexing/Resources/SupplementaryAPINotes/*.apinotes`，社区经 PR 贡献）+ 宿主/CLI 追加路径（`--supplementary-apinotes`，可重复，文件或目录）。
 - 覆盖顺序 SDK APINotes → 内置包 → 宿主追加包；`APINotesIndex.register(files:)`（init 主体提炼为可追加方法）的后写覆盖即优先级实现。

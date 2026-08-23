@@ -44,7 +44,7 @@ struct InterfaceCommand: AsyncParsableCommand {
     @Flag(help: "Generate member address comments for each member symbol")
     var emitMemberAddresses: Bool = false
 
-    @Flag(help: "Generate vtable offset comments for class methods and computed properties")
+    @Flag(help: "Generate vtable offset comments for class methods, computed properties, and non-final stored properties' accessors")
     var emitVtableOffsets: Bool = false
 
     @Flag(help: "Expand nested struct fields with their absolute offsets (implies --emit-offset-comments)")
@@ -58,6 +58,12 @@ struct InterfaceCommand: AsyncParsableCommand {
 
     @Flag(help: "Sort members by binary layout offset instead of grouping by category")
     var sortMembersByOffset: Bool = false
+
+    @Flag(help: "Emit a leading header comment block (generator, image path, UUID, architecture, library-evolution detection, unrecoverable-facts notes)")
+    var emitHeader: Bool = false
+
+    @Flag(help: "Annotate members none of whose symbols have an export-trie entry with a `not exported` comment")
+    var emitExportStatus: Bool = false
 
     @Option(name: .shortAndLong, help: "The color scheme for the output.")
     var colorScheme: SemanticColorScheme = .none
@@ -73,6 +79,7 @@ struct InterfaceCommand: AsyncParsableCommand {
             printExpandedFieldOffsets: emitExpandedFieldOffsets,
             printMemberAddress: emitMemberAddresses,
             printVTableOffset: emitVtableOffsets,
+            printExportStatus: emitExportStatus,
             memberSortOrder: sortMembersByOffset ? .byOffset : .byCategory,
             printTypeLayout: emitTypeLayout,
             printEnumLayout: emitEnumLayout
@@ -84,12 +91,25 @@ struct InterfaceCommand: AsyncParsableCommand {
             printConfiguration.applyTransformersEnablingCommentKinds(transformers)
         }
 
-        let configuration = SwiftInterfaceBuilderConfiguration(
+        var configuration = SwiftInterfaceBuilderConfiguration(
             indexConfiguration: .init(
                 showCImportedTypes: showCImportedTypes
             ),
             printConfiguration: printConfiguration
         )
+
+        if emitHeader {
+            // The factory's dispatch-thunk count triggers the symbol-index
+            // build (which `prepare()` below then reuses), so announce
+            // progress BEFORE it — otherwise the tool sits silent for the
+            // whole index build.
+            print("Preparing to build Swift interface...")
+            configuration.interfaceHeaderInfo = InterfaceHeaderInfo(
+                machO: machOFile,
+                generatorName: "swift-section",
+                generatorVersion: BundledVersion.value
+            )
+        }
 
         let builder = try SwiftInterfaceBuilder(configuration: configuration, eventHandlers: [ConsoleEventHandler()], in: machOFile)
 
@@ -147,7 +167,9 @@ struct InterfaceCommand: AsyncParsableCommand {
             fputs("warning: --supplementary-apinotes has no effect without --resolve-c-module-names\n", stderr)
         }
 
-        print("Preparing to build Swift interface...")
+        if !emitHeader {
+            print("Preparing to build Swift interface...")
+        }
 
         try await builder.prepare()
 

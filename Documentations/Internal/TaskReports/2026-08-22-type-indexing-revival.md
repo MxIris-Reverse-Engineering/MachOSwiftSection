@@ -1,6 +1,6 @@
 # 2026-08-22 TypeIndexing 重启：`__C` 模块归属解析
 
-> 提案：[Evolutions/0008](../../Evolutions/0008-type-indexing-revival.md)（In Progress → Implemented）。实现说明：[TypeIndexingPipeline.md](../TypeIndexingPipeline.md)。分支 `feature/type-indexing-revival`（基于 `next`，独立 worktree，用户裁定）。
+> 提案：[Evolutions/0009](../../Evolutions/0009-type-indexing-revival.md)（In Progress → Implemented；本报告写作时编号为 0008，2026-08-23 两线合并时重排为 0009，下文历史提法保留原号）。实现说明：[TypeIndexingPipeline.md](../TypeIndexingPipeline.md)。分支 `feature/type-indexing-revival`（基于 `next`，独立 worktree，用户裁定）。
 
 ## 问题
 

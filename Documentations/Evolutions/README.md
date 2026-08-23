@@ -11,5 +11,8 @@
 | [0003](0003-symbol-row-bucket-flattening.md) | SymbolIndexStore `[UInt32]` 行号桶扁平化：单元素桶内联化 | Implemented |
 | [0004](0004-arm64e-signed-vwt-pointer-hardening.md) | arm64e 签名 VWT 指针加固：进程内裸读 strip + 真 PAC 环境的回归验证形态 | Implemented |
 | [0005](0005-event-based-degradation-reporting.md) | 降级上报统一走事件：库侧不再自选落点，Dispatcher 兜底零 handler | Implemented |
-| [0008](0008-type-indexing-revival.md) | TypeIndexing 重启：`__C` 类型模块归属解析的索引管线修复与重构（0006 → 0008 避让 `main` 并行提案占号） | Implemented |
-| [0009](0009-community-type-mapping-bundles.md) | 社区类型映射包：私有框架 `__C` 类型的补充 APINotes 加载（AttributeGraph 等） | Implemented |
+| [0006](0006-final-keyword-and-lazy-accessor-type-recovery.md) | `final` 成员关键字还原与 lazy var 访问器类型修正（issue #106 §1/§4） | Implemented |
+| [0007](0007-extension-container-dedup-and-default-impl-attribution.md) | Extension 容器索引期去重与协议默认实现归属标注（issue #106 §5） | Implemented |
+| [0008](0008-interface-header-and-export-status-annotations.md) | Interface 文件头部与导出状态标注（issue #106 §2/§3/§8） | Implemented |
+| [0009](0009-type-indexing-revival.md) | TypeIndexing 重启：`__C` 类型模块归属解析的索引管线修复与重构（两线合并时由 0008 重排至 0009，见提案「编号说明」） | Implemented |
+| [0010](0010-community-type-mapping-bundles.md) | 补充类型映射：私有框架 `__C` 类型的用户自备 APINotes 加载（AttributeGraph 等；合并时由 0009 重排） | Implemented |

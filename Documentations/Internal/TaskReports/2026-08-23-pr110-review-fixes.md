@@ -15,14 +15,14 @@
 
 用户裁定：「3,4,5,6,7 直接修，不要内置资源」。
 
-1. **内置资源层整体移除**（发现 2 的结构性消解）：删 `Sources/TypeIndexing/Resources/`（AttributeGraph 内置包）与 `Package.swift` 的 resources 声明；`SupplementaryAPINotesLoader` 只保留用户路径枚举（`builtinFiles()` 删除）；`TypeDatabase.index()` 只加载 `supplementaryAPINotesURLs`。提案 0009 的「提议方案 B.1（库内置包）」作废（决策日志已记）；AttributeGraph 样例移入公开指引 [SupplementaryTypeMappings.md](../../SupplementaryTypeMappings.md)（改写为纯用户自备叙事）。
+1. **内置资源层整体移除**（发现 2 的结构性消解）：删 `Sources/TypeIndexing/Resources/`（AttributeGraph 内置包）与 `Package.swift` 的 resources 声明；`SupplementaryAPINotesLoader` 只保留用户路径枚举（`builtinFiles()` 删除）；`TypeDatabase.index()` 只加载 `supplementaryAPINotesURLs`。提案 0010（原 0009）的「提议方案 B.1（库内置包）」作废（决策日志已记）；AttributeGraph 样例移入公开指引 [SupplementaryTypeMappings.md](../../SupplementaryTypeMappings.md)（改写为纯用户自备叙事）。
 2. **发现 3**：CLI 在 provider 依赖解析结果为空时 fputs stderr 警告（非 macOS 二进制对宿主 dyld cache 的典型症状是 install name 精确匹配全 miss、功能静默不干活）。
 3. **发现 4**：`ModuleInterfaceIndexer` 任一 submodule 生成失败时本轮照常返回 entry 但**不写缓存**（缓存无完整性标记，写了就把缺口固化到 SDK/generator 版本变化）；sourcekitd 调用提炼为 `InterfaceGenerator` 闭包注入缝（公开 init 语义不变），`SDKSettings` 加直接赋值测试口。
 4. **发现 5**：`moduleName(forImagePath:)` 剥除循环加不动点守卫（`strippedName != name` 且非空才继续）。
 5. **发现 6**：CLI 对每个 `--supplementary-apinotes` 路径预检（存在性 + 单文件试解析）并 fputs 警告；目录内坏文件仍走库内 skip-and-log 契约。
 6. **发现 7**：task group 结果经 `entriesInDiscoveryOrder`（新 package static 纯函数）按 SDK 发现序重排后注册，恢复 searchPaths 优先序的跨运行确定性。
 
-未处理（用户批复未点名）：发现 1（候选修法：flag=0 时条件剔除 TypeIndexing）、发现 15（deprecated 旧签名转发）、发现 8 的注释措辞、发现 9/10 的低优先级待办——状态均记入 findings 文件。「不修 / 误报」终审 5 条（8/11/12/13/14）进 [ReviewAdjudications.md](../ReviewAdjudications.md) A13–A17。
+未处理（用户批复未点名）：发现 1（候选修法：flag=0 时条件剔除 TypeIndexing）、发现 15（deprecated 旧签名转发）、发现 8 的注释措辞、发现 9/10 的低优先级待办——状态均记入 findings 文件。「不修 / 误报」终审 5 条（8/11/12/13/14）进 [ReviewAdjudications.md](../ReviewAdjudications.md) A15–A19（合并 next 时因与 PR #111 的条目撞号由 A13–A17 顺移）。
 
 ## 验证
 

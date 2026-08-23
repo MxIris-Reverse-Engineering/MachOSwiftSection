@@ -198,6 +198,22 @@ swift-section dump --emit-enum-layout /path/to/binary
 swift-section dump --enum-layout-style explained /path/to/binary
 ```
 
+**Header and export-status annotations:**
+```bash
+# Leading header block: generator, image path, UUID, architecture,
+# library-evolution detection (dispatch-thunk count), and a short digest of
+# facts the binary provably cannot recover (IUO spelling, @available, …)
+swift-section dump --emit-header /path/to/binary
+
+# Annotate member-symbol lines whose symbol (including its Tj/Tq/Tu derived
+# forms) has no export-trie entry — a symbol-table fact, not an access-level
+# guess. Override implementation symbols and @objc members are exempt (they
+# are reachable through the parent's dispatch thunk / objc_msgSend without
+# any exported symbol of their own). Nothing is emitted when the image
+# carries no export information.
+swift-section dump --emit-export-status /path/to/binary
+```
+
 Every comment kind above can also be reformatted with your own template — see
 [transformer](#transformer---customize-comment-formats). Passing a template
 option implies the matching `--emit-…` flag.
@@ -260,6 +276,23 @@ swift-section interface --emit-type-layout --emit-enum-layout /path/to/binary
 These use the same static `SwiftLayout` engine as `dump`, and accept the same
 comment-template options — see
 [transformer](#transformer---customize-comment-formats).
+
+**Header and export-status annotations:**
+
+```bash
+# Leading header block ahead of the imports: generator, image path, UUID,
+# architecture, library-evolution detection (dispatch-thunk count), and a
+# short digest of facts the binary provably cannot recover
+swift-section interface --emit-header /path/to/binary
+
+# Annotate members none of whose symbols (including Tj/Tq/Tu derived forms)
+# have an export-trie entry with a `// not exported` comment. `override` and
+# `@objc` members are exempt — they are reachable through the parent's
+# dispatch thunk / objc_msgSend without any exported symbol of their own.
+swift-section interface --emit-export-status /path/to/binary
+```
+
+Both flags default to off, keeping default output byte-identical.
 
 **Working with dyld shared cache:**
 
