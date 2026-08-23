@@ -78,14 +78,6 @@ let MachOKitVersion: Version = "0.46.1"
 
 let isSilentTest = envEnable("MACHO_SWIFT_SECTION_SILENT_TEST", default: false)
 
-let useSPMPrebuildVersion = envEnable("MACHO_SWIFT_SECTION_USE_SPM_PREBUILD_VERSION", default: false)
-
-let useCustomMachOKit = envEnable("USE_CUSTOM_MACHOKIT", default: true)
-
-let useCustomObjCSection = envEnable("USE_CUSTOM_OBJC_SECTION", default: true)
-
-let useSwiftTUI = envEnable("MACHO_SWIFT_SECTION_USE_SWIFTTUI", default: false)
-
 var testSettings: [SwiftSetting] = []
 
 if isSilentTest {
@@ -117,7 +109,6 @@ var dependencies: [Package.Dependency] = [
     .package(url: "https://github.com/Mx-Iris/SourceKitD", from: "0.1.0"),
     .package(url: "https://github.com/MxIris-DeveloperTool/swift-apinotes", from: "0.1.0"),
 
-
     // CLI
     .package(url: "https://github.com/onevcat/Rainbow", from: "4.0.0"),
 
@@ -126,29 +117,7 @@ var dependencies: [Package.Dependency] = [
 ]
 
 extension Package.Dependency {
-    static let MachOKit: Package.Dependency = {
-        if useSPMPrebuildVersion {
-            return .MachOKitSPM
-        } else {
-            if useCustomMachOKit {
-                return .MachOKitMain
-            } else {
-                return .MachOKitOrigin
-            }
-        }
-    }()
-
-    static let MachOKitOrigin = Package.Dependency.package(
-        url: "https://github.com/p-x9/MachOKit.git",
-        exact: MachOKitVersion,
-    )
-
-    static let MachOKitSPM = Package.Dependency.package(
-        url: "https://github.com/p-x9/MachOKit-SPM.git",
-        from: MachOKitVersion,
-    )
-
-    static let MachOKitMain = Package.Dependency.package(
+    static let MachOKit = Package.Dependency.package(
         local: .package(
             path: "../MachOKit",
             isRelative: true,
@@ -158,23 +127,19 @@ extension Package.Dependency {
             "0.52.101" ..< "0.53.0",
         ),
     )
-}
 
-extension Package.Dependency {
-    static let MachOObjCSection: Package.Dependency = {
-        if useCustomObjCSection {
-            return .MachOObjCSectionMain
-        } else {
-            return .MachOObjCSectionOrigin
-        }
-    }()
-
-    static let MachOObjCSectionOrigin = Package.Dependency.package(
-        url: "https://github.com/p-x9/MachOObjCSection.git",
-        from: "0.6.0",
+    static let MachOKitExtensions = Package.Dependency.package(
+        local: .package(
+            path: "../MachOKitExtensions",
+            isRelative: true,
+        ),
+        remote: .package(
+            url: "https://github.com/MxIris-Reverse-Engineering/MachOKitExtensions",
+            from: "0.1.1",
+        ),
     )
 
-    static let MachOObjCSectionMain = Package.Dependency.package(
+    static let MachOObjCSection = Package.Dependency.package(
         local: .package(
             path: "../MachOObjCSection",
             isRelative: true,
@@ -206,21 +171,6 @@ extension Package.Dependency {
         remote: .package(
             url: "https://github.com/MxIris-Reverse-Engineering/swift-semantic-string",
             from: "0.3.0",
-        ),
-    )
-
-    /// Extracted out of this package so that MachOObjCSection can use it too.
-    /// MachOSwiftSection depends on MachOObjCSection, so the ObjC side could
-    /// never depend back on an in-package `MachOKitExtensions` target without
-    /// forming a package-level cycle.
-    static let MachOKitExtensions = Package.Dependency.package(
-        local: .package(
-            path: "../MachOKitExtensions",
-            isRelative: true,
-        ),
-        remote: .package(
-            url: "https://github.com/MxIris-Reverse-Engineering/MachOKitExtensions",
-            from: "0.1.1",
         ),
     )
 }
