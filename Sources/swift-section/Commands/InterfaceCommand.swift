@@ -35,7 +35,7 @@ struct InterfaceCommand: AsyncParsableCommand {
     @Flag(help: "Generate member address comments for each member symbol")
     var emitMemberAddresses: Bool = false
 
-    @Flag(help: "Generate vtable offset comments for class methods and computed properties")
+    @Flag(help: "Generate vtable offset comments for class methods, computed properties, and non-final stored properties' accessors")
     var emitVtableOffsets: Bool = false
 
     @Flag(help: "Expand nested struct fields with their absolute offsets (implies --emit-offset-comments)")

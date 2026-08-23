@@ -46,7 +46,7 @@ enum SymbolTestsCore.Enums.SinglePayloadEnumTest {
     case error
 }
 class SymbolTestsCore.Enums.SinglePayloadBoxClass {
-    var value: Swift.Int
+    final var value: Swift.Int
 
     /* [ Init ] */ SymbolTestsCore.Enums.SinglePayloadBoxClass.__allocating_init(value: Swift.Int) -> SymbolTestsCore.Enums.SinglePayloadBoxClass
 

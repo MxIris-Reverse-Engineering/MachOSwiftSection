@@ -775,6 +775,14 @@ Method-level `@MainActor` isolation **is** recoverable (see P2-12).
 
 ---
 
+### L-12. Class-level `final`
+
+**Why not.** Neither `ClassFlags`, `TypeContextDescriptorFlags`, nor ObjC `class_ro_t` carries a final bit (verified for [ClassMemberKeywordRecovery.md](../Documentations/Internal/ClassMemberKeywordRecovery.md)). "The class has no vtable header" is not a usable proxy either: a `final` class still gets a vtable entry for its designated initializer, and a non-final class whose members are all `final` looks identical.
+
+**What is recovered instead.** **Member-level** `final` (evolution proposal 0006): inside a class with a readable vtable header, an instance member with no vtable method descriptor prints `final` — including members of source-level `final` classes, where the member-level keyword carries the same dispatch/linking semantics the unprintable class-level keyword would have. IUO aside (L-1), this closed issue #106 §1; the lazy-var storage-type artifact (issue #106 §4) was fixed in the same batch (`lazy var x: String`, no longer the `Optional` storage type). See [FinalKeywordAndLazyAccessorTypeRecovery.md](../Documentations/Internal/FinalKeywordAndLazyAccessorTypeRecovery.md) for the evidence gates and deliberate misses (`final override`, stripped-symbol binaries).
+
+---
+
 ## Prioritization
 
 The order below reflects uniqueness × user value × implementation cost.

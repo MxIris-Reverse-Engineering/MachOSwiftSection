@@ -880,6 +880,20 @@
 
 ---
 
+## 42. issue #106 首批：`final` 关键字还原与 lazy var 访问器类型修正
+
+- **时间段**：2026-08-22（`feature/0006-final-and-lazy-recovery`，基于 next）。
+- **动机**：issue #106（用 dump 手写可编译 `.swiftinterface` 重建 `SourceEditor.framework` 的实战反馈）里唯一**破坏链接**的两点——`final` 完全缺失（经 dispatch thunk 的成员必须平凡声明、只有直接符号的必须 `final`，写错直接 `Undefined symbols`），以及 lazy var 打印 `Optional` 存储类型而非调用方看到的 getter 类型。判据沿用 `isClassMember` 的同一条 ABI 事实的镜像：有 vtable method descriptor ⇒ 非 final。
+- **核心发现：数据早就算出来了，只是被丢弃**。stored `var` 的 accessor 符号组在 `DefinitionBuilder.variables` 里已完成 descriptor/vtable-slot 解析，被 `fieldNames` 去重整组扔掉。改为 `variablesProduct` 交还、折回 `FieldDefinition.accessors`——`final` 判定、stored var 的 vtable 注释（`--emit-vtable-offsets` 下）、lazy 访问器类型三件事共用这份数据。
+- **快照审查抓住三类误标并逐一处置**：（1）被子类 override 的 `asyncMethod` 被标 `final` → 根因是 **async 成员的 descriptor join 从未成功过**（descriptor 的 implementation 指向 `Tu` async-function-pointer 常量，树多一层 `.asyncFunctionPointer` 标记），`memberJoinKey` 剥标记修复，顺带找回 async 成员一直缺失的 `override` 关键字与 vtable 注释（修的是既有 bug）；（2）`@objc dynamic` 走 objc_msgSend、无 vtable 条目但可覆写 → 「`@objc` 且无 descriptor ⇒ dynamic」排除，标记块因此移到 `applyThunkAttributes` 之后；（3）final class 因 designated init 的 vtable 条目仍带 header、其成员获得成员级 `final` → **接受**——类级 `final` 无 ABI 位不可恢复，成员级标记对重建链接恰好正确。
+- **三层证据门，宁缺勿错**：非 actor class 且 vtable header 可读；stored 属性要求 accessor 组确实 join 上（符号 strip ⇒ 静默不标）；`@objc` 排除。stored `let` 不标（本就不可覆写）；`final override` 不还原（override descriptor 在场，保守平凡输出）。
+- **lazy 取型顺序**：特化替换节点 ＞ getter 的 `accessorTypeNode` ＞ 存储类型（getter 缺失即诚实回退，提案里的「剥一层 Optional」回退未实现）；dump 路径 lazy 保持存储真相（`[Getter]` 列表已展示访问器类型），`final` 关键字则 dump 两路对齐（名字级 join + 同套排除）。
+- **验证**：fixture 新增 `VTableEntryVariants.FinalMembersTest` 全组合矩阵（final/plain × 存储/lazy/计算属性/方法/下标）；`FinalMemberRecoveryTests` 五用例（渲染配对、lazy 类型、vtable 注释邻接、模型事实×2）；interface 整模块 + dump 三份快照逐行审查重录；全量套件除 fixture 重建引发的 ABI 基线 offset 漂移（按既定流程 regen）外全绿。
+- **文档**：[Evolutions/0006](../Evolutions/0006-final-keyword-and-lazy-accessor-type-recovery.md)（决策日志含六项实现发现与偏差）、[FinalKeywordAndLazyAccessorTypeRecovery.md](FinalKeywordAndLazyAccessorTypeRecovery.md)、Roadmaps 新增 L-12（类级 `final` 不可恢复）、AGENTS.md SwiftPrinting 段新条目。同 issue 的 0007（extension 容器去重）、0008（文件头部与导出标注）已 Accepted 待实施。
+- **对应版本**：待发布（本批次未 bump `Version.swift`）。
+
+---
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节

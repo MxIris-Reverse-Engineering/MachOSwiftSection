@@ -40,11 +40,31 @@ extension SwiftDeclarationPrinter {
 
     @SemanticStringBuilder
     func printThrowingField(_ field: FieldDefinition, level: Int, substitutedTypeNode: Node? = nil) async throws -> SemanticString {
+        if field.isFinal {
+            Keyword(.final)
+            Space()
+        }
         fieldDeclarationKeywords(for: field.flags)
         MemberDeclaration(field.name)
         Standard(":")
         Space()
-        try await printThrowingType(substitutedTypeNode ?? field.typeNode.materialize(), isProtocol: false, level: level)
+        try await printThrowingType(fieldTypeNode(for: field, substitutedTypeNode: substitutedTypeNode), isProtocol: false, level: level)
+    }
+
+    /// The node the field's declared type renders from. A lazy field prefers
+    /// the getter's caller-facing type over the record's `Optional` storage
+    /// type (evolution proposal 0006); a specialized definition's substituted
+    /// node still wins, because it resolves generic parameters, which the
+    /// accessor symbol's node does not. When no getter symbol joined, the
+    /// storage type renders unchanged — the honest fallback.
+    private func fieldTypeNode(for field: FieldDefinition, substitutedTypeNode: Node?) -> Node {
+        if let substitutedTypeNode {
+            return substitutedTypeNode
+        }
+        if field.flags.contains(.isLazy), let accessorTypeNode = field.accessorTypeNode {
+            return accessorTypeNode.materialize()
+        }
+        return field.typeNode.materialize()
     }
 
     /// Renders a single enum case (`case name`, `case name(Payload)`, or
