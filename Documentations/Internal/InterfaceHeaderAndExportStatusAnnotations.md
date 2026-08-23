@@ -39,11 +39,26 @@ issue #106 作者的验证法是「该成员的**任何**符号在导出表零�
 
 判定语义（`exportVerdict(forSymbolNames:)`）：成员**所有**符号（变量/下标为全部 accessor）都明确 false 才标；任一 exported → 不标；任一 `nil`（无导出信息）或成员无符号证据 → 不标。标注永不建立在猜测上。
 
-## dump 路径的语义收窄
+## dump 路径的豁免（PR #111 review 修正）
 
-dump 的发射点是三个 Dumper（Class/Struct/Enum）的 member-symbol 打印循环（`memberSymbols` + ClassDumper 的 `methodDescriptorMemberSymbols`），标注含义收窄为「**这一行的符号**（含派生形态）无导出」——dump 行本来就是符号视图。已知残留：dump 循环里拿不到模型级 override/@objc 事实，若某 override 实现符号将来出现在 memberSymbols 段且不导出会被标（fixture 目前未触发：vtable/override 段单独渲染且不发射标注）。`ProtocolConformanceDumper` 的 witness 地址行不发射（那些行没有符号名在手）。
+初版实现说明在这里写过「dump 循环里拿不到模型级 override/@objc 事实……fixture 目前未触发」——**这个结论是错的**，且错在验证方法：当时用 `grep "override"` 检查 dump 输出，但成员符号区的 demangled 文本根本不含 override 字样，匹配到的只有 vtable override 段。复检（按符号名查）证实 fixture 当天就触发了两类假阳性：`public override` 的实现符号（`SubclassTest.instanceMethod`）与 `@objc public dynamic`（`ObjCAttributeClass.objcDynamicMethod`）都在成员符号区被标。
+
+修正后的 dump 侧豁免（`ClassDumper` 专属——struct/enum 成员无 override 无 `@objc`）不依赖模型，从符号层面直接判定：
+
+- **override**：`methodOverrideDescriptors` + `methodDefaultOverrideDescriptors` 的 implementation 符号名集合（`collectOverrideImplementationSymbolNames()`，仅 flag 开启时收集），成员区同名符号跳过标注。
+- **`@objc`**：`@objc` 成员的 ObjC 入口是实现符号名追加 `To` 后缀，查 `SymbolIndexStore.containsSymbol(named: name + "To")`（一次 permutation 二分）即可识别，无需 demangle。
+
+`methodDescriptorMemberSymbols`（`[Method]` 区）的行是 `Tq` 数据符号，查询前**剥掉 `Tq` 后缀**再走派生形态扩展——对 `…Tq` 名字追加 `Tj`/`Tu` 得到的 `…TqTj` 等从不存在，等于退化回本提案自己否掉的裸名查询。实证注：SourceEditor 与 fixture 上「`Tq` local 而成员任何形态导出」的组合均为空集（`Tq` 的导出跟随成员的 public-ness），所以修复前无假阳性实证——但该伴随性质无任何规范保证（`-exported_symbols_list` 手工导出清单即可打破），修复以正确性为准。「修复前失败」形态的复现测试因此不可构造（需要非常规导出清单的 fixture，不值得为此扩展 fixture 矩阵），守护测试钉的是修复后的行为不变性。
+
+`ProtocolConformanceDumper` 的 witness 地址行不发射（那些行没有符号名在手）。
 
 `method descriptor for …__allocating_init` 行被标是 true positive 的一个易误读形态：`Classes.ClassTest` 没写 init，隐式 `init()` 是 internal（Swift 从不合成 public 默认 init），`fC`/`fCTj`/`fCTq` 全不导出。注意这个 init **连实现符号都没发射**（未被引用），所以 interface 路径根本渲染不出它——测试用 `GenericAsyncSequenceTest.AsyncIterator` 的隐式 init 作 true-positive 标本（实现符号以 local `t` 在 symtab）。
+
+## 覆盖面（PR #111 review 补齐）
+
+`--emit-export-status` 的覆盖：四种 `OrderedMember`（`renderMember`）+ **存储 `var` 的 accessor 组**（`renderModelFields`，0006 折回的 accessor 有符号可查；同两豁免，`@objc` 用 `To` 存在性口径）+ **两个顶层 globals 块**（`printRoot` 经 `globalExportStatusComment`；顶层无 override/@objc，无需豁免）。没有 accessor 符号的存储属性是「无从标」而非「漏标」（符号驱动的模型构造决定的），头部 digest 里的「stored properties carry no symbol and are not checked」一句把「没检查」与「已确认导出」区分开。
+
+另一处连带修复：`FunctionDefinition.isOverride` 的历史 `??` 链（`a ?? b ?? false` 右结合短路，`.methodDefaultOverride` wrapper 恒 false，引入时就没生效过）改为 `||` 形式——它是 override 豁免的承重判定；`FieldDefinition` 顺势 conform `AccessorRepresentable` 取得正确的 `isOverride`。
 
 ## 头部组件的边界
 
@@ -68,6 +83,8 @@ dump 的发射点是三个 Dumper（Class/Struct/Enum）的 member-symbol 打印
 
 - `ExportedSymbolFactsTests`（MachOSymbolsTests）：全量 trie 名 sweeping、本地符号阴性、thunk-only public 成员经派生查询转阳、internal 合成 init 全形态阴性、非 nil 契约。
 - `InterfaceHeaderTests`（SwiftInterfaceTests）：逐行渲染、字段省略、`not detected` 措辞、日期缺席字节稳定、工厂读 Mach-O 事实、`printRoot` 接线 + 默认无头部。
-- `ExportStatusAnnotationTests`（SwiftInterfaceTests）：三类假阳性各一钉（thunk-only public / `@objc` / `override`）、true positive、默认输出零标注。
+- `ExportStatusAnnotationTests`（SwiftInterfaceTests）：三类假阳性各一钉（thunk-only public / `@objc` / `override`），每条负向断言配 store 层正向前提（先证成员确实全形态 trie-miss / thunk-only，「未标注」才必然是豁免的功劳而非 fixture 偶然）；true positive 限定在 `AsyncIterator` 块内按精确 trim 行匹配；默认输出零标注。
+- `ExportStatusDumpAnnotationTests`（SwiftDumpTests）：dump 侧两类假阳性的复现钉（override 实现符号 / `@objc dynamic`，修复前的标注输出留档在任务报告）、`Tq` 行 true positive 保持、默认零标注。
+- `OverrideRecoveryPredicateTests`（SwiftIndexingTests）：`FunctionDefinition.isOverride` 三 case 钉——`.methodDefaultOverride`（历史 `??` 链下恒 false 的复现）、`.methodOverride`、nil。
 - `HeaderAndExportStatusFlagTests`（SwiftSectionCommandTests）：两命令 × 两 flag 的解析与默认关。
 - 真实二进制复核（手动，见任务报告）：SourceEditor 上 issue §3 的 `updateLineNumberDisplay()` 被准确标注（3487 处全库标注），public API（`CachingManagedSourceEditorRange.init`）经 `fCTj` 不被标。

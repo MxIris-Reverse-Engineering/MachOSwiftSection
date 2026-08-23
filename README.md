@@ -207,7 +207,10 @@ swift-section dump --emit-header /path/to/binary
 
 # Annotate member-symbol lines whose symbol (including its Tj/Tq/Tu derived
 # forms) has no export-trie entry — a symbol-table fact, not an access-level
-# guess. Nothing is emitted when the image carries no export information.
+# guess. Override implementation symbols and @objc members are exempt (they
+# are reachable through the parent's dispatch thunk / objc_msgSend without
+# any exported symbol of their own). Nothing is emitted when the image
+# carries no export information.
 swift-section dump --emit-export-status /path/to/binary
 ```
 
