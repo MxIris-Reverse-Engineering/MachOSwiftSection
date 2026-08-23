@@ -415,11 +415,12 @@ public final class SwiftDeclarationPrinter<MachO: FieldLayoutRenderable>: Sendab
         let emitOffsetComment = isProtocol ? configuration.printPWTOffset : configuration.printFieldOffset
         let printMemberAddress = configuration.printMemberAddress
         let printVTableOffset = configuration.printVTableOffset
+        let printExportStatus = configuration.printExportStatus
         let vtableTransformerClosure = vtableOffsetTransformerClosure
 
         await MemberList(level: level) {
             for member in definition.orderedMembers {
-                await renderMember(member, level: level, offsetCommentPrefix: offsetCommentPrefix, emitOffsetComment: emitOffsetComment, printVTableOffset: printVTableOffset, printMemberAddress: printMemberAddress, vtableTransformerClosure: vtableTransformerClosure)
+                await renderMember(member, level: level, offsetCommentPrefix: offsetCommentPrefix, emitOffsetComment: emitOffsetComment, printVTableOffset: printVTableOffset, printMemberAddress: printMemberAddress, printExportStatus: printExportStatus, vtableTransformerClosure: vtableTransformerClosure)
             }
 
             // Terminal step: emit `deinit` for classes and noncopyable
@@ -446,12 +447,13 @@ public final class SwiftDeclarationPrinter<MachO: FieldLayoutRenderable>: Sendab
         let emitOffsetComment = isProtocol ? configuration.printPWTOffset : configuration.printFieldOffset
         let printMemberAddress = configuration.printMemberAddress
         let printVTableOffset = configuration.printVTableOffset
+        let printExportStatus = configuration.printExportStatus
         let vtableTransformerClosure = vtableOffsetTransformerClosure
 
         for category in MemberCategory.allCases {
             await MemberList(level: level) {
                 for member in definition.members(in: category) {
-                    await renderMember(member, level: level, offsetCommentPrefix: offsetCommentPrefix, emitOffsetComment: emitOffsetComment, printVTableOffset: printVTableOffset, printMemberAddress: printMemberAddress, vtableTransformerClosure: vtableTransformerClosure)
+                    await renderMember(member, level: level, offsetCommentPrefix: offsetCommentPrefix, emitOffsetComment: emitOffsetComment, printVTableOffset: printVTableOffset, printMemberAddress: printMemberAddress, printExportStatus: printExportStatus, vtableTransformerClosure: vtableTransformerClosure)
                 }
             }
         }
@@ -487,6 +489,7 @@ public final class SwiftDeclarationPrinter<MachO: FieldLayoutRenderable>: Sendab
         emitOffsetComment: Bool,
         printVTableOffset: Bool,
         printMemberAddress: Bool,
+        printExportStatus: Bool,
         vtableTransformerClosure: (@Sendable (Int, String?) -> SemanticString)?
     ) async -> SemanticString {
         await Rows(level: level) {
@@ -510,8 +513,8 @@ public final class SwiftDeclarationPrinter<MachO: FieldLayoutRenderable>: Sendab
                 // reachable — annotating them would be a false positive
                 // (verified on the fixture: `public override` and
                 // `@objc public dynamic` members both trie-miss).
-                if configuration.printExportStatus, !function.isOverride, !function.attributes.contains(.objc) {
-                    ExportStatusComment(isExported: exportVerdict(forSymbolNames: [function.symbol.name]), emit: true)
+                if printExportStatus, !function.isOverride, !function.attributes.contains(.objc) {
+                    ExportStatusComment(isExported: exportVerdict(forSymbolNames: [function.symbol.name]))
                 }
                 await printFunction(function, level: level)
 
@@ -524,8 +527,8 @@ public final class SwiftDeclarationPrinter<MachO: FieldLayoutRenderable>: Sendab
                 if printMemberAddress, variable.isProtocolExtensionDefault {
                     Comment("protocol-extension default")
                 }
-                if configuration.printExportStatus, !variable.isOverride, !variable.attributes.contains(.objc) {
-                    ExportStatusComment(isExported: exportVerdict(forSymbolNames: variable.accessors.map(\.symbol.name)), emit: true)
+                if printExportStatus, !variable.isOverride, !variable.attributes.contains(.objc) {
+                    ExportStatusComment(isExported: exportVerdict(forSymbolNames: variable.accessors.map(\.symbol.name)))
                 }
                 await printVariable(variable, level: level)
 
@@ -538,11 +541,25 @@ public final class SwiftDeclarationPrinter<MachO: FieldLayoutRenderable>: Sendab
                 if printMemberAddress, `subscript`.isProtocolExtensionDefault {
                     Comment("protocol-extension default")
                 }
-                if configuration.printExportStatus, !`subscript`.isOverride, !`subscript`.attributes.contains(.objc) {
-                    ExportStatusComment(isExported: exportVerdict(forSymbolNames: `subscript`.accessors.map(\.symbol.name)), emit: true)
+                if printExportStatus, !`subscript`.isOverride, !`subscript`.attributes.contains(.objc) {
+                    ExportStatusComment(isExported: exportVerdict(forSymbolNames: `subscript`.accessors.map(\.symbol.name)))
                 }
                 await printSubscript(`subscript`, level: level)
             }
+        }
+    }
+
+    /// Export-status line for a TOP-LEVEL declaration (global variable /
+    /// function), rendered by `SwiftInterfaceBuilder.printRoot`'s globals
+    /// blocks — those never route through `renderMember`, so without this
+    /// the flag would silently skip them. Globals need no `override`/`@objc`
+    /// exemption (neither exists at top level). Renders empty when nothing
+    /// should be emitted (flag off, or no negative verdict).
+    @SemanticStringBuilder
+    package func globalExportStatusComment(forSymbolNames symbolNames: [String]) -> SemanticString {
+        if configuration.printExportStatus, exportVerdict(forSymbolNames: symbolNames) == false {
+            Comment("not exported")
+            BreakLine()
         }
     }
 
@@ -551,8 +568,9 @@ public final class SwiftDeclarationPrinter<MachO: FieldLayoutRenderable>: Sendab
     /// member provably lacks an export-trie entry, `true` as soon as one is
     /// exported, `nil` when there is no evidence to rule on — no symbols
     /// joined, or the image carries no export information at all — so the
-    /// annotation never fires on a guess.
-    private func exportVerdict(forSymbolNames symbolNames: [String]) -> Bool? {
+    /// annotation never fires on a guess. Internal (not private): the
+    /// stored-field leg lives in `SwiftDeclarationPrinter+Headers.swift`.
+    func exportVerdict(forSymbolNames symbolNames: [String]) -> Bool? {
         guard !symbolNames.isEmpty else { return nil }
         @Dependency(\.symbolIndexStore) var symbolIndexStore
         for symbolName in symbolNames {

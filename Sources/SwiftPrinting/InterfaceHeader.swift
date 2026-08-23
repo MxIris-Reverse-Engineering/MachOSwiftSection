@@ -117,7 +117,7 @@ extension InterfaceHeaderInfo {
             cpuDescription: Self.conciseCPUDescription(machO.header.cpu),
             fileTypeDescription: Self.conciseFileTypeDescription(machO.header.fileType),
             generatedDate: generatedDate,
-            dispatchThunkCount: symbolIndexStore.symbols(of: Node.Kind.dispatchThunk, in: machO).count,
+            dispatchThunkCount: symbolIndexStore.symbolCount(of: Node.Kind.dispatchThunk, in: machO),
             includesUnrecoverableNotes: includesUnrecoverableNotes
         )
     }
@@ -171,14 +171,26 @@ public struct InterfaceHeaderBlock: SemanticStringComponent {
     }
 
     /// The short unrecoverable-facts list. The full catalog with root
-    /// causes lives in the repository's roadmap ("Known limitations");
-    /// this is the reader-facing digest.
+    /// causes lives in the repository's roadmap ("Known limitations",
+    /// L-1…L-16); the closing line points the reader there, and the
+    /// export-status line separates "not checked" (stored properties carry
+    /// no symbol) from "confirmed exported" when `--emit-export-status`
+    /// output is being read.
     static let unrecoverableNoteLines: [String] = [
         "Not recoverable from the binary (omitted, not absent):",
         "  `T!` prints as `T?` (ABI-identical) · parameter internal names · @available ·",
         "  @discardableResult · default argument values · internal vs fileprivate ·",
         "  @frozen · class-level @MainActor · open vs public",
+        "  (export-status annotations skip stored properties — they carry no symbol",
+        "  to check; full catalog: MachOSwiftSection roadmap, \"Known limitations\")",
     ]
+
+    /// ISO-8601 rendering for the optional `Generated at:` line. Formatter
+    /// construction is not cheap; `ISO8601DateFormatter` is documented
+    /// thread-safe ("or from multiple threads simultaneously" in its class
+    /// overview), hence the `nonisolated(unsafe)` — the type just predates
+    /// `Sendable` and never got the annotation.
+    private nonisolated(unsafe) static let generatedDateFormatter = ISO8601DateFormatter()
 
     public func buildComponents() -> [AtomicComponent] {
         var lines: [String] = []
@@ -199,7 +211,7 @@ public struct InterfaceHeaderBlock: SemanticStringComponent {
         }
 
         if let generatedDate = info.generatedDate {
-            lines.append("Generated at: \(ISO8601DateFormatter().string(from: generatedDate))")
+            lines.append("Generated at: \(Self.generatedDateFormatter.string(from: generatedDate))")
         }
 
         if let dispatchThunkCount = info.dispatchThunkCount {

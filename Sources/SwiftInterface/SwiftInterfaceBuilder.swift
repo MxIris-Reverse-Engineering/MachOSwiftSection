@@ -142,6 +142,7 @@ public final class SwiftInterfaceBuilder<MachO: FieldLayoutRenderable>: Sendable
         await printCatchedThrowing(dispatchingTo: eventDispatcher, degradationSource: .definitionBlock) {
             await BlockList {
                 for variable in indexer.globalVariableDefinitions {
+                    printer.globalExportStatusComment(forSymbolNames: variable.accessors.map(\.symbol.name))
                     await printer.printVariable(variable, level: 0)
                 }
             }
@@ -150,6 +151,7 @@ public final class SwiftInterfaceBuilder<MachO: FieldLayoutRenderable>: Sendable
         await printCatchedThrowing(dispatchingTo: eventDispatcher, degradationSource: .definitionBlock) {
             await BlockList {
                 for function in indexer.globalFunctionDefinitions {
+                    printer.globalExportStatusComment(forSymbolNames: [function.symbol.name])
                     await printer.printFunction(function, level: 0)
                 }
             }

@@ -90,6 +90,11 @@ struct InterfaceCommand: AsyncParsableCommand {
         )
 
         if emitHeader {
+            // The factory's dispatch-thunk count triggers the symbol-index
+            // build (which `prepare()` below then reuses), so announce
+            // progress BEFORE it — otherwise the tool sits silent for the
+            // whole index build.
+            print("Preparing to build Swift interface...")
             configuration.interfaceHeaderInfo = InterfaceHeaderInfo(
                 machO: machOFile,
                 generatorName: "swift-section",
@@ -103,7 +108,9 @@ struct InterfaceCommand: AsyncParsableCommand {
             builder.addExtraDataProvider(SwiftInterfaceBuilderOpaqueTypeProvider(machO: machOFile))
         }
 
-        print("Preparing to build Swift interface...")
+        if !emitHeader {
+            print("Preparing to build Swift interface...")
+        }
 
         try await builder.prepare()
 

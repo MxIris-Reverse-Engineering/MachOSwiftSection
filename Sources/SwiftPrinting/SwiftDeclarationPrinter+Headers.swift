@@ -379,6 +379,21 @@ extension SwiftDeclarationPrinter {
                     }
                 }
             }
+            // Export status for stored `var`s whose accessor group joined
+            // (evolution proposal 0008): a field with no accessor symbols
+            // stays silent — "not checked", never "confirmed exported"; the
+            // header digest states this explicitly. The same two exemptions
+            // as `renderMember`: `override` accessors link through the
+            // parent's dispatch thunk, and an `@objc` accessor (identified
+            // by its `To` thunk's presence in the symbol population)
+            // dispatches through objc_msgSend.
+            if !isEnum, configuration.printExportStatus, !field.accessors.isEmpty, !field.isOverride {
+                @Dependency(\.symbolIndexStore) var symbolIndexStore
+                let hasObjCEntryPoint = field.accessors.contains { symbolIndexStore.containsSymbol(named: $0.symbol.name + "To", in: machO) }
+                if !hasObjCEntryPoint, exportVerdict(forSymbolNames: field.accessors.map(\.symbol.name)) == false {
+                    renderConfiguration.exportStatusComment()
+                }
+            }
             let substitutedTypeNode: Node? = {
                 guard let specializedMetadata, let specializedMachOImage, let mangledTypeName else { return nil }
                 return SpecializedMetadataNodeSubstitution.substitutedFieldTypeNode(for: mangledTypeName, metadata: specializedMetadata, in: specializedMachOImage)
