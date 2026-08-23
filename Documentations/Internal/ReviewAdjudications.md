@@ -161,3 +161,49 @@
 - **为什么先不修**：规则只写在 doc comment 里，`DeclarationModelInstanceSizeTests` 钉的是保留字节数而非 materialize 次数，所以没有任何测试会因此变红；而 A3 的先例表明这类成本的直觉常常错（那次实测占比 1.18%，远低于估算）。**测量范围必须包含 diff 路径**（builder 的 `prepare()` + DiffRendering 的 header 对 class/protocol 同样是 2×，extension 是 1×）**与 specialize 路径**（`TypeDefinition+Specialization.swift:206` 与 `ConformanceProvider` 各一次）。
 - **修法（测出来值得再动）**：把那一次 materialize 提到 `index(in:)` 之前传进去——`printTypeDefinition` 已经是这个写法（它把 `materializedTypeContext` 线程给 `renderTypeDeclarationHeader`）。
 - **复审条件**：SwiftUI 级镜像的剖析显示 materialize 占打印墙钟的比例显著高于 A3 实测的 1.18%。
+
+---
+
+## A13 — CF `Ref` 剥除规则不加「原名已在索引」守卫（PR #110 review 发现 8）
+
+- **裁决**：不修守卫（2026-08-23）。
+- **发现**：review 建议在剥除前查 `moduleNamesByTypeName[cName] == nil`，避免「`XxxRef` 本身是索引里真实存在的类型时被误剥」。
+- **复现 / 是否误报**：机制上可构造，但无真实实例——SDK 全部 80 个 apinotes 的 6145 个条目中**零个**以 `Ref` 结尾（review 会话实证），swift-api-digester dump 的 CoreFoundation 同样没有。
+- **这是不是刻意设计**：是。commit `97d9f39a` 记录了 CG/CV/CM 实测：同一类型两种 mangling 形态并存（签名 `__C.CGContextRef`、字段元数据 `__C.CGContext`），「剥后名存在于索引」正是有意选的判据。反向风险真实：interface 提取会收进 obsoleted 的 typealias stub（`CFStringRef` 在 Swift 里是编译器认识的重命名 stub），加守卫可能把 CF 剥除整体关掉。
+- **复审条件**：出现「以 `Ref` 结尾、且剥后名恰好是另一个真实类型」的实例。
+
+---
+
+## A14 — interface 输出的 import 列表不含被解析出的真模块（PR #110 review 发现 11）
+
+- **裁决**：不修（2026-08-23）。
+- **发现**：`--resolve-c-module-names` 后 body 里出现 `CoreFoundation.CFString`，import 列表却没有 `import CoreFoundation`。
+- **与基线对比**：基线上同位置是 `__C.CFStringRef`，`__C` 同样不在 import 列表（`filterModules` 排除）——不自洽的形式早已存在，本 PR 只是把它换成了可读的真模块名。恢复出的 interface 本不以可编译为目标。
+- **复审条件**：interface 输出立「可编译」目标时一并处理（import 列表需要整体重derive）。
+
+---
+
+## A15 — `TypeDatabase` 懒索引循环的 actor 重入窗口（PR #110 review 发现 12）
+
+- **裁决**：暂不修（2026-08-23）。
+- **发现**：`moduleName(forTypeName:)` 的 `while` 循环在 `removeFirst()` 之后 `await indexObjCMetadata(of:)`，actor 重入可让两个并发查询交错弹出依赖，索引结果仍正确但一个 image 可能被并发索引两次（浪费，不腐化状态）。
+- **与基线对比**：本 PR 引入（基线无此代码）。库内不可达：打印是顺序 await（`SwiftDeclarationPrinter` 无并发驱动），无并发调用方。
+- **复审条件**：TypeDatabase 出现并发消费方（如 GUI 宿主并行打印多镜像）时加 in-flight 去重。
+
+---
+
+## A16 — 补充 APINotes 条目可覆盖任意同名 SDK 条目（PR #110 review 发现 13）
+
+- **裁决**：不修（2026-08-23）。
+- **发现**：用户提供的补充文件对同名 C 名后写覆盖，不限于它自己声明的模块——理论上可劫持无关 SDK 类型的归属。
+- **这是不是刻意设计**：是。提案 0009 明确把「覆盖 SDK 条目」列为修正官方数据错误的通道（「碰到直接替换」是用户原话）；补充文件是用户自己提供的，信任边界在用户手里。实测 SDK apinotes 与 AttributeGraph 样例无名字冲突。
+- **复审条件**：出现真实的意外覆盖报告——届时可加「补充条目限制在其声明模块的 C 名前缀」的可选严格模式。
+
+---
+
+## A17 — `printModule` 对 `__C` identifier 的双查询（PR #110 review 发现 14）
+
+- **裁决**：不修（2026-08-23，微优化）。
+- **发现**：review 原文称「绝大多数引用都要查两次」；核实后 `or` 的第二参数是 `@autoclosure`（`Utilities/OrFunctions.swift`），仅在第一查询 miss 时才发生第二次。
+- **为什么不修**：仅 miss 路径多一次字典探查，无测量证据表明可感知；加 `hasSuffix("Ref")` 前置判断属纯微优化。
+- **复审条件**：profiling 显示该路径可感知。

@@ -125,6 +125,34 @@ struct TypeDatabaseMergePriorityTests {
         #expect(TypeDatabase<MachOFile>.moduleName(forImagePath: "/usr/lib/libobjc.A.dylib") == "libobjc")
         #expect(TypeDatabase<MachOFile>.moduleName(forImagePath: "/usr/lib/system/libsystem_c.dylib") == "libsystem_c")
     }
+
+    /// A leading-dot last path component is a fixed point of extension
+    /// stripping (`.hidden` → `.hidden`), which spun the strip loop forever
+    /// before the fixed-point guard (PR #110 review, finding 5).
+    @Test
+    func leadingDotImagePathsTerminate() {
+        #expect(TypeDatabase<MachOFile>.moduleName(forImagePath: "/usr/lib/.hidden") == ".hidden")
+        #expect(TypeDatabase<MachOFile>.moduleName(forImagePath: "/usr/lib/.x.y") == ".x")
+        #expect(TypeDatabase<MachOFile>.moduleName(forImagePath: ".hidden") == ".hidden")
+    }
+
+    /// Task-group results arrive in completion order, but registration is
+    /// last-writer-wins and must follow the SDK discovery order — the re-sort
+    /// restores it regardless of arrival order, dropping entries discovery
+    /// never named (PR #110 review, finding 7).
+    @Test
+    func collectedEntriesAreReorderedToDiscoveryOrder() {
+        let arrivalOrderedEntries = [
+            ModuleIndexCacheEntry(moduleName: "Third", typeNames: [], subModuleNames: []),
+            ModuleIndexCacheEntry(moduleName: "First", typeNames: [], subModuleNames: []),
+            ModuleIndexCacheEntry(moduleName: "Second", typeNames: [], subModuleNames: []),
+        ]
+        let orderedEntries = TypeDatabase<MachOFile>.entriesInDiscoveryOrder(
+            arrivalOrderedEntries,
+            discoveryOrder: ["First", "Second", "Third", "NeverIndexed"]
+        )
+        #expect(orderedEntries.map(\.moduleName) == ["First", "Second", "Third"])
+    }
 }
 
 #endif

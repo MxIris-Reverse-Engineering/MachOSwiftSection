@@ -9,16 +9,27 @@ import FoundationToolbox
 /// lives, deliberately downstream of the filter.
 @available(macOS 13.0, *)
 package struct ModuleInterfaceIndexer: Sendable {
+    package typealias InterfaceGenerator = @Sendable (_ moduleName: String) async throws -> SourceKitManager.GeneratedModuleInterface
+
     package let platform: SDKPlatform
     package let sdkSettings: SDKSettings
     package let cache: ModuleIndexCache
-    package let sourceKitManager: SourceKitManager
+    private let generateInterface: InterfaceGenerator
 
     package init(platform: SDKPlatform, sdkSettings: SDKSettings, cache: ModuleIndexCache, sourceKitManager: SourceKitManager) {
+        self.init(platform: platform, sdkSettings: sdkSettings, cache: cache) { moduleName in
+            try await sourceKitManager.interface(for: moduleName, platform: platform, sdkSettings: sdkSettings)
+        }
+    }
+
+    /// Test seam: substitutes the sourcekitd-backed generation with an
+    /// arbitrary closure, so the cache-write discipline (partial entries are
+    /// never stored) is testable without sourcekitd.
+    package init(platform: SDKPlatform, sdkSettings: SDKSettings, cache: ModuleIndexCache, interfaceGenerator: @escaping InterfaceGenerator) {
         self.platform = platform
         self.sdkSettings = sdkSettings
         self.cache = cache
-        self.sourceKitManager = sourceKitManager
+        self.generateInterface = interfaceGenerator
     }
 
     /// Indexes one module, returning `nil` when its interface cannot be
@@ -34,20 +45,30 @@ package struct ModuleInterfaceIndexer: Sendable {
             return cachedEntry
         }
         do {
-            let interface = try await sourceKitManager.interface(for: moduleName, platform: platform, sdkSettings: sdkSettings)
+            let interface = try await generateInterface(moduleName)
             var typeNames = InterfaceTypeNameExtractor.fullyQualifiedTypeNames(in: interface.declarations)
             let subModulePrefix = "\(moduleName)."
             let subModuleNames = interface.importedModuleNames.filter { $0.hasPrefix(subModulePrefix) }
+            var allSubModulesSucceeded = true
             for subModuleName in subModuleNames {
                 do {
-                    let subModuleInterface = try await sourceKitManager.interface(for: subModuleName, platform: platform, sdkSettings: sdkSettings)
+                    let subModuleInterface = try await generateInterface(subModuleName)
                     typeNames.append(contentsOf: InterfaceTypeNameExtractor.fullyQualifiedTypeNames(in: subModuleInterface.declarations))
                 } catch {
+                    allSubModulesSucceeded = false
                     #log(.error, "Skipping submodule \(subModuleName, privacy: .public) of \(moduleName, privacy: .public): \(String(describing: error), privacy: .public)")
                 }
             }
             let entry = ModuleIndexCacheEntry(moduleName: moduleName, typeNames: typeNames, subModuleNames: subModuleNames)
-            cache.store(entry)
+            // A partial entry (a submodule's generation failed, e.g. one
+            // sourcekitd timeout) is served for THIS run but never cached:
+            // the cache has no completeness marker, so storing it would
+            // freeze the gap until the SDK or generator version changes.
+            if allSubModulesSucceeded {
+                cache.store(entry)
+            } else {
+                #log(.error, "Not caching partial entry for \(moduleName, privacy: .public); submodule extraction will retry next run")
+            }
             return entry
         } catch {
             #log(.error, "Skipping module \(moduleName, privacy: .public): interface generation failed: \(String(describing: error), privacy: .public)")

@@ -35,7 +35,7 @@ struct InterfaceCommand: AsyncParsableCommand {
     @Flag(help: "Resolve __C/__ObjC type module names to their real modules (__C.NSString -> Foundation.NSString) by indexing the SDK modules the binary links, its APINotes, and its dependencies' ObjC metadata. Requires Xcode; the first run per SDK generates module interfaces through sourcekitd and caches the extraction.")
     var resolveCModuleNames: Bool = false
 
-    @Option(name: .customLong("supplementary-apinotes"), help: "A supplementary .apinotes file (or a directory of them) of community type mappings for frameworks with no SDK module, loaded on top of the built-in bundles. Repeatable; later paths override earlier ones. Only used with --resolve-c-module-names.", completion: .file())
+    @Option(name: .customLong("supplementary-apinotes"), help: "A supplementary .apinotes file (or a directory of them) of user-provided type mappings for frameworks with no SDK module (e.g. AttributeGraph), loaded on top of the SDK's own APINotes. Repeatable; later paths override earlier ones. Only used with --resolve-c-module-names.", completion: .file())
     var supplementaryAPINotesPaths: [String] = []
 
     @Flag(help: "Generate field offset and PWT offset comments, if possible")
@@ -105,6 +105,32 @@ struct InterfaceCommand: AsyncParsableCommand {
                     paths: [.usesSystemDyldSharedCache],
                     eventHandlers: [ConsoleEventHandler()]
                 )
+                // Dependency resolution against the HOST dyld cache matches
+                // install names exactly; a non-macOS binary's paths mostly
+                // miss, which silently guts the SDK-interface source. Say so
+                // instead of degrading quietly.
+                if providerDependencies.dependencies.isEmpty {
+                    fputs("warning: --resolve-c-module-names resolved no dependency images against this host (non-macOS binary?); attribution will be limited to SDK APINotes and supplementary files\n", stderr)
+                }
+                // Bad supplementary paths are otherwise only os_log'd by the
+                // library floor; a CLI user who mistyped a path or handed a
+                // broken YAML deserves the same stderr warning the other
+                // degradations get. (Files inside a directory argument stay
+                // on the library's skip-and-log contract.)
+                for supplementaryAPINotesPath in supplementaryAPINotesPaths {
+                    var pathIsDirectory: ObjCBool = false
+                    guard FileManager.default.fileExists(atPath: supplementaryAPINotesPath, isDirectory: &pathIsDirectory) else {
+                        fputs("warning: --supplementary-apinotes path does not exist: \(supplementaryAPINotesPath)\n", stderr)
+                        continue
+                    }
+                    if !pathIsDirectory.boolValue {
+                        do {
+                            _ = try APINotesFile(path: supplementaryAPINotesPath)
+                        } catch {
+                            fputs("warning: --supplementary-apinotes file failed to parse and will be skipped: \(supplementaryAPINotesPath): \(error)\n", stderr)
+                        }
+                    }
+                }
                 let supplementaryAPINotesURLs = supplementaryAPINotesPaths.map { URL(fileURLWithPath: $0) }
                 if let typeNameProvider = SwiftInterfaceBuilderTypeNameProvider(machO: machOFile, dependencies: providerDependencies, supplementaryAPINotesURLs: supplementaryAPINotesURLs) {
                     builder.addExtraDataProvider(typeNameProvider)

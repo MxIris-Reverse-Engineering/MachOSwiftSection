@@ -24,11 +24,11 @@ Public, reference-style documentation. Bilingual (English + 中文).
   with file:line links) and explains how this project's runtime and static engines
   implement the same ABI. General reference — useful beyond this project.
   - 中文版：**[Swift Enum 内存布局 —— 从入门到精通](SwiftEnumLayout_zh.md)**
-- **[Supplementary Type Mappings](SupplementaryTypeMappings.md)** — the contribution guide
-  for community `.apinotes` bundles (evolution proposal 0009): how
+- **[Supplementary Type Mappings](SupplementaryTypeMappings.md)** — the user guide for
+  supplementary `.apinotes` files (evolution proposal 0009): how
   `--resolve-c-module-names` resolves types of private frameworks with no SDK module
-  (AttributeGraph), the both-spellings rule for CF-bridged types, section choice,
-  verification steps, and how to contribute a bundle via pull request.
+  (AttributeGraph) from user-supplied mapping files, the both-spellings rule for
+  CF-bridged types, section choice, and verification steps.
 
 Everything under [`Internal/`](Internal/) is maintainer-facing.
 

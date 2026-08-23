@@ -3,36 +3,23 @@
 import Foundation
 import FoundationToolbox
 
-/// Loads supplementary `.apinotes` bundles: community-maintained type
-/// mappings for frameworks the SDK carries no module for (evolution proposal
-/// 0009). AttributeGraph is the canonical case — its `AG_SWIFT_NAME` renames
-/// live only in headers the SDK never ships, so `AttributeGraph.Graph` is
+/// Loads supplementary `.apinotes` files: user-provided type mappings for
+/// frameworks the SDK carries no module for (evolution proposal 0009).
+/// AttributeGraph is the canonical case — its `AG_SWIFT_NAME` renames live
+/// only in headers the SDK never ships, so `AttributeGraph.Graph` is
 /// unrecoverable from any binary and must come from external knowledge.
 ///
-/// Two sources, loaded in overwrite order (later wins inside
-/// `APINotesIndex.register(files:)`):
-///
-/// 1. **Built-in bundles** shipped as library resources
-///    (`Resources/SupplementaryAPINotes/*.apinotes`), contributed through
-///    pull-request review.
-/// 2. **Host-supplied paths** — files or directories a host application or
-///    the CLI (`--supplementary-apinotes`) appends.
+/// The library ships no mappings of its own: hosts supply files or
+/// directories (the CLI via `--supplementary-apinotes`, library consumers via
+/// the provider's `supplementaryAPINotesURLs:`), loaded in caller order so a
+/// later path overwrites an earlier one inside
+/// `APINotesIndex.register(files:)`.
 ///
 /// A file that fails to parse is skipped and logged, never fatal — the same
 /// contract SDK APINotes discovery follows.
 @available(macOS 13.0, *)
 package enum SupplementaryAPINotesLoader {
-    /// The `.apinotes` bundles shipped inside the library's resource bundle,
-    /// sorted by file name so load (and therefore overwrite) order is stable.
-    package static func builtinFiles() -> [APINotesFile] {
-        guard let resourceURLs = Bundle.module.urls(forResourcesWithExtension: "apinotes", subdirectory: "SupplementaryAPINotes") else {
-            #log(.error, "Built-in supplementary APINotes resources are missing from the library bundle")
-            return []
-        }
-        return parseFiles(at: resourceURLs.sorted { $0.lastPathComponent < $1.lastPathComponent })
-    }
-
-    /// The `.apinotes` files at host-supplied locations. Each URL may be a
+    /// The `.apinotes` files at the supplied locations. Each URL may be a
     /// single file or a directory, whose immediate `.apinotes` entries are
     /// loaded in file-name order; the URLs themselves keep caller order, so a
     /// later path overwrites an earlier one.
@@ -53,10 +40,6 @@ package enum SupplementaryAPINotesLoader {
                 fileURLs.append(locationURL)
             }
         }
-        return parseFiles(at: fileURLs)
-    }
-
-    private static func parseFiles(at fileURLs: [URL]) -> [APINotesFile] {
         var parsedFiles: [APINotesFile] = []
         for fileURL in fileURLs {
             do {

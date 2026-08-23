@@ -23,9 +23,9 @@ public final class SwiftInterfaceBuilderTypeNameProvider<MachO: MachOSwiftSectio
     /// Fails when the binary carries no build-version load command mapping to
     /// a known SDK platform — without a platform there is no SDK to index.
     ///
-    /// `supplementaryAPINotesURLs` names extra `.apinotes` files or
-    /// directories of community type mappings (evolution proposal 0009),
-    /// loaded after the library's built-in bundles so they overwrite them.
+    /// `supplementaryAPINotesURLs` names `.apinotes` files or directories of
+    /// user-provided type mappings (evolution proposal 0009), loaded after
+    /// the SDK's own APINotes so they overwrite them.
     public init?(machO: MachO, dependencies: SwiftInterfaceBuilderDependencies<MachO>, supplementaryAPINotesURLs: [URL] = []) {
         guard let platform = machO.loadCommands.buildVersionCommand?.platform.sdkPlatform else {
             return nil

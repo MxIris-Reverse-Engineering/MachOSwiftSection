@@ -26,6 +26,13 @@ package actor SourceKitManager {
         /// Submodule detection (`Foundation.NSObject` inside `Foundation`)
         /// filters on these.
         package let importedModuleNames: [String]
+
+        package init(moduleName: String, sourceText: String, declarations: [InterfaceDeclarationNode], importedModuleNames: [String]) {
+            self.moduleName = moduleName
+            self.sourceText = sourceText
+            self.declarations = declarations
+            self.importedModuleNames = importedModuleNames
+        }
     }
 
     package enum Error: Swift.Error, CustomStringConvertible {

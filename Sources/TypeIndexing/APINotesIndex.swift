@@ -56,8 +56,8 @@ package struct APINotesIndex: Sendable {
 
     /// Appends more files to the index. Within every table a later entry
     /// overwrites an earlier same-name one — the ordering hook the
-    /// supplementary-bundle merge priority rides on (evolution proposal 0009:
-    /// SDK APINotes, then built-in bundles, then host-supplied bundles).
+    /// supplementary-file merge priority rides on (evolution proposal 0009:
+    /// SDK APINotes first, then user-supplied files in caller order).
     package mutating func register(files: [APINotesFile]) {
         for file in files {
             let module = file.apiNotesModule

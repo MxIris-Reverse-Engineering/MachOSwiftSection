@@ -46,6 +46,13 @@ package struct SDKSettings: Sendable {
         case malformedSDKSettings(path: String)
     }
 
+    /// Test seam: constructs settings without reading an `SDKSettings.plist`.
+    package init(sdkPath: String, version: String, productBuildVersion: String?) {
+        self.sdkPath = sdkPath
+        self.version = version
+        self.productBuildVersion = productBuildVersion
+    }
+
     package init(sdkPath: String) throws {
         let settingsPlistURL = URL(fileURLWithPath: sdkPath).appending(component: "SDKSettings.plist")
         let settingsPlistData = try Data(contentsOf: settingsPlistURL)

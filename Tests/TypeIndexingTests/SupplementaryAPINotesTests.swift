@@ -6,9 +6,9 @@ import SwiftPrinting
 import Testing
 @testable import TypeIndexing
 
-/// Supplementary APINotes bundles (evolution proposal 0009): the built-in
-/// community mappings, host-supplied locations, and the merge priority that
-/// lets them override SDK entries.
+/// Supplementary APINotes files (evolution proposal 0009): user-provided
+/// mappings for frameworks with no SDK module, and the merge priority that
+/// lets them override SDK entries. The library ships no mappings of its own.
 @Suite
 struct SupplementaryAPINotesTests {
     private static func writeAPINotesFile(yaml apiNotesYAML: String, into directoryURL: URL, named fileName: String) throws -> URL {
@@ -24,26 +24,37 @@ struct SupplementaryAPINotesTests {
         return directoryURL
     }
 
-    // MARK: - Built-in bundles
+    /// The AttributeGraph-shaped mapping every example in the contribution
+    /// guide is written against: both C spellings of each CF-bridged type.
+    private static let attributeGraphYAML = """
+    Name: AttributeGraph
+    Typedefs:
+    - Name: AGGraphRef
+      SwiftName: Graph
+    - Name: AGSubgraphRef
+      SwiftName: Subgraph
+    Tags:
+    - Name: AGGraphStorage
+      SwiftName: Graph
+    - Name: AGSubgraphStorage
+      SwiftName: Subgraph
+    """
 
-    @Test
-    func builtinBundlesLoadAndIncludeAttributeGraph() {
-        let builtinFiles = SupplementaryAPINotesLoader.builtinFiles()
-        #expect(!builtinFiles.isEmpty)
-        #expect(builtinFiles.contains { $0.moduleName == "AttributeGraph" })
-    }
-
-    /// The end-to-end data flow for the shipped AttributeGraph bundle, in
-    /// all three mangling shapes a CF-bridged type reaches Swift metadata as:
-    /// the typedef name (`AGGraphRef`, a typealias node → `.other`), the
+    /// The end-to-end data flow for a user-supplied AttributeGraph mapping,
+    /// in all three mangling shapes a CF-bridged type reaches Swift metadata
+    /// as: the typedef name (`AGGraphRef`, a typealias node → `.other`), the
     /// storage/tag name (`AGGraphStorage`, a foreign *class* descriptor the
     /// consuming binary emits → `.objcClass`), and the imported Swift name
     /// itself (`__C.Graph`, a foreign descriptor recording the post-rename
     /// spelling — attribution-only, no rewrite needed or possible).
     @Test
-    func attributeGraphMappingsResolveInAllManglingShapes() async {
+    func userSuppliedMappingsResolveInAllManglingShapes() async throws {
+        let directoryURL = try Self.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directoryURL) }
+        _ = try Self.writeAPINotesFile(yaml: Self.attributeGraphYAML, into: directoryURL, named: "AttributeGraph.apinotes")
+
         let typeDatabase = TypeDatabase<MachOFile>(platform: .macOS)
-        await typeDatabase.register(supplementaryAPINotesFiles: SupplementaryAPINotesLoader.builtinFiles())
+        await typeDatabase.register(supplementaryAPINotesFiles: SupplementaryAPINotesLoader.files(atSupplementaryLocations: [directoryURL]))
 
         #expect(await typeDatabase.moduleName(forTypeName: "AGGraphRef") == "AttributeGraph")
         #expect(await typeDatabase.moduleName(forTypeName: "AGGraphStorage") == "AttributeGraph")
@@ -54,8 +65,6 @@ struct SupplementaryAPINotesTests {
         #expect(await typeDatabase.swiftName(forCName: "Graph", category: .objcClass) == nil)
         #expect(await typeDatabase.swiftName(forCName: "AGSubgraphRef", category: .other) == "Subgraph")
         #expect(await typeDatabase.swiftName(forCName: "AGSubgraphStorage", category: .objcClass) == "Subgraph")
-        #expect(await typeDatabase.swiftName(forCName: "AGGraphContextRef", category: .other) == "GraphContext")
-        #expect(await typeDatabase.swiftName(forCName: "AGGraphContextStorage", category: .objcClass) == "GraphContext")
     }
 
     /// A `Tags` rename must be visible to a class-category lookup: the
@@ -92,7 +101,7 @@ struct SupplementaryAPINotesTests {
     // MARK: - Merge priority
 
     /// A supplementary entry overrides the SDK APINotes entry for the same C
-    /// name — the "hit it, replace it" contract for community bundles.
+    /// name — the "hit it, replace it" contract for user-supplied files.
     @Test
     func supplementaryEntriesOverrideSDKAPINotesEntries() async throws {
         let directoryURL = try Self.makeTemporaryDirectory()
@@ -119,41 +128,40 @@ struct SupplementaryAPINotesTests {
     }
 
     /// Within one supplementary registration, a later file overwrites an
-    /// earlier one — host-supplied bundles are appended after the built-in
-    /// ones, which is what lets them override.
+    /// earlier one — caller order is the override order.
     @Test
     func laterSupplementaryFilesOverrideEarlierOnes() async throws {
         let directoryURL = try Self.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: directoryURL) }
-        let builtinLikeFileURL = try Self.writeAPINotesFile(yaml: """
-        Name: BuiltinModule
+        let earlierFileURL = try Self.writeAPINotesFile(yaml: """
+        Name: EarlierModule
         Tags:
         - Name: TSTStorage
-          SwiftName: BuiltinSpelling
-        """, into: directoryURL, named: "BuiltinModule.apinotes")
-        let hostFileURL = try Self.writeAPINotesFile(yaml: """
-        Name: HostModule
+          SwiftName: EarlierSpelling
+        """, into: directoryURL, named: "EarlierModule.apinotes")
+        let laterFileURL = try Self.writeAPINotesFile(yaml: """
+        Name: LaterModule
         Tags:
         - Name: TSTStorage
-          SwiftName: HostSpelling
-        """, into: directoryURL, named: "HostModule.apinotes")
+          SwiftName: LaterSpelling
+        """, into: directoryURL, named: "LaterModule.apinotes")
 
         let typeDatabase = TypeDatabase<MachOFile>(platform: .macOS)
         await typeDatabase.register(supplementaryAPINotesFiles: [
-            try APINotesFile(path: builtinLikeFileURL.path(percentEncoded: false)),
-            try APINotesFile(path: hostFileURL.path(percentEncoded: false)),
+            try APINotesFile(path: earlierFileURL.path(percentEncoded: false)),
+            try APINotesFile(path: laterFileURL.path(percentEncoded: false)),
         ])
 
-        #expect(await typeDatabase.swiftName(forCName: "TSTStorage", category: .valueType) == "HostSpelling")
+        #expect(await typeDatabase.swiftName(forCName: "TSTStorage", category: .valueType) == "LaterSpelling")
     }
 
-    // MARK: - Host-supplied locations
+    // MARK: - Supplied locations
 
     /// A location may be a directory (its immediate `.apinotes` entries load
     /// in file-name order) or a single file; unparsable and missing entries
     /// are skipped, never fatal.
     @Test
-    func hostLocationsExpandDirectoriesAndSkipBrokenEntries() throws {
+    func suppliedLocationsExpandDirectoriesAndSkipBrokenEntries() throws {
         let directoryURL = try Self.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: directoryURL) }
         _ = try Self.writeAPINotesFile(yaml: """

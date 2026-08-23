@@ -29,9 +29,9 @@ import SwiftPrinting
 package actor TypeDatabase<MachO: ObjCMetadataSource & Sendable> {
     private let platform: SDKPlatform
 
-    /// Host-supplied supplementary APINotes locations (files or directories),
-    /// loaded after the built-in bundles so they overwrite them (evolution
-    /// proposal 0009).
+    /// User-supplied supplementary APINotes locations (files or directories),
+    /// loaded after the SDK's own APINotes so they overwrite them (evolution
+    /// proposal 0009). The library ships no mappings of its own.
     private let supplementaryAPINotesURLs: [URL]
 
     private let sourceKitManager = SourceKitManager()
@@ -71,7 +71,7 @@ package actor TypeDatabase<MachO: ObjCMetadataSource & Sendable> {
             cache: ModuleIndexCache(platform: platform, sdkSettings: sdkSettings),
             sourceKitManager: sourceKitManager
         )
-        let entries = await withTaskGroup(of: ModuleIndexCacheEntry?.self) { group in
+        let collectedEntries = await withTaskGroup(of: ModuleIndexCacheEntry?.self) { group in
             for moduleDescriptor in filteredModules {
                 group.addTask {
                     await moduleInterfaceIndexer.indexEntry(forModuleNamed: moduleDescriptor.moduleName)
@@ -85,12 +85,23 @@ package actor TypeDatabase<MachO: ObjCMetadataSource & Sendable> {
             }
             return entries
         }
+        let orderedEntries = Self.entriesInDiscoveryOrder(collectedEntries, discoveryOrder: filteredModules.map(\.moduleName))
 
-        register(moduleEntries: entries)
+        register(moduleEntries: orderedEntries)
         register(apiNotesIndex: APINotesIndex(files: discovery.apiNotesFiles))
-        register(supplementaryAPINotesFiles: SupplementaryAPINotesLoader.builtinFiles()
-            + SupplementaryAPINotesLoader.files(atSupplementaryLocations: supplementaryAPINotesURLs))
+        register(supplementaryAPINotesFiles: SupplementaryAPINotesLoader.files(atSupplementaryLocations: supplementaryAPINotesURLs))
         register(dependencies: dependencies)
+    }
+
+    /// Restores discovery order over task-group results: the group yields
+    /// entries in COMPLETION order, which varies with per-module cache hits —
+    /// but registration is last-writer-wins, so it must follow the discovery
+    /// order (SDKIndexer's search-path priority: "an earlier hit wins a
+    /// module-name tie"), or two runs could attribute a tied name
+    /// differently.
+    package static func entriesInDiscoveryOrder(_ collectedEntries: [ModuleIndexCacheEntry], discoveryOrder moduleNames: [String]) -> [ModuleIndexCacheEntry] {
+        let entriesByModuleName = Dictionary(collectedEntries.map { ($0.moduleName, $0) }, uniquingKeysWith: { firstEntry, _ in firstEntry })
+        return moduleNames.compactMap { entriesByModuleName[$0] }
     }
 
     /// Registers interface-extracted type names. Exposed as a step so merge
@@ -221,7 +232,12 @@ package actor TypeDatabase<MachO: ObjCMetadataSource & Sendable> {
     package static func moduleName(forImagePath imagePath: String) -> String {
         var name = URL(fileURLWithPath: imagePath).lastPathComponent
         while name.contains(".") {
-            name = URL(fileURLWithPath: name).deletingPathExtension().lastPathComponent
+            // A leading-dot name is a fixed point of extension stripping
+            // (`.hidden` → `.hidden`) — without this guard the loop spins
+            // forever on such an install name.
+            let strippedName = URL(fileURLWithPath: name).deletingPathExtension().lastPathComponent
+            guard strippedName != name, !strippedName.isEmpty else { break }
+            name = strippedName
         }
         if name.hasPrefix("libswift") {
             name = String(name.dropFirst("libswift".count))

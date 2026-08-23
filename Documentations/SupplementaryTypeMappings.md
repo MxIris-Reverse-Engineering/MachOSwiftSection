@@ -7,23 +7,19 @@ no `.apinotes` — so nothing can be indexed, and their `swift_name` renames
 (`AG_SWIFT_NAME(Graph)`) exist *only* in headers: no tool can recover
 `AttributeGraph.Graph` from a binary. That knowledge has to come from outside.
 
-Supplementary type mappings are that outside channel: community-maintained
+Supplementary type mappings are that outside channel: user-provided
 [APINotes](https://clang.llvm.org/docs/APINotes.html) files loaded on top of
-the SDK's own, so `__C.AGGraphRef` renders as `AttributeGraph.Graph`.
+the SDK's own, so `__C.AGGraphRef` renders as `AttributeGraph.Graph`. The
+library ships no mappings of its own — you write (or obtain) the files and
+point the tool at them:
 
-## How mappings are loaded
+- CLI: `swift-section interface --resolve-c-module-names
+  --supplementary-apinotes <file-or-directory>` (repeatable),
+- API: `SwiftInterfaceBuilderTypeNameProvider(machO:dependencies:supplementaryAPINotesURLs:)`.
 
-1. **Built-in bundles** ship with the library
-   (`Sources/TypeIndexing/Resources/SupplementaryAPINotes/*.apinotes`) and are
-   contributed through pull requests to this repository.
-2. **User-supplied bundles** are appended at run time:
-   - CLI: `swift-section interface --resolve-c-module-names
-     --supplementary-apinotes <file-or-directory>` (repeatable),
-   - API: `SwiftInterfaceBuilderTypeNameProvider(machO:dependencies:supplementaryAPINotesURLs:)`.
-
-Later sources override earlier ones per C name: SDK APINotes → built-in
-bundles → user-supplied bundles. A user bundle can therefore correct both a
-built-in entry and an SDK one.
+Later sources override earlier ones per C name: SDK APINotes first, then your
+files in argument order — so a supplementary file can also correct an SDK
+entry.
 
 ## Writing a mapping file
 
@@ -85,15 +81,14 @@ swift-section interface MyBinary --resolve-c-module-names \
 
 Every `__C.<name>` your file covers should now render module-qualified and
 renamed. If a name stays `__C.…`, check that both spellings are registered
-and that the file's `Name:` is the intended module.
+and that the file's `Name:` is the intended module. A path that does not
+exist or a file that fails to parse is reported as a `warning:` on stderr and
+skipped.
 
-## Contributing a bundle
+## Sourcing mappings
 
-Add or extend a file under
-`Sources/TypeIndexing/Resources/SupplementaryAPINotes/` and open a pull
-request citing the evidence for each rename (the reverse-engineered header
+Base entries on header-level evidence: the reverse-engineered header
 declaration, or a project such as
 [OpenGraph](https://github.com/OpenSwiftUIProject/OpenGraph) that documents
-it). Mappings are community knowledge: a wrong entry produces wrong output,
-and review of the cited evidence is the only quality gate — please keep
-entries limited to spellings you can back with a header-level source.
+it. Mappings are external knowledge: a wrong entry produces wrong output, so
+keep entries limited to spellings you can back with a source.
