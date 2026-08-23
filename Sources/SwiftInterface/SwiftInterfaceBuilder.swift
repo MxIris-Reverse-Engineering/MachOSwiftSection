@@ -125,6 +125,12 @@ public final class SwiftInterfaceBuilder<MachO: FieldLayoutRenderable>: Sendable
 
     @SemanticStringBuilder
     public func printRoot() async throws -> SemanticString {
+        // Leading header (evolution proposal 0008), deliberately independent
+        // of the imports block below — flag-gated, default absent.
+        if let interfaceHeaderInfo = configuration.interfaceHeaderInfo {
+            InterfaceHeaderBlock(interfaceHeaderInfo)
+        }
+
         ImportsBlock(OrderedSet(Self.internalModules + importedModules).sorted())
 
         // The two globals blocks carry no printing context because they cannot
@@ -136,6 +142,7 @@ public final class SwiftInterfaceBuilder<MachO: FieldLayoutRenderable>: Sendable
         await printCatchedThrowing(dispatchingTo: eventDispatcher, degradationSource: .definitionBlock) {
             await BlockList {
                 for variable in indexer.globalVariableDefinitions {
+                    printer.globalExportStatusComment(forSymbolNames: variable.accessors.map(\.symbol.name))
                     await printer.printVariable(variable, level: 0)
                 }
             }
@@ -144,6 +151,7 @@ public final class SwiftInterfaceBuilder<MachO: FieldLayoutRenderable>: Sendable
         await printCatchedThrowing(dispatchingTo: eventDispatcher, degradationSource: .definitionBlock) {
             await BlockList {
                 for function in indexer.globalFunctionDefinitions {
+                    printer.globalExportStatusComment(forSymbolNames: [function.symbol.name])
                     await printer.printFunction(function, level: 0)
                 }
             }

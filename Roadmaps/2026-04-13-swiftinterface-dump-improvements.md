@@ -785,6 +785,40 @@ Method-level `@MainActor` isolation **is** recoverable (see P2-12).
 
 ---
 
+### L-13. Parameter internal names
+
+**Why not.** Mangling encodes parameter *labels* (the external names — `init(from:)`) but never the internal binding names (`init(from decoder: Decoder)`); reflection metadata carries neither. The printed `from:` form is the complete recoverable surface. (Requested in issue #106 §8.)
+
+**Alternate sources.** `.swiftinterface` text, DWARF (`DW_AT_name` on formal parameters, debug builds only).
+
+---
+
+### L-14. `@discardableResult`
+
+**Why not.** Compiler-only diagnostics attribute: it suppresses the unused-result warning at type-check time and leaves no trace in mangling, descriptors, or reflection metadata. (Issue #106 §8.)
+
+**Alternate sources.** `.swiftinterface` text.
+
+---
+
+### L-15. Default argument values
+
+**Why not.** A default argument compiles to a *default argument generator* function (`...FfA_` mangling) whose existence proves a parameter HAS a default, but the value itself is compiled code — recovering `= 6` requires decompiling the generator body. Neither the dump nor the interface prints `= default` today; the generator symbols are visible in the symbol table. (Issue #106 §8.)
+
+**Alternate sources.** `.swiftinterface` text; decompilation of the `FfA` generators.
+
+**Proxy.** Printing `= <default>` when a matching `FfA` symbol exists would be honest and implementable — candidate follow-up, not yet scheduled.
+
+---
+
+### L-16. `internal` vs `fileprivate` vs `private`
+
+**Why not.** Access levels below `public` are not distinguishable in the binary: all three compile to non-exported symbols with identical metadata presence. `private` declarations carry a discriminator hash in their mangled name (`(CodingKeys in _B89E...)`), which distinguishes *file-scoped* naming but not the keyword itself; `internal` and `fileprivate` are byte-identical. (Issue #106 §8.)
+
+**What is annotated instead.** The `--emit-export-status` flag (evolution proposal 0008) prints the honest symbol-table FACT — `// not exported` on members none of whose symbols (implementation, `Tj`, `Tq`, `Tu` derived forms) have an export-trie entry — without guessing which sub-`public` level the source used. The `--emit-header` header block lists L-1/L-8/L-13…L-16 as a reader-facing digest of this section.
+
+---
+
 ## Prioritization
 
 The order below reflects uniqueness × user value × implementation cost.

@@ -907,6 +907,18 @@
 - **文档**：[Evolutions/0007](../Evolutions/0007-extension-container-dedup-and-default-impl-attribution.md)、[ExtensionContainerUnification.md](ExtensionContainerUnification.md)、AGENTS.md SwiftIndexing 段新条目。
 - **对应版本**：待发布（与 0006 同线）。
 
+## 44. issue #106 末批：interface 文件头部与导出状态标注
+
+- **时间段**：2026-08-22（`feature/0008-interface-header-and-export-status`，叠于 0007 分支）。
+- **动机**：issue #106 §2/§3/§8——输出没有任何一行告诉读者「这个二进制开没开 library evolution」（`final` 一类推断的有效性取决于它）；`SourceEditorGutter.updateLineNumberDisplay()` 带满注释看起来可调用、实际导出表零命中（作者写 stub 才发现）；空白读起来像「源码没有」而非「二进制恢复不出来」。
+- **提前开工决策**：原前置「等 §6 import 重构落地」被用户指示覆盖（`origin/next` 未动、远端无其分支）；实际冲突面仅 `printRoot` 里 `ImportsBlock` 之前数行，接线做成零侵入（独立 if 块）压最小化合并冲突。
+- **导出集必须显式收集**：next 基线复核揭示 symtab 两条收集腿都过滤 `!nlist.isExternal`（只收本地符号），导出符号仅经 trie 腿建行且该腿带两筛——「行来自 trie」事后不可恢复、offset-less re-export 连行都没有。落地：同一遍循环旁路收集（行号 bitmap ≈ 23 KB / 185k 行 + 无行名字 fallback set），表建行为零改动；`isExported` 三态（`nil` = 镜像无导出信息，不标注）。
+- **裸查名字是错的（本批最大教训）**：第一版按实现符号裸查，fixture（evolution Release 构建）当场全量假阳性——public 成员实现符号照例 local，外部经导出的 `Tj` thunk 派发。改为 `isExportedIncludingDerivedSymbols`（`Tj`/`Tq`/`Tu`/`TjTu` 追加后缀形态任一命中即 exported），对应 issue 作者「任何符号零命中」的验证法。再叠两个发射豁免：`override`（经父类 thunk 可达）与 `@objc`（经 objc_msgSend 可达），两者「自有符号零导出」都是编译器常态；conformance witness 故意不豁免（零导出 = 确实不可静态直接调用）。
+- **头部组件**：`InterfaceHeaderInfo`（纯值，generator 身份调用方传入——`BundledVersion` 是 CLI 私有且 RuntimeViewer 不该冒充 swift-section；日期可选默认缺席保快照字节稳定）+ `InterfaceHeaderBlock`（public——RuntimeViewer per-type 导出绕过 `printRoot`）+ Mach-O 事实工厂（install name / UUID / 架构人话映射 / fileType / `Tj` 计数，evolution 行措辞 detected / not detected 不断言）。CLI 两命令 `--emit-header` / `--emit-export-status`，默认全关。
+- **验证**：新增四套 22 测试（导出事实全量 sweeping + 三类假阳性各一钉 + true positive + 渲染逐行 + flag 解析）；全量 1465 测试绿（默认输出字节不变由既有快照实证）；SourceEditor 复核 issue §3 场景精确解决（`updateLineNumberDisplay` 带 `VTable offset: 66` + `not exported`，全库 3487 处，public API 经 `fCTj` 不误标）。Roadmap Known limitations 补 L-13…L-16（参数内部名 / `@discardableResult` / 默认参数值 / `internal` vs `fileprivate`）。
+- **文档**：[Evolutions/0008](../Evolutions/0008-interface-header-and-export-status-annotations.md)、[InterfaceHeaderAndExportStatusAnnotations.md](InterfaceHeaderAndExportStatusAnnotations.md)、Glossary 两新术语（derived symbol forms、export status）、README CLI 两段、AGENTS.md SwiftPrinting/MachOSymbols 段。
+- **对应版本**：待发布（与 0006/0007 同线）。
+
 ---
 
 ## 维护约定

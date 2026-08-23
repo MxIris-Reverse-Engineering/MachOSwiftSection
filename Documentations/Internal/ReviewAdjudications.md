@@ -161,3 +161,26 @@
 - **为什么先不修**：规则只写在 doc comment 里，`DeclarationModelInstanceSizeTests` 钉的是保留字节数而非 materialize 次数，所以没有任何测试会因此变红；而 A3 的先例表明这类成本的直觉常常错（那次实测占比 1.18%，远低于估算）。**测量范围必须包含 diff 路径**（builder 的 `prepare()` + DiffRendering 的 header 对 class/protocol 同样是 2×，extension 是 1×）**与 specialize 路径**（`TypeDefinition+Specialization.swift:206` 与 `ConformanceProvider` 各一次）。
 - **修法（测出来值得再动）**：把那一次 materialize 提到 `index(in:)` 之前传进去——`printTypeDefinition` 已经是这个写法（它把 `materializedTypeContext` 线程给 `renderTypeDeclarationHeader`）。
 - **复审条件**：SwiftUI 级镜像的剖析显示 materialize 占打印墙钟的比例显著高于 A3 实测的 1.18%。
+
+---
+
+## A13 — 导出状态标注在 stripped 二进制上因 `To` thunk 缺失而豁免失效（PR #111 review A4）
+
+- **裁决**：误报（2026-08-23）。
+- **发现**（review 原话大意）：interface 路径的 `@objc` 豁免依赖 `SwiftAttribute.objc`，而它由 `MemberAttributeInferrer` 从符号表里的 `To` thunk 推断——dyld cache 镜像或剥了 local 符号的二进制没有该符号，豁免失效，每个 `@objc dynamic` 成员都会被标 `// not exported`。
+- **复现 / 是否误报**：**误报——触发条件自相矛盾**（同侪复核后一致确认，成因表述从「To 与实现符号同生共死」修正为更严密的模型构造论证）。成员定义是**符号驱动**的：`FunctionDefinition.symbol` 非可选，`DefinitionBuilder` 的全部构造点都从 `DemangledSymbol` 建。要触发假阳性须同时满足：成员在模型里（实现符号在）、该成员全形态 trie-miss（确实不导出）、且是 `@objc dynamic`。逐端封死：① 剥离场景——不导出的 `@objc dynamic` 成员的实现符号必然是 local symtab 符号，剥掉后成员根本不进模型，无行可标；② 未剥离场景——实现符号与 `To` thunk 同在，属性推断得出，豁免生效；③ 导出的 `@objc dynamic` 成员——派生查询直接命中 `true`，压根不发标注。
+- **与 main 基线对比**：标注是 PR #111 新增，无基线可比。
+- **既往修复**：无。
+- **复审条件**：出现「实现符号保留而 `To` thunk 被选择性剥除」的真实输入（自定义 strip 脚本 / 非常规链接产物）。届时 dump 侧已有的 `containsSymbol(named: name + "To")` 口径可以直接搬到 interface 侧作第二道豁免。
+
+---
+
+## A14 — `not exported` 注释不走 OutputTransformer token-template 机制（PR #111 review B2）
+
+- **裁决**：不修（2026-08-23）。
+- **发现**：`DeclarationRenderConfiguration` 里其他注释种类（member address / field offset / vtable offset / type layout / enum layout）都有 `…Transformer` 闭包槽并经 `applyTransformers(_:)` 物化为 token 模板；`not exported` 硬编码，没有 `Transformer.SwiftExportStatus` 模块、没有 `--…-template` CLI 选项，RuntimeViewer 设置界面与 `--transformer-config` 都控制不了它。
+- **复现 / 是否误报**：属实，非误报——机制差异客观存在。
+- **与 main 基线对比**：PR #111 新增，无基线。
+- **为什么不修**：transformer 机制的价值在**有变量 token 的注释**（offset、address、size/stride、case 字节模式——模板决定这些值如何呈现）。`not exported` 是零参数的固定事实陈述，模板化只能改文案措辞，而措辞恰恰是这个标注的语义承重部分（「符号表事实、非访问级别猜测」的措辞边界是提案审议的产物，开放自定义反而请人破坏它）。RuntimeViewer 若需要开关，`printExportStatus` 这一个 Bool 就是全部所需表面。
+- **既往修复**：无。
+- **复审条件**：出现真实的自定义需求（如本地化、或工具链要求不同 marker 文本）；届时补一个单 token（`${status}`）模块即可，机制上无障碍。

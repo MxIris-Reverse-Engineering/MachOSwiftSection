@@ -23,7 +23,7 @@ public struct FieldFlags: OptionSet, Sendable {
 }
 
 @MemberwiseInit(.public)
-public struct FieldDefinition: Sendable {
+public struct FieldDefinition: AccessorRepresentable, Sendable {
     public let name: String
     public let typeNode: NodeReference
     public let flags: FieldFlags
@@ -47,5 +47,8 @@ public struct FieldDefinition: Sendable {
     /// vtable, value type, actor).
     public var isFinal: Bool = false
 
+    // Also provided by `AccessorRepresentable`'s extension; kept spelled out
+    // here because it predates the conformance (evolution proposal 0006) and
+    // callers read it as a field-level fact.
     public var hasVTableAccessor: Bool { accessors.contains { $0.methodDescriptor != nil } }
 }

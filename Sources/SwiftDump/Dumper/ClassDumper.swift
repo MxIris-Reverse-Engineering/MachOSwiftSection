@@ -336,6 +336,16 @@ package struct ClassDumper<MachO: FieldLayoutRenderable>: TypedDumper {
 
             let interfaceNameString = try await interfaceName.string
 
+            // The same two exemptions the interface path applies (evolution
+            // proposal 0008): a member whose only reachability is not its own
+            // exported symbol must not be flagged. An `override`'s
+            // implementation symbol is an ordinary member symbol of THIS
+            // class (external callers link the parent's dispatch thunk), and
+            // an `@objc` member dispatches through objc_msgSend — its ObjC
+            // entry point is the implementation name plus the `To` suffix,
+            // which identifies it without demangling.
+            let overrideImplementationSymbolNames = configuration.printExportStatus ? collectOverrideImplementationSymbolNames() : []
+
             for kind in SymbolIndexStore.MemberKind.allCases {
                 for (offset, symbol) in symbolIndexStore.memberSymbols(of: kind, for: interfaceNameString, in: machO).offsetEnumerated() {
                     if offset.isStart {
@@ -350,6 +360,13 @@ package struct ClassDumper<MachO: FieldLayoutRenderable>: TypedDumper {
 
                     if configuration.printMemberAddress {
                         configuration.memberAddressComment(offset: symbol.offset, addressString: machO.addressString(forOffset: symbol.offset))
+                    }
+
+                    if configuration.printExportStatus,
+                       !overrideImplementationSymbolNames.contains(symbol.name),
+                       !symbolIndexStore.containsSymbol(named: symbol.name + "To", in: machO),
+                       symbolIndexStore.isExportedIncludingDerivedSymbols(name: symbol.name, in: machO) == false {
+                        configuration.exportStatusComment()
                     }
 
                     Indent(level: 1)
@@ -378,6 +395,20 @@ package struct ClassDumper<MachO: FieldLayoutRenderable>: TypedDumper {
                         configuration.memberAddressComment(offset: symbol.offset, addressString: machO.addressString(forOffset: symbol.offset))
                     }
 
+                    // These rows are the `Tq` method-descriptor DATA symbols;
+                    // the derived-form expansion only makes sense over the
+                    // member's implementation name, so strip the suffix
+                    // before querying (querying "…Tq" would append the
+                    // derived suffixes onto it — "…TqTj" etc. never exist —
+                    // degrading to the bare-name query this proposal's own
+                    // analysis rejects).
+                    if configuration.printExportStatus {
+                        let implementationName = symbol.name.hasSuffix("Tq") ? String(symbol.name.dropLast(2)) : symbol.name
+                        if symbolIndexStore.isExportedIncludingDerivedSymbols(name: implementationName, in: machO) == false {
+                            configuration.exportStatusComment()
+                        }
+                    }
+
                     Indent(level: 1)
 
                     try await demangleResolver.resolve(for: symbol.demangledNode)
@@ -390,6 +421,30 @@ package struct ClassDumper<MachO: FieldLayoutRenderable>: TypedDumper {
 
             Standard("}")
         }
+    }
+
+    /// Implementation-symbol names consumed by the override / default-override
+    /// vtable sections — these are ordinary member symbols of THIS class, so
+    /// the member-symbol loops must exempt them from export-status
+    /// annotation (evolution proposal 0008: external callers link the
+    /// PARENT's dispatch thunk; the subclass exports nothing of its own).
+    private func collectOverrideImplementationSymbolNames() -> Set<String> {
+        var names: Set<String> = []
+        for descriptor in dumped.methodOverrideDescriptors {
+            if let symbols = try? descriptor.implementationSymbols(in: machO) {
+                for overrideSymbol in symbols {
+                    names.insert(overrideSymbol.name)
+                }
+            }
+        }
+        for descriptor in dumped.methodDefaultOverrideDescriptors {
+            if let symbols = try? descriptor.implementationSymbols(in: machO) {
+                for overrideSymbol in symbols {
+                    names.insert(overrideSymbol.name)
+                }
+            }
+        }
+        return names
     }
 
     package var name: SemanticString {
