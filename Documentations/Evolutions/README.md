@@ -16,3 +16,4 @@
 | [0008](0008-interface-header-and-export-status-annotations.md) | Interface 文件头部与导出状态标注（issue #106 §2/§3/§8） | Implemented |
 | [0009](0009-type-indexing-revival.md) | TypeIndexing 重启：`__C` 类型模块归属解析的索引管线修复与重构（两线合并时由 0008 重排至 0009，见提案「编号说明」） | Implemented |
 | [0010](0010-community-type-mapping-bundles.md) | 补充类型映射：私有框架 `__C` 类型的用户自备 APINotes 加载（AttributeGraph 等；合并时由 0009 重排） | Implemented |
+| [0011](0011-opaque-primary-associated-type-attribution.md) | opaque 返回类型的 primary associated type 归属：anchor 协议裁决 + 协议事实解析链（main 直落线并入 next 时由 0006 重排） | Implemented |

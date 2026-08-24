@@ -24,3 +24,16 @@ open class ResilientBase {
     public init() {}
     public var counter: Int = 0
 }
+
+/// Cross-image refinement-chain fixtures for MachOSwiftSection's evolution
+/// proposal 0011 (opaque primary-associated-type attribution). SymbolTestsCore
+/// writes opaque sugar on `HelperRefinedProtocol`; resolving the attribution
+/// requires this module's protocol descriptors (the refine fact), which a
+/// `MachOFile` reader of SymbolTestsCore cannot reach (bind symbol only, so
+/// the parameter degrades to none) while a `MachOImage` reader resolves
+/// cross-image and attaches it.
+public protocol HelperBaseProtocol<Item> {
+    associatedtype Item
+}
+
+public protocol HelperRefinedProtocol<Item>: HelperBaseProtocol {}

@@ -21,6 +21,22 @@ public enum Protocols {
         associatedtype Element
     }
 
+    /// Declares an associated type named like `TestCollection`'s but is never
+    /// pinned in the opaque fixtures — proposal 0011's name-fallback guard:
+    /// it must NOT inherit `<...>` sugar it never had.
+    public protocol UnpinnedElementProtocol {
+        associatedtype Element
+    }
+
+    /// Refinement-chain fixtures for proposal 0011: the opaque sugar is
+    /// written on the refining protocol while the constraint's canonical
+    /// anchor is the base declaring the associated type.
+    public protocol ModuleBaseProtocol<Item> {
+        associatedtype Item
+    }
+
+    public protocol ModuleRefinedProtocol<Item>: ModuleBaseProtocol {}
+
     public protocol BaseProtocolTest {
         func baseMethod() -> String
     }

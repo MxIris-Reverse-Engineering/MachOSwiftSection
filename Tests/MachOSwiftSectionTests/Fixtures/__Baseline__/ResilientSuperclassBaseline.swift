@@ -19,8 +19,8 @@ enum ResilientSuperclassBaseline {
     }
 
     static let resilientChild = Entry(
-        sourceClassOffset: 0x43b8c,
-        offset: 0x43bb8,
-        layoutSuperclassRelativeOffset: 66672
+        sourceClassOffset: 0x43c78,
+        offset: 0x43ca4,
+        layoutSuperclassRelativeOffset: 66460
     )
 }

@@ -30,12 +30,18 @@
 - **主要出现在**：`Scripts/run-rendering-ab-verification.py`
 - **延伸阅读**：[SystemFrameworkRenderingVerification.md](Internal/SystemFrameworkRenderingVerification.md)
 
+### anchor 协议（anchor protocol）
+
+一条 same-type 约束的 subject 里，关联类型所**限定的声明协议**——`τ_1_0.[Swift.Sequence]Element == [A]` 的 anchor 是 `Swift.Sequence`（mangling 层限定形式，demangle 后保留在 `dependentAssociatedTypeRef` 的第二个 child）。注意 anchor 是 canonicalization 后**继承链最上层的原始声明者**，不一定是源码 sugar 写在哪个协议上（`Collection<[A]>` 的约束 anchor 是 Sequence），也不一定在 opaque 组合成员之内。opaque 尖括号参数的归属裁决以它为第一信号。
+
+- **主要出现在**：`Sources/SwiftInterface/OpaqueSameTypeConstraint.swift`、`SwiftInterfaceBuilderOpaqueTypeProvider`
+- **延伸阅读**：[提案 0011](Evolutions/0011-opaque-primary-associated-type-attribution.md)、[OpaqueReturnTypeResolution.md](Internal/OpaqueReturnTypeResolution.md) §2.2
+
 ### bucket（桶）
 
 分类索引里「一个键对应的一组符号表行号」（如 `symbolRowsByOffset` 的值、`MemberSymbolRows` 的叶子）。旧形态是 `[UInt32]` 小数组——绝大多数桶只有一个元素，却各付一次堆分配；提案 0003 落地后值形态为 `SymbolRowBucket`（单元素内联于字典槽，第二个元素起才落堆数组），迭代序保持插入序。
 
 - **主要出现在**：`Sources/MachOSymbols/SymbolIndexStore.swift`、`Sources/MachOSymbols/SymbolRowBucket.swift`
-- **延伸阅读**：[提案 0003](Evolutions/0003-symbol-row-bucket-flattening.md)
 - **延伸阅读**：[提案 0003](Evolutions/0003-symbol-row-bucket-flattening.md)
 
 ### derived symbol forms（派生符号形态）
@@ -51,6 +57,13 @@
 
 - **主要出现在**：`Sources/MachOSymbols/DemangledSymbol.swift`、AGENTS.md「Symbol indexing」段
 - **延伸阅读**：[提案 0001](Evolutions/0001-symbol-name-offsetization.md)
+
+### 等价类塌缩（equivalence-class collapse）
+
+Requirement Machine 最小化泛型签名时，把 pin 到同一具体类型的多个关联类型并成一个等价类、只保留 canonical anchor 一条 same-type 约束的行为。后果：源码写了两处 primary sugar（`Collection<[A]> & TestCollection<[A]>`），descriptor 里只剩 anchor 在 Sequence 的一条——`TestCollection` 的 pin **物理上消失**，且与「TestCollection 的同名关联类型根本没被 pin」在二进制里**逐字节同形**，解析端只能按名字推断（见「名字兜底」）。
+
+- **主要出现在**：opaque type descriptor 的 generic requirements；`SwiftInterfaceBuilderOpaqueTypeProvider` 的归属规则 3
+- **延伸阅读**：[OpaqueReturnTypeResolution.md](Internal/OpaqueReturnTypeResolution.md) §2.2、[提案 0011](Evolutions/0011-opaque-primary-associated-type-attribution.md)「提议方案」
 
 ### export status（导出状态标注，`// not exported`）
 
@@ -76,6 +89,13 @@ sweep 覆盖范围之外的名字走的旁路：demangle 后 intern 进 `Storage
 从轻量引用（表行号、descriptor、`NodeReference`）按需构造出完整值（`String`、wrapper、`Node` 树）的动作，与「驻留」相对。本项目的内存优化主线就是「驻留只留定位信息，重内容用时物化、用完即弃」：0001 物化符号名，0002 物化 wrapper。物化纪律：每处理一个对象至多物化一次、局部贯穿，不做 per-access。
 
 - **延伸阅读**：[提案 0001](Evolutions/0001-symbol-name-offsetization.md)、[提案 0002](Evolutions/0002-declaration-model-descriptor-slimming.md)
+
+### 名字兜底（name fallback）
+
+opaque 尖括号参数归属的第三条规则：协议无任何 anchor 命中时，若它**自身声明**了与约束同名的关联类型、该名字候选约束**恰一条**、且候选的 anchor **不在组合成员之内**，则把参数挂给它——用于恢复被「等价类塌缩」吃掉的 sugar（`TestCollection<[A]>`）。「anchor 在组合外」的限定是防捏造判据：anchor 协议自己在组合里时，其余同名成员写没写 sugar 无从知道（塌缩与未 pin 同形），挂了就是编造。
+
+- **主要出现在**：`SwiftInterfaceBuilderOpaqueTypeProvider.attributedConstraints`
+- **延伸阅读**：[提案 0011](Evolutions/0011-opaque-primary-associated-type-attribution.md)「提议方案」规则 3、[OpaqueReturnTypeResolution.md](Internal/OpaqueReturnTypeResolution.md) §3.3
 
 ### name source（名字来源）
 

@@ -10,7 +10,25 @@ struct SymbolTestsCore.OpaqueReturnTypes.OpaqueReturnTypeTest {
     SymbolTestsCore.OpaqueReturnTypes.OpaqueReturnTypeTest.functionTuple<A>() -> (some, A?)
     SymbolTestsCore.OpaqueReturnTypes.OpaqueReturnTypeTest.functionWhere<A, B>() -> (some, (some)?, some)?
     SymbolTestsCore.OpaqueReturnTypes.OpaqueReturnTypeTest.functionNested<A, B>(A, B) -> (some, (some)?, some)?
+    SymbolTestsCore.OpaqueReturnTypes.OpaqueReturnTypeTest.functionNameFallbackGuard<A>(A) -> some
     SymbolTestsCore.OpaqueReturnTypes.OpaqueReturnTypeTest.functionOptional<A>() -> (some)?
+    SymbolTestsCore.OpaqueReturnTypes.OpaqueReturnTypeTest.functionModuleRefineClosure() -> some
+    SymbolTestsCore.OpaqueReturnTypes.OpaqueReturnTypeTest.functionCrossImageRefineClosure() -> some
+}
+struct SymbolTestsCore.OpaqueReturnTypes.OpaqueReturnTypeTest.NameFallbackGuardWitness<A> {
+    /* Allocator */
+    SymbolTestsCore.OpaqueReturnTypes.OpaqueReturnTypeTest.NameFallbackGuardWitness.init() -> SymbolTestsCore.OpaqueReturnTypes.OpaqueReturnTypeTest.NameFallbackGuardWitness<A>
+
+    /* Static Function */
+    static SymbolTestsCore.OpaqueReturnTypes.OpaqueReturnTypeTest.NameFallbackGuardWitness.== infix(SymbolTestsCore.OpaqueReturnTypes.OpaqueReturnTypeTest.NameFallbackGuardWitness<A>, SymbolTestsCore.OpaqueReturnTypes.OpaqueReturnTypeTest.NameFallbackGuardWitness<A>) -> Swift.Bool
+}
+struct SymbolTestsCore.OpaqueReturnTypes.OpaqueReturnTypeTest.ModuleRefineClosureWitness {
+    /* Static Function */
+    static SymbolTestsCore.OpaqueReturnTypes.OpaqueReturnTypeTest.ModuleRefineClosureWitness.== infix(SymbolTestsCore.OpaqueReturnTypes.OpaqueReturnTypeTest.ModuleRefineClosureWitness, SymbolTestsCore.OpaqueReturnTypes.OpaqueReturnTypeTest.ModuleRefineClosureWitness) -> Swift.Bool
+}
+struct SymbolTestsCore.OpaqueReturnTypes.OpaqueReturnTypeTest.CrossImageRefineClosureWitness {
+    /* Static Function */
+    static SymbolTestsCore.OpaqueReturnTypes.OpaqueReturnTypeTest.CrossImageRefineClosureWitness.== infix(SymbolTestsCore.OpaqueReturnTypes.OpaqueReturnTypeTest.CrossImageRefineClosureWitness, SymbolTestsCore.OpaqueReturnTypes.OpaqueReturnTypeTest.CrossImageRefineClosureWitness) -> Swift.Bool
 }
 struct SymbolTestsCore.OpaqueReturnTypes.OpaqueReturnTypeTest.AnyProtocolTest<A, B> where A: SymbolTestsCore.Protocols.ProtocolTest, B == B.ProtocolTest.Body, A.ProtocolTest.Body == SymbolTestsCore.Generics.GenericRequirementTest<B> {
     /* Allocator */
@@ -58,6 +76,25 @@ protocol SymbolTestsCore.OpaqueReturnTypes.ProtocolPrimaryAssociatedTypeTest whe
 
 // MARK: - Protocol Conformances
 
+extension SymbolTestsCore.OpaqueReturnTypes.OpaqueReturnTypeTest.NameFallbackGuardWitness: SymbolTestsCore.Protocols.TestCollection {}
+extension SymbolTestsCore.OpaqueReturnTypes.OpaqueReturnTypeTest.NameFallbackGuardWitness: SymbolTestsCore.Protocols.UnpinnedElementProtocol {}
+extension SymbolTestsCore.OpaqueReturnTypes.OpaqueReturnTypeTest.NameFallbackGuardWitness: Swift.Equatable {
+    protocol witness for static Swift.Equatable.== infix(A, A) -> Swift.Bool in conformance SymbolTestsCore.OpaqueReturnTypes.OpaqueReturnTypeTest.NameFallbackGuardWitness<A> : Swift.Equatable in SymbolTestsCore
+}
+extension SymbolTestsCore.OpaqueReturnTypes.OpaqueReturnTypeTest.ModuleRefineClosureWitness: SymbolTestsCore.Protocols.ModuleRefinedProtocol {}
+extension SymbolTestsCore.OpaqueReturnTypes.OpaqueReturnTypeTest.ModuleRefineClosureWitness: Swift.Equatable {
+    protocol witness for static Swift.Equatable.== infix(A, A) -> Swift.Bool in conformance SymbolTestsCore.OpaqueReturnTypes.OpaqueReturnTypeTest.ModuleRefineClosureWitness : Swift.Equatable in SymbolTestsCore
+}
+extension SymbolTestsCore.OpaqueReturnTypes.OpaqueReturnTypeTest.ModuleRefineClosureWitness: SymbolTestsCore.Protocols.ModuleBaseProtocol {}
+extension SymbolTestsCore.OpaqueReturnTypes.OpaqueReturnTypeTest.CrossImageRefineClosureWitness: SymbolTestsHelper.HelperRefinedProtocol {
+    base conformance descriptor for SymbolTestsHelper.HelperRefinedProtocol: SymbolTestsHelper.HelperBaseProtocol
+}
+extension SymbolTestsCore.OpaqueReturnTypes.OpaqueReturnTypeTest.CrossImageRefineClosureWitness: Swift.Equatable {
+    protocol witness for static Swift.Equatable.== infix(A, A) -> Swift.Bool in conformance SymbolTestsCore.OpaqueReturnTypes.OpaqueReturnTypeTest.CrossImageRefineClosureWitness : Swift.Equatable in SymbolTestsCore
+}
+extension SymbolTestsCore.OpaqueReturnTypes.OpaqueReturnTypeTest.CrossImageRefineClosureWitness: SymbolTestsHelper.HelperBaseProtocol {
+    associated type descriptor for SymbolTestsHelper.HelperBaseProtocol.Item
+}
 extension SymbolTestsCore.OpaqueReturnTypes.OpaqueReturnTypeTest.AnyProtocolTest: SymbolTestsCore.Protocols.ProtocolTest {}
 extension SymbolTestsCore.OpaqueReturnTypes.ProtocolPrimaryAssociatedTypeFirst: SymbolTestsCore.Protocols.ProtocolTest {}
 extension SymbolTestsCore.OpaqueReturnTypes.ProtocolPrimaryAssociatedTypeSecond: SymbolTestsCore.Protocols.ProtocolTest {}

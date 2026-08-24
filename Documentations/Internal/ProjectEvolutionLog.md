@@ -936,6 +936,35 @@
 - **追加批次（PR #110 review 修复）**：并行 review 会话对 PR #110 提出 15 条发现并做四问核实（原始清单与处置状态见 [Roadmaps/2026-08-23-pr110-review-findings.md](../../Roadmaps/2026-08-23-pr110-review-findings.md)）；关键教训是当时全绿的 1466 个测试对该修的 7 条**一条都抓不到**——新代码测试只盖了纯函数，装配与分发路径空白。用户裁定「3/4/5/6/7 直接修，不要内置资源」：**内置 SPM resource 层整体移除**（`Bundle.module` accessor 在 bundle 缺失时 fatalError，而发布脚本只分发裸二进制——分发出去一用就崩；补充映射改纯用户自备，review 发现 2 结构性消解）；依赖解析为空与坏 `--supplementary-apinotes` 路径改为 stderr 警告（发现 3/6）；submodule 失败不再固化残缺缓存条目（发现 4，`ModuleInterfaceIndexer` 增 `InterfaceGenerator` 注入缝使缓存纪律可单测）；`moduleName(forImagePath:)` 前导点名字死循环加不动点守卫（发现 5，`.hidden` 实测复现）；task group 完成序注册改为按 SDK 发现序重排（发现 7，`entriesInDiscoveryOrder`）。「不修 / 误报」终审 5 条（Ref 剥除守卫、import 列表、actor 重入、补充覆盖面、双查询）进 [ReviewAdjudications.md](ReviewAdjudications.md) A15–A19（合并时因与 PR #111 review 的 A13/A14 撞号顺移）；发现 1（`USE_CUSTOM_OBJC_SECTION=0` 构建失败）与 15（协议签名源码破坏）待定。验证：TypeIndexingTests 37/7、全套 1470 tests / 277 suites 退出码 0。
 - **文档**：[Evolutions/0009](../Evolutions/0009-type-indexing-revival.md)、[Evolutions/0010](../Evolutions/0010-community-type-mapping-bundles.md)、[TypeIndexingPipeline.md](TypeIndexingPipeline.md)（含与提案的差异：swift-dependencies 未引入、兜底解析器未编写；identifier 重写一节；补充映射一节）、[SupplementaryTypeMappings.md](../SupplementaryTypeMappings.md)、[TaskReports/2026-08-22-type-indexing-revival.md](TaskReports/2026-08-22-type-indexing-revival.md)、[TaskReports/2026-08-22-community-type-mapping-bundles.md](TaskReports/2026-08-22-community-type-mapping-bundles.md)、[TaskReports/2026-08-23-pr110-review-fixes.md](TaskReports/2026-08-23-pr110-review-fixes.md)、AGENTS.md 架构节新增 TypeIndexing 条目。
 - **对应版本**：未随本批 bump（`feature/type-indexing-revival` 待并入 `next`）。
+## 46. opaque 返回类型的 primary associated type 归属（提案 0011）
+
+- **时间段**：2026-08-24。
+- **动机**：`SwiftInterfaceBuilderOpaqueTypeProvider` 把 opaque 参数上的 same-type
+  约束无差别分发给组合里每个协议，产出 `some Swift.Equatable<[A]>` 这类非法 Swift
+  （`Equatable` 没有任何 associated type）。fixture `functionNested` 长期携带此错误
+  输出，E2E 注释甚至把它当预期描述。
+- **关键决策**：
+  - **约束按 anchor 协议逐条归属**：subject mangling 本就带声明协议（`ST` 标准替换 /
+    symbolic reference），demangler 保留在 `dependentAssociatedTypeRef` 第二个
+    child——「信息不够」的旧印象失实，丢信息的是打印端。
+  - **归属四步**：anchor 直接命中（纯身份比对，离线 bind 可判）→ refine 闭包命中 →
+    名字兜底（恢复编译器塌缩的等价类，要求候选唯一**且 anchor 在组合外**——塌缩与
+    未 pin 在 descriptor 里逐字节同形，anchor 在组合内时兜底会捏造 sugar）→ 信息
+    缺失不挂（宁缺毋滥）。
+  - **协议事实经「descriptor 可达性」两问解析**：`resolvedContent` 把提案的三层
+    （本模块 descriptor / 内置表 / 进程内跨镜像）自然塌并——可达 descriptor 读
+    requirement signature + associated type 名单，不可达走内置 stdlib 表；primary
+    名单与顺序只有内置表能给（SE-0346 无运行时痕迹）。
+  - **接受两种 reader 输出深度差异**：离线拿不到外部协议内容时诚实降级不挂，进程内
+    跨镜像严格增量；离线依赖闭包另立后续提案。
+- **落地模块**：`SwiftInterface`（`OpaqueSameTypeConstraint` / `ProtocolFactsResolver` /
+  `BuiltinStandardLibraryProtocolFacts` + provider 重写）；fixture 新增四场景
+  （名字兜底防捏造、模块内 refine 闭包、跨镜像 refine 闭包、多 primary 顺序）与
+  `SymbolTestsHelper` 跨镜像协议对；E2E 断言收紧 + MachOImage 侧新 suite。
+- **文档**：[0011-opaque-primary-associated-type-attribution.md](../Evolutions/0011-opaque-primary-associated-type-attribution.md)、
+  [OpaquePrimaryAssociatedTypeAttribution.md](OpaquePrimaryAssociatedTypeAttribution.md)、
+  [TaskReports/2026-08-24-opaque-primary-associated-type-attribution.md](TaskReports/2026-08-24-opaque-primary-associated-type-attribution.md)。
+- **对应版本**：`0.15.2` 之后、下一次 bump 之前。
 
 ---
 

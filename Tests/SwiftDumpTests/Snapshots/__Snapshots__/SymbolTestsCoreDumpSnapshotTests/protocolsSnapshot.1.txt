@@ -27,6 +27,19 @@ protocol SymbolTestsCore.Protocols.TestCollection {
 
     associated type descriptor for SymbolTestsCore.Protocols.TestCollection.Element
 }
+protocol SymbolTestsCore.Protocols.UnpinnedElementProtocol {
+    associatedtype Element
+
+    associated type descriptor for SymbolTestsCore.Protocols.UnpinnedElementProtocol.Element
+}
+protocol SymbolTestsCore.Protocols.ModuleBaseProtocol {
+    associatedtype Item
+
+    associated type descriptor for SymbolTestsCore.Protocols.ModuleBaseProtocol.Item
+}
+protocol SymbolTestsCore.Protocols.ModuleRefinedProtocol: SymbolTestsCore.Protocols.ModuleBaseProtocol {
+    base conformance descriptor for SymbolTestsCore.Protocols.ModuleRefinedProtocol: SymbolTestsCore.Protocols.ModuleBaseProtocol
+}
 protocol SymbolTestsCore.Protocols.BaseProtocolTest {
     method descriptor for SymbolTestsCore.Protocols.BaseProtocolTest.baseMethod() -> Swift.String
 }

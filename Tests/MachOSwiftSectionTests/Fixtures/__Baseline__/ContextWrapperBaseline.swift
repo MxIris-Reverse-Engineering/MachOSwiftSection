@@ -11,7 +11,7 @@ enum ContextWrapperBaseline {
     }
 
     static let structTest = Entry(
-    descriptorOffset: 0x43edc,
+    descriptorOffset: 0x43fc8,
     hasParent: true
     )
 }
