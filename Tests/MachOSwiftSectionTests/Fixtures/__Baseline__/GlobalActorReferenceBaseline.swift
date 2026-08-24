@@ -11,7 +11,7 @@ enum GlobalActorReferenceBaseline {
     }
 
     static let firstReference = Entry(
-    offset: 0x379b0,
+    offset: 0x37db0,
     typeNameSymbolString: "_$sScM"
     )
 }

@@ -15,7 +15,7 @@ enum GenericPackShapeDescriptorBaseline {
     }
 
     static let parameterPackFirstShape = Entry(
-    offset: 0x4241c,
+    offset: 0x4289c,
     layoutKind: 0,
     layoutIndex: 1,
     layoutShapeClass: 0,
