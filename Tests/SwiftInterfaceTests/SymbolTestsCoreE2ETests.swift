@@ -156,9 +156,57 @@ extension STCoreE2ETests {
 
     @Test func opaqueReturnTypeWithCompositionResolved() async throws {
         let output = try await buildOutput()
-        // OpaqueReturnTypeTest.functionNested has composition: some Swift.Equatable<[A]> & Swift.Sequence<[A]>
-        // The output should contain "& " for protocol composition
-        #expect(output.contains("some Swift.Sequence") || output.contains("some Swift.Collection"))
+        // OpaqueReturnTypeTest.functionNested's compositions, in the
+        // descriptor's canonical protocol order (source order is not
+        // recoverable). Attribution follows proposal 0006: `Equatable`
+        // declares no associated types and must never carry a
+        // primary-associated-type argument (pre-0006 this printed the
+        // invalid `Swift.Equatable<[A]>`).
+        #expect(output.contains("some Swift.Equatable & Swift.Sequence<[A]>"))
+        #expect(output.contains("some Swift.Collection<[A]> & Swift.Equatable & SymbolTestsCore.Protocols.TestCollection<[A]>"))
+        #expect(!output.contains("Swift.Equatable<"))
+    }
+
+    // MARK: Proposal 0006 — primary-associated-type attribution
+
+    @Test func opaqueNameFallbackDoesNotFabricateSugar() async throws {
+        let output = try await buildOutput()
+        // functionNameFallbackGuard: `UnpinnedElementProtocol` declares an
+        // `Element` of its own, but the sugar pins only `TestCollection`'s.
+        // The collapsed-pin and never-pinned cases are byte-identical in the
+        // descriptor, and the anchor (TestCollection) sits inside the
+        // composition — so the fallback must not fabricate
+        // `UnpinnedElementProtocol<[A]>`.
+        #expect(output.contains("some Swift.Equatable & SymbolTestsCore.Protocols.TestCollection<[A]> & SymbolTestsCore.Protocols.UnpinnedElementProtocol"))
+        #expect(!output.contains("UnpinnedElementProtocol<"))
+    }
+
+    @Test func opaqueModuleRefineClosureAttaches() async throws {
+        let output = try await buildOutput()
+        // functionModuleRefineClosure: the constraint anchors on
+        // `ModuleBaseProtocol` (outside the composition); attribution reaches
+        // `ModuleRefinedProtocol` through its descriptor's requirement
+        // signature in the same image.
+        #expect(output.contains("some Swift.Equatable & SymbolTestsCore.Protocols.ModuleRefinedProtocol<Swift.Int>"))
+    }
+
+    @Test func opaqueCrossImageRefineClosureDegradesOffline() async throws {
+        let output = try await buildOutput()
+        // functionCrossImageRefineClosure: the refine fact lives in
+        // SymbolTestsHelper, which a MachOFile reader cannot reach (bind
+        // symbol only). The parameter honestly degrades to none — the
+        // MachOImage counterpart in OpaqueAttributionImageE2ETests attaches
+        // `<Swift.Int>` by resolving cross-image.
+        #expect(output.contains("some Swift.Equatable & SymbolTestsHelper.HelperRefinedProtocol"))
+        #expect(!output.contains("HelperRefinedProtocol<"))
+    }
+
+    @Test func opaqueMultiplePrimaryAssociatedTypesKeepDeclarationOrder() async throws {
+        let output = try await buildOutput()
+        // OpaquePrimaryAssociatedTypeReturnTypeTest.body: both constraints
+        // anchor on the protocol itself; the angle brackets keep the
+        // primary declaration order (First, Second).
+        #expect(output.contains("some SymbolTestsCore.OpaqueReturnTypes.ProtocolPrimaryAssociatedTypeTest<SymbolTestsCore.OpaqueReturnTypes.ProtocolPrimaryAssociatedTypeFirst, SymbolTestsCore.OpaqueReturnTypes.ProtocolPrimaryAssociatedTypeSecond>"))
     }
 
     @Test func opaqueReturnTypePrimaryAssociatedTypeResolved() async throws {

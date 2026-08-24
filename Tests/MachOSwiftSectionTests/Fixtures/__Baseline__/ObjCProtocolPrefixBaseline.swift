@@ -11,7 +11,7 @@ enum ObjCProtocolPrefixBaseline {
     }
 
     static let firstPrefix = Entry(
-    offset: 0x6c350,
+    offset: 0x6c420,
     name: "NSObject"
     )
 }

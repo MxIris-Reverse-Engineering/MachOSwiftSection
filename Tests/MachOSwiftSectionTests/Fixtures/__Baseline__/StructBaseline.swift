@@ -18,7 +18,7 @@ enum StructBaseline {
     }
 
     static let structTest = Entry(
-    descriptorOffset: 0x43a5c,
+    descriptorOffset: 0x43fc8,
     hasGenericContext: false,
     hasForeignMetadataInitialization: false,
     hasSingletonMetadataInitialization: false,
@@ -30,7 +30,7 @@ enum StructBaseline {
     )
 
     static let genericStructNonRequirement = Entry(
-    descriptorOffset: 0x40ef4,
+    descriptorOffset: 0x41284,
     hasGenericContext: true,
     hasForeignMetadataInitialization: false,
     hasSingletonMetadataInitialization: false,

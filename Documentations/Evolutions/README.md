@@ -11,3 +11,4 @@
 | [0003](0003-symbol-row-bucket-flattening.md) | SymbolIndexStore `[UInt32]` 行号桶扁平化：单元素桶内联化 | Implemented |
 | [0004](0004-arm64e-signed-vwt-pointer-hardening.md) | arm64e 签名 VWT 指针加固：进程内裸读 strip + 真 PAC 环境的回归验证形态 | Implemented |
 | [0005](0005-event-based-degradation-reporting.md) | 降级上报统一走事件：库侧不再自选落点，Dispatcher 兜底零 handler | Implemented |
+| [0006](0006-opaque-primary-associated-type-attribution.md) | opaque 返回类型的 primary associated type 归属：anchor 协议裁决 + 协议事实解析链 | Implemented |

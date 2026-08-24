@@ -3,6 +3,7 @@ import Foundation
 import Swift
 import SymbolTests
 import SymbolTestsCore
+import SymbolTestsHelper
 import _Concurrency
 import _StringProcessing
 import _SwiftConcurrencyShims
@@ -2387,6 +2388,11 @@ enum ObjCResilientStubFixtures {
 }
 enum OpaqueReturnTypes {
     struct OpaqueReturnTypeTest {
+        struct NameFallbackGuardWitness<A> {
+            init()
+        }
+        struct ModuleRefineClosureWitness {}
+        struct CrossImageRefineClosureWitness {}
         struct AnyProtocolTest<A, B> where A: SymbolTestsCore.Protocols.ProtocolTest, B == B.Body, A.Body == SymbolTestsCore.Generics.GenericRequirementTest<B> {
             init()
 
@@ -2402,7 +2408,10 @@ enum OpaqueReturnTypes {
         func functionTuple<A>() -> (some, A?) where A: SymbolTestsCore.Protocols.ProtocolTest
         func functionWhere<A, B>() -> (some, (some)?, some)? where A: SymbolTestsCore.Protocols.ProtocolTest, B == B.Body, A.Body == SymbolTestsCore.Generics.GenericRequirementTest<B>
         func functionNested<A, B>(_: A, _: B) -> (some, (some)?, some)? where A: Swift.Equatable, A: SymbolTestsCore.Protocols.ProtocolTest, B: Swift.Equatable, B == B.Body, A.Body == SymbolTestsCore.Generics.GenericRequirementTest<B>
+        func functionNameFallbackGuard<A>(_: A) -> some where A: SymbolTestsCore.Protocols.ProtocolTest
         func functionOptional<A>() -> (some)? where A: SymbolTestsCore.Protocols.ProtocolTest
+        func functionModuleRefineClosure() -> some
+        func functionCrossImageRefineClosure() -> some
     }
     enum ProtocolPrimaryAssociatedTypeFirst {
         var body: SymbolTestsCore.OpaqueReturnTypes.ProtocolPrimaryAssociatedTypeFirst {
@@ -2591,6 +2600,13 @@ enum Protocols {
     protocol TestCollection {
         associatedtype Element
     }
+    protocol UnpinnedElementProtocol {
+        associatedtype Element
+    }
+    protocol ModuleBaseProtocol {
+        associatedtype Item
+    }
+    protocol ModuleRefinedProtocol: SymbolTestsCore.Protocols.ModuleBaseProtocol {}
     protocol BaseProtocolTest {
         func baseMethod() -> Swift.String
     }
@@ -4214,6 +4230,21 @@ extension Swift.Never: @retroactive Swift.Sequence {
     func _copyContents(initializing: Swift.UnsafeMutableBufferPointer<Self.Element>) -> (Self.Iterator, Swift.Int)
     func withContiguousStorageIfAvailable<A1>(_: (_: Swift.UnsafeBufferPointer<Self.Element>) throws -> A1) throws -> A1?
 }
+extension SymbolTestsCore.OpaqueReturnTypes.OpaqueReturnTypeTest.NameFallbackGuardWitness: SymbolTestsCore.Protocols.TestCollection {}
+extension SymbolTestsCore.OpaqueReturnTypes.OpaqueReturnTypeTest.NameFallbackGuardWitness: SymbolTestsCore.Protocols.UnpinnedElementProtocol {}
+extension SymbolTestsCore.OpaqueReturnTypes.OpaqueReturnTypeTest.NameFallbackGuardWitness: Swift.Equatable {
+    static func == (_: Self, _: Self) -> Swift.Bool
+}
+extension SymbolTestsCore.OpaqueReturnTypes.OpaqueReturnTypeTest.ModuleRefineClosureWitness: SymbolTestsCore.Protocols.ModuleRefinedProtocol {}
+extension SymbolTestsCore.OpaqueReturnTypes.OpaqueReturnTypeTest.ModuleRefineClosureWitness: Swift.Equatable {
+    static func == (_: Self, _: Self) -> Swift.Bool
+}
+extension SymbolTestsCore.OpaqueReturnTypes.OpaqueReturnTypeTest.ModuleRefineClosureWitness: SymbolTestsCore.Protocols.ModuleBaseProtocol {}
+extension SymbolTestsCore.OpaqueReturnTypes.OpaqueReturnTypeTest.CrossImageRefineClosureWitness: SymbolTestsHelper.HelperRefinedProtocol {}
+extension SymbolTestsCore.OpaqueReturnTypes.OpaqueReturnTypeTest.CrossImageRefineClosureWitness: Swift.Equatable {
+    static func == (_: Self, _: Self) -> Swift.Bool
+}
+extension SymbolTestsCore.OpaqueReturnTypes.OpaqueReturnTypeTest.CrossImageRefineClosureWitness: SymbolTestsHelper.HelperBaseProtocol {}
 extension SymbolTestsCore.OpaqueReturnTypes.OpaqueReturnTypeTest.AnyProtocolTest: SymbolTestsCore.Protocols.ProtocolTest {}
 extension SymbolTestsCore.OpaqueReturnTypes.ProtocolPrimaryAssociatedTypeFirst: SymbolTestsCore.Protocols.ProtocolTest {
     typealias Body = SymbolTestsCore.OpaqueReturnTypes.ProtocolPrimaryAssociatedTypeFirst
@@ -4472,6 +4503,15 @@ extension SymbolTestsCore.Generics.GenericPackTest {
 }
 extension SymbolTestsCore.Generics.GenericValueTest {
     typealias Body = Swift.Never
+}
+extension SymbolTestsCore.OpaqueReturnTypes.OpaqueReturnTypeTest.NameFallbackGuardWitness {
+    typealias Element = A
+}
+extension SymbolTestsCore.OpaqueReturnTypes.OpaqueReturnTypeTest.ModuleRefineClosureWitness {
+    typealias Item = Swift.Int
+}
+extension SymbolTestsCore.OpaqueReturnTypes.OpaqueReturnTypeTest.CrossImageRefineClosureWitness {
+    typealias Item = Swift.Int
 }
 extension SymbolTestsCore.OpaqueReturnTypes.OpaqueReturnTypeTest.AnyProtocolTest {
     typealias Body = A
