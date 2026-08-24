@@ -110,7 +110,7 @@ public struct SwiftInterfaceBuilderOpaqueTypeProvider<MachO: MachOSwiftSectionRe
     }
 
     /// Decides which of the parameter's same-type constraints belong to one
-    /// protocol of the composition (evolution proposal 0011):
+    /// protocol of the composition (the opaque-primary-associated-type-attribution evolution proposal):
     ///
     /// 1. anchor is the protocol itself (identity only — works offline);
     /// 2. anchor lies in the protocol's refine closure;

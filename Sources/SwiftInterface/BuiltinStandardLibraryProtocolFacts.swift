@@ -1,5 +1,5 @@
 /// Frozen facts for standard-library protocols, keyed by demangled qualified
-/// name (evolution proposal 0011). This is the only source of
+/// name (the opaque-primary-associated-type-attribution evolution proposal). This is the only source of
 /// primary-associated-type names and their declaration order — runtime
 /// metadata carries no primary marker (SE-0346) — and the offline fallback
 /// for external protocols a `MachOFile` can identify only by bind symbol.

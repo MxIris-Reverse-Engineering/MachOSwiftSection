@@ -158,16 +158,16 @@ extension STCoreE2ETests {
         let output = try await buildOutput()
         // OpaqueReturnTypeTest.functionNested's compositions, in the
         // descriptor's canonical protocol order (source order is not
-        // recoverable). Attribution follows proposal 0011: `Equatable`
+        // recoverable). Attribution follows the opaque-primary-associated-type-attribution proposal: `Equatable`
         // declares no associated types and must never carry a
-        // primary-associated-type argument (pre-0011 this printed the
+        // primary-associated-type argument (the pre-attribution code printed the
         // invalid `Swift.Equatable<[A]>`).
         #expect(output.contains("some Swift.Equatable & Swift.Sequence<[A]>"))
         #expect(output.contains("some Swift.Collection<[A]> & Swift.Equatable & SymbolTestsCore.Protocols.TestCollection<[A]>"))
         #expect(!output.contains("Swift.Equatable<"))
     }
 
-    // MARK: Proposal 0011 — primary-associated-type attribution
+    // MARK: Opaque primary-associated-type attribution (see the same-named evolution proposal)
 
     @Test func opaqueNameFallbackDoesNotFabricateSugar() async throws {
         let output = try await buildOutput()

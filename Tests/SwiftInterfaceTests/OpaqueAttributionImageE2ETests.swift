@@ -5,7 +5,7 @@ import MachOKit
 @_spi(Support) @testable import SwiftInterface
 @testable import MachOSwiftSection
 
-/// MachOImage-side counterpart of the proposal-0011 attribution tests: the
+/// MachOImage-side counterpart of the opaque-attribution tests: the
 /// in-process reader resolves cross-image protocol descriptors (the third
 /// layer of the facts-resolution chain), so the SymbolTestsHelper refine fact
 /// that a MachOFile reader cannot reach attaches here.

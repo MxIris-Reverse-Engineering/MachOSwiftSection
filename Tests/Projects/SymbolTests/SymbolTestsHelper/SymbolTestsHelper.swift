@@ -26,7 +26,7 @@ open class ResilientBase {
 }
 
 /// Cross-image refinement-chain fixtures for MachOSwiftSection's evolution
-/// proposal 0011 (opaque primary-associated-type attribution). SymbolTestsCore
+/// the opaque-primary-associated-type-attribution evolution proposal. SymbolTestsCore
 /// writes opaque sugar on `HelperRefinedProtocol`; resolving the attribution
 /// requires this module's protocol descriptors (the refine fact), which a
 /// `MachOFile` reader of SymbolTestsCore cannot reach (bind symbol only, so

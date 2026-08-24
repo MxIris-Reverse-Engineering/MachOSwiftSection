@@ -2,7 +2,7 @@ import Demangling
 
 /// One same-type constraint mined from an opaque type descriptor's generic
 /// requirements, keeping the associated-type name and anchor protocol that
-/// primary-associated-type attribution needs (evolution proposal 0011).
+/// primary-associated-type attribution needs (the opaque-primary-associated-type-attribution evolution proposal).
 struct OpaqueSameTypeConstraint {
     enum ArgumentSource {
         /// Direct pin (`τ.Name == X`): the concrete right-hand-side node.

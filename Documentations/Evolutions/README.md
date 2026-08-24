@@ -4,6 +4,8 @@
 
 所有非平凡变更以提案形式落盘，一次改动 = 一份提案文件，从调研到落地全生命周期原地更新。状态机：`Draft` → `In Review` → `Accepted` → `In Progress` → `Implemented`，另有 `Rejected` / `Deferred` / `Withdrawn`；被否的提案保留不删。
 
+**编号在落地时分配**（2026-08-24 起，成因：多线并行下创建期取号必撞——0008→0009、0009→0010 各让位一次，opaque 归属提案 0005→0006→0011 两次改号）：创建期文件名用 `draft-<slug>.md` 不占号、状态表编号列写 `draft`；合入长寿命共享分支（main / next）的落地 commit 里 fetch 全部远程共享分支、取 `Evolutions/` 编号全局最大值 +1，改名与互链同批完成。残余撞号以先推上共享分支者为准。in-flight 提案用 slug 引用；**代码与 fixture 注释引用提案只用 slug，不写编号**。演进账本 ProjectEvolutionLog 的节号同规则落地时取。存量 0001–0011 不动。
+
 | # | 标题 | 状态 |
 |---|------|------|
 | [0001](0001-symbol-name-offsetization.md) | SymbolIndexStore 符号名 offset 化：驻留字符串换字符串表引用 | Implemented |

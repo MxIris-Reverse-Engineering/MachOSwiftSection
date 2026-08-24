@@ -3,7 +3,7 @@ import MachOSwiftSection
 @_spi(Internals) import MachOSymbols
 @_spi(Internals) import SwiftInspection
 
-/// What the resolution chain knows about one protocol (evolution proposal 0011).
+/// What the resolution chain knows about one protocol (the opaque-primary-associated-type-attribution evolution proposal).
 struct ProtocolFacts {
     var qualifiedName: String
     /// Own declarations only, no inherited associated types.
@@ -23,7 +23,7 @@ struct ProtocolReference {
     var descriptor: ProtocolDescriptor?
 }
 
-/// Resolves `ProtocolFacts` through the proposal-0011 chain: a reachable
+/// Resolves `ProtocolFacts` through the opaque-primary-associated-type-attribution proposal's chain: a reachable
 /// descriptor (local, or cross-image in-process — `resolvedContent` hands both
 /// over the same way) first, enriched with the builtin table's primary list;
 /// the builtin standard-library table alone when only the identity is known

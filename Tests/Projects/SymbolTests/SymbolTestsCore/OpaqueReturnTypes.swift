@@ -2,7 +2,7 @@ import SymbolTestsHelper
 
 public enum OpaqueReturnTypes {
     public struct OpaqueReturnTypeTest {
-        /// Proposal-0011 witnesses. The three protocols share one associated
+        /// Opaque-attribution-proposal witnesses. The three protocols share one associated
         /// type name, so a single typealias witnesses them all — the opaque
         /// signatures below still pin only what their sugar spells out.
         public struct NameFallbackGuardWitness<CollectionElement>: Protocols.TestCollection, Protocols.UnpinnedElementProtocol, Equatable {
@@ -32,19 +32,19 @@ public enum OpaqueReturnTypes {
 
         public func functionNested<A: Protocols.ProtocolTest & Equatable, B: Protocols.ProtocolTest & Equatable>(_: A, _: B) -> (some Sequence<[A]> & Equatable, (some Protocols.ProtocolTest<A>)?, some Collection<[A]> & Protocols.TestCollection<[A]> & Equatable)? where A.Body == Generics.GenericRequirementTest<B>, A.Body.Body.Body == B { ([], AnyProtocolTest<A, B>(), []) }
 
-        /// Proposal 0011, name-fallback guard: `UnpinnedElementProtocol`
+        /// Opaque-attribution proposal, name-fallback guard: `UnpinnedElementProtocol`
         /// declares an `Element` but the sugar pins only `TestCollection`'s —
         /// the anchor sits inside the composition, so the fallback must NOT
         /// fabricate `UnpinnedElementProtocol<[A]>`.
         public func functionNameFallbackGuard<A: Protocols.ProtocolTest>(_: A) -> some Protocols.TestCollection<[A]> & Protocols.UnpinnedElementProtocol & Equatable { NameFallbackGuardWitness<[A]>() }
 
-        /// Proposal 0011, same-module refine closure: the constraint anchors
+        /// Opaque-attribution proposal, same-module refine closure: the constraint anchors
         /// on `ModuleBaseProtocol` (the declaring base, outside the
         /// composition) and attribution reaches `ModuleRefinedProtocol`
         /// through its own descriptor's requirement signature.
         public func functionModuleRefineClosure() -> some Protocols.ModuleRefinedProtocol<Int> & Equatable { ModuleRefineClosureWitness() }
 
-        /// Proposal 0011, cross-image refine closure: the refine fact lives in
+        /// Opaque-attribution proposal, cross-image refine closure: the refine fact lives in
         /// SymbolTestsHelper. A `MachOFile` reader cannot reach it (bind
         /// symbol only — the parameter honestly degrades to none); a
         /// `MachOImage` reader resolves cross-image and attaches `<Int>`.
