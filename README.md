@@ -317,6 +317,25 @@ swift-section evolution v1.json v2.json v3.json --summary-only --fail-on-breakin
 swift-section evolution v1.json v2.json v3.json --json
 ```
 
+With `--interface`, the same axis renders as a single **annotated union
+interface** instead of the lineage list: every declaration that ever existed
+appears once (rendered from the last version that has it), declarations that
+changed carry a trailing `// [●●○] removed in 26.0`-style comment (presence
+bitmap + event phrases; the legend at the top maps bitmap positions to version
+labels), and declarations present throughout with no changes stay bare. A
+member whose signature changed shows its newest generation, with the old shape
+in the comment (`modified in 26.0: old → new`). Because the interface renders
+from live models, every input must be a binary or dyld shared cache in this
+mode — snapshot JSON inputs are rejected.
+
+```bash
+# The union interface with lifecycle annotations, colorized on a terminal
+swift-section evolution --interface v17/Foo.dylib v18/Foo.dylib v26/Foo.dylib --labels 17.0,18.0,26.0
+
+# Across dyld shared caches, written to a file, gating CI on breaking changes
+swift-section evolution --interface --dyld-shared-cache -n SwiftUICore cache-17 cache-18 cache-26 --fail-on-breaking -o SwiftUICore-evolution.swift
+```
+
 #### transformer - Customize Comment Formats
 
 The memory-layout comments `dump` and `interface` emit are rendered from token
