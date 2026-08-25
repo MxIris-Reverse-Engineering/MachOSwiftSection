@@ -108,7 +108,9 @@ enum DiffMarking {
     /// Splits a flat atomic-component stream into per-line component arrays,
     /// breaking at every `\n` (which may appear mid-string within a component).
     /// Newline characters themselves are dropped — callers re-insert line breaks.
-    private static func splitIntoLines(_ components: [AtomicComponent]) -> [[AtomicComponent]] {
+    /// Internal (not `private`) so `EvolutionMarking` shares the exact same
+    /// line-splitting rule instead of growing a drifting copy.
+    static func splitIntoLines(_ components: [AtomicComponent]) -> [[AtomicComponent]] {
         var lines: [[AtomicComponent]] = [[]]
         for component in components {
             let segments = component.string.components(separatedBy: "\n")
