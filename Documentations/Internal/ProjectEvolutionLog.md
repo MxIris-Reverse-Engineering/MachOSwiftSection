@@ -968,6 +968,40 @@
 
 ---
 
+## 43. 演进并集注解接口 SwiftEvolutionInterfaceBuilder（提案 draft-swift-evolution-interface-builder）
+
+- **时间段**：2026-08-25。
+- **动机**：`swift-section evolution` 唯一的人读输出是 `ABIEvolutionReporter` 的
+  「位图 + 事件行」lineage 清单——不是代码的形状，成员脱离容器语法上下文，且只有
+  变化没有幸存者，判断一次删减的严重性无从对照。两版本场景 `diff --interface`
+  早已解决同类问题，N 版本没有对应物。
+- **关键决策**：
+  - **并集接口 + 生命周期注解**：所有版本声明的并集只渲染一次（每条由最后存在
+    版本的模型与 printer 渲染），行尾 `// [●●○] removed in 26.0` 注解，没注解 =
+    全程存在未变；否掉逐 transition 串联与「最新版 + since」两形态。
+  - **注解事实唯一来源是 `ABIEvolution`**：渲染器按 `ABIKey`（与 `ABIDiffer`
+    冻结快照完全同构的构造）查 lineage，不自行推导事件——接口视图、清单报告与
+    JSON 永不各说各话；lineage 查不到就是「未变」裁决（依赖 changes-only 契约）。
+  - **全二进制输入**：快照只有单行签名，interface 模式直接拒收（与
+    `diff --interface` 同款约束）；混用降级留作后续提案。
+  - **公开类非泛型 + 双 init**：逐版本擦除（`EvolutionVersionRendering` /
+    `EvolutionVersionUnit`），同质 `[MachO]` init 全平台可用（CLI 走它），
+    parameter-pack 异构 init 按 SE-0393 运行时下限 `@available(macOS 14…)` 门控。
+  - **modified 只渲染最新代际**：旧形态进注解短语（`modified in X: 旧 → 新`；
+    两侧文本相同省箭头），同一成员不裂多行，接口主体保持合法 Swift 的形状。
+- **落地模块**：`SwiftInterface`（`SwiftEvolutionInterfaceBuilder` / `Renderer` /
+  `EvolutionMarking` / `EvolutionAnnotationIndex` / `EvolutionVersionRendering` /
+  `EvolutionLine`）、`swift-section`（`evolution --interface` + 事件类别着色）；
+  测试为格式层/注解索引单测 + 三版本即时编译 fixture 的端到端 suite +
+  CLI 校验规则钉子。
+- **文档**：[draft-swift-evolution-interface-builder.md](../Evolutions/draft-swift-evolution-interface-builder.md)、
+  [ABIEvolutionDesign.md](ABIEvolutionDesign.md)（第五批增量一节）、
+  [TaskReports/2026-08-25-swift-evolution-interface-builder.md](TaskReports/2026-08-25-swift-evolution-interface-builder.md)、
+  README `evolution` 一节、术语表新增「union interface」「lifecycle annotation」。
+- **对应版本**：`0.16.0` 之后、下一次 bump 之前。
+
+---
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节

@@ -246,7 +246,34 @@ diff 的 verdict 交叉核对行。
 - 全量矩阵视图（含未变化 API 的 API × 版本表）。
 - per-conformance 归属等 diff 侧挂账 —— evolution 会自动受益，无需
   evolution 侧改动。
-- 注释接口的时间线版（每行标注 introduced-in）。
+- ~~注释接口的时间线版（每行标注 introduced-in）~~ —— 已由第五批落地
+  （`SwiftEvolutionInterfaceBuilder` 的并集注解接口，见下）。
+
+## 首轮落地后的增量（第五批）—— 并集注解接口（`evolution --interface`）
+
+提案：`Evolutions/draft-swift-evolution-interface-builder.md`。把 N 版本演进渲染成
+**一份带生命周期注解的 Swift 接口**，取代 lineage 清单成为主要人读视图。落点在
+`SwiftInterface`（不是本模块——渲染需要活模型与 printer），但设计与本模块强耦合，
+维护时会踩的决策记录在这里：
+
+- **注解事实唯一来源是 `ABIEvolution`**（`EvolutionAnnotationIndex` 按 `ABIKey`
+  查表）：渲染器不自己推导事件。查不到 lineage **就是**「全程存在未变」的裁决——
+  这依赖本模块「只物化有事件的 lineage」的 changes-only 契约；若那条契约变了
+  （比如开始物化全量 lineage），接口侧的「没注解 = 未变」立即失真，必须同步改。
+- **join 的另一半是 key 构造**：渲染器对活模型算 key 用的是与 `ABIDiffer.snapshot`
+  完全相同的构造（容器 `ABIKey.makeUnwrappingType` / `extensionContainerKey`，
+  成员 `MemberRecord.make*` 的 identityKey）。任何 key scheme 变更（历次
+  `formatVersion` bump 的那类改动）都会同时改变 join 的两侧，天然同步；但**新增**
+  一类成员记录（如 pwtslot 当年那样）时要显式决定接口侧渲不渲——pwtslot 首轮
+  决定不渲（无 declaration 形态，与 `diff --interface` 先例一致）。
+- **容器 lineage 只有 added/removed 事件**（modified 不存储、由成员事件可导出）——
+  接口侧据此规定：全程存在但成员有事件的容器 header **不注解**（信号在成员行上），
+  空事件的 lineage 命中也返回 nil 注解。
+- **modified 事件的短语用 `oldSignature`/`newSignature`**；两者相同（payload 变了
+  但签名文本不可见：accessor 集、符号身份）时省略箭头段，只写 `modified in X`——
+  与两侧 renderer 的「渲染串相同折叠为 unchanged」同一条降噪理由。
+- N 路并集排序、逐版本擦除、parameter-pack 门控等接口侧决策见提案的「详细设计」
+  与 AGENTS.md 的 `SwiftEvolutionInterfaceBuilder` 条目，不在此重复。
 
 ## 首轮落地后的增量（第四批）
 
