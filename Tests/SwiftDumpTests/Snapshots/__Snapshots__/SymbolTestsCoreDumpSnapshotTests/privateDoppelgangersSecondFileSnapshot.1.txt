@@ -1,0 +1,6 @@
+// MARK: - Types
+
+enum SymbolTestsCore.PrivateDoppelgangerSecondFileAnchors {
+    /* Static Function */
+    static SymbolTestsCore.PrivateDoppelgangerSecondFileAnchors.materializeSecondDoppelganger() -> Any
+}

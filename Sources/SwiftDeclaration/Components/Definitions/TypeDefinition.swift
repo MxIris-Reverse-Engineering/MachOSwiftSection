@@ -312,9 +312,12 @@ public final class TypeDefinition: Definition {
         // See the property doc comments for the role each symbol plays.
         // The deallocator drives whether `deinit` is printed at all; the
         // destructor (only present on classes) is exposed as an extra
-        // address comment.
-        deallocatorSymbol = symbolIndexStore.memberSymbols(of: .deallocator, for: typeName.name, in: machO).first?.detachedFromSharedTable()
-        destructorSymbol = symbolIndexStore.memberSymbols(of: .destructor, for: typeName.name, in: machO).first?.detachedFromSharedTable()
+        // address comment. Both go through the node-matched overload like
+        // every other member kind — a name-only `.first` could hand a
+        // same-named private sibling's deinit address to this type
+        // (issue #115's family).
+        deallocatorSymbol = symbolIndexStore.memberSymbols(of: .deallocator, for: name, node: node, in: machO).first?.detachedFromSharedTable()
+        destructorSymbol = symbolIndexStore.memberSymbols(of: .destructor, for: name, node: node, in: machO).first?.detachedFromSharedTable()
 
         let variablesProduct = DefinitionBuilder.variablesProduct(
             for: symbolIndexStore.memberSymbols(of: .variable(inExtension: false, isStatic: false, isStorage: false), for: name, node: node, in: machO).map { .init(base: $0, offset: nil) },
@@ -394,7 +397,7 @@ public final class TypeDefinition: Definition {
         )
 
         // Cross-reference @objc and @nonobjc thunk symbols with built definitions
-        applyThunkAttributes(symbolIndexStore: symbolIndexStore, typeName: name, in: machO)
+        applyThunkAttributes(symbolIndexStore: symbolIndexStore, typeName: name, typeNode: node, in: machO)
 
         // `final` recovery (evolution proposal 0006) — the mirror image of the
         // `class`/`static` recovery documented in ClassMemberKeywordRecovery.md:
@@ -499,6 +502,7 @@ public final class TypeDefinition: Definition {
     private func applyThunkAttributes<MachO: MachORepresentableWithCache>(
         symbolIndexStore: SymbolIndexStore,
         typeName: String,
+        typeNode: NodeReference,
         in machO: MachO
     ) {
         let thunkKindsAndAttributes: [(Node.Kind, SwiftAttribute)] = [
@@ -508,7 +512,10 @@ public final class TypeDefinition: Definition {
         ]
 
         for (thunkKind, attribute) in thunkKindsAndAttributes {
-            let members = symbolIndexStore.thunkAttributeMembers(of: thunkKind, for: typeName, in: machO)
+            // Node-matched: the member-name matching below is string-based,
+            // so a same-named private sibling's thunks must never reach it
+            // (issue #115's family).
+            let members = symbolIndexStore.thunkAttributeMembers(of: thunkKind, for: typeName, node: typeNode, in: machO)
             for member in members {
                 if member.isStatic {
                     applyAttributeToFunction(name: member.memberName, attribute: attribute, in: &staticFunctions)

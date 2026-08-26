@@ -230,9 +230,19 @@ final class SymbolIndexStoreFixtureTests: MachOFileTests, @unchecked Sendable {
     @Test func typeInfoLookupMatchesIndexedNames() throws {
         let storage = try storage
         #expect(!storage.typeInfoByName.isEmpty)
-        for (typeName, expectedTypeInfo) in storage.typeInfoByName {
-            let queried = try #require(SymbolIndexStore.shared.typeInfo(for: typeName, in: machOFile))
-            #expect(queried.name == expectedTypeInfo.name)
+        for (typeName, typeInfoByTypeNodeIndex) in storage.typeInfoByName {
+            // Name-only lookup answers first-wins across the (rare)
+            // same-named private types sharing the stripped name bucket.
+            let queriedByNameOnly = try #require(SymbolIndexStore.shared.typeInfo(for: typeName, in: machOFile))
+            #expect(queriedByNameOnly.name == typeInfoByTypeNodeIndex.values.first?.name)
+            // The node-matched overload resolves each context node's own
+            // entry (issue #115's family).
+            for (typeNodeIndex, expectedTypeInfo) in typeInfoByTypeNodeIndex {
+                let keyReference = storage.nodeStore.reference(at: typeNodeIndex)
+                let queried = try #require(SymbolIndexStore.shared.typeInfo(for: typeName, node: keyReference, in: machOFile))
+                #expect(queried.name == expectedTypeInfo.name)
+                #expect(queried.kind == expectedTypeInfo.kind)
+            }
         }
     }
 

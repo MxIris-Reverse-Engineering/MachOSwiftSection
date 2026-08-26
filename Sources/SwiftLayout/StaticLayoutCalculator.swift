@@ -197,6 +197,28 @@ public struct StaticLayoutCalculator<MachO: MachOSwiftSectionRepresentableWithCa
                 && structural.stride == builtinLayout.stride
                 && structural.alignment == builtinLayout.alignment
             guard structuralMatchesBuiltin else {
+                // Not a full agreement — but the offsets can still be proven
+                // when both layouts are the same tight packing: if every
+                // structurally-resolved field sits at the running sum of the
+                // preceding fields' sizes and that sum equals the builtin
+                // whole-type size, neither layout has room for any padding,
+                // hidden storage, or bitfield the records cannot see, so both
+                // are forced to the identical cumulative-sum offsets. This is
+                // exactly a `#pragma pack` struct whose fields happen to be
+                // naturally aligned anyway — `__C.CMTime` (8+4+4+8 == 24,
+                // aggregate alignment 4 vs the structural natural 8; issue
+                // #116). `Decimal` (records sum 16, builtin 20) and
+                // `PathData` (no records) still fail the proof and degrade.
+                // The whole-type facts always come from the builtin record.
+                if fieldOffsetsProvenByTightPacking(structural: structural, builtinSize: builtinLayout.size) {
+                    return AggregateFieldLayout(
+                        fields: structural.fields,
+                        size: builtinLayout.size,
+                        stride: builtinLayout.stride,
+                        alignment: builtinLayout.alignment,
+                        extraInhabitantCount: builtinLayout.extraInhabitantCount
+                    )
+                }
                 let degradedFields = structural.fields.map { field in
                     FieldLayoutEntry(
                         fieldName: field.fieldName,
@@ -226,6 +248,29 @@ public struct StaticLayoutCalculator<MachO: MachOSwiftSectionRepresentableWithCa
             )
         }
         return structural
+    }
+
+    /// Whether a foreign struct's structurally-accumulated field offsets are
+    /// proven correct despite a whole-type mismatch with the builtin record:
+    /// every field must be resolved, sit exactly at the running sum of the
+    /// preceding fields' sizes (no structural padding), and the total sum must
+    /// equal the builtin whole-type size (no C-side padding or hidden storage
+    /// either). Both layouts are then the same forced tight packing — C never
+    /// reorders fields — so the per-field offsets cannot differ. Aggregate
+    /// alignment plays no part: `#pragma pack` changes it without moving any
+    /// field of such a struct.
+    private func fieldOffsetsProvenByTightPacking(structural: AggregateFieldLayout, builtinSize: Int) -> Bool {
+        guard !structural.fields.isEmpty else { return false }
+        var runningOffset = 0
+        for field in structural.fields {
+            guard
+                case .computed = field.resolution,
+                let fieldTypeLayout = field.layout,
+                field.offset == runningOffset
+            else { return false }
+            runningOffset += fieldTypeLayout.size
+        }
+        return runningOffset == builtinSize
     }
 
     /// The `__swift5_builtin` whole-type layout of a foreign (C-imported)

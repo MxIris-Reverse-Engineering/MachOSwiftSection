@@ -58,4 +58,53 @@ final class ForeignStructTopLevelLayoutTests: MachOSwiftSectionFixtureTests, @un
         }
         #expect(foundDescriptor, "fixture image carries no __C.Decimal foreign descriptor")
     }
+
+    /// Issue #116: `CMTime` is declared under `#pragma pack(push, 4)`, so its
+    /// builtin whole-type record (24/24/align 4) disagrees with the structural
+    /// accumulation only in aggregate alignment — the Swift-visible field
+    /// sizes (8+4+4+8) sum exactly to the builtin size, which proves both
+    /// layouts are the same tight packing and pins every field offset
+    /// (0/8/12/16). The guard must keep those offsets instead of degrading
+    /// them to `foreignTypeFieldOffsetsUnavailable`, while the whole-type
+    /// facts still come from the builtin record.
+    @MainActor
+    @Test func packedForeignStructKeepsDerivableFieldOffsets() async throws {
+        let machO = machOImage
+        let calculator = try StaticLayoutCalculator(machO: machO)
+
+        var foundDescriptor = false
+        for contextDescriptor in try machO.swift.contextDescriptors {
+            guard
+                let descriptor = contextDescriptor.typeContextDescriptorWrapper,
+                descriptor.isStruct,
+                let qualifiedTypeName = (try? MetadataReader.demangleContext(for: contextDescriptor, in: machO))
+                    .flatMap(NodeTypeNaming.nominalQualifiedName(of:)),
+                qualifiedTypeName == "__C.CMTime"
+            else { continue }
+            foundDescriptor = true
+
+            let aggregate = try calculator.fieldLayout(of: descriptor)
+
+            // Whole-type facts from the builtin record: the C `#pragma
+            // pack(4)` alignment, not the structural natural alignment 8.
+            #expect(aggregate.size == 24, "size \(aggregate.size)")
+            #expect(aggregate.stride == 24, "stride \(aggregate.stride)")
+            #expect(aggregate.alignment == 4, "alignment \(aggregate.alignment)")
+
+            // The tight-packing proof preserves every per-field offset.
+            let offsetsByFieldName = aggregate.fields.map { ($0.fieldName, $0.offset) }
+            let expectedOffsetsByFieldName = [("value", 0), ("timescale", 8), ("flags", 12), ("epoch", 16)]
+            #expect(
+                offsetsByFieldName.elementsEqual(expectedOffsetsByFieldName, by: ==),
+                "fields \(offsetsByFieldName)"
+            )
+            for field in aggregate.fields {
+                if case .unknown(let reason) = field.resolution {
+                    Issue.record("packed foreign field \(field.fieldName) degraded (\(reason)) despite a derivable offset")
+                }
+            }
+            break
+        }
+        #expect(foundDescriptor, "fixture image carries no __C.CMTime foreign descriptor")
+    }
 }
