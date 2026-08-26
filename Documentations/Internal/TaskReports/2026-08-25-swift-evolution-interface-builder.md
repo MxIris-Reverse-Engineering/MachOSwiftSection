@@ -113,3 +113,26 @@ dump 同输入，便于并排目检两个视图讲同一个故事）+ SwiftUICor
 重泛型/opaque/extension），pack façade 实机 dump 亦为三镜像
 （`SwiftEvolutionInterfaceBuilder<MachOFile, MachOFile, MachOFile>`）。
 验证：`swift build --build-tests` 全量编译通过 + 受影响单测/E2E suite 重跑全绿。
+
+## 后续（2026-08-26 二）：属性打印修正（用户实机反馈）
+
+用户跑 SwiftUI 三缓存轴 dump 后指出属性打印有问题，定位为两处成员多行渲染缺陷：
+
+1. **accessor 块双重缩进**：`VariableNodePrinter`/`SubscriptNodePrinter` 按 `level`
+   给块内行烘焙**绝对**缩进（`(level+1)*4` 的 `get`、`level*4` 的 `}`），而 evolution
+   格式层又给单元的每一行加了层级缩进——两者叠加。修法：成员一律以 **printer
+   level 0** 渲染（function/field 本就不消费 level），块变相对缩进，格式层的统一
+   逐行缩进即精确。normal interface 路径不受影响（它只给首行加缩进，续行吃烘焙的
+   绝对缩进——两种消费契约对不上正是缺陷根源）。
+2. **注解沉底**：多行成员（计算属性）的生命周期注解落在了 accessor 块收尾 `}` 上。
+   「附着末行」规则改为**锚点分靶**：成员锚首行（属性内联打印，首行即声明行）；
+   容器 header 锚末行（attribute 行在前，末行才是带 `{` 的声明行）。
+
+钉子：`memberAnnotationAnchorsOnTheFirstLine` / `headerAnnotationAnchorsOnTheLastLine`
+（格式层）+ e2e fixture 新增被移除的计算属性 `Alpha.summary`（注解在声明行、
+`get`/`}` 相对缩进、全文无双重缩进痕迹）。
+
+**同源遗留（本批不动、待另行处理）**：两侧 `diff --interface` 路径的成员渲染仍是
+「真实 level + 逐行缩进」，带同样的双重缩进伪影；opaque `some` 裸打印（截图中的
+`var body: some {`）是 diff 路径既有缺口——printer 的 opaque 展开靠宿主对
+`SwiftInterfaceBuilder.addExtraDataProvider` 接线，diff/evolution 两路都没接。

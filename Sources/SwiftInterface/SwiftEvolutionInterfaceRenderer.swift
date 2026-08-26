@@ -79,7 +79,7 @@ struct SwiftEvolutionInterfaceRenderer: Sendable {
     private func renderGlobalVariables() async -> [[EvolutionLine]] {
         await mergeMemberUnits(
             perVersion: versions.enumerated().map { versionIndex, unit in
-                unit.globalVariableDefinitions.map { variableMember($0, versionIndex: versionIndex, level: 0) }
+                unit.globalVariableDefinitions.map { variableMember($0, versionIndex: versionIndex) }
             },
             annotationScope: .global,
             level: 0
@@ -89,7 +89,7 @@ struct SwiftEvolutionInterfaceRenderer: Sendable {
     private func renderGlobalFunctions() async -> [[EvolutionLine]] {
         await mergeMemberUnits(
             perVersion: versions.enumerated().map { versionIndex, unit in
-                unit.globalFunctionDefinitions.map { functionMember($0, versionIndex: versionIndex, level: 0) }
+                unit.globalFunctionDefinitions.map { functionMember($0, versionIndex: versionIndex) }
             },
             annotationScope: .global,
             level: 0
@@ -141,7 +141,7 @@ struct SwiftEvolutionInterfaceRenderer: Sendable {
         units += await renderProtocolListUnits(perVersion: elements.map { $0?.protocolChildren ?? [] }, level: level + 1)
 
         units += await mergeMemberUnits(
-            perVersion: fieldMembers(elements: elements, level: level),
+            perVersion: fieldMembers(elements: elements),
             annotationScope: .container(containerKey),
             level: level
         )
@@ -149,7 +149,7 @@ struct SwiftEvolutionInterfaceRenderer: Sendable {
         for category in MemberCategory.allCases {
             units += await mergeMemberUnits(
                 perVersion: elements.enumerated().map { versionIndex, definition in
-                    renderableMembers(definition, in: category, versionIndex: versionIndex, level: level)
+                    renderableMembers(definition, in: category, versionIndex: versionIndex)
                 },
                 annotationScope: .container(containerKey),
                 level: level
@@ -195,7 +195,7 @@ struct SwiftEvolutionInterfaceRenderer: Sendable {
         for category in MemberCategory.allCases {
             units += await mergeMemberUnits(
                 perVersion: elements.enumerated().map { versionIndex, definition in
-                    renderableMembers(definition, in: category, versionIndex: versionIndex, level: level)
+                    renderableMembers(definition, in: category, versionIndex: versionIndex)
                 },
                 annotationScope: .container(containerKey),
                 level: level
@@ -282,7 +282,7 @@ struct SwiftEvolutionInterfaceRenderer: Sendable {
         for category in MemberCategory.allCases {
             units += await mergeMemberUnits(
                 perVersion: elements.enumerated().map { versionIndex, container in
-                    extensionRenderableMembers(container?.definitions, in: category, versionIndex: versionIndex, level: level)
+                    extensionRenderableMembers(container?.definitions, in: category, versionIndex: versionIndex)
                 },
                 annotationScope: .container(containerKey),
                 level: level
@@ -301,25 +301,34 @@ struct SwiftEvolutionInterfaceRenderer: Sendable {
     //
     // Identity keys use the same `MemberRecord` projections `ABIDiffer`
     // freezes into snapshots, so the annotation lookup joins exactly.
+    //
+    // Every member renders at printer level 0: the member printers bake the
+    // accessor block's interior indentation ABSOLUTELY from `level`
+    // ((level+1)*4 for accessors, level*4 for the closing brace), while the
+    // evolution format layer indents EVERY line of a unit by the line's own
+    // `indentLevel` — rendering at a real level would indent the interior
+    // twice. Level 0 makes the unit level-relative, which is exactly what the
+    // uniform per-line indentation expects. (Functions and fields ignore the
+    // parameter; variables and subscripts are the ones with accessor blocks.)
 
-    private func variableMember(_ variable: VariableDefinition, versionIndex: Int, level: Int) -> EvolutionRenderableMember {
+    private func variableMember(_ variable: VariableDefinition, versionIndex: Int) -> EvolutionRenderableMember {
         let unit = versions[versionIndex]
         return EvolutionRenderableMember(identityKey: MemberRecord.make(variable).identityKey) {
-            await unit.printVariable(variable, level: level)
+            await unit.printVariable(variable, level: 0)
         }
     }
 
-    private func functionMember(_ function: FunctionDefinition, versionIndex: Int, level: Int) -> EvolutionRenderableMember {
+    private func functionMember(_ function: FunctionDefinition, versionIndex: Int) -> EvolutionRenderableMember {
         let unit = versions[versionIndex]
         return EvolutionRenderableMember(identityKey: MemberRecord.make(function).identityKey) {
-            await unit.printFunction(function, level: level)
+            await unit.printFunction(function, level: 0)
         }
     }
 
-    private func subscriptMember(_ subscriptDefinition: SubscriptDefinition, versionIndex: Int, level: Int) -> EvolutionRenderableMember {
+    private func subscriptMember(_ subscriptDefinition: SubscriptDefinition, versionIndex: Int) -> EvolutionRenderableMember {
         let unit = versions[versionIndex]
         return EvolutionRenderableMember(identityKey: MemberRecord.make(subscriptDefinition).identityKey) {
-            await unit.printSubscript(subscriptDefinition, level: level)
+            await unit.printSubscript(subscriptDefinition, level: 0)
         }
     }
 
@@ -330,18 +339,17 @@ struct SwiftEvolutionInterfaceRenderer: Sendable {
     private func renderableMembers<EnclosingDefinition: Definition>(
         _ definition: EnclosingDefinition?,
         in category: MemberCategory,
-        versionIndex: Int,
-        level: Int
+        versionIndex: Int
     ) -> [EvolutionRenderableMember] {
         guard let definition else { return [] }
         return definition.members(in: category).map { member in
             switch member {
             case .allocator(let function), .function(let function):
-                functionMember(function, versionIndex: versionIndex, level: level)
+                functionMember(function, versionIndex: versionIndex)
             case .variable(let variable):
-                variableMember(variable, versionIndex: versionIndex, level: level)
+                variableMember(variable, versionIndex: versionIndex)
             case .subscript(let subscriptDefinition):
-                subscriptMember(subscriptDefinition, versionIndex: versionIndex, level: level)
+                subscriptMember(subscriptDefinition, versionIndex: versionIndex)
             }
         }
     }
@@ -352,26 +360,25 @@ struct SwiftEvolutionInterfaceRenderer: Sendable {
     private func extensionRenderableMembers(
         _ definitions: [ExtensionDefinition]?,
         in category: MemberCategory,
-        versionIndex: Int,
-        level: Int
+        versionIndex: Int
     ) -> [EvolutionRenderableMember] {
-        (definitions ?? []).flatMap { renderableMembers($0, in: category, versionIndex: versionIndex, level: level) }
+        (definitions ?? []).flatMap { renderableMembers($0, in: category, versionIndex: versionIndex) }
     }
 
-    private func fieldMembers(elements: [TypeDefinition?], level: Int) -> [[EvolutionRenderableMember]] {
+    private func fieldMembers(elements: [TypeDefinition?]) -> [[EvolutionRenderableMember]] {
         elements.enumerated().map { versionIndex, definition -> [EvolutionRenderableMember] in
             guard let definition else { return [] }
             let unit = versions[versionIndex]
             if case .enum = definition.typeContextDescriptorWrapper {
                 return definition.fields.enumerated().map { tag, field in
                     EvolutionRenderableMember(identityKey: MemberRecord.makeCase(field, tag: tag).identityKey) {
-                        await unit.printEnumCase(field, level: level)
+                        await unit.printEnumCase(field, level: 0)
                     }
                 }
             } else {
                 return definition.fields.map { field in
                     EvolutionRenderableMember(identityKey: MemberRecord.make(field).identityKey) {
-                        await unit.printField(field, level: level)
+                        await unit.printField(field, level: 0)
                     }
                 }
             }
@@ -426,7 +433,7 @@ struct SwiftEvolutionInterfaceRenderer: Sendable {
             case .container(let containerKey):
                 annotations.memberAnnotation(forContainerKey: containerKey, memberKey: match.key)
             }
-            let lines = EvolutionMarking.annotatedLines(rendered, annotation: annotation, indentLevel: level)
+            let lines = EvolutionMarking.annotatedLines(rendered, annotation: annotation, indentLevel: level, anchor: .firstLine)
             if !lines.isEmpty { units.append(lines) }
         }
         return units
