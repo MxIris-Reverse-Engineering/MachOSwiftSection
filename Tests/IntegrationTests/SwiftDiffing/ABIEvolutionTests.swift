@@ -100,9 +100,9 @@ enum ABIEvolutionTestSuite {
         let caches: [DyldCache]
         let versions: [(label: String, machO: MachOFile)]
 
-        class var cachePaths: [DyldSharedCachePath] { [.macOS_15_5, .macOS_26_5_1, .macOS_27_0_beta_1] }
-        class var cacheLabels: [String] { ["15.5", "26.5.1", "27.0-beta.1"] }
-        class var cacheImageName: MachOImageName { .AppKit }
+        class var cachePaths: [DyldSharedCachePath] { [.macOS_15_5, .macOS_26_5_2, .macOS_27_0] }
+        class var cacheLabels: [String] { ["15.5", "26.5.2", "27.0"] }
+        class var cacheImageName: MachOImageName { .SwiftUI }
 
         init() async throws {
             var caches: [DyldCache] = []
