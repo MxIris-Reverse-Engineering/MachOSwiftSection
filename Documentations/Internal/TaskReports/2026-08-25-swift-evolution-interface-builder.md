@@ -82,3 +82,28 @@
   ——耦合点全部在与 evolution 模型的契约上，与既有增量批次同处一文更利检索。
 - 输出中发现 extension 里多行 accessor 块（`hashValue { get }`）缩进偏深，与既有
   `diff --interface` 路径行为一致（printer 交互，非本改动引入），不在本批修。
+
+## 后续（2026-08-26）：API 形态修订 + 集成测试
+
+用户指正第二轮第 4 题的本意是 **pack 泛型类**
+（`SwiftEvolutionInterfaceBuilder<each MachO: FieldLayoutRenderable>`），非
+「非泛型类 + pack init」。探针实测钉住三个事实后重塑 API：
+
+1. pack 在**类型泛型参数表**必须 `@available(macOS 14+)`（编译器强制：
+   `parameter packs in generic types are only available in macOS 14.0.0 or newer`）；
+2. pack 在**函数**位置不需要门——这解释了擦除类的 pack init 去门后仍可编译；
+3. `repeat each MachO == Element` same-element 约束当前工具链不支持
+   （`same-element requirements are not yet supported`），加上 pack arity 编译期
+   固定，运行时 N（CLI / RuntimeViewer 用户任选版本）原理上无法用 pack 类型承接。
+
+裁定（AskUserQuestion 一轮）：pack 类拿主名（macOS 14+ 薄 façade，构造即擦除、
+暴露 `erased`，行为与擦除类逐字节一致，`packGenericFacadeMatchesTheErasedBuilder`
+钉住）；运行时 N 擦除类循 Swift 擦除惯例定名 `AnySwiftEvolutionInterfaceBuilder`
+（否：不公开——与第一轮「公开供 RuntimeViewer 复用」相抵触），CLI 改用之。
+
+同批新增**集成测试** `Tests/IntegrationTests/SwiftInterface/
+SwiftEvolutionInterfaceBuilderTests.swift`：沿用维护者手检 dump 形态（无断言；
+agent 只编译不运行），AppKit 三缓存轴（15.5 → 26.5.1 → 27.0-beta.1，与
+`ABIEvolutionTests` 的 lineage 报告 dump 同输入，便于并排目检两个视图讲同一个
+故事）+ SwiftUICore 双模拟器轴（18.5 → 26.5），另含 pack façade 的实机 dump。
+验证：`swift build --build-tests` 全量编译通过 + 受影响单测/E2E suite 重跑全绿。

@@ -928,9 +928,13 @@
     JSON 永不各说各话；lineage 查不到就是「未变」裁决（依赖 changes-only 契约）。
   - **全二进制输入**：快照只有单行签名，interface 模式直接拒收（与
     `diff --interface` 同款约束）；混用降级留作后续提案。
-  - **公开类非泛型 + 双 init**：逐版本擦除（`EvolutionVersionRendering` /
-    `EvolutionVersionUnit`），同质 `[MachO]` init 全平台可用（CLI 走它），
-    parameter-pack 异构 init 按 SE-0393 运行时下限 `@available(macOS 14…)` 门控。
+  - **公开面双类型**（2026-08-26 按用户指正修订）：运行时 N 的擦除类
+    `AnySwiftEvolutionInterfaceBuilder`（逐版本擦除，`[MachO]` 数组 init 与
+    函数位 pack init 全平台可用，CLI 走它）+ pack 泛型 façade
+    `SwiftEvolutionInterfaceBuilder<each MachO>`（编译期定形；pack 在类型泛型
+    参数表被编译器强制 `@available(macOS 14…)`，构造即擦除、行为逐字节一致）。
+    实测钉住：函数位 pack 不需要 availability 门；same-element 约束
+    （`repeat each MachO == M`）当前工具链不支持，运行时 N 无法落在 pack 类上。
   - **modified 只渲染最新代际**：旧形态进注解短语（`modified in X: 旧 → 新`；
     两侧文本相同省箭头），同一成员不裂多行，接口主体保持合法 Swift 的形状。
 - **落地模块**：`SwiftInterface`（`SwiftEvolutionInterfaceBuilder` / `Renderer` /

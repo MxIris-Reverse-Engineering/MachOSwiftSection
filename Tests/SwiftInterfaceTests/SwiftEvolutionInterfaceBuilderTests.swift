@@ -133,8 +133,8 @@ struct SwiftEvolutionInterfaceBuilderTests {
         }
     }
 
-    private func preparedBuilder() async throws -> SwiftEvolutionInterfaceBuilder {
-        let builder = try SwiftEvolutionInterfaceBuilder(
+    private func preparedBuilder() async throws -> AnySwiftEvolutionInterfaceBuilder {
+        let builder = try AnySwiftEvolutionInterfaceBuilder(
             versions: try loadFixtureMachOFiles(),
             labels: ["1.0", "2.0", "3.0"]
         )
@@ -231,7 +231,7 @@ struct SwiftEvolutionInterfaceBuilderTests {
     // MARK: - Contracts
 
     @Test func renderingBeforePrepareThrowsNotPrepared() async throws {
-        let builder = try SwiftEvolutionInterfaceBuilder(
+        let builder = try AnySwiftEvolutionInterfaceBuilder(
             versions: try loadFixtureMachOFiles(),
             labels: ["1.0", "2.0", "3.0"]
         )
@@ -243,10 +243,10 @@ struct SwiftEvolutionInterfaceBuilderTests {
     @Test func initializerRejectsInvalidInputShapes() throws {
         let machOFiles = try loadFixtureMachOFiles()
         #expect(throws: ABIEvolutionError.fewerThanTwoVersions(versionCount: 1)) {
-            _ = try SwiftEvolutionInterfaceBuilder(versions: [machOFiles[0]], labels: ["1.0"])
+            _ = try AnySwiftEvolutionInterfaceBuilder(versions: [machOFiles[0]], labels: ["1.0"])
         }
         #expect(throws: ABIEvolutionError.labelCountMismatch(labelCount: 2, versionCount: 3)) {
-            _ = try SwiftEvolutionInterfaceBuilder(versions: machOFiles, labels: ["1.0", "2.0"])
+            _ = try AnySwiftEvolutionInterfaceBuilder(versions: machOFiles, labels: ["1.0", "2.0"])
         }
     }
 
@@ -255,7 +255,7 @@ struct SwiftEvolutionInterfaceBuilderTests {
     /// the interface view of it).
     @Test func twoVersionAxisMatchesTheTwoSidedDiffStory() async throws {
         let machOFiles = try loadFixtureMachOFiles()
-        let builder = try SwiftEvolutionInterfaceBuilder(
+        let builder = try AnySwiftEvolutionInterfaceBuilder(
             versions: [machOFiles[1], machOFiles[2]],
             labels: ["2.0", "3.0"]
         )
@@ -264,5 +264,29 @@ struct SwiftEvolutionInterfaceBuilderTests {
         #expect(interface.contains("// [●○] removed in 3.0"))
         #expect(interface.contains("// [○●] added in 3.0"))
         #expect(!interface.contains("[●●○]"))
+    }
+
+    /// The pack-generic façade (`SwiftEvolutionInterfaceBuilder<each MachO>`)
+    /// must be behaviorally identical to the erased builder it delegates to —
+    /// byte-identical output over the same axis, and the same evolution value
+    /// exposed for verdict reuse.
+    @available(macOS 14.0, *)
+    @Test func packGenericFacadeMatchesTheErasedBuilder() async throws {
+        let machOFiles = try loadFixtureMachOFiles()
+        let labels = ["1.0", "2.0", "3.0"]
+
+        let packBuilder = try SwiftEvolutionInterfaceBuilder(
+            versions: machOFiles[0], machOFiles[1], machOFiles[2],
+            labels: labels
+        )
+        try await packBuilder.prepare()
+        let packInterface = try await packBuilder.printAnnotatedInterface().string
+
+        let erasedBuilder = try await preparedBuilder()
+        let erasedInterface = try await erasedBuilder.printAnnotatedInterface().string
+
+        #expect(packInterface == erasedInterface)
+        #expect(packBuilder.labels == labels)
+        #expect(try #require(packBuilder.evolution).hasBreakingChange)
     }
 }
