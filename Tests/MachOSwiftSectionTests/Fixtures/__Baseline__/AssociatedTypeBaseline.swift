@@ -18,7 +18,7 @@ enum AssociatedTypeBaseline {
     }
 
     static let concreteWitnessTest = Entry(
-    descriptorOffset: 0x4dc28,
+    descriptorOffset: 0x4e268,
     recordsCount: 5,
     hasConformingTypeName: true,
     hasProtocolTypeName: true

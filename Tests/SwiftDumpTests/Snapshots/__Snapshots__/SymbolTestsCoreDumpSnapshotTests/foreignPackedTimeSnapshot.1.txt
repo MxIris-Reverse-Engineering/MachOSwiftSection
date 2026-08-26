@@ -1,0 +1,15 @@
+// MARK: - Types
+
+struct SymbolTestsCore.ForeignPackedTimeContainer {
+    var startTime: CMTime
+    var elapsedSeconds: Swift.Double
+
+    /* Allocator */
+    SymbolTestsCore.ForeignPackedTimeContainer.init(startTime: CMTime, elapsedSeconds: Swift.Double) -> SymbolTestsCore.ForeignPackedTimeContainer
+
+    /* Variable */
+    SymbolTestsCore.ForeignPackedTimeContainer.startTime.getter : CMTime
+    SymbolTestsCore.ForeignPackedTimeContainer.startTime.setter : CMTime
+    SymbolTestsCore.ForeignPackedTimeContainer.elapsedSeconds.getter : Swift.Double
+    SymbolTestsCore.ForeignPackedTimeContainer.elapsedSeconds.setter : Swift.Double
+}

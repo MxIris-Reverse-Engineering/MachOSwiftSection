@@ -18,7 +18,7 @@ enum EnumBaseline {
     }
 
     static let noPayloadEnumTest = Entry(
-    descriptorOffset: 0x40b6c,
+    descriptorOffset: 0x40f8c,
     hasGenericContext: false,
     hasForeignMetadataInitialization: false,
     hasSingletonMetadataInitialization: false,

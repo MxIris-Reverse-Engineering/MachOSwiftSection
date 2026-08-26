@@ -912,6 +912,42 @@
 
 ---
 
+## 43. issue #115/#116：同名私有类型成员归属 + foreign struct 保护收窄
+
+- **时间段**：2026-08-26。
+- **动机**：外部报告两个问题。#115：`dump` 把同名但私有判别符不同的类型
+  （SwiftUI 的两个 `(ArchivableDisplayList in _…)`）的 init/方法互相混入——
+  成员索引的字符串 key 用 `.interfaceTypeBuilderOnly` 打印、判别符被剥掉，
+  dump 走的 name-only 查询把同名桶下所有类型节点的符号拍平（0.14.0 起即有，
+  非回归）。#116：0.16.0 的 foreign struct 保护（`5a6d5b0`，防 `Decimal`
+  bitfield 类 confident-wrong-offset）在 size/stride/alignment 任一不等时全字段
+  降级，误伤 `#pragma pack(4)` 的 `__C.CMTime`——只有聚合 alignment 不同，
+  偏移 0/8/12/16 本来正确。
+- **关键决策**：
+  - **#115 查询侧带 node，不动 name key 格式**：dump 三个 dumper demangle 出
+    descriptor 上下文节点改走 `node:` 重载；横向排查补掉 interface 路径三处漏网
+    （deinit/destructor 的 name-only `.first`、thunk 属性交叉标注、
+    `typeInfoByName` last-wins——后两者索引补上第三层节点 key）。name-only
+    重载保留为文档化的聚合语义。
+  - **#116 用「紧密排列证明」收窄而非报告者建议的「只差 alignment 就放行」**：
+    每字段偏移恰等于前序 size 累计和、且累计和恰等于 builtin 整型 size 时，
+    两边都被迫是同一种紧密顺序排列，偏移不可能错——比宽条件可证明，
+    且不依赖 size/stride 逐项相等。`Decimal`/`PathData` 照旧降级。
+  - **fixture 防优化两件套**：`@_optimize(none)` 保未特化成员符号（否则只剩
+    `Tf4nd_n` 特化 thunk）、anchor 装箱 `Any` 保 descriptor（首版 fixture 实测
+    整个私有类型被 Release 优化删除）。
+- **落地模块**：`MachOSymbols`（索引结构 + 四个 node 重载）、`SwiftDump`（三个
+  dumper）、`SwiftDeclaration`/`SwiftIndexing`（三处漏网）、`SwiftLayout`
+  （`fieldOffsetsProvenByTightPacking`）；fixture 新增三文件
+  （`PrivateDoppelgangers` 对 + `ForeignPackedTime`），基线全量重生成
+  （纯偏移漂移）。
+- **文档**：[PrivateTypeMemberAttribution.md](PrivateTypeMemberAttribution.md)、
+  [StaticLayoutEngine.md](StaticLayoutEngine.md)（收窄条件补记）、
+  [TaskReports/2026-08-26-issue-115-116-private-member-attribution-and-packed-foreign-struct.md](TaskReports/2026-08-26-issue-115-116-private-member-attribution-and-packed-foreign-struct.md)。
+- **对应版本**：`0.16.0` 之后、下一次 bump 之前。
+
+---
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节

@@ -40,6 +40,7 @@ final class SymbolTestsCoreDumpSnapshotTests: MachOFileTests, SnapshotDumpableTe
         "existentialAnySnapshot",
         "extensionsSnapshot",
         "fieldDescriptorVariantsSnapshot",
+        "foreignPackedTimeSnapshot",
         "foreignTypesSnapshot",
         "functionFeaturesSnapshot",
         "functionTypesSnapshot",
@@ -62,6 +63,8 @@ final class SymbolTestsCoreDumpSnapshotTests: MachOFileTests, SnapshotDumpableTe
         "operatorsSnapshot",
         "optionSetAndRawRepresentableSnapshot",
         "overloadedMembersSnapshot",
+        "privateDoppelgangersSecondFileSnapshot",
+        "privateDoppelgangersSnapshot",
         "propertyWrapperVariantsSnapshot",
         "protocolCompositionSnapshot",
         "protocolsSnapshot",
@@ -204,6 +207,14 @@ final class SymbolTestsCoreDumpSnapshotTests: MachOFileTests, SnapshotDumpableTe
         assertSnapshot(of: output, as: .lines)
     }
 
+    // The namespace is the container struct; the `__C.CMTime` foreign
+    // descriptor it drags in is covered by assertions in
+    // `SwiftLayoutTests.ForeignStructTopLevelLayoutTests` instead.
+    @Test func foreignPackedTimeSnapshot() async throws {
+        let output = try await collectDump(for: machOFile, inNamespace: "ForeignPackedTimeContainer")
+        assertSnapshot(of: output, as: .lines)
+    }
+
     @Test func foreignTypesSnapshot() async throws {
         let output = try await collectDump(for: machOFile, inNamespace: "ForeignTypeFixtures")
         assertSnapshot(of: output, as: .lines)
@@ -315,6 +326,24 @@ final class SymbolTestsCoreDumpSnapshotTests: MachOFileTests, SnapshotDumpableTe
 
     @Test func overloadedMembersSnapshot() async throws {
         let output = try await collectDump(for: machOFile, inNamespace: "OverloadedMembers")
+        assertSnapshot(of: output, as: .lines)
+    }
+
+    // Both same-named private structs share the root namespace (their own
+    // stripped name), so one snapshot shows the pair side by side — each
+    // declaration carrying only its own `alpha*` / `beta*` members (issue
+    // #115 regression surface; the assertion twin is
+    // `PrivateTypeMemberAttributionTests`).
+    @Test func privateDoppelgangersSnapshot() async throws {
+        let output = try await collectDump(for: machOFile, inNamespace: "PrivateDoppelganger")
+        assertSnapshot(of: output, as: .lines)
+    }
+
+    // The pair's second file is snapshot-covered through its public anchor
+    // namespace; its private struct appears in `privateDoppelgangersSnapshot`
+    // above (shared root namespace).
+    @Test func privateDoppelgangersSecondFileSnapshot() async throws {
+        let output = try await collectDump(for: machOFile, inNamespace: "PrivateDoppelgangerSecondFileAnchors")
         assertSnapshot(of: output, as: .lines)
     }
 

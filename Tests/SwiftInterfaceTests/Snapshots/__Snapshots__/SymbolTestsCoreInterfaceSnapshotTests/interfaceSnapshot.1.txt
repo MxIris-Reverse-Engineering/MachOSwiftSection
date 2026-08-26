@@ -1189,6 +1189,16 @@ enum FieldDescriptorVariants {
         init(concreteInt: Swift.Int, concreteString: Swift.String, genericElement: A, arrayOfElement: [A], dictionaryOfElement: [Swift.String : A], optionalElement: A?, tupleField: (Swift.Int, A), functionField: @escaping (_: A) -> Swift.Int)
     }
 }
+struct ForeignPackedTimeContainer {
+    // Field offset: 0x0
+    // Type Layout: (size: 24, stride: 24, alignment: 4, extraInhabitantCount: 0)
+    var startTime: __C.CMTime
+    // Field offset: 0x18
+    // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
+    var elapsedSeconds: Swift.Double
+
+    init(startTime: __C.CMTime, elapsedSeconds: Swift.Double)
+}
 enum ForeignTypeFixtures {
     static func foreignClassReference() -> __C.CFStringRef
     static func foreignArrayReference() -> __C.CFArrayRef
@@ -2502,6 +2512,30 @@ enum OverloadedMembers {
         init(_: Swift.Double)
         init(_: Swift.Int)
     }
+}
+enum PrivateDoppelgangerFirstFileAnchors {
+    static func materializeFirstDoppelganger() -> Any
+}
+struct PrivateDoppelganger {
+    // Field offset: 0x0
+    // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
+    var alphaStorage: Swift.Int64
+
+    init(alphaSeed: Swift.Int64)
+
+    func alphaOnlyMethod() -> Swift.Int64
+}
+enum PrivateDoppelgangerSecondFileAnchors {
+    static func materializeSecondDoppelganger() -> Any
+}
+struct PrivateDoppelganger {
+    // Field offset: 0x0
+    // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
+    var betaStorage: Swift.Int64
+
+    init(betaSeed: Swift.Int64)
+
+    func betaOnlyMethod() -> Swift.Int64
 }
 enum PropertyWrapperVariants {
     @propertyWrapper
