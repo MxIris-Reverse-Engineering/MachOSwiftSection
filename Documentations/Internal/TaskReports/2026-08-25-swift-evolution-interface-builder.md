@@ -103,7 +103,13 @@
 
 同批新增**集成测试** `Tests/IntegrationTests/SwiftInterface/
 SwiftEvolutionInterfaceBuilderTests.swift`：沿用维护者手检 dump 形态（无断言；
-agent 只编译不运行），AppKit 三缓存轴（15.5 → 26.5.1 → 27.0-beta.1，与
-`ABIEvolutionTests` 的 lineage 报告 dump 同输入，便于并排目检两个视图讲同一个
-故事）+ SwiftUICore 双模拟器轴（18.5 → 26.5），另含 pack façade 的实机 dump。
+agent 只编译不运行）。首版含一条双模拟器 N=2 轴，随后按用户裁定重写：
+**evolution 不足 3 个 image 没意义**（N=2 已由 `diff --interface` 覆盖；本视图
+的价值——中途出现/消失、两度修改、●○● 位图——三版本起才成立），且模拟器
+runtime fixture 只有 18.5/26.5 两个版本凑不齐三。终版全部基于
+`ABIEvolutionTestSuite.MultiVersionDyldCacheImageTests`（15.5 → 26.5.1 →
+27.0-beta.1 三 macOS 缓存轴）：AppKit（与 `ABIEvolutionTests` 的 lineage 报告
+dump 同输入，便于并排目检两个视图讲同一个故事）+ SwiftUICore（Swift 密集轴，
+重泛型/opaque/extension），pack façade 实机 dump 亦为三镜像
+（`SwiftEvolutionInterfaceBuilder<MachOFile, MachOFile, MachOFile>`）。
 验证：`swift build --build-tests` 全量编译通过 + 受影响单测/E2E suite 重跑全绿。
