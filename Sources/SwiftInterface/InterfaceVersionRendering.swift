@@ -8,17 +8,19 @@ import MachOSwiftSection
 import Semantic
 import OrderedCollections
 
-/// One version on the evolution axis, erased over its reader type.
+/// One version of the module under comparison, erased over its reader type.
 ///
-/// `SwiftEvolutionInterfaceRenderer` consumes N versions through this seam so
-/// the public `SwiftEvolutionInterfaceBuilder` can stay non-generic: the
-/// homogeneous-array and parameter-pack initializers both collapse their inputs
-/// into `[any EvolutionVersionRendering]`. The erasure is lossless because the
-/// renderer only ever consumes a printer as "render this member to a
-/// `SemanticString`" — no `MachO`-typed value crosses the seam.
-protocol EvolutionVersionRendering: Sendable {
+/// `InterfaceUnionWalker` consumes every version through this seam, which is
+/// what lets both union renderers stay reader-agnostic: the evolution
+/// builder's homogeneous-array and parameter-pack initializers collapse their
+/// N inputs into `[any InterfaceVersionRendering]`, and the two-sided diff
+/// renderer wraps its `old`/`new` builders into a 2-element axis the same way.
+/// The erasure is lossless because the walker only ever consumes a printer as
+/// "render this member to a `SemanticString`" — no `MachO`-typed value crosses
+/// the seam.
+protocol InterfaceVersionRendering: Sendable {
     /// The version's indexing/printing event dispatcher, for reporting header
-    /// print failures (same contract as `SwiftDiffableInterfaceRenderer`).
+    /// print failures on the side that failed.
     var eventDispatcher: SwiftIndexEvents.Dispatcher { get }
 
     /// Index the binary and force full member indexing
@@ -53,23 +55,32 @@ protocol EvolutionVersionRendering: Sendable {
     func printAssociatedType(_ name: String) -> SemanticString
 }
 
-/// The one concrete `EvolutionVersionRendering`: a per-version
+/// The one concrete `InterfaceVersionRendering`: a per-version
 /// `SwiftDiffableInterfaceBuilder` plus a printer sharing that builder's event
-/// dispatcher — the same dispatcher-sharing contract as
-/// `SwiftDiffableInterfaceRenderer`, so the handlers the host passed to the
-/// evolution builder cover printing too.
-final class EvolutionVersionUnit<MachO: FieldLayoutRenderable>: EvolutionVersionRendering {
+/// dispatcher — so the handlers the host passed to the builder cover printing
+/// too. (Printers constructed with the bare `.init(in:)` have no sink at all,
+/// which once left the whole diff path dropping failures silently — the very
+/// silence the header-failure reporting exists to end.)
+final class InterfaceVersionUnit<MachO: FieldLayoutRenderable>: InterfaceVersionRendering {
     private let builder: SwiftDiffableInterfaceBuilder<MachO>
     private let printer: SwiftDeclarationPrinter<MachO>
 
-    init(
+    /// Wraps an already-constructed (typically already-prepared) builder —
+    /// the diff renderer's construction path, where the caller hands over two
+    /// prepared builders.
+    init(builder: SwiftDiffableInterfaceBuilder<MachO>) {
+        self.builder = builder
+        self.printer = .init(eventDispatcher: builder.indexer.eventDispatcher, in: builder.machO)
+    }
+
+    /// Builds the version's own builder — the evolution builder's construction
+    /// path, where each version arrives as a bare reader.
+    convenience init(
         configuration: SwiftDeclarationIndexConfiguration,
         eventHandlers: [SwiftIndexEvents.Handler],
         machO: MachO
     ) {
-        let builder = SwiftDiffableInterfaceBuilder(configuration: configuration, eventHandlers: eventHandlers, in: machO)
-        self.builder = builder
-        self.printer = .init(eventDispatcher: builder.indexer.eventDispatcher, in: machO)
+        self.init(builder: SwiftDiffableInterfaceBuilder(configuration: configuration, eventHandlers: eventHandlers, in: machO))
     }
 
     var eventDispatcher: SwiftIndexEvents.Dispatcher { builder.indexer.eventDispatcher }

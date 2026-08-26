@@ -90,8 +90,11 @@ Types:
 
 在 `SwiftInterface` 模块新增一条 N 版本注解接口渲染链路：
 
-1. **公开类 `SwiftEvolutionInterfaceBuilder`（非泛型）**：吃 N ≥ 2 个版本的二进制（内部为每个版本建一个
-   `SwiftDiffableInterfaceBuilder` 并擦除），`prepare()` 后可产出：
+1. **公开面为双类型（2026-08-26 修订，见决策日志）**：运行时 N 的擦除类
+   `AnySwiftEvolutionInterfaceBuilder`（全平台，CLI/RuntimeViewer 运行时选版本的唯一通路）+
+   编译期定形的 pack 泛型 façade `SwiftEvolutionInterfaceBuilder<each MachO>`（macOS 14+ 门控，
+   构造即擦除、行为与擦除类逐字节一致）。两者内部都为每个版本建一个
+   `SwiftDiffableInterfaceBuilder` 并擦除，`prepare()` 后可产出：
    - `printAnnotatedInterface() -> SemanticString` —— 最终注解接口文本；
    - `annotatedBlocks() -> [[EvolutionLine]]`（`@_spi(Support)`）—— 结构化行流，供 RuntimeViewer
      等下游自定义渲染。
@@ -141,9 +144,9 @@ public class SwiftUI.Legacy {                           // [●○○] removed i
 ### 公开 API（`Sources/SwiftInterface/SwiftEvolutionInterfaceBuilder.swift` 等）
 
 ```swift
-/// N 版本注解接口的入口。非泛型：每个版本在构造时被擦除为内部渲染单元，
-/// 因此同质数组与异构 pack 两种构造都收敛到同一个类型。
-public final class SwiftEvolutionInterfaceBuilder: Sendable {
+/// 运行时 N 的擦除入口（2026-08-26 定名：好名字让给下面的 pack 泛型类）。
+/// 每个版本在构造时被擦除为内部渲染单元，同质数组与异构 pack 两种构造收敛到同一类型。
+public final class AnySwiftEvolutionInterfaceBuilder: Sendable {
     /// 同质构造：N 个版本同一 reader 类型（CLI 即 N 个 MachOFile）。全平台可用。
     public init<MachO: FieldLayoutRenderable>(
         configuration: SwiftDeclarationIndexConfiguration = .init(),
@@ -152,9 +155,8 @@ public final class SwiftEvolutionInterfaceBuilder: Sendable {
         labels: [String]
     ) throws   // versions.count < 2 或 labels 数不匹配即抛
 
-    /// 异构构造：reader 类型逐版本独立（如 MachOFile 与 dyld 缓存镜像混排）。
-    /// parameter pack 需要 Swift 5.9 运行时，故按 SE-0393 的下限门控。
-    @available(macOS 14.0, iOS 17.0, tvOS 17.0, watchOS 10.0, *)
+    /// 异构构造：reader 类型逐版本独立。实测：pack 在**函数**位置不需要
+    /// availability 门（编译器只强制「泛型参数表里用 pack 的类型」），全平台可用。
     public init<each Reader: FieldLayoutRenderable>(
         configuration: SwiftDeclarationIndexConfiguration = .init(),
         eventHandlers: [SwiftIndexEvents.Handler] = [],
@@ -177,6 +179,24 @@ public final class SwiftEvolutionInterfaceBuilder: Sendable {
 
     /// prepare() 期间构建的演进事实，供调用方直接复用（CI 判定、警告展示）。
     public var evolution: ABIEvolution { get }
+}
+
+/// 编译期定形的 pack 泛型 façade（2026-08-26 用户裁定拿主名）：reader 类型进类型
+/// 签名。pack 在类型泛型参数表 ⇒ 编译器强制 @available(macOS 14+)；arity 编译期
+/// 固定 ⇒ 原理上无法承接运行时 N（same-element 约束当前工具链也不支持）。
+/// 构造即擦除（erased 暴露给需要互操作的调用方），行为与擦除类逐字节一致。
+@available(macOS 14.0, iOS 17.0, tvOS 17.0, watchOS 10.0, *)
+public final class SwiftEvolutionInterfaceBuilder<each MachO: FieldLayoutRenderable>: Sendable {
+    public let erased: AnySwiftEvolutionInterfaceBuilder
+
+    public init(
+        configuration: SwiftDeclarationIndexConfiguration = .init(),
+        eventHandlers: [SwiftIndexEvents.Handler] = [],
+        versions: repeat each MachO,
+        labels: [String]
+    ) throws
+    // labels / evolution / prepare() / printAnnotatedInterface() / annotatedBlocks()
+    // 全部转发 erased。
 }
 
 /// 注解接口的一行。annotation == nil 即「全程存在、从未变化」。
@@ -351,5 +371,10 @@ swift-section evolution --interface --dyld-shared-cache -n SwiftUICore cache17 c
 | 2026-08-25 | Draft → Accepted → In Progress | 用户批准（「开工」），同日开始实现，分支 `feature/swift-evolution-interface-builder`。 |
 | 2026-08-25 | In Progress → Implemented | 六步落地步骤完成：库侧五文件 + CLI flag + 四个测试 suite（30 tests 全绿）+ 三 target 回归 + 文档批次。与提案的差异（`evolution` 改可选、渲染入口加 throws、注解附着点定为末行）见任务报告「与方案的差异」。 |
 | 2026-08-25 | 收尾裁决：配套文档 | 不另立实现说明——维护会踩的决策全部是与 evolution 模型的契约（changes-only 依赖、key join、容器事件语义），追加为 [ABIEvolutionDesign.md](../Internal/ABIEvolutionDesign.md) 的「第五批增量」一节，与历次增量同处一文。 |
+| 2026-08-26 | API 形态修订：pack 上类型 | 用户指正第二轮第 4 题的本意是 pack 泛型**类**（`SwiftEvolutionInterfaceBuilder<each MachO: FieldLayoutRenderable>`），非「非泛型类 + pack init」。实测钉两个事实：pack 在类型泛型参数表必须 `@available(macOS 14+)`（编译器强制），函数位置则不需要；`repeat each MachO == Element` same-element 约束当前工具链不支持——故运行时 N 的 `[MachO]` init 无法落在 pack 类上，且 pack arity 编译期固定、原理上服务不了 CLI/RuntimeViewer 的运行时选版本场景。 |
+| 2026-08-26 | 擦除类定名 AnySwiftEvolutionInterfaceBuilder | 用户拍板：pack 类拿主名（macOS 14+ 薄 façade，构造即擦除、行为逐字节一致，`packGenericFacadeMatchesTheErasedBuilder` 钉住），运行时 N 擦除类循 Swift 擦除惯例（AnyView/AnySequence）命名 `AnySwiftEvolutionInterfaceBuilder`，CLI 改用之。否：擦除类不公开（与第一轮「公开供 RuntimeViewer 复用」相抵触）。 |
+| 2026-08-26 | 补集成测试 | `Tests/IntegrationTests/SwiftInterface/SwiftEvolutionInterfaceBuilderTests.swift`：沿用维护者手检 dump 形态（无断言、只编译不运行），AppKit 三缓存轴 + SwiftUICore 双模拟器轴（与 lineage 报告 dump 同输入便于并排目检），另含 pack façade 实机 dump。 |
+| 2026-08-26 | 集成测试改全三版本轴 | 用户裁定：evolution 不足 3 个 image 没意义（两版本场景 `diff --interface` 已覆盖，本视图的价值——中途出现/中途消失/两度修改/●○● 位图——三版本起才成立），且模拟器 runtime fixture 只有两个版本凑不齐。双模拟器 N=2 轴移除，集成 dump 全部基于 `ABIEvolutionTestSuite.MultiVersionDyldCacheImageTests`（三 macOS 缓存轴）：AppKit（与 lineage dump 同输入并排目检）+ SwiftUICore（Swift 密集轴），pack façade dump 同步改三镜像。 |
+| 2026-08-26 | 属性打印修正（用户实机反馈） | SwiftUI 三缓存轴 dump 暴露两处成员多行渲染缺陷：① accessor 块双重缩进——variable/subscript printer 按 `level` 给块内行烘焙**绝对**缩进，而 evolution 格式层又按行加层级缩进；修法：成员一律以 printer level 0 渲染（块变相对缩进），格式层统一缩进即精确。② 注解沉到 accessor 块收尾 `}`——「附着末行」规则对多行成员选错行；修法：锚点分靶（成员锚**首行**即声明行——属性内联无前置行；容器 header 锚末行即带 `{` 的声明行）。两侧 `diff --interface` 路径仍带同源缺陷 ①（本批不动，另行处理）；opaque `some` 裸打印为 diff 路径既有缺口（printer 未接 `addExtraDataProvider` 的 opaque 展开线），同样另行立项。 |
 | 2026-08-25 | 收尾裁决：术语表 | 新术语「union interface（并集接口）」「lifecycle annotation（生命周期注解）」已登记进项目术语表（同批次）。 |
 | 2026-08-25 | 提问结论（第二轮） | 注解格式定为位图 + 事件短语 + 头部图例（否：纯短语、伪 @available）；未变声明渲染但不注解（否：每行位图；`--changes-only` 未采纳、记入将来方向）；modified 只渲染最新代际 + 变更注解（否：逐代际多行）；泛型形态定为 pack 异构 init（@available 门控）+ 同质数组 init 双轨（用户自定答案），实现收敛为非泛型公开类 + 内部擦除。 |

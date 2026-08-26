@@ -5,9 +5,10 @@ import SwiftDiffing
 @_spi(Support) @testable import SwiftInterface
 
 /// Unit tests for the evolution interface's format layer: how a lifecycle
-/// annotation becomes a trailing comment (bitmap, event phrases), how lines
-/// carry annotations (last line of the unit), how a block aligns its
-/// annotation column, and how a container assembles.
+/// annotation becomes a trailing comment (bitmap, event phrases), which line
+/// of a unit carries the annotation (members anchor on their first line,
+/// container headers on their last), how a block aligns its annotation
+/// column, and how a container assembles.
 @Suite
 struct EvolutionMarkingTests {
     private let versionAxis: [ABIVersionDescriptor] = [
@@ -75,9 +76,11 @@ struct EvolutionMarkingTests {
 
     // MARK: - Line classification
 
-    @Test func annotationAttachesToTheLastLineOfAUnit() {
+    /// A container header's attribute lines precede the declaration, so the
+    /// annotation anchors on the LAST line (the one carrying the brace).
+    @Test func headerAnnotationAnchorsOnTheLastLine() {
         let annotation = EvolutionAnnotation(presence: [true, true, false], events: [LineageEvent(versionIndex: 2, status: .removed)])
-        let lines = EvolutionMarking.annotatedLines("@propertyWrapper\nstruct Foo", annotation: annotation, indentLevel: 1)
+        let lines = EvolutionMarking.annotatedLines("@propertyWrapper\nstruct Foo", annotation: annotation, indentLevel: 1, anchor: .lastLine)
         #expect(lines.count == 2)
         #expect(lines[0].content.string == "@propertyWrapper")
         #expect(lines[0].annotation == nil)
@@ -85,9 +88,24 @@ struct EvolutionMarkingTests {
         #expect(lines[1].annotation == annotation)
     }
 
+    /// A member's first line IS its declaration (attributes print inline), so
+    /// the annotation anchors on the FIRST line — a computed property's
+    /// trailing accessor block must never carry it on the closing brace.
+    @Test func memberAnnotationAnchorsOnTheFirstLine() {
+        let annotation = EvolutionAnnotation(presence: [true, false], events: [LineageEvent(versionIndex: 1, status: .removed)])
+        let lines = EvolutionMarking.annotatedLines("var x: Swift.Int {\n    get\n}", annotation: annotation, indentLevel: 1, anchor: .firstLine)
+        #expect(lines.count == 3)
+        #expect(lines[0].content.string == "var x: Swift.Int {")
+        #expect(lines[0].annotation == annotation)
+        #expect(lines[1].annotation == nil)
+        #expect(lines[2].content.string == "}")
+        #expect(lines[2].annotation == nil)
+    }
+
     @Test func emptyUnitProducesNoLinesAndNoStrayAnnotation() {
         let annotation = EvolutionAnnotation(presence: [true], events: [LineageEvent(versionIndex: 1, status: .removed)])
-        #expect(EvolutionMarking.annotatedLines(SemanticString(), annotation: annotation, indentLevel: 0).isEmpty)
+        #expect(EvolutionMarking.annotatedLines(SemanticString(), annotation: annotation, indentLevel: 0, anchor: .firstLine).isEmpty)
+        #expect(EvolutionMarking.annotatedLines(SemanticString(), annotation: annotation, indentLevel: 0, anchor: .lastLine).isEmpty)
     }
 
     // MARK: - Block rendering

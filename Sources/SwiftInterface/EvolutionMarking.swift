@@ -25,20 +25,37 @@ enum EvolutionMarking {
 
     // MARK: - Line classification
 
+    /// Where a unit's annotation attaches. The declaration line is what the
+    /// annotation describes, and the two unit shapes carry it at opposite
+    /// ends: a member's attributes print inline, so its FIRST line is the
+    /// declaration (and a computed property's accessor block trails it — the
+    /// annotation must not sink to the block's closing brace); a container
+    /// header's attribute lines each precede the declaration, so its LAST
+    /// line is the one carrying the opening brace.
+    enum AnnotationAnchor {
+        case firstLine
+        case lastLine
+    }
+
     /// Splits one rendered unit (a member, a container header, a closing brace
     /// — no indentation, no leading/trailing newline of its own) into per-line
-    /// ``EvolutionLine``s. The annotation is attached to the unit's LAST line:
-    /// a member's declaration line (comment lines the printer emits above it
-    /// stay bare), a container header's `{` line. Empty `source` produces `[]`
-    /// so empty units never leave a stray annotation.
-    static func annotatedLines(_ source: SemanticString, annotation: EvolutionAnnotation?, indentLevel: Int) -> [EvolutionLine] {
+    /// ``EvolutionLine``s, attaching the annotation to the `anchor` line.
+    /// Empty `source` produces `[]` so empty units never leave a stray
+    /// annotation.
+    static func annotatedLines(
+        _ source: SemanticString,
+        annotation: EvolutionAnnotation?,
+        indentLevel: Int,
+        anchor: AnnotationAnchor
+    ) -> [EvolutionLine] {
         if source.string.isEmpty { return [] }
         let lines = DiffMarking.splitIntoLines(source.components)
+        let anchorIndex = anchor == .firstLine ? 0 : lines.count - 1
         return lines.enumerated().map { lineIndex, line in
             EvolutionLine(
                 content: SemanticString(components: line),
                 indentLevel: indentLevel,
-                annotation: lineIndex == lines.count - 1 ? annotation : nil
+                annotation: lineIndex == anchorIndex ? annotation : nil
             )
         }
     }
@@ -220,12 +237,12 @@ enum EvolutionContainerAssembler {
         let opening = hasBody ? " {" : " {}"
         let headerLevel = level - 1
 
-        var lines = EvolutionMarking.annotatedLines(header.appending(opening), annotation: annotation, indentLevel: headerLevel)
+        var lines = EvolutionMarking.annotatedLines(header.appending(opening), annotation: annotation, indentLevel: headerLevel, anchor: .lastLine)
         for unit in bodyUnits {
             lines += unit
         }
         if hasBody {
-            lines += EvolutionMarking.annotatedLines("}", annotation: nil, indentLevel: headerLevel)
+            lines += EvolutionMarking.annotatedLines("}", annotation: nil, indentLevel: headerLevel, anchor: .lastLine)
         }
         return lines
     }

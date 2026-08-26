@@ -82,3 +82,57 @@
   ——耦合点全部在与 evolution 模型的契约上，与既有增量批次同处一文更利检索。
 - 输出中发现 extension 里多行 accessor 块（`hashValue { get }`）缩进偏深，与既有
   `diff --interface` 路径行为一致（printer 交互，非本改动引入），不在本批修。
+
+## 后续（2026-08-26）：API 形态修订 + 集成测试
+
+用户指正第二轮第 4 题的本意是 **pack 泛型类**
+（`SwiftEvolutionInterfaceBuilder<each MachO: FieldLayoutRenderable>`），非
+「非泛型类 + pack init」。探针实测钉住三个事实后重塑 API：
+
+1. pack 在**类型泛型参数表**必须 `@available(macOS 14+)`（编译器强制：
+   `parameter packs in generic types are only available in macOS 14.0.0 or newer`）；
+2. pack 在**函数**位置不需要门——这解释了擦除类的 pack init 去门后仍可编译；
+3. `repeat each MachO == Element` same-element 约束当前工具链不支持
+   （`same-element requirements are not yet supported`），加上 pack arity 编译期
+   固定，运行时 N（CLI / RuntimeViewer 用户任选版本）原理上无法用 pack 类型承接。
+
+裁定（AskUserQuestion 一轮）：pack 类拿主名（macOS 14+ 薄 façade，构造即擦除、
+暴露 `erased`，行为与擦除类逐字节一致，`packGenericFacadeMatchesTheErasedBuilder`
+钉住）；运行时 N 擦除类循 Swift 擦除惯例定名 `AnySwiftEvolutionInterfaceBuilder`
+（否：不公开——与第一轮「公开供 RuntimeViewer 复用」相抵触），CLI 改用之。
+
+同批新增**集成测试** `Tests/IntegrationTests/SwiftInterface/
+SwiftEvolutionInterfaceBuilderTests.swift`：沿用维护者手检 dump 形态（无断言；
+agent 只编译不运行）。首版含一条双模拟器 N=2 轴，随后按用户裁定重写：
+**evolution 不足 3 个 image 没意义**（N=2 已由 `diff --interface` 覆盖；本视图
+的价值——中途出现/消失、两度修改、●○● 位图——三版本起才成立），且模拟器
+runtime fixture 只有 18.5/26.5 两个版本凑不齐三。终版全部基于
+`ABIEvolutionTestSuite.MultiVersionDyldCacheImageTests`（15.5 → 26.5.1 →
+27.0-beta.1 三 macOS 缓存轴）：AppKit（与 `ABIEvolutionTests` 的 lineage 报告
+dump 同输入，便于并排目检两个视图讲同一个故事）+ SwiftUICore（Swift 密集轴，
+重泛型/opaque/extension），pack façade 实机 dump 亦为三镜像
+（`SwiftEvolutionInterfaceBuilder<MachOFile, MachOFile, MachOFile>`）。
+验证：`swift build --build-tests` 全量编译通过 + 受影响单测/E2E suite 重跑全绿。
+
+## 后续（2026-08-26 二）：属性打印修正（用户实机反馈）
+
+用户跑 SwiftUI 三缓存轴 dump 后指出属性打印有问题，定位为两处成员多行渲染缺陷：
+
+1. **accessor 块双重缩进**：`VariableNodePrinter`/`SubscriptNodePrinter` 按 `level`
+   给块内行烘焙**绝对**缩进（`(level+1)*4` 的 `get`、`level*4` 的 `}`），而 evolution
+   格式层又给单元的每一行加了层级缩进——两者叠加。修法：成员一律以 **printer
+   level 0** 渲染（function/field 本就不消费 level），块变相对缩进，格式层的统一
+   逐行缩进即精确。normal interface 路径不受影响（它只给首行加缩进，续行吃烘焙的
+   绝对缩进——两种消费契约对不上正是缺陷根源）。
+2. **注解沉底**：多行成员（计算属性）的生命周期注解落在了 accessor 块收尾 `}` 上。
+   「附着末行」规则改为**锚点分靶**：成员锚首行（属性内联打印，首行即声明行）；
+   容器 header 锚末行（attribute 行在前，末行才是带 `{` 的声明行）。
+
+钉子：`memberAnnotationAnchorsOnTheFirstLine` / `headerAnnotationAnchorsOnTheLastLine`
+（格式层）+ e2e fixture 新增被移除的计算属性 `Alpha.summary`（注解在声明行、
+`get`/`}` 相对缩进、全文无双重缩进痕迹）。
+
+**同源遗留（本批不动、待另行处理）**：两侧 `diff --interface` 路径的成员渲染仍是
+「真实 level + 逐行缩进」，带同样的双重缩进伪影；opaque `some` 裸打印（截图中的
+`var body: some {`）是 diff 路径既有缺口——printer 的 opaque 展开靠宿主对
+`SwiftInterfaceBuilder.addExtraDataProvider` 接线，diff/evolution 两路都没接。

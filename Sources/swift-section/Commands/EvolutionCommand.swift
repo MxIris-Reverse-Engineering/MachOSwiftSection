@@ -124,8 +124,10 @@ struct EvolutionCommand: AsyncParsableCommand {
 
         // A sink on every version: each version's builder hands this handler to
         // its indexer AND printer, so a dropped declaration lands on stderr
-        // instead of the os_log floor a CLI operator never sees.
-        let builder = try SwiftEvolutionInterfaceBuilder(
+        // instead of the os_log floor a CLI operator never sees. The erased
+        // builder, because the version count is a runtime value here — the
+        // pack-generic SwiftEvolutionInterfaceBuilder's arity is compile-time.
+        let builder = try AnySwiftEvolutionInterfaceBuilder(
             eventHandlers: [ConsoleEventHandler()],
             versions: machOFiles,
             labels: resolvedLabels

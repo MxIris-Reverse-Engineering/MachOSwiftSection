@@ -132,7 +132,7 @@ enum SwiftDiffableInterfaceBuilderTestSuite {
         let newMachOFileInCache: MachOFile
 
         class var oldCachePath: DyldSharedCachePath { .macOS_26_5_1 }
-        class var newCachePath: DyldSharedCachePath { .macOS_27_0_beta_1 }
+        class var newCachePath: DyldSharedCachePath { .macOS_27_0 }
         class var cacheImageName: MachOImageName { .AppKit }
 
         init() async throws {
@@ -207,7 +207,7 @@ enum SwiftDiffableInterfaceBuilderTestSuite {
     /// (macOS 15.5 → current). Cross-image references resolve through each cache.
     final class DyldCacheTests: CrossVersionDyldCacheImageTests, SwiftDiffableInterfaceBuilderTests, @unchecked Sendable {
         override class var oldCachePath: DyldSharedCachePath { .macOS_26_5_1 }
-        override class var newCachePath: DyldSharedCachePath { .macOS_27_0_beta_1 }
+        override class var newCachePath: DyldSharedCachePath { .macOS_27_0 }
         override class var cacheImageName: MachOImageName { .AppKit }
 
         @available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *)

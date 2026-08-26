@@ -72,6 +72,13 @@ Requirement Machine 最小化泛型签名时，把 pin 到同一具体类型的�
 - **主要出现在**：`Sources/SwiftPrinting/SwiftDeclarationPrinter.swift`（`renderMember`）、三个 Dumper 的 member-symbol 循环
 - **延伸阅读**：[提案 0008](Evolutions/0008-interface-header-and-export-status-annotations.md)、[InterfaceHeaderAndExportStatusAnnotations.md](Internal/InterfaceHeaderAndExportStatusAnnotations.md)
 
+### emission strategy（发射策略）
+
+diff / evolution 两条对比渲染路共享结构遍历核心（`InterfaceUnionWalker`）之后各自剩下的那一半：遍历器负责**结构**（N 路匹配与并集排序、extension 容器拆分、成员构造、类别调度、body 组合序），策略（`InterfaceUnionEmitting`）负责**呈现**——同一个匹配结果如何变成行（`+`/`-` 标记 vs 生命周期注解）、容器 header 如何裁决（两侧配对 vs 最新可渲染）、容器如何装配。真正语义不同的部分（`HeaderOutcome` 配对、注解锚点、两套格式层）只住在策略里，绝不上浮进遍历器。
+
+- **主要出现在**：`Sources/SwiftInterface/InterfaceUnionWalker.swift`（协议与遍历器）、`SwiftDiffableInterfaceRenderer.swift`（`DiffUnionStrategy`）、`SwiftEvolutionInterfaceRenderer.swift`（evolution 策略）
+- **延伸阅读**：[提案 draft-unify-interface-renderers](Evolutions/draft-unify-interface-renderers.md)
+
 ### late-name 路径（`lateDemangledNode(forName:)`）
 
 sweep 覆盖范围之外的名字走的旁路：demangle 后 intern 进 `Storage` 自持的一个可追加 side store，名字 → 裁决字典保证一个名字只 demangle 一次（拒绝也缓存为 `nil` 裁决、不再重试）。与主表冻结不可变的性质相对。

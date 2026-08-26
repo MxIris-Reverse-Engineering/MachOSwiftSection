@@ -984,9 +984,13 @@
     JSON 永不各说各话；lineage 查不到就是「未变」裁决（依赖 changes-only 契约）。
   - **全二进制输入**：快照只有单行签名，interface 模式直接拒收（与
     `diff --interface` 同款约束）；混用降级留作后续提案。
-  - **公开类非泛型 + 双 init**：逐版本擦除（`EvolutionVersionRendering` /
-    `EvolutionVersionUnit`），同质 `[MachO]` init 全平台可用（CLI 走它），
-    parameter-pack 异构 init 按 SE-0393 运行时下限 `@available(macOS 14…)` 门控。
+  - **公开面双类型**（2026-08-26 按用户指正修订）：运行时 N 的擦除类
+    `AnySwiftEvolutionInterfaceBuilder`（逐版本擦除，`[MachO]` 数组 init 与
+    函数位 pack init 全平台可用，CLI 走它）+ pack 泛型 façade
+    `SwiftEvolutionInterfaceBuilder<each MachO>`（编译期定形；pack 在类型泛型
+    参数表被编译器强制 `@available(macOS 14…)`，构造即擦除、行为逐字节一致）。
+    实测钉住：函数位 pack 不需要 availability 门；same-element 约束
+    （`repeat each MachO == M`）当前工具链不支持，运行时 N 无法落在 pack 类上。
   - **modified 只渲染最新代际**：旧形态进注解短语（`modified in X: 旧 → 新`；
     两侧文本相同省箭头），同一成员不裂多行，接口主体保持合法 Swift 的形状。
 - **落地模块**：`SwiftInterface`（`SwiftEvolutionInterfaceBuilder` / `Renderer` /
@@ -1034,6 +1038,42 @@
 - **文档**：[PrivateTypeMemberAttribution.md](PrivateTypeMemberAttribution.md)、
   [StaticLayoutEngine.md](StaticLayoutEngine.md)（收窄条件补记）、
   [TaskReports/2026-08-26-issue-115-116-private-member-attribution-and-packed-foreign-struct.md](TaskReports/2026-08-26-issue-115-116-private-member-attribution-and-packed-foreign-struct.md)。
+- **对应版本**：`0.16.0` 之后、下一次 bump 之前。
+
+---
+
+## 49. 统一 diff / evolution 接口渲染器的结构遍历核心（提案 draft-unify-interface-renderers）
+
+- **时间段**：2026-08-26。
+- **动机**：`SwiftDiffableInterfaceRenderer`（602 行）与 `SwiftEvolutionInterfaceRenderer`
+  （525 行）是同一个结构遍历写了两遍——两段逐字节相同、两路匹配算法互为 N=2 特例、
+  八个成员构造器机械平行；且同一条成员级修复要打两遍：evolution 路刚修完的 accessor
+  块双重缩进在 diff 路上原样存在，根因正是「diff 成员按真实 level 渲染」这条无谓差异。
+- **关键决策**：
+  - **遍历器管结构、策略管呈现**：共享核心 `InterfaceUnionWalker`（N 路匹配与并集
+    排序、extension 容器拆分、成员构造、`MemberCategory.allCases` 调度、body 组合序）
+    以 `InterfaceUnionEmitting` 策略参数化；diff 策略保留真正两侧的语义
+    （`HeaderOutcome` 配对、`-`/`+` 成对与同渲染折叠），evolution 策略保留注解
+    查表与锚点。格式层（`DiffMarking` / `EvolutionMarking` / 两个 assembler）
+    语义真不同，**不合**。
+  - **成员发射统一 printer level 0**：diff 路的 accessor 块双重缩进随之消失
+    （修前必红回归测试 `DiffMemberIndentationTests` 钉住三种 marker 侧的相对缩进）。
+  - **匹配 first-wins 全面对齐 `ABIDiffer.keyed`**：旧 diff 的发射循环对新侧同 key
+    重复项会重复发射（与其查表字典的 first-wins 自相矛盾），统一后连发射也
+    first-wins；header 失败事件测试的注入手法相应从 append 改 replace。
+  - **公开 API 零破坏**：`SwiftDiffableInterfaceRenderer<OldMachO, NewMachO>` 保留为
+    外壳、构造即擦除；擦除接缝改中性名 `InterfaceVersionRendering` /
+    `InterfaceVersionUnit`（新增接收已建 builder 的构造口供 diff 外壳用）。
+  - **验收不跑 rendering A/B**：`SwiftPrinting` 与主 dump/interface 路径零改动，
+    A/B 覆盖的正是不动的那条路；判断依据写入提案。
+- **落地模块**：`SwiftInterface` 单模块（新增 `InterfaceUnionWalker`；两个渲染器
+  改写为策略；`EvolutionVersionRendering.swift` 更名 `InterfaceVersionRendering.swift`）。
+  库侧净 −256 行（671+/927−，且两渲染器只剩策略）。附带测试基建发现：纯 struct 的即时编译 fixture dylib 没有
+  `__DATA` 段，pinned MachOKit 解析其 chained fixups 会越界崩溃——fixture 必须带
+  至少一个 class（已记入 AGENTS.md Test Environment）。
+- **文档**：[draft-unify-interface-renderers.md](../Evolutions/draft-unify-interface-renderers.md)、
+  [TaskReports/2026-08-26-unify-interface-renderers.md](TaskReports/2026-08-26-unify-interface-renderers.md)、
+  AGENTS.md（`InterfaceUnionWalker` 条目 + fixture 地雷）、术语表新增「emission strategy」。
 - **对应版本**：`0.16.0` 之后、下一次 bump 之前。
 
 ---

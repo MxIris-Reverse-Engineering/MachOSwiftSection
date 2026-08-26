@@ -11,8 +11,8 @@ import SwiftDiffing
 /// `LegacyDyldInfoBindTests` compilation approach, minus the legacy target):
 ///
 /// - v1 → v2: `Alpha.bar(id:)` added, `Legacy` (whole class) removed.
-/// - v2 → v3: `Alpha.bar()` removed, `Alpha.count` changes `Int32 → Int64`,
-///   enum case `east` added.
+/// - v2 → v3: `Alpha.bar()` and the computed `Alpha.summary` removed,
+///   `Alpha.count` changes `Int32 → Int64`, enum case `east` added.
 ///
 /// Asserted: the legend, each lifecycle annotation (bitmap + phrase), the
 /// bareness of never-changed declarations, the union ordering rule (newest
@@ -37,6 +37,7 @@ struct SwiftEvolutionInterfaceBuilderTests {
         public struct Alpha {
             public var title: String
             public var count: Int32
+            public var summary: String { title }
             public func bar() -> Int { 1 }
         }
         public class Legacy {
@@ -52,6 +53,7 @@ struct SwiftEvolutionInterfaceBuilderTests {
         public struct Alpha {
             public var title: String
             public var count: Int32
+            public var summary: String { title }
             public func bar() -> Int { 1 }
             public func bar(id: Int) -> Int { id }
         }
@@ -133,8 +135,8 @@ struct SwiftEvolutionInterfaceBuilderTests {
         }
     }
 
-    private func preparedBuilder() async throws -> SwiftEvolutionInterfaceBuilder {
-        let builder = try SwiftEvolutionInterfaceBuilder(
+    private func preparedBuilder() async throws -> AnySwiftEvolutionInterfaceBuilder {
+        let builder = try AnySwiftEvolutionInterfaceBuilder(
             versions: try loadFixtureMachOFiles(),
             labels: ["1.0", "2.0", "3.0"]
         )
@@ -179,6 +181,17 @@ struct SwiftEvolutionInterfaceBuilderTests {
         let removedClass = try line(containing: "Legacy", "{")
         #expect(removedClass.contains("// [●○○] removed in 2.0"))
         #expect(try line(containing: "func run()").isEmpty == false)
+
+        // Removed computed property (a multi-line member): the annotation
+        // sits on the DECLARATION line, not the accessor block's closing
+        // brace, and the block renders level-relative — `get` at one level
+        // deeper than the declaration, never printer-baked + formatter-added
+        // double indentation.
+        let removedComputed = try line(containing: "var summary: Swift.String {")
+        #expect(removedComputed.contains("// [●●○] removed in 3.0"))
+        #expect(interface.contains("    var summary: Swift.String {"))
+        #expect(interface.contains("\n        get\n    }"))
+        #expect(!interface.contains("            get"))
 
         // Added enum case.
         let addedCase = try line(containing: "case east")
@@ -231,7 +244,7 @@ struct SwiftEvolutionInterfaceBuilderTests {
     // MARK: - Contracts
 
     @Test func renderingBeforePrepareThrowsNotPrepared() async throws {
-        let builder = try SwiftEvolutionInterfaceBuilder(
+        let builder = try AnySwiftEvolutionInterfaceBuilder(
             versions: try loadFixtureMachOFiles(),
             labels: ["1.0", "2.0", "3.0"]
         )
@@ -243,10 +256,10 @@ struct SwiftEvolutionInterfaceBuilderTests {
     @Test func initializerRejectsInvalidInputShapes() throws {
         let machOFiles = try loadFixtureMachOFiles()
         #expect(throws: ABIEvolutionError.fewerThanTwoVersions(versionCount: 1)) {
-            _ = try SwiftEvolutionInterfaceBuilder(versions: [machOFiles[0]], labels: ["1.0"])
+            _ = try AnySwiftEvolutionInterfaceBuilder(versions: [machOFiles[0]], labels: ["1.0"])
         }
         #expect(throws: ABIEvolutionError.labelCountMismatch(labelCount: 2, versionCount: 3)) {
-            _ = try SwiftEvolutionInterfaceBuilder(versions: machOFiles, labels: ["1.0", "2.0"])
+            _ = try AnySwiftEvolutionInterfaceBuilder(versions: machOFiles, labels: ["1.0", "2.0"])
         }
     }
 
@@ -255,7 +268,7 @@ struct SwiftEvolutionInterfaceBuilderTests {
     /// the interface view of it).
     @Test func twoVersionAxisMatchesTheTwoSidedDiffStory() async throws {
         let machOFiles = try loadFixtureMachOFiles()
-        let builder = try SwiftEvolutionInterfaceBuilder(
+        let builder = try AnySwiftEvolutionInterfaceBuilder(
             versions: [machOFiles[1], machOFiles[2]],
             labels: ["2.0", "3.0"]
         )
@@ -264,5 +277,29 @@ struct SwiftEvolutionInterfaceBuilderTests {
         #expect(interface.contains("// [●○] removed in 3.0"))
         #expect(interface.contains("// [○●] added in 3.0"))
         #expect(!interface.contains("[●●○]"))
+    }
+
+    /// The pack-generic façade (`SwiftEvolutionInterfaceBuilder<each MachO>`)
+    /// must be behaviorally identical to the erased builder it delegates to —
+    /// byte-identical output over the same axis, and the same evolution value
+    /// exposed for verdict reuse.
+    @available(macOS 14.0, *)
+    @Test func packGenericFacadeMatchesTheErasedBuilder() async throws {
+        let machOFiles = try loadFixtureMachOFiles()
+        let labels = ["1.0", "2.0", "3.0"]
+
+        let packBuilder = try SwiftEvolutionInterfaceBuilder(
+            versions: machOFiles[0], machOFiles[1], machOFiles[2],
+            labels: labels
+        )
+        try await packBuilder.prepare()
+        let packInterface = try await packBuilder.printAnnotatedInterface().string
+
+        let erasedBuilder = try await preparedBuilder()
+        let erasedInterface = try await erasedBuilder.printAnnotatedInterface().string
+
+        #expect(packInterface == erasedInterface)
+        #expect(packBuilder.labels == labels)
+        #expect(try #require(packBuilder.evolution).hasBreakingChange)
     }
 }

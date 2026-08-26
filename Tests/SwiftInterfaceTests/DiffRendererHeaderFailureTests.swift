@@ -15,12 +15,12 @@ import MachOFixtureSupport
 /// rendered must be dropped whole, never rendered as a body under a blank
 /// header line.
 ///
-/// `renderType` / `renderProtocol` compute their body units unconditionally and
-/// hand them to `DiffContainerAssembler` together with the header. While
-/// `header(_:_:)` swallowed a throw into an empty `SemanticString`, that
-/// produced a type's members and braces with NO `struct Foo` / `protocol Foo`
-/// line above them — structurally invalid Swift, emitted silently, with no
-/// event and no error.
+/// The historical defect: while header rendering swallowed a throw into an
+/// empty `SemanticString`, the body was assembled anyway, producing a type's
+/// members and braces with NO `struct Foo` / `protocol Foo` line above them —
+/// structurally invalid Swift, emitted silently, with no event and no error.
+/// Today `DiffUnionStrategy.resolveTypeHeader` / `resolveProtocolHeader`
+/// return `nil` on an all-sides failure and the walker skips the body whole.
 ///
 /// Header rendering can genuinely throw: it reads the declaration's name,
 /// generic signature and superclass and demangles each (issue #102 is the field
@@ -113,9 +113,18 @@ final class DiffRendererHeaderFailureTests: MachOFileTests, @unchecked Sendable 
         let oldBuilder = try await preparedBuilder()
         let newBuilder = try await preparedBuilder(eventHandlers: [collector])
 
-        let corruptDefinition = try makeUnrenderableDefinition(borrowingNameFrom: "FinalClassTest", in: newBuilder)
+        // REPLACE the new side's copy rather than appending a second one:
+        // matching is first-wins per side — emission included, aligned with
+        // `ABIDiffer.keyed` — so an appended same-keyed duplicate is never
+        // matched and its header would never even be attempted. Replacing
+        // keeps one entry under the key, so the corrupt copy is the one the
+        // renderer sees on the side carrying the collector.
         let hostDefinition = try #require(findTypeDefinition(named: "Classes", in: newBuilder))
-        hostDefinition.typeChildren.append(corruptDefinition)
+        let replacedIndex = try #require(
+            hostDefinition.typeChildren.firstIndex { $0.typeName.currentName == "FinalClassTest" },
+            "fixture must nest FinalClassTest inside Classes for this injection to land on the matched entry"
+        )
+        hostDefinition.typeChildren[replacedIndex] = try makeUnrenderableDefinition(borrowingNameFrom: "FinalClassTest", in: newBuilder)
 
         let renderer = SwiftDiffableInterfaceRenderer(old: oldBuilder, new: newBuilder)
         _ = await renderer.printAnnotatedInterface().string
@@ -146,7 +155,7 @@ final class DiffRendererHeaderFailureTests: MachOFileTests, @unchecked Sendable 
         let newBuilder = try await preparedBuilder()
 
         // REPLACE the old side's copy rather than appending a second one:
-        // `matchByKey` is first-wins, so an appended duplicate never gets
+        // matching is first-wins per side, so an appended duplicate never gets
         // matched and the corrupt definition would simply be ignored. Replacing
         // keeps one entry per side under the same key, which is what puts the
         // renderer on its two-sided `.unchanged` path. The new side keeps its
