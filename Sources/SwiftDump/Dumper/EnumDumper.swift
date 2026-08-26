@@ -141,8 +141,19 @@ package struct EnumDumper<MachO: FieldLayoutRenderable>: TypedDumper {
 
             let interfaceNameString = try await interfaceName.string
 
+            // Same-named private types share the stripped name bucket; the
+            // context node picks this type's own sub-bucket (issue #115).
+            // A context that cannot be demangled falls back to the name-only
+            // (merged) lookup rather than dropping members.
+            let contextNode = try? MetadataReader.demangleContext(for: .type(.enum(dumped.descriptor)), in: machO)
+
             for kind in SymbolIndexStore.MemberKind.allCases {
-                for (offset, symbol) in symbolIndexStore.memberSymbols(of: kind, for: interfaceNameString, in: machO).offsetEnumerated() {
+                let memberSymbols = if let contextNode {
+                    symbolIndexStore.memberSymbols(of: kind, for: interfaceNameString, node: contextNode, in: machO)
+                } else {
+                    symbolIndexStore.memberSymbols(of: kind, for: interfaceNameString, in: machO)
+                }
+                for (offset, symbol) in memberSymbols.offsetEnumerated() {
                     if offset.isStart {
                         BreakLine()
 

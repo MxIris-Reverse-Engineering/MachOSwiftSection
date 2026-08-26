@@ -787,7 +787,10 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
             // cooperative worker when the walk moves to a large-stack thread —
             // restoring the pre-migration `await node.print` semantics.
             let name = await node.print(using: .interfaceTypeBuilderOnly)
-            guard let typeInfo = symbolIndexStore.typeInfo(for: name, in: machO) else {
+            // Node-matched: same-named private types collide on the stripped
+            // printed name, and a name-only lookup could answer with the
+            // sibling's kind (issue #115's family).
+            guard let typeInfo = symbolIndexStore.typeInfo(for: name, node: node, in: machO) else {
                 eventDispatcher.dispatch(.extensionTargetNotFound(targetName: name))
                 continue
             }
