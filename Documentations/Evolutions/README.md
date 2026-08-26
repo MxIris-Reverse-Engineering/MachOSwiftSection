@@ -13,3 +13,4 @@
 | [0005](0005-event-based-degradation-reporting.md) | 降级上报统一走事件：库侧不再自选落点，Dispatcher 兜底零 handler | Implemented |
 | [0006](0006-opaque-primary-associated-type-attribution.md) | opaque 返回类型的 primary associated type 归属：anchor 协议裁决 + 协议事实解析链 | Implemented |
 | [draft](draft-swift-evolution-interface-builder.md) | SwiftEvolutionInterfaceBuilder：ABI 演进的并集注解接口渲染（`evolution --interface`） | Implemented |
+| [draft](draft-unify-interface-renderers.md) | 统一 diff / evolution 接口渲染器的结构遍历核心（顺带修 diff accessor 双重缩进） | Implemented |

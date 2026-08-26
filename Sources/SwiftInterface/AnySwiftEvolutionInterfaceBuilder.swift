@@ -34,7 +34,7 @@ import SwiftStdlibToolbox
 /// types in its signature and delegates here.
 public final class AnySwiftEvolutionInterfaceBuilder: Sendable {
     /// Oldest → newest, index-aligned with `labels`.
-    private let versionUnits: [any EvolutionVersionRendering]
+    private let versionUnits: [any InterfaceVersionRendering]
 
     /// The version-axis labels, oldest first (e.g. `["17.0", "18.0", "26.0"]`).
     public let labels: [String]
@@ -55,7 +55,7 @@ public final class AnySwiftEvolutionInterfaceBuilder: Sendable {
     ) throws {
         try Self.validate(versionCount: versions.count, labelCount: labels.count)
         self.versionUnits = versions.map {
-            EvolutionVersionUnit(configuration: configuration, eventHandlers: eventHandlers, machO: $0)
+            InterfaceVersionUnit(configuration: configuration, eventHandlers: eventHandlers, machO: $0)
         }
         self.labels = labels
     }
@@ -70,9 +70,9 @@ public final class AnySwiftEvolutionInterfaceBuilder: Sendable {
         versions: repeat each Reader,
         labels: [String]
     ) throws {
-        var units: [any EvolutionVersionRendering] = []
+        var units: [any InterfaceVersionRendering] = []
         for machO in repeat each versions {
-            units.append(EvolutionVersionUnit(configuration: configuration, eventHandlers: eventHandlers, machO: machO))
+            units.append(InterfaceVersionUnit(configuration: configuration, eventHandlers: eventHandlers, machO: machO))
         }
         try Self.validate(versionCount: units.count, labelCount: labels.count)
         self.versionUnits = units
@@ -117,11 +117,7 @@ public final class AnySwiftEvolutionInterfaceBuilder: Sendable {
     ///   called before `prepare()`.
     public func printAnnotatedInterface() async throws -> SemanticString {
         let evolution = try requirePrepared()
-        let renderer = SwiftEvolutionInterfaceRenderer(
-            versions: versionUnits,
-            annotations: EvolutionAnnotationIndex(evolution: evolution)
-        )
-        let blocks = await renderer.annotatedBlocks()
+        let blocks = await makeRenderer(for: evolution).annotatedBlocks()
         return EvolutionMarking.renderInterface(blocks: blocks, evolution: evolution)
     }
 
@@ -133,12 +129,14 @@ public final class AnySwiftEvolutionInterfaceBuilder: Sendable {
     /// renderer's `annotatedDiffBlocks()`.
     @_spi(Support)
     public func annotatedBlocks() async throws -> [[EvolutionLine]] {
-        let evolution = try requirePrepared()
-        let renderer = SwiftEvolutionInterfaceRenderer(
+        try await makeRenderer(for: requirePrepared()).annotatedBlocks()
+    }
+
+    private func makeRenderer(for evolution: ABIEvolution) -> SwiftEvolutionInterfaceRenderer {
+        SwiftEvolutionInterfaceRenderer(
             versions: versionUnits,
             annotations: EvolutionAnnotationIndex(evolution: evolution)
         )
-        return await renderer.annotatedBlocks()
     }
 
     private func requirePrepared() throws -> ABIEvolution {
