@@ -890,7 +890,7 @@
 - **lazy 取型顺序**：特化替换节点 ＞ getter 的 `accessorTypeNode` ＞ 存储类型（getter 缺失即诚实回退，提案里的「剥一层 Optional」回退未实现）；dump 路径 lazy 保持存储真相（`[Getter]` 列表已展示访问器类型），`final` 关键字则 dump 两路对齐（名字级 join + 同套排除）。
 - **验证**：fixture 新增 `VTableEntryVariants.FinalMembersTest` 全组合矩阵（final/plain × 存储/lazy/计算属性/方法/下标）；`FinalMemberRecoveryTests` 五用例（渲染配对、lazy 类型、vtable 注释邻接、模型事实×2）；interface 整模块 + dump 三份快照逐行审查重录；全量套件除 fixture 重建引发的 ABI 基线 offset 漂移（按既定流程 regen）外全绿。
 - **文档**：[Evolutions/0006](../Evolutions/0006-final-keyword-and-lazy-accessor-type-recovery.md)（决策日志含六项实现发现与偏差）、[FinalKeywordAndLazyAccessorTypeRecovery.md](FinalKeywordAndLazyAccessorTypeRecovery.md)、Roadmaps 新增 L-12（类级 `final` 不可恢复）、AGENTS.md SwiftPrinting 段新条目。同 issue 的 0007（extension 容器去重）、0008（文件头部与导出标注）已 Accepted 待实施。
-- **对应版本**：待发布（本批次未 bump `Version.swift`）。
+- **对应版本**：`0.17.0`。
 
 ---
 
@@ -905,7 +905,7 @@
 - **`protocol-extension default` 标注**：模型（`isProtocolExtensionDefault`）+ interface/dump 两路渲染（`--emit-member-addresses` 门控）落地；SourceEditor 上不触发（witness 实现符号分支总命中），属休眠防御。issue 点名的 `elide` 三兄弟经 `nm` 证实是真类成员被 ICF 折叠——第 42 节 `Tq` 门的辖区，非归属错误。
 - **验证**：`ExtensionContainerUnificationTests` 四用例（成员级容器身份全桶唯一、协议扩展块尾随且唯一、桶内身份唯一、配置往返幂等）；SourceEditor 重复头全部归一且 0006 哨兵保持；interface 快照四块纯迁移；全量套件绿。
 - **文档**：[Evolutions/0007](../Evolutions/0007-extension-container-dedup-and-default-impl-attribution.md)、[ExtensionContainerUnification.md](ExtensionContainerUnification.md)、AGENTS.md SwiftIndexing 段新条目。
-- **对应版本**：待发布（与 0006 同线）。
+- **对应版本**：`0.17.0`。
 
 ## 44. issue #106 末批：interface 文件头部与导出状态标注
 
@@ -917,7 +917,7 @@
 - **头部组件**：`InterfaceHeaderInfo`（纯值，generator 身份调用方传入——`BundledVersion` 是 CLI 私有且 RuntimeViewer 不该冒充 swift-section；日期可选默认缺席保快照字节稳定）+ `InterfaceHeaderBlock`（public——RuntimeViewer per-type 导出绕过 `printRoot`）+ Mach-O 事实工厂（install name / UUID / 架构人话映射 / fileType / `Tj` 计数，evolution 行措辞 detected / not detected 不断言）。CLI 两命令 `--emit-header` / `--emit-export-status`，默认全关。
 - **验证**：新增四套 22 测试（导出事实全量 sweeping + 三类假阳性各一钉 + true positive + 渲染逐行 + flag 解析）；全量 1465 测试绿（默认输出字节不变由既有快照实证）；SourceEditor 复核 issue §3 场景精确解决（`updateLineNumberDisplay` 带 `VTable offset: 66` + `not exported`，全库 3487 处，public API 经 `fCTj` 不误标）。Roadmap Known limitations 补 L-13…L-16（参数内部名 / `@discardableResult` / 默认参数值 / `internal` vs `fileprivate`）。
 - **文档**：[Evolutions/0008](../Evolutions/0008-interface-header-and-export-status-annotations.md)、[InterfaceHeaderAndExportStatusAnnotations.md](InterfaceHeaderAndExportStatusAnnotations.md)、Glossary 两新术语（derived symbol forms、export status）、README CLI 两段、AGENTS.md SwiftPrinting/MachOSymbols 段。
-- **对应版本**：待发布（与 0006/0007 同线）。
+- **对应版本**：`0.17.0`。
 
 ---
 
@@ -935,7 +935,7 @@
 - **追加批次（补充映射，提案 0010）**：用户以 AttributeGraph（SDK 无模块的私有框架，`AG_SWIFT_NAME` 改名头文件独有、二进制零残留）追问覆盖边界后裁定「提供接口接受社区贡献、Database 预加载、碰到直接替换」。落地为**标准 `.apinotes` 格式**的补充映射包（零新格式，直接进 `APINotesIndex` 管线）：库内置 SPM resource（首发 AttributeGraph，宁缺毋滥只收有头文件一手证据的 Graph / Subgraph / GraphContext）+ 宿主/CLI 追加路径（`--supplementary-apinotes`），覆盖顺序 SDK → 内置 → 宿主（`register(files:)` 后写覆盖即实现）。实施中把提案的「两形态」模型修正为**三形态**（手造 clang module 复刻 `objc_bridge` + `swift_name` 的 AG probe 实测）：typedef 名（Typedefs 表）、storage tag 名（字段元数据 foreign **class** descriptor——`.objcClass` 查询为此增加值类型表回退，protocol 表照旧绝不回退）、**导入名直出**（`__C.Graph`，归属同步把 `cNamesBySwiftName` 的 SwiftName 拼写也登进归属表，SDK 的 `NSDecimal → Decimal` 同理受益）。验证：新增 6 单测全绿（全套 1466 / 276 退出码 0）、AG probe 5 处引用全解析、CGCVProbe 输出与重启批次基线字节一致。公开贡献指引 [SupplementaryTypeMappings.md](../SupplementaryTypeMappings.md)（英文，顶层）。
 - **追加批次（PR #110 review 修复）**：并行 review 会话对 PR #110 提出 15 条发现并做四问核实（原始清单与处置状态见 [Roadmaps/2026-08-23-pr110-review-findings.md](../../Roadmaps/2026-08-23-pr110-review-findings.md)）；关键教训是当时全绿的 1466 个测试对该修的 7 条**一条都抓不到**——新代码测试只盖了纯函数，装配与分发路径空白。用户裁定「3/4/5/6/7 直接修，不要内置资源」：**内置 SPM resource 层整体移除**（`Bundle.module` accessor 在 bundle 缺失时 fatalError，而发布脚本只分发裸二进制——分发出去一用就崩；补充映射改纯用户自备，review 发现 2 结构性消解）；依赖解析为空与坏 `--supplementary-apinotes` 路径改为 stderr 警告（发现 3/6）；submodule 失败不再固化残缺缓存条目（发现 4，`ModuleInterfaceIndexer` 增 `InterfaceGenerator` 注入缝使缓存纪律可单测）；`moduleName(forImagePath:)` 前导点名字死循环加不动点守卫（发现 5，`.hidden` 实测复现）；task group 完成序注册改为按 SDK 发现序重排（发现 7，`entriesInDiscoveryOrder`）。「不修 / 误报」终审 5 条（Ref 剥除守卫、import 列表、actor 重入、补充覆盖面、双查询）进 [ReviewAdjudications.md](ReviewAdjudications.md) A15–A19（合并时因与 PR #111 review 的 A13/A14 撞号顺移）；发现 1（`USE_CUSTOM_OBJC_SECTION=0` 构建失败）与 15（协议签名源码破坏）待定。验证：TypeIndexingTests 37/7、全套 1470 tests / 277 suites 退出码 0。
 - **文档**：[Evolutions/0009](../Evolutions/0009-type-indexing-revival.md)、[Evolutions/0010](../Evolutions/0010-community-type-mapping-bundles.md)、[TypeIndexingPipeline.md](TypeIndexingPipeline.md)（含与提案的差异：swift-dependencies 未引入、兜底解析器未编写；identifier 重写一节；补充映射一节）、[SupplementaryTypeMappings.md](../SupplementaryTypeMappings.md)、[TaskReports/2026-08-22-type-indexing-revival.md](TaskReports/2026-08-22-type-indexing-revival.md)、[TaskReports/2026-08-22-community-type-mapping-bundles.md](TaskReports/2026-08-22-community-type-mapping-bundles.md)、[TaskReports/2026-08-23-pr110-review-fixes.md](TaskReports/2026-08-23-pr110-review-fixes.md)、AGENTS.md 架构节新增 TypeIndexing 条目。
-- **对应版本**：未随本批 bump（`feature/type-indexing-revival` 待并入 `next`）。
+- **对应版本**：`0.17.0`。
 ## 46. opaque 返回类型的 primary associated type 归属（提案 0011）
 
 - **时间段**：2026-08-24。
@@ -964,7 +964,7 @@
 - **文档**：[0011-opaque-primary-associated-type-attribution.md](../Evolutions/0011-opaque-primary-associated-type-attribution.md)、
   [OpaquePrimaryAssociatedTypeAttribution.md](OpaquePrimaryAssociatedTypeAttribution.md)、
   [TaskReports/2026-08-24-opaque-primary-associated-type-attribution.md](TaskReports/2026-08-24-opaque-primary-associated-type-attribution.md)。
-- **对应版本**：`0.15.2` 之后、下一次 bump 之前。
+- **对应版本**：`0.17.0`。
 
 ---
 
@@ -1002,7 +1002,7 @@
   [ABIEvolutionDesign.md](ABIEvolutionDesign.md)（第五批增量一节）、
   [TaskReports/2026-08-25-swift-evolution-interface-builder.md](TaskReports/2026-08-25-swift-evolution-interface-builder.md)、
   README `evolution` 一节、术语表新增「union interface」「lifecycle annotation」。
-- **对应版本**：`0.16.0` 之后、下一次 bump 之前。
+- **对应版本**：`0.17.0`。
 
 ---
 
@@ -1038,7 +1038,7 @@
 - **文档**：[PrivateTypeMemberAttribution.md](PrivateTypeMemberAttribution.md)、
   [StaticLayoutEngine.md](StaticLayoutEngine.md)（收窄条件补记）、
   [TaskReports/2026-08-26-issue-115-116-private-member-attribution-and-packed-foreign-struct.md](TaskReports/2026-08-26-issue-115-116-private-member-attribution-and-packed-foreign-struct.md)。
-- **对应版本**：`0.16.0` 之后、下一次 bump 之前。
+- **对应版本**：`0.17.0`。
 
 ---
 
@@ -1074,7 +1074,7 @@
 - **文档**：[draft-unify-interface-renderers.md](../Evolutions/draft-unify-interface-renderers.md)、
   [TaskReports/2026-08-26-unify-interface-renderers.md](TaskReports/2026-08-26-unify-interface-renderers.md)、
   AGENTS.md（`InterfaceUnionWalker` 条目 + fixture 地雷）、术语表新增「emission strategy」。
-- **对应版本**：`0.16.0` 之后、下一次 bump 之前。
+- **对应版本**：`0.17.0`。
 
 ---
 
@@ -1113,7 +1113,7 @@
   [PrivateTypeMemberAttribution.md](PrivateTypeMemberAttribution.md)（两条追记，证否原文
   「当时踩坑的全部位置」的完备性声明）、
   [ExtensionContainerUnification.md](ExtensionContainerUnification.md)（结构化键控一节）。
-- **对应版本**：`0.16.0` 之后、下一次 bump 之前。
+- **对应版本**：`0.17.0`。
 
 ---
 
