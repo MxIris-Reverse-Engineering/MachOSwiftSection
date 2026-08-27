@@ -1030,6 +1030,21 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
         return matched.value
     }
 
+    /// Same lookup as the `NodeReference` overload, for callers holding an
+    /// externally demangled `Node` (`MetadataReader.demangleContext` output in
+    /// the dump path) rather than a store-backed reference.
+    public func thunkAttributeMembers<MachO: MachORepresentableWithCache>(
+        of thunkKind: Node.Kind,
+        for typeName: String,
+        node: Node,
+        in machO: MachO
+    ) -> [ThunkAttributeMember] {
+        guard let storage = storage(in: machO) else { return [] }
+        guard let membersByTypeNodeIndex = storage.thunkAttributeMembersByKindAndTypeName[thunkKind]?[typeName] else { return [] }
+        guard let matched = membersByTypeNodeIndex.elements.first(where: { storage.nodeStore.reference(at: $0.key).structurallyEquals(node) }) else { return [] }
+        return matched.value
+    }
+
     public func memberSymbols<MachO: MachORepresentableWithCache>(of kinds: MemberKind..., in machO: MachO) -> [DemangledSymbol] {
         guard let storage = storage(in: machO) else { return [] }
         return kinds.map { kind -> [DemangledSymbol] in
@@ -1118,6 +1133,20 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
         // Same disambiguation as `memberSymbols(of:for:node:in:)`: the
         // stripped name bucket can hold several same-named private types,
         // and only the structural context-node match picks the right one.
+        guard let storage = storage(in: machO) else { return [] }
+        return kinds.map { kind -> [DemangledSymbol] in
+            guard let rowsByTypeNodeIndex = storage.methodDescriptorMemberSymbolRowsByKind[kind]?[name] else { return [] }
+            guard let matched = rowsByTypeNodeIndex.elements.first(where: { storage.nodeStore.reference(at: $0.key).structurallyEquals(node) }) else { return [] }
+            return storage.demangledSymbols(atRows: matched.value)
+        }.reduce(into: []) { $0 += $1 }
+    }
+
+    /// Same lookup as the `Node` overload, for callers holding a store-backed
+    /// reference — possibly minted into a different store than the index's own
+    /// (a `TypeName` mini store, for example): same-store keys match in O(1)
+    /// via index equality, cross-store keys by a structural walk over the
+    /// handful of bucket entries.
+    public func methodDescriptorMemberSymbols<MachO: MachORepresentableWithCache>(of kinds: MemberKind..., for name: String, node: NodeReference, in machO: MachO) -> [DemangledSymbol] {
         guard let storage = storage(in: machO) else { return [] }
         return kinds.map { kind -> [DemangledSymbol] in
             guard let rowsByTypeNodeIndex = storage.methodDescriptorMemberSymbolRowsByKind[kind]?[name] else { return [] }

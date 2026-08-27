@@ -411,7 +411,11 @@ public final class TypeDefinition: Definition {
         // evidence) and before `orderedMembers` is built below, which copies
         // the member values.
         if classCanRecoverFinalMembers {
-            let objcThunkMemberNames = Set(symbolIndexStore.thunkAttributeMembers(of: .objCAttribute, for: name, in: machO).filter { !$0.isStatic }.map(\.memberName))
+            // Node-matched, like `applyThunkAttributes` above: this gate
+            // SUPPRESSES `final`, so a same-named private sibling's `@objc`
+            // member would silently strip the keyword off this type's
+            // genuinely final member (issue #115's family).
+            let objcThunkMemberNames = Set(symbolIndexStore.thunkAttributeMembers(of: .objCAttribute, for: name, node: node, in: machO).filter { !$0.isStatic }.map(\.memberName))
             // Fourth gate — `Tq` method-descriptor SYMBOLS as negative
             // evidence: they are per-member data symbols at unique addresses,
             // immune to the identical-code-folding that defeats the
@@ -428,7 +432,10 @@ public final class TypeDefinition: Definition {
                 .subscript(inExtension: false, isStatic: false),
             ]
             for kind in instanceMemberKinds {
-                for descriptorSymbol in symbolIndexStore.methodDescriptorMemberSymbols(of: kind, for: name, in: machO) {
+                // Node-matched for the same reason as the `@objc` gate above:
+                // a sibling's `Tq` descriptor under the stripped name would
+                // read as this type's vtable evidence and suppress `final`.
+                for descriptorSymbol in symbolIndexStore.methodDescriptorMemberSymbols(of: kind, for: name, node: node, in: machO) {
                     if let functionName = descriptorSymbol.demangledNode.first(of: .function)?.identifier {
                         methodDescriptorSymbolMemberNames.insert(functionName)
                     } else if let variableName = descriptorSymbol.demangledNode.first(of: .variable)?.identifier {

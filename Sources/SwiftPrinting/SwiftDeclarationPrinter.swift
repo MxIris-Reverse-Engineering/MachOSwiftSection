@@ -558,8 +558,12 @@ public final class SwiftDeclarationPrinter<MachO: FieldLayoutRenderable>: Sendab
     @SemanticStringBuilder
     package func globalExportStatusComment(forSymbolNames symbolNames: [String]) -> SemanticString {
         if configuration.printExportStatus, exportVerdict(forSymbolNames: symbolNames) == false {
+            // No trailing `BreakLine()`: the caller is a `BlockList`, which
+            // already emits one leading break per non-empty item, so a break
+            // here would separate the comment from the declaration it
+            // annotates by a blank line (the member path's `Rows` keeps
+            // `ExportStatusComment` adjacent the same way).
             Comment("not exported")
-            BreakLine()
         }
     }
 

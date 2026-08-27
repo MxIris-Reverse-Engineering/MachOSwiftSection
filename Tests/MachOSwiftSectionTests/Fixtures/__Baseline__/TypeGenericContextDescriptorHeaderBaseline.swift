@@ -14,7 +14,7 @@ enum TypeGenericContextDescriptorHeaderBaseline {
     }
 
     static let genericStructLayoutRequirement = Entry(
-    offset: 0x41bac,
+    offset: 0x4212c,
     layoutNumParams: 1,
     layoutNumRequirements: 1,
     layoutNumKeyArguments: 1,

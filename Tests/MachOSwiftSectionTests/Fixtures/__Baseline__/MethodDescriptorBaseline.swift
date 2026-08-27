@@ -16,7 +16,7 @@ enum MethodDescriptorBaseline {
     }
 
     static let firstClassTestMethod = Entry(
-    offset: 0x403e0,
+    offset: 0x40960,
     layoutFlagsRawValue: 0x12
     )
 

@@ -154,8 +154,14 @@ package struct ClassDumper<MachO: FieldLayoutRenderable>: TypedDumper {
             // evidence is not `final`.
             let canRecoverFinalFields = dumped.vTableDescriptorHeader != nil && !dumped.descriptor.isActor
             let finalRecoveryInterfaceName = canRecoverFinalFields ? try await interfaceName.string : ""
-            let vtableAccessorNames = canRecoverFinalFields ? vtableAccessorFieldNames(interfaceNameString: finalRecoveryInterfaceName) : []
-            let storedAccessorNames = canRecoverFinalFields ? storedAccessorFieldNames(interfaceNameString: finalRecoveryInterfaceName) : []
+            // Same-named private types share the stripped name bucket, and
+            // both sets below decide a `final` keyword — so the lookups must
+            // be node-matched exactly like the member loops in `members`
+            // (issue #115). A context that cannot be demangled falls back to
+            // the name-only (merged) lookup rather than dropping evidence.
+            let finalRecoveryContextNode = canRecoverFinalFields ? try? MetadataReader.demangleContext(for: .type(.class(dumped.descriptor)), in: machO) : nil
+            let vtableAccessorNames = canRecoverFinalFields ? vtableAccessorFieldNames(interfaceNameString: finalRecoveryInterfaceName, contextNode: finalRecoveryContextNode) : []
+            let storedAccessorNames = canRecoverFinalFields ? storedAccessorFieldNames(interfaceNameString: finalRecoveryInterfaceName, contextNode: finalRecoveryContextNode) : []
             for (offset, fieldRecord) in try dumped.descriptor.fieldDescriptor(in: machO).records(in: machO).offsetEnumerated() {
                 BreakLine()
 
@@ -543,7 +549,7 @@ package struct ClassDumper<MachO: FieldLayoutRenderable>: TypedDumper {
 
     /// Field names (lazy-stripped) whose getter/setter/modify/read accessors
     /// occupy vtable slots — i.e. the stored `var`s that were NOT declared
-    /// `final`. Paired with `storedAccessorFieldNames(interfaceNameString:)`
+    /// `final`. Paired with `storedAccessorFieldNames(interfaceNameString:contextNode:)`
     /// (the evidence gate) by `fields` to recover the `final` keyword on the
     /// remaining stored `var`s (evolution proposal 0006).
     ///
@@ -552,7 +558,7 @@ package struct ClassDumper<MachO: FieldLayoutRenderable>: TypedDumper {
     /// method-descriptor symbols — per-member data symbols at unique
     /// addresses, immune to the identical-code-folding that can fold many
     /// accessor implementations onto one address and defeat the first source.
-    private func vtableAccessorFieldNames(interfaceNameString: String) -> Set<String> {
+    private func vtableAccessorFieldNames(interfaceNameString: String, contextNode: Node?) -> Set<String> {
         var names: Set<String> = []
         let accessorKinds: Set<MethodDescriptorKind> = [.getter, .setter, .modifyCoroutine, .readCoroutine]
         for descriptor in dumped.methodDescriptors where accessorKinds.contains(descriptor.flags.kind) {
@@ -563,7 +569,13 @@ package struct ClassDumper<MachO: FieldLayoutRenderable>: TypedDumper {
                 names.insert(variableName)
             }
         }
-        for descriptorSymbol in symbolIndexStore.methodDescriptorMemberSymbols(of: .variable(inExtension: false, isStatic: false, isStorage: false), for: interfaceNameString, in: machO) {
+        let variableKind: SymbolIndexStore.MemberKind = .variable(inExtension: false, isStatic: false, isStorage: false)
+        let descriptorSymbols = if let contextNode {
+            symbolIndexStore.methodDescriptorMemberSymbols(of: variableKind, for: interfaceNameString, node: contextNode, in: machO)
+        } else {
+            symbolIndexStore.methodDescriptorMemberSymbols(of: variableKind, for: interfaceNameString, in: machO)
+        }
+        for descriptorSymbol in descriptorSymbols {
             guard let variableName = descriptorSymbol.demangledNode.first(of: .variable)?.identifier else { continue }
             names.insert(variableName)
         }
@@ -577,13 +589,24 @@ package struct ClassDumper<MachO: FieldLayoutRenderable>: TypedDumper {
     /// dispatch through the ObjC runtime (`@objc dynamic`) — overridable, so
     /// never `final` (same exclusion as the model path in
     /// `TypeDefinition.index`).
-    private func storedAccessorFieldNames(interfaceNameString: String) -> Set<String> {
+    private func storedAccessorFieldNames(interfaceNameString: String, contextNode: Node?) -> Set<String> {
         var names: Set<String> = []
-        for symbol in symbolIndexStore.memberSymbols(of: .variable(inExtension: false, isStatic: false, isStorage: false), for: interfaceNameString, in: machO) {
+        let variableKind: SymbolIndexStore.MemberKind = .variable(inExtension: false, isStatic: false, isStorage: false)
+        let accessorSymbols = if let contextNode {
+            symbolIndexStore.memberSymbols(of: variableKind, for: interfaceNameString, node: contextNode, in: machO)
+        } else {
+            symbolIndexStore.memberSymbols(of: variableKind, for: interfaceNameString, in: machO)
+        }
+        for symbol in accessorSymbols {
             guard let variableName = symbol.demangledNode.first(of: .variable)?.identifier else { continue }
             names.insert(variableName)
         }
-        for objcMember in symbolIndexStore.thunkAttributeMembers(of: .objCAttribute, for: interfaceNameString, in: machO) where !objcMember.isStatic {
+        let objcMembers = if let contextNode {
+            symbolIndexStore.thunkAttributeMembers(of: .objCAttribute, for: interfaceNameString, node: contextNode, in: machO)
+        } else {
+            symbolIndexStore.thunkAttributeMembers(of: .objCAttribute, for: interfaceNameString, in: machO)
+        }
+        for objcMember in objcMembers where !objcMember.isStatic {
             names.remove(objcMember.memberName)
         }
         return names

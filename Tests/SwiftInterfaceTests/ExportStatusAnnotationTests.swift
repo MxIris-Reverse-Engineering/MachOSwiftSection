@@ -116,4 +116,34 @@ final class ExportStatusAnnotationTests: MachOFileTests, @unchecked Sendable {
         let output = try await buildOutput(printExportStatus: false)
         #expect(!output.contains("// not exported"))
     }
+
+    /// The comment must sit on the line IMMEDIATELY above the declaration it
+    /// annotates — for TOP-LEVEL globals as well as members. Every other test
+    /// in this suite reads a member, whose `Rows(level:)` renderer keeps the
+    /// pair adjacent; the globals blocks go through
+    /// `SwiftDeclarationPrinter.globalExportStatusComment`, which used to emit
+    /// its own trailing `BreakLine()` inside a `BlockList` that already
+    /// contributes one leading break per item — so every global's comment
+    /// floated a blank line above its declaration and read as annotating the
+    /// PREVIOUS one.
+    @Test func exportStatusCommentIsAdjacentToItsDeclaration() async throws {
+        let output = try await buildOutput(printExportStatus: true)
+        let lines = output.split(separator: "\n", omittingEmptySubsequences: false)
+
+        var annotatedGlobalCount = 0
+        for (index, line) in lines.enumerated() where line.contains("// not exported") {
+            let following = index + 1 < lines.count ? lines[index + 1] : ""
+            #expect(
+                !following.trimmingCharacters(in: .whitespaces).isEmpty,
+                "blank line between the export-status comment and its declaration at line \(index + 1)"
+            )
+            // A comment at column 0 belongs to a top-level global.
+            if line.hasPrefix("// not exported") { annotatedGlobalCount += 1 }
+        }
+
+        // Non-vacuity: the member path was already adjacent before the fix, so
+        // the assertion above only means something if the fixture actually
+        // annotates a GLOBAL.
+        #expect(annotatedGlobalCount > 0, "fixture annotates no top-level global; the adjacency check would be vacuous")
+    }
 }

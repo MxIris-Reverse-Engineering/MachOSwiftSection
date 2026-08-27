@@ -180,4 +180,28 @@ final class FinalMemberRecoveryTests: MachOFileTests, @unchecked Sendable {
         let plainStored = try #require(fieldsByName["plainStoredProperty"])
         #expect(plainStored.accessorTypeNode == nil)
     }
+
+    /// `final` recovery's symbol lookups are node-matched, so two same-named
+    /// `private class`es each get their own verdict: the `PrivateDoppelganger`
+    /// pair declares `sharedNameMethod()` non-final in one file and `final` in
+    /// the other, under one discriminator-stripped name.
+    ///
+    /// NON-REGRESSION PIN, NOT A REPRODUCTION. No trigger could be constructed
+    /// for the name-only lookups this replaced: a `private` class emits no `Tq`
+    /// method-descriptor symbols (the negative-evidence gate reads nothing from
+    /// either sibling) and no stored-property accessor symbols (the `@objc`
+    /// gate, which only guards stored fields, has nothing to strip), and Swift
+    /// rejects a same-named `internal`/`private` pair outright with `invalid
+    /// redeclaration`. What this pins is that node-matching the lookups does
+    /// not BREAK the verdicts it now scopes. See `ReviewAdjudications.md`.
+    @Test func sameNamedPrivateClassesGetIndependentFinalVerdicts() async throws {
+        let output = try await buildOutput()
+
+        // Exactly one of the two same-named declarations carries `final` on
+        // the shared member name — never both, never neither.
+        let finalOccurrences = output.components(separatedBy: "final func sharedNameMethod()").count - 1
+        let plainOccurrences = output.components(separatedBy: "\n    func sharedNameMethod()").count - 1
+        #expect(finalOccurrences == 1, "expected exactly one `final func sharedNameMethod()`")
+        #expect(plainOccurrences == 1, "expected exactly one non-final `func sharedNameMethod()`")
+    }
 }

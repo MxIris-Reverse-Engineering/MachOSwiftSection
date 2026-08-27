@@ -2515,6 +2515,25 @@ enum OverloadedMembers {
 }
 enum PrivateDoppelgangerFirstFileAnchors {
     static func materializeFirstDoppelganger() -> Any
+    static func materializeFirstProtocolWitness() -> Any
+    static func materializeFirstDoppelgangerClass() -> Any
+}
+class PrivateDoppelgangerClass {
+    // Field offset: 0x10
+    // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
+    var alphaOnlyStoredProperty: Swift.Int64
+
+    init(alphaSeed: Swift.Int64)
+
+    func sharedNameMethod() -> Swift.Int64
+    func alphaClassMethod() -> Swift.Int64
+
+    deinit
+}
+struct AlphaProtocolWitness {
+    // Field offset: 0x0
+    // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
+    var seedValue: Swift.Int64
 }
 struct PrivateDoppelganger {
     // Field offset: 0x0
@@ -2527,6 +2546,25 @@ struct PrivateDoppelganger {
 }
 enum PrivateDoppelgangerSecondFileAnchors {
     static func materializeSecondDoppelganger() -> Any
+    static func materializeSecondProtocolWitness() -> Any
+    static func materializeSecondDoppelgangerClass() -> Any
+}
+class PrivateDoppelgangerClass {
+    // Field offset: 0x10
+    // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
+    var betaOnlyStoredProperty: Swift.Int64
+
+    init(betaSeed: Swift.Int64)
+
+    final func sharedNameMethod() -> Swift.Int64
+    func betaClassMethod() -> Swift.Int64
+
+    deinit
+}
+struct BetaProtocolWitness {
+    // Field offset: 0x0
+    // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
+    var seedValue: Swift.Int64
 }
 struct PrivateDoppelganger {
     // Field offset: 0x0
@@ -3286,6 +3324,28 @@ enum WeakUnownedReferences {
 protocol DescriptorBackedSwiftProtocol {
     func describe() -> Swift.Int
 }
+protocol PrivateDoppelgangerProtocol {
+    // Kind: Getter, isAsync: false, isInstance: true
+}
+extension SymbolTestsCore.PrivateDoppelgangerProtocol {
+    var alphaDefaultProperty: Swift.Int64 {
+        get
+    }
+
+    func alphaDefaultMethod() -> Swift.Int64
+}
+
+protocol PrivateDoppelgangerProtocol {
+    // Kind: Getter, isAsync: false, isInstance: true
+}
+extension SymbolTestsCore.PrivateDoppelgangerProtocol {
+    var betaDefaultProperty: Swift.Int64 {
+        get
+    }
+
+    func betaDefaultMethod() -> Swift.Int64
+}
+
 
 extension SymbolTestsCore.DefaultImplementationVariants.BasicDefaultProtocol {
     func withDefaultAndGeneric<A1>(_: A1) -> A1
@@ -4409,6 +4469,8 @@ extension SymbolTestsCore.OptionSetAndRawRepresentable.GenericRawRepresentableTe
         get
     }
 }
+extension SymbolTestsCore.AlphaProtocolWitness: SymbolTestsCore.PrivateDoppelgangerProtocol {}
+extension SymbolTestsCore.BetaProtocolWitness: SymbolTestsCore.PrivateDoppelgangerProtocol {}
 extension Swift.Array: SymbolTestsCore.Protocols.TestCollection {
     typealias Element = A
 }

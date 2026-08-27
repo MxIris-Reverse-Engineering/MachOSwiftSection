@@ -44,16 +44,34 @@ final class ExtensionContainerUnificationTests: MachOFileTests, @unchecked Senda
             builder.indexer.typeAliasExtensionDefinitions,
             builder.indexer.conformanceExtensionDefinitions,
         ]
-        var seenIdentities: Set<String> = []
+        // The extended-type half of the identity is the `ExtensionName` VALUE,
+        // whose `Hashable` is structural over its name node — not the printed
+        // `.name`, which `interfaceTypeBuilderOnly` renders without private
+        // discriminators. Two same-named `private protocol`s own two genuinely
+        // distinct containers; keying them by the stripped string reports them
+        // as one container printed twice, which is the very confusion this
+        // suite exists to catch elsewhere.
+        struct ContainerIdentity: Hashable {
+            let extensionName: ExtensionName
+            let protocolText: String
+            let signatureText: String
+            let isRetroactive: Bool
+        }
+        var seenIdentities: Set<ContainerIdentity> = []
         var duplicatedIdentities: [String] = []
         for buckets in allBuckets {
             for (extensionName, definitions) in buckets {
                 for definition in definitions where definition.protocolConformanceDescriptor == nil && definition.hasMembers {
                     let signatureText = await definition.genericSignature?.print(using: .default) ?? "-"
                     let protocolText = definition.conformingProtocolName?.name ?? "-"
-                    let identity = "\(extensionName.name)|\(protocolText)|\(signatureText)|\(definition.isRetroactive)"
+                    let identity = ContainerIdentity(
+                        extensionName: extensionName,
+                        protocolText: protocolText,
+                        signatureText: signatureText,
+                        isRetroactive: definition.isRetroactive
+                    )
                     if !seenIdentities.insert(identity).inserted {
-                        duplicatedIdentities.append(identity)
+                        duplicatedIdentities.append("\(extensionName.name)|\(protocolText)|\(signatureText)|\(definition.isRetroactive)")
                     }
                 }
             }
@@ -84,6 +102,69 @@ final class ExtensionContainerUnificationTests: MachOFileTests, @unchecked Senda
         // top-level extensions block.
         let attachedDefinitions = builder.indexer.protocolExtensionDefinitions.values.flatMap { $0 }.filter(\.isAttachedToProtocolDefinition)
         #expect(!attachedDefinitions.isEmpty)
+    }
+
+    /// Two same-named `private protocol`s each keep their OWN default-
+    /// implementation block. The attachment map used to key on the printed
+    /// name, which `interfaceTypeBuilderOnly` renders without the private
+    /// discriminator: the two declarations collapsed onto one key, the losing
+    /// bucket was flagged `isAttachedToProtocolDefinition` (removing it from
+    /// the top-level extensions block) and then overwritten out of
+    /// `defaultImplementationExtensions` by the winner's assignment — its
+    /// members disappeared from the interface entirely (issue #115's family).
+    ///
+    /// Pinned on the `PrivateDoppelgangerProtocol` pair: the first file
+    /// contributes `alpha*` default implementations, the second `beta*`.
+    /// Before the fix this rendered TWO protocol declarations but only ONE
+    /// extension block, carrying only the `beta*` members.
+    @Test func sameNamedPrivateProtocolsKeepTheirOwnDefaultImplementations() async throws {
+        let builder = try makeBuilder()
+        try await builder.prepare()
+        let output = try await builder.printRoot().string
+
+        let protocolHeader = "protocol PrivateDoppelgangerProtocol {"
+        let extensionHeader = "extension SymbolTestsCore.PrivateDoppelgangerProtocol {"
+
+        // Both declarations are present, and each one has a block of its own.
+        #expect(output.components(separatedBy: protocolHeader).count - 1 == 2)
+        #expect(output.components(separatedBy: extensionHeader).count - 1 == 2)
+
+        // Neither file's members went missing — the pre-fix output dropped
+        // the `alpha*` pair wholesale.
+        #expect(output.contains("alphaDefaultProperty"))
+        #expect(output.contains("alphaDefaultMethod"))
+        #expect(output.contains("betaDefaultProperty"))
+        #expect(output.contains("betaDefaultMethod"))
+
+        // Each block trails its own declaration rather than both trailing one:
+        // the `alpha` members must land between the first and second protocol
+        // header, and the `beta` members after the second.
+        let firstProtocol = try #require(output.range(of: protocolHeader))
+        let secondProtocol = try #require(output.range(of: protocolHeader, range: firstProtocol.upperBound ..< output.endIndex))
+        let alphaMember = try #require(output.range(of: "alphaDefaultProperty"))
+        let betaMember = try #require(output.range(of: "betaDefaultProperty"))
+        #expect(firstProtocol.upperBound < alphaMember.lowerBound)
+        #expect(alphaMember.upperBound < secondProtocol.lowerBound)
+        #expect(secondProtocol.upperBound < betaMember.lowerBound)
+    }
+
+    /// The attachment map keys structurally, so two same-named private
+    /// protocols resolve to two distinct `ProtocolDefinition`s — the model-
+    /// level counterpart of the rendering test above.
+    @Test func sameNamedPrivateProtocolsResolveToDistinctDefinitions() async throws {
+        let builder = try makeBuilder()
+        try await builder.prepare()
+        _ = try await builder.printRoot()
+
+        let doppelgangers = builder.indexer.allProtocolDefinitions.filter { $0.key.name.hasSuffix("PrivateDoppelgangerProtocol") }
+        #expect(doppelgangers.count == 2)
+
+        // Every one of them owns a non-empty attached block, and no block is
+        // shared between the two.
+        let attachedPerProtocol = doppelgangers.values.map(\.defaultImplementationExtensions)
+        #expect(attachedPerProtocol.allSatisfy { !$0.isEmpty })
+        let attachedIdentities = attachedPerProtocol.flatMap { $0.map(ObjectIdentifier.init) }
+        #expect(Set(attachedIdentities).count == attachedIdentities.count)
     }
 
     /// Same-identity merge: the nested-type discovery and the member-symbol

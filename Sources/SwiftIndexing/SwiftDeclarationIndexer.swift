@@ -986,12 +986,25 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
         currentStorage.typeAliasExtensionDefinitions = mergingSameIdentityContainers(currentStorage.typeAliasExtensionDefinitions)
         currentStorage.conformanceExtensionDefinitions = mergingSameIdentityContainers(currentStorage.conformanceExtensionDefinitions)
 
-        var protocolDefinitionsByName: [String: ProtocolDefinition] = [:]
+        // Keyed on `ExtensionName` — whose `Hashable` is STRUCTURAL over the
+        // name node — not on the printed `.name` string: `.name` is printed
+        // with `interfaceTypeBuilderOnly`, which strips private
+        // discriminators, so two same-named `private protocol`s collapse onto
+        // one key. Under a string key the map was last-wins and the
+        // attachment below is an ASSIGNMENT, so the loser's whole bucket was
+        // first flagged `isAttachedToProtocolDefinition` (which removes it
+        // from the top-level extensions block) and then overwritten out of
+        // `defaultImplementationExtensions` — its members vanished from the
+        // output entirely, and which bucket lost depended on iteration order
+        // (issue #115's family). `allProtocolDefinitions` already keys on the
+        // structurally-hashed `ProtocolName`, so the two declarations are
+        // distinct there; only this lookup table flattened them.
+        var protocolDefinitionsByName: [ExtensionName: ProtocolDefinition] = [:]
         for (protocolName, protocolDefinition) in currentStorage.allProtocolDefinitions {
-            protocolDefinitionsByName[protocolName.name] = protocolDefinition
+            protocolDefinitionsByName[protocolName.extensionName] = protocolDefinition
         }
         for (extensionName, definitions) in currentStorage.protocolExtensionDefinitions {
-            guard let protocolDefinition = protocolDefinitionsByName[extensionName.name] else { continue }
+            guard let protocolDefinition = protocolDefinitionsByName[extensionName] else { continue }
             for definition in definitions {
                 definition.isAttachedToProtocolDefinition = true
             }

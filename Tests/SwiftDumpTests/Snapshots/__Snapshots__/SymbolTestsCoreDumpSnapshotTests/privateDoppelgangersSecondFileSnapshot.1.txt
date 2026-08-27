@@ -3,4 +3,6 @@
 enum SymbolTestsCore.PrivateDoppelgangerSecondFileAnchors {
     /* Static Function */
     static SymbolTestsCore.PrivateDoppelgangerSecondFileAnchors.materializeSecondDoppelganger() -> Any
+    static SymbolTestsCore.PrivateDoppelgangerSecondFileAnchors.materializeSecondProtocolWitness() -> Any
+    static SymbolTestsCore.PrivateDoppelgangerSecondFileAnchors.materializeSecondDoppelgangerClass() -> Any
 }
