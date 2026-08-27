@@ -52,6 +52,43 @@ Sources/SwiftDump/Dumper/ProtocolConformanceDumper.swift  # dump 侧标注
 - SourceEditor 实测：重复 `extension` 头从两打协议 ×2 → **全部 ×1**；0006 哨兵（`elide` 非 final、`languageService` final lazy 非 Optional）保持。
 - interface 快照 diff 为四块纯迁移（22+/21−，一个空行）；SwiftDumpTests / SwiftIndexingTests / **SwiftDiffingTests** 全绿（快照格式零扰动的实证）。
 
+## 修复：附着映射必须结构化键控（2026-08-27，PR #118 review 发现 2）
+
+首版 `unifyExtensionContainers` 用一个临时的 `[String: ProtocolDefinition]` 建协议查找表，key 取 `ProtocolName.name` —— 即用 `interfaceTypeBuilderOnly` 打印出的名字，而该选项**明确移除 private discriminator**。两个同名的 `private protocol` 于是塌进同一个 key，last-wins。
+
+后果比"挂错"更重，因为附着是**赋值**不是 append：
+
+1. 先处理的桶被逐个打上 `isAttachedToProtocolDefinition = true` —— 顶层 `allExtensionDefinitions` 从此过滤掉它们；
+2. 紧接着后一个桶的 `protocolDefinition.defaultImplementationExtensions = definitions` 把前者从附着位覆盖出去。
+
+于是**那一整桶成员从输出里彻底消失**（既不在顶层 extensions 块，也不在任何协议的尾随块），而"哪个桶倒霉"取决于 `OrderedDictionary` 的迭代顺序。
+
+修法是把 key 换成结构化的 `ExtensionName` —— 它的 `Hashable` 本就是对名字节点做结构比较，且 `ProtocolName` 自带一个现成的 `extensionName` 属性，正好是桶的键类型：
+
+```swift
+var protocolDefinitionsByName: [ExtensionName: ProtocolDefinition] = [:]
+for (protocolName, protocolDefinition) in currentStorage.allProtocolDefinitions {
+    protocolDefinitionsByName[protocolName.extensionName] = protocolDefinition
+}
+for (extensionName, definitions) in currentStorage.protocolExtensionDefinitions {
+    guard let protocolDefinition = protocolDefinitionsByName[extensionName] else { continue }
+```
+
+结构键控之后附着是 1:1 的（查找键与桶键同型同值），赋值不再有覆盖风险。
+
+**为什么这个修法是安全的**：协议定义那侧的名字节点来自类型描述符，扩展桶那侧来自符号扫描，两者出自不同的 node store。若结构对不上，附着会整体失效 —— 退回 main 的行为（扩展渲染在顶层，不丢数据），而 `protocolExtensionBlockTrailsItsProtocol` 断言 `!attachedDefinitions.isEmpty`，会立刻变红。也就是说这个修法的失败模式是"安全降级 + 测试立刻告警"，不是静默错误。
+
+**同批修正的测试**：`memberCarryingContainerIdentitiesAreUnique` 自己也用去 discriminator 的字符串拼身份键，于是把两个**合法不同**的同名私有协议容器报成重复容器。它的身份键同样换成了以 `ExtensionName` 值为分量的结构化 key —— 与生产代码同一个教训。
+
+红→绿实证（fixture `PrivateDoppelgangerProtocol` 对，一边 `alpha*` 一边 `beta*`）：
+
+```
+修前：protocol …{} / protocol …{} / extension …{ betaDefaultProperty, betaDefaultMethod }   ← alpha 整块消失
+修后：protocol …{} / extension …{ alpha* } / protocol …{} / extension …{ beta* }
+```
+
+同族的其余漏网（`final` 恢复的 5 处 name-only 查找）见 [`PrivateTypeMemberAttribution.md`](PrivateTypeMemberAttribution.md) 的两条追记与 [`ReviewAdjudications.md`](ReviewAdjudications.md) 的 A22。
+
 ## 已知降级
 
 - **裸头并存残余**：`extension X { typealias … }`（P1-9 合并代表、居 conformance 桶承载 assocwitness 归属）与同名成员块共享头文本。跨桶合并动快照格式，不做；属外观残余非重复容器。

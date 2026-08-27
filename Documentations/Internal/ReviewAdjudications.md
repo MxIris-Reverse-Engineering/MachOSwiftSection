@@ -230,3 +230,43 @@
 - **发现**：review 原文称「绝大多数引用都要查两次」；核实后 `or` 的第二参数是 `@autoclosure`（`Utilities/OrFunctions.swift`），仅在第一查询 miss 时才发生第二次。
 - **为什么不修**：仅 miss 路径多一次字典探查，无测量证据表明可感知；加 `hasSuffix("Ref")` 前置判断属纯微优化。
 - **复审条件**：profiling 显示该路径可感知。
+
+---
+
+## A20 — 统一 walker 的 key 去重丢弃同 key 重复声明（PR #118 review 发现 3，**误报**）
+
+- **裁决**：误报 / 有意行为，不修（2026-08-27）。
+- **发现**：`InterfaceUnionWalker.matchAcrossVersions` 用 `seen.insert(elementKey).inserted` 门控 emission，而它替换掉的 `SwiftDiffableInterfaceRenderer.diffMembers`（main `:428`）与 `matchByKey`（main `:556`）遍历新侧全部元素——identity key 碰撞时旧路径两个都渲染，新路径只渲染第一个。review 据此判定 `swift-section diff --interface` 会静默少渲染成员。
+- **复现 / 是否误报**：行为差异属实，但**定性错误**。walker 的文档注释明写 "Keys are first-wins within each version (emission included…) mirroring `ABIDiffer.keyed`"，`draft-unify-interface-renderers.md` 的决策日志（2026-08-26）专条记载：实现中确认旧 diff 发射循环对同 key 重复项重复发射，与其**自身查表字典**和注释声明的 first-wins 相矛盾，判定为漏网，统一后连发射也 first-wins；恰好依赖旧行为的测试 `unrenderableHeaderIsReportedAsAnEvent` 同批改成 replace 注入。旧行为也并非「更正确」——第二个重复项是与 first-wins 的旧侧条目**错配比较**后发射的。
+- **与 main 基线对比**：行为变化确由本 PR 引入，但项目已把旧行为定性为 bug，故不是回归。
+- **既往修复**：无。这是首次把发射对齐 first-wins 的 deliberate 改动。
+- **残余关切（不构成缺陷）**：`--interface` 模式直接从 live model 渲染、不经 `ABIDiff`，所以 `keyCollisions()` 诊断在该视图无处输出。**main 同样如此**，属可选增强而非本 PR 缺陷。
+- **代码锚点**：`Sources/SwiftInterface/InterfaceUnionWalker.swift` `matchAcrossVersions` 的 first-wins 注释。
+- **复审条件**：把碰撞诊断带进 interface 视图（事件或注释形式）被单独提案时，本条目关闭。
+
+---
+
+## A21 — `symbolCount(of:in:)` 把「无 symbol store」折叠成 `0`（PR #118 review 发现 9，**误报**）
+
+- **裁决**：误报，不修（2026-08-27）。
+- **发现**：`SymbolIndexStore.symbolCount` 的 `guard let storage = storage(in: machO) else { return 0 }` 会把构建失败折叠成零计数，于是 `InterfaceHeaderBlock` 在 resilient 二进制上打印断言式的 `Library evolution: not detected (0 dispatch thunks)`，而属性文档承诺 `nil` 时省略该行。
+- **复现 / 是否误报**：**声称的触发机制是死代码**。`buildStorageSweep` 唯一出口是 `return Storage(...)`——任何输入（含无符号表镜像）都产出一个可能为空的 `Storage`，`storage(in:)` 的 `nil` 分支实践不可达。把 guard 改成返回 `nil` 也改变不了任何输出。
+- **与 main 基线对比**：不适用（不可达）。
+- **为什么不修**：`0 → not detected` 是 test-pin 的设计行为（`zeroThunkCountRendersNotDetected`），属性文档自陈零计数合法，提案 0008 明确。
+- **可选增强（低价值）**：若要更诚实地区分「判定」与「无证据」，可另做 `hasExportInformation` 之类的证据信号；与本条裁决无关。
+- **复审条件**：`storage(in:)` 出现真实可达的 `nil` 路径（例如惰性构建改成可失败）。
+
+---
+
+## A22 — `final` 恢复的名字查找可被同名私有兄弟污染（PR #118 review 发现 4/5，**已修但无法构造触发场景**）
+
+- **裁决**：代码**已修**（2026-08-27），但复现**构造不出**；本条登记的是「不要再为它找复现」的结论。
+- **发现**：`ClassDumper.vtableAccessorFieldNames` / `storedAccessorFieldNames`（3 处）与 `TypeDefinition.index` 的两处 `final` 门控（`thunkAttributeMembers` / `methodDescriptorMemberSymbols`）走的是**只按名字**的合并桶，而同一 PR 在三行外的成员循环里已改成传 node 并留了 issue #115 的注释。
+- **修了什么**：5 处全部改成 node 匹配（`contextNode` 拿不到时退回名字查找，沿用 `ClassDumper.members` 已确立的写法），并补齐两个缺失的镜像重载：`thunkAttributeMembers(of:for:node: Node,in:)` 与 `methodDescriptorMemberSymbols(of:for:node: NodeReference,in:)`。碰撞不存在时行为逐字节不变。
+- **复现 / 是否误报**：**构造不出触发场景**，三条独立理由，均经实测：
+  1. 同名只能靠 `private`/`fileprivate` 分文件取得——Swift 拒绝同名的 `internal`/`private` 配对（`error: invalid redeclaration of 'PrivateDoppelgangerClass'`，实测）。
+  2. `private` class **不发 `Tq` 方法描述符符号**（`SymbolTestsCore` 全库 770 个 `Tq`，doppelganger 一个没有），所以 `methodDescriptorMemberSymbols` 门控从任一兄弟都读不到负面证据。
+  3. `private` class 的**存储属性访问器符号在 Release 下不存在**（`final var` 也印不出 `final`，因为证据门 `accessors.isEmpty` 直接落空），而 `objcThunkMemberNames` 那条门控**只作用于存储字段**（functions/variables/subscripts 三个循环读的是 per-member 的 `attributes.contains(.objc)`，那个属性来自已经 node 匹配的 `applyThunkAttributes`）。
+- **为什么仍然修**：改动是严格更安全的收紧，与本 PR 自己在相邻代码里声明的不变量一致，且无碰撞时零行为差异；留着一个「已知按名字查、只是恰好没人能触发」的查询是下一次回归的种子。
+- **测试**：`FinalMemberRecoveryTests.sameNamedPrivateClassesGetIndependentFinalVerdicts` 是**防回归钉子而非复现**（夹具 `PrivateDoppelgangerClass` 对，一边非 final、一边 `final`），测试注释与本条目互引。
+- **复审条件**：① 在真实框架二进制上观察到同名私有类型且其中一方贡献了 `Tq` 或存储属性访问器符号；② 上游工具链改变私有类型的符号发射策略（例如为 `private` class 也发 `Tq`）——届时本条的三条理由需重测。

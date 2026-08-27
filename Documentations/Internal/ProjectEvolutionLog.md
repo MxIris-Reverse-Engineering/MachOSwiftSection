@@ -1078,6 +1078,45 @@
 
 ---
 
+## 50. PR #118 code review 修复批次（同名私有类型归属的第二轮清扫）
+
+- **时间段**：2026-08-27。
+- **动机**：对 PR #118 跑 code review 产出 15 条 finding，经第二会话按四问复核后收敛为
+  三族真问题。其中两族同源：提案 0006（`final` 恢复）与 0007（扩展容器归并）都是
+  08-22 的代码，而 issue #115 的 node 化清扫（`a77db414`）是 08-26 —— 清扫按当次 diff
+  涉及的函数走，恰好绕过了这两处早写的代码。
+- **关键决策**：
+  - **协议附着改结构化键控**：`unifyExtensionContainers` 的临时查找表 key 从
+    `ProtocolName.name`（打印名，已剥离 private discriminator）换成 `ExtensionName`
+    值（`Hashable` 本就结构化，`ProtocolName.extensionName` 现成可用）。原状不只是挂错——
+    附着是**赋值**不是 append，碰撞时输者的整桶成员先被标记移出顶层 extensions 块、
+    再被赢者覆盖出附着位，**从输出中彻底消失**，且哪桶倒霉取决于迭代序。
+    失败模式经设计：结构对不上则附着整体失效、退回 main 行为（不丢数据），
+    而既有的 `protocolExtensionBlockTrailsItsProtocol` 会立刻变红。
+  - **`final` 恢复的 5 处改 node 匹配，但明确记录「复现不可达」**：实测三条独立理由
+    —— Swift 拒绝同名 `internal`/`private` 配对；`private` class 不发 `Tq` 方法描述符
+    符号；`private` class 的存储属性访问器在 Release 下不存在，而 `@objc` 门控只作用于
+    存储字段。仍然修（严格更安全、与 PR 自身在相邻代码声明的不变量一致、无碰撞时零
+    行为差异），但配防回归钉子而非复现测试，完整论证落 `ReviewAdjudications.md` A22，
+    避免下一轮 review 重复找复现。这一条推翻了复核方的「确认需修」定性 —— 真实性成立、
+    可达性不成立。
+  - **两条 review 发现终审为误报**：walker 的 first-wins 发射是本账本第 49 节记录在案的
+    deliberate 改动（A20）；`symbolCount` 折叠 0 的触发机制是死代码（A21）。
+  - **顺带修掉测试自身的同类缺陷**：`memberCarryingContainerIdentitiesAreUnique` 也用
+    去 discriminator 的字符串拼身份键，把两个合法不同的同名私有协议容器报成重复容器。
+- **落地模块**：`SwiftIndexing`（归并键）、`SwiftDump` + `SwiftDeclaration`（`final` 5 处）、
+  `MachOSymbols`（补两个缺失的镜像重载：`thunkAttributeMembers` 的 `Node` 版、
+  `methodDescriptorMemberSymbols` 的 `NodeReference` 版）、`SwiftPrinting`（删一行多余
+  `BreakLine()`）。夹具 `SymbolTestsCore` 扩同名 `private protocol` 对与 `private class` 对。
+- **文档**：[TaskReports/2026-08-27-pr118-review-fixes.md](TaskReports/2026-08-27-pr118-review-fixes.md)、
+  [ReviewAdjudications.md](ReviewAdjudications.md) A20–A22、
+  [PrivateTypeMemberAttribution.md](PrivateTypeMemberAttribution.md)（两条追记，证否原文
+  「当时踩坑的全部位置」的完备性声明）、
+  [ExtensionContainerUnification.md](ExtensionContainerUnification.md)（结构化键控一节）。
+- **对应版本**：`0.16.0` 之后、下一次 bump 之前。
+
+---
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节
