@@ -320,6 +320,8 @@ The emitted sets come from one per-protocol synthesized-associated-type extensio
 
 **Effort.** Medium (1 day). Main work is getting the grouping key right.
 
+**Status update (evolution 0007).** The typealias-only merge shipped earlier was generalized by the extension-container unification (`unifyExtensionContainers()`): same-(protocol, where-fingerprint, retroactive) eager definitions now merge within every bucket, and a protocol's symbol-scan extension blocks attach to the protocol declaration (the issue #106 §5 duplicate-block fix). One deliberate residual remains: a bare `extension X { typealias … }` block (this item's merge representative, kept in the conformance bucket for its assocwitness attribution) can still share header text with the type's member block — merging that pair would move content across buckets and change the frozen ABI-snapshot format. See [ExtensionContainerUnification.md](../Documentations/Internal/ExtensionContainerUnification.md).
+
 ---
 
 ### P1-10. Synthesized `Equatable` / `Hashable` members appear in both the type body and the conformance extension
@@ -772,6 +774,48 @@ Method-level `@MainActor` isolation **is** recoverable (see P2-12).
 - Attach to a live process via `MachOImage` and let the existing code path run.
 - Parse `__swift5_reflstr` + actual runtime dump output (e.g., from `swift-reflection-dump`). The reflection runtime already computes these offsets and can be queried.
 - DWARF `DW_AT_data_member_location` on debug builds — available only in debug binaries.
+
+---
+
+### L-12. Class-level `final`
+
+**Why not.** Neither `ClassFlags`, `TypeContextDescriptorFlags`, nor ObjC `class_ro_t` carries a final bit (verified for [ClassMemberKeywordRecovery.md](../Documentations/Internal/ClassMemberKeywordRecovery.md)). "The class has no vtable header" is not a usable proxy either: a `final` class still gets a vtable entry for its designated initializer, and a non-final class whose members are all `final` looks identical.
+
+**What is recovered instead.** **Member-level** `final` (evolution proposal 0006): inside a class with a readable vtable header, an instance member with no vtable method descriptor prints `final` — including members of source-level `final` classes, where the member-level keyword carries the same dispatch/linking semantics the unprintable class-level keyword would have. IUO aside (L-1), this closed issue #106 §1; the lazy-var storage-type artifact (issue #106 §4) was fixed in the same batch (`lazy var x: String`, no longer the `Optional` storage type). See [FinalKeywordAndLazyAccessorTypeRecovery.md](../Documentations/Internal/FinalKeywordAndLazyAccessorTypeRecovery.md) for the evidence gates and deliberate misses (`final override`, stripped-symbol binaries).
+
+---
+
+### L-13. Parameter internal names
+
+**Why not.** Mangling encodes parameter *labels* (the external names — `init(from:)`) but never the internal binding names (`init(from decoder: Decoder)`); reflection metadata carries neither. The printed `from:` form is the complete recoverable surface. (Requested in issue #106 §8.)
+
+**Alternate sources.** `.swiftinterface` text, DWARF (`DW_AT_name` on formal parameters, debug builds only).
+
+---
+
+### L-14. `@discardableResult`
+
+**Why not.** Compiler-only diagnostics attribute: it suppresses the unused-result warning at type-check time and leaves no trace in mangling, descriptors, or reflection metadata. (Issue #106 §8.)
+
+**Alternate sources.** `.swiftinterface` text.
+
+---
+
+### L-15. Default argument values
+
+**Why not.** A default argument compiles to a *default argument generator* function (`...FfA_` mangling) whose existence proves a parameter HAS a default, but the value itself is compiled code — recovering `= 6` requires decompiling the generator body. Neither the dump nor the interface prints `= default` today; the generator symbols are visible in the symbol table. (Issue #106 §8.)
+
+**Alternate sources.** `.swiftinterface` text; decompilation of the `FfA` generators.
+
+**Proxy.** Printing `= <default>` when a matching `FfA` symbol exists would be honest and implementable — candidate follow-up, not yet scheduled.
+
+---
+
+### L-16. `internal` vs `fileprivate` vs `private`
+
+**Why not.** Access levels below `public` are not distinguishable in the binary: all three compile to non-exported symbols with identical metadata presence. `private` declarations carry a discriminator hash in their mangled name (`(CodingKeys in _B89E...)`), which distinguishes *file-scoped* naming but not the keyword itself; `internal` and `fileprivate` are byte-identical. (Issue #106 §8.)
+
+**What is annotated instead.** The `--emit-export-status` flag (evolution proposal 0008) prints the honest symbol-table FACT — `// not exported` on members none of whose symbols (implementation, `Tj`, `Tq`, `Tu` derived forms) have an export-trie entry — without guessing which sub-`public` level the source used. The `--emit-header` header block lists L-1/L-8/L-13…L-16 as a reader-facing digest of this section.
 
 ---
 

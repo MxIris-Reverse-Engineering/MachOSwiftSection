@@ -86,7 +86,7 @@ enum SwiftInterfaceBuilderTestSuite {
 
     class MachOFileTests: MachOTestingSupport.MachOFileTests, SwiftInterfaceBuilderTests, @unchecked Sendable {
         override class var fileName: MachOFileName {
-            .iOS_18_5_Simulator_SwiftUICore
+            .SymbolTestsCore
         }
 
         @available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *)
@@ -118,7 +118,7 @@ enum SwiftInterfaceBuilderTestSuite {
 
     class XcodeMachOFileTests: MachOTestingSupport.XcodeMachOFileTests, SwiftInterfaceBuilderTests {
         override class var fileName: XcodeMachOFileName {
-            .sharedFrameworks(.DVTProductsUI)
+            .sharedFrameworks(.SourceEditor)
         }
 
         @available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *)

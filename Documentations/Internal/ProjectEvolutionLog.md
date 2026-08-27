@@ -880,6 +880,243 @@
 
 ---
 
+## 42. issue #106 首批：`final` 关键字还原与 lazy var 访问器类型修正
+
+- **时间段**：2026-08-22（`feature/0006-final-and-lazy-recovery`，基于 next）。
+- **动机**：issue #106（用 dump 手写可编译 `.swiftinterface` 重建 `SourceEditor.framework` 的实战反馈）里唯一**破坏链接**的两点——`final` 完全缺失（经 dispatch thunk 的成员必须平凡声明、只有直接符号的必须 `final`，写错直接 `Undefined symbols`），以及 lazy var 打印 `Optional` 存储类型而非调用方看到的 getter 类型。判据沿用 `isClassMember` 的同一条 ABI 事实的镜像：有 vtable method descriptor ⇒ 非 final。
+- **核心发现：数据早就算出来了，只是被丢弃**。stored `var` 的 accessor 符号组在 `DefinitionBuilder.variables` 里已完成 descriptor/vtable-slot 解析，被 `fieldNames` 去重整组扔掉。改为 `variablesProduct` 交还、折回 `FieldDefinition.accessors`——`final` 判定、stored var 的 vtable 注释（`--emit-vtable-offsets` 下）、lazy 访问器类型三件事共用这份数据。
+- **快照审查抓住三类误标并逐一处置**：（1）被子类 override 的 `asyncMethod` 被标 `final` → 根因是 **async 成员的 descriptor join 从未成功过**（descriptor 的 implementation 指向 `Tu` async-function-pointer 常量，树多一层 `.asyncFunctionPointer` 标记），`memberJoinKey` 剥标记修复，顺带找回 async 成员一直缺失的 `override` 关键字与 vtable 注释（修的是既有 bug）；（2）`@objc dynamic` 走 objc_msgSend、无 vtable 条目但可覆写 → 「`@objc` 且无 descriptor ⇒ dynamic」排除，标记块因此移到 `applyThunkAttributes` 之后；（3）final class 因 designated init 的 vtable 条目仍带 header、其成员获得成员级 `final` → **接受**——类级 `final` 无 ABI 位不可恢复，成员级标记对重建链接恰好正确。
+- **三层证据门，宁缺勿错**：非 actor class 且 vtable header 可读；stored 属性要求 accessor 组确实 join 上（符号 strip ⇒ 静默不标）；`@objc` 排除。stored `let` 不标（本就不可覆写）；`final override` 不还原（override descriptor 在场，保守平凡输出）。
+- **lazy 取型顺序**：特化替换节点 ＞ getter 的 `accessorTypeNode` ＞ 存储类型（getter 缺失即诚实回退，提案里的「剥一层 Optional」回退未实现）；dump 路径 lazy 保持存储真相（`[Getter]` 列表已展示访问器类型），`final` 关键字则 dump 两路对齐（名字级 join + 同套排除）。
+- **验证**：fixture 新增 `VTableEntryVariants.FinalMembersTest` 全组合矩阵（final/plain × 存储/lazy/计算属性/方法/下标）；`FinalMemberRecoveryTests` 五用例（渲染配对、lazy 类型、vtable 注释邻接、模型事实×2）；interface 整模块 + dump 三份快照逐行审查重录；全量套件除 fixture 重建引发的 ABI 基线 offset 漂移（按既定流程 regen）外全绿。
+- **文档**：[Evolutions/0006](../Evolutions/0006-final-keyword-and-lazy-accessor-type-recovery.md)（决策日志含六项实现发现与偏差）、[FinalKeywordAndLazyAccessorTypeRecovery.md](FinalKeywordAndLazyAccessorTypeRecovery.md)、Roadmaps 新增 L-12（类级 `final` 不可恢复）、AGENTS.md SwiftPrinting 段新条目。同 issue 的 0007（extension 容器去重）、0008（文件头部与导出标注）已 Accepted 待实施。
+- **对应版本**：待发布（本批次未 bump `Version.swift`）。
+
+---
+
+## 43. issue #106 次批：extension 容器统一与协议默认实现归属
+
+- **时间段**：2026-08-22（`feature/0007-extension-container-dedup`，叠于 0006 分支）。
+- **动机**：issue #106 §5——同一 `extension P` 块被重复打印（SourceEditor 两打协议各两份），若干「类成员」共享同一折叠地址被读成协议默认实现。
+- **双产线证实与成员不一致的意外发现**：副本一来自 `ProtocolDefinition.index()` 按协议 descriptor 的 per-requirement 默认实现合成（尾随协议渲染），副本二来自 `indexExtensions()` 的符号表扫描桶。两份成员**不一致**——per-requirement 解析在 ICF 折叠地址上配不齐符号，尾随副本反而更少。故合并方向不是「删一份」而是「符号扫描超集为准，descriptor 合成降级为 fallback」。
+- **设计转向：附着 + 打印抑制**。原案「容器键下沉 + 索引期从桶合并」被格式冻结否决：四个扩展桶是 `ABIModule` 的直接输入，从桶移除定义 = 容器从 ABI 快照消失（旧基线对比出虚假 removed）。落地形态：协议的符号扫描块附着到 `defaultImplementationExtensions`（尾随协议渲染），同一对象留桶打 `isAttachedToProtocolDefinition`，顶层打印跳过；桶内同身份合并（急切定义限定——conformance-backed 惰性解析，prepare 期合并会丢成员）对快照无影响，差分器本就按键分组。SwiftDiffingTests 全绿实证零扰动。
+- **顺带修复三处**：`printRoot` 嵌套协议扩展块循环恒空（root 上过滤 `parent != nil`）——fixture 协议全部命名空间嵌套，修复后四块纯迁移到 protocols 区之后；`updateConfiguration` 的 re-prepare 因 `isPrepared` 从不复位恒 no-op——修复后成为四桶入口重置的确定性测试入口；空 requirement 的变量签名桶渲染成与 catch-all 相同的裸头——折叠进 catch-all。
+- **被否的方案**：签名分桶扩展到 functions/subscripts（成员级 `where` 合法且信息完整，扩展只会制造更多块）；跨桶合并 typealias-only 块与成员块（动快照格式）——裸头并存记为 P1-9 残余。
+- **`protocol-extension default` 标注**：模型（`isProtocolExtensionDefault`）+ interface/dump 两路渲染（`--emit-member-addresses` 门控）落地；SourceEditor 上不触发（witness 实现符号分支总命中），属休眠防御。issue 点名的 `elide` 三兄弟经 `nm` 证实是真类成员被 ICF 折叠——第 42 节 `Tq` 门的辖区，非归属错误。
+- **验证**：`ExtensionContainerUnificationTests` 四用例（成员级容器身份全桶唯一、协议扩展块尾随且唯一、桶内身份唯一、配置往返幂等）；SourceEditor 重复头全部归一且 0006 哨兵保持；interface 快照四块纯迁移；全量套件绿。
+- **文档**：[Evolutions/0007](../Evolutions/0007-extension-container-dedup-and-default-impl-attribution.md)、[ExtensionContainerUnification.md](ExtensionContainerUnification.md)、AGENTS.md SwiftIndexing 段新条目。
+- **对应版本**：待发布（与 0006 同线）。
+
+## 44. issue #106 末批：interface 文件头部与导出状态标注
+
+- **时间段**：2026-08-22（`feature/0008-interface-header-and-export-status`，叠于 0007 分支）。
+- **动机**：issue #106 §2/§3/§8——输出没有任何一行告诉读者「这个二进制开没开 library evolution」（`final` 一类推断的有效性取决于它）；`SourceEditorGutter.updateLineNumberDisplay()` 带满注释看起来可调用、实际导出表零命中（作者写 stub 才发现）；空白读起来像「源码没有」而非「二进制恢复不出来」。
+- **提前开工决策**：原前置「等 §6 import 重构落地」被用户指示覆盖（`origin/next` 未动、远端无其分支）；实际冲突面仅 `printRoot` 里 `ImportsBlock` 之前数行，接线做成零侵入（独立 if 块）压最小化合并冲突。
+- **导出集必须显式收集**：next 基线复核揭示 symtab 两条收集腿都过滤 `!nlist.isExternal`（只收本地符号），导出符号仅经 trie 腿建行且该腿带两筛——「行来自 trie」事后不可恢复、offset-less re-export 连行都没有。落地：同一遍循环旁路收集（行号 bitmap ≈ 23 KB / 185k 行 + 无行名字 fallback set），表建行为零改动；`isExported` 三态（`nil` = 镜像无导出信息，不标注）。
+- **裸查名字是错的（本批最大教训）**：第一版按实现符号裸查，fixture（evolution Release 构建）当场全量假阳性——public 成员实现符号照例 local，外部经导出的 `Tj` thunk 派发。改为 `isExportedIncludingDerivedSymbols`（`Tj`/`Tq`/`Tu`/`TjTu` 追加后缀形态任一命中即 exported），对应 issue 作者「任何符号零命中」的验证法。再叠两个发射豁免：`override`（经父类 thunk 可达）与 `@objc`（经 objc_msgSend 可达），两者「自有符号零导出」都是编译器常态；conformance witness 故意不豁免（零导出 = 确实不可静态直接调用）。
+- **头部组件**：`InterfaceHeaderInfo`（纯值，generator 身份调用方传入——`BundledVersion` 是 CLI 私有且 RuntimeViewer 不该冒充 swift-section；日期可选默认缺席保快照字节稳定）+ `InterfaceHeaderBlock`（public——RuntimeViewer per-type 导出绕过 `printRoot`）+ Mach-O 事实工厂（install name / UUID / 架构人话映射 / fileType / `Tj` 计数，evolution 行措辞 detected / not detected 不断言）。CLI 两命令 `--emit-header` / `--emit-export-status`，默认全关。
+- **验证**：新增四套 22 测试（导出事实全量 sweeping + 三类假阳性各一钉 + true positive + 渲染逐行 + flag 解析）；全量 1465 测试绿（默认输出字节不变由既有快照实证）；SourceEditor 复核 issue §3 场景精确解决（`updateLineNumberDisplay` 带 `VTable offset: 66` + `not exported`，全库 3487 处，public API 经 `fCTj` 不误标）。Roadmap Known limitations 补 L-13…L-16（参数内部名 / `@discardableResult` / 默认参数值 / `internal` vs `fileprivate`）。
+- **文档**：[Evolutions/0008](../Evolutions/0008-interface-header-and-export-status-annotations.md)、[InterfaceHeaderAndExportStatusAnnotations.md](InterfaceHeaderAndExportStatusAnnotations.md)、Glossary 两新术语（derived symbol forms、export status）、README CLI 两段、AGENTS.md SwiftPrinting/MachOSymbols 段。
+- **对应版本**：待发布（与 0006/0007 同线）。
+
+---
+
+## 45. TypeIndexing 重启：`__C` 模块归属解析（提案 0009）
+
+- **时间段**：2026-08-21 ~ 2026-08-22（`feature/type-indexing-revival`，基于 `next`，独立 worktree）。
+- **动机**：`Sources/TypeIndexing`（`__C.NSString` → `Foundation.NSString` 的模块归属索引）自 Swift 6 迁移期被整体注释出 `Package.swift`；打印侧 delegate 挂接点一直是活的，唯一 provider 实现却不参与编译。用户要求修复重启。
+- **禁用主因与修法**：历史实现在 SDK 扫描时对**每个**发现的 `.swiftmodule` 当场跑 sourcekitd 生成全模块 interface，依赖过滤在其后才生效——首次索引小时级。重构为发现与生成分离：扫描只做文件发现（秒级），interface 生成下沉到依赖过滤之后，配 per-module、按 SDK 精确构建（`Version-ProductBuildVersion`）分层的 JSON 缓存。实测 fixture 依赖面只生成 9 个模块条目、首次 33 秒、缓存命中 10 秒。
+- **两条用户裁定**：① 旧 ObjCDump 自建索引器删除，私有类归属改用 MachOObjCSection 的 `ObjCIndexing`（下限 0.8.105，泛型 `ObjCMetadataSource` indexer），做成查询 miss 才逐依赖 image 索引的懒路径；② SwiftSyntax 不进运行时依赖（体积数十 MB，而 `TypeDatabase` 只消费类型名清单）——类型名提取改走 `editor.open.interface` + `key.enablesubstructure` 的结构树（探针实测完整可用，兜底行级解析器按提案条款不再编写），extension 嵌套键错误在新提取器里结构性消失。
+- **顺带修掉的正确性 bug**：APINotes 双向表 `moduleName` 字段被写成 swiftName（修复 + 复现测试）；缓存无 SDK 版本导致 Xcode 升级吃旧数据；sourcekitd 路径硬编码 `/Applications/Xcode.app`（改从 `xcode-select -p` 派生）；`SwiftModule.write` 写错路径（随重构消亡）。APINotes 归属注册放宽到每个列出的实体（`__C.X` 的 X 是 C 名，归属与 Swift 侧可见性无关）。
+- **规范整改**：全模块 `@Loggable` + `#log`，`PrintFailureEventTests` 的 `SDKIndexer.swift` 豁免移除（其注释原话 "If that target is ever revived, convert it first"）。踩到并记档的坑：`@Loggable` 直接类型形态在 `@available(macOS 13.0, *)` 类型上被 emit-module 拒绝（宏展开的 static stored logger 自带更高 availability；单 target 编译只是 warning）——全模块改 protocol 形态。
+- **提案编号避让**：立项用 0006，实施当天发现 `main` 上并行会话同日登记 0005–0007 三个 Draft（其 0006 为 Extension 容器去重），避让至 **0008**（两线合并时因与 `main` 线 interface-header 提案再次撞号，最终重排为 **0009**）；`main` 新 0005 与 `next` 既有 0005 的互撞是既有漂移，留待两线合并裁决。
+- **验证**：整包构建零 error；`TypeIndexingTests` 23 个纯单测（提取器 / import 扫描 / APINotes / 合并优先级 / 缓存）全绿；全套 1456 tests / 275 suites 退出码 0；端到端（fixture `SymbolTestsCore`）baseline 21 处 `__C.` → 0 处，diff 全部行都是模块名替换（`Foundation.NSObject`、`CoreFoundation.CFStringRef`、APINotes 改名的 `Foundation.Decimal`），缓存命中输出逐字节一致。CLI 入口 `swift-section interface --resolve-c-module-names`（默认关，默认输出字节不变）。
+- **追加批次（identifier 重写，用户指正驱动）**：首轮输出的 `CoreFoundation.CFStringRef` 被指正为 Swift 不存在的拼写（ClangImporter 对 `objc_bridge` / `CF_BRIDGED_TYPE` 类型剥 `Ref` 桥接为原生 class `CFString`）。打印侧在 `__C` module 解析成功时对 identifier 消费 `swiftName(forCName:category:)`（此前零消费者），数据侧补 CF `Ref` 剥除兜底。第一版合并改名表当场踩出 `NSObject` 回归——ObjC 的 class 与 protocol 同名而 APINotes 只改 protocol（`NSObjectProtocol`），类别盲查重写了所有 class 继承行；修正为 `CImportedTypeNameCategory`（按 mangling `Node.Kind`）贯穿协议签名、`APINotesIndex` 三张类别隔离改名表、`.other` 永不查 protocol 表、CF 规则对 protocol 关闭。回归用例双重钉死。
+- **追加批次（补充映射，提案 0010）**：用户以 AttributeGraph（SDK 无模块的私有框架，`AG_SWIFT_NAME` 改名头文件独有、二进制零残留）追问覆盖边界后裁定「提供接口接受社区贡献、Database 预加载、碰到直接替换」。落地为**标准 `.apinotes` 格式**的补充映射包（零新格式，直接进 `APINotesIndex` 管线）：库内置 SPM resource（首发 AttributeGraph，宁缺毋滥只收有头文件一手证据的 Graph / Subgraph / GraphContext）+ 宿主/CLI 追加路径（`--supplementary-apinotes`），覆盖顺序 SDK → 内置 → 宿主（`register(files:)` 后写覆盖即实现）。实施中把提案的「两形态」模型修正为**三形态**（手造 clang module 复刻 `objc_bridge` + `swift_name` 的 AG probe 实测）：typedef 名（Typedefs 表）、storage tag 名（字段元数据 foreign **class** descriptor——`.objcClass` 查询为此增加值类型表回退，protocol 表照旧绝不回退）、**导入名直出**（`__C.Graph`，归属同步把 `cNamesBySwiftName` 的 SwiftName 拼写也登进归属表，SDK 的 `NSDecimal → Decimal` 同理受益）。验证：新增 6 单测全绿（全套 1466 / 276 退出码 0）、AG probe 5 处引用全解析、CGCVProbe 输出与重启批次基线字节一致。公开贡献指引 [SupplementaryTypeMappings.md](../SupplementaryTypeMappings.md)（英文，顶层）。
+- **追加批次（PR #110 review 修复）**：并行 review 会话对 PR #110 提出 15 条发现并做四问核实（原始清单与处置状态见 [Roadmaps/2026-08-23-pr110-review-findings.md](../../Roadmaps/2026-08-23-pr110-review-findings.md)）；关键教训是当时全绿的 1466 个测试对该修的 7 条**一条都抓不到**——新代码测试只盖了纯函数，装配与分发路径空白。用户裁定「3/4/5/6/7 直接修，不要内置资源」：**内置 SPM resource 层整体移除**（`Bundle.module` accessor 在 bundle 缺失时 fatalError，而发布脚本只分发裸二进制——分发出去一用就崩；补充映射改纯用户自备，review 发现 2 结构性消解）；依赖解析为空与坏 `--supplementary-apinotes` 路径改为 stderr 警告（发现 3/6）；submodule 失败不再固化残缺缓存条目（发现 4，`ModuleInterfaceIndexer` 增 `InterfaceGenerator` 注入缝使缓存纪律可单测）；`moduleName(forImagePath:)` 前导点名字死循环加不动点守卫（发现 5，`.hidden` 实测复现）；task group 完成序注册改为按 SDK 发现序重排（发现 7，`entriesInDiscoveryOrder`）。「不修 / 误报」终审 5 条（Ref 剥除守卫、import 列表、actor 重入、补充覆盖面、双查询）进 [ReviewAdjudications.md](ReviewAdjudications.md) A15–A19（合并时因与 PR #111 review 的 A13/A14 撞号顺移）；发现 1（`USE_CUSTOM_OBJC_SECTION=0` 构建失败）与 15（协议签名源码破坏）待定。验证：TypeIndexingTests 37/7、全套 1470 tests / 277 suites 退出码 0。
+- **文档**：[Evolutions/0009](../Evolutions/0009-type-indexing-revival.md)、[Evolutions/0010](../Evolutions/0010-community-type-mapping-bundles.md)、[TypeIndexingPipeline.md](TypeIndexingPipeline.md)（含与提案的差异：swift-dependencies 未引入、兜底解析器未编写；identifier 重写一节；补充映射一节）、[SupplementaryTypeMappings.md](../SupplementaryTypeMappings.md)、[TaskReports/2026-08-22-type-indexing-revival.md](TaskReports/2026-08-22-type-indexing-revival.md)、[TaskReports/2026-08-22-community-type-mapping-bundles.md](TaskReports/2026-08-22-community-type-mapping-bundles.md)、[TaskReports/2026-08-23-pr110-review-fixes.md](TaskReports/2026-08-23-pr110-review-fixes.md)、AGENTS.md 架构节新增 TypeIndexing 条目。
+- **对应版本**：未随本批 bump（`feature/type-indexing-revival` 待并入 `next`）。
+## 46. opaque 返回类型的 primary associated type 归属（提案 0011）
+
+- **时间段**：2026-08-24。
+- **动机**：`SwiftInterfaceBuilderOpaqueTypeProvider` 把 opaque 参数上的 same-type
+  约束无差别分发给组合里每个协议，产出 `some Swift.Equatable<[A]>` 这类非法 Swift
+  （`Equatable` 没有任何 associated type）。fixture `functionNested` 长期携带此错误
+  输出，E2E 注释甚至把它当预期描述。
+- **关键决策**：
+  - **约束按 anchor 协议逐条归属**：subject mangling 本就带声明协议（`ST` 标准替换 /
+    symbolic reference），demangler 保留在 `dependentAssociatedTypeRef` 第二个
+    child——「信息不够」的旧印象失实，丢信息的是打印端。
+  - **归属四步**：anchor 直接命中（纯身份比对，离线 bind 可判）→ refine 闭包命中 →
+    名字兜底（恢复编译器塌缩的等价类，要求候选唯一**且 anchor 在组合外**——塌缩与
+    未 pin 在 descriptor 里逐字节同形，anchor 在组合内时兜底会捏造 sugar）→ 信息
+    缺失不挂（宁缺毋滥）。
+  - **协议事实经「descriptor 可达性」两问解析**：`resolvedContent` 把提案的三层
+    （本模块 descriptor / 内置表 / 进程内跨镜像）自然塌并——可达 descriptor 读
+    requirement signature + associated type 名单，不可达走内置 stdlib 表；primary
+    名单与顺序只有内置表能给（SE-0346 无运行时痕迹）。
+  - **接受两种 reader 输出深度差异**：离线拿不到外部协议内容时诚实降级不挂，进程内
+    跨镜像严格增量；离线依赖闭包另立后续提案。
+- **落地模块**：`SwiftInterface`（`OpaqueSameTypeConstraint` / `ProtocolFactsResolver` /
+  `BuiltinStandardLibraryProtocolFacts` + provider 重写）；fixture 新增四场景
+  （名字兜底防捏造、模块内 refine 闭包、跨镜像 refine 闭包、多 primary 顺序）与
+  `SymbolTestsHelper` 跨镜像协议对；E2E 断言收紧 + MachOImage 侧新 suite。
+- **文档**：[0011-opaque-primary-associated-type-attribution.md](../Evolutions/0011-opaque-primary-associated-type-attribution.md)、
+  [OpaquePrimaryAssociatedTypeAttribution.md](OpaquePrimaryAssociatedTypeAttribution.md)、
+  [TaskReports/2026-08-24-opaque-primary-associated-type-attribution.md](TaskReports/2026-08-24-opaque-primary-associated-type-attribution.md)。
+- **对应版本**：`0.15.2` 之后、下一次 bump 之前。
+
+---
+
+## 47. 演进并集注解接口 SwiftEvolutionInterfaceBuilder（提案 draft-swift-evolution-interface-builder）
+
+- **时间段**：2026-08-25。
+- **动机**：`swift-section evolution` 唯一的人读输出是 `ABIEvolutionReporter` 的
+  「位图 + 事件行」lineage 清单——不是代码的形状，成员脱离容器语法上下文，且只有
+  变化没有幸存者，判断一次删减的严重性无从对照。两版本场景 `diff --interface`
+  早已解决同类问题，N 版本没有对应物。
+- **关键决策**：
+  - **并集接口 + 生命周期注解**：所有版本声明的并集只渲染一次（每条由最后存在
+    版本的模型与 printer 渲染），行尾 `// [●●○] removed in 26.0` 注解，没注解 =
+    全程存在未变；否掉逐 transition 串联与「最新版 + since」两形态。
+  - **注解事实唯一来源是 `ABIEvolution`**：渲染器按 `ABIKey`（与 `ABIDiffer`
+    冻结快照完全同构的构造）查 lineage，不自行推导事件——接口视图、清单报告与
+    JSON 永不各说各话；lineage 查不到就是「未变」裁决（依赖 changes-only 契约）。
+  - **全二进制输入**：快照只有单行签名，interface 模式直接拒收（与
+    `diff --interface` 同款约束）；混用降级留作后续提案。
+  - **公开面双类型**（2026-08-26 按用户指正修订）：运行时 N 的擦除类
+    `AnySwiftEvolutionInterfaceBuilder`（逐版本擦除，`[MachO]` 数组 init 与
+    函数位 pack init 全平台可用，CLI 走它）+ pack 泛型 façade
+    `SwiftEvolutionInterfaceBuilder<each MachO>`（编译期定形；pack 在类型泛型
+    参数表被编译器强制 `@available(macOS 14…)`，构造即擦除、行为逐字节一致）。
+    实测钉住：函数位 pack 不需要 availability 门；same-element 约束
+    （`repeat each MachO == M`）当前工具链不支持，运行时 N 无法落在 pack 类上。
+  - **modified 只渲染最新代际**：旧形态进注解短语（`modified in X: 旧 → 新`；
+    两侧文本相同省箭头），同一成员不裂多行，接口主体保持合法 Swift 的形状。
+- **落地模块**：`SwiftInterface`（`SwiftEvolutionInterfaceBuilder` / `Renderer` /
+  `EvolutionMarking` / `EvolutionAnnotationIndex` / `EvolutionVersionRendering` /
+  `EvolutionLine`）、`swift-section`（`evolution --interface` + 事件类别着色）；
+  测试为格式层/注解索引单测 + 三版本即时编译 fixture 的端到端 suite +
+  CLI 校验规则钉子。
+- **文档**：[draft-swift-evolution-interface-builder.md](../Evolutions/draft-swift-evolution-interface-builder.md)、
+  [ABIEvolutionDesign.md](ABIEvolutionDesign.md)（第五批增量一节）、
+  [TaskReports/2026-08-25-swift-evolution-interface-builder.md](TaskReports/2026-08-25-swift-evolution-interface-builder.md)、
+  README `evolution` 一节、术语表新增「union interface」「lifecycle annotation」。
+- **对应版本**：`0.16.0` 之后、下一次 bump 之前。
+
+---
+
+## 48. issue #115/#116：同名私有类型成员归属 + foreign struct 保护收窄
+
+- **时间段**：2026-08-26。
+- **动机**：外部报告两个问题。#115：`dump` 把同名但私有判别符不同的类型
+  （SwiftUI 的两个 `(ArchivableDisplayList in _…)`）的 init/方法互相混入——
+  成员索引的字符串 key 用 `.interfaceTypeBuilderOnly` 打印、判别符被剥掉，
+  dump 走的 name-only 查询把同名桶下所有类型节点的符号拍平（0.14.0 起即有，
+  非回归）。#116：0.16.0 的 foreign struct 保护（`5a6d5b0`，防 `Decimal`
+  bitfield 类 confident-wrong-offset）在 size/stride/alignment 任一不等时全字段
+  降级，误伤 `#pragma pack(4)` 的 `__C.CMTime`——只有聚合 alignment 不同，
+  偏移 0/8/12/16 本来正确。
+- **关键决策**：
+  - **#115 查询侧带 node，不动 name key 格式**：dump 三个 dumper demangle 出
+    descriptor 上下文节点改走 `node:` 重载；横向排查补掉 interface 路径三处漏网
+    （deinit/destructor 的 name-only `.first`、thunk 属性交叉标注、
+    `typeInfoByName` last-wins——后两者索引补上第三层节点 key）。name-only
+    重载保留为文档化的聚合语义。
+  - **#116 用「紧密排列证明」收窄而非报告者建议的「只差 alignment 就放行」**：
+    每字段偏移恰等于前序 size 累计和、且累计和恰等于 builtin 整型 size 时，
+    两边都被迫是同一种紧密顺序排列，偏移不可能错——比宽条件可证明，
+    且不依赖 size/stride 逐项相等。`Decimal`/`PathData` 照旧降级。
+  - **fixture 防优化两件套**：`@_optimize(none)` 保未特化成员符号（否则只剩
+    `Tf4nd_n` 特化 thunk）、anchor 装箱 `Any` 保 descriptor（首版 fixture 实测
+    整个私有类型被 Release 优化删除）。
+- **落地模块**：`MachOSymbols`（索引结构 + 四个 node 重载）、`SwiftDump`（三个
+  dumper）、`SwiftDeclaration`/`SwiftIndexing`（三处漏网）、`SwiftLayout`
+  （`fieldOffsetsProvenByTightPacking`）；fixture 新增三文件
+  （`PrivateDoppelgangers` 对 + `ForeignPackedTime`），基线全量重生成
+  （纯偏移漂移）。
+- **文档**：[PrivateTypeMemberAttribution.md](PrivateTypeMemberAttribution.md)、
+  [StaticLayoutEngine.md](StaticLayoutEngine.md)（收窄条件补记）、
+  [TaskReports/2026-08-26-issue-115-116-private-member-attribution-and-packed-foreign-struct.md](TaskReports/2026-08-26-issue-115-116-private-member-attribution-and-packed-foreign-struct.md)。
+- **对应版本**：`0.16.0` 之后、下一次 bump 之前。
+
+---
+
+## 49. 统一 diff / evolution 接口渲染器的结构遍历核心（提案 draft-unify-interface-renderers）
+
+- **时间段**：2026-08-26。
+- **动机**：`SwiftDiffableInterfaceRenderer`（602 行）与 `SwiftEvolutionInterfaceRenderer`
+  （525 行）是同一个结构遍历写了两遍——两段逐字节相同、两路匹配算法互为 N=2 特例、
+  八个成员构造器机械平行；且同一条成员级修复要打两遍：evolution 路刚修完的 accessor
+  块双重缩进在 diff 路上原样存在，根因正是「diff 成员按真实 level 渲染」这条无谓差异。
+- **关键决策**：
+  - **遍历器管结构、策略管呈现**：共享核心 `InterfaceUnionWalker`（N 路匹配与并集
+    排序、extension 容器拆分、成员构造、`MemberCategory.allCases` 调度、body 组合序）
+    以 `InterfaceUnionEmitting` 策略参数化；diff 策略保留真正两侧的语义
+    （`HeaderOutcome` 配对、`-`/`+` 成对与同渲染折叠），evolution 策略保留注解
+    查表与锚点。格式层（`DiffMarking` / `EvolutionMarking` / 两个 assembler）
+    语义真不同，**不合**。
+  - **成员发射统一 printer level 0**：diff 路的 accessor 块双重缩进随之消失
+    （修前必红回归测试 `DiffMemberIndentationTests` 钉住三种 marker 侧的相对缩进）。
+  - **匹配 first-wins 全面对齐 `ABIDiffer.keyed`**：旧 diff 的发射循环对新侧同 key
+    重复项会重复发射（与其查表字典的 first-wins 自相矛盾），统一后连发射也
+    first-wins；header 失败事件测试的注入手法相应从 append 改 replace。
+  - **公开 API 零破坏**：`SwiftDiffableInterfaceRenderer<OldMachO, NewMachO>` 保留为
+    外壳、构造即擦除；擦除接缝改中性名 `InterfaceVersionRendering` /
+    `InterfaceVersionUnit`（新增接收已建 builder 的构造口供 diff 外壳用）。
+  - **验收不跑 rendering A/B**：`SwiftPrinting` 与主 dump/interface 路径零改动，
+    A/B 覆盖的正是不动的那条路；判断依据写入提案。
+- **落地模块**：`SwiftInterface` 单模块（新增 `InterfaceUnionWalker`；两个渲染器
+  改写为策略；`EvolutionVersionRendering.swift` 更名 `InterfaceVersionRendering.swift`）。
+  库侧净 −256 行（671+/927−，且两渲染器只剩策略）。附带测试基建发现：纯 struct 的即时编译 fixture dylib 没有
+  `__DATA` 段，pinned MachOKit 解析其 chained fixups 会越界崩溃——fixture 必须带
+  至少一个 class（已记入 AGENTS.md Test Environment）。
+- **文档**：[draft-unify-interface-renderers.md](../Evolutions/draft-unify-interface-renderers.md)、
+  [TaskReports/2026-08-26-unify-interface-renderers.md](TaskReports/2026-08-26-unify-interface-renderers.md)、
+  AGENTS.md（`InterfaceUnionWalker` 条目 + fixture 地雷）、术语表新增「emission strategy」。
+- **对应版本**：`0.16.0` 之后、下一次 bump 之前。
+
+---
+
+## 50. PR #118 code review 修复批次（同名私有类型归属的第二轮清扫）
+
+- **时间段**：2026-08-27。
+- **动机**：对 PR #118 跑 code review 产出 15 条 finding，经第二会话按四问复核后收敛为
+  三族真问题。其中两族同源：提案 0006（`final` 恢复）与 0007（扩展容器归并）都是
+  08-22 的代码，而 issue #115 的 node 化清扫（`a77db414`）是 08-26 —— 清扫按当次 diff
+  涉及的函数走，恰好绕过了这两处早写的代码。
+- **关键决策**：
+  - **协议附着改结构化键控**：`unifyExtensionContainers` 的临时查找表 key 从
+    `ProtocolName.name`（打印名，已剥离 private discriminator）换成 `ExtensionName`
+    值（`Hashable` 本就结构化，`ProtocolName.extensionName` 现成可用）。原状不只是挂错——
+    附着是**赋值**不是 append，碰撞时输者的整桶成员先被标记移出顶层 extensions 块、
+    再被赢者覆盖出附着位，**从输出中彻底消失**，且哪桶倒霉取决于迭代序。
+    失败模式经设计：结构对不上则附着整体失效、退回 main 行为（不丢数据），
+    而既有的 `protocolExtensionBlockTrailsItsProtocol` 会立刻变红。
+  - **`final` 恢复的 5 处改 node 匹配，但明确记录「复现不可达」**：实测三条独立理由
+    —— Swift 拒绝同名 `internal`/`private` 配对；`private` class 不发 `Tq` 方法描述符
+    符号；`private` class 的存储属性访问器在 Release 下不存在，而 `@objc` 门控只作用于
+    存储字段。仍然修（严格更安全、与 PR 自身在相邻代码声明的不变量一致、无碰撞时零
+    行为差异），但配防回归钉子而非复现测试，完整论证落 `ReviewAdjudications.md` A22，
+    避免下一轮 review 重复找复现。这一条推翻了复核方的「确认需修」定性 —— 真实性成立、
+    可达性不成立。
+  - **两条 review 发现终审为误报**：walker 的 first-wins 发射是本账本第 49 节记录在案的
+    deliberate 改动（A20）；`symbolCount` 折叠 0 的触发机制是死代码（A21）。
+  - **顺带修掉测试自身的同类缺陷**：`memberCarryingContainerIdentitiesAreUnique` 也用
+    去 discriminator 的字符串拼身份键，把两个合法不同的同名私有协议容器报成重复容器。
+- **落地模块**：`SwiftIndexing`（归并键）、`SwiftDump` + `SwiftDeclaration`（`final` 5 处）、
+  `MachOSymbols`（补两个缺失的镜像重载：`thunkAttributeMembers` 的 `Node` 版、
+  `methodDescriptorMemberSymbols` 的 `NodeReference` 版）、`SwiftPrinting`（删一行多余
+  `BreakLine()`）。夹具 `SymbolTestsCore` 扩同名 `private protocol` 对与 `private class` 对。
+- **文档**：[TaskReports/2026-08-27-pr118-review-fixes.md](TaskReports/2026-08-27-pr118-review-fixes.md)、
+  [ReviewAdjudications.md](ReviewAdjudications.md) A20–A22、
+  [PrivateTypeMemberAttribution.md](PrivateTypeMemberAttribution.md)（两条追记，证否原文
+  「当时踩坑的全部位置」的完备性声明）、
+  [ExtensionContainerUnification.md](ExtensionContainerUnification.md)（结构化键控一节）。
+- **对应版本**：`0.16.0` 之后、下一次 bump 之前。
+
+---
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节
@@ -888,3 +1125,6 @@
    过程复盘写 [`TaskReports/`](TaskReports/)；面向用户的 per-release 说明写
    [`Changelogs/`](../../Changelogs/)。
 3. 版本发布时（bump `Version.swift` + tag），同步核对本文各节的「对应版本」标注。
+4. **节号在落地时取**（与提案编号同规则，2026-08-24 起）：在分支上写作期间节标题不预占编号
+   （用日期+标题占位即可），合入长寿命共享分支的落地 commit 里按目标分支本文的最大节号 +1
+   定号——多线并行下预占编号必撞（第 46 节曾经历 28→42→46 两次让位）。

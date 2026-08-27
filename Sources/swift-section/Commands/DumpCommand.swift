@@ -7,6 +7,7 @@ import SwiftDump
 import OutputTransformer
 import SwiftOutputTransformer
 import SwiftDeclarationRendering
+import SwiftPrinting
 import Semantic
 
 struct DumpCommand: AsyncParsableCommand, Sendable {
@@ -86,6 +87,12 @@ struct DumpCommand: AsyncParsableCommand, Sendable {
     @Flag(help: "The definitions of types and protocols will be output in the order they are stored in the binary.")
     var preferredBinaryOrder: Bool = false
 
+    @Flag(help: "Emit a leading header comment block (generator, image path, UUID, architecture, library-evolution detection, unrecoverable-facts notes)")
+    var emitHeader: Bool = false
+
+    @Flag(help: "Annotate member-symbol lines whose symbol has no export-trie entry with a `not exported` comment")
+    var emitExportStatus: Bool = false
+
     mutating func run() async throws {
         let machOFile = try MachOFile.load(options: machOOptions)
 
@@ -93,6 +100,7 @@ struct DumpCommand: AsyncParsableCommand, Sendable {
 
         dumpConfiguration.printMemberAddress = emitMemberAddresses
         dumpConfiguration.printVTableOffset = emitVtableOffsets
+        dumpConfiguration.printExportStatus = emitExportStatus
         dumpConfiguration.printConformancePWTAddress = emitPWTAddresses
         dumpConfiguration.printFieldOffset = emitFieldOffsets || emitExpandedFieldOffsets
         dumpConfiguration.printTypeLayout = emitTypeLayout
@@ -113,6 +121,15 @@ struct DumpCommand: AsyncParsableCommand, Sendable {
                 machOFile: machOFile,
                 resolution: dumpConfiguration.staticLayoutDependencyResolution
             )
+        }
+
+        if emitHeader {
+            let headerInfo = InterfaceHeaderInfo(
+                machO: machOFile,
+                generatorName: "swift-section",
+                generatorVersion: BundledVersion.value
+            )
+            await performDump { InterfaceHeaderBlock(headerInfo) }
         }
 
         let isDefaultSections = sections.isEmpty

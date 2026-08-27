@@ -161,3 +161,112 @@
 - **为什么先不修**：规则只写在 doc comment 里，`DeclarationModelInstanceSizeTests` 钉的是保留字节数而非 materialize 次数，所以没有任何测试会因此变红；而 A3 的先例表明这类成本的直觉常常错（那次实测占比 1.18%，远低于估算）。**测量范围必须包含 diff 路径**（builder 的 `prepare()` + DiffRendering 的 header 对 class/protocol 同样是 2×，extension 是 1×）**与 specialize 路径**（`TypeDefinition+Specialization.swift:206` 与 `ConformanceProvider` 各一次）。
 - **修法（测出来值得再动）**：把那一次 materialize 提到 `index(in:)` 之前传进去——`printTypeDefinition` 已经是这个写法（它把 `materializedTypeContext` 线程给 `renderTypeDeclarationHeader`）。
 - **复审条件**：SwiftUI 级镜像的剖析显示 materialize 占打印墙钟的比例显著高于 A3 实测的 1.18%。
+
+---
+
+## A13 — 导出状态标注在 stripped 二进制上因 `To` thunk 缺失而豁免失效（PR #111 review A4）
+
+- **裁决**：误报（2026-08-23）。
+- **发现**（review 原话大意）：interface 路径的 `@objc` 豁免依赖 `SwiftAttribute.objc`，而它由 `MemberAttributeInferrer` 从符号表里的 `To` thunk 推断——dyld cache 镜像或剥了 local 符号的二进制没有该符号，豁免失效，每个 `@objc dynamic` 成员都会被标 `// not exported`。
+- **复现 / 是否误报**：**误报——触发条件自相矛盾**（同侪复核后一致确认，成因表述从「To 与实现符号同生共死」修正为更严密的模型构造论证）。成员定义是**符号驱动**的：`FunctionDefinition.symbol` 非可选，`DefinitionBuilder` 的全部构造点都从 `DemangledSymbol` 建。要触发假阳性须同时满足：成员在模型里（实现符号在）、该成员全形态 trie-miss（确实不导出）、且是 `@objc dynamic`。逐端封死：① 剥离场景——不导出的 `@objc dynamic` 成员的实现符号必然是 local symtab 符号，剥掉后成员根本不进模型，无行可标；② 未剥离场景——实现符号与 `To` thunk 同在，属性推断得出，豁免生效；③ 导出的 `@objc dynamic` 成员——派生查询直接命中 `true`，压根不发标注。
+- **与 main 基线对比**：标注是 PR #111 新增，无基线可比。
+- **既往修复**：无。
+- **复审条件**：出现「实现符号保留而 `To` thunk 被选择性剥除」的真实输入（自定义 strip 脚本 / 非常规链接产物）。届时 dump 侧已有的 `containsSymbol(named: name + "To")` 口径可以直接搬到 interface 侧作第二道豁免。
+
+---
+
+## A14 — `not exported` 注释不走 OutputTransformer token-template 机制（PR #111 review B2）
+
+- **裁决**：不修（2026-08-23）。
+- **发现**：`DeclarationRenderConfiguration` 里其他注释种类（member address / field offset / vtable offset / type layout / enum layout）都有 `…Transformer` 闭包槽并经 `applyTransformers(_:)` 物化为 token 模板；`not exported` 硬编码，没有 `Transformer.SwiftExportStatus` 模块、没有 `--…-template` CLI 选项，RuntimeViewer 设置界面与 `--transformer-config` 都控制不了它。
+- **复现 / 是否误报**：属实，非误报——机制差异客观存在。
+- **与 main 基线对比**：PR #111 新增，无基线。
+- **为什么不修**：transformer 机制的价值在**有变量 token 的注释**（offset、address、size/stride、case 字节模式——模板决定这些值如何呈现）。`not exported` 是零参数的固定事实陈述，模板化只能改文案措辞，而措辞恰恰是这个标注的语义承重部分（「符号表事实、非访问级别猜测」的措辞边界是提案审议的产物，开放自定义反而请人破坏它）。RuntimeViewer 若需要开关，`printExportStatus` 这一个 Bool 就是全部所需表面。
+- **既往修复**：无。
+- **复审条件**：出现真实的自定义需求（如本地化、或工具链要求不同 marker 文本）；届时补一个单 token（`${status}`）模块即可，机制上无障碍。
+
+---
+
+## A15 — CF `Ref` 剥除规则不加「原名已在索引」守卫（PR #110 review 发现 8）
+
+- **裁决**：不修守卫（2026-08-23）。
+- **发现**：review 建议在剥除前查 `moduleNamesByTypeName[cName] == nil`，避免「`XxxRef` 本身是索引里真实存在的类型时被误剥」。
+- **复现 / 是否误报**：机制上可构造，但无真实实例——SDK 全部 80 个 apinotes 的 6145 个条目中**零个**以 `Ref` 结尾（review 会话实证），swift-api-digester dump 的 CoreFoundation 同样没有。
+- **这是不是刻意设计**：是。commit `97d9f39a` 记录了 CG/CV/CM 实测：同一类型两种 mangling 形态并存（签名 `__C.CGContextRef`、字段元数据 `__C.CGContext`），「剥后名存在于索引」正是有意选的判据。反向风险真实：interface 提取会收进 obsoleted 的 typealias stub（`CFStringRef` 在 Swift 里是编译器认识的重命名 stub），加守卫可能把 CF 剥除整体关掉。
+- **复审条件**：出现「以 `Ref` 结尾、且剥后名恰好是另一个真实类型」的实例。
+
+---
+
+## A16 — interface 输出的 import 列表不含被解析出的真模块（PR #110 review 发现 11）
+
+- **裁决**：不修（2026-08-23）。
+- **发现**：`--resolve-c-module-names` 后 body 里出现 `CoreFoundation.CFString`，import 列表却没有 `import CoreFoundation`。
+- **与基线对比**：基线上同位置是 `__C.CFStringRef`，`__C` 同样不在 import 列表（`filterModules` 排除）——不自洽的形式早已存在，本 PR 只是把它换成了可读的真模块名。恢复出的 interface 本不以可编译为目标。
+- **复审条件**：interface 输出立「可编译」目标时一并处理（import 列表需要整体重derive）。
+
+---
+
+## A17 — `TypeDatabase` 懒索引循环的 actor 重入窗口（PR #110 review 发现 12）
+
+- **裁决**：暂不修（2026-08-23）。
+- **发现**：`moduleName(forTypeName:)` 的 `while` 循环在 `removeFirst()` 之后 `await indexObjCMetadata(of:)`，actor 重入可让两个并发查询交错弹出依赖，索引结果仍正确但一个 image 可能被并发索引两次（浪费，不腐化状态）。
+- **与基线对比**：本 PR 引入（基线无此代码）。库内不可达：打印是顺序 await（`SwiftDeclarationPrinter` 无并发驱动），无并发调用方。
+- **复审条件**：TypeDatabase 出现并发消费方（如 GUI 宿主并行打印多镜像）时加 in-flight 去重。
+
+---
+
+## A18 — 补充 APINotes 条目可覆盖任意同名 SDK 条目（PR #110 review 发现 13）
+
+- **裁决**：不修（2026-08-23）。
+- **发现**：用户提供的补充文件对同名 C 名后写覆盖，不限于它自己声明的模块——理论上可劫持无关 SDK 类型的归属。
+- **这是不是刻意设计**：是。提案 0010 明确把「覆盖 SDK 条目」列为修正官方数据错误的通道（「碰到直接替换」是用户原话）；补充文件是用户自己提供的，信任边界在用户手里。实测 SDK apinotes 与 AttributeGraph 样例无名字冲突。
+- **复审条件**：出现真实的意外覆盖报告——届时可加「补充条目限制在其声明模块的 C 名前缀」的可选严格模式。
+
+---
+
+## A19 — `printModule` 对 `__C` identifier 的双查询（PR #110 review 发现 14）
+
+- **裁决**：不修（2026-08-23，微优化）。
+- **发现**：review 原文称「绝大多数引用都要查两次」；核实后 `or` 的第二参数是 `@autoclosure`（`Utilities/OrFunctions.swift`），仅在第一查询 miss 时才发生第二次。
+- **为什么不修**：仅 miss 路径多一次字典探查，无测量证据表明可感知；加 `hasSuffix("Ref")` 前置判断属纯微优化。
+- **复审条件**：profiling 显示该路径可感知。
+
+---
+
+## A20 — 统一 walker 的 key 去重丢弃同 key 重复声明（PR #118 review 发现 3，**误报**）
+
+- **裁决**：误报 / 有意行为，不修（2026-08-27）。
+- **发现**：`InterfaceUnionWalker.matchAcrossVersions` 用 `seen.insert(elementKey).inserted` 门控 emission，而它替换掉的 `SwiftDiffableInterfaceRenderer.diffMembers`（main `:428`）与 `matchByKey`（main `:556`）遍历新侧全部元素——identity key 碰撞时旧路径两个都渲染，新路径只渲染第一个。review 据此判定 `swift-section diff --interface` 会静默少渲染成员。
+- **复现 / 是否误报**：行为差异属实，但**定性错误**。walker 的文档注释明写 "Keys are first-wins within each version (emission included…) mirroring `ABIDiffer.keyed`"，`draft-unify-interface-renderers.md` 的决策日志（2026-08-26）专条记载：实现中确认旧 diff 发射循环对同 key 重复项重复发射，与其**自身查表字典**和注释声明的 first-wins 相矛盾，判定为漏网，统一后连发射也 first-wins；恰好依赖旧行为的测试 `unrenderableHeaderIsReportedAsAnEvent` 同批改成 replace 注入。旧行为也并非「更正确」——第二个重复项是与 first-wins 的旧侧条目**错配比较**后发射的。
+- **与 main 基线对比**：行为变化确由本 PR 引入，但项目已把旧行为定性为 bug，故不是回归。
+- **既往修复**：无。这是首次把发射对齐 first-wins 的 deliberate 改动。
+- **残余关切（不构成缺陷）**：`--interface` 模式直接从 live model 渲染、不经 `ABIDiff`，所以 `keyCollisions()` 诊断在该视图无处输出。**main 同样如此**，属可选增强而非本 PR 缺陷。
+- **代码锚点**：`Sources/SwiftInterface/InterfaceUnionWalker.swift` `matchAcrossVersions` 的 first-wins 注释。
+- **复审条件**：把碰撞诊断带进 interface 视图（事件或注释形式）被单独提案时，本条目关闭。
+
+---
+
+## A21 — `symbolCount(of:in:)` 把「无 symbol store」折叠成 `0`（PR #118 review 发现 9，**误报**）
+
+- **裁决**：误报，不修（2026-08-27）。
+- **发现**：`SymbolIndexStore.symbolCount` 的 `guard let storage = storage(in: machO) else { return 0 }` 会把构建失败折叠成零计数，于是 `InterfaceHeaderBlock` 在 resilient 二进制上打印断言式的 `Library evolution: not detected (0 dispatch thunks)`，而属性文档承诺 `nil` 时省略该行。
+- **复现 / 是否误报**：**声称的触发机制是死代码**。`buildStorageSweep` 唯一出口是 `return Storage(...)`——任何输入（含无符号表镜像）都产出一个可能为空的 `Storage`，`storage(in:)` 的 `nil` 分支实践不可达。把 guard 改成返回 `nil` 也改变不了任何输出。
+- **与 main 基线对比**：不适用（不可达）。
+- **为什么不修**：`0 → not detected` 是 test-pin 的设计行为（`zeroThunkCountRendersNotDetected`），属性文档自陈零计数合法，提案 0008 明确。
+- **可选增强（低价值）**：若要更诚实地区分「判定」与「无证据」，可另做 `hasExportInformation` 之类的证据信号；与本条裁决无关。
+- **复审条件**：`storage(in:)` 出现真实可达的 `nil` 路径（例如惰性构建改成可失败）。
+
+---
+
+## A22 — `final` 恢复的名字查找可被同名私有兄弟污染（PR #118 review 发现 4/5，**已修但无法构造触发场景**）
+
+- **裁决**：代码**已修**（2026-08-27），但复现**构造不出**；本条登记的是「不要再为它找复现」的结论。
+- **发现**：`ClassDumper.vtableAccessorFieldNames` / `storedAccessorFieldNames`（3 处）与 `TypeDefinition.index` 的两处 `final` 门控（`thunkAttributeMembers` / `methodDescriptorMemberSymbols`）走的是**只按名字**的合并桶，而同一 PR 在三行外的成员循环里已改成传 node 并留了 issue #115 的注释。
+- **修了什么**：5 处全部改成 node 匹配（`contextNode` 拿不到时退回名字查找，沿用 `ClassDumper.members` 已确立的写法），并补齐两个缺失的镜像重载：`thunkAttributeMembers(of:for:node: Node,in:)` 与 `methodDescriptorMemberSymbols(of:for:node: NodeReference,in:)`。碰撞不存在时行为逐字节不变。
+- **复现 / 是否误报**：**构造不出触发场景**，三条独立理由，均经实测：
+  1. 同名只能靠 `private`/`fileprivate` 分文件取得——Swift 拒绝同名的 `internal`/`private` 配对（`error: invalid redeclaration of 'PrivateDoppelgangerClass'`，实测）。
+  2. `private` class **不发 `Tq` 方法描述符符号**（`SymbolTestsCore` 全库 770 个 `Tq`，doppelganger 一个没有），所以 `methodDescriptorMemberSymbols` 门控从任一兄弟都读不到负面证据。
+  3. `private` class 的**存储属性访问器符号在 Release 下不存在**（`final var` 也印不出 `final`，因为证据门 `accessors.isEmpty` 直接落空），而 `objcThunkMemberNames` 那条门控**只作用于存储字段**（functions/variables/subscripts 三个循环读的是 per-member 的 `attributes.contains(.objc)`，那个属性来自已经 node 匹配的 `applyThunkAttributes`）。
+- **为什么仍然修**：改动是严格更安全的收紧，与本 PR 自己在相邻代码里声明的不变量一致，且无碰撞时零行为差异；留着一个「已知按名字查、只是恰好没人能触发」的查询是下一次回归的种子。
+- **测试**：`FinalMemberRecoveryTests.sameNamedPrivateClassesGetIndependentFinalVerdicts` 是**防回归钉子而非复现**（夹具 `PrivateDoppelgangerClass` 对，一边非 final、一边 `final`），测试注释与本条目互引。
+- **复审条件**：① 在真实框架二进制上观察到同名私有类型且其中一方贡献了 `Tq` 或存储属性访问器符号；② 上游工具链改变私有类型的符号发射策略（例如为 `private` class 也发 `Tq`）——届时本条的三条理由需重测。

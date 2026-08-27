@@ -13,7 +13,7 @@ enum TypeContextDescriptorWrapperBaseline {
     }
 
     static let structTest = Entry(
-    descriptorOffset: 0x43a5c,
+    descriptorOffset: 0x4503c,
     hasParent: true,
     hasGenericContext: false,
     hasTypeGenericContext: false

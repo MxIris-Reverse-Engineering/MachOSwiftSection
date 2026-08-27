@@ -145,6 +145,23 @@ package struct ClassDumper<MachO: FieldLayoutRenderable>: TypedDumper {
                 autoResolveAccessorMetadata: false
             )
             let fieldOffsets = fieldLayoutRenderer.fieldOffsets
+            // `final` recovery for stored `var`s (evolution proposal 0006),
+            // mirroring the model path in `TypeDefinition.index`: a stored
+            // `var` whose accessors occupy no vtable slot was declared
+            // `final`. Both sets stay empty when the evidence is missing
+            // (actor, no vtable header, stripped symbols), and a name absent
+            // from `storedAccessorFieldNames` never gets marked — absence of
+            // evidence is not `final`.
+            let canRecoverFinalFields = dumped.vTableDescriptorHeader != nil && !dumped.descriptor.isActor
+            let finalRecoveryInterfaceName = canRecoverFinalFields ? try await interfaceName.string : ""
+            // Same-named private types share the stripped name bucket, and
+            // both sets below decide a `final` keyword — so the lookups must
+            // be node-matched exactly like the member loops in `members`
+            // (issue #115). A context that cannot be demangled falls back to
+            // the name-only (merged) lookup rather than dropping evidence.
+            let finalRecoveryContextNode = canRecoverFinalFields ? try? MetadataReader.demangleContext(for: .type(.class(dumped.descriptor)), in: machO) : nil
+            let vtableAccessorNames = canRecoverFinalFields ? vtableAccessorFieldNames(interfaceNameString: finalRecoveryInterfaceName, contextNode: finalRecoveryContextNode) : []
+            let storedAccessorNames = canRecoverFinalFields ? storedAccessorFieldNames(interfaceNameString: finalRecoveryInterfaceName, contextNode: finalRecoveryContextNode) : []
             for (offset, fieldRecord) in try dumped.descriptor.fieldDescriptor(in: machO).records(in: machO).offsetEnumerated() {
                 BreakLine()
 
@@ -158,7 +175,13 @@ package struct ClassDumper<MachO: FieldLayoutRenderable>: TypedDumper {
 
                 let fieldName = try fieldRecord.fieldName(in: machO)
 
-                fieldDeclarationKeywords(for: fieldRecord, typeNode: demangledTypeNode, fieldName: fieldName)
+                let strippedFieldName = fieldName.stripLazyPrefix
+                let isFinalField = canRecoverFinalFields
+                    && fieldRecord.flags.contains(.isVariadic)
+                    && storedAccessorNames.contains(strippedFieldName)
+                    && !vtableAccessorNames.contains(strippedFieldName)
+
+                fieldDeclarationKeywords(for: fieldRecord, typeNode: demangledTypeNode, fieldName: fieldName, isFinal: isFinalField)
 
                 MemberDeclaration(fieldName.stripLazyPrefix)
 
@@ -319,8 +342,29 @@ package struct ClassDumper<MachO: FieldLayoutRenderable>: TypedDumper {
 
             let interfaceNameString = try await interfaceName.string
 
+            // The same two exemptions the interface path applies (evolution
+            // proposal 0008): a member whose only reachability is not its own
+            // exported symbol must not be flagged. An `override`'s
+            // implementation symbol is an ordinary member symbol of THIS
+            // class (external callers link the parent's dispatch thunk), and
+            // an `@objc` member dispatches through objc_msgSend — its ObjC
+            // entry point is the implementation name plus the `To` suffix,
+            // which identifies it without demangling.
+            let overrideImplementationSymbolNames = configuration.printExportStatus ? collectOverrideImplementationSymbolNames() : []
+
+            // Same-named private types share the stripped name bucket; the
+            // context node picks this type's own sub-bucket (issue #115).
+            // A context that cannot be demangled falls back to the name-only
+            // (merged) lookup rather than dropping members.
+            let contextNode = try? MetadataReader.demangleContext(for: .type(.class(dumped.descriptor)), in: machO)
+
             for kind in SymbolIndexStore.MemberKind.allCases {
-                for (offset, symbol) in symbolIndexStore.memberSymbols(of: kind, for: interfaceNameString, in: machO).offsetEnumerated() {
+                let memberSymbols = if let contextNode {
+                    symbolIndexStore.memberSymbols(of: kind, for: interfaceNameString, node: contextNode, in: machO)
+                } else {
+                    symbolIndexStore.memberSymbols(of: kind, for: interfaceNameString, in: machO)
+                }
+                for (offset, symbol) in memberSymbols.offsetEnumerated() {
                     if offset.isStart {
                         BreakLine()
 
@@ -335,6 +379,13 @@ package struct ClassDumper<MachO: FieldLayoutRenderable>: TypedDumper {
                         configuration.memberAddressComment(offset: symbol.offset, addressString: machO.addressString(forOffset: symbol.offset))
                     }
 
+                    if configuration.printExportStatus,
+                       !overrideImplementationSymbolNames.contains(symbol.name),
+                       !symbolIndexStore.containsSymbol(named: symbol.name + "To", in: machO),
+                       symbolIndexStore.isExportedIncludingDerivedSymbols(name: symbol.name, in: machO) == false {
+                        configuration.exportStatusComment()
+                    }
+
                     Indent(level: 1)
 
                     try await demangleResolver.resolve(for: symbol.demangledNode)
@@ -346,7 +397,12 @@ package struct ClassDumper<MachO: FieldLayoutRenderable>: TypedDumper {
             }
 
             for kind in SymbolIndexStore.MemberKind.allCases {
-                for (offset, symbol) in symbolIndexStore.methodDescriptorMemberSymbols(of: kind, for: interfaceNameString, in: machO).offsetEnumerated() {
+                let methodDescriptorSymbols = if let contextNode {
+                    symbolIndexStore.methodDescriptorMemberSymbols(of: kind, for: interfaceNameString, node: contextNode, in: machO)
+                } else {
+                    symbolIndexStore.methodDescriptorMemberSymbols(of: kind, for: interfaceNameString, in: machO)
+                }
+                for (offset, symbol) in methodDescriptorSymbols.offsetEnumerated() {
                     if offset.isStart {
                         BreakLine()
 
@@ -361,6 +417,20 @@ package struct ClassDumper<MachO: FieldLayoutRenderable>: TypedDumper {
                         configuration.memberAddressComment(offset: symbol.offset, addressString: machO.addressString(forOffset: symbol.offset))
                     }
 
+                    // These rows are the `Tq` method-descriptor DATA symbols;
+                    // the derived-form expansion only makes sense over the
+                    // member's implementation name, so strip the suffix
+                    // before querying (querying "…Tq" would append the
+                    // derived suffixes onto it — "…TqTj" etc. never exist —
+                    // degrading to the bare-name query this proposal's own
+                    // analysis rejects).
+                    if configuration.printExportStatus {
+                        let implementationName = symbol.name.hasSuffix("Tq") ? String(symbol.name.dropLast(2)) : symbol.name
+                        if symbolIndexStore.isExportedIncludingDerivedSymbols(name: implementationName, in: machO) == false {
+                            configuration.exportStatusComment()
+                        }
+                    }
+
                     Indent(level: 1)
 
                     try await demangleResolver.resolve(for: symbol.demangledNode)
@@ -373,6 +443,30 @@ package struct ClassDumper<MachO: FieldLayoutRenderable>: TypedDumper {
 
             Standard("}")
         }
+    }
+
+    /// Implementation-symbol names consumed by the override / default-override
+    /// vtable sections — these are ordinary member symbols of THIS class, so
+    /// the member-symbol loops must exempt them from export-status
+    /// annotation (evolution proposal 0008: external callers link the
+    /// PARENT's dispatch thunk; the subclass exports nothing of its own).
+    private func collectOverrideImplementationSymbolNames() -> Set<String> {
+        var names: Set<String> = []
+        for descriptor in dumped.methodOverrideDescriptors {
+            if let symbols = try? descriptor.implementationSymbols(in: machO) {
+                for overrideSymbol in symbols {
+                    names.insert(overrideSymbol.name)
+                }
+            }
+        }
+        for descriptor in dumped.methodDefaultOverrideDescriptors {
+            if let symbols = try? descriptor.implementationSymbols(in: machO) {
+                for overrideSymbol in symbols {
+                    names.insert(overrideSymbol.name)
+                }
+            }
+        }
+        return names
     }
 
     package var name: SemanticString {
@@ -451,6 +545,71 @@ package struct ClassDumper<MachO: FieldLayoutRenderable>: TypedDumper {
         } else {
             Error("Symbol not found")
         }
+    }
+
+    /// Field names (lazy-stripped) whose getter/setter/modify/read accessors
+    /// occupy vtable slots — i.e. the stored `var`s that were NOT declared
+    /// `final`. Paired with `storedAccessorFieldNames(interfaceNameString:contextNode:)`
+    /// (the evidence gate) by `fields` to recover the `final` keyword on the
+    /// remaining stored `var`s (evolution proposal 0006).
+    ///
+    /// Two evidence sources, same as the model path in `TypeDefinition.index`:
+    /// the descriptor→implementation-symbol resolution, plus the type's `Tq`
+    /// method-descriptor symbols — per-member data symbols at unique
+    /// addresses, immune to the identical-code-folding that can fold many
+    /// accessor implementations onto one address and defeat the first source.
+    private func vtableAccessorFieldNames(interfaceNameString: String, contextNode: Node?) -> Set<String> {
+        var names: Set<String> = []
+        let accessorKinds: Set<MethodDescriptorKind> = [.getter, .setter, .modifyCoroutine, .readCoroutine]
+        for descriptor in dumped.methodDescriptors where accessorKinds.contains(descriptor.flags.kind) {
+            guard let symbols = try? descriptor.implementationSymbols(in: machO) else { continue }
+            for symbol in symbols {
+                guard let node = MetadataReader.demangleSymbolReference(for: symbol, in: machO),
+                      let variableName = node.first(of: .variable)?.identifier else { continue }
+                names.insert(variableName)
+            }
+        }
+        let variableKind: SymbolIndexStore.MemberKind = .variable(inExtension: false, isStatic: false, isStorage: false)
+        let descriptorSymbols = if let contextNode {
+            symbolIndexStore.methodDescriptorMemberSymbols(of: variableKind, for: interfaceNameString, node: contextNode, in: machO)
+        } else {
+            symbolIndexStore.methodDescriptorMemberSymbols(of: variableKind, for: interfaceNameString, in: machO)
+        }
+        for descriptorSymbol in descriptorSymbols {
+            guard let variableName = descriptorSymbol.demangledNode.first(of: .variable)?.identifier else { continue }
+            names.insert(variableName)
+        }
+        return names
+    }
+
+    /// Field names for which instance-variable accessor symbols exist at all —
+    /// the evidence gate for `final` recovery: a name with no accessor symbol
+    /// (stripped symbol table) cannot testify either way and stays unmarked.
+    /// `@objc` members are excluded outright: without a vtable descriptor they
+    /// dispatch through the ObjC runtime (`@objc dynamic`) — overridable, so
+    /// never `final` (same exclusion as the model path in
+    /// `TypeDefinition.index`).
+    private func storedAccessorFieldNames(interfaceNameString: String, contextNode: Node?) -> Set<String> {
+        var names: Set<String> = []
+        let variableKind: SymbolIndexStore.MemberKind = .variable(inExtension: false, isStatic: false, isStorage: false)
+        let accessorSymbols = if let contextNode {
+            symbolIndexStore.memberSymbols(of: variableKind, for: interfaceNameString, node: contextNode, in: machO)
+        } else {
+            symbolIndexStore.memberSymbols(of: variableKind, for: interfaceNameString, in: machO)
+        }
+        for symbol in accessorSymbols {
+            guard let variableName = symbol.demangledNode.first(of: .variable)?.identifier else { continue }
+            names.insert(variableName)
+        }
+        let objcMembers = if let contextNode {
+            symbolIndexStore.thunkAttributeMembers(of: .objCAttribute, for: interfaceNameString, node: contextNode, in: machO)
+        } else {
+            symbolIndexStore.thunkAttributeMembers(of: .objCAttribute, for: interfaceNameString, in: machO)
+        }
+        for objcMember in objcMembers where !objcMember.isStatic {
+            names.remove(objcMember.memberName)
+        }
+        return names
     }
 
     package func validNode(for symbols: Symbols, visitedNodes: borrowing OrderedSet<StructuralNodeReferenceKey> = []) async throws -> NodeReference? {

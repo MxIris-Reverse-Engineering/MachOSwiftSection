@@ -30,13 +30,26 @@
 - **主要出现在**：`Scripts/run-rendering-ab-verification.py`
 - **延伸阅读**：[SystemFrameworkRenderingVerification.md](Internal/SystemFrameworkRenderingVerification.md)
 
+### anchor 协议（anchor protocol）
+
+一条 same-type 约束的 subject 里，关联类型所**限定的声明协议**——`τ_1_0.[Swift.Sequence]Element == [A]` 的 anchor 是 `Swift.Sequence`（mangling 层限定形式，demangle 后保留在 `dependentAssociatedTypeRef` 的第二个 child）。注意 anchor 是 canonicalization 后**继承链最上层的原始声明者**，不一定是源码 sugar 写在哪个协议上（`Collection<[A]>` 的约束 anchor 是 Sequence），也不一定在 opaque 组合成员之内。opaque 尖括号参数的归属裁决以它为第一信号。
+
+- **主要出现在**：`Sources/SwiftInterface/OpaqueSameTypeConstraint.swift`、`SwiftInterfaceBuilderOpaqueTypeProvider`
+- **延伸阅读**：[提案 0011](Evolutions/0011-opaque-primary-associated-type-attribution.md)、[OpaqueReturnTypeResolution.md](Internal/OpaqueReturnTypeResolution.md) §2.2
+
 ### bucket（桶）
 
 分类索引里「一个键对应的一组符号表行号」（如 `symbolRowsByOffset` 的值、`MemberSymbolRows` 的叶子）。旧形态是 `[UInt32]` 小数组——绝大多数桶只有一个元素，却各付一次堆分配；提案 0003 落地后值形态为 `SymbolRowBucket`（单元素内联于字典槽，第二个元素起才落堆数组），迭代序保持插入序。
 
 - **主要出现在**：`Sources/MachOSymbols/SymbolIndexStore.swift`、`Sources/MachOSymbols/SymbolRowBucket.swift`
 - **延伸阅读**：[提案 0003](Evolutions/0003-symbol-row-bucket-flattening.md)
-- **延伸阅读**：[提案 0003](Evolutions/0003-symbol-row-bucket-flattening.md)
+
+### derived symbol forms（派生符号形态）
+
+一个成员实现符号经追加后缀派生出的入口符号：`Tj`（dispatch thunk）、`Tq`（method descriptor）、`Tu`（async function pointer）、`TjTu`。library-evolution 构建的常态是**实现符号不导出、`Tj` 导出**（外部调用方经 thunk 派发），所以判断成员导出状态必须查全形态（`isExportedIncludingDerivedSymbols`）——裸查实现符号会把整个 resilient 库误判为未导出。
+
+- **主要出现在**：`Sources/MachOSymbols/SymbolIndexStore.swift`
+- **延伸阅读**：[提案 0008](Evolutions/0008-interface-header-and-export-status-annotations.md)、[InterfaceHeaderAndExportStatusAnnotations.md](Internal/InterfaceHeaderAndExportStatusAnnotations.md)
 
 ### detach（脱表，`detachedFromSharedTable()`）
 
@@ -44,6 +57,27 @@
 
 - **主要出现在**：`Sources/MachOSymbols/DemangledSymbol.swift`、AGENTS.md「Symbol indexing」段
 - **延伸阅读**：[提案 0001](Evolutions/0001-symbol-name-offsetization.md)
+
+### 等价类塌缩（equivalence-class collapse）
+
+Requirement Machine 最小化泛型签名时，把 pin 到同一具体类型的多个关联类型并成一个等价类、只保留 canonical anchor 一条 same-type 约束的行为。后果：源码写了两处 primary sugar（`Collection<[A]> & TestCollection<[A]>`），descriptor 里只剩 anchor 在 Sequence 的一条——`TestCollection` 的 pin **物理上消失**，且与「TestCollection 的同名关联类型根本没被 pin」在二进制里**逐字节同形**，解析端只能按名字推断（见「名字兜底」）。
+
+- **主要出现在**：opaque type descriptor 的 generic requirements；`SwiftInterfaceBuilderOpaqueTypeProvider` 的归属规则 3
+- **延伸阅读**：[OpaqueReturnTypeResolution.md](Internal/OpaqueReturnTypeResolution.md) §2.2、[提案 0011](Evolutions/0011-opaque-primary-associated-type-attribution.md)「提议方案」
+
+### export status（导出状态标注，`// not exported`）
+
+`--emit-export-status` 门控的成员标注：成员的**所有**符号（含派生形态）都不在 export trie 时打 `// not exported`。语义是**符号表事实**而非访问级别猜测（`internal`/`fileprivate`/`private` 不可恢复，见 roadmap L-16）；`override` 与 `@objc` 成员豁免（分别经父类 thunk / objc_msgSend 可达，自有符号零导出是编译器常态）；镜像无导出信息时三态查询答 `nil`、不发射。
+
+- **主要出现在**：`Sources/SwiftPrinting/SwiftDeclarationPrinter.swift`（`renderMember`）、三个 Dumper 的 member-symbol 循环
+- **延伸阅读**：[提案 0008](Evolutions/0008-interface-header-and-export-status-annotations.md)、[InterfaceHeaderAndExportStatusAnnotations.md](Internal/InterfaceHeaderAndExportStatusAnnotations.md)
+
+### emission strategy（发射策略）
+
+diff / evolution 两条对比渲染路共享结构遍历核心（`InterfaceUnionWalker`）之后各自剩下的那一半：遍历器负责**结构**（N 路匹配与并集排序、extension 容器拆分、成员构造、类别调度、body 组合序），策略（`InterfaceUnionEmitting`）负责**呈现**——同一个匹配结果如何变成行（`+`/`-` 标记 vs 生命周期注解）、容器 header 如何裁决（两侧配对 vs 最新可渲染）、容器如何装配。真正语义不同的部分（`HeaderOutcome` 配对、注解锚点、两套格式层）只住在策略里，绝不上浮进遍历器。
+
+- **主要出现在**：`Sources/SwiftInterface/InterfaceUnionWalker.swift`（协议与遍历器）、`SwiftDiffableInterfaceRenderer.swift`（`DiffUnionStrategy`）、`SwiftEvolutionInterfaceRenderer.swift`（evolution 策略）
+- **延伸阅读**：[提案 draft-unify-interface-renderers](Evolutions/draft-unify-interface-renderers.md)
 
 ### late-name 路径（`lateDemangledNode(forName:)`）
 
@@ -57,11 +91,25 @@ sweep 覆盖范围之外的名字走的旁路：demangle 后 intern 进 `Storage
 
 - **主要出现在**：`Sources/MachOSymbols/SymbolIndexStore.swift`（`buildStorageSweep`）、`Sources/MachOSymbols/SymbolTable.swift`
 
+### lifecycle annotation（生命周期注解）
+
+演进并集接口里每条「变过的」声明行尾的注释：`// [●●○] removed in 26.0` —— 存在位图（每版本一位，文件头图例映射位置到版本标签）+ 按 ` · ` 连接的事件短语（added / removed / modified in 版本；modified 带 `旧签名 → 新签名`，两侧文本相同时省略箭头段）。**没有注解本身就是信息**：全程存在且从未变化。注解事实唯一来源是 `ABIEvolution` 的 lineage 查表，渲染器不自行推导。
+
+- **主要出现在**：`Sources/SwiftInterface/EvolutionMarking.swift`、`EvolutionAnnotationIndex.swift`
+- **延伸阅读**：[提案 draft-swift-evolution-interface-builder](Evolutions/draft-swift-evolution-interface-builder.md)
+
 ### materialize（物化）
 
 从轻量引用（表行号、descriptor、`NodeReference`）按需构造出完整值（`String`、wrapper、`Node` 树）的动作，与「驻留」相对。本项目的内存优化主线就是「驻留只留定位信息，重内容用时物化、用完即弃」：0001 物化符号名，0002 物化 wrapper。物化纪律：每处理一个对象至多物化一次、局部贯穿，不做 per-access。
 
 - **延伸阅读**：[提案 0001](Evolutions/0001-symbol-name-offsetization.md)、[提案 0002](Evolutions/0002-declaration-model-descriptor-slimming.md)
+
+### 名字兜底（name fallback）
+
+opaque 尖括号参数归属的第三条规则：协议无任何 anchor 命中时，若它**自身声明**了与约束同名的关联类型、该名字候选约束**恰一条**、且候选的 anchor **不在组合成员之内**，则把参数挂给它——用于恢复被「等价类塌缩」吃掉的 sugar（`TestCollection<[A]>`）。「anchor 在组合外」的限定是防捏造判据：anchor 协议自己在组合里时，其余同名成员写没写 sugar 无从知道（塌缩与未 pin 同形），挂了就是编造。
+
+- **主要出现在**：`SwiftInterfaceBuilderOpaqueTypeProvider.attributedConstraints`
+- **延伸阅读**：[提案 0011](Evolutions/0011-opaque-primary-associated-type-attribution.md)「提议方案」规则 3、[OpaqueReturnTypeResolution.md](Internal/OpaqueReturnTypeResolution.md) §3.3
 
 ### name source（名字来源）
 
@@ -96,6 +144,13 @@ sweep 覆盖范围之外的名字走的旁路：demangle 后 intern 进 `Storage
 
 - **主要出现在**：`Sources/MachOSymbols/StructuralNodeReferenceKey.swift`；键位清单见 AGENTS.md「Symbol indexing」段
 
+### supplementary APINotes（补充映射）
+
+TypeIndexing 的外部知识入口：标准 `.apinotes` 格式的**用户自备**类型映射文件，为 **SDK 里没有模块的私有框架**（AttributeGraph 等）提供 `__C` 类型的归属与改名——这类框架的 `swift_name` 改名只活在头文件里、二进制零残留，原理上不可恢复，只能靠外部知识。库自身不内置任何映射（首版的内置 SPM resource bundle 因 `Bundle.module` 分发即崩问题在 review 后移除）；宿主经 provider 的 `supplementaryAPINotesURLs:`、CLI 经 `--supplementary-apinotes` 传入，覆盖顺序 SDK APINotes → 用户文件按传入序，后写覆盖同名。CF-bridged 类型须登记两个 C 拼写（typedef 名进 Typedefs、storage tag 名进 Tags），第三种 mangling 形态（导入名直出）由 SwiftName 自动派生。
+
+- **主要出现在**：`Sources/TypeIndexing/SupplementaryAPINotes.swift`
+- **延伸阅读**：[提案 0010](Evolutions/0010-community-type-mapping-bundles.md)、[SupplementaryTypeMappings.md](SupplementaryTypeMappings.md)（公开使用指引）、[TypeIndexingPipeline.md](Internal/TypeIndexingPipeline.md)
+
 ### sweep（构建扫描）
 
 对一个镜像的**全量符号一遍扫过**的批处理构建过程：`SymbolIndexStore` 首次索引某镜像时，`buildStorageSweep` 遍历整张符号表 + export trie，收集行、对每个 Swift 符号 demangle 一次、把结果分类进各查询索引——与之相对的是查询期的按需单点操作。RuntimeViewer 语境里「按需索引 sweep」指用户打开某镜像才触发这一遍构建；sweep 期的临时缓冲是瞬态内存峰值的来源（完即释放）。
@@ -108,6 +163,13 @@ sweep 覆盖范围之外的名字走的旁路：demangle 后 intern 进 `Storage
 Swift runtime 的 descriptor 布局惯例：固定头之后按 flags 跟着可变数量的附加记录（vtable 方法描述符、resilient witnesses、泛型上下文等），源自 C++ 侧的 `TrailingObjects` 模板。本仓库的高层 wrapper 构造时把它们全部解析成 Swift 数组——0002 要治理的驻留正是这些解析产物。
 
 - **主要出现在**：`Sources/MachOSwiftSection/Models/`（各 wrapper 的 `initialize` 尾部解析）
+
+### union interface（并集接口）
+
+`evolution --interface` 的输出形态：N 个版本所有声明的**并集**只渲染一次的 Swift 接口——每条声明由「最后一个拥有它的版本」的模型与 printer 渲染文本，变化写进生命周期注解，同一成员改签名不裂成多行。与「逐 transition 串联 diff」（同一声明重复出现 N−1 次）和「只渲染最新版 + since 注解」（丢中间版本细节）相对。排序规则：最新版本声明序为脊柱，不在最新版的声明按其最后存在版本的顺序追加。
+
+- **主要出现在**：`Sources/SwiftInterface/SwiftEvolutionInterfaceRenderer.swift`（`matchAcrossVersions`）
+- **延伸阅读**：[提案 draft-swift-evolution-interface-builder](Evolutions/draft-swift-evolution-interface-builder.md)
 
 ### wrapper vs descriptor（高层包装 vs 描述符）
 

@@ -119,3 +119,86 @@ class SymbolTestsCore.VTableEntryVariants.VTableDeepOverrideTest: SymbolTestsCor
     SymbolTestsCore.VTableEntryVariants.VTableDeepOverrideTest.overridableMethod() -> Swift.Int
     SymbolTestsCore.VTableEntryVariants.VTableDeepOverrideTest.asyncMethod() async -> Swift.Int
 }
+class SymbolTestsCore.VTableEntryVariants.FinalMembersTest {
+    final var finalStoredProperty: Swift.Int
+    var plainStoredProperty: Swift.Int
+    let constantStoredProperty: Swift.Int
+    final lazy var finalLazyProperty: Swift.String?
+    lazy var plainLazyProperty: Swift.String?
+
+    /* [Getter] */ SymbolTestsCore.VTableEntryVariants.FinalMembersTest.plainStoredProperty.getter : Swift.Int
+    /* [Setter] */ SymbolTestsCore.VTableEntryVariants.FinalMembersTest.plainStoredProperty.setter : Swift.Int
+    /* [Modify] */ SymbolTestsCore.VTableEntryVariants.FinalMembersTest.plainStoredProperty.modify : Swift.Int
+    /* [Getter] */ SymbolTestsCore.VTableEntryVariants.FinalMembersTest.plainLazyProperty.getter : Swift.String
+    /* [Setter] */ SymbolTestsCore.VTableEntryVariants.FinalMembersTest.plainLazyProperty.setter : Swift.String
+    /* [Modify] */ SymbolTestsCore.VTableEntryVariants.FinalMembersTest.plainLazyProperty.modify : Swift.String
+    /* [Getter] */ SymbolTestsCore.VTableEntryVariants.FinalMembersTest.plainComputedProperty.getter : Swift.Int
+    /* [Setter] */ SymbolTestsCore.VTableEntryVariants.FinalMembersTest.plainComputedProperty.setter : Swift.Int
+    /* [Modify] */ SymbolTestsCore.VTableEntryVariants.FinalMembersTest.plainComputedProperty.modify : Swift.Int
+    /* [Method] */ func SymbolTestsCore.VTableEntryVariants.FinalMembersTest.plainComputedProperty.modify : Swift.Int
+    /* [Getter] */ SymbolTestsCore.VTableEntryVariants.FinalMembersTest.subscript.getter : (plainIndex: Swift.Int) -> Swift.Int
+    /* [Setter] */ SymbolTestsCore.VTableEntryVariants.FinalMembersTest.plainMethod() -> ()
+    /* [Modify] */ SymbolTestsCore.VTableEntryVariants.FinalMembersTest.subscript.modify : (plainIndex: Swift.Int) -> Swift.Int
+    /* [Method] */ class func SymbolTestsCore.VTableEntryVariants.FinalMembersTest.subscript.setter : (plainIndex: Swift.Int) -> Swift.Int
+    /* [ Init ] */ SymbolTestsCore.VTableEntryVariants.FinalMembersTest.__allocating_init() -> SymbolTestsCore.VTableEntryVariants.FinalMembersTest
+
+    /* Allocator */
+    SymbolTestsCore.VTableEntryVariants.FinalMembersTest.__allocating_init() -> SymbolTestsCore.VTableEntryVariants.FinalMembersTest
+
+    /* Deallocator */
+    SymbolTestsCore.VTableEntryVariants.FinalMembersTest.__deallocating_deinit
+
+    /* Constructor */
+    SymbolTestsCore.VTableEntryVariants.FinalMembersTest.init() -> SymbolTestsCore.VTableEntryVariants.FinalMembersTest
+
+    /* Destructor */
+    SymbolTestsCore.VTableEntryVariants.FinalMembersTest.deinit
+
+    /* Subscript */
+    SymbolTestsCore.VTableEntryVariants.FinalMembersTest.subscript.setter : (plainIndex: Swift.Int) -> Swift.Int
+    SymbolTestsCore.VTableEntryVariants.FinalMembersTest.subscript.getter : (plainIndex: Swift.Int) -> Swift.Int
+    SymbolTestsCore.VTableEntryVariants.FinalMembersTest.subscript.getter : (finalIndex: Swift.Int) -> Swift.Int
+
+    /* Variable */
+    SymbolTestsCore.VTableEntryVariants.FinalMembersTest.plainComputedProperty.setter : Swift.Int
+    SymbolTestsCore.VTableEntryVariants.FinalMembersTest.plainComputedProperty.getter : Swift.Int
+    SymbolTestsCore.VTableEntryVariants.FinalMembersTest.plainStoredProperty.getter : Swift.Int
+    SymbolTestsCore.VTableEntryVariants.FinalMembersTest.plainStoredProperty.setter : Swift.Int
+    SymbolTestsCore.VTableEntryVariants.FinalMembersTest.plainLazyProperty.getter : Swift.String
+    SymbolTestsCore.VTableEntryVariants.FinalMembersTest.plainLazyProperty.setter : Swift.String
+    SymbolTestsCore.VTableEntryVariants.FinalMembersTest.finalLazyProperty.getter : Swift.String
+    SymbolTestsCore.VTableEntryVariants.FinalMembersTest.finalLazyProperty.setter : Swift.String
+    SymbolTestsCore.VTableEntryVariants.FinalMembersTest.finalStoredProperty.getter : Swift.Int
+    SymbolTestsCore.VTableEntryVariants.FinalMembersTest.finalStoredProperty.setter : Swift.Int
+    SymbolTestsCore.VTableEntryVariants.FinalMembersTest.finalComputedProperty.getter : Swift.Int
+    SymbolTestsCore.VTableEntryVariants.FinalMembersTest.constantStoredProperty.getter : Swift.Int
+
+    /* Function */
+    SymbolTestsCore.VTableEntryVariants.FinalMembersTest.plainMethod() -> ()
+    SymbolTestsCore.VTableEntryVariants.FinalMembersTest.finalMethod() -> ()
+
+    /* Static Function */
+    static SymbolTestsCore.VTableEntryVariants.FinalMembersTest.classMethod() -> ()
+    static SymbolTestsCore.VTableEntryVariants.FinalMembersTest.staticMethod() -> ()
+
+    /* [Method] Allocator */
+    method descriptor for SymbolTestsCore.VTableEntryVariants.FinalMembersTest.__allocating_init() -> SymbolTestsCore.VTableEntryVariants.FinalMembersTest
+
+    /* [Method] Subscript */
+    method descriptor for SymbolTestsCore.VTableEntryVariants.FinalMembersTest.subscript.getter : (plainIndex: Swift.Int) -> Swift.Int
+    method descriptor for SymbolTestsCore.VTableEntryVariants.FinalMembersTest.subscript.setter : (plainIndex: Swift.Int) -> Swift.Int
+
+    /* [Method] Variable */
+    method descriptor for SymbolTestsCore.VTableEntryVariants.FinalMembersTest.plainStoredProperty.getter : Swift.Int
+    method descriptor for SymbolTestsCore.VTableEntryVariants.FinalMembersTest.plainStoredProperty.setter : Swift.Int
+    method descriptor for SymbolTestsCore.VTableEntryVariants.FinalMembersTest.plainLazyProperty.getter : Swift.String
+    method descriptor for SymbolTestsCore.VTableEntryVariants.FinalMembersTest.plainLazyProperty.setter : Swift.String
+    method descriptor for SymbolTestsCore.VTableEntryVariants.FinalMembersTest.plainComputedProperty.getter : Swift.Int
+    method descriptor for SymbolTestsCore.VTableEntryVariants.FinalMembersTest.plainComputedProperty.setter : Swift.Int
+
+    /* [Method] Function */
+    method descriptor for SymbolTestsCore.VTableEntryVariants.FinalMembersTest.plainMethod() -> ()
+
+    /* [Method] Static Function */
+    method descriptor for static SymbolTestsCore.VTableEntryVariants.FinalMembersTest.classMethod() -> ()
+}

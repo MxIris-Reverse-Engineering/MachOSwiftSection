@@ -100,7 +100,7 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
     }
 
     public struct TypeInfo: Sendable {
-        public enum Kind: Sendable {
+        public enum Kind: Equatable, Sendable {
             case `enum`
             case `struct`
             case `class`
@@ -154,7 +154,12 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
         /// because `symbolRowsByOffset` references them).
         let rootNodeIndexByTableRow: [NodeStore.NodeIndex?]
 
-        let typeInfoByName: [String: TypeInfo]
+        /// Per printed type name, the `TypeInfo` of every distinct context
+        /// node that printed to it. The stripped interface print is not
+        /// injective — same-named private types from different files collide
+        /// on it (issue #115) — so the name alone cannot key a single
+        /// `TypeInfo`; the interned context node disambiguates.
+        let typeInfoByName: [String: OrderedDictionary<NodeStore.NodeIndex, TypeInfo>]
 
         let globalSymbolRowsByKind: OrderedDictionary<GlobalKind, [UInt32]>
 
@@ -198,7 +203,53 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
         /// array allocation.
         let symbolRowsByOffset: [Int: SymbolRowBucket]
 
-        let thunkAttributeMembersByKindAndTypeName: [Node.Kind: [String: [ThunkAttributeMember]]]
+        /// Like the member indexes, bucketed by printed type name first and
+        /// the interned parent-context node second, so same-named private
+        /// types' thunk attributes never cross-stamp each other's members.
+        let thunkAttributeMembersByKindAndTypeName: [Node.Kind: [String: OrderedDictionary<NodeStore.NodeIndex, [ThunkAttributeMember]>]]
+
+        /// Export-trie facts for the image (evolution proposal 0008), the
+        /// backing for `isExported(name:)`. Collected explicitly during the
+        /// build sweep because no existing structure records them: both
+        /// symtab collection legs filter on `!nlist.isExternal` (local
+        /// symbols only), so an exported symbol's row is minted by the
+        /// export-trie leg — but that leg's row-minting is *conditional*
+        /// (only names the symtab missed, only entries carrying an offset),
+        /// so "row came from the trie leg" is not recoverable after the
+        /// fact and offset-less re-export entries never mint a row at all.
+        struct ExportFacts {
+            /// One bit per `symbolTable` row: set when the row's name has an
+            /// export-trie entry. Sized `(rowCount + 63) / 64` words — ~23 KB
+            /// for a 185k-row SwiftUI-scale table.
+            var exportedRowBitmap: [UInt64] = []
+
+            /// Exported Swift names with no row home: offset-less trie
+            /// entries (re-exports) and names whose row minting was refused
+            /// by the packed-reference budget. Expected empty or tiny.
+            var exportedSwiftNamesWithoutRows: Set<String> = []
+
+            /// `false` when the image's export-trie enumeration yielded no
+            /// entries at all (stripped-of-exports or static-style input) —
+            /// then "not exported" is not a meaningful distinction and
+            /// `isExported(name:)` answers `nil` rather than `false`.
+            var hasExportInformation: Bool = false
+        }
+
+        let exportFacts: ExportFacts
+
+        /// Whether `name` has an export-trie entry in this image:
+        /// `true`/`false` per the trie, or `nil` when the image carries no
+        /// export information at all (see `ExportFacts.hasExportInformation`).
+        /// Only Swift names are recorded, matching the table's population —
+        /// callers query with mangled member-symbol names.
+        func isExported(name: String) -> Bool? {
+            guard exportFacts.hasExportInformation else { return nil }
+            if let row = symbolTable.row(forName: name) {
+                let rowIndex = Int(row)
+                return exportFacts.exportedRowBitmap[rowIndex >> 6] & (1 << UInt64(rowIndex & 63)) != 0
+            }
+            return exportFacts.exportedSwiftNamesWithoutRows.contains(name)
+        }
 
         /// Symbols demangled after the store was frozen (rare path: lookups
         /// for names that were not part of the build sweep). The frozen main
@@ -226,12 +277,14 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
             symbolTable: SymbolTable,
             rootNodeIndexByTableRow: [NodeStore.NodeIndex?],
             symbolRowsByOffset: [Int: SymbolRowBucket],
+            exportFacts: ExportFacts,
             rowIndexes: consuming RowIndexes
         ) {
             self.nodeStore = nodeStore
             self.symbolTable = symbolTable
             self.rootNodeIndexByTableRow = rootNodeIndexByTableRow
             self.symbolRowsByOffset = symbolRowsByOffset
+            self.exportFacts = exportFacts
             self.typeInfoByName = rowIndexes.typeInfoByName
             self.globalSymbolRowsByKind = rowIndexes.globalSymbolRowsByKind
             self.opaqueTypeDescriptorSymbolRowByNodeIndex = rowIndexes.opaqueTypeDescriptorSymbolRowByNodeIndex
@@ -354,14 +407,14 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
     /// unchanged — there is no post-freeze conversion pass, so the former
     /// pending→populate double-index transient peak is gone (Stage 3).
     fileprivate struct RowIndexes {
-        var typeInfoByName: [String: TypeInfo] = [:]
+        var typeInfoByName: [String: OrderedDictionary<NodeStore.NodeIndex, TypeInfo>] = [:]
         var globalSymbolRowsByKind: OrderedDictionary<GlobalKind, [UInt32]> = [:]
         var opaqueTypeDescriptorSymbolRowByNodeIndex: OrderedDictionary<NodeStore.NodeIndex, UInt32> = [:]
         var memberSymbolRowsByKind: OrderedDictionary<MemberKind, Storage.MemberSymbolRows> = [:]
         var methodDescriptorMemberSymbolRowsByKind: OrderedDictionary<MemberKind, Storage.MemberSymbolRows> = [:]
         var protocolWitnessMemberSymbolRowsByKind: OrderedDictionary<MemberKind, Storage.MemberSymbolRows> = [:]
         var symbolRowsByKind: OrderedDictionary<Node.Kind, [UInt32]> = [:]
-        var thunkAttributeMembersByKindAndTypeName: [Node.Kind: [String: [ThunkAttributeMember]]] = [:]
+        var thunkAttributeMembersByKindAndTypeName: [Node.Kind: [String: OrderedDictionary<NodeStore.NodeIndex, [ThunkAttributeMember]>]] = [:]
 
         mutating func appendSymbolRow(_ symbolTableRow: UInt32, for kind: Node.Kind) {
             symbolRowsByKind[kind, default: []].append(symbolTableRow)
@@ -369,25 +422,25 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
 
         mutating func setMemberSymbols(for result: ProcessMemberSymbolResult) {
             memberSymbolRowsByKind[result.memberKind, default: [:]][result.typeName, default: [:]][result.typeNodeIndex, default: .empty].append(result.symbolTableRow)
-            typeInfoByName[result.typeName] = result.typeInfo
+            typeInfoByName[result.typeName, default: [:]][result.typeNodeIndex] = result.typeInfo
         }
 
         mutating func setMethodDescriptorMemberSymbols(for result: ProcessMemberSymbolResult) {
             methodDescriptorMemberSymbolRowsByKind[result.memberKind, default: [:]][result.typeName, default: [:]][result.typeNodeIndex, default: .empty].append(result.symbolTableRow)
-            typeInfoByName[result.typeName] = result.typeInfo
+            typeInfoByName[result.typeName, default: [:]][result.typeNodeIndex] = result.typeInfo
         }
 
         mutating func setProtocolWitnessMemberSymbols(for result: ProcessMemberSymbolResult) {
             protocolWitnessMemberSymbolRowsByKind[result.memberKind, default: [:]][result.typeName, default: [:]][result.typeNodeIndex, default: .empty].append(result.symbolTableRow)
-            typeInfoByName[result.typeName] = result.typeInfo
+            typeInfoByName[result.typeName, default: [:]][result.typeNodeIndex] = result.typeInfo
         }
 
         mutating func setGlobalSymbols(for result: ProcessGlobalSymbolResult) {
             globalSymbolRowsByKind[result.kind, default: []].append(result.symbolTableRow)
         }
 
-        mutating func appendThunkAttributeMember(_ member: ThunkAttributeMember, forKind thunkKind: Node.Kind, typeName: String) {
-            thunkAttributeMembersByKindAndTypeName[thunkKind, default: [:]][typeName, default: []].append(member)
+        mutating func appendThunkAttributeMember(_ member: ThunkAttributeMember, forKind thunkKind: Node.Kind, typeName: String, typeNodeIndex: NodeStore.NodeIndex) {
+            thunkAttributeMembersByKindAndTypeName[thunkKind, default: [:]][typeName, default: [:]][typeNodeIndex, default: []].append(member)
         }
     }
 
@@ -533,8 +586,30 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
             }
         }
 
-        for exportedSymbol in machO.exportedSymbols where exportedSymbol.name.isSwiftSymbol {
-            if let rawOffset = exportedSymbol.offset, tableBuilder.existingRow(forName: exportedSymbol.name) == nil {
+        // The same single pass also collects the export facts (evolution
+        // proposal 0008): every Swift trie name is recorded as exported —
+        // by row when it has one, by name otherwise — because nothing else
+        // remembers trie membership (the symtab legs above collect local
+        // symbols only, and the row minting below is conditional). Bits are
+        // set in the bitmap directly (row indices only grow, so the word
+        // array grows monotonically; the final row count is settled at
+        // freeze below, where the array is padded to full width).
+        var sawAnyExportedSymbol = false
+        var exportFacts = Storage.ExportFacts()
+        func recordExportedRow(_ row: UInt32) {
+            let wordIndex = Int(row) >> 6
+            while exportFacts.exportedRowBitmap.count <= wordIndex {
+                exportFacts.exportedRowBitmap.append(0)
+            }
+            exportFacts.exportedRowBitmap[wordIndex] |= 1 << UInt64(Int(row) & 63)
+        }
+        for exportedSymbol in machO.exportedSymbols {
+            sawAnyExportedSymbol = true
+            let name = exportedSymbol.name
+            guard name.isSwiftSymbol else { continue }
+            if let existingRow = tableBuilder.existingRow(forName: name) {
+                recordExportedRow(existingRow)
+            } else if let rawOffset = exportedSymbol.offset {
                 var canonicalOffset = rawOffset
                 if machO is MachOFile {
                     canonicalOffset += machO.startOffset
@@ -544,10 +619,20 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
                 // check is never needed here. Export-trie names are decoded
                 // strings with no home in the mapped string table, so they
                 // take the private-buffer overload on every reader.
-                guard let (row, isNewRow) = tableBuilder.canonicalRow(forName: exportedSymbol.name, canonicalOffset: canonicalOffset, isExternal: false) else { continue }
+                guard let (row, isNewRow) = tableBuilder.canonicalRow(forName: name, canonicalOffset: canonicalOffset, isExternal: false) else {
+                    // Refused by the packed-reference budget — the export
+                    // fact still stands, it just has no row home.
+                    exportFacts.exportedSwiftNamesWithoutRows.insert(name)
+                    continue
+                }
                 registerRow(row, rawOffset: rawOffset, canonicalOffset: canonicalOffset, isNewRow: isNewRow)
+                recordExportedRow(row)
+            } else {
+                // Offset-less trie entry (a re-export): exported, no row.
+                exportFacts.exportedSwiftNamesWithoutRows.insert(name)
             }
         }
+        exportFacts.hasExportInformation = sawAnyExportedSymbol
 
         // Freezing here drops the build-time dedup dictionary and sorts the
         // name-order permutation; the demangle sweep below reads names back
@@ -556,6 +641,14 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
         // byte-span entry lands, see proposal 0001's upstream-interface
         // section).
         let symbolTable = tableBuilder.freeze()
+
+        // Row count is final after freeze (freezing sorts a permutation, it
+        // never renumbers or adds rows); pad the bitmap to full width so
+        // lookups never bounds-check.
+        let exportedRowBitmapWordCount = (symbolTable.rowCount + 63) / 64
+        while exportFacts.exportedRowBitmap.count < exportedRowBitmapWordCount {
+            exportFacts.exportedRowBitmap.append(0)
+        }
 
         // Single sequential sweep: demangle each symbol cache-free onto a
         // transient tree, classify on that tree, and intern the result into
@@ -585,8 +678,8 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
             rowIndexes.appendSymbolRow(symbolTableRow, for: node.kind)
 
             if node.kind == .objCAttribute || node.kind == .nonObjCAttribute {
-                if let extracted = processThunkAttributeSymbol(thunkKind: node.kind, rootNode: rootNode) {
-                    rowIndexes.appendThunkAttributeMember(extracted.member, forKind: node.kind, typeName: extracted.typeName)
+                if let extracted = processThunkAttributeSymbol(thunkKind: node.kind, rootNode: rootNode, builder: &builder) {
+                    rowIndexes.appendThunkAttributeMember(extracted.member, forKind: node.kind, typeName: extracted.typeName, typeNodeIndex: extracted.typeNodeIndex)
                 }
                 continue
             }
@@ -628,6 +721,7 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
             symbolTable: symbolTable,
             rootNodeIndexByTableRow: rootNodeIndexByTableRow,
             symbolRowsByOffset: symbolRowsByOffset,
+            exportFacts: exportFacts,
             rowIndexes: rowIndexes
         )
     }
@@ -724,14 +818,18 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
         return nil
     }
 
-    /// Extracts `(typeName, ThunkAttributeMember)` from a thunk symbol whose root
-    /// demangled node has an attribute marker child (`.objCAttribute` /
-    /// `.nonObjCAttribute`). Returns `nil` if the thunk does not wrap a named
-    /// member whose parent context can be resolved to a Swift type name.
+    /// Extracts `(typeName, typeNodeIndex, ThunkAttributeMember)` from a thunk
+    /// symbol whose root demangled node has an attribute marker child
+    /// (`.objCAttribute` / `.nonObjCAttribute`). The parent context is also
+    /// interned (same `.type`-wrapped shape as the member indexes' keys) so
+    /// consumers can tell same-named private types apart. Returns `nil` if the
+    /// thunk does not wrap a named member whose parent context can be resolved
+    /// to a Swift type name.
     private func processThunkAttributeSymbol(
         thunkKind: Node.Kind,
-        rootNode: Node
-    ) -> (typeName: String, member: ThunkAttributeMember)? {
+        rootNode: Node,
+        builder: inout NodeStoreBuilder
+    ) -> (typeName: String, typeNodeIndex: NodeStore.NodeIndex, member: ThunkAttributeMember)? {
         guard let memberNode = rootNode.children.first(where: { $0.kind != thunkKind }) else { return nil }
 
         let isStatic: Bool
@@ -765,11 +863,13 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
         guard let contextNode, let extractedMemberName else { return nil }
 
         let typeName = Node.create(kind: .type, child: contextNode).print(using: .interfaceTypeBuilderOnly)
+        let typeNodeIndex = builder.intern(kind: .type, children: [builder.intern(contextNode)])
 
         let isInit = unwrappedMemberNode.kind == .allocator || unwrappedMemberNode.kind == .constructor
 
         return (
             typeName: typeName,
+            typeNodeIndex: typeNodeIndex,
             member: ThunkAttributeMember(memberName: extractedMemberName, isStatic: isStatic, isInit: isInit)
         )
     }
@@ -819,8 +919,21 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
         return storage.symbolRowsByKind.mapValues { storage.demangledSymbols(atRows: $0) }
     }
 
+    /// Name-only lookup: first-wins across the (rare) same-named private
+    /// types colliding on the stripped interface print. Prefer the
+    /// node-taking overload whenever the caller holds the type's context
+    /// node — the name alone cannot tell same-named private types apart.
     public func typeInfo<MachO: MachORepresentableWithCache>(for name: String, in machO: MachO) -> TypeInfo? {
-        return storage(in: machO)?.typeInfoByName[name]
+        return storage(in: machO)?.typeInfoByName[name]?.values.first
+    }
+
+    /// Structural counterpart: resolves the `TypeInfo` of exactly the type
+    /// whose context node matches `node`, so same-named private types each
+    /// answer with their own kind.
+    public func typeInfo<MachO: MachORepresentableWithCache>(for name: String, node: NodeReference, in machO: MachO) -> TypeInfo? {
+        guard let storage = storage(in: machO) else { return nil }
+        guard let typeInfoByTypeNodeIndex = storage.typeInfoByName[name] else { return nil }
+        return typeInfoByTypeNodeIndex.elements.first(where: { storage.nodeStore.reference(at: $0.key).structurallyEquals(node) })?.value
     }
 
     public func symbols<MachO: MachORepresentableWithCache>(of kinds: Node.Kind..., in machO: MachO) -> [DemangledSymbol] {
@@ -828,16 +941,108 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
         return kinds.map { storage.demangledSymbols(atRows: storage.symbolRowsByKind[$0] ?? []) }.reduce(into: []) { $0 += $1 }
     }
 
+    /// The number of symbols of `kinds` — O(1) per kind on the row index,
+    /// for callers (the interface header's dispatch-thunk count) that need
+    /// only the count and would otherwise materialize a `DemangledSymbol`
+    /// array to throw it away.
+    public func symbolCount<MachO: MachORepresentableWithCache>(of kinds: Node.Kind..., in machO: MachO) -> Int {
+        guard let storage = storage(in: machO) else { return 0 }
+        return kinds.reduce(0) { $0 + (storage.symbolRowsByKind[$1]?.count ?? 0) }
+    }
+
+    /// Whether the mangled `name` has an export-trie entry in `machO`
+    /// (evolution proposal 0008). Answers a symbol-table FACT, not an
+    /// access level: `false` means "no export-trie entry for this name",
+    /// which is what a `// not exported` annotation may honestly claim.
+    /// Returns `nil` when the image carries no export information at all
+    /// (no trie, or the store is unavailable) — then the distinction is
+    /// meaningless and callers should not annotate.
+    public func isExported<MachO: MachORepresentableWithCache>(name: String, in machO: MachO) -> Bool? {
+        guard let storage = storage(in: machO) else { return nil }
+        return storage.isExported(name: name)
+    }
+
+    /// Whether the build sweep collected a symbol with exactly this name —
+    /// presence in the symtab/trie population, regardless of export status.
+    /// Backs the dump path's `@objc` exemption (evolution proposal 0008):
+    /// an `@objc` member's ObjC entry point is its implementation name plus
+    /// the `To` thunk suffix, so presence of that name identifies the
+    /// member as objc_msgSend-reachable without demangling anything.
+    public func containsSymbol<MachO: MachORepresentableWithCache>(named name: String, in machO: MachO) -> Bool {
+        guard let storage = storage(in: machO) else { return false }
+        return storage.symbolTable.row(forName: name) != nil
+    }
+
+    /// The mangled suffixes deriving a member's exported entry points from
+    /// its implementation symbol: `Tj` dispatch thunk, `Tq` method
+    /// descriptor, `Tu` async function pointer, and the thunk's own async
+    /// pointer `TjTu`. Swift mangling appends them verbatim.
+    private static let derivedExportSuffixes = ["Tj", "Tq", "Tu", "TjTu"]
+
+    /// `isExported(name:in:)` extended over the member's derived
+    /// entry-point forms. A library-evolution build routinely keeps the
+    /// implementation symbol private while exporting the `Tj` dispatch
+    /// thunk (external callers dispatch through it) — so an implementation
+    /// symbol missing from the trie proves nothing on its own, and a
+    /// member is honestly "not exported" only when NONE of its forms are
+    /// (issue #106 verified exactly this way: an export-table search for
+    /// any symbol of the member).
+    public func isExportedIncludingDerivedSymbols<MachO: MachORepresentableWithCache>(name: String, in machO: MachO) -> Bool? {
+        guard let storage = storage(in: machO) else { return nil }
+        guard let isExported = storage.isExported(name: name) else { return nil }
+        if isExported {
+            return true
+        }
+        for suffix in Self.derivedExportSuffixes where storage.isExported(name: name + suffix) == true {
+            return true
+        }
+        return false
+    }
+
     /// Returns the pre-extracted thunk-attribute members whose parent type
     /// name matches `typeName`. `thunkKind` is the demangler attribute marker
     /// kind (e.g. `.objCAttribute`, `.nonObjCAttribute`). Lookup is O(1) in the
     /// typeName bucket; no per-type scan of all thunk symbols is needed.
+    /// Flattens every context-node bucket under the name — same-named private
+    /// types are merged here; prefer the node-taking overload when the caller
+    /// can supply the type's context node.
     public func thunkAttributeMembers<MachO: MachORepresentableWithCache>(
         of thunkKind: Node.Kind,
         for typeName: String,
         in machO: MachO
     ) -> [ThunkAttributeMember] {
-        return storage(in: machO)?.thunkAttributeMembersByKindAndTypeName[thunkKind]?[typeName] ?? []
+        guard let membersByTypeNodeIndex = storage(in: machO)?.thunkAttributeMembersByKindAndTypeName[thunkKind]?[typeName] else { return [] }
+        return membersByTypeNodeIndex.values.flatMap { $0 }
+    }
+
+    /// Structural counterpart: returns only the members whose parent context
+    /// node matches `node`, so a same-named private sibling's `@objc` /
+    /// `@nonobjc` thunks never stamp attributes onto this type's members.
+    public func thunkAttributeMembers<MachO: MachORepresentableWithCache>(
+        of thunkKind: Node.Kind,
+        for typeName: String,
+        node: NodeReference,
+        in machO: MachO
+    ) -> [ThunkAttributeMember] {
+        guard let storage = storage(in: machO) else { return [] }
+        guard let membersByTypeNodeIndex = storage.thunkAttributeMembersByKindAndTypeName[thunkKind]?[typeName] else { return [] }
+        guard let matched = membersByTypeNodeIndex.elements.first(where: { storage.nodeStore.reference(at: $0.key).structurallyEquals(node) }) else { return [] }
+        return matched.value
+    }
+
+    /// Same lookup as the `NodeReference` overload, for callers holding an
+    /// externally demangled `Node` (`MetadataReader.demangleContext` output in
+    /// the dump path) rather than a store-backed reference.
+    public func thunkAttributeMembers<MachO: MachORepresentableWithCache>(
+        of thunkKind: Node.Kind,
+        for typeName: String,
+        node: Node,
+        in machO: MachO
+    ) -> [ThunkAttributeMember] {
+        guard let storage = storage(in: machO) else { return [] }
+        guard let membersByTypeNodeIndex = storage.thunkAttributeMembersByKindAndTypeName[thunkKind]?[typeName] else { return [] }
+        guard let matched = membersByTypeNodeIndex.elements.first(where: { storage.nodeStore.reference(at: $0.key).structurallyEquals(node) }) else { return [] }
+        return matched.value
     }
 
     public func memberSymbols<MachO: MachORepresentableWithCache>(of kinds: MemberKind..., in machO: MachO) -> [DemangledSymbol] {
@@ -921,6 +1126,32 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
         return kinds.map { kind -> [DemangledSymbol] in
             guard let rowsByTypeNodeIndex = storage.methodDescriptorMemberSymbolRowsByKind[kind]?[name] else { return [] }
             return rowsByTypeNodeIndex.values.flatMap { storage.demangledSymbols(atRows: $0) }
+        }.reduce(into: []) { $0 += $1 }
+    }
+
+    public func methodDescriptorMemberSymbols<MachO: MachORepresentableWithCache>(of kinds: MemberKind..., for name: String, node: Node, in machO: MachO) -> [DemangledSymbol] {
+        // Same disambiguation as `memberSymbols(of:for:node:in:)`: the
+        // stripped name bucket can hold several same-named private types,
+        // and only the structural context-node match picks the right one.
+        guard let storage = storage(in: machO) else { return [] }
+        return kinds.map { kind -> [DemangledSymbol] in
+            guard let rowsByTypeNodeIndex = storage.methodDescriptorMemberSymbolRowsByKind[kind]?[name] else { return [] }
+            guard let matched = rowsByTypeNodeIndex.elements.first(where: { storage.nodeStore.reference(at: $0.key).structurallyEquals(node) }) else { return [] }
+            return storage.demangledSymbols(atRows: matched.value)
+        }.reduce(into: []) { $0 += $1 }
+    }
+
+    /// Same lookup as the `Node` overload, for callers holding a store-backed
+    /// reference — possibly minted into a different store than the index's own
+    /// (a `TypeName` mini store, for example): same-store keys match in O(1)
+    /// via index equality, cross-store keys by a structural walk over the
+    /// handful of bucket entries.
+    public func methodDescriptorMemberSymbols<MachO: MachORepresentableWithCache>(of kinds: MemberKind..., for name: String, node: NodeReference, in machO: MachO) -> [DemangledSymbol] {
+        guard let storage = storage(in: machO) else { return [] }
+        return kinds.map { kind -> [DemangledSymbol] in
+            guard let rowsByTypeNodeIndex = storage.methodDescriptorMemberSymbolRowsByKind[kind]?[name] else { return [] }
+            guard let matched = rowsByTypeNodeIndex.elements.first(where: { storage.nodeStore.reference(at: $0.key).structurallyEquals(node) }) else { return [] }
+            return storage.demangledSymbols(atRows: matched.value)
         }.reduce(into: []) { $0 += $1 }
     }
 

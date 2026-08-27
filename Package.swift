@@ -78,14 +78,6 @@ let MachOKitVersion: Version = "0.46.1"
 
 let isSilentTest = envEnable("MACHO_SWIFT_SECTION_SILENT_TEST", default: false)
 
-let useSPMPrebuildVersion = envEnable("MACHO_SWIFT_SECTION_USE_SPM_PREBUILD_VERSION", default: false)
-
-let useCustomMachOKit = envEnable("USE_CUSTOM_MACHOKIT", default: true)
-
-let useCustomObjCSection = envEnable("USE_CUSTOM_OBJC_SECTION", default: true)
-
-let useSwiftTUI = envEnable("MACHO_SWIFT_SECTION_USE_SWIFTTUI", default: false)
-
 var testSettings: [SwiftSetting] = []
 
 if isSilentTest {
@@ -111,7 +103,12 @@ var dependencies: [Package.Dependency] = [
     .package(url: "https://github.com/gohanlon/swift-memberwise-init-macro", from: "0.6.0"),
 
     .package(url: "https://github.com/pointfreeco/swift-dependencies", from: "1.9.4"),
-    
+
+    // TypeIndexing (all its sources are `#if os(macOS)`; both products carry
+    // a macOS-only platform condition on the target dependency)
+    .package(url: "https://github.com/Mx-Iris/SourceKitD", from: "0.1.0"),
+    .package(url: "https://github.com/MxIris-DeveloperTool/swift-apinotes", from: "0.1.0"),
+
     // CLI
     .package(url: "https://github.com/onevcat/Rainbow", from: "4.0.0"),
 
@@ -120,29 +117,7 @@ var dependencies: [Package.Dependency] = [
 ]
 
 extension Package.Dependency {
-    static let MachOKit: Package.Dependency = {
-        if useSPMPrebuildVersion {
-            return .MachOKitSPM
-        } else {
-            if useCustomMachOKit {
-                return .MachOKitMain
-            } else {
-                return .MachOKitOrigin
-            }
-        }
-    }()
-
-    static let MachOKitOrigin = Package.Dependency.package(
-        url: "https://github.com/p-x9/MachOKit.git",
-        exact: MachOKitVersion,
-    )
-
-    static let MachOKitSPM = Package.Dependency.package(
-        url: "https://github.com/p-x9/MachOKit-SPM.git",
-        from: MachOKitVersion,
-    )
-
-    static let MachOKitMain = Package.Dependency.package(
+    static let MachOKit = Package.Dependency.package(
         local: .package(
             path: "../MachOKit",
             isRelative: true,
@@ -152,23 +127,19 @@ extension Package.Dependency {
             "0.52.101" ..< "0.53.0",
         ),
     )
-}
 
-extension Package.Dependency {
-    static let MachOObjCSection: Package.Dependency = {
-        if useCustomObjCSection {
-            return .MachOObjCSectionMain
-        } else {
-            return .MachOObjCSectionOrigin
-        }
-    }()
-
-    static let MachOObjCSectionOrigin = Package.Dependency.package(
-        url: "https://github.com/p-x9/MachOObjCSection.git",
-        from: "0.6.0",
+    static let MachOKitExtensions = Package.Dependency.package(
+        local: .package(
+            path: "../MachOKitExtensions",
+            isRelative: true,
+        ),
+        remote: .package(
+            url: "https://github.com/MxIris-Reverse-Engineering/MachOKitExtensions",
+            from: "0.1.1",
+        ),
     )
 
-    static let MachOObjCSectionMain = Package.Dependency.package(
+    static let MachOObjCSection = Package.Dependency.package(
         local: .package(
             path: "../MachOObjCSection",
             isRelative: true,
@@ -200,21 +171,6 @@ extension Package.Dependency {
         remote: .package(
             url: "https://github.com/MxIris-Reverse-Engineering/swift-semantic-string",
             from: "0.3.0",
-        ),
-    )
-
-    /// Extracted out of this package so that MachOObjCSection can use it too.
-    /// MachOSwiftSection depends on MachOObjCSection, so the ObjC side could
-    /// never depend back on an in-package `MachOKitExtensions` target without
-    /// forming a package-level cycle.
-    static let MachOKitExtensions = Package.Dependency.package(
-        local: .package(
-            path: "../MachOKitExtensions",
-            isRelative: true,
-        ),
-        remote: .package(
-            url: "https://github.com/MxIris-Reverse-Engineering/MachOKitExtensions",
-            from: "0.1.1",
         ),
     )
 }
@@ -615,21 +571,23 @@ extension Target {
         ],
     )
 
-//    static let TypeIndexing = Target.target(
-//        name: "TypeIndexing",
-//        dependencies: [
-//            .target(.SwiftInterface),
-//            .target(.Utilities),
-//            .product(.SwiftSyntax),
-//            .product(.SwiftParser),
-//            .product(.SwiftSyntaxBuilder),
-//            .product(.MachOObjCSection),
-//            .product(name: "Clang", package: "swift-clang"),
-//            .product(name: "SourceKitD", package: "SourceKitD", condition: .when(platforms: [.macOS])),
-//            .product(name: "BinaryCodable", package: "BinaryCodable"),
-//            .product(name: "APINotes", package: "swift-apinotes", condition: .when(platforms: [.macOS])),
-//        ]
-//    )
+    /// Module-attribution index for `__C` types (evolution proposal 0009):
+    /// resolves `__C.NSString` to `Foundation.NSString` via SourceKit-generated
+    /// module interfaces (substructure, no SwiftSyntax), APINotes renames, and
+    /// a lazy ObjC-metadata index over the binary's dependencies. Every source
+    /// file is `#if os(macOS)`.
+    static let TypeIndexing = Target.target(
+        name: "TypeIndexing",
+        dependencies: [
+            .target(.SwiftInterface),
+            .product(.MachOKit),
+            .product(name: "ObjCIndexing", package: "MachOObjCSection"),
+            .product(name: "ObjCMetadataSource", package: "MachOObjCSection"),
+            .product(name: "FoundationToolbox", package: "FrameworkToolbox"),
+            .product(name: "SourceKitD", package: "SourceKitD", condition: .when(platforms: [.macOS])),
+            .product(name: "APINotes", package: "swift-apinotes", condition: .when(platforms: [.macOS])),
+        ],
+    )
 
     static let swift_section = Target.executableTarget(
         name: "swift-section",
@@ -641,6 +599,7 @@ extension Target {
             .target(.SwiftPrinting),
             .target(.SwiftDiffing),
             .target(.SwiftInterface),
+            .target(.TypeIndexing),
             .product(name: "Rainbow", package: "Rainbow"),
             .product(name: "ArgumentParser", package: "swift-argument-parser"),
         ],
@@ -824,15 +783,13 @@ extension Target {
         swiftSettings: testSettings,
     )
 
-//    static let TypeIndexingTests = Target.testTarget(
-//        name: "TypeIndexingTests",
-//        dependencies: [
-//            .target(.TypeIndexing),
-//            .target(.MachOTestingSupport),
-//            .target(.MachOFixtureSupport),
-//        ],
-//        swiftSettings: testSettings
-//    )
+    static let TypeIndexingTests = Target.testTarget(
+        name: "TypeIndexingTests",
+        dependencies: [
+            .target(.TypeIndexing),
+        ],
+        swiftSettings: testSettings,
+    )
 
     static let SwiftInterfaceTests = Target.testTarget(
         name: "SwiftInterfaceTests",
@@ -970,7 +927,7 @@ extension Target {
             .target(.SwiftPrinting),
             .target(.SwiftInterface),
             .target(.SwiftDiffing),
-//            .target(.TypeIndexing),
+            .target(.TypeIndexing),
             .target(.MachOTestingSupport),
             .target(.MachOFixtureSupport),
             .product(.MachOKit),
@@ -1000,7 +957,7 @@ let package = Package(
         .library(.SwiftPrinting),
         .library(.SwiftSpecialization),
         .library(.SwiftInterface),
-//        .library(.TypeIndexing),
+        .library(.TypeIndexing),
         .executable(.swift_section),
     ],
     dependencies: dependencies,
@@ -1028,7 +985,7 @@ let package = Package(
         .SwiftPrinting,
         .SwiftSpecialization,
         .SwiftInterface,
-//        .TypeIndexing,
+        .TypeIndexing,
         .MachOMacros,
         .MachOFixtureSupport,
         .MachOTestingSupport,
@@ -1049,7 +1006,7 @@ let package = Package(
         .SwiftOutputTransformerTests,
         .SwiftLayoutTests,
         .SwiftDumpTests,
-//        .TypeIndexingTests,
+        .TypeIndexingTests,
         .SwiftPrintingTests,
         .SwiftDeclarationRenderingTests,
         .SwiftAttributeInferenceTests,

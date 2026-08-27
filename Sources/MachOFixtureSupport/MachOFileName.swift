@@ -5,7 +5,7 @@ package enum MachOFileName: String {
     case iOS_18_5_Simulator_SwiftUICore = "/Library/Developer/CoreSimulator/Volumes/iOS_22F77/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 18.5.simruntime/Contents/Resources/RuntimeRoot/System/Library/Frameworks/SwiftUICore.framework/SwiftUICore"
     case iOS_26_5_Simulator_SwiftUI = "/Library/Developer/CoreSimulator/Volumes/iOS_23F77/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 26.5.simruntime/Contents/Resources/RuntimeRoot/System/Library/Frameworks/SwiftUI.framework/SwiftUI"
     case iOS_26_5_Simulator_SwiftUICore = "/Library/Developer/CoreSimulator/Volumes/iOS_23F77/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 26.5.simruntime/Contents/Resources/RuntimeRoot/System/Library/Frameworks/SwiftUICore.framework/SwiftUICore"
-    
+
     case SourceEdit = "/Applications/SourceEdit.app"
     case SourceEditorFromSourceEdit = "/Applications/SourceEdit.app/Contents/Frameworks/SourceEditor.framework"
     case SourceEditorFromXcode = "/Applications/Xcode.app/Contents/SharedFrameworks/SourceEditor.framework"

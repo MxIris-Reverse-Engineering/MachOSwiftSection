@@ -216,6 +216,13 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
         configuration = newConfiguration
 
         if oldConfiguration.showCImportedTypes != newConfiguration.showCImportedTypes {
+            // `prepare()` is guarded by `isPrepared`, which nothing ever
+            // reset — so this re-preparation was a silent no-op on an
+            // already-prepared indexer and the configuration change never
+            // took effect. Resetting makes the re-run real; the bucket reset
+            // at the top of `index()` (evolution proposal 0007) keeps the
+            // re-run from duplicating every appended extension block.
+            isPrepared = false
             try await prepare()
         }
     }
@@ -380,6 +387,17 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
     private func index() async throws {
         eventDispatcher.dispatch(.phaseTransition(phase: .indexing, state: .started))
 
+        // Idempotence (evolution proposal 0007): the extension producers below
+        // APPEND into these buckets (the nested-type discovery in
+        // `indexTypes`, the member-symbol scan in `indexExtensions`), so a
+        // re-entered run — a retried `prepare()`, `updateConfiguration(_:)` —
+        // used to duplicate every appended extension block verbatim while the
+        // assigned dictionaries stayed correct.
+        currentStorage.typeExtensionDefinitions = [:]
+        currentStorage.protocolExtensionDefinitions = [:]
+        currentStorage.typeAliasExtensionDefinitions = [:]
+        currentStorage.conformanceExtensionDefinitions = [:]
+
         do {
             eventDispatcher.dispatch(.phaseOperationStarted(phase: .indexing, operation: .typeIndexing))
             try await indexTypes()
@@ -415,6 +433,8 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
             eventDispatcher.dispatch(.phaseOperationFailed(phase: .indexing, operation: .extensionIndexing, error: error))
             throw error
         }
+
+        unifyExtensionContainers()
 
         try await indexGlobals()
 
@@ -787,7 +807,10 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
             // cooperative worker when the walk moves to a large-stack thread —
             // restoring the pre-migration `await node.print` semantics.
             let name = await node.print(using: .interfaceTypeBuilderOnly)
-            guard let typeInfo = symbolIndexStore.typeInfo(for: name, in: machO) else {
+            // Node-matched: same-named private types collide on the stripped
+            // printed name, and a name-only lookup could answer with the
+            // sibling's kind (issue #115's family).
+            guard let typeInfo = symbolIndexStore.typeInfo(for: name, node: node, in: machO) else {
                 eventDispatcher.dispatch(.extensionTargetNotFound(targetName: name))
                 continue
             }
@@ -842,7 +865,15 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
 
             for (kind, memberSymbols) in memberSymbols {
                 for memberSymbol in memberSymbols {
-                    if let genericSignature = memberSymbol.demangledNode.first(of: .dependentGenericSignature), case .variable = kind {
+                    // Variables cannot carry a member-level `where` clause the
+                    // way functions and subscripts can, so a constrained
+                    // extension variable needs its own `extension … where …`
+                    // block, keyed by signature. A signature none of whose
+                    // children are requirement kinds would render a bare
+                    // header visually identical to the catch-all block
+                    // (evolution proposal 0007) — those fold into the
+                    // catch-all instead of fragmenting.
+                    if let genericSignature = memberSymbol.demangledNode.first(of: .dependentGenericSignature), case .variable = kind, !genericSignature.all(of: .requirementKinds).isEmpty {
                         memberSymbolsByGenericSignature[genericSignature, default: [:]][kind, default: []].append(memberSymbol)
                     } else {
                         memberSymbolsByKind[kind, default: []].append(memberSymbol)
@@ -911,6 +942,105 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
 
         currentStorage.globalVariableDefinitions = DefinitionBuilder.variables(for: symbolIndexStore.globalSymbols(of: .variable(isStorage: false), .variable(isStorage: true), in: machO).mapToDemangledSymbolWithOffset(), fieldNames: [], isGlobalOrStatic: true)
         currentStorage.globalFunctionDefinitions = DefinitionBuilder.functions(for: symbolIndexStore.globalSymbols(of: .function, in: machO).mapToDemangledSymbolWithOffset(), isGlobalOrStatic: true)
+    }
+
+    // MARK: - Extension container unification (evolution proposal 0007)
+
+    /// The (protocol, where-clause, retroactive) identity that decides whether
+    /// two definitions filed under one `ExtensionName` are the same source
+    /// container. Structurally keyed: the definitions' nodes may come from
+    /// different stores (the interned image store vs `MetadataReader` minis),
+    /// where store-identity equality never matches.
+    private struct ExtensionContainerIdentity: Hashable {
+        let protocolNodeKey: StructuralNodeReferenceKey?
+        let genericSignatureKey: StructuralNodeReferenceKey?
+        let isRetroactive: Bool
+    }
+
+    /// Container unification, in two moves:
+    ///
+    /// 1. **Same-identity merge.** Within each bucket entry, definitions
+    ///    sharing one `ExtensionContainerIdentity` are one source container
+    ///    that different producers discovered separately (the nested-type
+    ///    discovery and the member-symbol scan both file signature-less
+    ///    blocks under the same name) — they merge into the first. Eager
+    ///    definitions only: a conformance-backed definition resolves its
+    ///    members lazily at print time, so merging one away here would lose
+    ///    them silently.
+    /// 2. **Protocol attachment.** A protocol's symbol-scan extension blocks
+    ///    attach to `ProtocolDefinition.defaultImplementationExtensions`, so
+    ///    the interface renders them trailing the protocol declaration — the
+    ///    symbol scan is a superset of what the descriptor's per-requirement
+    ///    default-implementation walk resolves (identical-code-folded
+    ///    addresses lose members there), which is why the trailing copy used
+    ///    to render FEWER members than the extensions-block copy of the same
+    ///    block. The double emission collapses because the top-level printer
+    ///    skips attached definitions; the definitions deliberately STAY in
+    ///    the bucket — the ABI-diff layer snapshots containers from the
+    ///    buckets, and removing them would drop the containers from
+    ///    snapshots (the differ already groups same-key containers, so the
+    ///    in-bucket merge does not change snapshot content either).
+    private func unifyExtensionContainers() {
+        currentStorage.typeExtensionDefinitions = mergingSameIdentityContainers(currentStorage.typeExtensionDefinitions)
+        currentStorage.protocolExtensionDefinitions = mergingSameIdentityContainers(currentStorage.protocolExtensionDefinitions)
+        currentStorage.typeAliasExtensionDefinitions = mergingSameIdentityContainers(currentStorage.typeAliasExtensionDefinitions)
+        currentStorage.conformanceExtensionDefinitions = mergingSameIdentityContainers(currentStorage.conformanceExtensionDefinitions)
+
+        // Keyed on `ExtensionName` — whose `Hashable` is STRUCTURAL over the
+        // name node — not on the printed `.name` string: `.name` is printed
+        // with `interfaceTypeBuilderOnly`, which strips private
+        // discriminators, so two same-named `private protocol`s collapse onto
+        // one key. Under a string key the map was last-wins and the
+        // attachment below is an ASSIGNMENT, so the loser's whole bucket was
+        // first flagged `isAttachedToProtocolDefinition` (which removes it
+        // from the top-level extensions block) and then overwritten out of
+        // `defaultImplementationExtensions` — its members vanished from the
+        // output entirely, and which bucket lost depended on iteration order
+        // (issue #115's family). `allProtocolDefinitions` already keys on the
+        // structurally-hashed `ProtocolName`, so the two declarations are
+        // distinct there; only this lookup table flattened them.
+        var protocolDefinitionsByName: [ExtensionName: ProtocolDefinition] = [:]
+        for (protocolName, protocolDefinition) in currentStorage.allProtocolDefinitions {
+            protocolDefinitionsByName[protocolName.extensionName] = protocolDefinition
+        }
+        for (extensionName, definitions) in currentStorage.protocolExtensionDefinitions {
+            guard let protocolDefinition = protocolDefinitionsByName[extensionName] else { continue }
+            for definition in definitions {
+                definition.isAttachedToProtocolDefinition = true
+            }
+            protocolDefinition.defaultImplementationExtensions = definitions
+        }
+    }
+
+    private func mergingSameIdentityContainers(_ buckets: OrderedDictionary<ExtensionName, [ExtensionDefinition]>) -> OrderedDictionary<ExtensionName, [ExtensionDefinition]> {
+        var result: OrderedDictionary<ExtensionName, [ExtensionDefinition]> = [:]
+        for (extensionName, definitions) in buckets {
+            var primaryByIdentity: [ExtensionContainerIdentity: ExtensionDefinition] = [:]
+            var preservedDefinitions: [ExtensionDefinition] = []
+            for definition in definitions {
+                // Conformance-backed definitions resolve members lazily at
+                // print time — merging one away here would lose them. Same-
+                // identity conformance duplicates would mean duplicated
+                // conformance records, which do not occur in practice.
+                guard definition.protocolConformanceDescriptor == nil else {
+                    preservedDefinitions.append(definition)
+                    continue
+                }
+                let identity = ExtensionContainerIdentity(
+                    protocolNodeKey: definition.conformingProtocolName.map { StructuralNodeReferenceKey($0.node) },
+                    genericSignatureKey: definition.genericSignature.map { StructuralNodeReferenceKey($0) },
+                    isRetroactive: definition.isRetroactive
+                )
+                if let primaryDefinition = primaryByIdentity[identity] {
+                    primaryDefinition.absorbMembers(of: definition)
+                } else {
+                    primaryByIdentity[identity] = definition
+                    preservedDefinitions.append(definition)
+                }
+            }
+            result[extensionName] = preservedDefinitions
+        }
+        return result
     }
 }
 

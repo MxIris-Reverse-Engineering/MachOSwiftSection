@@ -321,7 +321,9 @@ extension SwiftDeclarationPrinter {
             printFieldOffset: configuration.printFieldOffset,
             printTypeLayout: configuration.printTypeLayout,
             printEnumLayout: configuration.printEnumLayout,
+            printVTableOffset: configuration.printVTableOffset,
             printExpandedFieldOffsets: configuration.printExpandedFieldOffsets,
+            vtableOffsetTransformer: configuration.vtableOffsetTransformer,
             fieldOffsetTransformer: configuration.fieldOffsetTransformer,
             expandedFieldOffsetTransformer: configuration.expandedFieldOffsetTransformer,
             typeLayoutTransformer: configuration.typeLayoutTransformer,
@@ -363,6 +365,33 @@ extension SwiftDeclarationPrinter {
                     try await fieldLayoutRenderer.enumCaseComments(forCaseAtIndex: offset.index, mangledTypeName: mangledTypeName, enumLayout: enumLayout)
                 } else {
                     try await fieldLayoutRenderer.storedFieldComments(forFieldAtIndex: offset.index, mangledTypeName: mangledTypeName, fieldOffsets: fieldOffsets)
+                }
+            }
+            // A non-final stored `var`'s getter/setter occupy vtable slots
+            // (evolution proposal 0006) — surface them with the same comment
+            // the computed members get, so a stored property without any
+            // vtable comment genuinely is statically dispatched rather than
+            // silently unattributed (issue #106 §1).
+            if !isEnum, configuration.printVTableOffset {
+                for accessor in field.accessors {
+                    if let accessorVTableOffset = accessor.vtableOffset {
+                        renderConfiguration.vtableOffsetComment(slotOffset: accessorVTableOffset, label: accessor.kind.addressLabel)
+                    }
+                }
+            }
+            // Export status for stored `var`s whose accessor group joined
+            // (evolution proposal 0008): a field with no accessor symbols
+            // stays silent — "not checked", never "confirmed exported"; the
+            // header digest states this explicitly. The same two exemptions
+            // as `renderMember`: `override` accessors link through the
+            // parent's dispatch thunk, and an `@objc` accessor (identified
+            // by its `To` thunk's presence in the symbol population)
+            // dispatches through objc_msgSend.
+            if !isEnum, configuration.printExportStatus, !field.accessors.isEmpty, !field.isOverride {
+                @Dependency(\.symbolIndexStore) var symbolIndexStore
+                let hasObjCEntryPoint = field.accessors.contains { symbolIndexStore.containsSymbol(named: $0.symbol.name + "To", in: machO) }
+                if !hasObjCEntryPoint, exportVerdict(forSymbolNames: field.accessors.map(\.symbol.name)) == false {
+                    renderConfiguration.exportStatusComment()
                 }
             }
             let substitutedTypeNode: Node? = {

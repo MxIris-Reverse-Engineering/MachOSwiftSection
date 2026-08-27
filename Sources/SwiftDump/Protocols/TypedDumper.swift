@@ -68,12 +68,21 @@ extension TypedDumper {
     /// permits `weak let` / `unowned let`, so the storage modifier composes with
     /// either mutability keyword. `lazy` is the single exception and always pairs
     /// with `var`.
+    ///
+    /// `isFinal` prefixes the recovered `final` keyword (evolution proposal
+    /// 0006); only `ClassDumper` passes it — value types have no dynamic
+    /// dispatch to be final against.
     @SemanticStringBuilder
     package func fieldDeclarationKeywords(
         for fieldRecord: FieldRecord,
         typeNode: Node,
-        fieldName: String
+        fieldName: String,
+        isFinal: Bool = false
     ) -> SemanticString {
+        if isFinal {
+            Keyword(.final)
+            Space()
+        }
         if typeNode.hasWeakNode {
             Keyword(.weak)
             Space()

@@ -1,0 +1,20 @@
+// MARK: - Types
+
+struct SymbolTestsCore.PrivateDoppelganger {
+    var alphaStorage: Swift.Int64
+
+    /* Allocator */
+    SymbolTestsCore.PrivateDoppelganger.init(alphaSeed: Swift.Int64) -> SymbolTestsCore.PrivateDoppelganger
+
+    /* Function */
+    SymbolTestsCore.PrivateDoppelganger.alphaOnlyMethod() -> Swift.Int64
+}
+struct SymbolTestsCore.PrivateDoppelganger {
+    var betaStorage: Swift.Int64
+
+    /* Allocator */
+    SymbolTestsCore.PrivateDoppelganger.init(betaSeed: Swift.Int64) -> SymbolTestsCore.PrivateDoppelganger
+
+    /* Function */
+    SymbolTestsCore.PrivateDoppelganger.betaOnlyMethod() -> Swift.Int64
+}

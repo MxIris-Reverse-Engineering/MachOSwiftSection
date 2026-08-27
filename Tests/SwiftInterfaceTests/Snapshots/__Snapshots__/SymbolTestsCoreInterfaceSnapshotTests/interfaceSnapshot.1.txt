@@ -3,6 +3,7 @@ import Foundation
 import Swift
 import SymbolTests
 import SymbolTestsCore
+import SymbolTestsHelper
 import _Concurrency
 import _StringProcessing
 import _SwiftConcurrencyShims
@@ -106,8 +107,8 @@ enum Actors {
     class GlobalActorIsolatedConformanceTest {
         init()
 
-        func customIsolatedRequirement()
-        func isolatedRequirement()
+        final func customIsolatedRequirement()
+        final func isolatedRequirement()
 
         deinit
     }
@@ -381,7 +382,7 @@ enum Classes {
         weak var weakDelegate: Swift.AnyObject?
         // Field offset: 0x30
         // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 2147483646)
-        lazy var lazyProperty: Swift.String?
+        lazy var lazyProperty: Swift.String
 
         init(constantProperty: Swift.String, variableProperty: Swift.Int)
 
@@ -912,7 +913,7 @@ enum Enums {
     class SinglePayloadBoxClass {
         // Field offset: 0x10
         // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
-        var value: Swift.Int
+        final var value: Swift.Int
 
         init(value: Swift.Int)
 
@@ -1187,6 +1188,16 @@ enum FieldDescriptorVariants {
 
         init(concreteInt: Swift.Int, concreteString: Swift.String, genericElement: A, arrayOfElement: [A], dictionaryOfElement: [Swift.String : A], optionalElement: A?, tupleField: (Swift.Int, A), functionField: @escaping (_: A) -> Swift.Int)
     }
+}
+struct ForeignPackedTimeContainer {
+    // Field offset: 0x0
+    // Type Layout: (size: 24, stride: 24, alignment: 4, extraInhabitantCount: 0)
+    var startTime: __C.CMTime
+    // Field offset: 0x18
+    // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
+    var elapsedSeconds: Swift.Double
+
+    init(startTime: __C.CMTime, elapsedSeconds: Swift.Double)
 }
 enum ForeignTypeFixtures {
     static func foreignClassReference() -> __C.CFStringRef
@@ -1915,10 +1926,10 @@ enum GenericFieldLayout {
     class ClassBoundGenericSubclass<A>: SymbolTestsCore.GenericFieldLayout.ClassBoundGenericBaseClass<A> where A: AnyObject {
         // Field offset: 0x18
         // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 2147483647)
-        var subclassElement: A
+        final var subclassElement: A
         // Field offset: 0x20
         // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
-        var subclassIdentifier: Swift.Int64
+        final var subclassIdentifier: Swift.Int64
 
         init(baseElement: A, subclassElement: A, subclassIdentifier: Swift.Int64)
         init(baseElement: A)
@@ -1928,10 +1939,10 @@ enum GenericFieldLayout {
     class ClassBoundGenericNSObjectSubclass<A>: __C.NSObject where A: AnyObject {
         // Field offset: 0x8
         // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 2147483647)
-        var element: A
+        final var element: A
         // Field offset: 0x10
         // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
-        var identifier: Swift.Int
+        final var identifier: Swift.Int
 
         @objc init(element: A, identifier: Swift.Int)
         @objc init()
@@ -2387,6 +2398,11 @@ enum ObjCResilientStubFixtures {
 }
 enum OpaqueReturnTypes {
     struct OpaqueReturnTypeTest {
+        struct NameFallbackGuardWitness<A> {
+            init()
+        }
+        struct ModuleRefineClosureWitness {}
+        struct CrossImageRefineClosureWitness {}
         struct AnyProtocolTest<A, B> where A: SymbolTestsCore.Protocols.ProtocolTest, B == B.Body, A.Body == SymbolTestsCore.Generics.GenericRequirementTest<B> {
             init()
 
@@ -2402,7 +2418,10 @@ enum OpaqueReturnTypes {
         func functionTuple<A>() -> (some, A?) where A: SymbolTestsCore.Protocols.ProtocolTest
         func functionWhere<A, B>() -> (some, (some)?, some)? where A: SymbolTestsCore.Protocols.ProtocolTest, B == B.Body, A.Body == SymbolTestsCore.Generics.GenericRequirementTest<B>
         func functionNested<A, B>(_: A, _: B) -> (some, (some)?, some)? where A: Swift.Equatable, A: SymbolTestsCore.Protocols.ProtocolTest, B: Swift.Equatable, B == B.Body, A.Body == SymbolTestsCore.Generics.GenericRequirementTest<B>
+        func functionNameFallbackGuard<A>(_: A) -> some where A: SymbolTestsCore.Protocols.ProtocolTest
         func functionOptional<A>() -> (some)? where A: SymbolTestsCore.Protocols.ProtocolTest
+        func functionModuleRefineClosure() -> some
+        func functionCrossImageRefineClosure() -> some
     }
     enum ProtocolPrimaryAssociatedTypeFirst {
         var body: SymbolTestsCore.OpaqueReturnTypes.ProtocolPrimaryAssociatedTypeFirst {
@@ -2493,6 +2512,68 @@ enum OverloadedMembers {
         init(_: Swift.Double)
         init(_: Swift.Int)
     }
+}
+enum PrivateDoppelgangerFirstFileAnchors {
+    static func materializeFirstDoppelganger() -> Any
+    static func materializeFirstProtocolWitness() -> Any
+    static func materializeFirstDoppelgangerClass() -> Any
+}
+class PrivateDoppelgangerClass {
+    // Field offset: 0x10
+    // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
+    var alphaOnlyStoredProperty: Swift.Int64
+
+    init(alphaSeed: Swift.Int64)
+
+    func sharedNameMethod() -> Swift.Int64
+    func alphaClassMethod() -> Swift.Int64
+
+    deinit
+}
+struct AlphaProtocolWitness {
+    // Field offset: 0x0
+    // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
+    var seedValue: Swift.Int64
+}
+struct PrivateDoppelganger {
+    // Field offset: 0x0
+    // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
+    var alphaStorage: Swift.Int64
+
+    init(alphaSeed: Swift.Int64)
+
+    func alphaOnlyMethod() -> Swift.Int64
+}
+enum PrivateDoppelgangerSecondFileAnchors {
+    static func materializeSecondDoppelganger() -> Any
+    static func materializeSecondProtocolWitness() -> Any
+    static func materializeSecondDoppelgangerClass() -> Any
+}
+class PrivateDoppelgangerClass {
+    // Field offset: 0x10
+    // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
+    var betaOnlyStoredProperty: Swift.Int64
+
+    init(betaSeed: Swift.Int64)
+
+    final func sharedNameMethod() -> Swift.Int64
+    func betaClassMethod() -> Swift.Int64
+
+    deinit
+}
+struct BetaProtocolWitness {
+    // Field offset: 0x0
+    // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
+    var seedValue: Swift.Int64
+}
+struct PrivateDoppelganger {
+    // Field offset: 0x0
+    // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
+    var betaStorage: Swift.Int64
+
+    init(betaSeed: Swift.Int64)
+
+    func betaOnlyMethod() -> Swift.Int64
 }
 enum PropertyWrapperVariants {
     @propertyWrapper
@@ -2591,6 +2672,13 @@ enum Protocols {
     protocol TestCollection {
         associatedtype Element
     }
+    protocol UnpinnedElementProtocol {
+        associatedtype Element
+    }
+    protocol ModuleBaseProtocol {
+        associatedtype Item
+    }
+    protocol ModuleRefinedProtocol: SymbolTestsCore.Protocols.ModuleBaseProtocol {}
     protocol BaseProtocolTest {
         func baseMethod() -> Swift.String
     }
@@ -3000,7 +3088,7 @@ enum VTableEntryVariants {
         func throwingMethod() throws -> Swift.Int
         func asyncMethod() async -> Swift.Int
         func asyncThrowingMethod() async throws -> Swift.Int
-        func finalMethod()
+        final func finalMethod()
 
         deinit
     }
@@ -3009,7 +3097,7 @@ enum VTableEntryVariants {
 
         override func overridableMethod() -> Swift.Int
         override func throwingMethod() throws -> Swift.Int
-        func asyncMethod() async -> Swift.Int
+        override func asyncMethod() async -> Swift.Int
 
         deinit
     }
@@ -3024,7 +3112,50 @@ enum VTableEntryVariants {
         override init()
 
         override func overridableMethod() -> Swift.Int
-        func asyncMethod() async -> Swift.Int
+        override func asyncMethod() async -> Swift.Int
+
+        deinit
+    }
+    class FinalMembersTest {
+        // Field offset: 0x10
+        // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
+        final var finalStoredProperty: Swift.Int
+        // Field offset: 0x18
+        // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
+        var plainStoredProperty: Swift.Int
+        // Field offset: 0x20
+        // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
+        let constantStoredProperty: Swift.Int
+        // Field offset: 0x28
+        // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 2147483646)
+        final lazy var finalLazyProperty: Swift.String
+        // Field offset: 0x38
+        // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 2147483646)
+        lazy var plainLazyProperty: Swift.String
+
+        init()
+
+        final var finalComputedProperty: Swift.Int {
+            get
+        }
+        var plainComputedProperty: Swift.Int {
+            get
+            set
+        }
+
+        func plainMethod()
+        final func finalMethod()
+
+        subscript(plainIndex: Swift.Int) -> Swift.Int {
+            get
+            set
+        }
+        final subscript(finalIndex: Swift.Int) -> Swift.Int {
+            get
+        }
+
+        static func classMethod()
+        static func staticMethod()
 
         deinit
     }
@@ -3193,6 +3324,50 @@ enum WeakUnownedReferences {
 protocol DescriptorBackedSwiftProtocol {
     func describe() -> Swift.Int
 }
+protocol PrivateDoppelgangerProtocol {
+    // Kind: Getter, isAsync: false, isInstance: true
+}
+extension SymbolTestsCore.PrivateDoppelgangerProtocol {
+    var alphaDefaultProperty: Swift.Int64 {
+        get
+    }
+
+    func alphaDefaultMethod() -> Swift.Int64
+}
+
+protocol PrivateDoppelgangerProtocol {
+    // Kind: Getter, isAsync: false, isInstance: true
+}
+extension SymbolTestsCore.PrivateDoppelgangerProtocol {
+    var betaDefaultProperty: Swift.Int64 {
+        get
+    }
+
+    func betaDefaultMethod() -> Swift.Int64
+}
+
+
+extension SymbolTestsCore.DefaultImplementationVariants.BasicDefaultProtocol {
+    func withDefaultAndGeneric<A1>(_: A1) -> A1
+    func withDefault() -> Swift.String
+}
+extension SymbolTestsCore.DefaultImplementationVariants.ConstrainedDefaultProtocol {
+    func isEqualTo(_: Self.Element) -> Swift.Bool where Self.Element: Swift.Equatable
+    func isLessThan(_: Self.Element) -> Swift.Bool where Self.Element: Swift.Comparable
+    func computeHash() -> Swift.Int where Self.Element: Swift.Hashable, Self.Element: Swift.Sendable
+    func identityCheck(_: Self.Element) -> Swift.Bool where Self.Element: AnyObject
+}
+extension SymbolTestsCore.Extensions.ExtensionProtocol {
+    func matches(_: Self.Item) -> Swift.Bool where Self.Item: Swift.Equatable
+    func isLessThan(_: Self.Item) -> Swift.Bool where Self.Item: Swift.Comparable
+}
+extension SymbolTestsCore.Protocols.ProtocolTest {
+    static var body: Self.Body? {
+        get
+    }
+
+    static func test(lhs: Self.Body, rhs: Self) -> Swift.Bool
+}
 
 extension SymbolTestsCore.GenericFieldLayout.SameTypePinnedOuter where A == Swift.Int64 {
     struct ScalarPinnedInner {
@@ -3281,27 +3456,6 @@ extension SymbolTestsCore.Extensions.ExtensionBaseStruct {
     func isEqualTo(_: SymbolTestsCore.Extensions.ExtensionBaseStruct<A>) -> Swift.Bool where A: Swift.Equatable
     func isLessThan(_: SymbolTestsCore.Extensions.ExtensionBaseStruct<A>) -> Swift.Bool where A: Swift.Comparable
     func computeHash() -> Swift.Int where A: Swift.Hashable, A: Swift.Sendable
-}
-extension SymbolTestsCore.Protocols.ProtocolTest {
-    static var body: Self.Body? {
-        get
-    }
-
-    static func test(lhs: Self.Body, rhs: Self) -> Swift.Bool
-}
-extension SymbolTestsCore.DefaultImplementationVariants.ConstrainedDefaultProtocol {
-    func isEqualTo(_: Self.Element) -> Swift.Bool where Self.Element: Swift.Equatable
-    func isLessThan(_: Self.Element) -> Swift.Bool where Self.Element: Swift.Comparable
-    func computeHash() -> Swift.Int where Self.Element: Swift.Hashable, Self.Element: Swift.Sendable
-    func identityCheck(_: Self.Element) -> Swift.Bool where Self.Element: AnyObject
-}
-extension SymbolTestsCore.Extensions.ExtensionProtocol {
-    func matches(_: Self.Item) -> Swift.Bool where Self.Item: Swift.Equatable
-    func isLessThan(_: Self.Item) -> Swift.Bool where Self.Item: Swift.Comparable
-}
-extension SymbolTestsCore.DefaultImplementationVariants.BasicDefaultProtocol {
-    func withDefaultAndGeneric<A1>(_: A1) -> A1
-    func withDefault() -> Swift.String
 }
 extension SymbolTestsCore.Actors.ActorTest: Swift.Actor {
     var unownedExecutor: Swift.UnownedSerialExecutor {
@@ -4214,6 +4368,21 @@ extension Swift.Never: @retroactive Swift.Sequence {
     func _copyContents(initializing: Swift.UnsafeMutableBufferPointer<Self.Element>) -> (Self.Iterator, Swift.Int)
     func withContiguousStorageIfAvailable<A1>(_: (_: Swift.UnsafeBufferPointer<Self.Element>) throws -> A1) throws -> A1?
 }
+extension SymbolTestsCore.OpaqueReturnTypes.OpaqueReturnTypeTest.NameFallbackGuardWitness: SymbolTestsCore.Protocols.TestCollection {}
+extension SymbolTestsCore.OpaqueReturnTypes.OpaqueReturnTypeTest.NameFallbackGuardWitness: SymbolTestsCore.Protocols.UnpinnedElementProtocol {}
+extension SymbolTestsCore.OpaqueReturnTypes.OpaqueReturnTypeTest.NameFallbackGuardWitness: Swift.Equatable {
+    static func == (_: Self, _: Self) -> Swift.Bool
+}
+extension SymbolTestsCore.OpaqueReturnTypes.OpaqueReturnTypeTest.ModuleRefineClosureWitness: SymbolTestsCore.Protocols.ModuleRefinedProtocol {}
+extension SymbolTestsCore.OpaqueReturnTypes.OpaqueReturnTypeTest.ModuleRefineClosureWitness: Swift.Equatable {
+    static func == (_: Self, _: Self) -> Swift.Bool
+}
+extension SymbolTestsCore.OpaqueReturnTypes.OpaqueReturnTypeTest.ModuleRefineClosureWitness: SymbolTestsCore.Protocols.ModuleBaseProtocol {}
+extension SymbolTestsCore.OpaqueReturnTypes.OpaqueReturnTypeTest.CrossImageRefineClosureWitness: SymbolTestsHelper.HelperRefinedProtocol {}
+extension SymbolTestsCore.OpaqueReturnTypes.OpaqueReturnTypeTest.CrossImageRefineClosureWitness: Swift.Equatable {
+    static func == (_: Self, _: Self) -> Swift.Bool
+}
+extension SymbolTestsCore.OpaqueReturnTypes.OpaqueReturnTypeTest.CrossImageRefineClosureWitness: SymbolTestsHelper.HelperBaseProtocol {}
 extension SymbolTestsCore.OpaqueReturnTypes.OpaqueReturnTypeTest.AnyProtocolTest: SymbolTestsCore.Protocols.ProtocolTest {}
 extension SymbolTestsCore.OpaqueReturnTypes.ProtocolPrimaryAssociatedTypeFirst: SymbolTestsCore.Protocols.ProtocolTest {
     typealias Body = SymbolTestsCore.OpaqueReturnTypes.ProtocolPrimaryAssociatedTypeFirst
@@ -4300,6 +4469,8 @@ extension SymbolTestsCore.OptionSetAndRawRepresentable.GenericRawRepresentableTe
         get
     }
 }
+extension SymbolTestsCore.AlphaProtocolWitness: SymbolTestsCore.PrivateDoppelgangerProtocol {}
+extension SymbolTestsCore.BetaProtocolWitness: SymbolTestsCore.PrivateDoppelgangerProtocol {}
 extension Swift.Array: SymbolTestsCore.Protocols.TestCollection {
     typealias Element = A
 }
@@ -4472,6 +4643,15 @@ extension SymbolTestsCore.Generics.GenericPackTest {
 }
 extension SymbolTestsCore.Generics.GenericValueTest {
     typealias Body = Swift.Never
+}
+extension SymbolTestsCore.OpaqueReturnTypes.OpaqueReturnTypeTest.NameFallbackGuardWitness {
+    typealias Element = A
+}
+extension SymbolTestsCore.OpaqueReturnTypes.OpaqueReturnTypeTest.ModuleRefineClosureWitness {
+    typealias Item = Swift.Int
+}
+extension SymbolTestsCore.OpaqueReturnTypes.OpaqueReturnTypeTest.CrossImageRefineClosureWitness {
+    typealias Item = Swift.Int
 }
 extension SymbolTestsCore.OpaqueReturnTypes.OpaqueReturnTypeTest.AnyProtocolTest {
     typealias Body = A
