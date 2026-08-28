@@ -2,7 +2,7 @@
 
 - **状态**: Stage 0–4 Completed（见「实施记录」）；Stage 5 已落地；Stage 5 回归修复见文末「Stage 5a 回归修复」
 - **日期**: 2026-07-24
-- **最后更新**: 2026-07-25
+- **最后更新**: 2026-08-28（正文实施记录止于文末 2026-08-08 节；本次补 2026-07-26 批次第 6 条的替换后记）
 - **分支**: `feature/node-store-migration`（worktree `.claude/worktrees/node-store-migration`，Demangling 经主检出 `.claude/worktrees/swift-demangling` 处的**真实 git worktree**（swift-demangling `feature/node-store`）以路径依赖解析——原先的符号链接方案因目标 worktree 被外部清理导致 SwiftPM manifest 缓存把解析钉回 remote，已改为本仓库领地内的 worktree）
 - **前置**: swift-demangling `feature/node-store` 分支合入 `main`（本包以路径依赖解析 `../swift-demangling` 的 main）；开发期先经上述符号链接直连该分支
 - **上游依据**: swift-demangling `evolution/0001-node-store-arena.md`（Phase 1–3 已落地并验收）
@@ -264,7 +264,7 @@ RuntimeViewer 与 MachOSwiftSection 的内存主项在 `MachOSymbols/SymbolIndex
 
 5. **同一行不重复入桶**。exported symbol 分支在 canonical 与 raw offset 相等时（`MachOImage`，或 `startOffset == 0` 的文件）把同一行 append 两次，使每个 `for symbol in symbols` 循环把该符号跑两遍。两个分支统一走 `registerRow`，按「canonical ≠ raw 才写第二个键」判断。
 
-6. **opaque 描述符查找恢复 O(1)**。`opaqueTypeDescriptorSymbol(for:)` 原是对全局桶做线性扫 + 逐项结构遍历，而调用频次是「每个打印出的 `some` 返回类型一次」，在 SwiftUI 上两个量级都是千级 ⇒ 乘积。改为构建期按 `DemanglingNode.identifier` 分桶（该属性对 `Node` 与 `NodeReference` 是同一份协议实现，结构相等必然同桶），桶内再结构比较。
+6. **opaque 描述符查找恢复 O(1)**。`opaqueTypeDescriptorSymbol(for:)` 原是对全局桶做线性扫 + 逐项结构遍历，而调用频次是「每个打印出的 `some` 返回类型一次」，在 SwiftUI 上两个量级都是千级 ⇒ 乘积。改为构建期按 `DemanglingNode.identifier` 分桶（该属性对 `Node` 与 `NodeReference` 是同一份协议实现，结构相等必然同桶），桶内再结构比较。**后记（2026-08-13）：identifier 分桶被实测证明不充分并已替换**——identifier 是成员名，SwiftUI 的 `some View` 实现几乎全叫 `body`，单桶数百项、桶内扫描仍是二次方；现为 `opaqueTypeDescriptorSymbolRowByMemberNode: [StructuralNodeReferenceKey: UInt32]` 的单次 hash probe，查询侧以 `StructuralNodeReferenceKey(querying:)` 拿裸查询树直接探测（不物化、不 intern）。
 
 7. **`printSemantic` 栈保护统一**。`Node` 的具体重载没有 `StackSafeExecutor` 包裹而泛型版有，且具体重载优先级更高 ⇒ 所有 `Node` 调用方实际走的是没保护那条。上游 `NodePrinter<Target>` 本身就是 `DemanglingPrinter<Target, Node>` 的薄包装，输出等价，故直接删掉具体重载。
 

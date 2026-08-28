@@ -102,17 +102,19 @@
 >
 > 所以实际是"一次全树哈希"换成"一次全树结构比对"，量级相当，不存在倍数退化。
 
-**可选优化**：在 `Storage.init` 里一次性建一份 `[StructuralNodeReferenceKey: NodeStore.NodeIndex]` 旁路索引——这正是 `opaqueTypeDescriptorEntriesByMemberIdentifier` 已经用过的手法。收益上限受限于上述实测，排期时不应优先于真正的回归项。
+**可选优化**：在 `Storage.init` 里一次性建一份 `[StructuralNodeReferenceKey: NodeStore.NodeIndex]` 旁路索引——opaque 查找侧最终就是这么修的（2026-08-13 起为 `opaqueTypeDescriptorSymbolRowByMemberNode: [StructuralNodeReferenceKey: UInt32]` 单次 hash probe）。注意本条早先点名的 `opaqueTypeDescriptorEntriesByMemberIdentifier`（按 `DemanglingNode.identifier` 分桶）是已被裁定不充分并移除的过渡手法——identifier 是成员名，SwiftUI 的 `some View` 实现几乎全叫 `body`，单桶数百项、桶内扫描仍是二次方；照抄它会复现已修掉的问题。收益上限受限于上述实测，排期时不应优先于真正的回归项。
 
 **修复位置**：本仓库 `Sources/MachOSymbols/SymbolIndexStore.swift`。
 
-### 6. build sweep 由并行改为串行，且每个符号都无条件跨线程往返
+### 6. ~~build sweep 由并行改为串行，且每个符号都无条件跨线程往返~~ —— 跨线程往返已修 ✅（2026-08-02，本仓库侧）
 
 原来是 `symbolArray.concurrentMap { try? demangleAsNode($0.name) }`，N 路并行。现在是单趟顺序循环，且每次 `demangleAsNodeTransient` 走的是 `StackSafeExecutor.execute`（不是打印/重编码路径用的 `executeWithinStackBudget`）。`buildStorage` 跑在 512 KB 栈的线程上，于是一个框架里几十万个符号，**每一个**都付一次线程池提交 + 信号量等待，而且没有并行来摊薄。
 
-**正确修法**：`demangleAsNodeTransient` 应当像打印器那样改用带预算的入口。
+~~**正确修法**：`demangleAsNodeTransient` 应当像打印器那样改用带预算的入口。~~
 
-**修复位置**：**上游 `swift-demangling`** 的 `DemangleInterface.swift`。本仓库改不动。
+~~**修复位置**：**上游 `swift-demangling`** 的 `DemangleInterface.swift`。本仓库改不动。~~
+
+**修复（2026-08-02）——「只能上游修」的判断被推翻**：不必动上游入口。`buildStorageImpl` 把整趟 sweep 包进 `StackSafeExecutor.withLargeStack`（函数体移入 `buildStorageSweep`，外层留薄壳）：一次 hop 把整个 sweep 放上 8 MB 栈线程，此后每次 demangle 的栈探测都就地通过，N 次往返变 1 次。`withLargeStack` 的收益是「(批内调用次数 − 1) × 单次跳转成本」，所以必须包住循环——包住单次调用净收益为零。实测（SwiftUI iOS 18.5，10 万符号档）build sweep 1317 → 701 ms（1.88x）。**「串行」半边保持现状**：sweep 仍是单趟顺序循环，未恢复迁移前的 N 路并行——hop 摊销已回收大头，并行恢复无独立立项。记录见 [TaskReports/2026-08-02-review-reproduction-and-retention-fix.md](TaskReports/2026-08-02-review-reproduction-and-retention-fix.md) 与 ProjectEvolutionLog 第 23 节。
 
 ### 7. `ABIKey.make` 泛型化后每个 key 都要 materialize 整棵树
 
@@ -164,5 +166,5 @@
 
 **仍然成立的两条**：
 
-1. **`ProjectEvolutionLog.md` 的小节撞号与死链**（2026-08-03 复测仍在）：`## 20.` 出现两次（353 行「引用存储（weak/unowned）对 existential 的宽度修复」、384 行「注释模板的命令行入口」），其后 21/22/23 全部错位；348 行的链接写作 `TaskReports/2026-07-25-dyld-cache-image-selection-and-rv-index-lifecycle.md`，而实际文件名没有 `dyld-` 前缀。撞号是在本分支内部成型的，与 rebase 无关，**可以先修**（原文"演进日志小节应在 rebase 之后补"的理由已不成立）。
+1. **`ProjectEvolutionLog.md` 的小节撞号与死链**（2026-08-28 复测：死链已修，撞号仍在）：`## 20.` 出现两次（「引用存储（weak/unowned）对 existential 的宽度修复」与「注释模板的命令行入口」），第二个 `## 20.` 起后续节号整体偏 1、错位延续至今（文件现已写到 `## 50.`，牵动的交叉引用越攒越多，正名成本随时间上涨）。死链半边已闭环：348 行的链接现指向实际存在的 `TaskReports/2026-07-25-cache-image-selection-and-rv-index-lifecycle.md`。撞号是在本分支内部成型的，与 rebase 无关，**可以先修**（原文"演进日志小节应在 rebase 之后补"的理由已不成立）。
 2. **交互从未被跑过**：`main` 的 `TransformerOptionGroup` 与本分支的 `DemangleResolver` / `printSemantic` / `FieldDefinition.typeNode` 改动之间的交互没有任何测试覆盖。这条与 rebase 状态无关，合并前仍需处理。

@@ -3,11 +3,11 @@
 - **状态**: Implemented
 - **作者**: JH
 - **创建日期**: 2026-08-08
-- **最后更新**: 2026-08-08
+- **最后更新**: 2026-08-28
 - **所属愿景**: 无
 - **关联提案**: 无（本仓库首篇）。跨仓库关联：swift-demangling 0008（字节扫描器）/ 0010（`SharedNodeStore`）为既有地基；其「demangle 入口收 `Span<UInt8>`」新提案与本案解耦对接（见「前期调研 · 上游接口」）
 - **实现分支 / PR**: `feature/node-store-migration`
-- **配套文档**: 专题汇总 [SymbolIndexStoreMemoryOptimization.md](../Internal/SymbolIndexStoreMemoryOptimization.md)（2026-08-09 应用户要求补写，覆盖含本案在内的三波优化；推翻当日「不另写」的收尾判断，见决策日志）；维护者事实同步于 AGENTS.md「Symbol indexing」段，过程复盘见 [TaskReports/2026-08-08-symbol-name-offsetization.md](../Internal/TaskReports/2026-08-08-symbol-name-offsetization.md)
+- **配套文档**: 专题汇总 [SymbolIndexStoreMemoryOptimization.md](../Internal/SymbolIndexStoreMemoryOptimization.md)（2026-08-09 应用户要求补写，覆盖含本案在内的三波优化；推翻当日「不另写」的收尾判断，见决策日志）；维护者事实同步于 AGENTS.md「Symbol indexing」段，过程复盘见 [TaskReports/2026-08-08-symbol-name-offsetization.md](../Internal/TaskReports/2026-08-08-symbol-name-offsetization.md)。落地后修正：`PackedNameReference` 对二进制供给的名字几何（超长名 / 超范围 offset）由 trap 改 failable（2026-08-09，PR #103 review M3），见 [TaskReports/2026-08-09-pr103-review-fix-implementation.md](../Internal/TaskReports/2026-08-09-pr103-review-fix-implementation.md) 与 `SymbolTable.swift` 该类型的文档注释
 
 ## 摘要
 

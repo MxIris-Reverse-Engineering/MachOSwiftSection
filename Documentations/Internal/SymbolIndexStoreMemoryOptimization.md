@@ -1,6 +1,6 @@
 # SymbolIndexStore 内存优化专题
 
-日期：2026-08-09（覆盖 2026-07 至 2026-08 的三波优化）
+日期：2026-08-09（覆盖 2026-07 至 2026-08 的三波优化）；最后更新：2026-08-28（回填 0002/0003 落地、262 MB 曲线与 opaque 索引的结构键形态）
 
 本文是 `SymbolIndexStore` 内存表示演进的专题汇总：三波优化各自解决什么、最终的存储模型长什么样、付出了哪些约束、实测收益多少。行文参照上游 swift-demangling 的同类专题 `Documentations/SubtreeInterning.md`（那篇讲 `Node` 树的全子树 hash-consing，是本文第一波的上游地基）。术语（sweep、腿、名字来源、detach、物化等）首次出现不再逐个展开，见[术语表](../Glossary.md)。
 
@@ -16,7 +16,7 @@
 
 ## 范围
 
-本文只覆盖 `MachOSymbols` 模块（`SymbolIndexStore` / `SymbolTable` / `DemangledSymbol`）及其直接协作的缓存层。两个相邻但不属于本文的战线：`Node` 存储本身的优化在上游 swift-demangling（见其 `SubtreeInterning.md` 与 evolution 0008/0010）；声明模型（`TypeDefinition` 等）的驻留优化是[提案 0002](../Evolutions/0002-declaration-model-descriptor-slimming.md)（In Review）。
+本文只覆盖 `MachOSymbols` 模块（`SymbolIndexStore` / `SymbolTable` / `DemangledSymbol`）及其直接协作的缓存层。两个相邻但不属于本文的战线：`Node` 存储本身的优化在上游 swift-demangling（见其 `SubtreeInterning.md` 与 evolution 0008/0010）；声明模型（`TypeDefinition` 等）的驻留优化是[提案 0002](../Evolutions/0002-declaration-model-descriptor-slimming.md)（Implemented）。
 
 ## 三波优化
 
@@ -46,7 +46,7 @@
 
 ## 今天的存储模型
 
-一个镜像的 `Storage` 冻结后由这些部分组成：`SymbolTable`（行 + 双名字来源 + 名字序 permutation）；`rootNodeIndexByTableRow`（每行的 demangle 根节点，arena 内 4 字节索引，`nil` 裁决也缓存——demangler 拒绝过的名字不再重试）；一组分类索引（全部以 4 字节 `UInt32` 行号引用符号，桶形态见后续方向）；late-name 路径的可追加 side store 服务 sweep 之外的零星名字。整个 `Storage` 随镜像驱逐（`removeSubIndexer(_:)`）整体释放。
+一个镜像的 `Storage` 冻结后由这些部分组成：`SymbolTable`（行 + 双名字来源 + 名字序 permutation）；`rootNodeIndexByTableRow`（每行的 demangle 根节点，arena 内 4 字节索引，`nil` 裁决也缓存——demangler 拒绝过的名字不再重试）；一组分类索引（全部以 4 字节 `UInt32` 行号引用符号，桶是「单元素内联、多元素才落堆」的 `SymbolRowBucket`——[提案 0003](../Evolutions/0003-symbol-row-bucket-flattening.md)，其中 opaque 描述符查找为 `[StructuralNodeReferenceKey: UInt32]` 的单次 hash probe，2026-08-13 起）；late-name 路径的可追加 side store 服务 sweep 之外的零星名字。整个 `Storage` 随镜像驱逐（`removeSubIndexer(_:)`）整体释放。
 
 ## 取舍与影响面
 
@@ -68,9 +68,11 @@
 
 11 小时长跑复核无漂移（堆 285 vs 干净跑 283 MiB）；用户观察到的「反复飙 800+ MB 后回落」确认为 sweep 瞬态（28 并发工人的临时缓冲，完即释放），非泄漏。
 
+本文完稿后，0003（行号桶扁平化，本模块）与相邻战线的 0002（声明模型 descriptor 化）于 2026-08-09 落地，五镜像稳态进一步降至 **262 MB**、索引瞬态峰值 808 → 613 MB——全曲线 842 → 470–480 → ~450 → 322（0001）→ **262 MB**（0002+0003）。逐项数字见 ProjectEvolutionLog 第 35/36 节。
+
 ## 后续可选方向
 
-- **`[UInt32]` 行号桶扁平化**：45 万个小数组桶（38.8 MiB）换单元素内联表示——[提案 0003](../Evolutions/0003-symbol-row-bucket-flattening.md)（In Review）。
-- **声明模型 descriptor 化**：相邻簇（41.3 + 33.4 MiB）的同方法论治理——[提案 0002](../Evolutions/0002-declaration-model-descriptor-slimming.md)（In Review）。
+- ~~**`[UInt32]` 行号桶扁平化**~~ **已落地（2026-08-09）**：45 万个小数组桶（38.8 MiB）换单元素内联的 `SymbolRowBucket`——[提案 0003](../Evolutions/0003-symbol-row-bucket-flattening.md)（Implemented；RV 复测 38.8 → 7.2 MiB，超预期）。
+- ~~**声明模型 descriptor 化**~~ **已落地（2026-08-09）**：相邻簇（41.3 + 33.4 MiB）的同方法论治理——[提案 0002](../Evolutions/0002-declaration-model-descriptor-slimming.md)（Implemented；与 0003 合计把稳态推到 262 MB，见上表注记）。
 - **sweep 限流 / 分批**：用索引速度换瞬态峰值（800+ MB 尖峰摊平），RuntimeViewer 侧候选、未拍板。
 - **上游 demangle 字节入口**：sweep 的 demangle 输入仍需一个瞬时 `String`，等上游 swift-demangling 的 demangle-bytes 提案落地后一行替换（与 0001 解耦对接，注意 `Span` 家族的部署下限坑）。
