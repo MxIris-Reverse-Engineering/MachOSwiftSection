@@ -48,8 +48,12 @@ package struct ProtocolConformanceDumper<MachO: FieldLayoutRenderable>: Conforme
                 Space()
             }
 
-            for conditionalRequirement in dumped.conditionalRequirements {
+            for (offset, conditionalRequirement) in dumped.conditionalRequirements.offsetEnumerated() {
                 try await conditionalRequirement.dump(resolver: demangleResolver, in: machO)
+                if !offset.isEnd {
+                    Standard(",")
+                    Space()
+                }
             }
         }
     }
