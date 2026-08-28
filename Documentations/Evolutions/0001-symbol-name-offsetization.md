@@ -9,6 +9,18 @@
 - **实现分支 / PR**: `feature/node-store-migration`
 - **配套文档**: 专题汇总 [SymbolIndexStoreMemoryOptimization.md](../Internal/SymbolIndexStoreMemoryOptimization.md)（2026-08-09 应用户要求补写，覆盖含本案在内的三波优化；推翻当日「不另写」的收尾判断，见决策日志）；维护者事实同步于 AGENTS.md「Symbol indexing」段，过程复盘见 [TaskReports/2026-08-08-symbol-name-offsetization.md](../Internal/TaskReports/2026-08-08-symbol-name-offsetization.md)。落地后修正：`PackedNameReference` 对二进制供给的名字几何（超长名 / 超范围 offset）由 trap 改 failable（2026-08-09，PR #103 review M3），见 [TaskReports/2026-08-09-pr103-review-fix-implementation.md](../Internal/TaskReports/2026-08-09-pr103-review-fix-implementation.md) 与 `SymbolTable.swift` 该类型的文档注释
 
+## 一页导读（2026-08-28 补写；本节是导读，不改动下方正文快照）
+
+**这个提案解决什么问题**：RuntimeViewer（基于本库的二进制浏览应用）每打开一个镜像，库会把它的几十万个符号名全部拷贝成 Swift `String` 常驻内存——实测 49.4 万个、68.7 MiB，是当时堆里最大的单项。但这些名字的原文本来就躺在系统已映射进内存的字符串表里，随时可读。等于把免费的东西复制了一份昂贵的。
+
+**怎么解决**：不再保存名字字符串，只保存「名字在字符串表里的位置」——每个符号一行 16 字节的紧凑记录，要用名字时再现场读出来（这就是标题里的「offset 化」）。原来按名字查行的字典也整个删掉，换成把行号按名字排序后做二分查找。
+
+**结果**：RuntimeViewer 五镜像稳态内存 445 → 322 MB（−28%），全部测试与输出逐字节不变。公开 API 只有一处破坏：`Symbol` 的 `nlist` 属性换成了 `isExternal`（原属性每个符号要付 40 字节的容器开销，而全仓库只用到其中一个布尔位）。
+
+**代价（都已如实接受）**：镜像被卸载（`dlclose`）后名字就读不到了——实际场景从不卸载；按名字查询从字典一次命中变成约 18 次字节比较的二分——实测无感。
+
+**读正文的导航**：为什么做见「动机」；具体做法见「提议方案」「详细设计」；哪些路走过又放弃见「替代方案考量」（含 swift-collections 逐项裁决）；实施中偏离计划的三处（`Span` 家族因部署下限不可用等）见「决策日志」；全部实测数字见「落地记录」。
+
 ## 摘要
 
 `SymbolIndexStore` 的每镜像存储把 49.4 万个符号名以 Swift `String` 驻留（68.7 MiB），而这些名字的原文本就躺在镜像 mmap 的字符串表里（clean 页、不计 footprint）——eager 拷贝等于把免费页复制成付费脏页。本提案把驻留形态换成「字符串表 offset + 按需物化」：行表存 16 字节紧凑行，名字读取经 `Span`/`UTF8Span` 访问层直达映射内存（镜像路径零拷贝零驻留；文件路径收进一次分配的私有连续缓冲），名→行字典整个退役换名字序二分，`isSwiftSymbol` 判定降到字节级让非 Swift 符号零分配。公开 API 与全部调用点零改动，预计拿回 ~70–100 MiB。
