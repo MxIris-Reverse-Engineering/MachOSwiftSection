@@ -1213,8 +1213,9 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
 
     /// Store-backed handle for a symbol's demangled tree. Hits the frozen
     /// image store for symbols covered by the build sweep; symbols outside
-    /// the sweep are demangled cache-free into a per-symbol mini store, so
-    /// every caller receives a uniform `NodeReference`.
+    /// the sweep are demangled once into the storage's shared late-name side
+    /// store (`lateDemangledNode(forName:)`, which caches the verdict —
+    /// rejections included), so every caller receives a uniform `NodeReference`.
     package func demangledNodeReference<MachO: MachORepresentableWithCache>(for symbol: Symbol, in machO: MachO) -> NodeReference? {
         guard let cacheStorage = storage(in: machO) else { return nil }
         // Matched on name alone. A demangled tree is a pure function of the

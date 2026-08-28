@@ -3,11 +3,11 @@
 - **状态**: Implemented
 - **作者**: JH
 - **创建日期**: 2026-08-09
-- **最后更新**: 2026-08-09
+- **最后更新**: 2026-08-28
 - **所属愿景**: 无
 - **关联提案**: [0001](0001-symbol-name-offsetization.md)（其「非目标」一节点名本案为下一篇候选；`symbolRowsByOffset` 的 offset 键表 12.2 MiB 即 0001 引入的形态）。与 [0002](0002-declaration-model-descriptor-slimming.md) 正交（不同簇、不同模块），可独立实施
-- **实现分支 / PR**: `feature/node-store-migration`（拟，待批准后实施）
-- **配套文档**: 暂无
+- **实现分支 / PR**: `feature/node-store-migration`（经 PR #103 线合入 `main`，对应版本 `0.16.0`）
+- **配套文档**: 专题汇总 [SymbolIndexStoreMemoryOptimization.md](../Internal/SymbolIndexStoreMemoryOptimization.md)（三波优化叙事 + 本案落地注记）；落地记录见 ProjectEvolutionLog 第 35 节
 
 ## 摘要
 
