@@ -1127,6 +1127,44 @@
 
 ---
 
+## 52. RuntimeMetadataTypeBuilder —— TypeBuilder 的首个生产 conformer
+
+- **时间段**：2026-08-30。
+- **动机**：swift-demangling 已完整移植上游 `TypeDecoder.h`（`TypeDecoder<Builder: TypeBuilder>`
+  遍历器 + `TypeBuilder` 协议），但生产侧没有任何 conformer。本项目进程内的 node → 活
+  metadata 一直靠「remangle 成字符串 → `swift_getTypeByMangledNameInContext`」往返，该入口
+  要求 mangled 字节在可寻址内存、上下文与实参按运行时约定摆放，且无法表达任意合成的类型
+  表达式节点。
+- **关键决策**：
+  - **对标运行时 `DecodedMetadataBuilder`（`MetadataLookup.cpp`）逐路径移植语义**，不发明
+    新模型：nominal 统一走 bound-generic 路径、key-argument 收集按 `_gatherGenericParameters`
+    + `_checkGenericRequirements` 形状（父级 written args 从 parent metadata 读回、key 参数
+    metadata 先行、PWT 按 requirement 顺序经 `swift_conformsToProtocol`）、组合期用
+    `MetadataState.abstract`（容环）、顶层 `swift_checkMetadataState` 强制补全。
+  - **不复用 `GenericSpecializer`**：其 `makeRequest` 为每个参数急切枚举候选（无约束参数 =
+    全镜像每类型一个 Candidate）、PWT 解析硬依赖 indexer——交互流形状，不适合逐节点解码。
+  - **命名节点是主路径**：本项目 `MetadataReader` 从不产出 `.typeSymbolicReference`（context
+    引用都解析成命名树）。解析链 = 注入的 `nominalTypeDescriptorResolver` seam → 非泛型走
+    运行时按名查询 → 标准库常用泛型内置描述符表（经已知实例化的 metadata 反查）。
+  - **ObjC class 的 canonical 形态是 realized class 指针本身**（`swift_getInitializedObjCClass`）：
+    `swift_getObjCClassMetadata` 的 wrapper 是另一个 metadata 身份，会分裂泛型实例化缓存，
+    且在测试进程里打印 wrapper 直接 SIGSEGV——探针实测按名查询返回的就是 class 指针。
+  - **诚实拒绝面**（typed `TypeLookupError`，绝不造值）：SIL 系、parameter pack、value
+    generic 实参、opaque 返回、constrained/extended existential、dynamic Self、非 key 父级参数。
+  - requirement subject（`A` / `A.Element`）用携带 written-args 绑定环境的嵌套 builder
+    **自举解码**，dependent member 经 `swift_getAssociatedTypeWitness` 解析。
+- **落地模块**：`SwiftInspection`（`RuntimeMetadataTypeBuilder`）、`MachOSwiftSectionC`
+  （补桥 `swift_checkMetadataState` / `swift_getTupleTypeMetadata` / `swift_getFunctionTypeMetadata`
+  + weak 的 extended 变体 / `swift_getMetatypeMetadata` / `swift_getExistentialMetatypeMetadata`
+  / `swift_getExistentialTypeMetadata`）。验证：`RuntimeMetadataTypeBuilderTests` 往返 parity
+  （`_mangledTypeName(T.self)` → demangle → builder → 与 `T.self` 指针相等），覆盖标准库泛型、
+  结构类型、ObjC、约束泛型 PWT、assocty witness、嵌套泛型父级实参与 typed error 拒绝。
+- **文档**：[../Evolutions/0012-in-process-metadata-type-builder.md](../Evolutions/0012-in-process-metadata-type-builder.md)、
+  [TaskReports/2026-08-30-runtime-metadata-type-builder.md](TaskReports/2026-08-30-runtime-metadata-type-builder.md)。
+- **对应版本**：未发布（0.17.0 之后）。
+
+---
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节
