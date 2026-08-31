@@ -1,6 +1,6 @@
 # 2026-08-26 统一 diff / evolution 接口渲染器的结构遍历核心
 
-- **提案**: [draft-unify-interface-renderers](../../Evolutions/draft-unify-interface-renderers.md)
+- **提案**: [0014-unify-interface-renderers](../../Evolutions/0014-unify-interface-renderers.md)
 - **分支 / PR**: `feature/swift-evolution-interface-builder`（PR #114 同分支追加）
 
 ## 问题

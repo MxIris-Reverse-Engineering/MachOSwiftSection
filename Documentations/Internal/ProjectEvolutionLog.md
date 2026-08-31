@@ -968,7 +968,7 @@
 
 ---
 
-## 47. 演进并集注解接口 SwiftEvolutionInterfaceBuilder（提案 draft-swift-evolution-interface-builder）
+## 47. 演进并集注解接口 SwiftEvolutionInterfaceBuilder（提案 0013）
 
 - **时间段**：2026-08-25。
 - **动机**：`swift-section evolution` 唯一的人读输出是 `ABIEvolutionReporter` 的
@@ -998,7 +998,7 @@
   `EvolutionLine`）、`swift-section`（`evolution --interface` + 事件类别着色）；
   测试为格式层/注解索引单测 + 三版本即时编译 fixture 的端到端 suite +
   CLI 校验规则钉子。
-- **文档**：[draft-swift-evolution-interface-builder.md](../Evolutions/draft-swift-evolution-interface-builder.md)、
+- **文档**：[0013-swift-evolution-interface-builder.md](../Evolutions/0013-swift-evolution-interface-builder.md)、
   [ABIEvolutionDesign.md](ABIEvolutionDesign.md)（第五批增量一节）、
   [TaskReports/2026-08-25-swift-evolution-interface-builder.md](TaskReports/2026-08-25-swift-evolution-interface-builder.md)、
   README `evolution` 一节、术语表新增「union interface」「lifecycle annotation」。
@@ -1042,7 +1042,7 @@
 
 ---
 
-## 49. 统一 diff / evolution 接口渲染器的结构遍历核心（提案 draft-unify-interface-renderers）
+## 49. 统一 diff / evolution 接口渲染器的结构遍历核心（提案 0014）
 
 - **时间段**：2026-08-26。
 - **动机**：`SwiftDiffableInterfaceRenderer`（602 行）与 `SwiftEvolutionInterfaceRenderer`
@@ -1071,7 +1071,7 @@
   库侧净 −256 行（671+/927−，且两渲染器只剩策略）。附带测试基建发现：纯 struct 的即时编译 fixture dylib 没有
   `__DATA` 段，pinned MachOKit 解析其 chained fixups 会越界崩溃——fixture 必须带
   至少一个 class（已记入 AGENTS.md Test Environment）。
-- **文档**：[draft-unify-interface-renderers.md](../Evolutions/draft-unify-interface-renderers.md)、
+- **文档**：[0014-unify-interface-renderers.md](../Evolutions/0014-unify-interface-renderers.md)、
   [TaskReports/2026-08-26-unify-interface-renderers.md](TaskReports/2026-08-26-unify-interface-renderers.md)、
   AGENTS.md（`InterfaceUnionWalker` 条目 + fixture 地雷）、术语表新增「emission strategy」。
 - **对应版本**：`0.17.0`。

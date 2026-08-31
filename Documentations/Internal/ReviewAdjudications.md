@@ -237,7 +237,7 @@
 
 - **裁决**：误报 / 有意行为，不修（2026-08-27）。
 - **发现**：`InterfaceUnionWalker.matchAcrossVersions` 用 `seen.insert(elementKey).inserted` 门控 emission，而它替换掉的 `SwiftDiffableInterfaceRenderer.diffMembers`（main `:428`）与 `matchByKey`（main `:556`）遍历新侧全部元素——identity key 碰撞时旧路径两个都渲染，新路径只渲染第一个。review 据此判定 `swift-section diff --interface` 会静默少渲染成员。
-- **复现 / 是否误报**：行为差异属实，但**定性错误**。walker 的文档注释明写 "Keys are first-wins within each version (emission included…) mirroring `ABIDiffer.keyed`"，`draft-unify-interface-renderers.md` 的决策日志（2026-08-26）专条记载：实现中确认旧 diff 发射循环对同 key 重复项重复发射，与其**自身查表字典**和注释声明的 first-wins 相矛盾，判定为漏网，统一后连发射也 first-wins；恰好依赖旧行为的测试 `unrenderableHeaderIsReportedAsAnEvent` 同批改成 replace 注入。旧行为也并非「更正确」——第二个重复项是与 first-wins 的旧侧条目**错配比较**后发射的。
+- **复现 / 是否误报**：行为差异属实，但**定性错误**。walker 的文档注释明写 "Keys are first-wins within each version (emission included…) mirroring `ABIDiffer.keyed`"，`0014-unify-interface-renderers.md` 的决策日志（2026-08-26）专条记载：实现中确认旧 diff 发射循环对同 key 重复项重复发射，与其**自身查表字典**和注释声明的 first-wins 相矛盾，判定为漏网，统一后连发射也 first-wins；恰好依赖旧行为的测试 `unrenderableHeaderIsReportedAsAnEvent` 同批改成 replace 注入。旧行为也并非「更正确」——第二个重复项是与 first-wins 的旧侧条目**错配比较**后发射的。
 - **与 main 基线对比**：行为变化确由本 PR 引入，但项目已把旧行为定性为 bug，故不是回归。
 - **既往修复**：无。这是首次把发射对齐 first-wins 的 deliberate 改动。
 - **残余关切（不构成缺陷）**：`--interface` 模式直接从 live model 渲染、不经 `ABIDiff`，所以 `keyCollisions()` 诊断在该视图无处输出。**main 同样如此**，属可选增强而非本 PR 缺陷。

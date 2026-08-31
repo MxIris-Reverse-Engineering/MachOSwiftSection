@@ -1,9 +1,9 @@
-# Draft - SwiftEvolutionInterfaceBuilder：ABI 演进的并集注解接口渲染
+# 0013 - SwiftEvolutionInterfaceBuilder：ABI 演进的并集注解接口渲染
 
 - **状态**: Implemented
 - **作者**: JH
 - **创建日期**: 2026-08-25
-- **最后更新**: 2026-08-25
+- **最后更新**: 2026-08-31
 - **所属愿景**: 无
 - **关联提案**: 无（与 `0006` 之前落地的 SwiftDiffing 系列同域：`ABIDiffer` / `ABIEvolutionBuilder` / `SwiftDiffableInterfaceRenderer` 是其直接前作）
 - **实现分支 / PR**: `feature/swift-evolution-interface-builder`
@@ -378,3 +378,4 @@ swift-section evolution --interface --dyld-shared-cache -n SwiftUICore cache17 c
 | 2026-08-26 | 属性打印修正（用户实机反馈） | SwiftUI 三缓存轴 dump 暴露两处成员多行渲染缺陷：① accessor 块双重缩进——variable/subscript printer 按 `level` 给块内行烘焙**绝对**缩进，而 evolution 格式层又按行加层级缩进；修法：成员一律以 printer level 0 渲染（块变相对缩进），格式层统一缩进即精确。② 注解沉到 accessor 块收尾 `}`——「附着末行」规则对多行成员选错行；修法：锚点分靶（成员锚**首行**即声明行——属性内联无前置行；容器 header 锚末行即带 `{` 的声明行）。两侧 `diff --interface` 路径仍带同源缺陷 ①（本批不动，另行处理）；opaque `some` 裸打印为 diff 路径既有缺口（printer 未接 `addExtraDataProvider` 的 opaque 展开线），同样另行立项。 |
 | 2026-08-25 | 收尾裁决：术语表 | 新术语「union interface（并集接口）」「lifecycle annotation（生命周期注解）」已登记进项目术语表（同批次）。 |
 | 2026-08-25 | 提问结论（第二轮） | 注解格式定为位图 + 事件短语 + 头部图例（否：纯短语、伪 @available）；未变声明渲染但不注解（否：每行位图；`--changes-only` 未采纳、记入将来方向）；modified 只渲染最新代际 + 变更注解（否：逐代际多行）；泛型形态定为 pack 异构 init（@available 门控）+ 同质数组 init 双轨（用户自定答案），实现收敛为非泛型公开类 + 内部擦除。 |
+| 2026-08-31 | 补取编号 draft → 0013 | 本案 2026-08-25 已置 `Implemented`，但落地 commit 漏了 README 规定的「合入共享分支时取号」一步，文件名与状态表编号列一直停在 `draft`。本次连同 0012 的取号一并补齐：fetch 全部远程分支后按落地先后排号（本案 08-25 落地在前取 0013，0014 的统一渲染器提案 08-26 在后）。同批完成互链改名：AGENTS.md、Glossary、ProjectEvolutionLog 第 47 节、ABIEvolutionDesign、任务报告、0014 的「关联提案」行 |

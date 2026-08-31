@@ -1,11 +1,11 @@
-# Draft - 统一 diff / evolution 接口渲染器的结构遍历核心
+# 0014 - 统一 diff / evolution 接口渲染器的结构遍历核心
 
 - **状态**: Implemented
 - **作者**: JH
 - **创建日期**: 2026-08-26
-- **最后更新**: 2026-08-26
+- **最后更新**: 2026-08-31
 - **所属愿景**: 无
-- **关联提案**: [draft-swift-evolution-interface-builder](draft-swift-evolution-interface-builder.md)（被统一的两条渲染路之一即其产物；其决策日志 2026-08-26「属性打印修正」条目记录的 diff 路径同源缺陷，本提案顺带修复）
+- **关联提案**: [0013-swift-evolution-interface-builder](0013-swift-evolution-interface-builder.md)（被统一的两条渲染路之一即其产物；其决策日志 2026-08-26「属性打印修正」条目记录的 diff 路径同源缺陷，本提案顺带修复）
 - **实现分支 / PR**: `feature/swift-evolution-interface-builder`（PR #114 同分支追加）
 - **配套文档**: [TaskReports/2026-08-26-unify-interface-renderers.md](../Internal/TaskReports/2026-08-26-unify-interface-renderers.md)（过程复盘）；不另立实现说明，裁决见决策日志
 
@@ -174,3 +174,4 @@ variable / subscript）的块内缩进从双重变为正确；单行成员、hea
 | 2026-08-26 | 顺手修正：协议 header 失败事件的 kind | diff 路原硬编码 `.type`（协议 header 失败也报 `.type`）；策略化后如实传 `.protocol`，与 evolution 路一致。无测试钉旧值。 |
 | 2026-08-26 | In Progress → Implemented | 落地三步完成：核心迁移（evolution e2e 字节钉子原样通过）→ diff 策略 + 缩进修正（修前必红的 `DiffMemberIndentationTests` 转绿）→ 文档批次。SwiftInterface + SwiftDiffing + SwiftSectionCommand 三 target 209 tests / 34 suites 全绿（原始退出码 0）。 |
 | 2026-08-26 | 收尾裁决：配套文档与术语表 | 不另立实现说明——发射策略接缝的取舍已完整落在遍历器/策略的代码文档注释与 AGENTS.md `InterfaceUnionWalker` 条目里，单独成篇只会复述（反向判据命中）；过程复盘在任务报告。术语表登记「emission strategy（发射策略）」。 |
+| 2026-08-31 | 补取编号 draft → 0014 | 与 0013 同因：本案 2026-08-26 已置 `Implemented`，落地 commit 漏了 README 规定的取号一步。按落地先后排在 0013（其被统一的渲染路之一即 0013 的产物）之后。同批完成互链改名：AGENTS.md、Glossary、ProjectEvolutionLog 第 49 节、ReviewAdjudications A20、任务报告 |

@@ -77,7 +77,7 @@ Requirement Machine 最小化泛型签名时，把 pin 到同一具体类型的�
 diff / evolution 两条对比渲染路共享结构遍历核心（`InterfaceUnionWalker`）之后各自剩下的那一半：遍历器负责**结构**（N 路匹配与并集排序、extension 容器拆分、成员构造、类别调度、body 组合序），策略（`InterfaceUnionEmitting`）负责**呈现**——同一个匹配结果如何变成行（`+`/`-` 标记 vs 生命周期注解）、容器 header 如何裁决（两侧配对 vs 最新可渲染）、容器如何装配。真正语义不同的部分（`HeaderOutcome` 配对、注解锚点、两套格式层）只住在策略里，绝不上浮进遍历器。
 
 - **主要出现在**：`Sources/SwiftInterface/InterfaceUnionWalker.swift`（协议与遍历器）、`SwiftDiffableInterfaceRenderer.swift`（`DiffUnionStrategy`）、`SwiftEvolutionInterfaceRenderer.swift`（evolution 策略）
-- **延伸阅读**：[提案 draft-unify-interface-renderers](Evolutions/draft-unify-interface-renderers.md)
+- **延伸阅读**：[提案 0014](Evolutions/0014-unify-interface-renderers.md)
 
 ### late-name 路径（`lateDemangledNode(forName:)`）
 
@@ -96,7 +96,7 @@ sweep 覆盖范围之外的名字走的旁路：demangle 后 intern 进 `Storage
 演进并集接口里每条「变过的」声明行尾的注释：`// [●●○] removed in 26.0` —— 存在位图（每版本一位，文件头图例映射位置到版本标签）+ 按 ` · ` 连接的事件短语（added / removed / modified in 版本；modified 带 `旧签名 → 新签名`，两侧文本相同时省略箭头段）。**没有注解本身就是信息**：全程存在且从未变化。注解事实唯一来源是 `ABIEvolution` 的 lineage 查表，渲染器不自行推导。
 
 - **主要出现在**：`Sources/SwiftInterface/EvolutionMarking.swift`、`EvolutionAnnotationIndex.swift`
-- **延伸阅读**：[提案 draft-swift-evolution-interface-builder](Evolutions/draft-swift-evolution-interface-builder.md)
+- **延伸阅读**：[提案 0013](Evolutions/0013-swift-evolution-interface-builder.md)
 
 ### materialize（物化）
 
@@ -169,7 +169,7 @@ Swift runtime 的 descriptor 布局惯例：固定头之后按 flags 跟着可�
 `evolution --interface` 的输出形态：N 个版本所有声明的**并集**只渲染一次的 Swift 接口——每条声明由「最后一个拥有它的版本」的模型与 printer 渲染文本，变化写进生命周期注解，同一成员改签名不裂成多行。与「逐 transition 串联 diff」（同一声明重复出现 N−1 次）和「只渲染最新版 + since 注解」（丢中间版本细节）相对。排序规则：最新版本声明序为脊柱，不在最新版的声明按其最后存在版本的顺序追加。
 
 - **主要出现在**：`Sources/SwiftInterface/SwiftEvolutionInterfaceRenderer.swift`（`matchAcrossVersions`）
-- **延伸阅读**：[提案 draft-swift-evolution-interface-builder](Evolutions/draft-swift-evolution-interface-builder.md)
+- **延伸阅读**：[提案 0013](Evolutions/0013-swift-evolution-interface-builder.md)
 
 ### wrapper vs descriptor（高层包装 vs 描述符）
 
