@@ -2124,6 +2124,15 @@
 - **关联文档**：[AGENTS.md](../../AGENTS.md) 里 descriptor wrapper 那一节的 Optional 读取陷阱（扩写成任何类型、包括 `try?` 写法）、[ReadingContextAbstraction.md](ReadingContextAbstraction.md)「这次没动的已知缺口」、[EventBasedDegradationReporting.md](EventBasedDegradationReporting.md)（日志规则）、[0057-reading-context-migration](../Evolutions/0057-reading-context-migration.md)「不在本 PR、另开分支处理」、[PR #130](https://github.com/MxIris-Reverse-Engineering/MachOSwiftSection/pull/130)（迁移的 PR #129 合入后直接对 `next`）。
 - **对应版本**：0.22.0（未发版）。
 
+## 2026-08-31 · evolution 联合接口的 @available 生命周期标注（落地时取节号）
+
+- **时间段**：2026-08-31。
+- **动机**：用户希望在既有 ABI 演进事实的基础上，让 `evolution --interface` 直接产出编译器语法的 `@available` 标注，而不只有位图注释。
+- **关键决策**：真属性作**补充**不作替换（前案否决的是「伪 @available 替代注解载体」，本案只在生命周期完整可表达时发语法合法真属性，位图注释继续承载 modified 与不可表达形状——两条否决理由均不复现）；不可表达即整条不发、注释兜底（宁缺勿假）；平台名从各输入 `LC_BUILD_VERSION` 推断 + `--platform` 覆盖，推断失败响亮报错；默认配置输出逐字节不变。
+- **落地模块**：`SwiftInterface`（`EvolutionMarking` 属性生成纯函数 + 图例第三行、`SwiftEvolutionInterfaceRenderer` 前插属性行、两个 builder 的 `availabilityAnnotationPlatform` 配置）、`swift-section`（`EvolutionCommand` 的 `--emit-available` / `--platform` 与平台推断）。
+- **文档**：[Evolutions/draft-evolution-interface-available-annotations.md](../Evolutions/draft-evolution-interface-available-annotations.md)（轻量档提案）、[TaskReports/2026-08-31-evolution-interface-available-annotations.md](TaskReports/2026-08-31-evolution-interface-available-annotations.md)。
+- **对应版本**：`0.17.1` 之后未发布区间。
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节
