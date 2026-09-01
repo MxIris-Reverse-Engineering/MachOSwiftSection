@@ -22,8 +22,17 @@ public final class SwiftDeclarationPrinter<MachO: FieldLayoutRenderable>: Sendab
     @Mutex
     public private(set) var configuration: SwiftDeclarationPrintConfiguration = .init()
 
+    /// Resolvers binned per role at registration time (`addTypeNameResolver`),
+    /// so each delegate query walks only the resolvers that can answer it and
+    /// the print path never runs a conformance cast.
+    private struct TypeNameResolverRegistry: Sendable {
+        var moduleNameResolvers: [any ModuleNameResolving] = []
+        var cImportedNameResolvers: [any CImportedNameResolving] = []
+        var opaqueTypeResolvers: [any OpaqueTypeResolving] = []
+    }
+
     @Mutex
-    public private(set) var typeNameResolvers: [any TypeNameResolvable] = []
+    private var typeNameResolverRegistry: TypeNameResolverRegistry = .init()
 
     /// `package` so in-package renderers that drive this printer — notably
     /// ``SwiftDiffableInterfaceRenderer`` — report their own degradations into
@@ -124,12 +133,27 @@ public final class SwiftDeclarationPrinter<MachO: FieldLayoutRenderable>: Sendab
         _memoizedStaticFieldLayoutProvider.withLock { $0 = .uncomputed }
     }
 
-    public func addTypeNameResolver(_ resolver: any TypeNameResolvable) {
-        typeNameResolvers.append(resolver)
+    public func addTypeNameResolver(_ resolver: any TypeNameResolving) {
+        _typeNameResolverRegistry.withLock { registry in
+            var matchedAnyRole = false
+            if let moduleNameResolver = resolver as? any ModuleNameResolving {
+                registry.moduleNameResolvers.append(moduleNameResolver)
+                matchedAnyRole = true
+            }
+            if let cImportedNameResolver = resolver as? any CImportedNameResolving {
+                registry.cImportedNameResolvers.append(cImportedNameResolver)
+                matchedAnyRole = true
+            }
+            if let opaqueTypeResolver = resolver as? any OpaqueTypeResolving {
+                registry.opaqueTypeResolvers.append(opaqueTypeResolver)
+                matchedAnyRole = true
+            }
+            assert(matchedAnyRole, "resolver conforms to no role protocol and would never be consulted")
+        }
     }
 
     public func removeAllTypeNameResolvers() {
-        typeNameResolvers.removeAll()
+        typeNameResolverRegistry = .init()
     }
 
     @SemanticStringBuilder
@@ -729,14 +753,14 @@ package func printCatchedThrowing(
 
 extension SwiftDeclarationPrinter: NodePrintableDelegate {
     public func moduleName(forTypeName typeName: String) async -> String? {
-        await typeNameResolvers.asyncFirstNonNil { await $0.moduleName(forTypeName: typeName) }
+        await typeNameResolverRegistry.moduleNameResolvers.asyncFirstNonNil { await $0.moduleName(forTypeName: typeName) }
     }
 
     public func swiftName(forCName cName: String, category: CImportedTypeNameCategory) async -> String? {
-        await typeNameResolvers.asyncFirstNonNil { await $0.swiftName(forCName: cName, category: category) }
+        await typeNameResolverRegistry.cImportedNameResolvers.asyncFirstNonNil { await $0.swiftName(forCName: cName, category: category) }
     }
 
     public func opaqueType(forNode node: Node, index: Int?) async -> String? {
-        await typeNameResolvers.asyncFirstNonNil { await $0.opaqueType(forNode: node, index: index) }
+        await typeNameResolverRegistry.opaqueTypeResolvers.asyncFirstNonNil { await $0.opaqueType(forNode: node, index: index) }
     }
 }

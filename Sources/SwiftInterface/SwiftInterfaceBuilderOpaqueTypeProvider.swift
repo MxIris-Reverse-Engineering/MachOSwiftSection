@@ -11,7 +11,7 @@ import SwiftStdlibToolbox
 import SwiftDeclarationRendering
 @_spi(Internals) import SwiftInspection
 
-public struct SwiftInterfaceBuilderOpaqueTypeProvider<MachO: MachOSwiftSectionRepresentableWithCache & Sendable>: SwiftInterfaceBuilderExtraDataProvider, Sendable {
+public struct SwiftInterfaceBuilderOpaqueTypeProvider<MachO: MachOSwiftSectionRepresentableWithCache & Sendable>: SwiftInterfaceBuilderExtraDataProvider, OpaqueTypeResolving, Sendable {
     public let machO: MachO
 
     public init(machO: MachO) {

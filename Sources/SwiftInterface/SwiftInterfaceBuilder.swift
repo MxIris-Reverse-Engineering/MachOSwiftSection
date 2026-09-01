@@ -76,7 +76,9 @@ public final class SwiftInterfaceBuilder<MachO: FieldLayoutRenderable>: Sendable
     
     public func addExtraDataProvider(_ extraDataProvider: some SwiftInterfaceBuilderExtraDataProvider) {
         extraDataProviders.append(extraDataProvider)
-        printer.addTypeNameResolver(extraDataProvider)
+        if let typeNameResolver = extraDataProvider as? any TypeNameResolving {
+            printer.addTypeNameResolver(typeNameResolver)
+        }
     }
 
     public func removeAllExtraDataProviders() {

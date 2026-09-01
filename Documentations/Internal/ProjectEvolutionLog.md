@@ -1164,6 +1164,30 @@
 
 ---
 
+## 53. TypeNameResolvable 角色化拆分（提案 0015）
+
+- **时间段**：2026-09-01，单日单批。
+- **动机**：用户指出 printer 外挂查询解析器的注册协议 `TypeNameResolvable`（三方法全带默认
+  `nil` 实现）违反 ISP 与 OCP，核实成立——没有任何真实 provider 实现全部三个方法，且每加
+  一个查询能力都要修改公共契约并波及继承链。
+- **关键决策**：拆成空标记协议 `TypeNameResolving` + 三个**无默认实现**的单方法角色协议
+  （`ModuleNameResolving` / `CImportedNameResolving` / `OpaqueTypeResolving`），签名漂移
+  从静默脱钩变回编译期报错；printer 注册时按角色分箱（`as?` 不进打印热路径，`moduleName`
+  查询不再逐个问只会回 `nil` 的 opaque provider）；`SwiftInterfaceBuilderExtraDataProvider`
+  与 resolver 概念解耦为纯生命周期钩子（用户点破「继承标记协议」与原病灶同构），setup-only
+  provider 合法化；旧协议删名不留 typealias（别名会让旧 conformer 静默编译通过但永远不被
+  调用）。消费端聚合接口 `NodePrintableDelegate` 有意保持胖——printer 是唯一 conformer 且
+  真要回答全部查询。
+- **落地模块**：`SwiftPrinting`（角色协议 + 注册分箱）、`SwiftInterface`（provider 协议
+  解耦 + 按能力转发）、`TypeIndexing`（conformance 声明）。验证：构建绿，
+  `SwiftInterfaceTests` 131/131（含字节级 interface 快照）+ `SwiftDumpTests` /
+  `SwiftSectionCommandTests` 97/97，输出逐字节不变。
+- **文档**：[../Evolutions/0015-type-name-resolver-role-split.md](../Evolutions/0015-type-name-resolver-role-split.md)、
+  [Modules/SwiftInterface.md](Modules/SwiftInterface.md)（`SwiftInterfaceBuilderExtraDataProvider` 条目同批改写）。
+- **对应版本**：未发布（0.17.0 之后）。
+
+---
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节

@@ -22,3 +22,4 @@
 | [0012](0012-in-process-metadata-type-builder.md) | RuntimeMetadataTypeBuilder：TypeBuilder 的首个生产 conformer，node → 进程内活 metadata | Implemented |
 | [0013](0013-swift-evolution-interface-builder.md) | SwiftEvolutionInterfaceBuilder：ABI 演进的并集注解接口渲染（`evolution --interface`） | Implemented |
 | [0014](0014-unify-interface-renderers.md) | 统一 diff / evolution 接口渲染器的结构遍历核心（顺带修 diff accessor 双重缩进） | Implemented |
+| [0015](0015-type-name-resolver-role-split.md) | TypeNameResolvable 角色化拆分：printer 查询解析器按能力分协议 | Implemented |
