@@ -45,6 +45,12 @@ struct EvolutionCommand: AsyncParsableCommand {
     @Flag(help: "Emit the union Swift interface annotated with per-declaration lifecycle comments instead of the lineage report. Every input must be a binary (or dyld shared cache); snapshot JSON inputs are rejected.")
     var interface: Bool = false
 
+    @Flag(name: .customLong("emit-available"), help: "With --interface: prefix each declaration whose lifecycle is fully expressible as one @available attribute (introduced:/obsoleted: resolved from the version axis) with that genuine attribute. Inexpressible lifecycles (disappeared-and-returned, non-version labels, modified-only) keep only the bitmap comment. The platform is inferred from every input's LC_BUILD_VERSION unless --platform overrides it.")
+    var emitAvailable: Bool = false
+
+    @Option(name: .long, help: "The @available platform spelling (e.g. iOS, macOS, macCatalyst) for --emit-available, overriding LC_BUILD_VERSION inference.")
+    var platform: String?
+
     @Flag(help: "Exit with a nonzero status when any transition contains an ABI-breaking change, for CI gating.")
     var failOnBreaking: Bool = false
 
@@ -122,6 +128,10 @@ struct EvolutionCommand: AsyncParsableCommand {
             explicitLabels[index] ?? ABISnapshotInputLoader.defaultLabel(forPath: inputPath)
         }
 
+        let availabilityAnnotationPlatform = emitAvailable
+            ? try resolveAvailabilityAnnotationPlatform(for: machOFiles)
+            : nil
+
         // A sink on every version: each version's builder hands this handler to
         // its indexer AND printer, so a dropped declaration lands on stderr
         // instead of the os_log floor a CLI operator never sees. The erased
@@ -130,7 +140,8 @@ struct EvolutionCommand: AsyncParsableCommand {
         let builder = try AnySwiftEvolutionInterfaceBuilder(
             eventHandlers: [ConsoleEventHandler()],
             versions: machOFiles,
-            labels: resolvedLabels
+            labels: resolvedLabels,
+            availabilityAnnotationPlatform: availabilityAnnotationPlatform
         )
         log("Indexing \(machOFiles.count) versions…")
         try await builder.prepare()
@@ -140,6 +151,50 @@ struct EvolutionCommand: AsyncParsableCommand {
 
         if failOnBreaking, let evolution = builder.evolution, evolution.hasBreakingChange {
             throw ExitCode.failure
+        }
+    }
+
+    /// Resolves the `@available` platform spelling for `--emit-available`:
+    /// the explicit `--platform` override wins; otherwise every input's
+    /// `LC_BUILD_VERSION` platform must resolve to the same spelling. Any
+    /// unresolvable or conflicting input fails LOUDLY — silently emitting no
+    /// attributes would read as "no lifecycle facts", which is a lie.
+    private func resolveAvailabilityAnnotationPlatform(for machOFiles: [MachOFile]) throws -> String {
+        if let platform { return platform }
+        var spellings: Set<String> = []
+        for (index, machOFile) in machOFiles.enumerated() {
+            guard let buildPlatform = machOFile.loadCommands.buildVersionCommand?.platform,
+                  let spelling = Self.availabilityPlatformSpelling(for: buildPlatform) else {
+                throw ValidationError("--emit-available could not infer an @available platform from \(inputPaths[index]) (no LC_BUILD_VERSION, or a platform with no @available spelling); pass --platform explicitly.")
+            }
+            spellings.insert(spelling)
+        }
+        guard spellings.count == 1, let spelling = spellings.first else {
+            throw ValidationError("--emit-available found conflicting platforms across the inputs (\(spellings.sorted().joined(separator: ", "))); pass --platform explicitly.")
+        }
+        return spelling
+    }
+
+    /// The Swift `@available` spelling for a Mach-O build platform, `nil` for
+    /// platforms Swift's availability grammar has no name for (driverKit,
+    /// bridgeOS, …). Simulator variants share their device platform's
+    /// availability domain.
+    static func availabilityPlatformSpelling(for platform: MachOKit.Platform) -> String? {
+        switch platform {
+        case .macOS:
+            return "macOS"
+        case .iOS, .iOSSimulator:
+            return "iOS"
+        case .tvOS, .tvOSSimulator:
+            return "tvOS"
+        case .watchOS, .watchOSSimulator:
+            return "watchOS"
+        case .visionOS, .visionOSSimulator:
+            return "visionOS"
+        case .macCatalyst:
+            return "macCatalyst"
+        default:
+            return nil
         }
     }
 
@@ -202,6 +257,12 @@ struct EvolutionCommand: AsyncParsableCommand {
         if interface, summaryOnly {
             throw ValidationError("--interface and --summary-only are mutually exclusive.")
         }
+        if emitAvailable, !interface {
+            throw ValidationError("--emit-available requires --interface.")
+        }
+        if platform != nil, !emitAvailable {
+            throw ValidationError("--platform requires --emit-available.")
+        }
         if inputPaths.count < 2 {
             throw ValidationError("evolution needs at least 2 inputs in version order (oldest first).")
         }
@@ -223,5 +284,19 @@ struct EvolutionCommand: AsyncParsableCommand {
         // See `DiffCommand.log`: the raising `FileHandle` overload aborts the
         // process on a closed or broken stderr.
         fputs(message + "\n", stderr)
+    }
+}
+
+extension LoadCommandsProtocol {
+    fileprivate var buildVersionCommand: BuildVersionCommand? {
+        for command in self {
+            switch command {
+            case .buildVersion(let buildVersionCommand):
+                return buildVersionCommand
+            default:
+                break
+            }
+        }
+        return nil
     }
 }

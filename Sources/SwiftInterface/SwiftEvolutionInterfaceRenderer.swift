@@ -41,10 +41,24 @@ struct SwiftEvolutionInterfaceRenderer: InterfaceUnionEmitting {
     /// Oldest → newest, index-aligned with the evolution's version axis.
     private let versions: [any InterfaceVersionRendering]
     private let annotations: EvolutionAnnotationIndex
+    /// The evolution's version axis, needed to resolve lifecycle indices to
+    /// version labels for `@available` attributes.
+    private let versionDescriptors: [ABIVersionDescriptor]
+    /// The `@available` platform spelling (`"iOS"`, `"macOS"`, …); `nil`
+    /// disables availability attributes entirely (the default — output is
+    /// byte-identical to the pre-attribute renderer).
+    private let availabilityAnnotationPlatform: String?
 
-    init(versions: [any InterfaceVersionRendering], annotations: EvolutionAnnotationIndex) {
+    init(
+        versions: [any InterfaceVersionRendering],
+        annotations: EvolutionAnnotationIndex,
+        versionDescriptors: [ABIVersionDescriptor],
+        availabilityAnnotationPlatform: String?
+    ) {
         self.versions = versions
         self.annotations = annotations
+        self.versionDescriptors = versionDescriptors
+        self.availabilityAnnotationPlatform = availabilityAnnotationPlatform
     }
 
     /// The full classified stream: the outer array is the top-level
@@ -96,16 +110,39 @@ struct SwiftEvolutionInterfaceRenderer: InterfaceUnionEmitting {
             annotations.memberAnnotation(forContainerKey: containerKey, memberKey: match.key)
         }
         let lines = EvolutionMarking.annotatedLines(rendered, annotation: annotation, indentLevel: level, anchor: .firstLine)
-        return lines.isEmpty ? [] : [lines]
+        return lines.isEmpty ? [] : [withAvailabilityAttribute(for: annotation, lines: lines, indentLevel: level)]
     }
 
     func assembleContainer(header: SemanticString, key: ABIKey, bodyUnits: [[EvolutionLine]], level: Int) -> [EvolutionLine] {
-        EvolutionContainerAssembler.assemble(
+        let annotation = annotations.containerAnnotation(forKey: key)
+        let lines = EvolutionContainerAssembler.assemble(
             header: header,
-            annotation: annotations.containerAnnotation(forKey: key),
+            annotation: annotation,
             bodyUnits: bodyUnits,
             level: level
         )
+        // The container header renders at `level - 1` (the assembler's own
+        // rule); its attribute line sits at the same indentation.
+        return withAvailabilityAttribute(for: annotation, lines: lines, indentLevel: level - 1)
+    }
+
+    /// Prepends the unit's `@available` attribute line when attributes are
+    /// enabled AND the lifecycle is fully expressible as one attribute
+    /// (`EvolutionMarking.availabilityAttributeText`'s rules); otherwise the
+    /// unit passes through untouched and the bitmap comment stays the sole
+    /// carrier of the lifecycle.
+    private func withAvailabilityAttribute(
+        for annotation: EvolutionAnnotation?,
+        lines: [EvolutionLine],
+        indentLevel: Int
+    ) -> [EvolutionLine] {
+        guard let availabilityAnnotationPlatform, let annotation else { return lines }
+        let attributeText = EvolutionMarking.availabilityAttributeText(
+            for: annotation,
+            versions: versionDescriptors,
+            platform: availabilityAnnotationPlatform
+        )
+        return EvolutionMarking.prependingAvailabilityAttribute(attributeText, to: lines, indentLevel: indentLevel)
     }
 
     // MARK: - Header resolution

@@ -170,6 +170,110 @@ struct EvolutionMarkingTests {
         #expect(EvolutionMarking.renderBlock(block, versions: versionAxis).string == "struct Foo {\n\n}")
     }
 
+    // MARK: - Availability attributes
+
+    /// The whole expressibility matrix: an attribute is emitted only when it
+    /// can tell the complete presence story — everything else stays with the
+    /// bitmap comment (evolution proposal
+    /// draft-evolution-interface-available-annotations).
+    @Test func introducedOnlyLifecycleRendersTheAttribute() {
+        let lifecycle = annotation([false, true, true], [LineageEvent(versionIndex: 1, status: .added)])
+        #expect(
+            EvolutionMarking.availabilityAttributeText(for: lifecycle, versions: versionAxis, platform: "macOS")
+                == "@available(macOS, introduced: 2.0)"
+        )
+    }
+
+    @Test func obsoletedOnlyLifecycleRendersTheAttribute() {
+        let lifecycle = annotation([true, true, false], [LineageEvent(versionIndex: 2, status: .removed)])
+        #expect(
+            EvolutionMarking.availabilityAttributeText(for: lifecycle, versions: versionAxis, platform: "macOS")
+                == "@available(macOS, obsoleted: 3.0)"
+        )
+    }
+
+    @Test func boundedLifecycleRendersBothClauses() {
+        let lifecycle = annotation(
+            [false, true, false],
+            [LineageEvent(versionIndex: 1, status: .added), LineageEvent(versionIndex: 2, status: .removed)]
+        )
+        #expect(
+            EvolutionMarking.availabilityAttributeText(for: lifecycle, versions: versionAxis, platform: "iOS")
+                == "@available(iOS, introduced: 2.0, obsoleted: 3.0)"
+        )
+    }
+
+    /// Present from the first version = predates the axis: there is no
+    /// introduction fact, and a modified-only history has no `@available`
+    /// vocabulary at all.
+    @Test func presentThroughoutLifecycleCarriesNoAttribute() {
+        let lifecycle = annotation([true, true, true], [LineageEvent(versionIndex: 2, status: .modified)])
+        #expect(EvolutionMarking.availabilityAttributeText(for: lifecycle, versions: versionAxis, platform: "macOS") == nil)
+    }
+
+    /// A disappeared-and-returned shape (`●○●`) is two presence intervals —
+    /// no single attribute can carry it.
+    @Test func multiIntervalLifecycleIsNotExpressible() {
+        let lifecycle = annotation(
+            [true, false, true],
+            [LineageEvent(versionIndex: 1, status: .removed), LineageEvent(versionIndex: 2, status: .added)]
+        )
+        #expect(EvolutionMarking.availabilityAttributeText(for: lifecycle, versions: versionAxis, platform: "macOS") == nil)
+    }
+
+    /// An involved label that is not a dotted numeric version cannot become a
+    /// version literal — but an unparsable label at an UNINVOLVED axis
+    /// position must not block the attribute.
+    @Test func onlyInvolvedLabelsMustParseAsVersions() {
+        let mixedAxis = [
+            ABIVersionDescriptor(label: "Baseline"),
+            ABIVersionDescriptor(label: "2.0"),
+            ABIVersionDescriptor(label: "beta3"),
+        ]
+        let introducedAtParsable = annotation([false, true, true], [LineageEvent(versionIndex: 1, status: .added)])
+        #expect(
+            EvolutionMarking.availabilityAttributeText(for: introducedAtParsable, versions: mixedAxis, platform: "macOS")
+                == "@available(macOS, introduced: 2.0)"
+        )
+        let removedAtUnparsable = annotation([true, true, false], [LineageEvent(versionIndex: 2, status: .removed)])
+        #expect(EvolutionMarking.availabilityAttributeText(for: removedAtUnparsable, versions: mixedAxis, platform: "macOS") == nil)
+    }
+
+    /// Defensive: a presence bitmap not aligned with the axis proves nothing.
+    @Test func misalignedPresenceBitmapCarriesNoAttribute() {
+        let lifecycle = annotation([false, true], [LineageEvent(versionIndex: 1, status: .added)])
+        #expect(EvolutionMarking.availabilityAttributeText(for: lifecycle, versions: versionAxis, platform: "macOS") == nil)
+    }
+
+    @Test func availabilityVersionAcceptsOneToThreeNumericComponents() {
+        #expect(EvolutionMarking.availabilityVersion(fromLabel: "26") == "26")
+        #expect(EvolutionMarking.availabilityVersion(fromLabel: "18.5") == "18.5")
+        #expect(EvolutionMarking.availabilityVersion(fromLabel: "18.5.1") == "18.5.1")
+        #expect(EvolutionMarking.availabilityVersion(fromLabel: "SwiftUI") == nil)
+        #expect(EvolutionMarking.availabilityVersion(fromLabel: "18.5.1.2") == nil)
+        #expect(EvolutionMarking.availabilityVersion(fromLabel: "18.") == nil)
+        #expect(EvolutionMarking.availabilityVersion(fromLabel: " 18.5") == nil)
+    }
+
+    /// The attribute prepends as its own line at the unit's indent level,
+    /// carrying no annotation of its own; an empty unit stays empty.
+    @Test func attributePrependsAboveTheUnit() {
+        let declarationLine = EvolutionLine(
+            content: "func bar()",
+            indentLevel: 1,
+            annotation: annotation([false, true, true], [LineageEvent(versionIndex: 1, status: .added)])
+        )
+        let lines = EvolutionMarking.prependingAvailabilityAttribute("@available(macOS, introduced: 2.0)", to: [declarationLine], indentLevel: 1)
+        #expect(lines.count == 2)
+        #expect(lines[0].content.string == "@available(macOS, introduced: 2.0)")
+        #expect(lines[0].indentLevel == 1)
+        #expect(lines[0].annotation == nil)
+        #expect(lines[1].content.string == "func bar()")
+
+        #expect(EvolutionMarking.prependingAvailabilityAttribute(nil, to: [declarationLine], indentLevel: 1).count == 1)
+        #expect(EvolutionMarking.prependingAvailabilityAttribute("@available(macOS, introduced: 2.0)", to: [], indentLevel: 1).isEmpty)
+    }
+
     // MARK: - Legend & warnings
 
     @Test func legendNamesTheAxisAndMapsBitmapPositions() {
@@ -179,6 +283,17 @@ struct EvolutionMarkingTests {
         // Swift ABI evolution across 3 versions: 1.0 → 2.0 → 3.0
         // Bitmap positions: [1] 1.0  [2] 2.0  [3] 3.0
         """)
+    }
+
+    /// The availability semantic-resolution note appears exactly when
+    /// attributes are enabled — the default legend stays byte-identical.
+    @Test func legendGainsTheAvailabilityNoteOnlyWhenEnabled() {
+        let evolution = ABIEvolution(versions: versionAxis)
+        let defaultLegend = EvolutionMarking.legendLines(for: evolution).string
+        #expect(!defaultLegend.contains("@available"))
+        let annotatedLegend = EvolutionMarking.legendLines(for: evolution, availabilityAnnotationPlatform: "iOS").string
+        #expect(annotatedLegend.hasPrefix(defaultLegend))
+        #expect(annotatedLegend.contains("// @available(iOS, …) attributes are axis-resolution facts"))
     }
 
     @Test func warningsAreNilWithoutDiagnostics() {

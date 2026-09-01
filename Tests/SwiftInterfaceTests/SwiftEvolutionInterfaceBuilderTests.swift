@@ -215,6 +215,65 @@ struct SwiftEvolutionInterfaceBuilderTests {
         #expect(directionPosition.lowerBound < legacyPosition.lowerBound)
     }
 
+    /// With `availabilityAnnotationPlatform` set, every fully-expressible
+    /// lifecycle gains a genuine `@available` attribute line directly above
+    /// its declaration (at the declaration's own indentation), while the
+    /// bitmap comment stays untouched; inexpressible lifecycles (modified-only
+    /// histories) and never-changed declarations stay attribute-free, and the
+    /// default configuration emits no attribute anywhere.
+    @Test func availabilityAttributesRenderWhenConfigured() async throws {
+        let builder = try AnySwiftEvolutionInterfaceBuilder(
+            versions: try loadFixtureMachOFiles(),
+            labels: ["1.0", "2.0", "3.0"],
+            availabilityAnnotationPlatform: "macOS"
+        )
+        try await builder.prepare()
+        let interface = try await builder.printAnnotatedInterface().string
+        let lines = interface.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+        func lineIndex(containing needles: String...) throws -> Int {
+            try #require(
+                lines.firstIndex { line in needles.allSatisfy(line.contains) },
+                "no line containing \(needles) in:\n\(interface)"
+            )
+        }
+        func attributeLine(above declarationIndex: Int) -> String {
+            lines[declarationIndex - 1].trimmingCharacters(in: .whitespaces)
+        }
+        func indentation(of line: String) -> Substring {
+            line.prefix { $0 == " " }
+        }
+
+        // Legend carries the semantic-resolution note.
+        #expect(lines[2].contains("// @available(macOS, …) attributes are axis-resolution facts"))
+
+        // Added member: introduced-only attribute, same indentation as the
+        // declaration, bitmap comment still on the declaration line.
+        let addedIndex = try lineIndex(containing: "func bar(id:")
+        #expect(attributeLine(above: addedIndex) == "@available(macOS, introduced: 2.0)")
+        #expect(indentation(of: lines[addedIndex - 1]) == indentation(of: lines[addedIndex]))
+        #expect(lines[addedIndex].contains("// [○●●] added in 2.0"))
+
+        // Removed member: obsoleted-only attribute.
+        let removedIndex = try lineIndex(containing: "func bar()", "->")
+        #expect(attributeLine(above: removedIndex) == "@available(macOS, obsoleted: 3.0)")
+
+        // Removed container: the attribute sits above the whole header.
+        let removedClassIndex = try lineIndex(containing: "Legacy", "{")
+        #expect(attributeLine(above: removedClassIndex) == "@available(macOS, obsoleted: 2.0)")
+
+        // Modified-only field: no @available vocabulary — bitmap comment only.
+        let modifiedIndex = try lineIndex(containing: "modified in 3.0")
+        #expect(!lines[modifiedIndex - 1].contains("@available"))
+
+        // Never-changed declaration: bare.
+        let unchangedIndex = try lineIndex(containing: "var title")
+        #expect(!lines[unchangedIndex - 1].contains("@available"))
+
+        // The default configuration emits no attribute anywhere.
+        let defaultInterface = try await preparedBuilder().printAnnotatedInterface().string
+        #expect(!defaultInterface.contains("@available("))
+    }
+
     // MARK: - Structured stream & evolution reuse
 
     @Test func structuredStreamAlignsWithTheVersionAxis() async throws {

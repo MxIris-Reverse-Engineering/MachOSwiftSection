@@ -41,18 +41,23 @@ public final class SwiftEvolutionInterfaceBuilder<each MachO: FieldLayoutRendera
         configuration: SwiftDeclarationIndexConfiguration = .init(),
         eventHandlers: [SwiftIndexEvents.Handler] = [],
         versions: repeat each MachO,
-        labels: [String]
+        labels: [String],
+        availabilityAnnotationPlatform: String? = nil
     ) throws {
         self.erased = try AnySwiftEvolutionInterfaceBuilder(
             configuration: configuration,
             eventHandlers: eventHandlers,
             versions: repeat each versions,
-            labels: labels
+            labels: labels,
+            availabilityAnnotationPlatform: availabilityAnnotationPlatform
         )
     }
 
     /// The version-axis labels, oldest first.
     public var labels: [String] { erased.labels }
+
+    /// See ``AnySwiftEvolutionInterfaceBuilder/availabilityAnnotationPlatform``.
+    public var availabilityAnnotationPlatform: String? { erased.availabilityAnnotationPlatform }
 
     /// See ``AnySwiftEvolutionInterfaceBuilder/evolution``.
     public var evolution: ABIEvolution? { erased.evolution }

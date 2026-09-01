@@ -22,3 +22,4 @@
 | [0012](0012-in-process-metadata-type-builder.md) | RuntimeMetadataTypeBuilder：TypeBuilder 的首个生产 conformer，node → 进程内活 metadata | Implemented |
 | [0013](0013-swift-evolution-interface-builder.md) | SwiftEvolutionInterfaceBuilder：ABI 演进的并集注解接口渲染（`evolution --interface`） | Implemented |
 | [0014](0014-unify-interface-renderers.md) | 统一 diff / evolution 接口渲染器的结构遍历核心（顺带修 diff accessor 双重缩进） | Implemented |
+| [draft](draft-evolution-interface-available-annotations.md) | evolution 联合接口的 @available 生命周期标注（真属性 + 位图注释保留） | In Progress |

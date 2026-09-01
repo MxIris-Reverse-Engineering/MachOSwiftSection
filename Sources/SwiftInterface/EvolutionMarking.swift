@@ -100,14 +100,105 @@ enum EvolutionMarking {
         return text
     }
 
+    // MARK: - Availability attributes
+
+    /// The genuine `@available` attribute expressing a lifecycle, or `nil`
+    /// when the facts are not FULLY expressible as one syntactically valid
+    /// attribute — the attribute is emitted only when it tells the whole
+    /// presence story, the bitmap comment stays the carrier of everything
+    /// else (evolution proposal draft-evolution-interface-available-annotations):
+    ///
+    /// - The presence bitmap must be a single interval (`○ᵃ●ᵇ○ᶜ`); a
+    ///   disappeared-and-returned shape (`●○●`) fits no single attribute.
+    /// - `introduced:` exists only when the declaration is absent at the
+    ///   axis start (present-from-the-first-version means "predates the
+    ///   axis", which is not an introduction fact); `obsoleted:` only when
+    ///   it is absent at the axis end.
+    /// - Every involved version label must parse as a dotted numeric version
+    ///   (`26.0`, `18.5.1`) — a file-name fallback label cannot become a
+    ///   version literal.
+    /// - Modified events never participate: `@available` has no vocabulary
+    ///   for them, so a modified-throughout lifecycle yields `nil`.
+    ///
+    /// The facts are axis-resolution: `introduced:` names the first axis
+    /// point carrying the declaration, not necessarily the OS release that
+    /// really introduced it (the legend states this once per document).
+    static func availabilityAttributeText(
+        for annotation: EvolutionAnnotation,
+        versions: [ABIVersionDescriptor],
+        platform: String
+    ) -> String? {
+        guard annotation.presence.count == versions.count else { return nil }
+        guard let interval = singlePresenceInterval(annotation.presence) else { return nil }
+        var clauses: [String] = []
+        if interval.firstPresentIndex > 0 {
+            guard let introducedVersion = availabilityVersion(fromLabel: versions[interval.firstPresentIndex].label) else { return nil }
+            clauses.append("introduced: \(introducedVersion)")
+        }
+        if let firstAbsentIndexAfterPresence = interval.firstAbsentIndexAfterPresence {
+            guard let obsoletedVersion = availabilityVersion(fromLabel: versions[firstAbsentIndexAfterPresence].label) else { return nil }
+            clauses.append("obsoleted: \(obsoletedVersion)")
+        }
+        guard !clauses.isEmpty else { return nil }
+        return "@available(\(platform), \(clauses.joined(separator: ", ")))"
+    }
+
+    /// Prepends the availability attribute as its own line above a unit's
+    /// lines. An empty unit stays empty — no stray attribute, mirroring
+    /// `annotatedLines`' empty-source rule. The attribute line carries no
+    /// annotation of its own (the bitmap comment stays anchored on the
+    /// declaration line it has always lived on).
+    static func prependingAvailabilityAttribute(
+        _ attributeText: String?,
+        to lines: [EvolutionLine],
+        indentLevel: Int
+    ) -> [EvolutionLine] {
+        guard let attributeText, !lines.isEmpty else { return lines }
+        var attributeContent = SemanticString()
+        attributeContent.append(attributeText, type: .keyword)
+        return [EvolutionLine(content: attributeContent, indentLevel: indentLevel, annotation: nil)] + lines
+    }
+
+    /// The single presence interval `○ᵃ●ᵇ○ᶜ` (a, c ≥ 0, b ≥ 1), or `nil`
+    /// when the bitmap holds no presence at all or more than one presence
+    /// run. `firstAbsentIndexAfterPresence` is the removal transition's
+    /// version index, `nil` when the declaration is still present at the
+    /// axis end.
+    private static func singlePresenceInterval(
+        _ presence: [Bool]
+    ) -> (firstPresentIndex: Int, firstAbsentIndexAfterPresence: Int?)? {
+        guard let firstPresentIndex = presence.firstIndex(of: true) else { return nil }
+        guard let firstAbsentIndexAfterPresence = presence[firstPresentIndex...].firstIndex(of: false) else {
+            return (firstPresentIndex, nil)
+        }
+        guard !presence[firstAbsentIndexAfterPresence...].contains(true) else { return nil }
+        return (firstPresentIndex, firstAbsentIndexAfterPresence)
+    }
+
+    /// A label usable as an `@available` version literal: one to three
+    /// dot-separated runs of ASCII digits (`26`, `18.5`, `18.5.1`). Returned
+    /// verbatim on success.
+    static func availabilityVersion(fromLabel label: String) -> String? {
+        let components = label.split(separator: ".", omittingEmptySubsequences: false)
+        guard (1...3).contains(components.count) else { return nil }
+        for component in components {
+            guard !component.isEmpty, component.allSatisfy({ $0.isASCII && $0.isNumber }) else { return nil }
+        }
+        return label
+    }
+
     // MARK: - Document rendering
 
     /// The final annotated interface: legend header, the blocks separated by
     /// blank lines, and — when the evolution carries diagnostics — a warnings
     /// tail mirroring `ABIEvolutionReporter`'s two warnings sections as
     /// comments (surfaced, not silent).
-    static func renderInterface(blocks: [[EvolutionLine]], evolution: ABIEvolution) -> SemanticString {
-        var result = legendLines(for: evolution)
+    static func renderInterface(
+        blocks: [[EvolutionLine]],
+        evolution: ABIEvolution,
+        availabilityAnnotationPlatform: String? = nil
+    ) -> SemanticString {
+        var result = legendLines(for: evolution, availabilityAnnotationPlatform: availabilityAnnotationPlatform)
         for block in blocks {
             let renderedBlock = renderBlock(block, versions: evolution.versions)
             if renderedBlock.string.isEmpty { continue }
@@ -122,8 +213,10 @@ enum EvolutionMarking {
     }
 
     /// Two comment lines naming the axis and mapping bitmap positions to
-    /// version labels — the key to reading every `[●●○]` in the body.
-    static func legendLines(for evolution: ABIEvolution) -> SemanticString {
+    /// version labels — the key to reading every `[●●○]` in the body. With
+    /// availability attributes enabled, a third line states their semantic
+    /// resolution once, so no attribute in the body overclaims.
+    static func legendLines(for evolution: ABIEvolution, availabilityAnnotationPlatform: String? = nil) -> SemanticString {
         let labels = evolution.versions.map(\.label)
         var result = SemanticString()
         result.append(
@@ -135,6 +228,13 @@ enum EvolutionMarking {
             "// Bitmap positions: " + labels.enumerated().map { "[\($0 + 1)] \($1)" }.joined(separator: "  "),
             type: .comment
         )
+        if let availabilityAnnotationPlatform {
+            result.append("\n", type: .standard)
+            result.append(
+                "// @available(\(availabilityAnnotationPlatform), …) attributes are axis-resolution facts: introduced: names the first axis point carrying a declaration, obsoleted: the first axis point without it — not necessarily the exact release versions.",
+                type: .comment
+            )
+        }
         return result
     }
 

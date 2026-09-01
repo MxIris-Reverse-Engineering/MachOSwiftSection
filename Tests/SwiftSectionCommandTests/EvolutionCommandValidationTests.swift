@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 import ArgumentParser
+import MachOKit
 @testable import swift_section
 
 /// Pins `swift-section evolution`'s flag-validation rules around the annotated
@@ -48,5 +49,42 @@ struct EvolutionCommandValidationTests {
         #expect(command.interface)
         #expect(command.failOnBreaking)
         #expect(command.inputPaths == ["old.dylib", "new.dylib"])
+    }
+
+    // MARK: - Availability attributes (--emit-available / --platform)
+
+    @Test func emitAvailableRequiresInterface() {
+        expectValidationFailure(
+            ["--emit-available", "old.dylib", "new.dylib"],
+            messagePart: "--emit-available requires --interface"
+        )
+    }
+
+    @Test func platformRequiresEmitAvailable() {
+        expectValidationFailure(
+            ["--interface", "--platform", "iOS", "old.dylib", "new.dylib"],
+            messagePart: "--platform requires --emit-available"
+        )
+    }
+
+    @Test func emitAvailableParsesAlongsideInterface() throws {
+        let command = try EvolutionCommand.parse([
+            "--interface", "--emit-available", "--platform", "iOS", "old.dylib", "new.dylib",
+        ])
+        #expect(command.emitAvailable)
+        #expect(command.platform == "iOS")
+    }
+
+    /// Simulator variants share their device platform's availability domain;
+    /// platforms Swift's availability grammar has no name for resolve to
+    /// `nil` (which the command turns into a loud "pass --platform" error,
+    /// never a silent no-attribute run).
+    @Test func availabilityPlatformSpellingMapsBuildPlatforms() {
+        #expect(EvolutionCommand.availabilityPlatformSpelling(for: .macOS) == "macOS")
+        #expect(EvolutionCommand.availabilityPlatformSpelling(for: .iOS) == "iOS")
+        #expect(EvolutionCommand.availabilityPlatformSpelling(for: .iOSSimulator) == "iOS")
+        #expect(EvolutionCommand.availabilityPlatformSpelling(for: .macCatalyst) == "macCatalyst")
+        #expect(EvolutionCommand.availabilityPlatformSpelling(for: .visionOSSimulator) == "visionOS")
+        #expect(EvolutionCommand.availabilityPlatformSpelling(for: .driverKit) == nil)
     }
 }

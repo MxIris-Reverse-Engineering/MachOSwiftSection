@@ -39,6 +39,16 @@ public final class AnySwiftEvolutionInterfaceBuilder: Sendable {
     /// The version-axis labels, oldest first (e.g. `["17.0", "18.0", "26.0"]`).
     public let labels: [String]
 
+    /// The `@available` platform spelling (`"iOS"`, `"macOS"`, …) for genuine
+    /// availability attributes above declarations whose lifecycle is fully
+    /// expressible as one attribute (evolution proposal
+    /// draft-evolution-interface-available-annotations); `nil` — the default —
+    /// disables them and keeps output byte-identical to the pre-attribute
+    /// builder. Inexpressible lifecycles (disappeared-and-returned shapes,
+    /// non-version labels, modified-only histories) never emit an attribute;
+    /// the bitmap comment stays the carrier of the full truth either way.
+    public let availabilityAnnotationPlatform: String?
+
     @Mutex
     private var preparedEvolution: ABIEvolution? = nil
 
@@ -51,13 +61,15 @@ public final class AnySwiftEvolutionInterfaceBuilder: Sendable {
         configuration: SwiftDeclarationIndexConfiguration = .init(),
         eventHandlers: [SwiftIndexEvents.Handler] = [],
         versions: [MachO],
-        labels: [String]
+        labels: [String],
+        availabilityAnnotationPlatform: String? = nil
     ) throws {
         try Self.validate(versionCount: versions.count, labelCount: labels.count)
         self.versionUnits = versions.map {
             InterfaceVersionUnit(configuration: configuration, eventHandlers: eventHandlers, machO: $0)
         }
         self.labels = labels
+        self.availabilityAnnotationPlatform = availabilityAnnotationPlatform
     }
 
     /// Heterogeneous construction: each version brings its own reader type.
@@ -68,7 +80,8 @@ public final class AnySwiftEvolutionInterfaceBuilder: Sendable {
         configuration: SwiftDeclarationIndexConfiguration = .init(),
         eventHandlers: [SwiftIndexEvents.Handler] = [],
         versions: repeat each Reader,
-        labels: [String]
+        labels: [String],
+        availabilityAnnotationPlatform: String? = nil
     ) throws {
         var units: [any InterfaceVersionRendering] = []
         for machO in repeat each versions {
@@ -77,6 +90,7 @@ public final class AnySwiftEvolutionInterfaceBuilder: Sendable {
         try Self.validate(versionCount: units.count, labelCount: labels.count)
         self.versionUnits = units
         self.labels = labels
+        self.availabilityAnnotationPlatform = availabilityAnnotationPlatform
     }
 
     private static func validate(versionCount: Int, labelCount: Int) throws {
@@ -118,7 +132,11 @@ public final class AnySwiftEvolutionInterfaceBuilder: Sendable {
     public func printAnnotatedInterface() async throws -> SemanticString {
         let evolution = try requirePrepared()
         let blocks = await makeRenderer(for: evolution).annotatedBlocks()
-        return EvolutionMarking.renderInterface(blocks: blocks, evolution: evolution)
+        return EvolutionMarking.renderInterface(
+            blocks: blocks,
+            evolution: evolution,
+            availabilityAnnotationPlatform: availabilityAnnotationPlatform
+        )
     }
 
     /// The structured line stream behind ``printAnnotatedInterface()``: the
@@ -135,7 +153,9 @@ public final class AnySwiftEvolutionInterfaceBuilder: Sendable {
     private func makeRenderer(for evolution: ABIEvolution) -> SwiftEvolutionInterfaceRenderer {
         SwiftEvolutionInterfaceRenderer(
             versions: versionUnits,
-            annotations: EvolutionAnnotationIndex(evolution: evolution)
+            annotations: EvolutionAnnotationIndex(evolution: evolution),
+            versionDescriptors: evolution.versions,
+            availabilityAnnotationPlatform: availabilityAnnotationPlatform
         )
     }
 
