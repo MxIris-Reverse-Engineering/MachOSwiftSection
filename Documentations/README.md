@@ -38,6 +38,11 @@ Everything under [`Internal/`](Internal/) is maintainer-facing.
 Design notes, migration guides, refactor write-ups, and per-task reports for contributors to
 this repository. Not part of the public documentation surface (mixed Chinese / English).
 
+**Per-module reference docs** live in [`Internal/Modules/`](Internal/Modules/README.md) — one doc
+per library module (what it is, its subsystems, their contracts, and where the detail docs are),
+the authoritative entry point for each module. Coverage status is tracked in that directory's
+README; topic docs stay in the flat `Internal/` layer and are linked from the module docs.
+
 **Start here for history:** [ProjectEvolutionLog.md](Internal/ProjectEvolutionLog.md) is the
 chronological ledger of the library's own evolution — one section per work arc (period,
 motivation, key decisions, landed modules, doc links, version range), maintained on every
@@ -48,6 +53,8 @@ required by `Version.swift`'s bump contract).
 
 | Doc | What it covers |
 |---|---|
+| [Modules/](Internal/Modules/README.md) | **按模块组织的参考文档系列**：每个库模块一篇权威入口（定位 / 子系统分工 / 跨文件契约 / 细节文档指路）；该目录 README 是覆盖状态表。 |
+| [Modules/SwiftInterface.md](Internal/Modules/SwiftInterface.md) | SwiftInterface 模块参考：编排层定位与三种输出产品（单版本 interface / 两侧 diff / N 路 evolution），五个子系统（核心 builder、opaque 解析、共享 union 走查、diff 渲染、evolution 渲染）的分工、契约与测试锚点，消费入口速查。 |
 | [ProjectEvolutionLog.md](Internal/ProjectEvolutionLog.md) | 编年演进账本：逐工作弧（Foundation 解析 → demangler → 模块化 → SwiftLayout → SwiftDiffing/ABI evolution …）的时间段/动机/关键决策/落地文档/版本对应，含每批次必须追加的维护约定。 |
 | [ReviewAdjudications.md](Internal/ReviewAdjudications.md) | Review 已裁决清单：判定为「不修 / 误报」的发现及结论、理由、复审条件；每轮 code review 先对照此表，已裁决且理由仍成立的直接跳过。 |
 | [SwiftModularizationMigration.md](Internal/SwiftModularizationMigration.md) | The `SwiftInterface` monolith → layered peer modules refactor; where everything moved. |
@@ -76,7 +83,8 @@ required by `Version.swift`'s bump contract).
 | [EnumLayoutAuditFixes.md](Internal/EnumLayoutAuditFixes.md) | 对照 Swift 官方源码（`EnumImpl.h` / `Enum.cpp` / `GenEnum.cpp` / `TypeLowering.cpp`）的枚举布局全面审计与五项修复：indirect 单 payload 的 heap-pointer XI（曾被误判为 overflow 布局）、枚举自身 VWT 的 size 交叉校验与 payloadXI 精确反推、spare-bits payload case 的位级 `fixedBitMasks`（不再整字节过度声明）、empty case 判别区完整记录（tagged 零扩展 + spare-bits 全位固定）、no-payload XI 封顶；runtime 对拍测试增量与 RuntimeViewerCore token 同步。 |
 | [OutputTransformerMigration.md](Internal/OutputTransformerMigration.md) | `Transformer` 模板机制的 Swift 侧（注释 token 模板 + 预设）从 RuntimeViewerCore 迁入库侧的新 `OutputTransformer` 模块（ObjC 侧 CType/ivarOffset 暂留 RV）：架构（模块清单、宽容 Codable 持久化契约、SwiftInspection 桥接、闭包工厂 + `applyTransformers` 接线）、RV 兼容语义（auto-append、partial-mask 安全回退）、RV 侧收编为 `@_exported` shim + 一行接线。 |
 | [CLITransformerTemplateInterface.md](Internal/CLITransformerTemplateInterface.md) | `swift-section` 的注释模板命令行入口：三层配置（`--transformer-config` JSON 文件 / `--enum-layout-style` 整模块预设 / 逐模块模板选项）与其优先级、"内置模板名 vs 字面模板" 的解析规则（未知名字报错而非退化）、"启用的模块自动打开对应注释开关" 规则、`transformer tokens/templates/config` 发现性子命令，以及 `interface` 补齐 `--emit-type-layout` / `--emit-enum-layout`。 |
-| [ReadingContextAbstraction.md](Internal/ReadingContextAbstraction.md) | The `ReadingContext` reading-abstraction design. |
+| [ReadingContextAbstraction.md](Internal/ReadingContextAbstraction.md) | The `ReadingContext` reading-abstraction design, including the 2026-05 model-coverage completion pass (`runtimePointer(at:)` extension-not-requirement decision). |
+| [FixtureTestingAndContinuousIntegration.md](Internal/FixtureTestingAndContinuousIntegration.md) | **Fixture 测试体系与 CI 的设计来历**（整合自已删除的 `docs/superpowers/` 四份 spec + CI 落地记录）：为什么 fixture 只用 SymbolTestsCore、`#filePath` 路径锚定陷阱、命名空间约定与边界规则、ABI 覆盖四支柱与 sentinel 信任危机（88/157 suite 失真）的收紧、CI 白名单 regex 与首轮五坑。现行操作规程仍以 AGENTS.md 为准。 |
 | [ClassMemberKeywordRecovery.md](Internal/ClassMemberKeywordRecovery.md) | `class` / `static` 成员关键字的还原：mangling 层面两者不可区分，判据是「类型级成员有 vtable method descriptor ⇒ 源码是 `class`」（`static` 隐式 final、不进 vtable）；模型侧 `isClassMember` 计算属性 + 三个 node printer 接线 + dump vtable 段落关键字，顺带消灭非法的 `override static` 输出；`final class func` 等四类 ABI 上与 `static` 完全一致，保守输出语义等价的 `static`。 |
 | [ExtensionContainerUnification.md](Internal/ExtensionContainerUnification.md) | Extension 容器统一（提案 0007 的实现说明）：双产线重复（协议尾随 descriptor 副本 + 符号扫描桶副本）的「附着 + 打印抑制」消解——桶是 ABI 快照的直接输入故不可移除，附着对象留桶打标、顶层打印跳过；descriptor 合成降级为 fallback（ICF 地址上丢成员）；桶内同身份合并、空 requirement 签名桶折叠、`updateConfiguration` no-op 修复、嵌套协议扩展块死循环修复；裸头 typealias 块并存为 P1-9 残余（格式冻结约束下不合并）。 |
 | [FinalKeywordAndLazyAccessorTypeRecovery.md](Internal/FinalKeywordAndLazyAccessorTypeRecovery.md) | `final` 成员关键字还原与 lazy var 访问器类型修正（提案 0006 的实现说明）：核心是停止丢弃 `DefinitionBuilder` 已解析的 stored-var accessor→vtable 归属；三层证据门（非 actor class 有 vtable header / accessor 组确实 join 上 / `@objc` 排除）宁缺勿错；`memberJoinKey` 剥 `Tu` async-function-pointer 标记（顺带修复 async 成员一直缺失的 `override` 与 vtable 注释）；final class 的成员级 `final`、stored `let` 不标、dump 路径 lazy 保持存储真相等决策与降级。 |
