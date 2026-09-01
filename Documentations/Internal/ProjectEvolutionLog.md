@@ -62,8 +62,8 @@
 - **落地**：`SwiftSpecialization`：`GenericSpecializer` 两步 API（`makeRequest` →
   `specialize`）、`ConformanceProvider`、PWT 按 requirement 顺序传递的关键不变量。
   后续加入 `Argument.boundGeneric` 嵌套绑定（Roadmap 2026-05-11 的 Approach 2）。
-- **文档**：[../../docs/superpowers/specs/2026-05-02-generic-specializer-cleanup-design.md](../../docs/superpowers/specs/2026-05-02-generic-specializer-cleanup-design.md)、
-  [../../docs/superpowers/reviews/2026-05-06-generic-specializer-bug-review.md](../../docs/superpowers/reviews/2026-05-06-generic-specializer-bug-review.md)、
+- **文档**：[Reviews/2026-05-06-generic-specializer-bug-review.md](Reviews/2026-05-06-generic-specializer-bug-review.md)
+  （含同期 cleanup 六项的提交面记录；cleanup 的原始设计 spec 在 git 历史的 `docs/superpowers/`）、
   [../../Roadmaps/2026-05-11-bound-generic-candidates.md](../../Roadmaps/2026-05-11-bound-generic-candidates.md)、
   TaskReports [2026-06-10-pr88-nested-generic-specialization-followups.md](TaskReports/2026-06-10-pr88-nested-generic-specialization-followups.md)
   / [2026-06-10-pr88-nested-recursion-depth-limit.md](TaskReports/2026-06-10-pr88-nested-recursion-depth-limit.md)。
@@ -74,8 +74,8 @@
 - **时间**：2026-03-12 → 2026-04-18（`0.8.x`–`0.9.x`）
 - **动机**：dump / interface 输出需要可回归的快照测试，且要能在 CI 上跑。
 - **落地**：snapshot 测试管线 + CI 设计。
-- **文档**：[../../docs/superpowers/specs/2026-03-15-ci-snapshot-testing-design.md](../../docs/superpowers/specs/2026-03-15-ci-snapshot-testing-design.md)、
-  [../../docs/superpowers/specs/2026-04-18-ci-test-filter-design.md](../../docs/superpowers/specs/2026-04-18-ci-test-filter-design.md)。
+- **文档**：[FixtureTestingAndContinuousIntegration.md](FixtureTestingAndContinuousIntegration.md)
+  （整合原快照测试与 CI 过滤两份 spec；原文在 git 历史的 `docs/superpowers/`）。
 
 ## 7. SymbolTestsCore fixtures / 覆盖率体系
 
@@ -84,11 +84,9 @@
   并对 `MachOSwiftSection/Models` 建立「每个 public 方法必有测试或 allowlist」的覆盖不变量。
 - **落地**：`MachOFixtureSupport`、`baseline-generator` + `RegenerateBaselinesPlugin`、
   `MachOSwiftSectionCoverageInvariantTests` 四不变量、`SuiteBehaviorScanner`。
-- **文档**：[../../docs/superpowers/specs/2026-04-10-symboltestscore-integration-tests-design.md](../../docs/superpowers/specs/2026-04-10-symboltestscore-integration-tests-design.md)、
-  [../../docs/superpowers/specs/2026-04-13-symboltestscore-fixture-expansion-design.md](../../docs/superpowers/specs/2026-04-13-symboltestscore-fixture-expansion-design.md)、
-  [../../docs/superpowers/specs/2026-05-03-machoswift-section-fixture-tests-design.md](../../docs/superpowers/specs/2026-05-03-machoswift-section-fixture-tests-design.md)、
-  [../../docs/superpowers/specs/2026-05-05-fixture-coverage-tightening-design.md](../../docs/superpowers/specs/2026-05-05-fixture-coverage-tightening-design.md)。
-  测试约定见 [AGENTS.md](../../AGENTS.md)。
+- **文档**：[FixtureTestingAndContinuousIntegration.md](FixtureTestingAndContinuousIntegration.md)
+  （整合原集成测试、fixture 扩展、ABI 覆盖体系、覆盖收紧四份 spec；原文在 git 历史的
+  `docs/superpowers/`）。测试约定见 [AGENTS.md](../../AGENTS.md)。
 
 ## 8. ReadingContext 读取抽象
 
@@ -96,8 +94,9 @@
 - **动机**：统一 `MachOFile` / `MachOImage` / InProcess 三种读取方式的 API 面，让上层代码
   对 reader 泛化。
 - **落地**：`MachOReading.ReadingContext` 一族 + 全库适配。
-- **文档**：[ReadingContextAbstraction.md](ReadingContextAbstraction.md)、
-  [../../docs/superpowers/specs/2026-05-02-reading-context-api-design.md](../../docs/superpowers/specs/2026-05-02-reading-context-api-design.md)。
+- **文档**：[ReadingContextAbstraction.md](ReadingContextAbstraction.md)
+  （其「Model Coverage Completion Pass」一节整合了原覆盖补全 spec；原文在 git 历史的
+  `docs/superpowers/`）。
 
 ## 9. SwiftInterface ABI 解析 / 打印路径修复
 

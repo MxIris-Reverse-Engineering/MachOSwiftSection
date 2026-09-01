@@ -288,6 +288,47 @@ Sources/
 4. **Backward Compatible**: Existing code continues to work unchanged
 5. **Consistent with Swift Runtime**: Follows established patterns from Apple's implementation
 
+## Model Coverage Completion Pass (2026-05)
+
+When the abstraction landed, only ~15 of the ~60 files under
+`Sources/MachOSwiftSection/Models/` that expose a MachO-based API also exposed a
+`ReadingContext` overload — any caller adopting the abstraction had to drop back
+to the MachO/InProcess APIs for the rest. A dedicated completion pass (original
+spec: `docs/superpowers/specs/2026-05-02-reading-context-api-design.md`, now in
+git history only) added the missing overloads across all of `Models/`, purely
+additive, batched per sub-directory with one passing build per batch. The
+mechanical substitution rule: every `machO.read*(offset: o)` becomes
+`context.read*(at: try context.addressFromOffset(o))`, every
+`pointer.resolve(from: o, in: machO)` becomes
+`pointer.resolve(at: try context.addressFromOffset(o), in: context)`; local
+`Int` offset arithmetic stays unchanged — the translation to a context-specific
+address happens at the read site.
+
+One capability was added to support runtime-pointer-returning methods
+(`metadataAccessorFunction` is the canonical case, which only makes sense when
+the reader is mapped into the current process):
+
+```swift
+extension ReadingContext {
+    /// nil unless the context is mapped into the current process.
+    public func runtimePointer(at address: Address) throws -> UnsafeRawPointer? { nil }
+}
+// InProcessContext returns the address itself; MachOContext returns
+// machO.ptr + address when its MachO is a MachOImage, else nil.
+```
+
+Two deliberate decisions worth keeping in mind:
+
+- `runtimePointer(at:)` is an **extension method with a default, not a protocol
+  requirement** — keeping it out of the requirement set makes the addition
+  non-breaking for external conformers. A future conformer that needs it must
+  override the extension, not implement a witness.
+- The `machO as? MachOImage` runtime cast inside `MachOContext`'s override is
+  unavoidable: the generic parameter is unconstrained at the conformance site,
+  so a `where MachO == MachOImage` specialization would not produce a witness.
+  For `MachOContext<MachOFile>` the method returns `nil`, matching the
+  pre-existing MachO overload's behavior.
+
 ## Future Considerations
 
 1. **Async Support**: Add `AsyncReadingContext` for async reading operations
