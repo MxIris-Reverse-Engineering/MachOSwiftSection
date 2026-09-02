@@ -1238,7 +1238,8 @@
   `SwiftInterfaceBuilderDependenciesTests`（image 版非空回归、direct 语义、`init(closure:)` 保留遍历）；既有
   `DependencyClosureLayoutTests` 端到端不动。验证：全量 1612 测试仅 2 个已知 flaky；带布局注释的 dump / interface
   对 SwiftUI / SwiftUICore / SwiftData / Combine 双侧 8 组逐字节一致；同依赖版本下耗时持平（首轮 2.5× 的「回归」
-  是候选 scratch 解析到更新的 swift-demangling 0.6.1 / FrameworkToolbox 0.11.0 所致，教训进 AGENTS.md）。
+  是候选 scratch 解析到更新的 swift-demangling 0.6.1 / FrameworkToolbox 0.11.0 所致；二分确认为 swift-demangling 0.6.1 的
+  `StackSafeExecutor` QoS 改动，且默认 dump / interface 路径同样慢 3–4 倍，升级前须上游先修——教训进 AGENTS.md）。
 - **文档**：[../Evolutions/0017-macho-dependencies-module.md](../Evolutions/0017-macho-dependencies-module.md)、
   [Modules/MachODependencies.md](Modules/MachODependencies.md)、
   [TaskReports/2026-09-02-macho-dependencies-module.md](TaskReports/2026-09-02-macho-dependencies-module.md)、

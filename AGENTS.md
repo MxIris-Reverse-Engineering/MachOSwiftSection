@@ -402,7 +402,13 @@ Rule out both before attributing red tests to a code change:
    FrameworkToolbox 0.11.0 over the baseline's 0.6.0 + 0.10.0 and ran the
    layout dump 2.5× slower — a phantom regression). Copy the baseline's
    `Package.resolved` into the candidate checkout before building and confirm
-   both `workspace-state.json` files agree.
+   both `workspace-state.json` files agree. (Bisected the same day: the
+   slowdown is swift-demangling 0.6.1 alone — its `StackSafeExecutor` now
+   re-ranks the large-stack worker's QoS per hop and parks idle workers at
+   background, and every `demangle` / `print` / `remangle` call is one hop —
+   and it hits the DEFAULT `dump` / `interface` paths too (SwiftUICore: 50 s →
+   150–210 s), not only the layout path. Do not bump past 0.6.0 until upstream
+   addresses it; see the 2026-09-02 MachODependencies task report.)
 
 ## Work In Progress
 
