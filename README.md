@@ -290,9 +290,18 @@ swift-section interface --emit-header /path/to/binary
 # `@objc` members are exempt — they are reachable through the parent's
 # dispatch thunk / objc_msgSend without any exported symbol of their own.
 swift-section interface --emit-export-status /path/to/binary
+
+# Print only the declarations the image exports — the filtering counterpart of
+# --emit-export-status. Types and protocols are ruled by their descriptor
+# symbol's export-trie entry, extensions by whether their target is an
+# in-image non-exported declaration, members by the same derived-form verdict
+# the annotation uses. Still a symbol-table fact, never an access-level guess:
+# anything without export evidence (and every `override` / `@objc` member) is
+# kept, so an `-enable-testing` build keeps its `internal` declarations.
+swift-section interface --exported-only /path/to/binary
 ```
 
-Both flags default to off, keeping default output byte-identical.
+All three flags default to off, keeping default output byte-identical.
 
 **Working with dyld shared cache:**
 

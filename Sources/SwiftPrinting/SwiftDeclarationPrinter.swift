@@ -34,6 +34,13 @@ public final class SwiftDeclarationPrinter<MachO: FieldLayoutRenderable>: Sendab
     @Mutex
     private var typeNameResolverRegistry: TypeNameResolverRegistry = .init()
 
+    /// The in-image non-exported declaration names the exported-only filter
+    /// consults for `extension` targets — installed by
+    /// `installExportFilterScope(types:protocols:)`, consulted only while
+    /// `configuration.printExportedDeclarationsOnly` is set.
+    @Mutex
+    var exportFilterScope: ExportFilterScope = .empty
+
     /// `package` so in-package renderers that drive this printer — notably
     /// ``SwiftDiffableInterfaceRenderer`` — report their own degradations into
     /// the same sinks rather than inventing a second reporting channel.
@@ -156,8 +163,18 @@ public final class SwiftDeclarationPrinter<MachO: FieldLayoutRenderable>: Sendab
         typeNameResolverRegistry = .init()
     }
 
-    @SemanticStringBuilder
+    /// Exported-only gate (evolution proposal `exported-only-interface`):
+    /// a type whose descriptor provably is not exported renders as NOTHING —
+    /// an empty result every enclosing `BlockList` / `NestedDeclaration`
+    /// skips without a stray break. Ruled before the start event, so a
+    /// filtered definition leaves no unpaired `definitionPrintStarted`.
     public func printTypeDefinition(_ typeDefinition: TypeDefinition, level: Int = 1, displayParentName: Bool = false) async throws -> SemanticString {
+        guard !isExcludedByExportFilter(typeDefinition) else { return SemanticString() }
+        return try await printIncludedTypeDefinition(typeDefinition, level: level, displayParentName: displayParentName)
+    }
+
+    @SemanticStringBuilder
+    private func printIncludedTypeDefinition(_ typeDefinition: TypeDefinition, level: Int, displayParentName: Bool) async throws -> SemanticString {
         let printingContext = SwiftIndexEvents.PrintingContext(name: typeDefinition.typeName.name, kind: .type)
         eventDispatcher.dispatch(.definitionPrintStarted(context: printingContext))
 
@@ -230,8 +247,16 @@ public final class SwiftDeclarationPrinter<MachO: FieldLayoutRenderable>: Sendab
         eventDispatcher.dispatch(.definitionPrintCompleted(context: printingContext))
     }
 
-    @SemanticStringBuilder
+    /// Exported-only gate, same contract as `printTypeDefinition`: a protocol
+    /// whose descriptor provably is not exported renders as nothing — its
+    /// trailing default-implementation extensions go with it.
     public func printProtocolDefinition(_ protocolDefinition: ProtocolDefinition, level: Int = 1, displayParentName: Bool = false) async throws -> SemanticString {
+        guard !isExcludedByExportFilter(protocolDefinition) else { return SemanticString() }
+        return try await printIncludedProtocolDefinition(protocolDefinition, level: level, displayParentName: displayParentName)
+    }
+
+    @SemanticStringBuilder
+    private func printIncludedProtocolDefinition(_ protocolDefinition: ProtocolDefinition, level: Int, displayParentName: Bool) async throws -> SemanticString {
         // Context and start event FIRST, exactly like `printTypeDefinition`.
         // The materialization below throws (proposal 0002 rebuilt the wrapper
         // from its descriptor), and a failure that precedes the start event
@@ -289,8 +314,17 @@ public final class SwiftDeclarationPrinter<MachO: FieldLayoutRenderable>: Sendab
         eventDispatcher.dispatch(.definitionPrintCompleted(context: printingContext))
     }
 
-    @SemanticStringBuilder
+    /// Exported-only gate for extensions. Two rules, ruled at different
+    /// points: an extension TARGETING an in-image non-exported declaration
+    /// is dropped before any event (like a filtered type); a non-conformance
+    /// extension the filter EMPTIES needs its members, which only
+    /// `index(in:)` provides, so that rule is evaluated after the start
+    /// event and the index — and reports a paired completion around an
+    /// empty result, keeping the event stream's start/completion pairing
+    /// intact on that path too.
     public func printExtensionDefinition(_ extensionDefinition: ExtensionDefinition, level: Int = 1) async throws -> SemanticString {
+        guard !isExcludedByExportFilter(extensionDefinition) else { return SemanticString() }
+
         let printingContext = SwiftIndexEvents.PrintingContext(name: extensionDefinition.extensionName.name, kind: .extension)
         eventDispatcher.dispatch(.definitionPrintStarted(context: printingContext))
 
@@ -298,6 +332,19 @@ public final class SwiftDeclarationPrinter<MachO: FieldLayoutRenderable>: Sendab
             try await extensionDefinition.index(in: machO)
         }
 
+        let rendered: SemanticString
+        if isEmptiedByExportFilter(extensionDefinition) {
+            rendered = SemanticString()
+        } else {
+            rendered = try await printIncludedExtensionDefinition(extensionDefinition, level: level)
+        }
+
+        eventDispatcher.dispatch(.definitionPrintCompleted(context: printingContext))
+        return rendered
+    }
+
+    @SemanticStringBuilder
+    private func printIncludedExtensionDefinition(_ extensionDefinition: ExtensionDefinition, level: Int) async throws -> SemanticString {
         try await DeclarationBlock(level: level) {
             try await printExtensionHeader(extensionDefinition, level: level)
         } body: {
@@ -338,8 +385,6 @@ public final class SwiftDeclarationPrinter<MachO: FieldLayoutRenderable>: Sendab
 
             try await printDefinition(extensionDefinition, level: 1)
         }
-
-        eventDispatcher.dispatch(.definitionPrintCompleted(context: printingContext))
     }
 
     /// Renders an extension's header line (`extension Foo : Bar where …`) with no
@@ -443,7 +488,7 @@ public final class SwiftDeclarationPrinter<MachO: FieldLayoutRenderable>: Sendab
         let vtableTransformerClosure = vtableOffsetTransformerClosure
 
         await MemberList(level: level) {
-            for member in definition.orderedMembers {
+            for member in definition.orderedMembers where !isExcludedByExportFilter(member) {
                 await renderMember(member, level: level, offsetCommentPrefix: offsetCommentPrefix, emitOffsetComment: emitOffsetComment, printVTableOffset: printVTableOffset, printMemberAddress: printMemberAddress, printExportStatus: printExportStatus, vtableTransformerClosure: vtableTransformerClosure)
             }
 
@@ -476,7 +521,7 @@ public final class SwiftDeclarationPrinter<MachO: FieldLayoutRenderable>: Sendab
 
         for category in MemberCategory.allCases {
             await MemberList(level: level) {
-                for member in definition.members(in: category) {
+                for member in definition.members(in: category) where !isExcludedByExportFilter(member) {
                     await renderMember(member, level: level, offsetCommentPrefix: offsetCommentPrefix, emitOffsetComment: emitOffsetComment, printVTableOffset: printVTableOffset, printMemberAddress: printMemberAddress, printExportStatus: printExportStatus, vtableTransformerClosure: vtableTransformerClosure)
                 }
             }

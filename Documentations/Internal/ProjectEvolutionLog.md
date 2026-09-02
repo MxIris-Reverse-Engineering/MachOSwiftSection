@@ -1188,6 +1188,32 @@
 
 ---
 
+## 54. Interface 只打印导出声明（提案 0016）
+
+- **时间段**：2026-09-02，单日单批。
+- **动机**：用户要求「SwiftInterface 只打印 exported 的方法和类型」。提案 0008 只在成员上打
+  `// not exported` 标注，类型 / 协议 / 扩展层面没有任何导出判断，打印链路也没有过滤钩子。
+- **关键决策**：过滤放**打印期**（用户选定；模型完整、diff / RuntimeViewer 不受影响），
+  `SwiftDeclarationPrintConfiguration.printExportedDeclarationsOnly` + CLI `--exported-only`，只做
+  interface。语义仍是 export trie 事实：`false` 才删、`nil` 一律留。类型 / 协议按描述符符号裁决，
+  **先反查描述符 offset 处的符号、重整名只兜底且拒绝 `.extension` 上下文**——第一版纯重整名把带约束
+  扩展里的公开嵌套类型误删（编译器只 mangle 扩展自己的 requirement，模型节点带完整签名）。扩展靠
+  `printRoot` 从索引器表算出的 `ExportFilterScope` 裁决（strip 过的镜像里未导出类型零符号，符号推不出
+  「本镜像内」）；普通扩展被清空整块删、conformance 扩展留 `{}`。三个打印入口拆成「过滤壳 + builder
+  体」，被过滤定义不发 print 事件，被清空的扩展发成对事件。存储属性按 accessor 判定（用户选定）。
+- **落地模块**：`SwiftPrinting`（`+ExportFilter.swift` 新文件 + 三入口 + 成员 / 字段循环）、`SwiftInterface`
+  （`printRoot` 装 scope + 全局块过滤）、`swift-section`（flag）。验证：三套 22 测试全绿（`SymbolTestsCore`
+  端到端 12 例 + 即时编译 library-evolution fixture 7 例覆盖 `internal` 形态 + CLI 3 例）；fixture 全量交叉验证
+  378 处标注声明零残留、新增行仅 `{` → `{}`；`SwiftInterfaceTests` / `SwiftSectionCommandTests` /
+  `SwiftDiffingTests` 回归绿，默认输出逐字节不变。
+- **文档**：[../Evolutions/0016-exported-only-interface.md](../Evolutions/0016-exported-only-interface.md)、
+  [ExportedOnlyInterfaceFiltering.md](ExportedOnlyInterfaceFiltering.md)、
+  [TaskReports/2026-09-02-exported-only-interface.md](TaskReports/2026-09-02-exported-only-interface.md)、
+  Glossary 新术语「exported-only 过滤」。
+- **对应版本**：未发布（0.17.0 之后）。
+
+---
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节

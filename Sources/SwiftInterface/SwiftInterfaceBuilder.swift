@@ -125,8 +125,22 @@ public final class SwiftInterfaceBuilder<MachO: FieldLayoutRenderable>: Sendable
         eventDispatcher.dispatch(.phaseTransition(phase: .preparation, state: .completed))
     }
 
-    @SemanticStringBuilder
     public func printRoot() async throws -> SemanticString {
+        // Exported-only filter (evolution proposal
+        // `exported-only-interface`): the printer rules on types,
+        // protocols and members by itself, but an `extension`'s verdict needs
+        // the indexer's complete in-image tables — a stripped image carries no
+        // symbol for a non-exported type, so only the index can say whether an
+        // extension's target is a dropped in-image declaration. Installed per
+        // print so a configuration update between prints is honored.
+        if printer.configuration.printExportedDeclarationsOnly {
+            printer.installExportFilterScope(types: indexer.allTypeDefinitions.values, protocols: indexer.allProtocolDefinitions.values)
+        }
+        return try await printRootContents()
+    }
+
+    @SemanticStringBuilder
+    private func printRootContents() async throws -> SemanticString {
         // Leading header (evolution proposal 0008), deliberately independent
         // of the imports block below — flag-gated, default absent.
         if let interfaceHeaderInfo = configuration.interfaceHeaderInfo {
@@ -143,7 +157,7 @@ public final class SwiftInterfaceBuilder<MachO: FieldLayoutRenderable>: Sendable
         // they report as `.definitionBlock` degradations instead.
         await printCatchedThrowing(dispatchingTo: eventDispatcher, degradationSource: .definitionBlock) {
             await BlockList {
-                for variable in indexer.globalVariableDefinitions {
+                for variable in indexer.globalVariableDefinitions where !printer.isExcludedByExportFilter(globalSymbolNames: variable.accessors.map(\.symbol.name)) {
                     printer.globalExportStatusComment(forSymbolNames: variable.accessors.map(\.symbol.name))
                     await printer.printVariable(variable, level: 0)
                 }
@@ -152,7 +166,7 @@ public final class SwiftInterfaceBuilder<MachO: FieldLayoutRenderable>: Sendable
 
         await printCatchedThrowing(dispatchingTo: eventDispatcher, degradationSource: .definitionBlock) {
             await BlockList {
-                for function in indexer.globalFunctionDefinitions {
+                for function in indexer.globalFunctionDefinitions where !printer.isExcludedByExportFilter(globalSymbolNames: [function.symbol.name]) {
                     printer.globalExportStatusComment(forSymbolNames: [function.symbol.name])
                     await printer.printFunction(function, level: 0)
                 }

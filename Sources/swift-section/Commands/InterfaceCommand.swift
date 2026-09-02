@@ -65,6 +65,9 @@ struct InterfaceCommand: AsyncParsableCommand {
     @Flag(help: "Annotate members none of whose symbols have an export-trie entry with a `not exported` comment")
     var emitExportStatus: Bool = false
 
+    @Flag(name: .customLong("exported-only"), help: "Print only the declarations the image exports: types and protocols whose descriptor symbol has an export-trie entry, extensions targeting them, and members with at least one exported symbol (dispatch-thunk and other derived forms included). `override` / `@objc` members and anything without export evidence are kept.")
+    var exportedOnly: Bool = false
+
     @Option(name: .shortAndLong, help: "The color scheme for the output.")
     var colorScheme: SemanticColorScheme = .none
 
@@ -80,6 +83,7 @@ struct InterfaceCommand: AsyncParsableCommand {
             printMemberAddress: emitMemberAddresses,
             printVTableOffset: emitVtableOffsets,
             printExportStatus: emitExportStatus,
+            printExportedDeclarationsOnly: exportedOnly,
             memberSortOrder: sortMembersByOffset ? .byOffset : .byCategory,
             printTypeLayout: emitTypeLayout,
             printEnumLayout: emitEnumLayout

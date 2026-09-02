@@ -72,6 +72,13 @@ Requirement Machine 最小化泛型签名时，把 pin 到同一具体类型的�
 - **主要出现在**：`Sources/SwiftPrinting/SwiftDeclarationPrinter.swift`（`renderMember`）、三个 Dumper 的 member-symbol 循环
 - **延伸阅读**：[提案 0008](Evolutions/0008-interface-header-and-export-status-annotations.md)、[InterfaceHeaderAndExportStatusAnnotations.md](Internal/InterfaceHeaderAndExportStatusAnnotations.md)
 
+### exported-only 过滤（`--exported-only`，`printExportedDeclarationsOnly`）
+
+export status 的**过滤形态**：interface 只输出镜像导出的声明。类型 / 协议按描述符符号（`…Mn` / `…Mp`，优先取描述符 offset 处的符号，重整名只兜底）裁决，成员沿用 export status 的派生形态判定，扩展按「被扩展类型 / 遵循协议是否为本镜像内未导出声明」裁决（依据 **`ExportFilterScope`**——`printRoot` 从索引器表算出的本镜像内未导出 `TypeName` / `ProtocolName` 集合）。只在判定为 `false` 时删，`nil` 一律保留（绝不靠猜删）；普通扩展被清空则整块删，conformance 扩展留 `{}`。与 export status 是同一个事实的两种呈现：删除条件即标注条件，两开关同开输出零标注。
+
+- **主要出现在**：`Sources/SwiftPrinting/SwiftDeclarationPrinter+ExportFilter.swift`、`SwiftInterfaceBuilder.printRoot()`
+- **延伸阅读**：[提案 0016](Evolutions/0016-exported-only-interface.md)、[ExportedOnlyInterfaceFiltering.md](Internal/ExportedOnlyInterfaceFiltering.md)
+
 ### emission strategy（发射策略）
 
 diff / evolution 两条对比渲染路共享结构遍历核心（`InterfaceUnionWalker`）之后各自剩下的那一半：遍历器负责**结构**（N 路匹配与并集排序、extension 容器拆分、成员构造、类别调度、body 组合序），策略（`InterfaceUnionEmitting`）负责**呈现**——同一个匹配结果如何变成行（`+`/`-` 标记 vs 生命周期注解）、容器 header 如何裁决（两侧配对 vs 最新可渲染）、容器如何装配。真正语义不同的部分（`HeaderOutcome` 配对、注解锚点、两套格式层）只住在策略里，绝不上浮进遍历器。

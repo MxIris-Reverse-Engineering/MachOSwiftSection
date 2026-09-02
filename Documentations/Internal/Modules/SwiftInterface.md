@@ -35,6 +35,13 @@ SwiftInterface 是接口生成的**编排层**（thin orchestrator）：它自�
 
 **`printRoot()` 的段落与 catch 契约**：组成顺序是 header（提案 0008，flag-gated 默认缺席）→ imports → 全局变量 → 全局函数 → 根类型 → 特化变体（`specializedChildren` 挂在各 `TypeDefinition` 上，indexer 对用户驱动的特化保持无知，所以这里全量走查 `allTypeDefinitions`）→ 根协议 → **嵌套**协议的 default-implementation 扩展块（extension 不能嵌进父体，顶层补印；这个循环在提案 0007 之前是死代码）→ 四桶 extension（`isAttachedToProtocolDefinition` 的已附着定义被过滤，避免 issue #106 §5 的重复块）。贯穿全部段落的契约是**逐定义 catch**：一个定义打印抛错只丢它自己，绝不空掉整块（历史上块级 catch 让一个旧 binary 的全部类型被抹白；由 `LegacyDyldInfoBindTests` 与 `corruptNestedChildDropsOnlyItself` 钉住）。两个全局块例外地不带定义上下文——`printVariable`/`printFunction` 本身不抛、各自派发过失败事件，块级包裹只是保险带。
 
+**exported-only 过滤的接线**（提案 0016）：`printRoot()` 现在是一个普通函数壳，开关
+`printExportedDeclarationsOnly` 打开时先用 `indexer.allTypeDefinitions` / `allProtocolDefinitions` 调
+`printer.installExportFilterScope(types:protocols:)`，再进入 builder 体 `printRootContents()`。类型 / 协议 / 成员由 printer 自行裁决，
+扩展的「目标是不是本镜像内未导出声明」只有索引器的表能回答（strip 过的镜像里未导出类型零符号），所以 scope 在这里装；
+两个全局块各带一个 `where !printer.isExcludedByExportFilter(globalSymbolNames:)`。绕过 `printRoot` 的宿主要自己装 scope，否则扩展一腿 fail-open。
+详见 [ExportedOnlyInterfaceFiltering.md](../ExportedOnlyInterfaceFiltering.md)。
+
 **`SwiftInterfaceBuilderExtraDataProvider`**：外部数据源的注入缝，纯生命周期钩子——`Sendable` + 一个默认为空的 `setup()`（提案 0015 之前它还继承 printer 的 resolver 协议，强迫所有 provider 都是类型名解析器）。「会不会回答 printer 查询」是正交能力：provider 按需另行声明 `SwiftPrinting` 的角色协议（`ModuleNameResolving` / `CImportedNameResolving` / `OpaqueTypeResolving`，均 refine 空标记协议 `TypeNameResolving`），`addExtraDataProvider(_:)` 用 `as? any TypeNameResolving` 命中才把它转发给 printer——所以一个 resolver 型 provider 一头挂在 builder 的 prepare 生命周期上，一头挂在打印热路径上，而纯 setup 型 provider（只预热缓存之类）也是合法形态。两个已知实现：`TypeIndexing.SwiftInterfaceBuilderTypeNameProvider`（`__C` 模块归属，跨模块，声明两个名字角色）和本模块的 `SwiftInterfaceBuilderOpaqueTypeProvider`（声明 `OpaqueTypeResolving`，见子系统 2）。
 
 **`SwiftInterfaceBuilderDependencies` + `DependencyPath`**：把「主 binary + 它的依赖镜像」凑成一组，按 reader 分特化——`MachOFile` 版从 `DependencyPath`（单个 Mach-O 路径 / dyld cache 路径 / 宿主系统 cache）按 install name 匹配装载，装载失败走 `renderingDegraded` 事件（默认无 handler 也有 os_log 地板）；`MachOImage` 版直接按名字向 dyld 要。消费者是 CLI 的 `InterfaceCommand` 与 `TypeIndexing`（依赖过滤 + 惰性 ObjC 元数据索引都需要依赖镜像清单）。
@@ -95,6 +102,7 @@ N ≥ 2 版本渲染成**一份**并集接口，声明尾注生命周期注解�
 - [Evolutions/0014](../../Evolutions/0014-unify-interface-renderers.md) —— union walker 统一的提案
 - [Evolutions/0011](../../Evolutions/0011-opaque-primary-associated-type-attribution.md) / [OpaquePrimaryAssociatedTypeAttribution.md](../OpaquePrimaryAssociatedTypeAttribution.md) / [OpaqueReturnTypeResolution.md](../OpaqueReturnTypeResolution.md) —— opaque 子系统
 - [InterfaceHeaderAndExportStatusAnnotations.md](../InterfaceHeaderAndExportStatusAnnotations.md) —— 接口头部与导出状态标注（提案 0008；header 组件在本模块消费）
+- [ExportedOnlyInterfaceFiltering.md](../ExportedOnlyInterfaceFiltering.md) —— exported-only 过滤（提案 0016；`printRoot` 装 `ExportFilterScope`）
 - [DiffableInterfacePlan.md](../DiffableInterfacePlan.md) —— diff 接口的原始实现计划（历史文档，统一前的形态）
 - [ABIDiffDesignAndLimitations.md](../ABIDiffDesignAndLimitations.md) / [ABIEvolutionDesign.md](../ABIEvolutionDesign.md) —— 下层 SwiftDiffing 的键方案与 lineage 模型
 - [LeafMigrationRegressionFixes.md](../LeafMigrationRegressionFixes.md) —— `printRoot` 逐定义 catch 契约的来历
