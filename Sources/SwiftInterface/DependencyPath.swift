@@ -2,7 +2,7 @@ import MachODependencies
 
 /// Superseded by `MachODependencies.DependencySearchPath`, which every
 /// dependency-resolving feature now shares (evolution proposal
-/// draft-macho-dependencies-module). Kept one release for source
+/// macho-dependencies-module). Kept one release for source
 /// compatibility; the case spellings differ, so this is a conversion rather
 /// than a typealias.
 @available(*, deprecated, message: "Use DependencySearchPath (MachODependencies); convert with `searchPath`.")

@@ -267,7 +267,7 @@ extension Target {
     )
 
     /// Dependency resolution shared by every feature that needs a binary's
-    /// linked images (evolution proposal draft-macho-dependencies-module):
+    /// linked images (evolution proposal macho-dependencies-module):
     /// search paths, the in-process / on-disk locators, and the direct or
     /// transitive `DependencyClosure` walk over `LC_LOAD_DYLIB`. Knows nothing
     /// about Swift metadata, so it sits with the other MachO* leaf targets and

@@ -39,10 +39,12 @@ public final class FileDependencyLocator: DependencyLocating, @unchecked Sendabl
     /// - Parameters:
     ///   - searchPaths: Consulted in order; the first explicit file registered
     ///     under a name wins, and the first cache image with the best rank wins.
-    ///   - preferredCPUType: For a fat explicit file, the slice to pick — the
-    ///     root binary's own architecture, so a universal dependency is laid
-    ///     out for the same target as the root. Falls back to the first slice.
-    public init(searchPaths: [DependencySearchPath], preferredCPUType: CPUType? = nil) {
+    ///   - preferredCPU: For a fat explicit file, the slice to pick — the root
+    ///     binary's own architecture, so a universal dependency is laid out
+    ///     for the same target as the root. Matched on CPU type plus subtype
+    ///     (so arm64 and arm64e are told apart), then on type alone, then the
+    ///     first slice.
+    public init(searchPaths: [DependencySearchPath], preferredCPU: CPU? = nil) {
         var explicitFilesByInstallPath: [String: MachOFile] = [:]
         var explicitFilesByBareName: [String: MachOFile] = [:]
         var caches: [FullDyldCache] = []
@@ -53,7 +55,7 @@ public final class FileDependencyLocator: DependencyLocating, @unchecked Sendabl
             case .machOFile(let path):
                 do {
                     let slices = try File.loadFromFile(url: URL(fileURLWithPath: path)).machOFiles
-                    guard let machOFile = Self.preferredSlice(among: slices, preferredCPUType: preferredCPUType) else {
+                    guard let machOFile = Self.preferredSlice(among: slices, preferredCPU: preferredCPU) else {
                         throw DependencySearchPathError.noMachOSlice(path: path)
                     }
                     // A file's `imagePath` is its install name (`LC_ID_DYLIB`,
@@ -108,9 +110,20 @@ public final class FileDependencyLocator: DependencyLocating, @unchecked Sendabl
         return index.bestImagesByBareName[bareImageName]?.machOFile
     }
 
-    private static func preferredSlice(among slices: [MachOFile], preferredCPUType: CPUType?) -> MachOFile? {
-        if let preferredCPUType, let matchingSlice = slices.first(where: { $0.header.cpuType == preferredCPUType }) {
-            return matchingSlice
+    /// Compared on `CPU.type` and `CPU.subtype` rather than `CPU ==`: the
+    /// struct's synthesized equality includes the raw subtype's capability
+    /// bits (the arm64e pointer-authentication ABI version and versioned-ABI
+    /// flag under `CPU_SUBTYPE_MASK`), so a versioned-ABI arm64e slice would
+    /// compare unequal to a plain arm64e root and silently fall through to
+    /// the type-only match — the arm64 / arm64e confusion this exists to
+    /// avoid. `subtype` masks those bits.
+    private static func preferredSlice(among slices: [MachOFile], preferredCPU: CPU?) -> MachOFile? {
+        guard let preferredCPU else { return slices.first }
+        if let exactSlice = slices.first(where: { $0.header.cpu.type == preferredCPU.type && $0.header.cpu.subtype == preferredCPU.subtype }) {
+            return exactSlice
+        }
+        if let sameTypeSlice = slices.first(where: { $0.header.cpu.type == preferredCPU.type }) {
+            return sameTypeSlice
         }
         return slices.first
     }

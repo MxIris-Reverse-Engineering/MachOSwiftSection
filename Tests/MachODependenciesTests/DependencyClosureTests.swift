@@ -154,6 +154,29 @@ final class DependencyClosureTests: MachOSwiftSectionFixtureTests, @unchecked Se
         }
     }
 
+    /// One image reached under two spellings is collected once. The file
+    /// locator registers an explicit file under its on-disk path, its install
+    /// name and its bare name, so a root that links the same binary under two
+    /// load names would otherwise get it twice: bare-name deduplication sees
+    /// two names, but the resolved image is one, and `ImageUniverse` would
+    /// index it twice. Identity is `MachORepresentableWithCache.identifier`
+    /// (`LC_UUID`-keyed for a file), so two `MachOFile` values over the same
+    /// binary compare equal.
+    @MainActor
+    @Test func sameImageReachedUnderTwoLoadNamesIsCollectedOnce() throws {
+        let root = machOFile
+        let helperFile = try #require(File.loadFromFile(url: URL(fileURLWithPath: Self.symbolTestsHelperOnDiskPath)).machOFiles.first)
+        // Two of the root's direct load names, both answered by the same file.
+        let locator = RecordingLocator(imagesByBareImageName: ["SymbolTestsHelper": helperFile, "libswiftCore": helperFile])
+
+        let closure = DependencyClosure(root: root, traversal: .direct, locator: locator)
+
+        #expect(closure.images.count == 1, "the same image must not be collected under a second load name")
+        #expect(closure.images.first?.imagePath == helperFile.imagePath)
+        #expect(!closure.unresolvedLoadNames.contains(Self.symbolTestsHelperLoadName))
+        #expect(!closure.unresolvedLoadNames.contains(Self.swiftCoreLoadName), "a load name answered by an already-collected image is resolved, not reported")
+    }
+
     @MainActor
     @Test func customLocatorReceivesRawLoadNamesAndSuppliesTheImages() throws {
         let root = machOFile

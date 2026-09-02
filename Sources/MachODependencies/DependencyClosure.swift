@@ -20,11 +20,16 @@ public enum DependencyTraversal: Sendable, Hashable {
 /// first hit, and depth-first would put Foundation's whole subtree ahead of the
 /// root's own second Swift dependency.
 ///
-/// Images are deduplicated by bare image name (`DependencyLoadName`), never by
-/// load-name spelling, and the root itself is excluded. A dependency the
-/// locator cannot find is not an error: its load name is recorded in
-/// `unresolvedLoadNames` and traversal continues, so the result degrades per
-/// dependency rather than failing whole.
+/// Images are deduplicated twice: by bare image name (`DependencyLoadName`),
+/// never by load-name spelling, and by image identity
+/// (`MachORepresentableWithCache.identifier`, `LC_UUID`-keyed for a file) —
+/// the file locator registers an explicit file under its on-disk path, its
+/// install name and its bare name, so a root that links the same binary under
+/// two load names reaches one image twice, and it is collected once. The root
+/// itself is excluded. A dependency the locator cannot find is not an error:
+/// its load name is recorded in `unresolvedLoadNames` and traversal
+/// continues, so the result degrades per dependency rather than failing
+/// whole.
 public struct DependencyClosure<MachO: MachORepresentableWithCache>: Sendable {
     public let root: MachO
     public let traversal: DependencyTraversal
@@ -46,6 +51,7 @@ public struct DependencyClosure<MachO: MachORepresentableWithCache>: Sendable {
 
     init(root: MachO, traversal: DependencyTraversal, locator: some DependencyLocating<MachO>, searchPathLoadFailures: [DependencySearchPathLoadFailure]) {
         var visitedBareImageNames: Set<String> = [DependencyLoadName.bareImageName(of: root.imagePath)]
+        var collectedImageIdentifiers: Set<MachO.Identifier> = [root.identifier]
         var images: [MachO] = []
         var unresolvedLoadNames: [String] = []
         var frontier: [MachO] = [root]
@@ -60,6 +66,9 @@ public struct DependencyClosure<MachO: MachORepresentableWithCache>: Sendable {
                         unresolvedLoadNames.append(loadName)
                         continue
                     }
+                    // Resolved, but to an image already collected under another
+                    // spelling: nothing to add, and nothing to report.
+                    guard collectedImageIdentifiers.insert(dependencyImage.identifier).inserted else { continue }
                     images.append(dependencyImage)
                     nextFrontier.append(dependencyImage)
                 }
@@ -92,7 +101,7 @@ extension DependencyClosure where MachO == MachOFile {
     /// (`FileDependencyLocator`). Fat explicit files contribute the slice
     /// matching the root's architecture.
     public init(root: MachOFile, searchPaths: [DependencySearchPath] = [.systemDyldSharedCache], traversal: DependencyTraversal = .transitive) {
-        let locator = FileDependencyLocator(searchPaths: searchPaths, preferredCPUType: root.header.cpuType)
+        let locator = FileDependencyLocator(searchPaths: searchPaths, preferredCPU: root.header.cpu)
         self.init(root: root, traversal: traversal, locator: locator, searchPathLoadFailures: locator.loadFailures)
     }
 }

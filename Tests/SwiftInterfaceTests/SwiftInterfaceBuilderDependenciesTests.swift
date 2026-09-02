@@ -9,9 +9,15 @@ import Testing
 
 /// Pins what `SwiftInterfaceBuilderDependencies` promises now that it is a
 /// thin wrapper over `DependencyClosure` (evolution proposal
-/// draft-macho-dependencies-module): direct-only semantics for both readers,
+/// macho-dependencies-module): direct-only semantics for both readers,
 /// and an image initializer that actually resolves something.
-@Suite
+///
+/// Declares `SymbolTestsHelper` for the same reason `DependencyClosureTests`
+/// does: the image initializer resolves the fixture's `@rpath` sibling through
+/// `MachOImage(name:)`. Nothing here indexes it or touches a per-image cache —
+/// the declaration is what makes the sharing greppable, as AGENTS.md asks of
+/// every suite touching that image.
+@Suite(ExclusiveImageAccess(.SymbolTestsHelper))
 final class SwiftInterfaceBuilderDependenciesTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     private func bareImageNames<MachO: MachORepresentableWithCache>(of images: [MachO]) -> Set<String> {
         Set(images.map { DependencyLoadName.bareImageName(of: $0.imagePath) })

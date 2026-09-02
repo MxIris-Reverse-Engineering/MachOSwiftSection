@@ -106,4 +106,4 @@ jobs:
             -c ${{ matrix.configuration }} \
             --enable-experimental-prebuilts \
             --build-path .build-test-${{ matrix.configuration }} \
-            --filter '\.(SymbolTestsCoreDumpSnapshotTests|SymbolTestsCoreInterfaceSnapshotTests|SymbolTestsCoreCoverageInvariantTests|STCoreE2ETests|STCoreTests|GenericSpecializationTests|MultiPayloadEnumTests|MetadataReaderDemanglingTests)(/|$)'
+            --filter '\.(SymbolTestsCoreDumpSnapshotTests|SymbolTestsCoreInterfaceSnapshotTests|SymbolTestsCoreCoverageInvariantTests|STCoreE2ETests|STCoreTests|GenericSpecializationTests|MultiPayloadEnumTests|MetadataReaderDemanglingTests|DependencyLoadNameTests|DependencyClosureTests|FileDependencyLocatorTests|SwiftInterfaceBuilderDependenciesTests)(/|$)'

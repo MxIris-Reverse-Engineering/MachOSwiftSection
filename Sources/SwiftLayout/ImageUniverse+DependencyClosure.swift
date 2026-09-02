@@ -4,7 +4,7 @@ import MachOSwiftSection
 
 /// The search-path enum moved down to `MachODependencies` so every feature
 /// resolves dependencies the same way (evolution proposal
-/// draft-macho-dependencies-module). Kept one release for source
+/// macho-dependencies-module). Kept one release for source
 /// compatibility; the cases are spelled identically.
 @available(*, deprecated, renamed: "DependencySearchPath")
 public typealias LayoutDependencySearchPath = DependencySearchPath

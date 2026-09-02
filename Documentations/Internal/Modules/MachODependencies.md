@@ -43,7 +43,7 @@ bare name 同时是所有依赖集合的**去重键**：同一个库会被不同
   
   cache 索引**首次查询时一次性建成**（一遍 `machOFiles()`，同时建 install path 表与 bare name 最优表），之后 O(1)。逐次 `machOFile(by:)` 是 `O(依赖数 × cache 大小)` 的全扫描，阶段 3 实测 551 镜像闭包要 21 秒。`NSLock` 保护惰性索引，定位器可跨任务共享。
 
-  fat 显式文件取与 root 同架构的 slice（`preferredCPUType`），没有再退到第一个——旧两处实现都无条件取 `.first`。
+  fat 显式文件取与 root 同架构的 slice（`preferredCPU`：先比 `cpu.type` + 掩掉 capability 位后的 `cpu.subtype`，能分开 arm64 / arm64e；再只比 type；最后 `.first`——旧两处实现都无条件取 `.first`）。注意 MachOKit 的 `CPU ==` 比的是原始值，versioned-ABI 的 arm64e 切片会和普通 arm64e 判不等，所以不能直接比 `header.cpu`。
 
 ## 4. 闭包遍历（`DependencyClosure`）
 
@@ -51,7 +51,7 @@ bare name 同时是所有依赖集合的**去重键**：同一个库会被不同
 
 - **`.direct`** 只走 root 自己的 load command；**`.transitive`** BFS 递归。
 - **顺序是契约的一部分**：direct 为 load command 顺序，transitive 为 BFS（root 的直接依赖全部在前）。`SwiftLayout.ImageUniverse` 按这个顺序惰性索引依赖、命中即停；DFS 会把 Foundation 整棵子树排在 root 的第二个 Swift 依赖前面（`DependencyClosureTests.inProcessTransitiveClosureExtendsTheDirectPrefixBreadthFirst` 锁定 direct 是 transitive 的前缀）。
-- 按 bare name 去重，root 自身排除（以 root 的 `imagePath` 归一后预置进 visited 集合）。
+- 按 bare name 去重，root 自身排除（以 root 的 `imagePath` 归一后预置进 visited 集合）；**再按镜像身份去重**（`MachORepresentableWithCache.identifier`，文件是 `LC_UUID` 键）——文件定位器把一个显式文件登记在磁盘路径、install name、bare name 三种拼法下，root 若以两个 load name 链到同一个二进制，只按 bare name 去重会把它收两次（`sameImageReachedUnderTwoLoadNamesIsCollectedOnce` 锁定）。
 - 定位不到的 load name 进 `unresolvedLoadNames`（按遇到顺序，同样按 bare name 去重），遍历继续。`images` 与 `unresolvedLoadNames` 恰好是 root 直接依赖的二分（direct 模式下，`DependencyClosureTests.inProcessDirectClosureResolvesMappedDependencies` 锁定）。
 
 **为什么 SwiftInterface 保持 `.direct`**：TypeIndexing 按依赖清单逐模块生成 SourceKit 接口，成本随清单线性增长；OS 框架的传递闭包有几百个镜像，会退回提案 0009 之前「全 SDK 生成」的开销。要传递集合的宿主自己构造 `DependencyClosure(…, traversal: .transitive)` 再喂 `init(closure:)`。
