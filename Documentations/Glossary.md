@@ -37,12 +37,26 @@
 - **主要出现在**：`Sources/SwiftInterface/OpaqueSameTypeConstraint.swift`、`SwiftInterfaceBuilderOpaqueTypeProvider`
 - **延伸阅读**：[提案 0011](Evolutions/0011-opaque-primary-associated-type-attribution.md)、[OpaqueReturnTypeResolution.md](Internal/OpaqueReturnTypeResolution.md) §2.2
 
+### bare image name（裸镜像名）
+
+一个 dylib load name（`@rpath/Foo.framework/Versions/A/Foo`、`/usr/lib/libobjc.A.dylib`）归约成的镜像名：末段路径去**第一个**扩展名（`Foo`、`libobjc`）。这是与 MachOKit 的契约——`MachOImage(name:)` 对进程内每个镜像的路径做同一归约再比较，把未归约的 load name 喂给它永远匹配不到。它也是所有依赖集合的去重键：同一个库会被不同镜像以不同拼写链接，只有裸名跨拼写稳定。
+
+- **主要出现在**：`Sources/MachODependencies/DependencyLoadName.swift`、`DependencyClosure`、`FileDependencyLocator`
+- **延伸阅读**：[Modules/MachODependencies.md](Internal/Modules/MachODependencies.md) §2
+
 ### bucket（桶）
 
 分类索引里「一个键对应的一组符号表行号」（如 `symbolRowsByOffset` 的值、`MemberSymbolRows` 的叶子）。旧形态是 `[UInt32]` 小数组——绝大多数桶只有一个元素，却各付一次堆分配；提案 0003 落地后值形态为 `SymbolRowBucket`（单元素内联于字典槽，第二个元素起才落堆数组），迭代序保持插入序。
 
 - **主要出现在**：`Sources/MachOSymbols/SymbolIndexStore.swift`、`Sources/MachOSymbols/SymbolRowBucket.swift`
 - **延伸阅读**：[提案 0003](Evolutions/0003-symbol-row-bucket-flattening.md)
+
+### dependency closure（依赖闭包）
+
+一个 root 二进制经 `LC_LOAD_DYLIB` 家族 load command 解析出的依赖镜像集合（`MachODependencies.DependencyClosure`）。本项目里的「闭包」默认指**传递**闭包：BFS 递归、按裸镜像名去重、root 排除、解析顺序是契约的一部分（`SwiftLayout.ImageUniverse` 按此顺序惰性索引、命中即停）。同一类型也承载 `.direct` 遍历（只取 root 自己的一层），`SwiftInterfaceBuilderDependencies` 用的是这一种——名字里的「闭包」在那里只是复用同一个结果类型。定位不到的依赖记入 `unresolvedLoadNames`，不算失败。
+
+- **主要出现在**：`Sources/MachODependencies/DependencyClosure.swift`、`Sources/SwiftLayout/ImageUniverse+DependencyClosure.swift`
+- **延伸阅读**：[Modules/MachODependencies.md](Internal/Modules/MachODependencies.md)、[StaticLayoutDependencyClosure.md](Internal/StaticLayoutDependencyClosure.md)
 
 ### derived symbol forms（派生符号形态）
 

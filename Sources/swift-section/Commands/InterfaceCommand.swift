@@ -126,15 +126,18 @@ struct InterfaceCommand: AsyncParsableCommand {
             if #available(macOS 13.0, *) {
                 let providerDependencies = SwiftInterfaceBuilderDependencies(
                     machO: machOFile,
-                    paths: [.usesSystemDyldSharedCache],
+                    searchPaths: [.systemDyldSharedCache],
                     eventHandlers: [ConsoleEventHandler()]
                 )
                 // Dependency resolution against the HOST dyld cache matches
-                // install names exactly; a non-macOS binary's paths mostly
-                // miss, which silently guts the SDK-interface source. Say so
-                // instead of degrading quietly.
+                // install names exactly, then bare names; a non-macOS binary's
+                // paths mostly miss both, which silently guts the SDK-interface
+                // source. Say so — and name the misses — instead of degrading
+                // quietly.
                 if providerDependencies.dependencies.isEmpty {
                     fputs("warning: --resolve-c-module-names resolved no dependency images against this host (non-macOS binary?); attribution will be limited to SDK APINotes and supplementary files\n", stderr)
+                } else if !providerDependencies.unresolvedLoadNames.isEmpty {
+                    fputs("warning: --resolve-c-module-names could not resolve \(providerDependencies.unresolvedLoadNames.count) dependency image(s) against this host; their types will not be attributed: \(providerDependencies.unresolvedLoadNames.joined(separator: ", "))\n", stderr)
                 }
                 // Bad supplementary paths are otherwise only os_log'd by the
                 // library floor; a CLI user who mistyped a path or handed a

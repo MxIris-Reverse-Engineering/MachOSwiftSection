@@ -1,6 +1,11 @@
-import SwiftDeclaration
-import SwiftIndexing
-import SwiftPrinting
+import MachODependencies
+
+/// Superseded by `MachODependencies.DependencySearchPath`, which every
+/// dependency-resolving feature now shares (evolution proposal
+/// draft-macho-dependencies-module). Kept one release for source
+/// compatibility; the case spellings differ, so this is a conversion rather
+/// than a typealias.
+@available(*, deprecated, message: "Use DependencySearchPath (MachODependencies); convert with `searchPath`.")
 public enum DependencyPath: CustomStringConvertible {
     /// A path to a specific Mach-O binary file
     case machO(String)
@@ -17,6 +22,18 @@ public enum DependencyPath: CustomStringConvertible {
             return "dyldSharedCache(\(path))"
         case .usesSystemDyldSharedCache:
             return "usesSystemDyldSharedCache"
+        }
+    }
+
+    /// The equivalent shared search path.
+    public var searchPath: DependencySearchPath {
+        switch self {
+        case .machO(let path):
+            return .machOFile(path: path)
+        case .dyldSharedCache(let path):
+            return .dyldSharedCache(path: path)
+        case .usesSystemDyldSharedCache:
+            return .systemDyldSharedCache
         }
     }
 }

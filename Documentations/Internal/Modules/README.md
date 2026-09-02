@@ -33,6 +33,7 @@
 | MachOPointers / MachOSymbolPointers | — | 待写 |
 | MachOReading / MachOResolving | — | 待写 |
 | MachOCaches | — | 待写 |
+| MachODependencies | [MachODependencies.md](MachODependencies.md) | ✅ 已写 |
 | MachOSwiftSectionC | — | 待写 |
 | MachOMacros | — | 待写 |
 | Utilities | — | 待写 |

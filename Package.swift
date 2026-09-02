@@ -266,6 +266,20 @@ extension Target {
         ],
     )
 
+    /// Dependency resolution shared by every feature that needs a binary's
+    /// linked images (evolution proposal draft-macho-dependencies-module):
+    /// search paths, the in-process / on-disk locators, and the direct or
+    /// transitive `DependencyClosure` walk over `LC_LOAD_DYLIB`. Knows nothing
+    /// about Swift metadata, so it sits with the other MachO* leaf targets and
+    /// is re-exported by `MachOFoundation`.
+    static let MachODependencies = Target.target(
+        name: "MachODependencies",
+        dependencies: [
+            .product(.MachOKit),
+            .product(.MachOKitExtensions),
+        ],
+    )
+
     static let MachOReading = Target.target(
         name: "MachOReading",
         dependencies: [
@@ -329,6 +343,7 @@ extension Target {
             .target(.MachOSymbols),
             .target(.MachOResolving),
             .target(.MachOSymbolPointers),
+            .target(.MachODependencies),
             .target(.Utilities),
         ],
     )
@@ -393,6 +408,7 @@ extension Target {
             .product(.MachOKit),
             .product(.MachOObjCSection),
             .product(.Demangling),
+            .target(.MachODependencies),
             .target(.MachOSwiftSection),
             .target(.SwiftInspection),
             .target(.Utilities),
@@ -414,6 +430,7 @@ extension Target {
             .product(.Demangling),
             .product(name: "FoundationToolbox", package: "FrameworkToolbox"),
             .target(.MachOCaches),
+            .target(.MachODependencies),
             .target(.MachOSwiftSection),
             .target(.Utilities),
             .target(.SwiftOutputTransformer),
@@ -558,6 +575,7 @@ extension Target {
             .product(.MachOObjCSection),
             .product(.Semantic),
             .product(.Demangling),
+            .target(.MachODependencies),
             .target(.MachOSwiftSection),
             .target(.SwiftInspection),
             .target(.SwiftDeclarationRendering),
@@ -731,6 +749,18 @@ extension Target {
         name: "MachOCachesTests",
         dependencies: [
             .target(.MachOCaches),
+            .product(.MachOKitExtensions),
+        ],
+        swiftSettings: testSettings,
+    )
+
+    static let MachODependenciesTests = Target.testTarget(
+        name: "MachODependenciesTests",
+        dependencies: [
+            .target(.MachODependencies),
+            .target(.MachOTestingSupport),
+            .target(.MachOFixtureSupport),
+            .product(.MachOKit),
             .product(.MachOKitExtensions),
         ],
         swiftSettings: testSettings,
@@ -945,6 +975,7 @@ let package = Package(
     platforms: [.macOS(.v10_15), .iOS(.v13), .tvOS(.v13), .watchOS(.v6), .visionOS(.v1)],
     products: [
         .library(.MachOSwiftSection),
+        .library(.MachODependencies),
         .library(.SwiftOutputTransformer),
         .library(.SwiftInspection),
         .library(.SwiftLayout),
@@ -966,6 +997,7 @@ let package = Package(
         .Utilities,
         .SwiftOutputTransformer,
         .MachOCaches,
+        .MachODependencies,
         .MachOReading,
         .MachOResolving,
         .MachOSymbols,
@@ -1002,6 +1034,7 @@ let package = Package(
         .MachOSymbolsTests,
         .MachOSwiftSectionTests,
         .MachOCachesTests,
+        .MachODependenciesTests,
         .SwiftInspectionTests,
         .SwiftOutputTransformerTests,
         .SwiftLayoutTests,

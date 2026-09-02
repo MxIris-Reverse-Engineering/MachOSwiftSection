@@ -1,5 +1,6 @@
 import Foundation
 import MachOKit
+import MachODependencies
 import MachOSwiftSection
 import SwiftLayout
 @_spi(Internals) import SwiftInspection
@@ -16,7 +17,7 @@ public enum StaticLayoutDependencyResolution: Sendable, Equatable, Hashable {
     /// stdlib / Foundation / the rest of the OS). Cross-module field /
     /// superclass / protocol types resolve, and resilient classes are laid out
     /// against their dependencies' actual binaries ("this specific deployment").
-    case dependencyClosure(searchPaths: [LayoutDependencySearchPath])
+    case dependencyClosure(searchPaths: [DependencySearchPath])
 
     /// The default resolution: the full transitive closure over the system dyld
     /// shared cache.

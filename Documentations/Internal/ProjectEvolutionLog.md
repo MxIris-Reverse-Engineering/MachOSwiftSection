@@ -1214,6 +1214,40 @@
 
 ---
 
+## 55. 依赖闭包下沉为 MachODependencies 模块（提案 draft-macho-dependencies-module）
+
+- **时间段**：2026-09-02，单日单批。
+- **动机**：用户要求「把目前的依赖闭包抽出来，方便给其他功能使用」。仓库里有两套互不复用的「找依赖二进制」
+  实现：`SwiftLayout` 的传递闭包（BFS + bare name 去重 + cache 一次性索引，遍历与定位器文件私有）与
+  `SwiftInterface.SwiftInterfaceBuilderDependencies`（一层直接依赖、按 install path 精确匹配，供 TypeIndexing）。
+- **关键决策**：两套合并（用户选定），落点为本仓库新底层 target `MachODependencies`（用户选定；备选 sibling 包
+  MachOKitExtensions），只依赖 MachOKit + MachOKitExtensions，由 `MachOFoundation` re-export。API：`DependencySearchPath`、
+  `DependencyLoadName.bareImageName(of:)`、`DependencyLocating` + `InProcessDependencyLocator` / `FileDependencyLocator`、
+  `DependencyClosure`（`.direct` / `.transitive`，顺序是契约，未解析进 `unresolvedLoadNames`，坏搜索路径进
+  `searchPathLoadFailures`，不抛不记日志——模块在事件层之下）。匹配规则取两侧并集：**install path 精确优先，bare name
+  排序兜底**（`DyldCacheImageSearchMode.matchRank`），消除旧 SwiftLayout 定位器在 macOS cache 上可能先选中 Catalyst
+  SwiftUI 的错配；fat 显式文件取 root 同架构 slice。SwiftInterface **保持只取直接依赖**（TypeIndexing 成本随清单线性增长），
+  并顺带修掉其 `MachOImage` 版把完整 load path 喂给按 bare name 匹配的 `MachOImage(name:)`、从诞生起解析为空的静默
+  bug（仓库内与下游均无调用方）。旧名 `LayoutDependencySearchPath`（typealias）、`DependencyPath`（`searchPath` 转换）
+  与 `init(machO:paths:eventHandlers:)` 标 deprecated 保留一个版本。
+- **落地模块**：`MachODependencies`（新，5 文件）、`MachOFoundation`（re-export）、`SwiftLayout`（三个工厂改薄包装 +
+  `dependencyClosure(_ closure:)`）、`SwiftDeclarationRendering`（`StaticLayoutDependencyResolution` 关联值换型）、
+  `SwiftInterface`（薄包装 + `init(closure:)` + `unresolvedLoadNames`）、`swift-section`（`--resolve-c-module-names`
+  精确报告未解析依赖）。测试：新 `MachODependenciesTests`（归一规则与 `MachOImage(name:)` 契约、direct / transitive /
+  BFS 前缀 / 去重 / 未解析 / 坏路径 / 自定义定位器、宿主 cache 精确优先与 Catalyst 降级）、
+  `SwiftInterfaceBuilderDependenciesTests`（image 版非空回归、direct 语义、`init(closure:)` 保留遍历）；既有
+  `DependencyClosureLayoutTests` 端到端不动。验证：全量 1612 测试仅 2 个已知 flaky；带布局注释的 dump / interface
+  对 SwiftUI / SwiftUICore / SwiftData / Combine 双侧 8 组逐字节一致；同依赖版本下耗时持平（首轮 2.5× 的「回归」
+  是候选 scratch 解析到更新的 swift-demangling 0.6.1 / FrameworkToolbox 0.11.0 所致，教训进 AGENTS.md）。
+- **文档**：[../Evolutions/draft-macho-dependencies-module.md](../Evolutions/draft-macho-dependencies-module.md)、
+  [Modules/MachODependencies.md](Modules/MachODependencies.md)、
+  [TaskReports/2026-09-02-macho-dependencies-module.md](TaskReports/2026-09-02-macho-dependencies-module.md)、
+  Glossary 新术语「bare image name」「dependency closure」、AGENTS.md 模块图与条目、
+  `StaticLayoutDependencyClosure.md` 迁移指引。
+- **对应版本**：未发布（0.17.0 之后）。
+
+---
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节

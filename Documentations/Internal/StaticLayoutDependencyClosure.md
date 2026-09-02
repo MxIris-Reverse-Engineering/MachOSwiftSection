@@ -3,6 +3,8 @@
 > 承接 [`StaticLayoutEngine.md`](StaticLayoutEngine.md)（单镜像引擎 + existential/actor 支持）。本文把静态 field-offset 引擎从「单镜像」扩展为「依赖闭包」，使字段类型 / 父类 / 协议位于**其他镜像**时也能解析。面向维护者。
 >
 > **状态：已落地。** 下文设计/步骤为原始计划，末尾「落地实测」记录与计划的差异；与实现冲突处以「落地实测」为准。
+>
+> **2026-09-02 更新**：本文描述的定位器（`MachOFileDependencyLocator`）、BFS 遍历与 `LayoutDependencySearchPath` 已下沉为共享模块 `MachODependencies`（提案 [draft-macho-dependencies-module](../Evolutions/draft-macho-dependencies-module.md)）；`ImageUniverse.dependencyClosure(root:…)` 工厂现在是 `DependencyClosure` 的薄包装，cache 的 bare name 匹配也从「枚举顺序首写者胜」改为「install path 精确优先、排序兜底」。现行契约以 [Modules/MachODependencies.md](Modules/MachODependencies.md) 为准，本文保留为阶段 3 的设计与实测记录。
 
 ## 背景与目标
 
