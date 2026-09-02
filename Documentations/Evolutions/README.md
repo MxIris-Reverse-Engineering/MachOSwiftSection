@@ -23,5 +23,5 @@
 | [0013](0013-swift-evolution-interface-builder.md) | SwiftEvolutionInterfaceBuilder：ABI 演进的并集注解接口渲染（`evolution --interface`） | Implemented |
 | [0014](0014-unify-interface-renderers.md) | 统一 diff / evolution 接口渲染器的结构遍历核心（顺带修 diff accessor 双重缩进） | Implemented |
 | [0015](0015-type-name-resolver-role-split.md) | TypeNameResolvable 角色化拆分：printer 查询解析器按能力分协议 | Implemented |
-| [draft](draft-macho-dependencies-module.md) | 依赖闭包下沉为 MachODependencies 模块：两套依赖加载合一 | Implemented |
+| [0017](0017-macho-dependencies-module.md) | 依赖闭包下沉为 MachODependencies 模块：两套依赖加载合一 | Implemented |
 | [0016](0016-exported-only-interface.md) | Interface 只打印导出声明（`--exported-only`）：提案 0008 标注的过滤形态，打印期按描述符 / 派生符号 / 扩展目标裁决 | Implemented |

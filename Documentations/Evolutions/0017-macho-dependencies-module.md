@@ -1,4 +1,4 @@
-# Draft - 依赖闭包下沉为 MachODependencies 模块：两套依赖加载合一
+# 0017 - 依赖闭包下沉为 MachODependencies 模块：两套依赖加载合一
 
 - **状态**: Implemented
 - **作者**: JH
@@ -71,3 +71,4 @@
 | 2026-09-02 | Draft → Accepted | 用户批准（「开个worktree开工」），提案 0016 已落地，本案落地时编号取 0017 |
 | 2026-09-02 | `SwiftInterface` 只透出 `unresolvedLoadNames`，不新增事件 case | `Payload.unhandledFailureDescription` 是有意的穷举 switch，加 case 要动 `SwiftDeclaration`；CLI 自己打 warning 已够用 |
 | 2026-09-02 | Accepted → Implemented | 26 定向测试 + 全量 1612 测试（仅 2 个已知 flaky 并发用例，单独跑通过）全绿；带布局注释的 dump / interface 对 SwiftUI / SwiftUICore / SwiftData / Combine 双侧逐字节一致；同依赖版本下耗时持平。配套文档：模块参考 `Modules/MachODependencies.md`；术语「bare image name」「dependency closure」已登记 Glossary。落地 `next` 时取号（0016 已占，预计 0017）并在同一 commit 改名 |
+| 2026-09-02 | 落地 `next` 取号 0017 | 远程共享分支 `Evolutions/` 最大号为 0016（`origin/next`），+1；文件改名与全部互链同批（PR 分支上完成） |

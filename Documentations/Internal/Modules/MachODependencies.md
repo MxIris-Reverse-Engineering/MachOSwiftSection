@@ -1,7 +1,7 @@
 # MachODependencies 模块
 
 > 模块参考文档（module reference），随代码维护。读者：维护者。
-> 提案：[draft-macho-dependencies-module](../../Evolutions/draft-macho-dependencies-module.md)。
+> 提案：[0017-macho-dependencies-module](../../Evolutions/0017-macho-dependencies-module.md)。
 
 ## 模块定位
 

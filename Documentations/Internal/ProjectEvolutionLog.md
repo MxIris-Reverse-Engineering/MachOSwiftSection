@@ -1214,7 +1214,7 @@
 
 ---
 
-## 55. 依赖闭包下沉为 MachODependencies 模块（提案 draft-macho-dependencies-module）
+## 55. 依赖闭包下沉为 MachODependencies 模块（提案 0017）
 
 - **时间段**：2026-09-02，单日单批。
 - **动机**：用户要求「把目前的依赖闭包抽出来，方便给其他功能使用」。仓库里有两套互不复用的「找依赖二进制」
@@ -1239,7 +1239,7 @@
   `DependencyClosureLayoutTests` 端到端不动。验证：全量 1612 测试仅 2 个已知 flaky；带布局注释的 dump / interface
   对 SwiftUI / SwiftUICore / SwiftData / Combine 双侧 8 组逐字节一致；同依赖版本下耗时持平（首轮 2.5× 的「回归」
   是候选 scratch 解析到更新的 swift-demangling 0.6.1 / FrameworkToolbox 0.11.0 所致，教训进 AGENTS.md）。
-- **文档**：[../Evolutions/draft-macho-dependencies-module.md](../Evolutions/draft-macho-dependencies-module.md)、
+- **文档**：[../Evolutions/0017-macho-dependencies-module.md](../Evolutions/0017-macho-dependencies-module.md)、
   [Modules/MachODependencies.md](Modules/MachODependencies.md)、
   [TaskReports/2026-09-02-macho-dependencies-module.md](TaskReports/2026-09-02-macho-dependencies-module.md)、
   Glossary 新术语「bare image name」「dependency closure」、AGENTS.md 模块图与条目、

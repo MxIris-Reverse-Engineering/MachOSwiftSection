@@ -2,7 +2,7 @@
 
 ## 问题
 
-用户要求「把目前的依赖闭包抽出来，方便给其他功能使用」。现状：仓库里有两套互不复用的「找依赖二进制」实现——`SwiftLayout/ImageUniverse+DependencyClosure.swift` 的传递闭包（BFS 递归、bare name 去重、dyld cache 一次性索引；遍历函数与 `MachOFileDependencyLocator` 都是文件私有，只有 `LayoutDependencySearchPath` 公开），以及 `SwiftInterface/SwiftInterfaceBuilderDependencies.swift` + `DependencyPath.swift`（一层直接依赖、按 install path 精确匹配 cache 镜像，供 TypeIndexing 的 `--resolve-c-module-names`）。提案 [draft-macho-dependencies-module](../../Evolutions/draft-macho-dependencies-module.md)。
+用户要求「把目前的依赖闭包抽出来，方便给其他功能使用」。现状：仓库里有两套互不复用的「找依赖二进制」实现——`SwiftLayout/ImageUniverse+DependencyClosure.swift` 的传递闭包（BFS 递归、bare name 去重、dyld cache 一次性索引；遍历函数与 `MachOFileDependencyLocator` 都是文件私有，只有 `LayoutDependencySearchPath` 公开），以及 `SwiftInterface/SwiftInterfaceBuilderDependencies.swift` + `DependencyPath.swift`（一层直接依赖、按 install path 精确匹配 cache 镜像，供 TypeIndexing 的 `--resolve-c-module-names`）。提案 [0017](../../Evolutions/0017-macho-dependencies-module.md)。
 
 ## 调研
 
