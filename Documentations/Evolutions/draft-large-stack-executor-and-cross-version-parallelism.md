@@ -1,12 +1,12 @@
 # Draft - 大栈任务执行器接入与跨版本并行准备
 
-- **状态**: Draft
+- **状态**: In Progress
 - **作者**: JH
 - **创建日期**: 2026-09-03
 - **最后更新**: 2026-09-03
 - **所属愿景**: 无
 - **关联提案**: swift-demangling 提案 0014「大栈 TaskExecutor」（上游前置，执行器本体在那边；本提案只做接入）；[draft-self-contained-abi-layer](draft-self-contained-abi-layer.md)（同一轮调研产物，互不依赖）
-- **实现分支 / PR**: 待定
+- **实现分支 / PR**: `feature/large-stack-executor-and-cross-version-parallelism`（基于 `feature/self-contained-abi-layer`，PR 待开）
 - **配套文档**: 待定 —— 落地时登记实现说明的链接
 
 ## 摘要
@@ -188,3 +188,4 @@ AGENTS.md（`SwiftInterface` / `SwiftIndexing` 条目补执行器一句；测试
 | 2026-09-03 | 库入口自装偏好；macOS 15 以下静默回退；默认并行上限取核数 | 第二轮 |
 | 2026-09-03 | 上游提案由本人在 sibling 仓库起草；上游发版号 0.6.3 | 第三轮与收尾确认；用户告知 0.6.2 已实测恢复 |
 | 2026-09-03 | 上游 0.6.3 已发版，接口与四处修订对齐 | swift-demangling 会话通知：tag `8f32e30`、实现 `eaf7e76`；`StackSafeExecutor.taskExecutor` / `LargeStackTaskExecutor`；优先级映射改用 `JobPriority` 原始值、只用稳态额度、双级回退、16 MB 实测深度。状态仍为 Draft，等用户置 Accepted 后再抬 pin 与开工 |
+| 2026-09-03 | Accepted → In Progress | 用户指示「基于上一个 PR 实现 async 提案」，视为批准；分支自 ABI 提案的分支切出，第一步抬 swift-demangling pin 到 0.6.3 |
