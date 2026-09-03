@@ -6,7 +6,7 @@
 - **最后更新**: 2026-09-03
 - **所属愿景**: 无
 - **关联提案**: swift-demangling 提案 0014「大栈 TaskExecutor」（上游前置，执行器本体在那边；本提案只做接入）；[draft-self-contained-abi-layer](draft-self-contained-abi-layer.md)（同一轮调研产物，互不依赖）
-- **实现分支 / PR**: `feature/large-stack-executor-and-cross-version-parallelism`（基于 `feature/self-contained-abi-layer`，PR 待开）
+- **实现分支 / PR**: `feature/large-stack-executor-and-cross-version-parallelism`，[PR #122](https://github.com/MxIris-Reverse-Engineering/MachOSwiftSection/pull/122)（堆叠在 ABI 提案的 PR #121 之上，base 随其合并切到 `next`）
 - **配套文档**: [LargeStackTaskExecutorAdoption.md](../Internal/LargeStackTaskExecutorAdoption.md)（实现说明）；任务报告 [2026-09-03-large-stack-executor-and-cross-version-parallelism.md](../Internal/TaskReports/2026-09-03-large-stack-executor-and-cross-version-parallelism.md)
 
 ## 摘要
