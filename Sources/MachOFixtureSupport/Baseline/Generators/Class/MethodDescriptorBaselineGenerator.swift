@@ -9,8 +9,8 @@ import MachOFoundation
 /// `MethodDescriptor` is the row type for a class's vtable. We pick the
 /// first vtable entry from the `Classes.ClassTest` picker — which has a
 /// non-empty vtable — and record the `flags.rawValue` plus the descriptor
-/// offset. Live `Symbols?` payloads aren't embedded as literals; the Suite
-/// uses cross-reader equality at runtime to assert agreement.
+/// offset, plus the implementation offset the descriptor's relative pointer
+/// resolves to (a pure-arithmetic value, identical across readers).
 package enum MethodDescriptorBaselineGenerator {
     package static func generate(
         in machO: some MachOSwiftSectionRepresentableWithCache,
@@ -24,10 +24,12 @@ package enum MethodDescriptorBaselineGenerator {
         let methodCount = classWrapper.methodDescriptors.count
 
         // Public members declared directly in MethodDescriptor.swift.
-        // The two `implementationSymbols(in:)` overloads collapse to a
-        // single MethodKey under PublicMemberScanner's name-only key.
+        // Symbol attribution (`implementationSymbols(in:)`) moved to
+        // SwiftInspection (evolution proposal `self-contained-abi-layer`);
+        // the ABI layer exposes the implementation's offset and address.
         let registered = [
-            "implementationSymbols",
+            "implementationAddress",
+            "implementationOffset",
             "layout",
             "offset",
         ]
@@ -37,10 +39,9 @@ package enum MethodDescriptorBaselineGenerator {
         // Regenerate via: Scripts/regen-baselines.sh
         // Source fixture: SymbolTestsCore.framework
         //
-        // Method descriptors carry a `Symbols?` implementation pointer; live
-        // payloads aren't embedded as literals. The companion Suite
-        // (MethodDescriptorTests) verifies cross-reader agreement at
-        // runtime.
+        // The implementation offset is pure relative-pointer arithmetic, so
+        // it is pinned as a literal; the companion Suite
+        // (MethodDescriptorTests) also verifies cross-reader agreement.
         """
 
         let file: SourceFileSyntax = """
@@ -52,6 +53,7 @@ package enum MethodDescriptorBaselineGenerator {
             struct Entry {
                 let offset: Int
                 let layoutFlagsRawValue: UInt32
+                let implementationOffset: Int?
             }
 
             static let firstClassTestMethod = \(raw: entryExpr)
@@ -68,11 +70,13 @@ package enum MethodDescriptorBaselineGenerator {
     private static func emitEntryExpr(for method: MethodDescriptor) -> String {
         let offset = method.offset
         let flagsRaw = method.layout.flags.rawValue
+        let implementationOffset = method.implementationOffset
 
         let expr: ExprSyntax = """
         Entry(
             offset: \(raw: BaselineEmitter.hex(offset)),
-            layoutFlagsRawValue: \(raw: BaselineEmitter.hex(flagsRaw))
+            layoutFlagsRawValue: \(raw: BaselineEmitter.hex(flagsRaw)),
+            implementationOffset: \(raw: BaselineEmitter.optionalHex(implementationOffset))
         )
         """
         return expr.description

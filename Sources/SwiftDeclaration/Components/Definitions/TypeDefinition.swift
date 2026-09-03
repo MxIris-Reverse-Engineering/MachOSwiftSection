@@ -265,7 +265,7 @@ public final class TypeDefinition: Definition {
             }
 
             for (index, descriptor) in classWrapper.methodDescriptors.enumerated() {
-                guard let symbols = try descriptor.implementationSymbols(in: machO) else { continue }
+                guard let symbols = descriptor.implementationSymbols(in: machO) else { continue }
                 guard let overrideSymbol = demangledOverrideSymbol(for: symbols, typeNode: typeNode, visitedNodes: visitedNodes, in: machO) else { continue }
                 let node = overrideSymbol.demangledNode
                 visitedNodes.append(StructuralNodeReferenceKey(node))
@@ -278,7 +278,7 @@ public final class TypeDefinition: Definition {
             var parentVTableCache = ParentClassVTableCache()
 
             for descriptor in classWrapper.methodOverrideDescriptors {
-                guard let symbols = try descriptor.implementationSymbols(in: machO) else { continue }
+                guard let symbols = descriptor.implementationSymbols(in: machO) else { continue }
                 guard let overrideSymbol = demangledOverrideSymbol(for: symbols, typeNode: typeNode, visitedNodes: visitedNodes, in: machO) else { continue }
                 let node = overrideSymbol.demangledNode
                 visitedNodes.append(StructuralNodeReferenceKey(node))
@@ -290,7 +290,7 @@ public final class TypeDefinition: Definition {
                 }
             }
             for descriptor in classWrapper.methodDefaultOverrideDescriptors {
-                guard let symbols = try descriptor.implementationSymbols(in: machO) else { continue }
+                guard let symbols = descriptor.implementationSymbols(in: machO) else { continue }
                 guard let overrideSymbol = demangledOverrideSymbol(for: symbols, typeNode: typeNode, visitedNodes: visitedNodes, in: machO) else { continue }
                 let node = overrideSymbol.demangledNode
                 visitedNodes.append(StructuralNodeReferenceKey(node))

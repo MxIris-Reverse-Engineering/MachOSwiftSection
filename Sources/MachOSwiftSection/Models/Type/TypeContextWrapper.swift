@@ -1,6 +1,5 @@
 import Foundation
 import MachOKit
-import MachOSymbols
 import SwiftStdlibToolbox
 
 @AssociatedValue(.public)

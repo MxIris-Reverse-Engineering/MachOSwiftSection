@@ -208,7 +208,7 @@ public final class ExtensionDefinition: Definition, MutableDefinition {
         var defaultImplementationSymbolNames: Set<String> = []
 
         for resilientWitness in protocolConformance.resilientWitnesses {
-            if let symbols = try resilientWitness.implementationSymbols(in: machO), let symbol = try _symbol(for: symbols, typeName: extensionName.name, visitedNodes: visitedNodes) {
+            if let symbols = resilientWitness.implementationSymbols(in: machO), let symbol = try _symbol(for: symbols, typeName: extensionName.name, visitedNodes: visitedNodes) {
                 _ = visitedNodes.append(StructuralNodeReferenceKey(symbol.demangledNode))
                 addSymbol(.init(symbol), memberSymbolsByKind: &memberSymbolsByKind, inExtension: true)
             } else if let requirement = try resilientWitness.requirement(in: machO) {
@@ -218,10 +218,10 @@ public final class ExtensionDefinition: Definition, MutableDefinition {
                         addSymbol(.init(.init(symbol: symbol, demangledNode: demangledNode)), memberSymbolsByKind: &memberSymbolsByKind, inExtension: true)
                     }
                 case .element(let element):
-                    if let symbols = try await Symbols.resolve(from: element.offset, in: machO), let symbol = try _symbol(for: symbols, typeName: extensionName.name, visitedNodes: visitedNodes) {
+                    if let symbols = machO.symbols(offset: element.offset), let symbol = try _symbol(for: symbols, typeName: extensionName.name, visitedNodes: visitedNodes) {
                         _ = visitedNodes.append(StructuralNodeReferenceKey(symbol.demangledNode))
                         addSymbol(.init(symbol), memberSymbolsByKind: &memberSymbolsByKind, inExtension: true)
-                    } else if let defaultImplementationSymbols = try element.defaultImplementationSymbols(in: machO), let symbol = try _symbol(for: defaultImplementationSymbols, typeName: extensionName.name, visitedNodes: visitedNodes) {
+                    } else if let defaultImplementationSymbols = element.defaultImplementationSymbols(in: machO), let symbol = try _symbol(for: defaultImplementationSymbols, typeName: extensionName.name, visitedNodes: visitedNodes) {
                         _ = visitedNodes.append(StructuralNodeReferenceKey(symbol.demangledNode))
                         // The witness resolved through the requirement's
                         // DEFAULT implementation — the code lives in a

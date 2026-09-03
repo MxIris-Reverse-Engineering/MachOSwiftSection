@@ -48,16 +48,26 @@ final class ProtocolRequirementTests: MachOSwiftSectionFixtureTests, FixtureSuit
         #expect(result == ProtocolRequirementBaseline.firstRequirement.layoutFlagsRawValue)
     }
 
-    @Test func defaultImplementationSymbols() async throws {
+    /// `defaultImplementationOffset` is pure relative-pointer arithmetic:
+    /// pinned as a literal (`nil` for a requirement without a default) and
+    /// identical across readers.
+    @Test func defaultImplementationOffset() async throws {
         let (file, image) = try loadFirstRequirements()
         let result = try acrossAllReaders(
-            file: { (try file.defaultImplementationSymbols(in: machOFile)) != nil },
-            image: { (try image.defaultImplementationSymbols(in: machOImage)) != nil }
+            file: { file.defaultImplementationOffset },
+            image: { image.defaultImplementationOffset }
         )
-        #expect(result == ProtocolRequirementBaseline.firstRequirement.hasDefaultImplementation)
+        #expect(result == ProtocolRequirementBaseline.firstRequirement.defaultImplementationOffset)
+    }
 
-        // ReadingContext overload also exercised.
-        let imageContextResult = (try image.defaultImplementationSymbols(in: imageContext)) != nil
-        #expect(imageContextResult == ProtocolRequirementBaseline.firstRequirement.hasDefaultImplementation)
+    /// The `ReadingContext` leg reports the same location as a context
+    /// address (a file offset for `MachOContext`), `nil` included.
+    @Test func defaultImplementationAddress() async throws {
+        let (file, image) = try loadFirstRequirements()
+        let fileAddress = try file.defaultImplementationAddress(in: fileContext)
+        let imageAddress = try image.defaultImplementationAddress(in: imageContext)
+        #expect(fileAddress == file.defaultImplementationOffset)
+        #expect(imageAddress == image.defaultImplementationOffset)
+        #expect(imageAddress == ProtocolRequirementBaseline.firstRequirement.defaultImplementationOffset)
     }
 }

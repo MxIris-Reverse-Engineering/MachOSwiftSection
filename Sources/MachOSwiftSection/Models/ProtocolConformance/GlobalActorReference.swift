@@ -1,6 +1,6 @@
 import Foundation
 import MachOKit
-import MachOFoundation
+import MachOBase
 
 /// Trailing object of `TargetProtocolConformanceDescriptor` carrying the global
 /// actor that isolates a conformance (e.g. `extension X: @MainActor P`).

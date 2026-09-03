@@ -1,6 +1,5 @@
 import MachOKit
 import MachOReading
-import MachOResolving
 import MachOKitExtensions
 
 public enum SymbolOrElement<Element: Resolvable>: Resolvable {

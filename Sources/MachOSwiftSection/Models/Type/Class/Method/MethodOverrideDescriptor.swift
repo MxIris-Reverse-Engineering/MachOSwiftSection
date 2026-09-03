@@ -1,12 +1,12 @@
 import Foundation
 import MachOKit
-import MachOFoundation
+import MachOBase
 
 public struct MethodOverrideDescriptor: ResolvableLocatableLayoutWrapper {
     public struct Layout: LayoutProtocol {
         public let `class`: RelativeContextPointer
         public let method: RelativeMethodDescriptorPointer
-        public let implementation: RelativeDirectPointer<Symbols?>
+        public let implementation: RelativeDirectRawPointer
     }
 
     public var layout: Layout
@@ -32,8 +32,11 @@ extension MethodOverrideDescriptor {
         return try layout.method.resolve(from: pointer(of: \.method)).asOptional
     }
 
-    public func implementationSymbols<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> Symbols? {
-        return try layout.implementation.resolve(from: offset(of: \.implementation), in: machO)
+    /// File offset of the overriding implementation, or `nil` for a null
+    /// pointer. See `MethodDescriptor.implementationOffset`.
+    public var implementationOffset: Int? {
+        guard layout.implementation.isValid else { return nil }
+        return layout.implementation.resolveDirectOffset(from: offset(of: \.implementation))
     }
 }
 
@@ -48,7 +51,10 @@ extension MethodOverrideDescriptor {
         return try layout.method.resolve(at: try context.addressFromOffset(offset(of: \.method)), in: context).asOptional
     }
 
-    public func implementationSymbols<Context: ReadingContext>(in context: Context) throws -> Symbols? {
-        return try layout.implementation.resolve(at: try context.addressFromOffset(offset(of: \.implementation)), in: context)
+    /// The overriding implementation's location as an address in `context`,
+    /// or `nil` for a null pointer.
+    public func implementationAddress<Context: ReadingContext>(in context: Context) throws -> Context.Address? {
+        guard let implementationOffset else { return nil }
+        return try context.addressFromOffset(implementationOffset)
     }
 }

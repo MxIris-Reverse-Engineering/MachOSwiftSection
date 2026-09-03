@@ -297,7 +297,7 @@ enum CoverageAllowlistEntries {
     private static let needsFixtureExtensionEntries: [CoverageAllowlistEntry] = [
         CoverageAllowlistHelpers.sentinelGroup(
             typeName: "MethodDefaultOverrideDescriptor",
-            members: ["originalMethodDescriptor", "replacementMethodDescriptor", "implementationSymbols", "layout", "offset"],
+            members: ["originalMethodDescriptor", "replacementMethodDescriptor", "implementationAddress", "implementationOffset", "layout", "offset"],
             reason: .needsFixtureExtension(detail: "MethodDefaultOverrideTable requires experimental CoroutineAccessors (read2/modify2) on a resilient open class; macOS Swift runtime does not yet export _swift_deletedCalleeAllocatedCoroutineMethodErrorTwc, so the fixture cannot be built. Defer until ABI stabilizes.")
         ),
         CoverageAllowlistHelpers.sentinelGroup(

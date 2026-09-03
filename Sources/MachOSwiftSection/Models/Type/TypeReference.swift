@@ -1,5 +1,5 @@
 import MachOKit
-import MachOFoundation
+import MachOBase
 
 public enum TypeReference: Sendable {
     case directTypeDescriptor(RelativeDirectPointer<ContextDescriptorWrapper?>)

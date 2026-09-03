@@ -1,4 +1,5 @@
 import MachOSwiftSection
+import MachOFoundation
 
 /// The set of images the layout engine may resolve types against, plus the
 /// resolution entry point the resolver uses to map a fully-qualified type name

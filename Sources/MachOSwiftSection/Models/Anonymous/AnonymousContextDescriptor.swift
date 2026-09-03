@@ -1,6 +1,6 @@
 import Foundation
 import MachOKit
-import MachOFoundation
+import MachOBase
 
 public struct AnonymousContextDescriptor: AnonymousContextDescriptorProtocol {
     public struct Layout: AnonymousContextDescriptorLayout {

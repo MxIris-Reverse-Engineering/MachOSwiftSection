@@ -1,4 +1,4 @@
 import Foundation
-import MachOFoundation
+import MachOBase
 
 public typealias ResolvableLocatableLayoutWrapper = LocatableLayoutWrapper & Resolvable

@@ -1,6 +1,6 @@
 import Foundation
 import MachOKit
-import MachOFoundation
+import MachOBase
 
 // template <typename Runtime>
 // class swift_ptrauth_struct_context_descriptor(ClassDescriptor)

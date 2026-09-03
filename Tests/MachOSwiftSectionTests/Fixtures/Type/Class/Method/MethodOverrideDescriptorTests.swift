@@ -8,8 +8,9 @@ import MachOFixtureSupport
 /// Fixture-based Suite for `MethodOverrideDescriptor`.
 ///
 /// The Suite picks the first override entry from `Classes.SubclassTest`,
-/// then asserts cross-reader equality on the descriptor's offset and
-/// presence-flags for the resolved class/method/symbols pointers.
+/// then asserts cross-reader equality on the descriptor's offset, the
+/// implementation offset, and presence-flags for the resolved class/method
+/// pointers.
 @Suite
 final class MethodOverrideDescriptorTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
     static let testedTypeName = "MethodOverrideDescriptor"
@@ -76,18 +77,24 @@ final class MethodOverrideDescriptorTests: MachOSwiftSectionFixtureTests, Fixtur
         #expect(presence == true)
     }
 
-    /// `implementationSymbols(in:)` returns the resolved override
-    /// implementation Symbols.
-    @Test func implementationSymbols() async throws {
+    /// `implementationOffset` is pure relative-pointer arithmetic: identical
+    /// across readers, and an override always has an implementation.
+    @Test func implementationOffset() async throws {
         let overrides = try loadFirstOverrides()
-        let presence = try acrossAllReaders(
-            file: { (try overrides.file.implementationSymbols(in: machOFile)) != nil },
-            image: { (try overrides.image.implementationSymbols(in: machOImage)) != nil }
+        let result = try acrossAllReaders(
+            file: { overrides.file.implementationOffset },
+            image: { overrides.image.implementationOffset }
         )
-        #expect(presence == true)
+        #expect(result != nil)
+    }
 
-        // ReadingContext-based overload.
-        let imageCtxPresence = (try overrides.image.implementationSymbols(in: imageContext)) != nil
-        #expect(imageCtxPresence == true)
+    /// The `ReadingContext` leg reports the same location as a context
+    /// address (a file offset for `MachOContext`).
+    @Test func implementationAddress() async throws {
+        let overrides = try loadFirstOverrides()
+        let fileAddress = try overrides.file.implementationAddress(in: fileContext)
+        let imageAddress = try overrides.image.implementationAddress(in: imageContext)
+        #expect(fileAddress == overrides.file.implementationOffset)
+        #expect(imageAddress == overrides.image.implementationOffset)
     }
 }

@@ -2,6 +2,7 @@ import Foundation
 import MachOKit
 import MachODependencies
 import MachOSwiftSection
+import MachOFoundation
 import SwiftLayout
 @_spi(Internals) import SwiftInspection
 

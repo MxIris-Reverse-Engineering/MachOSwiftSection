@@ -1,5 +1,5 @@
 import Foundation
-import MachOFoundation
+import MachOBase
 
 public struct ForeignReferenceTypeMetadata: MetadataProtocol {
     public struct Layout: ForeignReferenceTypeMetadataLayout {

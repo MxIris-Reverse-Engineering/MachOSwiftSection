@@ -5,6 +5,7 @@ import SwiftPrinting
 @preconcurrency import MachOKit
 import MachODependencies
 import MachOSwiftSection
+import MachOFoundation
 
 /// The images a provider such as TypeIndexing's
 /// `SwiftInterfaceBuilderTypeNameProvider` works against: the root plus its

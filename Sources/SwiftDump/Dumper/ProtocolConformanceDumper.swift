@@ -102,13 +102,13 @@ package struct ProtocolConformanceDumper<MachO: FieldLayoutRenderable>: Conforme
                 for resilientWitness in dumped.resilientWitnesses {
                     BreakLine()
 
-                    if configuration.printMemberAddress {
-                        configuration.memberAddressComment(offset: resilientWitness.implementationOffset, addressString: resilientWitness.implementationAddress(in: machO))
+                    if configuration.printMemberAddress, let implementationOffset = resilientWitness.implementationOffset, let implementationAddressString = resilientWitness.implementationAddress(in: machO) {
+                        configuration.memberAddressComment(offset: implementationOffset, addressString: implementationAddressString)
                     }
                     
                     Indent(level: 1)
 
-                    if let symbols = try resilientWitness.implementationSymbols(in: machO), let node = Self.demangledSymbol(for: symbols, typeName: typeNameString, visitedNodes: visitedNodes, in: machO)?.demangledNode {
+                    if let symbols = resilientWitness.implementationSymbols(in: machO), let node = Self.demangledSymbol(for: symbols, typeName: typeNameString, visitedNodes: visitedNodes, in: machO)?.demangledNode {
                         _ = visitedNodes.append(StructuralNodeReferenceKey(node))
                         try await demangleResolver.resolve(for: node)
                     } else if let requirement = try resilientWitness.requirement(in: machO) {
@@ -117,10 +117,10 @@ package struct ProtocolConformanceDumper<MachO: FieldLayoutRenderable>: Conforme
                         case .symbol(let symbol):
                             try await MetadataReader.demangleSymbolReference(for: symbol, in: machO).asyncMap { try await demangleResolver.resolve(for: $0) }
                         case .element(let element):
-                            if let symbols = try await Symbols.resolve(from: element.offset, in: machO), let node = Self.demangledSymbol(for: symbols, typeName: typeNameString, visitedNodes: visitedNodes, in: machO)?.demangledNode {
+                            if let symbols = machO.symbols(offset: element.offset), let node = Self.demangledSymbol(for: symbols, typeName: typeNameString, visitedNodes: visitedNodes, in: machO)?.demangledNode {
                                 _ = visitedNodes.append(StructuralNodeReferenceKey(node))
                                 try await demangleResolver.resolve(for: node)
-                            } else if let defaultImplementationSymbols = try element.defaultImplementationSymbols(in: machO), let node = Self.demangledSymbol(for: defaultImplementationSymbols, typeName: typeNameString, visitedNodes: visitedNodes, in: machO)?.demangledNode {
+                            } else if let defaultImplementationSymbols = element.defaultImplementationSymbols(in: machO), let node = Self.demangledSymbol(for: defaultImplementationSymbols, typeName: typeNameString, visitedNodes: visitedNodes, in: machO)?.demangledNode {
                                 _ = visitedNodes.append(StructuralNodeReferenceKey(node))
                                 // Qualifies the address comment above
                                 // (evolution proposal 0007): this witness
@@ -185,7 +185,7 @@ package struct ProtocolConformanceDumper<MachO: FieldLayoutRenderable>: Conforme
     }
 
     private func _requirementName(for requirement: ProtocolRequirement) async throws -> String? {
-        guard let symbols = try await Symbols.resolve(from: requirement.offset, in: machO) else { return nil }
+        guard let symbols = machO.symbols(offset: requirement.offset) else { return nil }
         for symbol in symbols {
             if let node = MetadataReader.demangleSymbolReference(for: symbol, in: machO) {
                 return await node.print(using: typeNameOptions)

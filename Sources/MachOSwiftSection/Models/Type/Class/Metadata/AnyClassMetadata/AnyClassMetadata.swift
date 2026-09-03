@@ -1,6 +1,6 @@
 import Foundation
 import MachOKit
-import MachOFoundation
+import MachOBase
 
 public struct AnyClassMetadata: AnyClassMetadataProtocol {
     public struct Layout: AnyClassMetadataLayout {

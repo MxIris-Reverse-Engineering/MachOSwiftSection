@@ -236,7 +236,7 @@ package struct ClassDumper<MachO: FieldLayoutRenderable>: TypedDumper {
                 // Pre-resolve the method node so we can check distributed status
                 // before deciding which keywords to emit.
                 var resolvedMethodNode: NodeReference? = nil
-                if let symbols = try? descriptor.implementationSymbols(in: machO) {
+                if let symbols = descriptor.implementationSymbols(in: machO) {
                     resolvedMethodNode = try? await validNode(for: symbols, visitedNodes: methodVisitedNodes)
                 }
 
@@ -278,7 +278,7 @@ package struct ClassDumper<MachO: FieldLayoutRenderable>: TypedDumper {
 
                 let methodDescriptor = try descriptor.methodDescriptor(in: machO)
 
-                if let symbols = try? descriptor.implementationSymbols(in: machO), let node = try await validNode(for: symbols, visitedNodes: methodOverrideVisitedNodes) {
+                if let symbols = descriptor.implementationSymbols(in: machO), let node = try await validNode(for: symbols, visitedNodes: methodOverrideVisitedNodes) {
                     dumpMethodKind(for: methodDescriptor?.resolved)
                     Keyword(.override)
                     Space()
@@ -326,7 +326,7 @@ package struct ClassDumper<MachO: FieldLayoutRenderable>: TypedDumper {
 
                 Space()
 
-                if let symbols = try? descriptor.implementationSymbols(in: machO), let node = try await validNode(for: symbols, visitedNodes: methodDefaultOverrideVisitedNodes) {
+                if let symbols = descriptor.implementationSymbols(in: machO), let node = try await validNode(for: symbols, visitedNodes: methodDefaultOverrideVisitedNodes) {
                     try await demangleResolver.resolve(for: node)
                     _ = methodDefaultOverrideVisitedNodes.append(StructuralNodeReferenceKey(node))
                 } else if !descriptor.implementation.isNull {
@@ -453,14 +453,14 @@ package struct ClassDumper<MachO: FieldLayoutRenderable>: TypedDumper {
     private func collectOverrideImplementationSymbolNames() -> Set<String> {
         var names: Set<String> = []
         for descriptor in dumped.methodOverrideDescriptors {
-            if let symbols = try? descriptor.implementationSymbols(in: machO) {
+            if let symbols = descriptor.implementationSymbols(in: machO) {
                 for overrideSymbol in symbols {
                     names.insert(overrideSymbol.name)
                 }
             }
         }
         for descriptor in dumped.methodDefaultOverrideDescriptors {
-            if let symbols = try? descriptor.implementationSymbols(in: machO) {
+            if let symbols = descriptor.implementationSymbols(in: machO) {
                 for overrideSymbol in symbols {
                     names.insert(overrideSymbol.name)
                 }
@@ -531,7 +531,7 @@ package struct ClassDumper<MachO: FieldLayoutRenderable>: TypedDumper {
         let node: NodeReference?
         if let resolvedNode {
             node = resolvedNode
-        } else if let symbols = try? descriptor.implementationSymbols(in: machO) {
+        } else if let symbols = descriptor.implementationSymbols(in: machO) {
             node = try await validNode(for: symbols, visitedNodes: visitedNodes)
         } else {
             node = nil
@@ -562,7 +562,7 @@ package struct ClassDumper<MachO: FieldLayoutRenderable>: TypedDumper {
         var names: Set<String> = []
         let accessorKinds: Set<MethodDescriptorKind> = [.getter, .setter, .modifyCoroutine, .readCoroutine]
         for descriptor in dumped.methodDescriptors where accessorKinds.contains(descriptor.flags.kind) {
-            guard let symbols = try? descriptor.implementationSymbols(in: machO) else { continue }
+            guard let symbols = descriptor.implementationSymbols(in: machO) else { continue }
             for symbol in symbols {
                 guard let node = MetadataReader.demangleSymbolReference(for: symbol, in: machO),
                       let variableName = node.first(of: .variable)?.identifier else { continue }

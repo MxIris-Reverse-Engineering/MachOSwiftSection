@@ -1,5 +1,5 @@
 import Foundation
-import MachOFoundation
+import MachOBase
 
 public struct MethodDefaultOverrideTableHeader: ResolvableLocatableLayoutWrapper {
     public struct Layout: LayoutProtocol {

@@ -1,6 +1,6 @@
 import Foundation
 import MachOKit
-import MachOFoundation
+import MachOBase
 
 public struct OpaqueMetadata: MetadataProtocol {
     public typealias HeaderType = TypeMetadataHeaderBase

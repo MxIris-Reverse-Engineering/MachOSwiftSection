@@ -30,7 +30,8 @@
 | MachOSwiftSection | — | 待写 |
 | MachOFoundation | — | 待写 |
 | MachOSymbols | — | 待写（专题：[SymbolIndexStoreMemoryOptimization.md](../SymbolIndexStoreMemoryOptimization.md)） |
-| MachOPointers / MachOSymbolPointers | — | 待写 |
+| MachOBase | — | 待写（伞模块：ABI 层允许看到的全部——reading / resolving / pointers；见 [SelfContainedABILayer.md](../SelfContainedABILayer.md)） |
+| MachOPointers | — | 待写（`SymbolOrElementPointer` 自 `MachOSymbolPointers` 并入，见 [SelfContainedABILayer.md](../SelfContainedABILayer.md)） |
 | MachOReading / MachOResolving | — | 待写 |
 | MachOCaches | — | 待写 |
 | MachODependencies | [MachODependencies.md](MachODependencies.md) | ✅ 已写 |

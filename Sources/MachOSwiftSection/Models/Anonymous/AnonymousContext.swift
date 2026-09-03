@@ -1,6 +1,6 @@
 import Foundation
 import MachOKit
-import MachOFoundation
+import MachOBase
 
 public struct AnonymousContext: TopLevelType, ContextProtocol {
     public let descriptor: AnonymousContextDescriptor

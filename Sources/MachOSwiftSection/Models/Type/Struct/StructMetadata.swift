@@ -1,5 +1,5 @@
 import MachOKit
-import MachOFoundation
+import MachOBase
 
 public struct StructMetadata: StructMetadataProtocol {
     public struct Layout: StructMetadataLayout {

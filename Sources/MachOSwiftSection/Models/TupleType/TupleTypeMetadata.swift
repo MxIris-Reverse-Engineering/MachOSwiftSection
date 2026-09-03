@@ -1,5 +1,5 @@
 import Foundation
-import MachOFoundation
+import MachOBase
 
 public struct TupleTypeMetadata: MetadataProtocol {
     public typealias HeaderType = TypeMetadataHeaderBase

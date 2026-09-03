@@ -1,4 +1,4 @@
-import MachOFoundation
+import MachOBase
 
 public struct TypeGenericContextDescriptorHeader: GenericContextDescriptorHeaderProtocol {
     public struct Layout: GenericContextDescriptorHeaderLayout {

@@ -97,13 +97,13 @@ package struct ProtocolDumper<MachO: FieldLayoutRenderable>: NamedDumper {
             for (offset, requirement) in dumped.requirements.offsetEnumerated() {
                 BreakLine()
                 Indent(level: configuration.indentation)
-                if let symbols = try await Symbols.resolve(from: requirement.offset, in: machO), let validNode = try await validNode(for: symbols) {
+                if let symbols = machO.symbols(offset: requirement.offset), let validNode = try await validNode(for: symbols) {
                     try await demangleResolver.resolve(for: validNode)
                 } else {
                     InlineComment("[Stripped Symbol]")
                 }
 
-                if let symbols = try requirement.defaultImplementationSymbols(in: machO), let defaultImplementation = try await validNode(for: symbols, visitedNode: defaultImplementations) {
+                if let symbols = requirement.defaultImplementationSymbols(in: machO), let defaultImplementation = try await validNode(for: symbols, visitedNode: defaultImplementations) {
                     _ = defaultImplementations.append(StructuralNodeReferenceKey(defaultImplementation))
                 }
 

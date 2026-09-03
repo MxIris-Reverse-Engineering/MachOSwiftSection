@@ -315,20 +315,24 @@ extension Target {
         name: "MachOPointers",
         dependencies: [
             .product(.MachOKit),
+            .product(.MachOKitExtensions),
             .target(.MachOReading),
             .target(.MachOResolving),
             .target(.Utilities),
         ],
     )
 
-    static let MachOSymbolPointers = Target.target(
-        name: "MachOSymbolPointers",
+    /// The reader / resolver / pointer layer as one import: everything the
+    /// ABI model is allowed to depend on. `MachOFoundation` adds the symbol
+    /// index and dependency resolution on top (evolution proposal
+    /// `self-contained-abi-layer`).
+    static let MachOBase = Target.target(
+        name: "MachOBase",
         dependencies: [
-            .product(.MachOKit),
+            .product(.MachOKitExtensions),
             .target(.MachOReading),
             .target(.MachOResolving),
             .target(.MachOPointers),
-            .target(.MachOSymbols),
             .target(.Utilities),
         ],
     )
@@ -337,14 +341,9 @@ extension Target {
         name: "MachOFoundation",
         dependencies: [
             .product(.MachOKit),
-            .target(.MachOReading),
-            .product(.MachOKitExtensions),
-            .target(.MachOPointers),
+            .target(.MachOBase),
             .target(.MachOSymbols),
-            .target(.MachOResolving),
-            .target(.MachOSymbolPointers),
             .target(.MachODependencies),
-            .target(.Utilities),
         ],
     )
 
@@ -352,14 +351,15 @@ extension Target {
         name: "MachOSwiftSectionC",
     )
 
+    /// The ABI model. Depends on the reader / resolver / pointer layer only:
+    /// no symbol index, no demangler (evolution proposal
+    /// `self-contained-abi-layer`).
     static let MachOSwiftSection = Target.target(
         name: "MachOSwiftSection",
         dependencies: [
             .product(.MachOKit),
-            .product(.Demangling),
-            .target(.MachOFoundation),
+            .target(.MachOBase),
             .target(.MachOSwiftSectionC),
-            .target(.Utilities),
         ],
     )
 
@@ -393,6 +393,7 @@ extension Target {
             .target(.MachOSwiftSectionC),
             .target(.Utilities),
             .target(.SwiftOutputTransformer),
+            .target(.MachOFoundation),
         ],
     )
 
@@ -450,6 +451,7 @@ extension Target {
             .target(.Utilities),
             .target(.SwiftInspection),
             .target(.SwiftDeclarationRendering),
+            .target(.MachOFoundation),
         ],
     )
 
@@ -474,6 +476,7 @@ extension Target {
             .target(.SwiftInspection),
             .target(.SwiftDeclarationRendering),
             .target(.Utilities),
+            .target(.MachOFoundation),
         ],
     )
 
@@ -491,6 +494,7 @@ extension Target {
             .target(.SwiftInspection),
             .target(.Utilities),
             .target(.SwiftDeclaration),
+            .target(.MachOFoundation),
         ],
     )
 
@@ -542,6 +546,7 @@ extension Target {
             .target(.Utilities),
             .target(.SwiftDeclaration),
             .target(.SwiftAttributeInference),
+            .target(.MachOFoundation),
         ],
     )
 
@@ -620,6 +625,7 @@ extension Target {
             .target(.TypeIndexing),
             .product(name: "Rainbow", package: "Rainbow"),
             .product(name: "ArgumentParser", package: "swift-argument-parser"),
+            .target(.MachOFoundation),
         ],
     )
 
@@ -730,6 +736,7 @@ extension Target {
             .target(.MachOTestingSupport),
             .target(.MachOFixtureSupport),
             .product(.Demangling),
+            .target(.MachOResolving),
         ],
         swiftSettings: testSettings,
     )
@@ -741,6 +748,8 @@ extension Target {
             .target(.MachOTestingSupport),
             .target(.MachOFixtureSupport),
             .target(.SwiftDump),
+            .target(.MachOFoundation),
+            .product(.Demangling),
         ],
         swiftSettings: testSettings,
     )
@@ -795,6 +804,7 @@ extension Target {
             .target(.MachOTestingSupport),
             .target(.MachOFixtureSupport),
             .product(.Demangling),
+            .target(.MachOFoundation),
         ],
         swiftSettings: testSettings,
     )
@@ -809,6 +819,7 @@ extension Target {
             .product(.Semantic),
             .product(.Demangling),
             .product(name: "SnapshotTesting", package: "swift-snapshot-testing"),
+            .target(.MachOFoundation),
         ],
         swiftSettings: testSettings,
     )
@@ -833,6 +844,7 @@ extension Target {
             .target(.MachOTestingSupport),
             .target(.MachOFixtureSupport),
             .product(name: "SnapshotTesting", package: "swift-snapshot-testing"),
+            .target(.MachOFoundation),
         ],
         swiftSettings: testSettings,
     )
@@ -846,6 +858,7 @@ extension Target {
             .target(.SwiftDump),
             .target(.MachOTestingSupport),
             .target(.MachOFixtureSupport),
+            .target(.MachOFoundation),
         ],
         swiftSettings: testSettings,
     )
@@ -861,6 +874,7 @@ extension Target {
             .target(.MachOFixtureSupport),
             .product(.Semantic),
             .product(.Demangling),
+            .target(.MachOFoundation),
         ],
         swiftSettings: testSettings,
     )
@@ -873,6 +887,7 @@ extension Target {
             .target(.SwiftAttributeInference),
             .target(.MachOTestingSupport),
             .target(.MachOFixtureSupport),
+            .target(.MachOFoundation),
         ],
         swiftSettings: testSettings,
     )
@@ -882,6 +897,7 @@ extension Target {
         dependencies: [
             .target(.SwiftDeclaration),
             .target(.SwiftDiffing),
+            .target(.MachOFoundation),
         ],
         swiftSettings: testSettings,
     )
@@ -908,6 +924,7 @@ extension Target {
             .target(.SwiftInspection),
             .target(.MachOTestingSupport),
             .target(.MachOFixtureSupport),
+            .target(.MachOFoundation),
         ],
         swiftSettings: testSettings,
     )
@@ -921,6 +938,7 @@ extension Target {
             .target(.SwiftSpecialization),
             .target(.MachOTestingSupport),
             .target(.MachOFixtureSupport),
+            .target(.MachOFoundation),
         ],
         swiftSettings: testSettings,
     )
@@ -947,7 +965,6 @@ extension Target {
             .target(.MachOResolving),
             .target(.MachOSymbols),
             .target(.MachOPointers),
-            .target(.MachOSymbolPointers),
             .target(.MachOFoundation),
             .target(.MachOSwiftSection),
             .target(.SwiftInspection),
@@ -1002,7 +1019,7 @@ let package = Package(
         .MachOResolving,
         .MachOSymbols,
         .MachOPointers,
-        .MachOSymbolPointers,
+        .MachOBase,
         .MachOFoundation,
         .MachOSwiftSectionC,
         .MachOSwiftSection,

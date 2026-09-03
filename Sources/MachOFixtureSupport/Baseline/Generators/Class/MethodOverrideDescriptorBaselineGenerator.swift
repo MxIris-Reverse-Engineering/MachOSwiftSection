@@ -28,7 +28,8 @@ package enum MethodOverrideDescriptorBaselineGenerator {
         // collapse to a single MethodKey under PublicMemberScanner.
         let registered = [
             "classDescriptor",
-            "implementationSymbols",
+            "implementationAddress",
+            "implementationOffset",
             "layout",
             "methodDescriptor",
             "offset",

@@ -13,8 +13,8 @@ import MachOFoundation
 ///
 /// Picker: the first `ProtocolConformance` from the fixture with a
 /// non-empty `resilientWitnesses` array. We pin the resolved offset of
-/// the first witness's `requirement(in:)` and the boolean presence of
-/// `implementationSymbols(in:)`. `implementationAddress(in:)` is a
+/// the first witness's `requirement(in:)` and its `implementationOffset`
+/// (pure relative-pointer arithmetic). `implementationAddress(in:)` is a
 /// MachO-only debug formatter (see `ResilientWitness.swift` doc-comment)
 /// — we register the name but do not assert on the live address string
 /// (it's a base-16 representation of an in-memory pointer).
@@ -28,26 +28,24 @@ package enum ResilientWitnessBaselineGenerator {
 
         let requirement = try firstWitness.requirement(in: machO)
         let hasRequirement = requirement != nil
-        let hasImplementationSymbols = (try firstWitness.implementationSymbols(in: machO)) != nil
         let implementationOffset = firstWitness.implementationOffset
 
         let entryExpr = emitEntryExpr(
             offset: firstWitness.offset,
             hasRequirement: hasRequirement,
-            hasImplementationSymbols: hasImplementationSymbols,
             implementationOffset: implementationOffset
         )
 
         // Public members declared directly in ResilientWitness.swift.
-        // The `requirement(in:)` and `implementationSymbols(in:)` overloads
-        // (MachO + InProcess + ReadingContext) collapse to single MethodKeys
-        // under the scanner's name-based deduplication.
-        // `implementationAddress(in:)` is a MachO-only debug formatter —
-        // tracked here, exercised for type-correctness in the Suite.
+        // The `requirement(in:)` overloads (MachO + InProcess +
+        // ReadingContext) collapse to a single MethodKey under the scanner's
+        // name-based deduplication, as do the two `implementationAddress(in:)`
+        // forms (the MachO-only debug formatter and the ReadingContext
+        // address). Symbol attribution (`implementationSymbols(in:)`) lives in
+        // SwiftInspection since evolution proposal `self-contained-abi-layer`.
         let registered = [
             "implementationAddress",
             "implementationOffset",
-            "implementationSymbols",
             "layout",
             "offset",
             "requirement",
@@ -68,8 +66,7 @@ package enum ResilientWitnessBaselineGenerator {
             struct Entry {
                 let offset: Int
                 let hasRequirement: Bool
-                let hasImplementationSymbols: Bool
-                let implementationOffset: Int
+                let implementationOffset: Int?
             }
 
             static let firstWitness = \(raw: entryExpr)
@@ -84,15 +81,13 @@ package enum ResilientWitnessBaselineGenerator {
     private static func emitEntryExpr(
         offset: Int,
         hasRequirement: Bool,
-        hasImplementationSymbols: Bool,
-        implementationOffset: Int
+        implementationOffset: Int?
     ) -> String {
         let expr: ExprSyntax = """
         Entry(
             offset: \(raw: BaselineEmitter.hex(offset)),
             hasRequirement: \(literal: hasRequirement),
-            hasImplementationSymbols: \(literal: hasImplementationSymbols),
-            implementationOffset: \(raw: BaselineEmitter.hex(implementationOffset))
+            implementationOffset: \(raw: BaselineEmitter.optionalHex(implementationOffset))
         )
         """
         return expr.description

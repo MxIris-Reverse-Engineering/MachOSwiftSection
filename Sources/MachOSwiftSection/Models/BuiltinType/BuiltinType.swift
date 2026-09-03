@@ -1,7 +1,6 @@
 import Foundation
-import MachOSymbols
 import MachOKit
-import MachOFoundation
+import MachOBase
 
 public struct BuiltinType: TopLevelType {
     public let descriptor: BuiltinTypeDescriptor

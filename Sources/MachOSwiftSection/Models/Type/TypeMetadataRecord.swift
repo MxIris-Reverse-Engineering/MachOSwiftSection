@@ -1,6 +1,6 @@
 import Foundation
 import MachOKit
-import MachOFoundation
+import MachOBase
 
 /// Mirrors `TargetTypeMetadataRecord` from
 /// `swift/include/swift/ABI/Metadata.h:2720`. One entry per 4-byte slot of

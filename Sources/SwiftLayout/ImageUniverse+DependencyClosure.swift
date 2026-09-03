@@ -1,6 +1,7 @@
 import MachOKit
 import MachODependencies
 import MachOSwiftSection
+import MachOFoundation
 
 /// The search-path enum moved down to `MachODependencies` so every feature
 /// resolves dependencies the same way (evolution proposal

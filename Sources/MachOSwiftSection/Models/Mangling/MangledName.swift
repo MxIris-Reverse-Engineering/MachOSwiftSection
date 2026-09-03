@@ -1,6 +1,6 @@
 import Foundation
 import MachOKit
-import MachOFoundation
+import MachOBase
 
 public struct MangledName: Sendable, Hashable {
     package enum Element: Sendable, Hashable {
@@ -73,7 +73,7 @@ public struct MangledName: Sendable, Hashable {
     public var symbolString: String {
         guard !elements.isEmpty else { return "" }
         let rawStringValue = rawString
-        if rawStringValue.isSwiftSymbol {
+        if rawStringValue.hasSwiftManglingPrefix {
             return rawStringValue
         } else {
             return rawStringValue.insertManglePrefix
@@ -83,8 +83,8 @@ public struct MangledName: Sendable, Hashable {
     public var typeString: String {
         guard !elements.isEmpty else { return "" }
         let rawStringValue = rawString
-        if rawStringValue.isSwiftSymbol {
-            return rawStringValue.stripManglePrefix
+        if rawStringValue.hasSwiftManglingPrefix {
+            return rawStringValue.strippingSwiftManglingPrefix
         } else {
             return rawStringValue
         }

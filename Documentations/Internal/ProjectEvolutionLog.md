@@ -1249,6 +1249,28 @@
 
 ---
 
+## 2026-09-03 ABI 层自包含（提案 self-contained-abi-layer；节号落地时取）
+
+- **时间段**：2026-09-03。
+- **动机**：`MachOSwiftSection`（ABI 模型）反向依赖符号索引——五个描述符的 Layout 里是
+  `RelativeDirectPointer<Symbols?>`，`Symbols` 的 `Resolvable` 实现走 `SymbolIndexStore.shared`，
+  一次 ABI 访问就触发整镜像的符号扫描与 demangle；`SymbolOrElementPointer` 又把 `MachOSymbols.Symbol`
+  带进每一种上下文指针。下游 MachOKitUI 为此把进程全局开关 `resolvesSymbolUsingIndexStore` 强行置
+  false。顺带发现 `ReadingContext` 那条腿在把机器码当 `Symbols` 结构体读（红测试：context 腿
+  `offset` 为 -2999674702252736512，MachO 腿 5624）。
+- **关键决策**：自包含到包图级别（用户定）；描述符只暴露 `implementationOffset` /
+  `implementationAddress(in:)`，符号归属作为扩展上移 `SwiftInspection`；`Symbol` / `Symbols` /
+  `SymbolOrElement` 下沉 `MachOResolving`，`MachOSymbolPointers` 并入 `MachOPointers`；新增底层伞模块
+  `MachOBase`（163 个文件的一行 import 替换）；`Demangling` 依赖一并摘掉（前缀判断与 `__C` 常量本地化，
+  `ManglingPrefixTests` 钉住等价）；async 版 `symbols(offset:)` 删除而非废弃（async 上下文会优先绑定它）。
+- **落地模块**：`MachOResolving`、`MachOPointers`、`MachOBase`（新）、`MachOSymbols`、`MachOFoundation`、
+  `MachOSwiftSection`、`SwiftInspection`、`SwiftDeclaration`、`SwiftDump`、`MachOFixtureSupport`，
+  `MachOSymbolPointers` 删除；16 个 target 补上原本只靠传递拿到的 `MachOFoundation` 声明。
+- **关联文档**：[提案](../Evolutions/draft-self-contained-abi-layer.md)、
+  [SelfContainedABILayer.md](SelfContainedABILayer.md)、
+  [TaskReports/2026-09-03-self-contained-abi-layer.md](TaskReports/2026-09-03-self-contained-abi-layer.md)。
+- **对应版本**：0.18.0（破坏性 API 变更，见 Changelog）。
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节

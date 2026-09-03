@@ -1,5 +1,5 @@
 import Foundation
-import MachOFoundation
+import MachOBase
 
 @dynamicMemberLookup
 public struct TypeLayout {

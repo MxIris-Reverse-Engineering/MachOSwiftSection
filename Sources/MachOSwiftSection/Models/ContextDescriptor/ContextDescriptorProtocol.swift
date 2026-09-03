@@ -1,6 +1,5 @@
 import MachOKit
-import MachOFoundation
-import Demangling
+import MachOBase
 
 @dynamicMemberLookup
 public protocol ContextDescriptorProtocol: ResolvableLocatableLayoutWrapper where Layout: ContextDescriptorLayout {
@@ -56,7 +55,7 @@ extension ContextDescriptorProtocol {
     public func isCImportedContextDescriptor<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> Bool {
         guard let moduleContextDescriptor = try moduleContextDescriptor(in: machO) else { return false }
         let moduleName = try moduleContextDescriptor.name(in: machO)
-        return moduleName == cModule || moduleName == objcModule
+        return moduleName == CImportedModuleNames.cSynthesized || moduleName == CImportedModuleNames.objectiveC
     }
 }
 
@@ -89,7 +88,7 @@ extension ContextDescriptorProtocol {
     public func isCImportedContextDescriptor() throws -> Bool {
         guard let moduleContextDescriptor = try moduleContextDescriptor() else { return false }
         let moduleName = try moduleContextDescriptor.name()
-        return moduleName == cModule || moduleName == objcModule
+        return moduleName == CImportedModuleNames.cSynthesized || moduleName == CImportedModuleNames.objectiveC
     }
 }
 
@@ -126,6 +125,6 @@ extension ContextDescriptorProtocol {
     public func isCImportedContextDescriptor<Context: ReadingContext>(in context: Context) throws -> Bool {
         guard let moduleContextDescriptor = try moduleContextDescriptor(in: context) else { return false }
         let moduleName = try moduleContextDescriptor.name(in: context)
-        return moduleName == cModule || moduleName == objcModule
+        return moduleName == CImportedModuleNames.cSynthesized || moduleName == CImportedModuleNames.objectiveC
     }
 }

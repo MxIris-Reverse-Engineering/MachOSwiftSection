@@ -27,6 +27,7 @@ final class MethodDefaultOverrideDescriptorTests: MachOSwiftSectionFixtureTests,
         // Invariant test.
         #expect(MethodDefaultOverrideDescriptorBaseline.registeredTestMethodNames.contains("originalMethodDescriptor"))
         #expect(MethodDefaultOverrideDescriptorBaseline.registeredTestMethodNames.contains("replacementMethodDescriptor"))
-        #expect(MethodDefaultOverrideDescriptorBaseline.registeredTestMethodNames.contains("implementationSymbols"))
+        #expect(MethodDefaultOverrideDescriptorBaseline.registeredTestMethodNames.contains("implementationOffset"))
+        #expect(MethodDefaultOverrideDescriptorBaseline.registeredTestMethodNames.contains("implementationAddress"))
     }
 }

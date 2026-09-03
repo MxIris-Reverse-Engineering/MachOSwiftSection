@@ -1,6 +1,6 @@
 import Foundation
 import MachOKit
-import MachOFoundation
+import MachOBase
 
 @Layout
 public protocol HeapMetadataHeaderPrefixLayout: LayoutProtocol {

@@ -9,11 +9,11 @@ import MachOFixtureSupport
 ///
 /// Picker: the first `ProtocolConformance` from the fixture with a
 /// non-empty `resilientWitnesses` array. We pick its first witness and
-/// exercise the `requirement(in:)` and `implementationSymbols(in:)`
-/// resolution paths (each MachO + ReadingContext overload) plus the
-/// `implementationOffset` derived var. `implementationAddress(in:)` is
-/// a MachO-only debug formatter — we exercise its type-correctness by
-/// calling it and checking it returns a non-empty hex string.
+/// exercise the `requirement(in:)` resolution path (MachO + ReadingContext
+/// overloads), the `implementationOffset` derived var (pinned as a
+/// literal), and the two `implementationAddress(in:)` forms: the
+/// ReadingContext address must equal the offset, and the MachO-only debug
+/// formatter must produce a non-empty hex string.
 @Suite
 final class ResilientWitnessTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
     static let testedTypeName = "ResilientWitness"
@@ -69,18 +69,6 @@ final class ResilientWitnessTests: MachOSwiftSectionFixtureTests, FixtureSuite, 
         #expect(result == ResilientWitnessBaseline.firstWitness.implementationOffset)
     }
 
-    @Test func implementationSymbols() async throws {
-        let (file, image) = try loadFirstWitnesses()
-        // MachOFile + MachOImage exercise the two main code paths; the
-        // ReadingContext overloads are exercised by other Suites in
-        // this group (e.g. ResilientWitnessTests.requirement) via the
-        // imageContext.
-        let fileResult = (try file.implementationSymbols(in: machOFile)) != nil
-        let imageResult = (try image.implementationSymbols(in: machOImage)) != nil
-        #expect(fileResult == ResilientWitnessBaseline.firstWitness.hasImplementationSymbols)
-        #expect(imageResult == ResilientWitnessBaseline.firstWitness.hasImplementationSymbols)
-    }
-
     /// `implementationAddress(in:)` is a MachO-only debug formatter — we
     /// don't pin the address string (it differs between MachOFile vs
     /// MachOImage by file vs in-memory base), but we verify it produces
@@ -89,7 +77,14 @@ final class ResilientWitnessTests: MachOSwiftSectionFixtureTests, FixtureSuite, 
         let (file, image) = try loadFirstWitnesses()
         let fileAddress = file.implementationAddress(in: machOFile)
         let imageAddress = image.implementationAddress(in: machOImage)
-        #expect(!fileAddress.isEmpty)
-        #expect(!imageAddress.isEmpty)
+        #expect(fileAddress?.isEmpty == false)
+        #expect(imageAddress?.isEmpty == false)
+
+        // The ReadingContext form is the typed location, not a string.
+        let fileContextAddress = try file.implementationAddress(in: fileContext)
+        let imageContextAddress = try image.implementationAddress(in: imageContext)
+        #expect(fileContextAddress == file.implementationOffset)
+        #expect(imageContextAddress == image.implementationOffset)
+        #expect(imageContextAddress == ResilientWitnessBaseline.firstWitness.implementationOffset)
     }
 }

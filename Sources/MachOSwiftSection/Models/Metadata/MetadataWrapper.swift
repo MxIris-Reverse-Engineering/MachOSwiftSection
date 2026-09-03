@@ -1,5 +1,5 @@
 import Foundation
-import MachOFoundation
+import MachOBase
 import SwiftStdlibToolbox
 
 @CaseCheckable(.public)

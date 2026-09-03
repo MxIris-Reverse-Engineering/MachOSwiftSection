@@ -1,5 +1,5 @@
 import Foundation
 import MachOKit
-import MachOFoundation
+import MachOBase
 
 public protocol TypeMetadataHeaderProtocol: TypeMetadataLayoutPrefixProtocol, TypeMetadataHeaderBaseProtocol where Layout: TypeMetadataHeaderLayout {}

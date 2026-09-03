@@ -1,5 +1,5 @@
 import MachOKit
-import MachOFoundation
+import MachOBase
 
 public protocol ClassMetadataObjCInteropProtocol: AnyClassMetadataObjCInteropProtocol, FinalClassMetadataProtocol where Layout: ClassMetadataObjCInteropLayout {}
 

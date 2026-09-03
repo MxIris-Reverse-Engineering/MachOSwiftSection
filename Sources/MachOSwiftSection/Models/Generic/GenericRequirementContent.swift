@@ -1,4 +1,4 @@
-import MachOFoundation
+import MachOBase
 import FoundationToolbox
 
 @CaseCheckable(.public)

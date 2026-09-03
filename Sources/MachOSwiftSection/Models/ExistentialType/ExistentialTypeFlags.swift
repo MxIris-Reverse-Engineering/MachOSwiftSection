@@ -1,5 +1,5 @@
 import Foundation
-import MachOFoundation
+import MachOBase
 
 public struct ExistentialTypeFlags: OptionSet, Sendable {
     public typealias RawValue = UInt32

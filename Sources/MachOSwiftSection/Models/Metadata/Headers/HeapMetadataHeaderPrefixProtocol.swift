@@ -1,5 +1,5 @@
 import Foundation
 import MachOKit
-import MachOFoundation
+import MachOBase
 
 public protocol HeapMetadataHeaderPrefixProtocol: ResolvableLocatableLayoutWrapper where Layout: HeapMetadataHeaderPrefixLayout {}

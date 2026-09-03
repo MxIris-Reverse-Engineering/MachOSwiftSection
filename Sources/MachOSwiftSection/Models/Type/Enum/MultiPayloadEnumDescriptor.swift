@@ -1,5 +1,5 @@
 import MachOKit
-import MachOFoundation
+import MachOBase
 
 public struct MultiPayloadEnumDescriptor: ResolvableLocatableLayoutWrapper {
     public struct Layout: LayoutProtocol {

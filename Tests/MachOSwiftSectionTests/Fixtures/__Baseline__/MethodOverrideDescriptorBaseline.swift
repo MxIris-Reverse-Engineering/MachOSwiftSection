@@ -7,7 +7,7 @@
 // the Suite verifies cross-reader agreement at runtime.
 
 enum MethodOverrideDescriptorBaseline {
-    static let registeredTestMethodNames: Set<String> = ["classDescriptor", "implementationSymbols", "layout", "methodDescriptor", "offset"]
+    static let registeredTestMethodNames: Set<String> = ["classDescriptor", "implementationAddress", "implementationOffset", "layout", "methodDescriptor", "offset"]
 
     struct Entry {
         let offset: Int

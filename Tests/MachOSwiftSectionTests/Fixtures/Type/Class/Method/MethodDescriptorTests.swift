@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 import MachOFoundation
+import SwiftInspection
 @testable import MachOSwiftSection
 @testable import MachOTestingSupport
 import MachOFixtureSupport
@@ -8,9 +9,10 @@ import MachOFixtureSupport
 /// Fixture-based Suite for `MethodDescriptor`.
 ///
 /// The Suite picks the first vtable entry from `Classes.ClassTest`, then
-/// asserts cross-reader equality on the descriptor's offset and the
-/// `flags.rawValue`. The `implementationSymbols` accessor is exercised
-/// via cross-reader presence.
+/// asserts cross-reader equality on the descriptor's offset, the
+/// `flags.rawValue`, and the implementation offset the relative pointer
+/// resolves to (pinned as a baseline literal; the ReadingContext leg must
+/// report the same location as a context address).
 @Suite
 final class MethodDescriptorTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
     static let testedTypeName = "MethodDescriptor"
@@ -48,20 +50,42 @@ final class MethodDescriptorTests: MachOSwiftSectionFixtureTests, FixtureSuite, 
         #expect(flagsRaw == MethodDescriptorBaseline.firstClassTestMethod.layoutFlagsRawValue)
     }
 
-    /// `implementationSymbols(in:)` returns the resolved Symbols (or nil).
-    /// Exercise cross-reader presence; the underlying Symbols object is
-    /// not cheaply Equatable so we don't compare values directly.
-    @Test func implementationSymbols() async throws {
+    /// `implementationOffset` is pure relative-pointer arithmetic: pinned as
+    /// a literal and identical across readers.
+    @Test func implementationOffset() async throws {
         let methods = try loadFirstMethods()
-        let presence = try acrossAllReaders(
-            file: { (try methods.file.implementationSymbols(in: machOFile)) != nil },
-            image: { (try methods.image.implementationSymbols(in: machOImage)) != nil }
+        let result = try acrossAllReaders(
+            file: { methods.file.implementationOffset },
+            image: { methods.image.implementationOffset }
         )
-        // The first vtable entry of ClassTest resolves to a real symbol.
-        #expect(presence == true)
+        #expect(result == MethodDescriptorBaseline.firstClassTestMethod.implementationOffset)
+    }
 
-        // ReadingContext-based overload.
-        let imageCtxPresence = (try methods.image.implementationSymbols(in: imageContext)) != nil
-        #expect(imageCtxPresence == true)
+    /// The `ReadingContext` leg reports the same location as a context
+    /// address (a file offset for `MachOContext`). Its predecessor,
+    /// `implementationSymbols(in: context)`, had no symbol service to consult
+    /// and read the implementation's machine code as a `Symbols` value —
+    /// its `offset` came back as the first eight code bytes (evolution
+    /// proposal `self-contained-abi-layer`). This equality is what that
+    /// leg could never satisfy.
+    @Test func implementationAddress() async throws {
+        let methods = try loadFirstMethods()
+        let fileAddress = try methods.file.implementationAddress(in: fileContext)
+        let imageAddress = try methods.image.implementationAddress(in: imageContext)
+        #expect(fileAddress == methods.file.implementationOffset)
+        #expect(imageAddress == methods.image.implementationOffset)
+        #expect(imageAddress == MethodDescriptorBaseline.firstClassTestMethod.implementationOffset)
+    }
+
+    /// Symbol attribution lives one layer up (SwiftInspection): it is the
+    /// symbol index's answer for the offset the ABI layer reports, nothing
+    /// more. The first vtable entry of ClassTest resolves to a real symbol.
+    @Test func implementationSymbolsAttributeTheReportedOffset() async throws {
+        let methods = try loadFirstMethods()
+        let offset = try #require(methods.file.implementationOffset)
+        let expectedNames = machOFile.symbols(offset: offset)?.map(\.name)
+        #expect(expectedNames?.isEmpty == false)
+        #expect(methods.file.implementationSymbols(in: machOFile)?.map(\.name) == expectedNames)
+        #expect(methods.image.implementationSymbols(in: machOImage)?.map(\.name) == machOImage.symbols(offset: offset)?.map(\.name))
     }
 }

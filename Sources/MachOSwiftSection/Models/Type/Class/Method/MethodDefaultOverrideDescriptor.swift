@@ -1,12 +1,12 @@
 import Foundation
 import MachOKit
-import MachOFoundation
+import MachOBase
 
 public struct MethodDefaultOverrideDescriptor: ResolvableLocatableLayoutWrapper {
     public struct Layout: LayoutProtocol {
         public let replacement: RelativeMethodDescriptorPointer
         public let original: RelativeMethodDescriptorPointer
-        public let implementation: RelativeDirectPointer<Symbols?>
+        public let implementation: RelativeDirectRawPointer
     }
 
     public var layout: Layout
@@ -28,8 +28,11 @@ extension MethodDefaultOverrideDescriptor {
         return try layout.replacement.resolve(from: offset(of: \.replacement), in: machO).asOptional
     }
 
-    public func implementationSymbols<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> Symbols? {
-        return try layout.implementation.resolve(from: offset(of: \.implementation), in: machO)
+    /// File offset of the default-override implementation, or `nil` for a
+    /// null pointer. See `MethodDescriptor.implementationOffset`.
+    public var implementationOffset: Int? {
+        guard layout.implementation.isValid else { return nil }
+        return layout.implementation.resolveDirectOffset(from: offset(of: \.implementation))
     }
 }
 
@@ -54,7 +57,10 @@ extension MethodDefaultOverrideDescriptor {
         return try layout.replacement.resolve(at: try context.addressFromOffset(offset(of: \.replacement)), in: context).asOptional
     }
 
-    public func implementationSymbols<Context: ReadingContext>(in context: Context) throws -> Symbols? {
-        return try layout.implementation.resolve(at: try context.addressFromOffset(offset(of: \.implementation)), in: context)
+    /// The default-override implementation's location as an address in
+    /// `context`, or `nil` for a null pointer.
+    public func implementationAddress<Context: ReadingContext>(in context: Context) throws -> Context.Address? {
+        guard let implementationOffset else { return nil }
+        return try context.addressFromOffset(implementationOffset)
     }
 }
