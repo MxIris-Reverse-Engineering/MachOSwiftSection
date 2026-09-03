@@ -135,13 +135,50 @@ struct SwiftEvolutionInterfaceBuilderTests {
         }
     }
 
-    private func preparedBuilder() async throws -> AnySwiftEvolutionInterfaceBuilder {
+    private func preparedBuilder(maximumConcurrentPreparations: Int = ProcessInfo.processInfo.activeProcessorCount) async throws -> AnySwiftEvolutionInterfaceBuilder {
         let builder = try AnySwiftEvolutionInterfaceBuilder(
             versions: try loadFixtureMachOFiles(),
             labels: ["1.0", "2.0", "3.0"]
         )
-        try await builder.prepare()
+        try await builder.prepare(maximumConcurrentPreparations: maximumConcurrentPreparations)
         return builder
+    }
+
+    // MARK: - Cross-version parallel preparation
+
+    /// `prepare(maximumConcurrentPreparations:)` (evolution proposal
+    /// `large-stack-executor-and-cross-version-parallelism`) indexes the
+    /// versions concurrently; the annotated interface, the structured stream
+    /// and the evolution's JSON must be byte-identical to the serial
+    /// (`1`) preparation — the window is a scheduling knob, never a semantic
+    /// one.
+    @Test func parallelPreparationMatchesSerialPreparation() async throws {
+        let serialBuilder = try await preparedBuilder(maximumConcurrentPreparations: 1)
+        let parallelBuilder = try await preparedBuilder(maximumConcurrentPreparations: 3)
+
+        let serialInterface = try await serialBuilder.printAnnotatedInterface().string
+        let parallelInterface = try await parallelBuilder.printAnnotatedInterface().string
+        #expect(serialInterface == parallelInterface)
+        #expect(serialInterface.contains("removed in 2.0"))
+
+        let serialBlocks = try await serialBuilder.annotatedBlocks()
+        let parallelBlocks = try await parallelBuilder.annotatedBlocks()
+        #expect(serialBlocks.map { $0.map(\.content.string) } == parallelBlocks.map { $0.map(\.content.string) })
+
+        let encoder = ABIJSON.encoder()
+        let serialEvolution = try encoder.encode(try #require(serialBuilder.evolution))
+        let parallelEvolution = try encoder.encode(try #require(parallelBuilder.evolution))
+        #expect(serialEvolution == parallelEvolution)
+    }
+
+    /// A window wider than the version count and a window below 1 are both
+    /// clamped, not rejected.
+    @Test func preparationWindowIsClampedNotValidated() async throws {
+        let wideBuilder = try await preparedBuilder(maximumConcurrentPreparations: 64)
+        let narrowBuilder = try await preparedBuilder(maximumConcurrentPreparations: 0)
+        let wideInterface = try await wideBuilder.printAnnotatedInterface().string
+        let narrowInterface = try await narrowBuilder.printAnnotatedInterface().string
+        #expect(wideInterface == narrowInterface)
     }
 
     // MARK: - The annotated interface

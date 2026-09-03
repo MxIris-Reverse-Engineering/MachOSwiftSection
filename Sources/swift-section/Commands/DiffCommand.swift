@@ -60,6 +60,16 @@ struct DiffCommand: AsyncParsableCommand {
     @Option(name: .shortAndLong, help: "Write the report to this path instead of stdout.", completion: .file())
     var outputPath: String?
 
+    @Option(name: .long, help: "How many inputs to index at once (default: the processor count). Pass 1 to index the old side, then the new side.")
+    var jobs: Int?
+
+    /// The concurrency window for indexing the two sides (evolution proposal
+    /// `large-stack-executor-and-cross-version-parallelism`): both inputs are
+    /// independent files, so by default they index in parallel.
+    private var maximumConcurrentPreparations: Int {
+        jobs ?? ProcessInfo.processInfo.activeProcessorCount
+    }
+
     func run() async throws {
         let abiDiff: ABIDiff?
         if interface {
@@ -78,13 +88,15 @@ struct DiffCommand: AsyncParsableCommand {
             // to its printers, so this is what puts a dropped declaration on
             // stderr instead of leaving it to `Dispatcher`'s os_log floor, which
             // a CLI operator never sees.
-            log("Indexing old binary…")
             let oldBuilder = SwiftDiffableInterfaceBuilder(eventHandlers: [ConsoleEventHandler()], in: oldMachO)
-            try await oldBuilder.prepare()
-
-            log("Indexing new binary…")
             let newBuilder = SwiftDiffableInterfaceBuilder(eventHandlers: [ConsoleEventHandler()], in: newMachO)
-            try await newBuilder.prepare()
+            // Old side first in the window, so `--jobs 1` is the historical
+            // order; with a wider window the two index side by side and their
+            // diagnostics interleave on stderr.
+            log(maximumConcurrentPreparations > 1 ? "Indexing old and new binaries…" : "Indexing old binary, then new binary…")
+            _ = try await [oldBuilder, newBuilder].concurrentMap(maximumConcurrency: maximumConcurrentPreparations) { builder in
+                try await builder.prepare()
+            }
 
             // Only the `--fail-on-breaking` CI gate needs the ABI diff on the
             // annotated-interface path.
@@ -109,8 +121,10 @@ struct DiffCommand: AsyncParsableCommand {
             // The change-list path is snapshot-based either way, so each side
             // may be a binary (indexed and frozen here) or a persisted
             // baseline (decoded, with its format version validated).
-            let oldDocument = try await loadDocument(at: oldPath)
-            let newDocument = try await loadDocument(at: newPath)
+            let documents = try await [oldPath, newPath].concurrentMap(maximumConcurrency: maximumConcurrentPreparations) { path in
+                try await loadDocument(at: path)
+            }
+            let (oldDocument, newDocument) = (documents[0], documents[1])
 
             log("Diffing…")
             let diff = ABIDiffer().diff(old: oldDocument, new: newDocument)
@@ -146,6 +160,9 @@ struct DiffCommand: AsyncParsableCommand {
         }
         if format != nil, !interface {
             throw ValidationError("--format only applies to the annotated interface; pass --interface.")
+        }
+        if let jobs, jobs < 1 {
+            throw ValidationError("--jobs must be at least 1.")
         }
         if cacheImageName != nil, cacheImagePath != nil {
             throw ValidationError("--cache-image-name and --cache-image-path are mutually exclusive; pass only one.")

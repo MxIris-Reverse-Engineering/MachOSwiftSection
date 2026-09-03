@@ -31,6 +31,8 @@ SwiftInterface 是接口生成的**编排层**（thin orchestrator）：它自�
 
 **`prepare()` 的顺序与失败语义**：先逐个 `extraDataProvider.setup()`（失败**降级**为 `renderingDegraded` 事件，不阻断——外挂数据源坏了不该毁掉整份接口），再 `indexer.prepare()`（失败**抛出**），最后 `collectModules()`（失败**抛出**）。全程用 `phaseTransition` 事件汇报阶段。
 
+**运行线程**：`prepare()` 与 `printRoot()` 的函数体都包在 `LargeStackTaskExecution.run` 里（提案 `large-stack-executor-and-cross-version-parallelism`），整段 task 跑在 demangler 的 16 MB 大栈执行器上，打印路径每个符号不再付一次线程往返；输出与执行器无关。`SwiftDiffableInterfaceBuilder.prepare()`、evolution builder 的 `prepare` / 渲染入口、diff renderer 的两个入口同样如此。见 [LargeStackTaskExecutorAdoption.md](../LargeStackTaskExecutorAdoption.md)。
+
 **`collectModules()`**：import 列表不来自 load command，而是扫全部符号的 demangle 树收 `.module` 节点——binary 里真正被引用的模块才进 import。过滤 `__C` / `__ObjC` / stdlib 三个伪模块；`internalModules`（`Swift`、`_Concurrency`、`_StringProcessing`、`_SwiftConcurrencyShims`）恒定并入。
 
 **`printRoot()` 的段落与 catch 契约**：组成顺序是 header（提案 0008，flag-gated 默认缺席）→ imports → 全局变量 → 全局函数 → 根类型 → 特化变体（`specializedChildren` 挂在各 `TypeDefinition` 上，indexer 对用户驱动的特化保持无知，所以这里全量走查 `allTypeDefinitions`）→ 根协议 → **嵌套**协议的 default-implementation 扩展块（extension 不能嵌进父体，顶层补印；这个循环在提案 0007 之前是死代码）→ 四桶 extension（`isAttachedToProtocolDefinition` 的已附着定义被过滤，避免 issue #106 §5 的重复块）。贯穿全部段落的契约是**逐定义 catch**：一个定义打印抛错只丢它自己，绝不空掉整块（历史上块级 catch 让一个旧 binary 的全部类型被抹白；由 `LegacyDyldInfoBindTests` 与 `corruptNestedChildDropsOnlyItself` 钉住）。两个全局块例外地不带定义上下文——`printVariable`/`printFunction` 本身不抛、各自派发过失败事件，块级包裹只是保险带。
@@ -78,7 +80,7 @@ diff 与 evolution 两条比较渲染路径的公共结构核心。分工是这�
 
 N ≥ 2 版本渲染成**一份**并集接口，声明尾注生命周期注解。承重决策是**事实与文本的分工**：
 
-- **注解事实只来自 `ABIEvolution`**：`prepare()` 逐版本索引 → 冻结 snapshot → `ABIEvolutionBuilder` 建 lineage 矩阵；渲染期经 `EvolutionAnnotationIndex` 按键查询，**查不到即是「全程在场、从未变化」的裁决**（`ABIEvolution` 只物化有变化的 lineage），渲染为无注解。策略自己绝不重推事件，所以注解接口、lineage 报告、JSON 三个视图永不打架。
+- **注解事实只来自 `ABIEvolution`**：`prepare(maximumConcurrentPreparations:)` **并行**索引各版本（窗口默认取核数、`1` 即旧的串行顺序；各版本是不同文件、缓存按 UUID 键控，结果与窗口无关，由 `parallelPreparationMatchesSerialPreparation` 钉住）→ 冻结 snapshot → `ABIEvolutionBuilder` 建 lineage 矩阵；渲染期经 `EvolutionAnnotationIndex` 按键查询，**查不到即是「全程在场、从未变化」的裁决**（`ABIEvolution` 只物化有变化的 lineage），渲染为无注解。策略自己绝不重推事件，所以注解接口、lineage 报告、JSON 三个视图永不打架。
 - **渲染文本来自活模型**：每个声明由最后携带它的版本的 printer 渲染（modified 成员只显示最新一代，旧形态进注解短语 `modified in 26.0: old → new`；箭头两侧相同则塌回裸短语）。header 解析是「最新可渲染」：从新到旧找第一个渲染成功的版本，每次失败都在其版本自己的 dispatcher 上派发，全部失败才整体丢弃（diff 的 drop-whole 规则推广到 N 侧）。
 - **公开面是两个类型**：`AnySwiftEvolutionInterfaceBuilder` 是类型擦除的 runtime-N 主力（同构数组 init + 异构 pack init 都全平台可用——pack 在*函数*位不需要可用性门槛），CLI 与宿主的用户选版场景都走它；`SwiftEvolutionInterfaceBuilder<each MachO>` 是 pack 泛型 façade（类型位的 pack 需要 Swift 5.9 运行时，故 `@available(macOS 14…)`；构造即擦除，行为逐字节一致，由 `packGenericFacadeMatchesTheErasedBuilder` 钉住）。工具链尚不支持 `repeat each MachO == M` 的同元素约束，所以数组 init 上不了 pack 类型——这是两个类型并存的直接原因。
 - **格式层 `EvolutionMarking`**（+ `EvolutionContainerAssembler`）：legend 头两行（轴 + bitmap 位置对照）、注解列按块对齐、上限 72 列（超限换行缩一级）、锚点规则（成员注解锚**首行**——attribute 内联，computed property 的注解不能沉到 accessor 块闭括号；容器 header 锚**末行**——带 `{` 的那行）、镜像 `ABIEvolutionReporter` 措辞的 warnings 尾巴。与 `DiffMarking` 故意不合并：marker 按行、注解按 unit 锚定，是真不同语义。

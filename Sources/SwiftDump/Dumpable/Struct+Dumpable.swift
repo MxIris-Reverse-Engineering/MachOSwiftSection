@@ -1,6 +1,7 @@
 import Foundation
 import MachOKit
 import MachOSwiftSection
+import MachOFoundation
 import Semantic
 import Utilities
 import SwiftDeclarationRendering
@@ -11,6 +12,8 @@ extension Struct: NamedDumpable {
     }
 
     public func dump<MachO: FieldLayoutRenderable>(using configuration: DumperConfiguration, in machO: MachO) async throws -> SemanticString {
-        try await StructDumper(self, using: configuration, in: machO).body
+        try await LargeStackTaskExecution.run {
+            try await StructDumper(self, using: configuration, in: machO).body
+        }
     }
 }

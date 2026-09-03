@@ -1,6 +1,7 @@
 import Foundation
 import MachOKit
 import MachOSwiftSection
+import MachOFoundation
 import Semantic
 import Utilities
 import Demangling
@@ -13,6 +14,8 @@ extension MachOSwiftSection.`Protocol`: NamedDumpable {
     }
 
     public func dump<MachO: FieldLayoutRenderable>(using configuration: DumperConfiguration, in machO: MachO) async throws -> SemanticString {
-        try await ProtocolDumper(self, using: configuration, in: machO).body
+        try await LargeStackTaskExecution.run {
+            try await ProtocolDumper(self, using: configuration, in: machO).body
+        }
     }
 }

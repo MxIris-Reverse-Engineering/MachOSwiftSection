@@ -94,8 +94,21 @@ public final class SwiftInterfaceBuilder<MachO: FieldLayoutRenderable>: Sendable
     /// - Building cross-reference maps for conformances and associated types
     /// - Collecting all required module imports
     ///
+    /// Runs on the demangler's large-stack task executor
+    /// (`LargeStackTaskExecution.run`, evolution proposal
+    /// `large-stack-executor-and-cross-version-parallelism`), as does
+    /// `printRoot()`: every demangle / print / remangle inside runs inline
+    /// instead of hopping to a pool thread per call. Output is independent
+    /// of where it runs.
+    ///
     /// - Throws: An error if indexing fails or if required data cannot be extracted.
     public func prepare() async throws {
+        try await LargeStackTaskExecution.run {
+            try await prepareContents()
+        }
+    }
+
+    private func prepareContents() async throws {
         eventDispatcher.dispatch(.phaseTransition(phase: .preparation, state: .started))
 
         for extraDataProvider in extraDataProviders {
@@ -136,7 +149,9 @@ public final class SwiftInterfaceBuilder<MachO: FieldLayoutRenderable>: Sendable
         if printer.configuration.printExportedDeclarationsOnly {
             printer.installExportFilterScope(types: indexer.allTypeDefinitions.values, protocols: indexer.allProtocolDefinitions.values)
         }
-        return try await printRootContents()
+        return try await LargeStackTaskExecution.run {
+            try await printRootContents()
+        }
     }
 
     @SemanticStringBuilder
