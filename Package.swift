@@ -359,6 +359,7 @@ extension Target {
         dependencies: [
             .product(.MachOKit),
             .target(.MachOBase),
+            .target(.Utilities),
             .target(.MachOSwiftSectionC),
         ],
     )
@@ -410,6 +411,7 @@ extension Target {
             .product(.MachOObjCSection),
             .product(.Demangling),
             .target(.MachODependencies),
+            .target(.MachOFoundation),
             .target(.MachOSwiftSection),
             .target(.SwiftInspection),
             .target(.Utilities),
@@ -432,6 +434,7 @@ extension Target {
             .product(name: "FoundationToolbox", package: "FrameworkToolbox"),
             .target(.MachOCaches),
             .target(.MachODependencies),
+            .target(.MachOFoundation),
             .target(.MachOSwiftSection),
             .target(.Utilities),
             .target(.SwiftOutputTransformer),
@@ -581,6 +584,7 @@ extension Target {
             .product(.Semantic),
             .product(.Demangling),
             .target(.MachODependencies),
+            .target(.MachOFoundation),
             .target(.MachOSwiftSection),
             .target(.SwiftInspection),
             .target(.SwiftDeclarationRendering),
@@ -748,6 +752,7 @@ extension Target {
             .target(.MachOTestingSupport),
             .target(.MachOFixtureSupport),
             .target(.SwiftDump),
+            .target(.SwiftInspection),
             .target(.MachOFoundation),
             .product(.Demangling),
         ],
@@ -992,6 +997,12 @@ let package = Package(
     platforms: [.macOS(.v10_15), .iOS(.v13), .tvOS(.v13), .watchOS(.v6), .visionOS(.v1)],
     products: [
         .library(.MachOSwiftSection),
+        // The ABI model no longer re-exports the symbol index (evolution
+        // proposal `self-contained-abi-layer`), so a downstream target that
+        // uses `SymbolIndexStore` / `DemangledSymbol` / `DependencyClosure`
+        // depends on `MachOFoundation` (or the lower `MachOBase`) explicitly.
+        .library(.MachOBase),
+        .library(.MachOFoundation),
         .library(.MachODependencies),
         .library(.SwiftOutputTransformer),
         .library(.SwiftInspection),
