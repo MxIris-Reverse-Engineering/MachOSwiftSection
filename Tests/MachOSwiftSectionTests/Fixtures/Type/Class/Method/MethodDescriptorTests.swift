@@ -82,10 +82,17 @@ final class MethodDescriptorTests: MachOSwiftSectionFixtureTests, FixtureSuite, 
     /// more. The first vtable entry of ClassTest resolves to a real symbol.
     @Test func implementationSymbolsAttributeTheReportedOffset() async throws {
         let methods = try loadFirstMethods()
-        let offset = try #require(methods.file.implementationOffset)
-        let expectedNames = machOFile.symbols(offset: offset)?.map(\.name)
-        #expect(expectedNames?.isEmpty == false)
-        #expect(methods.file.implementationSymbols(in: machOFile)?.map(\.name) == expectedNames)
-        #expect(methods.image.implementationSymbols(in: machOImage)?.map(\.name) == machOImage.symbols(offset: offset)?.map(\.name))
+        let fileOffset = try #require(methods.file.implementationOffset)
+        let expectedFileNames = machOFile.symbols(offset: fileOffset)?.map(\.name)
+        #expect(expectedFileNames?.isEmpty == false)
+        #expect(methods.file.implementationSymbols(in: machOFile)?.map(\.name) == expectedFileNames)
+
+        // The image leg on its own evidence: its own offset and a non-empty
+        // answer, so a `nil == nil` from an image index that returned
+        // nothing cannot pass silently.
+        let imageOffset = try #require(methods.image.implementationOffset)
+        let expectedImageNames = machOImage.symbols(offset: imageOffset)?.map(\.name)
+        #expect(expectedImageNames?.isEmpty == false)
+        #expect(methods.image.implementationSymbols(in: machOImage)?.map(\.name) == expectedImageNames)
     }
 }

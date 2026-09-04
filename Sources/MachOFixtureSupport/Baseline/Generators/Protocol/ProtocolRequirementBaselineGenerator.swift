@@ -15,7 +15,13 @@ import MachOFoundation
 ///
 /// Picker: `Protocols.ProtocolWitnessTableTest` — its 5 method
 /// requirements (`a`/`b`/`c`/`d`/`e`) flesh out the trailing array; we
-/// pick the first requirement and exercise its accessors.
+/// pick the first requirement and exercise its accessors. None of them has
+/// a default implementation, so a second entry comes from
+/// `DefaultImplementationVariants.BasicDefaultProtocol`: the first
+/// requirement whose `defaultImplementation` pointer is non-null (a
+/// protocol-extension default), so the non-`nil` arithmetic of
+/// `defaultImplementationOffset` is pinned as a literal too — not just the
+/// `nil` case.
 ///
 /// The companion `ProtocolBaseRequirement` type (declared in the same
 /// `ProtocolRequirement.swift` file) gets its own baseline / Suite
@@ -30,6 +36,11 @@ package enum ProtocolRequirementBaselineGenerator {
         let firstRequirement = try required(protocolType.requirements.first)
 
         let firstRequirementExpr = try emitRequirementEntryExpr(for: firstRequirement, in: machO)
+
+        let defaultedDescriptor = try BaselineFixturePicker.protocol_BasicDefaultProtocol(in: machO)
+        let defaultedProtocol = try `Protocol`(descriptor: defaultedDescriptor, in: machO)
+        let firstDefaultedRequirement = try required(defaultedProtocol.requirements.first { $0.layout.defaultImplementation.isValid })
+        let firstDefaultedRequirementExpr = try emitRequirementEntryExpr(for: firstDefaultedRequirement, in: machO)
 
         // Public members declared on `ProtocolRequirement` (the first struct
         // in ProtocolRequirement.swift). `init(layout:offset:)` is filtered
@@ -64,6 +75,8 @@ package enum ProtocolRequirementBaselineGenerator {
             }
 
             static let firstRequirement = \(raw: firstRequirementExpr)
+
+            static let firstDefaultedRequirement = \(raw: firstDefaultedRequirementExpr)
         }
         """
 

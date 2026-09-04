@@ -9,8 +9,10 @@ import MachOFoundation
 /// `MethodOverrideDescriptor` is the row type for a class's override table.
 /// We pick the first override entry from `Classes.SubclassTest` (which
 /// overrides several methods inherited from `ClassTest`) and record the
-/// descriptor offset. Resolved class/method/symbols pointers aren't
-/// embedded as literals; the Suite uses cross-reader equality at runtime.
+/// descriptor offset and the implementation offset — pure relative-pointer
+/// arithmetic, so both pin as literals. The resolved class / method
+/// descriptors are not embedded; the Suite checks their presence across
+/// readers at runtime.
 package enum MethodOverrideDescriptorBaselineGenerator {
     package static func generate(
         in machO: some MachOSwiftSectionRepresentableWithCache,
@@ -40,9 +42,10 @@ package enum MethodOverrideDescriptorBaselineGenerator {
         // Regenerate via: Scripts/regen-baselines.sh
         // Source fixture: SymbolTestsCore.framework
         //
-        // MethodOverrideDescriptor carries three relative pointers (class /
-        // method / implementation Symbols). Live payloads aren't embedded;
-        // the Suite verifies cross-reader agreement at runtime.
+        // The implementation offset is pure relative-pointer arithmetic, so
+        // it is pinned as a literal (like MethodDescriptor's); the class /
+        // method descriptor pointers resolve to live wrappers and are
+        // checked for presence across readers at runtime instead.
         """
 
         let file: SourceFileSyntax = """
@@ -53,6 +56,7 @@ package enum MethodOverrideDescriptorBaselineGenerator {
 
             struct Entry {
                 let offset: Int
+                let implementationOffset: Int?
             }
 
             static let firstSubclassOverride = \(raw: entryExpr)
@@ -68,10 +72,12 @@ package enum MethodOverrideDescriptorBaselineGenerator {
 
     private static func emitEntryExpr(for override: MethodOverrideDescriptor) -> String {
         let offset = override.offset
+        let implementationOffset = override.implementationOffset
 
         let expr: ExprSyntax = """
         Entry(
-            offset: \(raw: BaselineEmitter.hex(offset))
+            offset: \(raw: BaselineEmitter.hex(offset)),
+            implementationOffset: \(raw: BaselineEmitter.optionalHex(implementationOffset))
         )
         """
         return expr.description

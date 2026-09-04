@@ -2,7 +2,7 @@
 
 ## 问题
 
-用户在一次「整个库能否全 async 化」的调研中顺手提出：「ABI 不能反向依赖 SymbolIndexStore，ABI 接口应该自包含」。核实结果：`MachOSwiftSection` 对 `MachOSymbols` 有两条通道——五个描述符的 `RelativeDirectPointer<Symbols?>` 字段经 `Symbols` 的 `Resolvable` 实现走 `SymbolIndexStore.shared`，一次 ABI 访问触发整镜像符号扫描；`SymbolOrElementPointer` 把 `MachOSymbols.Symbol` 带进每一种上下文指针。提案 [draft-self-contained-abi-layer](../../Evolutions/draft-self-contained-abi-layer.md)。
+用户在一次「整个库能否全 async 化」的调研中顺手提出：「ABI 不能反向依赖 SymbolIndexStore，ABI 接口应该自包含」。核实结果：`MachOSwiftSection` 对 `MachOSymbols` 有两条通道——五个描述符的 `RelativeDirectPointer<Symbols?>` 字段经 `Symbols` 的 `Resolvable` 实现走 `SymbolIndexStore.shared`，一次 ABI 访问触发整镜像符号扫描；`SymbolOrElementPointer` 把 `MachOSymbols.Symbol` 带进每一种上下文指针。提案 [0018-self-contained-abi-layer](../../Evolutions/0018-self-contained-abi-layer.md)。
 
 ## 调研
 
@@ -52,3 +52,10 @@ worktree `.worktrees/MachOSwiftSection-SelfContainedABI`，分支 `feature/self-
 - 渲染 A/B（`Scripts/run-rendering-ab-verification.py`，基线 = 集成 worktree 的 `next` f3782248，候选 = 本分支；两侧 `Package.resolved` 逐项一致，均为远程 pin）：**78 对输出逐字节一致，0 差异**。覆盖当前系统 dyld cache（归档 cache 目录名与脚本期望不符，按文档回退到系统 cache）、模拟器运行时 iOS 15.5 / 18.5 / 18.6 / 26.5（15.5 上 SwiftUICore / SwiftData / ActivityKit 不在运行时内，按规则跳过）、进程内 MachOImage 三条路径的 dump 与 interface。
 - 红测试证据留档：修前 `MethodDescriptorTests.implementationSymbolsContextLegAgreesWithMachOLeg` 失败（context 腿 `offset` -2999674702252736512 vs MachO 腿 5624）；修后由 `implementationAddress` 测试的 `imageAddress == implementationOffset == 0x15f8` 永久替代。
 - 未做：模拟器 UI 验证（不适用）；下游 MachOKitUI 的一行改动（`MachOSymbols.Symbol.resolvesSymbolUsingIndexStore` → `Symbol.resolvesSymbolUsingIndexStore` + `import MachOSymbols`）待其仓库跟进。
+
+## Review 修复批次（2026-09-04）
+
+并行 review 会话对 PR #121 给出 12 条发现（原文与处置见 [Roadmaps/2026-09-04-pr121-review-findings.md](../../../Roadmaps/2026-09-04-pr121-review-findings.md)），全部属实。最要紧的两条：manifest 没有 `MachOFoundation` product，下游按 changelog 改 import 也声明不了依赖（已补 `MachOBase` / `MachOFoundation` 两个 product）；`--emit-member-addresses` 下空 resilient witness 不再打一行假地址（旧代码把空相对指针解析成字段自身位置），changelog 原来无限定的「逐字节一致」改为限定默认 flag。其余是测试空转（`ProtocolRequirementTests` 的 nil == nil、`MethodOverrideDescriptor` baseline 不发射字面量、`MethodDescriptorTests` image 腿借 file 的 offset）、文档与测试不符（`ManglingPrefixTests` 未钉 `CImportedModuleNames`）、四个 target 漏声明依赖、CI filter 漏一个套件，以及 `ProtocolConformanceDumper` 新旧写法并存。延后两项登记为 ReviewAdjudications A23 / A24。
+
+验证（2026-09-04）：受影响的 9 个套件 98 个测试通过；突变检查——把 `ProtocolRequirement.defaultImplementationOffset` 与 `MethodOverrideDescriptor.implementationOffset` 改成返回指针字段自身位置后，`ProtocolRequirementTests` / `MethodOverrideDescriptorTests` 共 4 处断言变红，改回后全绿（修复前的两个测试对这种错误不敏感）；全量 `swift test --skip IntegrationTests` 1618 测试 / 302 套件，仅 `SharedCache.resolve under Swift Concurrency` 的两个墙钟并行度断言在与 release 构建、A/B 同时跑时假失败，单独重跑全绿；带 `--emit-member-addresses` 的双侧对比（基线 `next` f3782248 的 release 二进制 vs 本分支）：SwiftUICore / SwiftUI / SwiftData / Combine 的 dump 与 interface 8 对逐字节一致——这四个框架里没有 implementation 为空的 resilient witness，所以 B 的行为变化只在空指针那条分支上可达，changelog 已如实限定。
+

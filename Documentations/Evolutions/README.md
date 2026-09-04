@@ -25,5 +25,5 @@
 | [0015](0015-type-name-resolver-role-split.md) | TypeNameResolvable 角色化拆分：printer 查询解析器按能力分协议 | Implemented |
 | [0017](0017-macho-dependencies-module.md) | 依赖闭包下沉为 MachODependencies 模块：两套依赖加载合一 | Implemented |
 | [0016](0016-exported-only-interface.md) | Interface 只打印导出声明（`--exported-only`）：提案 0008 标注的过滤形态，打印期按描述符 / 派生符号 / 扩展目标裁决 | Implemented |
-| [draft](draft-self-contained-abi-layer.md) | ABI 层自包含：MachOSwiftSection 不再依赖符号索引——描述符只暴露实现地址，符号查询上移 SwiftInspection，值类型下沉 MachOResolving | In Progress |
+| [0018](0018-self-contained-abi-layer.md) | ABI 层自包含：MachOSwiftSection 不再依赖符号索引——描述符只暴露实现地址，符号查询上移 SwiftInspection，值类型下沉 MachOResolving | Implemented |
 | [draft](draft-large-stack-executor-and-cross-version-parallelism.md) | 大栈任务执行器接入与跨版本并行准备：打印路径零线程跳转（执行器本体在 swift-demangling 0014），diff / evolution 多版本并行 | In Progress |

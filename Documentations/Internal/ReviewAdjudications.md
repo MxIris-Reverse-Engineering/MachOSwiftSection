@@ -270,3 +270,26 @@
 - **为什么仍然修**：改动是严格更安全的收紧，与本 PR 自己在相邻代码里声明的不变量一致，且无碰撞时零行为差异；留着一个「已知按名字查、只是恰好没人能触发」的查询是下一次回归的种子。
 - **测试**：`FinalMemberRecoveryTests.sameNamedPrivateClassesGetIndependentFinalVerdicts` 是**防回归钉子而非复现**（夹具 `PrivateDoppelgangerClass` 对，一边非 final、一边 `final`），测试注释与本条目互引。
 - **复审条件**：① 在真实框架二进制上观察到同名私有类型且其中一方贡献了 `Tq` 或存储属性访问器符号；② 上游工具链改变私有类型的符号发射策略（例如为 `private` class 也发 `Tq`）——届时本条的三条理由需重测。
+
+---
+
+## A23 — `MachOSwiftSection` 对 `FoundationToolbox` / `SwiftStdlibToolbox` / `MachOReading` 的 import 未在 manifest 声明（PR #121 review 发现 I，部分）
+
+- **裁决**：本 PR 只补新丢的 `.target(.Utilities)`；其余三个模块的未声明 import **延后**到独立清理批次（2026-09-04）。
+- **发现**：`Sources/MachOSwiftSection` 里 `import FoundationToolbox` ×5、`import SwiftStdlibToolbox` ×6、`import MachOReading` ×5，target 依赖列表里都没有；今天能编是因为 `MachOBase` 再导出 `MachOReading`，而 FrameworkToolbox 的两个模块经 `MachOKitExtensions` 等传递可见。
+- **复现 / 是否误报**：属实。`git diff f3782248 -- Package.swift` 证明 `Utilities` 是本 PR 从依赖列表里删掉的（`MachOFoundation` → `MachOBase` 替换时一并丢失），其余三个在 `next` 上就没声明。
+- **与 main 基线对比**：`Utilities` 一条为本 PR 引入（已补）；其余为既有状态，非回归。
+- **为什么延后**：整仓同类问题不止这一个 target（PR #121 自己就补了 16 个 target 的 `MachOFoundation` 声明），应当一次性用「每个 import 都有直接声明」的脚本扫全仓并统一修，而不是每个 PR 顺手补几条。零行为影响，无用户可见后果。
+- **复审条件**：① SwiftPM 或 Xcode 启用 explicit modules 后编译失败——届时立刻修；② 做全仓 import / 依赖一致性清理时一并处理。
+
+---
+
+## A24 — 约 14 处旧写法 `implementation.resolveDirectOffset(from: offset(of:))` 未迁移到 `implementationOffset`（PR #121 review 发现 J，全量部分）
+
+- **裁决**：本 PR 只统一 `ProtocolConformanceDumper` 一个文件（同一函数内新旧两种写法并存，见发现原文）；`ClassDumper`（229/272/287/318/332/543 附近）、`TypeDefinition`（244–257 四个循环）、`ExtensionDefinition`（233/235/241）的迁移**延后**为独立批次（2026-09-04）。
+- **发现**：全仓 19 处 `implementation.resolveDirectOffset` / `defaultImplementation.resolveDirectOffset`，5 处是新 accessor 本体，其余散落在上述文件，都是 `!isNull` 守卫 + 裸算术的旧形状。
+- **复现 / 是否误报**：属实，但**语义等价**——新 accessor 的实现就是 `guard isValid` + 同一条 `resolveDirectOffset`，两种写法在每个输入上给出相同结果；纯风格问题，不改输出。
+- **与 main 基线对比**：旧写法在 `next` 上就存在，本 PR 只是新增了权威取值口而没有收编。
+- **为什么延后**：14 处分布在三个模块的热路径上，每处都要过一遍渲染 A/B 才敢合；与本 PR 的目标（分层）无关，捆进来只会拖大 review 面。已确认不产生功能分裂：两种写法等价，分裂只是「读代码时要认两种形状」。
+- **复审条件**：单独开一个「收编 `implementationOffset`」的清理批次（轻量档提案即可），逐字节 A/B 后合入；届时本条关闭。
+

@@ -77,8 +77,9 @@ final class MethodOverrideDescriptorTests: MachOSwiftSectionFixtureTests, Fixtur
         #expect(presence == true)
     }
 
-    /// `implementationOffset` is pure relative-pointer arithmetic: identical
-    /// across readers, and an override always has an implementation.
+    /// `implementationOffset` is pure relative-pointer arithmetic: pinned as
+    /// a literal (an override always has an implementation, so never `nil`)
+    /// and identical across readers.
     @Test func implementationOffset() async throws {
         let overrides = try loadFirstOverrides()
         let result = try acrossAllReaders(
@@ -86,6 +87,7 @@ final class MethodOverrideDescriptorTests: MachOSwiftSectionFixtureTests, Fixtur
             image: { overrides.image.implementationOffset }
         )
         #expect(result != nil)
+        #expect(result == MethodOverrideDescriptorBaseline.firstSubclassOverride.implementationOffset)
     }
 
     /// The `ReadingContext` leg reports the same location as a context

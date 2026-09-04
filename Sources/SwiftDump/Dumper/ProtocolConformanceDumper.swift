@@ -132,20 +132,16 @@ package struct ProtocolConformanceDumper<MachO: FieldLayoutRenderable>: Conforme
                                     Space()
                                 }
                                 try await demangleResolver.resolve(for: node)
-                            } else if !element.defaultImplementation.isNull {
-                                FunctionDeclaration(machO.addressString(forOffset: element.defaultImplementation.resolveDirectOffset(from: element.offset(of: \.defaultImplementation))).insertSubFunctionPrefix)
-                            } else if !resilientWitness.implementation.isNull {
-//                                do {
-//                                try demangleResolver.resolve(for: MetadataReader.demangle(for: MangledName.resolve(from: resilientWitness.implementation.resolveDirectOffset(from: resilientWitness.offset(of: \.implementation)) - 1, in: machO), in: machO))
-//                                } catch {
-                                FunctionDeclaration(machO.addressString(forOffset: resilientWitness.implementation.resolveDirectOffset(from: resilientWitness.offset(of: \.implementation))).insertSubFunctionPrefix)
-//                                }
+                            } else if let defaultImplementationOffset = element.defaultImplementationOffset {
+                                FunctionDeclaration(machO.addressString(forOffset: defaultImplementationOffset).insertSubFunctionPrefix)
+                            } else if let implementationOffset = resilientWitness.implementationOffset {
+                                FunctionDeclaration(machO.addressString(forOffset: implementationOffset).insertSubFunctionPrefix)
                             } else {
                                 Error("Symbol not found")
                             }
                         }
-                    } else if !resilientWitness.implementation.isNull {
-                        FunctionDeclaration(machO.addressString(forOffset: resilientWitness.implementation.resolveDirectOffset(from: resilientWitness.offset(of: \.implementation))).insertSubFunctionPrefix)
+                    } else if let implementationOffset = resilientWitness.implementationOffset {
+                        FunctionDeclaration(machO.addressString(forOffset: implementationOffset).insertSubFunctionPrefix)
                     } else {
                         Error("Symbol not found")
                     }

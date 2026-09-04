@@ -31,8 +31,9 @@ extension String {
     /// The same prefix list as `Demangling.getManglingPrefixLength` (and
     /// `MachOSymbols`' byte-level `nameBytesHaveSwiftManglingPrefix`), kept
     /// local so the ABI model does not depend on the demangler for a prefix
-    /// check; `ManglingPrefixTests` pins the three derived helpers equal to
-    /// the demangler's answers.
+    /// check; `ManglingPrefixTests` pins `hasSwiftManglingPrefix` /
+    /// `strippingSwiftManglingPrefix` equal to the demangler's answers (and
+    /// `CImportedModuleNames` equal to its module-name constants).
     var swiftManglingPrefixLength: Int {
         let utf8Bytes = utf8
         if utf8Bytes.starts(with: "_T0".utf8) || utf8Bytes.starts(with: "_$S".utf8) || utf8Bytes.starts(with: "_$s".utf8) || utf8Bytes.starts(with: "_$e".utf8) {
@@ -53,7 +54,10 @@ extension String {
     /// The string without its Swift mangling prefix; unchanged when it has
     /// none.
     var strippingSwiftManglingPrefix: String {
-        guard hasSwiftManglingPrefix else { return self }
-        return String(dropFirst(swiftManglingPrefixLength))
+        // One prefix scan, not two: `hasSwiftManglingPrefix` would compute
+        // the same length and throw it away.
+        let prefixLength = swiftManglingPrefixLength
+        guard prefixLength > 0 else { return self }
+        return String(dropFirst(prefixLength))
     }
 }
