@@ -168,9 +168,21 @@ public final class SwiftDeclarationPrinter<MachO: FieldLayoutRenderable>: Sendab
     /// an empty result every enclosing `BlockList` / `NestedDeclaration`
     /// skips without a stray break. Ruled before the start event, so a
     /// filtered definition leaves no unpaired `definitionPrintStarted`.
+    ///
+    /// The four per-definition entries (`printTypeDefinition` /
+    /// `printProtocolDefinition` / `printExtensionDefinition` /
+    /// `printDefinition`) run on the demangler's large-stack task executor
+    /// (`LargeStackTaskExecution.run`, evolution proposal
+    /// `large-stack-executor-and-cross-version-parallelism`): a host printing
+    /// one declaration at a time — RuntimeViewer's per-type export bypasses
+    /// `printRoot` — gets inline demangling too. Reached from `printRoot` or
+    /// from a parent's nested-children loop the task is already on the
+    /// executor and the wrap is a no-op.
     public func printTypeDefinition(_ typeDefinition: TypeDefinition, level: Int = 1, displayParentName: Bool = false) async throws -> SemanticString {
         guard !isExcludedByExportFilter(typeDefinition) else { return SemanticString() }
-        return try await printIncludedTypeDefinition(typeDefinition, level: level, displayParentName: displayParentName)
+        return try await LargeStackTaskExecution.run {
+            try await printIncludedTypeDefinition(typeDefinition, level: level, displayParentName: displayParentName)
+        }
     }
 
     @SemanticStringBuilder
@@ -252,7 +264,9 @@ public final class SwiftDeclarationPrinter<MachO: FieldLayoutRenderable>: Sendab
     /// trailing default-implementation extensions go with it.
     public func printProtocolDefinition(_ protocolDefinition: ProtocolDefinition, level: Int = 1, displayParentName: Bool = false) async throws -> SemanticString {
         guard !isExcludedByExportFilter(protocolDefinition) else { return SemanticString() }
-        return try await printIncludedProtocolDefinition(protocolDefinition, level: level, displayParentName: displayParentName)
+        return try await LargeStackTaskExecution.run {
+            try await printIncludedProtocolDefinition(protocolDefinition, level: level, displayParentName: displayParentName)
+        }
     }
 
     @SemanticStringBuilder
@@ -324,7 +338,12 @@ public final class SwiftDeclarationPrinter<MachO: FieldLayoutRenderable>: Sendab
     /// intact on that path too.
     public func printExtensionDefinition(_ extensionDefinition: ExtensionDefinition, level: Int = 1) async throws -> SemanticString {
         guard !isExcludedByExportFilter(extensionDefinition) else { return SemanticString() }
+        return try await LargeStackTaskExecution.run {
+            try await printExtensionDefinitionContents(extensionDefinition, level: level)
+        }
+    }
 
+    private func printExtensionDefinitionContents(_ extensionDefinition: ExtensionDefinition, level: Int) async throws -> SemanticString {
         let printingContext = SwiftIndexEvents.PrintingContext(name: extensionDefinition.extensionName.name, kind: .extension)
         eventDispatcher.dispatch(.definitionPrintStarted(context: printingContext))
 
@@ -462,8 +481,14 @@ public final class SwiftDeclarationPrinter<MachO: FieldLayoutRenderable>: Sendab
         }
     }
 
-    @SemanticStringBuilder
     public func printDefinition(_ definition: some Definition, level: Int = 1) async throws -> SemanticString {
+        try await LargeStackTaskExecution.run {
+            try await printDefinitionContents(definition, level: level)
+        }
+    }
+
+    @SemanticStringBuilder
+    private func printDefinitionContents(_ definition: some Definition, level: Int) async throws -> SemanticString {
         if let mutableDefinition = definition as? MutableDefinition, !mutableDefinition.isIndexed {
             try await mutableDefinition.index(in: machO)
         }

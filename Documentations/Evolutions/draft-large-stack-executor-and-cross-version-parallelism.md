@@ -1,13 +1,13 @@
 # Draft - 大栈任务执行器接入与跨版本并行准备
 
-- **状态**: Draft
+- **状态**: In Progress
 - **作者**: JH
 - **创建日期**: 2026-09-03
 - **最后更新**: 2026-09-03
 - **所属愿景**: 无
 - **关联提案**: swift-demangling 提案 0014「大栈 TaskExecutor」（上游前置，执行器本体在那边；本提案只做接入）；[0018-self-contained-abi-layer](0018-self-contained-abi-layer.md)（同一轮调研产物，互不依赖）
-- **实现分支 / PR**: 待定
-- **配套文档**: 待定 —— 落地时登记实现说明的链接
+- **实现分支 / PR**: `feature/large-stack-executor-and-cross-version-parallelism`，[PR #122](https://github.com/MxIris-Reverse-Engineering/MachOSwiftSection/pull/122)（堆叠在 ABI 提案的 PR #121 之上，base 随其合并切到 `next`）
+- **配套文档**: [LargeStackTaskExecutorAdoption.md](../Internal/LargeStackTaskExecutorAdoption.md)（实现说明）；任务报告 [2026-09-03-large-stack-executor-and-cross-version-parallelism.md](../Internal/TaskReports/2026-09-03-large-stack-executor-and-cross-version-parallelism.md)
 
 ## 摘要
 
@@ -188,3 +188,11 @@ AGENTS.md（`SwiftInterface` / `SwiftIndexing` 条目补执行器一句；测试
 | 2026-09-03 | 库入口自装偏好；macOS 15 以下静默回退；默认并行上限取核数 | 第二轮 |
 | 2026-09-03 | 上游提案由本人在 sibling 仓库起草；上游发版号 0.6.3 | 第三轮与收尾确认；用户告知 0.6.2 已实测恢复 |
 | 2026-09-03 | 上游 0.6.3 已发版，接口与四处修订对齐 | swift-demangling 会话通知：tag `8f32e30`、实现 `eaf7e76`；`StackSafeExecutor.taskExecutor` / `LargeStackTaskExecutor`；优先级映射改用 `JobPriority` 原始值、只用稳态额度、双级回退、16 MB 实测深度。状态仍为 Draft，等用户置 Accepted 后再抬 pin 与开工 |
+| 2026-09-03 | Accepted → In Progress | 用户指示「基于上一个 PR 实现 async 提案」，视为批准；分支自 ABI 提案的分支切出，第一步抬 swift-demangling pin 到 0.6.3 |
+| 2026-09-03 | 落地偏差：`isEnabled` 初值读环境变量 | 提案只有静态开关；加 `MACHO_SWIFT_SECTION_LARGE_STACK_EXECUTOR=0` 是为了让渲染 A/B 与计时用同一个二进制比较开 / 关，宿主不必重编 |
+| 2026-09-03 | 落地偏差：并行用通用 `concurrentMap(maximumConcurrency:)` 而非 `async let` | `DiffCommand` 与 evolution 的 lineage 输入同样需要窗口化，一个 `Utilities` 帮手三处复用，`--jobs 1` 与默认走同一条代码路径 |
+| 2026-09-03 | 落地偏差：CLI 的 `dump` 循环不再额外包一层 | 六个 `Dumpable.dump` 已各自包裹，CLI 逐类型进出执行器约一万跳、零点几秒，远小于原来逐符号跳转 |
+| 2026-09-03 | 核对：库内零处非结构化 `Task {}` | 唯一的 `withTaskGroup` 在 `TypeIndexing.TypeDatabase`，结构化、继承偏好；落地步骤 2 无需改动 |
+| 2026-09-03 | 验证：全量 1637 测试通过；计时 −16% ~ −23%（单版本）、2.0×（三版本 evolution）；四种配置输出逐字节一致 | 数据见实现说明「实测数据」；0.6.0 → 0.6.3 仅抬 pin 持平，证明 0.6.1 的回归未带入 |
+| 2026-09-04 | Review 修复批次（PR #122 review，15 条：真缺陷 5、误报 1、取舍 9） | 修：`concurrentMap` 取消语义（`addTaskUnlessCancelled` + 抛 `CancellationError`）、执行器测试同时挡 `isEnabled`、环境变量接受 `0/false/no/off`、并行等价测试先跑并行、三方 barrier 钉窗口宽度；用户裁定：F2 用 Dispatcher 进程级递归锁串行化投递（不改 `Handler` API）、F6 保持核数、F7 加 `ConsoleEventHandler(label:)` 与 `eventHandlersPerVersion`；F9 重复门判为不可消除（A32）；其余登记 A25–A33。清单见 `Roadmaps/2026-09-04-pr122-review-findings.md` |
+| 2026-09-03 | 收尾判断：写实现说明；「大栈执行器」入术语表 | 实现说明记录探测机制为何免改调用点、入口清单与嵌套免费、回退与开关、并行安全性与不做版本内并行的原因、计时表；术语在 AGENTS.md / 提案 / 实现说明 / 账本多处出现，登记 `Documentations/Glossary.md` |

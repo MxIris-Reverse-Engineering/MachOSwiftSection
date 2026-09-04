@@ -1271,6 +1271,29 @@
   [TaskReports/2026-09-03-self-contained-abi-layer.md](TaskReports/2026-09-03-self-contained-abi-layer.md)。
 - **对应版本**：0.18.0（破坏性 API 变更，见 Changelog）。
 
+## 2026-09-03 大栈任务执行器接入与跨版本并行（提案 large-stack-executor-and-cross-version-parallelism；节号落地时取）
+
+- **时间段**：2026-09-03。
+- **动机**：用户问「整个库都使用 async 环境是否可行」。调研结论：这个库的 async 是签名上的 async，
+  真正的开销在打印路径——每次 `printSemantic` 都跳到 swift-demangling 的 8 MB 大栈线程再用信号量
+  停住协作线程（release 每次 8–21 µs，1.14–2.28×）；索引侧已用同步 `withLargeStack` 摊掉，打印循环
+  因为是 async 包不住。多版本 `prepare` 串行而各版本彼此独立。全库 async 化不是答案（撞 `deinit` /
+  getter / `Hashable` 不能 `await`、MachOKit 同步、`Node` 非 `Sendable`，且协作线程 512 KB 让探测
+  100% 不过）。
+- **关键决策**：执行器归上游（swift-demangling 提案 0014，随 0.6.3 发版：`StackSafeExecutor.taskExecutor`，
+  16 MB 线程、与 8 MB 跳转池分池共码）；本库在库入口自装偏好（`MachOSymbols.LargeStackTaskExecution.run`），
+  宿主零改动；macOS 15 以下静默回退；跨版本并行默认开、窗口取核数（`prepare(maximumConcurrentPreparations:)`、
+  CLI `--jobs`），版本内并行不做（MachOKit 共享 FileHandle）；pin 抬到 0.6.3 跳过 0.6.1。
+- **落地模块**：`MachOSymbols`（`LargeStackTaskExecution`）、`Utilities`（`concurrentMap(maximumConcurrency:)`）、
+  `SwiftIndexing`、`SwiftInterface`、`SwiftPrinting`、`SwiftDump`、`swift-section`。
+- **关联文档**：[提案](../Evolutions/draft-large-stack-executor-and-cross-version-parallelism.md)、
+  [LargeStackTaskExecutorAdoption.md](LargeStackTaskExecutorAdoption.md)、
+  [TaskReports/2026-09-03-large-stack-executor-and-cross-version-parallelism.md](TaskReports/2026-09-03-large-stack-executor-and-cross-version-parallelism.md)、
+  Glossary 新术语「large-stack executor（大栈执行器）」。
+- **对应版本**：0.19.0（依赖下限 swift-demangling ≥ 0.6.3，见 Changelog）。
+
+---
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节

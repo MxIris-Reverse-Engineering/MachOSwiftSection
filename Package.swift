@@ -159,7 +159,7 @@ extension Package.Dependency {
         ),
         remote: .package(
             url: "https://github.com/MxIris-Reverse-Engineering/swift-demangling",
-            "0.6.0" ..< "0.7.0",
+            "0.6.3" ..< "0.7.0",
         ),
     )
 

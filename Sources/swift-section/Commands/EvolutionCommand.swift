@@ -51,6 +51,18 @@ struct EvolutionCommand: AsyncParsableCommand {
     @Option(name: .shortAndLong, help: "Write the report to this path instead of stdout.", completion: .file())
     var outputPath: String?
 
+    @Option(name: .long, help: "How many inputs to index at once (default: the processor count). Pass 1 to index the versions one after the other, oldest first.")
+    var jobs: Int?
+
+    /// The concurrency window for indexing the inputs (evolution proposal
+    /// `large-stack-executor-and-cross-version-parallelism`): every input is
+    /// an independent file, so by default up to one per processor index at
+    /// once. Each in-flight input holds its indexed image in memory, which is
+    /// what `--jobs` trades against.
+    private var maximumConcurrentPreparations: Int {
+        jobs ?? ProcessInfo.processInfo.activeProcessorCount
+    }
+
     func run() async throws {
         let explicitLabels = try ABISnapshotInputLoader.parseLabels(labels, inputCount: inputPaths.count)
 
@@ -59,9 +71,8 @@ struct EvolutionCommand: AsyncParsableCommand {
             return
         }
 
-        var documents: [ABISnapshotDocument] = []
-        for (index, inputPath) in inputPaths.enumerated() {
-            let document = try await ABISnapshotInputLoader.loadDocument(
+        let documents = try await Array(inputPaths.enumerated()).concurrentMap(maximumConcurrency: maximumConcurrentPreparations) { index, inputPath in
+            try await ABISnapshotInputLoader.loadDocument(
                 path: inputPath,
                 architecture: architecture,
                 isDyldSharedCache: isDyldSharedCache,
@@ -70,7 +81,6 @@ struct EvolutionCommand: AsyncParsableCommand {
                 label: explicitLabels[index],
                 log: log
             )
-            documents.append(document)
         }
 
         // Snapshot inputs may already carry a provenance label; binaries fall
@@ -128,12 +138,12 @@ struct EvolutionCommand: AsyncParsableCommand {
         // builder, because the version count is a runtime value here — the
         // pack-generic SwiftEvolutionInterfaceBuilder's arity is compile-time.
         let builder = try AnySwiftEvolutionInterfaceBuilder(
-            eventHandlers: [ConsoleEventHandler()],
+            eventHandlersPerVersion: { _, label in [ConsoleEventHandler(label: label)] },
             versions: machOFiles,
             labels: resolvedLabels
         )
-        log("Indexing \(machOFiles.count) versions…")
-        try await builder.prepare()
+        log("Indexing \(machOFiles.count) versions (\(min(maximumConcurrentPreparations, machOFiles.count)) at a time)…")
+        try await builder.prepare(maximumConcurrentPreparations: maximumConcurrentPreparations)
         log("Rendering annotated interface…")
         let annotated = try await builder.printAnnotatedInterface()
         try emitInterface(annotated.string)
@@ -207,6 +217,9 @@ struct EvolutionCommand: AsyncParsableCommand {
         }
         if json, summaryOnly {
             throw ValidationError("--json and --summary-only are mutually exclusive.")
+        }
+        if let jobs, jobs < 1 {
+            throw ValidationError("--jobs must be at least 1.")
         }
         if cacheImageName != nil, cacheImagePath != nil {
             throw ValidationError("--cache-image-name and --cache-image-path are mutually exclusive; pass only one.")

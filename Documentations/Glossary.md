@@ -100,6 +100,13 @@ diff / evolution 两条对比渲染路共享结构遍历核心（`InterfaceUnion
 - **主要出现在**：`Sources/SwiftInterface/InterfaceUnionWalker.swift`（协议与遍历器）、`SwiftDiffableInterfaceRenderer.swift`（`DiffUnionStrategy`）、`SwiftEvolutionInterfaceRenderer.swift`（evolution 策略）
 - **延伸阅读**：[提案 0014](Evolutions/0014-unify-interface-renderers.md)
 
+### large-stack executor（大栈执行器，`LargeStackTaskExecution`）
+
+swift-demangling 0.6.3 起提供的 `TaskExecutor`（`StackSafeExecutor.taskExecutor`，线程栈 16 MB，`@_spi(Internals)`）。demangler 每次 demangle / print / remangle 都按**调用线程的剩余栈**决定要不要跳到它的 8 MB 线程池——协作线程只有 512 KB，探针永远不过，async 打印循环因此每打印一个符号付一次线程往返；task 跑在大栈执行器的线程上时探针每个入口都通过，全程原地执行、零跳转。本库通过 `MachOSymbols.LargeStackTaskExecution.run` 在库入口（索引器 prepare、interface builder、printer 逐定义入口、diff / evolution、dump）自装偏好，宿主零改动；macOS 15 / iOS 18 以下静默回退为原样执行。与「跳转池」（demangler 自己的 8 MB `LargeStackThreadPool`，同步 `withLargeStack` 批次用）是两个池：执行器的 job 是整段 task，会占线程上百秒，不能挤占同步跳转的额度。
+
+- **主要出现在**：`Sources/MachOSymbols/LargeStackTaskExecution.swift`、各 async 入口的 `LargeStackTaskExecution.run { … }`
+- **延伸阅读**：[LargeStackTaskExecutorAdoption.md](Internal/LargeStackTaskExecutorAdoption.md)、提案 [draft-large-stack-executor-and-cross-version-parallelism](Evolutions/draft-large-stack-executor-and-cross-version-parallelism.md)、上游 swift-demangling `Documentations/StackSafety.md` 第八节
+
 ### late-name 路径（`lateDemangledNode(forName:)`）
 
 sweep 覆盖范围之外的名字走的旁路：demangle 后 intern 进 `Storage` 自持的一个可追加 side store，名字 → 裁决字典保证一个名字只 demangle 一次（拒绝也缓存为 `nil` 裁决、不再重试）。与主表冻结不可变的性质相对。
