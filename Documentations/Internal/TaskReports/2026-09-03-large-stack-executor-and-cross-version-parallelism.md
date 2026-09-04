@@ -48,3 +48,10 @@ worktree `.worktrees/MachOSwiftSection-LargeStackExecutor`，分支 `feature/lar
 - 并行用通用 `concurrentMap(maximumConcurrency:)` 而非 `async let`。
 - CLI `dump` 循环不再额外包一层（逐类型跳转代价可忽略）。
 - 主 actor 段落：库 target 未开启 SE-0461，async 入口从 `@MainActor` 调用会离开主 actor 落到执行器线程（实现说明已按事实写）。
+
+## Review 修复批次（2026-09-04）
+
+并行 review 会话对 PR #122 给出 15 条发现（原文与处置见 [Roadmaps/2026-09-04-pr122-review-findings.md](../../../Roadmaps/2026-09-04-pr122-review-findings.md)）。最严重的一条已被审查者独立复现：`concurrentMap` 用 `addTask`，取消后剩余元素全部启动。修复：`addTaskUnlessCancelled`、被拒即抛 `CancellationError`（不能返回残缺数组，`result!` 会崩）。其余四条真缺陷是测试层面的：执行器线程断言没挡 `isEnabled`、环境变量只认 `"0"`、并行等价测试先串行焐热缓存、窗口断言退化成串行也绿。用户三项裁定：Dispatcher 进程级递归锁串行化 handler 调用、lineage 默认窗口保持核数、stderr 加输入标签（`ConsoleEventHandler(label:)` + `eventHandlersPerVersion`）。审查者对 F9「重复门」的修法在实际中不可行（`#available` 必须出现在使用点），登记 A32；`TypeDatabase` 的同形 `addTask` 缺注入缝写不出复现测试，登记 A33。
+
+验证：受影响 7 个套件 43 个测试通过；突变检查——把 `addTaskUnlessCancelled` 改回 `addTask`、去掉 dispatcher 锁、测试 guard 只看 `isSupported`，并在 `MACHO_SWIFT_SECTION_LARGE_STACK_EXECUTOR=0` 下跑对应四个测试：`cancellationStopsSubmittingPendingElements`（元素 1 启动、不抛错）、`aHandlerSharedByConcurrentDispatchersIsNeverEnteredConcurrently`（handler 被并发进入）、`bodyRunsOnAnExecutorThreadWhenSupported` 与 `demanglerEntriesInsideTheBodyDoNotHop`（环境变量关闭时假红）四个测试共 7 处失败；改回后同一环境下全绿。全量 `swift test --skip IntegrationTests` 结果见下一行。全量 1649 测试 / 307 套件，仅 `SharedCache.resolve under Swift Concurrency` 的两个墙钟并行度断言在全量并行时假失败（已知），单独重跑通过。
+

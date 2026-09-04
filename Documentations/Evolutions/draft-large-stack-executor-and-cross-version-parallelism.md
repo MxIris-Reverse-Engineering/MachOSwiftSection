@@ -194,4 +194,5 @@ AGENTS.md（`SwiftInterface` / `SwiftIndexing` 条目补执行器一句；测试
 | 2026-09-03 | 落地偏差：CLI 的 `dump` 循环不再额外包一层 | 六个 `Dumpable.dump` 已各自包裹，CLI 逐类型进出执行器约一万跳、零点几秒，远小于原来逐符号跳转 |
 | 2026-09-03 | 核对：库内零处非结构化 `Task {}` | 唯一的 `withTaskGroup` 在 `TypeIndexing.TypeDatabase`，结构化、继承偏好；落地步骤 2 无需改动 |
 | 2026-09-03 | 验证：全量 1637 测试通过；计时 −16% ~ −23%（单版本）、2.0×（三版本 evolution）；四种配置输出逐字节一致 | 数据见实现说明「实测数据」；0.6.0 → 0.6.3 仅抬 pin 持平，证明 0.6.1 的回归未带入 |
+| 2026-09-04 | Review 修复批次（PR #122 review，15 条：真缺陷 5、误报 1、取舍 9） | 修：`concurrentMap` 取消语义（`addTaskUnlessCancelled` + 抛 `CancellationError`）、执行器测试同时挡 `isEnabled`、环境变量接受 `0/false/no/off`、并行等价测试先跑并行、三方 barrier 钉窗口宽度；用户裁定：F2 用 Dispatcher 进程级递归锁串行化投递（不改 `Handler` API）、F6 保持核数、F7 加 `ConsoleEventHandler(label:)` 与 `eventHandlersPerVersion`；F9 重复门判为不可消除（A32）；其余登记 A25–A33。清单见 `Roadmaps/2026-09-04-pr122-review-findings.md` |
 | 2026-09-03 | 收尾判断：写实现说明；「大栈执行器」入术语表 | 实现说明记录探测机制为何免改调用点、入口清单与嵌套免费、回退与开关、并行安全性与不做版本内并行的原因、计时表；术语在 AGENTS.md / 提案 / 实现说明 / 账本多处出现，登记 `Documentations/Glossary.md` |

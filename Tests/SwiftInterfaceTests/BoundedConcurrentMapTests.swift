@@ -36,6 +36,29 @@ struct BoundedConcurrentMapTests {
         }
     }
 
+    /// A rendezvous for a fixed number of participants: `arrive()` suspends
+    /// until every participant has arrived, so it completes only if that many
+    /// transforms are in flight at the same time.
+    private actor Barrier {
+        private let participantCount: Int
+        private var arrivedCount = 0
+        private var waiters: [CheckedContinuation<Void, Never>] = []
+
+        init(participantCount: Int) {
+            self.participantCount = participantCount
+        }
+
+        func arrive() async {
+            arrivedCount += 1
+            if arrivedCount >= participantCount {
+                for waiter in waiters { waiter.resume() }
+                waiters.removeAll()
+                return
+            }
+            await withCheckedContinuation { waiters.append($0) }
+        }
+    }
+
     /// A one-shot gate: `wait()` suspends until `open()` — a rendezvous that
     /// completes only if the waiter and the opener run concurrently.
     private actor Gate {
@@ -111,6 +134,50 @@ struct BoundedConcurrentMapTests {
             return element
         }
         #expect(results == [0, 1])
+    }
+
+    /// The window admits exactly its width, not fewer: three elements in a
+    /// window of three must all be in flight at once (a three-way barrier that
+    /// only releases when all three have arrived). A window that admitted two
+    /// would leave the third pending forever — hence the time limit.
+    @Test(.timeLimit(.minutes(1))) func theWindowAdmitsItsFullWidth() async throws {
+        let barrier = Barrier(participantCount: 3)
+        let results = try await [0, 1, 2].concurrentMap(maximumConcurrency: 3) { element in
+            await barrier.arrive()
+            return element
+        }
+        #expect(results == [0, 1, 2])
+    }
+
+    /// Cancelling the calling task stops the submission of pending elements
+    /// and fails the call with `CancellationError` — never a partial array.
+    /// Element 0 holds the (width-1) window open until the test has cancelled
+    /// the task; element 1 must then never start. The first version used
+    /// `addTask`, which a cancelled group still accepts, so every remaining
+    /// version of a cancelled multi-version preparation indexed to the end.
+    @Test(.timeLimit(.minutes(1))) func cancellationStopsSubmittingPendingElements() async {
+        let ledger = Ledger()
+        let elementZeroStarted = Gate()
+        let elementZeroMayFinish = Gate()
+
+        let task = Task {
+            try await Array(0 ..< 4).concurrentMap(maximumConcurrency: 1) { element in
+                ledger.start(element)
+                if element == 0 {
+                    await elementZeroStarted.open()
+                    await elementZeroMayFinish.wait()
+                }
+                ledger.end(element)
+            }
+        }
+
+        await elementZeroStarted.wait()
+        task.cancel()
+        await elementZeroMayFinish.open()
+
+        let outcome = await task.result
+        #expect(throws: CancellationError.self) { try outcome.get() }
+        #expect(ledger.events == ["start 0", "end 0"])
     }
 
     @Test func theFirstFailureIsRethrownAndPendingElementsNeverStart() async {

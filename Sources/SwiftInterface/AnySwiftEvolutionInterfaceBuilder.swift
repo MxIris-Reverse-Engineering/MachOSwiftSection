@@ -7,7 +7,6 @@ import MachOSwiftSection
 import Semantic
 import SwiftStdlibToolbox
 import MachOSymbols
-import Utilities
 
 /// Renders one module's ABI across N ≥ 2 ordered binary versions as a single
 /// **union interface with lifecycle annotations** — the N-way, human-readable
@@ -47,17 +46,29 @@ public final class AnySwiftEvolutionInterfaceBuilder: Sendable {
     /// Homogeneous construction: N versions of the same reader type, count
     /// decided at runtime.
     ///
+    /// `eventHandlers` are shared by every version; `eventHandlersPerVersion`
+    /// adds handlers built for one version (index and label), so a host can
+    /// attribute the diagnostics of concurrently prepared versions — the CLI
+    /// attaches a `ConsoleEventHandler(label:)` per version through it.
+    /// Handler invocation is serialized process-wide by the dispatcher, so a
+    /// shared handler is never called concurrently.
+    ///
     /// - Throws: `ABIEvolutionError.fewerThanTwoVersions` /
     ///   `.labelCountMismatch` on invalid input shapes.
     public init<MachO: FieldLayoutRenderable>(
         configuration: SwiftDeclarationIndexConfiguration = .init(),
         eventHandlers: [SwiftIndexEvents.Handler] = [],
+        eventHandlersPerVersion: ((_ versionIndex: Int, _ label: String) -> [SwiftIndexEvents.Handler])? = nil,
         versions: [MachO],
         labels: [String]
     ) throws {
         try Self.validate(versionCount: versions.count, labelCount: labels.count)
-        self.versionUnits = versions.map {
-            InterfaceVersionUnit(configuration: configuration, eventHandlers: eventHandlers, machO: $0)
+        self.versionUnits = versions.enumerated().map { versionIndex, machO in
+            InterfaceVersionUnit(
+                configuration: configuration,
+                eventHandlers: eventHandlers + (eventHandlersPerVersion?(versionIndex, labels[versionIndex]) ?? []),
+                machO: machO
+            )
         }
         self.labels = labels
     }

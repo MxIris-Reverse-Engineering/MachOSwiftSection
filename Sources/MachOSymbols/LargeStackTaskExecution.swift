@@ -41,11 +41,24 @@ import FoundationToolbox
 public enum LargeStackTaskExecution {
     /// Process-wide switch. A host that manages its own executor sets it to
     /// `false`. The environment variable
-    /// `MACHO_SWIFT_SECTION_LARGE_STACK_EXECUTOR=0` seeds it off for a process
-    /// that cannot be recompiled — the rendering A/B and the timing runs
-    /// compare the same binary with the executor on and off through it.
+    /// `MACHO_SWIFT_SECTION_LARGE_STACK_EXECUTOR` seeds it for a process that
+    /// cannot be recompiled — the rendering A/B and the timing runs compare
+    /// the same binary with the executor on and off through it. See
+    /// ``isEnabled(fromEnvironmentValue:)`` for the accepted spellings.
     @Mutex
-    public static var isEnabled: Bool = ProcessInfo.processInfo.environment["MACHO_SWIFT_SECTION_LARGE_STACK_EXECUTOR"] != "0"
+    public static var isEnabled: Bool = isEnabled(fromEnvironmentValue: ProcessInfo.processInfo.environment["MACHO_SWIFT_SECTION_LARGE_STACK_EXECUTOR"])
+
+    /// The verdict `MACHO_SWIFT_SECTION_LARGE_STACK_EXECUTOR` seeds:
+    /// `0` / `false` / `no` / `off` (case-insensitive, surrounding whitespace
+    /// ignored) turn the executor off, every other value — including an
+    /// unset variable — leaves it on. The first version compared the raw
+    /// value against the literal `"0"`, so `=false` silently measured the
+    /// executor twice.
+    public static func isEnabled(fromEnvironmentValue value: String?) -> Bool {
+        guard let value else { return true }
+        let normalized = value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return !["0", "false", "no", "off"].contains(normalized)
+    }
 
     /// Whether this process can run work on the executor at all: Darwin, on a
     /// runtime with SE-0417 task executors. Independent of ``isEnabled``.

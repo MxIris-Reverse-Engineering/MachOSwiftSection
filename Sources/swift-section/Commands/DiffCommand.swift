@@ -88,8 +88,8 @@ struct DiffCommand: AsyncParsableCommand {
             // to its printers, so this is what puts a dropped declaration on
             // stderr instead of leaving it to `Dispatcher`'s os_log floor, which
             // a CLI operator never sees.
-            let oldBuilder = SwiftDiffableInterfaceBuilder(eventHandlers: [ConsoleEventHandler()], in: oldMachO)
-            let newBuilder = SwiftDiffableInterfaceBuilder(eventHandlers: [ConsoleEventHandler()], in: newMachO)
+            let oldBuilder = SwiftDiffableInterfaceBuilder(eventHandlers: [ConsoleEventHandler(label: "old")], in: oldMachO)
+            let newBuilder = SwiftDiffableInterfaceBuilder(eventHandlers: [ConsoleEventHandler(label: "new")], in: newMachO)
             // Old side first in the window, so `--jobs 1` is the historical
             // order; with a wider window the two index side by side and their
             // diagnostics interleave on stderr.
@@ -121,8 +121,8 @@ struct DiffCommand: AsyncParsableCommand {
             // The change-list path is snapshot-based either way, so each side
             // may be a binary (indexed and frozen here) or a persisted
             // baseline (decoded, with its format version validated).
-            let documents = try await [oldPath, newPath].concurrentMap(maximumConcurrency: maximumConcurrentPreparations) { path in
-                try await loadDocument(at: path)
+            let documents = try await [(path: oldPath, side: "old"), (path: newPath, side: "new")].concurrentMap(maximumConcurrency: maximumConcurrentPreparations) { input in
+                try await loadDocument(at: input.path, consoleLabel: input.side)
             }
             let (oldDocument, newDocument) = (documents[0], documents[1])
 
@@ -195,7 +195,7 @@ struct DiffCommand: AsyncParsableCommand {
 
     /// Loads one change-list-path input: a snapshot JSON is decoded, a binary
     /// is indexed and frozen (with provenance stamped).
-    private func loadDocument(at path: String) async throws -> ABISnapshotDocument {
+    private func loadDocument(at path: String, consoleLabel: String) async throws -> ABISnapshotDocument {
         try await ABISnapshotInputLoader.loadDocument(
             path: path,
             architecture: architecture,
@@ -203,6 +203,7 @@ struct DiffCommand: AsyncParsableCommand {
             cacheImageName: cacheImageName,
             cacheImagePath: cacheImagePath,
             label: nil,
+            consoleLabel: consoleLabel,
             log: log
         )
     }

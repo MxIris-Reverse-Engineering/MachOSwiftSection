@@ -138,7 +138,7 @@ struct EvolutionCommand: AsyncParsableCommand {
         // builder, because the version count is a runtime value here — the
         // pack-generic SwiftEvolutionInterfaceBuilder's arity is compile-time.
         let builder = try AnySwiftEvolutionInterfaceBuilder(
-            eventHandlers: [ConsoleEventHandler()],
+            eventHandlersPerVersion: { _, label in [ConsoleEventHandler(label: label)] },
             versions: machOFiles,
             labels: resolvedLabels
         )

@@ -61,6 +61,22 @@ MachOKit 自己的读取有上百处 `fileHandle.seek` + `read` 共用一个句�
 
 窗口化 `withThrowingTaskGroup`：先提交 `window` 个，每完成一个再提交一个，结果按源序落位。首个错误经 `group.next()` 抛出，task group 在作用域退出时取消并等待在飞的子任务（`prepare` 不检查取消，所以在飞的会跑完，结果丢弃），**尚未启动的元素永远不启动**（`theFirstFailureIsRethrownAndPendingElementsNeverStart`）。哪个错误先到是调度决定的——串行时固定是最旧版本的错误，并行时不一定；只影响错误报文，不影响成功路径。
 
+### 取消语义
+
+`concurrentMap` 用 `addTaskUnlessCancelled` 提交：调用方的 task 被取消后，尚未启动的元素永远不启动，调用抛 `CancellationError`，绝不返回残缺数组（第一版用 `addTask`，取消后的 group 照收子任务，一次被取消的多版本准备会把剩余版本全部索引到底；审查者独立编译复现了这一点）。在飞的 transform 会跑完——索引链路本身不检查取消——结果丢弃。取消发生在最后一个元素提交之后则什么也不改变，结果照常返回。`TypeIndexing.TypeDatabase.index` 的 task group 是同形的旧代码，缺注入缝写不出复现测试，延后（裁决 A33）。
+
+### 事件投递串行化
+
+`SwiftIndexEvents.Handler` 没有 `Sendable` 约束，而并行准备把宿主传进来的同一个 handler 实例塞给 N 个版本的 dispatcher、在 N 个任务上调用。`Dispatcher.dispatch` 现在用一把**进程级** `NSRecursiveLock` 包住 handler 调用：有状态的宿主 handler 保持单线程，console handler 的一行不会被截断，代价是每个事件一次无竞争锁；递归锁让 handler 里再 dispatch 不死锁。跨 dispatcher 的投递**顺序**仍由谁先到决定。这是 F2 三个选项（加 `Sendable` 约束是破坏性 API 变更、只写文档等于把风险留给宿主）里用户选的。
+
+### stderr 归属
+
+`ConsoleEventHandler(label:)` 在时间戳后加 `[label]`：`diff` 用 `old` / `new`，`evolution` 每个版本用它的 axis label（通过新 init 参数 `eventHandlersPerVersion(versionIndex, label)`，共享 handler 照旧），snapshot 输入用 provenance label 或文件名。只改 stderr，不碰产品输出。
+
+### 环境变量的接受值
+
+`MACHO_SWIFT_SECTION_LARGE_STACK_EXECUTOR` 的 `0` / `false` / `no` / `off`（大小写与首尾空白不敏感）为关，其余（含未设置）为开——第一版只比对字面量 `"0"`，`=false` 会把执行器测两遍然后得出「执行器不要钱」的错误结论。`LargeStackTaskExecutionTests` 的执行器线程断言同时挡 `isSupported` 与 `isEnabled`，在该变量关闭的环境下跳过而不是假红。
+
 ### `--jobs` 在 CLI 校验而库端 clamp
 
 命令行上的 `--jobs 0` 是笔误，`ValidationError("--jobs must be at least 1.")` 立刻报；库 API 的 `maximumConcurrentPreparations` 小于 1 则按 1 处理（`preparationWindowIsClampedNotValidated`），因为宿主可能直接把「核数 - 1」之类的算式传进来，为一个下界抛错不值得。

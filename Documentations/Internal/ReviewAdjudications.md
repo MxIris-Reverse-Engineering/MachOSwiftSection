@@ -293,3 +293,85 @@
 - **为什么延后**：14 处分布在三个模块的热路径上，每处都要过一遍渲染 A/B 才敢合；与本 PR 的目标（分层）无关，捆进来只会拖大 review 面。已确认不产生功能分裂：两种写法等价，分裂只是「读代码时要认两种形状」。
 - **复审条件**：单独开一个「收编 `implementationOffset`」的清理批次（轻量档提案即可），逐字节 A/B 后合入；届时本条关闭。
 
+---
+
+## A25 — 「六个 `import MachOFoundation` 冗余」（PR #122 review 发现 F11，**误报**）
+
+- **裁决**：误报（2026-09-04）。
+- **发现**：审查者依据「`Sources/MachOSwiftSection/Exported.swift` 是 `@_exported import MachOFoundation`」判定 `SwiftDump/Dumpable/*+Dumpable.swift` 六处新增的 `import MachOFoundation` 多余。
+- **为什么是误报**：提案 0018 把 ABI 层的再导出收窄到 `MachOBase`（注释原文 "the ABI layer deliberately stops here"），`LargeStackTaskExecution` 住在 `MachOSymbols`，只有 `MachOFoundation` 再导出它；去掉那六行编译不过。审查者读的是 0018 之前的状态。
+- **附带子主张**：① `MachOSymbols` target 未声明 `FoundationToolbox` product 而 `LargeStackTaskExecution.swift` import 它——属实但基线既有（`SymbolIndexStore.swift` / `Symbol.swift` 同样如此），归 A23 同类清理批次；② `AnySwiftEvolutionInterfaceBuilder.swift` 新加的 `import Utilities` 冗余（`MachOSwiftSection → MachOBase → Utilities`）——属实，已删。
+- **复审条件**：无。
+
+---
+
+## A26 — 打印器四个逐定义入口每次调用都包一层 `LargeStackTaskExecution.run`（PR #122 review 发现 F13）
+
+- **裁决**：不修（2026-09-04）。
+- **发现**：`printTypeDefinition` / `printProtocolDefinition` / `printExtensionDefinition` / `printDefinition` 每次调用读一次 `isEnabled`（`@Mutex`，`os_unfair_lock`）并进一次 `withTaskExecutorPreference`；全仓 26 个 `run` 调用点，新增入口要同步维护。
+- **为什么不修**：效率论据被本 PR 自己的数据推翻——无竞争 `os_unfair_lock` 约 20 ns，十万次合计约 2 ms，而实测整体快 16–23%；已在执行器上的嵌套 `withTaskExecutorPreference` 不切换（`nestedRunsStayOnTheSameThread` 钉住）。包在逐定义入口是有意的：RuntimeViewer 逐类型导出绕过 `printRoot`，只包 `printRoot` 会漏掉它。
+- **复审条件**：profiling 显示 `run` 的开销在某条路径上可观；或出现第 27 个入口时考虑把「入口 = 包裹」写成 lint 检查。
+
+---
+
+## A27 — 新 `Collection.concurrentMap(maximumConcurrency:)` 与既有 `Array.concurrentMap(_:)` 同名而语义不同（PR #122 review 发现 F10）
+
+- **裁决**：不修（2026-09-04）。
+- **发现**：`Sources/Utilities/ConcurrentMap.swift` 的 `concurrentMap(_:)` 是 `DispatchQueue.concurrentPerform` 的同步阻塞版；新函数是 async、窗口化、可抛错。参数标签不同、无重载歧义，纯可读性。
+- **为什么不修**：两者的调用形态（`await` + `try` + `maximumConcurrency:` 标签）已把区别写在调用点上；改名或合并文件是纯搬动。既有同步版零调用方（2026-09-03 调研已记录），更合适的动作是下次清理批次删掉它。
+- **复审条件**：同步版被删或被重新启用时一并统一命名。
+
+---
+
+## A28 — `LargeStackTaskExecution.run` 未转发 `isolation: isolated (any Actor)? = #isolation`（PR #122 review 发现 F12）
+
+- **裁决**：不修（2026-09-04）。
+- **发现**：标准的「透传隔离」写法会加一个 `#isolation` 参数再转给 `withTaskExecutorPreference`；`run` 没有。
+- **为什么不修**：`body` 是非 `@Sendable` 闭包，在 actor 隔离上下文里字面量继承调用方隔离，实现说明里「主 actor 保持自己的 executor」仍然成立；差别只是多一次跳转。库 target 未开 SE-0461，从 `@MainActor` 调用本就离开主 actor（见实现说明「主 actor 调用方」）。
+- **复审条件**：库 target 开启 `NonisolatedNonsendingByDefault` 时重议。
+
+---
+
+## A29 — `@Suite(.serialized)` 不足以保护进程级开关 `isEnabled`（PR #122 review 发现 F4）
+
+- **裁决**：不修（2026-09-04）。
+- **发现**：`disabledRunsTheBodyOnTheCallersExecutor` 翻转 `LargeStackTaskExecution.isEnabled`，`.serialized` 只序列化本套件；其他套件与之并行时在翻转窗口内静默失去执行器。
+- **为什么不修**：只影响那几毫秒里其他套件跑在哪条线程上，不影响任何断言的正确性（全仓其他套件对执行器不敏感，AGENTS.md Test Environment 节写明）。审查者称「测试 trap 会跳过 defer」不成立——Swift Testing 的 `#expect` 失败不 trap，`defer` 正常恢复。横向排查：35 个 `.serialized` 套件里只有这一个翻转进程级开关。
+- **复审条件**：出现第二个断言线程身份的套件。
+
+---
+
+## A30 — 执行器关闭 / 不可用时并行窗口 = 核数会占满协作线程池（PR #122 review 发现 F8）
+
+- **裁决**：不修（2026-09-04）。
+- **发现**：`StackSafeExecutor` 探测失败时用 `DispatchSemaphore.wait()` 阻塞调用线程；macOS 14 或宿主关掉开关时，N 个并行 `prepare` 同时阻塞 N 条协作线程，宿主其他 async 工作会饿住（不会死锁：8 MB 跳转池是另一个池）。
+- **为什么不修**：这正是接入前每一次 `prepare` 的行为，并行只是把它乘以窗口；关掉执行器是宿主的显式选择（A/B 与计时配置），macOS 14 以下的用户面很小。宿主可用 `maximumConcurrentPreparations: 1` / `--jobs 1` 回到旧形态。
+- **复审条件**：有 macOS 14 宿主反馈饿死；届时可让 `run` 在不支持时把窗口自动收窄到 1。
+
+---
+
+## A31 — lineage / JSON 路径默认并行窗口取核数，峰值内存从 1 个索引镜像变为核数个（PR #122 review 发现 F6）
+
+- **裁决**：保持（2026-09-04，用户裁定）。
+- **发现**：`ABISnapshotInputLoader.loadDocument` 索引完即丢 builder，旧循环峰值一个镜像；新默认 `min(N, 核数)` 个（约 32 MB / 版本）。
+- **为什么保持**：提案第二轮澄清用户选「默认并行上限取核数」，`--jobs` 帮助文本写明代价；`--interface` 路径本来就全部常驻。
+- **复审条件**：出现内存受限的宿主场景（例如 CI 上几十个版本）时给 lineage 路径单独的默认值。
+
+---
+
+## A32 — `run` 与 `isSupported` 各写一遍平台 + 可用性门（PR #122 review 发现 F9）
+
+- **裁决**：不修（2026-09-04）。
+- **发现**：`#if canImport(Darwin)` + `#available(macOS 15…)` 在两处重复。
+- **为什么不修**：`#available` 必须在使用 `StackSafeExecutor.taskExecutor` 的词法位置出现，编译器不接受「`isSupported` 为真」作为可用性证明；把 `isSupported` 加进 `run` 的条件只是第三次重复。两处各有必要，已在 `run` 的注释说明。
+- **复审条件**：Swift 提供可用性谓词的抽象手段。
+
+---
+
+## A33 — `TypeIndexing.TypeDatabase.index` 的 task group 用 `addTask`，取消后仍提交剩余模块（PR #122 review 发现 1 的横向同类）
+
+- **裁决**：延后（2026-09-04）。
+- **发现**：`Sources/TypeIndexing/TypeDatabase.swift:76` 与 `concurrentMap` 修复前同形；基线既有，非本 PR 引入。
+- **为什么延后**：正确修法是 `addTaskUnlessCancelled` + 注册前 `Task.checkCancellation()`（否则取消会把残缺索引静默登记进去），而 `index(dependencies:moduleFilter:)` 直接构造 `SDKIndexer` / `ModuleInterfaceIndexer`（需要 SourceKit 与 SDK），没有注入缝可以写单元级复现测试；按「修复必带能变红的测试」规则，先补注入缝再修。
+- **复审条件**：`TypeDatabase` 获得 indexer 注入缝时一并修，或 GUI 宿主报告取消 `--resolve-c-module-names` 后 CPU 仍被占用。
+

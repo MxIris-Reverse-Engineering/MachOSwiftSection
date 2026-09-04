@@ -99,6 +99,18 @@ public enum SwiftIndexEvents {
             handlers.removeAll()
         }
 
+        /// Handler invocation is serialized PROCESS-WIDE, across every
+        /// dispatcher: `Handler` carries no `Sendable` requirement, and since
+        /// cross-version preparation runs in parallel (evolution proposal
+        /// `large-stack-executor-and-cross-version-parallelism`) one host
+        /// handler instance is shared by N dispatchers on N tasks. The lock
+        /// keeps a stateful handler single-threaded and a console handler's
+        /// lines whole, at one uncontended lock per event. Recursive, so a
+        /// handler that dispatches from inside `handle` does not deadlock.
+        /// Delivery ORDER across dispatchers is still whichever task gets
+        /// there first.
+        private static let deliveryLock = NSRecursiveLock()
+
         public func dispatch(_ event: Payload) {
             // Read the handler list once. `@Mutex` takes the lock per access, so
             // testing emptiness and then iterating would be two separate critical
@@ -106,8 +118,10 @@ public enum SwiftIndexEvents {
             // reach neither the handlers nor the fallback.
             let currentHandlers = handlers
             guard currentHandlers.isEmpty else {
-                for handler in currentHandlers {
-                    handler.handle(event: event)
+                Self.deliveryLock.withLock {
+                    for handler in currentHandlers {
+                        handler.handle(event: event)
+                    }
                 }
                 return
             }

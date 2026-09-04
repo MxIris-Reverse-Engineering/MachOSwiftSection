@@ -32,8 +32,18 @@ struct LargeStackTaskExecutionTests {
         pthread_mach_thread_np(pthread_self())
     }
 
+    /// `run` puts the body on the executor only when the runtime supports it
+    /// AND the process-wide switch is on — a run under
+    /// `MACHO_SWIFT_SECTION_LARGE_STACK_EXECUTOR=0` (the A/B and timing
+    /// configuration) takes the pass-through path, so the executor-thread
+    /// assertions below would be false for a reason the test does not
+    /// control. Guard both, not just support.
+    private static var executorIsActive: Bool {
+        LargeStackTaskExecution.isSupported && LargeStackTaskExecution.isEnabled
+    }
+
     @Test func bodyRunsOnAnExecutorThreadWhenSupported() async {
-        guard LargeStackTaskExecution.isSupported else { return }
+        guard Self.executorIsActive else { return }
         let (stackSize, threadName) = await LargeStackTaskExecution.run {
             (pthread_get_stacksize_np(pthread_self()), Self.currentThreadName())
         }
@@ -45,7 +55,7 @@ struct LargeStackTaskExecutionTests {
     /// stack probe passes, so its blocking and suspending entries stay on the
     /// task's thread instead of hopping to a pool worker.
     @Test func demanglerEntriesInsideTheBodyDoNotHop() async {
-        guard LargeStackTaskExecution.isSupported else { return }
+        guard Self.executorIsActive else { return }
         let observation = await LargeStackTaskExecution.run {
             let taskThread = Self.currentThread()
             let blockingCallThread: mach_port_t = StackSafeExecutor.execute { Self.currentThread() }
@@ -60,7 +70,7 @@ struct LargeStackTaskExecutionTests {
     /// (`printRoot` → `printTypeDefinition`, a parent's nested-children loop)
     /// nests a run inside a run; the inner one must not move the task.
     @Test func nestedRunsStayOnTheSameThread() async {
-        guard LargeStackTaskExecution.isSupported else { return }
+        guard Self.executorIsActive else { return }
         let (outerThread, innerThread) = await LargeStackTaskExecution.run {
             let outer = Self.currentThread()
             let inner = await LargeStackTaskExecution.run { Self.currentThread() }
@@ -72,7 +82,7 @@ struct LargeStackTaskExecutionTests {
     /// Child tasks inherit the preference (SE-0417) — the cross-version
     /// parallel preparation relies on this.
     @Test func childTasksInheritTheExecutor() async {
-        guard LargeStackTaskExecution.isSupported else { return }
+        guard Self.executorIsActive else { return }
         let childThreadNames = await LargeStackTaskExecution.run {
             await withTaskGroup(of: String.self) { group in
                 for _ in 0 ..< 3 {
@@ -98,6 +108,22 @@ struct LargeStackTaskExecutionTests {
         // completes on the very thread that entered it.
         #expect(bodyThread == callerThread)
         #expect(!threadName.hasPrefix(Self.executorThreadNamePrefix), "ran on \(threadName)")
+    }
+
+    /// The environment seed: the four off spellings, case-insensitive and
+    /// whitespace-tolerant, turn the executor off; anything else — including
+    /// an unset variable — leaves it on. The first version compared against
+    /// the literal `"0"`, so `=false` silently kept the executor on.
+    @Test(arguments: [
+        ("0", false), ("false", false), ("FALSE", false), ("no", false), ("off", false), (" 0 ", false), ("Off\n", false),
+        ("1", true), ("true", true), ("yes", true), ("on", true), ("", true), ("2", true), ("disabled", true),
+    ])
+    func environmentValueParsing(value: String, expected: Bool) {
+        #expect(LargeStackTaskExecution.isEnabled(fromEnvironmentValue: value) == expected)
+    }
+
+    @Test func unsetEnvironmentValueLeavesTheExecutorOn() {
+        #expect(LargeStackTaskExecution.isEnabled(fromEnvironmentValue: nil))
     }
 
     @Test func valuesAndErrorsPassThrough() async throws {
