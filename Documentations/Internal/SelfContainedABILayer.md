@@ -1,6 +1,6 @@
 # ABI 层自包含：MachOSwiftSection 与符号索引分家
 
-提案：[draft-self-contained-abi-layer](../Evolutions/draft-self-contained-abi-layer.md)。本文记录落地后的形态，以及那些从签名上看不出来、下次维护会踩的决策。
+提案：[0018-self-contained-abi-layer](../Evolutions/0018-self-contained-abi-layer.md)。本文记录落地后的形态，以及那些从签名上看不出来、下次维护会踩的决策。
 
 ## 改了什么
 

@@ -5,7 +5,7 @@
 - **创建日期**: 2026-09-03
 - **最后更新**: 2026-09-03
 - **所属愿景**: 无
-- **关联提案**: swift-demangling 提案 0014「大栈 TaskExecutor」（上游前置，执行器本体在那边；本提案只做接入）；[draft-self-contained-abi-layer](draft-self-contained-abi-layer.md)（同一轮调研产物，互不依赖）
+- **关联提案**: swift-demangling 提案 0014「大栈 TaskExecutor」（上游前置，执行器本体在那边；本提案只做接入）；[0018-self-contained-abi-layer](0018-self-contained-abi-layer.md)（同一轮调研产物，互不依赖）
 - **实现分支 / PR**: 待定
 - **配套文档**: 待定 —— 落地时登记实现说明的链接
 

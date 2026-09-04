@@ -1,12 +1,12 @@
-# Draft - ABI 层自包含：MachOSwiftSection 不再依赖符号索引
+# 0018 - ABI 层自包含：MachOSwiftSection 不再依赖符号索引
 
-- **状态**: In Progress
+- **状态**: Implemented
 - **作者**: JH
 - **创建日期**: 2026-09-03
-- **最后更新**: 2026-09-03
+- **最后更新**: 2026-09-04
 - **所属愿景**: 无
 - **关联提案**: [draft-large-stack-executor-and-cross-version-parallelism](draft-large-stack-executor-and-cross-version-parallelism.md)（同一轮调研的另一产物，互不依赖，可独立落地）
-- **实现分支 / PR**: `feature/self-contained-abi-layer`（worktree `.worktrees/MachOSwiftSection-SelfContainedABI`），PR 待开
+- **实现分支 / PR**: `feature/self-contained-abi-layer`（worktree `.worktrees/MachOSwiftSection-SelfContainedABI`），[PR #121](https://github.com/MxIris-Reverse-Engineering/MachOSwiftSection/pull/121)
 - **配套文档**: [SelfContainedABILayer.md](../Internal/SelfContainedABILayer.md)（实现说明）、[TaskReports/2026-09-03-self-contained-abi-layer.md](../Internal/TaskReports/2026-09-03-self-contained-abi-layer.md)（过程复盘）
 
 ## 摘要
@@ -230,4 +230,6 @@ AGENTS.md 的模块依赖图与 `MachOSwiftSection` / `MachOSymbols` 条目；`D
 | 2026-09-03 | 实现期决定：`Demangling` 依赖多摘出两处 | 除 `isSwiftSymbol` 外还有 `stripManglePrefix`（`MangledName.typeString`）与 `cModule` / `objcModule`（`ContextDescriptorProtocol`）；分别本地化为 `strippingSwiftManglingPrefix` 与 `CImportedModuleNames`，前两者由 `ManglingPrefixTests` 钉住与 demangler 一致 |
 | 2026-09-03 | 实现期发现：16 个 target 靠传递依赖拿 `MachOFoundation` | `SwiftInspection`、`SwiftDump`、`SwiftDeclaration`、`SwiftIndexing`、`SwiftPrinting`、`swift-section` 与十个测试 target 从未声明 `.target(.MachOFoundation)`，全靠 `MachOSwiftSection` 的再导出；本批补齐声明，另有 12 个源码文件与若干测试文件补显式 import |
 | 2026-09-03 | 验证通过 | `MachOSwiftSectionTests` 723 测试 / 161 套件全绿；全量 1617 测试 / 302 套件仅两个已知 flaky 的墙钟并行度断言假失败、单独重跑全绿；渲染 A/B 78 对输出逐字节一致（系统 dyld cache、四个模拟器运行时、进程内 MachOImage）。细节见任务报告 |
+| 2026-09-04 | Review 修复批次（PR #121 review，12 条全真） | A–H 与 I（Utilities）、K、L 修复：补 `MachOBase` / `MachOFoundation` library product（下游能声明依赖）、changelog 限定「逐字节一致」为默认 flag 并说明 `--emit-member-addresses` 下空 witness 不再打假地址、`ManglingPrefixTests` 钉住 `CImportedModuleNames`、`ProtocolRequirementTests` 加有默认实现的第二个 picker、`MethodOverrideDescriptor` baseline 发射 `implementationOffset`、四个 target 补依赖、CI filter 补 `MethodDefaultOverrideDescriptorTests`、`ProtocolConformanceDumper` 统一到新 accessor、image 腿独立断言、前缀单次扫描。延后：A23（既有未声明 import）、A24（全量迁移）。清单见 `Roadmaps/2026-09-04-pr121-review-findings.md` |
 | 2026-09-03 | 收尾判断 | 配套文档：写了实现说明 [SelfContainedABILayer.md](../Internal/SelfContainedABILayer.md)（登记在头部）；术语：不引入新术语（`MachOBase` 是模块名，不入术语表）。待合入 `next` 时按落地规则取编号并置 Implemented |
+| 2026-09-04 | Implemented；落地编号 0018 | `origin/next` 的 `Evolutions/` 最大编号 0017，本线取 0018；改名、标题、状态表与同仓链接同批完成，代码与 fixture 注释按规则继续引用 slug |

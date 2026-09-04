@@ -1249,7 +1249,7 @@
 
 ---
 
-## 2026-09-03 ABI 层自包含（提案 self-contained-abi-layer；节号落地时取）
+## 56. ABI 层自包含（提案 0018）
 
 - **时间段**：2026-09-03。
 - **动机**：`MachOSwiftSection`（ABI 模型）反向依赖符号索引——五个描述符的 Layout 里是
@@ -1266,7 +1266,7 @@
 - **落地模块**：`MachOResolving`、`MachOPointers`、`MachOBase`（新）、`MachOSymbols`、`MachOFoundation`、
   `MachOSwiftSection`、`SwiftInspection`、`SwiftDeclaration`、`SwiftDump`、`MachOFixtureSupport`，
   `MachOSymbolPointers` 删除；16 个 target 补上原本只靠传递拿到的 `MachOFoundation` 声明。
-- **关联文档**：[提案](../Evolutions/draft-self-contained-abi-layer.md)、
+- **关联文档**：[提案](../Evolutions/0018-self-contained-abi-layer.md)、
   [SelfContainedABILayer.md](SelfContainedABILayer.md)、
   [TaskReports/2026-09-03-self-contained-abi-layer.md](TaskReports/2026-09-03-self-contained-abi-layer.md)。
 - **对应版本**：0.18.0（破坏性 API 变更，见 Changelog）。
