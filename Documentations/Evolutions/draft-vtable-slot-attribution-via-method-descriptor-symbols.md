@@ -6,8 +6,8 @@
 - **最后更新**: 2026-09-06
 - **所属愿景**: 无
 - **关联提案**: [0006-final-keyword-and-lazy-accessor-type-recovery](0006-final-keyword-and-lazy-accessor-type-recovery.md)（首次把 `Tq` 符号当作 ICF 免疫证据用于 `final` 判定，但只用作否定证据，没有用于正向归属——本提案补上那一步）
-- **实现分支 / PR**: `feature/vtable-slot-attribution`（worktree `.worktrees/MachOSwiftSection-VTableSlotAttribution`）
-- **配套文档**: 待定
+- **实现分支 / PR**: `feature/vtable-slot-attribution`（worktree `.worktrees/MachOSwiftSection-VTableSlotAttribution`），[PR #123](https://github.com/MxIris-Reverse-Engineering/MachOSwiftSection/pull/123)
+- **配套文档**: [TaskReports/2026-09-06-vtable-slot-attribution.md](../Internal/TaskReports/2026-09-06-vtable-slot-attribution.md)（过程复盘）
 
 ## 摘要
 
