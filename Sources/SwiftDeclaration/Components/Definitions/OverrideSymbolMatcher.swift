@@ -4,8 +4,15 @@ import OrderedCollections
 @_spi(Internals) import MachOSymbols
 @_spi(Internals) import SwiftInspection
 
-/// Finds the implementation symbol whose demangled `.class` node matches
-/// `typeNode`'s class node, skipping already-visited nodes.
+/// Finds the implementation symbol declared in `typeNode`'s class, skipping
+/// already-visited nodes.
+///
+/// The match is on the member's DIRECT declaration context. Matching on
+/// `first(of: .class)` — the first class node anywhere in the tree — accepts
+/// members of NESTED types as members of the enclosing class
+/// (`GraphHost.Data.graph.modify` reports `GraphHost`), which under identical
+/// code folding is how a vtable slot acquires a name belonging to something
+/// else entirely.
 ///
 /// `visitedNodes` is keyed structurally: `demangledNodeReference(for:)` can
 /// hand back references from different stores, and under store-identity
@@ -47,8 +54,8 @@ package func demangledOverrideSymbol<MachO: MachOSwiftSectionRepresentableWithCa
     guard let typeClassNode = typeNode.first(of: .class) else { return nil }
     for symbol in symbols {
         if let node = SymbolIndexStore.shared.demangledNodeReference(for: symbol, in: machO),
-           let classNode = node.first(of: .class),
-           classNode.structurallyEquals(typeClassNode),
+           let declarationContextNode = node.declarationContextNode,
+           declarationContextNode.structurallyEquals(typeClassNode),
            !visitedNodes.contains(StructuralNodeReferenceKey(node)) {
             return .init(symbol: symbol, demangledNode: node)
         }

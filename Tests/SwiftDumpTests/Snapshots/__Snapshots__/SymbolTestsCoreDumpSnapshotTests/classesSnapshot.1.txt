@@ -43,7 +43,8 @@ class SymbolTestsCore.Classes.ClassTest {
     /* [Setter] */ SymbolTestsCore.Classes.ClassTest.dynamicVariable.setter : Swift.Bool
     /* [Modify] */ SymbolTestsCore.Classes.ClassTest.dynamicVariable.modify : Swift.Bool
     /* [Method] */ func SymbolTestsCore.Classes.ClassTest.dynamicMethod() -> ()
-    /* [ Init ] */ Symbol not found
+    // No implementation in this image (deleted method — slot retained for ABI)
+    /* [ Init ] */ SymbolTestsCore.Classes.ClassTest.__allocating_init() -> SymbolTestsCore.Classes.ClassTest
 
     /* Deallocator */
     SymbolTestsCore.Classes.ClassTest.__deallocating_deinit
@@ -83,7 +84,7 @@ class SymbolTestsCore.Classes.SubclassTest: SymbolTestsCore.Classes.ClassTest {
     /* [Setter] */ override SymbolTestsCore.Classes.SubclassTest.dynamicVariable.setter : Swift.Bool
     /* [Modify] */ override SymbolTestsCore.Classes.SubclassTest.instanceVariable.modify : Swift.Bool
     /* [Method] */ override SymbolTestsCore.Classes.SubclassTest.dynamicVariable.modify : Swift.Bool
-    /* [ Init ] */ override Symbol not found
+    /* [ Init ] */ override <unnamed vtable slot>
 
     /* Deallocator */
     SymbolTestsCore.Classes.SubclassTest.__deallocating_deinit
@@ -107,7 +108,7 @@ class SymbolTestsCore.Classes.FinalClassTest: SymbolTestsCore.Classes.SubclassTe
     /* [Setter] */ override SymbolTestsCore.Classes.FinalClassTest.dynamicVariable.modify : Swift.Bool
     /* [Modify] */ override SymbolTestsCore.Classes.FinalClassTest.dynamicVariable.modify : Swift.Bool
     /* [Method] */ override SymbolTestsCore.Classes.FinalClassTest.dynamicMethod() -> ()
-    /* [ Init ] */ override Symbol not found
+    /* [ Init ] */ override <unnamed vtable slot>
 
     /* Deallocator */
     SymbolTestsCore.Classes.FinalClassTest.__deallocating_deinit

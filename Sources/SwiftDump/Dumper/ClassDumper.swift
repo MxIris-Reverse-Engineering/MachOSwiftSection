@@ -231,14 +231,27 @@ package struct ClassDumper<MachO: FieldLayoutRenderable>: TypedDumper {
                     configuration.memberAddressComment(offset: implOffset, addressString: machO.addressString(forOffset: implOffset))
                 }
 
-                Indent(level: 1)
-
-                // Pre-resolve the method node so we can check distributed status
-                // before deciding which keywords to emit.
-                var resolvedMethodNode: NodeReference? = nil
-                if let symbols = descriptor.implementationSymbols(in: machO) {
-                    resolvedMethodNode = try? await validNode(for: symbols, visitedNodes: methodVisitedNodes)
+                // Attribution, in order of evidence: the descriptor's own `Tq`
+                // symbol (one per member, at the descriptor's own address, so
+                // identical code folding cannot reach it), then the symbols at
+                // the implementation address (not invertible under folding —
+                // the fallback, not the source of truth). Pre-resolved before
+                // any keyword is emitted because the distributed check reads
+                // the node.
+                let implementationSymbols = descriptor.implementationSymbols(in: machO)
+                let attributedMethodNode = descriptor.attributedMemberNode(in: machO)
+                var resolvedMethodNode = attributedMethodNode
+                if resolvedMethodNode == nil, let implementationSymbols {
+                    resolvedMethodNode = try? await validNode(for: implementationSymbols, visitedNodes: methodVisitedNodes)
                 }
+
+                if descriptor.implementation.isNull {
+                    configuration.deletedMethodSlotComment()
+                } else if attributedMethodNode == nil, let implementationSymbols, implementationSymbols.count > 1 {
+                    configuration.ambiguousAttributionComment(foldedSymbolCount: implementationSymbols.count)
+                }
+
+                Indent(level: 1)
 
                 let isDistributedMethod: Bool = {
                     guard descriptor.flags.kind == .method,
@@ -278,6 +291,10 @@ package struct ClassDumper<MachO: FieldLayoutRenderable>: TypedDumper {
 
                 let methodDescriptor = try descriptor.methodDescriptor(in: machO)
 
+                // An override slot keeps the implementation-address route: its
+                // descriptor has no `Tq` symbol, and the parent's descriptor
+                // names the parent's member, not this class's implementation.
+                // See the note in `Descriptor+MethodDescriptorSymbols.swift`.
                 if let symbols = descriptor.implementationSymbols(in: machO), let node = try await validNode(for: symbols, visitedNodes: methodOverrideVisitedNodes) {
                     dumpMethodKind(for: methodDescriptor?.resolved)
                     Keyword(.override)
@@ -326,6 +343,8 @@ package struct ClassDumper<MachO: FieldLayoutRenderable>: TypedDumper {
 
                 Space()
 
+                // Implementation-address route, same reason as the override
+                // loop above.
                 if let symbols = descriptor.implementationSymbols(in: machO), let node = try await validNode(for: symbols, visitedNodes: methodDefaultOverrideVisitedNodes) {
                     try await demangleResolver.resolve(for: node)
                     _ = methodDefaultOverrideVisitedNodes.append(StructuralNodeReferenceKey(node))
@@ -528,6 +547,14 @@ package struct ClassDumper<MachO: FieldLayoutRenderable>: TypedDumper {
 
     @SemanticStringBuilder
     private func dumpMethodDeclaration(for descriptor: MethodDescriptor, resolvedNode: NodeReference? = nil, visitedNodes: inout OrderedSet<StructuralNodeReferenceKey>) async throws -> SemanticString {
+        // No `Tq` lookup here on purpose. The vtable loop resolves attribution
+        // itself and passes the result in as `resolvedNode`; the OTHER caller
+        // is the override loop's `.element` leg, where `descriptor` is the
+        // PARENT class's method descriptor — attributing through its `Tq`
+        // symbol would rename the overriding member to the overridden one
+        // (`override ResilientChild.init()` → `override ResilientBase.init()`)
+        // and drop the vtable-thunk dispatch detail the implementation symbol
+        // carries.
         let node: NodeReference?
         if let resolvedNode {
             node = resolvedNode
@@ -543,7 +570,10 @@ package struct ClassDumper<MachO: FieldLayoutRenderable>: TypedDumper {
         } else if !descriptor.implementation.isNull {
             FunctionDeclaration(machO.addressString(forOffset: descriptor.implementation.resolveDirectOffset(from: descriptor.offset(of: \.implementation))).insertSubFunctionPrefix)
         } else {
-            Error("Symbol not found")
+            // A null implementation with no `Tq` symbol to name it: the slot is
+            // an ABI tombstone (see `deletedMethodSlotComment`) whose member
+            // name this image does not carry.
+            Error("<unnamed vtable slot>")
         }
     }
 
@@ -612,12 +642,24 @@ package struct ClassDumper<MachO: FieldLayoutRenderable>: TypedDumper {
         return names
     }
 
+    /// The first symbol among `symbols` that is a member OF THIS CLASS and has
+    /// not been claimed yet.
+    ///
+    /// The match is on the member's DIRECT declaration context, not on
+    /// `first(of: .class)`: the latter finds the first class node anywhere in
+    /// the tree, so a member of a nested type (`GraphHost.Data.graph.modify`)
+    /// reports the enclosing class and passes as that class's own member. Under
+    /// identical code folding — where this whole function's input is one
+    /// address' worth of unrelated folded symbols — that is a wrong name, not
+    /// merely a missed one.
     package func validNode(for symbols: Symbols, visitedNodes: borrowing OrderedSet<StructuralNodeReferenceKey> = []) async throws -> NodeReference? {
         let currentInterfaceName = try await _name(using: .options(.interfaceType)).string
         for symbol in symbols {
-            if let node = MetadataReader.demangleSymbolReference(for: symbol, in: machO), let classNode = node.first(of: .class), await classNode.print(using: .interfaceType) == currentInterfaceName, !visitedNodes.contains(StructuralNodeReferenceKey(node)) {
-                return node
-            }
+            guard let node = MetadataReader.demangleSymbolReference(for: symbol, in: machO),
+                  let declarationContextNode = node.declarationContextNode,
+                  await declarationContextNode.print(using: .interfaceType) == currentInterfaceName,
+                  !visitedNodes.contains(StructuralNodeReferenceKey(node)) else { continue }
+            return node
         }
         return nil
     }

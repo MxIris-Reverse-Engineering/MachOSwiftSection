@@ -30,6 +30,13 @@
 - **主要出现在**：`Scripts/run-rendering-ab-verification.py`
 - **延伸阅读**：[SystemFrameworkRenderingVerification.md](Internal/SystemFrameworkRenderingVerification.md)
 
+### ABI 墓碑（ABI tombstone）
+
+实现已被删除、槽位仍为 ABI 兼容保留的 vtable 槽。特征是 method descriptor 的 implementation 相对指针为 null，而 class metadata 里对应的 word 是一条指向 `swift_deletedMethodError` 的 bind——调用即 trap。descriptor 的 `Tq` 符号通常还在，所以**被删掉的是哪个成员仍然可知**，dump 会打印那个名字并在上一行注明本镜像内无实现；`Tq` 也没有时才退化为 `<unnamed vtable slot>`。实测 SwiftUICore 的非泛型类里约 33% 的槽是墓碑（其中近半能还原出名字）。
+
+- **主要出现在**：`ClassDumper` 的 vtable 循环、`DeclarationRenderConfiguration.deletedMethodSlotComment`
+- **延伸阅读**：[提案 vtable-slot-attribution](Evolutions/draft-vtable-slot-attribution-via-method-descriptor-symbols.md)
+
 ### anchor 协议（anchor protocol）
 
 一条 same-type 约束的 subject 里，关联类型所**限定的声明协议**——`τ_1_0.[Swift.Sequence]Element == [A]` 的 anchor 是 `Swift.Sequence`（mangling 层限定形式，demangle 后保留在 `dependentAssociatedTypeRef` 的第二个 child）。注意 anchor 是 canonicalization 后**继承链最上层的原始声明者**，不一定是源码 sugar 写在哪个协议上（`Collection<[A]>` 的约束 anchor 是 Sequence），也不一定在 opaque 组合成员之内。opaque 尖括号参数的归属裁决以它为第一信号。
@@ -99,6 +106,13 @@ diff / evolution 两条对比渲染路共享结构遍历核心（`InterfaceUnion
 
 - **主要出现在**：`Sources/SwiftInterface/InterfaceUnionWalker.swift`（协议与遍历器）、`SwiftDiffableInterfaceRenderer.swift`（`DiffUnionStrategy`）、`SwiftEvolutionInterfaceRenderer.swift`（evolution 策略）
 - **延伸阅读**：[提案 0014](Evolutions/0014-unify-interface-renderers.md)
+
+### identical code folding（ICF，相同代码折叠）
+
+linker 把字节相同的函数体合并到同一地址的优化。后果是「地址 → 符号」不再是单射：SwiftUICore 里空 `ret` 那一个地址上挂着 **2878** 个符号。任何「拿实现地址反查这是谁」的逻辑在折叠面前都没有逆——vtable 槽归属因此改用 method descriptor 自身的 `Tq` 符号（每成员一个、位于 descriptor 自身地址，折叠够不着它），实现地址反查只作回退，且回退撞上折叠地址时输出会注明归属不确定。同一事实也是 `final` 关键字还原（提案 0006）必须用 `Tq` 作否定证据的原因。fixture 里可用 `-Xlinker -deduplicate` 强制触发。
+
+- **主要出现在**：`Descriptor+MethodDescriptorSymbols.swift`、`ClassDumper`、`TypeDefinition.index`、`FinalKeywordICFRegressionTests`、`VTableSlotAttributionTests`
+- **延伸阅读**：[提案 vtable-slot-attribution](Evolutions/draft-vtable-slot-attribution-via-method-descriptor-symbols.md)、[提案 0006](Evolutions/0006-final-keyword-and-lazy-accessor-type-recovery.md)
 
 ### large-stack executor（大栈执行器，`LargeStackTaskExecution`）
 

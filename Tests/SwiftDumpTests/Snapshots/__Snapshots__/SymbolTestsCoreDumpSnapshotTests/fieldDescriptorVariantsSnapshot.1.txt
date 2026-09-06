@@ -40,7 +40,8 @@ class SymbolTestsCore.FieldDescriptorVariants.ReferenceFieldTest {
     /* [Getter] */ SymbolTestsCore.FieldDescriptorVariants.ReferenceFieldTest.strongVarField.getter : Swift.AnyObject
     /* [Setter] */ SymbolTestsCore.FieldDescriptorVariants.ReferenceFieldTest.strongVarField.setter : Swift.AnyObject
     /* [Modify] */ SymbolTestsCore.FieldDescriptorVariants.ReferenceFieldTest.strongVarField.modify : Swift.AnyObject
-    /* [ Init ] */ Symbol not found
+    // No implementation in this image (deleted method — slot retained for ABI)
+    /* [ Init ] */ SymbolTestsCore.FieldDescriptorVariants.ReferenceFieldTest.__allocating_init(reference: Swift.AnyObject) -> SymbolTestsCore.FieldDescriptorVariants.ReferenceFieldTest
 
     /* Deallocator */
     SymbolTestsCore.FieldDescriptorVariants.ReferenceFieldTest.__deallocating_deinit

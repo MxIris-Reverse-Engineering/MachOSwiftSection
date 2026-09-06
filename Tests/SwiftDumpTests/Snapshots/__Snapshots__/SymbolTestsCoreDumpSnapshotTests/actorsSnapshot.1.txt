@@ -11,7 +11,8 @@ actor SymbolTestsCore.Actors.ActorTest {
     /* [Method] */ func SymbolTestsCore.Actors.ActorTest.mutateState() -> ()
     /* [Method] */ func SymbolTestsCore.Actors.ActorTest.readState() -> Swift.Int
     /* [Method] */ func SymbolTestsCore.Actors.ActorTest.nonisolatedMethod() -> Swift.String
-    /* [ Init ] */ Symbol not found
+    // No implementation in this image (deleted method — slot retained for ABI)
+    /* [ Init ] */ SymbolTestsCore.Actors.ActorTest.__allocating_init() -> SymbolTestsCore.Actors.ActorTest
 
     /* Deallocator */
     SymbolTestsCore.Actors.ActorTest.__deallocating_deinit
@@ -44,7 +45,8 @@ actor SymbolTestsCore.Actors.ActorTest {
 actor SymbolTestsCore.Actors.CustomGlobalActor {
     var $defaultActor: Builtin.DefaultActorStorage
 
-    /* [ Init ] */ Symbol not found
+    // No implementation in this image (deleted method — slot retained for ABI)
+    /* [ Init ] */ SymbolTestsCore.Actors.CustomGlobalActor.__allocating_init() -> SymbolTestsCore.Actors.CustomGlobalActor
 
     /* Deallocator */
     SymbolTestsCore.Actors.CustomGlobalActor.__deallocating_deinit
@@ -71,7 +73,8 @@ class SymbolTestsCore.Actors.GlobalActorAnnotatedClass {
     /* [Setter] */ SymbolTestsCore.Actors.GlobalActorAnnotatedClass.value.setter : Swift.Int
     /* [Modify] */ SymbolTestsCore.Actors.GlobalActorAnnotatedClass.value.modify : Swift.Int
     /* [Method] */ func SymbolTestsCore.Actors.GlobalActorAnnotatedClass.method() -> Swift.Int
-    /* [ Init ] */ Symbol not found
+    // No implementation in this image (deleted method — slot retained for ABI)
+    /* [ Init ] */ SymbolTestsCore.Actors.GlobalActorAnnotatedClass.__allocating_init() -> SymbolTestsCore.Actors.GlobalActorAnnotatedClass
 
     /* Deallocator */
     SymbolTestsCore.Actors.GlobalActorAnnotatedClass.__deallocating_deinit
@@ -104,7 +107,8 @@ class SymbolTestsCore.Actors.MainActorAnnotatedTest {
     /* [Modify] */ SymbolTestsCore.Actors.MainActorAnnotatedTest.value.modify : Swift.Int
     /* [Method] */ func SymbolTestsCore.Actors.MainActorAnnotatedTest.method() -> Swift.Int
     /* [Method] */ func SymbolTestsCore.Actors.MainActorAnnotatedTest.nonisolatedMethod() -> Swift.String
-    /* [ Init ] */ Symbol not found
+    // No implementation in this image (deleted method — slot retained for ABI)
+    /* [ Init ] */ SymbolTestsCore.Actors.MainActorAnnotatedTest.__allocating_init() -> SymbolTestsCore.Actors.MainActorAnnotatedTest
 
     /* Deallocator */
     SymbolTestsCore.Actors.MainActorAnnotatedTest.__deallocating_deinit

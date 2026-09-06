@@ -264,10 +264,22 @@ public final class TypeDefinition: Definition {
                 }
             }
 
+            // Attribution evidence order, same as the dump path's
+            // `ClassDumper`: the descriptor's own `Tq` symbol first — one per
+            // member, at the descriptor's own address, so identical code
+            // folding cannot reach it — and the symbols at the implementation
+            // address only as a fallback, since folding makes that mapping
+            // non-invertible.
             for (index, descriptor) in classWrapper.methodDescriptors.enumerated() {
-                guard let symbols = descriptor.implementationSymbols(in: machO) else { continue }
-                guard let overrideSymbol = demangledOverrideSymbol(for: symbols, typeNode: typeNode, visitedNodes: visitedNodes, in: machO) else { continue }
-                let node = overrideSymbol.demangledNode
+                let node: NodeReference
+                if let attributedNode = descriptor.attributedMemberNode(in: machO) {
+                    node = attributedNode
+                } else if let symbols = descriptor.implementationSymbols(in: machO),
+                          let overrideSymbol = demangledOverrideSymbol(for: symbols, typeNode: typeNode, visitedNodes: visitedNodes, in: machO) {
+                    node = overrideSymbol.demangledNode
+                } else {
+                    continue
+                }
                 visitedNodes.append(StructuralNodeReferenceKey(node))
                 let joinKey = memberJoinKey(for: node, in: machO)
                 methodDescriptorLookup[joinKey] = .method(descriptor)
@@ -278,6 +290,11 @@ public final class TypeDefinition: Definition {
             var parentVTableCache = ParentClassVTableCache()
 
             for descriptor in classWrapper.methodOverrideDescriptors {
+                // Override slots keep the implementation-address route: the
+                // join below is against THIS class's member symbols, which a
+                // parent-shaped node from the overridden descriptor's `Tq`
+                // symbol never matches. See
+                // `Descriptor+MethodDescriptorSymbols.swift`.
                 guard let symbols = descriptor.implementationSymbols(in: machO) else { continue }
                 guard let overrideSymbol = demangledOverrideSymbol(for: symbols, typeNode: typeNode, visitedNodes: visitedNodes, in: machO) else { continue }
                 let node = overrideSymbol.demangledNode
@@ -290,6 +307,11 @@ public final class TypeDefinition: Definition {
                 }
             }
             for descriptor in classWrapper.methodDefaultOverrideDescriptors {
+                // Override slots keep the implementation-address route: the
+                // join below is against THIS class's member symbols, which a
+                // parent-shaped node from the overridden descriptor's `Tq`
+                // symbol never matches. See
+                // `Descriptor+MethodDescriptorSymbols.swift`.
                 guard let symbols = descriptor.implementationSymbols(in: machO) else { continue }
                 guard let overrideSymbol = demangledOverrideSymbol(for: symbols, typeNode: typeNode, visitedNodes: visitedNodes, in: machO) else { continue }
                 let node = overrideSymbol.demangledNode

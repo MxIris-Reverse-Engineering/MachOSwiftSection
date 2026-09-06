@@ -4,13 +4,13 @@ enum SymbolTestsCore.VTableEntryVariants {}
 class SymbolTestsCore.VTableEntryVariants.VTableBaseTest {
     /* [Method] */ func SymbolTestsCore.VTableEntryVariants.VTableBaseTest.normalMethod() -> ()
     /* [Method] */ func SymbolTestsCore.VTableEntryVariants.VTableBaseTest.overridableMethod() -> Swift.Int
-    /* [Method] */ func async function pointer to SymbolTestsCore.VTableEntryVariants.VTableBaseTest.asyncMethod() async -> Swift.Int
+    /* [Method] */ func SymbolTestsCore.VTableEntryVariants.VTableBaseTest.asyncMethod() async -> Swift.Int
     /* [Method] */ func SymbolTestsCore.VTableEntryVariants.VTableBaseTest.throwingMethod() throws -> Swift.Int
-    /* [Method] */ func async function pointer to SymbolTestsCore.VTableEntryVariants.VTableBaseTest.asyncThrowingMethod() async throws -> Swift.Int
+    /* [Method] */ func SymbolTestsCore.VTableEntryVariants.VTableBaseTest.asyncThrowingMethod() async throws -> Swift.Int
     /* [Getter] */ SymbolTestsCore.VTableEntryVariants.VTableBaseTest.normalProperty.getter : Swift.Int
     /* [Setter] */ SymbolTestsCore.VTableEntryVariants.VTableBaseTest.normalProperty.setter : Swift.Int
     /* [Modify] */ SymbolTestsCore.VTableEntryVariants.VTableBaseTest.normalProperty.modify : Swift.Int
-    /* [Getter] */ async function pointer to SymbolTestsCore.VTableEntryVariants.VTableBaseTest.asyncProperty.getter : Swift.Int
+    /* [Getter] */ SymbolTestsCore.VTableEntryVariants.VTableBaseTest.asyncProperty.getter : Swift.Int
     /* [Getter] */ SymbolTestsCore.VTableEntryVariants.VTableBaseTest.throwingProperty.getter : Swift.Int
     /* [ Init ] */ SymbolTestsCore.VTableEntryVariants.VTableBaseTest.__allocating_init() -> SymbolTestsCore.VTableEntryVariants.VTableBaseTest
 
@@ -135,11 +135,11 @@ class SymbolTestsCore.VTableEntryVariants.FinalMembersTest {
     /* [Getter] */ SymbolTestsCore.VTableEntryVariants.FinalMembersTest.plainComputedProperty.getter : Swift.Int
     /* [Setter] */ SymbolTestsCore.VTableEntryVariants.FinalMembersTest.plainComputedProperty.setter : Swift.Int
     /* [Modify] */ SymbolTestsCore.VTableEntryVariants.FinalMembersTest.plainComputedProperty.modify : Swift.Int
-    /* [Method] */ func SymbolTestsCore.VTableEntryVariants.FinalMembersTest.plainComputedProperty.modify : Swift.Int
+    /* [Method] */ func SymbolTestsCore.VTableEntryVariants.FinalMembersTest.plainMethod() -> ()
     /* [Getter] */ SymbolTestsCore.VTableEntryVariants.FinalMembersTest.subscript.getter : (plainIndex: Swift.Int) -> Swift.Int
-    /* [Setter] */ SymbolTestsCore.VTableEntryVariants.FinalMembersTest.plainMethod() -> ()
+    /* [Setter] */ SymbolTestsCore.VTableEntryVariants.FinalMembersTest.subscript.setter : (plainIndex: Swift.Int) -> Swift.Int
     /* [Modify] */ SymbolTestsCore.VTableEntryVariants.FinalMembersTest.subscript.modify : (plainIndex: Swift.Int) -> Swift.Int
-    /* [Method] */ class func SymbolTestsCore.VTableEntryVariants.FinalMembersTest.subscript.setter : (plainIndex: Swift.Int) -> Swift.Int
+    /* [Method] */ class func static SymbolTestsCore.VTableEntryVariants.FinalMembersTest.classMethod() -> ()
     /* [ Init ] */ SymbolTestsCore.VTableEntryVariants.FinalMembersTest.__allocating_init() -> SymbolTestsCore.VTableEntryVariants.FinalMembersTest
 
     /* Allocator */

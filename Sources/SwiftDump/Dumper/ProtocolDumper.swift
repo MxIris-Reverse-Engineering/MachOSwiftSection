@@ -146,6 +146,17 @@ package struct ProtocolDumper<MachO: FieldLayoutRenderable>: NamedDumper {
         }
     }
 
+    /// The first symbol among `symbols` mentioning THIS protocol and not yet
+    /// claimed.
+    ///
+    /// Deliberately NOT narrowed to the declaration-context match
+    /// `ClassDumper.validNode` uses. A protocol's symbols are not only members:
+    /// `base conformance descriptor for P: Q` and the other requirement
+    /// descriptors carry no entity node at all, so a context-based match drops
+    /// them outright (measured: 1033 lines of SwiftUICore's protocol output
+    /// degraded to `[Stripped Symbol]`). Protocol-side attribution needs its
+    /// own evidence model and is out of scope for the vtable-attribution
+    /// proposal — the folding ambiguity documented there applies here too.
     private func validNode(for symbols: Symbols, visitedNode: borrowing OrderedSet<StructuralNodeReferenceKey> = []) async throws -> NodeReference? {
         let currentInterfaceName = try await _name(using: .options(.interfaceType)).string
         for symbol in symbols {

@@ -1294,6 +1294,33 @@
 
 ---
 
+## 2026-09-06 vtable 槽归属改用 method descriptor 符号（提案 vtable-slot-attribution-via-method-descriptor-symbols；节号落地时取）
+
+- **时间段**：2026-09-06。
+- **动机**：用户在 Hopper 里看 `SwiftUI.GraphHost`（iOS 18.5 simruntime 的 SwiftUICore）的 vtable，
+  与 `dump` 输出对不上。查证属实：槽 26–29 四条全错，真值是 `instantiateOutputs` /
+  `uninstantiateOutputs` / `timeDidChange` / `isHiddenForReuseDidChange`，dump 打的是
+  `isHiddenForReuseDidChange` 加三条属于嵌套 struct `GraphHost.Data` 的协程 resume 函数。根因是归属
+  主源选错——靠实现地址反查符号，而 identical code folding 把字节相同的函数体折叠到一个地址
+  （`0x9330` 上 2878 个符号），这个映射没有逆；叠加 `first(of: .class)` 把嵌套类型的成员认作本类的。
+  影响面：171 个非泛型带 vtable 的类 / 512 个槽里，16.2% 的槽实现地址上有多个符号，14.1% 与别的槽
+  共享同一地址（必然至少错一个）。
+- **关键决策**：归属主源改用 method descriptor 自身的 `Tq` 符号（每成员一个、位于 descriptor 自身
+  地址、ICF 免疫；提案 0006 已确认这条性质，但只当否定证据用），实现地址反查降级为回退。**只用于类
+  自己的 `MethodDescriptor`**——override descriptor 指向的是父类 descriptor，用那个身份会让
+  `override` 关键字整个消失（joinKey 匹配的是本类成员符号），实测撤回。协议侧同类修改也撤回：
+  `base conformance descriptor` 这类要求描述符没有 entity 节点，按声明上下文匹配会整批丢弃
+  （SwiftUICore 协议输出 1033 行退化）。不可归属槽保留猜测名但加注归属不确定；implementation 为 null
+  的槽是 ABI 墓碑（metadata 绑到 `swift_deletedMethodError`），打印 `Tq` 还原的名字并注明无实现。
+- **落地模块**：`SwiftInspection`（`Descriptor+MethodDescriptorSymbols`、`Node+DeclarationContext`）、
+  `SwiftDump`（`ClassDumper`）、`SwiftDeclaration`（`TypeDefinition` / `OverrideSymbolMatcher`）、
+  `SwiftDeclarationRendering`（两条新注释）。
+- **关联文档**：[提案](../Evolutions/draft-vtable-slot-attribution-via-method-descriptor-symbols.md)、
+  [TaskReports/2026-09-06-vtable-slot-attribution.md](TaskReports/2026-09-06-vtable-slot-attribution.md)。
+- **对应版本**：未发布（待 bump）。
+
+---
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节

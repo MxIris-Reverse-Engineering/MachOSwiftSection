@@ -3154,7 +3154,7 @@ enum VTableEntryVariants {
             get
         }
 
-        static func classMethod()
+        class func classMethod()
         static func staticMethod()
 
         deinit

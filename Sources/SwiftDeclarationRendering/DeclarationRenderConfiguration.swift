@@ -197,6 +197,34 @@ extension DeclarationRenderConfiguration {
         BreakLine()
     }
 
+    /// Builds the comment marking a vtable slot whose implementation pointer is
+    /// null.
+    ///
+    /// The member was deleted while the slot stayed behind for ABI stability;
+    /// the class metadata binds such a slot to `swift_deletedMethodError`, so
+    /// calling it traps. The declaration that follows (recovered from the
+    /// descriptor's `Tq` symbol, when the image has one) names what USED to be
+    /// here — without this line it would read as an ordinary member.
+    @SemanticStringBuilder
+    package func deletedMethodSlotComment() -> SemanticString {
+        indentString
+        Comment("No implementation in this image (deleted method — slot retained for ABI)")
+        BreakLine()
+    }
+
+    /// Builds the comment marking a vtable slot whose member could not be
+    /// proven.
+    ///
+    /// The descriptor carries no `Tq` symbol and its implementation address is
+    /// shared by identical-code-folded siblings, so the name that follows is
+    /// the best available candidate rather than an established fact.
+    @SemanticStringBuilder
+    package func ambiguousAttributionComment(foldedSymbolCount: Int) -> SemanticString {
+        indentString
+        Comment("Attribution: ambiguous — \(foldedSymbolCount) symbols folded at this address")
+        BreakLine()
+    }
+
     /// Builds an enum layout per-case comment block for the given case projection.
     @SemanticStringBuilder
     package func enumLayoutCaseComment(caseProjection: EnumLayoutCalculator.EnumCaseProjection) -> SemanticString {
