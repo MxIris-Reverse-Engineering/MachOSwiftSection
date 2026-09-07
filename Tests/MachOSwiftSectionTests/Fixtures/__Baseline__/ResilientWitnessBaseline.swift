@@ -3,19 +3,17 @@
 // Source fixture: SymbolTestsCore.framework
 
 enum ResilientWitnessBaseline {
-    static let registeredTestMethodNames: Set<String> = ["implementationAddress", "implementationOffset", "implementationSymbols", "layout", "offset", "requirement"]
+    static let registeredTestMethodNames: Set<String> = ["implementationAddress", "implementationOffset", "layout", "offset", "requirement"]
 
     struct Entry {
         let offset: Int
         let hasRequirement: Bool
-        let hasImplementationSymbols: Bool
-        let implementationOffset: Int
+        let implementationOffset: Int?
     }
 
     static let firstWitness = Entry(
     offset: 0x384a4,
     hasRequirement: true,
-    hasImplementationSymbols: true,
     implementationOffset: 0x238c
     )
 }

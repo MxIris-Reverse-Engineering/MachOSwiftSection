@@ -1,6 +1,6 @@
 import Foundation
 import MachOKit
-import MachOFoundation
+import MachOBase
 
 public struct AssociatedType: TopLevelType {
     public let descriptor: AssociatedTypeDescriptor

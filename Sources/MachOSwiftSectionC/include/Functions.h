@@ -34,6 +34,7 @@
 
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdint.h>
 
 #include "CallAccessor.h"
 
@@ -116,6 +117,59 @@ extern const void *swift_getTypeByMangledNameInEnvironment(const char *typeNameS
 //                                      const ProtocolRequirement *assocType)
 
 extern const MetadataResponse swift_getAssociatedTypeWitness(size_t request, const void *wtable, const void *conformingType, const void *reqBase, const void *assocType);
+
+//===----------------------------------------------------------------------===//
+// Metadata Construction
+//===----------------------------------------------------------------------===//
+
+// MetadataResponse swift_checkMetadataState(MetadataRequest request, const Metadata *type);
+extern const MetadataResponse swift_checkMetadataState(size_t request, const void *type);
+
+// const FunctionTypeMetadata *
+// swift_getFunctionTypeMetadata(FunctionTypeFlags flags, const Metadata *const *parameters,
+//                               const uint32_t *parameterFlags, const Metadata *result);
+extern const void *swift_getFunctionTypeMetadata(size_t flags, const void *const *parameters,
+                                                 const uint32_t *parameterFlags, const void *result);
+
+// const FunctionTypeMetadata *
+// swift_getExtendedFunctionTypeMetadata(FunctionTypeFlags flags,
+//                                       FunctionMetadataDifferentiabilityKind diffKind,
+//                                       const Metadata *const *parameters,
+//                                       const uint32_t *parameterFlags, const Metadata *result,
+//                                       const Metadata *globalActor,
+//                                       ExtendedFunctionTypeFlags extFlags,
+//                                       const Metadata *thrownError);
+// Weak: only present in newer Swift runtimes; check the symbol's address before calling.
+extern const void *swift_getExtendedFunctionTypeMetadata(size_t flags, size_t diffKind,
+                                                         const void *const *parameters,
+                                                         const uint32_t *parameterFlags,
+                                                         const void *result, const void *globalActor,
+                                                         uint32_t extFlags, const void *thrownError)
+    __attribute__((weak_import));
+
+// const Metadata *swift_getMetatypeMetadata(const Metadata *instanceType);
+extern const void *swift_getMetatypeMetadata(const void *instanceType);
+
+// const ExistentialMetatypeMetadata *swift_getExistentialMetatypeMetadata(const Metadata *instanceType);
+extern const void *swift_getExistentialMetatypeMetadata(const void *instanceType);
+
+// const ExistentialTypeMetadata *
+// swift_getExistentialTypeMetadata(ProtocolClassConstraint classConstraint,
+//                                  const Metadata *superclassConstraint,
+//                                  size_t numProtocols, const ProtocolDescriptorRef *protocols);
+// The runtime sorts the protocols array in place — always pass a mutable copy.
+// ProtocolClassConstraint is ABI-inverted: Class = 0, Any = 1.
+extern const void *swift_getExistentialTypeMetadata(uint8_t classConstraint,
+                                                    const void *superclassConstraint,
+                                                    size_t numProtocols, void *protocols);
+
+// MetadataResponse swift_getTupleTypeMetadata(MetadataRequest request, TupleTypeFlags flags,
+//                                             const Metadata *const *elements, const char *labels,
+//                                             const ValueWitnessTable *proposedWitnesses);
+extern const MetadataResponse swift_getTupleTypeMetadata(size_t request, size_t flags,
+                                                         const void *const *elements,
+                                                         const char *labels,
+                                                         const void *proposedWitnesses);
 
 //===----------------------------------------------------------------------===//
 // Obj-C Support

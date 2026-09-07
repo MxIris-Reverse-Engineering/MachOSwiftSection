@@ -354,6 +354,21 @@ package enum BaselineFixturePicker {
         )
     }
 
+    /// Picks `DefaultImplementationVariants.BasicDefaultProtocol` from the
+    /// `SymbolTestsCore` fixture: `required()` has no default implementation,
+    /// `withDefault()` and `withDefaultAndGeneric(_:)` have one — the shape
+    /// that exercises both states of `ProtocolRequirement`'s
+    /// `defaultImplementation` pointer.
+    package static func protocol_BasicDefaultProtocol(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> ProtocolDescriptor {
+        try required(
+            try machO.swift.protocolDescriptors.first(where: { descriptor in
+                try descriptor.name(in: machO) == "BasicDefaultProtocol"
+            })
+        )
+    }
+
     /// Picks `Protocols.BaseProtocolTest` from the `SymbolTestsCore`
     /// fixture. Used as the base side of the inheritance fixture pair
     /// (`BaseProtocolTest` / `DerivedProtocolTest`). Has a single

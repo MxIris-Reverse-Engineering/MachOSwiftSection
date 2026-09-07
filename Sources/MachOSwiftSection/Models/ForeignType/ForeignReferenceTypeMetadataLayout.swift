@@ -1,5 +1,5 @@
 import Foundation
-import MachOFoundation
+import MachOBase
 
 @Layout
 public protocol ForeignReferenceTypeMetadataLayout: MetadataLayout {

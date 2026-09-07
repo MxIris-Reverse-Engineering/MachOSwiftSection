@@ -1,5 +1,5 @@
 import Foundation
-import MachOFoundation
+import MachOBase
 
 public struct ResilientWitnessesHeader: ResolvableLocatableLayoutWrapper {
     public struct Layout: LayoutProtocol {

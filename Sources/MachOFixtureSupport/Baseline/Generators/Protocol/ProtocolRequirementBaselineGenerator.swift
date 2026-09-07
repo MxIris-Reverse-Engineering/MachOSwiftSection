@@ -15,7 +15,13 @@ import MachOFoundation
 ///
 /// Picker: `Protocols.ProtocolWitnessTableTest` — its 5 method
 /// requirements (`a`/`b`/`c`/`d`/`e`) flesh out the trailing array; we
-/// pick the first requirement and exercise its accessors.
+/// pick the first requirement and exercise its accessors. None of them has
+/// a default implementation, so a second entry comes from
+/// `DefaultImplementationVariants.BasicDefaultProtocol`: the first
+/// requirement whose `defaultImplementation` pointer is non-null (a
+/// protocol-extension default), so the non-`nil` arithmetic of
+/// `defaultImplementationOffset` is pinned as a literal too — not just the
+/// `nil` case.
 ///
 /// The companion `ProtocolBaseRequirement` type (declared in the same
 /// `ProtocolRequirement.swift` file) gets its own baseline / Suite
@@ -31,11 +37,21 @@ package enum ProtocolRequirementBaselineGenerator {
 
         let firstRequirementExpr = try emitRequirementEntryExpr(for: firstRequirement, in: machO)
 
+        let defaultedDescriptor = try BaselineFixturePicker.protocol_BasicDefaultProtocol(in: machO)
+        let defaultedProtocol = try `Protocol`(descriptor: defaultedDescriptor, in: machO)
+        let firstDefaultedRequirement = try required(defaultedProtocol.requirements.first { $0.layout.defaultImplementation.isValid })
+        let firstDefaultedRequirementExpr = try emitRequirementEntryExpr(for: firstDefaultedRequirement, in: machO)
+
         // Public members declared on `ProtocolRequirement` (the first struct
         // in ProtocolRequirement.swift). `init(layout:offset:)` is filtered
         // as memberwise-synthesized.
+        // Symbol attribution (`defaultImplementationSymbols(in:)`) lives in
+        // SwiftInspection since evolution proposal `self-contained-abi-layer`;
+        // the ABI layer exposes the default implementation's offset and
+        // context address.
         let registered = [
-            "defaultImplementationSymbols",
+            "defaultImplementationAddress",
+            "defaultImplementationOffset",
             "layout",
             "offset",
         ]
@@ -55,10 +71,12 @@ package enum ProtocolRequirementBaselineGenerator {
             struct Entry {
                 let offset: Int
                 let layoutFlagsRawValue: UInt32
-                let hasDefaultImplementation: Bool
+                let defaultImplementationOffset: Int?
             }
 
             static let firstRequirement = \(raw: firstRequirementExpr)
+
+            static let firstDefaultedRequirement = \(raw: firstDefaultedRequirementExpr)
         }
         """
 
@@ -73,13 +91,13 @@ package enum ProtocolRequirementBaselineGenerator {
     ) throws -> String {
         let offset = requirement.offset
         let layoutFlagsRawValue = requirement.layout.flags.rawValue
-        let hasDefaultImplementation = (try requirement.defaultImplementationSymbols(in: machO)) != nil
+        let defaultImplementationOffset = requirement.defaultImplementationOffset
 
         let expr: ExprSyntax = """
         Entry(
             offset: \(raw: BaselineEmitter.hex(offset)),
             layoutFlagsRawValue: \(raw: BaselineEmitter.hex(layoutFlagsRawValue)),
-            hasDefaultImplementation: \(literal: hasDefaultImplementation)
+            defaultImplementationOffset: \(raw: BaselineEmitter.optionalHex(defaultImplementationOffset))
         )
         """
         return expr.description

@@ -1,4 +1,5 @@
 @_spi(Support) @testable import SwiftDeclaration
+import MachOFoundation
 @testable import SwiftAttributeInference
 import Testing
 import SwiftDump

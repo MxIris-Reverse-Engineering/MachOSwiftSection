@@ -3,6 +3,7 @@ import Testing
 import MachOKit
 import Semantic
 import SwiftDiffing
+import SwiftDeclaration
 @testable import MachOSwiftSection
 @_spi(Support) @testable import SwiftInterface
 
@@ -135,13 +136,101 @@ struct SwiftEvolutionInterfaceBuilderTests {
         }
     }
 
-    private func preparedBuilder() async throws -> AnySwiftEvolutionInterfaceBuilder {
+    private func preparedBuilder(maximumConcurrentPreparations: Int = ProcessInfo.processInfo.activeProcessorCount) async throws -> AnySwiftEvolutionInterfaceBuilder {
         let builder = try AnySwiftEvolutionInterfaceBuilder(
             versions: try loadFixtureMachOFiles(),
             labels: ["1.0", "2.0", "3.0"]
         )
-        try await builder.prepare()
+        try await builder.prepare(maximumConcurrentPreparations: maximumConcurrentPreparations)
         return builder
+    }
+
+    // MARK: - Cross-version parallel preparation
+
+    /// `prepare(maximumConcurrentPreparations:)` (evolution proposal
+    /// `large-stack-executor-and-cross-version-parallelism`) indexes the
+    /// versions concurrently; the annotated interface, the structured stream
+    /// and the evolution's JSON must be byte-identical to the serial
+    /// (`1`) preparation — the window is a scheduling knob, never a semantic
+    /// one.
+    ///
+    /// The PARALLEL builder prepares first: the per-image caches key on the
+    /// file's identity, so a serial run first would leave the parallel run
+    /// with warm caches and no concurrent cold build — the one thing this
+    /// test exists to exercise.
+    @Test func parallelPreparationMatchesSerialPreparation() async throws {
+        let parallelBuilder = try await preparedBuilder(maximumConcurrentPreparations: 3)
+        let serialBuilder = try await preparedBuilder(maximumConcurrentPreparations: 1)
+
+        let serialInterface = try await serialBuilder.printAnnotatedInterface().string
+        let parallelInterface = try await parallelBuilder.printAnnotatedInterface().string
+        #expect(serialInterface == parallelInterface)
+        #expect(serialInterface.contains("removed in 2.0"))
+
+        let serialBlocks = try await serialBuilder.annotatedBlocks()
+        let parallelBlocks = try await parallelBuilder.annotatedBlocks()
+        #expect(serialBlocks.map { $0.map(\.content.string) } == parallelBlocks.map { $0.map(\.content.string) })
+
+        let encoder = ABIJSON.encoder()
+        let serialEvolution = try encoder.encode(try #require(serialBuilder.evolution))
+        let parallelEvolution = try encoder.encode(try #require(parallelBuilder.evolution))
+        #expect(serialEvolution == parallelEvolution)
+    }
+
+    /// A recording handler: which version labels reported through it, and
+    /// how many events it saw. Reference type on purpose — the assertion is
+    /// about the instance each version was handed.
+    private final class RecordingHandler: SwiftIndexEvents.Handler, @unchecked Sendable {
+        private let lock = NSLock()
+        private(set) var eventCount = 0
+        let label: String
+
+        init(label: String) {
+            self.label = label
+        }
+
+        func handle(event: SwiftIndexEvents.Payload) {
+            lock.withLock { eventCount += 1 }
+        }
+    }
+
+    /// `eventHandlersPerVersion` hands each version its own handlers (built
+    /// from the version's index and label), on top of the shared ones — the
+    /// seam the CLI uses to label each version's stderr diagnostics.
+    @Test func perVersionEventHandlersReachTheirOwnVersion() async throws {
+        let shared = RecordingHandler(label: "shared")
+        var perVersion: [RecordingHandler] = []
+        let perVersionLock = NSLock()
+        let builder = try AnySwiftEvolutionInterfaceBuilder(
+            eventHandlers: [shared],
+            eventHandlersPerVersion: { versionIndex, label in
+                let handler = RecordingHandler(label: "\(versionIndex):\(label)")
+                perVersionLock.withLock { perVersion.append(handler) }
+                return [handler]
+            },
+            versions: try loadFixtureMachOFiles(),
+            labels: ["1.0", "2.0", "3.0"]
+        )
+        try await builder.prepare(maximumConcurrentPreparations: 3)
+
+        #expect(perVersion.map(\.label).sorted() == ["0:1.0", "1:2.0", "2:3.0"])
+        for handler in perVersion {
+            #expect(handler.eventCount > 0, "\(handler.label) saw no events")
+        }
+        // The shared handler hears every version: at least the sum of what
+        // the per-version handlers saw individually.
+        #expect(shared.eventCount >= perVersion.map(\.eventCount).max() ?? 0)
+        #expect(shared.eventCount == perVersion.map(\.eventCount).reduce(0, +))
+    }
+
+    /// A window wider than the version count and a window below 1 are both
+    /// clamped, not rejected.
+    @Test func preparationWindowIsClampedNotValidated() async throws {
+        let wideBuilder = try await preparedBuilder(maximumConcurrentPreparations: 64)
+        let narrowBuilder = try await preparedBuilder(maximumConcurrentPreparations: 0)
+        let wideInterface = try await wideBuilder.printAnnotatedInterface().string
+        let narrowInterface = try await narrowBuilder.printAnnotatedInterface().string
+        #expect(wideInterface == narrowInterface)
     }
 
     // MARK: - The annotated interface

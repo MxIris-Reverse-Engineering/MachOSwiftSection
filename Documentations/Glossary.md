@@ -30,6 +30,21 @@
 - **主要出现在**：`Scripts/run-rendering-ab-verification.py`
 - **延伸阅读**：[SystemFrameworkRenderingVerification.md](Internal/SystemFrameworkRenderingVerification.md)
 
+### ABI 墓碑（ABI tombstone）
+
+实现体已被优化器删除、槽位仍保留在 vtable 里的槽。**被删的是函数体，不是声明**——源码、`Tq` 符号、method descriptor 都还在，所以「被删掉实现的是哪个成员」仍然可知；`Tq` 也没有时才退化为 `<unnamed vtable slot>`。
+
+判据是 method descriptor 的 implementation 相对指针为 null，而这是**编译器的权威标记**：IRGen 的 `buildMethodDescriptorFields` 只有两个分支，SIL vtable 有 entry 就写相对地址，没有就写 null，后者的原注释即 "The method is removed by dead method elimination."。
+
+**成因是访问级别，不是「API 被删除」**：public 类型里不写修饰符的 `init()` 默认是 internal，在整模块优化（whole-module optimization）下 internal 成员不是 dead function elimination 的 anchor，没人调用（或调用点内联后独立函数体死掉）即被摘掉 vtable entry。OS 框架里多数 vtable 成员是 internal，所以这个现象常见而非罕见——实测 SwiftUICore（iOS 18.5 arm64）341 处、Xcode 自带 SourceEditor.framework 11680 处。
+
+**两种 metadata 形态要分开**：静态 class metadata 对这类槽填 `swift_deletedMethodError`，调用即 trap；而运行时实例化的 metadata（泛型类、resilient 父类的 relocate 路径）由 `initClassVTable` 把 descriptor 的 null 原样拷入，**保持 null，不会变成那个函数**。判别标志是 `ClassLayoutFlags::HasStaticVTable`——IRGen 对 Singleton / Update / FixedOrUpdate 三种策略都会设它，所以「自身字段依赖 resilient 类型、但祖先固定」的 Singleton 类 vtable 仍是静态的，照样填 `swift_deletedMethodError`；真正在运行时重建 vtable 的只有泛型类与 Resilient 策略两类。
+
+**这也是不要靠 bind 来判定墓碑的原因之一**：离线读一个 Resilient 策略的类，`MachOFile` 里只有 metadata pattern，根本没有 vtable word 可读——判据必须回到 descriptor 的 null 本身。
+
+- **主要出现在**：`ClassDumper` 的 vtable 循环、`DeclarationRenderConfiguration.deletedMethodSlotComment`
+- **延伸阅读**：[提案 vtable-slot-attribution](Evolutions/0020-vtable-slot-attribution-via-method-descriptor-symbols.md)、[PR #123 review findings 第 1 条](../Roadmaps/2026-09-06-pr123-review-findings.md)
+
 ### anchor 协议（anchor protocol）
 
 一条 same-type 约束的 subject 里，关联类型所**限定的声明协议**——`τ_1_0.[Swift.Sequence]Element == [A]` 的 anchor 是 `Swift.Sequence`（mangling 层限定形式，demangle 后保留在 `dependentAssociatedTypeRef` 的第二个 child）。注意 anchor 是 canonicalization 后**继承链最上层的原始声明者**，不一定是源码 sugar 写在哪个协议上（`Collection<[A]>` 的约束 anchor 是 Sequence），也不一定在 opaque 组合成员之内。opaque 尖括号参数的归属裁决以它为第一信号。
@@ -37,12 +52,26 @@
 - **主要出现在**：`Sources/SwiftInterface/OpaqueSameTypeConstraint.swift`、`SwiftInterfaceBuilderOpaqueTypeProvider`
 - **延伸阅读**：[提案 0011](Evolutions/0011-opaque-primary-associated-type-attribution.md)、[OpaqueReturnTypeResolution.md](Internal/OpaqueReturnTypeResolution.md) §2.2
 
+### bare image name（裸镜像名）
+
+一个 dylib load name（`@rpath/Foo.framework/Versions/A/Foo`、`/usr/lib/libobjc.A.dylib`）归约成的镜像名：末段路径去**第一个**扩展名（`Foo`、`libobjc`）。这是与 MachOKit 的契约——`MachOImage(name:)` 对进程内每个镜像的路径做同一归约再比较，把未归约的 load name 喂给它永远匹配不到。它也是所有依赖集合的去重键：同一个库会被不同镜像以不同拼写链接，只有裸名跨拼写稳定。
+
+- **主要出现在**：`Sources/MachODependencies/DependencyLoadName.swift`、`DependencyClosure`、`FileDependencyLocator`
+- **延伸阅读**：[Modules/MachODependencies.md](Internal/Modules/MachODependencies.md) §2
+
 ### bucket（桶）
 
 分类索引里「一个键对应的一组符号表行号」（如 `symbolRowsByOffset` 的值、`MemberSymbolRows` 的叶子）。旧形态是 `[UInt32]` 小数组——绝大多数桶只有一个元素，却各付一次堆分配；提案 0003 落地后值形态为 `SymbolRowBucket`（单元素内联于字典槽，第二个元素起才落堆数组），迭代序保持插入序。
 
 - **主要出现在**：`Sources/MachOSymbols/SymbolIndexStore.swift`、`Sources/MachOSymbols/SymbolRowBucket.swift`
 - **延伸阅读**：[提案 0003](Evolutions/0003-symbol-row-bucket-flattening.md)
+
+### dependency closure（依赖闭包）
+
+一个 root 二进制经 `LC_LOAD_DYLIB` 家族 load command 解析出的依赖镜像集合（`MachODependencies.DependencyClosure`）。本项目里的「闭包」默认指**传递**闭包：BFS 递归、按裸镜像名去重、root 排除、解析顺序是契约的一部分（`SwiftLayout.ImageUniverse` 按此顺序惰性索引、命中即停）。同一类型也承载 `.direct` 遍历（只取 root 自己的一层），`SwiftInterfaceBuilderDependencies` 用的是这一种——名字里的「闭包」在那里只是复用同一个结果类型。定位不到的依赖记入 `unresolvedLoadNames`，不算失败。
+
+- **主要出现在**：`Sources/MachODependencies/DependencyClosure.swift`、`Sources/SwiftLayout/ImageUniverse+DependencyClosure.swift`
+- **延伸阅读**：[Modules/MachODependencies.md](Internal/Modules/MachODependencies.md)、[StaticLayoutDependencyClosure.md](Internal/StaticLayoutDependencyClosure.md)
 
 ### derived symbol forms（派生符号形态）
 
@@ -72,12 +101,33 @@ Requirement Machine 最小化泛型签名时，把 pin 到同一具体类型的�
 - **主要出现在**：`Sources/SwiftPrinting/SwiftDeclarationPrinter.swift`（`renderMember`）、三个 Dumper 的 member-symbol 循环
 - **延伸阅读**：[提案 0008](Evolutions/0008-interface-header-and-export-status-annotations.md)、[InterfaceHeaderAndExportStatusAnnotations.md](Internal/InterfaceHeaderAndExportStatusAnnotations.md)
 
+### exported-only 过滤（`--exported-only`，`printExportedDeclarationsOnly`）
+
+export status 的**过滤形态**：interface 只输出镜像导出的声明。类型 / 协议按描述符符号（`…Mn` / `…Mp`，优先取描述符 offset 处的符号，重整名只兜底）裁决，成员沿用 export status 的派生形态判定，扩展按「被扩展类型 / 遵循协议是否为本镜像内未导出声明」裁决（依据 **`ExportFilterScope`**——`printRoot` 从索引器表算出的本镜像内未导出 `TypeName` / `ProtocolName` 集合）。只在判定为 `false` 时删，`nil` 一律保留（绝不靠猜删）；普通扩展被清空则整块删，conformance 扩展留 `{}`。与 export status 是同一个事实的两种呈现：删除条件即标注条件，两开关同开输出零标注。
+
+- **主要出现在**：`Sources/SwiftPrinting/SwiftDeclarationPrinter+ExportFilter.swift`、`SwiftInterfaceBuilder.printRoot()`
+- **延伸阅读**：[提案 0016](Evolutions/0016-exported-only-interface.md)、[ExportedOnlyInterfaceFiltering.md](Internal/ExportedOnlyInterfaceFiltering.md)
+
 ### emission strategy（发射策略）
 
 diff / evolution 两条对比渲染路共享结构遍历核心（`InterfaceUnionWalker`）之后各自剩下的那一半：遍历器负责**结构**（N 路匹配与并集排序、extension 容器拆分、成员构造、类别调度、body 组合序），策略（`InterfaceUnionEmitting`）负责**呈现**——同一个匹配结果如何变成行（`+`/`-` 标记 vs 生命周期注解）、容器 header 如何裁决（两侧配对 vs 最新可渲染）、容器如何装配。真正语义不同的部分（`HeaderOutcome` 配对、注解锚点、两套格式层）只住在策略里，绝不上浮进遍历器。
 
 - **主要出现在**：`Sources/SwiftInterface/InterfaceUnionWalker.swift`（协议与遍历器）、`SwiftDiffableInterfaceRenderer.swift`（`DiffUnionStrategy`）、`SwiftEvolutionInterfaceRenderer.swift`（evolution 策略）
-- **延伸阅读**：[提案 draft-unify-interface-renderers](Evolutions/draft-unify-interface-renderers.md)
+- **延伸阅读**：[提案 0014](Evolutions/0014-unify-interface-renderers.md)
+
+### identical code folding（ICF，相同代码折叠）
+
+linker 把字节相同的函数体合并到同一地址的优化。后果是「地址 → 符号」不再是单射：SwiftUICore 里空 `ret` 那一个地址上挂着 **2878** 个符号。任何「拿实现地址反查这是谁」的逻辑在折叠面前都没有逆——vtable 槽归属因此改用 method descriptor 自身的 `Tq` 符号（每成员一个、位于 descriptor 自身地址，折叠够不着它），实现地址反查只作回退，且回退撞上折叠地址时输出会注明归属不确定。同一事实也是 `final` 关键字还原（提案 0006）必须用 `Tq` 作否定证据的原因。fixture 里可用 `-Xlinker -deduplicate` 强制触发。
+
+- **主要出现在**：`Descriptor+MethodDescriptorSymbols.swift`、`ClassDumper`、`TypeDefinition.index`、`FinalKeywordICFRegressionTests`、`VTableSlotAttributionTests`
+- **延伸阅读**：[提案 vtable-slot-attribution](Evolutions/0020-vtable-slot-attribution-via-method-descriptor-symbols.md)、[提案 0006](Evolutions/0006-final-keyword-and-lazy-accessor-type-recovery.md)
+
+### large-stack executor（大栈执行器，`LargeStackTaskExecution`）
+
+swift-demangling 0.6.3 起提供的 `TaskExecutor`（`StackSafeExecutor.taskExecutor`，线程栈 16 MB，`@_spi(Internals)`）。demangler 每次 demangle / print / remangle 都按**调用线程的剩余栈**决定要不要跳到它的 8 MB 线程池——协作线程只有 512 KB，探针永远不过，async 打印循环因此每打印一个符号付一次线程往返；task 跑在大栈执行器的线程上时探针每个入口都通过，全程原地执行、零跳转。本库通过 `MachOSymbols.LargeStackTaskExecution.run` 在库入口（索引器 prepare、interface builder、printer 逐定义入口、diff / evolution、dump）自装偏好，宿主零改动；macOS 15 / iOS 18 以下静默回退为原样执行。与「跳转池」（demangler 自己的 8 MB `LargeStackThreadPool`，同步 `withLargeStack` 批次用）是两个池：执行器的 job 是整段 task，会占线程上百秒，不能挤占同步跳转的额度。
+
+- **主要出现在**：`Sources/MachOSymbols/LargeStackTaskExecution.swift`、各 async 入口的 `LargeStackTaskExecution.run { … }`
+- **延伸阅读**：[LargeStackTaskExecutorAdoption.md](Internal/LargeStackTaskExecutorAdoption.md)、提案 [0019-large-stack-executor-and-cross-version-parallelism](Evolutions/0019-large-stack-executor-and-cross-version-parallelism.md)、上游 swift-demangling `Documentations/StackSafety.md` 第八节
 
 ### late-name 路径（`lateDemangledNode(forName:)`）
 
@@ -96,7 +146,7 @@ sweep 覆盖范围之外的名字走的旁路：demangle 后 intern 进 `Storage
 演进并集接口里每条「变过的」声明行尾的注释：`// [●●○] removed in 26.0` —— 存在位图（每版本一位，文件头图例映射位置到版本标签）+ 按 ` · ` 连接的事件短语（added / removed / modified in 版本；modified 带 `旧签名 → 新签名`，两侧文本相同时省略箭头段）。**没有注解本身就是信息**：全程存在且从未变化。注解事实唯一来源是 `ABIEvolution` 的 lineage 查表，渲染器不自行推导。
 
 - **主要出现在**：`Sources/SwiftInterface/EvolutionMarking.swift`、`EvolutionAnnotationIndex.swift`
-- **延伸阅读**：[提案 draft-swift-evolution-interface-builder](Evolutions/draft-swift-evolution-interface-builder.md)
+- **延伸阅读**：[提案 0013](Evolutions/0013-swift-evolution-interface-builder.md)
 
 ### materialize（物化）
 
@@ -169,7 +219,7 @@ Swift runtime 的 descriptor 布局惯例：固定头之后按 flags 跟着可�
 `evolution --interface` 的输出形态：N 个版本所有声明的**并集**只渲染一次的 Swift 接口——每条声明由「最后一个拥有它的版本」的模型与 printer 渲染文本，变化写进生命周期注解，同一成员改签名不裂成多行。与「逐 transition 串联 diff」（同一声明重复出现 N−1 次）和「只渲染最新版 + since 注解」（丢中间版本细节）相对。排序规则：最新版本声明序为脊柱，不在最新版的声明按其最后存在版本的顺序追加。
 
 - **主要出现在**：`Sources/SwiftInterface/SwiftEvolutionInterfaceRenderer.swift`（`matchAcrossVersions`）
-- **延伸阅读**：[提案 draft-swift-evolution-interface-builder](Evolutions/draft-swift-evolution-interface-builder.md)
+- **延伸阅读**：[提案 0013](Evolutions/0013-swift-evolution-interface-builder.md)
 
 ### wrapper vs descriptor（高层包装 vs 描述符）
 

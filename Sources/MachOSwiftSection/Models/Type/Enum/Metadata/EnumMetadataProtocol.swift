@@ -1,5 +1,5 @@
 import MachOKit
-import MachOFoundation
+import MachOBase
 
 public protocol EnumMetadataProtocol: ValueMetadataProtocol where Layout: EnumMetadataLayout {}
 

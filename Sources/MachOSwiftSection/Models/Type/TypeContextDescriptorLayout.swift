@@ -1,5 +1,5 @@
 
-import MachOFoundation
+import MachOBase
 
 @Layout
 public protocol TypeContextDescriptorLayout: NamedContextDescriptorLayout {

@@ -24,7 +24,8 @@ class SymbolTestsCore.FunctionFeatures.ClosureParameterTest {
     /* [Method] */ func SymbolTestsCore.FunctionFeatures.ClosureParameterTest.acceptEscaping(() -> ()) -> ()
     /* [Method] */ func SymbolTestsCore.FunctionFeatures.ClosureParameterTest.acceptAutoclosure(@autoclosure () -> Swift.Bool) -> Swift.Bool
     /* [Method] */ func SymbolTestsCore.FunctionFeatures.ClosureParameterTest.acceptEscapingAutoclosure(@autoclosure () -> Swift.Bool) -> ()
-    /* [ Init ] */ Symbol not found
+    // No implementation in this image (deleted method — slot retained for ABI)
+    /* [ Init ] */ SymbolTestsCore.FunctionFeatures.ClosureParameterTest.__allocating_init() -> SymbolTestsCore.FunctionFeatures.ClosureParameterTest
 
     /* Deallocator */
     SymbolTestsCore.FunctionFeatures.ClosureParameterTest.__deallocating_deinit

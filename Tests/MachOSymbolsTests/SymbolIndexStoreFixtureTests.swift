@@ -1,4 +1,5 @@
 import Foundation
+import MachOResolving
 import Testing
 @_spi(Internals) import Demangling
 @_spi(Internals) @testable import MachOSymbols

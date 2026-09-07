@@ -1,5 +1,5 @@
 import MachOKit
-import MachOFoundation
+import MachOBase
 import SwiftStdlibToolbox
 
 public enum ContextDescriptorWrapper {

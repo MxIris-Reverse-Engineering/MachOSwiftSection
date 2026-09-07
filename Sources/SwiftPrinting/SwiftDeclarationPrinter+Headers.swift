@@ -352,9 +352,18 @@ extension SwiftDeclarationPrinter {
             await fieldLayoutRenderer.enumPrefixComments(enumLayout: enumLayout)
         }
 
-        for (offset, field) in typeDefinition.fields.offsetEnumerated() {
+        // Exported-only filter (evolution proposal
+        // `exported-only-interface`): the rendered fields are selected
+        // up front, so a dropped field keeps every survivor's ORIGINAL index
+        // (field records and layout comments are positional) and the trailing
+        // break still follows the last field actually rendered. Enum cases
+        // own no symbols and are never filtered.
+        let renderedFields = Array(typeDefinition.fields.enumerated()).filter { isEnum || !isExcludedByExportFilter(field: $0.element) }
+        for (offset, indexedField) in renderedFields.offsetEnumerated() {
+            let fieldIndex = indexedField.offset
+            let field = indexedField.element
             BreakLine()
-            let fieldRecord = fieldRecords[safe: offset.index]
+            let fieldRecord = fieldRecords[safe: fieldIndex]
             let mangledTypeName = try fieldRecord?.mangledTypeName(in: machO)
             // Per-record metadata comments (single source of truth with the
             // `SwiftDump` dumpers): struct/class fields get the offset +
@@ -362,9 +371,9 @@ extension SwiftDeclarationPrinter {
             // block.
             if let mangledTypeName {
                 if isEnum {
-                    try await fieldLayoutRenderer.enumCaseComments(forCaseAtIndex: offset.index, mangledTypeName: mangledTypeName, enumLayout: enumLayout)
+                    try await fieldLayoutRenderer.enumCaseComments(forCaseAtIndex: fieldIndex, mangledTypeName: mangledTypeName, enumLayout: enumLayout)
                 } else {
-                    try await fieldLayoutRenderer.storedFieldComments(forFieldAtIndex: offset.index, mangledTypeName: mangledTypeName, fieldOffsets: fieldOffsets)
+                    try await fieldLayoutRenderer.storedFieldComments(forFieldAtIndex: fieldIndex, mangledTypeName: mangledTypeName, fieldOffsets: fieldOffsets)
                 }
             }
             // A non-final stored `var`'s getter/setter occupy vtable slots

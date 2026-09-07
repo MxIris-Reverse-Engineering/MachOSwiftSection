@@ -17,7 +17,8 @@ package enum MethodDefaultOverrideDescriptorBaselineGenerator {
         // Public members declared directly in MethodDefaultOverrideDescriptor.swift.
         // Overload pairs collapse to single MethodKey entries via the scanner.
         let registered = [
-            "implementationSymbols",
+            "implementationAddress",
+            "implementationOffset",
             "layout",
             "offset",
             "originalMethodDescriptor",

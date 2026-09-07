@@ -76,24 +76,30 @@ extension DemanglingNode {
     /// overflow the stack where the identical `NodeReference` call would not.
     ///
     /// The guard is the engine's own `print(_:options:)`, which routes through
-    /// `StackSafeExecutor.executeWithUncheckedSendability` — the same probe
-    /// and the same 2MB floor as `execute`, only without the `Sendable`
-    /// checking a generic `Target` cannot satisfy. An earlier version of this
-    /// comment framed the two as a choice, claiming the engine's entry point
-    /// "runs the recursion inline and pays for a worker only for a tree that
-    /// actually reaches it"; it does not. Darwin gives every thread but the
-    /// main one a 512KB stack, so on a cooperative or libdispatch worker the
-    /// probe never passes and *every* call hops to a large-stack worker and
-    /// blocks on a semaphore — whichever wrapper the engine happens to use.
+    /// `StackSafeExecutor.execute` — probe the calling thread's remaining
+    /// stack against a 2MB floor, run inline when it passes, hop to an 8MB
+    /// pool worker and block on a semaphore when it does not. An earlier
+    /// version of this comment claimed the engine's entry point "runs the
+    /// recursion inline and pays for a worker only for a tree that actually
+    /// reaches it"; it does not. Darwin gives every thread but the main one a
+    /// 512KB stack, so on a cooperative or libdispatch worker the probe never
+    /// passes and *every* call hops.
     ///
     /// That cost is upstream's deliberate trade (`swift-demangling` 7b86137):
     /// before it, the printer recursed unguarded and a deeply nested generic
     /// really did overflow a 512KB worker. It is paid down at a *batch*
     /// boundary, never here — a `withLargeStack` around this single call would
     /// save exactly the one hop it adds. `SymbolIndexStore.buildStorageImpl`
-    /// is where the repo does that, because it owns a loop; the printer's own
-    /// loop lives in `SwiftDeclarationPrinter` and is `async`, which a
-    /// synchronous wrapper cannot enclose.
+    /// does that for the synchronous sweep, because it owns a loop; the
+    /// printer's loop lives in `SwiftDeclarationPrinter` and is `async`, which
+    /// a synchronous wrapper cannot enclose. The async side's batch boundary
+    /// is the TASK instead (evolution proposal
+    /// `large-stack-executor-and-cross-version-parallelism`): the library's
+    /// async entry points run on the demangler's 16MB `LargeStackTaskExecutor`
+    /// through `LargeStackTaskExecution.run`, where the probe passes at every
+    /// entry and this call runs inline. The hop is what happens OFF that path
+    /// — a host that disabled the executor, or a runtime without task
+    /// executors (below macOS 15).
     ///
     /// **Do not "modernize" this onto `runPrintWalk(using:)`.** Upstream added
     /// that protocol requirement as the dispatch hook behind
@@ -105,11 +111,10 @@ extension DemanglingNode {
     /// it. For a non-`String` target the engine's static
     /// `DemanglingPrinter<Target, SomeNode>.print(_:options:)` is the only
     /// entry point, and will remain so. It is byte-for-byte unchanged across
-    /// the `runPrintWalk` introduction — including the
-    /// `StackSafeExecutor.executeWithUncheckedSendability` wrapper this comment
-    /// exists to explain (verified upstream on a deliberately 512KB-stacked
-    /// thread against 600 levels of nested generics, which survives only
-    /// because of that hop).
+    /// the `runPrintWalk` introduction — including the `StackSafeExecutor`
+    /// wrapper this comment exists to explain (verified upstream on a
+    /// deliberately 512KB-stacked thread against 600 levels of nested
+    /// generics, which survives only because of that hop).
     ///
     /// Worth noting *why* the shadowing hazard above is a recurring shape
     /// rather than a one-off: upstream hit the mirror image of it in the same

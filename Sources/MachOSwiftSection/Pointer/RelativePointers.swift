@@ -1,4 +1,4 @@
-import MachOFoundation
+import MachOBase
 
 public typealias RelativeMethodDescriptorPointer = RelativeSymbolOrElementPointer<MethodDescriptor?>
 

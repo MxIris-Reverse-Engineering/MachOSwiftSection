@@ -1,5 +1,5 @@
 import Foundation
-import MachOFoundation
+import MachOBase
 
 public struct MetatypeMetadata: MetadataProtocol {
     public struct Layout: MetatypeMetadataLayout {

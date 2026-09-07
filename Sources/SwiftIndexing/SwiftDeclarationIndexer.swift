@@ -263,9 +263,20 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
         allStorageCache = AllStorageCache()
     }
 
+    /// Indexes the image (section extraction, per-definition construction,
+    /// extension-container unification, per-image cache claims). Runs on the
+    /// demangler's large-stack task executor (evolution proposal
+    /// `large-stack-executor-and-cross-version-parallelism`): every demangle
+    /// and print inside runs inline instead of hopping to a pool thread per
+    /// call. Output is independent of where it runs.
     public func prepare() async throws {
         if isPrepared { return }
-        
+        try await LargeStackTaskExecution.run {
+            try await prepareIndexes()
+        }
+    }
+
+    private func prepareIndexes() async throws {
         eventDispatcher.dispatch(.phaseTransition(phase: .preparation, state: .started))
 
         for subIndexer in subIndexers {

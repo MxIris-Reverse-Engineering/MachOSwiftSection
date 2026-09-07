@@ -27,7 +27,10 @@ enum ABISnapshotInputLoader {
     /// Load one input as a frozen snapshot document. A JSON path decodes (with
     /// the format-version check); a binary path is loaded, indexed, and frozen,
     /// with provenance stamped from the load parameters. `label` overrides the
-    /// document's provenance label either way.
+    /// document's provenance label either way. `consoleLabel` tags the
+    /// input's stderr diagnostics (inputs index concurrently under `--jobs`,
+    /// so an unlabeled line cannot be attributed); it defaults to `label`,
+    /// then to the input's file name.
     static func loadDocument(
         path: String,
         architecture: Architecture?,
@@ -35,6 +38,7 @@ enum ABISnapshotInputLoader {
         cacheImageName: String?,
         cacheImagePath: String?,
         label: String?,
+        consoleLabel: String? = nil,
         log: (String) -> Void
     ) async throws -> ABISnapshotDocument {
         if try isSnapshotDocument(atPath: path) {
@@ -59,7 +63,10 @@ enum ABISnapshotInputLoader {
         )
         // Shared by `snapshot` / `evolution` / `diff`'s snapshot inputs, so this
         // is where those three get a stderr sink for anything indexing drops.
-        let builder = SwiftDiffableInterfaceBuilder(eventHandlers: [ConsoleEventHandler()], in: machOFile)
+        let builder = SwiftDiffableInterfaceBuilder(
+            eventHandlers: [ConsoleEventHandler(label: consoleLabel ?? label ?? defaultLabel(forPath: path))],
+            in: machOFile
+        )
         try await builder.prepare()
         let cacheImageSuffix = [cacheImageName, cacheImagePath].compactMap { $0 }.first.map { " (\($0))" } ?? ""
         let provenance = ABIProvenance(

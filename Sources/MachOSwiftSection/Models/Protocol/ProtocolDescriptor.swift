@@ -1,6 +1,6 @@
 import Foundation
 import MachOKit
-import MachOFoundation
+import MachOBase
 
 /// A protocol descriptor.
 ///

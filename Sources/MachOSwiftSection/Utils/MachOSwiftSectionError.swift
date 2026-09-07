@@ -1,6 +1,6 @@
 import Foundation
 import MachOKit
-import MachOFoundation
+import MachOBase
 
 public enum MachOSwiftSectionError: LocalizedError, Sendable {
     case sectionNotFound(section: MachOSwiftSectionName, allSectionNames: [String])

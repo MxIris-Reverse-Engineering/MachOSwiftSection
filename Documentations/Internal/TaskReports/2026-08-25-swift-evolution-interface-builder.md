@@ -35,7 +35,7 @@
 7. modified：只渲染最新代际 + 变更注解（否：逐代际多行）。
 8. 泛型形态：pack 异构 init（门控）+ 同质数组 init 双轨，实现收敛为非泛型类 + 擦除。
 
-提案：`Documentations/Evolutions/draft-swift-evolution-interface-builder.md`。
+提案：`Documentations/Evolutions/0013-swift-evolution-interface-builder.md`。
 
 ## 实际执行
 

@@ -3,6 +3,7 @@ import SwiftDeclaration
 import SwiftDeclarationRendering
 import SwiftDiffing
 import MachOSwiftSection
+import MachOSymbols
 
 /// The ABI-diff analogue of ``SwiftInterfaceBuilder``.
 ///
@@ -38,7 +39,18 @@ public final class SwiftDiffableInterfaceBuilder<MachO: FieldLayoutRenderable>: 
     /// here. (`index(in:)` is `package`-scoped and idempotent, so this is safe
     /// and cheap to re-enter; it is callable because this builder lives in the
     /// same package as the model.)
+    ///
+    /// Runs on the demangler's large-stack task executor
+    /// (`LargeStackTaskExecution.run`), so the per-definition indexing pass
+    /// — the bulk of a diff's cost — demangles inline instead of hopping to
+    /// a pool thread per symbol.
     public func prepare() async throws {
+        try await LargeStackTaskExecution.run {
+            try await prepareContents()
+        }
+    }
+
+    private func prepareContents() async throws {
         try await indexer.prepare()
 
         for typeDefinition in indexer.allTypeDefinitions.values {

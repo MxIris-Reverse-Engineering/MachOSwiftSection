@@ -1,6 +1,6 @@
 import Foundation
 import MachOKit
-import MachOFoundation
+import MachOBase
 
 /// Mirrors `TargetProtocolRecord` from
 /// `swift/include/swift/ABI/Metadata.h:2766`. One entry per 4-byte slot of

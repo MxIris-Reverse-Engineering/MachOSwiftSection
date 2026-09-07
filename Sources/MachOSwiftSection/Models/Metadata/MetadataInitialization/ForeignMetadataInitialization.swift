@@ -1,5 +1,5 @@
 import Foundation
-import MachOFoundation
+import MachOBase
 
 public struct ForeignMetadataInitialization: ResolvableLocatableLayoutWrapper {
     public struct Layout: LayoutProtocol {

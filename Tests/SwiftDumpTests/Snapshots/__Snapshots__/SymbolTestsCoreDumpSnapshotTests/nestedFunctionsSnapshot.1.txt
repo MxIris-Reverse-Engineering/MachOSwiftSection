@@ -8,8 +8,12 @@ struct SymbolTestsCore.NestedFunctions.NestedFunctionHolderTest {
 class SymbolTestsCore.NestedFunctions.NestedFunctionHolderTest.LocalClass {
     var label: Swift.String
 
-    /* [Getter] */ Symbol not found
-    /* [Setter] */ Symbol not found
-    /* [Modify] */ Symbol not found
-    /* [ Init ] */ Symbol not found
+    // No implementation in this image (deleted method — slot retained for ABI)
+    /* [Getter] */ <unnamed vtable slot>
+    // No implementation in this image (deleted method — slot retained for ABI)
+    /* [Setter] */ <unnamed vtable slot>
+    // No implementation in this image (deleted method — slot retained for ABI)
+    /* [Modify] */ <unnamed vtable slot>
+    // No implementation in this image (deleted method — slot retained for ABI)
+    /* [ Init ] */ <unnamed vtable slot>
 }

@@ -1,4 +1,5 @@
 import Foundation
+import MachOResolving
 import Testing
 import SwiftDeclarationRendering
 import Demangling
@@ -53,7 +54,7 @@ final class OpaqueTypeDyldCacheTests: DyldCacheTests, OpaqueTypeTests, @unchecke
         let machO = machOFileInCache
         print(machO.startOffset)
         try print(OpaqueType(descriptor: .resolve(from: 895065692, in: machO), in: machO))
-        try await print(Symbols.resolve(from: 895065692, in: machO) as Symbols)
+        print(machO.symbols(offset: 895065692) as Symbols?)
     }
 }
 

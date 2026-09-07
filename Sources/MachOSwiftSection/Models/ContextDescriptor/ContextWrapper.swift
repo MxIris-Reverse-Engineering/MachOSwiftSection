@@ -1,7 +1,7 @@
 import Foundation
 import MachOKit
 import FoundationToolbox
-import MachOFoundation
+import MachOBase
 
 @CaseCheckable(.public)
 @AssociatedValue(.public)

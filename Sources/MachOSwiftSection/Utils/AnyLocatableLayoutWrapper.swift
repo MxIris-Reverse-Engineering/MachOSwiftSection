@@ -1,5 +1,5 @@
 import Foundation
-import MachOFoundation
+import MachOBase
 
 public struct AnyLocatableLayoutWrapper<Layout: LayoutProtocol>: ResolvableLocatableLayoutWrapper {
     public var layout: Layout

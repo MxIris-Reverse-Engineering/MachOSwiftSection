@@ -1,3 +1,4 @@
+import MachOResolving
 import Foundation
 import MachOKit
 

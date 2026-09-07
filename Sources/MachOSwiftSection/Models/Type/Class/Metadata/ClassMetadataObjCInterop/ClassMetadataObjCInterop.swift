@@ -1,5 +1,5 @@
 import MachOKit
-import MachOFoundation
+import MachOBase
 
 public struct ClassMetadataObjCInterop: ClassMetadataObjCInteropProtocol {
     public struct Layout: ClassMetadataObjCInteropLayout, FinalClassMetadataLayout {

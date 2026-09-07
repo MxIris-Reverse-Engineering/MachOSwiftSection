@@ -251,7 +251,7 @@ diff 的 verdict 交叉核对行。
 
 ## 首轮落地后的增量（第五批）—— 并集注解接口（`evolution --interface`）
 
-提案：`Evolutions/draft-swift-evolution-interface-builder.md`。把 N 版本演进渲染成
+提案：`Evolutions/0013-swift-evolution-interface-builder.md`。把 N 版本演进渲染成
 **一份带生命周期注解的 Swift 接口**，取代 lineage 清单成为主要人读视图。落点在
 `SwiftInterface`（不是本模块——渲染需要活模型与 printer），但设计与本模块强耦合，
 维护时会踩的决策记录在这里：

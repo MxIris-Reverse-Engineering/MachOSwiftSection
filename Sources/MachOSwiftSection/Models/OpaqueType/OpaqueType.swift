@@ -1,7 +1,6 @@
 import Foundation
 import MachOKit
-import MachOFoundation
-import Demangling
+import MachOBase
 
 public struct OpaqueType: TopLevelType, ContextProtocol {
     public let descriptor: OpaqueTypeDescriptor

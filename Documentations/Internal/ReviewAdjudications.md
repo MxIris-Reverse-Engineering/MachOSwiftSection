@@ -237,7 +237,7 @@
 
 - **裁决**：误报 / 有意行为，不修（2026-08-27）。
 - **发现**：`InterfaceUnionWalker.matchAcrossVersions` 用 `seen.insert(elementKey).inserted` 门控 emission，而它替换掉的 `SwiftDiffableInterfaceRenderer.diffMembers`（main `:428`）与 `matchByKey`（main `:556`）遍历新侧全部元素——identity key 碰撞时旧路径两个都渲染，新路径只渲染第一个。review 据此判定 `swift-section diff --interface` 会静默少渲染成员。
-- **复现 / 是否误报**：行为差异属实，但**定性错误**。walker 的文档注释明写 "Keys are first-wins within each version (emission included…) mirroring `ABIDiffer.keyed`"，`draft-unify-interface-renderers.md` 的决策日志（2026-08-26）专条记载：实现中确认旧 diff 发射循环对同 key 重复项重复发射，与其**自身查表字典**和注释声明的 first-wins 相矛盾，判定为漏网，统一后连发射也 first-wins；恰好依赖旧行为的测试 `unrenderableHeaderIsReportedAsAnEvent` 同批改成 replace 注入。旧行为也并非「更正确」——第二个重复项是与 first-wins 的旧侧条目**错配比较**后发射的。
+- **复现 / 是否误报**：行为差异属实，但**定性错误**。walker 的文档注释明写 "Keys are first-wins within each version (emission included…) mirroring `ABIDiffer.keyed`"，`0014-unify-interface-renderers.md` 的决策日志（2026-08-26）专条记载：实现中确认旧 diff 发射循环对同 key 重复项重复发射，与其**自身查表字典**和注释声明的 first-wins 相矛盾，判定为漏网，统一后连发射也 first-wins；恰好依赖旧行为的测试 `unrenderableHeaderIsReportedAsAnEvent` 同批改成 replace 注入。旧行为也并非「更正确」——第二个重复项是与 first-wins 的旧侧条目**错配比较**后发射的。
 - **与 main 基线对比**：行为变化确由本 PR 引入，但项目已把旧行为定性为 bug，故不是回归。
 - **既往修复**：无。这是首次把发射对齐 first-wins 的 deliberate 改动。
 - **残余关切（不构成缺陷）**：`--interface` 模式直接从 live model 渲染、不经 `ABIDiff`，所以 `keyCollisions()` 诊断在该视图无处输出。**main 同样如此**，属可选增强而非本 PR 缺陷。
@@ -270,3 +270,172 @@
 - **为什么仍然修**：改动是严格更安全的收紧，与本 PR 自己在相邻代码里声明的不变量一致，且无碰撞时零行为差异；留着一个「已知按名字查、只是恰好没人能触发」的查询是下一次回归的种子。
 - **测试**：`FinalMemberRecoveryTests.sameNamedPrivateClassesGetIndependentFinalVerdicts` 是**防回归钉子而非复现**（夹具 `PrivateDoppelgangerClass` 对，一边非 final、一边 `final`），测试注释与本条目互引。
 - **复审条件**：① 在真实框架二进制上观察到同名私有类型且其中一方贡献了 `Tq` 或存储属性访问器符号；② 上游工具链改变私有类型的符号发射策略（例如为 `private` class 也发 `Tq`）——届时本条的三条理由需重测。
+
+---
+
+## A23 — `MachOSwiftSection` 对 `FoundationToolbox` / `SwiftStdlibToolbox` / `MachOReading` 的 import 未在 manifest 声明（PR #121 review 发现 I，部分）
+
+- **裁决**：本 PR 只补新丢的 `.target(.Utilities)`；其余三个模块的未声明 import **延后**到独立清理批次（2026-09-04）。
+- **发现**：`Sources/MachOSwiftSection` 里 `import FoundationToolbox` ×5、`import SwiftStdlibToolbox` ×6、`import MachOReading` ×5，target 依赖列表里都没有；今天能编是因为 `MachOBase` 再导出 `MachOReading`，而 FrameworkToolbox 的两个模块经 `MachOKitExtensions` 等传递可见。
+- **复现 / 是否误报**：属实。`git diff f3782248 -- Package.swift` 证明 `Utilities` 是本 PR 从依赖列表里删掉的（`MachOFoundation` → `MachOBase` 替换时一并丢失），其余三个在 `next` 上就没声明。
+- **与 main 基线对比**：`Utilities` 一条为本 PR 引入（已补）；其余为既有状态，非回归。
+- **为什么延后**：整仓同类问题不止这一个 target（PR #121 自己就补了 16 个 target 的 `MachOFoundation` 声明），应当一次性用「每个 import 都有直接声明」的脚本扫全仓并统一修，而不是每个 PR 顺手补几条。零行为影响，无用户可见后果。
+- **复审条件**：① SwiftPM 或 Xcode 启用 explicit modules 后编译失败——届时立刻修；② 做全仓 import / 依赖一致性清理时一并处理。
+
+---
+
+## A24 — 约 14 处旧写法 `implementation.resolveDirectOffset(from: offset(of:))` 未迁移到 `implementationOffset`（PR #121 review 发现 J，全量部分）
+
+- **裁决**：本 PR 只统一 `ProtocolConformanceDumper` 一个文件（同一函数内新旧两种写法并存，见发现原文）；`ClassDumper`（229/272/287/318/332/543 附近）、`TypeDefinition`（244–257 四个循环）、`ExtensionDefinition`（233/235/241）的迁移**延后**为独立批次（2026-09-04）。
+- **发现**：全仓 19 处 `implementation.resolveDirectOffset` / `defaultImplementation.resolveDirectOffset`，5 处是新 accessor 本体，其余散落在上述文件，都是 `!isNull` 守卫 + 裸算术的旧形状。
+- **复现 / 是否误报**：属实，但**语义等价**——新 accessor 的实现就是 `guard isValid` + 同一条 `resolveDirectOffset`，两种写法在每个输入上给出相同结果；纯风格问题，不改输出。
+- **与 main 基线对比**：旧写法在 `next` 上就存在，本 PR 只是新增了权威取值口而没有收编。
+- **为什么延后**：14 处分布在三个模块的热路径上，每处都要过一遍渲染 A/B 才敢合；与本 PR 的目标（分层）无关，捆进来只会拖大 review 面。已确认不产生功能分裂：两种写法等价，分裂只是「读代码时要认两种形状」。
+- **复审条件**：单独开一个「收编 `implementationOffset`」的清理批次（轻量档提案即可），逐字节 A/B 后合入；届时本条关闭。
+
+---
+
+## A25 — 「六个 `import MachOFoundation` 冗余」（PR #122 review 发现 F11，**误报**）
+
+- **裁决**：误报（2026-09-04）。
+- **发现**：审查者依据「`Sources/MachOSwiftSection/Exported.swift` 是 `@_exported import MachOFoundation`」判定 `SwiftDump/Dumpable/*+Dumpable.swift` 六处新增的 `import MachOFoundation` 多余。
+- **为什么是误报**：提案 0018 把 ABI 层的再导出收窄到 `MachOBase`（注释原文 "the ABI layer deliberately stops here"），`LargeStackTaskExecution` 住在 `MachOSymbols`，只有 `MachOFoundation` 再导出它；去掉那六行编译不过。审查者读的是 0018 之前的状态。
+- **附带子主张**：① `MachOSymbols` target 未声明 `FoundationToolbox` product 而 `LargeStackTaskExecution.swift` import 它——属实但基线既有（`SymbolIndexStore.swift` / `Symbol.swift` 同样如此），归 A23 同类清理批次；② `AnySwiftEvolutionInterfaceBuilder.swift` 新加的 `import Utilities` 冗余（`MachOSwiftSection → MachOBase → Utilities`）——属实，已删。
+- **复审条件**：无。
+
+---
+
+## A26 — 打印器四个逐定义入口每次调用都包一层 `LargeStackTaskExecution.run`（PR #122 review 发现 F13）
+
+- **裁决**：不修（2026-09-04）。
+- **发现**：`printTypeDefinition` / `printProtocolDefinition` / `printExtensionDefinition` / `printDefinition` 每次调用读一次 `isEnabled`（`@Mutex`，`os_unfair_lock`）并进一次 `withTaskExecutorPreference`；全仓 26 个 `run` 调用点，新增入口要同步维护。
+- **为什么不修**：效率论据被本 PR 自己的数据推翻——无竞争 `os_unfair_lock` 约 20 ns，十万次合计约 2 ms，而实测整体快 16–23%；已在执行器上的嵌套 `withTaskExecutorPreference` 不切换（`nestedRunsStayOnTheSameThread` 钉住）。包在逐定义入口是有意的：RuntimeViewer 逐类型导出绕过 `printRoot`，只包 `printRoot` 会漏掉它。
+- **复审条件**：profiling 显示 `run` 的开销在某条路径上可观；或出现第 27 个入口时考虑把「入口 = 包裹」写成 lint 检查。
+
+---
+
+## A27 — 新 `Collection.concurrentMap(maximumConcurrency:)` 与既有 `Array.concurrentMap(_:)` 同名而语义不同（PR #122 review 发现 F10）
+
+- **裁决**：不修（2026-09-04）。
+- **发现**：`Sources/Utilities/ConcurrentMap.swift` 的 `concurrentMap(_:)` 是 `DispatchQueue.concurrentPerform` 的同步阻塞版；新函数是 async、窗口化、可抛错。参数标签不同、无重载歧义，纯可读性。
+- **为什么不修**：两者的调用形态（`await` + `try` + `maximumConcurrency:` 标签）已把区别写在调用点上；改名或合并文件是纯搬动。既有同步版零调用方（2026-09-03 调研已记录），更合适的动作是下次清理批次删掉它。
+- **复审条件**：同步版被删或被重新启用时一并统一命名。
+
+---
+
+## A28 — `LargeStackTaskExecution.run` 未转发 `isolation: isolated (any Actor)? = #isolation`（PR #122 review 发现 F12）
+
+- **裁决**：不修（2026-09-04）。
+- **发现**：标准的「透传隔离」写法会加一个 `#isolation` 参数再转给 `withTaskExecutorPreference`；`run` 没有。
+- **为什么不修**：`body` 是非 `@Sendable` 闭包，在 actor 隔离上下文里字面量继承调用方隔离，实现说明里「主 actor 保持自己的 executor」仍然成立；差别只是多一次跳转。库 target 未开 SE-0461，从 `@MainActor` 调用本就离开主 actor（见实现说明「主 actor 调用方」）。
+- **复审条件**：库 target 开启 `NonisolatedNonsendingByDefault` 时重议。
+
+---
+
+## A29 — `@Suite(.serialized)` 不足以保护进程级开关 `isEnabled`（PR #122 review 发现 F4）
+
+- **裁决**：不修（2026-09-04）。
+- **发现**：`disabledRunsTheBodyOnTheCallersExecutor` 翻转 `LargeStackTaskExecution.isEnabled`，`.serialized` 只序列化本套件；其他套件与之并行时在翻转窗口内静默失去执行器。
+- **为什么不修**：只影响那几毫秒里其他套件跑在哪条线程上，不影响任何断言的正确性（全仓其他套件对执行器不敏感，AGENTS.md Test Environment 节写明）。审查者称「测试 trap 会跳过 defer」不成立——Swift Testing 的 `#expect` 失败不 trap，`defer` 正常恢复。横向排查：35 个 `.serialized` 套件里只有这一个翻转进程级开关。
+- **复审条件**：出现第二个断言线程身份的套件。
+
+---
+
+## A30 — 执行器关闭 / 不可用时并行窗口 = 核数会占满协作线程池（PR #122 review 发现 F8）
+
+- **裁决**：不修（2026-09-04）。
+- **发现**：`StackSafeExecutor` 探测失败时用 `DispatchSemaphore.wait()` 阻塞调用线程；macOS 14 或宿主关掉开关时，N 个并行 `prepare` 同时阻塞 N 条协作线程，宿主其他 async 工作会饿住（不会死锁：8 MB 跳转池是另一个池）。
+- **为什么不修**：这正是接入前每一次 `prepare` 的行为，并行只是把它乘以窗口；关掉执行器是宿主的显式选择（A/B 与计时配置），macOS 14 以下的用户面很小。宿主可用 `maximumConcurrentPreparations: 1` / `--jobs 1` 回到旧形态。
+- **复审条件**：有 macOS 14 宿主反馈饿死；届时可让 `run` 在不支持时把窗口自动收窄到 1。
+
+---
+
+## A31 — lineage / JSON 路径默认并行窗口取核数，峰值内存从 1 个索引镜像变为核数个（PR #122 review 发现 F6）
+
+- **裁决**：保持（2026-09-04，用户裁定）。
+- **发现**：`ABISnapshotInputLoader.loadDocument` 索引完即丢 builder，旧循环峰值一个镜像；新默认 `min(N, 核数)` 个（约 32 MB / 版本）。
+- **为什么保持**：提案第二轮澄清用户选「默认并行上限取核数」，`--jobs` 帮助文本写明代价；`--interface` 路径本来就全部常驻。
+- **复审条件**：出现内存受限的宿主场景（例如 CI 上几十个版本）时给 lineage 路径单独的默认值。
+
+---
+
+## A32 — `run` 与 `isSupported` 各写一遍平台 + 可用性门（PR #122 review 发现 F9）
+
+- **裁决**：不修（2026-09-04）。
+- **发现**：`#if canImport(Darwin)` + `#available(macOS 15…)` 在两处重复。
+- **为什么不修**：`#available` 必须在使用 `StackSafeExecutor.taskExecutor` 的词法位置出现，编译器不接受「`isSupported` 为真」作为可用性证明；把 `isSupported` 加进 `run` 的条件只是第三次重复。两处各有必要，已在 `run` 的注释说明。
+- **复审条件**：Swift 提供可用性谓词的抽象手段。
+
+---
+
+## A33 — `TypeIndexing.TypeDatabase.index` 的 task group 用 `addTask`，取消后仍提交剩余模块（PR #122 review 发现 1 的横向同类）
+
+- **裁决**：延后（2026-09-04）。
+- **发现**：`Sources/TypeIndexing/TypeDatabase.swift:76` 与 `concurrentMap` 修复前同形；基线既有，非本 PR 引入。
+- **为什么延后**：正确修法是 `addTaskUnlessCancelled` + 注册前 `Task.checkCancellation()`（否则取消会把残缺索引静默登记进去），而 `index(dependencies:moduleFilter:)` 直接构造 `SDKIndexer` / `ModuleInterfaceIndexer`（需要 SourceKit 与 SDK），没有注入缝可以写单元级复现测试；按「修复必带能变红的测试」规则，先补注入缝再修。
+- **复审条件**：`TypeDatabase` 获得 indexer 注入缝时一并修，或 GUI 宿主报告取消 `--resolve-c-module-names` 后 CPU 仍被占用。
+
+
+---
+
+## A34 — dump 的 vtable 段落输出 `class func static X.classMethod()`（PR #123 review 发现 11，**已有裁决**）
+
+- **裁决**：不修（2026-09-07，沿用 2026-07 的既有决定）。
+- **发现**：`dumpMethodKeyword`（`ClassDumper.swift:529`）对类型级成员输出 `class`，而 demangler 对 `.static` 节点无条件打印 `static ` 前缀，合起来是自相矛盾的 `class func static ...`；新基线 `vTableEntryVariantsSnapshot.1.txt:142` 收录了这一行。
+- **复现 / 是否误报**：输出属实，但**不是本 PR 引入的缺陷**。本 PR 只是让该槽第一次正确解析到 `classMethod`（基线上它错解析成一个 subscript setter），既有形态首次出现在这个 fixture 上。
+- **与 main 基线对比**：形态在 `next` 上就存在，只是此 fixture 未触发。
+- **既往修复 / 当时为什么这样做**：[ClassMemberKeywordRecovery.md](ClassMemberKeywordRecovery.md) 第「dump 路径里 override table 的 `static` 前缀不动」节（修 issue #99 时写的）已明确裁决：dump 输出里的 `static` 来自 **demangler 对符号的忠实还原**，「dump 本就是符号列表而非可编译 Swift 源码，改掉它等于篡改 demangle 结果，明确不动」；该文原文即写着「原输出形如 `static func static Foo...`，现为 `class func static Foo...`」。理由今日仍成立。
+- **复审条件**：dump 输出的定位从「符号列表」改为「可编译 Swift 源码」；或 demangler 提供抑制 `static` 前缀的 `DemangleOptions`（目前没有）。
+
+---
+
+## A35 — `entityNodeKinds` 未收录 `.boundGenericFunction`（PR #123 review 发现 12，**误报**）
+
+- **裁决**：误报（2026-09-07）。
+- **发现**：审查认为 `Node+DeclarationContext.swift:25` 的 `entityNodeKinds` 漏掉 `.boundGenericFunction`（`NodePrinter.swift:431` 与 `.function` 同样走 `printEntity(hasName: true)`），导致这类符号走不到 entity、被当作候选丢弃。
+- **为什么是误报**：`.boundGenericFunction` 的子节点布局是 `[functionOrConstructorNode, typeList]`（`Demangler.swift:1288`：`createNode(kind: .boundGenericFunction, children: [n, args])`；`NodePrinter.swift:1954` 也是这么解包的），**第一个子节点不是声明上下文**，而是 `.function` / `.constructor` 节点本身。把它排除在 entity 集合之外、让遍历**穿过**它落到里面那个 `.function` 上，拿到的才是正确的上下文——收录它反而会把函数节点当成上下文。当前写法正确。
+- **与 main 基线对比**：新增代码，无基线对照。
+- **复审条件**：上游改变 `.boundGenericFunction` 的子节点布局。
+
+---
+
+## A36 — `VTableSlotAttributionTests` 的 fixture 前提硬失败（PR #123 review 发现 13，**误报 + 有意设计**）
+
+- **裁决**：不修（2026-09-07）。
+- **发现**：审查提出两点——(a) `swiftc -emit-library` 不带 `-target`，在 Intel 主机上产出的 fat 文件没有 arm64 slice，`#require(machOFile, "fixture unexpectedly missing an arm64 slice")` 会让 5 个测试全红；(b) `foldedImplementationAddress` 用 `#require` 断言折叠发生，linker 不再折叠时 3 个测试因环境原因变红。
+- **复现 / 是否误报**：(a) **误报**——`swiftc` 默认产出宿主架构的 **thin** 文件，`loadFromFile` 走 `.machO` 分支，`.fat` 分支根本不会走到。(b) 属实，但**是测试自己写明的设计**：文件头文档注释写着 `foldedImplementationAddress` 是「a REQUIRED premise of every test here rather than a soft check」——前提没了测试即空转，红掉正是想要的信号。
+- **与 main 基线对比**：新增测试，无基线。
+- **复审条件**：(b) 若工具链侧真的停止支持 `-deduplicate`，改为 `.enabled(if:)` 跳过而非红；届时需同时在 `KnownIssues` 侧记下「本套测试已失去前提」，不能静默跳过。
+
+---
+
+## A37 — 两条新注释不走 OutputTransformer token-template 机制（PR #123 review 发现 4，部分）
+
+- **裁决**：模板槽不修（2026-09-07，沿用本表 A14）；**布尔开关待修，不在本条覆盖范围内**。
+- **发现**：`deletedMethodSlotComment()` / `ambiguousAttributionComment(foldedSymbolCount:)` 既无 `printXxx` 开关，也无 `…Transformer` 闭包槽，与 `DeclarationRenderConfiguration` 里其他每一种注释都不同。
+- **为什么模板槽不修**：A14（2026-08-23，`not exported` 注释）已就同形问题裁决——transformer 机制的价值在**带变量 token 的注释**，零参数的固定事实陈述模板化只能改文案，而文案恰是承重部分。`deletedMethodSlotComment()` 是零 token，直接适用。
+- **A14 未覆盖的两点**：`ambiguousAttributionComment(foldedSymbolCount:)` **带一个变量 token**，A14 的理由不适用；且 A14 明确写过「若需要开关，`printExportStatus` 这一个 Bool 就是全部所需表面」，而这两条注释连那个 Bool 都没有。**加开关是真缺陷**，记在 [PR #123 findings 第 4 条](../../Roadmaps/2026-09-06-pr123-review-findings.md)，随修复批次处理。
+- **复审条件**：歧义注释的计数语义定稿后（见 findings 第 2 条），若宿主提出自定义措辞需求，再给它补单 token 模块。
+
+---
+
+## A38 — `Tq` 归属分支不做声明上下文校验（PR #123 review 发现 8）
+
+- **裁决**：延后（2026-09-07）。
+- **发现**：`TypeDefinition.swift:275` 与 `ClassDumper.swift:242` 的 `Tq` 分支跳过了回退路径强制的两道闸——声明上下文必须匹配本类（`demangledOverrideSymbol` / `ClassDumper.validNode` 都做）、`visitedNodes` 去重——却仍向 `visitedNodes` 追加。
+- **复现 / 是否误报**：机制属实，**但构造不出触发场景**。`attributedMemberNode` 只接受能 demangle 成 `.methodDescriptor` 的符号，而 method descriptor 在一个镜像内地址唯一，同地址出现别的类的 `Tq` 符号在实践中不成立；dyld 共享缓存的偏移规范化理论上留了口子（AGENTS.md 记有「raw 与 adjusted offset 共用一行」），本轮未能构造出实例。
+- **与 main 基线对比**：新增代码路径。
+- **为什么延后**：正确修法是加一句与回退路径同样的上下文断言（便宜），但按「修复必带能变红的测试」规则，需要先构造出能触发的镜像；在构造出来之前加断言等于加一条永远不执行的分支。
+- **复核补充（2026-09-07）**：「构造不出触发镜像」**不等于**「构造不出变红的测试」——`MethodDescriptorAttribution.memberNode(forMethodDescriptorSymbols:in:)` 收的是一个 `Symbols` 值，手造一个含别的类的 `Tq` 名字的 `Symbols` 即可在单元级复现并变红。因此「没有复现测试」不再是延后的理由，修复批次顺手加断言时把这条测试一并补上。
+- **复审条件**：修复批次加上下文断言（连同上述单元测试），或构造出跨镜像 `Tq` 偏移碰撞的真实实例。
+
+---
+
+## A39 — `vtableAccessorFieldNames` 按折叠地址扫描且无本类过滤（PR #123 review 发现 15，**基线既有**）
+
+- **裁决**：延后为独立批次（2026-09-07）。
+- **发现**：`ClassDumper.swift:561-571` 仍按实现地址收集访问器名字，内层 `for symbol in symbols` 无本类过滤、无早退，把找到的每个 `.variable` 名字都塞进集合。折叠地址上是每个访问器 descriptor ~2878 次 `demangleSymbolReference`（有 memo 缓存兜底），且会收进嵌套类型的同名字段，从而抑制本类同名字段的 `final` 标记——正是本 PR 在别处修掉的那种跨类型串味。
+- **与 main 基线对比**：`next` 上一模一样，本 PR 未触及该函数。
+- **既往修复 / 当时为什么这样做**：来自提案 0006 的 `final` 关键字还原（commit `da9b8be2`，其后 `83a4308c` 补了「有 `Tq` 就绝不标 `final`」的否定证据）。当时的证据模型就是实现地址反查，本 PR 才把「实现地址在折叠下不可逆」确立为项目事实。
+- **为什么延后**：错误方向保守（少标 `final` 而非错标），且修法与 findings 第 5 条（遍历去重）、第 6 条（快路径不白算）同属「把 `Tq` 优先的证据顺序推广到 `final` 恢复路径」，捆在一起做才不会来回改同一段。
+- **复审条件**：`final` 恢复路径的证据模型统一批次；或出现「`final` 在真实框架上被系统性漏标」的报告。

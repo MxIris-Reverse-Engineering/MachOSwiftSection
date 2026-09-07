@@ -17,6 +17,13 @@ package enum BaselineEmitter {
         return "0x\(String(unsigned, radix: 16))"
     }
 
+    /// Emit `0x<lowercase-hex>` for a present value and the literal `nil`
+    /// otherwise — for `Int?` baseline fields such as an implementation
+    /// offset that may be a null pointer.
+    package static func optionalHex<T: BinaryInteger & Sendable>(_ value: T?) -> String {
+        value.map(hex) ?? "nil"
+    }
+
     /// Emit `[0x..., 0x..., ...]` for an array of binary integers.
     package static func hexArray<T: BinaryInteger & Sendable>(_ values: [T]) -> String {
         "[\(values.map(hex).joined(separator: ", "))]"

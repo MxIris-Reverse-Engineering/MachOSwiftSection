@@ -1,4 +1,4 @@
 import MachOKit
-import MachOFoundation
+import MachOBase
 
 public protocol ClassMetadataProtocol: AnyClassMetadataProtocol, FinalClassMetadataProtocol {}

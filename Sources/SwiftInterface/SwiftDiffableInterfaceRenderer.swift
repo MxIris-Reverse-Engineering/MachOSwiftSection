@@ -8,6 +8,7 @@ import MachOSwiftSection
 import Semantic
 import Demangling
 import OrderedCollections
+import MachOSymbols
 
 /// Renders a **full Swift interface annotated with diff markers** — a git-diff
 /// style view of how the new binary's ABI surface differs from the old.
@@ -58,8 +59,13 @@ public final class SwiftDiffableInterfaceRenderer<
     /// ``DiffFormat/inline``, the git-diff-style `+`/`-`/` ` markers with a
     /// one-space gutter). The classified stream comes from
     /// ``annotatedDiffBlocks()``; the format turns it into the final string.
+    ///
+    /// Runs on the demangler's large-stack task executor
+    /// (`LargeStackTaskExecution.run`), as does ``annotatedDiffBlocks()``.
     public func printAnnotatedInterface(format: DiffFormat = .inline) async -> SemanticString {
-        await format.render(annotatedDiffBlocks())
+        await LargeStackTaskExecution.run {
+            await format.render(annotatedDiffBlocks())
+        }
     }
 
     /// The full classified diff as a block-grouped, single-line-split stream: the
@@ -70,7 +76,9 @@ public final class SwiftDiffableInterfaceRenderer<
     /// than a rendered string.
     @_spi(Support)
     public func annotatedDiffBlocks() async -> [[DiffLine]] {
-        await InterfaceUnionWalker(versions: versions, strategy: DiffUnionStrategy(versions: versions)).blocks()
+        await LargeStackTaskExecution.run {
+            await InterfaceUnionWalker(versions: versions, strategy: DiffUnionStrategy(versions: versions)).blocks()
+        }
     }
 }
 

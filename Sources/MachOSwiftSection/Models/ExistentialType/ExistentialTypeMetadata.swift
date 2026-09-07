@@ -1,6 +1,6 @@
 import Foundation
 import MachOKit
-import MachOFoundation
+import MachOBase
 
 public struct ExistentialTypeMetadata: MetadataProtocol {
     public struct Layout: ExistentialTypeMetadataLayout {

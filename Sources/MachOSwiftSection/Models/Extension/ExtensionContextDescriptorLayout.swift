@@ -1,4 +1,4 @@
-import MachOFoundation
+import MachOBase
 
 @Layout
 public protocol ExtensionContextDescriptorLayout: ContextDescriptorLayout {

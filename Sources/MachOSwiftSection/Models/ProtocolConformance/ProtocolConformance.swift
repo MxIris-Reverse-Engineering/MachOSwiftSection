@@ -1,6 +1,6 @@
 import Foundation
 import MachOKit
-import MachOFoundation
+import MachOBase
 
 // using TrailingObjects = swift::ABI::TrailingObjects<
 //                           TargetProtocolConformanceDescriptor<Runtime>,

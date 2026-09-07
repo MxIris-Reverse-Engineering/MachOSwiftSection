@@ -1,4 +1,4 @@
-import MachOFoundation
+import MachOBase
 
 public struct GenericPackShapeHeader: ResolvableLocatableLayoutWrapper {
     public struct Layout: LayoutProtocol {

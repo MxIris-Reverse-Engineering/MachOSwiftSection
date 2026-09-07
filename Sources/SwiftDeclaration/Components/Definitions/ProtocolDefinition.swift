@@ -184,13 +184,13 @@ public final class ProtocolDefinition: Definition, MutableDefinition {
             if requirement.layout.defaultImplementation.isValid {
                 defaultedRequirementPWTOffsets.insert(offsetOfPWT)
             }
-            guard let symbols = try await Symbols.resolve(from: requirement.offset, in: machO), let symbol = try? _symbol(for: symbols, visitedNodes: requirementVisitedNodes) else {
+            guard let symbols = machO.symbols(offset: requirement.offset), let symbol = try? _symbol(for: symbols, visitedNodes: requirementVisitedNodes) else {
                 strippedSymbolicRequirements.append(.init(requirement: requirement, pwtOffset: offsetOfPWT))
                 continue
             }
             requirementVisitedNodes.append(StructuralNodeReferenceKey(symbol.demangledNode))
             addSymbol(.init(base: symbol, offset: offsetOfPWT), memberSymbolsByKind: &requirementMemberSymbolsByKind, inExtension: false)
-            if let symbols = try requirement.defaultImplementationSymbols(in: machO), let defaultImplementationSymbol = try _symbol(for: symbols, visitedNodes: defaultImplementationVisitedNodes) {
+            if let symbols = requirement.defaultImplementationSymbols(in: machO), let defaultImplementationSymbol = try _symbol(for: symbols, visitedNodes: defaultImplementationVisitedNodes) {
                 defaultImplementationVisitedNodes.append(StructuralNodeReferenceKey(defaultImplementationSymbol.demangledNode))
                 addSymbol(.init(base: defaultImplementationSymbol, offset: offsetOfPWT), memberSymbolsByKind: &defaultImplementationMemberSymbolsByKind, inExtension: true)
             }

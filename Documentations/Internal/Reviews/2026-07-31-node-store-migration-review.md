@@ -126,6 +126,7 @@ libdispatch worker   reported_size= 524 KB   remaining= 523 KB   >=2MB: no  (HOP
   每符号省 6.2 µs。值得注意的是跳转成本（615.7 ms）几乎与 demangle 本身（701.5 ms）等价——**近一半时间花在线程往返上**。主线程两组数据一致，再次确认探测通过时批量边界不产生任何作用，也印证上文对原实测表的更正。
 - **`Node+.swift` 的 `printSemantic` 注释**（本次改动）：原注释断言 `print(_:options:)` "runs the recursion inline against a stack floor and pays for a worker only for a tree that actually reaches it"，与代码相反——它内部就是 `executeWithUncheckedSendability`，与 `execute` 是同一段逻辑，仅少了 `Sendable` 约束。注释已改为如实描述，并说明为何摊销点不在此处。**代码未动**。
 - **渲染循环暂不处理**：打印侧的循环在 `SwiftDeclarationPrinter` 里，是 `async`，同步的 `withLargeStack` 无法包裹。真要摊销需要自定义一个跑在 8 MB 线程上的 `SerialExecutor`，或把打印批次改成同步——两者都是独立的重构。先量清楚真实导出中的调用次数与总开销，再决定是否值得。
+  **已解决（2026-09-03，提案 `large-stack-executor-and-cross-version-parallelism`）**：走的是第三条路——上游 swift-demangling 0.6.3 提供 16 MB 线程的 `TaskExecutor`，本库的 async 入口经 `LargeStackTaskExecution.run` 把整个 task 放到它上面，探针在每个入口都通过，打印路径零跳转；见 `Documentations/Internal/LargeStackTaskExecutorAdoption.md`。
 
 > 探针为一次性测量代码，测完已删除。若需长期守护该性质，应整理为正式 benchmark。
 

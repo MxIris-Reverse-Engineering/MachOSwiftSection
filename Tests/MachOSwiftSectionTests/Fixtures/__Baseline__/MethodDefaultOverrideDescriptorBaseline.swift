@@ -9,5 +9,5 @@
 // missing runtime coverage.
 
 enum MethodDefaultOverrideDescriptorBaseline {
-    static let registeredTestMethodNames: Set<String> = ["implementationSymbols", "layout", "offset", "originalMethodDescriptor", "replacementMethodDescriptor"]
+    static let registeredTestMethodNames: Set<String> = ["implementationAddress", "implementationOffset", "layout", "offset", "originalMethodDescriptor", "replacementMethodDescriptor"]
 }

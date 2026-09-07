@@ -1,5 +1,5 @@
 import MachOKit
-import MachOFoundation
+import MachOBase
 
 public protocol StructMetadataProtocol: ValueMetadataProtocol where Layout: StructMetadataLayout {}
 

@@ -57,9 +57,9 @@ public final class SwiftEvolutionInterfaceBuilder<each MachO: FieldLayoutRendera
     /// See ``AnySwiftEvolutionInterfaceBuilder/evolution``.
     public var evolution: ABIEvolution? { erased.evolution }
 
-    /// See ``AnySwiftEvolutionInterfaceBuilder/prepare()``.
-    public func prepare() async throws {
-        try await erased.prepare()
+    /// See ``AnySwiftEvolutionInterfaceBuilder/prepare(maximumConcurrentPreparations:)``.
+    public func prepare(maximumConcurrentPreparations: Int = ProcessInfo.processInfo.activeProcessorCount) async throws {
+        try await erased.prepare(maximumConcurrentPreparations: maximumConcurrentPreparations)
     }
 
     /// See ``AnySwiftEvolutionInterfaceBuilder/printAnnotatedInterface()``.

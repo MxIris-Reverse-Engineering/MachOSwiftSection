@@ -1,6 +1,6 @@
 import Foundation
 import MachOKit
-import MachOFoundation
+import MachOBase
 
 public protocol FinalClassMetadataLayout {
     var descriptor: Pointer<ClassDescriptor?> { get }

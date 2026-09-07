@@ -28,7 +28,7 @@ final class TypeNameProviderMachOFileTests: MachOFileTests, @unchecked Sendable 
             in: machOFile
         )
         if resolvingCModuleNames {
-            let providerDependencies = SwiftInterfaceBuilderDependencies(machO: machOFile, paths: [.usesSystemDyldSharedCache])
+            let providerDependencies = SwiftInterfaceBuilderDependencies(machO: machOFile, searchPaths: [.systemDyldSharedCache])
             if let typeNameProvider = SwiftInterfaceBuilderTypeNameProvider(machO: machOFile, dependencies: providerDependencies) {
                 builder.addExtraDataProvider(typeNameProvider)
             } else {

@@ -1,5 +1,5 @@
 import Foundation
-import MachOFoundation
+import MachOBase
 
 public struct MetadataResponse {
     public let value: Pointer<MetadataWrapper>

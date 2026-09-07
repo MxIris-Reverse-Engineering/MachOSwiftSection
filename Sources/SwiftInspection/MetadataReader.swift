@@ -154,17 +154,17 @@ extension MetadataReader {
 // MARK: - Symbol Lookup Protocol
 
 private protocol SymbolLookupContext {
-    func lookupSymbol(at offset: Int) -> MachOSymbols.Symbol?
+    func lookupSymbol(at offset: Int) -> Symbol?
 }
 
 extension MachOContext: SymbolLookupContext {
-    func lookupSymbol(at offset: Int) -> MachOSymbols.Symbol? {
+    func lookupSymbol(at offset: Int) -> Symbol? {
         try? Symbol.resolve(from: offset, in: machO)
     }
 }
 
 extension InProcessContext: SymbolLookupContext {
-    func lookupSymbol(at offset: Int) -> MachOSymbols.Symbol? {
+    func lookupSymbol(at offset: Int) -> Symbol? {
         guard let ptr = UnsafeRawPointer(bitPattern: offset) else { return nil }
         guard let result = MachOImage.symbol(for: ptr) else { return nil }
         return Symbol(offset: offset, name: result.1.name)

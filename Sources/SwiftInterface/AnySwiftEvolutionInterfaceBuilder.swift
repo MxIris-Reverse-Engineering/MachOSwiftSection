@@ -6,6 +6,7 @@ import SwiftDiffing
 import MachOSwiftSection
 import Semantic
 import SwiftStdlibToolbox
+import MachOSymbols
 
 /// Renders one module's ABI across N ≥ 2 ordered binary versions as a single
 /// **union interface with lifecycle annotations** — the N-way, human-readable
@@ -45,17 +46,29 @@ public final class AnySwiftEvolutionInterfaceBuilder: Sendable {
     /// Homogeneous construction: N versions of the same reader type, count
     /// decided at runtime.
     ///
+    /// `eventHandlers` are shared by every version; `eventHandlersPerVersion`
+    /// adds handlers built for one version (index and label), so a host can
+    /// attribute the diagnostics of concurrently prepared versions — the CLI
+    /// attaches a `ConsoleEventHandler(label:)` per version through it.
+    /// Handler invocation is serialized process-wide by the dispatcher, so a
+    /// shared handler is never called concurrently.
+    ///
     /// - Throws: `ABIEvolutionError.fewerThanTwoVersions` /
     ///   `.labelCountMismatch` on invalid input shapes.
     public init<MachO: FieldLayoutRenderable>(
         configuration: SwiftDeclarationIndexConfiguration = .init(),
         eventHandlers: [SwiftIndexEvents.Handler] = [],
+        eventHandlersPerVersion: ((_ versionIndex: Int, _ label: String) -> [SwiftIndexEvents.Handler])? = nil,
         versions: [MachO],
         labels: [String]
     ) throws {
         try Self.validate(versionCount: versions.count, labelCount: labels.count)
-        self.versionUnits = versions.map {
-            InterfaceVersionUnit(configuration: configuration, eventHandlers: eventHandlers, machO: $0)
+        self.versionUnits = versions.enumerated().map { versionIndex, machO in
+            InterfaceVersionUnit(
+                configuration: configuration,
+                eventHandlers: eventHandlers + (eventHandlersPerVersion?(versionIndex, labels[versionIndex]) ?? []),
+                machO: machO
+            )
         }
         self.labels = labels
     }
@@ -93,13 +106,32 @@ public final class AnySwiftEvolutionInterfaceBuilder: Sendable {
     /// Indexes every version (full member indexing included), freezes each
     /// into a snapshot, and builds the `ABIEvolution` annotation matrix. Must
     /// complete before any rendering entry point.
-    public func prepare() async throws {
-        for versionUnit in versionUnits {
-            try await versionUnit.prepare()
+    ///
+    /// Versions index **concurrently**, at most `maximumConcurrentPreparations`
+    /// at a time (evolution proposal
+    /// `large-stack-executor-and-cross-version-parallelism`): each version is
+    /// a different file whose caches key on its own UUID and whose descriptor
+    /// reads go through a memory mapping, so versions never share mutable
+    /// state — three archived SwiftUI caches prepared in parallel measured
+    /// about 2× over serial. The window defaults to the processor count and
+    /// never exceeds it usefully: a preparation occupies its thread, and the
+    /// executor's per-class worker count is the processor count. Pass 1 for
+    /// the serial order (oldest first). Values below 1 count as 1. The
+    /// result is independent of the window; only event delivery interleaves
+    /// across concurrently indexed versions.
+    ///
+    /// Runs on the demangler's large-stack task executor
+    /// (`LargeStackTaskExecution.run`); the per-version child tasks inherit
+    /// it.
+    public func prepare(maximumConcurrentPreparations: Int = ProcessInfo.processInfo.activeProcessorCount) async throws {
+        try await LargeStackTaskExecution.run {
+            _ = try await versionUnits.concurrentMap(maximumConcurrency: maximumConcurrentPreparations) { versionUnit in
+                try await versionUnit.prepare()
+            }
+            let snapshots = versionUnits.map { $0.snapshot() }
+            let versionDescriptors = labels.map { ABIVersionDescriptor(label: $0) }
+            preparedEvolution = try ABIEvolutionBuilder().evolution(of: snapshots, versions: versionDescriptors)
         }
-        let snapshots = versionUnits.map { $0.snapshot() }
-        let versionDescriptors = labels.map { ABIVersionDescriptor(label: $0) }
-        preparedEvolution = try ABIEvolutionBuilder().evolution(of: snapshots, versions: versionDescriptors)
     }
 
     /// The evolution built by `prepare()` — the same value the lineage report
@@ -117,8 +149,10 @@ public final class AnySwiftEvolutionInterfaceBuilder: Sendable {
     ///   called before `prepare()`.
     public func printAnnotatedInterface() async throws -> SemanticString {
         let evolution = try requirePrepared()
-        let blocks = await makeRenderer(for: evolution).annotatedBlocks()
-        return EvolutionMarking.renderInterface(blocks: blocks, evolution: evolution)
+        return await LargeStackTaskExecution.run {
+            let blocks = await makeRenderer(for: evolution).annotatedBlocks()
+            return EvolutionMarking.renderInterface(blocks: blocks, evolution: evolution)
+        }
     }
 
     /// The structured line stream behind ``printAnnotatedInterface()``: the
@@ -129,7 +163,10 @@ public final class AnySwiftEvolutionInterfaceBuilder: Sendable {
     /// renderer's `annotatedDiffBlocks()`.
     @_spi(Support)
     public func annotatedBlocks() async throws -> [[EvolutionLine]] {
-        try await makeRenderer(for: requirePrepared()).annotatedBlocks()
+        let evolution = try requirePrepared()
+        return await LargeStackTaskExecution.run {
+            await makeRenderer(for: evolution).annotatedBlocks()
+        }
     }
 
     private func makeRenderer(for evolution: ABIEvolution) -> SwiftEvolutionInterfaceRenderer {

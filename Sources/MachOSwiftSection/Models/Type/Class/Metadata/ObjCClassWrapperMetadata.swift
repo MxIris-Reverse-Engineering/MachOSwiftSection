@@ -1,5 +1,5 @@
 import Foundation
-import MachOFoundation
+import MachOBase
 
 public struct ObjCClassWrapperMetadata: MetadataProtocol {
     public struct Layout: MetadataLayout {

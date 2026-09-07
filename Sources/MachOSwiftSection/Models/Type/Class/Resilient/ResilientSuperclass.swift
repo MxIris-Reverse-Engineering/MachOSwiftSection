@@ -1,6 +1,6 @@
 import Foundation
 import MachOKit
-import MachOFoundation
+import MachOBase
 
 public struct ResilientSuperclass: ResolvableLocatableLayoutWrapper {
     public struct Layout: LayoutProtocol {

@@ -1,5 +1,5 @@
 import MachOKit
-import MachOFoundation
+import MachOBase
 
 public enum RelativeProtocolDescriptorPointer: Sendable, Equatable {
     case objcPointer(RelativeSymbolOrElementPointerIntPair<ObjCProtocolPrefix, Bit>)

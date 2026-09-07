@@ -5,27 +5,24 @@ import MachOKitExtensions
 @_spi(Internals) import Demangling
 import FoundationToolbox
 
-public struct Symbol: AsyncResolvable, SymbolProtocol, Hashable, Sendable {
-    public let offset: Int
+extension Symbol {
+    /// Whether ``resolve(from:in:)`` answers from `SymbolIndexStore` (every
+    /// name at the offset, index built on first use) or from MachOKit's own
+    /// symbol table (one name, no index). Process-wide.
+    @Mutex
+    public static var resolvesSymbolUsingIndexStore: Bool = true
 
-    public let name: String
-
-    /// Whether the symbol-table entry was flagged as an undefined external
-    /// import (`N_EXT` with `N_UNDF` type). Extracted from the `nlist` entry
-    /// at collection time; the entry itself is not retained (a 40-byte
-    /// existential per symbol copy that nothing else consumed).
-    public let isExternal: Bool
-
-    public init(offset: Int, name: String, isExternal: Bool = false) {
-        self.offset = offset
-        self.name = name
-        self.isExternal = isExternal
-    }
-
+    /// Looks the symbol at `offset` up — `SymbolIndexStore` or MachOKit's
+    /// symbol table depending on ``resolvesSymbolUsingIndexStore`` — and
+    /// throws when there is none.
+    ///
+    /// A lookup, not a read: this is why it lives here and not on the value
+    /// type in `MachOResolving` (evolution proposal `self-contained-abi-layer`).
     public static func resolve<MachO: MachORepresentableWithCache & Readable>(from offset: Int, in machO: MachO) throws -> Self {
         try required(resolve(from: offset, in: machO))
     }
 
+    /// Optional form of ``resolve(from:in:)-swift.type.method``.
     public static func resolve<MachO: MachORepresentableWithCache & Readable>(from offset: Int, in machO: MachO) throws -> Self? {
         if resolvesSymbolUsingIndexStore {
             return machO.symbols(offset: offset)?.first
@@ -33,45 +30,9 @@ public struct Symbol: AsyncResolvable, SymbolProtocol, Hashable, Sendable {
             return machO.symbol(for: offset, inSection: 0, isGlobalOnly: false)?.asCurrentSymbol
         }
     }
-
-    public static func resolve<MachO: MachORepresentableWithCache & Readable>(from offset: Int, in machO: MachO) async throws -> Self {
-        try await required(resolve(from: offset, in: machO))
-    }
-
-    public static func resolve<MachO: MachORepresentableWithCache & Readable>(from offset: Int, in machO: MachO) async throws -> Self? {
-        if resolvesSymbolUsingIndexStore {
-            return await machO.symbols(offset: offset)?.first
-        } else {
-            return machO.symbol(for: offset, inSection: 0, isGlobalOnly: false)?.asCurrentSymbol
-        }
-    }
-
-    public func hash(into hasher: inout Hasher) {
-        hasher.combine(offset)
-        hasher.combine(name)
-    }
-
-    public static func == (lhs: Self, rhs: Self) -> Bool {
-        return lhs.offset == rhs.offset && lhs.name == rhs.name
-    }
-    
-    public enum AddressFormat {
-        case hex
-        case decimal
-    }
-    
-    public func addressString(format: AddressFormat, in machO: some MachORepresentableWithCache) -> String {
-        switch format {
-        case .hex:
-            return "0x" + String(machO.address(forOffset: offset), radix: 16, uppercase: true)
-        case .decimal:
-            return String(machO.address(forOffset: offset), radix: 10)
-        }
-    }
-    
-    @Mutex
-    public static var resolvesSymbolUsingIndexStore: Bool = true
 }
+
+extension Symbol: MachOSymbols.SymbolProtocol {}
 
 public protocol SymbolProtocol {
     var name: String { get }
@@ -85,9 +46,8 @@ extension MachOSymbols.SymbolProtocol {
     }
 }
 
-
 extension MachOKit.SymbolProtocol {
-    fileprivate var asCurrentSymbol: MachOSymbols.Symbol {
+    fileprivate var asCurrentSymbol: MachOResolving.Symbol {
         .init(offset: offset, name: name, isExternal: nlist.isExternal)
     }
 }

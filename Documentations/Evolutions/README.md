@@ -19,5 +19,12 @@
 | [0009](0009-type-indexing-revival.md) | TypeIndexing 重启：`__C` 类型模块归属解析的索引管线修复与重构（两线合并时由 0008 重排至 0009，见提案「编号说明」） | Implemented |
 | [0010](0010-community-type-mapping-bundles.md) | 补充类型映射：私有框架 `__C` 类型的用户自备 APINotes 加载（AttributeGraph 等；合并时由 0009 重排） | Implemented |
 | [0011](0011-opaque-primary-associated-type-attribution.md) | opaque 返回类型的 primary associated type 归属：anchor 协议裁决 + 协议事实解析链（main 直落线并入 next 时由 0006 重排） | Implemented |
-| [draft](draft-swift-evolution-interface-builder.md) | SwiftEvolutionInterfaceBuilder：ABI 演进的并集注解接口渲染（`evolution --interface`） | Implemented |
-| [draft](draft-unify-interface-renderers.md) | 统一 diff / evolution 接口渲染器的结构遍历核心（顺带修 diff accessor 双重缩进） | Implemented |
+| [0012](0012-in-process-metadata-type-builder.md) | RuntimeMetadataTypeBuilder：TypeBuilder 的首个生产 conformer，node → 进程内活 metadata | Implemented |
+| [0013](0013-swift-evolution-interface-builder.md) | SwiftEvolutionInterfaceBuilder：ABI 演进的并集注解接口渲染（`evolution --interface`） | Implemented |
+| [0014](0014-unify-interface-renderers.md) | 统一 diff / evolution 接口渲染器的结构遍历核心（顺带修 diff accessor 双重缩进） | Implemented |
+| [0015](0015-type-name-resolver-role-split.md) | TypeNameResolvable 角色化拆分：printer 查询解析器按能力分协议 | Implemented |
+| [0017](0017-macho-dependencies-module.md) | 依赖闭包下沉为 MachODependencies 模块：两套依赖加载合一 | Implemented |
+| [0016](0016-exported-only-interface.md) | Interface 只打印导出声明（`--exported-only`）：提案 0008 标注的过滤形态，打印期按描述符 / 派生符号 / 扩展目标裁决 | Implemented |
+| [0018](0018-self-contained-abi-layer.md) | ABI 层自包含：MachOSwiftSection 不再依赖符号索引——描述符只暴露实现地址，符号查询上移 SwiftInspection，值类型下沉 MachOResolving | Implemented |
+| [0019](0019-large-stack-executor-and-cross-version-parallelism.md) | 大栈任务执行器接入与跨版本并行准备：打印路径零线程跳转（执行器本体在 swift-demangling 0014），diff / evolution 多版本并行 | Implemented |
+| [0020](0020-vtable-slot-attribution-via-method-descriptor-symbols.md) | vtable 槽归属改用 method descriptor 符号：ICF 折叠下的错名修正与墓碑槽还原 | Implemented |

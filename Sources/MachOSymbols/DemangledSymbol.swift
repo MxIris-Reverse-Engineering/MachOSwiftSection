@@ -1,3 +1,4 @@
+import MachOResolving
 import Demangling
 
 /// A symbol paired with the handle of its demangled tree.

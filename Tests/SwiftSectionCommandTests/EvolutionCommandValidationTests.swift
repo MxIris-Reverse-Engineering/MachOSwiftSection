@@ -41,6 +41,22 @@ struct EvolutionCommandValidationTests {
         )
     }
 
+    // MARK: - `--jobs` (evolution proposal `large-stack-executor-and-cross-version-parallelism`)
+
+    @Test func jobsBelowOneIsRejected() {
+        expectValidationFailure(
+            ["--jobs", "0", "old.dylib", "new.dylib"],
+            messagePart: "--jobs must be at least 1"
+        )
+    }
+
+    @Test func jobsParsesAndDefaultsToAbsent() throws {
+        let explicit = try EvolutionCommand.parse(["--jobs", "2", "old.dylib", "new.dylib"])
+        #expect(explicit.jobs == 2)
+        let implicit = try EvolutionCommand.parse(["old.dylib", "new.dylib"])
+        #expect(implicit.jobs == nil)
+    }
+
     @Test func interfaceParsesAlongsideTheSharedOptions() throws {
         let command = try EvolutionCommand.parse([
             "--interface", "--labels", "1.0,2.0", "--fail-on-breaking", "old.dylib", "new.dylib",

@@ -13,7 +13,7 @@ import SwiftPrinting
 /// `Foundation.NSString` through a ``TypeDatabase`` built for the indexed
 /// binary's platform and dependency set.
 @available(macOS 13.0, *)
-public final class SwiftInterfaceBuilderTypeNameProvider<MachO: MachOSwiftSectionRepresentableWithCache & ObjCMetadataSource & Sendable>: SwiftInterfaceBuilderExtraDataProvider, Sendable {
+public final class SwiftInterfaceBuilderTypeNameProvider<MachO: MachOSwiftSectionRepresentableWithCache & ObjCMetadataSource & Sendable>: SwiftInterfaceBuilderExtraDataProvider, ModuleNameResolving, CImportedNameResolving, Sendable {
     public let machO: MachO
 
     private let typeDatabase: TypeDatabase<MachO>

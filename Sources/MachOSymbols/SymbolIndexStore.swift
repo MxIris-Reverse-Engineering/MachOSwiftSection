@@ -2,6 +2,7 @@ import Foundation
 import FoundationToolbox
 import MachOKit
 import MachOKitExtensions
+import MachOResolving
 @_spi(Internals) import Demangling
 import OrderedCollections
 import Utilities

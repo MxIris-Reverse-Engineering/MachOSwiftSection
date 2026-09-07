@@ -1,5 +1,5 @@
 import Foundation
-import MachOFoundation
+import MachOBase
 
 public struct EnumMetadata: EnumMetadataProtocol {
     public struct Layout: EnumMetadataLayout {
