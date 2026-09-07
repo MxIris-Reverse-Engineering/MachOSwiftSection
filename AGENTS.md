@@ -442,6 +442,31 @@ Rule out both before attributing red tests to a code change:
    150–210 s), not only the layout path. Do not bump past 0.6.0 until upstream
    addresses it; see the 2026-09-02 MachODependencies task report.)
 
+3. **Fixture build settings drifting from the ones the baselines were generated
+   with.** The ABI literal baselines under
+   `Tests/MachOSwiftSectionTests/Fixtures/__Baseline__/` record absolute
+   implementation offsets, and those offsets move when the fixture is built with
+   different settings — not only when its sources change. Measured 2026-09-07:
+   passing `CODE_SIGNING_ALLOWED=NO` shifts every implementation offset in
+   `SymbolTestsCore` by +16 bytes (`MethodDescriptorTests` 5624 → 5640,
+   `MethodOverrideDescriptorTests` 16404 → 16420, `ResilientWitnessTests`
+   9100 → 9116, `ProtocolRequirementTests` 45256 → 45272), turning four suites
+   red with no code change. The setting does not even do what its name suggests
+   here — the product carries an `LC_CODE_SIGNATURE` either way; what changes is
+   the layout. `ARCHS=arm64` is harmless, and the `-derivedDataPath` value
+   (hence the absolute path length) does NOT affect the offsets — both were
+   ruled out by bisecting one variable at a time.
+
+   The consequence: **the fixture build command in CI and the one used to
+   regenerate baselines must stay identical**, or the next regeneration is red
+   on arrival. Both are the command documented above under "To regenerate all
+   baselines", with `ARCHS=arm64` as CI's only addition. This bit once already —
+   CI carried `CODE_SIGNING_ALLOWED=NO` while the baselines were generated
+   without it, and because the CI workflow only triggers on `main` (`branches:
+   [main]` for both `push` and `pull_request`), the mismatch stayed invisible
+   through every `→ next` PR and surfaced only at the 0.19.0 release PR, on 27
+   commits at once.
+
 ## Work In Progress
 
 ### GenericSpecializer (SwiftSpecialization module)

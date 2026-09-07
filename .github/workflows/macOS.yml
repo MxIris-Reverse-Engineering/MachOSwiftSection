@@ -40,7 +40,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: Tests/Projects/SymbolTests/DerivedData
-          key: symboltests-${{ matrix.xcode-version }}-${{ hashFiles('Tests/Projects/SymbolTests/**/*.swift', 'Tests/Projects/SymbolTests/**/*.pbxproj') }}
+          key: symboltests-${{ matrix.xcode-version }}-${{ hashFiles('Tests/Projects/SymbolTests/**/*.swift', 'Tests/Projects/SymbolTests/**/*.pbxproj', '.github/workflows/macOS.yml') }}
 
       - name: Build SymbolTestsCore fixture
         working-directory: ${{ github.workspace }}
@@ -53,32 +53,41 @@ jobs:
             -derivedDataPath Tests/Projects/SymbolTests/DerivedData \
             -destination 'generic/platform=macOS' \
             -quiet \
-            CODE_SIGNING_ALLOWED=NO \
             ARCHS=arm64 \
             build
 
-      - name: Normalize SymbolTestsCore fixture path
+      - name: Normalize fixture framework paths
         run: |
           set -eo pipefail
-          expected="Tests/Projects/SymbolTests/DerivedData/SymbolTests/Build/Products/Release/SymbolTestsCore.framework"
-          echo "--- find SymbolTestsCore.framework under DerivedData ---"
-          find Tests/Projects/SymbolTests/DerivedData -name "SymbolTestsCore.framework" -type d 2>/dev/null || true
-          if [ -d "$expected" ]; then
-            echo "Framework already at expected path; nothing to do."
-            exit 0
-          fi
-          # Prefer a Release build product (skip Intermediates and Debug).
-          found=$(find Tests/Projects/SymbolTests/DerivedData -path '*/Build/Products/Release/SymbolTestsCore.framework' -type d 2>/dev/null | head -1)
-          if [ -z "$found" ]; then
-            echo "ERROR: SymbolTestsCore.framework not found at any Build/Products/Release/ path."
-            echo "--- DerivedData top 3 levels ---"
-            find Tests/Projects/SymbolTests/DerivedData -maxdepth 3 -type d
-            exit 1
-          fi
-          mkdir -p "$(dirname "$expected")"
-          ln -sfn "$(realpath "$found")" "$expected"
-          echo "Linked $found -> $expected"
-          ls -la "$expected/Versions/A/SymbolTestsCore"
+          # The tests look for the frameworks under DerivedData/SymbolTests/...,
+          # while xcodebuild writes them to DerivedData/Build/Products/Release.
+          # Link every framework the tests need, not just SymbolTestsCore:
+          # DependencyClosureTests resolves SymbolTestsHelper through the same
+          # expected path, and omitting it fails that suite with
+          # "The file SymbolTestsHelper doesn't exist".
+          root="Tests/Projects/SymbolTests/DerivedData"
+          expected_dir="$root/SymbolTests/Build/Products/Release"
+          echo "--- frameworks found under DerivedData ---"
+          find "$root" -path '*/Build/Products/Release/*.framework' -maxdepth 6 -type d 2>/dev/null || true
+          mkdir -p "$expected_dir"
+          for framework in SymbolTestsCore SymbolTestsHelper; do
+            expected="$expected_dir/$framework.framework"
+            if [ -d "$expected" ] && [ ! -L "$expected" ]; then
+              echo "$framework already at expected path; nothing to do."
+              continue
+            fi
+            # Prefer a Release build product (skip Intermediates and Debug).
+            found=$(find "$root" -path "*/Build/Products/Release/$framework.framework" -type d 2>/dev/null | head -1)
+            if [ -z "$found" ]; then
+              echo "ERROR: $framework.framework not found at any Build/Products/Release/ path."
+              echo "--- DerivedData top 3 levels ---"
+              find "$root" -maxdepth 3 -type d
+              exit 1
+            fi
+            ln -sfn "$(realpath "$found")" "$expected"
+            echo "Linked $found -> $expected"
+            ls -la "$expected/Versions/A/$framework"
+          done
 
       - name: Upload xcodebuild logs on failure
         if: failure()
