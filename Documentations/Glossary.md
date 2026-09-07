@@ -32,10 +32,16 @@
 
 ### ABI 墓碑（ABI tombstone）
 
-实现已被删除、槽位仍为 ABI 兼容保留的 vtable 槽。特征是 method descriptor 的 implementation 相对指针为 null，而 class metadata 里对应的 word 是一条指向 `swift_deletedMethodError` 的 bind——调用即 trap。descriptor 的 `Tq` 符号通常还在，所以**被删掉的是哪个成员仍然可知**，dump 会打印那个名字并在上一行注明本镜像内无实现；`Tq` 也没有时才退化为 `<unnamed vtable slot>`。实测 SwiftUICore 的非泛型类里约 33% 的槽是墓碑（其中近半能还原出名字）。
+实现体已被优化器删除、槽位仍保留在 vtable 里的槽。**被删的是函数体，不是声明**——源码、`Tq` 符号、method descriptor 都还在，所以「被删掉实现的是哪个成员」仍然可知；`Tq` 也没有时才退化为 `<unnamed vtable slot>`。
+
+判据是 method descriptor 的 implementation 相对指针为 null，而这是**编译器的权威标记**：IRGen 的 `buildMethodDescriptorFields` 只有两个分支，SIL vtable 有 entry 就写相对地址，没有就写 null，后者的原注释即 "The method is removed by dead method elimination."。
+
+**成因是访问级别，不是「API 被删除」**：public 类型里不写修饰符的 `init()` 默认是 internal，在整模块优化（whole-module optimization）下 internal 成员不是 dead function elimination 的 anchor，没人调用（或调用点内联后独立函数体死掉）即被摘掉 vtable entry。OS 框架里多数 vtable 成员是 internal，所以这个现象常见而非罕见——实测 SwiftUICore（iOS 18.5 arm64）341 处、Xcode 自带 SourceEditor.framework 11680 处。
+
+**两种 metadata 形态要分开**：静态 class metadata 对这类槽填 `swift_deletedMethodError`，调用即 trap；而运行时实例化的 metadata（泛型类、resilient 父类的 relocate 路径）由 `initClassVTable` 把 descriptor 的 null 原样拷入，**保持 null，不会变成那个函数**。
 
 - **主要出现在**：`ClassDumper` 的 vtable 循环、`DeclarationRenderConfiguration.deletedMethodSlotComment`
-- **延伸阅读**：[提案 vtable-slot-attribution](Evolutions/draft-vtable-slot-attribution-via-method-descriptor-symbols.md)
+- **延伸阅读**：[提案 vtable-slot-attribution](Evolutions/draft-vtable-slot-attribution-via-method-descriptor-symbols.md)、[PR #123 review findings 第 1 条](../Roadmaps/2026-09-06-pr123-review-findings.md)
 
 ### anchor 协议（anchor protocol）
 
