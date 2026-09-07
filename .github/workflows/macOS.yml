@@ -54,6 +54,8 @@ jobs:
             -destination 'generic/platform=macOS' \
             -quiet \
             ARCHS=arm64 \
+            CODE_SIGN_IDENTITY=- \
+            CODE_SIGNING_REQUIRED=NO \
             build
 
       - name: Normalize fixture framework paths

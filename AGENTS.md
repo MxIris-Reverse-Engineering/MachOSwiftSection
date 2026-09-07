@@ -457,10 +457,25 @@ Rule out both before attributing red tests to a code change:
    (hence the absolute path length) does NOT affect the offsets — both were
    ruled out by bisecting one variable at a time.
 
-   The consequence: **the fixture build command in CI and the one used to
-   regenerate baselines must stay identical**, or the next regeneration is red
-   on arrival. Both are the command documented above under "To regenerate all
-   baselines", with `ARCHS=arm64` as CI's only addition. This bit once already —
+   The mechanism is alignment padding, not the signature: both products carry
+   an `LC_CODE_SIGNATURE` and identical headers (35 load commands, 5000 bytes),
+   but the padding between the load commands and `__text` is 64 bytes in a
+   signed build and 80 in a `CODE_SIGNING_ALLOWED=NO` one, so `__text` starts at
+   `0x13e8` versus `0x13f8` and every function offset moves with it.
+
+   **CI therefore builds the fixture ad-hoc signed** (`CODE_SIGN_IDENTITY=-`
+   plus `CODE_SIGNING_REQUIRED=NO`), which needs no certificate — a GitHub
+   runner has none, and simply dropping `CODE_SIGNING_ALLOWED=NO` makes the
+   build fail with *No signing certificate "Mac Development" found* — while
+   reproducing the signed layout exactly (`__text` at `0x13e8`, the five suites
+   28/28 green). Do not "fix" a future mismatch by switching CI back to
+   `CODE_SIGNING_ALLOWED=NO`; that trades a build failure for four silently
+   wrong suites.
+
+   The consequence for regeneration: **the fixture build command in CI and the
+   one used to regenerate baselines must produce the same layout.** A local
+   regeneration with a real signing identity matches CI's ad-hoc build; a
+   regeneration with `CODE_SIGNING_ALLOWED=NO` does not. This bit once already —
    CI carried `CODE_SIGNING_ALLOWED=NO` while the baselines were generated
    without it, and because the CI workflow only triggers on `main` (`branches:
    [main]` for both `push` and `pull_request`), the mismatch stayed invisible
