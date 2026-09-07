@@ -375,3 +375,67 @@
 - **为什么延后**：正确修法是 `addTaskUnlessCancelled` + 注册前 `Task.checkCancellation()`（否则取消会把残缺索引静默登记进去），而 `index(dependencies:moduleFilter:)` 直接构造 `SDKIndexer` / `ModuleInterfaceIndexer`（需要 SourceKit 与 SDK），没有注入缝可以写单元级复现测试；按「修复必带能变红的测试」规则，先补注入缝再修。
 - **复审条件**：`TypeDatabase` 获得 indexer 注入缝时一并修，或 GUI 宿主报告取消 `--resolve-c-module-names` 后 CPU 仍被占用。
 
+
+---
+
+## A34 — dump 的 vtable 段落输出 `class func static X.classMethod()`（PR #123 review 发现 11，**已有裁决**）
+
+- **裁决**：不修（2026-09-07，沿用 2026-07 的既有决定）。
+- **发现**：`dumpMethodKeyword`（`ClassDumper.swift:529`）对类型级成员输出 `class`，而 demangler 对 `.static` 节点无条件打印 `static ` 前缀，合起来是自相矛盾的 `class func static ...`；新基线 `vTableEntryVariantsSnapshot.1.txt:142` 收录了这一行。
+- **复现 / 是否误报**：输出属实，但**不是本 PR 引入的缺陷**。本 PR 只是让该槽第一次正确解析到 `classMethod`（基线上它错解析成一个 subscript setter），既有形态首次出现在这个 fixture 上。
+- **与 main 基线对比**：形态在 `next` 上就存在，只是此 fixture 未触发。
+- **既往修复 / 当时为什么这样做**：[ClassMemberKeywordRecovery.md](ClassMemberKeywordRecovery.md) 第「dump 路径里 override table 的 `static` 前缀不动」节（修 issue #99 时写的）已明确裁决：dump 输出里的 `static` 来自 **demangler 对符号的忠实还原**，「dump 本就是符号列表而非可编译 Swift 源码，改掉它等于篡改 demangle 结果，明确不动」；该文原文即写着「原输出形如 `static func static Foo...`，现为 `class func static Foo...`」。理由今日仍成立。
+- **复审条件**：dump 输出的定位从「符号列表」改为「可编译 Swift 源码」；或 demangler 提供抑制 `static` 前缀的 `DemangleOptions`（目前没有）。
+
+---
+
+## A35 — `entityNodeKinds` 未收录 `.boundGenericFunction`（PR #123 review 发现 12，**误报**）
+
+- **裁决**：误报（2026-09-07）。
+- **发现**：审查认为 `Node+DeclarationContext.swift:25` 的 `entityNodeKinds` 漏掉 `.boundGenericFunction`（`NodePrinter.swift:431` 与 `.function` 同样走 `printEntity(hasName: true)`），导致这类符号走不到 entity、被当作候选丢弃。
+- **为什么是误报**：`.boundGenericFunction` 的子节点布局是 `[functionOrConstructorNode, typeList]`（`Demangler.swift:1288`：`createNode(kind: .boundGenericFunction, children: [n, args])`；`NodePrinter.swift:1954` 也是这么解包的），**第一个子节点不是声明上下文**，而是 `.function` / `.constructor` 节点本身。把它排除在 entity 集合之外、让遍历**穿过**它落到里面那个 `.function` 上，拿到的才是正确的上下文——收录它反而会把函数节点当成上下文。当前写法正确。
+- **与 main 基线对比**：新增代码，无基线对照。
+- **复审条件**：上游改变 `.boundGenericFunction` 的子节点布局。
+
+---
+
+## A36 — `VTableSlotAttributionTests` 的 fixture 前提硬失败（PR #123 review 发现 13，**误报 + 有意设计**）
+
+- **裁决**：不修（2026-09-07）。
+- **发现**：审查提出两点——(a) `swiftc -emit-library` 不带 `-target`，在 Intel 主机上产出的 fat 文件没有 arm64 slice，`#require(machOFile, "fixture unexpectedly missing an arm64 slice")` 会让 5 个测试全红；(b) `foldedImplementationAddress` 用 `#require` 断言折叠发生，linker 不再折叠时 3 个测试因环境原因变红。
+- **复现 / 是否误报**：(a) **误报**——`swiftc` 默认产出宿主架构的 **thin** 文件，`loadFromFile` 走 `.machO` 分支，`.fat` 分支根本不会走到。(b) 属实，但**是测试自己写明的设计**：文件头文档注释写着 `foldedImplementationAddress` 是「a REQUIRED premise of every test here rather than a soft check」——前提没了测试即空转，红掉正是想要的信号。
+- **与 main 基线对比**：新增测试，无基线。
+- **复审条件**：(b) 若工具链侧真的停止支持 `-deduplicate`，改为 `.enabled(if:)` 跳过而非红；届时需同时在 `KnownIssues` 侧记下「本套测试已失去前提」，不能静默跳过。
+
+---
+
+## A37 — 两条新注释不走 OutputTransformer token-template 机制（PR #123 review 发现 4，部分）
+
+- **裁决**：模板槽不修（2026-09-07，沿用本表 A14）；**布尔开关待修，不在本条覆盖范围内**。
+- **发现**：`deletedMethodSlotComment()` / `ambiguousAttributionComment(foldedSymbolCount:)` 既无 `printXxx` 开关，也无 `…Transformer` 闭包槽，与 `DeclarationRenderConfiguration` 里其他每一种注释都不同。
+- **为什么模板槽不修**：A14（2026-08-23，`not exported` 注释）已就同形问题裁决——transformer 机制的价值在**带变量 token 的注释**，零参数的固定事实陈述模板化只能改文案，而文案恰是承重部分。`deletedMethodSlotComment()` 是零 token，直接适用。
+- **A14 未覆盖的两点**：`ambiguousAttributionComment(foldedSymbolCount:)` **带一个变量 token**，A14 的理由不适用；且 A14 明确写过「若需要开关，`printExportStatus` 这一个 Bool 就是全部所需表面」，而这两条注释连那个 Bool 都没有。**加开关是真缺陷**，记在 [PR #123 findings 第 4 条](../../Roadmaps/2026-09-06-pr123-review-findings.md)，随修复批次处理。
+- **复审条件**：歧义注释的计数语义定稿后（见 findings 第 2 条），若宿主提出自定义措辞需求，再给它补单 token 模块。
+
+---
+
+## A38 — `Tq` 归属分支不做声明上下文校验（PR #123 review 发现 8）
+
+- **裁决**：延后（2026-09-07）。
+- **发现**：`TypeDefinition.swift:275` 与 `ClassDumper.swift:242` 的 `Tq` 分支跳过了回退路径强制的两道闸——声明上下文必须匹配本类（`demangledOverrideSymbol` / `ClassDumper.validNode` 都做）、`visitedNodes` 去重——却仍向 `visitedNodes` 追加。
+- **复现 / 是否误报**：机制属实，**但构造不出触发场景**。`attributedMemberNode` 只接受能 demangle 成 `.methodDescriptor` 的符号，而 method descriptor 在一个镜像内地址唯一，同地址出现别的类的 `Tq` 符号在实践中不成立；dyld 共享缓存的偏移规范化理论上留了口子（AGENTS.md 记有「raw 与 adjusted offset 共用一行」），本轮未能构造出实例。
+- **与 main 基线对比**：新增代码路径。
+- **为什么延后**：正确修法是加一句与回退路径同样的上下文断言（便宜），但按「修复必带能变红的测试」规则，需要先构造出能触发的镜像；在构造出来之前加断言等于加一条永远不执行的分支。
+- **复核补充（2026-09-07）**：「构造不出触发镜像」**不等于**「构造不出变红的测试」——`MethodDescriptorAttribution.memberNode(forMethodDescriptorSymbols:in:)` 收的是一个 `Symbols` 值，手造一个含别的类的 `Tq` 名字的 `Symbols` 即可在单元级复现并变红。因此「没有复现测试」不再是延后的理由，修复批次顺手加断言时把这条测试一并补上。
+- **复审条件**：修复批次加上下文断言（连同上述单元测试），或构造出跨镜像 `Tq` 偏移碰撞的真实实例。
+
+---
+
+## A39 — `vtableAccessorFieldNames` 按折叠地址扫描且无本类过滤（PR #123 review 发现 15，**基线既有**）
+
+- **裁决**：延后为独立批次（2026-09-07）。
+- **发现**：`ClassDumper.swift:561-571` 仍按实现地址收集访问器名字，内层 `for symbol in symbols` 无本类过滤、无早退，把找到的每个 `.variable` 名字都塞进集合。折叠地址上是每个访问器 descriptor ~2878 次 `demangleSymbolReference`（有 memo 缓存兜底），且会收进嵌套类型的同名字段，从而抑制本类同名字段的 `final` 标记——正是本 PR 在别处修掉的那种跨类型串味。
+- **与 main 基线对比**：`next` 上一模一样，本 PR 未触及该函数。
+- **既往修复 / 当时为什么这样做**：来自提案 0006 的 `final` 关键字还原（commit `da9b8be2`，其后 `83a4308c` 补了「有 `Tq` 就绝不标 `final`」的否定证据）。当时的证据模型就是实现地址反查，本 PR 才把「实现地址在折叠下不可逆」确立为项目事实。
+- **为什么延后**：错误方向保守（少标 `final` 而非错标），且修法与 findings 第 5 条（遍历去重）、第 6 条（快路径不白算）同属「把 `Tq` 优先的证据顺序推广到 `final` 恢复路径」，捆在一起做才不会来回改同一段。
+- **复审条件**：`final` 恢复路径的证据模型统一批次；或出现「`final` 在真实框架上被系统性漏标」的报告。

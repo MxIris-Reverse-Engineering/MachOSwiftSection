@@ -30,6 +30,21 @@
 - **主要出现在**：`Scripts/run-rendering-ab-verification.py`
 - **延伸阅读**：[SystemFrameworkRenderingVerification.md](Internal/SystemFrameworkRenderingVerification.md)
 
+### ABI 墓碑（ABI tombstone）
+
+实现体已被优化器删除、槽位仍保留在 vtable 里的槽。**被删的是函数体，不是声明**——源码、`Tq` 符号、method descriptor 都还在，所以「被删掉实现的是哪个成员」仍然可知；`Tq` 也没有时才退化为 `<unnamed vtable slot>`。
+
+判据是 method descriptor 的 implementation 相对指针为 null，而这是**编译器的权威标记**：IRGen 的 `buildMethodDescriptorFields` 只有两个分支，SIL vtable 有 entry 就写相对地址，没有就写 null，后者的原注释即 "The method is removed by dead method elimination."。
+
+**成因是访问级别，不是「API 被删除」**：public 类型里不写修饰符的 `init()` 默认是 internal，在整模块优化（whole-module optimization）下 internal 成员不是 dead function elimination 的 anchor，没人调用（或调用点内联后独立函数体死掉）即被摘掉 vtable entry。OS 框架里多数 vtable 成员是 internal，所以这个现象常见而非罕见——实测 SwiftUICore（iOS 18.5 arm64）341 处、Xcode 自带 SourceEditor.framework 11680 处。
+
+**两种 metadata 形态要分开**：静态 class metadata 对这类槽填 `swift_deletedMethodError`，调用即 trap；而运行时实例化的 metadata（泛型类、resilient 父类的 relocate 路径）由 `initClassVTable` 把 descriptor 的 null 原样拷入，**保持 null，不会变成那个函数**。判别标志是 `ClassLayoutFlags::HasStaticVTable`——IRGen 对 Singleton / Update / FixedOrUpdate 三种策略都会设它，所以「自身字段依赖 resilient 类型、但祖先固定」的 Singleton 类 vtable 仍是静态的，照样填 `swift_deletedMethodError`；真正在运行时重建 vtable 的只有泛型类与 Resilient 策略两类。
+
+**这也是不要靠 bind 来判定墓碑的原因之一**：离线读一个 Resilient 策略的类，`MachOFile` 里只有 metadata pattern，根本没有 vtable word 可读——判据必须回到 descriptor 的 null 本身。
+
+- **主要出现在**：`ClassDumper` 的 vtable 循环、`DeclarationRenderConfiguration.deletedMethodSlotComment`
+- **延伸阅读**：[提案 vtable-slot-attribution](Evolutions/0020-vtable-slot-attribution-via-method-descriptor-symbols.md)、[PR #123 review findings 第 1 条](../Roadmaps/2026-09-06-pr123-review-findings.md)
+
 ### anchor 协议（anchor protocol）
 
 一条 same-type 约束的 subject 里，关联类型所**限定的声明协议**——`τ_1_0.[Swift.Sequence]Element == [A]` 的 anchor 是 `Swift.Sequence`（mangling 层限定形式，demangle 后保留在 `dependentAssociatedTypeRef` 的第二个 child）。注意 anchor 是 canonicalization 后**继承链最上层的原始声明者**，不一定是源码 sugar 写在哪个协议上（`Collection<[A]>` 的约束 anchor 是 Sequence），也不一定在 opaque 组合成员之内。opaque 尖括号参数的归属裁决以它为第一信号。
@@ -100,12 +115,19 @@ diff / evolution 两条对比渲染路共享结构遍历核心（`InterfaceUnion
 - **主要出现在**：`Sources/SwiftInterface/InterfaceUnionWalker.swift`（协议与遍历器）、`SwiftDiffableInterfaceRenderer.swift`（`DiffUnionStrategy`）、`SwiftEvolutionInterfaceRenderer.swift`（evolution 策略）
 - **延伸阅读**：[提案 0014](Evolutions/0014-unify-interface-renderers.md)
 
+### identical code folding（ICF，相同代码折叠）
+
+linker 把字节相同的函数体合并到同一地址的优化。后果是「地址 → 符号」不再是单射：SwiftUICore 里空 `ret` 那一个地址上挂着 **2878** 个符号。任何「拿实现地址反查这是谁」的逻辑在折叠面前都没有逆——vtable 槽归属因此改用 method descriptor 自身的 `Tq` 符号（每成员一个、位于 descriptor 自身地址，折叠够不着它），实现地址反查只作回退，且回退撞上折叠地址时输出会注明归属不确定。同一事实也是 `final` 关键字还原（提案 0006）必须用 `Tq` 作否定证据的原因。fixture 里可用 `-Xlinker -deduplicate` 强制触发。
+
+- **主要出现在**：`Descriptor+MethodDescriptorSymbols.swift`、`ClassDumper`、`TypeDefinition.index`、`FinalKeywordICFRegressionTests`、`VTableSlotAttributionTests`
+- **延伸阅读**：[提案 vtable-slot-attribution](Evolutions/0020-vtable-slot-attribution-via-method-descriptor-symbols.md)、[提案 0006](Evolutions/0006-final-keyword-and-lazy-accessor-type-recovery.md)
+
 ### large-stack executor（大栈执行器，`LargeStackTaskExecution`）
 
 swift-demangling 0.6.3 起提供的 `TaskExecutor`（`StackSafeExecutor.taskExecutor`，线程栈 16 MB，`@_spi(Internals)`）。demangler 每次 demangle / print / remangle 都按**调用线程的剩余栈**决定要不要跳到它的 8 MB 线程池——协作线程只有 512 KB，探针永远不过，async 打印循环因此每打印一个符号付一次线程往返；task 跑在大栈执行器的线程上时探针每个入口都通过，全程原地执行、零跳转。本库通过 `MachOSymbols.LargeStackTaskExecution.run` 在库入口（索引器 prepare、interface builder、printer 逐定义入口、diff / evolution、dump）自装偏好，宿主零改动；macOS 15 / iOS 18 以下静默回退为原样执行。与「跳转池」（demangler 自己的 8 MB `LargeStackThreadPool`，同步 `withLargeStack` 批次用）是两个池：执行器的 job 是整段 task，会占线程上百秒，不能挤占同步跳转的额度。
 
 - **主要出现在**：`Sources/MachOSymbols/LargeStackTaskExecution.swift`、各 async 入口的 `LargeStackTaskExecution.run { … }`
-- **延伸阅读**：[LargeStackTaskExecutorAdoption.md](Internal/LargeStackTaskExecutorAdoption.md)、提案 [draft-large-stack-executor-and-cross-version-parallelism](Evolutions/draft-large-stack-executor-and-cross-version-parallelism.md)、上游 swift-demangling `Documentations/StackSafety.md` 第八节
+- **延伸阅读**：[LargeStackTaskExecutorAdoption.md](Internal/LargeStackTaskExecutorAdoption.md)、提案 [0019-large-stack-executor-and-cross-version-parallelism](Evolutions/0019-large-stack-executor-and-cross-version-parallelism.md)、上游 swift-demangling `Documentations/StackSafety.md` 第八节
 
 ### late-name 路径（`lateDemangledNode(forName:)`）
 

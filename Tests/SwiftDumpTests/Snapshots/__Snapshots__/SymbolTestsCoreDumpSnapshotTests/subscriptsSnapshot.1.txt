@@ -17,13 +17,17 @@ struct SymbolTestsCore.Subscripts.SubscriptStaticTest {
 class SymbolTestsCore.Subscripts.ClassSubscriptTest {
     var elements: [Swift.Int]
 
-    /* [Getter] */ Symbol not found
-    /* [Setter] */ Symbol not found
-    /* [Modify] */ Symbol not found
+    // No implementation in this image (deleted method — slot retained for ABI)
+    /* [Getter] */ <unnamed vtable slot>
+    // No implementation in this image (deleted method — slot retained for ABI)
+    /* [Setter] */ <unnamed vtable slot>
+    // No implementation in this image (deleted method — slot retained for ABI)
+    /* [Modify] */ <unnamed vtable slot>
     /* [Getter] */ SymbolTestsCore.Subscripts.ClassSubscriptTest.subscript.getter : (Swift.Int) -> Swift.Int
     /* [Setter] */ SymbolTestsCore.Subscripts.ClassSubscriptTest.subscript.setter : (Swift.Int) -> Swift.Int
     /* [Modify] */ SymbolTestsCore.Subscripts.ClassSubscriptTest.subscript.modify : (Swift.Int) -> Swift.Int
-    /* [ Init ] */ Symbol not found
+    // No implementation in this image (deleted method — slot retained for ABI)
+    /* [ Init ] */ SymbolTestsCore.Subscripts.ClassSubscriptTest.__allocating_init() -> SymbolTestsCore.Subscripts.ClassSubscriptTest
 
     /* Deallocator */
     SymbolTestsCore.Subscripts.ClassSubscriptTest.__deallocating_deinit

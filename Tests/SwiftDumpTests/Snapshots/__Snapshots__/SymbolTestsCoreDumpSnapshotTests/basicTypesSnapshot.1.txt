@@ -2,7 +2,8 @@
 
 enum SymbolTestsCore.BasicTypes {}
 class SymbolTestsCore.BasicTypes.TestsObjects {
-    /* [ Init ] */ Symbol not found
+    // No implementation in this image (deleted method — slot retained for ABI)
+    /* [ Init ] */ SymbolTestsCore.BasicTypes.TestsObjects.__allocating_init() -> SymbolTestsCore.BasicTypes.TestsObjects
 
     /* Deallocator */
     SymbolTestsCore.BasicTypes.TestsObjects.__deallocating_deinit

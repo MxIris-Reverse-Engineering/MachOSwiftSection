@@ -108,7 +108,7 @@ actor SymbolTestsCore.Initializers.AsyncInitializerActorTest {
     var $defaultActor: Builtin.DefaultActorStorage
     let identifier: Swift.Int
 
-    /* [ Init ] */ async function pointer to SymbolTestsCore.Initializers.AsyncInitializerActorTest.__allocating_init(identifier: Swift.Int) async -> SymbolTestsCore.Initializers.AsyncInitializerActorTest
+    /* [ Init ] */ SymbolTestsCore.Initializers.AsyncInitializerActorTest.__allocating_init(identifier: Swift.Int) async -> SymbolTestsCore.Initializers.AsyncInitializerActorTest
 
     /* Allocator */
     SymbolTestsCore.Initializers.AsyncInitializerActorTest.__allocating_init(identifier: Swift.Int) async -> SymbolTestsCore.Initializers.AsyncInitializerActorTest
