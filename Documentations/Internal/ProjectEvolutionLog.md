@@ -1286,7 +1286,7 @@
   CLI `--jobs`），版本内并行不做（MachOKit 共享 FileHandle）；pin 抬到 0.6.3 跳过 0.6.1。
 - **落地模块**：`MachOSymbols`（`LargeStackTaskExecution`）、`Utilities`（`concurrentMap(maximumConcurrency:)`）、
   `SwiftIndexing`、`SwiftInterface`、`SwiftPrinting`、`SwiftDump`、`swift-section`。
-- **关联文档**：[提案](../Evolutions/draft-large-stack-executor-and-cross-version-parallelism.md)、
+- **关联文档**：[提案](../Evolutions/0019-large-stack-executor-and-cross-version-parallelism.md)、
   [LargeStackTaskExecutorAdoption.md](LargeStackTaskExecutorAdoption.md)、
   [TaskReports/2026-09-03-large-stack-executor-and-cross-version-parallelism.md](TaskReports/2026-09-03-large-stack-executor-and-cross-version-parallelism.md)、
   Glossary 新术语「large-stack executor（大栈执行器）」。
@@ -1315,7 +1315,7 @@
 - **落地模块**：`SwiftInspection`（`Descriptor+MethodDescriptorSymbols`、`Node+DeclarationContext`）、
   `SwiftDump`（`ClassDumper`）、`SwiftDeclaration`（`TypeDefinition` / `OverrideSymbolMatcher`）、
   `SwiftDeclarationRendering`（两条新注释）。
-- **关联文档**：[提案](../Evolutions/draft-vtable-slot-attribution-via-method-descriptor-symbols.md)、
+- **关联文档**：[提案](../Evolutions/0020-vtable-slot-attribution-via-method-descriptor-symbols.md)、
   [TaskReports/2026-09-06-vtable-slot-attribution.md](TaskReports/2026-09-06-vtable-slot-attribution.md)。
 - **对应版本**：未发布（待 bump）。
 

@@ -1,6 +1,6 @@
 # 2026-09-06 vtable 槽归属改用 method descriptor 符号
 
-对应提案：[draft-vtable-slot-attribution-via-method-descriptor-symbols](../../Evolutions/draft-vtable-slot-attribution-via-method-descriptor-symbols.md)
+对应提案：[0020-vtable-slot-attribution-via-method-descriptor-symbols](../../Evolutions/0020-vtable-slot-attribution-via-method-descriptor-symbols.md)
 
 ## 问题
 

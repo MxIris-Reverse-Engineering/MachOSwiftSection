@@ -5,7 +5,7 @@
 - **创建日期**: 2026-09-03
 - **最后更新**: 2026-09-04
 - **所属愿景**: 无
-- **关联提案**: [draft-large-stack-executor-and-cross-version-parallelism](draft-large-stack-executor-and-cross-version-parallelism.md)（同一轮调研的另一产物，互不依赖，可独立落地）
+- **关联提案**: [0019-large-stack-executor-and-cross-version-parallelism](0019-large-stack-executor-and-cross-version-parallelism.md)（同一轮调研的另一产物，互不依赖，可独立落地）
 - **实现分支 / PR**: `feature/self-contained-abi-layer`（worktree `.worktrees/MachOSwiftSection-SelfContainedABI`），[PR #121](https://github.com/MxIris-Reverse-Engineering/MachOSwiftSection/pull/121)
 - **配套文档**: [SelfContainedABILayer.md](../Internal/SelfContainedABILayer.md)（实现说明）、[TaskReports/2026-09-03-self-contained-abi-layer.md](../Internal/TaskReports/2026-09-03-self-contained-abi-layer.md)（过程复盘）
 

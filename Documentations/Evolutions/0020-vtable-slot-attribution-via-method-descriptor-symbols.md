@@ -1,9 +1,9 @@
-# Draft - vtable 槽归属改用 method descriptor 符号：ICF 折叠下的错名修正与墓碑槽还原
+# 0020 - vtable 槽归属改用 method descriptor 符号：ICF 折叠下的错名修正与墓碑槽还原
 
-- **状态**: In Progress
+- **状态**: Implemented
 - **作者**: JH
 - **创建日期**: 2026-09-06
-- **最后更新**: 2026-09-06
+- **最后更新**: 2026-09-07
 - **所属愿景**: 无
 - **关联提案**: [0006-final-keyword-and-lazy-accessor-type-recovery](0006-final-keyword-and-lazy-accessor-type-recovery.md)（首次把 `Tq` 符号当作 ICF 免疫证据用于 `final` 判定，但只用作否定证据，没有用于正向归属——本提案补上那一步）
 - **实现分支 / PR**: `feature/vtable-slot-attribution`（worktree `.worktrees/MachOSwiftSection-VTableSlotAttribution`），[PR #123](https://github.com/MxIris-Reverse-Engineering/MachOSwiftSection/pull/123)

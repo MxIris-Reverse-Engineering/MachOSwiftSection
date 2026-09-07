@@ -43,7 +43,7 @@
 **这也是不要靠 bind 来判定墓碑的原因之一**：离线读一个 Resilient 策略的类，`MachOFile` 里只有 metadata pattern，根本没有 vtable word 可读——判据必须回到 descriptor 的 null 本身。
 
 - **主要出现在**：`ClassDumper` 的 vtable 循环、`DeclarationRenderConfiguration.deletedMethodSlotComment`
-- **延伸阅读**：[提案 vtable-slot-attribution](Evolutions/draft-vtable-slot-attribution-via-method-descriptor-symbols.md)、[PR #123 review findings 第 1 条](../Roadmaps/2026-09-06-pr123-review-findings.md)
+- **延伸阅读**：[提案 vtable-slot-attribution](Evolutions/0020-vtable-slot-attribution-via-method-descriptor-symbols.md)、[PR #123 review findings 第 1 条](../Roadmaps/2026-09-06-pr123-review-findings.md)
 
 ### anchor 协议（anchor protocol）
 
@@ -120,14 +120,14 @@ diff / evolution 两条对比渲染路共享结构遍历核心（`InterfaceUnion
 linker 把字节相同的函数体合并到同一地址的优化。后果是「地址 → 符号」不再是单射：SwiftUICore 里空 `ret` 那一个地址上挂着 **2878** 个符号。任何「拿实现地址反查这是谁」的逻辑在折叠面前都没有逆——vtable 槽归属因此改用 method descriptor 自身的 `Tq` 符号（每成员一个、位于 descriptor 自身地址，折叠够不着它），实现地址反查只作回退，且回退撞上折叠地址时输出会注明归属不确定。同一事实也是 `final` 关键字还原（提案 0006）必须用 `Tq` 作否定证据的原因。fixture 里可用 `-Xlinker -deduplicate` 强制触发。
 
 - **主要出现在**：`Descriptor+MethodDescriptorSymbols.swift`、`ClassDumper`、`TypeDefinition.index`、`FinalKeywordICFRegressionTests`、`VTableSlotAttributionTests`
-- **延伸阅读**：[提案 vtable-slot-attribution](Evolutions/draft-vtable-slot-attribution-via-method-descriptor-symbols.md)、[提案 0006](Evolutions/0006-final-keyword-and-lazy-accessor-type-recovery.md)
+- **延伸阅读**：[提案 vtable-slot-attribution](Evolutions/0020-vtable-slot-attribution-via-method-descriptor-symbols.md)、[提案 0006](Evolutions/0006-final-keyword-and-lazy-accessor-type-recovery.md)
 
 ### large-stack executor（大栈执行器，`LargeStackTaskExecution`）
 
 swift-demangling 0.6.3 起提供的 `TaskExecutor`（`StackSafeExecutor.taskExecutor`，线程栈 16 MB，`@_spi(Internals)`）。demangler 每次 demangle / print / remangle 都按**调用线程的剩余栈**决定要不要跳到它的 8 MB 线程池——协作线程只有 512 KB，探针永远不过，async 打印循环因此每打印一个符号付一次线程往返；task 跑在大栈执行器的线程上时探针每个入口都通过，全程原地执行、零跳转。本库通过 `MachOSymbols.LargeStackTaskExecution.run` 在库入口（索引器 prepare、interface builder、printer 逐定义入口、diff / evolution、dump）自装偏好，宿主零改动；macOS 15 / iOS 18 以下静默回退为原样执行。与「跳转池」（demangler 自己的 8 MB `LargeStackThreadPool`，同步 `withLargeStack` 批次用）是两个池：执行器的 job 是整段 task，会占线程上百秒，不能挤占同步跳转的额度。
 
 - **主要出现在**：`Sources/MachOSymbols/LargeStackTaskExecution.swift`、各 async 入口的 `LargeStackTaskExecution.run { … }`
-- **延伸阅读**：[LargeStackTaskExecutorAdoption.md](Internal/LargeStackTaskExecutorAdoption.md)、提案 [draft-large-stack-executor-and-cross-version-parallelism](Evolutions/draft-large-stack-executor-and-cross-version-parallelism.md)、上游 swift-demangling `Documentations/StackSafety.md` 第八节
+- **延伸阅读**：[LargeStackTaskExecutorAdoption.md](Internal/LargeStackTaskExecutorAdoption.md)、提案 [0019-large-stack-executor-and-cross-version-parallelism](Evolutions/0019-large-stack-executor-and-cross-version-parallelism.md)、上游 swift-demangling `Documentations/StackSafety.md` 第八节
 
 ### late-name 路径（`lateDemangledNode(forName:)`）
 
