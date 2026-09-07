@@ -52,6 +52,7 @@
 - **与基线对比**：新增代码，基线无。
 - **值不值得修**：值得，改动小。
 - **修法（复核给出）**：让 `validNode` 顺带返回「匹配本类且未被认领」的候选数，按它三分——**≥ 2** 才打歧义注释，措辞改成 `M of N symbols at this address are members of this type`（同时说明分子分母各是什么）；**= 1** 归属其实唯一，不打；**= 0** 输出 `sub_` 地址，此时更不该声称「下面这个名字是最佳候选」。`implementationSymbols` 与计数一起移进 `attributedMethodNode == nil` 分支，第 6 条随之一并解决。
+- **注意（第二轮复核提出）**：本条要改的是歧义注释的**判据与措辞**，而代码此刻仍在输出字面的 `// Attribution: ambiguous — N symbols folded at this address`。`AGENTS.md` 与本条都保留这个字面文本作为「当前行为」的记录，修复批次落地时再一并替换为 `M of N …` 的新措辞——文档不得抢先描述尚未存在的输出。
 - **既往修复**：无。
 
 ### 3. 同一个「实现为 null」在一个函数里有三种渲染
@@ -91,7 +92,13 @@
 - **正确性问题（复核补入，比性能问题更重）**：遍历会穿过**任何**非 entity 包装节点，于是 `closure #1 in Foo.bar()`、`default argument 0 of Foo.bar()`、`variable initialization expression of Foo.x` 都会走到里层的 `.function` / `.variable` 并把 `Foo` 报成声明上下文——这些符号因此被当作 `Foo` 的成员候选接受。对照组是符号索引自己的口径：`SymbolIndexStore.processMemberSymbol` **只接受** `.static` 与访问器包装。本 PR 的初衷正是堵住「把不属于本类的符号当本类成员」，这里等于开了一个新口子。
 - **性能问题**：节点树是 hash-consed 的有向无环图（相同子树共享同一实例），无 visited 集合的遍历枚举的是路径数而非节点数。上游 swift-demangling 的 `DemanglingNode+Sequence.swift:245-251` 正是为此把 `first(of:)` 换成去重版，注释附实测：「on a shared DAG that one costs 2^N... Measured: 18.2s on a 22-level doubling DAG」，并指出**查不到东西的那次最贵**（无可短路）。这正是此处的常见情形：`validNode` 每个候选符号调一次，输入在 identical code folding（相同代码折叠）下是该地址上的全部符号——SwiftUICore 为 2878 个，其中多数是 metadata accessor、outlined function、witness table 这类根本没有 entity 节点的符号，每个都要走完整棵树才返回 nil。
 - **与基线对比**：新增代码。基线用的是上游已去重的 `first(of: .class)`，两个问题都属**新引入**。
-- **修法（复核给出，一箭双雕）**：只沿白名单包装下降——`global` / `static` / `getter` / `setter` / `modify` / `read` / `boundGenericFunction` / `methodDescriptor` / `mergedFunction`——并且**不进 type 子树**。这样闭包 / 默认参数 / 变量初始化表达式不再被误判，同时下降路径变成一条链，DAG 爆炸随之消失，**连 visited 集合都不需要**。初版建议的「改用上游 `first(of: 多个 kind)`」只解决性能、不解决误判，已废弃。
+- **修法（一箭双雕）**：只沿白名单包装下降，并且**不进 type 子树**。闭包 / 默认参数 / 变量初始化表达式因此不再被误判，同时下降路径收敛成一条链，DAG 爆炸随之消失，**连 visited 集合都不需要**。初版建议的「改用上游 `first(of: 多个 kind)`」只解决性能、不解决误判，已废弃。
+- **白名单（2026-09-07 第二轮复核修正后，已对 swift-demangling 源码逐条核过）**：
+  - **可下降**：`global`（遍历全部子节点）、`static`、八个访问器 kind——`getter` / `setter` / `modifyAccessor` / `modify2Accessor` / `readAccessor` / `read2Accessor` / `unsafeAddressor` / `unsafeMutableAddressor`（`Node+Kind.swift`；**不是** `modify` / `read`，那两个 kind 名不存在）、`boundGenericFunction`（`[n, args]`，只降 `children[0]`）、`vTableThunk`（只降 `children[0]`）。
+  - **必须含 `vTableThunk`**，否则 override 循环的回退会退化成 `override <unnamed vtable slot>`：`vtable thunk for Base.f() dispatching to Sub.f()` 是 override 槽合法的实现符号（`ResilientClasses` 快照里就有）。`Demangler.swift:1744` 建的是 `children: [derived, base]`，而 `printVTableThunk` 把 `children[1]`（base）印在 "vtable thunk for" 之后、`children[0]`（derived）印在 "dispatching to" 之后——**要的是 derived**。现行 BFS 没出问题纯粹因为 `children[0]` 先入队。
+  - **跳过（是叶子标记，不是包装）**：`mergedFunction` / `asyncFunctionPointer` / `coroFunctionPointer` / `objCAttribute`。它们由 `NodeFactory` 造成**无子节点**的单例（`Node(kind: .mergedFunction)`），作为 `global` 的兄弟子节点出现，遍历 `global` 的全部子节点就已覆盖，不该列进「可下降」。
+  - **`methodDescriptor` 不列入**：两个调用方（`ClassDumper.validNode`、`OverrideSymbolMatcher.demangledOverrideSymbol`）的输入都是**实现地址**上的符号，而 `Tq` 是数据符号、不会出现在代码地址；`attributedMemberNode` 自己用 `first(of: .methodDescriptor)` 解包；A38 的上下文断言也落在解包后的 `global(entity)` 上。去掉它使这个 API 的契约收窄为「实现符号树」。
+  - 其余一律不下降。
 - **横向排查**：全仓搜过，无第二处手写节点子树遍历，此为唯一一例。
 - **既往修复**：上游 0.5.x 已就同一 DAG 形状做过修复，本仓库这次是重新引入；误判那一半是本 PR 独有。
 

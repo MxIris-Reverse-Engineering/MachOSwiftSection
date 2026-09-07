@@ -38,7 +38,9 @@
 
 **成因是访问级别，不是「API 被删除」**：public 类型里不写修饰符的 `init()` 默认是 internal，在整模块优化（whole-module optimization）下 internal 成员不是 dead function elimination 的 anchor，没人调用（或调用点内联后独立函数体死掉）即被摘掉 vtable entry。OS 框架里多数 vtable 成员是 internal，所以这个现象常见而非罕见——实测 SwiftUICore（iOS 18.5 arm64）341 处、Xcode 自带 SourceEditor.framework 11680 处。
 
-**两种 metadata 形态要分开**：静态 class metadata 对这类槽填 `swift_deletedMethodError`，调用即 trap；而运行时实例化的 metadata（泛型类、resilient 父类的 relocate 路径）由 `initClassVTable` 把 descriptor 的 null 原样拷入，**保持 null，不会变成那个函数**。
+**两种 metadata 形态要分开**：静态 class metadata 对这类槽填 `swift_deletedMethodError`，调用即 trap；而运行时实例化的 metadata（泛型类、resilient 父类的 relocate 路径）由 `initClassVTable` 把 descriptor 的 null 原样拷入，**保持 null，不会变成那个函数**。判别标志是 `ClassLayoutFlags::HasStaticVTable`——IRGen 对 Singleton / Update / FixedOrUpdate 三种策略都会设它，所以「自身字段依赖 resilient 类型、但祖先固定」的 Singleton 类 vtable 仍是静态的，照样填 `swift_deletedMethodError`；真正在运行时重建 vtable 的只有泛型类与 Resilient 策略两类。
+
+**这也是不要靠 bind 来判定墓碑的原因之一**：离线读一个 Resilient 策略的类，`MachOFile` 里只有 metadata pattern，根本没有 vtable word 可读——判据必须回到 descriptor 的 null 本身。
 
 - **主要出现在**：`ClassDumper` 的 vtable 循环、`DeclarationRenderConfiguration.deletedMethodSlotComment`
 - **延伸阅读**：[提案 vtable-slot-attribution](Evolutions/draft-vtable-slot-attribution-via-method-descriptor-symbols.md)、[PR #123 review findings 第 1 条](../Roadmaps/2026-09-06-pr123-review-findings.md)
