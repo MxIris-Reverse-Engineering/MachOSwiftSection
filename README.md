@@ -168,8 +168,10 @@ swift-section dump [options] [file-path]
 # Dump all Swift information from a Mach-O file
 swift-section dump /path/to/binary
 
-# Dump only types and protocols
-swift-section dump --sections types,protocols /path/to/binary
+# Dump only types and protocols. `--sections` takes space-separated values up to
+# the next option, so the file path must come before it (or the list must be
+# terminated with `--`).
+swift-section dump /path/to/binary --sections types protocols
 
 # Save output to file
 swift-section dump --output-path output.txt /path/to/binary
