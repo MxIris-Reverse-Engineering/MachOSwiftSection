@@ -1269,7 +1269,7 @@
 - **关联文档**：[提案](../Evolutions/0018-self-contained-abi-layer.md)、
   [SelfContainedABILayer.md](SelfContainedABILayer.md)、
   [TaskReports/2026-09-03-self-contained-abi-layer.md](TaskReports/2026-09-03-self-contained-abi-layer.md)。
-- **对应版本**：0.18.0（破坏性 API 变更，见 Changelog）。
+- **对应版本**：0.19.0（破坏性 API 变更，见 Changelog；0.18.0 写好后未发布，内容并入 0.19.0）。
 
 ## 2026-09-03 大栈任务执行器接入与跨版本并行（提案 large-stack-executor-and-cross-version-parallelism；节号落地时取）
 
@@ -1317,7 +1317,7 @@
   `SwiftDeclarationRendering`（两条新注释）。
 - **关联文档**：[提案](../Evolutions/0020-vtable-slot-attribution-via-method-descriptor-symbols.md)、
   [TaskReports/2026-09-06-vtable-slot-attribution.md](TaskReports/2026-09-06-vtable-slot-attribution.md)。
-- **对应版本**：未发布（待 bump）。
+- **对应版本**：0.19.0（改变渲染输出，见 Changelog）。
 
 ---
 

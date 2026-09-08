@@ -197,7 +197,7 @@ AGENTS.md 的模块依赖图与 `MachOSwiftSection` / `MachOSymbols` 条目；`D
 ## API 演进与废弃策略
 
 - `symbols(offset:) async`（与同步版逐字相同）标 deprecated 一个版本后删除。
-- 其余破坏项无法转发，随 minor 版本（0.18.0）一次性完成，Changelog 逐条列出改前 / 改后。
+- 其余破坏项无法转发，随 minor 版本（0.19.0；原定 0.18.0 未发布）一次性完成，Changelog 逐条列出改前 / 改后。
 - 不需要 semver major：本库 0.x 阶段，且下游全部在本人控制之下。
 
 ## 落地步骤
