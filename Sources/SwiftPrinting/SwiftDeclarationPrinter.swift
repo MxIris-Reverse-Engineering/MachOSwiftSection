@@ -454,7 +454,7 @@ public final class SwiftDeclarationPrinter<MachO: FieldLayoutRenderable>: Sendab
             }
             if let globalActorReference = protocolConformance.globalActorReference,
                let globalActorTypeName = try? globalActorReference.typeName(in: machO),
-               let globalActorNode = try? MetadataReader.demangleType(for: globalActorTypeName, in: machO) {
+               let globalActorNode = try? SymbolicDemangler.demangleType(for: globalActorTypeName, in: machO) {
                 Standard("@")
                 try await printThrowingType(globalActorNode, isProtocol: false, level: level)
                 Space()

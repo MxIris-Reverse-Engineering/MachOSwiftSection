@@ -7,15 +7,41 @@ import MachOSwiftSection
 @_spi(Internals) import MachOCaches
 @_spi(Internals) import MachOSymbols
 
+/// Demangles with the symbolic references resolved against a Mach-O image.
+///
+/// A plain `Demangler` only understands strings. The mangled names the
+/// compiler writes into metadata (field types, extended contexts, generic
+/// requirements) embed *symbolic references*: relative pointers to context
+/// descriptors, opaque type descriptors, protocol descriptors and existential
+/// shapes that live in the image itself. This namespace is the demangler for
+/// those names: it reads the referenced descriptors and builds the demangling
+/// subtree the compiler would have mangled in their place, the way the Swift
+/// runtime's `ResolveAsSymbolicReference` + `_swift_buildDemanglingForContext`
+/// pair does (`stdlib/public/runtime/MetadataLookup.cpp`, `Demangle.cpp`).
+/// It also builds demanglings directly for context descriptors and generic
+/// requirement lists, which have no string form at all.
+///
+/// It never reads a `Metadata` record: the metadata-pointer-to-type direction
+/// is `RuntimeMetadataTypeBuilder`'s and, in the runtime,
+/// `_swift_buildDemanglingForMetadata`'s. The former name `MetadataReader`
+/// was borrowed from `swift/Remote/MetadataReader.h`, whose main business is
+/// exactly that other direction (evolution proposal
+/// `rename-metadata-reader-to-symbolic-demangler`).
 @_spi(Internals)
-public enum MetadataReader {}
+public enum SymbolicDemangler {}
 
-extension MetadataReader {
+/// Transitional spelling of ``SymbolicDemangler`` for one release; new code
+/// should use the new name.
+@_spi(Internals)
+@available(*, deprecated, renamed: "SymbolicDemangler")
+public typealias MetadataReader = SymbolicDemangler
+
+extension SymbolicDemangler {
     public nonisolated(unsafe) static var isCacheEnabled: Bool = true
 
     public static func demangleType<MachO: MachOSwiftSectionRepresentableWithCache>(for mangledName: MangledName, in machO: MachO) throws -> Node {
         if isCacheEnabled {
-            return try MetadataReaderCache.shared.demangleType(for: mangledName, in: machO)
+            return try SymbolicDemanglerCache.shared.demangleType(for: mangledName, in: machO)
         } else {
             return try _demangleType(for: mangledName, in: machO)
         }
@@ -27,7 +53,7 @@ extension MetadataReader {
 
     public static func demangleType<MachO: MachOSwiftSectionRepresentableWithCache>(for symbol: Symbol, in machO: MachO) throws -> Node? {
         if isCacheEnabled {
-            return try MetadataReaderCache.shared.buildContextManglingForSymbol(symbol, in: machO)
+            return try SymbolicDemanglerCache.shared.buildContextManglingForSymbol(symbol, in: machO)
         } else {
             return try _buildContextManglingForSymbol(symbol, in: machO.context)
         }
@@ -52,19 +78,19 @@ extension MetadataReader {
     /// references into that interned scope store, so leaving the memo behind
     /// would keep the dropped store's buffers alive.
     public static func removeCache(for machO: some MachOSwiftSectionRepresentableWithCache) {
-        MetadataReaderCache.shared.remove(for: machO)
+        SymbolicDemanglerCache.shared.remove(for: machO)
     }
 
     /// Non-creating membership probe for the per-image demangle memo —
     /// test-support surface for the indexer's cache-eviction contract
     /// (`PerImageCacheEvictionTests`).
     package static func cacheExists(for machO: some MachOSwiftSectionRepresentableWithCache) -> Bool {
-        MetadataReaderCache.shared.contains(in: machO)
+        SymbolicDemanglerCache.shared.contains(in: machO)
     }
 
     public static func demangleContext<MachO: MachOSwiftSectionRepresentableWithCache>(for context: ContextDescriptorWrapper, in machO: MachO) throws -> Node {
         if isCacheEnabled {
-            return try MetadataReaderCache.shared.demangleContext(for: context, in: machO)
+            return try SymbolicDemanglerCache.shared.demangleContext(for: context, in: machO)
         } else {
             return try _demangleContext(for: context, in: machO)
         }
@@ -87,10 +113,10 @@ extension MetadataReader {
     }
 }
 
-extension MetadataReader {
+extension SymbolicDemangler {
     public static func demangleType(for mangledName: MangledName) throws -> Node {
         if isCacheEnabled {
-            return try MetadataReaderCache.shared.demangleType(for: mangledName)
+            return try SymbolicDemanglerCache.shared.demangleType(for: mangledName)
         } else {
             return try _demangleType(for: mangledName)
         }
@@ -102,7 +128,7 @@ extension MetadataReader {
 
     /// Demangles a type WITHOUT touching the shared node cache.
     ///
-    /// The cached `demangleType(for:)` goes through `MetadataReaderCache`'s
+    /// The cached `demangleType(for:)` goes through `SymbolicDemanglerCache`'s
     /// `storage()` (a lazily-built, lock-guarded `SharedCache`). When a caller
     /// invokes it *while the same thread is still inside that cache's build
     /// closure* — e.g. a deeply recursive dumper that demangles a field type,
@@ -116,7 +142,7 @@ extension MetadataReader {
 
     public static func demangleType(for symbol: Symbol) throws -> Node? {
         if isCacheEnabled {
-            return try MetadataReaderCache.shared.buildContextManglingForSymbol(symbol)
+            return try SymbolicDemanglerCache.shared.buildContextManglingForSymbol(symbol)
         } else {
             return try _buildContextManglingForSymbol(symbol, in: InProcessContext.shared)
         }
@@ -128,7 +154,7 @@ extension MetadataReader {
 
     public static func demangleContext(for context: ContextDescriptorWrapper) throws -> Node {
         if isCacheEnabled {
-            return try MetadataReaderCache.shared.demangleContext(for: context)
+            return try SymbolicDemanglerCache.shared.demangleContext(for: context)
         } else {
             return try _demangleContext(for: context)
         }
@@ -173,7 +199,7 @@ extension InProcessContext: SymbolLookupContext {
 
 // MARK: - ReadingContext Support
 
-extension MetadataReader {
+extension SymbolicDemangler {
     public static func demangleType<Context: ReadingContext>(for mangledName: MangledName, in context: Context) throws -> Node {
         return try demangle(for: mangledName, kind: .type, in: context)
     }
@@ -328,9 +354,8 @@ extension MetadataReader {
                 case .objectiveCProtocol:
                     let relativePointer = RelativeDirectPointer<RelativeObjCProtocolPrefix>(relativeOffset: relativeOffset)
                     let objcProtocol = try relativePointer.resolve(at: baseAddress, in: context)
-                    let protocolMangledName = try objcProtocol.mangledName(in: context)
-                    let name = protocolMangledName.symbolString
-                    result = try demangleAsNodeTransient(name).typeSymbol
+                    let protocolExistential = try demangle(for: objcProtocol.mangledName(in: context), kind: .type, in: context)
+                    result = objectiveCProtocolReferenceNode(fromExistential: protocolExistential)
                 }
                 return result
             } catch {
@@ -436,7 +461,7 @@ extension MetadataReader {
             guard let parentDemangling else { return nil }
             guard let extensionContext = context.extensionContextDescriptor else { return nil }
             guard let extendedContext = try extensionContext.extendedContext(in: readingContext) else { return nil }
-            guard let demangledExtendedContext = try demangle(for: extendedContext, kind: .type, in: readingContext).extensionSymbol else { return nil }
+            guard let demangledExtendedContext = try extendedNominalNode(fromExtendedContext: demangle(for: extendedContext, kind: .type, in: readingContext)) else { return nil }
             if let requirements = try extensionContext.genericContext(in: readingContext)?.requirements, let signatureNode = try buildGenericSignature(for: requirements, in: readingContext) {
                 return Node.createTransient(kind: .extension, children: [parentDemangling, demangledExtendedContext, signatureNode])
             } else {
@@ -586,63 +611,67 @@ extension MetadataReader {
     }
 }
 
-extension Node {
-    fileprivate var typeSymbol: Node? {
-        func enumerate(_ child: Node) -> Node? {
-            if child.kind == .type {
-                return child
-            }
+// MARK: - Fixed-shape node extraction (evolution proposal `metadata-reader-deterministic-node-extraction`)
 
-            if child.kind == .enum || child.kind == .structure || child.kind == .class || child.kind == .protocol {
-                return .createTransient(kind: .type, children: [child])
-            }
-
-            for child in child.children {
-                if let result = enumerate(child) {
-                    return result
-                }
-            }
+extension SymbolicDemangler {
+    /// Digs the protocol out of an Objective-C protocol symbolic reference.
+    ///
+    /// IRGen (`getObjCProtocolRefSymRefDescriptor`) mangles the protocol's
+    /// declared type flat into the reference's second field — `So9NSCopying_p`,
+    /// a single-protocol existential with no symbolic references — so its type
+    /// demangling is exactly four levels deep:
+    ///
+    ///     Type → ProtocolList → TypeList → Type(Protocol)
+    ///
+    /// The runtime's `SymbolicDemangler.h` walks those same four levels, and the
+    /// demangler's `popProtocol` accepts the inner `Type(Protocol)` in protocol
+    /// position, which is what a resolved reference must look like. Any other
+    /// shape yields `nil` rather than a node found by searching the tree.
+    static func objectiveCProtocolReferenceNode(fromExistential existential: Node) -> Node? {
+        guard existential.kind == .type,
+              let protocolList = existential.children.first, protocolList.kind == .protocolList,
+              let typeList = protocolList.children.first, typeList.kind == .typeList,
+              let protocolType = typeList.children.first, protocolType.kind == .type,
+              protocolType.children.first?.kind == .protocol
+        else {
             return nil
         }
-        return enumerate(self)
+        return protocolType
     }
 
-    fileprivate var typeNonWrapperSymbol: Node? {
-        func enumerate(_ child: Node) -> Node? {
-            if child.kind == .enum || child.kind == .structure || child.kind == .class || child.kind == .protocol {
-                return child
-            }
-
-            for child in child.children {
-                if let result = enumerate(child) {
-                    return result
-                }
-            }
-            return nil
+    /// Reduces an extension descriptor's `ExtendedContext` demangling to the
+    /// nominal the demangler's own `Extension` node carries.
+    ///
+    /// IRGen (`addExtendedContext`) mangles the extension's
+    /// `getSelfInterfaceType()`: a bare nominal for a non-generic type, the
+    /// bound generic `Array<A>` for a generic one, and the `Self` parameter for
+    /// a protocol extension. A symbol's `Extension` node names the bare nominal
+    /// (the parameters come from the generic signature), so the bound-generic
+    /// wrapper is stripped the way the runtime's `_buildDemanglingForContext`
+    /// (`Demangle.cpp`) does: `Type` → `BoundGeneric*` → its first child's
+    /// `Type` → the nominal. The result must be what `popTypeAndGetAnyGeneric`
+    /// accepts. A protocol extension's `Self` therefore yields `nil` — the
+    /// runtime does not resolve it either, and since types cannot nest in a
+    /// protocol extension the descriptor is only reached through an anonymous
+    /// context that carries the full name itself.
+    static func extendedNominalNode(fromExtendedContext extendedContext: Node) -> Node? {
+        guard extendedContext.kind == .type, var extended = extendedContext.children.first else { return nil }
+        switch extended.kind {
+        case .boundGenericStructure,
+             .boundGenericClass,
+             .boundGenericEnum,
+             .boundGenericOtherNominalType:
+            guard let baseType = extended.children.first, baseType.kind == .type, let base = baseType.children.first else { return nil }
+            extended = base
+        default:
+            break
         }
-        return enumerate(self)
-    }
-
-    fileprivate var extensionSymbol: Node? {
-        typeNonWrapperSymbol
-    }
-
-    fileprivate func nodes(for kind: Node.Kind) -> [Node] {
-        var nodes: [Node] = []
-        func enumerate(_ child: Node) {
-            if child.kind == kind {
-                nodes.append(child)
-            }
-            for child in child.children {
-                enumerate(child)
-            }
-        }
-        enumerate(self)
-        return nodes
+        guard extended.kind.isAnyGeneric else { return nil }
+        return extended
     }
 }
 
-/// Memoizes `MetadataReader`'s expensive demangling work (mangled-name /
+/// Memoizes `SymbolicDemangler`'s expensive demangling work (mangled-name /
 /// context-descriptor / symbol-context builds) per image and per process.
 ///
 /// The dictionaries deduplicate the *work*; the trees live as `NodeReference`s
@@ -651,8 +680,8 @@ extension Node {
 /// materializes a fresh tree, so the cache retains no class `Node` and the
 /// returned instances are never shared across calls — key long-lived state
 /// structurally, never by `ObjectIdentifier` of a returned node.
-private final class MetadataReaderCache: SharedCache<MetadataReaderCache.Storage>, @unchecked Sendable {
-    fileprivate static let shared = MetadataReaderCache()
+private final class SymbolicDemanglerCache: SharedCache<SymbolicDemanglerCache.Storage>, @unchecked Sendable {
+    fileprivate static let shared = SymbolicDemanglerCache()
 
     private override init() {}
 
@@ -699,7 +728,7 @@ private final class MetadataReaderCache: SharedCache<MetadataReaderCache.Storage
         if let reference = storage(in: machO)?.nodeReferenceForMangledNameBox[MangledNameBox(mangledName)] {
             return reference.materialize()
         } else {
-            let node = try MetadataReader._demangleType(for: mangledName, in: machO)
+            let node = try SymbolicDemangler._demangleType(for: mangledName, in: machO)
             storage(in: machO)?.nodeReferenceForMangledNameBox[MangledNameBox(mangledName)] = InternedNodeReferenceCache.shared.reference(interning: node, in: machO)
             return node
         }
@@ -709,7 +738,7 @@ private final class MetadataReaderCache: SharedCache<MetadataReaderCache.Storage
         if let reference = storage()?.nodeReferenceForMangledNameBox[MangledNameBox(mangledName)] {
             return reference.materialize()
         } else {
-            let node = try MetadataReader._demangleType(for: mangledName)
+            let node = try SymbolicDemangler._demangleType(for: mangledName)
             storage()?.nodeReferenceForMangledNameBox[MangledNameBox(mangledName)] = InternedNodeReferenceCache.shared.reference(interning: node)
             return node
         }
@@ -722,7 +751,7 @@ private final class MetadataReaderCache: SharedCache<MetadataReaderCache.Storage
         if let reference = storage(in: machO)?.nodeReferenceForContextOffset[key] {
             return reference.materialize()
         } else {
-            let node = try MetadataReader._demangleContext(for: context, in: machO)
+            let node = try SymbolicDemangler._demangleContext(for: context, in: machO)
             storage(in: machO)?.nodeReferenceForContextOffset[key] = InternedNodeReferenceCache.shared.reference(interning: node, in: machO)
             return node
         }
@@ -733,7 +762,7 @@ private final class MetadataReaderCache: SharedCache<MetadataReaderCache.Storage
         if let reference = storage()?.nodeReferenceForContextOffset[key] {
             return reference.materialize()
         } else {
-            let node = try MetadataReader._demangleContext(for: context)
+            let node = try SymbolicDemangler._demangleContext(for: context)
             storage()?.nodeReferenceForContextOffset[key] = InternedNodeReferenceCache.shared.reference(interning: node)
             return node
         }
@@ -746,7 +775,7 @@ private final class MetadataReaderCache: SharedCache<MetadataReaderCache.Storage
         if let cachedVerdict = storage(in: machO)?.nodeReferenceForSymbolName[key] {
             return cachedVerdict?.materialize()
         } else {
-            let node = try MetadataReader._buildContextManglingForSymbol(symbol, in: machO.context)
+            let node = try SymbolicDemangler._buildContextManglingForSymbol(symbol, in: machO.context)
             // updateValue: a plain subscript assignment of a nil verdict would
             // remove the key instead of caching the rejection.
             storage(in: machO)?.nodeReferenceForSymbolName.updateValue(node.map { InternedNodeReferenceCache.shared.reference(interning: $0, in: machO) }, forKey: key)
@@ -759,7 +788,7 @@ private final class MetadataReaderCache: SharedCache<MetadataReaderCache.Storage
         if let cachedVerdict = storage()?.nodeReferenceForSymbolName[key] {
             return cachedVerdict?.materialize()
         } else {
-            let node = try MetadataReader._buildContextManglingForSymbol(symbol, in: InProcessContext.shared)
+            let node = try SymbolicDemangler._buildContextManglingForSymbol(symbol, in: InProcessContext.shared)
             storage()?.nodeReferenceForSymbolName.updateValue(node.map { InternedNodeReferenceCache.shared.reference(interning: $0) }, forKey: key)
             return node
         }

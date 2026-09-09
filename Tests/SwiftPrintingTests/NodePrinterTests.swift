@@ -317,7 +317,7 @@ final class NodePrinterIntegrationTests: DyldCacheTests, @unchecked Sendable {
             for record in associatedType.records.prefix(5) {
                 do {
                     let substitutedTypeNameMangledName = try record.substitutedTypeName(in: machO)
-                    let node = try MetadataReader.demangleType(for: substitutedTypeNameMangledName, in: machO)
+                    let node = try SymbolicDemangler.demangleType(for: substitutedTypeNameMangledName, in: machO)
                     var printer = TypeNodePrinter()
                     let result = try await printer.printRoot(node).string
                     #expect(!result.isEmpty)

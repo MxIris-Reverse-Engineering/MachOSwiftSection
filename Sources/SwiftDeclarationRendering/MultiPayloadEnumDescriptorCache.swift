@@ -75,7 +75,7 @@ final class MultiPayloadEnumDescriptorCache: SharedCache<MultiPayloadEnumDescrip
             do {
                 let mangledTypeName = try multiPayloadEnumDescriptor.mangledTypeName(in: machO)
 
-                let node = try MetadataReader.demangleType(for: mangledTypeName, in: machO)
+                let node = try SymbolicDemangler.demangleType(for: mangledTypeName, in: machO)
 
                 multiPayloadEnumDescriptorByNode[node] = multiPayloadEnumDescriptor
             } catch {

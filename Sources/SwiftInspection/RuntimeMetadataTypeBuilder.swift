@@ -404,7 +404,7 @@ public struct RuntimeMetadataTypeBuilder: TypeBuilder {
 
             let subjectNode: Node
             do {
-                subjectNode = try MetadataReader.demangleType(for: requirement.paramManagledName)
+                subjectNode = try SymbolicDemangler.demangleType(for: requirement.paramManagledName)
             } catch {
                 return .failure(TypeLookupError("cannot demangle requirement subject: \(error)"))
             }

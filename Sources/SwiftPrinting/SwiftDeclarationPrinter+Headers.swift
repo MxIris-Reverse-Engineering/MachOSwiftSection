@@ -99,7 +99,7 @@ extension SwiftDeclarationPrinter {
     @SemanticStringBuilder
     private func renderUnboundTypeName(_ kind: SemanticType.TypeKind, descriptorWrapper: ContextDescriptorWrapper, name: String, displayParentName: Bool, leafNameNode: Node?, resolver: DemangleResolver) async throws -> SemanticString {
         if displayParentName {
-            try await resolver.resolve(for: MetadataReader.demangleContext(for: descriptorWrapper, in: machO)).replacingTypeNameOrOtherToTypeDeclaration()
+            try await resolver.resolve(for: SymbolicDemangler.demangleContext(for: descriptorWrapper, in: machO)).replacingTypeNameOrOtherToTypeDeclaration()
         } else {
             renderLeafName(kind: kind, bareName: name, leafNameNode: leafNameNode)
         }
@@ -130,7 +130,7 @@ extension SwiftDeclarationPrinter {
         if let superclassMangledName = try dumped.descriptor.superclassTypeMangledName(in: machO) {
             Standard(":")
             Space()
-            try await resolver.resolve(for: MetadataReader.demangleType(for: superclassMangledName, in: machO))
+            try await resolver.resolve(for: SymbolicDemangler.demangleType(for: superclassMangledName, in: machO))
             if hasInvertedProtocols {
                 Standard(",")
                 Space()
@@ -156,7 +156,7 @@ extension SwiftDeclarationPrinter {
         guard dumped.descriptor.isActor else { return false }
         @Dependency(\.symbolIndexStore) var symbolIndexStore
 
-        guard let currentTypeNode = try? MetadataReader.demangleContext(for: .type(.class(dumped.descriptor)), in: machO) else { return false }
+        guard let currentTypeNode = try? SymbolicDemangler.demangleContext(for: .type(.class(dumped.descriptor)), in: machO) else { return false }
         let currentTypeName = currentTypeNode.print(using: .interfaceTypeBuilderOnly)
 
         for thunkSymbol in symbolIndexStore.symbols(of: .distributedThunk, in: machO) {
@@ -181,7 +181,7 @@ extension SwiftDeclarationPrinter {
         Keyword(.protocol)
         Space()
         if displayParentName {
-            try await resolver.resolve(for: MetadataReader.demangleContext(for: .protocol(dumped.descriptor), in: machO)).replacingTypeNameOrOtherToTypeDeclaration()
+            try await resolver.resolve(for: SymbolicDemangler.demangleContext(for: .protocol(dumped.descriptor), in: machO)).replacingTypeNameOrOtherToTypeDeclaration()
         } else {
             renderLeafName(kind: .protocol, bareName: try dumped.descriptor.name(in: machO), leafNameNode: leafNameNode)
         }
@@ -250,7 +250,7 @@ extension SwiftDeclarationPrinter {
             Standard("=")
             Space()
             try await resolver.resolve(
-                for: MetadataReader.demangleType(for: record.mangledTypeName, in: machO)
+                for: SymbolicDemangler.demangleType(for: record.mangledTypeName, in: machO)
                     .resolveOpaqueType(in: machO, reportingDegradationTo: opaqueTypeDegradationReporter(subject: record.name))
             )
             if offset.isEnd {

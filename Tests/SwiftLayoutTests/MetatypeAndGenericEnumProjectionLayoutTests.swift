@@ -144,7 +144,7 @@ final class MetatypeAndGenericEnumProjectionLayoutTests: MachOSwiftSectionFixtur
         for contextDescriptor in try machO.swift.contextDescriptors {
             guard let descriptor = contextDescriptor.typeContextDescriptorWrapper, descriptor.isEnum else { continue }
             guard
-                let name = (try? MetadataReader.demangleContext(for: contextDescriptor, in: machO))
+                let name = (try? SymbolicDemangler.demangleContext(for: contextDescriptor, in: machO))
                     .flatMap(NodeTypeNaming.nominalQualifiedName(of:)),
                 name == qualifiedTypeName
             else { continue }

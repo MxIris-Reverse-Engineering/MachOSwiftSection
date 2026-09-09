@@ -131,7 +131,7 @@ public final class ProtocolDefinition: Definition, MutableDefinition {
     /// is retained.
     public init<MachO: MachOSwiftSectionRepresentableWithCache>(`protocol`: MachOSwiftSection.`Protocol`, in machO: MachO) throws {
         self.protocolDescriptor = `protocol`.descriptor
-        let node = try MetadataReader.demangleContext(for: .protocol(`protocol`.descriptor), in: machO)
+        let node = try SymbolicDemangler.demangleContext(for: .protocol(`protocol`.descriptor), in: machO)
         self.protocolName = ProtocolName(node: InternedNodeReferenceCache.shared.reference(interning: node, in: machO))
     }
 
@@ -163,7 +163,7 @@ public final class ProtocolDefinition: Definition, MutableDefinition {
         // implementation symbol be claimed by two requirements.
         func _symbol(for symbols: Symbols, visitedNodes: borrowing OrderedSet<StructuralNodeReferenceKey> = []) throws -> DemangledSymbol? {
             for symbol in symbols {
-                if let node = MetadataReader.demangleSymbolReference(for: symbol, in: machO), let protocolNode = node.first(of: .protocol), protocolNode.print(using: .interfaceTypeBuilderOnly) == name, !visitedNodes.contains(StructuralNodeReferenceKey(node)) {
+                if let node = SymbolicDemangler.demangleSymbolReference(for: symbol, in: machO), let protocolNode = node.first(of: .protocol), protocolNode.print(using: .interfaceTypeBuilderOnly) == name, !visitedNodes.contains(StructuralNodeReferenceKey(node)) {
                     return .init(symbol: symbol, demangledNode: node)
                 }
             }

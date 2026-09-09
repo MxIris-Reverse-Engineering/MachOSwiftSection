@@ -38,7 +38,7 @@ public struct SwiftInterfaceBuilderOpaqueTypeProvider<MachO: MachOSwiftSectionRe
                 protocolRequirements = protocolRequirementsByParamType.elements[0].value
             }
             let typeRequirements = requirements.filter(\.content.isType)
-            let typeRequirementNodes = try typeRequirements.compactMap { try MetadataReader.buildGenericSignature(for: $0, in: machO) }
+            let typeRequirementNodes = try typeRequirements.compactMap { try SymbolicDemangler.buildGenericSignature(for: $0, in: machO) }
             var substitutionMap: SubstitutionMap<Node> = .init()
             var constraintsByParamType: [String: [OpaqueSameTypeConstraint]] = [:]
             for typeRequirementNode in typeRequirementNodes {

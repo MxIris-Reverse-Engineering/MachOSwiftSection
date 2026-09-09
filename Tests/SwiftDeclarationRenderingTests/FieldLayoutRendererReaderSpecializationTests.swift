@@ -27,7 +27,7 @@ import MachOFixtureSupport
 final class FieldLayoutRendererReaderSpecializationTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
 
     private func qualifiedName(of descriptorWrapper: TypeContextDescriptorWrapper, in machO: some MachOSwiftSectionRepresentableWithCache) -> String? {
-        guard let node = try? MetadataReader.demangleContext(for: descriptorWrapper.asContextDescriptorWrapper, in: machO) else { return nil }
+        guard let node = try? SymbolicDemangler.demangleContext(for: descriptorWrapper.asContextDescriptorWrapper, in: machO) else { return nil }
         return NodeTypeNaming.nominalQualifiedName(of: node)
     }
 

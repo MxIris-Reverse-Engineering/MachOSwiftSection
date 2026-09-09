@@ -14,14 +14,14 @@ final class DyldCacheAssociatedTypeTests: DyldCacheTests, @unchecked Sendable {
         let machO = machOFileInMainCache
 
         for associatedType in try machO.swift.associatedTypes {
-            let conformingTypeName = try MetadataReader.demangleType(for: associatedType.conformingTypeName, in: machO).print(using: .interfaceType)
-            let protocolTypeName = try MetadataReader.demangleType(for: associatedType.protocolTypeName, in: machO).print(using: .interfaceType)
+            let conformingTypeName = try SymbolicDemangler.demangleType(for: associatedType.conformingTypeName, in: machO).print(using: .interfaceType)
+            let protocolTypeName = try SymbolicDemangler.demangleType(for: associatedType.protocolTypeName, in: machO).print(using: .interfaceType)
 //            if conformingTypeName == "SwiftUI.LeadingTrailingLabeledContentStyle", protocolTypeName == "SwiftUI.LabeledContentStyle" {
             conformingTypeName.print()
             protocolTypeName.print()
             for record in associatedType.records {
                 let substitutedTypeName = try record.substitutedTypeName(in: machO)
-                try MetadataReader.demangleType(for: substitutedTypeName, in: machO).print().print()
+                try SymbolicDemangler.demangleType(for: substitutedTypeName, in: machO).print().print()
 //                    substitutedTypeName.startOffset.print()
             }
             "----------------".print()

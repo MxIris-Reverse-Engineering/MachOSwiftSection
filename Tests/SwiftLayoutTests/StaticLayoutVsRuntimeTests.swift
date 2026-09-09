@@ -50,7 +50,7 @@ final class StaticLayoutVsRuntimeTests: MachOSwiftSectionFixtureTests, @unchecke
             // C bitfield layout is not reflected in Swift field records) are out
             // of scope until the dependency-closure phase.
             guard
-                let qualifiedTypeName = (try? MetadataReader.demangleContext(for: contextDescriptor, in: machO))
+                let qualifiedTypeName = (try? SymbolicDemangler.demangleContext(for: contextDescriptor, in: machO))
                     .flatMap(NodeTypeNaming.nominalQualifiedName(of:)),
                 qualifiedTypeName.hasPrefix("SymbolTests")
             else { continue }

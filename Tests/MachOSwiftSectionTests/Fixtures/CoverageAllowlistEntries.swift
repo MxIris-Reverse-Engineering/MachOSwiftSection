@@ -329,7 +329,7 @@ enum CoverageAllowlistEntries {
         CoverageAllowlistHelpers.sentinelGroup(
             typeName: "RelativeObjCProtocolPrefix",
             members: ["init", "isObjC", "rawValue"],
-            reason: .needsFixtureExtension(detail: "RelativeObjCProtocolPrefix is only reached at runtime through Swift's mangled-name symbolic-reference resolver (`MetadataReader` opcode `.objectiveCProtocol` = 0x0e), not from descriptor traversal. Phase B3 added `ObjCClassWrapperFixtures` (including `ObjCBridgeWithProto` conforming to `@objc protocol ObjCProto`) but `@objc protocol`s do not emit Swift-side conformance descriptors, so the relative-prefix variant remains unreachable from fixture section walks. Suite stays registration-only.")
+            reason: .needsFixtureExtension(detail: "RelativeObjCProtocolPrefix is only reached at runtime through Swift's mangled-name symbolic-reference resolver (`SymbolicDemangler` opcode `.objectiveCProtocol` = 0x0e), not from descriptor traversal. Phase B3 added `ObjCClassWrapperFixtures` (including `ObjCBridgeWithProto` conforming to `@objc protocol ObjCProto`) but `@objc protocol`s do not emit Swift-side conformance descriptors, so the relative-prefix variant remains unreachable from fixture section walks. Suite stays registration-only.")
         ),
         CoverageAllowlistHelpers.sentinelGroup(
             typeName: "ObjCProtocolPrefix",

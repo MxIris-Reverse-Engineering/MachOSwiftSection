@@ -6,10 +6,10 @@ import Testing
 import MachOFixtureSupport
 @testable @_spi(Internals) import SwiftInspection
 
-// MARK: - Unit Tests for MetadataReader demangling functions
+// MARK: - Unit Tests for SymbolicDemangler demangling functions
 
 @Suite
-struct MetadataReaderDemanglingTests {
+struct SymbolicDemanglerDemanglingTests {
     // MARK: - demangleAsNode
 
     @Test(arguments: [
@@ -61,7 +61,7 @@ struct MetadataReaderDemanglingTests {
 // MARK: - Integration Tests with MachOImage
 
 @Suite
-final class MetadataReaderImageTests: MachOImageTests, @unchecked Sendable {
+final class SymbolicDemanglerImageTests: MachOImageTests, @unchecked Sendable {
     override class var imageName: MachOImageName { .Foundation }
 
     @Test func demangleTypeFromMachO() async throws {
@@ -74,7 +74,7 @@ final class MetadataReaderImageTests: MachOImageTests, @unchecked Sendable {
 
     @Test func buildGenericSignatureReturnsNilForEmptyRequirements() async throws {
         // Empty requirements should return nil
-        let result = try MetadataReader.buildGenericSignature(for: [])
+        let result = try SymbolicDemangler.buildGenericSignature(for: [])
         #expect(result == nil)
     }
 }
@@ -82,7 +82,7 @@ final class MetadataReaderImageTests: MachOImageTests, @unchecked Sendable {
 // MARK: - Integration Tests with MachOFile
 
 @Suite
-final class MetadataReaderFileTests: MachOFileTests, @unchecked Sendable {
+final class SymbolicDemanglerFileTests: MachOFileTests, @unchecked Sendable {
     override class var fileName: MachOFileName { .iOS_26_5_Simulator_SwiftUI }
 
     @Test func demangleTypeFromFile() async throws {
@@ -91,7 +91,7 @@ final class MetadataReaderFileTests: MachOFileTests, @unchecked Sendable {
     }
 
     @Test func buildGenericSignatureFromFileReturnsNilForEmpty() async throws {
-        let result = try MetadataReader.buildGenericSignature(for: [] as [GenericRequirementDescriptor], in: machOFile)
+        let result = try SymbolicDemangler.buildGenericSignature(for: [] as [GenericRequirementDescriptor], in: machOFile)
         #expect(result == nil)
     }
 
@@ -186,7 +186,7 @@ final class MetadataReaderFileTests: MachOFileTests, @unchecked Sendable {
 @Suite
 struct BuildGenericSignatureTests {
     @Test func emptyRequirementsReturnsNil() throws {
-        let result = try MetadataReader.buildGenericSignature(for: [] as [GenericRequirementDescriptor])
+        let result = try SymbolicDemangler.buildGenericSignature(for: [] as [GenericRequirementDescriptor])
         #expect(result == nil)
     }
 
@@ -197,7 +197,7 @@ struct BuildGenericSignatureTests {
 // MARK: - Node Structure Verification Tests
 
 @Suite
-struct MetadataReaderNodeStructureTests {
+struct SymbolicDemanglerNodeStructureTests {
     @Test func dependentGenericSignatureStructure() throws {
         // Verify the expected structure of a generic signature node
         let signatureNode = Node(kind: .dependentGenericSignature, children: [

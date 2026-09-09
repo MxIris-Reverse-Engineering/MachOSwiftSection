@@ -1032,7 +1032,7 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
     }
 
     /// Same lookup as the `NodeReference` overload, for callers holding an
-    /// externally demangled `Node` (`MetadataReader.demangleContext` output in
+    /// externally demangled `Node` (`SymbolicDemangler.demangleContext` output in
     /// the dump path) rather than a store-backed reference.
     public func thunkAttributeMembers<MachO: MachORepresentableWithCache>(
         of thunkKind: Node.Kind,
@@ -1065,7 +1065,7 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
     }
 
     public func memberSymbols<MachO: MachORepresentableWithCache>(of kinds: MemberKind..., for name: String, node: Node, in machO: MachO) -> [DemangledSymbol] {
-        // Callers hold an externally demangled `Node` (MetadataReader context
+        // Callers hold an externally demangled `Node` (SymbolicDemangler context
         // demangling), while keys are node indexes into the frozen store.
         // The type-name bucket holds at most a handful of type nodes, so a
         // structural walk per key is cheap.

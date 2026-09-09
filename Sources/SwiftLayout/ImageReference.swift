@@ -60,7 +60,7 @@ public final class ImageReference<MachO: MachOSwiftSectionRepresentableWithCache
         for contextDescriptor in try Self.contextDescriptorsOrEmpty(in: machO) {
             guard
                 let typeDescriptor = contextDescriptor.typeContextDescriptorWrapper,
-                let contextNode = try? MetadataReader.demangleContext(for: contextDescriptor, in: machO),
+                let contextNode = try? SymbolicDemangler.demangleContext(for: contextDescriptor, in: machO),
                 let qualifiedTypeName = NodeTypeNaming.nominalQualifiedName(of: contextNode)
             else { continue }
             typeIndex[qualifiedTypeName] = typeDescriptor
@@ -75,7 +75,7 @@ public final class ImageReference<MachO: MachOSwiftSectionRepresentableWithCache
         for protocolDescriptor in try Self.protocolDescriptorsOrEmpty(in: machO) {
             guard
                 let classConstraint = protocolDescriptor.flags.kindSpecificFlags?.protocolFlags?.classConstraint,
-                let contextNode = try? MetadataReader.demangleContext(for: .protocol(protocolDescriptor), in: machO),
+                let contextNode = try? SymbolicDemangler.demangleContext(for: .protocol(protocolDescriptor), in: machO),
                 let qualifiedTypeName = NodeTypeNaming.declaredQualifiedName(of: contextNode)
             else { continue }
             protocolIndex[qualifiedTypeName] = classConstraint
@@ -112,9 +112,9 @@ public final class ImageReference<MachO: MachOSwiftSectionRepresentableWithCache
         var witnessIndex: [String: AssociatedTypeRecord] = [:]
         for descriptor in try Self.associatedTypeDescriptorsOrEmpty(in: machO) {
             guard
-                let conformingNode = try? MetadataReader.demangleType(for: descriptor.conformingTypeName(in: machO), in: machO),
+                let conformingNode = try? SymbolicDemangler.demangleType(for: descriptor.conformingTypeName(in: machO), in: machO),
                 let conformingName = NodeTypeNaming.nominalQualifiedName(of: conformingNode),
-                let protocolNode = try? MetadataReader.demangleType(for: descriptor.protocolTypeName(in: machO), in: machO),
+                let protocolNode = try? SymbolicDemangler.demangleType(for: descriptor.protocolTypeName(in: machO), in: machO),
                 let protocolName = NodeTypeNaming.protocolQualifiedName(of: protocolNode),
                 let records = try? descriptor.associatedTypeRecords(in: machO)
             else { continue }

@@ -33,7 +33,7 @@ extension ResilientSuperclass {
 extension Class {
     package func superclassNode(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> Node? {
         if let superclassTypeMangledName = try descriptor.superclassTypeMangledName(in: machO) {
-            return try MetadataReader.demangleType(for: superclassTypeMangledName, in: machO)
+            return try SymbolicDemangler.demangleType(for: superclassTypeMangledName, in: machO)
         } else if let resilientSuperclassReferenceKind = descriptor.resilientSuperclassReferenceKind, let resilientSuperclass {
             return try resilientSuperclass.dumpSuperclassNode(for: resilientSuperclassReferenceKind, in: machO)
         } else {

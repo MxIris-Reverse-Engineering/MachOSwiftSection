@@ -30,7 +30,7 @@ final class ForeignStructTopLevelLayoutTests: MachOSwiftSectionFixtureTests, @un
             guard
                 let descriptor = contextDescriptor.typeContextDescriptorWrapper,
                 descriptor.isStruct,
-                let qualifiedTypeName = (try? MetadataReader.demangleContext(for: contextDescriptor, in: machO))
+                let qualifiedTypeName = (try? SymbolicDemangler.demangleContext(for: contextDescriptor, in: machO))
                     .flatMap(NodeTypeNaming.nominalQualifiedName(of:)),
                 qualifiedTypeName == "__C.Decimal"
             else { continue }
@@ -77,7 +77,7 @@ final class ForeignStructTopLevelLayoutTests: MachOSwiftSectionFixtureTests, @un
             guard
                 let descriptor = contextDescriptor.typeContextDescriptorWrapper,
                 descriptor.isStruct,
-                let qualifiedTypeName = (try? MetadataReader.demangleContext(for: contextDescriptor, in: machO))
+                let qualifiedTypeName = (try? SymbolicDemangler.demangleContext(for: contextDescriptor, in: machO))
                     .flatMap(NodeTypeNaming.nominalQualifiedName(of:)),
                 qualifiedTypeName == "__C.CMTime"
             else { continue }

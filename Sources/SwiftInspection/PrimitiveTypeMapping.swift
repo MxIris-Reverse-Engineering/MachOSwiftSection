@@ -13,7 +13,7 @@ public final class PrimitiveTypeMapping: Sendable {
         let builtinTypes = try machO.swift.builtinTypeDescriptors.map { try BuiltinType(descriptor: $0, in: machO) }
         for builtinType in builtinTypes {
             guard let typeName = builtinType.typeName else { continue }
-            let node = try MetadataReader.demangleType(for: typeName, in: machO)
+            let node = try SymbolicDemangler.demangleType(for: typeName, in: machO)
             guard node[safeChild: 0]?[safeChild: 0]?.text == objcModule, let descriptorLookup = typeName.lookupElements.first else { continue }
             switch descriptorLookup.reference {
             case .relative(let relativeReference):

@@ -5,7 +5,7 @@ import MachOSwiftSection
 import SwiftDump
 import SwiftDeclarationRendering
 import Demangling
-// Needs SPI access to MetadataReader.demangleType for associated-type owning-protocol lookup.
+// Needs SPI access to SymbolicDemangler.demangleType for associated-type owning-protocol lookup.
 @_spi(Internals) import SwiftInspection
 
 @MainActor
@@ -414,7 +414,7 @@ extension SnapshotDumpableTests {
         let protocolTypeName = try descriptor.protocolTypeName(in: machO)
         let protocolNode: Node
         do {
-            protocolNode = try MetadataReader.demangleType(for: protocolTypeName, in: machO)
+            protocolNode = try SymbolicDemangler.demangleType(for: protocolTypeName, in: machO)
         } catch {
             return nil
         }

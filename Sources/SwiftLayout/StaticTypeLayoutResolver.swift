@@ -29,7 +29,7 @@ final class StaticTypeLayoutResolver<MachO: MachOSwiftSectionRepresentableWithCa
     ) throws -> StaticTypeLayout {
         let typeNode: Node
         do {
-            typeNode = try MetadataReader.demangleType(for: mangledTypeName, in: originImage.machO)
+            typeNode = try SymbolicDemangler.demangleType(for: mangledTypeName, in: originImage.machO)
         } catch {
             throw LayoutResolutionError.unknown(.demangleFailure)
         }
@@ -486,7 +486,7 @@ final class StaticTypeLayoutResolver<MachO: MachOSwiftSectionRepresentableWithCa
     ) throws -> StaticTypeLayout {
         let typeNode: Node
         do {
-            typeNode = try MetadataReader.demangleType(for: mangledTypeName, in: originImage.machO)
+            typeNode = try SymbolicDemangler.demangleType(for: mangledTypeName, in: originImage.machO)
         } catch {
             throw LayoutResolutionError.unknown(.demangleFailure)
         }
@@ -571,7 +571,7 @@ final class StaticTypeLayoutResolver<MachO: MachOSwiftSectionRepresentableWithCa
     ) -> Int {
         guard
             !descriptor.layout.flags.isGeneric,
-            let contextNode = try? MetadataReader.demangleContext(
+            let contextNode = try? SymbolicDemangler.demangleContext(
                 for: TypeContextDescriptorWrapper.class(descriptor).asContextDescriptorWrapper,
                 in: image.machO
             ),
@@ -597,7 +597,7 @@ final class StaticTypeLayoutResolver<MachO: MachOSwiftSectionRepresentableWithCa
         }
         let demangledSuperclassNode: Node
         do {
-            demangledSuperclassNode = try MetadataReader.demangleType(for: superclassMangledName, in: image.machO)
+            demangledSuperclassNode = try SymbolicDemangler.demangleType(for: superclassMangledName, in: image.machO)
         } catch {
             throw LayoutResolutionError.unknown(.demangleFailure)
         }

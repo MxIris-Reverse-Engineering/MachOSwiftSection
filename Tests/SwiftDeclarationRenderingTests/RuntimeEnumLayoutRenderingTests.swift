@@ -24,7 +24,7 @@ final class RuntimeEnumLayoutRenderingTests: MachOSwiftSectionFixtureTests, @unc
     private func findFixtureEnum(named typeName: String) throws -> TypeContextWrapper? {
         for type in try machOImage.swift.types {
             guard case .enum(let enumType) = type, !enumType.descriptor.isGeneric else { continue }
-            guard let node = try? MetadataReader.demangleContext(for: .type(.enum(enumType.descriptor)), in: machOImage) else { continue }
+            guard let node = try? SymbolicDemangler.demangleContext(for: .type(.enum(enumType.descriptor)), in: machOImage) else { continue }
             if node.print(using: .default).contains(typeName) {
                 return type
             }

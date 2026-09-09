@@ -61,7 +61,7 @@ final class GenericSpareBitsEnumLayoutTests: MachOSwiftSectionFixtureTests, @unc
         for contextDescriptor in try machOFile.swift.contextDescriptors {
             guard
                 let descriptor = contextDescriptor.typeContextDescriptorWrapper,
-                (try? MetadataReader.demangleContext(for: contextDescriptor, in: machOFile))
+                (try? SymbolicDemangler.demangleContext(for: contextDescriptor, in: machOFile))
                     .flatMap(NodeTypeNaming.nominalQualifiedName(of:)) == holderName
             else { continue }
             let fileLayout = try fileCalculator.typeLayout(forDescriptor: descriptor)
@@ -124,7 +124,7 @@ final class GenericSpareBitsEnumLayoutTests: MachOSwiftSectionFixtureTests, @unc
                 let descriptor = contextDescriptor.typeContextDescriptorWrapper,
                 descriptor.isStruct,
                 !descriptor.typeContextDescriptor.layout.flags.isGeneric,
-                let qualifiedTypeName = (try? MetadataReader.demangleContext(for: contextDescriptor, in: rootFile))
+                let qualifiedTypeName = (try? SymbolicDemangler.demangleContext(for: contextDescriptor, in: rootFile))
                     .flatMap(NodeTypeNaming.nominalQualifiedName(of:)),
                 targetNameSuffixes.contains(where: { qualifiedTypeName.hasSuffix($0) })
             else { continue }
@@ -158,7 +158,7 @@ final class GenericSpareBitsEnumLayoutTests: MachOSwiftSectionFixtureTests, @unc
         for contextDescriptor in try machO.swift.contextDescriptors {
             guard let descriptor = contextDescriptor.typeContextDescriptorWrapper else { continue }
             guard
-                (try? MetadataReader.demangleContext(for: contextDescriptor, in: machO))
+                (try? SymbolicDemangler.demangleContext(for: contextDescriptor, in: machO))
                     .flatMap(NodeTypeNaming.nominalQualifiedName(of:)) == qualifiedTypeName
             else { continue }
             return descriptor
@@ -194,7 +194,7 @@ final class GenericSpareBitsEnumLayoutTests: MachOSwiftSectionFixtureTests, @unc
         for contextDescriptor in (try? machO.swift.contextDescriptors) ?? [] {
             guard
                 let descriptor = contextDescriptor.typeContextDescriptorWrapper,
-                (try? MetadataReader.demangleContext(for: contextDescriptor, in: machO))
+                (try? SymbolicDemangler.demangleContext(for: contextDescriptor, in: machO))
                     .flatMap(NodeTypeNaming.nominalQualifiedName(of:)) == qualifiedTypeName,
                 let accessor = try? descriptor.typeContextDescriptor.metadataAccessorFunction(in: machO),
                 let response = try? accessor(request: .init()),

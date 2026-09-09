@@ -31,7 +31,7 @@ extension ProtocolConformance {
         case .indirectTypeDescriptor(let descriptorOrSymbol):
             switch descriptorOrSymbol {
             case .symbol(let symbol):
-                guard let node = try MetadataReader.demangleType(for: symbol, in: machO)?.first(of: .type) else { return nil }
+                guard let node = try SymbolicDemangler.demangleType(for: symbol, in: machO)?.first(of: .type) else { return nil }
                 let allChildren = node.map { $0 }
                 let kind: TypeKind
                 if allChildren.contains(.enum) || allChildren.contains(.boundGenericEnum) {
@@ -65,7 +65,7 @@ extension ProtocolConformance {
         case .indirectTypeDescriptor(let descriptorOrSymbol):
             switch descriptorOrSymbol {
             case .symbol(let symbol):
-                guard let node = try MetadataReader.demangleType(for: symbol)?.first(of: .type) else { return nil }
+                guard let node = try SymbolicDemangler.demangleType(for: symbol)?.first(of: .type) else { return nil }
                 let allChildren = node.map { $0 }
                 let kind: TypeKind
                 if allChildren.contains(.enum) || allChildren.contains(.boundGenericEnum) {
@@ -103,7 +103,7 @@ extension ProtocolConformance {
 
 extension AssociatedType {
     package func typeName(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> TypeName? {
-        let node = try MetadataReader.demangleType(for: conformingTypeName, in: machO)
+        let node = try SymbolicDemangler.demangleType(for: conformingTypeName, in: machO)
         let kind: TypeKind
         if node.contains(.enum) || node.contains(.boundGenericEnum) {
             kind = .enum
@@ -118,7 +118,7 @@ extension AssociatedType {
     }
     
     package func typeName() throws -> TypeName? {
-        let node = try MetadataReader.demangleType(for: conformingTypeName)
+        let node = try SymbolicDemangler.demangleType(for: conformingTypeName)
         let kind: TypeKind
         if node.contains(.enum) || node.contains(.boundGenericEnum) {
             kind = .enum
@@ -133,11 +133,11 @@ extension AssociatedType {
     }
 
     package func protocolName(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> ProtocolName {
-        ProtocolName(node: InternedNodeReferenceCache.shared.reference(interning: try MetadataReader.demangleType(for: protocolTypeName, in: machO), in: machO))
+        ProtocolName(node: InternedNodeReferenceCache.shared.reference(interning: try SymbolicDemangler.demangleType(for: protocolTypeName, in: machO), in: machO))
     }
     
     package func protocolName() throws -> ProtocolName {
-        ProtocolName(node: InternedNodeReferenceCache.shared.reference(interning: try MetadataReader.demangleType(for: protocolTypeName)))
+        ProtocolName(node: InternedNodeReferenceCache.shared.reference(interning: try SymbolicDemangler.demangleType(for: protocolTypeName)))
     }
 }
 
@@ -153,11 +153,11 @@ extension MachOSwiftSection.`Protocol` {
 
 extension ProtocolDescriptor {
     package func protocolName(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> ProtocolName {
-        ProtocolName(node: InternedNodeReferenceCache.shared.reference(interning: try MetadataReader.demangleContext(for: .protocol(self), in: machO), in: machO))
+        ProtocolName(node: InternedNodeReferenceCache.shared.reference(interning: try SymbolicDemangler.demangleContext(for: .protocol(self), in: machO), in: machO))
     }
     
     package func protocolName() throws -> ProtocolName {
-        ProtocolName(node: InternedNodeReferenceCache.shared.reference(interning: try MetadataReader.demangleContext(for: .protocol(self))))
+        ProtocolName(node: InternedNodeReferenceCache.shared.reference(interning: try SymbolicDemangler.demangleContext(for: .protocol(self))))
     }
 }
 
@@ -184,17 +184,17 @@ extension TypeContextDescriptorWrapper {
     }
 
     package func typeName(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> TypeName {
-        return TypeName(node: InternedNodeReferenceCache.shared.reference(interning: try MetadataReader.demangleContext(for: .type(self), in: machO), in: machO), kind: kind)
+        return TypeName(node: InternedNodeReferenceCache.shared.reference(interning: try SymbolicDemangler.demangleContext(for: .type(self), in: machO), in: machO), kind: kind)
     }
     
     package func typeName() throws -> TypeName {
-        return TypeName(node: InternedNodeReferenceCache.shared.reference(interning: try MetadataReader.demangleContext(for: .type(self))), kind: kind)
+        return TypeName(node: InternedNodeReferenceCache.shared.reference(interning: try SymbolicDemangler.demangleContext(for: .type(self))), kind: kind)
     }
 }
 
 extension FieldRecord {
     package func demangledTypeNode(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> Node {
-        try MetadataReader.demangleType(for: mangledTypeName(in: machO), in: machO)
+        try SymbolicDemangler.demangleType(for: mangledTypeName(in: machO), in: machO)
     }
 
     package func demangledTypeName(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> SemanticString {
@@ -202,7 +202,7 @@ extension FieldRecord {
     }
     
     package func demangledTypeNode() throws -> Node {
-        try MetadataReader.demangleType(for: mangledTypeName())
+        try SymbolicDemangler.demangleType(for: mangledTypeName())
     }
 
     package func demangledTypeName() throws -> SemanticString {

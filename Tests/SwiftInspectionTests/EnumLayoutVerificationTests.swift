@@ -84,7 +84,7 @@ private func findMultiPayloadDescriptor(
     for descriptor in try machO.swift.multiPayloadEnumDescriptors {
         let inProcess = descriptor.asPointerWrapper(in: machO)
         let mangledName = try inProcess.mangledTypeName()
-        let name = try MetadataReader.demangleType(for: mangledName).print(using: .default)
+        let name = try SymbolicDemangler.demangleType(for: mangledName).print(using: .default)
         if name.contains(needle) {
             if inProcess.usesPayloadSpareBits {
                 let spareBytes = try inProcess.payloadSpareBits()

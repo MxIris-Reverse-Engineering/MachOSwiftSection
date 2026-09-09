@@ -219,7 +219,7 @@ struct GenericTypeNameSubstitutionEndToEndTests: GenericSpecializationTestingEnv
     /// through this same path: the engine never re-instantiates a
     /// `TypeDefinition` from a raw descriptor — it always finds the one the
     /// indexer already produced. Constructing a fresh `TypeDefinition` from a
-    /// raw descriptor here was crashing inside `MetadataReader.demangleContext`
+    /// raw descriptor here was crashing inside `SymbolicDemangler.demangleContext`
     /// because the file-form descriptors from `machO.swift.typeContextDescriptors`
     /// require additional in-process context the test wasn't supplying.
     private func resolveTypeDefinition(named substring: String) async throws -> TypeDefinition {
@@ -291,7 +291,7 @@ struct GenericTypeNameSubstitutionEndToEndTests: GenericSpecializationTestingEnv
         // `mangleAsString` produces a *type-mangled* body with no global
         // symbol prefix (`$s…` / `_T…`). Pass `isType: true` so the demangler
         // skips the symbol-prefix check and parses the body directly as a
-        // type — mirrors what `MetadataReader.demangleType(for:)` does
+        // type — mirrors what `SymbolicDemangler.demangleType(for:)` does
         // internally when handed a `MangledName`.
         let reconstructed = try await demangleAsNode(mangled, isType: true)
         let reconstructedBound = try #require(reconstructed.first(of: .boundGenericStructure))

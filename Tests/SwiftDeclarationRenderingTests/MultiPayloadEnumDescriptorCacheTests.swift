@@ -33,7 +33,7 @@ final class MultiPayloadEnumDescriptorCacheTests: MachOSwiftSectionFixtureTests,
 
         for multiPayloadEnumDescriptor in multiPayloadEnumDescriptors {
             let mangledTypeName = try multiPayloadEnumDescriptor.mangledTypeName(in: machOImage)
-            let node = try MetadataReader.demangleType(for: mangledTypeName, in: machOImage)
+            let node = try SymbolicDemangler.demangleType(for: mangledTypeName, in: machOImage)
             let cached = MultiPayloadEnumDescriptorCache.shared.multiPayloadEnumDescriptor(for: node, in: machOImage)
             #expect(cached != nil, "cache missed a descriptor the build sweep should have indexed")
         }
@@ -61,7 +61,7 @@ final class MultiPayloadEnumDescriptorCacheTests: MachOSwiftSectionFixtureTests,
 
         for realDescriptor in realDescriptors {
             let mangledTypeName = try realDescriptor.mangledTypeName(in: machOFile)
-            let node = try MetadataReader.demangleType(for: mangledTypeName, in: machOFile)
+            let node = try SymbolicDemangler.demangleType(for: mangledTypeName, in: machOFile)
             #expect(
                 indexedDescriptorByNode[node] != nil,
                 "a descriptor after the unreadable one was dropped — the catch is truncating the map instead of skipping one entry"

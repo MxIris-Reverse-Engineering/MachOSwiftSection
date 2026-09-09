@@ -115,7 +115,7 @@ package struct ProtocolConformanceDumper<MachO: FieldLayoutRenderable>: Conforme
 
                         switch requirement {
                         case .symbol(let symbol):
-                            try await MetadataReader.demangleSymbolReference(for: symbol, in: machO).asyncMap { try await demangleResolver.resolve(for: $0) }
+                            try await SymbolicDemangler.demangleSymbolReference(for: symbol, in: machO).asyncMap { try await demangleResolver.resolve(for: $0) }
                         case .element(let element):
                             if let symbols = machO.symbols(offset: element.offset), let node = Self.demangledSymbol(for: symbols, typeName: typeNameString, visitedNodes: visitedNodes, in: machO)?.demangledNode {
                                 _ = visitedNodes.append(StructuralNodeReferenceKey(node))
@@ -183,7 +183,7 @@ package struct ProtocolConformanceDumper<MachO: FieldLayoutRenderable>: Conforme
     private func _requirementName(for requirement: ProtocolRequirement) async throws -> String? {
         guard let symbols = machO.symbols(offset: requirement.offset) else { return nil }
         for symbol in symbols {
-            if let node = MetadataReader.demangleSymbolReference(for: symbol, in: machO) {
+            if let node = SymbolicDemangler.demangleSymbolReference(for: symbol, in: machO) {
                 return await node.print(using: typeNameOptions)
             }
         }
@@ -192,7 +192,7 @@ package struct ProtocolConformanceDumper<MachO: FieldLayoutRenderable>: Conforme
     
     package static func demangledSymbol(for symbols: Symbols, typeName: String, visitedNodes: borrowing OrderedSet<StructuralNodeReferenceKey> = [], in machO: MachO) -> DemangledSymbol? {
         for symbol in symbols {
-            if let node = MetadataReader.demangleSymbolReference(for: symbol, in: machO), let targetNode = node.first(of: .protocolConformance), let symbolTypeName = targetNode.children.at(0)?.print(using: .interfaceType), symbolTypeName == typeName || PrimitiveTypeMappingCache.shared.storage(in: machO)?.primitiveType(for: typeName) == symbolTypeName, !visitedNodes.contains(StructuralNodeReferenceKey(node)) {
+            if let node = SymbolicDemangler.demangleSymbolReference(for: symbol, in: machO), let targetNode = node.first(of: .protocolConformance), let symbolTypeName = targetNode.children.at(0)?.print(using: .interfaceType), symbolTypeName == typeName || PrimitiveTypeMappingCache.shared.storage(in: machO)?.primitiveType(for: typeName) == symbolTypeName, !visitedNodes.contains(StructuralNodeReferenceKey(node)) {
                 return .init(symbol: symbol, demangledNode: node)
             }
         }

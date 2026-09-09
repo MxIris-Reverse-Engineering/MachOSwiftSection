@@ -205,7 +205,7 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
                 InternedNodeReferenceCache.shared.remove(for: machO)
             }
             if claims.demangleMemo {
-                MetadataReader.removeCache(for: machO)
+                SymbolicDemangler.removeCache(for: machO)
             }
         }
     }
@@ -345,7 +345,7 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
             .init(
                 symbolStore: !symbolIndexStore.contains(in: machO),
                 internedNames: !InternedNodeReferenceCache.shared.contains(in: machO),
-                demangleMemo: !MetadataReader.cacheExists(for: machO)
+                demangleMemo: !SymbolicDemangler.cacheExists(for: machO)
             )
         }
 
@@ -536,7 +536,7 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
                 switch parentContext {
                 case .extension(let extensionContext):
                     guard let extendedContextMangledName = extensionContext.extendedContextMangledName else { continue }
-                    guard let extensionTypeNode = try MetadataReader.demangleType(for: extendedContextMangledName, in: machO).first(of: .type) else { continue }
+                    guard let extensionTypeNode = try SymbolicDemangler.demangleType(for: extendedContextMangledName, in: machO).first(of: .type) else { continue }
                     guard let extensionTypeKind = extensionTypeNode.typeKind else { continue }
 
                     let extensionTypeName = TypeName(node: InternedNodeReferenceCache.shared.reference(interning: extensionTypeNode, in: machO), kind: extensionTypeKind)
@@ -544,7 +544,7 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
                     var genericSignature: NodeReference?
 
                     if let currentRequirements = extensionContext.genericContext?.uniqueCurrentRequirements(in: machO), !currentRequirements.isEmpty {
-                        genericSignature = try MetadataReader.buildGenericSignature(for: currentRequirements, in: machO).map { InternedNodeReferenceCache.shared.reference(interning: $0, in: machO) }
+                        genericSignature = try SymbolicDemangler.buildGenericSignature(for: currentRequirements, in: machO).map { InternedNodeReferenceCache.shared.reference(interning: $0, in: machO) }
                     }
 
                     let extensionDefinition = try ExtensionDefinition(extensionName: extensionTypeName.extensionName, genericSignature: genericSignature, protocolConformance: nil, in: machO)
@@ -556,7 +556,7 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
                     extensionDefinition.types = [typeDefinition]
                     currentStorage.typeExtensionDefinitions[extensionDefinition.extensionName, default: []].append(extensionDefinition)
                 case .symbol(let symbol):
-                    guard let type = try MetadataReader.demangleType(for: symbol, in: machO)?.first(of: .type), let kind = type.typeKind else { continue }
+                    guard let type = try SymbolicDemangler.demangleType(for: symbol, in: machO)?.first(of: .type), let kind = type.typeKind else { continue }
                     let parentTypeName = TypeName(node: InternedNodeReferenceCache.shared.reference(interning: type, in: machO), kind: kind)
                     let extensionDefinition = try ExtensionDefinition(extensionName: parentTypeName.extensionName, genericSignature: nil, protocolConformance: nil, in: machO)
                     extensionDefinition.types = [typeDefinition]
@@ -605,12 +605,12 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
                     if isRoot {
                         rootProtocolDefinitions[protocolName] = protocolDefinition
                     } else if let extensionContext = protocolDefinition.extensionContext, let extendedContextMangledName = extensionContext.extendedContextMangledName {
-                        guard let typeNode = try MetadataReader.demangleType(for: extendedContextMangledName, in: machO).first(of: .type) else { continue }
+                        guard let typeNode = try SymbolicDemangler.demangleType(for: extendedContextMangledName, in: machO).first(of: .type) else { continue }
                         guard let typeKind = typeNode.typeKind else { continue }
                         let typeName = TypeName(node: InternedNodeReferenceCache.shared.reference(interning: typeNode, in: machO), kind: typeKind)
                         var genericSignature: NodeReference?
                         if let currentRequirements = extensionContext.genericContext?.uniqueCurrentRequirements(in: machO), !currentRequirements.isEmpty {
-                            genericSignature = try MetadataReader.buildGenericSignature(for: currentRequirements, in: machO).map { InternedNodeReferenceCache.shared.reference(interning: $0, in: machO) }
+                            genericSignature = try SymbolicDemangler.buildGenericSignature(for: currentRequirements, in: machO).map { InternedNodeReferenceCache.shared.reference(interning: $0, in: machO) }
                         }
                         let extensionDefinition = try ExtensionDefinition(extensionName: typeName.extensionName, genericSignature: genericSignature, protocolConformance: nil, in: machO)
                         extensionDefinition.protocols = [protocolDefinition]
@@ -702,7 +702,7 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
                     }
 
                     let conformanceAssociatedTypes = associatedType.map { [$0] } ?? []
-                    let extensionDefinition = try ExtensionDefinition(extensionName: typeName.extensionName, genericSignature: MetadataReader.buildGenericSignature(for: protocolConformance.conditionalRequirements, in: machO).map { InternedNodeReferenceCache.shared.reference(interning: $0, in: machO) }, protocolConformance: protocolConformance, conformingProtocolName: protocolName, associatedTypes: conformanceAssociatedTypes, resolvedAssociatedTypeWitnesses: resolvedWitnessProjections(of: conformanceAssociatedTypes), in: machO)
+                    let extensionDefinition = try ExtensionDefinition(extensionName: typeName.extensionName, genericSignature: SymbolicDemangler.buildGenericSignature(for: protocolConformance.conditionalRequirements, in: machO).map { InternedNodeReferenceCache.shared.reference(interning: $0, in: machO) }, protocolConformance: protocolConformance, conformingProtocolName: protocolName, associatedTypes: conformanceAssociatedTypes, resolvedAssociatedTypeWitnesses: resolvedWitnessProjections(of: conformanceAssociatedTypes), in: machO)
                     extensionDefinition.isRetroactive = protocolConformance.flags.isRetroactive
                     conformanceExtensionDefinitions[extensionDefinition.extensionName, default: []].append(extensionDefinition)
                     extensionCount += 1
@@ -775,7 +775,7 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
             for record in associatedType.records {
                 guard let recordName = try? record.name(in: machO),
                       let mangledTypeName = try? record.substitutedTypeName(in: machO),
-                      let typeNode = try? MetadataReader.demangleType(for: mangledTypeName, in: machO)
+                      let typeNode = try? SymbolicDemangler.demangleType(for: mangledTypeName, in: machO)
                 else { continue }
                 guard seenNames.insert(recordName).inserted else { continue }
                 projections.append(AssociatedTypeWitnessProjection(name: recordName, substitutedTypeText: typeNode.print(using: .default)))
@@ -960,7 +960,7 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
     /// The (protocol, where-clause, retroactive) identity that decides whether
     /// two definitions filed under one `ExtensionName` are the same source
     /// container. Structurally keyed: the definitions' nodes may come from
-    /// different stores (the interned image store vs `MetadataReader` minis),
+    /// different stores (the interned image store vs `SymbolicDemangler` minis),
     /// where store-identity equality never matches.
     private struct ExtensionContainerIdentity: Hashable {
         let protocolNodeKey: StructuralNodeReferenceKey?
@@ -1291,7 +1291,7 @@ private enum PerImageCacheEvictionRegistry {
     ///
     /// Claimed PER CACHE rather than once for all three: the symbol store is
     /// the only one an indexer's `prepare()` necessarily builds. The
-    /// interned-name store and the `MetadataReader` demangle memo are also
+    /// interned-name store and the `SymbolicDemangler` demangle memo are also
     /// populated by SwiftLayout, `SwiftDeclarationRendering` and
     /// `SwiftSpecialization` — a "dump the image, then build its interface"
     /// sequence fills both without ever touching the symbol store. Under a

@@ -63,7 +63,7 @@ package struct AssociatedTypeDumper<MachO: FieldLayoutRenderable>: ConformedDump
 
                 Space()
 
-                try await demangleResolver.resolve(for: MetadataReader.demangleType(for: record.substitutedTypeName(in: machO), in: machO).resolveOpaqueType(in: machO))
+                try await demangleResolver.resolve(for: SymbolicDemangler.demangleType(for: record.substitutedTypeName(in: machO), in: machO).resolveOpaqueType(in: machO))
 
                 if offset.isEnd {
                     BreakLine()
@@ -88,13 +88,13 @@ package struct AssociatedTypeDumper<MachO: FieldLayoutRenderable>: ConformedDump
 
     package var typeName: SemanticString {
         get async throws {
-            try await demangleResolver.resolve(for: MetadataReader.demangleType(for: dumped.conformingTypeName, in: machO)).replacingTypeNameOrOtherToTypeDeclaration()
+            try await demangleResolver.resolve(for: SymbolicDemangler.demangleType(for: dumped.conformingTypeName, in: machO)).replacingTypeNameOrOtherToTypeDeclaration()
         }
     }
 
     package var protocolName: SemanticString {
         get async throws {
-            try await demangleResolver.resolve(for: MetadataReader.demangleType(for: dumped.protocolTypeName, in: machO))
+            try await demangleResolver.resolve(for: SymbolicDemangler.demangleType(for: dumped.protocolTypeName, in: machO))
         }
     }
 }

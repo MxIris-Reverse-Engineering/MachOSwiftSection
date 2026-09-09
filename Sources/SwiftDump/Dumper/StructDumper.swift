@@ -133,7 +133,7 @@ package struct StructDumper<MachO: FieldLayoutRenderable>: TypedDumper {
             // bucket; the context node picks this type's own sub-bucket
             // (issue #115). A context that cannot be demangled falls back to
             // the name-only (merged) lookup rather than dropping members.
-            let contextNode = try? MetadataReader.demangleContext(for: .type(.struct(dumped.descriptor)), in: machO)
+            let contextNode = try? SymbolicDemangler.demangleContext(for: .type(.struct(dumped.descriptor)), in: machO)
 
             for kind in SymbolIndexStore.MemberKind.allCases {
                 let memberSymbols = if let contextNode {
@@ -201,7 +201,7 @@ package struct StructDumper<MachO: FieldLayoutRenderable>: TypedDumper {
     @SemanticStringBuilder
     private func _name(using resolver: DemangleResolver) async throws -> SemanticString {
         if configuration.displayParentName {
-            try await resolver.resolve(for: MetadataReader.demangleContext(for: .type(.struct(dumped.descriptor)), in: machO)).replacingTypeNameOrOtherToTypeDeclaration()
+            try await resolver.resolve(for: SymbolicDemangler.demangleContext(for: .type(.struct(dumped.descriptor)), in: machO)).replacingTypeNameOrOtherToTypeDeclaration()
         } else {
             try TypeDeclaration(kind: .struct, dumped.descriptor.name(in: machO))
         }

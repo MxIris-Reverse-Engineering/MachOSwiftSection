@@ -28,3 +28,5 @@
 | [0018](0018-self-contained-abi-layer.md) | ABI 层自包含：MachOSwiftSection 不再依赖符号索引——描述符只暴露实现地址，符号查询上移 SwiftInspection，值类型下沉 MachOResolving | Implemented |
 | [0019](0019-large-stack-executor-and-cross-version-parallelism.md) | 大栈任务执行器接入与跨版本并行准备：打印路径零线程跳转（执行器本体在 swift-demangling 0014），diff / evolution 多版本并行 | Implemented |
 | [0020](0020-vtable-slot-attribution-via-method-descriptor-symbols.md) | vtable 槽归属改用 method descriptor 符号：ICF 折叠下的错名修正与墓碑槽还原 | Implemented |
+| [0021](0021-metadata-reader-deterministic-node-extraction.md) | MetadataReader 符号引用解析去搜索化：ObjC protocol 引用与 extension 目标按 ABI 固定形状取节点，删掉靠深度优先搜索碰运气的 `typeSymbol` / `extensionSymbol` | Implemented |
+| [0022](0022-rename-metadata-reader-to-symbolic-demangler.md) | `MetadataReader` 改名为 `SymbolicDemangler`：它只做 symbolic reference 回镜像解析的 demangle，与 metadata 记录无关；留一个 deprecated typealias 过渡 | Implemented |

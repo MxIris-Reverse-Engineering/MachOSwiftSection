@@ -70,7 +70,7 @@ final class BuiltinTypeLayoutTests: MachOSwiftSectionFixtureTests, @unchecked Se
         var resolved: StaticTypeLayout?
         for contextDescriptor in try machO.swift.contextDescriptors {
             guard
-                let node = try? MetadataReader.demangleContext(for: contextDescriptor, in: machO),
+                let node = try? SymbolicDemangler.demangleContext(for: contextDescriptor, in: machO),
                 NodeTypeNaming.nominalQualifiedName(of: node) == targetName
             else { continue }
             resolved = try resolver.layout(forTypeNode: node, in: universe.rootImage)

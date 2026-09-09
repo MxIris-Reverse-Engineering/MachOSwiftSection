@@ -45,7 +45,7 @@ extension StaticLayoutCalculator {
         baseOffset: Int,
         depthLimit: Int
     ) -> [NestedFieldOffset] {
-        guard let node = try? MetadataReader.demangleType(for: mangledTypeName, in: imageUniverse.rootImage.machO) else {
+        guard let node = try? SymbolicDemangler.demangleType(for: mangledTypeName, in: imageUniverse.rootImage.machO) else {
             return []
         }
         return nestedChildren(
@@ -198,7 +198,7 @@ extension StaticLayoutCalculator {
     ) -> NestedFieldOffset {
         let fieldName = ((try? record.fieldName(in: image.machO)).flatMap { $0.isEmpty ? nil : $0 }) ?? fallbackFieldName
         let fieldTypeNode: Node? = (try? record.mangledTypeName(in: image.machO)).flatMap { mangledTypeName in
-            (try? MetadataReader.demangleType(for: mangledTypeName, in: image.machO)).map { environment.substituting(in: $0) }
+            (try? SymbolicDemangler.demangleType(for: mangledTypeName, in: image.machO)).map { environment.substituting(in: $0) }
         }
         let typeName = fieldTypeNode?.print(using: .default) ?? ""
         let children = descendsIntoFieldType ? (fieldTypeNode.map {

@@ -82,7 +82,7 @@ extension Node {
                    firstChild.isKind(of: .opaqueTypeDescriptorSymbolicReference),
                    let offset: Int = firstChild.index?.cast() {
                     // `opaqueTypeDescriptorSymbolicReference` is unified to InProcess in any
-                    // MachOImage environment: MetadataReader stashes the descriptor's
+                    // MachOImage environment: SymbolicDemangler stashes the descriptor's
                     // absolute in-process pointer bit pattern in Node.index regardless of
                     // whether the descriptor lives in the current image or in a sibling
                     // loaded image (cross-image refs from `View.searchFieldStyle`-style
@@ -114,9 +114,9 @@ extension Node {
                     if let underlyingTypeArgumentMangledName = opaqueType.underlyingTypeArgumentMangledNames[safe: 0] {
                         let underlyingTypeArgumentNode: Node?
                         if machO is MachOImage {
-                            underlyingTypeArgumentNode = try? MetadataReader.demangleType(for: underlyingTypeArgumentMangledName)
+                            underlyingTypeArgumentNode = try? SymbolicDemangler.demangleType(for: underlyingTypeArgumentMangledName)
                         } else {
-                            underlyingTypeArgumentNode = try? MetadataReader.demangleType(for: underlyingTypeArgumentMangledName, in: machO)
+                            underlyingTypeArgumentNode = try? SymbolicDemangler.demangleType(for: underlyingTypeArgumentMangledName, in: machO)
                         }
                         if let underlyingTypeArgumentNode, underlyingTypeArgumentNode.kind == .type,
                            let firstChild = underlyingTypeArgumentNode.firstChild {

@@ -208,6 +208,13 @@ TypeIndexing 的外部知识入口：标准 `.apinotes` 格式的**用户自备*
 - **主要出现在**：`Sources/MachOSymbols/SymbolIndexStore.swift`（`buildStorageSweep`）
 - **延伸阅读**：[提案 0001](Evolutions/0001-symbol-name-offsetization.md)、[SymbolIndexStoreMemoryOptimization.md](Internal/SymbolIndexStoreMemoryOptimization.md)
 
+### SymbolicDemangler（旧名 MetadataReader）
+
+`SwiftInspection` 里带镜像上下文的 demangler：mangled name 里的 symbolic reference（指向 context descriptor、opaque type descriptor、protocol descriptor、existential shape 的相对指针）要回到镜像里解析，它读出被引用的描述符、建出编译器本来会 mangle 进去的那棵子树，对应运行时的 `ResolveAsSymbolicReference` 加 `_swift_buildDemanglingForContext`。另外直接为 context descriptor 和 generic requirement 列表建 demangling（`demangleContext(for:)`、`buildGenericSignature(for:)`）。它从不读 `Metadata` 记录，metadata 指针变类型那个方向是 `RuntimeMetadataTypeBuilder`。2026-09-09 之前叫 `MetadataReader`，名字抄自上游 `swift/Remote/MetadataReader.h`，但上游那个类型的主业正是「从远程进程内存读 metadata 记录再交给 Builder」，我们只对应它 demangle 那一半；带日期的旧文档里仍用旧名。
+
+- **主要出现在**：`Sources/SwiftInspection/SymbolicDemangler.swift`
+- **延伸阅读**：[提案 0022](Evolutions/0022-rename-metadata-reader-to-symbolic-demangler.md)、[ReadingContextAbstraction.md](Internal/ReadingContextAbstraction.md)
+
 ### trailing objects
 
 Swift runtime 的 descriptor 布局惯例：固定头之后按 flags 跟着可变数量的附加记录（vtable 方法描述符、resilient witnesses、泛型上下文等），源自 C++ 侧的 `TrailingObjects` 模板。本仓库的高层 wrapper 构造时把它们全部解析成 Swift 数组——0002 要治理的驻留正是这些解析产物。

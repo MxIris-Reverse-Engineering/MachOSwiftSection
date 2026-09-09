@@ -31,7 +31,7 @@ final class RecursiveNestedFieldOffsetTreeTests: MachOSwiftSectionFixtureTests, 
         for contextDescriptor in try machO.swift.contextDescriptors {
             guard let descriptor = contextDescriptor.typeContextDescriptorWrapper, descriptor.isStruct else { continue }
             guard
-                let name = (try? MetadataReader.demangleContext(for: contextDescriptor, in: machO))
+                let name = (try? SymbolicDemangler.demangleContext(for: contextDescriptor, in: machO))
                     .flatMap(NodeTypeNaming.nominalQualifiedName(of:)),
                 name == qualifiedTypeName
             else { continue }

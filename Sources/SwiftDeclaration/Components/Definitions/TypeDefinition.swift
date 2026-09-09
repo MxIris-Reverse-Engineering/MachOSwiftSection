@@ -230,7 +230,7 @@ public final class TypeDefinition: Definition {
         if case .class(let classDescriptor) = typeContextDescriptorWrapper {
             let classWrapper = try Class(descriptor: classDescriptor, in: machO)
             var visitedNodes: OrderedSet<StructuralNodeReferenceKey> = []
-            let typeNode = try MetadataReader.demangleContext(for: .type(.class(classWrapper.descriptor)), in: machO)
+            let typeNode = try SymbolicDemangler.demangleContext(for: .type(.class(classWrapper.descriptor)), in: machO)
             let vtableBaseOffset = classWrapper.vTableDescriptorHeader.map { Int($0.layout.vTableOffset) }
             classCanRecoverFinalMembers = classWrapper.vTableDescriptorHeader != nil && !classDescriptor.isActor
 

@@ -10,6 +10,6 @@ extension ContextDescriptorWrapper {
     }
 
     package func dumpNameNode<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> Node {
-        try MetadataReader.demangleContext(for: self, in: machO)
+        try SymbolicDemangler.demangleContext(for: self, in: machO)
     }
 }

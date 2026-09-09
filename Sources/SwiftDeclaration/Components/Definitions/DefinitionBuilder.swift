@@ -94,7 +94,7 @@ package enum DefinitionBuilder {
         //
         // Keyed structurally, not by bare `NodeReference`: these symbols do not
         // all come from one store (a resilient witness or protocol requirement
-        // arrives through `MetadataReader.demangleSymbolReference`, i.e. a mini
+        // arrives through `SymbolicDemangler.demangleSymbolReference`, i.e. a mini
         // store), and store-identity keys would file a subscript's getter and
         // setter into two separate buckets — the setter-only bucket then loses
         // the `contains(.getter)` test below and the accessor disappears.

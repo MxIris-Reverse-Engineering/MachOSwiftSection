@@ -17,7 +17,7 @@ extension OpaqueType {
         var results: [GenericRequirementDescriptor] = []
         for currentRequirement in currentRequirements {
             if currentRequirement.content.isType {
-                if let node = try MetadataReader.buildGenericSignature(for: currentRequirement, in: machO), let sameTypeRequirementNode = node.first(of: .dependentGenericSameTypeRequirement) {
+                if let node = try SymbolicDemangler.buildGenericSignature(for: currentRequirement, in: machO), let sameTypeRequirementNode = node.first(of: .dependentGenericSameTypeRequirement) {
                     let sameTypeRequirementCopy: Node
                     if let associatedTypeRefNode = sameTypeRequirementNode.first(of: .dependentAssociatedTypeRef) {
                         let modifiedAssociatedTypeRef = NodeBuilder(associatedTypeRefNode).removingChild(at: 1)
@@ -30,7 +30,7 @@ extension OpaqueType {
                     }
                 }
             } else if currentRequirement.content.isProtocol {
-                if let node = try MetadataReader.buildGenericSignature(for: currentRequirement, in: machO), let conformanceRequirementNode = node.first(of: .dependentGenericConformanceRequirement), !usedRequirements.contains(conformanceRequirementNode) {
+                if let node = try SymbolicDemangler.buildGenericSignature(for: currentRequirement, in: machO), let conformanceRequirementNode = node.first(of: .dependentGenericConformanceRequirement), !usedRequirements.contains(conformanceRequirementNode) {
                     results.append(currentRequirement)
                 }
             }

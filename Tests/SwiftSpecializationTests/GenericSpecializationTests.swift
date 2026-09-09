@@ -490,7 +490,7 @@ struct GenericSpecializationTests {
             var elementRequirementCount = 0
             for req in genericContext.requirements {
                 let mangled = try req.paramMangledName(in: machO)
-                let node = try MetadataReader.demangleType(for: mangled, in: machO)
+                let node = try SymbolicDemangler.demangleType(for: mangled, in: machO)
                 guard let path = GenericSpecializer<MachOImage>.extractAssociatedPath(of: node),
                       !path.steps.isEmpty,
                       path.baseParamName == "A",
@@ -2459,7 +2459,7 @@ struct GenericSpecializationTests {
         //   - `.objectiveCProtocolSymbolicReference` (resolver returned nil)
         //
         // The pre-fix `extractAssociatedPath` only accepted `.type`. The
-        // other two — which arise when MetadataReader's resolver fails —
+        // other two — which arise when SymbolicDemangler's resolver fails —
         // fell through to a `nil` return, which then became a silent
         // `continue` in `buildAssociatedTypeRequirements` or a typed
         // `unknownParamNodeStructure` error in

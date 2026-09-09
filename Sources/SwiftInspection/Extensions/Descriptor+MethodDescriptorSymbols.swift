@@ -70,7 +70,7 @@ public enum MethodDescriptorAttribution {
         in machO: MachO
     ) -> NodeReference? {
         for symbol in symbols {
-            guard let node = MetadataReader.demangleSymbolReference(for: symbol, in: machO),
+            guard let node = SymbolicDemangler.demangleSymbolReference(for: symbol, in: machO),
                   let memberNode = memberNode(unwrappingMethodDescriptorNode: node, in: machO) else { continue }
             return memberNode
         }

@@ -276,7 +276,7 @@ extension GenericRequirementDescriptor {
     }
 
     package func dumpParameterName<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) async throws -> Node {
-        try MetadataReader.demangleType(for: paramMangledName(in: machO), in: machO)
+        try SymbolicDemangler.demangleType(for: paramMangledName(in: machO), in: machO)
     }
 
     @SemanticStringBuilder
@@ -298,11 +298,11 @@ extension GenericRequirementDescriptor {
     package func dumpContent<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO, @SemanticStringBuilder builder: (Node) async throws -> SemanticString) async throws -> SemanticString {
         switch try resolvedContent(in: machO) {
         case .type(let mangledName):
-            try await builder(MetadataReader.demangleType(for: mangledName, in: machO))
+            try await builder(SymbolicDemangler.demangleType(for: mangledName, in: machO))
         case .protocol(let resolvableElement):
             switch resolvableElement {
             case .symbol(let unsolvedSymbol):
-                try await MetadataReader.demangleType(for: unsolvedSymbol, in: machO).asyncMap { try await builder($0) }
+                try await SymbolicDemangler.demangleType(for: unsolvedSymbol, in: machO).asyncMap { try await builder($0) }
             case .element(let element):
                 switch element {
                 case .objc(let objc):
@@ -317,7 +317,7 @@ extension GenericRequirementDescriptor {
                     ])
                     try await builder(node)
                 case .swift(let protocolDescriptor):
-                    try await builder(MetadataReader.demangleContext(for: .protocol(protocolDescriptor), in: machO))
+                    try await builder(SymbolicDemangler.demangleContext(for: .protocol(protocolDescriptor), in: machO))
                 }
             }
         case .layout(let genericRequirementLayoutKind):
@@ -372,7 +372,7 @@ extension GenericRequirementDescriptor {
 
     @SemanticStringBuilder
     private func dumpProtocolMangledName<MachO: MachOSwiftSectionRepresentableWithCache>(_ mangledName: MangledName, in machO: MachO, @SemanticStringBuilder builder: (Node) async throws -> SemanticString) async throws -> SemanticString {
-        let node = try MetadataReader.demangleType(for: mangledName, in: machO)
+        let node = try SymbolicDemangler.demangleType(for: mangledName, in: machO)
 
         let params = node.filter(of: .dependentAssociatedTypeRef).compactMap { $0.first(of: .identifier)?.text }
 
@@ -400,12 +400,12 @@ extension GenericRequirementDescriptor {
     package func dumpProtocolContent<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO, @SemanticStringBuilder builder: (Node) async throws -> SemanticString) async throws -> SemanticString {
         switch try resolvedContent(in: machO) {
         case .type(let mangledName):
-//            try builder(MetadataReader.demangleType(for: mangledName, in: machO))
+//            try builder(SymbolicDemangler.demangleType(for: mangledName, in: machO))
             try await dumpProtocolMangledName(mangledName, in: machO, builder: builder)
         case .protocol(let resolvableElement):
             switch resolvableElement {
             case .symbol(let unsolvedSymbol):
-                try await MetadataReader.demangleType(for: unsolvedSymbol, in: machO).asyncMap { try await builder($0) }
+                try await SymbolicDemangler.demangleType(for: unsolvedSymbol, in: machO).asyncMap { try await builder($0) }
             case .element(let element):
                 switch element {
                 case .objc(let objc):
@@ -420,7 +420,7 @@ extension GenericRequirementDescriptor {
                     ])
                     try await builder(node)
                 case .swift(let protocolDescriptor):
-                    try await builder(MetadataReader.demangleContext(for: .protocol(protocolDescriptor), in: machO))
+                    try await builder(SymbolicDemangler.demangleContext(for: .protocol(protocolDescriptor), in: machO))
                 }
             }
         case .layout(let genericRequirementLayoutKind):

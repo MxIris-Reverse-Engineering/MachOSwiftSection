@@ -1321,6 +1321,49 @@
 
 ---
 
+## 2026-09-09 MetadataReader 符号引用解析去搜索化（提案 0021 metadata-reader-deterministic-node-extraction）
+
+- **时间段**：2026-09-09。
+- **动机**：用户对照上游 `swift/include/swift/Remote/MetadataReader.h` 问 demangle 部分是否过时，
+  结论是不过时而是目标不同（上游的树喂 `TypeDecoder`，故意把地址留在节点里、不对齐 demangler 的
+  形状；我们的树直接进打印器与 remangler）。顺带清掉 `MetadataReader.swift` 末尾一组早年写的
+  `Node` 扩展：`.objectiveCProtocol` 分支用 `typeSymbol` 在整棵树里找第一个 `.type`，
+  `.extension` 分支用 `extensionSymbol` 找第一个 nominal，另有无人调用的 `nodes(for:)`——写的
+  时候不清楚字段的 ABI 形状，靠样本恰好都是那个形状没出错。
+- **关键决策**：按 IRGen 写入的固定形状逐层取节点，对不上返回 nil 而不是继续往下钻。ObjC protocol
+  引用记录的第二个字段是 `FlatUnique` 角色的 `So9NSCopying_p`，固定四层
+  `Type → ProtocolList → TypeList → Type(Protocol)`；extension 的 `ExtendedContext` 是
+  `getSelfInterfaceType()`（裸 nominal / `Array<A>` bound generic / protocol 的 `Self`），处理规则
+  与运行时 `Demangle.cpp` 相同（去 `Type` 壳、四种 `BoundGeneric*` 再取一层），结果须满足
+  `isAnyGeneric`。protocol extension 的 `Self` 保持 nil：类型不能嵌套在 protocol extension 里，
+  该 descriptor 只经匿名上下文到达。现有样本输出逐字节不变。`\x0C` 引用此前零覆盖（fixture 的
+  `A: NSCopying` 走 protocol 指针），用 macOS 15 目标的 on-the-fly fixture 补上。
+- **落地模块**：`SwiftInspection`（`MetadataReader`）。
+- **关联文档**：[提案](../Evolutions/0021-metadata-reader-deterministic-node-extraction.md)、
+  [TaskReports/2026-09-09-metadata-reader-deterministic-node-extraction.md](TaskReports/2026-09-09-metadata-reader-deterministic-node-extraction.md)。
+- **对应版本**：输出不变，无独立版本；随下一次发布。
+
+---
+
+## 2026-09-09 `MetadataReader` 改名为 `SymbolicDemangler`（提案 0022 rename-metadata-reader-to-symbolic-demangler）
+
+- **时间段**：2026-09-09。
+- **动机**：对照上游 `swift/Remote/MetadataReader.h` 与 `RemoteInspection` 做能力盘点时，用户指出我们的
+  `MetadataReader` 与 metadata 记录无关：它只按 mangled name / symbol / context descriptor /
+  generic requirement 产出 demangle 后的 `Node`，symbolic reference 回镜像解析，对应运行时
+  `ResolveAsSymbolicReference` 加 `_swift_buildDemanglingForContext`；上游同名类型的主业却是
+  「从远程进程内存读 metadata 记录再交给 Builder」。名字是早年照抄的，现在改掉。
+- **关键决策**：新名 `SymbolicDemangler`，不取 `DemanglingBuilder`（项目里 Builder 已专指
+  `TypeBuilder` 一族）。留一个 `@available(*, deprecated, renamed:)` 的 typealias 过渡一个版本，
+  RuntimeViewer 的一处调用不断。文件、私有缓存类型、测试文件与 suite 名同步改；AGENTS.md、术语表、
+  README 索引更新；带日期的记录不改写，术语表负责新旧名对照。
+- **落地模块**：`SwiftInspection`（`SymbolicDemangler.swift`）、全库调用点。
+- **关联文档**：[提案](../Evolutions/0022-rename-metadata-reader-to-symbolic-demangler.md)、
+  [TaskReports/2026-09-09-rename-metadata-reader-to-symbolic-demangler.md](TaskReports/2026-09-09-rename-metadata-reader-to-symbolic-demangler.md)。
+- **对应版本**：输出不变；公开 API 改名，随下一次发布，旧名保留一个版本。
+
+---
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节

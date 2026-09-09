@@ -140,7 +140,7 @@ package struct ProtocolDumper<MachO: FieldLayoutRenderable>: NamedDumper {
     @SemanticStringBuilder
     private func _name(using resolver: DemangleResolver) async throws -> SemanticString {
         if configuration.displayParentName {
-            try await resolver.resolve(for: MetadataReader.demangleContext(for: .protocol(dumped.descriptor), in: machO)).replacingTypeNameOrOtherToTypeDeclaration()
+            try await resolver.resolve(for: SymbolicDemangler.demangleContext(for: .protocol(dumped.descriptor), in: machO)).replacingTypeNameOrOtherToTypeDeclaration()
         } else {
             try TypeDeclaration(kind: .protocol, dumped.descriptor.name(in: machO))
         }
@@ -160,7 +160,7 @@ package struct ProtocolDumper<MachO: FieldLayoutRenderable>: NamedDumper {
     private func validNode(for symbols: Symbols, visitedNode: borrowing OrderedSet<StructuralNodeReferenceKey> = []) async throws -> NodeReference? {
         let currentInterfaceName = try await _name(using: .options(.interfaceType)).string
         for symbol in symbols {
-            if let node = MetadataReader.demangleSymbolReference(for: symbol, in: machO), let protocolNode = node.first(of: .protocol), await protocolNode.print(using: .interfaceType) == currentInterfaceName, !visitedNode.contains(StructuralNodeReferenceKey(node)) {
+            if let node = SymbolicDemangler.demangleSymbolReference(for: symbol, in: machO), let protocolNode = node.first(of: .protocol), await protocolNode.print(using: .interfaceType) == currentInterfaceName, !visitedNode.contains(StructuralNodeReferenceKey(node)) {
                 return node
             }
         }

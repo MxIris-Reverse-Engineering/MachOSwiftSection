@@ -65,7 +65,7 @@ public struct StaticLayoutCalculator<MachO: MachOSwiftSectionRepresentableWithCa
     public func fieldLayout(forInstantiationMangledName mangledTypeName: MangledName) throws -> AggregateFieldLayout {
         let typeNode: Node
         do {
-            typeNode = try MetadataReader.demangleType(for: mangledTypeName, in: imageUniverse.rootImage.machO)
+            typeNode = try SymbolicDemangler.demangleType(for: mangledTypeName, in: imageUniverse.rootImage.machO)
         } catch {
             throw LayoutResolutionError.unknown(.demangleFailure)
         }
@@ -106,7 +106,7 @@ public struct StaticLayoutCalculator<MachO: MachOSwiftSectionRepresentableWithCa
     /// resolves it (a class yields a single pointer). Used for enum whole-type
     /// sizing in renderers that hold a descriptor rather than a mangled name.
     public func typeLayout(forDescriptor typeDescriptor: TypeContextDescriptorWrapper) throws -> StaticTypeLayout {
-        let node = try MetadataReader.demangleContext(for: typeDescriptor.asContextDescriptorWrapper, in: imageUniverse.rootImage.machO)
+        let node = try SymbolicDemangler.demangleContext(for: typeDescriptor.asContextDescriptorWrapper, in: imageUniverse.rootImage.machO)
         return try resolver.layout(forTypeNode: node, in: imageUniverse.rootImage)
     }
 
@@ -278,7 +278,7 @@ public struct StaticLayoutCalculator<MachO: MachOSwiftSectionRepresentableWithCa
     /// the descriptor. `nil` when the image embeds no builtin record for it.
     private func foreignBuiltinLayout(of descriptor: StructDescriptor, in image: ImageReference<MachO>) -> StaticTypeLayout? {
         guard
-            let node = try? MetadataReader.demangleContext(
+            let node = try? SymbolicDemangler.demangleContext(
                 for: TypeContextDescriptorWrapper.struct(descriptor).asContextDescriptorWrapper,
                 in: image.machO
             ),

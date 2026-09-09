@@ -226,7 +226,7 @@ extension StaticTypeLayoutResolver {
         for descriptor in descriptors {
             guard
                 let mangledTypeName = try? descriptor.mangledTypeName(in: image.machO),
-                let node = try? MetadataReader.demangleType(for: mangledTypeName, in: image.machO),
+                let node = try? SymbolicDemangler.demangleType(for: mangledTypeName, in: image.machO),
                 NodeTypeNaming.nominalQualifiedName(of: node) == qualifiedTypeName
             else { continue }
             return descriptor
@@ -305,7 +305,7 @@ extension StaticTypeLayoutResolver {
         let emptyCaseCount = descriptor.numberOfEmptyCases
         guard payloadCaseCount > 0 else { return nil }
 
-        let node = try MetadataReader.demangleContext(for: .type(.enum(descriptor)), in: image.machO)
+        let node = try SymbolicDemangler.demangleContext(for: .type(.enum(descriptor)), in: image.machO)
         let layoutResult: EnumLayoutCalculator.LayoutResult
         if payloadCaseCount == 1 {
             let payload = try singlePayloadType(descriptor: descriptor, node: node, in: image, environment: environment)

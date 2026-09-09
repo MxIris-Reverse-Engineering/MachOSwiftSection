@@ -181,7 +181,7 @@ extension TypedDumper {
     /// is operating on a specialized in-process metadata.
     ///
     /// Strategy:
-    ///   - Non-generic dumps fall through to `MetadataReader.demangleType`
+    ///   - Non-generic dumps fall through to `SymbolicDemangler.demangleType`
     ///     against the binary's raw bytes (the existing path; the result
     ///     contains no generic-param references).
     ///   - Generic dumps with a `metadataContext` use the resolved
@@ -196,7 +196,7 @@ extension TypedDumper {
         if let substituted = substitutedFieldNode(for: mangledTypeName) {
             return substituted
         }
-        return try MetadataReader.demangleType(for: mangledTypeName, in: machO)
+        return try SymbolicDemangler.demangleType(for: mangledTypeName, in: machO)
     }
 
     /// Splits the SwiftStdlib 5.3 availability gate (required for

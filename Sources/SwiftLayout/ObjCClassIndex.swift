@@ -116,7 +116,7 @@ enum ObjCClassIndex {
         guard runtimeName.hasPrefix("_Tt") || runtimeName.hasPrefix("$s") else { return nil }
         // The demangler wraps the result in `.global`; the qualified-name
         // builder wants the bare nominal class node (the same shape
-        // `MetadataReader.demangleContext` produces on the descriptor side).
+        // `SymbolicDemangler.demangleContext` produces on the descriptor side).
         // Transient demangle: only the qualified-name string survives this
         // call, so the tree must not be interned into the global `NodeCache`.
         guard

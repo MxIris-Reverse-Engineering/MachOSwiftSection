@@ -197,7 +197,7 @@ public final class ExtensionDefinition: Definition, MutableDefinition {
         // implementation symbol be claimed by two witnesses.
         func _symbol(for symbols: Symbols, typeName: String, visitedNodes: borrowing OrderedSet<StructuralNodeReferenceKey> = []) throws -> DemangledSymbol? {
             for symbol in symbols {
-                if let node = MetadataReader.demangleSymbolReference(for: symbol, in: machO), let protocolConformanceNode = node.first(of: .protocolConformance), let symbolTypeName = protocolConformanceNode.children.first?.print(using: .interfaceTypeBuilderOnly), symbolTypeName == typeName || PrimitiveTypeMappingCache.shared.storage(in: machO)?.primitiveType(for: typeName) == symbolTypeName, !visitedNodes.contains(StructuralNodeReferenceKey(node)) {
+                if let node = SymbolicDemangler.demangleSymbolReference(for: symbol, in: machO), let protocolConformanceNode = node.first(of: .protocolConformance), let symbolTypeName = protocolConformanceNode.children.first?.print(using: .interfaceTypeBuilderOnly), symbolTypeName == typeName || PrimitiveTypeMappingCache.shared.storage(in: machO)?.primitiveType(for: typeName) == symbolTypeName, !visitedNodes.contains(StructuralNodeReferenceKey(node)) {
                     return .init(symbol: symbol, demangledNode: node)
                 }
             }
@@ -214,7 +214,7 @@ public final class ExtensionDefinition: Definition, MutableDefinition {
             } else if let requirement = try resilientWitness.requirement(in: machO) {
                 switch requirement {
                 case .symbol(let symbol):
-                    if let demangledNode = MetadataReader.demangleSymbolReference(for: symbol, in: machO) {
+                    if let demangledNode = SymbolicDemangler.demangleSymbolReference(for: symbol, in: machO) {
                         addSymbol(.init(.init(symbol: symbol, demangledNode: demangledNode)), memberSymbolsByKind: &memberSymbolsByKind, inExtension: true)
                     }
                 case .element(let element):

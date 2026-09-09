@@ -12,7 +12,7 @@ import SwiftStdlibToolbox
 /// persistently — structurally equal trees return the *same* reference
 /// (store identity included), at any two points in the scope's lifetime.
 /// The name-construction sites (`TypeName` / `ProtocolName` /
-/// `ExtensionName` built from `MetadataReader` trees, and `TypeDefinition`'s
+/// `ExtensionName` built from `SymbolicDemangler` trees, and `TypeDefinition`'s
 /// field type trees) intern once per *occurrence*, and occurrences repeat
 /// heavily: every conformance re-interns its protocol's name, every nested
 /// type re-interns its parent's, every extension its target's. Sharing one
