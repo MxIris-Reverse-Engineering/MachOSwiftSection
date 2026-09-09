@@ -58,6 +58,8 @@ final class StaticTypeLayoutResolver<MachO: MachOSwiftSectionRepresentableWithCa
             return try structureLayout(forNode: node, in: originImage)
         case .enum, .boundGenericEnum:
             return try enumLayout(forNode: node, in: originImage)
+        case .typeAlias:
+            return try cImportedTypeAliasLayout(forNode: node, in: originImage)
         case .tuple:
             return try tupleLayout(forNode: node, in: originImage)
         case .functionType:
@@ -141,9 +143,62 @@ final class StaticTypeLayoutResolver<MachO: MachOSwiftSectionRepresentableWithCa
              .enum, .boundGenericEnum,
              .tuple, .builtinTypeName, .builtinFixedArray:
             return .empty
+        case .typeAlias:
+            // A C typedef promoted to a nominal type: thick for a CF class,
+            // thin for a struct or enum, decided by its descriptor.
+            switch try cImportedTypeAliasDescriptor(forNode: instance).descriptor {
+            case .class:
+                return .pointerSized
+            case .struct, .enum:
+                return .empty
+            }
         default:
             throw LayoutResolutionError.unknown(.unsupportedTypeKind(nodeKindName: "metatype(\(instance.kind))"))
         }
+    }
+
+    // MARK: - C typedefs promoted to nominal types
+
+    /// The layout of a `.typeAlias` node.
+    ///
+    /// In a mangling a `typeAlias` in `__C` is not an alias at all: it is how
+    /// the compiler spells a C typedef the importer promoted to its own
+    /// nominal type — a typedef of an anonymous struct (`__C.CMTime`,
+    /// `__C.NSDecimal`), a `swift_wrapper` typedef, or a CF class
+    /// (`__C.CGColorRef`) — and the descriptor-derived tree spells it the same
+    /// way since evolution proposal `type-import-info-identity`. The node kind
+    /// says nothing about the layout; the descriptor's kind does. An imported
+    /// C value type is first looked up in the image's `__swift5_builtin`
+    /// whole-type records, exactly like a `.structure` node.
+    private func cImportedTypeAliasLayout(forNode node: Node, in originImage: ImageReference<MachO>) throws -> StaticTypeLayout {
+        guard let qualifiedTypeName = NodeTypeNaming.nominalQualifiedName(of: node) else {
+            throw LayoutResolutionError.unknown(.demangleFailure)
+        }
+        if let builtinLayout = originImage.builtinLayoutIndex.layout(forTypeName: qualifiedTypeName) {
+            return builtinLayout
+        }
+        switch try cImportedTypeAliasDescriptor(forNode: node).descriptor {
+        case .class:
+            // A CF class reference is a single object pointer.
+            return .pointerSized
+        case .struct:
+            return try structureLayout(forNode: node, in: originImage)
+        case .enum:
+            return try enumLayout(forNode: node, in: originImage)
+        }
+    }
+
+    /// The descriptor behind a `.typeAlias` node, resolved by qualified name
+    /// through the universe. Throws `typeDescriptorNotFound` when no image in
+    /// scope declares it.
+    private func cImportedTypeAliasDescriptor(forNode node: Node) throws -> (image: ImageReference<MachO>, descriptor: TypeContextDescriptorWrapper) {
+        guard let qualifiedTypeName = NodeTypeNaming.nominalQualifiedName(of: node) else {
+            throw LayoutResolutionError.unknown(.demangleFailure)
+        }
+        guard let resolved = imageUniverse.resolveType(byQualifiedTypeName: qualifiedTypeName) else {
+            throw LayoutResolutionError.unknown(.typeDescriptorNotFound(qualifiedTypeName: qualifiedTypeName))
+        }
+        return resolved
     }
 
     // MARK: - Reference storage (weak / unowned / unowned(unsafe))

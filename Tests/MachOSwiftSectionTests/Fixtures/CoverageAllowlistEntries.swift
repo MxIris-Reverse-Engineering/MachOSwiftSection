@@ -412,6 +412,11 @@ enum CoverageAllowlistEntries {
             reason: .pureDataUtility(detail: "memberwise initializer not surfaced by the public-member scanner")
         ),
         CoverageAllowlistHelpers.sentinelGroup(
+            typeName: "TypeImportInfo",
+            members: ["abiName", "symbolNamespace", "relatedEntityName", "isCTypedef", "isRelatedEntity", "cTypedefSymbolNamespace"],
+            reason: .pureDataUtility(detail: "pure-data record of the descriptor name's trailing import-info components; the reading path is pinned by TypeContextDescriptorProtocolTests.typeImportInfo and the parsing by SwiftInspectionTests.CImportedTypeIdentityRuleTests")
+        ),
+        CoverageAllowlistHelpers.sentinelGroup(
             typeName: "ContextDescriptorKindSpecificFlags",
             members: ["init", "rawValue"],
             reason: .pureDataUtility(detail: "raw bitfield over kind-specific flag word")

@@ -32,17 +32,7 @@ extension ProtocolConformance {
             switch descriptorOrSymbol {
             case .symbol(let symbol):
                 guard let node = try SymbolicDemangler.demangleType(for: symbol, in: machO)?.first(of: .type) else { return nil }
-                let allChildren = node.map { $0 }
-                let kind: TypeKind
-                if allChildren.contains(.enum) || allChildren.contains(.boundGenericEnum) {
-                    kind = .enum
-                } else if allChildren.contains(.structure) || allChildren.contains(.boundGenericStructure) {
-                    kind = .struct
-                } else if allChildren.contains(.class) || allChildren.contains(.boundGenericClass) {
-                    kind = .class
-                } else {
-                    return nil
-                }
+                guard let kind = node.typeKind else { return nil }
                 return TypeName(node: InternedNodeReferenceCache.shared.reference(interning: node, in: machO), kind: kind)
 
             case .element(let element):
@@ -104,31 +94,13 @@ extension ProtocolConformance {
 extension AssociatedType {
     package func typeName(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> TypeName? {
         let node = try SymbolicDemangler.demangleType(for: conformingTypeName, in: machO)
-        let kind: TypeKind
-        if node.contains(.enum) || node.contains(.boundGenericEnum) {
-            kind = .enum
-        } else if node.contains(.structure) || node.contains(.boundGenericStructure) {
-            kind = .struct
-        } else if node.contains(.class) || node.contains(.boundGenericClass) {
-            kind = .class
-        } else {
-            return nil
-        }
+        guard let kind = node.typeKind else { return nil }
         return TypeName(node: InternedNodeReferenceCache.shared.reference(interning: node, in: machO), kind: kind)
     }
     
     package func typeName() throws -> TypeName? {
         let node = try SymbolicDemangler.demangleType(for: conformingTypeName)
-        let kind: TypeKind
-        if node.contains(.enum) || node.contains(.boundGenericEnum) {
-            kind = .enum
-        } else if node.contains(.structure) || node.contains(.boundGenericStructure) {
-            kind = .struct
-        } else if node.contains(.class) || node.contains(.boundGenericClass) {
-            kind = .class
-        } else {
-            return nil
-        }
+        guard let kind = node.typeKind else { return nil }
         return TypeName(node: InternedNodeReferenceCache.shared.reference(interning: node), kind: kind)
     }
 
@@ -211,6 +183,16 @@ extension FieldRecord {
 }
 
 extension Node {
+    /// The declaration kind a type tree spells, or `nil` for a tree that
+    /// names no nominal type.
+    ///
+    /// A `typeAlias` counts as a value type: in a type tree it is how the
+    /// compiler spells a C typedef the importer promoted to its own nominal
+    /// type (`__C.NSNotificationName`, `__C.CGColorRef`; evolution proposal
+    /// `type-import-info-identity`). Whether the descriptor behind it is a
+    /// struct or a CF class is not recoverable from the tree, and nothing
+    /// prints a declaration keyword for such a type — the kind only has to
+    /// exist so the name can be built and keyed.
     public var typeKind: TypeKind? {
         func findKind(_ node: Node) -> TypeKind? {
             if node.contains(.enum) || node.contains(.boundGenericEnum) {
@@ -219,6 +201,8 @@ extension Node {
                 return .struct
             } else if node.contains(.class) || node.contains(.boundGenericClass) {
                 return .class
+            } else if node.contains(.typeAlias) {
+                return .struct
             } else {
                 return nil
             }

@@ -46,7 +46,7 @@ final class StaticLayoutVsRuntimeTests: MachOSwiftSectionFixtureTests, @unchecke
             guard descriptor.isStruct || descriptor.isClass else { continue }
 
             // Single-image scope: only validate types defined in the fixture
-            // module. Cross-module C-imported types (e.g. `__C.Decimal`, whose
+            // module. Cross-module C-imported types (e.g. `__C.NSDecimal`, whose
             // C bitfield layout is not reflected in Swift field records) are out
             // of scope until the dependency-closure phase.
             guard

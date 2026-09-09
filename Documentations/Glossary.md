@@ -215,6 +215,13 @@ TypeIndexing 的外部知识入口：标准 `.apinotes` 格式的**用户自备*
 - **主要出现在**：`Sources/SwiftInspection/SymbolicDemangler.swift`
 - **延伸阅读**：[提案 0022](Evolutions/0022-rename-metadata-reader-to-symbolic-demangler.md)、[ReadingContextAbstraction.md](Internal/ReadingContextAbstraction.md)
 
+### TypeImportInfo（C 导入类型身份）
+
+C 导入类型的 type context descriptor 在名字字符串后面追加的一串以空字符分隔的身份分量，由 `TypeContextDescriptorFlags.hasImportInfo` 宣告：`N` 前缀是 ABI 名（`NSRange` 的 tag 叫 `_NSRange`，`CGColor` 是 `CGColorRef` typedef，`Decimal` 是 `NSDecimal`），`S` 前缀是符号命名空间（唯一取值 `t`，表示被提升为独立类型的 C typedef，mangling 里拼成 `typeAlias`），`R` 前缀是 importer 合成的关联实体名（`NS_ERROR_ENUM` 合成的错误 struct 是 `e`，mangling 里包一层 `relatedEntityDeclName`）。运行时 `_swift_buildDemanglingForContext` 据此改写 demangling 树，本项目的 `SymbolicDemangler` 照同一套规则改写；另有一条不依赖 import info 的规则：`__C` 下的 tag 枚举一律 mangle 成 `structure`。
+
+- **主要出现在**：`Sources/MachOSwiftSection/Models/Type/TypeImportInfo.swift`、`SymbolicDemangler.cImportedTypeIdentity`
+- **延伸阅读**：[提案 0023](Evolutions/0023-type-import-info-identity.md)、上游 `swift/ABI/TypeIdentity.h`
+
 ### trailing objects
 
 Swift runtime 的 descriptor 布局惯例：固定头之后按 flags 跟着可变数量的附加记录（vtable 方法描述符、resilient witnesses、泛型上下文等），源自 C++ 侧的 `TrailingObjects` 模板。本仓库的高层 wrapper 构造时把它们全部解析成 Swift 数组——0002 要治理的驻留正是这些解析产物。

@@ -30,3 +30,4 @@
 | [0020](0020-vtable-slot-attribution-via-method-descriptor-symbols.md) | vtable 槽归属改用 method descriptor 符号：ICF 折叠下的错名修正与墓碑槽还原 | Implemented |
 | [0021](0021-metadata-reader-deterministic-node-extraction.md) | MetadataReader 符号引用解析去搜索化：ObjC protocol 引用与 extension 目标按 ABI 固定形状取节点，删掉靠深度优先搜索碰运气的 `typeSymbol` / `extensionSymbol` | Implemented |
 | [0022](0022-rename-metadata-reader-to-symbolic-demangler.md) | `MetadataReader` 改名为 `SymbolicDemangler`：它只做 symbolic reference 回镜像解析的 demangle，与 metadata 记录无关；留一个 deprecated typealias 过渡 | Implemented |
+| [0023](0023-type-import-info-identity.md) | 读取 TypeImportInfo，按运行时 `_swift_buildDemanglingForContext` 的规则给 C 导入类型定名字和种类：ABI 名覆盖、typedef 改 typeAlias、C tag 枚举改 structure、关联实体包 relatedEntityDeclName | Implemented |

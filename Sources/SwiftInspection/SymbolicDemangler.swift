@@ -445,15 +445,21 @@ extension SymbolicDemangler {
         }
 
         switch context.contextDescriptor.layout.flags.kind {
-        case .class:
-            guard try getContextName() else { return nil }
-            kind = .class
-        case .struct:
-            guard try getContextName() else { return nil }
-            kind = .structure
-        case .enum:
-            guard try getContextName() else { return nil }
-            kind = .enum
+        case .class, .struct, .enum:
+            guard try getContextName(), let contextName = nameNode else { return nil }
+            let descriptorKind: Node.Kind = switch context.contextDescriptor.layout.flags.kind {
+            case .class: .class
+            case .struct: .structure
+            default: .enum
+            }
+            let identity = cImportedTypeIdentity(
+                descriptorKind: descriptorKind,
+                nameNode: contextName,
+                importInfo: try context.typeContextDescriptor?.typeImportInfo(in: readingContext),
+                isCImportedContext: isCImportedContext(parentDemangling)
+            )
+            kind = identity.kind
+            nameNode = identity.nameNode
         case .protocol:
             guard try getContextName() else { return nil }
             kind = .protocol
@@ -608,6 +614,67 @@ extension SymbolicDemangler {
             return nil
         }
         return demangledSymbol
+    }
+}
+
+// MARK: - C-imported type identity (evolution proposal `type-import-info-identity`)
+
+extension SymbolicDemangler {
+    /// Applies the mangling rules for C-imported types to a type context's
+    /// demangling, exactly as the runtime's `_swift_buildDemanglingForContext`
+    /// (`stdlib/public/runtime/Demangle.cpp`) and the AST mangler's
+    /// `tryAppendClangName` do, so a descriptor-derived tree matches the tree
+    /// a symbol demangles to:
+    ///
+    /// 1. The name is the ABI name when the import info overrides it
+    ///    (`NSRange` is spelled `_NSRange`, `CGColor` is `CGColorRef`).
+    /// 2. A C typedef promoted to a nominal type mangles as a `typeAlias`
+    ///    whatever its descriptor kind (`So10CGColorRefa`, `So9NSDecimala`).
+    /// 3. Otherwise a C tag type mangles as a `structure`: Clang enums are
+    ///    not always imported as Swift enums, so the mangler spells every
+    ///    tag as `V` (`NSTextAlignment` is `So15NSTextAlignmentV`). This is
+    ///    `_isCImportedTagType`, and it applies with or without import info,
+    ///    which is where the remote reader's port lags the runtime.
+    /// 4. An importer-synthesized related entity wraps its name in a
+    ///    `relatedEntityDeclName` carrying the entity tag (`SC11CKErrorCodeLeV`
+    ///    is `related decl 'e' for CKErrorCode` in `__C_Synthesized`).
+    ///
+    /// A name that is not a plain identifier (a private declaration name
+    /// adopted from an anonymous context) is left alone: C-imported types
+    /// never live in anonymous contexts, so the override would be a lie.
+    static func cImportedTypeIdentity(descriptorKind: Node.Kind, nameNode: Node, importInfo: TypeImportInfo?, isCImportedContext: Bool) -> (kind: Node.Kind, nameNode: Node) {
+        var kind = descriptorKind
+        var name = nameNode
+        if let abiName = importInfo?.abiName, name.kind == .identifier {
+            name = .createTransient(kind: .identifier, text: abiName)
+        }
+        let isRelatedEntity = importInfo?.isRelatedEntity ?? false
+        if importInfo?.isCTypedef ?? false {
+            kind = .typeAlias
+        } else if kind == .enum, !isRelatedEntity, isCImportedContext {
+            kind = .structure
+        }
+        if isRelatedEntity, let relatedEntityName = importInfo?.relatedEntityName {
+            name = .createTransient(kind: .relatedEntityDeclName, children: [
+                .createTransient(kind: .identifier, text: relatedEntityName),
+                name,
+            ])
+        }
+        return (kind, name)
+    }
+
+    /// Whether a context demangling roots in one of the Clang importer's
+    /// modules (`__C`, `__C_Synthesized`), walking first children down to the
+    /// module node the way the remote reader's `isCImportedContext` does.
+    static func isCImportedContext(_ node: Node?) -> Bool {
+        var current = node
+        while let node = current {
+            if node.kind == .module {
+                return node.text == objcModule || node.text == cModule
+            }
+            current = node.children.first
+        }
+        return false
     }
 }
 

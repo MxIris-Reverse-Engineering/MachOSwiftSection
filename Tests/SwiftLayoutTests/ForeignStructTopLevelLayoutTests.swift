@@ -12,7 +12,7 @@ import MachOFixtureSupport
 /// real C layout — bitfields and padding are invisible to reflection — so the
 /// top-level `fieldLayout(of:)` entry must not trust a structural accumulation
 /// that contradicts the authoritative `__swift5_builtin` whole-type record
-/// (which the *field-type* resolution path already consults): `__C.Decimal`'s
+/// (which the *field-type* resolution path already consults): `__C.NSDecimal`'s
 /// records place `_mantissa` at 0 (really 4) and size the type 16 (really 20).
 /// Discovered by a SwiftUI/SwiftUICore/SwiftData whole-framework survey against
 /// the live runtime; `__C.PathData`-style record-less foreign structs came out
@@ -32,7 +32,7 @@ final class ForeignStructTopLevelLayoutTests: MachOSwiftSectionFixtureTests, @un
                 descriptor.isStruct,
                 let qualifiedTypeName = (try? SymbolicDemangler.demangleContext(for: contextDescriptor, in: machO))
                     .flatMap(NodeTypeNaming.nominalQualifiedName(of:)),
-                qualifiedTypeName == "__C.Decimal"
+                qualifiedTypeName == "__C.NSDecimal"
             else { continue }
             foundDescriptor = true
 
@@ -56,7 +56,7 @@ final class ForeignStructTopLevelLayoutTests: MachOSwiftSectionFixtureTests, @un
             }
             break
         }
-        #expect(foundDescriptor, "fixture image carries no __C.Decimal foreign descriptor")
+        #expect(foundDescriptor, "fixture image carries no __C.NSDecimal foreign descriptor")
     }
 
     /// Issue #116: `CMTime` is declared under `#pragma pack(push, 4)`, so its

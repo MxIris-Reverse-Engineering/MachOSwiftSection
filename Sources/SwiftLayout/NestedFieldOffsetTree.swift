@@ -87,7 +87,7 @@ extension StaticLayoutCalculator {
         guard !typeDisplayName.isEmpty, !enclosingTypeNames.contains(typeDisplayName) else { return [] }
         let nestedEnclosingTypeNames = enclosingTypeNames.union([typeDisplayName])
         let node = (typeNode.kind == .type ? typeNode.firstChild : typeNode) ?? typeNode
-        switch NodeTypeNaming.nominalCategory(of: node) {
+        switch NodeTypeNaming.nominalCategory(of: node) ?? cImportedTypeAliasCategory(of: node) {
         case .structure:
             return structChildren(forNode: node, baseOffset: baseOffset, depth: depth, depthLimit: depthLimit, enclosingTypeNames: nestedEnclosingTypeNames)
         case .enum:
@@ -97,6 +97,24 @@ extension StaticLayoutCalculator {
             // type (tuple, existential, …) has no statically-walkable nested
             // field layout here. Either way: a leaf.
             return []
+        }
+    }
+
+    /// The category of a `.typeAlias` node, which in a mangling spells a C
+    /// typedef promoted to a nominal type (`__C.CMTime`, `__C.NSDecimal`, the
+    /// CF class `__C.CGColorRef`; evolution proposal
+    /// `type-import-info-identity`). The node kind cannot tell a struct from a
+    /// CF class; the descriptor can.
+    private func cImportedTypeAliasCategory(of node: Node) -> NodeTypeNaming.NominalCategory? {
+        guard
+            node.kind == .typeAlias,
+            let qualifiedTypeName = NodeTypeNaming.nominalQualifiedName(of: node),
+            let resolved = imageUniverse.resolveType(byQualifiedTypeName: qualifiedTypeName)
+        else { return nil }
+        switch resolved.descriptor {
+        case .struct: return .structure
+        case .enum: return .enum
+        case .class: return .class
         }
     }
 

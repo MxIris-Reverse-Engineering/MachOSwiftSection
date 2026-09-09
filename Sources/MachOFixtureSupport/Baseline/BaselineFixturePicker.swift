@@ -22,6 +22,20 @@ package enum BaselineFixturePicker {
         )
     }
 
+    /// Picks the foreign (C-imported) struct `__C.NSDecimal` — the descriptor
+    /// the fixture emits for Foundation's `Decimal`, whose user-facing name
+    /// is `Decimal` and whose import info carries the `NSDecimal` ABI name
+    /// and the C-typedef symbol namespace. Exercises the import-info paths.
+    package static func struct_ForeignDecimal(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> StructDescriptor {
+        try required(
+            try machO.swift.typeContextDescriptors.compactMap(\.struct).first(where: { descriptor in
+                try descriptor.name(in: machO) == "Decimal" && descriptor.isCImportedContextDescriptor(in: machO)
+            })
+        )
+    }
+
     /// Picks the generic struct
     /// `GenericFieldLayout.GenericStructNonRequirement<A>` from the
     /// `SymbolTestsCore` fixture. Exercises generic context paths.

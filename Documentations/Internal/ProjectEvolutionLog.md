@@ -1364,6 +1364,31 @@
 
 ---
 
+## 2026-09-09 读取 TypeImportInfo，C 导入类型按运行时规则定名字和种类（提案 0023 type-import-info-identity）
+
+- **时间段**：2026-09-09。
+- **动机**：同一次能力盘点里排第一的缺口。C 导入类型描述符名字后面跟着 import info（ABI 名 /
+  符号命名空间 / 关联实体名），我们只读了 flag。描述符推出的树与符号 demangle 出的树因此在名字和种类
+  上不一致：`Decimal` 应是 `__C.NSDecimal` 的 typeAlias、`NSRange` 应是 `__C._NSRange`、CF 类是
+  `__C.CGColorRef` 的 typeAlias、NS_ENUM 是 structure、合成错误类型带 relatedEntityDeclName。
+  不一致会让按结构比对的符号 join 落空。
+- **关键决策**：规则以运行时 `_swift_buildDemanglingForContext` 为准，不照抄 Remote 版——Remote 版只在
+  import info 存在时把 tag 枚举改 structure，漏掉了没有 import info 的 NS_ENUM，而编译器实测
+  `NSTextAlignment` 为 `So15NSTextAlignmentV`。ABI 层新增 `TypeImportInfo` 与
+  `TypeContextDescriptorProtocol.typeImportInfo(in:)` 三态读法；`SymbolicDemangler` 的
+  `cImportedTypeIdentity` 做四条改写；`SwiftLayout` 接受 `.typeAlias` 节点并按描述符种类分派
+  （builtin 索引优先，CF 类一个指针）；`NodeTypeNaming` 把 typeAlias 当 nominal 索引，关联实体名按
+  打印形式作键（`Node.identifier` 会退回到实体标签 `e`，所有合成错误 struct 会撞键）。接受默认输出里
+  C 导入类型名字按编译器拼法变化；related entity 的 Swift 拼法回写留给 TypeIndexing 后续。
+- **落地模块**：`MachOSwiftSection`（`TypeImportInfo`、`TypeContextDescriptorProtocol`）、
+  `SwiftInspection`（`SymbolicDemangler`）、`SwiftLayout`（`StaticTypeLayoutResolver`、
+  `NestedFieldOffsetTree`、`NodeTypeNaming`）。
+- **关联文档**：[提案](../Evolutions/0023-type-import-info-identity.md)、
+  [TaskReports/2026-09-09-type-import-info-identity.md](TaskReports/2026-09-09-type-import-info-identity.md)。
+- **对应版本**：默认输出对 C 导入类型名字有可见变化，随下一次发布。
+
+---
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节

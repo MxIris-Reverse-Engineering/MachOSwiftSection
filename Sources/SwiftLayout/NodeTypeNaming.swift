@@ -17,13 +17,20 @@ enum NodeTypeNaming {
     /// Strips `.type` wrappers and `boundGeneric*` shells down to the
     /// underlying `.structure` / `.enum` / `.class` node, or `nil` if the node
     /// is not a nominal type.
+    ///
+    /// A `.typeAlias` counts as nominal here: it is how manglings spell a C
+    /// typedef the importer promoted to its own nominal type (`__C.CMTime`,
+    /// `__C.NSDecimal`, the CF class `__C.CGColorRef`), and such a type has a
+    /// descriptor of its own to index and look up like any other (evolution
+    /// proposal `type-import-info-identity`). Its layout category is decided
+    /// by that descriptor's kind, never by the node.
     static func unwrappedNominal(of node: Node) -> Node? {
         switch node.kind {
         case .type:
             return node.firstChild.flatMap(unwrappedNominal)
         case .boundGenericStructure, .boundGenericEnum, .boundGenericClass:
             return node.firstChild.flatMap(unwrappedNominal)
-        case .structure, .enum, .class:
+        case .structure, .enum, .class, .typeAlias:
             return node
         default:
             return nil
@@ -103,7 +110,7 @@ enum NodeTypeNaming {
     }
 
     private static func qualifiedName(ofNominal node: Node) -> String? {
-        guard let identifier = node.identifier else { return nil }
+        guard let identifier = declaredName(of: node) else { return nil }
         guard let context = node.firstChild else { return identifier }
         if let contextName = contextQualifiedName(of: context) {
             return contextName + "." + identifier
@@ -111,11 +118,25 @@ enum NodeTypeNaming {
         return identifier
     }
 
+    /// The declared name of a nominal node: its identifier, or the printed
+    /// form of an importer-synthesized related entity's name
+    /// (`related decl 'e' for CKErrorCode`). `Node.identifier` would fall
+    /// back to the first identifier it finds in the tree, which for a
+    /// `relatedEntityDeclName` is the entity tag — and every synthesized
+    /// error struct shares the tag `e`, so keying on it would collide.
+    private static func declaredName(of node: Node) -> String? {
+        if let nameNode = node.children.at(1), nameNode.kind == .relatedEntityDeclName {
+            guard let entityTag = nameNode.children.first?.text, let entityName = nameNode.children.at(1)?.text else { return nil }
+            return "related decl '\(entityTag)' for \(entityName)"
+        }
+        return node.identifier
+    }
+
     private static func contextQualifiedName(of node: Node) -> String? {
         switch node.kind {
         case .module:
             return node.text
-        case .structure, .enum, .class:
+        case .structure, .enum, .class, .typeAlias:
             return qualifiedName(ofNominal: node)
         case .type:
             // A `.type`-wrapped context (as appears inside a bound-generic
