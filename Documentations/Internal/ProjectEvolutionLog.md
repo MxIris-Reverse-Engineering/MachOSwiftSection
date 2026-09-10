@@ -1420,6 +1420,34 @@
   [TaskReports/2026-09-09-type-import-info-identity.md](TaskReports/2026-09-09-type-import-info-identity.md)。
 - **对应版本**：默认输出对 C 导入类型名字有可见变化，随下一次发布。
 
+## 2026-09-10 property descriptor 的 ABI 模型（提案 0025 key-path-component-and-property-descriptor）
+
+- **时间段**：2026-09-10。
+- **动机**：`…vpMV` 符号在任何二进制里都成片出现，而库里读不了它指向的东西。它不是结构体，
+  在 `include/swift/ABI/` 下没有同名类型——内容就是**一个 key path component 的序列化字节**，
+  编码在 `swift/shims/KeyPath.h`、发出在 IRGen `emitSILProperty`、解析在 stdlib `KeyPath.swift`。
+  它是跨模块 key path 的 resilience 间接层：client 不知道属性是 stored 还是 computed，
+  只在自己的 pattern 里放一个指向这里的相对指针，运行时再把内容拷过去。
+- **关键决策**：header 按**通用** key path component 建模，不做 property-descriptor 专用——
+  同一个 4 字节编码 pattern 和 descriptor 共用，多出的 `external` / `optional` 两个 kind 与
+  `hasComputedArguments` / `isEndOfReferencePrefix` 现在用不到，但以后要解析 keypath pattern
+  全局变量时不必改已发布的 API；两个 body 长度（`propertyDescriptorBodySize` /
+  `patternComponentBodySize`）因此并存。符号侧入口**不做**：从 `…vpMV` 名字查 offset 需要符号
+  索引，而提案 0018 规定 ABI 层只依赖 `MachOBase`，那一步属于 `SwiftInspection`（与
+  `MethodDescriptor.implementationOffset` / `implementationSymbols(in:)` 同样的分工）。
+  `kind` 返回 optional 而非强解：discriminator 有 7 位而只有 0–4 有效，读的是任意二进制。
+  identifier 只给原始字与"它是不是指针、指向哪个偏移"，四种 resolution 语义留给上层。
+- **落地模块**：`MachOSwiftSection`（新增 `Models/KeyPath/`：`KeyPathComponentHeader`、
+  `KeyPathComponentKind`、`KeyPathComputedIdentifier*`、`KeyPathStoredFieldOffset`、
+  `KeyPathComputedPropertyBody`、`PropertyDescriptor`）、`MachOFixtureSupport`
+  （按符号取 descriptor 的 picker + 四个 baseline generator）。
+- **踩到的坑**：按符号名取 offset 有两个陷阱，都写进了 picker 的注释——符号表用带前导下划线的
+  拼法，且 Release 产物里**同名的 stab 调试项** `n_value` 为 0，匹配到它会静默读到 Mach-O 头
+  （`0xfeedfacf` 当成 header）。
+- **关联文档**：[提案](../Evolutions/0025-key-path-component-and-property-descriptor.md)、
+  [TaskReports/2026-09-10-property-descriptor-model.md](TaskReports/2026-09-10-property-descriptor-model.md)。
+- **对应版本**：纯新增 API，默认输出无变化，随下一次发布。
+
 ---
 
 ## 维护约定
