@@ -1038,3 +1038,55 @@ extension BaselineFixturePicker {
         )
     }
 }
+
+extension BaselineFixturePicker {
+    /// Picks the generic class `GenericFieldLayout.GenericClassNonRequirement<A>`
+    /// — a plain generic class with no generic requirements, so its
+    /// instantiation pattern is the simplest a class can have.
+    package static func class_GenericClassNonRequirement(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> ClassDescriptor {
+        try required(
+            try machO.swift.typeContextDescriptors.compactMap(\.class).first(where: { descriptor in
+                try descriptor.name(in: machO) == "GenericClassNonRequirement"
+            })
+        )
+    }
+
+    /// The value metadata pattern of `GenericStructNonRequirement<A>`,
+    /// reached the way the runtime reaches it: through the type's generic
+    /// context header.
+    package static func genericValueMetadataPattern_structNonRequirement(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> GenericValueMetadataPattern {
+        let descriptor = try struct_GenericStructNonRequirement(in: machO)
+        let genericContext = try required(try descriptor.typeGenericContext(in: machO))
+        let patternOffset = try required(genericContext.header.defaultInstantiationPatternOffset)
+        return try GenericValueMetadataPattern.resolve(from: patternOffset, in: machO)
+    }
+
+    /// The class metadata pattern of `GenericClassNonRequirement<A>`, reached
+    /// through the type's generic context header.
+    package static func genericClassMetadataPattern_classNonRequirement(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> GenericClassMetadataPattern {
+        let descriptor = try class_GenericClassNonRequirement(in: machO)
+        let genericContext = try required(try descriptor.typeGenericContext(in: machO))
+        let patternOffset = try required(genericContext.header.defaultInstantiationPatternOffset)
+        return try GenericClassMetadataPattern.resolve(from: patternOffset, in: machO)
+    }
+
+    /// The resilient class pattern of `ResilientClassFixtures.ResilientChild`
+    /// — a NON-generic class whose superclass lives in another resilience
+    /// domain, so its pattern hangs off the singleton metadata
+    /// initialization record rather than off a generic context.
+    package static func resilientClassMetadataPattern_resilientChild(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> ResilientClassMetadataPattern {
+        let descriptor = try class_ResilientChild(in: machO)
+        let resilientChild = try Class(descriptor: descriptor, in: machO)
+        let initialization = try required(resilientChild.singletonMetadataInitialization)
+        let patternOffset = try required(initialization.resilientClassPatternOffset)
+        return try ResilientClassMetadataPattern.resolve(from: patternOffset, in: machO)
+    }
+}

@@ -487,6 +487,11 @@ enum CoverageAllowlistEntries {
             reason: .pureDataUtility(detail: "raw bitfield over generic environment flags")
         ),
         CoverageAllowlistHelpers.sentinelGroup(
+            typeName: "GenericMetadataPatternFlags",
+            members: ["init(rawValue:)", "rawValue", "hasExtraDataPattern", "hasTrailingFlags", "classHasImmediateMembersPattern", "valueMetadataKind", "valueMetadataKindRawValue"],
+            reason: .pureDataUtility(detail: "raw bitfield over generic metadata pattern flags; the two pattern Suites assert the decoded bits on real patterns")
+        ),
+        CoverageAllowlistHelpers.sentinelGroup(
             typeName: "AccessibleFunctionFlags",
             members: ["init(rawValue:)", "rawValue", "isDistributed"],
             reason: .pureDataUtility(detail: "raw bitfield over accessible function flags; the ABI defines a single bit")

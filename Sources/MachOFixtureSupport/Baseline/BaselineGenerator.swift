@@ -227,6 +227,12 @@ package enum BaselineGenerator {
         // Function/ — FunctionTypeMetadata is runtime-allocated only.
         try dispatchSuite("FunctionTypeFlags", in: machOFile, outputDirectory: outputDirectory)
         try dispatchSuite("FunctionTypeMetadata", in: machOFile, outputDirectory: outputDirectory)
+        // Generic/Pattern/ — GenericMetadataPatternFlags is a pure bitfield.
+        try dispatchSuite("GenericClassMetadataPattern", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("GenericMetadataPartialPattern", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("GenericMetadataPatternProtocol", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("GenericValueMetadataPattern", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("ResilientClassMetadataPattern", in: machOFile, outputDirectory: outputDirectory)
         // Capture/
         try dispatchSuite("CaptureDescriptor", in: machOFile, outputDirectory: outputDirectory)
         try dispatchSuite("CaptureTypeRecord", in: machOFile, outputDirectory: outputDirectory)
@@ -605,6 +611,17 @@ package enum BaselineGenerator {
             try GenericBoxHeapMetadataBaselineGenerator.generate(outputDirectory: outputDirectory)
         case "HeapLocalVariableMetadata":
             try HeapLocalVariableMetadataBaselineGenerator.generate(outputDirectory: outputDirectory)
+        // Generic/Pattern/
+        case "GenericClassMetadataPattern":
+            try GenericClassMetadataPatternBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
+        case "GenericMetadataPartialPattern":
+            try GenericMetadataPartialPatternBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
+        case "GenericMetadataPatternProtocol":
+            try GenericMetadataPatternProtocolBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
+        case "GenericValueMetadataPattern":
+            try GenericValueMetadataPatternBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
+        case "ResilientClassMetadataPattern":
+            try ResilientClassMetadataPatternBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
         // Capture/
         case "CaptureDescriptor":
             try CaptureDescriptorBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
@@ -696,6 +713,11 @@ package enum BaselineGenerator {
             "AnyClassMetadataTests",
             "AccessibleFunctionRecordTests",
             "CaptureDescriptorTests",
+            "GenericClassMetadataPatternTests",
+            "GenericMetadataPartialPatternTests",
+            "GenericMetadataPatternProtocolTests",
+            "GenericValueMetadataPatternTests",
+            "ResilientClassMetadataPatternTests",
             "CaptureTypeRecordTests",
             "MetadataSourceRecordTests",
             "AssociatedTypeDescriptorTests",

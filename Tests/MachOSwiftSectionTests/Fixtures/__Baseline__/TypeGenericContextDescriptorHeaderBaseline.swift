@@ -3,7 +3,7 @@
 // Source fixture: SymbolTestsCore.framework
 
 enum TypeGenericContextDescriptorHeaderBaseline {
-    static let registeredTestMethodNames: Set<String> = ["layout", "offset"]
+    static let registeredTestMethodNames: Set<String> = ["defaultInstantiationPatternOffset", "instantiationCacheOffset", "layout", "offset"]
 
     struct Entry {
         let offset: Int
@@ -11,6 +11,8 @@ enum TypeGenericContextDescriptorHeaderBaseline {
         let layoutNumRequirements: UInt16
         let layoutNumKeyArguments: UInt16
         let layoutFlagsRawValue: UInt16
+        let instantiationCacheOffset: Int?
+        let defaultInstantiationPatternOffset: Int?
     }
 
     static let genericStructLayoutRequirement = Entry(
@@ -18,6 +20,8 @@ enum TypeGenericContextDescriptorHeaderBaseline {
     layoutNumParams: 1,
     layoutNumRequirements: 1,
     layoutNumKeyArguments: 1,
-    layoutFlagsRawValue: 0x0
+    layoutFlagsRawValue: 0x0,
+    instantiationCacheOffset: 0x696c8,
+    defaultInstantiationPatternOffset: 0x3c700
     )
 }

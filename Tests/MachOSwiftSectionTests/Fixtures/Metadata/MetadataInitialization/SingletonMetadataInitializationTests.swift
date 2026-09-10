@@ -69,4 +69,39 @@ final class SingletonMetadataInitializationTests: MachOSwiftSectionFixtureTests,
         #expect(incompleteOffset == expectedIncomplete)
         #expect(completionOffset == expectedCompletion)
     }
+
+    /// The middle field is a union. For this carrier — a class WITHOUT a
+    /// resilient superclass — it holds the incomplete metadata, and
+    /// ``resilientClassPatternOffset`` reads the same word under the other
+    /// name. `ResilientClassMetadataPatternTests` covers the other reading on
+    /// a carrier where it is the right one.
+    @Test func incompleteMetadataOffset() async throws {
+        let initializations = try loadInits()
+        let result = try acrossAllReaders(
+            file: { initializations.file.incompleteMetadataOffset },
+            image: { initializations.image.incompleteMetadataOffset }
+        )
+        #expect(result == SingletonMetadataInitializationBaseline.firstSingletonInit.incompleteMetadataOffset)
+    }
+
+    @Test func resilientClassPatternOffset() async throws {
+        let initializations = try loadInits()
+        let result = try acrossAllReaders(
+            file: { initializations.file.resilientClassPatternOffset },
+            image: { initializations.image.resilientClassPatternOffset }
+        )
+        // Same word, deliberately: the ABI overlays the two and only the
+        // owning descriptor's flag says which reading applies.
+        #expect(result == initializations.file.incompleteMetadataOffset)
+        #expect(result == SingletonMetadataInitializationBaseline.firstSingletonInit.incompleteMetadataOffset)
+    }
+
+    @Test func completionFunctionOffset() async throws {
+        let initializations = try loadInits()
+        let result = try acrossAllReaders(
+            file: { initializations.file.completionFunctionOffset },
+            image: { initializations.image.completionFunctionOffset }
+        )
+        #expect(result == SingletonMetadataInitializationBaseline.firstSingletonInit.completionFunctionOffset)
+    }
 }

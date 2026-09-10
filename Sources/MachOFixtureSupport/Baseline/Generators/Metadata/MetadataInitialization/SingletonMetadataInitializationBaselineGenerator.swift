@@ -34,8 +34,11 @@ package enum SingletonMetadataInitializationBaselineGenerator {
         let entryExpr = emitEntryExpr(for: initialization, descriptorOffset: descriptor.offset)
 
         let registered = [
+            "completionFunctionOffset",
+            "incompleteMetadataOffset",
             "layout",
             "offset",
+            "resilientClassPatternOffset",
         ]
 
         let header = """
@@ -65,6 +68,8 @@ package enum SingletonMetadataInitializationBaselineGenerator {
                 let initializationCacheRelativeOffsetBits: UInt64
                 let incompleteMetadataRelativeOffsetBits: UInt64
                 let completionFunctionRelativeOffsetBits: UInt64
+                let incompleteMetadataOffset: Int?
+                let completionFunctionOffset: Int?
             }
 
             static let firstSingletonInit = \(raw: entryExpr)
@@ -93,7 +98,9 @@ package enum SingletonMetadataInitializationBaselineGenerator {
             descriptorOffset: \(raw: BaselineEmitter.hex(descriptorOffset)),
             initializationCacheRelativeOffsetBits: \(raw: BaselineEmitter.hex(cache)),
             incompleteMetadataRelativeOffsetBits: \(raw: BaselineEmitter.hex(incomplete)),
-            completionFunctionRelativeOffsetBits: \(raw: BaselineEmitter.hex(completion))
+            completionFunctionRelativeOffsetBits: \(raw: BaselineEmitter.hex(completion)),
+            incompleteMetadataOffset: \(raw: BaselineEmitter.optionalHex(initialization.incompleteMetadataOffset)),
+            completionFunctionOffset: \(raw: BaselineEmitter.optionalHex(initialization.completionFunctionOffset))
         )
         """
         return expr.description
