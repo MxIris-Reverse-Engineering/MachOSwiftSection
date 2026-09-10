@@ -14,7 +14,8 @@ interface 只输出镜像导出的声明。「导出」始终是 **export trie �
 ## 关键设计决策
 
 **过滤在打印期，不在索引期。** 用户选定。索引出的模型保持完整，RuntimeViewer 浏览、ABI diff / snapshot / evolution
-全部不受影响；代价是打印器多了一组判定入口。索引期过滤本可顺带给 diff 一个「只比对导出面」的能力，但要在
+全部不受影响；代价是打印器多了一组判定入口。（注意区分**动作**与**事实**：删不删仍然只发生在打印期，
+但「类型 / 协议导出与否」这个事实本身自提案 `exported-declaration-flag` 起在索引期算好、存在模型上——见下文「这两腿住在声明模型上」。）索引期过滤本可顺带给 diff 一个「只比对导出面」的能力，但要在
 `DefinitionBuilder` 和四个 extension 桶上做更深的手术，且提案 0008 的标注本来就是打印期的事实——两者同层最自然。
 
 **绝不靠猜删东西。** 每个判定都是三态：`false` 才删，`true` 与 `nil` 都保留。`nil` 覆盖「镜像没有导出信息」「成员没有 join 上任何符号」
@@ -25,12 +26,23 @@ interface 只输出镜像导出的声明。「导出」始终是 **export trie �
 查 trie。第一版这么做，fixture 当场暴露一个真实误删：`extension GenericRequirementTest where T: RawRepresentable { public struct RawRepresentableNestedStruct {} }`
 ——编译器给嵌套在**带约束扩展**里的类型 mangle 的上下文只含扩展自己的 requirement（`…VAASYRzrlE28RawRepresentableNestedStructVMn`），
 而模型的名字节点带着类型的完整签名（interface 头部印出 `where A: RawRepresentable, A: ProtocolTest` 两条），重整结果与真实符号不等，
-trie 查不到就成了假阴性，一个导出类型被删掉。因此 `exportVerdict(descriptorOffset:nameNode:…)` 分两腿：
+trie 查不到就成了假阴性，一个导出类型被删掉。因此裁决分两腿：
 
 1. `symbolIndexStore.symbols(for: descriptor.offset)` 取**描述符所在位置**的符号（按 `Mn` / `Mp` 后缀挑），拿编译器自己的拼法查导出位图。
    导出描述符必有 trie 行、未 strip 的镜像对未导出描述符也有本地 symtab 行，所以这一腿几乎总能答。
 2. 只有描述符处没有任何符号（strip 过的镜像里的未导出类型）才用重整名查 trie——trie 在 symtab 被 strip 后依然完整，
    一次 miss 就是真阴性。但**含 `.extension` 上下文的名字拒绝兜底**（返回 `nil` → 保留）：那正是第 1 腿存在的理由。
+
+**这两腿住在声明模型上，不在打印器里**（提案 `exported-declaration-flag`）。`TypeDefinition.exportStatus` /
+`ProtocolDefinition.exportStatus`（`SwiftDeclaration` 的 `ExportStatus` 四态枚举：`exported` / `notExported` /
+`imageHasNoExportInformation` / `descriptorSymbolNameUnresolvable`）在定义构造时一次算好，`prepare()` 返回时整张表就都有值——
+裁决只要描述符 offset 与名字节点，不碰 `index(in:)` 的产物。宿主（RuntimeViewer 的类型列表）因此能逐行标注而不必持有 machO，
+打印器的 `exportVerdict(forTypeDefinition:/forProtocolDefinition:)` 退化为 `exportStatus.isExported` 的转发（签名不变，仍是 `Bool?`），
+`installExportFilterScope` 只筛 `isDefinitelyNotExported`——`printRoot()` 原先那趟全镜像重算随之消失。
+枚举把原本压在 `nil` 里的两个原因分开了：`imageHasNoExportInformation` 是**镜像级**的（没有 export trie，任何声明都无从判断），
+`descriptorSymbolNameUnresolvable` 是**声明级**的（trie 正常，只是这一条的名字重整不可信）。
+实测四个真实镜像（dyld shared cache 与 iOS 18.5 模拟器的 SwiftUICore、进程内 libswiftCore、`SymbolTestsCore`）共 8171 条类型 / 协议声明
+**全部走第 1 腿**、无一落到这两个 case，裁决总耗时占 `prepare()` 的 0.15% 以内——所以它是无条件填充，没有配置开关。
 
 **扩展的判据要靠索引器的表，符号推不出「本镜像内」。** 扩展没有自己的描述符符号，能判的只有「被扩展类型 / 遵循协议是不是本镜像内未导出声明」。
 「本镜像内」不能从符号存储推断——strip 过的镜像里一个未导出的类型**一个符号都没有**，用 `typeInfo` / `containsSymbol` 判会把被删私有类型的
@@ -59,21 +71,22 @@ conformance 扩展全部漏下来。所以 `SwiftInterfaceBuilder.printRoot()` �
 ```
 Sources/SwiftPrinting/
 ├── SwiftDeclarationPrintConfiguration.swift      # printExportedDeclarationsOnly
-├── SwiftDeclarationPrinter+ExportFilter.swift    # ExportFilterScope、installExportFilterScope、两级 verdict、全部 isExcludedByExportFilter 判定
+├── SwiftDeclarationPrinter+ExportFilter.swift    # ExportFilterScope、installExportFilterScope、类型 / 协议 verdict 的转发、全部 isExcludedByExportFilter 判定
 ├── SwiftDeclarationPrinter.swift                 # 三个入口的过滤壳 + printIncluded… 体；成员循环 where 过滤；exportFilterScope 存储
 └── SwiftDeclarationPrinter+Headers.swift         # renderModelFields 的字段预筛
+Sources/SwiftDeclaration/Components/Definitions/ExportStatus.swift # 四态枚举、两腿裁决、descriptorSymbolName 重整（提案 exported-declaration-flag）
 Sources/SwiftInterface/SwiftInterfaceBuilder.swift # printRoot 装 scope；全局块 where 过滤
 Sources/swift-section/Commands/InterfaceCommand.swift # --exported-only
 ```
 
 ## 核心算法与数据流
 
-`printRoot()` → 开关打开则 `installExportFilterScope(types:protocols:)`（对每个定义跑一次类型级 verdict）→ `printRootContents()`：
+`printRoot()` → 开关打开则 `installExportFilterScope(types:protocols:)`（只筛各定义已算好的 `exportStatus`）→ `printRootContents()`：
 
 | 对象 | 判定入口 | 依据 |
 |------|----------|------|
 | 全局变量 / 函数 | `isExcludedByExportFilter(globalSymbolNames:)` | `exportVerdict(forSymbolNames:)`（0008 的派生形态查询） |
-| 类型 / 协议（含嵌套、特化子类型） | 入口壳 → `exportVerdict(forTypeDefinition:/forProtocolDefinition:)` | 描述符 offset 处的符号 → 重整名兜底 |
+| 类型 / 协议（含嵌套、特化子类型） | 入口壳 → `TypeDefinition/ProtocolDefinition.exportStatus.isDefinitelyNotExported` | 构造期算好的 `ExportStatus`（描述符 offset 处的符号 → 重整名兜底） |
 | 扩展 | 入口壳 → `isExcludedByExportFilter(_ extension)`；索引后 `isEmptiedByExportFilter` | `ExportFilterScope` 集合；过滤后内容是否为空 |
 | 成员 | `printMembersByOffset` / `ByCategory` 的 `where` | 派生形态查询；`override` / `@objc` 豁免 |
 | 存储属性 | `renderModelFields` 预筛 `isExcludedByExportFilter(field:)` | accessor 组的派生形态查询；无 accessor 符号 / `override` / `To` 入口豁免 |

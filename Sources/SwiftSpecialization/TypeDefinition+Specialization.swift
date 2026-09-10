@@ -223,7 +223,15 @@ extension TypeDefinition {
             finalTypeName = unboundTypeName
         }
 
-        let specialized = TypeDefinition(type: materializedTypeContext, typeName: finalTypeName, isSpecialized: true)
+        // The specialized definition shares this definition's descriptor, so
+        // it shares its export fact — resolving it again would only re-derive
+        // the same verdict from the same symbol.
+        let specialized = TypeDefinition(
+            type: materializedTypeContext,
+            typeName: finalTypeName,
+            isSpecialized: true,
+            exportStatus: exportStatus
+        )
         specialized.metadata = metadata
         return specialized
     }

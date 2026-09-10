@@ -47,10 +47,10 @@ extension SwiftDeclarationPrinter {
     /// degrades to "keep" — the filter never drops on a guess.
     public func installExportFilterScope(types: some Sequence<TypeDefinition>, protocols: some Sequence<ProtocolDefinition>) {
         var scope = ExportFilterScope.empty
-        for typeDefinition in types where exportVerdict(forTypeDefinition: typeDefinition) == false {
+        for typeDefinition in types where typeDefinition.exportStatus.isDefinitelyNotExported {
             scope.nonExportedTypeNames.insert(typeDefinition.typeName)
         }
-        for protocolDefinition in protocols where exportVerdict(forProtocolDefinition: protocolDefinition) == false {
+        for protocolDefinition in protocols where protocolDefinition.exportStatus.isDefinitelyNotExported {
             scope.nonExportedProtocolNames.insert(protocolDefinition.protocolName)
         }
         exportFilterScope = scope
@@ -67,88 +67,19 @@ extension SwiftDeclarationPrinter {
     /// Whether the type's nominal type descriptor (`…Mn`) has an export-trie
     /// entry: `true` / `false` are trie facts, `nil` means no verdict (the
     /// image carries no export information, or no evidence could be found).
-    /// The descriptor is the one symbol every nominal type owns regardless
-    /// of what else got exported — on the `SymbolTestsCore` fixture the
-    /// exported `Mn` and `Ma` (metadata accessor) sets coincide exactly.
+    ///
+    /// The verdict itself is resolved once at construction and lives on the
+    /// model as `TypeDefinition.exportStatus` (see ``ExportStatus``); this
+    /// method is the tri-state projection of that fact, kept for callers
+    /// written against the pre-flag shape.
     public func exportVerdict(forTypeDefinition typeDefinition: TypeDefinition) -> Bool? {
-        exportVerdict(
-            descriptorOffset: typeDefinition.typeContextDescriptorWrapper.typeContextDescriptor.offset,
-            nameNode: typeDefinition.typeName.node,
-            descriptorKind: .nominalTypeDescriptor,
-            descriptorSuffix: "Mn"
-        )
+        typeDefinition.exportStatus.isExported
     }
 
     /// Whether the protocol's descriptor (`…Mp`) has an export-trie entry;
     /// same tri-state as ``exportVerdict(forTypeDefinition:)``.
     public func exportVerdict(forProtocolDefinition protocolDefinition: ProtocolDefinition) -> Bool? {
-        exportVerdict(
-            descriptorOffset: protocolDefinition.protocolDescriptor.offset,
-            nameNode: protocolDefinition.protocolName.node,
-            descriptorKind: .protocolDescriptor,
-            descriptorSuffix: "Mp"
-        )
-    }
-
-    /// Two legs, authoritative first:
-    ///
-    /// 1. The symbol actually located AT the descriptor. Every exported
-    ///    descriptor has a trie row at its offset, and an unstripped image
-    ///    also carries a local symtab row for a non-exported one, so this leg
-    ///    answers with the compiler's own spelling of the name — which is
-    ///    what makes it authoritative: a type nested in a CONSTRAINED
-    ///    extension (`extension Foo where A: P { public struct Nested {} }`)
-    ///    mangles only the extension's own requirements into its context,
-    ///    while the model's name node carries the full signature, so a
-    ///    remangled name misses the trie and would drop an exported type.
-    /// 2. Only when no symbol sits at the descriptor (a stripped image's
-    ///    non-exported type): the remangled descriptor name against the trie,
-    ///    which is complete even when the symtab is not. Restricted to
-    ///    canonical contexts — a name involving an `.extension` context is
-    ///    exactly the shape leg 1 exists for, and yields no verdict here.
-    private func exportVerdict(descriptorOffset: Int, nameNode: NodeReference, descriptorKind: Node.Kind, descriptorSuffix: String) -> Bool? {
-        @Dependency(\.symbolIndexStore) var symbolIndexStore
-        if let symbolsAtDescriptor = symbolIndexStore.symbols(for: descriptorOffset, in: machO),
-           let descriptorSymbol = symbolsAtDescriptor.first(where: { $0.name.isSwiftSymbol && $0.name.hasSuffix(descriptorSuffix) }) {
-            return symbolIndexStore.isExported(name: descriptorSymbol.name, in: machO)
-        }
-        guard let symbolName = Self.descriptorSymbolName(for: nameNode, descriptorKind: descriptorKind) else { return nil }
-        return symbolIndexStore.isExported(name: symbolName, in: machO)
-    }
-
-    /// Remangles a name node into the symbol name of its `descriptorKind`
-    /// descriptor (`_$s<context>Mn` / `_$s<context>Mp`), or `nil` when the
-    /// spelling cannot be trusted. The name node may arrive wrapped in a
-    /// `.type` envelope, and a specialized definition's name is a
-    /// bound-generic node (`Box<Int>`) — the descriptor belongs to the
-    /// unbound nominal, so both wrappers are peeled first. A context chain
-    /// through an `.extension` node is refused (see the verdict's leg 2).
-    /// The remangling walks a transient tree materialized from the
-    /// reference; nothing is interned or cached.
-    static func descriptorSymbolName(for node: NodeReference, descriptorKind: Node.Kind) -> String? {
-        var contextNode = node.materialize()
-        if contextNode.kind == .type, let wrappedNode = contextNode.children.first {
-            contextNode = wrappedNode
-        }
-        switch contextNode.kind {
-        case .boundGenericStructure, .boundGenericClass, .boundGenericEnum, .boundGenericProtocol, .boundGenericOtherNominalType, .boundGenericTypeAlias:
-            guard var nominalNode = contextNode.children.first else { return nil }
-            if nominalNode.kind == .type, let wrappedNode = nominalNode.children.first {
-                nominalNode = wrappedNode
-            }
-            contextNode = nominalNode
-        default:
-            break
-        }
-        guard !containsExtensionContext(contextNode) else { return nil }
-        let descriptorNode = Node.createTransient(kind: descriptorKind, children: [contextNode])
-        let globalNode = Node.createTransient(kind: .global, children: [descriptorNode])
-        return try? mangleAsString(globalNode)
-    }
-
-    private static func containsExtensionContext(_ node: Node) -> Bool {
-        if node.kind == .extension { return true }
-        return node.children.contains { containsExtensionContext($0) }
+        protocolDefinition.exportStatus.isExported
     }
 }
 
@@ -161,11 +92,11 @@ extension SwiftDeclarationPrinter {
 
     /// A type is dropped only on a definitive negative verdict; `nil` keeps it.
     package func isExcludedByExportFilter(_ typeDefinition: TypeDefinition) -> Bool {
-        isExportFilterEnabled && exportVerdict(forTypeDefinition: typeDefinition) == false
+        isExportFilterEnabled && typeDefinition.exportStatus.isDefinitelyNotExported
     }
 
     package func isExcludedByExportFilter(_ protocolDefinition: ProtocolDefinition) -> Bool {
-        isExportFilterEnabled && exportVerdict(forProtocolDefinition: protocolDefinition) == false
+        isExportFilterEnabled && protocolDefinition.exportStatus.isDefinitelyNotExported
     }
 
     /// An extension is dropped when its target (the extended type or

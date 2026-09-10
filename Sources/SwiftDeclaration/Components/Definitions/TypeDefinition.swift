@@ -35,6 +35,24 @@ public final class TypeDefinition: Definition {
     /// inspecting the optional `metadata` field.
     public let isSpecialized: Bool
 
+    /// Whether this type's nominal type descriptor is in the image's export
+    /// trie, resolved once at construction (see ``ExportStatus``). Available
+    /// the moment `SwiftDeclarationIndexer.prepare()` returns — the verdict
+    /// needs only the descriptor's offset and the name node, never
+    /// `index(in:)`'s products — so a host listing types can annotate every
+    /// row before any of them is indexed. A specialized definition inherits
+    /// the value of the generic definition it was derived from: same
+    /// descriptor, same fact.
+    ///
+    /// Resolving it queries the image's symbol index, so constructing a
+    /// definition through `init(type:in:)` for an image whose index has not
+    /// been built yet builds it (`SymbolIndexStore.storage(in:)` is
+    /// get-or-build). Through `SwiftDeclarationIndexer.prepare()` — the
+    /// normal path — the index is already up by the time definitions are
+    /// constructed, which is why the whole sweep costs well under 1% of
+    /// preparation.
+    public let exportStatus: ExportStatus
+
     public package(set) weak var parent: TypeDefinition?
 
     /// Nested type definitions whose containing context is `self`.
@@ -140,10 +158,11 @@ public final class TypeDefinition: Definition {
     /// path holds one anyway (indexing needs it for `typeName(in:)`) — but
     /// only its descriptor reference is retained, so the caller's parsed
     /// wrapper is released as soon as construction returns.
-    package init(type: TypeContextWrapper, typeName: TypeName, isSpecialized: Bool) {
+    package init(type: TypeContextWrapper, typeName: TypeName, isSpecialized: Bool, exportStatus: ExportStatus) {
         self.typeContextDescriptorWrapper = type.typeContextDescriptorWrapper
         self.typeName = typeName
         self.isSpecialized = isSpecialized
+        self.exportStatus = exportStatus
     }
 
     /// Test/tooling surface: constructs a definition around a RAW descriptor
@@ -151,15 +170,28 @@ public final class TypeDefinition: Definition {
     /// build a definition whose indexing/materialization deterministically
     /// fails (a real descriptor layout re-wrapped at an out-of-bounds
     /// offset).
-    package init(typeContextDescriptorWrapper: TypeContextDescriptorWrapper, typeName: TypeName, isSpecialized: Bool) {
+    /// `exportStatus` defaults to the no-verdict case because a definition
+    /// built this way has no trustworthy descriptor to rule on.
+    package init(
+        typeContextDescriptorWrapper: TypeContextDescriptorWrapper,
+        typeName: TypeName,
+        isSpecialized: Bool,
+        exportStatus: ExportStatus = .descriptorSymbolNameUnresolvable
+    ) {
         self.typeContextDescriptorWrapper = typeContextDescriptorWrapper
         self.typeName = typeName
         self.isSpecialized = isSpecialized
+        self.exportStatus = exportStatus
     }
 
     public convenience init<MachO: MachOSwiftSectionRepresentableWithCache>(type: TypeContextWrapper, in machO: MachO) async throws {
         let typeName = try type.typeName(in: machO)
-        self.init(type: type, typeName: typeName, isSpecialized: false)
+        let exportStatus = ExportStatus.resolve(
+            forNominalTypeDescriptorAt: type.typeContextDescriptorWrapper.typeContextDescriptor.offset,
+            typeNameNode: typeName.node,
+            in: machO
+        )
+        self.init(type: type, typeName: typeName, isSpecialized: false, exportStatus: exportStatus)
     }
 
     package func index<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) async throws {
