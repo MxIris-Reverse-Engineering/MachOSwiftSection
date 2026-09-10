@@ -33,3 +33,4 @@
 | [0023](0023-type-import-info-identity.md) | 读取 TypeImportInfo，按运行时 `_swift_buildDemanglingForContext` 的规则给 C 导入类型定名字和种类：ABI 名覆盖、typedef 改 typeAlias、C tag 枚举改 structure、关联实体包 relatedEntityDeclName | Implemented |
 | [0024](0024-exported-declaration-flag.md) | Type / Protocol Definition 的导出标志：四态 `ExportStatus` 下沉到声明模型，索引期无条件填充 | Implemented |
 | [0025](0025-key-path-component-and-property-descriptor.md) | Key path component header 与 property descriptor 的 ABI 模型：`…vpMV` 符号指向的那段常量按 key path component 编码解析，四种形态（trivial / 内联偏移 / 元数据内偏移 / computed）齐全 | Implemented |
+| [draft](draft-missing-abi-structures.md) | 补齐五组缺失的 ABI 结构：async / coro function pointer 记录、capture descriptor（`__swift5_capture`）、generic metadata pattern 家族、accessible function record（`__swift5_acfuncs`）、function type metadata 尾随对象 | Accepted |
