@@ -187,7 +187,10 @@ public struct RuntimeMetadataTypeBuilder: TypeBuilder {
         // class object itself (`NSObject.self` bitcasts to the class
         // pointer); `swift_getObjCClassMetadata`'s wrapper is a distinct
         // metadata identity and would split generic instantiation caches.
-        let realizedClass = swift_getInitializedObjCClass(objcClass)
+        // The runtime returns the very class it was handed once realized, so
+        // the imported implicitly-unwrapped result is spelled non-optional
+        // here rather than left to inference.
+        let realizedClass: AnyClass = swift_getInitializedObjCClass(objcClass)
         return .success(Self.anyType(fromMetadataPointer: unsafeBitCast(realizedClass, to: UnsafeRawPointer.self)))
     }
 
