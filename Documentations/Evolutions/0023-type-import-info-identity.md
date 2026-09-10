@@ -2,7 +2,7 @@
 
 - **状态**: Implemented
 - **创建日期**: 2026-09-09
-- **最后更新**: 2026-09-09
+- **最后更新**: 2026-09-10
 
 ## 摘要
 
@@ -50,3 +50,4 @@ C 导入类型的 type context descriptor 在名字字符串后面还跟着一�
 | 2026-09-09 | Accepted | 用户指定「先做第一项和 C import info 那一块」 |
 | 2026-09-09 | `TypeName` / `ExtensionName` 的键不再含 `kind`，`Node.typeKind` 接受 `typeAlias` | 真机对比暴露：NS_ENUM 的 conformance 块丢 `typealias` 见证、`swift_wrapper` typedef 的关联类型记录被整条丢弃；根因是三个生产者对 `kind` 的推导不一致，而节点结构已足以标识类型。回归测试 `CImportedTypeConformanceInterfaceTests` 修复前红、修复后绿 |
 | 2026-09-09 | Implemented | 全量测试通过；SwiftUI 与 Foundation 真机前后对比逐类核对；术语表登记 `TypeImportInfo`，不需要独立的使用指南（AGENTS.md 与任务报告已覆盖实现细节）；编号 0023 于落地 `next` 的 commit 分配 |
+| 2026-09-10 | 后续修正：嵌套在 `extension <C 类型>` 里的类型，其合成 extension 的 `kind` 在树是 `typeAlias` 时改从被扩展上下文的描述符取 | RuntimeViewer 实测 SwiftUICore：`__C.Subgraph` 改名 `__C.AGSubgraphRef` 后从「Swift Class Extension」掉到「Swift Struct Extension」，因为 `Node.typeKind` 对 typeAlias 树一律给 `.struct`，树分不出 CF 类和 typedef struct；同一类型的 conformance 走描述符仍在 Class 组。回归测试 `CImportedExtensionKindTests` 修前红、修后绿；见任务报告 `2026-09-10-c-imported-extension-kind-from-descriptor.md` |

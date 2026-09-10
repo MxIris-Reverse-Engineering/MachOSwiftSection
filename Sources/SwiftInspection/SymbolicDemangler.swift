@@ -617,6 +617,47 @@ extension SymbolicDemangler {
     }
 }
 
+// MARK: - Extended context descriptor (evolution proposal `type-import-info-identity`, follow-up)
+
+extension SymbolicDemangler {
+    /// The type context descriptor an extension's extended-context mangling
+    /// references, or `nil` when the mangling does not open with a symbolic
+    /// reference to a type context this reader can reach.
+    ///
+    /// IRGen spells the extended type of `extension Foo { … }` as a mangled
+    /// name whose first element is a symbolic reference to `Foo`'s
+    /// descriptor — direct when the descriptor is in the image (every
+    /// in-image nominal, and every C-imported type, whose foreign descriptor
+    /// is emitted into each image that uses it), indirect through a bind
+    /// slot otherwise. Only the descriptor knows what a `typeAlias` in the
+    /// demangled tree stands for — a CF class and a typedef struct spell the
+    /// same — so `SwiftIndexing` consults this to file such an extension
+    /// under the right kind. A reference that lands on a bind symbol, a
+    /// non-type context, or a mangling with no symbolic reference answers
+    /// `nil`, and the caller keeps its tree-derived kind.
+    public static func extendedTypeContextDescriptor<MachO: MachOSwiftSectionRepresentableWithCache>(forExtendedContext mangledName: MangledName, in machO: MachO) throws -> TypeContextDescriptorWrapper? {
+        try extendedTypeContextDescriptor(forExtendedContext: mangledName, in: machO.context)
+    }
+
+    public static func extendedTypeContextDescriptor<Context: ReadingContext>(forExtendedContext mangledName: MangledName, in context: Context) throws -> TypeContextDescriptorWrapper? {
+        guard let lookup = mangledName.lookupElements.first,
+              case .relative(let relativeReference) = lookup.reference,
+              let symbolicReference = SymbolicReference.symbolicReference(for: relativeReference.kind),
+              symbolicReference.kind == .context
+        else { return nil }
+        let baseAddress = try context.addressFromOffset(lookup.offset)
+        let contextWrapper: ContextDescriptorWrapper?
+        switch symbolicReference.directness {
+        case .direct:
+            contextWrapper = try RelativeDirectPointer<ContextDescriptorWrapper?>(relativeOffset: relativeReference.relativeOffset).resolve(at: baseAddress, in: context)
+        case .indirect:
+            guard case .element(let element)? = try RelativeIndirectSymbolOrElementPointer<ContextDescriptorWrapper?>(relativeOffset: relativeReference.relativeOffset).resolve(at: baseAddress, in: context).asOptional else { return nil }
+            contextWrapper = element
+        }
+        return contextWrapper?.typeContextDescriptorWrapper
+    }
+}
+
 // MARK: - C-imported type identity (evolution proposal `type-import-info-identity`)
 
 extension SymbolicDemangler {

@@ -537,7 +537,7 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
                 case .extension(let extensionContext):
                     guard let extendedContextMangledName = extensionContext.extendedContextMangledName else { continue }
                     guard let extensionTypeNode = try SymbolicDemangler.demangleType(for: extendedContextMangledName, in: machO).first(of: .type) else { continue }
-                    guard let extensionTypeKind = extensionTypeNode.typeKind else { continue }
+                    guard let extensionTypeKind = try extendedTypeKind(of: extensionTypeNode, extendedContext: extendedContextMangledName) else { continue }
 
                     let extensionTypeName = TypeName(node: InternedNodeReferenceCache.shared.reference(interning: extensionTypeNode, in: machO), kind: extensionTypeKind)
 
@@ -569,6 +569,27 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
         currentStorage.allTypeDefinitions = currentModuleTypeDefinitions
 
         eventDispatcher.dispatch(.typeIndexingCompleted(result: SwiftIndexEvents.TypeIndexingResult(totalProcessed: currentStorage.types.count, successful: successfulCount, failed: failedCount, cImportedSkipped: cImportedCount, nestedTypes: nestedTypeCount, extensionTypes: extensionTypeCount)))
+    }
+
+    /// The kind a synthetic extension of the extended type `node` spells is
+    /// filed under (`ExtensionName.kind`, which a host such as RuntimeViewer
+    /// groups extensions by).
+    ///
+    /// The tree decides, except for a C typedef the importer promoted to a
+    /// nominal type: it demangles as a `typeAlias` whatever its descriptor
+    /// is (evolution proposal `type-import-info-identity`), and
+    /// `Node.typeKind`'s `.struct` fallback cannot tell a CF class from a
+    /// typedef struct — it filed SwiftUICore's `__C.AGSubgraphRef` extension
+    /// under structs once the name stopped being `__C.Subgraph`. The extended
+    /// context's descriptor can tell, and it is reachable exactly when the
+    /// mangling opens with a symbolic reference to it; when it is not, the
+    /// fallback stands. Pinned by `CImportedExtensionKindTests`.
+    private func extendedTypeKind(of node: Node, extendedContext mangledName: MangledName) throws -> TypeKind? {
+        if node.children.first?.kind == .typeAlias,
+           let descriptor = try SymbolicDemangler.extendedTypeContextDescriptor(forExtendedContext: mangledName, in: machO) {
+            return descriptor.kind
+        }
+        return node.typeKind
     }
 
     private func indexProtocols() async throws {
@@ -606,7 +627,7 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
                         rootProtocolDefinitions[protocolName] = protocolDefinition
                     } else if let extensionContext = protocolDefinition.extensionContext, let extendedContextMangledName = extensionContext.extendedContextMangledName {
                         guard let typeNode = try SymbolicDemangler.demangleType(for: extendedContextMangledName, in: machO).first(of: .type) else { continue }
-                        guard let typeKind = typeNode.typeKind else { continue }
+                        guard let typeKind = try extendedTypeKind(of: typeNode, extendedContext: extendedContextMangledName) else { continue }
                         let typeName = TypeName(node: InternedNodeReferenceCache.shared.reference(interning: typeNode, in: machO), kind: typeKind)
                         var genericSignature: NodeReference?
                         if let currentRequirements = extensionContext.genericContext?.uniqueCurrentRequirements(in: machO), !currentRequirements.isEmpty {

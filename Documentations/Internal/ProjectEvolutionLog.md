@@ -1419,6 +1419,13 @@
 - **关联文档**：[提案](../Evolutions/0023-type-import-info-identity.md)、
   [TaskReports/2026-09-09-type-import-info-identity.md](TaskReports/2026-09-09-type-import-info-identity.md)。
 - **对应版本**：默认输出对 C 导入类型名字有可见变化，随下一次发布。
+- **后续修正（2026-09-10）**：RuntimeViewer 侧边栏实测暴露一处退化——嵌套在 `extension <C 类型>` 里的类型，其合成
+  extension 的 `kind` 由 `Node.typeKind` 推导，而 typeAlias 树一律给 `.struct`，CF 类 `__C.AGSubgraphRef`
+  的扩展因此从 Class 组掉到 Struct 组。修法：树是 `typeAlias` 时改问被扩展上下文的描述符
+  （`SymbolicDemangler.extendedTypeContextDescriptor(forExtendedContext:in:)`），其余路径不变。同一次实测
+  也证实 0023 没有丢类型：SwiftUICore 顶层对象 3202 → 3138，少的 64 个全是嵌套在 enum 命名空间下的
+  struct/class 的重复 conformance 顶层条目（旧版 kind 推错才没并进类型），其余是 `__C` 改名。见
+  [TaskReports/2026-09-10-c-imported-extension-kind-from-descriptor.md](TaskReports/2026-09-10-c-imported-extension-kind-from-descriptor.md)。
 
 ## 2026-09-10 property descriptor 的 ABI 模型（提案 0025 key-path-component-and-property-descriptor）
 
