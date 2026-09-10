@@ -252,6 +252,21 @@ package enum BaselineFixturePicker {
         )
     }
 
+    /// Picks `VTableEntryVariants.VTableBaseTest` from the `SymbolTestsCore`
+    /// fixture. Its vtable carries one slot per calling convention worth
+    /// distinguishing — plain, `throws`, `async`, `async throws` — which is
+    /// what makes it the carrier for "an async slot's implementation pointer
+    /// lands on the async function pointer RECORD".
+    package static func class_VTableBaseTest(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> ClassDescriptor {
+        try required(
+            try machO.swift.typeContextDescriptors.compactMap(\.class).first(where: { descriptor in
+                try descriptor.name(in: machO) == "VTableBaseTest"
+            })
+        )
+    }
+
     /// Picks `Classes.SubclassTest: ClassTest` from the `SymbolTestsCore`
     /// fixture. Used to exercise inheritance/superclass paths in the
     /// `ClassDescriptor` API surface (e.g. `superclassTypeMangledName`).
@@ -821,6 +836,31 @@ package enum PropertyDescriptorFixtureSymbol {
 }
 
 extension BaselineFixturePicker {
+    /// The offset a mangled symbol name resolves to, for the records that sit
+    /// in no `__swift5_*` section and can only be reached by symbol.
+    ///
+    /// Two things make this less direct than it looks. The symbol table spells
+    /// C-level names with a leading underscore, so the mangled name has to be
+    /// matched in both spellings. And a Release build carries debug (stab)
+    /// entries under the SAME names whose `n_value` is zero — matching one of
+    /// those silently reads the Mach-O header instead of the record, so stab
+    /// entries must be skipped explicitly.
+    package static func offset(
+        forSymbolNamed symbolName: String,
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> Int {
+        let underscoredSymbolName = "_" + symbolName
+        let matched = try required(
+            machO.symbols.first(where: { symbol in
+                symbol.nlist.flags?.stab == nil
+                    && (symbol.name == symbolName || symbol.name == underscoredSymbolName)
+            })
+        )
+        return matched.offset
+    }
+}
+
+extension BaselineFixturePicker {
     /// Resolves the property descriptor a `…vpMV` symbol names.
     ///
     /// The symbol table is the only entry point: nothing in the Swift
@@ -830,20 +870,7 @@ extension BaselineFixturePicker {
         forSymbolNamed symbolName: String,
         in machO: some MachOSwiftSectionRepresentableWithCache
     ) throws -> PropertyDescriptor {
-        // Two things make this less direct than it looks. The symbol table
-        // spells C-level names with a leading underscore, so the mangled name
-        // has to be matched in both spellings. And a Release build carries
-        // debug (stab) entries under the SAME names whose `n_value` is zero —
-        // matching one of those silently reads the Mach-O header instead of
-        // the descriptor, so stab entries must be skipped explicitly.
-        let underscoredSymbolName = "_" + symbolName
-        let matched = try required(
-            machO.symbols.first(where: { symbol in
-                symbol.nlist.flags?.stab == nil
-                    && (symbol.name == symbolName || symbol.name == underscoredSymbolName)
-            })
-        )
-        return try PropertyDescriptor.resolve(from: matched.offset, in: machO)
+        try PropertyDescriptor.resolve(from: offset(forSymbolNamed: symbolName, in: machO), in: machO)
     }
 
     /// The module's shared trivial descriptor — header word zero, no body.
@@ -874,5 +901,64 @@ extension BaselineFixturePicker {
         in machO: some MachOSwiftSectionRepresentableWithCache
     ) throws -> PropertyDescriptor {
         try propertyDescriptor(forSymbolNamed: PropertyDescriptorFixtureSymbol.codableClassIdentifier, in: machO)
+    }
+}
+
+/// The `…Tu` symbols the async-function-pointer fixtures are picked by, one
+/// per shape worth distinguishing: a plain global `async` function, an
+/// `async` method that a vtable slot points at (the case that proves a
+/// method descriptor's implementation pointer lands on the RECORD, not on the
+/// code), and a distributed thunk, whose async context is an order of
+/// magnitude larger.
+package enum AsyncFunctionPointerFixtureSymbol {
+    /// `globalAsyncFunction()` — a top-level `async` function.
+    package static let globalAsyncFunction =
+        "$s15SymbolTestsCore19globalAsyncFunctionSiyYaFTu"
+
+    /// `VTableEntryVariants.VTableBaseTest.asyncMethod()` — an `async`
+    /// class method, so the class's vtable slot and method descriptor both
+    /// carry the address of its record rather than of its body.
+    package static let vtableBaseAsyncMethod =
+        "$s15SymbolTestsCore19VTableEntryVariantsO0D8BaseTestC11asyncMethodSiyYaFTu"
+
+    /// `DistributedActors.DistributedActorTest.parameterizedMethod(label:count:)`'s
+    /// distributed thunk — the largest async context in the fixture.
+    package static let distributedParameterizedMethodThunk =
+        "$s15SymbolTestsCore17DistributedActorsO0D9ActorTestC19parameterizedMethod5label5countS2S_SitYaKFTETu"
+}
+
+extension BaselineFixturePicker {
+    /// Resolves the async function pointer record a `…Tu` symbol names.
+    ///
+    /// Like a property descriptor, the record sits in no `__swift5_*` section
+    /// — it lives in `__TEXT,__const` and is reached by symbol or by another
+    /// descriptor's relative pointer.
+    package static func asyncFunctionPointer(
+        forSymbolNamed symbolName: String,
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> AsyncFunctionPointer {
+        try AsyncFunctionPointer.resolve(from: offset(forSymbolNamed: symbolName, in: machO), in: machO)
+    }
+
+    /// A top-level `async` function's record.
+    package static func asyncFunctionPointer_globalFunction(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> AsyncFunctionPointer {
+        try asyncFunctionPointer(forSymbolNamed: AsyncFunctionPointerFixtureSymbol.globalAsyncFunction, in: machO)
+    }
+
+    /// The record a vtable slot / method descriptor points at for an `async`
+    /// class method.
+    package static func asyncFunctionPointer_vtableMethod(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> AsyncFunctionPointer {
+        try asyncFunctionPointer(forSymbolNamed: AsyncFunctionPointerFixtureSymbol.vtableBaseAsyncMethod, in: machO)
+    }
+
+    /// A distributed thunk's record — a much larger async context.
+    package static func asyncFunctionPointer_distributedThunk(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> AsyncFunctionPointer {
+        try asyncFunctionPointer(forSymbolNamed: AsyncFunctionPointerFixtureSymbol.distributedParameterizedMethodThunk, in: machO)
     }
 }
