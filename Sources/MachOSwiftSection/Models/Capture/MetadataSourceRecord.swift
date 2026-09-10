@@ -17,7 +17,7 @@ import MachOBase
 /// source grammar: closure bindings, reference captures, generic argument
 /// projections), unrelated to Swift's type mangling, and reading it is a
 /// separate piece of work — evolution proposal
-/// `draft-missing-abi-structures` scopes this batch to the descriptor's
+/// `missing-abi-structures` scopes this batch to the descriptor's
 /// skeleton. So both fields are handed back as raw ``MangledName`` values:
 /// `mangledTypeName` genuinely is a mangled type and demangles, while
 /// `mangledMetadataSource` is the untouched source expression.

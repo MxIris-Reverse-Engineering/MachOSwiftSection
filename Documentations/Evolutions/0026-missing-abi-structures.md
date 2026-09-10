@@ -1,8 +1,9 @@
-# Draft - 补齐五组缺失的 ABI 结构
+# 0026 - 补齐五组缺失的 ABI 结构
 
-- **状态**: Accepted
+- **状态**: Implemented
 - **创建日期**: 2026-09-10
 - **最后更新**: 2026-09-10
+- **配套文档**: [任务报告](../Internal/TaskReports/2026-09-10-missing-abi-structures.md)
 - **关联提案**: [0018](0018-self-contained-abi-layer.md)（ABI 层自足，决定符号侧入口不在本批）、[0025](0025-key-path-component-and-property-descriptor.md)（同一形状的上一批：只建结构 + fixture，不接线）
 
 ## 摘要
@@ -136,3 +137,7 @@ ThrownError                                // hasThrownError 时（条件位在 
 | 2026-09-10 | coro fixture 走随手编译，不动 `SymbolTestsCore` | 给 `SymbolTestsCore` 加 `CoroutineAccessors` flag 会改变构建产物布局、挪动每一个实现偏移，四套 ABI 字面量 baseline 全红（AGENTS.md 已记过 `CODE_SIGNING_ALLOWED=NO` 造成 +16 字节偏移的同类事故） |
 | 2026-09-10 | 符号侧入口（按 `Tu` / `Twc` 符号名查 offset）不在本批 | 同提案 0025：需要符号索引，而提案 0018 规定 `MachOSwiftSection` 只依赖 `MachOBase`；那一步属于 `SwiftInspection` |
 | 2026-09-10 | 状态置 `Accepted`，开工 | 用户审阅提案后指示「开工」 |
+| 2026-09-10 | 顺手把 `HeapLocalVariableMetadata.captureDescription` 从 `Pointer<String?>` 改成指向 capture descriptor | 它一直指向的就是 capture descriptor，类型写错了；除 fixture 机制外无使用者 |
+| 2026-09-10 | 四个函数类型 flag / enum 加 `Function` 前缀，不用 ABI 原名 | `Demangling` 的 TypeDecoder 已有同名的 `ParameterOwnership` / `ExtendedFunctionTypeFlags` / `FunctionMetadataDifferentiabilityKind`，而 `SwiftInspection` 同时 unqualified import 两个模块。去 `SwiftInspection` 加限定名只能解决本仓库，下游同时 import 两个模块照样撞 |
+| 2026-09-10 | pattern 家族的两个共享函数指针偏移改成协议要求，不做共享实现 | 协议扩展里对 Layout 协议成型的 key path 指向 witness 而非存储属性，`MemoryLayout.offset(of:)` 返回 nil，而封装处是 `!` 强解——编译通过、运行时 trap |
+| 2026-09-10 | 状态置 `Implemented` | 五个阶段全部落地；全量 `MachOSwiftSectionTests` 868 tests / 176 suites 通过，其余目标（跳过 IntegrationTests）通过。本批未引入新术语，`Glossary.md` 无需更新 |

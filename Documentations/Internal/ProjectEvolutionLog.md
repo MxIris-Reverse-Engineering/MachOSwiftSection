@@ -1448,6 +1448,49 @@
   [TaskReports/2026-09-10-property-descriptor-model.md](TaskReports/2026-09-10-property-descriptor-model.md)。
 - **对应版本**：纯新增 API，默认输出无变化，随下一次发布。
 
+## 2026-09-10 补齐五组缺失的 ABI 结构（提案 0026 missing-abi-structures）
+
+- **时间段**：2026-09-10（紧接 0025 之后的同类批次）。
+- **动机**：对着 `swift/include/swift/ABI/` 把 `Models/` 的差集过了一遍，挑出五组"有用且缺失"的
+  结构。其中第一组不是补全而是**修正一处现有的错误认识**：`GenMeta.cpp:332-342` 显示
+  method descriptor / vtable 槽 / resilient witness / protocol requirement 默认实现在实现是
+  `async` 或 `yield_once_2` 协程时，写进去的是一条**记录**的地址而不是函数本身，所以
+  `implementationOffset` 一直差一跳。
+- **关键决策与取舍**：
+  - **边界与 0025 相同：只建结构 + fixture，不接线**。穿透 `implementationOffset`、让
+    SwiftLayout 改用 pattern 里的值见证表，都会改变现有输出并让四套 ABI 字面量 baseline 重来，
+    属于另外的批次。
+  - **capture descriptor 只做骨架**：捕获类型的 mangled name 直接可用，"元数据来源"那条记录
+    用的是一套独立的小语法（不是 Swift 类型 mangling），原样暴露不解析。
+  - **不做 `__swift5_replace`**（动态替换）：实测模拟器 runtime 的 libswiftCore 与 SwiftUI 都
+    不带这个 section，只有 Preview / debug 构建才发。Task / Executor / actor 的运行时结构同样
+    不做——Mach-O 里没有落点。
+  - **四个函数类型 flag/enum 加 `Function` 前缀**：`Demangling` 已经有同名的
+    `ParameterOwnership` / `ExtendedFunctionTypeFlags` /
+    `FunctionMetadataDifferentiabilityKind`（TypeDecoder 那套），而 `SwiftInspection` 同时
+    unqualified import 两个模块。宁可名字与 ABI 头文件差一截（doc 注释里写明对应关系），也不
+    让下游 import 两个模块就撞名。
+  - **coro fixture 单独编译**：`…Twc` 需要 CoroutineAccessors 特性，而给 `SymbolTestsCore`
+    开这个 flag 会挪动每一个实现偏移、四套基线全红（与 AGENTS.md 记过的
+    `CODE_SIGNING_ALLOWED=NO` 同一类事故）。该 Suite 自带 fixture，断言走结构而非字面量。
+- **落地模块**：`MachOSwiftSection`（新增 `Models/FunctionPointer/`、
+  `Models/AccessibleFunction/`、`Models/Generic/Pattern/`，填实 `Models/Capture/`，扩写
+  `Models/Function/`；`MachOFile.Swift` / `MachOImage.Swift` 各加两个 section 入口和一条
+  定长记录读取腿）、`MachOFixtureSupport`（picker + 9 个 baseline generator）。
+- **踩到的坑**：
+  - 协议扩展里对 Layout 协议成型的 key path 指向的是 witness 而不是存储属性，
+    `MemoryLayout.offset(of:)` 返回 nil ——**编译通过、运行时 trap**。两个共享的函数指针偏移
+    因此改成协议要求，由各 conformer 实现。
+  - `context.readElement(at:)` 若被推断成 `Optional<Pointer<…>>`，读的是另一种内存形状，
+    **静默返回 nil**。取指针的地方必须显式标注非可选类型再包成可选返回。
+  - 改了模型的存储布局后，SwiftPM 增量链接会拿旧的 generator .o 去连（undefined symbol 指向
+    已删除的协议扩展），`touch` 相关 generator 源码强制重编即可。
+- **关联文档**：[提案](../Evolutions/0026-missing-abi-structures.md)、
+  [TaskReports/2026-09-10-missing-abi-structures.md](TaskReports/2026-09-10-missing-abi-structures.md)。
+- **对应版本**：纯新增 API（`HeapLocalVariableMetadata.captureDescription` 的指针目标类型
+  从 `String?` 改为 `CaptureDescriptor?`，除 fixture 机制外无使用者），默认输出无变化，
+  随下一次发布。
+
 ---
 
 ## 维护约定
