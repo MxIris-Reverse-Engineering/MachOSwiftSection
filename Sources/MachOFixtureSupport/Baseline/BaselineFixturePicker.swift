@@ -962,3 +962,39 @@ extension BaselineFixturePicker {
         try asyncFunctionPointer(forSymbolNamed: AsyncFunctionPointerFixtureSymbol.distributedParameterizedMethodThunk, in: machO)
     }
 }
+
+extension BaselineFixturePicker {
+    /// Every `__swift5_acfuncs` record in the fixture. All four come from
+    /// `DistributedActors`, which is the only feature that emits them today.
+    package static func accessibleFunctionRecords(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> [AccessibleFunctionRecord] {
+        try machO.swift.accessibleFunctionRecords
+    }
+
+    /// `DistributedActors.DistributedActorTest.remoteMethod(value:)`'s record
+    /// — a non-generic distributed target, so its generic environment pointer
+    /// is null.
+    package static func accessibleFunctionRecord_nonGeneric(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> AccessibleFunctionRecord {
+        try required(
+            try accessibleFunctionRecords(in: machO).first(where: { record in
+                try record.name(in: machO).contains("remoteMethod") && record.genericEnvironmentOffset == nil
+            })
+        )
+    }
+
+    /// `DistributedActors.GenericDistributedActorTest.process(element:)`'s
+    /// record — the one distributed target with a generic signature, so it is
+    /// the only record whose generic environment pointer is non-null.
+    package static func accessibleFunctionRecord_generic(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> AccessibleFunctionRecord {
+        try required(
+            try accessibleFunctionRecords(in: machO).first(where: { record in
+                record.genericEnvironmentOffset != nil
+            })
+        )
+    }
+}

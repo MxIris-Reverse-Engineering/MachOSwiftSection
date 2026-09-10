@@ -487,6 +487,11 @@ enum CoverageAllowlistEntries {
             reason: .pureDataUtility(detail: "raw bitfield over generic environment flags")
         ),
         CoverageAllowlistHelpers.sentinelGroup(
+            typeName: "AccessibleFunctionFlags",
+            members: ["init(rawValue:)", "rawValue", "isDistributed"],
+            reason: .pureDataUtility(detail: "raw bitfield over accessible function flags; the ABI defines a single bit")
+        ),
+        CoverageAllowlistHelpers.sentinelGroup(
             typeName: "FieldRecordFlags",
             members: ["init", "rawValue", "isVar", "isArtificial", "isIndirectCase", "isVariadic"],
             reason: .pureDataUtility(detail: "raw bitfield over field record flags")

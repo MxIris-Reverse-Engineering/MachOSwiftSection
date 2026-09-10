@@ -8,6 +8,7 @@ import MachOFixtureSupport
 // avoids the Sendable diagnostic on this global.
 @MainActor
 let allFixtureSuites: [any FixtureSuite.Type] = [
+    AccessibleFunctionRecordTests.self,
     AnonymousContextDescriptorFlagsTests.self,
     AnonymousContextDescriptorProtocolTests.self,
     AnonymousContextDescriptorTests.self,
