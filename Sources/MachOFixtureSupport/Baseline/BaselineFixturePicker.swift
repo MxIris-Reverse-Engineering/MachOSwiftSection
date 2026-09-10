@@ -998,3 +998,43 @@ extension BaselineFixturePicker {
         )
     }
 }
+
+extension BaselineFixturePicker {
+    /// The `__swift5_capture` descriptors, in section order.
+    package static func captureDescriptors(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> [CaptureDescriptor] {
+        try machO.swift.captureDescriptors
+    }
+
+    /// A non-generic closure's context: captured values only, no metadata
+    /// source map and no bindings.
+    package static func captureDescriptor_withoutMetadataSources(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> CaptureDescriptor {
+        try required(
+            try captureDescriptors(in: machO).first(where: { $0.numberOfMetadataSources == 0 && $0.numberOfCaptureTypes > 0 })
+        )
+    }
+
+    /// A closure inside a one-parameter generic function: one binding at the
+    /// head of the context, so one metadata source entry.
+    package static func captureDescriptor_withSingleMetadataSource(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> CaptureDescriptor {
+        try required(
+            try captureDescriptors(in: machO).first(where: { $0.numberOfMetadataSources == 1 })
+        )
+    }
+
+    /// A closure inside a two-parameter generic function — the carrier that
+    /// keeps the metadata source array from being testable at length one
+    /// only.
+    package static func captureDescriptor_withMultipleMetadataSources(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> CaptureDescriptor {
+        try required(
+            try captureDescriptors(in: machO).first(where: { $0.numberOfMetadataSources > 1 })
+        )
+    }
+}

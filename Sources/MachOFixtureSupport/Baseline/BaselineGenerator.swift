@@ -227,6 +227,10 @@ package enum BaselineGenerator {
         // Function/ — FunctionTypeMetadata is runtime-allocated only.
         try dispatchSuite("FunctionTypeFlags", in: machOFile, outputDirectory: outputDirectory)
         try dispatchSuite("FunctionTypeMetadata", in: machOFile, outputDirectory: outputDirectory)
+        // Capture/
+        try dispatchSuite("CaptureDescriptor", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("CaptureTypeRecord", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("MetadataSourceRecord", in: machOFile, outputDirectory: outputDirectory)
         // AccessibleFunction/ — the flags type is a pure OptionSet.
         try dispatchSuite("AccessibleFunctionRecord", in: machOFile, outputDirectory: outputDirectory)
         // FunctionPointer/ — CoroFunctionPointer needs a CoroutineAccessors
@@ -601,6 +605,13 @@ package enum BaselineGenerator {
             try GenericBoxHeapMetadataBaselineGenerator.generate(outputDirectory: outputDirectory)
         case "HeapLocalVariableMetadata":
             try HeapLocalVariableMetadataBaselineGenerator.generate(outputDirectory: outputDirectory)
+        // Capture/
+        case "CaptureDescriptor":
+            try CaptureDescriptorBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
+        case "CaptureTypeRecord":
+            try CaptureTypeRecordBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
+        case "MetadataSourceRecord":
+            try MetadataSourceRecordBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
         // AccessibleFunction/
         case "AccessibleFunctionRecord":
             try AccessibleFunctionRecordBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
@@ -684,6 +695,9 @@ package enum BaselineGenerator {
             "AnyClassMetadataProtocolTests",
             "AnyClassMetadataTests",
             "AccessibleFunctionRecordTests",
+            "CaptureDescriptorTests",
+            "CaptureTypeRecordTests",
+            "MetadataSourceRecordTests",
             "AssociatedTypeDescriptorTests",
             "AsyncFunctionPointerTests",
             "CoroFunctionPointerTests",
