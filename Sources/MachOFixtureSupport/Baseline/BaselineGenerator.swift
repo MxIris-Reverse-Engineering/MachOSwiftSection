@@ -230,6 +230,12 @@ package enum BaselineGenerator {
         // Heap/ — both metadata types are runtime-allocated only.
         try dispatchSuite("GenericBoxHeapMetadata", in: machOFile, outputDirectory: outputDirectory)
         try dispatchSuite("HeapLocalVariableMetadata", in: machOFile, outputDirectory: outputDirectory)
+        // KeyPath/ — the enums (component kind, identifier kind/resolution,
+        // stored-offset kind) are pure data with no public func/var.
+        try dispatchSuite("KeyPathComponentHeader", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("KeyPathComputedPropertyBody", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("KeyPathStoredFieldOffset", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("PropertyDescriptor", in: machOFile, outputDirectory: outputDirectory)
         // Mangling/ — MangledNameKind is a pure enum (no public func/var/init),
         // so only MangledName needs a Suite.
         try dispatchSuite("MangledName", in: machOFile, outputDirectory: outputDirectory)
@@ -590,6 +596,15 @@ package enum BaselineGenerator {
             try GenericBoxHeapMetadataBaselineGenerator.generate(outputDirectory: outputDirectory)
         case "HeapLocalVariableMetadata":
             try HeapLocalVariableMetadataBaselineGenerator.generate(outputDirectory: outputDirectory)
+        // KeyPath/
+        case "KeyPathComponentHeader":
+            try KeyPathComponentHeaderBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
+        case "KeyPathComputedPropertyBody":
+            try KeyPathComputedPropertyBodyBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
+        case "KeyPathStoredFieldOffset":
+            try KeyPathStoredFieldOffsetBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
+        case "PropertyDescriptor":
+            try PropertyDescriptorBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
         // Mangling/
         case "MangledName":
             try MangledNameBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
@@ -698,6 +713,10 @@ package enum BaselineGenerator {
             "ExtensionContextTests",
             "ExtraClassDescriptorFlagsTests",
             "FieldDescriptorTests",
+            "KeyPathComponentHeaderTests",
+            "KeyPathComputedPropertyBodyTests",
+            "KeyPathStoredFieldOffsetTests",
+            "PropertyDescriptorTests",
             "FieldRecordFlagsTests",
             "FieldRecordTests",
             "FinalClassMetadataProtocolTests",

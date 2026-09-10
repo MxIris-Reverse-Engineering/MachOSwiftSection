@@ -779,3 +779,100 @@ package enum BaselineFixturePicker {
     }
 
 }
+
+// MARK: - Property Descriptors
+
+/// The `…vpMV` symbols the property-descriptor fixtures are pinned to.
+///
+/// Property descriptors sit in no `__swift5_*` section, so unlike every other
+/// picker here they cannot be found by walking a section — a symbol is the
+/// only way in. Each constant below was chosen for the descriptor SHAPE it
+/// carries, so that the four forms a property descriptor can take are all
+/// covered:
+///
+/// | symbol | header | form |
+/// | --- | --- | --- |
+/// | `staticMemberStoredConstant` | `0x00000000` | trivial (shared, aliased) |
+/// | `markerConformingStructValue` | `0x01800000` | struct, offset inline |
+/// | `propertyWrapperWrappedValue` | `0x01fffffe` | struct, offset in metadata |
+/// | `codableClassIdentifier` | `0x02400000` | computed, settable |
+package enum PropertyDescriptorFixtureSymbol {
+    /// `StaticMembers.StaticMemberStructTest.storedConstant` — a `static let`
+    /// whose descriptor is the module's shared trivial one.
+    package static let staticMemberStoredConstant =
+        "$s15SymbolTestsCore13StaticMembersO0D16MemberStructTestV14storedConstantSivpZMV"
+
+    /// `MarkerProtocols.MarkerConformingStructTest.value` — a stored property
+    /// of a non-generic struct, so its offset is a constant in the header.
+    package static let markerConformingStructValue =
+        "$s15SymbolTestsCore15MarkerProtocolsO0D20ConformingStructTestV5valueSivpMV"
+
+    /// `Attributes.PropertyWrapperStruct.wrappedValue` — a stored property of
+    /// a GENERIC struct, so the header carries the `unresolvedFieldOffset`
+    /// sentinel and the body carries the offset of the field-offset word.
+    package static let propertyWrapperWrappedValue =
+        "$s15SymbolTestsCore10AttributesO21PropertyWrapperStructV12wrappedValuexvpMV"
+
+    /// `CodableTests.CodableClassTest.identifier` — a settable property of a
+    /// resilient class, which is dispatched through accessors, so the
+    /// descriptor is a computed component with identifier, getter and setter.
+    package static let codableClassIdentifier =
+        "$s15SymbolTestsCore07CodableB0O0D9ClassTestC10identifierSivpMV"
+}
+
+extension BaselineFixturePicker {
+    /// Resolves the property descriptor a `…vpMV` symbol names.
+    ///
+    /// The symbol table is the only entry point: nothing in the Swift
+    /// metadata sections references a property descriptor, and the runtime
+    /// only ever reaches one through a key path pattern's relative pointer.
+    package static func propertyDescriptor(
+        forSymbolNamed symbolName: String,
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> PropertyDescriptor {
+        // Two things make this less direct than it looks. The symbol table
+        // spells C-level names with a leading underscore, so the mangled name
+        // has to be matched in both spellings. And a Release build carries
+        // debug (stab) entries under the SAME names whose `n_value` is zero —
+        // matching one of those silently reads the Mach-O header instead of
+        // the descriptor, so stab entries must be skipped explicitly.
+        let underscoredSymbolName = "_" + symbolName
+        let matched = try required(
+            machO.symbols.first(where: { symbol in
+                symbol.nlist.flags?.stab == nil
+                    && (symbol.name == symbolName || symbol.name == underscoredSymbolName)
+            })
+        )
+        return try PropertyDescriptor.resolve(from: matched.offset, in: machO)
+    }
+
+    /// The module's shared trivial descriptor — header word zero, no body.
+    package static func propertyDescriptor_trivial(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> PropertyDescriptor {
+        try propertyDescriptor(forSymbolNamed: PropertyDescriptorFixtureSymbol.staticMemberStoredConstant, in: machO)
+    }
+
+    /// A stored property whose offset is inline in the header.
+    package static func propertyDescriptor_inlineStoredOffset(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> PropertyDescriptor {
+        try propertyDescriptor(forSymbolNamed: PropertyDescriptorFixtureSymbol.markerConformingStructValue, in: machO)
+    }
+
+    /// A stored property of a generic type: the header holds the
+    /// `unresolvedFieldOffset` sentinel and the body holds the offset of the
+    /// metadata word carrying the real field offset.
+    package static func propertyDescriptor_unresolvedFieldOffset(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> PropertyDescriptor {
+        try propertyDescriptor(forSymbolNamed: PropertyDescriptorFixtureSymbol.propertyWrapperWrappedValue, in: machO)
+    }
+
+    /// A settable computed component: identifier, getter and setter.
+    package static func propertyDescriptor_computedSettable(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> PropertyDescriptor {
+        try propertyDescriptor(forSymbolNamed: PropertyDescriptorFixtureSymbol.codableClassIdentifier, in: machO)
+    }
+}
