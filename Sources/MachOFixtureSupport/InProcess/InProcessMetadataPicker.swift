@@ -42,6 +42,37 @@ package enum InProcessMetadataPicker {
         unsafeBitCast(((Int) -> Void).self, to: UnsafeRawPointer.self)
     }()
 
+    /// `((Int, String) -> Bool).self` — two parameters and a non-`Void`
+    /// result, so the trailing parameter array is genuinely walked.
+    package nonisolated(unsafe) static let stdlibFunctionIntStringToBool: UnsafeRawPointer = {
+        unsafeBitCast(((Int, String) -> Bool).self, to: UnsafeRawPointer.self)
+    }()
+
+    /// `((inout Int) -> Void).self` — the simplest function type that forces
+    /// the compiler to emit the per-parameter flag array at all, since an
+    /// `inout` parameter is not an ordinary by-value one.
+    package nonisolated(unsafe) static let stdlibFunctionInOutIntToVoid: UnsafeRawPointer = {
+        unsafeBitCast(((inout Int) -> Void).self, to: UnsafeRawPointer.self)
+    }()
+
+    /// The error type of ``stdlibFunctionMainActorTypedThrows``. Declared
+    /// here so the thrown-error metadata has a stable identity to compare
+    /// against.
+    package struct FunctionFixtureError: Error {}
+
+    /// `(@MainActor () throws(FunctionFixtureError) -> Void).self` — carries
+    /// a global actor AND extended flags AND a thrown error type, which is
+    /// the only shape that exercises the padding between the pointer-sized
+    /// and word-sized trailing blocks.
+    ///
+    /// Availability-gated because forming the metadata for a typed-throws
+    /// function type needs runtime support the package's deployment floor
+    /// predates.
+    @available(macOS 15.0, iOS 18.0, tvOS 18.0, watchOS 11.0, visionOS 2.0, *)
+    package nonisolated(unsafe) static let stdlibFunctionMainActorTypedThrows: UnsafeRawPointer = {
+        unsafeBitCast((@MainActor () throws(FunctionFixtureError) -> Void).self, to: UnsafeRawPointer.self)
+    }()
+
     // MARK: - stdlib existential
 
     /// `Any.self` — covers `ExistentialTypeMetadata` for the maximally-general

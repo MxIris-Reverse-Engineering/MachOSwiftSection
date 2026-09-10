@@ -487,6 +487,16 @@ enum CoverageAllowlistEntries {
             reason: .pureDataUtility(detail: "raw bitfield over generic environment flags")
         ),
         CoverageAllowlistHelpers.sentinelGroup(
+            typeName: "FunctionParameterTypeFlags",
+            members: ["init(rawValue:)", "rawValue", "ownership", "ownershipRawValue", "isVariadic", "isAutoClosure", "isNoDerivative", "isIsolated", "isSending"],
+            reason: .pureDataUtility(detail: "raw bitfield over per-parameter flags; FunctionTypeMetadataTests asserts the decoded ownership on a real `inout` carrier")
+        ),
+        CoverageAllowlistHelpers.sentinelGroup(
+            typeName: "FunctionTypeExtendedFlags",
+            members: ["init(rawValue:)", "rawValue", "isTypedThrows", "isIsolatedAny", "isNonIsolatedNonsending", "hasSendingResult", "invertedProtocols"],
+            reason: .pureDataUtility(detail: "raw bitfield over the second function-type flag word; FunctionTypeMetadataTests asserts the decoded typed-throws bit on a real carrier")
+        ),
+        CoverageAllowlistHelpers.sentinelGroup(
             typeName: "GenericMetadataPatternFlags",
             members: ["init(rawValue:)", "rawValue", "hasExtraDataPattern", "hasTrailingFlags", "classHasImmediateMembersPattern", "valueMetadataKind", "valueMetadataKindRawValue"],
             reason: .pureDataUtility(detail: "raw bitfield over generic metadata pattern flags; the two pattern Suites assert the decoded bits on real patterns")
