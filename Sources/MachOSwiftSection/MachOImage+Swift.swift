@@ -87,6 +87,15 @@ extension MachOImage.Swift: SwiftSectionRepresentable {
         }
     }
 
+    /// The `__swift5_capture` records: one per closure context or box the
+    /// module emits, describing what it captures and how the runtime
+    /// recovers generic metadata from it.
+    public var captureDescriptors: [CaptureDescriptor] {
+        get throws {
+            return try _readDescriptors(from: .__swift5_capture)
+        }
+    }
+
     /// The `__swift5_acfuncs` records: functions the runtime can find again
     /// by string key and call through a fully abstracted entry point
     /// (distributed actor targets, today).
