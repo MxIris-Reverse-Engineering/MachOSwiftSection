@@ -197,7 +197,7 @@ public final class ExtensionDefinition: Definition, MutableDefinition {
         // implementation symbol be claimed by two witnesses.
         func _symbol(for symbols: Symbols, typeName: String, visitedNodes: borrowing OrderedSet<StructuralNodeReferenceKey> = []) throws -> DemangledSymbol? {
             for symbol in symbols {
-                if let node = SymbolicDemangler.demangleSymbolReference(for: symbol, in: machO), let protocolConformanceNode = node.first(of: .protocolConformance), let symbolTypeName = protocolConformanceNode.children.first?.print(using: .interfaceTypeBuilderOnly), symbolTypeName == typeName || PrimitiveTypeMappingCache.shared.storage(in: machO)?.primitiveType(for: typeName) == symbolTypeName, !visitedNodes.contains(StructuralNodeReferenceKey(node)) {
+                if let node = SymbolicDemangler.demangleSymbolReference(for: symbol, in: machO), let protocolConformanceNode = node.first(of: .protocolConformance), let symbolTypeName = protocolConformanceNode.children.first?.print(using: .interfaceTypeBuilderOnly), symbolTypeName == typeName, !visitedNodes.contains(StructuralNodeReferenceKey(node)) {
                     return .init(symbol: symbol, demangledNode: node)
                 }
             }

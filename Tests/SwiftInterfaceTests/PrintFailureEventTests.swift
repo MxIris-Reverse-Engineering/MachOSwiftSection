@@ -179,7 +179,6 @@ final class PrintFailureEventTests: MachOFileTests, @unchecked Sendable {
             "TypeContextDescriptorWrapper.swift",
             "SubstitutionMap.swift",
             "SpareBitAnalyzer.swift",
-            "PrimitiveTypeMapping.swift",
             "DumpableTests.swift",
         ]
 

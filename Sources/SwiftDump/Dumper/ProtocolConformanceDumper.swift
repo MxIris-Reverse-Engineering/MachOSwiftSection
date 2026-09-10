@@ -192,7 +192,7 @@ package struct ProtocolConformanceDumper<MachO: FieldLayoutRenderable>: Conforme
     
     package static func demangledSymbol(for symbols: Symbols, typeName: String, visitedNodes: borrowing OrderedSet<StructuralNodeReferenceKey> = [], in machO: MachO) -> DemangledSymbol? {
         for symbol in symbols {
-            if let node = SymbolicDemangler.demangleSymbolReference(for: symbol, in: machO), let targetNode = node.first(of: .protocolConformance), let symbolTypeName = targetNode.children.at(0)?.print(using: .interfaceType), symbolTypeName == typeName || PrimitiveTypeMappingCache.shared.storage(in: machO)?.primitiveType(for: typeName) == symbolTypeName, !visitedNodes.contains(StructuralNodeReferenceKey(node)) {
+            if let node = SymbolicDemangler.demangleSymbolReference(for: symbol, in: machO), let targetNode = node.first(of: .protocolConformance), let symbolTypeName = targetNode.children.at(0)?.print(using: .interfaceType), symbolTypeName == typeName, !visitedNodes.contains(StructuralNodeReferenceKey(node)) {
                 return .init(symbol: symbol, demangledNode: node)
             }
         }
