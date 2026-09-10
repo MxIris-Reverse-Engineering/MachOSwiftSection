@@ -121,6 +121,14 @@ public final class ProtocolDefinition: Definition, MutableDefinition {
 
     public private(set) var isIndexed: Bool = false
 
+    /// Whether this protocol's descriptor is in the image's export trie,
+    /// resolved once at construction (see ``ExportStatus``). Available the
+    /// moment `SwiftDeclarationIndexer.prepare()` returns — the verdict needs
+    /// only the descriptor's offset and the name node, never `index(in:)`'s
+    /// products. Same symbol-index caveat as
+    /// ``TypeDefinition/exportStatus``.
+    public let exportStatus: ExportStatus
+
     public var hasMembers: Bool {
         !associatedTypes.isEmpty || !variables.isEmpty || !functions.isEmpty ||
             !subscripts.isEmpty || !staticVariables.isEmpty || !staticFunctions.isEmpty || !staticSubscripts.isEmpty || !allocators.isEmpty || !constructors.isEmpty || !strippedSymbolicRequirements.isEmpty
@@ -132,7 +140,13 @@ public final class ProtocolDefinition: Definition, MutableDefinition {
     public init<MachO: MachOSwiftSectionRepresentableWithCache>(`protocol`: MachOSwiftSection.`Protocol`, in machO: MachO) throws {
         self.protocolDescriptor = `protocol`.descriptor
         let node = try SymbolicDemangler.demangleContext(for: .protocol(`protocol`.descriptor), in: machO)
-        self.protocolName = ProtocolName(node: InternedNodeReferenceCache.shared.reference(interning: node, in: machO))
+        let protocolName = ProtocolName(node: InternedNodeReferenceCache.shared.reference(interning: node, in: machO))
+        self.protocolName = protocolName
+        self.exportStatus = ExportStatus.resolve(
+            forProtocolDescriptorAt: `protocol`.descriptor.offset,
+            protocolNameNode: protocolName.node,
+            in: machO
+        )
     }
 
     /// Test/tooling surface: constructs a definition around a RAW descriptor
@@ -140,9 +154,16 @@ public final class ProtocolDefinition: Definition, MutableDefinition {
     /// build a definition whose materialization deterministically fails
     /// (a real descriptor layout re-wrapped at an out-of-bounds offset).
     /// Mirrors `ExtensionDefinition`'s descriptor-only initializer.
-    package init(protocolDescriptor: ProtocolDescriptor, protocolName: ProtocolName) {
+    /// `exportStatus` defaults to the no-verdict case because a definition
+    /// built this way has no trustworthy descriptor to rule on.
+    package init(
+        protocolDescriptor: ProtocolDescriptor,
+        protocolName: ProtocolName,
+        exportStatus: ExportStatus = .descriptorSymbolNameUnresolvable
+    ) {
         self.protocolDescriptor = protocolDescriptor
         self.protocolName = protocolName
+        self.exportStatus = exportStatus
     }
 
     /// Rebuilds the full `MachOSwiftSection.Protocol` (requirement arrays

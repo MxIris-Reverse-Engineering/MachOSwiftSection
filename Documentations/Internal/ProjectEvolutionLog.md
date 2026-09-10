@@ -1319,6 +1319,39 @@
   [TaskReports/2026-09-06-vtable-slot-attribution.md](TaskReports/2026-09-06-vtable-slot-attribution.md)。
 - **对应版本**：0.19.0（改变渲染输出，见 Changelog）。
 
+
+## 2026-09-09 Type / Protocol Definition 的导出标志（提案 0024 exported-declaration-flag）
+
+- **时间段**：2026-09-09。
+- **动机**：「这个声明在不在镜像的 export trie 里」这个事实由提案 0008（标注）与 0016（过滤）建立，
+  但只活在 `SwiftDeclarationPrinter` 的私有裁决里。宿主要在类型列表里逐行标注导出与否就拿不到它，
+  只能自己重写一遍；打印器内部也重复——`printRoot()` 打开 `--exported-only` 时
+  `installExportFilterScope` 把全镜像类型 / 协议裁决一遍，每个类型打印时再裁决一次。
+- **关键决策与取舍**：
+  - **事实下沉到模型，按四态枚举暴露**。`TypeDefinition.exportStatus` / `ProtocolDefinition.exportStatus`
+    （`ExportStatus`：`exported` / `notExported` / `imageHasNoExportInformation` /
+    `descriptorSymbolNameUnresolvable`），构造期一次算好、`let`。用户否掉了 `Bool?`：三态封死，
+    且把两个性质不同的「无从判断」压在同一个 `nil` 里——前者是镜像级（没有 export trie，任何声明都判不了），
+    后者是声明级（trie 正常，只是这一条的名字重整不可信）。便利投影 `isExported: Bool?` 与
+    `isDefinitelyNotExported` 保留旧形状的调用点。
+  - **索引期无条件填充，不设开关**。先实测再决定：dyld shared cache 与 iOS 18.5 模拟器的 SwiftUICore、
+    进程内 libswiftCore、`SymbolTestsCore` 四个镜像共 8171 条类型 / 协议声明，**第 1 腿（描述符 offset 处的符号）
+    100% 命中**——那条贵的「重整名 + 查 trie」兜底一次都没触发，两个无从判断的 case 也一个都没出现；
+    裁决总耗时占 `prepare()` 的 0.15% 以内（3992 个类型 28 ms vs 18.16 s）。一个默认关闭的开关只会让宿主必须记得打开。
+  - **打印器改为转发，公开签名不动**。`exportVerdict(forTypeDefinition:/forProtocolDefinition:)` 仍返回 `Bool?`
+    （读 `exportStatus.isExported`），`installExportFilterScope` 只筛 `isDefinitelyNotExported`，
+    `printRoot()` 那趟全镜像重算消失。成员级 / 字段级 / 扩展级判定完全不动——判据不同（派生符号、目标归属）。
+  - **特化定义继承原型的值**：同一个 descriptor 即同一个事实，重算只会得到同样的答案。
+  - **不进 ABI 快照**：导出与否是 symbolication / 构建配置状态，不是 ABI 事实，写进快照会让同一份二进制在
+    strip 前后 diff 出假变更。
+- **落地模块**：`SwiftDeclaration`（新 `ExportStatus.swift`，`TypeDefinition` / `ProtocolDefinition` 各加一个 `let`）、
+  `SwiftSpecialization`（特化构造继承）、`SwiftPrinting`（`SwiftDeclarationPrinter+ExportFilter` 改为转发）。
+- **关联文档**：[提案](../Evolutions/0024-exported-declaration-flag.md)、
+  [ExportedOnlyInterfaceFiltering.md](ExportedOnlyInterfaceFiltering.md)（裁决来源一节）、
+  [TaskReports/2026-09-09-exported-declaration-flag.md](TaskReports/2026-09-09-exported-declaration-flag.md)。
+- **对应版本**：待发布（公开 API 新增，默认输出字节不变）。
+
+
 ---
 
 ## 2026-09-09 MetadataReader 符号引用解析去搜索化（提案 0021 metadata-reader-deterministic-node-extraction）
