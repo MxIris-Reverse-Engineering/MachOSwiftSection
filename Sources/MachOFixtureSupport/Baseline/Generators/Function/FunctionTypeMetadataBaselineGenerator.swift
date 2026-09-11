@@ -49,7 +49,6 @@ package enum FunctionTypeMetadataBaselineGenerator {
             "differentiabilityKindOffset",
             "extendedFlags",
             "extendedFlagsOffset",
-            "flags",
             "globalActorOffset",
             "globalActorType",
             "layout",

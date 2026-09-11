@@ -8,7 +8,7 @@
 // initialization record rather than off a generic context.
 
 enum ResilientClassMetadataPatternBaseline {
-    static let registeredTestMethodNames: Set<String> = ["classFlags", "dataOffset", "destroyOffset", "instanceVariableDestroyerOffset", "layout", "metaclassOffset", "offset", "relocationFunctionOffset"]
+    static let registeredTestMethodNames: Set<String> = ["layout", "offset"]
 
     static let offset = 0x5efa8
     static let classFlags: UInt32 = 0x2

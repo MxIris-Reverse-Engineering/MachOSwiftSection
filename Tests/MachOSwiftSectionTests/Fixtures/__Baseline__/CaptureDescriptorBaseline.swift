@@ -10,7 +10,7 @@
 // visible.
 
 enum CaptureDescriptorBaseline {
-    static let registeredTestMethodNames: Set<String> = ["actualSize", "captureTypeRecords", "captureTypeRecordsOffset", "layout", "metadataSourceRecords", "metadataSourceRecordsOffset", "numberOfBindings", "numberOfCaptureTypes", "numberOfMetadataSources", "offset"]
+    static let registeredTestMethodNames: Set<String> = ["actualSize", "captureTypeRecords", "captureTypeRecordsOffset", "layout", "metadataSourceRecords", "metadataSourceRecordsOffset", "offset"]
 
     struct Entry {
         let offset: Int

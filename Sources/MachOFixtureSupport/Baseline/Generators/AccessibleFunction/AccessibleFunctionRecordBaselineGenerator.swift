@@ -22,12 +22,9 @@ package enum AccessibleFunctionRecordBaselineGenerator {
         let generic = try BaselineFixturePicker.accessibleFunctionRecord_generic(in: machO)
 
         let registered = [
-            "flags",
             "functionAddress",
-            "functionOffset",
             "functionType",
             "genericEnvironment",
-            "genericEnvironmentOffset",
             "isDistributed",
             "layout",
             "name",
@@ -83,8 +80,8 @@ package enum AccessibleFunctionRecordBaselineGenerator {
         Entry(
             offset: \(raw: BaselineEmitter.hex(record.offset)),
             name: \(literal: try record.name(in: machO)),
-            functionOffset: \(raw: BaselineEmitter.optionalHex(record.functionOffset)),
-            genericEnvironmentOffset: \(raw: BaselineEmitter.optionalHex(record.genericEnvironmentOffset)),
+            functionOffset: \(raw: BaselineEmitter.optionalHex(record.resolvedDirectOffset(from: \.function))),
+            genericEnvironmentOffset: \(raw: BaselineEmitter.optionalHex(record.resolvedDirectOffset(from: \.genericEnvironment))),
             flagsRawValue: \(raw: BaselineEmitter.hex(record.flags.rawValue)),
             isDistributed: \(literal: record.isDistributed),
             hasFunctionType: \(literal: !(try record.functionType(in: machO).isEmpty))

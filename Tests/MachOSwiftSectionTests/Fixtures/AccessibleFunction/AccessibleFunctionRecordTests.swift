@@ -73,16 +73,23 @@ final class AccessibleFunctionRecordTests: MachOSwiftSectionFixtureTests, Fixtur
         }
         // Four relative pointers plus a flag word, no padding.
         #expect(MemoryLayout<AccessibleFunctionRecord.Layout>.size == 20)
-    }
 
-    @Test func flags() async throws {
         for carrier in try allCarriers() {
-            let result = try acrossAllReaders(
-                file: { carrier.file.flags.rawValue },
-                image: { carrier.image.flags.rawValue }
+            let functionOffset = try acrossAllReaders(
+                file: { carrier.file.resolvedDirectOffset(from: \.function) },
+                image: { carrier.image.resolvedDirectOffset(from: \.function) }
             )
-            #expect(result == carrier.expected.flagsRawValue, "\(carrier.label)")
+            #expect(functionOffset == carrier.expected.functionOffset, "\(carrier.label)")
+
+            let genericEnvironmentOffset = try acrossAllReaders(
+                file: { carrier.file.resolvedDirectOffset(from: \.genericEnvironment) },
+                image: { carrier.image.resolvedDirectOffset(from: \.genericEnvironment) }
+            )
+            #expect(genericEnvironmentOffset == carrier.expected.genericEnvironmentOffset, "\(carrier.label)")
         }
+        // The carriers are only worth having as a pair if they genuinely
+        // differ in the one nullable pointer.
+        #expect(try allCarriers().filter { $0.file.resolvedDirectOffset(from: \.genericEnvironment) == nil }.count == 1)
     }
 
     @Test func isDistributed() async throws {
@@ -135,21 +142,6 @@ final class AccessibleFunctionRecordTests: MachOSwiftSectionFixtureTests, Fixtur
         }
     }
 
-    @Test func genericEnvironmentOffset() async throws {
-        for carrier in try allCarriers() {
-            let result = try acrossAllReaders(
-                file: { carrier.file.genericEnvironmentOffset },
-                image: { carrier.image.genericEnvironmentOffset }
-            )
-            #expect(result == carrier.expected.genericEnvironmentOffset, "\(carrier.label)")
-        }
-
-        // The carriers are only worth having as a pair if they genuinely
-        // differ in this one respect.
-        let carriers = try allCarriers()
-        #expect(carriers.filter { $0.file.genericEnvironmentOffset == nil }.count == 1)
-    }
-
     @Test func genericEnvironment() async throws {
         for carrier in try allCarriers() {
             let resolvedOffset = try acrossAllReaders(
@@ -157,17 +149,6 @@ final class AccessibleFunctionRecordTests: MachOSwiftSectionFixtureTests, Fixtur
                 image: { try carrier.image.genericEnvironment(in: machOImage)?.offset }
             )
             #expect(resolvedOffset == carrier.expected.genericEnvironmentOffset, "\(carrier.label)")
-        }
-    }
-
-    /// Pure relative-pointer arithmetic, so identical across readers.
-    @Test func functionOffset() async throws {
-        for carrier in try allCarriers() {
-            let result = try acrossAllReaders(
-                file: { carrier.file.functionOffset },
-                image: { carrier.image.functionOffset }
-            )
-            #expect(result == carrier.expected.functionOffset, "\(carrier.label)")
         }
     }
 
@@ -187,9 +168,9 @@ final class AccessibleFunctionRecordTests: MachOSwiftSectionFixtureTests, Fixtur
     /// plus `AsyncFunctionPointerTests` between them cover both.
     @Test func functionPointsAtAnAsyncRecordNotAtCode() async throws {
         for carrier in try allCarriers() {
-            let functionOffset = try #require(carrier.file.functionOffset, "\(carrier.label)")
+            let functionOffset = try #require(carrier.file.resolvedDirectOffset(from: \.function), "\(carrier.label)")
             let asyncRecord = try AsyncFunctionPointer.resolve(from: functionOffset, in: machOFile)
-            let entryPoint = try #require(asyncRecord.functionOffset, "\(carrier.label)")
+            let entryPoint = try #require(asyncRecord.resolvedDirectOffset(from: \.function), "\(carrier.label)")
             #expect(entryPoint != functionOffset, "\(carrier.label)")
             #expect(asyncRecord.expectedContextSize > 0, "\(carrier.label)")
         }

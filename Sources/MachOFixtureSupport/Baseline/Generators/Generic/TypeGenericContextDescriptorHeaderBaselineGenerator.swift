@@ -28,8 +28,6 @@ package enum TypeGenericContextDescriptorHeaderBaselineGenerator {
         // TypeGenericContextDescriptorHeader.swift. `init(layout:offset:)` is
         // filtered as memberwise-synthesized.
         let registered = [
-            "defaultInstantiationPatternOffset",
-            "instantiationCacheOffset",
             "layout",
             "offset",
         ]
@@ -79,8 +77,8 @@ package enum TypeGenericContextDescriptorHeaderBaselineGenerator {
             layoutNumRequirements: \(literal: numRequirements),
             layoutNumKeyArguments: \(literal: numKeyArguments),
             layoutFlagsRawValue: \(raw: BaselineEmitter.hex(flagsRawValue)),
-            instantiationCacheOffset: \(raw: BaselineEmitter.optionalHex(header.instantiationCacheOffset)),
-            defaultInstantiationPatternOffset: \(raw: BaselineEmitter.optionalHex(header.defaultInstantiationPatternOffset))
+            instantiationCacheOffset: \(raw: BaselineEmitter.optionalHex(header.resolvedDirectOffset(from: \.instantiationCache))),
+            defaultInstantiationPatternOffset: \(raw: BaselineEmitter.optionalHex(header.resolvedDirectOffset(from: \.defaultInstantiationPattern)))
         )
         """
         return expr.description

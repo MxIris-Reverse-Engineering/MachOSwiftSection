@@ -8,7 +8,7 @@
 // the fixture).
 
 enum AsyncFunctionPointerBaseline {
-    static let registeredTestMethodNames: Set<String> = ["expectedContextSize", "functionAddress", "functionOffset", "layout", "offset"]
+    static let registeredTestMethodNames: Set<String> = ["functionAddress", "layout", "offset"]
 
     struct Entry {
         let offset: Int

@@ -13,14 +13,8 @@ package enum ResilientClassMetadataPatternBaselineGenerator {
         let pattern = try GenericMetadataPatternFixtures(in: machO).resilientClassPattern
 
         let registered = [
-            "classFlags",
-            "dataOffset",
-            "destroyOffset",
-            "instanceVariableDestroyerOffset",
             "layout",
-            "metaclassOffset",
             "offset",
-            "relocationFunctionOffset",
         ]
 
         let header = """
@@ -42,11 +36,11 @@ package enum ResilientClassMetadataPatternBaselineGenerator {
 
             static let offset = \(raw: BaselineEmitter.hex(pattern.offset))
             static let classFlags: UInt32 = \(raw: BaselineEmitter.hex(pattern.classFlags))
-            static let relocationFunctionOffset: Int? = \(raw: BaselineEmitter.optionalHex(pattern.relocationFunctionOffset))
-            static let destroyOffset: Int? = \(raw: BaselineEmitter.optionalHex(pattern.destroyOffset))
-            static let instanceVariableDestroyerOffset: Int? = \(raw: BaselineEmitter.optionalHex(pattern.instanceVariableDestroyerOffset))
-            static let dataOffset: Int? = \(raw: BaselineEmitter.optionalHex(pattern.dataOffset))
-            static let metaclassOffset: Int? = \(raw: BaselineEmitter.optionalHex(pattern.metaclassOffset))
+            static let relocationFunctionOffset: Int? = \(raw: BaselineEmitter.optionalHex(pattern.resolvedDirectOffset(from: \.relocationFunction)))
+            static let destroyOffset: Int? = \(raw: BaselineEmitter.optionalHex(pattern.resolvedDirectOffset(from: \.destroy)))
+            static let instanceVariableDestroyerOffset: Int? = \(raw: BaselineEmitter.optionalHex(pattern.resolvedDirectOffset(from: \.instanceVariableDestroyer)))
+            static let dataOffset: Int? = \(raw: BaselineEmitter.optionalHex(pattern.resolvedDirectOffset(from: \.data)))
+            static let metaclassOffset: Int? = \(raw: BaselineEmitter.optionalHex(pattern.resolvedDirectOffset(from: \.metaclass)))
         }
         """
 

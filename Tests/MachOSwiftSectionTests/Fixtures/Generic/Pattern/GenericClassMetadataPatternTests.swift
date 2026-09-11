@@ -43,60 +43,51 @@ final class GenericClassMetadataPatternTests: MachOSwiftSectionFixtureTests, Fix
         // Three header words, two function pointers, the class flag word and
         // four half-words of interop offsets.
         #expect(MemoryLayout<GenericClassMetadataPattern.Layout>.size == 32)
-    }
 
-    @Test func classFlags() async throws {
-        let patterns = try loadPatterns()
-        let result = try acrossAllReaders(
-            file: { patterns.file.classFlags },
-            image: { patterns.image.classFlags }
+        let classFlags = try acrossAllReaders(
+            file: { patterns.file.layout.classFlags },
+            image: { patterns.image.layout.classFlags }
         )
-        #expect(result == GenericClassMetadataPatternBaseline.classFlags)
-    }
+        #expect(classFlags == GenericClassMetadataPatternBaseline.classFlags)
 
-    @Test func destroyOffset() async throws {
-        let patterns = try loadPatterns()
-        let result = try acrossAllReaders(
-            file: { patterns.file.destroyOffset },
-            image: { patterns.image.destroyOffset }
+        // Where the runtime-built class_ro_t and metaclass land inside the
+        // extra data block, counted in WORDS.
+        let interopOffsetsInWords = try acrossAllReaders(
+            file: {
+                [
+                    patterns.file.layout.classReadOnlyDataOffsetInWords,
+                    patterns.file.layout.metaclassObjectOffsetInWords,
+                    patterns.file.layout.metaclassReadOnlyDataOffsetInWords,
+                ]
+            },
+            image: {
+                [
+                    patterns.image.layout.classReadOnlyDataOffsetInWords,
+                    patterns.image.layout.metaclassObjectOffsetInWords,
+                    patterns.image.layout.metaclassReadOnlyDataOffsetInWords,
+                ]
+            }
         )
-        #expect(result == GenericClassMetadataPatternBaseline.destroyOffset)
-    }
+        #expect(interopOffsetsInWords.map(Int.init) == [
+            GenericClassMetadataPatternBaseline.classReadOnlyDataOffsetInWords,
+            GenericClassMetadataPatternBaseline.metaclassObjectOffsetInWords,
+            GenericClassMetadataPatternBaseline.metaclassReadOnlyDataOffsetInWords,
+        ])
 
-    @Test func instanceVariableDestroyerOffset() async throws {
-        let patterns = try loadPatterns()
-        let result = try acrossAllReaders(
-            file: { patterns.file.instanceVariableDestroyerOffset },
-            image: { patterns.image.instanceVariableDestroyerOffset }
-        )
-        #expect(result == GenericClassMetadataPatternBaseline.instanceVariableDestroyerOffset)
-    }
-
-    @Test func classReadOnlyDataOffsetInWords() async throws {
-        let patterns = try loadPatterns()
-        let result = try acrossAllReaders(
-            file: { patterns.file.classReadOnlyDataOffsetInWords },
-            image: { patterns.image.classReadOnlyDataOffsetInWords }
-        )
-        #expect(result == GenericClassMetadataPatternBaseline.classReadOnlyDataOffsetInWords)
-    }
-
-    @Test func metaclassObjectOffsetInWords() async throws {
-        let patterns = try loadPatterns()
-        let result = try acrossAllReaders(
-            file: { patterns.file.metaclassObjectOffsetInWords },
-            image: { patterns.image.metaclassObjectOffsetInWords }
-        )
-        #expect(result == GenericClassMetadataPatternBaseline.metaclassObjectOffsetInWords)
-    }
-
-    @Test func metaclassReadOnlyDataOffsetInWords() async throws {
-        let patterns = try loadPatterns()
-        let result = try acrossAllReaders(
-            file: { patterns.file.metaclassReadOnlyDataOffsetInWords },
-            image: { patterns.image.metaclassReadOnlyDataOffsetInWords }
-        )
-        #expect(result == GenericClassMetadataPatternBaseline.metaclassReadOnlyDataOffsetInWords)
+        // The four relative pointers, all pure arithmetic. A null
+        // instance-variable destructor means the class needs none.
+        for (keyPath, expected) in [
+            (\GenericClassMetadataPattern.Layout.instantiationFunction, GenericClassMetadataPatternBaseline.instantiationFunctionOffset),
+            (\GenericClassMetadataPattern.Layout.completionFunction, GenericClassMetadataPatternBaseline.completionFunctionOffset),
+            (\GenericClassMetadataPattern.Layout.destroy, GenericClassMetadataPatternBaseline.destroyOffset),
+            (\GenericClassMetadataPattern.Layout.instanceVariableDestroyer, GenericClassMetadataPatternBaseline.instanceVariableDestroyerOffset),
+        ] {
+            let resolved = try acrossAllReaders(
+                file: { patterns.file.resolvedDirectOffset(from: keyPath) },
+                image: { patterns.image.resolvedDirectOffset(from: keyPath) }
+            )
+            #expect(resolved == expected)
+        }
     }
 
     /// Bit 31 means "an immediate-members pattern trails" on a class pattern
@@ -114,24 +105,6 @@ final class GenericClassMetadataPatternTests: MachOSwiftSectionFixtureTests, Fix
         let valuePattern = try BaselineFixturePicker.genericValueMetadataPattern_structNonRequirement(in: machOFile)
         #expect(valuePattern.patternFlags.valueMetadataKindRawValue != 0, "the value carrier must actually have bits set in the overlapping region")
         #expect(valuePattern.numberOfTrailingPartialPatterns == 0, "a value pattern must not count the class-only bit")
-    }
-
-    @Test func instantiationFunctionOffset() async throws {
-        let patterns = try loadPatterns()
-        let result = try acrossAllReaders(
-            file: { patterns.file.instantiationFunctionOffset },
-            image: { patterns.image.instantiationFunctionOffset }
-        )
-        #expect(result == GenericClassMetadataPatternBaseline.instantiationFunctionOffset)
-    }
-
-    @Test func completionFunctionOffset() async throws {
-        let patterns = try loadPatterns()
-        let result = try acrossAllReaders(
-            file: { patterns.file.completionFunctionOffset },
-            image: { patterns.image.completionFunctionOffset }
-        )
-        #expect(result == GenericClassMetadataPatternBaseline.completionFunctionOffset)
     }
 
     @Test func numberOfTrailingPartialPatterns() async throws {

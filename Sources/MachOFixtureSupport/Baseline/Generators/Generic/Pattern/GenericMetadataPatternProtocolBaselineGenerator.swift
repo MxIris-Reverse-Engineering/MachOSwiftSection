@@ -23,7 +23,6 @@ package enum GenericMetadataPatternProtocolBaselineGenerator {
             "hasTrailingFlags",
             "partialPatterns",
             "partialPatternsOffset",
-            "patternFlags",
             "size",
         ]
 
@@ -35,15 +34,13 @@ package enum GenericMetadataPatternProtocolBaselineGenerator {
         // The shared pattern-header members, recorded for both conformers.
         """
 
-        func emitEntry(offset: Int, flags: UInt32, hasExtraDataPattern: Bool, hasTrailingFlags: Bool, instantiation: Int?, completion: Int?, partialPatternsOffset: Int, size: Int, partialPatternCount: Int) -> String {
+        func emitEntry(offset: Int, flags: UInt32, hasExtraDataPattern: Bool, hasTrailingFlags: Bool, partialPatternsOffset: Int, size: Int, partialPatternCount: Int) -> String {
             let expr: ExprSyntax = """
             Entry(
                 offset: \(raw: BaselineEmitter.hex(offset)),
                 patternFlagsRawValue: \(raw: BaselineEmitter.hex(flags)),
                 hasExtraDataPattern: \(literal: hasExtraDataPattern),
                 hasTrailingFlags: \(literal: hasTrailingFlags),
-                instantiationFunctionOffset: \(raw: BaselineEmitter.optionalHex(instantiation)),
-                completionFunctionOffset: \(raw: BaselineEmitter.optionalHex(completion)),
                 partialPatternsOffset: \(raw: BaselineEmitter.hex(partialPatternsOffset)),
                 size: \(literal: size),
                 partialPatternCount: \(literal: partialPatternCount)
@@ -57,8 +54,6 @@ package enum GenericMetadataPatternProtocolBaselineGenerator {
             flags: fixtures.valuePattern.patternFlags.rawValue,
             hasExtraDataPattern: fixtures.valuePattern.hasExtraDataPattern,
             hasTrailingFlags: fixtures.valuePattern.hasTrailingFlags,
-            instantiation: fixtures.valuePattern.instantiationFunctionOffset,
-            completion: fixtures.valuePattern.completionFunctionOffset,
             partialPatternsOffset: fixtures.valuePattern.partialPatternsOffset,
             size: fixtures.valuePattern.size,
             partialPatternCount: try fixtures.valuePattern.partialPatterns(in: machO).count
@@ -68,8 +63,6 @@ package enum GenericMetadataPatternProtocolBaselineGenerator {
             flags: fixtures.classPattern.patternFlags.rawValue,
             hasExtraDataPattern: fixtures.classPattern.hasExtraDataPattern,
             hasTrailingFlags: fixtures.classPattern.hasTrailingFlags,
-            instantiation: fixtures.classPattern.instantiationFunctionOffset,
-            completion: fixtures.classPattern.completionFunctionOffset,
             partialPatternsOffset: fixtures.classPattern.partialPatternsOffset,
             size: fixtures.classPattern.size,
             partialPatternCount: try fixtures.classPattern.partialPatterns(in: machO).count
@@ -86,8 +79,6 @@ package enum GenericMetadataPatternProtocolBaselineGenerator {
                 let patternFlagsRawValue: UInt32
                 let hasExtraDataPattern: Bool
                 let hasTrailingFlags: Bool
-                let instantiationFunctionOffset: Int?
-                let completionFunctionOffset: Int?
                 let partialPatternsOffset: Int
                 let size: Int
                 let partialPatternCount: Int

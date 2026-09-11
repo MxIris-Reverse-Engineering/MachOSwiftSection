@@ -69,42 +69,10 @@ final class CaptureDescriptorTests: MachOSwiftSectionFixtureTests, FixtureSuite,
             #expect(counts.map(Int.init) == [carrier.expected.numberOfCaptureTypes, carrier.expected.numberOfMetadataSources, carrier.expected.numberOfBindings], "\(carrier.label)")
         }
         #expect(MemoryLayout<CaptureDescriptor.Layout>.size == 12)
-    }
 
-    @Test func numberOfCaptureTypes() async throws {
-        for carrier in try allCarriers() {
-            let result = try acrossAllReaders(
-                file: { carrier.file.numberOfCaptureTypes },
-                image: { carrier.image.numberOfCaptureTypes }
-            )
-            #expect(result == carrier.expected.numberOfCaptureTypes, "\(carrier.label)")
-        }
-    }
-
-    @Test func numberOfMetadataSources() async throws {
-        for carrier in try allCarriers() {
-            let result = try acrossAllReaders(
-                file: { carrier.file.numberOfMetadataSources },
-                image: { carrier.image.numberOfMetadataSources }
-            )
-            #expect(result == carrier.expected.numberOfMetadataSources, "\(carrier.label)")
-        }
         // Zero, one and many: if the fixture ever stopped carrying all three
         // the trailing-array arithmetic would only be tested in one shape.
-        #expect(Set(try allCarriers().map(\.file.numberOfMetadataSources)) == [0, 1, 2])
-    }
-
-    /// Bindings have no trailing records — the count is the whole fact, and
-    /// it is what tells a reader how many metadata words sit at the head of
-    /// the context before the captured values start.
-    @Test func numberOfBindings() async throws {
-        for carrier in try allCarriers() {
-            let result = try acrossAllReaders(
-                file: { carrier.file.numberOfBindings },
-                image: { carrier.image.numberOfBindings }
-            )
-            #expect(result == carrier.expected.numberOfBindings, "\(carrier.label)")
-        }
+        #expect(Set(try allCarriers().map(\.file.layout.numberOfMetadataSources)) == [0, 1, 2])
     }
 
     /// The section is walked by size, so a wrong `actualSize` would desync

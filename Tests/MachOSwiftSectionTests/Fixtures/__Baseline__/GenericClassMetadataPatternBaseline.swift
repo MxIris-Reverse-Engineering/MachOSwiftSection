@@ -7,7 +7,7 @@
 // context header.
 
 enum GenericClassMetadataPatternBaseline {
-    static let registeredTestMethodNames: Set<String> = ["classFlags", "completionFunctionOffset", "classReadOnlyDataOffsetInWords", "destroyOffset", "hasImmediateMembersPattern", "instantiationFunctionOffset", "immediateMembersPattern", "instanceVariableDestroyerOffset", "layout", "metaclassObjectOffsetInWords", "metaclassReadOnlyDataOffsetInWords", "numberOfTrailingPartialPatterns", "offset"]
+    static let registeredTestMethodNames: Set<String> = ["hasImmediateMembersPattern", "immediateMembersPattern", "layout", "numberOfTrailingPartialPatterns", "offset"]
 
     static let offset = 0x5a338
     static let patternFlagsRawValue: UInt32 = 0x1

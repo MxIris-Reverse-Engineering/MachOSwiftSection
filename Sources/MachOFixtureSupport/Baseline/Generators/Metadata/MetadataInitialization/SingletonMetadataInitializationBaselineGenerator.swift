@@ -34,11 +34,8 @@ package enum SingletonMetadataInitializationBaselineGenerator {
         let entryExpr = emitEntryExpr(for: initialization, descriptorOffset: descriptor.offset)
 
         let registered = [
-            "completionFunctionOffset",
-            "incompleteMetadataOffset",
             "layout",
             "offset",
-            "resilientClassPatternOffset",
         ]
 
         let header = """
@@ -89,9 +86,9 @@ package enum SingletonMetadataInitializationBaselineGenerator {
         // offsets relative to the descriptor. We emit them as UInt64
         // bitPatterns since the hex helper sign-extends to UInt64 (negative
         // Int32 values overflow a signed Int64 literal).
-        let cache = initialization.layout.initializationCacheOffset
-        let incomplete = initialization.layout.incompleteMetadata
-        let completion = initialization.layout.completionFunction
+        let cache = initialization.layout.initializationCacheOffset.relativeOffset
+        let incomplete = initialization.layout.incompleteMetadata.relativeOffset
+        let completion = initialization.layout.completionFunction.relativeOffset
 
         let expr: ExprSyntax = """
         Entry(
@@ -99,8 +96,8 @@ package enum SingletonMetadataInitializationBaselineGenerator {
             initializationCacheRelativeOffsetBits: \(raw: BaselineEmitter.hex(cache)),
             incompleteMetadataRelativeOffsetBits: \(raw: BaselineEmitter.hex(incomplete)),
             completionFunctionRelativeOffsetBits: \(raw: BaselineEmitter.hex(completion)),
-            incompleteMetadataOffset: \(raw: BaselineEmitter.optionalHex(initialization.incompleteMetadataOffset)),
-            completionFunctionOffset: \(raw: BaselineEmitter.optionalHex(initialization.completionFunctionOffset))
+            incompleteMetadataOffset: \(raw: BaselineEmitter.optionalHex(initialization.resolvedDirectOffset(from: \.incompleteMetadata))),
+            completionFunctionOffset: \(raw: BaselineEmitter.optionalHex(initialization.resolvedDirectOffset(from: \.completionFunction)))
         )
         """
         return expr.description

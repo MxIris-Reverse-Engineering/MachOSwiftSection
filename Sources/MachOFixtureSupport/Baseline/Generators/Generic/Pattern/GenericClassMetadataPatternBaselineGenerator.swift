@@ -13,17 +13,9 @@ package enum GenericClassMetadataPatternBaselineGenerator {
         let pattern = try GenericMetadataPatternFixtures(in: machO).classPattern
 
         let registered = [
-            "classFlags",
-            "completionFunctionOffset",
-            "classReadOnlyDataOffsetInWords",
-            "destroyOffset",
             "hasImmediateMembersPattern",
-            "instantiationFunctionOffset",
             "immediateMembersPattern",
-            "instanceVariableDestroyerOffset",
             "layout",
-            "metaclassObjectOffsetInWords",
-            "metaclassReadOnlyDataOffsetInWords",
             "numberOfTrailingPartialPatterns",
             "offset",
         ]
@@ -50,10 +42,10 @@ package enum GenericClassMetadataPatternBaselineGenerator {
             static let hasExtraDataPattern = \(literal: pattern.hasExtraDataPattern)
             static let hasImmediateMembersPattern = \(literal: pattern.hasImmediateMembersPattern)
             static let numberOfTrailingPartialPatterns = \(literal: pattern.numberOfTrailingPartialPatterns)
-            static let instantiationFunctionOffset: Int? = \(raw: BaselineEmitter.optionalHex(pattern.instantiationFunctionOffset))
-            static let completionFunctionOffset: Int? = \(raw: BaselineEmitter.optionalHex(pattern.completionFunctionOffset))
-            static let destroyOffset: Int? = \(raw: BaselineEmitter.optionalHex(pattern.destroyOffset))
-            static let instanceVariableDestroyerOffset: Int? = \(raw: BaselineEmitter.optionalHex(pattern.instanceVariableDestroyerOffset))
+            static let instantiationFunctionOffset: Int? = \(raw: BaselineEmitter.optionalHex(pattern.resolvedDirectOffset(from: \.instantiationFunction)))
+            static let completionFunctionOffset: Int? = \(raw: BaselineEmitter.optionalHex(pattern.resolvedDirectOffset(from: \.completionFunction)))
+            static let destroyOffset: Int? = \(raw: BaselineEmitter.optionalHex(pattern.resolvedDirectOffset(from: \.destroy)))
+            static let instanceVariableDestroyerOffset: Int? = \(raw: BaselineEmitter.optionalHex(pattern.resolvedDirectOffset(from: \.instanceVariableDestroyer)))
             static let classReadOnlyDataOffsetInWords = \(literal: pattern.classReadOnlyDataOffsetInWords)
             static let metaclassObjectOffsetInWords = \(literal: pattern.metaclassObjectOffsetInWords)
             static let metaclassReadOnlyDataOffsetInWords = \(literal: pattern.metaclassReadOnlyDataOffsetInWords)

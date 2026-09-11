@@ -39,7 +39,7 @@ final class ResilientClassMetadataPatternTests: MachOSwiftSectionFixtureTests, F
         let descriptor = try BaselineFixturePicker.class_ResilientChild(in: machOFile)
         let resilientChild = try Class(descriptor: descriptor, in: machOFile)
         let initialization = try required(resilientChild.singletonMetadataInitialization)
-        #expect(initialization.resilientClassPatternOffset == result)
+        #expect(initialization.resolvedDirectOffset(from: \.incompleteMetadata) == result)
         #expect(descriptor.hasResilientSuperclass, "the union field only holds a pattern for a resilient-superclass class")
     }
 
@@ -53,61 +53,23 @@ final class ResilientClassMetadataPatternTests: MachOSwiftSectionFixtureTests, F
         // Three function pointers, the class flag word and two interop
         // pointers.
         #expect(MemoryLayout<ResilientClassMetadataPattern.Layout>.size == 24)
+
+        // A null relocation function is meaningful, not missing data: it
+        // tells the runtime to call `swift_relocateClassMetadata` with this
+        // pattern instead.
+        for (keyPath, expected) in [
+            (\ResilientClassMetadataPattern.Layout.relocationFunction, ResilientClassMetadataPatternBaseline.relocationFunctionOffset),
+            (\ResilientClassMetadataPattern.Layout.destroy, ResilientClassMetadataPatternBaseline.destroyOffset),
+            (\ResilientClassMetadataPattern.Layout.instanceVariableDestroyer, ResilientClassMetadataPatternBaseline.instanceVariableDestroyerOffset),
+            (\ResilientClassMetadataPattern.Layout.data, ResilientClassMetadataPatternBaseline.dataOffset),
+            (\ResilientClassMetadataPattern.Layout.metaclass, ResilientClassMetadataPatternBaseline.metaclassOffset),
+        ] {
+            let resolved = try acrossAllReaders(
+                file: { patterns.file.resolvedDirectOffset(from: keyPath) },
+                image: { patterns.image.resolvedDirectOffset(from: keyPath) }
+            )
+            #expect(resolved == expected)
+        }
     }
 
-    @Test func classFlags() async throws {
-        let patterns = try loadPatterns()
-        let result = try acrossAllReaders(
-            file: { patterns.file.classFlags },
-            image: { patterns.image.classFlags }
-        )
-        #expect(result == ResilientClassMetadataPatternBaseline.classFlags)
-    }
-
-    /// Null here is meaningful, not missing data: it tells the runtime to
-    /// call `swift_relocateClassMetadata` with this pattern instead.
-    @Test func relocationFunctionOffset() async throws {
-        let patterns = try loadPatterns()
-        let result = try acrossAllReaders(
-            file: { patterns.file.relocationFunctionOffset },
-            image: { patterns.image.relocationFunctionOffset }
-        )
-        #expect(result == ResilientClassMetadataPatternBaseline.relocationFunctionOffset)
-    }
-
-    @Test func destroyOffset() async throws {
-        let patterns = try loadPatterns()
-        let result = try acrossAllReaders(
-            file: { patterns.file.destroyOffset },
-            image: { patterns.image.destroyOffset }
-        )
-        #expect(result == ResilientClassMetadataPatternBaseline.destroyOffset)
-    }
-
-    @Test func instanceVariableDestroyerOffset() async throws {
-        let patterns = try loadPatterns()
-        let result = try acrossAllReaders(
-            file: { patterns.file.instanceVariableDestroyerOffset },
-            image: { patterns.image.instanceVariableDestroyerOffset }
-        )
-        #expect(result == ResilientClassMetadataPatternBaseline.instanceVariableDestroyerOffset)
-    }
-
-    @Test func dataOffset() async throws {
-        let patterns = try loadPatterns()
-        let result = try acrossAllReaders(
-            file: { patterns.file.dataOffset },
-            image: { patterns.image.dataOffset }
-        )
-        #expect(result == ResilientClassMetadataPatternBaseline.dataOffset)
-    }
-
-    @Test func metaclassOffset() async throws {
-        let patterns = try loadPatterns()
-        let result = try acrossAllReaders(
-            file: { patterns.file.metaclassOffset },
-            image: { patterns.image.metaclassOffset }
-        )
-        #expect(result == ResilientClassMetadataPatternBaseline.metaclassOffset)
-    }
 }

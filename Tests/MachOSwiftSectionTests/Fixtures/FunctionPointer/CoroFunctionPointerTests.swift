@@ -27,11 +27,8 @@ final class CoroFunctionPointerTests: FixtureSuite, @unchecked Sendable {
     /// Declared as a literal rather than read from a baseline: this Suite
     /// pins no baseline, for the reason in the Suite comment.
     static let registeredTestMethodNames: Set<String> = [
-        "allocationSize",
         "functionAddress",
-        "functionOffset",
         "layout",
-        "mallocTypeIdentifier",
         "offset",
     ]
 
@@ -171,7 +168,7 @@ final class CoroFunctionPointerTests: FixtureSuite, @unchecked Sendable {
     }
 
     @Test func layout() async throws {
-        let (_, record) = try loadRecord()
+        let (machOFile, record) = try loadRecord()
         // IRGen emits `swift.coro_func_pointer` packed as
         // { i32 relative pointer, i32 size, i64 malloc type id }; on 64-bit
         // Darwin the fields are naturally aligned, so packed and unpacked
@@ -179,35 +176,20 @@ final class CoroFunctionPointerTests: FixtureSuite, @unchecked Sendable {
         #expect(MemoryLayout<CoroFunctionPointer.Layout>.size == 16)
         #expect(MemoryLayout<CoroFunctionPointer.Layout>.offset(of: \.allocationSize) == 4)
         #expect(MemoryLayout<CoroFunctionPointer.Layout>.offset(of: \.mallocTypeIdentifier) == 8)
-
         #expect(record.layout.function.relativeOffset != 0)
-        #expect(record.layout.allocationSize == record.allocationSize)
-        #expect(record.layout.mallocTypeIdentifier == record.mallocTypeIdentifier)
-    }
 
-    /// The whole reason the record exists: it is not the entry point, it
-    /// points at one.
-    @Test func functionOffset() async throws {
-        let (machOFile, record) = try loadRecord()
-        let functionOffset = try #require(record.functionOffset)
+        // The whole reason the record exists: it is not the entry point, it
+        // points at one.
+        let functionOffset = try #require(record.resolvedDirectOffset(from: \.function))
         #expect(functionOffset != record.offset)
         #expect((try textRange(in: machOFile)).contains(functionOffset))
         #expect(functionOffset == record.offset + Int(record.layout.function.relativeOffset))
-    }
 
-    /// The frame size a caller must allocate before entering the coroutine —
-    /// the fact that cannot be recovered from the entry point, which is why
-    /// callers are handed this record instead.
-    @Test func allocationSize() async throws {
-        let (_, record) = try loadRecord()
-        #expect(record.allocationSize > 0)
-        #expect(record.allocationSize % 8 == 0, "a coroutine frame is word-sized")
-    }
-
-    /// Reported as the raw word; this layer does not interpret it.
-    @Test func mallocTypeIdentifier() async throws {
-        let (_, record) = try loadRecord()
-        #expect(record.mallocTypeIdentifier == record.layout.mallocTypeIdentifier)
+        // The frame size a caller must allocate before entering the
+        // coroutine — the fact that cannot be recovered from the entry point,
+        // which is why callers are handed this record instead.
+        #expect(record.layout.allocationSize > 0)
+        #expect(record.layout.allocationSize % 8 == 0, "a coroutine frame is word-sized")
     }
 
     /// The `ReadingContext` leg reports the same location as a context
@@ -216,6 +198,6 @@ final class CoroFunctionPointerTests: FixtureSuite, @unchecked Sendable {
         let (machOFile, record) = try loadRecord()
         let context = MachOContext(machOFile)
         let address = try #require(try record.functionAddress(in: context))
-        #expect(Int(address) == record.functionOffset)
+        #expect(Int(address) == record.resolvedDirectOffset(from: \.function))
     }
 }

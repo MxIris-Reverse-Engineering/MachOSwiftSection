@@ -42,16 +42,6 @@ final class GenericMetadataPatternProtocolTests: MachOSwiftSectionFixtureTests, 
         ]
     }
 
-    @Test func patternFlags() async throws {
-        for carrier in try allCarriers() {
-            let result = try acrossAllReaders(
-                file: { carrier.file.patternFlags.rawValue },
-                image: { carrier.image.patternFlags.rawValue }
-            )
-            #expect(result == carrier.expected.patternFlagsRawValue, "\(carrier.label)")
-        }
-    }
-
     @Test func hasExtraDataPattern() async throws {
         for carrier in try allCarriers() {
             let result = try acrossAllReaders(

@@ -980,7 +980,7 @@ extension BaselineFixturePicker {
     ) throws -> AccessibleFunctionRecord {
         try required(
             try accessibleFunctionRecords(in: machO).first(where: { record in
-                try record.name(in: machO).contains("remoteMethod") && record.genericEnvironmentOffset == nil
+                try record.name(in: machO).contains("remoteMethod") && record.resolvedDirectOffset(from: \.genericEnvironment) == nil
             })
         )
     }
@@ -993,7 +993,7 @@ extension BaselineFixturePicker {
     ) throws -> AccessibleFunctionRecord {
         try required(
             try accessibleFunctionRecords(in: machO).first(where: { record in
-                record.genericEnvironmentOffset != nil
+                record.resolvedDirectOffset(from: \.genericEnvironment) != nil
             })
         )
     }
@@ -1061,7 +1061,7 @@ extension BaselineFixturePicker {
     ) throws -> GenericValueMetadataPattern {
         let descriptor = try struct_GenericStructNonRequirement(in: machO)
         let genericContext = try required(try descriptor.typeGenericContext(in: machO))
-        let patternOffset = try required(genericContext.header.defaultInstantiationPatternOffset)
+        let patternOffset = try required(genericContext.header.resolvedDirectOffset(from: \.defaultInstantiationPattern))
         return try GenericValueMetadataPattern.resolve(from: patternOffset, in: machO)
     }
 
@@ -1072,7 +1072,7 @@ extension BaselineFixturePicker {
     ) throws -> GenericClassMetadataPattern {
         let descriptor = try class_GenericClassNonRequirement(in: machO)
         let genericContext = try required(try descriptor.typeGenericContext(in: machO))
-        let patternOffset = try required(genericContext.header.defaultInstantiationPatternOffset)
+        let patternOffset = try required(genericContext.header.resolvedDirectOffset(from: \.defaultInstantiationPattern))
         return try GenericClassMetadataPattern.resolve(from: patternOffset, in: machO)
     }
 
@@ -1086,7 +1086,7 @@ extension BaselineFixturePicker {
         let descriptor = try class_ResilientChild(in: machO)
         let resilientChild = try Class(descriptor: descriptor, in: machO)
         let initialization = try required(resilientChild.singletonMetadataInitialization)
-        let patternOffset = try required(initialization.resilientClassPatternOffset)
+        let patternOffset = try required(initialization.resolvedDirectOffset(from: \.incompleteMetadata))
         return try ResilientClassMetadataPattern.resolve(from: patternOffset, in: machO)
     }
 }

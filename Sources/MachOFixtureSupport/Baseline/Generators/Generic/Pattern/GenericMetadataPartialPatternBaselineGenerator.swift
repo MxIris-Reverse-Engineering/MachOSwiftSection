@@ -16,7 +16,7 @@ package enum GenericMetadataPartialPatternBaselineGenerator {
         let classPattern = try GenericMetadataPatternFixtures(in: machO).classPattern
         let partialPattern = try required(try classPattern.partialPatterns(in: machO).first)
 
-        let registered = ["layout", "offset", "offsetInWords", "patternOffset", "sizeInWords"]
+        let registered = ["layout", "offset"]
 
         let header = """
         // AUTO-GENERATED — DO NOT EDIT.
@@ -34,7 +34,7 @@ package enum GenericMetadataPartialPatternBaselineGenerator {
             static let registeredTestMethodNames: Set<String> = \(literal: registered)
 
             static let offset = \(raw: BaselineEmitter.hex(partialPattern.offset))
-            static let patternOffset: Int? = \(raw: BaselineEmitter.optionalHex(partialPattern.patternOffset))
+            static let patternOffset: Int? = \(raw: BaselineEmitter.optionalHex(partialPattern.resolvedDirectOffset(from: \.pattern)))
             static let offsetInWords = \(literal: partialPattern.offsetInWords)
             static let sizeInWords = \(literal: partialPattern.sizeInWords)
         }

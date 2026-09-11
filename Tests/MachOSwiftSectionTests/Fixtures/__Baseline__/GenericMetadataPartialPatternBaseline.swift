@@ -6,7 +6,7 @@
 // GenericClassNonRequirement<A>'s class metadata pattern.
 
 enum GenericMetadataPartialPatternBaseline {
-    static let registeredTestMethodNames: Set<String> = ["layout", "offset", "offsetInWords", "patternOffset", "sizeInWords"]
+    static let registeredTestMethodNames: Set<String> = ["layout", "offset"]
 
     static let offset = 0x5a358
     static let patternOffset: Int? = 0x5a280

@@ -78,7 +78,13 @@ final class FunctionTypeMetadataTests: MachOSwiftSectionFixtureTests, FixtureSui
                 try FunctionTypeMetadata.resolve(at: carrier.pointer, in: context)
             }
             #expect(resolved.kind.rawValue == carrier.expected.kindRawValue, "\(carrier.label)")
-            #expect(resolved.layout.flags.rawValue == carrier.expected.flagsRawValue, "\(carrier.label)")
+
+            let flags = resolved.layout.flags
+            #expect(flags.rawValue == carrier.expected.flagsRawValue, "\(carrier.label)")
+            #expect(flags.hasParameterFlags == carrier.expected.hasParameterFlags, "\(carrier.label)")
+            #expect(flags.hasGlobalActor == carrier.expected.hasGlobalActor, "\(carrier.label)")
+            #expect(flags.hasExtendedFlags == carrier.expected.hasExtendedFlags, "\(carrier.label)")
+            #expect(flags.isDifferentiable == carrier.expected.isDifferentiable, "\(carrier.label)")
         }
     }
 
@@ -90,19 +96,6 @@ final class FunctionTypeMetadataTests: MachOSwiftSectionFixtureTests, FixtureSui
             // For InProcess resolution, `offset` is the bit-pattern of the
             // runtime metadata pointer itself.
             #expect(resolvedOffset == Int(bitPattern: carrier.pointer), "\(carrier.label)")
-        }
-    }
-
-    @Test func flags() async throws {
-        for carrier in allCarriers {
-            let resolved = try usingInProcessOnly { context in
-                try FunctionTypeMetadata.resolve(at: carrier.pointer, in: context)
-            }
-            #expect(resolved.flags.rawValue == carrier.expected.flagsRawValue, "\(carrier.label)")
-            #expect(resolved.flags.hasParameterFlags == carrier.expected.hasParameterFlags, "\(carrier.label)")
-            #expect(resolved.flags.hasGlobalActor == carrier.expected.hasGlobalActor, "\(carrier.label)")
-            #expect(resolved.flags.hasExtendedFlags == carrier.expected.hasExtendedFlags, "\(carrier.label)")
-            #expect(resolved.flags.isDifferentiable == carrier.expected.isDifferentiable, "\(carrier.label)")
         }
     }
 

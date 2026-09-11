@@ -43,6 +43,18 @@ final class GenericValueMetadataPatternTests: MachOSwiftSectionFixtureTests, Fix
         #expect(flagsRaw == GenericValueMetadataPatternBaseline.patternFlagsRawValue)
         // Three header words plus the value witness pointer.
         #expect(MemoryLayout<GenericValueMetadataPattern.Layout>.size == 16)
+
+        let instantiationFunctionOffset = try acrossAllReaders(
+            file: { patterns.file.resolvedDirectOffset(from: \.instantiationFunction) },
+            image: { patterns.image.resolvedDirectOffset(from: \.instantiationFunction) }
+        )
+        #expect(instantiationFunctionOffset == GenericValueMetadataPatternBaseline.instantiationFunctionOffset)
+
+        let completionFunctionOffset = try acrossAllReaders(
+            file: { patterns.file.resolvedDirectOffset(from: \.completionFunction) },
+            image: { patterns.image.resolvedDirectOffset(from: \.completionFunction) }
+        )
+        #expect(completionFunctionOffset == GenericValueMetadataPatternBaseline.completionFunctionOffset)
     }
 
     /// A value pattern's top flag bits are the metadata kind, not the class
@@ -56,24 +68,6 @@ final class GenericValueMetadataPatternTests: MachOSwiftSectionFixtureTests, Fix
         )
         #expect(result == GenericValueMetadataPatternBaseline.metadataKindRawValue)
         #expect(patterns.file.metadataKind == .struct)
-    }
-
-    @Test func instantiationFunctionOffset() async throws {
-        let patterns = try loadPatterns()
-        let result = try acrossAllReaders(
-            file: { patterns.file.instantiationFunctionOffset },
-            image: { patterns.image.instantiationFunctionOffset }
-        )
-        #expect(result == GenericValueMetadataPatternBaseline.instantiationFunctionOffset)
-    }
-
-    @Test func completionFunctionOffset() async throws {
-        let patterns = try loadPatterns()
-        let result = try acrossAllReaders(
-            file: { patterns.file.completionFunctionOffset },
-            image: { patterns.image.completionFunctionOffset }
-        )
-        #expect(result == GenericValueMetadataPatternBaseline.completionFunctionOffset)
     }
 
     @Test func numberOfTrailingPartialPatterns() async throws {

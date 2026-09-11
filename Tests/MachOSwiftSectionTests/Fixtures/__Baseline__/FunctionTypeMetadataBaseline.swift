@@ -7,7 +7,7 @@
 // against the metadata of the types the carriers name.
 
 enum FunctionTypeMetadataBaseline {
-    static let registeredTestMethodNames: Set<String> = ["differentiabilityKind", "differentiabilityKindOffset", "extendedFlags", "extendedFlagsOffset", "flags", "globalActorOffset", "globalActorType", "layout", "numberOfParameters", "offset", "parameterFlags", "parameterFlagsOffset", "parameters", "parametersOffset", "thrownErrorType", "thrownErrorTypeOffset"]
+    static let registeredTestMethodNames: Set<String> = ["differentiabilityKind", "differentiabilityKindOffset", "extendedFlags", "extendedFlagsOffset", "globalActorOffset", "globalActorType", "layout", "numberOfParameters", "offset", "parameterFlags", "parameterFlagsOffset", "parameters", "parametersOffset", "thrownErrorType", "thrownErrorTypeOffset"]
 
     struct Entry {
         let kindRawValue: UInt32

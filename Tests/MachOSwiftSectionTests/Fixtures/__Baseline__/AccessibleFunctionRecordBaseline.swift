@@ -9,7 +9,7 @@
 // cross-reader-consistently against the presence flag recorded here.
 
 enum AccessibleFunctionRecordBaseline {
-    static let registeredTestMethodNames: Set<String> = ["flags", "functionAddress", "functionOffset", "functionType", "genericEnvironment", "genericEnvironmentOffset", "isDistributed", "layout", "name", "offset"]
+    static let registeredTestMethodNames: Set<String> = ["functionAddress", "functionType", "genericEnvironment", "isDistributed", "layout", "name", "offset"]
 
     struct Entry {
         let offset: Int

@@ -25,9 +25,6 @@ package enum CaptureDescriptorBaselineGenerator {
             "layout",
             "metadataSourceRecords",
             "metadataSourceRecordsOffset",
-            "numberOfBindings",
-            "numberOfCaptureTypes",
-            "numberOfMetadataSources",
             "offset",
         ]
 

@@ -78,40 +78,28 @@ final class AsyncFunctionPointerTests: MachOSwiftSectionFixtureTests, FixtureSui
         // The whole record is two words; a Swift struct that grew padding
         // would silently shift every read that follows it.
         #expect(MemoryLayout<AsyncFunctionPointer.Layout>.size == 8)
-    }
 
-    /// Pure relative-pointer arithmetic, so identical across readers and
-    /// pinned as a literal.
-    @Test func functionOffset() async throws {
+        // Resolving the function pointer is pure arithmetic, so it is
+        // identical across readers and pinned as a literal.
         for carrier in try allCarriers() {
-            let result = try acrossAllReaders(
-                file: { carrier.file.functionOffset },
-                image: { carrier.image.functionOffset }
+            let functionOffset = try acrossAllReaders(
+                file: { carrier.file.resolvedDirectOffset(from: \.function) },
+                image: { carrier.image.resolvedDirectOffset(from: \.function) }
             )
-            #expect(result == carrier.expected.functionOffset, "\(carrier.label)")
+            #expect(functionOffset == carrier.expected.functionOffset, "\(carrier.label)")
             // The record never points at itself: the whole reason it exists
             // is that it is NOT the entry point.
-            #expect(result != carrier.expected.offset, "\(carrier.label)")
-        }
-    }
-
-    /// This is what the record is for, and the reason the three carriers are
-    /// not interchangeable: a distributed thunk's async context frame is an
-    /// order of magnitude larger than a plain `async` function's.
-    @Test func expectedContextSize() async throws {
-        for carrier in try allCarriers() {
-            let result = try acrossAllReaders(
-                file: { carrier.file.expectedContextSize },
-                image: { carrier.image.expectedContextSize }
-            )
-            #expect(result == carrier.expected.expectedContextSize, "\(carrier.label)")
+            #expect(functionOffset != carrier.expected.offset, "\(carrier.label)")
         }
 
+        // The context size is what the record is FOR, and the reason the
+        // three carriers are not interchangeable: a distributed thunk's frame
+        // is an order of magnitude larger than a plain async function's.
         let carriers = try allCarriers()
         let plain = try #require(carriers.first(where: { $0.label == "globalFunction" }))
         let thunk = try #require(carriers.first(where: { $0.label == "distributedThunk" }))
         #expect(
-            thunk.file.expectedContextSize > plain.file.expectedContextSize,
+            thunk.file.layout.expectedContextSize > plain.file.layout.expectedContextSize,
             "the fixture must keep carrying two genuinely different context sizes"
         )
     }
@@ -146,6 +134,6 @@ final class AsyncFunctionPointerTests: MachOSwiftSectionFixtureTests, FixtureSui
             descriptorsPointingAtTheRecord.count == 1,
             "exactly one vtable slot of VTableBaseTest should carry the async method's record address"
         )
-        #expect(record.functionOffset != record.offset)
+        #expect(record.resolvedDirectOffset(from: \.function) != record.offset)
     }
 }

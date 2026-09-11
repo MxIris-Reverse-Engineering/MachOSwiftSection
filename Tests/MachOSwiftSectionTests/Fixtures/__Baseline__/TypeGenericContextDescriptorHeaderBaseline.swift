@@ -3,7 +3,7 @@
 // Source fixture: SymbolTestsCore.framework
 
 enum TypeGenericContextDescriptorHeaderBaseline {
-    static let registeredTestMethodNames: Set<String> = ["defaultInstantiationPatternOffset", "instantiationCacheOffset", "layout", "offset"]
+    static let registeredTestMethodNames: Set<String> = ["layout", "offset"]
 
     struct Entry {
         let offset: Int

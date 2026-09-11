@@ -65,37 +65,28 @@ final class TypeGenericContextDescriptorHeaderTests: MachOSwiftSectionFixtureTes
         #expect(numRequirements == TypeGenericContextDescriptorHeaderBaseline.genericStructLayoutRequirement.layoutNumRequirements)
         #expect(numKeyArguments == TypeGenericContextDescriptorHeaderBaseline.genericStructLayoutRequirement.layoutNumKeyArguments)
         #expect(flagsRawValue == TypeGenericContextDescriptorHeaderBaseline.genericStructLayoutRequirement.layoutFlagsRawValue)
-    }
 
-    /// The location of the runtime's per-type instantiation cache. The cache
-    /// itself is mutable runtime state and reads as zero in the file; only
-    /// where it sits is a static fact.
-    @Test func instantiationCacheOffset() async throws {
-        let headers = try loadGenericStructLayoutRequirementHeaders()
-        let result = try acrossAllReaders(
-            file: { headers.file.instantiationCacheOffset },
-            image: { headers.image.instantiationCacheOffset }
+        // The instantiation cache is mutable runtime state and reads as zero
+        // in the file; only where it sits is a static fact.
+        let instantiationCacheOffset = try acrossAllReaders(
+            file: { headers.file.resolvedDirectOffset(from: \.instantiationCache) },
+            image: { headers.image.resolvedDirectOffset(from: \.instantiationCache) }
         )
-        #expect(result == TypeGenericContextDescriptorHeaderBaseline.genericStructLayoutRequirement.instantiationCacheOffset)
-    }
+        #expect(instantiationCacheOffset == TypeGenericContextDescriptorHeaderBaseline.genericStructLayoutRequirement.instantiationCacheOffset)
 
-    /// The entry point to the whole generic-pattern family: this offset is
-    /// where a `GenericValueMetadataPattern` (struct / enum) or a
-    /// `GenericClassMetadataPattern` (class) lives. The pattern Suites reach
-    /// their carriers through exactly this accessor, so a wrong answer here
-    /// would surface there too.
-    @Test func defaultInstantiationPatternOffset() async throws {
-        let headers = try loadGenericStructLayoutRequirementHeaders()
-        let result = try acrossAllReaders(
-            file: { headers.file.defaultInstantiationPatternOffset },
-            image: { headers.image.defaultInstantiationPatternOffset }
+        // The entry point to the whole generic-pattern family. The pattern
+        // Suites reach their carriers through exactly this field, so a wrong
+        // answer here would surface there too.
+        let patternOffset = try acrossAllReaders(
+            file: { headers.file.resolvedDirectOffset(from: \.defaultInstantiationPattern) },
+            image: { headers.image.resolvedDirectOffset(from: \.defaultInstantiationPattern) }
         )
-        #expect(result == TypeGenericContextDescriptorHeaderBaseline.genericStructLayoutRequirement.defaultInstantiationPatternOffset)
+        #expect(patternOffset == TypeGenericContextDescriptorHeaderBaseline.genericStructLayoutRequirement.defaultInstantiationPatternOffset)
 
         // Resolving what it points at must produce a struct pattern, since
         // the carrier is a struct.
-        let patternOffset = try required(result)
-        let pattern = try GenericValueMetadataPattern.resolve(from: patternOffset, in: machOFile)
+        let pattern = try GenericValueMetadataPattern.resolve(from: try required(patternOffset), in: machOFile)
         #expect(pattern.metadataKind == .struct)
     }
+
 }

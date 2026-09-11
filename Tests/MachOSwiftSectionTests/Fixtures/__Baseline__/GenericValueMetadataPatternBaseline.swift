@@ -7,7 +7,7 @@
 // context header — the same route the runtime takes.
 
 enum GenericValueMetadataPatternBaseline {
-    static let registeredTestMethodNames: Set<String> = ["completionFunctionOffset", "instantiationFunctionOffset", "layout", "metadataKind", "numberOfTrailingPartialPatterns", "offset", "valueWitnessesIsIndirect", "valueWitnessesOffset"]
+    static let registeredTestMethodNames: Set<String> = ["layout", "metadataKind", "numberOfTrailingPartialPatterns", "offset", "valueWitnessesIsIndirect", "valueWitnessesOffset"]
 
     static let offset = 0x3c6c0
     static let patternFlagsRawValue: UInt32 = 0x40000000

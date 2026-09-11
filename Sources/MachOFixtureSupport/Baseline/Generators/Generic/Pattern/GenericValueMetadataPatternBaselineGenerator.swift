@@ -13,8 +13,6 @@ package enum GenericValueMetadataPatternBaselineGenerator {
         let pattern = try GenericMetadataPatternFixtures(in: machO).valuePattern
 
         let registered = [
-            "completionFunctionOffset",
-            "instantiationFunctionOffset",
             "layout",
             "metadataKind",
             "numberOfTrailingPartialPatterns",
@@ -45,8 +43,8 @@ package enum GenericValueMetadataPatternBaselineGenerator {
             static let numberOfTrailingPartialPatterns = \(literal: pattern.numberOfTrailingPartialPatterns)
             static let valueWitnessesOffset: Int? = \(raw: BaselineEmitter.optionalHex(pattern.valueWitnessesOffset))
             static let valueWitnessesIsIndirect = \(literal: pattern.valueWitnessesIsIndirect)
-            static let instantiationFunctionOffset: Int? = \(raw: BaselineEmitter.optionalHex(pattern.instantiationFunctionOffset))
-            static let completionFunctionOffset: Int? = \(raw: BaselineEmitter.optionalHex(pattern.completionFunctionOffset))
+            static let instantiationFunctionOffset: Int? = \(raw: BaselineEmitter.optionalHex(pattern.resolvedDirectOffset(from: \.instantiationFunction)))
+            static let completionFunctionOffset: Int? = \(raw: BaselineEmitter.optionalHex(pattern.resolvedDirectOffset(from: \.completionFunction)))
         }
         """
 

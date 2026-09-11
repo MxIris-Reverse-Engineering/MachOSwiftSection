@@ -8,7 +8,7 @@
 // stable across rebuilds.
 
 enum SingletonMetadataInitializationBaseline {
-    static let registeredTestMethodNames: Set<String> = ["completionFunctionOffset", "incompleteMetadataOffset", "layout", "offset", "resilientClassPatternOffset"]
+    static let registeredTestMethodNames: Set<String> = ["layout", "offset"]
 
     /// `RelativeOffset` is `Int32`; we store it as `UInt64`
     /// (bitPattern) here because `BaselineEmitter.hex` sign-extends

@@ -19,9 +19,7 @@ package enum AsyncFunctionPointerBaselineGenerator {
         let records = try AsyncFunctionPointerFixtureRecords(in: machO)
 
         let registered = [
-            "expectedContextSize",
             "functionAddress",
-            "functionOffset",
             "layout",
             "offset",
         ]
@@ -66,7 +64,7 @@ package enum AsyncFunctionPointerBaselineGenerator {
         let expr: ExprSyntax = """
         Entry(
             offset: \(raw: BaselineEmitter.hex(record.offset)),
-            functionOffset: \(raw: BaselineEmitter.optionalHex(record.functionOffset)),
+            functionOffset: \(raw: BaselineEmitter.optionalHex(record.resolvedDirectOffset(from: \.function))),
             expectedContextSize: \(literal: record.expectedContextSize)
         )
         """
