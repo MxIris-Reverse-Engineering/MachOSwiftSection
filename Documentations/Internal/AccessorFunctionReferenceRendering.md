@@ -11,7 +11,7 @@ Swift 的 field record 里存的类型名通常是可 demangle 的 mangled name�
 
 随着各框架采用 noncopyable/nonescapable 泛型并保持向后部署，这类引用会越来越常见。
 
-离线（`MachOFile`）读取器不能执行目标二进制的代码，所以这种引用**构造上不可解析**：`MetadataReader` 把 thunk 的文件偏移存进 node 的 index（`MetadataReader.swift` 的 `.accessorFunctionReference` 分支），Demangling 包的 `NodePrinter` 打出兜底文案 `accessor function at <offset>`。
+离线（`MachOFile`）读取器不能执行目标二进制的代码。**但「不能执行」不等于「不可解析」**——见下面的层 3，thunk 的指令序列本身就把答案写在里面了。在层 3 之前，这种引用的处理是：`MetadataReader` 把 thunk 的文件偏移存进 node 的 index（`MetadataReader.swift` 的 `.accessorFunctionReference` 分支），Demangling 包的 `NodePrinter` 打出兜底文案 `accessor function at <offset>`。
 
 ## 症状与历史
 
@@ -43,6 +43,23 @@ kind-9 的设计意图就是「调函数拿 metadata」，进程内完全可以�
 编译器给 thunk 起的符号名内嵌完整类型 mangling：`IRGenMangler.cpp` 的 `mangleSymbolNameForMangledMetadataAccessorString` 产出 `get_type_metadata <generic-signature><type-mangling>`，noncopyable 类型再追加 ` noncopyable` 后缀，private linkage 本地符号。离线拿 node 里存的文件偏移查 `SymbolIndexStore`，命中这种符号就剥前缀 demangle 出真类型——纯符号表读取，不执行代码，可以放进 `MetadataReader` 的离线分支。
 
 限制与前置：strip 过的 OS 框架查不到（Testing.framework 实测已 strip，nm 只能看到偏移前 16 字节处相邻的枚举自身 metadata accessor）；只对未 strip 的用户二进制生效。立项前先在一个未 strip 的向后部署二进制上验证符号确实保留、且带泛型签名的符号后缀能被 demangler 接受。
+
+### 层 3：离线反汇编还原（已实现，2026-09-11，提案 0028）
+
+**推翻了本文档原来「构造上不可解析」的判断。** 实测 SwiftUI（macOS 26 共享缓存）的 kind-9 引用不是
+「mangling 特性不支持」那条触发路径，而是 **SE-0360 的 availability-conditional opaque result type**：
+thunk 里先调 `__isPlatformVersionAtLeast`，再按结果在两个类型之间二选一。两个答案都写在指令里，读出来
+不需要执行。
+
+- 模块：`SwiftThunkAnalysis`（SPM trait `ThunkAnalysis`，默认关闭）。
+- 覆盖两种形态：`cmp`/`csel` 在两个 metadata 地址之间选；`cbz` 分两支各调一个 metadata accessor。
+- 实测 SwiftUI 关联类型的裸地址 **17 → 5**，包含 RuntimeViewer issue #5 的 `FeedbackGenerator.Body`。
+- 剩余 5 条来自一个「一支是真实构造代码链」的 thunk，那一支**刻意不猜**（取第一个 `bl` 会给出真实但
+  错误的类型）。
+- 完整设计与实测数据见[提案 0028](../Evolutions/0028-offline-opaque-accessor-thunk-resolution.md)。
+
+注意这一层解的是**关联类型**里的 opaque underlying type。**field record 里的 kind-9**（本文档开头那些
+`case type(accessor function at 750396)`）机制相同但尚未接入——层 0 的占位渲染对它们仍然有效。
 
 ## 验证
 

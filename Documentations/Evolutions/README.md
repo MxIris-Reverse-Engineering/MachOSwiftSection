@@ -35,3 +35,4 @@
 | [0025](0025-key-path-component-and-property-descriptor.md) | Key path component header 与 property descriptor 的 ABI 模型：`…vpMV` 符号指向的那段常量按 key path component 编码解析，四种形态（trivial / 内联偏移 / 元数据内偏移 / computed）齐全 | Implemented |
 | [0026](0026-missing-abi-structures.md) | 补齐五组缺失的 ABI 结构：async / coro function pointer 记录、capture descriptor（`__swift5_capture`）、generic metadata pattern 家族、accessible function record（`__swift5_acfuncs`）、function type metadata 尾随对象 | Implemented |
 | [0027](0027-locatable-layout-wrapping-macro.md) | `@LocatableLayoutWrapping`：`LocatableLayoutWrapper` 三项存储级要求（`layout` / `offset` / `init(layout:offset:)`）收进宏，97 处手写样板一次性替换 | Implemented |
+| [0028](0028-offline-opaque-accessor-thunk-resolution.md) | 离线解析不透明类型的 accessor thunk：SwiftUI 那 17 条渲染成裸地址的 `Body`，其 underlying type 是 availability-conditional 的 kind-9 thunk（版本检查 + 两分支各指一个类型）。用 Capstone 反汇编把两支都解出来，新增可选 target `SwiftThunkAnalysis`（SPM trait，默认关闭）；实测 17 → 5 | Implemented |

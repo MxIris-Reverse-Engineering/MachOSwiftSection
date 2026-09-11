@@ -1584,6 +1584,43 @@
   [TaskReports/2026-09-11-locatable-layout-wrapping-macro.md](TaskReports/2026-09-11-locatable-layout-wrapping-macro.md)。
 - **对应版本**：零 API 变化，输出逐字节不变，随下一次发布。
 
+## 2026-09-11 离线解析不透明类型的 accessor thunk（提案 0028）
+
+- **时间段**：2026-09-11（承接同日「不透明类型的泛型实参收集错位」那一节——那节修的是 RuntimeViewer
+  issue #5 的一半，这节修另一半）。
+- **动机**：SwiftUI 的关联类型里有 17 条 `Body` 整行渲染成裸地址
+  `opaque type symbolic reference 0x…`，对读的人零信息量。实测这批的 underlying type 不是「mangling
+  特性不支持」，而是 **SE-0360 的 availability-conditional opaque result type**：thunk 里先调
+  `__isPlatformVersionAtLeast`，再按结果在两个类型之间二选一——它们本来就没有唯一答案，而两个答案都
+  写在指令里。
+- **关键决策与取舍**：
+  - **新 target + SPM trait，默认关闭**。`MachOSwiftSection` 是被宿主依赖的库，不该让所有下游都吃一个
+    C 反汇编引擎。trait 关时 `SwiftThunkAnalysis` 仍然构建（每个文件 `#if THUNK_ANALYSIS`），编译成
+    空模块。**trait 管不了的**：SwiftPM 照样 resolve 并 clone `swift-capstone`。
+  - **依赖方向是反的**：渲染层声明 seam，分析层实现并注册。反过来拆不出来。
+  - **指令词汇表与 Capstone 隔离在一个文件里**，识别层因此能用合成指令序列做单测——不需要二进制，
+    也不随 OS / 工具链漂移。真实框架那条另有端到端测试，只断言形状不断言类型名。
+  - **三处刻意不猜**：一支里有多于一个 `bl`（说明它在构造类型而不是查表）、不认识的条件码、metadata
+    kind 不是 struct/enum/optional——都不出候选，且只影响那一支。取第一个 `bl` 会给出真实、全限定、
+    但错误的类型，正是 `.children` 那个 bug 长期不被发现的失败模式。
+  - **实现阶段推翻了提案的三处调研结论**（地址换算、候选语义、规模），已全部回写进提案。
+- **一个会静默出错的坑（值得单独记）**：对 dyld 共享缓存里的 image，`MachOSwiftSection` 全链路的
+  `offset` 是 `虚拟地址 − sharedRegionStart`，**不是文件偏移**。`segment.fileOffset` /
+  `MachOFile.fileOffset(of:)` / `FullDyldCache.address(of:)` 是三套互不相同的账，混用不报错——因为
+  `adrp` 的页基准来自指令自身地址，小于一页的误差仍然算得出一个「看着合法」的地址，只是指到了隔壁
+  image 的段里。定位办法：把 `readElements` 返回的字节拿到已加载的镜像里做内存搜索。
+- **落地模块**：新增 `SwiftThunkAnalysis`（解码 / 识别 / 换算 / 读取四层）；`SwiftDeclarationRendering`
+  增 `AccessorThunkResolving` seam 与调用点；`swift-section` 在覆盖的 `main()` 里注册；`Package.swift`
+  增 trait 与 swift-capstone 5.0.0 依赖。
+- **验证**：13 个合成指令单测 + 2 个真实框架端到端 + 2 个渲染集成；trait 关 105 测试 / 14 套件绿，
+  trait 开 279 测试 / 44 套件绿（含 interface 快照）。CLI 实测 SwiftUI 裸地址 **17 → 5**，整文件 diff
+  24 行全部是修复本身。默认输出零变化——resolver 不注册就不走新分支。
+- **关联文档**：[提案 0028](../Evolutions/0028-offline-opaque-accessor-thunk-resolution.md)、
+  [TaskReports/2026-09-11-offline-accessor-thunk-resolution.md](TaskReports/2026-09-11-offline-accessor-thunk-resolution.md)、
+  [AccessorFunctionReferenceRendering.md](AccessorFunctionReferenceRendering.md)（补层 3，并改掉原来
+  「离线构造上不可解析」那句）。
+- **对应版本**：纯新增，默认行为不变，随下一次发布。
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节
