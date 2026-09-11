@@ -95,6 +95,40 @@ extension Node {
         }
     }
 
+    /// Replaces kind-9 accessor-function references with the type the thunk
+    /// yields.
+    ///
+    /// Records whether it actually replaced anything, because "the tree
+    /// contains such a reference" and "the reference resolved" are different
+    /// facts and only the second licenses taking the new path.
+    private final class AccessorFunctionReferenceRewriter: Node.Rewriter {
+        private let resolver: any AccessorThunkResolving
+        private let machO: MachOFile
+
+        private(set) var didResolveAnyReference = false
+
+        init(resolver: any AccessorThunkResolving, machO: MachOFile) {
+            self.resolver = resolver
+            self.machO = machO
+        }
+
+        override func visit(_ node: Node) -> Node {
+            guard node.isKind(of: .accessorFunctionReference),
+                  let thunkOffset: Int = node.index?.cast()
+            else { return node }
+            let underlyingTypes = resolver.underlyingTypes(forAccessorThunkAt: thunkOffset, in: machO)
+            // The branch the current platform takes comes first.
+            guard let currentBranch = underlyingTypes.first else { return node }
+            let typeNode = currentBranch.typeNode
+            didResolveAnyReference = true
+            // Unwrapped so the result composes where a type belongs — a
+            // `.type` envelope nested inside a generic argument list renders
+            // as an extra level.
+            if typeNode.kind == .type, let firstChild = typeNode.firstChild { return firstChild.copy() }
+            return typeNode.copy()
+        }
+    }
+
     private final class OpaqueTypeRewriter<MachO: MachOSwiftSectionRepresentableWithCache>: Node.Rewriter, OpaqueTypeRewriteLogging {
         /// How many times an expansion's own opaque types are expanded in turn.
         ///
@@ -129,6 +163,39 @@ extension Node {
         ///
         /// At the ceiling the innermost reference is left as it is, which is
         /// the same honest degradation an unresolvable descriptor already gets.
+        /// Replaces every kind-9 accessor-function reference in an opaque
+        /// type's underlying type with the type the thunk actually yields, or
+        /// answers `nil` when there is nothing to replace or nothing to
+        /// replace it with.
+        ///
+        /// Returning `nil` rather than the unchanged node is what keeps this
+        /// additive: the caller falls through to the pre-existing path, so a
+        /// build with the `ThunkAnalysis` trait off — or a thunk shape the
+        /// analyzer does not read — renders byte-for-byte what it rendered
+        /// before.
+        ///
+        /// The reference can sit anywhere in the tree, not just at its root:
+        /// `SwiftUI.FeedbackGenerator.Body` carries one inside a
+        /// `ModifiedContent<ModifiedContent<…>, _AppearanceActionModifier>`,
+        /// which is why this is a rewrite rather than a root check.
+        ///
+        /// When a thunk is availability-conditional it has more than one
+        /// answer and the **first** — the branch the current OS takes — is
+        /// substituted here. The others are not lost: they are what
+        /// ``AccessorThunkResolving`` vends to a host that wants to show them.
+        private func resolvingAccessorFunctionReferences(in node: Node) -> Node? {
+            guard node.contains(Node.Kind.accessorFunctionReference) else { return nil }
+            guard let resolver = AccessorThunkResolution.resolver, let machOFile = machO as? MachOFile else { return nil }
+
+            let rewriter = AccessorFunctionReferenceRewriter(resolver: resolver, machO: machOFile)
+            let rewritten = rewriter.rewrite(node.copy())
+            guard rewriter.didResolveAnyReference else { return nil }
+            // Unwrap the `.type` envelope the way the pre-existing path does,
+            // so both feed the parameter substitution the same shape.
+            if rewritten.kind == .type, let firstChild = rewritten.firstChild { return firstChild.copy() }
+            return rewritten
+        }
+
         private func expandingNestedOpaqueTypes(in node: Node) -> Node {
             guard node.contains(Node.Kind.opaqueType) else { return node }
             guard expansionDepth < Self.maximumNestedExpansionDepth else {
@@ -193,6 +260,11 @@ extension Node {
                             underlyingTypeArgumentNode = try? SymbolicDemangler.demangleType(for: underlyingTypeArgumentMangledName)
                         } else {
                             underlyingTypeArgumentNode = try? SymbolicDemangler.demangleType(for: underlyingTypeArgumentMangledName, in: machO)
+                        }
+                        if let underlyingTypeArgumentNode,
+                           let resolvedNode = resolvingAccessorFunctionReferences(in: underlyingTypeArgumentNode) {
+                            let substituted = OpaqueTypeGenericParameterRewriter(machO: machO, typeList: allTypeList).rewrite(resolvedNode)
+                            return expandingNestedOpaqueTypes(in: substituted)
                         }
                         if let underlyingTypeArgumentNode, underlyingTypeArgumentNode.kind == .type,
                            let firstChild = underlyingTypeArgumentNode.firstChild {
