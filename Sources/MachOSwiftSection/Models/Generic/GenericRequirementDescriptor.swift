@@ -2,20 +2,12 @@ import Foundation
 import MachOKit
 import MachOBase
 
+@LocatableLayoutWrapping
 public struct GenericRequirementDescriptor: ResolvableLocatableLayoutWrapper {
     public struct Layout: LayoutProtocol {
         public let flags: GenericRequirementFlags
         public let param: RelativeDirectPointer<MangledName>
         public let content: RelativeOffset
-    }
-
-    public var layout: Layout
-
-    public let offset: Int
-
-    public init(layout: Layout, offset: Int) {
-        self.offset = offset
-        self.layout = layout
     }
 }
 

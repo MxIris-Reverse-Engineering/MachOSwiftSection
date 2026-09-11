@@ -2,20 +2,12 @@ import Foundation
 import MachOKit
 import MachOBase
 
+@LocatableLayoutWrapping
 public struct ExtendedExistentialTypeShape: ResolvableLocatableLayoutWrapper {
     public struct Layout: LayoutProtocol {
         public let flags: ExtendedExistentialTypeShapeFlags
         public let existentialType: RelativeDirectPointer<MangledName>
         public let requirementSignatureHeader: GenericContextDescriptorHeader.Layout
-    }
-
-    public let offset: Int
-
-    public var layout: Layout
-
-    public init(layout: Layout, offset: Int) {
-        self.offset = offset
-        self.layout = layout
     }
 }
 

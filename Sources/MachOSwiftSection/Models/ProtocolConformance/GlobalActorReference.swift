@@ -10,6 +10,7 @@ import MachOBase
 /// mangled actor type name followed by a relative pointer to the actor's
 /// `GlobalActor` conformance descriptor. Only the type-name pointer is used when
 /// rendering the attribute; the conformance pointer exists for runtime dispatch.
+@LocatableLayoutWrapping
 public struct GlobalActorReference: LocatableLayoutWrapper {
     public struct Layout: LayoutProtocol {
         public let type: RelativeDirectPointer<MangledName>
@@ -17,15 +18,6 @@ public struct GlobalActorReference: LocatableLayoutWrapper {
         /// `GlobalActor` conformance. Stored as a raw offset because the dumper only
         /// needs the actor type name for attribute rendering.
         public let conformance: RelativeOffset
-    }
-
-    public var layout: Layout
-
-    public let offset: Int
-
-    public init(layout: Layout, offset: Int) {
-        self.offset = offset
-        self.layout = layout
     }
 }
 

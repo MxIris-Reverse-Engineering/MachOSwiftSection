@@ -11,6 +11,7 @@ import MachOBase
 ///
 /// Mirrors `swift::TargetGenericMetadataPartialPattern`
 /// (`swift/ABI/Metadata.h`).
+@LocatableLayoutWrapping
 public struct GenericMetadataPartialPattern: ResolvableLocatableLayoutWrapper {
     public struct Layout: LayoutProtocol {
         /// The words to copy.
@@ -22,14 +23,5 @@ public struct GenericMetadataPartialPattern: ResolvableLocatableLayoutWrapper {
         public let offsetInWords: UInt16
         /// Length of the block, in words.
         public let sizeInWords: UInt16
-    }
-
-    public let offset: Int
-
-    public var layout: Layout
-
-    public init(layout: Layout, offset: Int) {
-        self.offset = offset
-        self.layout = layout
     }
 }

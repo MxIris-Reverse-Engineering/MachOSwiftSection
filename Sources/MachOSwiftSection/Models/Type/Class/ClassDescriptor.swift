@@ -2,6 +2,7 @@ import Foundation
 import MachOKit
 import MachOBase
 
+@LocatableLayoutWrapping
 public struct ClassDescriptor: TypeContextDescriptorProtocol {
     public struct Layout: ClassDescriptorLayout {
         public let flags: ContextDescriptorFlags
@@ -15,15 +16,6 @@ public struct ClassDescriptor: TypeContextDescriptorProtocol {
         public let numImmediateMembers: UInt32
         public let numFields: UInt32
         public let fieldOffsetVectorOffset: UInt32
-    }
-
-    public let offset: Int
-
-    public var layout: Layout
-
-    public init(layout: Layout, offset: Int) {
-        self.offset = offset
-        self.layout = layout
     }
 }
 

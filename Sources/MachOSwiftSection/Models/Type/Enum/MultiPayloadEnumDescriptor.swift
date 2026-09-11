@@ -1,21 +1,13 @@
 import MachOKit
 import MachOBase
 
+@LocatableLayoutWrapping
 public struct MultiPayloadEnumDescriptor: ResolvableLocatableLayoutWrapper {
     public struct Layout: LayoutProtocol {
         public let mangledTypeName: RelativeDirectPointer<MangledName>
         /// let contents: [UInt32]
         public let sizeFlags: UInt32
         // .....
-    }
-
-    public var layout: Layout
-
-    public let offset: Int
-
-    public init(layout: Layout, offset: Int) {
-        self.layout = layout
-        self.offset = offset
     }
 }
 

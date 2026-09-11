@@ -28,6 +28,7 @@ import MachOBase
 /// There is no section listing these records — they live in `__TEXT,__const`
 /// and are reached by symbol or by another descriptor's relative pointer, so
 /// the only entry is `CoroFunctionPointer.resolve(from:in:)`.
+@LocatableLayoutWrapping
 public struct CoroFunctionPointer: ResolvableLocatableLayoutWrapper {
     public struct Layout: LayoutProtocol {
         /// The coroutine's entry point.
@@ -40,15 +41,6 @@ public struct CoroFunctionPointer: ResolvableLocatableLayoutWrapper {
         /// no typed-allocation metadata; this layer reports the raw word and
         /// does not interpret it.
         public let mallocTypeIdentifier: UInt64
-    }
-
-    public var layout: Layout
-
-    public let offset: Int
-
-    public init(layout: Layout, offset: Int) {
-        self.layout = layout
-        self.offset = offset
     }
 }
 

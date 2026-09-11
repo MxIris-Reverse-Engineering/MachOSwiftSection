@@ -14,21 +14,13 @@ import MachOBase
 /// (`swift/ABI/Metadata.h`). Reached from a struct or enum descriptor's
 /// ``TypeGenericContextDescriptorHeader/defaultInstantiationPatternOffset``;
 /// a class descriptor's leads to ``GenericClassMetadataPattern`` instead.
+@LocatableLayoutWrapping
 public struct GenericValueMetadataPattern: GenericMetadataPatternProtocol {
     public struct Layout: GenericMetadataPatternLayout {
         public let instantiationFunction: RelativeDirectRawPointer
         public let completionFunction: RelativeDirectRawPointer
         public let patternFlags: GenericMetadataPatternFlags
         public let valueWitnesses: RelativeIndirectableRawPointer
-    }
-
-    public let offset: Int
-
-    public var layout: Layout
-
-    public init(layout: Layout, offset: Int) {
-        self.offset = offset
-        self.layout = layout
     }
 }
 

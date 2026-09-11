@@ -2,20 +2,12 @@ import Foundation
 import MachOKit
 import MachOBase
 
+@LocatableLayoutWrapping
 public struct ExtensionContextDescriptor: ExtensionContextDescriptorProtocol {
     public struct Layout: ExtensionContextDescriptorLayout {
         public let flags: ContextDescriptorFlags
         public let parent: RelativeContextPointer
         public let extendedContext: RelativeDirectPointer<MangledName?>
-    }
-
-    public let offset: Int
-
-    public var layout: Layout
-
-    public init(layout: Layout, offset: Int) {
-        self.offset = offset
-        self.layout = layout
     }
 }
 

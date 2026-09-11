@@ -2,6 +2,7 @@ import Foundation
 import MachOKit
 import MachOBase
 
+@LocatableLayoutWrapping
 public struct DispatchClassMetadata: HeapMetadataProtocol {
     public struct Layout: HeapMetadataLayout {
         public let kind: StoredPointer
@@ -11,14 +12,5 @@ public struct DispatchClassMetadata: HeapMetadataProtocol {
         public let opaqueObjC3: RawPointer
         public let vTableType: UInt64
         public let vTableInvoke: RawPointer
-    }
-
-    public var layout: Layout
-
-    public let offset: Int
-
-    public init(layout: Layout, offset: Int) {
-        self.layout = layout
-        self.offset = offset
     }
 }

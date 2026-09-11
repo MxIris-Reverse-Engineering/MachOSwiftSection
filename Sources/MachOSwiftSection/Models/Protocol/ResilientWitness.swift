@@ -2,19 +2,11 @@ import Foundation
 import MachOKit
 import MachOBase
 
+@LocatableLayoutWrapping
 public struct ResilientWitness: ResolvableLocatableLayoutWrapper {
     public struct Layout: LayoutProtocol {
         public let requirement: RelativeProtocolRequirementPointer
         public let implementation: RelativeDirectRawPointer
-    }
-
-    public let offset: Int
-
-    public var layout: Layout
-
-    public init(layout: Layout, offset: Int) {
-        self.offset = offset
-        self.layout = layout
     }
 }
 

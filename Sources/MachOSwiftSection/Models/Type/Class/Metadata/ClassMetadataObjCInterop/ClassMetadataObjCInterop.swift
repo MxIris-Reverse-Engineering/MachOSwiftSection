@@ -1,6 +1,7 @@
 import MachOKit
 import MachOBase
 
+@LocatableLayoutWrapping
 public struct ClassMetadataObjCInterop: ClassMetadataObjCInteropProtocol {
     public struct Layout: ClassMetadataObjCInteropLayout, FinalClassMetadataLayout {
         public let kind: StoredPointer
@@ -17,15 +18,6 @@ public struct ClassMetadataObjCInterop: ClassMetadataObjCInteropProtocol {
         public let classAddressPoint: UInt32
         public let descriptor: Pointer<ClassDescriptor?>
         public let iVarDestroyer: RawPointer
-    }
-
-    public var layout: Layout
-
-    public let offset: Int
-
-    public init(layout: Layout, offset: Int) {
-        self.layout = layout
-        self.offset = offset
     }
 
     public static var descriptorOffset: Int { Layout.offset(of: .descriptor) }

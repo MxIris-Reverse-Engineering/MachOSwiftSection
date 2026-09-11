@@ -24,19 +24,11 @@ import MachOBase
 ///
 /// Mirrors `swift::reflection::MetadataSourceRecord`
 /// (`swift/RemoteInspection/Records.h`).
+@LocatableLayoutWrapping
 public struct MetadataSourceRecord: ResolvableLocatableLayoutWrapper {
     public struct Layout: LayoutProtocol {
         public let mangledTypeName: RelativeDirectPointer<MangledName>
         public let mangledMetadataSource: RelativeDirectPointer<MangledName>
-    }
-
-    public let offset: Int
-
-    public var layout: Layout
-
-    public init(layout: Layout, offset: Int) {
-        self.offset = offset
-        self.layout = layout
     }
 }
 

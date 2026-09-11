@@ -2,20 +2,13 @@ import Foundation
 import MachOKit
 import MachOBase
 
+@LocatableLayoutWrapping
 public struct AssociatedTypeDescriptor: ResolvableLocatableLayoutWrapper {
     public struct Layout: LayoutProtocol {
         public let conformingTypeName: RelativeDirectPointer<MangledName>
         public let protocolTypeName: RelativeDirectPointer<MangledName>
         public let numAssociatedTypes: UInt32
         public let associatedTypeRecordSize: UInt32
-    }
-
-    public var layout: Layout
-    public let offset: Int
-
-    public init(layout: Layout, offset: Int) {
-        self.offset = offset
-        self.layout = layout
     }
 }
 

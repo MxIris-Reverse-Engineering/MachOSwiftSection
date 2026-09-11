@@ -1,6 +1,7 @@
 import Foundation
 import MachOBase
 
+@LocatableLayoutWrapping
 public struct TupleTypeMetadata: MetadataProtocol {
     public typealias HeaderType = TypeMetadataHeaderBase
     
@@ -13,15 +14,6 @@ public struct TupleTypeMetadata: MetadataProtocol {
         public let kind: StoredPointer
         public let numberOfElements: StoredSize
         public let labels: Pointer<String>
-    }
-
-    public var layout: Layout
-
-    public let offset: Int
-
-    public init(layout: Layout, offset: Int) {
-        self.layout = layout
-        self.offset = offset
     }
 }
 

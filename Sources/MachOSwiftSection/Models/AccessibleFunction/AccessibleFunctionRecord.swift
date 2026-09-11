@@ -27,6 +27,7 @@ import MachOBase
 /// `swift.accessibleFunctionRecords` throws
 /// `MachOSwiftSectionError.sectionNotFound` rather than answering empty —
 /// the same contract as every other section accessor here.
+@LocatableLayoutWrapping
 public struct AccessibleFunctionRecord: ResolvableLocatableLayoutWrapper {
     public struct Layout: LayoutProtocol {
         public let name: RelativeDirectPointer<String>
@@ -36,15 +37,6 @@ public struct AccessibleFunctionRecord: ResolvableLocatableLayoutWrapper {
         /// The fully abstracted entry point. Non-nullable in the ABI.
         public let function: RelativeDirectRawPointer
         public let flags: AccessibleFunctionFlags
-    }
-
-    public let offset: Int
-
-    public var layout: Layout
-
-    public init(layout: Layout, offset: Int) {
-        self.offset = offset
-        self.layout = layout
     }
 }
 

@@ -20,6 +20,7 @@ import MachOBase
 ///
 /// Mirrors `swift::TargetResilientClassMetadataPattern`
 /// (`swift/ABI/Metadata.h`).
+@LocatableLayoutWrapping
 public struct ResilientClassMetadataPattern: ResolvableLocatableLayoutWrapper {
     public struct Layout: LayoutProtocol {
         /// Allocates the metadata at the right size. **Null is meaningful**:
@@ -37,14 +38,5 @@ public struct ResilientClassMetadataPattern: ResolvableLocatableLayoutWrapper {
         public let data: RelativeDirectRawPointer
         /// The metaclass object. Only present under Objective-C interop.
         public let metaclass: RelativeDirectRawPointer
-    }
-
-    public let offset: Int
-
-    public var layout: Layout
-
-    public init(layout: Layout, offset: Int) {
-        self.offset = offset
-        self.layout = layout
     }
 }

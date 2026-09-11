@@ -25,6 +25,7 @@ import MachOBase
 /// the only entry is `AsyncFunctionPointer.resolve(from:in:)` with an offset
 /// the caller already has. See also ``CoroFunctionPointer``, the same idea for
 /// callee-allocated coroutines.
+@LocatableLayoutWrapping
 public struct AsyncFunctionPointer: ResolvableLocatableLayoutWrapper {
     public struct Layout: LayoutProtocol {
         /// The async function's entry point.
@@ -32,15 +33,6 @@ public struct AsyncFunctionPointer: ResolvableLocatableLayoutWrapper {
         /// Size in bytes of the async context frame the caller must
         /// allocate before entering the function.
         public let expectedContextSize: UInt32
-    }
-
-    public var layout: Layout
-
-    public let offset: Int
-
-    public init(layout: Layout, offset: Int) {
-        self.layout = layout
-        self.offset = offset
     }
 }
 

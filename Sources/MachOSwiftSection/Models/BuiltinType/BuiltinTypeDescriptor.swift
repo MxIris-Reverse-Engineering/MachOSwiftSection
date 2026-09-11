@@ -2,6 +2,7 @@ import Foundation
 import MachOKit
 import MachOBase
 
+@LocatableLayoutWrapping
 public struct BuiltinTypeDescriptor: ResolvableLocatableLayoutWrapper, TopLevelDescriptor {
     public struct Layout: LayoutProtocol {
         public let typeName: RelativeDirectPointer<MangledName?>
@@ -9,15 +10,6 @@ public struct BuiltinTypeDescriptor: ResolvableLocatableLayoutWrapper, TopLevelD
         public let alignmentAndFlags: UInt32
         public let stride: UInt32
         public let numExtraInhabitants: UInt32
-    }
-
-    public var layout: Layout
-
-    public let offset: Int
-
-    public init(layout: Layout, offset: Int) {
-        self.layout = layout
-        self.offset = offset
     }
 }
 

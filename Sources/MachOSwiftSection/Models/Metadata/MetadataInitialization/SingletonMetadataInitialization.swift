@@ -12,6 +12,7 @@ import MachOBase
 /// have changed since this binary was built. The class descriptor's
 /// `hasResilientSuperclass` flag is the discriminator, which is why this type
 /// exposes both readings and neither can decide on its own which is right.
+@LocatableLayoutWrapping
 public struct SingletonMetadataInitialization: ResolvableLocatableLayoutWrapper {
     public struct Layout: LayoutProtocol {
         public let initializationCacheOffset: RelativeDirectRawPointer
@@ -23,13 +24,5 @@ public struct SingletonMetadataInitialization: ResolvableLocatableLayoutWrapper 
         /// Completes the metadata. Null when the initialization needs no
         /// second pass.
         public let completionFunction: RelativeDirectRawPointer
-    }
-
-    public let offset: Int
-    public var layout: Layout
-
-    public init(layout: Layout, offset: Int) {
-        self.offset = offset
-        self.layout = layout
     }
 }

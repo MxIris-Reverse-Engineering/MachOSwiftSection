@@ -23,18 +23,10 @@ import MachOBase
 /// `__TEXT,__const` (or `__DATA_CONST,__const` once they carry relative
 /// pointers) and are reached only by symbol or by a pattern's relative
 /// pointer. Get an offset first, then `PropertyDescriptor.resolve(from:in:)`.
+@LocatableLayoutWrapping
 public struct PropertyDescriptor: ResolvableLocatableLayoutWrapper {
     public struct Layout: LayoutProtocol {
         public let header: KeyPathComponentHeader
-    }
-
-    public var layout: Layout
-
-    public let offset: Int
-
-    public init(layout: Layout, offset: Int) {
-        self.layout = layout
-        self.offset = offset
     }
 }
 

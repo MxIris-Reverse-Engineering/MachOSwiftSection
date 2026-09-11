@@ -2,6 +2,7 @@ import Foundation
 import MachOKit
 import MachOBase
 
+@LocatableLayoutWrapping
 public struct FieldDescriptor: ResolvableLocatableLayoutWrapper {
     public struct Layout: LayoutProtocol {
         public let mangledTypeName: RelativeDirectPointer<MangledName>
@@ -9,15 +10,6 @@ public struct FieldDescriptor: ResolvableLocatableLayoutWrapper {
         public let kind: UInt16
         public let fieldRecordSize: UInt16
         public let numFields: UInt32
-    }
-
-    public let offset: Int
-
-    public var layout: Layout
-
-    public init(layout: Layout, offset: Int) {
-        self.offset = offset
-        self.layout = layout
     }
 }
 

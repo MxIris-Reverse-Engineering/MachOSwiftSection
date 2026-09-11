@@ -30,6 +30,7 @@ import MachOBase
 ///
 /// Mirrors `swift::reflection::CaptureDescriptor`
 /// (`swift/RemoteInspection/Records.h`).
+@LocatableLayoutWrapping
 public struct CaptureDescriptor: TopLevelDescriptor {
     public struct Layout: LayoutProtocol {
         /// Number of captured values, and hence of trailing
@@ -42,15 +43,6 @@ public struct CaptureDescriptor: TopLevelDescriptor {
         /// begin. Nothing trails the descriptor for these — the count is the
         /// whole fact.
         public let numberOfBindings: UInt32
-    }
-
-    public let offset: Int
-
-    public var layout: Layout
-
-    public init(layout: Layout, offset: Int) {
-        self.offset = offset
-        self.layout = layout
     }
 }
 

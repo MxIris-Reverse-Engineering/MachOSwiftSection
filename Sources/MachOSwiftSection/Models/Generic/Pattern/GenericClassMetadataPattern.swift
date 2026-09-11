@@ -14,6 +14,7 @@ import MachOBase
 /// class; a non-generic class with a resilient superclass gets a
 /// ``ResilientClassMetadataPattern`` instead, reached through its singleton
 /// metadata initialization record.
+@LocatableLayoutWrapping
 public struct GenericClassMetadataPattern: GenericMetadataPatternProtocol {
     public struct Layout: GenericMetadataPatternLayout {
         public let instantiationFunction: RelativeDirectRawPointer
@@ -37,15 +38,6 @@ public struct GenericClassMetadataPattern: GenericMetadataPatternProtocol {
         /// block.
         public let metaclassReadOnlyDataOffsetInWords: UInt16
         public let reserved: UInt16
-    }
-
-    public let offset: Int
-
-    public var layout: Layout
-
-    public init(layout: Layout, offset: Int) {
-        self.offset = offset
-        self.layout = layout
     }
 }
 

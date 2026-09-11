@@ -1,5 +1,6 @@
 import MachOBase
 
+@LocatableLayoutWrapping
 public struct TypeGenericContextDescriptorHeader: GenericContextDescriptorHeaderProtocol {
     public struct Layout: GenericContextDescriptorHeaderLayout {
         /// The runtime's metadata instantiation cache for this type. The
@@ -18,13 +19,5 @@ public struct TypeGenericContextDescriptorHeader: GenericContextDescriptorHeader
         public var numRequirements: UInt16 { base.numRequirements }
         public var numKeyArguments: UInt16 { base.numKeyArguments }
         public var flags: GenericContextDescriptorFlags { base.flags }
-    }
-
-    public let offset: Int
-    public var layout: Layout
-
-    public init(layout: Layout, offset: Int) {
-        self.offset = offset
-        self.layout = layout
     }
 }
