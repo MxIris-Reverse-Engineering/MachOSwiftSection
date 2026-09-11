@@ -34,6 +34,36 @@ fileprivate protocol OpaqueTypeRewriteLogging {}
 package typealias OpaqueTypeDegradationReporter = @Sendable (any Error) -> Void
 
 extension Node {
+    /// The generic arguments an `opaqueType` node carries, keyed by the depth
+    /// each level substitutes.
+    ///
+    /// Internal rather than private for the same reason the rewriter below is:
+    /// reaching this through `resolveOpaqueType(in:)` needs a binary that
+    /// happens to carry an opaque type with a matching type list, and what it
+    /// pins fails *silently* in rendered output — a mis-collected list either
+    /// leaves a parameter unsubstituted (printing `A` / `A1`) or substitutes a
+    /// type belonging to a different parameter, and neither raises.
+    ///
+    /// The walk mirrors `TypeDecoder.decodeMangledType`'s over the same child,
+    /// including its stop at the first level that is not a `typeList`.
+    static func opaqueTypeGenericArgumentsByDepth(of opaqueTypeNode: Node) -> OrderedDictionary<Int, [Node]> {
+        var argumentsByDepth: OrderedDictionary<Int, [Node]> = [:]
+        guard let rootTypeListNode = opaqueTypeNode[safeChild: 2] else { return argumentsByDepth }
+        for (depth, typeListNode) in rootTypeListNode.children.enumerated() {
+            guard typeListNode.isKind(of: .typeList) else { break }
+            // `.children`, NOT the node itself: `Node` iterates in PREORDER
+            // *including the root*, so `for type in typeListNode` yields the
+            // `typeList` node, then every element, then every descendant of
+            // every element. Position 0 was therefore the `typeList` node —
+            // kind `.typeList`, which the rewriter's `isKind(of: .type)` guard
+            // rejects, so parameter 0 was never substituted — and every later
+            // parameter read whatever preorder left at its index: the element
+            // to its left, or a fragment of that element's subtree.
+            argumentsByDepth[depth] = Array(typeListNode.children)
+        }
+        return argumentsByDepth
+    }
+
     /// Substitutes an opaque type's generic parameters with the concrete
     /// arguments carried by the `opaqueType` node's type list.
     ///
@@ -66,13 +96,50 @@ extension Node {
     }
 
     private final class OpaqueTypeRewriter<MachO: MachOSwiftSectionRepresentableWithCache>: Node.Rewriter, OpaqueTypeRewriteLogging {
+        /// How many times an expansion's own opaque types are expanded in turn.
+        ///
+        /// Bounded because the relation can cycle — an opaque type's underlying
+        /// type may reach that opaque type again — and there is no cheap way to
+        /// prove it does not. Eight covers the modifier chains measured in
+        /// SwiftUI, where nesting is one layer per `.onChange` / `.task` link.
+        static var maximumNestedExpansionDepth: Int { 8 }
+
         let machO: MachO
 
         let reportDegradation: OpaqueTypeDegradationReporter?
 
-        init(machO: MachO, reportDegradation: OpaqueTypeDegradationReporter?) {
+        /// How many expansions deep this rewriter already is; see
+        /// ``expandingNestedOpaqueTypes(in:)``.
+        let expansionDepth: Int
+
+        init(machO: MachO, reportDegradation: OpaqueTypeDegradationReporter?, expansionDepth: Int = 0) {
             self.machO = machO
             self.reportDegradation = reportDegradation
+            self.expansionDepth = expansionDepth
+        }
+
+        /// Expands opaque types that the substitution just brought in.
+        ///
+        /// `Node.Rewriter` walks bottom-up and never re-visits what `visit`
+        /// returns, so an expansion whose underlying type mentions another
+        /// `some` type stopped one layer short: the inner reference reached the
+        /// reader as `opaque type symbolic reference 0x…`, a raw address where
+        /// a type name belongs. Nested `some` is the norm rather than the
+        /// exception — a SwiftUI `body` is one opaque type per modifier link.
+        ///
+        /// At the ceiling the innermost reference is left as it is, which is
+        /// the same honest degradation an unresolvable descriptor already gets.
+        private func expandingNestedOpaqueTypes(in node: Node) -> Node {
+            guard node.contains(Node.Kind.opaqueType) else { return node }
+            guard expansionDepth < Self.maximumNestedExpansionDepth else {
+                #log(.info, "opaque type expansion reached the nesting limit \(Self.maximumNestedExpansionDepth, privacy: .public) — leaving the innermost reference unexpanded")
+                return node
+            }
+            return OpaqueTypeRewriter(
+                machO: machO,
+                reportDegradation: reportDegradation,
+                expansionDepth: expansionDepth + 1
+            ).rewrite(node)
         }
 
         override func visit(_ node: Node) -> Node {
@@ -103,15 +170,24 @@ extension Node {
                         opaqueType = try OpaqueType(descriptor: opaqueTypeDescriptor, in: machO)
                     }
 
-                    var allTypeList: OrderedDictionary<Int, [Node]> = [:]
-                    if let rootTypeListNode = node[safeChild: 2] {
-                        for (depth, typeList) in rootTypeListNode.children.enumerated() {
-                            for type in typeList {
-                                allTypeList[depth, default: []].append(type)
-                            }
-                        }
-                    }
-                    if let underlyingTypeArgumentMangledName = opaqueType.underlyingTypeArgumentMangledNames[safe: 0] {
+                    // The ordinal — the opaque type's own position among the
+                    // `some` results of the declaration that produced it — is
+                    // what indexes the underlying-type array. Measured on a
+                    // fixture whose single declaration returns
+                    // `Pair<some P, some P>`: the descriptor carries four
+                    // entries, `[underlying 0, underlying 1, conformance 0,
+                    // conformance 1]` — every replacement type first, then the
+                    // conformances, which is the order IRGen writes the
+                    // underlying substitution map in and the order the
+                    // runtime's `_getOpaqueTypeMetadata` reads it back in.
+                    // Hardcoding 0 therefore rendered a declaration's second
+                    // `some` as its first, silently. Every opaque reference in
+                    // SwiftUI's and SwiftUICore's associated-type records
+                    // carries ordinal 0, so this is correctness for a shape
+                    // those two do not have and a client binary may.
+                    let ordinal: Int = node[safeChild: 1]?.index?.cast() ?? 0
+                    let allTypeList = Node.opaqueTypeGenericArgumentsByDepth(of: node)
+                    if let underlyingTypeArgumentMangledName = opaqueType.underlyingTypeArgumentMangledNames[safe: ordinal] {
                         let underlyingTypeArgumentNode: Node?
                         if machO is MachOImage {
                             underlyingTypeArgumentNode = try? SymbolicDemangler.demangleType(for: underlyingTypeArgumentMangledName)
@@ -120,7 +196,8 @@ extension Node {
                         }
                         if let underlyingTypeArgumentNode, underlyingTypeArgumentNode.kind == .type,
                            let firstChild = underlyingTypeArgumentNode.firstChild {
-                            return OpaqueTypeGenericParameterRewriter(machO: machO, typeList: allTypeList).rewrite(firstChild.copy())
+                            let substituted = OpaqueTypeGenericParameterRewriter(machO: machO, typeList: allTypeList).rewrite(firstChild.copy())
+                            return expandingNestedOpaqueTypes(in: substituted)
                         }
                     }
                 }

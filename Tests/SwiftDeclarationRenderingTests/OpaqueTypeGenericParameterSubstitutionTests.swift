@@ -95,4 +95,87 @@ final class OpaqueTypeGenericParameterSubstitutionTests: MachOSwiftSectionFixtur
 
         #expect(rewritten.kind == .dependentGenericParamType)
     }
+
+    // MARK: - Argument collection
+
+    /// An `opaqueType` node exactly as the demangler builds it: descriptor
+    /// reference, ordinal, then one `typeList` per substitution level.
+    private func opaqueTypeNode(levels: [[Node]]) -> Node {
+        Node.create(
+            kind: .opaqueType,
+            children: [
+                Node.create(kind: .opaqueTypeDescriptorSymbolicReference, index: 0x1000),
+                Node.create(kind: .index, index: 0),
+                Node.create(
+                    kind: .typeList,
+                    children: levels.map { Node.create(kind: .typeList, children: $0) }
+                ),
+            ]
+        )
+    }
+
+    /// The collection contract the substitution above depends on: each level's
+    /// entry must be that level's *elements*, positionally.
+    ///
+    /// `Node` conforms to `Sequence` with a PREORDER iterator that yields the
+    /// root itself first, so the pre-fix `for type in typeList` collected the
+    /// `typeList` node, then each element, then each element's descendants.
+    /// Both consequences are silent in rendered output: index 0 held a
+    /// `.typeList` node, which the rewriter's `isKind(of: .type)` guard
+    /// rejects — parameter 0 was never substituted and printed as `A` — while
+    /// every later parameter read the element to its left or a fragment of
+    /// that element's subtree, printing a real type belonging to a *different*
+    /// parameter. Measured on SwiftUI (macOS 26 shared cache), 178 of 4698
+    /// associated-type records carried a visibly unsubstituted parameter, and
+    /// `NavigationSplitCore.ColumnView.Body` rendered
+    /// `AndOperationViewInputPredicate<A1, StyleContextAcceptsPredicate<…>>`
+    /// where both arguments were known and neither was the one printed.
+    @MainActor
+    @Test func collectsEachLevelsElementsPositionally() throws {
+        let first = concreteArgumentTypeNode(named: "Int")
+        let second = concreteArgumentTypeNode(named: "String")
+        let third = concreteArgumentTypeNode(named: "Bool")
+
+        let collected = Node.opaqueTypeGenericArgumentsByDepth(of: opaqueTypeNode(levels: [[first, second], [third]]))
+
+        #expect(collected.keys.elements == [0, 1])
+        #expect(collected[0]?.count == 2, "level 0 must hold exactly its two elements, got \(collected[0]?.count ?? -1)")
+        #expect(collected[0]?[0].print(using: .default) == "Swift.Int")
+        #expect(collected[0]?[1].print(using: .default) == "Swift.String")
+        #expect(collected[1]?.count == 1, "level 1 must hold exactly its one element, got \(collected[1]?.count ?? -1)")
+        #expect(collected[1]?[0].print(using: .default) == "Swift.Bool")
+        for (depth, arguments) in collected {
+            for (index, argument) in arguments.enumerated() {
+                #expect(
+                    argument.isKind(of: .type),
+                    "argument \(index) of level \(depth) must be the element's own `.type` envelope, got a \(argument.kind) node"
+                )
+            }
+        }
+    }
+
+    /// An opaque type with no generic arguments collects nothing rather than
+    /// producing a level whose single entry is the empty `typeList` node.
+    @MainActor
+    @Test func opaqueTypeWithoutArgumentsCollectsNothing() throws {
+        #expect(Node.opaqueTypeGenericArgumentsByDepth(of: opaqueTypeNode(levels: [])).isEmpty)
+    }
+
+    /// End to end over the two halves: the parameters of a two-level opaque
+    /// type all substitute, and each gets *its own* argument.
+    @MainActor
+    @Test func everyParameterOfATwoLevelOpaqueTypeSubstitutesToItsOwnArgument() throws {
+        let opaqueNode = opaqueTypeNode(levels: [
+            [concreteArgumentTypeNode(named: "Int"), concreteArgumentTypeNode(named: "String")],
+            [concreteArgumentTypeNode(named: "Bool")],
+        ])
+        let rewriter = Node.OpaqueTypeGenericParameterRewriter(
+            machO: machOImage,
+            typeList: Node.opaqueTypeGenericArgumentsByDepth(of: opaqueNode)
+        )
+
+        #expect(rewriter.rewrite(genericParameterNode(depth: 0, index: 0)).print(using: .default) == "Swift.Int")
+        #expect(rewriter.rewrite(genericParameterNode(depth: 0, index: 1)).print(using: .default) == "Swift.String")
+        #expect(rewriter.rewrite(genericParameterNode(depth: 1, index: 0)).print(using: .default) == "Swift.Bool")
+    }
 }

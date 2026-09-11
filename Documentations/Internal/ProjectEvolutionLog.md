@@ -1498,6 +1498,55 @@
   从 `String?` 改为 `CaptureDescriptor?`，除 fixture 机制外无使用者），默认输出无变化，
   随下一次发布。
 
+## 2026-09-11 不透明类型的泛型实参收集错位（RuntimeViewer issue #5 复发）
+
+- **时间段**：2026-09-11（单日）
+- **动机**：用户要求核对 SwiftUI / SwiftUICore 关联类型 section 里 `Body` 的不透明类型解析，
+  并指出 RuntimeViewer issue #5（`FeedbackGenerator.Body` 类型信息不完整）其实没修好。全量
+  dump 证实：SwiftUI 4698 条 `typealias` 里有 178 条带着未替换的裸泛型参数。
+- **关键决策与取舍**：
+  - **根因是一行遍历**。`Node` 遵循 `Sequence` 且迭代器是 `preorder()`——前序序列**含根节点
+    自身**，所以 `for type in typeList` 收集到的是「`typeList` 节点 + 每个实参 + 每个实参的
+    全部后代」。位置 0 被 `.typeList` 节点占掉（替换器的 `isKind(of: .type)` 守卫把它挡掉，
+    第 0 个参数永不替换），其后每个参数读到左邻居或左邻居子树的碎片。两种后果都不抛错：
+    前者渲染成 `A` / `A1`，**后者渲染出属于别的参数的真实类型**。
+  - **抽成独立函数再单测**，不追求端到端 fixture。编译器会把同模块内的 underlying type 直接
+    写进反射记录（加 `-enable-library-evolution`、加 availability-conditional 都试过），
+    fixture 造不出"assocty 记录仍引用 descriptor"的形状——SwiftUI 里那些引用之所以存在，是
+    因为它们的 underlying type 只有运行时 accessor。所以收集契约由
+    `Node.opaqueTypeGenericArgumentsByDepth(of:)` 直接驱动，与隔壁
+    `OpaqueTypeGenericParameterSubstitutionTests` 当年的理由相同。
+  - **ordinal 一并修**，尽管这两个框架不触发。用一个返回
+    `ProbePair<some ProbeView, some ProbeView>` 的 fixture 验证了数组布局：
+    `numUnderlyingTypeArguments == 4`，内容是 `[underlying 0, underlying 1, conformance 0,
+    conformance 1]`，所以 ordinal 就是索引。SwiftUI / SwiftUICore 的 opaque 引用 ordinal 全
+    为 0，这条是给客户端二进制的正确性。
+  - **嵌套展开设上限 8**。`Node.Rewriter` 自底向上且不重访返回值，替换进来的 opaque 会停在
+    原地；而这个关系可以成环（opaque 的 underlying type 绕回自己），没有便宜的判环办法，
+    所以设深度上限、到顶保留最内层引用。
+  - **一次假设被数据推翻并记录在案**：17 例 `StaticIf<谓词, X, X>` 两分支相同一度被当成
+    ordinal 丢失，实测发现它们在 mangled name 里本就是同一个 descriptor + 同一个 ordinal，
+    是 SwiftUI 自己的形状。
+- **落地模块**：`SwiftDeclarationRendering`（`Extensions/Node+OpaqueType.swift`：新增
+  `opaqueTypeGenericArgumentsByDepth(of:)`，`OpaqueTypeRewriter` 加 `expansionDepth` 与
+  `expandingNestedOpaqueTypes(in:)`，underlying 数组改按 ordinal 索引）。dump 与 interface
+  两条路径共用这一处，所以两边同时受益。
+- **实测**：SwiftUI 231 行输出改变，depth≥1 裸参数残留 178 → 10（剩余 10 条经逐条核对全部
+  合法，是嵌套泛型自己的内层参数）；SwiftUICore **一行未变**——它的 assocty 记录里没有
+  opaque 引用，这个缺陷是 SwiftUI 独有的。未解析引用 15 → 17 的 +2 是诚实度提升：被替换进来
+  的内层 opaque 显式露出来了，而此前它被错印成 `A`。
+- **踩到的坑**：
+  - `Node` 的 `Sequence` 一致性是**前序含根**，不是 children。全库横向排查过一遍，
+    其余把 `Node` 当序列用的地方（`node.contains(.enum)` 等）都是显式的整树查找 API，语义
+    本就正确——这是唯一一处。
+  - `machOFile.symbols` 里找不到 opaque type descriptor 符号，要走
+    `SymbolIndexStore.shared.symbols(of: .opaqueTypeDescriptor, in:)`。
+  - 按名字匹配 mangled 符号不可靠：mangler 会替换重复的模块前缀，`makeOpaquePair` 在符号里
+    写作 `04makeA4Pair`，`contains("makeOpaquePair")` 永远匹配不上。
+- **关联文档**：[TaskReports/2026-09-11-opaque-type-argument-collection.md](TaskReports/2026-09-11-opaque-type-argument-collection.md)。
+- **对应版本**：无 API 变化，`dump` / `interface` 对含不透明类型的关联类型记录输出改变
+  （更正），随下一次发布。
+
 ---
 
 ## 维护约定
