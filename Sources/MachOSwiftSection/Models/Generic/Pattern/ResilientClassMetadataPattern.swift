@@ -22,11 +22,20 @@ import MachOBase
 /// (`swift/ABI/Metadata.h`).
 public struct ResilientClassMetadataPattern: ResolvableLocatableLayoutWrapper {
     public struct Layout: LayoutProtocol {
+        /// Allocates the metadata at the right size. **Null is meaningful**:
+        /// it tells the runtime to call `swift_relocateClassMetadata` with
+        /// this pattern instead.
         public let relocationFunction: RelativeDirectRawPointer
+        /// The heap destructor.
         public let destroy: RelativeDirectRawPointer
+        /// `IVarDestroyer` in the ABI. Null when the class needs none.
         public let instanceVariableDestroyer: RelativeDirectRawPointer
+        /// The raw class flag word (`swift::ClassFlags`). Raw because the
+        /// word is a bitfield while ``ClassFlags`` enumerates single bits.
         public let classFlags: UInt32
+        /// The class's `class_ro_t`. Only present under Objective-C interop.
         public let data: RelativeDirectRawPointer
+        /// The metaclass object. Only present under Objective-C interop.
         public let metaclass: RelativeDirectRawPointer
     }
 
@@ -37,46 +46,5 @@ public struct ResilientClassMetadataPattern: ResolvableLocatableLayoutWrapper {
     public init(layout: Layout, offset: Int) {
         self.offset = offset
         self.layout = layout
-    }
-}
-
-extension ResilientClassMetadataPattern {
-    /// The raw class flag word (`swift::ClassFlags`). Reported raw because
-    /// the word is a bitfield while ``ClassFlags`` enumerates single bits.
-    public var classFlags: UInt32 { layout.classFlags }
-
-    /// File offset of the function that allocates the metadata at the right
-    /// size, or `nil` when there is none — in which case the runtime calls
-    /// `swift_relocateClassMetadata` with this pattern.
-    public var relocationFunctionOffset: Int? {
-        guard layout.relocationFunction.isValid else { return nil }
-        return layout.relocationFunction.resolveDirectOffset(from: offset(of: \.relocationFunction))
-    }
-
-    /// File offset of the heap destructor, or `nil` for a null pointer.
-    public var destroyOffset: Int? {
-        guard layout.destroy.isValid else { return nil }
-        return layout.destroy.resolveDirectOffset(from: offset(of: \.destroy))
-    }
-
-    /// File offset of the instance-variable destructor (`IVarDestroyer` in
-    /// the ABI), or `nil` when the class needs none.
-    public var instanceVariableDestroyerOffset: Int? {
-        guard layout.instanceVariableDestroyer.isValid else { return nil }
-        return layout.instanceVariableDestroyer.resolveDirectOffset(from: offset(of: \.instanceVariableDestroyer))
-    }
-
-    /// File offset of the class's `class_ro_t`, or `nil` for a null pointer.
-    /// Only present under Objective-C interop.
-    public var dataOffset: Int? {
-        guard layout.data.isValid else { return nil }
-        return layout.data.resolveDirectOffset(from: offset(of: \.data))
-    }
-
-    /// File offset of the metaclass object, or `nil` for a null pointer.
-    /// Only present under Objective-C interop.
-    public var metaclassOffset: Int? {
-        guard layout.metaclass.isValid else { return nil }
-        return layout.metaclass.resolveDirectOffset(from: offset(of: \.metaclass))
     }
 }

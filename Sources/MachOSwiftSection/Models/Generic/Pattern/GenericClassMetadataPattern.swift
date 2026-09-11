@@ -19,11 +19,22 @@ public struct GenericClassMetadataPattern: GenericMetadataPatternProtocol {
         public let instantiationFunction: RelativeDirectRawPointer
         public let completionFunction: RelativeDirectRawPointer
         public let patternFlags: GenericMetadataPatternFlags
+        /// The heap destructor.
         public let destroy: RelativeDirectRawPointer
+        /// `IVarDestroyer` in the ABI. Null when the class needs none.
         public let instanceVariableDestroyer: RelativeDirectRawPointer
+        /// The raw class flag word (`swift::ClassFlags`) stamped into every
+        /// instantiation. Raw because the word is a bitfield while
+        /// ``ClassFlags`` enumerates single bits.
         public let classFlags: UInt32
+        /// Where the class's `class_ro_t` lands inside the extra data block,
+        /// in words. Only meaningful under Objective-C interop, as are the
+        /// two below.
         public let classReadOnlyDataOffsetInWords: UInt16
+        /// Where the metaclass object lands inside the extra data block.
         public let metaclassObjectOffsetInWords: UInt16
+        /// Where the metaclass's `class_ro_t` lands inside the extra data
+        /// block.
         public let metaclassReadOnlyDataOffsetInWords: UInt16
         public let reserved: UInt16
     }
@@ -39,22 +50,10 @@ public struct GenericClassMetadataPattern: GenericMetadataPatternProtocol {
 }
 
 extension GenericClassMetadataPattern {
-    /// See ``GenericMetadataPatternProtocol/instantiationFunctionOffset``.
-    public var instantiationFunctionOffset: Int? {
-        guard layout.instantiationFunction.isValid else { return nil }
-        return layout.instantiationFunction.resolveDirectOffset(from: offset(of: \.instantiationFunction))
-    }
-
-    /// See ``GenericMetadataPatternProtocol/completionFunctionOffset``.
-    public var completionFunctionOffset: Int? {
-        guard layout.completionFunction.isValid else { return nil }
-        return layout.completionFunction.resolveDirectOffset(from: offset(of: \.completionFunction))
-    }
-
     /// Whether a second trailing partial pattern describes the class's
     /// immediate members.
     public var hasImmediateMembersPattern: Bool {
-        patternFlags.classHasImmediateMembersPattern
+        layout.patternFlags.classHasImmediateMembersPattern
     }
 
     /// A class pattern may trail both an extra-data pattern and an
@@ -62,36 +61,6 @@ extension GenericClassMetadataPattern {
     public var numberOfTrailingPartialPatterns: Int {
         (hasExtraDataPattern ? 1 : 0) + (hasImmediateMembersPattern ? 1 : 0)
     }
-
-    /// The raw class flag word (`swift::ClassFlags`) stamped into every
-    /// instantiation. Reported raw because the word is a bitfield while
-    /// ``ClassFlags`` enumerates single bits.
-    public var classFlags: UInt32 { layout.classFlags }
-
-    /// File offset of the heap destructor, or `nil` for a null pointer.
-    public var destroyOffset: Int? {
-        guard layout.destroy.isValid else { return nil }
-        return layout.destroy.resolveDirectOffset(from: offset(of: \.destroy))
-    }
-
-    /// File offset of the instance-variable destructor (`IVarDestroyer` in
-    /// the ABI), or `nil` when the class needs none.
-    public var instanceVariableDestroyerOffset: Int? {
-        guard layout.instanceVariableDestroyer.isValid else { return nil }
-        return layout.instanceVariableDestroyer.resolveDirectOffset(from: offset(of: \.instanceVariableDestroyer))
-    }
-
-    /// Where the class's `class_ro_t` lands inside the extra data block, in
-    /// words. Only meaningful under Objective-C interop.
-    public var classReadOnlyDataOffsetInWords: Int { Int(layout.classReadOnlyDataOffsetInWords) }
-
-    /// Where the metaclass object lands inside the extra data block, in
-    /// words. Only meaningful under Objective-C interop.
-    public var metaclassObjectOffsetInWords: Int { Int(layout.metaclassObjectOffsetInWords) }
-
-    /// Where the metaclass's `class_ro_t` lands inside the extra data block,
-    /// in words. Only meaningful under Objective-C interop.
-    public var metaclassReadOnlyDataOffsetInWords: Int { Int(layout.metaclassReadOnlyDataOffsetInWords) }
 
     /// The immediate-members partial pattern, or `nil` when the flags say
     /// there is none. It follows the extra-data pattern when both are

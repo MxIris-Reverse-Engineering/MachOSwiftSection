@@ -23,8 +23,7 @@ extension ProtocolRequirement {
     /// descriptor's own offset; symbol attribution is `SwiftInspection`'s
     /// `defaultImplementationSymbols(in:)`, one layer up.
     public var defaultImplementationOffset: Int? {
-        guard layout.defaultImplementation.isValid else { return nil }
-        return layout.defaultImplementation.resolveDirectOffset(from: offset(of: \.defaultImplementation))
+        resolvedDirectOffset(from: \.defaultImplementation)
     }
 }
 

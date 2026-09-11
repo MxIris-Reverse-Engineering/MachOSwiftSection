@@ -30,8 +30,15 @@ import MachOBase
 /// the only entry is `CoroFunctionPointer.resolve(from:in:)`.
 public struct CoroFunctionPointer: ResolvableLocatableLayoutWrapper {
     public struct Layout: LayoutProtocol {
+        /// The coroutine's entry point.
         public let function: RelativeDirectRawPointer
+        /// Size in bytes of the coroutine frame the caller must allocate
+        /// before entering the coroutine.
         public let allocationSize: UInt32
+        /// The typed-allocation identifier IRGen derives for this coroutine's
+        /// frame (`IRGenModule::getMallocTypeId`). Zero when the build emits
+        /// no typed-allocation metadata; this layer reports the raw word and
+        /// does not interpret it.
         public let mallocTypeIdentifier: UInt64
     }
 
@@ -45,38 +52,13 @@ public struct CoroFunctionPointer: ResolvableLocatableLayoutWrapper {
     }
 }
 
-extension CoroFunctionPointer {
-    /// File offset of the coroutine's entry point, or `nil` when the pointer
-    /// is null. Pure pointer arithmetic on the record's own offset — no
-    /// reader involved, same contract as
-    /// ``MethodDescriptor/implementationOffset``.
-    public var functionOffset: Int? {
-        guard layout.function.isValid else { return nil }
-        return layout.function.resolveDirectOffset(from: offset(of: \.function))
-    }
-
-    /// Size in bytes of the coroutine frame the caller must allocate before
-    /// entering the coroutine.
-    public var allocationSize: UInt32 {
-        layout.allocationSize
-    }
-
-    /// The typed-allocation identifier IRGen derives for this coroutine's
-    /// frame (`IRGenModule::getMallocTypeId`). Zero when the build emits no
-    /// typed-allocation metadata; this layer reports the raw word and does not
-    /// interpret it.
-    public var mallocTypeIdentifier: UInt64 {
-        layout.mallocTypeIdentifier
-    }
-}
-
 // MARK: - ReadingContext Support
 
 extension CoroFunctionPointer {
     /// The entry point's location as an address in `context` (a file offset
     /// for `MachOContext`, a pointer in-process), or `nil` for a null pointer.
     public func functionAddress<Context: ReadingContext>(in context: Context) throws -> Context.Address? {
-        guard let functionOffset else { return nil }
+        guard let functionOffset = resolvedDirectOffset(from: \.function) else { return nil }
         return try context.addressFromOffset(functionOffset)
     }
 }

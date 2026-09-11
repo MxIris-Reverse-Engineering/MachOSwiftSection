@@ -33,18 +33,6 @@ public struct GenericValueMetadataPattern: GenericMetadataPatternProtocol {
 }
 
 extension GenericValueMetadataPattern {
-    /// See ``GenericMetadataPatternProtocol/instantiationFunctionOffset``.
-    public var instantiationFunctionOffset: Int? {
-        guard layout.instantiationFunction.isValid else { return nil }
-        return layout.instantiationFunction.resolveDirectOffset(from: offset(of: \.instantiationFunction))
-    }
-
-    /// See ``GenericMetadataPatternProtocol/completionFunctionOffset``.
-    public var completionFunctionOffset: Int? {
-        guard layout.completionFunction.isValid else { return nil }
-        return layout.completionFunction.resolveDirectOffset(from: offset(of: \.completionFunction))
-    }
-
     /// A value pattern has at most one trailing partial pattern: the
     /// extra-data one. The immediate-members bit is class-only, and on a
     /// value pattern those bits belong to the metadata kind.
@@ -55,7 +43,7 @@ extension GenericValueMetadataPattern {
     /// The metadata kind the instantiation produces, or `nil` when the flags
     /// hold a kind this library does not recognize.
     public var metadataKind: MetadataKind? {
-        patternFlags.valueMetadataKind
+        layout.patternFlags.valueMetadataKind
     }
 
     /// File offset of the value witness table, or `nil` when the pointer is

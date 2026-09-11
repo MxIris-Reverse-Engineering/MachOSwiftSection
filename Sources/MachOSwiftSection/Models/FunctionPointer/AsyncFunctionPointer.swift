@@ -27,7 +27,10 @@ import MachOBase
 /// callee-allocated coroutines.
 public struct AsyncFunctionPointer: ResolvableLocatableLayoutWrapper {
     public struct Layout: LayoutProtocol {
+        /// The async function's entry point.
         public let function: RelativeDirectRawPointer
+        /// Size in bytes of the async context frame the caller must
+        /// allocate before entering the function.
         public let expectedContextSize: UInt32
     }
 
@@ -41,31 +44,13 @@ public struct AsyncFunctionPointer: ResolvableLocatableLayoutWrapper {
     }
 }
 
-extension AsyncFunctionPointer {
-    /// File offset of the async function's entry point, or `nil` when the
-    /// pointer is null. Pure pointer arithmetic on the record's own offset —
-    /// no reader involved, same contract as
-    /// ``MethodDescriptor/implementationOffset``. Attributing symbol names to
-    /// that offset belongs one layer up, in `SwiftInspection`.
-    public var functionOffset: Int? {
-        guard layout.function.isValid else { return nil }
-        return layout.function.resolveDirectOffset(from: offset(of: \.function))
-    }
-
-    /// Size in bytes of the async context frame the caller must allocate
-    /// before entering the function.
-    public var expectedContextSize: UInt32 {
-        layout.expectedContextSize
-    }
-}
-
 // MARK: - ReadingContext Support
 
 extension AsyncFunctionPointer {
     /// The entry point's location as an address in `context` (a file offset
     /// for `MachOContext`, a pointer in-process), or `nil` for a null pointer.
     public func functionAddress<Context: ReadingContext>(in context: Context) throws -> Context.Address? {
-        guard let functionOffset else { return nil }
+        guard let functionOffset = resolvedDirectOffset(from: \.function) else { return nil }
         return try context.addressFromOffset(functionOffset)
     }
 }

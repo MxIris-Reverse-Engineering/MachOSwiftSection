@@ -26,8 +26,6 @@ import MachOBase
 /// Mach-O section, so these reads are only meaningful against live in-process
 /// metadata.
 extension FunctionTypeMetadata {
-    public var flags: FunctionTypeFlags<StoredSize> { layout.flags }
-
     public var numberOfParameters: Int { layout.flags.numberOfParameters.cast() }
 
     private static func aligned(_ value: Int, to alignment: Int) -> Int {

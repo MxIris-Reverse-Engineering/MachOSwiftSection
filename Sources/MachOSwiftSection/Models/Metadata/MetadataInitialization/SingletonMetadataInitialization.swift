@@ -14,11 +14,15 @@ import MachOBase
 /// exposes both readings and neither can decide on its own which is right.
 public struct SingletonMetadataInitialization: ResolvableLocatableLayoutWrapper {
     public struct Layout: LayoutProtocol {
-        public let initializationCacheOffset: RelativeOffset
-        /// Union: incomplete metadata, or a resilient class pattern. See the
-        /// type's documentation.
-        public let incompleteMetadata: RelativeOffset
-        public let completionFunction: RelativeOffset
+        public let initializationCacheOffset: RelativeDirectRawPointer
+        /// **Union**: the incomplete metadata to complete in place, or — when
+        /// the owning descriptor is a class with a resilient superclass — a
+        /// ``ResilientClassMetadataPattern``. See the type's documentation;
+        /// only the descriptor's `hasResilientSuperclass` flag says which.
+        public let incompleteMetadata: RelativeDirectRawPointer
+        /// Completes the metadata. Null when the initialization needs no
+        /// second pass.
+        public let completionFunction: RelativeDirectRawPointer
     }
 
     public let offset: Int
@@ -27,36 +31,5 @@ public struct SingletonMetadataInitialization: ResolvableLocatableLayoutWrapper 
     public init(layout: Layout, offset: Int) {
         self.offset = offset
         self.layout = layout
-    }
-}
-
-extension SingletonMetadataInitialization {
-    /// File offset of the incomplete metadata, or `nil` for a null pointer.
-    ///
-    /// Valid only when the owning descriptor is NOT a class with a resilient
-    /// superclass; in that case the same field holds a pattern instead, and
-    /// ``resilientClassPatternOffset`` is the right reading.
-    public var incompleteMetadataOffset: Int? {
-        guard layout.incompleteMetadata != 0 else { return nil }
-        return offset(of: \.incompleteMetadata) + Int(layout.incompleteMetadata)
-    }
-
-    /// File offset of the ``ResilientClassMetadataPattern``, or `nil` for a
-    /// null pointer.
-    ///
-    /// Valid only when the owning descriptor IS a class with a resilient
-    /// superclass; otherwise the same field holds the incomplete metadata and
-    /// ``incompleteMetadataOffset`` is the right reading. The two accessors
-    /// read the same word on purpose — the ABI overlays them and the
-    /// descriptor's flag is the discriminator.
-    public var resilientClassPatternOffset: Int? {
-        incompleteMetadataOffset
-    }
-
-    /// File offset of the function that completes the metadata, or `nil`
-    /// when the initialization needs none.
-    public var completionFunctionOffset: Int? {
-        guard layout.completionFunction != 0 else { return nil }
-        return offset(of: \.completionFunction) + Int(layout.completionFunction)
     }
 }

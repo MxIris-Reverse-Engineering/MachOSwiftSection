@@ -25,8 +25,7 @@ extension MethodDescriptor {
     /// no reader involved. Attributing symbol names to that offset is
     /// `SwiftInspection`'s `implementationSymbols(in:)`, one layer up.
     public var implementationOffset: Int? {
-        guard layout.implementation.isValid else { return nil }
-        return layout.implementation.resolveDirectOffset(from: offset(of: \.implementation))
+        resolvedDirectOffset(from: \.implementation)
     }
 }
 

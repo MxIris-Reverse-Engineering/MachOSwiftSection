@@ -13,8 +13,14 @@ import MachOBase
 /// (`swift/ABI/Metadata.h`).
 public struct GenericMetadataPartialPattern: ResolvableLocatableLayoutWrapper {
     public struct Layout: LayoutProtocol {
+        /// The words to copy.
         public let pattern: RelativeDirectRawPointer
+        /// Where the block lands in the instantiated metadata, in words. For
+        /// value metadata the position is relative to the end of the metadata
+        /// header; for class metadata, to the end of the whole class
+        /// metadata.
         public let offsetInWords: UInt16
+        /// Length of the block, in words.
         public let sizeInWords: UInt16
     }
 
@@ -26,22 +32,4 @@ public struct GenericMetadataPartialPattern: ResolvableLocatableLayoutWrapper {
         self.offset = offset
         self.layout = layout
     }
-}
-
-extension GenericMetadataPartialPattern {
-    /// File offset of the words to copy, or `nil` for a null pointer.
-    public var patternOffset: Int? {
-        guard layout.pattern.isValid else { return nil }
-        return layout.pattern.resolveDirectOffset(from: offset(of: \.pattern))
-    }
-
-    /// Where the block lands in the instantiated metadata, in words.
-    ///
-    /// For value metadata the position is relative to the end of the metadata
-    /// header; for class metadata it is relative to the end of the whole
-    /// class metadata.
-    public var offsetInWords: Int { Int(layout.offsetInWords) }
-
-    /// Length of the block, in words.
-    public var sizeInWords: Int { Int(layout.sizeInWords) }
 }

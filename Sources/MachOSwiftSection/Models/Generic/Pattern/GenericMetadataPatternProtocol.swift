@@ -8,7 +8,11 @@ import MachOBase
 /// which the value and class patterns extend by C++ inheritance; here they
 /// share it by conforming to ``GenericMetadataPatternProtocol``.
 public protocol GenericMetadataPatternLayout: LayoutProtocol {
+    /// Allocates and populates the metadata.
     var instantiationFunction: RelativeDirectRawPointer { get }
+    /// Finishes an incomplete instantiation. **Null is meaningful**: it says
+    /// the instantiation function always produces complete metadata and no
+    /// second pass is needed.
     var completionFunction: RelativeDirectRawPointer { get }
     var patternFlags: GenericMetadataPatternFlags { get }
 }
@@ -21,34 +25,23 @@ public protocol GenericMetadataPatternLayout: LayoutProtocol {
 /// Which conformer to resolve is decided by the descriptor's kind:
 /// ``GenericClassMetadataPattern`` for a class, ``GenericValueMetadataPattern``
 /// for a struct or enum.
+/// > Note: the two function pointers in the shared header —
+/// > `instantiationFunction` and `completionFunction` — are read with
+/// > `resolvedDirectOffset(from:)` at the concrete type, never through this
+/// > protocol. A key path formed here would address a layout witness rather
+/// > than a stored property, and the offset lookup behind that helper
+/// > answers nil for it.
 public protocol GenericMetadataPatternProtocol: ResolvableLocatableLayoutWrapper where Layout: GenericMetadataPatternLayout {
     /// Number of ``GenericMetadataPartialPattern``s trailing the pattern.
     var numberOfTrailingPartialPatterns: Int { get }
-
-    /// File offset of the function that allocates and populates the
-    /// metadata, or `nil` for a null pointer.
-    ///
-    /// A requirement rather than a shared implementation because resolving it
-    /// needs the field's offset within the CONCRETE layout, and a key path
-    /// formed against the layout protocol addresses a witness rather than a
-    /// stored property — `MemoryLayout.offset(of:)` answers nil for it.
-    var instantiationFunctionOffset: Int? { get }
-
-    /// File offset of the function that finishes an incomplete
-    /// instantiation, or `nil` when there is none — in which case the
-    /// instantiation function must always produce complete metadata. A
-    /// requirement for the same reason as ``instantiationFunctionOffset``.
-    var completionFunctionOffset: Int? { get }
 }
 
 extension GenericMetadataPatternProtocol {
-    public var patternFlags: GenericMetadataPatternFlags { layout.patternFlags }
-
     /// Whether a partial pattern for extra data trails this pattern.
-    public var hasExtraDataPattern: Bool { patternFlags.hasExtraDataPattern }
+    public var hasExtraDataPattern: Bool { layout.patternFlags.hasExtraDataPattern }
 
     /// Whether instantiated metadata carries a trailing flag word.
-    public var hasTrailingFlags: Bool { patternFlags.hasTrailingFlags }
+    public var hasTrailingFlags: Bool { layout.patternFlags.hasTrailingFlags }
 
     /// Location of the first trailing ``GenericMetadataPartialPattern``, in
     /// the same coordinate space as ``offset``.

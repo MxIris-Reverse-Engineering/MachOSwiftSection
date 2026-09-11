@@ -30,8 +30,10 @@ import MachOBase
 public struct AccessibleFunctionRecord: ResolvableLocatableLayoutWrapper {
     public struct Layout: LayoutProtocol {
         public let name: RelativeDirectPointer<String>
+        /// Null for a non-generic function — the only nullable pointer here.
         public let genericEnvironment: RelativeDirectRawPointer
         public let functionType: RelativeDirectPointer<MangledName>
+        /// The fully abstracted entry point. Non-nullable in the ABI.
         public let function: RelativeDirectRawPointer
         public let flags: AccessibleFunctionFlags
     }
@@ -47,27 +49,8 @@ public struct AccessibleFunctionRecord: ResolvableLocatableLayoutWrapper {
 }
 
 extension AccessibleFunctionRecord {
-    public var flags: AccessibleFunctionFlags { layout.flags }
-
     /// Whether this is a `distributed` actor function.
-    public var isDistributed: Bool { flags.contains(.isDistributed) }
-
-    /// File offset of the fully abstracted entry point. Pure pointer
-    /// arithmetic on the record's own offset — no reader involved, same
-    /// contract as ``MethodDescriptor/implementationOffset``. The pointer is
-    /// non-nullable in the ABI, so `nil` means the record is malformed.
-    public var functionOffset: Int? {
-        guard layout.function.isValid else { return nil }
-        return layout.function.resolveDirectOffset(from: offset(of: \.function))
-    }
-
-    /// File offset of the generic environment describing the function's
-    /// generic signature, or `nil` for a non-generic function (the pointer is
-    /// nullable).
-    public var genericEnvironmentOffset: Int? {
-        guard layout.genericEnvironment.isValid else { return nil }
-        return layout.genericEnvironment.resolveDirectOffset(from: offset(of: \.genericEnvironment))
-    }
+    public var isDistributed: Bool { layout.flags.contains(.isDistributed) }
 }
 
 // MARK: - MachO Reading
@@ -86,8 +69,11 @@ extension AccessibleFunctionRecord {
         try layout.functionType.resolve(from: offset(of: \.functionType), in: machO)
     }
 
+    /// The generic environment describing the function's generic signature,
+    /// or `nil` for a non-generic function — the only nullable pointer in the
+    /// record.
     public func genericEnvironment<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> GenericEnvironment? {
-        guard let genericEnvironmentOffset else { return nil }
+        guard let genericEnvironmentOffset = resolvedDirectOffset(from: \.genericEnvironment) else { return nil }
         return try GenericEnvironment.resolve(from: genericEnvironmentOffset, in: machO)
     }
 }
@@ -114,9 +100,10 @@ extension AccessibleFunctionRecord {
     }
 
     /// The entry point's location as an address in `context` (a file offset
-    /// for `MachOContext`, a pointer in-process).
+    /// for `MachOContext`, a pointer in-process). The pointer is non-nullable
+    /// in the ABI, so `nil` means the record is malformed.
     public func functionAddress<Context: ReadingContext>(in context: Context) throws -> Context.Address? {
-        guard let functionOffset else { return nil }
+        guard let functionOffset = resolvedDirectOffset(from: \.function) else { return nil }
         return try context.addressFromOffset(functionOffset)
     }
 }
