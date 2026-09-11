@@ -1549,6 +1549,41 @@
 
 ---
 
+## 2026-09-11 `LocatableLayoutWrapper` 三项要求收进宏（提案 locatable-layout-wrapping-macro）
+
+- **时间段**：2026-09-11（与同日的 opaque 类型实参修复各自独立）。
+- **动机**：`ResolvableLocatableLayoutWrapper` 的三项存储级要求 —— `var layout: Layout`、
+  `let offset: Int`、`init(layout:offset:)` —— 在 `Models/` 下被逐字手写了 97 遍，每处 7 行。
+  97 个 init 体只有「两条赋值语句谁先谁后」这一种差异，没有一处带自定义逻辑；真正承载信息的
+  只有嵌套的 `Layout` struct，样板把它埋在噪声里。
+- **关键决策与取舍**：
+  - **宏只生成三项要求，不生成 conformance**。协议名继续写在声明处，这样「谁是
+    `ResolvableLocatableLayoutWrapper`」在源码里仍然可搜，且
+    `BuiltinTypeDescriptor: ResolvableLocatableLayoutWrapper, TopLevelDescriptor` 这类多重
+    conformance 不必拆成一半手写一半生成。
+  - **97 处一次性全换**，不试点、不只对新代码生效——形状唯一，分批只会让两种写法长期并存。
+  - **改 `PublicMemberScanner` 认宏，而不是从 baseline 删掉 `layout` / `offset`**。这两个名字
+    被 170 个 baseline 文件中的 96 个注册为 public 成员，而扫描器读的是源码、不是宏展开，
+    样板一进宏就会让覆盖率不变式的「② extra」大面积变红。让扫描器见到
+    `@LocatableLayoutWrapping` 就补回这两个 key，约十行，96 个 baseline 与
+    `CoverageAllowlistEntries.swift` 一个字不动，覆盖率契约的含义完全不变；反过来做则要 regen
+    全部 baseline，且从此让宏生成的成员彻底脱离覆盖率视野。
+  - **命名 `@LocatableLayoutWrapping` 而非 `@LocatableLayout`**：与已有的、贴在 layout protocol
+    上的 `@Layout` 区分开——一个描述字段布局，一个让类型满足 `LocatableLayoutWrapper`。
+  - **不新建宏展开测试 target**：97 处真实用例加上 ABI 字面量基线（断言的正是从这些 wrapper
+    读出的绝对偏移）比一个合成展开测试更强。
+  - 顺带把三处偶然写成 `var offset` 的类型（`ProtocolDescriptor` / `ProtocolWitnessTable` /
+    `AssociatedTypeRecord`）统一为 `let`——全库无赋值点，是历史偶然差异。
+- **落地模块**：`MachOMacros`（新增 `LocatableLayoutWrappingMacro`）、`Utilities`（宏声明）、
+  `MachOSwiftSection`（96 个文件、97 处样板）、`MachOFixtureSupport`（扫描器补偿）。
+- **验证**：全量 `swift test --skip IntegrationTests` 绿；`MachOSwiftSectionCoverageInvariantTests`
+  四条不变式绿且 `__Baseline__/` 与 `CoverageAllowlistEntries.swift` 的 `git diff` 为空；
+  `-dump-macro-expansions` 抽查确认展开文本与被删掉的手写代码逐字一致。因展开产物逐字相同、
+  不触及 demangling / printing / indexing / reader 栈的任何逻辑，不跑渲染 A/B。
+- **关联文档**：[提案](../Evolutions/0027-locatable-layout-wrapping-macro.md)、
+  [TaskReports/2026-09-11-locatable-layout-wrapping-macro.md](TaskReports/2026-09-11-locatable-layout-wrapping-macro.md)。
+- **对应版本**：零 API 变化，输出逐字节不变，随下一次发布。
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节
