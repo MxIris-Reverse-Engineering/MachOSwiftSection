@@ -5,5 +5,6 @@ import SwiftSyntaxMacros
 struct MachOMacroPlugin: CompilerPlugin {
     let providingMacros: [Macro.Type] = [
         LayoutMacro.self,
+        LocatableLayoutWrappingMacro.self,
     ]
 }
