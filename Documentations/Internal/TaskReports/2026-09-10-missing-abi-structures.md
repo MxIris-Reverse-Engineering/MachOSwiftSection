@@ -70,8 +70,8 @@ actor 的运行时结构（Mach-O 里没有落点）。
 1. **协议扩展里的 key path 拿不到存储属性偏移**。`GenericMetadataPatternProtocol` 的共享实现
    里写 `offset(of: \.instantiationFunction)`，key path 是对 Layout **协议**成型的，指向
    witness 而不是存储属性，`MemoryLayout.offset(of:)` 返回 nil ——
-   `LocatableLayoutWrapper` 那里是 `!` 强解，所以**编译通过、运行时 trap**。改成协议要求由
-   各 conformer 实现。
+   `LocatableLayoutWrapper` 那里是 `!` 强解，所以**编译通过、运行时 trap**。最终形态是两个
+   函数指针都由各 conformer 用 `resolvedDirectOffset(from:)` 在具体类型上读（见下面的收尾）。
 2. **`readElement(at:)` 被推断成 `Optional<Pointer<…>>`**。`globalActorType` 直接
    `return try context.readElement(...)` 给一个 `ConstMetadataPointer<Metadata>?` 返回值，
    读的是另一种内存形状，**静默返回 nil**，测试里表现为"全局 actor 读不出来"。必须先用
@@ -91,3 +91,59 @@ actor 的运行时结构（Mach-O 里没有落点）。
 - SwiftLayout 改用 pattern 里的值见证表。
 - 解析 metadata source 的小语法。
 - 按 `…Tu` / `…Twc` 符号名查 offset 的便利入口（按提案 0018 的分工属于 `SwiftInspection`）。
+
+## 收尾（2026-09-11）：per-field offset 属性全部退役
+
+用户审阅后指出这批里那一堆 `functionOffset` / `destroyOffset` / `patternOffset` …… 属性没有
+意义——每一个都是同样的三行（判空、取字段位置、加存储的增量），而 key path 本身已经在调用点
+写出了字段名。落地形态是 `MachOPointers` 里一个共享 helper：
+
+```swift
+extension LocatableLayoutWrapper {
+    public func resolvedDirectOffset(from keyPath: KeyPath<Layout, RelativeDirectRawPointer>) -> Int?
+}
+```
+
+连带处理的三件事：
+
+1. 提案 0018 的五个既有 `implementationOffset`（`MethodDescriptor` /
+   `MethodOverrideDescriptor` / `MethodDefaultOverrideDescriptor` / `ProtocolRequirement` /
+   `ResilientWitness`）是公开 API，**名字保留**，实现改成一行。
+2. `TypeGenericContextDescriptorHeader` 与 `SingletonMetadataInitialization` 的 Layout 字段
+   从裸 `RelativeOffset`（`Int32`）改成 `RelativeDirectRawPointer`——它们本来就是相对直接
+   指针，不改的话这五个属性用不上 helper，会成为仅剩的手写特例。
+3. 被删掉的属性文档里那些"null 是有意义的"事实（null relocation function 表示走
+   `swift_relocateClassMetadata`、null ivar destroyer 表示不需要、union 字段的判据）全部搬到
+   对应 Layout 字段的注释上，没有丢。
+
+测试侧：被删成员对应的 `@Test func` 合并进各 Suite 的 `layout()`，断言一条不少；
+`registeredTestMethodNames` 同步收缩。全量重跑 `regen-baselines` 后 diff 只剩每个 baseline 里
+那一行注册名列表——**没有任何数值漂移**，这正是纯重构该有的样子。
+
+## 收尾之二（2026-09-11）：纯转发属性也删掉
+
+用户接着指出 `classFlags` 这类属性同样不用写——`LayoutWrapper` 是 `@dynamicMemberLookup`，
+`layout` 的字段本来就能以 `record.field` 直接读。按这个原则删掉的有：
+
+- 纯转发（类型完全一致）：`expectedContextSize`、`allocationSize`、`mallocTypeIdentifier`、
+  `flags`、`classFlags` ×2、`patternFlags`、`FunctionTypeMetadata.flags`。
+- 只做 `Int(...)` 加宽的：`offsetInWords` / `sizeInWords`、三个
+  `…OffsetInWords`、`CaptureDescriptor` 的三个计数。这些按 `FieldDescriptor` /
+  `TupleTypeMetadata` 的既有做法改成在使用点 `.cast()`；留着更糟——同名而类型不同的属性会
+  **遮蔽** dynamic member，读代码的人看不出 `record.numberOfCaptureTypes` 到底是 `Int` 还是
+  `UInt32`。
+
+保留的是真正有内容的访问器：解码位域的（`isDistributed`、`hasExtraDataPattern`、
+`metadataKind`…）、做指针算术的（`size`、`partialPatternsOffset`、`actualSize`…）、
+以及 indirectable 指针那一路（`valueWitnessesOffset` / `valueWitnessesIsIndirect`，它有
+"间接时不落在本镜像内"的真实逻辑，不是三行模板）。
+
+**一个当场证伪的假设**：我以为 dynamic member lookup 在存在类型上也能用，于是先把
+`GenericMetadataPatternProtocol.patternFlags` 删了。编译器直接拒绝——
+`member 'patternFlags' cannot be used on value of type 'any GenericMetadataPatternProtocol'`，
+因为 key path 的 root 是关联类型。那条断言各具体 Suite 的 `layout()` 本来就覆盖了，所以最终
+是从协议 Suite 里移除，而不是把属性加回来。
+
+测试侧同样把被删成员的 `@Test` 合并进 `layout()`（协议 Suite 没有 `layout()`，并入
+`hasExtraDataPattern()`），`registeredTestMethodNames` 同步收缩。重跑 `regen-baselines` 后
+diff 仍只有注册名列表那一行，**没有数值漂移**。
