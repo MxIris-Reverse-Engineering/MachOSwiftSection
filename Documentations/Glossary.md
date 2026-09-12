@@ -228,6 +228,13 @@ Swift runtime 的 descriptor 布局惯例：固定头之后按 flags 跟着可�
 
 - **主要出现在**：`Sources/MachOSwiftSection/Models/`（各 wrapper 的 `initialize` 尾部解析）
 
+### type-construction evaluation（类型构造求值）
+
+离线读 kind-9 accessor thunk 的方法：不执行 thunk，按指令顺序做符号求值——寄存器和栈槽里放「类型表达式」（参数缓冲区第 k 个词、某 descriptor 的 accessor 以若干实参调用的结果、常量 metadata 地址、mangled name 实例化）而不是数值。thunk 只用几种运行时入口（泛型类型的 metadata accessor、`swift_getWitnessTable`、`__swift_instantiateConcreteTypeFromMangledName`）构造类型，每一种的语义都是类型层面的，所以函数返回时 `x0` 里的表达式就是答案。条件跳转能判定的（运行时能力标志、已知立即数）直接判定，判定不了的（版本检查的结果）按「假设为假 / 假设为真」各跑一遍，两次结果即 `if #available` 的两支。与「查表」读法（只认 `csel` 的两个操作数或分支里唯一一次调用）的区别：后者忽略了尾调用，会把 `ModifiedContent<…, X>` 读成 `X`、把中间调用的结果当答案。
+
+- **主要出现在**：`Sources/SwiftThunkAnalysis/Analysis/ThunkTypeEvaluator.swift`、`AccessorThunkAnalyzer.swift`
+- **延伸阅读**：[提案 0029](Evolutions/0029-thunk-type-construction-evaluation.md)、[提案 0028](Evolutions/0028-offline-opaque-accessor-thunk-resolution.md)
+
 ### union interface（并集接口）
 
 `evolution --interface` 的输出形态：N 个版本所有声明的**并集**只渲染一次的 Swift 接口——每条声明由「最后一个拥有它的版本」的模型与 printer 渲染文本，变化写进生命周期注解，同一成员改签名不裂成多行。与「逐 transition 串联 diff」（同一声明重复出现 N−1 次）和「只渲染最新版 + since 注解」（丢中间版本细节）相对。排序规则：最新版本声明序为脊柱，不在最新版的声明按其最后存在版本的顺序追加。

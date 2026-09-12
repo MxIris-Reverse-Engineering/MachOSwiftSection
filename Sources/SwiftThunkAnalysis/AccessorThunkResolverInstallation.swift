@@ -11,8 +11,8 @@ import SwiftDeclarationRendering
 public struct DisassemblingAccessorThunkResolver: AccessorThunkResolving {
     public init() {}
 
-    public func underlyingTypes(forAccessorThunkAt offset: Int, in machO: MachOFile) -> [ConditionalUnderlyingType] {
-        guard let resolved = try? AccessorThunkReader.read(thunkAtOffset: offset, in: machO) else { return [] }
+    public func underlyingTypes(forAccessorThunkAt offset: Int, in machO: MachOFile, ownerLayout: AccessorThunkOwnerLayout) -> [ConditionalUnderlyingType] {
+        guard let resolved = try? AccessorThunkReader.read(thunkAtOffset: offset, in: machO, ownerLayout: ownerLayout) else { return [] }
         return resolved.underlyingTypes.map { underlyingType in
             ConditionalUnderlyingType(
                 availability: availabilityCondition(

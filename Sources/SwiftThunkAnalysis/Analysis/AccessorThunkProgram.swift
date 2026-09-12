@@ -57,6 +57,9 @@ public struct ThunkCandidate: Sendable, Hashable {
         case metadata(address: UInt64)
         /// A metadata accessor function; the type is whatever it returns.
         case metadataAccessor(address: UInt64)
+        /// A type the branch *builds* — read symbolically by
+        /// ``ThunkTypeEvaluator`` rather than looked up.
+        case constructed(ThunkTypeExpression)
     }
 
     public let reference: Reference
@@ -79,9 +82,10 @@ public enum ThunkAnalysisLimitation: Sendable, Hashable {
     case noRecognizedShape
     /// The version check was found, but what it selects between was not.
     case selectionNotRecognized
-    /// A branch was located but does not reduce to a single candidate. The
-    /// count is how many calls it makes: more than one means the branch builds
-    /// its type rather than looking it up, which needs symbolic execution.
+    /// A branch was located but neither reduces to a single lookup nor
+    /// evaluates symbolically — a call it makes is one the environment does
+    /// not know, or an argument it passes could not be named. The count is
+    /// how many calls it makes.
     case branchIsNotASingleLookup(condition: ThunkCandidate.Condition, callCount: Int)
     /// The condition code on a `csel` is not one the analysis models, so which
     /// branch is which cannot be decided.

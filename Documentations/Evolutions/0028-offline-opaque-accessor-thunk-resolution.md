@@ -446,8 +446,11 @@ extension AssociatedTypeWitnessProjection {
 
 ### 仍然不做
 
-- 剩余 5 条离线未读引用：`DefinesSearchCompletionModifier.Body` 那个 thunk，一支是真实构造代码链（要符号
-  执行），另一支调的不是普通 metadata accessor。进程内它由 runtime 答出。
+- ~~剩余 5 条离线未读引用：`DefinesSearchCompletionModifier.Body` 那个 thunk，一支是真实构造代码链（要符号
+  执行），另一支调的不是普通 metadata accessor。~~ 由后续提案
+  [0029](0029-thunk-type-construction-evaluation.md) 的类型构造求值解掉
+  （SwiftUI 离线 6 → 0），并顺带修正了本提案两种「查表」读法各一处误读（`csel` 之后的尾调用被丢、`cbz`
+  分支里的尾调用没被数进调用次数）。
 - field record 里的 kind-9、x86_64——原提案就列在非目标里。
 - `accessor function at N` 的措辞——要同步动 swift-demangling 的 `NodePrinter`，另议。
 

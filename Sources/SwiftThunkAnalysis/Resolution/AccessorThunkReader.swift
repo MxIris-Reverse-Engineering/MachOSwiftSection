@@ -7,6 +7,7 @@ import MachOFoundation
 import MachOSwiftSection
 import Demangling
 @_spi(Internals) import SwiftInspection
+import SwiftDeclarationRendering
 
 @Loggable(.fileprivate, subsystem: "com.machoswiftsection.swift-thunk-analysis", category: "AccessorThunkReader")
 fileprivate protocol AccessorThunkReadingLogging {}
@@ -43,31 +44,48 @@ public struct ResolvedAccessorThunk: Sendable {
 public enum AccessorThunkReader: AccessorThunkReadingLogging {
     /// How many bytes to read before disassembling.
     ///
-    /// Generous relative to the ~14-instruction thunks measured, because the
-    /// function-boundary rule needs to see past a forward branch to decide
-    /// where the function ends; the decoder's own instruction cap is the real
-    /// bound.
+    /// Generous relative to the ~14-instruction lookup thunks measured,
+    /// because a type-construction thunk runs to some ninety instructions
+    /// and the function-boundary rule needs to see past a forward branch to
+    /// decide where the function ends; the decoder's own instruction cap is
+    /// the real bound.
     private static let machineCodeWindowSize = 1024
 
     /// Resolves the underlying types the thunk at `thunkOffset` yields.
     ///
     /// `thunkOffset` is the offset a kind-9 `accessorFunctionReference` node
     /// carries — which for a shared-cache image is *not* a file offset; see
-    /// ``ThunkAddressSpace``.
-    public static func read(thunkAtOffset thunkOffset: Int, in machO: MachOFile) throws -> ResolvedAccessorThunk {
-        let addressSpace = ThunkAddressSpace(of: machO)
+    /// ``ThunkAddressSpace``. `ownerLayout` describes the generic parameters
+    /// of the declaration the thunk belongs to, so an argument the thunk reads
+    /// out of its buffer can be named as that parameter.
+    public static func read(
+        thunkAtOffset thunkOffset: Int,
+        in machO: MachOFile,
+        ownerLayout: AccessorThunkOwnerLayout = .unknown
+    ) throws -> ResolvedAccessorThunk {
+        let environment = MachOThunkEnvironment(machO: machO)
+        let addressSpace = environment.addressSpace
         guard let thunkAddress = addressSpace.address(forOffset: thunkOffset) else {
             return ResolvedAccessorThunk(availabilityCheck: nil, underlyingTypes: [], limitations: [.noRecognizedShape])
         }
 
         let machineCode = Data(try machO.readElements(offset: thunkOffset, numberOfElements: machineCodeWindowSize) as [UInt8])
-        let instructions = try CapstoneThunkDecoder.decodeFunction(machineCode: machineCode, startAddress: thunkAddress)
-        let program = AccessorThunkAnalyzer.analyze(instructions: instructions)
+        let instructions = try CapstoneThunkDecoder.decodeFunction(
+            machineCode: machineCode,
+            startAddress: thunkAddress,
+            maximumInstructionCount: CapstoneThunkDecoder.constructionMaximumInstructionCount,
+            isKnownFunction: { target in
+                if case .unknown = environment.callee(at: target) { return false }
+                return true
+            }
+        )
+        let program = AccessorThunkAnalyzer.analyze(instructions: instructions, environment: environment)
+        let nodeBuilder = ThunkTypeNodeBuilder(machO: machO, environment: environment, ownerLayout: ownerLayout)
 
         var underlyingTypes: [ResolvedUnderlyingType] = []
         var limitations = program.limitations
         for candidate in program.candidates {
-            guard let typeNode = typeNode(for: candidate.reference, addressSpace: addressSpace, in: machO) else {
+            guard let typeNode = typeNode(for: candidate.reference, nodeBuilder: nodeBuilder, addressSpace: addressSpace, in: machO) else {
                 limitations.append(.selectionNotRecognized)
                 continue
             }
@@ -84,21 +102,13 @@ public enum AccessorThunkReader: AccessorThunkReadingLogging {
 
     private static func typeNode(
         for reference: ThunkCandidate.Reference,
+        nodeBuilder: ThunkTypeNodeBuilder,
         addressSpace: ThunkAddressSpace,
         in machO: MachOFile
     ) -> Node? {
         switch reference {
         case .metadata(let address):
-            guard let offset = addressSpace.offset(forAddress: address) else { return nil }
-            // The metadata symbol first: `…VN` is an *exported* symbol, so it
-            // survives the stripping that removes the thunk's own
-            // `_get_type_metadata …` symbol, and it carries the complete
-            // mangled type. Measured on SwiftUI: one of
-            // `ResolvedMenuStyle.Body`'s two candidates is named this way.
-            if let node = typeNodeFromMetadataSymbol(atOffset: offset, in: machO) { return node }
-            // Otherwise go through the record: a nominal type's metadata
-            // stores its context descriptor in the word after the kind.
-            return typeNodeFromMetadataRecord(atOffset: offset, in: machO)
+            return MetadataNaming.typeNode(forMetadataAt: address, addressSpace: addressSpace, in: machO)
         case .metadataAccessor(let address):
             // An accessor carries no symbol in a stripped image, so the way
             // back to a name is the descriptor that points *at* it.
@@ -112,58 +122,8 @@ public enum AccessorThunkReader: AccessorThunkReadingLogging {
                 #log(.info, "could not name the accessor at offset \(offset, privacy: .public): \(String(describing: error), privacy: .public)")
                 return nil
             }
-        }
-    }
-
-    private static func typeNodeFromMetadataSymbol(atOffset offset: Int, in machO: MachOFile) -> Node? {
-        guard let symbols = machO.symbols(offset: offset) else { return nil }
-        for symbol in symbols {
-            guard let symbolNode = try? SymbolicDemangler.demangleSymbol(for: symbol, in: machO) ?? nil else { continue }
-            // `…VN` demangles to a `typeMetadata` node wrapping the type.
-            guard let metadataNode = symbolNode.first(of: Node.Kind.typeMetadata),
-                  let typeNode = metadataNode.firstChild
-            else { continue }
-            return typeNode
-        }
-        return nil
-    }
-
-    /// Names a nominal type from its metadata record's context descriptor.
-    ///
-    /// Deliberately **not** through `ValueMetadataProtocol.descriptor(in:)`.
-    /// That goes `Pointer.resolve(in:)` → `MachORepresentableWithCache.resolveOffset(at:)`
-    /// → `fileOffset(of:)`, which for a shared-cache image answers in the file
-    /// accounting while every subsequent read expects the section accounting —
-    /// the two differ by a constant and the read fails `offsetOutOfBounds`
-    /// (measured on SwiftUI for *both* of `ResolvedMenuStyle.Body`'s
-    /// candidates). That is a pre-existing gap in reading absolute pointers
-    /// offline, not something this module introduced; the ABI model's own
-    /// reads go through *relative* pointers, which are pure arithmetic inside
-    /// one accounting and so never hit it.
-    ///
-    /// `resolveRebase(fileOffset:)` sidesteps it: it answers directly in the
-    /// accounting the rest of the read path uses.
-    private static func typeNodeFromMetadataRecord(atOffset offset: Int, in machO: MachOFile) -> Node? {
-        do {
-            let kind: StoredPointer = try machO.readElement(offset: offset)
-            guard let metadataKind = MetadataKind(rawValue: numericCast(kind)),
-                  metadataKind == .struct || metadataKind == .enum || metadataKind == .optional
-            else {
-                // A class's descriptor sits at a different offset and a
-                // non-nominal metadata record has none at all; naming either
-                // from this layout would read an unrelated word as a pointer.
-                #log(.info, "metadata at offset \(offset, privacy: .public) is not a value type (kind \(kind, privacy: .public))")
-                return nil
-            }
-            let descriptorFieldOffset = offset + StructMetadata.descriptorOffset
-            guard let descriptorOffset = machO.resolveRebase(fileOffset: descriptorFieldOffset) else { return nil }
-            // Annotated because `ContextDescriptorWrapper` vends both a
-            // `Self`- and a `Self?`-returning `resolve(from:in:)`.
-            let descriptor: ContextDescriptorWrapper = try ContextDescriptorWrapper.resolve(from: Int(descriptorOffset), in: machO)
-            return try SymbolicDemangler.demangleContext(for: descriptor, in: machO)
-        } catch {
-            #log(.info, "could not name the metadata at offset \(offset, privacy: .public): \(String(describing: error), privacy: .public)")
-            return nil
+        case .constructed(let expression):
+            return nodeBuilder.typeNode(for: expression)
         }
     }
 }

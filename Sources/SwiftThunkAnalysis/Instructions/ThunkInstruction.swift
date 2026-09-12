@@ -21,9 +21,23 @@ public struct ThunkRegister: Sendable, Hashable, CustomStringConvertible {
     /// `xzr` / `wzr`, which reads as zero and discards what is written to it.
     public static let zeroRegister = ThunkRegister(number: 31)
 
+    /// `sp` / `wsp`. Numbered past the general-purpose file because it is
+    /// not one of them: encoding 31 means the zero register in most
+    /// instructions and the stack pointer only in the few that take it as a
+    /// base, and the two must never be confused — a load "from `xzr`" is
+    /// meaningless while a load from `sp` is how a type-construction thunk
+    /// reads back an argument buffer it just built.
+    public static let stackPointer = ThunkRegister(number: 32)
+
     public var isZeroRegister: Bool { number == ThunkRegister.zeroRegister.number }
 
-    public var description: String { isZeroRegister ? "zr" : "x\(number)" }
+    public var isStackPointer: Bool { number == ThunkRegister.stackPointer.number }
+
+    public var description: String {
+        if isZeroRegister { return "zr" }
+        if isStackPointer { return "sp" }
+        return "x\(number)"
+    }
 }
 
 /// The condition an ARM64 conditional instruction tests.
@@ -76,11 +90,29 @@ public enum ThunkOperation: Sendable, Hashable {
     /// unknown and leaves the read to a caller that has the Mach-O.
     case loadFromMemory(destination: ThunkRegister, base: ThunkRegister, displacement: Int64)
 
+    /// `ldp <first>, <second>, [<base>, #<displacement>]` — two consecutive
+    /// words. `adjustsBase` is the write-back form (`[sp], #32`,
+    /// `[sp, #-32]!`), which also moves the base register: a stack model
+    /// keyed on that register's old value has nothing valid left after it.
+    case loadPairFromMemory(first: ThunkRegister, second: ThunkRegister, base: ThunkRegister, displacement: Int64, adjustsBase: Bool)
+
+    /// `str <source>, [<base>, #<displacement>]`.
+    case storeToMemory(source: ThunkRegister, base: ThunkRegister, displacement: Int64)
+
+    /// `stp <first>, <second>, [<base>, #<displacement>]`; `adjustsBase` as
+    /// for ``loadPairFromMemory(first:second:base:displacement:adjustsBase:)``.
+    case storePairToMemory(first: ThunkRegister, second: ThunkRegister, base: ThunkRegister, displacement: Int64, adjustsBase: Bool)
+
     /// `bl #<target>`.
     case call(target: UInt64)
 
     /// `b #<target>`.
     case branch(target: UInt64)
+
+    /// `br <register>` / `braa <register>, <modifier>` — an indirect jump.
+    /// Control does not come back, so it ends a function the way a tail
+    /// call does; where it goes is not tracked.
+    case indirectBranch(register: ThunkRegister)
 
     /// `cbz <register>, #<target>`.
     case branchIfZero(register: ThunkRegister, target: UInt64)
