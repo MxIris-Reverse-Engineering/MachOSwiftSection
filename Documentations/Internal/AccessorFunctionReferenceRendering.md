@@ -29,9 +29,11 @@ Swift 的 field record 里存的类型名通常是可 demangle 的 mangled name�
 
 明确的限制：`case type(accessor function at 750396)` 依然不是合法 Swift——离线本就还原不出类型名，这是诚实标注（与 dump 的历史行为一致），不是可编译输出。要真类型名需要下面两层。
 
-### 层 1：进程内真解析（待做）
+### 层 1：进程内真解析（关联类型 witness 已实现，2026-09-11，提案 0028 收尾批次；field record 待做）
 
 kind-9 的设计意图就是「调函数拿 metadata」，进程内完全可以照做。库里已有同类先例：layout 注释路径的 `resolveFieldMetatype` 对每个非泛型字段都在调 `getTypeByMangledNameInContext`，特化替换路径（`SpecializedMetadataNodeSubstitution`）也在用 `_mangledTypeName` + `demangleAsNode` 回读节点，所以不引入新的风险类别。
+
+**关联类型 witness 这一半已落地**（`SwiftDeclarationRendering/InProcessAccessorFunctionResolution.swift`）：`MachOImage` 上，opaque 展开后树里还留有 kind-9 引用时，把**整条 witness 的 mangled name** 交给 `swift_getTypeByMangledNameInContext`，context 是 conforming type 的 descriptor、实参是它 metadata 的泛型实参区——与 runtime 自己的 `swift_getAssociatedTypeWitnessSlow` 完全同一套调用（thunk 会读那块实参缓冲，所以必须传真实的区而不是 null），再 `_mangledTypeName` → `demangleAsNodeTransient` 回读。三个 witness 调用点（`AssociatedTypeDumper`、`SwiftDeclarationPrinter+Headers`、`SwiftDeclarationIndexer.resolvedWitnessProjections`）都走 `Node.resolveOpaqueType(witnessMangledName:conformingTypeName:in:)`。两处刻意不猜：**泛型 conformer** 没有实参就没有 metadata，runtime 对 conformer 本身就返回 nil（SwiftUI 17 条 kind-9 witness 里 12 条，`Slider` / `Toggle` / `TextField` / `Picker` 等）；**class conformer** 的泛型实参偏移不是常数，且没有实测样本，这条腿没接。实测 SwiftUI（macOS 26，dlopen 进测试进程）：17 条里 5 条由 runtime 答出，其中包括离线读不了的 `DefinesSearchCompletionModifier.Body`。runtime 只答当前系统这一支，「另一支是什么」仍是层 3 离线独有的事实。
 
 - 助手放 `MachOSwiftSection/Runtime/RuntimeFunctions.swift` 旁：`demangledNodeByResolvingAccessorFunction(for: MangledName, in: MachOImage) -> Node?`——整条 mangled name 交给 `swift_getTypeByMangledNameInContext`（runtime 会执行 thunk），成功后 `_mangledTypeName(metatype)` → `demangleAsNode` 得到真实节点。
 - 两个挂接点（kind-9 只在 Reflection/FieldMetadata 两个 role 下发出，即 field record，所以这两处覆盖全部实际出现）：`FieldRecord.demangledTypeNode(in:)`（`SwiftDeclaration/Extensions.swift`，interface/模型索引路径）与 `TypedDumper.fieldDemangledTypeNode(for:)`（`SwiftDump`，dump 路径）。mangled name 含 `0x09` 控制字节且 reader 是进程内 `MachOImage` 时先走助手，失败（泛型上下文缺实参等）回落层 0 占位。
@@ -57,6 +59,22 @@ thunk 里先调 `__isPlatformVersionAtLeast`，再按结果在两个类型之间
 - 剩余 5 条来自一个「一支是真实构造代码链」的 thunk，那一支**刻意不猜**（取第一个 `bl` 会给出真实但
   错误的类型）。
 - 完整设计与实测数据见[提案 0028](../Evolutions/0028-offline-opaque-accessor-thunk-resolution.md)。
+
+**收尾批次（2026-09-11，同提案）**补齐了三件事：
+
+- **回落不再抹掉整棵树**。此前 rewriter 在 underlying type 不是 `.type` 节点时整支放弃，于是
+  `printOpaqueType` 打出 `opaque type symbolic reference 0x<描述符偏移>.0`，把周围的 `ModifiedContent<…>`
+  链和全部泛型实参一起丢掉。现在含 kind-9 的树照常走实参替换与嵌套展开，kind-9 位置由层 0 那句
+  `accessor function at N` 兜底——不开 trait 时 17 条全部变成「类型里嵌一个未读引用」，开 trait 后剩下
+  5 条亦然。文案沿用而不换，是因为它出自上游 `NodePrinter`、两条打印路径有 parity 测试钉着、快照归一化
+  也认这个前缀。
+- **另一支进了模型**。`AssociatedTypeWitnessProjection.conditionalCandidates`：每支一条，带版本条件、
+  thunk 那一支的类型、以及整条 witness 按该分支替换后的全文（宿主不必知道 thunk 嵌在树的哪一层）。
+  `Node.resolveOpaqueTypeCollectingConditionalCandidates(in:)` 用同一个 rewriter 跑一遍记下候选，再对
+  每个非默认分支按选择重跑一遍——每条 witness 一个双向 thunk（实测全部如此）就多一趟，没有笛卡尔积。
+  同一批顺带让索引期投影解析 opaque（此前 ABI 快照里每个 `some View` 的 `Body` 都是裸偏移，跨版本 diff
+  全报 modified）。
+- **进程内路径**见层 1。
 
 注意这一层解的是**关联类型**里的 opaque underlying type。**field record 里的 kind-9**（本文档开头那些
 `case type(accessor function at 750396)`）机制相同但尚未接入——层 0 的占位渲染对它们仍然有效。
