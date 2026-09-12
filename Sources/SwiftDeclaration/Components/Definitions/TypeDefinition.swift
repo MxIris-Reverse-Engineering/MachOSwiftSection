@@ -208,9 +208,16 @@ public final class TypeDefinition: Definition {
         // references, stdlib types) deduplicate across the whole image —
         // the per-type builder+freeze store this replaced could only
         // deduplicate within one type.
+        // A field whose type is a kind-9 accessor reference (its mangling
+        // needs a runtime the deployment target predates — a `~Copyable`
+        // generic, say) is read offline through the same thunk reader the
+        // opaque-type path uses; the thunk's arguments are this type's own
+        // generic arguments.
+        let accessorThunkOwnerLayout = AccessorThunkOwnerLayout(genericContext: try typeContextDescriptor.genericContext(in: machO))
         var indexedFields: [FieldDefinition] = []
         for record in records {
             let typeNode = try record.demangledTypeNode(in: machO)
+                .resolvingAccessorFunctionReferences(in: machO, ownerLayout: accessorThunkOwnerLayout)
             let name = try record.fieldName(in: machO)
             var fieldFlags = FieldFlags()
             if name.hasLazyPrefix {

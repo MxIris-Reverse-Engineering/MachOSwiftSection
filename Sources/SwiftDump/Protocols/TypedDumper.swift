@@ -196,7 +196,13 @@ extension TypedDumper {
         if let substituted = substitutedFieldNode(for: mangledTypeName) {
             return substituted
         }
-        return try SymbolicDemangler.demangleType(for: mangledTypeName, in: machO)
+        let typeNode = try SymbolicDemangler.demangleType(for: mangledTypeName, in: machO)
+        guard typeNode.contains(Node.Kind.accessorFunctionReference) else { return typeNode }
+        // A kind-9 field type: read the thunk offline (the registered
+        // resolver, `MachOFile` only), naming its arguments as this type's
+        // generic parameters — the same leg `TypeDefinition.index` takes.
+        let ownerLayout = AccessorThunkOwnerLayout(genericContext: try dumped.descriptor.genericContext(in: machO))
+        return typeNode.resolvingAccessorFunctionReferences(in: machO, ownerLayout: ownerLayout)
     }
 
     /// Splits the SwiftStdlib 5.3 availability gate (required for
