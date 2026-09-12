@@ -1,5 +1,3 @@
-#if THUNK_ANALYSIS
-
 import Foundation
 import MachOKit
 import MachOFoundation
@@ -75,5 +73,3 @@ package final class MetadataAccessorIndex: Sendable {
         return relativePointer.resolveDirectOffset(from: descriptor.offset + descriptor.layout.offset(of: .accessFunctionPtr))
     }
 }
-
-#endif

@@ -1,5 +1,3 @@
-#if THUNK_ANALYSIS
-
 import Foundation
 import Testing
 import MachOKit
@@ -22,10 +20,6 @@ import SwiftThunkAnalysis
 /// stays green across upgrades while still failing the moment the evaluator
 /// reads a branch wrong; and a wrong reading here is a *real, fully
 /// qualified, wrong type*, which no eyeballing of the output would catch.
-// The resolver is scoped to each test's task (`AccessorThunkResolution.taskResolver`),
-// never installed process-wide: suites run in parallel, and a process-wide
-// install turned every snapshot suite's kind-9 placeholders into real types
-// for as long as it lasted.
 @Suite(.serialized)
 struct ConstructedThunkOracleTests {
     /// The two sides spell a private type's context differently and both
@@ -76,9 +70,7 @@ struct ConstructedThunkOracleTests {
                     in: machOImage
                 ) else { continue }
 
-                let offlineNode = try AccessorThunkResolution.$taskResolver.withValue(DisassemblingAccessorThunkResolver()) {
-                    try fileNode.resolveOpaqueType(in: machOFile)
-                }
+                let offlineNode = try fileNode.resolveOpaqueType(in: machOFile)
                 let offlineText = Self.normalizingPrivateContexts(await offlineNode.print(using: DemangleOptions.default))
                 let runtimeText = Self.normalizingPrivateContexts(await runtimeNode.print(using: DemangleOptions.default))
                 compared += 1
@@ -92,5 +84,3 @@ struct ConstructedThunkOracleTests {
         #expect(mismatches.isEmpty, "the offline reading disagrees with the runtime:\n\(mismatches.joined(separator: "\n\n"))")
     }
 }
-
-#endif

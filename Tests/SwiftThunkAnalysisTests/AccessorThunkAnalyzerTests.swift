@@ -1,5 +1,3 @@
-#if THUNK_ANALYSIS
-
 import Foundation
 import Testing
 @testable import SwiftThunkAnalysis
@@ -299,5 +297,3 @@ struct AccessorThunkAnalyzerTests {
         #expect(tracker.address(of: register(16)) == nil)
     }
 }
-
-#endif

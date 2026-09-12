@@ -1,5 +1,3 @@
-#if THUNK_ANALYSIS
-
 import Foundation
 import Testing
 import MachOKit
@@ -18,10 +16,6 @@ import SwiftThunkAnalysis
 /// the fixture source declares (`NoncopyableFieldHolderTest.resource` is a
 /// `NoncopyableResourceTest`, `boxedInteger` a
 /// `NoncopyableGenericBoxTest<Int>`).
-// The resolver is scoped to each test's task (`AccessorThunkResolution.taskResolver`),
-// never installed process-wide: suites run in parallel, and a process-wide
-// install turned every snapshot suite's kind-9 placeholders into real types
-// for as long as it lasted.
 @Suite(.serialized)
 final class FieldRecordThunkResolutionTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     private struct ResolvedField {
@@ -50,9 +44,7 @@ final class FieldRecordThunkResolutionTests: MachOSwiftSectionFixtureTests, @unc
     }
 
     @Test func resolvesTheFixturesNoncopyableFieldsToTheirDeclaredTypes() throws {
-        let fields = try AccessorThunkResolution.$taskResolver.withValue(DisassemblingAccessorThunkResolver()) {
-            try resolvedAccessorFields()
-        }
+        let fields = try resolvedAccessorFields()
         for field in fields { print("\(field.owner).\(field.name): \(field.text)") }
         #expect(!fields.isEmpty, "the fixture's AccessorFunctionReferences namespace is expected to carry kind-9 field records")
 
@@ -62,12 +54,14 @@ final class FieldRecordThunkResolutionTests: MachOSwiftSectionFixtureTests, @unc
         #expect(fields.allSatisfy { !$0.text.contains("accessor function at") }, "some field is still an unread reference")
     }
 
-    /// Without a resolver the reference stays, exactly as the snapshots pin.
-    @Test func withoutAResolverTheReferencesStay() throws {
-        let fields = try resolvedAccessorFields()
+    /// A thunk the reader cannot read stays in place as the honest
+    /// placeholder — pinned through a resolver that answers nothing, since the
+    /// disassembling one is the default for every task.
+    @Test func whenTheThunkCannotBeReadTheReferencesStay() throws {
+        let fields = try AccessorThunkResolution.$taskResolver.withValue(UnreadableAccessorThunkResolver()) {
+            try resolvedAccessorFields()
+        }
         #expect(!fields.isEmpty)
         #expect(fields.allSatisfy { $0.text.contains("accessor function at") })
     }
 }
-
-#endif

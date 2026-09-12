@@ -1,5 +1,3 @@
-#if THUNK_ANALYSIS
-
 import Foundation
 import Capstone
 
@@ -324,5 +322,3 @@ public enum CapstoneThunkDecoder {
         return nil
     }
 }
-
-#endif

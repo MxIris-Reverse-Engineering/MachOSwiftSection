@@ -1,5 +1,3 @@
-#if THUNK_ANALYSIS
-
 import Foundation
 import Testing
 import MachOKit
@@ -125,5 +123,3 @@ struct AccessorThunkReaderTests {
         #expect(offlineNames.allSatisfy { !$0.isEmpty })
     }
 }
-
-#endif

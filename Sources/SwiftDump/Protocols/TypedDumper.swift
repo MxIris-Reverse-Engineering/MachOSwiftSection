@@ -6,6 +6,7 @@ import MachOKit
 @_spi(Internals) import Demangling
 @_spi(Internals) import SwiftInspection
 import SwiftDeclarationRendering
+import SwiftThunkAnalysis
 
 package protocol TypedDumper: NamedDumper where Dumped: TopLevelType, Dumped.Descriptor: TypeContextDescriptorProtocol {
     associatedtype Metadata: MetadataProtocol

@@ -1,5 +1,3 @@
-#if THUNK_ANALYSIS
-
 import Foundation
 
 /// A type a thunk computes, written as what the instructions *say* rather
@@ -91,5 +89,3 @@ public struct EmptyThunkEvaluationEnvironment: ThunkEvaluationEnvironment {
     public func pointer(at address: UInt64) -> UInt64? { nil }
     public func slotSymbolName(at address: UInt64) -> String? { nil }
 }
-
-#endif

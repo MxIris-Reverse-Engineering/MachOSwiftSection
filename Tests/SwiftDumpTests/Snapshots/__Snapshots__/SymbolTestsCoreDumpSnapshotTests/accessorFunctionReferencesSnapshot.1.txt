@@ -24,8 +24,8 @@ struct SymbolTestsCore.AccessorFunctionReferences.NoncopyableGenericBoxTest<A>: 
     SymbolTestsCore.AccessorFunctionReferences.NoncopyableGenericBoxTest<>.wrapped.setter : A
 }
 struct SymbolTestsCore.AccessorFunctionReferences.NoncopyableFieldHolderTest: ~Swift.Copyable {
-    var resource: accessor function at <offset>
-    var boxedInteger: accessor function at <offset>
+    var resource: SymbolTestsCore.AccessorFunctionReferences.NoncopyableResourceTest
+    var boxedInteger: SymbolTestsCore.AccessorFunctionReferences.NoncopyableGenericBoxTest<Swift.Int>
     var trailingOrdinaryField: Swift.Int
 
     /* Allocator */
@@ -38,8 +38,8 @@ struct SymbolTestsCore.AccessorFunctionReferences.NoncopyableFieldHolderTest: ~S
     SymbolTestsCore.AccessorFunctionReferences.NoncopyableFieldHolderTest.trailingOrdinaryField.setter : Swift.Int
 }
 enum SymbolTestsCore.AccessorFunctionReferences.NoncopyablePayloadEnumTest: ~Swift.Copyable {
-    case holding(accessor function at <offset>)
-    case boxed(accessor function at <offset>)
+    case holding(SymbolTestsCore.AccessorFunctionReferences.NoncopyableResourceTest)
+    case boxed(SymbolTestsCore.AccessorFunctionReferences.NoncopyableGenericBoxTest<Swift.Int>)
     case empty
 
     /* Function */

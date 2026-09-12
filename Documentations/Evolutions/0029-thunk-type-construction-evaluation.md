@@ -14,7 +14,7 @@
 
 ## 方案
 
-**求值器**（`SwiftThunkAnalysis`，仍在 `ThunkAnalysis` trait 后面）：
+**求值器**（`SwiftThunkAnalysis`；trait 已于 2026-09-12 撤销，见 0028 决策日志）：
 
 - 指令词汇表补 `ldp` / `stp` / `str` / `ldur` / `stur`、`add x, sp, #k`、`retab` / `retaa`（视为返回，修掉现有解码器读过函数末尾的问题）、`br` / `braa`（视为尾调用）。`sp` 成为可跟踪的寄存器。
 - 值域：`argument(k)`（参数缓冲区第 k 个词）、`constantMetadata(address)`（`adrp` / `add` 得到的 `…VN` 常量）、`bound(descriptor, [值])`（某 accessor 以若干实参调用的结果）、`witnessTable`、`stackAddress(k)`、`unknown`。调用 accessor 时实参按 x1–x3 取，超过三个从 x1 指向的栈缓冲区取；实参里的见证表按被调类型的泛型签名跳过，只留类型实参。

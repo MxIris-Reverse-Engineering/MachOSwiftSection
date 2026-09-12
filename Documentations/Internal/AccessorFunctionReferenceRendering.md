@@ -53,7 +53,8 @@ kind-9 的设计意图就是「调函数拿 metadata」，进程内完全可以�
 thunk 里先调 `__isPlatformVersionAtLeast`，再按结果在两个类型之间二选一。两个答案都写在指令里，读出来
 不需要执行。
 
-- 模块：`SwiftThunkAnalysis`（SPM trait `ThunkAnalysis`，默认关闭）。
+- 模块：`SwiftThunkAnalysis`，`SwiftDeclarationRendering` 直接依赖它并调用读取器，没有开关（首次落地时是 SPM trait
+  后面的可选 target，2026-09-12 撤销，见提案 0028 决策日志）。
 - 覆盖两种形态：`cmp`/`csel` 在两个 metadata 地址之间选；`cbz` 分两支各调一个 metadata accessor。
 - 实测 SwiftUI 关联类型的裸地址 **17 → 5**，包含 RuntimeViewer issue #5 的 `FeedbackGenerator.Body`。
 - 剩余 5 条来自一个「一支是真实构造代码链」的 thunk，那一支**刻意不猜**（取第一个 `bl` 会给出真实但
@@ -65,8 +66,8 @@ thunk 里先调 `__isPlatformVersionAtLeast`，再按结果在两个类型之间
 - **回落不再抹掉整棵树**。此前 rewriter 在 underlying type 不是 `.type` 节点时整支放弃，于是
   `printOpaqueType` 打出 `opaque type symbolic reference 0x<描述符偏移>.0`，把周围的 `ModifiedContent<…>`
   链和全部泛型实参一起丢掉。现在含 kind-9 的树照常走实参替换与嵌套展开，kind-9 位置由层 0 那句
-  `accessor function at N` 兜底——不开 trait 时 17 条全部变成「类型里嵌一个未读引用」，开 trait 后剩下
-  5 条亦然。文案沿用而不换，是因为它出自上游 `NodePrinter`、两条打印路径有 parity 测试钉着、快照归一化
+  `accessor function at N` 兜底——读取器读不了的引用变成「类型里嵌一个未读引用」（首次落地时读取器只认两种
+  形态，剩下的 5 条即如此）。文案沿用而不换，是因为它出自上游 `NodePrinter`、两条打印路径有 parity 测试钉着、快照归一化
   也认这个前缀。
 - **另一支进了模型**。`AssociatedTypeWitnessProjection.conditionalCandidates`：每支一条，带版本条件、
   thunk 那一支的类型、以及整条 witness 按该分支替换后的全文（宿主不必知道 thunk 嵌在树的哪一层）。
@@ -109,7 +110,7 @@ witness 指向的 thunk 不查表而是**构造**类型：调 `_TagTraitWritingM
 `Synchronization.Mutex<SwiftUI.Drag.LazyItem<A>.State>`。
 
 实测（SwiftUI，macOS 26 共享缓存）：关联类型 witness 未读引用 17 → **0**，全量 dump 未解析的 kind-9 引用
-6 → **0**。层 0 的占位渲染只在不开 trait、或 thunk 调了不认识的函数时出现。
+6 → **0**。层 0 的占位渲染只在 thunk 调了不认识的函数时出现。
 
 ## 验证
 

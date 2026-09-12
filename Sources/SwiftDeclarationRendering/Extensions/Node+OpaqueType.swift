@@ -5,6 +5,7 @@ import MachOSwiftSection
 import Demangling
 import OrderedCollections
 @_spi(Internals) import SwiftInspection
+import SwiftThunkAnalysis
 
 /// Carries the logging floor onto the rewriter.
 ///
@@ -230,9 +231,8 @@ extension Node {
         ///
         /// Returning `nil` rather than the unchanged node is what keeps this
         /// additive: the caller falls through to the pre-existing path, so a
-        /// build with the `ThunkAnalysis` trait off — or a thunk shape the
-        /// analyzer does not read — renders byte-for-byte what it rendered
-        /// before.
+        /// thunk shape the reader does not read renders byte-for-byte what it
+        /// rendered before.
         ///
         /// The reference can sit anywhere in the tree, not just at its root:
         /// `SwiftUI.FeedbackGenerator.Body` carries one inside a
@@ -245,10 +245,10 @@ extension Node {
         /// ``AccessorThunkResolving`` vends to a host that wants to show them.
         private func resolvingAccessorFunctionReferences(in node: Node, ownerLayout: AccessorThunkOwnerLayout) -> Node? {
             guard node.contains(Node.Kind.accessorFunctionReference) else { return nil }
-            guard let resolver = AccessorThunkResolution.effectiveResolver, let machOFile = machO as? MachOFile else { return nil }
+            guard let machOFile = machO as? MachOFile else { return nil }
 
             let rewriter = AccessorFunctionReferenceRewriter(
-                resolver: resolver,
+                resolver: AccessorThunkResolution.effectiveResolver,
                 machO: machOFile,
                 ownerLayout: ownerLayout,
                 branchSelection: branchSelection,
@@ -395,12 +395,12 @@ extension Node {
     }
 
     /// Replaces the kind-9 accessor-function references a *field record's*
-    /// type carries with the types their thunks yield — offline, through the
-    /// registered ``AccessorThunkResolving``, with `ownerLayout` describing
-    /// the generic parameters of the type the field belongs to (the thunk's
-    /// argument buffer is that type's generic arguments). Answers `self`
-    /// unchanged when there is nothing to replace, no resolver is
-    /// registered, or the reader is in-process.
+    /// type carries with the types their thunks yield — offline, through
+    /// ``AccessorThunkResolution/effectiveResolver``, with `ownerLayout`
+    /// describing the generic parameters of the type the field belongs to (the
+    /// thunk's argument buffer is that type's generic arguments). Answers
+    /// `self` unchanged when there is nothing to replace or the reader is
+    /// in-process.
     ///
     /// The opaque-type path reaches the same rewriter through
     /// ``resolveOpaqueType(in:reportingDegradationTo:)``; this is the entry
@@ -410,10 +410,9 @@ extension Node {
         ownerLayout: AccessorThunkOwnerLayout
     ) -> Node {
         guard contains(Node.Kind.accessorFunctionReference),
-              let resolver = AccessorThunkResolution.effectiveResolver,
               let machOFile = machO as? MachOFile
         else { return self }
-        let rewriter = AccessorFunctionReferenceRewriter(resolver: resolver, machO: machOFile, ownerLayout: ownerLayout)
+        let rewriter = AccessorFunctionReferenceRewriter(resolver: AccessorThunkResolution.effectiveResolver, machO: machOFile, ownerLayout: ownerLayout)
         let rewritten = rewriter.rewrite(copy())
         return rewriter.didResolveAnyReference ? rewritten : self
     }

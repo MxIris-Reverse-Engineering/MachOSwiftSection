@@ -1,5 +1,3 @@
-#if THUNK_ANALYSIS
-
 import Foundation
 import Testing
 @testable import SwiftThunkAnalysis
@@ -253,5 +251,3 @@ struct ThunkTypeEvaluatorTests {
         #expect(candidate.reference == .constructed(.instantiatedFromMangledName(argumentAddresses: [0x6000_0100, 0x7000_0200])))
     }
 }
-
-#endif

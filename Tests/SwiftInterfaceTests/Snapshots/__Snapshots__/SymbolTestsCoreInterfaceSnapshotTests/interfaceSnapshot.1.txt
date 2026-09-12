@@ -35,9 +35,9 @@ enum AccessorFunctionReferences {
     }
     struct NoncopyableFieldHolderTest: ~Swift.Copyable {
         // Field offset: unknown (unsupported type kind AccessorFunctionReference)
-        var resource: accessor function at <offset>
+        var resource: SymbolTestsCore.AccessorFunctionReferences.NoncopyableResourceTest
         // Field offset: unknown (preceding field unresolved)
-        var boxedInteger: accessor function at <offset>
+        var boxedInteger: SymbolTestsCore.AccessorFunctionReferences.NoncopyableGenericBoxTest<Swift.Int>
         // Field offset: unknown (preceding field unresolved)
         // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
         var trailingOrdinaryField: Swift.Int
@@ -45,8 +45,8 @@ enum AccessorFunctionReferences {
         init(resource: SymbolTestsCore.AccessorFunctionReferences.NoncopyableResourceTest, boxedInteger: SymbolTestsCore.AccessorFunctionReferences.NoncopyableGenericBoxTest<Swift.Int>, trailingOrdinaryField: Swift.Int)
     }
     enum NoncopyablePayloadEnumTest: ~Swift.Copyable {
-        case holding(accessor function at <offset>)
-        case boxed(accessor function at <offset>)
+        case holding(SymbolTestsCore.AccessorFunctionReferences.NoncopyableResourceTest)
+        case boxed(SymbolTestsCore.AccessorFunctionReferences.NoncopyableGenericBoxTest<Swift.Int>)
         case empty
 
         func consumeFileDescriptor() -> Swift.Int

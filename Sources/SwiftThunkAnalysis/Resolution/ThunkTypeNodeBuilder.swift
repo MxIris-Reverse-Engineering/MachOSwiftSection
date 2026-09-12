@@ -1,5 +1,3 @@
-#if THUNK_ANALYSIS
-
 import Foundation
 import FoundationToolbox
 import MachOKit
@@ -7,7 +5,6 @@ import MachOFoundation
 import MachOSwiftSection
 import Demangling
 @_spi(Internals) import SwiftInspection
-import SwiftDeclarationRendering
 
 @Loggable(.fileprivate, subsystem: "com.machoswiftsection.swift-thunk-analysis", category: "ThunkTypeNodeBuilder")
 fileprivate protocol ThunkTypeNodeBuildingLogging {}
@@ -246,5 +243,3 @@ package enum MetadataNaming {
         }
     }
 }
-
-#endif

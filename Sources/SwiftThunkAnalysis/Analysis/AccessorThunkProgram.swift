@@ -1,5 +1,3 @@
-#if THUNK_ANALYSIS
-
 import Foundation
 
 /// The `__isPlatformVersionAtLeast(platform, major, minor, patch)` call a
@@ -111,5 +109,3 @@ public struct AccessorThunkProgram: Sendable, Hashable {
     /// Whether anything at all was recovered.
     public var isEmpty: Bool { candidates.isEmpty }
 }
-
-#endif

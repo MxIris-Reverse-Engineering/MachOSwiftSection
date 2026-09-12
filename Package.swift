@@ -76,17 +76,6 @@ extension Package.Dependency {
 
 let MachOKitVersion: Version = "0.46.1"
 
-/// Opt-in trait for `SwiftThunkAnalysis` — disassembling a metadata accessor
-/// thunk to recover what a kind-9 symbolic reference points at (evolution
-/// proposal `offline-opaque-accessor-thunk-resolution`).
-///
-/// **Off by default.** A downstream host that does not ask for it never
-/// compiles Capstone, and `SwiftThunkAnalysis` builds as an empty module whose
-/// every source file is `#if THUNK_ANALYSIS`. Note what the trait does NOT
-/// avoid: SwiftPM still *resolves and clones* the `swift-capstone` dependency
-/// either way — traits gate compilation, not checkout.
-let thunkAnalysisTrait = "ThunkAnalysis"
-
 let isSilentTest = envEnable("MACHO_SWIFT_SECTION_SILENT_TEST", default: false)
 
 var testSettings: [SwiftSetting] = []
@@ -189,9 +178,8 @@ extension Package.Dependency {
     /// Capstone's Swift bindings, used by `SwiftThunkAnalysis` to decode a
     /// metadata accessor thunk's instructions.
     ///
-    /// Its own architecture traits are forwarded conditionally, so enabling
-    /// `ThunkAnalysis` here compiles the ARM64 decoder **only** — the other
-    /// seventeen architectures Capstone ships stay out of the build.
+    /// Only its ARM64 trait is forwarded: the thunk decoder is ARM64-only, so
+    /// the other seventeen architectures Capstone ships stay out of the build.
     static let Capstone = Package.Dependency.package(
         local: .package(
             path: "../swift-capstone",
@@ -205,11 +193,11 @@ extension Package.Dependency {
         ),
     )
 
-    /// Forwarding the trait rather than enabling it outright keeps the whole
-    /// chain (swift-capstone → its `capstone` C fork) out of an un-opted-in
-    /// build's compile line.
+    /// The one architecture the thunk decoder reads. A Capstone built without
+    /// its ARM64 backend would let `SwiftThunkAnalysis` compile and every
+    /// decode fail.
     private static let capstoneTraits: Set<Package.Dependency.Trait> = [
-        .trait(name: "ARM64", condition: .when(traits: [thunkAnalysisTrait])),
+        .trait(name: "ARM64"),
     ]
 }
 
@@ -246,14 +234,9 @@ extension Target.Dependency {
         name: "OutputTransformer",
         package: "swift-semantic-string",
     )
-    /// Conditional on the `ThunkAnalysis` trait: with the trait off the
-    /// dependency is dropped from the link line entirely, which is what lets
-    /// `SwiftThunkAnalysis`'s `#if THUNK_ANALYSIS`-guarded sources compile to
-    /// an empty module.
     static let Capstone = Target.Dependency.product(
         name: "Capstone",
         package: "swift-capstone",
-        condition: .when(traits: [thunkAnalysisTrait]),
     )
     static let SwiftSyntax = Target.Dependency.product(
         name: "SwiftSyntax",
@@ -487,6 +470,7 @@ extension Target {
             .target(.SwiftOutputTransformer),
             .target(.SwiftInspection),
             .target(.SwiftLayout),
+            .target(.SwiftThunkAnalysis),
         ],
     )
 
@@ -496,12 +480,11 @@ extension Target {
     /// reads back each branch's type (evolution proposal
     /// `offline-opaque-accessor-thunk-resolution`).
     ///
-    /// A separate target behind an opt-in trait because it is the only thing
-    /// in the package that needs a C disassembly engine, and because
-    /// `SwiftDeclarationRendering` must NOT depend on it — the dependency runs
-    /// the other way, through the `AccessorThunkResolving` seam the rendering
-    /// layer declares and this target registers into. Same relationship
-    /// `SwiftLayout` has with `MachOObjCSection`.
+    /// A target of its own because it is the only thing in the package that
+    /// needs a C disassembly engine, so the engine stays out of every module
+    /// that does not read thunks. `SwiftDeclarationRendering` depends on it
+    /// and calls the reader directly; this target knows nothing about the
+    /// rendering layer.
     static let SwiftThunkAnalysis = Target.target(
         name: "SwiftThunkAnalysis",
         dependencies: [
@@ -514,13 +497,7 @@ extension Target {
             .target(.MachOFoundation),
             .target(.MachOSwiftSection),
             .target(.SwiftInspection),
-            .target(.SwiftDeclarationRendering),
             .target(.Utilities),
-        ],
-        swiftSettings: [
-            // Every source file in the target is `#if THUNK_ANALYSIS`, so with
-            // the trait off this target still builds — as an empty module.
-            .define("THUNK_ANALYSIS", .when(traits: [thunkAnalysisTrait])),
         ],
     )
 
@@ -535,6 +512,7 @@ extension Target {
             .target(.Utilities),
             .target(.SwiftInspection),
             .target(.SwiftDeclarationRendering),
+            .target(.SwiftThunkAnalysis),
             .target(.MachOFoundation),
         ],
     )
@@ -559,6 +537,7 @@ extension Target {
             .target(.MachOSwiftSection),
             .target(.SwiftInspection),
             .target(.SwiftDeclarationRendering),
+            .target(.SwiftThunkAnalysis),
             .target(.Utilities),
             .target(.MachOFoundation),
         ],
@@ -704,7 +683,6 @@ extension Target {
         name: "swift-section",
         dependencies: [
             .target(.SwiftDump),
-            .target(.SwiftThunkAnalysis),
             .target(.SwiftOutputTransformer),
             .target(.SwiftDeclaration),
             .target(.SwiftIndexing),
@@ -715,12 +693,6 @@ extension Target {
             .product(name: "Rainbow", package: "Rainbow"),
             .product(name: "ArgumentParser", package: "swift-argument-parser"),
             .target(.MachOFoundation),
-        ],
-        swiftSettings: [
-            // Lets the entry point register the thunk resolver when the trait
-            // is on; with it off `SwiftThunkAnalysis` is an empty module and
-            // the `#if` compiles away.
-            .define("THUNK_ANALYSIS", .when(traits: [thunkAnalysisTrait])),
         ],
     )
 
@@ -966,6 +938,7 @@ extension Target {
             .target(.SwiftInspection),
             .target(.SwiftLayout),
             .target(.SwiftDeclarationRendering),
+            .target(.SwiftThunkAnalysis),
             .target(.MachOTestingSupport),
             .target(.MachOFixtureSupport),
             .product(.Semantic),
@@ -985,9 +958,7 @@ extension Target {
             .target(.MachOFoundation),
             .product(.Demangling),
         ],
-        swiftSettings: testSettings + [
-            .define("THUNK_ANALYSIS", .when(traits: [thunkAnalysisTrait])),
-        ],
+        swiftSettings: testSettings,
     )
 
     static let SwiftAttributeInferenceTests = Target.testTarget(
@@ -1125,15 +1096,6 @@ let package = Package(
         .library(.SwiftInterface),
         .library(.TypeIndexing),
         .executable(.swift_section),
-    ],
-    traits: [
-        .trait(
-            name: thunkAnalysisTrait,
-            description: "Resolve kind-9 accessor-function symbolic references offline by disassembling the metadata accessor thunk (adds a Capstone dependency).",
-        ),
-        // Explicit and empty: opting in is the host's decision, and a host
-        // that never asks should not pay for a disassembly engine.
-        .default(enabledTraits: []),
     ],
     dependencies: dependencies,
     targets: [

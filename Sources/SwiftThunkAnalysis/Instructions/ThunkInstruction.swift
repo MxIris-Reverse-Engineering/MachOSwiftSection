@@ -1,5 +1,3 @@
-#if THUNK_ANALYSIS
-
 import Foundation
 
 /// One general-purpose ARM64 register, with the 32-bit and 64-bit spellings of
@@ -156,5 +154,3 @@ public struct ThunkInstruction: Sendable, Hashable {
         self.mnemonic = mnemonic
     }
 }
-
-#endif
