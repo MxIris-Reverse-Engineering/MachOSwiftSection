@@ -1620,6 +1620,20 @@
   [AccessorFunctionReferenceRendering.md](AccessorFunctionReferenceRendering.md)（补层 3，并改掉原来
   「离线构造上不可解析」那句）。
 - **对应版本**：纯新增，默认行为不变，随下一次发布。
+- **补记（2026-09-11，收尾批次，同提案）**：第 5 步剩下的三件事一次做完。**回落不再抹掉整棵树**——
+  rewriter 此前在 underlying type 不是 `.type` 节点时整支放弃，`printOpaqueType` 打出裸描述符地址并丢掉
+  周围的 `ModifiedContent<…>` 链与全部实参；现在含 kind-9 的树照常替换与展开，引用位置由两条打印路径共用的
+  `accessor function at N` 兜底（文案沿用：出自上游 `NodePrinter`，parity 测试与快照归一化都认它）。
+  **另一支进模型**——`AssociatedTypeWitnessProjection.conditionalCandidates`，每支带版本条件、thunk 那一支的
+  类型、整条 witness 按该分支替换后的全文；靠 rewriter 里的候选账本加「按 thunk 偏移选分支」重跑一遍得到，
+  每条 witness 一个双向 thunk 就多一趟，没有笛卡尔积；同批让索引期投影解析 opaque（此前 ABI 快照里每个
+  `some View` 的 `Body` 都是裸偏移，跨版本 diff 全报 modified）。**进程内路径**——`MachOImage` 上把整条
+  witness 交给 `swift_getTypeByMangledNameInContext`，context 与实参取 conforming type 的 descriptor 与
+  metadata 泛型实参区（runtime 自己 `swift_getAssociatedTypeWitnessSlow` 的同一套调用；thunk 读那块缓冲，
+  不能传 null），泛型 conformer 与 class conformer 不猜。实测 SwiftUI：不开 trait 17 条全部从裸地址变成
+  「类型里嵌一个未读引用」，开 trait 后 5 条如此；进程内 17 条里 5 条由 runtime 答出（含离线读不了的
+  `DefinesSearchCompletionModifier.Body`）。第三个 thunk 的符号执行、field record 里的 kind-9、x86_64 仍是
+  非目标。过程见 [TaskReports/2026-09-11-accessor-thunk-resolution-follow-up.md](TaskReports/2026-09-11-accessor-thunk-resolution-follow-up.md)。
 
 ## 维护约定
 

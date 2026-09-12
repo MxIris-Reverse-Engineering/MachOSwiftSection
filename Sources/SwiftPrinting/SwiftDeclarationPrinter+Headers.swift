@@ -251,7 +251,12 @@ extension SwiftDeclarationPrinter {
             Space()
             try await resolver.resolve(
                 for: SymbolicDemangler.demangleType(for: record.mangledTypeName, in: machO)
-                    .resolveOpaqueType(in: machO, reportingDegradationTo: opaqueTypeDegradationReporter(subject: record.name))
+                    .resolveOpaqueType(
+                        witnessMangledName: record.mangledTypeName,
+                        conformingTypeName: record.conformingTypeName,
+                        in: machO,
+                        reportingDegradationTo: opaqueTypeDegradationReporter(subject: record.name)
+                    )
             )
             if offset.isEnd {
                 BreakLine()
@@ -264,9 +269,9 @@ extension SwiftDeclarationPrinter {
         let mangledTypeName: MangledName
     }
 
-    private func collectUniqueAssociatedTypeRecords(of associatedTypes: [AssociatedType]) -> [(name: String, mangledTypeName: MangledName)] {
+    private func collectUniqueAssociatedTypeRecords(of associatedTypes: [AssociatedType]) -> [(name: String, mangledTypeName: MangledName, conformingTypeName: MangledName)] {
         var seenKeys: Set<AssociatedTypeRecordDedupKey> = []
-        var orderedRecords: [(name: String, mangledTypeName: MangledName)] = []
+        var orderedRecords: [(name: String, mangledTypeName: MangledName, conformingTypeName: MangledName)] = []
         for associatedType in associatedTypes {
             for record in associatedType.records {
                 let recordName: String
@@ -278,7 +283,7 @@ extension SwiftDeclarationPrinter {
                     continue
                 }
                 if seenKeys.insert(AssociatedTypeRecordDedupKey(name: recordName, mangledTypeName: mangledTypeName)).inserted {
-                    orderedRecords.append((recordName, mangledTypeName))
+                    orderedRecords.append((recordName, mangledTypeName, associatedType.conformingTypeName))
                 }
             }
         }

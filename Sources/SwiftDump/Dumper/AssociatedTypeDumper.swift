@@ -63,7 +63,11 @@ package struct AssociatedTypeDumper<MachO: FieldLayoutRenderable>: ConformedDump
 
                 Space()
 
-                try await demangleResolver.resolve(for: SymbolicDemangler.demangleType(for: record.substitutedTypeName(in: machO), in: machO).resolveOpaqueType(in: machO))
+                let witnessMangledName = try record.substitutedTypeName(in: machO)
+                try await demangleResolver.resolve(
+                    for: SymbolicDemangler.demangleType(for: witnessMangledName, in: machO)
+                        .resolveOpaqueType(witnessMangledName: witnessMangledName, conformingTypeName: dumped.conformingTypeName, in: machO)
+                )
 
                 if offset.isEnd {
                     BreakLine()

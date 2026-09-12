@@ -7,7 +7,7 @@
 - **所属愿景**: 无
 - **关联提案**: 无（前置修复 `collect an opaque type's generic arguments from .children` 已单独落地，见 commit `a85b172d`）
 - **实现分支 / PR**: `next`
-- **配套文档**: [任务报告](../Internal/TaskReports/2026-09-11-offline-accessor-thunk-resolution.md)
+- **配套文档**: [任务报告](../Internal/TaskReports/2026-09-11-offline-accessor-thunk-resolution.md)、[收尾批次任务报告](../Internal/TaskReports/2026-09-11-accessor-thunk-resolution-follow-up.md)
 
 ## 摘要
 
@@ -415,8 +415,8 @@ extension AssociatedTypeWitnessProjection {
 3. ✅ 地址换算（`ThunkAddressSpace`）——实现时发现真正的规则比提案设想的简单得多，见前期调研。
 4. ✅ 接上 `Metadata` / `ContextDescriptor` 取类型名，打通端到端；accessor 形态另建
    `MetadataAccessorIndex`（一次扫 `__swift5_types`，按 image 缓存）。
-5. ⚠️ 渲染层接 seam 已完成；**模型的「其它候选」字段未做**——当前只把当前系统对应的那一支接进渲染，
-   多候选停在 `AccessorThunkResolving` 的返回值上。留待下一批。
+5. ✅ 渲染层接 seam；模型的「其它候选」字段由收尾批次补齐（`AssociatedTypeWitnessProjection.conditionalCandidates`，
+   见「收尾批次」一节）。
 6. ✅ 真实框架冒烟：SwiftUI 裸地址 17 → 5；`ResolvedMenuStyle.Body` 的「版本满足」分支与进程内
    runtime 执行 thunk 得到的答案一致。
 7. ✅ 配套文档：[任务报告](../Internal/TaskReports/2026-09-11-offline-accessor-thunk-resolution.md)；
@@ -424,17 +424,32 @@ extension AssociatedTypeWitnessProjection {
    [`AccessorFunctionReferenceRendering.md`](../Internal/AccessorFunctionReferenceRendering.md) 补层 3。
    未引入新术语，术语表不动。
 
-### 未做（下一批）
+### 收尾批次（2026-09-11，同日第二批）
 
-- 模型的多候选字段（见第 5 步）。
-- **回落文案**。提案决策日志里定了「换成说人话并带实参」，本批次没做——剩下 5 条仍然渲染
-  `opaque type symbolic reference 0x…`。推迟的理由：那个文案来自 `Demangling` 包的 `NodePrinter`，
-  要改得在渲染层拦截，会动一批快照基线；而本批次的价值（17 → 5）不依赖它，混在一起会把一个纯新增
-  的改动变成会动基线的改动。
-- 进程内路径（`swift_getTypeByMangledNameInContext`），按原计划排在离线之后。
-- 剩余 5 条裸地址：`DefinesSearchCompletionModifier.Body` 那个 thunk，一支是真实构造代码链（要符号
-  执行），另一支调的不是普通 metadata accessor。
+首批落地时留下的三件事，这一批做完：
+
+- **模型的多候选字段**：`AssociatedTypeWitnessProjection.conditionalCandidates`（`SwiftDeclaration`），每支一条
+  `ConditionalWitnessCandidate`——版本条件、thunk 那一支的类型文本、整条 witness 按该分支替换后的全文；解码容忍
+  缺 key。渲染层加 `Node.resolveOpaqueTypeCollectingConditionalCandidates(in:)`：rewriter 里挂一本候选账本记下每个
+  thunk 的全部候选，再对每个非默认分支按「thunk 偏移 → 分支下标」的选择重跑一遍拿全文。索引期投影
+  （`resolvedWitnessProjections`）改走它，并顺带解析 opaque（见决策日志「投影口径」一条）。
+- **回落渲染保留实参**：`OpaqueTypeRewriter` 对含 kind-9 的 underlying type 不再整支放弃，照常替换实参与展开嵌套，
+  kind-9 位置由既有的 `accessor function at N` 兜底。文案沿用，措辞换不换是另一个决定（要同步动上游 `NodePrinter`）。
+- **进程内路径**：`InProcessAccessorFunctionResolution`（`SwiftDeclarationRendering`），`MachOImage` 上把整条 witness
+  的 mangled name 交给 `swift_getTypeByMangledNameInContext`，context 与实参取 conforming type 的 descriptor 与
+  metadata 泛型实参区，与 runtime 自己的 `swift_getAssociatedTypeWitnessSlow` 同一套调用；泛型 conformer 与
+  class conformer 不猜。三个 witness 调用点统一走 `Node.resolveOpaqueType(witnessMangledName:conformingTypeName:in:)`。
+
+实测（SwiftUI，macOS 26 共享缓存）：不开 trait 时 17 条全部从裸地址变成「类型里嵌一个未读引用」，开 trait 后剩
+5 条如此，候选字段对 `FeedbackGenerator.Body` 给出 `≥ 26.4` / `< 26.4` 两份全文（`_TaskValueModifier2` 与
+`_TaskValueModifier`）；进程内 17 条里 5 条由 runtime 答出，含离线读不了的 `DefinesSearchCompletionModifier.Body`。
+
+### 仍然不做
+
+- 剩余 5 条离线未读引用：`DefinesSearchCompletionModifier.Body` 那个 thunk，一支是真实构造代码链（要符号
+  执行），另一支调的不是普通 metadata accessor。进程内它由 runtime 答出。
 - field record 里的 kind-9、x86_64——原提案就列在非目标里。
+- `accessor function at N` 的措辞——要同步动 swift-demangling 的 `NodePrinter`，另议。
 
 ## 决策日志
 
@@ -455,3 +470,10 @@ extension AssociatedTypeWitnessProjection {
 | 2026-09-11 | 模型的多候选字段推迟到下一批 | 渲染侧已能用（取当前系统那一支），多候选也已在 seam 返回值里。加模型字段要动 `SwiftDeclaration` 的投影与 ABI 快照口径，与本批次的技术风险无关，单独一批更清楚。 |
 | 2026-09-11 | Implemented | 落地步骤 1–4、6、7 完成，第 5 步部分完成（渲染接通、模型字段未做）。实测 SwiftUI 裸地址 17 → 5。 |
 | 2026-09-11 | 测试：fixture 钉行为 + runtime 结果做 oracle | 真实框架的类型随 OS 升级漂移，直接断言类型名必然周期性变红；用 runtime 结果做期望值则两边同步漂移，断言长期稳定，同时能抓住反汇编解错。 |
+| 2026-09-11 | 收尾批次在本提案原地进行，状态回 `In Progress` | 第 5 步剩下的三件事（模型候选字段、回落渲染保留实参、进程内路径）都在已批准的范围内，与 0023 / 0026 在决策日志里记后续修正的先例一致；第三个 thunk 的符号执行、field record 里的 kind-9、x86_64 仍按非目标处理，不进本批 |
+| 2026-09-11 | 索引期投影顺带解析 opaque type | 用户裁定。此前 `resolvedWitnessProjections` 打印的是未展开的 `opaqueType` 节点，任何 `some View` 的 witness 在 ABI 快照里都是 `opaque type symbolic reference 0x<描述符偏移>.0`，而 `assocwitness:` 的 payload key 直接含这段文本，偏移随构建漂移，两个 OS 版本之间每个 `Body` 都被报成 `.modified`。提案说的「单值字段始终等于最新分支」要成立，投影就必须解析；顺带消掉这个噪音。备选「不动投影、只加候选」被否：那样单值等于最新分支只在渲染输出成立，模型里不成立 |
+| 2026-09-11 | 回落文案沿用 `accessor function at N`，只恢复被丢弃的树 | 用户裁定。裸地址的来源是 rewriter 在 underlying type 不是 `.type` 节点时整支放弃，于是 `printOpaqueType` 打出描述符地址并丢掉实参；改成含 kind-9 的树照常走实参替换与嵌套展开，kind-9 位置由两条打印路径既有、parity 测试钉着、快照归一化认得的 `accessor function at N` 兜底。换措辞要同步动 swift-demangling 的 `NodePrinter`，是另一个决定 |
+| 2026-09-11 | 候选同时带「thunk 那一支的类型」与「整条 witness 全文」 | 未提问自定。宿主做「按版本切换」时要的是整条 witness 在那个版本的样子，不该要求它知道 thunk 嵌在树的哪一层（`FeedbackGenerator.Body` 的 kind-9 在 `ModifiedContent` 链中间）；thunk 那一支的类型单独给出，是为了让「到底哪一段在变」可见。实测每条 witness 只含一个 thunk，全文按每个候选单独替换生成，没有笛卡尔积 |
+| 2026-09-11 | 进程内只对无泛型参数的 opaque 上下文走 runtime，候选列表进程内为空 | 未提问自定。runtime 执行 thunk 只给当前系统这一支，「全部候选」是离线独有的事实；带泛型参数的上下文不特化本来没有答案，且给 runtime 传空实参进 thunk 的 `ldr [x0]` 有空指针风险 |
+| 2026-09-11 | 进程内路径改挂在 witness 调用点，门控改为「conforming type 能不带实参实例化」 | 原定放在 rewriter 的 `MachOImage` 分支、按 opaque 上下文有无泛型参数门控。一次性探针证明 SwiftUI 的 thunk 第一条就是 `ldr x19, [x0]`，实参缓冲必须是真实的区（runtime 的 `swift_getAssociatedTypeWitnessSlow` 传的是 conforming type metadata 的泛型实参区），而 rewriter 手里只有 opaque descriptor 没有 conforming type；三个 witness 调用点手里有 `conformingTypeName`，判据更直接。探针实测 17 条里 5 条答出、12 条泛型 conformer 返回 nil、零崩溃 |
+| 2026-09-11 | 收尾批次落地，状态回 `Implemented` | 三件事全部完成。专项 14 个测试全绿；trait 开 506 测试 / 81 套件绿，trait 关 428 测试 / 68 套件绿，快照基线零改动；SwiftUI CLI A/B 恰好 5 行差异且全部是引用原位替换。配套文档：收尾批次任务报告（已登记在头部）、`AccessorFunctionReferenceRendering.md` 层 1 与层 3 补记、AGENTS.md 的 `SwiftThunkAnalysis` 与 `SwiftDeclaration` 条目、演进账本本节补记。未引入新术语，术语表不动 |
