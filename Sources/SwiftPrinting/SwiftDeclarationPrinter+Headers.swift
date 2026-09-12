@@ -235,12 +235,29 @@ extension SwiftDeclarationPrinter {
     // MARK: - Extension merged associated-type typealiases
 
     /// Emits a deduplicated `typealias` block collected from sibling
-    /// conformances, mirroring `AssociatedTypeDumper.mergedRecords`.
+    /// conformances, mirroring `AssociatedTypeDumper.records`.
+    ///
+    /// A witness whose underlying type an availability-conditional accessor
+    /// thunk decides gets every branch listed in a comment above its
+    /// `typealias` (``ConditionalWitnessComment``); the `typealias` itself is
+    /// the newest platform's branch, as before.
     @SemanticStringBuilder
     func renderMergedAssociatedTypeRecords(of associatedTypes: [AssociatedType], level: Int) async throws -> SemanticString {
         let resolver = typeDemangleResolver
         let orderedRecords = collectUniqueAssociatedTypeRecords(of: associatedTypes)
         for (offset, record) in orderedRecords.offsetEnumerated() {
+            let resolution = try SymbolicDemangler.demangleType(for: record.mangledTypeName, in: machO)
+                .resolveOpaqueTypeCollectingConditionalCandidates(
+                    witnessMangledName: record.mangledTypeName,
+                    conformingTypeName: record.conformingTypeName,
+                    in: machO,
+                    reportingDegradationTo: opaqueTypeDegradationReporter(subject: record.name)
+                )
+            for line in try await resolution.conditionalWitnessCommentLines(associatedTypeName: record.name, resolvedBy: resolver) {
+                BreakLine()
+                Indent(level: level)
+                Comment(line)
+            }
             BreakLine()
             Indent(level: level)
             Keyword(.typealias)
@@ -249,15 +266,7 @@ extension SwiftDeclarationPrinter {
             Space()
             Standard("=")
             Space()
-            try await resolver.resolve(
-                for: SymbolicDemangler.demangleType(for: record.mangledTypeName, in: machO)
-                    .resolveOpaqueType(
-                        witnessMangledName: record.mangledTypeName,
-                        conformingTypeName: record.conformingTypeName,
-                        in: machO,
-                        reportingDegradationTo: opaqueTypeDegradationReporter(subject: record.name)
-                    )
-            )
+            try await resolver.resolve(for: resolution.node)
             if offset.isEnd {
                 BreakLine()
             }

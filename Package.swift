@@ -953,6 +953,7 @@ extension Target {
         dependencies: [
             .target(.SwiftThunkAnalysis),
             .target(.SwiftDeclarationRendering),
+            .target(.SwiftDump),
             .target(.MachOTestingSupport),
             .target(.MachOFixtureSupport),
             .target(.MachOFoundation),
