@@ -1595,8 +1595,8 @@
   写在指令里。
 - **关键决策与取舍**：
   - **新 target + SPM trait，默认关闭**。`MachOSwiftSection` 是被宿主依赖的库，不该让所有下游都吃一个
-    C 反汇编引擎。trait 关时 `SwiftThunkAnalysis` 仍然构建（每个文件 `#if THUNK_ANALYSIS`），编译成
-    空模块。**trait 管不了的**：SwiftPM 照样 resolve 并 clone `swift-capstone`。
+    C 反汇编引擎。首次落地时 trait 是编译门：关时 `SwiftThunkAnalysis` 仍然构建（每个文件
+    `#if THUNK_ANALYSIS`），编译成空模块——2026-09-12 整个撤销，改为直接依赖，见 0029 节末尾的补记。
   - **依赖方向是反的**：渲染层声明 seam，分析层实现并注册。反过来拆不出来。
   - **指令词汇表与 Capstone 隔离在一个文件里**，识别层因此能用合成指令序列做单测——不需要二进制，
     也不随 OS / 工具链漂移。真实框架那条另有端到端测试，只断言形状不断言类型名。
@@ -1664,11 +1664,17 @@
 - **验证**：合成指令序列钉求值规则（accessor 链与尾调用、栈传参、见证表跳过、未知调用降级、缓存探测形态、常量
   metadata、mangled name 实例化）；SwiftUI 端到端 17 → 0，oracle 5 条逐字相等；fixture 的 noncopyable 字段解到
   源码声明的类型；SwiftUI 全量 dump 未解析引用 6 → 0，与上一批输出的 diff 只有这 6 行和几处实参补全。
+- **同日补记：撤销 trait 与 seam 反向依赖（用户裁定）**。先把 trait 从编译门改成链接门（SwiftPM 本来就为每个启用的
+  trait 定义同名编译条件，`.define` 多余），随后用户进一步裁定「直接集成，不要 trait」。最终 `SwiftDeclarationRendering`
+  直接依赖 `SwiftThunkAnalysis`，kind-9 rewriter 默认用反汇编读取器；`AccessorThunkOwnerLayout` 下移、
+  `DisassemblingAccessorThunkResolver` 上移；删掉进程全局注册与 CLI 入口的注册代码，`AccessorThunkResolving` 协议和
+  task-local 只剩测试注入的用途。Capstone 的 ARM64 后端成为渲染层以上的常规依赖；宿主什么都不用写就拿到解析。fixture
+  的 kind-9 field record 在 dump / interface 快照里从占位变成声明的类型，两份基线重录。
 - **关联文档**：[提案](../Evolutions/0029-thunk-type-construction-evaluation.md)、
   [TaskReports/2026-09-12-thunk-type-construction-evaluation.md](TaskReports/2026-09-12-thunk-type-construction-evaluation.md)、
   [AccessorFunctionReferenceRendering.md](AccessorFunctionReferenceRendering.md)（层 3′）、术语表新增
   「type-construction evaluation」。
-- **对应版本**：纯新增（trait 后面），默认行为不变，随下一次发布。
+- **对应版本**：新增常规依赖（Capstone）且默认输出变化（kind-9 引用一律解析），随下一次发布。
 
 ## 维护约定
 

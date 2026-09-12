@@ -3,7 +3,7 @@
 - **状态**: Implemented
 - **作者**: JH
 - **创建日期**: 2026-09-11
-- **最后更新**: 2026-09-11
+- **最后更新**: 2026-09-12
 - **所属愿景**: 无
 - **关联提案**: 无（前置修复 `collect an opaque type's generic arguments from .children` 已单独落地，见 commit `a85b172d`）
 - **实现分支 / PR**: `next`
@@ -255,6 +255,8 @@ offset         = virtualAddress - sharedRegionStart  // adrp 算出的地址要�
 
 `Sources/SwiftThunkAnalysis/`，依赖 swift-capstone（`traits: ["ARM64"]`）与 `MachOFoundation`。
 用 SPM trait 控制，**默认关闭**：不开的下游压根不编 Capstone，行为回落到占位渲染。
+（2026-09-12 起没有开关了：trait、每个文件的 `#if`、进程全局注册一并撤销，`SwiftDeclarationRendering` 直接依赖
+`SwiftThunkAnalysis` 并调用读取器；见决策日志末行。）
 
 `SwiftDeclarationRendering` **不依赖**它，而是声明一个 seam 协议；`SwiftThunkAnalysis` 实现并
 注册。这与 `SwiftLayout` 相对 `MachOObjCSection` 是同一种关系。
@@ -480,3 +482,4 @@ extension AssociatedTypeWitnessProjection {
 | 2026-09-11 | 进程内只对无泛型参数的 opaque 上下文走 runtime，候选列表进程内为空 | 未提问自定。runtime 执行 thunk 只给当前系统这一支，「全部候选」是离线独有的事实；带泛型参数的上下文不特化本来没有答案，且给 runtime 传空实参进 thunk 的 `ldr [x0]` 有空指针风险 |
 | 2026-09-11 | 进程内路径改挂在 witness 调用点，门控改为「conforming type 能不带实参实例化」 | 原定放在 rewriter 的 `MachOImage` 分支、按 opaque 上下文有无泛型参数门控。一次性探针证明 SwiftUI 的 thunk 第一条就是 `ldr x19, [x0]`，实参缓冲必须是真实的区（runtime 的 `swift_getAssociatedTypeWitnessSlow` 传的是 conforming type metadata 的泛型实参区），而 rewriter 手里只有 opaque descriptor 没有 conforming type；三个 witness 调用点手里有 `conformingTypeName`，判据更直接。探针实测 17 条里 5 条答出、12 条泛型 conformer 返回 nil、零崩溃 |
 | 2026-09-11 | 收尾批次落地，状态回 `Implemented` | 三件事全部完成。专项 14 个测试全绿；trait 开 506 测试 / 81 套件绿，trait 关 428 测试 / 68 套件绿，快照基线零改动；SwiftUI CLI A/B 恰好 5 行差异且全部是引用原位替换。配套文档：收尾批次任务报告（已登记在头部）、`AccessorFunctionReferenceRendering.md` 层 1 与层 3 补记、AGENTS.md 的 `SwiftThunkAnalysis` 与 `SwiftDeclaration` 条目、演进账本本节补记。未引入新术语，术语表不动 |
+| 2026-09-12 | 撤销 trait 与 seam 反向依赖，改为直接依赖 | 用户裁定，两步到位。第一步先把 trait 从「编译门」改成「链接门」（SwiftPM 本来就为每个启用的 trait 定义同名编译条件，`.define` 多余；target 是普通 library，不该在源码里分叉）；随后用户进一步裁定「直接集成，不做 trait 判断，也不要 trait」。最终：`Package.swift` 删掉 trait 声明与所有条件边；`SwiftDeclarationRendering` 直接依赖 `SwiftThunkAnalysis`，kind-9 rewriter 默认用 `DisassemblingAccessorThunkResolver`（上移到渲染层）调 `AccessorThunkReader`；`AccessorThunkOwnerLayout` 下移到 `SwiftThunkAnalysis`；删掉进程全局的 `AccessorThunkResolution.resolver` 与 `installDisassemblingResolver()`，CLI 入口不再注册；`AccessorThunkResolving` 协议与 task-local 只作为测试注入点保留。代价：Capstone 的 ARM64 后端成为渲染层以上所有模块的常规依赖。收益：宿主什么都不用写就拿到解析——本仓库唯一的宿主是 CLI，RuntimeViewer 此前从未注册过，也就从未拿到过。fixture 的 kind-9 field record 随之在 dump / interface 快照里渲染成声明的类型，两份基线重录。 |
