@@ -5,6 +5,7 @@ import MachOKit
 import MemberwiseInit
 import OrderedCollections
 import SwiftDeclarationRendering
+import SwiftThunkAnalysis
 import Demangling
 import Semantic
 import SwiftStdlibToolbox

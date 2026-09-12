@@ -5,6 +5,7 @@ import MachOFoundation
 import OrderedCollections
 @testable import MachOSwiftSection
 @testable import SwiftDeclarationRendering
+import SwiftThunkAnalysis
 import Demangling
 @testable import MachOTestingSupport
 import MachOFixtureSupport

@@ -1,5 +1,3 @@
-#if THUNK_ANALYSIS
-
 import Foundation
 import FoundationToolbox
 import MachOKit
@@ -299,5 +297,3 @@ package final class CacheImageResolver {
         return entryPointAddressesByImagePath[path]?[address]
     }
 }
-
-#endif

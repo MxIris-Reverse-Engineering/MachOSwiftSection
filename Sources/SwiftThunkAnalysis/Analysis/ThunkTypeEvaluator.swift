@@ -1,5 +1,3 @@
-#if THUNK_ANALYSIS
-
 import Foundation
 
 /// Runs a thunk's instructions symbolically and reports the type left in
@@ -365,5 +363,3 @@ public struct ThunkTypeEvaluator {
         valuesByRegister.removeValue(forKey: register)
     }
 }
-
-#endif

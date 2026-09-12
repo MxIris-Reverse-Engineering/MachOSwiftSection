@@ -1,5 +1,3 @@
-#if THUNK_ANALYSIS
-
 import Foundation
 import Testing
 import MachOKit
@@ -69,5 +67,3 @@ struct ThunkResolutionSurveyProbe {
     }
 
 }
-
-#endif

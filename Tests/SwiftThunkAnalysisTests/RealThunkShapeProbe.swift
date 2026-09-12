@@ -1,5 +1,3 @@
-#if THUNK_ANALYSIS
-
 import Foundation
 import Testing
 import MachOKit
@@ -92,5 +90,3 @@ struct RealThunkShapeProbe {
         return nil
     }
 }
-
-#endif

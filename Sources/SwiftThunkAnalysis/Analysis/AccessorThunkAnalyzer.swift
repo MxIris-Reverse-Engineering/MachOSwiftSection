@@ -1,5 +1,3 @@
-#if THUNK_ANALYSIS
-
 import Foundation
 
 /// Reads a decoded thunk and says what it computes.
@@ -240,5 +238,3 @@ public enum AccessorThunkAnalyzer {
         )
     }
 }
-
-#endif

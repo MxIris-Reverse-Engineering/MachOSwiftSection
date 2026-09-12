@@ -1,5 +1,3 @@
-#if THUNK_ANALYSIS
-
 import Foundation
 import Testing
 import MachOKit
@@ -13,13 +11,10 @@ import SwiftDeclarationRendering
 import SwiftThunkAnalysis
 
 /// The point of the whole module: an associated-type witness that rendered as
-/// a bare address renders as a type once the resolver is installed — and,
-/// since the follow-up batch, as its type *around* the unread reference when
-/// it is not.
-// The resolver is scoped to each test's task (`AccessorThunkResolution.taskResolver`),
-// never installed process-wide: suites run in parallel, and a process-wide
-// install turned every snapshot suite's kind-9 placeholders into real types
-// for as long as it lasted.
+/// a bare address renders as a type once the thunk is read — and, since the
+/// follow-up batch, as its type *around* the unread reference when it cannot
+/// be. The disassembling resolver is the default for every task; the
+/// "cannot be read" side is pinned by scoping a resolver that answers nothing.
 @Suite(.serialized)
 struct OpaqueTypeRenderingIntegrationTests {
     private static let unreadReferenceMarker = "accessor function at"
@@ -50,16 +45,16 @@ struct OpaqueTypeRenderingIntegrationTests {
         return rendered
     }
 
-    @Test func installingTheResolverNamesTypesThatWereBareAddresses() async throws {
+    @Test func readingTheThunksNamesTypesThatWereBareAddresses() async throws {
         let cache = try DyldCache(path: .current)
         let machO = try #require(cache.machOFile(named: .SwiftUI))
 
-        let before = try await renderedWitnesses(in: machO)
-        let unreadBefore = before.filter { $0.contains(Self.unreadReferenceMarker) }.count
-
-        let after = try await AccessorThunkResolution.$taskResolver.withValue(DisassemblingAccessorThunkResolver()) {
+        let before = try await AccessorThunkResolution.$taskResolver.withValue(UnreadableAccessorThunkResolver()) {
             try await renderedWitnesses(in: machO)
         }
+        let unreadBefore = before.filter { $0.contains(Self.unreadReferenceMarker) }.count
+
+        let after = try await renderedWitnesses(in: machO)
         let unreadAfter = after.filter { $0.contains(Self.unreadReferenceMarker) }.count
 
         print("unread accessor references before: \(unreadBefore), after: \(unreadAfter)")
@@ -69,38 +64,38 @@ struct OpaqueTypeRenderingIntegrationTests {
 
         #expect(
             unreadAfter < unreadBefore,
-            "installing the resolver did not reduce the number of unread accessor references (\(unreadBefore) → \(unreadAfter))"
+            "reading the thunks did not reduce the number of unread accessor references (\(unreadBefore) → \(unreadAfter))"
         )
     }
 
-    /// The goal the module exists for: with the resolver installed, no
-    /// kind-9 witness in SwiftUI is left unread — the type-construction
-    /// evaluator reads the thunk the first landing had to refuse.
+    /// The goal the module exists for: no kind-9 witness in SwiftUI is left
+    /// unread — the type-construction evaluator reads the thunk the first
+    /// landing had to refuse.
     @Test func everyAccessorReferenceResolves() async throws {
-        let cache = try DyldCache(path: .current)
-        let machO = try #require(cache.machOFile(named: .SwiftUI))
-
-        let rendered = try await AccessorThunkResolution.$taskResolver.withValue(DisassemblingAccessorThunkResolver()) {
-            try await renderedWitnesses(in: machO)
-        }
-        let unread = rendered.filter { $0.contains(Self.unreadReferenceMarker) }
-        #expect(unread.isEmpty, "still unread:\n\(unread.joined(separator: "\n"))")
-    }
-
-    /// With no resolver registered the reference is not resolved — but it is
-    /// no longer erased either. Before the follow-up batch the rewriter gave
-    /// up on any underlying type that was not a `.type` node, and the whole
-    /// witness printed as `opaque type symbolic reference 0x…` with its
-    /// generic arguments thrown away. Now the reference prints as
-    /// `accessor function at N` inside the type it sits in.
-    @Test func withoutAResolverTheReferenceStaysInsideItsType() async throws {
         let cache = try DyldCache(path: .current)
         let machO = try #require(cache.machOFile(named: .SwiftUI))
 
         let rendered = try await renderedWitnesses(in: machO)
         let unread = rendered.filter { $0.contains(Self.unreadReferenceMarker) }
+        #expect(unread.isEmpty, "still unread:\n\(unread.joined(separator: "\n"))")
+    }
 
-        #expect(!unread.isEmpty, "SwiftUI is expected to carry kind-9 witnesses that no resolver reads")
+    /// When the reader cannot read the thunk the reference is not resolved —
+    /// but it is no longer erased either. Before the follow-up batch the rewriter gave
+    /// up on any underlying type that was not a `.type` node, and the whole
+    /// witness printed as `opaque type symbolic reference 0x…` with its
+    /// generic arguments thrown away. Now the reference prints as
+    /// `accessor function at N` inside the type it sits in.
+    @Test func whenTheThunkCannotBeReadTheReferenceStaysInsideItsType() async throws {
+        let cache = try DyldCache(path: .current)
+        let machO = try #require(cache.machOFile(named: .SwiftUI))
+
+        let rendered = try await AccessorThunkResolution.$taskResolver.withValue(UnreadableAccessorThunkResolver()) {
+            try await renderedWitnesses(in: machO)
+        }
+        let unread = rendered.filter { $0.contains(Self.unreadReferenceMarker) }
+
+        #expect(!unread.isEmpty, "SwiftUI is expected to carry kind-9 witnesses that this resolver leaves unread")
         #expect(
             unread.allSatisfy { !$0.hasPrefix("opaque type ") },
             "an unread reference must print inside its type, not erase it"
@@ -118,7 +113,7 @@ struct OpaqueTypeRenderingIntegrationTests {
         let machO = try #require(cache.machOFile(named: .SwiftUI))
 
         var twoWayResolutions: [Node.OpaqueTypeResolution] = []
-        AccessorThunkResolution.$taskResolver.withValue(DisassemblingAccessorThunkResolver()) {
+        do {
             for associatedType in (try? machO.swift.associatedTypes) ?? [] {
                 for record in associatedType.records {
                     guard let node = try? SymbolicDemangler.demangleType(for: record.substitutedTypeName(in: machO), in: machO),
@@ -149,5 +144,3 @@ struct OpaqueTypeRenderingIntegrationTests {
         #expect(candidateTexts.allSatisfy { !$0.contains(Self.unreadReferenceMarker) && !$0.contains(Self.erasedTypeMarker) })
     }
 }
-
-#endif

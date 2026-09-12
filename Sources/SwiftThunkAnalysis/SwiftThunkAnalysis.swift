@@ -15,18 +15,14 @@
 ///
 /// Reading the answer back means decoding the thunk's instructions, which
 /// needs a disassembler. That is the only thing in this package that does, so
-/// it lives behind the `ThunkAnalysis` trait rather than in the rendering
-/// layer: a host that does not ask for it compiles no Capstone, and this
-/// module builds empty.
+/// it is a target of its own rather than part of the rendering layer: the
+/// engine stays out of every module that does not read thunks.
 ///
 /// ## Direction of the dependency
 ///
-/// `SwiftDeclarationRendering` does **not** depend on this target. It declares
-/// the `AccessorThunkResolving` seam; this target implements it and registers
-/// the implementation. Inverting that would make the disassembler
-/// unconditional for everyone.
-#if THUNK_ANALYSIS
-
-// Implementation lands here.
-
-#endif
+/// `SwiftDeclarationRendering` depends on this target and calls
+/// ``AccessorThunkReader`` directly from its kind-9 rewriter; this target
+/// knows nothing about the rendering layer. The first landing ran the
+/// dependency the other way, behind an opt-in trait; the decision log of
+/// evolution proposal `offline-opaque-accessor-thunk-resolution` records why
+/// that was dropped.

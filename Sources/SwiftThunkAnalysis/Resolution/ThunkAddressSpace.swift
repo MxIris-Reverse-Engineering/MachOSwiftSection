@@ -1,5 +1,3 @@
-#if THUNK_ANALYSIS
-
 import Foundation
 import MachOKit
 import MachOFoundation
@@ -94,5 +92,3 @@ package struct ThunkAddressSpace: Sendable {
         return nil
     }
 }
-
-#endif

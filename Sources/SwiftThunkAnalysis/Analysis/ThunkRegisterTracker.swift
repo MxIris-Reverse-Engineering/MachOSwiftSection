@@ -1,5 +1,3 @@
-#if THUNK_ANALYSIS
-
 import Foundation
 
 /// Tracks, instruction by instruction, which registers hold a value the
@@ -98,5 +96,3 @@ public struct ThunkRegisterTracker: Sendable {
         valuesByRegister.removeValue(forKey: register)
     }
 }
-
-#endif
