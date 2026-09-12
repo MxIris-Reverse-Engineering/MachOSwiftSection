@@ -6,7 +6,7 @@ import FoundationToolbox
 /// The platform version an availability-conditional opaque result type is
 /// gated on (SE-0360's `if #available`, as the compiler wrote it into the
 /// accessor thunk).
-public struct PlatformAvailabilityCondition: Sendable, Hashable {
+public struct PlatformAvailabilityCondition: Sendable, Hashable, Codable {
     /// `__isPlatformVersionAtLeast`'s first argument. Not translated to a
     /// named platform here: the numbering is compiler-rt's, and mapping it
     /// wrong would attribute a type to the wrong OS in rendered output.

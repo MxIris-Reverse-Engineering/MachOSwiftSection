@@ -95,21 +95,59 @@ extension Node {
         }
     }
 
+    /// Which branch of each availability-conditional accessor thunk to
+    /// substitute, keyed by the thunk's offset.
+    ///
+    /// A thunk absent from the selection takes index 0 — the branch the
+    /// current platform takes, which is what ``AccessorThunkResolving`` puts
+    /// first. A caller rendering "what this reads as on the other OS" names
+    /// the other index.
+    typealias AccessorThunkBranchSelection = [Int: Int]
+
+    /// Records what every accessor thunk met during a rewrite resolved to.
+    ///
+    /// A class rather than a value so the nested rewriters — one per opaque
+    /// expansion level — all write into the same ledger. Keyed by thunk
+    /// offset because that is the thunk's identity: the same thunk reached
+    /// through two records is one thunk with one candidate list.
+    final class AccessorThunkCandidateLedger {
+        private(set) var candidatesByThunkOffset: OrderedDictionary<Int, [ConditionalUnderlyingType]> = [:]
+
+        func record(_ candidates: [ConditionalUnderlyingType], forThunkAt thunkOffset: Int) {
+            guard candidatesByThunkOffset[thunkOffset] == nil else { return }
+            candidatesByThunkOffset[thunkOffset] = candidates
+        }
+    }
+
     /// Replaces kind-9 accessor-function references with the type the thunk
     /// yields.
     ///
     /// Records whether it actually replaced anything, because "the tree
     /// contains such a reference" and "the reference resolved" are different
     /// facts and only the second licenses taking the new path.
-    private final class AccessorFunctionReferenceRewriter: Node.Rewriter {
+    ///
+    /// Internal rather than private so its substitution contract can be unit
+    /// tested with a stand-in resolver: reaching it through
+    /// `resolveOpaqueType(in:)` needs a binary that carries an
+    /// availability-conditional opaque type, which the fixture does not.
+    final class AccessorFunctionReferenceRewriter: Node.Rewriter {
         private let resolver: any AccessorThunkResolving
         private let machO: MachOFile
+        private let branchSelection: AccessorThunkBranchSelection
+        private let candidateLedger: AccessorThunkCandidateLedger?
 
         private(set) var didResolveAnyReference = false
 
-        init(resolver: any AccessorThunkResolving, machO: MachOFile) {
+        init(
+            resolver: any AccessorThunkResolving,
+            machO: MachOFile,
+            branchSelection: AccessorThunkBranchSelection = [:],
+            candidateLedger: AccessorThunkCandidateLedger? = nil
+        ) {
             self.resolver = resolver
             self.machO = machO
+            self.branchSelection = branchSelection
+            self.candidateLedger = candidateLedger
         }
 
         override func visit(_ node: Node) -> Node {
@@ -117,9 +155,12 @@ extension Node {
                   let thunkOffset: Int = node.index?.cast()
             else { return node }
             let underlyingTypes = resolver.underlyingTypes(forAccessorThunkAt: thunkOffset, in: machO)
-            // The branch the current platform takes comes first.
-            guard let currentBranch = underlyingTypes.first else { return node }
-            let typeNode = currentBranch.typeNode
+            candidateLedger?.record(underlyingTypes, forThunkAt: thunkOffset)
+            // Index 0 is the branch the current platform takes; a caller
+            // rendering the other branches selects one by index.
+            let branchIndex = branchSelection[thunkOffset] ?? 0
+            guard let chosenBranch = underlyingTypes[safe: branchIndex] else { return node }
+            let typeNode = chosenBranch.typeNode
             didResolveAnyReference = true
             // Unwrapped so the result composes where a type belongs — a
             // `.type` envelope nested inside a generic argument list renders
@@ -146,10 +187,26 @@ extension Node {
         /// ``expandingNestedOpaqueTypes(in:)``.
         let expansionDepth: Int
 
-        init(machO: MachO, reportDegradation: OpaqueTypeDegradationReporter?, expansionDepth: Int = 0) {
+        /// Which branch to take at each accessor thunk; see
+        /// ``AccessorThunkBranchSelection``.
+        let branchSelection: AccessorThunkBranchSelection
+
+        /// Where the thunks met during this rewrite leave their candidates,
+        /// when a caller asked for them.
+        let candidateLedger: AccessorThunkCandidateLedger?
+
+        init(
+            machO: MachO,
+            reportDegradation: OpaqueTypeDegradationReporter?,
+            expansionDepth: Int = 0,
+            branchSelection: AccessorThunkBranchSelection = [:],
+            candidateLedger: AccessorThunkCandidateLedger? = nil
+        ) {
             self.machO = machO
             self.reportDegradation = reportDegradation
             self.expansionDepth = expansionDepth
+            self.branchSelection = branchSelection
+            self.candidateLedger = candidateLedger
         }
 
         /// Expands opaque types that the substitution just brought in.
@@ -187,13 +244,45 @@ extension Node {
             guard node.contains(Node.Kind.accessorFunctionReference) else { return nil }
             guard let resolver = AccessorThunkResolution.resolver, let machOFile = machO as? MachOFile else { return nil }
 
-            let rewriter = AccessorFunctionReferenceRewriter(resolver: resolver, machO: machOFile)
+            let rewriter = AccessorFunctionReferenceRewriter(
+                resolver: resolver,
+                machO: machOFile,
+                branchSelection: branchSelection,
+                candidateLedger: candidateLedger
+            )
             let rewritten = rewriter.rewrite(node.copy())
             guard rewriter.didResolveAnyReference else { return nil }
             // Unwrap the `.type` envelope the way the pre-existing path does,
             // so both feed the parameter substitution the same shape.
             if rewritten.kind == .type, let firstChild = rewritten.firstChild { return firstChild.copy() }
             return rewritten
+        }
+
+        /// The underlying type an opaque type expands to, or `nil` when the
+        /// demangled tree has a shape this rewriter does not substitute.
+        ///
+        /// Three shapes are taken. A tree the thunk resolver rewrote comes
+        /// back already unwrapped. A `.type` envelope sheds it, the way the
+        /// pre-existing path always did. And a tree that still carries a
+        /// kind-9 `accessorFunctionReference` — no resolver installed, or a
+        /// thunk shape it does not read — is kept AS IS: it demangles bare,
+        /// with no envelope, and answering `nil` here was what rendered
+        /// `opaque type symbolic reference 0x…`, the descriptor's address with
+        /// the surrounding `ModifiedContent<…>` chain and every generic
+        /// argument thrown away. Kept, the reference prints as
+        /// `accessor function at N` (the wording both printers already use for
+        /// a kind-9 field record) inside an otherwise complete type.
+        private func underlyingTypeContent(of underlyingTypeArgumentNode: Node) -> Node? {
+            if let resolvedNode = resolvingAccessorFunctionReferences(in: underlyingTypeArgumentNode) {
+                return resolvedNode
+            }
+            if underlyingTypeArgumentNode.kind == .type, let firstChild = underlyingTypeArgumentNode.firstChild {
+                return firstChild.copy()
+            }
+            if underlyingTypeArgumentNode.contains(Node.Kind.accessorFunctionReference) {
+                return underlyingTypeArgumentNode.copy()
+            }
+            return nil
         }
 
         private func expandingNestedOpaqueTypes(in node: Node) -> Node {
@@ -205,7 +294,9 @@ extension Node {
             return OpaqueTypeRewriter(
                 machO: machO,
                 reportDegradation: reportDegradation,
-                expansionDepth: expansionDepth + 1
+                expansionDepth: expansionDepth + 1,
+                branchSelection: branchSelection,
+                candidateLedger: candidateLedger
             ).rewrite(node)
         }
 
@@ -262,13 +353,8 @@ extension Node {
                             underlyingTypeArgumentNode = try? SymbolicDemangler.demangleType(for: underlyingTypeArgumentMangledName, in: machO)
                         }
                         if let underlyingTypeArgumentNode,
-                           let resolvedNode = resolvingAccessorFunctionReferences(in: underlyingTypeArgumentNode) {
+                           let resolvedNode = underlyingTypeContent(of: underlyingTypeArgumentNode) {
                             let substituted = OpaqueTypeGenericParameterRewriter(machO: machO, typeList: allTypeList).rewrite(resolvedNode)
-                            return expandingNestedOpaqueTypes(in: substituted)
-                        }
-                        if let underlyingTypeArgumentNode, underlyingTypeArgumentNode.kind == .type,
-                           let firstChild = underlyingTypeArgumentNode.firstChild {
-                            let substituted = OpaqueTypeGenericParameterRewriter(machO: machO, typeList: allTypeList).rewrite(firstChild.copy())
                             return expandingNestedOpaqueTypes(in: substituted)
                         }
                     }
@@ -298,5 +384,57 @@ extension Node {
         reportingDegradationTo reportDegradation: OpaqueTypeDegradationReporter? = nil
     ) throws -> Node {
         OpaqueTypeRewriter(machO: machO, reportDegradation: reportDegradation).rewrite(self)
+    }
+
+    /// One branch of an availability-conditional accessor thunk, in place:
+    /// the thunk's own answer, and the whole tree with that answer
+    /// substituted.
+    package struct ResolvedConditionalCandidate {
+        package let availability: PlatformAvailabilityCondition?
+        package let candidateTypeNode: Node
+        package let substitutedNode: Node
+    }
+
+    /// What ``resolveOpaqueType(in:reportingDegradationTo:)`` produces, plus
+    /// every branch of every availability-conditional accessor thunk the
+    /// resolution met.
+    package struct OpaqueTypeResolution {
+        /// The tree with the current platform's branch taken at every thunk —
+        /// byte-identical to `resolveOpaqueType(in:)`'s answer.
+        package let node: Node
+        /// Empty when no thunk was met, when none resolved, or when reading
+        /// in-process (the runtime answers for this OS alone).
+        package let conditionalCandidates: [ResolvedConditionalCandidate]
+    }
+
+    /// Resolves opaque types like ``resolveOpaqueType(in:reportingDegradationTo:)``
+    /// and also reports every branch an availability-conditional accessor
+    /// thunk offered.
+    ///
+    /// The other branches are rendered by running the same rewrite again with
+    /// that branch selected at that one thunk — one rerun per non-default
+    /// branch, so a witness with one two-way thunk (every case measured in
+    /// SwiftUI) costs one extra pass, and there is never a cross product.
+    package func resolveOpaqueTypeCollectingConditionalCandidates(
+        in machO: some MachOSwiftSectionRepresentableWithCache,
+        reportingDegradationTo reportDegradation: OpaqueTypeDegradationReporter? = nil
+    ) -> OpaqueTypeResolution {
+        let candidateLedger = AccessorThunkCandidateLedger()
+        let node = OpaqueTypeRewriter(machO: machO, reportDegradation: reportDegradation, candidateLedger: candidateLedger).rewrite(self)
+
+        var conditionalCandidates: [ResolvedConditionalCandidate] = []
+        for (thunkOffset, thunkCandidates) in candidateLedger.candidatesByThunkOffset {
+            for (branchIndex, candidate) in thunkCandidates.enumerated() {
+                let substitutedNode = branchIndex == 0
+                    ? node
+                    : OpaqueTypeRewriter(machO: machO, reportDegradation: reportDegradation, branchSelection: [thunkOffset: branchIndex]).rewrite(self)
+                conditionalCandidates.append(ResolvedConditionalCandidate(
+                    availability: candidate.availability,
+                    candidateTypeNode: candidate.typeNode,
+                    substitutedNode: substitutedNode
+                ))
+            }
+        }
+        return OpaqueTypeResolution(node: node, conditionalCandidates: conditionalCandidates)
     }
 }
