@@ -4,13 +4,14 @@ import Foundation
 
 /// Reads a decoded thunk and says what it computes.
 ///
-/// Works purely on ``ThunkInstruction`` values, so it is exercised from
-/// synthesized sequences with no binary and no disassembler in the way.
+/// Works purely on ``ThunkInstruction`` values plus a
+/// ``ThunkEvaluationEnvironment``, so it is exercised from synthesized
+/// sequences with no binary and no disassembler in the way.
 ///
 /// ## The shapes, as measured
 ///
-/// All three thunks found in SwiftUI (macOS 26 shared cache) start the same
-/// way — four immediates into `w0`–`w3`, then a call to
+/// The three thunks found in SwiftUI (macOS 26 shared cache) all start the
+/// same way — four immediates into `w0`–`w3`, then a call to
 /// `__isPlatformVersionAtLeast` — and then differ in how they use the result:
 ///
 /// 1. `cmp w0, #0` + `csel` between two **metadata** addresses materialized by
@@ -21,38 +22,174 @@ import Foundation
 ///    calls rather than looking one up
 ///    (`SwiftUI.DefinesSearchCompletionModifier.Body`).
 ///
-/// The third is deliberately **not** reduced to a guess: a branch making more
-/// than one call is reported as ``ThunkAnalysisLimitation/branchIsNotASingleLookup(condition:callCount:)``
-/// and contributes no candidate. Naming the first call's result would produce
-/// a real, fully-qualified, wrong type — the exact failure mode the
+/// A kind-9 *field record*'s thunk has no version check at all (the fixture's
+/// noncopyable fields, `SwiftUI.Drag.LazyItem<A>.state`): it tests a
+/// runtime-capability flag, or probes a cache and builds the type on a miss.
+///
+/// All of them are read the same way, by ``ThunkTypeEvaluator``: the thunk
+/// is run symbolically twice, once assuming every conditional it cannot
+/// decide is false and once assuming it is true. With a version check the
+/// two runs are the two arms of `if #available`, and the instruction the
+/// policy decided says which run is which; without one, the first run that
+/// leaves with a type is the answer (a capability flag is decided by the
+/// evaluator itself — the runtime has the capability — and a cache probe's
+/// warm arm returns something unnameable, so the cold arm wins).
+///
+/// What the evaluator cannot name it does not guess at. A branch of a
+/// version check that evaluates to nothing falls back to the *single-lookup*
+/// reading — one call, whose callee's identity names the type — and
+/// otherwise is reported as
+/// ``ThunkAnalysisLimitation/branchIsNotASingleLookup(condition:callCount:)``
+/// with no candidate. Naming an intermediate call's result would produce a
+/// real, fully-qualified, wrong type — the exact failure mode the
 /// `.children` bug in `Node+OpaqueType.swift` had, and the one worth avoiding
 /// twice.
 public enum AccessorThunkAnalyzer {
-    public static func analyze(instructions: [ThunkInstruction]) -> AccessorThunkProgram {
-        guard let availabilityCallIndex = indexOfAvailabilityCheckCall(in: instructions) else {
-            return AccessorThunkProgram(availabilityCheck: nil, candidates: [], limitations: [.noRecognizedShape])
-        }
-        let availabilityCheck = self.availabilityCheck(at: availabilityCallIndex, in: instructions)
+    public static func analyze(
+        instructions: [ThunkInstruction],
+        environment: any ThunkEvaluationEnvironment = EmptyThunkEvaluationEnvironment()
+    ) -> AccessorThunkProgram {
+        let availabilityCallIndex = indexOfAvailabilityCheckCall(in: instructions)
+        let availabilityCheck = availabilityCallIndex.flatMap { self.availabilityCheck(at: $0, in: instructions) }
 
-        if let program = analyzeConditionalSelect(
-            after: availabilityCallIndex,
-            in: instructions,
-            availabilityCheck: availabilityCheck
-        ) {
-            return program
+        var conditionFalseRun = ThunkTypeEvaluator(environment: environment, instructions: instructions)
+        let conditionFalse = conditionFalseRun.run(policy: .assumeConditionFalse)
+        var conditionTrueRun = ThunkTypeEvaluator(environment: environment, instructions: instructions)
+        let conditionTrue = conditionTrueRun.run(policy: .assumeConditionTrue)
+
+        guard let availabilityCallIndex else {
+            return unconditionalProgram(conditionFalse: conditionFalse, conditionTrue: conditionTrue)
         }
-        if let program = analyzeBranchSplit(
-            after: availabilityCallIndex,
-            in: instructions,
-            availabilityCheck: availabilityCheck
-        ) {
-            return program
+        return availabilityProgram(
+            availabilityCheck: availabilityCheck,
+            availabilityCallIndex: availabilityCallIndex,
+            conditionFalse: conditionFalse,
+            conditionTrue: conditionTrue,
+            in: instructions
+        )
+    }
+
+    // MARK: - No version check
+
+    private static func unconditionalProgram(
+        conditionFalse: ThunkTypeEvaluator.Outcome,
+        conditionTrue: ThunkTypeEvaluator.Outcome
+    ) -> AccessorThunkProgram {
+        for outcome in [conditionFalse, conditionTrue] {
+            guard let expression = outcome.result else { continue }
+            return AccessorThunkProgram(
+                availabilityCheck: nil,
+                candidates: [ThunkCandidate(reference: reference(for: expression), condition: .unconditional)],
+                limitations: outcome.limitations
+            )
         }
         return AccessorThunkProgram(
-            availabilityCheck: availabilityCheck,
+            availabilityCheck: nil,
             candidates: [],
-            limitations: [.selectionNotRecognized]
+            limitations: [.noRecognizedShape] + conditionFalse.limitations
         )
+    }
+
+    // MARK: - A version check
+
+    private static func availabilityProgram(
+        availabilityCheck: PlatformAvailabilityCheck?,
+        availabilityCallIndex: Int,
+        conditionFalse: ThunkTypeEvaluator.Outcome,
+        conditionTrue: ThunkTypeEvaluator.Outcome,
+        in instructions: [ThunkInstruction]
+    ) -> AccessorThunkProgram {
+        var limitations: [ThunkAnalysisLimitation] = []
+        for limitation in conditionFalse.limitations + conditionTrue.limitations where !limitations.contains(limitation) {
+            limitations.append(limitation)
+        }
+        guard limitations.isEmpty else {
+            return AccessorThunkProgram(availabilityCheck: availabilityCheck, candidates: [], limitations: limitations)
+        }
+        // The check's result lands in `x0`, unknown to the evaluator, so the
+        // first conditional it had to decide is the one that reads it.
+        guard let decidedIndex = conditionFalse.decidedInstructionIndex ?? conditionTrue.decidedInstructionIndex,
+              decidedIndex > availabilityCallIndex
+        else {
+            return AccessorThunkProgram(availabilityCheck: availabilityCheck, candidates: [], limitations: [.selectionNotRecognized])
+        }
+
+        // Which run is the satisfied arm. The comparison is against zero on
+        // the check's own result, so "condition true" means the check
+        // returned **false** for `cbz` and `csel … eq`, and **true** for
+        // `cbnz` and `csel … ne`. Getting this backwards would attribute
+        // each type to the wrong OS version — an error no amount of reading
+        // the output would reveal, since both answers are real types.
+        let conditionTrueIsSatisfied: Bool
+        switch instructions[decidedIndex].operation {
+        case .branchIfZero: conditionTrueIsSatisfied = false
+        case .branchIfNotZero: conditionTrueIsSatisfied = true
+        case .conditionalSelect(_, _, _, .equal): conditionTrueIsSatisfied = false
+        case .conditionalSelect(_, _, _, .notEqual): conditionTrueIsSatisfied = true
+        default:
+            return AccessorThunkProgram(availabilityCheck: availabilityCheck, candidates: [], limitations: [.selectionNotRecognized])
+        }
+        let satisfiedOutcome = conditionTrueIsSatisfied ? conditionTrue : conditionFalse
+        let notSatisfiedOutcome = conditionTrueIsSatisfied ? conditionFalse : conditionTrue
+
+        var candidates: [ThunkCandidate] = []
+        var fallbackLimitations: [ThunkAnalysisLimitation] = []
+        // The satisfied branch comes first, so a caller that wants the one
+        // answer today's OS gives can take `candidates.first` without
+        // re-deriving the condition.
+        for (outcome, condition, assumedTrue) in [
+            (satisfiedOutcome, ThunkCandidate.Condition.availabilitySatisfied, conditionTrueIsSatisfied),
+            (notSatisfiedOutcome, ThunkCandidate.Condition.availabilityNotSatisfied, !conditionTrueIsSatisfied),
+        ] {
+            if let expression = outcome.result {
+                candidates.append(ThunkCandidate(reference: reference(for: expression), condition: condition))
+                continue
+            }
+            // The single-lookup reading of that arm: one call, whose callee's
+            // identity names the type (an accessor the environment does not
+            // know is still an accessor).
+            guard let armInstructions = branchArm(after: decidedIndex, assumingConditionTrue: assumedTrue, in: instructions) else {
+                fallbackLimitations.append(.selectionNotRecognized)
+                continue
+            }
+            let callTargets = armInstructions.compactMap { instruction -> UInt64? in
+                guard case .call(let target) = instruction.operation else { return nil }
+                return target
+            }
+            guard callTargets.count == 1 else {
+                fallbackLimitations.append(.branchIsNotASingleLookup(condition: condition, callCount: callTargets.count))
+                continue
+            }
+            candidates.append(ThunkCandidate(reference: .metadataAccessor(address: callTargets[0]), condition: condition))
+        }
+        var uniqueLimitations: [ThunkAnalysisLimitation] = []
+        for limitation in fallbackLimitations where !uniqueLimitations.contains(limitation) {
+            uniqueLimitations.append(limitation)
+        }
+        return AccessorThunkProgram(availabilityCheck: availabilityCheck, candidates: candidates, limitations: uniqueLimitations)
+    }
+
+    /// The instructions one arm of a `cbz` / `cbnz` split runs, for the
+    /// single-lookup fallback: the fall-through arm up to the branch target,
+    /// or the arm from the target on. A `csel` has no arms.
+    private static func branchArm(after decidedIndex: Int, assumingConditionTrue: Bool, in instructions: [ThunkInstruction]) -> [ThunkInstruction]? {
+        let target: UInt64
+        switch instructions[decidedIndex].operation {
+        case .branchIfZero(_, let branchTarget), .branchIfNotZero(_, let branchTarget):
+            target = branchTarget
+        default:
+            return nil
+        }
+        let rest = instructions[(decidedIndex + 1)...]
+        return assumingConditionTrue ? Array(rest.drop { $0.address < target }) : Array(rest.prefix { $0.address < target })
+    }
+
+    /// A constant metadata address is reported as the `.metadata` reference
+    /// the first landing introduced; everything the evaluator built is
+    /// `.constructed`.
+    private static func reference(for expression: ThunkTypeExpression) -> ThunkCandidate.Reference {
+        if case .constantMetadata(let address) = expression { return .metadata(address: address) }
+        return .constructed(expression)
     }
 
     // MARK: - The availability check
@@ -100,120 +237,6 @@ public enum AccessorThunkAnalyzer {
             minor: arguments[2],
             patch: arguments[3],
             checkFunctionAddress: checkFunctionAddress
-        )
-    }
-
-    // MARK: - Shape 1: cmp + csel between two metadata addresses
-
-    private static func analyzeConditionalSelect(
-        after availabilityCallIndex: Int,
-        in instructions: [ThunkInstruction],
-        availabilityCheck: PlatformAvailabilityCheck?
-    ) -> AccessorThunkProgram? {
-        var tracker = ThunkRegisterTracker()
-        for instruction in instructions[0 ... availabilityCallIndex] {
-            tracker.apply(instruction.operation)
-        }
-
-        for instruction in instructions[(availabilityCallIndex + 1)...] {
-            guard case .conditionalSelect(_, let whenConditionHolds, let otherwise, let condition) = instruction.operation else {
-                tracker.apply(instruction.operation)
-                continue
-            }
-            guard let addressWhenConditionHolds = tracker.address(of: whenConditionHolds),
-                  let addressOtherwise = tracker.address(of: otherwise)
-            else { return nil }
-
-            // The comparison is `cmp w0, #0` on the check's own result, so the
-            // `eq` branch is the one where the check returned **false** — i.e.
-            // the platform is *older* than the tested version.
-            let conditionWhenHolds: ThunkCandidate.Condition
-            switch condition {
-            case .equal:
-                conditionWhenHolds = .availabilityNotSatisfied
-            case .notEqual:
-                conditionWhenHolds = .availabilitySatisfied
-            case .unsupported:
-                return AccessorThunkProgram(
-                    availabilityCheck: availabilityCheck,
-                    candidates: [],
-                    limitations: [.unsupportedConditionCode]
-                )
-            }
-            // The satisfied branch comes first, so a caller that wants the one
-            // answer today's OS gives can take `candidates.first` without
-            // re-deriving the condition.
-            let satisfiedAddress = conditionWhenHolds == .availabilitySatisfied ? addressWhenConditionHolds : addressOtherwise
-            let notSatisfiedAddress = conditionWhenHolds == .availabilitySatisfied ? addressOtherwise : addressWhenConditionHolds
-
-            return AccessorThunkProgram(
-                availabilityCheck: availabilityCheck,
-                candidates: [
-                    ThunkCandidate(reference: .metadata(address: satisfiedAddress), condition: .availabilitySatisfied),
-                    ThunkCandidate(reference: .metadata(address: notSatisfiedAddress), condition: .availabilityNotSatisfied),
-                ],
-                limitations: []
-            )
-        }
-        return nil
-    }
-
-    // MARK: - Shape 2: cbz splitting into two single-lookup branches
-
-    private static func analyzeBranchSplit(
-        after availabilityCallIndex: Int,
-        in instructions: [ThunkInstruction],
-        availabilityCheck: PlatformAvailabilityCheck?
-    ) -> AccessorThunkProgram? {
-        var splitIndex: Int?
-        var branchTarget: UInt64?
-        var conditionWhenBranchTaken: ThunkCandidate.Condition?
-
-        for index in (availabilityCallIndex + 1) ..< instructions.count {
-            switch instructions[index].operation {
-            case .branchIfZero(_, let target):
-                // Branch taken when the check returned false.
-                splitIndex = index
-                branchTarget = target
-                conditionWhenBranchTaken = .availabilityNotSatisfied
-            case .branchIfNotZero(_, let target):
-                splitIndex = index
-                branchTarget = target
-                conditionWhenBranchTaken = .availabilitySatisfied
-            default:
-                continue
-            }
-            break
-        }
-        guard let splitIndex, let branchTarget, let conditionWhenBranchTaken else { return nil }
-
-        let conditionWhenFallingThrough: ThunkCandidate.Condition = conditionWhenBranchTaken == .availabilitySatisfied
-            ? .availabilityNotSatisfied
-            : .availabilitySatisfied
-
-        let fallThroughRange = instructions[(splitIndex + 1)...].prefix { $0.address < branchTarget }
-        let branchTakenRange = instructions[(splitIndex + 1)...].drop { $0.address < branchTarget }
-
-        var candidates: [ThunkCandidate] = []
-        var limitations: [ThunkAnalysisLimitation] = []
-        for (branchInstructions, condition) in [
-            (Array(fallThroughRange), conditionWhenFallingThrough),
-            (Array(branchTakenRange), conditionWhenBranchTaken),
-        ] {
-            let callTargets = branchInstructions.compactMap { instruction -> UInt64? in
-                guard case .call(let target) = instruction.operation else { return nil }
-                return target
-            }
-            guard callTargets.count == 1 else {
-                limitations.append(.branchIsNotASingleLookup(condition: condition, callCount: callTargets.count))
-                continue
-            }
-            candidates.append(ThunkCandidate(reference: .metadataAccessor(address: callTargets[0]), condition: condition))
-        }
-        return AccessorThunkProgram(
-            availabilityCheck: availabilityCheck,
-            candidates: candidates,
-            limitations: limitations
         )
     }
 }

@@ -133,6 +133,7 @@ extension Node {
     final class AccessorFunctionReferenceRewriter: Node.Rewriter {
         private let resolver: any AccessorThunkResolving
         private let machO: MachOFile
+        private let ownerLayout: AccessorThunkOwnerLayout
         private let branchSelection: AccessorThunkBranchSelection
         private let candidateLedger: AccessorThunkCandidateLedger?
 
@@ -141,11 +142,13 @@ extension Node {
         init(
             resolver: any AccessorThunkResolving,
             machO: MachOFile,
+            ownerLayout: AccessorThunkOwnerLayout = .unknown,
             branchSelection: AccessorThunkBranchSelection = [:],
             candidateLedger: AccessorThunkCandidateLedger? = nil
         ) {
             self.resolver = resolver
             self.machO = machO
+            self.ownerLayout = ownerLayout
             self.branchSelection = branchSelection
             self.candidateLedger = candidateLedger
         }
@@ -154,7 +157,7 @@ extension Node {
             guard node.isKind(of: .accessorFunctionReference),
                   let thunkOffset: Int = node.index?.cast()
             else { return node }
-            let underlyingTypes = resolver.underlyingTypes(forAccessorThunkAt: thunkOffset, in: machO)
+            let underlyingTypes = resolver.underlyingTypes(forAccessorThunkAt: thunkOffset, in: machO, ownerLayout: ownerLayout)
             candidateLedger?.record(underlyingTypes, forThunkAt: thunkOffset)
             // Index 0 is the branch the current platform takes; a caller
             // rendering the other branches selects one by index.
@@ -240,13 +243,14 @@ extension Node {
         /// answer and the **first** — the branch the current OS takes — is
         /// substituted here. The others are not lost: they are what
         /// ``AccessorThunkResolving`` vends to a host that wants to show them.
-        private func resolvingAccessorFunctionReferences(in node: Node) -> Node? {
+        private func resolvingAccessorFunctionReferences(in node: Node, ownerLayout: AccessorThunkOwnerLayout) -> Node? {
             guard node.contains(Node.Kind.accessorFunctionReference) else { return nil }
-            guard let resolver = AccessorThunkResolution.resolver, let machOFile = machO as? MachOFile else { return nil }
+            guard let resolver = AccessorThunkResolution.effectiveResolver, let machOFile = machO as? MachOFile else { return nil }
 
             let rewriter = AccessorFunctionReferenceRewriter(
                 resolver: resolver,
                 machO: machOFile,
+                ownerLayout: ownerLayout,
                 branchSelection: branchSelection,
                 candidateLedger: candidateLedger
             )
@@ -272,8 +276,8 @@ extension Node {
         /// argument thrown away. Kept, the reference prints as
         /// `accessor function at N` (the wording both printers already use for
         /// a kind-9 field record) inside an otherwise complete type.
-        private func underlyingTypeContent(of underlyingTypeArgumentNode: Node) -> Node? {
-            if let resolvedNode = resolvingAccessorFunctionReferences(in: underlyingTypeArgumentNode) {
+        private func underlyingTypeContent(of underlyingTypeArgumentNode: Node, ownerLayout: AccessorThunkOwnerLayout) -> Node? {
+            if let resolvedNode = resolvingAccessorFunctionReferences(in: underlyingTypeArgumentNode, ownerLayout: ownerLayout) {
                 return resolvedNode
             }
             if underlyingTypeArgumentNode.kind == .type, let firstChild = underlyingTypeArgumentNode.firstChild {
@@ -352,8 +356,12 @@ extension Node {
                         } else {
                             underlyingTypeArgumentNode = try? SymbolicDemangler.demangleType(for: underlyingTypeArgumentMangledName, in: machO)
                         }
+                        // The thunk's argument buffer is the opaque
+                        // descriptor's generic arguments, so its generic
+                        // context is what names an argument the thunk reads.
+                        let ownerLayout = AccessorThunkOwnerLayout(genericContext: opaqueType.genericContext)
                         if let underlyingTypeArgumentNode,
-                           let resolvedNode = underlyingTypeContent(of: underlyingTypeArgumentNode) {
+                           let resolvedNode = underlyingTypeContent(of: underlyingTypeArgumentNode, ownerLayout: ownerLayout) {
                             let substituted = OpaqueTypeGenericParameterRewriter(machO: machO, typeList: allTypeList).rewrite(resolvedNode)
                             return expandingNestedOpaqueTypes(in: substituted)
                         }
@@ -384,6 +392,30 @@ extension Node {
         reportingDegradationTo reportDegradation: OpaqueTypeDegradationReporter? = nil
     ) throws -> Node {
         OpaqueTypeRewriter(machO: machO, reportDegradation: reportDegradation).rewrite(self)
+    }
+
+    /// Replaces the kind-9 accessor-function references a *field record's*
+    /// type carries with the types their thunks yield — offline, through the
+    /// registered ``AccessorThunkResolving``, with `ownerLayout` describing
+    /// the generic parameters of the type the field belongs to (the thunk's
+    /// argument buffer is that type's generic arguments). Answers `self`
+    /// unchanged when there is nothing to replace, no resolver is
+    /// registered, or the reader is in-process.
+    ///
+    /// The opaque-type path reaches the same rewriter through
+    /// ``resolveOpaqueType(in:reportingDegradationTo:)``; this is the entry
+    /// for a type that is not behind an opaque descriptor at all.
+    package func resolvingAccessorFunctionReferences(
+        in machO: some MachOSwiftSectionRepresentableWithCache,
+        ownerLayout: AccessorThunkOwnerLayout
+    ) -> Node {
+        guard contains(Node.Kind.accessorFunctionReference),
+              let resolver = AccessorThunkResolution.effectiveResolver,
+              let machOFile = machO as? MachOFile
+        else { return self }
+        let rewriter = AccessorFunctionReferenceRewriter(resolver: resolver, machO: machOFile, ownerLayout: ownerLayout)
+        let rewritten = rewriter.rewrite(copy())
+        return rewriter.didResolveAnyReference ? rewritten : self
     }
 
     /// One branch of an availability-conditional accessor thunk, in place:

@@ -6,6 +6,7 @@ import MachOKit
 import MachOFoundation
 import MachOSwiftSection
 import MachOFixtureSupport
+import MachOTestingSupport
 import Demangling
 @_spi(Internals) import SwiftInspection
 import SwiftDeclarationRendering
@@ -15,6 +16,10 @@ import SwiftThunkAnalysis
 /// a bare address renders as a type once the resolver is installed — and,
 /// since the follow-up batch, as its type *around* the unread reference when
 /// it is not.
+// The resolver is scoped to each test's task (`AccessorThunkResolution.taskResolver`),
+// never installed process-wide: suites run in parallel, and a process-wide
+// install turned every snapshot suite's kind-9 placeholders into real types
+// for as long as it lasted.
 @Suite(.serialized)
 struct OpaqueTypeRenderingIntegrationTests {
     private static let unreadReferenceMarker = "accessor function at"
@@ -49,13 +54,12 @@ struct OpaqueTypeRenderingIntegrationTests {
         let cache = try DyldCache(path: .current)
         let machO = try #require(cache.machOFile(named: .SwiftUI))
 
-        AccessorThunkResolution.resolver = nil
         let before = try await renderedWitnesses(in: machO)
         let unreadBefore = before.filter { $0.contains(Self.unreadReferenceMarker) }.count
 
-        AccessorThunkResolution.installDisassemblingResolver()
-        defer { AccessorThunkResolution.resolver = nil }
-        let after = try await renderedWitnesses(in: machO)
+        let after = try await AccessorThunkResolution.$taskResolver.withValue(DisassemblingAccessorThunkResolver()) {
+            try await renderedWitnesses(in: machO)
+        }
         let unreadAfter = after.filter { $0.contains(Self.unreadReferenceMarker) }.count
 
         print("unread accessor references before: \(unreadBefore), after: \(unreadAfter)")
@@ -69,6 +73,20 @@ struct OpaqueTypeRenderingIntegrationTests {
         )
     }
 
+    /// The goal the module exists for: with the resolver installed, no
+    /// kind-9 witness in SwiftUI is left unread — the type-construction
+    /// evaluator reads the thunk the first landing had to refuse.
+    @Test func everyAccessorReferenceResolves() async throws {
+        let cache = try DyldCache(path: .current)
+        let machO = try #require(cache.machOFile(named: .SwiftUI))
+
+        let rendered = try await AccessorThunkResolution.$taskResolver.withValue(DisassemblingAccessorThunkResolver()) {
+            try await renderedWitnesses(in: machO)
+        }
+        let unread = rendered.filter { $0.contains(Self.unreadReferenceMarker) }
+        #expect(unread.isEmpty, "still unread:\n\(unread.joined(separator: "\n"))")
+    }
+
     /// With no resolver registered the reference is not resolved — but it is
     /// no longer erased either. Before the follow-up batch the rewriter gave
     /// up on any underlying type that was not a `.type` node, and the whole
@@ -79,7 +97,6 @@ struct OpaqueTypeRenderingIntegrationTests {
         let cache = try DyldCache(path: .current)
         let machO = try #require(cache.machOFile(named: .SwiftUI))
 
-        AccessorThunkResolution.resolver = nil
         let rendered = try await renderedWitnesses(in: machO)
         let unread = rendered.filter { $0.contains(Self.unreadReferenceMarker) }
 
@@ -100,18 +117,17 @@ struct OpaqueTypeRenderingIntegrationTests {
         let cache = try DyldCache(path: .current)
         let machO = try #require(cache.machOFile(named: .SwiftUI))
 
-        AccessorThunkResolution.installDisassemblingResolver()
-        defer { AccessorThunkResolution.resolver = nil }
-
         var twoWayResolutions: [Node.OpaqueTypeResolution] = []
-        for associatedType in try machO.swift.associatedTypes {
-            for record in associatedType.records {
-                guard let node = try? SymbolicDemangler.demangleType(for: record.substitutedTypeName(in: machO), in: machO),
-                      node.contains(Node.Kind.opaqueType)
-                else { continue }
-                let resolution = node.resolveOpaqueTypeCollectingConditionalCandidates(in: machO)
-                guard resolution.conditionalCandidates.count >= 2 else { continue }
-                twoWayResolutions.append(resolution)
+        AccessorThunkResolution.$taskResolver.withValue(DisassemblingAccessorThunkResolver()) {
+            for associatedType in (try? machO.swift.associatedTypes) ?? [] {
+                for record in associatedType.records {
+                    guard let node = try? SymbolicDemangler.demangleType(for: record.substitutedTypeName(in: machO), in: machO),
+                          node.contains(Node.Kind.opaqueType)
+                    else { continue }
+                    let resolution = node.resolveOpaqueTypeCollectingConditionalCandidates(in: machO)
+                    guard resolution.conditionalCandidates.count >= 2 else { continue }
+                    twoWayResolutions.append(resolution)
+                }
             }
         }
         let resolution = try #require(twoWayResolutions.first, "SwiftUI is expected to carry an availability-conditional witness the reader resolves both ways")

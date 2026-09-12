@@ -44,11 +44,28 @@ struct AccessorThunkAnalyzerTests {
 
     // MARK: - Shape 1: cmp + csel
 
+    /// The one accessor the `csel` shape tail-calls with its selection.
+    private static let modifiedContentAccessor: UInt64 = 0x1B6DD4A68
+
+    /// Knows that accessor and nothing else.
+    private struct ConditionalSelectEnvironment: ThunkEvaluationEnvironment {
+        func callee(at address: UInt64) -> ThunkCallee {
+            address == modifiedContentAccessor ? .metadataAccessor(address: address, argumentSlots: [.type, .type]) : .unknown
+        }
+
+        func pointer(at address: UInt64) -> UInt64? { nil }
+        func slotSymbolName(at address: UInt64) -> String? { nil }
+    }
+
     /// `SwiftUI.ResolvedMenuStyle.Body`'s shape: two metadata addresses
     /// materialized by `adrp` / `add`, selected with `csel … eq` after
-    /// `cmp w0, #0`.
+    /// `cmp w0, #0`, and handed — with the thunk's first argument — to
+    /// `ModifiedContent`'s accessor in a tail call. The first landing read
+    /// the two `csel` operands as the whole answer and so dropped the
+    /// `ModifiedContent<…>` around them; the tail call is the answer.
     private func conditionalSelectThunk(condition: ThunkCondition = .equal) -> [ThunkInstruction] {
-        var instructions = availabilityCheckInstructions(startingAt: 0x1000)
+        var instructions = [instruction(.loadFromMemory(destination: register(19), base: register(0), displacement: 0), at: 0x0FFC)]
+        instructions += availabilityCheckInstructions(startingAt: 0x1000)
         instructions += [
             instruction(.materializePageAddress(destination: register(8), pageBaseAddress: 0x1F22C5000), at: 0x1014),
             instruction(.addImmediate(destination: register(8), source: register(8), addend: 0x810), at: 0x1018),
@@ -64,13 +81,26 @@ struct AccessorThunkAnalyzerTests {
                 ),
                 at: 0x1028
             ),
-            instruction(.returnFromFunction, at: 0x102C),
+            instruction(.moveRegister(destination: register(1), source: register(19)), at: 0x102C),
+            instruction(.moveImmediate(destination: register(0), value: 0), at: 0x1030),
+            instruction(.branch(target: Self.modifiedContentAccessor), at: 0x1034),
         ]
         return instructions
     }
 
+    private func modifiedContent(around selected: UInt64) -> ThunkCandidate.Reference {
+        .constructed(.bound(
+            accessorAddress: Self.modifiedContentAccessor,
+            typeArguments: [.argument(index: 0), .constantMetadata(address: selected)]
+        ))
+    }
+
+    private func analyzeConditionalSelectThunk(condition: ThunkCondition = .equal) -> AccessorThunkProgram {
+        AccessorThunkAnalyzer.analyze(instructions: conditionalSelectThunk(condition: condition), environment: ConditionalSelectEnvironment())
+    }
+
     @Test func readsTheVersionTheThunkChecks() throws {
-        let program = AccessorThunkAnalyzer.analyze(instructions: conditionalSelectThunk())
+        let program = analyzeConditionalSelectThunk()
         let check = try #require(program.availabilityCheck)
         #expect(check.platform == 1)
         #expect(check.major == 26)
@@ -85,29 +115,29 @@ struct AccessorThunkAnalyzerTests {
     /// no amount of reading the output would reveal, since both answers are
     /// real types.
     @Test func attributesTheEqualBranchToTheOlderPlatform() throws {
-        let program = AccessorThunkAnalyzer.analyze(instructions: conditionalSelectThunk())
+        let program = analyzeConditionalSelectThunk()
         #expect(program.limitations.isEmpty)
         #expect(program.candidates.count == 2)
 
         let satisfied = try #require(program.candidates.first { $0.condition == .availabilitySatisfied })
         let notSatisfied = try #require(program.candidates.first { $0.condition == .availabilityNotSatisfied })
         // `csel x2, x9, x8, eq` — x9 when equal (check returned false), x8 otherwise.
-        #expect(satisfied.reference == .metadata(address: 0x1F22C5810))
-        #expect(notSatisfied.reference == .metadata(address: 0x1F22C5888))
+        #expect(satisfied.reference == modifiedContent(around: 0x1F22C5810))
+        #expect(notSatisfied.reference == modifiedContent(around: 0x1F22C5888))
     }
 
     /// With `ne` the roles swap; the analysis must follow the condition code
     /// rather than the operand order.
     @Test func swapsTheBranchesForNotEqual() throws {
-        let program = AccessorThunkAnalyzer.analyze(instructions: conditionalSelectThunk(condition: .notEqual))
+        let program = analyzeConditionalSelectThunk(condition: .notEqual)
         let satisfied = try #require(program.candidates.first { $0.condition == .availabilitySatisfied })
-        #expect(satisfied.reference == .metadata(address: 0x1F22C5888))
+        #expect(satisfied.reference == modifiedContent(around: 0x1F22C5888))
     }
 
     /// A condition the decoder does not model must produce no candidates at
     /// all — a coin flip between two real types is worse than a placeholder.
     @Test func refusesToGuessAnUnmodelledCondition() throws {
-        let program = AccessorThunkAnalyzer.analyze(instructions: conditionalSelectThunk(condition: .unsupported))
+        let program = analyzeConditionalSelectThunk(condition: .unsupported)
         #expect(program.candidates.isEmpty)
         #expect(program.limitations == [.unsupportedConditionCode])
     }
@@ -115,8 +145,19 @@ struct AccessorThunkAnalyzerTests {
     /// The satisfied branch is first, so a caller wanting "what this OS does"
     /// can take `candidates.first`.
     @Test func ordersTheSatisfiedBranchFirst() throws {
-        let program = AccessorThunkAnalyzer.analyze(instructions: conditionalSelectThunk())
+        let program = analyzeConditionalSelectThunk()
         #expect(program.candidates.first?.condition == .availabilitySatisfied)
+    }
+
+    /// The tail call's callee is what names the type; a `csel` whose
+    /// selection flows into a callee the environment cannot name yields
+    /// nothing — the first landing's reading, which reported the two
+    /// selected metadata records themselves, printed `ResolvedMenuStyle.Body`
+    /// without the `ModifiedContent<…>` the thunk actually returns.
+    @Test func doesNotReportTheSelectionWhenTheTailCallIsUnknown() throws {
+        let program = AccessorThunkAnalyzer.analyze(instructions: conditionalSelectThunk())
+        #expect(program.candidates.isEmpty)
+        #expect(program.limitations == [.selectionNotRecognized])
     }
 
     // MARK: - Shape 2: cbz splitting into two single-lookup branches

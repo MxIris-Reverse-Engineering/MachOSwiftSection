@@ -8,6 +8,7 @@ import MachOSwiftSection
 import MachOFixtureSupport
 import Demangling
 @_spi(Internals) import SwiftInspection
+import SwiftDeclarationRendering
 @testable import SwiftThunkAnalysis
 
 /// End to end over a real framework: from the offset a kind-9 node carries to
@@ -21,8 +22,10 @@ import Demangling
 @Suite(.serialized)
 struct AccessorThunkReaderTests {
     /// Walks SwiftUI's associated types to the first opaque witness whose
-    /// underlying type is a kind-9 accessor reference.
-    private func firstAccessorThunkOffset(in machO: MachOFile) throws -> Int? {
+    /// underlying type is a kind-9 accessor reference, with the layout of
+    /// the opaque descriptor's generic arguments — what a construction thunk
+    /// reads its arguments out of.
+    private func firstAccessorThunk(in machO: MachOFile) throws -> (offset: Int, ownerLayout: AccessorThunkOwnerLayout)? {
         for associatedType in try machO.swift.associatedTypes {
             for record in associatedType.records {
                 guard let node = try? SymbolicDemangler.demangleType(for: record.substitutedTypeName(in: machO), in: machO),
@@ -43,7 +46,7 @@ struct AccessorThunkReaderTests {
                       let accessorReference = underlyingNode.first(of: Node.Kind.accessorFunctionReference),
                       let thunkOffset: Int = accessorReference.index?.cast()
                 else { continue }
-                return thunkOffset
+                return (offset: thunkOffset, ownerLayout: AccessorThunkOwnerLayout(genericContext: opaqueType.genericContext))
             }
         }
         return nil
@@ -52,7 +55,7 @@ struct AccessorThunkReaderTests {
     @Test func resolvesAnAvailabilityConditionalThunkInSwiftUI() async throws {
         let cache = try DyldCache(path: .current)
         let machO = try #require(cache.machOFile(named: .SwiftUI), "the running system's cache has no SwiftUI")
-        guard let thunkOffset = try firstAccessorThunkOffset(in: machO) else {
+        guard let thunk = try firstAccessorThunk(in: machO) else {
             // A future SwiftUI may carry none; that is not a defect here.
             withKnownIssue("this build of SwiftUI has no kind-9 accessor reference in its associated types") {
                 Issue.record("nothing to resolve")
@@ -60,7 +63,7 @@ struct AccessorThunkReaderTests {
             return
         }
 
-        let resolved = try AccessorThunkReader.read(thunkAtOffset: thunkOffset, in: machO)
+        let resolved = try AccessorThunkReader.read(thunkAtOffset: thunk.offset, in: machO, ownerLayout: thunk.ownerLayout)
 
         let availabilityCheck = try #require(
             resolved.availabilityCheck,
@@ -104,9 +107,9 @@ struct AccessorThunkReaderTests {
     @Test func theRuntimesAnswerIsAmongTheOfflineCandidates() async throws {
         let cache = try DyldCache(path: .current)
         let machO = try #require(cache.machOFile(named: .SwiftUI))
-        guard let thunkOffset = try firstAccessorThunkOffset(in: machO) else { return }
+        guard let thunk = try firstAccessorThunk(in: machO) else { return }
 
-        let resolved = try AccessorThunkReader.read(thunkAtOffset: thunkOffset, in: machO)
+        let resolved = try AccessorThunkReader.read(thunkAtOffset: thunk.offset, in: machO, ownerLayout: thunk.ownerLayout)
         guard !resolved.underlyingTypes.isEmpty else { return }
 
         var offlineNames: Set<String> = []

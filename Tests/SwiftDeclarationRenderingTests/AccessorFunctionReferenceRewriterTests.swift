@@ -16,7 +16,7 @@ import MachOFixtureSupport
 private struct TabledAccessorThunkResolver: AccessorThunkResolving {
     let candidatesByThunkOffset: [Int: [ConditionalUnderlyingType]]
 
-    func underlyingTypes(forAccessorThunkAt offset: Int, in machO: MachOFile) -> [ConditionalUnderlyingType] {
+    func underlyingTypes(forAccessorThunkAt offset: Int, in machO: MachOFile, ownerLayout: AccessorThunkOwnerLayout) -> [ConditionalUnderlyingType] {
         candidatesByThunkOffset[offset] ?? []
     }
 }
