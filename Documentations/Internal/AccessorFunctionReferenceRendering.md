@@ -75,6 +75,13 @@ thunk 里先调 `__isPlatformVersionAtLeast`，再按结果在两个类型之间
   每个非默认分支按选择重跑一遍——每条 witness 一个双向 thunk（实测全部如此）就多一趟，没有笛卡尔积。
   同一批顺带让索引期投影解析 opaque（此前 ABI 快照里每个 `some View` 的 `Body` 都是裸偏移，跨版本 diff
   全报 modified）。
+- **另一支也进了输出**（2026-09-12，默认打印、不加开关）。`interface` 与 `dump` 两条打印路径改用收集候选的解析入口，
+  witness 有两支及以上时在 `typealias` 上方打注释：一行标题
+  `Body is picked at run time by an availability check (SE-0360):`，然后每支一行、标签对齐——
+  `macOS 26.0 or later: …` / `before macOS 26.0: …`；`typealias` 本身仍是最新平台那一支。渲染在
+  `SwiftDeclarationRendering` 的 `ConditionalWitnessComment`，两处共用。平台号是 Swift IRGen 的
+  `getBaseMachOPlatformID` 传给 `__isPlatformVersionAtLeast` 的 Mach-O `PLATFORM_*` 值，经 `MachOKit.Platform`
+  翻成名字，认不出的保留数字。单支 witness 的输出与之前逐字节相同，fixture 没有这种 witness，快照基线不变。
 - **进程内路径**见层 1。
 
 ### 层 3′：类型构造求值（已实现，2026-09-12，提案 0029）

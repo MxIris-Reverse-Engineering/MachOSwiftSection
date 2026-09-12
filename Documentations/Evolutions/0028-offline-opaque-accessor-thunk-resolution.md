@@ -7,7 +7,7 @@
 - **所属愿景**: 无
 - **关联提案**: 无（前置修复 `collect an opaque type's generic arguments from .children` 已单独落地，见 commit `a85b172d`）
 - **实现分支 / PR**: `next`
-- **配套文档**: [任务报告](../Internal/TaskReports/2026-09-11-offline-accessor-thunk-resolution.md)、[收尾批次任务报告](../Internal/TaskReports/2026-09-11-accessor-thunk-resolution-follow-up.md)
+- **配套文档**: [专题导读](../Internal/AccessorThunkResolutionExplained.md)、[任务报告](../Internal/TaskReports/2026-09-11-offline-accessor-thunk-resolution.md)、[收尾批次任务报告](../Internal/TaskReports/2026-09-11-accessor-thunk-resolution-follow-up.md)
 
 ## 摘要
 
@@ -483,3 +483,4 @@ extension AssociatedTypeWitnessProjection {
 | 2026-09-11 | 进程内路径改挂在 witness 调用点，门控改为「conforming type 能不带实参实例化」 | 原定放在 rewriter 的 `MachOImage` 分支、按 opaque 上下文有无泛型参数门控。一次性探针证明 SwiftUI 的 thunk 第一条就是 `ldr x19, [x0]`，实参缓冲必须是真实的区（runtime 的 `swift_getAssociatedTypeWitnessSlow` 传的是 conforming type metadata 的泛型实参区），而 rewriter 手里只有 opaque descriptor 没有 conforming type；三个 witness 调用点手里有 `conformingTypeName`，判据更直接。探针实测 17 条里 5 条答出、12 条泛型 conformer 返回 nil、零崩溃 |
 | 2026-09-11 | 收尾批次落地，状态回 `Implemented` | 三件事全部完成。专项 14 个测试全绿；trait 开 506 测试 / 81 套件绿，trait 关 428 测试 / 68 套件绿，快照基线零改动；SwiftUI CLI A/B 恰好 5 行差异且全部是引用原位替换。配套文档：收尾批次任务报告（已登记在头部）、`AccessorFunctionReferenceRendering.md` 层 1 与层 3 补记、AGENTS.md 的 `SwiftThunkAnalysis` 与 `SwiftDeclaration` 条目、演进账本本节补记。未引入新术语，术语表不动 |
 | 2026-09-12 | 撤销 trait 与 seam 反向依赖，改为直接依赖 | 用户裁定，两步到位。第一步先把 trait 从「编译门」改成「链接门」（SwiftPM 本来就为每个启用的 trait 定义同名编译条件，`.define` 多余；target 是普通 library，不该在源码里分叉）；随后用户进一步裁定「直接集成，不做 trait 判断，也不要 trait」。最终：`Package.swift` 删掉 trait 声明与所有条件边；`SwiftDeclarationRendering` 直接依赖 `SwiftThunkAnalysis`，kind-9 rewriter 默认用 `DisassemblingAccessorThunkResolver`（上移到渲染层）调 `AccessorThunkReader`；`AccessorThunkOwnerLayout` 下移到 `SwiftThunkAnalysis`；删掉进程全局的 `AccessorThunkResolution.resolver` 与 `installDisassemblingResolver()`，CLI 入口不再注册；`AccessorThunkResolving` 协议与 task-local 只作为测试注入点保留。代价：Capstone 的 ARM64 后端成为渲染层以上所有模块的常规依赖。收益：宿主什么都不用写就拿到解析——本仓库唯一的宿主是 CLI，RuntimeViewer 此前从未注册过，也就从未拿到过。fixture 的 kind-9 field record 随之在 dump / interface 快照里渲染成声明的类型，两份基线重录。 |
+| 2026-09-12 | 另一支进输出：两条打印路径在 `typealias` 上方打分支注释 | 用户指出 `interface` 没打两支。此前候选只进了模型（`conditionalCandidates`），`interface` / `dump` 都在打印时用不收集候选的入口现场解析，另一支无处可见。用户选定排版：标题一行 + 每支一行带条件、标签对齐、当前支也列在内（备选是只注释另一支）；默认打印、不加 flag（备选是加 `--emit-…` 开关保持默认输出逐字节不变）。渲染放在 `SwiftDeclarationRendering` 的 `ConditionalWitnessComment` 供两处共用；平台号按 Mach-O `PLATFORM_*` 翻名（Swift IRGen 传的就是这套编号），认不出的保留数字。单支 witness 输出不变，fixture 无此类 witness，快照基线不动。 |

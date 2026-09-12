@@ -100,3 +100,26 @@ trait 改成只挂在 `swift-section` 依赖边上的链接门。用户随即追
     in-process 读取里 SIGSEGV（memcpy 到垃圾地址；该套件不依赖 `SwiftThunkAnalysis`，上一轮同样的回归它是绿的）——与
     AGENTS.md 记载的「增量构建链了过期下游对象」现象吻合，这次的触发是跨模块搬类型加翻转依赖边；清空产物后不再复现。
   - CLI 端到端（SwiftUI，当前系统共享缓存）：未读引用 0 处；与本批第一步（trait 开）的产物输出逐字节相同（diff 0 行）。
+
+## 同日后续：另一支进输出
+
+用户指出「`swift interface` 好像没有打印 2 条分支」。核实：候选在 0028 收尾时只进了模型
+（`AssociatedTypeWitnessProjection.conditionalCandidates`），`interface` 的 `renderMergedAssociatedTypeRecords` 与
+`dump` 的 `AssociatedTypeDumper.records` 都在打印时用不收集候选的入口现场解析，另一支从未有过输出面。
+
+- **决定**（一轮提问）：排版取「标题一行 + 每支一行带条件、标签对齐、当前支也列在内」；默认打印，不加 flag。
+- **改动**：`SwiftDeclarationRendering` 新增 `ConditionalWitnessComment`（纯文本行渲染）与
+  `PlatformAvailabilityCondition.platformName / versionText / phrase`（平台号经 `MachOKit.Platform` 翻名，
+  Swift IRGen 的 `getBaseMachOPlatformID` 传的就是 Mach-O `PLATFORM_*`）；两条打印路径改用
+  `resolveOpaqueTypeCollectingConditionalCandidates(witnessMangledName:conformingTypeName:in:)`，有两支及以上时在
+  `typealias` 上方逐行 `Comment`。两个入口内部是同一个 rewriter、都不真的抛错，换入口不改变出错时的输出。
+- **测试**：`ConditionalWitnessCommentTests`（纯单元：行文本、对齐、`always` 标签、平台翻名、patch 版本）；
+  `OpaqueTypeRenderingIntegrationTests.everyBranchPrintsAboveTheWitness`（SwiftUI：每条有两支的 conformance dump 出来
+  都有标题行、`or later:` 行、`before` 行，两支文本不同，`typealias` 等于 `or later` 那支）。
+- **验证**：专项 + 两套快照 75 个测试全绿；回归（同上 9 个测试 target，anchored skip）1356 个测试 / 261 个套件全绿、
+  退出码 0；fixture 快照基线零改动。SwiftUI（当前系统共享缓存）`interface` 与 `dump` 各出现 17 个分支注释块，与之前输出
+  的 diff 都恰好 51 行（17 × 3 行注释），其余逐字节不变。
+
+## 同日后续：专题导读
+
+用户反馈整套功能「大部分看不懂，太复杂了，涉及到汇编」，补写了面向不懂汇编读者的导读 [AccessorThunkResolutionExplained.md](../AccessorThunkResolutionExplained.md)：三段真实 thunk 逐行翻成人话、离线四步、进程内路径、输出与模型、代码地图、验证、降级、术语对照。已登记进文档索引、提案 0028 的配套文档、AGENTS.md 与术语表的延伸阅读。
