@@ -70,6 +70,17 @@ package struct ThunkAddressSpace: Sendable {
         return nil
     }
 
+    /// A *file* offset (an export trie's, a segment's) → address, through
+    /// the segment that contains it. Independent of the cache convention on
+    /// purpose: an `ExportedSymbol.offset` is a file offset even inside a
+    /// shared cache, where ``offset(forAddress:)``'s accounting is not.
+    package func address(forFileOffset fileOffset: Int) -> UInt64? {
+        for segment in segments where fileOffset >= segment.fileOffset && fileOffset < segment.fileOffset + segment.fileSize {
+            return segment.virtualMemoryAddress &+ UInt64(fileOffset - segment.fileOffset)
+        }
+        return nil
+    }
+
     package func offset(forAddress address: UInt64) -> Int? {
         if let sharedRegionStart {
             guard address >= sharedRegionStart else { return nil }

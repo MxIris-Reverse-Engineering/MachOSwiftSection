@@ -66,6 +66,11 @@ public struct ThunkRegisterTracker: Sendable {
             // is a caller's job — one that has the Mach-O — so the register
             // becomes unknown rather than wrong.
             forget(destination)
+        case .loadPairFromMemory(let first, let second, _, _, _):
+            forget(first)
+            forget(second)
+        case .storeToMemory, .storePairToMemory, .indirectBranch:
+            break
         case .call:
             // AAPCS64: x0–x17 are caller-saved, so after a call only x19–x28
             // (and the frame/link registers) still hold what they held. The

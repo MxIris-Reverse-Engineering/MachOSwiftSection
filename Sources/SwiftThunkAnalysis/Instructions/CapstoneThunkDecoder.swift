@@ -29,6 +29,11 @@ public enum CapstoneThunkDecoder {
     /// rather than disassembling an entire `__TEXT` segment.
     public static let defaultMaximumInstructionCount = 48
 
+    /// The cap for a whole thunk read by ``AccessorThunkReader``: a
+    /// type-construction thunk (`SwiftUI.DefinesSearchCompletionModifier.Body`)
+    /// runs to about ninety instructions, both branches included.
+    public static let constructionMaximumInstructionCount = 160
+
     /// Decodes one function: from `startAddress` to wherever control leaves it
     /// for good.
     ///
@@ -44,7 +49,8 @@ public enum CapstoneThunkDecoder {
     public static func decodeFunction(
         machineCode: Data,
         startAddress: UInt64,
-        maximumInstructionCount: Int = defaultMaximumInstructionCount
+        maximumInstructionCount: Int = defaultMaximumInstructionCount,
+        isKnownFunction: (UInt64) -> Bool = { _ in false }
     ) throws -> [ThunkInstruction] {
         let decodedInstructions = try decode(
             machineCode: machineCode,
@@ -67,9 +73,22 @@ public enum CapstoneThunkDecoder {
                     furthestInFunctionTarget = max(furthestInFunctionTarget, target)
                 }
             case .branch(let target):
-                if isInFunction(target) {
+                // A forward `b` to a function the caller can name is a tail
+                // call, not a jump — the function it names may sit right
+                // after this one inside the decoded window (the fixture's
+                // thunk tail-calls the image's own
+                // `__swift_instantiateConcreteTypeFromMangledNameV2` copy,
+                // which follows it), and reading it as a jump would extend
+                // this function into that one.
+                if isInFunction(target), !isKnownFunction(target) {
                     furthestInFunctionTarget = max(furthestInFunctionTarget, target)
                 } else if instruction.address >= furthestInFunctionTarget {
+                    return functionInstructions
+                }
+            case .indirectBranch:
+                // A register jump never returns here either (a shared-cache
+                // stub's `braa x16, x17`, a tail call through a pointer).
+                if instruction.address >= furthestInFunctionTarget {
                     return functionInstructions
                 }
             case .returnFromFunction:
@@ -134,6 +153,14 @@ public enum CapstoneThunkDecoder {
                   let addend = immediateValue(at: 2, of: operands)
             else { return .unmodelled }
             return .addImmediate(destination: destination, source: source, addend: addend)
+        case .sub:
+            // `sub sp, sp, #48` opens a frame; modelled as adding the negated
+            // immediate so a stack model sees one kind of base adjustment.
+            guard let destination = register(at: 0, of: operands),
+                  let source = register(at: 1, of: operands),
+                  let subtrahend = immediateValue(at: 2, of: operands)
+            else { return .unmodelled }
+            return .addImmediate(destination: destination, source: source, addend: -subtrahend)
         case .mov, .movz, .orr:
             // Capstone spells a register-to-register move `mov` and an
             // immediate load `mov` too; `movz` and the `orr xN, xzr, #imm`
@@ -149,14 +176,45 @@ public enum CapstoneThunkDecoder {
                 return .moveRegister(destination: destination, source: source)
             }
             return .unmodelled
-        case .ldr:
+        case .ldr, .ldur:
             guard let destination = register(at: 0, of: operands),
-                  let memory = memoryOperand(at: 1, of: operands)
+                  let memory = memoryOperand(at: 1, of: operands),
+                  instruction.writeBack != true
             else { return .unmodelled }
             return .loadFromMemory(
                 destination: destination,
                 base: memory.base,
                 displacement: memory.displacement
+            )
+        case .ldp:
+            guard let first = register(at: 0, of: operands),
+                  let second = register(at: 1, of: operands),
+                  let memory = memoryOperand(at: 2, of: operands)
+            else { return .unmodelled }
+            return .loadPairFromMemory(
+                first: first,
+                second: second,
+                base: memory.base,
+                displacement: memory.displacement,
+                adjustsBase: instruction.writeBack == true
+            )
+        case .str, .stur:
+            guard let source = register(at: 0, of: operands),
+                  let memory = memoryOperand(at: 1, of: operands),
+                  instruction.writeBack != true
+            else { return .unmodelled }
+            return .storeToMemory(source: source, base: memory.base, displacement: memory.displacement)
+        case .stp:
+            guard let first = register(at: 0, of: operands),
+                  let second = register(at: 1, of: operands),
+                  let memory = memoryOperand(at: 2, of: operands)
+            else { return .unmodelled }
+            return .storePairToMemory(
+                first: first,
+                second: second,
+                base: memory.base,
+                displacement: memory.displacement,
+                adjustsBase: instruction.writeBack == true
             )
         case .bl:
             guard let target = immediateValue(at: 0, of: operands) else { return .unmodelled }
@@ -195,8 +253,14 @@ public enum CapstoneThunkDecoder {
                 otherwise: otherwise,
                 condition: condition(from: instruction.conditionCode)
             )
-        case .ret:
+        case .ret, .retaa, .retab:
+            // `retaa` / `retab` are `ret` with pointer authentication of the
+            // return address; reading them as ordinary instructions let the
+            // decoder walk straight past a function's end into the next one.
             return .returnFromFunction
+        case .br, .braa, .brab:
+            guard let register = register(at: 0, of: operands) else { return .unmodelled }
+            return .indirectBranch(register: register)
         default:
             return .unmodelled
         }
@@ -241,6 +305,8 @@ public enum CapstoneThunkDecoder {
             return ThunkRegister(number: 30)
         case .xzr, .wzr:
             return .zeroRegister
+        case .sp, .wsp:
+            return .stackPointer
         default:
             break
         }
