@@ -76,8 +76,40 @@ thunk 里先调 `__isPlatformVersionAtLeast`，再按结果在两个类型之间
   全报 modified）。
 - **进程内路径**见层 1。
 
-注意这一层解的是**关联类型**里的 opaque underlying type。**field record 里的 kind-9**（本文档开头那些
-`case type(accessor function at 750396)`）机制相同但尚未接入——层 0 的占位渲染对它们仍然有效。
+### 层 3′：类型构造求值（已实现，2026-09-12，提案 0029）
+
+层 3 的两种读法（`csel` 取两个操作数、`cbz` 分支里取唯一一次调用）都是「查表」读法，剩下的 5 条 SwiftUI
+witness 指向的 thunk 不查表而是**构造**类型：调 `_TagTraitWritingModifier` 的 metadata accessor，再把结果和
+参数缓冲区里的另一个词交给 `ModifiedContent` 的 accessor。把每次调用查出名字后发现 thunk 只用三种运行时入口
+（泛型类型的 metadata accessor、`swift_getWitnessTable`、`__swift_instantiateConcreteTypeFromMangledName`），
+每一种的语义都是类型层面的，于是改成**符号求值**（[术语表](../Glossary.md#type-construction-evaluation类型构造求值)）：
+寄存器和栈槽里放类型表达式，函数返回时 `x0` 里的表达式就是答案；能判定的条件跳转直接判定（运行时能力标志、
+已知立即数），判定不了的按「假设为假 / 假设为真」各跑一遍，两次结果就是 `if #available` 的两支。
+
+**它同时修正了层 3 的两处误读**：`csel` 形态的 `ResolvedMenuStyle.Body` 实际在 `csel` 之后尾调用了
+`ModifiedContent` 的 accessor，正确答案是 `ModifiedContent<参数 0, 选中的那个>`，层 3 只报了选中的那个；
+`cbz` 形态的 `FeedbackGenerator.Body` 不满足支里有三次调用（其中一次是尾调用 `b`，层 3 数 `bl` 没数到它），
+层 3 报的 `_TaskValueModifier` 是中间结果，正确答案是 `ModifiedContent<_ViewModifier_Content<FeedbackGenerator<A>>, _TaskValueModifier<SensoryFeedback>>`。
+两处都由进程内 runtime 的答案做 oracle 证实（`ConstructedThunkOracleTests`，SwiftUI 上 5 条非泛型 conformer
+的 witness 逐字相等，私有类型上下文的两种拼法归一后比较）。
+
+调用目标的命名：同镜像的 accessor 走 `MetadataAccessorIndex`；跨镜像的经 dyld 缓存 stub → 槽位 → rebase 目标 →
+主缓存 image 表定位所属镜像 → 该镜像的 accessor 索引或导出表；非缓存文件的 stub 是 bind，直接按名分类；编译器
+塞进镜像自身的 `__swift_instantiateConcreteTypeFromMangledName` 副本按原始符号表（不是只收 Swift 符号的索引）
+认。accessor 的实参顺序按被调类型的泛型上下文（shape class、有 key 实参的类型参数、有 key 实参的见证表），
+超过三个从 `x1` 指向的栈缓冲区取；`argument(k)` 按 thunk 主人的泛型上下文映射为第 `(depth, index)` 个参数节点，
+交给既有的实参替换。为此 seam 多了 `AccessorThunkOwnerLayout` 参数。
+
+**field record 里的 kind-9 也在这一层接入**：`TypeDefinition.index`（模型 / interface 路径）与
+`TypedDumper.fieldDemangledTypeNode`（dump 路径）在离线且 resolver 已注册时走同一个 rewriter，thunk 的参数
+缓冲区就是所在类型的泛型实参，未特化 dump 直接打印 `A` / `B`。fixture 的 `AccessorFunctionReferences` 命名空间
+（形态 A：`_swift_runtimeSupportsNoncopyableTypes` 检查 + `csel` 两个 metadata；形态 B：
+`__swift_instantiateConcreteTypeFromMangledNameV2` 读一条 mangled name）由 `FieldRecordThunkResolutionTests`
+钉住，期望值是 fixture 源码里声明的类型。`SwiftUI.Drag.LazyItem<A>.state` 解成
+`Synchronization.Mutex<SwiftUI.Drag.LazyItem<A>.State>`。
+
+实测（SwiftUI，macOS 26 共享缓存）：关联类型 witness 未读引用 17 → **0**，全量 dump 未解析的 kind-9 引用
+6 → **0**。层 0 的占位渲染只在不开 trait、或 thunk 调了不认识的函数时出现。
 
 ## 验证
 

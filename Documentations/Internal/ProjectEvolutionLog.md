@@ -1635,6 +1635,41 @@
   `DefinesSearchCompletionModifier.Body`）。第三个 thunk 的符号执行、field record 里的 kind-9、x86_64 仍是
   非目标。过程见 [TaskReports/2026-09-11-accessor-thunk-resolution-follow-up.md](TaskReports/2026-09-11-accessor-thunk-resolution-follow-up.md)。
 
+## 2026-09-12 accessor thunk 的类型构造求值（提案 0029）
+
+- **时间段**：2026-09-12（一天，紧接 0028 的收尾批次）。
+- **动机**：0028 收尾后 SwiftUI 全量 dump 还剩 6 处未解析的 kind-9 引用（5 处关联类型 witness 指向同一个
+  thunk，1 处 field record），用户的目标是「消除全部未解析的不透明类型」。把那个 thunk 的每次调用查出名字后
+  发现它不是「读不懂的构造代码」，而是只用 metadata accessor、`swift_getWitnessTable`、mangled name 实例化
+  三种入口写成的类型构造程序。
+- **关键决策与取舍**：
+  - **符号求值而不是模拟执行**：寄存器和栈槽里放类型表达式，函数返回时 `x0` 里的表达式就是答案；三种入口的
+    语义都是类型层面的，不需要真算地址。
+  - **控制流照走**：函数内 `b` 是跳转、到已知被调方的 `b` 是尾调用、能判定的条件直接判定（运行时能力标志、
+    立即数）、判定不了的（版本检查结果）按假 / 真各跑一遍，两次即 `if #available` 的两支。
+  - **顺带修正了 0028 两处误读**：`csel` 形态的 `ResolvedMenuStyle.Body` 在 `csel` 之后尾调用了 `ModifiedContent`
+    的 accessor，正确答案是 `ModifiedContent<参数 0, 选中的>`；`cbz` 形态的 `FeedbackGenerator.Body` 不满足支的
+    尾调用 `b` 没被数进调用次数，报的是中间结果。两处都由进程内 runtime 的答案做 oracle 证实——这条 oracle 测试
+    是本批最重要的测试，因为错误读法给出的是「真实、全限定、错误」的类型，肉眼看不出来。
+  - **不猜的原则不变**：不认识的被调方、命不了名的类型实参、非 key 参数的泛型链，都让那一支降级为空。
+  - **跨镜像定位**：主缓存的 image 表按地址找镜像，只在 thunk 真的跨镜像调用时打开并建 accessor 索引；运行时
+    入口按导出表认名；镜像自身的 `__swift_instantiateConcreteTypeFromMangledName` 副本按原始符号表认（Swift
+    符号索引故意不收 C 符号）。
+  - **field record 同路接入**：`TypeDefinition.index` 与 `TypedDumper` 两处，thunk 的参数缓冲区就是所在类型的
+    泛型实参。
+- **落地模块**：`SwiftThunkAnalysis` 新增 `ThunkTypeExpression` / `ThunkTypeEvaluator` / `MachOThunkEnvironment` /
+  `ThunkTypeNodeBuilder`，`AccessorThunkAnalyzer` 改为两次策略求值，解码器补 `ldp` / `stp` / `str` / `sub sp` /
+  `retab` / `br`；`SwiftDeclarationRendering` 的 seam 加 `AccessorThunkOwnerLayout`；`SwiftDeclaration` 与
+  `SwiftDump` 各一处 field record 接线。
+- **验证**：合成指令序列钉求值规则（accessor 链与尾调用、栈传参、见证表跳过、未知调用降级、缓存探测形态、常量
+  metadata、mangled name 实例化）；SwiftUI 端到端 17 → 0，oracle 5 条逐字相等；fixture 的 noncopyable 字段解到
+  源码声明的类型；SwiftUI 全量 dump 未解析引用 6 → 0，与上一批输出的 diff 只有这 6 行和几处实参补全。
+- **关联文档**：[提案](../Evolutions/0029-thunk-type-construction-evaluation.md)、
+  [TaskReports/2026-09-12-thunk-type-construction-evaluation.md](TaskReports/2026-09-12-thunk-type-construction-evaluation.md)、
+  [AccessorFunctionReferenceRendering.md](AccessorFunctionReferenceRendering.md)（层 3′）、术语表新增
+  「type-construction evaluation」。
+- **对应版本**：纯新增（trait 后面），默认行为不变，随下一次发布。
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节
