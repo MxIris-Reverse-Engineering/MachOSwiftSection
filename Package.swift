@@ -578,6 +578,9 @@ extension Target {
             .target(.SwiftInspection),
             .target(.Utilities),
             .target(.SwiftDeclaration),
+            // The indexer expands opaque types when it freezes associated-type
+            // witnesses (`resolveOpaqueTypeCollectingConditionalCandidates`).
+            .target(.SwiftDeclarationRendering),
             .target(.MachOFoundation),
         ],
     )

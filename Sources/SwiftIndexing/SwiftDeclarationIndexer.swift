@@ -1,4 +1,5 @@
 import SwiftDeclaration
+import SwiftDeclarationRendering
 import Foundation
 import MachOSwiftSection
 import MemberwiseInit
@@ -789,6 +790,15 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
     /// while the Mach-O is still in hand — the record accessors cannot be
     /// resolved later by the snapshot layer. An unresolvable record is skipped
     /// (same tolerance as the printers' record collection).
+    ///
+    /// Opaque types are expanded before printing, the same as the printers
+    /// do. Printing the raw `opaqueType` node froze `opaque type symbolic
+    /// reference 0x<descriptor offset>.0` into every `some View` witness, and
+    /// since the diff layer folds this text into the `assocwitness:` payload
+    /// key and the offset moves with every build, two OS versions reported
+    /// every `Body` as modified. An availability-conditional thunk's other
+    /// branches ride along as `conditionalCandidates` (evolution proposal
+    /// `offline-opaque-accessor-thunk-resolution`).
     private func resolvedWitnessProjections(of associatedTypes: [AssociatedType]) -> [AssociatedTypeWitnessProjection] {
         var seenNames: Set<String> = []
         var projections: [AssociatedTypeWitnessProjection] = []
@@ -799,7 +809,23 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
                       let typeNode = try? SymbolicDemangler.demangleType(for: mangledTypeName, in: machO)
                 else { continue }
                 guard seenNames.insert(recordName).inserted else { continue }
-                projections.append(AssociatedTypeWitnessProjection(name: recordName, substitutedTypeText: typeNode.print(using: .default)))
+                let resolution = typeNode.resolveOpaqueTypeCollectingConditionalCandidates(
+                    witnessMangledName: mangledTypeName,
+                    conformingTypeName: associatedType.conformingTypeName,
+                    in: machO
+                )
+                let conditionalCandidates = resolution.conditionalCandidates.map { candidate in
+                    ConditionalWitnessCandidate(
+                        availability: candidate.availability,
+                        candidateTypeText: candidate.candidateTypeNode.print(using: .default),
+                        substitutedTypeText: candidate.substitutedNode.print(using: .default)
+                    )
+                }
+                projections.append(AssociatedTypeWitnessProjection(
+                    name: recordName,
+                    substitutedTypeText: resolution.node.print(using: .default),
+                    conditionalCandidates: conditionalCandidates
+                ))
             }
         }
         return projections
