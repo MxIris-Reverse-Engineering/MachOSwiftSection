@@ -47,6 +47,21 @@ package struct AssociatedTypeDumper<MachO: FieldLayoutRenderable>: ConformedDump
     package var records: SemanticString {
         get async throws {
             for (offset, record) in dumped.records.offsetEnumerated() {
+                let recordName = try record.name(in: machO)
+                let witnessMangledName = try record.substitutedTypeName(in: machO)
+                let resolution = try SymbolicDemangler.demangleType(for: witnessMangledName, in: machO)
+                    .resolveOpaqueTypeCollectingConditionalCandidates(witnessMangledName: witnessMangledName, conformingTypeName: dumped.conformingTypeName, in: machO)
+
+                // Every branch of an availability-conditional witness, above
+                // the `typealias` that shows the newest platform's one.
+                for line in try await resolution.conditionalWitnessCommentLines(associatedTypeName: recordName, resolvedBy: demangleResolver) {
+                    BreakLine()
+
+                    Indent(level: 1)
+
+                    Comment(line)
+                }
+
                 BreakLine()
 
                 Indent(level: 1)
@@ -55,7 +70,7 @@ package struct AssociatedTypeDumper<MachO: FieldLayoutRenderable>: ConformedDump
 
                 Space()
 
-                try TypeDeclaration(kind: .other, record.name(in: machO))
+                TypeDeclaration(kind: .other, recordName)
 
                 Space()
 
@@ -63,11 +78,7 @@ package struct AssociatedTypeDumper<MachO: FieldLayoutRenderable>: ConformedDump
 
                 Space()
 
-                let witnessMangledName = try record.substitutedTypeName(in: machO)
-                try await demangleResolver.resolve(
-                    for: SymbolicDemangler.demangleType(for: witnessMangledName, in: machO)
-                        .resolveOpaqueType(witnessMangledName: witnessMangledName, conformingTypeName: dumped.conformingTypeName, in: machO)
-                )
+                try await demangleResolver.resolve(for: resolution.node)
 
                 if offset.isEnd {
                     BreakLine()

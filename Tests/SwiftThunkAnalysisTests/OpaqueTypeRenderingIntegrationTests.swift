@@ -9,6 +9,7 @@ import Demangling
 @_spi(Internals) import SwiftInspection
 import SwiftDeclarationRendering
 import SwiftThunkAnalysis
+import SwiftDump
 
 /// The point of the whole module: an associated-type witness that rendered as
 /// a bare address renders as a type once the thunk is read — and, since the
@@ -104,6 +105,44 @@ struct OpaqueTypeRenderingIntegrationTests {
             unread.contains { $0.contains("<") },
             "at least one unread reference sits inside a generic type whose arguments used to be thrown away"
         )
+    }
+
+    /// The other branch reaches the OUTPUT, not just the model: the dump of
+    /// a conformance whose witness is availability-conditional carries one
+    /// comment line per branch above the `typealias`, and the `typealias`
+    /// itself is the branch taken on the newest platform.
+    @Test func everyBranchPrintsAboveTheWitness() async throws {
+        let cache = try DyldCache(path: .current)
+        let machO = try #require(cache.machOFile(named: .SwiftUI))
+
+        var dumpsWithBranches: [String] = []
+        for associatedType in try machO.swift.associatedTypes {
+            let hasConditionalWitness = associatedType.records.contains { record in
+                guard let mangledName = try? record.substitutedTypeName(in: machO),
+                      let node = try? SymbolicDemangler.demangleType(for: mangledName, in: machO),
+                      node.contains(Node.Kind.opaqueType)
+                else { return false }
+                return node.resolveOpaqueTypeCollectingConditionalCandidates(in: machO).conditionalCandidates.count >= 2
+            }
+            guard hasConditionalWitness else { continue }
+            dumpsWithBranches.append(try await associatedType.dump(using: .demangleOptions(.default), in: machO).string)
+        }
+        #expect(!dumpsWithBranches.isEmpty, "SwiftUI is expected to carry availability-conditional witnesses")
+
+        for dump in dumpsWithBranches {
+            let lines = dump.split(separator: "\n").map(String.init)
+            let headerIndex = try #require(
+                lines.firstIndex { $0.contains("is picked at run time by an availability check (SE-0360):") },
+                "no branch comment in:\n\(dump)"
+            )
+            let laterLine = try #require(lines.dropFirst(headerIndex + 1).first { $0.contains(" or later: ") }, "missing the satisfied branch in:\n\(dump)")
+            let beforeLine = try #require(lines.dropFirst(headerIndex + 1).first { $0.contains("  before ") }, "missing the other branch in:\n\(dump)")
+            let typealiasLine = try #require(lines.dropFirst(headerIndex + 1).first { $0.contains("typealias ") }, "no typealias after the comment in:\n\(dump)")
+            let laterType = laterLine.components(separatedBy: " or later: ").last ?? ""
+            let beforeType = beforeLine.components(separatedBy: ":").dropFirst().joined(separator: ":").trimmingCharacters(in: .whitespaces)
+            #expect(laterType != beforeType, "both branches read the same in:\n\(dump)")
+            #expect(typealiasLine.hasSuffix("= " + laterType), "the typealias is not the newest platform's branch in:\n\(dump)")
+        }
     }
 
     /// The other branch is not lost: asked for candidates, the resolution

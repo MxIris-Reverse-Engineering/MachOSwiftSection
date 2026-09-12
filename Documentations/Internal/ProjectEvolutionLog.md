@@ -1670,7 +1670,11 @@
   `DisassemblingAccessorThunkResolver` 上移；删掉进程全局注册与 CLI 入口的注册代码，`AccessorThunkResolving` 协议和
   task-local 只剩测试注入的用途。Capstone 的 ARM64 后端成为渲染层以上的常规依赖；宿主什么都不用写就拿到解析。fixture
   的 kind-9 field record 在 dump / interface 快照里从占位变成声明的类型，两份基线重录。
-- **关联文档**：[提案](../Evolutions/0029-thunk-type-construction-evaluation.md)、
+- **同日补记：另一支进输出**。用户指出 `interface` 没打两支——候选此前只进了模型，两条打印路径都用不收集候选的入口。
+  现在 witness 有两支及以上时在 `typealias` 上方打注释（标题一行 + 每支一行带条件、标签对齐），`typealias` 仍是最新平台
+  那一支；默认打印、不加开关。渲染在 `SwiftDeclarationRendering` 的 `ConditionalWitnessComment`，`interface` / `dump`
+  共用；平台号按 Mach-O `PLATFORM_*` 翻名。单支 witness 输出不变，fixture 快照不动。
+- **关联文档**：[专题导读](AccessorThunkResolutionExplained.md)（面向不懂汇编的读者，同日补写）、[提案](../Evolutions/0029-thunk-type-construction-evaluation.md)、
   [TaskReports/2026-09-12-thunk-type-construction-evaluation.md](TaskReports/2026-09-12-thunk-type-construction-evaluation.md)、
   [AccessorFunctionReferenceRendering.md](AccessorFunctionReferenceRendering.md)（层 3′）、术语表新增
   「type-construction evaluation」。
