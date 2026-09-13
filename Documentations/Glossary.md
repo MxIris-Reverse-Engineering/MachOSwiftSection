@@ -228,6 +228,13 @@ Swift runtime 的 descriptor 布局惯例：固定头之后按 flags 跟着可�
 
 - **主要出现在**：`Sources/MachOSwiftSection/Models/`（各 wrapper 的 `initialize` 尾部解析）
 
+### system root（系统根目录搜索路径）
+
+- **定义**：`DependencySearchPath.systemRoot(path:)`，一棵目录树，把依赖的绝对 install name 直接拼在它下面找文件：`<root>/System/Library/Frameworks/Foo.framework/Foo`。iOS 26 及更早的模拟器运行时的 `RuntimeRoot` 就是这个形状；iOS 27 起模拟器改带自己的 `dyld_sim_shared_cache`，对应 `.dyldSharedCache(path:)`。
+- **为什么要有**：不在 cache 里的二进制（第三方 app、老模拟器框架）调别的镜像里的 metadata accessor 时只有一个 bind 名，得先找到那个镜像才能查它的 accessor 索引。`DependencySearchPath.inferred(forRoot:)` 从根文件的磁盘位置推断出 cache 或 system root。
+- **不要混淆**：`.machOFile(path:)` 是显式指定一个文件；system root 是按 install name 在目录树里现找。
+- **延伸阅读**：[MachODependencies 模块文档](Internal/Modules/MachODependencies.md)、[提案 standalone-file-thunk-resolution](Evolutions/draft-standalone-file-thunk-resolution.md)
+
 ### type-construction evaluation（类型构造求值）
 
 离线读 kind-9 accessor thunk 的方法：不执行 thunk，按指令顺序做符号求值——寄存器和栈槽里放「类型表达式」（参数缓冲区第 k 个词、某 descriptor 的 accessor 以若干实参调用的结果、常量 metadata 地址、mangled name 实例化）而不是数值。thunk 只用几种运行时入口（泛型类型的 metadata accessor、`swift_getWitnessTable`、`__swift_instantiateConcreteTypeFromMangledName`）构造类型，每一种的语义都是类型层面的，所以函数返回时 `x0` 里的表达式就是答案。条件跳转能判定的（运行时能力标志、已知立即数）直接判定，判定不了的（版本检查的结果）按「假设为假 / 假设为真」各跑一遍，两次结果即 `if #available` 的两支。与「查表」读法（只认 `csel` 的两个操作数或分支里唯一一次调用）的区别：后者忽略了尾调用，会把 `ModifiedContent<…, X>` 读成 `X`、把中间调用的结果当答案。

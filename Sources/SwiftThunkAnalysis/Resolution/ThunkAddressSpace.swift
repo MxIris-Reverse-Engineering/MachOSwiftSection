@@ -47,6 +47,9 @@ package struct ThunkAddressSpace: Sendable {
     /// File-offset → address mapping for the standalone case.
     private let segments: [(fileOffset: Int, fileSize: Int, virtualMemoryAddress: UInt64)]
 
+    /// Where the image's mach header sits: the start of `__TEXT`.
+    private let textSegmentAddress: UInt64?
+
     package init(of machO: MachOFile) {
         if let cache = machO.cache {
             self.sharedRegionStart = numericCast(cache.mainCacheHeader.sharedRegionStart)
@@ -56,6 +59,22 @@ package struct ThunkAddressSpace: Sendable {
         segments = machO.segments.map {
             (fileOffset: $0.fileOffset, fileSize: $0.fileSize, virtualMemoryAddress: UInt64($0.virtualMemoryAddress))
         }
+        textSegmentAddress = machO.segments.first { $0.segmentName == "__TEXT" }.map { UInt64($0.virtualMemoryAddress) }
+    }
+
+    /// An `ExportedSymbol.offset` → address.
+    ///
+    /// The export trie stores each symbol as an offset **from the mach
+    /// header**, and `MachOKit` hands that number over unchanged for a cache
+    /// image — so it is NOT a file offset there, and running it through
+    /// ``address(forFileOffset:)`` lands inside `__LINKEDIT` (measured:
+    /// `libswiftCore`'s `_$sShMa`, header offset 4598948, "found" at
+    /// 0x1FFD3E9A4 — a computable, plausible, wrong address 1.8 GB past the
+    /// real one). The header is the first byte of `__TEXT`, so the address
+    /// is `__TEXT`'s plus the offset, which is also right for a standalone
+    /// dylib (`__TEXT` at 0) and an executable (`__TEXT` at 0x100000000).
+    package func address(forExportedSymbolOffset offset: Int) -> UInt64? {
+        textSegmentAddress.map { $0 &+ UInt64(offset) }
     }
 
     package func address(forOffset offset: Int) -> UInt64? {
@@ -68,10 +87,12 @@ package struct ThunkAddressSpace: Sendable {
         return nil
     }
 
-    /// A *file* offset (an export trie's, a segment's) → address, through
-    /// the segment that contains it. Independent of the cache convention on
-    /// purpose: an `ExportedSymbol.offset` is a file offset even inside a
-    /// shared cache, where ``offset(forAddress:)``'s accounting is not.
+    /// A *file* offset (a symbol table entry's, a segment's) → address,
+    /// through the segment that contains it. Independent of the cache
+    /// convention on purpose: `Symbol.offset` is a file offset even inside a
+    /// shared cache, where ``offset(forAddress:)``'s accounting is not. An
+    /// export trie's offset is NOT one — see
+    /// ``address(forExportedSymbolOffset:)``.
     package func address(forFileOffset fileOffset: Int) -> UInt64? {
         for segment in segments where fileOffset >= segment.fileOffset && fileOffset < segment.fileOffset + segment.fileSize {
             return segment.virtualMemoryAddress &+ UInt64(fileOffset - segment.fileOffset)

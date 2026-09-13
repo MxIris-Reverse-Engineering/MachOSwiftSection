@@ -54,13 +54,17 @@ public enum AccessorThunkReader: AccessorThunkReadingLogging {
     /// carries — which for a shared-cache image is *not* a file offset; see
     /// ``ThunkAddressSpace``. `ownerLayout` describes the generic parameters
     /// of the declaration the thunk belongs to, so an argument the thunk reads
-    /// out of its buffer can be named as that parameter.
+    /// out of its buffer can be named as that parameter. `searchPaths` says
+    /// where the images a standalone file's thunk calls into by GOT bind may
+    /// be found (see ``MachOThunkEnvironment``); `nil` infers them from where
+    /// `machO` sits on disk and adds the host's shared cache.
     public static func read(
         thunkAtOffset thunkOffset: Int,
         in machO: MachOFile,
-        ownerLayout: AccessorThunkOwnerLayout = .unknown
+        ownerLayout: AccessorThunkOwnerLayout = .unknown,
+        searchPaths: [DependencySearchPath]? = nil
     ) throws -> ResolvedAccessorThunk {
-        let environment = MachOThunkEnvironment(machO: machO)
+        let environment = MachOThunkEnvironment(machO: machO, searchPaths: searchPaths)
         let addressSpace = environment.addressSpace
         guard let thunkAddress = addressSpace.address(forOffset: thunkOffset) else {
             return ResolvedAccessorThunk(availabilityCheck: nil, underlyingTypes: [], limitations: [.noRecognizedShape])
@@ -88,6 +92,12 @@ public enum AccessorThunkReader: AccessorThunkReadingLogging {
             }
             underlyingTypes.append(ResolvedUnderlyingType(condition: candidate.condition, typeNode: typeNode))
         }
+        // A bind no search path could place is worth naming: it is the one
+        // fact that tells a maintainer which image was missing.
+        for bindName in environment.unlocatedBindNames {
+            let limitation = ThunkAnalysisLimitation.calleeInUnlocatedImage(bindName: bindName)
+            if !limitations.contains(limitation) { limitations.append(limitation) }
+        }
         return ResolvedAccessorThunk(
             availabilityCheck: program.availabilityCheck,
             underlyingTypes: underlyingTypes,
@@ -114,6 +124,16 @@ public enum AccessorThunkReader: AccessorThunkReadingLogging {
             else { return nil }
             do {
                 let descriptor: ContextDescriptorWrapper = try ContextDescriptorWrapper.resolve(from: descriptorOffset, in: machO)
+                // This reading names the accessor alone, without the
+                // arguments it was called with, so it is only right for a
+                // type that takes none. A generic descriptor's unbound tree
+                // would print as `_TaskValueModifier2A` once the owner's
+                // parameters are substituted into it — a real-looking, wrong
+                // type (measured on iOS 26.5 simulator SwiftUI).
+                if let genericContext = try descriptor.genericContext(in: machO), !genericContext.parameters.isEmpty {
+                    #log(.info, "the accessor at offset \(offset, privacy: .public) belongs to a generic type; its arguments were not read, so it is not named")
+                    return nil
+                }
                 return try SymbolicDemangler.demangleContext(for: descriptor, in: machO)
             } catch {
                 #log(.info, "could not name the accessor at offset \(offset, privacy: .public): \(String(describing: error), privacy: .public)")

@@ -20,6 +20,11 @@ import MachOKitExtensions
 ///    binary, then plain dylib, then bundle; support-root builds demoted)
 ///    instead of taking whichever image the cache enumerates first.
 ///
+/// A system root (``DependencySearchPath/systemRoot(path:)``) sits between the
+/// two: an absolute load name is joined onto the root and opened if a file is
+/// there — the tree's own layout is the index, so nothing is scanned up front
+/// and each file is opened once, on the first lookup that names it.
+///
 /// Explicit files are indexed eagerly at construction. Each dyld shared cache
 /// is indexed **once**, lazily, on the first lookup that reaches the caches —
 /// one pass over `machOFiles()` rather than a fresh per-lookup scan, which
@@ -32,9 +37,13 @@ public final class FileDependencyLocator: DependencyLocating, @unchecked Sendabl
 
     private let explicitFilesByInstallPath: [String: MachOFile]
     private let explicitFilesByBareName: [String: MachOFile]
+    private let systemRoots: [String]
+    private let preferredCPU: CPU?
     private let caches: [FullDyldCache]
     private let cacheIndexLock = NSLock()
     private var cacheIndex: CacheImageIndex?
+    private let systemRootFilesLock = NSLock()
+    private var systemRootFilesByLoadName: [String: MachOFile?] = [:]
 
     /// - Parameters:
     ///   - searchPaths: Consulted in order; the first explicit file registered
@@ -47,11 +56,19 @@ public final class FileDependencyLocator: DependencyLocating, @unchecked Sendabl
     public init(searchPaths: [DependencySearchPath], preferredCPU: CPU? = nil) {
         var explicitFilesByInstallPath: [String: MachOFile] = [:]
         var explicitFilesByBareName: [String: MachOFile] = [:]
+        var systemRoots: [String] = []
         var caches: [FullDyldCache] = []
         var loadFailures: [DependencySearchPathLoadFailure] = []
 
         for searchPath in searchPaths {
             switch searchPath {
+            case .systemRoot(let path):
+                var isDirectory: ObjCBool = false
+                if FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory), isDirectory.boolValue {
+                    systemRoots.append(path.hasSuffix("/") ? String(path.dropLast()) : path)
+                } else {
+                    loadFailures.append(.init(searchPath: searchPath, error: DependencySearchPathError.systemRootIsNotADirectory(path: path)))
+                }
             case .machOFile(let path):
                 do {
                     let slices = try File.loadFromFile(url: URL(fileURLWithPath: path)).machOFiles
@@ -89,6 +106,8 @@ public final class FileDependencyLocator: DependencyLocating, @unchecked Sendabl
 
         self.explicitFilesByInstallPath = explicitFilesByInstallPath
         self.explicitFilesByBareName = explicitFilesByBareName
+        self.systemRoots = systemRoots
+        self.preferredCPU = preferredCPU
         self.caches = caches
         self.loadFailures = loadFailures
     }
@@ -101,6 +120,9 @@ public final class FileDependencyLocator: DependencyLocating, @unchecked Sendabl
         guard !bareImageName.isEmpty else { return nil }
         if let explicitFile = explicitFilesByBareName[bareImageName] {
             return explicitFile
+        }
+        if let systemRootFile = systemRootFile(forLoadName: loadName) {
+            return systemRootFile
         }
         guard !caches.isEmpty else { return nil }
         let index = builtCacheIndex()
@@ -126,6 +148,30 @@ public final class FileDependencyLocator: DependencyLocating, @unchecked Sendabl
             return sameTypeSlice
         }
         return slices.first
+    }
+
+    // MARK: - System roots
+
+    /// The file an absolute load name names under the first system root that
+    /// has one. Opened once per load name; a path that exists but is not a
+    /// Mach-O counts as a miss, not a failure.
+    private func systemRootFile(forLoadName loadName: String) -> MachOFile? {
+        guard !systemRoots.isEmpty, loadName.hasPrefix("/") else { return nil }
+        systemRootFilesLock.lock()
+        defer { systemRootFilesLock.unlock() }
+        if let located = systemRootFilesByLoadName[loadName] { return located }
+        var located: MachOFile?
+        for systemRoot in systemRoots {
+            let path = systemRoot + loadName
+            guard FileManager.default.fileExists(atPath: path),
+                  let slices = try? File.loadFromFile(url: URL(fileURLWithPath: path)).machOFiles,
+                  let machOFile = Self.preferredSlice(among: slices, preferredCPU: preferredCPU)
+            else { continue }
+            located = machOFile
+            break
+        }
+        systemRootFilesByLoadName[loadName] = located
+        return located
     }
 
     // MARK: - One-shot cache index

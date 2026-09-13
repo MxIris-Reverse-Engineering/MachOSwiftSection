@@ -1,0 +1,186 @@
+import Foundation
+import Testing
+import MachOKit
+import MachOFoundation
+import MachOSwiftSection
+import MachOFixtureSupport
+import MachOTestingSupport
+import Demangling
+@_spi(Internals) import SwiftInspection
+import SwiftDeclarationRendering
+import SwiftThunkAnalysis
+import SwiftDump
+
+/// Where the simulator-runtime-gated suites below find their binaries.
+///
+/// A separate type on purpose: a `@Suite(.enabled(if:))` condition that
+/// reads a static of the suite it decorates is a circular macro reference.
+enum SimulatorRuntimeThunkFixtures {
+    /// iOS 26.5: the last runtime that ships SwiftUI as a standalone file.
+    static let standaloneSwiftUIPath = MachOFileName.iOS_26_5_Simulator_SwiftUI.rawValue
+    static let standaloneSwiftUICorePath = MachOFileName.iOS_26_5_Simulator_SwiftUICore.rawValue
+    static var hasStandaloneSwiftUI: Bool {
+        FileManager.default.fileExists(atPath: standaloneSwiftUIPath) && FileManager.default.fileExists(atPath: standaloneSwiftUICorePath)
+    }
+
+    /// iOS 27.0: SwiftUI lives in the runtime's own dyld cache.
+    static let simulatorCachePath = DyldSharedCachePath.iOS_27_0_Simulator.rawValue
+    static var hasSimulatorCache: Bool { FileManager.default.fileExists(atPath: simulatorCachePath) }
+}
+
+/// SwiftUI as an iOS 26.5 simulator runtime ships it: a standalone Mach-O
+/// whose every cross-image call is a GOT bind, read with the search paths
+/// inferred from the file's own location (`RuntimeRoot`).
+///
+/// Measured on 2026-09-13 before this route existed: 5 unread references
+/// and two branch comments naming intermediates (`_TaskModifier2` for a
+/// `Body` that is `ModifiedContent<…, _TaskModifier2>`). Every expectation
+/// below is what the macOS 26.6.2 shared cache — where the same thunks
+/// resolve through rebases — prints for the same declarations.
+@Suite(.serialized, .enabled(if: SimulatorRuntimeThunkFixtures.hasStandaloneSwiftUI))
+struct SimulatorStandaloneSwiftUIThunkTests {
+    private func loadSwiftUI() throws -> MachOFile {
+        try load(path: SimulatorRuntimeThunkFixtures.standaloneSwiftUIPath)
+    }
+
+    private func load(path: String) throws -> MachOFile {
+        switch try File.loadFromFile(url: URL(fileURLWithPath: path)) {
+        case .machO(let machOFile):
+            return machOFile
+        case .fat(let fatFile):
+            return try #require(try fatFile.machOFiles().first { $0.header.cpuType == .arm64 })
+        }
+    }
+
+    private func resolvedFieldTexts(ofTypeNamed typeName: String, in machOFile: MachOFile) throws -> [String: String] {
+        var texts: [String: String] = [:]
+        for wrapper in try machOFile.swift.typeContextDescriptors {
+            let descriptor = wrapper.typeContextDescriptor
+            guard let name = try? SymbolicDemangler.demangleContext(for: wrapper.asContextDescriptorWrapper, in: machOFile).print(using: .default),
+                  name == typeName,
+                  let fieldDescriptor = try? descriptor.fieldDescriptor(in: machOFile)
+            else { continue }
+            let ownerLayout = AccessorThunkOwnerLayout(genericContext: try descriptor.genericContext(in: machOFile))
+            for record in try fieldDescriptor.records(in: machOFile) {
+                guard let mangledTypeName = try? record.mangledTypeName(in: machOFile),
+                      let typeNode = try? SymbolicDemangler.demangleType(for: mangledTypeName, in: machOFile)
+                else { continue }
+                let resolvedNode = typeNode.resolvingAccessorFunctionReferences(in: machOFile, ownerLayout: ownerLayout)
+                texts[try record.fieldName(in: machOFile)] = resolvedNode.print(using: .default)
+            }
+        }
+        return texts
+    }
+
+    /// The runtime's `libswiftSynchronization` registers a type record for
+    /// `libswiftCore`'s `Swift.Optional` — an indirect record whose slot is a
+    /// bind. That one record used to throw and drop every type of the
+    /// image, which is why `Mutex`'s accessor could not be indexed.
+    @Test func theRuntimesSynchronizationLibraryListsItsTypes() throws {
+        let runtimeRoot = String(SimulatorRuntimeThunkFixtures.standaloneSwiftUIPath.dropLast("/System/Library/Frameworks/SwiftUI.framework/SwiftUI".count))
+        let libraryURL = URL(fileURLWithPath: runtimeRoot + "/usr/lib/swift/libswiftSynchronization.dylib")
+        guard case .machO(let library) = try File.loadFromFile(url: libraryURL) else {
+            Issue.record("expected a thin dylib at \(libraryURL.path)")
+            return
+        }
+        let typeNames = try library.swift.typeContextDescriptors.compactMap { wrapper in
+            try? SymbolicDemangler.demangleContext(for: wrapper.asContextDescriptorWrapper, in: library).print(using: .default)
+        }
+        #expect(typeNames.contains("Synchronization.Mutex"), "\(typeNames)")
+        #expect(typeNames.count >= 10, "\(typeNames)")
+    }
+
+    /// `observedTasks`'s thunk calls a lazily specialized accessor the image
+    /// carries under a local symbol; `state`'s calls `Mutex`'s accessor in
+    /// `libswiftSynchronization` through a bind.
+    @Test func theNoncopyableFieldsResolveToTheirTypes() throws {
+        let machOFile = try loadSwiftUI()
+        let schedulerFields = try resolvedFieldTexts(ofTypeNamed: "SwiftUI.BGTaskSchedulerWrapper", in: machOFile)
+        #expect(schedulerFields["observedTasks"] == "Synchronization.Mutex<Swift.Set<Swift.String>>")
+        let lazyItemFields = try resolvedFieldTexts(ofTypeNamed: "SwiftUI.Drag.LazyItem", in: machOFile)
+        #expect(lazyItemFields["state"] == "Synchronization.Mutex<SwiftUI.Drag.LazyItem<A>.State>")
+    }
+
+    /// SwiftUICore's two `Mutex` fields whose thunks call a compiler-merged
+    /// accessor (`…MaTm`, the real accessor arriving as a function-pointer
+    /// argument) are the shape this batch leaves alone. What they must never
+    /// do is take the merged symbol's own name: that printed
+    /// `Array<LayoutDirection>` for a `Mutex<Storage>` once. A field the
+    /// reader does read through a local specialized accessor is asserted
+    /// alongside, so the refusal is not a blanket one.
+    @Test func aMergedAccessorsSymbolIsNotTakenForTheType() throws {
+        let machOFile = try load(path: SimulatorRuntimeThunkFixtures.standaloneSwiftUICorePath)
+        let settingsFields = try resolvedFieldTexts(ofTypeNamed: "SwiftUI.PlatformAccessibilitySettingsDefinition", in: machOFile)
+        #expect(settingsFields["cache"]?.hasPrefix("accessor function at") == true, "\(String(describing: settingsFields["cache"]))")
+        let imageCacheFields = try resolvedFieldTexts(ofTypeNamed: "SwiftUI.NamedImage.Cache", in: machOFile)
+        #expect(imageCacheFields["data"]?.hasPrefix("accessor function at") == true, "\(String(describing: imageCacheFields["data"]))")
+        let storageFields = try resolvedFieldTexts(ofTypeNamed: "SwiftUI.MaterialBackdropProxy.(Storage in _DEF3755CDC6B87C0368876C9F497EC3D)", in: machOFile)
+        #expect(storageFields["data"] == "Synchronization.Mutex<SwiftUI.MaterialBackdropProxy.(Storage in _DEF3755CDC6B87C0368876C9F497EC3D).Data>")
+    }
+
+    /// Every branch comment names what the cache names — the whole
+    /// `ModifiedContent<…>` a thunk's shared tail wraps around the looked-up
+    /// type, never the looked-up type alone — and nothing is left unread.
+    @Test func theConditionalWitnessesReadAsTheCacheDoes() async throws {
+        let machOFile = try loadSwiftUI()
+        var dumpsWithBranches: [String] = []
+        var unread: [String] = []
+        for associatedType in try machOFile.swift.associatedTypes {
+            var hasConditionalWitness = false
+            for record in associatedType.records {
+                guard let mangledName = try? record.substitutedTypeName(in: machOFile),
+                      let node = try? SymbolicDemangler.demangleType(for: mangledName, in: machOFile),
+                      node.contains(Node.Kind.opaqueType)
+                else { continue }
+                let resolution = node.resolveOpaqueTypeCollectingConditionalCandidates(in: machOFile)
+                let text = await resolution.node.print(using: DemangleOptions.default)
+                if text.contains("accessor function at") { unread.append(text) }
+                if resolution.conditionalCandidates.count >= 2 { hasConditionalWitness = true }
+            }
+            guard hasConditionalWitness else { continue }
+            dumpsWithBranches.append(try await associatedType.dump(using: .demangleOptions(.default), in: machOFile).string)
+        }
+        #expect(unread.isEmpty, "still unread:\n\(unread.joined(separator: "\n"))")
+
+        let joined = dumpsWithBranches.joined(separator: "\n")
+        #expect(joined.contains("//   iOS 26.4 or later: SwiftUI.ModifiedContent<SwiftUI._ViewModifier_Content<SwiftUI.OnModifierKeysChangedModifier>, SwiftUI._TaskModifier2>"), "\(joined)")
+        #expect(joined.contains("//   before iOS 26.4:   SwiftUI.ModifiedContent<SwiftUI._ViewModifier_Content<SwiftUI.OnModifierKeysChangedModifier>, SwiftUI._TaskModifier>"), "\(joined)")
+        // `FeedbackGenerator<A>.Body` reaches its thunk through a by-name
+        // opaque reference (`<<opaque return type of View.onChange…>>`, an
+        // anonymous-context descriptor), which the dump path does not expand
+        // offline — a limitation older than this batch. What must not come
+        // back is the fallback's reading of that thunk's generic accessor
+        // without its arguments.
+        #expect(!joined.contains("_TaskValueModifier2A"), "an unbound generic accessor was named without its arguments:\n\(joined)")
+        #expect(joined.contains("SwiftUI._TagTraitWritingModifier<SwiftUI.ViewIdentity>"), "\(joined)")
+    }
+}
+
+/// SwiftUI as an iOS 27 simulator runtime ships it: inside the runtime's
+/// own `dyld_sim_shared_cache_arm64`, whose cross-image calls are rebases
+/// like any cache's. Pinned so the cache reader's support for the simulator
+/// format (magic `dyld_v1   arm64`, a `.01` subcache) is a test rather than
+/// a one-off measurement.
+@Suite(.serialized, .enabled(if: SimulatorRuntimeThunkFixtures.hasSimulatorCache))
+struct SimulatorCacheSwiftUIThunkTests {
+    @Test func everyAccessorReferenceResolvesInsideTheSimulatorCache() async throws {
+        let cache = try DyldCache(path: .iOS_27_0_Simulator)
+        let machO = try #require(cache.machOFile(named: .SwiftUI))
+        var unread: [String] = []
+        var conditionalWitnessCount = 0
+        for associatedType in try machO.swift.associatedTypes {
+            for record in associatedType.records {
+                guard let mangledName = try? record.substitutedTypeName(in: machO),
+                      let node = try? SymbolicDemangler.demangleType(for: mangledName, in: machO),
+                      node.contains(Node.Kind.opaqueType)
+                else { continue }
+                let resolution = node.resolveOpaqueTypeCollectingConditionalCandidates(in: machO)
+                let text = await resolution.node.print(using: DemangleOptions.default)
+                if text.contains("accessor function at") { unread.append(text) }
+                if resolution.conditionalCandidates.count >= 2 { conditionalWitnessCount += 1 }
+            }
+        }
+        #expect(unread.isEmpty, "still unread:\n\(unread.joined(separator: "\n"))")
+        #expect(conditionalWitnessCount > 0, "the iOS 27 simulator's SwiftUI is expected to carry availability-conditional witnesses")
+    }
+}

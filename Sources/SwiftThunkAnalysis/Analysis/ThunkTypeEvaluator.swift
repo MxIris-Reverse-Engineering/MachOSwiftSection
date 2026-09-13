@@ -51,6 +51,17 @@ public struct ThunkTypeEvaluator {
         case assumeConditionTrue
     }
 
+    /// One call a run made: which instruction made it and where it went.
+    public struct CallSite: Sendable, Hashable {
+        public let instructionIndex: Int
+        public let target: UInt64
+
+        public init(instructionIndex: Int, target: UInt64) {
+            self.instructionIndex = instructionIndex
+            self.target = target
+        }
+    }
+
     /// One run's result.
     public struct Outcome: Sendable, Hashable {
         /// The type in `x0` when the function left; `nil` when it is unknown
@@ -59,7 +70,31 @@ public struct ThunkTypeEvaluator {
         /// The first conditional the policy had to decide, if any — the
         /// instruction the shape analyzer reads the branch condition off.
         public let decidedInstructionIndex: Int?
+        /// Every call the run made, in order: each `bl`, and each `b` that
+        /// left the function (a tail call, whether or not the environment
+        /// could name its target). An in-function jump is not a call. The
+        /// instruction index lets the shape analyzer separate an arm's calls
+        /// from the availability check's own.
+        public let callSites: [CallSite]
+        /// `true` when the run left through `ret`. `false` for a tail call,
+        /// a register jump, and a run that never left — the cases where the
+        /// value in `x0` is *not* what the last call returned.
+        public let leftThroughReturn: Bool
         public let limitations: [ThunkAnalysisLimitation]
+
+        public init(
+            result: ThunkTypeExpression?,
+            decidedInstructionIndex: Int?,
+            callSites: [CallSite] = [],
+            leftThroughReturn: Bool = false,
+            limitations: [ThunkAnalysisLimitation]
+        ) {
+            self.result = result
+            self.decidedInstructionIndex = decidedInstructionIndex
+            self.callSites = callSites
+            self.leftThroughReturn = leftThroughReturn
+            self.limitations = limitations
+        }
     }
 
     /// The runtime-capability flags a thunk tests, by GOT symbol name.
@@ -99,35 +134,51 @@ public struct ThunkTypeEvaluator {
     public mutating func run(from startIndex: Int = 0, policy: BranchPolicy) -> Outcome {
         var index = startIndex
         var decidedInstructionIndex: Int?
+        var callSites: [CallSite] = []
         var limitations: [ThunkAnalysisLimitation] = []
         var steps = 0
         while index < instructions.count, steps < Self.maximumStepCount {
             steps += 1
             let instruction = instructions[index]
             index += 1
+            let instructionIndex = index - 1
+            if case .call(let target) = instruction.operation {
+                callSites.append(CallSite(instructionIndex: instructionIndex, target: target))
+            }
             switch step(instruction.operation, policy: policy) {
             case .continue:
                 continue
             case .jump(let target):
                 guard let targetIndex = indicesByAddress[target] else {
-                    return Outcome(result: nil, decidedInstructionIndex: decidedInstructionIndex, limitations: limitations)
+                    return Outcome(result: nil, decidedInstructionIndex: decidedInstructionIndex, callSites: callSites, limitations: limitations)
                 }
                 index = targetIndex
             case .decided(let jumpTarget):
-                if decidedInstructionIndex == nil { decidedInstructionIndex = index - 1 }
+                if decidedInstructionIndex == nil { decidedInstructionIndex = instructionIndex }
                 if let jumpTarget {
                     guard let targetIndex = indicesByAddress[jumpTarget] else {
-                        return Outcome(result: nil, decidedInstructionIndex: decidedInstructionIndex, limitations: limitations)
+                        return Outcome(result: nil, decidedInstructionIndex: decidedInstructionIndex, callSites: callSites, limitations: limitations)
                     }
                     index = targetIndex
                 }
             case .unsupportedCondition:
                 limitations.append(.unsupportedConditionCode)
-            case .left(let result):
-                return Outcome(result: result, decidedInstructionIndex: decidedInstructionIndex, limitations: limitations)
+            case .left(let result, let throughReturn):
+                // A `b` that left the function is a tail call — a call site
+                // like any other, whether or not its target could be named.
+                if case .branch(let target) = instruction.operation {
+                    callSites.append(CallSite(instructionIndex: instructionIndex, target: target))
+                }
+                return Outcome(
+                    result: result,
+                    decidedInstructionIndex: decidedInstructionIndex,
+                    callSites: callSites,
+                    leftThroughReturn: throughReturn,
+                    limitations: limitations
+                )
             }
         }
-        return Outcome(result: nil, decidedInstructionIndex: decidedInstructionIndex, limitations: limitations)
+        return Outcome(result: nil, decidedInstructionIndex: decidedInstructionIndex, callSites: callSites, limitations: limitations)
     }
 
     private enum Step {
@@ -136,7 +187,8 @@ public struct ThunkTypeEvaluator {
         /// A conditional the policy decided; the target when it jumped.
         case decided(jumpTarget: UInt64?)
         case unsupportedCondition
-        case left(ThunkTypeExpression?)
+        /// The function left; `throughReturn` only for `ret`.
+        case left(ThunkTypeExpression?, throughReturn: Bool)
     }
 
     private mutating func step(_ operation: ThunkOperation, policy: BranchPolicy) -> Step {
@@ -188,10 +240,10 @@ public struct ThunkTypeEvaluator {
             // first argument, not the answer.
             let callee = environment.callee(at: target)
             if case .unknown = callee {
-                return indicesByAddress[target] != nil ? .jump(target) : .left(nil)
+                return indicesByAddress[target] != nil ? .jump(target) : .left(nil, throughReturn: false)
             }
             apply(callee: callee)
-            return .left(resultType)
+            return .left(resultType, throughReturn: false)
         case .branchIfZero(let register, let target):
             guard let isZero = isZero(valuesByRegister[register]) else {
                 return .decided(jumpTarget: policy == .assumeConditionTrue ? target : nil)
@@ -223,8 +275,10 @@ public struct ThunkTypeEvaluator {
             }
             assign(valuesByRegister[policy == .assumeConditionTrue ? whenConditionHolds : otherwise], to: destination)
             return .decided(jumpTarget: nil)
-        case .indirectBranch, .returnFromFunction:
-            return .left(resultType)
+        case .indirectBranch:
+            return .left(resultType, throughReturn: false)
+        case .returnFromFunction:
+            return .left(resultType, throughReturn: true)
         case .unmodelled:
             break
         }
@@ -312,6 +366,8 @@ public struct ThunkTypeEvaluator {
             result = argumentAddresses.isEmpty ? nil : .type(.instantiatedFromMangledName(argumentAddresses: argumentAddresses))
         case .metadataStateCheck:
             result = valuesByRegister[ThunkRegister(number: 1)]
+        case .concreteTypeAccessor(let symbolName):
+            result = .type(.namedByAccessorSymbol(symbolName: symbolName))
         case .availabilityCheck, .unknown:
             result = nil
         }

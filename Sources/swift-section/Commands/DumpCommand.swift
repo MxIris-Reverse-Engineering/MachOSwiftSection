@@ -94,6 +94,12 @@ struct DumpCommand: AsyncParsableCommand, Sendable {
     var emitExportStatus: Bool = false
 
     mutating func run() async throws {
+        try await AccessorThunkResolution.withResolver(from: machOOptions) {
+            try await dump()
+        }
+    }
+
+    private mutating func dump() async throws {
         let machOFile = try MachOFile.load(options: machOOptions)
 
         var dumpConfiguration: DumperConfiguration = .demangleOptions(demangleOptions.buildSwiftDumpDemangleOptions())

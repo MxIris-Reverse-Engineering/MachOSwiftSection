@@ -151,6 +151,18 @@ thunk 里每个 `bl` / `b` 都要知道「调的是谁」，否则无从推演�
 
 整条链的原则是「宁可留占位符，不出一个真实但错误的类型」，因为后者肉眼看不出来。具体的拒绝点：调用目标认不出、`csel` 的条件码没建模、metadata 的 kind 不是 struct / enum / optional、非 key 参数的泛型链、类型实参命不了名。每个拒绝只影响那一支，另一支照常。
 
+## 独立文件和 cache 差在哪
+
+上面的样本都来自 dyld shared cache。cache 里每一次跨镜像调用都已经被 dyld 解析成一个具体地址（rebase），所以第二步「给调用目标起名」只要按地址查是哪个镜像、再查那个镜像的 accessor 索引。不在 cache 里的文件不一样：第三方 app 和它内嵌的框架、iOS 26 及更早的模拟器运行时里的系统框架、我们现场编译的 fixture，它们调别的镜像时走的是一小段 stub，stub 读的 GOT 槽位里存的是一个**名字**（bind），例如 `libswiftSynchronization/_$s15Synchronization5MutexVMa`，而不是地址。从 iOS 27 beta 3 起模拟器运行时也只带自己的 `dyld_sim_shared_cache_arm64`，所以系统框架已经不需要这条路，剩下的就是第三方二进制。
+
+2026-09-13 拿 iOS 26.5 模拟器的 SwiftUI / SwiftUICore 实测，独立文件上有三种 cache 里见不到的情况：
+
+1. **调用目标是别的镜像里的 accessor，只有名字。** 处理办法是把名字当钥匙：先用 `MachODependencies` 按搜索路径找到根文件直接链接的那几个镜像（第三方 app 通常在宿主的 cache 里找到 libswiftCore 和 SwiftUI；老模拟器运行时在它的 `RuntimeRoot` 目录树里找；iOS 27+ 模拟器在它自己的 cache 里找），在它们的导出表里查这个名字，查到就用那个镜像的 accessor 索引拿到 descriptor，后面和 cache 完全一样。搜索路径默认从文件自己的位置推断再加宿主 cache；`swift-section` 的 `--dependency-search-path` 可以手动给（模拟器里的 app 装在设备目录下、不在运行时目录里，推断不到）。找不到的名字会记在限制列表里（`calleeInUnlocatedImage`），输出保持占位。
+2. **调用目标是本镜像里一个带符号的「专用」accessor。** 编译器会为某个具体实例化（比如 `Mutex<Set<String>>`）单独生成一个不带参数的 accessor，符号名就是 `type metadata accessor for Mutex<Set<String>>`。名字本身就是答案，直接 demangle 取出类型即可；只接受名字里已经绑定了全部实参的（`boundGeneric…`），没绑定的是 descriptor 自己的 accessor，归索引管。剥掉了本地符号的 App Store 二进制走不了这条路。
+3. **编译器合并出来的 accessor（符号以 `MaTm` 结尾）。** 若干个长得一样的 accessor 被合成一份，真正要调的 accessor 变成了一个函数指针参数，函数体里是 `blr x3`。符号名（例如 `Optional<Any>`）和真实类型毫无关系。这一种**还没做**：要解它得把评估器扩成能带着调用方的寄存器状态去内联求值另一个函数、认识 `blr`、让 GOT 里读出的名字能当函数值。SwiftUICore 里两个 `Mutex` 字段（`PlatformAccessibilitySettingsDefinition.cache`、`NamedImage.Cache.data`）就是这种，macOS cache 上同样是占位。
+
+这次实测还抓到一个**读错**：分析器在求值器给不出某一支结果时会退回「这一支只有一次调用就取它」，但它切分支只切到两支汇合的地方，汇合之后共享的尾巴（把查到的类型塞给 `ModifiedContent` 的 accessor，用 `b` 尾调用）没算进去。cache 上求值器总能成功所以从不触发；独立文件上一触发就把中间值当答案，`OnModifierKeysChangedModifier.Body` 印成 `_TaskModifier2`，真实答案是 `ModifiedContent<_ViewModifier_Content<OnModifierKeysChangedModifier>, _TaskModifier2>`。现在求值器把整条路径上的每次调用（`bl` 和离开函数的 `b`）都记下来，回退只在「分支之后恰好一次调用、随后 `ret`」时才用；对泛型类型的 accessor 更是不允许在没有实参的情况下命名。
+
 ## 进程内的另一条路
 
 在进程内读（`MachOImage`）时不需要这套推演：runtime 就在手边，直接让它执行 thunk。做法是把整条 witness 的 mangled name 连同 conforming type 的描述符和它 metadata 里的泛型实参区一起交给 `swift_getTypeByMangledNameInContext`——这正是 runtime 自己解析关联类型 witness 时的调用方式，thunk 第一条指令 `ldr x19, [x0]` 读的就是那块实参区，所以必须传真实的区，不能传空。答案通过 `_mangledTypeName` 拿回来再 demangle。
@@ -182,14 +194,19 @@ Sources/SwiftThunkAnalysis/
 │   └── ThunkRegisterTracker.swift              # 0028 遗留的寄存器跟踪（单次查表读法的回落）
 └── Resolution/
     ├── AccessorThunkReader.swift               # 入口：偏移 → 反汇编 → 分析 → 每支的类型节点
-    ├── MachOThunkEnvironment.swift             # 第二步：给调用目标起名（accessor 索引、stub、槽位、跨镜像）
+    ├── MachOThunkEnvironment.swift             # 第二步：给调用目标起名（accessor 索引、本地符号、stub、槽位、跨镜像）
+    ├── DependencyImageResolver.swift           # 独立文件：bind 名 → 按搜索路径找到的依赖镜像 → 它导出表里的位置（按根镜像共享）
     ├── MetadataAccessorIndex.swift             # accessor 地址 → 类型描述符（按镜像缓存）
-    ├── ThunkAddressSpace.swift                 # 共享缓存偏移与地址的换算（三套账的坑就在这里收口）
+    ├── ThunkAddressSpace.swift                 # 共享缓存偏移与地址的换算（三套账的坑就在这里收口；导出表偏移是第四套：相对 mach header）
     ├── ThunkTypeNodeBuilder.swift              # 第四步：表达式 → 类型名节点
     └── AccessorThunkOwnerLayout.swift          # thunk 主人的泛型参数布局（argument(k) 对应哪个参数）
 
+Sources/MachODependencies/
+├── DependencySearchPath.swift                  # 搜索路径的四种（含 system root）、从文件位置推断、按形状归类
+└── FileDependencyLocator.swift                 # 按 load name 找依赖文件：显式文件 → system root → cache
+
 Sources/SwiftDeclarationRendering/
-├── AccessorThunkResolution.swift               # 渲染层用的 resolver（默认就是反汇编读取器）与测试注入点
+├── AccessorThunkResolution.swift               # 渲染层用的 resolver（默认就是反汇编读取器，可带搜索路径）与宿主 / 测试注入点
 ├── ConditionalWitnessComment.swift             # `typealias` 上方那几行分支注释
 ├── InProcessAccessorFunctionResolution.swift   # 进程内那条路
 └── Extensions/Node+OpaqueType.swift            # rewriter、候选账本、按支重跑
@@ -212,6 +229,9 @@ Sources/SwiftDeclarationRendering/
 | 泛型 conformer 的进程内解析 | runtime 答 nil，回落离线读法 |
 | class conformer 的进程内解析 | 没接（实参区偏移不是常量，也没有实测样本） |
 | `csel` 的条件码没建模 | 那一支留占位符（在两个真类型之间抛硬币比占位符更糟） |
+| 独立文件里调用目标是编译器合并的 `…MaTm` accessor | 留占位符；需要跨函数内联求值，见「独立文件和 cache 差在哪」。它的符号名（`merged type metadata accessor for Any?`）是合并前某一份的名字，绝不能当答案——曾把 `Mutex<Storage>` 印成 `Array<LayoutDirection>` |
+| 独立文件里专用 accessor 的本地符号被剥掉 | 留占位符；名字没了就只剩上面那条路 |
+| 独立文件的依赖镜像找不到（bind 名没有镜像导出它） | 留占位符，限制列表里记 `calleeInUnlocatedImage`；给 `--dependency-search-path` 或宿主传路径 |
 
 ## 术语对照
 
@@ -226,6 +246,7 @@ Sources/SwiftDeclarationRendering/
 | descriptor | 类型 / protocol 的静态描述符，写在二进制里，离线可读；metadata 是它的运行时化身 |
 | witness table | 某类型对某 protocol 的实现表；传给泛型 accessor 时和类型实参并排，但不是类型 |
 | stub / GOT 槽 | 跨镜像调用的桥接代码和它读的地址槽位 |
+| bind / rebase | GOT 槽位的两种内容：bind 是一个符号名，加载时才由 dyld 换成地址（独立文件）；rebase 是已经写好的地址（cache 里）|
 | tail call | 用 `b` 跳到另一个函数、把它的返回值当自己的返回值；不会跳回来 |
 | SE-0360 | 允许 `some P` 在 `if #available` 两支返回不同类型的 Swift 提案 |
 | `__isPlatformVersionAtLeast` | compiler-rt 的版本检查函数，参数是平台编号和三段版本号 |
@@ -233,5 +254,6 @@ Sources/SwiftDeclarationRendering/
 ## 延伸阅读
 
 - 提案 [0028](../Evolutions/0028-offline-opaque-accessor-thunk-resolution.md)（离线反汇编读取、两支进模型、进程内路径）和 [0029](../Evolutions/0029-thunk-type-construction-evaluation.md)（符号求值器、field record 接入），决策日志里有每一步为什么这样做。
+- 提案 [standalone-file-thunk-resolution](../Evolutions/draft-standalone-file-thunk-resolution.md)（独立文件：回退误判、跨镜像 bind、带符号的专用 accessor；合并 accessor 留待后续）。
 - [AccessorFunctionReferenceRendering.md](AccessorFunctionReferenceRendering.md)：渲染路径的演进阶梯（占位 → 进程内 → 离线反汇编 → 类型构造求值）与实测数据。
 - 任务报告：[2026-09-11 首批](TaskReports/2026-09-11-offline-accessor-thunk-resolution.md)、[2026-09-11 收尾](TaskReports/2026-09-11-accessor-thunk-resolution-follow-up.md)、[2026-09-12 求值器与后续](TaskReports/2026-09-12-thunk-type-construction-evaluation.md)。

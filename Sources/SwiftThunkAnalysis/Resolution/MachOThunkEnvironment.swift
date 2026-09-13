@@ -3,6 +3,8 @@ import FoundationToolbox
 import MachOKit
 import MachOFoundation
 import MachOSwiftSection
+import Demangling
+@_spi(Internals) import SwiftInspection
 
 @Loggable(.fileprivate, subsystem: "com.machoswiftsection.swift-thunk-analysis", category: "MachOThunkEnvironment")
 fileprivate protocol MachOThunkEnvironmentLogging {}
@@ -12,22 +14,33 @@ fileprivate protocol MachOThunkEnvironmentLogging {}
 ///
 /// ## Naming a call target
 ///
-/// A thunk's calls go one of three ways, and the order below is the order
+/// A thunk's calls go one of four ways, and the order below is the order
 /// they are tried:
 ///
 /// 1. **A metadata accessor in this image** — `MetadataAccessorIndex` maps
 ///    the address to the descriptor whose accessor it is.
-/// 2. **A stub.** Inside a shared cache every cross-image call goes through
+/// 2. **A local symbol.** An unstripped image names two kinds of function
+///    the index does not: the compiler's per-image copy of a runtime helper
+///    (`__swift_instantiateConcreteTypeFromMangledNameV2`), and a lazily
+///    specialized accessor emitted for one concrete instantiation
+///    (`$s15Synchronization5MutexVyShySSGGMa`, `Mutex<Set<String>>`), whose
+///    symbol spells the whole type and which takes no arguments.
+/// 3. **A stub.** Inside a shared cache every cross-image call goes through
 ///    a four-instruction stub (`adrp x17` / `add x17` / `ldr x16, [x17]` /
 ///    `braa x16, x17`; a standalone binary's is `adrp` / `ldr` / `br`) whose
 ///    load names a GOT slot. The slot is either a **bind** — a symbol name,
 ///    the standalone case — or, inside a cache where dyld already resolved
 ///    every bind, a **rebase** to the callee's address in some other image.
-///    A bound name is classified directly (`_swift_getWitnessTable`,
-///    `___swift_instantiateConcreteTypeFromMangledNameV2`); a rebase target
-///    is located through the cache's image table, and the image it lands in
-///    answers through its own accessor index or its export trie.
-/// 3. Anything else is ``ThunkCallee/unknown``. The availability check is
+///    A bound name is classified directly when it is a runtime entry point
+///    (`_swift_getWitnessTable`, `___swift_instantiateConcreteTypeFromMangledNameV2`),
+///    and otherwise looked for in the export tries of the images the root
+///    links, located through the search paths (``DependencyImageResolver``)
+///    — a third-party app's `Mutex<…>` field calls
+///    `libswiftSynchronization/_$s15Synchronization5MutexVMa` this way. A
+///    rebase target is located through the cache's image table, and the
+///    image it lands in answers through its own accessor index or its
+///    export trie.
+/// 4. Anything else is ``ThunkCallee/unknown``. The availability check is
 ///    one such: `__isPlatformVersionAtLeast` is compiler-rt's, statically
 ///    linked and unnamed, and the shape recognizer identifies it by its four
 ///    immediates, not by name.
@@ -46,14 +59,34 @@ package final class MachOThunkEnvironment: ThunkEvaluationEnvironment, MachOThun
     package let machO: MachOFile
     package let addressSpace: ThunkAddressSpace
     private let accessorIndex: MetadataAccessorIndex
+    private let searchPathsOverride: [DependencySearchPath]?
     private lazy var cacheImages: CacheImageResolver? = CacheImageResolver(cacheOf: machO)
+    private lazy var dependencyImages: DependencyImageResolver = DependencyImageResolver.resolver(for: machO)
     private var calleesByAddress: [UInt64: ThunkCallee] = [:]
     package private(set) var accessorOriginsByAddress: [UInt64: AccessorOrigin] = [:]
+    /// Bind names no search path could place, in the order they were met.
+    package private(set) var unlocatedBindNames: [String] = []
 
-    package init(machO: MachOFile) {
+    /// `searchPaths` says where the images this file's binds name may be
+    /// found; `nil` means ``defaultSearchPaths(for:)``.
+    package init(machO: MachOFile, searchPaths: [DependencySearchPath]? = nil) {
         self.machO = machO
         self.addressSpace = ThunkAddressSpace(of: machO)
         self.accessorIndex = MetadataAccessorIndex.index(for: machO)
+        self.searchPathsOverride = searchPaths
+    }
+
+    /// The search paths in force: the caller's, else what the file's own
+    /// location on disk implies followed by the host's shared cache.
+    package private(set) lazy var searchPaths: [DependencySearchPath] = searchPathsOverride ?? Self.defaultSearchPaths(for: machO)
+
+    /// What is looked through when a caller names no search paths: the
+    /// caches or system root the file's location implies (an older
+    /// simulator runtime's `RuntimeRoot`, a runtime's `dyld_sim_shared_cache`),
+    /// then the running system's cache — which is where a macOS third-party
+    /// app's dependencies live.
+    package static func defaultSearchPaths(for machO: MachOFile) -> [DependencySearchPath] {
+        DependencySearchPath.inferred(forRoot: machO) + [.systemDyldSharedCache]
     }
 
     /// The runtime entry points a type-construction thunk calls, by the
@@ -148,11 +181,15 @@ package final class MachOThunkEnvironment: ThunkEvaluationEnvironment, MachOThun
         if let ownName = ownRuntimeSymbolNamesByAddress[address], let runtimeEntryPoint = Self.runtimeEntryPoint(named: ownName) {
             return runtimeEntryPoint
         }
+        if let symbolName = concreteTypeAccessorSymbolName(atOffset: offset) {
+            return .concreteTypeAccessor(symbolName: symbolName)
+        }
         guard let slotAddress = stubSlotAddress(at: address),
               let slotOffset = addressSpace.offset(forAddress: slotAddress)
         else { return .unknown }
         if let bindName = machO.resolveBind(fileOffset: slotOffset) {
-            return Self.runtimeEntryPoint(named: bindName) ?? .unknown
+            if let runtimeEntryPoint = Self.runtimeEntryPoint(named: bindName) { return runtimeEntryPoint }
+            return dependencyCallee(at: address, bindName: bindName)
         }
         guard let target = machO.resolveRebase(fileOffset: slotOffset),
               let targetAddress = rebaseTargetAddress(target),
@@ -163,6 +200,9 @@ package final class MachOThunkEnvironment: ThunkEvaluationEnvironment, MachOThun
         }
         if let ownName = ownRuntimeSymbolNamesByAddress[targetAddress], let runtimeEntryPoint = Self.runtimeEntryPoint(named: ownName) {
             return runtimeEntryPoint
+        }
+        if let symbolName = concreteTypeAccessorSymbolName(atOffset: targetOffset) {
+            return .concreteTypeAccessor(symbolName: symbolName)
         }
         return foreignCallee(at: address, targetAddress: targetAddress)
     }
@@ -186,6 +226,71 @@ package final class MachOThunkEnvironment: ThunkEvaluationEnvironment, MachOThun
             }
         }
         return nil
+    }
+
+    /// The symbol at `offset` when it is a lazily specialized metadata
+    /// accessor: `type metadata accessor for <a bound generic type>`, with
+    /// nothing left unbound in the type — see ``isConcreteTypeAccessorSymbol(_:)``.
+    private func concreteTypeAccessorSymbolName(atOffset offset: Int) -> String? {
+        guard let symbols = machO.symbols(offset: offset) else { return nil }
+        for symbol in symbols {
+            guard let symbolNode = try? SymbolicDemangler.demangleSymbol(for: symbol, in: machO) ?? nil,
+                  Self.isConcreteTypeAccessorSymbol(symbolNode)
+            else { continue }
+            return symbol.name
+        }
+        return nil
+    }
+
+    /// Whether a demangled symbol names a lazily specialized metadata
+    /// accessor whose name IS the answer.
+    ///
+    /// Three refusals, each of which would otherwise print a real, wrong
+    /// type. **Unbound** (`type metadata accessor for Mutex`): a
+    /// descriptor's own accessor, whose arguments come from the call, is the
+    /// accessor index's business — one this image does not own never carries
+    /// a local symbol — so only a name spelling every argument (a
+    /// `boundGeneric…` node) is taken. **Merged** (`merged type metadata
+    /// accessor for Any?`, `…MaTm`): the compiler folded several accessor
+    /// bodies into one and the symbol keeps the name of *one* of them, while
+    /// the callee it actually reaches arrives as a function-pointer argument
+    /// — SwiftUICore's `PlatformAccessibilitySettingsDefinition.cache`
+    /// printed `Array<LayoutDirection>` for a `Mutex<Storage>` the moment
+    /// this predicate forgot to look for the `mergedFunction` node. And a
+    /// type still mentioning a **generic parameter** is not concrete.
+    package static func isConcreteTypeAccessorSymbol(_ symbolNode: Node) -> Bool {
+        guard !symbolNode.contains(Node.Kind.mergedFunction),
+              let accessorNode = symbolNode.first(of: Node.Kind.typeMetadataAccessFunction),
+              let typeNode = accessorNode.firstChild
+        else { return false }
+        return boundGenericKinds.contains(where: { typeNode.contains($0) })
+            && !typeNode.contains(Node.Kind.dependentGenericParamType)
+    }
+
+    private static let boundGenericKinds: [Node.Kind] = [
+        .boundGenericStructure, .boundGenericEnum, .boundGenericClass, .boundGenericOtherNominalType, .boundGenericTypeAlias,
+    ]
+
+    /// A bind to another image: the image exporting `bindName` among the
+    /// root's located dependencies, and that image's accessor index for the
+    /// descriptor. A name no image exports is remembered for the reader's
+    /// limitations — the missing image is the fact worth reporting.
+    private func dependencyCallee(at address: UInt64, bindName: String) -> ThunkCallee {
+        guard let location = dependencyImages.location(ofExportedSymbol: bindName, searchPaths: searchPaths) else {
+            if !unlocatedBindNames.contains(bindName) { unlocatedBindNames.append(bindName) }
+            #log(.info, "no search path located an image exporting \(bindName, privacy: .public)")
+            return .unknown
+        }
+        let image = location.image
+        let imageAddressSpace = ThunkAddressSpace(of: image)
+        guard let exportedAddress = imageAddressSpace.address(forExportedSymbolOffset: location.exportedSymbolOffset),
+              let exportedOffset = imageAddressSpace.offset(forAddress: exportedAddress)
+        else { return .unknown }
+        if let descriptorOffset = MetadataAccessorIndex.index(for: image).descriptorOffset(forAccessorOffset: exportedOffset) {
+            return metadataAccessor(at: address, descriptorOffset: descriptorOffset, in: image)
+        }
+        #log(.info, "\(bindName, privacy: .public) is exported by \(image.imagePath, privacy: .public) but is not one of its metadata accessors")
+        return .unknown
     }
 
     private func foreignCallee(at address: UInt64, targetAddress: UInt64) -> ThunkCallee {
@@ -280,6 +385,14 @@ package final class CacheImageResolver {
 
     /// Which of `names` — runtime symbols, by their exported spelling — the
     /// address in `image` is, if any.
+    ///
+    /// The export trie's offsets are header-relative
+    /// (``ThunkAddressSpace/address(forExportedSymbolOffset:)``). Until the
+    /// standalone-file batch this went through the file-offset conversion,
+    /// which for a cache image lands in `__LINKEDIT`, so the table held
+    /// wrong addresses and never matched; the cache readings survived only
+    /// because a witness-table call's result is skipped by the name and a
+    /// capability flag's unnamed pointer still reads as non-zero.
     package func exportedName(atAddress address: UInt64, in image: MachOFile, among names: some Sequence<String>) -> String? {
         let path = image.imagePath
         if entryPointAddressesByImagePath[path] == nil {
@@ -287,8 +400,8 @@ package final class CacheImageResolver {
             let addressSpace = ThunkAddressSpace(of: image)
             for name in names {
                 guard let exported = image.exportTrie?.search(by: name),
-                      let fileOffset = exported.offset,
-                      let exportedAddress = addressSpace.address(forFileOffset: fileOffset)
+                      let exportedSymbolOffset = exported.offset,
+                      let exportedAddress = addressSpace.address(forExportedSymbolOffset: exportedSymbolOffset)
                 else { continue }
                 addressesByName[exportedAddress] = name
             }

@@ -35,11 +35,20 @@ import Foundation
 ///
 /// What the evaluator cannot name it does not guess at. A branch of a
 /// version check that evaluates to nothing falls back to the *single-lookup*
-/// reading — one call, whose callee's identity names the type — and
-/// otherwise is reported as
+/// reading — the run made exactly one call after the branch and returned
+/// straight after it, so that call's callee is the answer — and otherwise
+/// is reported as
 /// ``ThunkAnalysisLimitation/branchIsNotASingleLookup(condition:callCount:)``
-/// with no candidate. Naming an intermediate call's result would produce a
-/// real, fully-qualified, wrong type — the exact failure mode the
+/// with no candidate. The rule is stated over the **whole path the arm
+/// runs**, join point and shared tail included, and a tail call counts as a
+/// call: the first version sliced the arm at the join point, so a thunk
+/// whose two arms each look one type up and then jointly hand it to
+/// `ModifiedContent`'s accessor with a tail `b` read as two single lookups
+/// and printed `_TaskModifier2` for a `Body` that is really
+/// `ModifiedContent<_ViewModifier_Content<…>, _TaskModifier2>` (measured on
+/// iOS 26.5 simulator SwiftUI, where the tail call goes through a GOT bind
+/// the evaluator could not name). Naming an intermediate call's result
+/// produces a real, fully-qualified, wrong type — the exact failure mode the
 /// `.children` bug in `Node+OpaqueType.swift` had, and the one worth avoiding
 /// twice.
 public enum AccessorThunkAnalyzer {
@@ -119,11 +128,12 @@ public enum AccessorThunkAnalyzer {
         // each type to the wrong OS version — an error no amount of reading
         // the output would reveal, since both answers are real types.
         let conditionTrueIsSatisfied: Bool
+        let isBranchSplit: Bool
         switch instructions[decidedIndex].operation {
-        case .branchIfZero: conditionTrueIsSatisfied = false
-        case .branchIfNotZero: conditionTrueIsSatisfied = true
-        case .conditionalSelect(_, _, _, .equal): conditionTrueIsSatisfied = false
-        case .conditionalSelect(_, _, _, .notEqual): conditionTrueIsSatisfied = true
+        case .branchIfZero: (conditionTrueIsSatisfied, isBranchSplit) = (false, true)
+        case .branchIfNotZero: (conditionTrueIsSatisfied, isBranchSplit) = (true, true)
+        case .conditionalSelect(_, _, _, .equal): (conditionTrueIsSatisfied, isBranchSplit) = (false, false)
+        case .conditionalSelect(_, _, _, .notEqual): (conditionTrueIsSatisfied, isBranchSplit) = (true, false)
         default:
             return AccessorThunkProgram(availabilityCheck: availabilityCheck, candidates: [], limitations: [.selectionNotRecognized])
         }
@@ -135,51 +145,36 @@ public enum AccessorThunkAnalyzer {
         // The satisfied branch comes first, so a caller that wants the one
         // answer today's OS gives can take `candidates.first` without
         // re-deriving the condition.
-        for (outcome, condition, assumedTrue) in [
-            (satisfiedOutcome, ThunkCandidate.Condition.availabilitySatisfied, conditionTrueIsSatisfied),
-            (notSatisfiedOutcome, ThunkCandidate.Condition.availabilityNotSatisfied, !conditionTrueIsSatisfied),
+        for (outcome, condition) in [
+            (satisfiedOutcome, ThunkCandidate.Condition.availabilitySatisfied),
+            (notSatisfiedOutcome, ThunkCandidate.Condition.availabilityNotSatisfied),
         ] {
             if let expression = outcome.result {
                 candidates.append(ThunkCandidate(reference: reference(for: expression), condition: condition))
                 continue
             }
-            // The single-lookup reading of that arm: one call, whose callee's
-            // identity names the type (an accessor the environment does not
-            // know is still an accessor).
-            guard let armInstructions = branchArm(after: decidedIndex, assumingConditionTrue: assumedTrue, in: instructions) else {
+            // The single-lookup reading of that arm: the run made exactly one
+            // call after the branch — join point and shared tail included, a
+            // tail call counting as a call — and left through `ret` right
+            // after, so the callee's identity is the type (an accessor the
+            // environment does not know is still an accessor). A `csel` has
+            // no arms to read this way.
+            guard isBranchSplit else {
                 fallbackLimitations.append(.selectionNotRecognized)
                 continue
             }
-            let callTargets = armInstructions.compactMap { instruction -> UInt64? in
-                guard case .call(let target) = instruction.operation else { return nil }
-                return target
-            }
-            guard callTargets.count == 1 else {
-                fallbackLimitations.append(.branchIsNotASingleLookup(condition: condition, callCount: callTargets.count))
+            let armCallSites = outcome.callSites.filter { $0.instructionIndex > decidedIndex }
+            guard armCallSites.count == 1, outcome.leftThroughReturn else {
+                fallbackLimitations.append(.branchIsNotASingleLookup(condition: condition, callCount: armCallSites.count))
                 continue
             }
-            candidates.append(ThunkCandidate(reference: .metadataAccessor(address: callTargets[0]), condition: condition))
+            candidates.append(ThunkCandidate(reference: .metadataAccessor(address: armCallSites[0].target), condition: condition))
         }
         var uniqueLimitations: [ThunkAnalysisLimitation] = []
         for limitation in fallbackLimitations where !uniqueLimitations.contains(limitation) {
             uniqueLimitations.append(limitation)
         }
         return AccessorThunkProgram(availabilityCheck: availabilityCheck, candidates: candidates, limitations: uniqueLimitations)
-    }
-
-    /// The instructions one arm of a `cbz` / `cbnz` split runs, for the
-    /// single-lookup fallback: the fall-through arm up to the branch target,
-    /// or the arm from the target on. A `csel` has no arms.
-    private static func branchArm(after decidedIndex: Int, assumingConditionTrue: Bool, in instructions: [ThunkInstruction]) -> [ThunkInstruction]? {
-        let target: UInt64
-        switch instructions[decidedIndex].operation {
-        case .branchIfZero(_, let branchTarget), .branchIfNotZero(_, let branchTarget):
-            target = branchTarget
-        default:
-            return nil
-        }
-        let rest = instructions[(decidedIndex + 1)...]
-        return assumingConditionTrue ? Array(rest.drop { $0.address < target }) : Array(rest.prefix { $0.address < target })
     }
 
     /// A constant metadata address is reported as the `.metadata` reference

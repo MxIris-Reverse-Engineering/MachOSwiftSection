@@ -22,7 +22,9 @@ MachODependencies 回答一个问题：**一个二进制链接了哪些镜像，
 
 ## 1. 搜索路径
 
-`DependencySearchPath` 三种：显式 Mach-O 文件、显式 dyld shared cache 文件、宿主系统的 cache。**`@rpath` / `@loader_path` / `@executable_path` 不展开**——一个不在 cache 里的依赖（sibling framework、测试 helper）必须由调用方以 `.machOFile(path:)` 显式给出。这是从 SwiftLayout 阶段 3 继承的 MVP 边界，未变。
+`DependencySearchPath` 四种：显式 Mach-O 文件、显式 dyld shared cache 文件、宿主系统的 cache、**system root**（`.systemRoot(path:)`，2026-09-13 提案 `standalone-file-thunk-resolution` 加入）。system root 是一棵目录树，绝对 install name 直接拼在它下面找文件——iOS 26 及更早的模拟器运行时把系统框架当文件放在 `RuntimeRoot` 里，就是这个形状；`@rpath/…` 这类相对名字永远不在 root 下找。定位器对 system root 不预扫描，第一次问到某个 load name 时才打开对应文件、按根镜像的架构挑切片、记住结果；不是目录的 root 记为 `systemRootIsNotADirectory` 失败。
+
+两个便利入口：`DependencySearchPath.inferred(forRoot:)` 从根文件在磁盘上的位置推断搜索路径——沿祖先目录向上找带 `System/Library/Caches/com.apple.dyld/`（iOS 家族与 iOS 27+ 模拟器：`dyld_sim_shared_cache_arm64`）或 `System/Library/dyld/`（macOS）且里面有本架构主 cache 文件的目录，命中即给 `.dyldSharedCache`；没有再看根文件路径是否以自己的 install name 结尾，是就把前缀当 `.systemRoot`；文件系统根目录本身永远不算（宿主 cache 归 `.systemDyldSharedCache`）。`DependencySearchPath(classifyingPath:)` 按形状归类一个用户给的路径：目录 → system root，主 cache 文件名（`dyld_shared_cache_*` / `dyld_sim_shared_cache_*`，不含 `.01` / `.map` 等后缀）→ cache，其余 → Mach-O 文件；`swift-section` 的 `--dependency-search-path` 用它。**`@rpath` / `@loader_path` / `@executable_path` 不展开**——一个不在 cache 里的依赖（sibling framework、测试 helper）必须由调用方以 `.machOFile(path:)` 显式给出。这是从 SwiftLayout 阶段 3 继承的 MVP 边界，未变。
 
 打不开的搜索路径**不抛错**，记进 `DependencySearchPathLoadFailure`（附原始 error；系统 cache 不可用时是 `systemDyldSharedCacheUnavailable`）。理由有二：一条坏路径不该让整个解析失败；本模块在事件层（`SwiftIndexEvents`）之下，无法派发事件，只能把失败当数据回传，由上层决定落点——`SwiftInterfaceBuilderDependencies` 把它们派发为 `renderingDegraded(.dependencyLoad)` 事件，CLI 经 `ConsoleEventHandler` 落到 stderr。
 

@@ -6,6 +6,7 @@ import MachOKit
 import MachOFoundation
 import MachOSwiftSection
 import SwiftInterface
+import SwiftDeclarationRendering
 import ArgumentParser
 #if os(macOS)
 import TypeIndexing
@@ -72,6 +73,12 @@ struct InterfaceCommand: AsyncParsableCommand {
     var colorScheme: SemanticColorScheme = .none
 
     func run() async throws {
+        try await AccessorThunkResolution.withResolver(from: machOOptions) {
+            try await buildInterface()
+        }
+    }
+
+    private func buildInterface() async throws {
         let machOFile = try MachOFile.load(options: machOOptions)
 
         let effectiveEmitOffsetComments = emitOffsetComments || emitExpandedFieldOffsets

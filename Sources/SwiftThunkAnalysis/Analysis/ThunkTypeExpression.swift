@@ -31,6 +31,14 @@ public indirect enum ThunkTypeExpression: Sendable, Hashable {
     /// what the thunk passed in `x0` and `x1`; the reader finds the mangled
     /// name's relative pointer among them.
     case instantiatedFromMangledName(argumentAddresses: [UInt64])
+
+    /// The type a metadata accessor's own symbol spells: a lazily specialized
+    /// accessor such as `$s15Synchronization5MutexVyShySSGGMa` is emitted per
+    /// image for one concrete instantiation (`Mutex<Set<String>>`), takes no
+    /// arguments, and carries the whole type in its name. The symbol name is
+    /// kept rather than a tree so the expression stays `Hashable`; the node
+    /// builder demangles it.
+    case namedByAccessorSymbol(symbolName: String)
 }
 
 /// What one slot of a metadata accessor's key-argument list carries.
@@ -61,6 +69,14 @@ public enum ThunkCallee: Sendable, Hashable {
     /// `__isPlatformVersionAtLeast` — the availability check; the branch
     /// structure around it is the shape recognizer's business.
     case availabilityCheck
+    /// A metadata accessor whose symbol spells one concrete type (a lazily
+    /// specialized `$sFoo<Int>Ma` local to the image): it takes no arguments
+    /// and yields ``ThunkTypeExpression/namedByAccessorSymbol(symbolName:)``.
+    /// Only ever produced for a symbol whose demangling is
+    /// `type metadata accessor for <T>` with no generic parameter left in
+    /// `T` — an *unbound* accessor's arguments come from its descriptor, not
+    /// its name.
+    case concreteTypeAccessor(symbolName: String)
     /// Anything else. A branch whose result depends on it is not read.
     case unknown
 }

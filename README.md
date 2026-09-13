@@ -238,6 +238,23 @@ swift-section dump --uses-system-dyld-shared-cache --cache-image-name SwiftUICor
 swift-section dump --dyld-shared-cache --cache-image-path /path/to/cache /path/to/dyld_shared_cache
 ```
 
+**Types read out of other images' metadata accessors:** an availability-conditional
+opaque result type (SE-0360) and a noncopyable field type are stored as a pointer
+to a metadata accessor thunk, which `dump` and `interface` read without executing
+it. A binary that is not in a dyld cache — an app, an embedded framework, an
+iOS 26 or earlier simulator runtime's framework — calls the accessors it needs in
+other images by name, so those images must be findable. By default they are
+looked for where the binary sits (a simulator runtime's `RuntimeRoot`, or its own
+`dyld_sim_shared_cache` from iOS 27 on) and then in the running system's cache;
+pass `--dependency-search-path` (repeatable) when neither applies, for example a
+simulator app whose runtime is not an ancestor of the app:
+```bash
+swift-section dump --dependency-search-path "/Library/Developer/CoreSimulator/Volumes/iOS_24A434/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 27.0.simruntime/Contents/Resources/RuntimeRoot/System/Library/Caches/com.apple.dyld/dyld_sim_shared_cache_arm64" /path/to/MyApp.app/MyApp
+```
+A directory is used as a system root under which absolute install names resolve,
+a `dyld_shared_cache_*` / `dyld_sim_shared_cache_*` file as a cache, anything else
+as a Mach-O file. `interface` and `snapshot` take the same option.
+
 Dump output includes richer annotations:
 
 - Protocol witness table (PWT) entries are annotated with the requirement they satisfy
