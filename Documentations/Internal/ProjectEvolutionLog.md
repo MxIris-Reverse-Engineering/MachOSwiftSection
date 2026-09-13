@@ -1710,6 +1710,16 @@
 - **关联文档**：[提案](../Evolutions/draft-cache-stub-islands-and-unmodelled-instructions.md)、[专题导读](AccessorThunkResolutionExplained.md)、任务报告 [TaskReports/2026-09-13-cache-stub-islands.md](TaskReports/2026-09-13-cache-stub-islands.md)。
 - **对应版本**：默认输出变化（iOS 设备 cache 上原本读不出的 kind-9 引用），随下一次发布。
 
+## 2026-09-13 按名字引用的 opaque 类型也展开（提案 `by-name-opaque-reference-expansion`，节号落地时取）
+
+- **时间段**：2026-09-13（stub island 那批之后）。
+- **动机**：用户问「不透明符号引用都全部消除了吗」。指针形式的全部为 0；iOS 模拟器独立构建的 SwiftUI dump 里还剩 `<<opaque return type of …>>` 一类（26.5：215 行，其中 207 行是 witness），核实是**跨镜像 bind**：`View.staticIf` 的 opaque 描述符在 SwiftUICore 里，SwiftUI 只有一个符号名可引用。更糟的是 interface 路径把未展开的节点印成了 conformer 自己（`printOpaqueType` 只印实参表），一个真实、错误的类型。
+- **关键决策**：在 `OpaqueTypeRewriter` 里多认一种拼写而不改 demangler 输出；本镜像符号索引查不到就把 `…QOMQ` 重新 mangle 出来、用 `DependencyImageResolver` 按 thunk 读取器同一套搜索路径定位镜像，在那个镜像里用 `OpaqueTypeRewriter<MachOFile>` 展开（`expansion(of:forNode:)` 两条路共用）；方法签名里的 8 行是成员符号原样打印，不处理；interface 打印器对定位不到的情况仍印错误类型，记录、留待打印器整理。
+- **落地模块**：`SwiftDeclarationRendering`（rewriter）。无 CLI 变化（`--dependency-search-path` 自然覆盖）。
+- **验证**：双模块现场编译 fixture `CrossImageOpaqueReferenceTests`（dump 与 interface，给 / 不给搜索路径；落地前 dump 印占位、interface 印 `ProbeClient.Outer`）；模拟器门控 `aWitnessNamingAnotherImagesOpaqueTypeExpands`（iOS 26.5 SwiftUI 全部 witness 无 `opaqueReturnTypeOf`）；CLI 对比：iOS 26.5 模拟器 SwiftUI dump 按名引用 215 → 6（剩下的是方法签名里的成员符号原样打印）、interface 189 行 witness 从错误类型变成完整类型，iOS 18.5 155 → 6，其余 18 份输出逐字节一致。
+- **关联文档**：[提案](../Evolutions/draft-by-name-opaque-reference-expansion.md)、[专题导读](AccessorThunkResolutionExplained.md)「按名字引用的 opaque 类型」一节、任务报告 [TaskReports/2026-09-13-by-name-opaque-reference-expansion.md](TaskReports/2026-09-13-by-name-opaque-reference-expansion.md)。
+- **对应版本**：默认输出变化（独立文件里按名引用的 witness），随下一次发布。
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节
