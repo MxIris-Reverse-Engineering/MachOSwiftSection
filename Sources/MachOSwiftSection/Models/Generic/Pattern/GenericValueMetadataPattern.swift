@@ -46,8 +46,8 @@ extension GenericValueMetadataPattern {
     /// low bit set to say so. Only the direct case yields an offset within
     /// this image; ``valueWitnessesIsIndirect`` distinguishes them.
     public var valueWitnessesOffset: Int? {
-        guard layout.valueWitnesses.isValid, !valueWitnessesIsIndirect else { return nil }
-        return layout.valueWitnesses.resolveDirectOffset(from: offset(of: \.valueWitnesses))
+        guard !valueWitnessesIsIndirect else { return nil }
+        return resolvedDirectOffset(from: \.valueWitnesses)
     }
 
     /// Whether the value witness table pointer is indirect — that is, whether

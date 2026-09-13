@@ -20,9 +20,15 @@ extension LocatableLayoutWrapper {
     /// *protocol* addresses a witness instead, and the offset lookup behind
     /// this answers nil for it — so a shared implementation over a layout
     /// protocol cannot use this; each conformer must call it itself.
-    public func resolvedDirectOffset(from keyPath: KeyPath<Layout, RelativeDirectRawPointer>) -> Int? {
-        let layoutField = layout[keyPath: keyPath]
-        guard layoutField.isValid else { return nil }
-        return layoutField.resolveDirectOffset(from: offset(of: keyPath))
+    ///
+    /// The field may be any relative pointer, but the offset is always the
+    /// **direct** reading. For a relative-*indirectable* field that is only
+    /// the target when the indirect bit is clear — when it is set, the offset
+    /// names the slot holding the pointer, not the pointee — so such a field's
+    /// caller must rule out `isIndirect` itself before trusting the result.
+    public func resolvedDirectOffset<Pointer: RelativePointerProtocol>(from keyPath: KeyPath<Layout, Pointer>) -> Int? {
+        let pointer = layout[keyPath: keyPath]
+        guard pointer.isValid else { return nil }
+        return pointer.resolveDirectOffset(from: offset(of: keyPath))
     }
 }
