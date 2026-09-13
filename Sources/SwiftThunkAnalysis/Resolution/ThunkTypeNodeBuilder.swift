@@ -3,7 +3,7 @@ import FoundationToolbox
 import MachOKit
 import MachOFoundation
 import MachOSwiftSection
-import Demangling
+@_spi(Internals) import Demangling
 @_spi(Internals) import SwiftInspection
 
 @Loggable(.fileprivate, subsystem: "com.machoswiftsection.swift-thunk-analysis", category: "ThunkTypeNodeBuilder")
@@ -11,16 +11,17 @@ fileprivate protocol ThunkTypeNodeBuildingLogging {}
 
 /// Turns what the evaluator computed into a demangling tree.
 ///
-/// Three leaves and one node. A constant metadata address names itself
+/// Four leaves and one node. A constant metadata address names itself
 /// (its exported `…VN` symbol, or the record's descriptor). An argument
 /// names the thunk owner's generic parameter at that position — the layout
 /// the caller supplies says which depth and index the position is — as the
 /// same `dependentGenericParamType` node a demangled field type carries, so
 /// the existing substitution rewrites it into the concrete argument. A
-/// mangled name is demangled. And an accessor applied to arguments becomes
-/// the accessor's nominal type with a `boundGeneric*` wrapper per generic
-/// level of its declaration chain, the way the demangler itself spells
-/// `Outer<Int>.Inner<String>`.
+/// mangled name is demangled. A specialized accessor's symbol is demangled
+/// and the type it is the accessor *for* taken. And an accessor applied to
+/// arguments becomes the accessor's nominal type with a `boundGeneric*`
+/// wrapper per generic level of its declaration chain, the way the demangler
+/// itself spells `Outer<Int>.Inner<String>`.
 package struct ThunkTypeNodeBuilder: ThunkTypeNodeBuildingLogging {
     package let machO: MachOFile
     package let environment: MachOThunkEnvironment
@@ -59,6 +60,19 @@ package struct ThunkTypeNodeBuilder: ThunkTypeNodeBuildingLogging {
                 if let node = typeNode(forMangledNamePointerAt: address) { return enveloped(node) }
             }
             return nil
+        case .namedByAccessorSymbol(let symbolName):
+            // `type metadata accessor for T`: T is the answer. The symbol is
+            // one the environment already demangled to classify the callee;
+            // it is demangled again here rather than carried as a tree so
+            // the expression stays a plain value.
+            guard let symbolNode = try? demangleAsNodeTransient(symbolName),
+                  let accessorNode = symbolNode.first(of: Node.Kind.typeMetadataAccessFunction),
+                  let typeNode = accessorNode.firstChild
+            else {
+                #log(.info, "the accessor symbol \(symbolName, privacy: .public) does not demangle to a type metadata accessor")
+                return nil
+            }
+            return enveloped(typeNode)
         }
     }
 

@@ -32,9 +32,12 @@ struct ThunkTypeEvaluatorTests {
     private static let stateAccessor: UInt64 = 0x2000_0400
     private static let mutexAccessor: UInt64 = 0x2000_0500
     private static let mangledNameInstantiation: UInt64 = 0x2000_0600
+    private static let specializedMutexAccessor: UInt64 = 0x2000_0700
+    private static let specializedMutexAccessorSymbol = "_$s15Synchronization5MutexVyShySSGGMa"
 
     private var environment: TabledEnvironment {
         TabledEnvironment(callees: [
+            Self.specializedMutexAccessor: .concreteTypeAccessor(symbolName: Self.specializedMutexAccessorSymbol),
             Self.availabilityCheckAddress: .availabilityCheck,
             Self.tagTraitAccessor: .metadataAccessor(address: Self.tagTraitAccessor, argumentSlots: [.type, .witnessTable]),
             // `ModifiedContent<Content, Modifier>` itself has no requirements (its
@@ -167,6 +170,53 @@ struct ThunkTypeEvaluatorTests {
             .returnFromFunction,
         ]))
         #expect(result == nil)
+    }
+
+    /// Every `bl`, and every `b` that leaves the function, is a call site;
+    /// a `b` inside the function is a jump. How the run left is recorded
+    /// next to them, because only after `ret` is `x0` the last call's
+    /// result — the shape analyzer's single-lookup fallback needs both facts.
+    @Test func recordsEveryCallSiteAndHowTheFunctionLeft() {
+        var tailCallingRun = ThunkTypeEvaluator(environment: environment, instructions: sequence([
+            .loadFromMemory(destination: register(20), base: register(0), displacement: 0),
+            .moveImmediate(destination: register(0), value: 255),
+            .moveRegister(destination: register(1), source: register(20)),
+            .call(target: Self.stateAccessor),
+            .branch(target: 0x1000 + 5 * 4),
+            .unmodelled,
+            .moveRegister(destination: register(1), source: register(0)),
+            .moveImmediate(destination: register(0), value: 0),
+            .branch(target: 0xDEAD_0000),
+        ]))
+        let tailCalling = tailCallingRun.run(policy: .assumeConditionFalse)
+        #expect(tailCalling.result == nil)
+        #expect(tailCalling.leftThroughReturn == false)
+        #expect(tailCalling.callSites == [
+            ThunkTypeEvaluator.CallSite(instructionIndex: 3, target: Self.stateAccessor),
+            ThunkTypeEvaluator.CallSite(instructionIndex: 8, target: 0xDEAD_0000),
+        ])
+
+        var returningRun = ThunkTypeEvaluator(environment: environment, instructions: sequence([
+            .loadFromMemory(destination: register(1), base: register(0), displacement: 0),
+            .moveImmediate(destination: register(0), value: 0),
+            .call(target: Self.mutexAccessor),
+            .returnFromFunction,
+        ]))
+        let returning = returningRun.run(policy: .assumeConditionFalse)
+        #expect(returning.result == .bound(accessorAddress: Self.mutexAccessor, typeArguments: [.argument(index: 0)]))
+        #expect(returning.leftThroughReturn == true)
+        #expect(returning.callSites == [ThunkTypeEvaluator.CallSite(instructionIndex: 2, target: Self.mutexAccessor)])
+    }
+
+    /// A lazily specialized accessor takes no arguments; its symbol is the
+    /// whole answer (`Mutex<Set<String>>`), carried as the symbol name.
+    @Test func aConcreteTypeAccessorIsNamedByItsSymbol() {
+        let result = evaluated(sequence([
+            .moveImmediate(destination: register(0), value: 0),
+            .call(target: Self.specializedMutexAccessor),
+            .returnFromFunction,
+        ]))
+        #expect(result == .namedByAccessorSymbol(symbolName: Self.specializedMutexAccessorSymbol))
     }
 
     /// A type argument that could not be named makes the bound type

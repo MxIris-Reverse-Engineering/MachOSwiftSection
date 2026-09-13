@@ -1,5 +1,6 @@
 import Foundation
 import MachOKit
+import MachODependencies
 import MachOSwiftSection
 import Demangling
 import SwiftThunkAnalysis
@@ -60,10 +61,23 @@ public protocol AccessorThunkResolving: Sendable {
 /// The resolver rendering uses: reads the thunk's instructions through
 /// `SwiftThunkAnalysis`'s ``AccessorThunkReader``.
 public struct DisassemblingAccessorThunkResolver: AccessorThunkResolving {
-    public init() {}
+    /// Where the images a standalone file's thunk calls into by GOT bind are
+    /// looked for — a third-party app's thunk binds to `libswiftCore` and
+    /// `SwiftUI` accessors it does not carry itself. `nil` (the default)
+    /// infers the paths from where the file sits on disk (an older
+    /// simulator runtime's `RuntimeRoot`, a runtime's own `dyld_sim_shared_cache`)
+    /// and adds the host's shared cache. A host that knows better — the
+    /// simulator a device runs on, an archived device cache — scopes a
+    /// resolver carrying its paths through
+    /// ``AccessorThunkResolution/taskResolver``.
+    public let searchPaths: [DependencySearchPath]?
+
+    public init(searchPaths: [DependencySearchPath]? = nil) {
+        self.searchPaths = searchPaths
+    }
 
     public func underlyingTypes(forAccessorThunkAt offset: Int, in machO: MachOFile, ownerLayout: AccessorThunkOwnerLayout) -> [ConditionalUnderlyingType] {
-        guard let resolved = try? AccessorThunkReader.read(thunkAtOffset: offset, in: machO, ownerLayout: ownerLayout) else { return [] }
+        guard let resolved = try? AccessorThunkReader.read(thunkAtOffset: offset, in: machO, ownerLayout: ownerLayout, searchPaths: searchPaths) else { return [] }
         return resolved.underlyingTypes.map { underlyingType in
             ConditionalUnderlyingType(
                 availability: availabilityCondition(

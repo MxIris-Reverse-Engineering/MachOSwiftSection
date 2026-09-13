@@ -28,6 +28,15 @@ extension TypeMetadataRecord {
     /// (`swift/include/swift/ABI/Metadata.h:2743`). ObjC kinds are never
     /// populated in this section (see the comment at Metadata.h:2751); return
     /// `nil` for them to mirror the runtime's `nullptr` fallback.
+    ///
+    /// An indirect record whose slot is a **bind** also answers `nil`: the
+    /// descriptor lives in another image and dyld fills the slot at load
+    /// time, so offline there is nothing at the slot to read. Reading it
+    /// anyway produced a descriptor at offset 0 whose kind is garbage, and
+    /// the `invalidContextDescriptor` that threw took the whole `__swift5_types`
+    /// list with it — the iOS 26.5 simulator's `libswiftSynchronization`
+    /// registers a record for `libswiftCore/_$sSqMn` (`Swift.Optional`) and
+    /// used to dump with no types at all.
     public func contextDescriptor<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> ContextDescriptorWrapper? {
         let fieldOffset = offset(of: \.nominalTypeDescriptor)
         let relativeOffset = layout.nominalTypeDescriptor.relativeOffset
@@ -36,6 +45,9 @@ extension TypeMetadataRecord {
             let pointer = RelativeDirectPointer<ContextDescriptorWrapper>(relativeOffset: relativeOffset)
             return try pointer.resolve(from: fieldOffset, in: machO)
         case .indirectTypeDescriptor:
+            if let machOFile = machO as? MachOFile, machOFile.resolveBind(fileOffset: fieldOffset + Int(relativeOffset)) != nil {
+                return nil
+            }
             let pointer = RelativeIndirectPointer<ContextDescriptorWrapper, Pointer<ContextDescriptorWrapper>>(relativeOffset: relativeOffset)
             return try pointer.resolve(from: fieldOffset, in: machO)
         case .directObjCClassName, .indirectObjCClass:

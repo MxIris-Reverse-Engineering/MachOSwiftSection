@@ -88,6 +88,10 @@ public enum ThunkAnalysisLimitation: Sendable, Hashable {
     /// The condition code on a `csel` is not one the analysis models, so which
     /// branch is which cannot be decided.
     case unsupportedConditionCode
+    /// The thunk called into another image by name (a GOT bind, the
+    /// standalone-file case) and no search path located an image exporting
+    /// that name, so the call could not be classified.
+    case calleeInUnlocatedImage(bindName: String)
 }
 
 /// What one accessor thunk was found to compute.

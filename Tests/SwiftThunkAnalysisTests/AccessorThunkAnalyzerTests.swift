@@ -165,12 +165,15 @@ struct AccessorThunkAnalyzerTests {
     private func branchSplitThunk(unsatisfiedBranchCallCount: Int = 1) -> [ThunkInstruction] {
         var instructions = availabilityCheckInstructions(major: 26, minor: 4, startingAt: 0x2000)
         let unsatisfiedBranchAddress: UInt64 = 0x2028
+        // Both branches join at the `ret`, which sits after however many
+        // calls the unsatisfied branch makes.
+        let returnAddress = unsatisfiedBranchAddress + 4 + UInt64(unsatisfiedBranchCallCount * 4)
         instructions += [
             instruction(.branchIfZero(register: register(0), target: unsatisfiedBranchAddress), at: 0x2014),
             // Satisfied branch.
             instruction(.moveImmediate(destination: register(0), value: 255), at: 0x2018),
             instruction(.call(target: 0x1B6D2F858), at: 0x201C),
-            instruction(.branch(target: 0x2030), at: 0x2020),
+            instruction(.branch(target: returnAddress), at: 0x2020),
             instruction(.unmodelled, at: 0x2024),
             // Unsatisfied branch.
             instruction(.moveImmediate(destination: register(0), value: 255), at: unsatisfiedBranchAddress),
@@ -210,6 +213,40 @@ struct AccessorThunkAnalyzerTests {
         #expect(program.candidates.count == 1)
         #expect(program.candidates.first?.condition == .availabilitySatisfied)
         #expect(program.limitations == [.branchIsNotASingleLookup(condition: .availabilityNotSatisfied, callCount: 4)])
+    }
+
+    /// iOS 26.5 simulator SwiftUI's `OnModifierKeysChangedModifier.Body`:
+    /// each arm looks one type up, then the arms join and hand the result to
+    /// `ModifiedContent`'s accessor with a tail `b` through a GOT bind the
+    /// environment cannot name. The shared tail is part of each arm, and a
+    /// tail call is a call, so neither arm is a single lookup: falling back
+    /// to the one `bl` would print the intermediate `_TaskModifier2` for a
+    /// `Body` that is really `ModifiedContent<…, _TaskModifier2>`.
+    @Test func refusesAnArmWhoseSharedTailCallsSomethingElse() throws {
+        var instructions = availabilityCheckInstructions(major: 26, minor: 4, startingAt: 0x2000)
+        let unsatisfiedBranchAddress: UInt64 = 0x2024
+        let joinAddress: UInt64 = 0x202C
+        instructions += [
+            instruction(.branchIfZero(register: register(0), target: unsatisfiedBranchAddress), at: 0x2014),
+            // Satisfied branch: one lookup, then jump to the shared tail.
+            instruction(.moveImmediate(destination: register(0), value: 255), at: 0x2018),
+            instruction(.call(target: 0x1B6D2F858), at: 0x201C),
+            instruction(.branch(target: joinAddress), at: 0x2020),
+            // Unsatisfied branch: one lookup, falling through into the tail.
+            instruction(.moveImmediate(destination: register(0), value: 255), at: unsatisfiedBranchAddress),
+            instruction(.call(target: 0x1B6D2F838), at: 0x2028),
+            // The shared tail: the looked-up type becomes an argument.
+            instruction(.moveRegister(destination: register(2), source: register(0)), at: joinAddress),
+            instruction(.moveImmediate(destination: register(0), value: 0), at: 0x2030),
+            instruction(.branch(target: 0x1B6DD4A68), at: 0x2034),
+        ]
+        let program = AccessorThunkAnalyzer.analyze(instructions: instructions)
+        #expect(program.availabilityCheck?.minor == 4)
+        #expect(program.candidates.isEmpty, "\(program.candidates)")
+        #expect(program.limitations == [
+            .branchIsNotASingleLookup(condition: .availabilitySatisfied, callCount: 2),
+            .branchIsNotASingleLookup(condition: .availabilityNotSatisfied, callCount: 2),
+        ])
     }
 
     // MARK: - Shapes outside the vocabulary
