@@ -120,6 +120,35 @@ struct SimulatorStandaloneSwiftUIThunkTests {
         #expect(storageFields["data"] == "Synchronization.Mutex<SwiftUI.MaterialBackdropProxy.(Storage in _DEF3755CDC6B87C0368876C9F497EC3D).Data>")
     }
 
+    /// A witness built from a `some` result that lives in ANOTHER image —
+    /// `SidebarListBody.CollectionViewBody.Body` is `ModifiedContent<opaque
+    /// (View.staticIf), …>` and `View.staticIf` is SwiftUICore's — reaches
+    /// that descriptor through a bind, a name; located through the same
+    /// search paths the thunk reader infers from the file's location, it
+    /// expands like any other. Measured before: 207 witnesses of this build
+    /// printed `<<opaque return type of …>>`.
+    @Test func aWitnessNamingAnotherImagesOpaqueTypeExpands() async throws {
+        let machOFile = try loadSwiftUI()
+        var collectionViewBodyWitness: String?
+        var byNameLeftovers: [String] = []
+        for associatedType in try machOFile.swift.associatedTypes {
+            let conformingTypeName = await (try SymbolicDemangler.demangleType(for: associatedType.conformingTypeName, in: machOFile)).print(using: DemangleOptions.default)
+            for record in associatedType.records {
+                guard let mangledName = try? record.substitutedTypeName(in: machOFile),
+                      let node = try? SymbolicDemangler.demangleType(for: mangledName, in: machOFile),
+                      node.contains(Node.Kind.opaqueType)
+                else { continue }
+                let resolved = node.resolveOpaqueTypeCollectingConditionalCandidates(in: machOFile).node
+                if resolved.contains(Node.Kind.opaqueReturnTypeOf) { byNameLeftovers.append(conformingTypeName) }
+                if conformingTypeName.hasPrefix("SwiftUI.SidebarListBody.(CollectionViewBody in "), try record.name(in: machOFile) == "Body" {
+                    collectionViewBodyWitness = await resolved.print(using: DemangleOptions.default)
+                }
+            }
+        }
+        #expect(collectionViewBodyWitness?.hasPrefix("SwiftUI.ModifiedContent<SwiftUI.StaticIf<SwiftUI._SemanticFeature<SwiftUI.Semantics_v7>, ") == true, "\(String(describing: collectionViewBodyWitness))")
+        #expect(byNameLeftovers.isEmpty, "still by name:\n\(byNameLeftovers.joined(separator: "\n"))")
+    }
+
     /// Every branch comment names what the cache names — the whole
     /// `ModifiedContent<…>` a thunk's shared tail wraps around the looked-up
     /// type, never the looked-up type alone — and nothing is left unread.

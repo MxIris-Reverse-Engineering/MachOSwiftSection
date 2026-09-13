@@ -6,6 +6,8 @@ import Demangling
 import OrderedCollections
 @_spi(Internals) import SwiftInspection
 import SwiftThunkAnalysis
+import MachODependencies
+@_spi(Internals) import MachOSymbols
 
 /// Carries the logging floor onto the rewriter.
 ///
@@ -304,66 +306,146 @@ extension Node {
             ).rewrite(node)
         }
 
+        /// The opaque type an `opaqueType` node's first child refers to when
+        /// the descriptor is in THIS image, by either spelling the demangler
+        /// produces for it.
+        ///
+        /// **By pointer** (`opaqueTypeDescriptorSymbolicReference`): the
+        /// node carries the descriptor's offset — or, in any `MachOImage`
+        /// environment, its absolute in-process pointer bit pattern, which
+        /// `SymbolicDemangler` stashes in `Node.index` regardless of whether
+        /// the descriptor lives in this image or a sibling loaded one
+        /// (cross-image refs from `View.searchFieldStyle`-style helpers,
+        /// weakly-linked descriptors), so the whole chain runs through
+        /// `InProcessContext` via the pointer, matching the runtime's own
+        /// `(ContextDescriptor *)demangleNode->getIndex()`. `MachOFile` keeps
+        /// the file-offset semantic because it lives off-process.
+        ///
+        /// **By name** (`opaqueReturnTypeOf`): what the demangler builds when
+        /// the reference is a *symbol* rather than a pointer — a standalone
+        /// file's bind to an opaque descriptor another image exports. The
+        /// symbol index keys every `…MQ` descriptor symbol of this image by
+        /// the declaration it belongs to (the interface printer's `some`
+        /// expansion uses the same lookup), so a name this image does carry
+        /// resolves here; one it does not is ``foreignOpaqueType(referencedBy:)``'s.
+        private func opaqueType(referencedBy reference: Node) throws -> OpaqueType? {
+            if reference.isKind(of: .opaqueTypeDescriptorSymbolicReference), let offset: Int = reference.index?.cast() {
+                if machO is MachOImage, let absolutePointer = UnsafeRawPointer(bitPattern: offset) {
+                    let opaqueTypeDescriptor: OpaqueTypeDescriptor = try absolutePointer.readWrapperElement()
+                    return try OpaqueType(descriptor: opaqueTypeDescriptor)
+                }
+                return try OpaqueType(descriptor: OpaqueTypeDescriptor.resolve(from: offset, in: machO), in: machO)
+            }
+            if reference.isKind(of: .opaqueReturnTypeOf), let memberNode = reference.firstChild,
+               let descriptorSymbol = SymbolIndexStore.shared.opaqueTypeDescriptorSymbol(for: memberNode, in: machO) {
+                return try OpaqueType(descriptor: OpaqueTypeDescriptor.resolve(from: descriptorSymbol.offset, in: machO), in: machO)
+            }
+            return nil
+        }
+
+        /// The opaque type a by-name reference names in ANOTHER image, and
+        /// that image.
+        ///
+        /// A standalone file's associated-type witness may be built from a
+        /// `some` result declared elsewhere: SwiftUI's `SidebarListBody
+        /// .CollectionViewBody.Body` is `ModifiedContent<opaque(View.staticIf),
+        /// …>`, and `View.staticIf` — module name `SwiftUI`, the same — lives in
+        /// SwiftUICore. The mangled name references its descriptor through a
+        /// GOT bind, a name, and `SymbolicDemangler` demangles that name into
+        /// `opaqueReturnTypeOf(the declaration)`; inside a cache the same slot
+        /// is a rebase to a concrete address the reader follows across images
+        /// unaided, which is why the macOS caches never showed this shape.
+        /// The descriptor symbol is remangled from the node (`…QOMQ`), located
+        /// among the file's direct dependencies with the same search paths
+        /// the accessor-thunk reader uses, and read in the image that exports
+        /// it. Measured on iOS 26.5 simulator SwiftUI: 207 witnesses printed
+        /// `<<opaque return type of …>>` in the dump for want of this — and the
+        /// interface, whose `printOpaqueType` prints only the node's argument
+        /// list, printed the conformer itself as the witness (`typealias Body
+        /// = SidebarListBody.CollectionViewBody`), a real, wrong type.
+        private func foreignOpaqueType(referencedBy reference: Node) throws -> (image: MachOFile, opaqueType: OpaqueType)? {
+            guard reference.isKind(of: .opaqueReturnTypeOf), let machOFile = machO as? MachOFile else { return nil }
+            let descriptorSymbolNode = Node.create(kind: .global, children: [Node.create(kind: .opaqueTypeDescriptor, children: [reference.copy()])])
+            let descriptorSymbolName = try mangleAsString(descriptorSymbolNode)
+            let searchPaths = (AccessorThunkResolution.effectiveResolver as? DisassemblingAccessorThunkResolver)?.searchPaths
+                ?? MachOThunkEnvironment.defaultSearchPaths(for: machOFile)
+            guard let location = DependencyImageResolver.resolver(for: machOFile).location(ofExportedSymbol: descriptorSymbolName, searchPaths: searchPaths) else {
+                #log(.info, "no search path located an image exporting \(descriptorSymbolName, privacy: .public)")
+                return nil
+            }
+            let imageAddressSpace = ThunkAddressSpace(of: location.image)
+            guard let descriptorAddress = imageAddressSpace.address(forExportedSymbolOffset: location.exportedSymbolOffset),
+                  let descriptorOffset = imageAddressSpace.offset(forAddress: descriptorAddress)
+            else { return nil }
+            let opaqueType = try OpaqueType(descriptor: OpaqueTypeDescriptor.resolve(from: descriptorOffset, in: location.image), in: location.image)
+            return (image: location.image, opaqueType: opaqueType)
+        }
+
+        /// What `node` — an `opaqueType` reference — expands to given the
+        /// opaque type it refers to, read in THIS rewriter's image: the
+        /// underlying type at the node's ordinal, its kind-9 thunks resolved,
+        /// the node's generic arguments substituted, nested opaque types
+        /// expanded in turn. `nil` when the underlying type has no shape this
+        /// rewriter substitutes.
+        fileprivate func expansion(of opaqueType: OpaqueType, forNode node: Node) -> Node? {
+            // The ordinal — the opaque type's own position among the
+            // `some` results of the declaration that produced it — is
+            // what indexes the underlying-type array. Measured on a
+            // fixture whose single declaration returns
+            // `Pair<some P, some P>`: the descriptor carries four
+            // entries, `[underlying 0, underlying 1, conformance 0,
+            // conformance 1]` — every replacement type first, then the
+            // conformances, which is the order IRGen writes the
+            // underlying substitution map in and the order the
+            // runtime's `_getOpaqueTypeMetadata` reads it back in.
+            // Hardcoding 0 therefore rendered a declaration's second
+            // `some` as its first, silently. Every opaque reference in
+            // SwiftUI's and SwiftUICore's associated-type records
+            // carries ordinal 0, so this is correctness for a shape
+            // those two do not have and a client binary may.
+            let ordinal: Int = node[safeChild: 1]?.index?.cast() ?? 0
+            let allTypeList = Node.opaqueTypeGenericArgumentsByDepth(of: node)
+            guard let underlyingTypeArgumentMangledName = opaqueType.underlyingTypeArgumentMangledNames[safe: ordinal] else { return nil }
+            let underlyingTypeArgumentNode: Node?
+            if machO is MachOImage {
+                underlyingTypeArgumentNode = try? SymbolicDemangler.demangleType(for: underlyingTypeArgumentMangledName)
+            } else {
+                underlyingTypeArgumentNode = try? SymbolicDemangler.demangleType(for: underlyingTypeArgumentMangledName, in: machO)
+            }
+            // The thunk's argument buffer is the opaque
+            // descriptor's generic arguments, so its generic
+            // context is what names an argument the thunk reads.
+            let ownerLayout = AccessorThunkOwnerLayout(genericContext: opaqueType.genericContext)
+            guard let underlyingTypeArgumentNode,
+                  let resolvedNode = underlyingTypeContent(of: underlyingTypeArgumentNode, ownerLayout: ownerLayout)
+            else { return nil }
+            let substituted = OpaqueTypeGenericParameterRewriter(machO: machO, typeList: allTypeList).rewrite(resolvedNode)
+            return expandingNestedOpaqueTypes(in: substituted)
+        }
+
         override func visit(_ node: Node) -> Node {
             do {
-                if node.isKind(of: .opaqueType),
-                   let firstChild = node.firstChild,
-                   firstChild.isKind(of: .opaqueTypeDescriptorSymbolicReference),
-                   let offset: Int = firstChild.index?.cast() {
-                    // `opaqueTypeDescriptorSymbolicReference` is unified to InProcess in any
-                    // MachOImage environment: SymbolicDemangler stashes the descriptor's
-                    // absolute in-process pointer bit pattern in Node.index regardless of
-                    // whether the descriptor lives in the current image or in a sibling
-                    // loaded image (cross-image refs from `View.searchFieldStyle`-style
-                    // helpers, weakly-linked descriptors, etc). The whole opaque-type chain —
-                    // descriptor read, generic context, underlying type demangle — then runs
-                    // through `InProcessContext` via the pointer, matching the Swift runtime's
-                    // own scheme of `(ContextDescriptor *)demangleNode->getIndex()`. No
-                    // per-image MachO bookkeeping is needed because every read is just a
-                    // pointer deref. MachOFile keeps the legacy file-offset semantic because
-                    // it lives off-process and has no cross-image issue.
-                    let opaqueTypeDescriptor: OpaqueTypeDescriptor
-                    let opaqueType: OpaqueType
-                    if machO is MachOImage, let absolutePointer = UnsafeRawPointer(bitPattern: offset) {
-                        opaqueTypeDescriptor = try absolutePointer.readWrapperElement()
-                        opaqueType = try OpaqueType(descriptor: opaqueTypeDescriptor)
-                    } else {
-                        opaqueTypeDescriptor = try OpaqueTypeDescriptor.resolve(from: offset, in: machO)
-                        opaqueType = try OpaqueType(descriptor: opaqueTypeDescriptor, in: machO)
+                if node.isKind(of: .opaqueType), let firstChild = node.firstChild {
+                    if let opaqueType = try opaqueType(referencedBy: firstChild),
+                       let expanded = expansion(of: opaqueType, forNode: node) {
+                        return expanded
                     }
-
-                    // The ordinal — the opaque type's own position among the
-                    // `some` results of the declaration that produced it — is
-                    // what indexes the underlying-type array. Measured on a
-                    // fixture whose single declaration returns
-                    // `Pair<some P, some P>`: the descriptor carries four
-                    // entries, `[underlying 0, underlying 1, conformance 0,
-                    // conformance 1]` — every replacement type first, then the
-                    // conformances, which is the order IRGen writes the
-                    // underlying substitution map in and the order the
-                    // runtime's `_getOpaqueTypeMetadata` reads it back in.
-                    // Hardcoding 0 therefore rendered a declaration's second
-                    // `some` as its first, silently. Every opaque reference in
-                    // SwiftUI's and SwiftUICore's associated-type records
-                    // carries ordinal 0, so this is correctness for a shape
-                    // those two do not have and a client binary may.
-                    let ordinal: Int = node[safeChild: 1]?.index?.cast() ?? 0
-                    let allTypeList = Node.opaqueTypeGenericArgumentsByDepth(of: node)
-                    if let underlyingTypeArgumentMangledName = opaqueType.underlyingTypeArgumentMangledNames[safe: ordinal] {
-                        let underlyingTypeArgumentNode: Node?
-                        if machO is MachOImage {
-                            underlyingTypeArgumentNode = try? SymbolicDemangler.demangleType(for: underlyingTypeArgumentMangledName)
-                        } else {
-                            underlyingTypeArgumentNode = try? SymbolicDemangler.demangleType(for: underlyingTypeArgumentMangledName, in: machO)
-                        }
-                        // The thunk's argument buffer is the opaque
-                        // descriptor's generic arguments, so its generic
-                        // context is what names an argument the thunk reads.
-                        let ownerLayout = AccessorThunkOwnerLayout(genericContext: opaqueType.genericContext)
-                        if let underlyingTypeArgumentNode,
-                           let resolvedNode = underlyingTypeContent(of: underlyingTypeArgumentNode, ownerLayout: ownerLayout) {
-                            let substituted = OpaqueTypeGenericParameterRewriter(machO: machO, typeList: allTypeList).rewrite(resolvedNode)
-                            return expandingNestedOpaqueTypes(in: substituted)
+                    // A descriptor another image exports is read — and its
+                    // underlying type demangled, its thunks resolved, its own
+                    // nested opaque types expanded — in THAT image: every
+                    // relative pointer and symbolic reference in it is that
+                    // image's. The generic arguments substituted into the
+                    // result are this node's, plain trees either way.
+                    if let foreign = try foreignOpaqueType(referencedBy: firstChild) {
+                        let foreignRewriter = OpaqueTypeRewriter<MachOFile>(
+                            machO: foreign.image,
+                            reportDegradation: reportDegradation,
+                            expansionDepth: expansionDepth,
+                            branchSelection: branchSelection,
+                            candidateLedger: candidateLedger
+                        )
+                        if let expanded = foreignRewriter.expansion(of: foreign.opaqueType, forNode: node) {
+                            return expanded
                         }
                     }
                 }
