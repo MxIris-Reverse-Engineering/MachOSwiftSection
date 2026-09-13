@@ -140,8 +140,35 @@ public enum ThunkOperation: Sendable, Hashable {
     /// `ret`.
     case returnFromFunction
 
-    /// Anything else. Stepped over, not treated as an error.
-    case unmodelled
+    /// A conditional branch the analysis does not model — `b.<cond>`,
+    /// `tbz` / `tbnz` — with the target it would jump to. Not stepped over:
+    /// treating it as never taken would read one arm as if it were the
+    /// whole function, so the evaluator abandons the run instead — unless
+    /// falling through lands on a ``trap``, in which case the branch is the
+    /// only way on and is taken (the arm64e epilogue's `tbz x16, #62` over
+    /// a `brk` after `autibsp`). The decoder's function-boundary rule
+    /// honours the target either way.
+    case conditionalBranchNotModelled(target: UInt64)
+
+    /// `pacia x16, x17` / `autda x16, x17` / `xpaci x16` and the rest of
+    /// the pointer-authentication family that signs, authenticates or strips
+    /// a pointer *in a register*: the value the analysis tracks is the same
+    /// pointer before and after (a signed accessor pointer still names the
+    /// accessor), so the register keeps what it held. Without this an
+    /// arm64e thunk's `ldr x16, [got]; pacia x16, x17; mov x3, x16` lost
+    /// the accessor at the `pacia`.
+    case signOrAuthenticatePointer(register: ThunkRegister)
+
+    /// `brk` — a trap. A run that reaches one has crashed; a conditional
+    /// branch whose fall-through is one is always taken on any path that
+    /// keeps running.
+    case trap
+
+    /// Anything else. Stepped over, but not ignored: the registers it
+    /// writes (from the disassembler's register-access list) are forgotten,
+    /// so a value computed by an instruction the analysis cannot read is
+    /// never mistaken for the one that was there before.
+    case unmodelled(writtenRegisters: [ThunkRegister])
 }
 
 /// One decoded instruction: its address, its modelled operation, and the

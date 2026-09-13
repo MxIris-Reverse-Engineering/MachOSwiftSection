@@ -212,7 +212,7 @@ public struct ThunkTypeEvaluator {
             let instruction = instructions[index]
             index += 1
             let instructionIndex = index - 1
-            switch step(instruction.operation, at: instructionIndex, policy: policy) {
+            switch step(instruction, at: instructionIndex, policy: policy) {
             case .continue:
                 continue
             case .jump(let target):
@@ -255,8 +255,8 @@ public struct ThunkTypeEvaluator {
         case left(Value?, throughReturn: Bool)
     }
 
-    private mutating func step(_ operation: ThunkOperation, at instructionIndex: Int, policy: BranchPolicy) -> Step {
-        switch operation {
+    private mutating func step(_ instruction: ThunkInstruction, at instructionIndex: Int, policy: BranchPolicy) -> Step {
+        switch instruction.operation {
         case .materializePageAddress(let destination, let pageBaseAddress):
             assign(.address(pageBaseAddress), to: destination)
         case .addImmediate(let destination, let source, let addend):
@@ -351,8 +351,28 @@ public struct ThunkTypeEvaluator {
             return .decided(jumpTarget: nil)
         case .returnFromFunction:
             return .left(valuesByRegister[ThunkRegister(number: 0)], throughReturn: true)
-        case .unmodelled:
+        case .conditionalBranchNotModelled(let target):
+            // Falling through onto a trap is not a path a running program
+            // takes (the arm64e epilogue's pointer-authentication check:
+            // `tbz x16, #62, Lreturn; brk`), so the branch is taken. Any
+            // other case tests something unknown in a way the policy cannot
+            // stand in for; the run ends here with no answer.
+            if instructionIndex + 1 < instructions.count, case .trap = instructions[instructionIndex + 1].operation {
+                return .jump(target)
+            }
+            limitations.append(.conditionalBranchNotModelled(mnemonic: instruction.mnemonic))
+            return .left(nil, throughReturn: false)
+        case .trap:
+            // The program would have crashed here; nothing it computed after
+            // this point exists.
+            return .left(nil, throughReturn: false)
+        case .signOrAuthenticatePointer:
+            // The same pointer, signed or checked; the register keeps its value.
             break
+        case .unmodelled(let writtenRegisters):
+            for register in writtenRegisters {
+                if register.isStackPointer { forgetStack() } else { forget(register) }
+            }
         }
         return .continue
     }

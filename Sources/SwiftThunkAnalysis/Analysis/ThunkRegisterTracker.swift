@@ -82,7 +82,9 @@ public struct ThunkRegisterTracker: Sendable {
             // Which of the two the destination takes is exactly the question
             // the analysis is asking; it must not be answered here.
             forget(destination)
-        case .branch, .branchIfZero, .branchIfNotZero, .compareImmediate, .returnFromFunction, .unmodelled:
+        case .unmodelled(let writtenRegisters):
+            for register in writtenRegisters { forget(register) }
+        case .branch, .branchIfZero, .branchIfNotZero, .compareImmediate, .returnFromFunction, .conditionalBranchNotModelled, .trap, .signOrAuthenticatePointer:
             break
         }
     }

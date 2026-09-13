@@ -92,6 +92,11 @@ public enum ThunkAnalysisLimitation: Sendable, Hashable {
     /// standalone-file case) and no search path located an image exporting
     /// that name, so the call could not be classified.
     case calleeInUnlocatedImage(bindName: String)
+    /// The run reached a conditional branch the analysis does not model
+    /// (`b.<cond>`, `tbz` / `tbnz`) and stopped there: which way it goes is
+    /// not known, and reading past it as if it were never taken would
+    /// present one arm as the whole answer.
+    case conditionalBranchNotModelled(mnemonic: String)
 }
 
 /// What one accessor thunk was found to compute.
