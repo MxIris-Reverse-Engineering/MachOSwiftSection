@@ -249,6 +249,27 @@ struct AccessorThunkAnalyzerTests {
         ])
     }
 
+    /// An arm whose one call goes through a register has no target the
+    /// fallback could name, so it is not a single lookup either.
+    @Test func refusesAnArmWhoseOnlyCallIsThroughARegister() throws {
+        var instructions = availabilityCheckInstructions(major: 26, minor: 4, startingAt: 0x2000)
+        let unsatisfiedBranchAddress: UInt64 = 0x2024
+        instructions += [
+            instruction(.branchIfZero(register: register(0), target: unsatisfiedBranchAddress), at: 0x2014),
+            // Satisfied branch: one register call, then return.
+            instruction(.moveImmediate(destination: register(0), value: 255), at: 0x2018),
+            instruction(.indirectCall(register: register(3)), at: 0x201C),
+            instruction(.returnFromFunction, at: 0x2020),
+            // Unsatisfied branch: one direct lookup, then return.
+            instruction(.moveImmediate(destination: register(0), value: 255), at: unsatisfiedBranchAddress),
+            instruction(.call(target: 0x1B6D2F838), at: 0x2028),
+            instruction(.returnFromFunction, at: 0x202C),
+        ]
+        let program = AccessorThunkAnalyzer.analyze(instructions: instructions)
+        #expect(program.candidates.map(\.condition) == [.availabilityNotSatisfied])
+        #expect(program.limitations == [.branchIsNotASingleLookup(condition: .availabilitySatisfied, callCount: 1)])
+    }
+
     // MARK: - Shapes outside the vocabulary
 
     @Test func reportsNoRecognizedShapeWithoutAVersionCheck() throws {

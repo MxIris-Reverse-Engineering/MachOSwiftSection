@@ -20,6 +20,28 @@ import Foundation
 /// non-zero — and otherwise resolved by the caller's ``BranchPolicy``, which
 /// is how the shape analyzer explores both arms of a version check.
 ///
+/// ## Following a call the environment cannot name
+///
+/// A call whose target is neither an accessor nor a runtime entry point is
+/// not the end of the road when the environment can hand over the callee's
+/// instructions: the evaluator runs *them*, with the registers as they are
+/// at the call, and takes what the callee leaves in `x0` as the call's
+/// result. This is what reads a compiler-merged accessor (`…MaTm`): the
+/// compiler folds every "check the cache, else call the accessor with this
+/// argument" body into one function whose parameters are the cache slot,
+/// the argument and the accessor itself — the type is entirely in the
+/// caller's registers, and the merged body's own symbol names one of the
+/// bodies folded into it, never the callee. The rules that keep this
+/// honest: the callee is run with the caller's policy first and, when that
+/// run decides a conditional and answers nothing, once more the other way
+/// (the cache probe's warm path returns the unreadable cached word, its
+/// cold path builds the type — the same rule the shape analyzer applies to
+/// an unconditional thunk); the availability check is never followed, so
+/// its result stays unknown and the arms stay the analyzer's to explore; a
+/// function already being followed is not entered again; and the depth is
+/// capped. After the callee returns, `x1`–`x17` are forgotten and the
+/// caller's own stack model is kept, as AAPCS64 promises.
+///
 /// The stack is modelled as slots keyed by their offset from the stack
 /// pointer *at entry*: `sub sp, sp, #48` moves the pointer, and every later
 /// `[sp, #k]` is resolved through the moved value, so a buffer the thunk
@@ -41,6 +63,11 @@ public struct ThunkTypeEvaluator {
         /// loaded from its GOT slot. Any runtime this analysis targets has
         /// the capability, so the flag reads as set.
         case runtimeCapabilityFlag(String)
+        /// A function, loaded from a GOT slot that *binds* to it by name — a
+        /// standalone file's pointer to another image's accessor, which the
+        /// file itself holds no address for. Calling through the register
+        /// (`blr`) applies the callee like a direct call.
+        case functionReference(ThunkCallee)
     }
 
     /// How a conditional the evaluator cannot decide is resolved.
@@ -49,14 +76,21 @@ public struct ThunkTypeEvaluator {
         case assumeConditionFalse
         /// Take the branch; take a `csel`'s `whenConditionHolds` operand.
         case assumeConditionTrue
+
+        fileprivate var opposite: BranchPolicy {
+            self == .assumeConditionFalse ? .assumeConditionTrue : .assumeConditionFalse
+        }
     }
 
     /// One call a run made: which instruction made it and where it went.
     public struct CallSite: Sendable, Hashable {
         public let instructionIndex: Int
-        public let target: UInt64
+        /// The static target of a `bl` / `b`; `nil` for a call through a
+        /// register, which has none — and which the shape analyzer's
+        /// single-lookup fallback therefore never names.
+        public let target: UInt64?
 
-        public init(instructionIndex: Int, target: UInt64) {
+        public init(instructionIndex: Int, target: UInt64?) {
             self.instructionIndex = instructionIndex
             self.target = target
         }
@@ -70,11 +104,13 @@ public struct ThunkTypeEvaluator {
         /// The first conditional the policy had to decide, if any — the
         /// instruction the shape analyzer reads the branch condition off.
         public let decidedInstructionIndex: Int?
-        /// Every call the run made, in order: each `bl`, and each `b` that
-        /// left the function (a tail call, whether or not the environment
-        /// could name its target). An in-function jump is not a call. The
-        /// instruction index lets the shape analyzer separate an arm's calls
-        /// from the availability check's own.
+        /// Every call the run made, in order: each `bl` and `blr`, and each
+        /// `b` or `br` that left the function (a tail call, whether or not
+        /// the environment could name its target). An in-function jump is
+        /// not a call. A call made inside a followed callee is listed under
+        /// the instruction that entered the callee. The instruction index
+        /// lets the shape analyzer separate an arm's calls from the
+        /// availability check's own.
         public let callSites: [CallSite]
         /// `true` when the run left through `ret`. `false` for a tail call,
         /// a register jump, and a run that never left — the cases where the
@@ -107,23 +143,56 @@ public struct ThunkTypeEvaluator {
     /// policy cannot escape ends instead of hanging.
     private static let maximumStepCount = 1024
 
+    /// How many functions deep a call is followed. A merged accessor is one
+    /// level; two is a merged accessor reached through a local wrapper.
+    private static let maximumFollowDepth = 3
+
     private let environment: any ThunkEvaluationEnvironment
     private let instructions: [ThunkInstruction]
     private let indicesByAddress: [UInt64: Int]
+    /// Call targets never followed into, whatever the environment says:
+    /// the availability check, whose result must stay unknown.
+    private let callTargetsLeftOpaque: Set<UInt64>
+    /// The entry addresses of the functions being followed, outermost
+    /// first; empty for the thunk itself.
+    private let followedFunctions: [UInt64]
     private var valuesByRegister: [ThunkRegister: Value] = [:]
     private var valuesByStackOffset: [Int64: Value] = [:]
     private var lastComparison: (register: ThunkRegister, value: Int64)?
+    private var callSites: [CallSite] = []
+    private var limitations: [ThunkAnalysisLimitation] = []
+    /// What `x0` held when the last run left the function, when it left
+    /// with a meaningful `x0`: after `ret`, or after a tail call whose
+    /// callee was applied. A tail call to an unknown callee leaves nothing.
+    private var valueOnLeaving: Value?
 
-    public init(environment: any ThunkEvaluationEnvironment, instructions: [ThunkInstruction]) {
+    /// `callTargetsLeftOpaque` names call targets the evaluator must not
+    /// follow into even when the environment could decode them.
+    public init(
+        environment: any ThunkEvaluationEnvironment,
+        instructions: [ThunkInstruction],
+        callTargetsLeftOpaque: Set<UInt64> = []
+    ) {
+        self.init(environment: environment, instructions: instructions, callTargetsLeftOpaque: callTargetsLeftOpaque, followedFunctions: [])
+        valuesByRegister[ThunkRegister(number: 0)] = .argumentBuffer
+        valuesByRegister[.stackPointer] = .stackAddress(0)
+    }
+
+    private init(
+        environment: any ThunkEvaluationEnvironment,
+        instructions: [ThunkInstruction],
+        callTargetsLeftOpaque: Set<UInt64>,
+        followedFunctions: [UInt64]
+    ) {
         self.environment = environment
         self.instructions = instructions
+        self.callTargetsLeftOpaque = callTargetsLeftOpaque
+        self.followedFunctions = followedFunctions
         var indicesByAddress: [UInt64: Int] = [:]
         for (index, instruction) in instructions.enumerated() where indicesByAddress[instruction.address] == nil {
             indicesByAddress[instruction.address] = index
         }
         self.indicesByAddress = indicesByAddress
-        valuesByRegister[ThunkRegister(number: 0)] = .argumentBuffer
-        valuesByRegister[.stackPointer] = .stackAddress(0)
     }
 
     public func value(of register: ThunkRegister) -> Value? {
@@ -134,18 +203,16 @@ public struct ThunkTypeEvaluator {
     public mutating func run(from startIndex: Int = 0, policy: BranchPolicy) -> Outcome {
         var index = startIndex
         var decidedInstructionIndex: Int?
-        var callSites: [CallSite] = []
-        var limitations: [ThunkAnalysisLimitation] = []
         var steps = 0
+        callSites = []
+        limitations = []
+        valueOnLeaving = nil
         while index < instructions.count, steps < Self.maximumStepCount {
             steps += 1
             let instruction = instructions[index]
             index += 1
             let instructionIndex = index - 1
-            if case .call(let target) = instruction.operation {
-                callSites.append(CallSite(instructionIndex: instructionIndex, target: target))
-            }
-            switch step(instruction.operation, policy: policy) {
+            switch step(instruction.operation, at: instructionIndex, policy: policy) {
             case .continue:
                 continue
             case .jump(let target):
@@ -163,14 +230,10 @@ public struct ThunkTypeEvaluator {
                 }
             case .unsupportedCondition:
                 limitations.append(.unsupportedConditionCode)
-            case .left(let result, let throughReturn):
-                // A `b` that left the function is a tail call — a call site
-                // like any other, whether or not its target could be named.
-                if case .branch(let target) = instruction.operation {
-                    callSites.append(CallSite(instructionIndex: instructionIndex, target: target))
-                }
+            case .left(let value, let throughReturn):
+                valueOnLeaving = value
                 return Outcome(
-                    result: result,
+                    result: Self.typeExpression(of: value),
                     decidedInstructionIndex: decidedInstructionIndex,
                     callSites: callSites,
                     leftThroughReturn: throughReturn,
@@ -187,11 +250,12 @@ public struct ThunkTypeEvaluator {
         /// A conditional the policy decided; the target when it jumped.
         case decided(jumpTarget: UInt64?)
         case unsupportedCondition
-        /// The function left; `throughReturn` only for `ret`.
-        case left(ThunkTypeExpression?, throughReturn: Bool)
+        /// The function left, with this in `x0` when that is meaningful;
+        /// `throughReturn` only for `ret`.
+        case left(Value?, throughReturn: Bool)
     }
 
-    private mutating func step(_ operation: ThunkOperation, policy: BranchPolicy) -> Step {
+    private mutating func step(_ operation: ThunkOperation, at instructionIndex: Int, policy: BranchPolicy) -> Step {
         switch operation {
         case .materializePageAddress(let destination, let pageBaseAddress):
             assign(.address(pageBaseAddress), to: destination)
@@ -231,19 +295,29 @@ public struct ThunkTypeEvaluator {
                 store(valuesByRegister[second], to: base, displacement: displacement + 8)
             }
         case .call(let target):
-            apply(callee: environment.callee(at: target))
+            callSites.append(CallSite(instructionIndex: instructionIndex, target: target))
+            call(environment.callee(at: target), staticTarget: target, at: instructionIndex, policy: policy)
+        case .indirectCall(let register):
+            callSites.append(CallSite(instructionIndex: instructionIndex, target: nil))
+            let (callee, staticTarget) = calleeHeld(by: register)
+            call(callee, staticTarget: staticTarget, at: instructionIndex, policy: policy)
         case .branch(let target):
             // A branch to a known function is a tail call: the function's
             // result is that call's. A branch inside the function is a jump.
-            // Anything else — a callee the environment cannot name — leaves
-            // with an unknown result: the value in `x0` now is that callee's
-            // first argument, not the answer.
+            // Anything else is a tail call to a function the environment
+            // cannot name — followed when it can be decoded, and otherwise
+            // leaving with an unknown result: the value in `x0` now is that
+            // callee's first argument, not the answer.
             let callee = environment.callee(at: target)
-            if case .unknown = callee {
-                return indicesByAddress[target] != nil ? .jump(target) : .left(nil, throughReturn: false)
+            if case .unknown = callee, indicesByAddress[target] != nil {
+                return .jump(target)
             }
-            apply(callee: callee)
-            return .left(resultType, throughReturn: false)
+            callSites.append(CallSite(instructionIndex: instructionIndex, target: target))
+            return tailCall(callee, staticTarget: target, at: instructionIndex, policy: policy)
+        case .indirectBranch(let register):
+            callSites.append(CallSite(instructionIndex: instructionIndex, target: nil))
+            let (callee, staticTarget) = calleeHeld(by: register)
+            return tailCall(callee, staticTarget: staticTarget, at: instructionIndex, policy: policy)
         case .branchIfZero(let register, let target):
             guard let isZero = isZero(valuesByRegister[register]) else {
                 return .decided(jumpTarget: policy == .assumeConditionTrue ? target : nil)
@@ -275,18 +349,12 @@ public struct ThunkTypeEvaluator {
             }
             assign(valuesByRegister[policy == .assumeConditionTrue ? whenConditionHolds : otherwise], to: destination)
             return .decided(jumpTarget: nil)
-        case .indirectBranch:
-            return .left(resultType, throughReturn: false)
         case .returnFromFunction:
-            return .left(resultType, throughReturn: true)
+            return .left(valuesByRegister[ThunkRegister(number: 0)], throughReturn: true)
         case .unmodelled:
             break
         }
         return .continue
-    }
-
-    private var resultType: ThunkTypeExpression? {
-        Self.typeExpression(of: valuesByRegister[ThunkRegister(number: 0)])
     }
 
     /// The type a value stands for. A materialized address counts: a thunk
@@ -306,7 +374,7 @@ public struct ThunkTypeEvaluator {
     private func isZero(_ value: Value?) -> Bool? {
         switch value {
         case .immediate(let immediate): immediate == 0
-        case .runtimeCapabilityFlag, .address, .type, .witnessTable, .argumentBuffer, .stackAddress: false
+        case .runtimeCapabilityFlag, .address, .type, .witnessTable, .argumentBuffer, .stackAddress, .functionReference: false
         case nil: nil
         }
     }
@@ -314,7 +382,7 @@ public struct ThunkTypeEvaluator {
     private func isEqual(_ value: Value?, to immediate: Int64) -> Bool? {
         switch value {
         case .immediate(let known): known == immediate
-        case .runtimeCapabilityFlag, .address, .type, .witnessTable, .argumentBuffer, .stackAddress: immediate == 0 ? false : nil
+        case .runtimeCapabilityFlag, .address, .type, .witnessTable, .argumentBuffer, .stackAddress, .functionReference: immediate == 0 ? false : nil
         case nil: nil
         }
     }
@@ -333,7 +401,14 @@ public struct ThunkTypeEvaluator {
             if let symbolName = environment.slotSymbolName(at: slotAddress), Self.runtimeCapabilityFlagNames.contains(symbolName) {
                 return .runtimeCapabilityFlag(symbolName)
             }
-            return environment.pointer(at: slotAddress).map { .address($0) }
+            if let pointer = environment.pointer(at: slotAddress) {
+                return .address(pointer)
+            }
+            // No pointer in the file: a bind, which holds only a name until
+            // dyld fills the slot in. What that name is, as a callee.
+            let boundCallee = environment.callee(boundInSlotAt: slotAddress)
+            if case .unknown = boundCallee { return nil }
+            return .functionReference(boundCallee)
         default:
             return nil
         }
@@ -350,6 +425,88 @@ public struct ThunkTypeEvaluator {
     }
 
     // MARK: - Calls
+
+    /// What a register holds as a call target: a function reference from a
+    /// bind, or an address the environment may know a function at. The
+    /// address, when there is one, is what a follow needs.
+    private func calleeHeld(by register: ThunkRegister) -> (callee: ThunkCallee, staticTarget: UInt64?) {
+        switch valuesByRegister[register] {
+        case .functionReference(let callee): (callee, nil)
+        case .address(let address): (environment.callee(at: address), address)
+        default: (.unknown, nil)
+        }
+    }
+
+    /// A call that returns here: applies a known callee, follows an unknown
+    /// one into its body when it can be decoded, and otherwise forgets the
+    /// result.
+    private mutating func call(_ callee: ThunkCallee, staticTarget: UInt64?, at instructionIndex: Int, policy: BranchPolicy) {
+        if case .unknown = callee, let staticTarget, let followed = follow(functionAt: staticTarget, calledFrom: instructionIndex, policy: policy) {
+            forgetCallerSavedRegisters()
+            assign(followed.valueOnLeaving, to: ThunkRegister(number: 0))
+            return
+        }
+        apply(callee: callee)
+    }
+
+    /// A call that does not return here: the function's result is the
+    /// callee's.
+    private mutating func tailCall(_ callee: ThunkCallee, staticTarget: UInt64?, at instructionIndex: Int, policy: BranchPolicy) -> Step {
+        if case .unknown = callee {
+            guard let staticTarget, let followed = follow(functionAt: staticTarget, calledFrom: instructionIndex, policy: policy) else {
+                return .left(nil, throughReturn: false)
+            }
+            return .left(followed.valueOnLeaving, throughReturn: followed.leftThroughReturn)
+        }
+        apply(callee: callee)
+        return .left(valuesByRegister[ThunkRegister(number: 0)], throughReturn: false)
+    }
+
+    private struct FollowedCall {
+        let valueOnLeaving: Value?
+        let leftThroughReturn: Bool
+    }
+
+    /// Runs the function at `target` with the registers as they are now and
+    /// reports what it left in `x0`; `nil` when it is not one to follow —
+    /// left opaque on purpose, already being followed, too deep, or not
+    /// decodable. The callee's calls are recorded under `instructionIndex`.
+    private mutating func follow(functionAt target: UInt64, calledFrom instructionIndex: Int, policy: BranchPolicy) -> FollowedCall? {
+        guard !callTargetsLeftOpaque.contains(target),
+              followedFunctions.count < Self.maximumFollowDepth,
+              !followedFunctions.contains(target),
+              let calleeInstructions = environment.instructions(ofFunctionAt: target),
+              !calleeInstructions.isEmpty
+        else { return nil }
+        var callee = followedEvaluator(instructions: calleeInstructions, entry: target)
+        var outcome = callee.run(policy: policy)
+        // A callee that had to decide a conditional and answered nothing
+        // took the arm that returns something unnameable (a cache probe's
+        // warm path); the other arm is the one that builds the type.
+        if outcome.result == nil, outcome.decidedInstructionIndex != nil {
+            var otherWay = followedEvaluator(instructions: calleeInstructions, entry: target)
+            let otherOutcome = otherWay.run(policy: policy.opposite)
+            if otherOutcome.result != nil {
+                callee = otherWay
+                outcome = otherOutcome
+            }
+        }
+        callSites += outcome.callSites.map { CallSite(instructionIndex: instructionIndex, target: $0.target) }
+        limitations += outcome.limitations
+        return FollowedCall(valueOnLeaving: callee.valueOnLeaving, leftThroughReturn: outcome.leftThroughReturn)
+    }
+
+    private func followedEvaluator(instructions: [ThunkInstruction], entry: UInt64) -> ThunkTypeEvaluator {
+        var followed = ThunkTypeEvaluator(
+            environment: environment,
+            instructions: instructions,
+            callTargetsLeftOpaque: callTargetsLeftOpaque,
+            followedFunctions: followedFunctions + [entry]
+        )
+        followed.valuesByRegister = valuesByRegister
+        followed.valuesByStackOffset = valuesByStackOffset
+        return followed
+    }
 
     private mutating func apply(callee: ThunkCallee) {
         let result: Value?
@@ -371,11 +528,15 @@ public struct ThunkTypeEvaluator {
         case .availabilityCheck, .unknown:
             result = nil
         }
-        // AAPCS64: x0–x17 are caller-saved. x0 carries the result.
+        forgetCallerSavedRegisters()
+        assign(result, to: ThunkRegister(number: 0))
+    }
+
+    /// AAPCS64: x0–x17 are caller-saved; the result lands in x0 afterwards.
+    private mutating func forgetCallerSavedRegisters() {
         for registerNumber in 0 ... 17 {
             forget(ThunkRegister(number: registerNumber))
         }
-        assign(result, to: ThunkRegister(number: 0))
         lastComparison = nil
     }
 

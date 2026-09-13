@@ -1690,6 +1690,16 @@
 - **关联文档**：[提案](../Evolutions/draft-standalone-file-thunk-resolution.md)、[专题导读](AccessorThunkResolutionExplained.md)「独立文件和 cache 差在哪」一节、[MachODependencies 模块文档](Modules/MachODependencies.md)、任务报告 [TaskReports/2026-09-13-standalone-file-thunk-resolution.md](TaskReports/2026-09-13-standalone-file-thunk-resolution.md)。
 - **对应版本**：默认输出变化（独立文件上原本读错 / 读不出的 kind-9 引用）且 CLI 加开关，随下一次发布。
 
+## 2026-09-13 合并 accessor 的内联求值（提案 `merged-accessor-inline-evaluation`，节号落地时取）
+
+- **时间段**：2026-09-13（紧接独立文件那批）。
+- **动机**：SwiftUICore 还剩两个 `Mutex` 字段读不出（`PlatformAccessibilitySettingsDefinition.cache`、`NamedImage.Cache.data`），独立文件和 macOS cache 上都一样：thunk 调的是编译器合并的 `…MaTm` 函数体（SwiftUICore 里 858 个这种符号对应 260 个函数体，一个地址挂 122 个名字），函数体只查缓存、`blr x3`、存回缓存，类型信息全在调用方寄存器里，符号名是合并前某一份的名字。用户在「跟进函数体」和「读 lazy cache variable 的符号名」两条路里选了前者：不依赖符号，顺带覆盖剥符号后的专用 accessor。
+- **关键决策**：求值器对「认不出、但在本镜像 `__TEXT` 里」的调用目标开子求值器跟进（寄存器与栈整份复制、返回时只带回 x0、x1–x17 作废）；被调函数里的条件由「哪一支给得出类型」决定，父策略只管 thunk 自身；可用性检查绝不跟进（`callTargetsLeftOpaque`）、递归不跟进、深度上限 3；`blr` 解码成 `indirectCall`，按寄存器里的值解——GOT bind 槽读出来的是 `Value.functionReference`（origin 表用槽地址做键），rebase 出来的外镜像地址走 `foreignCallee`；`br` 同样按寄存器解，不再把 x0 当结果；`CallSite.target` 可空，经寄存器的调用不进单查找回退；写回式栈访问仍不建模；「地址在不在本镜像」改按段范围判断（`ThunkAddressSpace.containsAddress`）——cache 镜像的偏移换算对整个 cache 的任何地址都算得出偏移，第一版因此在 cache 上没解出来。
+- **落地模块**：`SwiftThunkAnalysis`（指令词汇表与解码器、求值器、分析器、环境、地址空间）。无 CLI 变化，无新术语。
+- **验证**：合成序列钉跟进规则与三个拒绝；现场编译的 fixture 用 `-Xfrontend -disable-concrete-type-metadata-mangled-name-accessors` 造出同形状的合并 accessor（三个 `Mutex<本地 struct>` 字段，带符号与剥符号两份都读成声明的类型，落地前两份都是占位）；模拟器门控断言两个 SwiftUICore 字段读成 `Mutex<…Storage>` / `Mutex<…Data>`，宿主 cache 门控（macOS 26+）对系统 cache 里的同两个字段断言同样的类型。CLI 对比：iOS 26.5 模拟器 SwiftUICore 未读 2 → 0、macOS 26.6.2 cache SwiftUICore 2 → 0，其余五份输出逐字节不变。
+- **关联文档**：[提案](../Evolutions/draft-merged-accessor-inline-evaluation.md)、[专题导读](AccessorThunkResolutionExplained.md)「被调函数没名字怎么办」一节、任务报告 [TaskReports/2026-09-13-merged-accessor-inline-evaluation.md](TaskReports/2026-09-13-merged-accessor-inline-evaluation.md)。
+- **对应版本**：默认输出变化（合并 accessor 的字段从占位变成类型），随下一次发布。
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节

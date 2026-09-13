@@ -59,9 +59,16 @@ public enum AccessorThunkAnalyzer {
         let availabilityCallIndex = indexOfAvailabilityCheckCall(in: instructions)
         let availabilityCheck = availabilityCallIndex.flatMap { self.availabilityCheck(at: $0, in: instructions) }
 
-        var conditionFalseRun = ThunkTypeEvaluator(environment: environment, instructions: instructions)
+        // The availability check is the one call the evaluator must not
+        // follow into: its result has to stay unknown for the conditional
+        // after it to be the policy's to decide, both ways.
+        var callTargetsLeftOpaque: Set<UInt64> = []
+        if let availabilityCallIndex, case .call(let checkFunctionAddress) = instructions[availabilityCallIndex].operation {
+            callTargetsLeftOpaque.insert(checkFunctionAddress)
+        }
+        var conditionFalseRun = ThunkTypeEvaluator(environment: environment, instructions: instructions, callTargetsLeftOpaque: callTargetsLeftOpaque)
         let conditionFalse = conditionFalseRun.run(policy: .assumeConditionFalse)
-        var conditionTrueRun = ThunkTypeEvaluator(environment: environment, instructions: instructions)
+        var conditionTrueRun = ThunkTypeEvaluator(environment: environment, instructions: instructions, callTargetsLeftOpaque: callTargetsLeftOpaque)
         let conditionTrue = conditionTrueRun.run(policy: .assumeConditionTrue)
 
         guard let availabilityCallIndex else {
@@ -155,20 +162,21 @@ public enum AccessorThunkAnalyzer {
             }
             // The single-lookup reading of that arm: the run made exactly one
             // call after the branch — join point and shared tail included, a
-            // tail call counting as a call — and left through `ret` right
-            // after, so the callee's identity is the type (an accessor the
-            // environment does not know is still an accessor). A `csel` has
-            // no arms to read this way.
+            // tail call counting as a call — to a static target, and left
+            // through `ret` right after, so the callee's identity is the
+            // type (an accessor the environment does not know is still an
+            // accessor). A `csel` has no arms to read this way, and a call
+            // through a register has no target to name.
             guard isBranchSplit else {
                 fallbackLimitations.append(.selectionNotRecognized)
                 continue
             }
             let armCallSites = outcome.callSites.filter { $0.instructionIndex > decidedIndex }
-            guard armCallSites.count == 1, outcome.leftThroughReturn else {
+            guard armCallSites.count == 1, let target = armCallSites[0].target, outcome.leftThroughReturn else {
                 fallbackLimitations.append(.branchIsNotASingleLookup(condition: condition, callCount: armCallSites.count))
                 continue
             }
-            candidates.append(ThunkCandidate(reference: .metadataAccessor(address: armCallSites[0].target), condition: condition))
+            candidates.append(ThunkCandidate(reference: .metadataAccessor(address: target), condition: condition))
         }
         var uniqueLimitations: [ThunkAnalysisLimitation] = []
         for limitation in fallbackLimitations where !uniqueLimitations.contains(limitation) {
