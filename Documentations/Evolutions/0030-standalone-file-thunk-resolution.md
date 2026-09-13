@@ -1,8 +1,8 @@
-# Draft - 独立文件上的 accessor thunk 解析：堵住回退误判，补上跨镜像 bind 与带符号的 accessor
+# 0030 - 独立文件上的 accessor thunk 解析：堵住回退误判，补上跨镜像 bind 与带符号的 accessor
 
-- **状态**: In Progress
+- **状态**: Implemented
 - **创建日期**: 2026-09-13
-- **最后更新**: 2026-09-13
+- **最后更新**: 2026-09-14
 - **所属愿景**: 无
 - **关联提案**: [0028](0028-offline-opaque-accessor-thunk-resolution.md)、[0029](0029-thunk-type-construction-evaluation.md)（本提案是它们在「不在 dyld cache 里的独立 Mach-O」上的补全）
 - **实现分支 / PR**: `feature/standalone-file-thunk-resolution`
@@ -67,7 +67,7 @@
 
 ### 4. G3 只记录形状，不做
 
-`…MaTm` 是编译器把多份相同的 accessor 体合并成一份、把差异（缓存槽、实参、真正的 accessor）提成参数的产物。要解它需要：把环境不认识的本镜像内函数按当前寄存器状态内联求值（深度限制）；解码 `blr xN`（现在 `br` / `braa` 归 `indirectBranch`，`blr` 落到 `unmodelled`）；让从 GOT 槽读出来的 bind 名能作为「函数引用」放在寄存器里。同一套机制也能覆盖剥符号后的 G2。放到下一个提案——已由 [merged-accessor-inline-evaluation](draft-merged-accessor-inline-evaluation.md) 完成。
+`…MaTm` 是编译器把多份相同的 accessor 体合并成一份、把差异（缓存槽、实参、真正的 accessor）提成参数的产物。要解它需要：把环境不认识的本镜像内函数按当前寄存器状态内联求值（深度限制）；解码 `blr xN`（现在 `br` / `braa` 归 `indirectBranch`，`blr` 落到 `unmodelled`）；让从 GOT 槽读出来的 bind 名能作为「函数引用」放在寄存器里。同一套机制也能覆盖剥符号后的 G2。放到下一个提案——已由 [merged-accessor-inline-evaluation](0031-merged-accessor-inline-evaluation.md) 完成。
 
 ### 测试
 
@@ -99,3 +99,4 @@ AGENTS.md 的 `SwiftThunkAnalysis` 条目补独立文件的三种形状与 G3 �
 | 2026-09-13 | by-name 的 opaque 引用（`opaqueReturnTypeOf`）在 dump 路径不展开，本提案不处理 | `FeedbackGenerator<A>.Body` 经 `<<opaque return type of View.onChange…>>` 到达它的 thunk，`SymbolicDemangler` 对匿名上下文的 opaque descriptor 生成的是按名引用的节点，dump 路径的 `OpaqueTypeRewriter` 只认符号引用形式；iOS 26.5 模拟器 SwiftUI 的 dump 里有 213 行这种引用，macOS cache 上 0 行，是早于本提案的限制。interface 路径经符号索引能解，之前印出的 `_TaskValueModifier2A` 正是 interface 输出。模拟器门控测试因此只断言 dump 里不再出现 `_TaskValueModifier2A` |
 | 2026-09-13 | `readsBothBranchesOfASplitThunk` 的合成序列把汇合点改到 `ret` | 原序列里满足支的 `b` 跳到「不满足支的第二个 `bl`」上，只是地址算得随意；新规则看整条路径，这个随意就变成了四次调用。改成跳到 `ret`，测试意图（每支一次查找）不变 |
 | 2026-09-13 | 带符号的 accessor 路线拒绝合并函数（`mergedFunction` 节点） | 首次实现只查「是不是 `type metadata accessor for <bound generic>`」，SwiftUICore 两个 G3 字段的 `…MaTm` 符号（`merged type metadata accessor for Any?` / `Array<LayoutDirection>`）就被当成答案印了出来，正是 0028 反复要避免的「真实、错误的类型」。`MachOThunkEnvironment.isConcreteTypeAccessorSymbol` 现在三条拒绝：未绑定、合并、含泛型参数；`ConcreteTypeAccessorSymbolTests` 钉住 |
+| 2026-09-14 | In Progress → Implemented | 四个分支按顺序合进 `next`（合并提交 `66ef730a`），落地时取编号 0030；用户指示「把相关分支全部合并进 next 推送，然后把分支删掉」 |

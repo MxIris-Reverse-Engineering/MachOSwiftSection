@@ -1680,44 +1680,44 @@
   「type-construction evaluation」。
 - **对应版本**：新增常规依赖（Capstone）且默认输出变化（kind-9 引用一律解析），随下一次发布。
 
-## 2026-09-13 独立文件上的 accessor thunk 解析（提案 `standalone-file-thunk-resolution`，节号落地时取）
+## 2026-09-13 独立文件上的 accessor thunk 解析（提案 0030）
 
 - **时间段**：2026-09-13。
 - **动机**：0028 / 0029 的验证全在 dyld cache 上。用户要求测 iOS 18.5 / 26.5 模拟器的 SwiftUI、SwiftUICore（独立 Mach-O，跨镜像调用全是 GOT bind）。结果一类读错、三类读不出：分析器的单查找回退只切到两支汇合点，汇合后共享的尾调用不算，独立文件上求值器一失败就把中间值当答案（`OnModifierKeysChangedModifier.Body` 印成 `_TaskModifier2`）；跨镜像 descriptor accessor 只有 bind 名、带本地符号的专用 accessor、编译器合并的 `…MaTm` accessor 三种形状解不出。用户随后指出 iOS 27 beta 3 起模拟器也进 cache，实测模拟器 cache 读取全部正确，范围收窄为第三方 app、老运行时、fixture。
 - **关键决策**：回退收紧不删（`Outcome.callSites` + `leftThroughReturn`，分支后恰好一次调用且 `ret` 才回退；泛型 descriptor 的 accessor 不许无实参命名）；bind 名经 `MachODependencies` 定位的依赖镜像的导出表 → 该镜像的 accessor 索引（`DependencyImageResolver`，按根镜像共享）；`MachODependencies` 新增 `.systemRoot` 与 `inferred(forRoot:)` / `init(classifyingPath:)`，默认搜索路径 = 推断 + 宿主 cache，CLI 加 `--dependency-search-path`；带符号的专用 accessor 直接取符号里的类型（只接受已绑定实参的）；`…MaTm` 留待下一个提案（需跨函数内联求值、`blr`、bind 名当函数值）；system root 推断只喂 thunk 解析，静态布局的依赖闭包不动（待用户单独决定）。
 - **落地模块**：`SwiftThunkAnalysis`（求值器、分析器、reader、环境、`DependencyImageResolver`）、`MachODependencies`、`SwiftDeclarationRendering`（`DisassemblingAccessorThunkResolver(searchPaths:)`）、`swift-section`（选项组与三条命令）、`MachOFixtureSupport`（iOS 27 模拟器 cache 路径常量）。
 - **验证**：现场编译的 `Mutex<Set<Element>>` fixture 经宿主 cache 解出、无搜索路径时留占位并记缺失的 bind 名；分析器 / 求值器合成序列钉回退规则与调用记录；`ConcreteTypeAccessorSymbolTests` 钉带符号路线的三条拒绝（未绑定、合并函数、含泛型参数——合并 accessor 的符号名曾把 `Mutex<Storage>` 印成 `Array<LayoutDirection>`，靠 CLI 输出 diff 抓到）；`SystemRootSearchPathTests` 钉定位器与推断；模拟器门控：iOS 26.5 独立 SwiftUI 字段与分支注释和 macOS cache 一致、iOS 27.0 模拟器 cache 无未读。CLI 对比：iOS 26.5 SwiftUI 未读 5 → 0（5 条注释全对）、SwiftUICore 4 → 2、iOS 18.5 SwiftUI 1 → 0、macOS cache SwiftUI 逐字节不变、SwiftUICore 3 → 2；顺带修掉导出表偏移换算与 `__swift5_types` 间接 bind 记录两个读取错误。
-- **关联文档**：[提案](../Evolutions/draft-standalone-file-thunk-resolution.md)、[专题导读](AccessorThunkResolutionExplained.md)「独立文件和 cache 差在哪」一节、[MachODependencies 模块文档](Modules/MachODependencies.md)、任务报告 [TaskReports/2026-09-13-standalone-file-thunk-resolution.md](TaskReports/2026-09-13-standalone-file-thunk-resolution.md)。
+- **关联文档**：[提案](../Evolutions/0030-standalone-file-thunk-resolution.md)、[专题导读](AccessorThunkResolutionExplained.md)「独立文件和 cache 差在哪」一节、[MachODependencies 模块文档](Modules/MachODependencies.md)、任务报告 [TaskReports/2026-09-13-standalone-file-thunk-resolution.md](TaskReports/2026-09-13-standalone-file-thunk-resolution.md)。
 - **对应版本**：默认输出变化（独立文件上原本读错 / 读不出的 kind-9 引用）且 CLI 加开关，随下一次发布。
 
-## 2026-09-13 合并 accessor 的内联求值（提案 `merged-accessor-inline-evaluation`，节号落地时取）
+## 2026-09-13 合并 accessor 的内联求值（提案 0031）
 
 - **时间段**：2026-09-13（紧接独立文件那批）。
 - **动机**：SwiftUICore 还剩两个 `Mutex` 字段读不出（`PlatformAccessibilitySettingsDefinition.cache`、`NamedImage.Cache.data`），独立文件和 macOS cache 上都一样：thunk 调的是编译器合并的 `…MaTm` 函数体（SwiftUICore 里 858 个这种符号对应 260 个函数体，一个地址挂 122 个名字），函数体只查缓存、`blr x3`、存回缓存，类型信息全在调用方寄存器里，符号名是合并前某一份的名字。用户在「跟进函数体」和「读 lazy cache variable 的符号名」两条路里选了前者：不依赖符号，顺带覆盖剥符号后的专用 accessor。
 - **关键决策**：求值器对「认不出、但在本镜像 `__TEXT` 里」的调用目标开子求值器跟进（寄存器与栈整份复制、返回时只带回 x0、x1–x17 作废）；被调函数里的条件由「哪一支给得出类型」决定，父策略只管 thunk 自身；可用性检查绝不跟进（`callTargetsLeftOpaque`）、递归不跟进、深度上限 3；`blr` 解码成 `indirectCall`，按寄存器里的值解——GOT bind 槽读出来的是 `Value.functionReference`（origin 表用槽地址做键），rebase 出来的外镜像地址走 `foreignCallee`；`br` 同样按寄存器解，不再把 x0 当结果；`CallSite.target` 可空，经寄存器的调用不进单查找回退；写回式栈访问仍不建模；「地址在不在本镜像」改按段范围判断（`ThunkAddressSpace.containsAddress`）——cache 镜像的偏移换算对整个 cache 的任何地址都算得出偏移，第一版因此在 cache 上没解出来。
 - **落地模块**：`SwiftThunkAnalysis`（指令词汇表与解码器、求值器、分析器、环境、地址空间）。无 CLI 变化，无新术语。
 - **验证**：合成序列钉跟进规则与三个拒绝；现场编译的 fixture 用 `-Xfrontend -disable-concrete-type-metadata-mangled-name-accessors` 造出同形状的合并 accessor（三个 `Mutex<本地 struct>` 字段，带符号与剥符号两份都读成声明的类型，落地前两份都是占位）；模拟器门控断言两个 SwiftUICore 字段读成 `Mutex<…Storage>` / `Mutex<…Data>`，宿主 cache 门控（macOS 26+）对系统 cache 里的同两个字段断言同样的类型。CLI 对比：iOS 26.5 模拟器 SwiftUICore 未读 2 → 0、macOS 26.6.2 cache SwiftUICore 2 → 0，其余五份输出逐字节不变。
-- **关联文档**：[提案](../Evolutions/draft-merged-accessor-inline-evaluation.md)、[专题导读](AccessorThunkResolutionExplained.md)「被调函数没名字怎么办」一节、任务报告 [TaskReports/2026-09-13-merged-accessor-inline-evaluation.md](TaskReports/2026-09-13-merged-accessor-inline-evaluation.md)。
+- **关联文档**：[提案](../Evolutions/0031-merged-accessor-inline-evaluation.md)、[专题导读](AccessorThunkResolutionExplained.md)「被调函数没名字怎么办」一节、任务报告 [TaskReports/2026-09-13-merged-accessor-inline-evaluation.md](TaskReports/2026-09-13-merged-accessor-inline-evaluation.md)。
 - **对应版本**：默认输出变化（合并 accessor 的字段从占位变成类型），随下一次发布。
 
-## 2026-09-13 cache 里的 stub island，和不认识的指令不再被跳过（提案 `cache-stub-islands-and-unmodelled-instructions`，节号落地时取）
+## 2026-09-13 cache 里的 stub island，和不认识的指令不再被跳过（提案 0032）
 
 - **时间段**：2026-09-13（合并 accessor 那批之后）。
 - **动机**：跨版本普查里唯一没过的是 iOS 26.3.1 设备 cache（arm64e）：SwiftUI 7 未读、SwiftUICore 2 未读、0 条注释。设备 cache 的跨镜像调用是 `bl` 到镜像之间的跳板（读 GOT 槽的 stub，或 `adrp / add / br` 直接算目标的 stub island，可链），GOT 槽也合并在镜像外；环境只认镜像内读槽的 stub。用户在「换成完整模拟执行」和「保留实现继续打补丁」间选了后者，顺带堵上求值器两处「不认识就跳过」的隐患。
 - **关键决策**：`resolveCallee` 对任何地址都认跳板（先本镜像索引 / 镜像表，再 stub 形状、再 island 形状，最多 8 跳，accessor 记在跳板地址名下）；不认识的条件跳转带目标解码、求值器放弃那一支——除非直行落点是 `brk`（arm64e 尾声验签），那时按跳走处理（第一版没有这条例外，宿主 cache 整体退化到 17 未读、oracle 测试全红）；不认识的指令带 Capstone 的寄存器写入表，求值器作废这些寄存器；PAC 指令（`pacia` / `autda` / `xpaci` 一家）保值，因为 arm64e thunk 先给 accessor 指针签名再传给 x3（第一版的作废规则把它作废了，宿主 cache 的合并 accessor 字段随之退化）。
 - **落地模块**：`SwiftThunkAnalysis`（解码器、指令词汇表、求值器、寄存器跟踪、环境）。无 CLI 变化，无新术语。
 - **验证**：`CapstoneThunkDecoderTests` 真实编码；求值器的放弃 / 陷阱 / 作废测试；分析器对含不认识条件跳转的 thunk 报限制；归档 cache 门控的 `ArchivedIOSCacheThunkTests`（SwiftUI 两个 `Mutex` 字段、全部 witness、SwiftUICore 两个合并 accessor 字段）。CLI 对比：iOS 26.3.1 SwiftUI 7 → 0、SwiftUICore 2 → 0；七份标准输出、跨版本普查（macOS 14.7–26.6）与 macOS 27.0（`dyld_shared_cache_arm64e_x1`）逐字节 / 0 未读，见任务报告。
-- **关联文档**：[提案](../Evolutions/draft-cache-stub-islands-and-unmodelled-instructions.md)、[专题导读](AccessorThunkResolutionExplained.md)、任务报告 [TaskReports/2026-09-13-cache-stub-islands.md](TaskReports/2026-09-13-cache-stub-islands.md)。
+- **关联文档**：[提案](../Evolutions/0032-cache-stub-islands-and-unmodelled-instructions.md)、[专题导读](AccessorThunkResolutionExplained.md)、任务报告 [TaskReports/2026-09-13-cache-stub-islands.md](TaskReports/2026-09-13-cache-stub-islands.md)。
 - **对应版本**：默认输出变化（iOS 设备 cache 上原本读不出的 kind-9 引用），随下一次发布。
 
-## 2026-09-13 按名字引用的 opaque 类型也展开（提案 `by-name-opaque-reference-expansion`，节号落地时取）
+## 2026-09-13 按名字引用的 opaque 类型也展开（提案 0033）
 
 - **时间段**：2026-09-13（stub island 那批之后）。
 - **动机**：用户问「不透明符号引用都全部消除了吗」。指针形式的全部为 0；iOS 模拟器独立构建的 SwiftUI dump 里还剩 `<<opaque return type of …>>` 一类（26.5：215 行，其中 207 行是 witness），核实是**跨镜像 bind**：`View.staticIf` 的 opaque 描述符在 SwiftUICore 里，SwiftUI 只有一个符号名可引用。更糟的是 interface 路径把未展开的节点印成了 conformer 自己（`printOpaqueType` 只印实参表），一个真实、错误的类型。
 - **关键决策**：在 `OpaqueTypeRewriter` 里多认一种拼写而不改 demangler 输出；本镜像符号索引查不到就把 `…QOMQ` 重新 mangle 出来、用 `DependencyImageResolver` 按 thunk 读取器同一套搜索路径定位镜像，在那个镜像里用 `OpaqueTypeRewriter<MachOFile>` 展开（`expansion(of:forNode:)` 两条路共用）；方法签名里的 8 行是成员符号原样打印，不处理；interface 打印器对定位不到的情况仍印错误类型，记录、留待打印器整理。
 - **落地模块**：`SwiftDeclarationRendering`（rewriter）。无 CLI 变化（`--dependency-search-path` 自然覆盖）。
 - **验证**：双模块现场编译 fixture `CrossImageOpaqueReferenceTests`（dump 与 interface，给 / 不给搜索路径；落地前 dump 印占位、interface 印 `ProbeClient.Outer`）；模拟器门控 `aWitnessNamingAnotherImagesOpaqueTypeExpands`（iOS 26.5 SwiftUI 全部 witness 无 `opaqueReturnTypeOf`）；CLI 对比：iOS 26.5 模拟器 SwiftUI dump 按名引用 215 → 6（剩下的是方法签名里的成员符号原样打印）、interface 189 行 witness 从错误类型变成完整类型，iOS 18.5 155 → 6，其余 18 份输出逐字节一致。
-- **关联文档**：[提案](../Evolutions/draft-by-name-opaque-reference-expansion.md)、[专题导读](AccessorThunkResolutionExplained.md)「按名字引用的 opaque 类型」一节、任务报告 [TaskReports/2026-09-13-by-name-opaque-reference-expansion.md](TaskReports/2026-09-13-by-name-opaque-reference-expansion.md)。
+- **关联文档**：[提案](../Evolutions/0033-by-name-opaque-reference-expansion.md)、[专题导读](AccessorThunkResolutionExplained.md)「按名字引用的 opaque 类型」一节、任务报告 [TaskReports/2026-09-13-by-name-opaque-reference-expansion.md](TaskReports/2026-09-13-by-name-opaque-reference-expansion.md)。
 - **对应版本**：默认输出变化（独立文件里按名引用的 witness），随下一次发布。
 
 ## 维护约定

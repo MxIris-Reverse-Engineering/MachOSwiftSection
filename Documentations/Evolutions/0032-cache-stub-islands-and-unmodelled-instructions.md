@@ -1,10 +1,10 @@
-# Draft - cache 里的 stub island，和不认识的指令不再被跳过
+# 0032 - cache 里的 stub island，和不认识的指令不再被跳过
 
-- **状态**: In Progress
+- **状态**: Implemented
 - **创建日期**: 2026-09-13
-- **最后更新**: 2026-09-13
+- **最后更新**: 2026-09-14
 - **所属愿景**: 无
-- **关联提案**: [merged-accessor-inline-evaluation](draft-merged-accessor-inline-evaluation.md)（本提案从它切出）、[0029](0029-thunk-type-construction-evaluation.md)（求值器与解码器）
+- **关联提案**: [merged-accessor-inline-evaluation](0031-merged-accessor-inline-evaluation.md)（本提案从它切出）、[0029](0029-thunk-type-construction-evaluation.md)（求值器与解码器）
 - **实现分支 / PR**: `feature/cache-stub-islands`，从 `feature/merged-accessor-inline-evaluation` 切出
 - **配套文档**: [任务报告](../Internal/TaskReports/2026-09-13-cache-stub-islands.md)、[AccessorThunkResolutionExplained.md](../Internal/AccessorThunkResolutionExplained.md)
 
@@ -77,4 +77,4 @@ AGENTS.md 的 `SwiftThunkAnalysis` 条目加第六批一段；[AccessorThunkReso
 | 2026-09-13 | 归档 cache 测试对 SwiftUICore 两个字段只钉类型自身拼写 | iOS 构建把私有嵌套类型印成 `…Definition.Storage`，macOS 构建带判别符 `(Storage in _DD01…)`；两边都对 |
 | 2026-09-13 | 能力标志槽为 0 的事实只记录不处理 | macOS 与 iOS 的 cache 文件里 `_swift_runtimeSupportsNoncopyableTypes` 的 GOT 槽都是原始 0（弱引用加载时才填），标志判定不了；「条件为假」先跑、正好是支持那一支，答案正确，第二次跑出的 `() + 8` 命不了名。改成读 cache 的 patch table 才能判定，不值得 |
 | 2026-09-13 | macOS 27.0 的 cache（`dyld_shared_cache_arm64e_x1`）打不开，记录、不在本提案处理 | 用户让看这份新 cache。它的 magic 是 `dyld_v1arm64ex1`（新架构串 `arm64ex1`，16 字节 magic 里不再有空格填充），header 的 mapping 偏移 0x228 → 0x238。MachOKit 的 `DyldCacheHeader._cpuType` / `_cpuSubType` 按 magic 字面量查表，查不到就抛 `invalidCpuType`，连 header 都过不去。这是 MachOKit（兄弟仓库）的改动，得单独做；加了 magic 之后 subcache、镜像表、slide info 有没有新格式，要试了才知道 |
-
+| 2026-09-14 | In Progress → Implemented | 四个分支按顺序合进 `next`（合并提交 `66ef730a`），落地时取编号 0032；用户指示「把相关分支全部合并进 next 推送，然后把分支删掉」 |

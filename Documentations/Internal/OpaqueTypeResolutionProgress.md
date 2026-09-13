@@ -40,12 +40,12 @@
 | 1 | [0028](../Evolutions/0028-offline-opaque-accessor-thunk-resolution.md) | 反汇编 thunk，按形状认版本检查与 `csel` / `cbz` 两种选择 | SwiftUI 裸地址 17 → 5 | 已合并 `next` |
 | 2 | 0028 收尾 | 读不出的引用不再吞掉整棵树；两支进模型与输出注释；进程内路径 | 进程内 5 / 17 | 已合并 `next` |
 | 3 | [0029](../Evolutions/0029-thunk-type-construction-evaluation.md) | 符号求值器替代形状匹配；字段记录接入 | SwiftUI 17 → 0，dump 6 → 0 | 已合并 `next` |
-| 4 | [standalone-file-thunk-resolution](../Evolutions/draft-standalone-file-thunk-resolution.md) | 回退收紧；跨镜像 bind 经依赖镜像；system root 搜索路径与推断；CLI `--dependency-search-path`；带符号的专用 accessor；修导出表偏移与 `__swift5_types` bind 记录 | iOS 26.5 模拟器 SwiftUI 5 → 0，SwiftUICore 4 → 2 | 分支 `feature/standalone-file-thunk-resolution`，已推送，待合并 |
-| 5 | [merged-accessor-inline-evaluation](../Evolutions/draft-merged-accessor-inline-evaluation.md) | 求值器跟进本镜像内没名字的被调函数；`blr`；bind 槽当函数引用 | SwiftUICore 两边 2 → 0 | 分支 `feature/merged-accessor-inline-evaluation`，已推送，待合并 |
-| 6 | [cache-stub-islands-and-unmodelled-instructions](../Evolutions/draft-cache-stub-islands-and-unmodelled-instructions.md) | 设备 cache 的跳板不管在哪都认；不认识的条件跳转放弃（`brk` 落点例外）、不认识的指令作废寄存器、PAC 保值 | iOS 设备 cache 7 / 2 → 0 | 分支 `feature/cache-stub-islands`，已推送，待合并 |
-| 7 | [by-name-opaque-reference-expansion](../Evolutions/draft-by-name-opaque-reference-expansion.md) | 跨镜像 bind 的描述符重新 mangle、定位镜像、在那个镜像里展开；顺带消掉 interface 把 conformer 印成 witness 的错误 | iOS 26.5 SwiftUI dump 215 → 6，interface 189 条 witness 改对 | 分支 `feature/dump-by-name-opaque-expansion`，未提交 |
+| 4 | [0030](../Evolutions/0030-standalone-file-thunk-resolution.md) | 回退收紧；跨镜像 bind 经依赖镜像；system root 搜索路径与推断；CLI `--dependency-search-path`；带符号的专用 accessor；修导出表偏移与 `__swift5_types` bind 记录 | iOS 26.5 模拟器 SwiftUI 5 → 0，SwiftUICore 4 → 2 | 已合并 `next`（2026-09-14） |
+| 5 | [0031](../Evolutions/0031-merged-accessor-inline-evaluation.md) | 求值器跟进本镜像内没名字的被调函数；`blr`；bind 槽当函数引用 | SwiftUICore 两边 2 → 0 | 已合并 `next`（2026-09-14） |
+| 6 | [0032](../Evolutions/0032-cache-stub-islands-and-unmodelled-instructions.md) | 设备 cache 的跳板不管在哪都认；不认识的条件跳转放弃（`brk` 落点例外）、不认识的指令作废寄存器、PAC 保值 | iOS 设备 cache 7 / 2 → 0 | 已合并 `next`（2026-09-14） |
+| 7 | [0033](../Evolutions/0033-by-name-opaque-reference-expansion.md) | 跨镜像 bind 的描述符重新 mangle、定位镜像、在那个镜像里展开；顺带消掉 interface 把 conformer 印成 witness 的错误 | iOS 26.5 SwiftUI dump 215 → 6，interface 189 条 witness 改对 | 已合并 `next`（2026-09-14） |
 
-第 4–7 批的分支按顺序叠着，合回 `next` 时按同一顺序合，四份提案在落地 commit 里取编号、改 Implemented，ProjectEvolutionLog 的四节同时取节号。
+第 4–7 批于 2026-09-14 按顺序合进 `next`（合并提交 `90541b34` / `3936e64a` / `c385f942` / `66ef730a`），提案编号 0030–0033，分支已删。
 
 ## 待办与已知限制
 

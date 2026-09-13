@@ -1,6 +1,6 @@
 # 2026-09-13 cache 里的 stub island，和不认识的指令不再被跳过
 
-对应提案：[cache-stub-islands-and-unmodelled-instructions](../../Evolutions/draft-cache-stub-islands-and-unmodelled-instructions.md)（前五批见 [2026-09-11 首批](2026-09-11-offline-accessor-thunk-resolution.md)、[2026-09-11 收尾](2026-09-11-accessor-thunk-resolution-follow-up.md)、[2026-09-12 求值器](2026-09-12-thunk-type-construction-evaluation.md)、[2026-09-13 独立文件](2026-09-13-standalone-file-thunk-resolution.md)、[2026-09-13 合并 accessor](2026-09-13-merged-accessor-inline-evaluation.md)）。
+对应提案：[cache-stub-islands-and-unmodelled-instructions](../../Evolutions/0032-cache-stub-islands-and-unmodelled-instructions.md)（前五批见 [2026-09-11 首批](2026-09-11-offline-accessor-thunk-resolution.md)、[2026-09-11 收尾](2026-09-11-accessor-thunk-resolution-follow-up.md)、[2026-09-12 求值器](2026-09-12-thunk-type-construction-evaluation.md)、[2026-09-13 独立文件](2026-09-13-standalone-file-thunk-resolution.md)、[2026-09-13 合并 accessor](2026-09-13-merged-accessor-inline-evaluation.md)）。
 
 ## 问题
 

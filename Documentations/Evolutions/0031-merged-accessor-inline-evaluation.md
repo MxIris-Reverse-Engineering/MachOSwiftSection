@@ -1,10 +1,10 @@
-# Draft - 合并 accessor 的内联求值：求值器跟进本镜像内没名字的被调函数
+# 0031 - 合并 accessor 的内联求值：求值器跟进本镜像内没名字的被调函数
 
-- **状态**: In Progress
+- **状态**: Implemented
 - **创建日期**: 2026-09-13
-- **最后更新**: 2026-09-13
+- **最后更新**: 2026-09-14
 - **所属愿景**: 无
-- **关联提案**: [standalone-file-thunk-resolution](draft-standalone-file-thunk-resolution.md)（本提案做它明确留下的 G3）、[0029](0029-thunk-type-construction-evaluation.md)（求值器本体）
+- **关联提案**: [standalone-file-thunk-resolution](0030-standalone-file-thunk-resolution.md)（本提案做它明确留下的 G3）、[0029](0029-thunk-type-construction-evaluation.md)（求值器本体）
 - **实现分支 / PR**: `feature/merged-accessor-inline-evaluation`，从 `feature/standalone-file-thunk-resolution` 切出（依赖它的 `DependencyImageResolver`）
 - **配套文档**: [任务报告](../Internal/TaskReports/2026-09-13-merged-accessor-inline-evaluation.md)、[AccessorThunkResolutionExplained.md](../Internal/AccessorThunkResolutionExplained.md)「被调函数没名字怎么办」一节
 
@@ -100,4 +100,4 @@ AGENTS.md 的 `SwiftThunkAnalysis` 条目加第五批一段（G3 已做、内联
 | 2026-09-13 | fixture 用 `-Xfrontend -disable-concrete-type-metadata-mangled-name-accessors` 造出合并 accessor，进 `MergedAccessorFixtureTests` | 直接编译三个 `Mutex<本地 struct>` 字段（`-O` / `-Osize`）得不到 `…MaTm`：当前工具链把具体类型走 mangled name 实例化，根本不生成惰性 accessor。关掉这个前端优化后三个同形的惰性 accessor 被合并成一份 `…MaTm`，`blr x3` 形状与 SwiftUICore 完全一致；落地前的 CLI 对它三个字段全是占位，带不带本地符号都一样。fixture 同时保留一份 `strip -x` 过的副本，钉「跟进不依赖符号」 |
 | 2026-09-13 | `br` / `braa` 改按寄存器里的值解 | 原实现对 `indirectBranch` 返回 x0 里的类型，那是被跳转函数的第一个实参而不是答案；`.argumentBuffer` / 立即数恰好没有类型表达式所以没出过错，但和 `blr` 用同一套「看寄存器」的解法后顺手改正，`anIndirectBranchIsATailCallWhenTheRegisterIsKnown` 钉住 |
 | 2026-09-13 | 「地址在不在本镜像」按段范围判断（`ThunkAddressSpace.containsAddress(_:)`），不再用 `offset(forAddress:)` 是否为 `nil` | 第一版在 macOS cache 上仍然 2 条未读：cache 镜像的偏移换算是一次减法，对整个 cache 的任何地址都给得出偏移，rebase 出来的 libswiftSynchronization 地址被当成本镜像地址查本镜像索引。这是 0028 记录的「几套账」之外又一个 cache 特有的坑，`HostCacheSwiftUICoreMergedAccessorTests` 钉住 |
-
+| 2026-09-14 | In Progress → Implemented | 四个分支按顺序合进 `next`（合并提交 `66ef730a`），落地时取编号 0031；用户指示「把相关分支全部合并进 next 推送，然后把分支删掉」 |

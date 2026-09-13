@@ -1,6 +1,6 @@
 # 2026-09-13 独立文件上的 accessor thunk 解析
 
-对应提案：[standalone-file-thunk-resolution](../../Evolutions/draft-standalone-file-thunk-resolution.md)（0028 / 0029 在不在 dyld cache 里的 Mach-O 上的补全；前三批见 [2026-09-11 首批](2026-09-11-offline-accessor-thunk-resolution.md)、[2026-09-11 收尾](2026-09-11-accessor-thunk-resolution-follow-up.md)、[2026-09-12 求值器](2026-09-12-thunk-type-construction-evaluation.md)）。
+对应提案：[standalone-file-thunk-resolution](../../Evolutions/0030-standalone-file-thunk-resolution.md)（0028 / 0029 在不在 dyld cache 里的 Mach-O 上的补全；前三批见 [2026-09-11 首批](2026-09-11-offline-accessor-thunk-resolution.md)、[2026-09-11 收尾](2026-09-11-accessor-thunk-resolution-follow-up.md)、[2026-09-12 求值器](2026-09-12-thunk-type-construction-evaluation.md)）。
 
 ## 问题
 

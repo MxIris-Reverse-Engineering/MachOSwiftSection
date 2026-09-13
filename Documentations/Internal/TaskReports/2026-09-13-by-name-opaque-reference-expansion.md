@@ -1,6 +1,6 @@
 # 2026-09-13 按名字引用的 opaque 类型也展开
 
-对应提案：[by-name-opaque-reference-expansion](../../Evolutions/draft-by-name-opaque-reference-expansion.md)（前六批见 [2026-09-11 首批](2026-09-11-offline-accessor-thunk-resolution.md)、[2026-09-11 收尾](2026-09-11-accessor-thunk-resolution-follow-up.md)、[2026-09-12 求值器](2026-09-12-thunk-type-construction-evaluation.md)、[2026-09-13 独立文件](2026-09-13-standalone-file-thunk-resolution.md)、[2026-09-13 合并 accessor](2026-09-13-merged-accessor-inline-evaluation.md)、[2026-09-13 stub island](2026-09-13-cache-stub-islands.md)）。
+对应提案：[by-name-opaque-reference-expansion](../../Evolutions/0033-by-name-opaque-reference-expansion.md)（前六批见 [2026-09-11 首批](2026-09-11-offline-accessor-thunk-resolution.md)、[2026-09-11 收尾](2026-09-11-accessor-thunk-resolution-follow-up.md)、[2026-09-12 求值器](2026-09-12-thunk-type-construction-evaluation.md)、[2026-09-13 独立文件](2026-09-13-standalone-file-thunk-resolution.md)、[2026-09-13 合并 accessor](2026-09-13-merged-accessor-inline-evaluation.md)、[2026-09-13 stub island](2026-09-13-cache-stub-islands.md)）。
 
 ## 问题
 

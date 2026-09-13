@@ -1,6 +1,6 @@
 # 2026-09-13 合并 accessor 的内联求值
 
-对应提案：[merged-accessor-inline-evaluation](../../Evolutions/draft-merged-accessor-inline-evaluation.md)（独立文件那批留下的 G3；前四批见 [2026-09-11 首批](2026-09-11-offline-accessor-thunk-resolution.md)、[2026-09-11 收尾](2026-09-11-accessor-thunk-resolution-follow-up.md)、[2026-09-12 求值器](2026-09-12-thunk-type-construction-evaluation.md)、[2026-09-13 独立文件](2026-09-13-standalone-file-thunk-resolution.md)）。
+对应提案：[merged-accessor-inline-evaluation](../../Evolutions/0031-merged-accessor-inline-evaluation.md)（独立文件那批留下的 G3；前四批见 [2026-09-11 首批](2026-09-11-offline-accessor-thunk-resolution.md)、[2026-09-11 收尾](2026-09-11-accessor-thunk-resolution-follow-up.md)、[2026-09-12 求值器](2026-09-12-thunk-type-construction-evaluation.md)、[2026-09-13 独立文件](2026-09-13-standalone-file-thunk-resolution.md)）。
 
 ## 问题
 

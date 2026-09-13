@@ -1,10 +1,10 @@
-# Draft - 按名字引用的 opaque 类型也展开
+# 0033 - 按名字引用的 opaque 类型也展开
 
-- **状态**: In Progress
+- **状态**: Implemented
 - **创建日期**: 2026-09-13
-- **最后更新**: 2026-09-13
+- **最后更新**: 2026-09-14
 - **所属愿景**: 无
-- **关联提案**: [standalone-file-thunk-resolution](draft-standalone-file-thunk-resolution.md)（那批的任务报告第一次记录这个限制）、[0028](0028-offline-opaque-accessor-thunk-resolution.md)（`OpaqueTypeRewriter` 的来历）
+- **关联提案**: [standalone-file-thunk-resolution](0030-standalone-file-thunk-resolution.md)（那批的任务报告第一次记录这个限制）、[0028](0028-offline-opaque-accessor-thunk-resolution.md)（`OpaqueTypeRewriter` 的来历）
 - **实现分支 / PR**: `feature/dump-by-name-opaque-expansion`，从 `feature/cache-stub-islands` 切出
 - **配套文档**: [任务报告](../Internal/TaskReports/2026-09-13-by-name-opaque-reference-expansion.md)、[AccessorThunkResolutionExplained.md](../Internal/AccessorThunkResolutionExplained.md)「按名字引用的 opaque 类型」一节
 
@@ -49,4 +49,4 @@ AGENTS.md 的 `SwiftThunkAnalysis` 条目里那句「by-name 的 opaque 引用�
 | 2026-09-13 | 机制改成跨镜像定位，不只查本镜像符号索引 | 提案第一版以为是「带符号的 anonymous context」导致的；现场编译三种同模块变体（单文件、`-no-whole-module-optimization` 双文件、`fileprivate`）编译器都把 underlying type 代入，造不出；查 iOS 26.5 SwiftUI：`staticIf…QOMQ` 只在 SwiftUICore 里导出，SwiftUI 对它是 5 条 bind。本镜像索引的那一步保留，成本为零 |
 | 2026-09-13 | 搜索路径复用 `DisassemblingAccessorThunkResolver.searchPaths` | 这类引用和 kind-9 thunk 的跨镜像调用是同一件事的两面（都是独立文件里对别的镜像的 bind），CLI 的 `--dependency-search-path` 与宿主注入自然覆盖两者，不另开开关 |
 | 2026-09-13 | interface 对未展开的按名引用印出错误类型，本批记录、随本批消失 | `printOpaqueType` 只印节点的第三个孩子，`typealias B = ProbeClient.Outer` 就是把 conformer 当成了 witness。根治在打印器（印不出就印 `<<opaque return type of …>>`），但能定位的引用现在都展开了，剩下的只有依赖不在时的情况，留给打印器的下一次整理 |
-
+| 2026-09-14 | In Progress → Implemented | 四个分支按顺序合进 `next`（合并提交 `66ef730a`），落地时取编号 0033；用户指示「把相关分支全部合并进 next 推送，然后把分支删掉」 |
