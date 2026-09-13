@@ -1680,6 +1680,16 @@
   「type-construction evaluation」。
 - **对应版本**：新增常规依赖（Capstone）且默认输出变化（kind-9 引用一律解析），随下一次发布。
 
+## 2026-09-13 独立文件上的 accessor thunk 解析（提案 `standalone-file-thunk-resolution`，节号落地时取）
+
+- **时间段**：2026-09-13。
+- **动机**：0028 / 0029 的验证全在 dyld cache 上。用户要求测 iOS 18.5 / 26.5 模拟器的 SwiftUI、SwiftUICore（独立 Mach-O，跨镜像调用全是 GOT bind）。结果一类读错、三类读不出：分析器的单查找回退只切到两支汇合点，汇合后共享的尾调用不算，独立文件上求值器一失败就把中间值当答案（`OnModifierKeysChangedModifier.Body` 印成 `_TaskModifier2`）；跨镜像 descriptor accessor 只有 bind 名、带本地符号的专用 accessor、编译器合并的 `…MaTm` accessor 三种形状解不出。用户随后指出 iOS 27 beta 3 起模拟器也进 cache，实测模拟器 cache 读取全部正确，范围收窄为第三方 app、老运行时、fixture。
+- **关键决策**：回退收紧不删（`Outcome.callSites` + `leftThroughReturn`，分支后恰好一次调用且 `ret` 才回退；泛型 descriptor 的 accessor 不许无实参命名）；bind 名经 `MachODependencies` 定位的依赖镜像的导出表 → 该镜像的 accessor 索引（`DependencyImageResolver`，按根镜像共享）；`MachODependencies` 新增 `.systemRoot` 与 `inferred(forRoot:)` / `init(classifyingPath:)`，默认搜索路径 = 推断 + 宿主 cache，CLI 加 `--dependency-search-path`；带符号的专用 accessor 直接取符号里的类型（只接受已绑定实参的）；`…MaTm` 留待下一个提案（需跨函数内联求值、`blr`、bind 名当函数值）；system root 推断只喂 thunk 解析，静态布局的依赖闭包不动（待用户单独决定）。
+- **落地模块**：`SwiftThunkAnalysis`（求值器、分析器、reader、环境、`DependencyImageResolver`）、`MachODependencies`、`SwiftDeclarationRendering`（`DisassemblingAccessorThunkResolver(searchPaths:)`）、`swift-section`（选项组与三条命令）、`MachOFixtureSupport`（iOS 27 模拟器 cache 路径常量）。
+- **验证**：现场编译的 `Mutex<Set<Element>>` fixture 经宿主 cache 解出、无搜索路径时留占位并记缺失的 bind 名；分析器 / 求值器合成序列钉回退规则与调用记录；`ConcreteTypeAccessorSymbolTests` 钉带符号路线的三条拒绝（未绑定、合并函数、含泛型参数——合并 accessor 的符号名曾把 `Mutex<Storage>` 印成 `Array<LayoutDirection>`，靠 CLI 输出 diff 抓到）；`SystemRootSearchPathTests` 钉定位器与推断；模拟器门控：iOS 26.5 独立 SwiftUI 字段与分支注释和 macOS cache 一致、iOS 27.0 模拟器 cache 无未读。CLI 对比：iOS 26.5 SwiftUI 未读 5 → 0（5 条注释全对）、SwiftUICore 4 → 2、iOS 18.5 SwiftUI 1 → 0、macOS cache SwiftUI 逐字节不变、SwiftUICore 3 → 2；顺带修掉导出表偏移换算与 `__swift5_types` 间接 bind 记录两个读取错误。
+- **关联文档**：[提案](../Evolutions/draft-standalone-file-thunk-resolution.md)、[专题导读](AccessorThunkResolutionExplained.md)「独立文件和 cache 差在哪」一节、[MachODependencies 模块文档](Modules/MachODependencies.md)、任务报告 [TaskReports/2026-09-13-standalone-file-thunk-resolution.md](TaskReports/2026-09-13-standalone-file-thunk-resolution.md)。
+- **对应版本**：默认输出变化（独立文件上原本读错 / 读不出的 kind-9 引用）且 CLI 加开关，随下一次发布。
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节
