@@ -226,9 +226,8 @@ package struct ClassDumper<MachO: FieldLayoutRenderable>: TypedDumper {
                     configuration.vtableOffsetComment(slotOffset: vtableBaseOffset + offset.index)
                 }
 
-                if configuration.printMemberAddress, !descriptor.implementation.isNull {
-                    let implOffset = descriptor.implementation.resolveDirectOffset(from: descriptor.offset(of: \.implementation))
-                    configuration.memberAddressComment(offset: implOffset, addressString: machO.addressString(forOffset: implOffset))
+                if configuration.printMemberAddress, let implementationOffset = descriptor.implementationOffset {
+                    configuration.memberAddressComment(offset: implementationOffset, addressString: machO.addressString(forOffset: implementationOffset))
                 }
 
                 // Attribution, in order of evidence: the descriptor's own `Tq`
@@ -282,9 +281,8 @@ package struct ClassDumper<MachO: FieldLayoutRenderable>: TypedDumper {
                     }
                 }
 
-                if configuration.printMemberAddress, !descriptor.implementation.isNull {
-                    let implOffset = descriptor.implementation.resolveDirectOffset(from: descriptor.offset(of: \.implementation))
-                    configuration.memberAddressComment(offset: implOffset, addressString: machO.addressString(forOffset: implOffset))
+                if configuration.printMemberAddress, let implementationOffset = descriptor.implementationOffset {
+                    configuration.memberAddressComment(offset: implementationOffset, addressString: machO.addressString(forOffset: implementationOffset))
                 }
 
                 Indent(level: 1)
@@ -301,11 +299,11 @@ package struct ClassDumper<MachO: FieldLayoutRenderable>: TypedDumper {
                     Space()
                     try await demangleResolver.resolve(for: node)
                     _ = methodOverrideVisitedNodes.append(StructuralNodeReferenceKey(node))
-                } else if !descriptor.implementation.isNull {
+                } else if let implementationOffset = descriptor.implementationOffset {
                     dumpMethodKind(for: methodDescriptor?.resolved)
                     Keyword(.override)
                     Space()
-                    FunctionDeclaration(machO.addressString(forOffset: descriptor.implementation.resolveDirectOffset(from: descriptor.offset(of: \.implementation))).insertSubFunctionPrefix)
+                    FunctionDeclaration(machO.addressString(forOffset: implementationOffset).insertSubFunctionPrefix)
                 } else if let methodDescriptor {
                     switch methodDescriptor {
                     case .symbol(let symbol):
@@ -332,9 +330,8 @@ package struct ClassDumper<MachO: FieldLayoutRenderable>: TypedDumper {
             for (offset, descriptor) in dumped.methodDefaultOverrideDescriptors.offsetEnumerated() {
                 BreakLine()
 
-                if configuration.printMemberAddress, !descriptor.implementation.isNull {
-                    let implOffset = descriptor.implementation.resolveDirectOffset(from: descriptor.offset(of: \.implementation))
-                    configuration.memberAddressComment(offset: implOffset, addressString: machO.addressString(forOffset: implOffset))
+                if configuration.printMemberAddress, let implementationOffset = descriptor.implementationOffset {
+                    configuration.memberAddressComment(offset: implementationOffset, addressString: machO.addressString(forOffset: implementationOffset))
                 }
 
                 Indent(level: 1)
@@ -348,8 +345,8 @@ package struct ClassDumper<MachO: FieldLayoutRenderable>: TypedDumper {
                 if let symbols = descriptor.implementationSymbols(in: machO), let node = try await validNode(for: symbols, visitedNodes: methodDefaultOverrideVisitedNodes) {
                     try await demangleResolver.resolve(for: node)
                     _ = methodDefaultOverrideVisitedNodes.append(StructuralNodeReferenceKey(node))
-                } else if !descriptor.implementation.isNull {
-                    FunctionDeclaration(machO.addressString(forOffset: descriptor.implementation.resolveDirectOffset(from: descriptor.offset(of: \.implementation))).insertSubFunctionPrefix)
+                } else if let implementationOffset = descriptor.implementationOffset {
+                    FunctionDeclaration(machO.addressString(forOffset: implementationOffset).insertSubFunctionPrefix)
                 } else {
                     Error("Symbol not found")
                 }
@@ -567,8 +564,8 @@ package struct ClassDumper<MachO: FieldLayoutRenderable>: TypedDumper {
         if let node {
             try await demangleResolver.resolve(for: node)
             _ = visitedNodes.append(StructuralNodeReferenceKey(node))
-        } else if !descriptor.implementation.isNull {
-            FunctionDeclaration(machO.addressString(forOffset: descriptor.implementation.resolveDirectOffset(from: descriptor.offset(of: \.implementation))).insertSubFunctionPrefix)
+        } else if let implementationOffset = descriptor.implementationOffset {
+            FunctionDeclaration(machO.addressString(forOffset: implementationOffset).insertSubFunctionPrefix)
         } else {
             // A null implementation with no `Tq` symbol to name it: the slot is
             // an ABI tombstone (see `deletedMethodSlotComment`) whose member
