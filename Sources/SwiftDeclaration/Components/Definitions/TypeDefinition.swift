@@ -280,21 +280,24 @@ public final class TypeDefinition: Definition {
             // pointing at the same impl address. If the impl is not globally unique,
             // we cannot use offset-based fallback — we would not know which descriptor
             // to associate the symbol with.
+            // A null implementation is the norm, not an anomaly — dead-method
+            // elimination removes the body and keeps the slot — so a descriptor
+            // without one is SKIPPED, never a reason to abandon the type.
             var implOffsetCounts: [Int: Int] = [:]
-            for descriptor in classWrapper.methodDescriptors where !descriptor.implementation.isNull {
-                let implOffset = descriptor.implementation.resolveDirectOffset(from: descriptor.offset(of: \.implementation))
+            for descriptor in classWrapper.methodDescriptors {
+                guard let implOffset = descriptor.implementationOffset else { continue }
                 implOffsetCounts[implOffset, default: 0] += 1
             }
-            for descriptor in classWrapper.methodOverrideDescriptors where !descriptor.implementation.isNull {
-                let implOffset = descriptor.implementation.resolveDirectOffset(from: descriptor.offset(of: \.implementation))
+            for descriptor in classWrapper.methodOverrideDescriptors {
+                guard let implOffset = descriptor.implementationOffset else { continue }
                 implOffsetCounts[implOffset, default: 0] += 1
             }
-            for descriptor in classWrapper.methodDefaultOverrideDescriptors where !descriptor.implementation.isNull {
-                let implOffset = descriptor.implementation.resolveDirectOffset(from: descriptor.offset(of: \.implementation))
+            for descriptor in classWrapper.methodDefaultOverrideDescriptors {
+                guard let implOffset = descriptor.implementationOffset else { continue }
                 implOffsetCounts[implOffset, default: 0] += 1
             }
-            for (index, descriptor) in classWrapper.methodDescriptors.enumerated() where !descriptor.implementation.isNull {
-                let implOffset = descriptor.implementation.resolveDirectOffset(from: descriptor.offset(of: \.implementation))
+            for (index, descriptor) in classWrapper.methodDescriptors.enumerated() {
+                guard let implOffset = descriptor.implementationOffset else { continue }
                 // Only use offset-based fallback for globally unique implementation addresses
                 if implOffsetCounts[implOffset] == 1 {
                     implOffsetDescriptorLookup[implOffset] = .method(descriptor)
