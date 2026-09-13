@@ -90,7 +90,7 @@ struct ThunkTypeEvaluatorTests {
             .moveRegister(destination: register(1), source: register(2)),
             .indirectCall(register: register(3)),
             .branchIfNotZero(register: register(1), target: epilogue),
-            .unmodelled, // stlr x0, [x19]
+            .unmodelled(writtenRegisters: []), // stlr x0, [x19]
             // epilogue
             .loadPairFromMemory(first: register(29), second: register(30), base: .stackPointer, displacement: 0x10, adjustsBase: false),
             .loadPairFromMemory(first: register(20), second: register(19), base: .stackPointer, displacement: 0x20, adjustsBase: true),
@@ -252,7 +252,7 @@ struct ThunkTypeEvaluatorTests {
             .moveRegister(destination: register(1), source: register(20)),
             .call(target: Self.stateAccessor),
             .branch(target: 0x1000 + 5 * 4),
-            .unmodelled,
+            .unmodelled(writtenRegisters: []),
             .moveRegister(destination: register(1), source: register(0)),
             .moveImmediate(destination: register(0), value: 0),
             .branch(target: 0xDEAD_0000),
@@ -468,6 +468,83 @@ struct ThunkTypeEvaluatorTests {
         #expect(outcome.result == .bound(accessorAddress: Self.mutexAccessor, typeArguments: [.argument(index: 0)]))
         #expect(outcome.leftThroughReturn == true)
         #expect(outcome.callSites.map(\.target) == [wrapper, Self.mutexAccessor])
+    }
+
+    /// A conditional branch the analysis does not model ends the run with
+    /// no answer and says so — never as "not taken".
+    @Test func anUnmodelledConditionalBranchAbandonsTheRun() {
+        var evaluator = ThunkTypeEvaluator(environment: environment, instructions: [
+            ThunkInstruction(address: 0x1000, operation: .loadFromMemory(destination: register(1), base: register(0), displacement: 0), mnemonic: "ldr"),
+            ThunkInstruction(address: 0x1004, operation: .moveImmediate(destination: register(0), value: 0), mnemonic: "mov"),
+            ThunkInstruction(address: 0x1008, operation: .call(target: Self.mutexAccessor), mnemonic: "bl"),
+            ThunkInstruction(address: 0x100C, operation: .conditionalBranchNotModelled(target: 0x1014), mnemonic: "b.ne"),
+            ThunkInstruction(address: 0x1010, operation: .returnFromFunction, mnemonic: "ret"),
+            ThunkInstruction(address: 0x1014, operation: .returnFromFunction, mnemonic: "ret"),
+        ])
+        let outcome = evaluator.run(policy: .assumeConditionFalse)
+        #expect(outcome.result == nil)
+        #expect(outcome.leftThroughReturn == false)
+        #expect(outcome.limitations == [.conditionalBranchNotModelled(mnemonic: "b.ne")])
+    }
+
+    /// The one shape of unmodelled conditional branch that IS decided: one
+    /// whose fall-through is a trap. The arm64e epilogue authenticates the
+    /// return address and traps on failure (`autibsp; eor x16, x30, x30,
+    /// lsl #1; tbz x16, #62, Lreturn; brk`), so the branch is the only way
+    /// on, and the thunk's answer survives it.
+    @Test func aConditionalBranchOverATrapIsTaken() {
+        var evaluator = ThunkTypeEvaluator(environment: environment, instructions: [
+            ThunkInstruction(address: 0x1000, operation: .loadFromMemory(destination: register(1), base: register(0), displacement: 0), mnemonic: "ldr"),
+            ThunkInstruction(address: 0x1004, operation: .moveImmediate(destination: register(0), value: 0), mnemonic: "mov"),
+            ThunkInstruction(address: 0x1008, operation: .call(target: Self.mutexAccessor), mnemonic: "bl"),
+            ThunkInstruction(address: 0x100C, operation: .unmodelled(writtenRegisters: [register(30)]), mnemonic: "autibsp"),
+            ThunkInstruction(address: 0x1010, operation: .unmodelled(writtenRegisters: [register(16)]), mnemonic: "eor"),
+            ThunkInstruction(address: 0x1014, operation: .conditionalBranchNotModelled(target: 0x101C), mnemonic: "tbz"),
+            ThunkInstruction(address: 0x1018, operation: .trap, mnemonic: "brk"),
+            ThunkInstruction(address: 0x101C, operation: .returnFromFunction, mnemonic: "ret"),
+        ])
+        let outcome = evaluator.run(policy: .assumeConditionFalse)
+        #expect(outcome.result == .bound(accessorAddress: Self.mutexAccessor, typeArguments: [.argument(index: 0)]))
+        #expect(outcome.leftThroughReturn == true)
+        #expect(outcome.limitations.isEmpty)
+    }
+
+    /// An instruction the analysis does not model forgets what it writes:
+    /// the accessor's result in `x0` must not survive an `ldr x0, [x8, x9]`
+    /// the analysis could not read. Writing `sp` forgets the whole stack.
+    @Test func anUnmodelledInstructionForgetsWhatItWrites() {
+        let clobbered = evaluated(sequence([
+            .loadFromMemory(destination: register(1), base: register(0), displacement: 0),
+            .moveImmediate(destination: register(0), value: 0),
+            .call(target: Self.mutexAccessor),
+            .unmodelled(writtenRegisters: [register(0)]),
+            .returnFromFunction,
+        ]))
+        #expect(clobbered == nil)
+
+        let untouched = evaluated(sequence([
+            .loadFromMemory(destination: register(1), base: register(0), displacement: 0),
+            .moveImmediate(destination: register(0), value: 0),
+            .call(target: Self.mutexAccessor),
+            .unmodelled(writtenRegisters: [register(9)]),
+            .returnFromFunction,
+        ]))
+        #expect(untouched == .bound(accessorAddress: Self.mutexAccessor, typeArguments: [.argument(index: 0)]))
+
+        let stackForgotten = evaluated(sequence([
+            .addImmediate(destination: .stackPointer, source: .stackPointer, addend: -48),
+            .loadPairFromMemory(first: register(20), second: register(21), base: register(0), displacement: 0, adjustsBase: false),
+            .loadPairFromMemory(first: register(22), second: register(23), base: register(0), displacement: 16, adjustsBase: false),
+            .storeToMemory(source: register(20), base: .stackPointer, displacement: 8),
+            .storePairToMemory(first: register(21), second: register(22), base: .stackPointer, displacement: 16, adjustsBase: false),
+            .storeToMemory(source: register(23), base: .stackPointer, displacement: 32),
+            .unmodelled(writtenRegisters: [.stackPointer]),
+            .addImmediate(destination: register(1), source: .stackPointer, addend: 8),
+            .moveImmediate(destination: register(0), value: 0),
+            .call(target: Self.fourArgumentAccessor),
+            .returnFromFunction,
+        ]))
+        #expect(stackForgotten == nil)
     }
 
     /// A type argument that could not be named makes the bound type

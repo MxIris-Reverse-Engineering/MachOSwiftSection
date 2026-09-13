@@ -1700,6 +1700,16 @@
 - **关联文档**：[提案](../Evolutions/draft-merged-accessor-inline-evaluation.md)、[专题导读](AccessorThunkResolutionExplained.md)「被调函数没名字怎么办」一节、任务报告 [TaskReports/2026-09-13-merged-accessor-inline-evaluation.md](TaskReports/2026-09-13-merged-accessor-inline-evaluation.md)。
 - **对应版本**：默认输出变化（合并 accessor 的字段从占位变成类型），随下一次发布。
 
+## 2026-09-13 cache 里的 stub island，和不认识的指令不再被跳过（提案 `cache-stub-islands-and-unmodelled-instructions`，节号落地时取）
+
+- **时间段**：2026-09-13（合并 accessor 那批之后）。
+- **动机**：跨版本普查里唯一没过的是 iOS 26.3.1 设备 cache（arm64e）：SwiftUI 7 未读、SwiftUICore 2 未读、0 条注释。设备 cache 的跨镜像调用是 `bl` 到镜像之间的跳板（读 GOT 槽的 stub，或 `adrp / add / br` 直接算目标的 stub island，可链），GOT 槽也合并在镜像外；环境只认镜像内读槽的 stub。用户在「换成完整模拟执行」和「保留实现继续打补丁」间选了后者，顺带堵上求值器两处「不认识就跳过」的隐患。
+- **关键决策**：`resolveCallee` 对任何地址都认跳板（先本镜像索引 / 镜像表，再 stub 形状、再 island 形状，最多 8 跳，accessor 记在跳板地址名下）；不认识的条件跳转带目标解码、求值器放弃那一支——除非直行落点是 `brk`（arm64e 尾声验签），那时按跳走处理（第一版没有这条例外，宿主 cache 整体退化到 17 未读、oracle 测试全红）；不认识的指令带 Capstone 的寄存器写入表，求值器作废这些寄存器；PAC 指令（`pacia` / `autda` / `xpaci` 一家）保值，因为 arm64e thunk 先给 accessor 指针签名再传给 x3（第一版的作废规则把它作废了，宿主 cache 的合并 accessor 字段随之退化）。
+- **落地模块**：`SwiftThunkAnalysis`（解码器、指令词汇表、求值器、寄存器跟踪、环境）。无 CLI 变化，无新术语。
+- **验证**：`CapstoneThunkDecoderTests` 真实编码；求值器的放弃 / 陷阱 / 作废测试；分析器对含不认识条件跳转的 thunk 报限制；归档 cache 门控的 `ArchivedIOSCacheThunkTests`（SwiftUI 两个 `Mutex` 字段、全部 witness、SwiftUICore 两个合并 accessor 字段）。CLI 对比：iOS 26.3.1 SwiftUI 7 → 0、SwiftUICore 2 → 0；七份标准输出、跨版本普查（macOS 14.7–26.6）与 macOS 27.0（`dyld_shared_cache_arm64e_x1`）逐字节 / 0 未读，见任务报告。
+- **关联文档**：[提案](../Evolutions/draft-cache-stub-islands-and-unmodelled-instructions.md)、[专题导读](AccessorThunkResolutionExplained.md)、任务报告 [TaskReports/2026-09-13-cache-stub-islands.md](TaskReports/2026-09-13-cache-stub-islands.md)。
+- **对应版本**：默认输出变化（iOS 设备 cache 上原本读不出的 kind-9 引用），随下一次发布。
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节

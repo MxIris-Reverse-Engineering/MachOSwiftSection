@@ -107,7 +107,7 @@ fallback 那一支通常是「用另一条旧系统认识的 mangled name 现场
 
 从 thunk 的地址读 1024 字节，交给 Capstone（一个开源反汇编库，只启用 ARM64 后端）解码成指令，最多 160 条，遇到「函数结束」就停。什么算函数结束是个坑：ARM64e 的返回指令写作 `retab` / `retaa` 而不是 `ret`，第一版解码器不认识它，读过了函数末尾进了下一个函数；还有前面样本一里的 `b`——它跳去的地方如果是另一个已知函数，当前函数就到此为止。这两个坑都在 0029 修掉了。
 
-解码出来的不是 Capstone 的原始对象，而是我们自己的一小套「指令词汇表」（`ThunkInstruction`）：搬数（`mov`）、算地址（`adrp` / `add`）、读内存（`ldr`）、写内存（`str`）、比较（`cmp`）、条件选择（`csel`）、条件跳转（`cbz` / `cbnz` / `b.eq`）、调用（`bl`，以及经寄存器的 `blr`）、跳转（`b`，以及经寄存器的 `br`）、返回。这样后面的分析层可以用手写的指令序列做单元测试，不需要真实二进制。
+解码出来的不是 Capstone 的原始对象，而是我们自己的一小套「指令词汇表」（`ThunkInstruction`）。词汇表之外的指令有三种下场，都不是「跳过去当没看见」：条件跳转（`b.eq`、`tbz` 这类）解码时带着目标，求值器遇到就放弃这一支——唯一的例外是直行落点是 `brk` 陷阱的（arm64e 每个函数尾声验签失败就 `brk`），那时跳走是唯一活路，按跳走处理；其它不认识的指令带着「它写了哪些寄存器」，求值器把这些寄存器作废（写 `sp` 就作废整个栈模型）；给指针签名 / 验签的 `pacia` / `autda` / `xpaci` 一家保留寄存器原值，因为签过名的 accessor 指针还是那个 accessor。词汇表里有：搬数（`mov`）、算地址（`adrp` / `add`）、读内存（`ldr`）、写内存（`str`）、比较（`cmp`）、条件选择（`csel`）、条件跳转（`cbz` / `cbnz` / `b.eq`）、调用（`bl`，以及经寄存器的 `blr`）、跳转（`b`，以及经寄存器的 `br`）、返回。这样后面的分析层可以用手写的指令序列做单元测试，不需要真实二进制。
 
 ### 第二步：给每个调用目标起名
 
@@ -116,6 +116,7 @@ thunk 里每个 `bl` / `b` 都要知道「调的是谁」，否则无从推演�
 - **同一镜像里某个类型的 metadata accessor**：预先扫一遍 `__swift5_types`，把每个类型描述符里记录的 accessor 地址建成索引（`MetadataAccessorIndex`），地址一查就知道是哪个类型。
 - **跨镜像的调用**：共享缓存里调别的 framework 不是直接跳过去，而是先跳到一小段桥接代码（stub），stub 从一个槽位（GOT 槽）里读出真正的目标地址再跳。我们解码 stub、找到槽位、读出目标，再按目标地址查它落在哪个镜像（主缓存的 image 表）、打开那个镜像查它的 accessor 索引或导出表。
 - **runtime 的几个入口**按名字认：`__isPlatformVersionAtLeast`（版本检查）、`swift_getWitnessTable`（拿 protocol 的见证表）、`swift_checkMetadataState`（等 metadata 就绪，对我们来说是恒等）、`__swift_instantiateConcreteTypeFromMangledName`（按另一条 mangled name 实例化）。
+- **不在任何镜像里的地址**：iOS 设备 cache 的跨镜像调用是 `bl` 到镜像之间的一段跳板——要么是读 GOT 槽的 stub，要么是 stub island（`adrp x16 / add x16 / br x16`，目标直接算出来、什么都不读，还可能再链一跳）；它的 GOT 槽也合并在镜像外的一片区域里。所以「认 stub」这一步对任何地址都做：先查本镜像索引或 cache 的镜像表，认不出就看它是不是 stub 或 island，是就对跳板的目标再认一次（最多 8 跳），认出的 accessor 记在跳板的地址名下。
 - **经寄存器的调用**（`blr x3`）：看寄存器里装的是什么。从 GOT 槽读出来的值有两种：槽里已经是地址（rebase）就按地址认；槽里只有名字（bind，独立文件）就把名字按上面跨镜像的办法认成一个「函数引用」放在寄存器里。
 - **认不出、但在本镜像 `__TEXT` 里的函数**：不放弃，把它的指令也解码出来交给第三步跟进去算（见「被调函数没名字怎么办」）。
 - 其余认不出的：不猜，让那一支降级。
@@ -229,7 +230,8 @@ Sources/SwiftDeclarationRendering/
 - **合成指令序列的单元测试**（`ThunkTypeEvaluatorTests`、`AccessorThunkAnalyzerTests`）：不用二进制，手写十几条指令钉每条求值规则——accessor 链与尾调用、栈传参、见证表跳过、未知调用降级、缓存探测形态、常量 metadata、mangled name 实例化、跟进合并函数体（含递归 / 深度 / 可用性检查不跟进 / 经寄存器的调用不进回退）。
 - **现场编译的 fixture**（`StandaloneFileThunkResolutionTests`、`MergedAccessorFixtureTests`）：跨镜像 bind 的泛型 `Mutex<Set<Element>>` 字段，和用前端开关造出来的合并 accessor（三个 `Mutex<本地 struct>` 字段，带符号与剥掉本地符号两份都要读成一样）。
 - **fixture**（`FieldRecordThunkResolutionTests`、两套快照）：`SymbolTestsCore` 里 `AccessorFunctionReferences` 命名空间的 `~Copyable` 字段，要求读成源码声明的 `NoncopyableResourceTest` / `NoncopyableGenericBoxTest<Int>`，不随系统版本漂移。
-- **真实框架**（`AccessorThunkReaderTests`、`OpaqueTypeRenderingIntegrationTests`、`HostCacheSwiftUICoreMergedAccessorTests`）：SwiftUI 的 17 条 witness 全部解出、两支都在、注释打出来；SwiftUICore 两个合并 accessor 字段在宿主 cache 上读成 `Mutex<…>`。
+- **真实框架**（`AccessorThunkReaderTests`、`OpaqueTypeRenderingIntegrationTests`、`HostCacheSwiftUICoreMergedAccessorTests`、归档 cache 门控的 `ArchivedIOSCacheThunkTests`）：SwiftUI 的 17 条 witness 全部解出、两支都在、注释打出来；SwiftUICore 两个合并 accessor 字段在宿主 cache 上读成 `Mutex<…>`；iOS 26.3.1 设备 cache 上经 stub island 的字段与 witness 全部解出。
+- **解码器**（`CapstoneThunkDecoderTests`，真实编码）：条件跳转带目标、`brk` 是陷阱、不认识的指令报它写的寄存器、PAC 指令保值。
 - **oracle 测试**（`ConstructedThunkOracleTests`）：这是整套功能里最重要的一条。对 SwiftUI 每个非泛型 conformer 的每条 kind-9 witness，离线读出的答案必须和进程内 runtime 执行 thunk 得到的答案逐字相等（私有上下文的拼写做归一化）。它抓的正是「真实、全限定、错误」的读法——0028 第一版的两处误读（漏掉尾调用、把中间结果当答案）都是它揪出来的。
 - **调查用探针**（`RealThunkShapeProbe`、`ThunkResolutionSurveyProbe`，默认禁用）：把 SwiftUI 每个不同形态的 thunk 或每条引用的解析结果打印出来，遇到新形态时临时启用看一眼。
 
@@ -244,6 +246,8 @@ Sources/SwiftDeclarationRendering/
 | `csel` 的条件码没建模 | 那一支留占位符（在两个真类型之间抛硬币比占位符更糟） |
 | 被跟进的函数又调了认不出、也解码不了的东西；或跟进深度超过 3；或递归 | 那一支留占位符。合并 accessor 的符号名（`merged type metadata accessor for Any?`）是合并前某一份的名字，仍然绝不当答案——曾把 `Mutex<Storage>` 印成 `Array<LayoutDirection>` |
 | 被跟进的函数在栈上建实参缓冲区（写回式 `stp` 之后再 `str`） | 写回式栈访问没建模，那一支留占位符；目前没有样本 |
+| 遇到不认识的条件跳转（`b.cond` / `tbz`），且直行落点不是 `brk` | 那一支放弃，限制列表记 `conditionalBranchNotModelled`；今天的 thunk 里只有尾声那种，落点是 `brk`，按跳走处理 |
+| `_swift_runtimeSupportsNoncopyableTypes` 的 GOT 槽在 cache 文件里是 0（弱引用加载时才填） | 标志判定不了，靠两种策略：先跑的「条件为假」正好是支持那一支，所以答案对；第二次跑出来的 `() + 8` 命不了名，不会当答案 |
 | 独立文件的依赖镜像找不到（bind 名没有镜像导出它） | 留占位符，限制列表里记 `calleeInUnlocatedImage`；给 `--dependency-search-path` 或宿主传路径 |
 
 ## 术语对照
@@ -262,6 +266,9 @@ Sources/SwiftDeclarationRendering/
 | bind / rebase | GOT 槽位的两种内容：bind 是一个符号名，加载时才由 dyld 换成地址（独立文件）；rebase 是已经写好的地址（cache 里）|
 | tail call | 用 `b` 跳到另一个函数、把它的返回值当自己的返回值；不会跳回来 |
 | `blr` / `br` | 经寄存器的调用 / 跳转：目标不写在指令里，而是寄存器里当时的值 |
+| stub island | cache 构建器塞在镜像之间的跳板，`adrp / add / br` 直接算出目标，`bl` 够不着的远调用靠它中转；iOS 设备 cache 里的跨镜像调用几乎都经它 |
+| `pacia` / `autda` / `xpaci` | arm64e 给指针签名 / 验签 / 去签名的指令；对我们来说指针还是那个指针 |
+| `brk` | 陷阱指令，执行到就崩；尾声验签失败走这里 |
 | merged function（`…Tm`） | 编译器把若干字节相同的函数体合并成一份；符号名保留其中一份的名字，看名字猜不出调用方要的是哪一个 |
 | SE-0360 | 允许 `some P` 在 `if #available` 两支返回不同类型的 Swift 提案 |
 | `__isPlatformVersionAtLeast` | compiler-rt 的版本检查函数，参数是平台编号和三段版本号 |
@@ -269,6 +276,6 @@ Sources/SwiftDeclarationRendering/
 ## 延伸阅读
 
 - 提案 [0028](../Evolutions/0028-offline-opaque-accessor-thunk-resolution.md)（离线反汇编读取、两支进模型、进程内路径）和 [0029](../Evolutions/0029-thunk-type-construction-evaluation.md)（符号求值器、field record 接入），决策日志里有每一步为什么这样做。
-- 提案 [standalone-file-thunk-resolution](../Evolutions/draft-standalone-file-thunk-resolution.md)（独立文件：回退误判、跨镜像 bind、带符号的专用 accessor）和 [merged-accessor-inline-evaluation](../Evolutions/draft-merged-accessor-inline-evaluation.md)（合并 accessor：跟进被调函数、`blr`、bind 槽当函数引用）。
+- 提案 [standalone-file-thunk-resolution](../Evolutions/draft-standalone-file-thunk-resolution.md)（独立文件：回退误判、跨镜像 bind、带符号的专用 accessor）、[merged-accessor-inline-evaluation](../Evolutions/draft-merged-accessor-inline-evaluation.md)（合并 accessor：跟进被调函数、`blr`、bind 槽当函数引用）和 [cache-stub-islands-and-unmodelled-instructions](../Evolutions/draft-cache-stub-islands-and-unmodelled-instructions.md)（iOS 设备 cache 的跳板；不认识的指令不再被跳过）。
 - [AccessorFunctionReferenceRendering.md](AccessorFunctionReferenceRendering.md)：渲染路径的演进阶梯（占位 → 进程内 → 离线反汇编 → 类型构造求值）与实测数据。
-- 任务报告：[2026-09-11 首批](TaskReports/2026-09-11-offline-accessor-thunk-resolution.md)、[2026-09-11 收尾](TaskReports/2026-09-11-accessor-thunk-resolution-follow-up.md)、[2026-09-12 求值器与后续](TaskReports/2026-09-12-thunk-type-construction-evaluation.md)、[2026-09-13 独立文件](TaskReports/2026-09-13-standalone-file-thunk-resolution.md)、[2026-09-13 合并 accessor](TaskReports/2026-09-13-merged-accessor-inline-evaluation.md)。
+- 任务报告：[2026-09-11 首批](TaskReports/2026-09-11-offline-accessor-thunk-resolution.md)、[2026-09-11 收尾](TaskReports/2026-09-11-accessor-thunk-resolution-follow-up.md)、[2026-09-12 求值器与后续](TaskReports/2026-09-12-thunk-type-construction-evaluation.md)、[2026-09-13 独立文件](TaskReports/2026-09-13-standalone-file-thunk-resolution.md)、[2026-09-13 合并 accessor](TaskReports/2026-09-13-merged-accessor-inline-evaluation.md)、[2026-09-13 stub island](TaskReports/2026-09-13-cache-stub-islands.md)。

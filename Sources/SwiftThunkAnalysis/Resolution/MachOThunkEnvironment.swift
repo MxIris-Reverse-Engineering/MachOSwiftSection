@@ -28,7 +28,12 @@ fileprivate protocol MachOThunkEnvironmentLogging {}
 /// 3. **A stub.** Inside a shared cache every cross-image call goes through
 ///    a four-instruction stub (`adrp x17` / `add x17` / `ldr x16, [x17]` /
 ///    `braa x16, x17`; a standalone binary's is `adrp` / `ldr` / `br`) whose
-///    load names a GOT slot. The slot is either a **bind** — a symbol name,
+///    load names a GOT slot — or, when the cache is too large for a `bl` to
+///    reach across its subcaches, through a **stub island**: `adrp x16` /
+///    `add x16` / `br x16`, a trampoline the cache builder places *between*
+///    images that computes its target outright and loads nothing (iOS
+///    device caches; islands may chain). An island is recognized by that
+///    shape and its target classified again, up to a fixed number of hops. The slot is either a **bind** — a symbol name,
 ///    the standalone case — or, inside a cache where dyld already resolved
 ///    every bind, a **rebase** to the callee's address in some other image.
 ///    A bound name is classified directly when it is a runtime entry point
@@ -140,10 +145,14 @@ package final class MachOThunkEnvironment: ThunkEvaluationEnvironment, MachOThun
 
     package func callee(at address: UInt64) -> ThunkCallee {
         if let known = calleesByAddress[address] { return known }
-        let callee = resolveCallee(at: address)
+        let callee = resolveCallee(at: address, islandHops: 0)
         calleesByAddress[address] = callee
         return callee
     }
+
+    /// How many chained stub islands are followed before giving up: one is
+    /// the norm, a hop per subcache crossed the worst case seen described.
+    private static let maximumIslandHops = 8
 
     package func callee(boundInSlotAt slotAddress: UInt64) -> ThunkCallee {
         if let known = calleesBySlotAddress[slotAddress] { return known }
@@ -221,47 +230,47 @@ package final class MachOThunkEnvironment: ThunkEvaluationEnvironment, MachOThun
 
     // MARK: - Resolution
 
-    private func resolveCallee(at address: UInt64) -> ThunkCallee {
-        // An address outside this image is one a rebase produced — inside a
-        // cache, another image's function reached through a register. The
-        // segment test is deliberate: a cache image's offset conversion
-        // answers for the whole cache (see `ThunkAddressSpace.containsAddress`).
-        guard addressSpace.containsAddress(address), let offset = addressSpace.offset(forAddress: address) else {
-            return foreignCallee(at: address, targetAddress: address)
+    private func resolveCallee(at address: UInt64, islandHops: Int) -> ThunkCallee {
+        if addressSpace.containsAddress(address), let offset = addressSpace.offset(forAddress: address) {
+            if let descriptorOffset = accessorIndex.descriptorOffset(forAccessorOffset: offset) {
+                return metadataAccessor(at: address, descriptorOffset: descriptorOffset, in: machO)
+            }
+            // A runtime helper the compiler emits into the image itself
+            // (`__swift_instantiateConcreteTypeFromMangledNameV2` is one) carries
+            // a local symbol in an unstripped image.
+            if let ownName = ownRuntimeSymbolNamesByAddress[address], let runtimeEntryPoint = Self.runtimeEntryPoint(named: ownName) {
+                return runtimeEntryPoint
+            }
+            if let symbolName = concreteTypeAccessorSymbolName(atOffset: offset) {
+                return .concreteTypeAccessor(symbolName: symbolName)
+            }
+        } else {
+            // An address outside this image's segments: another image's
+            // function reached through a rebased pointer, or a trampoline on
+            // the way to one. The segment test is deliberate — a cache
+            // image's offset conversion answers for the whole cache (see
+            // `ThunkAddressSpace.containsAddress`).
+            let foreign = foreignCallee(at: address, targetAddress: address)
+            if case .unknown = foreign {} else { return foreign }
         }
-        if let descriptorOffset = accessorIndex.descriptorOffset(forAccessorOffset: offset) {
-            return metadataAccessor(at: address, descriptorOffset: descriptorOffset, in: machO)
+        // A trampoline, wherever it sits — inside the image's `__stubs`, or
+        // between images in a device cache, whose stubs and islands live in
+        // regions no image's segments cover. A GOT-loading stub names a
+        // slot; an island computes its target. Either way the target is
+        // classified again, up to a fixed number of hops.
+        guard islandHops < Self.maximumIslandHops else { return .unknown }
+        if let slotAddress = stubSlotAddress(at: address), let slotOffset = addressSpace.offset(forAddress: slotAddress) {
+            if let bindName = machO.resolveBind(fileOffset: slotOffset) {
+                if let runtimeEntryPoint = Self.runtimeEntryPoint(named: bindName) { return runtimeEntryPoint }
+                return dependencyCallee(at: address, bindName: bindName)
+            }
+            guard let target = machO.resolveRebase(fileOffset: slotOffset), let targetAddress = rebaseTargetAddress(target) else { return .unknown }
+            return hopping(from: address, to: targetAddress, islandHops: islandHops)
         }
-        // A runtime helper the compiler emits into the image itself
-        // (`__swift_instantiateConcreteTypeFromMangledNameV2` is one) carries
-        // a local symbol in an unstripped image.
-        if let ownName = ownRuntimeSymbolNamesByAddress[address], let runtimeEntryPoint = Self.runtimeEntryPoint(named: ownName) {
-            return runtimeEntryPoint
+        if let islandTarget = stubIslandTarget(at: address) {
+            return hopping(from: address, to: islandTarget, islandHops: islandHops)
         }
-        if let symbolName = concreteTypeAccessorSymbolName(atOffset: offset) {
-            return .concreteTypeAccessor(symbolName: symbolName)
-        }
-        guard let slotAddress = stubSlotAddress(at: address),
-              let slotOffset = addressSpace.offset(forAddress: slotAddress)
-        else { return .unknown }
-        if let bindName = machO.resolveBind(fileOffset: slotOffset) {
-            if let runtimeEntryPoint = Self.runtimeEntryPoint(named: bindName) { return runtimeEntryPoint }
-            return dependencyCallee(at: address, bindName: bindName)
-        }
-        guard let target = machO.resolveRebase(fileOffset: slotOffset),
-              let targetAddress = rebaseTargetAddress(target),
-              let targetOffset = addressSpace.offset(forAddress: targetAddress)
-        else { return .unknown }
-        if let descriptorOffset = accessorIndex.descriptorOffset(forAccessorOffset: targetOffset) {
-            return metadataAccessor(at: address, descriptorOffset: descriptorOffset, in: machO)
-        }
-        if let ownName = ownRuntimeSymbolNamesByAddress[targetAddress], let runtimeEntryPoint = Self.runtimeEntryPoint(named: ownName) {
-            return runtimeEntryPoint
-        }
-        if let symbolName = concreteTypeAccessorSymbolName(atOffset: targetOffset) {
-            return .concreteTypeAccessor(symbolName: symbolName)
-        }
-        return foreignCallee(at: address, targetAddress: targetAddress)
+        return .unknown
     }
 
     /// What a GOT slot that binds by name refers to: a runtime entry point,
@@ -272,6 +281,40 @@ package final class MachOThunkEnvironment: ThunkEvaluationEnvironment, MachOThun
         else { return .unknown }
         if let runtimeEntryPoint = Self.runtimeEntryPoint(named: bindName) { return runtimeEntryPoint }
         return dependencyCallee(at: slotAddress, bindName: bindName)
+    }
+
+    /// Classifies a trampoline's target, and files an accessor found that
+    /// way under the address the thunk called — the stub or island — so the
+    /// node builder finds it where the expression names it.
+    private func hopping(from trampolineAddress: UInt64, to target: UInt64, islandHops: Int) -> ThunkCallee {
+        let callee = resolveCallee(at: target, islandHops: islandHops + 1)
+        if case .metadataAccessor(_, let argumentSlots) = callee, let origin = accessorOriginsByAddress[target] {
+            accessorOriginsByAddress[trampolineAddress] = origin
+            return .metadataAccessor(address: trampolineAddress, argumentSlots: argumentSlots)
+        }
+        return callee
+    }
+
+    /// The address a stub island at `address` jumps to, when the code there
+    /// has an island's shape: the target computed into a register by
+    /// `adrp` / `add` alone — no load, no call — and a register jump.
+    private func stubIslandTarget(at address: UInt64) -> UInt64? {
+        guard let offset = addressSpace.offset(forAddress: address),
+              let bytes: [UInt8] = try? machO.readElements(offset: offset, numberOfElements: 16),
+              let instructions = try? CapstoneThunkDecoder.decode(machineCode: Data(bytes), startAddress: address, maximumInstructionCount: 4)
+        else { return nil }
+        var tracker = ThunkRegisterTracker()
+        for instruction in instructions {
+            switch instruction.operation {
+            case .materializePageAddress, .addImmediate:
+                tracker.apply(instruction.operation)
+            case .indirectBranch(let register):
+                return tracker.address(of: register)
+            default:
+                return nil
+            }
+        }
+        return nil
     }
 
     /// The GOT slot a stub at `address` loads its target from.

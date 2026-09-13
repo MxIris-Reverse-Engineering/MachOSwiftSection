@@ -174,7 +174,7 @@ struct AccessorThunkAnalyzerTests {
             instruction(.moveImmediate(destination: register(0), value: 255), at: 0x2018),
             instruction(.call(target: 0x1B6D2F858), at: 0x201C),
             instruction(.branch(target: returnAddress), at: 0x2020),
-            instruction(.unmodelled, at: 0x2024),
+            instruction(.unmodelled(writtenRegisters: []), at: 0x2024),
             // Unsatisfied branch.
             instruction(.moveImmediate(destination: register(0), value: 255), at: unsatisfiedBranchAddress),
         ]
@@ -270,6 +270,27 @@ struct AccessorThunkAnalyzerTests {
         #expect(program.limitations == [.branchIsNotASingleLookup(condition: .availabilitySatisfied, callCount: 1)])
     }
 
+    /// An arm that runs into a conditional branch the analysis does not
+    /// model takes the whole thunk down to the placeholder, with the reason:
+    /// reading it as never taken would present one arm as the answer.
+    @Test func refusesAThunkWhoseArmHasAnUnmodelledConditionalBranch() throws {
+        var instructions = availabilityCheckInstructions(major: 26, minor: 4, startingAt: 0x2000)
+        let unsatisfiedBranchAddress: UInt64 = 0x2028
+        instructions += [
+            instruction(.branchIfZero(register: register(0), target: unsatisfiedBranchAddress), at: 0x2014),
+            instruction(.moveImmediate(destination: register(0), value: 255), at: 0x2018),
+            instruction(.call(target: 0x1B6D2F858), at: 0x201C),
+            instruction(.conditionalBranchNotModelled(target: 0x2024), at: 0x2020, mnemonic: "tbz"),
+            instruction(.returnFromFunction, at: 0x2024),
+            instruction(.moveImmediate(destination: register(0), value: 255), at: unsatisfiedBranchAddress),
+            instruction(.call(target: 0x1B6D2F838), at: 0x202C),
+            instruction(.returnFromFunction, at: 0x2030),
+        ]
+        let program = AccessorThunkAnalyzer.analyze(instructions: instructions)
+        #expect(program.candidates.isEmpty, "\(program.candidates)")
+        #expect(program.limitations == [.conditionalBranchNotModelled(mnemonic: "tbz")])
+    }
+
     // MARK: - Shapes outside the vocabulary
 
     @Test func reportsNoRecognizedShapeWithoutAVersionCheck() throws {
@@ -290,7 +311,7 @@ struct AccessorThunkAnalyzerTests {
     @Test func keepsTheVersionCheckWhenTheSelectionIsUnreadable() throws {
         var instructions = availabilityCheckInstructions(startingAt: 0x4000)
         instructions += [
-            instruction(.unmodelled, at: 0x4014),
+            instruction(.unmodelled(writtenRegisters: []), at: 0x4014),
             instruction(.returnFromFunction, at: 0x4018),
         ]
         let program = AccessorThunkAnalyzer.analyze(instructions: instructions)

@@ -66,7 +66,7 @@ public enum CapstoneThunkDecoder {
         for instruction in decodedInstructions {
             functionInstructions.append(instruction)
             switch instruction.operation {
-            case .branchIfZero(_, let target), .branchIfNotZero(_, let target):
+            case .branchIfZero(_, let target), .branchIfNotZero(_, let target), .conditionalBranchNotModelled(let target):
                 if isInFunction(target) {
                     furthestInFunctionTarget = max(furthestInFunctionTarget, target)
                 }
@@ -131,25 +131,44 @@ public enum CapstoneThunkDecoder {
     }
 
     private static func operation(from instruction: Arm64Instruction) -> ThunkOperation {
+        let operation = modelledOperation(from: instruction)
+        if case .unmodelled = operation {
+            return .unmodelled(writtenRegisters: writtenRegisters(of: instruction))
+        }
+        return operation
+    }
+
+    /// The general-purpose registers an instruction writes, per the
+    /// disassembler's register-access list (explicit and implicit).
+    private static func writtenRegisters(of instruction: Arm64Instruction) -> [ThunkRegister] {
+        var registers: [ThunkRegister] = []
+        for register in instruction.registersAccessed.written + instruction.registersAccessedImplicitly.written {
+            guard let thunkRegister = thunkRegister(from: register), !registers.contains(thunkRegister) else { continue }
+            registers.append(thunkRegister)
+        }
+        return registers
+    }
+
+    private static func modelledOperation(from instruction: Arm64Instruction) -> ThunkOperation {
         let operands = instruction.operands
         switch instruction.instruction {
         case .adrp:
             guard let destination = register(at: 0, of: operands),
                   let pageBaseAddress = immediateValue(at: 1, of: operands)
-            else { return .unmodelled }
+            else { return .unmodelled(writtenRegisters: []) }
             return .materializePageAddress(destination: destination, pageBaseAddress: UInt64(bitPattern: pageBaseAddress))
         case .adr:
             // `adr` materializes a full address on its own, which the tracker
             // models as a page address with nothing added to it.
             guard let destination = register(at: 0, of: operands),
                   let address = immediateValue(at: 1, of: operands)
-            else { return .unmodelled }
+            else { return .unmodelled(writtenRegisters: []) }
             return .materializePageAddress(destination: destination, pageBaseAddress: UInt64(bitPattern: address))
         case .add:
             guard let destination = register(at: 0, of: operands),
                   let source = register(at: 1, of: operands),
                   let addend = immediateValue(at: 2, of: operands)
-            else { return .unmodelled }
+            else { return .unmodelled(writtenRegisters: []) }
             return .addImmediate(destination: destination, source: source, addend: addend)
         case .sub:
             // `sub sp, sp, #48` opens a frame; modelled as adding the negated
@@ -157,13 +176,13 @@ public enum CapstoneThunkDecoder {
             guard let destination = register(at: 0, of: operands),
                   let source = register(at: 1, of: operands),
                   let subtrahend = immediateValue(at: 2, of: operands)
-            else { return .unmodelled }
+            else { return .unmodelled(writtenRegisters: []) }
             return .addImmediate(destination: destination, source: source, addend: -subtrahend)
         case .mov, .movz, .orr:
             // Capstone spells a register-to-register move `mov` and an
             // immediate load `mov` too; `movz` and the `orr xN, xzr, #imm`
             // form are the un-aliased spellings of the same two things.
-            guard let destination = register(at: 0, of: operands) else { return .unmodelled }
+            guard let destination = register(at: 0, of: operands) else { return .unmodelled(writtenRegisters: []) }
             if let value = immediateValue(at: 1, of: operands) {
                 return .moveImmediate(destination: destination, value: value)
             }
@@ -173,12 +192,12 @@ public enum CapstoneThunkDecoder {
                 }
                 return .moveRegister(destination: destination, source: source)
             }
-            return .unmodelled
+            return .unmodelled(writtenRegisters: [])
         case .ldr, .ldur:
             guard let destination = register(at: 0, of: operands),
                   let memory = memoryOperand(at: 1, of: operands),
                   instruction.writeBack != true
-            else { return .unmodelled }
+            else { return .unmodelled(writtenRegisters: []) }
             return .loadFromMemory(
                 destination: destination,
                 base: memory.base,
@@ -188,7 +207,7 @@ public enum CapstoneThunkDecoder {
             guard let first = register(at: 0, of: operands),
                   let second = register(at: 1, of: operands),
                   let memory = memoryOperand(at: 2, of: operands)
-            else { return .unmodelled }
+            else { return .unmodelled(writtenRegisters: []) }
             return .loadPairFromMemory(
                 first: first,
                 second: second,
@@ -200,13 +219,13 @@ public enum CapstoneThunkDecoder {
             guard let source = register(at: 0, of: operands),
                   let memory = memoryOperand(at: 1, of: operands),
                   instruction.writeBack != true
-            else { return .unmodelled }
+            else { return .unmodelled(writtenRegisters: []) }
             return .storeToMemory(source: source, base: memory.base, displacement: memory.displacement)
         case .stp:
             guard let first = register(at: 0, of: operands),
                   let second = register(at: 1, of: operands),
                   let memory = memoryOperand(at: 2, of: operands)
-            else { return .unmodelled }
+            else { return .unmodelled(writtenRegisters: []) }
             return .storePairToMemory(
                 first: first,
                 second: second,
@@ -215,36 +234,44 @@ public enum CapstoneThunkDecoder {
                 adjustsBase: instruction.writeBack == true
             )
         case .bl:
-            guard let target = immediateValue(at: 0, of: operands) else { return .unmodelled }
+            guard let target = immediateValue(at: 0, of: operands) else { return .unmodelled(writtenRegisters: []) }
             return .call(target: UInt64(bitPattern: target))
         case .b:
-            guard let target = immediateValue(at: 0, of: operands) else { return .unmodelled }
+            guard let target = immediateValue(at: 0, of: operands) else { return .unmodelled(writtenRegisters: []) }
             // A conditional `b.<cond>` carries the same operand shape; the
             // condition code is what tells them apart. Only the unconditional
-            // form is modelled as a branch — a conditional one is a shape the
-            // recognizer has not been taught, and `unmodelled` is how it says so.
-            guard instruction.conditionCode == nil else { return .unmodelled }
+            // form is a branch — a conditional one is a shape the analysis
+            // has not been taught, kept with its target so the evaluator can
+            // refuse it and the boundary rule can still see where it points.
+            guard instruction.conditionCode == nil else { return .conditionalBranchNotModelled(target: UInt64(bitPattern: target)) }
             return .branch(target: UInt64(bitPattern: target))
+        case .bc:
+            guard let target = immediateValue(at: 0, of: operands) else { return .unmodelled(writtenRegisters: []) }
+            return .conditionalBranchNotModelled(target: UInt64(bitPattern: target))
+        case .tbz, .tbnz:
+            // `tbz <register>, #<bit>, #<target>`: the bit test is not modelled.
+            guard let target = immediateValue(at: 2, of: operands) else { return .unmodelled(writtenRegisters: []) }
+            return .conditionalBranchNotModelled(target: UInt64(bitPattern: target))
         case .cbz:
             guard let register = register(at: 0, of: operands),
                   let target = immediateValue(at: 1, of: operands)
-            else { return .unmodelled }
+            else { return .unmodelled(writtenRegisters: []) }
             return .branchIfZero(register: register, target: UInt64(bitPattern: target))
         case .cbnz:
             guard let register = register(at: 0, of: operands),
                   let target = immediateValue(at: 1, of: operands)
-            else { return .unmodelled }
+            else { return .unmodelled(writtenRegisters: []) }
             return .branchIfNotZero(register: register, target: UInt64(bitPattern: target))
         case .cmp:
             guard let register = register(at: 0, of: operands),
                   let value = immediateValue(at: 1, of: operands)
-            else { return .unmodelled }
+            else { return .unmodelled(writtenRegisters: []) }
             return .compareImmediate(register: register, value: value)
         case .csel:
             guard let destination = register(at: 0, of: operands),
                   let whenConditionHolds = register(at: 1, of: operands),
                   let otherwise = register(at: 2, of: operands)
-            else { return .unmodelled }
+            else { return .unmodelled(writtenRegisters: []) }
             return .conditionalSelect(
                 destination: destination,
                 whenConditionHolds: whenConditionHolds,
@@ -257,13 +284,20 @@ public enum CapstoneThunkDecoder {
             // decoder walk straight past a function's end into the next one.
             return .returnFromFunction
         case .br, .braa, .brab:
-            guard let register = register(at: 0, of: operands) else { return .unmodelled }
+            guard let register = register(at: 0, of: operands) else { return .unmodelled(writtenRegisters: []) }
             return .indirectBranch(register: register)
+        case .brk:
+            return .trap
+        case .pacia, .pacib, .pacda, .pacdb, .paciza, .pacizb, .pacdza, .pacdzb,
+             .autia, .autib, .autda, .autdb, .autiza, .autizb, .autdza, .autdzb,
+             .xpaci, .xpacd:
+            guard let register = register(at: 0, of: operands) else { return .unmodelled(writtenRegisters: []) }
+            return .signOrAuthenticatePointer(register: register)
         case .blr, .blraa, .blrab, .blraaz, .blrabz:
-            guard let register = register(at: 0, of: operands) else { return .unmodelled }
+            guard let register = register(at: 0, of: operands) else { return .unmodelled(writtenRegisters: []) }
             return .indirectCall(register: register)
         default:
-            return .unmodelled
+            return .unmodelled(writtenRegisters: [])
         }
     }
 
