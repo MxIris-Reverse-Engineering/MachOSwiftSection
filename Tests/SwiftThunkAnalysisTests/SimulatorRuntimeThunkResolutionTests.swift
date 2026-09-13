@@ -102,18 +102,20 @@ struct SimulatorStandaloneSwiftUIThunkTests {
     }
 
     /// SwiftUICore's two `Mutex` fields whose thunks call a compiler-merged
-    /// accessor (`…MaTm`, the real accessor arriving as a function-pointer
-    /// argument) are the shape this batch leaves alone. What they must never
-    /// do is take the merged symbol's own name: that printed
-    /// `Array<LayoutDirection>` for a `Mutex<Storage>` once. A field the
-    /// reader does read through a local specialized accessor is asserted
-    /// alongside, so the refusal is not a blanket one.
-    @Test func aMergedAccessorsSymbolIsNotTakenForTheType() throws {
+    /// accessor (`…MaTm`): the real accessor arrives in `x3` from a GOT bind
+    /// and the merged body only probes a cache and `blr`s it, so the type
+    /// is read by following the call into that body with the caller's
+    /// registers. The merged symbol's own name (`Optional<Any>`, one of the
+    /// bodies folded together) must never be the answer — it once printed
+    /// `Array<LayoutDirection>` for a `Mutex<Storage>` — and the field the
+    /// reader reads through a local specialized accessor is asserted
+    /// alongside.
+    @Test func aMergedAccessorIsReadThroughItsBody() throws {
         let machOFile = try load(path: SimulatorRuntimeThunkFixtures.standaloneSwiftUICorePath)
         let settingsFields = try resolvedFieldTexts(ofTypeNamed: "SwiftUI.PlatformAccessibilitySettingsDefinition", in: machOFile)
-        #expect(settingsFields["cache"]?.hasPrefix("accessor function at") == true, "\(String(describing: settingsFields["cache"]))")
+        #expect(settingsFields["cache"] == "Synchronization.Mutex<SwiftUI.PlatformAccessibilitySettingsDefinition.(Storage in _DD012B99EE4F6885B033D7D23FEF69C0)>")
         let imageCacheFields = try resolvedFieldTexts(ofTypeNamed: "SwiftUI.NamedImage.Cache", in: machOFile)
-        #expect(imageCacheFields["data"]?.hasPrefix("accessor function at") == true, "\(String(describing: imageCacheFields["data"]))")
+        #expect(imageCacheFields["data"] == "Synchronization.Mutex<SwiftUI.NamedImage.Cache.(Data in _8E7DCD4CEB1ACDE07B249BFF4CBC75C0)>")
         let storageFields = try resolvedFieldTexts(ofTypeNamed: "SwiftUI.MaterialBackdropProxy.(Storage in _DEF3755CDC6B87C0368876C9F497EC3D)", in: machOFile)
         #expect(storageFields["data"] == "Synchronization.Mutex<SwiftUI.MaterialBackdropProxy.(Storage in _DEF3755CDC6B87C0368876C9F497EC3D).Data>")
     }
@@ -184,3 +186,38 @@ struct SimulatorCacheSwiftUIThunkTests {
         #expect(conditionalWitnessCount > 0, "the iOS 27 simulator's SwiftUI is expected to carry availability-conditional witnesses")
     }
 }
+
+/// The same two SwiftUICore fields on the running system's shared cache,
+/// where the merged body's `x3` is a *rebased* pointer to
+/// libswiftSynchronization's accessor rather than a bind: a register call
+/// through an address outside this image has to reach the cache's image
+/// table, not this image's indexes (whose offset conversion answers for the
+/// whole cache and so cannot tell a foreign address apart). Gated on macOS
+/// 26, where SwiftUICore carries these fields; the private discriminators
+/// move with the build, so only the type's own spelling is pinned.
+@Suite(.serialized, .enabled(if: ProcessInfo.processInfo.operatingSystemVersion.majorVersion >= 26))
+struct HostCacheSwiftUICoreMergedAccessorTests {
+    @Test func theMergedAccessorFieldsAreReadOnTheHostCache() throws {
+        let cache = try DyldCache(path: .current)
+        let machOFile = try #require(cache.machOFile(named: .SwiftUICore), "the running system's cache has no SwiftUICore")
+        var texts: [String: String] = [:]
+        for wrapper in try machOFile.swift.typeContextDescriptors {
+            let descriptor = wrapper.typeContextDescriptor
+            guard let name = try? SymbolicDemangler.demangleContext(for: wrapper.asContextDescriptorWrapper, in: machOFile).print(using: .default),
+                  name == "SwiftUI.PlatformAccessibilitySettingsDefinition" || name == "SwiftUI.NamedImage.Cache",
+                  let fieldDescriptor = try? descriptor.fieldDescriptor(in: machOFile)
+            else { continue }
+            let ownerLayout = AccessorThunkOwnerLayout(genericContext: try descriptor.genericContext(in: machOFile))
+            for record in try fieldDescriptor.records(in: machOFile) {
+                guard let mangledTypeName = try? record.mangledTypeName(in: machOFile),
+                      let typeNode = try? SymbolicDemangler.demangleType(for: mangledTypeName, in: machOFile),
+                      typeNode.contains(Node.Kind.accessorFunctionReference)
+                else { continue }
+                texts["\(name).\(try record.fieldName(in: machOFile))"] = typeNode.resolvingAccessorFunctionReferences(in: machOFile, ownerLayout: ownerLayout).print(using: .default)
+            }
+        }
+        #expect(texts["SwiftUI.PlatformAccessibilitySettingsDefinition.cache"]?.hasPrefix("Synchronization.Mutex<SwiftUI.PlatformAccessibilitySettingsDefinition.(Storage in ") == true, "\(texts)")
+        #expect(texts["SwiftUI.NamedImage.Cache.data"]?.hasPrefix("Synchronization.Mutex<SwiftUI.NamedImage.Cache.(Data in ") == true, "\(texts)")
+    }
+}
+

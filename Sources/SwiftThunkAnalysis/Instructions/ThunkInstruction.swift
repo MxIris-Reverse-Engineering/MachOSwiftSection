@@ -112,6 +112,13 @@ public enum ThunkOperation: Sendable, Hashable {
     /// call does; where it goes is not tracked.
     case indirectBranch(register: ThunkRegister)
 
+    /// `blr <register>` / `blraa <register>, <modifier>` — a call through a
+    /// register. Control comes back, so it does not end a function; where it
+    /// goes is whatever the register holds, which the evaluator tracks — a
+    /// function pointer loaded from a GOT slot is what a compiler-merged
+    /// accessor's `blr x3` calls.
+    case indirectCall(register: ThunkRegister)
+
     /// `cbz <register>, #<target>`.
     case branchIfZero(register: ThunkRegister, target: UInt64)
 

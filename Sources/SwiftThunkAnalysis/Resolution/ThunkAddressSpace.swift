@@ -44,11 +44,16 @@ package struct ThunkAddressSpace: Sendable {
     /// standalone file, where offsets are ordinary file offsets.
     private let sharedRegionStart: UInt64?
 
-    /// File-offset → address mapping for the standalone case.
-    private let segments: [(fileOffset: Int, fileSize: Int, virtualMemoryAddress: UInt64)]
+    /// File-offset → address mapping for the standalone case, and the
+    /// address ranges the image spans for ``containsAddress(_:)``.
+    private let segments: [(fileOffset: Int, fileSize: Int, virtualMemoryAddress: UInt64, virtualMemorySize: UInt64)]
 
     /// Where the image's mach header sits: the start of `__TEXT`.
     private let textSegmentAddress: UInt64?
+
+    /// The addresses `__TEXT` spans — where code the evaluator may follow
+    /// into lives.
+    private let textSegmentRange: Range<UInt64>?
 
     package init(of machO: MachOFile) {
         if let cache = machO.cache {
@@ -57,9 +62,29 @@ package struct ThunkAddressSpace: Sendable {
             self.sharedRegionStart = nil
         }
         segments = machO.segments.map {
-            (fileOffset: $0.fileOffset, fileSize: $0.fileSize, virtualMemoryAddress: UInt64($0.virtualMemoryAddress))
+            (fileOffset: $0.fileOffset, fileSize: $0.fileSize, virtualMemoryAddress: UInt64($0.virtualMemoryAddress), virtualMemorySize: UInt64($0.virtualMemorySize))
         }
-        textSegmentAddress = machO.segments.first { $0.segmentName == "__TEXT" }.map { UInt64($0.virtualMemoryAddress) }
+        let textSegment = machO.segments.first { $0.segmentName == "__TEXT" }
+        textSegmentAddress = textSegment.map { UInt64($0.virtualMemoryAddress) }
+        textSegmentRange = textSegment.map { UInt64($0.virtualMemoryAddress) ..< UInt64($0.virtualMemoryAddress) &+ UInt64($0.virtualMemorySize) }
+    }
+
+    /// Whether `address` lies in this image's `__TEXT` segment.
+    package func isInTextSegment(_ address: UInt64) -> Bool {
+        textSegmentRange?.contains(address) ?? false
+    }
+
+    /// Whether `address` lies in any of this image's segments.
+    ///
+    /// Not the same question as ``offset(forAddress:)`` answering: inside a
+    /// shared cache that conversion is one subtraction and answers for
+    /// EVERY address in the cache, another image's included — so a callee
+    /// reached through a rebased pointer (libswiftSynchronization's `Mutex`
+    /// accessor from SwiftUICore) has an offset here that means nothing to
+    /// this image's indexes. This is the test that sends such an address to
+    /// the cache's image table instead.
+    package func containsAddress(_ address: UInt64) -> Bool {
+        segments.contains { address >= $0.virtualMemoryAddress && address < $0.virtualMemoryAddress &+ $0.virtualMemorySize }
     }
 
     /// An `ExportedSymbol.offset` → address.

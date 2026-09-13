@@ -43,7 +43,16 @@ fileprivate protocol MachOThunkEnvironmentLogging {}
 /// 4. Anything else is ``ThunkCallee/unknown``. The availability check is
 ///    one such: `__isPlatformVersionAtLeast` is compiler-rt's, statically
 ///    linked and unnamed, and the shape recognizer identifies it by its four
-///    immediates, not by name.
+///    immediates, not by name. So is a compiler-merged accessor (`…MaTm`),
+///    whose body the evaluator then asks for through
+///    ``instructions(ofFunctionAt:)`` and runs itself.
+///
+/// A call through a register goes the same way once the register's value
+/// is known: a GOT slot that *binds* to a name answers through
+/// ``callee(boundInSlotAt:)`` (the standalone case — the file holds no
+/// address for the callee), a slot that rebases to an address in another
+/// cache image answers through ``callee(at:)`` with that address, which
+/// falls to the foreign-image lookup when it lies outside this image.
 ///
 /// A metadata accessor's argument slots come from its descriptor's generic
 /// context, in the order IRGen's `enumerateGenericSignatureRequirements`
@@ -63,6 +72,11 @@ package final class MachOThunkEnvironment: ThunkEvaluationEnvironment, MachOThun
     private lazy var cacheImages: CacheImageResolver? = CacheImageResolver(cacheOf: machO)
     private lazy var dependencyImages: DependencyImageResolver = DependencyImageResolver.resolver(for: machO)
     private var calleesByAddress: [UInt64: ThunkCallee] = [:]
+    private var calleesBySlotAddress: [UInt64: ThunkCallee] = [:]
+    private var instructionsByFunctionAddress: [UInt64: [ThunkInstruction]?] = [:]
+    /// Keyed by the address a callee was met at: a `bl`'s target, or — for
+    /// a callee reached through a GOT bind — the slot's address, which lies
+    /// in a data segment and cannot collide with code.
     package private(set) var accessorOriginsByAddress: [UInt64: AccessorOrigin] = [:]
     /// Bind names no search path could place, in the order they were met.
     package private(set) var unlocatedBindNames: [String] = []
@@ -131,6 +145,43 @@ package final class MachOThunkEnvironment: ThunkEvaluationEnvironment, MachOThun
         return callee
     }
 
+    package func callee(boundInSlotAt slotAddress: UInt64) -> ThunkCallee {
+        if let known = calleesBySlotAddress[slotAddress] { return known }
+        let callee = resolveBoundCallee(inSlotAt: slotAddress)
+        calleesBySlotAddress[slotAddress] = callee
+        return callee
+    }
+
+    /// How many bytes to read before decoding a followed function — the
+    /// reader's window, for the same reason: the decoder's instruction cap
+    /// is the real bound.
+    private static let functionWindowSize = 1024
+
+    package func instructions(ofFunctionAt address: UInt64) -> [ThunkInstruction]? {
+        if let known = instructionsByFunctionAddress[address] { return known }
+        let decoded = decodeFunction(at: address)
+        instructionsByFunctionAddress[address] = decoded
+        return decoded
+    }
+
+    /// The function at `address` decoded the way the reader decodes the
+    /// thunk itself, when the address is in this image's `__TEXT`.
+    private func decodeFunction(at address: UInt64) -> [ThunkInstruction]? {
+        guard addressSpace.isInTextSegment(address),
+              let offset = addressSpace.offset(forAddress: address),
+              let bytes: [UInt8] = try? machO.readElements(offset: offset, numberOfElements: Self.functionWindowSize)
+        else { return nil }
+        return try? CapstoneThunkDecoder.decodeFunction(
+            machineCode: Data(bytes),
+            startAddress: address,
+            maximumInstructionCount: CapstoneThunkDecoder.constructionMaximumInstructionCount,
+            isKnownFunction: { [self] target in
+                if case .unknown = callee(at: target) { return false }
+                return true
+            }
+        )
+    }
+
     package func pointer(at address: UInt64) -> UInt64? {
         guard let offset = addressSpace.offset(forAddress: address),
               let target = machO.resolveRebase(fileOffset: offset)
@@ -171,7 +222,13 @@ package final class MachOThunkEnvironment: ThunkEvaluationEnvironment, MachOThun
     // MARK: - Resolution
 
     private func resolveCallee(at address: UInt64) -> ThunkCallee {
-        guard let offset = addressSpace.offset(forAddress: address) else { return .unknown }
+        // An address outside this image is one a rebase produced — inside a
+        // cache, another image's function reached through a register. The
+        // segment test is deliberate: a cache image's offset conversion
+        // answers for the whole cache (see `ThunkAddressSpace.containsAddress`).
+        guard addressSpace.containsAddress(address), let offset = addressSpace.offset(forAddress: address) else {
+            return foreignCallee(at: address, targetAddress: address)
+        }
         if let descriptorOffset = accessorIndex.descriptorOffset(forAccessorOffset: offset) {
             return metadataAccessor(at: address, descriptorOffset: descriptorOffset, in: machO)
         }
@@ -205,6 +262,16 @@ package final class MachOThunkEnvironment: ThunkEvaluationEnvironment, MachOThun
             return .concreteTypeAccessor(symbolName: symbolName)
         }
         return foreignCallee(at: address, targetAddress: targetAddress)
+    }
+
+    /// What a GOT slot that binds by name refers to: a runtime entry point,
+    /// or another image's accessor located through the search paths.
+    private func resolveBoundCallee(inSlotAt slotAddress: UInt64) -> ThunkCallee {
+        guard let slotOffset = addressSpace.offset(forAddress: slotAddress),
+              let bindName = machO.resolveBind(fileOffset: slotOffset)
+        else { return .unknown }
+        if let runtimeEntryPoint = Self.runtimeEntryPoint(named: bindName) { return runtimeEntryPoint }
+        return dependencyCallee(at: slotAddress, bindName: bindName)
     }
 
     /// The GOT slot a stub at `address` loads its target from.

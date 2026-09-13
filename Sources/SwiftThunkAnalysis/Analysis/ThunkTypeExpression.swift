@@ -94,6 +94,22 @@ public protocol ThunkEvaluationEnvironment {
     /// The symbol the pointer-sized slot at `address` binds to or rebases
     /// onto (a GOT slot's), when the environment can name it.
     func slotSymbolName(at address: UInt64) -> String?
+    /// The function the pointer-sized slot at `slotAddress` *binds* to by
+    /// name: a standalone file's GOT entry for another image's function,
+    /// which holds no address until dyld fills it in. `.unknown` when the
+    /// slot is not a bind or the name cannot be classified. A slot that
+    /// already holds an address (a rebase) is read through ``pointer(at:)``.
+    func callee(boundInSlotAt slotAddress: UInt64) -> ThunkCallee
+    /// The instructions of the function starting at `address`, when it is
+    /// code the environment can decode — how the evaluator follows a call
+    /// into a function it cannot name. `nil` when the address is not code
+    /// the environment can read.
+    func instructions(ofFunctionAt address: UInt64) -> [ThunkInstruction]?
+}
+
+extension ThunkEvaluationEnvironment {
+    public func callee(boundInSlotAt slotAddress: UInt64) -> ThunkCallee { .unknown }
+    public func instructions(ofFunctionAt address: UInt64) -> [ThunkInstruction]? { nil }
 }
 
 /// Knows nothing: every call is unknown, every word unreadable. What the

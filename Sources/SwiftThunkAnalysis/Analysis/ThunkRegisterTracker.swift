@@ -69,7 +69,7 @@ public struct ThunkRegisterTracker: Sendable {
             forget(second)
         case .storeToMemory, .storePairToMemory, .indirectBranch:
             break
-        case .call:
+        case .call, .indirectCall:
             // AAPCS64: x0–x17 are caller-saved, so after a call only x19–x28
             // (and the frame/link registers) still hold what they held. The
             // availability check's own result lands in x0 and is read by the

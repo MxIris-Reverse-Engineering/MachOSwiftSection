@@ -259,6 +259,9 @@ public enum CapstoneThunkDecoder {
         case .br, .braa, .brab:
             guard let register = register(at: 0, of: operands) else { return .unmodelled }
             return .indirectBranch(register: register)
+        case .blr, .blraa, .blrab, .blraaz, .blrabz:
+            guard let register = register(at: 0, of: operands) else { return .unmodelled }
+            return .indirectCall(register: register)
         default:
             return .unmodelled
         }
