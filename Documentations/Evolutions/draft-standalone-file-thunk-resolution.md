@@ -67,7 +67,7 @@
 
 ### 4. G3 只记录形状，不做
 
-`…MaTm` 是编译器把多份相同的 accessor 体合并成一份、把差异（缓存槽、实参、真正的 accessor）提成参数的产物。要解它需要：把环境不认识的本镜像内函数按当前寄存器状态内联求值（深度限制）；解码 `blr xN`（现在 `br` / `braa` 归 `indirectBranch`，`blr` 落到 `unmodelled`）；让从 GOT 槽读出来的 bind 名能作为「函数引用」放在寄存器里。同一套机制也能覆盖剥符号后的 G2。放到下一个提案。
+`…MaTm` 是编译器把多份相同的 accessor 体合并成一份、把差异（缓存槽、实参、真正的 accessor）提成参数的产物。要解它需要：把环境不认识的本镜像内函数按当前寄存器状态内联求值（深度限制）；解码 `blr xN`（现在 `br` / `braa` 归 `indirectBranch`，`blr` 落到 `unmodelled`）；让从 GOT 槽读出来的 bind 名能作为「函数引用」放在寄存器里。同一套机制也能覆盖剥符号后的 G2。放到下一个提案——已由 [merged-accessor-inline-evaluation](draft-merged-accessor-inline-evaluation.md) 完成。
 
 ### 测试
 

@@ -107,7 +107,7 @@ fallback 那一支通常是「用另一条旧系统认识的 mangled name 现场
 
 从 thunk 的地址读 1024 字节，交给 Capstone（一个开源反汇编库，只启用 ARM64 后端）解码成指令，最多 160 条，遇到「函数结束」就停。什么算函数结束是个坑：ARM64e 的返回指令写作 `retab` / `retaa` 而不是 `ret`，第一版解码器不认识它，读过了函数末尾进了下一个函数；还有前面样本一里的 `b`——它跳去的地方如果是另一个已知函数，当前函数就到此为止。这两个坑都在 0029 修掉了。
 
-解码出来的不是 Capstone 的原始对象，而是我们自己的一小套「指令词汇表」（`ThunkInstruction`）：搬数（`mov`）、算地址（`adrp` / `add`）、读内存（`ldr`）、写内存（`str`）、比较（`cmp`）、条件选择（`csel`）、条件跳转（`cbz` / `cbnz` / `b.eq`）、调用（`bl`）、跳转（`b`）、返回。这样后面的分析层可以用手写的指令序列做单元测试，不需要真实二进制。
+解码出来的不是 Capstone 的原始对象，而是我们自己的一小套「指令词汇表」（`ThunkInstruction`）：搬数（`mov`）、算地址（`adrp` / `add`）、读内存（`ldr`）、写内存（`str`）、比较（`cmp`）、条件选择（`csel`）、条件跳转（`cbz` / `cbnz` / `b.eq`）、调用（`bl`，以及经寄存器的 `blr`）、跳转（`b`，以及经寄存器的 `br`）、返回。这样后面的分析层可以用手写的指令序列做单元测试，不需要真实二进制。
 
 ### 第二步：给每个调用目标起名
 
@@ -116,9 +116,11 @@ thunk 里每个 `bl` / `b` 都要知道「调的是谁」，否则无从推演�
 - **同一镜像里某个类型的 metadata accessor**：预先扫一遍 `__swift5_types`，把每个类型描述符里记录的 accessor 地址建成索引（`MetadataAccessorIndex`），地址一查就知道是哪个类型。
 - **跨镜像的调用**：共享缓存里调别的 framework 不是直接跳过去，而是先跳到一小段桥接代码（stub），stub 从一个槽位（GOT 槽）里读出真正的目标地址再跳。我们解码 stub、找到槽位、读出目标，再按目标地址查它落在哪个镜像（主缓存的 image 表）、打开那个镜像查它的 accessor 索引或导出表。
 - **runtime 的几个入口**按名字认：`__isPlatformVersionAtLeast`（版本检查）、`swift_getWitnessTable`（拿 protocol 的见证表）、`swift_checkMetadataState`（等 metadata 就绪，对我们来说是恒等）、`__swift_instantiateConcreteTypeFromMangledName`（按另一条 mangled name 实例化）。
-- 认不出的：不猜，让那一支降级。
+- **经寄存器的调用**（`blr x3`）：看寄存器里装的是什么。从 GOT 槽读出来的值有两种：槽里已经是地址（rebase）就按地址认；槽里只有名字（bind，独立文件）就把名字按上面跨镜像的办法认成一个「函数引用」放在寄存器里。
+- **认不出、但在本镜像 `__TEXT` 里的函数**：不放弃，把它的指令也解码出来交给第三步跟进去算（见「被调函数没名字怎么办」）。
+- 其余认不出的：不猜，让那一支降级。
 
-这里有一个反复踩过的坑值得单独记住：共享缓存里，`MachOSwiftSection` 用的「偏移」是 `虚拟地址 − 共享区域起始地址`，不是文件偏移。`segment.fileOffset`、`MachOFile.fileOffset(of:)`、`FullDyldCache.address(of:)` 是三套互不相同的账，混用不会报错，只会算出一个像模像样但错了几十字节的地址，最后指向隔壁 framework 的数据。
+这里有一个反复踩过的坑值得单独记住：共享缓存里，`MachOSwiftSection` 用的「偏移」是 `虚拟地址 − 共享区域起始地址`，不是文件偏移。`segment.fileOffset`、`MachOFile.fileOffset(of:)`、`FullDyldCache.address(of:)` 是三套互不相同的账，混用不会报错，只会算出一个像模像样但错了几十字节的地址，最后指向隔壁 framework 的数据。同一个减法还有另一面：它对整个 cache 里的任何地址都算得出偏移，所以「这个地址在不在本镜像」不能靠它答，要按段范围判断（`ThunkAddressSpace.containsAddress`）——合并 accessor 那批第一版在 cache 上没解出来，就是把 rebase 出来的 libswiftSynchronization 地址当成了本镜像地址。
 
 ### 第三步：符号求值——寄存器里装的不是数，是「类型表达式」
 
@@ -137,6 +139,16 @@ thunk 里每个 `bl` / `b` 都要知道「调的是谁」，否则无从推演�
 控制流也照走：函数内的 `b` 就跳过去；到已知函数的 `b` 是尾调用，等于「调它然后返回它的结果」。条件分支分两种：**能判定的**直接判定——比如样本三那个运行时标志，我们当它是 true；比较立即数也算得出来。**判定不了的**只有一种：版本检查的结果。遇到它就按两种策略各跑一遍（`BranchPolicy`：假设条件为假 / 为真），两次的结果就是 `if #available` 的两支；被判定的那条指令的种类（`cbz` / `cbnz` / `csel eq` / `csel ne`）说明哪一次对应「版本满足」。
 
 求值器（`ThunkTypeEvaluator`）最多走 1024 步，防止死循环。
+
+#### 被调函数没名字怎么办
+
+编译器会把一批长得一样的函数体合并成一份（符号以 `MaTm` 结尾，demangle 出来是 `merged type metadata accessor for …`）。典型的一份是「查一下这个惰性缓存，没命中就用这个实参调这个 accessor，存回缓存」：缓存槽、实参 metadata、accessor 三样东西都变成了参数（x1、x2、x3），函数体只剩 `ldr x0, [x1]; cbz …; blr x3; stlr x0, [x19]`。SwiftUICore 里 858 个这种符号对应 260 个函数体，其中一个地址上挂着 122 个名字——所以符号名说明不了任何事，类型信息全在调用方的寄存器里。
+
+求值器遇到一个既不是 accessor、也不是 runtime 入口、又在本镜像 `__TEXT` 里的调用目标时，就把它当成「带着现在的寄存器继续执行」：新开一个子求值器，指令换成被调函数的，寄存器表和栈模型整份复制过去，跑完后把它离开时 x0 里的值当成这次调用的结果，x1–x17 作废，x19–x28、sp 和调用方自己的栈模型保持原样（这是 ARM64 调用约定保证的）。子求值器先按调用方的分支策略跑，跑出来没类型而且它自己判定过某个条件，就换相反的策略再跑一遍，取有类型的那次——缓存命中那一支返回的是读不出来的缓存内容，未命中那一支才构造类型，和分析器对无版本检查的 thunk 用的是同一条规则。
+
+三个绝不：**可用性检查的调用绝不跟进**（它的结果必须保持未知，后面的 `cbz` 才轮得到策略跑两次；分析器把它的地址传给求值器）；**正在跟进的函数不再进第二次**（递归）；**深度上限 3**。经寄存器的调用（`blr`）没有静态目标，分析器的单查找回退永远不会拿它当答案；被跟进的函数里发生的调用都记在进入它的那条指令名下，所以回退数调用次数时看得穿这层跟进。
+
+顺带的好处：第二步里那条「专用 accessor 的本地符号被剥掉就走不了」的路现在也通了——剥了符号的专用 accessor 就是一个「本镜像内没名字的函数」，跟进去照样能算。
 
 ### 第四步：把表达式变回类型名
 
@@ -159,7 +171,7 @@ thunk 里每个 `bl` / `b` 都要知道「调的是谁」，否则无从推演�
 
 1. **调用目标是别的镜像里的 accessor，只有名字。** 处理办法是把名字当钥匙：先用 `MachODependencies` 按搜索路径找到根文件直接链接的那几个镜像（第三方 app 通常在宿主的 cache 里找到 libswiftCore 和 SwiftUI；老模拟器运行时在它的 `RuntimeRoot` 目录树里找；iOS 27+ 模拟器在它自己的 cache 里找），在它们的导出表里查这个名字，查到就用那个镜像的 accessor 索引拿到 descriptor，后面和 cache 完全一样。搜索路径默认从文件自己的位置推断再加宿主 cache；`swift-section` 的 `--dependency-search-path` 可以手动给（模拟器里的 app 装在设备目录下、不在运行时目录里，推断不到）。找不到的名字会记在限制列表里（`calleeInUnlocatedImage`），输出保持占位。
 2. **调用目标是本镜像里一个带符号的「专用」accessor。** 编译器会为某个具体实例化（比如 `Mutex<Set<String>>`）单独生成一个不带参数的 accessor，符号名就是 `type metadata accessor for Mutex<Set<String>>`。名字本身就是答案，直接 demangle 取出类型即可；只接受名字里已经绑定了全部实参的（`boundGeneric…`），没绑定的是 descriptor 自己的 accessor，归索引管。剥掉了本地符号的 App Store 二进制走不了这条路。
-3. **编译器合并出来的 accessor（符号以 `MaTm` 结尾）。** 若干个长得一样的 accessor 被合成一份，真正要调的 accessor 变成了一个函数指针参数，函数体里是 `blr x3`。符号名（例如 `Optional<Any>`）和真实类型毫无关系。这一种**还没做**：要解它得把评估器扩成能带着调用方的寄存器状态去内联求值另一个函数、认识 `blr`、让 GOT 里读出的名字能当函数值。SwiftUICore 里两个 `Mutex` 字段（`PlatformAccessibilitySettingsDefinition.cache`、`NamedImage.Cache.data`）就是这种，macOS cache 上同样是占位。
+3. **编译器合并出来的 accessor（符号以 `MaTm` 结尾）。** 若干个长得一样的 accessor 被合成一份，真正要调的 accessor 变成了一个函数指针参数，函数体里是 `blr x3`。符号名（例如 `Optional<Any>`）和真实类型毫无关系。这一种在第二个提案里做掉了：求值器跟进那份函数体、认识 `blr`、把 GOT 里读出的 bind 名当函数引用，见上面「被调函数没名字怎么办」。SwiftUICore 里两个 `Mutex` 字段（`PlatformAccessibilitySettingsDefinition.cache`、`NamedImage.Cache.data`）就是这种，在 macOS cache 上也是同一份函数体（那里 x3 是 rebase 出来的地址，走的是同一条路）。用当前工具链也能造出这个形状：给 `swiftc` 加 `-Xfrontend -disable-concrete-type-metadata-mangled-name-accessors` 让具体类型的 `Mutex<…>` 字段走 accessor 而不是按 mangled name 实例化，三个同形的惰性 accessor 就会被优化器合并成一份 `…MaTm`（`MergedAccessorFixtureTests`）。
 
 这次实测还抓到一个**读错**：分析器在求值器给不出某一支结果时会退回「这一支只有一次调用就取它」，但它切分支只切到两支汇合的地方，汇合之后共享的尾巴（把查到的类型塞给 `ModifiedContent` 的 accessor，用 `b` 尾调用）没算进去。cache 上求值器总能成功所以从不触发；独立文件上一触发就把中间值当答案，`OnModifierKeysChangedModifier.Body` 印成 `_TaskModifier2`，真实答案是 `ModifiedContent<_ViewModifier_Content<OnModifierKeysChangedModifier>, _TaskModifier2>`。现在求值器把整条路径上的每次调用（`bl` 和离开函数的 `b`）都记下来，回退只在「分支之后恰好一次调用、随后 `ret`」时才用；对泛型类型的 accessor 更是不允许在没有实参的情况下命名。
 
@@ -188,13 +200,13 @@ Sources/SwiftThunkAnalysis/
 │   └── CapstoneThunkDecoder.swift              # 第一步：Capstone 解码 → 词汇表；函数边界判定
 ├── Analysis/
 │   ├── ThunkTypeExpression.swift               # 第三步的值域：类型表达式、被调方分类、求值环境协议
-│   ├── ThunkTypeEvaluator.swift                # 第三步：符号求值器，照走控制流，两种分支策略
+│   ├── ThunkTypeEvaluator.swift                # 第三步：符号求值器，照走控制流，两种分支策略；跟进本镜像内没名字的被调函数
 │   ├── AccessorThunkAnalyzer.swift             # 两次策略求值 → 候选列表（哪次是满足支）
 │   ├── AccessorThunkProgram.swift              # 候选、条件、版本检查、降级原因的数据结构
 │   └── ThunkRegisterTracker.swift              # 0028 遗留的寄存器跟踪（单次查表读法的回落）
 └── Resolution/
     ├── AccessorThunkReader.swift               # 入口：偏移 → 反汇编 → 分析 → 每支的类型节点
-    ├── MachOThunkEnvironment.swift             # 第二步：给调用目标起名（accessor 索引、本地符号、stub、槽位、跨镜像）
+    ├── MachOThunkEnvironment.swift             # 第二步：给调用目标起名（accessor 索引、本地符号、stub、槽位、跨镜像、bind 槽 → 函数引用）；解码被跟进的函数
     ├── DependencyImageResolver.swift           # 独立文件：bind 名 → 按搜索路径找到的依赖镜像 → 它导出表里的位置（按根镜像共享）
     ├── MetadataAccessorIndex.swift             # accessor 地址 → 类型描述符（按镜像缓存）
     ├── ThunkAddressSpace.swift                 # 共享缓存偏移与地址的换算（三套账的坑就在这里收口；导出表偏移是第四套：相对 mach header）
@@ -214,9 +226,10 @@ Sources/SwiftDeclarationRendering/
 
 ## 验证与怎么信它
 
-- **合成指令序列的单元测试**（`ThunkTypeEvaluatorTests`、`AccessorThunkAnalyzerTests`）：不用二进制，手写十几条指令钉每条求值规则——accessor 链与尾调用、栈传参、见证表跳过、未知调用降级、缓存探测形态、常量 metadata、mangled name 实例化。
+- **合成指令序列的单元测试**（`ThunkTypeEvaluatorTests`、`AccessorThunkAnalyzerTests`）：不用二进制，手写十几条指令钉每条求值规则——accessor 链与尾调用、栈传参、见证表跳过、未知调用降级、缓存探测形态、常量 metadata、mangled name 实例化、跟进合并函数体（含递归 / 深度 / 可用性检查不跟进 / 经寄存器的调用不进回退）。
+- **现场编译的 fixture**（`StandaloneFileThunkResolutionTests`、`MergedAccessorFixtureTests`）：跨镜像 bind 的泛型 `Mutex<Set<Element>>` 字段，和用前端开关造出来的合并 accessor（三个 `Mutex<本地 struct>` 字段，带符号与剥掉本地符号两份都要读成一样）。
 - **fixture**（`FieldRecordThunkResolutionTests`、两套快照）：`SymbolTestsCore` 里 `AccessorFunctionReferences` 命名空间的 `~Copyable` 字段，要求读成源码声明的 `NoncopyableResourceTest` / `NoncopyableGenericBoxTest<Int>`，不随系统版本漂移。
-- **真实框架**（`AccessorThunkReaderTests`、`OpaqueTypeRenderingIntegrationTests`）：SwiftUI 的 17 条 witness 全部解出、两支都在、注释打出来。
+- **真实框架**（`AccessorThunkReaderTests`、`OpaqueTypeRenderingIntegrationTests`、`HostCacheSwiftUICoreMergedAccessorTests`）：SwiftUI 的 17 条 witness 全部解出、两支都在、注释打出来；SwiftUICore 两个合并 accessor 字段在宿主 cache 上读成 `Mutex<…>`。
 - **oracle 测试**（`ConstructedThunkOracleTests`）：这是整套功能里最重要的一条。对 SwiftUI 每个非泛型 conformer 的每条 kind-9 witness，离线读出的答案必须和进程内 runtime 执行 thunk 得到的答案逐字相等（私有上下文的拼写做归一化）。它抓的正是「真实、全限定、错误」的读法——0028 第一版的两处误读（漏掉尾调用、把中间结果当答案）都是它揪出来的。
 - **调查用探针**（`RealThunkShapeProbe`、`ThunkResolutionSurveyProbe`，默认禁用）：把 SwiftUI 每个不同形态的 thunk 或每条引用的解析结果打印出来，遇到新形态时临时启用看一眼。
 
@@ -229,8 +242,8 @@ Sources/SwiftDeclarationRendering/
 | 泛型 conformer 的进程内解析 | runtime 答 nil，回落离线读法 |
 | class conformer 的进程内解析 | 没接（实参区偏移不是常量，也没有实测样本） |
 | `csel` 的条件码没建模 | 那一支留占位符（在两个真类型之间抛硬币比占位符更糟） |
-| 独立文件里调用目标是编译器合并的 `…MaTm` accessor | 留占位符；需要跨函数内联求值，见「独立文件和 cache 差在哪」。它的符号名（`merged type metadata accessor for Any?`）是合并前某一份的名字，绝不能当答案——曾把 `Mutex<Storage>` 印成 `Array<LayoutDirection>` |
-| 独立文件里专用 accessor 的本地符号被剥掉 | 留占位符；名字没了就只剩上面那条路 |
+| 被跟进的函数又调了认不出、也解码不了的东西；或跟进深度超过 3；或递归 | 那一支留占位符。合并 accessor 的符号名（`merged type metadata accessor for Any?`）是合并前某一份的名字，仍然绝不当答案——曾把 `Mutex<Storage>` 印成 `Array<LayoutDirection>` |
+| 被跟进的函数在栈上建实参缓冲区（写回式 `stp` 之后再 `str`） | 写回式栈访问没建模，那一支留占位符；目前没有样本 |
 | 独立文件的依赖镜像找不到（bind 名没有镜像导出它） | 留占位符，限制列表里记 `calleeInUnlocatedImage`；给 `--dependency-search-path` 或宿主传路径 |
 
 ## 术语对照
@@ -248,12 +261,14 @@ Sources/SwiftDeclarationRendering/
 | stub / GOT 槽 | 跨镜像调用的桥接代码和它读的地址槽位 |
 | bind / rebase | GOT 槽位的两种内容：bind 是一个符号名，加载时才由 dyld 换成地址（独立文件）；rebase 是已经写好的地址（cache 里）|
 | tail call | 用 `b` 跳到另一个函数、把它的返回值当自己的返回值；不会跳回来 |
+| `blr` / `br` | 经寄存器的调用 / 跳转：目标不写在指令里，而是寄存器里当时的值 |
+| merged function（`…Tm`） | 编译器把若干字节相同的函数体合并成一份；符号名保留其中一份的名字，看名字猜不出调用方要的是哪一个 |
 | SE-0360 | 允许 `some P` 在 `if #available` 两支返回不同类型的 Swift 提案 |
 | `__isPlatformVersionAtLeast` | compiler-rt 的版本检查函数，参数是平台编号和三段版本号 |
 
 ## 延伸阅读
 
 - 提案 [0028](../Evolutions/0028-offline-opaque-accessor-thunk-resolution.md)（离线反汇编读取、两支进模型、进程内路径）和 [0029](../Evolutions/0029-thunk-type-construction-evaluation.md)（符号求值器、field record 接入），决策日志里有每一步为什么这样做。
-- 提案 [standalone-file-thunk-resolution](../Evolutions/draft-standalone-file-thunk-resolution.md)（独立文件：回退误判、跨镜像 bind、带符号的专用 accessor；合并 accessor 留待后续）。
+- 提案 [standalone-file-thunk-resolution](../Evolutions/draft-standalone-file-thunk-resolution.md)（独立文件：回退误判、跨镜像 bind、带符号的专用 accessor）和 [merged-accessor-inline-evaluation](../Evolutions/draft-merged-accessor-inline-evaluation.md)（合并 accessor：跟进被调函数、`blr`、bind 槽当函数引用）。
 - [AccessorFunctionReferenceRendering.md](AccessorFunctionReferenceRendering.md)：渲染路径的演进阶梯（占位 → 进程内 → 离线反汇编 → 类型构造求值）与实测数据。
-- 任务报告：[2026-09-11 首批](TaskReports/2026-09-11-offline-accessor-thunk-resolution.md)、[2026-09-11 收尾](TaskReports/2026-09-11-accessor-thunk-resolution-follow-up.md)、[2026-09-12 求值器与后续](TaskReports/2026-09-12-thunk-type-construction-evaluation.md)。
+- 任务报告：[2026-09-11 首批](TaskReports/2026-09-11-offline-accessor-thunk-resolution.md)、[2026-09-11 收尾](TaskReports/2026-09-11-accessor-thunk-resolution-follow-up.md)、[2026-09-12 求值器与后续](TaskReports/2026-09-12-thunk-type-construction-evaluation.md)、[2026-09-13 独立文件](TaskReports/2026-09-13-standalone-file-thunk-resolution.md)、[2026-09-13 合并 accessor](TaskReports/2026-09-13-merged-accessor-inline-evaluation.md)。
