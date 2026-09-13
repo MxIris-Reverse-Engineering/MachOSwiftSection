@@ -176,6 +176,12 @@ thunk 里每个 `bl` / `b` 都要知道「调的是谁」，否则无从推演�
 
 这次实测还抓到一个**读错**：分析器在求值器给不出某一支结果时会退回「这一支只有一次调用就取它」，但它切分支只切到两支汇合的地方，汇合之后共享的尾巴（把查到的类型塞给 `ModifiedContent` 的 accessor，用 `b` 尾调用）没算进去。cache 上求值器总能成功所以从不触发；独立文件上一触发就把中间值当答案，`OnModifierKeysChangedModifier.Body` 印成 `_TaskModifier2`，真实答案是 `ModifiedContent<_ViewModifier_Content<OnModifierKeysChangedModifier>, _TaskModifier2>`。现在求值器把整条路径上的每次调用（`bl` 和离开函数的 `b`）都记下来，回退只在「分支之后恰好一次调用、随后 `ret`」时才用；对泛型类型的 accessor 更是不允许在没有实参的情况下命名。
 
+### 按名字引用的 opaque 类型
+
+thunk 之外还有一种「引用」不是指针：独立文件里的 witness 用到别的镜像的 `some` 结果时（SwiftUI 的 `SidebarListBody.CollectionViewBody.Body` 是 `ModifiedContent<opaque(View.staticIf), …>`，`View.staticIf` 在 SwiftUICore 里，两者模块名都叫 `SwiftUI`），mangled name 里对那个 opaque 描述符的引用是一个 GOT bind，也就是一个符号名。demangler 只能把名字解成「某某函数的 opaque 返回类型」（`opaqueReturnTypeOf`），描述符指针在这一步就没有；cache 里同一处是 rebase 到地址，读取器顺着地址跨镜像读，所以 macOS cache 上没有这一类。同一模块内的引用也没有：编译器直接把 underlying type 代进去了。
+
+`OpaqueTypeRewriter` 现在两种拼写都认：指针照旧；名字先查本镜像的符号索引，查不到就把描述符符号名重新 mangle 出来（`…QOMQ`），用独立文件那批的依赖镜像定位（同一套搜索路径，含 `--dependency-search-path`）找到导出它的镜像，在那个镜像里读描述符、demangle underlying type、解 thunk、展开嵌套，最后把本节点的泛型实参代进去。定位不到就原样返回。
+
 ## 进程内的另一条路
 
 在进程内读（`MachOImage`）时不需要这套推演：runtime 就在手边，直接让它执行 thunk。做法是把整条 witness 的 mangled name 连同 conforming type 的描述符和它 metadata 里的泛型实参区一起交给 `swift_getTypeByMangledNameInContext`——这正是 runtime 自己解析关联类型 witness 时的调用方式，thunk 第一条指令 `ldr x19, [x0]` 读的就是那块实参区，所以必须传真实的区，不能传空。答案通过 `_mangledTypeName` 拿回来再 demangle。
@@ -247,6 +253,7 @@ Sources/SwiftDeclarationRendering/
 | 被跟进的函数又调了认不出、也解码不了的东西；或跟进深度超过 3；或递归 | 那一支留占位符。合并 accessor 的符号名（`merged type metadata accessor for Any?`）是合并前某一份的名字，仍然绝不当答案——曾把 `Mutex<Storage>` 印成 `Array<LayoutDirection>` |
 | 被跟进的函数在栈上建实参缓冲区（写回式 `stp` 之后再 `str`） | 写回式栈访问没建模，那一支留占位符；目前没有样本 |
 | 遇到不认识的条件跳转（`b.cond` / `tbz`），且直行落点不是 `brk` | 那一支放弃，限制列表记 `conditionalBranchNotModelled`；今天的 thunk 里只有尾声那种，落点是 `brk`，按跳走处理 |
+| witness 按名字引用了别的镜像的 `some` 类型（独立文件对别的镜像的 bind），而搜索路径里找不到那个镜像 | dump 印 `<<opaque return type of …>>`；interface 目前会把节点的实参表当类型印出来（`typealias B = 那个 conformer`），是打印器的老问题，能定位时已不再发生 |
 | `_swift_runtimeSupportsNoncopyableTypes` 的 GOT 槽在 cache 文件里是 0（弱引用加载时才填） | 标志判定不了，靠两种策略：先跑的「条件为假」正好是支持那一支，所以答案对；第二次跑出来的 `() + 8` 命不了名，不会当答案 |
 | 独立文件的依赖镜像找不到（bind 名没有镜像导出它） | 留占位符，限制列表里记 `calleeInUnlocatedImage`；给 `--dependency-search-path` 或宿主传路径 |
 
@@ -275,7 +282,8 @@ Sources/SwiftDeclarationRendering/
 
 ## 延伸阅读
 
+- 进度看板：[OpaqueTypeResolutionProgress.md](OpaqueTypeResolutionProgress.md)，三种写法的状态、样本实测、七批与待办。
 - 提案 [0028](../Evolutions/0028-offline-opaque-accessor-thunk-resolution.md)（离线反汇编读取、两支进模型、进程内路径）和 [0029](../Evolutions/0029-thunk-type-construction-evaluation.md)（符号求值器、field record 接入），决策日志里有每一步为什么这样做。
-- 提案 [standalone-file-thunk-resolution](../Evolutions/draft-standalone-file-thunk-resolution.md)（独立文件：回退误判、跨镜像 bind、带符号的专用 accessor）、[merged-accessor-inline-evaluation](../Evolutions/draft-merged-accessor-inline-evaluation.md)（合并 accessor：跟进被调函数、`blr`、bind 槽当函数引用）和 [cache-stub-islands-and-unmodelled-instructions](../Evolutions/draft-cache-stub-islands-and-unmodelled-instructions.md)（iOS 设备 cache 的跳板；不认识的指令不再被跳过）。
+- 提案 [standalone-file-thunk-resolution](../Evolutions/draft-standalone-file-thunk-resolution.md)（独立文件：回退误判、跨镜像 bind、带符号的专用 accessor）、[merged-accessor-inline-evaluation](../Evolutions/draft-merged-accessor-inline-evaluation.md)（合并 accessor：跟进被调函数、`blr`、bind 槽当函数引用）、[cache-stub-islands-and-unmodelled-instructions](../Evolutions/draft-cache-stub-islands-and-unmodelled-instructions.md)（iOS 设备 cache 的跳板；不认识的指令不再被跳过）和 [by-name-opaque-reference-expansion](../Evolutions/draft-by-name-opaque-reference-expansion.md)（按名字引用别的镜像的 opaque 类型）。
 - [AccessorFunctionReferenceRendering.md](AccessorFunctionReferenceRendering.md)：渲染路径的演进阶梯（占位 → 进程内 → 离线反汇编 → 类型构造求值）与实测数据。
-- 任务报告：[2026-09-11 首批](TaskReports/2026-09-11-offline-accessor-thunk-resolution.md)、[2026-09-11 收尾](TaskReports/2026-09-11-accessor-thunk-resolution-follow-up.md)、[2026-09-12 求值器与后续](TaskReports/2026-09-12-thunk-type-construction-evaluation.md)、[2026-09-13 独立文件](TaskReports/2026-09-13-standalone-file-thunk-resolution.md)、[2026-09-13 合并 accessor](TaskReports/2026-09-13-merged-accessor-inline-evaluation.md)、[2026-09-13 stub island](TaskReports/2026-09-13-cache-stub-islands.md)。
+- 任务报告：[2026-09-11 首批](TaskReports/2026-09-11-offline-accessor-thunk-resolution.md)、[2026-09-11 收尾](TaskReports/2026-09-11-accessor-thunk-resolution-follow-up.md)、[2026-09-12 求值器与后续](TaskReports/2026-09-12-thunk-type-construction-evaluation.md)、[2026-09-13 独立文件](TaskReports/2026-09-13-standalone-file-thunk-resolution.md)、[2026-09-13 合并 accessor](TaskReports/2026-09-13-merged-accessor-inline-evaluation.md)、[2026-09-13 stub island](TaskReports/2026-09-13-cache-stub-islands.md)、[2026-09-13 按名引用](TaskReports/2026-09-13-by-name-opaque-reference-expansion.md)。
