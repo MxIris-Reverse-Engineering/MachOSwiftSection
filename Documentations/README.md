@@ -56,6 +56,10 @@ required by `Version.swift`'s bump contract).
 | [Modules/](Internal/Modules/README.md) | **按模块组织的参考文档系列**：每个库模块一篇权威入口（定位 / 子系统分工 / 跨文件契约 / 细节文档指路）；该目录 README 是覆盖状态表。 |
 | [Modules/MachODependencies.md](Internal/Modules/MachODependencies.md) | MachODependencies 模块参考：所有功能共用的依赖解析——搜索路径、load name 归一（与 `MachOImage(name:)` 的契约）、两种定位器（进程内 / 文件：install path 精确优先、bare name 排序兜底、cache 一次性索引）、direct / transitive 遍历与顺序契约、未解析清单；SwiftLayout 与 SwiftInterface 两处薄包装的语义边界与测试锚点。 |
 | [Modules/SwiftInterface.md](Internal/Modules/SwiftInterface.md) | SwiftInterface 模块参考：编排层定位与三种输出产品（单版本 interface / 两侧 diff / N 路 evolution），五个子系统（核心 builder、opaque 解析、共享 union 走查、diff 渲染、evolution 渲染）的分工、契约与测试锚点，消费入口速查。 |
+| [Modules/SwiftDeclaration.md](Internal/Modules/SwiftDeclaration.md) | SwiftDeclaration 模块参考：共享声明模型的定位与七个子系统，四条关键契约（持描述符引用而非胖 wrapper 的 materialization 纪律、名字按结构相等且 `kind` 不参与、四态 `ExportStatus` 的两种「无结论」作用域、库代码不写进程流与事件兜底）。 |
+| [Modules/MachOSymbols.md](Internal/Modules/MachOSymbols.md) | MachOSymbols 模块参考：符号索引层的定位与四个子系统（索引本体与非单射的名字键、查询出口与 detach 规则、跨 store 对账为什么必须用 `StructuralNodeReferenceKey`、大栈执行器），以及改结构布局要先 clean 等契约。 |
+| [Modules/SwiftLayout.md](Internal/Modules/SwiftLayout.md) | SwiftLayout 模块参考：静态布局引擎的能力边界与八个子系统（入口与递归求解、基础累加、已知布局表与 builtin 交叉校验、三个桥接、无实参也能算的那部分、ObjC 互操作、镜像查找面），四条关键契约（降级是产品的一部分、实参永远赢过推断、官方离线实现不是标准答案、跨模块偏移按具体部署算）。 |
+| [Modules/SwiftThunkAnalysis.md](Internal/Modules/SwiftThunkAnalysis.md) | SwiftThunkAnalysis 模块参考：kind-9 accessor thunk 符号求值的模块视角索引——五个子系统、按输入形态列的当前能力表（含 macOS 27 cache 打不开这个已知缺口）、三条故意的拒绝、dyld cache 偏移口径与 `ExportedSymbol.offset` 两个静默出错点、测试如何 scope 一个读不出来的 resolver。 |
 | [ProjectEvolutionLog.md](Internal/ProjectEvolutionLog.md) | 编年演进账本：逐工作弧（Foundation 解析 → demangler → 模块化 → SwiftLayout → SwiftDiffing/ABI evolution …）的时间段/动机/关键决策/落地文档/版本对应，含每批次必须追加的维护约定。 |
 | [ReviewAdjudications.md](Internal/ReviewAdjudications.md) | Review 已裁决清单：判定为「不修 / 误报」的发现及结论、理由、复审条件；每轮 code review 先对照此表，已裁决且理由仍成立的直接跳过。 |
 | [SwiftModularizationMigration.md](Internal/SwiftModularizationMigration.md) | The `SwiftInterface` monolith → layered peer modules refactor; where everything moved. |

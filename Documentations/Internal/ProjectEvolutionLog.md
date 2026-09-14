@@ -1720,6 +1720,16 @@
 - **关联文档**：[提案](../Evolutions/0033-by-name-opaque-reference-expansion.md)、[专题导读](AccessorThunkResolutionExplained.md)「按名字引用的 opaque 类型」一节、任务报告 [TaskReports/2026-09-13-by-name-opaque-reference-expansion.md](TaskReports/2026-09-13-by-name-opaque-reference-expansion.md)。
 - **对应版本**：默认输出变化（独立文件里按名引用的 witness），随下一次发布。
 
+## 2026-09-14 AGENTS.md 瘦身：指令文件回归指令，架构细节回归文档（提案 draft-agents-md-slimming）
+
+- **时间段**：2026-09-14。
+- **动机**：`AGENTS.md`（`CLAUDE.md` 是它的符号链接，Claude Code 与 Codex 共用）长到 528 行 / 177 KB，约 4.4 万 token 每会话常驻，68% 集中在 `### Core Modules` 一节（`SwiftThunkAnalysis` 一个 bullet 28 KB、`SwiftLayout` 27 KB），内容是历次提案结论的完整复述——违反本项目自己的文档分工约定（[Modules/README.md](Modules/README.md)：已有专题文档覆盖的写导读并链接，不复述），且两个 harness 都受损：Codex 对超预算的项目文档是**截断**，切点不可控；Claude Code 注入时附带「可能与你的任务无关」的免责声明，无关内容越多越容易连带跳过要紧规则。
+- **关键决策**：先**逐段核对**再删——从架构章节抽出 930 个标识符全量检索 `Documentations/`，加 13 项关键结论人工核查，结论是**零独有事实**（连「能力标志槽在 cache 文件里是 0、靠先跑的那一支拿到正确答案」这类都在 [AccessorThunkResolutionExplained.md](AccessorThunkResolutionExplained.md) 的陷阱表里）；反向扫出 93 条告诫语句，据此把留存判据从「重要的事实」收紧为**「不写在这里 agent 就会静默做错的操作」**，因此额外提升 8 条原先埋在长段落里的陷阱（`readElement(at:)` 的 Optional 推断、materialization 纪律、新 failure case 必须显式登记、被包裹的入口里不能起非结构化 `Task`、单类型成员查询必须用带 node 的重载、缓存锁内不能做大栈跳转、`SymbolTestsCore` 不得启用 CoroutineAccessors、`MachODependencies` 不记日志）。文件按 `<important if="...">` 条件块重组（系统提示自身使用的 XML 形状，对 Claude Code 是 harness 级相关性信号；Codex 主要靠目录作用域与长度，无害）。模块依赖图与全部命令原样保留，每模块留 2–3 行职责摘要 + 文档链接。
+- **落地模块**：无源码变更。`AGENTS.md` 528 行 / 177 KB → 257 行 / 30 KB（5.8×）；新增四篇模块参考文档接住中间层结论。
+- **验证**：41 条硬陷阱逐条 grep 校验全部在位；新旧文件的全部文档链接逐个校验存在（顺带修掉一个原文就有的坏链接——`SymbolicDemanglerCacheRetirement.md` 实际文件名仍是改名前的 `MetadataReaderCacheRetirement.md`）；命令逐条比对无遗漏。
+- **关联文档**：[提案](../Evolutions/draft-agents-md-slimming.md)、新增 [Modules/SwiftLayout.md](Modules/SwiftLayout.md) / [Modules/SwiftThunkAnalysis.md](Modules/SwiftThunkAnalysis.md) / [Modules/MachOSymbols.md](Modules/MachOSymbols.md) / [Modules/SwiftDeclaration.md](Modules/SwiftDeclaration.md)。
+- **对应版本**：无产品影响（纯文档）。
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节

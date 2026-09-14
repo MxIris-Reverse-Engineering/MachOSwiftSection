@@ -18,18 +18,19 @@
 | SwiftIndexing | — | 待写 |
 | SwiftPrinting | — | 待写 |
 | SwiftSpecialization | — | 待写 |
+| SwiftThunkAnalysis | [SwiftThunkAnalysis.md](SwiftThunkAnalysis.md) | ✅ 已写（入门：[AccessorThunkResolutionExplained.md](../AccessorThunkResolutionExplained.md)） |
 | SwiftAttributeInference | — | 待写 |
-| SwiftDeclaration | — | 待写 |
+| SwiftDeclaration | [SwiftDeclaration.md](SwiftDeclaration.md) | ✅ 已写 |
 | SwiftDeclarationRendering | — | 待写 |
 | SwiftDump | — | 待写 |
 | SwiftInspection | — | 待写 |
-| SwiftLayout | — | 待写（专题：[StaticLayoutEngine.md](../StaticLayoutEngine.md)、[StaticLayoutDependencyClosure.md](../StaticLayoutDependencyClosure.md)） |
+| SwiftLayout | [SwiftLayout.md](SwiftLayout.md) | ✅ 已写（专题：[StaticLayoutEngine.md](../StaticLayoutEngine.md)、[StaticLayoutDependencyClosure.md](../StaticLayoutDependencyClosure.md)） |
 | SwiftDiffing | — | 待写（专题：[ABIDiffDesignAndLimitations.md](../ABIDiffDesignAndLimitations.md)、[ABIEvolutionDesign.md](../ABIEvolutionDesign.md)） |
 | TypeIndexing | — | 待写（专题：[TypeIndexingPipeline.md](../TypeIndexingPipeline.md)） |
 | SwiftOutputTransformer | — | 待写（专题：[OutputTransformerMigration.md](../OutputTransformerMigration.md)） |
 | MachOSwiftSection | — | 待写 |
 | MachOFoundation | — | 待写 |
-| MachOSymbols | — | 待写（专题：[SymbolIndexStoreMemoryOptimization.md](../SymbolIndexStoreMemoryOptimization.md)） |
+| MachOSymbols | [MachOSymbols.md](MachOSymbols.md) | ✅ 已写（专题：[SymbolIndexStoreMemoryOptimization.md](../SymbolIndexStoreMemoryOptimization.md)） |
 | MachOBase | — | 待写（伞模块：ABI 层允许看到的全部——reading / resolving / pointers；见 [SelfContainedABILayer.md](../SelfContainedABILayer.md)） |
 | MachOPointers | — | 待写（`SymbolOrElementPointer` 自 `MachOSymbolPointers` 并入，见 [SelfContainedABILayer.md](../SelfContainedABILayer.md)） |
 | MachOReading / MachOResolving | — | 待写 |
