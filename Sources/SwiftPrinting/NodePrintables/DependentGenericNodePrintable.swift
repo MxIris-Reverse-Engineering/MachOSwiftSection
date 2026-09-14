@@ -68,12 +68,25 @@ extension DependentGenericNodePrintable {
     }
 
     mutating func printGenericSignature(_ name: Node, enclosingGenericType: Node? = nil) async {
-        target.write("<")
         var numGenericParams = 0
         for c in name.children {
             guard c.kind == .dependentGenericParamCount else { break }
             numGenericParams += 1
         }
+
+        // A signature that introduces no parameters of its own has nothing to
+        // bracket. An extension member whose parameters all belong to the
+        // extended type arrives here with every count at zero, and bracketing
+        // it unconditionally (as upstream's `NodePrinter` does — correct for a
+        // debug demangle) yields `init<>(windowID: String) where ...`, which
+        // does not compile. 122 occurrences in SwiftUI; the dump path never
+        // reaches this code, so it showed none of them.
+        let declaredParameterCount = (0 ..< numGenericParams).reduce(into: 0) { total, depth in
+            total += Int(name.children.at(depth)?.index ?? 0)
+        }
+        guard declaredParameterCount > 0 else { return }
+
+        target.write("<")
         var firstRequirement = numGenericParams
         for var c in name.children.dropFirst(numGenericParams) {
             if c.kind == .type {

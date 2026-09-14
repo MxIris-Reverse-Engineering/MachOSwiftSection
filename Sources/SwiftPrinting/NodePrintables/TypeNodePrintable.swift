@@ -39,6 +39,14 @@ extension TypeNodePrintable {
             await printProtocolListWithAnyObject(name)
         case .typeList:
             await printTypeList(name)
+        case .pack:
+            await printPack(name)
+        case .constrainedExistential:
+            await printConstrainedExistential(name)
+        case .constrainedExistentialRequirementList:
+            await printChildren(name, separator: ", ")
+        case .constrainedExistentialSelf:
+            target.write("Self", context: .context(for: name, state: .printKeyword))
         case .metatype:
             await printMetatype(name)
         case .existentialMetatype:
@@ -46,7 +54,12 @@ extension TypeNodePrintable {
         case .opaqueReturnType:
             await printOpaqueReturnType(name)
         case .opaqueReturnTypeOf:
-            await printChildren(name)
+            // The by-name spelling of an unexpanded opaque reference (the
+            // standalone-file case). Its child is the declaring entity, which
+            // a type printer does not handle — so delegate whole, exactly as
+            // `printOpaqueType` does, instead of printing children into an
+            // empty `<<opaque return type of >>`.
+            target.write(await name.print(using: .default), context: .context(for: name, state: .printType))
         case .opaqueType:
             await printOpaqueType(name)
         case .symbolicExtendedExistentialType:
@@ -65,9 +78,32 @@ extension TypeNodePrintable {
         }
     }
 
+    /// An opaque type reference `OpaqueTypeRewriter` could NOT expand.
+    ///
+    /// Reaching this printer at all means expansion already failed — an
+    /// expanded reference is replaced in the tree and never arrives here — so
+    /// the honest rendering is the reference itself, spelled exactly as the
+    /// dump path spells it.
+    ///
+    /// Delegated to the upstream `NodePrinter` rather than reimplemented,
+    /// because child 0 is an entity node (`.function` / `.variable` /
+    /// `.extension` / `.static` / `.getter` …) and this is a TYPE printer that
+    /// handles none of those. Open-coding it would print
+    /// `<<opaque return type of >>` — an empty middle, worse than the status
+    /// quo. Delegation also makes the two paths byte-identical by
+    /// construction, which is the same contract `accessor function at N`
+    /// carries.
+    ///
+    /// It previously printed child 2 — the node's generic ARGUMENT LIST —
+    /// which rendered a single-argument reference as the conforming type
+    /// itself (`typealias B = ProbeClient.Outer`): a real, fully-qualified,
+    /// wrong type. That came from commit `798bca8c` "Fix Interface missing
+    /// type list of opaque type", whose observation was right (the arguments
+    /// were being dropped) and whose fix was not. Since proposal 0033 every
+    /// locatable reference is expanded by the rewriter and carries its
+    /// arguments along, so child 2 has no reason to be printed here.
     mutating func printOpaqueType(_ name: Node) async {
-//        printFirstChild(name)
-        await printOptional(name[safeChild: 2])
+        target.write(await name.print(using: .default), context: .context(for: name, state: .printType))
     }
 
     mutating func printType(_ name: Node) async {
@@ -135,6 +171,67 @@ extension TypeNodePrintable {
 
     mutating func printTypeList(_ name: Node) async {
         await printChildren(name)
+    }
+
+    /// A variadic-generic parameter pack's arguments, as they appear in a bound
+    /// generic type (`Predicate<each Input>` instantiated as
+    /// `Predicate<Foundation.URL>`).
+    ///
+    /// Rendered as the bare comma-separated elements — deliberately NOT the
+    /// upstream `Pack{…}` spelling. Upstream's `NodePrinter` serves debug
+    /// demangling, where naming the pack is the point; this printer's product
+    /// is a `.swiftinterface`, where `Predicate<Pack{URL}>` does not compile
+    /// and `Predicate<URL>` is what the source said. Printing the elements
+    /// bare also lets them fold straight into the enclosing argument list,
+    /// which is exactly the ABI meaning of a pack expansion in that position.
+    ///
+    /// Previously unhandled, so every pack argument printed as the empty
+    /// string: 718 occurrences in SwiftUI, surfacing as `Predicate<>` and
+    /// `ConformingTuple<>`.
+    mutating func printPack(_ name: Node) async {
+        await printChildren(name, separator: ", ")
+    }
+
+    /// A parameterized existential — `any P<Element>` (SE-0353 / SE-0346).
+    ///
+    /// The mangling carries the desugared form: the protocol, plus same-type
+    /// requirements pinning its associated types. Upstream prints that shape
+    /// literally (`any P<Self.Element == Int>`), which is right for debug
+    /// demangling and is not compilable Swift.
+    ///
+    /// The sugar is recoverable for the same reason it is on an opaque type
+    /// (see `Documentations/Internal/OpaqueReturnTypeResolution.md` §2.4): a
+    /// parameterized existential CANNOT be written with a `where` clause in
+    /// source, so a same-type requirement sitting here can only have come from
+    /// primary-associated-type sugar. Reading the requirement's right-hand
+    /// side back as the argument therefore needs no protocol facts.
+    ///
+    /// What DOES need them is ORDER: with several primaries, the requirement
+    /// list is canonically sorted, not declaration-ordered, so `P<A, B>` and
+    /// `P<B, A>` are indistinguishable from here. That case degrades to a bare
+    /// `any P` rather than guessing — an argument list in the wrong order is a
+    /// real, wrong, compiling type. No sample in the surveyed binaries has
+    /// more than one requirement; wiring the multi-primary order through
+    /// `ProtocolFactsResolver` is left to the follow-up noted in the proposal.
+    mutating func printConstrainedExistential(_ name: Node) async {
+        await printFirstChild(name, prefix: "any ", prefixContext: .context(for: name, state: .printKeyword))
+        guard let requirementList = name.children.at(1),
+              requirementList.children.count == 1,
+              let argument = primaryAssociatedTypeArgument(ofRequirement: requirementList.children[0])
+        else { return }
+        await printOptional(argument, prefix: "<", suffix: ">")
+    }
+
+    /// The right-hand side of a `Self.Associated == Argument` requirement, or
+    /// nil when the requirement is not that shape (a conformance or layout
+    /// constraint, or a same-type whose subject is not rooted at `Self`).
+    private func primaryAssociatedTypeArgument(ofRequirement requirement: Node) -> Node? {
+        guard requirement.kind == .dependentGenericSameTypeRequirement,
+              let subject = requirement.children.at(0),
+              let argument = requirement.children.at(1)
+        else { return nil }
+        guard subject.contains(Node.Kind.constrainedExistentialSelf) else { return nil }
+        return argument
     }
 
     mutating func printProtocolList(_ name: Node) async {

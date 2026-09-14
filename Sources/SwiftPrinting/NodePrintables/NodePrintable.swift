@@ -94,6 +94,21 @@ extension NodePrintable {
             // offset. Previously unhandled, which rendered the node as an
             // empty string and produced `case name()` — invalid Swift.
             target.write("accessor function at \(name.index ?? 0)")
+        case .index:
+            // The ordinal inside an `opaqueType` node (child 1) — the `.0` in
+            // `<<opaque return type of f()>>.0`, which selects WHICH `some` of
+            // a multi-opaque return this is. Previously unhandled, so the
+            // ordinal vanished and the reference printed with a trailing dot.
+            target.write("\(name.index ?? 0)")
+        case .opaqueTypeDescriptorSymbolicReference:
+            // An opaque type descriptor the rewriter could not expand, still
+            // spelled as a POINTER (the shared-cache case; the standalone-file
+            // case is `.opaqueReturnTypeOf` instead). Offline-unresolvable by
+            // construction once expansion has failed, so mirror the Demangling
+            // `NodePrinter` fallback verbatim — same reasoning as
+            // `accessorFunctionReference` above. `hexadecimalString` upstream
+            // is internal; this is its definition.
+            target.write("opaque type symbolic reference 0x\(String(name.index ?? 0, radix: 16, uppercase: true))")
         default:
             return false
         }

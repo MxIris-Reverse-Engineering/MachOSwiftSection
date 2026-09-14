@@ -187,4 +187,24 @@ struct CrossImageOpaqueReferenceTests {
         }
         #expect(texts["ProbeClient.Outer"]?.contains("opaque return type of") == true, "\(String(describing: texts["ProbeClient.Outer"]))")
     }
+
+    /// The interface path degrades the same way the dump path does.
+    ///
+    /// The fourth corner of this suite's grid, and the one that was missing:
+    /// dump±search-path and interface+search-path were all covered, so nothing
+    /// watched what the interface printed when the reference could NOT be
+    /// expanded. It printed the conformer — `typealias B = ProbeClient.Outer`,
+    /// a real, fully-qualified, wrong type — because `printOpaqueType` printed
+    /// the node's generic argument list instead of the reference. Unexpandable
+    /// must read as unexpandable on both paths, spelled identically.
+    @Test func withoutTheImageTheInterfaceSaysSoRatherThanNamingTheConformer() async throws {
+        let (client, _) = try loadClient()
+        let interface = try await AccessorThunkResolution.$taskResolver.withValue(DisassemblingAccessorThunkResolver(searchPaths: [])) {
+            let builder = try SwiftInterfaceBuilder(configuration: .init(), eventHandlers: [], in: client)
+            try await builder.prepare()
+            return try await builder.printRoot().string
+        }
+        #expect(interface.contains("opaque return type of"), "\(interface)")
+        #expect(!interface.contains("typealias B = ProbeClient."), "\(interface)")
+    }
 }
