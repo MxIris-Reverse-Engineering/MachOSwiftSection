@@ -1740,6 +1740,16 @@
 - **关联文档**：[提案](../Evolutions/draft-field-layout-renderable-decoupling.md)、[FieldLayoutRendererReaderSpecialization.md](FieldLayoutRendererReaderSpecialization.md)（「约束传染」一节改写）、[Modules/SwiftInterface.md](Modules/SwiftInterface.md)（约束名同步）。
 - **对应版本**：源码层面的公开 API 变更（协议要求签名里的约束名），对调用方零影响；随下一次发布。
 
+## 2026-09-14 打印器 node kind parity：补齐类型位置的缺失 kind（提案 draft-interface-printer-node-kind-parity）
+
+- **时间段**：2026-09-14。
+- **动机**：`InterfaceNodePrintable.dispatchPrintName` 依次问五个 `printNameIn*`，全部返回 `false` 时**什么都不写**——没有 `case` 的 node kind 渲染成空字符串，不报错也不留占位符。dump 路径用上游 `NodePrinter`（368 个 case）所以正确，差异只出现在 interface 一侧；一份 SwiftUI interface 十万行，`Predicate<>` 这样的残缺肉眼扫不出来。起因是 [0033](../Evolutions/0033-by-name-opaque-reference-expansion.md) 记录但未修的一条（`printOpaqueType` 印 child 2，把 conforming type 印成 witness），横向排查后发现同一模式正在别处产出 155 处非法输出。
+- **关键决策**：**① 范围从一处扩到一批**——实测证明只修 opaque 会全漏：那一处在宿主 cache 上根本不触发（`accessor function at` / `opaque return type of` 均 0 处），而 `.pack`（718 处）与 `.constrainedExistential`（返回类型整个消失）正在产出错误输出。**② 不照着上游 case 列表补**：368 对 76 的差值里绝大多数是 entity 与 SIL kind，类型打印器本就不该处理，必须实测哪些 kind 真到达类型位置。判据三档——能算出合法 Swift 的**算对**（`.pack` 去掉 `Pack{}` 包装、`.constrainedExistential` 还原 primary associated type 语法），不可恢复的**照抄上游占位符逐字一致**（`accessor function at N` 的先例），不该出现在类型位置的**不实现但要有测试证明它不出现**。**③ opaque 改委托而非补 case**：补 case 需要在 `SwiftPrinting` 复刻整套 entity 打印（child 0 是 `.function` / `.variable` / `.extension` …），开写会印出中间为空的 `<<opaque return type of >>`，比原状更糟；委托上游 printer 则与 dump 逐字一致。**④ `any P<Y>` 不查 protocol facts**：`BuiltinStandardLibraryProtocolFacts` 在 SwiftInterface、打印器在 SwiftPrinting，依赖方向是反的；但 `any P<…>` 在源码层只能用 primary associated type 语法写出（Swift 不允许 `any P where …`），所以这里的 same-type 约束必然来自那个语法，读回右侧即可——与 opaque 约束还原同源的推理（[OpaqueReturnTypeResolution.md](OpaqueReturnTypeResolution.md) §2.4）。只有多 primary 的**排序**真需要 facts，那种情况降级为裸 `any P`，不猜。
+- **落地模块**：`SwiftPrinting`（`NodePrintable` 补 `.index` / `.opaqueTypeDescriptorSymbolicReference`；`TypeNodePrintable` 补 `.pack` / `.constrainedExistential` 三件套，`printOpaqueType` 与 `.opaqueReturnTypeOf` 改委托；`DependentGenericNodePrintable` 的 `printGenericSignature` 参数为空时不印括号）、`Tests/SwiftPrintingTests`（新增常驻 parity 测试与研究探针）、`Tests/SwiftInterfaceTests`（`CrossImageOpaqueReferenceTests` 补第四格：interface + 无搜索路径）。
+- **验证**：同一份 SwiftUI 两侧 release CLI 对比——`<>` 201→56、`init<>` 122→0、空返回 `-> ` 8→0、`<, ` 1→0、`<A1, .Value>` 1→0，行数两侧均 106903；剩余 56 处全在 `extension` 行且**改动前后逐字相同**（另一条路径的既有问题，不属本批）。dump 路径不受影响：SwiftUICore dump 两侧逐字节相同。定向套件 `SwiftPrintingTests` 29 / `SwiftDumpTests` 80 / `SwiftInterfaceTests` 177 原始退出码均 0；`SymbolTestsCoreInterfaceSnapshotTests` 基线重录，diff 恰好 5 增 5 删全部是 pack 修复（含一处 `MixedScalarAndPack<Swift.Int, >` 悬空逗号），无夹带。**常驻测试自身做了变红验证**：摘掉 `.pack` 的 case 跑一次，退出码 1 且消息点名 `Pack ×716`——一个不会失败的 parity 测试比没有更糟。
+- **关联文档**：[提案](../Evolutions/draft-interface-printer-node-kind-parity.md)、[PrinterNodeKindParity.md](PrinterNodeKindParity.md)（判据、缺口清单、allowlist 维护）、[任务报告](TaskReports/2026-09-14-printer-node-kind-parity.md)、[AccessorFunctionReferenceRendering.md](AccessorFunctionReferenceRendering.md)（同模式的第一例）。
+- **对应版本**：interface 输出的行为修复（非法 Swift → 合法 Swift），随下一次发布。
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节
