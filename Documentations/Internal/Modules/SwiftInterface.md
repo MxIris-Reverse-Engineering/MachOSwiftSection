@@ -27,7 +27,7 @@ SwiftInterface 是接口生成的**编排层**（thin orchestrator）：它自�
 
 ## 子系统 1：单版本接口生成
 
-`SwiftInterfaceBuilder<MachO: FieldLayoutRenderable>` 持有一对 `SwiftDeclarationIndexer` + `SwiftDeclarationPrinter`（`@_spi(Support)` 暴露，宿主可直接触达），生命周期是两步：`prepare()` 然后 `printRoot()`。
+`SwiftInterfaceBuilder<MachO: MachOFieldLayoutRenderable>` 持有一对 `SwiftDeclarationIndexer` + `SwiftDeclarationPrinter`（`@_spi(Support)` 暴露，宿主可直接触达），生命周期是两步：`prepare()` 然后 `printRoot()`。
 
 **`prepare()` 的顺序与失败语义**：先逐个 `extraDataProvider.setup()`（失败**降级**为 `renderingDegraded` 事件，不阻断——外挂数据源坏了不该毁掉整份接口），再 `indexer.prepare()`（失败**抛出**），最后 `collectModules()`（失败**抛出**）。全程用 `phaseTransition` 事件汇报阶段。
 

@@ -1730,6 +1730,16 @@
 - **关联文档**：[提案](../Evolutions/draft-agents-md-slimming.md)、新增 [Modules/SwiftLayout.md](Modules/SwiftLayout.md) / [Modules/SwiftThunkAnalysis.md](Modules/SwiftThunkAnalysis.md) / [Modules/MachOSymbols.md](Modules/MachOSymbols.md) / [Modules/SwiftDeclaration.md](Modules/SwiftDeclaration.md)。
 - **对应版本**：无产品影响（纯文档）。
 
+## 2026-09-14 FieldLayoutRenderable 不再继承 MachOSwiftSectionRepresentableWithCache（提案 draft-field-layout-renderable-decoupling）
+
+- **时间段**：2026-09-14。
+- **动机**：`FieldLayoutRenderable` 声明的是六个「怎么渲染这个类型的字段布局注释」的 static witness，和「身上有 `__swift5_*` section、并且带读取缓存」是两种彼此独立的能力，只是恰好同为 `MachOFile` 与 `MachOImage` 持有。它却 refine `MachOSwiftSectionRepresentableWithCache`（[按 reader 特化](FieldLayoutRendererReaderSpecialization.md) 那一批引入时图省事的写法），把能力协议写成了 reader 协议的子类型：任何只想提供渲染 witness 的类型都得先成为一个 Mach-O reader，协议自己的语义边界也糊掉。
+- **关键决策**：去掉继承，新增 `public typealias MachOFieldLayoutRenderable = MachOSwiftSectionRepresentableWithCache & FieldLayoutRenderable`，83 处泛型约束位置改用它；别名带 `MachO` 前缀（与 `MachORepresentableWithCache` / `MachOSwiftSectionRepresentableWithCache` 同惯例），否则 `<MachO: …>` 这个约束看不出 reader 是 Mach-O，而协议本身仍叫 `FieldLayoutRenderable` 不加前缀——它确实不要求 conformer 是 Mach-O reader。这些位置的方法体本来就在调 `descriptor.xxx(in: machO)` 这类需要 section 读取能力的 API——`FieldLayoutRenderer.resolveAccessorMetadata` 调的 `metadataAccessorFunction(in:)` 签名上就写着 `<MachO: MachOSwiftSectionRepresentableWithCache>`——所以不是补一个原本不需要的约束，而是把此前靠继承偷偷带进来的那一半显式写出来。另两种写法被否：83 处各自展开复合约束会让多参数场景（`Old` / `New`、`each Reader`）行宽翻倍；引入同时继承两者的空协议则要给每个 reader 补 conformance、新 reader 容易漏，而且又多出一层继承关系——正是这次要去掉的那种东西。
+- **落地模块**：`SwiftDeclarationRendering`（协议声明 + typealias）、`SwiftDump`、`SwiftInterface`、`SwiftPrinting`、`MachOFixtureSupport`、`Tests/IntegrationTests`，共 35 个文件。两处 conformance（`extension MachOFile` / `extension MachOImage`）与两个 backend 的实现体一行未动。
+- **验证**：`swift build --build-tests` 全绿（退出码 0，零 error 零相关 warning）——纯类型层改动，没有一行运行期逻辑被改动，故不需要跑系统框架 A/B 渲染验证。定向套件 SwiftDumpTests / SwiftInterfaceTests / MachOSwiftSectionTests 复跑 1088 测试 / 215 套件全绿（原始退出码 0，零 issue），快照基线零变动。
+- **关联文档**：[提案](../Evolutions/draft-field-layout-renderable-decoupling.md)、[FieldLayoutRendererReaderSpecialization.md](FieldLayoutRendererReaderSpecialization.md)（「约束传染」一节改写）、[Modules/SwiftInterface.md](Modules/SwiftInterface.md)（约束名同步）。
+- **对应版本**：源码层面的公开 API 变更（协议要求签名里的约束名），对调用方零影响；随下一次发布。
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节

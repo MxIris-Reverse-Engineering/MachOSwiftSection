@@ -42,3 +42,4 @@
 | [0032](0032-cache-stub-islands-and-unmodelled-instructions.md) | cache 里的 stub island，和不认识的指令不再被跳过：iOS 设备 cache 的跨镜像调用是 `bl` 到镜像之间的跳板（读槽的 stub 或算地址的 island），环境对任何地址都认跳板并对目标再认一次；不认识的条件跳转放弃那一支（直行落点是 `brk` 的例外，按跳走）、不认识的指令作废它写的寄存器、PAC 指令保值。iOS 26.3.1 SwiftUI 7 → 0、SwiftUICore 2 → 0 | Implemented |
 | [0033](0033-by-name-opaque-reference-expansion.md) | 按名字引用的 opaque 类型也展开：独立文件的 witness 用到别的镜像的 `some` 结果时只有一个 bind 名，demangler 解成 `opaqueReturnTypeOf`，dump 印 `<<opaque return type of …>>`，interface 更是把 conformer 印成 witness。rewriter 把描述符符号名重新 mangle 出来、按搜索路径定位镜像、在那个镜像里展开。iOS 26.5 模拟器 SwiftUI dump 207 行 witness → 0 | Implemented |
 | draft | [AGENTS.md 瘦身：指令文件回归指令，架构细节回归文档](draft-agents-md-slimming.md) | Draft |
+| draft | [FieldLayoutRenderable 不再继承 MachOSwiftSectionRepresentableWithCache：渲染能力与 reader 能力解耦，上层约束改用组合 typealias `MachOFieldLayoutRenderable`](draft-field-layout-renderable-decoupling.md) | In Progress |
