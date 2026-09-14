@@ -49,11 +49,11 @@ public struct FieldLayoutRenderState {
     }
 }
 
-/// A Mach-O reader that knows how to render a nominal type's metadata-derived
-/// field comments — `// Field offset:`, `// Type Layout:`, the expanded
-/// nested-offset tree, and the enum `Enum Layout` / spare-bit comments.
+/// Knows how to render a nominal type's metadata-derived field comments —
+/// `// Field offset:`, `// Type Layout:`, the expanded nested-offset tree, and
+/// the enum `Enum Layout` / spare-bit comments.
 ///
-/// The reader **type** selects the rendering strategy at compile time (no
+/// The conforming **type** selects the rendering strategy at compile time (no
 /// runtime `as?`): `MachOImage` renders from in-process runtime metadata, while
 /// `MachOFile` renders statically through the `SwiftLayout` engine. The generic
 /// `FieldLayoutRenderer<MachO>` is a thin facade that forwards each entry point
@@ -63,7 +63,13 @@ public struct FieldLayoutRenderState {
 /// Only `MachOFile` and `MachOImage` conform (in `SwiftDeclarationRendering`).
 /// These witnesses are an implementation detail surfaced only so the type system
 /// can pick the backend — callers use `FieldLayoutRenderer`, never them.
-public protocol FieldLayoutRenderable: MachOSwiftSectionRepresentableWithCache {
+///
+/// This protocol carries the rendering witnesses and nothing else. Rendering
+/// field comments and being a Swift-section-bearing Mach-O reader are two
+/// independent capabilities that the same concrete types happen to hold, so this
+/// deliberately does **not** refine `MachOSwiftSectionRepresentableWithCache`;
+/// a caller needing both asks for both through `MachOFieldLayoutRenderable`.
+public protocol FieldLayoutRenderable {
     /// Builds the static (offline) field-layout provider for this reader, or
     /// `nil` for the in-process (`MachOImage`) path. Lets a session root pick a
     /// provider by reader type at compile time, without a runtime cast.
@@ -85,6 +91,16 @@ public protocol FieldLayoutRenderable: MachOSwiftSectionRepresentableWithCache {
     static func renderEnumCaseComments(_ state: FieldLayoutRenderState, machO: Self, forCaseAtIndex index: Int, mangledTypeName: MangledName, enumLayout: EnumLayoutCalculator.LayoutResult?) async throws -> SemanticString
 }
 
+/// The pair of capabilities every generic entry point above the ABI layer
+/// actually needs: a reader that can read the `__swift5_*` sections
+/// (`MachOSwiftSectionRepresentableWithCache`) **and** knows how to render its
+/// field-layout comments (`FieldLayoutRenderable`).
+///
+/// Spelling the requirement as a composition — rather than as a refinement of
+/// one protocol by the other — keeps the two capabilities independent while
+/// letting a constraint stay one word long.
+public typealias MachOFieldLayoutRenderable = MachOSwiftSectionRepresentableWithCache & FieldLayoutRenderable
+
 /// Shared renderer for the *metadata-derived* field comments of a nominal type.
 /// Lifted out of `SwiftDump`'s `StructDumper` / `ClassDumper` / `EnumDumper` so
 /// the model-driven `SwiftDeclarationPrinter` can emit the same comments without
@@ -93,7 +109,7 @@ public protocol FieldLayoutRenderable: MachOSwiftSectionRepresentableWithCache {
 /// This generic value is a thin facade: each entry point forwards to the
 /// reader-specialized backend selected at compile time by the `MachO`
 /// conformance to `FieldLayoutRenderable`.
-package struct FieldLayoutRenderer<MachO: FieldLayoutRenderable> {
+package struct FieldLayoutRenderer<MachO: MachOFieldLayoutRenderable> {
     package let type: TypeContextWrapper
     package let metadata: MetadataWrapper?
     package let machO: MachO

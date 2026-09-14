@@ -9,7 +9,7 @@ import OrderedCollections
 @_spi(Internals) import SwiftInspection
 import SwiftDeclarationRendering
 
-package struct ProtocolConformanceDumper<MachO: FieldLayoutRenderable>: ConformedDumper {
+package struct ProtocolConformanceDumper<MachO: MachOFieldLayoutRenderable>: ConformedDumper {
     package let dumped: ProtocolConformance
 
     package let configuration: DumperConfiguration

@@ -8,7 +8,7 @@ import Demangling
 import OrderedCollections
 import SwiftDeclarationRendering
 
-package struct AssociatedTypeDumper<MachO: FieldLayoutRenderable>: ConformedDumper {
+package struct AssociatedTypeDumper<MachO: MachOFieldLayoutRenderable>: ConformedDumper {
     package let dumped: AssociatedType
 
     package let configuration: DumperConfiguration

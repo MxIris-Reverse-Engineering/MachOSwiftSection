@@ -31,7 +31,7 @@ extension ABIEvolutionDumpTests {
     /// persistence-round-tripped snapshot document. The timed step covers the
     /// whole preparation — indexing N binaries is the real cost; the lineage
     /// math afterwards is milliseconds.
-    private func snapshotDocuments<MachO: FieldLayoutRenderable>(
+    private func snapshotDocuments<MachO: MachOFieldLayoutRenderable>(
         of versions: [(label: String, machO: MachO)]
     ) async throws -> [ABISnapshotDocument] {
         var documents: [ABISnapshotDocument] = []
@@ -71,7 +71,7 @@ extension ABIEvolutionDumpTests {
 
     /// Console analogue of `diffString`: prepares every version, then prints
     /// the timeline report.
-    func evolutionString<MachO: FieldLayoutRenderable>(versions: [(label: String, machO: MachO)]) async throws {
+    func evolutionString<MachO: MachOFieldLayoutRenderable>(versions: [(label: String, machO: MachO)]) async throws {
         let documents = try await snapshotDocuments(of: versions)
         printResult(try timelineReport(of: documents))
     }
@@ -80,7 +80,7 @@ extension ABIEvolutionDumpTests {
     /// (`-Evolution.txt`) and the machine-readable form (`-Evolution.json`)
     /// next to the interface/diff dumps, both named after the *newest*
     /// version.
-    func evolutionFile<MachO: FieldLayoutRenderable>(versions: [(label: String, machO: MachO)]) async throws {
+    func evolutionFile<MachO: MachOFieldLayoutRenderable>(versions: [(label: String, machO: MachO)]) async throws {
         let documents = try await snapshotDocuments(of: versions)
         guard let newestVersion = versions.last else { return }
         try write(try timelineReport(of: documents), for: newestVersion.machO, suffix: "Evolution", fileExtension: "txt")

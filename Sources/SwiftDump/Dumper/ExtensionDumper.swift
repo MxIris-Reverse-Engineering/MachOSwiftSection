@@ -10,7 +10,7 @@ import SwiftDeclarationRendering
 
 package struct ExtensionDumped: Sendable {}
 
-package struct ExtensionDumper<MachO: FieldLayoutRenderable>: Dumper {
+package struct ExtensionDumper<MachO: MachOFieldLayoutRenderable>: Dumper {
     package let dumped: ExtensionDumped
 
     package let configuration: DumperConfiguration
@@ -35,7 +35,7 @@ package struct ExtensionDumper<MachO: FieldLayoutRenderable>: Dumper {
     }
 }
 
-package struct GlobalDumper<MachO: FieldLayoutRenderable>: Dumper {
+package struct GlobalDumper<MachO: MachOFieldLayoutRenderable>: Dumper {
     package let dumped: ExtensionDumped
 
     package let configuration: DumperConfiguration

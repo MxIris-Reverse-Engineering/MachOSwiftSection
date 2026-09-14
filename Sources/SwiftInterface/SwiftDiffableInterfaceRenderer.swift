@@ -42,8 +42,8 @@ import MachOSymbols
 /// generic parameters are erased at construction (each side becomes an
 /// `InterfaceVersionUnit`), so they carry type-checking meaning only.
 public final class SwiftDiffableInterfaceRenderer<
-    OldMachO: FieldLayoutRenderable,
-    NewMachO: FieldLayoutRenderable
+    OldMachO: MachOFieldLayoutRenderable,
+    NewMachO: MachOFieldLayoutRenderable
 >: Sendable {
     /// `[old, new]` — the two-version axis the shared walker consumes.
     private let versions: [any InterfaceVersionRendering]

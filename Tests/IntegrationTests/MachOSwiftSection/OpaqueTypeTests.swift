@@ -13,7 +13,7 @@ import MachOSwiftSection
 protocol OpaqueTypeTests {}
 
 extension OpaqueTypeTests {
-    func opaqueTypes<MachO: FieldLayoutRenderable>(in machO: MachO) async throws {
+    func opaqueTypes<MachO: MachOFieldLayoutRenderable>(in machO: MachO) async throws {
         let symbols = SymbolIndexStore.shared.symbols(of: .opaqueTypeDescriptor, in: machO)
         for symbol in symbols {
             guard symbol.offset > 0 else { continue }

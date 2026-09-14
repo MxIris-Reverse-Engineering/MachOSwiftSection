@@ -15,7 +15,7 @@ import MachOSymbols
 ///
 /// Unlike the printer-driven flow, the differ never prints, so `prepare()` must
 /// force the otherwise-lazy per-definition member indexing itself — see below.
-public final class SwiftDiffableInterfaceBuilder<MachO: FieldLayoutRenderable>: Sendable {
+public final class SwiftDiffableInterfaceBuilder<MachO: MachOFieldLayoutRenderable>: Sendable {
     public let machO: MachO
 
     @_spi(Support)

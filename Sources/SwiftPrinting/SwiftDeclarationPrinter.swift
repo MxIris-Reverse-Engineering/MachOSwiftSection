@@ -16,7 +16,7 @@ import Utilities
 @_spi(Internals) import SwiftInspection
 
 @_spi(Support)
-public final class SwiftDeclarationPrinter<MachO: FieldLayoutRenderable>: Sendable {
+public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: Sendable {
     public let machO: MachO
 
     @Mutex

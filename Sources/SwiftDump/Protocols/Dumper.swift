@@ -4,7 +4,7 @@ import SwiftDeclarationRendering
 
 package protocol Dumper<Dumped, MachO>: Sendable {
     associatedtype Dumped: Sendable
-    associatedtype MachO: FieldLayoutRenderable
+    associatedtype MachO: MachOFieldLayoutRenderable
 
     var dumped: Dumped { get }
     var configuration: DumperConfiguration { get }
