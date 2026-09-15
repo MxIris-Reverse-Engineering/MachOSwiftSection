@@ -56,7 +56,24 @@
 
 （这一点最初判断错了：第一版按「pattern 里只有一个 distinct 参数时那个必然是 pack」的启发式做，`repeat (T, each U)` 因为有两个参数而整个放弃。用户追问才发现 count type 一直摆在那里。行为上新做法严格更强，且更简单——不用扫 pattern。）
 
-唯一仍未覆盖的形状是一次展开多个 pack（`repeat (each A, each B)`）：count type 只点名其中一个，Swift 的 same-shape 要求意味着其余也是 pack，但这个节点不说是哪些，所以其余保持原样而不猜。
+### 多个 pack：两个来源正好互补
+
+count type 只点名一个 pack，所以 `repeat (each A, each B)` 单靠它不够。补上的是**签名**那一侧：`printGenericSignature` 本来就要判断每个参数印不印 `each`，顺手把判定为 pack 的名字记进 `knownPackParameterNames`，后面打印参数类型时查这张表。
+
+两个来源覆盖的正好是彼此的缺口，而且边界是编译器划的，不是估计出来的：
+
+| 场景 | 签名在同一棵树里？ | 可能有几个 pack | 靠什么 |
+|---|---|---|---|
+| 类型的字段（`Mixed<T, each U>.x`） | 否——字段类型树不含签名 | **至多 1 个**（`generic type cannot declare more than one type pack`，编译器直接报错） | count type |
+| 函数（`g<each A, each B>(…)`） | 是——签名与参数类型同属一个 `dependentGenericType`，同一个 printer 先后打印 | 多个 | 签名记下的名字表 |
+
+所以「类型的字段拿不到签名」和「多个 pack 需要签名」这两件事永远不会同时发生。
+
+### 顺带：same-shape requirement 不进 where 子句
+
+`g<each A, each B>` 的签名里有一条 `dependentGenericSameShapeRequirement`。它在源码里**从不出现**——由 `repeat (each A, each B)` 隐含——而上游把它渲染成 `A.shape == B.shape`，不是 Swift 语法。这个打印器又没有它的 case，于是印成空串，产出一个后面什么都没有的 `where `。
+
+改为在收集 requirement 时就排除它（`printableRequirementKinds`，三处打印点共用），而不是给它补一个 case：补 case 只会把非法语法印出来。
 
 括号是**无条件**加的。`each` 比后缀绑定得紧，实测（`swiftc -typecheck`）：
 

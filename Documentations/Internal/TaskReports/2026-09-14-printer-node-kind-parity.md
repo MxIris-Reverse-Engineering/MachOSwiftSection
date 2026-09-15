@@ -70,6 +70,19 @@
 
 验证：288 tests / 44 suites 退出码 0；SwiftUI `static func acceptsAny<each A1>(_: repeat (each A1).Type)`；SwiftUI dump 与本批基线逐字节相同；行数仍 106903。
 
+## 再追加：`repeat (each A, each B)`（用户第三次追问）
+
+用户让我自己测多 pack 的情况。**又是没实测就下的结论**——上一轮我写「count type 只点名一个，其余不知道是哪些，保持原样」，实测发现两件事：
+
+1. **类型根本不能声明多个 pack**：`generic type cannot declare more than one type pack`，编译器直接拒。所以「字段类型树里没有签名」和「有多个 pack」永远不会同时发生——count type 对字段永远够用。
+2. **函数可以有多个 pack，而函数的签名就在同一棵树、同一个 printer 里**。`printGenericSignature` 本来就要判断每个参数印不印 `each`，把判定结果记进一张名字表，后面打印参数类型时查表即可。
+
+两个来源覆盖的正好是彼此的缺口，边界是编译器划的而不是估的。`g<each A, each B>(_: (repeat (each A, each B)))` 现在完整恢复。
+
+**顺带捞到一个新的印空**：`dependentGenericSameShapeRequirement` 没有 case，印成空串，产出一个后面什么都没有的 `where `。它在源码里从不出现（由展开隐含），上游渲染成 `A.shape == B.shape` 也不是 Swift 语法——所以正确处理是在收集 requirement 时排除它，而不是补 case 把非法语法印出来。
+
+**补了回归测试**（`PackExpansionRenderingTests`，4 个）：直接用编译产出的 mangled name 做断言，不需要 fixture 二进制（demangle 是纯字符串操作）。四个 case 各自对应一个不同的失败原因：depth-0 单 pack、depth-1 单 pack（两个叠加 bug）、scalar + pack（count type）、两个 pack（签名表 + same-shape 过滤）。这批 pack 场景此前完全没有测试覆盖，全靠手工编译 dylib 验证。
+
 ## 留下的东西
 
 真正的交付物不是那 155 处修复，是 `NodeKindParityTests`：遍历真实二进制的类型树，逐节点用两个 printer 各印一次，断言不存在「我们印空、上游印非空」的节点。行为对比而非 case 列表 diff，不会因上游增删 case 失效。allowlist（`nonTypePositionKinds`）按「只减不增」维护，每条要写清为什么那个 kind 不是类型位置。
