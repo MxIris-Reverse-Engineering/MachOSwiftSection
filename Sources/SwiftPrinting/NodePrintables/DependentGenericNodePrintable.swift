@@ -56,11 +56,11 @@ extension DependentGenericNodePrintable {
     }
 
     mutating func printDependentGenericParamType(_ name: Node) async {
-        // Inside a `repeat` pattern whose sole parameter is this one, the
-        // parameter IS the pack being expanded and source spells it `each A`.
+        // This is the pack the enclosing `repeat` expands over (the
+        // expansion's count type), which source spells `each A`.
         // Parenthesized unconditionally — see `printPackExpansion` for why a
         // bare `each` is rejected after a suffix.
-        if let packParameterName = packExpansionSoleParameterName, name.text == packParameterName {
+        if let packParameterName = expandedPackParameterName, name.text == packParameterName {
             target.write("(")
             target.write("each", context: .context(for: name, state: .printKeyword))
             target.writeSpace()

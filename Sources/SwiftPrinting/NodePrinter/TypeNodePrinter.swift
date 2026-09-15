@@ -16,7 +16,7 @@ struct TypeNodePrinter: InterfaceNodePrintable {
 
     var dependentMemberTypeDepth: Int = 0
 
-    var packExpansionSoleParameterName: String? = nil
+    var expandedPackParameterName: String? = nil
 
     var printDepth: Int = 0
 

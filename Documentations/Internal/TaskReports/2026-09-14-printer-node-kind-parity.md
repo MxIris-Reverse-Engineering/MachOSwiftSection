@@ -63,7 +63,7 @@
 
 补修三处中的两处，第三处在下面的遗留里：
 
-- **使用位置**：`repeat (each A)`。从语言约束恢复——`repeat` 的 pattern 必须展开至少一个 pack，所以 pattern 里只有一个 distinct 参数时那个参数必然是它；多个则不下结论。括号无条件加，因为 `swiftc -typecheck` 实测 `repeat each T.Type` 与 `repeat each T?` 都被拒（`'each' cannot be applied to non-pack type`），而括号形式在四种位置全合法。
+- **使用位置**：`repeat (each A)`。第一版用了启发式（pattern 里只有一个 distinct 参数时那个必然是 pack），用户再追问「`repeat (T, each U)` 恢复不了吗」时才发现**节点自己就说了**：`packExpansion` 有两个 children，child 1 是 count type——驱动展开的那个 pack。`repeat (T, each U)` 的 count type 就是 `U`。换掉启发式后严格更强且更简单。括号无条件加，因为 `swiftc -typecheck` 实测 `repeat each T.Type` 与 `repeat each T?` 都被拒（`'each' cannot be applied to non-pack type`），而括号形式在四种位置全合法。
 - **声明位置**：两个叠加的 bug，各自单独不可见。`dependentGenericParamType` 的 children 是 (depth, index)，比较写反了——depth == index 时照样成立，也就是所有顶层泛型；而循环变量 `gpDepth` 是 count 节点的位置不是真实 depth，名字那行早就用 `depths` 解析了（所以叫 `A1`），pack 查询没有。嵌套一层的 pack 参数于是印成 `<A1>`，紧挨着自己的 `repeat (each A1)`。
 
 现场编译了两个 dylib 做复现（`Outer<T>.f<each A1>` 与顶层 `acceptsAny<each A>`）：depth 0 那个修前修后都对，depth 1 那个只有修后才对——这正是 bug 能长期隐身的原因。

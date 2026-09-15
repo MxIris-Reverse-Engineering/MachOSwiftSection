@@ -48,11 +48,15 @@
 
 把 `.pack` 印出来之后，`Predicate<>` 变成了 `Predicate<Foundation.URL>`（对），但 `VariadicPack<>` 变成了 `VariadicPack<repeat A>`——**仍然不能编译**，源码是 `VariadicPack<repeat each Element>`。`each` 是被单独丢掉的一层，且丢在三个不同的地方。
 
-根因是同一个：**参数的 pack 性只记在泛型签名上**（`dependentGenericParamPackMarker`），使用处的参数引用和普通泛型参数在 mangling 里一模一样。上游 `NodePrinter` 也不补（dump 印 `Pack{repeat A}`），因为它的产物是调试 demangle 而非源码。
+共同点是：**参数引用本身不带 pack 标记**——`dependentGenericParamType` 在使用处与普通泛型参数一模一样。pack 性记在别处：声明那侧在签名的 `dependentGenericParamPackMarker`，使用那侧在展开节点的 count type。上游 `NodePrinter` 两处都不补（dump 印 `Pack{repeat A}`），因为它的产物是调试 demangle 而非源码。
 
 ### 使用位置：`repeat (each A)`
 
-`printPackExpansion` 从一条语言约束恢复，而不是把签名贯穿到每个打印器：**`repeat` 的 pattern 必须展开至少一个 pack**，所以 pattern 里只提到一个 distinct 泛型参数时，那个参数必然就是 pack。多个参数时不下结论（`repeat (T, each U)` 合法，分不出谁是 pack），保持原样。
+**节点自己就说了哪个是 pack，不需要推断。** `packExpansion` 有两个 children：child 0 是 pattern，child 1 是 **count type**——驱动这次展开的那个 pack。mangling 把三者依次写出来（`x_q_t` `q_` `Qp` = pattern、count type、展开算子）。所以 `repeat (T, each U)` 的 count type 就是 `U`，它正是要加 `each` 的那个，而 `T` 原样不动。
+
+（这一点最初判断错了：第一版按「pattern 里只有一个 distinct 参数时那个必然是 pack」的启发式做，`repeat (T, each U)` 因为有两个参数而整个放弃。用户追问才发现 count type 一直摆在那里。行为上新做法严格更强，且更简单——不用扫 pattern。）
+
+唯一仍未覆盖的形状是一次展开多个 pack（`repeat (each A, each B)`）：count type 只点名其中一个，Swift 的 same-shape 要求意味着其余也是 pack，但这个节点不说是哪些，所以其余保持原样而不猜。
 
 括号是**无条件**加的。`each` 比后缀绑定得紧，实测（`swiftc -typecheck`）：
 

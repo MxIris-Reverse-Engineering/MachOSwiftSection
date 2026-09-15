@@ -18,17 +18,16 @@ protocol NodePrintable {
 
     var dependentMemberTypeDepth: Int { get set }
 
-    /// The sole generic parameter inside the `repeat` pattern currently being
-    /// printed, or nil when not printing one (or when the pattern has more
-    /// than one parameter).
+    /// The pack driving the `repeat` expansion currently being printed — the
+    /// expansion node's count type — or nil when not printing one.
     ///
-    /// Carries the one fact the mangling does not: a parameter's pack-ness is
-    /// recorded once on the generic SIGNATURE (`dependentGenericParamPackMarker`)
-    /// and never at the use site, so `repeat each A` demangles to a plain
-    /// parameter reference and prints as `repeat A` — which does not compile.
-    /// See ``FunctionTypeNodePrintable/printPackExpansion(_:)`` for why a sole
-    /// parameter is safe to call a pack and several are not.
-    var packExpansionSoleParameterName: String? { get set }
+    /// Carries the fact a parameter reference does not: pack-ness is recorded
+    /// on the generic SIGNATURE (`dependentGenericParamPackMarker`) and a use
+    /// site looks identical to an ordinary parameter, so `repeat each A`
+    /// demangles to a plain reference and prints as `repeat A`, which does not
+    /// compile. The expansion node's own count type answers it locally.
+    /// See ``FunctionTypeNodePrintable/printPackExpansion(_:)``.
+    var expandedPackParameterName: String? { get set }
 
     /// Mirrors the ``Swift::Demangle::NodePrinter`` recursion guard at
     /// ``swift/lib/Demangling/NodePrinter.cpp:1416``. Each entry into

@@ -81,13 +81,12 @@ extension FunctionTypeNodePrintable {
     /// `NodePrinter` (whose product is a debug demangle, not source) does not
     /// try.
     ///
-    /// Recovered here from a language constraint instead of by threading the
-    /// signature through every printer: a `repeat` pattern must expand at
-    /// least one pack, so when the pattern mentions exactly ONE distinct
-    /// generic parameter, that parameter is necessarily the pack. With
-    /// several, the mangling cannot say which of them are packs — `repeat
-    /// (T, each U)` is legal — so nothing is claimed and the output stays as
-    /// it was. Same rule as the rest of this batch: incomplete beats wrong.
+    /// The node names the pack itself, so nothing has to be inferred: a
+    /// `packExpansion` has TWO children — child 0 is the pattern, child 1 is
+    /// the **count type**, the pack whose length drives the expansion. For
+    /// `repeat (T, each U)` the count type is `U`, which is exactly the
+    /// parameter that takes `each`, and `T` is left alone. (The mangling spells
+    /// this out: `x_q_t` `q_` `Qp` — pattern, count type, expansion operator.)
     ///
     /// The parameter prints parenthesized (`(each A)`) unconditionally,
     /// because `each` binds tighter than a suffix: `repeat each A.Type` and
@@ -95,20 +94,27 @@ extension FunctionTypeNodePrintable {
     /// to non-pack type"), while the parenthesized spelling type-checks in
     /// every position measured — bare argument, metatype, optional, and
     /// nested generic argument.
+    ///
+    /// The one shape still not covered is several packs under one expansion
+    /// (`repeat (each A, each B)`): the count type names a single one, and
+    /// Swift's same-shape requirement means the others are packs too, but
+    /// nothing in this node says which. They keep their old spelling rather
+    /// than get a guess.
     mutating func printPackExpansion(_ name: Node) async {
-        let enclosing = packExpansionSoleParameterName
-        packExpansionSoleParameterName = Self.solePackParameterName(in: name)
-        defer { packExpansionSoleParameterName = enclosing }
+        let enclosing = expandedPackParameterName
+        expandedPackParameterName = Self.countTypeParameterName(in: name)
+        defer { expandedPackParameterName = enclosing }
         await printFirstChild(name, prefix: "repeat ", prefixContext: .context(state: .printKeyword))
     }
 
-    /// The only generic parameter mentioned anywhere in the expansion, or nil
-    /// when there is none or more than one.
-    static func solePackParameterName(in expansion: Node) -> String? {
+    /// The generic parameter named by the expansion's count type (child 1), or
+    /// nil when it is absent or is not a single parameter.
+    static func countTypeParameterName(in expansion: Node) -> String? {
+        guard let countType = expansion.children.at(1) else { return nil }
         var names: Set<String> = []
-        // `Node` iterates preorder including itself, which is the whole
-        // pattern subtree — what we want.
-        for node in expansion where node.kind == .dependentGenericParamType {
+        // `Node` iterates preorder including itself, so this covers a count
+        // type that arrives wrapped in a `type` node.
+        for node in countType where node.kind == .dependentGenericParamType {
             guard let text = node.text else { continue }
             names.insert(text)
             if names.count > 1 { return nil }
