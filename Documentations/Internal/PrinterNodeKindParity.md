@@ -99,9 +99,23 @@ count type 只点名一个 pack，所以 `repeat (each A, each B)` 单靠它不�
 
 复现用的是现场编译的两个 dylib（`Outer<T>.f<each A1>` 与顶层的 `acceptsAny<each A>`）：depth 0 的那个在修复前后都对，depth 1 的那个只有修复后才对。
 
-### 还没修：函数 where 子句里的 pack 约束
+### where 子句：第三个位置，第三种机制
 
-`static func f<each A1>(…) where A1: StyleCtx` —— 源码是 `where repeat each A1: StyleCtx`。类型那侧是对的（`struct Carrier<each A> where repeat each A: StyleCtx`），因为它的 requirement subject 在 mangling 里就带着 `packExpansion`；函数的 requirement subject 是**裸的** `dependentGenericParamType`，要补就得在 requirement 这一级包 `repeat`，并且需要一份签名级的 pack 参数集合——与上面两处都不是同一个机制。留给下一批。
+`static func f<each A1>(…) where A1: StyleCtx` —— 源码是 `where repeat each A1: StyleCtx`，不加 `repeat each` 无法编译。
+
+这里连 count type 都没有：requirement 的 subject 是一个**裸的** `dependentGenericParamType`，`repeat` 和 `each` 两个词都不在节点里。补齐它靠的正是上一节那张表——`printGenericSignature` 在判定 `<each A1>` 时已经把名字记下了，requirement 打印时查表即可。所以一旦有了签名级的名字表，这一处几乎是顺带的。
+
+三个位置各用一种来源，这不是巧合，而是 mangling 只在三个不同的地方留了痕迹：
+
+| 位置 | 源码 | 信息来自 |
+|---|---|---|
+| 声明 | `<each A>` | 签名的 `dependentGenericParamPackMarker` |
+| 使用 | `repeat (each A)` | 展开节点的 count type |
+| where 子句 | `where repeat each A: P` | 签名记下的名字表 |
+
+**where 子句不加括号**，与使用位置不同：subject 是裸参数，后面没有任何后缀，`each` 没有可越过的东西。这也让函数与类型的 where 子句拼写终于一致（类型那侧一直是 `where repeat each A: StyleCtx`）。
+
+三处打印点（conformance / sameType / layout requirement）统一走 `printRequirementSubject`。
 
 ## 为什么 `any P<Y>` 不需要查 protocol facts
 

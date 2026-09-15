@@ -24,15 +24,24 @@ struct PackExpansionRenderingTests {
         return try await printer.printRoot(node).string
     }
 
-    /// `public func acceptsAny<each A>(_: repeat (each A).Type) -> Bool`
-    /// (top level, one pack, depth 0).
+    /// `static func acceptsAny<each A>(_: repeat (each A).Type) -> Bool`
+    /// `where repeat each A: StyleCtx` (top level, one pack, depth 0).
     ///
-    /// The parenthesisation is not cosmetic: `each` binds tighter than a
-    /// suffix, so `repeat each A.Type` is rejected by the compiler outright.
+    /// Three positions, three mechanisms: the declaration reads the signature's
+    /// pack marker, the use site reads the expansion's count type, and the
+    /// where clause has neither — its subject is a bare parameter reference, so
+    /// both the `repeat` and the `each` come from the name the signature
+    /// recorded.
+    ///
+    /// The parenthesisation at the use site is not cosmetic: `each` binds
+    /// tighter than a suffix, so `repeat each A.Type` is rejected outright. In
+    /// the where clause there is no suffix, hence no parentheses — matching how
+    /// a type's own clause has always printed.
     @Test func topLevelPackFunction() async throws {
         let text = try await rendered("$s8packfunc6HolderO10acceptsAnyySbxmxQpRvzAA8StyleCtxRzlFZ")
         #expect(text.contains("<each A>"), "\(text)")
         #expect(text.contains("repeat (each A).Type"), "\(text)")
+        #expect(text.contains("where repeat each A:"), "\(text)")
     }
 
     /// The same shape one level in — `Outer<T>.f<each A1>`.
@@ -47,6 +56,7 @@ struct PackExpansionRenderingTests {
         let text = try await rendered("$s9packdepth5OuterV1fySbqd__mqd__QpRvd__AA8StyleCtxRd__lFZ")
         #expect(text.contains("<each A1>"), "\(text)")
         #expect(text.contains("repeat (each A1).Type"), "\(text)")
+        #expect(text.contains("where repeat each A1:"), "\(text)")
     }
 
     /// `struct Mixed<T, each U> { var x: (repeat (T, each U)) }` — a scalar and

@@ -93,4 +93,4 @@
 
 - **extension 头部空尖括号** 56 处（`extension Swift.Optional<>.ChildTableColumn`）：确认为真、该修、不在本批，走的是另一条渲染路径。
 - **多 primary associated type 的排序**：降级为裸 `any P`，接 `ProtocolFactsResolver` 才能定序，当前无样本。
-- **函数 where 子句里的 pack 约束**：`where A1: StyleCtx` 应为 `where repeat each A1: StyleCtx`。类型那侧是对的（requirement subject 在 mangling 里带 `packExpansion`），函数的 subject 是裸参数，要补得在 requirement 这一级包 `repeat` 并带一份签名级 pack 集合——与已修的两处都不是同一个机制。
+- ~~函数 where 子句里的 pack 约束~~ —— **同批已修**。有了签名级名字表之后几乎是顺带的：requirement 的 subject 是裸参数，`repeat` 与 `each` 两个词都不在节点里，全从表里取。三处 requirement 打印点（conformance / sameType / layout）统一走 `printRequirementSubject`；where 子句不加括号（subject 后无后缀），因此函数与类型的拼写终于一致。SwiftUI 17 处 `acceptsAny` 随之改对。

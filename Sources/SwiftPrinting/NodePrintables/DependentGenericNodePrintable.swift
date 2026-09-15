@@ -223,13 +223,55 @@ extension DependentGenericNodePrintable {
     }
 
     mutating func printDependentGenericConformanceRequirement(_ name: Node) async {
-        await printFirstChild(name)
+        await printRequirementSubject(of: name)
         _ = await printOptional(name.children.at(1), prefix: ": ")
+    }
+
+    /// Prints a requirement's subject, spelling a pack parameter as
+    /// `repeat each A`.
+    ///
+    /// Source writes a pack constraint `where repeat each A: P`, but the
+    /// subject in the mangling is a BARE parameter reference — indistinguishable
+    /// from an ordinary parameter, with neither the `repeat` nor the `each`
+    /// anywhere in the node. Both are recovered from
+    /// ``knownPackParameterNames``, which ``printGenericSignature`` filled in
+    /// on this same printer a moment earlier while deciding that the
+    /// declaration reads `<each A>`. Without this the constraint printed
+    /// `where A1: P`, which does not compile against a pack parameter.
+    ///
+    /// No parentheses here, unlike a use site: the subject is the bare
+    /// parameter with nothing suffixed to it, so `each` has nothing to bind
+    /// past.
+    mutating func printRequirementSubject(of requirement: Node, suffix: String? = nil) async {
+        if let subject = requirement.children.first,
+           let parameterName = Self.bareGenericParameterName(of: subject),
+           knownPackParameterNames.contains(parameterName) {
+            target.write("repeat", context: .context(state: .printKeyword))
+            target.writeSpace()
+            target.write("each", context: .context(state: .printKeyword))
+            target.writeSpace()
+            await printDependentGenericParamName(parameterName)
+            if let suffix { target.write(suffix) }
+            return
+        }
+        await printFirstChild(requirement, suffix: suffix)
+    }
+
+    /// The parameter's name when this node is exactly a generic parameter
+    /// reference (optionally wrapped in `type`); nil for anything compound,
+    /// where `repeat each` would not apply to the node as a whole.
+    static func bareGenericParameterName(of node: Node) -> String? {
+        var current = node
+        if current.kind == .type, let child = current.children.first {
+            current = child
+        }
+        guard current.kind == .dependentGenericParamType else { return nil }
+        return current.text
     }
 
     mutating func printDependentGenericLayoutRequirement(_ name: Node) async {
         guard let layout = name.children.at(1), let c = layout.text?.unicodeScalars.first else { return }
-        await printFirstChild(name, suffix: ": ")
+        await printRequirementSubject(of: name, suffix: ": ")
         switch c {
         case "U": target.write("_UnknownLayout", context: .context(state: .printType))
         case "R": target.write("_RefCountedObject", context: .context(state: .printType))
@@ -251,7 +293,7 @@ extension DependentGenericNodePrintable {
     }
 
     mutating func printDependentGenericSameTypeRequirement(_ name: Node) async {
-        await printFirstChild(name)
+        await printRequirementSubject(of: name)
         _ = await printOptional(name.children.at(1), prefix: " == ")
     }
 
