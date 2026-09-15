@@ -1,8 +1,8 @@
-# Draft - interface 打印器与上游 NodePrinter 的 node kind parity
+# 0034 - interface 打印器与上游 NodePrinter 的 node kind parity
 
-- **状态**: In Progress
+- **状态**: Implemented
 - **创建日期**: 2026-09-14
-- **最后更新**: 2026-09-14
+- **最后更新**: 2026-09-15
 - **所属愿景**: 无
 - **关联提案**: [0033](0033-by-name-opaque-reference-expansion.md)（它的决策日志里记下了 `printOpaqueType` 会把 conformer 印成 witness，明说「留给打印器的下一次整理」——就是这一批）
 - **实现分支 / PR**: `feature/printer-node-kind-parity`（worktree `.worktrees/MachOSwiftSection-PrinterNodeKindParity`，从 `next` 切出）
@@ -129,3 +129,4 @@ AGENTS.md 是否新增一条默认（「给 `SwiftPrinting` 加 kind 前先查�
 | 2026-09-15 | 多 pack 用签名记下的名字表补齐，不是「恢复不了」 | 用户让实测 `repeat (each A, each B)`。两个事实定了边界：类型**不能**声明多个 pack（编译器报 `generic type cannot declare more than one type pack`），所以字段那侧 count type 永远够；函数可以，但函数的签名与参数类型同属一个 `dependentGenericType`、由同一个 printer 先后打印，`printGenericSignature` 判定 `each` 时顺手记名即可。两个来源正好互补 |
 | 2026-09-15 | same-shape requirement 从 where 子句排除，而不是补 case | 它在源码里从不出现（由 `repeat (each A, each B)` 隐含），上游渲染成 `A.shape == B.shape` 不是 Swift 语法；没有 case 时印成空串，产出后面什么都没有的 `where `。补 case 等于把非法语法印出来 |
 | 2026-09-15 | 函数 where 子句的 pack 约束同批修掉 | 原打算留给下一批，但签名级名字表做出来之后它几乎是顺带的：requirement 的 subject 是裸参数，`repeat` 与 `each` 都不在节点里，全从表里取。where 子句不加括号（subject 后无后缀），函数与类型的拼写因此一致。三处 requirement 打印点统一走 `printRequirementSubject` |
+| 2026-09-15 | In Progress → Implemented，落地时取编号 0034 | 合入 `next`。按本项目约定编号在落地时才分配，`draft-<slug>` 至此改名，正文、实现说明与演进账本的链接同批更新 |

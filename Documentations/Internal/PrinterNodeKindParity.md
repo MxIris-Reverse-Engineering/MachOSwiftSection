@@ -1,7 +1,7 @@
 # 打印器 node kind parity：判据、缺口与常驻测试
 
 > 本文是实现说明：讲清 `SwiftPrinting` 与上游 `Demangling` 包 `NodePrinter` 之间的 node kind 缺口为什么会静默产出非法 Swift、每个缺口按什么判据处理、以及那个常驻测试怎么用、allowlist 怎么维护。
-> 决策记录见提案 [draft-interface-printer-node-kind-parity](../Evolutions/draft-interface-printer-node-kind-parity.md)（编号落地时分配）。
+> 决策记录见提案 [0034](../Evolutions/0034-interface-printer-node-kind-parity.md)。
 
 ## 失败模式：缺一个 case，输出就少一段，而且没人会发现
 
