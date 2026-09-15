@@ -1559,19 +1559,19 @@ enum GenericFieldLayout {
     }
     struct VariadicPack<each A> {
         // Field offset: unknown (generic parameter not substituted)
-        var values: (repeat A)
+        var values: (repeat (each A))
     }
     struct MixedScalarAndPack<A, each B> {
         // Field offset: unknown (generic parameter not substituted)
         var first: A
         // Field offset: unknown (preceding field unresolved)
-        var rest: (repeat B?)
+        var rest: (repeat (each B)?)
     }
     struct VariadicForwarder<each A> {
         // Field offset: unknown (generic parameter not substituted)
-        var forwarded: SymbolTestsCore.GenericFieldLayout.VariadicPack<>
+        var forwarded: SymbolTestsCore.GenericFieldLayout.VariadicPack<repeat (each A)>
         // Field offset: unknown (preceding field unresolved)
-        var wrapped: (repeat SymbolTestsCore.GenericFieldLayout.Box<A>)
+        var wrapped: (repeat SymbolTestsCore.GenericFieldLayout.Box<(each A)>)
     }
     struct ValueGenericBuffer<let a: Int> {
         // Field offset: unknown (generic parameter not substituted)
@@ -1586,10 +1586,10 @@ enum GenericFieldLayout {
         var leading: Swift.Int
         // Field offset: 0x8
         // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 0)
-        var triple: SymbolTestsCore.GenericFieldLayout.VariadicPack<>
+        var triple: SymbolTestsCore.GenericFieldLayout.VariadicPack<Swift.Int32, Swift.Int8, Swift.Int64>
         // Field offset: 0x18
         // Type Layout: (size: 2, stride: 2, alignment: 2, extraInhabitantCount: 0)
-        var single: SymbolTestsCore.GenericFieldLayout.VariadicPack<>
+        var single: SymbolTestsCore.GenericFieldLayout.VariadicPack<Swift.Int16>
         // Field offset: 0x0
         // Type Layout: (size: 0, stride: 1, alignment: 1, extraInhabitantCount: 0)
         var empty: SymbolTestsCore.GenericFieldLayout.VariadicPack<>
@@ -1603,7 +1603,7 @@ enum GenericFieldLayout {
         var leading: Swift.Int
         // Field offset: 0x8
         // Type Layout: (size: 11, stride: 16, alignment: 8, extraInhabitantCount: 253)
-        var mixed: SymbolTestsCore.GenericFieldLayout.MixedScalarAndPack<Swift.Int, >
+        var mixed: SymbolTestsCore.GenericFieldLayout.MixedScalarAndPack<Swift.Int, Swift.Bool, Swift.Int8>
         // Field offset: 0x18
         // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
         var trailing: Swift.Int
@@ -1614,7 +1614,7 @@ enum GenericFieldLayout {
         var leading: Swift.Int
         // Field offset: 0x8
         // Type Layout: (size: 13, stride: 16, alignment: 4, extraInhabitantCount: 254)
-        var forwarder: SymbolTestsCore.GenericFieldLayout.VariadicForwarder<>
+        var forwarder: SymbolTestsCore.GenericFieldLayout.VariadicForwarder<Swift.Int32, Swift.Bool>
         // Field offset: 0x18
         // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
         var trailing: Swift.Int
@@ -2054,15 +2054,15 @@ enum GenericRequirementVariants {
     }
     struct ParameterPackRequirementTest<each A> {
         // Field offset: unknown (generic parameter not substituted)
-        var elements: (repeat A)
+        var elements: (repeat (each A))
 
-        init(elements: (repeat A))
+        init(elements: (repeat (each A)))
     }
     struct ConstrainedParameterPackTest<each A> where repeat each A: SymbolTestsCore.Protocols.ProtocolTest {
         // Field offset: unknown (generic parameter not substituted)
-        var elements: (repeat A)
+        var elements: (repeat (each A))
 
-        init(elements: (repeat A))
+        init(elements: (repeat (each A)))
     }
     struct InvertibleProtocolRequirementTest<A>: ~Swift.Copyable where A: ~Swift.Copyable {
         // Field offset: unknown (generic parameter not substituted)
@@ -2084,7 +2084,7 @@ enum Generics {
     }
     struct GenericPackTest<A, each B, C> where repeat each B: SymbolTestsCore.Protocols.ProtocolTest {
         // Field offset: unknown (generic parameter not substituted)
-        var _content: (repeat B)
+        var _content: (repeat (each B))
 
         var body: Swift.Never {
             get

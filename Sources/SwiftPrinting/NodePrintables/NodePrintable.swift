@@ -18,6 +18,28 @@ protocol NodePrintable {
 
     var dependentMemberTypeDepth: Int { get set }
 
+    /// How many `repeat` patterns enclose the node being printed. `each` is
+    /// only ever written inside one.
+    var packExpansionDepth: Int { get set }
+
+    /// Generic parameters known to be packs, by printed name.
+    ///
+    /// A parameter reference carries no pack marker — a use site is identical
+    /// to an ordinary parameter — so `repeat each A` demangles to a plain
+    /// reference and prints as `repeat A`, which does not compile. Two sources
+    /// fill this in, and they are complementary:
+    ///
+    /// - the enclosing signature, recorded by ``printGenericSignature`` as it
+    ///   decides which parameters print as `each A`. Available whenever the
+    ///   signature and the type share a printer, i.e. for functions — which is
+    ///   the only place several packs can occur.
+    /// - the expansion's own count type, recorded by
+    ///   ``FunctionTypeNodePrintable/printPackExpansion(_:)``. This is what
+    ///   covers a type's field, whose type tree carries no signature — and it
+    ///   suffices there, because a generic type may declare at most one pack
+    ///   ("generic type cannot declare more than one type pack").
+    var knownPackParameterNames: Set<String> { get set }
+
     /// Mirrors the ``Swift::Demangle::NodePrinter`` recursion guard at
     /// ``swift/lib/Demangling/NodePrinter.cpp:1416``. Each entry into
     /// ``printName(_:asPrefixContext:context:)`` increments the counter and
@@ -40,6 +62,20 @@ protocol NodePrintable {
 
     @discardableResult
     mutating func printName(_ name: Node, asPrefixContext: Bool, context: Context?) async -> Node?
+}
+
+extension Sequence where Element == Node.Kind {
+    /// The requirement kinds that belong in a printed `where` clause.
+    ///
+    /// Upstream's `requirementKinds` also lists
+    /// `dependentGenericSameShapeRequirement`, which source never writes — it
+    /// is implied by the expansion itself (`repeat (each A, each B)`) — and
+    /// which upstream renders as `A.shape == B.shape`, not Swift syntax.
+    /// Worse, this printer has no case for that node, so including it emitted
+    /// a `where ` with nothing after it.
+    static var printableRequirementKinds: [Node.Kind] {
+        requirementKinds.filter { $0 != .dependentGenericSameShapeRequirement }
+    }
 }
 
 extension NodePrintable {
@@ -94,6 +130,21 @@ extension NodePrintable {
             // offset. Previously unhandled, which rendered the node as an
             // empty string and produced `case name()` — invalid Swift.
             target.write("accessor function at \(name.index ?? 0)")
+        case .index:
+            // The ordinal inside an `opaqueType` node (child 1) — the `.0` in
+            // `<<opaque return type of f()>>.0`, which selects WHICH `some` of
+            // a multi-opaque return this is. Previously unhandled, so the
+            // ordinal vanished and the reference printed with a trailing dot.
+            target.write("\(name.index ?? 0)")
+        case .opaqueTypeDescriptorSymbolicReference:
+            // An opaque type descriptor the rewriter could not expand, still
+            // spelled as a POINTER (the shared-cache case; the standalone-file
+            // case is `.opaqueReturnTypeOf` instead). Offline-unresolvable by
+            // construction once expansion has failed, so mirror the Demangling
+            // `NodePrinter` fallback verbatim — same reasoning as
+            // `accessorFunctionReference` above. `hexadecimalString` upstream
+            // is internal; this is its definition.
+            target.write("opaque type symbolic reference 0x\(String(name.index ?? 0, radix: 16, uppercase: true))")
         default:
             return false
         }

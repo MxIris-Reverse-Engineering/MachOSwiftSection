@@ -62,11 +62,69 @@ extension FunctionTypeNodePrintable {
         case .packElementLevel:
             break
         case .packExpansion:
-            await printFirstChild(name, prefix: "repeat ", prefixContext: .context(state: .printKeyword))
+            await printPackExpansion(name)
         default:
             return false
         }
         return true
+    }
+
+    /// A pack expansion — `repeat each A` in source.
+    ///
+    /// The `each` is not in the mangling. A parameter's pack-ness is recorded
+    /// once on the generic SIGNATURE (`dependentGenericParamPackMarker`) and
+    /// never at the use site, so this node's pattern demangles to a plain
+    /// parameter reference and renders as `repeat A`, which does not compile.
+    /// `printGenericSignature` recovers `each` at the DECLARATION (`<each A>`)
+    /// only because the signature is right there in the node it is printing;
+    /// at a use site the signature is not in the tree at all, and the upstream
+    /// `NodePrinter` (whose product is a debug demangle, not source) does not
+    /// try.
+    ///
+    /// The node names the pack itself, so nothing has to be inferred: a
+    /// `packExpansion` has TWO children — child 0 is the pattern, child 1 is
+    /// the **count type**, the pack whose length drives the expansion. For
+    /// `repeat (T, each U)` the count type is `U`, which is exactly the
+    /// parameter that takes `each`, and `T` is left alone. (The mangling spells
+    /// this out: `x_q_t` `q_` `Qp` — pattern, count type, expansion operator.)
+    ///
+    /// The parameter prints parenthesized (`(each A)`) unconditionally,
+    /// because `each` binds tighter than a suffix: `repeat each A.Type` and
+    /// `repeat each A?` are both rejected outright ("'each' cannot be applied
+    /// to non-pack type"), while the parenthesized spelling type-checks in
+    /// every position measured — bare argument, metatype, optional, and
+    /// nested generic argument.
+    ///
+    /// The count type names only ONE pack, which is all a type's field ever
+    /// needs — a generic type may declare at most one ("generic type cannot
+    /// declare more than one type pack"). Several packs under one expansion is
+    /// reachable only on a function (`g<each A, each B>(_: (repeat (each A,
+    /// each B)))`), and there the signature is in the same tree and the same
+    /// printer, so ``printGenericSignature`` has already recorded every pack
+    /// into ``knownPackParameterNames`` by the time the parameter type prints.
+    /// The two sources cover each other's gap.
+    mutating func printPackExpansion(_ name: Node) async {
+        packExpansionDepth += 1
+        defer { packExpansionDepth -= 1 }
+        if let countTypeName = Self.countTypeParameterName(in: name) {
+            knownPackParameterNames.insert(countTypeName)
+        }
+        await printFirstChild(name, prefix: "repeat ", prefixContext: .context(state: .printKeyword))
+    }
+
+    /// The generic parameter named by the expansion's count type (child 1), or
+    /// nil when it is absent or is not a single parameter.
+    static func countTypeParameterName(in expansion: Node) -> String? {
+        guard let countType = expansion.children.at(1) else { return nil }
+        var names: Set<String> = []
+        // `Node` iterates preorder including itself, so this covers a count
+        // type that arrives wrapped in a `type` node.
+        for node in countType where node.kind == .dependentGenericParamType {
+            guard let text = node.text else { continue }
+            names.insert(text)
+            if names.count > 1 { return nil }
+        }
+        return names.first
     }
 
     mutating func printFunctionType(_ functionType: Node, labelList: Node?, isAllocator: Bool, isBlockOrClosure: Bool) async {

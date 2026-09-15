@@ -28,6 +28,10 @@ struct SubscriptNodePrinter: InterfaceNodePrintable {
 
     var dependentMemberTypeDepth: Int = 0
 
+    var packExpansionDepth: Int = 0
+
+    var knownPackParameterNames: Set<String> = []
+
     var printDepth: Int = 0
 
     var printCache: [ObjectIdentifier: Target] = [:]
@@ -115,7 +119,7 @@ struct SubscriptNodePrinter: InterfaceNodePrintable {
             await printLabelList(name: node, type: functionType, genericFunctionTypeList: genericFunctionTypeList)
         }
         if let genericSignature = node.first(of: .dependentGenericSignature) {
-            let nodes = genericSignature.all(of: .requirementKinds)
+            let nodes = genericSignature.all(of: .printableRequirementKinds)
             for (offset, node) in nodes.offsetEnumerated() {
                 if offset.isStart {
                     target.writeSpace()

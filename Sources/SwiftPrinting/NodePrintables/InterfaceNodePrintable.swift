@@ -30,7 +30,11 @@ extension InterfaceNodePrintable {
         // we care about (BoundGeneric typeList children) always recurses
         // through this default path, so the cache still kicks in there.
         let cacheKey = ObjectIdentifier(name)
-        let canCache = !asPrefixContext && context == nil && dependentMemberTypeDepth == 0
+        // `expandedPackParameterName` joins the list for the same reason
+        // `dependentMemberTypeDepth` is on it: inside a `repeat` pattern a
+        // parameter renders as `(each A)` and outside it as `A`, so caching
+        // one rendering under the node's identity would serve it to the other.
+        let canCache = !asPrefixContext && context == nil && dependentMemberTypeDepth == 0 && packExpansionDepth == 0
         if canCache, let cached = printCache[cacheKey] {
             target.append(cached)
             return nil
