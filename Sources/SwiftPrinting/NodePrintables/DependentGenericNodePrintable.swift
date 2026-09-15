@@ -56,15 +56,14 @@ extension DependentGenericNodePrintable {
     }
 
     mutating func printDependentGenericParamType(_ name: Node) async {
-        // This is the pack the enclosing `repeat` expands over (the
-        // expansion's count type), which source spells `each A`.
-        // Parenthesized unconditionally — see `printPackExpansion` for why a
-        // bare `each` is rejected after a suffix.
-        if let packParameterName = expandedPackParameterName, name.text == packParameterName {
+        // Inside a `repeat` pattern, a parameter known to be a pack is spelled
+        // `each A` in source. Parenthesized unconditionally — see
+        // `printPackExpansion` for why a bare `each` is rejected after a suffix.
+        if packExpansionDepth > 0, let text = name.text, knownPackParameterNames.contains(text) {
             target.write("(")
             target.write("each", context: .context(for: name, state: .printKeyword))
             target.writeSpace()
-            await printDependentGenericParamName(packParameterName)
+            await printDependentGenericParamName(text)
             target.write(")")
             return
         }
@@ -189,9 +188,14 @@ extension DependentGenericNodePrintable {
                 // `repeat (each A1)` use site.
                 let resolvedDepth = depths?[index.cast()] ?? gpDepth.cast()
 
+                let parameterName = genericParameterName(depth: resolvedDepth, index: index.cast())
                 if isGenericParamPack(UInt64(resolvedDepth), UInt64(index)) {
                     target.write("each", context: .context(state: .printKeyword))
                     target.writeSpace()
+                    // Remember it for the type that follows: a use site carries
+                    // no pack marker, and for a function the signature and the
+                    // parameter types share this printer.
+                    knownPackParameterNames.insert(parameterName)
                 }
 
                 let value = isGenericParamValue(UInt64(resolvedDepth), UInt64(index))
@@ -200,7 +204,7 @@ extension DependentGenericNodePrintable {
                     target.writeSpace()
                 }
 
-                await printDependentGenericParamName(genericParameterName(depth: resolvedDepth, index: index.cast()))
+                await printDependentGenericParamName(parameterName)
 
                 if let value {
                     target.write(": ")

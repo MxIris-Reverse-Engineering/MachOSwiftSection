@@ -32,7 +32,9 @@ struct VariableNodePrinter: InterfaceNodePrintable {
 
     var dependentMemberTypeDepth: Int = 0
 
-    var expandedPackParameterName: String? = nil
+    var packExpansionDepth: Int = 0
+
+    var knownPackParameterNames: Set<String> = []
 
     var printDepth: Int = 0
 

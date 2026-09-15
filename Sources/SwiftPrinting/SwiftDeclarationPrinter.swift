@@ -463,7 +463,7 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
         }
 
         if let genericSignature = extensionDefinition.genericSignature {
-            let nodes = genericSignature.all(of: .requirementKinds)
+            let nodes = genericSignature.all(of: .printableRequirementKinds)
             for (index, node) in nodes.enumerated() {
                 if index == 0 {
                     Space()

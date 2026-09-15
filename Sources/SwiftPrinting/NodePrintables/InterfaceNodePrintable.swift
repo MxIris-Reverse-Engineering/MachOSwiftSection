@@ -34,7 +34,7 @@ extension InterfaceNodePrintable {
         // `dependentMemberTypeDepth` is on it: inside a `repeat` pattern a
         // parameter renders as `(each A)` and outside it as `A`, so caching
         // one rendering under the node's identity would serve it to the other.
-        let canCache = !asPrefixContext && context == nil && dependentMemberTypeDepth == 0 && expandedPackParameterName == nil
+        let canCache = !asPrefixContext && context == nil && dependentMemberTypeDepth == 0 && packExpansionDepth == 0
         if canCache, let cached = printCache[cacheKey] {
             target.append(cached)
             return nil

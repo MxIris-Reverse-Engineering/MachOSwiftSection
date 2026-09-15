@@ -18,16 +18,27 @@ protocol NodePrintable {
 
     var dependentMemberTypeDepth: Int { get set }
 
-    /// The pack driving the `repeat` expansion currently being printed — the
-    /// expansion node's count type — or nil when not printing one.
+    /// How many `repeat` patterns enclose the node being printed. `each` is
+    /// only ever written inside one.
+    var packExpansionDepth: Int { get set }
+
+    /// Generic parameters known to be packs, by printed name.
     ///
-    /// Carries the fact a parameter reference does not: pack-ness is recorded
-    /// on the generic SIGNATURE (`dependentGenericParamPackMarker`) and a use
-    /// site looks identical to an ordinary parameter, so `repeat each A`
-    /// demangles to a plain reference and prints as `repeat A`, which does not
-    /// compile. The expansion node's own count type answers it locally.
-    /// See ``FunctionTypeNodePrintable/printPackExpansion(_:)``.
-    var expandedPackParameterName: String? { get set }
+    /// A parameter reference carries no pack marker — a use site is identical
+    /// to an ordinary parameter — so `repeat each A` demangles to a plain
+    /// reference and prints as `repeat A`, which does not compile. Two sources
+    /// fill this in, and they are complementary:
+    ///
+    /// - the enclosing signature, recorded by ``printGenericSignature`` as it
+    ///   decides which parameters print as `each A`. Available whenever the
+    ///   signature and the type share a printer, i.e. for functions — which is
+    ///   the only place several packs can occur.
+    /// - the expansion's own count type, recorded by
+    ///   ``FunctionTypeNodePrintable/printPackExpansion(_:)``. This is what
+    ///   covers a type's field, whose type tree carries no signature — and it
+    ///   suffices there, because a generic type may declare at most one pack
+    ///   ("generic type cannot declare more than one type pack").
+    var knownPackParameterNames: Set<String> { get set }
 
     /// Mirrors the ``Swift::Demangle::NodePrinter`` recursion guard at
     /// ``swift/lib/Demangling/NodePrinter.cpp:1416``. Each entry into
@@ -51,6 +62,20 @@ protocol NodePrintable {
 
     @discardableResult
     mutating func printName(_ name: Node, asPrefixContext: Bool, context: Context?) async -> Node?
+}
+
+extension Sequence where Element == Node.Kind {
+    /// The requirement kinds that belong in a printed `where` clause.
+    ///
+    /// Upstream's `requirementKinds` also lists
+    /// `dependentGenericSameShapeRequirement`, which source never writes — it
+    /// is implied by the expansion itself (`repeat (each A, each B)`) — and
+    /// which upstream renders as `A.shape == B.shape`, not Swift syntax.
+    /// Worse, this printer has no case for that node, so including it emitted
+    /// a `where ` with nothing after it.
+    static var printableRequirementKinds: [Node.Kind] {
+        requirementKinds.filter { $0 != .dependentGenericSameShapeRequirement }
+    }
 }
 
 extension NodePrintable {

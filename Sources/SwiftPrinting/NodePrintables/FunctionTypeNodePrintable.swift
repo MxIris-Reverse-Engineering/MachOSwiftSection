@@ -95,15 +95,20 @@ extension FunctionTypeNodePrintable {
     /// every position measured — bare argument, metatype, optional, and
     /// nested generic argument.
     ///
-    /// The one shape still not covered is several packs under one expansion
-    /// (`repeat (each A, each B)`): the count type names a single one, and
-    /// Swift's same-shape requirement means the others are packs too, but
-    /// nothing in this node says which. They keep their old spelling rather
-    /// than get a guess.
+    /// The count type names only ONE pack, which is all a type's field ever
+    /// needs — a generic type may declare at most one ("generic type cannot
+    /// declare more than one type pack"). Several packs under one expansion is
+    /// reachable only on a function (`g<each A, each B>(_: (repeat (each A,
+    /// each B)))`), and there the signature is in the same tree and the same
+    /// printer, so ``printGenericSignature`` has already recorded every pack
+    /// into ``knownPackParameterNames`` by the time the parameter type prints.
+    /// The two sources cover each other's gap.
     mutating func printPackExpansion(_ name: Node) async {
-        let enclosing = expandedPackParameterName
-        expandedPackParameterName = Self.countTypeParameterName(in: name)
-        defer { expandedPackParameterName = enclosing }
+        packExpansionDepth += 1
+        defer { packExpansionDepth -= 1 }
+        if let countTypeName = Self.countTypeParameterName(in: name) {
+            knownPackParameterNames.insert(countTypeName)
+        }
         await printFirstChild(name, prefix: "repeat ", prefixContext: .context(state: .printKeyword))
     }
 

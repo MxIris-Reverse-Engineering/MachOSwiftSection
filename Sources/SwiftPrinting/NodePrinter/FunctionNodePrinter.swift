@@ -24,7 +24,9 @@ struct FunctionNodePrinter: InterfaceNodePrintable {
 
     var dependentMemberTypeDepth: Int = 0
 
-    var expandedPackParameterName: String? = nil
+    var packExpansionDepth: Int = 0
+
+    var knownPackParameterNames: Set<String> = []
 
     var printDepth: Int = 0
 
@@ -125,7 +127,7 @@ struct FunctionNodePrinter: InterfaceNodePrintable {
         }
 
         if let genericSignature = function.first(of: .dependentGenericSignature) {
-            let nodes = genericSignature.all(of: .requirementKinds)
+            let nodes = genericSignature.all(of: .printableRequirementKinds)
             for (offset, node) in nodes.offsetEnumerated() {
                 if offset.isStart {
                     target.writeSpace()
