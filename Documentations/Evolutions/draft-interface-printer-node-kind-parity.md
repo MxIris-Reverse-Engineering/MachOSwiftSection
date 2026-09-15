@@ -122,3 +122,8 @@ AGENTS.md 是否新增一条默认（「给 `SwiftPrinting` 加 kind 前先查�
 | 2026-09-14 | opaque 两处改委托上游 printer，而非补 entity kind | 补 case 要在 `SwiftPrinting` 复刻整套 entity 打印（child 0 是 `.function` / `.variable` / `.extension` …，上游最复杂的一块），且开写会印出中间为空的 `<<opaque return type of >>`，比原状更糟。委托则与 dump 逐字一致，项目已有先例 |
 | 2026-09-14 | 空泛型参数列表的修法定为「参数数为 0 即整段不印」 | 上游同样无条件写 `<`，但 dump 路径从不走到这段代码（实测 dump 侧 `<>` 为 0 处），所以这是 interface 独有症状，按 interface 的可编译目标修 |
 | 2026-09-14 | extension 头部空尖括号 56 处不纳入本批 | 改动前后逐字相同，走 extension 头部渲染路径（上游 printer 配 `.interfaceTypeBuilderOnly`），与类型打印器的 kind 覆盖无关。确认为真、该修，但属于另一个批次；不进 `ReviewAdjudications.md`（那是「不修 / 误报」的表） |
+| 2026-09-15 | 追加 `repeat each` 的恢复（用户追问后） | `.pack` 修好后输出是 `VariadicPack<repeat A>`，源码是 `repeat each Element`——仍不可编译，而第一轮验证把它当成了修好的证据。`each` 只记在签名的 pack marker 上，使用处的参数引用与普通参数在 mangling 里无差别 |
+| 2026-09-15 | 使用位置的 `each` 从语言约束恢复，不贯穿签名 | `repeat` 的 pattern 必须展开至少一个 pack，故 pattern 只含一个 distinct 参数时那个就是 pack；多个则不下结论（`repeat (T, each U)` 合法）。与 `any P<Y>` 同一种推理，省掉把签名传进每个打印器 |
+| 2026-09-15 | `(each A)` 无条件加括号 | `swiftc -typecheck` 实测 `repeat each T.Type` / `repeat each T?` 均被拒，括号形式在四种位置全合法。少一条「父节点是不是后缀」的判断，代价是比源码多一对括号 |
+| 2026-09-15 | 修 `printGenericSignature` 的两个叠加 bug | children 是 (depth, index) 但比较写反——depth == index 时仍成立，即所有顶层泛型，所以长期不可见；且 pack 查询用的 `gpDepth` 是 count 节点位置而非真实 depth，而名字那行早已用 `depths` 解析。嵌套一层的 pack 参数因此印成 `<A1>`，紧挨着自己的 `repeat (each A1)`。现场编译 depth 0 / depth 1 两个 dylib 复现 |
+| 2026-09-15 | 函数 where 子句的 pack 约束不在本批 | `where A1: P` 应为 `where repeat each A1: P`。类型那侧对是因为它的 requirement subject 在 mangling 里带 `packExpansion`；函数的是裸参数，要补需在 requirement 级包 `repeat` 并带签名级 pack 集合，与已修两处都不同机制 |

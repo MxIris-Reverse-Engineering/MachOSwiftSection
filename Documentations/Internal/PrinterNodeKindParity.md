@@ -44,7 +44,45 @@
 - **空泛型参数列表**：`printGenericSignature` 无条件写 `<`，extension 成员的参数全属于被扩展类型时，参数数为 0，印出 `init<>(windowID: String) where …`。上游同样无条件写，但 dump 路径从不走到这段代码，所以只有 interface 中招（122 处）。
 - **dependent member 的 base 丢失**：`WritableKeyPath<A1, .Value>`。随 `.constrainedExistential` 修复连带消失（那棵树的返回类型原本整个是空的）。
 
-### 为什么 `any P<Y>` 不需要查 protocol facts
+## `repeat each` 的三处，和 `each` 为什么会丢
+
+把 `.pack` 印出来之后，`Predicate<>` 变成了 `Predicate<Foundation.URL>`（对），但 `VariadicPack<>` 变成了 `VariadicPack<repeat A>`——**仍然不能编译**，源码是 `VariadicPack<repeat each Element>`。`each` 是被单独丢掉的一层，且丢在三个不同的地方。
+
+根因是同一个：**参数的 pack 性只记在泛型签名上**（`dependentGenericParamPackMarker`），使用处的参数引用和普通泛型参数在 mangling 里一模一样。上游 `NodePrinter` 也不补（dump 印 `Pack{repeat A}`），因为它的产物是调试 demangle 而非源码。
+
+### 使用位置：`repeat (each A)`
+
+`printPackExpansion` 从一条语言约束恢复，而不是把签名贯穿到每个打印器：**`repeat` 的 pattern 必须展开至少一个 pack**，所以 pattern 里只提到一个 distinct 泛型参数时，那个参数必然就是 pack。多个参数时不下结论（`repeat (T, each U)` 合法，分不出谁是 pack），保持原样。
+
+括号是**无条件**加的。`each` 比后缀绑定得紧，实测（`swiftc -typecheck`）：
+
+| 写法 | 结果 |
+|---|---|
+| `repeat each T.Type` | ✗ `'each' cannot be applied to non-pack type '(each T).Type'` |
+| `repeat each T?` | ✗ 同上 |
+| `repeat (each T).Type` | ✓ |
+| `repeat (each T)?` | ✓ |
+| `P<repeat (each T)>` | ✓ |
+| `repeat Box<(each T)>` | ✓ |
+
+既然括号形式在四种位置全部合法，就不去判断父节点是不是后缀修饰符——少一条判断，少一个边界。代价是比源码多一对括号（`repeat (each A)` 对 `repeat each A`）。
+
+### 声明位置：两个叠加的 bug
+
+`printGenericSignature` 本来就有 pack 判断，`struct VariadicPack<each A>` 一直印对。但 `static func f<each A1>` 印成 `<A1>`，两个 bug 叠在一起才显形，各自单独都不可见：
+
+1. **`dependentGenericParamType` 的 children 是 (depth, index)，比较时写反了**（`index == children[0]` / `depth == children[1]`）。depth == index 时照样成立——顶层泛型的每个参数都满足，所以全部样本都对。
+2. **循环变量 `gpDepth` 是参数-count 节点的位置，不是参数的 depth**。名字那一行早就用 `depths` 解析了真实 depth（所以叫 `A1`），pack 查询却还在用 `gpDepth`。
+
+于是嵌套一层的 pack 参数（depth 1、index 0）被拿去 depth 0 查，查不到，印成 `<A1>`——紧挨着它自己的 `repeat (each A1)`。两处都修掉，并让 pack、value、名字三者共用同一个 `resolvedDepth`。
+
+复现用的是现场编译的两个 dylib（`Outer<T>.f<each A1>` 与顶层的 `acceptsAny<each A>`）：depth 0 的那个在修复前后都对，depth 1 的那个只有修复后才对。
+
+### 还没修：函数 where 子句里的 pack 约束
+
+`static func f<each A1>(…) where A1: StyleCtx` —— 源码是 `where repeat each A1: StyleCtx`。类型那侧是对的（`struct Carrier<each A> where repeat each A: StyleCtx`），因为它的 requirement subject 在 mangling 里就带着 `packExpansion`；函数的 requirement subject 是**裸的** `dependentGenericParamType`，要补就得在 requirement 这一级包 `repeat`，并且需要一份签名级的 pack 参数集合——与上面两处都不是同一个机制。留给下一批。
+
+## 为什么 `any P<Y>` 不需要查 protocol facts
 
 `any P<…>` 在源码层**只能**用 primary associated type 语法写出来——Swift 不允许 `any P where …`。所以出现在 `constrainedExistential` 里的 same-type 约束，只可能来自那个语法，把约束的右侧读回来当实参即可，不必知道哪个关联类型是 primary。这与 opaque 类型那边的推断同源，理由写在 [OpaqueReturnTypeResolution.md](OpaqueReturnTypeResolution.md) §2.4。
 

@@ -55,6 +55,21 @@
 
 **常驻测试自身能变红**：摘掉 `.pack` 的 case 跑一次，退出码 1，消息点名 `Pack ×716`。一个不会失败的 parity 测试比没有更糟，所以这一步是必做项而非可选项。
 
+## 追加：`repeat each`（用户追问后）
+
+**这一批第一轮的验证漏判了一处。** 快照 diff 里 `VariadicPack<>` → `VariadicPack<repeat A>` 被当成了「修好」的证据，还写进了本报告——但源码是 `VariadicPack<repeat each Element>`，`repeat A` 同样不能编译。用户追问「repeat each 这种语法修了吗」才发现。
+
+常驻测试也抓不到它：它找的是「印空」，这个是「印了但不完整」。
+
+补修三处中的两处，第三处在下面的遗留里：
+
+- **使用位置**：`repeat (each A)`。从语言约束恢复——`repeat` 的 pattern 必须展开至少一个 pack，所以 pattern 里只有一个 distinct 参数时那个参数必然是它；多个则不下结论。括号无条件加，因为 `swiftc -typecheck` 实测 `repeat each T.Type` 与 `repeat each T?` 都被拒（`'each' cannot be applied to non-pack type`），而括号形式在四种位置全合法。
+- **声明位置**：两个叠加的 bug，各自单独不可见。`dependentGenericParamType` 的 children 是 (depth, index)，比较写反了——depth == index 时照样成立，也就是所有顶层泛型；而循环变量 `gpDepth` 是 count 节点的位置不是真实 depth，名字那行早就用 `depths` 解析了（所以叫 `A1`），pack 查询没有。嵌套一层的 pack 参数于是印成 `<A1>`，紧挨着自己的 `repeat (each A1)`。
+
+现场编译了两个 dylib 做复现（`Outer<T>.f<each A1>` 与顶层 `acceptsAny<each A>`）：depth 0 那个修前修后都对，depth 1 那个只有修后才对——这正是 bug 能长期隐身的原因。
+
+验证：288 tests / 44 suites 退出码 0；SwiftUI `static func acceptsAny<each A1>(_: repeat (each A1).Type)`；SwiftUI dump 与本批基线逐字节相同；行数仍 106903。
+
 ## 留下的东西
 
 真正的交付物不是那 155 处修复，是 `NodeKindParityTests`：遍历真实二进制的类型树，逐节点用两个 printer 各印一次，断言不存在「我们印空、上游印非空」的节点。行为对比而非 case 列表 diff，不会因上游增删 case 失效。allowlist（`nonTypePositionKinds`）按「只减不增」维护，每条要写清为什么那个 kind 不是类型位置。
@@ -65,3 +80,4 @@
 
 - **extension 头部空尖括号** 56 处（`extension Swift.Optional<>.ChildTableColumn`）：确认为真、该修、不在本批，走的是另一条渲染路径。
 - **多 primary associated type 的排序**：降级为裸 `any P`，接 `ProtocolFactsResolver` 才能定序，当前无样本。
+- **函数 where 子句里的 pack 约束**：`where A1: StyleCtx` 应为 `where repeat each A1: StyleCtx`。类型那侧是对的（requirement subject 在 mangling 里带 `packExpansion`），函数的 subject 是裸参数，要补得在 requirement 这一级包 `repeat` 并带一份签名级 pack 集合——与已修的两处都不是同一个机制。
