@@ -62,11 +62,58 @@ extension FunctionTypeNodePrintable {
         case .packElementLevel:
             break
         case .packExpansion:
-            await printFirstChild(name, prefix: "repeat ", prefixContext: .context(state: .printKeyword))
+            await printPackExpansion(name)
         default:
             return false
         }
         return true
+    }
+
+    /// A pack expansion — `repeat each A` in source.
+    ///
+    /// The `each` is not in the mangling. A parameter's pack-ness is recorded
+    /// once on the generic SIGNATURE (`dependentGenericParamPackMarker`) and
+    /// never at the use site, so this node's pattern demangles to a plain
+    /// parameter reference and renders as `repeat A`, which does not compile.
+    /// `printGenericSignature` recovers `each` at the DECLARATION (`<each A>`)
+    /// only because the signature is right there in the node it is printing;
+    /// at a use site the signature is not in the tree at all, and the upstream
+    /// `NodePrinter` (whose product is a debug demangle, not source) does not
+    /// try.
+    ///
+    /// Recovered here from a language constraint instead of by threading the
+    /// signature through every printer: a `repeat` pattern must expand at
+    /// least one pack, so when the pattern mentions exactly ONE distinct
+    /// generic parameter, that parameter is necessarily the pack. With
+    /// several, the mangling cannot say which of them are packs — `repeat
+    /// (T, each U)` is legal — so nothing is claimed and the output stays as
+    /// it was. Same rule as the rest of this batch: incomplete beats wrong.
+    ///
+    /// The parameter prints parenthesized (`(each A)`) unconditionally,
+    /// because `each` binds tighter than a suffix: `repeat each A.Type` and
+    /// `repeat each A?` are both rejected outright ("'each' cannot be applied
+    /// to non-pack type"), while the parenthesized spelling type-checks in
+    /// every position measured — bare argument, metatype, optional, and
+    /// nested generic argument.
+    mutating func printPackExpansion(_ name: Node) async {
+        let enclosing = packExpansionSoleParameterName
+        packExpansionSoleParameterName = Self.solePackParameterName(in: name)
+        defer { packExpansionSoleParameterName = enclosing }
+        await printFirstChild(name, prefix: "repeat ", prefixContext: .context(state: .printKeyword))
+    }
+
+    /// The only generic parameter mentioned anywhere in the expansion, or nil
+    /// when there is none or more than one.
+    static func solePackParameterName(in expansion: Node) -> String? {
+        var names: Set<String> = []
+        // `Node` iterates preorder including itself, which is the whole
+        // pattern subtree — what we want.
+        for node in expansion where node.kind == .dependentGenericParamType {
+            guard let text = node.text else { continue }
+            names.insert(text)
+            if names.count > 1 { return nil }
+        }
+        return names.first
     }
 
     mutating func printFunctionType(_ functionType: Node, labelList: Node?, isAllocator: Bool, isBlockOrClosure: Bool) async {

@@ -28,6 +28,8 @@ struct SubscriptNodePrinter: InterfaceNodePrintable {
 
     var dependentMemberTypeDepth: Int = 0
 
+    var packExpansionSoleParameterName: String? = nil
+
     var printDepth: Int = 0
 
     var printCache: [ObjectIdentifier: Target] = [:]

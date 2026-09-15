@@ -56,6 +56,18 @@ extension DependentGenericNodePrintable {
     }
 
     mutating func printDependentGenericParamType(_ name: Node) async {
+        // Inside a `repeat` pattern whose sole parameter is this one, the
+        // parameter IS the pack being expanded and source spells it `each A`.
+        // Parenthesized unconditionally — see `printPackExpansion` for why a
+        // bare `each` is rejected after a suffix.
+        if let packParameterName = packExpansionSoleParameterName, name.text == packParameterName {
+            target.write("(")
+            target.write("each", context: .context(for: name, state: .printKeyword))
+            target.writeSpace()
+            await printDependentGenericParamName(packParameterName)
+            target.write(")")
+            return
+        }
         await printDependentGenericParamName(name.text ?? "")
     }
 
@@ -108,7 +120,13 @@ extension DependentGenericNodePrintable {
                 child = child.children.first ?? child
                 guard child.kind == .dependentGenericParamType else { continue }
 
-                if index == child.children.at(0)?.index, depth == child.children.at(1)?.index {
+                // `dependentGenericParamType`'s children are (depth, index) in
+                // that order. Comparing them the other way round matched only
+                // when depth == index, which is every parameter of a top-level
+                // generic and none of a nested one — so a pack parameter of a
+                // method on a generic type (depth 1, index 0) lost its `each`
+                // and printed `<A1>` beside a `repeat (each A1)` use site.
+                if depth == child.children.at(0)?.index, index == child.children.at(1)?.index {
                     return true
                 }
             }
@@ -131,7 +149,8 @@ extension DependentGenericNodePrintable {
                     continue
                 }
 
-                if index == param.children.at(0)?.index, depth == param.children.at(1)?.index {
+                // Same (depth, index) ordering as `isGenericParamPack` above.
+                if depth == param.children.at(0)?.index, index == param.children.at(1)?.index {
                     return type
                 }
             }
@@ -160,18 +179,28 @@ extension DependentGenericNodePrintable {
                     break
                 }
 
-                if isGenericParamPack(UInt64(gpDepth), UInt64(index)) {
+                // The loop variable is the position of the parameter-COUNT node,
+                // not the parameter's depth — a method on a generic type has
+                // one count node while its own parameters live at depth 1. The
+                // name already resolves the real depth through `depths`; the
+                // pack and value lookups must use the same one, or a nested
+                // pack parameter gets looked up at depth 0, comes back "not a
+                // pack", and prints `<A1>` right next to its own
+                // `repeat (each A1)` use site.
+                let resolvedDepth = depths?[index.cast()] ?? gpDepth.cast()
+
+                if isGenericParamPack(UInt64(resolvedDepth), UInt64(index)) {
                     target.write("each", context: .context(state: .printKeyword))
                     target.writeSpace()
                 }
 
-                let value = isGenericParamValue(UInt64(gpDepth), UInt64(index))
+                let value = isGenericParamValue(UInt64(resolvedDepth), UInt64(index))
                 if value != nil {
                     target.write("let", context: .context(state: .printKeyword))
                     target.writeSpace()
                 }
 
-                await printDependentGenericParamName(genericParameterName(depth: depths?[index.cast()] ?? gpDepth.cast(), index: index.cast()))
+                await printDependentGenericParamName(genericParameterName(depth: resolvedDepth, index: index.cast()))
 
                 if let value {
                     target.write(": ")
