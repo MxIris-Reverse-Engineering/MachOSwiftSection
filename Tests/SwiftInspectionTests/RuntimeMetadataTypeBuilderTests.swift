@@ -194,4 +194,31 @@ struct RuntimeMetadataTypeBuilderTests {
             try builder.metadataType(for: typeNode)
         }
     }
+
+    // MARK: Builtin.Borrow (Swift 6.4 runtime)
+
+    /// `Builtin.Borrow<Int>` mangles as `SiBW`. On a Swift 6.4 runtime the
+    /// builder must hand back live borrow metadata whose referent is `Int`;
+    /// on an older runtime — which has no `swift_getBorrowTypeMetadata` — it
+    /// must fail with a typed error that names the missing entry point
+    /// rather than fabricate a type. Both branches are asserted, so the test
+    /// is never vacuously green.
+    @Test func builtinBorrowFollowsTheRuntimeEntryPoint() throws {
+        let borrowNode = try demangleAsNode("SiBW", isType: true)
+        try #require(borrowNode.kind == .type)
+        try #require(borrowNode.firstChild?.kind == .builtinBorrow)
+        let builder = RuntimeMetadataTypeBuilder()
+
+        if RuntimeMetadataTypeBuilder.supportsBuiltinBorrowMetadata {
+            let borrowType = try builder.metadataType(for: borrowNode)
+            let borrowMetadata = try BorrowTypeMetadata.createInProcess(borrowType)
+            #expect(borrowMetadata.kind == .borrow)
+            #expect(borrowMetadata.layout.referent.address == UInt(bitPattern: unsafeBitCast(Int.self, to: UnsafeRawPointer.self)))
+        } else {
+            let thrownError = #expect(throws: TypeLookupError.self) {
+                try builder.metadataType(for: borrowNode)
+            }
+            #expect(String(describing: thrownError).contains("swift_getBorrowTypeMetadata"))
+        }
+    }
 }

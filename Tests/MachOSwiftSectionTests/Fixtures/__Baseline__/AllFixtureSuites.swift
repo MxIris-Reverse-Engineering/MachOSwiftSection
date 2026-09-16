@@ -21,6 +21,7 @@ let allFixtureSuites: [any FixtureSuite.Type] = [
     AssociatedTypeRecordTests.self,
     AssociatedTypeTests.self,
     AsyncFunctionPointerTests.self,
+    BorrowTypeMetadataTests.self,
     BuiltinTypeDescriptorTests.self,
     BuiltinTypeTests.self,
     CanonicalSpecializedMetadataAccessorsListEntryTests.self,

@@ -186,6 +186,7 @@ package enum BaselineGenerator {
         try dispatchSuite("CanonicalSpecializedMetadatasCachingOnceToken", in: machOFile, outputDirectory: outputDirectory)
         try dispatchSuite("CanonicalSpecializedMetadatasListCount", in: machOFile, outputDirectory: outputDirectory)
         try dispatchSuite("CanonicalSpecializedMetadatasListEntry", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("BorrowTypeMetadata", in: machOFile, outputDirectory: outputDirectory)
         try dispatchSuite("FixedArrayTypeMetadata", in: machOFile, outputDirectory: outputDirectory)
         try dispatchSuite("FullMetadata", in: machOFile, outputDirectory: outputDirectory)
         try dispatchSuite("Metadata", in: machOFile, outputDirectory: outputDirectory)
@@ -527,6 +528,8 @@ package enum BaselineGenerator {
             try CanonicalSpecializedMetadatasListCountBaselineGenerator.generate(outputDirectory: outputDirectory)
         case "CanonicalSpecializedMetadatasListEntry":
             try CanonicalSpecializedMetadatasListEntryBaselineGenerator.generate(outputDirectory: outputDirectory)
+        case "BorrowTypeMetadata":
+            try BorrowTypeMetadataBaselineGenerator.generate(outputDirectory: outputDirectory)
         case "FixedArrayTypeMetadata":
             try FixedArrayTypeMetadataBaselineGenerator.generate(outputDirectory: outputDirectory)
         case "FullMetadata":
@@ -770,6 +773,7 @@ package enum BaselineGenerator {
             "FieldRecordFlagsTests",
             "FieldRecordTests",
             "FinalClassMetadataProtocolTests",
+            "BorrowTypeMetadataTests",
             "FixedArrayTypeMetadataTests",
             "ForeignClassMetadataTests",
             "ForeignMetadataInitializationTests",

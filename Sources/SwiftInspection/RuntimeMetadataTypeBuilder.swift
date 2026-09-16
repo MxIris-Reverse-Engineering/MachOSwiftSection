@@ -965,6 +965,48 @@ public struct RuntimeMetadataTypeBuilder: TypeBuilder {
         .failure(TypeLookupError("Builtin.FixedArray needs a value generic argument; not supported yet"))
     }
 
+    // MARK: - Builtin.Borrow (Swift 6.4 runtime)
+
+    /// `Builtin.Borrow<T>` metadata comes from `swift_getBorrowTypeMetadata`,
+    /// an entry point that exists only in the Swift 6.4 runtime (macOS 27).
+    /// It is looked up by name at run time rather than imported: a build
+    /// against an older SDK could not link it, and a `weak_import` would
+    /// still need the symbol in the SDK's stub library.
+    public func createBuiltinBorrowType(referent: BuiltType) -> BuiltType {
+        let referentType: Any.Type
+        switch referent {
+        case .success(let type): referentType = type
+        case .failure(let error): return .failure(error)
+        }
+        guard let borrowTypeMetadataEntryPoint = Self.borrowTypeMetadataEntryPoint else {
+            return .failure(TypeLookupError("this Swift runtime has no swift_getBorrowTypeMetadata (Builtin.Borrow needs the Swift 6.4 runtime)"))
+        }
+        let response = borrowTypeMetadataEntryPoint(
+            MetadataRequest(state: .abstract, isBlocking: false).rawValue.cast(),
+            Self.metadataPointer(of: referentType)
+        )
+        guard let borrowMetadataPointer = response.Metadata else {
+            return .failure(TypeLookupError("swift_getBorrowTypeMetadata returned nil"))
+        }
+        return .success(Self.anyType(fromMetadataPointer: borrowMetadataPointer))
+    }
+
+    /// `MetadataResponse swift_getBorrowTypeMetadata(MetadataRequest request, const Metadata *referent)`.
+    private typealias BorrowTypeMetadataEntryPoint = @convention(c) (Int, UnsafeRawPointer) -> MachOSwiftSectionC.MetadataResponse
+
+    private static let borrowTypeMetadataEntryPoint: BorrowTypeMetadataEntryPoint? = {
+        guard let symbolAddress = dlsym(UnsafeMutableRawPointer(bitPattern: -2) /* RTLD_DEFAULT */, "swift_getBorrowTypeMetadata") else {
+            return nil
+        }
+        return unsafeBitCast(symbolAddress, to: BorrowTypeMetadataEntryPoint.self)
+    }()
+
+    /// Whether the running Swift runtime can build `Builtin.Borrow` metadata
+    /// (Swift 6.4 / macOS 27 and later).
+    public static var supportsBuiltinBorrowMetadata: Bool {
+        borrowTypeMetadataEntryPoint != nil
+    }
+
     // MARK: - Requirements (constrained existentials only; rejected above)
 
     public func createRequirement(kind: RequirementKind, subjectType: BuiltType, constraintType: BuiltType) -> UnsupportedProjection {

@@ -15,6 +15,12 @@ public struct ValueWitnessFlags: OptionSet, Sendable {
     public static let inComplete = ValueWitnessFlags(rawValue: 0x0040_0000)
     public static let isNonCopyable = ValueWitnessFlags(rawValue: 0x0080_0000)
     public static let isNonBitwiseBorrowable = ValueWitnessFlags(rawValue: 0x0100_0000)
+    /// The type is `@_addressableForDependencies`: a value's address is part
+    /// of its identity for lifetime-dependent borrows, so a borrow of it must
+    /// use the pointer representation (`Builtin.Borrow`). Set by IRGen for
+    /// the attribute and propagated through aggregates; the Swift 6.4 runtime
+    /// also sets it on `Builtin.FixedArray` metadata.
+    public static let isAddressableForDependencies = ValueWitnessFlags(rawValue: 0x0200_0000)
 
     public static let alignmentMask: UInt32 = 0x0000_00FF
     public static let maxNumExtraInhabitants: UInt32 = 0x7FFF_FFFF
@@ -45,6 +51,10 @@ public struct ValueWitnessFlags: OptionSet, Sendable {
 
     public var isCopyable: Bool {
         !contains(.isNonCopyable)
+    }
+
+    public var isAddressableForDependencies: Bool {
+        contains(.isAddressableForDependencies)
     }
 
     public var hasEnumWitnesses: Bool {

@@ -228,6 +228,11 @@ enum CoverageAllowlistEntries {
             reason: .runtimeOnly(detail: "InlineArray<N, T> runtime metadata; covered via InProcess on Swift 6.2+")
         ),
         CoverageAllowlistHelpers.sentinelGroup(
+            typeName: "BorrowTypeMetadata",
+            members: ["init", "kind", "referent", "layout", "offset"],
+            reason: .runtimeOnly(detail: "Builtin.Borrow<T> runtime metadata exists only on the Swift 6.4 runtime (macOS 27); the live path is covered by SwiftInspectionTests through RuntimeMetadataTypeBuilder.createBuiltinBorrowType")
+        ),
+        CoverageAllowlistHelpers.sentinelGroup(
             typeName: "GenericBoxHeapMetadata",
             members: ["init", "kind", "valueWitnessTable", "offsetOfBoxHeader", "captureOffset", "boxedType", "layout", "offset"],
             reason: .runtimeOnly(detail: "swift_allocBox-allocated; not feasible to construct stably from tests")
@@ -526,7 +531,7 @@ enum CoverageAllowlistEntries {
         ),
         CoverageAllowlistHelpers.sentinelGroup(
             typeName: "ValueWitnessFlags",
-            members: ["init", "rawValue", "alignmentMask", "isNonPOD", "isNonInline", "hasExtraInhabitants", "hasSpareBits", "isNonBitwiseTakable", "isIncomplete", "alignment", "hasEnumWitnesses", "inComplete", "isBitwiseBorrowable", "isBitwiseTakable", "isCopyable", "isInlineStorage", "isNonBitwiseBorrowable", "isNonCopyable", "isPOD", "maxNumExtraInhabitants"],
+            members: ["init", "rawValue", "alignmentMask", "isNonPOD", "isNonInline", "hasExtraInhabitants", "hasSpareBits", "isNonBitwiseTakable", "isIncomplete", "alignment", "hasEnumWitnesses", "inComplete", "isBitwiseBorrowable", "isBitwiseTakable", "isCopyable", "isInlineStorage", "isNonBitwiseBorrowable", "isNonCopyable", "isPOD", "maxNumExtraInhabitants", "isAddressableForDependencies"],
             reason: .pureDataUtility(detail: "raw bitfield over value witness flags")
         ),
         CoverageAllowlistHelpers.sentinelGroup(

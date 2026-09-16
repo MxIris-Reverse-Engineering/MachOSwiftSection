@@ -7,7 +7,7 @@
 // values exercising each documented bit field.
 
 enum ValueWitnessFlagsBaseline {
-    static let registeredTestMethodNames: Set<String> = ["alignment", "alignmentMask", "hasEnumWitnesses", "hasSpareBits", "inComplete", "init(rawValue:)", "isBitwiseBorrowable", "isBitwiseTakable", "isCopyable", "isIncomplete", "isInlineStorage", "isNonBitwiseBorrowable", "isNonBitwiseTakable", "isNonCopyable", "isNonInline", "isNonPOD", "isPOD", "maxNumExtraInhabitants", "rawValue"]
+    static let registeredTestMethodNames: Set<String> = ["alignment", "alignmentMask", "hasEnumWitnesses", "hasSpareBits", "inComplete", "init(rawValue:)", "isAddressableForDependencies", "isBitwiseBorrowable", "isBitwiseTakable", "isCopyable", "isIncomplete", "isInlineStorage", "isNonBitwiseBorrowable", "isNonBitwiseTakable", "isNonCopyable", "isNonInline", "isNonPOD", "isPOD", "maxNumExtraInhabitants", "rawValue"]
 
     struct Entry {
         let rawValue: UInt32
@@ -17,6 +17,7 @@ enum ValueWitnessFlagsBaseline {
         let isInlineStorage: Bool
         let isBitwiseTakable: Bool
         let isBitwiseBorrowable: Bool
+        let isAddressableForDependencies: Bool
         let isCopyable: Bool
         let hasEnumWitnesses: Bool
         let isIncomplete: Bool
@@ -32,6 +33,7 @@ enum ValueWitnessFlagsBaseline {
             isInlineStorage: true,
             isBitwiseTakable: true,
             isBitwiseBorrowable: true,
+            isAddressableForDependencies: false,
             isCopyable: true,
             hasEnumWitnesses: false,
             isIncomplete: false
@@ -45,6 +47,7 @@ enum ValueWitnessFlagsBaseline {
             isInlineStorage: true,
             isBitwiseTakable: false,
             isBitwiseBorrowable: false,
+            isAddressableForDependencies: false,
             isCopyable: true,
             hasEnumWitnesses: false,
             isIncomplete: false
@@ -58,6 +61,7 @@ enum ValueWitnessFlagsBaseline {
             isInlineStorage: false,
             isBitwiseTakable: true,
             isBitwiseBorrowable: true,
+            isAddressableForDependencies: false,
             isCopyable: true,
             hasEnumWitnesses: false,
             isIncomplete: false
@@ -71,6 +75,7 @@ enum ValueWitnessFlagsBaseline {
             isInlineStorage: true,
             isBitwiseTakable: true,
             isBitwiseBorrowable: true,
+            isAddressableForDependencies: false,
             isCopyable: true,
             hasEnumWitnesses: true,
             isIncomplete: false
@@ -84,6 +89,7 @@ enum ValueWitnessFlagsBaseline {
             isInlineStorage: true,
             isBitwiseTakable: true,
             isBitwiseBorrowable: true,
+            isAddressableForDependencies: false,
             isCopyable: true,
             hasEnumWitnesses: false,
             isIncomplete: true
@@ -97,6 +103,7 @@ enum ValueWitnessFlagsBaseline {
             isInlineStorage: true,
             isBitwiseTakable: true,
             isBitwiseBorrowable: true,
+            isAddressableForDependencies: false,
             isCopyable: false,
             hasEnumWitnesses: false,
             isIncomplete: false
@@ -110,6 +117,21 @@ enum ValueWitnessFlagsBaseline {
             isInlineStorage: true,
             isBitwiseTakable: true,
             isBitwiseBorrowable: false,
+            isAddressableForDependencies: false,
+            isCopyable: true,
+            hasEnumWitnesses: false,
+            isIncomplete: false
+        ),
+        // addressableForDependencies
+        Entry(
+            rawValue: 0x2000007,
+            alignmentMask: 0x7,
+            alignment: 0x8,
+            isPOD: true,
+            isInlineStorage: true,
+            isBitwiseTakable: true,
+            isBitwiseBorrowable: true,
+            isAddressableForDependencies: true,
             isCopyable: true,
             hasEnumWitnesses: false,
             isIncomplete: false

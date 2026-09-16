@@ -16,6 +16,7 @@ import SwiftSyntaxBuilder
 ///   - bit 22 — `inComplete`
 ///   - bit 23 — `isNonCopyable`
 ///   - bit 24 — `isNonBitwiseBorrowable`
+///   - bit 25 — `isAddressableForDependencies`
 ///
 /// The flags type is reader-independent — the Suite re-evaluates each
 /// accessor against synthetic raw values.
@@ -39,6 +40,9 @@ package enum ValueWitnessFlagsBaselineGenerator {
             ("nonCopyable", 0x0080_0007),
             // Non-bitwise-borrowable.
             ("nonBitwiseBorrowable", 0x0100_0007),
+            // Addressable for dependencies (`@_addressableForDependencies`,
+            // and `Builtin.FixedArray` on the Swift 6.4 runtime).
+            ("addressableForDependencies", 0x0200_0007),
         ]
         let entriesExpr = emitEntriesExpr(for: entries)
 
@@ -54,6 +58,7 @@ package enum ValueWitnessFlagsBaselineGenerator {
             "hasSpareBits",
             "inComplete",
             "init(rawValue:)",
+            "isAddressableForDependencies",
             "isBitwiseBorrowable",
             "isBitwiseTakable",
             "isCopyable",
@@ -93,6 +98,7 @@ package enum ValueWitnessFlagsBaselineGenerator {
                 let isInlineStorage: Bool
                 let isBitwiseTakable: Bool
                 let isBitwiseBorrowable: Bool
+                let isAddressableForDependencies: Bool
                 let isCopyable: Bool
                 let hasEnumWitnesses: Bool
                 let isIncomplete: Bool
@@ -120,6 +126,7 @@ package enum ValueWitnessFlagsBaselineGenerator {
                 isInlineStorage: \(flags.isInlineStorage),
                 isBitwiseTakable: \(flags.isBitwiseTakable),
                 isBitwiseBorrowable: \(flags.isBitwiseBorrowable),
+                isAddressableForDependencies: \(flags.isAddressableForDependencies),
                 isCopyable: \(flags.isCopyable),
                 hasEnumWitnesses: \(flags.hasEnumWitnesses),
                 isIncomplete: \(flags.isIncomplete)

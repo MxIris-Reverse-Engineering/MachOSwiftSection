@@ -12,6 +12,12 @@ public struct AggregateLayout: Sendable, Hashable {
     public let alignmentMask: Int
     /// Whether every field is bitwise-takable.
     public let isBitwiseTakable: Bool
+    /// Whether every field is bitwise-borrowable (`StaticTypeLayout.isBitwiseBorrowable`).
+    public let isBitwiseBorrowable: Bool
+    /// Whether any field is addressable-for-dependencies
+    /// (`StaticTypeLayout.isAddressableForDependencies`); the runtime folds
+    /// this flag with OR across an aggregate's fields.
+    public let isAddressableForDependencies: Bool
     /// The value-aggregate extra-inhabitant count: the maximum over the
     /// fields' extra inhabitants, matching the runtime's value-type rule
     /// (`swift_initStructMetadata` / `swift_getTupleTypeMetadata`: "use the
@@ -29,7 +35,9 @@ public struct AggregateLayout: Sendable, Hashable {
             stride: stride,
             alignmentMask: alignmentMask,
             extraInhabitantCount: extraInhabitantCount,
-            isBitwiseTakable: isBitwiseTakable
+            isBitwiseTakable: isBitwiseTakable,
+            isBitwiseBorrowable: isBitwiseBorrowable,
+            isAddressableForDependencies: isAddressableForDependencies
         )
     }
 }
@@ -54,6 +62,8 @@ public enum BasicLayout {
         var offsetAccumulator = startOffset
         var alignmentMask = startAlignmentMask
         var isBitwiseTakable = true
+        var isBitwiseBorrowable = true
+        var isAddressableForDependencies = false
         var extraInhabitantCount = 0
         var fieldOffsets: [Int] = []
         fieldOffsets.reserveCapacity(fieldLayouts.count)
@@ -65,6 +75,8 @@ public enum BasicLayout {
             offsetAccumulator = alignedOffset + fieldLayout.size
             alignmentMask = max(alignmentMask, fieldAlignmentMask)
             isBitwiseTakable = isBitwiseTakable && fieldLayout.isBitwiseTakable
+            isBitwiseBorrowable = isBitwiseBorrowable && fieldLayout.isBitwiseBorrowable
+            isAddressableForDependencies = isAddressableForDependencies || fieldLayout.isAddressableForDependencies
             // A value aggregate takes its extra inhabitants from the field with
             // the most (runtime `swift_initStructMetadata` / tuple metadata).
             extraInhabitantCount = max(extraInhabitantCount, fieldLayout.extraInhabitantCount)
@@ -79,6 +91,8 @@ public enum BasicLayout {
             stride: stride,
             alignmentMask: alignmentMask,
             isBitwiseTakable: isBitwiseTakable,
+            isBitwiseBorrowable: isBitwiseBorrowable,
+            isAddressableForDependencies: isAddressableForDependencies,
             extraInhabitantCount: extraInhabitantCount
         )
     }

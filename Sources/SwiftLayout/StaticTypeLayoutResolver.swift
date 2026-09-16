@@ -50,6 +50,11 @@ final class StaticTypeLayoutResolver<MachO: MachOSwiftSectionRepresentableWithCa
                 throw LayoutResolutionError.unknown(.unsupportedTypeKind(nodeKindName: "builtinFixedArray(malformed)"))
             }
             return try fixedArrayLayout(countNode: countNode, elementTypeNode: elementTypeNode, in: originImage)
+        case .builtinBorrow:
+            guard let referentTypeNode = node.firstChild else {
+                throw LayoutResolutionError.unknown(.unsupportedTypeKind(nodeKindName: "builtinBorrow(malformed)"))
+            }
+            return try borrowLayout(referentTypeNode: referentTypeNode, in: originImage)
         case .class, .boundGenericClass:
             // A class field is a single reference; do not recurse (this is also
             // what breaks any potential layout cycle).
@@ -141,7 +146,7 @@ final class StaticTypeLayoutResolver<MachO: MachOSwiftSectionRepresentableWithCa
             return .pointerSized
         case .structure, .boundGenericStructure,
              .enum, .boundGenericEnum,
-             .tuple, .builtinTypeName, .builtinFixedArray:
+             .tuple, .builtinTypeName, .builtinFixedArray, .builtinBorrow:
             return .empty
         case .typeAlias:
             // A C typedef promoted to a nominal type: thick for a CF class,
@@ -401,18 +406,61 @@ final class StaticTypeLayoutResolver<MachO: MachOSwiftSectionRepresentableWithCa
             guard !didOverflow else {
                 throw LayoutResolutionError.unknown(.unsupportedTypeKind(nodeKindName: "fixedArrayCount(overflow)"))
             }
+            // A fixed array is addressable-for-dependencies regardless of its
+            // element (IRGen's `FixedArrayTypeInfo`; the Swift 6.4 runtime sets
+            // the same flag in `FixedArrayCacheEntry::tryInitialize`), so a
+            // borrow of one always takes the pointer representation.
             return StaticTypeLayout(
                 size: byteCount,
                 stride: byteCount,
                 alignmentMask: elementLayout.alignmentMask,
                 extraInhabitantCount: elementLayout.extraInhabitantCount,
-                isBitwiseTakable: elementLayout.isBitwiseTakable
+                isBitwiseTakable: elementLayout.isBitwiseTakable,
+                isBitwiseBorrowable: elementLayout.isBitwiseBorrowable,
+                isAddressableForDependencies: true
             )
         case .dependentGenericParamType:
             throw LayoutResolutionError.unknown(.genericParameterUnsubstituted)
         default:
             throw LayoutResolutionError.unknown(.unsupportedTypeKind(nodeKindName: "fixedArrayCount(\(count.kind))"))
         }
+    }
+
+    // MARK: - Borrow
+
+    /// The layout of `Builtin.Borrow<Referent>` (Swift 6.4), the storage
+    /// behind `Swift.Ref` / `Swift.MutableRef`. Ported from the runtime's
+    /// `swift_getBorrowRepresentation` (`stdlib/public/runtime/Borrow.cpp`)
+    /// and cross-checked against RemoteInspection's `BorrowTypeInfo`: the
+    /// borrow is laid out **inline** — same size, stride, alignment and extra
+    /// inhabitants as the referent — unless the referent is larger than four
+    /// pointers, addressable-for-dependencies, or not bitwise-borrowable, in
+    /// which case it is a single `Builtin.RawPointer`. The borrow itself is
+    /// always bitwise-takable and -borrowable, and never
+    /// addressable-for-dependencies.
+    ///
+    /// The referent's two flags come from the layout engine's own
+    /// propagation (`StaticTypeLayout.isBitwiseBorrowable` /
+    /// `isAddressableForDependencies`); a referent whose `@_rawLayout` or
+    /// `@_addressableForDependencies` attribute the binary does not record
+    /// is answered as inline, which is the same limit the RemoteInspection
+    /// port has.
+    private func borrowLayout(referentTypeNode: Node, in originImage: ImageReference<MachO>) throws -> StaticTypeLayout {
+        let referentLayout = try layout(forTypeNode: referentTypeNode, in: originImage)
+        let pointerLayout = StaticTypeLayout.rawPointer
+        let usesPointerRepresentation = referentLayout.size > 4 * pointerLayout.size
+            || referentLayout.isAddressableForDependencies
+            || !referentLayout.isBitwiseBorrowable
+        let representation = usesPointerRepresentation ? pointerLayout : referentLayout
+        return StaticTypeLayout(
+            size: representation.size,
+            stride: representation.stride,
+            alignmentMask: representation.alignmentMask,
+            extraInhabitantCount: representation.extraInhabitantCount,
+            isBitwiseTakable: true,
+            isBitwiseBorrowable: true,
+            isAddressableForDependencies: false
+        )
     }
 
     // MARK: - Structure

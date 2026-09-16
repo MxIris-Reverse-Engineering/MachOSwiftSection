@@ -43,3 +43,5 @@
 | [0033](0033-by-name-opaque-reference-expansion.md) | 按名字引用的 opaque 类型也展开：独立文件的 witness 用到别的镜像的 `some` 结果时只有一个 bind 名，demangler 解成 `opaqueReturnTypeOf`，dump 印 `<<opaque return type of …>>`，interface 更是把 conformer 印成 witness。rewriter 把描述符符号名重新 mangle 出来、按搜索路径定位镜像、在那个镜像里展开。iOS 26.5 模拟器 SwiftUI dump 207 行 witness → 0 | Implemented |
 | draft | [AGENTS.md 瘦身：指令文件回归指令，架构细节回归文档](draft-agents-md-slimming.md) | Draft |
 | draft | [FieldLayoutRenderable 不再继承 MachOSwiftSectionRepresentableWithCache：渲染能力与 reader 能力解耦，上层约束改用组合 typealias `MachOFieldLayoutRenderable`](draft-field-layout-renderable-decoupling.md) | In Progress |
+| draft | [`Builtin.Borrow` 支持：Swift 6.4 新元数据种类的读取、进程内构建与静态布局](draft-builtin-borrow-support.md) | In Progress |
+| draft | [`@_rawLayout` 人造字段、空名字 enum case 与静态布局的依赖搜索路径](draft-raw-layout-artificial-field-handling.md) | In Progress |
