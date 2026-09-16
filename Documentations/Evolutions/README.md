@@ -46,3 +46,4 @@
 | draft | [`Builtin.Borrow` 支持：Swift 6.4 新元数据种类的读取、进程内构建与静态布局](draft-builtin-borrow-support.md) | In Progress |
 | draft | [`@_rawLayout` 人造字段、空名字 enum case 与静态布局的依赖搜索路径](draft-raw-layout-artificial-field-handling.md) | In Progress |
 | draft | [interface 不打印编译器合成的成员：actor 默认存储与 property wrapper 的 `_x` / `$x`](draft-interface-hides-compiler-synthesized-members.md) | In Progress |
+| draft | [静态布局引擎读取 accessor thunk 背后的字段类型](draft-static-layout-through-accessor-thunks.md) | Draft |

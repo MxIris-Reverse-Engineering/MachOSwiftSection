@@ -72,6 +72,32 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
         case computed((any StaticFieldLayoutProvider)?)
     }
 
+    /// Memoized `__swift5_builtin` lookup behind `rawLayoutBuiltinStorage(of:)`
+    /// (`SwiftDeclarationPrinter+RawLayoutBuiltinStorage.swift`), built once
+    /// on first use with the same double-checked pattern as the layout
+    /// provider above.
+    @Mutex
+    private var memoizedRawLayoutBuiltinStorage: RawLayoutBuiltinStorageState = .uncomputed
+
+    private enum RawLayoutBuiltinStorageState: Sendable {
+        case uncomputed
+        case computed([SwiftDeclaration.TypeName: RawLayoutBuiltinStorage])
+    }
+
+    func rawLayoutBuiltinStorageByTypeName() -> [SwiftDeclaration.TypeName: RawLayoutBuiltinStorage] {
+        if case .computed(let storage) = memoizedRawLayoutBuiltinStorage {
+            return storage
+        }
+        return _memoizedRawLayoutBuiltinStorage.withLock { state in
+            if case .computed(let storage) = state {
+                return storage
+            }
+            let storage = computeRawLayoutBuiltinStorageByTypeName()
+            state = .computed(storage)
+            return storage
+        }
+    }
+
     /// Builds (once) and returns the offline field-layout provider for the
     /// current configuration, or `nil` for the in-process (`MachOImage`) path or
     /// when no layout-bearing flag is set.
@@ -229,6 +255,17 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
             Standard("@_rawLayout(like: ")
             try await printThrowingType(rawLayoutStorageField.typeNode.materialize(), isProtocol: false, level: level)
             Standard(")")
+            BreakLine()
+        } else if let rawLayoutBuiltinStorage = rawLayoutBuiltinStorage(of: typeDefinition) {
+            // The other spellings (`size:alignment:`, a non-generic
+            // `likeArrayOf:count:`) leave no field record, only the
+            // `__swift5_builtin` descriptor every fixed-size raw-layout
+            // struct gets; print the layout it records and say where it
+            // came from, since `likeArrayOf:` is recorded the same way.
+            Indent(level: level - 1)
+            Standard("@_rawLayout(size: \(rawLayoutBuiltinStorage.size), alignment: \(rawLayoutBuiltinStorage.alignment))")
+            Space()
+            Comment(FieldRecordRendering.rawLayoutBuiltinStorageComment)
             BreakLine()
         }
 
@@ -542,7 +579,7 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
         let synthesizedPropertyWrapperMembers = synthesizedPropertyWrapperMembers(of: definition)
         await MemberList(level: level) {
             for member in definition.orderedMembers where !isExcludedByExportFilter(member) && !synthesizedPropertyWrapperMembers.contains(member) {
-                await renderMember(member, level: level, offsetCommentPrefix: offsetCommentPrefix, emitOffsetComment: emitOffsetComment, printVTableOffset: printVTableOffset, printMemberAddress: printMemberAddress, printExportStatus: printExportStatus, vtableTransformerClosure: vtableTransformerClosure)
+                await renderMember(member, level: level, offsetCommentPrefix: offsetCommentPrefix, emitOffsetComment: emitOffsetComment, printVTableOffset: printVTableOffset, printMemberAddress: printMemberAddress, printExportStatus: printExportStatus, vtableTransformerClosure: vtableTransformerClosure, synthesizedPropertyWrapperMembers: synthesizedPropertyWrapperMembers)
             }
 
             // Terminal step: emit `deinit` for classes and noncopyable
@@ -576,7 +613,7 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
         for category in MemberCategory.allCases {
             await MemberList(level: level) {
                 for member in definition.members(in: category) where !isExcludedByExportFilter(member) && !synthesizedPropertyWrapperMembers.contains(member) {
-                    await renderMember(member, level: level, offsetCommentPrefix: offsetCommentPrefix, emitOffsetComment: emitOffsetComment, printVTableOffset: printVTableOffset, printMemberAddress: printMemberAddress, printExportStatus: printExportStatus, vtableTransformerClosure: vtableTransformerClosure)
+                    await renderMember(member, level: level, offsetCommentPrefix: offsetCommentPrefix, emitOffsetComment: emitOffsetComment, printVTableOffset: printVTableOffset, printMemberAddress: printMemberAddress, printExportStatus: printExportStatus, vtableTransformerClosure: vtableTransformerClosure, synthesizedPropertyWrapperMembers: synthesizedPropertyWrapperMembers)
                 }
             }
         }
@@ -613,7 +650,8 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
         printVTableOffset: Bool,
         printMemberAddress: Bool,
         printExportStatus: Bool,
-        vtableTransformerClosure: (@Sendable (Int, String?) -> SemanticString)?
+        vtableTransformerClosure: (@Sendable (Int, String?) -> SemanticString)?,
+        synthesizedPropertyWrapperMembers: SynthesizedPropertyWrapperMembers
     ) async -> SemanticString {
         await Rows(level: level) {
             switch member {
@@ -653,7 +691,7 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
                 if printExportStatus, !variable.isOverride, !variable.attributes.contains(.objc) {
                     ExportStatusComment(isExported: exportVerdict(forSymbolNames: variable.accessors.map(\.symbol.name)))
                 }
-                await printVariable(variable, level: level)
+                await printVariable(variable, level: level, propertyWrapperAttributeTypeNode: synthesizedPropertyWrapperMembers.wrapperAttributeTypeNode(for: variable))
 
             case .subscript(let `subscript`):
                 OffsetComment(prefix: offsetCommentPrefix, offset: `subscript`.offset, emit: emitOffsetComment)
@@ -709,10 +747,14 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
         return false
     }
 
+    /// - Parameter propertyWrapperAttributeTypeNode: The wrapper type to print
+    ///   as the property's attribute (`@Wrapper var x`), when the enclosing
+    ///   type recognized `x` as a wrapped property — see
+    ///   `synthesizedPropertyWrapperMembers(of:)`. `nil` prints no attribute.
     @SemanticStringBuilder
-    public func printVariable(_ variable: VariableDefinition, level: Int) async -> SemanticString {
+    public func printVariable(_ variable: VariableDefinition, level: Int, propertyWrapperAttributeTypeNode: Node? = nil) async -> SemanticString {
         await dispatchingCatchedThrowing(.init(name: variable.name, kind: .variable)) {
-            try await printThrowingVariable(variable, level: level)
+            try await printThrowingVariable(variable, level: level, propertyWrapperAttributeTypeNode: propertyWrapperAttributeTypeNode)
         }
     }
 
@@ -747,7 +789,14 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
     }
 
     @SemanticStringBuilder
-    public func printThrowingVariable(_ variable: VariableDefinition, level: Int) async throws -> SemanticString {
+    public func printThrowingVariable(_ variable: VariableDefinition, level: Int, propertyWrapperAttributeTypeNode: Node? = nil) async throws -> SemanticString {
+        // The wrapper attribute comes first, as the compiler's own
+        // swiftinterface prints it (`@SwiftUICore.Binding public var isOn`).
+        if let propertyWrapperAttributeTypeNode {
+            Standard("@")
+            try await printThrowingType(propertyWrapperAttributeTypeNode, isProtocol: false, level: level)
+            Space()
+        }
         for attribute in variable.attributes {
             Keyword(attribute.keyword)
             Space()

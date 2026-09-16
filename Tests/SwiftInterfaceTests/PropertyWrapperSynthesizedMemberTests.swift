@@ -76,8 +76,23 @@ struct PropertyWrapperSynthesizedMemberTests {
         public init(wrappedValue: Int) { self.wrappedValue = wrappedValue }
     }
 
+    @propertyWrapper
+    public struct Boxed<Value> {
+        public var wrappedValue: Value
+        public var projectedValue: Boxed<Value> { self }
+        public init(wrappedValue: Value) { self.wrappedValue = wrappedValue }
+    }
+
+    @propertyWrapper
+    public struct Tagged<Tag, Value> {
+        public var wrappedValue: Value
+        public init(wrappedValue: Value) { self.wrappedValue = wrappedValue }
+    }
+
     public struct Settings {
         @Clamped public var volume: Int = 3
+        @Boxed public var title: String = ""
+        @Tagged<String, Int> public var count: Int = 0
         public var _manual: Int = 0
         public var manual: Int { _manual }
         public init() {}
@@ -102,13 +117,36 @@ struct PropertyWrapperSynthesizedMemberTests {
 
         // The wrapper type itself is still a type of the module.
         #expect(interface.contains("@propertyWrapper\nstruct Clamped"), "\(interface)")
-        // The declared property stays, as the computed property the binary has.
-        #expect(interface.contains("var volume: Swift.Int {"), "\(interface)")
+        // The declared property stays, as the computed property the binary
+        // has, with the wrapper printed as its attribute.
+        #expect(interface.contains("@ProbeWrappers.Clamped var volume: Swift.Int {"), "\(interface)")
         // The compiler-synthesized backing storage and projection are gone.
         #expect(!interface.contains("_volume"), "\(interface)")
         #expect(!interface.contains("$volume"), "\(interface)")
         // A hand-written `_manual` / `manual` pair carries no wrapper evidence.
         #expect(interface.contains("var _manual: Swift.Int"), "\(interface)")
         #expect(interface.contains("var manual: Swift.Int {"), "\(interface)")
+        #expect(!interface.contains("@ProbeWrappers.Clamped var manual"), "\(interface)")
+    }
+
+    /// The binary records only the backing field's full type; the attribute
+    /// omits the generic arguments exactly when the compiler would infer
+    /// them (one argument, equal to the wrapped property's type) and keeps
+    /// them otherwise. `@_projectedValueProperty` is compiler-internal and
+    /// never printed.
+    @Test func theWrapperAttributeSpellsGenericArgumentsOnlyWhenTheyAreNotInferable() async throws {
+        let machOFile = try loadFixture()
+        let builder = try SwiftInterfaceBuilder(configuration: .init(), eventHandlers: [], in: machOFile)
+        try await builder.prepare()
+        let interface = try await builder.printRoot().string
+
+        // `_title: Boxed<String>` behind `title: String` — inferable, bare.
+        #expect(interface.contains("@ProbeWrappers.Boxed var title: Swift.String {"), "\(interface)")
+        #expect(!interface.contains("_title"), "\(interface)")
+        #expect(!interface.contains("$title"), "\(interface)")
+        // `_count: Tagged<String, Int>` behind `count: Int` — two arguments, kept.
+        #expect(interface.contains("@ProbeWrappers.Tagged<Swift.String, Swift.Int> var count: Swift.Int {"), "\(interface)")
+        #expect(!interface.contains("_count"), "\(interface)")
+        #expect(!interface.contains("@_projectedValueProperty"), "\(interface)")
     }
 }

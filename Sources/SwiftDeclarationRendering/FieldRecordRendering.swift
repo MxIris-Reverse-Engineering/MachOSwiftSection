@@ -19,6 +19,14 @@ public enum FieldRecordRendering {
     /// rendering because dump shows what the record literally says.
     public static let artificialRawLayoutRecordComment = "artificial record: the @_rawLayout(like:) storage description, not a stored property"
 
+    /// The comment the interface prints after a `@_rawLayout(size:alignment:)`
+    /// attribute it recovered from the struct's `__swift5_builtin` descriptor
+    /// rather than from a field record: the numbers are the recorded layout,
+    /// but a non-generic `@_rawLayout(likeArrayOf:count:)` struct leaves the
+    /// same descriptor and nothing else, so the spelling may differ from the
+    /// source.
+    public static let rawLayoutBuiltinStorageComment = "size and alignment from the builtin type descriptor; the source may spell this as likeArrayOf:count:"
+
     /// The line printed in place of an enum element whose record carries no
     /// name: the element is unavailable at run time (Swift 6.4 emits neither
     /// its name nor its payload type) but keeps its tag, so the case count

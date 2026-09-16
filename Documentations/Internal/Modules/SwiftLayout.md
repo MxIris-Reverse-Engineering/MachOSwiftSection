@@ -36,6 +36,8 @@ SwiftLayout 是**静态聚合布局引擎**：不加载进程、不调用 metada
 
 `@_rawLayout(like: T)` 结构体没有存储属性，Swift 6.4 起编译器在它的字段描述符里多发一条**人造记录**（flag `isArtificial`，名字 `_rawLayout`，类型 = like 类型），专门让离线工具能算出大小。引擎把这条记录当作「like 类型的 size / stride / alignment，但 **0 个 extra inhabitant**、不可按位借用、addressable-for-dependencies」折进聚合（`StaticTypeLayoutResolver.rawLayoutStorage`）——raw storage 是不透明的，`Optional<_Cell<UnsafePointer<Int>>>` 因此是 9 字节而不是 8，与运行时一致（上游 RemoteInspection 在 6.4 修的正是这一处）。`movesAsLike` 二进制里没有记录，bitwise-takable 沿用 like 类型，只影响 flag 不影响偏移。6.4 之前编译的二进制没有这条记录，这类类型仍会被算成空结构体——那是二进制里确实没有事实，不是引擎能补的。提案：[draft-raw-layout-artificial-field-handling](../../Evolutions/draft-raw-layout-artificial-field-handling.md)。
 
+`@_rawLayout` 是任何模块都能开的实验特性，另外两种写法走的不是人造记录：`size:alignment:` 与非泛型的 `likeArrayOf:count:` 只留下 `__swift5_builtin` 描述符（IRGen 对 `@_alignment` / `@_rawLayout` 类型一律发的不透明尺寸记录），`structureLayout` 对非实例化的 `.structure` 节点本来就先查 `BuiltinTypeLayoutIndex`，所以这两种写法的大小、对齐与 0 个 extra inhabitant 都正确（`RawLayoutBuiltinDescriptorLayoutTests` 用现场编译的模块钉住）。**泛型的 `likeArrayOf:count:` 什么都不留**，引擎会把它算成 0 字节、后续字段偏移随之出错，且与空泛型 struct 无法区分——这是上游只给标量 `like:` 发人造记录留下的缺口，目前只能记录。另一个要知道的事实：运行时实例化泛型 raw layout 元数据时（`swift_initRawStructMetadata` / `…2`）照抄 like 类型的 extra inhabitant 数，与编译期布局（0 个）和 6.4 的 RemoteInspection 不一致；引擎对齐的是编译期布局，那才决定字段偏移。部署目标低于 27 时非拷贝字段类型藏在 accessor thunk 后面、引擎算不出的缺口见 [draft-static-layout-through-accessor-thunks](../../Evolutions/draft-static-layout-through-accessor-thunks.md)。
+
 `BasicLayout` 是运行时 `performBasicLayout` 的离线移植。它同时负责值聚合的 **extra inhabitant 数 = 各字段取最大**（`swift_initStructMetadata` 的规则），这条曾经缺失，导致任何以「带 extra inhabitant 的 struct」为 payload 的 single-payload enum 被算大一个字节，并沿着后续字段一路串错。
 
 ### 3：已知布局表与 builtin 段
