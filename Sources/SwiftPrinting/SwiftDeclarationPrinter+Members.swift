@@ -77,6 +77,9 @@ extension SwiftDeclarationPrinter {
     /// empty case prints as bare `case name` regardless of how its empty type
     /// name demangled.
     public func printEnumCase(_ field: FieldDefinition, level: Int, substitutedTypeNode: Node? = nil) async -> SemanticString {
+        if field.name.isEmpty {
+            return SemanticString { Comment(Self.namelessEnumCaseComment) }
+        }
         var result = SemanticString {
             if field.flags.contains(.isIndirectCase) {
                 Keyword(.indirect)
@@ -121,28 +124,40 @@ extension SwiftDeclarationPrinter {
     /// `case name()` is not valid Swift.
     @SemanticStringBuilder
     func printThrowingEnumCase(_ field: FieldDefinition, level: Int, substitutedTypeNode: Node? = nil) async throws -> SemanticString {
-        if field.flags.contains(.isIndirectCase) {
-            Keyword(.indirect)
+        if field.name.isEmpty {
+            // Swift 6.4: an element unavailable at run time keeps its tag,
+            // but the compiler emits neither its name nor its payload type.
+            // Say so rather than print a nameless `case`.
+            Comment(Self.namelessEnumCaseComment)
+        } else {
+            if field.flags.contains(.isIndirectCase) {
+                Keyword(.indirect)
+                Space()
+            }
+            Keyword(.case)
             Space()
-        }
-        Keyword(.case)
-        Space()
-        MemberDeclaration(field.name)
+            MemberDeclaration(field.name)
 
-        if field.flags.contains(.hasMangledTypeName) {
-            let payloadTypeNode = substitutedTypeNode ?? field.typeNode.materialize()
-            let payload = try await printThrowingType(payloadTypeNode, isProtocol: false, level: level)
-            if !payload.string.isEmpty {
-                if payloadTypeNode.firstChild?.isKind(of: .tuple) ?? false {
-                    payload
-                } else {
-                    Standard("(")
-                    payload
-                    Standard(")")
+            if field.flags.contains(.hasMangledTypeName) {
+                let payloadTypeNode = substitutedTypeNode ?? field.typeNode.materialize()
+                let payload = try await printThrowingType(payloadTypeNode, isProtocol: false, level: level)
+                if !payload.string.isEmpty {
+                    if payloadTypeNode.firstChild?.isKind(of: .tuple) ?? false {
+                        payload
+                    } else {
+                        Standard("(")
+                        payload
+                        Standard(")")
+                    }
                 }
             }
         }
     }
+
+    /// The line printed in place of an enum element whose record carries no
+    /// name (unavailable at run time; Swift 6.4). Shared with `EnumDumper`
+    /// through `FieldRecordRendering` so both paths spell it the same.
+    static var namelessEnumCaseComment: String { FieldRecordRendering.namelessEnumCaseComment }
 
     /// Emits the storage-modifier + mutability-keyword prefix for a stored field
     /// (trailing space included), derived from the model `FieldFlags`. Mirrors

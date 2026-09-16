@@ -122,6 +122,7 @@ struct DumpCommand: AsyncParsableCommand, Sendable {
         // provider; build it once per session when any layout comment is
         // requested. Without it the offline dumpers emit no layout comments
         // (offline metadata is unavailable), exactly as before.
+        dumpConfiguration.staticLayoutDependencyResolution = machOOptions.staticLayoutDependencyResolution
         if dumpConfiguration.printFieldOffset || dumpConfiguration.printTypeLayout || dumpConfiguration.printEnumLayout || dumpConfiguration.printExpandedFieldOffsets {
             dumpConfiguration.staticFieldLayoutProvider = MachOFileStaticFieldLayoutProvider(
                 machOFile: machOFile,

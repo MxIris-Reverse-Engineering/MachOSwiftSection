@@ -253,7 +253,10 @@ swift-section dump --dependency-search-path "/Library/Developer/CoreSimulator/Vo
 ```
 A directory is used as a system root under which absolute install names resolve,
 a `dyld_shared_cache_*` / `dyld_sim_shared_cache_*` file as a cache, anything else
-as a Mach-O file. `interface` and `snapshot` take the same option.
+as a Mach-O file. `interface` and `snapshot` take the same option. The same paths
+also feed the static field-offset / type-layout comments, ahead of the running
+system's cache, so a binary can be laid out against the OS version whose cache you
+name rather than the host's.
 
 Dump output includes richer annotations:
 

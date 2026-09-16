@@ -34,6 +34,8 @@ SwiftLayout 是**静态聚合布局引擎**：不加载进程、不调用 metada
 
 `StaticTypeLayout` 除 size / stride / alignment / extra inhabitant 数 / bitwise-takable 之外，还带两个 value witness 事实：**bitwise-borrowable**（能否按位借用；只有 `@_rawLayout` 类型及含它的聚合为否，其余等同 takable）与 **addressable-for-dependencies**（值的地址是否是生命周期依赖的一部分；`Builtin.FixedArray` 恒为是，聚合从任一字段继承）。聚合的折叠规则照运行时：borrowable 取 AND，addressable 取 OR，enum 的 payload 同理。两者目前只服务一个消费者——`Builtin.Borrow<T>`（Swift 6.4，`Swift.Ref` / `MutableRef` 的唯一存储字段，mangling `BW`）的布局：移植 `stdlib/public/runtime/Borrow.cpp` 的 `swift_getBorrowRepresentation`，referent 超过 4 个指针宽、或 addressable-for-dependencies、或不可按位借用时退化为一个 `Builtin.RawPointer`（8 字节、XI 1），否则与 referent 同 size / stride / alignment / XI；borrow 自身恒可按位 take 与 borrow、不 addressable。本机没有 6.4 运行时可对账，`BorrowLayoutTests` 用规则算出的字面值断言。提案：[draft-builtin-borrow-support](../../Evolutions/draft-builtin-borrow-support.md)。
 
+`@_rawLayout(like: T)` 结构体没有存储属性，Swift 6.4 起编译器在它的字段描述符里多发一条**人造记录**（flag `isArtificial`，名字 `_rawLayout`，类型 = like 类型），专门让离线工具能算出大小。引擎把这条记录当作「like 类型的 size / stride / alignment，但 **0 个 extra inhabitant**、不可按位借用、addressable-for-dependencies」折进聚合（`StaticTypeLayoutResolver.rawLayoutStorage`）——raw storage 是不透明的，`Optional<_Cell<UnsafePointer<Int>>>` 因此是 9 字节而不是 8，与运行时一致（上游 RemoteInspection 在 6.4 修的正是这一处）。`movesAsLike` 二进制里没有记录，bitwise-takable 沿用 like 类型，只影响 flag 不影响偏移。6.4 之前编译的二进制没有这条记录，这类类型仍会被算成空结构体——那是二进制里确实没有事实，不是引擎能补的。提案：[draft-raw-layout-artificial-field-handling](../../Evolutions/draft-raw-layout-artificial-field-handling.md)。
+
 `BasicLayout` 是运行时 `performBasicLayout` 的离线移植。它同时负责值聚合的 **extra inhabitant 数 = 各字段取最大**（`swift_initStructMetadata` 的规则），这条曾经缺失，导致任何以「带 extra inhabitant 的 struct」为 payload 的 single-payload enum 被算大一个字节，并沿着后续字段一路串错。
 
 ### 3：已知布局表与 builtin 段

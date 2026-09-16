@@ -95,10 +95,10 @@ swift run swift-section evolution <v1> <v2> …         # N-version lineage
 swift run swift-section transformer tokens            # also: templates | config — the discovery surface
 
 # Each subcommand's --help is the authority on its flags. The one that is easy not to
-# know exists: --dependency-search-path (dump / interface / snapshot), which points the
-# thunk reader at the images a standalone binary links — a Mach-O file, a dyld cache
-# file, or a directory used as a system root. Without it, paths are inferred from where
-# the binary sits and the running system's cache is used.
+# know exists: --dependency-search-path (dump / interface / snapshot), which points both
+# the thunk reader and the static layout engine at the images a standalone binary links —
+# a Mach-O file, a dyld cache file, or a directory used as a system root. Without it, paths
+# are inferred from where the binary sits and the running system's cache is used.
 
 # Build release executable
 ./build-executable-product.sh

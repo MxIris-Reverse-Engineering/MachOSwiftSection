@@ -372,7 +372,11 @@ extension SwiftDeclarationPrinter {
         // (field records and layout comments are positional) and the trailing
         // break still follows the last field actually rendered. Enum cases
         // own no symbols and are never filtered.
-        let renderedFields = Array(typeDefinition.fields.enumerated()).filter { isEnum || !isExcludedByExportFilter(field: $0.element) }
+        // A `@_rawLayout(like:)` struct's artificial `_rawLayout` record
+        // (Swift 6.4) is not a stored property; it renders as the type-level
+        // `@_rawLayout(like:)` attribute instead. Other artificial records —
+        // an actor's `$defaultActor` storage — keep rendering as they did.
+        let renderedFields = Array(typeDefinition.fields.enumerated()).filter { !$0.element.isRawLayoutStorage && (isEnum || !isExcludedByExportFilter(field: $0.element)) }
         for (offset, indexedField) in renderedFields.offsetEnumerated() {
             let fieldIndex = indexedField.offset
             let field = indexedField.element

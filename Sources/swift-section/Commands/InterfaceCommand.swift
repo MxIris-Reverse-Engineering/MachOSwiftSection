@@ -101,6 +101,7 @@ struct InterfaceCommand: AsyncParsableCommand {
         if let transformers = try transformerOptions.buildTransformerConfiguration() {
             printConfiguration.applyTransformersEnablingCommentKinds(transformers)
         }
+        printConfiguration.staticLayoutDependencyResolution = machOOptions.staticLayoutDependencyResolution
 
         var configuration = SwiftInterfaceBuilderConfiguration(
             indexConfiguration: .init(

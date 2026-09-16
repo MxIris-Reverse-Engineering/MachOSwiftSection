@@ -383,7 +383,13 @@ public struct StaticLayoutCalculator<MachO: MachOSwiftSectionRepresentableWithCa
             }
 
             do {
-                let fieldLayout = try resolver.layout(forMangledTypeName: mangledTypeName, in: image, environment: environment)
+                let resolvedLayout = try resolver.layout(forMangledTypeName: mangledTypeName, in: image, environment: environment)
+                // A `@_rawLayout(like:)` struct's artificial record describes
+                // opaque storage: like-type size and alignment, no extra
+                // inhabitants (see `StaticTypeLayoutResolver.rawLayoutStorage`).
+                let fieldLayout = try StaticTypeLayoutResolver<MachO>.isRawLayoutStorageRecord(record, in: image)
+                    ? StaticTypeLayoutResolver<MachO>.rawLayoutStorage(likeTypeLayout: resolvedLayout)
+                    : resolvedLayout
                 let fieldAlignmentMask = fieldLayout.alignmentMask
                 let alignedOffset = (offsetAccumulator + fieldAlignmentMask) & ~fieldAlignmentMask
                 // A zero-sized field occupies no storage, and the

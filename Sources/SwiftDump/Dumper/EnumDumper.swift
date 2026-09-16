@@ -92,32 +92,41 @@ package struct EnumDumper<MachO: MachOFieldLayoutRenderable>: TypedDumper {
 
                 Indent(level: configuration.indentation)
 
-                if fieldRecord.flags.contains(.isIndirectCase) {
-                    Keyword(.indirect)
-                    Space()
-                    Keyword(.case)
-                    Space()
+                let caseName = try fieldRecord.fieldName(in: machO)
+                if caseName.isEmpty {
+                    // Swift 6.4: an element unavailable at run time keeps its
+                    // tag, but the compiler emits neither its name nor its
+                    // payload type. Say so rather than print a nameless `case`;
+                    // mirrors `printThrowingEnumCase`.
+                    Comment(FieldRecordRendering.namelessEnumCaseComment)
                 } else {
-                    Keyword(.case)
-                    Space()
-                }
+                    if fieldRecord.flags.contains(.isIndirectCase) {
+                        Keyword(.indirect)
+                        Space()
+                        Keyword(.case)
+                        Space()
+                    } else {
+                        Keyword(.case)
+                        Space()
+                    }
 
-                try MemberDeclaration("\(fieldRecord.fieldName(in: machO))")
+                    MemberDeclaration(caseName)
 
-                if !mangledTypeName.isEmpty {
-                    let node = try fieldDemangledTypeNode(for: mangledTypeName)
-                    let demangledName = try await demangleResolver.resolve(for: node)
-                    // A payload node the resolver renders as an empty string
-                    // (an uncovered `Node.Kind`) degrades to the bare case —
-                    // `case name()` is not valid Swift. Mirrors
-                    // `printThrowingEnumCase` so both paths spell the same.
-                    if !demangledName.string.isEmpty {
-                        if node.firstChild?.isKind(of: .tuple) ?? false {
-                            demangledName
-                        } else {
-                            Standard("(")
-                            demangledName
-                            Standard(")")
+                    if !mangledTypeName.isEmpty {
+                        let node = try fieldDemangledTypeNode(for: mangledTypeName)
+                        let demangledName = try await demangleResolver.resolve(for: node)
+                        // A payload node the resolver renders as an empty string
+                        // (an uncovered `Node.Kind`) degrades to the bare case —
+                        // `case name()` is not valid Swift. Mirrors
+                        // `printThrowingEnumCase` so both paths spell the same.
+                        if !demangledName.string.isEmpty {
+                            if node.firstChild?.isKind(of: .tuple) ?? false {
+                                demangledName
+                            } else {
+                                Standard("(")
+                                demangledName
+                                Standard(")")
+                            }
                         }
                     }
                 }

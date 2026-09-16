@@ -205,6 +205,18 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
             BreakLine()
         }
 
+        // `@_rawLayout(like: T)`: a Swift 6.4 compiler records the like type
+        // as an artificial `_rawLayout` field so offline tools can size the
+        // struct. The source attribute is what it stands for, so print that;
+        // `movesAsLike` leaves no trace in the binary and is not guessed.
+        if let rawLayoutStorageField = typeDefinition.fields.first(where: \.isRawLayoutStorage) {
+            Indent(level: level - 1)
+            Standard("@_rawLayout(like: ")
+            try await printThrowingType(rawLayoutStorageField.typeNode.materialize(), isProtocol: false, level: level)
+            Standard(")")
+            BreakLine()
+        }
+
         // Specialized definitions carry the runtime-resolved metadata; the
         // header renderer uses it to print the bound generic name
         // (`Box<Int>`, not `Box<A> where …`) — the same substitution the

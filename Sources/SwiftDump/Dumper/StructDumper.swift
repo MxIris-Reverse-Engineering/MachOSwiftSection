@@ -89,6 +89,15 @@ package struct StructDumper<MachO: MachOFieldLayoutRenderable>: TypedDumper {
 
                 try await fieldLayoutRenderer.storedFieldComments(forFieldAtIndex: offset.index, mangledTypeName: mangledTypeName, fieldOffsets: fieldOffsets)
 
+                // dump shows what the record says, so a `@_rawLayout(like:)`
+                // struct's artificial `_rawLayout` record (Swift 6.4) still
+                // renders — behind a comment saying it is not a stored property.
+                if FieldRecordRendering.isRawLayoutStorageRecord(name: try fieldRecord.fieldName(in: machO), isArtificial: fieldRecord.flags.contains(.isArtificial)) {
+                    Indent(level: configuration.indentation)
+                    Comment(FieldRecordRendering.artificialRawLayoutRecordComment)
+                    BreakLine()
+                }
+
                 Indent(level: configuration.indentation)
 
                 let demangledTypeNode = try fieldDemangledTypeNode(for: mangledTypeName)

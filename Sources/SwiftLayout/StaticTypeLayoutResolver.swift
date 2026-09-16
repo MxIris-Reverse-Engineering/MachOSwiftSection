@@ -775,8 +775,44 @@ final class StaticTypeLayoutResolver<MachO: MachOSwiftSectionRepresentableWithCa
         fieldLayouts.reserveCapacity(records.count)
         for record in records {
             let mangledTypeName = try record.mangledTypeName(in: image.machO)
-            fieldLayouts.append(try layout(forMangledTypeName: mangledTypeName, in: image, environment: environment))
+            let fieldLayout = try layout(forMangledTypeName: mangledTypeName, in: image, environment: environment)
+            fieldLayouts.append(try Self.isRawLayoutStorageRecord(record, in: image) ? Self.rawLayoutStorage(likeTypeLayout: fieldLayout) : fieldLayout)
         }
         return fieldLayouts
+    }
+
+    /// The storage a `@_rawLayout(like: T)` struct describes through its
+    /// **artificial** field record (Swift 6.4 emits one, named `_rawLayout`,
+    /// so offline tools can size the type; the struct has no stored
+    /// properties). It takes the like type's size, stride and alignment
+    /// but none of its extra inhabitants — raw storage is opaque, so
+    /// `Optional<_Cell<UnsafePointer<Int>>>` needs a tag byte (RemoteInspection
+    /// fixed the same mistake in 6.4). Raw-layout types are never
+    /// bitwise-borrowable and are always addressable-for-dependencies
+    /// (SIL `TypeLowering` sets it unconditionally for `RawLayoutAttr`).
+    /// Whether the value moves as its like type (`movesAsLike`) is not
+    /// recorded in the binary, so bitwise-takability follows the like type — a
+    /// flag-only divergence that moves no offset.
+    /// The name a Swift 6.4 compiler gives the artificial record (the same
+    /// literal `SwiftDeclarationRendering.FieldRecordRendering` uses; this
+    /// module sits below it). The artificial flag alone is not enough: an
+    /// actor's `$defaultActor` storage is artificial too and is a real field.
+    static var rawLayoutStorageFieldName: String { "_rawLayout" }
+
+    static func isRawLayoutStorageRecord(_ record: FieldRecord, in image: ImageReference<MachO>) throws -> Bool {
+        guard record.flags.contains(.isArtificial) else { return false }
+        return try record.fieldName(in: image.machO) == rawLayoutStorageFieldName
+    }
+
+    static func rawLayoutStorage(likeTypeLayout: StaticTypeLayout) -> StaticTypeLayout {
+        StaticTypeLayout(
+            size: likeTypeLayout.size,
+            stride: likeTypeLayout.stride,
+            alignmentMask: likeTypeLayout.alignmentMask,
+            extraInhabitantCount: 0,
+            isBitwiseTakable: likeTypeLayout.isBitwiseTakable,
+            isBitwiseBorrowable: false,
+            isAddressableForDependencies: true
+        )
     }
 }

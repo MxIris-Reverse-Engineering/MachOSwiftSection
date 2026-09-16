@@ -22,7 +22,7 @@ struct MachOOptionGroup: ParsableArguments, Sendable {
     @Option(name: .shortAndLong, help: "The architecture of the Mach-O file. If not specified, the current architecture will be used.")
     var architecture: Architecture?
 
-    @Option(name: .customLong("dependency-search-path"), help: "Where the images a standalone binary links are looked for when a type must be read out of another image's metadata accessor (an availability-conditional opaque type, a noncopyable field type): a Mach-O file, a dyld shared cache file (dyld_shared_cache_* / dyld_sim_shared_cache_*), or a directory used as a system root under which absolute install names resolve (an iOS 26 or earlier simulator runtime's RuntimeRoot). Repeatable. Without it the paths are inferred from where the binary sits on disk, and the running system's shared cache is used.", completion: .file())
+    @Option(name: .customLong("dependency-search-path"), help: "Where the images a standalone binary links are looked for — both when a type must be read out of another image's metadata accessor (an availability-conditional opaque type, a noncopyable field type) and when the static field-offset / type-layout comments need a cross-module type's descriptor: a Mach-O file, a dyld shared cache file (dyld_shared_cache_* / dyld_sim_shared_cache_*), or a directory used as a system root under which absolute install names resolve (an iOS 26 or earlier simulator runtime's RuntimeRoot). Repeatable; named paths are consulted before the running system's shared cache. Without it the paths are inferred from where the binary sits on disk, and the running system's shared cache is used.", completion: .file())
     var dependencySearchPaths: [String] = []
 
     /// A mistyped search path is a usage error, not a silent miss: the
@@ -39,6 +39,16 @@ struct MachOOptionGroup: ParsableArguments, Sendable {
     var accessorThunkResolver: DisassemblingAccessorThunkResolver? {
         guard !dependencySearchPaths.isEmpty else { return nil }
         return DisassemblingAccessorThunkResolver(searchPaths: dependencySearchPaths.map { DependencySearchPath(classifyingPath: $0) })
+    }
+
+    /// How the static (offline) layout engine resolves cross-module types:
+    /// the user-named search paths first, the running system's shared cache
+    /// as the fallback — so a binary can be laid out against the OS version
+    /// whose cache was named rather than the host's. Without any path this is
+    /// the library default.
+    var staticLayoutDependencyResolution: StaticLayoutDependencyResolution {
+        guard !dependencySearchPaths.isEmpty else { return .default }
+        return .dependencyClosure(searchPaths: dependencySearchPaths.map { DependencySearchPath(classifyingPath: $0) } + [.systemDyldSharedCache])
     }
 }
 
