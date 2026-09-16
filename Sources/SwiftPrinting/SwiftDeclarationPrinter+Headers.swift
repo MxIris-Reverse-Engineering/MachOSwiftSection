@@ -379,7 +379,10 @@ extension SwiftDeclarationPrinter {
         // `@_rawLayout(like:)` struct's `_rawLayout` record (Swift 6.4)
         // renders as the type-level attribute instead. dump keeps showing
         // both, because dump shows what the records say.
-        let renderedFields = Array(typeDefinition.fields.enumerated()).filter { !$0.element.flags.contains(.isArtificial) && (isEnum || !isExcludedByExportFilter(field: $0.element)) }
+        // A wrapped property's `_x` backing storage is hidden as well once the
+        // wrapper is recognized (`synthesizedPropertyWrapperMembers(of:)`).
+        let synthesizedPropertyWrapperMembers = synthesizedPropertyWrapperMembers(of: typeDefinition)
+        let renderedFields = Array(typeDefinition.fields.enumerated()).filter { !$0.element.flags.contains(.isArtificial) && !synthesizedPropertyWrapperMembers.fieldNames.contains($0.element.name) && (isEnum || !isExcludedByExportFilter(field: $0.element)) }
         for (offset, indexedField) in renderedFields.offsetEnumerated() {
             let fieldIndex = indexedField.offset
             let field = indexedField.element

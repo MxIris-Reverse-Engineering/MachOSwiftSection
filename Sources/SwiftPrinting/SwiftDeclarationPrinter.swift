@@ -34,6 +34,13 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
     @Mutex
     private var typeNameResolverRegistry: TypeNameResolverRegistry = .init()
 
+    /// Who says whether a field's type is a property wrapper (see
+    /// `PropertyWrapperTypeResolving`). `nil` — the default, and what a host
+    /// printing one declaration at a time gets — means no synthesized member
+    /// is hidden.
+    @Mutex
+    var propertyWrapperTypeResolver: (any PropertyWrapperTypeResolving)? = nil
+
     /// The in-image non-exported declaration names the exported-only filter
     /// consults for `extension` targets — installed by
     /// `installExportFilterScope(types:protocols:)`, consulted only while
@@ -161,6 +168,14 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
 
     public func removeAllTypeNameResolvers() {
         typeNameResolverRegistry = .init()
+    }
+
+    /// Installs (or, with `nil`, removes) the resolver that lets the interface
+    /// hide a wrapped property's compiler-synthesized `_x` / `$x` members.
+    /// Independent of the type-name resolvers: `removeAllTypeNameResolvers()`
+    /// leaves it in place.
+    public func setPropertyWrapperTypeResolver(_ resolver: (any PropertyWrapperTypeResolving)?) {
+        _propertyWrapperTypeResolver.withLock { $0 = resolver }
     }
 
     /// Exported-only gate (evolution proposal `exported-only-interface`):
@@ -524,8 +539,9 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
         let printExportStatus = configuration.printExportStatus
         let vtableTransformerClosure = vtableOffsetTransformerClosure
 
+        let synthesizedPropertyWrapperMembers = synthesizedPropertyWrapperMembers(of: definition)
         await MemberList(level: level) {
-            for member in definition.orderedMembers where !isExcludedByExportFilter(member) {
+            for member in definition.orderedMembers where !isExcludedByExportFilter(member) && !synthesizedPropertyWrapperMembers.contains(member) {
                 await renderMember(member, level: level, offsetCommentPrefix: offsetCommentPrefix, emitOffsetComment: emitOffsetComment, printVTableOffset: printVTableOffset, printMemberAddress: printMemberAddress, printExportStatus: printExportStatus, vtableTransformerClosure: vtableTransformerClosure)
             }
 
@@ -556,9 +572,10 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
         let printExportStatus = configuration.printExportStatus
         let vtableTransformerClosure = vtableOffsetTransformerClosure
 
+        let synthesizedPropertyWrapperMembers = synthesizedPropertyWrapperMembers(of: definition)
         for category in MemberCategory.allCases {
             await MemberList(level: level) {
-                for member in definition.members(in: category) where !isExcludedByExportFilter(member) {
+                for member in definition.members(in: category) where !isExcludedByExportFilter(member) && !synthesizedPropertyWrapperMembers.contains(member) {
                     await renderMember(member, level: level, offsetCommentPrefix: offsetCommentPrefix, emitOffsetComment: emitOffsetComment, printVTableOffset: printVTableOffset, printMemberAddress: printMemberAddress, printExportStatus: printExportStatus, vtableTransformerClosure: vtableTransformerClosure)
                 }
             }
