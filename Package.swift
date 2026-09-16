@@ -889,6 +889,7 @@ extension Target {
             .product(name: "SnapshotTesting", package: "swift-snapshot-testing"),
             .target(.MachOFoundation),
         ],
+        exclude: ["Snapshots/__Snapshots__"],
         swiftSettings: testSettings,
     )
 
@@ -914,6 +915,7 @@ extension Target {
             .product(name: "SnapshotTesting", package: "swift-snapshot-testing"),
             .target(.MachOFoundation),
         ],
+        exclude: ["Snapshots/__Snapshots__"],
         swiftSettings: testSettings,
     )
 

@@ -2,40 +2,41 @@
 
 set -e  # Exit on any error
 
-echo "Building x86_64 architecture..."
-swift build -c release --arch x86_64 --product swift-section
+# Builds a universal `swift-section` (x86_64 + arm64) and signs it ad hoc.
+#
+# SwiftPM 6.4 made the Swift Build engine the default. Its products land in
+# `<scratch>/out/Products/<Configuration>` — one directory shared by every
+# architecture — instead of the native engine's `.build/<triple>/<configuration>`.
+# Each architecture therefore gets its own scratch path, and the binary
+# location is asked from SwiftPM (`--show-bin-path`) rather than assumed, so
+# the script works under both engines and with either toolchain.
+PRODUCT_NAME="swift-section"
+ARCHITECTURES=("x86_64" "arm64")
+SLICE_PATHS=()
 
-echo "Building arm64 architecture..."
-swift build -c release --arch arm64 --product swift-section
+for ARCHITECTURE in "${ARCHITECTURES[@]}"; do
+    SCRATCH_PATH=".build/universal-${ARCHITECTURE}"
+    echo "Building ${ARCHITECTURE} architecture..."
+    swift build -c release --arch "${ARCHITECTURE}" --product "${PRODUCT_NAME}" --scratch-path "${SCRATCH_PATH}"
+
+    BINARY_DIRECTORY="$(swift build -c release --arch "${ARCHITECTURE}" --product "${PRODUCT_NAME}" --scratch-path "${SCRATCH_PATH}" --show-bin-path)"
+    SLICE_PATH="${BINARY_DIRECTORY}/${PRODUCT_NAME}"
+    if [ ! -f "${SLICE_PATH}" ]; then
+        echo "Error: ${ARCHITECTURE} binary not found at ${SLICE_PATH}"
+        exit 1
+    fi
+    SLICE_PATHS+=("${SLICE_PATH}")
+done
 
 # Create Products directory
-if [ ! -d "./Products" ]; then
-    mkdir -p Products
-fi
-
-# Check if both binaries exist before creating universal binary
-X86_BINARY=".build/x86_64-apple-macosx/release/swift-section"
-ARM64_BINARY=".build/arm64-apple-macosx/release/swift-section"
-
-if [ ! -f "$X86_BINARY" ]; then
-    echo "Error: x86_64 binary not found at $X86_BINARY"
-    exit 1
-fi
-
-if [ ! -f "$ARM64_BINARY" ]; then
-    echo "Error: arm64 binary not found at $ARM64_BINARY"
-    exit 1
-fi
+mkdir -p Products
 
 echo "Creating universal binary..."
-lipo -create \
-    "$X86_BINARY" \
-    "$ARM64_BINARY" \
-    -output ./Products/swift-section
+lipo -create "${SLICE_PATHS[@]}" -output "./Products/${PRODUCT_NAME}"
 
 echo "Signing universal binary..."
-codesign --force --sign - ./Products/swift-section
+codesign --force --sign - "./Products/${PRODUCT_NAME}"
 
 echo "Universal binary created successfully:"
-lipo -info ./Products/swift-section
-file ./Products/swift-section
+lipo -info "./Products/${PRODUCT_NAME}"
+file "./Products/${PRODUCT_NAME}"
