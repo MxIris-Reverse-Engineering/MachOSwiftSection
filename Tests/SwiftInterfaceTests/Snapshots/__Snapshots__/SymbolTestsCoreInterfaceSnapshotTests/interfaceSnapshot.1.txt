@@ -54,9 +54,6 @@ enum AccessorFunctionReferences {
 }
 enum Actors {
     actor ActorTest {
-        // Field offset: 0x10
-        // Type Layout: (size: 96, stride: 96, alignment: 16, extraInhabitantCount: 0)
-        var $defaultActor: Builtin.DefaultActorStorage
         // Field offset: 0x70
         // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
         var state: Swift.Int
@@ -73,10 +70,6 @@ enum Actors {
     }
     @globalActor
     actor CustomGlobalActor {
-        // Field offset: 0x10
-        // Type Layout: (size: 96, stride: 96, alignment: 16, extraInhabitantCount: 0)
-        var $defaultActor: Builtin.DefaultActorStorage
-
         var unownedExecutor: Swift.UnownedSerialExecutor {
             get
         }
@@ -705,9 +698,6 @@ enum DeinitVariants {
         deinit
     }
     actor ActorDeinitTest {
-        // Field offset: 0x10
-        // Type Layout: (size: 96, stride: 96, alignment: 16, extraInhabitantCount: 0)
-        var $defaultActor: Builtin.DefaultActorStorage
         // Field offset: 0x70
         // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
         var state: Swift.Int
@@ -805,9 +795,6 @@ enum DiamondInheritance {
 }
 enum DistributedActors {
     distributed actor DistributedActorTest {
-        // Field offset: 0x10
-        // Type Layout: (size: 96, stride: 96, alignment: 16, extraInhabitantCount: 0)
-        var $defaultActor: Builtin.DefaultActorStorage
         // Field offset: 0x70
         // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 2147483647)
         let id: Distributed.LocalTestingActorID
@@ -833,9 +820,6 @@ enum DistributedActors {
         deinit
     }
     distributed actor GenericDistributedActorTest<A> where A: Swift.Decodable, A: Swift.Encodable {
-        // Field offset: 0x10
-        // Type Layout: (size: 96, stride: 96, alignment: 16, extraInhabitantCount: 0)
-        var $defaultActor: Builtin.DefaultActorStorage
         // Field offset: 0x70
         // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 2147483647)
         let id: Distributed.LocalTestingActorID
@@ -2172,9 +2156,6 @@ enum Initializers {
         init(value: Swift.Int) throws(SymbolTestsCore.Initializers.CustomInitializerError)
     }
     actor AsyncInitializerActorTest {
-        // Field offset: 0x10
-        // Type Layout: (size: 96, stride: 96, alignment: 16, extraInhabitantCount: 0)
-        var $defaultActor: Builtin.DefaultActorStorage
         // Field offset: 0x70
         // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
         let identifier: Swift.Int
