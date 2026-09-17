@@ -149,4 +149,26 @@ struct PropertyWrapperSynthesizedMemberTests {
         #expect(!interface.contains("_count"), "\(interface)")
         #expect(!interface.contains("@_projectedValueProperty"), "\(interface)")
     }
+
+    /// The in-process reader takes the same path: recovery happens at index
+    /// time (`TypeDefinition.wrappedProperties`) from field records and
+    /// member symbols, which read the same off a loaded image — so a host
+    /// that drives `SwiftDeclarationPrinter` directly, as RuntimeViewer
+    /// does, gets the hiding and the attribute without any wiring.
+    @Test func theInProcessReaderRendersTheSameWrapperAttribute() async throws {
+        let libraryURL = try Self.fixtureCompilationResult.get()
+        _ = libraryURL.path.withCString { dlopen($0, RTLD_LAZY) }
+        // `MachOImage(name:)` matches the loaded image by its bare file name.
+        let machOImage = try #require(MachOImage(name: "libProbeWrappers"), "the fixture dylib did not load in-process")
+        let builder = try SwiftInterfaceBuilder(configuration: .init(), eventHandlers: [], in: machOImage)
+        try await builder.prepare()
+        let interface = try await builder.printRoot().string
+
+        #expect(interface.contains("@ProbeWrappers.Clamped var volume: Swift.Int {"), "\(interface)")
+        #expect(interface.contains("@ProbeWrappers.Boxed var title: Swift.String {"), "\(interface)")
+        #expect(interface.contains("@ProbeWrappers.Tagged<Swift.String, Swift.Int> var count: Swift.Int {"), "\(interface)")
+        #expect(!interface.contains("_volume"), "\(interface)")
+        #expect(!interface.contains("$volume"), "\(interface)")
+        #expect(interface.contains("var _manual: Swift.Int"), "\(interface)")
+    }
 }

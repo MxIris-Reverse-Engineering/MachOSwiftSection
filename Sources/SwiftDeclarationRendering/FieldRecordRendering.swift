@@ -27,6 +27,13 @@ public enum FieldRecordRendering {
     /// source.
     public static let rawLayoutBuiltinStorageComment = "size and alignment from the builtin type descriptor; the source may spell this as likeArrayOf:count:"
 
+    /// The comment the interface prints above a wrapped property it had to
+    /// synthesize from its backing storage because the property's own
+    /// accessors are stripped (`WrappedPropertyDefinition.Origin.synthesized`).
+    public static func synthesizedWrappedPropertyComment(backingFieldName: String) -> String {
+        "synthesized from the backing storage `\(backingFieldName)`; the property's own accessors are stripped"
+    }
+
     /// The line printed in place of an enum element whose record carries no
     /// name: the element is unavailable at run time (Swift 6.4 emits neither
     /// its name nor its payload type) but keeps its tag, so the case count

@@ -50,6 +50,13 @@ struct MachOOptionGroup: ParsableArguments, Sendable {
         guard !dependencySearchPaths.isEmpty else { return .default }
         return .dependencyClosure(searchPaths: dependencySearchPaths.map { DependencySearchPath(classifyingPath: $0) } + [.systemDyldSharedCache])
     }
+
+    /// The same paths for the indexer's cross-image facts (a stored field
+    /// whose type is a property wrapper defined in another image): the
+    /// user-named ones first, the running system's cache as the fallback.
+    var indexDependencySearchPaths: [DependencySearchPath] {
+        dependencySearchPaths.map { DependencySearchPath(classifyingPath: $0) } + [.systemDyldSharedCache]
+    }
 }
 
 extension AccessorThunkResolution {

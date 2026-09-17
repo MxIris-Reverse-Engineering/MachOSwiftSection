@@ -62,7 +62,6 @@ public final class SwiftInterfaceBuilder<MachO: MachOFieldLayoutRenderable>: Sen
         self.printer = .init(configuration: configuration.printConfiguration, eventHandlers: eventHandlers, in: machO)
         self.configuration = configuration
         eventDispatcher.addHandlers(eventHandlers)
-        printer.setPropertyWrapperTypeResolver(IndexedPropertyWrapperTypeResolver(indexer: indexer, machO: machO))
     }
 
     @_spi(Support)
@@ -73,7 +72,6 @@ public final class SwiftInterfaceBuilder<MachO: MachOFieldLayoutRenderable>: Sen
         self.printer = printer
         self.configuration = .init(indexConfiguration: indexer.configuration, printConfiguration: printer.configuration)
         eventDispatcher.addHandlers(eventHandlers)
-        printer.setPropertyWrapperTypeResolver(IndexedPropertyWrapperTypeResolver(indexer: indexer, machO: machO))
     }
     
     public func addExtraDataProvider(_ extraDataProvider: some SwiftInterfaceBuilderExtraDataProvider) {

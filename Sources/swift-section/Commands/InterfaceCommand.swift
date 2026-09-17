@@ -105,7 +105,8 @@ struct InterfaceCommand: AsyncParsableCommand {
 
         var configuration = SwiftInterfaceBuilderConfiguration(
             indexConfiguration: .init(
-                showCImportedTypes: showCImportedTypes
+                showCImportedTypes: showCImportedTypes,
+                dependencySearchPaths: machOOptions.indexDependencySearchPaths
             ),
             printConfiguration: printConfiguration
         )

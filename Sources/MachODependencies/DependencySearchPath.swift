@@ -9,7 +9,7 @@ import MachOKit
 /// framework reached through `@rpath`, a test helper next to the root binary —
 /// has to be handed over as an explicit file, because `@rpath` /
 /// `@loader_path` / `@executable_path` are not expanded.
-public enum DependencySearchPath: Sendable, Hashable, CustomStringConvertible {
+public enum DependencySearchPath: Sendable, Hashable, Codable, CustomStringConvertible {
     /// An explicit on-disk path to a Mach-O (or fat) binary file.
     case machOFile(path: String)
     /// An explicit path to a dyld shared cache file.

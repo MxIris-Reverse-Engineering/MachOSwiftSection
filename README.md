@@ -247,7 +247,10 @@ other images by name, so those images must be findable. By default they are
 looked for where the binary sits (a simulator runtime's `RuntimeRoot`, or its own
 `dyld_sim_shared_cache` from iOS 27 on) and then in the running system's cache;
 pass `--dependency-search-path` (repeatable) when neither applies, for example a
-simulator app whose runtime is not an ancestor of the app:
+simulator app whose runtime is not an ancestor of the app. The same paths let the
+interface recognize a property wrapper defined in another image (`@State`,
+`@EnvironmentObject`, …), so a wrapped property prints as the source declared it —
+`@SwiftUI.State var name: Swift.String` — instead of its `_name` storage:
 ```bash
 swift-section dump --dependency-search-path "/Library/Developer/CoreSimulator/Volumes/iOS_24A434/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 27.0.simruntime/Contents/Resources/RuntimeRoot/System/Library/Caches/com.apple.dyld/dyld_sim_shared_cache_arm64" /path/to/MyApp.app/MyApp
 ```

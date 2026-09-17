@@ -189,6 +189,9 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
                 var symbolIndexStore
                 symbolIndexStore.remove(for: machO)
             }
+            if claims.propertyWrapperCatalog {
+                PropertyWrapperTypeCatalogStore.shared.remove(for: machO)
+            }
             // Claimed separately from the symbol store: both of these are also
             // populated by SwiftLayout, the renderers and SwiftSpecialization,
             // so "this indexer built the symbol store" says nothing about who
@@ -346,7 +349,8 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
             .init(
                 symbolStore: !symbolIndexStore.contains(in: machO),
                 internedNames: !InternedNodeReferenceCache.shared.contains(in: machO),
-                demangleMemo: !SymbolicDemangler.cacheExists(for: machO)
+                demangleMemo: !SymbolicDemangler.cacheExists(for: machO),
+                propertyWrapperCatalog: !PropertyWrapperTypeCatalogStore.shared.contains(in: machO)
             )
         }
 
@@ -412,6 +416,14 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
 
         do {
             eventDispatcher.dispatch(.phaseOperationStarted(phase: .indexing, operation: .typeIndexing))
+            // Wrapped-property recovery (`TypeDefinition.index(in:)`) asks this
+            // catalog whether a field's type is a wrapper from another image;
+            // install it with the configured search paths before any type is
+            // indexed, or the store would fall back to the system cache.
+            PropertyWrapperTypeCatalogStore.shared.register(
+                PropertyWrapperTypeCatalog.make(root: machO, searchPaths: configuration.dependencySearchPaths),
+                for: machO
+            )
             try await indexTypes()
             eventDispatcher.dispatch(.phaseOperationCompleted(phase: .indexing, operation: .typeIndexing))
         } catch {
@@ -1349,6 +1361,11 @@ private enum PerImageCacheEvictionRegistry {
         var symbolStore: Bool = false
         var internedNames: Bool = false
         var demangleMemo: Bool = false
+        /// The per-image `PropertyWrapperTypeCatalog` (wrapped-property
+        /// recovery's cross-image lookups). Registered by `prepare()` with
+        /// the indexer's own search paths, so the indexer that installed it
+        /// is the one to evict it.
+        var propertyWrapperCatalog: Bool = false
 
         static let none = Claims()
 
@@ -1356,6 +1373,7 @@ private enum PerImageCacheEvictionRegistry {
             symbolStore = symbolStore || other.symbolStore
             internedNames = internedNames || other.internedNames
             demangleMemo = demangleMemo || other.demangleMemo
+            propertyWrapperCatalog = propertyWrapperCatalog || other.propertyWrapperCatalog
         }
 
         /// Pairs the two claims that cannot be honoured independently.

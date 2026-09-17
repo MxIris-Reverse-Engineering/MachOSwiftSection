@@ -49,21 +49,3 @@ public protocol CImportedNameResolving: TypeNameResolving {
 public protocol OpaqueTypeResolving: TypeNameResolving {
     func opaqueType(forNode node: Node, index: Int?) async -> String?
 }
-
-/// Answers whether a nominal type is a `@propertyWrapper` type, so the
-/// interface can leave out the members the compiler synthesizes for a
-/// property declared with it: the `_x` backing storage of the wrapper type
-/// and, when the wrapper projects, the computed `$x`. The source declares
-/// only `x`, and that is what the interface shows.
-///
-/// Not a `TypeNameResolving` role: it resolves no name, and it must survive
-/// `removeAllTypeNameResolvers()`, so the printer keeps it in its own slot
-/// (`setPropertyWrapperTypeResolver(_:)`). Answer `false` for a type you
-/// cannot see — the synthesized members then keep rendering, which is the
-/// honest fallback.
-public protocol PropertyWrapperTypeResolving: Sendable {
-    /// - Parameter nominalTypeNode: The `.type`-wrapped nominal node naming
-    ///   the candidate wrapper type, generic arguments stripped — the shape a
-    ///   `TypeName.node` has.
-    func isPropertyWrapperType(_ nominalTypeNode: Node) -> Bool
-}

@@ -84,6 +84,12 @@ public final class TypeDefinition: Definition {
 
     public package(set) var fields: [FieldDefinition] = []
 
+    /// The properties declared with a property wrapper, recovered at index
+    /// time from their compiler-synthesized storage (`_x`) and projection
+    /// (`$x`) — which stay in `fields` / `variables` as the binary has them.
+    /// See `WrappedPropertyDefinition`.
+    public package(set) var wrappedProperties: [WrappedPropertyDefinition] = []
+
     public package(set) var variables: [VariableDefinition] = []
 
     public package(set) var functions: [FunctionDefinition] = []
@@ -550,6 +556,10 @@ public final class TypeDefinition: Definition {
         } else {
             orderedMembers = OrderedMember.offsetOrdered(allMembers)
         }
+
+        // Needs the fields and the member variables above: which `_x` is a
+        // wrapper's storage, and whether `x` still has accessors of its own.
+        recoverWrappedProperties(in: machO)
 
         isIndexed = true
     }
