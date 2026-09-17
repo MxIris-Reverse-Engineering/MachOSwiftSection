@@ -1778,6 +1778,16 @@
 - **关联文档**：[draft-swift-declaration-file-layout](../Evolutions/draft-swift-declaration-file-layout.md)、[Modules/SwiftDeclaration.md](Modules/SwiftDeclaration.md)（对照表重写 + 新增 `TypeDefinition` 七扩展的分工表与顺序约束）。
 - **对应版本**：纯组织性改动，输出零变化，随下一次发布。
 
+## 2026-09-17 `AnnotatedSymbol<Payload>`：构建期符号包装泛型化（提案 draft-annotated-symbol-payload）
+
+- **时间段**：2026-09-17（单日，紧接文件归位那批）。
+- **动机**：用户问 `DemangledSymbolWithOffset` 还有没有存在必要——「多出来的 offset `DemangledSymbol` 里面不是有了吗」。答案是两个 offset 根本不是一回事：`DemangledSymbol.offset` 是符号在镜像里的字节偏移，包装自己那个是 PWT 槽位偏移，只有 `ProtocolDefinition.index(in:)` 填得出。但正因为两者同名，包装的存储属性通过 `@dynamicMemberLookup` **静默遮蔽**了转发过来的那个（`Int?` 对 `Int`，编译器零提示），`DefinitionBuilder` 四处不得不写 `base.offset` 才能拿到真正的符号偏移——`LayoutWrapper` 那条戒律的同款，只是发生在声明模型这侧。类型名 `…WithOffset` 把字段名塞进类型名，是同一个毛病的表层。
+- **关键决策**：**① 泛型容器而不是再造一个具体类型**（用户定的形态）：`AnnotatedSymbol<Payload>` 装 `base` + `payload`，需要什么语义就特化一个 `Payload` 并扩展一个具名计算属性，文档注释规定优先读具名的那条。**② payload 用类型标签 `ProtocolWitnessTableOffset: RawRepresentable` 而不是裸 `Int?`**（也是用户定的，推翻了本会话早先「不值得」的判断）——`where Payload == Int?` 任何别的 `Int?` payload 都会白白命中，具名标签让约束精确；标签不带行为，进出两侧都说 `RawValue?`，不泄漏到调用点。**③ 遮蔽由测试守住不靠注释**：`AnnotatedSymbolTests` 两个偏移取不同字面量，临时插一个 `package var offset: Int` 验证过确实变红。**④ 模型侧的 `FunctionDefinition.offset` / `Accessor.offset` / `OrderedMember.pwtOffset` 不动**——`public`，改名是破坏性变更，另案。**⑤ 历史文档不追改**：ProjectEvolutionLog 旧节、TaskReports、Reviews 里的旧类型名是当时的事实；连 `draft-swift-declaration-file-layout` 的正文也保留原名，它记录的是自己那批做了什么，改写会让它的决策日志指向一个当时并不存在的名字。
+- **落地模块**：只有 `SwiftDeclaration` 与 `SwiftIndexing`（6 个源文件改动、1 个文件改名、1 个新测试文件）。顺带统一了两种做同一件事的写法——`TypeDefinition+MemberIndexing` 那 7 处手写的 `.map { .init(base: $0, offset: nil) }` 与 `SwiftDeclarationIndexer` 用的 `mapToDemangledSymbolWithOffset()`，现在都是 `mapToAnnotatedSymbols()`。
+- **验证**：`SwiftDumpTests` 80 / `SwiftInterfaceTests` 188 / `SwiftIndexingTests` 60 / `SwiftPrintingTests` 34 全过（含 snapshot 基线，证明输出零漂移），新增 `AnnotatedSymbolTests` 2 tests 并验证过能变红。本地全量（`--skip IntegrationTests`）1931 tests / 368 suites，3 个 issue 全部**在基线上原样复现**——回退到 `54a6186f` 干净工作区跑同样两个套件，同样的行号、同样的断言：`HostCacheSwiftUICoreMergedAccessorTests.theMergedAccessorFieldsAreReadOnTheHostCache`（读宿主机 cache 的 SwiftUICore，两个 `Mutex` 字段的类型文本对不上）与 `MultiPayloadEnumDescriptorCacheTests.noncopyableMultiPayloadEnumDegradesToNoLayout`（noncopyable 多载荷 enum 期望降级为无布局，实际算出了布局——测试注释预告过 layer 1 落地时这条会翻）。两者都在本批未触及的路径上，另案。**未跑渲染 A/B**——纯改名、零行为变化，基线套件已覆盖；若后续与别批合并落地时判定需要，按 [SystemFrameworkRenderingVerification.md](SystemFrameworkRenderingVerification.md) 补。
+- **关联文档**：[draft-annotated-symbol-payload](../Evolutions/draft-annotated-symbol-payload.md)、[Modules/SwiftDeclaration.md](Modules/SwiftDeclaration.md)（构建期机器一行）、[DefaultImplementationAwareCompatibility.md](DefaultImplementationAwareCompatibility.md)（索引期数据通路一段）。
+- **对应版本**：纯组织性改动，输出零变化，随下一次发布。
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节

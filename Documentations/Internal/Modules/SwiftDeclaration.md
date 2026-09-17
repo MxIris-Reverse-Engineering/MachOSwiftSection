@@ -19,7 +19,7 @@ SwiftDeclaration 是**共享声明模型**：`SwiftIndexing` 往里填，`SwiftP
 |---|---|
 | 1. 声明本体 | `Components/Definitions/`（`Definition` / `MutableDefinition` 协议、`TypeDefinition` 及其七个功能扩展、`ProtocolDefinition`、`ExtensionDefinition` 及各自的 `+Indexing`、`FunctionDefinition`、`VariableDefinition`、`SubscriptDefinition`、`FieldDefinition`、`WrappedPropertyDefinition`） |
 | 2. 成员构件 | `Components/Members/`（`Accessor`、`OrderedMember`、`MemberCategory`、`StrippedSymbolicRequirement`）——模型的一部分，会出现在公开 API 的返回值里 |
-| 3. 构建期机器 | `Components/Building/`（`DefinitionBuilder`、`MemberSymbolBucketing`、`OverrideSymbolMatcher`、`ClassDispatchLookups`、`DemangledSymbolWithOffset`、`WrappedPropertyRecovery`）——全是 `package`，索引结束就不再有人碰 |
+| 3. 构建期机器 | `Components/Building/`（`DefinitionBuilder`、`MemberSymbolBucketing`、`OverrideSymbolMatcher`、`ClassDispatchLookups`、`AnnotatedSymbol`、`WrappedPropertyRecovery`）——全是 `package`，索引结束就不再有人碰 |
 | 4. 名字 | `Components/Names/`（`DefinitionName`、`TypeName`、`ProtocolName`、`ExtensionName`） |
 | 5. 种类枚举 | `Components/Kinds/` |
 | 6. 挂在声明上的独立概念 | `Components/ExportStatus`、`Components/AssociatedTypeWitnessProjection`、`Components/SwiftAttribute` |

@@ -25,8 +25,8 @@ requirement 一律报 `backward-compatible: true`，`--fail-on-breaking` CI 门
 （package(set)）：`index(in:)` 的 requirement 循环里，对**每个** requirement
 （无论符号是否可解析）读 `layout.defaultImplementation.isValid`（纯相对指针
 位运算，不需要符号表），命中则记入当前 `offsetOfPWT`。已解析成员经
-`DemangledSymbolWithOffset` 把同一 offset 存进 `FunctionDefinition.offset` /
-`Accessor.offset`，两边天然可关联。
+`AnnotatedSymbol` 的 `protocolWitnessTableOffset` 把同一 offset 存进
+`FunctionDefinition.offset` / `Accessor.offset`，两边天然可关联。
 
 ### 2.2 冻结期（SwiftDiffing）
 

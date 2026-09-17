@@ -21,7 +21,7 @@ extension TypeDefinition {
         let node = typeName.node
 
         allocators = DefinitionBuilder.allocators(
-            for: symbolIndexStore.memberSymbols(of: .allocator(inExtension: false), for: name, node: node, in: machO).map { .init(base: $0, offset: nil) },
+            for: symbolIndexStore.memberSymbols(of: .allocator(inExtension: false), for: name, node: node, in: machO).mapToAnnotatedSymbols(),
             dispatchLookups: dispatchLookups
         )
 
@@ -36,7 +36,7 @@ extension TypeDefinition {
         destructorSymbol = symbolIndexStore.memberSymbols(of: .destructor, for: name, node: node, in: machO).first?.detachedFromSharedTable()
 
         let variablesProduct = DefinitionBuilder.variablesProduct(
-            for: symbolIndexStore.memberSymbols(of: .variable(inExtension: false, isStatic: false, isStorage: false), for: name, node: node, in: machO).map { .init(base: $0, offset: nil) },
+            for: symbolIndexStore.memberSymbols(of: .variable(inExtension: false, isStatic: false, isStorage: false), for: name, node: node, in: machO).mapToAnnotatedSymbols(),
             fieldNames: fieldNames,
             dispatchLookups: dispatchLookups,
             isGlobalOrStatic: false
@@ -50,31 +50,31 @@ extension TypeDefinition {
                 for: name,
                 node: node,
                 in: machO
-            ).map { .init(base: $0, offset: nil) },
+            ).mapToAnnotatedSymbols(),
             dispatchLookups: dispatchLookups,
             isGlobalOrStatic: true
         )
 
         functions = DefinitionBuilder.functions(
-            for: symbolIndexStore.memberSymbols(of: .function(inExtension: false, isStatic: false), for: name, node: node, in: machO).map { .init(base: $0, offset: nil) },
+            for: symbolIndexStore.memberSymbols(of: .function(inExtension: false, isStatic: false), for: name, node: node, in: machO).mapToAnnotatedSymbols(),
             dispatchLookups: dispatchLookups,
             isGlobalOrStatic: false
         )
 
         staticFunctions = DefinitionBuilder.functions(
-            for: symbolIndexStore.memberSymbols(of: .function(inExtension: false, isStatic: true), for: name, node: node, in: machO).map { .init(base: $0, offset: nil) },
+            for: symbolIndexStore.memberSymbols(of: .function(inExtension: false, isStatic: true), for: name, node: node, in: machO).mapToAnnotatedSymbols(),
             dispatchLookups: dispatchLookups,
             isGlobalOrStatic: true
         )
 
         subscripts = DefinitionBuilder.subscripts(
-            for: symbolIndexStore.memberSymbols(of: .subscript(inExtension: false, isStatic: false), for: name, node: node, in: machO).map { .init(base: $0, offset: nil) },
+            for: symbolIndexStore.memberSymbols(of: .subscript(inExtension: false, isStatic: false), for: name, node: node, in: machO).mapToAnnotatedSymbols(),
             dispatchLookups: dispatchLookups,
             isStatic: false
         )
 
         staticSubscripts = DefinitionBuilder.subscripts(
-            for: symbolIndexStore.memberSymbols(of: .subscript(inExtension: false, isStatic: true), for: name, node: node, in: machO).map { .init(base: $0, offset: nil) },
+            for: symbolIndexStore.memberSymbols(of: .subscript(inExtension: false, isStatic: true), for: name, node: node, in: machO).mapToAnnotatedSymbols(),
             dispatchLookups: dispatchLookups,
             isStatic: true
         )

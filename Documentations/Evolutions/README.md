@@ -48,3 +48,4 @@
 | draft | [interface 不打印编译器合成的成员：actor 默认存储与 property wrapper 的 `_x` / `$x`](draft-interface-hides-compiler-synthesized-members.md) | In Progress |
 | draft | [静态布局引擎读取 accessor thunk 背后的字段类型](draft-static-layout-through-accessor-thunks.md) | Draft |
 | draft | [SwiftDeclaration 模块的文件归位与 TypeDefinition 拆分](draft-swift-declaration-file-layout.md) | In Progress |
+| draft | [`AnnotatedSymbol<Payload>`：构建期符号包装泛型化，两个 offset 不再同名](draft-annotated-symbol-payload.md) | In Progress |

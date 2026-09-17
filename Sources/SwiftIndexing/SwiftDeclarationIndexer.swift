@@ -892,31 +892,31 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
                 for (kind, memberSymbols) in memberSymbolsByKind {
                     switch kind {
                     case .allocator(inExtension: true):
-                        let allocators = DefinitionBuilder.allocators(for: memberSymbols.mapToDemangledSymbolWithOffset())
+                        let allocators = DefinitionBuilder.allocators(for: memberSymbols.mapToAnnotatedSymbols())
                         extensionDefinition.allocators.append(contentsOf: allocators)
                         memberCount += allocators.count
                     case .variable(inExtension: true, isStatic: false, isStorage: false):
-                        let variables = DefinitionBuilder.variables(for: memberSymbols.mapToDemangledSymbolWithOffset(), fieldNames: [], isGlobalOrStatic: false)
+                        let variables = DefinitionBuilder.variables(for: memberSymbols.mapToAnnotatedSymbols(), fieldNames: [], isGlobalOrStatic: false)
                         extensionDefinition.variables.append(contentsOf: variables)
                         memberCount += variables.count
                     case .function(inExtension: true, isStatic: false):
-                        let functions = DefinitionBuilder.functions(for: memberSymbols.mapToDemangledSymbolWithOffset(), isGlobalOrStatic: false)
+                        let functions = DefinitionBuilder.functions(for: memberSymbols.mapToAnnotatedSymbols(), isGlobalOrStatic: false)
                         extensionDefinition.functions.append(contentsOf: functions)
                         memberCount += functions.count
                     case .variable(inExtension: true, isStatic: true, _):
-                        let staticVariables = DefinitionBuilder.variables(for: memberSymbols.mapToDemangledSymbolWithOffset(), fieldNames: [], isGlobalOrStatic: true)
+                        let staticVariables = DefinitionBuilder.variables(for: memberSymbols.mapToAnnotatedSymbols(), fieldNames: [], isGlobalOrStatic: true)
                         extensionDefinition.staticVariables.append(contentsOf: staticVariables)
                         memberCount += staticVariables.count
                     case .function(inExtension: true, isStatic: true):
-                        let staticFunctions = DefinitionBuilder.functions(for: memberSymbols.mapToDemangledSymbolWithOffset(), isGlobalOrStatic: true)
+                        let staticFunctions = DefinitionBuilder.functions(for: memberSymbols.mapToAnnotatedSymbols(), isGlobalOrStatic: true)
                         extensionDefinition.staticFunctions.append(contentsOf: staticFunctions)
                         memberCount += staticFunctions.count
                     case .subscript(inExtension: true, isStatic: false):
-                        let subscripts = DefinitionBuilder.subscripts(for: memberSymbols.mapToDemangledSymbolWithOffset(), isStatic: false)
+                        let subscripts = DefinitionBuilder.subscripts(for: memberSymbols.mapToAnnotatedSymbols(), isStatic: false)
                         extensionDefinition.subscripts.append(contentsOf: subscripts)
                         memberCount += subscripts.count
                     case .subscript(inExtension: true, isStatic: true):
-                        let staticSubscripts = DefinitionBuilder.subscripts(for: memberSymbols.mapToDemangledSymbolWithOffset(), isStatic: true)
+                        let staticSubscripts = DefinitionBuilder.subscripts(for: memberSymbols.mapToAnnotatedSymbols(), isStatic: true)
                         extensionDefinition.staticSubscripts.append(contentsOf: staticSubscripts)
                         memberCount += staticSubscripts.count
                     default:
@@ -1010,8 +1010,8 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
         @Dependency(\.symbolIndexStore)
         var symbolIndexStore
 
-        currentStorage.globalVariableDefinitions = DefinitionBuilder.variables(for: symbolIndexStore.globalSymbols(of: .variable(isStorage: false), .variable(isStorage: true), in: machO).mapToDemangledSymbolWithOffset(), fieldNames: [], isGlobalOrStatic: true)
-        currentStorage.globalFunctionDefinitions = DefinitionBuilder.functions(for: symbolIndexStore.globalSymbols(of: .function, in: machO).mapToDemangledSymbolWithOffset(), isGlobalOrStatic: true)
+        currentStorage.globalVariableDefinitions = DefinitionBuilder.variables(for: symbolIndexStore.globalSymbols(of: .variable(isStorage: false), .variable(isStorage: true), in: machO).mapToAnnotatedSymbols(), fieldNames: [], isGlobalOrStatic: true)
+        currentStorage.globalFunctionDefinitions = DefinitionBuilder.functions(for: symbolIndexStore.globalSymbols(of: .function, in: machO).mapToAnnotatedSymbols(), isGlobalOrStatic: true)
     }
 
     // MARK: - Extension container unification (evolution proposal 0007)

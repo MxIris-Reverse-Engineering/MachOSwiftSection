@@ -18,13 +18,13 @@ package enum DefinitionBuilder {
     }
 
     package static func variables(
-        for demangledSymbols: [DemangledSymbolWithOffset],
+        for memberSymbols: [MemberSymbol],
         fieldNames: borrowing Set<String> = [],
         dispatchLookups: ClassDispatchLookups = .init(),
         isGlobalOrStatic: Bool
     ) -> [VariableDefinition] {
         variablesProduct(
-            for: demangledSymbols,
+            for: memberSymbols,
             fieldNames: fieldNames,
             dispatchLookups: dispatchLookups,
             isGlobalOrStatic: isGlobalOrStatic
@@ -32,21 +32,21 @@ package enum DefinitionBuilder {
     }
 
     package static func variablesProduct(
-        for demangledSymbols: [DemangledSymbolWithOffset],
+        for memberSymbols: [MemberSymbol],
         fieldNames: borrowing Set<String> = [],
         dispatchLookups: ClassDispatchLookups = .init(),
         isGlobalOrStatic: Bool
     ) -> VariablesBuildProduct {
         var variables: [VariableDefinition] = []
         var accessorsByName: [String: [Accessor]] = [:]
-        for demangledSymbol in demangledSymbols {
-            guard let variableNode = demangledSymbol.base.demangledNode.first(of: .variable) else { continue }
+        for memberSymbol in memberSymbols {
+            guard let variableNode = memberSymbol.demangledNode.first(of: .variable) else { continue }
             guard let name = variableNode.identifier else { continue }
-            let kind = demangledSymbol.accessorKind
-            let node = demangledSymbol.demangledNode
-            let symbolOffset = demangledSymbol.base.offset
+            let kind = memberSymbol.accessorKind
+            let node = memberSymbol.demangledNode
+            let symbolOffset = memberSymbol.offset
             let (descriptor, vtableOffset) = dispatchLookups.dispatch(forMemberNode: node, implementationOffset: symbolOffset)
-            accessorsByName[name, default: []].append(.init(kind: kind, symbol: demangledSymbol.base.detachedFromSharedTable(), methodDescriptor: descriptor, offset: demangledSymbol.offset, vtableOffset: vtableOffset))
+            accessorsByName[name, default: []].append(.init(kind: kind, symbol: memberSymbol.base.detachedFromSharedTable(), methodDescriptor: descriptor, offset: memberSymbol.protocolWitnessTableOffset, vtableOffset: vtableOffset))
         }
 
         var storedPropertyAccessorsByFieldName: [String: [Accessor]] = [:]
@@ -67,7 +67,7 @@ package enum DefinitionBuilder {
     }
 
     package static func subscripts(
-        for demangledSymbols: [DemangledSymbolWithOffset],
+        for memberSymbols: [MemberSymbol],
         dispatchLookups: ClassDispatchLookups = .init(),
         isStatic: Bool
     ) -> [SubscriptDefinition] {
@@ -77,7 +77,7 @@ package enum DefinitionBuilder {
         // "subscript", so they cannot be name-sorted like `variables`; plain
         // `Dictionary` iteration order is randomized per process and made the
         // interface output unstable across runs. Insertion order follows the
-        // (deterministic) symbol order of `demangledSymbols`.
+        // (deterministic) symbol order of `memberSymbols`.
         //
         // Keyed structurally, not by bare `NodeReference`: these symbols do not
         // all come from one store (a resilient witness or protocol requirement
@@ -86,13 +86,13 @@ package enum DefinitionBuilder {
         // setter into two separate buckets — the setter-only bucket then loses
         // the `contains(.getter)` test below and the accessor disappears.
         var accessorsByNode: OrderedDictionary<StructuralNodeReferenceKey, [Accessor]> = [:]
-        for demangledSymbol in demangledSymbols {
-            guard let subscriptNode = demangledSymbol.demangledNode.first(of: .subscript).map(StructuralNodeReferenceKey.init) else { continue }
-            let kind = demangledSymbol.accessorKind
-            let node = demangledSymbol.demangledNode
-            let symbolOffset = demangledSymbol.base.offset
+        for memberSymbol in memberSymbols {
+            guard let subscriptNode = memberSymbol.demangledNode.first(of: .subscript).map(StructuralNodeReferenceKey.init) else { continue }
+            let kind = memberSymbol.accessorKind
+            let node = memberSymbol.demangledNode
+            let symbolOffset = memberSymbol.offset
             let (descriptor, vtableOffset) = dispatchLookups.dispatch(forMemberNode: node, implementationOffset: symbolOffset)
-            accessorsByNode[subscriptNode, default: []].append(.init(kind: kind, symbol: demangledSymbol.base.detachedFromSharedTable(), methodDescriptor: descriptor, offset: demangledSymbol.offset, vtableOffset: vtableOffset))
+            accessorsByNode[subscriptNode, default: []].append(.init(kind: kind, symbol: memberSymbol.base.detachedFromSharedTable(), methodDescriptor: descriptor, offset: memberSymbol.protocolWitnessTableOffset, vtableOffset: vtableOffset))
         }
 
         for (_, accessors) in accessorsByNode {
@@ -108,7 +108,7 @@ package enum DefinitionBuilder {
     }
 
     package static func allocators(
-        for demangledSymbols: [DemangledSymbolWithOffset],
+        for memberSymbols: [MemberSymbol],
         dispatchLookups: ClassDispatchLookups = .init()
     ) -> [FunctionDefinition] {
         // Same dedup pattern as `functions(...)`: a merged-function thunk shares
@@ -119,20 +119,20 @@ package enum DefinitionBuilder {
         var canonicalIndexByAllocatorNode: [StructuralNodeReferenceKey: Int] = [:]
         // OrderedDictionary so the merged-thunk tail is appended in deterministic
         // (symbol) order — plain `Dictionary` iteration is randomized per process.
-        var pendingMergedByAllocatorNode: OrderedDictionary<StructuralNodeReferenceKey, DemangledSymbolWithOffset> = [:]
+        var pendingMergedByAllocatorNode: OrderedDictionary<StructuralNodeReferenceKey, MemberSymbol> = [:]
         var allocators: [FunctionDefinition] = []
-        for demangledSymbol in demangledSymbols {
-            guard let allocatorNode = demangledSymbol.demangledNode.first(of: .allocator).map(StructuralNodeReferenceKey.init) else { continue }
-            let isMergedThunk = demangledSymbol.base.demangledNode.children.first?.kind == .mergedFunction
+        for memberSymbol in memberSymbols {
+            guard let allocatorNode = memberSymbol.demangledNode.first(of: .allocator).map(StructuralNodeReferenceKey.init) else { continue }
+            let isMergedThunk = memberSymbol.demangledNode.children.first?.kind == .mergedFunction
             if isMergedThunk {
                 if canonicalIndexByAllocatorNode[allocatorNode] == nil, pendingMergedByAllocatorNode[allocatorNode] == nil {
-                    pendingMergedByAllocatorNode[allocatorNode] = demangledSymbol
+                    pendingMergedByAllocatorNode[allocatorNode] = memberSymbol
                 }
                 continue
             }
             if canonicalIndexByAllocatorNode[allocatorNode] != nil { continue }
             canonicalIndexByAllocatorNode[allocatorNode] = allocators.count
-            allocators.append(makeAllocatorDefinition(from: demangledSymbol, dispatchLookups: dispatchLookups))
+            allocators.append(makeAllocatorDefinition(from: memberSymbol, dispatchLookups: dispatchLookups))
         }
         for (allocatorNode, mergedSymbol) in pendingMergedByAllocatorNode where canonicalIndexByAllocatorNode[allocatorNode] == nil {
             allocators.append(makeAllocatorDefinition(from: mergedSymbol, dispatchLookups: dispatchLookups))
@@ -141,13 +141,13 @@ package enum DefinitionBuilder {
     }
 
     private static func makeAllocatorDefinition(
-        from demangledSymbol: DemangledSymbolWithOffset,
+        from memberSymbol: MemberSymbol,
         dispatchLookups: ClassDispatchLookups
     ) -> FunctionDefinition {
-        let node = demangledSymbol.demangledNode
-        let symbolOffset = demangledSymbol.base.offset
+        let node = memberSymbol.demangledNode
+        let symbolOffset = memberSymbol.offset
         let (descriptor, vtableOffset) = dispatchLookups.dispatch(forMemberNode: node, implementationOffset: symbolOffset)
-        var functionDefinition = FunctionDefinition(node: node, name: "", kind: .allocator, symbol: demangledSymbol.base.detachedFromSharedTable(), isGlobalOrStatic: true, methodDescriptor: descriptor, offset: demangledSymbol.offset, vtableOffset: vtableOffset)
+        var functionDefinition = FunctionDefinition(node: node, name: "", kind: .allocator, symbol: memberSymbol.base.detachedFromSharedTable(), isGlobalOrStatic: true, methodDescriptor: descriptor, offset: memberSymbol.protocolWitnessTableOffset, vtableOffset: vtableOffset)
         if let methodDescriptor = descriptor?.method, methodDescriptor.layout.flags.isDynamic {
             functionDefinition.attributes.append(.dynamic)
         }
@@ -155,7 +155,7 @@ package enum DefinitionBuilder {
     }
 
     package static func functions(
-        for demangledSymbols: [DemangledSymbolWithOffset],
+        for memberSymbols: [MemberSymbol],
         dispatchLookups: ClassDispatchLookups = .init(),
         isGlobalOrStatic: Bool
     ) -> [FunctionDefinition] {
@@ -169,20 +169,20 @@ package enum DefinitionBuilder {
         var canonicalIndexByFunctionNode: [StructuralNodeReferenceKey: Int] = [:]
         // OrderedDictionary so the merged-thunk tail is appended in deterministic
         // (symbol) order — plain `Dictionary` iteration is randomized per process.
-        var pendingMergedByFunctionNode: OrderedDictionary<StructuralNodeReferenceKey, DemangledSymbolWithOffset> = [:]
+        var pendingMergedByFunctionNode: OrderedDictionary<StructuralNodeReferenceKey, MemberSymbol> = [:]
         var functions: [FunctionDefinition] = []
-        for demangledSymbol in demangledSymbols {
-            guard let functionNode = demangledSymbol.demangledNode.first(of: .function).map(StructuralNodeReferenceKey.init), let name = functionNode.reference.identifier else { continue }
-            let isMergedThunk = demangledSymbol.base.demangledNode.children.first?.kind == .mergedFunction
+        for memberSymbol in memberSymbols {
+            guard let functionNode = memberSymbol.demangledNode.first(of: .function).map(StructuralNodeReferenceKey.init), let name = functionNode.reference.identifier else { continue }
+            let isMergedThunk = memberSymbol.demangledNode.children.first?.kind == .mergedFunction
             if isMergedThunk {
                 if canonicalIndexByFunctionNode[functionNode] == nil, pendingMergedByFunctionNode[functionNode] == nil {
-                    pendingMergedByFunctionNode[functionNode] = demangledSymbol
+                    pendingMergedByFunctionNode[functionNode] = memberSymbol
                 }
                 continue
             }
             if canonicalIndexByFunctionNode[functionNode] != nil { continue }
             canonicalIndexByFunctionNode[functionNode] = functions.count
-            functions.append(makeFunctionDefinition(from: demangledSymbol, name: name, isGlobalOrStatic: isGlobalOrStatic, dispatchLookups: dispatchLookups))
+            functions.append(makeFunctionDefinition(from: memberSymbol, name: name, isGlobalOrStatic: isGlobalOrStatic, dispatchLookups: dispatchLookups))
         }
         for (functionNode, mergedSymbol) in pendingMergedByFunctionNode where canonicalIndexByFunctionNode[functionNode] == nil {
             guard let name = functionNode.reference.identifier else { continue }
@@ -192,15 +192,15 @@ package enum DefinitionBuilder {
     }
 
     private static func makeFunctionDefinition(
-        from demangledSymbol: DemangledSymbolWithOffset,
+        from memberSymbol: MemberSymbol,
         name: String,
         isGlobalOrStatic: Bool,
         dispatchLookups: ClassDispatchLookups
     ) -> FunctionDefinition {
-        let node = demangledSymbol.demangledNode
-        let symbolOffset = demangledSymbol.base.offset
+        let node = memberSymbol.demangledNode
+        let symbolOffset = memberSymbol.offset
         let (descriptor, vtableOffset) = dispatchLookups.dispatch(forMemberNode: node, implementationOffset: symbolOffset)
-        var functionDefinition = FunctionDefinition(node: node, name: name, kind: .function, symbol: demangledSymbol.base.detachedFromSharedTable(), isGlobalOrStatic: isGlobalOrStatic, methodDescriptor: descriptor, offset: demangledSymbol.offset, vtableOffset: vtableOffset)
+        var functionDefinition = FunctionDefinition(node: node, name: name, kind: .function, symbol: memberSymbol.base.detachedFromSharedTable(), isGlobalOrStatic: isGlobalOrStatic, methodDescriptor: descriptor, offset: memberSymbol.protocolWitnessTableOffset, vtableOffset: vtableOffset)
         if let methodDescriptor = descriptor?.method, methodDescriptor.layout.flags.isDynamic {
             functionDefinition.attributes.append(.dynamic)
         }

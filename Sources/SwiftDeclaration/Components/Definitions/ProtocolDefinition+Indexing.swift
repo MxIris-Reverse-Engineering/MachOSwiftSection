@@ -23,8 +23,8 @@ extension ProtocolDefinition {
         }
         associatedTypes = try protocolDescriptor.associatedTypes(in: machO)
 
-        var requirementMemberSymbolsByKind: OrderedDictionary<SymbolIndexStore.MemberKind, [DemangledSymbolWithOffset]> = [:]
-        var defaultImplementationMemberSymbolsByKind: OrderedDictionary<SymbolIndexStore.MemberKind, [DemangledSymbolWithOffset]> = [:]
+        var requirementMemberSymbolsByKind: OrderedDictionary<SymbolIndexStore.MemberKind, [MemberSymbol]> = [:]
+        var defaultImplementationMemberSymbolsByKind: OrderedDictionary<SymbolIndexStore.MemberKind, [MemberSymbol]> = [:]
 
         var requirementVisitedNodes: OrderedSet<StructuralNodeReferenceKey> = []
         var defaultImplementationVisitedNodes: OrderedSet<StructuralNodeReferenceKey> = []
@@ -41,10 +41,10 @@ extension ProtocolDefinition {
                 continue
             }
             requirementVisitedNodes.append(StructuralNodeReferenceKey(symbol.demangledNode))
-            addSymbol(.init(base: symbol, offset: offsetOfPWT), memberSymbolsByKind: &requirementMemberSymbolsByKind, inExtension: false)
+            addSymbol(.init(base: symbol, protocolWitnessTableOffset: offsetOfPWT), memberSymbolsByKind: &requirementMemberSymbolsByKind, inExtension: false)
             if let symbols = requirement.defaultImplementationSymbols(in: machO), let defaultImplementationSymbol = try _symbol(for: symbols, visitedNodes: defaultImplementationVisitedNodes) {
                 defaultImplementationVisitedNodes.append(StructuralNodeReferenceKey(defaultImplementationSymbol.demangledNode))
-                addSymbol(.init(base: defaultImplementationSymbol, offset: offsetOfPWT), memberSymbolsByKind: &defaultImplementationMemberSymbolsByKind, inExtension: true)
+                addSymbol(.init(base: defaultImplementationSymbol, protocolWitnessTableOffset: offsetOfPWT), memberSymbolsByKind: &defaultImplementationMemberSymbolsByKind, inExtension: true)
             }
         }
 

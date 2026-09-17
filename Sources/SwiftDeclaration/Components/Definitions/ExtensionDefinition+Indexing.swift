@@ -37,7 +37,7 @@ extension ExtensionDefinition {
             return nil
         }
         var visitedNodes: OrderedSet<StructuralNodeReferenceKey> = []
-        var memberSymbolsByKind: OrderedDictionary<SymbolIndexStore.MemberKind, [DemangledSymbolWithOffset]> = [:]
+        var memberSymbolsByKind: OrderedDictionary<SymbolIndexStore.MemberKind, [MemberSymbol]> = [:]
         var defaultImplementationSymbolNames: Set<String> = []
 
         for resilientWitness in protocolConformance.resilientWitnesses {
