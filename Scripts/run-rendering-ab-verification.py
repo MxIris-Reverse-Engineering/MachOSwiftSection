@@ -36,9 +36,12 @@ from pathlib import Path
 
 DEFAULT_FRAMEWORK_NAMES = ["SwiftUI", "SwiftUICore", "SwiftData", "Combine", "ActivityKit", "WidgetKit"]
 
+# The archive names its directories by plain OS version. Both entries are
+# checked for an arm64e cache and silently skipped when absent, so a machine
+# carrying only one of them still runs that leg.
 ARCHIVED_CACHE_DIRECTORIES = [
-    Path("/Volumes/DyldSharedCaches/macOS/26.5.2_25F84"),
-    Path("/Volumes/DyldSharedCaches/macOS/15.5_24F74"),
+    Path("/Volumes/DyldSharedCaches/macOS/26.6.2"),
+    Path("/Volumes/DyldSharedCaches/macOS/15.5"),
 ]
 
 SIMULATOR_RUNTIME_SEARCH_DIRECTORIES = [
