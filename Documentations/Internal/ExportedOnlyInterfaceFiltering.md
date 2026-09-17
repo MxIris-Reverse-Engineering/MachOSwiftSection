@@ -74,7 +74,7 @@ Sources/SwiftPrinting/
 ├── SwiftDeclarationPrinter+ExportFilter.swift    # ExportFilterScope、installExportFilterScope、类型 / 协议 verdict 的转发、全部 isExcludedByExportFilter 判定
 ├── SwiftDeclarationPrinter.swift                 # 三个入口的过滤壳 + printIncluded… 体；成员循环 where 过滤；exportFilterScope 存储
 └── SwiftDeclarationPrinter+Headers.swift         # renderModelFields 的字段预筛
-Sources/SwiftDeclaration/Components/Definitions/ExportStatus.swift # 四态枚举、两腿裁决、descriptorSymbolName 重整（提案 exported-declaration-flag）
+Sources/SwiftDeclaration/Components/ExportStatus.swift # 四态枚举、两腿裁决、descriptorSymbolName 重整（提案 exported-declaration-flag）
 Sources/SwiftInterface/SwiftInterfaceBuilder.swift # printRoot 装 scope；全局块 where 过滤
 Sources/swift-section/Commands/InterfaceCommand.swift # --exported-only
 ```

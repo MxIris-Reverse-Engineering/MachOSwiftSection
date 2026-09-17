@@ -1767,6 +1767,17 @@
 - **关联文档**：[draft-builtin-borrow-support](../Evolutions/draft-builtin-borrow-support.md)、[draft-raw-layout-artificial-field-handling](../Evolutions/draft-raw-layout-artificial-field-handling.md)、[draft-interface-hides-compiler-synthesized-members](../Evolutions/draft-interface-hides-compiler-synthesized-members.md)、[Modules/SwiftLayout.md](Modules/SwiftLayout.md)。
 - **对应版本**：随下一次发布。
 
+## 2026-09-17 SwiftDeclaration 模块的文件归位与 TypeDefinition 拆分（提案 draft-swift-declaration-file-layout）
+
+- **时间段**：2026-09-17（单日）。
+- **动机**：用户指出两件事——`Components/Definitions/` 这个目录名说的是「声明本体」，实际装着成员构件（`Accessor` / `OrderedMember` / `MemberCategory`）、构建期机器（`DefinitionBuilder`、符号分桶、`OverrideSymbolMatcher`）和两个与声明本体平级的独立概念（`ExportStatus`、`AssociatedTypeWitnessProjection`）；`TypeDefinition.swift` 756 行里 `index(in:)` 独占 370 行，串起六件互不相干的事。另有两个 package 级工具类型（`DemangledSymbolWithOffset`、`StrippedSymbolicRequirement`）藏在 `ProtocolDefinition.swift` 中段，按文件名根本搜不到；模块根还有一个 257 行的 `Extensions.swift` 杂物袋。
+- **关键决策**：**① 按角色分子目录而不是一个 `Supporting/` 兜底**——`Members/`（模型的一部分，出现在公开 API 返回值里）与 `Building/`（只在索引期活着，全是 `package`）的分界有判据，未来若把构建期机器整体挪去 `SwiftIndexing`，边界已经画好。**② `index(in:)` 拆方法体而不只是搬文件**（用户在两个选项里选的）：只搬文件等于把 370 行换个地方放，拆开后每一步有名字、有自己的 doc comment，`final` 恢复那四道门的注释终于挂在一个叫 `recoverFinalMembers` 的东西上。代价是这成了真改代码，验证因此加了 A/B 一层。**③ 跨方法传递的五个局部变量打包成 `ClassDispatchLookups`**（四张查找表 + `final` 证据门），`DefinitionBuilder` 五个方法各减三个参数，模块外三处调用全走默认值不受影响；顺带把 `impl` 缩写展开成 `implementation`。**④ 三个 Definition 的 `isIndexed` setter 从 `private` 放宽到 `internal`**——只因为索引扩展在另一个文件里，包内其它 target 仍改不动它。**⑤ 历史文档不追改**：TaskReports / Reviews / SwiftModularizationMigration 里的旧路径是当时的事实快照，只更新现行参考文档。
+- **落地模块**：只有 `SwiftDeclaration`（29 → 48 个文件，`TypeDefinition.swift` 756 → 208 行，`index(in:)` 370 → 52 行主干）。`Package.swift` 无需改动（SwiftPM 自动扫描目录）。
+- **验证**：本地全量 1929 tests / 367 suites，3 个 issue 全部是 `SharedCacheTests` 的墙钟并行度既有 flaky（单独复跑 9 tests / 2 suites，0.6 s 全过）。渲染 A/B（分支点 `01fe2f82` 的独立 worktree vs 本批，两侧共用同一份 `Package.resolved`）：**90 对全部逐字节一致、零 skip**——归档 cache 26.6.2 / 15.5 各 12 对、模拟器 runtime iOS 15.5 / 18.5 / 18.6 / 26.5 共 42 对、in-process MachOImage 24 对。
+- **顺带修掉的坑**：A/B 脚本写死的归档 cache 路径（`26.5.2_25F84` / `15.5_24F74`）与归档卷的实际命名早已脱节，而路径对不上时脚本**不报错**、只打印一行 fallback 就降级成「只跑当前系统 cache」——跨版本语料整段消失，报告照样是「全部一致」。常量改为 `26.6.2` / `15.5`，harness 自测 9 tests 全过，坑记进 [SystemFrameworkRenderingVerification.md](SystemFrameworkRenderingVerification.md)。
+- **关联文档**：[draft-swift-declaration-file-layout](../Evolutions/draft-swift-declaration-file-layout.md)、[Modules/SwiftDeclaration.md](Modules/SwiftDeclaration.md)（对照表重写 + 新增 `TypeDefinition` 七扩展的分工表与顺序约束）。
+- **对应版本**：纯组织性改动，输出零变化，随下一次发布。
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节

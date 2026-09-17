@@ -8,68 +8,6 @@ import SwiftStdlibToolbox
 @_spi(Internals) import MachOSymbols
 @_spi(Internals) import SwiftInspection
 
-@MemberwiseInit()
-@dynamicMemberLookup
-package struct DemangledSymbolWithOffset {
-    package let base: DemangledSymbol
-    package let offset: Int?
-
-    package init(_ base: DemangledSymbol) {
-        self.base = base
-        self.offset = nil
-    }
-
-    package subscript<Value>(dynamicMember keyPath: KeyPath<DemangledSymbol, Value>) -> Value {
-        base[keyPath: keyPath]
-    }
-}
-
-extension Sequence<DemangledSymbol> {
-    package func mapToDemangledSymbolWithOffset() -> [DemangledSymbolWithOffset] {
-        map { .init($0) }
-    }
-}
-
-public struct StrippedSymbolicRequirement: Sendable {
-    public let requirement: ProtocolRequirement
-    public let pwtOffset: Int
-}
-
-extension StrippedSymbolicRequirement {
-    /// Mach-O-free facts about the stripped requirement, exposed so consumers
-    /// that must not touch Mach-O types (SwiftDiffing keys its ABI records on
-    /// these) get a stable facade. `kindToken` is an explicit switch — the
-    /// tokens are part of the persisted ABI-key scheme, so renaming one is a
-    /// key-scheme change (bump `ABISnapshotDocument.currentFormatVersion`).
-    public var kindToken: String {
-        switch requirement.layout.flags.kind {
-        case .baseProtocol: return "baseProtocol"
-        case .method: return "method"
-        case .`init`: return "init"
-        case .getter: return "getter"
-        case .setter: return "setter"
-        case .readCoroutine: return "readCoroutine"
-        case .modifyCoroutine: return "modifyCoroutine"
-        case .associatedTypeAccessFunction: return "associatedTypeAccessFunction"
-        case .associatedConformanceAccessFunction: return "associatedConformanceAccessFunction"
-        }
-    }
-
-    public var isInstance: Bool {
-        requirement.layout.flags.isInstance
-    }
-
-    public var isAsync: Bool {
-        requirement.layout.flags.isAsync
-    }
-
-    /// Whether the requirement carries a default implementation (a valid
-    /// relative pointer — pure arithmetic, no resolution).
-    public var hasDefaultImplementation: Bool {
-        requirement.layout.defaultImplementation.isValid
-    }
-}
-
 public final class ProtocolDefinition: Definition, MutableDefinition {
     /// The protocol's descriptor reference (evolution proposal 0002). The
     /// full `MachOSwiftSection.Protocol` — requirement arrays included — is
@@ -119,7 +57,12 @@ public final class ProtocolDefinition: Definition, MutableDefinition {
 
     public package(set) var orderedMembers: [OrderedMember] = []
 
-    public private(set) var isIndexed: Bool = false
+    /// Whether `index(in:)` has completed a pass over this definition.
+    ///
+    /// The setter is `internal`, not `private`, only because the indexing
+    /// pass lives in `ProtocolDefinition+Indexing.swift`: nothing outside this
+    /// target may flip it, and inside it only that pass does.
+    public internal(set) var isIndexed: Bool = false
 
     /// Whether this protocol's descriptor is in the image's export trie,
     /// resolved once at construction (see ``ExportStatus``). Available the
@@ -173,75 +116,5 @@ public final class ProtocolDefinition: Definition, MutableDefinition {
     /// not cached.
     public func materializedProtocol<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> MachOSwiftSection.`Protocol` {
         try MachOSwiftSection.`Protocol`(descriptor: protocolDescriptor, in: machO)
-    }
-
-    package func index<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) async throws {
-        guard !isIndexed else { return }
-        let dumpedProtocol = try materializedProtocol(in: machO)
-        let name = protocolName.name
-        // Structurally keyed: `demangleSymbolReference` returns references from
-        // different stores, and store-identity equality would let the same
-        // implementation symbol be claimed by two requirements.
-        func _symbol(for symbols: Symbols, visitedNodes: borrowing OrderedSet<StructuralNodeReferenceKey> = []) throws -> DemangledSymbol? {
-            for symbol in symbols {
-                if let node = SymbolicDemangler.demangleSymbolReference(for: symbol, in: machO), let protocolNode = node.first(of: .protocol), protocolNode.print(using: .interfaceTypeBuilderOnly) == name, !visitedNodes.contains(StructuralNodeReferenceKey(node)) {
-                    return .init(symbol: symbol, demangledNode: node)
-                }
-            }
-            return nil
-        }
-        associatedTypes = try protocolDescriptor.associatedTypes(in: machO)
-
-        var requirementMemberSymbolsByKind: OrderedDictionary<SymbolIndexStore.MemberKind, [DemangledSymbolWithOffset]> = [:]
-        var defaultImplementationMemberSymbolsByKind: OrderedDictionary<SymbolIndexStore.MemberKind, [DemangledSymbolWithOffset]> = [:]
-
-        var requirementVisitedNodes: OrderedSet<StructuralNodeReferenceKey> = []
-        var defaultImplementationVisitedNodes: OrderedSet<StructuralNodeReferenceKey> = []
-
-        var offsetOfPWT = 0
-
-        for requirement in dumpedProtocol.requirements {
-            offsetOfPWT.offset(of: StoredPointer.self)
-            if requirement.layout.defaultImplementation.isValid {
-                defaultedRequirementPWTOffsets.insert(offsetOfPWT)
-            }
-            guard let symbols = machO.symbols(offset: requirement.offset), let symbol = try? _symbol(for: symbols, visitedNodes: requirementVisitedNodes) else {
-                strippedSymbolicRequirements.append(.init(requirement: requirement, pwtOffset: offsetOfPWT))
-                continue
-            }
-            requirementVisitedNodes.append(StructuralNodeReferenceKey(symbol.demangledNode))
-            addSymbol(.init(base: symbol, offset: offsetOfPWT), memberSymbolsByKind: &requirementMemberSymbolsByKind, inExtension: false)
-            if let symbols = requirement.defaultImplementationSymbols(in: machO), let defaultImplementationSymbol = try _symbol(for: symbols, visitedNodes: defaultImplementationVisitedNodes) {
-                defaultImplementationVisitedNodes.append(StructuralNodeReferenceKey(defaultImplementationSymbol.demangledNode))
-                addSymbol(.init(base: defaultImplementationSymbol, offset: offsetOfPWT), memberSymbolsByKind: &defaultImplementationMemberSymbolsByKind, inExtension: true)
-            }
-        }
-
-        setDefinitions(for: requirementMemberSymbolsByKind, inExtension: false)
-
-        orderedMembers = OrderedMember.pwtOrdered(OrderedMember.allMembers(from: self))
-
-        // Descriptor-derived synthesis is the FALLBACK only: when the module
-        // was indexed by `SwiftDeclarationIndexer`, its container-unification
-        // pass (evolution proposal 0007) already attached the symbol-scan
-        // protocol-extension blocks here — a superset of what the requirement
-        // walk above can resolve (the per-requirement default-implementation
-        // resolution loses members to identical-code-folded addresses, which
-        // is how the trailing copy used to render fewer members than the
-        // extensions-block copy of the same block). Only a standalone
-        // `ProtocolDefinition` (SPI use, no module indexer) still needs the
-        // synthesis.
-        if defaultImplementationExtensions.isEmpty {
-            let extensionDefinition = try ExtensionDefinition(extensionName: protocolName.extensionName, genericSignature: nil, protocolConformance: nil, in: machO)
-
-            extensionDefinition.setDefinitions(for: defaultImplementationMemberSymbolsByKind, inExtension: true)
-            extensionDefinition.orderedMembers = OrderedMember.offsetOrdered(OrderedMember.allMembers(from: extensionDefinition))
-
-            if extensionDefinition.hasMembers {
-                defaultImplementationExtensions = [extensionDefinition]
-            }
-        }
-
-        isIndexed = true
     }
 }

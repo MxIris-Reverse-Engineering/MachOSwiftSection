@@ -20,19 +20,13 @@ package enum DefinitionBuilder {
     package static func variables(
         for demangledSymbols: [DemangledSymbolWithOffset],
         fieldNames: borrowing Set<String> = [],
-        methodDescriptorLookup: [StructuralNodeReferenceKey: MethodDescriptorWrapper] = [:],
-        vtableOffsetLookup: [StructuralNodeReferenceKey: Int] = [:],
-        implOffsetDescriptorLookup: [Int: MethodDescriptorWrapper] = [:],
-        implOffsetVTableSlotLookup: [Int: Int] = [:],
+        dispatchLookups: ClassDispatchLookups = .init(),
         isGlobalOrStatic: Bool
     ) -> [VariableDefinition] {
         variablesProduct(
             for: demangledSymbols,
             fieldNames: fieldNames,
-            methodDescriptorLookup: methodDescriptorLookup,
-            vtableOffsetLookup: vtableOffsetLookup,
-            implOffsetDescriptorLookup: implOffsetDescriptorLookup,
-            implOffsetVTableSlotLookup: implOffsetVTableSlotLookup,
+            dispatchLookups: dispatchLookups,
             isGlobalOrStatic: isGlobalOrStatic
         ).variables
     }
@@ -40,10 +34,7 @@ package enum DefinitionBuilder {
     package static func variablesProduct(
         for demangledSymbols: [DemangledSymbolWithOffset],
         fieldNames: borrowing Set<String> = [],
-        methodDescriptorLookup: [StructuralNodeReferenceKey: MethodDescriptorWrapper] = [:],
-        vtableOffsetLookup: [StructuralNodeReferenceKey: Int] = [:],
-        implOffsetDescriptorLookup: [Int: MethodDescriptorWrapper] = [:],
-        implOffsetVTableSlotLookup: [Int: Int] = [:],
+        dispatchLookups: ClassDispatchLookups = .init(),
         isGlobalOrStatic: Bool
     ) -> VariablesBuildProduct {
         var variables: [VariableDefinition] = []
@@ -54,8 +45,7 @@ package enum DefinitionBuilder {
             let kind = demangledSymbol.accessorKind
             let node = demangledSymbol.demangledNode
             let symbolOffset = demangledSymbol.base.offset
-            let descriptor = methodDescriptorLookup[StructuralNodeReferenceKey(node)] ?? implOffsetDescriptorLookup[symbolOffset]
-            let vtableOffset = vtableOffsetLookup[StructuralNodeReferenceKey(node)] ?? implOffsetVTableSlotLookup[symbolOffset]
+            let (descriptor, vtableOffset) = dispatchLookups.dispatch(forMemberNode: node, implementationOffset: symbolOffset)
             accessorsByName[name, default: []].append(.init(kind: kind, symbol: demangledSymbol.base.detachedFromSharedTable(), methodDescriptor: descriptor, offset: demangledSymbol.offset, vtableOffset: vtableOffset))
         }
 
@@ -78,10 +68,7 @@ package enum DefinitionBuilder {
 
     package static func subscripts(
         for demangledSymbols: [DemangledSymbolWithOffset],
-        methodDescriptorLookup: [StructuralNodeReferenceKey: MethodDescriptorWrapper] = [:],
-        vtableOffsetLookup: [StructuralNodeReferenceKey: Int] = [:],
-        implOffsetDescriptorLookup: [Int: MethodDescriptorWrapper] = [:],
-        implOffsetVTableSlotLookup: [Int: Int] = [:],
+        dispatchLookups: ClassDispatchLookups = .init(),
         isStatic: Bool
     ) -> [SubscriptDefinition] {
         var subscripts: [SubscriptDefinition] = []
@@ -104,8 +91,7 @@ package enum DefinitionBuilder {
             let kind = demangledSymbol.accessorKind
             let node = demangledSymbol.demangledNode
             let symbolOffset = demangledSymbol.base.offset
-            let descriptor = methodDescriptorLookup[StructuralNodeReferenceKey(node)] ?? implOffsetDescriptorLookup[symbolOffset]
-            let vtableOffset = vtableOffsetLookup[StructuralNodeReferenceKey(node)] ?? implOffsetVTableSlotLookup[symbolOffset]
+            let (descriptor, vtableOffset) = dispatchLookups.dispatch(forMemberNode: node, implementationOffset: symbolOffset)
             accessorsByNode[subscriptNode, default: []].append(.init(kind: kind, symbol: demangledSymbol.base.detachedFromSharedTable(), methodDescriptor: descriptor, offset: demangledSymbol.offset, vtableOffset: vtableOffset))
         }
 
@@ -123,10 +109,7 @@ package enum DefinitionBuilder {
 
     package static func allocators(
         for demangledSymbols: [DemangledSymbolWithOffset],
-        methodDescriptorLookup: [StructuralNodeReferenceKey: MethodDescriptorWrapper] = [:],
-        vtableOffsetLookup: [StructuralNodeReferenceKey: Int] = [:],
-        implOffsetDescriptorLookup: [Int: MethodDescriptorWrapper] = [:],
-        implOffsetVTableSlotLookup: [Int: Int] = [:]
+        dispatchLookups: ClassDispatchLookups = .init()
     ) -> [FunctionDefinition] {
         // Same dedup pattern as `functions(...)`: a merged-function thunk shares
         // the canonical `allocator` subtree, so the same init appears twice. Keep
@@ -149,25 +132,21 @@ package enum DefinitionBuilder {
             }
             if canonicalIndexByAllocatorNode[allocatorNode] != nil { continue }
             canonicalIndexByAllocatorNode[allocatorNode] = allocators.count
-            allocators.append(makeAllocatorDefinition(from: demangledSymbol, methodDescriptorLookup: methodDescriptorLookup, vtableOffsetLookup: vtableOffsetLookup, implOffsetDescriptorLookup: implOffsetDescriptorLookup, implOffsetVTableSlotLookup: implOffsetVTableSlotLookup))
+            allocators.append(makeAllocatorDefinition(from: demangledSymbol, dispatchLookups: dispatchLookups))
         }
         for (allocatorNode, mergedSymbol) in pendingMergedByAllocatorNode where canonicalIndexByAllocatorNode[allocatorNode] == nil {
-            allocators.append(makeAllocatorDefinition(from: mergedSymbol, methodDescriptorLookup: methodDescriptorLookup, vtableOffsetLookup: vtableOffsetLookup, implOffsetDescriptorLookup: implOffsetDescriptorLookup, implOffsetVTableSlotLookup: implOffsetVTableSlotLookup))
+            allocators.append(makeAllocatorDefinition(from: mergedSymbol, dispatchLookups: dispatchLookups))
         }
         return allocators
     }
 
     private static func makeAllocatorDefinition(
         from demangledSymbol: DemangledSymbolWithOffset,
-        methodDescriptorLookup: [StructuralNodeReferenceKey: MethodDescriptorWrapper],
-        vtableOffsetLookup: [StructuralNodeReferenceKey: Int],
-        implOffsetDescriptorLookup: [Int: MethodDescriptorWrapper],
-        implOffsetVTableSlotLookup: [Int: Int]
+        dispatchLookups: ClassDispatchLookups
     ) -> FunctionDefinition {
         let node = demangledSymbol.demangledNode
         let symbolOffset = demangledSymbol.base.offset
-        let descriptor = methodDescriptorLookup[StructuralNodeReferenceKey(node)] ?? implOffsetDescriptorLookup[symbolOffset]
-        let vtableOffset = vtableOffsetLookup[StructuralNodeReferenceKey(node)] ?? implOffsetVTableSlotLookup[symbolOffset]
+        let (descriptor, vtableOffset) = dispatchLookups.dispatch(forMemberNode: node, implementationOffset: symbolOffset)
         var functionDefinition = FunctionDefinition(node: node, name: "", kind: .allocator, symbol: demangledSymbol.base.detachedFromSharedTable(), isGlobalOrStatic: true, methodDescriptor: descriptor, offset: demangledSymbol.offset, vtableOffset: vtableOffset)
         if let methodDescriptor = descriptor?.method, methodDescriptor.layout.flags.isDynamic {
             functionDefinition.attributes.append(.dynamic)
@@ -177,10 +156,7 @@ package enum DefinitionBuilder {
 
     package static func functions(
         for demangledSymbols: [DemangledSymbolWithOffset],
-        methodDescriptorLookup: [StructuralNodeReferenceKey: MethodDescriptorWrapper] = [:],
-        vtableOffsetLookup: [StructuralNodeReferenceKey: Int] = [:],
-        implOffsetDescriptorLookup: [Int: MethodDescriptorWrapper] = [:],
-        implOffsetVTableSlotLookup: [Int: Int] = [:],
+        dispatchLookups: ClassDispatchLookups = .init(),
         isGlobalOrStatic: Bool
     ) -> [FunctionDefinition] {
         // Dedup pass: merged-function thunks (`.mergedFunction` root) share the
@@ -206,11 +182,11 @@ package enum DefinitionBuilder {
             }
             if canonicalIndexByFunctionNode[functionNode] != nil { continue }
             canonicalIndexByFunctionNode[functionNode] = functions.count
-            functions.append(makeFunctionDefinition(from: demangledSymbol, name: name, isGlobalOrStatic: isGlobalOrStatic, methodDescriptorLookup: methodDescriptorLookup, vtableOffsetLookup: vtableOffsetLookup, implOffsetDescriptorLookup: implOffsetDescriptorLookup, implOffsetVTableSlotLookup: implOffsetVTableSlotLookup))
+            functions.append(makeFunctionDefinition(from: demangledSymbol, name: name, isGlobalOrStatic: isGlobalOrStatic, dispatchLookups: dispatchLookups))
         }
         for (functionNode, mergedSymbol) in pendingMergedByFunctionNode where canonicalIndexByFunctionNode[functionNode] == nil {
             guard let name = functionNode.reference.identifier else { continue }
-            functions.append(makeFunctionDefinition(from: mergedSymbol, name: name, isGlobalOrStatic: isGlobalOrStatic, methodDescriptorLookup: methodDescriptorLookup, vtableOffsetLookup: vtableOffsetLookup, implOffsetDescriptorLookup: implOffsetDescriptorLookup, implOffsetVTableSlotLookup: implOffsetVTableSlotLookup))
+            functions.append(makeFunctionDefinition(from: mergedSymbol, name: name, isGlobalOrStatic: isGlobalOrStatic, dispatchLookups: dispatchLookups))
         }
         return functions
     }
@@ -219,15 +195,11 @@ package enum DefinitionBuilder {
         from demangledSymbol: DemangledSymbolWithOffset,
         name: String,
         isGlobalOrStatic: Bool,
-        methodDescriptorLookup: [StructuralNodeReferenceKey: MethodDescriptorWrapper],
-        vtableOffsetLookup: [StructuralNodeReferenceKey: Int],
-        implOffsetDescriptorLookup: [Int: MethodDescriptorWrapper],
-        implOffsetVTableSlotLookup: [Int: Int]
+        dispatchLookups: ClassDispatchLookups
     ) -> FunctionDefinition {
         let node = demangledSymbol.demangledNode
         let symbolOffset = demangledSymbol.base.offset
-        let descriptor = methodDescriptorLookup[StructuralNodeReferenceKey(node)] ?? implOffsetDescriptorLookup[symbolOffset]
-        let vtableOffset = vtableOffsetLookup[StructuralNodeReferenceKey(node)] ?? implOffsetVTableSlotLookup[symbolOffset]
+        let (descriptor, vtableOffset) = dispatchLookups.dispatch(forMemberNode: node, implementationOffset: symbolOffset)
         var functionDefinition = FunctionDefinition(node: node, name: name, kind: .function, symbol: demangledSymbol.base.detachedFromSharedTable(), isGlobalOrStatic: isGlobalOrStatic, methodDescriptor: descriptor, offset: demangledSymbol.offset, vtableOffset: vtableOffset)
         if let methodDescriptor = descriptor?.method, methodDescriptor.layout.flags.isDynamic {
             functionDefinition.attributes.append(.dynamic)
