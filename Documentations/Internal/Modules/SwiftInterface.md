@@ -92,7 +92,7 @@ N ≥ 2 版本渲染成**一份**并集接口，声明尾注生命周期注解�
 
 | 入口 | 路径 |
 |---|---|
-| `swift-section interface` | `SwiftInterfaceBuilder`（+ `--resolve-c-module-names` 挂 TypeIndexing provider，opaque provider 默认挂） |
+| `swift-section interface` | `SwiftInterfaceBuilder`（+ `--resolve-c-module-names` 挂 TypeIndexing provider，opaque provider 只在 `--parse-opaque-return-type` 下挂，默认关） |
 | `swift-section diff --interface` | `SwiftDiffableInterfaceBuilder` ×2 + `SwiftDiffableInterfaceRenderer` |
 | `swift-section evolution --interface` | `AnySwiftEvolutionInterfaceBuilder`（与 `--json`/`--summary-only` 互斥） |
 | `swift-section diff` / `snapshot` / `evolution`（数据路径） | `SwiftDiffableInterfaceBuilder.abiModule()/snapshot()` → SwiftDiffing |

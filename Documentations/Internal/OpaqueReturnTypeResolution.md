@@ -106,7 +106,7 @@ descriptor（或其 GOT 槽）。本模块协议（ProtocolTest）走 `\x02<ref>
 
 因此 provider 定位参数**只能按坐标，不能按位置**：opaque 自己的参数全在同一深度，下标就是它在声明里的序号（`Qr` 是 0，`QR<n>` 是 n + 1，见 `ASTMangler::appendOpaqueTypeArchetype`）。深度从 descriptor 算：父级每让参数总数增长一次算一层（非泛型嵌套类型不占层，与运行时 `_gatherGenericParameterCounts` 一致），声明自己泛型再加一层（type 节点套着 `dependentGenericType`）。**不要**从声明的 mangled 签名数层——`swift-demangle -expand` 看 `Outer<Element>.generic<Argument>() -> some Equatable` 的 `QOMQ` 符号，签名里只有一个 `DependentGenericParamCount`，外层类型那一层被 `appendGenericSignatureParts` 省掉了；也不要用 `GenericContext.depth`，它对每个带泛型上下文的父级都加一。
 
-查不到就返回 nil，printer 打出裸 `some`。这是有意的：`some Any` 会把 `some Sendable` 写成一个不对的类型，裸 `some` 至少不撒谎，而且与文件读取器读不到跨镜像协议时的既有降级形态一致。回归测试是 `Tests/SwiftInterfaceTests/OpaqueParameterWithoutProtocolRequirementTests.swift`（2026-09-18，RuntimeViewer 批量导出 PhotosUIFoundation 在 `PhotosGroupingItemListManager.GroupItem.value` 上崩溃的复现）。
+查不到就返回 nil，printer 打出裸 `some`。这是有意的：`some Any` 会把 `some Sendable` 写成一个不对的类型，裸 `some` 至少不撒谎，而且与 `swift-section interface` 不带 `--parse-opaque-return-type`（默认）时的输出形态一致。回归测试是 `Tests/SwiftInterfaceTests/OpaqueParameterWithoutProtocolRequirementTests.swift`（2026-09-18，RuntimeViewer 批量导出 PhotosUIFoundation 在 `PhotosGroupingItemListManager.GroupItem.value` 上崩溃的复现）。
 
 ---
 
