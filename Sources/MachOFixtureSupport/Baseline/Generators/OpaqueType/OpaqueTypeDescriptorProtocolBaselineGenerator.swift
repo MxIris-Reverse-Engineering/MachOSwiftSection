@@ -6,7 +6,7 @@ import SwiftSyntaxBuilder
 ///
 /// `OpaqueTypeDescriptorProtocol` extends every conforming type
 /// (currently only `OpaqueTypeDescriptor`) with the
-/// `numUnderlyingTypeArugments` accessor — the kind-specific flags
+/// `numUnderlyingTypeArguments` accessor — the kind-specific flags
 /// raw value cast to `Int`. SymbolTestsCore's opaque-type descriptors
 /// aren't directly reachable on the current toolchain (see
 /// OpaqueTypeBaseline), so the Suite exercises the accessor against a
@@ -14,7 +14,7 @@ import SwiftSyntaxBuilder
 package enum OpaqueTypeDescriptorProtocolBaselineGenerator {
     package static func generate(outputDirectory: URL) throws {
         let registered = [
-            "numUnderlyingTypeArugments",
+            "numUnderlyingTypeArguments",
         ]
 
         let header = """
@@ -24,7 +24,7 @@ package enum OpaqueTypeDescriptorProtocolBaselineGenerator {
         //
         // OpaqueTypeDescriptorProtocol — see OpaqueTypeBaseline for the
         // discoverability caveat. The Suite exercises the
-        // numUnderlyingTypeArugments accessor against a synthetic
+        // numUnderlyingTypeArguments accessor against a synthetic
         // memberwise OpaqueTypeDescriptor whose
         // ContextDescriptorFlags' kind-specific bits encode a known
         // count.

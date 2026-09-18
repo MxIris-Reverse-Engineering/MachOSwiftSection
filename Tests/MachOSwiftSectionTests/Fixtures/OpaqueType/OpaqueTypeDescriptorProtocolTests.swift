@@ -9,8 +9,8 @@ import MachOFixtureSupport
 /// members.
 ///
 /// The protocol contributes one extension accessor —
-/// `numUnderlyingTypeArugments` (note: misspelled as "Arugments" in
-/// source). SymbolTestsCore's opaque-type descriptors aren't directly
+/// `numUnderlyingTypeArguments` (misspelled `Arugments` until 2026-09-18;
+/// the old name survives one version as a deprecated forwarder). SymbolTestsCore's opaque-type descriptors aren't directly
 /// reachable on the current toolchain (see OpaqueTypeBaseline), so the
 /// Suite exercises the accessor against synthetic memberwise
 /// `OpaqueTypeDescriptor` instances whose `ContextDescriptorFlags`
@@ -22,7 +22,7 @@ final class OpaqueTypeDescriptorProtocolTests: MachOSwiftSectionFixtureTests, Fi
         OpaqueTypeDescriptorProtocolBaseline.registeredTestMethodNames
     }
 
-    private func descriptor(withUnderlyingTypeArugments count: UInt16) -> OpaqueTypeDescriptor {
+    private func descriptor(withUnderlyingTypeArguments count: UInt16) -> OpaqueTypeDescriptor {
         // ContextDescriptorFlags kind in low 5 bits + kindSpecificFlagsRawValue
         // in upper 16 bits. We pack `count` into the upper 16 bits to
         // exercise the accessor path.
@@ -37,10 +37,10 @@ final class OpaqueTypeDescriptorProtocolTests: MachOSwiftSectionFixtureTests, Fi
         )
     }
 
-    @Test func numUnderlyingTypeArugments() async throws {
+    @Test func numUnderlyingTypeArguments() async throws {
         for count in [UInt16(0), 1, 3, 8] {
-            let descriptor = descriptor(withUnderlyingTypeArugments: count)
-            #expect(descriptor.numUnderlyingTypeArugments == Int(count))
+            let descriptor = descriptor(withUnderlyingTypeArguments: count)
+            #expect(descriptor.numUnderlyingTypeArguments == Int(count))
         }
     }
 }

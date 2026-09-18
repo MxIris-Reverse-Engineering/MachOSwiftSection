@@ -403,7 +403,7 @@ enum CoverageAllowlistEntries {
         ),
         CoverageAllowlistHelpers.sentinelGroup(
             typeName: "OpaqueTypeDescriptorProtocol",
-            members: ["numUnderlyingTypeArugments"],
+            members: ["numUnderlyingTypeArguments", "numUnderlyingTypeArugments"],
             reason: .needsFixtureExtension(detail: "opaque-type descriptor not reachable; protocol extension exercised on synthetic descriptor")
         ),
     ].flatMap { $0 }

@@ -23,7 +23,7 @@ final class OpaqueTypeFixtureTests: MachOSwiftSectionFixtureTests, FixtureSuite,
 
     /// Synthetic descriptor — flags layout uses
     /// `ContextDescriptorKind.opaqueType` (4) with no kind-specific
-    /// flags, so `numUnderlyingTypeArugments == 0`.
+    /// flags, so `numUnderlyingTypeArguments == 0`.
     private func syntheticDescriptor() -> OpaqueTypeDescriptor {
         OpaqueTypeDescriptor(
             layout: .init(
@@ -61,7 +61,7 @@ final class OpaqueTypeFixtureTests: MachOSwiftSectionFixtureTests, FixtureSuite,
         // real OpaqueType instance we can only assert the descriptor
         // path is reachable.
         let descriptor = syntheticDescriptor()
-        #expect(descriptor.numUnderlyingTypeArugments == 0)
+        #expect(descriptor.numUnderlyingTypeArguments == 0)
     }
 
     @Test func underlyingTypeArgumentMangledNames() async throws {

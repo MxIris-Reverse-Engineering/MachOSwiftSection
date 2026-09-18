@@ -4,11 +4,11 @@
 //
 // OpaqueTypeDescriptorProtocol — see OpaqueTypeBaseline for the
 // discoverability caveat. The Suite exercises the
-// numUnderlyingTypeArugments accessor against a synthetic
+// numUnderlyingTypeArguments accessor against a synthetic
 // memberwise OpaqueTypeDescriptor whose
 // ContextDescriptorFlags' kind-specific bits encode a known
 // count.
 
 enum OpaqueTypeDescriptorProtocolBaseline {
-    static let registeredTestMethodNames: Set<String> = ["numUnderlyingTypeArugments"]
+    static let registeredTestMethodNames: Set<String> = ["numUnderlyingTypeArguments"]
 }

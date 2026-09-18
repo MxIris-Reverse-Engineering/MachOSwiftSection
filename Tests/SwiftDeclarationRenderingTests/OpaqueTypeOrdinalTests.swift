@@ -152,8 +152,8 @@ struct OpaqueTypeOrdinalTests {
         let opaqueType = try OpaqueType(descriptor: descriptor, in: machOFile)
 
         #expect(
-            descriptor.numUnderlyingTypeArugments == 4,
-            "two opaque results with one conformance each: \(descriptor.numUnderlyingTypeArugments)"
+            descriptor.numUnderlyingTypeArguments == 4,
+            "two opaque results with one conformance each: \(descriptor.numUnderlyingTypeArguments)"
         )
 
         var rendered: [String] = []
