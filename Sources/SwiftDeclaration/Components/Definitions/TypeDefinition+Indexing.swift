@@ -19,7 +19,7 @@ extension TypeDefinition {
     /// precede `orderedMembers`, which copies the member values) and
     /// wrapped-property recovery (needs both the folded fields and the member
     /// variables).
-    package func index<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) async throws {
+    package func index(in machO: some MachOSwiftSectionRepresentableWithCache) async throws {
         guard !isIndexed else { return }
 
         @Dependency(\.symbolIndexStore)
@@ -75,7 +75,7 @@ extension TypeDefinition {
     /// The type's stored fields, read from its field descriptor. Carries no
     /// accessor facts yet — `foldStoredPropertyAccessors(_:into:)` adds those
     /// once the members are built.
-    func indexedFieldDefinitions<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> [FieldDefinition] {
+    func indexedFieldDefinitions(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> [FieldDefinition] {
         let typeContextDescriptor = typeContextDescriptorWrapper.typeContextDescriptor
         let fieldDescriptor = try typeContextDescriptor.fieldDescriptor(in: machO)
         let records = try fieldDescriptor.records(in: machO)

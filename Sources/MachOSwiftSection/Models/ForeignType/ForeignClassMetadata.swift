@@ -24,7 +24,7 @@ extension ForeignClassMetadata {
 // MARK: - ReadingContext Support
 
 extension ForeignClassMetadata {
-    public func classDescriptor<Context: ReadingContext>(in context: Context) throws -> ClassDescriptor {
+    public func classDescriptor(in context: some ReadingContext) throws -> ClassDescriptor {
         try layout.descriptor.resolve(in: context)
     }
 }

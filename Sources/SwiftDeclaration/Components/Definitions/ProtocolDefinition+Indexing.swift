@@ -6,7 +6,7 @@ import SwiftStdlibToolbox
 @_spi(Internals) import SwiftInspection
 
 extension ProtocolDefinition {
-    package func index<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) async throws {
+    package func index(in machO: some MachOSwiftSectionRepresentableWithCache) async throws {
         guard !isIndexed else { return }
         let dumpedProtocol = try materializedProtocol(in: machO)
         let name = protocolName.name

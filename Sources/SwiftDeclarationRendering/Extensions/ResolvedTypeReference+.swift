@@ -4,7 +4,7 @@ import MachOSwiftSection
 @_spi(Internals) import SwiftInspection
 
 extension ResolvedTypeReference {
-    package func node<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> Node? {
+    package func node(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> Node? {
         switch self {
         case .directTypeDescriptor(let descriptor):
             return try descriptor.map { try SymbolicDemangler.demangleContext(for: $0, in: machO) }

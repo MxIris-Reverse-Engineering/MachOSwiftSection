@@ -7,15 +7,15 @@ import Utilities
 import SwiftDeclarationRendering
 
 extension AssociatedType: ConformedDumpable {
-    public func dumpTypeName<MachO: MachOFieldLayoutRenderable>(using configuration: DumperConfiguration, in machO: MachO) async throws -> SemanticString {
+    public func dumpTypeName(using configuration: DumperConfiguration, in machO: some MachOFieldLayoutRenderable) async throws -> SemanticString {
         try await AssociatedTypeDumper(self, using: configuration, in: machO).typeName
     }
 
-    public func dumpProtocolName<MachO: MachOFieldLayoutRenderable>(using configuration: DumperConfiguration, in machO: MachO) async throws -> SemanticString {
+    public func dumpProtocolName(using configuration: DumperConfiguration, in machO: some MachOFieldLayoutRenderable) async throws -> SemanticString {
         try await AssociatedTypeDumper(self, using: configuration, in: machO).protocolName
     }
 
-    public func dump<MachO: MachOFieldLayoutRenderable>(using configuration: DumperConfiguration, in machO: MachO) async throws -> SemanticString {
+    public func dump(using configuration: DumperConfiguration, in machO: some MachOFieldLayoutRenderable) async throws -> SemanticString {
         try await LargeStackTaskExecution.run {
             try await AssociatedTypeDumper(self, using: configuration, in: machO).body
         }

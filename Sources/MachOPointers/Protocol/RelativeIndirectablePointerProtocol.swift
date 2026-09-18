@@ -6,7 +6,7 @@ import MachOKitExtensions
 public protocol RelativeIndirectablePointerProtocol<Pointee>: RelativeDirectPointerProtocol, RelativeIndirectPointerProtocol {
     var relativeOffsetPlusIndirect: Offset { get }
     var isIndirect: Bool { get }
-    func resolveIndirectableOffset<MachO: MachORepresentableWithCache & Readable>(from offset: Int, in machO: MachO) throws -> Int
+    func resolveIndirectableOffset(from offset: Int, in machO: some MachORepresentableWithCache & Readable) throws -> Int
 }
 
 extension RelativeIndirectablePointerProtocol {
@@ -20,15 +20,15 @@ extension RelativeIndirectablePointerProtocol {
 }
 
 extension RelativeIndirectablePointerProtocol {
-    public func resolve<MachO: MachORepresentableWithCache & Readable>(from offset: Int, in machO: MachO) throws -> Pointee {
+    public func resolve(from offset: Int, in machO: some MachORepresentableWithCache & Readable) throws -> Pointee {
         return try resolveIndirectable(from: offset, in: machO)
     }
 
-    public func resolveAny<T: Resolvable, MachO: MachORepresentableWithCache & Readable>(from offset: Int, in machO: MachO) throws -> T {
+    public func resolveAny<T: Resolvable>(from offset: Int, in machO: some MachORepresentableWithCache & Readable) throws -> T {
         return try resolveIndirectableAny(from: offset, in: machO)
     }
 
-    func resolveIndirectable<MachO: MachORepresentableWithCache & Readable>(from offset: Int, in machO: MachO) throws -> Pointee {
+    func resolveIndirectable(from offset: Int, in machO: some MachORepresentableWithCache & Readable) throws -> Pointee {
         if isIndirect {
             return try resolveIndirect(from: offset, in: machO)
         } else {
@@ -36,12 +36,12 @@ extension RelativeIndirectablePointerProtocol {
         }
     }
 
-    public func resolveIndirectableType<MachO: MachORepresentableWithCache & Readable>(from offset: Int, in machO: MachO) throws -> IndirectType? {
+    public func resolveIndirectableType(from offset: Int, in machO: some MachORepresentableWithCache & Readable) throws -> IndirectType? {
         guard isIndirect else { return nil }
         return try resolveIndirectType(from: offset, in: machO)
     }
 
-    func resolveIndirectableAny<T: Resolvable, MachO: MachORepresentableWithCache & Readable>(from offset: Int, in machO: MachO) throws -> T {
+    func resolveIndirectableAny<T: Resolvable>(from offset: Int, in machO: some MachORepresentableWithCache & Readable) throws -> T {
         if isIndirect {
             return try resolveIndirectAny(from: offset, in: machO)
         } else {
@@ -49,7 +49,7 @@ extension RelativeIndirectablePointerProtocol {
         }
     }
 
-    public func resolveIndirectableOffset<MachO: MachORepresentableWithCache & Readable>(from offset: Int, in machO: MachO) throws -> Int {
+    public func resolveIndirectableOffset(from offset: Int, in machO: some MachORepresentableWithCache & Readable) throws -> Int {
         guard let indirectType = try resolveIndirectableType(from: offset, in: machO) else {
             return resolveDirectOffset(from: offset)
         }
@@ -127,7 +127,7 @@ extension RelativeIndirectablePointerProtocol {
 }
 
 extension RelativeIndirectablePointerProtocol where Pointee: OptionalProtocol {
-    public func resolve<MachO: MachORepresentableWithCache & Readable>(from offset: Int, in machO: MachO) throws -> Pointee {
+    public func resolve(from offset: Int, in machO: some MachORepresentableWithCache & Readable) throws -> Pointee {
         guard isValid else { return nil }
         return try resolve(from: offset, in: machO)
     }

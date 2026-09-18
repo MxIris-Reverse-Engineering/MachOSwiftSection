@@ -34,9 +34,9 @@ import OrderedCollections
 /// never joined (no vtable comment, no `override` keyword and, since evolution
 /// proposal 0006, a false `final`). Strip the marker so the key takes the
 /// member form; every other tree keys as-is.
-package func memberJoinKey<MachO: MachOSwiftSectionRepresentableWithCache>(
+package func memberJoinKey(
     for node: NodeReference,
-    in machO: MachO
+    in machO: some MachOSwiftSectionRepresentableWithCache
 ) -> StructuralNodeReferenceKey {
     if node.children.first?.kind == .asyncFunctionPointer, let entityNode = node.children.second {
         let strippedTree = Node.create(kind: .global, child: entityNode.materialize())
@@ -45,11 +45,11 @@ package func memberJoinKey<MachO: MachOSwiftSectionRepresentableWithCache>(
     return StructuralNodeReferenceKey(node)
 }
 
-package func demangledOverrideSymbol<MachO: MachOSwiftSectionRepresentableWithCache>(
+package func demangledOverrideSymbol(
     for symbols: Symbols,
     typeNode: Node,
     visitedNodes: borrowing OrderedSet<StructuralNodeReferenceKey> = [],
-    in machO: MachO
+    in machO: some MachOSwiftSectionRepresentableWithCache
 ) -> DemangledSymbol? {
     guard let typeClassNode = typeNode.first(of: .class) else { return nil }
     for symbol in symbols {

@@ -85,8 +85,8 @@ extension InterfaceHeaderInfo {
     /// Reads the Mach-O facts from `machO`: install name / path, `LC_UUID`,
     /// architecture, file type, and the dispatch-thunk count from the
     /// image's symbol index.
-    public init<MachO: MachORepresentableWithCache>(
-        machO: MachO,
+    public init(
+        machO: some MachORepresentableWithCache,
         generatorName: String,
         generatorVersion: String,
         generatedDate: Date? = nil,

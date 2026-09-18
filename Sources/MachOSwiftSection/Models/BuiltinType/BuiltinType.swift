@@ -7,7 +7,7 @@ public struct BuiltinType: TopLevelType {
 
     public let typeName: MangledName?
 
-    public init<MachO: MachOSwiftSectionRepresentableWithCache>(descriptor: BuiltinTypeDescriptor, in machO: MachO) throws {
+    public init(descriptor: BuiltinTypeDescriptor, in machO: some MachOSwiftSectionRepresentableWithCache) throws {
         self.descriptor = descriptor
         self.typeName = try descriptor.typeName(in: machO)
     }
@@ -21,7 +21,7 @@ public struct BuiltinType: TopLevelType {
 // MARK: - ReadingContext Support
 
 extension BuiltinType {
-    public init<Context: ReadingContext>(descriptor: BuiltinTypeDescriptor, in context: Context) throws {
+    public init(descriptor: BuiltinTypeDescriptor, in context: some ReadingContext) throws {
         self.descriptor = descriptor
         self.typeName = try descriptor.typeName(in: context)
     }

@@ -10,10 +10,10 @@ public protocol RelativePointerProtocol<Pointee>: Sendable, Equatable {
     var relativeOffset: Offset { get }
     
     func resolve(from ptr: UnsafeRawPointer) throws -> Pointee
-    func resolve<MachO: MachORepresentableWithCache & Readable>(from offset: Int, in machO: MachO) throws -> Pointee
+    func resolve(from offset: Int, in machO: some MachORepresentableWithCache & Readable) throws -> Pointee
     func resolve<Context: ReadingContext>(at address: Context.Address, in context: Context) throws -> Pointee
     
-    func resolveAny<T: Resolvable, MachO: MachORepresentableWithCache & Readable>(from offset: Int, in machO: MachO) throws -> T
+    func resolveAny<T: Resolvable>(from offset: Int, in machO: some MachORepresentableWithCache & Readable) throws -> T
     func resolveAny<T: Resolvable>(from ptr: UnsafeRawPointer) throws -> T
     func resolveAny<T: Resolvable, Context: ReadingContext>(at address: Context.Address, in context: Context) throws -> T
     

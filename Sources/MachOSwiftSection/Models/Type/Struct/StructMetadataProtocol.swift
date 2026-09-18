@@ -13,7 +13,7 @@ extension StructMetadataProtocol {
         try descriptor().struct!
     }
     
-    public func fieldOffsets<MachO: MachOSwiftSectionRepresentableWithCache>(for descriptor: StructDescriptor? = nil, in machO: MachO) throws -> [UInt32] {
+    public func fieldOffsets(for descriptor: StructDescriptor? = nil, in machO: some MachOSwiftSectionRepresentableWithCache) throws -> [UInt32] {
         let descriptor = try descriptor ?? structDescriptor(in: machO)
         guard descriptor.fieldOffsetVector != .zero else { return [] }
         // Metadata.offset + fieldOffset (eg. 2 * 8)
@@ -32,11 +32,11 @@ extension StructMetadataProtocol {
 // MARK: - ReadingContext Support
 
 extension StructMetadataProtocol {
-    public func structDescriptor<Context: ReadingContext>(in context: Context) throws -> StructDescriptor {
+    public func structDescriptor(in context: some ReadingContext) throws -> StructDescriptor {
         try descriptor(in: context).struct!
     }
 
-    public func fieldOffsets<Context: ReadingContext>(for descriptor: StructDescriptor? = nil, in context: Context) throws -> [UInt32] {
+    public func fieldOffsets(for descriptor: StructDescriptor? = nil, in context: some ReadingContext) throws -> [UInt32] {
         let descriptor = try descriptor ?? structDescriptor(in: context)
         guard descriptor.fieldOffsetVector != .zero else { return [] }
         // Metadata.offset + fieldOffset (eg. 2 * 8)

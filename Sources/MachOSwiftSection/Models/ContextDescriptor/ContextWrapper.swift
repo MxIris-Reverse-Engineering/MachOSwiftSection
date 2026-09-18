@@ -137,7 +137,7 @@ public enum ContextWrapper: Resolvable {
 // MARK: - ReadingContext Support
 
 extension ContextWrapper {
-    public static func forContextDescriptorWrapper<Context: ReadingContext>(_ contextDescriptorWrapper: ContextDescriptorWrapper, in context: Context) throws -> Self {
+    public static func forContextDescriptorWrapper(_ contextDescriptorWrapper: ContextDescriptorWrapper, in context: some ReadingContext) throws -> Self {
         switch contextDescriptorWrapper {
         case .type(let typeContextDescriptorWrapper):
             switch typeContextDescriptorWrapper {
@@ -161,7 +161,7 @@ extension ContextWrapper {
         }
     }
 
-    public func parent<Context: ReadingContext>(in context: Context) throws -> SymbolOrElement<ContextWrapper>? {
+    public func parent(in context: some ReadingContext) throws -> SymbolOrElement<ContextWrapper>? {
         switch self {
         case .type(let typeWrapper):
             switch typeWrapper {

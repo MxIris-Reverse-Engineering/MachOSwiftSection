@@ -11,7 +11,7 @@ public struct NonUniqueExtendedExistentialTypeShape: ResolvableLocatableLayoutWr
 }
 
 extension NonUniqueExtendedExistentialTypeShape {
-    public func existentialType<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> MangledName {
+    public func existentialType(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> MangledName {
         try layout.localCopy.existentialType.resolve(from: offset(of: \.localCopy.existentialType), in: machO)
     }
 }
@@ -26,7 +26,7 @@ extension NonUniqueExtendedExistentialTypeShape {
 // MARK: - ReadingContext Support
 
 extension NonUniqueExtendedExistentialTypeShape {
-    public func existentialType<Context: ReadingContext>(in context: Context) throws -> MangledName {
+    public func existentialType(in context: some ReadingContext) throws -> MangledName {
         let baseAddress = try context.addressFromOffset(offset(of: \.localCopy.existentialType))
         return try layout.localCopy.existentialType.resolve(at: baseAddress, in: context)
     }

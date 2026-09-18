@@ -20,7 +20,7 @@ public enum TypeReference: Sendable {
         }
     }
 
-    public func resolve<MachO: MachOSwiftSectionRepresentableWithCache>(at offset: Int, in machO: MachO) throws -> ResolvedTypeReference {
+    public func resolve(at offset: Int, in machO: some MachOSwiftSectionRepresentableWithCache) throws -> ResolvedTypeReference {
         switch self {
         case .directTypeDescriptor(let relativeDirectPointer):
             return try .directTypeDescriptor(relativeDirectPointer.resolve(from: offset, in: machO))
@@ -57,7 +57,7 @@ public enum ResolvedTypeReference: Sendable {
 // MARK: - ReadingContext Support
 
 extension TypeReference {
-    public func resolve<Context: ReadingContext>(at offset: Int, in context: Context) throws -> ResolvedTypeReference {
+    public func resolve(at offset: Int, in context: some ReadingContext) throws -> ResolvedTypeReference {
         switch self {
         case .directTypeDescriptor(let relativeDirectPointer):
             return try .directTypeDescriptor(relativeDirectPointer.resolve(at: try context.addressFromOffset(offset), in: context))

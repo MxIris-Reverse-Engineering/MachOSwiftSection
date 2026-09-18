@@ -3,8 +3,8 @@ import MachOReading
 import MachOKitExtensions
 
 public protocol Resolvable: Sendable {
-    static func resolve<MachO: MachORepresentableWithCache & Readable>(from offset: Int, in machO: MachO) throws -> Self
-    static func resolve<MachO: MachORepresentableWithCache & Readable>(from offset: Int, in machO: MachO) throws -> Self?
+    static func resolve(from offset: Int, in machO: some MachORepresentableWithCache & Readable) throws -> Self
+    static func resolve(from offset: Int, in machO: some MachORepresentableWithCache & Readable) throws -> Self?
     static func resolve(from ptr: UnsafeRawPointer) throws -> Self
     static func resolve(from ptr: UnsafeRawPointer) throws -> Self?
     static func resolve<Context: ReadingContext>(at address: Context.Address, in context: Context) throws -> Self
@@ -12,11 +12,11 @@ public protocol Resolvable: Sendable {
 }
 
 extension Resolvable {
-    public static func resolve<MachO: MachORepresentableWithCache & Readable>(from offset: Int, in machO: MachO) throws -> Self {
+    public static func resolve(from offset: Int, in machO: some MachORepresentableWithCache & Readable) throws -> Self {
         return try machO.readElement(offset: offset)
     }
 
-    public static func resolve<MachO: MachORepresentableWithCache & Readable>(from offset: Int, in machO: MachO) throws -> Self? {
+    public static func resolve(from offset: Int, in machO: some MachORepresentableWithCache & Readable) throws -> Self? {
         let result: Self = try resolve(from: offset, in: machO)
         return .some(result)
     }
@@ -47,7 +47,7 @@ extension Resolvable {
 }
 
 extension Optional: Resolvable where Wrapped: Resolvable {
-    public static func resolve<MachO: MachORepresentableWithCache & Readable>(from offset: Int, in machO: MachO) throws -> Self {
+    public static func resolve(from offset: Int, in machO: some MachORepresentableWithCache & Readable) throws -> Self {
         let result: Wrapped? = try Wrapped.resolve(from: offset, in: machO)
         if let result {
             return .some(result)
@@ -76,7 +76,7 @@ extension Optional: Resolvable where Wrapped: Resolvable {
 }
 
 extension String: Resolvable {
-    public static func resolve<MachO: MachORepresentableWithCache & Readable>(from offset: Int, in machO: MachO) throws -> Self {
+    public static func resolve(from offset: Int, in machO: some MachORepresentableWithCache & Readable) throws -> Self {
         return try machO.readString(offset: offset)
     }
 
@@ -90,7 +90,7 @@ extension String: Resolvable {
 }
 
 extension Resolvable where Self: LocatableLayoutWrapper {
-    public static func resolve<MachO: MachORepresentableWithCache & Readable>(from offset: Int, in machO: MachO) throws -> Self {
+    public static func resolve(from offset: Int, in machO: some MachORepresentableWithCache & Readable) throws -> Self {
         try machO.readWrapperElement(offset: offset)
     }
 

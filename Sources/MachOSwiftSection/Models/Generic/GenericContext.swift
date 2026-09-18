@@ -141,7 +141,7 @@ public struct TargetGenericContext<Header: GenericContextDescriptorHeaderProtoco
         )
     }
 
-    public init<MachO: MachOSwiftSectionRepresentableWithCache>(contextDescriptor: some ContextDescriptorProtocol, in machO: MachO) throws {
+    public init(contextDescriptor: some ContextDescriptorProtocol, in machO: some MachOSwiftSectionRepresentableWithCache) throws {
         try self.init(contextDescriptor: contextDescriptor, in: machO.context)
     }
 
@@ -149,7 +149,7 @@ public struct TargetGenericContext<Header: GenericContextDescriptorHeaderProtoco
         try self.init(contextDescriptor: contextDescriptor, in: InProcessContext.shared)
     }
     
-    public init<Context: ReadingContext>(contextDescriptor: some ContextDescriptorProtocol, in context: Context) throws {
+    public init(contextDescriptor: some ContextDescriptorProtocol, in context: some ReadingContext) throws {
         var currentOffset = contextDescriptor.offset + contextDescriptor.layoutSize
         let genericContextOffset = currentOffset
         self.offset = genericContextOffset
@@ -184,7 +184,7 @@ public struct TargetGenericContext<Header: GenericContextDescriptorHeaderProtoco
         self.depth = depth
     }
 
-    private mutating func initializeWithContext<Context: ReadingContext>(contextDescriptor: some ContextDescriptorProtocol, currentOffset: inout Int, in context: Context) throws {
+    private mutating func initializeWithContext(contextDescriptor: some ContextDescriptorProtocol, currentOffset: inout Int, in context: some ReadingContext) throws {
         if header.numParams > 0 {
             let parametersAddress = try context.addressFromOffset(currentOffset)
             let parameters: [GenericParamDescriptor] = try context.readWrapperElements(at: parametersAddress, numberOfElements: .init(header.numParams))
@@ -293,7 +293,7 @@ extension Array {
 // MARK: - ReadingContext Support
 
 extension TargetGenericContext {
-    public func uniqueCurrentRequirements<Context: ReadingContext>(in context: Context) -> [GenericRequirementDescriptor] {
+    public func uniqueCurrentRequirements(in context: some ReadingContext) -> [GenericRequirementDescriptor] {
         let parentRequirements = parentRequirements.flatMap { $0 }
         var currentRequirements: [GenericRequirementDescriptor] = []
         for requirement in requirements {

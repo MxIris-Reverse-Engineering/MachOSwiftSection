@@ -4,6 +4,6 @@ import MachOSwiftSection
 import SwiftDeclarationRendering
 
 public protocol ConformedDumpable: Dumpable {
-    func dumpTypeName<MachO: MachOFieldLayoutRenderable>(using configuration: DumperConfiguration, in machO: MachO) async throws -> SemanticString
-    func dumpProtocolName<MachO: MachOFieldLayoutRenderable>(using configuration: DumperConfiguration, in machO: MachO) async throws -> SemanticString
+    func dumpTypeName(using configuration: DumperConfiguration, in machO: some MachOFieldLayoutRenderable) async throws -> SemanticString
+    func dumpProtocolName(using configuration: DumperConfiguration, in machO: some MachOFieldLayoutRenderable) async throws -> SemanticString
 }

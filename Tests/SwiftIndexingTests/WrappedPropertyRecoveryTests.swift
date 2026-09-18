@@ -156,7 +156,7 @@ enum WrappedPropertyFixture {
     }
 
     /// The indexed definition named `typeName` in an image, or a failure.
-    static func indexedTypeDefinition<MachO: MachOSwiftSectionRepresentableWithCache>(named typeName: String, in machO: MachO, dependencySearchPaths: [DependencySearchPath] = [.systemDyldSharedCache]) async throws -> TypeDefinition {
+    static func indexedTypeDefinition(named typeName: String, in machO: some MachOSwiftSectionRepresentableWithCache, dependencySearchPaths: [DependencySearchPath] = [.systemDyldSharedCache]) async throws -> TypeDefinition {
         let indexer = SwiftDeclarationIndexer(configuration: .init(showCImportedTypes: false, dependencySearchPaths: dependencySearchPaths), eventHandlers: [], in: machO)
         try await indexer.prepare()
         let definition = try #require(indexer.allTypeDefinitions.values.first { $0.typeName.name.hasSuffix(".\(typeName)") }, "no type named \(typeName)")

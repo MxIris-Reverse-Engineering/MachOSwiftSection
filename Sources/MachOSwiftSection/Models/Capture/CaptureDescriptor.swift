@@ -75,12 +75,12 @@ extension CaptureDescriptor {
 // MARK: - MachO Reading
 
 extension CaptureDescriptor {
-    public func captureTypeRecords<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> [CaptureTypeRecord] {
+    public func captureTypeRecords(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> [CaptureTypeRecord] {
         guard captureTypeCount > 0 else { return [] }
         return try machO.readWrapperElements(offset: captureTypeRecordsOffset, numberOfElements: captureTypeCount)
     }
 
-    public func metadataSourceRecords<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> [MetadataSourceRecord] {
+    public func metadataSourceRecords(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> [MetadataSourceRecord] {
         guard metadataSourceCount > 0 else { return [] }
         return try machO.readWrapperElements(offset: metadataSourceRecordsOffset, numberOfElements: metadataSourceCount)
     }
@@ -102,12 +102,12 @@ extension CaptureDescriptor {
 // MARK: - ReadingContext Support
 
 extension CaptureDescriptor {
-    public func captureTypeRecords<Context: ReadingContext>(in context: Context) throws -> [CaptureTypeRecord] {
+    public func captureTypeRecords(in context: some ReadingContext) throws -> [CaptureTypeRecord] {
         guard captureTypeCount > 0 else { return [] }
         return try context.readWrapperElements(at: try context.addressFromOffset(captureTypeRecordsOffset), numberOfElements: captureTypeCount)
     }
 
-    public func metadataSourceRecords<Context: ReadingContext>(in context: Context) throws -> [MetadataSourceRecord] {
+    public func metadataSourceRecords(in context: some ReadingContext) throws -> [MetadataSourceRecord] {
         guard metadataSourceCount > 0 else { return [] }
         return try context.readWrapperElements(at: try context.addressFromOffset(metadataSourceRecordsOffset), numberOfElements: metadataSourceCount)
     }

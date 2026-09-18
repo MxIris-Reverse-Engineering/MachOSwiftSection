@@ -5,7 +5,7 @@ import OrderedCollections
 @_spi(Internals) import SwiftInspection
 
 extension ExtensionDefinition {
-    package func index<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) async throws {
+    package func index(in machO: some MachOSwiftSectionRepresentableWithCache) async throws {
         guard !isIndexed else { return }
 
         // Cheap pre-check on the retained descriptor keeps the typealias-only

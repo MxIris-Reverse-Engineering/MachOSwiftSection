@@ -16,7 +16,7 @@ extension MethodDescriptor {
     /// The symbols the image's index finds at the implementation's offset;
     /// `nil` when the descriptor has no implementation or the index knows
     /// nothing at that offset.
-    public func implementationSymbols<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) -> Symbols? {
+    public func implementationSymbols(in machO: some MachOSwiftSectionRepresentableWithCache) -> Symbols? {
         guard let implementationOffset else { return nil }
         return machO.symbols(offset: implementationOffset)
     }
@@ -25,7 +25,7 @@ extension MethodDescriptor {
 extension MethodOverrideDescriptor {
     /// The symbols the image's index finds at the overriding implementation's
     /// offset; `nil` for a null pointer or an offset the index does not know.
-    public func implementationSymbols<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) -> Symbols? {
+    public func implementationSymbols(in machO: some MachOSwiftSectionRepresentableWithCache) -> Symbols? {
         guard let implementationOffset else { return nil }
         return machO.symbols(offset: implementationOffset)
     }
@@ -35,7 +35,7 @@ extension MethodDefaultOverrideDescriptor {
     /// The symbols the image's index finds at the default-override
     /// implementation's offset; `nil` for a null pointer or an offset the
     /// index does not know.
-    public func implementationSymbols<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) -> Symbols? {
+    public func implementationSymbols(in machO: some MachOSwiftSectionRepresentableWithCache) -> Symbols? {
         guard let implementationOffset else { return nil }
         return machO.symbols(offset: implementationOffset)
     }
@@ -45,7 +45,7 @@ extension ProtocolRequirement {
     /// The symbols the image's index finds at the requirement's default
     /// implementation; `nil` when the requirement has none or the index does
     /// not know the offset.
-    public func defaultImplementationSymbols<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) -> Symbols? {
+    public func defaultImplementationSymbols(in machO: some MachOSwiftSectionRepresentableWithCache) -> Symbols? {
         guard let defaultImplementationOffset else { return nil }
         return machO.symbols(offset: defaultImplementationOffset)
     }
@@ -54,7 +54,7 @@ extension ProtocolRequirement {
 extension ResilientWitness {
     /// The symbols the image's index finds at the witness implementation's
     /// offset; `nil` for a null pointer or an offset the index does not know.
-    public func implementationSymbols<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) -> Symbols? {
+    public func implementationSymbols(in machO: some MachOSwiftSectionRepresentableWithCache) -> Symbols? {
         guard let implementationOffset else { return nil }
         return machO.symbols(offset: implementationOffset)
     }

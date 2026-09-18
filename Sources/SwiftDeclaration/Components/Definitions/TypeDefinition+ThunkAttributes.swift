@@ -7,11 +7,11 @@ extension TypeDefinition {
     /// and bucketed by parent type name inside `SymbolIndexStore`) with the
     /// already-built member definitions of this type, appending the matching
     /// attribute to each affected member.
-    func applyThunkAttributes<MachO: MachORepresentableWithCache>(
+    func applyThunkAttributes(
         symbolIndexStore: SymbolIndexStore,
         typeName: String,
         typeNode: NodeReference,
-        in machO: MachO
+        in machO: some MachORepresentableWithCache
     ) {
         let thunkKindsAndAttributes: [(Node.Kind, SwiftAttribute)] = [
             (.objCAttribute, .objc),

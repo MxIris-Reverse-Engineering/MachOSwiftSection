@@ -111,20 +111,20 @@ extension MultiPayloadEnumDescriptor: TopLevelDescriptor {
 // MARK: - ReadingContext Support
 
 extension MultiPayloadEnumDescriptor {
-    public func mangledTypeName<Context: ReadingContext>(in context: Context) throws -> MangledName {
+    public func mangledTypeName(in context: some ReadingContext) throws -> MangledName {
         return try layout.mangledTypeName.resolve(at: try context.addressFromOffset(offset), in: context)
     }
 
-    public func contents<Context: ReadingContext>(in context: Context) throws -> [UInt32] {
+    public func contents(in context: some ReadingContext) throws -> [UInt32] {
         return try context.readElements(at: try context.addressFromOffset(offset(of: \.sizeFlags)), numberOfElements: contentsSizeInWord.cast())
     }
 
-    public func payloadSpareBits<Context: ReadingContext>(in context: Context) throws -> [UInt8] {
+    public func payloadSpareBits(in context: some ReadingContext) throws -> [UInt8] {
         guard usesPayloadSpareBits else { return [] }
         return try context.readElements(at: try context.addressFromOffset(offset + MemoryLayout<RelativeOffset>.size + MemoryLayout<UInt32>.size * payloadSpareBitsIndex), numberOfElements: payloadSpareBitMaskByteCount(in: context).cast())
     }
 
-    public func payloadSpareBitMaskByteOffset<Context: ReadingContext>(in context: Context) throws -> UInt32 {
+    public func payloadSpareBitMaskByteOffset(in context: some ReadingContext) throws -> UInt32 {
         if usesPayloadSpareBits {
             return try contents(in: context)[payloadSpareBitMaskByteCountIndex] >> 16
         } else {
@@ -132,7 +132,7 @@ extension MultiPayloadEnumDescriptor {
         }
     }
 
-    public func payloadSpareBitMaskByteCount<Context: ReadingContext>(in context: Context) throws -> UInt32 {
+    public func payloadSpareBitMaskByteCount(in context: some ReadingContext) throws -> UInt32 {
         if usesPayloadSpareBits {
             return try contents(in: context)[payloadSpareBitMaskByteCountIndex] & 0xFFFF
         } else {

@@ -4,7 +4,7 @@ import MachOBase
 public protocol AnonymousContextDescriptorProtocol: ContextDescriptorProtocol where Layout: AnonymousContextDescriptorLayout {}
 
 extension AnonymousContextDescriptorProtocol {
-    public func mangledName<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> MangledName? {
+    public func mangledName(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> MangledName? {
         guard hasMangledName else {
             return nil
         }
@@ -29,7 +29,7 @@ extension AnonymousContextDescriptorProtocol {
         return try mangledNamePointer.resolve(from: pointer.advanced(by: currentOffset))
     }
     
-    public func mangledName<Context: ReadingContext>(in context: Context) throws -> MangledName? {
+    public func mangledName(in context: some ReadingContext) throws -> MangledName? {
         guard hasMangledName else {
             return nil
         }

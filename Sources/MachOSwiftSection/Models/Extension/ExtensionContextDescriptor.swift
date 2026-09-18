@@ -12,7 +12,7 @@ public struct ExtensionContextDescriptor: ExtensionContextDescriptorProtocol {
 }
 
 extension ExtensionContextDescriptorProtocol {
-    public func extendedContext<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> MangledName? {
+    public func extendedContext(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> MangledName? {
         try layout.extendedContext.resolve(from: offset + layout.offset(of: .extendedContext), in: machO)
     }
 }
@@ -26,7 +26,7 @@ extension ExtensionContextDescriptorProtocol {
 // MARK: - ReadingContext Support
 
 extension ExtensionContextDescriptorProtocol {
-    public func extendedContext<Context: ReadingContext>(in context: Context) throws -> MangledName? {
+    public func extendedContext(in context: some ReadingContext) throws -> MangledName? {
         let baseAddress = try context.addressFromOffset(offset)
         return try layout.extendedContext.resolve(at: context.advanceAddress(baseAddress, by: layout.offset(of: .extendedContext)), in: context)
     }

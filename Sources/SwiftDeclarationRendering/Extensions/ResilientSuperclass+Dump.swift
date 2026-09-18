@@ -5,7 +5,7 @@ import Demangling
 @_spi(Internals) import SwiftInspection
 
 extension ResilientSuperclass {
-    package func dumpSuperclass<MachO: MachOSwiftSectionRepresentableWithCache>(resolver: DemangleResolver, for kind: TypeReferenceKind, in machO: MachO) async throws -> SemanticString? {
+    package func dumpSuperclass(resolver: DemangleResolver, for kind: TypeReferenceKind, in machO: some MachOSwiftSectionRepresentableWithCache) async throws -> SemanticString? {
         switch resolver {
         case .options(let demangleOptions):
             return try dumpSuperclass(using: demangleOptions, for: kind, in: machO)
@@ -14,17 +14,17 @@ extension ResilientSuperclass {
         }
     }
 
-    package func dumpSuperclass<MachO: MachOSwiftSectionRepresentableWithCache>(using options: DemangleOptions, for kind: TypeReferenceKind, in machO: MachO) throws -> SemanticString? {
+    package func dumpSuperclass(using options: DemangleOptions, for kind: TypeReferenceKind, in machO: some MachOSwiftSectionRepresentableWithCache) throws -> SemanticString? {
         try dumpSuperclassNode(for: kind, in: machO)?.printSemantic(using: options)
     }
 
-    package func dumpSuperclassNode<MachO: MachOSwiftSectionRepresentableWithCache>(for kind: TypeReferenceKind, in machO: MachO) throws -> Node? {
+    package func dumpSuperclassNode(for kind: TypeReferenceKind, in machO: some MachOSwiftSectionRepresentableWithCache) throws -> Node? {
         let typeReference = TypeReference.forKind(kind, at: layout.superclass.relativeOffset)
         let resolvedTypeReference = try typeReference.resolve(at: offset(of: \.superclass), in: machO)
         return try resolvedTypeReference.node(in: machO)
     }
 
-    package func superclassResolvedTypeReference<MachO: MachOSwiftSectionRepresentableWithCache>(for kind: TypeReferenceKind, in machO: MachO) throws -> ResolvedTypeReference {
+    package func superclassResolvedTypeReference(for kind: TypeReferenceKind, in machO: some MachOSwiftSectionRepresentableWithCache) throws -> ResolvedTypeReference {
         let typeReference = TypeReference.forKind(kind, at: layout.superclass.relativeOffset)
         return try typeReference.resolve(at: offset(of: \.superclass), in: machO)
     }

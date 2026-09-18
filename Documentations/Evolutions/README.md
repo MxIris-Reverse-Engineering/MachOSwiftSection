@@ -49,3 +49,4 @@
 | draft | [静态布局引擎读取 accessor thunk 背后的字段类型](draft-static-layout-through-accessor-thunks.md) | Draft |
 | draft | [SwiftDeclaration 模块的文件归位与 TypeDefinition 拆分](draft-swift-declaration-file-layout.md) | In Progress |
 | draft | [`AnnotatedSymbol<Payload>`：构建期符号包装泛型化，两个 offset 不再同名](draft-annotated-symbol-payload.md) | In Progress |
+| draft | [只用一次的泛型参数改写为 opaque parameter（`some`）：522 处签名去掉只出现一次的 `<MachO: …>` / `<Context: …>`](draft-opaque-parameters-for-single-use-generics.md) | In Progress |

@@ -17,7 +17,7 @@ public struct CaptureTypeRecord: ResolvableLocatableLayoutWrapper {
 }
 
 extension CaptureTypeRecord {
-    public func mangledTypeName<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> MangledName {
+    public func mangledTypeName(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> MangledName {
         try layout.mangledTypeName.resolve(from: offset(of: \.mangledTypeName), in: machO)
     }
 }
@@ -31,7 +31,7 @@ extension CaptureTypeRecord {
 // MARK: - ReadingContext Support
 
 extension CaptureTypeRecord {
-    public func mangledTypeName<Context: ReadingContext>(in context: Context) throws -> MangledName {
+    public func mangledTypeName(in context: some ReadingContext) throws -> MangledName {
         try layout.mangledTypeName.resolve(at: try context.addressFromOffset(offset(of: \.mangledTypeName)), in: context)
     }
 }

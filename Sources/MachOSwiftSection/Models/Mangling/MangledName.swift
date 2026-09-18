@@ -119,7 +119,7 @@ public struct MangledName: Sendable, Hashable {
 }
 
 extension MangledName: Resolvable {
-    public static func resolve<MachO: MachORepresentableWithCache & Readable>(from offset: Int, in machO: MachO) throws -> Self {
+    public static func resolve(from offset: Int, in machO: some MachORepresentableWithCache & Readable) throws -> Self {
         try resolve(from: offset, for: machO)
     }
 
@@ -138,7 +138,7 @@ extension MangledName: Resolvable {
         return mangledName
     }
 
-    private static func resolve<Reader: Readable>(from offset: Int, for reader: Reader) throws -> MangledName {
+    private static func resolve(from offset: Int, for reader: some Readable) throws -> MangledName {
         var elements: [MangledName.Element] = []
         var currentOffset = offset
         var currentString = ""

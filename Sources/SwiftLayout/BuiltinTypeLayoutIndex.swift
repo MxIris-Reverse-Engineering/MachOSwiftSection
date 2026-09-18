@@ -31,7 +31,7 @@ import Demangling
 public struct BuiltinTypeLayoutIndex: Sendable {
     private let layoutsByQualifiedName: [String: StaticTypeLayout]
 
-    public init<MachO: MachOSwiftSectionRepresentableWithCache>(machO: MachO) throws {
+    public init(machO: some MachOSwiftSectionRepresentableWithCache) throws {
         var index: [String: StaticTypeLayout] = [:]
         // A missing `__swift5_builtin` section is a normal state — most images
         // emit no builtin descriptors — so it yields an empty index rather than

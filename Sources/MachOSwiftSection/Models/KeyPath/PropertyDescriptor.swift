@@ -99,14 +99,14 @@ extension PropertyDescriptor {
     /// The stored property's field offset, reading the body word when the
     /// header only carried a sentinel. `nil` when the descriptor is trivial
     /// or its component is not a stored one.
-    public func storedFieldOffset<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> KeyPathStoredFieldOffset? {
+    public func storedFieldOffset(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> KeyPathStoredFieldOffset? {
         guard !isTrivial, let kind = header.storedFieldOffsetKind else { return nil }
         return try storedFieldOffset(kind: kind, bodyWord: try UInt32.resolve(from: bodyOffset, in: machO))
     }
 
     /// The computed component's identifier, getter and setter. `nil` when the
     /// descriptor is trivial or its component is not a computed one.
-    public func computedPropertyBody<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> KeyPathComputedPropertyBody? {
+    public func computedPropertyBody(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> KeyPathComputedPropertyBody? {
         guard !isTrivial, header.kind == .computed else { return nil }
         let rawIdentifier: RelativeOffset = try RelativeOffset.resolve(from: bodyOffset, in: machO)
         let getter: RelativeOffset = try RelativeOffset.resolve(from: bodyOffset + getterFieldRelativeOffset, in: machO)
@@ -143,13 +143,13 @@ extension PropertyDescriptor {
 // MARK: - ReadingContext Support
 
 extension PropertyDescriptor {
-    public func storedFieldOffset<Context: ReadingContext>(in context: Context) throws -> KeyPathStoredFieldOffset? {
+    public func storedFieldOffset(in context: some ReadingContext) throws -> KeyPathStoredFieldOffset? {
         guard !isTrivial, let kind = header.storedFieldOffsetKind else { return nil }
         let bodyAddress = try context.addressFromOffset(bodyOffset)
         return try storedFieldOffset(kind: kind, bodyWord: try UInt32.resolve(at: bodyAddress, in: context))
     }
 
-    public func computedPropertyBody<Context: ReadingContext>(in context: Context) throws -> KeyPathComputedPropertyBody? {
+    public func computedPropertyBody(in context: some ReadingContext) throws -> KeyPathComputedPropertyBody? {
         guard !isTrivial, header.kind == .computed else { return nil }
         let bodyAddress = try context.addressFromOffset(bodyOffset)
         let getterAddress = context.advanceAddress(bodyAddress, by: getterFieldRelativeOffset)

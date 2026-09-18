@@ -12,11 +12,11 @@ public struct MethodDefaultOverrideDescriptor: ResolvableLocatableLayoutWrapper 
 }
 
 extension MethodDefaultOverrideDescriptor {
-    public func originalMethodDescriptor<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> SymbolOrElement<MethodDescriptor>? {
+    public func originalMethodDescriptor(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> SymbolOrElement<MethodDescriptor>? {
         return try layout.original.resolve(from: offset(of: \.original), in: machO).asOptional
     }
 
-    public func replacementMethodDescriptor<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> SymbolOrElement<MethodDescriptor>? {
+    public func replacementMethodDescriptor(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> SymbolOrElement<MethodDescriptor>? {
         return try layout.replacement.resolve(from: offset(of: \.replacement), in: machO).asOptional
     }
 
@@ -40,11 +40,11 @@ extension MethodDefaultOverrideDescriptor {
 // MARK: - ReadingContext Support
 
 extension MethodDefaultOverrideDescriptor {
-    public func originalMethodDescriptor<Context: ReadingContext>(in context: Context) throws -> SymbolOrElement<MethodDescriptor>? {
+    public func originalMethodDescriptor(in context: some ReadingContext) throws -> SymbolOrElement<MethodDescriptor>? {
         return try layout.original.resolve(at: try context.addressFromOffset(offset(of: \.original)), in: context).asOptional
     }
 
-    public func replacementMethodDescriptor<Context: ReadingContext>(in context: Context) throws -> SymbolOrElement<MethodDescriptor>? {
+    public func replacementMethodDescriptor(in context: some ReadingContext) throws -> SymbolOrElement<MethodDescriptor>? {
         return try layout.replacement.resolve(at: try context.addressFromOffset(offset(of: \.replacement)), in: context).asOptional
     }
 

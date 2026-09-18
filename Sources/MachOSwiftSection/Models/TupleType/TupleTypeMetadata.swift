@@ -18,7 +18,7 @@ public struct TupleTypeMetadata: MetadataProtocol {
 }
 
 extension TupleTypeMetadata {
-    public func elements<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> [Element] {
+    public func elements(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> [Element] {
         try machO.readElements(offset: offset + layoutSize, numberOfElements: layout.numberOfElements.cast())
     }
 
@@ -30,7 +30,7 @@ extension TupleTypeMetadata {
 // MARK: - ReadingContext Support
 
 extension TupleTypeMetadata {
-    public func elements<Context: ReadingContext>(in context: Context) throws -> [Element] {
+    public func elements(in context: some ReadingContext) throws -> [Element] {
         try context.readElements(at: try context.addressFromOffset(offset + layoutSize), numberOfElements: layout.numberOfElements.cast())
     }
 }

@@ -11,7 +11,7 @@ public struct AssociatedType: TopLevelType {
 
     public let records: [AssociatedTypeRecord]
 
-    public init<MachO: MachOSwiftSectionRepresentableWithCache>(descriptor: AssociatedTypeDescriptor, in machO: MachO) throws {
+    public init(descriptor: AssociatedTypeDescriptor, in machO: some MachOSwiftSectionRepresentableWithCache) throws {
         self.descriptor = descriptor
         self.conformingTypeName = try descriptor.conformingTypeName(in: machO)
         self.protocolTypeName = try descriptor.protocolTypeName(in: machO)
@@ -29,7 +29,7 @@ public struct AssociatedType: TopLevelType {
 // MARK: - ReadingContext Support
 
 extension AssociatedType {
-    public init<Context: ReadingContext>(descriptor: AssociatedTypeDescriptor, in context: Context) throws {
+    public init(descriptor: AssociatedTypeDescriptor, in context: some ReadingContext) throws {
         self.descriptor = descriptor
         self.conformingTypeName = try descriptor.conformingTypeName(in: context)
         self.protocolTypeName = try descriptor.protocolTypeName(in: context)

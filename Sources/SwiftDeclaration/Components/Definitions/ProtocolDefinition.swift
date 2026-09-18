@@ -80,7 +80,7 @@ public final class ProtocolDefinition: Definition, MutableDefinition {
     /// The initializer still receives the full wrapper — the indexer holds
     /// one from the section sweep anyway — but only its descriptor reference
     /// is retained.
-    public init<MachO: MachOSwiftSectionRepresentableWithCache>(`protocol`: MachOSwiftSection.`Protocol`, in machO: MachO) throws {
+    public init(`protocol`: MachOSwiftSection.`Protocol`, in machO: some MachOSwiftSectionRepresentableWithCache) throws {
         self.protocolDescriptor = `protocol`.descriptor
         let node = try SymbolicDemangler.demangleContext(for: .protocol(`protocol`.descriptor), in: machO)
         let protocolName = ProtocolName(node: InternedNodeReferenceCache.shared.reference(interning: node, in: machO))
@@ -114,7 +114,7 @@ public final class ProtocolDefinition: Definition, MutableDefinition {
     /// (evolution proposal 0002): call at most once per operation and thread
     /// the result through as a local variable — the result is deliberately
     /// not cached.
-    public func materializedProtocol<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> MachOSwiftSection.`Protocol` {
+    public func materializedProtocol(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> MachOSwiftSection.`Protocol` {
         try MachOSwiftSection.`Protocol`(descriptor: protocolDescriptor, in: machO)
     }
 }

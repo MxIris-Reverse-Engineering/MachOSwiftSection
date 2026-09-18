@@ -7,7 +7,7 @@ public struct AnonymousContext: TopLevelType, ContextProtocol {
     public let genericContext: GenericContext?
     public let mangledName: MangledName?
 
-    public init<MachO: MachOSwiftSectionRepresentableWithCache>(descriptor: AnonymousContextDescriptor, in machO: MachO) throws {
+    public init(descriptor: AnonymousContextDescriptor, in machO: some MachOSwiftSectionRepresentableWithCache) throws {
         self.descriptor = descriptor
         var currentOffset = descriptor.offset + descriptor.layoutSize
 
@@ -53,7 +53,7 @@ public struct AnonymousContext: TopLevelType, ContextProtocol {
 // MARK: - ReadingContext Support
 
 extension AnonymousContext {
-    public init<Context: ReadingContext>(descriptor: AnonymousContextDescriptor, in context: Context) throws {
+    public init(descriptor: AnonymousContextDescriptor, in context: some ReadingContext) throws {
         self.descriptor = descriptor
         var currentOffset = descriptor.offset + descriptor.layoutSize
 

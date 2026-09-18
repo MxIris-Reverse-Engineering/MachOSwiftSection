@@ -12,7 +12,7 @@ import Foundation
 /// optionals — use `\(literal:)` directly; SwiftSyntaxBuilder handles escaping.
 package enum BaselineEmitter {
     /// Emit `0x<lowercase-hex>` for any binary integer (sign-extends to UInt64).
-    package static func hex<T: BinaryInteger & Sendable>(_ value: T) -> String {
+    package static func hex(_ value: some BinaryInteger & Sendable) -> String {
         let unsigned = UInt64(truncatingIfNeeded: value)
         return "0x\(String(unsigned, radix: 16))"
     }

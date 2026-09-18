@@ -11,7 +11,7 @@ public struct OpaqueType: TopLevelType, ContextProtocol {
 
     public let invertedProtocols: InvertibleProtocolSet?
 
-    public init<MachO: MachOSwiftSectionRepresentableWithCache>(descriptor: OpaqueTypeDescriptor, in machO: MachO) throws {
+    public init(descriptor: OpaqueTypeDescriptor, in machO: some MachOSwiftSectionRepresentableWithCache) throws {
         self.descriptor = descriptor
         var currentOffset = descriptor.offset + descriptor.layoutSize
 
@@ -80,7 +80,7 @@ public struct OpaqueType: TopLevelType, ContextProtocol {
 // MARK: - ReadingContext Support
 
 extension OpaqueType {
-    public init<Context: ReadingContext>(descriptor: OpaqueTypeDescriptor, in context: Context) throws {
+    public init(descriptor: OpaqueTypeDescriptor, in context: some ReadingContext) throws {
         self.descriptor = descriptor
         var currentOffset = descriptor.offset + descriptor.layoutSize
 

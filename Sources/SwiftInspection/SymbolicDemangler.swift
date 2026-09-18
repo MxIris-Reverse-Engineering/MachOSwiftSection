@@ -39,7 +39,7 @@ public typealias MetadataReader = SymbolicDemangler
 extension SymbolicDemangler {
     public nonisolated(unsafe) static var isCacheEnabled: Bool = true
 
-    public static func demangleType<MachO: MachOSwiftSectionRepresentableWithCache>(for mangledName: MangledName, in machO: MachO) throws -> Node {
+    public static func demangleType(for mangledName: MangledName, in machO: some MachOSwiftSectionRepresentableWithCache) throws -> Node {
         if isCacheEnabled {
             return try SymbolicDemanglerCache.shared.demangleType(for: mangledName, in: machO)
         } else {
@@ -47,11 +47,11 @@ extension SymbolicDemangler {
         }
     }
 
-    fileprivate static func _demangleType<MachO: MachOSwiftSectionRepresentableWithCache>(for mangledName: MangledName, in machO: MachO) throws -> Node {
+    fileprivate static func _demangleType(for mangledName: MangledName, in machO: some MachOSwiftSectionRepresentableWithCache) throws -> Node {
         return try demangle(for: mangledName, kind: .type, in: machO.context)
     }
 
-    public static func demangleType<MachO: MachOSwiftSectionRepresentableWithCache>(for symbol: Symbol, in machO: MachO) throws -> Node? {
+    public static func demangleType(for symbol: Symbol, in machO: some MachOSwiftSectionRepresentableWithCache) throws -> Node? {
         if isCacheEnabled {
             return try SymbolicDemanglerCache.shared.buildContextManglingForSymbol(symbol, in: machO)
         } else {
@@ -59,7 +59,7 @@ extension SymbolicDemangler {
         }
     }
 
-    public static func demangleSymbol<MachO: MachOSwiftSectionRepresentableWithCache>(for symbol: Symbol, in machO: MachO) throws -> Node? {
+    public static func demangleSymbol(for symbol: Symbol, in machO: some MachOSwiftSectionRepresentableWithCache) throws -> Node? {
         return SymbolIndexStore.shared.demangledNode(for: symbol, in: machO)
     }
 
@@ -67,7 +67,7 @@ extension SymbolicDemangler {
     /// `NodeReference` into the image's frozen node store (or a per-symbol
     /// mini store for symbols outside the build sweep) without materializing
     /// a `Node` tree.
-    public static func demangleSymbolReference<MachO: MachOSwiftSectionRepresentableWithCache>(for symbol: Symbol, in machO: MachO) -> NodeReference? {
+    public static func demangleSymbolReference(for symbol: Symbol, in machO: some MachOSwiftSectionRepresentableWithCache) -> NodeReference? {
         return SymbolIndexStore.shared.demangledNodeReference(for: symbol, in: machO)
     }
 
@@ -88,7 +88,7 @@ extension SymbolicDemangler {
         SymbolicDemanglerCache.shared.contains(in: machO)
     }
 
-    public static func demangleContext<MachO: MachOSwiftSectionRepresentableWithCache>(for context: ContextDescriptorWrapper, in machO: MachO) throws -> Node {
+    public static func demangleContext(for context: ContextDescriptorWrapper, in machO: some MachOSwiftSectionRepresentableWithCache) throws -> Node {
         if isCacheEnabled {
             return try SymbolicDemanglerCache.shared.demangleContext(for: context, in: machO)
         } else {
@@ -96,19 +96,19 @@ extension SymbolicDemangler {
         }
     }
 
-    fileprivate static func _demangleContext<MachO: MachOSwiftSectionRepresentableWithCache>(for context: ContextDescriptorWrapper, in machO: MachO) throws -> Node {
+    fileprivate static func _demangleContext(for context: ContextDescriptorWrapper, in machO: some MachOSwiftSectionRepresentableWithCache) throws -> Node {
         return try required(buildContextMangling(context: context, in: machO.context))
     }
 
-    public static func buildGenericSignature<MachO: MachOSwiftSectionRepresentableWithCache>(for requirement: GenericRequirementDescriptor, in machO: MachO) throws -> Node? {
+    public static func buildGenericSignature(for requirement: GenericRequirementDescriptor, in machO: some MachOSwiftSectionRepresentableWithCache) throws -> Node? {
         try buildGenericSignature(for: [requirement], in: machO)
     }
 
-    public static func buildGenericSignature<MachO: MachOSwiftSectionRepresentableWithCache>(for requirements: GenericRequirementDescriptor..., in machO: MachO) throws -> Node? {
+    public static func buildGenericSignature(for requirements: GenericRequirementDescriptor..., in machO: some MachOSwiftSectionRepresentableWithCache) throws -> Node? {
         try buildGenericSignature(for: requirements, in: machO)
     }
 
-    public static func buildGenericSignature<MachO: MachOSwiftSectionRepresentableWithCache>(for requirements: [GenericRequirementDescriptor], in machO: MachO) throws -> Node? {
+    public static func buildGenericSignature(for requirements: [GenericRequirementDescriptor], in machO: some MachOSwiftSectionRepresentableWithCache) throws -> Node? {
         return try buildGenericSignature(for: requirements, in: machO.context)
     }
 }
@@ -200,23 +200,23 @@ extension InProcessContext: SymbolLookupContext {
 // MARK: - ReadingContext Support
 
 extension SymbolicDemangler {
-    public static func demangleType<Context: ReadingContext>(for mangledName: MangledName, in context: Context) throws -> Node {
+    public static func demangleType(for mangledName: MangledName, in context: some ReadingContext) throws -> Node {
         return try demangle(for: mangledName, kind: .type, in: context)
     }
 
-    public static func demangleContext<Context: ReadingContext>(for contextWrapper: ContextDescriptorWrapper, in context: Context) throws -> Node {
+    public static func demangleContext(for contextWrapper: ContextDescriptorWrapper, in context: some ReadingContext) throws -> Node {
         return try required(buildContextMangling(context: contextWrapper, in: context))
     }
 
-    public static func buildGenericSignature<Context: ReadingContext>(for requirement: GenericRequirementDescriptor, in context: Context) throws -> Node? {
+    public static func buildGenericSignature(for requirement: GenericRequirementDescriptor, in context: some ReadingContext) throws -> Node? {
         try buildGenericSignature(for: [requirement], in: context)
     }
 
-    public static func buildGenericSignature<Context: ReadingContext>(for requirements: GenericRequirementDescriptor..., in context: Context) throws -> Node? {
+    public static func buildGenericSignature(for requirements: GenericRequirementDescriptor..., in context: some ReadingContext) throws -> Node? {
         try buildGenericSignature(for: requirements, in: context)
     }
 
-    public static func buildGenericSignature<Context: ReadingContext>(for requirements: [GenericRequirementDescriptor], in context: Context) throws -> Node? {
+    public static func buildGenericSignature(for requirements: [GenericRequirementDescriptor], in context: some ReadingContext) throws -> Node? {
         guard !requirements.isEmpty else { return nil }
         var requirementNodes: [Node] = []
         var failed = false
@@ -280,7 +280,7 @@ extension SymbolicDemangler {
         }
     }
 
-    private static func demangle<Context: ReadingContext>(for mangledName: MangledName, kind: MangledNameKind, in context: Context) throws -> Node {
+    private static func demangle(for mangledName: MangledName, kind: MangledNameKind, in context: some ReadingContext) throws -> Node {
         let stringValue = switch kind {
         case .type:
             mangledName.typeString
@@ -372,7 +372,7 @@ extension SymbolicDemangler {
         return result
     }
 
-    private static func buildContextMangling<Context: ReadingContext>(context: SymbolOrElement<ContextDescriptorWrapper>, in readingContext: Context) throws -> Node? {
+    private static func buildContextMangling(context: SymbolOrElement<ContextDescriptorWrapper>, in readingContext: some ReadingContext) throws -> Node? {
         switch context {
         case .symbol(let symbol):
             return try _buildContextManglingForSymbol(symbol, in: readingContext)
@@ -381,7 +381,7 @@ extension SymbolicDemangler {
         }
     }
 
-    private static func buildContextMangling<Context: ReadingContext>(context: ContextDescriptorWrapper, in readingContext: Context) throws -> Node? {
+    private static func buildContextMangling(context: ContextDescriptorWrapper, in readingContext: some ReadingContext) throws -> Node? {
         guard let demangling = try buildContextDescriptorMangling(context: context, recursionLimit: 50, in: readingContext) else {
             return nil
         }
@@ -398,7 +398,7 @@ extension SymbolicDemangler {
         return top
     }
 
-    private static func buildContextDescriptorMangling<Context: ReadingContext>(context: SymbolOrElement<ContextDescriptorWrapper>, recursionLimit: Int, in readingContext: Context) throws -> Node? {
+    private static func buildContextDescriptorMangling(context: SymbolOrElement<ContextDescriptorWrapper>, recursionLimit: Int, in readingContext: some ReadingContext) throws -> Node? {
         guard recursionLimit > 0 else { return nil }
         switch context {
         case .symbol(let symbol):
@@ -413,7 +413,7 @@ extension SymbolicDemangler {
         }
     }
 
-    private static func buildContextDescriptorMangling<Context: ReadingContext>(context: ContextDescriptorWrapper, recursionLimit: Int, in readingContext: Context) throws -> Node? {
+    private static func buildContextDescriptorMangling(context: ContextDescriptorWrapper, recursionLimit: Int, in readingContext: some ReadingContext) throws -> Node? {
         guard recursionLimit > 0 else { return nil }
         var parentDescriptorResult = try context.parent(in: readingContext)
         var demangledParentNode: Node?
@@ -525,7 +525,7 @@ extension SymbolicDemangler {
         return demangling
     }
 
-    private static func adoptAnonymousContextName<Context: ReadingContext>(context: ContextDescriptorWrapper, parentContextRef: inout SymbolOrElement<ContextDescriptorWrapper>?, outSymbol: inout Node?, in readingContext: Context) throws -> Node? {
+    private static func adoptAnonymousContextName(context: ContextDescriptorWrapper, parentContextRef: inout SymbolOrElement<ContextDescriptorWrapper>?, outSymbol: inout Node?, in readingContext: some ReadingContext) throws -> Node? {
         outSymbol = nil
         guard let parentContextLocalRef = parentContextRef else { return nil }
         guard case .element(let parentContext) = parentContextRef else { return nil }
@@ -554,12 +554,12 @@ extension SymbolicDemangler {
         return nameChild
     }
 
-    private static func demangleAnonymousContextName<Context: ReadingContext>(context: SymbolOrElement<ContextDescriptorWrapper>, in readingContext: Context) throws -> Node? {
+    private static func demangleAnonymousContextName(context: SymbolOrElement<ContextDescriptorWrapper>, in readingContext: some ReadingContext) throws -> Node? {
         guard case .element(.anonymous(let context)) = context, let mangledName = try context.mangledName(in: readingContext) else { return nil }
         return try demangle(for: mangledName, kind: .symbol, in: readingContext)
     }
 
-    private static func readProtocol<Context: ReadingContext>(offset: Int, pointer: RelativeProtocolDescriptorPointer, in context: Context) throws -> Node? {
+    private static func readProtocol(offset: Int, pointer: RelativeProtocolDescriptorPointer, in context: some ReadingContext) throws -> Node? {
         let baseAddress = try context.addressFromOffset(offset)
         switch pointer {
         case .objcPointer(let objcPointer):
@@ -599,7 +599,7 @@ extension SymbolicDemangler {
         }
     }
 
-    fileprivate static func _buildContextManglingForSymbol<Context: ReadingContext>(_ symbol: Symbol, in context: Context) throws -> Node? {
+    fileprivate static func _buildContextManglingForSymbol(_ symbol: Symbol, in context: some ReadingContext) throws -> Node? {
         var demangledSymbol = try demangleAsNodeTransient(symbol.name)
         if demangledSymbol.kind == .global {
             demangledSymbol = demangledSymbol.children[0]
@@ -635,11 +635,11 @@ extension SymbolicDemangler {
     /// under the right kind. A reference that lands on a bind symbol, a
     /// non-type context, or a mangling with no symbolic reference answers
     /// `nil`, and the caller keeps its tree-derived kind.
-    public static func extendedTypeContextDescriptor<MachO: MachOSwiftSectionRepresentableWithCache>(forExtendedContext mangledName: MangledName, in machO: MachO) throws -> TypeContextDescriptorWrapper? {
+    public static func extendedTypeContextDescriptor(forExtendedContext mangledName: MangledName, in machO: some MachOSwiftSectionRepresentableWithCache) throws -> TypeContextDescriptorWrapper? {
         try extendedTypeContextDescriptor(forExtendedContext: mangledName, in: machO.context)
     }
 
-    public static func extendedTypeContextDescriptor<Context: ReadingContext>(forExtendedContext mangledName: MangledName, in context: Context) throws -> TypeContextDescriptorWrapper? {
+    public static func extendedTypeContextDescriptor(forExtendedContext mangledName: MangledName, in context: some ReadingContext) throws -> TypeContextDescriptorWrapper? {
         guard let lookup = mangledName.lookupElements.first,
               case .relative(let relativeReference) = lookup.reference,
               let symbolicReference = SymbolicReference.symbolicReference(for: relativeReference.kind),
@@ -824,7 +824,7 @@ private final class SymbolicDemanglerCache: SharedCache<SymbolicDemanglerCache.S
         fileprivate var nodeReferenceForSymbolName: [String: NodeReference?] = [:]
     }
 
-    override func buildStorage<MachO: MachORepresentableWithCache>(for machO: MachO) -> Storage? {
+    override func buildStorage(for machO: some MachORepresentableWithCache) -> Storage? {
         Storage()
     }
 
@@ -832,7 +832,7 @@ private final class SymbolicDemanglerCache: SharedCache<SymbolicDemanglerCache.S
         Storage()
     }
 
-    func demangleType<MachO: MachOSwiftSectionRepresentableWithCache>(for mangledName: MangledName, in machO: MachO) throws -> Node {
+    func demangleType(for mangledName: MangledName, in machO: some MachOSwiftSectionRepresentableWithCache) throws -> Node {
         if let reference = storage(in: machO)?.nodeReferenceForMangledNameBox[MangledNameBox(mangledName)] {
             return reference.materialize()
         } else {
@@ -854,7 +854,7 @@ private final class SymbolicDemanglerCache: SharedCache<SymbolicDemanglerCache.S
 
     // MARK: - Context Descriptor Cache
 
-    func demangleContext<MachO: MachOSwiftSectionRepresentableWithCache>(for context: ContextDescriptorWrapper, in machO: MachO) throws -> Node {
+    func demangleContext(for context: ContextDescriptorWrapper, in machO: some MachOSwiftSectionRepresentableWithCache) throws -> Node {
         let key = context.contextDescriptor.offset
         if let reference = storage(in: machO)?.nodeReferenceForContextOffset[key] {
             return reference.materialize()
@@ -878,7 +878,7 @@ private final class SymbolicDemanglerCache: SharedCache<SymbolicDemanglerCache.S
 
     // MARK: - Symbol Context Mangling Cache
 
-    func buildContextManglingForSymbol<MachO: MachOSwiftSectionRepresentableWithCache>(_ symbol: Symbol, in machO: MachO) throws -> Node? {
+    func buildContextManglingForSymbol(_ symbol: Symbol, in machO: some MachOSwiftSectionRepresentableWithCache) throws -> Node? {
         let key = symbol.name
         if let cachedVerdict = storage(in: machO)?.nodeReferenceForSymbolName[key] {
             return cachedVerdict?.materialize()

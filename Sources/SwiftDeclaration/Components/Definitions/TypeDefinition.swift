@@ -184,7 +184,7 @@ public final class TypeDefinition: Definition {
         self.exportStatus = exportStatus
     }
 
-    public convenience init<MachO: MachOSwiftSectionRepresentableWithCache>(type: TypeContextWrapper, in machO: MachO) async throws {
+    public convenience init(type: TypeContextWrapper, in machO: some MachOSwiftSectionRepresentableWithCache) async throws {
         let typeName = try type.typeName(in: machO)
         let exportStatus = ExportStatus.resolve(
             forNominalTypeDescriptorAt: type.typeContextDescriptorWrapper.typeContextDescriptor.offset,
@@ -202,7 +202,7 @@ public final class TypeDefinition: Definition {
     /// the result through as a local variable. The result is deliberately
     /// not cached — retaining it on the definition would re-accumulate, in
     /// browse order, the memory the descriptor slimming reclaimed.
-    public func materializedTypeContext<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> TypeContextWrapper {
+    public func materializedTypeContext(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> TypeContextWrapper {
         try TypeContextWrapper.forTypeContextDescriptorWrapper(typeContextDescriptorWrapper, in: machO)
     }
 }

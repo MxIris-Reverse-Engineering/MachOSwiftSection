@@ -1788,6 +1788,17 @@
 - **关联文档**：[draft-annotated-symbol-payload](../Evolutions/draft-annotated-symbol-payload.md)、[Modules/SwiftDeclaration.md](Modules/SwiftDeclaration.md)（构建期机器一行）、[DefaultImplementationAwareCompatibility.md](DefaultImplementationAwareCompatibility.md)（索引期数据通路一段）。
 - **对应版本**：纯组织性改动，输出零变化，随下一次发布。
 
+## 2026-09-17 只用一次的泛型参数改写为 opaque parameter（提案 draft-opaque-parameters-for-single-use-generics）
+
+- **时间段**：2026-09-17（单日，紧接 `AnnotatedSymbol` 那批）。
+- **动机**：用户提的——「把所有没用到泛型参数的改成 `some MachOxxxx`」。仓库里几乎每个「读某个镜像」的函数都写成 `func parent<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO)`，而那个 `MachO` 只被用了一次，就是它自己那个形参的类型。泛型参数列表在这里纯属噪音：给一个只出现一次的类型起了名字，读者却要先扫一遍 `<…>` 才知道形参的约束是什么。SE-0341 的 opaque parameter 正是为这个场景准备的语法糖，两种写法生成同一个泛型签名，mangling 与 ABI 都不变。
+- **关键决策**：**① 判据比「函数体里没用到」更严一格**——还要求返回类型与 `where` 子句里也不出现。这两项不是保守：`func f<Element: P>(x: Element) -> Element` 的返回类型没有东西可以指代那个 `some P`，语法上根本写不出来。**② protocol requirement 一起改**：typecheck 探针证明 `protocol P { func f(x: some Q) }` 合法，且要求侧与实现侧的写法可以不一致、conformance 照样成立（两个方向都测了）。若只改实现侧，同一个方法在声明处和实现处长得不一样，比全不改更难读。**③ 嵌套位置的 12 处跳过**（`[T]`、`[[MachO]]`、`TargetGenericContext<[H]>`、`KeyPath<Layout, [Pointer]>`）——语法允许写 `[some P]`，但 `some` 埋进方括号后读者得停下来想它绑定到哪一层，泛型参数名在这里反而有信息量。**④ 没有内联约束的 105 处不碰**：把 `where` 子句的约束搬进 `some` 要逐条判断约束是否只涉及这一个参数，属于另一类改写。**⑤ 验证靠编译器而不是人工复核**：判据的「函数体里没用到」由脚本按标识符出现次数判定，正则解析 Swift 必有边界情况，但误判方向单一——漏改只是少改一处，误改一定编译不过（`cannot find type in scope`）。
+- **落地模块**：522 处参数、135 个文件，跨整个 spine——`MachOResolving` / `MachOPointers` / `MachOSwiftSection` / `SwiftInspection` / `SwiftDump` / `SwiftDeclaration` / `SwiftIndexing` / `SwiftPrinting` / `SwiftInterface` / `SwiftLayout` 以及 `Tests/`。按约束分布：`MachOSwiftSectionRepresentableWithCache` 179、`ReadingContext` 157、`MachORepresentableWithCache & Readable` 66、`MachORepresentableWithCache` 41、`MachOFieldLayoutRenderable` 41、其余 38。
+- **一个差点踩到的坑**：改写脚本按 `Tests/**/*.swift` 展开时，首轮 dry-run 把 `Tests/Projects/SymbolTests/SymbolTestsCore/` 下四个 fixture 源文件算进了计划。那是编译成 `SymbolTestsCore` 二进制、供 ABI 基线比对的源码，改它会让所有版本化基线失效。脚本里已加显式排除——**任何对 `Tests/` 做批量文本改写的工具都必须排除 `Tests/Projects/`**。
+- **验证**：`swift build` 通过 0 error；`swift test --skip IntegrationTests` 全部 target 编译通过、0 编译错误。红的两个套件（`HostCacheSwiftUICoreMergedAccessorTests` 2 个 issue、`MultiPayloadEnumDescriptorCacheTests` 1 个）与本批无关，已二分确认：把 135 个文件还原到改写前（工作区逐字节等于 `a3ff2c45`）在同一个 scratch 跑同样两个 filter，得到完全相同的三个 issue、相同断言、相同行号——与上一节记录的基线状态一致。随后恢复并逐字节校验，重新构建通过。**未跑渲染 A/B**：opaque parameter 是纯语法糖，生成同一个泛型签名，输出不可能漂移，且全量测试的 snapshot 基线已覆盖。
+- **关联文档**：[draft-opaque-parameters-for-single-use-generics](../Evolutions/draft-opaque-parameters-for-single-use-generics.md)。
+- **对应版本**：纯书写形式改动，输出零变化，随下一次发布。
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节

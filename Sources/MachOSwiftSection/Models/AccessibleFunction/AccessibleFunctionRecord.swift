@@ -51,20 +51,20 @@ extension AccessibleFunctionRecord {
     /// The lookup key the runtime matches an incoming call target against.
     /// Not a mangled name in the demangler's sense — it is whatever string
     /// the emitter chose, so it is read as a plain C string.
-    public func name<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> String {
+    public func name(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> String {
         try layout.name.resolve(from: offset(of: \.name), in: machO)
     }
 
     /// The function's Swift type, mangled. This is what tells a caller how to
     /// build the arguments the abstracted entry point expects.
-    public func functionType<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> MangledName {
+    public func functionType(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> MangledName {
         try layout.functionType.resolve(from: offset(of: \.functionType), in: machO)
     }
 
     /// The generic environment describing the function's generic signature,
     /// or `nil` for a non-generic function — the only nullable pointer in the
     /// record.
-    public func genericEnvironment<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> GenericEnvironment? {
+    public func genericEnvironment(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> GenericEnvironment? {
         guard let genericEnvironmentOffset = resolvedDirectOffset(from: \.genericEnvironment) else { return nil }
         return try GenericEnvironment.resolve(from: genericEnvironmentOffset, in: machO)
     }
@@ -83,11 +83,11 @@ extension AccessibleFunctionRecord {
 // MARK: - ReadingContext Support
 
 extension AccessibleFunctionRecord {
-    public func name<Context: ReadingContext>(in context: Context) throws -> String {
+    public func name(in context: some ReadingContext) throws -> String {
         try layout.name.resolve(at: try context.addressFromOffset(offset(of: \.name)), in: context)
     }
 
-    public func functionType<Context: ReadingContext>(in context: Context) throws -> MangledName {
+    public func functionType(in context: some ReadingContext) throws -> MangledName {
         try layout.functionType.resolve(at: try context.addressFromOffset(offset(of: \.functionType)), in: context)
     }
 

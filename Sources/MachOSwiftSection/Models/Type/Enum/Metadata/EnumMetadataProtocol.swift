@@ -12,7 +12,7 @@ extension EnumMetadataProtocol {
         try layout.descriptor.resolve().enum!
     }
 
-    public func payloadSize<MachO: MachOSwiftSectionRepresentableWithCache>(descriptor: EnumDescriptor? = nil, in machO: MachO) throws -> StoredSize? {
+    public func payloadSize(descriptor: EnumDescriptor? = nil, in machO: some MachOSwiftSectionRepresentableWithCache) throws -> StoredSize? {
         let descriptor = try descriptor ?? enumDescriptor(in: machO)
         guard descriptor.hasPayloadSizeOffset else {
             return nil
@@ -34,11 +34,11 @@ extension EnumMetadataProtocol {
 // MARK: - ReadingContext Support
 
 extension EnumMetadataProtocol {
-    public func enumDescriptor<Context: ReadingContext>(in context: Context) throws -> EnumDescriptor {
+    public func enumDescriptor(in context: some ReadingContext) throws -> EnumDescriptor {
         try descriptor(in: context).enum!
     }
 
-    public func payloadSize<Context: ReadingContext>(descriptor: EnumDescriptor? = nil, in context: Context) throws -> StoredSize? {
+    public func payloadSize(descriptor: EnumDescriptor? = nil, in context: some ReadingContext) throws -> StoredSize? {
         let descriptor = try descriptor ?? enumDescriptor(in: context)
         guard descriptor.hasPayloadSizeOffset else {
             return nil

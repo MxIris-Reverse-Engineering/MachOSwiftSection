@@ -46,7 +46,7 @@ open class SharedCache<Storage>: @unchecked Sendable {
         return nil
     }
 
-    open func storage<MachO: MachORepresentableWithCache>(in machO: MachO) -> Storage? {
+    open func storage(in machO: some MachORepresentableWithCache) -> Storage? {
         return storage(in: machO) { machO in
             buildStorage(for: machO)
         }
@@ -94,7 +94,7 @@ open class SharedCache<Storage>: @unchecked Sendable {
     /// "self-triggered" perspective (see ``SwiftDeclarationIndexer``) that is
     /// still cooperative ownership, not sole ownership, so reporting `true`
     /// for in-flight would mislead the bookkeeping.
-    public func contains<MachO: MachORepresentableWithCache>(in machO: MachO) -> Bool {
+    public func contains(in machO: some MachORepresentableWithCache) -> Bool {
         return contains(key: machO.identifier)
     }
 
@@ -118,7 +118,7 @@ open class SharedCache<Storage>: @unchecked Sendable {
     /// completed result simply won't be re-installed because the in-flight
     /// marker has already been removed by the time we check on the build
     /// path. Safe to call even when no entry exists.
-    public func remove<MachO: MachORepresentableWithCache>(for machO: MachO) {
+    public func remove(for machO: some MachORepresentableWithCache) {
         remove(key: machO.identifier)
     }
 

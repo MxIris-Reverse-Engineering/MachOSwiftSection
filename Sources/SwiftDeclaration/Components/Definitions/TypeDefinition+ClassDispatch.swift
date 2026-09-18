@@ -13,7 +13,7 @@ extension TypeDefinition {
     /// objects, so this is the one place indexing has to materialize the full
     /// wrapper — once, as a local, released when this function returns
     /// (materialization discipline, proposal 0002).
-    func classDispatchLookups<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> ClassDispatchLookups {
+    func classDispatchLookups(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> ClassDispatchLookups {
         var lookups = ClassDispatchLookups()
         guard case .class(let classDescriptor) = typeContextDescriptorWrapper else { return lookups }
         let classWrapper = try Class(descriptor: classDescriptor, in: machO)

@@ -98,7 +98,7 @@ extension FunctionTypeMetadata {
 
 extension FunctionTypeMetadata {
     /// The parameter types, in declaration order.
-    public func parameters<Context: ReadingContext>(in context: Context) throws -> [ConstMetadataPointer<Metadata>] {
+    public func parameters(in context: some ReadingContext) throws -> [ConstMetadataPointer<Metadata>] {
         guard numberOfParameters > 0 else { return [] }
         return try context.readElements(at: try context.addressFromOffset(parametersOffset), numberOfElements: numberOfParameters)
     }
@@ -106,7 +106,7 @@ extension FunctionTypeMetadata {
     /// The per-parameter flags, in declaration order, or an empty array when
     /// the record carries none. An empty result means "every parameter is an
     /// ordinary by-value one", not "unknown".
-    public func parameterFlags<Context: ReadingContext>(in context: Context) throws -> [FunctionParameterTypeFlags] {
+    public func parameterFlags(in context: some ReadingContext) throws -> [FunctionParameterTypeFlags] {
         guard let parameterFlagsOffset, numberOfParameters > 0 else { return [] }
         return try context.readElements(at: try context.addressFromOffset(parameterFlagsOffset), numberOfElements: numberOfParameters)
     }
@@ -115,7 +115,7 @@ extension FunctionTypeMetadata {
     /// differentiable. A recognized raw value is required; an unknown one
     /// reads as `nil` too, so a caller that must distinguish should check
     /// ``FunctionTypeFlags/isDifferentiable`` itself.
-    public func differentiabilityKind<Context: ReadingContext>(in context: Context) throws -> FunctionTypeDifferentiabilityKind? {
+    public func differentiabilityKind(in context: some ReadingContext) throws -> FunctionTypeDifferentiabilityKind? {
         guard let differentiabilityKindOffset else { return nil }
         let rawValue: FunctionTypeDifferentiabilityKind.RawValue = try context.readElement(at: try context.addressFromOffset(differentiabilityKindOffset))
         return FunctionTypeDifferentiabilityKind(rawValue: rawValue)
@@ -123,7 +123,7 @@ extension FunctionTypeMetadata {
 
     /// The global actor the function is isolated to, or `nil` when it is not
     /// globally isolated.
-    public func globalActorType<Context: ReadingContext>(in context: Context) throws -> ConstMetadataPointer<Metadata>? {
+    public func globalActorType(in context: some ReadingContext) throws -> ConstMetadataPointer<Metadata>? {
         guard let globalActorOffset else { return nil }
         // Annotated: asking for the optional directly would instantiate the
         // read at `Optional<Pointer<…>>`, a different in-memory shape.
@@ -132,7 +132,7 @@ extension FunctionTypeMetadata {
     }
 
     /// The extended flag word, or `nil` when the record carries none.
-    public func extendedFlags<Context: ReadingContext>(in context: Context) throws -> FunctionTypeExtendedFlags? {
+    public func extendedFlags(in context: some ReadingContext) throws -> FunctionTypeExtendedFlags? {
         guard let extendedFlagsOffset else { return nil }
         return try context.readElement(at: try context.addressFromOffset(extendedFlagsOffset))
     }
@@ -143,14 +143,14 @@ extension FunctionTypeMetadata {
     /// Unlike the other offsets this one is not pure arithmetic: whether the
     /// block is present is recorded in the extended flags' VALUE, not in the
     /// first flag word, so answering needs a read.
-    public func thrownErrorTypeOffset<Context: ReadingContext>(in context: Context) throws -> Int? {
+    public func thrownErrorTypeOffset(in context: some ReadingContext) throws -> Int? {
         guard let extendedFlags = try extendedFlags(in: context), extendedFlags.isTypedThrows else { return nil }
         return Self.aligned(endOfExtendedFlags, to: Self.pointerSize)
     }
 
     /// The concrete error type of a `throws(MyError)` function, or `nil` when
     /// the function throws untyped or does not throw.
-    public func thrownErrorType<Context: ReadingContext>(in context: Context) throws -> ConstMetadataPointer<Metadata>? {
+    public func thrownErrorType(in context: some ReadingContext) throws -> ConstMetadataPointer<Metadata>? {
         guard let thrownErrorTypeOffset = try thrownErrorTypeOffset(in: context) else { return nil }
         let pointer: ConstMetadataPointer<Metadata> = try context.readElement(at: try context.addressFromOffset(thrownErrorTypeOffset))
         return pointer

@@ -72,10 +72,10 @@ extension ExportStatus {
     /// The descriptor is the one symbol every nominal type owns regardless of
     /// what else got exported — on the `SymbolTestsCore` fixture the exported
     /// `Mn` and `Ma` (metadata accessor) sets coincide exactly.
-    package static func resolve<MachO: MachOSwiftSectionRepresentableWithCache>(
+    package static func resolve(
         forNominalTypeDescriptorAt descriptorOffset: Int,
         typeNameNode: NodeReference,
-        in machO: MachO
+        in machO: some MachOSwiftSectionRepresentableWithCache
     ) -> ExportStatus {
         resolve(
             descriptorOffset: descriptorOffset,
@@ -87,10 +87,10 @@ extension ExportStatus {
     }
 
     /// A protocol's status, ruled by its protocol descriptor symbol (`…Mp`).
-    package static func resolve<MachO: MachOSwiftSectionRepresentableWithCache>(
+    package static func resolve(
         forProtocolDescriptorAt descriptorOffset: Int,
         protocolNameNode: NodeReference,
-        in machO: MachO
+        in machO: some MachOSwiftSectionRepresentableWithCache
     ) -> ExportStatus {
         resolve(
             descriptorOffset: descriptorOffset,
@@ -117,12 +117,12 @@ extension ExportStatus {
     ///    which is complete even when the symtab is not. Restricted to
     ///    canonical contexts — a name involving an `.extension` context is
     ///    exactly the shape leg 1 exists for, and yields no verdict here.
-    private static func resolve<MachO: MachOSwiftSectionRepresentableWithCache>(
+    private static func resolve(
         descriptorOffset: Int,
         nameNode: NodeReference,
         descriptorKind: Node.Kind,
         descriptorSymbolSuffix: String,
-        in machO: MachO
+        in machO: some MachOSwiftSectionRepresentableWithCache
     ) -> ExportStatus {
         @Dependency(\.symbolIndexStore)
         var symbolIndexStore

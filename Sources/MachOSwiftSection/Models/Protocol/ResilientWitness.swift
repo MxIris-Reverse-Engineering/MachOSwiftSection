@@ -11,7 +11,7 @@ public struct ResilientWitness: ResolvableLocatableLayoutWrapper {
 }
 
 extension ResilientWitness {
-    public func requirement<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> SymbolOrElement<ProtocolRequirement>? {
+    public func requirement(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> SymbolOrElement<ProtocolRequirement>? {
         return try layout.requirement.resolve(from: offset(of: \.requirement), in: machO).asOptional
     }
     
@@ -41,7 +41,7 @@ extension ResilientWitness {
 // MARK: - ReadingContext Support
 
 extension ResilientWitness {
-    public func requirement<Context: ReadingContext>(in context: Context) throws -> SymbolOrElement<ProtocolRequirement>? {
+    public func requirement(in context: some ReadingContext) throws -> SymbolOrElement<ProtocolRequirement>? {
         return try layout.requirement.resolve(at: try context.addressFromOffset(offset(of: \.requirement)), in: context).asOptional
     }
 

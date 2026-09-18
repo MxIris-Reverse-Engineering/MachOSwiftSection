@@ -11,11 +11,11 @@ extension TypeDefinition {
     /// matches a stored field record: those carry dispatch facts the field
     /// still needs, and `foldStoredPropertyAccessors(_:into:)` folds them back
     /// on. Every other product is assigned onto the definition in place.
-    func indexMembers<MachO: MachOSwiftSectionRepresentableWithCache>(
+    func indexMembers(
         fieldNames: Set<String>,
         dispatchLookups: ClassDispatchLookups,
         symbolIndexStore: SymbolIndexStore,
-        in machO: MachO
+        in machO: some MachOSwiftSectionRepresentableWithCache
     ) -> [String: [Accessor]] {
         let name = typeName.name
         let node = typeName.node

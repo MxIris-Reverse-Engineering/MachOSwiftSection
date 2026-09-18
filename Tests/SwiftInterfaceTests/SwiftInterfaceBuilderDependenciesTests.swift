@@ -23,7 +23,7 @@ final class SwiftInterfaceBuilderDependenciesTests: MachOSwiftSectionFixtureTest
         Set(images.map { DependencyLoadName.bareImageName(of: $0.imagePath) })
     }
 
-    private func directBareImageNames<MachO: MachORepresentableWithCache>(of root: MachO) -> Set<String> {
+    private func directBareImageNames(of root: some MachORepresentableWithCache) -> Set<String> {
         Set(root.dependencies.map { DependencyLoadName.bareImageName(of: $0.dylib.name) })
     }
 

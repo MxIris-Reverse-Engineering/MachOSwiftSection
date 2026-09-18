@@ -12,7 +12,7 @@ public struct FieldRecord: ResolvableLocatableLayoutWrapper {
 }
 
 extension FieldRecord {
-    public func mangledTypeName<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> MangledName {
+    public func mangledTypeName(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> MangledName {
         return try layout.mangledTypeName.resolve(from: offset(of: \.mangledTypeName), in: machO)
     }
 
@@ -21,7 +21,7 @@ extension FieldRecord {
     /// type) for an enum element that is unavailable at run time, while the
     /// element keeps its tag. Reading through the null pointer would
     /// otherwise decode the record's own bytes as the name.
-    public func fieldName<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> String {
+    public func fieldName(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> String {
         guard !layout.fieldName.isNull else { return "" }
         return try layout.fieldName.resolve(from: offset(of: \.fieldName), in: machO)
     }
@@ -41,11 +41,11 @@ extension FieldRecord {
 // MARK: - ReadingContext Support
 
 extension FieldRecord {
-    public func mangledTypeName<Context: ReadingContext>(in context: Context) throws -> MangledName {
+    public func mangledTypeName(in context: some ReadingContext) throws -> MangledName {
         return try layout.mangledTypeName.resolve(at: try context.addressFromOffset(offset(of: \.mangledTypeName)), in: context)
     }
 
-    public func fieldName<Context: ReadingContext>(in context: Context) throws -> String {
+    public func fieldName(in context: some ReadingContext) throws -> String {
         guard !layout.fieldName.isNull else { return "" }
         return try layout.fieldName.resolve(at: try context.addressFromOffset(offset(of: \.fieldName)), in: context)
     }

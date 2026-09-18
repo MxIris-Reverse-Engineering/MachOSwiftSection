@@ -34,13 +34,13 @@ public struct MetadataSourceRecord: ResolvableLocatableLayoutWrapper {
 
 extension MetadataSourceRecord {
     /// The type this entry supplies metadata for — a real mangled type name.
-    public func mangledTypeName<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> MangledName {
+    public func mangledTypeName(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> MangledName {
         try layout.mangledTypeName.resolve(from: offset(of: \.mangledTypeName), in: machO)
     }
 
     /// The recipe for recovering that metadata, unparsed. See the type's
     /// documentation for why.
-    public func mangledMetadataSource<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> MangledName {
+    public func mangledMetadataSource(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> MangledName {
         try layout.mangledMetadataSource.resolve(from: offset(of: \.mangledMetadataSource), in: machO)
     }
 }
@@ -58,11 +58,11 @@ extension MetadataSourceRecord {
 // MARK: - ReadingContext Support
 
 extension MetadataSourceRecord {
-    public func mangledTypeName<Context: ReadingContext>(in context: Context) throws -> MangledName {
+    public func mangledTypeName(in context: some ReadingContext) throws -> MangledName {
         try layout.mangledTypeName.resolve(at: try context.addressFromOffset(offset(of: \.mangledTypeName)), in: context)
     }
 
-    public func mangledMetadataSource<Context: ReadingContext>(in context: Context) throws -> MangledName {
+    public func mangledMetadataSource(in context: some ReadingContext) throws -> MangledName {
         try layout.mangledMetadataSource.resolve(at: try context.addressFromOffset(offset(of: \.mangledMetadataSource)), in: context)
     }
 }

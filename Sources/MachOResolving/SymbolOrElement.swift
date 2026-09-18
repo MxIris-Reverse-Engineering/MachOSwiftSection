@@ -33,7 +33,7 @@ public enum SymbolOrElement<Element: Resolvable>: Resolvable {
         }
     }
 
-    public static func resolve<MachO: MachORepresentableWithCache & Readable>(from offset: Int, in machO: MachO) throws -> Self {
+    public static func resolve(from offset: Int, in machO: some MachORepresentableWithCache & Readable) throws -> Self {
         if let machOFile = machO as? MachOFile, let symbol = machOFile.resolveBind(fileOffset: offset) {
             return .symbol(.init(offset: offset, name: symbol))
         } else {
@@ -41,7 +41,7 @@ public enum SymbolOrElement<Element: Resolvable>: Resolvable {
         }
     }
 
-    public static func resolve<MachO: MachORepresentableWithCache & Readable>(from offset: Int, in machO: MachO) throws -> Self? {
+    public static func resolve(from offset: Int, in machO: some MachORepresentableWithCache & Readable) throws -> Self? {
         if let machOFile = machO as? MachOFile, let symbol = machOFile.resolveBind(fileOffset: offset) {
             return .symbol(.init(offset: offset, name: symbol))
         } else {

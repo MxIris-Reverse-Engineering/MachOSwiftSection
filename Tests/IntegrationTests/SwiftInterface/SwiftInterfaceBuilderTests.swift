@@ -44,17 +44,17 @@ extension SwiftInterfaceBuilderTests {
 
     /// Builds the interface (timed) and returns the rendered source. The two
     /// `@Test` entry points below only differ in where they send this string.
-    private func buildInterfaceString<MachO: MachOFieldLayoutRenderable>(in machO: MachO) async throws -> String {
+    private func buildInterfaceString(in machO: some MachOFieldLayoutRenderable) async throws -> String {
         let builder = try makeBuilder(in: machO)
         try await measuringPreparation { try await builder.prepare() }
         return try await builder.printRoot().string
     }
 
-    func buildString<MachO: MachOFieldLayoutRenderable>(in machO: MachO) async throws {
+    func buildString(in machO: some MachOFieldLayoutRenderable) async throws {
         printResult(try await buildInterfaceString(in: machO))
     }
 
-    func buildFile<MachO: MachOFieldLayoutRenderable>(in machO: MachO) async throws {
+    func buildFile(in machO: some MachOFieldLayoutRenderable) async throws {
         // Preserve the historical `-FileDump` / `-ImageDump` naming so the file
         // tells you which reader produced it.
         let suffix = machO is MachOImage ? "ImageDump" : "FileDump"

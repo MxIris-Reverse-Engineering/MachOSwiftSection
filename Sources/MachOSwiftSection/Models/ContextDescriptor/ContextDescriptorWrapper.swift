@@ -128,11 +128,11 @@ public enum ContextDescriptorWrapper {
         }
     }
 
-    public func parent<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> SymbolOrElement<ContextDescriptorWrapper>? {
+    public func parent(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> SymbolOrElement<ContextDescriptorWrapper>? {
         return try contextDescriptor.parent(in: machO)
     }
 
-    public func genericContext<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> GenericContext? {
+    public func genericContext(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> GenericContext? {
         return try contextDescriptor.genericContext(in: machO)
     }
 
@@ -146,11 +146,11 @@ public enum ContextDescriptorWrapper {
 
     // MARK: - ReadingContext Support
 
-    public func parent<Context: ReadingContext>(in context: Context) throws -> SymbolOrElement<ContextDescriptorWrapper>? {
+    public func parent(in context: some ReadingContext) throws -> SymbolOrElement<ContextDescriptorWrapper>? {
         return try contextDescriptor.parent(in: context)
     }
 
-    public func genericContext<Context: ReadingContext>(in context: Context) throws -> GenericContext? {
+    public func genericContext(in context: some ReadingContext) throws -> GenericContext? {
         return try contextDescriptor.genericContext(in: context)
     }
 
@@ -215,7 +215,7 @@ extension ContextDescriptorWrapper: Resolvable {
         case invalidContextDescriptor
     }
 
-    public static func resolve<MachO: MachORepresentableWithCache & Readable>(from offset: Int, in machO: MachO) throws -> Self {
+    public static func resolve(from offset: Int, in machO: some MachORepresentableWithCache & Readable) throws -> Self {
         let contextDescriptor: ContextDescriptor = try machO.readWrapperElement(offset: offset)
         switch contextDescriptor.flags.kind {
         case .class,
@@ -259,7 +259,7 @@ extension ContextDescriptorWrapper: Resolvable {
         }
     }
 
-    public static func resolve<MachO: MachORepresentableWithCache & Readable>(from offset: Int, in machO: MachO) throws -> Self? {
+    public static func resolve(from offset: Int, in machO: some MachORepresentableWithCache & Readable) throws -> Self? {
         do {
             return try resolve(from: offset, in: machO) as Self
         } catch {

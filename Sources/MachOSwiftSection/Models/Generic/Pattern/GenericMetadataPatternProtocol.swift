@@ -56,19 +56,19 @@ extension GenericMetadataPatternProtocol {
             + numberOfTrailingPartialPatterns * MemoryLayout<GenericMetadataPartialPattern.Layout>.size
     }
 
-    public func partialPatterns<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> [GenericMetadataPartialPattern] {
+    public func partialPatterns(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> [GenericMetadataPartialPattern] {
         guard numberOfTrailingPartialPatterns > 0 else { return [] }
         return try machO.readWrapperElements(offset: partialPatternsOffset, numberOfElements: numberOfTrailingPartialPatterns)
     }
 
-    public func partialPatterns<Context: ReadingContext>(in context: Context) throws -> [GenericMetadataPartialPattern] {
+    public func partialPatterns(in context: some ReadingContext) throws -> [GenericMetadataPartialPattern] {
         guard numberOfTrailingPartialPatterns > 0 else { return [] }
         return try context.readWrapperElements(at: try context.addressFromOffset(partialPatternsOffset), numberOfElements: numberOfTrailingPartialPatterns)
     }
 
     /// The extra-data partial pattern, or `nil` when the flags say there is
     /// none. Always the first trailing pattern when present.
-    public func extraDataPattern<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> GenericMetadataPartialPattern? {
+    public func extraDataPattern(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> GenericMetadataPartialPattern? {
         guard hasExtraDataPattern else { return nil }
         return try partialPatterns(in: machO).first
     }

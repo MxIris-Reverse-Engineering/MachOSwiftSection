@@ -14,17 +14,17 @@ public struct TypeContextDescriptor: TypeContextDescriptorProtocol {
 }
 
 extension TypeContextDescriptor {
-    public func enumDescriptor<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> EnumDescriptor? {
+    public func enumDescriptor(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> EnumDescriptor? {
         guard layout.flags.kind == .enum else { return nil }
         return try machO.readWrapperElement(offset: offset) as EnumDescriptor
     }
 
-    public func structDescriptor<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> StructDescriptor? {
+    public func structDescriptor(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> StructDescriptor? {
         guard layout.flags.kind == .struct else { return nil }
         return try machO.readWrapperElement(offset: offset) as StructDescriptor
     }
 
-    public func classDescriptor<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> ClassDescriptor? {
+    public func classDescriptor(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> ClassDescriptor? {
         guard layout.flags.kind == .class else { return nil }
         return try machO.readWrapperElement(offset: offset) as ClassDescriptor
     }
@@ -50,17 +50,17 @@ extension TypeContextDescriptor {
 // MARK: - ReadingContext Support
 
 extension TypeContextDescriptor {
-    public func enumDescriptor<Context: ReadingContext>(in context: Context) throws -> EnumDescriptor? {
+    public func enumDescriptor(in context: some ReadingContext) throws -> EnumDescriptor? {
         guard layout.flags.kind == .enum else { return nil }
         return try context.readWrapperElement(at: try context.addressFromOffset(offset)) as EnumDescriptor
     }
 
-    public func structDescriptor<Context: ReadingContext>(in context: Context) throws -> StructDescriptor? {
+    public func structDescriptor(in context: some ReadingContext) throws -> StructDescriptor? {
         guard layout.flags.kind == .struct else { return nil }
         return try context.readWrapperElement(at: try context.addressFromOffset(offset)) as StructDescriptor
     }
 
-    public func classDescriptor<Context: ReadingContext>(in context: Context) throws -> ClassDescriptor? {
+    public func classDescriptor(in context: some ReadingContext) throws -> ClassDescriptor? {
         guard layout.flags.kind == .class else { return nil }
         return try context.readWrapperElement(at: try context.addressFromOffset(offset)) as ClassDescriptor
     }

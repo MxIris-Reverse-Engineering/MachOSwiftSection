@@ -451,7 +451,7 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
         super.init()
     }
 
-    public override func buildStorage<MachO: MachORepresentableWithCache>(for machO: MachO) -> Storage? {
+    public override func buildStorage(for machO: some MachORepresentableWithCache) -> Storage? {
         return buildStorageImpl(for: machO, progressContinuation: nil)
     }
 
@@ -475,8 +475,8 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
     /// Wrapping the sweep's *call sites* instead would be a no-op — a hop that
     /// covers one demangle saves the one it replaces and nothing else. The
     /// saving is `(calls - 1)` hops, so the wrapper has to enclose the loop.
-    private func buildStorageImpl<MachO: MachORepresentableWithCache>(
-        for machO: MachO,
+    private func buildStorageImpl(
+        for machO: some MachORepresentableWithCache,
         progressContinuation: AsyncStream<Progress>.Continuation?
     ) -> Storage? {
         return StackSafeExecutor.withLargeStack {
@@ -484,8 +484,8 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
         }
     }
 
-    private func buildStorageSweep<MachO: MachORepresentableWithCache>(
-        for machO: MachO,
+    private func buildStorageSweep(
+        for machO: some MachORepresentableWithCache,
         progressContinuation: AsyncStream<Progress>.Continuation?
     ) -> Storage? {
         // Reader split (proposal 0001): a MachOImage's symbol names already
@@ -554,7 +554,7 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
         /// that pass it, and only as the build-time dedup key. An image's
         /// offsets need no cache adjustment (that path is `MachOFile`-only),
         /// so canonical == raw here.
-        func collectMappedSymbolRows<MappedSymbols: Sequence<MachOImage.Symbol>>(_ mappedSymbols: MappedSymbols, stringBase: UnsafeRawPointer) {
+        func collectMappedSymbolRows(_ mappedSymbols: some Sequence<MachOImage.Symbol>, stringBase: UnsafeRawPointer) {
             for symbol in mappedSymbols {
                 guard nameBytesHaveSwiftManglingPrefix(symbol.nameC), !symbol.nlist.isExternal else { continue }
                 // A `nil` row means the name's binary-supplied geometry
@@ -910,12 +910,12 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
         return nil
     }
 
-    public func allSymbols<MachO: MachORepresentableWithCache>(in machO: MachO) -> [DemangledSymbol] {
+    public func allSymbols(in machO: some MachORepresentableWithCache) -> [DemangledSymbol] {
         guard let storage = storage(in: machO) else { return [] }
         return storage.symbolRowsByKind.values.flatMap { storage.demangledSymbols(atRows: $0) }
     }
 
-    public func symbolsByKind<MachO: MachORepresentableWithCache>(in machO: MachO) -> OrderedDictionary<Node.Kind, [DemangledSymbol]> {
+    public func symbolsByKind(in machO: some MachORepresentableWithCache) -> OrderedDictionary<Node.Kind, [DemangledSymbol]> {
         guard let storage = storage(in: machO) else { return [:] }
         return storage.symbolRowsByKind.mapValues { storage.demangledSymbols(atRows: $0) }
     }
@@ -924,20 +924,20 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
     /// types colliding on the stripped interface print. Prefer the
     /// node-taking overload whenever the caller holds the type's context
     /// node — the name alone cannot tell same-named private types apart.
-    public func typeInfo<MachO: MachORepresentableWithCache>(for name: String, in machO: MachO) -> TypeInfo? {
+    public func typeInfo(for name: String, in machO: some MachORepresentableWithCache) -> TypeInfo? {
         return storage(in: machO)?.typeInfoByName[name]?.values.first
     }
 
     /// Structural counterpart: resolves the `TypeInfo` of exactly the type
     /// whose context node matches `node`, so same-named private types each
     /// answer with their own kind.
-    public func typeInfo<MachO: MachORepresentableWithCache>(for name: String, node: NodeReference, in machO: MachO) -> TypeInfo? {
+    public func typeInfo(for name: String, node: NodeReference, in machO: some MachORepresentableWithCache) -> TypeInfo? {
         guard let storage = storage(in: machO) else { return nil }
         guard let typeInfoByTypeNodeIndex = storage.typeInfoByName[name] else { return nil }
         return typeInfoByTypeNodeIndex.elements.first(where: { storage.nodeStore.reference(at: $0.key).structurallyEquals(node) })?.value
     }
 
-    public func symbols<MachO: MachORepresentableWithCache>(of kinds: Node.Kind..., in machO: MachO) -> [DemangledSymbol] {
+    public func symbols(of kinds: Node.Kind..., in machO: some MachORepresentableWithCache) -> [DemangledSymbol] {
         guard let storage = storage(in: machO) else { return [] }
         return kinds.map { storage.demangledSymbols(atRows: storage.symbolRowsByKind[$0] ?? []) }.reduce(into: []) { $0 += $1 }
     }
@@ -946,7 +946,7 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
     /// for callers (the interface header's dispatch-thunk count) that need
     /// only the count and would otherwise materialize a `DemangledSymbol`
     /// array to throw it away.
-    public func symbolCount<MachO: MachORepresentableWithCache>(of kinds: Node.Kind..., in machO: MachO) -> Int {
+    public func symbolCount(of kinds: Node.Kind..., in machO: some MachORepresentableWithCache) -> Int {
         guard let storage = storage(in: machO) else { return 0 }
         return kinds.reduce(0) { $0 + (storage.symbolRowsByKind[$1]?.count ?? 0) }
     }
@@ -958,7 +958,7 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
     /// Returns `nil` when the image carries no export information at all
     /// (no trie, or the store is unavailable) — then the distinction is
     /// meaningless and callers should not annotate.
-    public func isExported<MachO: MachORepresentableWithCache>(name: String, in machO: MachO) -> Bool? {
+    public func isExported(name: String, in machO: some MachORepresentableWithCache) -> Bool? {
         guard let storage = storage(in: machO) else { return nil }
         return storage.isExported(name: name)
     }
@@ -969,7 +969,7 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
     /// an `@objc` member's ObjC entry point is its implementation name plus
     /// the `To` thunk suffix, so presence of that name identifies the
     /// member as objc_msgSend-reachable without demangling anything.
-    public func containsSymbol<MachO: MachORepresentableWithCache>(named name: String, in machO: MachO) -> Bool {
+    public func containsSymbol(named name: String, in machO: some MachORepresentableWithCache) -> Bool {
         guard let storage = storage(in: machO) else { return false }
         return storage.symbolTable.row(forName: name) != nil
     }
@@ -988,7 +988,7 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
     /// member is honestly "not exported" only when NONE of its forms are
     /// (issue #106 verified exactly this way: an export-table search for
     /// any symbol of the member).
-    public func isExportedIncludingDerivedSymbols<MachO: MachORepresentableWithCache>(name: String, in machO: MachO) -> Bool? {
+    public func isExportedIncludingDerivedSymbols(name: String, in machO: some MachORepresentableWithCache) -> Bool? {
         guard let storage = storage(in: machO) else { return nil }
         guard let isExported = storage.isExported(name: name) else { return nil }
         if isExported {
@@ -1007,10 +1007,10 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
     /// Flattens every context-node bucket under the name — same-named private
     /// types are merged here; prefer the node-taking overload when the caller
     /// can supply the type's context node.
-    public func thunkAttributeMembers<MachO: MachORepresentableWithCache>(
+    public func thunkAttributeMembers(
         of thunkKind: Node.Kind,
         for typeName: String,
-        in machO: MachO
+        in machO: some MachORepresentableWithCache
     ) -> [ThunkAttributeMember] {
         guard let membersByTypeNodeIndex = storage(in: machO)?.thunkAttributeMembersByKindAndTypeName[thunkKind]?[typeName] else { return [] }
         return membersByTypeNodeIndex.values.flatMap { $0 }
@@ -1019,11 +1019,11 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
     /// Structural counterpart: returns only the members whose parent context
     /// node matches `node`, so a same-named private sibling's `@objc` /
     /// `@nonobjc` thunks never stamp attributes onto this type's members.
-    public func thunkAttributeMembers<MachO: MachORepresentableWithCache>(
+    public func thunkAttributeMembers(
         of thunkKind: Node.Kind,
         for typeName: String,
         node: NodeReference,
-        in machO: MachO
+        in machO: some MachORepresentableWithCache
     ) -> [ThunkAttributeMember] {
         guard let storage = storage(in: machO) else { return [] }
         guard let membersByTypeNodeIndex = storage.thunkAttributeMembersByKindAndTypeName[thunkKind]?[typeName] else { return [] }
@@ -1034,11 +1034,11 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
     /// Same lookup as the `NodeReference` overload, for callers holding an
     /// externally demangled `Node` (`SymbolicDemangler.demangleContext` output in
     /// the dump path) rather than a store-backed reference.
-    public func thunkAttributeMembers<MachO: MachORepresentableWithCache>(
+    public func thunkAttributeMembers(
         of thunkKind: Node.Kind,
         for typeName: String,
         node: Node,
-        in machO: MachO
+        in machO: some MachORepresentableWithCache
     ) -> [ThunkAttributeMember] {
         guard let storage = storage(in: machO) else { return [] }
         guard let membersByTypeNodeIndex = storage.thunkAttributeMembersByKindAndTypeName[thunkKind]?[typeName] else { return [] }
@@ -1046,7 +1046,7 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
         return matched.value
     }
 
-    public func memberSymbols<MachO: MachORepresentableWithCache>(of kinds: MemberKind..., in machO: MachO) -> [DemangledSymbol] {
+    public func memberSymbols(of kinds: MemberKind..., in machO: some MachORepresentableWithCache) -> [DemangledSymbol] {
         guard let storage = storage(in: machO) else { return [] }
         return kinds.map { kind -> [DemangledSymbol] in
             guard let memberRows = storage.memberSymbolRowsByKind[kind] else { return [] }
@@ -1056,7 +1056,7 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
         }.reduce(into: []) { $0 += $1 }
     }
 
-    public func memberSymbols<MachO: MachORepresentableWithCache>(of kinds: MemberKind..., for name: String, in machO: MachO) -> [DemangledSymbol] {
+    public func memberSymbols(of kinds: MemberKind..., for name: String, in machO: some MachORepresentableWithCache) -> [DemangledSymbol] {
         guard let storage = storage(in: machO) else { return [] }
         return kinds.map { kind -> [DemangledSymbol] in
             guard let rowsByTypeNodeIndex = storage.memberSymbolRowsByKind[kind]?[name] else { return [] }
@@ -1064,7 +1064,7 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
         }.reduce(into: []) { $0 += $1 }
     }
 
-    public func memberSymbols<MachO: MachORepresentableWithCache>(of kinds: MemberKind..., for name: String, node: Node, in machO: MachO) -> [DemangledSymbol] {
+    public func memberSymbols(of kinds: MemberKind..., for name: String, node: Node, in machO: some MachORepresentableWithCache) -> [DemangledSymbol] {
         // Callers hold an externally demangled `Node` (SymbolicDemangler context
         // demangling), while keys are node indexes into the frozen store.
         // The type-name bucket holds at most a handful of type nodes, so a
@@ -1077,7 +1077,7 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
         }.reduce(into: []) { $0 += $1 }
     }
 
-    public func memberSymbols<MachO: MachORepresentableWithCache>(of kinds: MemberKind..., for name: String, node: NodeReference, in machO: MachO) -> [DemangledSymbol] {
+    public func memberSymbols(of kinds: MemberKind..., for name: String, node: NodeReference, in machO: some MachORepresentableWithCache) -> [DemangledSymbol] {
         // Same lookup as the `Node` overload, for callers holding a
         // store-backed reference — possibly minted into a different store
         // than the index's own (for example a `TypeName` mini store):
@@ -1098,7 +1098,7 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
     /// in-package consumer only iterates, but the vended contract has to hold
     /// for lookups too (`NodeStoreMigrationOpenIssues.md` item 3, reopened in the
     /// PR #103 round-three review and recorded in `ReviewAdjudications.md` A9).
-    public func memberSymbols<MachO: MachORepresentableWithCache>(of kinds: MemberKind..., excluding names: borrowing Set<String>, in machO: MachO) -> OrderedDictionary<StructuralNodeReferenceKey, OrderedDictionary<MemberKind, [DemangledSymbol]>> {
+    public func memberSymbols(of kinds: MemberKind..., excluding names: borrowing Set<String>, in machO: some MachORepresentableWithCache) -> OrderedDictionary<StructuralNodeReferenceKey, OrderedDictionary<MemberKind, [DemangledSymbol]>> {
         guard let storage = storage(in: machO) else { return [:] }
         var result: OrderedDictionary<StructuralNodeReferenceKey, OrderedDictionary<MemberKind, [DemangledSymbol]>> = [:]
         for kind in kinds {
@@ -1112,7 +1112,7 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
         return result
     }
 
-    public func methodDescriptorMemberSymbols<MachO: MachORepresentableWithCache>(of kinds: MemberKind..., in machO: MachO) -> [DemangledSymbol] {
+    public func methodDescriptorMemberSymbols(of kinds: MemberKind..., in machO: some MachORepresentableWithCache) -> [DemangledSymbol] {
         guard let storage = storage(in: machO) else { return [] }
         return kinds.map { kind -> [DemangledSymbol] in
             guard let memberRows = storage.methodDescriptorMemberSymbolRowsByKind[kind] else { return [] }
@@ -1122,7 +1122,7 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
         }.reduce(into: []) { $0 += $1 }
     }
 
-    public func methodDescriptorMemberSymbols<MachO: MachORepresentableWithCache>(of kinds: MemberKind..., for name: String, in machO: MachO) -> [DemangledSymbol] {
+    public func methodDescriptorMemberSymbols(of kinds: MemberKind..., for name: String, in machO: some MachORepresentableWithCache) -> [DemangledSymbol] {
         guard let storage = storage(in: machO) else { return [] }
         return kinds.map { kind -> [DemangledSymbol] in
             guard let rowsByTypeNodeIndex = storage.methodDescriptorMemberSymbolRowsByKind[kind]?[name] else { return [] }
@@ -1130,7 +1130,7 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
         }.reduce(into: []) { $0 += $1 }
     }
 
-    public func methodDescriptorMemberSymbols<MachO: MachORepresentableWithCache>(of kinds: MemberKind..., for name: String, node: Node, in machO: MachO) -> [DemangledSymbol] {
+    public func methodDescriptorMemberSymbols(of kinds: MemberKind..., for name: String, node: Node, in machO: some MachORepresentableWithCache) -> [DemangledSymbol] {
         // Same disambiguation as `memberSymbols(of:for:node:in:)`: the
         // stripped name bucket can hold several same-named private types,
         // and only the structural context-node match picks the right one.
@@ -1147,7 +1147,7 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
     /// (a `TypeName` mini store, for example): same-store keys match in O(1)
     /// via index equality, cross-store keys by a structural walk over the
     /// handful of bucket entries.
-    public func methodDescriptorMemberSymbols<MachO: MachORepresentableWithCache>(of kinds: MemberKind..., for name: String, node: NodeReference, in machO: MachO) -> [DemangledSymbol] {
+    public func methodDescriptorMemberSymbols(of kinds: MemberKind..., for name: String, node: NodeReference, in machO: some MachORepresentableWithCache) -> [DemangledSymbol] {
         guard let storage = storage(in: machO) else { return [] }
         return kinds.map { kind -> [DemangledSymbol] in
             guard let rowsByTypeNodeIndex = storage.methodDescriptorMemberSymbolRowsByKind[kind]?[name] else { return [] }
@@ -1156,7 +1156,7 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
         }.reduce(into: []) { $0 += $1 }
     }
 
-    public func protocolWitnessMemberSymbols<MachO: MachORepresentableWithCache>(of kinds: MemberKind..., in machO: MachO) -> [DemangledSymbol] {
+    public func protocolWitnessMemberSymbols(of kinds: MemberKind..., in machO: some MachORepresentableWithCache) -> [DemangledSymbol] {
         guard let storage = storage(in: machO) else { return [] }
         return kinds.map { kind -> [DemangledSymbol] in
             guard let memberRows = storage.protocolWitnessMemberSymbolRowsByKind[kind] else { return [] }
@@ -1166,7 +1166,7 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
         }.reduce(into: []) { $0 += $1 }
     }
 
-    public func protocolWitnessMemberSymbols<MachO: MachORepresentableWithCache>(of kinds: MemberKind..., for name: String, in machO: MachO) -> [DemangledSymbol] {
+    public func protocolWitnessMemberSymbols(of kinds: MemberKind..., for name: String, in machO: some MachORepresentableWithCache) -> [DemangledSymbol] {
         guard let storage = storage(in: machO) else { return [] }
         return kinds.map { kind -> [DemangledSymbol] in
             guard let rowsByTypeNodeIndex = storage.protocolWitnessMemberSymbolRowsByKind[kind]?[name] else { return [] }
@@ -1174,7 +1174,7 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
         }.reduce(into: []) { $0 += $1 }
     }
 
-    public func globalSymbols<MachO: MachORepresentableWithCache>(of kinds: GlobalKind..., in machO: MachO) -> [DemangledSymbol] {
+    public func globalSymbols(of kinds: GlobalKind..., in machO: some MachORepresentableWithCache) -> [DemangledSymbol] {
         guard let storage = storage(in: machO) else { return [] }
         return kinds.map { storage.demangledSymbols(atRows: storage.globalSymbolRowsByKind[$0] ?? []) }.reduce(into: []) { $0 += $1 }
     }
@@ -1185,7 +1185,7 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
     /// store-identity keys silently dropped the `override` keyword and the
     /// vtable-offset comments (the Stage 5a regression). This bulk form was left
     /// behind by that fix.
-    public func allOpaqueTypeDescriptorSymbols<MachO: MachORepresentableWithCache>(in machO: MachO) -> OrderedDictionary<StructuralNodeReferenceKey, DemangledSymbol>? {
+    public func allOpaqueTypeDescriptorSymbols(in machO: some MachORepresentableWithCache) -> OrderedDictionary<StructuralNodeReferenceKey, DemangledSymbol>? {
         guard let storage = storage(in: machO) else { return nil }
         var result: OrderedDictionary<StructuralNodeReferenceKey, DemangledSymbol> = [:]
         for (nodeIndex, row) in storage.opaqueTypeDescriptorSymbolRowByNodeIndex {
@@ -1195,7 +1195,7 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
         return result
     }
 
-    public func opaqueTypeDescriptorSymbol<MachO: MachORepresentableWithCache>(for node: Node, in machO: MachO) -> DemangledSymbol? {
+    public func opaqueTypeDescriptorSymbol(for node: Node, in machO: some MachORepresentableWithCache) -> DemangledSymbol? {
         // The caller's `node` was demangled during printing; keys live in the
         // frozen store, so the match has to be structural — but structural does
         // not have to mean linear. `StructuralNodeReferenceKey` hashes a queried
@@ -1207,7 +1207,7 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
         return storage.demangledSymbol(atRow: symbolTableRow)
     }
 
-    package func symbols<MachO: MachORepresentableWithCache>(for offset: Int, in machO: MachO) -> Symbols? {
+    package func symbols(for offset: Int, in machO: some MachORepresentableWithCache) -> Symbols? {
         guard let storage = storage(in: machO), let rows = storage.symbolRowsByOffset[offset], !rows.isEmpty else { return nil }
         return .init(offset: offset, symbols: rows.map { storage.symbol(atRow: $0, offset: offset) })
     }
@@ -1217,7 +1217,7 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
     /// the sweep are demangled once into the storage's shared late-name side
     /// store (`lateDemangledNode(forName:)`, which caches the verdict —
     /// rejections included), so every caller receives a uniform `NodeReference`.
-    package func demangledNodeReference<MachO: MachORepresentableWithCache>(for symbol: Symbol, in machO: MachO) -> NodeReference? {
+    package func demangledNodeReference(for symbol: Symbol, in machO: some MachORepresentableWithCache) -> NodeReference? {
         guard let cacheStorage = storage(in: machO) else { return nil }
         // Matched on name alone. A demangled tree is a pure function of the
         // symbol name and the flat table already holds one row per unique
@@ -1249,7 +1249,7 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
         return cacheStorage.lateDemangledNode(forName: symbol.name)
     }
 
-    package func demangledNode<MachO: MachORepresentableWithCache>(for symbol: Symbol, in machO: MachO) -> Node? {
+    package func demangledNode(for symbol: Symbol, in machO: some MachORepresentableWithCache) -> Node? {
         return demangledNodeReference(for: symbol, in: machO)?.materialize()
     }
 
@@ -1258,11 +1258,11 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
         public let totalCount: Int
     }
 
-    public func prepare<MachO: MachORepresentableWithCache>(in machO: MachO) {
+    public func prepare(in machO: some MachORepresentableWithCache) {
         _ = storage(in: machO)
     }
 
-    public func prepareWithProgress<MachO: MachORepresentableWithCache>(in machO: MachO) -> AsyncStream<Progress> {
+    public func prepareWithProgress(in machO: some MachORepresentableWithCache) -> AsyncStream<Progress> {
         let (stream, continuation) = AsyncStream<Progress>.makeStream()
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             defer { continuation.finish() }

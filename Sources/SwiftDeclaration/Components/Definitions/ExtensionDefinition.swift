@@ -101,7 +101,7 @@ public final class ExtensionDefinition: Definition, MutableDefinition {
     /// parsed wrapper is released once the indexer's grouping pass ends. Its
     /// `[ResilientWitness]` goes with it, except for the unresolvable subset
     /// `index(in:)` copies onto `missingSymbolWitnesses`.
-    public init<MachO: MachOSwiftSectionRepresentableWithCache>(extensionName: ExtensionName, genericSignature: NodeReference?, protocolConformance: ProtocolConformance?, conformingProtocolName: ProtocolName? = nil, associatedTypes: [AssociatedType] = [], resolvedAssociatedTypeWitnesses: [AssociatedTypeWitnessProjection] = [], in machO: MachO) throws {
+    public init(extensionName: ExtensionName, genericSignature: NodeReference?, protocolConformance: ProtocolConformance?, conformingProtocolName: ProtocolName? = nil, associatedTypes: [AssociatedType] = [], resolvedAssociatedTypeWitnesses: [AssociatedTypeWitnessProjection] = [], in machO: some MachOSwiftSectionRepresentableWithCache) throws {
         self.extensionName = extensionName
         self.genericSignature = genericSignature
         self.protocolConformanceDescriptor = protocolConformance?.descriptor
@@ -139,7 +139,7 @@ public final class ExtensionDefinition: Definition, MutableDefinition {
     /// extensions. Materialization discipline (evolution proposal 0002):
     /// call at most once per operation and thread the result through as a
     /// local variable — the result is deliberately not cached.
-    public func materializedProtocolConformance<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> ProtocolConformance? {
+    public func materializedProtocolConformance(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> ProtocolConformance? {
         try protocolConformanceDescriptor.map { try ProtocolConformance(descriptor: $0, in: machO) }
     }
 

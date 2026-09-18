@@ -59,8 +59,8 @@ struct SpecializedMangledNameResolutionTests {
     /// descriptor's field descriptor. Asserts the index is in range so the
     /// test fails with a clear message rather than a generic out-of-bounds
     /// trap if the fixture's field count drifts.
-    private func fieldMangledTypeName<Descriptor: TypeContextDescriptorProtocol>(
-        of descriptor: Descriptor,
+    private func fieldMangledTypeName(
+        of descriptor: some TypeContextDescriptorProtocol,
         atFieldIndex fieldIndex: Int
     ) throws -> MangledName {
         let fieldDescriptor = try descriptor.fieldDescriptor(in: machO)

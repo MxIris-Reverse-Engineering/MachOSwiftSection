@@ -19,16 +19,16 @@ extension ProtocolConformanceDescriptor {
 }
 
 extension ProtocolConformanceDescriptor {
-    public func protocolDescriptor<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> SymbolOrElement<ProtocolDescriptor>? {
+    public func protocolDescriptor(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> SymbolOrElement<ProtocolDescriptor>? {
         try layout.protocolDescriptor.resolve(from: offset(of: \.protocolDescriptor), in: machO).asOptional
     }
 
-    public func resolvedTypeReference<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> ResolvedTypeReference {
+    public func resolvedTypeReference(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> ResolvedTypeReference {
         let offset = offset(of: \.typeReference)
         return try typeReference.resolve(at: offset, in: machO)
     }
 
-    public func witnessTablePattern<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> ProtocolWitnessTable? {
+    public func witnessTablePattern(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> ProtocolWitnessTable? {
         try layout.witnessTablePattern.resolve(from: offset(of: \.witnessTablePattern), in: machO)
     }
 }
@@ -50,15 +50,15 @@ extension ProtocolConformanceDescriptor {
 // MARK: - ReadingContext Support
 
 extension ProtocolConformanceDescriptor {
-    public func protocolDescriptor<Context: ReadingContext>(in context: Context) throws -> SymbolOrElement<ProtocolDescriptor>? {
+    public func protocolDescriptor(in context: some ReadingContext) throws -> SymbolOrElement<ProtocolDescriptor>? {
         try layout.protocolDescriptor.resolve(at: try context.addressFromOffset(offset(of: \.protocolDescriptor)), in: context).asOptional
     }
 
-    public func resolvedTypeReference<Context: ReadingContext>(in context: Context) throws -> ResolvedTypeReference {
+    public func resolvedTypeReference(in context: some ReadingContext) throws -> ResolvedTypeReference {
         return try typeReference.resolve(at: offset(of: \.typeReference), in: context)
     }
 
-    public func witnessTablePattern<Context: ReadingContext>(in context: Context) throws -> ProtocolWitnessTable? {
+    public func witnessTablePattern(in context: some ReadingContext) throws -> ProtocolWitnessTable? {
         try layout.witnessTablePattern.resolve(at: try context.addressFromOffset(offset(of: \.witnessTablePattern)), in: context)
     }
 }

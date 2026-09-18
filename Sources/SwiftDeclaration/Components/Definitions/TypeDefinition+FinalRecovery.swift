@@ -17,10 +17,10 @@ extension TypeDefinition {
     /// may run this. Its position in `index(in:)` is load-bearing twice over:
     /// after `applyThunkAttributes` (which supplies the `@objc` evidence) and
     /// before `orderedMembers` is built (which copies the member values).
-    func recoverFinalMembers<MachO: MachOSwiftSectionRepresentableWithCache>(
+    func recoverFinalMembers(
         fields: inout [FieldDefinition],
         symbolIndexStore: SymbolIndexStore,
-        in machO: MachO
+        in machO: some MachOSwiftSectionRepresentableWithCache
     ) {
         let name = typeName.name
         let node = typeName.node

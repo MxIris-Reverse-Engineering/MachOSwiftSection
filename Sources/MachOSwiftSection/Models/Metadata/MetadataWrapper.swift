@@ -223,7 +223,7 @@ public enum MetadataWrapper: Resolvable {
         }
     }
     
-    public static func resolve<MachO: MachORepresentableWithCache & Readable>(from offset: Int, in machO: MachO) throws -> Self {
+    public static func resolve(from offset: Int, in machO: some MachORepresentableWithCache & Readable) throws -> Self {
         let metadata = try machO.readWrapperElement(offset: offset) as Metadata
         switch metadata.kind {
         case .class:
@@ -327,7 +327,7 @@ public enum MetadataWrapper: Resolvable {
 // MARK: - ReadingContext Support
 
 extension MetadataWrapper {
-    public func valueWitnessTable<Context: ReadingContext>(in context: Context) throws -> ValueWitnessTable {
+    public func valueWitnessTable(in context: some ReadingContext) throws -> ValueWitnessTable {
         switch self {
         case .class(let classMetadataObjCInterop):
             return try classMetadataObjCInterop.asFullMetadata(in: context).valueWitnesses.resolve(in: context)

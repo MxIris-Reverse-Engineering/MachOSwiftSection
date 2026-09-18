@@ -24,7 +24,7 @@ public struct ProtocolDescriptor: ProtocolDescriptorProtocol {
 }
 
 extension ProtocolDescriptor {
-    public func associatedTypes<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> [String] {
+    public func associatedTypes(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> [String] {
         guard layout.associatedTypes.isValid else { return [] }
         return try layout.associatedTypes.resolve(from: offset(of: \.associatedTypes), in: machO).components(separatedBy: " ")
     }
@@ -38,7 +38,7 @@ extension ProtocolDescriptor {
 // MARK: - ReadingContext Support
 
 extension ProtocolDescriptor {
-    public func associatedTypes<Context: ReadingContext>(in context: Context) throws -> [String] {
+    public func associatedTypes(in context: some ReadingContext) throws -> [String] {
         guard layout.associatedTypes.isValid else { return [] }
         return try layout.associatedTypes.resolve(at: try context.addressFromOffset(offset(of: \.associatedTypes)), in: context).components(separatedBy: " ")
     }

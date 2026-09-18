@@ -88,9 +88,9 @@ enum ClassBoundGenericParameterAnalysis {
     /// or `nil` when the RHS is not `.type`, does not demangle, or is not fully
     /// concrete (it references a generic parameter / dependent member, so it
     /// cannot be substituted standalone).
-    private static func concreteSameType<MachO: MachOSwiftSectionRepresentableWithCache>(
+    private static func concreteSameType(
         of requirement: GenericRequirementDescriptor,
-        in machO: MachO
+        in machO: some MachOSwiftSectionRepresentableWithCache
     ) -> Node? {
         guard
             case .type(let rightHandSideName)? = try? requirement.resolvedContent(in: machO),
@@ -112,9 +112,9 @@ enum ClassBoundGenericParameterAnalysis {
     /// The `(depth, index)` of a requirement whose subject is a bare generic
     /// parameter, or `nil` when the subject is a dependent member type (or
     /// cannot be demangled).
-    private static func bareParameterKey<MachO: MachOSwiftSectionRepresentableWithCache>(
+    private static func bareParameterKey(
         of requirement: GenericRequirementDescriptor,
-        in machO: MachO
+        in machO: some MachOSwiftSectionRepresentableWithCache
     ) -> GenericParameterKey? {
         guard
             let parameterMangledName = try? requirement.paramMangledName(in: machO),

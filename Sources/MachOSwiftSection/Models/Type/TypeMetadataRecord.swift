@@ -37,7 +37,7 @@ extension TypeMetadataRecord {
     /// list with it — the iOS 26.5 simulator's `libswiftSynchronization`
     /// registers a record for `libswiftCore/_$sSqMn` (`Swift.Optional`) and
     /// used to dump with no types at all.
-    public func contextDescriptor<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> ContextDescriptorWrapper? {
+    public func contextDescriptor(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> ContextDescriptorWrapper? {
         let fieldOffset = offset(of: \.nominalTypeDescriptor)
         let relativeOffset = layout.nominalTypeDescriptor.relativeOffset
         switch typeKind {
@@ -55,7 +55,7 @@ extension TypeMetadataRecord {
         }
     }
     
-    public func contextDescriptor<Context: ReadingContext>(in context: Context) throws -> ContextDescriptorWrapper? {
+    public func contextDescriptor(in context: some ReadingContext) throws -> ContextDescriptorWrapper? {
         let fieldOffset = offset(of: \.nominalTypeDescriptor)
         let relativeOffset = layout.nominalTypeDescriptor.relativeOffset
         switch typeKind {

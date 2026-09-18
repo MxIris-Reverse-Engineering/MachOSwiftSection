@@ -28,7 +28,7 @@ import MachOSwiftSection
 extension MethodDescriptor {
     /// The symbols the image's index finds at the descriptor's own offset —
     /// the `Tq` method-descriptor symbol, when the image carries one.
-    public func methodDescriptorSymbols<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) -> Symbols? {
+    public func methodDescriptorSymbols(in machO: some MachOSwiftSectionRepresentableWithCache) -> Symbols? {
         machO.symbols(offset: offset)
     }
 
@@ -38,7 +38,7 @@ extension MethodDescriptor {
     /// The result is member-shaped (`global(<entity>)`) — the same shape the
     /// implementation-symbol route yields — so printers and join keys need no
     /// special case for it.
-    public func attributedMemberNode<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) -> NodeReference? {
+    public func attributedMemberNode(in machO: some MachOSwiftSectionRepresentableWithCache) -> NodeReference? {
         guard let symbols = methodDescriptorSymbols(in: machO) else { return nil }
         return MethodDescriptorAttribution.memberNode(forMethodDescriptorSymbols: symbols, in: machO)
     }
@@ -65,9 +65,9 @@ public enum MethodDescriptorAttribution {
     /// A descriptor's own address holds exactly one `Tq` symbol in practice,
     /// but the query is written to skip anything else that may share the
     /// address rather than to assume the first entry is the right one.
-    public static func memberNode<MachO: MachOSwiftSectionRepresentableWithCache>(
+    public static func memberNode(
         forMethodDescriptorSymbols symbols: Symbols,
-        in machO: MachO
+        in machO: some MachOSwiftSectionRepresentableWithCache
     ) -> NodeReference? {
         for symbol in symbols {
             guard let node = SymbolicDemangler.demangleSymbolReference(for: symbol, in: machO),
@@ -85,9 +85,9 @@ public enum MethodDescriptorAttribution {
     /// `NodeReference(interning:)`) so it shares the image's store, and the
     /// intermediate tree is transient because it is consumed by that interning
     /// and dropped.
-    static func memberNode<MachO: MachOSwiftSectionRepresentableWithCache>(
+    static func memberNode(
         unwrappingMethodDescriptorNode node: NodeReference,
-        in machO: MachO
+        in machO: some MachOSwiftSectionRepresentableWithCache
     ) -> NodeReference? {
         guard let methodDescriptorNode = node.first(of: .methodDescriptor),
               let entityNode = methodDescriptorNode.children.first else { return nil }

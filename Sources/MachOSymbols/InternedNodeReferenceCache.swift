@@ -65,7 +65,7 @@ public final class InternedNodeReferenceCache: SharedCache<InternedNodeReference
     }
 
     /// The image-scoped shared reference for `node`'s structural identity.
-    public func reference<MachO: MachORepresentableWithCache>(interning node: Node, in machO: MachO) -> NodeReference {
+    public func reference(interning node: Node, in machO: some MachORepresentableWithCache) -> NodeReference {
         guard let storage = storage(in: machO) else { return NodeReference(interning: node) }
         return storage.reference(interning: node)
     }

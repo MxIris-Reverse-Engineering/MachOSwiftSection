@@ -31,15 +31,15 @@ public struct ProtocolDescriptorRef {
 }
 
 extension ProtocolDescriptorRef {
-    public func objcProtocol<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> ObjCProtocolPrefix {
+    public func objcProtocol(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> ObjCProtocolPrefix {
         try Pointer<ObjCProtocolPrefix>(address: storage & ~Bits.isObjC).resolve(in: machO)
     }
 
-    public func swiftProtocol<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> ProtocolDescriptor {
+    public func swiftProtocol(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> ProtocolDescriptor {
         try Pointer<ProtocolDescriptor>(address: storage).resolve(in: machO)
     }
 
-    public func name<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> String {
+    public func name(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> String {
         if isObjC {
             return try objcProtocol(in: machO).name(in: machO)
         } else {
@@ -69,15 +69,15 @@ extension ProtocolDescriptorRef {
 // MARK: - ReadingContext Support
 
 extension ProtocolDescriptorRef {
-    public func objcProtocol<Context: ReadingContext>(in context: Context) throws -> ObjCProtocolPrefix {
+    public func objcProtocol(in context: some ReadingContext) throws -> ObjCProtocolPrefix {
         try Pointer<ObjCProtocolPrefix>(address: storage & ~Bits.isObjC).resolve(in: context)
     }
 
-    public func swiftProtocol<Context: ReadingContext>(in context: Context) throws -> ProtocolDescriptor {
+    public func swiftProtocol(in context: some ReadingContext) throws -> ProtocolDescriptor {
         try Pointer<ProtocolDescriptor>(address: storage).resolve(in: context)
     }
 
-    public func name<Context: ReadingContext>(in context: Context) throws -> String {
+    public func name(in context: some ReadingContext) throws -> String {
         if isObjC {
             return try objcProtocol(in: context).name(in: context)
         } else {
