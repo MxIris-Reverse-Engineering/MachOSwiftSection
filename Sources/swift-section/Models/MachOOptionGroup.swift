@@ -64,7 +64,7 @@ extension AccessorThunkResolution {
     /// kind-9 accessor-thunk rewrite it performs, or unchanged when none
     /// were named. The task-local is the one injection point the rendering
     /// layer offers; the CLI is a host like any other.
-    static func withResolver<Result>(from options: MachOOptionGroup, _ operation: () async throws -> Result) async rethrows -> Result {
+    nonisolated(nonsending) static func withResolver<Result>(from options: MachOOptionGroup, _ operation: nonisolated(nonsending) () async throws -> Result) async rethrows -> Result {
         guard let resolver = options.accessorThunkResolver else { return try await operation() }
         return try await $taskResolver.withValue(resolver, operation: operation)
     }
