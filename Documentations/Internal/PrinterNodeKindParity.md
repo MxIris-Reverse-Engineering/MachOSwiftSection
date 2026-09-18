@@ -40,7 +40,7 @@
 
 另外三处不是 kind 缺失，但属于同一类「interface 独有、dump 正确」的 parity 问题：
 
-- **`printOpaqueType` 印错了孩子**：印 child 2（泛型实参表）而不是引用本身，于是单实参引用渲染成 conforming type 自己（`typealias B = ProbeClient.Outer`）——一个真实、全限定、错误的类型。改为**委托上游 printer**：child 0 是 entity 节点，类型打印器一个都不认，开写会印出 `<<opaque return type of >>`（中间是空的），比原状更糟；委托则天然与 dump 逐字一致。`.opaqueReturnTypeOf` 同理。
+- **`printOpaqueType` 印错了孩子**：印 child 2（泛型实参表）而不是引用本身，于是单实参引用渲染成 conforming type 自己（`typealias B = ProbeClient.Outer`）——一个真实、全限定、错误的类型。改为**委托上游 printer**：child 0 是 entity 节点，类型打印器一个都不认，开写会印出 `<<opaque return type of >>`（中间是空的），比原状更糟；委托则天然与 dump 逐字一致。`.opaqueReturnTypeOf` 同理。（2026-09-18 起 `printOpaqueType` 先把按名字的引用拼成 textual interface 的 `@_opaqueReturnTypeOf("$s…", n) __<实参>`——签名里的引用永远是名字形式，不需要镜像——owner 命不了名时才委托上游；见 [OpaqueReturnTypeResolution.md](OpaqueReturnTypeResolution.md) §1.5。）
 - **空泛型参数列表**：`printGenericSignature` 无条件写 `<`，extension 成员的参数全属于被扩展类型时，参数数为 0，印出 `init<>(windowID: String) where …`。上游同样无条件写，但 dump 路径从不走到这段代码，所以只有 interface 中招（122 处）。
 - **dependent member 的 base 丢失**：`WritableKeyPath<A1, .Value>`。随 `.constrainedExistential` 修复连带消失（那棵树的返回类型原本整个是空的）。
 

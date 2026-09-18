@@ -201,18 +201,24 @@ extension Node {
         /// when a caller asked for them.
         let candidateLedger: AccessorThunkCandidateLedger?
 
+        /// Where the member projections made during this rewrite are
+        /// recorded, when a caller asked for them.
+        let projectionLedger: DependentMemberProjectionLedger?
+
         init(
             machO: MachO,
             reportDegradation: OpaqueTypeDegradationReporter?,
             expansionDepth: Int = 0,
             branchSelection: AccessorThunkBranchSelection = [:],
-            candidateLedger: AccessorThunkCandidateLedger? = nil
+            candidateLedger: AccessorThunkCandidateLedger? = nil,
+            projectionLedger: DependentMemberProjectionLedger? = nil
         ) {
             self.machO = machO
             self.reportDegradation = reportDegradation
             self.expansionDepth = expansionDepth
             self.branchSelection = branchSelection
             self.candidateLedger = candidateLedger
+            self.projectionLedger = projectionLedger
         }
 
         /// Expands opaque types that the substitution just brought in.
@@ -302,7 +308,8 @@ extension Node {
                 reportDegradation: reportDegradation,
                 expansionDepth: expansionDepth + 1,
                 branchSelection: branchSelection,
-                candidateLedger: candidateLedger
+                candidateLedger: candidateLedger,
+                projectionLedger: projectionLedger
             ).rewrite(node)
         }
 
@@ -423,7 +430,65 @@ extension Node {
             return expandingNestedOpaqueTypes(in: substituted)
         }
 
+        /// Whether `baseTypeNode` is a nominal type a projection can start
+        /// from — the cheap test that keeps every `A.Element` of a generic
+        /// witness from building an image universe for nothing.
+        private static func isConcreteNominal(_ baseTypeNode: Node) -> Bool {
+            let content = baseTypeNode.isKind(of: .type) ? baseTypeNode.firstChild : baseTypeNode
+            guard let content else { return false }
+            switch content.kind {
+            case .structure, .enum, .class, .boundGenericStructure, .boundGenericEnum, .boundGenericClass:
+                return true
+            default:
+                return false
+            }
+        }
+
+        /// A member of an expanded opaque archetype — `dependentMemberType`
+        /// whose base the expansion just made concrete — projected through
+        /// the base's conformance record to the type the member stands for
+        /// (the generics book's "Map type parameter into opaque generic
+        /// environment", step 3, read from `__swift5_assocty`), with the
+        /// witness's own opaque references, thunks and members resolved in
+        /// turn in the image the record came from. `nil` when the base is
+        /// not concrete, no record answers, or the nesting ceiling is hit,
+        /// leaving the member as it is (`IndexingIterator<[Int]>.Element`):
+        /// valid Swift, just not reduced.
+        private func projectedMember(_ node: Node) -> Node? {
+            guard let baseTypeNode = node.firstChild, Self.isConcreteNominal(baseTypeNode),
+                  let associatedTypeReference = node[safeChild: 1]
+            else { return nil }
+            guard let projection = DependentMemberProjection.project(base: baseTypeNode, associatedTypeReference: associatedTypeReference, in: machO) else { return nil }
+            guard expansionDepth < Self.maximumNestedExpansionDepth else {
+                #log(.info, "member projection reached the nesting limit \(Self.maximumNestedExpansionDepth, privacy: .public) — leaving the innermost member unprojected")
+                return nil
+            }
+            projectionLedger?.record(ProjectedDependentMember(
+                originNode: node,
+                witnessNode: projection.witnessNode,
+                conformingQualifiedName: projection.conformingQualifiedName,
+                protocolQualifiedName: projection.protocolQualifiedName
+            ))
+            // The witness is that image's tree: its references are resolved
+            // there, one nesting level down.
+            let rewritten = OpaqueTypeRewriter(
+                machO: projection.image,
+                reportDegradation: reportDegradation,
+                expansionDepth: expansionDepth + 1,
+                branchSelection: branchSelection,
+                candidateLedger: candidateLedger,
+                projectionLedger: projectionLedger
+            ).rewrite(projection.witnessNode)
+            // Unwrapped so the result composes where a type belongs, the
+            // way `expansion(of:forNode:)`'s does.
+            if rewritten.kind == .type, let content = rewritten.firstChild { return content }
+            return rewritten
+        }
+
         override func visit(_ node: Node) -> Node {
+            if node.isKind(of: .dependentMemberType), let projected = projectedMember(node) {
+                return projected
+            }
             do {
                 if node.isKind(of: .opaqueType), let firstChild = node.firstChild {
                     if let opaqueType = try opaqueType(referencedBy: firstChild),
@@ -442,7 +507,8 @@ extension Node {
                             reportDegradation: reportDegradation,
                             expansionDepth: expansionDepth,
                             branchSelection: branchSelection,
-                            candidateLedger: candidateLedger
+                            candidateLedger: candidateLedger,
+                            projectionLedger: projectionLedger
                         )
                         if let expanded = foreignRewriter.expansion(of: foreign.opaqueType, forNode: node) {
                             return expanded
@@ -469,11 +535,29 @@ extension Node {
         }
     }
 
+    /// Records every member projection a rewrite made — a class so the
+    /// nested rewriters, one per expansion level and one per projected
+    /// witness, all write into the same ledger, in the order the hops were
+    /// taken.
+    final class DependentMemberProjectionLedger {
+        private(set) var projections: [ProjectedDependentMember] = []
+
+        func record(_ projection: ProjectedDependentMember) {
+            projections.append(projection)
+        }
+    }
+
+    /// Expands every opaque reference the image can answer for, projects
+    /// members of what it expanded, and spells whatever is left the way
+    /// `spelling` says.
     package func resolveOpaqueType(
         in machO: some MachOSwiftSectionRepresentableWithCache,
+        spelling: OpaqueReferenceSpelling = .textualInterface,
         reportingDegradationTo reportDegradation: OpaqueTypeDegradationReporter? = nil
     ) throws -> Node {
-        OpaqueTypeRewriter(machO: machO, reportDegradation: reportDegradation).rewrite(self)
+        OpaqueTypeRewriter(machO: machO, reportDegradation: reportDegradation)
+            .rewrite(self)
+            .spellingUnexpandedOpaqueReferences(as: spelling, in: machO)
     }
 
     /// Replaces the kind-9 accessor-function references a *field record's*
@@ -508,9 +592,36 @@ extension Node {
         package let substitutedNode: Node
     }
 
-    /// What ``resolveOpaqueType(in:reportingDegradationTo:)`` produces, plus
-    /// every branch of every availability-conditional accessor thunk the
-    /// resolution met.
+    /// One hop of projecting a member of an expanded opaque archetype
+    /// (`IndexingIterator<[Int]>.Element`) through the conformance's
+    /// type-witness record to the type it stands for (`[Int].Element`, then
+    /// `Int` on the next hop) — the generics book's "Map type parameter into
+    /// opaque generic environment", step 3, done offline from
+    /// `__swift5_assocty`.
+    package struct ProjectedDependentMember {
+        /// The `dependentMemberType` as it stood before the hop, its base
+        /// already concrete.
+        package let originNode: Node
+        /// What the witness record says the member is, with the base's
+        /// generic arguments substituted and its own opaque references
+        /// expanded.
+        package let witnessNode: Node
+        /// The conformance whose record answered, `Swift.IndexingIterator`
+        /// for `Swift.IteratorProtocol`.
+        package let conformingQualifiedName: String
+        package let protocolQualifiedName: String
+
+        package init(originNode: Node, witnessNode: Node, conformingQualifiedName: String, protocolQualifiedName: String) {
+            self.originNode = originNode
+            self.witnessNode = witnessNode
+            self.conformingQualifiedName = conformingQualifiedName
+            self.protocolQualifiedName = protocolQualifiedName
+        }
+    }
+
+    /// What ``resolveOpaqueType(in:spelling:reportingDegradationTo:)``
+    /// produces, plus every branch of every availability-conditional accessor
+    /// thunk the resolution met and every member projection it made.
     package struct OpaqueTypeResolution {
         /// The tree with the current platform's branch taken at every thunk —
         /// byte-identical to `resolveOpaqueType(in:)`'s answer.
@@ -518,9 +629,18 @@ extension Node {
         /// Empty when no thunk was met, when none resolved, or when reading
         /// in-process (the runtime answers for this OS alone).
         package let conditionalCandidates: [ResolvedConditionalCandidate]
+        /// Every projection hop, in the order they were made; empty when no
+        /// member of an expanded archetype was met or none could be projected.
+        package let projectedMembers: [ProjectedDependentMember]
+
+        package init(node: Node, conditionalCandidates: [ResolvedConditionalCandidate], projectedMembers: [ProjectedDependentMember] = []) {
+            self.node = node
+            self.conditionalCandidates = conditionalCandidates
+            self.projectedMembers = projectedMembers
+        }
     }
 
-    /// Resolves opaque types like ``resolveOpaqueType(in:reportingDegradationTo:)``
+    /// Resolves opaque types like ``resolveOpaqueType(in:spelling:reportingDegradationTo:)``
     /// and also reports every branch an availability-conditional accessor
     /// thunk offered.
     ///
@@ -530,17 +650,23 @@ extension Node {
     /// SwiftUI) costs one extra pass, and there is never a cross product.
     package func resolveOpaqueTypeCollectingConditionalCandidates(
         in machO: some MachOSwiftSectionRepresentableWithCache,
+        spelling: OpaqueReferenceSpelling = .textualInterface,
         reportingDegradationTo reportDegradation: OpaqueTypeDegradationReporter? = nil
     ) -> OpaqueTypeResolution {
         let candidateLedger = AccessorThunkCandidateLedger()
-        let node = OpaqueTypeRewriter(machO: machO, reportDegradation: reportDegradation, candidateLedger: candidateLedger).rewrite(self)
+        let projectionLedger = DependentMemberProjectionLedger()
+        let node = OpaqueTypeRewriter(machO: machO, reportDegradation: reportDegradation, candidateLedger: candidateLedger, projectionLedger: projectionLedger)
+            .rewrite(self)
+            .spellingUnexpandedOpaqueReferences(as: spelling, in: machO)
 
         var conditionalCandidates: [ResolvedConditionalCandidate] = []
         for (thunkOffset, thunkCandidates) in candidateLedger.candidatesByThunkOffset {
             for (branchIndex, candidate) in thunkCandidates.enumerated() {
                 let substitutedNode = branchIndex == 0
                     ? node
-                    : OpaqueTypeRewriter(machO: machO, reportDegradation: reportDegradation, branchSelection: [thunkOffset: branchIndex]).rewrite(self)
+                    : OpaqueTypeRewriter(machO: machO, reportDegradation: reportDegradation, branchSelection: [thunkOffset: branchIndex])
+                        .rewrite(self)
+                        .spellingUnexpandedOpaqueReferences(as: spelling, in: machO)
                 conditionalCandidates.append(ResolvedConditionalCandidate(
                     availability: candidate.availability,
                     candidateTypeNode: candidate.typeNode,
@@ -548,6 +674,6 @@ extension Node {
                 ))
             }
         }
-        return OpaqueTypeResolution(node: node, conditionalCandidates: conditionalCandidates)
+        return OpaqueTypeResolution(node: node, conditionalCandidates: conditionalCandidates, projectedMembers: projectionLedger.projections)
     }
 }

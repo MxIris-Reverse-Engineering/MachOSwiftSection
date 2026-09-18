@@ -87,9 +87,10 @@ extension Node {
         witnessMangledName: MangledName,
         conformingTypeName: MangledName,
         in machO: some MachOSwiftSectionRepresentableWithCache,
+        spelling: OpaqueReferenceSpelling = .textualInterface,
         reportingDegradationTo reportDegradation: OpaqueTypeDegradationReporter? = nil
     ) throws -> Node {
-        let resolved = try resolveOpaqueType(in: machO, reportingDegradationTo: reportDegradation)
+        let resolved = try resolveOpaqueType(in: machO, spelling: spelling, reportingDegradationTo: reportDegradation)
         return InProcessAccessorFunctionResolution.resolvingRemainingReferences(
             in: resolved,
             witnessMangledName: witnessMangledName,
@@ -106,9 +107,10 @@ extension Node {
         witnessMangledName: MangledName,
         conformingTypeName: MangledName,
         in machO: some MachOSwiftSectionRepresentableWithCache,
+        spelling: OpaqueReferenceSpelling = .textualInterface,
         reportingDegradationTo reportDegradation: OpaqueTypeDegradationReporter? = nil
     ) -> OpaqueTypeResolution {
-        let resolution = resolveOpaqueTypeCollectingConditionalCandidates(in: machO, reportingDegradationTo: reportDegradation)
+        let resolution = resolveOpaqueTypeCollectingConditionalCandidates(in: machO, spelling: spelling, reportingDegradationTo: reportDegradation)
         let node = InProcessAccessorFunctionResolution.resolvingRemainingReferences(
             in: resolution.node,
             witnessMangledName: witnessMangledName,
@@ -116,6 +118,6 @@ extension Node {
             in: machO
         )
         guard node !== resolution.node else { return resolution }
-        return OpaqueTypeResolution(node: node, conditionalCandidates: resolution.conditionalCandidates)
+        return OpaqueTypeResolution(node: node, conditionalCandidates: resolution.conditionalCandidates, projectedMembers: resolution.projectedMembers)
     }
 }

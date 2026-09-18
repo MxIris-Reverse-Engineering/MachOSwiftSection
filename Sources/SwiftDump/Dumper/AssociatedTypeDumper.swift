@@ -49,12 +49,18 @@ package struct AssociatedTypeDumper<MachO: MachOFieldLayoutRenderable>: Conforme
             for (offset, record) in dumped.records.offsetEnumerated() {
                 let recordName = try record.name(in: machO)
                 let witnessMangledName = try record.substitutedTypeName(in: machO)
+                // The dump's spelling of a reference that could not be
+                // expanded names the owner declaration in a trailing comment;
+                // the interface's, the indexer's default, does not.
                 let resolution = try SymbolicDemangler.demangleType(for: witnessMangledName, in: machO)
-                    .resolveOpaqueTypeCollectingConditionalCandidates(witnessMangledName: witnessMangledName, conformingTypeName: dumped.conformingTypeName, in: machO)
+                    .resolveOpaqueTypeCollectingConditionalCandidates(witnessMangledName: witnessMangledName, conformingTypeName: dumped.conformingTypeName, in: machO, spelling: .annotated)
 
                 // Every branch of an availability-conditional witness, above
-                // the `typealias` that shows the newest platform's one.
-                for line in try await resolution.conditionalWitnessCommentLines(associatedTypeName: recordName, resolvedBy: demangleResolver) {
+                // the `typealias` that shows the newest platform's one — and
+                // every hop of a projected member, above the answer.
+                let commentLines = try await resolution.conditionalWitnessCommentLines(associatedTypeName: recordName, resolvedBy: demangleResolver)
+                    + resolution.projectedMemberCommentLines(associatedTypeName: recordName, resolvedBy: demangleResolver)
+                for line in commentLines {
                     BreakLine()
 
                     Indent(level: 1)

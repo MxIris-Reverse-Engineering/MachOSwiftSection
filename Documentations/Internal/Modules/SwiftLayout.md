@@ -21,7 +21,7 @@ SwiftLayout 是**静态聚合布局引擎**：不加载进程、不调用 metada
 | 4. 各类型形态的桥接 | `EnumLayoutBridge`、`ExistentialLayoutBridge`、`DependentMemberTypeBridge` |
 | 5. 泛型实参环境 | `GenericArgumentEnvironment`、`ClassBoundGenericParameterAnalysis` |
 | 6. Objective-C 互操作 | `ObjCClassIndex`、`ObjCProtocolIndex` |
-| 7. 镜像查找面 | `ImageUniverse`、`ImageReference`、`ImageUniverse+DependencyClosure` |
+| 7. 镜像查找面 | `ImageUniverse`、`ImageReference`、`ImageUniverse+DependencyClosure`、`ImageUniverse+AssociatedTypeWitnessProjection` |
 | 8. 命名与嵌套展开 | `NodeTypeNaming`、`NestedFieldOffsetTree` |
 
 ## 子系统速览
@@ -64,7 +64,7 @@ SwiftLayout 是**静态聚合布局引擎**：不加载进程、不调用 metada
 
 `ObjCClassIndex` 读 `class_ro_t.instanceSize`（Swift 子类第一个字段的起点），并索引每个静态发出的 Swift 类自己的 `instanceStart`——实际祖先变大时这个值会被 ObjC runtime 滑移（objc4 的 `moveIvars`），dyld cache 里的镜像带的已是滑移后的终值。是否在 classlist 里决定走哪套规则。
 
-`ImageUniverse` 是五个解析 seam 的统一查找面（类型、协议类约束、ObjC 类实例尺寸、assocty witness、ObjC 协议声明），可以是单镜像，也可以是**依赖闭包**——根镜像急切索引，依赖按解析顺序**惰性**折进来，所以几百个镜像的系统闭包不会被急切 demangle 一遍。闭包本身由 `MachODependencies` 提供，本模块只是薄封装。
+`ImageUniverse` 是五个解析 seam 的统一查找面（类型、协议类约束、ObjC 类实例尺寸、assocty witness、ObjC 协议声明），可以是单镜像，也可以是**依赖闭包**——根镜像急切索引，依赖按解析顺序**惰性**折进来，所以几百个镜像的系统闭包不会被急切 demangle 一遍。闭包本身由 `MachODependencies` 提供，本模块只是薄封装。assocty witness 这个 seam 有一个返回**节点**而非布局的公开入口 `projectedAssociatedTypeWitness(base:associatedTypeReference:)`（2026-09-18，提案 draft-opaque-reference-spelling-and-member-projection）：`SwiftDeclarationRendering` 用它把展开后的 opaque archetype 的成员（`IndexingIterator<[Int]>.Element`）投影成 witness 类型，逻辑与 `DependentMemberTypeBridge` 一致，只是不往下算布局。
 
 ## 关键契约
 

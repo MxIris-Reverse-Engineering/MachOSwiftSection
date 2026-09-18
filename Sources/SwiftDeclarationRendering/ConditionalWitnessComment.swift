@@ -87,4 +87,21 @@ extension Node.OpaqueTypeResolution {
         }
         return ConditionalWitnessComment.lines(associatedTypeName: associatedTypeName, branches: branches)
     }
+
+    /// The comment the dump puts above a witness whose member of an expanded
+    /// opaque archetype was projected through type-witness records
+    /// (evolution proposal `opaque-reference-spelling-and-member-projection`):
+    /// one line per hop, so the `typealias` line — the projected answer — is
+    /// not the only thing the reader sees. Empty when nothing was projected;
+    /// the interface never prints it.
+    package func projectedMemberCommentLines(associatedTypeName: String, resolvedBy resolver: DemangleResolver) async throws -> [String] {
+        guard !projectedMembers.isEmpty else { return [] }
+        var lines = ["\(associatedTypeName) is projected through associated type witnesses:"]
+        for hop in projectedMembers {
+            let originText = try await resolver.resolve(for: hop.originNode.strippingAssociatedTypeProtocolQualifiers()).string
+            let witnessText = try await resolver.resolve(for: hop.witnessNode.strippingAssociatedTypeProtocolQualifiers()).string
+            lines.append("  \(originText) is \(witnessText) (witness of \(hop.conformingQualifiedName): \(hop.protocolQualifiedName))")
+        }
+        return lines
+    }
 }

@@ -253,7 +253,7 @@ Sources/SwiftDeclarationRendering/
 | 被跟进的函数又调了认不出、也解码不了的东西；或跟进深度超过 3；或递归 | 那一支留占位符。合并 accessor 的符号名（`merged type metadata accessor for Any?`）是合并前某一份的名字，仍然绝不当答案——曾把 `Mutex<Storage>` 印成 `Array<LayoutDirection>` |
 | 被跟进的函数在栈上建实参缓冲区（写回式 `stp` 之后再 `str`） | 写回式栈访问没建模，那一支留占位符；目前没有样本 |
 | 遇到不认识的条件跳转（`b.cond` / `tbz`），且直行落点不是 `brk` | 那一支放弃，限制列表记 `conditionalBranchNotModelled`；今天的 thunk 里只有尾声那种，落点是 `brk`，按跳走处理 |
-| witness 按名字引用了别的镜像的 `some` 类型（独立文件对别的镜像的 bind），而搜索路径里找不到那个镜像 | dump 印 `<<opaque return type of …>>`；interface 目前会把节点的实参表当类型印出来（`typealias B = 那个 conformer`），是打印器的老问题，能定位时已不再发生 |
+| witness 按名字引用了别的镜像的 `some` 类型（独立文件对别的镜像的 bind），而搜索路径里找不到那个镜像 | 引用留着不展开，两条路都拼成 textual interface 的 `@_opaqueReturnTypeOf("$s…", n) __<实参>`（dump 再附 `/* owner declaration */`），2026-09-18 起；之前 dump 印 `<<opaque return type of …>>`、interface 一度把节点的实参表当类型印出来（`typealias B = 那个 conformer`） |
 | `_swift_runtimeSupportsNoncopyableTypes` 的 GOT 槽在 cache 文件里是 0（弱引用加载时才填） | 标志判定不了，靠两种策略：先跑的「条件为假」正好是支持那一支，所以答案对；第二次跑出来的 `() + 8` 命不了名，不会当答案 |
 | 独立文件的依赖镜像找不到（bind 名没有镜像导出它） | 留占位符，限制列表里记 `calleeInUnlocatedImage`；给 `--dependency-search-path` 或宿主传路径 |
 

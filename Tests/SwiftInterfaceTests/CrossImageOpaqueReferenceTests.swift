@@ -142,14 +142,29 @@ struct CrossImageOpaqueReferenceTests {
         }
     }
 
+    /// How the two unexpandable witnesses must be spelled: the attribute the
+    /// compiler's interface printer uses to name an opaque archetype of
+    /// another declaration, over `helper()`'s mangling.
+    ///
+    /// Not what `swiftc -emit-module-interface` writes for this client — that
+    /// names `Outer.body`'s OWN opaque type
+    /// (`@_opaqueReturnTypeOf("$s11ProbeClient5OuterV4bodyQrvp", 0) __`),
+    /// because the interface describes declarations, while the binary's
+    /// witness record has already had `body`'s underlying type substituted
+    /// in (same module, so visible to IRGen) and names `helper()`'s. The
+    /// spelling is the compiler's; the reference is one level deeper than
+    /// the compiler's interface would show.
+    private static let helperReferenceForOuter = "@_opaqueReturnTypeOf(\"$s9ProbeCore7HasBodyPAAE6helperQryF\", 0) __<ProbeClient.Outer>"
+    private static let helperReferenceForComposite = "ProbeCore.Pair<@_opaqueReturnTypeOf(\"$s9ProbeCore7HasBodyPAAE6helperQryF\", 0) __<ProbeClient.Composite>, Swift.String>"
+
     /// The witnesses as the dump path resolves them, keyed by conformer.
-    private func resolvedWitnessTexts(in machOFile: MachOFile) async throws -> [String: String] {
+    private func resolvedWitnessTexts(in machOFile: MachOFile, spelling: OpaqueReferenceSpelling = .textualInterface) async throws -> [String: String] {
         var texts: [String: String] = [:]
         for associatedType in try machOFile.swift.associatedTypes {
             let conformer = await (try SymbolicDemangler.demangleType(for: associatedType.conformingTypeName, in: machOFile)).print(using: DemangleOptions.default)
             for record in associatedType.records where try record.name(in: machOFile) == "B" {
                 let node = try SymbolicDemangler.demangleType(for: record.substitutedTypeName(in: machOFile), in: machOFile)
-                texts[conformer] = await node.resolveOpaqueTypeCollectingConditionalCandidates(in: machOFile).node.print(using: DemangleOptions.default)
+                texts[conformer] = await node.resolveOpaqueTypeCollectingConditionalCandidates(in: machOFile, spelling: spelling).node.print(using: DemangleOptions.default)
             }
         }
         return texts
@@ -178,14 +193,31 @@ struct CrossImageOpaqueReferenceTests {
         #expect(!interface.contains("typealias B = ProbeClient."), "\(interface)")
     }
 
-    /// Without a search path that reaches `ProbeCore` the reference stays
-    /// what it was — named, never the conformer and never a guess.
-    @Test func withoutTheImageTheReferenceStaysNamed() async throws {
+    /// Without a search path that reaches `ProbeCore` the reference is not
+    /// expanded — and it is spelled the one way Swift has for naming an
+    /// opaque archetype of another declaration, the textual-interface
+    /// attribute. Never the conformer, never a guess, and no longer the
+    /// demangler's `<<opaque return type of …>>.0`, which no compiler
+    /// accepts.
+    @Test func withoutTheImageTheReferenceIsSpelledAsTheCompilerSpellsIt() async throws {
         let (client, _) = try loadClient()
         let texts = try await AccessorThunkResolution.$taskResolver.withValue(DisassemblingAccessorThunkResolver(searchPaths: [])) {
             try await resolvedWitnessTexts(in: client)
         }
-        #expect(texts["ProbeClient.Outer"]?.contains("opaque return type of") == true, "\(String(describing: texts["ProbeClient.Outer"]))")
+        #expect(texts["ProbeClient.Outer"] == Self.helperReferenceForOuter, "\(String(describing: texts["ProbeClient.Outer"]))")
+        #expect(texts["ProbeClient.Composite"] == Self.helperReferenceForComposite, "\(String(describing: texts["ProbeClient.Composite"]))")
+    }
+
+    /// The dump's spelling adds what a reader wants and a compiler does not
+    /// need: the declaration the opaque type belongs to, as a comment after
+    /// the attribute.
+    @Test func withoutTheImageTheAnnotatedSpellingNamesTheOwnerDeclaration() async throws {
+        let (client, _) = try loadClient()
+        let texts = try await AccessorThunkResolution.$taskResolver.withValue(DisassemblingAccessorThunkResolver(searchPaths: [])) {
+            try await resolvedWitnessTexts(in: client, spelling: .annotated)
+        }
+        let expected = Self.helperReferenceForOuter + " /* (extension in ProbeCore):ProbeCore.HasBody.helper() -> some */"
+        #expect(texts["ProbeClient.Outer"] == expected, "\(String(describing: texts["ProbeClient.Outer"]))")
     }
 
     /// The interface path degrades the same way the dump path does.
@@ -197,14 +229,16 @@ struct CrossImageOpaqueReferenceTests {
     /// a real, fully-qualified, wrong type — because `printOpaqueType` printed
     /// the node's generic argument list instead of the reference. Unexpandable
     /// must read as unexpandable on both paths, spelled identically.
-    @Test func withoutTheImageTheInterfaceSaysSoRatherThanNamingTheConformer() async throws {
+    @Test func withoutTheImageTheInterfaceSpellsTheReferenceLikeTheCompiler() async throws {
         let (client, _) = try loadClient()
         let interface = try await AccessorThunkResolution.$taskResolver.withValue(DisassemblingAccessorThunkResolver(searchPaths: [])) {
             let builder = try SwiftInterfaceBuilder(configuration: .init(), eventHandlers: [], in: client)
             try await builder.prepare()
             return try await builder.printRoot().string
         }
-        #expect(interface.contains("opaque return type of"), "\(interface)")
+        #expect(interface.contains("typealias B = " + Self.helperReferenceForOuter + "\n"), "\(interface)")
+        #expect(interface.contains("typealias B = " + Self.helperReferenceForComposite + "\n"), "\(interface)")
         #expect(!interface.contains("typealias B = ProbeClient."), "\(interface)")
+        #expect(!interface.contains("opaque return type of"), "\(interface)")
     }
 }

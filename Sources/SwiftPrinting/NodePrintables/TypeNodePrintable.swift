@@ -1,4 +1,5 @@
 import SwiftDeclaration
+import SwiftDeclarationRendering
 import Demangling
 
 protocol TypeNodePrintable: NodePrintable {
@@ -103,6 +104,16 @@ extension TypeNodePrintable {
     /// locatable reference is expanded by the rewriter and carries its
     /// arguments along, so child 2 has no reason to be printed here.
     mutating func printOpaqueType(_ name: Node) async {
+        // A signature's reference is by name — a symbol carries no symbolic
+        // references — so it can be spelled the way a textual interface
+        // names an opaque archetype without an image in hand (evolution
+        // proposal `opaque-reference-spelling-and-member-projection`).
+        // A reference whose owner cannot be named keeps the upstream text.
+        let spelled = name.spellingUnexpandedOpaqueReferences(as: .textualInterface)
+        if spelled !== name, let text = spelled.text {
+            target.write(text, context: .context(for: name, state: .printType))
+            return
+        }
         target.write(await name.print(using: .default), context: .context(for: name, state: .printType))
     }
 

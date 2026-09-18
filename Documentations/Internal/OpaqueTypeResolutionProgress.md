@@ -12,11 +12,11 @@
 | kind-9 accessor 引用：一段要执行的 thunk | `if #available` 两支返回不同类型（SE-0360）、`~Copyable` 字段 | 反汇编，符号求值（寄存器里装类型表达式），跟进本镜像内没名字的被调函数，跨镜像调用经 bind 名 / rebase 地址 / 跳板认到底 | 第 1–6 批，见下表 |
 | 按名字引用别的镜像的描述符（GOT bind） | 独立文件里的 witness 用到别的框架的 `some` 结果 | 重新 mangle 出描述符符号，按搜索路径定位镜像，在那个镜像里展开 | 第 7 批 |
 
-兜底原则贯穿三条路：认不出就留 `accessor function at N` 或 `<<opaque return type of …>>` 占位，绝不给一个真实但错误的类型。
+兜底原则贯穿三条路：认不出就留占位，绝不给一个真实但错误的类型——kind-9 留 `accessor function at N`，按名引用剩余的 2026-09-18 起拼成 textual interface 的 `@_opaqueReturnTypeOf("$s…", n) __<实参>`（合法 Swift；之前是 demangler 的 `<<opaque return type of …>>`，见 [OpaqueReturnTypeResolution.md](OpaqueReturnTypeResolution.md) §1.5）。
 
 ## 样本实测
 
-口径：`swift-section dump` / `interface` 输出里 `accessor function at`（kind-9 未读）与 `opaque return type of`（按名引用剩余）的行数。全部用第 7 批的 release 二进制测于 2026-09-13。
+口径：`swift-section dump` / `interface` 输出里 `accessor function at`（kind-9 未读）与 `opaque return type of`（按名引用剩余；2026-09-18 起这类行拼成 `@_opaqueReturnTypeOf(`，再数就数它）的行数。全部用第 7 批的 release 二进制测于 2026-09-13。
 
 | 样本 | kind-9 未读 | 按名引用剩余 | 备注 |
 |---|---|---|---|
@@ -55,7 +55,7 @@
 |---|---|---|---|
 | 高 | macOS 27.0 cache 打不开：magic `dyld_v1arm64ex1`（新架构串 `arm64ex1`，无空格填充），header mapping 偏移 0x228 → 0x238 | MachOKit（兄弟仓库）`DyldCacheHeader._cpuType` / `_cpuSubType` 查表 | 加 magic 之后 subcache、镜像表、slide info 有没有新格式要试了才知道；文件名 `_x1` 后缀也让 `DependencySearchPath.isMainCacheFileName` 不认 |
 | 高 | x86_64 不支持 | `SwiftThunkAnalysis` 解码器只有 ARM64 | Intel 二进制的 thunk 全部占位 |
-| 中 | 依赖镜像找不到时，interface 把未展开的按名引用节点印成 conformer 自己 | `SwiftPrinting` 的 `printOpaqueType` | 只印节点的实参表；能定位的引用现在都展开，第三方 app 没给搜索路径时仍会触发。修法：印不出就印 `<<opaque return type of …>>` |
+| 已修 | 依赖镜像找不到时，interface 把未展开的按名引用节点印成 conformer 自己 | `SwiftPrinting` 的 `printOpaqueType` | 提案 0034 改为委托上游 printer（印 `<<opaque return type of …>>`）；2026-09-18 起两条路都拼成 `@_opaqueReturnTypeOf("$s…", n) __<实参>`，interface 因此可编译 |
 | 中 | zippered 构建的 8 参数版本检查（`__isPlatformOrVariantPlatformVersionAtLeast`）认不出 | `AccessorThunkAnalyzer` 的四立即数形状识别 | 后果是把一支当唯一答案、丢掉分支注释，不是错类型；没有样本，纯预防 |
 | 低 | 被跟进的函数在栈上建实参缓冲区时读不出（写回式 `stp` / `ldp` 让栈模型作废） | 求值器 | 目前没有样本 |
 | 低 | class 类型的 metadata 实参不命名（`MetadataNaming` 只认 struct / enum / optional） | 求值器命名层 | 目前的样本实参都是 struct |
@@ -68,7 +68,7 @@
 ## 怎么复测
 
 - **单元与集成**：`swift test --filter '^SwiftThunkAnalysisTests\.'`（含宿主 cache 门控、模拟器门控、归档 iOS cache 门控的套件）；`swift test --filter '^SwiftInterfaceTests\.CrossImageOpaqueReferenceTests'`；最重要的是 `ConstructedThunkOracleTests`，它要求宿主 cache 上每条 kind-9 witness 的离线读法逐字等于 runtime 执行 thunk 的答案，换 macOS 就自动重验。
-- **输出计数**：release 构建后对一份二进制跑 `swift-section dump`，数 `accessor function at` 与 `opaque return type of` 的行数；cache 文件用 `--dyld-shared-cache <cache> -n SwiftUI`，宿主 cache 用 `--uses-system-dyld-shared-cache -p <镜像路径>`，模拟器独立文件直接给路径（iOS 18.5 是 fat，加 `-a arm64`）。归档 cache 在 `/Volumes/DyldSharedCaches/<平台>/<版本>/`。
+- **输出计数**：release 构建后对一份二进制跑 `swift-section dump`，数 `accessor function at` 与 `@_opaqueReturnTypeOf(`（2026-09-18 前是 `opaque return type of`）的行数；cache 文件用 `--dyld-shared-cache <cache> -n SwiftUI`，宿主 cache 用 `--uses-system-dyld-shared-cache -p <镜像路径>`，模拟器独立文件直接给路径（iOS 18.5 是 fat，加 `-a arm64`）。归档 cache 在 `/Volumes/DyldSharedCaches/<平台>/<版本>/`。
 - **回归口径**：改动只应让目标样本的目标行变化，其余输出逐字节一致；每批的任务报告里都有这张 diff 表。
 
 ## 相关文档
