@@ -45,8 +45,37 @@ private struct GenericParameterCoordinate: Hashable {
     }
 }
 
+/// What an opaque type descriptor states about one of its own parameters —
+/// the two constraint forms an opaque result type can carry: the class it
+/// must inherit from, when the constraint type is a class, and the protocols
+/// it conforms to. Both absent is `some Any`, `some AnyObject` (a layout
+/// requirement, not read here) or a marker protocol, which records nothing.
+private struct OpaqueParameterConstraints {
+    var superclass: GenericRequirementDescriptor?
+    var protocols: [GenericRequirementDescriptor] = []
+
+    var isEmpty: Bool { superclass == nil && protocols.isEmpty }
+}
+
 public struct SwiftInterfaceBuilderOpaqueTypeProvider<MachO: MachOSwiftSectionRepresentableWithCache & Sendable>: SwiftInterfaceBuilderExtraDataProvider, OpaqueTypeResolving, Sendable {
     public let machO: MachO
+
+    /// How a *type* inside the rendered constraint is spelled — a superclass,
+    /// or a primary-associated-type argument.
+    ///
+    /// `opaqueTypeBuilderOnly` without `removeBoundGeneric`: that option
+    /// exists for printing a type's *name* (the builder keys on `Swift.Array`,
+    /// not `Swift.Array<Int>`), and printing a whole type with it dropped
+    /// every generic argument — `some Sequence<GenericBase<Int>>` rendered as
+    /// `some Sequence<GenericBase>`, and `Set<Int>` as `Swift.Set` (sugared
+    /// `[A]` survived only because array sugar never reaches that path).
+    /// Protocol names keep the original set: a protocol carries no generic
+    /// arguments to lose.
+    private static var typeSpellingOptions: DemangleOptions {
+        var options = DemangleOptions.opaqueTypeBuilderOnly
+        options.remove(.removeBoundGeneric)
+        return options
+    }
 
     public init(machO: MachO) {
         self.machO = machO
@@ -64,9 +93,10 @@ public struct SwiftInterfaceBuilderOpaqueTypeProvider<MachO: MachOSwiftSectionRe
             // `QR<n>` names the one after the n-th
             // (`ASTMangler::appendOpaqueTypeArchetype`).
             let ordinal = (index ?? -1) + 1
-            guard let protocolRequirements = try await protocolRequirements(onOpaqueParameter: ordinal, of: opaqueType, among: requirements, declaredBy: node) else {
+            guard let parameterConstraints = try await constraints(onOpaqueParameter: ordinal, of: opaqueType, among: requirements, declaredBy: node) else {
                 return nil
             }
+            let protocolRequirements = parameterConstraints.protocols
             let typeRequirements = requirements.filter(\.content.isType)
             let typeRequirementNodes = try typeRequirements.compactMap { try SymbolicDemangler.buildGenericSignature(for: $0, in: machO) }
             var substitutionMap: SubstitutionMap<Node> = .init()
@@ -100,6 +130,11 @@ public struct SwiftInterfaceBuilderOpaqueTypeProvider<MachO: MachOSwiftSectionRe
                 try await compositionProtocolNames.insert(protocolRequirement.dumpContent(resolver: .using(options: .opaqueTypeBuilderOnly), in: machO).string)
             }
             var results: [String] = []
+            if let superclassRequirement = parameterConstraints.superclass {
+                // The class leads the composition, as the compiler's own
+                // interface printer spells it (`some Base & P`).
+                try await results.append(superclassRequirement.dumpContent(resolver: .using(options: Self.typeSpellingOptions), in: machO).string)
+            }
             for protocolRequirement in protocolRequirements {
                 var result = ""
                 let parameterName = try await protocolRequirement.dumpParameterName(resolver: .using(options: .opaqueTypeBuilderOnly), in: machO).string
@@ -120,9 +155,14 @@ public struct SwiftInterfaceBuilderOpaqueTypeProvider<MachO: MachOSwiftSectionRe
                     for attachedConstraint in attachedConstraints {
                         switch attachedConstraint.argumentSource {
                         case .node(let argumentNode):
-                            await primaryAssociatedTypes.append(argumentNode.print(using: .opaqueTypeBuilderOnly))
+                            await primaryAssociatedTypes.append(argumentNode.strippingAssociatedTypeProtocolQualifiers().print(using: Self.typeSpellingOptions))
                         case .substitutionRoot(let substitutionNode):
-                            await primaryAssociatedTypes.append(substitutionMap.rootOriginal(for: substitutionNode).print(using: .opaqueTypeBuilderOnly))
+                            // An outer dependent member (`some Sequence<T.A.A>`,
+                            // the generics book's own example) is what lands
+                            // here; its mangling qualifies every step with its
+                            // declaring protocol, and the upstream printer
+                            // would spell that out as `A.Probe.N.A.Probe.N.A`.
+                            await primaryAssociatedTypes.append(substitutionMap.rootOriginal(for: substitutionNode).strippingAssociatedTypeProtocolQualifiers().print(using: Self.typeSpellingOptions))
                         }
                     }
                     result.write("<")
@@ -144,8 +184,15 @@ public struct SwiftInterfaceBuilderOpaqueTypeProvider<MachO: MachOSwiftSectionRe
         }
     }
 
-    /// The protocol requirements on the opaque parameter at `ordinal`, or nil
-    /// when nothing constrains it at runtime.
+    /// The superclass and protocol requirements on the opaque parameter at
+    /// `ordinal`, or nil when nothing constrains it at runtime.
+    ///
+    /// Both forms the generics book names for an opaque result type's
+    /// constraint are read: a conformance requirement, and — when the
+    /// constraint type is a class — a superclass requirement (kind
+    /// `baseClass`, whose content is a mangled type like a same-type
+    /// requirement's). Reading only the first rendered `some Base` as a bare
+    /// `some` and `some Base & P` as `some P`, silently.
     ///
     /// Every opaque parameter of a declaration sits at one depth — one below
     /// the deepest depth the declaration inherits or introduces — and its
@@ -154,8 +201,8 @@ public struct SwiftInterfaceBuilderOpaqueTypeProvider<MachO: MachOSwiftSectionRe
     /// `PhotosUIFoundation.PhotosGroupingItemListManager.GroupItem.value`: a
     /// `some Sendable` records no requirement at all (marker protocols never
     /// do), the grouped list was empty, and `elements[0]` trapped. `some Any`
-    /// and `some AnyObject` (a layout requirement, not a protocol one) reach
-    /// the same state, and all three are legitimate descriptors: the answer is
+    /// and `some AnyObject` (a layout requirement, not read here) reach the
+    /// same state, and all three are legitimate descriptors: the answer is
     /// nil and the printer emits a bare `some`.
     ///
     /// The depth comes from the descriptor, not from the declaration's mangled
@@ -171,7 +218,7 @@ public struct SwiftInterfaceBuilderOpaqueTypeProvider<MachO: MachOSwiftSectionRe
     /// A requirement on a parameter beyond that depth cannot exist for a
     /// well-formed image: that is reported as a fault and asserted in debug
     /// builds, and answered with nil in release ones.
-    private func protocolRequirements(onOpaqueParameter ordinal: Int, of opaqueType: OpaqueType, among requirements: [GenericRequirementDescriptor], declaredBy node: Node) async throws -> [GenericRequirementDescriptor]? {
+    private func constraints(onOpaqueParameter ordinal: Int, of opaqueType: OpaqueType, among requirements: [GenericRequirementDescriptor], declaredBy node: Node) async throws -> OpaqueParameterConstraints? {
         guard let genericContext = opaqueType.genericContext else { return nil }
         guard !genericContext.currentParameters.isEmpty else {
             let declaration = await node.print(using: .default)
@@ -188,18 +235,38 @@ public struct SwiftInterfaceBuilderOpaqueTypeProvider<MachO: MachOSwiftSectionRe
         }
         let opaqueParameterDepth = enclosingDepthCount + (Self.declaresOwnGenericParameters(node) ? 1 : 0)
 
-        var protocolRequirementsByParameter: [GenericParameterCoordinate: [GenericRequirementDescriptor]] = [:]
-        for protocolRequirement in requirements.filter(\.content.isProtocol) {
-            guard let coordinate = GenericParameterCoordinate(subjectNode: try await protocolRequirement.dumpParameterName(in: machO)) else { continue }
+        var constraintsByParameter: [GenericParameterCoordinate: OpaqueParameterConstraints] = [:]
+        for requirement in requirements {
+            let isSuperclassRequirement: Bool
+            switch requirement.flags.kind {
+            case .protocol:
+                isSuperclassRequirement = false
+            case .baseClass:
+                isSuperclassRequirement = true
+            default:
+                continue
+            }
+            guard let coordinate = GenericParameterCoordinate(subjectNode: try await requirement.dumpParameterName(in: machO)) else { continue }
             guard coordinate.depth <= opaqueParameterDepth else {
                 let declaration = await node.print(using: .default)
                 #log(.fault, "opaque type descriptor of \(declaration, privacy: .public) constrains parameter τ_\(coordinate.depth, privacy: .public)_\(coordinate.index, privacy: .public), beyond the opaque parameters' depth \(opaqueParameterDepth, privacy: .public)")
                 assertionFailure("opaque type descriptor of \(declaration) constrains parameter τ_\(coordinate.depth)_\(coordinate.index), beyond the opaque parameters' depth \(opaqueParameterDepth)")
                 return nil
             }
-            protocolRequirementsByParameter[coordinate, default: []].append(protocolRequirement)
+            if isSuperclassRequirement {
+                // A parameter inherits from one class at most; a well-formed
+                // signature never states two, so the first read stands.
+                if constraintsByParameter[coordinate, default: OpaqueParameterConstraints()].superclass == nil {
+                    constraintsByParameter[coordinate, default: OpaqueParameterConstraints()].superclass = requirement
+                }
+            } else {
+                constraintsByParameter[coordinate, default: OpaqueParameterConstraints()].protocols.append(requirement)
+            }
         }
-        return protocolRequirementsByParameter[GenericParameterCoordinate(depth: opaqueParameterDepth, index: ordinal)]
+        guard let parameterConstraints = constraintsByParameter[GenericParameterCoordinate(depth: opaqueParameterDepth, index: ordinal)], !parameterConstraints.isEmpty else {
+            return nil
+        }
+        return parameterConstraints
     }
 
     /// Whether the declaration introduces generic parameters of its own: its
