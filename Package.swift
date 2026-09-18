@@ -642,6 +642,7 @@ extension Target {
     static let SwiftInterface = Target.target(
         name: "SwiftInterface",
         dependencies: [
+            .product(name: "FoundationToolbox", package: "FrameworkToolbox"),
             .product(.MachOKit),
             .product(.MachOObjCSection),
             .product(.Semantic),

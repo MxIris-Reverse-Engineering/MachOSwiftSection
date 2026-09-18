@@ -1799,6 +1799,17 @@
 - **关联文档**：[draft-opaque-parameters-for-single-use-generics](../Evolutions/draft-opaque-parameters-for-single-use-generics.md)。
 - **对应版本**：纯书写形式改动，输出零变化，随下一次发布。
 
+## 2026-09-18 opaque 参数没有运行时可见约束时的崩溃（RuntimeViewer 批量导出 PhotosUIFoundation）
+
+- **时间段**：2026-09-18（单日）。
+- **动机**：RuntimeViewer 3.0.0 Debug 批量导出 macOS 26.7 的 `PhotosUIFoundation` 时整个进程被 `Index out of range` 杀掉。崩溃点是 `SwiftInterfaceBuilderOpaqueTypeProvider.opaqueType(forNode:index:)`：它把 opaque 类型描述符的协议约束按参数分组后**按位置**取（`elements[0]`，多个 `some` 时 `elements[index + 1]`），没有越界保护。触发它的声明是 `PhotosGroupingItemListManager.GroupItem.value`，lldb 里看到描述符自己一条约束都没有（`numRequirements` 与父级相同，全是继承来的）——源码只可能是 `some Sendable` 这类 marker protocol（编译器明确不记录，`GenMeta.cpp` 的 "Marker protocols do not record generic requirements at all"）或 `some Any`；`some AnyObject` 只有 layout 约束，provider 不读，同样到达空分组。文件读取器在同一镜像上不崩只是因为它在到达取值那一行之前先抛了错并被 `catch` 静默吞掉，渲染成裸 `some`。
+- **关键决策**：**① 按坐标查找而不是按位置**：opaque 的每个参数都在同一深度、下标就是它在声明里的序号（`Qr` 是 0，`QR<n>` 是 n + 1），所以用 `(depth, index)` 做 key 精确查表，查不到返回 nil，printer 打出裸 `some`——与文件读取器既有的降级形态一致，也是与用户确认过的取舍（没选 `some Any`，它会把 `some Sendable` 写成一个不对的类型）。**② 深度从描述符算，不从声明的 mangled 签名数**：`swift-demangle -expand` 证明成员方法的签名只写它自己新增的那一层参数数（`ASTMangler::appendGenericSignatureParts` 跳过上下文的深度），所以深度 = 父级参数数每增长一次算一层（同运行时 `_gatherGenericParameterCounts` 的规则，非泛型嵌套类型不占层）+ 声明自己是否泛型（看 type 节点是否套 `dependentGenericType`；constrained extension 的签名在 context 节点里，不算）。`GenericContext.depth` 不能用——它对每个带泛型上下文的父级都加一，非泛型嵌套类型会多算一层。**③ 错误处理按用户要求分两档**：走不到的状态（描述符没有自己的参数、约束落在 opaque 深度之外）`#log(.fault)` 加 `assertionFailure`，release 下返回 nil；`catch` 里原本静默吞掉的读取失败改为 `#log(.error)` 带声明名与错误。`@Loggable` 走协议形式（provider 是泛型 struct）。
+- **落地模块**：`SwiftInterface`（`SwiftInterfaceBuilderOpaqueTypeProvider.swift`，`Package.swift` 补 `FoundationToolbox` 依赖）；新增 `Tests/SwiftInterfaceTests/OpaqueParameterWithoutProtocolRequirementTests.swift`（即时编译 fixture：`some Sendable`、`(some Equatable, some Sendable)`、`some AnyObject`、`some Any`，以及泛型类型成员 / 泛型成员 / 非泛型嵌套类型三种深度），修复前以同一个 `Index out of range` 崩溃，修复后 4 tests 全绿。
+- **验证**：临时进程内测试（`dlopen` PhotosUIFoundation + `MachOImage` + provider）修复前稳定复现同一崩溃、修复后通过，`GroupItem.value` 渲染为 `var value: some {`；`SwiftInterfaceTests` 与 `SwiftSectionCommandTests` 全过（连同临时进程内测试共 223 tests / 42 suites）。**未跑渲染 A/B**：改动只影响原本会崩或已经渲染为裸 `some` 的路径，既有 opaque E2E 断言（`some Swift.Equatable & Swift.Sequence<[A]>` 等）覆盖了按坐标查找与按位置取值一致的全部形状。
+- **顺带看到、没处理的**：文件读取器在 `_PhotosUI_SwiftUI` 上把 `PhotosPicker<A>.body` 与 `PHLivePhoto.transferRepresentation` 渲染成裸 `some`，是跨镜像协议（`SwiftUI.View`、`TransferRepresentation`）在 cache 镜像里的读取失败被吞掉——现在会以 `.error` 记日志，根因另案。`RenderingVerificationTests` 的进程内那一腿没有注册 opaque provider，所以 A/B 验证从来没覆盖过这个 provider，也另案。
+- **关联文档**：[OpaqueReturnTypeResolution.md](OpaqueReturnTypeResolution.md) §1.3、[Modules/SwiftInterface.md](Modules/SwiftInterface.md) 子系统 2。
+- **对应版本**：随下一次发布；main（0.19.0）同样带此 bug，RuntimeViewer 链接的就是它。
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节

@@ -52,7 +52,7 @@ SwiftInterface 是接口生成的**编排层**（thin orchestrator）：它自�
 
 把 `some P` 的占位还原成带 primary associated type 实参的完整拼写（`some Collection<Int> & Sendable`）。领域细节已有两篇专文——[OpaqueReturnTypeResolution.md](../OpaqueReturnTypeResolution.md)（descriptor 编码、anchor/塌缩机制、字节级调试）与 [OpaquePrimaryAssociatedTypeAttribution.md](../OpaquePrimaryAssociatedTypeAttribution.md)（提案 0011 的实现说明）——本节只给文件分工：
 
-- **`SwiftInterfaceBuilderOpaqueTypeProvider`**：入口，也是一个 `ExtraDataProvider`（挂到 builder 上，printer 打印 `some` 返回类型时经 `opaqueType(forNode:index:)` 回查）。从符号表定位 opaque type descriptor，把 generic requirements 拆成协议项与 same-type 项，逐协议调用归属判定（anchor 直接命中 → refine 闭包 → 名字兜底，兜底四条件缺一不可——宁可少一个实参也不捏造一个）。
+- **`SwiftInterfaceBuilderOpaqueTypeProvider`**：入口，也是一个 `ExtraDataProvider`（挂到 builder 上，printer 打印 `some` 返回类型时经 `opaqueType(forNode:index:)` 回查）。从符号表定位 opaque type descriptor，把 generic requirements 拆成协议项与 same-type 项，逐协议调用归属判定（anchor 直接命中 → refine 闭包 → 名字兜底，兜底四条件缺一不可——宁可少一个实参也不捏造一个）。参数按坐标（深度 + 序号）定位而不是按位置：没有运行时可见协议约束的参数（`some Sendable` / `some Any` / `some AnyObject`）返回 nil、渲染为裸 `some`，走不到的状态 `#log(.fault)` 加 debug 断言，读取失败 `#log(.error)`（见 [OpaqueReturnTypeResolution.md](../OpaqueReturnTypeResolution.md) §1.3）。
 - **`OpaqueSameTypeConstraint`** / **`OpaqueDependentMemberProjection`**：从 requirement 节点里挖出来的单条 same-type 约束（区分正向 pin `τ.Name == X` 与反向 pin `outer == τ.Name`，后者渲染期经 `SubstitutionMap` 回溯）及其解析器。
 - **`ProtocolFactsResolver`**：按「可达 descriptor 优先、内置表兜底」的链条解析协议事实（自声明的 associated type 名、refine 闭包），`refineClosureContainsAnchor` 对不完整闭包返回三态（命中 / 完整排除 / `nil` 不可证）。
 - **`BuiltinStandardLibraryProtocolFacts`**：冻结的 stdlib 协议表——**primary associated type 名单与顺序的唯一来源**（SE-0346 不留运行时痕迹），也是离线 bind-only 外部协议的兜底。无 associated type 的协议也登记空条目，让归属能说「确定不附着」而非降级。
