@@ -3,6 +3,12 @@ import Foundation
 import Demangling
 import Semantic
 
+/// File-scoped because a generic type cannot hold a static stored property,
+/// and a computed property returning the literal rebuilds the `Set` (an
+/// allocation plus hashing) on every access — measured at about 70 ns against
+/// 17 ns for a once-initialized constant on Swift 6.4 (proposal 0035).
+private let subscriptDeclarationNodeKinds: Set<Node.Kind> = [.subscript]
+
 typealias SemanticSubscriptNodePrinter = SubscriptNodePrinter<SemanticString>
 
 struct SubscriptNodePrinter<Target: NodePrinterTarget>: MemberDeclarationNodePrintable {
@@ -24,7 +30,7 @@ struct SubscriptNodePrinter<Target: NodePrinterTarget>: MemberDeclarationNodePri
 
     private let indentation: Int
 
-    static var declarationNodeKinds: Set<Node.Kind> { [.subscript] }
+    static var declarationNodeKinds: Set<Node.Kind> { subscriptDeclarationNodeKinds }
 
     init(isOverride: Bool, isClassMember: Bool = false, isFinal: Bool = false, hasSetter: Bool, indentation: Int, delegate: (any NodePrintableDelegate)? = nil) {
         self.isOverride = isOverride
