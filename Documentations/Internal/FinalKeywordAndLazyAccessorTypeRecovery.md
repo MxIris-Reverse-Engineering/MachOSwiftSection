@@ -38,7 +38,7 @@ Sources/SwiftPrinting/
 ├── SwiftDeclarationPrinter+Members.swift  # printThrowingField：final 关键字 + fieldTypeNode 取型
 ├── SwiftDeclarationPrinter+Headers.swift  # renderModelFields：stored var 的 vtable 注释
 ├── SwiftDeclarationPrinter.swift          # isFinal 传入三个 node printer
-└── NodePrinter/{Variable,Function,Subscript}NodePrinter.swift  # printRoot 写 "final "
+└── NodePrintables/MemberDeclarationNodePrintable.swift  # 三个成员 printer 共用的 printRoot 写 "final "（提案 node-printer-declaration-layer-and-context-roles 之前是 NodePrinter/{Variable,Function,Subscript}NodePrinter.swift 各写一份）
 Sources/SwiftDump/
 ├── Protocols/TypedDumper.swift   # fieldDeclarationKeywords + isFinal 参数
 └── Dumper/ClassDumper.swift      # 名字级 join（vtableAccessorFieldNames / storedAccessorFieldNames）

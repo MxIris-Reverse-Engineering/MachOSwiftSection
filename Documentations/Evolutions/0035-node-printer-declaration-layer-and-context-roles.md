@@ -1,6 +1,6 @@
-# Draft - NodePrinter 补声明层协议、Context 按层拆角色
+# 0035 - NodePrinter 补声明层协议、Context 按层拆角色
 
-- **状态**: In Progress
+- **状态**: Implemented
 - **创建日期**: 2026-09-18
 - **最后更新**: 2026-09-19
 - **关联提案**: [0015](0015-type-name-resolver-role-split.md)（delegate 侧的角色化拆分，本案对 printer 自身状态用同一手法）、[0034](0034-interface-printer-node-kind-parity.md)（最近一次大面积触碰这组文件；本案不改任何 `case` 的输出）
@@ -127,5 +127,6 @@ A/B 的基线侧没有用 `next` worktree，而是同一 commit（829667b2）的
 | 2026-09-18 | `NodePrintOptions.isBlockOrClosure` 默认 true | 现状 `context == nil` 时取 true、`Context()` 时取 false，两个「默认」不一致；`Context()` 只在 `printLabelList` 构造并立刻赋满两个值，旧默认值从未被观察到，改成 true 无行为变化 |
 | 2026-09-18 | 用户批准提案（Accepted），随即开工（In Progress） | 聊天里逐项确认了方案、Context 角色划分与未询问即采用的假设；worktree `.worktrees/MachOSwiftSection-NodePrinterDeclarationLayer`，分支 `feature/node-printer-declaration-layer` 自 `next` 829667b2 切出 |
 | 2026-09-19 | 四个 fixture 编译失败的 `SwiftInterfaceTests` 不在本案修 | 改动前后失败集合逐一相同，根因是 `-language-mode` 缺失这一工具链变化，横向属于测试基础设施而非打印器；单独立案更干净 |
+| 2026-09-19 | 合入 `next`，落地编号 0035（远端 main / next 与本地的全局最大为 0034）；状态 Implemented | Implemented 的两问：不另立实现说明，裁决全在本决策日志，且两篇已有实现说明（PrinterNodeKindParity、FinalKeywordAndLazyAccessorTypeRecovery）指向旧布局的句子已同步；没有新术语需要进术语表，「角色协议」沿用 0015 的用法 |
 | 2026-09-18 | 三个都叫 context 的概念分开命名 | 存储状态叫 `Context`（沿用用户用词）；每次调用的参数叫 `NodePrintOptions`；上游 `NodePrintContext` 是给 target 做语义标注的，不动 |
 | 2026-09-18 | 顺带把 A/B 验证脚本的归档 cache 常量从 `26.6.2` 改为 `26.6` | 归档卷又改了目录名（`26.6.2` → `26.6`，旁边新增 `27.0`）。脚本对不存在的目录静默跳过，不改的话 macOS 26 这条腿整段消失而报告照样「全部一致」，正是验证文档记录过的陷阱；文档同步补了一句 |

@@ -2,13 +2,13 @@ import SwiftDeclaration
 import Demangling
 
 protocol BoundGenericNodePrintable: NodePrintable {
-    mutating func printNameInBoundGeneric(_ name: Node, context: Context?) async -> Bool
+    mutating func printNameInBoundGeneric(_ name: Node) async -> Bool
     mutating func printBoundGeneric(_ name: Node) async
     mutating func printBoundGenericNoSugar(_ name: Node) async
 }
 
 extension BoundGenericNodePrintable {
-    mutating func printNameInBoundGeneric(_ name: Node, context: Context?) async -> Bool {
+    mutating func printNameInBoundGeneric(_ name: Node) async -> Bool {
         switch name.kind {
         case .boundGenericClass,
              .boundGenericStructure,
@@ -37,8 +37,8 @@ extension BoundGenericNodePrintable {
         }
 
         if name.kind == .boundGenericProtocol {
-            _ = await printOptional(name.children.at(1))
-            _ = await printOptional(name.children.at(0), prefix: " as ")
+            await printOptional(name.children.at(1))
+            await printOptional(name.children.at(0), prefix: " as ")
             return
         }
 
@@ -48,14 +48,14 @@ extension BoundGenericNodePrintable {
              .implicitlyUnwrappedOptional:
             if let type = name.children.at(1)?.children.at(0) {
                 let needParens = !type.isSimpleType
-                _ = await printOptional(type, prefix: needParens ? "(" : "", suffix: needParens ? ")" : "")
+                await printOptional(type, prefix: needParens ? "(" : "", suffix: needParens ? ")" : "")
                 target.write(sugarType == .optional ? "?" : "!")
             }
         case .array,
              .dictionary:
-            _ = await printOptional(name.children.at(1)?.children.at(0), prefix: "[")
+            await printOptional(name.children.at(1)?.children.at(0), prefix: "[")
             if sugarType == .dictionary {
-                _ = await printOptional(name.children.at(1)?.children.at(1), prefix: " : ")
+                await printOptional(name.children.at(1)?.children.at(1), prefix: " : ")
             }
             target.write("]")
         default: await printBoundGenericNoSugar(name)
@@ -77,24 +77,24 @@ extension BoundGenericNodePrintable {
         guard name.children.count == 2 else { return .none }
 
         guard let unboundType = firstChild.children.first, unboundType.children.count > 1 else { return .none }
-        let typeArgs = secondChild
+        let typeArguments = secondChild
 
-        let c0 = unboundType.children.at(0)
-        let c1 = unboundType.children.at(1)
+        let moduleNode = unboundType.children.at(0)
+        let identifierNode = unboundType.children.at(1)
 
         if name.kind == .boundGenericEnum {
-            if c1?.isIdentifier(desired: "Optional") == true && typeArgs.children.count == 1 && c0?.isSwiftModule == true {
+            if identifierNode?.isIdentifier(desired: "Optional") == true && typeArguments.children.count == 1 && moduleNode?.isSwiftModule == true {
                 return .optional
             }
-            if c1?.isIdentifier(desired: "ImplicitlyUnwrappedOptional") == true && typeArgs.children.count == 1 && c0?.isSwiftModule == true {
+            if identifierNode?.isIdentifier(desired: "ImplicitlyUnwrappedOptional") == true && typeArguments.children.count == 1 && moduleNode?.isSwiftModule == true {
                 return .implicitlyUnwrappedOptional
             }
             return .none
         }
-        if c1?.isIdentifier(desired: "Array") == true && typeArgs.children.count == 1 && c0?.isSwiftModule == true {
+        if identifierNode?.isIdentifier(desired: "Array") == true && typeArguments.children.count == 1 && moduleNode?.isSwiftModule == true {
             return .array
         }
-        if c1?.isIdentifier(desired: "Dictionary") == true && typeArgs.children.count == 2 && c0?.isSwiftModule == true {
+        if identifierNode?.isIdentifier(desired: "Dictionary") == true && typeArguments.children.count == 2 && moduleNode?.isSwiftModule == true {
             return .dictionary
         }
         return .none

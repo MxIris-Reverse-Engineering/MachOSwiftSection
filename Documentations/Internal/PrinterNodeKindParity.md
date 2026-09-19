@@ -5,7 +5,7 @@
 
 ## 失败模式：缺一个 case，输出就少一段，而且没人会发现
 
-`InterfaceNodePrintable.dispatchPrintName` 依次问五个 `printNameIn*`，五个都返回 `false` 时**什么都不写、返回 `nil`**。所以一个没有 `case` 的 node kind，渲染结果是空字符串——不是报错，不是占位符，是什么都没有。
+`InterfaceNodePrintable.dispatchPrintName` 依次问五个 `printNameIn*`，五个都返回 `false` 时**什么都不写**（早先这条路径还返回一个从没人读的 `nil`，提案 `node-printer-declaration-layer-and-context-roles` 删掉了那个返回值）。所以一个没有 `case` 的 node kind，渲染结果是空字符串——不是报错，不是占位符，是什么都没有。
 
 这种空串在输出里表现为语法残缺：
 
