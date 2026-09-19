@@ -40,7 +40,7 @@ DEFAULT_FRAMEWORK_NAMES = ["SwiftUI", "SwiftUICore", "SwiftData", "Combine", "Ac
 # checked for an arm64e cache and silently skipped when absent, so a machine
 # carrying only one of them still runs that leg.
 ARCHIVED_CACHE_DIRECTORIES = [
-    Path("/Volumes/DyldSharedCaches/macOS/26.6.2"),
+    Path("/Volumes/DyldSharedCaches/macOS/26.6"),
     Path("/Volumes/DyldSharedCaches/macOS/15.5"),
 ]
 
