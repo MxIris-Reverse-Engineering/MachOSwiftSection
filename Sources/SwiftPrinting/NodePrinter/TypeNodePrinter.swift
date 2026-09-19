@@ -3,10 +3,12 @@ import Foundation
 import Demangling
 import Semantic
 
-struct TypeNodePrinter: InterfaceNodePrintable {
-    typealias Context = InterfaceNodePrinterContext<SemanticString>
+typealias SemanticTypeNodePrinter = TypeNodePrinter<SemanticString>
 
-    var target: SemanticString = ""
+struct TypeNodePrinter<Target: NodePrinterTarget>: InterfaceNodePrintable {
+    typealias Context = InterfaceNodePrinterContext<Target>
+
+    var target = Target()
 
     var context = Context()
 
@@ -17,7 +19,7 @@ struct TypeNodePrinter: InterfaceNodePrintable {
         context.isProtocol = isProtocol
     }
 
-    mutating func printRoot(_ node: Node) async throws -> SemanticString {
+    mutating func printRoot(_ node: Node) async throws -> Target {
         await printName(node)
         return target
     }

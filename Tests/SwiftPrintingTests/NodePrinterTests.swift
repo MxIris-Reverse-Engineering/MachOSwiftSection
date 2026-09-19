@@ -27,7 +27,7 @@ struct NodePrinterUnitTests {
     ])
     func functionNodePrinterBasic(mangled: String, expectedContains: String) async throws {
         let node = try await demangleAsNode(mangled)
-        var printer = FunctionNodePrinter(isOverride: false)
+        var printer = SemanticFunctionNodePrinter(isOverride: false)
         let result = try await printer.printRoot(node).string
 
         #expect(result.contains("func"), "Result should contain 'func' keyword")
@@ -35,7 +35,7 @@ struct NodePrinterUnitTests {
 
     @Test func functionNodePrinterWithOverride() async throws {
         let node = try await demangleAsNode("$s4Main3fooyySiF")
-        var printer = FunctionNodePrinter(isOverride: true)
+        var printer = SemanticFunctionNodePrinter(isOverride: true)
         let result = try await printer.printRoot(node).string
 
         #expect(result.hasPrefix("override "), "Should start with 'override' keyword")
@@ -43,7 +43,7 @@ struct NodePrinterUnitTests {
 
     @Test func functionNodePrinterClassMember() async throws {
         let node = try await demangleAsNode("$s4Main3ClsC3fooyyFZ")  // static Main.Cls.foo()
-        var printer = FunctionNodePrinter(isOverride: false, isClassMember: true)
+        var printer = SemanticFunctionNodePrinter(isOverride: false, isClassMember: true)
         let result = try await printer.printRoot(node).string
 
         #expect(result.hasPrefix("class func "), "A vtable-backed type-level function should print as 'class func'")
@@ -51,7 +51,7 @@ struct NodePrinterUnitTests {
 
     @Test func functionNodePrinterStaticMember() async throws {
         let node = try await demangleAsNode("$s4Main3ClsC3fooyyFZ")  // static Main.Cls.foo()
-        var printer = FunctionNodePrinter(isOverride: false, isClassMember: false)
+        var printer = SemanticFunctionNodePrinter(isOverride: false, isClassMember: false)
         let result = try await printer.printRoot(node).string
 
         #expect(result.hasPrefix("static func "), "A type-level function without a vtable entry should stay 'static func'")
@@ -59,7 +59,7 @@ struct NodePrinterUnitTests {
 
     @Test func functionNodePrinterOverrideClassMember() async throws {
         let node = try await demangleAsNode("$s4Main3ClsC3fooyyFZ")  // static Main.Cls.foo()
-        var printer = FunctionNodePrinter(isOverride: true, isClassMember: true)
+        var printer = SemanticFunctionNodePrinter(isOverride: true, isClassMember: true)
         let result = try await printer.printRoot(node).string
 
         #expect(result.hasPrefix("override class func "), "An overriding class function should print as 'override class func', never the illegal 'override static'")
@@ -69,7 +69,7 @@ struct NodePrinterUnitTests {
 
     @Test func variableNodePrinterStored() async throws {
         let node = try await demangleAsNode("$s4Main3fooSivp")  // Main.foo: Int
-        var printer = VariableNodePrinter(isStored: true, isOverride: false, hasSetter: true, indentation: 0)
+        var printer = SemanticVariableNodePrinter(isStored: true, isOverride: false, hasSetter: true, indentation: 0)
         let result = try await printer.printRoot(node).string
 
         #expect(result.contains("var"), "Stored property with setter should use 'var'")
@@ -77,7 +77,7 @@ struct NodePrinterUnitTests {
 
     @Test func variableNodePrinterComputed() async throws {
         let node = try await demangleAsNode("$s4Main3fooSivg")  // Main.foo.getter
-        var printer = VariableNodePrinter(isStored: false, isOverride: false, hasSetter: false, indentation: 0)
+        var printer = SemanticVariableNodePrinter(isStored: false, isOverride: false, hasSetter: false, indentation: 0)
         let result = try await printer.printRoot(node).string
 
         #expect(result.contains("get"), "Computed property should have getter")
@@ -85,7 +85,7 @@ struct NodePrinterUnitTests {
 
     @Test func variableNodePrinterWithOverride() async throws {
         let node = try await demangleAsNode("$s4Main3fooSivp")
-        var printer = VariableNodePrinter(isStored: true, isOverride: true, hasSetter: true, indentation: 0)
+        var printer = SemanticVariableNodePrinter(isStored: true, isOverride: true, hasSetter: true, indentation: 0)
         let result = try await printer.printRoot(node).string
 
         #expect(result.hasPrefix("override "), "Should start with 'override' keyword")
@@ -93,7 +93,7 @@ struct NodePrinterUnitTests {
 
     @Test func variableNodePrinterClassMember() async throws {
         let node = try await demangleAsNode("$s4Main3ClsC3fooSivgZ")  // static Main.Cls.foo.getter : Swift.Int
-        var printer = VariableNodePrinter(isStored: false, isOverride: false, isClassMember: true, hasSetter: false, indentation: 0)
+        var printer = SemanticVariableNodePrinter(isStored: false, isOverride: false, isClassMember: true, hasSetter: false, indentation: 0)
         let result = try await printer.printRoot(node).string
 
         #expect(result.hasPrefix("class var "), "A vtable-backed type-level variable should print as 'class var'")
@@ -101,7 +101,7 @@ struct NodePrinterUnitTests {
 
     @Test func variableNodePrinterStaticMember() async throws {
         let node = try await demangleAsNode("$s4Main3ClsC3fooSivgZ")  // static Main.Cls.foo.getter : Swift.Int
-        var printer = VariableNodePrinter(isStored: false, isOverride: false, isClassMember: false, hasSetter: false, indentation: 0)
+        var printer = SemanticVariableNodePrinter(isStored: false, isOverride: false, isClassMember: false, hasSetter: false, indentation: 0)
         let result = try await printer.printRoot(node).string
 
         #expect(result.hasPrefix("static var "), "A type-level variable without a vtable entry should stay 'static var'")
@@ -119,7 +119,7 @@ struct NodePrinterUnitTests {
     ])
     func typeNodePrinterBasicTypes(mangled: String, expected: String) async throws {
         let node = try await demangleAsNode(mangled)
-        var printer = TypeNodePrinter()
+        var printer = SemanticTypeNodePrinter()
 
         // For type aliases like $sSi, the structure is Global > Structure
         guard let typeNode = node.children.first else {
@@ -140,14 +140,14 @@ struct NodePrinterUnitTests {
     /// parentheses closed around nothing (`case type()` — invalid Swift).
     @Test func typeNodePrinterAccessorFunctionReference() async throws {
         let node = Node.create(kind: .type, child: .create(kind: .accessorFunctionReference, index: 750396))
-        var printer = TypeNodePrinter()
+        var printer = SemanticTypeNodePrinter()
         let result = try await printer.printRoot(node).string
         #expect(result == "accessor function at 750396")
     }
 
     @Test func typeNodePrinterOptional() async throws {
         let node = try await demangleAsNode("$sSiSg")  // Int?
-        var printer = TypeNodePrinter()
+        var printer = SemanticTypeNodePrinter()
 
         guard let typeNode = node.children.first else {
             Issue.record("No type node found")
@@ -161,7 +161,7 @@ struct NodePrinterUnitTests {
 
     @Test func typeNodePrinterArray() async throws {
         let node = try await demangleAsNode("$sSaySiG")  // [Int]
-        var printer = TypeNodePrinter()
+        var printer = SemanticTypeNodePrinter()
 
         guard let typeNode = node.children.first else {
             Issue.record("No type node found")
@@ -175,7 +175,7 @@ struct NodePrinterUnitTests {
 
     @Test func typeNodePrinterDictionary() async throws {
         let node = try await demangleAsNode("$sSDySSSiG")  // [String: Int]
-        var printer = TypeNodePrinter()
+        var printer = SemanticTypeNodePrinter()
 
         guard let typeNode = node.children.first else {
             Issue.record("No type node found")
@@ -199,7 +199,7 @@ struct NodePrinterUnitTests {
     @Test func typeNodePrinterModuleQualified() async throws {
         // Test custom type
         let node = try await demangleAsNode("$s4Main3FooV")
-        var printer = TypeNodePrinter()
+        var printer = SemanticTypeNodePrinter()
 
         guard let typeNode = node.children.first else {
             Issue.record("No type node found")
@@ -215,7 +215,7 @@ struct NodePrinterUnitTests {
     @Test func subscriptNodePrinterBasic() async throws {
         // subscript with getter only
         let node = try await demangleAsNode("$s4Main3FooVyS2icig")  // Main.Foo.subscript(_:) getter
-        var printer = SubscriptNodePrinter(isOverride: false, hasSetter: false, indentation: 1)
+        var printer = SemanticSubscriptNodePrinter(isOverride: false, hasSetter: false, indentation: 1)
         let result = try await printer.printRoot(node).string
 
         #expect(result.contains("subscript"))
@@ -225,7 +225,7 @@ struct NodePrinterUnitTests {
 
     @Test func subscriptNodePrinterWithSetter() async throws {
         let node = try await demangleAsNode("$s4Main3FooVyS2icig")
-        var printer = SubscriptNodePrinter(isOverride: false, hasSetter: true, indentation: 1)
+        var printer = SemanticSubscriptNodePrinter(isOverride: false, hasSetter: true, indentation: 1)
         let result = try await printer.printRoot(node).string
 
         #expect(result.contains("subscript"))
@@ -235,7 +235,7 @@ struct NodePrinterUnitTests {
 
     @Test func subscriptNodePrinterClassMember() async throws {
         let node = try await demangleAsNode("$s4Main3ClsCyS2icigZ")  // static Main.Cls.subscript.getter : (Swift.Int) -> Swift.Int
-        var printer = SubscriptNodePrinter(isOverride: false, isClassMember: true, hasSetter: false, indentation: 1)
+        var printer = SemanticSubscriptNodePrinter(isOverride: false, isClassMember: true, hasSetter: false, indentation: 1)
         let result = try await printer.printRoot(node).string
 
         #expect(result.hasPrefix("class subscript"), "A vtable-backed type-level subscript should print as 'class subscript'")
@@ -243,7 +243,7 @@ struct NodePrinterUnitTests {
 
     @Test func subscriptNodePrinterStaticMember() async throws {
         let node = try await demangleAsNode("$s4Main3ClsCyS2icigZ")  // static Main.Cls.subscript.getter : (Swift.Int) -> Swift.Int
-        var printer = SubscriptNodePrinter(isOverride: false, isClassMember: false, hasSetter: false, indentation: 1)
+        var printer = SemanticSubscriptNodePrinter(isOverride: false, isClassMember: false, hasSetter: false, indentation: 1)
         let result = try await printer.printRoot(node).string
 
         #expect(result.hasPrefix("static subscript"), "A type-level subscript without a vtable entry should stay 'static subscript'")
@@ -261,7 +261,7 @@ final class NodePrinterIntegrationTests: DyldCacheTests, @unchecked Sendable {
 
     @Test func functionNodeFromSymbol() async throws {
         let node = try await demangleAsNode("_$s7SwiftUI19AnyStyleContextTypeV07acceptsC0ySbxmxQpRvzAA0dE0RzlF")
-        var printer = FunctionNodePrinter(isOverride: false)
+        var printer = SemanticFunctionNodePrinter(isOverride: false)
         let result = try await printer.printRoot(node).string
 
         #expect(result.contains("func"))
@@ -271,7 +271,7 @@ final class NodePrinterIntegrationTests: DyldCacheTests, @unchecked Sendable {
 
     @Test func variableNodeFromSymbol() async throws {
         let variableNode = try await demangleAsNode("_$s7SwiftUI38HostingViewTransparentBackgroundReasonVs10SetAlgebraAAsADP7isEmptySbvgTW")
-        var variableNodePrinter = VariableNodePrinter(isStored: false, isOverride: false, hasSetter: true, indentation: 0)
+        var variableNodePrinter = SemanticVariableNodePrinter(isStored: false, isOverride: false, hasSetter: true, indentation: 0)
 
         guard let firstChild = variableNode.children.first else {
             Issue.record("No child node found")
@@ -292,7 +292,7 @@ final class NodePrinterIntegrationTests: DyldCacheTests, @unchecked Sendable {
         for demangledSymbol in demangledSymbols.prefix(20) {
             let node = demangledSymbol.demangledNode.materialize()
             do {
-                var printer = FunctionNodePrinter(isOverride: false)
+                var printer = SemanticFunctionNodePrinter(isOverride: false)
                 guard let firstChild = node.children.first else { continue }
                 let result = try await printer.printRoot(firstChild).string
                 #expect(!result.isEmpty)
@@ -318,7 +318,7 @@ final class NodePrinterIntegrationTests: DyldCacheTests, @unchecked Sendable {
                 do {
                     let substitutedTypeNameMangledName = try record.substitutedTypeName(in: machO)
                     let node = try SymbolicDemangler.demangleType(for: substitutedTypeNameMangledName, in: machO)
-                    var printer = TypeNodePrinter()
+                    var printer = SemanticTypeNodePrinter()
                     let result = try await printer.printRoot(node).string
                     #expect(!result.isEmpty)
                     successCount += 1
@@ -343,7 +343,7 @@ final class NodePrinterIntegrationTests: DyldCacheTests, @unchecked Sendable {
         for demangledSymbol in demangledSymbols.prefix(10) {
             let node = demangledSymbol.demangledNode.materialize()
             do {
-                var printer = SubscriptNodePrinter(isOverride: false, hasSetter: false, indentation: 1)
+                var printer = SemanticSubscriptNodePrinter(isOverride: false, hasSetter: false, indentation: 1)
                 let result = try await printer.printRoot(node).string
                 if result.contains("subscript") {
                     successCount += 1

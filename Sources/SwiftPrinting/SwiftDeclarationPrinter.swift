@@ -133,7 +133,7 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
         eventDispatcher.addHandlers(eventHandlers)
         self.typeDemangleResolver = .using { [weak self] node in
             if let self {
-                var printer = TypeNodePrinter(delegate: self)
+                var printer = SemanticTypeNodePrinter(delegate: self)
                 try await printer.printRoot(node)
             }
         }
@@ -152,7 +152,7 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
         self.configuration = configuration
         self.typeDemangleResolver = .using { [weak self] node in
             if let self {
-                var printer = TypeNodePrinter(delegate: self)
+                var printer = SemanticTypeNodePrinter(delegate: self)
                 try await printer.printRoot(node)
             }
         }
@@ -786,7 +786,7 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
             Keyword(attribute.keyword)
             Space()
         }
-        var printer = VariableNodePrinter(isStored: variable.isStored, isOverride: variable.isOverride, isClassMember: variable.isClassMember, isFinal: variable.isFinal, hasSetter: variable.hasSetter, indentation: level, delegate: self)
+        var printer = SemanticVariableNodePrinter(isStored: variable.isStored, isOverride: variable.isOverride, isClassMember: variable.isClassMember, isFinal: variable.isFinal, hasSetter: variable.hasSetter, indentation: level, delegate: self)
         try await printer.printRoot(variable.node.materialize())
     }
 
@@ -796,7 +796,7 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
             Keyword(attribute.keyword)
             Space()
         }
-        var printer = FunctionNodePrinter(isOverride: function.isOverride, isClassMember: function.isClassMember, isFinal: function.isFinal, delegate: self)
+        var printer = SemanticFunctionNodePrinter(isOverride: function.isOverride, isClassMember: function.isClassMember, isFinal: function.isFinal, delegate: self)
         try await printer.printRoot(function.node.materialize())
     }
 
@@ -806,13 +806,13 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
             Keyword(attribute.keyword)
             Space()
         }
-        var printer = SubscriptNodePrinter(isOverride: `subscript`.isOverride, isClassMember: `subscript`.isClassMember, isFinal: `subscript`.isFinal, hasSetter: `subscript`.hasSetter, indentation: level, delegate: self)
+        var printer = SemanticSubscriptNodePrinter(isOverride: `subscript`.isOverride, isClassMember: `subscript`.isClassMember, isFinal: `subscript`.isFinal, hasSetter: `subscript`.hasSetter, indentation: level, delegate: self)
         try await printer.printRoot(`subscript`.node.materialize())
     }
 
     @SemanticStringBuilder
     public func printThrowingType(_ typeNode: Node, isProtocol: Bool, level: Int) async throws -> SemanticString {
-        var printer = TypeNodePrinter(delegate: self, isProtocol: isProtocol)
+        var printer = SemanticTypeNodePrinter(delegate: self, isProtocol: isProtocol)
         try await printer.printRoot(typeNode)
     }
 

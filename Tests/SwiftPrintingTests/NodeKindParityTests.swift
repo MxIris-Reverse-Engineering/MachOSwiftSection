@@ -41,7 +41,7 @@ enum NodeKindParitySurvey {
     }
 
     static func ourRendering(of node: Node) async -> String {
-        var printer = TypeNodePrinter()
+        var printer = SemanticTypeNodePrinter()
         return ((try? await printer.printRoot(node))?.string) ?? ""
     }
 

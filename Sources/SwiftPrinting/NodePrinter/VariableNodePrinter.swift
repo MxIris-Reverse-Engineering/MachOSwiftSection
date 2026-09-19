@@ -3,10 +3,12 @@ import Foundation
 import Demangling
 import Semantic
 
-struct VariableNodePrinter: MemberDeclarationNodePrintable {
-    typealias Context = InterfaceNodePrinterContext<SemanticString>
+typealias SemanticVariableNodePrinter = VariableNodePrinter<SemanticString>
 
-    var target: SemanticString = ""
+struct VariableNodePrinter<Target: NodePrinterTarget>: MemberDeclarationNodePrintable {
+    typealias Context = InterfaceNodePrinterContext<Target>
+
+    var target = Target()
 
     var context = Context()
 
@@ -24,7 +26,7 @@ struct VariableNodePrinter: MemberDeclarationNodePrintable {
 
     private let indentation: Int
 
-    static let declarationNodeKinds: Set<Node.Kind> = [.variable]
+    static var declarationNodeKinds: Set<Node.Kind> { [.variable] }
 
     init(isStored: Bool, isOverride: Bool, isClassMember: Bool = false, isFinal: Bool = false, hasSetter: Bool, indentation: Int, delegate: (any NodePrintableDelegate)? = nil) {
         self.isStored = isStored

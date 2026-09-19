@@ -78,7 +78,7 @@ extension SwiftDeclarationPrinter {
                 Node.createTransient(kind: .identifier, contents: .text(wrappedProperty.name)),
                 declaredTypeNode.materialize(),
             ])
-            var printer = VariableNodePrinter(isStored: false, isOverride: false, hasSetter: hasSetter, indentation: level, delegate: self)
+            var printer = SemanticVariableNodePrinter(isStored: false, isOverride: false, hasSetter: hasSetter, indentation: level, delegate: self)
             try await printer.printRoot(variableNode)
         }
     }

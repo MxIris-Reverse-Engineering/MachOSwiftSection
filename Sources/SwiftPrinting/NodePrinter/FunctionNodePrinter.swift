@@ -3,10 +3,12 @@ import Foundation
 import Demangling
 import Semantic
 
-struct FunctionNodePrinter: MemberDeclarationNodePrintable {
-    typealias Context = InterfaceNodePrinterContext<SemanticString>
+typealias SemanticFunctionNodePrinter = FunctionNodePrinter<SemanticString>
 
-    var target: SemanticString = ""
+struct FunctionNodePrinter<Target: NodePrinterTarget>: MemberDeclarationNodePrintable {
+    typealias Context = InterfaceNodePrinterContext<Target>
+
+    var target = Target()
 
     var context = Context()
 
@@ -18,7 +20,7 @@ struct FunctionNodePrinter: MemberDeclarationNodePrintable {
 
     let isClassMember: Bool
 
-    static let declarationNodeKinds: Set<Node.Kind> = [.function, .boundGenericFunction, .allocator, .constructor]
+    static var declarationNodeKinds: Set<Node.Kind> { [.function, .boundGenericFunction, .allocator, .constructor] }
 
     init(isOverride: Bool, isClassMember: Bool = false, isFinal: Bool = false, delegate: (any NodePrintableDelegate)? = nil) {
         self.isOverride = isOverride

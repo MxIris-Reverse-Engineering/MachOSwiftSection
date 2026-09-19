@@ -20,7 +20,7 @@ import Testing
 struct PackExpansionRenderingTests {
     private func rendered(_ mangled: String) async throws -> String {
         let node = try await demangleAsNode(mangled)
-        var printer = FunctionNodePrinter(isOverride: false)
+        var printer = SemanticFunctionNodePrinter(isOverride: false)
         return try await printer.printRoot(node).string
     }
 
@@ -72,7 +72,7 @@ struct PackExpansionRenderingTests {
         // exactly the condition that makes the count type the only source.
         let node = try await demangleAsNode("$s9packmixed5MixedV1xx_q_tq_Qp_tvg")
         let typeNode = try #require(node.first(of: .type))
-        var printer = TypeNodePrinter()
+        var printer = SemanticTypeNodePrinter()
         let text = try await printer.printRoot(typeNode).string
         #expect(text == "(repeat (A, (each B)))", "\(text)")
     }

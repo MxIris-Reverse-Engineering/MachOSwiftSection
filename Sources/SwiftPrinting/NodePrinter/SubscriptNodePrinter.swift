@@ -3,10 +3,12 @@ import Foundation
 import Demangling
 import Semantic
 
-struct SubscriptNodePrinter: MemberDeclarationNodePrintable {
-    typealias Context = InterfaceNodePrinterContext<SemanticString>
+typealias SemanticSubscriptNodePrinter = SubscriptNodePrinter<SemanticString>
 
-    var target: SemanticString = ""
+struct SubscriptNodePrinter<Target: NodePrinterTarget>: MemberDeclarationNodePrintable {
+    typealias Context = InterfaceNodePrinterContext<Target>
+
+    var target = Target()
 
     var context = Context()
 
@@ -22,7 +24,7 @@ struct SubscriptNodePrinter: MemberDeclarationNodePrintable {
 
     private let indentation: Int
 
-    static let declarationNodeKinds: Set<Node.Kind> = [.subscript]
+    static var declarationNodeKinds: Set<Node.Kind> { [.subscript] }
 
     init(isOverride: Bool, isClassMember: Bool = false, isFinal: Bool = false, hasSetter: Bool, indentation: Int, delegate: (any NodePrintableDelegate)? = nil) {
         self.isOverride = isOverride

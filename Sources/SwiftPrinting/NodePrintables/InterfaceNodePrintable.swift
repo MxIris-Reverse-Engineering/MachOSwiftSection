@@ -19,7 +19,7 @@ protocol InterfaceNodePrintableContext: TypeNodePrintableContext, DependentGener
     /// same ``Node`` instance for every back-reference (e.g. ``A23_``), so a
     /// single ``Type<...>`` mangling can produce a DAG that, naively walked
     /// child-by-child, expands into hundreds of thousands of node visits. By
-    /// caching the rendered ``SemanticString`` slice keyed by
+    /// caching the rendered ``Target`` slice keyed by
     /// ``ObjectIdentifier(node)``, every shared node prints once and reuses
     /// the cached fragment thereafter — bringing print cost back to the size
     /// of the unique node set instead of the exponential expansion. The
