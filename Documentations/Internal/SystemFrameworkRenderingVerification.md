@@ -20,13 +20,13 @@ SwiftUI、SwiftUICore、SwiftData、Combine、ActivityKit、WidgetKit——**输
 
 | 部分 | 首选输入 | 目标不存在时的回退 |
 | --- | --- | --- |
-| **DyldCache**（cache 内 MachOFile） | 归档 cache：`/Volumes/DyldSharedCaches/macOS/26.6.2` 与 `15.5` 的 `dyld_shared_cache_arm64e` | **当前系统的 dyld shared cache**（`--uses-system-dyld-shared-cache -p <镜像路径>`，不传文件参数） |
+| **DyldCache**（cache 内 MachOFile） | 归档 cache：`/Volumes/DyldSharedCaches/macOS/26.6` 与 `15.5` 的 `dyld_shared_cache_arm64e` | **当前系统的 dyld shared cache**（`--uses-system-dyld-shared-cache -p <镜像路径>`，不传文件参数） |
 | **MachOFile**（磁盘上的普通 Mach-O） | iOS 15.5 / 18.5 / 26.5 模拟器 runtime 的框架二进制 | **当前环境已安装的全部 iOS 模拟器 runtime**（脚本自动发现 `/Library/Developer/CoreSimulator/Profiles/Runtimes` 与 `/Library/Developer/CoreSimulator/Volumes/*/…/Runtimes` 下的 `*.simruntime`） |
 | **MachOImage**（进程内） | 当前系统（dlopen + `MachOImage(name:)`），经 `RenderingVerificationTests` harness | 无回退（永远是当前系统） |
 
 ## 关键调用细节（踩过的坑）
 
-- **跑之前先确认归档目录真的存在**：`ARCHIVED_CACHE_DIRECTORIES` 是写死的两条路径，对不上时脚本**不报错**，只打印一行 `No archived cache found - falling back to the current system's dyld shared cache.` 就降级成只跑当前系统 cache——跨版本语料整段消失，而最终报告照样是「全部一致」。2026-09-17 撞上一次：归档卷把带 build 号的 `26.5.2_25F84` / `15.5_24F74` 改成了纯版本号，且 `26.5.2` 目录下已不再放 cache（换成 `26.6.2`）。常量随之改为 `26.6.2` 与 `15.5`。
+- **跑之前先确认归档目录真的存在**：`ARCHIVED_CACHE_DIRECTORIES` 是写死的两条路径，对不上时脚本**不报错**，只打印一行 `No archived cache found - falling back to the current system's dyld shared cache.` 就降级成只跑当前系统 cache——跨版本语料整段消失，而最终报告照样是「全部一致」。2026-09-17 撞上一次：归档卷把带 build 号的 `26.5.2_25F84` / `15.5_24F74` 改成了纯版本号，且 `26.5.2` 目录下已不再放 cache（换成 `26.6.2`）。常量随之改为 `26.6.2` 与 `15.5`。2026-09-18 再撞一次：`26.6.2` 目录已改名为 `26.6`（旁边新增 `27.0`），常量改为 `26.6`。跑之前 `ls /Volumes/DyldSharedCaches/macOS/` 对一眼，比事后从报告里发现少了一条腿便宜。
 - **cache 镜像用 `-p` 全路径而非 `-n` 名字**：SwiftUI / WidgetKit / ActivityKit 在 macOS cache 里有 `/System/iOSSupport/` 下的 Catalyst 副本，按名字查有歧义。
 - **模拟器二进制要显式 `-a arm64`**：iOS 15.5 / 18.5 的模拟器框架是 fat（x86_64 + arm64），CLI 遇 fat 文件不指定架构会直接报错退出；26.5 起是 thin arm64，加该参数也无害，所以脚本一律加。
 - **MachOImage 部分借用 `RenderingVerificationTests`**（`Tests/IntegrationTests/SwiftInterface/`）：该 harness 的注释明言其设计用途就是「run on two checkouts … and diff」。这是 AGENTS.md「agent 不得运行 IntegrationTests」规则的**唯一例外**，仅限本流程。
@@ -34,6 +34,7 @@ SwiftUI、SwiftUICore、SwiftData、Combine、ActivityKit、WidgetKit——**输
 - **MachOImage 两侧必须在同一次开机会话内运行**：`memberAddress` 注释里的地址来自 dyld shared cache 的 per-boot slide，跨重启比对必然全线假差异。
 - **两个检出绝不共用 SwiftPM scratch**（AGENTS.md 环境漂移检查的血泪教训：混入另一分支的陈旧目标文件会制造链接错误或假输出）；agent 会话另按全局规约使用独立 scratch 路径。
 - **兄弟依赖对齐**：跑之前确认两个检出各自解析到预期的 sibling 内容（例如基线 main pin 了 `exact: "0.4.5"`，则 `/Volumes/Code/Personal/swift-demangling` 需在 0.4.5 tag 上：`git -C ../swift-demangling tag --points-at HEAD`）。sibling 内容错位会把 A/B 变成「比较两个不同的依赖版本」。
+- **脚本的进度行经 Python 的 stdout，重定向进文件时会被整块缓冲**：跑完之前日志里只有子进程（`swift build`）的输出，看不到任何一对的进度，盯日志会误以为卡住。后台跑要 `python3 -u`，或者直接看 `--output-root` 下 `<场景>/<侧>/*.txt` 的落盘情况（每一对两侧都落盘后就可以先 `cmp`，不必等收尾）。2026-09-18 撞上一次。
 - **interface 输出一律走 `-o` 落盘**：进度日志（带墙钟时间戳）走 stdout，不会混进被比对的文件。
 
 ## 验收标准与差异排查

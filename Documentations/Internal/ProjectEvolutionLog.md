@@ -1821,6 +1821,16 @@
 - **关联文档**：[OpaqueReturnTypeResolution.md](OpaqueReturnTypeResolution.md) §1.5、§2.6，[Modules/SwiftLayout.md](Modules/SwiftLayout.md) 子系统 7，[PrinterNodeKindParity.md](PrinterNodeKindParity.md)、[OpaqueTypeResolutionProgress.md](OpaqueTypeResolutionProgress.md)、[AccessorThunkResolutionExplained.md](AccessorThunkResolutionExplained.md) 的相关行，提案 [draft-opaque-reference-spelling-and-member-projection](../Evolutions/draft-opaque-reference-spelling-and-member-projection.md)。
 - **对应版本**：随下一次发布；`numUnderlyingTypeArugments` 的 deprecated 转发在再下一个版本删除。
 
+## 2026-09-19 NodePrinter 补声明层协议、Context 按层拆角色（提案 0035）
+
+- **时间段**：2026-09-18 → 2026-09-19（两日）。
+- **动机**：用户审阅 `SwiftPrinting/NodePrinter/` 与 `NodePrintables/`，认可按节点家族拆协议的方向，但 Printer 一层重复太多：Variable / Subscript / Function 三个 struct 各抄一遍声明级逻辑（修饰符、从 `global` 到实体的解包链、`targetNode` 记录、`isProtocol` 探测、`where` 子句、访问器块），四个 struct 各平铺 9 个状态字段；`Context` associatedtype 只装两个只对当前节点生效的提示，五层里只有 FunctionType 读它，其余四层收下即丢。
+- **关键决策**：**① 补声明层协议 `MemberDeclarationNodePrintable`**，而不是最小抽 helper、单 struct 加 enum、或会话 / 作用域 / 算法三分——与下层既有手法一致、保留按种类分文件、构造签名不动（7 处调用点、28 处测试构造零改动）；三分是终点形态但改动最大且模块近期提交密集。**② 9 个字段进 `Context` 并按层拆角色协议**（用户本意「每个 Printable 只知道自己需要的 Context」）：每层在自己的文件里声明只含自己读写属性的 `*NodePrintableContext`，两层同名声明由一个存储属性满足，`isProtocol` 在类型层只读、声明层可写；具体类型 `InterfaceNodePrinterContext<Target>`。**③ `isAllocator` / `isBlockOrClosure` / `asPrefixContext` 不进存储 Context，改成 `NodePrintOptions` 参数**——只对当前节点生效，存到 context 会漏给子节点（参数里的闭包 `(Int) -> Void` 会被当声明打成 `(Int)`）；`isBlockOrClosure` 默认取 true，消掉 `nil` 与 `Context()` 两个默认不一致的旧状。**④ `isStatic` 作解包链参数**，`target` / `delegate` 留在 printer 上。顺带：`printName` 的死返回值、`shouldPrintContext` 死分支、三个单 case `Error` 合一、注释掉的 `where` 块、两目录内缩写全名化。
+- **落地模块**：`SwiftPrinting`（`NodePrintables/MemberDeclarationNodePrintable.swift` 新增；`NodePrintable` / `InterfaceNodePrintable` / `BoundGeneric` / `Type` / `DependentGeneric` / `FunctionType` 六个 printable 改写；四个 printer 150 / 149 / 181 / 38 → 64 / 51 / 97 / 24 行，模块净减 246 行）。全部 internal，无公开 API 变更。
+- **验证**：`SwiftPrintingTests` 34 / 34；`SwiftInterfaceTests` 改动前后失败集合相同（`ProjectedOpaqueMemberWitnessTests` 四例的即时编译 fixture 缺 `-language-mode`，工具链既有问题，另案）；渲染 A/B 96 对逐字节一致（归档 cache macOS 15.5 / 26.6、模拟器 iOS 15.5 / 16.4 / 17.5 / 18.5 / 26.5、进程内 MachOImage 六框架双路）。A/B 基线侧用同 commit 的临时 detached 检出而非 `next` worktree（后者的 `Package.resolved` 未开本地依赖，构建时会被重写）；脚本的归档目录常量随卷改名更新为 `26.6`。
+- **关联文档**：提案 [0035](../Evolutions/0035-node-printer-declaration-layer-and-context-roles.md)；[PrinterNodeKindParity.md](PrinterNodeKindParity.md)、[FinalKeywordAndLazyAccessorTypeRecovery.md](FinalKeywordAndLazyAccessorTypeRecovery.md) 指向旧布局的句子同步；[SystemFrameworkRenderingVerification.md](SystemFrameworkRenderingVerification.md) 补目录改名与 stdout 缓冲两个坑。顺带把此前漏登记的提案 0034 补进两处索引。
+- **对应版本**：随下一次发布。
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节

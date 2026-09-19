@@ -3,7 +3,46 @@ import Demangling
 import Foundation
 import Utilities
 
-protocol NodePrintableContext {}
+/// The slice of printer state one layer reads or writes.
+///
+/// Each `*NodePrintable` layer refines this with exactly the properties it
+/// touches and constrains its `Context` to that refinement, so a layer sees
+/// only its own slice; a layer that touches no state at all
+/// (`BoundGenericNodePrintable`) declares no refinement. The concrete printer's
+/// `Context` satisfies every refinement with one stored property per name, and
+/// a name two layers both declare is one property they share. See
+/// `InterfaceNodePrinterContext` for the full set, and evolution proposal
+/// `node-printer-declaration-layer-and-context-roles` for why the state lives
+/// here rather than as nine requirements on the printer itself.
+protocol NodePrintableContext {
+    /// How many `dependentMemberType` nodes enclose the node being printed.
+    /// Inside one, a nominal reference is spelled without its qualifying
+    /// context (`A.Element`, not `A.Swift.Sequence.Element`); see
+    /// `shouldPrintContext()`.
+    var dependentMemberTypeDepth: Int { get }
+}
+
+/// Per-call hints for one `printName`.
+///
+/// These apply to exactly the node handed over and must not reach its
+/// children, which is why they travel as a parameter instead of living on
+/// `Context`: a function *declaration* prints with `isBlockOrClosure == false`
+/// so its `-> ()` is dropped, while a closure type among its parameters keeps
+/// `(Int) -> ()` — stored state would hand the flag down to that closure.
+struct NodePrintOptions: Equatable {
+    /// The node is the qualifying context of another (the `Outer` of
+    /// `Outer.Inner`).
+    var asPrefixContext = false
+
+    /// The function type belongs to an `init`, whose result is implicit.
+    var isAllocator = false
+
+    /// The function type is a block or closure *type*, which always spells its
+    /// result; a function declaration omits `-> ()`.
+    var isBlockOrClosure = true
+
+    static let `default` = NodePrintOptions()
+}
 
 protocol NodePrintable {
     associatedtype Target: NodePrinterTarget
@@ -12,56 +51,14 @@ protocol NodePrintable {
 
     var target: Target { set get }
 
+    /// The traversal state every layer of this printer shares. Which
+    /// properties a layer may read or write is what that layer's
+    /// `*NodePrintableContext` refinement declares.
+    var context: Context { get set }
+
     var delegate: NodePrintableDelegate? { get }
 
-    var targetNode: Node? { get }
-
-    var dependentMemberTypeDepth: Int { get set }
-
-    /// How many `repeat` patterns enclose the node being printed. `each` is
-    /// only ever written inside one.
-    var packExpansionDepth: Int { get set }
-
-    /// Generic parameters known to be packs, by printed name.
-    ///
-    /// A parameter reference carries no pack marker — a use site is identical
-    /// to an ordinary parameter — so `repeat each A` demangles to a plain
-    /// reference and prints as `repeat A`, which does not compile. Two sources
-    /// fill this in, and they are complementary:
-    ///
-    /// - the enclosing signature, recorded by ``printGenericSignature`` as it
-    ///   decides which parameters print as `each A`. Available whenever the
-    ///   signature and the type share a printer, i.e. for functions — which is
-    ///   the only place several packs can occur.
-    /// - the expansion's own count type, recorded by
-    ///   ``FunctionTypeNodePrintable/printPackExpansion(_:)``. This is what
-    ///   covers a type's field, whose type tree carries no signature — and it
-    ///   suffices there, because a generic type may declare at most one pack
-    ///   ("generic type cannot declare more than one type pack").
-    var knownPackParameterNames: Set<String> { get set }
-
-    /// Mirrors the ``Swift::Demangle::NodePrinter`` recursion guard at
-    /// ``swift/lib/Demangling/NodePrinter.cpp:1416``. Each entry into
-    /// ``printName(_:asPrefixContext:context:)`` increments the counter and
-    /// the wrapper bails with ``<<too complex>>`` once it would exceed
-    /// ``maxPrintDepth``. Without this, demangle results that share substitution
-    /// nodes (a DAG) blow up into ``19^k``-shaped traversals during printing.
-    var printDepth: Int { get set }
-
-    /// Memoization for shared substitution nodes. The demangler returns the
-    /// same ``Node`` instance for every back-reference (e.g. ``A23_``), so a
-    /// single ``Type<...>`` mangling can produce a DAG that, naively walked
-    /// child-by-child, expands into hundreds of thousands of node visits. By
-    /// caching the rendered ``SemanticString`` slice keyed by
-    /// ``ObjectIdentifier(node)``, every shared node prints once and reuses
-    /// the cached fragment thereafter — bringing print cost back to the size
-    /// of the unique node set instead of the exponential expansion. The
-    /// cache is per ``NodePrintable`` instance, so it lives only for the
-    /// duration of one ``printRoot`` invocation.
-    var printCache: [ObjectIdentifier: Target] { get set }
-
-    @discardableResult
-    mutating func printName(_ name: Node, asPrefixContext: Bool, context: Context?) async -> Node?
+    mutating func printName(_ name: Node, options: NodePrintOptions) async
 }
 
 extension Sequence where Element == Node.Kind {
@@ -85,7 +82,7 @@ extension NodePrintable {
 }
 
 extension NodePrintable {
-    mutating func printNameInBase(_ name: Node, context: Context?) async -> Bool {
+    mutating func printNameInBase(_ name: Node) async -> Bool {
         switch name.kind {
         case .global:
             await printChildren(name)
@@ -151,14 +148,10 @@ extension NodePrintable {
         return true
     }
 
-    func shouldPrintContext(_ context: Node) -> Bool {
-        if dependentMemberTypeDepth > 0 {
-            return false
-        }
-        if context.kind == .module, let text = context.text, !text.isEmpty {
-            return true
-        }
-        return true
+    /// Whether a nominal reference spells its qualifying context. It does not
+    /// inside a `dependentMemberType` chain, where the leaf stands alone.
+    func shouldPrintContext() -> Bool {
+        context.dependentMemberTypeDepth == 0
     }
 
     /// Returns whether a C-imported module spelling (`__C` / `__ObjC`) was
@@ -188,44 +181,31 @@ extension NodePrintable {
         await printIdentifier(child, parentKind: parentKind)
     }
 
-    @discardableResult
-    mutating func printName(_ name: Node) async -> Node? {
-        await printName(name, asPrefixContext: false, context: nil)
+    mutating func printName(_ name: Node) async {
+        await printName(name, options: .default)
     }
 
-    @discardableResult
-    mutating func printName(_ name: Node, asPrefixContext: Bool) async -> Node? {
-        await printName(name, asPrefixContext: asPrefixContext, context: nil)
-    }
-
-    @discardableResult
-    mutating func printName(_ name: Node, context: Context?) async -> Node? {
-        await printName(name, asPrefixContext: false, context: context)
-    }
-
-    @discardableResult
-    mutating func printOptional(_ optional: Node?, prefix: String? = nil, prefixContext: NodePrintContext? = nil, suffix: String? = nil, suffixContext: NodePrintContext? = nil, asPrefixContext: Bool = false) async -> Node? {
-        guard let o = optional else { return nil }
+    mutating func printOptional(_ optional: Node?, prefix: String? = nil, prefixContext: NodePrintContext? = nil, suffix: String? = nil, suffixContext: NodePrintContext? = nil, asPrefixContext: Bool = false) async {
+        guard let node = optional else { return }
         prefix.map { target.write($0, context: prefixContext) }
-        let r = await printName(o, asPrefixContext: asPrefixContext)
+        await printName(node, options: NodePrintOptions(asPrefixContext: asPrefixContext))
         suffix.map { target.write($0, context: suffixContext) }
-        return r
     }
 
     mutating func printFirstChild(_ ofName: Node, prefix: String? = nil, prefixContext: NodePrintContext? = nil, suffix: String? = nil, suffixContext: NodePrintContext? = nil, asPrefixContext: Bool = false) async {
-        _ = await printOptional(ofName.children.at(0), prefix: prefix, prefixContext: prefixContext, suffix: suffix, suffixContext: suffixContext, asPrefixContext: asPrefixContext)
+        await printOptional(ofName.children.at(0), prefix: prefix, prefixContext: prefixContext, suffix: suffix, suffixContext: suffixContext, asPrefixContext: asPrefixContext)
     }
 
-    mutating func printSequence<S>(_ names: S, prefix: String? = nil, prefixContext: NodePrintContext? = nil, suffix: String? = nil, suffixContext: NodePrintContext? = nil, separator: String? = nil) async where S: Sequence, S.Element == Node {
+    mutating func printSequence<Nodes: Sequence>(_ names: Nodes, prefix: String? = nil, prefixContext: NodePrintContext? = nil, suffix: String? = nil, suffixContext: NodePrintContext? = nil, separator: String? = nil) async where Nodes.Element == Node {
         var isFirst = true
         prefix.map { target.write($0, context: prefixContext) }
-        for c in names {
-            if let s = separator, !isFirst {
-                target.write(s)
+        for node in names {
+            if let separator, !isFirst {
+                target.write(separator)
             } else {
                 isFirst = false
             }
-            _ = await printName(c)
+            await printName(node)
         }
         suffix.map { target.write($0, context: suffixContext) }
     }

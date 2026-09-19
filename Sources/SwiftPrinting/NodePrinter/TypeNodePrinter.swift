@@ -4,31 +4,17 @@ import Demangling
 import Semantic
 
 struct TypeNodePrinter: InterfaceNodePrintable {
-    typealias Context = InterfaceNodePrinterContext
-    
-    typealias Target = SemanticString
+    typealias Context = InterfaceNodePrinterContext<SemanticString>
 
     var target: SemanticString = ""
 
-    var targetNode: Node? { nil }
-
-    private(set) var isProtocol: Bool
-
-    var dependentMemberTypeDepth: Int = 0
-
-    var packExpansionDepth: Int = 0
-
-    var knownPackParameterNames: Set<String> = []
-
-    var printDepth: Int = 0
-
-    var printCache: [ObjectIdentifier: Target] = [:]
+    var context = Context()
 
     private(set) weak var delegate: (any NodePrintableDelegate)?
 
     init(delegate: (any NodePrintableDelegate)? = nil, isProtocol: Bool = false) {
         self.delegate = delegate
-        self.isProtocol = isProtocol
+        context.isProtocol = isProtocol
     }
 
     mutating func printRoot(_ node: Node) async throws -> SemanticString {
