@@ -11,7 +11,7 @@ import Demangling
 /// `getClassDataPointerHasSwiftMetadataBits()` asserts it never runs for one).
 /// Everything Swift leaves behind is on the symbol side — the members mangle
 /// as an extension of the `__C` class, every stored property gets a `Wvd`
-/// field-offset global, and the implementing image defines the class's
+/// field-offset global, and the implementing image EXPORTS the class's
 /// metadata accessor `$sSo<Name>CMa` — while the ObjC side carries the ivar
 /// list (with Swift-style type encodings: `?` for a type ObjC cannot
 /// represent, an empty string for a stored property that is not `@objc`),
@@ -31,10 +31,13 @@ public final class ObjCImplementationClassFacts: Sendable {
     /// inference and renders as such.
     public enum Evidence: Sendable, Hashable {
         public enum Reason: Sendable, Hashable {
-            /// The image defines the class's Swift metadata accessor. A plain
-            /// imported ObjC class never gets one — Swift reaches it through
-            /// `swift_getInitializedObjCClass` inline — so its presence alone
-            /// proves an `@implementation`.
+            /// The image EXPORTS the class's Swift metadata accessor. Only the
+            /// module implementing the class emits the public unique accessor
+            /// (`MetadataAccessStrategy::PublicUniqueAccessor`); an imported
+            /// ObjC class has `PublicNonUnique` linkage, so any image that
+            /// needs its metadata emits a hidden non-unique accessor of its
+            /// own — which a dyld cache's local symbol table still carries,
+            /// and which therefore proves nothing.
             case metadataAccessorSymbol(name: String)
             /// `…vpWvd` field-offset globals for members of an extension of
             /// the class. A plain extension cannot add stored properties, so

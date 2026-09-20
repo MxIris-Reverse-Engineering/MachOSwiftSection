@@ -8,7 +8,8 @@ import Testing
 /// `@objc @implementation` and `ClangWidget` implemented in Objective-C and
 /// merely EXTENDED from Swift — the negative control that passes the
 /// ObjC-side gate (defined in this image, Swift bit clear) and must fail
-/// every evidence tier. A plain Swift class with ObjC ancestry rides along
+/// every evidence tier, a hidden non-unique metadata accessor included. A
+/// plain Swift class with ObjC ancestry rides along
 /// as the `__DATA`-segment ballast every compiled fixture needs.
 ///
 /// Three link/strip variants exercise the three evidence tiers:
@@ -85,9 +86,14 @@ package enum ObjCImplementationFixture {
     }
 
     // The clang-compiled class only gets a Swift EXTENSION: a category, not
-    // the class body. Must not be recognized.
+    // the class body. Must not be recognized — even though the metatype use
+    // below makes this module emit a hidden, non-unique metadata accessor
+    // `$sSo11ClangWidgetCMa` for the imported class (the same shape a dyld
+    // cache's local symbol table carries for SwiftUICore's clang-implemented
+    // `DateFormattingContext`, which misled the first version).
     extension ClangWidget {
         @objc public func swiftAdded() -> Int { Int(tally) + 1 }
+        public func typeName() -> String { String(describing: ClangWidget.self) }
     }
 
     // Plain Swift class with ObjC ancestry: Swift bit set, never a candidate;
@@ -139,9 +145,14 @@ package enum ObjCImplementationFixture {
             var libraries: [Variant: URL] = [:]
             for variant in Variant.allCases {
                 let libraryURL = workingDirectory.appendingPathComponent("lib\(moduleName)-\(variant.rawValue).dylib")
+                // `-Onone` on purpose: under `-O` the optimizer inlines the clang
+                // class's non-unique metadata accessor into its one use site,
+                // leaving only the lazy-cache variable behind, and the negative
+                // control would no longer carry the accessor SYMBOL it exists
+                // to exercise. Nothing else the tests pin depends on the level.
                 var arguments = [
                     "swiftc", "-emit-library", "-module-name", moduleName,
-                    "-import-objc-header", headerURL.path, "-O",
+                    "-import-objc-header", headerURL.path, "-Onone",
                     swiftSourceURL.path, objectURL.path, "-framework", "Foundation",
                     "-o", libraryURL.path,
                 ]

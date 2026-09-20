@@ -5,6 +5,7 @@ import MachOFoundation
 import SwiftDeclaration
 import SwiftInterface
 import SwiftInspection
+@_spi(Internals) import MachOSymbols
 @testable import MachOTestingSupport
 
 /// `@objc @implementation` recognition on the interface path (evolution
@@ -132,6 +133,23 @@ struct ObjCImplementationClassRecognitionTests {
 
         #expect(ObjCImplementationClasses.facts(forClassNamed: "ClangWidget", in: machOFile) == nil)
         #expect(ObjCImplementationClasses.all(in: machOFile).map(\.className) == ["Widget"])
+    }
+
+    /// An imported ObjC class has `PublicNonUnique` linkage, so any module
+    /// that needs its metadata emits a hidden non-unique accessor of its
+    /// own; only the implementing module's public unique accessor reaches
+    /// the export trie. The first version took any accessor in the symbol
+    /// table as proof and recognized SwiftUICore's clang-implemented
+    /// `DateFormattingContext` (caught by the rendering A/B).
+    @Test func aHiddenNonUniqueAccessorIsNotEvidence() throws {
+        let machOFile = try ObjCImplementationFixture.machOFile(.full)
+        let symbolIndexStore = SymbolIndexStore.shared
+        // The premise: the fixture really does carry the clang class's accessor,
+        // and it really is not exported.
+        #expect(symbolIndexStore.containsSymbol(named: "_$sSo11ClangWidgetCMa", in: machOFile), "the fixture no longer emits the non-unique accessor the test is about")
+        #expect(symbolIndexStore.isExported(name: "_$sSo11ClangWidgetCMa", in: machOFile) == false)
+        #expect(symbolIndexStore.isExported(name: "_$sSo6WidgetCMa", in: machOFile) == true)
+        #expect(ObjCImplementationClasses.facts(forClassNamed: "ClangWidget", in: machOFile) == nil)
     }
 
     @Test func fullyStrippedFactsAreInferred() throws {

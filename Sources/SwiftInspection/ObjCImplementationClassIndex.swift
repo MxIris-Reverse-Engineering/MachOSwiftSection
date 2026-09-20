@@ -19,10 +19,11 @@ import MachOSwiftSection
 /// plain Swift extension of an imported class produces a category and never
 /// satisfies it, and an ordinary Swift class with ObjC ancestry has the bit
 /// set. Past that gate the Swift side decides the tier
-/// (``ObjCImplementationClassFacts/Evidence``): a metadata accessor
-/// `$sSo<Name>CMa` defined in the image, `…vpWvd` field-offset globals for the
-/// class's extension members, or Swift symbols at the class's own method
-/// implementations make it definitive; with all three stripped away, an ivar
+/// (``ObjCImplementationClassFacts/Evidence``): an EXPORTED metadata accessor
+/// `$sSo<Name>CMa` (the public unique accessor only the implementing module
+/// emits — a hidden non-unique one appears in any image that needs an
+/// imported class's metadata) or `…vpWvd` field-offset globals for the
+/// class's extension members make it definitive; with both stripped away, an ivar
 /// whose type encoding is `?` or empty — encodings clang never writes — makes
 /// it an inference, rendered as such. A clang-compiled class with a Swift
 /// extension in the same image passes the gate but hits none of the tiers
@@ -130,11 +131,20 @@ package final class ObjCImplementationClassIndex: SharedCache<ObjCImplementation
             let symbolIndexStore = SymbolIndexStore.shared
 
             // `$sSo<Name>CMa`: global(typeMetadataAccessFunction(type(class(module, identifier)))).
+            // Only an EXPORTED accessor counts. An imported ObjC class has
+            // `PublicNonUnique` formal linkage, so any image that needs its
+            // metadata (an `[X]`, a generic argument) emits a hidden
+            // linkonce accessor of its own — SwiftUICore carries one for its
+            // clang-implemented `DateFormattingContext`, and a dyld cache
+            // keeps local symbols, so that accessor IS in the symbol table.
+            // The `@implementation` in the class's own module is what gets
+            // the public unique accessor that lands in the export trie.
             for symbol in symbolIndexStore.symbols(of: .typeMetadataAccessFunction, in: machO) {
                 guard let accessorNode = symbol.demangledNode.children.first,
                       let typeNode = accessorNode.children.first,
                       let className = cImportedClassName(of: typeNode),
-                      evidence.metadataAccessorSymbolNameByClassName[className] == nil
+                      evidence.metadataAccessorSymbolNameByClassName[className] == nil,
+                      symbolIndexStore.isExported(name: symbol.symbol.name, in: machO) == true
                 else { continue }
                 evidence.metadataAccessorSymbolNameByClassName[className] = symbol.symbol.name
             }
