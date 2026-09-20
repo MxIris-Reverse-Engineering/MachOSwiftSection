@@ -1832,6 +1832,16 @@
 - **关联文档**：提案 [0035](../Evolutions/0035-node-printer-declaration-layer-and-context-roles.md)；[PrinterNodeKindParity.md](PrinterNodeKindParity.md)、[FinalKeywordAndLazyAccessorTypeRecovery.md](FinalKeywordAndLazyAccessorTypeRecovery.md) 指向旧布局的句子同步；[SystemFrameworkRenderingVerification.md](SystemFrameworkRenderingVerification.md) 补目录改名与 stdout 缓冲两个坑。顺带把此前漏登记的提案 0034 补进两处索引。
 - **对应版本**：随下一次发布。
 
+## 2026-09-20 识别 `@objc @implementation` 类（提案 draft-objc-implementation-class-recognition）
+
+- **时间段**：2026-09-20（一日）。
+- **动机**：用户问 SE-0436 的 `@objc @implementation` 类能不能识别，并指出 Apple 已大量采用（NSGlassEffectView）。核实：编译器把这类类编成纯 ObjC class object（`__swift5_types` / `__swift5_fieldmd` 里没有它，Swift bit 为 0），Swift 侧只剩 extension 形态的成员符号、`Wvd` 字段偏移全局变量和本镜像定义的 `$sSo<类>CMa`；macOS 26.7 的 AppKit 有 38 个、Catalyst UIKitCore 约 115 个。今天 interface 把它们打成普通 `extension __C.X`、存储属性退化成计算属性，dump 完全看不到。
+- **关键决策**：**① 索引放 SwiftInspection**（已依赖 MachOObjCSection 与 MachOFoundation，位于 SwiftDump 与 SwiftDeclaration 之下，两条路径共用）。**② 证据两档**：definitive（**导出的** accessor 或 `Wvd`）与 inferred（`?` / 空 ivar encoding，头部内联标注）；IMP 处的 Swift 符号从触发条件降为佐证——方法表只对命中的类读，否则索引的代价是一次 class-dump。accessor 必须是导出的这一条是渲染 A/B 抓出来的：SwiftUICore 里 clang 编的 `DateFormattingContext` 在 cache 本地符号表里有一个 hidden 的 non-unique accessor（imported 类的 `PublicNonUnique` linkage 谁用谁发），第一版把它当成了证据。**③ ivar 与 `Wvd` 按偏移值 join**（fixture 里 header 声明的属性其 ivar name 为空指针）。**④ 没有任何成员符号的命中类合成空 extension**，否则 inferred 档在 interface 里无处落脚。**⑤ 不进 ABI 快照、不做 selector 反推 `@objc`、category 块合并显示**。**⑥ thunk 归属抽成 `MemberAttributeApplication`，extension 成员从此也拿到 `@objc` / `@nonobjc` / `distributed`**——顺带修正的忠实度问题，interface 输出会多出这些 attribute。**⑦ dump 新段默认开启**（用户要求 dump 信息最大化）。
+- **落地模块**：`SwiftInspection`（`ObjCImplementationClassFacts` / `ObjCImplementationClassIndex` + 门面 `ObjCImplementationClasses`；Package.swift 补 FoundationToolbox 与 MachOCaches 依赖）、`MachOSwiftSection`（`CImportedModuleNames` 升 package）、`SwiftDeclaration`（`ExtensionDefinition.objcImplementation`、`VariableDefinition.objcImplementationStorage`、`MemberAttributeApplication`、两个 `+ThunkAttributes`、两个新事件）、`SwiftIndexing`（识别挂接、合成 extension、事件、缓存清理）、`SwiftPrinting`（头部 attribute、存储属性渲染、`Keyword.atImplementation`）、`SwiftDump`（`ObjCImplementationClass` + dumper）、`swift-section`（`SwiftSection.objcImplementationClasses`）、`MachOTestingSupport`（`ObjCImplementationFixture`）。
+- **验证**：新增四个测试套件（fixture 三档 + 反例 + 事件；AppKit 系统 cache 门控；dump 段；CLI 选项）；全量 `swift test --skip IntegrationTests` 与渲染 A/B 结果见任务报告。
+- **关联文档**：提案 [draft-objc-implementation-class-recognition](../Evolutions/draft-objc-implementation-class-recognition.md)；实现说明 [ObjCImplementationClassRecognition.md](ObjCImplementationClassRecognition.md)；术语表「ObjC implementation class」；[Modules/SwiftDeclaration.md](Modules/SwiftDeclaration.md) 补一节。
+- **对应版本**：随下一次发布。
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节

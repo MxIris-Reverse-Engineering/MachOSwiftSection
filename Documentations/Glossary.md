@@ -175,6 +175,13 @@ opaque 尖括号参数归属的第三条规则：协议无任何 anchor 命中�
 - **主要出现在**：上游 `swift-demangling`；本仓库消费面见 AGENTS.md「Symbol indexing」段
 - **延伸阅读**：[NodeStoreMigrationPlan.md](Internal/NodeStoreMigrationPlan.md)
 
+### ObjC implementation class（`@objc @implementation` 类）
+
+用 SE-0436 的 `@objc @implementation extension` 实现的类：声明在 ObjC 头文件里，实现写在 Swift 里，对 ObjC runtime 来说它就是一个普通 ObjC 类。编译器给它发出的是纯 ObjC class object：`__swift5_types` 里没有 nominal type descriptor，`__swift5_fieldmd` 里没有 field descriptor，class data 指针的 Swift bit 为 0。Swift 侧只留下成员符号（mangle 成模块对 `__C.<类>` 的 extension）、存储属性的 `Wvd` 字段偏移全局变量和本镜像**导出**的 metadata accessor `$sSo<类>CMa`（imported 类在任何用到它的镜像里都会有一个 hidden 的 non-unique accessor，那个不算）。和普通「Swift extension of an imported ObjC class」的区别是后者只产生 category，类本身不由本镜像定义。macOS 26 起 AppKit / UIKitCore 大量采用（NSGlassEffectView、NSScreen、NSGradient 等）。
+
+- **主要出现在**：提案 draft-objc-implementation-class-recognition 的判据与证据分级
+- **延伸阅读**：[提案 draft-objc-implementation-class-recognition](Evolutions/draft-objc-implementation-class-recognition.md)
+
 ### permutation 二分（permutation binary search）
 
 不给数据本体排序，而是另存一条「按某序排列的下标数组」（permutation），查询时在这条下标序列上二分。`SymbolTable.rowsSortedByName` 即名字序 permutation：行本体保持插入序不动，名字查找二分这条 `[UInt32]`。替代了被退役的名字键字典 `tableRowByName`。

@@ -17,9 +17,9 @@ SwiftDeclaration 是**共享声明模型**：`SwiftIndexing` 往里填，`SwiftP
 
 | 子系统 | 文件 |
 |---|---|
-| 1. 声明本体 | `Components/Definitions/`（`Definition` / `MutableDefinition` 协议、`TypeDefinition` 及其七个功能扩展、`ProtocolDefinition`、`ExtensionDefinition` 及各自的 `+Indexing`、`FunctionDefinition`、`VariableDefinition`、`SubscriptDefinition`、`FieldDefinition`、`WrappedPropertyDefinition`） |
+| 1. 声明本体 | `Components/Definitions/`（`Definition` / `MutableDefinition` 协议、`TypeDefinition` 及其七个功能扩展、`ProtocolDefinition`、`ExtensionDefinition` 及各自的 `+Indexing`（`ExtensionDefinition` 另有 `+ThunkAttributes`，与 `TypeDefinition+ThunkAttributes` 共用 `Building/MemberAttributeApplication`）、`FunctionDefinition`、`VariableDefinition`、`SubscriptDefinition`、`FieldDefinition`、`WrappedPropertyDefinition`） |
 | 2. 成员构件 | `Components/Members/`（`Accessor`、`OrderedMember`、`MemberCategory`、`StrippedSymbolicRequirement`）——模型的一部分，会出现在公开 API 的返回值里 |
-| 3. 构建期机器 | `Components/Building/`（`DefinitionBuilder`、`MemberSymbolBucketing`、`OverrideSymbolMatcher`、`ClassDispatchLookups`、`AnnotatedSymbol`、`WrappedPropertyRecovery`）——全是 `package`，索引结束就不再有人碰 |
+| 3. 构建期机器 | `Components/Building/`（`DefinitionBuilder`、`MemberSymbolBucketing`、`OverrideSymbolMatcher`、`ClassDispatchLookups`、`AnnotatedSymbol`、`WrappedPropertyRecovery`、`MemberAttributeApplication`）——全是 `package`，索引结束就不再有人碰 |
 | 4. 名字 | `Components/Names/`（`DefinitionName`、`TypeName`、`ProtocolName`、`ExtensionName`） |
 | 5. 种类枚举 | `Components/Kinds/` |
 | 6. 挂在声明上的独立概念 | `Components/ExportStatus`、`Components/AssociatedTypeWitnessProjection`、`Components/SwiftAttribute` |
@@ -86,6 +86,10 @@ Handler 的调用是**进程级串行**的（跨所有 dispatcher 一把递归�
 有两个模块在事件层**之下**、够不到它（`SwiftDeclaration` 依赖 `SwiftDeclarationRendering`，在那里命名事件类型会成环）：`Node+OpaqueType` 收一个注入的报告闭包，`MultiPayloadEnumDescriptorCache` 直接打日志；两者都落到同一个 `#log` 兜底上。
 
 `PrintFailureEventTests.libraryModulesWriteToNoProcessStream` 是一次源码扫描，带一份显式的、**只许缩短**的历史豁免名单。
+
+### `@objc @implementation` 类挂在 extension 上
+
+SE-0436 的类在 `__swift5_*` 里没有身影，模型里它就是那个 `__C.X` 的 `ExtensionDefinition`：`objcImplementation` 装 `SwiftInspection.ObjCImplementationClassFacts`（证据档位、ivar 与 `Wvd` 的 join、方法表），`VariableDefinition.objcImplementationStorage` 标出由访问器符号建出来却是存储属性的成员。这个事实**不进** ABI 快照的容器 key。详见 [ObjCImplementationClassRecognition.md](../ObjCImplementationClassRecognition.md)。
 
 ## 相关文档
 
