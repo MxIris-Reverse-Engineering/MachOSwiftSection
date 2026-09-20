@@ -359,6 +359,10 @@ protocol ObjCImplementationClassReading: MachORepresentableWithCache, Readable {
     func instanceReadOnlyData(of classObject: ObjCClass64) -> ObjCClassROData64?
     func className(of readOnlyData: ObjCClassROData64) -> String?
     func superclassName(of classObject: ObjCClass64) -> String?
+    /// Where the superclass pointer leads (`ObjCClassMethodIndex`'s ancestor
+    /// walk): another class object — possibly in another image of the same
+    /// cache or process — the root, or a bind this reader cannot follow.
+    func superclassLocation(of classObject: ObjCClass64) -> ObjCSuperclassLocation
     func metaClass(of classObject: ObjCClass64) -> ObjCClass64?
     func rawInstanceVariables(of readOnlyData: ObjCClassROData64) -> [RawObjCInstanceVariable]
     func methods(of readOnlyData: ObjCClassROData64) -> [RawObjCMethod]
@@ -381,6 +385,22 @@ extension MachOFile: ObjCImplementationClassReading {
 
     func superclassName(of classObject: ObjCClass64) -> String? {
         classObject.superClassName(in: self)
+    }
+
+    /// On a file the reader follows a rebase into another image of the same
+    /// dyld cache; a bind (a standalone file's dependency) resolves to
+    /// nothing, and is told apart from a root class by the bound name.
+    func superclassLocation(of classObject: ObjCClass64) -> ObjCSuperclassLocation {
+        // Explicitly typed: `superClass(in:)` also has a deprecated overload
+        // returning a bare `Self?`.
+        let resolved: (MachOFile, ObjCClass64)? = classObject.superClass(in: self)
+        if let (superclassMachO, superclassObject) = resolved {
+            return .resolved(superclassMachO, superclassObject)
+        }
+        if let superclassName = classObject.superClassName(in: self), !superclassName.isEmpty {
+            return .unresolvable(superclassName)
+        }
+        return .root
     }
 
     func metaClass(of classObject: ObjCClass64) -> ObjCClass64? {
@@ -453,6 +473,15 @@ extension MachOImage: ObjCImplementationClassReading {
 
     func superclassName(of classObject: ObjCClass64) -> String? {
         classObject.superClassName(in: self)
+    }
+
+    /// In-process every superclass pointer is real: it resolves into whichever
+    /// loaded image holds the class, and only a root class has none.
+    func superclassLocation(of classObject: ObjCClass64) -> ObjCSuperclassLocation {
+        guard classObject.layout.superclass != 0 else { return .root }
+        let resolved: (MachOImage, ObjCClass64)? = classObject.superClass(in: self)
+        guard let (superclassMachO, superclassObject) = resolved else { return .unresolvable(nil) }
+        return .resolved(superclassMachO, superclassObject)
     }
 
     func metaClass(of classObject: ObjCClass64) -> ObjCClass64? {
