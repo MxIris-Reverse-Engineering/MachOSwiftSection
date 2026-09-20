@@ -16,9 +16,12 @@ struct DumpCommand: AsyncParsableCommand, Sendable {
         case `protocol`(MachOSwiftSection.`Protocol`)
         case protocolConformance(ProtocolConformance)
         case associatedType(AssociatedType)
+        case objcImplementationClass(ObjCImplementationClass)
 
         var offset: Int {
             switch self {
+            case .objcImplementationClass(let objcImplementationClass):
+                return objcImplementationClass.offset
             case .type(let type):
                 switch type {
                 case .enum(let `enum`):
@@ -169,6 +172,10 @@ struct DumpCommand: AsyncParsableCommand, Sendable {
                 }
             }
 
+            if sections.contains(.objcImplementationClasses) {
+                topLevelContexts.append(contentsOf: ObjCImplementationClass.all(in: machOFile).map { TopLevelContext.objcImplementationClass($0) })
+            }
+
             topLevelContexts.sort(by: { $0.offset < $1.offset })
 
             if sections.contains(.protocolConformances) {
@@ -203,6 +210,8 @@ struct DumpCommand: AsyncParsableCommand, Sendable {
                     try? await dumpProtocolConformance(protocolConformance, using: dumpConfiguration, in: machOFile)
                 case .associatedType(let associatedType):
                     try? await dumpAssociatedType(associatedType, using: dumpConfiguration, in: machOFile)
+                case .objcImplementationClass(let objcImplementationClass):
+                    try? await dumpObjCImplementationClass(objcImplementationClass, using: dumpConfiguration, in: machOFile)
                 }
             }
 
@@ -248,6 +257,16 @@ struct DumpCommand: AsyncParsableCommand, Sendable {
                         if !isDefaultSections {
                             dumpError(error)
                         }
+                    }
+                case .objcImplementationClasses:
+                    let objcImplementationClasses = ObjCImplementationClass.all(in: machOFile)
+                    if objcImplementationClasses.isEmpty, !isDefaultSections {
+                        // Asked for explicitly and nothing there: say so, as the
+                        // section-backed cases do, rather than print nothing.
+                        dumpOrPrint(SemanticString { Comment("No @objc @implementation classes recognized in this image.") })
+                    }
+                    for objcImplementationClass in objcImplementationClasses {
+                        try await dumpObjCImplementationClass(objcImplementationClass, using: dumpConfiguration, in: machOFile)
                     }
                 }
             }
@@ -295,6 +314,13 @@ struct DumpCommand: AsyncParsableCommand, Sendable {
     private mutating func dumpProtocolConformance(_ protocolConformance: ProtocolConformance, using configuration: DumperConfiguration, in machO: MachOFile) async throws {
         await performDump {
             try await protocolConformance.dump(using: configuration, in: machO)
+        }
+    }
+
+    @MainActor
+    private mutating func dumpObjCImplementationClass(_ objcImplementationClass: ObjCImplementationClass, using configuration: DumperConfiguration, in machO: MachOFile) async throws {
+        await performDump {
+            try await objcImplementationClass.dump(using: configuration, in: machO)
         }
     }
 

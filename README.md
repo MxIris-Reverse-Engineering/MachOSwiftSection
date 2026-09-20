@@ -173,6 +173,10 @@ swift-section dump /path/to/binary
 # terminated with `--`).
 swift-section dump /path/to/binary --sections types protocols
 
+# Only the classes implemented through `@objc @implementation` (SE-0436): the ObjC
+# class data joined with the Swift symbols — ivars, method lists, evidence.
+swift-section dump /path/to/binary --sections objcImplementationClasses
+
 # Save output to file
 swift-section dump --output-path output.txt /path/to/binary
 
