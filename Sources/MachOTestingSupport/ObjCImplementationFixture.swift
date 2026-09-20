@@ -12,6 +12,12 @@ import Testing
 /// plain Swift class with ObjC ancestry rides along
 /// as the `__DATA`-segment ballast every compiled fixture needs.
 ///
+/// The ObjC-ancestor override recovery tests (evolution proposal
+/// `objc-ancestor-override-recovery`) share the fixture: `ClangWidget` gained
+/// overridable members, `DerivedImplementationWidget` overrides them from an
+/// `@objc @implementation` body, `SwiftDerivedWidget` / `SwiftGrandchildWidget`
+/// from ordinary Swift class bodies.
+///
 /// Three link/strip variants exercise the three evidence tiers:
 /// - `.full`: every symbol present — accessor, field-offset globals, `To`
 ///   thunks at the class's own IMPs.
@@ -47,7 +53,17 @@ package enum ObjCImplementationFixture {
     @interface ClangWidget : NSObject
     @property (nonatomic, copy) NSString *label;
     @property (nonatomic) NSInteger tally;
+    @property (nonatomic) NSInteger level;
     - (void)bump;
+    - (void)ping;
+    + (NSInteger)pingCount;
+    @end
+
+    // Implemented in Swift through `@objc @implementation`, deriving from the
+    // clang class: its `ping` / `pingCount` / `level` are overrides of
+    // ObjC-inherited members, which only the ObjC method tables can show.
+    @interface DerivedImplementationWidget : ClangWidget
+    - (void)poke;
     @end
 
     NS_ASSUME_NONNULL_END
@@ -58,6 +74,8 @@ package enum ObjCImplementationFixture {
 
     @implementation ClangWidget
     - (void)bump { self.tally += 1; }
+    - (void)ping { self.tally += 2; }
+    + (NSInteger)pingCount { return 1; }
     @end
     """
 
@@ -101,6 +119,44 @@ package enum ObjCImplementationFixture {
     public final class PlainSwiftSibling: NSObject {
         public var label: String = ""
         @objc public func poke() {}
+    }
+
+    // `@objc @implementation` class body deriving from the clang class
+    // (evolution proposal `objc-ancestor-override-recovery`): `poke` is a
+    // member implementation, the other three override ObjC-inherited members.
+    @objc @implementation extension DerivedImplementationWidget {
+        func poke() { bump() }
+        // `public`: an override must be as accessible as the imported member.
+        public override func ping() { super.ping(); bump() }
+        public override class func pingCount() -> Int { super.pingCount() + 1 }
+        public override var level: Int {
+            get { super.level + 1 }
+            set { super.level = newValue - 1 }
+        }
+    }
+
+    // Plain Swift subclass of the clang class: an override of an ObjC-inherited
+    // member gets a NEW vtable entry (the compiler's `NeedsNewVTableEntryRequest`
+    // answers `true` when the base has a clang node), so the Swift metadata
+    // alone never says `override` for `ping` / `pingCount` / `level`, nor for
+    // `description` (NSObject's, in libobjc — a bind from this file, followed
+    // only when the fixture is loaded in-process). `notAnOverride` is the
+    // negative control; `dynamicHook` is the `@objc dynamic` base the grandchild
+    // overrides with no vtable entry on either side.
+    public class SwiftDerivedWidget: ClangWidget {
+        public override func ping() { super.ping() }
+        public override class func pingCount() -> Int { super.pingCount() + 2 }
+        public override var level: Int {
+            get { super.level }
+            set { super.level = newValue }
+        }
+        public override var description: String { "SwiftDerivedWidget" }
+        @objc public func notAnOverride() {}
+        @objc public dynamic func dynamicHook() {}
+    }
+
+    public class SwiftGrandchildWidget: SwiftDerivedWidget {
+        public override func dynamicHook() { super.dynamicHook() }
     }
     """
 
