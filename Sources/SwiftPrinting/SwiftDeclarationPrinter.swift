@@ -451,6 +451,11 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
                 try await renderMergedAssociatedTypeRecords(of: extensionDefinition.associatedTypes, level: 1)
             }
 
+            // Stored properties of an `@objc @implementation` that no member
+            // definition represents (no accessor symbol survived) — rendered
+            // from the ObjC ivar list, ahead of the symbol-derived members.
+            await renderUnrepresentedObjCImplementationInstanceVariables(extensionDefinition, level: 1)
+
             try await printDefinition(extensionDefinition, level: 1)
         }
     }
@@ -461,6 +466,21 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
     /// printer calls it too, so there is a single source of truth.
     @SemanticStringBuilder
     public func printExtensionHeader(_ extensionDefinition: ExtensionDefinition, level: Int) async throws -> SemanticString {
+        // The class body of an `@objc @implementation` (evolution proposal
+        // `objc-implementation-class-recognition`). Kept on the header LINE —
+        // the diff and evolution renderers anchor on a container's last
+        // header line, so the evidence note of an inferred recognition goes
+        // inline rather than on a line of its own.
+        if let objcImplementation = extensionDefinition.objcImplementation {
+            Keyword(.atObjc)
+            Space()
+            Keyword(.atImplementation)
+            Space()
+            if objcImplementation.evidence.isInferred {
+                InlineComment(objcImplementation.evidence.description)
+                Space()
+            }
+        }
         Keyword(.extension)
         Space()
         extensionDefinition.extensionName.print()
@@ -665,7 +685,14 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
                 await printFunction(function, level: level)
 
             case .variable(let variable):
-                OffsetComment(prefix: offsetCommentPrefix, offset: variable.offset, emit: emitOffsetComment)
+                // A stored property of an `@objc @implementation` carries its
+                // REAL field offset (from the ObjC ivar list), so the generic
+                // symbol-offset comment gives way to the field-offset one.
+                if let storage = variable.objcImplementationStorage {
+                    ObjCImplementationFieldOffsetComment(instanceVariable: storage, emit: configuration.printFieldOffset, transformer: configuration.fieldOffsetTransformer)
+                } else {
+                    OffsetComment(prefix: offsetCommentPrefix, offset: variable.offset, emit: emitOffsetComment)
+                }
                 for accessor in variable.accessors {
                     VTableOffsetComment(vtableOffset: accessor.vtableOffset, label: accessor.kind.addressLabel, emit: printVTableOffset, transformer: vtableTransformerClosure)
                     AddressComment(addressString: memberAddressString(forOffset: accessor.symbol.offset), label: accessor.kind.addressLabel, emit: printMemberAddress)
@@ -676,7 +703,11 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
                 if printExportStatus, !variable.isOverride, !variable.attributes.contains(.objc) {
                     ExportStatusComment(isExported: exportVerdict(forSymbolNames: variable.accessors.map(\.symbol.name)))
                 }
-                await printVariable(variable, level: level, propertyWrapperAttributeTypeNode: synthesizedPropertyWrapperMembers.wrapperAttributeTypeNode(for: variable))
+                if let storage = variable.objcImplementationStorage {
+                    await printObjCImplementationStoredProperty(variable, storage: storage, level: level)
+                } else {
+                    await printVariable(variable, level: level, propertyWrapperAttributeTypeNode: synthesizedPropertyWrapperMembers.wrapperAttributeTypeNode(for: variable))
+                }
 
             case .subscript(let `subscript`):
                 OffsetComment(prefix: offsetCommentPrefix, offset: `subscript`.offset, emit: emitOffsetComment)
@@ -764,7 +795,7 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
         }
     }
 
-    private func dispatchingCatchedThrowing(_ context: SwiftIndexEvents.PrintingContext, @SemanticStringBuilder _ body: () async throws -> SemanticString) async -> SemanticString? {
+    func dispatchingCatchedThrowing(_ context: SwiftIndexEvents.PrintingContext, @SemanticStringBuilder _ body: () async throws -> SemanticString) async -> SemanticString? {
         do {
             return try await body()
         } catch {
