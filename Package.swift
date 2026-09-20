@@ -420,6 +420,8 @@ extension Target {
             .product(.MachOObjCSection),
             .product(.Semantic),
             .product(.Demangling),
+            .product(name: "FoundationToolbox", package: "FrameworkToolbox"),
+            .target(.MachOCaches),
             .target(.MachOSwiftSection),
             .target(.MachOSwiftSectionC),
             .target(.Utilities),

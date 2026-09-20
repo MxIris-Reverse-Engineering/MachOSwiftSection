@@ -6,7 +6,7 @@
 /// These are ABI facts, so they live here rather than being borrowed from
 /// the demangler's `objcModule` / `cModule` constants — the ABI model does
 /// not depend on `Demangling` (evolution proposal `self-contained-abi-layer`).
-enum CImportedModuleNames {
-    static let objectiveC = "__C"
-    static let cSynthesized = "__C_Synthesized"
+package enum CImportedModuleNames {
+    package static let objectiveC = "__C"
+    package static let cSynthesized = "__C_Synthesized"
 }
