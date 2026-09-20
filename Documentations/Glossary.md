@@ -182,6 +182,13 @@ opaque 尖括号参数归属的第三条规则：协议无任何 anchor 命中�
 - **主要出现在**：提案 draft-objc-implementation-class-recognition 的判据与证据分级
 - **延伸阅读**：[提案 draft-objc-implementation-class-recognition](Evolutions/draft-objc-implementation-class-recognition.md)
 
+### ObjC ancestor override（ObjC 祖先覆写）
+
+一个 Swift 成员覆写了从 ObjC 继承来的成员——NSView 的 `layout()`、NSObject 的 `description`——这件事在 Swift 元数据里没有记录：编译器给这种覆写发的是一条**新的**普通 vtable 项而不是 override 表项（`NeedsNewVTableEntryRequest` 对「被覆写者来自 clang」答「需要新项」），`@objc @implementation` 类更是没有 vtable。本仓库从 ObjC 侧判：类自己的 ObjC 方法表里某条方法的 selector 在祖先链（NSView → NSResponder → NSObject，跨镜像）上有人实现，它就是覆写；再把那条方法联结到 Swift 成员——IMP 处的 `To` 符号、或反汇编 IMP 找它引用的成员实现、或（默认关）只按 selector 名字唯一匹配。三档证据记在 `ObjCAncestorOverride.evidence` 里，dump 打出来，interface 只打 `override`。
+
+- **主要出现在**：`SwiftInspection/ObjCAncestorOverride.swift`、`SwiftThunkAnalysis/ObjCOverride/`
+- **延伸阅读**：[提案 draft-objc-ancestor-override-recovery](Evolutions/draft-objc-ancestor-override-recovery.md)、[ObjCAncestorOverrideRecovery.md](Internal/ObjCAncestorOverrideRecovery.md)
+
 ### permutation 二分（permutation binary search）
 
 不给数据本体排序，而是另存一条「按某序排列的下标数组」（permutation），查询时在这条下标序列上二分。`SymbolTable.rowsSortedByName` 即名字序 permutation：行本体保持插入序不动，名字查找二分这条 `[UInt32]`。替代了被退役的名字键字典 `tableRowByName`。

@@ -7,6 +7,7 @@ import Dependencies
 import OrderedCollections
 @_spi(Internals) import MachOSymbols
 @_spi(Internals) import SwiftInspection
+import SwiftThunkAnalysis
 import SwiftDeclarationRendering
 
 package struct ClassDumper<MachO: MachOFieldLayoutRenderable>: TypedDumper {
@@ -38,6 +39,16 @@ package struct ClassDumper<MachO: MachOFieldLayoutRenderable>: TypedDumper {
 
     private var demangleResolver: DemangleResolver {
         configuration.demangleResolver
+    }
+
+    /// The class's ObjC ancestor chain for the header comment: the same table
+    /// the member sections annotate from, looked up once more here because the
+    /// header prints before the member loop computes its context node.
+    private var objcAncestorChainHierarchy: ObjCClassHierarchy? {
+        guard let contextNode = try? SymbolicDemangler.demangleContext(for: .type(.class(dumped.descriptor)), in: machO),
+              let qualifiedName = NodeTypeNaming.nominalQualifiedName(ofDemangledRoot: contextNode)
+        else { return nil }
+        return ObjCAncestorOverrides.table(forSwiftClassQualifiedName: qualifiedName, in: machO)?.hierarchy
     }
 
     package var declaration: SemanticString {
@@ -213,6 +224,16 @@ package struct ClassDumper<MachO: MachOFieldLayoutRenderable>: TypedDumper {
 
             Standard("{")
 
+            // The ObjC ancestor chain (evolution proposal
+            // `objc-ancestor-override-recovery`) right under the header, on a
+            // line of its own — whether or not any member follows.
+            if let hierarchy = objcAncestorChainHierarchy, !hierarchy.ancestors.isEmpty {
+                BreakLine()
+                Indent(level: 1)
+                Comment(ObjCAncestorOverrideRendering.ancestorChainComment(for: hierarchy))
+                BreakLine()
+            }
+
             try await fields
 
             let distributedFunctionNodes = (try? self.distributedFunctionNodes) ?? []
@@ -374,6 +395,15 @@ package struct ClassDumper<MachO: MachOFieldLayoutRenderable>: TypedDumper {
             // (merged) lookup rather than dropping members.
             let contextNode = try? SymbolicDemangler.demangleContext(for: .type(.class(dumped.descriptor)), in: machO)
 
+            // `override` of ObjC-inherited members (evolution proposal
+            // `objc-ancestor-override-recovery`): the class's own ObjC method
+            // table against its ancestors'. Nil for a class with no static
+            // class object (generic) or no ObjC methods of its own. The
+            // chain itself printed under the header, above.
+            let objcAncestorOverrideTable = contextNode
+                .flatMap { NodeTypeNaming.nominalQualifiedName(ofDemangledRoot: $0) }
+                .flatMap { ObjCAncestorOverrides.table(forSwiftClassQualifiedName: $0, in: machO) }
+
             for kind in SymbolIndexStore.MemberKind.allCases {
                 let memberSymbols = if let contextNode {
                     symbolIndexStore.memberSymbols(of: kind, for: interfaceNameString, node: contextNode, in: machO)
@@ -405,6 +435,11 @@ package struct ClassDumper<MachO: MachOFieldLayoutRenderable>: TypedDumper {
                     Indent(level: 1)
 
                     try await demangleResolver.resolve(for: symbol.demangledNode)
+
+                    if let override = objcAncestorOverrideTable?.override(forMemberSymbolNamed: symbol.name) ?? objcAncestorOverrideTable?.override(forAllocatorSymbolNamed: symbol.name) {
+                        Space()
+                        Comment(ObjCAncestorOverrideRendering.overrideComment(for: override))
+                    }
 
                     if offset.isEnd {
                         BreakLine()

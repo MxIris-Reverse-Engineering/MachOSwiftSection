@@ -1,4 +1,4 @@
-import Demangling
+@_spi(Internals) import Demangling
 
 /// Extracts a stable, generic-argument-free fully-qualified type name from a
 /// demangled type `Node`, e.g. `"Swift.Array"`, `"MyModule.Outer.Inner"`.
@@ -6,9 +6,9 @@ import Demangling
 /// The same extraction is used both to index a type descriptor (from its
 /// demangled mangled-name) and to look a field type up against that index, so
 /// the two sides always agree on key format.
-enum NodeTypeNaming {
+package enum NodeTypeNaming {
     /// The broad nominal category of a type node, used to pick a layout path.
-    enum NominalCategory {
+    package enum NominalCategory {
         case structure
         case `enum`
         case `class`
@@ -24,7 +24,7 @@ enum NodeTypeNaming {
     /// descriptor of its own to index and look up like any other (evolution
     /// proposal `type-import-info-identity`). Its layout category is decided
     /// by that descriptor's kind, never by the node.
-    static func unwrappedNominal(of node: Node) -> Node? {
+    package static func unwrappedNominal(of node: Node) -> Node? {
         switch node.kind {
         case .type:
             return node.firstChild.flatMap(unwrappedNominal)
@@ -38,7 +38,7 @@ enum NodeTypeNaming {
     }
 
     /// The nominal category of a (possibly wrapped) type node.
-    static func nominalCategory(of node: Node) -> NominalCategory? {
+    package static func nominalCategory(of node: Node) -> NominalCategory? {
         guard let nominal = unwrappedNominal(of: node) else { return nil }
         switch nominal.kind {
         case .structure: return .structure
@@ -50,7 +50,7 @@ enum NodeTypeNaming {
 
     /// The fully-qualified name of a (possibly wrapped) nominal type node, or
     /// `nil` if the node is not nominal.
-    static func nominalQualifiedName(of node: Node) -> String? {
+    package static func nominalQualifiedName(of node: Node) -> String? {
         guard let nominal = unwrappedNominal(of: node) else { return nil }
         return qualifiedName(ofNominal: nominal)
     }
@@ -60,7 +60,7 @@ enum NodeTypeNaming {
     /// Used to key the per-image protocol class-constraint index and to look a
     /// protocol up from an existential's component list, sharing the same
     /// `qualifiedName(ofNominal:)` formatting as the type side so the two agree.
-    static func protocolQualifiedName(of node: Node) -> String? {
+    package static func protocolQualifiedName(of node: Node) -> String? {
         let unwrapped = (node.kind == .type ? node.firstChild : node) ?? node
         guard unwrapped.kind == .protocol else { return nil }
         return qualifiedName(ofNominal: unwrapped)
@@ -68,7 +68,7 @@ enum NodeTypeNaming {
 
     /// The fully-qualified name of a declared nominal-or-protocol node. Lets the
     /// per-image index treat a protocol context the same way as a type context.
-    static func declaredQualifiedName(of node: Node) -> String? {
+    package static func declaredQualifiedName(of node: Node) -> String? {
         nominalQualifiedName(of: node) ?? protocolQualifiedName(of: node)
     }
 
@@ -80,7 +80,7 @@ enum NodeTypeNaming {
     /// to the ObjC class index rather than `resolveType` — and routes it *first*,
     /// because a Swift-side lookup of an ObjC name is a guaranteed miss that
     /// would needlessly fold the entire dependency closure.
-    static func objCClassBareName(of node: Node) -> String? {
+    package static func objCClassBareName(of node: Node) -> String? {
         guard let nominal = unwrappedNominal(of: node), nominal.kind == .class else { return nil }
         guard
             let context = nominal.firstChild,
@@ -98,7 +98,7 @@ enum NodeTypeNaming {
     /// an existential routes it through this check instead of the Swift
     /// class-constraint index: an ObjC protocol is always class-bound and carries
     /// no Swift witness table.
-    static func objCProtocolBareName(of node: Node) -> String? {
+    package static func objCProtocolBareName(of node: Node) -> String? {
         let unwrapped = (node.kind == .type ? node.firstChild : node) ?? node
         guard unwrapped.kind == .protocol else { return nil }
         guard
@@ -107,6 +107,36 @@ enum NodeTypeNaming {
             context.text == objcModule
         else { return nil }
         return unwrapped.identifier
+    }
+
+    /// `nominalQualifiedName(of:)` over a demangled ROOT: a symbol or context
+    /// demangles to a `.global` wrapping the entity, and a bare `.type` /
+    /// nominal node passes straight through.
+    package static func nominalQualifiedName(ofDemangledRoot root: Node) -> String? {
+        if root.kind == .global {
+            guard let nominal = root.first(of: .class) ?? root.first(of: .structure) ?? root.first(of: .enum) else { return nil }
+            return nominalQualifiedName(of: nominal)
+        }
+        return nominalQualifiedName(of: root)
+    }
+
+    /// Demangles a Swift class's ObjC runtime name (`_TtC7SwiftUI3Foo`, incl.
+    /// private-discriminator forms, or the `$s…` spelling a nested or generic
+    /// context gets) to the qualified-name key. Plain ObjC class names (no
+    /// mangling prefix) return `nil` without invoking the demangler.
+    ///
+    /// Transient demangle: only the qualified-name string survives this
+    /// call, so the tree must not be interned into the global `NodeCache`.
+    package static func swiftClassQualifiedName(fromRuntimeName runtimeName: String) -> String? {
+        guard runtimeName.hasPrefix("_Tt") || runtimeName.hasPrefix("$s") else { return nil }
+        // The demangler wraps the result in `.global`; the qualified-name
+        // builder wants the bare nominal class node (the same shape
+        // `SymbolicDemangler.demangleContext` produces on the descriptor side).
+        guard
+            let node = try? demangleAsNodeTransient(runtimeName),
+            let classNode = node.first(of: .class)
+        else { return nil }
+        return nominalQualifiedName(of: classNode)
     }
 
     private static func qualifiedName(ofNominal node: Node) -> String? {

@@ -5,6 +5,7 @@ import MachOSwiftSection
 import MemberwiseInit
 import OrderedCollections
 @_spi(Internals) import Demangling
+import SwiftThunkAnalysis
 import SwiftStdlibToolbox
 import MachOKit
 import Dependencies
@@ -191,6 +192,9 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
                 // Holds `NodeReference`s into the symbol store's node arena, so
                 // it goes with the store it would otherwise pin.
                 ObjCImplementationClasses.removeCache(for: machO)
+                // The ObjC class-method index and the host's hierarchy-provider
+                // registration are per-image state of the same lifetime.
+                ObjCClassHierarchies.removeCache(for: machO)
             }
             if claims.propertyWrapperCatalog {
                 PropertyWrapperTypeCatalogStore.shared.remove(for: machO)
@@ -232,6 +236,17 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
             isPrepared = false
             try await prepare()
         }
+    }
+
+    /// Installs the ObjC class hierarchies a host already indexed for this
+    /// image (evolution proposal `objc-ancestor-override-recovery`), so the
+    /// `override` recovery of ObjC-inherited members reads them instead of
+    /// the image's ObjC metadata a second time. Register before the classes
+    /// are indexed — they index lazily, on first print or browse — and the
+    /// library's own reader stays the fallback for any class the provider
+    /// answers `nil` about. Held weakly; evicted with the image's caches.
+    public func registerObjCClassHierarchyProvider(_ provider: any ObjCClassHierarchyProviding) {
+        ObjCClassHierarchyProviderStore.shared.register(provider, for: machO)
     }
 
     public func addSubIndexer(_ subIndexer: SwiftDeclarationIndexer<MachO>) {
@@ -936,9 +951,19 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
                 // `objc-implementation-class-recognition`): an extension of a
                 // `__C` class that this image defines as a pure ObjC class object
                 // with Swift evidence behind it IS the class body.
-                if case .type(.class) = kind, let className = ObjCImplementationClasses.cImportedClassName(of: node), let facts = ObjCImplementationClasses.facts(forClassNamed: className, in: machO) {
-                    extensionDefinition.attachObjCImplementation(facts)
-                    eventDispatcher.dispatch(.objcImplementationClassRecognized(context: SwiftIndexEvents.ObjCImplementationClassContext(className: className, evidence: facts.evidence.description, isInferred: facts.evidence.isInferred, instanceVariableCount: facts.instanceVariables.count, memberCount: memberCount)))
+                if case .type(.class) = kind, let className = ObjCImplementationClasses.cImportedClassName(of: node) {
+                    if let facts = ObjCImplementationClasses.facts(forClassNamed: className, in: machO) {
+                        extensionDefinition.attachObjCImplementation(facts)
+                        eventDispatcher.dispatch(.objcImplementationClassRecognized(context: SwiftIndexEvents.ObjCImplementationClassContext(className: className, evidence: facts.evidence.description, isInferred: facts.evidence.isInferred, instanceVariableCount: facts.instanceVariables.count, memberCount: memberCount)))
+                    }
+                    // `override` of ObjC-inherited members (evolution proposal
+                    // `objc-ancestor-override-recovery`): the class has no
+                    // Swift vtable, so its own ObjC method table against its
+                    // ancestors' is the only evidence. Nil for a class this
+                    // image does not define (a plain category on NSObject).
+                    if let table = ObjCAncestorOverrides.table(forObjCClassNamed: className, in: machO) {
+                        extensionDefinition.applyObjCAncestorOverrides(table)
+                    }
                 }
 
                 extensionDefinition.orderedMembers = OrderedMember.offsetOrdered(OrderedMember.allMembers(from: extensionDefinition))

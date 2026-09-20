@@ -553,10 +553,18 @@ extension Target {
         dependencies: [
             .product(.MachOKit),
             .product(.MachOObjCSection),
+            // The adapter that hands `ObjCIndexing.ObjCInterfaceIndexer`'s class
+            // groups to the ObjC-ancestor override recovery
+            // (`ObjCInterfaceIndexerClassHierarchyProvider`).
+            .product(name: "ObjCIndexing", package: "MachOObjCSection"),
+            .product(name: "ObjCMetadataSource", package: "MachOObjCSection"),
             .product(.Semantic),
             .product(.Demangling),
             .target(.MachOSwiftSection),
             .target(.SwiftInspection),
+            // The ObjC-ancestor override tables an `@objc @implementation`
+            // extension's members are joined against.
+            .target(.SwiftThunkAnalysis),
             .target(.Utilities),
             .target(.SwiftDeclaration),
             // The indexer expands opaque types when it freezes associated-type
@@ -883,6 +891,7 @@ extension Target {
     static let SwiftDumpTests = Target.testTarget(
         name: "SwiftDumpTests",
         dependencies: [
+            .target(.SwiftThunkAnalysis),
             .target(.SwiftDump),
             .target(.MachOTestingSupport),
             .target(.MachOFixtureSupport),
@@ -909,6 +918,9 @@ extension Target {
         dependencies: [
             .target(.SwiftDeclaration),
             .target(.SwiftIndexing),
+            .product(name: "ObjCIndexing", package: "MachOObjCSection"),
+            .product(name: "ObjCMetadataSource", package: "MachOObjCSection"),
+            .target(.SwiftThunkAnalysis),
             .target(.SwiftPrinting),
             .target(.SwiftSpecialization),
             .target(.SwiftInterface),

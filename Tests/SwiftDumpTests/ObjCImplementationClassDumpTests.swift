@@ -26,7 +26,7 @@ struct ObjCImplementationClassDumpTests {
 
     @Test func fullFixtureDumpsBothSides() async throws {
         let output = try await dump(.full)
-        #expect(output.hasPrefix("@objc @implementation extension Widget {"))
+        #expect(output.contains("@objc @implementation extension Widget {"))
         #expect(output.contains("// ObjC class Widget: NSObject, class_ro_t flags 0x184, instanceStart 8, instanceSize 40"))
         #expect(output.contains("// Evidence: metadata accessor _$sSo6WidgetCMa, 3 field-offset globals, Swift symbols at 9 method implementations"))
         #expect(output.contains("// Implemented in Swift module \(ObjCImplementationFixture.moduleName)"))

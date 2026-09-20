@@ -3,6 +3,7 @@ import Demangling
 import MachOSwiftSection
 import MachOFoundation
 import Utilities
+import SwiftInspection
 
 @MemberwiseInit(.public)
 public struct FunctionDefinition: Sendable {
@@ -21,11 +22,21 @@ public struct FunctionDefinition: Sendable {
     // non-nil descriptor the left side is always `.some(bool)` and the
     // default-override predicate is never consulted (the historical form
     // returned `false` for every `.methodDefaultOverride` wrapper).
-    public var isOverride: Bool { (methodDescriptor?.isMethodOverride ?? false) || (methodDescriptor?.isMethodDefaultOverride ?? false) }
+    public var isOverride: Bool { objcAncestorOverride != nil || (methodDescriptor?.isMethodOverride ?? false) || (methodDescriptor?.isMethodDefaultOverride ?? false) }
 
     /// A type-level function with a vtable method descriptor was declared `class`:
     /// `static` members are implicitly final and never get one (mangling cannot tell them apart).
-    public var isClassMember: Bool { kind == .function && isGlobalOrStatic && methodDescriptor != nil }
+    /// An ObjC-side override is `class` as well — `override static` is not Swift.
+    public var isClassMember: Bool { kind == .function && isGlobalOrStatic && (methodDescriptor != nil || objcAncestorOverride != nil) }
+
+    /// Set at index time when this member's `To` thunk is the IMP of a
+    /// selector an ObjC ancestor also implements (evolution proposal
+    /// `objc-ancestor-override-recovery`): the `override` the Swift metadata
+    /// cannot show, since overriding an ObjC-inherited member gets a NEW
+    /// vtable entry rather than an override-table one — and an
+    /// `@objc @implementation` class has no vtable at all. Feeds `isOverride`
+    /// and `isClassMember`; the dump prints the selector and the ancestor.
+    public var objcAncestorOverride: ObjCAncestorOverride? = nil
 
     /// Recovered `final` (evolution proposal 0006): set at index time when the
     /// owning class's vtable was readable and this member carries no vtable

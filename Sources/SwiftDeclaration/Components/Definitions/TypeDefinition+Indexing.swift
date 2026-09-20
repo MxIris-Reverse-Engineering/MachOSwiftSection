@@ -40,6 +40,14 @@ extension TypeDefinition {
         // Cross-reference @objc and @nonobjc thunk symbols with built definitions
         applyThunkAttributes(symbolIndexStore: symbolIndexStore, typeName: typeName.name, typeNode: typeName.node, in: machO)
 
+        // `override` of ObjC-inherited members, from the class's own ObjC
+        // method table against its ancestors' (evolution proposal
+        // `objc-ancestor-override-recovery`). Independent of the `final`
+        // recovery below — these members all carry a (new) vtable descriptor,
+        // so they were never `final` candidates — but placed here so every
+        // later step sees the complete member facts.
+        applyObjCAncestorOverrides(in: machO)
+
         if dispatchLookups.canRecoverFinalMembers {
             recoverFinalMembers(fields: &indexedFields, symbolIndexStore: symbolIndexStore, in: machO)
         }

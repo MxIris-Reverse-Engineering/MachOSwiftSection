@@ -24,6 +24,7 @@ SwiftThunkAnalysis 干一件事：**不执行 thunk，把它算出来**。
 | 3. thunk 形状识别 | `Analysis/AccessorThunkAnalyzer`、`Analysis/AccessorThunkProgram` |
 | 4. 环境与调用目标解析 | `Resolution/MachOThunkEnvironment`、`Resolution/MetadataAccessorIndex`、`Resolution/DependencyImageResolver`、`Resolution/ThunkAddressSpace` |
 | 5. 对外读取面 | `Resolution/AccessorThunkReader`、`Resolution/AccessorThunkOwnerLayout`、`Resolution/ThunkTypeNodeBuilder`、`SwiftThunkAnalysis` |
+| 6. ObjC 祖先覆写联结 | `ObjCOverride/ObjCAncestorOverrides`、`ObjCOverride/ObjCMethodThunkReferences` — 复用子系统 1 的解码器与 2 的寄存器跟踪，把一个 ObjC 方法的 IMP 反汇编、收它引用的地址换成 Swift 符号，给 `override` 还原当第二档证据（提案 `objc-ancestor-override-recovery`；hierarchy 与接缝在 SwiftInspection，只有联结表在这里，因为解码器在这里）。见 [ObjCAncestorOverrideRecovery.md](../ObjCAncestorOverrideRecovery.md) |
 
 ## 当前能读到什么
 
@@ -79,6 +80,7 @@ AccessorThunkResolution.$taskResolver.withValue(UnreadableAccessorThunkResolver(
 
 ## 相关文档
 
+- [ObjCAncestorOverrideRecovery.md](../ObjCAncestorOverrideRecovery.md)——子系统 6：ObjC 方法 thunk 的引用解码怎么给 `override` 还原当证据。
 - [AccessorThunkResolutionExplained.md](../AccessorThunkResolutionExplained.md)——白话讲解与代码地图，**从这里开始读**。
 - [AccessorFunctionReferenceRendering.md](../AccessorFunctionReferenceRendering.md)——读不出来时渲染层怎么表达。
 - [OpaqueReturnTypeResolution.md](../OpaqueReturnTypeResolution.md)——opaque 返回类型的领域知识（描述符编码、字节级调试）。

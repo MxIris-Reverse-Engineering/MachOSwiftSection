@@ -95,8 +95,9 @@ struct ObjCImplementationClassRecognitionTests {
         let widget = try #require(block(named: "@objc @implementation /* inferred from ObjC class data: 2 ivars carry Swift-style type encodings */ extension __C.Widget {", in: interface))
         #expect(widget.contains("// stored property title: Swift type not recoverable"))
         #expect(widget.contains("// stored property swiftOnlyCache: Swift type not recoverable"))
-        // The clang class has complete encodings and no Swift symbols: silent.
-        #expect(!interface.contains("ClangWidget"))
+        // The clang class has complete encodings and no Swift symbols: silent
+        // (it still appears as the SUPERCLASS of the fixture's Swift subclasses).
+        #expect(!interface.contains("extension __C.ClangWidget"))
     }
 
     // MARK: - The facts behind the rendering
@@ -132,7 +133,9 @@ struct ObjCImplementationClassRecognitionTests {
         #expect(facts.properties.map(\.name).sorted() == ["count", "title"])
 
         #expect(ObjCImplementationClasses.facts(forClassNamed: "ClangWidget", in: machOFile) == nil)
-        #expect(ObjCImplementationClasses.all(in: machOFile).map(\.className) == ["Widget"])
+        // Two `@implementation` bodies: `Widget` and the override-recovery
+        // fixture's `DerivedImplementationWidget`.
+        #expect(Set(ObjCImplementationClasses.all(in: machOFile).map(\.className)) == ["Widget", "DerivedImplementationWidget"])
     }
 
     /// An imported ObjC class has `PublicNonUnique` linkage, so any module
@@ -169,9 +172,10 @@ struct ObjCImplementationClassRecognitionTests {
             guard case .objcImplementationClassRecognized(let context) = event else { return nil }
             return context
         }
-        #expect(recognized.map(\.className) == ["Widget"])
-        #expect(recognized.first?.isInferred == false)
-        #expect(recognized.first?.instanceVariableCount == 3)
+        #expect(Set(recognized.map(\.className)) == ["Widget", "DerivedImplementationWidget"])
+        let widget = try #require(recognized.first { $0.className == "Widget" })
+        #expect(widget.isInferred == false)
+        #expect(widget.instanceVariableCount == 3)
         // Informational, not a failure: it must not reach the zero-handler floor.
         #expect(SwiftIndexEvents.Payload.objcImplementationClassRecognized(context: recognized[0]).unhandledFailureDescription == nil)
         #expect(SwiftIndexEvents.Payload.objcImplementationClassSkipped(className: "X", reason: "unreadable").unhandledFailureDescription != nil)
