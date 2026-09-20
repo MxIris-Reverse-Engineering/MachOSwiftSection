@@ -2,6 +2,7 @@ import MemberwiseInit
 import Demangling
 import MachOSymbols
 import MachOSwiftSection
+import SwiftInspection
 
 @MemberwiseInit(.public)
 public struct VariableDefinition: Sendable, AccessorRepresentable {
@@ -29,4 +30,12 @@ public struct VariableDefinition: Sendable, AccessorRepresentable {
     /// 0007) — the code lives in a protocol extension, not on the conforming
     /// type. See `FunctionDefinition.isProtocolExtensionDefault`.
     public var isProtocolExtensionDefault: Bool = false
+
+    /// Set on a member of an `@objc @implementation` extension whose name
+    /// matches a stored property the class's ObjC ivar list carries (evolution
+    /// proposal `objc-implementation-class-recognition`): the accessor symbols
+    /// this definition was built from belong to a STORED property, so the
+    /// printer renders it as one — `var name: Type` with its field offset —
+    /// instead of the `{ get set }` computed shape the symbols alone suggest.
+    public var objcImplementationStorage: ObjCImplementationClassFacts.InstanceVariable? = nil
 }

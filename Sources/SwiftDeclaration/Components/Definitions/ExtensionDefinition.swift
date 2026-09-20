@@ -84,6 +84,18 @@ public final class ExtensionDefinition: Definition, MutableDefinition {
 
     public package(set) var orderedMembers: [OrderedMember] = []
 
+    /// Non-nil when this extension of a `__C` class IS the class's
+    /// `@objc @implementation` (evolution proposal
+    /// `objc-implementation-class-recognition`): the image defines the class
+    /// as a pure ObjC class object and the Swift side proves (or, with every
+    /// symbol stripped, infers) that Swift implements it. Carries the ObjC
+    /// side's facts — ivars with their Swift field-offset join, method and
+    /// property lists, the evidence tier — for the printer, which renders the
+    /// `@objc @implementation` header and the stored properties from them.
+    /// Deliberately NOT part of the ABI-diff container key: a class moving
+    /// from a clang implementation to Swift is not a Swift ABI change.
+    public package(set) var objcImplementation: ObjCImplementationClassFacts? = nil
+
     /// Whether `index(in:)` has completed a pass over this definition.
     ///
     /// The setter is `internal`, not `private`, only because the indexing
@@ -174,6 +186,35 @@ public final class ExtensionDefinition: Definition, MutableDefinition {
         staticSubscripts.append(contentsOf: other.staticSubscripts)
         missingSymbolWitnesses.append(contentsOf: other.missingSymbolWitnesses)
         absorbAssociatedTypes(of: other)
+        // Either producer may have been the one that ran the recognition
+        // (the member-symbol scan does; the nested-type discovery does not),
+        // so the fact survives the merge whichever definition is primary.
+        if objcImplementation == nil {
+            objcImplementation = other.objcImplementation
+        }
         orderedMembers = OrderedMember.offsetOrdered(OrderedMember.allMembers(from: self))
+    }
+
+    /// Records the recognition and joins the variables built from accessor
+    /// symbols with the stored properties the ObjC ivar list carries, by the
+    /// Swift property name the field-offset symbol supplies.
+    package func attachObjCImplementation(_ facts: ObjCImplementationClassFacts) {
+        objcImplementation = facts
+        for index in variables.indices {
+            variables[index].objcImplementationStorage = facts.instanceVariable(forSwiftPropertyNamed: variables[index].name)
+        }
+    }
+
+    /// The ivars of an `@objc @implementation` no member definition accounts
+    /// for — their accessor symbols were stripped or they never had any — in
+    /// ivar-list order. The printer renders these on their own, since nothing
+    /// else would show them.
+    public var unrepresentedObjCImplementationInstanceVariables: [ObjCImplementationClassFacts.InstanceVariable] {
+        guard let objcImplementation else { return [] }
+        let representedNames = Set(variables.compactMap { $0.objcImplementationStorage?.swiftPropertyName })
+        return objcImplementation.instanceVariables.filter { instanceVariable in
+            guard let swiftPropertyName = instanceVariable.swiftPropertyName else { return true }
+            return !representedNames.contains(swiftPropertyName)
+        }
     }
 }

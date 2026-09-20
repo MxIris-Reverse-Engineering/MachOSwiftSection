@@ -110,6 +110,12 @@ public struct OSLogEventHandler: SwiftIndexEvents.Handler {
         case .extensionCreationFailed(let targetName, let error):
             logger.error("Failed to create extension definition for \(targetName) - \(String(describing: error))")
 
+        case .objcImplementationClassRecognized(let context):
+            logger.trace("Recognized @objc @implementation class \(context.className) (\(context.evidence); \(context.instanceVariableCount) ivars, \(context.memberCount) members)")
+
+        case .objcImplementationClassSkipped(let className, let error):
+            logger.error("Skipped @objc @implementation recognition for \(className) - \(error)")
+
         case .protocolProcessed(let context):
             logger.trace("Indexed protocol: \(context.protocolName) with \(context.requirementCount) requirements")
 
@@ -253,6 +259,9 @@ public struct ConsoleEventHandler: SwiftIndexEvents.Handler {
         case .renderingDegraded(let context, let error):
             let subject = context.subject.map { " for \($0)" } ?? ""
             return "\(prefix) [ERROR] Degraded \(context.source)\(subject): \(String(describing: error))"
+
+        case .objcImplementationClassSkipped(let className, let reason):
+            return "\(prefix) [ERROR] Skipped @objc @implementation recognition for \(className): \(reason)"
 
         default:
             return nil // Ignore other detailed events

@@ -4,7 +4,7 @@ import Foundation
 import MachOSwiftSection
 import MemberwiseInit
 import OrderedCollections
-import Demangling
+@_spi(Internals) import Demangling
 import SwiftStdlibToolbox
 import MachOKit
 import Dependencies
@@ -188,6 +188,9 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
                 @Dependency(\.symbolIndexStore)
                 var symbolIndexStore
                 symbolIndexStore.remove(for: machO)
+                // Holds `NodeReference`s into the symbol store's node arena, so
+                // it goes with the store it would otherwise pin.
+                ObjCImplementationClasses.removeCache(for: machO)
             }
             if claims.propertyWrapperCatalog {
                 PropertyWrapperTypeCatalogStore.shared.remove(for: machO)
@@ -924,6 +927,20 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
                     }
                 }
 
+                // `@objc` / `@nonobjc` / `distributed` from the members' thunk
+                // symbols — the same evidence `TypeDefinition.index` applies to
+                // a type's own members; extension members never got it before.
+                extensionDefinition.applyThunkAttributes(symbolIndexStore: symbolIndexStore, typeName: name, typeNode: node, in: machO)
+
+                // `@objc @implementation` recognition (evolution proposal
+                // `objc-implementation-class-recognition`): an extension of a
+                // `__C` class that this image defines as a pure ObjC class object
+                // with Swift evidence behind it IS the class body.
+                if case .type(.class) = kind, let className = ObjCImplementationClasses.cImportedClassName(of: node), let facts = ObjCImplementationClasses.facts(forClassNamed: className, in: machO) {
+                    extensionDefinition.attachObjCImplementation(facts)
+                    eventDispatcher.dispatch(.objcImplementationClassRecognized(context: SwiftIndexEvents.ObjCImplementationClassContext(className: className, evidence: facts.evidence.description, isInferred: facts.evidence.isInferred, instanceVariableCount: facts.instanceVariables.count, memberCount: memberCount)))
+                }
+
                 extensionDefinition.orderedMembers = OrderedMember.offsetOrdered(OrderedMember.allMembers(from: extensionDefinition))
 
                 eventDispatcher.dispatch(.extensionCreated(context: SwiftIndexEvents.ExtensionContext(targetName: name, memberCount: memberCount)))
@@ -993,6 +1010,33 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
             }
         }
 
+        // An `@objc @implementation` class none of whose members left a symbol
+        // (a fully stripped image — the inferred tier's home turf) has no
+        // extension for the loop above to recognize, yet the ObjC side still
+        // knows it: give it an empty extension carrying the facts, so the
+        // interface shows the class body and its stored properties instead of
+        // nothing. Same-name definitions from the other producers merge into
+        // it in `unifyExtensionContainers`.
+        for facts in ObjCImplementationClasses.all(in: machO) {
+            let classNode = Node.createTransient(kind: .class, children: [
+                Node.createTransient(kind: .module, contents: .text(CImportedModuleNames.objectiveC)),
+                Node.createTransient(kind: .identifier, contents: .text(facts.className)),
+            ])
+            let typeNode = InternedNodeReferenceCache.shared.reference(interning: Node.createTransient(kind: .type, child: classNode), in: machO)
+            let extensionName = ExtensionName(node: typeNode, kind: .type(.class))
+            guard typeExtensionDefinitions[extensionName] == nil else { continue }
+            do {
+                let extensionDefinition = try ExtensionDefinition(extensionName: extensionName, genericSignature: nil, protocolConformance: nil, in: machO)
+                extensionDefinition.attachObjCImplementation(facts)
+                typeExtensionDefinitions[extensionName] = [extensionDefinition]
+                typeExtensionCount += 1
+                eventDispatcher.dispatch(.objcImplementationClassRecognized(context: SwiftIndexEvents.ObjCImplementationClassContext(className: facts.className, evidence: facts.evidence.description, isInferred: facts.evidence.isInferred, instanceVariableCount: facts.instanceVariables.count, memberCount: 0)))
+            } catch {
+                eventDispatcher.dispatch(.extensionCreationFailed(targetName: facts.className, error: error))
+                failedExtensions += 1
+            }
+        }
+
         for (extensionName, typeExtensionDefinition) in typeExtensionDefinitions {
             currentStorage.typeExtensionDefinitions[extensionName, default: []].append(contentsOf: typeExtensionDefinition)
         }
@@ -1002,6 +1046,12 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
         }
 
         currentStorage.typeAliasExtensionDefinitions = typeAliasExtensionDefinitions
+
+        // Surfaced here rather than logged where they happened: the index is
+        // built in SwiftInspection, below the event layer.
+        for skippedClass in ObjCImplementationClasses.skipped(in: machO) {
+            eventDispatcher.dispatch(.objcImplementationClassSkipped(className: skippedClass.className, reason: skippedClass.reason))
+        }
 
         eventDispatcher.dispatch(.extensionIndexingCompleted(result: SwiftIndexEvents.ExtensionIndexingResult(typeExtensions: typeExtensionCount, protocolExtensions: protocolExtensionCount, typeAliasExtensions: typeAliasExtensionCount, failed: failedExtensions)))
     }

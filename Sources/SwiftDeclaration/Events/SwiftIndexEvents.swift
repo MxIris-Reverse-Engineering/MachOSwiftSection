@@ -49,6 +49,13 @@ public enum SwiftIndexEvents {
         case extensionTargetNotFound(targetName: String)
         case extensionCreated(context: ExtensionContext)
         case extensionCreationFailed(targetName: String, error: any Error)
+        /// An extension of a `__C` class turned out to be the class's
+        /// `@objc @implementation` (evolution proposal
+        /// `objc-implementation-class-recognition`).
+        case objcImplementationClassRecognized(context: ObjCImplementationClassContext)
+        /// An ObjC class object whose class data could not be read, so the
+        /// recognition could not be attempted for it.
+        case objcImplementationClassSkipped(className: String, reason: String)
 
         case protocolProcessed(context: ProtocolContext)
         case protocolProcessingFailed(protocolName: String, error: any Error)
@@ -266,6 +273,16 @@ public enum SwiftIndexEvents {
     }
 
     @MemberwiseInit(.public)
+    public struct ObjCImplementationClassContext: Sendable {
+        public let className: String
+        /// Comment-ready evidence, `ObjCImplementationClassFacts.Evidence.description`.
+        public let evidence: String
+        public let isInferred: Bool
+        public let instanceVariableCount: Int
+        public let memberCount: Int
+    }
+
+    @MemberwiseInit(.public)
     public struct ProtocolContext: Sendable {
         public let protocolName: String
         public let requirementCount: Int
@@ -399,6 +416,8 @@ extension SwiftIndexEvents.Payload {
             return "conformance extension creation failed for \(context): \(error)"
         case let .extensionCreationFailed(targetName, error):
             return "extension creation failed for \(targetName): \(error)"
+        case let .objcImplementationClassSkipped(className, reason):
+            return "@objc @implementation recognition skipped \(className): \(reason)"
         case let .protocolProcessingFailed(protocolName, error):
             return "protocol processing failed for \(protocolName): \(error)"
         case let .definitionPrintFailed(context, error):
@@ -415,7 +434,7 @@ extension SwiftIndexEvents.Payload {
              .extensionIndexingStarted, .extensionIndexingCompleted,
              .moduleCollectionStarted, .moduleCollectionCompleted,
              .conformanceFound, .associatedTypeFound, .conformanceExtensionCreated,
-             .extensionTargetNotFound, .extensionCreated,
+             .extensionTargetNotFound, .extensionCreated, .objcImplementationClassRecognized,
              .protocolProcessed, .moduleFound,
              .symbolScanStarted, .symbolIndexProgress,
              .nameExtractionWarning,
