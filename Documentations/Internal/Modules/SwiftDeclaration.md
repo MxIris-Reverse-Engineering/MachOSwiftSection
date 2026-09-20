@@ -91,6 +91,10 @@ Handler 的调用是**进程级串行**的（跨所有 dispatcher 一把递归�
 
 SE-0436 的类在 `__swift5_*` 里没有身影，模型里它就是那个 `__C.X` 的 `ExtensionDefinition`：`objcImplementation` 装 `SwiftInspection.ObjCImplementationClassFacts`（证据档位、ivar 与 `Wvd` 的 join、方法表），`VariableDefinition.objcImplementationStorage` 标出由访问器符号建出来却是存储属性的成员。这个事实**不进** ABI 快照的容器 key。详见 [ObjCImplementationClassRecognition.md](../ObjCImplementationClassRecognition.md)。
 
+### ObjC 祖先覆写的 `override`
+
+`FunctionDefinition` / `VariableDefinition` / `SubscriptDefinition` 各有一个 `objcAncestorOverride: ObjCAncestorOverride?`，`isOverride` 与 `isClassMember` 都 OR 上它（覆写的类方法必须打 `class`）。它由 `Building/ObjCAncestorOverrideApplication` 在 `TypeDefinition.index(in:)`（`applyThunkAttributes` 之后）和 `SwiftDeclarationIndexer.indexExtensions()`（`__C` 类的 extension）里从 `SwiftThunkAnalysis.ObjCAncestorOverrides` 的表 join 上来：函数按自己的符号名，属性 / 下标按任一 accessor 符号，`init` 按 allocator 符号换 initializer 后缀。第三档「只按名字」的推断也在这里做（开关默认关）。这个事实**不进** ABI 快照。详见 [ObjCAncestorOverrideRecovery.md](../ObjCAncestorOverrideRecovery.md)。
+
 ## 相关文档
 
 - [DeclarationModelMemoryFootprint.md](../DeclarationModelMemoryFootprint.md)——模型内存占用与瘦身。

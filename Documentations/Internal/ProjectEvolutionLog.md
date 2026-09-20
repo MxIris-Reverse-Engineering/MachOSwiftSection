@@ -1842,6 +1842,16 @@
 - **关联文档**：提案 [draft-objc-implementation-class-recognition](../Evolutions/draft-objc-implementation-class-recognition.md)；实现说明 [ObjCImplementationClassRecognition.md](ObjCImplementationClassRecognition.md)；术语表「ObjC implementation class」；[Modules/SwiftDeclaration.md](Modules/SwiftDeclaration.md) 补一节。
 - **对应版本**：随下一次发布。
 
+## 2026-09-20 从 ObjC 祖先链还原 `override`（提案 draft-objc-ancestor-override-recovery）
+
+- **时间段**：2026-09-20（一日，紧接上一节）。
+- **动机**：用户看到 `@objc @implementation extension __C.NSGlassEffectView` 里 NSView 的方法都没有 `override`。核实：interface 的 `override` 只来自 vtable override 表，而覆写 ObjC 继承来的成员时编译器只发一条新的普通 vtable 项（`NeedsNewVTableEntryRequest` 对「被覆写者来自 clang」答 true），`@implementation` 类连 vtable 都没有——SwiftUI 165 个、AppKit 173 个 ObjC 派生类同样受影响。用户决定一并覆盖所有 ObjC 派生的 Swift 类，并要求接收 ObjCSection 那边索引器的内容而不是再读一遍。
+- **关键决策**：**① 判据在 ObjC 侧**——类自己的方法表里 selector 被祖先实现即覆写，Swift 语义保证 selector 撞祖先只能是 override。**② 数据来源做成接缝**：`ObjCClassHierarchyProviding` + 按镜像弱引用的注册表，宿主递进已有的 ObjC 索引（RuntimeViewer 对每个镜像先建 ObjC 索引），库自己的 `ObjCClassMethodIndex` 只是兜底；`SwiftIndexing` 给 `ObjCIndexing.ObjCInterfaceIndexer` 一个适配器。**③ 联结三档**：`To` 符号在 IMP 处；OS 框架 strip 掉了 `To` 符号（IDA 核实 `-[NSGlassEffectView layout]` 的 IMP 是无名代码 `bl $s…layoutyyF`），于是用 SwiftThunkAnalysis 的解码器反汇编 thunk 收它引用的成员实现，配「所属类」与「importer 拼法」两道守卫；只按名字的第三档实现但默认关（用户既定裁决「只联结不猜」，是否默认开待裁定）。**④ 覆写的类方法打 `class`**，`override static` 不是合法 Swift。**⑤ 事实不进 ABI 快照**。
+- **落地模块**：`SwiftInspection`（`ObjCClassHierarchy` / provider 接缝与注册表 / `ObjCClassMethodIndex` / `ObjCAncestorOverride` + 表 / `ObjCMemberShape`；`NodeTypeNaming` 从 SwiftLayout 下沉为 package）、`SwiftThunkAnalysis`（`ObjCOverride/ObjCAncestorOverrides`、`ObjCMethodThunkReferences`）、`SwiftDeclaration`（三种成员定义的 `objcAncestorOverride`，`isOverride` / `isClassMember` OR 上它；`ObjCAncestorOverrideApplication`）、`SwiftIndexing`（extension 接入、`registerObjCClassHierarchyProvider`、适配器、驱逐）、`SwiftDump`（链注释与 `overrides` 注释）；Package.swift 给 SwiftIndexing 加 `ObjCIndexing` / `ObjCMetadataSource` / `SwiftThunkAnalysis` 依赖。
+- **验证**：新增三个套件（fixture 三种覆写 + 两条腿 + provider 等价 + 形状规则；AppKit 门控；dump）；macOS 26.6 AppKit interface 的 `override` 行 2 → 52，NSGlassEffectView 15 个覆写标出 9 个，其余 6 个是内联掉的方法体；全量测试与渲染 A/B 见任务报告。
+- **关联文档**：提案 [draft-objc-ancestor-override-recovery](../Evolutions/draft-objc-ancestor-override-recovery.md)；实现说明 [ObjCAncestorOverrideRecovery.md](ObjCAncestorOverrideRecovery.md)；任务报告 [TaskReports/2026-09-20-objc-ancestor-override-recovery.md](TaskReports/2026-09-20-objc-ancestor-override-recovery.md)；术语表「ObjC ancestor override」。
+- **对应版本**：随下一次发布。
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节

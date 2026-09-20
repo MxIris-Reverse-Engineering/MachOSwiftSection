@@ -174,7 +174,11 @@ swift-section dump /path/to/binary
 swift-section dump /path/to/binary --sections types protocols
 
 # Only the classes implemented through `@objc @implementation` (SE-0436): the ObjC
-# class data joined with the Swift symbols — ivars, method lists, evidence.
+# class data joined with the Swift symbols — ivars, method lists, evidence. Every
+# class dump (this section and `types`) also names the ObjC ancestor chain and, on
+# each member that overrides an ObjC-inherited one, which ancestor it overrides —
+# a fact Swift metadata does not carry, so `interface` prints those `override`s
+# from the same recovery.
 swift-section dump /path/to/binary --sections objcImplementationClasses
 
 # Save output to file
