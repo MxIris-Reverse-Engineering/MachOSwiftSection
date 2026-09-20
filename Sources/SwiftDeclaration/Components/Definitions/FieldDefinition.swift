@@ -1,6 +1,7 @@
 import MemberwiseInit
 import Demangling
 import SwiftDeclarationRendering
+import SwiftInspection
 
 public struct FieldFlags: OptionSet, Sendable {
     public let rawValue: Int
@@ -52,6 +53,10 @@ public struct FieldDefinition: AccessorRepresentable, Sendable {
     // here because it predates the conformance (evolution proposal 0006) and
     // callers read it as a field-level fact.
     public var hasVTableAccessor: Bool { accessors.contains { $0.methodDescriptor != nil } }
+
+    /// A stored property cannot override anything (Swift forbids overriding
+    /// with storage), so the ObjC-side fact never applies to a field.
+    public var objcAncestorOverride: ObjCAncestorOverride? { nil }
 }
 
 extension FieldDefinition {
