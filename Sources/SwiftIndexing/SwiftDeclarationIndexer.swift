@@ -6,8 +6,10 @@ import MemberwiseInit
 import OrderedCollections
 @_spi(Internals) import Demangling
 import SwiftThunkAnalysis
+import SwiftInspection
 import SwiftStdlibToolbox
 import MachOKit
+import MachOFoundation
 import Dependencies
 import Utilities
 @_spi(Internals) import MachOSymbols
@@ -199,6 +201,9 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
             if claims.propertyWrapperCatalog {
                 PropertyWrapperTypeCatalogStore.shared.remove(for: machO)
             }
+            if claims.objcAncestorResolver {
+                ObjCAncestorResolverStore.shared.remove(for: machO)
+            }
             // Claimed separately from the symbol store: both of these are also
             // populated by SwiftLayout, the renderers and SwiftSpecialization,
             // so "this indexer built the symbol store" says nothing about who
@@ -368,7 +373,8 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
                 symbolStore: !symbolIndexStore.contains(in: machO),
                 internedNames: !InternedNodeReferenceCache.shared.contains(in: machO),
                 demangleMemo: !SymbolicDemangler.cacheExists(for: machO),
-                propertyWrapperCatalog: !PropertyWrapperTypeCatalogStore.shared.contains(in: machO)
+                propertyWrapperCatalog: !PropertyWrapperTypeCatalogStore.shared.contains(in: machO),
+                objcAncestorResolver: !ObjCAncestorResolverStore.shared.contains(in: machO)
             )
         }
 
@@ -418,6 +424,54 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
         isPrepared = true
     }
 
+    /// Installs the two per-image consumers of the configured dependency
+    /// search paths: the property-wrapper catalog and — for a file, whose
+    /// superclass and category-target binds the ObjC reader cannot follow —
+    /// the ObjC ancestor resolver (evolution proposal
+    /// `objc-ancestor-dependency-closure`). Both take the SAME lazily
+    /// resolved closure: resolving it twice would index every search-path
+    /// cache twice. Search paths that fail to open are reported the way
+    /// `SwiftInterfaceBuilderDependencies` reports them, when the closure is
+    /// first resolved; an in-process image resolves through the loaded
+    /// images and needs no resolver.
+    private func registerDependencyClosureConsumers() {
+        guard let machOFile = machO as? MachOFile else {
+            PropertyWrapperTypeCatalogStore.shared.register(
+                PropertyWrapperTypeCatalog.make(root: machO, searchPaths: configuration.dependencySearchPaths),
+                for: machO
+            )
+            if let machOImage = machO as? MachOImage {
+                ObjCAncestorResolverStore.shared.register(ObjCAncestorResolver(inProcessRoot: machOImage), for: machO)
+            }
+            return
+        }
+        let searchPaths = configuration.dependencySearchPaths
+        let sharedClosure = SharedDependencyClosure { [weak eventDispatcher] in
+            let closure = DependencyClosure(root: machOFile, searchPaths: searchPaths, traversal: .transitive)
+            for loadFailure in closure.searchPathLoadFailures {
+                // The subject is the bare path for a path-carrying entry,
+                // as `SwiftInterfaceBuilderDependencies` reports it.
+                let subject: String = switch loadFailure.searchPath {
+                case .machOFile(let path), .dyldSharedCache(let path), .systemRoot(let path): path
+                case .systemDyldSharedCache: loadFailure.searchPath.description
+                }
+                eventDispatcher?.dispatch(.renderingDegraded(
+                    context: .init(source: .dependencyLoad, subject: subject),
+                    error: loadFailure.error
+                ))
+            }
+            return closure
+        }
+        PropertyWrapperTypeCatalogStore.shared.register(
+            PropertyWrapperTypeCatalog.make(root: machOFile) { sharedClosure.closure.images },
+            for: machO
+        )
+        ObjCAncestorResolverStore.shared.register(
+            ObjCAncestorResolver { sharedClosure.closure.images },
+            for: machO
+        )
+    }
+
     private func index() async throws {
         eventDispatcher.dispatch(.phaseTransition(phase: .indexing, state: .started))
 
@@ -438,10 +492,7 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
             // catalog whether a field's type is a wrapper from another image;
             // install it with the configured search paths before any type is
             // indexed, or the store would fall back to the system cache.
-            PropertyWrapperTypeCatalogStore.shared.register(
-                PropertyWrapperTypeCatalog.make(root: machO, searchPaths: configuration.dependencySearchPaths),
-                for: machO
-            )
+            registerDependencyClosureConsumers()
             try await indexTypes()
             eventDispatcher.dispatch(.phaseOperationCompleted(phase: .indexing, operation: .typeIndexing))
         } catch {
@@ -1453,6 +1504,11 @@ private enum PerImageCacheEvictionRegistry {
         /// the indexer's own search paths, so the indexer that installed it
         /// is the one to evict it.
         var propertyWrapperCatalog: Bool = false
+        /// The per-image `ObjCAncestorResolver` (the ObjC ancestor chain's
+        /// cross-image lookups). Registered by `prepare()` alongside the
+        /// catalog, over the same dependency closure, and evicted on the
+        /// same terms.
+        var objcAncestorResolver: Bool = false
 
         static let none = Claims()
 
@@ -1461,6 +1517,7 @@ private enum PerImageCacheEvictionRegistry {
             internedNames = internedNames || other.internedNames
             demangleMemo = demangleMemo || other.demangleMemo
             propertyWrapperCatalog = propertyWrapperCatalog || other.propertyWrapperCatalog
+            objcAncestorResolver = objcAncestorResolver || other.objcAncestorResolver
         }
 
         /// Pairs the two claims that cannot be honoured independently.

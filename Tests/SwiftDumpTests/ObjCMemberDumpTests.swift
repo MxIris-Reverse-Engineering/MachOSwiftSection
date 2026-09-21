@@ -5,6 +5,7 @@ import MachOFoundation
 @testable import MachOSwiftSection
 @testable import SwiftDump
 import SwiftDeclarationRendering
+import SwiftInspection
 import SwiftThunkAnalysis
 @testable import MachOTestingSupport
 
@@ -13,7 +14,11 @@ import SwiftThunkAnalysis
 /// the ancestor chain as a comment under the class, `overrides -[Ancestor
 /// selector]` on every member line tied to an inherited selector, and `@objc
 /// -[Class selector]` on every other member line the ObjC method table ties.
-@Suite(.serialized)
+/// From the fixture FILE the clang class's bound `NSObject` is followed into
+/// the running system's cache (evolution proposal
+/// `objc-ancestor-dependency-closure`); one test installs a resolver over no
+/// images to pin the chain comment of a bind nothing answers.
+@Suite(.serialized, ExclusiveImageAccess(ObjCImplementationFixture.moduleName))
 struct ObjCMemberDumpTests {
     private func classDescriptor(named name: String, in machOFile: MachOFile) throws -> ClassDescriptor {
         for typeContextDescriptor in try machOFile.swift.typeContextDescriptors {
@@ -25,34 +30,45 @@ struct ObjCMemberDumpTests {
         throw ObjCImplementationFixture.CompilationError(step: "lookup", diagnostics: "class \(name) not found")
     }
 
+    /// Runs `body` with a resolver over the fixture's whole world (the
+    /// category dylib, the host's cache) registered for the file.
+    private func withFixtureWorld<Result>(for machOFile: MachOFile, _ body: () async throws -> Result) async throws -> Result {
+        ObjCAncestorResolverStore.shared.register(ObjCAncestorResolver(root: machOFile, searchPaths: try ObjCImplementationFixture.dependencySearchPaths()), for: machOFile)
+        defer { ObjCAncestorResolverStore.shared.remove(for: machOFile) }
+        return try await body()
+    }
+
     @Test func swiftClassDumpNamesTheAncestorChainAndTheOverriddenSelectors() async throws {
         let machOFile = try ObjCImplementationFixture.machOFile(.full)
+        try await withFixtureWorld(for: machOFile) {
         let classType = try Class(descriptor: try classDescriptor(named: "SwiftDerivedWidget", in: machOFile), in: machOFile)
         let output = try await classType.dump(using: .demangleOptions(.test), in: machOFile).string
         let moduleName = ObjCImplementationFixture.moduleName
-        // From the file the clang class's superclass is a bind: the chain says
-        // so — on its own line right under the header.
-        #expect(output.contains(" {\n    // ObjC ancestor chain: ClangWidget → NSObject (bound; chain not resolvable offline)\n"))
+        // The chain — on its own line right under the header — runs through
+        // the bound `NSObject`, found in the host's cache.
+        #expect(output.contains(" {\n    // ObjC ancestor chain: ClangWidget → NSObject\n"))
         #expect(output.contains("ping() -> () // overrides -[ClangWidget ping]"))
         #expect(output.contains("pingCount() -> Swift.Int // overrides +[ClangWidget pingCount]"))
         #expect(output.contains("level.getter : Swift.Int // overrides -[ClangWidget level]"))
         #expect(output.contains("level.setter : Swift.Int // overrides -[ClangWidget setLevel:]"))
         #expect(!output.contains("notAnOverride() -> () // overrides"))
-        #expect(!output.contains("description.getter : Swift.String // overrides"))
+        #expect(output.contains("description.getter : Swift.String // overrides -[NSObject description]"))
+        // The category dylib's method, found through the closure's files.
+        #expect(output.contains("noteValue(forKeyPath: Swift.String, of: Any) -> () // overrides -[NSObject noteValueForKeyPath:ofObject:]"))
         // Every other member of the method table names its selector.
         #expect(output.contains("notAnOverride() -> () // @objc -[\(moduleName).SwiftDerivedWidget notAnOverride] (To thunk symbol at the IMP)"))
-        // From the FILE the chain ends at the bound `NSObject`: the selector
-        // is named, the explicit-selector verdict withheld.
-        #expect(output.contains("// @objc -[\(moduleName).SwiftDerivedWidget pokeUsingForce:] (To thunk symbol at the IMP)"))
-        #expect(output.contains("alias.getter : Swift.Int // @objc -[\(moduleName).SwiftDerivedWidget customLevel] (To thunk symbol at the IMP)"))
-        #expect(!output.contains("explicit selector"))
+        // The chain being complete, the explicit-selector verdict is given.
+        #expect(output.contains("// @objc -[\(moduleName).SwiftDerivedWidget pokeUsingForce:], explicit selector (To thunk symbol at the IMP)"))
+        #expect(output.contains("alias.getter : Swift.Int // @objc -[\(moduleName).SwiftDerivedWidget customLevel], explicit selector (To thunk symbol at the IMP)"))
         #expect(output.contains("// @objc -[\(moduleName).SwiftDerivedWidget moveToWindow:] (To thunk symbol at the IMP)"))
+        #expect(!output.contains("moveToWindow:], explicit selector"))
         #expect(output.contains("// @objc -[\(moduleName).SwiftDerivedWidget fetchAndReturnError:] (To thunk symbol at the IMP)"))
         // A witness's inherited selector is not explicit.
         #expect(output.contains("priority.getter : Swift.Int // @objc -[\(moduleName).SwiftDerivedWidget observerPriority] (To thunk symbol at the IMP)"))
         #expect(!output.contains("observerPriority], explicit selector"))
         // Not in the method table at all.
         #expect(!output.contains("typeName() -> Swift.String // @objc"))
+        }
     }
 
     @Test func swiftAncestorsPrintByTheirQualifiedName() async throws {
@@ -62,15 +78,30 @@ struct ObjCMemberDumpTests {
         let moduleName = ObjCImplementationFixture.moduleName
         // The Swift ancestor's `class_ro_t` name is its mangled runtime name;
         // the comment spells it the way the rest of the dump does.
-        #expect(output.contains("// ObjC ancestor chain: \(moduleName).SwiftDerivedWidget → ClangWidget → NSObject (bound; chain not resolvable offline)"))
+        #expect(output.contains("// ObjC ancestor chain: \(moduleName).SwiftDerivedWidget → ClangWidget → NSObject\n"))
         #expect(output.contains("dynamicHook() -> () // overrides -[\(moduleName).SwiftDerivedWidget dynamicHook] (To thunk symbol at the IMP)"))
+    }
+
+    /// A bind no dependency image answers — here, a resolver over no images
+    /// standing in for a file whose linked images are nowhere on the host —
+    /// is spelled out in the chain comment, and no explicit selector is
+    /// claimed past it.
+    @Test func fileWithoutDependencyImagesReportsTheBoundChain() async throws {
+        let machOFile = try ObjCImplementationFixture.machOFile(.full)
+        ObjCAncestorResolverStore.shared.register(.empty, for: machOFile)
+        defer { ObjCAncestorResolverStore.shared.remove(for: machOFile) }
+        let classType = try Class(descriptor: try classDescriptor(named: "SwiftGrandchildWidget", in: machOFile), in: machOFile)
+        let output = try await classType.dump(using: .demangleOptions(.test), in: machOFile).string
+        let moduleName = ObjCImplementationFixture.moduleName
+        #expect(output.contains("// ObjC ancestor chain: \(moduleName).SwiftDerivedWidget → ClangWidget → NSObject (bound; chain not resolvable offline)"))
+        #expect(!output.contains("explicit selector"))
     }
 
     @Test func implementationClassDumpNamesTheOverriddenAncestor() async throws {
         let machOFile = try ObjCImplementationFixture.machOFile(.full)
         let implementationClass = try #require(ObjCImplementationClass.all(in: machOFile).first { $0.facts.className == "DerivedImplementationWidget" })
         let output = try await implementationClass.dump(using: .demangleOptions(.test), in: machOFile).string
-        #expect(output.contains("// ObjC ancestor chain: ClangWidget → NSObject (bound; chain not resolvable offline)"))
+        #expect(output.contains("// ObjC ancestor chain: ClangWidget → NSObject\n"))
         let lines = output.split(separator: "\n").map(String.init)
         let ping = try #require(lines.first { $0.contains("-[DerivedImplementationWidget ping]") })
         #expect(ping.hasSuffix(", overrides ClangWidget"))

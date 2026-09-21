@@ -178,7 +178,7 @@ enum Attributes {
         func dynamicallyCall(withKeywordArguments: Swift.KeyValuePairs<Swift.String, Swift.Int>) -> Swift.Int
     }
     class ObjCAttributeClass: __C.NSObject {
-        @objc init()
+        @objc override init()
 
         @objc func objcMethod()
         func nonobjcMethod()
@@ -316,9 +316,9 @@ enum Classes {
         deinit
     }
     class ExternalObjCSubclassTest: __C.NSObject {
-        @objc init()
+        @objc override init()
 
-        @objc func isKind(of: Swift.AnyObject.Type) -> Swift.Bool
+        @objc override func isKind(of: Swift.AnyObject.Type) -> Swift.Bool
 
         deinit
     }
@@ -411,7 +411,7 @@ enum Classes {
         // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
         var property: Swift.Int
 
-        @objc init()
+        @objc override init()
 
         @objc func method() -> Swift.Int
 

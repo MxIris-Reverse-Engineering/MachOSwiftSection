@@ -4,6 +4,7 @@ import MachOKit
 import MachOFoundation
 import MachOSwiftSection
 import SwiftDump
+import SwiftInspection
 import OutputTransformer
 import SwiftOutputTransformer
 import SwiftDeclarationRendering
@@ -104,6 +105,14 @@ struct DumpCommand: AsyncParsableCommand, Sendable {
 
     private mutating func dump() async throws {
         let machOFile = try MachOFile.load(options: machOOptions)
+        // The ObjC ancestor chain behind the `overrides` / `explicit selector`
+        // comments follows a standalone file's binds into the same images the
+        // interface's indexer would use; `dump` has no indexer, so it installs
+        // the resolver itself.
+        ObjCAncestorResolverStore.shared.register(
+            ObjCAncestorResolver(root: machOFile, searchPaths: machOOptions.indexDependencySearchPaths),
+            for: machOFile
+        )
 
         var dumpConfiguration: DumperConfiguration = .demangleOptions(demangleOptions.buildSwiftDumpDemangleOptions())
 

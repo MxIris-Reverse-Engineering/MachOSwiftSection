@@ -361,7 +361,14 @@ class VerificationRun:
                     continue
                 for command_name in ("dump", "interface"):
                     # Older runtimes ship fat (x86_64 + arm64) binaries; the slice must be explicit.
-                    self.run_pair(scenario_name, framework_name, command_name, [str(framework_binary), "-a", "arm64"])
+                    # The runtime root is the system root the framework's dependencies
+                    # resolve under (UIKit, Foundation, libobjc as files): the ObjC ancestor
+                    # chain, the property-wrapper catalog and the static layout engine all
+                    # read cross-image facts through it, and the host's macOS cache is no
+                    # substitute for an iOS binary's images. Passed to BOTH sides, so the two
+                    # CLIs see the same inputs and only their own behavior differs.
+                    self.run_pair(scenario_name, framework_name, command_name,
+                                  [str(framework_binary), "-a", "arm64", "--dependency-search-path", str(runtime_root)])
 
     # --- Part 3: in-process MachOImage (current system) ---------------------
 

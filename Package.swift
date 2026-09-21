@@ -694,6 +694,7 @@ extension Target {
         name: "swift-section",
         dependencies: [
             .target(.SwiftDump),
+            .target(.SwiftInspection),
             .target(.SwiftOutputTransformer),
             .target(.SwiftDeclaration),
             .target(.SwiftIndexing),

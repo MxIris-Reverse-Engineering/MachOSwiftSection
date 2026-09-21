@@ -491,9 +491,19 @@ extension MachOFile: ObjCImplementationClassReading {
         objc.categories64
     }
 
+    /// The ObjC reader names a chained-fixup bind but reads a legacy
+    /// `LC_DYLD_INFO` bind (pre-macOS 12 / iOS 16 deployment targets) as an
+    /// empty slot — the same gap `superclassLocation(of:)` closes for the
+    /// superclass — so the bind stream is consulted for the name.
     func targetClassName(of category: ObjCCategory64) -> String? {
-        category.className(in: self)
+        if let name = category.className(in: self), !name.isEmpty {
+            return name
+        }
+        guard !isLoadedFromDyldCache, let bindSymbolName = resolveBind(fileOffset: category.offset + Self.categoryClassFieldOffset) else { return nil }
+        return bindSymbolName.replacingOccurrences(of: "_OBJC_CLASS_$_", with: "")
     }
+
+    private static let categoryClassFieldOffset = MemoryLayout<ObjCCategory64.Layout>.offset(of: \.cls) ?? MemoryLayout<UInt64>.size
 
     /// A rebase into another image of the same cache resolves; a standalone
     /// file's bind does not.

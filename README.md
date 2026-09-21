@@ -261,7 +261,12 @@ pass `--dependency-search-path` (repeatable) when neither applies, for example a
 simulator app whose runtime is not an ancestor of the app. The same paths let the
 interface recognize a property wrapper defined in another image (`@State`,
 `@EnvironmentObject`, …), so a wrapped property prints as the source declared it —
-`@SwiftUI.State var name: Swift.String` — instead of its `_name` storage:
+`@SwiftUI.State var name: Swift.String` — instead of its `_name` storage, and let
+both `dump` and `interface` follow a class's ObjC ancestors into the images that
+define them (a standalone file's superclass is a bind), which is where the
+`override` of an ObjC-inherited member and the explicit-selector verdict come from.
+Images of another platform in the running system's cache are never candidates, so an
+iOS binary on a macOS host needs its simulator runtime named here:
 ```bash
 swift-section dump --dependency-search-path "/Library/Developer/CoreSimulator/Volumes/iOS_24A434/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 27.0.simruntime/Contents/Resources/RuntimeRoot/System/Library/Caches/com.apple.dyld/dyld_sim_shared_cache_arm64" /path/to/MyApp.app/MyApp
 ```

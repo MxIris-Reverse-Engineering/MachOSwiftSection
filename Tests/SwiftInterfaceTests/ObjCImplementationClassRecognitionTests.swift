@@ -13,7 +13,7 @@ import SwiftInspection
 /// fixture's three link/strip variants — one per evidence tier — plus the
 /// negative controls: a clang-compiled class that a Swift extension merely
 /// adds to, and a plain Swift class with ObjC ancestry.
-@Suite(.serialized)
+@Suite(.serialized, ExclusiveImageAccess(ObjCImplementationFixture.moduleName))
 struct ObjCImplementationClassRecognitionTests {
     private func interface(of variant: ObjCImplementationFixture.Variant, printFieldOffset: Bool = false) async throws -> String {
         let machOFile = try ObjCImplementationFixture.machOFile(variant)

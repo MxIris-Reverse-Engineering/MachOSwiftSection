@@ -1,4 +1,5 @@
 import Foundation
+import MachOFoundation
 import MachOKit
 import Testing
 
@@ -24,6 +25,16 @@ import Testing
 /// labelled first parameter) and the ones spelled in `@objc(name)`, an
 /// `@objc` protocol whose witnesses inherit their selectors, and a Swift
 /// extension — a category — carrying an `@objc` member and an `override`.
+///
+/// A second dylib, `libObjCImplementationFixtureCategories`, implements a
+/// category the header declares on `NSObject` and every variant links it
+/// (evolution proposal `objc-ancestor-dependency-closure`): the category's
+/// method is in THAT file's `__objc_catlist`, never in `NSObject`'s own
+/// lists — exactly Foundation's KVO category on `NSObject` as a simulator
+/// runtime ships it — so an override of it is provable only through the
+/// dependency closure's files (and in-process only through the loaded
+/// images, since the runtime attaches it where the readers do not look).
+/// `dependencySearchPaths()` names the dylib for a resolver.
 ///
 /// Four link/strip variants exercise the evidence tiers and the bind formats:
 /// - `.full`: every symbol present — accessor, field-offset globals, `To`
@@ -71,6 +82,11 @@ package enum ObjCImplementationFixture {
     + (NSInteger)pingCount;
     @end
 
+    // Implemented in the separately shipped `libObjCImplementationFixtureCategories`.
+    @interface NSObject (SeparatelyShipped)
+    - (void)noteValueForKeyPath:(NSString *)keyPath ofObject:(id)object;
+    @end
+
     // Implemented in Swift through `@objc @implementation`, deriving from the
     // clang class: its `ping` / `pingCount` / `level` are overrides of
     // ObjC-inherited members, which only the ObjC method tables can show.
@@ -92,6 +108,14 @@ package enum ObjCImplementationFixture {
     - (void)bump { self.tally += 1; }
     - (void)ping { self.tally += 2; }
     + (NSInteger)pingCount { return 1; }
+    @end
+    """
+
+    package static let categoryObjectiveCSource = """
+    #import "Fixture.h"
+
+    @implementation NSObject (SeparatelyShipped)
+    - (void)noteValueForKeyPath:(NSString *)keyPath ofObject:(id)object {}
     @end
     """
 
@@ -193,6 +217,11 @@ package enum ObjCImplementationFixture {
         // for `priority` is inherited, not explicit.
         public func widgetDidPing(_ widget: ClangWidget) {}
         public var priority: Int { 0 }
+        // Overrides a member the header declares in a category on NSObject
+        // that another dylib implements: `noteValueForKeyPath:ofObject:` is
+        // inherited (the compiler would derive `noteValueForKeyPath:of:`),
+        // and it is visible only through that dylib's `__objc_catlist`.
+        public override func noteValue(forKeyPath keyPath: String, of object: Any) {}
     }
 
     // A Swift extension with `@objc` members compiles to a category: the
@@ -234,8 +263,14 @@ package enum ObjCImplementationFixture {
         }()
     }
 
+    package struct CompiledLibraries: Sendable {
+        package let librariesByVariant: [Variant: URL]
+        /// The separately shipped category dylib every variant links.
+        package let categoriesLibrary: URL
+    }
+
     /// Compiled once per process; every variant shares one working directory.
-    private static let compilationResult: Result<[Variant: URL], Swift.Error> = {
+    private static let compilationResult: Result<CompiledLibraries, Swift.Error> = {
         Result {
             let workingDirectory = FileManager.default.temporaryDirectory
                 .appendingPathComponent("\(moduleName)-\(UUID().uuidString)")
@@ -246,16 +281,24 @@ package enum ObjCImplementationFixture {
             let headerURL = workingDirectory.appendingPathComponent("Fixture.h")
             let objectiveCSourceURL = workingDirectory.appendingPathComponent("ClangWidget.m")
             let objectURL = workingDirectory.appendingPathComponent("ClangWidget.o")
+            let categorySourceURL = workingDirectory.appendingPathComponent("ClangWidgetCategories.m")
+            let categoriesLibraryURL = workingDirectory.appendingPathComponent("lib\(moduleName)Categories.dylib")
             let swiftSourceURL = workingDirectory.appendingPathComponent("Fixture.swift")
             let emptyExportsURL = workingDirectory.appendingPathComponent("empty-exports.txt")
             try header.write(to: headerURL, atomically: true, encoding: .utf8)
             try objectiveCSource.write(to: objectiveCSourceURL, atomically: true, encoding: .utf8)
+            try categoryObjectiveCSource.write(to: categorySourceURL, atomically: true, encoding: .utf8)
             try swiftSource.write(to: swiftSourceURL, atomically: true, encoding: .utf8)
             try "".write(to: emptyExportsURL, atomically: true, encoding: .utf8)
 
             try run(step: "clang", ["clang", "-c", "-fobjc-arc", "-O", objectiveCSourceURL.path, "-o", objectURL.path])
             let legacyObjectURL = workingDirectory.appendingPathComponent("ClangWidget-legacy.o")
             try run(step: "clang (legacy target)", ["clang", "-c", "-fobjc-arc", "-O", "-target", "arm64-apple-macosx11.0", objectiveCSourceURL.path, "-o", legacyObjectURL.path])
+            // Built for the oldest deployment target any variant uses, so
+            // every variant may link it. Its install name is the absolute
+            // output path, which is what the fixture's load command then
+            // spells; `NSObject` is an ordinary two-level bind into libobjc.
+            try run(step: "clang (categories dylib)", ["clang", "-dynamiclib", "-fobjc-arc", "-O", "-target", "arm64-apple-macosx11.0", "-framework", "Foundation", categorySourceURL.path, "-o", categoriesLibraryURL.path])
 
             var libraries: [Variant: URL] = [:]
             for variant in Variant.allCases {
@@ -268,7 +311,7 @@ package enum ObjCImplementationFixture {
                 var arguments = [
                     "swiftc", "-emit-library", "-module-name", moduleName,
                     "-import-objc-header", headerURL.path, "-Onone",
-                    swiftSourceURL.path, variant == .legacyBinds ? legacyObjectURL.path : objectURL.path, "-framework", "Foundation",
+                    swiftSourceURL.path, variant == .legacyBinds ? legacyObjectURL.path : objectURL.path, categoriesLibraryURL.path, "-framework", "Foundation",
                     "-o", libraryURL.path,
                 ]
                 if variant == .strippedEverything {
@@ -285,7 +328,7 @@ package enum ObjCImplementationFixture {
                 }
                 libraries[variant] = libraryURL
             }
-            return libraries
+            return CompiledLibraries(librariesByVariant: libraries, categoriesLibrary: categoriesLibraryURL)
         }
     }()
 
@@ -306,10 +349,22 @@ package enum ObjCImplementationFixture {
 
     package static func libraryURL(_ variant: Variant) throws -> URL {
         let libraries = try compilationResult.get()
-        guard let libraryURL = libraries[variant] else {
+        guard let libraryURL = libraries.librariesByVariant[variant] else {
             throw CompilationError(step: "lookup", diagnostics: "no library for variant \(variant.rawValue)")
         }
         return libraryURL
+    }
+
+    /// The separately shipped category dylib every variant links.
+    package static func categoriesLibraryURL() throws -> URL {
+        try compilationResult.get().categoriesLibrary
+    }
+
+    /// The search paths under which a variant's whole world is reachable:
+    /// the category dylib as an explicit file, the OS's classes through the
+    /// running system's dyld shared cache.
+    package static func dependencySearchPaths() throws -> [DependencySearchPath] {
+        [.machOFile(path: try categoriesLibraryURL().path), .systemDyldSharedCache]
     }
 
     package static func machOFile(_ variant: Variant) throws -> MachOFile {

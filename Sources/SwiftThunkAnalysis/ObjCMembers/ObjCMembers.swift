@@ -82,7 +82,10 @@ public enum ObjCMembers {
 
     private static func hierarchy(forClassNamed runtimeName: String, in machO: some MachORepresentableWithCache) -> ObjCClassHierarchy? {
         if let provider = ObjCClassHierarchyProviderStore.shared.provider(for: machO), let hierarchy = provider.objcClassHierarchy(forClassNamed: runtimeName) {
-            return hierarchy
+            // A host's ObjC indexer stops at a standalone file's bound
+            // superclass just as the reader does; the chain past it comes
+            // from the same resolver either way.
+            return ObjCClassMethodIndex.shared.completingAncestors(of: hierarchy, in: machO)
         }
         return ObjCClassMethodIndex.shared.hierarchy(forRuntimeName: runtimeName, in: machO)
     }

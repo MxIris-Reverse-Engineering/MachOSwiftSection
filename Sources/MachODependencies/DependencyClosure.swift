@@ -99,9 +99,10 @@ extension DependencyClosure where MachO == MachOImage {
 extension DependencyClosure where MachO == MachOFile {
     /// Resolves a file-backed image's dependencies through `searchPaths`
     /// (`FileDependencyLocator`). Fat explicit files contribute the slice
-    /// matching the root's architecture.
+    /// matching the root's architecture; cache images built for none of the
+    /// root's platforms are not candidates (`DependencyPlatforms`).
     public init(root: MachOFile, searchPaths: [DependencySearchPath] = [.systemDyldSharedCache], traversal: DependencyTraversal = .transitive) {
-        let locator = FileDependencyLocator(searchPaths: searchPaths, preferredCPU: root.header.cpu)
+        let locator = FileDependencyLocator(searchPaths: searchPaths, preferredCPU: root.header.cpu, platforms: DependencyPlatforms.platforms(of: root))
         self.init(root: root, traversal: traversal, locator: locator, searchPathLoadFailures: locator.loadFailures)
     }
 }

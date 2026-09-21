@@ -1862,6 +1862,16 @@
 - **关联文档**：提案 [draft-objc-member-selector-recovery](../Evolutions/draft-objc-member-selector-recovery.md)；实现说明 [ObjCMemberRecovery.md](ObjCMemberRecovery.md)（自 `ObjCAncestorOverrideRecovery.md` 改名扩写）；任务报告 [TaskReports/2026-09-21-objc-member-selector-recovery.md](TaskReports/2026-09-21-objc-member-selector-recovery.md)；术语表「ObjC member table」。
 - **对应版本**：随下一次发布。
 
+## 2026-09-21 ObjC 祖先链走依赖闭包（提案 draft-objc-ancestor-dependency-closure）
+
+- **时间段**：2026-09-21（一日，紧接上一节）。
+- **动机**：ObjC 成员表在 cache 镜像与进程内都能跨镜像走到根，但独立的 Mach-O 文件（app 二进制、抽出来的框架、模拟器运行时的框架文件）上父类是 bind，链在第一跳就断：UIKit / AppKit 的覆写一个都标不出、显式 selector 一律不判、渲染 A/B 的模拟器腿没有一行 `override`。用户问「父类是 bind 这些能不能像 Layout 那样走闭包解析」——能，`dependencySearchPaths` 已通到 indexer，`PropertyWrapperTypeCatalog` 是同形状的先例。
+- **关键决策**：**① 不抽 `ImageUniverse`，共享的是 `DependencyClosure`**：它的五个 resolver 全是布局问题，SwiftLayout 在 SwiftInspection 之上反向引用是环；祖先链只需「按名字找 class object」，`ObjCClassMethodIndex` 的名字表已有。**② 解析器按镜像登记、无人登记则默认系统 cache**（与 catalog 同一契约）：indexer 用配置路径注册、`dump` 用 `--dependency-search-path` 注册、进程内永远没有；「cache 内的根先查自己的 cache」试过又撤回——A/B 抓到 property-wrapper catalog 因此在 `cache-15.5` 腿丢掉 `@IdentityLink`。**③ 先问 export trie 再建名字表**：bind 只能落到导出符号，预检精确且省掉绝大多数镜像的 classlist 扫描。**④ hierarchy memo 键带解析器身份**，不靠注册时驱逐。**⑤ provider 交出的断链也续**，两条接缝在独立文件上等价。**⑥ 平台守卫放 `FileDependencyLocator`**：cache 镜像的 `LC_BUILD_VERSION` 平台与根不相交就不入索引——macOS cache 里 `/System/iOSSupport` 的 Catalyst UIKit 曾是 iOS 根裸名兜底的唯一候选；显式文件与 system root 不过滤；被拒的 load name 落既有的 `unresolvedLoadNames`。**⑦ 闭包与 catalog 共用一次求值**（`SharedDependencyClosure`）。**⑧ A/B 模拟器腿对两侧都传 `--dependency-search-path <RuntimeRoot>`**。**⑨ 祖先的 category 从根镜像与闭包里的独立文件折入**：文件世界里 category 不预挂（cache 里 dyld 预挂），Foundation 的 KVO 覆写在模拟器腿曾被判成显式 selector；category 所在镜像不在闭包里仍看不见，钉为边界。**已知边界**：iOS 18.5+ 模拟器文件的 `__objc_classlist` 有约六分之一读不出（UIKitCore 5017 项里 791 个 ro 读不到、624 个误读为元类），根类多在其中，链在那里断——底层读取器的问题，本提案不处理。SwiftLayout 的 `ObjCClassIndex` 不收拢。
+- **落地模块**：`MachODependencies`（`DependencyPlatforms`、`FileDependencyLocator` 的 `platforms:`、`SharedDependencyClosure`）、`SwiftInspection`（`ObjCAncestorResolver` / `ObjCAncestorResolverStore`、`ObjCClassMethodIndex` 的续链 / memo 键 / `completingAncestors`、`ObjCClassHierarchies.removeCache` 一并清解析器）、`SwiftThunkAnalysis`（provider 结果续链）、`SwiftDeclarationRendering`（`PropertyWrapperTypeCatalog.make(root:dependencyImages:)`）、`SwiftIndexing`（`registerDependencyClosureConsumers`、新 claim）、`swift-section`（`dump` 注册、帮助文本）、`Scripts/run-rendering-ab-verification.py`（模拟器腿参数）。
+- **验证**：`ObjCMemberRecoveryTests`（fixture 新增单独的 category dylib；文件腿链走完、显式 selector 与 `description` 覆写在文件上也标、category dylib 里的方法判为覆写、镜像不在闭包里的边界；空搜索路径 / `.empty` 下断在 `NSObject`；`.legacyBinds` 两种解析器；解析器与注册表；provider 续链）、`ObjCMemberDumpTests`、`FileDependencyLocatorTests`（平台守卫）；碰 fixture 的四个 suite 挂 `ExclusiveImageAccess`；`SymbolTestsCore` 三份快照重录（`isKind(of:)` 成 `override`）；渲染 A/B 见任务报告。
+- **关联文档**：提案 [draft-objc-ancestor-dependency-closure](../Evolutions/draft-objc-ancestor-dependency-closure.md)；实现说明 [ObjCMemberRecovery.md](ObjCMemberRecovery.md)「祖先链走依赖闭包」一节、[Modules/MachODependencies.md](Modules/MachODependencies.md)；任务报告 [TaskReports/2026-09-21-objc-ancestor-dependency-closure.md](TaskReports/2026-09-21-objc-ancestor-dependency-closure.md)；术语表「ObjC ancestor resolver」。
+- **对应版本**：随下一次发布。
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节

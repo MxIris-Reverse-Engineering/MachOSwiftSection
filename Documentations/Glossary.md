@@ -196,6 +196,13 @@ opaque 尖括号参数归属的第三条规则：协议无任何 anchor 命中�
 - **主要出现在**：`SwiftInspection/ObjCMember.swift`、`SwiftInspection/ObjCMemberShape.swift`、`SwiftThunkAnalysis/ObjCMembers/`、`SwiftDeclaration/Components/Building/ObjCMemberApplication.swift`
 - **延伸阅读**：[提案 draft-objc-member-selector-recovery](Evolutions/draft-objc-member-selector-recovery.md)、[ObjCMemberRecovery.md](Internal/ObjCMemberRecovery.md)
 
+### ObjC ancestor resolver（ObjC 祖先解析器）
+
+独立 Mach-O 文件的父类指针是 bind，ObjC 读取器跟不过去；祖先解析器（`ObjCAncestorResolver`）拿 bind 符号里的类名（`_OBJC_CLASS_$_UIView` 去前缀，Swift 父类是 `_TtC…` 运行时名）在文件的传递依赖闭包里找定义它的镜像——先问每个镜像的 export trie（bind 只能落到导出符号），有才建那个镜像的名字表，第一个命中即返回——祖先链从那个镜像继续走。祖先链的每一跳还把根镜像与闭包里每个独立文件对该祖先的 category 折进它的 selector 集合（cache 里的类由 dyld 预挂，文件世界里离线看不到）。按镜像登记在 `ObjCAncestorResolverStore`：indexer 与 `dump` 用各自的搜索路径注册，无人注册的文件默认走系统 cache，进程内镜像没有解析器。hierarchy 的 memo 键带解析器身份，宿主 provider 交出的断链也用它续。配套的平台守卫在 MachODependencies：cache 里另一个平台的同名镜像（macOS cache 的 Catalyst UIKit）永远不是候选。
+
+- **主要出现在**：`SwiftInspection/ObjCAncestorResolver.swift`、`SwiftInspection/ObjCClassMethodIndex.swift`、`MachODependencies/DependencyPlatforms.swift`
+- **延伸阅读**：[提案 draft-objc-ancestor-dependency-closure](Evolutions/draft-objc-ancestor-dependency-closure.md)、[ObjCMemberRecovery.md](Internal/ObjCMemberRecovery.md)
+
 ### permutation 二分（permutation binary search）
 
 不给数据本体排序，而是另存一条「按某序排列的下标数组」（permutation），查询时在这条下标序列上二分。`SymbolTable.rowsSortedByName` 即名字序 permutation：行本体保持插入序不动，名字查找二分这条 `[UInt32]`。替代了被退役的名字键字典 `tableRowByName`。

@@ -30,6 +30,15 @@ import MachOKitExtensions
 /// one pass over `machOFiles()` rather than a fresh per-lookup scan, which
 /// would cost `O(dependencies × cache size)` (measured at 21 s over a
 /// 551-image closure before this was made one-shot).
+///
+/// A cache image is a candidate only when its platforms are compatible with
+/// the root's (`DependencyPlatforms`): the running system's macOS cache is
+/// the default search path for every root, and it carries the Mac Catalyst
+/// builds of UIKit and SwiftUI under `/System/iOSSupport` — the only images
+/// wearing those bare names, which an iOS root would otherwise resolve to.
+/// Explicit files and system-root files are the caller's own choice and are
+/// never filtered. A load name every candidate was rejected for lands in the
+/// closure's `unresolvedLoadNames`, as any other miss does.
 public final class FileDependencyLocator: DependencyLocating, @unchecked Sendable {
     /// Search paths that could not be opened. Never thrown: one bad path must
     /// not fail the whole resolution.
@@ -39,6 +48,7 @@ public final class FileDependencyLocator: DependencyLocating, @unchecked Sendabl
     private let explicitFilesByBareName: [String: MachOFile]
     private let systemRoots: [String]
     private let preferredCPU: CPU?
+    private let platforms: Set<Platform>
     private let caches: [FullDyldCache]
     private let cacheIndexLock = NSLock()
     private var cacheIndex: CacheImageIndex?
@@ -53,7 +63,10 @@ public final class FileDependencyLocator: DependencyLocating, @unchecked Sendabl
     ///     for the same target as the root. Matched on CPU type plus subtype
     ///     (so arm64 and arm64e are told apart), then on type alone, then the
     ///     first slice.
-    public init(searchPaths: [DependencySearchPath], preferredCPU: CPU? = nil) {
+    ///   - platforms: The root binary's platforms (`DependencyPlatforms.platforms(of:)`);
+    ///     a cache image built for none of them is not a candidate. Empty
+    ///     accepts every image.
+    public init(searchPaths: [DependencySearchPath], preferredCPU: CPU? = nil, platforms: Set<Platform> = []) {
         var explicitFilesByInstallPath: [String: MachOFile] = [:]
         var explicitFilesByBareName: [String: MachOFile] = [:]
         var systemRoots: [String] = []
@@ -108,6 +121,7 @@ public final class FileDependencyLocator: DependencyLocating, @unchecked Sendabl
         self.explicitFilesByBareName = explicitFilesByBareName
         self.systemRoots = systemRoots
         self.preferredCPU = preferredCPU
+        self.platforms = platforms
         self.caches = caches
         self.loadFailures = loadFailures
     }
@@ -196,6 +210,7 @@ public final class FileDependencyLocator: DependencyLocating, @unchecked Sendabl
         var index = CacheImageIndex()
         for cache in caches {
             for machOFile in cache.machOFiles() {
+                guard DependencyPlatforms.areCompatible(platforms, DependencyPlatforms.platforms(of: machOFile)) else { continue }
                 let installPath = machOFile.imagePath
                 if index.imagesByInstallPath[installPath] == nil {
                     index.imagesByInstallPath[installPath] = machOFile

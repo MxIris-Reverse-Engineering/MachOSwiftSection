@@ -9,7 +9,7 @@ import SwiftDeclarationRendering
 /// The dump path's rendering of an `@objc @implementation` class (evolution
 /// proposal `objc-implementation-class-recognition`): everything the binary
 /// says, ObjC side first, nothing guessed.
-@Suite(.serialized)
+@Suite(.serialized, ExclusiveImageAccess(ObjCImplementationFixture.moduleName))
 struct ObjCImplementationClassDumpTests {
     private func dump(_ variant: ObjCImplementationFixture.Variant, configure: (inout DumperConfiguration) -> Void = { _ in }) async throws -> String {
         let machOFile = try ObjCImplementationFixture.machOFile(variant)

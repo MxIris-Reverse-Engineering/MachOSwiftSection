@@ -22,7 +22,7 @@ struct MachOOptionGroup: ParsableArguments, Sendable {
     @Option(name: .shortAndLong, help: "The architecture of the Mach-O file. If not specified, the current architecture will be used.")
     var architecture: Architecture?
 
-    @Option(name: .customLong("dependency-search-path"), help: "Where the images a standalone binary links are looked for — both when a type must be read out of another image's metadata accessor (an availability-conditional opaque type, a noncopyable field type) and when the static field-offset / type-layout comments need a cross-module type's descriptor: a Mach-O file, a dyld shared cache file (dyld_shared_cache_* / dyld_sim_shared_cache_*), or a directory used as a system root under which absolute install names resolve (an iOS 26 or earlier simulator runtime's RuntimeRoot). Repeatable; named paths are consulted before the running system's shared cache. Without it the paths are inferred from where the binary sits on disk, and the running system's shared cache is used.", completion: .file())
+    @Option(name: .customLong("dependency-search-path"), help: "Where the images a standalone binary links are looked for — when a type must be read out of another image's metadata accessor (an availability-conditional opaque type, a noncopyable field type), when the static field-offset / type-layout comments need a cross-module type's descriptor, and when a class's ObjC ancestor chain (the `override` keyword, the explicit-selector verdict) crosses into another image: a Mach-O file, a dyld shared cache file (dyld_shared_cache_* / dyld_sim_shared_cache_*), or a directory used as a system root under which absolute install names resolve (an iOS 26 or earlier simulator runtime's RuntimeRoot). Repeatable; named paths are consulted before the running system's shared cache. Without it the paths are inferred from where the binary sits on disk, and the running system's shared cache is used.", completion: .file())
     var dependencySearchPaths: [String] = []
 
     /// A mistyped search path is a usage error, not a silent miss: the
@@ -52,8 +52,10 @@ struct MachOOptionGroup: ParsableArguments, Sendable {
     }
 
     /// The same paths for the indexer's cross-image facts (a stored field
-    /// whose type is a property wrapper defined in another image): the
-    /// user-named ones first, the running system's cache as the fallback.
+    /// whose type is a property wrapper defined in another image; a class's
+    /// ObjC ancestors behind a bind): the user-named ones first, the running
+    /// system's cache as the fallback. `dump` hands the same list to the
+    /// ObjC ancestor resolver it registers itself.
     var indexDependencySearchPaths: [DependencySearchPath] {
         dependencySearchPaths.map { DependencySearchPath(classifyingPath: $0) } + [.systemDyldSharedCache]
     }

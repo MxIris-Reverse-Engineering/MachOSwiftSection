@@ -20,12 +20,44 @@ import SwiftThunkAnalysis
 /// them, `@objc` members with derived and explicit selectors, an `@objc`
 /// protocol's witnesses, a category — plus the negative controls, and the
 /// stripped variant every OS framework is.
-@Suite(.serialized)
+///
+/// From a standalone FILE the clang class's superclass is a bind; the
+/// image's `ObjCAncestorResolver` follows it into the running system's dyld
+/// shared cache (evolution proposal `objc-ancestor-dependency-closure`), so
+/// the file leg reaches libobjc's `NSObject` like the in-process leg does,
+/// and the categories of the files in the closure — the fixture's separately
+/// shipped category dylib — complete the ancestors' selector sets. The
+/// fixture's search paths (`ObjCImplementationFixture.dependencySearchPaths()`)
+/// name that dylib; the tests that need the chain to STOP at the bind
+/// install a resolver over no images — the behavior of a file whose
+/// dependencies are nowhere to be found — and remove it after. Every suite
+/// touching the fixture holds `ExclusiveImageAccess`, since a registration
+/// is per image.
+@Suite(.serialized, ExclusiveImageAccess(ObjCImplementationFixture.moduleName))
 struct ObjCMemberRecoveryTests {
-    private func interface(of machOFile: MachOFile) async throws -> String {
-        let builder = try SwiftInterfaceBuilder(configuration: .init(), eventHandlers: [], in: machOFile)
+    private func interface(of machOFile: MachOFile, dependencySearchPaths: [DependencySearchPath]? = nil) async throws -> String {
+        let configuration = SwiftInterfaceBuilderConfiguration(indexConfiguration: .init(dependencySearchPaths: try dependencySearchPaths ?? ObjCImplementationFixture.dependencySearchPaths()))
+        let builder = try SwiftInterfaceBuilder(configuration: configuration, eventHandlers: [], in: machOFile)
         try await builder.prepare()
         return try await builder.printRoot().string
+    }
+
+    /// Runs `body` with `machOFile`'s ancestor resolver replaced by one over
+    /// no images, and the store cleared afterwards so the next test gets
+    /// the default again.
+    private func withoutDependencyImages<Result>(for machOFile: MachOFile, _ body: () async throws -> Result) async rethrows -> Result {
+        ObjCAncestorResolverStore.shared.register(.empty, for: machOFile)
+        defer { ObjCAncestorResolverStore.shared.remove(for: machOFile) }
+        return try await body()
+    }
+
+    /// Runs `body` with a resolver over the fixture's whole world — the
+    /// category dylib and the host's cache — the same paths the interface
+    /// helper configures, for the direct table queries.
+    private func withFixtureWorld<Result>(for machOFile: MachOFile, _ body: () async throws -> Result) async throws -> Result {
+        ObjCAncestorResolverStore.shared.register(ObjCAncestorResolver(root: machOFile, searchPaths: try ObjCImplementationFixture.dependencySearchPaths()), for: machOFile)
+        defer { ObjCAncestorResolverStore.shared.remove(for: machOFile) }
+        return try await body()
     }
 
     private func interface(of machOImage: MachOImage) async throws -> String {
@@ -48,8 +80,9 @@ struct ObjCMemberRecoveryTests {
 
     /// The `.full` fixture loaded in-process: every superclass pointer and
     /// protocol is real there, so inheritance can be ruled out and explicit
-    /// selectors judged — which a standalone FILE, whose `NSObject` is a
-    /// bind, never allows.
+    /// selectors judged with no resolver involved — the reference the file
+    /// leg, resolving its bound `NSObject` through the host's cache, must
+    /// agree with.
     private func loadedFixtureImage() throws -> MachOImage {
         let libraryURL = try ObjCImplementationFixture.libraryURL(.full)
         _ = libraryURL.path.withCString { dlopen($0, RTLD_LAZY) }
@@ -76,10 +109,9 @@ struct ObjCMemberRecoveryTests {
         #expect(!derived.contains("override func notAnOverride()"))
         #expect(!derived.contains("override func dynamicHook()"))
         // NSObject's `description` lives in libobjc: from the FILE the clang
-        // class's superclass is a bind with nothing behind it, so the chain
-        // stops at `ClangWidget` and the fact is honestly absent.
-        #expect(derived.contains("var description: Swift.String"))
-        #expect(!derived.contains("override var description"))
+        // class's superclass is a bind, which the resolver follows into the
+        // running system's cache, so the override is provable offline too.
+        #expect(derived.contains("override var description: Swift.String"))
     }
 
     @Test func overrideOfAnObjCDynamicSwiftMemberIsMarked() async throws {
@@ -99,10 +131,9 @@ struct ObjCMemberRecoveryTests {
         // The member implementation of a header-declared method is not an override.
         #expect(implementation.contains("@objc func poke()"))
         #expect(!implementation.contains("override func poke()"))
-        // From the FILE the chain stops at the bound `NSObject`, so whether
-        // `drawInRect:` is inherited cannot be ruled out: no verdict.
-        #expect(implementation.contains("@objc func draw(in:"))
-        #expect(!implementation.contains("@objc(drawInRect:)"))
+        // The chain reaches `NSObject` through the host's cache, so the
+        // explicit selector is judged on the file as well.
+        #expect(implementation.contains("@objc(drawInRect:) func draw(in:"))
     }
 
     /// An `@implementation` body derives selectors from Swift names like any
@@ -164,41 +195,150 @@ struct ObjCMemberRecoveryTests {
         #expect(table.membersByImplementationSymbolName.keys.allSatisfy { !$0.hasSuffix("To") })
     }
 
-    /// From a standalone FILE the superclass chain ends at a bind, so an
-    /// inherited selector cannot be ruled out and no `@objc(name)` is
-    /// claimed — the honest degradation, since on an app binary every
-    /// override of a UIKit method would otherwise read as a custom selector.
+    /// With no dependency image to look in — a file whose linked images are
+    /// nowhere on the host, here an indexer configured with no search paths
+    /// — the chain stops at the bind: the same-image overrides stand, the
+    /// `description` override is honestly absent rather than guessed, and
+    /// since an inherited selector cannot be ruled out no `@objc(name)` is
+    /// claimed (on an app binary every override of a UIKit method would
+    /// otherwise read as a custom selector).
     @Test func fileWithABrokenChainClaimsNoExplicitSelector() async throws {
-        let interface = try await interface(of: try ObjCImplementationFixture.machOFile(.full))
+        let machOFile = try ObjCImplementationFixture.machOFile(.full)
+        ObjCAncestorResolverStore.shared.remove(for: machOFile)
+        defer { ObjCAncestorResolverStore.shared.remove(for: machOFile) }
+        let interface = try await interface(of: machOFile, dependencySearchPaths: [])
         let derived = try #require(block(startingWith: "class SwiftDerivedWidget: __C.ClangWidget", in: interface))
+        #expect(derived.contains("override func ping()"))
+        #expect(derived.contains("var description: Swift.String"))
+        #expect(!derived.contains("override var description"))
         #expect(derived.contains("@objc func poke(force: Swift.Int)"))
         #expect(derived.contains("@objc var alias: Swift.Int"))
         #expect(!derived.contains("@objc("))
-        let table = try #require(ObjCMembers.table(forSwiftClassQualifiedName: "\(Self.moduleName).SwiftDerivedWidget", in: try ObjCImplementationFixture.machOFile(.full)))
-        #expect(!table.hierarchy.isAncestorChainComplete)
-        #expect(table.membersByImplementationSymbolName.values.allSatisfy { !$0.hasExplicitSelector })
+        try await withoutDependencyImages(for: machOFile) {
+            let table = try #require(ObjCMembers.table(forSwiftClassQualifiedName: "\(Self.moduleName).SwiftDerivedWidget", in: machOFile))
+            #expect(!table.hierarchy.isAncestorChainComplete)
+            #expect(table.hierarchy.unresolvedAncestorName == "NSObject")
+            #expect(table.membersByImplementationSymbolName.values.allSatisfy { !$0.hasExplicitSelector })
+        }
+    }
+
+    /// The same file with its world resolvable: the bind is followed into
+    /// the host's cache, the chain completes, and the explicit selectors are
+    /// judged exactly as in-process — the memo tells the two resolvers'
+    /// chains apart, so the broken chain above is never read back here.
+    /// `noteValueForKeyPath:ofObject:` is an override of a member the
+    /// category dylib implements: found through that file's `__objc_catlist`
+    /// (its selector is not what the compiler derives from
+    /// `noteValue(forKeyPath:of:)`, so without the fold it would read as an
+    /// `@objc(name)`).
+    @Test func fileWithItsWorldResolvableReachesTheRoot() async throws {
+        let machOFile = try ObjCImplementationFixture.machOFile(.full)
+        let interface = try await interface(of: machOFile)
+        let derived = try #require(block(startingWith: "class SwiftDerivedWidget: __C.ClangWidget", in: interface))
+        #expect(derived.contains("@objc(pokeUsingForce:) func poke(force: Swift.Int)"))
+        #expect(derived.contains("@objc(customLevel) var alias: Swift.Int"))
+        #expect(derived.contains("override var description: Swift.String"))
+        #expect(derived.contains("override func noteValue(forKeyPath: Swift.String, of: Any)"))
+        #expect(!derived.contains("@objc(noteValueForKeyPath:ofObject:)"))
+        #expect(derived.components(separatedBy: "@objc(").count == 3)
+        try await withFixtureWorld(for: machOFile) {
+            let table = try #require(ObjCMembers.table(forSwiftClassQualifiedName: "\(Self.moduleName).SwiftDerivedWidget", in: machOFile))
+            #expect(table.hierarchy.ancestors.map(\.className) == ["ClangWidget", "NSObject"])
+            #expect(table.hierarchy.isAncestorChainComplete)
+            #expect(table.hierarchy.unresolvedAncestorName == nil)
+            #expect(table.overrides.contains { $0.selector == "description" && $0.overriddenAncestorClassName == "NSObject" })
+            let noteValue = try #require(table.overrides.first { $0.selector == "noteValueForKeyPath:ofObject:" })
+            #expect(noteValue.overriddenAncestorClassName == "NSObject")
+            #expect(!noteValue.hasExplicitSelector)
+            #expect(try #require(table.hierarchy.ancestors.last).implements(selector: "noteValueForKeyPath:ofObject:", isClassMethod: false))
+        }
+    }
+
+    /// The boundary: a category in an image the closure cannot reach is
+    /// invisible. With the category dylib left out of the search paths its
+    /// load name is reported unresolved, `NSObject` shows no
+    /// `noteValueForKeyPath:ofObject:`, and the member — an override in
+    /// truth — reads as an explicit selector. Pinned so the boundary is
+    /// explicit, not so it is desirable.
+    @Test func categoryInAnUnreachableImageIsInvisible() async throws {
+        let machOFile = try ObjCImplementationFixture.machOFile(.full)
+        let closure = DependencyClosure(root: machOFile, searchPaths: [.systemDyldSharedCache], traversal: .transitive)
+        #expect(closure.unresolvedLoadNames.contains { $0.hasSuffix("Categories.dylib") })
+        ObjCAncestorResolverStore.shared.register(ObjCAncestorResolver(root: machOFile, searchPaths: [.systemDyldSharedCache]), for: machOFile)
+        defer { ObjCAncestorResolverStore.shared.remove(for: machOFile) }
+        let table = try #require(ObjCMembers.table(forSwiftClassQualifiedName: "\(Self.moduleName).SwiftDerivedWidget", in: machOFile))
+        #expect(table.hierarchy.isAncestorChainComplete)
+        #expect(!(try #require(table.hierarchy.ancestors.last).implements(selector: "noteValueForKeyPath:ofObject:", isClassMethod: false)))
+        let noteValue = try #require(table.membersByImplementationSymbolName.values.first { $0.selector == "noteValueForKeyPath:ofObject:" })
+        #expect(!noteValue.isOverride)
+        #expect(noteValue.hasExplicitSelector)
+    }
+
+    /// The resolver itself: the bind's class name is looked up in the
+    /// file's dependency closure by export trie and class list, first hit
+    /// wins, and every verdict is memoized — hit or miss.
+    @Test func resolverFindsTheBoundSuperclassInTheDependencyClosure() throws {
+        let machOFile = try ObjCImplementationFixture.machOFile(.full)
+        let resolver = ObjCAncestorResolver(root: machOFile, searchPaths: [.systemDyldSharedCache])
+        let (image, classObject) = try #require(resolver.classObject(named: "NSObject"))
+        #expect(DependencyLoadName.bareImageName(of: image.imagePath) == "libobjc")
+        #expect(!classObject.isSwift)
+        #expect(resolver.classObject(named: "NoSuchClassAnywhere") == nil)
+        #expect(ObjCAncestorResolver.empty.classObject(named: "NSObject") == nil)
+        // The store hands a file the registered resolver, else a default one.
+        ObjCAncestorResolverStore.shared.register(resolver, for: machOFile)
+        #expect(ObjCAncestorResolverStore.shared.resolver(for: machOFile) === resolver)
+        ObjCAncestorResolverStore.shared.remove(for: machOFile)
+        #expect(!ObjCAncestorResolverStore.shared.contains(in: machOFile))
+        #expect(ObjCAncestorResolverStore.shared.resolver(for: machOFile) !== resolver)
+        ObjCAncestorResolverStore.shared.remove(for: machOFile)
     }
 
     /// The pre-macOS 12 bind format leaves a bound superclass slot zero in
     /// the file, which the ObjC reader takes for a root class; the first A/B
     /// on the iOS 15.5 simulator runtime's SwiftUI then judged every UIKit
     /// override an `@objc(name)`. The bind opcode stream still names the
-    /// target, and a Swift class is never a root anyway.
+    /// target, and a Swift class is never a root anyway — so with no
+    /// dependency image the chain stops AT the name, not before it.
     @Test func legacyBindSuperclassIsUnresolvableNotRoot() async throws {
         let machOFile = try ObjCImplementationFixture.machOFile(.legacyBinds)
         #expect(machOFile.dyldChainedFixups == nil, "the legacy variant must not carry chained fixups")
-        let table = try #require(ObjCMembers.table(forSwiftClassQualifiedName: "\(Self.moduleName).SwiftDerivedWidget", in: machOFile))
-        #expect(table.hierarchy.ancestors.map(\.className) == ["ClangWidget"])
-        #expect(!table.hierarchy.isAncestorChainComplete)
-        #expect(table.hierarchy.unresolvedAncestorName == "NSObject")
-        #expect(Set(table.overrides.map(\.selector)) == ["ping", "pingCount", "level", "setLevel:", "bump"])
-        #expect(table.membersByImplementationSymbolName.values.allSatisfy { !$0.hasExplicitSelector })
+        ObjCAncestorResolverStore.shared.remove(for: machOFile)
+        defer { ObjCAncestorResolverStore.shared.remove(for: machOFile) }
+        try await withoutDependencyImages(for: machOFile) {
+            let table = try #require(ObjCMembers.table(forSwiftClassQualifiedName: "\(Self.moduleName).SwiftDerivedWidget", in: machOFile))
+            #expect(table.hierarchy.ancestors.map(\.className) == ["ClangWidget"])
+            #expect(!table.hierarchy.isAncestorChainComplete)
+            #expect(table.hierarchy.unresolvedAncestorName == "NSObject")
+            #expect(Set(table.overrides.map(\.selector)) == ["ping", "pingCount", "level", "setLevel:", "bump"])
+            #expect(table.membersByImplementationSymbolName.values.allSatisfy { !$0.hasExplicitSelector })
+        }
 
-        let interface = try await interface(of: machOFile)
+        let interface = try await interface(of: machOFile, dependencySearchPaths: [])
         let derived = try #require(block(startingWith: "class SwiftDerivedWidget: __C.ClangWidget", in: interface))
         #expect(derived.contains("override func ping()"))
         #expect(derived.contains("@objc func poke(force: Swift.Int)"))
         #expect(!derived.contains("@objc("))
+    }
+
+    /// The name the legacy bind stream yields is what the resolver looks up:
+    /// with the host's cache the legacy-format file's chain completes too.
+    @Test func legacyBindSuperclassIsFollowedThroughTheResolver() async throws {
+        let machOFile = try ObjCImplementationFixture.machOFile(.legacyBinds)
+        try await withFixtureWorld(for: machOFile) {
+            let table = try #require(ObjCMembers.table(forSwiftClassQualifiedName: "\(Self.moduleName).SwiftDerivedWidget", in: machOFile))
+            #expect(table.hierarchy.ancestors.map(\.className) == ["ClangWidget", "NSObject"])
+            #expect(table.hierarchy.isAncestorChainComplete)
+            // With `NSObject` reached, the compiler-synthesized `init` is what it
+            // is in the source: an override of `-[NSObject init]`.
+            #expect(Set(table.overrides.map(\.selector)) == ["ping", "pingCount", "level", "setLevel:", "bump", "description", "init", "noteValueForKeyPath:ofObject:"])
+            #expect(try #require(table.membersByImplementationSymbolName.values.first { $0.selector == "pokeUsingForce:" }).hasExplicitSelector)
+        }
+
+        let interface = try await interface(of: machOFile)
+        let derived = try #require(block(startingWith: "class SwiftDerivedWidget: __C.ClangWidget", in: interface))
+        #expect(derived.contains("override var description: Swift.String"))
+        #expect(derived.contains("@objc(pokeUsingForce:) func poke(force: Swift.Int)"))
     }
 
     @Test func explicitSelectorsPrintAndDerivedOnesDoNot() async throws {
@@ -231,20 +371,23 @@ struct ObjCMemberRecoveryTests {
 
     // MARK: - The facts behind the rendering
 
-    @Test func tablesJoinThroughToThunksAndReportTheChain() throws {
+    @Test func tablesJoinThroughToThunksAndReportTheChain() async throws {
         let machOFile = try ObjCImplementationFixture.machOFile(.full)
-
+        try await withFixtureWorld(for: machOFile) {
         let implementation = try #require(ObjCMembers.table(forObjCClassNamed: "DerivedImplementationWidget", in: machOFile))
-        #expect(implementation.hierarchy.ancestors.map(\.className) == ["ClangWidget"])
-        #expect(implementation.hierarchy.isAncestorChainComplete == false)
-        #expect(implementation.hierarchy.unresolvedAncestorName == "NSObject")
+        // The bound `NSObject` is followed into the host's cache.
+        #expect(implementation.hierarchy.ancestors.map(\.className) == ["ClangWidget", "NSObject"])
+        #expect(implementation.hierarchy.isAncestorChainComplete)
+        #expect(implementation.hierarchy.unresolvedAncestorName == nil)
         #expect(implementation.membersByImplementationSymbolName.keys.allSatisfy { $0.hasSuffix("To") })
         // `init` is the initializer the compiler synthesizes for the class.
         #expect(Set(implementation.membersByImplementationSymbolName.values.map(\.selector)) == ["init", "ping", "pingCount", "level", "setLevel:", "poke", "drawInRect:"])
-        // Judged only once the chain is complete — see the in-process test.
-        #expect(implementation.membersByImplementationSymbolName.values.allSatisfy { !$0.hasExplicitSelector })
-        #expect(Set(implementation.overrides.map(\.selector)) == ["ping", "pingCount", "level", "setLevel:"])
-        #expect(implementation.overrides.allSatisfy { $0.overriddenAncestorClassName == "ClangWidget" })
+        // Judged since the chain is complete: the header's `drawInRect:` is
+        // the one selector the compiler would not derive.
+        #expect(implementation.membersByImplementationSymbolName.values.filter(\.hasExplicitSelector).map(\.selector) == ["drawInRect:"])
+        #expect(Set(implementation.overrides.map(\.selector)) == ["ping", "pingCount", "level", "setLevel:", "init"])
+        #expect(implementation.overrides.filter { $0.selector != "init" }.allSatisfy { $0.overriddenAncestorClassName == "ClangWidget" })
+        #expect(implementation.overrides.first { $0.selector == "init" }?.overriddenAncestorClassName == "NSObject")
         let pingCount = try #require(implementation.overrides.first { $0.selector == "pingCount" })
         #expect(pingCount.isClassMethod)
         #expect(pingCount.description == "+[DerivedImplementationWidget pingCount]")
@@ -255,20 +398,24 @@ struct ObjCMemberRecoveryTests {
         #expect(poke.evidence == .thunkSymbol)
 
         let swiftDerived = try #require(ObjCMembers.table(forSwiftClassQualifiedName: "\(Self.moduleName).SwiftDerivedWidget", in: machOFile))
-        // `bump` is overridden from the extension — a category the reader folds in.
-        #expect(Set(swiftDerived.overrides.map(\.selector)) == ["ping", "pingCount", "level", "setLevel:", "bump"])
+        // `bump` is overridden from the extension — a category the reader
+        // folds in; `description` overrides NSObject's, reached in libobjc.
+        #expect(Set(swiftDerived.overrides.map(\.selector)) == ["ping", "pingCount", "level", "setLevel:", "bump", "description", "init", "noteValueForKeyPath:ofObject:"])
         #expect(swiftDerived.hierarchy.methods.contains { $0.selector == "description" })
         #expect(swiftDerived.hierarchy.methods.contains { $0.selector == "fromExtension" })
 
-        // A Swift class with `@objc` members none of which override: members
-        // but no overrides, not a missing table.
+        // A Swift class with `@objc` members none of which override — other
+        // than the synthesized `init`, which overrides NSObject's now that
+        // the chain reaches it: members, not a missing table.
         let sibling = try #require(ObjCMembers.table(forSwiftClassQualifiedName: "\(Self.moduleName).PlainSwiftSibling", in: machOFile))
-        #expect(sibling.overrides.isEmpty)
+        #expect(sibling.overrides.map(\.selector) == ["init"])
+        #expect(sibling.overrides.first?.overriddenAncestorClassName == "NSObject")
         // Its own `poke`, the synthesized `init`, and the `.cxx_destruct` the
         // compiler points at the ivar destroyer.
         #expect(Set(sibling.membersByImplementationSymbolName.values.map(\.selector)) == ["poke", "init", ".cxx_destruct"])
         #expect(ObjCMembers.table(forSwiftClassQualifiedName: "\(Self.moduleName).NoSuchClass", in: machOFile) == nil)
         #expect(ObjCMembers.table(forObjCClassNamed: "NSObject", in: machOFile) == nil)
+        }
     }
 
     @Test func explicitSelectorsAreTheOnesTheCompilerWouldNotDerive() throws {
@@ -293,10 +440,14 @@ struct ObjCMemberRecoveryTests {
         #expect(!(try member("observerPriority").hasExplicitSelector))
         #expect(!(try member("widgetDidPing:").hasExplicitSelector))
         // Overrides never claim one — `description` overrides NSObject's,
-        // reachable in-process, and would otherwise read as explicit.
+        // reachable in-process, and would otherwise read as explicit; so
+        // would `noteValueForKeyPath:ofObject:`, whose category the runtime
+        // attached out of the fixture's category dylib where the reader does
+        // not look — the in-process resolver folds it from the loaded image.
         #expect(try member("bump").isOverride)
         #expect(try member("bump").overriddenAncestorClassName == "ClangWidget")
         #expect(try member("description").isOverride)
+        #expect(try member("noteValueForKeyPath:ofObject:").isOverride)
         #expect(table.overrides.allSatisfy { !$0.hasExplicitSelector })
 
         let implementation = try #require(ObjCMembers.table(forObjCClassNamed: "DerivedImplementationWidget", in: machOImage))
@@ -333,17 +484,26 @@ struct ObjCMemberRecoveryTests {
 
         let withProvider = try await interface(of: machOFile)
         #expect(withProvider == baseline)
+        try await withFixtureWorld(for: machOFile) {
         #expect(spy.queriedNames.contains(Self.swiftDerivedWidgetRuntimeName))
         #expect(spy.queriedNames.contains("DerivedImplementationWidget"))
         #expect(spy.answeredNames.contains(Self.swiftDerivedWidgetRuntimeName))
         #expect(spy.answeredNames.contains("DerivedImplementationWidget"))
 
         // The adapter's own view of the chain: the ObjC indexer stops at the
-        // bound superclass exactly where the library's reader does.
+        // bound superclass exactly where the library's reader would without
+        // its resolver — and the recovery continues the chain from there
+        // through the same resolver, so the two seams agree.
         let hierarchy = try #require(spy.objcClassHierarchy(forClassNamed: "DerivedImplementationWidget"))
         #expect(hierarchy.ancestors.map(\.className) == ["ClangWidget"])
         #expect(hierarchy.isAncestorChainComplete == false)
+        #expect(hierarchy.unresolvedAncestorName == "NSObject")
         #expect(hierarchy.methods.contains { $0.selector == "ping" && !$0.isClassMethod })
+        let continued = try #require(ObjCMembers.table(forObjCClassNamed: "DerivedImplementationWidget", in: machOFile)).hierarchy
+        #expect(continued.ancestors.map(\.className) == ["ClangWidget", "NSObject"])
+        #expect(continued.isAncestorChainComplete)
+        #expect(continued.adoptedProtocolSelectors == hierarchy.adoptedProtocolSelectors)
+        }
 
         // Categories and protocols come through the adapter too.
         let swiftDerived = try #require(spy.objcClassHierarchy(forClassNamed: Self.swiftDerivedWidgetRuntimeName))

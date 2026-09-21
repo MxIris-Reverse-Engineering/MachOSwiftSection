@@ -102,6 +102,16 @@ public final class PropertyWrapperTypeCatalog: @unchecked Sendable {
         return PropertyWrapperTypeCatalog(rootLookup: nil) { [] }
     }
 
+    /// A catalog over a file's export trie and dependency images a caller
+    /// resolves itself — once, shared with every other per-image consumer of
+    /// the same closure (the ObjC ancestor resolver): resolving it twice
+    /// indexes every search-path cache twice.
+    public static func make(root machOFile: MachOFile, dependencyImages: @escaping @Sendable () -> [MachOFile]) -> PropertyWrapperTypeCatalog {
+        PropertyWrapperTypeCatalog(rootLookup: lookup(for: machOFile)) {
+            dependencyImages().map(lookup(for:))
+        }
+    }
+
     private static func lookup(for machOFile: MachOFile) -> ExportedSymbolNamesLookup {
         { prefix in machOFile.exportTrie?.search(byKeyPrefix: prefix).map(\.name) ?? [] }
     }
