@@ -44,7 +44,7 @@ SwiftLayout 的 `ImageUniverse` 早就用 `DependencyClosure` 按名字在依赖
 
 - fixture 的文件腿会经系统 cache 走到 libobjc 的 `NSObject`，链变完整：`override var description` 在文件上也标，显式 selector 在文件上也判。现有「文件上不标、进程内才标」的用例改成显式传空搜索路径（`dependencySearchPaths: []`）来保留断链行为，另加一组默认路径下链完整的断言。
 - `.legacyBinds` 变体：bind 名解析出 `NSObject` 后也能续链，同样分「有 / 无搜索路径」两组。
-- 渲染 A/B：模拟器腿把运行时自己的 dyld cache 作为搜索路径（`--dependency-search-path <runtime>/.../dyld_shared_cache_arm64`）后应与 cache 腿对齐：新增 `override`、`@objc(sel)`、链注释走完；差异只允许这几类。脚本要给模拟器腿加这个参数（同时给 `--scenarios` 之类的腿筛选，见下）。
+- 渲染 A/B：模拟器腿把运行时自己的 dyld cache 作为搜索路径（`--dependency-search-path <runtime>/.../dyld_shared_cache_arm64`）后应与 cache 腿对齐：新增 `override`、`@objc(sel)`、链注释走完；差异只允许这几类。脚本要给模拟器腿加这个参数（按腿筛选 `--scenarios`、并发 `--jobs`、基线缓存已于 2026-09-21 先行落地，见 [SystemFrameworkRenderingVerification.md](../Internal/SystemFrameworkRenderingVerification.md)）。
 - 性能：每个依赖镜像首次被问到时建一次名字表（只读 classlist 与类名），方法表按类惰性；对 app 二进制常见的几十个依赖可忽略。
 
 ### 范围外

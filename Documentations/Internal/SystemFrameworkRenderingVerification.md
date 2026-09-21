@@ -37,6 +37,16 @@ SwiftUI、SwiftUICore、SwiftData、Combine、ActivityKit、WidgetKit——**输
 - **脚本的进度行经 Python 的 stdout，重定向进文件时会被整块缓冲**：跑完之前日志里只有子进程（`swift build`）的输出，看不到任何一对的进度，盯日志会误以为卡住。后台跑要 `python3 -u`，或者直接看 `--output-root` 下 `<场景>/<侧>/*.txt` 的落盘情况（每一对两侧都落盘后就可以先 `cmp`，不必等收尾）。2026-09-18 撞上一次。
 - **interface 输出一律走 `-o` 落盘**：进度日志（带墙钟时间戳）走 stdout，不会混进被比对的文件。
 
+## 并发、基线缓存与按腿筛选（2026-09-21 起）
+
+一轮完整 A/B 原本约 55 分钟：两侧 release 构建串行（各 7–9 分钟），78 对渲染串行（合计约 40 分钟，单个 SwiftUI interface 在 release 下 50–105 秒）。2026-09-21 落地 ObjC 成员表时连跑了四轮，每轮基线一行没变却都重渲染，脚本因此加了三样东西：
+
+- **`--jobs N`**（默认 `min(6, CPU 数)`）：CLI 渲染对经线程池并发起子进程，每对独立进程、独立输出文件，完成顺序与比对无关；两侧 release 构建也并行（各自 scratch，互不相干）。一个 SwiftUI interface 进程占 1–2 GB 内存，按内存定 N。MachOImage 部分仍是每侧一个 `swift test`，两侧并行、内部串行。**跑 A/B 时别同时跑测试套件**：`SharedCacheTests` 的墙钟并行度断言会被挤成假失败。
+- **基线渲染缓存**（`--baseline-cache PATH`，默认 `~/Library/Caches/MachOSwiftSection/RenderingABBaseline`；`--no-baseline-cache` 关）：基线侧的每个 CLI 渲染按「基线检出的 HEAD commit + 场景 + 框架 + 子命令 + 完整参数 + 输入文件身份（路径、大小、mtime；当前系统 cache 用 OS 版本与内核版本）」做 key，命中就把 `.txt` / `.skip` / `.log` 拷回输出目录并在进度行标 `cached`。**基线检出有未提交改动就整轮禁用缓存**（打印一行说明），因为那时 HEAD 不代表它的内容。候选侧永远重渲染；MachOImage 部分永远不缓存——`memberAddress` 注释带 per-boot slide。同一基线换四轮候选，渲染时间减半。
+- **`--scenarios a,b,...`**：只跑点名的腿（`cache-15.5` / `cache-current-system` / `sim-iOS-18.5` / `machoimage-current` …），修完一处只回查受影响的腿。零对比对的兜底照旧生效：筛选打错名字会落到「zero pairs were compared」的失败，不会静默通过。
+
+三样都不碰 `compare_all_pairs` 与 `.skip` 标记的写法，harness 自己的单元测试（`Scripts/test-run-rendering-ab-verification.py`）在改动后重跑为绿。
+
 ## 验收标准与差异排查
 
 - 验收：**所有配对逐字节一致**（`cmp`）。
