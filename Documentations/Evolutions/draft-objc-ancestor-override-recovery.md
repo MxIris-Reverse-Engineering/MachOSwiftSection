@@ -7,7 +7,7 @@
 - **所属愿景**: 无
 - **关联提案**: [draft-objc-implementation-class-recognition](draft-objc-implementation-class-recognition.md)（本提案叠在它之上：复用它的 ObjC 方法表读取与 `To` thunk 联结，并把 `@implementation` 类纳入同一套覆写判定）、[0006-final-keyword-and-lazy-accessor-type-recovery](0006-final-keyword-and-lazy-accessor-type-recovery.md)（`final` 还原用「没有 vtable 项」做证据，本提案的成员都有 ObjC 派发路径，两边判据互不干扰）、[0008-interface-header-and-export-status-annotations](0008-interface-header-and-export-status-annotations.md)（`override` 成员豁免 `// not exported` 标注，新识别出的 override 沿用同一豁免）
 - **实现分支 / PR**: `feature/objc-ancestor-override-recovery`（worktree `.worktrees/MachOSwiftSection-ObjCImplementationClasses`，自 `feature/objc-implementation-class-recognition` 分出）
-- **配套文档**: [ObjCAncestorOverrideRecovery.md](../Internal/ObjCAncestorOverrideRecovery.md)（实现说明）、[TaskReports/2026-09-20-objc-ancestor-override-recovery.md](../Internal/TaskReports/2026-09-20-objc-ancestor-override-recovery.md)（过程复盘）
+- **配套文档**: [ObjCMemberRecovery.md](../Internal/ObjCMemberRecovery.md)（实现说明；提案 `objc-member-selector-recovery` 落地时自 `ObjCAncestorOverrideRecovery.md` 改名扩写，两份提案共用）、[TaskReports/2026-09-20-objc-ancestor-override-recovery.md](../Internal/TaskReports/2026-09-20-objc-ancestor-override-recovery.md)（过程复盘）
 
 ## 摘要
 
@@ -77,3 +77,4 @@ interface 里 `override` 的唯一来源是 Swift vtable 的 override 表（`Met
 | 2026-09-20 | 联结加第 2 档（反汇编 thunk 找它引用的成员实现），第 3 档（只按名字）实现但默认关 | 落地时 IDA 核实 OS 框架 strip 掉了全部 `To` 符号，只靠符号在系统缓存上一个覆写都标不出来；thunk 的 `bl` / 地址物化是硬事实，配所属类与 importer 拼法两道守卫后不会错标。第 3 档是否默认开待用户裁定 |
 | 2026-09-20 | dump 的祖先链注释放类头下独占一行，Swift 祖先按限定名显示 | 第一轮 A/B 抓到注释放在成员段末尾且与 `}` 粘连；`class_ro_t.name` 对 Swift 类是 mangled 运行时名，注释里照抄读不懂 |
 | 2026-09-20 | In Progress → Implemented | 实现连同文档合入 `next`；配套文档（实现说明、任务报告）已登记在头部，术语已入术语表；编号按仓库惯例在发布合入 `main` 时分配 |
+| 2026-09-21 | 旧 `LC_DYLD_INFO` bind 格式的父类槽位不再当根类（随提案 `objc-member-selector-recovery` 落地） | 那种文件（iOS 15.5 模拟器运行时）的 bind 槽位是 0，链曾被打成走完、注释不带 `(bound; chain not resolvable offline)`；读取器补 MachOKitExtensions 的 `resolveBind(fileOffset:)` 取 bind 名并以 `isSwift` 兜底，链注释从此诚实 |

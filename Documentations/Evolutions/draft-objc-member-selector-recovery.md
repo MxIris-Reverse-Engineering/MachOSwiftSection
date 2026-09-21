@@ -1,13 +1,13 @@
 # Draft - 从 ObjC 方法表还原每个 `@objc` 成员：strip 后的 `@objc`、显式 selector 与 category 成员
 
-- **状态**: Draft
+- **状态**: Implemented
 - **作者**: JH
 - **创建日期**: 2026-09-21
 - **最后更新**: 2026-09-21
 - **所属愿景**: 无
 - **关联提案**: [draft-objc-ancestor-override-recovery](draft-objc-ancestor-override-recovery.md)（本提案把它的「方法表 → Swift 成员」联结从「只看被覆写的 selector」推广到类的每一条 ObjC 方法，覆写表成为成员表的一个投影）、[0006-final-keyword-and-lazy-accessor-type-recovery](0006-final-keyword-and-lazy-accessor-type-recovery.md)（`final` 还原用 `@objc` 排除 `@objc dynamic` 成员，本提案让这道排除在 strip 后的二进制上重新生效）、[0008-interface-header-and-export-status-annotations](0008-interface-header-and-export-status-annotations.md)（`@objc` 成员豁免 `// not exported`，同理）
 - **实现分支 / PR**: `feature/objc-member-selector-recovery`（worktree `.worktrees/MachOSwiftSection-ObjCImplementationClasses`，自 `next` 分出）
-- **配套文档**: 待落地时登记（预计更新 [ObjCAncestorOverrideRecovery.md](../Internal/ObjCAncestorOverrideRecovery.md) 为成员表的实现说明）
+- **配套文档**: [ObjCMemberRecovery.md](../Internal/ObjCMemberRecovery.md)（实现说明，自 `ObjCAncestorOverrideRecovery.md` 改名扩写，两份 @objc 提案共用）、[TaskReports/2026-09-21-objc-member-selector-recovery.md](../Internal/TaskReports/2026-09-21-objc-member-selector-recovery.md)（过程复盘）
 
 ## 摘要
 
@@ -32,10 +32,10 @@ interface 里成员级 `@objc` 的唯一来源是 `To` thunk 符号 demangle 出
 - `throws` 追加 `error:` 段（无参时变 `基名AndReturnError:`）；`async` 追加 `completionHandler:` 段（无参时变 `基名WithCompletionHandler:`）；`async throws` 只追加 `completionHandler:`。
 - 初始化器：基名 `init`，同一条第一段规则：`init(coder:)` → `initWithCoder:`，`init(from:)` → `initFrom:`，`init(_:)` → `init:`，`init()` → `init`。
 - 属性：getter = 属性名；setter = `set` + 首字母大写的属性名。**没有 `is` 前缀处理**——`var isEnabled` 的 Swift 默认 setter 是 `setIsEnabled:`；`is` 可省是 importer 从 ObjC 往 Swift 的规则，上一提案的一致性检查里保留，这里不适用。
-- 介词表：`lib/Basic/PartsOfSpeech.def` 的 34 个词（above / after / along / … / with / within），作为固定常量移植，测试固定其内容。
+- 介词表：`lib/Basic/PartsOfSpeech.def` 的 30 个词（above / after / along / … / with / within），作为固定常量移植，测试固定其内容。
 - 驼峰分词按编译器 `camel_case::Words` 的规则（大写字母起新词，连续大写视为缩写词）。
 
-判定 `hasExplicitSelector` 时两类成员**不算**：被还原为覆写的成员（selector 从被覆写者继承，编译器禁止写不同的名字，`@objc(…)` 至多是冗余）；`@objc` 协议要求的 witness（selector 从要求继承）——后者要读类采纳的协议：库读取器从 `class_ro_t.baseProtocols` 与 category 的协议表收协议（含协议继承链）的要求 selector，宿主适配器从 `ObjCClassInfo.protocols` 收；协议在别的镜像且是 bind（磁盘上的 app 二进制）读不到时**不排除**，仍按 selector 事实打 `@objc(sel)`——它合法且真实，只是源码里未必写着。
+判定 `hasExplicitSelector` 时两类成员**不算**：被还原为覆写的成员（selector 从被覆写者继承，编译器禁止写不同的名字，`@objc(…)` 至多是冗余）；`@objc` 协议要求的 witness（selector 从要求继承）——后者要读类采纳的协议：库读取器从 `class_ro_t.baseProtocols` 与 category 的协议表收协议（含协议继承链）的要求 selector，宿主适配器从 `ObjCClassInfo.protocols` 收；祖先链没走完（磁盘上独立二进制的父类是 bind）或某个协议读不到时，selector 可能就是从没读到的那一级继承的，**不下判定**：不打 `@objc(sel)`，dump 注释里照样写出 selector，只是不加 `explicit selector`。落地时 A/B 抓到的反例：模拟器运行时的 SwiftUI 文件上，`hitTest:withEvent:` / `drawRect:` / `touchesBegan:withEvent:` 这些 UIKit 覆写全被判成显式 selector（UIView 是 bind，链在第一跳断）——合法但误导，与「只联结不猜」相悖。
 
 ### 数据来源
 
@@ -61,7 +61,7 @@ interface 里成员级 `@objc` 的唯一来源是 `To` thunk 符号 demangle 出
 
 ### 范围外与降级
 
-- **泛型 ObjC 派生类**（没有静态 class object）与**磁盘 app 二进制的跨镜像祖先**（bind 断链）维持上一提案的降级；后者会让 `override func encode(with:)` 因祖先链不完整而不被认作覆写，进而按 selector 事实打成 `@objc(encodeWithCoder:) func encode(with:)`——合法、真实、但比源码多一截，是断链的诚实表现，不是错标。
+- **泛型 ObjC 派生类**（没有静态 class object）与**磁盘 app 二进制的跨镜像祖先**（bind 断链）维持上一提案的降级；后者让 `override func encode(with:)` 因祖先链不完整而不被认作覆写，也因此不判显式 selector——打成裸 `@objc func encode(with:)`，缺 `override`、不多 `@objc(…)`，两个方向都是「不知道就不说」。
 - **第三档默认关**不在本提案内讨论。
 - **性能**：thunk 反汇编从「被覆写的方法」扩大到「全部 `@objc` 方法」，每条 thunk 最多解码 96 条指令；A/B 时记 SwiftUI / AppKit 的 interface 耗时，与基线比差异应在噪声内，超过 5% 要回头看。
 
@@ -81,3 +81,13 @@ interface 里成员级 `@objc` 的唯一来源是 `To` thunk 符号 demangle 出
 | 2026-09-21 | 显式 selector 用编译器的正向默认推导判定，不用 importer 的一致性检查 | 前者确定且无损（`Decl.cpp getObjCSelector` 可逐条移植），后者有损只能做守卫；两者分工不同，各留各的 |
 | 2026-09-21 | 覆写成员与可读到的协议 witness 不打 `@objc(sel)`；协议读不到时不排除 | 覆写与 witness 的 selector 是继承的，源码不会写；读不到协议时按事实打是合法且真实的，宁多勿错 |
 | 2026-09-21 | 类型按新范围改名，不留旧名 | 上一提案的类型只在 `next` 上、未发布；名字继续叫 override 会误导后来者 |
+| 2026-09-21 | Draft → Accepted → In Progress | 用户确认方案（含五条自定假设：编译器正向推导判显式 selector、覆写与 witness 不打括号、dump 行内注释、类型改名、纳入 category）后开始实现 |
+| 2026-09-21 | `@objc @implementation` 类的成员**照常**判显式 selector | 第一版在系统 cache 的 AppKit 上报出 8 个显式 selector，7 个落在 `@implementation` 类（`NSGradient` 的 `drawInRect:angle:` 对 `draw(in:angle:)`），一度以为那里 selector 继承自头文件、不该算显式；给 fixture 加 `- (void)drawInRect:` / `func draw(in:)` 时编译器报 `selector 'drawIn:' for instance method 'draw(in:)' not found in header`，证明 `@implementation` 体里 selector 同样从 Swift 名推导、要对上头文件必须写 `@objc(drawInRect:)`——那 7 处本就是源码里写着的。撤回清标记的改动，fixture 固定 `@objc(drawInRect:) func draw(in:)` |
+| 2026-09-21 | strip 后的显式 selector 不还原，诚实漏标 | 第二档的 importer 拼法守卫天然拒绝改过名的 selector（`pokeUsingForce:` 不是任何拼法下的 `poke(force:)`），放宽守卫会把内联方法体里对同类别的成员的调用错认成 `@objc`，违背「只联结不猜」；fixture 的 `.strippedLocals` 变体把这一点固定成测试 |
+| 2026-09-21 | `init` 与 `.cxx_destruct` 留在表里 | 编译器给每个 ObjC 派生的 Swift 类合成的 `init` 与指向 ivar destroyer 的 `-.cxx_destruct` 都是真实的方法表条目；前者联结到 allocator 定义（默认 selector `init`，不算显式），后者没有成员定义，只在 dump 符号行留注释 |
+| 2026-09-21 | 介词表 30 个词，不是提案初稿写的 34 | `PartsOfSpeech.def` 实数；测试固定 `prepositions.count == 30` |
+| 2026-09-21 | In Progress → Implemented | 实现连同文档合入 `next`；配套文档（实现说明改名扩写、任务报告）已登记在头部，术语「ObjC member table」已入术语表；编号按仓库惯例在发布合入 `main` 时分配 |
+| 2026-09-21 | 祖先链没走完或协议读不到时不判显式 selector（fail closed） | 第一轮 A/B 在模拟器运行时的 SwiftUI 文件（父类 UIView 是 bind）上判出 35 个显式 selector，几乎全是 `hitTest:withEvent:` / `drawRect:` / `touchesBegan:withEvent:` 这类 UIKit 覆写：合法但误导，读者会以为是自定义命名。提案初稿的「读不到不排除」改成「读不到不判」；fixture 文件腿固定不判、进程内腿固定判出 |
+| 2026-09-21 | 旧 bind 格式的父类槽位按 bind 处理，Swift 类永不当根类 | fail closed 之后 A/B 的 iOS 15.5 模拟器腿仍判出显式 selector：那些框架用 `LC_DYLD_INFO`，bind 槽位在文件里是 0，MachOObjCSection 读成「没有父类」，链被当作走完。读取器补 MachOKitExtensions 的 `resolveBind(fileOffset:)`（认两种格式）取名，再以 `isSwift` 兜底；fixture 加 `.legacyBinds` 变体（`-target arm64-apple-macosx11.0`）固定 |
+| 2026-09-21 | 读成空字符串的协议 selector 视为读失败，集合标不完整 | 第三轮 A/B 的 macOS 15.5 cache 腿仍有一处：WidgetKit 的 `encode(with:)` 被判显式，探针显示它采纳的 Foundation `NSSecureCoding` 跨镜像读出的方法名全是空串——集合「完整」却缺 `encodeWithCoder:`。跨镜像协议方法名的读取问题在 MachOObjCSection，这里只保证不据此下错判 |
+| 2026-09-21 | witness 判定连祖先采纳的协议一起算 | 第四轮 A/B 的进程内腿判出 `SwiftUIOutlineTableView.draggingSession(_:movedTo:)` 为显式 selector——`draggingSession:movedToPoint:` 是 `NSDraggingSource` 的可选要求，conformance 在祖先 `NSTableView` 上，子类的实现继承它的 selector（编译器 `inferObjCName` 查的是全部 conformance）。`Ancestor` 加协议 selector 集合，完整性要求整条链都读完；fixture 给 `WidgetObserving` 加 `@objc(widgetWillPingSoon) optional func widgetWillPing()`、孙类实现，固定「继承的 conformance 不算显式」 |

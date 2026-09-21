@@ -184,10 +184,17 @@ opaque 尖括号参数归属的第三条规则：协议无任何 anchor 命中�
 
 ### ObjC ancestor override（ObjC 祖先覆写）
 
-一个 Swift 成员覆写了从 ObjC 继承来的成员——NSView 的 `layout()`、NSObject 的 `description`——这件事在 Swift 元数据里没有记录：编译器给这种覆写发的是一条**新的**普通 vtable 项而不是 override 表项（`NeedsNewVTableEntryRequest` 对「被覆写者来自 clang」答「需要新项」），`@objc @implementation` 类更是没有 vtable。本仓库从 ObjC 侧判：类自己的 ObjC 方法表里某条方法的 selector 在祖先链（NSView → NSResponder → NSObject，跨镜像）上有人实现，它就是覆写；再把那条方法联结到 Swift 成员——IMP 处的 `To` 符号、或反汇编 IMP 找它引用的成员实现、或（默认关）只按 selector 名字唯一匹配。三档证据记在 `ObjCAncestorOverride.evidence` 里，dump 打出来，interface 只打 `override`。
+一个 Swift 成员覆写了从 ObjC 继承来的成员——NSView 的 `layout()`、NSObject 的 `description`——这件事在 Swift 元数据里没有记录：编译器给这种覆写发的是一条**新的**普通 vtable 项而不是 override 表项（`NeedsNewVTableEntryRequest` 对「被覆写者来自 clang」答「需要新项」），`@objc @implementation` 类更是没有 vtable。本仓库从 ObjC 侧判：类自己的 ObjC 方法表里某条方法的 selector 在祖先链（NSView → NSResponder → NSObject，跨镜像）上有人实现，它就是覆写；再把那条方法联结到 Swift 成员——IMP 处的 `To` 符号、或反汇编 IMP 找它引用的成员实现、或（默认关）只按 selector 名字唯一匹配。三档证据记在 `ObjCMember.evidence` 里，dump 打出来，interface 只打 `override`。自提案 `objc-member-selector-recovery` 起它是「ObjC member table」的一个投影（`overriddenAncestorClassName` 非空的成员）。
 
-- **主要出现在**：`SwiftInspection/ObjCAncestorOverride.swift`、`SwiftThunkAnalysis/ObjCOverride/`
-- **延伸阅读**：[提案 draft-objc-ancestor-override-recovery](Evolutions/draft-objc-ancestor-override-recovery.md)、[ObjCAncestorOverrideRecovery.md](Internal/ObjCAncestorOverrideRecovery.md)
+- **主要出现在**：`SwiftInspection/ObjCMember.swift`、`SwiftThunkAnalysis/ObjCMembers/`
+- **延伸阅读**：[提案 draft-objc-ancestor-override-recovery](Evolutions/draft-objc-ancestor-override-recovery.md)、[ObjCMemberRecovery.md](Internal/ObjCMemberRecovery.md)
+
+### ObjC member table（ObjC 成员表）
+
+一个类的 ObjC 方法表——实例方法表、元类方法表、本镜像 `__objc_catlist` 里指向它的 category——的每一条联结到实现它的 Swift 成员之后得到的 per-class 表（`ObjCMemberTable`，按 Swift 符号名索引 `ObjCMember`）。方法表就是类的 `@objc` 成员清单，运行时靠它派发、strip 不会碰，所以它是三个 Swift 元数据不记的事实的来源：成员是 `@objc`（OS 框架 strip 掉 `To` thunk 符号后这是唯一证据）、它覆写了哪个祖先的成员（selector 在祖先链上有人实现）、它的 selector 是不是源码里 `@objc(name)` 写出来的（与编译器从 Swift 名正向推出的默认值不同，且不是从被覆写者或协议要求继承的——祖先链或协议没读完就不下这个判定）。联结证据分三档：IMP 处的 `To` 符号；反汇编无名 thunk 收它引用的成员实现，配「所属类」与「importer 拼法」两道守卫；只按名字（默认关，只对覆写）。`@objc @implementation` 体不是例外：编译器同样从 Swift 名推导 selector 并要求头文件里有它，`draw(in:)` 要对上 `drawInRect:` 就得写 `@objc(drawInRect:)`。
+
+- **主要出现在**：`SwiftInspection/ObjCMember.swift`、`SwiftInspection/ObjCMemberShape.swift`、`SwiftThunkAnalysis/ObjCMembers/`、`SwiftDeclaration/Components/Building/ObjCMemberApplication.swift`
+- **延伸阅读**：[提案 draft-objc-member-selector-recovery](Evolutions/draft-objc-member-selector-recovery.md)、[ObjCMemberRecovery.md](Internal/ObjCMemberRecovery.md)
 
 ### permutation 二分（permutation binary search）
 

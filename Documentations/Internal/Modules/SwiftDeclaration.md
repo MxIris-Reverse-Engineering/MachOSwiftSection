@@ -91,9 +91,9 @@ Handler 的调用是**进程级串行**的（跨所有 dispatcher 一把递归�
 
 SE-0436 的类在 `__swift5_*` 里没有身影，模型里它就是那个 `__C.X` 的 `ExtensionDefinition`：`objcImplementation` 装 `SwiftInspection.ObjCImplementationClassFacts`（证据档位、ivar 与 `Wvd` 的 join、方法表），`VariableDefinition.objcImplementationStorage` 标出由访问器符号建出来却是存储属性的成员。这个事实**不进** ABI 快照的容器 key。详见 [ObjCImplementationClassRecognition.md](../ObjCImplementationClassRecognition.md)。
 
-### ObjC 祖先覆写的 `override`
+### ObjC 方法表给出的成员事实：`@objc`、`override`、显式 selector
 
-`FunctionDefinition` / `VariableDefinition` / `SubscriptDefinition` 各有一个 `objcAncestorOverride: ObjCAncestorOverride?`，`isOverride` 与 `isClassMember` 都 OR 上它（覆写的类方法必须打 `class`）。它由 `Building/ObjCAncestorOverrideApplication` 在 `TypeDefinition.index(in:)`（`applyThunkAttributes` 之后）和 `SwiftDeclarationIndexer.indexExtensions()`（`__C` 类的 extension）里从 `SwiftThunkAnalysis.ObjCAncestorOverrides` 的表 join 上来：函数按自己的符号名，属性 / 下标按任一 accessor 符号，`init` 按 allocator 符号换 initializer 后缀。第三档「只按名字」的推断也在这里做（开关默认关）。这个事实**不进** ABI 快照。详见 [ObjCAncestorOverrideRecovery.md](../ObjCAncestorOverrideRecovery.md)。
+`FunctionDefinition` / `VariableDefinition` / `SubscriptDefinition` 各有一个 `objcMember: ObjCMember?`——这个成员实现的 ObjC 方法：selector、是否类方法、覆写的祖先（可空）、证据档位、selector 是否为源码里 `@objc(name)` 写出的。`isOverride` 与 `isClassMember` 都 OR 上 `objcMember?.isOverride`（覆写的类方法必须打 `class`）；联结上的成员缺 `.objc` 属性就补上（OS 框架 strip 掉了 `To` thunk 符号，方法表是 `@objc` 的唯一证据）；printer 在 `hasExplicitSelector` 时打 `@objc(selector)`。它由 `Building/ObjCMemberApplication` 在 `TypeDefinition.index(in:)`（`applyThunkAttributes` 之后、`recoverFinalMembers` 之前——`final` 还原用 `@objc` 排除 `@objc dynamic`）和 `SwiftDeclarationIndexer.indexExtensions()`（`__C` 类的 extension 与本镜像 Swift 类的 extension）里从 `SwiftThunkAnalysis.ObjCMembers` 的表 join 上来：函数按自己的符号名，属性 / 下标先按 getter 再按任一 accessor 符号，`init` 按 allocator 符号换 initializer 后缀。第三档「只按名字」的覆写推断也在这里做（开关默认关）。这个事实**不进** ABI 快照。详见 [ObjCMemberRecovery.md](../ObjCMemberRecovery.md)。
 
 ## 相关文档
 
