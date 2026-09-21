@@ -48,7 +48,7 @@ package struct ClassDumper<MachO: MachOFieldLayoutRenderable>: TypedDumper {
         guard let contextNode = try? SymbolicDemangler.demangleContext(for: .type(.class(dumped.descriptor)), in: machO),
               let qualifiedName = NodeTypeNaming.nominalQualifiedName(ofDemangledRoot: contextNode)
         else { return nil }
-        return ObjCAncestorOverrides.table(forSwiftClassQualifiedName: qualifiedName, in: machO)?.hierarchy
+        return ObjCMembers.table(forSwiftClassQualifiedName: qualifiedName, in: machO)?.hierarchy
     }
 
     package var declaration: SemanticString {
@@ -230,7 +230,7 @@ package struct ClassDumper<MachO: MachOFieldLayoutRenderable>: TypedDumper {
             if let hierarchy = objcAncestorChainHierarchy, !hierarchy.ancestors.isEmpty {
                 BreakLine()
                 Indent(level: 1)
-                Comment(ObjCAncestorOverrideRendering.ancestorChainComment(for: hierarchy))
+                Comment(ObjCMemberRendering.ancestorChainComment(for: hierarchy))
                 BreakLine()
             }
 
@@ -400,9 +400,9 @@ package struct ClassDumper<MachO: MachOFieldLayoutRenderable>: TypedDumper {
             // table against its ancestors'. Nil for a class with no static
             // class object (generic) or no ObjC methods of its own. The
             // chain itself printed under the header, above.
-            let objcAncestorOverrideTable = contextNode
+            let objcMemberTable = contextNode
                 .flatMap { NodeTypeNaming.nominalQualifiedName(ofDemangledRoot: $0) }
-                .flatMap { ObjCAncestorOverrides.table(forSwiftClassQualifiedName: $0, in: machO) }
+                .flatMap { ObjCMembers.table(forSwiftClassQualifiedName: $0, in: machO) }
 
             for kind in SymbolIndexStore.MemberKind.allCases {
                 let memberSymbols = if let contextNode {
@@ -428,6 +428,8 @@ package struct ClassDumper<MachO: MachOFieldLayoutRenderable>: TypedDumper {
                     if configuration.printExportStatus,
                        !overrideImplementationSymbolNames.contains(symbol.name),
                        !symbolIndexStore.containsSymbol(named: symbol.name + "To", in: machO),
+                       objcMemberTable?.member(forMemberSymbolNamed: symbol.name) == nil,
+                       objcMemberTable?.member(forAllocatorSymbolNamed: symbol.name) == nil,
                        symbolIndexStore.isExportedIncludingDerivedSymbols(name: symbol.name, in: machO) == false {
                         configuration.exportStatusComment()
                     }
@@ -436,9 +438,9 @@ package struct ClassDumper<MachO: MachOFieldLayoutRenderable>: TypedDumper {
 
                     try await demangleResolver.resolve(for: symbol.demangledNode)
 
-                    if let override = objcAncestorOverrideTable?.override(forMemberSymbolNamed: symbol.name) ?? objcAncestorOverrideTable?.override(forAllocatorSymbolNamed: symbol.name) {
+                    if let member = objcMemberTable?.member(forMemberSymbolNamed: symbol.name) ?? objcMemberTable?.member(forAllocatorSymbolNamed: symbol.name) {
                         Space()
-                        Comment(ObjCAncestorOverrideRendering.overrideComment(for: override))
+                        Comment(ObjCMemberRendering.memberComment(for: member))
                     }
 
                     if offset.isEnd {

@@ -22,17 +22,17 @@ class SymbolTestsCore.Classes.ExternalSwiftSubclassTest: SymbolTestsHelper.Objec
 }
 class SymbolTestsCore.Classes.ExternalObjCSubclassTest: NSObject {
     /* Allocator */
-    SymbolTestsCore.Classes.ExternalObjCSubclassTest.__allocating_init() -> SymbolTestsCore.Classes.ExternalObjCSubclassTest
+    SymbolTestsCore.Classes.ExternalObjCSubclassTest.__allocating_init() -> SymbolTestsCore.Classes.ExternalObjCSubclassTest // @objc -[SymbolTestsCore.Classes.ExternalObjCSubclassTest init] (To thunk symbol at the IMP)
 
     /* Deallocator */
     merged SymbolTestsCore.Classes.ExternalObjCSubclassTest.__deallocating_deinit
     SymbolTestsCore.Classes.ExternalObjCSubclassTest.__deallocating_deinit
 
     /* Constructor */
-    SymbolTestsCore.Classes.ExternalObjCSubclassTest.init() -> SymbolTestsCore.Classes.ExternalObjCSubclassTest
+    SymbolTestsCore.Classes.ExternalObjCSubclassTest.init() -> SymbolTestsCore.Classes.ExternalObjCSubclassTest // @objc -[SymbolTestsCore.Classes.ExternalObjCSubclassTest init] (To thunk symbol at the IMP)
 
     /* Function */
-    SymbolTestsCore.Classes.ExternalObjCSubclassTest.isKind(of: Swift.AnyObject.Type) -> Swift.Bool
+    SymbolTestsCore.Classes.ExternalObjCSubclassTest.isKind(of: Swift.AnyObject.Type) -> Swift.Bool // @objc -[SymbolTestsCore.Classes.ExternalObjCSubclassTest isKindOfClass:] (To thunk symbol at the IMP)
 }
 class SymbolTestsCore.Classes.ClassTest {
     /* [Getter] */ SymbolTestsCore.Classes.ClassTest.instanceVariable.getter : Swift.Bool
@@ -247,20 +247,20 @@ class SymbolTestsCore.Classes.ObjCMembersTest: NSObject {
     /* [Method] */ func SymbolTestsCore.Classes.ObjCMembersTest.method() -> Swift.Int
 
     /* Allocator */
-    SymbolTestsCore.Classes.ObjCMembersTest.__allocating_init() -> SymbolTestsCore.Classes.ObjCMembersTest
+    SymbolTestsCore.Classes.ObjCMembersTest.__allocating_init() -> SymbolTestsCore.Classes.ObjCMembersTest // @objc -[SymbolTestsCore.Classes.ObjCMembersTest init] (To thunk symbol at the IMP)
 
     /* Deallocator */
     SymbolTestsCore.Classes.ObjCMembersTest.__deallocating_deinit
 
     /* Constructor */
-    SymbolTestsCore.Classes.ObjCMembersTest.init() -> SymbolTestsCore.Classes.ObjCMembersTest
+    SymbolTestsCore.Classes.ObjCMembersTest.init() -> SymbolTestsCore.Classes.ObjCMembersTest // @objc -[SymbolTestsCore.Classes.ObjCMembersTest init] (To thunk symbol at the IMP)
 
     /* Variable */
-    SymbolTestsCore.Classes.ObjCMembersTest.property.setter : Swift.Int
-    SymbolTestsCore.Classes.ObjCMembersTest.property.getter : Swift.Int
+    SymbolTestsCore.Classes.ObjCMembersTest.property.setter : Swift.Int // @objc -[SymbolTestsCore.Classes.ObjCMembersTest setProperty:] (To thunk symbol at the IMP)
+    SymbolTestsCore.Classes.ObjCMembersTest.property.getter : Swift.Int // @objc -[SymbolTestsCore.Classes.ObjCMembersTest property] (To thunk symbol at the IMP)
 
     /* Function */
-    SymbolTestsCore.Classes.ObjCMembersTest.method() -> Swift.Int
+    SymbolTestsCore.Classes.ObjCMembersTest.method() -> Swift.Int // @objc -[SymbolTestsCore.Classes.ObjCMembersTest method] (To thunk symbol at the IMP)
 
     /* [Method] Variable */
     method descriptor for SymbolTestsCore.Classes.ObjCMembersTest.property.getter : Swift.Int

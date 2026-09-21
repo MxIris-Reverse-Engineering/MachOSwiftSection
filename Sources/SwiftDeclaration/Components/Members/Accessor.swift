@@ -6,18 +6,18 @@ import SwiftInspection
 public protocol AccessorRepresentable: Sendable {
     var accessors: [Accessor] { get }
 
-    /// The `override` fact the ObjC side supplies when the Swift side cannot
-    /// (evolution proposal `objc-ancestor-override-recovery`): an override of
-    /// a member inherited from an ObjC class gets a NEW vtable entry, not an
-    /// override-table one, so only the member's `To` thunk sitting at an IMP
-    /// whose selector an ObjC ancestor also implements proves it.
-    var objcAncestorOverride: ObjCAncestorOverride? { get }
+    /// The ObjC method the member implements, recovered from the class's ObjC
+    /// method table (evolution proposals `objc-ancestor-override-recovery` and
+    /// `objc-member-selector-recovery`). An override of an ObjC-inherited
+    /// member has a NEW vtable entry rather than an override-table one, so
+    /// only the ObjC side proves it.
+    var objcMember: ObjCMember? { get }
 }
 
 extension AccessorRepresentable {
     public var isStored: Bool { accessors.contains { $0.kind == .none } }
     public var isOverride: Bool {
-        objcAncestorOverride != nil || accessors.contains(where: { ($0.methodDescriptor?.isMethodOverride ?? false) || ($0.methodDescriptor?.isMethodDefaultOverride ?? false) })
+        (objcMember?.isOverride ?? false) || accessors.contains(where: { ($0.methodDescriptor?.isMethodOverride ?? false) || ($0.methodDescriptor?.isMethodDefaultOverride ?? false) })
     }
     public var hasSetter: Bool { accessors.contains { $0.kind == .setter } }
     public var hasModifyAccessor: Bool { accessors.contains { $0.kind == .modifyAccessor } }

@@ -77,7 +77,9 @@ final class ExportStatusDumpAnnotationTests: MachOFileTests, SnapshotDumpableTes
 
         let output = try await dumpClasses(printExportStatus: true, inNamespace: "Attributes")
         let annotated = try isAnnotated(in: output) { line in
-            line.hasSuffix("ObjCAttributeClass.objcDynamicMethod() -> ()")
+            // The member line now ends in its `// @objc -[… objcDynamicMethod]`
+            // comment (evolution proposal `objc-member-selector-recovery`).
+            line.contains("ObjCAttributeClass.objcDynamicMethod() -> ()")
         }
         #expect(!annotated)
     }

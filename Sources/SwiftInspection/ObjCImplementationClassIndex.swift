@@ -368,6 +368,21 @@ protocol ObjCImplementationClassReading: MachORepresentableWithCache, Readable {
     func methods(of readOnlyData: ObjCClassROData64) -> [RawObjCMethod]
     func properties(of readOnlyData: ObjCClassROData64) -> [ObjCImplementationClassFacts.Property]
     func protocolNames(of readOnlyData: ObjCClassROData64) -> [String]
+    /// The selectors of the protocols the class adopts, inherited protocols
+    /// included (`ObjCClassMethodIndex`'s witness test).
+    func protocolSelectors(of readOnlyData: ObjCClassROData64) -> RawObjCProtocolSelectors
+    /// `__objc_catlist`.
+    func objcCategories() -> [ObjCCategory64]?
+    /// The category's target class by name — readable even when the class
+    /// pointer is a bind into another image (the bound symbol names it).
+    func targetClassName(of category: ObjCCategory64) -> String?
+    /// The category's target class object, paired with the reader for the
+    /// image it lives in; `nil` when the pointer is a bind this reader cannot
+    /// follow.
+    func targetClass(of category: ObjCCategory64) -> (any ObjCImplementationClassReading, ObjCClass64)?
+    func instanceMethods(of category: ObjCCategory64) -> [RawObjCMethod]
+    func classMethods(of category: ObjCCategory64) -> [RawObjCMethod]
+    func protocolSelectors(of category: ObjCCategory64) -> RawObjCProtocolSelectors
 }
 
 extension MachOFile: ObjCImplementationClassReading {
@@ -400,8 +415,25 @@ extension MachOFile: ObjCImplementationClassReading {
         if let superclassName = classObject.superClassName(in: self), !superclassName.isEmpty {
             return .unresolvable(superclassName)
         }
+        // A zero slot is a root class only when it is not a bind. The ObjC
+        // reader names a chained-fixup bind but reads a legacy `LC_DYLD_INFO`
+        // bind (pre-iOS 16 / macOS 12 deployment targets — the iOS 15.5
+        // simulator runtime's frameworks) as an empty slot, which once made
+        // every such chain look complete and every UIKit override an
+        // `@objc(name)`; MachOKitExtensions resolves both formats.
+        if !isLoadedFromDyldCache, let bindSymbolName = resolveBind(fileOffset: classObject.offset + Self.superclassFieldOffset) {
+            return .unresolvable(bindSymbolName.replacingOccurrences(of: "_OBJC_CLASS_$_", with: ""))
+        }
+        // A Swift class is never an ObjC root class (its ObjC superclass is
+        // `_SwiftObject` at the very least), so a superclass the reader can
+        // neither follow nor name is unresolvable, not absent.
+        if classObject.isSwift {
+            return .unresolvable(nil)
+        }
         return .root
     }
+
+    private static let superclassFieldOffset = MemoryLayout<ObjCClass64.Layout>.offset(of: \.superclass) ?? MemoryLayout<UInt64>.size
 
     func metaClass(of classObject: ObjCClass64) -> ObjCClass64? {
         classObject.metaClass(in: self)?.1
@@ -449,6 +481,75 @@ extension MachOFile: ObjCImplementationClassReading {
               let protocols = protocolList.protocols(in: self)
         else { return [] }
         return protocols.map { $1.mangledName(in: $0) }
+    }
+
+    func protocolSelectors(of readOnlyData: ObjCClassROData64) -> RawObjCProtocolSelectors {
+        Self.protocolSelectors(of: readOnlyData.protocolList(in: self), in: self)
+    }
+
+    func objcCategories() -> [ObjCCategory64]? {
+        objc.categories64
+    }
+
+    func targetClassName(of category: ObjCCategory64) -> String? {
+        category.className(in: self)
+    }
+
+    /// A rebase into another image of the same cache resolves; a standalone
+    /// file's bind does not.
+    func targetClass(of category: ObjCCategory64) -> (any ObjCImplementationClassReading, ObjCClass64)? {
+        let resolved: (MachOFile, ObjCClass64)? = category.class(in: self)
+        guard let (classMachO, classObject) = resolved else { return nil }
+        return (classMachO, classObject)
+    }
+
+    func instanceMethods(of category: ObjCCategory64) -> [RawObjCMethod] {
+        rawMethods(of: category.instanceMethodList(in: self))
+    }
+
+    func classMethods(of category: ObjCCategory64) -> [RawObjCMethod] {
+        rawMethods(of: category.classMethodList(in: self))
+    }
+
+    func protocolSelectors(of category: ObjCCategory64) -> RawObjCProtocolSelectors {
+        Self.protocolSelectors(of: category.protocolList(in: self), in: self)
+    }
+
+    private func rawMethods(of methodList: ObjCMethodList?) -> [RawObjCMethod] {
+        guard let methodList, !methodList.isListOfLists, let methods = methodList.methods(in: self) else { return [] }
+        return methods.map { RawObjCMethod(selector: $0.name, typeEncoding: $0.types, implementationOffset: $0.imp == 0 ? nil : Int($0.imp)) }
+    }
+
+    /// Every protocol of `protocolList` and, recursively, of the protocols
+    /// they inherit, each read in the image that defines it. A list or a
+    /// protocol the reader cannot follow (a bind) marks the result incomplete
+    /// rather than dropping silently.
+    private static func protocolSelectors(of protocolList: ObjCProtocolList64?, in machO: MachOFile) -> RawObjCProtocolSelectors {
+        var result = RawObjCProtocolSelectors(instanceSelectors: [], classSelectors: [], isComplete: true)
+        guard let protocolList else { return result }
+        var visited: Set<String> = []
+        func visit(_ protocolList: ObjCProtocolList64, in machO: MachOFile) {
+            guard !protocolList.isListOfLists, let protocols = protocolList.protocols(in: machO) else {
+                result.isComplete = false
+                return
+            }
+            for (protocolMachO, objcProtocol) in protocols {
+                guard visited.insert(objcProtocol.mangledName(in: protocolMachO)).inserted else { continue }
+                for methodList in [objcProtocol.instanceMethodList(in: protocolMachO), objcProtocol.optionalInstanceMethodList(in: protocolMachO)] {
+                    guard let methodList, !methodList.isListOfLists, let methods = methodList.methods(in: protocolMachO) else { continue }
+                    result.insert(instanceSelectors: methods.map(\.name))
+                }
+                for methodList in [objcProtocol.classMethodList(in: protocolMachO), objcProtocol.optionalClassMethodList(in: protocolMachO)] {
+                    guard let methodList, !methodList.isListOfLists, let methods = methodList.methods(in: protocolMachO) else { continue }
+                    result.insert(classSelectors: methods.map(\.name))
+                }
+                if let inherited = objcProtocol.protocolList(in: protocolMachO) {
+                    visit(inherited, in: protocolMachO)
+                }
+            }
+        }
+        visit(protocolList, in: machO)
+        return result
     }
 }
 
@@ -529,5 +630,69 @@ extension MachOImage: ObjCImplementationClassReading {
               let protocols = protocolList.protocols(in: self)
         else { return [] }
         return protocols.map { $1.mangledName(in: $0) }
+    }
+
+    func protocolSelectors(of readOnlyData: ObjCClassROData64) -> RawObjCProtocolSelectors {
+        Self.protocolSelectors(of: readOnlyData.protocolList(in: self), in: self)
+    }
+
+    func objcCategories() -> [ObjCCategory64]? {
+        objc.categories64
+    }
+
+    func targetClassName(of category: ObjCCategory64) -> String? {
+        category.className(in: self)
+    }
+
+    /// In-process every class pointer is real.
+    func targetClass(of category: ObjCCategory64) -> (any ObjCImplementationClassReading, ObjCClass64)? {
+        let resolved: (MachOImage, ObjCClass64)? = category.class(in: self)
+        guard let (classMachO, classObject) = resolved else { return nil }
+        return (classMachO, classObject)
+    }
+
+    func instanceMethods(of category: ObjCCategory64) -> [RawObjCMethod] {
+        rawMethods(of: category.instanceMethodList(in: self))
+    }
+
+    func classMethods(of category: ObjCCategory64) -> [RawObjCMethod] {
+        rawMethods(of: category.classMethodList(in: self))
+    }
+
+    func protocolSelectors(of category: ObjCCategory64) -> RawObjCProtocolSelectors {
+        Self.protocolSelectors(of: category.protocolList(in: self), in: self)
+    }
+
+    private func rawMethods(of methodList: ObjCMethodList?) -> [RawObjCMethod] {
+        guard let methodList, !methodList.isListOfLists else { return [] }
+        return methodList.methods(in: self).map { RawObjCMethod(selector: $0.name, typeEncoding: $0.types, implementationOffset: $0.imp == 0 ? nil : resolveOffset(at: $0.imp)) }
+    }
+
+    private static func protocolSelectors(of protocolList: ObjCProtocolList64?, in machO: MachOImage) -> RawObjCProtocolSelectors {
+        var result = RawObjCProtocolSelectors(instanceSelectors: [], classSelectors: [], isComplete: true)
+        guard let protocolList else { return result }
+        var visited: Set<String> = []
+        func visit(_ protocolList: ObjCProtocolList64, in machO: MachOImage) {
+            guard !protocolList.isListOfLists, let protocols = protocolList.protocols(in: machO) else {
+                result.isComplete = false
+                return
+            }
+            for (protocolMachO, objcProtocol) in protocols {
+                guard visited.insert(objcProtocol.mangledName(in: protocolMachO)).inserted else { continue }
+                for methodList in [objcProtocol.instanceMethodList(in: protocolMachO), objcProtocol.optionalInstanceMethodList(in: protocolMachO)] {
+                    guard let methodList, !methodList.isListOfLists else { continue }
+                    result.insert(instanceSelectors: methodList.methods(in: protocolMachO).map(\.name))
+                }
+                for methodList in [objcProtocol.classMethodList(in: protocolMachO), objcProtocol.optionalClassMethodList(in: protocolMachO)] {
+                    guard let methodList, !methodList.isListOfLists else { continue }
+                    result.insert(classSelectors: methodList.methods(in: protocolMachO).map(\.name))
+                }
+                if let inherited = objcProtocol.protocolList(in: protocolMachO) {
+                    visit(inherited, in: protocolMachO)
+                }
+            }
+        }
+        visit(protocolList, in: machO)
+        return result
     }
 }

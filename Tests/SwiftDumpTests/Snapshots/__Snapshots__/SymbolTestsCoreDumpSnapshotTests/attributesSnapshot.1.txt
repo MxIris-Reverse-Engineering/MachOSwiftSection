@@ -33,18 +33,18 @@ class SymbolTestsCore.Attributes.ObjCAttributeClass: NSObject {
     /* [Method] */ func SymbolTestsCore.Attributes.ObjCAttributeClass.nonobjcMethod() -> ()
 
     /* Allocator */
-    SymbolTestsCore.Attributes.ObjCAttributeClass.__allocating_init() -> SymbolTestsCore.Attributes.ObjCAttributeClass
+    SymbolTestsCore.Attributes.ObjCAttributeClass.__allocating_init() -> SymbolTestsCore.Attributes.ObjCAttributeClass // @objc -[SymbolTestsCore.Attributes.ObjCAttributeClass init] (To thunk symbol at the IMP)
 
     /* Deallocator */
     SymbolTestsCore.Attributes.ObjCAttributeClass.__deallocating_deinit
 
     /* Constructor */
-    SymbolTestsCore.Attributes.ObjCAttributeClass.init() -> SymbolTestsCore.Attributes.ObjCAttributeClass
+    SymbolTestsCore.Attributes.ObjCAttributeClass.init() -> SymbolTestsCore.Attributes.ObjCAttributeClass // @objc -[SymbolTestsCore.Attributes.ObjCAttributeClass init] (To thunk symbol at the IMP)
 
     /* Function */
-    SymbolTestsCore.Attributes.ObjCAttributeClass.objcMethod() -> ()
+    SymbolTestsCore.Attributes.ObjCAttributeClass.objcMethod() -> () // @objc -[SymbolTestsCore.Attributes.ObjCAttributeClass objcMethod] (To thunk symbol at the IMP)
     SymbolTestsCore.Attributes.ObjCAttributeClass.nonobjcMethod() -> ()
-    SymbolTestsCore.Attributes.ObjCAttributeClass.objcDynamicMethod() -> ()
+    SymbolTestsCore.Attributes.ObjCAttributeClass.objcDynamicMethod() -> () // @objc -[SymbolTestsCore.Attributes.ObjCAttributeClass objcDynamicMethod] (To thunk symbol at the IMP)
 
     /* [Method] Function */
     method descriptor for SymbolTestsCore.Attributes.ObjCAttributeClass.objcMethod() -> ()

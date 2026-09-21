@@ -18,18 +18,30 @@ import Testing
 /// `@objc @implementation` body, `SwiftDerivedWidget` / `SwiftGrandchildWidget`
 /// from ordinary Swift class bodies.
 ///
-/// Three link/strip variants exercise the three evidence tiers:
+/// The ObjC member recovery tests (evolution proposal
+/// `objc-member-selector-recovery`) add to `SwiftDerivedWidget` the shapes
+/// whose selector the compiler derives non-trivially (`throws`, `async`, a
+/// labelled first parameter) and the ones spelled in `@objc(name)`, an
+/// `@objc` protocol whose witnesses inherit their selectors, and a Swift
+/// extension — a category — carrying an `@objc` member and an `override`.
+///
+/// Four link/strip variants exercise the evidence tiers and the bind formats:
 /// - `.full`: every symbol present — accessor, field-offset globals, `To`
 ///   thunks at the class's own IMPs.
 /// - `.strippedLocals` (`strip -x`): only the exported accessor survives,
 ///   the field-offset globals and thunks are gone.
 /// - `.strippedEverything` (linked with an empty exported-symbols list, then
 ///   `strip -x`): no Swift symbol at all; only the ivar encodings remain.
+/// - `.legacyBinds` (`-target arm64-apple-macosx11.0`, unstripped): the
+///   pre-macOS 12 `LC_DYLD_INFO` bind format, in which a bound pointer slot —
+///   a class's superclass in another image — reads as zero in the file. The
+///   shape of every iOS 15.5 simulator-runtime framework.
 package enum ObjCImplementationFixture {
     package enum Variant: String, CaseIterable, Sendable {
         case full
         case strippedLocals
         case strippedEverything
+        case legacyBinds
     }
 
     package static let moduleName = "ObjCImplementationFixture"
@@ -64,6 +76,10 @@ package enum ObjCImplementationFixture {
     // ObjC-inherited members, which only the ObjC method tables can show.
     @interface DerivedImplementationWidget : ClangWidget
     - (void)poke;
+    // Imported as `draw(in:)`; the `@implementation` body must still spell
+    // `@objc(drawInRect:)`, since the compiler derives `drawIn:` from the
+    // Swift name and rejects a body whose selector the header lacks.
+    - (void)drawInRect:(NSRect)rect;
     @end
 
     NS_ASSUME_NONNULL_END
@@ -126,6 +142,7 @@ package enum ObjCImplementationFixture {
     // member implementation, the other three override ObjC-inherited members.
     @objc @implementation extension DerivedImplementationWidget {
         func poke() { bump() }
+        @objc(drawInRect:) func draw(in rect: NSRect) {}
         // `public`: an override must be as accessible as the imported member.
         public override func ping() { super.ping(); bump() }
         public override class func pingCount() -> Int { super.pingCount() + 1 }
@@ -143,7 +160,7 @@ package enum ObjCImplementationFixture {
     // only when the fixture is loaded in-process). `notAnOverride` is the
     // negative control; `dynamicHook` is the `@objc dynamic` base the grandchild
     // overrides with no vtable entry on either side.
-    public class SwiftDerivedWidget: ClangWidget {
+    public class SwiftDerivedWidget: ClangWidget, WidgetObserving {
         public override func ping() { super.ping() }
         public override class func pingCount() -> Int { super.pingCount() + 2 }
         public override var level: Int {
@@ -153,10 +170,50 @@ package enum ObjCImplementationFixture {
         public override var description: String { "SwiftDerivedWidget" }
         @objc public func notAnOverride() {}
         @objc public dynamic func dynamicHook() {}
+
+        // Selectors the compiler derives from the Swift name — none of these
+        // is an explicit selector (evolution proposal
+        // `objc-member-selector-recovery`): `moveToWindow:` (a labelled first
+        // parameter gets `With` unless it starts with a preposition),
+        // `performAfter:`, `insertText:replacementRange:`,
+        // `fetchAndReturnError:`, `loadWithCompletionHandler:`.
+        @objc public func move(toWindow window: NSObject?) {}
+        @objc public func perform(after delay: Int) {}
+        @objc public func insertText(_ text: String, replacementRange: NSRange) {}
+        @objc public func fetch() throws {}
+        @objc public func load() async {}
+        // Spelled in `@objc(name)`: the method table's selector is not the
+        // derived `poke(force:)` → `pokeWithForce:` nor `alias` / `setAlias:`.
+        @objc(pokeUsingForce:) public func poke(force: Int) {}
+        @objc(customLevel) public var alias: Int {
+            get { 0 }
+            set {}
+        }
+        // Witnesses: the selector is the requirement's — `observerPriority`
+        // for `priority` is inherited, not explicit.
+        public func widgetDidPing(_ widget: ClangWidget) {}
+        public var priority: Int { 0 }
+    }
+
+    // A Swift extension with `@objc` members compiles to a category: the
+    // class's own method table does not list them, `__objc_catlist` does.
+    // `bump` overrides an ObjC-inherited member FROM the extension.
+    extension SwiftDerivedWidget {
+        @objc public func fromExtension() {}
+        public override func bump() { super.bump() }
+    }
+
+    @objc public protocol WidgetObserving {
+        func widgetDidPing(_ widget: ClangWidget)
+        @objc(observerPriority) var priority: Int { get }
+        // Satisfied only by the grandchild, through the INHERITED conformance:
+        // its selector is still the requirement's, not an `@objc(name)`.
+        @objc(widgetWillPingSoon) optional func widgetWillPing()
     }
 
     public class SwiftGrandchildWidget: SwiftDerivedWidget {
         public override func dynamicHook() { super.dynamicHook() }
+        public func widgetWillPing() {}
     }
     """
 
@@ -197,6 +254,8 @@ package enum ObjCImplementationFixture {
             try "".write(to: emptyExportsURL, atomically: true, encoding: .utf8)
 
             try run(step: "clang", ["clang", "-c", "-fobjc-arc", "-O", objectiveCSourceURL.path, "-o", objectURL.path])
+            let legacyObjectURL = workingDirectory.appendingPathComponent("ClangWidget-legacy.o")
+            try run(step: "clang (legacy target)", ["clang", "-c", "-fobjc-arc", "-O", "-target", "arm64-apple-macosx11.0", objectiveCSourceURL.path, "-o", legacyObjectURL.path])
 
             var libraries: [Variant: URL] = [:]
             for variant in Variant.allCases {
@@ -209,14 +268,19 @@ package enum ObjCImplementationFixture {
                 var arguments = [
                     "swiftc", "-emit-library", "-module-name", moduleName,
                     "-import-objc-header", headerURL.path, "-Onone",
-                    swiftSourceURL.path, objectURL.path, "-framework", "Foundation",
+                    swiftSourceURL.path, variant == .legacyBinds ? legacyObjectURL.path : objectURL.path, "-framework", "Foundation",
                     "-o", libraryURL.path,
                 ]
                 if variant == .strippedEverything {
                     arguments += ["-Xlinker", "-exported_symbols_list", "-Xlinker", emptyExportsURL.path]
                 }
+                if variant == .legacyBinds {
+                    // The deployment target selects the bind format (see
+                    // LegacyDyldInfoBindTests, which does the same).
+                    arguments += ["-target", "arm64-apple-macosx11.0"]
+                }
                 try run(step: "swiftc (\(variant.rawValue))", arguments)
-                if variant != .full {
+                if variant == .strippedLocals || variant == .strippedEverything {
                     try run(step: "strip (\(variant.rawValue))", ["strip", "-x", libraryURL.path])
                 }
                 libraries[variant] = libraryURL

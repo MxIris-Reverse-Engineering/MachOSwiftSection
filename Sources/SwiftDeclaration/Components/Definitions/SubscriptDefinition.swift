@@ -14,13 +14,11 @@ public struct SubscriptDefinition: Sendable, AccessorRepresentable {
     /// A type-level subscript whose accessors have vtable method descriptors was declared `class`:
     /// `static` members are implicitly final and never get one (mangling cannot tell them apart).
     /// An ObjC-side override is `class` as well — `override static` is not Swift.
-    public var isClassMember: Bool { isStatic && (hasVTableAccessor || objcAncestorOverride != nil) }
+    public var isClassMember: Bool { isStatic && (hasVTableAccessor || (objcMember?.isOverride ?? false)) }
 
-    /// The ObjC-side `override` fact (evolution proposal
-    /// `objc-ancestor-override-recovery`), set at index time when one of this
-    /// subscript's accessor `To` thunks is the IMP of a selector an ObjC
-    /// ancestor also implements. See `FunctionDefinition.objcAncestorOverride`.
-    public var objcAncestorOverride: ObjCAncestorOverride? = nil
+    /// The ObjC method one of this subscript's accessors implements, set at
+    /// index time from the class's ObjC method table. See `FunctionDefinition.objcMember`.
+    public var objcMember: ObjCMember? = nil
 
     /// Recovered `final` (evolution proposal 0006): set at index time when the
     /// owning class's vtable was readable and none of this member's accessors

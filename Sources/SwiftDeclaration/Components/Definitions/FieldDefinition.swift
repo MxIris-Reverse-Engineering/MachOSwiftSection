@@ -54,9 +54,11 @@ public struct FieldDefinition: AccessorRepresentable, Sendable {
     // callers read it as a field-level fact.
     public var hasVTableAccessor: Bool { accessors.contains { $0.methodDescriptor != nil } }
 
-    /// A stored property cannot override anything (Swift forbids overriding
-    /// with storage), so the ObjC-side fact never applies to a field.
-    public var objcAncestorOverride: ObjCAncestorOverride? { nil }
+    /// A stored property's accessors are not in the ObjC method table under
+    /// the field's own name, and a stored property cannot override anything
+    /// (Swift forbids overriding with storage), so the ObjC-side fact never
+    /// applies to a field.
+    public var objcMember: ObjCMember? { nil }
 }
 
 extension FieldDefinition {

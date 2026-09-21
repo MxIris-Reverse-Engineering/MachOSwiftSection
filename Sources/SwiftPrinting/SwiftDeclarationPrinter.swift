@@ -815,6 +815,12 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
         }
         for attribute in variable.attributes {
             Keyword(attribute.keyword)
+            // An `@objc(name)` the source spelled out (evolution proposal
+            // `objc-member-selector-recovery`): the selector the ObjC method
+            // table carries is not the one the compiler derives from the name.
+            if attribute == .objc, let objcMember = variable.objcMember, objcMember.hasExplicitSelector {
+                Standard("(\(objcMember.selector))")
+            }
             Space()
         }
         var printer = SemanticVariableNodePrinter(isStored: variable.isStored, isOverride: variable.isOverride, isClassMember: variable.isClassMember, isFinal: variable.isFinal, hasSetter: variable.hasSetter, indentation: level, delegate: self)
@@ -825,6 +831,12 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
     public func printThrowingFunction(_ function: FunctionDefinition, level: Int) async throws -> SemanticString {
         for attribute in function.attributes {
             Keyword(attribute.keyword)
+            // An `@objc(name)` the source spelled out (evolution proposal
+            // `objc-member-selector-recovery`): the selector the ObjC method
+            // table carries is not the one the compiler derives from the name.
+            if attribute == .objc, let objcMember = function.objcMember, objcMember.hasExplicitSelector {
+                Standard("(\(objcMember.selector))")
+            }
             Space()
         }
         var printer = SemanticFunctionNodePrinter(isOverride: function.isOverride, isClassMember: function.isClassMember, isFinal: function.isFinal, delegate: self)
@@ -835,6 +847,12 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
     public func printThrowingSubscript(_ `subscript`: SubscriptDefinition, level: Int) async throws -> SemanticString {
         for attribute in `subscript`.attributes {
             Keyword(attribute.keyword)
+            // An `@objc(name)` the source spelled out (evolution proposal
+            // `objc-member-selector-recovery`): the selector the ObjC method
+            // table carries is not the one the compiler derives from the name.
+            if attribute == .objc, let objcMember = `subscript`.objcMember, objcMember.hasExplicitSelector {
+                Standard("(\(objcMember.selector))")
+            }
             Space()
         }
         var printer = SemanticSubscriptNodePrinter(isOverride: `subscript`.isOverride, isClassMember: `subscript`.isClassMember, isFinal: `subscript`.isFinal, hasSetter: `subscript`.hasSetter, indentation: level, delegate: self)

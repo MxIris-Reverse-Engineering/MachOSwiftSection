@@ -3,12 +3,15 @@ import MachOKit
 import MachOKitExtensions
 @_spi(Internals) import MachOCaches
 
-/// What the ObjC side knows about one class that the `override` recovery
-/// needs (evolution proposal `objc-ancestor-override-recovery`): the class's
-/// own method table — selector, instance/class, where the IMP is — and, for
-/// every ancestor up the superclass chain, the selectors that ancestor
-/// implements. A selector of the class's own table that an ancestor also
-/// implements is an override; nothing else about the ancestors matters here.
+/// What the ObjC side knows about one class that the member recovery needs
+/// (evolution proposals `objc-ancestor-override-recovery` and
+/// `objc-member-selector-recovery`): the class's own method table —
+/// selector, instance/class, where the IMP is — and, for every ancestor up
+/// the superclass chain, the selectors that ancestor implements, plus the
+/// selectors of the `@objc` protocols the class adopts. A selector of the
+/// class's own table that an ancestor also implements is an override; one
+/// a protocol declares is a witness whose selector is the requirement's;
+/// nothing else about the ancestors or protocols matters here.
 ///
 /// The value is deliberately reader-agnostic: a host that already indexed the
 /// image's ObjC metadata (RuntimeViewer, or the library's own
@@ -40,19 +43,50 @@ public struct ObjCClassHierarchy: Sendable {
     }
 
     /// One ancestor and the selectors it implements — its own class object's
-    /// method lists, categories the linker or dyld attached to it included.
+    /// method lists, categories the linker or dyld attached to it included —
+    /// plus the selectors of the protocols it adopts: a conformance is
+    /// inherited, so a subclass member satisfying an ancestor's protocol
+    /// requirement takes the requirement's selector just as a direct
+    /// witness does (`NSTableView`'s `NSDraggingSource` for a subclass's
+    /// `draggingSession(_:movedTo:)`).
     public struct Ancestor: Sendable {
         public let className: String
         public let instanceSelectors: Set<String>
         public let classSelectors: Set<String>
+        public let adoptedProtocolSelectors: AdoptedProtocolSelectors?
 
-        public init(className: String, instanceSelectors: Set<String>, classSelectors: Set<String>) {
+        public init(className: String, instanceSelectors: Set<String>, classSelectors: Set<String>, adoptedProtocolSelectors: AdoptedProtocolSelectors? = nil) {
             self.className = className
             self.instanceSelectors = instanceSelectors
             self.classSelectors = classSelectors
+            self.adoptedProtocolSelectors = adoptedProtocolSelectors
         }
 
         public func implements(selector: String, isClassMethod: Bool) -> Bool {
+            isClassMethod ? classSelectors.contains(selector) : instanceSelectors.contains(selector)
+        }
+    }
+
+    /// The selectors of the `@objc` protocols the class adopts — its own
+    /// `class_ro_t.baseProtocols` and its categories', the protocols those
+    /// inherit included, required and optional requirements alike. A member
+    /// answering to one of them is a witness, and its selector is the
+    /// requirement's, never derived from the Swift name.
+    public struct AdoptedProtocolSelectors: Sendable, Hashable {
+        public let instanceSelectors: Set<String>
+        public let classSelectors: Set<String>
+        /// `false` when a protocol could not be read — a standalone file's
+        /// protocol from another image is a bind with nothing behind it — so
+        /// a selector absent from the sets is UNKNOWN, not absent.
+        public let isComplete: Bool
+
+        public init(instanceSelectors: Set<String>, classSelectors: Set<String>, isComplete: Bool) {
+            self.instanceSelectors = instanceSelectors
+            self.classSelectors = classSelectors
+            self.isComplete = isComplete
+        }
+
+        public func declares(selector: String, isClassMethod: Bool) -> Bool {
             isClassMethod ? classSelectors.contains(selector) : instanceSelectors.contains(selector)
         }
     }
@@ -62,7 +96,9 @@ public struct ObjCClassHierarchy: Sendable {
     /// (`_TtC7SwiftUI21CustomMarkedSliderCell`).
     public let className: String
 
-    /// The class's own methods, instance and class alike.
+    /// The class's own methods, instance and class alike — its class object's
+    /// method lists plus the categories of the same image that target it (a
+    /// Swift `extension` with `@objc` members compiles to one).
     public let methods: [Method]
 
     /// The superclass chain, nearest ancestor first.
@@ -78,18 +114,40 @@ public struct ObjCClassHierarchy: Sendable {
     /// The name of the superclass the chain could not follow, when known.
     public let unresolvedAncestorName: String?
 
-    public init(className: String, methods: [Method], ancestors: [Ancestor], isAncestorChainComplete: Bool, unresolvedAncestorName: String? = nil) {
+    /// The adopted protocols' selectors, `nil` when the source knows nothing
+    /// about them (a provider that does not track protocols).
+    public let adoptedProtocolSelectors: AdoptedProtocolSelectors?
+
+    public init(className: String, methods: [Method], ancestors: [Ancestor], isAncestorChainComplete: Bool, unresolvedAncestorName: String? = nil, adoptedProtocolSelectors: AdoptedProtocolSelectors? = nil) {
         self.className = className
         self.methods = methods
         self.ancestors = ancestors
         self.isAncestorChainComplete = isAncestorChainComplete
         self.unresolvedAncestorName = unresolvedAncestorName
+        self.adoptedProtocolSelectors = adoptedProtocolSelectors
     }
 
     /// The nearest ancestor implementing `selector`, or `nil` when none does —
     /// which, if the chain is complete, means the member is not an override.
     public func ancestorDeclaring(selector: String, isClassMethod: Bool) -> Ancestor? {
         ancestors.first { $0.implements(selector: selector, isClassMethod: isClassMethod) }
+    }
+
+    /// Whether an `@objc` protocol the class or an ancestor adopts, as far
+    /// as the source could read them, declares `selector` — `false` also
+    /// when nothing is known, so a caller that wants "provably a witness"
+    /// gets exactly that.
+    public func adoptedProtocolDeclares(selector: String, isClassMethod: Bool) -> Bool {
+        if adoptedProtocolSelectors?.declares(selector: selector, isClassMethod: isClassMethod) == true { return true }
+        return ancestors.contains { $0.adoptedProtocolSelectors?.declares(selector: selector, isClassMethod: isClassMethod) == true }
+    }
+
+    /// Whether every protocol the class and its ancestors adopt was read in
+    /// full — the precondition for ruling a selector NOT inherited from a
+    /// requirement.
+    public var isAdoptedProtocolSetComplete: Bool {
+        guard adoptedProtocolSelectors?.isComplete == true else { return false }
+        return ancestors.allSatisfy { $0.adoptedProtocolSelectors?.isComplete == true }
     }
 }
 

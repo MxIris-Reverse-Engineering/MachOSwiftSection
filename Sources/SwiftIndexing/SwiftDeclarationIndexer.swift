@@ -956,13 +956,25 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
                         extensionDefinition.attachObjCImplementation(facts)
                         eventDispatcher.dispatch(.objcImplementationClassRecognized(context: SwiftIndexEvents.ObjCImplementationClassContext(className: className, evidence: facts.evidence.description, isInferred: facts.evidence.isInferred, instanceVariableCount: facts.instanceVariables.count, memberCount: memberCount)))
                     }
-                    // `override` of ObjC-inherited members (evolution proposal
-                    // `objc-ancestor-override-recovery`): the class has no
-                    // Swift vtable, so its own ObjC method table against its
-                    // ancestors' is the only evidence. Nil for a class this
-                    // image does not define (a plain category on NSObject).
-                    if let table = ObjCAncestorOverrides.table(forObjCClassNamed: className, in: machO) {
-                        extensionDefinition.applyObjCAncestorOverrides(table)
+                    // The class's ObjC method table (evolution proposals
+                    // `objc-ancestor-override-recovery` and
+                    // `objc-member-selector-recovery`): an `@implementation`
+                    // class has no Swift vtable, so the table is the only
+                    // evidence of `@objc`, `override` and explicit selectors —
+                    // and for a class this image does not define, the table
+                    // holds the image's categories on it (a Swift `extension
+                    // NSView` with `@objc` members). Nil when there is neither.
+                    if let table = ObjCMembers.table(forObjCClassNamed: className, in: machO) {
+                        extensionDefinition.applyObjCMembers(table)
+                    }
+                } else if case .type(.class) = kind, let qualifiedName = NodeTypeNaming.nominalQualifiedName(of: node.materialize()) {
+                    // A Swift class's own extension: its `@objc` members
+                    // compiled to a category on the class, which the table
+                    // folds in — `@objc` (stripped thunks or not), an
+                    // `override` of an ObjC-inherited member declared in the
+                    // extension, an explicit selector.
+                    if let table = ObjCMembers.table(forSwiftClassQualifiedName: qualifiedName, in: machO), !table.isEmpty {
+                        extensionDefinition.applyObjCMembers(table)
                     }
                 }
 

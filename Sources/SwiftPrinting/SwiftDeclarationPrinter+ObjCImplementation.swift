@@ -42,6 +42,12 @@ extension SwiftDeclarationPrinter {
     func printThrowingObjCImplementationStoredProperty(_ variable: VariableDefinition, storage: ObjCImplementationClassFacts.InstanceVariable, level: Int) async throws -> SemanticString {
         for attribute in variable.attributes {
             Keyword(attribute.keyword)
+            // An `@objc(name)` the source spelled out (evolution proposal
+            // `objc-member-selector-recovery`): the selector the ObjC method
+            // table carries is not the one the compiler derives from the name.
+            if attribute == .objc, let objcMember = variable.objcMember, objcMember.hasExplicitSelector {
+                Standard("(\(objcMember.selector))")
+            }
             Space()
         }
         // A stored property with no setter symbol was declared `let`.

@@ -37,11 +37,12 @@ package struct ObjCImplementationClassDumper<MachO: MachOFieldLayoutRenderable>:
 
     private var facts: ObjCImplementationClassFacts { dumped.facts }
 
-    /// The class's overrides of ObjC-inherited members (evolution proposal
-    /// `objc-ancestor-override-recovery`), by selector — the ObjC method lines
-    /// name the ancestor they override.
-    private var objcAncestorOverrideTable: ObjCAncestorOverrideTable? {
-        ObjCAncestorOverrides.table(forObjCClassNamed: facts.className, in: machO)
+    /// The class's ObjC method table tied to its Swift members (evolution
+    /// proposals `objc-ancestor-override-recovery` and
+    /// `objc-member-selector-recovery`) — the ObjC method lines name the
+    /// ancestor they override, the Swift member lines their selector.
+    private var objcMemberTable: ObjCMemberTable? {
+        ObjCMembers.table(forObjCClassNamed: facts.className, in: machO)
     }
 
     private var demangleResolver: DemangleResolver {
@@ -95,19 +96,19 @@ package struct ObjCImplementationClassDumper<MachO: MachOFieldLayoutRenderable>:
                 Indent(level: 1)
                 Comment("Implemented in Swift module \(implementingModuleName)")
             }
-            let objcAncestorOverrideTable = objcAncestorOverrideTable
-            if let hierarchy = objcAncestorOverrideTable?.hierarchy, !hierarchy.ancestors.isEmpty {
+            let objcMemberTable = objcMemberTable
+            if let hierarchy = objcMemberTable?.hierarchy, !hierarchy.ancestors.isEmpty {
                 BreakLine()
                 Indent(level: 1)
-                Comment(ObjCAncestorOverrideRendering.ancestorChainComment(for: hierarchy))
+                Comment(ObjCMemberRendering.ancestorChainComment(for: hierarchy))
             }
             BreakLine()
 
             try await instanceVariables
 
-            methods(facts.instanceMethods, title: "ObjC instance methods", selectorPrefix: "-", isClassMethod: false, overrideTable: objcAncestorOverrideTable)
+            methods(facts.instanceMethods, title: "ObjC instance methods", selectorPrefix: "-", isClassMethod: false, memberTable: objcMemberTable)
 
-            methods(facts.classMethods, title: "ObjC class methods", selectorPrefix: "+", isClassMethod: true, overrideTable: objcAncestorOverrideTable)
+            methods(facts.classMethods, title: "ObjC class methods", selectorPrefix: "+", isClassMethod: true, memberTable: objcMemberTable)
 
             properties
 
@@ -169,7 +170,7 @@ package struct ObjCImplementationClassDumper<MachO: MachOFieldLayoutRenderable>:
     }
 
     @SemanticStringBuilder
-    private func methods(_ methods: [ObjCImplementationClassFacts.Method], title: String, selectorPrefix: String, isClassMethod: Bool, overrideTable: ObjCAncestorOverrideTable?) -> SemanticString {
+    private func methods(_ methods: [ObjCImplementationClassFacts.Method], title: String, selectorPrefix: String, isClassMethod: Bool, memberTable: ObjCMemberTable?) -> SemanticString {
         for (offset, method) in methods.offsetEnumerated() {
             if offset.isStart {
                 BreakLine()
@@ -183,7 +184,7 @@ package struct ObjCImplementationClassDumper<MachO: MachOFieldLayoutRenderable>:
             Indent(level: 1)
             FunctionDeclaration("\(selectorPrefix)[\(facts.className) \(method.selector)]")
             Space()
-            Comment(methodComment(for: method, overridden: overrideTable?.hierarchy.ancestorDeclaring(selector: method.selector, isClassMethod: isClassMethod), isUnattributed: overrideTable?.unattributedOverriddenMethods.contains { $0.selector == method.selector && $0.isClassMethod == isClassMethod } ?? false))
+            Comment(methodComment(for: method, overridden: memberTable?.hierarchy.ancestorDeclaring(selector: method.selector, isClassMethod: isClassMethod), isUnattributed: memberTable?.unattributedMethods.contains { $0.selector == method.selector && $0.isClassMethod == isClassMethod } ?? false))
             if offset.isEnd {
                 BreakLine()
             }
@@ -201,8 +202,10 @@ package struct ObjCImplementationClassDumper<MachO: MachOFieldLayoutRenderable>:
             parts.append(method.implementationSymbolNames.joined(separator: " / "))
         }
         if let ancestor {
-            let ancestorName = ObjCAncestorOverrideRendering.displayName(forAncestorClassNamed: ancestor.className)
+            let ancestorName = ObjCMemberRendering.displayName(forClassNamed: ancestor.className)
             parts.append(isUnattributed ? "overrides \(ancestorName) (no Swift member tied to this IMP)" : "overrides \(ancestorName)")
+        } else if isUnattributed {
+            parts.append("no Swift member tied to this IMP")
         }
         return parts.joined(separator: ", ")
     }
@@ -242,7 +245,7 @@ package struct ObjCImplementationClassDumper<MachO: MachOFieldLayoutRenderable>:
     @SemanticStringBuilder
     private var swiftMembers: SemanticString {
         get async throws {
-            let objcAncestorOverrideTable = objcAncestorOverrideTable
+            let objcMemberTable = objcMemberTable
             for kind in SymbolIndexStore.MemberKind.allCases {
                 let memberSymbols = symbolIndexStore.memberSymbols(of: kind, for: interfaceNameString, in: machO)
                 for (offset, symbol) in memberSymbols.offsetEnumerated() {
@@ -257,14 +260,16 @@ package struct ObjCImplementationClassDumper<MachO: MachOFieldLayoutRenderable>:
                     }
                     if configuration.printExportStatus,
                        !symbolIndexStore.containsSymbol(named: symbol.name + "To", in: machO),
+                       objcMemberTable?.member(forMemberSymbolNamed: symbol.name) == nil,
+                       objcMemberTable?.member(forAllocatorSymbolNamed: symbol.name) == nil,
                        symbolIndexStore.isExportedIncludingDerivedSymbols(name: symbol.name, in: machO) == false {
                         configuration.exportStatusComment()
                     }
                     Indent(level: 1)
                     try await demangleResolver.resolve(for: symbol.demangledNode)
-                    if let override = objcAncestorOverrideTable?.override(forMemberSymbolNamed: symbol.name) ?? objcAncestorOverrideTable?.override(forAllocatorSymbolNamed: symbol.name) {
+                    if let member = objcMemberTable?.member(forMemberSymbolNamed: symbol.name) ?? objcMemberTable?.member(forAllocatorSymbolNamed: symbol.name) {
                         Space()
-                        Comment(ObjCAncestorOverrideRendering.overrideComment(for: override))
+                        Comment(ObjCMemberRendering.memberComment(for: member))
                     }
                     if offset.isEnd {
                         BreakLine()

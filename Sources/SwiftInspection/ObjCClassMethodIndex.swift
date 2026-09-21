@@ -6,23 +6,31 @@ import MachOKitExtensions
 @_spi(Internals) import MachOCaches
 import MachOReading
 
-/// The library's own ``ObjCClassHierarchy`` reader (evolution proposal
-/// `objc-ancestor-override-recovery`): the fallback behind
-/// ``ObjCClassHierarchyProviderStore`` for an image no host registered a
-/// provider for.
+/// The library's own ``ObjCClassHierarchy`` reader (evolution proposals
+/// `objc-ancestor-override-recovery` and `objc-member-selector-recovery`):
+/// the fallback behind ``ObjCClassHierarchyProviderStore`` for an image no
+/// host registered a provider for.
 ///
 /// Per image, the eager part is one pass over `__objc_classlist` reading only
 /// each class object's `class_ro_t` name — the ObjC runtime name → class
 /// object table, and for Swift classes the qualified-name → runtime-name
 /// table the Swift side needs to ask by (a `TypeDefinition` knows its
-/// qualified name, the ObjC side files the class under `_TtC…`). Method lists
-/// are NOT read here: they are read per class on demand and memoized, so an
-/// image's clang classes cost nothing and NSView's two thousand selectors are
-/// read once for AppKit's 173 Swift subclasses. An ancestor in another image
-/// memoizes in THAT image's storage — AppKit's and SwiftUI's classes share
-/// libobjc's `NSObject` — and the memo is keyed by the class object's offset,
-/// so it survives the ObjC reader minting a fresh `MachOFile` per superclass
-/// hop (identifiers are UUID-keyed, so the shared cache finds the same entry).
+/// qualified name, the ObjC side files the class under `_TtC…`) — plus one
+/// pass over `__objc_catlist` reading only each category's target class name.
+/// Method lists are NOT read here: they are read per class on demand and
+/// memoized, so an image's clang classes cost nothing and NSView's two
+/// thousand selectors are read once for AppKit's 173 Swift subclasses. An
+/// ancestor in another image memoizes in THAT image's storage — AppKit's and
+/// SwiftUI's classes share libobjc's `NSObject` — and the memo is keyed by
+/// the class object's offset, so it survives the ObjC reader minting a fresh
+/// `MachOFile` per superclass hop (identifiers are UUID-keyed, so the shared
+/// cache finds the same entry).
+///
+/// A class's own methods include the categories of the same image that
+/// target it (a Swift `extension` with `@objc` members). A category whose
+/// class another image defines (SwiftUI's on `NSView`) gets a hierarchy of
+/// its own under the target class's name: the category's methods, and the
+/// ancestors of the class where the reader can follow the class pointer.
 ///
 /// Cache images and in-process images follow their superclass into other
 /// images; a standalone file whose superclass is a bind stops there and says
@@ -36,6 +44,7 @@ package final class ObjCClassMethodIndex: SharedCache<ObjCClassMethodIndex.Stora
         let className: String
         let instanceSelectors: Set<String>
         let classSelectors: Set<String>
+        let protocolSelectors: RawObjCProtocolSelectors
     }
 
     package final class Storage: @unchecked Sendable {
@@ -47,13 +56,19 @@ package final class ObjCClassMethodIndex: SharedCache<ObjCClassMethodIndex.Stora
         /// refuses to guess.
         let runtimeNamesBySwiftQualifiedName: [String: [String]]
 
+        /// Target class `class_ro_t` name → the image's categories on it, in
+        /// `__objc_catlist` order.
+        let categoriesByTargetClassName: [String: [ObjCCategory64]]
+
         private let lock = NSLock()
         private var selectorSetsByClassOffset: [Int: SelectorSets] = [:]
         private var hierarchiesByClassOffset: [Int: ObjCClassHierarchy] = [:]
+        private var hierarchiesByForeignClassName: [String: ObjCClassHierarchy] = [:]
 
-        init(classObjectsByRuntimeName: [String: ObjCClass64], runtimeNamesBySwiftQualifiedName: [String: [String]]) {
+        init(classObjectsByRuntimeName: [String: ObjCClass64], runtimeNamesBySwiftQualifiedName: [String: [String]], categoriesByTargetClassName: [String: [ObjCCategory64]]) {
             self.classObjectsByRuntimeName = classObjectsByRuntimeName
             self.runtimeNamesBySwiftQualifiedName = runtimeNamesBySwiftQualifiedName
+            self.categoriesByTargetClassName = categoriesByTargetClassName
         }
 
         fileprivate func memoizedSelectorSets(forClassOffset offset: Int) -> SelectorSets? {
@@ -79,6 +94,18 @@ package final class ObjCClassMethodIndex: SharedCache<ObjCClassMethodIndex.Stora
             defer { lock.unlock() }
             hierarchiesByClassOffset[offset] = hierarchy
         }
+
+        fileprivate func memoizedHierarchy(forForeignClassName name: String) -> ObjCClassHierarchy? {
+            lock.lock()
+            defer { lock.unlock() }
+            return hierarchiesByForeignClassName[name]
+        }
+
+        fileprivate func memoize(_ hierarchy: ObjCClassHierarchy, forForeignClassName name: String) {
+            lock.lock()
+            defer { lock.unlock() }
+            hierarchiesByForeignClassName[name] = hierarchy
+        }
     }
 
     override package func buildStorage(for machO: some MachORepresentableWithCache) -> Storage? {
@@ -99,9 +126,10 @@ package final class ObjCClassMethodIndex: SharedCache<ObjCClassMethodIndex.Stora
         storage(in: machO)?.runtimeNamesBySwiftQualifiedName[qualifiedName] ?? []
     }
 
-    /// The hierarchy of the class the image defines under `runtimeName`, or
-    /// `nil` when there is no such class object or it has no ObjC method of
-    /// its own (nothing to attribute — the ancestor walk is skipped).
+    /// The hierarchy of the class the image defines under `runtimeName` —
+    /// or, for a class another image defines, of the image's categories on
+    /// it — or `nil` when there is neither, or no ObjC method of its own
+    /// (nothing to attribute — the ancestor walk is skipped).
     package func hierarchy(forRuntimeName runtimeName: String, in machO: some MachORepresentableWithCache) -> ObjCClassHierarchy? {
         if let machOFile = machO as? MachOFile {
             return hierarchy(forRuntimeName: runtimeName, reader: machOFile)
@@ -112,56 +140,137 @@ package final class ObjCClassMethodIndex: SharedCache<ObjCClassMethodIndex.Stora
     }
 
     private func hierarchy(forRuntimeName runtimeName: String, reader: some ObjCImplementationClassReading) -> ObjCClassHierarchy? {
-        guard let storage = storage(in: reader), let classObject = storage.classObjectsByRuntimeName[runtimeName] else { return nil }
-        if let memoized = storage.memoizedHierarchy(forClassOffset: classObject.offset) {
+        guard let storage = storage(in: reader) else { return nil }
+        let categories = storage.categoriesByTargetClassName[runtimeName] ?? []
+        if let classObject = storage.classObjectsByRuntimeName[runtimeName] {
+            if let memoized = storage.memoizedHierarchy(forClassOffset: classObject.offset) {
+                return memoized
+            }
+            // Computed OUTSIDE the storage lock: the ancestor walk memoizes into
+            // the same storage when an ancestor lives in this image.
+            guard let readOnlyData = reader.instanceReadOnlyData(of: classObject) else { return nil }
+            var methods: [ObjCClassHierarchy.Method] = reader.methods(of: readOnlyData).map {
+                ObjCClassHierarchy.Method(selector: $0.selector, isClassMethod: false, implementation: $0.implementationOffset.map { .offset($0) })
+            }
+            if let metaClass = reader.metaClass(of: classObject), let metaReadOnlyData = reader.instanceReadOnlyData(of: metaClass) {
+                methods += reader.methods(of: metaReadOnlyData).map {
+                    ObjCClassHierarchy.Method(selector: $0.selector, isClassMethod: true, implementation: $0.implementationOffset.map { .offset($0) })
+                }
+            }
+            var protocolSelectors = reader.protocolSelectors(of: readOnlyData)
+            Self.append(categories, to: &methods, protocolSelectors: &protocolSelectors, in: reader)
+            guard !methods.isEmpty else { return nil }
+
+            let chain = ancestors(startingAt: reader.superclassLocation(of: classObject), className: runtimeName)
+            let hierarchy = ObjCClassHierarchy(
+                className: runtimeName,
+                methods: methods,
+                ancestors: chain.ancestors,
+                isAncestorChainComplete: chain.isComplete,
+                unresolvedAncestorName: chain.unresolvedAncestorName,
+                adoptedProtocolSelectors: protocolSelectors.hierarchyValue
+            )
+            storage.memoize(hierarchy, forClassOffset: classObject.offset)
+            return hierarchy
+        }
+
+        // No class object of that name here: the image's categories on a
+        // class another image defines.
+        guard !categories.isEmpty else { return nil }
+        if let memoized = storage.memoizedHierarchy(forForeignClassName: runtimeName) {
             return memoized
         }
-        // Computed OUTSIDE the storage lock: the ancestor walk memoizes into
-        // the same storage when an ancestor lives in this image.
-        guard let readOnlyData = reader.instanceReadOnlyData(of: classObject) else { return nil }
-        var methods: [ObjCClassHierarchy.Method] = reader.methods(of: readOnlyData).map {
-            ObjCClassHierarchy.Method(selector: $0.selector, isClassMethod: false, implementation: $0.implementationOffset.map { .offset($0) })
-        }
-        if let metaClass = reader.metaClass(of: classObject), let metaReadOnlyData = reader.instanceReadOnlyData(of: metaClass) {
-            methods += reader.methods(of: metaReadOnlyData).map {
-                ObjCClassHierarchy.Method(selector: $0.selector, isClassMethod: true, implementation: $0.implementationOffset.map { .offset($0) })
-            }
-        }
+        var methods: [ObjCClassHierarchy.Method] = []
+        var protocolSelectors = RawObjCProtocolSelectors(instanceSelectors: [], classSelectors: [], isComplete: true)
+        Self.append(categories, to: &methods, protocolSelectors: &protocolSelectors, in: reader)
         guard !methods.isEmpty else { return nil }
 
-        var ancestors: [ObjCClassHierarchy.Ancestor] = []
-        var isAncestorChainComplete = true
+        // The class itself is not an ancestor of its own categories (a
+        // category cannot override the class's own method — Swift rejects
+        // the selector collision), so the walk starts at ITS superclass.
+        var chain = AncestorChain(ancestors: [], isComplete: false, unresolvedAncestorName: runtimeName)
+        if let (classReader, classObject) = reader.targetClass(of: categories[0]) {
+            if let readOnlyData = classReader.instanceReadOnlyData(of: classObject) {
+                protocolSelectors.merge(classReader.protocolSelectors(of: readOnlyData))
+            } else {
+                protocolSelectors.isComplete = false
+            }
+            chain = ancestors(startingAt: classReader.superclassLocation(of: classObject), className: runtimeName)
+        } else {
+            protocolSelectors.isComplete = false
+        }
+        let hierarchy = ObjCClassHierarchy(
+            className: runtimeName,
+            methods: methods,
+            ancestors: chain.ancestors,
+            isAncestorChainComplete: chain.isComplete,
+            unresolvedAncestorName: chain.unresolvedAncestorName,
+            adoptedProtocolSelectors: protocolSelectors.hierarchyValue
+        )
+        storage.memoize(hierarchy, forForeignClassName: runtimeName)
+        return hierarchy
+    }
+
+    /// Folds the categories' methods and protocols in. A selector the class
+    /// list already carries is kept once — a dyld cache pre-attaches an
+    /// image's own categories into the class's list-of-lists while
+    /// `__objc_catlist` still names them.
+    private static func append(_ categories: [ObjCCategory64], to methods: inout [ObjCClassHierarchy.Method], protocolSelectors: inout RawObjCProtocolSelectors, in reader: some ObjCImplementationClassReading) {
+        guard !categories.isEmpty else { return }
+        var seen: Set<SelectorKey> = Set(methods.map { SelectorKey(selector: $0.selector, isClassMethod: $0.isClassMethod) })
+        for category in categories {
+            for method in reader.instanceMethods(of: category) where seen.insert(SelectorKey(selector: method.selector, isClassMethod: false)).inserted {
+                methods.append(ObjCClassHierarchy.Method(selector: method.selector, isClassMethod: false, implementation: method.implementationOffset.map { .offset($0) }))
+            }
+            for method in reader.classMethods(of: category) where seen.insert(SelectorKey(selector: method.selector, isClassMethod: true)).inserted {
+                methods.append(ObjCClassHierarchy.Method(selector: method.selector, isClassMethod: true, implementation: method.implementationOffset.map { .offset($0) }))
+            }
+            protocolSelectors.merge(reader.protocolSelectors(of: category))
+        }
+    }
+
+    private struct SelectorKey: Hashable {
+        let selector: String
+        let isClassMethod: Bool
+    }
+
+    private struct AncestorChain {
+        var ancestors: [ObjCClassHierarchy.Ancestor]
+        var isComplete: Bool
         var unresolvedAncestorName: String?
-        var location = reader.superclassLocation(of: classObject)
+    }
+
+    /// Walks the superclass chain from `location` upwards, collecting each
+    /// ancestor's selector sets (memoized in the ancestor's own image).
+    private func ancestors(startingAt location: ObjCSuperclassLocation, className: String) -> AncestorChain {
+        var chain = AncestorChain(ancestors: [], isComplete: true, unresolvedAncestorName: nil)
+        var location = location
         var hopCount = 0
         walk: while true {
             switch location {
             case .root:
                 break walk
             case .unresolvable(let superclassName):
-                isAncestorChainComplete = false
-                unresolvedAncestorName = superclassName
+                chain.isComplete = false
+                chain.unresolvedAncestorName = superclassName
                 break walk
             case .resolved(let ancestorReader, let ancestorClassObject):
                 hopCount += 1
                 guard hopCount <= 64 else {
                     // A superclass cycle is corrupt metadata; refuse to spin.
-                    #log(.error, "superclass chain of \(runtimeName, privacy: .public) exceeds 64 hops; treating it as broken")
-                    isAncestorChainComplete = false
+                    #log(.error, "superclass chain of \(className, privacy: .public) exceeds 64 hops; treating it as broken")
+                    chain.isComplete = false
                     break walk
                 }
                 guard let selectorSets = selectorSets(of: ancestorClassObject, in: ancestorReader) else {
-                    isAncestorChainComplete = false
+                    chain.isComplete = false
                     break walk
                 }
-                ancestors.append(ObjCClassHierarchy.Ancestor(className: selectorSets.className, instanceSelectors: selectorSets.instanceSelectors, classSelectors: selectorSets.classSelectors))
+                chain.ancestors.append(ObjCClassHierarchy.Ancestor(className: selectorSets.className, instanceSelectors: selectorSets.instanceSelectors, classSelectors: selectorSets.classSelectors, adoptedProtocolSelectors: selectorSets.protocolSelectors.hierarchyValue))
                 location = ancestorReader.superclassLocation(of: ancestorClassObject)
             }
         }
-
-        let hierarchy = ObjCClassHierarchy(className: runtimeName, methods: methods, ancestors: ancestors, isAncestorChainComplete: isAncestorChainComplete, unresolvedAncestorName: unresolvedAncestorName)
-        storage.memoize(hierarchy, forClassOffset: classObject.offset)
-        return hierarchy
+        return chain
     }
 
     /// The selectors `classObject` (living in `reader`'s image) implements,
@@ -173,12 +282,19 @@ package final class ObjCClassMethodIndex: SharedCache<ObjCClassMethodIndex.Stora
                 return memoized
             }
             guard let readOnlyData = reader.instanceReadOnlyData(of: classObject), let className = reader.className(of: readOnlyData) else { return nil }
-            let instanceSelectors = Set(reader.methods(of: readOnlyData).map(\.selector))
+            var instanceSelectors = Set(reader.methods(of: readOnlyData).map(\.selector))
             var classSelectors: Set<String> = []
             if let metaClass = reader.metaClass(of: classObject), let metaReadOnlyData = reader.instanceReadOnlyData(of: metaClass) {
                 classSelectors = Set(reader.methods(of: metaReadOnlyData).map(\.selector))
             }
-            let selectorSets = SelectorSets(className: className, instanceSelectors: instanceSelectors, classSelectors: classSelectors)
+            var protocolSelectors = reader.protocolSelectors(of: readOnlyData)
+            // The ancestor's own image may extend it through categories too.
+            for category in storage.categoriesByTargetClassName[className] ?? [] {
+                instanceSelectors.formUnion(reader.instanceMethods(of: category).map(\.selector))
+                classSelectors.formUnion(reader.classMethods(of: category).map(\.selector))
+                protocolSelectors.merge(reader.protocolSelectors(of: category))
+            }
+            let selectorSets = SelectorSets(className: className, instanceSelectors: instanceSelectors, classSelectors: classSelectors, protocolSelectors: protocolSelectors)
             storage.memoize(selectorSets, forClassOffset: classObject.offset)
             return selectorSets
         }
@@ -188,12 +304,9 @@ package final class ObjCClassMethodIndex: SharedCache<ObjCClassMethodIndex.Stora
     // MARK: - Build
 
     private static func build(in machO: some ObjCImplementationClassReading) -> Storage {
-        guard let classObjects = machO.objcImplementationClassObjects() else {
-            return Storage(classObjectsByRuntimeName: [:], runtimeNamesBySwiftQualifiedName: [:])
-        }
         var classObjectsByRuntimeName: [String: ObjCClass64] = [:]
         var runtimeNamesBySwiftQualifiedName: [String: [String]] = [:]
-        for classObject in classObjects {
+        for classObject in machO.objcImplementationClassObjects() ?? [] {
             guard let readOnlyData = machO.instanceReadOnlyData(of: classObject), !readOnlyData.isMetaClass,
                   let runtimeName = machO.className(of: readOnlyData), !runtimeName.isEmpty,
                   classObjectsByRuntimeName[runtimeName] == nil
@@ -203,7 +316,12 @@ package final class ObjCClassMethodIndex: SharedCache<ObjCClassMethodIndex.Stora
                 runtimeNamesBySwiftQualifiedName[qualifiedName, default: []].append(runtimeName)
             }
         }
-        return Storage(classObjectsByRuntimeName: classObjectsByRuntimeName, runtimeNamesBySwiftQualifiedName: runtimeNamesBySwiftQualifiedName)
+        var categoriesByTargetClassName: [String: [ObjCCategory64]] = [:]
+        for category in machO.objcCategories() ?? [] {
+            guard let targetClassName = machO.targetClassName(of: category), !targetClassName.isEmpty else { continue }
+            categoriesByTargetClassName[targetClassName, default: []].append(category)
+        }
+        return Storage(classObjectsByRuntimeName: classObjectsByRuntimeName, runtimeNamesBySwiftQualifiedName: runtimeNamesBySwiftQualifiedName, categoriesByTargetClassName: categoriesByTargetClassName)
     }
 }
 
@@ -218,4 +336,40 @@ enum ObjCSuperclassLocation {
     /// reach (a standalone file's dependency); `String?` is the bound
     /// symbol's class name when the bind names one.
     case unresolvable(String?)
+}
+
+/// The selectors of a protocol list's protocols (inherited protocols
+/// included), before the Swift join.
+struct RawObjCProtocolSelectors {
+    var instanceSelectors: Set<String>
+    var classSelectors: Set<String>
+    /// `false` when a protocol could not be followed.
+    var isComplete: Bool
+
+    mutating func merge(_ other: RawObjCProtocolSelectors) {
+        instanceSelectors.formUnion(other.instanceSelectors)
+        classSelectors.formUnion(other.classSelectors)
+        isComplete = isComplete && other.isComplete
+    }
+
+    /// A selector read as an empty string is a selector the reader could
+    /// not read (a method list in another image of an archived cache whose
+    /// name strings it does not reach — observed for Foundation's
+    /// `NSSecureCoding` from a macOS 15.5 cache's WidgetKit), not a selector:
+    /// the set is then incomplete, and no verdict rests on it.
+    mutating func insert(instanceSelectors: [String]) {
+        for selector in instanceSelectors {
+            if selector.isEmpty { isComplete = false } else { self.instanceSelectors.insert(selector) }
+        }
+    }
+
+    mutating func insert(classSelectors: [String]) {
+        for selector in classSelectors {
+            if selector.isEmpty { isComplete = false } else { self.classSelectors.insert(selector) }
+        }
+    }
+
+    var hierarchyValue: ObjCClassHierarchy.AdoptedProtocolSelectors {
+        .init(instanceSelectors: instanceSelectors, classSelectors: classSelectors, isComplete: isComplete)
+    }
 }
