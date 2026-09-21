@@ -56,3 +56,4 @@
 | draft | [识别 `@objc @implementation` 类：ObjC class 数据与 Swift 符号的联合归属——interface 标注 + 存储属性还原，dump 新增 `objcImplementationClasses` 段](draft-objc-implementation-class-recognition.md) | Implemented |
 | draft | [从 ObjC 祖先链还原 `override`：ObjC 派生 Swift 类与 `@objc @implementation` 类的覆写成员](draft-objc-ancestor-override-recovery.md) | Implemented |
 | draft | [从 ObjC 方法表还原每个 `@objc` 成员：strip 后的 `@objc`、显式 selector 与 category 成员](draft-objc-member-selector-recovery.md) | Implemented |
+| draft | [ObjC 祖先链走依赖闭包：独立文件上的父类与 category 目标类按名字在依赖镜像里解析](draft-objc-ancestor-dependency-closure.md) | Draft |
