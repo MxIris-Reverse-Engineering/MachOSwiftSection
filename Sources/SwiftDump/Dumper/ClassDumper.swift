@@ -412,8 +412,9 @@ package struct ClassDumper<MachO: MachOFieldLayoutRenderable>: TypedDumper {
                 }
             }
             // The name-only third tier over the overriding methods the table
-            // tied to no symbol — only when the image's recovery options ask.
-            let inferredObjCMembers = ObjCMemberRendering.inferredOverrides(for: objcMemberTable, memberSymbols: memberSymbolsByKind.flatMap(\.symbols), in: machO)
+            // tied to no symbol. Always rendered — the comment names the
+            // evidence, so a name-only tie reads as one.
+            let inferredObjCMembers = ObjCMemberRendering.inferredOverrides(for: objcMemberTable, memberSymbols: memberSymbolsByKind.flatMap(\.symbols))
 
             for (kind, memberSymbols) in memberSymbolsByKind {
                 for (offset, symbol) in memberSymbols.offsetEnumerated() {

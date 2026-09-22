@@ -12,12 +12,15 @@ enum ObjCMemberRendering {
     /// here by implementation symbol name: for each overriding method the
     /// table tied to no symbol, the ONE symbol among `memberSymbols` not
     /// already in the table whose shape is the importer's spelling of the
-    /// selector. Empty unless the image's `ObjCMemberRecoveryOptions` ask
-    /// for it, so the default dump stays evidence-only.
-    static func inferredOverrides(for table: ObjCMemberTable?, memberSymbols: [DemangledSymbol], in machO: some MachORepresentableWithCache) -> [String: ObjCMember] {
-        guard let table, !table.unattributedOverriddenMethods.isEmpty,
-              ObjCMemberRecoveryOptionsStore.shared.options(for: machO).infersOverridesFromSelectorNames
-        else { return [:] }
+    /// selector.
+    ///
+    /// Always rendered. The dump names every tie's evidence, so this one
+    /// reads `(selector name, no symbol evidence)` and cannot be mistaken
+    /// for a joined one — where the interface, having only the `override`
+    /// keyword to say it with, asks first
+    /// (`SwiftDeclarationPrintConfiguration.infersObjCOverridesFromSelectorNames`).
+    static func inferredOverrides(for table: ObjCMemberTable?, memberSymbols: [DemangledSymbol]) -> [String: ObjCMember] {
+        guard let table, !table.unattributedOverriddenMethods.isEmpty else { return [:] }
         var shapes: [(key: String, shape: ObjCMemberShape)] = []
         for symbol in memberSymbols {
             guard table.member(forMemberSymbolNamed: symbol.name) == nil,

@@ -17,7 +17,7 @@ public struct VariableDefinition: Sendable, AccessorRepresentable {
     /// A type-level variable whose accessors have vtable method descriptors was declared `class`:
     /// `static` members are implicitly final and never get one (mangling cannot tell them apart).
     /// An ObjC-side override is `class` as well — `override static` is not Swift.
-    public var isClassMember: Bool { isGlobalOrStatic && (hasVTableAccessor || (objcMember?.isOverride ?? false)) }
+    public var isClassMember: Bool { isGlobalOrStatic && (hasVTableAccessor || (objcMember?.isJoinedOverride ?? false)) }
 
     /// The ObjC method one of this property's accessors implements, set at
     /// index time from the class's ObjC method table. See `FunctionDefinition.objcMember`.

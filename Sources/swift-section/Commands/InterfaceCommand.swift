@@ -105,12 +105,14 @@ struct InterfaceCommand: AsyncParsableCommand {
             printConfiguration.applyTransformersEnablingCommentKinds(transformers)
         }
         printConfiguration.staticLayoutDependencyResolution = machOOptions.staticLayoutDependencyResolution
+        // The index records the name-only ObjC tie either way; this decides
+        // whether it prints as `@objc override`.
+        printConfiguration.infersObjCOverridesFromSelectorNames = objcMemberOptions.infersOverridesFromSelectorNames
 
         var configuration = SwiftInterfaceBuilderConfiguration(
             indexConfiguration: .init(
                 showCImportedTypes: showCImportedTypes,
-                dependencySearchPaths: machOOptions.indexDependencySearchPaths,
-                infersObjCOverridesFromSelectorNames: objcMemberOptions.infersOverridesFromSelectorNames
+                dependencySearchPaths: machOOptions.indexDependencySearchPaths
             ),
             printConfiguration: printConfiguration
         )

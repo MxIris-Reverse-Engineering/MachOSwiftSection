@@ -10,14 +10,11 @@ extension ExtensionDefinition {
     /// up by the class's name — the same table serves the main body and any
     /// `@objc(Category) @implementation` extension of the class, since the
     /// linker merged the category's methods into the class object, and the
-    /// library's reader folds `__objc_catlist` in for the rest. The caller
-    /// also passes the image's `ObjCMemberRecoveryOptions` verdict on the
-    /// name-only third tier.
+    /// library's reader folds `__objc_catlist` in for the rest.
     @discardableResult
-    package func applyObjCMembers(_ table: ObjCMemberTable, infersOverridesFromSelectorNames: Bool) -> Int {
+    package func applyObjCMembers(_ table: ObjCMemberTable) -> Int {
         ObjCMemberApplication.apply(
             table,
-            infersOverridesFromSelectorNames: infersOverridesFromSelectorNames,
             functions: &functions,
             variables: &variables,
             subscripts: &subscripts,

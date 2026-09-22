@@ -25,7 +25,7 @@ interface 里 `override` 的唯一来源是 Swift vtable 的 override 表（`Met
 - **联结**（三档证据，前两档都是确定性的，第三档默认关）：
   1. **`To` 符号在 IMP 处**：成员符号名加 `To`（属性按 getter / setter 各自的 accessor 符号，`init` 用 initializing 入口 `…fc`）等于 IMP 处的 Swift 符号名。只对没 strip 的二进制成立——落地时发现 **OS 框架把 `To` thunk 的符号全部 strip 掉了**（dyld cache 里 `-[NSGlassEffectView layout]` 的 IMP 是一段无名代码，而成员实现 `$sSo17NSGlassEffectViewC6AppKitE6layoutyyF` 的符号还在），这一档在系统缓存上一个都对不上。
   2. **thunk 引用成员实现**：IMP 处没有符号时，用 SwiftThunkAnalysis 的 Capstone 解码器把那段 thunk 反汇编，收它 `bl` / 尾调 `b` 的目标和 `adrp` / `add` 物化出来的地址（类方法的 thunk 把实现地址装进 x16 交给一个 outlined helper），落在本类某个 Swift 成员符号上即联结。两道守卫：那个符号 demangle 出来的所属类型必须就是这个类；成员名必须是 importer 对该 selector 的拼法（`viewWillMove(toWindow:)` ↔ `viewWillMoveToWindow:`，`encode(with:)` ↔ `encodeWithCoder:`，`init(coder:)` ↔ `initWithCoder:`，getter 同名、setter `set` + 首字母大写，`is` 前缀可省）——因为被内联的方法体会调用同类的别的成员，没有这道守卫会把 `self.update()` 认成覆写。
-  3. **只按名字**（`ObjCAncestorOverrides.infersOverridesFromSelectorNames`，默认 `false`）：IMP 的代码不引用任何 Swift 符号时（方法体被内联成 `objc_msgSendSuper` 或一个 outlined helper，NSGlassEffectView 的 `clipsToBounds` getter 与 `viewDidHide` 就是），把它归给本类**唯一**一个名字与 selector 一致的成员；两个候选就一个都不标。这一档在 dump 里以 `(selector name, no symbol evidence)` 标出，interface 只打 `override`。
+  3. **只按名字**（2026-09-22 起始终索引，输出由消费者定——见提案 `objc-member-selector-recovery` 的决策日志）：IMP 的代码不引用任何 Swift 符号时（方法体被内联成 `objc_msgSendSuper` 或一个 outlined helper，NSGlassEffectView 的 `clipsToBounds` getter 与 `viewDidHide` 就是），把它归给本类**唯一**一个名字与 selector 一致的成员；两个候选就一个都不标。这一档在 dump 里以 `(selector name, no symbol evidence)` 标出，interface 只打 `override`。
 - **不按 Swift 名字反推 selector**：反向映射有损；第 2、3 档用的是正向检查（给定 selector，成员名是不是它的 importer 拼法），失败只会漏标，不会错标。
 
 ### 数据来源：一个接缝，两个提供者
@@ -78,4 +78,5 @@ interface 里 `override` 的唯一来源是 Swift vtable 的 override 表（`Met
 | 2026-09-20 | dump 的祖先链注释放类头下独占一行，Swift 祖先按限定名显示 | 第一轮 A/B 抓到注释放在成员段末尾且与 `}` 粘连；`class_ro_t.name` 对 Swift 类是 mangled 运行时名，注释里照抄读不懂 |
 | 2026-09-20 | In Progress → Implemented | 实现连同文档合入 `next`；配套文档（实现说明、任务报告）已登记在头部，术语已入术语表；编号按仓库惯例在发布合入 `main` 时分配 |
 | 2026-09-22 | 第 3 档的开关改为按镜像（`ObjCMemberRecoveryOptions` / `ObjCMemberRecoveryOptionsStore`），并接到 indexer 配置与 CLI `--infer-objc-overrides`；默认仍关（随提案 `objc-member-selector-recovery` 的决策日志） | 本提案落地时的 `ObjCAncestorOverrides.infersOverridesFromSelectorNames` 是进程级静态属性，CLI 与 RuntimeViewer 都没接；用户在 AppKit 的 `NSGlassEffectView` 上再次碰到没有 `override` 的内联覆写，要求加开关 |
+| 2026-09-22 | 第 3 档改为始终索引，开关整体移到打印期（dump 无条件渲染，interface 看 `SwiftDeclarationPrintConfiguration.infersObjCOverridesFromSelectorNames`）；按镜像的那套开关删除（随提案 `objc-member-selector-recovery` 的决策日志） | 用户要求「始终索引，输不输出由 printer 决定」。同日早些时候刚落地的按镜像开关只活了半天，因为它解决的是「谁能开」而不是「谁来裁决」——索引期一旦决定不记，消费者就再没有选择的余地 |
 | 2026-09-21 | 旧 `LC_DYLD_INFO` bind 格式的父类槽位不再当根类（随提案 `objc-member-selector-recovery` 落地） | 那种文件（iOS 15.5 模拟器运行时）的 bind 槽位是 0，链曾被打成走完、注释不带 `(bound; chain not resolvable offline)`；读取器补 MachOKitExtensions 的 `resolveBind(fileOffset:)` 取 bind 名并以 `isSwift` 兜底，链注释从此诚实 |

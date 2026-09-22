@@ -18,11 +18,11 @@ import MachOKitExtensions
 /// the same either way, in two tiers of evidence — the `To` thunk symbol at
 /// the IMP, or (stripped) the Swift implementation the IMP's code
 /// references, guarded by the selector being the importer's spelling of the
-/// member's name. The optional third, name-only tier for overrides is not
-/// the table's: the methods neither tier tied are listed as unattributed,
-/// and the consumers infer over them when the image's
-/// `ObjCMemberRecoveryOptions` (in `ObjCMemberRecoveryOptionsStore`) ask
-/// for it — off by default.
+/// member's name. The third, name-only tier for overrides is not the
+/// table's: the methods neither tier tied are listed as unattributed, and
+/// the consumers infer over them — always, recording the tie with
+/// `evidence == .selectorName`, which is what tells a reader of the result
+/// that it rests on a name rather than a symbol.
 ///
 /// Lives in `SwiftThunkAnalysis` rather than next to the hierarchy in
 /// `SwiftInspection` because the second tier decodes the thunk, and the

@@ -22,6 +22,15 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
     @Mutex
     public private(set) var configuration: SwiftDeclarationPrintConfiguration = .init()
 
+    /// This printer's verdict on the ObjC member recovery's NAME-only
+    /// evidence tier, which the index always records and no consumer has to
+    /// act on. Every member read of `override` / `class` / `final` / `@objc`
+    /// goes through `resolvedObjCMemberFacts(trustingSelectorNameEvidence:)`
+    /// with this, so the whole keyword set moves together.
+    var trustsSelectorNameEvidence: Bool {
+        configuration.infersObjCOverridesFromSelectorNames
+    }
+
     /// Resolvers binned per role at registration time (`addTypeNameResolver`),
     /// so each delegate query walks only the resolvers that can answer it and
     /// the print path never runs a conformance cast.
@@ -679,7 +688,8 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
                 // reachable — annotating them would be a false positive
                 // (verified on the fixture: `public override` and
                 // `@objc public dynamic` members both trie-miss).
-                if printExportStatus, !function.isOverride, !function.attributes.contains(.objc) {
+                let objcFacts = function.resolvedObjCMemberFacts(trustingSelectorNameEvidence: trustsSelectorNameEvidence)
+                if printExportStatus, !objcFacts.isOverride, !objcFacts.isObjC {
                     ExportStatusComment(isExported: exportVerdict(forSymbolNames: [function.symbol.name]))
                 }
                 await printFunction(function, level: level)
@@ -700,7 +710,8 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
                 if printMemberAddress, variable.isProtocolExtensionDefault {
                     Comment("protocol-extension default")
                 }
-                if printExportStatus, !variable.isOverride, !variable.attributes.contains(.objc) {
+                let objcFacts = variable.resolvedObjCMemberFacts(trustingSelectorNameEvidence: trustsSelectorNameEvidence)
+                if printExportStatus, !objcFacts.isOverride, !objcFacts.isObjC {
                     ExportStatusComment(isExported: exportVerdict(forSymbolNames: variable.accessors.map(\.symbol.name)))
                 }
                 if let storage = variable.objcImplementationStorage {
@@ -718,7 +729,8 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
                 if printMemberAddress, `subscript`.isProtocolExtensionDefault {
                     Comment("protocol-extension default")
                 }
-                if printExportStatus, !`subscript`.isOverride, !`subscript`.attributes.contains(.objc) {
+                let objcFacts = `subscript`.resolvedObjCMemberFacts(trustingSelectorNameEvidence: trustsSelectorNameEvidence)
+                if printExportStatus, !objcFacts.isOverride, !objcFacts.isObjC {
                     ExportStatusComment(isExported: exportVerdict(forSymbolNames: `subscript`.accessors.map(\.symbol.name)))
                 }
                 await printSubscript(`subscript`, level: level)
@@ -813,49 +825,52 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
             try await printThrowingType(propertyWrapperAttributeTypeNode, isProtocol: false, level: level)
             Space()
         }
-        for attribute in variable.attributes {
+        let objcFacts = variable.resolvedObjCMemberFacts(trustingSelectorNameEvidence: trustsSelectorNameEvidence)
+        for attribute in objcFacts.attributes {
             Keyword(attribute.keyword)
             // An `@objc(name)` the source spelled out (evolution proposal
             // `objc-member-selector-recovery`): the selector the ObjC method
             // table carries is not the one the compiler derives from the name.
-            if attribute == .objc, let objcMember = variable.objcMember, objcMember.hasExplicitSelector {
-                Standard("(\(objcMember.selector))")
+            if attribute == .objc, let explicitSelector = objcFacts.explicitSelector {
+                Standard("(\(explicitSelector))")
             }
             Space()
         }
-        var printer = SemanticVariableNodePrinter(isStored: variable.isStored, isOverride: variable.isOverride, isClassMember: variable.isClassMember, isFinal: variable.isFinal, hasSetter: variable.hasSetter, indentation: level, delegate: self)
+        var printer = SemanticVariableNodePrinter(isStored: variable.isStored, isOverride: objcFacts.isOverride, isClassMember: objcFacts.isClassMember, isFinal: objcFacts.isFinal, hasSetter: variable.hasSetter, indentation: level, delegate: self)
         try await printer.printRoot(variable.node.materialize())
     }
 
     @SemanticStringBuilder
     public func printThrowingFunction(_ function: FunctionDefinition, level: Int) async throws -> SemanticString {
-        for attribute in function.attributes {
+        let objcFacts = function.resolvedObjCMemberFacts(trustingSelectorNameEvidence: trustsSelectorNameEvidence)
+        for attribute in objcFacts.attributes {
             Keyword(attribute.keyword)
             // An `@objc(name)` the source spelled out (evolution proposal
             // `objc-member-selector-recovery`): the selector the ObjC method
             // table carries is not the one the compiler derives from the name.
-            if attribute == .objc, let objcMember = function.objcMember, objcMember.hasExplicitSelector {
-                Standard("(\(objcMember.selector))")
+            if attribute == .objc, let explicitSelector = objcFacts.explicitSelector {
+                Standard("(\(explicitSelector))")
             }
             Space()
         }
-        var printer = SemanticFunctionNodePrinter(isOverride: function.isOverride, isClassMember: function.isClassMember, isFinal: function.isFinal, delegate: self)
+        var printer = SemanticFunctionNodePrinter(isOverride: objcFacts.isOverride, isClassMember: objcFacts.isClassMember, isFinal: objcFacts.isFinal, delegate: self)
         try await printer.printRoot(function.node.materialize())
     }
 
     @SemanticStringBuilder
     public func printThrowingSubscript(_ `subscript`: SubscriptDefinition, level: Int) async throws -> SemanticString {
-        for attribute in `subscript`.attributes {
+        let objcFacts = `subscript`.resolvedObjCMemberFacts(trustingSelectorNameEvidence: trustsSelectorNameEvidence)
+        for attribute in objcFacts.attributes {
             Keyword(attribute.keyword)
             // An `@objc(name)` the source spelled out (evolution proposal
             // `objc-member-selector-recovery`): the selector the ObjC method
             // table carries is not the one the compiler derives from the name.
-            if attribute == .objc, let objcMember = `subscript`.objcMember, objcMember.hasExplicitSelector {
-                Standard("(\(objcMember.selector))")
+            if attribute == .objc, let explicitSelector = objcFacts.explicitSelector {
+                Standard("(\(explicitSelector))")
             }
             Space()
         }
-        var printer = SemanticSubscriptNodePrinter(isOverride: `subscript`.isOverride, isClassMember: `subscript`.isClassMember, isFinal: `subscript`.isFinal, hasSetter: `subscript`.hasSetter, indentation: level, delegate: self)
+        var printer = SemanticSubscriptNodePrinter(isOverride: objcFacts.isOverride, isClassMember: objcFacts.isClassMember, isFinal: objcFacts.isFinal, hasSetter: `subscript`.hasSetter, indentation: level, delegate: self)
         try await printer.printRoot(`subscript`.node.materialize())
     }
 

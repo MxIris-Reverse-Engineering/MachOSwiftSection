@@ -51,7 +51,7 @@ import Testing
 ///   full — the optimizer inlines every small override body (`super.ping()`,
 ///   a constant `description`) into its `To` thunk, so the anonymous IMP
 ///   references no Swift symbol and neither joining tier can tie it; only the
-///   name-only inference (`ObjCMemberRecoveryOptions`) reaches those.
+///   name-only inference (`evidence == .selectorName`) reaches those.
 package enum ObjCImplementationFixture {
     package enum Variant: String, CaseIterable, Sendable {
         case full

@@ -40,13 +40,14 @@ extension SwiftDeclarationPrinter {
 
     @SemanticStringBuilder
     func printThrowingObjCImplementationStoredProperty(_ variable: VariableDefinition, storage: ObjCImplementationClassFacts.InstanceVariable, level: Int) async throws -> SemanticString {
-        for attribute in variable.attributes {
+        let objcFacts = variable.resolvedObjCMemberFacts(trustingSelectorNameEvidence: trustsSelectorNameEvidence)
+        for attribute in objcFacts.attributes {
             Keyword(attribute.keyword)
             // An `@objc(name)` the source spelled out (evolution proposal
             // `objc-member-selector-recovery`): the selector the ObjC method
             // table carries is not the one the compiler derives from the name.
-            if attribute == .objc, let objcMember = variable.objcMember, objcMember.hasExplicitSelector {
-                Standard("(\(objcMember.selector))")
+            if attribute == .objc, let explicitSelector = objcFacts.explicitSelector {
+                Standard("(\(explicitSelector))")
             }
             Space()
         }

@@ -16,8 +16,15 @@ public protocol AccessorRepresentable: Sendable {
 
 extension AccessorRepresentable {
     public var isStored: Bool { accessors.contains { $0.kind == .none } }
+    /// Counts only JOINED ObjC evidence. A tie made from the member's name
+    /// alone is recorded on `objcMember` but acted on by the consumer that
+    /// asked for it — `resolvedObjCMemberFacts(trustingSelectorNameEvidence:)`.
     public var isOverride: Bool {
-        (objcMember?.isOverride ?? false) || accessors.contains(where: { ($0.methodDescriptor?.isMethodOverride ?? false) || ($0.methodDescriptor?.isMethodDefaultOverride ?? false) })
+        (objcMember?.isJoinedOverride ?? false) || hasVTableOverrideAccessor
+    }
+    /// Whether any accessor's vtable method descriptor marks it an override.
+    public var hasVTableOverrideAccessor: Bool {
+        accessors.contains { ($0.methodDescriptor?.isMethodOverride ?? false) || ($0.methodDescriptor?.isMethodDefaultOverride ?? false) }
     }
     public var hasSetter: Bool { accessors.contains { $0.kind == .setter } }
     public var hasModifyAccessor: Bool { accessors.contains { $0.kind == .modifyAccessor } }

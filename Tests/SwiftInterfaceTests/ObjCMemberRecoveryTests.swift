@@ -6,8 +6,8 @@ import MachOFoundation
 import ObjCDump
 import ObjCIndexing
 import ObjCMetadataSource
-import SwiftDeclaration
-import SwiftIndexing
+@_spi(Support) @testable import SwiftDeclaration
+@_spi(Support) @testable import SwiftIndexing
 import SwiftInterface
 import SwiftInspection
 import SwiftThunkAnalysis
@@ -36,10 +36,12 @@ import SwiftThunkAnalysis
 @Suite(.serialized, ExclusiveImageAccess(ObjCImplementationFixture.moduleName))
 struct ObjCMemberRecoveryTests {
     private func interface(of machOFile: MachOFile, dependencySearchPaths: [DependencySearchPath]? = nil, infersObjCOverridesFromSelectorNames: Bool = false) async throws -> String {
-        let configuration = SwiftInterfaceBuilderConfiguration(indexConfiguration: .init(
-            dependencySearchPaths: try dependencySearchPaths ?? ObjCImplementationFixture.dependencySearchPaths(),
-            infersObjCOverridesFromSelectorNames: infersObjCOverridesFromSelectorNames
-        ))
+        let configuration = SwiftInterfaceBuilderConfiguration(
+            indexConfiguration: .init(
+                dependencySearchPaths: try dependencySearchPaths ?? ObjCImplementationFixture.dependencySearchPaths()
+            ),
+            printConfiguration: .init(infersObjCOverridesFromSelectorNames: infersObjCOverridesFromSelectorNames)
+        )
         let builder = try SwiftInterfaceBuilder(configuration: configuration, eventHandlers: [], in: machOFile)
         try await builder.prepare()
         return try await builder.printRoot().string
@@ -202,8 +204,11 @@ struct ObjCMemberRecoveryTests {
 
     /// `-O` inlines every small override body into its thunk, so on the
     /// stripped product neither joining tier ties them: by default the
-    /// overrides go unmarked — reported as unattributed, never guessed —
-    /// exactly what an OS framework's `viewDidHide` looks like.
+    /// interface leaves the overrides unmarked — exactly what an OS
+    /// framework's `viewDidHide` looks like. The table still reports them
+    /// as unattributed, and the index still RECORDS the name-only tie
+    /// (`indexRecordsTheNameOnlyTieWhicheverWayThePrinterRules` below); what
+    /// is off by default is printing it.
     @Test func inlinedOverridesStayUnmarkedByDefault() async throws {
         let machOFile = try ObjCImplementationFixture.machOFile(.optimizedStripped)
         let interface = try await interface(of: machOFile)
@@ -219,14 +224,13 @@ struct ObjCMemberRecoveryTests {
         }
     }
 
-    /// Asked for (`infersObjCOverridesFromSelectorNames`), the third tier
+    /// Asked for (the printer's `infersObjCOverridesFromSelectorNames`), the third tier
     /// attributes each of those methods to the one member whose name is the
     /// importer's spelling of its selector — and nothing else: a method no
     /// ancestor implements (`notAnOverride`, the explicit `pokeUsingForce:`)
     /// is never touched, so the switch can add `override` but never `@objc(name)`.
     @Test func inlinedOverridesAreInferredWhenAsked() async throws {
         let machOFile = try ObjCImplementationFixture.machOFile(.optimizedStripped)
-        defer { ObjCMemberRecoveryOptionsStore.shared.remove(for: machOFile) }
         let interface = try await interface(of: machOFile, infersObjCOverridesFromSelectorNames: true)
         let derived = try #require(block(startingWith: "class SwiftDerivedWidget: __C.ClangWidget", in: interface))
         #expect(derived.contains("override func ping()"))
@@ -251,20 +255,48 @@ struct ObjCMemberRecoveryTests {
         #expect(!implementation.contains("override func poke()"))
     }
 
-    /// The switch is per image, read from the store at each class's indexing.
-    @Test func recoveryOptionsAreRegisteredPerImage() throws {
-        let optimized = try ObjCImplementationFixture.machOFile(.optimizedStripped)
-        let full = try ObjCImplementationFixture.machOFile(.full)
-        #expect(ObjCMemberRecoveryOptionsStore.shared.options(for: optimized) == .default)
-        #expect(!ObjCMemberRecoveryOptions.default.infersOverridesFromSelectorNames)
-        ObjCMemberRecoveryOptionsStore.shared.register(ObjCMemberRecoveryOptions(infersOverridesFromSelectorNames: true), for: optimized)
-        defer { ObjCMemberRecoveryOptionsStore.shared.remove(for: optimized) }
-        #expect(ObjCMemberRecoveryOptionsStore.shared.options(for: optimized).infersOverridesFromSelectorNames)
-        #expect(ObjCMemberRecoveryOptionsStore.shared.contains(in: optimized))
-        #expect(!ObjCMemberRecoveryOptionsStore.shared.options(for: full).infersOverridesFromSelectorNames)
-        #expect(!ObjCMemberRecoveryOptionsStore.shared.contains(in: full))
-        ObjCMemberRecoveryOptionsStore.shared.remove(for: optimized)
-        #expect(!ObjCMemberRecoveryOptionsStore.shared.contains(in: optimized))
+    /// The contract the switch's move to the printer rests on: the index
+    /// runs the name-only tier ALWAYS and records what it found on the
+    /// definition, whichever way a consumer rules. With nobody acting on it
+    /// the fact is there, tagged `.selectorName`, while every index-time
+    /// verdict downstream of it — `isOverride`, the `@objc` attribute, and
+    /// the `final` the recovery derives from the attribute's absence — reads
+    /// exactly as it did before the tier ran.
+    @Test func indexRecordsTheNameOnlyTieWhicheverWayTheConsumerRules() async throws {
+        let machOFile = try ObjCImplementationFixture.machOFile(.optimizedStripped)
+        let indexer = SwiftDeclarationIndexer(
+            configuration: .init(dependencySearchPaths: try ObjCImplementationFixture.dependencySearchPaths()),
+            eventHandlers: [],
+            in: machOFile
+        )
+        try await indexer.prepare()
+        let derived = try #require(indexer.allTypeDefinitions.values.first { $0.typeName.name.hasSuffix(".SwiftDerivedWidget") })
+        nonisolated(unsafe) let unsafeDerived = derived
+        try await unsafeDerived.index(in: machOFile)
+
+        let ping = try #require(unsafeDerived.functions.first { $0.name == "ping" })
+        let member = try #require(ping.objcMember, "the index records the name-only tie with nobody asking for it")
+        #expect(member.evidence == .selectorName)
+        #expect(member.isInferredFromSelectorName)
+        #expect(member.overriddenAncestorClassName == "ClangWidget")
+        // Joined evidence only — so the definition's own properties, and
+        // every index-time consumer reading them, are unmoved by the tie.
+        #expect(!member.isJoinedOverride)
+        #expect(!ping.isOverride)
+        #expect(!ping.attributes.contains(.objc), "an `@objc` written here would reach the `final` recovery, which cannot take it back")
+
+        // The consumer that DOES act on it gets the whole keyword set at
+        // once, `final` suppressed with the rest: a method the ObjC runtime
+        // dispatches is `@objc dynamic`, never final.
+        let trusted = ping.resolvedObjCMemberFacts(trustingSelectorNameEvidence: true)
+        #expect(trusted.isOverride)
+        #expect(trusted.isObjC)
+        #expect(!trusted.isFinal)
+        let untrusted = ping.resolvedObjCMemberFacts(trustingSelectorNameEvidence: false)
+        #expect(untrusted.objcMember == nil)
+        #expect(!untrusted.isOverride)
+        #expect(!untrusted.isObjC)
+        #expect(untrusted.isFinal == ping.isFinal, "not acting on the tie reproduces the definition's own verdict exactly")
     }
 
     /// With no dependency image to look in — a file whose linked images are

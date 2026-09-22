@@ -55,9 +55,6 @@ struct DumpCommand: AsyncParsableCommand, Sendable {
     @OptionGroup
     var demangleOptions: DemangleOptionGroup
 
-    @OptionGroup
-    var objcMemberOptions: ObjCMemberOptionGroup
-
     @OptionGroup(title: "Comment Templates")
     var transformerOptions: TransformerOptionGroup
 
@@ -116,10 +113,6 @@ struct DumpCommand: AsyncParsableCommand, Sendable {
             ObjCAncestorResolver(root: machOFile, searchPaths: machOOptions.indexDependencySearchPaths),
             for: machOFile
         )
-        // Likewise the recovery options: the indexer would register its
-        // configuration's, the dump registers the flag's.
-        ObjCMemberRecoveryOptionsStore.shared.register(objcMemberOptions.recoveryOptions, for: machOFile)
-
         var dumpConfiguration: DumperConfiguration = .demangleOptions(demangleOptions.buildSwiftDumpDemangleOptions())
 
         dumpConfiguration.printMemberAddress = emitMemberAddresses

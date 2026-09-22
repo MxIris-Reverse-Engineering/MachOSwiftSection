@@ -159,11 +159,11 @@ extension SwiftDeclarationPrinter {
         guard isExportFilterEnabled else { return false }
         switch member {
         case .allocator(let function), .function(let function):
-            return isExcludedByExportFilter(isOverride: function.isOverride, isObjC: function.attributes.contains(.objc), symbolNames: [function.symbol.name])
+            return isExcludedByExportFilter(function.resolvedObjCMemberFacts(trustingSelectorNameEvidence: trustsSelectorNameEvidence), symbolNames: [function.symbol.name])
         case .variable(let variable):
-            return isExcludedByExportFilter(isOverride: variable.isOverride, isObjC: variable.attributes.contains(.objc), symbolNames: variable.accessors.map(\.symbol.name))
+            return isExcludedByExportFilter(variable.resolvedObjCMemberFacts(trustingSelectorNameEvidence: trustsSelectorNameEvidence), symbolNames: variable.accessors.map(\.symbol.name))
         case .subscript(let `subscript`):
-            return isExcludedByExportFilter(isOverride: `subscript`.isOverride, isObjC: `subscript`.attributes.contains(.objc), symbolNames: `subscript`.accessors.map(\.symbol.name))
+            return isExcludedByExportFilter(`subscript`.resolvedObjCMemberFacts(trustingSelectorNameEvidence: trustsSelectorNameEvidence), symbolNames: `subscript`.accessors.map(\.symbol.name))
         }
     }
 
@@ -186,7 +186,7 @@ extension SwiftDeclarationPrinter {
         isExportFilterEnabled && exportVerdict(forSymbolNames: symbolNames) == false
     }
 
-    private func isExcludedByExportFilter(isOverride: Bool, isObjC: Bool, symbolNames: [String]) -> Bool {
-        !isOverride && !isObjC && exportVerdict(forSymbolNames: symbolNames) == false
+    private func isExcludedByExportFilter(_ objcFacts: ResolvedObjCMemberFacts, symbolNames: [String]) -> Bool {
+        !objcFacts.isOverride && !objcFacts.isObjC && exportVerdict(forSymbolNames: symbolNames) == false
     }
 }

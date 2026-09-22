@@ -19,8 +19,11 @@ public struct ObjCMember: Sendable, Hashable {
         /// Neither: the IMP's code references no Swift symbol (the body was
         /// inlined — a bare `super` call), and the member is the only one of
         /// the class whose name is the importer's spelling of the selector.
-        /// Only produced when the image's `ObjCMemberRecoveryOptions` ask for
-        /// it (`infersOverridesFromSelectorNames`).
+        /// Always produced — the index records what it found — but it is
+        /// NAME evidence, so a consumer decides whether to act on it. The
+        /// interface printer does so only when asked
+        /// (`SwiftDeclarationPrintConfiguration.infersObjCOverridesFromSelectorNames`);
+        /// the dump always renders it, naming the evidence for what it is.
         case selectorName
 
         public var description: String {
@@ -63,6 +66,18 @@ public struct ObjCMember: Sendable, Hashable {
 
     public var isOverride: Bool { overriddenAncestorClassName != nil }
 
+    /// Whether the tie rests on the member's NAME alone — the third evidence
+    /// tier. The two before it join a symbol; this one picks the single
+    /// member whose name spells the selector, so a consumer that only wants
+    /// joined evidence filters on this.
+    public var isInferredFromSelectorName: Bool { evidence == .selectorName }
+
+    /// An override whose tie rests on a JOINED symbol rather than on the
+    /// member's name — what a definition's plain `isOverride` counts, the
+    /// name-only tier being a verdict its consumer takes through
+    /// `ResolvedObjCMemberFacts`.
+    public var isJoinedOverride: Bool { isOverride && !isInferredFromSelectorName }
+
     /// The same fact with the explicit-selector flag cleared — for a property
     /// tied through its SETTER only, whose selector (`setName:`) is not what
     /// an `@objc(name)` on the property would spell.
@@ -91,8 +106,8 @@ public struct ObjCMemberTable: Sendable {
     /// An ObjC method the join could tie to no Swift symbol: its IMP carries
     /// no symbol and its code references none of the class's members (the
     /// body was inlined). The name-based inference
-    /// (`ObjCMemberRecoveryOptions.infersOverridesFromSelectorNames`), when
-    /// on, works from the overriding ones.
+    /// (``ObjCMemberTable/inferredOverrides(forMemberShapes:)``) works from
+    /// the overriding ones.
     public struct UnattributedMethod: Sendable, Hashable {
         public let selector: String
         public let isClassMethod: Bool

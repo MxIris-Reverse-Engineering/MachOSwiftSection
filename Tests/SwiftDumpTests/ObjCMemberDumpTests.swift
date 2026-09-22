@@ -138,29 +138,20 @@ struct ObjCMemberDumpTests {
         #expect(!output.contains("observerPriority], explicit selector"))
     }
 
-    /// Bodies the optimizer inlined into their thunks tie through nothing;
-    /// by default the member lines carry no ObjC comment and the
-    /// `@implementation` method lines say so. With the image's recovery
-    /// options asking for the name-only tier, both dumpers mark the
-    /// overrides — and name the evidence for what it is.
-    @Test func inlinedOverridesAreTiedByNameOnlyWhenAsked() async throws {
+    /// Bodies the optimizer inlined into their thunks tie through nothing,
+    /// so only the name-only tier reaches them. The dump renders it always —
+    /// it names every tie's evidence, so this one reads `(selector name, no
+    /// symbol evidence)` and cannot be mistaken for a joined one, which is
+    /// why the interface's switch has no counterpart here.
+    @Test func inlinedOverridesAreTiedByNameOnly() async throws {
         let machOFile = try ObjCImplementationFixture.machOFile(.optimizedStripped)
         let moduleName = ObjCImplementationFixture.moduleName
         try await withFixtureWorld(for: machOFile) {
             let classType = try Class(descriptor: try classDescriptor(named: "SwiftDerivedWidget", in: machOFile), in: machOFile)
             let implementationClass = try #require(ObjCImplementationClass.all(in: machOFile).first { $0.facts.className == "DerivedImplementationWidget" })
 
-            let silent = try await classType.dump(using: .demangleOptions(.test), in: machOFile).string
-            #expect(silent.contains("// ObjC ancestor chain: ClangWidget → NSObject\n"))
-            #expect(!silent.contains("ping() -> () // overrides"))
-            #expect(!silent.contains("selector name, no symbol evidence"))
-            let silentImplementation = try await implementationClass.dump(using: .demangleOptions(.test), in: machOFile).string
-            let silentPing = try #require(silentImplementation.split(separator: "\n").first { $0.contains("-[DerivedImplementationWidget ping]") })
-            #expect(silentPing.hasSuffix(", overrides ClangWidget (no Swift member tied to this IMP)"))
-
-            ObjCMemberRecoveryOptionsStore.shared.register(ObjCMemberRecoveryOptions(infersOverridesFromSelectorNames: true), for: machOFile)
-            defer { ObjCMemberRecoveryOptionsStore.shared.remove(for: machOFile) }
             let inferred = try await classType.dump(using: .demangleOptions(.test), in: machOFile).string
+            #expect(inferred.contains("// ObjC ancestor chain: ClangWidget → NSObject\n"))
             #expect(inferred.contains("ping() -> () // overrides -[ClangWidget ping] (selector name, no symbol evidence)"))
             #expect(inferred.contains("pingCount() -> Swift.Int // overrides +[ClangWidget pingCount] (selector name, no symbol evidence)"))
             #expect(inferred.contains("level.getter : Swift.Int // overrides -[ClangWidget level] (selector name, no symbol evidence)"))
@@ -169,6 +160,7 @@ struct ObjCMemberDumpTests {
             // Not an override: the name-only tier never touches it.
             #expect(!inferred.contains("notAnOverride() -> () // @objc"))
             #expect(!inferred.contains("\(moduleName).SwiftDerivedWidget pokeUsingForce:]"))
+
             let inferredImplementation = try await implementationClass.dump(using: .demangleOptions(.test), in: machOFile).string
             let inferredPing = try #require(inferredImplementation.split(separator: "\n").first { $0.contains("-[DerivedImplementationWidget ping]") })
             #expect(inferredPing.hasSuffix(", overrides ClangWidget (selector name, no symbol evidence)"))

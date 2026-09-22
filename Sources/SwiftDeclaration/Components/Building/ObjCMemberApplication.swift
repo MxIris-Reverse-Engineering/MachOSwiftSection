@@ -14,15 +14,17 @@ import SwiftThunkAnalysis
 /// is added when the thunk symbols (stripped in OS frameworks) did not
 /// already supply it.
 package enum ObjCMemberApplication {
-    /// Applies the table and returns how many members it tied. With
-    /// `infersOverridesFromSelectorNames` — the image's
-    /// `ObjCMemberRecoveryOptions`, read by the caller — the name-only third
-    /// tier runs afterwards over the overriding methods the table tied to no
-    /// symbol.
+    /// Applies the table and returns how many members it tied. The name-only
+    /// third tier runs afterwards over the overriding methods the table tied
+    /// to no symbol — always: the index RECORDS what it found, and whether a
+    /// name-only tie is acted on is the consumer's decision, taken from the
+    /// `evidence` on the recovered ``ObjCMember``. That is why the third tier
+    /// alone leaves `attributes` untouched: an `@objc` written there would
+    /// reach the `final` recovery and the export filter, which have no say in
+    /// that decision and cannot take it back.
     @discardableResult
     package static func apply(
         _ table: ObjCMemberTable,
-        infersOverridesFromSelectorNames: Bool,
         functions: inout [FunctionDefinition],
         variables: inout [VariableDefinition],
         subscripts: inout [SubscriptDefinition],
@@ -46,7 +48,7 @@ package enum ObjCMemberApplication {
             addObjCAttribute(to: &allocators[index].attributes)
             markedCount += 1
         }
-        if infersOverridesFromSelectorNames, !table.unattributedOverriddenMethods.isEmpty {
+        if !table.unattributedOverriddenMethods.isEmpty {
             markedCount += inferFromSelectorNames(
                 table,
                 functions: &functions,
@@ -60,11 +62,18 @@ package enum ObjCMemberApplication {
         return markedCount
     }
 
-    /// The optional third tier: an overriding ObjC method tied to no symbol
-    /// (its body was inlined) goes to the ONE still-unmarked member whose
-    /// name is the importer's spelling of its selector. Subscripts take no
-    /// part — an ObjC subscript selector (`objectAtIndexedSubscript:`) is
-    /// never the spelling of a Swift `subscript`.
+    /// The third tier: an overriding ObjC method tied to no symbol (its body
+    /// was inlined) goes to the ONE still-unmarked member whose name is the
+    /// importer's spelling of its selector. Subscripts take no part — an
+    /// ObjC subscript selector (`objectAtIndexedSubscript:`) is never the
+    /// spelling of a Swift `subscript`.
+    ///
+    /// Unlike the two joining tiers this one records the fact ONLY on
+    /// `objcMember`, never as an `@objc` attribute: the attribute is a
+    /// verdict the consumer has not yet taken, and the `final` recovery
+    /// running right after this reads it as proof of `@objc dynamic`.
+    /// `ResolvedObjCMemberFacts` supplies the attribute to whoever does act
+    /// on the name evidence.
     private static func inferFromSelectorNames(
         _ table: ObjCMemberTable,
         functions: inout [FunctionDefinition],
@@ -105,19 +114,14 @@ package enum ObjCMemberApplication {
             switch key {
             case .function(let index):
                 functions[index].objcMember = member
-                addObjCAttribute(to: &functions[index].attributes)
             case .staticFunction(let index):
                 staticFunctions[index].objcMember = member
-                addObjCAttribute(to: &staticFunctions[index].attributes)
             case .variable(let index):
                 variables[index].objcMember = member
-                addObjCAttribute(to: &variables[index].attributes)
             case .staticVariable(let index):
                 staticVariables[index].objcMember = member
-                addObjCAttribute(to: &staticVariables[index].attributes)
             case .allocator(let index):
                 allocators[index].objcMember = member
-                addObjCAttribute(to: &allocators[index].attributes)
             }
         }
         return inferred.count

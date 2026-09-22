@@ -22,12 +22,16 @@ public struct FunctionDefinition: Sendable {
     // non-nil descriptor the left side is always `.some(bool)` and the
     // default-override predicate is never consulted (the historical form
     // returned `false` for every `.methodDefaultOverride` wrapper).
-    public var isOverride: Bool { (objcMember?.isOverride ?? false) || (methodDescriptor?.isMethodOverride ?? false) || (methodDescriptor?.isMethodDefaultOverride ?? false) }
+    ///
+    /// Counts only JOINED ObjC evidence. A tie made from the member's name
+    /// alone is recorded on `objcMember` but acted on by the consumer that
+    /// asked for it — `resolvedObjCMemberFacts(trustingSelectorNameEvidence:)`.
+    public var isOverride: Bool { (objcMember?.isJoinedOverride ?? false) || (methodDescriptor?.isMethodOverride ?? false) || (methodDescriptor?.isMethodDefaultOverride ?? false) }
 
     /// A type-level function with a vtable method descriptor was declared `class`:
     /// `static` members are implicitly final and never get one (mangling cannot tell them apart).
     /// An ObjC-side override is `class` as well — `override static` is not Swift.
-    public var isClassMember: Bool { kind == .function && isGlobalOrStatic && (methodDescriptor != nil || (objcMember?.isOverride ?? false)) }
+    public var isClassMember: Bool { kind == .function && isGlobalOrStatic && (methodDescriptor != nil || (objcMember?.isJoinedOverride ?? false)) }
 
     /// The ObjC method this member implements (evolution proposals
     /// `objc-ancestor-override-recovery` and `objc-member-selector-recovery`),
