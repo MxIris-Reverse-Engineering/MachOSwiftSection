@@ -35,8 +35,11 @@ import SwiftThunkAnalysis
 /// is per image.
 @Suite(.serialized, ExclusiveImageAccess(ObjCImplementationFixture.moduleName))
 struct ObjCMemberRecoveryTests {
-    private func interface(of machOFile: MachOFile, dependencySearchPaths: [DependencySearchPath]? = nil) async throws -> String {
-        let configuration = SwiftInterfaceBuilderConfiguration(indexConfiguration: .init(dependencySearchPaths: try dependencySearchPaths ?? ObjCImplementationFixture.dependencySearchPaths()))
+    private func interface(of machOFile: MachOFile, dependencySearchPaths: [DependencySearchPath]? = nil, infersObjCOverridesFromSelectorNames: Bool = false) async throws -> String {
+        let configuration = SwiftInterfaceBuilderConfiguration(indexConfiguration: .init(
+            dependencySearchPaths: try dependencySearchPaths ?? ObjCImplementationFixture.dependencySearchPaths(),
+            infersObjCOverridesFromSelectorNames: infersObjCOverridesFromSelectorNames
+        ))
         let builder = try SwiftInterfaceBuilder(configuration: configuration, eventHandlers: [], in: machOFile)
         try await builder.prepare()
         return try await builder.printRoot().string
@@ -193,6 +196,75 @@ struct ObjCMemberRecoveryTests {
         #expect(!table.membersByImplementationSymbolName.isEmpty)
         #expect(table.membersByImplementationSymbolName.values.allSatisfy { $0.evidence == .thunkReference })
         #expect(table.membersByImplementationSymbolName.keys.allSatisfy { !$0.hasSuffix("To") })
+    }
+
+    // MARK: - The name-only third tier
+
+    /// `-O` inlines every small override body into its thunk, so on the
+    /// stripped product neither joining tier ties them: by default the
+    /// overrides go unmarked — reported as unattributed, never guessed —
+    /// exactly what an OS framework's `viewDidHide` looks like.
+    @Test func inlinedOverridesStayUnmarkedByDefault() async throws {
+        let machOFile = try ObjCImplementationFixture.machOFile(.optimizedStripped)
+        let interface = try await interface(of: machOFile)
+        let derived = try #require(block(startingWith: "class SwiftDerivedWidget: __C.ClangWidget", in: interface))
+        #expect(derived.contains("func ping()"))
+        #expect(!derived.contains("override func ping()"))
+        #expect(!derived.contains("override var description"))
+        try await withFixtureWorld(for: machOFile) {
+            let table = try #require(ObjCMembers.table(forSwiftClassQualifiedName: "\(Self.moduleName).SwiftDerivedWidget", in: machOFile))
+            let unattributed = Set(table.unattributedOverriddenMethods.map(\.selector))
+            #expect(unattributed.isSuperset(of: ["ping", "pingCount", "level", "setLevel:", "description", "noteValueForKeyPath:ofObject:"]))
+            #expect(table.overrides.isEmpty)
+        }
+    }
+
+    /// Asked for (`infersObjCOverridesFromSelectorNames`), the third tier
+    /// attributes each of those methods to the one member whose name is the
+    /// importer's spelling of its selector — and nothing else: a method no
+    /// ancestor implements (`notAnOverride`, the explicit `pokeUsingForce:`)
+    /// is never touched, so the switch can add `override` but never `@objc(name)`.
+    @Test func inlinedOverridesAreInferredWhenAsked() async throws {
+        let machOFile = try ObjCImplementationFixture.machOFile(.optimizedStripped)
+        defer { ObjCMemberRecoveryOptionsStore.shared.remove(for: machOFile) }
+        let interface = try await interface(of: machOFile, infersObjCOverridesFromSelectorNames: true)
+        let derived = try #require(block(startingWith: "class SwiftDerivedWidget: __C.ClangWidget", in: interface))
+        #expect(derived.contains("override func ping()"))
+        #expect(derived.contains("override class func pingCount() -> Swift.Int"))
+        #expect(derived.contains("override var level: Swift.Int"))
+        #expect(derived.contains("override var description: Swift.String"))
+        // The category dylib's method, through the closure's files.
+        #expect(derived.contains("override func noteValue(forKeyPath: Swift.String, of: Any)"))
+        #expect(derived.contains("func notAnOverride()"))
+        #expect(!derived.contains("@objc func notAnOverride()"))
+        #expect(!derived.contains("@objc(pokeUsingForce:)"))
+        // The override declared in the extension, and the grandchild's.
+        #expect(interface.contains("override func bump()"))
+        let grandchild = try #require(block(startingWith: "class SwiftGrandchildWidget:", in: interface))
+        #expect(grandchild.contains("override func dynamicHook()"))
+        // The `@implementation` body has no vtable at all, so these come
+        // from the same inference.
+        let implementation = try #require(block(startingWith: "@objc @implementation extension __C.DerivedImplementationWidget {", in: interface))
+        #expect(implementation.contains("override func ping()"))
+        #expect(implementation.contains("override class func pingCount() -> Swift.Int"))
+        #expect(implementation.contains("override var level: Swift.Int"))
+        #expect(!implementation.contains("override func poke()"))
+    }
+
+    /// The switch is per image, read from the store at each class's indexing.
+    @Test func recoveryOptionsAreRegisteredPerImage() throws {
+        let optimized = try ObjCImplementationFixture.machOFile(.optimizedStripped)
+        let full = try ObjCImplementationFixture.machOFile(.full)
+        #expect(ObjCMemberRecoveryOptionsStore.shared.options(for: optimized) == .default)
+        #expect(!ObjCMemberRecoveryOptions.default.infersOverridesFromSelectorNames)
+        ObjCMemberRecoveryOptionsStore.shared.register(ObjCMemberRecoveryOptions(infersOverridesFromSelectorNames: true), for: optimized)
+        defer { ObjCMemberRecoveryOptionsStore.shared.remove(for: optimized) }
+        #expect(ObjCMemberRecoveryOptionsStore.shared.options(for: optimized).infersOverridesFromSelectorNames)
+        #expect(ObjCMemberRecoveryOptionsStore.shared.contains(in: optimized))
+        #expect(!ObjCMemberRecoveryOptionsStore.shared.options(for: full).infersOverridesFromSelectorNames)
+        #expect(!ObjCMemberRecoveryOptionsStore.shared.contains(in: full))
+        ObjCMemberRecoveryOptionsStore.shared.remove(for: optimized)
+        #expect(!ObjCMemberRecoveryOptionsStore.shared.contains(in: optimized))
     }
 
     /// With no dependency image to look in — a file whose linked images are

@@ -404,12 +404,18 @@ package struct ClassDumper<MachO: MachOFieldLayoutRenderable>: TypedDumper {
                 .flatMap { NodeTypeNaming.nominalQualifiedName(ofDemangledRoot: $0) }
                 .flatMap { ObjCMembers.table(forSwiftClassQualifiedName: $0, in: machO) }
 
-            for kind in SymbolIndexStore.MemberKind.allCases {
-                let memberSymbols = if let contextNode {
-                    symbolIndexStore.memberSymbols(of: kind, for: interfaceNameString, node: contextNode, in: machO)
+            let memberSymbolsByKind = SymbolIndexStore.MemberKind.allCases.map { kind in
+                if let contextNode {
+                    (kind: kind, symbols: symbolIndexStore.memberSymbols(of: kind, for: interfaceNameString, node: contextNode, in: machO))
                 } else {
-                    symbolIndexStore.memberSymbols(of: kind, for: interfaceNameString, in: machO)
+                    (kind: kind, symbols: symbolIndexStore.memberSymbols(of: kind, for: interfaceNameString, in: machO))
                 }
+            }
+            // The name-only third tier over the overriding methods the table
+            // tied to no symbol — only when the image's recovery options ask.
+            let inferredObjCMembers = ObjCMemberRendering.inferredOverrides(for: objcMemberTable, memberSymbols: memberSymbolsByKind.flatMap(\.symbols), in: machO)
+
+            for (kind, memberSymbols) in memberSymbolsByKind {
                 for (offset, symbol) in memberSymbols.offsetEnumerated() {
                     if offset.isStart {
                         BreakLine()
@@ -430,6 +436,7 @@ package struct ClassDumper<MachO: MachOFieldLayoutRenderable>: TypedDumper {
                        !symbolIndexStore.containsSymbol(named: symbol.name + "To", in: machO),
                        objcMemberTable?.member(forMemberSymbolNamed: symbol.name) == nil,
                        objcMemberTable?.member(forAllocatorSymbolNamed: symbol.name) == nil,
+                       inferredObjCMembers[symbol.name] == nil,
                        symbolIndexStore.isExportedIncludingDerivedSymbols(name: symbol.name, in: machO) == false {
                         configuration.exportStatusComment()
                     }
@@ -438,7 +445,7 @@ package struct ClassDumper<MachO: MachOFieldLayoutRenderable>: TypedDumper {
 
                     try await demangleResolver.resolve(for: symbol.demangledNode)
 
-                    if let member = objcMemberTable?.member(forMemberSymbolNamed: symbol.name) ?? objcMemberTable?.member(forAllocatorSymbolNamed: symbol.name) {
+                    if let member = objcMemberTable?.member(forMemberSymbolNamed: symbol.name) ?? objcMemberTable?.member(forAllocatorSymbolNamed: symbol.name) ?? inferredObjCMembers[symbol.name] {
                         Space()
                         Comment(ObjCMemberRendering.memberComment(for: member))
                     }

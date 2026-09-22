@@ -36,7 +36,7 @@ import Testing
 /// images, since the runtime attaches it where the readers do not look).
 /// `dependencySearchPaths()` names the dylib for a resolver.
 ///
-/// Four link/strip variants exercise the evidence tiers and the bind formats:
+/// Five link/strip variants exercise the evidence tiers and the bind formats:
 /// - `.full`: every symbol present — accessor, field-offset globals, `To`
 ///   thunks at the class's own IMPs.
 /// - `.strippedLocals` (`strip -x`): only the exported accessor survives,
@@ -47,12 +47,18 @@ import Testing
 ///   pre-macOS 12 `LC_DYLD_INFO` bind format, in which a bound pointer slot —
 ///   a class's superclass in another image — reads as zero in the file. The
 ///   shape of every iOS 15.5 simulator-runtime framework.
+/// - `.optimizedStripped` (`-O`, then `strip -x`): the OS-framework shape in
+///   full — the optimizer inlines every small override body (`super.ping()`,
+///   a constant `description`) into its `To` thunk, so the anonymous IMP
+///   references no Swift symbol and neither joining tier can tie it; only the
+///   name-only inference (`ObjCMemberRecoveryOptions`) reaches those.
 package enum ObjCImplementationFixture {
     package enum Variant: String, CaseIterable, Sendable {
         case full
         case strippedLocals
         case strippedEverything
         case legacyBinds
+        case optimizedStripped
     }
 
     package static let moduleName = "ObjCImplementationFixture"
@@ -307,10 +313,12 @@ package enum ObjCImplementationFixture {
                 // class's non-unique metadata accessor into its one use site,
                 // leaving only the lazy-cache variable behind, and the negative
                 // control would no longer carry the accessor SYMBOL it exists
-                // to exercise. Nothing else the tests pin depends on the level.
+                // to exercise. Nothing else the tests pin depends on the level —
+                // except `.optimizedStripped`, whose whole point is what the
+                // optimizer does to the thunks.
                 var arguments = [
                     "swiftc", "-emit-library", "-module-name", moduleName,
-                    "-import-objc-header", headerURL.path, "-Onone",
+                    "-import-objc-header", headerURL.path, variant == .optimizedStripped ? "-O" : "-Onone",
                     swiftSourceURL.path, variant == .legacyBinds ? legacyObjectURL.path : objectURL.path, categoriesLibraryURL.path, "-framework", "Foundation",
                     "-o", libraryURL.path,
                 ]
@@ -323,7 +331,7 @@ package enum ObjCImplementationFixture {
                     arguments += ["-target", "arm64-apple-macosx11.0"]
                 }
                 try run(step: "swiftc (\(variant.rawValue))", arguments)
-                if variant == .strippedLocals || variant == .strippedEverything {
+                if variant == .strippedLocals || variant == .strippedEverything || variant == .optimizedStripped {
                     try run(step: "strip (\(variant.rawValue))", ["strip", "-x", libraryURL.path])
                 }
                 libraries[variant] = libraryURL

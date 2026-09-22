@@ -216,13 +216,15 @@ public final class ObjCClassHierarchyProviderStore: @unchecked Sendable {
 }
 
 /// Per-image eviction of the hierarchy-side state: the reader index, the
-/// host's provider registration and the ancestor resolver (which holds the
-/// file's dependency images once it has resolved them). The declaration
-/// indexer calls this alongside the other per-image cache evictions.
+/// host's provider registration, the ancestor resolver (which holds the
+/// file's dependency images once it has resolved them) and the recovery
+/// options. The declaration indexer calls this alongside the other per-image
+/// cache evictions.
 public enum ObjCClassHierarchies {
     public static func removeCache(for machO: some MachORepresentableWithCache) {
         ObjCClassMethodIndex.shared.remove(for: machO)
         ObjCClassHierarchyProviderStore.shared.remove(for: machO)
         ObjCAncestorResolverStore.shared.remove(for: machO)
+        ObjCMemberRecoveryOptionsStore.shared.remove(for: machO)
     }
 }

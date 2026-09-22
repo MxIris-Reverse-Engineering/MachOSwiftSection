@@ -3,7 +3,7 @@
 - **状态**: Implemented
 - **作者**: JH
 - **创建日期**: 2026-09-21
-- **最后更新**: 2026-09-21
+- **最后更新**: 2026-09-22
 - **所属愿景**: 无
 - **关联提案**: [draft-objc-ancestor-override-recovery](draft-objc-ancestor-override-recovery.md)（本提案把它的「方法表 → Swift 成员」联结从「只看被覆写的 selector」推广到类的每一条 ObjC 方法，覆写表成为成员表的一个投影）、[0006-final-keyword-and-lazy-accessor-type-recovery](0006-final-keyword-and-lazy-accessor-type-recovery.md)（`final` 还原用 `@objc` 排除 `@objc dynamic` 成员，本提案让这道排除在 strip 后的二进制上重新生效）、[0008-interface-header-and-export-status-annotations](0008-interface-header-and-export-status-annotations.md)（`@objc` 成员豁免 `// not exported`，同理）
 - **实现分支 / PR**: `feature/objc-member-selector-recovery`（worktree `.worktrees/MachOSwiftSection-ObjCImplementationClasses`，自 `next` 分出）
@@ -90,4 +90,5 @@ interface 里成员级 `@objc` 的唯一来源是 `To` thunk 符号 demangle 出
 | 2026-09-21 | 祖先链没走完或协议读不到时不判显式 selector（fail closed） | 第一轮 A/B 在模拟器运行时的 SwiftUI 文件（父类 UIView 是 bind）上判出 35 个显式 selector，几乎全是 `hitTest:withEvent:` / `drawRect:` / `touchesBegan:withEvent:` 这类 UIKit 覆写：合法但误导，读者会以为是自定义命名。提案初稿的「读不到不排除」改成「读不到不判」；fixture 文件腿固定不判、进程内腿固定判出 |
 | 2026-09-21 | 旧 bind 格式的父类槽位按 bind 处理，Swift 类永不当根类 | fail closed 之后 A/B 的 iOS 15.5 模拟器腿仍判出显式 selector：那些框架用 `LC_DYLD_INFO`，bind 槽位在文件里是 0，MachOObjCSection 读成「没有父类」，链被当作走完。读取器补 MachOKitExtensions 的 `resolveBind(fileOffset:)`（认两种格式）取名，再以 `isSwift` 兜底；fixture 加 `.legacyBinds` 变体（`-target arm64-apple-macosx11.0`）固定 |
 | 2026-09-21 | 读成空字符串的协议 selector 视为读失败，集合标不完整 | 第三轮 A/B 的 macOS 15.5 cache 腿仍有一处：WidgetKit 的 `encode(with:)` 被判显式，探针显示它采纳的 Foundation `NSSecureCoding` 跨镜像读出的方法名全是空串——集合「完整」却缺 `encodeWithCoder:`。跨镜像协议方法名的读取问题在 MachOObjCSection，这里只保证不据此下错判 |
+| 2026-09-22 | 第三档的开关从进程级静态属性改为按镜像的 `ObjCMemberRecoveryOptions`，接到 `SwiftDeclarationIndexConfiguration.infersObjCOverridesFromSelectorNames` 与 `dump` / `interface` 的 `--infer-objc-overrides`；默认仍关 | 用户看到 macOS 26.7 AppKit 的 `NSGlassEffectView` 里 `viewDidHide` / `viewDidUnhide` / `encode(with:)` 没有 `override`（lldb 反汇编：IMP 里只剩 `objc_msgSendSuper2` 或 outlined helper，方法体被内联），问第三档怎么推、有没有开关——原开关任何 CLI / 配置都够不到。改按镜像后 dump 也走同一档（`ObjCMemberRendering.inferredOverrides`），fixture 加 `.optimizedStripped` 变体固定；开与不开仍是用户的裁决（「加一个，直接改」） |
 | 2026-09-21 | witness 判定连祖先采纳的协议一起算 | 第四轮 A/B 的进程内腿判出 `SwiftUIOutlineTableView.draggingSession(_:movedTo:)` 为显式 selector——`draggingSession:movedToPoint:` 是 `NSDraggingSource` 的可选要求，conformance 在祖先 `NSTableView` 上，子类的实现继承它的 selector（编译器 `inferObjCName` 查的是全部 conformance）。`Ancestor` 加协议 selector 集合，完整性要求整条链都读完；fixture 给 `WidgetObserving` 加 `@objc(widgetWillPingSoon) optional func widgetWillPing()`、孙类实现，固定「继承的 conformance 不算显式」 |

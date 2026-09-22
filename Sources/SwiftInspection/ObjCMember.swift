@@ -19,7 +19,8 @@ public struct ObjCMember: Sendable, Hashable {
         /// Neither: the IMP's code references no Swift symbol (the body was
         /// inlined — a bare `super` call), and the member is the only one of
         /// the class whose name is the importer's spelling of the selector.
-        /// Only produced when `ObjCMembers.infersOverridesFromSelectorNames` is on.
+        /// Only produced when the image's `ObjCMemberRecoveryOptions` ask for
+        /// it (`infersOverridesFromSelectorNames`).
         case selectorName
 
         public var description: String {
@@ -89,8 +90,9 @@ public struct ObjCMember: Sendable, Hashable {
 public struct ObjCMemberTable: Sendable {
     /// An ObjC method the join could tie to no Swift symbol: its IMP carries
     /// no symbol and its code references none of the class's members (the
-    /// body was inlined). The name-based inference, when on, works from the
-    /// overriding ones.
+    /// body was inlined). The name-based inference
+    /// (`ObjCMemberRecoveryOptions.infersOverridesFromSelectorNames`), when
+    /// on, works from the overriding ones.
     public struct UnattributedMethod: Sendable, Hashable {
         public let selector: String
         public let isClassMethod: Bool

@@ -21,6 +21,9 @@ struct InterfaceCommand: AsyncParsableCommand {
     @OptionGroup
     var machOOptions: MachOOptionGroup
 
+    @OptionGroup
+    var objcMemberOptions: ObjCMemberOptionGroup
+
     @OptionGroup(title: "Comment Templates")
     var transformerOptions: TransformerOptionGroup
 
@@ -106,7 +109,8 @@ struct InterfaceCommand: AsyncParsableCommand {
         var configuration = SwiftInterfaceBuilderConfiguration(
             indexConfiguration: .init(
                 showCImportedTypes: showCImportedTypes,
-                dependencySearchPaths: machOOptions.indexDependencySearchPaths
+                dependencySearchPaths: machOOptions.indexDependencySearchPaths,
+                infersObjCOverridesFromSelectorNames: objcMemberOptions.infersOverridesFromSelectorNames
             ),
             printConfiguration: printConfiguration
         )
