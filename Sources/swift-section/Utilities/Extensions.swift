@@ -20,16 +20,16 @@ extension MachOFile {
         architecture: Architecture?
     ) throws -> MachOFile {
         if isDyldSharedCache || usesSystemDyldSharedCache {
-            let dyldCache: DyldCache
+            let dyldCache: FullDyldCache
             if usesSystemDyldSharedCache {
-                if let host = DyldCache.host {
+                if let host = FullDyldCache.host {
                     dyldCache = host
                 } else {
                     throw SwiftSectionCommandError.unsupportedSystemVersionForDyldSharedCache
                 }
             } else {
                 let url = try URL(fileURLWithPath: required(filePath, error: SwiftSectionCommandError.missingFilePath))
-                dyldCache = try DyldCache(url: url)
+                dyldCache = try FullDyldCache(url: url)
             }
 
             if cacheImagePath != nil, cacheImageName != nil {
