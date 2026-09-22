@@ -18,36 +18,17 @@ import MachOKitExtensions
 /// the same either way, in two tiers of evidence — the `To` thunk symbol at
 /// the IMP, or (stripped) the Swift implementation the IMP's code
 /// references, guarded by the selector being the importer's spelling of the
-/// member's name — plus an optional third, name-only tier for overrides
-/// that is off by default.
+/// member's name. The optional third, name-only tier for overrides is not
+/// the table's: the methods neither tier tied are listed as unattributed,
+/// and the consumers infer over them when the image's
+/// `ObjCMemberRecoveryOptions` (in `ObjCMemberRecoveryOptionsStore`) ask
+/// for it — off by default.
 ///
 /// Lives in `SwiftThunkAnalysis` rather than next to the hierarchy in
 /// `SwiftInspection` because the second tier decodes the thunk, and the
 /// decoder sits here, above `SwiftInspection`.
 @Loggable(.private, subsystem: "com.machoswiftsection.swift-thunk-analysis", category: "ObjCMembers")
 public enum ObjCMembers {
-    /// Whether an overriding ObjC method whose IMP ties to no Swift symbol at
-    /// all (an inlined body) is attributed to the one member of the class
-    /// whose name is the importer's spelling of its selector. Off by default:
-    /// the recovery joins, it does not guess — turn it on to also mark the
-    /// overrides an OS framework's optimizer inlined away.
-    public static var infersOverridesFromSelectorNames: Bool {
-        get {
-            inferenceSwitchLock.lock()
-            defer { inferenceSwitchLock.unlock() }
-            return inferenceSwitchValue
-        }
-        set {
-            inferenceSwitchLock.lock()
-            defer { inferenceSwitchLock.unlock() }
-            inferenceSwitchValue = newValue
-        }
-    }
-
-    // `NSLock`, not `OSAllocatedUnfairLock`: the package deploys to macOS 10.15.
-    private static let inferenceSwitchLock = NSLock()
-    nonisolated(unsafe) private static var inferenceSwitchValue = false
-
     /// The table for the class the image defines under ObjC runtime name
     /// `runtimeName` — a bare name for an ObjC-declared class such as an
     /// `@objc @implementation` one — or for the image's categories on a

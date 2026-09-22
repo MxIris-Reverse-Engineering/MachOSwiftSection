@@ -204,6 +204,9 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
             if claims.objcAncestorResolver {
                 ObjCAncestorResolverStore.shared.remove(for: machO)
             }
+            if claims.objcMemberRecoveryOptions {
+                ObjCMemberRecoveryOptionsStore.shared.remove(for: machO)
+            }
             // Claimed separately from the symbol store: both of these are also
             // populated by SwiftLayout, the renderers and SwiftSpecialization,
             // so "this indexer built the symbol store" says nothing about who
@@ -230,6 +233,13 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
         let oldConfiguration = configuration
 
         configuration = newConfiguration
+
+        if oldConfiguration.infersObjCOverridesFromSelectorNames != newConfiguration.infersObjCOverridesFromSelectorNames {
+            // Read at each class's own indexing, so the definitions not yet
+            // indexed (they index lazily, on first print or browse) pick the
+            // new verdict up; the ones already indexed keep theirs.
+            registerObjCMemberRecoveryOptions()
+        }
 
         if oldConfiguration.showCImportedTypes != newConfiguration.showCImportedTypes {
             // `prepare()` is guarded by `isPrepared`, which nothing ever
@@ -374,7 +384,8 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
                 internedNames: !InternedNodeReferenceCache.shared.contains(in: machO),
                 demangleMemo: !SymbolicDemangler.cacheExists(for: machO),
                 propertyWrapperCatalog: !PropertyWrapperTypeCatalogStore.shared.contains(in: machO),
-                objcAncestorResolver: !ObjCAncestorResolverStore.shared.contains(in: machO)
+                objcAncestorResolver: !ObjCAncestorResolverStore.shared.contains(in: machO),
+                objcMemberRecoveryOptions: !ObjCMemberRecoveryOptionsStore.shared.contains(in: machO)
             )
         }
 
@@ -422,6 +433,17 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
 
         allStorageCache = AllStorageCache()
         isPrepared = true
+    }
+
+    /// Installs the configuration's ObjC member recovery options for the
+    /// image (the name-only override inference switch). Both the type pass
+    /// and the extension pass read the store, so a host that renders without
+    /// an indexer — `swift-section dump` — registers the same way.
+    private func registerObjCMemberRecoveryOptions() {
+        ObjCMemberRecoveryOptionsStore.shared.register(
+            ObjCMemberRecoveryOptions(infersOverridesFromSelectorNames: configuration.infersObjCOverridesFromSelectorNames),
+            for: machO
+        )
     }
 
     /// Installs the two per-image consumers of the configured dependency
@@ -493,6 +515,7 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
             // install it with the configured search paths before any type is
             // indexed, or the store would fall back to the system cache.
             registerDependencyClosureConsumers()
+            registerObjCMemberRecoveryOptions()
             try await indexTypes()
             eventDispatcher.dispatch(.phaseOperationCompleted(phase: .indexing, operation: .typeIndexing))
         } catch {
@@ -1016,7 +1039,7 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
                     // holds the image's categories on it (a Swift `extension
                     // NSView` with `@objc` members). Nil when there is neither.
                     if let table = ObjCMembers.table(forObjCClassNamed: className, in: machO) {
-                        extensionDefinition.applyObjCMembers(table)
+                        extensionDefinition.applyObjCMembers(table, infersOverridesFromSelectorNames: ObjCMemberRecoveryOptionsStore.shared.options(for: machO).infersOverridesFromSelectorNames)
                     }
                 } else if case .type(.class) = kind, let qualifiedName = NodeTypeNaming.nominalQualifiedName(of: node.materialize()) {
                     // A Swift class's own extension: its `@objc` members
@@ -1025,7 +1048,7 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
                     // `override` of an ObjC-inherited member declared in the
                     // extension, an explicit selector.
                     if let table = ObjCMembers.table(forSwiftClassQualifiedName: qualifiedName, in: machO), !table.isEmpty {
-                        extensionDefinition.applyObjCMembers(table)
+                        extensionDefinition.applyObjCMembers(table, infersOverridesFromSelectorNames: ObjCMemberRecoveryOptionsStore.shared.options(for: machO).infersOverridesFromSelectorNames)
                     }
                 }
 
@@ -1509,6 +1532,10 @@ private enum PerImageCacheEvictionRegistry {
         /// catalog, over the same dependency closure, and evicted on the
         /// same terms.
         var objcAncestorResolver: Bool = false
+        /// The per-image `ObjCMemberRecoveryOptions` (the name-only override
+        /// inference switch). Registered by `prepare()` from the indexer's
+        /// configuration, evicted on the same terms.
+        var objcMemberRecoveryOptions: Bool = false
 
         static let none = Claims()
 
@@ -1518,6 +1545,7 @@ private enum PerImageCacheEvictionRegistry {
             demangleMemo = demangleMemo || other.demangleMemo
             propertyWrapperCatalog = propertyWrapperCatalog || other.propertyWrapperCatalog
             objcAncestorResolver = objcAncestorResolver || other.objcAncestorResolver
+            objcMemberRecoveryOptions = objcMemberRecoveryOptions || other.objcMemberRecoveryOptions
         }
 
         /// Pairs the two claims that cannot be honoured independently.

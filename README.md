@@ -184,6 +184,15 @@ swift-section dump /path/to/binary --sections types protocols
 # `@objc`, `override` and `@objc(selector)` from the same recovery.
 swift-section dump /path/to/binary --sections objcImplementationClasses
 
+# An override whose body the optimizer inlined into its thunk (`viewDidHide`,
+# `encodeWithCoder:` in an OS framework) ties to no Swift symbol at all, so by
+# default it is reported as unattributed rather than marked. `--infer-objc-overrides`
+# (dump and interface) attributes such a method to the one member of the class
+# whose name is the importer's spelling of its selector — name evidence only, so
+# the dump marks it `(selector name, no symbol evidence)`; a method no ancestor
+# implements is never touched, so this can add `override` but never `@objc(name)`.
+swift-section interface --infer-objc-overrides /path/to/binary
+
 # Save output to file
 swift-section dump --output-path output.txt /path/to/binary
 

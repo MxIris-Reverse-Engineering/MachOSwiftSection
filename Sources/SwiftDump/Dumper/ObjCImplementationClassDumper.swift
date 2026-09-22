@@ -97,6 +97,9 @@ package struct ObjCImplementationClassDumper<MachO: MachOFieldLayoutRenderable>:
                 Comment("Implemented in Swift module \(implementingModuleName)")
             }
             let objcMemberTable = objcMemberTable
+            // The name-only third tier over the overriding methods the table
+            // tied to no symbol — only when the image's recovery options ask.
+            let inferredObjCMembers = ObjCMemberRendering.inferredOverrides(for: objcMemberTable, memberSymbols: memberSymbolsByKind.flatMap(\.symbols), in: machO)
             if let hierarchy = objcMemberTable?.hierarchy, !hierarchy.ancestors.isEmpty {
                 BreakLine()
                 Indent(level: 1)
@@ -106,15 +109,15 @@ package struct ObjCImplementationClassDumper<MachO: MachOFieldLayoutRenderable>:
 
             try await instanceVariables
 
-            methods(facts.instanceMethods, title: "ObjC instance methods", selectorPrefix: "-", isClassMethod: false, memberTable: objcMemberTable)
+            methods(facts.instanceMethods, title: "ObjC instance methods", selectorPrefix: "-", isClassMethod: false, memberTable: objcMemberTable, inferredMembers: inferredObjCMembers)
 
-            methods(facts.classMethods, title: "ObjC class methods", selectorPrefix: "+", isClassMethod: true, memberTable: objcMemberTable)
+            methods(facts.classMethods, title: "ObjC class methods", selectorPrefix: "+", isClassMethod: true, memberTable: objcMemberTable, inferredMembers: inferredObjCMembers)
 
             properties
 
             protocols
 
-            try await swiftMembers
+            try await swiftMembers(memberTable: objcMemberTable, inferredMembers: inferredObjCMembers)
 
             Standard("}")
         }
@@ -169,8 +172,17 @@ package struct ObjCImplementationClassDumper<MachO: MachOFieldLayoutRenderable>:
         return parts.joined(separator: ", ")
     }
 
+    /// The class's Swift member symbols under the `__C`-qualified interface
+    /// name, per member kind — the list the Swift member section prints and
+    /// the name-only inference reads.
+    private var memberSymbolsByKind: [(kind: SymbolIndexStore.MemberKind, symbols: [DemangledSymbol])] {
+        SymbolIndexStore.MemberKind.allCases.map { kind in
+            (kind: kind, symbols: symbolIndexStore.memberSymbols(of: kind, for: interfaceNameString, in: machO))
+        }
+    }
+
     @SemanticStringBuilder
-    private func methods(_ methods: [ObjCImplementationClassFacts.Method], title: String, selectorPrefix: String, isClassMethod: Bool, memberTable: ObjCMemberTable?) -> SemanticString {
+    private func methods(_ methods: [ObjCImplementationClassFacts.Method], title: String, selectorPrefix: String, isClassMethod: Bool, memberTable: ObjCMemberTable?, inferredMembers: [String: ObjCMember]) -> SemanticString {
         for (offset, method) in methods.offsetEnumerated() {
             if offset.isStart {
                 BreakLine()
@@ -184,14 +196,16 @@ package struct ObjCImplementationClassDumper<MachO: MachOFieldLayoutRenderable>:
             Indent(level: 1)
             FunctionDeclaration("\(selectorPrefix)[\(facts.className) \(method.selector)]")
             Space()
-            Comment(methodComment(for: method, overridden: memberTable?.hierarchy.ancestorDeclaring(selector: method.selector, isClassMethod: isClassMethod), isUnattributed: memberTable?.unattributedMethods.contains { $0.selector == method.selector && $0.isClassMethod == isClassMethod } ?? false))
+            let isInferred = inferredMembers.values.contains { $0.selector == method.selector && $0.isClassMethod == isClassMethod }
+            let isUnattributed = !isInferred && (memberTable?.unattributedMethods.contains { $0.selector == method.selector && $0.isClassMethod == isClassMethod } ?? false)
+            Comment(methodComment(for: method, overridden: memberTable?.hierarchy.ancestorDeclaring(selector: method.selector, isClassMethod: isClassMethod), isUnattributed: isUnattributed, isInferred: isInferred))
             if offset.isEnd {
                 BreakLine()
             }
         }
     }
 
-    private func methodComment(for method: ObjCImplementationClassFacts.Method, overridden ancestor: ObjCClassHierarchy.Ancestor?, isUnattributed: Bool) -> String {
+    private func methodComment(for method: ObjCImplementationClassFacts.Method, overridden ancestor: ObjCClassHierarchy.Ancestor?, isUnattributed: Bool, isInferred: Bool) -> String {
         var parts = ["types \"\(method.typeEncoding)\""]
         if let implementationOffset = method.implementationOffset {
             parts.append("imp 0x\(machO.addressString(forOffset: implementationOffset))")
@@ -203,7 +217,13 @@ package struct ObjCImplementationClassDumper<MachO: MachOFieldLayoutRenderable>:
         }
         if let ancestor {
             let ancestorName = ObjCMemberRendering.displayName(forClassNamed: ancestor.className)
-            parts.append(isUnattributed ? "overrides \(ancestorName) (no Swift member tied to this IMP)" : "overrides \(ancestorName)")
+            if isUnattributed {
+                parts.append("overrides \(ancestorName) (no Swift member tied to this IMP)")
+            } else if isInferred {
+                parts.append("overrides \(ancestorName) (\(ObjCMember.Evidence.selectorName.description))")
+            } else {
+                parts.append("overrides \(ancestorName)")
+            }
         } else if isUnattributed {
             parts.append("no Swift member tied to this IMP")
         }
@@ -243,37 +263,34 @@ package struct ObjCImplementationClassDumper<MachO: MachOFieldLayoutRenderable>:
     }
 
     @SemanticStringBuilder
-    private var swiftMembers: SemanticString {
-        get async throws {
-            let objcMemberTable = objcMemberTable
-            for kind in SymbolIndexStore.MemberKind.allCases {
-                let memberSymbols = symbolIndexStore.memberSymbols(of: kind, for: interfaceNameString, in: machO)
-                for (offset, symbol) in memberSymbols.offsetEnumerated() {
-                    if offset.isStart {
-                        BreakLine()
-                        Indent(level: 1)
-                        InlineComment("Swift " + kind.description)
-                    }
+    private func swiftMembers(memberTable objcMemberTable: ObjCMemberTable?, inferredMembers: [String: ObjCMember]) async throws -> SemanticString {
+        for (kind, memberSymbols) in memberSymbolsByKind {
+            for (offset, symbol) in memberSymbols.offsetEnumerated() {
+                if offset.isStart {
                     BreakLine()
-                    if configuration.printMemberAddress {
-                        configuration.memberAddressComment(offset: symbol.offset, addressString: machO.addressString(forOffset: symbol.offset))
-                    }
-                    if configuration.printExportStatus,
-                       !symbolIndexStore.containsSymbol(named: symbol.name + "To", in: machO),
-                       objcMemberTable?.member(forMemberSymbolNamed: symbol.name) == nil,
-                       objcMemberTable?.member(forAllocatorSymbolNamed: symbol.name) == nil,
-                       symbolIndexStore.isExportedIncludingDerivedSymbols(name: symbol.name, in: machO) == false {
-                        configuration.exportStatusComment()
-                    }
                     Indent(level: 1)
-                    try await demangleResolver.resolve(for: symbol.demangledNode)
-                    if let member = objcMemberTable?.member(forMemberSymbolNamed: symbol.name) ?? objcMemberTable?.member(forAllocatorSymbolNamed: symbol.name) {
-                        Space()
-                        Comment(ObjCMemberRendering.memberComment(for: member))
-                    }
-                    if offset.isEnd {
-                        BreakLine()
-                    }
+                    InlineComment("Swift " + kind.description)
+                }
+                BreakLine()
+                if configuration.printMemberAddress {
+                    configuration.memberAddressComment(offset: symbol.offset, addressString: machO.addressString(forOffset: symbol.offset))
+                }
+                if configuration.printExportStatus,
+                   !symbolIndexStore.containsSymbol(named: symbol.name + "To", in: machO),
+                   objcMemberTable?.member(forMemberSymbolNamed: symbol.name) == nil,
+                   objcMemberTable?.member(forAllocatorSymbolNamed: symbol.name) == nil,
+                   inferredMembers[symbol.name] == nil,
+                   symbolIndexStore.isExportedIncludingDerivedSymbols(name: symbol.name, in: machO) == false {
+                    configuration.exportStatusComment()
+                }
+                Indent(level: 1)
+                try await demangleResolver.resolve(for: symbol.demangledNode)
+                if let member = objcMemberTable?.member(forMemberSymbolNamed: symbol.name) ?? objcMemberTable?.member(forAllocatorSymbolNamed: symbol.name) ?? inferredMembers[symbol.name] {
+                    Space()
+                    Comment(ObjCMemberRendering.memberComment(for: member))
+                }
+                if offset.isEnd {
+                    BreakLine()
                 }
             }
         }

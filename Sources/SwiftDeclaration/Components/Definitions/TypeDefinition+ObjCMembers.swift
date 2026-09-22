@@ -13,7 +13,9 @@ extension TypeDefinition {
     /// one) can be looked up; and only a class with ObjC methods of its own
     /// has anything to attribute — every other case leaves the members as
     /// they are. The facts come from `ObjCMembers`, which asks the host's
-    /// registered hierarchy provider first and the library's own reader second.
+    /// registered hierarchy provider first and the library's own reader second;
+    /// whether the name-only third tier runs over what neither tied is the
+    /// image's registered `ObjCMemberRecoveryOptions`.
     ///
     /// Returns the table when one applied, so the caller can report it.
     @discardableResult
@@ -26,6 +28,7 @@ extension TypeDefinition {
         guard let table = ObjCMembers.table(forSwiftClassQualifiedName: qualifiedName, in: machO), !table.isEmpty else { return nil }
         ObjCMemberApplication.apply(
             table,
+            infersOverridesFromSelectorNames: ObjCMemberRecoveryOptionsStore.shared.options(for: machO).infersOverridesFromSelectorNames,
             functions: &functions,
             variables: &variables,
             subscripts: &subscripts,

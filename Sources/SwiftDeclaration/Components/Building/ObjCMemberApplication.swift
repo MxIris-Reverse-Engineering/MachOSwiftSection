@@ -14,10 +14,15 @@ import SwiftThunkAnalysis
 /// is added when the thunk symbols (stripped in OS frameworks) did not
 /// already supply it.
 package enum ObjCMemberApplication {
-    /// Applies the table and returns how many members it tied.
+    /// Applies the table and returns how many members it tied. With
+    /// `infersOverridesFromSelectorNames` — the image's
+    /// `ObjCMemberRecoveryOptions`, read by the caller — the name-only third
+    /// tier runs afterwards over the overriding methods the table tied to no
+    /// symbol.
     @discardableResult
     package static func apply(
         _ table: ObjCMemberTable,
+        infersOverridesFromSelectorNames: Bool,
         functions: inout [FunctionDefinition],
         variables: inout [VariableDefinition],
         subscripts: inout [SubscriptDefinition],
@@ -41,7 +46,7 @@ package enum ObjCMemberApplication {
             addObjCAttribute(to: &allocators[index].attributes)
             markedCount += 1
         }
-        if ObjCMembers.infersOverridesFromSelectorNames, !table.unattributedOverriddenMethods.isEmpty {
+        if infersOverridesFromSelectorNames, !table.unattributedOverriddenMethods.isEmpty {
             markedCount += inferFromSelectorNames(
                 table,
                 functions: &functions,

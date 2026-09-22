@@ -191,7 +191,7 @@ opaque 尖括号参数归属的第三条规则：协议无任何 anchor 命中�
 
 ### ObjC member table（ObjC 成员表）
 
-一个类的 ObjC 方法表——实例方法表、元类方法表、本镜像 `__objc_catlist` 里指向它的 category——的每一条联结到实现它的 Swift 成员之后得到的 per-class 表（`ObjCMemberTable`，按 Swift 符号名索引 `ObjCMember`）。方法表就是类的 `@objc` 成员清单，运行时靠它派发、strip 不会碰，所以它是三个 Swift 元数据不记的事实的来源：成员是 `@objc`（OS 框架 strip 掉 `To` thunk 符号后这是唯一证据）、它覆写了哪个祖先的成员（selector 在祖先链上有人实现）、它的 selector 是不是源码里 `@objc(name)` 写出来的（与编译器从 Swift 名正向推出的默认值不同，且不是从被覆写者或协议要求继承的——祖先链或协议没读完就不下这个判定）。联结证据分三档：IMP 处的 `To` 符号；反汇编无名 thunk 收它引用的成员实现，配「所属类」与「importer 拼法」两道守卫；只按名字（默认关，只对覆写）。`@objc @implementation` 体不是例外：编译器同样从 Swift 名推导 selector 并要求头文件里有它，`draw(in:)` 要对上 `drawInRect:` 就得写 `@objc(drawInRect:)`。
+一个类的 ObjC 方法表——实例方法表、元类方法表、本镜像 `__objc_catlist` 里指向它的 category——的每一条联结到实现它的 Swift 成员之后得到的 per-class 表（`ObjCMemberTable`，按 Swift 符号名索引 `ObjCMember`）。方法表就是类的 `@objc` 成员清单，运行时靠它派发、strip 不会碰，所以它是三个 Swift 元数据不记的事实的来源：成员是 `@objc`（OS 框架 strip 掉 `To` thunk 符号后这是唯一证据）、它覆写了哪个祖先的成员（selector 在祖先链上有人实现）、它的 selector 是不是源码里 `@objc(name)` 写出来的（与编译器从 Swift 名正向推出的默认值不同，且不是从被覆写者或协议要求继承的——祖先链或协议没读完就不下这个判定）。联结证据分三档：IMP 处的 `To` 符号；反汇编无名 thunk 收它引用的成员实现，配「所属类」与「importer 拼法」两道守卫；只按名字（默认关，只对覆写；按镜像的 `ObjCMemberRecoveryOptions` 打开，CLI `--infer-objc-overrides`）。`@objc @implementation` 体不是例外：编译器同样从 Swift 名推导 selector 并要求头文件里有它，`draw(in:)` 要对上 `drawInRect:` 就得写 `@objc(drawInRect:)`。
 
 - **主要出现在**：`SwiftInspection/ObjCMember.swift`、`SwiftInspection/ObjCMemberShape.swift`、`SwiftThunkAnalysis/ObjCMembers/`、`SwiftDeclaration/Components/Building/ObjCMemberApplication.swift`
 - **延伸阅读**：[提案 draft-objc-member-selector-recovery](Evolutions/draft-objc-member-selector-recovery.md)、[ObjCMemberRecovery.md](Internal/ObjCMemberRecovery.md)
