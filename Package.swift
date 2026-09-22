@@ -421,12 +421,12 @@ extension Target {
             .product(.Semantic),
             .product(.Demangling),
             .product(name: "FoundationToolbox", package: "FrameworkToolbox"),
+            .target(.Utilities),
             .target(.MachOCaches),
+            .target(.MachOFoundation),
             .target(.MachOSwiftSection),
             .target(.MachOSwiftSectionC),
-            .target(.Utilities),
             .target(.SwiftOutputTransformer),
-            .target(.MachOFoundation),
         ],
     )
 
@@ -442,11 +442,11 @@ extension Target {
             .product(.MachOKit),
             .product(.MachOObjCSection),
             .product(.Demangling),
+            .target(.Utilities),
             .target(.MachODependencies),
             .target(.MachOFoundation),
             .target(.MachOSwiftSection),
             .target(.SwiftInspection),
-            .target(.Utilities),
         ],
     )
 
@@ -464,11 +464,11 @@ extension Target {
             .product(.Semantic),
             .product(.Demangling),
             .product(name: "FoundationToolbox", package: "FrameworkToolbox"),
+            .target(.Utilities),
             .target(.MachOCaches),
             .target(.MachODependencies),
             .target(.MachOFoundation),
             .target(.MachOSwiftSection),
-            .target(.Utilities),
             .target(.SwiftOutputTransformer),
             .target(.SwiftInspection),
             .target(.SwiftLayout),
@@ -495,11 +495,11 @@ extension Target {
             .product(.Demangling),
             .product(.Capstone),
             .product(name: "FoundationToolbox", package: "FrameworkToolbox"),
+            .target(.Utilities),
             .target(.MachOCaches),
             .target(.MachOFoundation),
             .target(.MachOSwiftSection),
             .target(.SwiftInspection),
-            .target(.Utilities),
         ],
     )
 
@@ -510,12 +510,12 @@ extension Target {
             .product(.MachOObjCSection),
             .product(.Semantic),
             .product(.Demangling),
-            .target(.MachOSwiftSection),
             .target(.Utilities),
+            .target(.MachOFoundation),
+            .target(.MachOSwiftSection),
             .target(.SwiftInspection),
             .target(.SwiftDeclarationRendering),
             .target(.SwiftThunkAnalysis),
-            .target(.MachOFoundation),
         ],
     )
 
@@ -536,12 +536,12 @@ extension Target {
             // `os_log` that a bare `os.Logger` would need here — this package
             // deploys to macOS 10.15, below `Logger`'s macOS 11.
             .product(name: "FoundationToolbox", package: "FrameworkToolbox"),
+            .target(.Utilities),
+            .target(.MachOFoundation),
             .target(.MachOSwiftSection),
             .target(.SwiftInspection),
             .target(.SwiftDeclarationRendering),
             .target(.SwiftThunkAnalysis),
-            .target(.Utilities),
-            .target(.MachOFoundation),
         ],
     )
 
@@ -560,17 +560,13 @@ extension Target {
             .product(name: "ObjCMetadataSource", package: "MachOObjCSection"),
             .product(.Semantic),
             .product(.Demangling),
+            .target(.Utilities),
+            .target(.MachOFoundation),
             .target(.MachOSwiftSection),
             .target(.SwiftInspection),
-            // The ObjC-ancestor override tables an `@objc @implementation`
-            // extension's members are joined against.
             .target(.SwiftThunkAnalysis),
-            .target(.Utilities),
             .target(.SwiftDeclaration),
-            // The indexer expands opaque types when it freezes associated-type
-            // witnesses (`resolveOpaqueTypeCollectingConditionalCandidates`).
             .target(.SwiftDeclarationRendering),
-            .target(.MachOFoundation),
         ],
     )
 
@@ -585,9 +581,9 @@ extension Target {
             .product(.MachOObjCSection),
             .product(.Semantic),
             .product(.Demangling),
+            .target(.Utilities),
             .target(.MachOSwiftSection),
             .target(.SwiftInspection),
-            .target(.Utilities),
             .target(.SwiftDeclaration),
         ],
     )
@@ -615,14 +611,14 @@ extension Target {
             .product(.MachOObjCSection),
             .product(.Semantic),
             .product(.Demangling),
+            .target(.Utilities),
+            .target(.MachOFoundation),
             .target(.MachOSwiftSection),
             .target(.SwiftOutputTransformer),
             .target(.SwiftInspection),
             .target(.SwiftDeclarationRendering),
-            .target(.Utilities),
             .target(.SwiftDeclaration),
             .target(.SwiftAttributeInference),
-            .target(.MachOFoundation),
         ],
     )
 
@@ -638,10 +634,10 @@ extension Target {
             .product(.MachOObjCSection),
             .product(.Semantic),
             .product(.Demangling),
+            .target(.Utilities),
             .target(.MachOSymbols),
             .target(.MachOSwiftSection),
             .target(.SwiftInspection),
-            .target(.Utilities),
             .target(.SwiftDeclaration),
             .target(.SwiftIndexing),
         ],
@@ -657,12 +653,12 @@ extension Target {
             .product(.MachOObjCSection),
             .product(.Semantic),
             .product(.Demangling),
+            .target(.Utilities),
             .target(.MachODependencies),
             .target(.MachOFoundation),
             .target(.MachOSwiftSection),
             .target(.SwiftInspection),
             .target(.SwiftDeclarationRendering),
-            .target(.Utilities),
             .target(.SwiftDeclaration),
             .target(.SwiftIndexing),
             .target(.SwiftAttributeInference),
@@ -693,6 +689,7 @@ extension Target {
     static let swift_section = Target.executableTarget(
         name: "swift-section",
         dependencies: [
+            .target(.MachOFoundation),
             .target(.SwiftDump),
             .target(.SwiftInspection),
             .target(.SwiftOutputTransformer),
@@ -704,7 +701,6 @@ extension Target {
             .target(.TypeIndexing),
             .product(name: "Rainbow", package: "Rainbow"),
             .product(name: "ArgumentParser", package: "swift-argument-parser"),
-            .target(.MachOFoundation),
         ],
     )
 
