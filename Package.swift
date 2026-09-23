@@ -147,7 +147,9 @@ extension Package.Dependency {
         ),
         remote: .package(
             url: "https://github.com/MxIris-Reverse-Engineering/MachOObjCSection.git",
-            "0.8.105" ..< "0.9.0",
+            // 0.8.106 is the first release with ObjCDiffing, which the `objc`
+            // subcommands (snapshot / diff / evolution) are built on.
+            "0.8.106" ..< "0.9.0",
         ),
     )
 }
@@ -699,6 +701,13 @@ extension Target {
             .target(.SwiftDiffing),
             .target(.SwiftInterface),
             .target(.TypeIndexing),
+            // The `objc` subcommand group (formerly the `objc-section`
+            // executable of MachOObjCSection).
+            .product(name: "ObjCDeclarationRendering", package: "MachOObjCSection"),
+            .product(name: "ObjCDiffing", package: "MachOObjCSection"),
+            .product(name: "ObjCIndexing", package: "MachOObjCSection"),
+            .product(name: "ObjCInterface", package: "MachOObjCSection"),
+            .product(name: "ObjCOutputTransformer", package: "MachOObjCSection"),
             .product(name: "Rainbow", package: "Rainbow"),
             .product(name: "ArgumentParser", package: "swift-argument-parser"),
         ],
@@ -1006,6 +1015,9 @@ extension Target {
             .target(.SwiftOutputTransformer),
             .target(.SwiftDeclarationRendering),
             .target(.SwiftPrinting),
+            // For the `objc` subcommand tests under `ObjC/`.
+            .product(name: "ObjCDeclarationRendering", package: "MachOObjCSection"),
+            .product(name: "ObjCOutputTransformer", package: "MachOObjCSection"),
             .product(name: "ArgumentParser", package: "swift-argument-parser"),
         ],
         swiftSettings: testSettings,

@@ -30,6 +30,14 @@ Public, reference-style documentation. Bilingual (English + 中文).
   `--resolve-c-module-names` resolves types of private frameworks with no SDK module
   (AttributeGraph) from user-supplied mapping files, the both-spellings rule for
   CF-bridged types, section choice, and verification steps.
+- **[Objective-C Command Line — `swift-section objc`](ObjCCommandLine.md)** — the user guide for
+  the `objc` subcommand group (evolution proposal 0036), formerly the
+  `objc-section` executable of MachOObjCSection: the five subcommands and their options, the
+  snapshot / diff / evolution workflow, and four things neither the signatures nor `--help`
+  show — the superclass chain stopping at the image boundary on a file, unreliable ivar
+  records of pure-Swift classes, the baseline `formatVersion` contract, and `dump`'s
+  stderr-only empty-result notes.
+  - 中文版：**[Objective-C 命令行 —— `swift-section objc`](ObjCCommandLine_zh.md)**
 
 Everything under [`Internal/`](Internal/) is maintainer-facing.
 

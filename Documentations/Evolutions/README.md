@@ -43,6 +43,7 @@
 | [0033](0033-by-name-opaque-reference-expansion.md) | 按名字引用的 opaque 类型也展开：独立文件的 witness 用到别的镜像的 `some` 结果时只有一个 bind 名，demangler 解成 `opaqueReturnTypeOf`，dump 印 `<<opaque return type of …>>`，interface 更是把 conformer 印成 witness。rewriter 把描述符符号名重新 mangle 出来、按搜索路径定位镜像、在那个镜像里展开。iOS 26.5 模拟器 SwiftUI dump 207 行 witness → 0 | Implemented |
 | [0034](0034-interface-printer-node-kind-parity.md) | interface 打印器与上游 NodePrinter 的 node kind parity：`dispatchPrintName` 五问全否就什么都不写，缺 `case` 的 node kind 静默渲染成空串（SwiftUI 上 `Predicate<>` 201 处、`-> ` 8 处、`init<>()` 122 处）；补齐类型位置上缺失的 kind，空泛型参数列表不再加尖括号 | Implemented |
 | [0035](0035-node-printer-declaration-layer-and-context-roles.md) | NodePrinter 补声明层协议、Context 按层拆角色：三个成员 printer 的重复逻辑与 9 个字段样板收进默认实现，每个 `*NodePrintable` 只声明自己读写的 Context 属性 | Implemented |
+| [0036](0036-objc-subcommands.md) | 把 objc-section 并入 swift-section：`swift-section objc` 子命令组（只搬命令行，ObjC 的库仍在 MachOObjCSection；与 objc-section 0.8.106 逐字节对比一致） | Implemented |
 | draft | [AGENTS.md 瘦身：指令文件回归指令，架构细节回归文档](draft-agents-md-slimming.md) | Draft |
 | draft | [FieldLayoutRenderable 不再继承 MachOSwiftSectionRepresentableWithCache：渲染能力与 reader 能力解耦，上层约束改用组合 typealias `MachOFieldLayoutRenderable`](draft-field-layout-renderable-decoupling.md) | In Progress |
 | draft | [`Builtin.Borrow` 支持：Swift 6.4 新元数据种类的读取、进程内构建与静态布局](draft-builtin-borrow-support.md) | In Progress |

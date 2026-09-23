@@ -1894,6 +1894,16 @@
 - **关联文档**：[SpecializedInterfaceBoundRenderingRestoration.md](SpecializedInterfaceBoundRenderingRestoration.md)「extension context（同日第二批）」「端到端验证」。
 - **对应版本**：随下一次发布。
 
+## 2026-09-23 objc-section 并入：`swift-section objc` 子命令组（提案 0036）
+
+- **时间段**：2026-09-23（单日）。
+- **动机**：objc-section 原是 MachOObjCSection 仓库里的命令行，而那个仓库是 p-x9/MachOObjCSection 的 fork。fork 独有的命令行加上它的发布流水线，让同步上游的代价太高（用户原话：「这个仓库是fork的，维护两边很麻烦」）。两个命令行也已经在漂移：本仓库把 cache 读取换成了 `FullDyldCache`，objc-section 还是 `DyldCache`；`--sections` 的同源缺陷两边各修了一次；`Architecture` 等三个文件是逐字复制的。
+- **关键决策**：**① 只搬命令行**，ObjC 的库留在 fork（本仓库本来就依赖它）。**② 做成子命令组而不是第二个可执行文件**：一个二进制、一个版本号、一条发布流程，homebrew-core 的配方不用改。**③ 纯搬迁、行为不变**，以 objc-section 0.8.106 的 Release 二进制为基准逐字节对比。**④ `MachOOptionGroup` 不合并**：`next` 上它带着 Swift 专用的 `--dependency-search-path`，合并会让每个 ObjC 子命令多出一个不起作用的参数，所以 ObjC 命令保留 `ObjCMachOOptionGroup`；`Architecture`、`SemanticColorScheme`、`MachOFile.load`、`String` 的着色扩展、`SemanticString.printColorfully` 用本仓库的那份。**⑤ 加载器的报错改用 `SwiftSectionCommandError`**，7 个 case 两边文本逐字相同，`ObjCSectionCommandError` 只留 ObjC 专有的 3 个。**⑥ ObjC 命令随之改用 `FullDyldCache` 读 cache 文件**，对比结果见下。**⑦ fork 那边等本改动随 swift-section 发版后再删**（MachOObjCSection 仓库的提案 0010）。
+- **落地模块**：`swift-section`（`Sources/swift-section/ObjC/` 共 15 个文件，`SwiftSectionCommand` 挂上 `ObjCCommand`）、`Package.swift`（MachOObjCSection 下限 0.8.106，`swift-section` 目标加 5 个 ObjC 产品，`SwiftSectionCommandTests` 加 2 个）、`SwiftSectionCommandTests`（`ObjC/` 下 3 个套件，外加一条根命令接线测试）、`.github/workflows/macOS.yml`（测试白名单加 3 个套件）。
+- **验证**：远程依赖模式（MachOObjCSection 解析到 0.8.106）下构建通过，CLI 目标零警告；`swift test --filter SwiftSectionCommandTests` 原始退出码 0，10 个套件 79 个测试全过。与 objc-section 0.8.106 的 Release 二进制逐字节对比 37 个用例加 5 个子命令的 `--help`：宿主 cache 的 Foundation / AppKit（5.6 MB）/ SwiftUI / SwiftUICore / CoreData 全量 dump、开满全部开关的 dump、`interface`、三种空结果、五种报错、直接读 15.5 与 26.7 的 cache 文件（`DyldCache` → `FullDyldCache` 的那条路径）、三个版本 CoreLocation 的 snapshot，以及 diff / evolution 的文本、`--json`、`--summary-only`、`--fail-on-breaking`。stdout 与退出码全部一致；stderr 只差用法提示里的命令名和 snapshot 写出的文件路径；快照 JSON 只差 `generatorVersion`（0.8.106 → 0.19.0）与 `createdAt`；`diff --help` 只差一处因命令名变长的换行。
+- **关联文档**：提案 [0036](../Evolutions/0036-objc-subcommands.md)；使用指南 [ObjCCommandLine.md](../ObjCCommandLine.md) / [ObjCCommandLine_zh.md](../ObjCCommandLine_zh.md)；README「objc」一节。
+- **对应版本**：随下一次发布；changelog 要写迁移对照 `objc-section <子命令>` → `swift-section objc <子命令>`。
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节

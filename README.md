@@ -150,7 +150,7 @@ You can get the swift-section CLI tool in three ways:
 
 ### Usage
 
-The swift-section CLI tool provides six subcommands: `dump`, `interface`, `diff`, `snapshot`, `evolution`, and `transformer`.
+The swift-section CLI tool provides seven subcommands: `dump`, `interface`, `diff`, `snapshot`, `evolution`, `transformer`, and `objc` — the Objective-C side, with five subcommands of its own.
 
 > [!IMPORTANT]
 > As of 0.10.0, when the input is a fat / universal binary you must pass `--architecture <arch>`. The tool no longer picks a default slice silently.
@@ -485,6 +485,95 @@ swift-section transformer config \
 swift-section dump --transformer-config comments.json /path/to/binary
 swift-section interface --transformer-config comments.json /path/to/binary
 ```
+
+#### objc - Objective-C Declarations and API Diffing
+
+The Objective-C side of a binary, read without loading it into a process — including binaries
+for another architecture or platform. `objc` has five subcommands of its own: `dump` (the
+default), `interface`, `snapshot`, `diff` and `evolution`. They take the same `-n` / `-p` /
+`--dyld-shared-cache` / `--uses-system-dyld-shared-cache` / `-a` input options as the Swift
+commands. The Objective-C libraries underneath live in
+[MachOObjCSection](https://github.com/MxIris-Reverse-Engineering/MachOObjCSection).
+
+> [!NOTE]
+> These commands used to ship as a separate `objc-section` executable from MachOObjCSection,
+> last released as 0.8.106. Options, output and exit codes are unchanged; replace
+> `objc-section <subcommand>` with `swift-section objc <subcommand>`.
+
+```bash
+# Every Objective-C declaration in a binary, as a header
+swift-section objc dump /path/to/Some.framework/Some
+
+# One class, protocol, category, struct or union
+swift-section objc interface NSString /path/to/Some.framework/Some
+
+# An image inside a dyld shared cache
+swift-section objc dump /path/to/dyld_shared_cache_arm64e --dyld-shared-cache -n Foundation
+swift-section objc interface NSError --uses-system-dyld-shared-cache -n Foundation
+
+# A fat binary needs an architecture
+swift-section objc dump /path/to/Universal -a arm64e
+```
+
+Each of the ten generation switches has a flag, and all of them default to off, so a bare
+`dump` prints the metadata as it stands:
+
+```bash
+swift-section objc interface ACAssetSymbolGeneratorOptions ./AssetCatalogFoundation \
+  --strip-synthesized-methods --strip-dtor-method \
+  --emit-ivar-offsets --emit-method-imp-addresses \
+  --c-type-replacement "long long=NSInteger"
+```
+
+```objc
+@interface ACAssetSymbolGeneratorOptions : NSObject {
+    NSInteger targetPlatform; // offset: 8
+    BOOL generateExtensions; // offset: 16
+    ...
+}
+
+@property (nonatomic, readonly) NSInteger targetPlatform;
+...
+
+- (id)init; // IMP: 0x10B400
+
+@end
+```
+
+Other `dump` options: `-s/--sections` to pick declaration kinds (comma-separated:
+`--sections classes,protocols`), `-f/--filter` to match names, `-o/--output-path` to write a
+file, `-c/--color-scheme` for terminal colours, and `-v/--verbose` to report indexing progress
+on stderr. A `dump` that finds nothing still exits 0, but says why on stderr — no Objective-C
+metadata at all, an empty kind named in `--sections`, or a `--filter` that matched nothing.
+
+`snapshot`, `diff` and `evolution` compare the Objective-C API across binaries, with the same
+option spelling as their Swift counterparts. Any input can be a Mach-O / fat binary, a dyld
+shared cache (with `--dyld-shared-cache -n <image>`), or a baseline JSON produced by
+`snapshot`; the two are told apart automatically.
+
+```bash
+# Freeze a binary's Objective-C API as a baseline (indexing is the slow part;
+# comparisons against the JSON later need no original binary)
+swift-section objc snapshot 15.5/dyld_shared_cache_arm64e --dyld-shared-cache -n CoreLocation \
+  --label 15.5 -o CoreLocation-15.5.json
+
+# Classes, protocols and categories, with methods, properties, ivars, protocol
+# adoptions and superclass changes classified as added / removed / modified
+swift-section objc diff CoreLocation-15.5.json CoreLocation-26.5.json
+
+# Every declaration's lifeline across N ordered versions
+swift-section objc evolution CoreLocation-*.json --labels 15.5,26.0,26.5 --summary-only
+```
+
+Both `diff` and `evolution` support `--json`, `--summary-only`, `--fail-on-breaking` (exit
+nonzero on an API-breaking change, for CI gating) and `-o`. Baselines carry a `formatVersion`;
+one written by a different format version is rejected with an error rather than silently
+mis-compared, so regenerate it with the current tool. Baselines written by `objc-section`
+0.8.106 read unchanged.
+
+The contracts that neither the signatures nor `--help` show — how file mode truncates the
+superclass chain, why pure-Swift classes' ivar records do not line up, and the rest — are in
+[Objective-C Command Line](Documentations/ObjCCommandLine.md).
 
 ## Running Tests
 
