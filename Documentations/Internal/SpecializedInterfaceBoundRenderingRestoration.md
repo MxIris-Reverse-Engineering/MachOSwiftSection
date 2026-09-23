@@ -110,19 +110,29 @@ RuntimeViewer 报告：macOS 26.7 上把 AppKit 的 `WindowPortal<A>` 特化成 
 
 - 新增 `SwiftDeclarationRendering/RuntimeTypeNameDemangling.swift`。`node(forMetatype:)` 是库里把运行时 metatype 变成节点的唯一入口：`_mangledTypeName` → `demangleAsNodeTransient` → 把每个 anonymous context 换成它的父节点（child 1），结果与离线命名在 shared cache 里得到的一致。demangler 对同一个 substitution 的每次 back-reference 返回同一个实例，树其实是 DAG，所以替换过程按对象身份 memoize；不含 anonymous context 的子树原样返回同一个实例。
 - 五处调用点全部改走它：`SpecializedMetadataNodeSubstitution`（interface 的头部与字段类型）、`TypedDumper`（dump 的头部与字段类型，原先是逐字重复的一份实现）、`RuntimeFieldLayoutBackend`（布局注释里 `.type` 泛型实参与 pack 元素，此前打出 `(unknown context at $…)`）、`InProcessAccessorFunctionResolution`（进程内求 kind-9 witness）。Sources 里现在只有这个文件直接调用 `_mangledTypeName`，新增的运行时名字来源也必须走它。
-- `BoundDumpedTypeNameRenderer`：父节点渲染为空时不再写分隔符，与 `TypeNodePrintable.printType` 同一规则。它兜住的是打印器仍然拼不出来的上下文，见下文 extension context。
+- `BoundDumpedTypeNameRenderer`：父节点渲染为空时不再写分隔符，与 `TypeNodePrintable.printType` 同一规则。它兜住的是解析器拼不出来的上下文；extension context 在第二批修好之前就是这种情况，见下文。
 
 为什么不给 interface 打印器加一个 `.anonymousContext` 分支：那样只修了 interface 打印器，dump 与布局注释用的 Demangling 打印器照样打出 `(unknown context at $…)`；而且地址本身没有任何值得打印的信息，在源头去掉比让每个打印器各自忽略更一致。
 
 为什么不自己实现 `_mangledTypeName`：讨论过，可行——ABI 模型能读运行时处理的全部 metadata 种类，`SymbolicDemangler` 能从描述符拼出上下文名。但这等于移植约 700 行 C++（`_swift_buildDemanglingForMetadata`，加上从同型约束反推非 key 泛型参数的 `_gatherWrittenGenericParameters`），之后每个 Swift 版本新增的函数类型标志都要跟进；而对 interface 输出，结果与「保留 `_mangledTypeName` + 去掉 anonymous context」一字不差。留待以后单独立项。
 
-### 没有覆盖的：extension context
+### extension context（同日第二批）
 
-类型声明在另一个模块的类型的 extension 里时（`extension NSView { enum Invalidations { … } }`），父上下文是 extension context，interface 打印器同样没有它的分支、打成空。这个问题离线路径也有——macOS 26.5.2 的 AppKit 导出里写的就是 `Invalidations.Tuple<A1, B1>`，缺 `NSView.`——与运行时名字无关，本批不修，作为下一批。本批之后这类特化头部只是不再带开头的点（`struct Tuple<…>`）。RuntimeViewer 的扫描里有 4 例：`NSView.Invalidating`、`NSView.Invalidations.Tuple`、`NSViewController.ViewLoading`、`NSWindowController.WindowLoading`。
+类型声明在另一个模块的类型的 extension 里时（`extension NSView { enum Invalidations { … } }`），父上下文是 extension context，名字里是 `Extension(<扩展所在的模块>, <被扩展的类型>, <泛型签名>?)`。离线命名（`SymbolicDemangler`）和运行时的名字都带这个节点，所以它和运行时名字无关，离线 interface 里也一直错：interface 打印器没有它的分支、打成空，每个引用都丢了被扩展的类型——macOS 26.5.2 的 AppKit 导出里写的就是 `Invalidations.Tuple<A1, B1>`，缺 `NSView.`。第一批之后特化头部只是不再带开头的点（`struct Tuple<…>`）；RuntimeViewer 的扫描里有 4 例：`NSView.Invalidating`、`NSView.Invalidations.Tuple`、`NSViewController.ViewLoading`、`NSWindowController.WindowLoading`。
+
+修复：`TypeNodePrintable.printNameInType` 加一个 `.extension` 分支，打印它的 child 1，也就是被扩展的类型——Demangling 自带的打印器也是这么做的，只是前面多一个 textual interface 写不出来的 `(extension in <模块>):`。被扩展的类型走普通的类型引用路径，所以 `__C` 类会按 C 导入模块的解析规则打印，也各自是一段可跳转的类型引用。
+
+放在分派器而不是 `printType` 里，是因为 extension 节点还有第二个入口：`BoundDumpedTypeNameRenderer` 把父上下文单独交给解析器渲染，不经过 `printType`。分派器加分支不会波及别处：成员声明的打印器（函数、变量、下标）只取标识符和类型子节点，从不打印第 0 个子节点（上下文），所以 extension 节点只会以「类型的上下文」身份进来。dump 路径不受影响：它用的 Demangling 打印器本来就打出 `(extension in AppKit):__C.NSView.Invalidations.Display`。
 
 ### 测试
 
-- `SwiftSpecializationTests/SpecializedRuntimeTypeNameTests`（6 条，走 RuntimeViewer 用的 `printTypeDefinition`）：私有泛型类型的头部；嵌在普通类型里的私有类型（anonymous context 在链中间）；私有类型作泛型实参，头部与字段各一条；展开字段偏移注释里的私有实参；跨模块 extension 里的类型不再以点开头。
+- `SwiftSpecializationTests/SpecializedRuntimeTypeNameTests`（6 条，走 RuntimeViewer 用的 `printTypeDefinition`）：私有泛型类型的头部；嵌在普通类型里的私有类型（anonymous context 在链中间）；私有类型作泛型实参，头部与字段各一条；展开字段偏移注释里的私有实参；跨模块 extension 里的类型（第一批断言不再以点开头，第二批改为断言完整头部 `struct Swift.Int.RuntimeNamedExtensionBox<Swift.Int> {`）。
 - `MachOSwiftSectionTests/SpecializedDumperFieldTypeTests.specializedPrivateStructDeclarationKeepsItsModule`：dump 路径的头部。
-- 修复前 7 条全红，症状与报告一致：`struct .RuntimeNamedPrivateBox<Swift.Int> {`、`struct .RuntimeNamedPrivateNestedBox<Swift.Int> {`、`<RuntimeNamedPrivateArgument>`、`element (SwiftSpecializationTests.(unknown context at $110c34ea0).RuntimeNamedPrivateArgument)`、`struct .RuntimeNamedExtensionBox<Swift.Int> {`；修复后全绿。
+- 第一批修复前以上 7 条全红，症状与报告一致：`struct .RuntimeNamedPrivateBox<Swift.Int> {`、`struct .RuntimeNamedPrivateNestedBox<Swift.Int> {`、`<RuntimeNamedPrivateArgument>`、`element (SwiftSpecializationTests.(unknown context at $110c34ea0).RuntimeNamedPrivateArgument)`、`struct .RuntimeNamedExtensionBox<Swift.Int> {`；修复后全绿。
 - 进程内 kind-9 witness 那一处没有专门的测试：在测试镜像里造出「kind-9 引用 + 私有 witness」不现实，它与另外四处共用同一个函数。
+- `SwiftInterfaceTests/ExtensionContextTypeNameTests`（第二批，3 条）：即时编译一个 dylib，按 `MachOFile` 生成完整 interface（与 `swift-section interface` 同一路径），断言 `Swift.Int` 的 extension 里的类型、其中的泛型类型、以及 `NSObject` 的 extension 里的类型都经被扩展的类型命名；最后一条断言的是「与同一份 interface 里单独引用 `NSObject` 时的写法一致」，不依赖 `__C` 是否被解析成真实模块。修复前 3 条全红（`NestedInExtension`、`GenericNestedInExtension<Swift.String>`、`NestedInObjCClassExtension`），连同收紧后的特化头部那条共 4 条；修复后全绿。
+
+### 端到端验证
+
+- **第一批，RuntimeViewer 会话**（进程内 RuntimeViewerCore 探针，只换 MachOSwiftSection 的版本）：报告的例子变为 `struct AppKit.WindowPortal<AppKit.ButtonContent> {`。AppKit 102 个能特化的泛型类型的头部里，开头带点的从 20 处降到 0，16 个 anonymous context 的例子都补全了限定名（如 `enum AppKit.InProcessAnimation<AppKit.NSAnimatableColor>.Bridged.Phase {`），4 个 extension context 的例子只去掉了点。打开字段偏移、展开字段偏移、type / enum layout、成员地址全部选项生成的完整 interface 里，含 `(unknown context at $…)` 的文件从 32 个降到 0；74 个文件共 233 行变化，全是一对一替换、没有增删行，其中 226 行只差名字（补限定名、去掉 `(unknown context at $…)`、去掉开头的点），另外 7 行是私有嵌套类型补回父链；偏移、布局数值和地址一个都没变。
+- **第二批，本地差分**（基线 `a35daff9` 与候选各编一个 release CLI，共用同一份 `Package.resolved`；输入是当前系统 macOS 26.7 的 dyld shared cache）：AppKit 的 `dump` 逐字节相同（dump 不经过这个打印器）。AppKit / SwiftUI / SwiftUICore 的 `interface` 分别变化 255 / 163 / 734 行，行数不变；逐行检查全部是纯插入——每一行都只是在某个名字前面插入了被扩展的类型，没有删改任何别的字符。插入最多的前缀：AppKit 是 `__C.NSEvent.`（83）、`__C.NSView.`（63）、`__C.NSWorkspace.`（40）、`Foundation.AttributeScopes.`（29）；SwiftUI 是 `SwiftUI.DisplayList.`（32）、`SwiftUI.AccessibilityAttachment.`（31）、`Foundation.AttributedString.`（22）；SwiftUICore 是 `SwiftUI.Material.`（176）、`SwiftUI.Color.`（153）、`SwiftUI.Edge.`（84）。例子：`where B == Invalidations.Tuple<A1, B1>` → `where B == __C.NSView.Invalidations.Tuple<A1, B1>`，`[_Shadow]` → `[__C.CALayer._Shadow]`，`Layer.SDFLayer` → `SwiftUI.Material.Layer.SDFLayer`。被扩展的类型是泛型时按语法糖打印（SwiftUICore 的 `[A].PublicEncoding`），这种写法编译器接受（`typealias Y = [Int].Foo` 能通过类型检查）。没有用 `Scripts/run-rendering-ab-verification.py`：它写死的归档 cache 目录 `macOS/26.6` 已经不存在（卷上现在是 `26.6.2` 与 `26.7`），脚本会静默地只跑 `15.5` 那一条腿，而且它的框架清单里没有 AppKit。
