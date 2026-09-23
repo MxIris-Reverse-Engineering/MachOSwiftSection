@@ -1874,6 +1874,16 @@
 - **关联文档**：提案 [draft-objc-ancestor-dependency-closure](../Evolutions/draft-objc-ancestor-dependency-closure.md)；实现说明 [ObjCMemberRecovery.md](ObjCMemberRecovery.md)「祖先链走依赖闭包」一节、[Modules/MachODependencies.md](Modules/MachODependencies.md)；任务报告 [TaskReports/2026-09-21-objc-ancestor-dependency-closure.md](TaskReports/2026-09-21-objc-ancestor-dependency-closure.md)；术语表「ObjC ancestor resolver」。
 - **对应版本**：随下一次发布。
 
+## 2026-09-23 特化后的私有类型名字：去掉运行时写进名字的 anonymous context
+
+- **时间段**：2026-09-23（单日）。
+- **动机**：RuntimeViewer 报告 macOS 26.7 上 AppKit `WindowPortal<AppKit.ButtonContent>` 的特化头部打成 `struct .WindowPortal<AppKit.ButtonContent>`。对方扫了 AppKit 全部 102 个能特化的泛型类型：20 处名字开头带点（16 处 anonymous context、4 处 extension context）；私有嵌套类型丢掉整条父链（`enum .Phase`）；私有类型当泛型实参时丢模块名（`<AXPocketMode>`）。根因：特化后的名字来自运行时 `_mangledTypeName`，运行时把编译器包在私有类型外面的 anonymous context 写成描述符地址 `AnonymousContext("$<地址>", …)`，interface 打印器把它打成空，`BoundDumpedTypeNameRenderer` 又无条件补分隔符。这不是回归：dump 路径自 `fdcb8814`（2026-06-10）起打出 `(unknown context at $…)`，interface 路径自 `513732de`（2026-07-31）改用同一个渲染器后变成开头的点，main 同样存在。
+- **关键决策**：**① 在运行时名字的源头去掉 anonymous context（换成父节点）**，而不是给 interface 打印器加分支——dump 与布局注释用 Demangling 自带的打印器，地址本身也没有值得打印的信息；结果与离线命名在 shared cache 里一致。**② 修这一类而不是这一处**：五处 `_mangledTypeName` 调用（interface 头部/字段、dump 头部/字段、布局注释的泛型实参与 pack 元素、进程内 kind-9 witness）收敛到 `RuntimeTypeNameDemangling.node(forMetatype:)`，AGENTS.md 加一条规则防止再出现第六处直接调用。**③ 渲染器父节点为空时不写分隔符**，兜住打印器仍然拼不出的上下文。**④ extension context 不在本批**：它在离线 interface 里同样被打成空（26.5.2 AppKit 导出里是 `Invalidations.Tuple<A1, B1>`），是另一个原因，作为下一批；本批之后那 4 例只是不再带开头的点。**⑤ 讨论过自己实现 `_mangledTypeName`**：可行但约等于移植 700 行 C++，对本 bug 的 interface 输出没有差别，另议。
+- **落地模块**：`SwiftDeclarationRendering`（新增 `RuntimeTypeNameDemangling.swift`；`SpecializedMetadataNodeSubstitution`、`RuntimeFieldLayoutBackend`、`InProcessAccessorFunctionResolution`、`BoundDumpedTypeNameRenderer`）、`SwiftDump`（`TypedDumper` 删掉重复的一份实现）；测试 `Tests/SwiftSpecializationTests/SpecializedRuntimeTypeNameTests.swift`（6 条）、`Tests/MachOSwiftSectionTests/SpecializedDumperFieldTypeTests.swift`（1 条）。
+- **验证**：7 条新测试修复前全红（症状与报告逐字对应），修复后全绿。全量 `swift test --skip IntegrationTests`：2012 tests / 382 suites，只有 `SharedCacheTests` 里 3 条用墙钟时间断言并行度的测试失败（`differentKeysParallelViaTaskGroup`、`differentKeysParallelViaAsyncLet`、`concurrentCallsForDifferentKeysRunInParallel`），单独重跑全过，与本批无关。**未跑渲染 A/B**：改动只碰运行时来源的名字（进程内特化、进程内布局注释里的泛型实参、进程内 kind-9 witness），离线 reader 的输出不经过这些路径；A/B 的 MachOImage 那一腿若在展开字段偏移注释里遇到私有类型实参，会从 `(unknown context at $…)` 变成干净的名字，属于预期差异。
+- **关联文档**：[SpecializedInterfaceBoundRenderingRestoration.md](SpecializedInterfaceBoundRenderingRestoration.md)「私有类型的运行时名字」、[GenericArgumentSubstitution.md](GenericArgumentSubstitution.md) §6。
+- **对应版本**：随下一次发布。
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节

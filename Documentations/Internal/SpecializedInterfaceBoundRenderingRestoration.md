@@ -86,3 +86,43 @@ witness 解析为最终具体类型，静态替换只能得到 `Int.RawValue` �
 钉住 leaf 迁移时 "Not exercised by tests" 的缺口。全量回归：SwiftPrintingTests /
 SwiftDumpTests / SwiftSpecializationTests / SwiftInterfaceTests / SwiftDiffingTests
 全绿。
+
+## 私有类型的运行时名字（2026-09-23）
+
+RuntimeViewer 报告：macOS 26.7 上把 AppKit 的 `WindowPortal<A>` 特化成 `WindowPortal<AppKit.ButtonContent>`，头部打成 `struct .WindowPortal<AppKit.ButtonContent>`。对方随后扫了 AppKit 里全部 102 个能特化的泛型类型，同一个原因有三种表现：
+
+- 名字开头多一个点（16 例），例如 `class ._NSLayerView<CGDrawingLayer>: __C.NSView`。
+- 私有的嵌套类型丢掉整条父链：`enum .Phase`，离线名字是 `AppKit.InProcessAnimation.Bridged.Phase`。
+- 私有类型当泛型实参时丢模块名：`<AXPocketMode>`，而非私有类型是 `<AppKit.ButtonContent>`。
+
+### 根因
+
+特化后的名字全部来自运行时：`_mangledTypeName` → `swift_getMangledTypeName` → `_swift_buildDemanglingForMetadata`。编译器把每个最外层的 `private` / `fileprivate` 类型挂在一个 anonymous context 描述符下面（`lib/IRGen/GenDecl.cpp` 的 `getAddrOfParentContextDescriptor`："Wrap up private types in an anonymous context for the containing file unit so that the runtime knows they have unstable identity"；RuntimeViewer 会话的探针统计，AppKit 26.7 的 879 个 Swift 类型里有 227 个挂在 anonymous context 下）。运行时拼名字时对 anonymous context 没有更多信息，就用描述符地址充当名字：`AnonymousContext("$<地址>", <父上下文>, TypeList())`（`stdlib/public/runtime/Demangle.cpp` 的 `_buildDemanglingForContext`，注释自称 "unstable mangling"）。
+
+这个节点到了打印器：
+
+- interface 打印器没有它的分支，整棵子树连同里面的 `Module` 都打成空串。`BoundDumpedTypeNameRenderer` 的 `.structure` / `.class` / `.enum` 分支又无条件在父节点后面写 `.`，于是名字开头多一个点。`TypeNodePrintable.printType`（字段类型、泛型实参走这里）只在父节点真的写出内容时才写分隔符，所以那里没有点，但模块和外层类型一起丢了。
+- dump 路径用的是 Demangling 自带的打印器：`DemangleOptions.default` 下打成 `Module.(unknown context at $600001234)`，`.interface` 选项下同样打成空。
+
+离线命名从来不会遇到这个节点：`SymbolicDemangler.buildContextDescriptorMangling` 遇到 anonymous context 时，查得到它的符号就还原成 `privateDeclName`（interface 打印器只打名字本身），查不到就跳过、直接用父上下文。dyld shared cache 里没有本地符号，所以 AppKit 这类镜像永远是后者。
+
+### 修复
+
+- 新增 `SwiftDeclarationRendering/RuntimeTypeNameDemangling.swift`。`node(forMetatype:)` 是库里把运行时 metatype 变成节点的唯一入口：`_mangledTypeName` → `demangleAsNodeTransient` → 把每个 anonymous context 换成它的父节点（child 1），结果与离线命名在 shared cache 里得到的一致。demangler 对同一个 substitution 的每次 back-reference 返回同一个实例，树其实是 DAG，所以替换过程按对象身份 memoize；不含 anonymous context 的子树原样返回同一个实例。
+- 五处调用点全部改走它：`SpecializedMetadataNodeSubstitution`（interface 的头部与字段类型）、`TypedDumper`（dump 的头部与字段类型，原先是逐字重复的一份实现）、`RuntimeFieldLayoutBackend`（布局注释里 `.type` 泛型实参与 pack 元素，此前打出 `(unknown context at $…)`）、`InProcessAccessorFunctionResolution`（进程内求 kind-9 witness）。Sources 里现在只有这个文件直接调用 `_mangledTypeName`，新增的运行时名字来源也必须走它。
+- `BoundDumpedTypeNameRenderer`：父节点渲染为空时不再写分隔符，与 `TypeNodePrintable.printType` 同一规则。它兜住的是打印器仍然拼不出来的上下文，见下文 extension context。
+
+为什么不给 interface 打印器加一个 `.anonymousContext` 分支：那样只修了 interface 打印器，dump 与布局注释用的 Demangling 打印器照样打出 `(unknown context at $…)`；而且地址本身没有任何值得打印的信息，在源头去掉比让每个打印器各自忽略更一致。
+
+为什么不自己实现 `_mangledTypeName`：讨论过，可行——ABI 模型能读运行时处理的全部 metadata 种类，`SymbolicDemangler` 能从描述符拼出上下文名。但这等于移植约 700 行 C++（`_swift_buildDemanglingForMetadata`，加上从同型约束反推非 key 泛型参数的 `_gatherWrittenGenericParameters`），之后每个 Swift 版本新增的函数类型标志都要跟进；而对 interface 输出，结果与「保留 `_mangledTypeName` + 去掉 anonymous context」一字不差。留待以后单独立项。
+
+### 没有覆盖的：extension context
+
+类型声明在另一个模块的类型的 extension 里时（`extension NSView { enum Invalidations { … } }`），父上下文是 extension context，interface 打印器同样没有它的分支、打成空。这个问题离线路径也有——macOS 26.5.2 的 AppKit 导出里写的就是 `Invalidations.Tuple<A1, B1>`，缺 `NSView.`——与运行时名字无关，本批不修，作为下一批。本批之后这类特化头部只是不再带开头的点（`struct Tuple<…>`）。RuntimeViewer 的扫描里有 4 例：`NSView.Invalidating`、`NSView.Invalidations.Tuple`、`NSViewController.ViewLoading`、`NSWindowController.WindowLoading`。
+
+### 测试
+
+- `SwiftSpecializationTests/SpecializedRuntimeTypeNameTests`（6 条，走 RuntimeViewer 用的 `printTypeDefinition`）：私有泛型类型的头部；嵌在普通类型里的私有类型（anonymous context 在链中间）；私有类型作泛型实参，头部与字段各一条；展开字段偏移注释里的私有实参；跨模块 extension 里的类型不再以点开头。
+- `MachOSwiftSectionTests/SpecializedDumperFieldTypeTests.specializedPrivateStructDeclarationKeepsItsModule`：dump 路径的头部。
+- 修复前 7 条全红，症状与报告一致：`struct .RuntimeNamedPrivateBox<Swift.Int> {`、`struct .RuntimeNamedPrivateNestedBox<Swift.Int> {`、`<RuntimeNamedPrivateArgument>`、`element (SwiftSpecializationTests.(unknown context at $110c34ea0).RuntimeNamedPrivateArgument)`、`struct .RuntimeNamedExtensionBox<Swift.Int> {`；修复后全绿。
+- 进程内 kind-9 witness 那一处没有专门的测试：在测试镜像里造出「kind-9 引用 + 私有 witness」不现实，它与另外四处共用同一个函数。
