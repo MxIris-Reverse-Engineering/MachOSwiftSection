@@ -1321,6 +1321,26 @@
 
 ---
 
+## 2026-09-23：为嵌套字段导出经布局校验的值大小
+
+- **动机**：反编译器需要区分矩形坐标的 8 字节访问、点或尺寸的 16 字节访问和矩形整值；
+  仅有偏移无法区分同一位置的聚合字段及首个子字段。
+- **关键决策**：`NestedFieldOffset.byteWidth` 默认为 `nil`，旧初始化调用保持源码兼容。
+  大小来自字段的值布局，不使用分配步长或相邻偏移；结构展开复用顶层字段已有的外来布局校验。
+  枚举分支及其后代不声明无条件存储大小，间接分支仍为叶子，未知泛型布局保持降级。
+  依赖解析沿用字段的定义镜像及泛型实参，不从显示名称猜测。
+- **落地模块**：`SwiftLayout/NestedFieldOffsetTree.swift` 与内部 `fieldLayout` 入口；
+  `SwiftLayoutTests/NestedFieldExtentTests.swift` 使用现场编译的小型 dylib，覆盖填充、泛型包装、
+  枚举、C bitfield、紧凑 C 结构、默认未知大小、未绑定泛型和显式依赖镜像。
+- **验证**：`queued-build swift test --scratch-path /tmp/codex/SwiftPM/MachOSwiftSection-NestedCoordinateFields --filter NestedFieldExtentTests`
+  的 8 项回归全部通过，原始退出码 0，运行 1.853 秒；未运行本库完整套件。
+- **关联文档**：唯一的[跨仓库提案与验证记录](https://github.com/MxIris-Reverse-Engineering/swift-decompiler/blob/fix/microcode-operand-pairs/docs/evolutions/draft-nested-coordinate-field-extents.md)
+  由 swift-decompiler 维护。状态为 In Progress，工作分支交付不代表合入共享分支。
+- **对应版本**：未发布；`feature/nested-coordinate-fields` 基于消费者锁定的 `61f06284`，
+  未混入 `next` 的其它演进。
+
+---
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节

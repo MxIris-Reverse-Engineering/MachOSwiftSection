@@ -19,15 +19,20 @@ public struct NestedFieldOffset: Sendable {
     public let typeName: String
     /// The field's absolute byte offset from the start of the outermost type.
     public let offset: Int
+    /// The field's value size, excluding trailing alignment padding. Available
+    /// only when its placement and every containing struct are proven. Enum
+    /// payload alternatives and their descendants have no unconditional extent.
+    public let byteWidth: Int?
     /// Sub-fields nested inside this field's type (empty for a leaf, a class
     /// reference, or an aggregate the engine could not expand).
     public let children: [NestedFieldOffset]
 
-    public init(fieldName: String, typeName: String, offset: Int, children: [NestedFieldOffset]) {
+    public init(fieldName: String, typeName: String, offset: Int, children: [NestedFieldOffset], byteWidth: Int? = nil) {
         self.fieldName = fieldName
         self.typeName = typeName
         self.offset = offset
         self.children = children
+        self.byteWidth = byteWidth
     }
 }
 
@@ -55,7 +60,8 @@ extension StaticLayoutCalculator {
             baseOffset: baseOffset,
             depth: 0,
             depthLimit: depthLimit,
-            enclosingTypeNames: []
+            enclosingTypeNames: [],
+            hasUnconditionalStorage: true
         )
     }
 
@@ -81,7 +87,8 @@ extension StaticLayoutCalculator {
         baseOffset: Int,
         depth: Int,
         depthLimit: Int,
-        enclosingTypeNames: Set<String>
+        enclosingTypeNames: Set<String>,
+        hasUnconditionalStorage: Bool
     ) -> [NestedFieldOffset] {
         guard depth < depthLimit else { return [] }
         guard !typeDisplayName.isEmpty, !enclosingTypeNames.contains(typeDisplayName) else { return [] }
@@ -89,7 +96,7 @@ extension StaticLayoutCalculator {
         let node = (typeNode.kind == .type ? typeNode.firstChild : typeNode) ?? typeNode
         switch NodeTypeNaming.nominalCategory(of: node) {
         case .structure:
-            return structChildren(forNode: node, baseOffset: baseOffset, depth: depth, depthLimit: depthLimit, enclosingTypeNames: nestedEnclosingTypeNames)
+            return structChildren(forNode: node, baseOffset: baseOffset, depth: depth, depthLimit: depthLimit, enclosingTypeNames: nestedEnclosingTypeNames, hasUnconditionalStorage: hasUnconditionalStorage)
         case .enum:
             return enumPayloadChildren(forNode: node, baseOffset: baseOffset, depth: depth, depthLimit: depthLimit, enclosingTypeNames: nestedEnclosingTypeNames)
         case .class, .none:
@@ -105,7 +112,8 @@ extension StaticLayoutCalculator {
         baseOffset: Int,
         depth: Int,
         depthLimit: Int,
-        enclosingTypeNames: Set<String>
+        enclosingTypeNames: Set<String>,
+        hasUnconditionalStorage: Bool
     ) -> [NestedFieldOffset] {
         guard
             let qualifiedTypeName = NodeTypeNaming.nominalQualifiedName(of: node),
@@ -114,14 +122,19 @@ extension StaticLayoutCalculator {
         else { return [] }
         let environment = GenericArgumentEnvironment.make(forInstantiatedTypeNode: node)
         guard
-            let aggregate = try? resolver.computeStructLayout(structDescriptor, in: resolved.image, environment: environment),
+            let aggregate = try? fieldLayout(ofStruct: structDescriptor, in: resolved.image, environment: environment),
             let records = try? structDescriptor.fieldDescriptor(in: resolved.image.machO).records(in: resolved.image.machO)
         else { return [] }
 
         var children: [NestedFieldOffset] = []
-        for (index, record) in records.enumerated() {
-            guard index < aggregate.fieldOffsets.count else { break }
-            let absoluteOffset = baseOffset + aggregate.fieldOffsets[index]
+        for (fieldIndex, record) in records.enumerated() {
+            guard fieldIndex < aggregate.fields.count else { break }
+            let field = aggregate.fields[fieldIndex]
+            // Includes the foreign-layout validation used by top-level fields.
+            // No later offset is trustworthy after the first unresolved field.
+            guard case .computed = field.resolution else { break }
+            let (absoluteOffset, overflowed) = baseOffset.addingReportingOverflow(field.offset)
+            guard !overflowed else { break }
             children.append(makeNode(
                 forFieldRecord: record,
                 in: resolved.image,
@@ -131,7 +144,8 @@ extension StaticLayoutCalculator {
                 depth: depth,
                 depthLimit: depthLimit,
                 enclosingTypeNames: enclosingTypeNames,
-                descendsIntoFieldType: true
+                descendsIntoFieldType: true,
+                byteWidth: hasUnconditionalStorage ? field.layout?.size : nil
             ))
         }
         return children
@@ -171,7 +185,8 @@ extension StaticLayoutCalculator {
                 // An indirect case stores a heap box reference, not the declared
                 // payload laid out inline, so its fields are not at these
                 // offsets. `EnumLayoutBridge` already reads the flag this way.
-                descendsIntoFieldType: !record.layout.flags.contains(.isIndirectCase)
+                descendsIntoFieldType: !record.layout.flags.contains(.isIndirectCase),
+                byteWidth: nil
             ))
         }
         return children
@@ -194,7 +209,8 @@ extension StaticLayoutCalculator {
         depth: Int,
         depthLimit: Int,
         enclosingTypeNames: Set<String>,
-        descendsIntoFieldType: Bool
+        descendsIntoFieldType: Bool,
+        byteWidth: Int?
     ) -> NestedFieldOffset {
         let fieldName = ((try? record.fieldName(in: image.machO)).flatMap { $0.isEmpty ? nil : $0 }) ?? fallbackFieldName
         let fieldTypeNode: Node? = (try? record.mangledTypeName(in: image.machO)).flatMap { mangledTypeName in
@@ -209,9 +225,10 @@ extension StaticLayoutCalculator {
                 baseOffset: absoluteOffset,
                 depth: depth + 1,
                 depthLimit: depthLimit,
-                enclosingTypeNames: enclosingTypeNames
+                enclosingTypeNames: enclosingTypeNames,
+                hasUnconditionalStorage: byteWidth != nil
             )
         } ?? []) : []
-        return NestedFieldOffset(fieldName: fieldName, typeName: typeName, offset: absoluteOffset, children: children)
+        return NestedFieldOffset(fieldName: fieldName, typeName: typeName, offset: absoluteOffset, children: children, byteWidth: byteWidth)
     }
 }
