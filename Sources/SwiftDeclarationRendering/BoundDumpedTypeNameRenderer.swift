@@ -116,10 +116,11 @@ package enum BoundDumpedTypeNameRenderer {
             if inner.children.count >= 2, let identifierText = inner.children[1].text {
                 let parent = inner.children[0]
                 let renderedParent = try await render(parent, using: resolver)
-                // A context the resolver renders as nothing — the interface
-                // printer has no spelling for an extension context — must not
-                // leave the separator dangling (`struct .Tuple<…>`), the same
-                // rule `TypeNodePrintable.printType` applies to a reference.
+                // A context the resolver renders as nothing must not leave the
+                // separator dangling (`struct .Tuple<…>`, which an extension
+                // context produced before the interface printer learned to
+                // spell it), the same rule `TypeNodePrintable.printType`
+                // applies to a reference.
                 if !renderedParent.string.isEmpty {
                     renderedParent
                     Standard(".")

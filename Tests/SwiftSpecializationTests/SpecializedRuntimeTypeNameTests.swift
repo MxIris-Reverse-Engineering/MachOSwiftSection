@@ -133,15 +133,14 @@ struct SpecializedRuntimeTypeNameTests: GenericSpecializationTestingEnvironment 
         #expect(printed.contains("element (SwiftSpecializationTests.RuntimeNamedPrivateArgument)"), "got:\n\(printed)")
     }
 
-    /// The extension context itself still prints as nothing — spelling it as the
-    /// extended type is a separate change — but the name must not open with a
-    /// dangling separator.
-    @Test("a specialized type nested in another module's extension prints no leading separator")
-    func typeInCrossModuleExtensionPrintsNoLeadingSeparator() async throws {
+    /// The runtime's name carries the extension context too
+    /// (`Extension(<extending module>, Swift.Int)`); the interface printer once
+    /// printed it as nothing, which left `struct .RuntimeNamedExtensionBox<…>`
+    /// and, once the separator was guarded, `struct RuntimeNamedExtensionBox<…>`.
+    @Test("a specialized type nested in another module's extension keeps the extended type")
+    func typeInCrossModuleExtensionKeepsTheExtendedType() async throws {
         let printed = try await printSpecialized("RuntimeNamedExtensionBox", with: ["A": .metatype(Int.self)])
-        let header = headerLine(of: printed)
-        try #require(header.contains("RuntimeNamedExtensionBox<Swift.Int>"), "unexpected header: \(header)")
 
-        #expect(!header.hasPrefix("struct ."), "got: \(header)")
+        #expect(headerLine(of: printed) == "struct Swift.Int.RuntimeNamedExtensionBox<Swift.Int> {")
     }
 }

@@ -37,6 +37,15 @@ extension TypeNodePrintable {
             target.pushTypeReferenceScope(name)
             await printType(name)
             target.popTypeReferenceScope()
+        case .extension:
+            // The context of a type declared in another module's extension:
+            // `extension(<extending module>, <extended type>, <signature>?)`.
+            // Source names such a type through the type it extends
+            // (`NSView.Invalidations.Tuple`), which is what the Demangling
+            // printer prints too, behind an `(extension in <module>):` prefix a
+            // textual interface cannot spell. Unhandled, the whole context
+            // printed as nothing and every reference lost the extended type.
+            await printOptional(name.children.at(1))
         case .tuple:
             await printTuple(name)
         case .protocolList:
