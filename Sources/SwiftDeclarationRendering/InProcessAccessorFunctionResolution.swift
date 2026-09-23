@@ -31,8 +31,9 @@ package enum InProcessAccessorFunctionResolution {
     /// a value type.
     package static func witnessNode(witnessMangledName: MangledName, conformingTypeName: MangledName, in machOImage: MachOImage) -> Node? {
         // `_mangledTypeName` — the way back from the runtime's answer to a
-        // node — is macOS 11 / iOS 14 API, above this package's floor; the
-        // same gate `RuntimeFieldLayoutBackend` applies around its calls.
+        // node, through `RuntimeTypeNameDemangling` — is macOS 11 / iOS 14
+        // API, above this package's floor; without it there is no point in
+        // asking the runtime at all.
         guard #available(macOS 11, iOS 14, tvOS 14, watchOS 7, *) else { return nil }
         guard let conformingType = try? RuntimeFunctions.getTypeByMangledNameInContext(conformingTypeName, in: machOImage) else { return nil }
         let metadataPointer = unsafeBitCast(conformingType, to: UnsafeRawPointer.self)
@@ -57,11 +58,8 @@ package enum InProcessAccessorFunctionResolution {
         } catch {
             return nil
         }
-        guard let witnessType,
-              let mangledString = _mangledTypeName(witnessType),
-              let node = try? demangleAsNodeTransient(mangledString, isType: true)
-        else { return nil }
-        return node
+        guard let witnessType else { return nil }
+        return RuntimeTypeNameDemangling.node(forMetatype: witnessType)
     }
 
     /// `resolved` itself unless it still carries a kind-9 reference, the

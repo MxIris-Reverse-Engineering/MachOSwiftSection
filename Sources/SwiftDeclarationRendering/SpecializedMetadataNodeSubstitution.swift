@@ -33,7 +33,7 @@ package enum SpecializedMetadataNodeSubstitution {
         guard let metatype = resolveFieldMetatype(for: mangledTypeName, metadata: metadata, in: machOImage) else {
             return nil
         }
-        return demangledNode(forMetatype: metatype)
+        return RuntimeTypeNameDemangling.node(forMetatype: metatype)
     }
 
     /// Returns a demangled node for the *specialized type itself*, with its
@@ -46,7 +46,7 @@ package enum SpecializedMetadataNodeSubstitution {
         // representationally identical — bitcasting recovers the metatype
         // we'd get from `Foo<Int>.self`.
         let metatype = unsafeBitCast(metadataPointer, to: Any.Type.self)
-        return demangledNode(forMetatype: metatype)
+        return RuntimeTypeNameDemangling.node(forMetatype: metatype)
     }
 
     /// Mirrors the constrained `TypedDumper.resolveFieldMetatype`
@@ -82,19 +82,5 @@ package enum SpecializedMetadataNodeSubstitution {
             return try? classMetadata.asPointer
         }
         return nil
-    }
-
-    /// Shared wrapper around `_mangledTypeName` + `demangleAsNodeTransient`
-    /// so the SwiftStdlib-availability + nil-handling lives in exactly one
-    /// spot for both field-type and dumped-type substitution. Transient
-    /// demangle: callers render the node and drop it, so the tree must not
-    /// be interned into the global `NodeCache`.
-    private static func demangledNode(forMetatype metatype: Any.Type) -> Node? {
-        // `_mangledTypeName` is `SwiftStdlib 5.3` — translates to macOS 11 /
-        // iOS 14 / tvOS 14 / watchOS 7. Fall back to nil on older runtimes
-        // so callers stay on the unbound representation.
-        guard #available(macOS 11, iOS 14, tvOS 14, watchOS 7, *) else { return nil }
-        guard let resolvedMangledString = _mangledTypeName(metatype) else { return nil }
-        return try? demangleAsNodeTransient(resolvedMangledString, isType: true)
     }
 }

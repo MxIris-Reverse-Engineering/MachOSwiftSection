@@ -424,8 +424,7 @@ struct RuntimeFieldLayoutBackend {
             switch layout.parameters[indexValue].kind {
             case .type:
                 if let argumentType = boundGenericArgumentType(atSlot: slot, totalKeyArguments: layout.totalKeyArguments, of: parentMetadata),
-                   let argumentMangledString = _mangledTypeName(argumentType),
-                   let argumentNode = try? demangleAsNodeTransient(argumentMangledString, isType: true) {
+                   let argumentNode = RuntimeTypeNameDemangling.node(forMetatype: argumentType) {
                     return innerTypeNode(of: argumentNode)
                 }
             case .value:
@@ -520,8 +519,7 @@ struct RuntimeFieldLayoutBackend {
                   elementWord % UInt(MemoryLayout<UnsafeRawPointer>.alignment) == 0,
                   let elementPointer = UnsafeRawPointer(bitPattern: elementWord) else { return nil }
             let elementType = unsafeBitCast(elementPointer, to: Any.Type.self)
-            guard let elementMangledString = _mangledTypeName(elementType),
-                  let elementNode = try? demangleAsNodeTransient(elementMangledString, isType: true) else { return nil }
+            guard let elementNode = RuntimeTypeNameDemangling.node(forMetatype: elementType) else { return nil }
             elementNodes.append(elementNode)
         }
         return Node.createTransient(kind: .pack, children: elementNodes)
