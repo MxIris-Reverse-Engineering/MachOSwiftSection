@@ -11,7 +11,7 @@ Requires Swift 6.2+ / Xcode 26.0+.
 ## Module dependency hierarchy
 
 ```
-swift-section (CLI)
+swift-section (CLI; its `objc` subcommands also use MachOObjCSection's ObjC* products directly)
     └── SwiftInterface (orchestrator)
             └── SwiftIndexing, SwiftPrinting, SwiftSpecialization, SwiftAttributeInference
                     └── SwiftDeclaration (shared declaration model)
@@ -93,6 +93,7 @@ swift run swift-section snapshot <binary>             # persist an ABI baseline 
 swift run swift-section diff <old> <new>              # two-sided ABI diff; either side may be a snapshot
 swift run swift-section evolution <v1> <v2> …         # N-version lineage
 swift run swift-section transformer tokens            # also: templates | config — the discovery surface
+swift run swift-section objc dump <binary>            # the Objective-C side: dump | interface | snapshot | diff | evolution
 
 # Each subcommand's --help is the authority on its flags. The one that is easy not to
 # know exists: --dependency-search-path (dump / interface / snapshot), which points the
