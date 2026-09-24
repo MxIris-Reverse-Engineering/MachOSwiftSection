@@ -120,7 +120,7 @@ RuntimeViewer 报告：macOS 26.7 上把 AppKit 的 `WindowPortal<A>` 特化成 
 
 上面「换成父节点」的依据是「与离线命名在 shared cache 里一致」，而离线命名在 shared cache 里拿不到鉴别符的前提并不成立。编译器为每条带 symbolic reference 的 mangled name 生成一个符号（`IRGenMangler::mangleSymbolNameForSymbolicMangling`）：`symbolic `、把每个 5 字节引用写成 `_____` 的名字、再按引用顺序逐个跟上被引用者的完整 context mangling，鉴别符就在后者里——例如 `_symbolic _____ 6AppKit24FontPanelBIUSPopUpButton33_05EA0EB8E781FFE22747790FC22932B1LLC`。这类符号在 shared cache 里保留着。有字段描述符的类型一定有一个：字段描述符里记的自身类型名就是指向它自己的引用。
 
-它挂在 `__swift5_typeref` 里那条 mangled name 上，不在任何描述符上，所以「按匿名上下文的偏移查符号」查不到（AppKit 实测：匿名上下文 19820636、类描述符 19820644，都没有符号；`_symbolic` 符号在 19757510）。`AnonymousContextPrivateDiscriminatorIndex`（`SwiftInspection`）因此走引用：逐个 `_symbolic` 符号解析它标的那条 mangled name，沿直接 context 引用（`0x01`）到达被引用的描述符，父级若是 anonymous context，就记下被引用者名字里 `privateDeclName` 的鉴别符（要求其中的名字与描述符名字一致）。按镜像惰性构建，与 demangle memo 一起驱逐。
+它挂在 `__swift5_typeref` 里那条 mangled name 上，不在任何描述符上，所以「按匿名上下文的偏移查符号」查不到（AppKit 实测：匿名上下文 19820636、类描述符 19820644，都没有符号；`_symbolic` 符号在 19757510）。`AnonymousContextPrivateDiscriminatorIndex`（`SwiftInspection`）因此走引用：沿直接 context 引用（`0x01`）到达被引用的描述符，父级若是 anonymous context，就记下被引用者名字里 `privateDeclName` 的鉴别符（要求其中的名字与描述符名字一致）。按镜像惰性构建，与 demangle memo 一起驱逐。当天稍后，符号的收集与引用的配对交给通用的 `SymbolicManglingIndex`，这个索引只做其中一个消费者；被引用者也改为连同前面的被引用者一起 demangle——同一个符号里后面的会借用前面的 substitution，见 [SymbolicManglingSymbols.md](SymbolicManglingSymbols.md)。
 
 两条路径用同一个查询：
 

@@ -238,6 +238,14 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
 
         let exportFacts: ExportFacts
 
+        /// The image's symbolic-mangling symbols (`_symbolic ` /
+        /// `_default assoc type `), collected by the same symtab pass into a
+        /// table of their own (evolution proposal
+        /// `symbolic-mangling-symbol-index`). Listed in no index above —
+        /// `symbolRowsByOffset` least of all: its callers expect names that
+        /// demangle, and these never do.
+        let symbolicManglingSymbolTable: SymbolTable
+
         /// Whether `name` has an export-trie entry in this image:
         /// `true`/`false` per the trie, or `nil` when the image carries no
         /// export information at all (see `ExportFacts.hasExportInformation`).
@@ -279,6 +287,7 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
             rootNodeIndexByTableRow: [NodeStore.NodeIndex?],
             symbolRowsByOffset: [Int: SymbolRowBucket],
             exportFacts: ExportFacts,
+            symbolicManglingSymbolTable: SymbolTable,
             rowIndexes: consuming RowIndexes
         ) {
             self.nodeStore = nodeStore
@@ -286,6 +295,7 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
             self.rootNodeIndexByTableRow = rootNodeIndexByTableRow
             self.symbolRowsByOffset = symbolRowsByOffset
             self.exportFacts = exportFacts
+            self.symbolicManglingSymbolTable = symbolicManglingSymbolTable
             self.typeInfoByName = rowIndexes.typeInfoByName
             self.globalSymbolRowsByKind = rowIndexes.globalSymbolRowsByKind
             self.opaqueTypeDescriptorSymbolRowByNodeIndex = rowIndexes.opaqueTypeDescriptorSymbolRowByNodeIndex
@@ -504,6 +514,11 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
         var tableBuilder = SymbolTableBuilder(mappedStringTableBase: mappedStringTableBase)
         var symbolRowsByOffset: [Int: SymbolRowBucket] = [:]
 
+        // The symbolic-mangling symbols go into a table of their own (see
+        // `Storage.symbolicManglingSymbolTable`): same name sources and offset
+        // accounting as the Swift rows, but no offset index and no demangling.
+        var symbolicManglingTableBuilder = SymbolTableBuilder(mappedStringTableBase: mappedStringTableBase)
+
         // One offset legitimately maps to several rows — distinct symbol names
         // can share an address — so the bucket keeps list semantics (inline
         // for the dominant single-row case, spilling to an array only when a
@@ -556,18 +571,29 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
         /// so canonical == raw here.
         func collectMappedSymbolRows(_ mappedSymbols: some Sequence<MachOImage.Symbol>, stringBase: UnsafeRawPointer) {
             for symbol in mappedSymbols {
-                guard nameBytesHaveSwiftManglingPrefix(symbol.nameC), !symbol.nlist.isExternal else { continue }
-                // A `nil` row means the name's binary-supplied geometry
-                // exceeds the packed budgets (malformed/hostile string
-                // table) — skip the symbol instead of trapping (M3).
-                guard let (row, isNewRow) = tableBuilder.canonicalRow(
-                    forName: String(cString: symbol.nameC),
-                    mappedNameByteOffset: UnsafeRawPointer(symbol.nameC) - stringBase,
-                    nameByteLength: strlen(symbol.nameC),
-                    canonicalOffset: symbol.offset,
-                    isExternal: symbol.nlist.isExternal
-                ) else { continue }
-                registerRow(row, rawOffset: symbol.offset, canonicalOffset: symbol.offset, isNewRow: isNewRow)
+                if nameBytesHaveSwiftManglingPrefix(symbol.nameC) {
+                    guard !symbol.nlist.isExternal else { continue }
+                    // A `nil` row means the name's binary-supplied geometry
+                    // exceeds the packed budgets (malformed/hostile string
+                    // table) — skip the symbol instead of trapping (M3).
+                    guard let (row, isNewRow) = tableBuilder.canonicalRow(
+                        forName: String(cString: symbol.nameC),
+                        mappedNameByteOffset: UnsafeRawPointer(symbol.nameC) - stringBase,
+                        nameByteLength: strlen(symbol.nameC),
+                        canonicalOffset: symbol.offset,
+                        isExternal: symbol.nlist.isExternal
+                    ) else { continue }
+                    registerRow(row, rawOffset: symbol.offset, canonicalOffset: symbol.offset, isNewRow: isNewRow)
+                } else if nameBytesHaveSymbolicManglingSymbolPrefix(symbol.nameC), !symbol.nlist.isExternal {
+                    // Same refusal rule for a name whose geometry cannot pack.
+                    _ = symbolicManglingTableBuilder.canonicalRow(
+                        forName: String(cString: symbol.nameC),
+                        mappedNameByteOffset: UnsafeRawPointer(symbol.nameC) - stringBase,
+                        nameByteLength: strlen(symbol.nameC),
+                        canonicalOffset: symbol.offset,
+                        isExternal: symbol.nlist.isExternal
+                    )
+                }
             }
         }
 
@@ -576,14 +602,21 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
         } else if let mappedSymbols32, let mappedStringTableBase {
             collectMappedSymbolRows(mappedSymbols32, stringBase: mappedStringTableBase)
         } else {
-            for symbol in machO.symbols where symbol.name.isSwiftSymbol && !symbol.nlist.isExternal {
+            for symbol in machO.symbols where !symbol.nlist.isExternal {
+                let name = symbol.name
+                let isSwiftSymbol = name.isSwiftSymbol
+                guard isSwiftSymbol || SymbolicManglingSymbolName.hasPrefix(name) else { continue }
                 let rawOffset = symbol.offset
                 var canonicalOffset = rawOffset
                 if let cache = machO.cache, rawOffset >= 0, machO is MachOFile {
                     canonicalOffset = rawOffset - cache.mainCacheHeader.sharedRegionStart.cast()
                 }
-                guard let (row, isNewRow) = tableBuilder.canonicalRow(forName: symbol.name, canonicalOffset: canonicalOffset, isExternal: symbol.nlist.isExternal) else { continue }
-                registerRow(row, rawOffset: rawOffset, canonicalOffset: canonicalOffset, isNewRow: isNewRow)
+                if isSwiftSymbol {
+                    guard let (row, isNewRow) = tableBuilder.canonicalRow(forName: name, canonicalOffset: canonicalOffset, isExternal: symbol.nlist.isExternal) else { continue }
+                    registerRow(row, rawOffset: rawOffset, canonicalOffset: canonicalOffset, isNewRow: isNewRow)
+                } else {
+                    _ = symbolicManglingTableBuilder.canonicalRow(forName: name, canonicalOffset: canonicalOffset, isExternal: symbol.nlist.isExternal)
+                }
             }
         }
 
@@ -642,6 +675,7 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
         // byte-span entry lands, see proposal 0001's upstream-interface
         // section).
         let symbolTable = tableBuilder.freeze()
+        let symbolicManglingSymbolTable = symbolicManglingTableBuilder.freeze()
 
         // Row count is final after freeze (freezing sorts a permutation, it
         // never renumbers or adds rows); pad the bitmap to full width so
@@ -723,6 +757,7 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
             rootNodeIndexByTableRow: rootNodeIndexByTableRow,
             symbolRowsByOffset: symbolRowsByOffset,
             exportFacts: exportFacts,
+            symbolicManglingSymbolTable: symbolicManglingSymbolTable,
             rowIndexes: rowIndexes
         )
     }
@@ -1210,6 +1245,16 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
     package func symbols(for offset: Int, in machO: some MachORepresentableWithCache) -> Symbols? {
         guard let storage = storage(in: machO), let rows = storage.symbolRowsByOffset[offset], !rows.isEmpty else { return nil }
         return .init(offset: offset, symbols: rows.map { storage.symbol(atRow: $0, offset: offset) })
+    }
+
+    /// The image's symbolic-mangling symbols — `_symbolic ` and
+    /// `_default assoc type ` — as the build sweep collected them (evolution
+    /// proposal `symbolic-mangling-symbol-index`), building the index on
+    /// first use like every other query here. `nil` only when no index could
+    /// be built.
+    package func symbolicManglingSymbols(in machO: some MachORepresentableWithCache) -> SymbolicManglingSymbols? {
+        guard let storage = storage(in: machO) else { return nil }
+        return SymbolicManglingSymbols(symbolTable: storage.symbolicManglingSymbolTable)
     }
 
     /// Store-backed handle for a symbol's demangled tree. Hits the frozen

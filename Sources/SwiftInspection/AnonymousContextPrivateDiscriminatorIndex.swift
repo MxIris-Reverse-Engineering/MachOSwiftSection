@@ -20,12 +20,12 @@ import MachOSwiftSection
 ///
 /// What such an image does keep is the symbol the compiler gives every mangled
 /// name it emits with symbolic references in it
-/// (`IRGenMangler::mangleSymbolNameForSymbolicMangling`): `symbolic `, the
-/// name with each five-byte reference spelled `_____`, then one space-separated
-/// referent per reference — the full context mangling of what the reference
-/// points at, discriminator included. A type with a field descriptor always
-/// has one, since the descriptor's own type name references the type. So for a
-/// reference to a type descriptor whose parent is an anonymous context, the
+/// (`IRGenMangler::mangleSymbolNameForSymbolicMangling`), which spells out the
+/// full context mangling of each referent, discriminator included —
+/// `SymbolicManglingIndex` pairs those referents with the references they
+/// stand for. A type with a field descriptor always has one, since the
+/// descriptor's own type name references the type. So for a direct reference
+/// to a type descriptor whose parent is an anonymous context, the
 /// discriminator of the referent is that anonymous context's.
 ///
 /// The symbol sits on the mangled name in `__swift5_typeref`, never on either
@@ -34,7 +34,9 @@ import MachOSwiftSection
 ///
 /// Built once per image, lazily — only a demangling that meets an anonymous
 /// context with neither a mangled name nor a symbol asks for it — and evicted
-/// with the demangle memo (`SymbolicDemangler.removeCache(for:)`).
+/// with the demangle memo (`SymbolicDemangler.removeCache(for:)`). It keeps
+/// nothing of `SymbolicManglingIndex`, whose storage goes with the symbol
+/// store instead.
 package final class AnonymousContextPrivateDiscriminatorIndex: SharedCache<AnonymousContextPrivateDiscriminatorIndex.Storage>, @unchecked Sendable {
     package static let shared = AnonymousContextPrivateDiscriminatorIndex()
 
@@ -54,9 +56,9 @@ package final class AnonymousContextPrivateDiscriminatorIndex: SharedCache<Anony
 
     override package func buildStorage(for machO: some MachORepresentableWithCache) -> Storage? {
         if let machOFile = machO as? MachOFile {
-            return Self.build(from: Self.symbolicSymbols(in: machOFile), in: machOFile)
+            return Self.build(in: machOFile)
         } else if let machOImage = machO as? MachOImage {
-            return Self.build(from: Self.symbolicSymbols(in: machOImage), in: machOImage)
+            return Self.build(in: machOImage)
         }
         return nil
     }
@@ -71,86 +73,55 @@ package final class AnonymousContextPrivateDiscriminatorIndex: SharedCache<Anony
 
     // MARK: - Build
 
-    private static let symbolicSymbolNamePrefix = "_symbolic "
-
-    /// A direct symbolic reference to a context descriptor. The indirect form
-    /// (`0x02`) goes through a pointer into another image, whose anonymous
-    /// contexts are that image's to name.
-    private static let directContextDescriptorReferenceKind: UInt8 = 0x01
-
-    private struct SymbolicSymbol {
-        let offset: Int
+    /// A referenced descriptor that sits directly in an anonymous context.
+    private struct AnonymousContextMember {
+        let anonymousContextOffset: Int
         let name: String
     }
 
-    private static func symbolicSymbols(in machOImage: MachOImage) -> [SymbolicSymbol] {
-        guard let symbols64 = machOImage.symbols64 else {
-            return machOImage.symbols.compactMap { symbol in
-                symbol.name.hasPrefix(symbolicSymbolNamePrefix) ? SymbolicSymbol(offset: symbol.offset, name: symbol.name) : nil
-            }
-        }
-        // The prefix test runs on the mapped name bytes, so the hundreds of
-        // thousands of other symbols never materialize a `String`.
-        let prefixLength = symbolicSymbolNamePrefix.utf8.count
-        var symbolicSymbols: [SymbolicSymbol] = []
-        for symbol in symbols64 where strncmp(symbol.nameC, symbolicSymbolNamePrefix, prefixLength) == 0 {
-            symbolicSymbols.append(SymbolicSymbol(offset: symbol.offset, name: String(cString: symbol.nameC)))
-        }
-        return symbolicSymbols
-    }
-
-    /// A cache image's symbol offsets are unslid addresses; the descriptor
-    /// offsets this index is keyed by are measured from the shared region's
-    /// start — the same adjustment `SymbolIndexStore` applies.
-    private static func symbolicSymbols(in machOFile: MachOFile) -> [SymbolicSymbol] {
-        var symbolicSymbols: [SymbolicSymbol] = []
-        for symbol in machOFile.symbols where symbol.name.hasPrefix(symbolicSymbolNamePrefix) {
-            var offset = symbol.offset
-            if let cache = machOFile.cache, offset >= 0 {
-                offset -= cache.mainCacheHeader.sharedRegionStart.cast()
-            }
-            symbolicSymbols.append(SymbolicSymbol(offset: offset, name: symbol.name))
-        }
-        return symbolicSymbols
-    }
-
-    private static func build(from symbolicSymbols: [SymbolicSymbol], in machO: some MachOSwiftSectionRepresentableWithCache) -> Storage {
+    /// Only direct references: the indirect form (`0x02`) goes through a
+    /// pointer into another image, whose anonymous contexts are that image's to
+    /// name.
+    private static func build(in machO: some MachOSwiftSectionRepresentableWithCache) -> Storage {
         var privateDiscriminatorsByAnonymousContextOffset: [Int: String] = [:]
-        for symbolicSymbol in symbolicSymbols {
-            let referentManglings = referentManglings(ofSymbolNamed: symbolicSymbol.name)
-            guard !referentManglings.isEmpty, let mangledName = try? MangledName.resolve(from: symbolicSymbol.offset, in: machO) else { continue }
-            let lookups = mangledName.lookupElements
-            // The referents follow the references in order; a count that
-            // disagrees means the name is not the one the symbol spells.
-            guard lookups.count == referentManglings.count else { continue }
-            for (lookup, referentMangling) in zip(lookups, referentManglings) {
-                guard case .relative(let relativeReference) = lookup.reference,
-                      relativeReference.kind == directContextDescriptorReferenceKind,
-                      let referencedContext = try? RelativeDirectPointer<ContextDescriptorWrapper?>(relativeOffset: relativeReference.relativeOffset).resolve(from: lookup.offset, in: machO),
-                      case .element(.anonymous(let anonymousContext))? = try? referencedContext.parent(in: machO),
-                      privateDiscriminatorsByAnonymousContextOffset[anonymousContext.offset] == nil,
-                      let referencedName = try? referencedContext.namedContextDescriptor?.name(in: machO),
-                      let privateDiscriminator = privateDiscriminator(ofReferentMangling: referentMangling, named: referencedName)
-                else { continue }
-                privateDiscriminatorsByAnonymousContextOffset[anonymousContext.offset] = privateDiscriminator
+        // Each referenced descriptor is read once. Its referent is not settled
+        // with it: when one reference's referent fails to demangle, the next
+        // reference to the same descriptor is still tried.
+        var anonymousContextMemberByReferencedOffset: [Int: AnonymousContextMember?] = [:]
+        for reference in SymbolicManglingIndex.shared.references(in: machO) where reference.kind == .directContextDescriptor {
+            let anonymousContextMember: AnonymousContextMember?
+            if let readMember = anonymousContextMemberByReferencedOffset[reference.referencedOffset] {
+                anonymousContextMember = readMember
+            } else {
+                anonymousContextMember = Self.anonymousContextMember(at: reference.referencedOffset, in: machO)
+                // `updateValue`, not the subscript: assigning `nil` through the
+                // subscript would remove the key instead of recording "read,
+                // not in an anonymous context".
+                anonymousContextMemberByReferencedOffset.updateValue(anonymousContextMember, forKey: reference.referencedOffset)
             }
+            guard let anonymousContextMember,
+                  privateDiscriminatorsByAnonymousContextOffset[anonymousContextMember.anonymousContextOffset] == nil,
+                  let referentNode = SymbolicManglingIndex.shared.referentNode(of: reference, in: machO),
+                  let privateDiscriminator = privateDiscriminator(ofReferentNode: referentNode, named: anonymousContextMember.name)
+            else { continue }
+            privateDiscriminatorsByAnonymousContextOffset[anonymousContextMember.anonymousContextOffset] = privateDiscriminator
         }
         return Storage(privateDiscriminatorsByAnonymousContextOffset: privateDiscriminatorsByAnonymousContextOffset)
     }
 
-    /// `_symbolic <name> <referent> <referent>…` → the referents, in the order
-    /// of the references they stand for. A mangling never contains a space, so
-    /// splitting on it is exact.
-    private static func referentManglings(ofSymbolNamed symbolName: String) -> [Substring] {
-        let components = symbolName.dropFirst(symbolicSymbolNamePrefix.count).split(separator: " ", omittingEmptySubsequences: false)
-        return Array(components.dropFirst())
+    private static func anonymousContextMember(at offset: Int, in machO: some MachOSwiftSectionRepresentableWithCache) -> AnonymousContextMember? {
+        guard let referencedContext = try? ContextDescriptorWrapper.resolve(from: offset, in: machO),
+              case .element(.anonymous(let anonymousContext))? = try? referencedContext.parent(in: machO),
+              let name = try? referencedContext.namedContextDescriptor?.name(in: machO)
+        else { return nil }
+        return AnonymousContextMember(anonymousContextOffset: anonymousContext.offset, name: name)
     }
 
     /// The discriminator on the referent's own name, provided that name is the
     /// referenced descriptor's — a referent that demangles to anything else is
     /// not trusted with the anonymous context.
-    private static func privateDiscriminator(ofReferentMangling referentMangling: Substring, named expectedName: String) -> String? {
-        guard var nominal = try? demangleAsNodeTransient("$s" + referentMangling) else { return nil }
+    private static func privateDiscriminator(ofReferentNode referentNode: Node, named expectedName: String) -> String? {
+        var nominal = referentNode
         while nominal.kind == .global || nominal.kind == .type, let child = nominal.children.first {
             nominal = child
         }

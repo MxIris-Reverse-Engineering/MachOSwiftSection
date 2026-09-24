@@ -19,6 +19,7 @@ MachOSymbols 是**符号索引**层：把一个镜像的符号表和 export trie
 | 2. 符号值与查询出口 | `Symbol`、`DemangledSymbol`、`MachO+Symbol` |
 | 3. 节点引用的共享与跨 store 对账 | `InternedNodeReferenceCache`、`StructuralNodeReferenceKey` |
 | 4. 大栈执行器接入 | `LargeStackTaskExecution` |
+| 5. `_symbolic` 符号表 | `SymbolicManglingSymbols` |
 
 ## 子系统 1：索引本体
 
@@ -58,6 +59,20 @@ MachOSymbols 是**符号索引**层：把一个镜像的符号表和 export trie
 
 几条容易踩的：嵌套调用是 no-op；**非结构化的 `Task {}` 不继承这个偏好**（SE-0417），所以绝不要在被包裹的入口里起一个；main actor 保留自己的执行器；macOS 15 / iOS 18 以下或非 Darwin 平台原样执行 body。进程级关闭开关 `isEnabled`，由环境变量 `MACHO_SWIFT_SECTION_LARGE_STACK_EXECUTOR` 播种。
 
+## 子系统 5：`_symbolic` 符号表
+
+编译器给每条带 symbolic reference 的 mangled name 生成一个链接器去重用的符号（`_symbolic ` / `_default assoc type ` 开头），
+名字里按引用顺序写出每个被引用者的完整 mangling。构建扫描的两条 symtab 采集腿各多一个前缀分支，把它们收进
+`Storage.symbolicManglingSymbolTable`——同一个 `SymbolTable` 结构、同样的名字来源与偏移换算，但**不进任何索引**：
+`symbols(for:in:)`、`containsSymbol(named:)`、导出事实都看不到它们，这些名字也从不 demangle。唯一的出口是
+`symbolicManglingSymbols(in:)`，解码在 SwiftInspection 的 `SymbolicManglingIndex`（它要读 mangled name 的字节，本模块够不到
+ABI 模型）。
+
+> 被引用者不能单独 demangle：同一个 mangler 依次写出它们，后面的会用 substitution 借用前面的。一律经
+> `SymbolicManglingIndex.referentNode(of:in:)` 拿节点。
+
+细节与实测：[SymbolicManglingSymbols.md](../SymbolicManglingSymbols.md)。
+
 ## 关键契约
 
 - **不要重新引入带缓存的 demangle**。全模块（以及上层）用 `demangleAsNodeTransient` + `Node.createTransient`；一棵用完即弃的树必须是 transient 的，否则全局 `NodeCache` 会随浏览一路涨。
@@ -73,4 +88,5 @@ MachOSymbols 是**符号索引**层：把一个镜像的符号表和 export trie
 - [PrivateTypeMemberAttribution.md](../PrivateTypeMemberAttribution.md)——同名 private 类型的成员归属（issue #115）。
 - [LargeStackTaskExecutorAdoption.md](../LargeStackTaskExecutorAdoption.md)——执行器接入与实测数据。
 - [MetadataReaderCacheRetirement.md](../MetadataReaderCacheRetirement.md)——`SymbolicDemangler` 的 demangle memo。
+- [SymbolicManglingSymbols.md](../SymbolicManglingSymbols.md)——`_symbolic` 符号的格式、收集与解码。
 - 演进提案：[0001](../../Evolutions/0001-symbol-name-offsetization.md) 符号名 offset 化 · [0003](../../Evolutions/0003-symbol-row-bucket-flattening.md) 行号桶扁平化 · [0018](../../Evolutions/0018-self-contained-abi-layer.md) ABI 层自包含 · [0019](../../Evolutions/0019-large-stack-executor-and-cross-version-parallelism.md) 大栈执行器。
