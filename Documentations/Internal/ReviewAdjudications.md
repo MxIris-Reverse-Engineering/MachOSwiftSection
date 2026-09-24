@@ -439,3 +439,77 @@
 - **既往修复 / 当时为什么这样做**：来自提案 0006 的 `final` 关键字还原（commit `da9b8be2`，其后 `83a4308c` 补了「有 `Tq` 就绝不标 `final`」的否定证据）。当时的证据模型就是实现地址反查，本 PR 才把「实现地址在折叠下不可逆」确立为项目事实。
 - **为什么延后**：错误方向保守（少标 `final` 而非错标），且修法与 findings 第 5 条（遍历去重）、第 6 条（快路径不白算）同属「把 `Tq` 优先的证据顺序推广到 `final` 恢复路径」，捆在一起做才不会来回改同一段。
 - **复审条件**：`final` 恢复路径的证据模型统一批次；或出现「`final` 在真实框架上被系统性漏标」的报告。
+
+---
+
+## A40 — 嵌套展开只返回前半段字段、不标截断（`ffbcf5964` review 发现 3，**部分误报**）
+
+- **裁决**：截断标记不修；「dump / interface 会多出新行」误报（2026-09-24）。`children` 注释过时属于文档缺陷，记在 [findings 发现 3（文档部分）](../../Roadmaps/2026-09-24-nested-field-extents-review-findings.md) 待修。
+- **发现**：`NestedFieldOffsetTree.swift:153` 在第一个不是 `.computed` 的字段处 `break`，此前的字段已经追加进去，调用方拿到的是一段前缀，分辨不出它是否完整；审查认为这会让静态的 `--emit-expanded-field-offsets` 输出多出新行，而且没有测试。
+- **复现 / 是否误报**：API 层面属实：main 上 `structChildren` 走 `resolver.computeStructLayout`，任何一个字段不可解就抛错，整组返回空；现在返回前缀。渲染层面是误报：`StaticFieldLayoutBackend.swift:86` 只把 `computedFieldOffsets` 里的顶层字段交给 `nestedFieldOffsetTree`（`:109`、`:159`），而顶层字段的偏移能算出，说明这个字段类型的整体布局已经解析成功，嵌套类型的每个字段都可解。实跑：fixture 的 `PartialHolder` 只有一个字段 `partial: Partial`（源码见 findings 的「复现环境」），`Partial` 中间字段的类型来自没有提供的依赖库，dump 里 `partial` 自己就是 `Field offset: unknown (type descriptor not found for ExtentDependency.DependencyOpaque)`，根本不展开。swift-decompiler（私有仓库，`SwiftMetadataProvider.storedFields`）同样只展开 `.computed` 的顶层字段。
+- **与 main 基线对比**：本次的新行为。
+- **为什么不修**：前缀里的偏移与大小都经证明；「截到第一个算不出的字段为止」与顶层 `AggregateFieldLayout.computedFieldOffsets` 是同一条规则；现有两个调用方都走不到；加截断标记要扩 public API，而没有消费者需要它。
+- **复审条件**：出现直接对任意类型调用 `nestedFieldOffsetTree`、并把 `children` 当成完整字段表的消费者（例如按字段之间的空隙推断 padding）。
+
+---
+
+## A41 — 零大小字段的嵌套偏移从累加位置变成 0（`ffbcf5964` review 发现 4，**误报**）
+
+- **裁决**：误报（2026-09-24）。
+- **发现**：结构体展开从 `computeStructLayout`（`BasicLayout.compute` 对零大小字段报对齐后的累加位置）换成 `fieldLayout(ofStruct:)`（`accumulateFieldLayout` 报 0，`StaticLayoutCalculator.swift:403`），嵌套的零大小字段从「父偏移加累加位置」移到「父偏移」。审查认为 `NestedFieldOffset.offset` 因此出错，而且静态与 MachOImage 的展开输出会在泛型实例化上分叉。
+- **为什么是误报**：编译器写进静态 metadata 的 field offset vector 对零大小字段本来就是 0。实测 fixture 的 `InnerWithMarker`（依次是 `leading: Int64`、`marker: EmptyMarker`、`trailing: Int32`，源码见 findings 的「复现环境」），它的 `$s10ExtentRoot15InnerWithMarkerVN` 偏移表是 `[0, 0, 8]`；dump 里 `MarkerHolder.inner` 展开出的 `marker` 在 8（父偏移 8 加 0）。新行为与编译器一致，也与顶层路径一致；main 上的嵌套路径反而与编译器不一致。它只和运行时实例化的泛型 metadata（`performBasicLayout` 报累加值）不同，这一点顶层路径早已接受。
+- **与 main 基线对比**：嵌套路径是本次的新变化；顶层路径自 `cc12368e` 起就报 0。
+- **既往修复 / 当时为什么这样做**：`cc12368e`（2026-07-13，value generic 与 parameter pack 阶段）让 `accumulateFieldLayout` 有意镜像 IRGen 的 `ElementLayout::completeEmpty`，注释写明与运行时实例化泛型的差异「对没有存储的字段没有影响」。这个理由今天仍然成立：零大小字段不对应任何内存访问，`byteWidth` 为 0 也不会与任何访问匹配。
+- **复审条件**：出现依赖零大小字段偏移的消费者（例如按字段重建 key path，再与运行时的 `MemoryLayout.offset(of:)` 比对）。
+
+---
+
+## A42 — 公开入口默认把根的子字段当成无条件存储（`ffbcf5964` review 发现 5）
+
+- **裁决**：不修（2026-09-24）。
+- **发现**：`nestedFieldOffsetTree(forMangledTypeName:baseOffset:depthLimit:)` 以 `hasUnconditionalStorage: true` 起步（`NestedFieldOffsetTree.swift:64`）。调用方如果把枚举 payload 的类型当根传进来，子字段会带上 `byteWidth`，与 `byteWidth` 文档里「枚举 payload 分支及其后代没有无条件大小」相矛盾，而 API 没有办法表达「根本身就是条件存储」。
+- **复现 / 是否误报**：API 层面成立，但现有调用方构造不出来：`StaticFieldLayoutBackend` 只对 struct / class 的已算出存储字段调用；swift-decompiler 只对 `.computed` 的顶层 struct / class 字段调用，另外还用父字段的范围再夹一次子字段的大小。
+- **与 main 基线对比**：新 API（`byteWidth` 是本次新增的）。
+- **为什么不修**：调用这个入口，本身就是在断言「这个字段在 `baseOffset` 处无条件存储」；为一个不存在的调用方加参数，等于扩 public API。
+- **复审条件**：出现对枚举 payload 调用这个入口的消费者；届时加参数，或在文档注释里写明前置条件。
+
+---
+
+## A43 — `byteWidth == nil` 同时表示「未证明」与「条件存储」（`ffbcf5964` review 发现 6）
+
+- **裁决**：不修（2026-09-24）。
+- **发现**：`byteWidth` 为 `nil`，既可能是大小没被证明，也可能是枚举 payload 里的条件存储；子树的 `hasUnconditionalStorage` 又由 `byteWidth != nil` 推出（`NestedFieldOffsetTree.swift:247`），两个概念经一个 Optional 耦合在一起。
+- **复现 / 是否误报**：当前没有行为差异。`accumulateFieldLayout` 给每个 `.computed` 条目都带上 `layout`，C 结构体校验的三条返回路径要么原样保留这些条目、要么整体降级为 `.unknown`，所以 `byteWidth != nil` 恰好等价于「无条件存储并且大小已算出」。swift-decompiler 对两种 `nil` 的处理也相同（都不参与按大小匹配）。
+- **与 main 基线对比**：新 API。
+- **为什么不修**：纯粹是可读性问题；把 `hasUnconditionalStorage` 显式传给 `makeNode`，可以在下次改这段代码时顺手做。
+- **复审条件**：某条路径让 `.computed` 条目的 `layout` 为 `nil`；或者消费者需要区分「大小未知」与「条件存储」（例如想拿到 payload 的大小）。
+
+---
+
+## A44 — 换用 `fieldLayout(ofStruct:)` 之后嵌套展开多做工作（`ffbcf5964` review 发现 9，**误报**）
+
+- **裁决**：误报（2026-09-24）。
+- **发现**：`accumulateFieldLayout` 在第一个未解析字段之后，仍然逐个解析后续字段自身的布局；C 结构体多一次 descriptor demangle；每个嵌套结构体的字段记录读两次；而嵌套展开在第一个未知字段处就停。
+- **为什么是误报**：① 「未解析之后继续解析」只在嵌套类型含有不可解字段时才发生，现有调用方走不到（见 A40）；② demangle 只对 C 结构体发生，每次一个 `demangleContext`；③ 字段记录读两次在 main 上就是这样（旧路径在 `computeStructLayout` 里读一遍，`structChildren` 再读一遍）。实测：swift-decompiler 同一配置下 20 个函数的完整对照，索引耗时 103.973 秒（改动前）与 103.991 秒（改动后）。
+- **与 main 基线对比**：第 ③ 点是基线既有。
+- **复审条件**：profiling 显示嵌套展开在大框架上的耗时占比可观。
+
+---
+
+## A45 — `NestedFieldExtentTests` 每个测试重编一次同一个 fixture（`ffbcf5964` review 发现 10）
+
+- **裁决**：不修（2026-09-24）。
+- **发现**：`tree(forFieldNamed:inStructNamed:)` 每次调用都跑一次 `xcrun swiftc`（一共 6 次），`.serialized` 让它们串行执行；`swiftc` 的 stderr 没有收进失败信息。
+- **复现 / 是否误报**：属实，但代价很小：2026-09-24 在 `next`（`0748b372`）实跑，每个编译 fixture 的测试约 0.24 秒，整组 1.960 秒。stderr 没有重定向，会继承测试进程的 stderr，所以编译错误照样出现在 `swift test` 的输出里，只是不在 `#require` 的消息中。
+- **为什么不修**：成本可以忽略；改成共享的懒编译 fixture，要引入跨测试的共享状态。
+- **复审条件**：fixture 编译慢到影响整套测试的耗时；或者 CI 上出现只看得到 `#require` 消息、定位不了的编译失败。
+
+---
+
+## A46 — 默认值测试「同义反复」，缺前缀与零大小的回归测试（`ffbcf5964` review 发现 11）
+
+- **裁决**：不修（2026-09-24）。
+- **发现**：`manuallyCreatedNodesDefaultToUnknownExtent` 只钉了一个默认参数值；前缀截断与零大小偏移这两个行为变化没有测试。
+- **复现 / 是否误报**：前半是误报：这个测试钉的是旧的四参数初始化调用仍能编译（审查对象的演进日志明确承诺了源码兼容），删掉默认参数它就编译不过。后半属实。
+- **为什么不修**：这两个行为分别裁决为不修（A40）与误报（A41），现有调用方要么走不到、要么不受影响；前缀截断的测试可以随 findings 发现 3 的注释修改一起补。
+- **复审条件**：A40 或 A41 被改判。
