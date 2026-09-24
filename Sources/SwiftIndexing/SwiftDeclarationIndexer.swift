@@ -191,6 +191,9 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
                 @Dependency(\.symbolIndexStore)
                 var symbolIndexStore
                 symbolIndexStore.remove(for: machO)
+                // Holds the symbol store's symbolic-mangling table, which it
+                // would otherwise pin.
+                SymbolicManglingIndex.shared.remove(for: machO)
                 // Holds `NodeReference`s into the symbol store's node arena, so
                 // it goes with the store it would otherwise pin.
                 ObjCImplementationClasses.removeCache(for: machO)

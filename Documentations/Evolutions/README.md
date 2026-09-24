@@ -59,3 +59,4 @@
 | draft | [从 ObjC 祖先链还原 `override`：ObjC 派生 Swift 类与 `@objc @implementation` 类的覆写成员](draft-objc-ancestor-override-recovery.md) | Implemented |
 | draft | [从 ObjC 方法表还原每个 `@objc` 成员：strip 后的 `@objc`、显式 selector 与 category 成员](draft-objc-member-selector-recovery.md) | Implemented |
 | draft | [ObjC 祖先链走依赖闭包：独立文件上的父类与 category 目标类按名字在依赖镜像里解析](draft-objc-ancestor-dependency-closure.md) | Implemented |
+| draft | [`_symbolic` 符号索引：被符号引用的对象 → 编译器写下的完整名字](draft-symbolic-mangling-symbol-index.md) | Implemented |

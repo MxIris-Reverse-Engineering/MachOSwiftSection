@@ -104,7 +104,7 @@ RuntimeViewer 报告：macOS 26.7 上把 AppKit 的 `WindowPortal<A>` 特化成 
 - interface 打印器没有它的分支，整棵子树连同里面的 `Module` 都打成空串。`BoundDumpedTypeNameRenderer` 的 `.structure` / `.class` / `.enum` 分支又无条件在父节点后面写 `.`，于是名字开头多一个点。`TypeNodePrintable.printType`（字段类型、泛型实参走这里）只在父节点真的写出内容时才写分隔符，所以那里没有点，但模块和外层类型一起丢了。
 - dump 路径用的是 Demangling 自带的打印器：`DemangleOptions.default` 下打成 `Module.(unknown context at $600001234)`，`.interface` 选项下同样打成空。
 
-离线命名从来不会遇到这个节点：`SymbolicDemangler.buildContextDescriptorMangling` 遇到 anonymous context 时，查得到它的符号就还原成 `privateDeclName`（interface 打印器只打名字本身），查不到就跳过、直接用父上下文。dyld shared cache 里没有本地符号，所以 AppKit 这类镜像永远是后者。
+离线命名从来不会遇到这个节点：`SymbolicDemangler.buildContextDescriptorMangling` 遇到 anonymous context 时，查得到它的符号就还原成 `privateDeclName`（interface 打印器只打名字本身），查不到就跳过、直接用父上下文。dyld shared cache 里没有本地符号，所以 AppKit 这类镜像永远是后者。（2026-09-24 起不再如此：shared cache 保留着 `_symbolic` 符号，离线命名从中还原鉴别符，见下文「私有鉴别符」。）
 
 ### 修复
 
@@ -115,6 +115,19 @@ RuntimeViewer 报告：macOS 26.7 上把 AppKit 的 `WindowPortal<A>` 特化成 
 为什么不给 interface 打印器加一个 `.anonymousContext` 分支：那样只修了 interface 打印器，dump 与布局注释用的 Demangling 打印器照样打出 `(unknown context at $…)`；而且地址本身没有任何值得打印的信息，在源头去掉比让每个打印器各自忽略更一致。
 
 为什么不自己实现 `_mangledTypeName`：讨论过，可行——ABI 模型能读运行时处理的全部 metadata 种类，`SymbolicDemangler` 能从描述符拼出上下文名。但这等于移植约 700 行 C++（`_swift_buildDemanglingForMetadata`，加上从同型约束反推非 key 泛型参数的 `_gatherWrittenGenericParameters`），之后每个 Swift 版本新增的函数类型标志都要跟进；而对 interface 输出，结果与「保留 `_mangledTypeName` + 去掉 anonymous context」一字不差。留待以后单独立项。
+
+### 私有鉴别符（2026-09-24）
+
+上面「换成父节点」的依据是「与离线命名在 shared cache 里一致」，而离线命名在 shared cache 里拿不到鉴别符的前提并不成立。编译器为每条带 symbolic reference 的 mangled name 生成一个符号（`IRGenMangler::mangleSymbolNameForSymbolicMangling`）：`symbolic `、把每个 5 字节引用写成 `_____` 的名字、再按引用顺序逐个跟上被引用者的完整 context mangling，鉴别符就在后者里——例如 `_symbolic _____ 6AppKit24FontPanelBIUSPopUpButton33_05EA0EB8E781FFE22747790FC22932B1LLC`。这类符号在 shared cache 里保留着。有字段描述符的类型一定有一个：字段描述符里记的自身类型名就是指向它自己的引用。
+
+它挂在 `__swift5_typeref` 里那条 mangled name 上，不在任何描述符上，所以「按匿名上下文的偏移查符号」查不到（AppKit 实测：匿名上下文 19820636、类描述符 19820644，都没有符号；`_symbolic` 符号在 19757510）。`AnonymousContextPrivateDiscriminatorIndex`（`SwiftInspection`）因此走引用：沿直接 context 引用（`0x01`）到达被引用的描述符，父级若是 anonymous context，就记下被引用者名字里 `privateDeclName` 的鉴别符（要求其中的名字与描述符名字一致）。按镜像惰性构建，与 demangle memo 一起驱逐。当天稍后，符号的收集与引用的配对交给通用的 `SymbolicManglingIndex`，这个索引只做其中一个消费者；被引用者也改为连同前面的被引用者一起 demangle——同一个符号里后面的会借用前面的 substitution，见 [SymbolicManglingSymbols.md](SymbolicManglingSymbols.md)。
+
+两条路径用同一个查询：
+
+- 离线：`SymbolicDemangler` 的 `.anonymous` 分支先查 anonymous descriptor 上的符号，查不到再查这张表，两者都没有才跳过。
+- 运行时：`RuntimeTypeNameDemangling` 用 `AnonymousContext` 里的地址查同一张表，查到就把其中的类型改写成 `privateDeclName`，查不到才换成父节点。于是同一个类型从描述符和从运行时得到同一个节点。
+
+interface 打印器不打鉴别符，interface 输出不变；`dump` 与布局注释用的默认 demangle 选项含 `.showPrivateDiscriminators`，系统镜像里的 private 类型、以及运行时来源的 private 泛型实参，开始打出 `(Name in _…)`，与带符号的镜像里按描述符解出的名字一致（用户确认保持一致，而不是在注释里去掉鉴别符）。同名的 private 类型也不再撞名：AppKit 两个文件里各有一个 `TextFieldContentBounds`，以前 interface 按名字合并时丢了一个。以 `mangleAsString(node)` 为键的消费方（RuntimeViewer 的 `RuntimeObject.name`、ABI snapshot 的类型键）对 private 类型的键会变。
 
 ### extension context（同日第二批）
 

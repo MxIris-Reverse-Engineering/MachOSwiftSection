@@ -1932,6 +1932,27 @@
 
 ---
 
+## 2026-09-24 系统镜像里的 private 类型：从 `_symbolic` 符号还原私有鉴别符
+
+- **时间段**：2026-09-24（单日）。
+- **动机**：RuntimeViewer 要把一个类的 ObjC 那一面和 Swift 那一面按名字对上（`_TtC6AppKitP33_05EA…24FontPanelBIUSPopUpButton` ↔ Swift 类型），发现系统镜像里 private 类型在 Swift 侧的名字没有私有鉴别符。`SymbolicDemangler` 只从两处找它：anonymous context 自带的 mangled name，编译器只在 `-enable-anonymous-context-mangled-names`（调试器用，默认关）下才写；anonymous descriptor 上的符号，dyld shared cache 里查不到。两处都落空就跳过这一层，private 类型 demangle 成和 internal 一样的名字。macOS 26.7 的 AppKit 注册到 ObjC 运行时的 183 个 Swift 类里，103 个两侧名字对不上。鉴别符其实还在二进制里：编译器为每条带 symbolic reference 的 mangled name 生成 `_symbolic <带占位的名字> <被引用者的完整 context mangling>…` 符号（`IRGenMangler::mangleSymbolNameForSymbolicMangling`），shared cache 保留着它们（用户在 Hopper 里看到 `_symbolic _____ 6AppKit24FontPanelBIUSPopUpButton33_05EA0EB8E781FFE22747790FC22932B1LLC`）。
+- **关键决策**：**① 走引用，不按偏移查符号**：`_symbolic` 符号挂在 `__swift5_typeref` 里的那条 mangled name 上，不在任何描述符上；按匿名上下文偏移做 MachOKit 精确查找（`symbol(for:inSection:isGlobalOnly:)`，即关掉 `resolvesSymbolUsingIndexStore` 的那条路）实测拿不到。新增 `AnonymousContextPrivateDiscriminatorIndex`：解析 `_symbolic` 符号标的 mangled name，沿直接 context 引用（`0x01`）找到被引用的描述符，父级是 anonymous context 就记下被引用者 `privateDeclName` 里的鉴别符，并要求其中的名字与描述符名字一致。**② 只作兜底**：`.anonymous` 分支先走原有的符号查找，查不到才查索引，两者都没有仍跳过。**③ 运行时名字同批改**：`RuntimeTypeNameDemangling` 把运行时的 `AnonymousContext("$<地址>")` 换成父节点，依据是「与 shared cache 里的离线命名一致」；离线命名现在带鉴别符，它改为按地址查同一张表、改写成 `privateDeclName`，查不到才换成父节点。按「修这一类」的规则同批落地。
+- **行为变化**：`dump` 的默认 demangle 选项含 `.showPrivateDiscriminators`，系统镜像里的 private 类型开始打出 `(Name in _…)`，与带符号的镜像一致；`interface` 不打鉴别符。布局注释同样用 `.default` 打印，运行时来源的 private 类型名（特化后的泛型实参）也开始带鉴别符——带符号镜像里按描述符解出的 private 名在这些注释里本来就带，这次是让两种来源一致；用户确认保持一致，`SpecializedRuntimeTypeNameTests` 里那条注释断言改为只钉「模块在、带鉴别符」的形状。同名的 private 类型不再撞名：AppKit 里两个不同文件的 `TextFieldContentBounds` 以前解成同一个名字，interface 按名字合并时丢了其中一个及其两条协议遵循，现在两个都在。以 `mangleAsString(node)` 为键的消费方（RuntimeViewer 的 `RuntimeObject.name`、ABI snapshot 的类型键）对 private 类型的键会变化。
+- **落地模块**：`SwiftInspection`（新增 `AnonymousContextPrivateDiscriminatorIndex.swift`；`SymbolicDemangler` 的 `SymbolLookupContext`、`.anonymous` 分支、`removeCache(for:)`）、`SwiftDeclarationRendering`（`RuntimeTypeNameDemangling`）；测试新增 `Tests/SwiftInspectionTests/AnonymousContextPrivateDiscriminatorTests.swift`（4 条）、`Tests/SwiftDeclarationRenderingTests/RuntimeTypeNamePrivateDiscriminatorTests.swift`（1 条），改 `Tests/SwiftSpecializationTests/SpecializedRuntimeTypeNameTests.swift`（1 条期望）。
+- **验证**：5 条新测试修复前全红、修复后全绿（远程依赖模式，macOS 26.7 系统 cache）；其中覆盖测试逐个比较 AppKit 注册到 ObjC 运行时的 183 个 Swift 类——经类对象的 Swift metadata 找到描述符、从描述符解出的名字与 ObjC 运行时名解出的名字——修复前 103 个不一致、修复后 0 个。全量 `swift test --skip IntegrationTests`：2073 tests / 389 suites，失败 5 条：`SharedCacheTests` 的 3 条墙钟断言与 `GenericSpecializationTests.argumentCandidatePathSpecializesNonGenericCandidate`（均为既有不稳定测试，见前两节），以及上面那条注释断言（期望已按用户决定改写，重跑通过）。本地差分（修复前后两份 debug CLI，同一 cache）：AppKit `dump` 21464 行里 826 行变化，把 `(Name in _…)` 还原成 `Name` 后与基线逐字相同（唯一例外是基线里本就带鉴别符的一行 `@objc` 协议引用）；AppKit `interface` 只多出上面那个 `TextFieldContentBounds` 的 5 行，其余逐字相同；耗时 `dump` 9.45 → 9.70 秒、`interface` 25.0 → 24.4 秒，在波动范围内。没有跑 A/B 脚本：这是有意的输出变化，不是等价重构。
+- **关联文档**：[SpecializedInterfaceBoundRenderingRestoration.md](SpecializedInterfaceBoundRenderingRestoration.md)「私有鉴别符（2026-09-24）」。
+- **对应版本**：随下一次发布。
+
+## 2026-09-24 `_symbolic` 符号索引：收集进符号库、通用解码、私有鉴别符改为消费者
+
+- **时间段**：2026-09-24（单日），紧接上一节。
+- **动机**：上一节的私有鉴别符修复为了给匿名上下文找鉴别符，自己扫一遍符号表、就地解析 `_symbolic` 符号。用户：「解 `_symbolic` 的逻辑应该要和 AnonymousContextPrivateDiscriminatorIndex 分开来吧，这个别的地方可能也用的到」「反正都要扫一遍，弄得通用一点」。提案 [draft-symbolic-mangling-symbol-index](../Evolutions/draft-symbolic-mangling-symbol-index.md)。
+- **关键决策**：**① 三层**：`SymbolIndexStore` 在已有的 symtab 扫描里把 `_symbolic ` / `_default assoc type ` 符号收进一张独立的表（不进 `symbols(for:in:)` 等任何索引，结果不变）；SwiftInspection 新增 `SymbolicManglingIndex`，读每个符号标的 mangled name、与被引用者按顺序配对、按被引用位置排序；`AnonymousContextPrivateDiscriminatorIndex` 改为它的消费者。**② 被引用者只能一起 demangle**：实现时发现同一个符号里靠后的被引用者会借用前面的 substitution（AppKit：`7SwiftUI19_ConditionalContentV AA08ModifiedD0V`），单独 demangle 会失败或得到别的东西；改为接在同一个 `$s` 后面一起 demangle。私有鉴别符原来单独 demangle、靠「每个引用都试一遍」碰巧没出事，重构加上「每个描述符只读一次」后覆盖测试立刻多出 2 个不一致（嵌套的 private 类），据此定位。**③ 撤掉「把占位换成被引用者的完整 mangled name」**：两边的 substitution 编号会同时错位，文字拼接不成立（AppKit 实测不能 demangle）。**④ 局部类型登记不修**：对照测试里 `SymbolicDemangler` 与编译器写法只在函数体里的局部类型上不一致（丢了函数那一层），登记为已知问题。
+- **落地模块**：`MachOSymbols`（新增 `SymbolicManglingSymbols.swift`；`SymbolIndexStore` 的 `Storage`、两条采集腿、`symbolicManglingSymbols(in:)`）、`SwiftInspection`（新增 `SymbolicManglingIndex.swift`；重写 `AnonymousContextPrivateDiscriminatorIndex` 的构建）、`SwiftIndexing`（`deinit` 的符号库一支加驱逐）；测试新增 `SymbolicManglingSymbolCollectionTests`（6 条）、`SymbolicManglingIndexTests`（6 条），`PerImageCacheEvictionTests` 加 1 条。
+- **验证**：新增测试全绿，局部类型那处差异以 `withKnownIssue` 记录；上一节的 5 条私有鉴别符测试不改、保持绿（其中覆盖测试正是抓到 ② 的那条）。实测（macOS 26.7 cache）：AppKit 3028 个符号、4826 个引用，`MachOFile` 上表 307 KB、索引 135 KB；SwiftUICore 7531 / 8827，657 KB / 247 KB；SwiftUI 12348 个符号、表 1.28 MB；配不上的符号 0 个；对照测试 AppKit 880 个类型与协议描述符里 878 个一致。与上一节那一版的 debug CLI 对比：AppKit `dump` / `interface` 逐字节相同；耗时在高负载下交替各跑 3 次，区间重叠，测不出差别。全量 `swift test --skip IntegrationTests`：2086 个测试，5 个失败全是既有不稳定项（`SharedCacheTests` 墙钟断言 3 条、`argumentCandidatePathSpecializesNonGenericCandidate`、满载时的 arm64e 探针，后者单独重跑通过）。
+- **关联文档**：[SymbolicManglingSymbols.md](SymbolicManglingSymbols.md)（实现说明）、[Modules/MachOSymbols.md](Modules/MachOSymbols.md)「子系统 5」、术语表「symbolic-mangling symbol」。
+- **对应版本**：随下一次发布，与上一节同批。
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节

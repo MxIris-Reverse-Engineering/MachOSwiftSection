@@ -236,6 +236,17 @@ TypeIndexing 的外部知识入口：标准 `.apinotes` 格式的**用户自备*
 - **主要出现在**：`Sources/MachOSymbols/SymbolIndexStore.swift`（`buildStorageSweep`）
 - **延伸阅读**：[提案 0001](Evolutions/0001-symbol-name-offsetization.md)、[SymbolIndexStoreMemoryOptimization.md](Internal/SymbolIndexStoreMemoryOptimization.md)
 
+### symbolic-mangling symbol（`_symbolic` 符号）与被引用者（referent）
+
+编译器给每条带 symbolic reference 的 mangled name 生成的链接器去重符号：`_symbolic ` / `_default assoc type ` 前缀，
+接着是把每个 5 字节引用写成 `_____` 的 mangled name，再按引用顺序、空格分隔地写出每个**被引用者**——引用所指对象的
+完整 mangling（模块、外层类型、private 鉴别符都在）。symbolic reference 本身只是相对偏移，这是二进制里唯一写出被引用者
+名字的地方，dyld shared cache 也保留着。被引用者不能单独 demangle：同一个 mangler 依次写出它们，后面的会借用前面的
+substitution，必须连在一个 `$s` 后面一起 demangle。
+
+- **主要出现在**：`Sources/MachOSymbols/SymbolicManglingSymbols.swift`（收集）、`Sources/SwiftInspection/SymbolicManglingIndex.swift`（配对与解码）
+- **延伸阅读**：[SymbolicManglingSymbols.md](Internal/SymbolicManglingSymbols.md)、[提案 draft-symbolic-mangling-symbol-index](Evolutions/draft-symbolic-mangling-symbol-index.md)
+
 ### SymbolicDemangler（旧名 MetadataReader）
 
 `SwiftInspection` 里带镜像上下文的 demangler：mangled name 里的 symbolic reference（指向 context descriptor、opaque type descriptor、protocol descriptor、existential shape 的相对指针）要回到镜像里解析，它读出被引用的描述符、建出编译器本来会 mangle 进去的那棵子树，对应运行时的 `ResolveAsSymbolicReference` 加 `_swift_buildDemanglingForContext`。另外直接为 context descriptor 和 generic requirement 列表建 demangling（`demangleContext(for:)`、`buildGenericSignature(for:)`）。它从不读 `Metadata` 记录，metadata 指针变类型那个方向是 `RuntimeMetadataTypeBuilder`。2026-09-09 之前叫 `MetadataReader`，名字抄自上游 `swift/Remote/MetadataReader.h`，但上游那个类型的主业正是「从远程进程内存读 metadata 记录再交给 Builder」，我们只对应它 demangle 那一半；带日期的旧文档里仍用旧名。
