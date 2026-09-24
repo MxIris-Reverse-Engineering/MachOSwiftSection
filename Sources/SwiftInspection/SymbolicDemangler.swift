@@ -79,6 +79,8 @@ extension SymbolicDemangler {
     /// would keep the dropped store's buffers alive.
     public static func removeCache(for machO: some MachOSwiftSectionRepresentableWithCache) {
         SymbolicDemanglerCache.shared.remove(for: machO)
+        // Per-image state the same demanglings read, with the same lifetime.
+        AnonymousContextPrivateDiscriminatorIndex.shared.remove(for: machO)
     }
 
     /// Non-creating membership probe for the per-image demangle memo —
@@ -181,11 +183,35 @@ extension SymbolicDemangler {
 
 private protocol SymbolLookupContext {
     func lookupSymbol(at offset: Int) -> Symbol?
+
+    /// The private discriminator of the anonymous context at `offset`, as the
+    /// image's `_symbolic` symbols record it
+    /// (`AnonymousContextPrivateDiscriminatorIndex`).
+    func symbolicReferencePrivateDiscriminator(forAnonymousContextAt offset: Int) -> String?
+}
+
+extension SymbolLookupContext {
+    /// The discriminator of the private type inside the anonymous context at
+    /// `offset`, as the identifier a `privateDeclName` takes: from a symbol on
+    /// the anonymous descriptor when the image kept one, otherwise from a
+    /// `_symbolic` symbol naming that type, which an OS framework in the dyld
+    /// shared cache still carries when the other is gone.
+    func privateDiscriminatorIdentifier(forAnonymousContextAt offset: Int) -> Node? {
+        if let symbol = lookupSymbol(at: offset), let privateDeclName = try? symbol.demangledNode.first(of: Node.Kind.privateDeclName) {
+            return privateDeclName.children.first
+        }
+        guard let privateDiscriminator = symbolicReferencePrivateDiscriminator(forAnonymousContextAt: offset) else { return nil }
+        return .createTransient(kind: .identifier, text: privateDiscriminator)
+    }
 }
 
 extension MachOContext: SymbolLookupContext {
     func lookupSymbol(at offset: Int) -> Symbol? {
         try? Symbol.resolve(from: offset, in: machO)
+    }
+
+    func symbolicReferencePrivateDiscriminator(forAnonymousContextAt offset: Int) -> String? {
+        AnonymousContextPrivateDiscriminatorIndex.shared.privateDiscriminator(forAnonymousContextAt: offset, in: machO)
     }
 }
 
@@ -194,6 +220,24 @@ extension InProcessContext: SymbolLookupContext {
         guard let ptr = UnsafeRawPointer(bitPattern: offset) else { return nil }
         guard let result = MachOImage.symbol(for: ptr) else { return nil }
         return Symbol(offset: offset, name: result.1.name)
+    }
+
+    /// An in-process "offset" is the descriptor's address; the index is kept
+    /// per image and keyed from the image's header.
+    func symbolicReferencePrivateDiscriminator(forAnonymousContextAt offset: Int) -> String? {
+        guard let pointer = UnsafeRawPointer(bitPattern: offset), let machOImage = MachOImage.image(for: pointer) else { return nil }
+        return AnonymousContextPrivateDiscriminatorIndex.shared.privateDiscriminator(forAnonymousContextAt: offset - machOImage.ptr.bitPattern.int, in: machOImage)
+    }
+}
+
+extension SymbolicDemangler {
+    /// The private discriminator of the anonymous context at `address` in
+    /// this process. The runtime spells such a context by its address
+    /// (`AnonymousContext("$<address>", …)`); `RuntimeTypeNameDemangling`
+    /// names it through this, so a name that came from the runtime agrees with
+    /// the one built from the descriptors.
+    package static func privateDiscriminator(forAnonymousContextAt address: UnsafeRawPointer) -> String? {
+        InProcessContext.shared.privateDiscriminatorIdentifier(forAnonymousContextAt: address.bitPattern.int)?.text
     }
 }
 
@@ -474,11 +518,10 @@ extension SymbolicDemangler {
                 return Node.createTransient(kind: .extension, children: [parentDemangling, demangledExtendedContext])
             }
         case .anonymous:
-            // Look up symbol using the context's symbol lookup capability
+            // With no discriminator on record the context is skipped, and the
+            // type inside demangles as if it were internal.
             if let lookupContext = readingContext as? SymbolLookupContext,
-               let symbol = lookupContext.lookupSymbol(at: context.contextDescriptor.offset),
-               let privateDeclName = try? symbol.demangledNode.first(of: Node.Kind.privateDeclName),
-               let privateDeclNameIdentifier = privateDeclName.children.first {
+               let privateDeclNameIdentifier = lookupContext.privateDiscriminatorIdentifier(forAnonymousContextAt: context.contextDescriptor.offset) {
                 if let parentDemangling {
                     return Node.createTransient(kind: .anonymousContext, children: [privateDeclNameIdentifier, parentDemangling])
                 } else {
