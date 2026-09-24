@@ -59,6 +59,11 @@ non-trivial batch. Related repo-root surfaces (not under `Documentations/`):
 [`Changelogs/`](../Changelogs/) holds the user-facing per-release notes (one file per tag,
 required by `Version.swift`'s bump contract).
 
+The current [nested coordinate field extent proposal](https://github.com/MxIris-Reverse-Engineering/swift-decompiler/blob/fix/microcode-operand-pairs/docs/evolutions/draft-nested-coordinate-field-extents.md)
+is maintained in swift-decompiler as the single decision and validation record for
+the paired changes. SwiftLayout supplies proven nested field sizes; the decompiler
+selects names using each access's offset and width.
+
 | Doc | What it covers |
 |---|---|
 | [Modules/](Internal/Modules/README.md) | **按模块组织的参考文档系列**：每个库模块一篇权威入口（定位 / 子系统分工 / 跨文件契约 / 细节文档指路）；该目录 README 是覆盖状态表。 |

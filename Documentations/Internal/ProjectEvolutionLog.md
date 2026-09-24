@@ -1904,6 +1904,34 @@
 - **关联文档**：提案 [0036](../Evolutions/0036-objc-subcommands.md)；使用指南 [ObjCCommandLine.md](../ObjCCommandLine.md) / [ObjCCommandLine_zh.md](../ObjCCommandLine_zh.md)；README「objc」一节。
 - **对应版本**：随下一次发布；changelog 要写迁移对照 `objc-section <子命令>` → `swift-section objc <子命令>`。
 
+## 57. 为嵌套字段导出经布局校验的值大小
+
+- **时间段**：2026-09-23 至 2026-09-24。
+
+- **动机**：反编译器需要区分矩形坐标的 8 字节访问、点或尺寸的 16 字节访问和矩形整值；
+  仅有偏移无法区分同一位置的聚合字段及首个子字段。
+- **关键决策**：`NestedFieldOffset.byteWidth` 默认为 `nil`，旧初始化调用保持源码兼容。
+  大小来自字段的值布局，不使用分配步长或相邻偏移；结构展开复用顶层字段已有的外来布局校验。
+  枚举分支及其后代不声明无条件存储大小，间接分支仍为叶子，未知泛型布局保持降级。
+  依赖解析沿用字段的定义镜像及泛型实参，不从显示名称猜测。
+- **落地模块**：`SwiftLayout/NestedFieldOffsetTree.swift` 与内部 `fieldLayout` 入口；
+  `SwiftLayoutTests/NestedFieldExtentTests.swift` 使用现场编译的小型 dylib，覆盖填充、泛型包装、
+  枚举、C bitfield、紧凑 C 结构、默认未知大小、未绑定泛型和显式依赖镜像。
+- **验证**：`queued-build swift test --scratch-path /tmp/codex/SwiftPM/MachOSwiftSection-NestedCoordinateFields --filter NestedFieldExtentTests`
+  的 8 项回归于 2026-09-23 全部通过，原始退出码 0，运行 1.853 秒。
+  2026-09-24 在 `next` 上清理 agent 专属 scratch 后重新构建，并运行嵌套字段与 raw-layout
+  相关套件：15 项中 14 项通过，1 项需要 Swift 6.4 的字段偏移测试按条件跳过；本批 8 项全过，
+  原始退出码 0，运行 2.071 秒。日志 `layout-next-tests.log` 位于
+  `/tmp/codex/Artifacts/nested-coordinate-fields/`。未运行本库完整套件。
+- **关联文档**：唯一的[跨仓库提案与验证记录](https://github.com/MxIris-Reverse-Engineering/swift-decompiler/blob/fix/microcode-operand-pairs/docs/evolutions/draft-nested-coordinate-field-extents.md)
+  由 swift-decompiler 维护。本库补丁随本批进入 `next`；消费者仍在工作分支，
+  跨仓库提案因此保持 In Progress。
+- **对应版本**：未发布；最初在 `feature/nested-coordinate-fields` 基于消费者旧锁定的
+  `61f06284` 验证。2026-09-24 按用户纠正合入 `next`，保留 `SymbolicDemangler`、
+  C 导入类型别名识别及 raw-layout 存储规则；消费者改为跟踪 `next`。
+
+---
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节

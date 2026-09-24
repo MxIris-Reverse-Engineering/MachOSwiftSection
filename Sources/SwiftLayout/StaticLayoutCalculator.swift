@@ -163,7 +163,7 @@ public struct StaticLayoutCalculator<MachO: MachOSwiftSectionRepresentableWithCa
 
     // MARK: - Struct
 
-    private func fieldLayout(
+    func fieldLayout(
         ofStruct descriptor: StructDescriptor,
         in image: ImageReference<MachO>,
         environment: GenericArgumentEnvironment
