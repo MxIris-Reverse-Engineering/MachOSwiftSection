@@ -513,3 +513,15 @@
 - **复现 / 是否误报**：前半是误报：这个测试钉的是旧的四参数初始化调用仍能编译（审查对象的演进日志明确承诺了源码兼容），删掉默认参数它就编译不过。后半属实。
 - **为什么不修**：这两个行为分别裁决为不修（A40）与误报（A41），现有调用方要么走不到、要么不受影响；前缀截断的测试可以随 findings 发现 3 的注释修改一起补。
 - **复审条件**：A40 或 A41 被改判。
+
+---
+
+## A47 — 差异接口里私有声明自身的名字没有语义类型（`renderLeafName`，修 conformance 子句时横向排查发现，**基线既有**）
+
+- **裁决**：不修（2026-09-25）。
+- **发现**：diff / evolution 渲染器打印 `private` / `fileprivate` 类型或协议的声明头时，`SwiftDeclarationPrinter+Headers.swift` 的 `renderLeafName` 把叶子名 `(Name in _ABC)` 交给 demangler 的 `printSemantic(using: [.showPrivateDiscriminators])`。叶子是一个孤立的 `privateDeclName` 节点，外面没有实体节点，引擎给不出实体种类，整段是 `.standard`；非私有声明走 `TypeDeclaration(kind:, name)`，是 `.type(kind, .declaration)`。与 conformance 子句那处同类（私有名字丢语义类型，见 [TaskReports/2026-09-25-conformance-protocol-name-semantics.md](TaskReports/2026-09-25-conformance-protocol-name-semantics.md)），但 swift-demangling 那次修复（把实体种类带给被包裹的标识符）管不到这里——这里本来就没有实体。
+- **复现 / 是否误报**：属实。路径：`SwiftDeclarationPrinter+DiffRendering` 给私有类型 / 协议传 `leafNameNode` → `renderLeafName` → `printSemantic` → 引擎对孤立 `privateDeclName` 调 `printName`，不带实体种类。
+- **与 main 基线对比**：基线既有，`a9f325e0`（2026-06-20，diff 里显示私有判别符）引入时就是这样。
+- **为什么不修**：没有消费方看得见。`swift-section diff` 的三种格式（inline / unified / markdown）只取 `.string`，没有颜色通道；RuntimeViewer 不使用 diffable / evolution 渲染器。修起来很便宜（包成 `TypeDeclaration(kind: kind, leafNameNode.printSemantic(using: [.showPrivateDiscriminators]).string)`，文本不变），但在有消费方之前，测试只能钉一个没人读的属性。
+- **既往修复**：无。
+- **复审条件**：任何消费方开始按语义类型渲染 diff / evolution 接口——`diff` 增加 `--color-scheme`，或 RuntimeViewer 接入差异视图。
