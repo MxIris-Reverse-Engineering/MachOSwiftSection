@@ -112,9 +112,9 @@ public enum CapstoneThunkDecoder {
         startAddress: UInt64,
         maximumInstructionCount: Int = defaultMaximumInstructionCount
     ) throws -> [ThunkInstruction] {
-        let capstone = try Capstone(arch: .arm64, mode: [Mode.endian.little])
+        let capstone = try Capstone(arch: .aarch64, mode: [Mode.endian.little])
         try capstone.set(option: .detail(value: true))
-        let decodedInstructions: [Arm64Instruction] = try capstone.disassemble(
+        let decodedInstructions: [AArch64Instruction] = try capstone.disassemble(
             code: machineCode,
             address: startAddress,
             count: maximumInstructionCount
@@ -122,7 +122,7 @@ public enum CapstoneThunkDecoder {
         return decodedInstructions.map(thunkInstruction(from:))
     }
 
-    private static func thunkInstruction(from instruction: Arm64Instruction) -> ThunkInstruction {
+    private static func thunkInstruction(from instruction: AArch64Instruction) -> ThunkInstruction {
         ThunkInstruction(
             address: instruction.address,
             operation: operation(from: instruction),
@@ -130,7 +130,7 @@ public enum CapstoneThunkDecoder {
         )
     }
 
-    private static func operation(from instruction: Arm64Instruction) -> ThunkOperation {
+    private static func operation(from instruction: AArch64Instruction) -> ThunkOperation {
         let operation = modelledOperation(from: instruction)
         if case .unmodelled = operation {
             return .unmodelled(writtenRegisters: writtenRegisters(of: instruction))
@@ -140,7 +140,7 @@ public enum CapstoneThunkDecoder {
 
     /// The general-purpose registers an instruction writes, per the
     /// disassembler's register-access list (explicit and implicit).
-    private static func writtenRegisters(of instruction: Arm64Instruction) -> [ThunkRegister] {
+    private static func writtenRegisters(of instruction: AArch64Instruction) -> [ThunkRegister] {
         var registers: [ThunkRegister] = []
         for register in instruction.registersAccessed.written + instruction.registersAccessedImplicitly.written {
             guard let thunkRegister = thunkRegister(from: register), !registers.contains(thunkRegister) else { continue }
@@ -149,9 +149,9 @@ public enum CapstoneThunkDecoder {
         return registers
     }
 
-    private static func modelledOperation(from instruction: Arm64Instruction) -> ThunkOperation {
+    private static func modelledOperation(from instruction: AArch64Instruction) -> ThunkOperation {
         let operands = instruction.operands
-        switch instruction.instruction {
+        switch semanticInstruction(of: instruction) {
         case .adrp:
             guard let destination = register(at: 0, of: operands),
                   let pageBaseAddress = immediateValue(at: 1, of: operands)
@@ -178,25 +178,21 @@ public enum CapstoneThunkDecoder {
                   let subtrahend = immediateValue(at: 2, of: operands)
             else { return .unmodelled(writtenRegisters: []) }
             return .addImmediate(destination: destination, source: source, addend: -subtrahend)
-        case .mov, .movz, .orr:
-            // Capstone spells a register-to-register move `mov` and an
-            // immediate load `mov` too; `movz` and the `orr xN, xzr, #imm`
-            // form are the un-aliased spellings of the same two things.
+        case .mov, .movz:
+            // Copy aliases have already been normalized above. A genuine
+            // `orr` must not discard one input and masquerade as a copy.
             guard let destination = register(at: 0, of: operands) else { return .unmodelled(writtenRegisters: []) }
             if let value = immediateValue(at: 1, of: operands) {
                 return .moveImmediate(destination: destination, value: value)
             }
             if let source = register(at: 1, of: operands) {
-                if source.isZeroRegister, let value = immediateValue(at: 2, of: operands) {
-                    return .moveImmediate(destination: destination, value: value)
-                }
                 return .moveRegister(destination: destination, source: source)
             }
             return .unmodelled(writtenRegisters: [])
         case .ldr, .ldur:
             guard let destination = register(at: 0, of: operands),
-                  let memory = memoryOperand(at: 1, of: operands),
-                  instruction.writeBack != true
+                  let memory = memoryOperand(at: 1, of: instruction),
+                  !writesBack(instruction)
             else { return .unmodelled(writtenRegisters: []) }
             return .loadFromMemory(
                 destination: destination,
@@ -206,32 +202,32 @@ public enum CapstoneThunkDecoder {
         case .ldp:
             guard let first = register(at: 0, of: operands),
                   let second = register(at: 1, of: operands),
-                  let memory = memoryOperand(at: 2, of: operands)
+                  let memory = memoryOperand(at: 2, of: instruction)
             else { return .unmodelled(writtenRegisters: []) }
             return .loadPairFromMemory(
                 first: first,
                 second: second,
                 base: memory.base,
                 displacement: memory.displacement,
-                adjustsBase: instruction.writeBack == true
+                adjustsBase: writesBack(instruction)
             )
         case .str, .stur:
             guard let source = register(at: 0, of: operands),
-                  let memory = memoryOperand(at: 1, of: operands),
-                  instruction.writeBack != true
+                  let memory = memoryOperand(at: 1, of: instruction),
+                  !writesBack(instruction)
             else { return .unmodelled(writtenRegisters: []) }
             return .storeToMemory(source: source, base: memory.base, displacement: memory.displacement)
         case .stp:
             guard let first = register(at: 0, of: operands),
                   let second = register(at: 1, of: operands),
-                  let memory = memoryOperand(at: 2, of: operands)
+                  let memory = memoryOperand(at: 2, of: instruction)
             else { return .unmodelled(writtenRegisters: []) }
             return .storePairToMemory(
                 first: first,
                 second: second,
                 base: memory.base,
                 displacement: memory.displacement,
-                adjustsBase: instruction.writeBack == true
+                adjustsBase: writesBack(instruction)
             )
         case .bl:
             guard let target = immediateValue(at: 0, of: operands) else { return .unmodelled(writtenRegisters: []) }
@@ -262,7 +258,7 @@ public enum CapstoneThunkDecoder {
                   let target = immediateValue(at: 1, of: operands)
             else { return .unmodelled(writtenRegisters: []) }
             return .branchIfNotZero(register: register, target: UInt64(bitPattern: target))
-        case .cmp:
+        case .aliasCmp:
             guard let register = register(at: 0, of: operands),
                   let value = immediateValue(at: 1, of: operands)
             else { return .unmodelled(writtenRegisters: []) }
@@ -301,7 +297,28 @@ public enum CapstoneThunkDecoder {
         }
     }
 
-    private static func condition(from conditionCode: Arm64Cc?) -> ThunkCondition {
+    private static func semanticInstruction(of instruction: AArch64Instruction) -> AArch64Ins? {
+        // v6 combines an underlying opcode with the displayed alias's operands.
+        // Match both before interpreting a shortened move or comparison list.
+        switch (instruction.instruction, instruction.mnemonic) {
+        case (.orr, "mov"), (.add, "mov"), (.movz, "mov"), (.movn, "mov"):
+            return .mov
+        case (.subs, "cmp"):
+            return .aliasCmp
+        default:
+            return instruction.instruction
+        }
+    }
+
+    private static func writesBack(_ instruction: AArch64Instruction) -> Bool {
+        // v6 exposes post-indexing but no general write-back flag. Pre-indexed
+        // memory operands retain the `!` marker in Capstone's printed syntax.
+        // A written base register alone is insufficient: `ldr x0, [x0]` also
+        // writes its base, through the load destination rather than write-back.
+        instruction.isPostIndex == true || instruction.operandsString.contains("]!")
+    }
+
+    private static func condition(from conditionCode: AArch64CondCode?) -> ThunkCondition {
         switch conditionCode {
         case .eq: .equal
         case .ne: .notEqual
@@ -309,30 +326,35 @@ public enum CapstoneThunkDecoder {
         }
     }
 
-    private static func register(at index: Int, of operands: [Arm64Instruction.Operand]) -> ThunkRegister? {
+    private static func register(at index: Int, of operands: [AArch64Instruction.Operand]) -> ThunkRegister? {
         guard index < operands.count, let register = operands[index].register else { return nil }
         return thunkRegister(from: register)
     }
 
-    private static func immediateValue(at index: Int, of operands: [Arm64Instruction.Operand]) -> Int64? {
-        guard index < operands.count else { return nil }
-        return operands[index].immediateValue
+    private static func immediateValue(at index: Int, of operands: [AArch64Instruction.Operand]) -> Int64? {
+        guard index < operands.count, let value = operands[index].immediateValue else { return nil }
+        guard let shift = operands[index].shift else { return value }
+        guard shift.type == .lsl, shift.value < 64 else { return nil }
+        return value << shift.value
     }
 
     private static func memoryOperand(
         at index: Int,
-        of operands: [Arm64Instruction.Operand]
+        of instruction: AArch64Instruction
     ) -> (base: ThunkRegister, displacement: Int64)? {
+        let operands = instruction.operands
         guard index < operands.count, let memory = operands[index].memory else { return nil }
         // An indexed load reads a register this analysis does not track, so it
         // is not a plain displacement and must not be reported as one.
         guard memory.index == nil, let base = thunkRegister(from: memory.base) else { return nil }
-        return (base: base, displacement: Int64(memory.displacement))
+        // v6 places the post-index update in mem.disp; the access itself still
+        // reads the old base. The evaluator separately refuses write-back.
+        return (base: base, displacement: instruction.isPostIndex == true ? 0 : memory.displacement)
     }
 
     /// Folds Capstone's separate 32-bit and 64-bit register spellings onto one
     /// register number; see ``ThunkRegister``.
-    private static func thunkRegister(from register: Arm64Reg) -> ThunkRegister? {
+    private static func thunkRegister(from register: AArch64Reg) -> ThunkRegister? {
         switch register {
         case .fp:
             return ThunkRegister(number: 29)
@@ -346,14 +368,14 @@ public enum CapstoneThunkDecoder {
             break
         }
         let rawValue = Int(register.rawValue)
-        let firstWordRegister = Int(Arm64Reg.w0.rawValue)
-        let firstDoubleWordRegister = Int(Arm64Reg.x0.rawValue)
+        let firstWordRegister = Int(AArch64Reg.w0.rawValue)
+        let firstDoubleWordRegister = Int(AArch64Reg.x0.rawValue)
         // `w0`–`w30` and `x0`–`x28` are two contiguous runs; `x29` / `x30` are
         // spelled `fp` / `lr` and handled above.
-        if rawValue >= firstWordRegister, rawValue <= Int(Arm64Reg.w30.rawValue) {
+        if rawValue >= firstWordRegister, rawValue <= Int(AArch64Reg.w30.rawValue) {
             return ThunkRegister(number: rawValue - firstWordRegister)
         }
-        if rawValue >= firstDoubleWordRegister, rawValue <= Int(Arm64Reg.x28.rawValue) {
+        if rawValue >= firstDoubleWordRegister, rawValue <= Int(AArch64Reg.x28.rawValue) {
             return ThunkRegister(number: rawValue - firstDoubleWordRegister)
         }
         return nil

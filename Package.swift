@@ -180,8 +180,8 @@ extension Package.Dependency {
     /// Capstone's Swift bindings, used by `SwiftThunkAnalysis` to decode a
     /// metadata accessor thunk's instructions.
     ///
-    /// Only its ARM64 trait is forwarded: the thunk decoder is ARM64-only, so
-    /// the other seventeen architectures Capstone ships stay out of the build.
+    /// Only its AARCH64 trait is forwarded: the thunk decoder is ARM64-only,
+    /// so the other architectures Capstone ships stay out of the build.
     static let Capstone = Package.Dependency.package(
         local: .package(
             path: "../swift-capstone",
@@ -190,16 +190,16 @@ extension Package.Dependency {
         ),
         remote: .package(
             url: "https://github.com/MxIris-Reverse-Engineering/swift-capstone",
-            exact: "5.0.0",
+            from: "6.0.0",
             traits: capstoneTraits,
         ),
     )
 
     /// The one architecture the thunk decoder reads. A Capstone built without
-    /// its ARM64 backend would let `SwiftThunkAnalysis` compile and every
+    /// its AARCH64 backend would let `SwiftThunkAnalysis` compile and every
     /// decode fail.
     private static let capstoneTraits: Set<Package.Dependency.Trait> = [
-        .trait(name: "ARM64"),
+        .trait(name: "AARCH64"),
     ]
 }
 

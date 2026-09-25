@@ -40,6 +40,23 @@ SwiftThunkAnalysis 干一件事：**不执行 thunk，把它算出来**。
 
 ## 关键契约
 
+### Capstone v6 的解码边界
+
+依赖使用 `from: "6.0.0"` 和 `AARCH64` trait。v6 的指令编号可能是底层操作码，
+但操作数已经采用显示别名的形状，例如 `cmp` 是 `SUBS` 编号加两个比较输入，
+`mov x0, sp` 是 `ADD` 编号加两个寄存器。解码器同时核对编号与 mnemonic，
+再按别名解释操作数；只有改类型名的迁移会静默丢失这些操作。
+普通 `orr` 没有复制语义，仍走未建模指令的寄存器作废通路。
+
+立即数的 `lsl` 修饰必须计入数值，完整 `mov` 常量不得重复移位。
+v6 不再提供通用 `writeBack` 属性：后索引用 `isPostIndex`，前索引读 Capstone
+输出的 `]!` 标记。仅凭基址出现在写寄存器列表中不能判定写回，因为 `ldr x0, [x0]`
+也会写 `x0`。后索引的访问偏移为零，更新量不是本次访问的偏移。
+现有求值器仍保守处理写回的成对访存，未新增栈更新模拟。
+
+这些契约由 `CapstoneThunkDecoderTests` 的真实指令编码固定；跨仓库迁移记录沿用
+[嵌套字段提案](https://github.com/MxIris-Reverse-Engineering/swift-decompiler/blob/main/docs/evolutions/draft-nested-coordinate-field-extents.md)。
+
 ### 三条故意的拒绝
 
 每一条都只降级受影响的那一支，不影响整棵树。它们的共同逻辑是：**一个真实存在、完全限定、但是错的类型名，比一个占位符坏得多**。
