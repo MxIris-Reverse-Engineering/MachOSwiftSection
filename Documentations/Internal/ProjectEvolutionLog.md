@@ -1953,14 +1953,14 @@
 - **关联文档**：[SymbolicManglingSymbols.md](SymbolicManglingSymbols.md)（实现说明）、[Modules/MachOSymbols.md](Modules/MachOSymbols.md)「子系统 5」、术语表「symbolic-mangling symbol」。
 - **对应版本**：随下一次发布，与上一节同批。
 
-## 2026-09-25 Capstone v6 解码与反编译器依赖对齐
+## 58. Capstone v6 解码与反编译器依赖对齐
 
 - **时间段**：2026-09-25。
 - **动机**：swift-decompiler 已使用 Capstone v6，用户要求跟随本库 `next`，并明确批准一并迁移上游解码器；此前 `a37d0f5b` 为等待验证而固定的 v5 使两个 package 无法共同解析。
 - **关键决策**：使用 `from: "6.0.0"` 和 `AARCH64` trait；指令编号与显示别名联合判断 `mov` / `cmp`，折入立即数移位，区分前索引写回、后索引更新与访问偏移。普通 `orr` 保持未建模并报告被写寄存器，避免沿用旧解码器把它当复制的错误；立即数漏移位也是旧实现已有的缺口。保留成对写回访存的保守降级，不扩展求值器或公开指令模型。
 - **落地模块**：`SwiftThunkAnalysis` 的 `CapstoneThunkDecoder`，以及依赖声明；`CapstoneThunkDecoderTests` 增加真实编码回归。
 - **验证**：复制别名、比较 / 移位、后索引偏移、普通 `orr` 的回归分别先取得原始退出码 1；修正后解码器、分析器、求值器、独立文件、合并 accessor 与真实 iOS 26.3.1 cache 共 **55 项 / 6 suites** 通过，嵌套字段另 **8 项**通过，原始退出码 **0**。解码器新增 4 个测试方法及 15 种机器码输入（包含对既有测试的扩展）。日志 `upstream-regression.log` 位于 `/tmp/codex/Artifacts/swift-decompiler-next/`，使用独立 SwiftPM scratch 与构建队列。未运行本库完整套件；消费者验证在同一跨仓库提案记录。
-- **关联文档**：[SwiftThunkAnalysis 模块契约](Modules/SwiftThunkAnalysis.md#capstone-v6-的解码边界)；沿用由 swift-decompiler 维护的[跨仓库提案](https://github.com/MxIris-Reverse-Engineering/swift-decompiler/blob/main/docs/evolutions/draft-nested-coordinate-field-extents.md)，不新增第二份方案。
+- **关联文档**：[SwiftThunkAnalysis 模块契约](Modules/SwiftThunkAnalysis.md#capstone-v6-的解码边界)；沿用由 swift-decompiler 维护的[跨仓库提案历史](https://github.com/MxIris-Reverse-Engineering/swift-decompiler/blob/2e038982a8d19600d6cd082bcf42603f4f52115b/docs/evolutions/draft-nested-coordinate-field-extents.md)，不新增第二份方案。链接指向已交付工作分支，当前消费者集成与验收继续更新同一提案。
 - **对应版本**：尚未发布，随 `next` 的下一次发布。
 
 ## 维护约定

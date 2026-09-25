@@ -54,8 +54,9 @@ v6 不再提供通用 `writeBack` 属性：后索引用 `isPostIndex`，前索�
 也会写 `x0`。后索引的访问偏移为零，更新量不是本次访问的偏移。
 现有求值器仍保守处理写回的成对访存，未新增栈更新模拟。
 
-这些契约由 `CapstoneThunkDecoderTests` 的真实指令编码固定；跨仓库迁移记录沿用
-[嵌套字段提案](https://github.com/MxIris-Reverse-Engineering/swift-decompiler/blob/main/docs/evolutions/draft-nested-coordinate-field-extents.md)。
+这些契约由 `CapstoneThunkDecoderTests` 的真实指令编码固定；跨仓库方案沿用
+[已交付工作分支的嵌套字段提案](https://github.com/MxIris-Reverse-Engineering/swift-decompiler/blob/2e038982a8d19600d6cd082bcf42603f4f52115b/docs/evolutions/draft-nested-coordinate-field-extents.md)。
+本次 v6 迁移的授权与验证记录见[项目演进日志](../ProjectEvolutionLog.md#58-capstone-v6-解码与反编译器依赖对齐)。
 
 ### 三条故意的拒绝
 
