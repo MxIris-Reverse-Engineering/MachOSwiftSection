@@ -506,22 +506,11 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
         // "no conformance at all").
         let materializedProtocolConformance = try extensionDefinition.materializedProtocolConformance(in: machO)
 
-        // Pre-leaf-migration `dumpProtocolName` semantics: a `nil` protocol
-        // node collapses to an *empty* name but still emits the clause (the
-        // dangling `extension Foo: @retroactive ` form), while a *thrown*
-        // resolution error drops the whole clause. The post-migration
-        // optional-chain conflated the two, silently suppressing the clause —
-        // including its `@retroactive` / global-actor markers — whenever the
-        // reference was unresolvable.
-        let conformanceProtocolName: SemanticString? = {
-            guard let protocolConformance = materializedProtocolConformance else { return nil }
-            do {
-                let protocolNode = try protocolConformance.protocolNode(in: machO)
-                return protocolNode?.printSemantic(using: .interfaceTypeBuilderOnly) ?? SemanticString()
-            } catch {
-                return nil
-            }
-        }()
+        let conformanceProtocolName = await printConformanceProtocolName(
+            of: materializedProtocolConformance,
+            isProtocol: extensionDefinition.extensionName.isProtocol,
+            level: level
+        )
         if let protocolConformance = materializedProtocolConformance,
            let protocolName = conformanceProtocolName {
             Standard(":")
@@ -556,6 +545,35 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
                     Space()
                 }
             }
+        }
+    }
+
+    /// The protocol a conformance clause names, printed by this printer's own
+    /// type printer like every other type reference in the interface — the
+    /// global-actor attribute in front of it included.
+    ///
+    /// It used to go through the demangler's generic `printSemantic`, carried
+    /// over from SwiftDump's `dumpProtocolName`, which lost both halves of a
+    /// `private` / `fileprivate` protocol's name: its semantic type (it came
+    /// out `.standard`) and its span identity. RuntimeViewer highlights and
+    /// links a name by those two, so a conformance to a private protocol was
+    /// plain, unclickable text while the same protocol named in a member
+    /// signature was fine.
+    ///
+    /// Pre-leaf-migration `dumpProtocolName` semantics: a `nil` protocol node
+    /// collapses to an *empty* name but still emits the clause (the dangling
+    /// `extension Foo: @retroactive ` form), while a *thrown* resolution error
+    /// — `nil` here — drops the whole clause. The post-migration optional-chain
+    /// conflated the two, silently suppressing the clause — including its
+    /// `@retroactive` / global-actor markers — whenever the reference was
+    /// unresolvable.
+    private func printConformanceProtocolName(of protocolConformance: ProtocolConformance?, isProtocol: Bool, level: Int) async -> SemanticString? {
+        guard let protocolConformance else { return nil }
+        do {
+            guard let protocolNode = try protocolConformance.protocolNode(in: machO) else { return SemanticString() }
+            return try await printThrowingType(protocolNode, isProtocol: isProtocol, level: level)
+        } catch {
+            return nil
         }
     }
 
