@@ -171,7 +171,10 @@ package final class ObjCImplementationClassIndex: SharedCache<ObjCImplementation
                 // got — the compiler never emits one for an `@implementation`.
                 let directnessNode = fieldOffsetNode.children[0]
                 let isDirect = directnessNode.kind == .directness && directnessNode.index == 0
-                let fieldOffsetValue: Int? = isDirect ? (try? machO.readElement(offset: symbol.offset) as UInt64).map { Int(truncatingIfNeeded: $0) } : nil
+                // The symbol's value is the binary's claim; a negative one is
+                // no offset, and the file reader traps converting it to
+                // `UInt64` before `try?` can see a failure.
+                let fieldOffsetValue: Int? = isDirect && symbol.offset >= 0 ? (try? machO.readElement(offset: symbol.offset) as UInt64).map { Int(truncatingIfNeeded: $0) } : nil
                 evidence.fieldOffsetSymbolsByClassName[className, default: []].append(
                     FieldOffsetSymbol(symbolName: symbol.symbol.name, fieldOffsetValue: fieldOffsetValue, implementingModuleName: implementingModuleName, propertyName: propertyName, typeNode: typeNode)
                 )

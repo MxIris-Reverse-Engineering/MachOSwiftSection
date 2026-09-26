@@ -1,11 +1,11 @@
-# Draft - ObjC 祖先链走依赖闭包：独立文件上的父类与 category 目标类按名字在依赖镜像里解析
+# 0049 - ObjC 祖先链走依赖闭包：独立文件上的父类与 category 目标类按名字在依赖镜像里解析
 
 - **状态**: Implemented
 - **作者**: JH
 - **创建日期**: 2026-09-21
-- **最后更新**: 2026-09-21
+- **最后更新**: 2026-09-26
 - **所属愿景**: 无
-- **关联提案**: [draft-objc-member-selector-recovery](draft-objc-member-selector-recovery.md)（本提案补它留下的「磁盘二进制的跨镜像祖先」一项：祖先链在 bind 处断掉时，`override` 标不出、显式 selector 不判、链注释标断）、[0017-dependency-closure-unification](0017-dependency-closure-unification.md)（复用它的 `DependencyClosure` / `DependencySearchPath` / `FileDependencyLocator`，平台守卫加在那里）
+- **关联提案**: [0048-objc-member-selector-recovery](0048-objc-member-selector-recovery.md)（本提案补它留下的「磁盘二进制的跨镜像祖先」一项：祖先链在 bind 处断掉时，`override` 标不出、显式 selector 不判、链注释标断）、[0017-dependency-closure-unification](0017-dependency-closure-unification.md)（复用它的 `DependencyClosure` / `DependencySearchPath` / `FileDependencyLocator`，平台守卫加在那里）
 - **实现分支 / PR**: `feature/objc-ancestor-dependency-closure`（叠在 `feature/objc-member-selector-recovery` 之上，两条分支按序合入 `next`）
 - **配套文档**: [ObjCMemberRecovery.md](../Internal/ObjCMemberRecovery.md)「祖先链走依赖闭包」一节、[Modules/MachODependencies.md](../Internal/Modules/MachODependencies.md)（平台守卫、`SharedDependencyClosure`）、[任务报告](../Internal/TaskReports/2026-09-21-objc-ancestor-dependency-closure.md)
 
@@ -89,3 +89,4 @@ SwiftLayout 的 `ImageUniverse` 早就用 `DependencyClosure` 按名字在依赖
 | 2026-09-21 | 祖先的 category 从根镜像与闭包里的独立文件折入；进程内从已加载的非 cache 镜像折入 | 文件世界里 category 不预挂，Foundation 的 KVO 覆写在模拟器腿被判成显式 selector；进程内运行时挂进 `class_rw_ext_t`、读取器看不见；fixture 加单独的 category dylib（对 NSObject 的 category，与 Foundation 的 KVO 同形）钉住两条腿的正例与「镜像不在闭包里就看不见」的边界 |
 | 2026-09-21 | iOS 18.5+ 模拟器文件的 classlist 部分读不出，记为已知边界不处理 | 底层读取器问题（探针：UIKitCore 5017 项 791 个 ro 读不到、624 个误读为元类），与本提案无关；解析器在读得出的类上工作正常 |
 | 2026-09-21 | Implemented | 代码、测试、脚本、文档同批；A/B 见任务报告 |
+| 2026-09-26 | 落地编号 0049 | 已于 2026-09-22 随 合并提交 `55a01ce4` 合入 `next` 并标为 Implemented，但当时没有取号；0.20.0 发版收尾时按合入顺序补取 |

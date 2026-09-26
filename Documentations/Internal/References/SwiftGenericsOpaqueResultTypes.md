@@ -773,7 +773,7 @@ struct S: P {  // error
 
 这个语法不是给人看的，所以被埋进了 `@foo` type attribute 的语法里，这也简化了实现。通常 type attribute 修饰紧跟其后的 type representation，比如 function type 前面的 `@escaping`，但对 `@_opaqueReturnTypeOf` 来说，attribute 本身已经完全指定了类型，后面的 type representation 除了它的 generic argument 之外不被使用。事实上 `__` 可以是任何合法标识符，Swift 5.5 之前 AST printer 用的还是一个 emoji，后来这项「创新」被移除了。
 
-> 译注：本库在 mangling 层面对应这两种拼法——`opaqueReturnTypeOf`（`QO`，只有 owner declaration 的名字）与 `opaqueType`（`Qo`，带 index 与 generic argument list）；本库在 interface 里默认把它们展开成 underlying type，展不开时改用这里的 `@_opaqueReturnTypeOf` 拼法兜底（提案 draft-opaque-reference-spelling-and-member-projection）。
+> 译注：本库在 mangling 层面对应这两种拼法——`opaqueReturnTypeOf`（`QO`，只有 owner declaration 的名字）与 `opaqueType`（`Qo`，带 index 与 generic argument list）；本库在 interface 里默认把它们展开成 underlying type，展不开时改用这里的 `@_opaqueReturnTypeOf` 拼法兜底（提案 0045-opaque-reference-spelling-and-member-projection）。
 
 **例.** 把「opaque archetype witness」例子里的声明改成 `public`，用 `-enable-library-evolution` 和 `-emit-module-interface` 调用 `swiftc`，就能生成 textual interface。下面是其中一部分，加了换行：
 

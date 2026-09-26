@@ -45,18 +45,18 @@
 | [0034](0034-interface-printer-node-kind-parity.md) | interface 打印器与上游 NodePrinter 的 node kind parity：`dispatchPrintName` 五问全否就什么都不写，缺 `case` 的 node kind 静默渲染成空串（SwiftUI 上 `Predicate<>` 201 处、`-> ` 8 处、`init<>()` 122 处）；补齐类型位置上缺失的 kind，空泛型参数列表不再加尖括号 | Implemented |
 | [0035](0035-node-printer-declaration-layer-and-context-roles.md) | NodePrinter 补声明层协议、Context 按层拆角色：三个成员 printer 的重复逻辑与 9 个字段样板收进默认实现，每个 `*NodePrintable` 只声明自己读写的 Context 属性 | Implemented |
 | [0036](0036-objc-subcommands.md) | 把 objc-section 并入 swift-section：`swift-section objc` 子命令组（只搬命令行，ObjC 的库仍在 MachOObjCSection；与 objc-section 0.8.106 逐字节对比一致） | Implemented |
-| draft | [AGENTS.md 瘦身：指令文件回归指令，架构细节回归文档](draft-agents-md-slimming.md) | Draft |
-| draft | [FieldLayoutRenderable 不再继承 MachOSwiftSectionRepresentableWithCache：渲染能力与 reader 能力解耦，上层约束改用组合 typealias `MachOFieldLayoutRenderable`](draft-field-layout-renderable-decoupling.md) | In Progress |
-| draft | [`Builtin.Borrow` 支持：Swift 6.4 新元数据种类的读取、进程内构建与静态布局](draft-builtin-borrow-support.md) | In Progress |
-| draft | [`@_rawLayout` 人造字段、空名字 enum case 与静态布局的依赖搜索路径](draft-raw-layout-artificial-field-handling.md) | In Progress |
-| draft | [interface 不打印编译器合成的成员：actor 默认存储与 property wrapper 的 `_x` / `$x`](draft-interface-hides-compiler-synthesized-members.md) | In Progress |
+| [0037](0037-agents-md-slimming.md) | AGENTS.md 瘦身：指令文件回归指令，架构细节回归文档 | Implemented |
+| [0038](0038-field-layout-renderable-decoupling.md) | FieldLayoutRenderable 不再继承 MachOSwiftSectionRepresentableWithCache：渲染能力与 reader 能力解耦，上层约束改用组合 typealias `MachOFieldLayoutRenderable` | Implemented |
+| [0039](0039-builtin-borrow-support.md) | `Builtin.Borrow` 支持：Swift 6.4 新元数据种类的读取、进程内构建与静态布局 | Implemented |
+| [0040](0040-raw-layout-artificial-field-handling.md) | `@_rawLayout` 人造字段、空名字 enum case 与静态布局的依赖搜索路径 | Implemented |
+| [0041](0041-interface-hides-compiler-synthesized-members.md) | interface 不打印编译器合成的成员：actor 默认存储与 property wrapper 的 `_x` / `$x` | Implemented |
+| [0042](0042-swift-declaration-file-layout.md) | SwiftDeclaration 模块的文件归位与 TypeDefinition 拆分 | Implemented |
+| [0043](0043-annotated-symbol-payload.md) | `AnnotatedSymbol<Payload>`：构建期符号包装泛型化，两个 offset 不再同名 | Implemented |
+| [0044](0044-opaque-parameters-for-single-use-generics.md) | 只用一次的泛型参数改写为 opaque parameter（`some`）：522 处签名去掉只出现一次的 `<MachO: …>` / `<Context: …>` | Implemented |
+| [0045](0045-opaque-reference-spelling-and-member-projection.md) | 展不开的 opaque 引用改用 `@_opaqueReturnTypeOf` 拼法，`(some P).Element` 化简为 type witness，`numUnderlyingTypeArguments` 改名 | Implemented |
+| [0046](0046-objc-implementation-class-recognition.md) | 识别 `@objc @implementation` 类：ObjC class 数据与 Swift 符号的联合归属——interface 标注 + 存储属性还原，dump 新增 `objcImplementationClasses` 段 | Implemented |
+| [0047](0047-objc-ancestor-override-recovery.md) | 从 ObjC 祖先链还原 `override`：ObjC 派生 Swift 类与 `@objc @implementation` 类的覆写成员 | Implemented |
+| [0048](0048-objc-member-selector-recovery.md) | 从 ObjC 方法表还原每个 `@objc` 成员：strip 后的 `@objc`、显式 selector 与 category 成员 | Implemented |
+| [0049](0049-objc-ancestor-dependency-closure.md) | ObjC 祖先链走依赖闭包：独立文件上的父类与 category 目标类按名字在依赖镜像里解析 | Implemented |
+| [0050](0050-symbolic-mangling-symbol-index.md) | `_symbolic` 符号索引：被符号引用的对象 → 编译器写下的完整名字 | Implemented |
 | draft | [静态布局引擎读取 accessor thunk 背后的字段类型](draft-static-layout-through-accessor-thunks.md) | Draft |
-| draft | [SwiftDeclaration 模块的文件归位与 TypeDefinition 拆分](draft-swift-declaration-file-layout.md) | In Progress |
-| draft | [`AnnotatedSymbol<Payload>`：构建期符号包装泛型化，两个 offset 不再同名](draft-annotated-symbol-payload.md) | In Progress |
-| draft | [只用一次的泛型参数改写为 opaque parameter（`some`）：522 处签名去掉只出现一次的 `<MachO: …>` / `<Context: …>`](draft-opaque-parameters-for-single-use-generics.md) | In Progress |
-| draft | [展不开的 opaque 引用改用 `@_opaqueReturnTypeOf` 拼法，`(some P).Element` 化简为 type witness，`numUnderlyingTypeArguments` 改名](draft-opaque-reference-spelling-and-member-projection.md) | Implemented |
-| draft | [识别 `@objc @implementation` 类：ObjC class 数据与 Swift 符号的联合归属——interface 标注 + 存储属性还原，dump 新增 `objcImplementationClasses` 段](draft-objc-implementation-class-recognition.md) | Implemented |
-| draft | [从 ObjC 祖先链还原 `override`：ObjC 派生 Swift 类与 `@objc @implementation` 类的覆写成员](draft-objc-ancestor-override-recovery.md) | Implemented |
-| draft | [从 ObjC 方法表还原每个 `@objc` 成员：strip 后的 `@objc`、显式 selector 与 category 成员](draft-objc-member-selector-recovery.md) | Implemented |
-| draft | [ObjC 祖先链走依赖闭包：独立文件上的父类与 category 目标类按名字在依赖镜像里解析](draft-objc-ancestor-dependency-closure.md) | Implemented |
-| draft | [`_symbolic` 符号索引：被符号引用的对象 → 编译器写下的完整名字](draft-symbolic-mangling-symbol-index.md) | Implemented |

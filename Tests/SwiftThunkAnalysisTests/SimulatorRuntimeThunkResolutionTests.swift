@@ -216,19 +216,32 @@ struct SimulatorCacheSwiftUIThunkTests {
     }
 }
 
-/// The same two SwiftUICore fields on the running system's shared cache,
-/// where the merged body's `x3` is a *rebased* pointer to
-/// libswiftSynchronization's accessor rather than a bind: a register call
-/// through an address outside this image has to reach the cache's image
-/// table, not this image's indexes (whose offset conversion answers for the
-/// whole cache and so cannot tell a foreign address apart). Gated on macOS
-/// 26, where SwiftUICore carries these fields; the private discriminators
-/// move with the build, so only the type's own spelling is pinned.
-@Suite(.serialized, .enabled(if: ProcessInfo.processInfo.operatingSystemVersion.majorVersion >= 26))
-struct HostCacheSwiftUICoreMergedAccessorTests {
-    @Test func theMergedAccessorFieldsAreReadOnTheHostCache() throws {
-        let cache = try DyldCache(path: .current)
-        let machOFile = try #require(cache.machOFile(named: .SwiftUICore), "the running system's cache has no SwiftUICore")
+/// Where the archived-cache-gated suite below finds its cache. A separate
+/// type on purpose: a `@Suite(.enabled(if:))` condition that reads a static
+/// of the suite it decorates is a circular macro reference.
+enum ArchivedMacOSCacheMergedAccessorFixtures {
+    /// macOS 26.6, whose SwiftUICore still names the two fields below
+    /// through accessor-function references. The suite used to read the
+    /// running system's cache instead, and went red once that system moved
+    /// on: macOS 27.0's SwiftUICore (and the 26.7 build it was first
+    /// observed failing on) spells `Synchronization.Mutex<…>` directly in
+    /// both mangled names, leaving nothing to read.
+    static let cachePath = "/Volumes/DyldSharedCaches/macOS/26.6/dyld_shared_cache_arm64e"
+    static var hasCache: Bool { FileManager.default.fileExists(atPath: cachePath) }
+}
+
+/// The same two SwiftUICore fields in a macOS dyld shared cache, where the
+/// merged body's `x3` is a *rebased* pointer to libswiftSynchronization's
+/// accessor rather than a bind: a register call through an address outside
+/// this image has to reach the cache's image table, not this image's
+/// indexes (whose offset conversion answers for the whole cache and so
+/// cannot tell a foreign address apart). The private discriminators move
+/// with the build, so only the type's own spelling is pinned.
+@Suite(.serialized, .enabled(if: ArchivedMacOSCacheMergedAccessorFixtures.hasCache))
+struct ArchivedMacOSCacheSwiftUICoreMergedAccessorTests {
+    @Test func theMergedAccessorFieldsAreReadInTheCache() throws {
+        let cache = try DyldCache(url: URL(fileURLWithPath: ArchivedMacOSCacheMergedAccessorFixtures.cachePath))
+        let machOFile = try #require(cache.machOFile(named: .SwiftUICore), "the archived cache has no SwiftUICore")
         var texts: [String: String] = [:]
         for wrapper in try machOFile.swift.typeContextDescriptors {
             let descriptor = wrapper.typeContextDescriptor
@@ -245,6 +258,7 @@ struct HostCacheSwiftUICoreMergedAccessorTests {
                 texts["\(name).\(try record.fieldName(in: machOFile))"] = typeNode.resolvingAccessorFunctionReferences(in: machOFile, ownerLayout: ownerLayout).print(using: .default)
             }
         }
+        try #require(texts.count == 2, "the premise: this cache's SwiftUICore names both fields through accessor-function references")
         #expect(texts["SwiftUI.PlatformAccessibilitySettingsDefinition.cache"]?.hasPrefix("Synchronization.Mutex<SwiftUI.PlatformAccessibilitySettingsDefinition.(Storage in ") == true, "\(texts)")
         #expect(texts["SwiftUI.NamedImage.Cache.data"]?.hasPrefix("Synchronization.Mutex<SwiftUI.NamedImage.Cache.(Data in ") == true, "\(texts)")
     }

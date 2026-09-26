@@ -125,7 +125,9 @@ extension Package.Dependency {
         ),
         remote: .package(
             url: "https://github.com/MxIris-Reverse-Engineering/MachOKit.git",
-            "0.52.101" ..< "0.53.0",
+            // 0.52.103 stops reading chained-fixup starts for a segment that has
+            // none, which crashed on a dylib with no `__DATA` segment.
+            "0.52.103" ..< "0.53.0",
         ),
     )
 
@@ -162,7 +164,9 @@ extension Package.Dependency {
         ),
         remote: .package(
             url: "https://github.com/MxIris-Reverse-Engineering/swift-demangling",
-            "0.7.0" ..< "0.8.0",
+            // 0.7.1 gives a private / local entity name its kind and scope when
+            // printed, which `dump`'s semantic output of such names relies on.
+            "0.7.1" ..< "0.8.0",
         ),
     )
 
@@ -707,6 +711,11 @@ extension Target {
             .product(name: "ObjCDiffing", package: "MachOObjCSection"),
             .product(name: "ObjCIndexing", package: "MachOObjCSection"),
             .product(name: "ObjCInterface", package: "MachOObjCSection"),
+            // `ObjCInterfaceSession` names `ObjCInterfaceIndexer<MachOFile>`,
+            // whose `MachOFile: ObjCMetadataSource` conformance lives here;
+            // Swift 6.4 warns when a file uses a conformance from a module it
+            // does not import.
+            .product(name: "ObjCMetadataSource", package: "MachOObjCSection"),
             .product(name: "ObjCOutputTransformer", package: "MachOObjCSection"),
             .product(name: "Rainbow", package: "Rainbow"),
             .product(name: "ArgumentParser", package: "swift-argument-parser"),

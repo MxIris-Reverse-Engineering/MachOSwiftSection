@@ -69,7 +69,7 @@ struct ExtensionContextTypeNameTests {
     }
 
     /// `FixtureAnchor` is ballast: a struct-only fixture dylib has no `__DATA`
-    /// segment and the pinned MachOKit mis-walks its chained-fixup pages.
+    /// segment and MachOKit before 0.52.103 mis-walked its chained-fixup pages.
     /// `Holder` is what references the nested types, so their names are printed
     /// as references rather than as declarations inside an `extension` block.
     private static let source = """

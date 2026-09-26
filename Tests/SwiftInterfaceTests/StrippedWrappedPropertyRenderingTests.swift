@@ -9,7 +9,7 @@ import SwiftInterface
 /// same-image suite (`PropertyWrapperSynthesizedMemberTests`) cannot show:
 /// a wrapper defined in another image, and a wrapped property whose own
 /// accessors are stripped. Two modules compiled on the fly (each with a
-/// class, for the `__DATA` segment the pinned MachOKit needs): the kit
+/// class, for the `__DATA` segment MachOKit needed before 0.52.103): the kit
 /// defines the wrappers, the client uses them and is linked with `-x`.
 @Suite(.serialized)
 struct StrippedWrappedPropertyRenderingTests {

@@ -1,8 +1,8 @@
-# Draft - `Builtin.Borrow` 支持：Swift 6.4 新元数据种类的读取、进程内构建与静态布局
+# 0039 - `Builtin.Borrow` 支持：Swift 6.4 新元数据种类的读取、进程内构建与静态布局
 
-- **状态**: In Progress
+- **状态**: Implemented
 - **创建日期**: 2026-09-16
-- **最后更新**: 2026-09-16
+- **最后更新**: 2026-09-26
 - **所属愿景**: 无
 - **关联提案**: [0012 RuntimeMetadataTypeBuilder](0012-in-process-metadata-type-builder.md)（本提案给它补第二个 builtin 分支）；swift-demangling 侧的 evolution 0015（`BW` 解码与 `TypeBuilder.createBuiltinBorrowType` 协议要求）
 - **实现分支 / PR**: `feature/swift-6.4-adaptation`
@@ -33,3 +33,4 @@ Swift 6.4 给运行时加了一种新的元数据种类 `MetadataKind::Borrow`�
 | 2026-09-16 | 两个新 flag 以带默认值的 init 参数加入 `StaticTypeLayout`，不改既有构造点 | 34 处构造点里只有 FixedArray、enum、struct 累加三处的真值与默认不同；其余类型 borrowable 恒等于 takable、addressable 恒为 false |
 | 2026-09-16 | `BorrowTypeMetadata` 的覆盖形态照抄 FixedArray：sentinel `runtimeOnly` + 合成实例 Suite | 这种元数据不进 section，fixture 到不了；活路径由 SwiftInspectionTests 在 6.4 运行时上覆盖 |
 | 2026-09-16 | 实现完成并验证通过，状态保持 In Progress（落地 commit 时改 Implemented 并分配编号） | Xcode 26.6 + 本地 sibling（swift-demangling next @ 6def38a = 0.7.0）：`MachOSwiftSectionTests \| SwiftLayoutTests \| SwiftInspectionTests \| SwiftDumpTests` 1130 测试 / 225 套件，唯一失败是覆盖不变量要求把 `isAddressableForDependencies` 登记为 pure-data sentinel，补登记后 21 测试复跑全绿（原始退出码 0）；`BorrowLayoutTests` 七条、`RuntimeMetadataTypeBuilderTests.builtinBorrowFollowsTheRuntimeEntryPoint`（本机走「缺入口」分支）全过；regen-baselines 只产生套件索引 +1、VWT flag 基线新增一位、新 Borrow 基线三处变化 |
+| 2026-09-26 | In Progress → Implemented，落地编号 0039 | 代码已于 2026-09-16 随 `257f1323` 合入 `next`，当时状态停在 In Progress、没有取号；0.20.0 发版收尾时按合入顺序补取。配套文档见头部，已随代码更新；没有新的项目术语 |

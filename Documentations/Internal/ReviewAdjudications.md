@@ -525,3 +525,51 @@
 - **为什么不修**：没有消费方看得见。`swift-section diff` 的三种格式（inline / unified / markdown）只取 `.string`，没有颜色通道；RuntimeViewer 不使用 diffable / evolution 渲染器。修起来很便宜（包成 `TypeDeclaration(kind: kind, leafNameNode.printSemantic(using: [.showPrivateDiscriminators]).string)`，文本不变），但在有消费方之前，测试只能钉一个没人读的属性。
 - **既往修复**：无。
 - **复审条件**：任何消费方开始按语义类型渲染 diff / evolution 接口——`diff` 增加 `--color-scheme`，或 RuntimeViewer 接入差异视图。
+
+---
+
+## A48 — 进程内第一次改写私有类型的运行时名字时，为整个镜像建符号库且不回收（`_symbolic` 符号索引，0.20.0 发版审查发现）
+
+- **裁决**：暂不修（2026-09-26），先测量。
+- **发现**：`RuntimeTypeNameDemangling` 把运行时的 `AnonymousContext("$<地址>")` 改写成 `privateDeclName` 时，经 `InProcessContext.symbolicReferencePrivateDiscriminator(forAnonymousContextAt:)` 查 `AnonymousContextPrivateDiscriminatorIndex`。它底下的 `SymbolicManglingIndex` 取 `SymbolIndexStore.symbolicManglingSymbols(in:)`，要先把该镜像的整个符号库建出来，也就是把全部 Swift 符号 demangle 一遍。这些缓存只在认领该镜像的 `SwiftDeclarationIndexer` 释放、或者内存压力时才回收；运行时名字的改写本身也不缓存结果。
+- **复现 / 是否误报**：机制属实，读码确认：`symbolicManglingSymbols(in:)` → `storage(in:)` → `buildStorageSweep`。代价没有测量。审查时还推测 iOS 设备 cache 的本地符号在不映射进进程的 `.symbols` 文件里，进程内建出来可能是一张空表，这一点没有核实。
+- **与 main 基线对比**：新引入（`fe681d3c` / `8d2eb256`，2026-09-24）；main 不做这个改写。
+- **为什么暂不修**：每个镜像只在进程内第一次遇到它的私有类型时付一次。RuntimeViewer 浏览的镜像本来就会建符号库，额外的代价主要落在「只出现在泛型实参里」的镜像上。没有测量数据就去改缓存策略（按镜像限额、LRU）是盲调。提案 0050 的决策日志接受了首次查询的代价，但没有讨论驻留多久。
+- **既往修复**：无。
+- **复审条件**：① 在 RuntimeViewer 里测到它明显拖慢首次显示或抬高常驻内存；② 核实 iOS 设备 cache 在进程内确实建出空表，那就应当在建库之前先判断镜像有没有本地符号。
+
+---
+
+## A49 — 系统镜像里的私有类型名字带上鉴别符之后，ABI snapshot 的格式版本没有升（0.20.0 发版审查发现）
+
+- **裁决**：不修（2026-09-26）：`ABISnapshotDocument.currentFormatVersion` 保持 5，在 0.20.0 的 changelog 里说明旧 baseline 要重建。
+- **发现**：0.20.0 有几处命名变化会改变 snapshot 里的类型键：系统镜像里的 private 类型名字带上私有鉴别符（提案 0050 与它前面一批）、C 导入类型按 `TypeImportInfo` 定名（提案 0023）、另一个模块的 extension 里声明的类型打印成被扩展的类型。`ABISnapshotDocument` 的注释要求键的格式一变就升版本，让旧 baseline 明确报错，而不是悄悄误报。拿 0.19.0 存下的 snapshot 和新二进制做 `diff`，受影响的类型会报成「删除 + 新增」。
+- **复现 / 是否误报**：属实，类型键的来源读码确认；没有实际拿旧 snapshot 跑一次 `diff`。
+- **与 main 基线对比**：新引入（0.20.0 的命名变化）。
+- **为什么不修**：变的是被命名的内容，不是键的格式。`currentFormatVersion` 历次升级（2 到 5）都是键的格式或 schema 变了；0023 与 extension context 那两处命名变化也都没有升。现在升版本会让所有旧 baseline 一律读不进来，包括完全不含受影响类型的。对用户来说，在 changelog 里知道「旧 baseline 要重建」就够了。
+- **既往修复**：无。
+- **复审条件**：再出现一次成批的命名变化，或者有用户反馈旧 baseline 误报。到时改为升版本，或者让 `diff` 在 snapshot 记录的 `generatorVersion` 与当前版本不一致时给出警告。
+
+---
+
+## A50 — 负的偏移交给 `address(forOffset:)`（MachOKitExtensions）同样会 trap（修负偏移读取时横向排查发现，**基线既有**）
+
+- **裁决**：本批不修（2026-09-26），建议随 MachOKitExtensions 的下一个版本修。
+- **发现**：`address(forOffset:)` 对独立文件算的是 `UInt64(vmaddr) + UInt64(offset)`，offset 为负时直接 trap。本库里约二十处调用：dump 的成员地址注释把成员符号的 `symbol.offset` 交给它（`ClassDumper`、`EnumDumper`、`StructDumper`、`ObjCImplementationClassDumper`），`sub_…` 名字与 witness 地址则来自相对指针算出的实现 offset（`ClassDumper`、`ProtocolConformanceDumper`、`ResilientWitness`）。这和本批修掉的两处读取（`SymbolicManglingIndex`、`ObjCImplementationClassIndex`，`5d44a0e0`）是同一类问题：二进制给出的值没有检查正负就转成无符号数。
+- **复现 / 是否误报**：机制属实，读码确认。需要一个值 `≥ 2^63` 的 Swift 成员符号，或者一个指向镜像起点之前的相对指针；没有构造样本。
+- **与 main 基线对比**：基线既有，0.19.0 的 dump 已经这样调用。
+- **为什么本批不修**：根在另一个包。正确的修法是让 `address(forOffset:)` 对任何 offset 都给出结果（按位回绕相加），或者返回可失败的值，都要发 MachOKitExtensions 的新版本再抬下限；在本库二十处调用点逐个加判断只是绕开它。输入必须是畸形二进制才会触发。
+- **既往修复**：同一类问题修过：PR #103 review M3（`00d81c69`，符号名的几何超出预算时跳过而不是 trap）；本批的 `5d44a0e0`。
+- **复审条件**：MachOKitExtensions 下一次发版时一起修，并在本库加一条链接畸形二进制的回归测试（`MalformedSymbolValueTests` 的 fixture 可以复用）。
+
+---
+
+## A51 — 不在 dyld shared cache 里的进程内镜像被当成 cache 镜像（MachOKitExtensions 的 `MachOImage.cache` 只查下界，0.20.0 发版验证时发现，**基线既有**）
+
+- **裁决**：本批不修（2026-09-26），与 A50 一起随 MachOKitExtensions 的下一个版本修。
+- **发现**：`MachOImage.cache` 只要镜像地址 `ptr ≥ sharedRegionStart` 就返回当前 cache，不检查镜像是否真的落在 cache 的映射范围里，也不看 mach header 的 `MH_DYLIB_IN_CACHE` 标志。一个不在 cache 里、却被加载到共享区起点之上的镜像会被当成 cache 镜像，`startOffset` 取成 `sharedRegionStart`，之后按 offset 算出的位置全部错开同一个量。
+- **复现 / 是否误报**：属实。0.20.0 发版分支第一次全量测试里 `ProtocolRecordTests` 三条失败：`offset()` 报 `fromFile → 326680`、`fromImage → -6442124264`，两者正好相差 `0x180000000`（宿主 cache 的 `sharedRegionStart`），另外两条随之报 `.requiredNonOptional`；单独跑三次都通过。第二次全量测试里同一条测试直接让进程崩溃：`MachOImage.readWrapperElements` 按错开的位置读到受保护的地址，SIGBUS（`KERN_PROTECTION_FAILURE`，崩溃报告里的栈是 `ProtocolRecordTests.layout()` → `BaselineFixturePicker.protocolRecord_first(in:)`）。所以它不只给出错的值，还能让进程内读取的宿主崩溃。成因是全量测试进程里映射了好几个 GB 级的 dyld cache 文件，占满了低地址区，fixture 被 dlopen 到了共享区起点之上。
+- **与 main 基线对比**：基线既有。MachOKitExtensions 0.1.1 起就是这样，0.19.0 依赖的也是它。
+- **为什么本批不修**：根在另一个包。只在进程内读取（`MachOImage`）、且镜像恰好被加载到共享区起点之上时出现；普通进程里不在 cache 里的镜像通常加载在更低的地址，但像 RuntimeViewer 这种会映射大文件的宿主进程也可能碰到。
+- **既往修复**：无。这段判断在 2026-08-10 拆出 MachOKitExtensions 时原样搬过去。
+- **复审条件**：尽快随 MachOKitExtensions 的下一次发版修（它能让宿主崩溃），改为按 header 的 `MH_DYLIB_IN_CACHE` 标志（或 cache 的实际映射范围）判断，并补一条回归测试：直接对 `cache` 的判定做单元测试，不依赖加载地址碰巧落在哪里。

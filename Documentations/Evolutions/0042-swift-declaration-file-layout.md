@@ -1,8 +1,8 @@
-# Draft - SwiftDeclaration 模块的文件归位与 TypeDefinition 拆分
+# 0042 - SwiftDeclaration 模块的文件归位与 TypeDefinition 拆分
 
-- **状态**: In Progress
+- **状态**: Implemented
 - **创建日期**: 2026-09-17
-- **最后更新**: 2026-09-17
+- **最后更新**: 2026-09-26
 - **所属愿景**: 无
 - **关联提案**: 无
 - **实现分支 / PR**: `feature/swift-declaration-file-layout`（从 `next` 的 01fe2f82 起）
@@ -95,3 +95,4 @@ package struct ClassDispatchLookups {
 - **为什么 `ExportStatus` 上移到 `Components/` 而不是自成目录**：它是单文件概念，`Components/Export/ExportStatus.swift` 这种一个文件的目录是噪音。`AssociatedTypeWitnessProjection` 与 `SwiftAttribute` 同理。
 - **为什么 `DemangledSymbolWithOffset` 进 `Building/` 而不是 `Members/`**：它是 `DemangledSymbol` 加一个 PWT 偏移的构建期包装，只在分桶与构建路径上出现，索引结束后不留在模型里。
 - **历史文档不追改**：`Internal/TaskReports/`、`Internal/Reviews/`、`SwiftModularizationMigration.md` 里的旧路径是当时的事实快照，保留原样；只更新现行参考文档（`Modules/SwiftDeclaration.md` 的对照表、`ExportedOnlyInterfaceFiltering.md`、`FinalKeywordAndLazyAccessorTypeRecovery.md`、`ExtensionContainerUnification.md` 中指向现行路径的行）。
+- **2026-09-26 In Progress → Implemented，落地编号 0042**：代码已于 2026-09-17 随 `c8aae551` 合入 `next`，当时状态停在 In Progress、没有取号；0.20.0 发版收尾时按合入顺序补取。配套文档见头部，已随代码更新；没有新的项目术语。

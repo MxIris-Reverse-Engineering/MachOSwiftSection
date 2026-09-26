@@ -4,6 +4,7 @@ import MachOKitExtensions
 import ObjCDeclarationRendering
 import ObjCIndexing
 import ObjCInterface
+import ObjCMetadataSource
 import Semantic
 
 /// Everything a command needs after option parsing: the loaded binary, a

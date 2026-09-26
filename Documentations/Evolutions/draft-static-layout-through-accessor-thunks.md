@@ -4,7 +4,7 @@
 - **创建日期**: 2026-09-16
 - **最后更新**: 2026-09-16
 - **所属愿景**: 无
-- **关联提案**: [draft-raw-layout-artificial-field-handling](draft-raw-layout-artificial-field-handling.md)（调研非标准库 `@_rawLayout` 使用者时暴露的缺口）
+- **关联提案**: [0040-raw-layout-artificial-field-handling](0040-raw-layout-artificial-field-handling.md)（调研非标准库 `@_rawLayout` 使用者时暴露的缺口）
 - **实现分支 / PR**: 未开始
 - **配套文档**: [Modules/SwiftLayout.md](../Internal/Modules/SwiftLayout.md)、[Modules/SwiftThunkAnalysis.md](../Internal/Modules/SwiftThunkAnalysis.md)
 

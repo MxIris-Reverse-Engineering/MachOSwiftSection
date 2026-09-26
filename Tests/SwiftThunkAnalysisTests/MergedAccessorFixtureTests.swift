@@ -95,7 +95,7 @@ struct MergedAccessorFixtureTests {
     /// Three holders whose `Mutex<…>` accessors differ only in their
     /// constants, so the optimizer merges the bodies. The class is
     /// deliberate: a struct-only fixture dylib has no `__DATA` segment and
-    /// the pinned MachOKit mis-walks its chained-fixup pages.
+    /// MachOKit before 0.52.103 mis-walked its chained-fixup pages.
     private static let fixtureSource = """
     import Foundation
     import Synchronization

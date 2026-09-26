@@ -32,7 +32,7 @@ struct ExportedOnlyLibraryEvolutionFixtureTests {
 
     /// The `Anchor` class is load-bearing fixture ballast: a struct-only
     /// module compiles to a dylib with no `__DATA` segment, whose
-    /// chained-fixup pages the pinned MachOKit release mis-walks (see
+    /// chained-fixup pages MachOKit releases before 0.52.103 mis-walked (see
     /// `DiffMemberIndentationTests`). `@inline(never)` keeps the internal
     /// members' symbols from being folded away.
     private static let fixtureSource = """

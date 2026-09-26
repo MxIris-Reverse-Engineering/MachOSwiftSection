@@ -1,11 +1,11 @@
-# Draft - 从 ObjC 方法表还原每个 `@objc` 成员：strip 后的 `@objc`、显式 selector 与 category 成员
+# 0048 - 从 ObjC 方法表还原每个 `@objc` 成员：strip 后的 `@objc`、显式 selector 与 category 成员
 
 - **状态**: Implemented
 - **作者**: JH
 - **创建日期**: 2026-09-21
-- **最后更新**: 2026-09-22
+- **最后更新**: 2026-09-26
 - **所属愿景**: 无
-- **关联提案**: [draft-objc-ancestor-override-recovery](draft-objc-ancestor-override-recovery.md)（本提案把它的「方法表 → Swift 成员」联结从「只看被覆写的 selector」推广到类的每一条 ObjC 方法，覆写表成为成员表的一个投影）、[0006-final-keyword-and-lazy-accessor-type-recovery](0006-final-keyword-and-lazy-accessor-type-recovery.md)（`final` 还原用 `@objc` 排除 `@objc dynamic` 成员，本提案让这道排除在 strip 后的二进制上重新生效）、[0008-interface-header-and-export-status-annotations](0008-interface-header-and-export-status-annotations.md)（`@objc` 成员豁免 `// not exported`，同理）
+- **关联提案**: [0047-objc-ancestor-override-recovery](0047-objc-ancestor-override-recovery.md)（本提案把它的「方法表 → Swift 成员」联结从「只看被覆写的 selector」推广到类的每一条 ObjC 方法，覆写表成为成员表的一个投影）、[0006-final-keyword-and-lazy-accessor-type-recovery](0006-final-keyword-and-lazy-accessor-type-recovery.md)（`final` 还原用 `@objc` 排除 `@objc dynamic` 成员，本提案让这道排除在 strip 后的二进制上重新生效）、[0008-interface-header-and-export-status-annotations](0008-interface-header-and-export-status-annotations.md)（`@objc` 成员豁免 `// not exported`，同理）
 - **实现分支 / PR**: `feature/objc-member-selector-recovery`（worktree `.worktrees/MachOSwiftSection-ObjCImplementationClasses`，自 `next` 分出）
 - **配套文档**: [ObjCMemberRecovery.md](../Internal/ObjCMemberRecovery.md)（实现说明，自 `ObjCAncestorOverrideRecovery.md` 改名扩写，两份 @objc 提案共用）、[TaskReports/2026-09-21-objc-member-selector-recovery.md](../Internal/TaskReports/2026-09-21-objc-member-selector-recovery.md)（过程复盘）
 
@@ -93,3 +93,4 @@ interface 里成员级 `@objc` 的唯一来源是 `To` thunk 符号 demangle 出
 | 2026-09-22 | 第三档的开关从进程级静态属性改为按镜像的 `ObjCMemberRecoveryOptions`，接到 `SwiftDeclarationIndexConfiguration.infersObjCOverridesFromSelectorNames` 与 `dump` / `interface` 的 `--infer-objc-overrides`；默认仍关 | 用户看到 macOS 26.7 AppKit 的 `NSGlassEffectView` 里 `viewDidHide` / `viewDidUnhide` / `encode(with:)` 没有 `override`（lldb 反汇编：IMP 里只剩 `objc_msgSendSuper2` 或 outlined helper，方法体被内联），问第三档怎么推、有没有开关——原开关任何 CLI / 配置都够不到。改按镜像后 dump 也走同一档（`ObjCMemberRendering.inferredOverrides`），fixture 加 `.optimizedStripped` 变体固定；开与不开仍是用户的裁决（「加一个，直接改」） |
 | 2026-09-22 | 第三档改为**始终索引**，输不输出交给消费者：dump 无条件渲染（带证据标注），interface 看 `SwiftDeclarationPrintConfiguration.infersObjCOverridesFromSelectorNames`（CLI `--infer-objc-overrides`，默认关）；索引期的 `ObjCMemberRecoveryOptions` / `Store` / `SwiftDeclarationIndexConfiguration` 字段与 `dump` 上的 flag 全部删除 | 用户定的（「改成始终索引，实际输不输出由 printer 决定，printer 读 indexer 产生的数据」）。落地时发现一个必须配套的约束：第三档若照旧在索引期写 `attributes` 里的 `.objc`，紧接着跑的 `final` 还原会把它读成 `@objc dynamic` 的证据、`--exported-only` 的过滤也一并改变，这两个判断先于消费者的裁决落定且收不回来——所以第三档只写 `objcMember`，`@objc` / `override` / `class` / 压制 `final` 四件事统一由新的 `ResolvedObjCMemberFacts.resolve(...)` 在渲染时一次给出，定义自己的 `isOverride` / `isClassMember` 退回只认前两档（`ObjCMember.isJoinedOverride`）。dump 不再有开关是因为它本来就为每条联结标证据，第三档写作 `(selector name, no symbol evidence)`，不会被读成联结上的；interface 只有 `override` 一个关键字、没处说明来源，所以保留开关 |
 | 2026-09-21 | witness 判定连祖先采纳的协议一起算 | 第四轮 A/B 的进程内腿判出 `SwiftUIOutlineTableView.draggingSession(_:movedTo:)` 为显式 selector——`draggingSession:movedToPoint:` 是 `NSDraggingSource` 的可选要求，conformance 在祖先 `NSTableView` 上，子类的实现继承它的 selector（编译器 `inferObjCName` 查的是全部 conformance）。`Ancestor` 加协议 selector 集合，完整性要求整条链都读完；fixture 给 `WidgetObserving` 加 `@objc(widgetWillPingSoon) optional func widgetWillPing()`、孙类实现，固定「继承的 conformance 不算显式」 |
+| 2026-09-26 | 落地编号 0048 | 已于 2026-09-21 随 `c031f6f2` 合入 `next` 并标为 Implemented，但当时没有取号；0.20.0 发版收尾时按合入顺序补取 |

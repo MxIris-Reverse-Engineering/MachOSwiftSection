@@ -1,8 +1,8 @@
-# Draft - AGENTS.md 瘦身：指令文件回归指令，架构细节回归文档
+# 0037 - AGENTS.md 瘦身：指令文件回归指令，架构细节回归文档
 
 - **状态**: Implemented
 - **创建日期**: 2026-09-14
-- **最后更新**: 2026-09-14
+- **最后更新**: 2026-09-26
 - **配套文档**: 新增四篇模块参考文档——[Modules/SwiftLayout.md](../Internal/Modules/SwiftLayout.md)、[Modules/SwiftThunkAnalysis.md](../Internal/Modules/SwiftThunkAnalysis.md)、[Modules/MachOSymbols.md](../Internal/Modules/MachOSymbols.md)、[Modules/SwiftDeclaration.md](../Internal/Modules/SwiftDeclaration.md)
 
 ## 摘要
@@ -64,3 +64,4 @@
 | 2026-09-14 | 四篇模块文档写成导读型而非从零的深度文档 | `Modules/README.md` 的写作约定就是「已有专题文档覆盖的写导读并链接，不复述」；`StaticLayoutEngine.md`（87 KB）与 `AccessorThunkResolutionExplained.md`（38 KB）已覆盖细节，导读层接住的是被删掉的中间层结论 |
 | 2026-09-14 | 实际落在 30 KB 而非预估的 20 KB | 预估偏低：硬陷阱清单经反向扫描后从 33 条涨到 41 条，模块摘要与三条环境漂移检查也比预估密。内容范围与批准的方案一致，未额外收录历史叙事或实测数字 |
 | 2026-09-14 | 状态置为 Implemented；无新术语需要登记 | 纯文档重组，未引入项目术语；配套文档已在头部登记 |
+| 2026-09-26 | 落地编号 0037 | 已于 2026-09-14 随 `c4326a98` 合入 `next` 并标为 Implemented，但当时没有取号；0.20.0 发版收尾时按合入顺序补取 |

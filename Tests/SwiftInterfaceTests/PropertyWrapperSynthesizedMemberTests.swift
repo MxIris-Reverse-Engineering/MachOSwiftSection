@@ -12,7 +12,7 @@ import MachOSwiftSection
 /// computed `manual` has no such evidence and keeps rendering.
 ///
 /// One module compiled on the fly (it carries a class: a struct-only fixture
-/// dylib has no `__DATA` segment and the pinned MachOKit mis-walks its
+/// dylib has no `__DATA` segment and MachOKit before 0.52.103 mis-walked its
 /// chained-fixup pages).
 @Suite(.serialized)
 struct PropertyWrapperSynthesizedMemberTests {

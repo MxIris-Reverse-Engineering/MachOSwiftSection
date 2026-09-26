@@ -1,8 +1,8 @@
-# Draft - FieldLayoutRenderable 不再继承 MachOSwiftSectionRepresentableWithCache
+# 0038 - FieldLayoutRenderable 不再继承 MachOSwiftSectionRepresentableWithCache
 
-- **状态**: In Progress
+- **状态**: Implemented
 - **创建日期**: 2026-09-14
-- **最后更新**: 2026-09-14
+- **最后更新**: 2026-09-26
 - **所属愿景**: 无
 - **关联提案**: [FieldLayoutRenderer 按 reader 特化](../Internal/FieldLayoutRendererReaderSpecialization.md)（该协议的来历）
 - **实现分支 / PR**: 待定
@@ -39,3 +39,4 @@ public typealias MachOFieldLayoutRenderable = MachOSwiftSectionRepresentableWith
 | 2026-09-14 | 实现完成并验证通过，状态置 In Progress（落地 commit 时再改 Implemented 并分配编号） | `swift build --build-tests` 退出码 0、零 error；SwiftDumpTests / SwiftInterfaceTests / MachOSwiftSectionTests 共 1088 测试 / 215 套件全绿（原始退出码 0），无行为漂移 |
 | 2026-09-14 | 别名定名 `MachOFieldLayoutRenderable`，不叫 `FieldLayoutRenderingReader` | 用户指出 `<MachO: FieldLayoutRenderingReader>` 这个约束看不出 reader 是 Mach-O——泛型参数叫 `MachO`，约束名里却一个 `MachO` 都没有；`MachO` 前缀也正是 `MachORepresentableWithCache` / `MachOSwiftSectionRepresentableWithCache` 的既有惯例。协议本身仍叫 `FieldLayoutRenderable` 不加前缀，它确实不要求 conformer 是 Mach-O reader |
 | 2026-09-14 | 不入术语表 | `MachOFieldLayoutRenderable` 是一个 API 标识符（两个既有协议的组合别名），不是新概念，[Glossary.md](../Glossary.md) 收的是项目自造术语；配套文档为同批更新的 FieldLayoutRendererReaderSpecialization.md，已登记在头部 |
+| 2026-09-26 | In Progress → Implemented，落地编号 0038 | 代码已于 2026-09-14 随 `52b827e4` 合入 `next`，当时状态停在 In Progress、没有取号；0.20.0 发版收尾时按合入顺序补取。配套文档见头部，已随代码更新；没有新的项目术语 |

@@ -179,29 +179,29 @@ opaque 尖括号参数归属的第三条规则：协议无任何 anchor 命中�
 
 用 SE-0436 的 `@objc @implementation extension` 实现的类：声明在 ObjC 头文件里，实现写在 Swift 里，对 ObjC runtime 来说它就是一个普通 ObjC 类。编译器给它发出的是纯 ObjC class object：`__swift5_types` 里没有 nominal type descriptor，`__swift5_fieldmd` 里没有 field descriptor，class data 指针的 Swift bit 为 0。Swift 侧只留下成员符号（mangle 成模块对 `__C.<类>` 的 extension）、存储属性的 `Wvd` 字段偏移全局变量和本镜像**导出**的 metadata accessor `$sSo<类>CMa`（imported 类在任何用到它的镜像里都会有一个 hidden 的 non-unique accessor，那个不算）。和普通「Swift extension of an imported ObjC class」的区别是后者只产生 category，类本身不由本镜像定义。macOS 26 起 AppKit / UIKitCore 大量采用（NSGlassEffectView、NSScreen、NSGradient 等）。
 
-- **主要出现在**：提案 draft-objc-implementation-class-recognition 的判据与证据分级
-- **延伸阅读**：[提案 draft-objc-implementation-class-recognition](Evolutions/draft-objc-implementation-class-recognition.md)
+- **主要出现在**：提案 0046-objc-implementation-class-recognition 的判据与证据分级
+- **延伸阅读**：[提案 0046-objc-implementation-class-recognition](Evolutions/0046-objc-implementation-class-recognition.md)
 
 ### ObjC ancestor override（ObjC 祖先覆写）
 
 一个 Swift 成员覆写了从 ObjC 继承来的成员——NSView 的 `layout()`、NSObject 的 `description`——这件事在 Swift 元数据里没有记录：编译器给这种覆写发的是一条**新的**普通 vtable 项而不是 override 表项（`NeedsNewVTableEntryRequest` 对「被覆写者来自 clang」答「需要新项」），`@objc @implementation` 类更是没有 vtable。本仓库从 ObjC 侧判：类自己的 ObjC 方法表里某条方法的 selector 在祖先链（NSView → NSResponder → NSObject，跨镜像）上有人实现，它就是覆写；再把那条方法联结到 Swift 成员——IMP 处的 `To` 符号、或反汇编 IMP 找它引用的成员实现、或（默认关）只按 selector 名字唯一匹配。三档证据记在 `ObjCMember.evidence` 里，dump 打出来，interface 只打 `override`。自提案 `objc-member-selector-recovery` 起它是「ObjC member table」的一个投影（`overriddenAncestorClassName` 非空的成员）。
 
 - **主要出现在**：`SwiftInspection/ObjCMember.swift`、`SwiftThunkAnalysis/ObjCMembers/`
-- **延伸阅读**：[提案 draft-objc-ancestor-override-recovery](Evolutions/draft-objc-ancestor-override-recovery.md)、[ObjCMemberRecovery.md](Internal/ObjCMemberRecovery.md)
+- **延伸阅读**：[提案 0047-objc-ancestor-override-recovery](Evolutions/0047-objc-ancestor-override-recovery.md)、[ObjCMemberRecovery.md](Internal/ObjCMemberRecovery.md)
 
 ### ObjC member table（ObjC 成员表）
 
 一个类的 ObjC 方法表——实例方法表、元类方法表、本镜像 `__objc_catlist` 里指向它的 category——的每一条联结到实现它的 Swift 成员之后得到的 per-class 表（`ObjCMemberTable`，按 Swift 符号名索引 `ObjCMember`）。方法表就是类的 `@objc` 成员清单，运行时靠它派发、strip 不会碰，所以它是三个 Swift 元数据不记的事实的来源：成员是 `@objc`（OS 框架 strip 掉 `To` thunk 符号后这是唯一证据）、它覆写了哪个祖先的成员（selector 在祖先链上有人实现）、它的 selector 是不是源码里 `@objc(name)` 写出来的（与编译器从 Swift 名正向推出的默认值不同，且不是从被覆写者或协议要求继承的——祖先链或协议没读完就不下这个判定）。联结证据分三档：IMP 处的 `To` 符号；反汇编无名 thunk 收它引用的成员实现，配「所属类」与「importer 拼法」两道守卫；只按名字（只对覆写）。三档**都在索引期跑完**并记进 `ObjCMember.evidence`，用不用是消费者的事：dump 每条都标证据，第三档写成 `(selector name, no symbol evidence)` 照常渲染；interface 只有 `override` 一个关键字、没处说明证据来源，默认不打，`--infer-objc-overrides` 才打。`@objc @implementation` 体不是例外：编译器同样从 Swift 名推导 selector 并要求头文件里有它，`draw(in:)` 要对上 `drawInRect:` 就得写 `@objc(drawInRect:)`。
 
 - **主要出现在**：`SwiftInspection/ObjCMember.swift`、`SwiftInspection/ObjCMemberShape.swift`、`SwiftThunkAnalysis/ObjCMembers/`、`SwiftDeclaration/Components/Building/ObjCMemberApplication.swift`、`SwiftDeclaration/Components/Definitions/ResolvedObjCMemberFacts.swift`
-- **延伸阅读**：[提案 draft-objc-member-selector-recovery](Evolutions/draft-objc-member-selector-recovery.md)、[ObjCMemberRecovery.md](Internal/ObjCMemberRecovery.md)
+- **延伸阅读**：[提案 0048-objc-member-selector-recovery](Evolutions/0048-objc-member-selector-recovery.md)、[ObjCMemberRecovery.md](Internal/ObjCMemberRecovery.md)
 
 ### ObjC ancestor resolver（ObjC 祖先解析器）
 
 独立 Mach-O 文件的父类指针是 bind，ObjC 读取器跟不过去；祖先解析器（`ObjCAncestorResolver`）拿 bind 符号里的类名（`_OBJC_CLASS_$_UIView` 去前缀，Swift 父类是 `_TtC…` 运行时名）在文件的传递依赖闭包里找定义它的镜像——先问每个镜像的 export trie（bind 只能落到导出符号），有才建那个镜像的名字表，第一个命中即返回——祖先链从那个镜像继续走。祖先链的每一跳还把根镜像与闭包里每个独立文件对该祖先的 category 折进它的 selector 集合（cache 里的类由 dyld 预挂，文件世界里离线看不到）。按镜像登记在 `ObjCAncestorResolverStore`：indexer 与 `dump` 用各自的搜索路径注册，无人注册的文件默认走系统 cache，进程内镜像没有解析器。hierarchy 的 memo 键带解析器身份，宿主 provider 交出的断链也用它续。配套的平台守卫在 MachODependencies：cache 里另一个平台的同名镜像（macOS cache 的 Catalyst UIKit）永远不是候选。
 
 - **主要出现在**：`SwiftInspection/ObjCAncestorResolver.swift`、`SwiftInspection/ObjCClassMethodIndex.swift`、`MachODependencies/DependencyPlatforms.swift`
-- **延伸阅读**：[提案 draft-objc-ancestor-dependency-closure](Evolutions/draft-objc-ancestor-dependency-closure.md)、[ObjCMemberRecovery.md](Internal/ObjCMemberRecovery.md)
+- **延伸阅读**：[提案 0049-objc-ancestor-dependency-closure](Evolutions/0049-objc-ancestor-dependency-closure.md)、[ObjCMemberRecovery.md](Internal/ObjCMemberRecovery.md)
 
 ### permutation 二分（permutation binary search）
 
@@ -245,7 +245,7 @@ TypeIndexing 的外部知识入口：标准 `.apinotes` 格式的**用户自备*
 substitution，必须连在一个 `$s` 后面一起 demangle。
 
 - **主要出现在**：`Sources/MachOSymbols/SymbolicManglingSymbols.swift`（收集）、`Sources/SwiftInspection/SymbolicManglingIndex.swift`（配对与解码）
-- **延伸阅读**：[SymbolicManglingSymbols.md](Internal/SymbolicManglingSymbols.md)、[提案 draft-symbolic-mangling-symbol-index](Evolutions/draft-symbolic-mangling-symbol-index.md)
+- **延伸阅读**：[SymbolicManglingSymbols.md](Internal/SymbolicManglingSymbols.md)、[提案 0050-symbolic-mangling-symbol-index](Evolutions/0050-symbolic-mangling-symbol-index.md)
 
 ### SymbolicDemangler（旧名 MetadataReader）
 
