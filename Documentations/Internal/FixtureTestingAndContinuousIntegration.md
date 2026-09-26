@@ -78,6 +78,12 @@ ObjC class wrapper、canonical specialized metadata、foreign types、value gene
 
 2026-08-26 第一次碰到时，只在测试侧加了 class 来绕开，AGENTS.md 也写成了一条规则。直到 0.20.0 发版验证时发现 Homebrew 配方自带的测试（`dump` 一个只有 struct 的 dylib）大约每五次崩一次，0.19.0 的正式版同样如此，才在 MachOKit fork 里修掉（`0ef5c24`，发布为 0.52.103，本库的下限随之抬高）。现有 fixture 里的 class 保留不删：已经不需要了，但删掉它们会改动已经钉住的快照与布局。
 
+### 现场编译 fixture 时要显式指定语言模式（2026-09-27）
+
+`swiftc` 输出 module interface（`-emit-module-interface-path`）时必须显式指定语言模式：Swift 6.3（Xcode 26.6）对缺省只给一条 warning，Swift 6.4（Xcode 27）改成了 error，fixture 编不出来，测试在读二进制之前就失败。`ProjectedOpaqueMemberWitnessTests` 因此在 Xcode 27 下 4 条全红，补上 `-swift-version 5`（与不指定时的默认模式相同）后能编了。CI 还在 Xcode 26.6 上，而且不跑这个套件，所以没有暴露。新写现场编译 fixture 的测试，一律带上语言模式。
+
+编过之后还有第二处差异：Swift 6.4 生成的 interface 用 module selector 写带模块名的类型（`ProbeProjectionClient::Client`，SE-0491），6.3 写的是点号，本库的 interface 打印器写的也是点号。拿编译器生成的 interface 当标准答案的断言，比较之前要把 `::` 归一成 `.`，`ProjectedOpaqueMemberWitnessTests` 读编译器写法的地方就是这样做的。
+
 ## 集成/E2E 层（2026-04-10）
 
 两层分工：`SymbolTestsCoreIntegrationTests` 加载二进制后在 **`TypeDefinition` 模型层**断言
