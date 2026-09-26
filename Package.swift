@@ -162,7 +162,9 @@ extension Package.Dependency {
         ),
         remote: .package(
             url: "https://github.com/MxIris-Reverse-Engineering/swift-demangling",
-            "0.7.0" ..< "0.8.0",
+            // 0.7.1 gives a private / local entity name its kind and scope when
+            // printed, which `dump`'s semantic output of such names relies on.
+            "0.7.1" ..< "0.8.0",
         ),
     )
 
