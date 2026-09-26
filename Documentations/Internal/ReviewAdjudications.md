@@ -560,16 +560,16 @@
 - **与 main 基线对比**：基线既有，0.19.0 的 dump 已经这样调用。
 - **为什么本批不修**：根在另一个包。正确的修法是让 `address(forOffset:)` 对任何 offset 都给出结果（按位回绕相加），或者返回可失败的值，都要发 MachOKitExtensions 的新版本再抬下限；在本库二十处调用点逐个加判断只是绕开它。输入必须是畸形二进制才会触发。
 - **既往修复**：同一类问题修过：PR #103 review M3（`00d81c69`，符号名的几何超出预算时跳过而不是 trap）；本批的 `5d44a0e0`。
-- **复审条件**：MachOKitExtensions 下一次发版时一起修，并在本库加一条链接畸形二进制的回归测试（`MalformedSymbolValueTests` 的 fixture 可以复用）。
+- **复审条件**：MachOKitExtensions 下一次发版时一起修，并在本库加一条链接畸形二进制的回归测试（`MalformedSymbolValueTests` 的 fixture 可以复用）。**追记（2026-09-27）**：MachOKitExtensions 0.1.2 只修了 A51，用户决定这次不带 A50，顺延到 0.1.2 之后的下一个版本。
 
 ---
 
-## A51 — 不在 dyld shared cache 里的进程内镜像被当成 cache 镜像（MachOKitExtensions 的 `MachOImage.cache` 只查下界，0.20.0 发版验证时发现，**基线既有**）
+## A51 — 不在 dyld shared cache 里的进程内镜像被当成 cache 镜像（MachOKitExtensions 的 `MachOImage.cache` 只查下界，0.20.0 发版验证时发现，**基线既有，2026-09-27 已修**）
 
-- **裁决**：本批不修（2026-09-26），与 A50 一起随 MachOKitExtensions 的下一个版本修。
-- **发现**：`MachOImage.cache` 只要镜像地址 `ptr ≥ sharedRegionStart` 就返回当前 cache，不检查镜像是否真的落在 cache 的映射范围里，也不看 mach header 的 `MH_DYLIB_IN_CACHE` 标志。一个不在 cache 里、却被加载到共享区起点之上的镜像会被当成 cache 镜像，`startOffset` 取成 `sharedRegionStart`，之后按 offset 算出的位置全部错开同一个量。
-- **复现 / 是否误报**：属实。0.20.0 发版分支第一次全量测试里 `ProtocolRecordTests` 三条失败：`offset()` 报 `fromFile → 326680`、`fromImage → -6442124264`，两者正好相差 `0x180000000`（宿主 cache 的 `sharedRegionStart`），另外两条随之报 `.requiredNonOptional`；单独跑三次都通过。第二次全量测试里同一条测试直接让进程崩溃：`MachOImage.readWrapperElements` 按错开的位置读到受保护的地址，SIGBUS（`KERN_PROTECTION_FAILURE`，崩溃报告里的栈是 `ProtocolRecordTests.layout()` → `BaselineFixturePicker.protocolRecord_first(in:)`）。所以它不只给出错的值，还能让进程内读取的宿主崩溃。成因是全量测试进程里映射了好几个 GB 级的 dyld cache 文件，占满了低地址区，fixture 被 dlopen 到了共享区起点之上。
+- **裁决**：**已修**（2026-09-27）。MachOKitExtensions 0.1.2 改为按 mach header 的 `MH_DYLIB_IN_CACHE` 标志判断，本库下限抬到 0.1.2。2026-09-26 的原裁决是「本批不修，与 A50 一起随 MachOKitExtensions 的下一个版本修」；用户次日指示先把它修掉，A50 仍按原裁决处理。
+- **发现**：`MachOImage.cache` 只要镜像地址 `ptr ≥ sharedRegionStart` 就返回当前 cache，不检查镜像是否真的落在 cache 的映射范围里，也不看 `MH_DYLIB_IN_CACHE` 标志。一个不在 cache 里、却被加载到共享区起点之上的镜像会被当成 cache 镜像。
+- **影响（2026-09-27 复查，更正原条目）**：原条目说「它不只给出错的值，还能让进程内读取的宿主崩溃」，这是错的。库代码里（含 MachOObjCSection 0.8.106）进程内镜像的这个判定只经 `address(forOffset:)` 用来算**显示用**的地址：Swift 成员的地址注释、dump 的 `sub_…` 名字与 witness 地址、ObjCMetadataSource 的 IMP 地址。误判时这些地址算成「镜像的实际地址 − cache 的 slide + offset」，是没有意义的数（那次测试里本应显示 `0x4FC18`，会显示成 `0x7050F0FC18`）。类型、字段、布局按镜像头部的指针直接读，不经过这个判定，不受影响，也不会因此崩溃。读错值和 SIGBUS 都发生在测试辅助代码 `BaselineFixturePicker.protocolRecord_first(in: MachOImage)`（`MachOFixtureSupport`，不是发布的 product）里：它按这个判定把读取 offset 算成 `section.address − sharedRegionStart`。
+- **复现 / 是否误报**：属实。0.20.0 发版分支第一次全量测试里 `ProtocolRecordTests` 三条失败：`offset()` 报 `fromFile → 326680`、`fromImage → -6442124264`，两者正好相差 `0x180000000`（宿主 cache 的 `sharedRegionStart`），另外两条随之报 `.requiredNonOptional`；单独跑三次都通过。第二次全量测试里同一条测试让进程 SIGBUS（`KERN_PROTECTION_FAILURE`）：崩溃报告里 fixture 加载在 `0x70627cc000`，宿主 cache 在 `0x19190c000–0x34b41c000`，出错地址 `0x6EE281BC18` 正好等于 `0x70627cc000 − 0x180000000 + 0x4FC18`，落在一片 384 GB 的禁止访问区里。平时不在 cache 里的镜像加载在主程序附近的低地址：本机 93 份带镜像列表的崩溃报告里，只有这个全量测试进程出现过加载在 `0x180000000` 以上的非 cache 镜像。
 - **与 main 基线对比**：基线既有。MachOKitExtensions 0.1.1 起就是这样，0.19.0 依赖的也是它。
-- **为什么本批不修**：根在另一个包。只在进程内读取（`MachOImage`）、且镜像恰好被加载到共享区起点之上时出现；普通进程里不在 cache 里的镜像通常加载在更低的地址，但像 RuntimeViewer 这种会映射大文件的宿主进程也可能碰到。
-- **既往修复**：无。这段判断在 2026-08-10 拆出 MachOKitExtensions 时原样搬过去。
-- **复审条件**：尽快随 MachOKitExtensions 的下一次发版修（它能让宿主崩溃），改为按 header 的 `MH_DYLIB_IN_CACHE` 标志（或 cache 的实际映射范围）判断，并补一条回归测试：直接对 `cache` 的判定做单元测试，不依赖加载地址碰巧落在哪里。
+- **既往修复**：无。这段判断在 2026-08-10 拆出 MachOKitExtensions 时原样搬过去。同一个崩溃在 2026-09-09 的全量测试里出现过一次，当时被判为并行测试的环境抖动，没有追到根因（[TaskReports/2026-09-09-type-import-info-identity.md](TaskReports/2026-09-09-type-import-info-identity.md)）。
+- **修复与回归测试**：MachOKit 自己判断进程内镜像是否在 cache 里时看的就是这个标志（`MachORepresentable` 里的平台判断），MachOObjCSection 的 `objcImageIndex`、本库的 `ObjCAncestorResolver` 也一样；横向排查的结果是，全栈只按地址判断的写法只有这一处。回归测试 `MachOImageCacheMembershipTests`（`Tests/MachOCachesTests/`）把测试 bundle 自己的 header 和 load commands 复制到 shared region 之后的地址：修复前（0.1.1）两条重定位用例失败（被判成 cache 镜像，地址报成 `0x6FEE6F8000` 而不是 `0x4000`），修复后通过；这个套件已加入 CI 过滤器。
