@@ -890,11 +890,19 @@ struct AppKitObjCMemberTests {
         let selectors = Set(overrides.map(\.selector))
         // The OS build strips the `To` thunk symbols, so every attribution
         // comes from decoding the anonymous thunk: a `bl` to the
-        // implementation (`layout`, `initWithCoder:`, `setClipsToBounds:`,
+        // implementation (`layout`, `setClipsToBounds:`,
         // `viewWillMoveToWindow:`, `didChangeValueForKey:`) or the
         // implementation's address materialized for an outlined helper
         // (`+defaultAnimationForKey:`).
-        #expect(selectors.isSuperset(of: ["layout", "viewWillMoveToWindow:", "initWithCoder:", "setClipsToBounds:", "didChangeValueForKey:", "defaultAnimationForKey:"]))
+        var expectedSelectors: Set<String> = ["layout", "viewWillMoveToWindow:", "setClipsToBounds:", "didChangeValueForKey:", "defaultAnimationForKey:"]
+        // `initWithCoder:`'s thunk calls the initializer body on macOS 27 too,
+        // but that build carries no symbol at the callee (27.0 26A428:
+        // `bl sub_185DF6284`), so there is nothing to name the member by and
+        // the entry is honestly left untied there.
+        if ProcessInfo.processInfo.operatingSystemVersion.majorVersion == 26 {
+            expectedSelectors.insert("initWithCoder:")
+        }
+        #expect(selectors.isSuperset(of: expectedSelectors))
         #expect(table.membersByImplementationSymbolName.values.allSatisfy { $0.evidence == .thunkReference })
         // NSView overrides `didChangeValueForKey:` itself, so the nearest
         // ancestor is NSView, not NSObject.
