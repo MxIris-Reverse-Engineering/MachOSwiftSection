@@ -561,3 +561,15 @@
 - **为什么本批不修**：根在另一个包。正确的修法是让 `address(forOffset:)` 对任何 offset 都给出结果（按位回绕相加），或者返回可失败的值，都要发 MachOKitExtensions 的新版本再抬下限；在本库二十处调用点逐个加判断只是绕开它。输入必须是畸形二进制才会触发。
 - **既往修复**：同一类问题修过：PR #103 review M3（`00d81c69`，符号名的几何超出预算时跳过而不是 trap）；本批的 `5d44a0e0`。
 - **复审条件**：MachOKitExtensions 下一次发版时一起修，并在本库加一条链接畸形二进制的回归测试（`MalformedSymbolValueTests` 的 fixture 可以复用）。
+
+---
+
+## A51 — 不在 dyld shared cache 里的进程内镜像被当成 cache 镜像（MachOKitExtensions 的 `MachOImage.cache` 只查下界，0.20.0 发版验证时发现，**基线既有**）
+
+- **裁决**：本批不修（2026-09-26），与 A50 一起随 MachOKitExtensions 的下一个版本修。
+- **发现**：`MachOImage.cache` 只要镜像地址 `ptr ≥ sharedRegionStart` 就返回当前 cache，不检查镜像是否真的落在 cache 的映射范围里，也不看 mach header 的 `MH_DYLIB_IN_CACHE` 标志。一个不在 cache 里、却被加载到共享区起点之上的镜像会被当成 cache 镜像，`startOffset` 取成 `sharedRegionStart`，之后按 offset 算出的位置全部错开同一个量。
+- **复现 / 是否误报**：属实。0.20.0 发版分支第一次全量测试里 `ProtocolRecordTests` 三条失败：`offset()` 报 `fromFile → 326680`、`fromImage → -6442124264`，两者正好相差 `0x180000000`（宿主 cache 的 `sharedRegionStart`），另外两条随之报 `.requiredNonOptional`；单独跑三次都通过。第二次全量测试里同一条测试直接让进程崩溃：`MachOImage.readWrapperElements` 按错开的位置读到受保护的地址，SIGBUS（`KERN_PROTECTION_FAILURE`，崩溃报告里的栈是 `ProtocolRecordTests.layout()` → `BaselineFixturePicker.protocolRecord_first(in:)`）。所以它不只给出错的值，还能让进程内读取的宿主崩溃。成因是全量测试进程里映射了好几个 GB 级的 dyld cache 文件，占满了低地址区，fixture 被 dlopen 到了共享区起点之上。
+- **与 main 基线对比**：基线既有。MachOKitExtensions 0.1.1 起就是这样，0.19.0 依赖的也是它。
+- **为什么本批不修**：根在另一个包。只在进程内读取（`MachOImage`）、且镜像恰好被加载到共享区起点之上时出现；普通进程里不在 cache 里的镜像通常加载在更低的地址，但像 RuntimeViewer 这种会映射大文件的宿主进程也可能碰到。
+- **既往修复**：无。这段判断在 2026-08-10 拆出 MachOKitExtensions 时原样搬过去。
+- **复审条件**：尽快随 MachOKitExtensions 的下一次发版修（它能让宿主崩溃），改为按 header 的 `MH_DYLIB_IN_CACHE` 标志（或 cache 的实际映射范围）判断，并补一条回归测试：直接对 `cache` 的判定做单元测试，不依赖加载地址碰巧落在哪里。
