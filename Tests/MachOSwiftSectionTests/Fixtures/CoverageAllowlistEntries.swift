@@ -228,6 +228,11 @@ enum CoverageAllowlistEntries {
             reason: .runtimeOnly(detail: "InlineArray<N, T> runtime metadata; covered via InProcess on Swift 6.2+")
         ),
         CoverageAllowlistHelpers.sentinelGroup(
+            typeName: "BorrowTypeMetadata",
+            members: ["init", "kind", "referent", "layout", "offset"],
+            reason: .runtimeOnly(detail: "Builtin.Borrow<T> runtime metadata exists only on the Swift 6.4 runtime (macOS 27); the live path is covered by SwiftInspectionTests through RuntimeMetadataTypeBuilder.createBuiltinBorrowType")
+        ),
+        CoverageAllowlistHelpers.sentinelGroup(
             typeName: "GenericBoxHeapMetadata",
             members: ["init", "kind", "valueWitnessTable", "offsetOfBoxHeader", "captureOffset", "boxedType", "layout", "offset"],
             reason: .runtimeOnly(detail: "swift_allocBox-allocated; not feasible to construct stably from tests")
@@ -329,7 +334,7 @@ enum CoverageAllowlistEntries {
         CoverageAllowlistHelpers.sentinelGroup(
             typeName: "RelativeObjCProtocolPrefix",
             members: ["init", "isObjC", "rawValue"],
-            reason: .needsFixtureExtension(detail: "RelativeObjCProtocolPrefix is only reached at runtime through Swift's mangled-name symbolic-reference resolver (`MetadataReader` opcode `.objectiveCProtocol` = 0x0e), not from descriptor traversal. Phase B3 added `ObjCClassWrapperFixtures` (including `ObjCBridgeWithProto` conforming to `@objc protocol ObjCProto`) but `@objc protocol`s do not emit Swift-side conformance descriptors, so the relative-prefix variant remains unreachable from fixture section walks. Suite stays registration-only.")
+            reason: .needsFixtureExtension(detail: "RelativeObjCProtocolPrefix is only reached at runtime through Swift's mangled-name symbolic-reference resolver (`SymbolicDemangler` opcode `.objectiveCProtocol` = 0x0e), not from descriptor traversal. Phase B3 added `ObjCClassWrapperFixtures` (including `ObjCBridgeWithProto` conforming to `@objc protocol ObjCProto`) but `@objc protocol`s do not emit Swift-side conformance descriptors, so the relative-prefix variant remains unreachable from fixture section walks. Suite stays registration-only.")
         ),
         CoverageAllowlistHelpers.sentinelGroup(
             typeName: "ObjCProtocolPrefix",
@@ -398,7 +403,7 @@ enum CoverageAllowlistEntries {
         ),
         CoverageAllowlistHelpers.sentinelGroup(
             typeName: "OpaqueTypeDescriptorProtocol",
-            members: ["numUnderlyingTypeArugments"],
+            members: ["numUnderlyingTypeArguments", "numUnderlyingTypeArugments"],
             reason: .needsFixtureExtension(detail: "opaque-type descriptor not reachable; protocol extension exercised on synthetic descriptor")
         ),
     ].flatMap { $0 }
@@ -410,6 +415,11 @@ enum CoverageAllowlistEntries {
             typeName: "ContextDescriptorFlags",
             members: ["init"],
             reason: .pureDataUtility(detail: "memberwise initializer not surfaced by the public-member scanner")
+        ),
+        CoverageAllowlistHelpers.sentinelGroup(
+            typeName: "TypeImportInfo",
+            members: ["abiName", "symbolNamespace", "relatedEntityName", "isCTypedef", "isRelatedEntity", "cTypedefSymbolNamespace"],
+            reason: .pureDataUtility(detail: "pure-data record of the descriptor name's trailing import-info components; the reading path is pinned by TypeContextDescriptorProtocolTests.typeImportInfo and the parsing by SwiftInspectionTests.CImportedTypeIdentityRuleTests")
         ),
         CoverageAllowlistHelpers.sentinelGroup(
             typeName: "ContextDescriptorKindSpecificFlags",
@@ -482,6 +492,26 @@ enum CoverageAllowlistEntries {
             reason: .pureDataUtility(detail: "raw bitfield over generic environment flags")
         ),
         CoverageAllowlistHelpers.sentinelGroup(
+            typeName: "FunctionParameterTypeFlags",
+            members: ["init(rawValue:)", "rawValue", "ownership", "ownershipRawValue", "isVariadic", "isAutoClosure", "isNoDerivative", "isIsolated", "isSending"],
+            reason: .pureDataUtility(detail: "raw bitfield over per-parameter flags; FunctionTypeMetadataTests asserts the decoded ownership on a real `inout` carrier")
+        ),
+        CoverageAllowlistHelpers.sentinelGroup(
+            typeName: "FunctionTypeExtendedFlags",
+            members: ["init(rawValue:)", "rawValue", "isTypedThrows", "isIsolatedAny", "isNonIsolatedNonsending", "hasSendingResult", "invertedProtocols"],
+            reason: .pureDataUtility(detail: "raw bitfield over the second function-type flag word; FunctionTypeMetadataTests asserts the decoded typed-throws bit on a real carrier")
+        ),
+        CoverageAllowlistHelpers.sentinelGroup(
+            typeName: "GenericMetadataPatternFlags",
+            members: ["init(rawValue:)", "rawValue", "hasExtraDataPattern", "hasTrailingFlags", "classHasImmediateMembersPattern", "valueMetadataKind", "valueMetadataKindRawValue"],
+            reason: .pureDataUtility(detail: "raw bitfield over generic metadata pattern flags; the two pattern Suites assert the decoded bits on real patterns")
+        ),
+        CoverageAllowlistHelpers.sentinelGroup(
+            typeName: "AccessibleFunctionFlags",
+            members: ["init(rawValue:)", "rawValue", "isDistributed"],
+            reason: .pureDataUtility(detail: "raw bitfield over accessible function flags; the ABI defines a single bit")
+        ),
+        CoverageAllowlistHelpers.sentinelGroup(
             typeName: "FieldRecordFlags",
             members: ["init", "rawValue", "isVar", "isArtificial", "isIndirectCase", "isVariadic"],
             reason: .pureDataUtility(detail: "raw bitfield over field record flags")
@@ -501,7 +531,7 @@ enum CoverageAllowlistEntries {
         ),
         CoverageAllowlistHelpers.sentinelGroup(
             typeName: "ValueWitnessFlags",
-            members: ["init", "rawValue", "alignmentMask", "isNonPOD", "isNonInline", "hasExtraInhabitants", "hasSpareBits", "isNonBitwiseTakable", "isIncomplete", "alignment", "hasEnumWitnesses", "inComplete", "isBitwiseBorrowable", "isBitwiseTakable", "isCopyable", "isInlineStorage", "isNonBitwiseBorrowable", "isNonCopyable", "isPOD", "maxNumExtraInhabitants"],
+            members: ["init", "rawValue", "alignmentMask", "isNonPOD", "isNonInline", "hasExtraInhabitants", "hasSpareBits", "isNonBitwiseTakable", "isIncomplete", "alignment", "hasEnumWitnesses", "inComplete", "isBitwiseBorrowable", "isBitwiseTakable", "isCopyable", "isInlineStorage", "isNonBitwiseBorrowable", "isNonCopyable", "isPOD", "maxNumExtraInhabitants", "isAddressableForDependencies"],
             reason: .pureDataUtility(detail: "raw bitfield over value witness flags")
         ),
         CoverageAllowlistHelpers.sentinelGroup(

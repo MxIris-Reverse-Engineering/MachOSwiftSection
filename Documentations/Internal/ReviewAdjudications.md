@@ -439,3 +439,137 @@
 - **既往修复 / 当时为什么这样做**：来自提案 0006 的 `final` 关键字还原（commit `da9b8be2`，其后 `83a4308c` 补了「有 `Tq` 就绝不标 `final`」的否定证据）。当时的证据模型就是实现地址反查，本 PR 才把「实现地址在折叠下不可逆」确立为项目事实。
 - **为什么延后**：错误方向保守（少标 `final` 而非错标），且修法与 findings 第 5 条（遍历去重）、第 6 条（快路径不白算）同属「把 `Tq` 优先的证据顺序推广到 `final` 恢复路径」，捆在一起做才不会来回改同一段。
 - **复审条件**：`final` 恢复路径的证据模型统一批次；或出现「`final` 在真实框架上被系统性漏标」的报告。
+
+---
+
+## A40 — 嵌套展开只返回前半段字段、不标截断（`ffbcf5964` review 发现 3，**部分误报**）
+
+- **裁决**：截断标记不修；「dump / interface 会多出新行」误报（2026-09-24）。`children` 注释过时属于文档缺陷，记在 [findings 发现 3（文档部分）](../../Roadmaps/2026-09-24-nested-field-extents-review-findings.md) 待修。
+- **发现**：`NestedFieldOffsetTree.swift:153` 在第一个不是 `.computed` 的字段处 `break`，此前的字段已经追加进去，调用方拿到的是一段前缀，分辨不出它是否完整；审查认为这会让静态的 `--emit-expanded-field-offsets` 输出多出新行，而且没有测试。
+- **复现 / 是否误报**：API 层面属实：main 上 `structChildren` 走 `resolver.computeStructLayout`，任何一个字段不可解就抛错，整组返回空；现在返回前缀。渲染层面是误报：`StaticFieldLayoutBackend.swift:86` 只把 `computedFieldOffsets` 里的顶层字段交给 `nestedFieldOffsetTree`（`:109`、`:159`），而顶层字段的偏移能算出，说明这个字段类型的整体布局已经解析成功，嵌套类型的每个字段都可解。实跑：fixture 的 `PartialHolder` 只有一个字段 `partial: Partial`（源码见 findings 的「复现环境」），`Partial` 中间字段的类型来自没有提供的依赖库，dump 里 `partial` 自己就是 `Field offset: unknown (type descriptor not found for ExtentDependency.DependencyOpaque)`，根本不展开。swift-decompiler（私有仓库，`SwiftMetadataProvider.storedFields`）同样只展开 `.computed` 的顶层字段。
+- **与 main 基线对比**：本次的新行为。
+- **为什么不修**：前缀里的偏移与大小都经证明；「截到第一个算不出的字段为止」与顶层 `AggregateFieldLayout.computedFieldOffsets` 是同一条规则；现有两个调用方都走不到；加截断标记要扩 public API，而没有消费者需要它。
+- **复审条件**：出现直接对任意类型调用 `nestedFieldOffsetTree`、并把 `children` 当成完整字段表的消费者（例如按字段之间的空隙推断 padding）。
+
+---
+
+## A41 — 零大小字段的嵌套偏移从累加位置变成 0（`ffbcf5964` review 发现 4，**误报**）
+
+- **裁决**：误报（2026-09-24）。
+- **发现**：结构体展开从 `computeStructLayout`（`BasicLayout.compute` 对零大小字段报对齐后的累加位置）换成 `fieldLayout(ofStruct:)`（`accumulateFieldLayout` 报 0，`StaticLayoutCalculator.swift:403`），嵌套的零大小字段从「父偏移加累加位置」移到「父偏移」。审查认为 `NestedFieldOffset.offset` 因此出错，而且静态与 MachOImage 的展开输出会在泛型实例化上分叉。
+- **为什么是误报**：编译器写进静态 metadata 的 field offset vector 对零大小字段本来就是 0。实测 fixture 的 `InnerWithMarker`（依次是 `leading: Int64`、`marker: EmptyMarker`、`trailing: Int32`，源码见 findings 的「复现环境」），它的 `$s10ExtentRoot15InnerWithMarkerVN` 偏移表是 `[0, 0, 8]`；dump 里 `MarkerHolder.inner` 展开出的 `marker` 在 8（父偏移 8 加 0）。新行为与编译器一致，也与顶层路径一致；main 上的嵌套路径反而与编译器不一致。它只和运行时实例化的泛型 metadata（`performBasicLayout` 报累加值）不同，这一点顶层路径早已接受。
+- **与 main 基线对比**：嵌套路径是本次的新变化；顶层路径自 `cc12368e` 起就报 0。
+- **既往修复 / 当时为什么这样做**：`cc12368e`（2026-07-13，value generic 与 parameter pack 阶段）让 `accumulateFieldLayout` 有意镜像 IRGen 的 `ElementLayout::completeEmpty`，注释写明与运行时实例化泛型的差异「对没有存储的字段没有影响」。这个理由今天仍然成立：零大小字段不对应任何内存访问，`byteWidth` 为 0 也不会与任何访问匹配。
+- **复审条件**：出现依赖零大小字段偏移的消费者（例如按字段重建 key path，再与运行时的 `MemoryLayout.offset(of:)` 比对）。
+
+---
+
+## A42 — 公开入口默认把根的子字段当成无条件存储（`ffbcf5964` review 发现 5）
+
+- **裁决**：不修（2026-09-24）。
+- **发现**：`nestedFieldOffsetTree(forMangledTypeName:baseOffset:depthLimit:)` 以 `hasUnconditionalStorage: true` 起步（`NestedFieldOffsetTree.swift:64`）。调用方如果把枚举 payload 的类型当根传进来，子字段会带上 `byteWidth`，与 `byteWidth` 文档里「枚举 payload 分支及其后代没有无条件大小」相矛盾，而 API 没有办法表达「根本身就是条件存储」。
+- **复现 / 是否误报**：API 层面成立，但现有调用方构造不出来：`StaticFieldLayoutBackend` 只对 struct / class 的已算出存储字段调用；swift-decompiler 只对 `.computed` 的顶层 struct / class 字段调用，另外还用父字段的范围再夹一次子字段的大小。
+- **与 main 基线对比**：新 API（`byteWidth` 是本次新增的）。
+- **为什么不修**：调用这个入口，本身就是在断言「这个字段在 `baseOffset` 处无条件存储」；为一个不存在的调用方加参数，等于扩 public API。
+- **复审条件**：出现对枚举 payload 调用这个入口的消费者；届时加参数，或在文档注释里写明前置条件。
+
+---
+
+## A43 — `byteWidth == nil` 同时表示「未证明」与「条件存储」（`ffbcf5964` review 发现 6）
+
+- **裁决**：不修（2026-09-24）。
+- **发现**：`byteWidth` 为 `nil`，既可能是大小没被证明，也可能是枚举 payload 里的条件存储；子树的 `hasUnconditionalStorage` 又由 `byteWidth != nil` 推出（`NestedFieldOffsetTree.swift:247`），两个概念经一个 Optional 耦合在一起。
+- **复现 / 是否误报**：当前没有行为差异。`accumulateFieldLayout` 给每个 `.computed` 条目都带上 `layout`，C 结构体校验的三条返回路径要么原样保留这些条目、要么整体降级为 `.unknown`，所以 `byteWidth != nil` 恰好等价于「无条件存储并且大小已算出」。swift-decompiler 对两种 `nil` 的处理也相同（都不参与按大小匹配）。
+- **与 main 基线对比**：新 API。
+- **为什么不修**：纯粹是可读性问题；把 `hasUnconditionalStorage` 显式传给 `makeNode`，可以在下次改这段代码时顺手做。
+- **复审条件**：某条路径让 `.computed` 条目的 `layout` 为 `nil`；或者消费者需要区分「大小未知」与「条件存储」（例如想拿到 payload 的大小）。
+
+---
+
+## A44 — 换用 `fieldLayout(ofStruct:)` 之后嵌套展开多做工作（`ffbcf5964` review 发现 9，**误报**）
+
+- **裁决**：误报（2026-09-24）。
+- **发现**：`accumulateFieldLayout` 在第一个未解析字段之后，仍然逐个解析后续字段自身的布局；C 结构体多一次 descriptor demangle；每个嵌套结构体的字段记录读两次；而嵌套展开在第一个未知字段处就停。
+- **为什么是误报**：① 「未解析之后继续解析」只在嵌套类型含有不可解字段时才发生，现有调用方走不到（见 A40）；② demangle 只对 C 结构体发生，每次一个 `demangleContext`；③ 字段记录读两次在 main 上就是这样（旧路径在 `computeStructLayout` 里读一遍，`structChildren` 再读一遍）。实测：swift-decompiler 同一配置下 20 个函数的完整对照，索引耗时 103.973 秒（改动前）与 103.991 秒（改动后）。
+- **与 main 基线对比**：第 ③ 点是基线既有。
+- **复审条件**：profiling 显示嵌套展开在大框架上的耗时占比可观。
+
+---
+
+## A45 — `NestedFieldExtentTests` 每个测试重编一次同一个 fixture（`ffbcf5964` review 发现 10）
+
+- **裁决**：不修（2026-09-24）。
+- **发现**：`tree(forFieldNamed:inStructNamed:)` 每次调用都跑一次 `xcrun swiftc`（一共 6 次），`.serialized` 让它们串行执行；`swiftc` 的 stderr 没有收进失败信息。
+- **复现 / 是否误报**：属实，但代价很小：2026-09-24 在 `next`（`0748b372`）实跑，每个编译 fixture 的测试约 0.24 秒，整组 1.960 秒。stderr 没有重定向，会继承测试进程的 stderr，所以编译错误照样出现在 `swift test` 的输出里，只是不在 `#require` 的消息中。
+- **为什么不修**：成本可以忽略；改成共享的懒编译 fixture，要引入跨测试的共享状态。
+- **复审条件**：fixture 编译慢到影响整套测试的耗时；或者 CI 上出现只看得到 `#require` 消息、定位不了的编译失败。
+
+---
+
+## A46 — 默认值测试「同义反复」，缺前缀与零大小的回归测试（`ffbcf5964` review 发现 11）
+
+- **裁决**：不修（2026-09-24）。
+- **发现**：`manuallyCreatedNodesDefaultToUnknownExtent` 只钉了一个默认参数值；前缀截断与零大小偏移这两个行为变化没有测试。
+- **复现 / 是否误报**：前半是误报：这个测试钉的是旧的四参数初始化调用仍能编译（审查对象的演进日志明确承诺了源码兼容），删掉默认参数它就编译不过。后半属实。
+- **为什么不修**：这两个行为分别裁决为不修（A40）与误报（A41），现有调用方要么走不到、要么不受影响；前缀截断的测试可以随 findings 发现 3 的注释修改一起补。
+- **复审条件**：A40 或 A41 被改判。
+
+---
+
+## A47 — 差异接口里私有声明自身的名字没有语义类型（`renderLeafName`，修 conformance 子句时横向排查发现，**基线既有**）
+
+- **裁决**：不修（2026-09-25）。
+- **发现**：diff / evolution 渲染器打印 `private` / `fileprivate` 类型或协议的声明头时，`SwiftDeclarationPrinter+Headers.swift` 的 `renderLeafName` 把叶子名 `(Name in _ABC)` 交给 demangler 的 `printSemantic(using: [.showPrivateDiscriminators])`。叶子是一个孤立的 `privateDeclName` 节点，外面没有实体节点，引擎给不出实体种类，整段是 `.standard`；非私有声明走 `TypeDeclaration(kind:, name)`，是 `.type(kind, .declaration)`。与 conformance 子句那处同类（私有名字丢语义类型，见 [TaskReports/2026-09-25-conformance-protocol-name-semantics.md](TaskReports/2026-09-25-conformance-protocol-name-semantics.md)），但 swift-demangling 那次修复（把实体种类带给被包裹的标识符）管不到这里——这里本来就没有实体。
+- **复现 / 是否误报**：属实。路径：`SwiftDeclarationPrinter+DiffRendering` 给私有类型 / 协议传 `leafNameNode` → `renderLeafName` → `printSemantic` → 引擎对孤立 `privateDeclName` 调 `printName`，不带实体种类。
+- **与 main 基线对比**：基线既有，`a9f325e0`（2026-06-20，diff 里显示私有判别符）引入时就是这样。
+- **为什么不修**：没有消费方看得见。`swift-section diff` 的三种格式（inline / unified / markdown）只取 `.string`，没有颜色通道；RuntimeViewer 不使用 diffable / evolution 渲染器。修起来很便宜（包成 `TypeDeclaration(kind: kind, leafNameNode.printSemantic(using: [.showPrivateDiscriminators]).string)`，文本不变），但在有消费方之前，测试只能钉一个没人读的属性。
+- **既往修复**：无。
+- **复审条件**：任何消费方开始按语义类型渲染 diff / evolution 接口——`diff` 增加 `--color-scheme`，或 RuntimeViewer 接入差异视图。
+
+---
+
+## A48 — 进程内第一次改写私有类型的运行时名字时，为整个镜像建符号库且不回收（`_symbolic` 符号索引，0.20.0 发版审查发现）
+
+- **裁决**：暂不修（2026-09-26），先测量。
+- **发现**：`RuntimeTypeNameDemangling` 把运行时的 `AnonymousContext("$<地址>")` 改写成 `privateDeclName` 时，经 `InProcessContext.symbolicReferencePrivateDiscriminator(forAnonymousContextAt:)` 查 `AnonymousContextPrivateDiscriminatorIndex`。它底下的 `SymbolicManglingIndex` 取 `SymbolIndexStore.symbolicManglingSymbols(in:)`，要先把该镜像的整个符号库建出来，也就是把全部 Swift 符号 demangle 一遍。这些缓存只在认领该镜像的 `SwiftDeclarationIndexer` 释放、或者内存压力时才回收；运行时名字的改写本身也不缓存结果。
+- **复现 / 是否误报**：机制属实，读码确认：`symbolicManglingSymbols(in:)` → `storage(in:)` → `buildStorageSweep`。代价没有测量。审查时还推测 iOS 设备 cache 的本地符号在不映射进进程的 `.symbols` 文件里，进程内建出来可能是一张空表，这一点没有核实。
+- **与 main 基线对比**：新引入（`fe681d3c` / `8d2eb256`，2026-09-24）；main 不做这个改写。
+- **为什么暂不修**：每个镜像只在进程内第一次遇到它的私有类型时付一次。RuntimeViewer 浏览的镜像本来就会建符号库，额外的代价主要落在「只出现在泛型实参里」的镜像上。没有测量数据就去改缓存策略（按镜像限额、LRU）是盲调。提案 0050 的决策日志接受了首次查询的代价，但没有讨论驻留多久。
+- **既往修复**：无。
+- **复审条件**：① 在 RuntimeViewer 里测到它明显拖慢首次显示或抬高常驻内存；② 核实 iOS 设备 cache 在进程内确实建出空表，那就应当在建库之前先判断镜像有没有本地符号。
+
+---
+
+## A49 — 系统镜像里的私有类型名字带上鉴别符之后，ABI snapshot 的格式版本没有升（0.20.0 发版审查发现）
+
+- **裁决**：不修（2026-09-26）：`ABISnapshotDocument.currentFormatVersion` 保持 5，在 0.20.0 的 changelog 里说明旧 baseline 要重建。
+- **发现**：0.20.0 有几处命名变化会改变 snapshot 里的类型键：系统镜像里的 private 类型名字带上私有鉴别符（提案 0050 与它前面一批）、C 导入类型按 `TypeImportInfo` 定名（提案 0023）、另一个模块的 extension 里声明的类型打印成被扩展的类型。`ABISnapshotDocument` 的注释要求键的格式一变就升版本，让旧 baseline 明确报错，而不是悄悄误报。拿 0.19.0 存下的 snapshot 和新二进制做 `diff`，受影响的类型会报成「删除 + 新增」。
+- **复现 / 是否误报**：属实，类型键的来源读码确认；没有实际拿旧 snapshot 跑一次 `diff`。
+- **与 main 基线对比**：新引入（0.20.0 的命名变化）。
+- **为什么不修**：变的是被命名的内容，不是键的格式。`currentFormatVersion` 历次升级（2 到 5）都是键的格式或 schema 变了；0023 与 extension context 那两处命名变化也都没有升。现在升版本会让所有旧 baseline 一律读不进来，包括完全不含受影响类型的。对用户来说，在 changelog 里知道「旧 baseline 要重建」就够了。
+- **既往修复**：无。
+- **复审条件**：再出现一次成批的命名变化，或者有用户反馈旧 baseline 误报。到时改为升版本，或者让 `diff` 在 snapshot 记录的 `generatorVersion` 与当前版本不一致时给出警告。
+
+---
+
+## A50 — 负的偏移交给 `address(forOffset:)`（MachOKitExtensions）同样会 trap（修负偏移读取时横向排查发现，**基线既有**）
+
+- **裁决**：本批不修（2026-09-26），建议随 MachOKitExtensions 的下一个版本修。
+- **发现**：`address(forOffset:)` 对独立文件算的是 `UInt64(vmaddr) + UInt64(offset)`，offset 为负时直接 trap。本库里约二十处调用：dump 的成员地址注释把成员符号的 `symbol.offset` 交给它（`ClassDumper`、`EnumDumper`、`StructDumper`、`ObjCImplementationClassDumper`），`sub_…` 名字与 witness 地址则来自相对指针算出的实现 offset（`ClassDumper`、`ProtocolConformanceDumper`、`ResilientWitness`）。这和本批修掉的两处读取（`SymbolicManglingIndex`、`ObjCImplementationClassIndex`，`5d44a0e0`）是同一类问题：二进制给出的值没有检查正负就转成无符号数。
+- **复现 / 是否误报**：机制属实，读码确认。需要一个值 `≥ 2^63` 的 Swift 成员符号，或者一个指向镜像起点之前的相对指针；没有构造样本。
+- **与 main 基线对比**：基线既有，0.19.0 的 dump 已经这样调用。
+- **为什么本批不修**：根在另一个包。正确的修法是让 `address(forOffset:)` 对任何 offset 都给出结果（按位回绕相加），或者返回可失败的值，都要发 MachOKitExtensions 的新版本再抬下限；在本库二十处调用点逐个加判断只是绕开它。输入必须是畸形二进制才会触发。
+- **既往修复**：同一类问题修过：PR #103 review M3（`00d81c69`，符号名的几何超出预算时跳过而不是 trap）；本批的 `5d44a0e0`。
+- **复审条件**：MachOKitExtensions 下一次发版时一起修，并在本库加一条链接畸形二进制的回归测试（`MalformedSymbolValueTests` 的 fixture 可以复用）。
+
+---
+
+## A51 — 不在 dyld shared cache 里的进程内镜像被当成 cache 镜像（MachOKitExtensions 的 `MachOImage.cache` 只查下界，0.20.0 发版验证时发现，**基线既有**）
+
+- **裁决**：本批不修（2026-09-26），与 A50 一起随 MachOKitExtensions 的下一个版本修。
+- **发现**：`MachOImage.cache` 只要镜像地址 `ptr ≥ sharedRegionStart` 就返回当前 cache，不检查镜像是否真的落在 cache 的映射范围里，也不看 mach header 的 `MH_DYLIB_IN_CACHE` 标志。一个不在 cache 里、却被加载到共享区起点之上的镜像会被当成 cache 镜像，`startOffset` 取成 `sharedRegionStart`，之后按 offset 算出的位置全部错开同一个量。
+- **复现 / 是否误报**：属实。0.20.0 发版分支第一次全量测试里 `ProtocolRecordTests` 三条失败：`offset()` 报 `fromFile → 326680`、`fromImage → -6442124264`，两者正好相差 `0x180000000`（宿主 cache 的 `sharedRegionStart`），另外两条随之报 `.requiredNonOptional`；单独跑三次都通过。第二次全量测试里同一条测试直接让进程崩溃：`MachOImage.readWrapperElements` 按错开的位置读到受保护的地址，SIGBUS（`KERN_PROTECTION_FAILURE`，崩溃报告里的栈是 `ProtocolRecordTests.layout()` → `BaselineFixturePicker.protocolRecord_first(in:)`）。所以它不只给出错的值，还能让进程内读取的宿主崩溃。成因是全量测试进程里映射了好几个 GB 级的 dyld cache 文件，占满了低地址区，fixture 被 dlopen 到了共享区起点之上。
+- **与 main 基线对比**：基线既有。MachOKitExtensions 0.1.1 起就是这样，0.19.0 依赖的也是它。
+- **为什么本批不修**：根在另一个包。只在进程内读取（`MachOImage`）、且镜像恰好被加载到共享区起点之上时出现；普通进程里不在 cache 里的镜像通常加载在更低的地址，但像 RuntimeViewer 这种会映射大文件的宿主进程也可能碰到。
+- **既往修复**：无。这段判断在 2026-08-10 拆出 MachOKitExtensions 时原样搬过去。
+- **复审条件**：尽快随 MachOKitExtensions 的下一次发版修（它能让宿主崩溃），改为按 header 的 `MH_DYLIB_IN_CACHE` 标志（或 cache 的实际映射范围）判断，并补一条回归测试：直接对 `cache` 的判定做单元测试，不依赖加载地址碰巧落在哪里。

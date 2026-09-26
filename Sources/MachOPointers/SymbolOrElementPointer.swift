@@ -24,7 +24,7 @@ public enum SymbolOrElementPointer<Element: Resolvable>: RelativeIndirectType {
         }
     }
 
-    public func resolve<MachO: MachORepresentableWithCache & Readable>(in machO: MachO) throws -> Resolved {
+    public func resolve(in machO: some MachORepresentableWithCache & Readable) throws -> Resolved {
         switch self {
         case .symbol(let unsolvedSymbol):
             return .symbol(unsolvedSymbol)
@@ -33,7 +33,7 @@ public enum SymbolOrElementPointer<Element: Resolvable>: RelativeIndirectType {
         }
     }
 
-    public func resolve<Context: ReadingContext>(in context: Context) throws -> Resolved {
+    public func resolve(in context: some ReadingContext) throws -> Resolved {
         switch self {
         case .symbol(let unsolvedSymbol):
             return .symbol(unsolvedSymbol)
@@ -42,7 +42,7 @@ public enum SymbolOrElementPointer<Element: Resolvable>: RelativeIndirectType {
         }
     }
 
-    public func resolveOffset<MachO: MachORepresentableWithCache & Readable>(in machO: MachO) -> Int {
+    public func resolveOffset(in machO: some MachORepresentableWithCache & Readable) -> Int {
         switch self {
         case .symbol(let unsolvedSymbol):
             return unsolvedSymbol.offset
@@ -64,15 +64,15 @@ public enum SymbolOrElementPointer<Element: Resolvable>: RelativeIndirectType {
         fatalError()
     }
 
-    public func resolveAny<T: Resolvable, MachO: MachORepresentableWithCache & Readable>(in machO: MachO) throws -> T {
+    public func resolveAny<T: Resolvable>(in machO: some MachORepresentableWithCache & Readable) throws -> T {
         fatalError()
     }
 
-    public func resolveAny<T: Resolvable, Context: ReadingContext>(in context: Context) throws -> T {
+    public func resolveAny<T: Resolvable>(in context: some ReadingContext) throws -> T {
         fatalError("resolveAny is not supported for SymbolOrElementPointer with ReadingContext")
     }
 
-    public static func resolve<MachO: MachORepresentableWithCache & Readable>(from offset: Int, in machO: MachO) throws -> Self {
+    public static func resolve(from offset: Int, in machO: some MachORepresentableWithCache & Readable) throws -> Self {
         if let resolver = machO as? any MachOBindRebaseResolving {
             if let symbol = resolver.resolveBind(fileOffset: offset) {
                 return .symbol(.init(offset: offset, name: symbol))
@@ -114,7 +114,7 @@ extension SymbolOrElementPointer where Element: OptionalProtocol {
         }
     }
 
-    public func resolve<MachO: MachORepresentableWithCache & Readable>(in machO: MachO) throws -> Resolved {
+    public func resolve(in machO: some MachORepresentableWithCache & Readable) throws -> Resolved {
         switch self {
         case .symbol(let unsolvedSymbol):
             return .symbol(unsolvedSymbol)
@@ -125,7 +125,7 @@ extension SymbolOrElementPointer where Element: OptionalProtocol {
         }
     }
 
-    public func resolve<Context: ReadingContext>(in context: Context) throws -> Resolved {
+    public func resolve(in context: some ReadingContext) throws -> Resolved {
         switch self {
         case .symbol(let unsolvedSymbol):
             return .symbol(unsolvedSymbol)

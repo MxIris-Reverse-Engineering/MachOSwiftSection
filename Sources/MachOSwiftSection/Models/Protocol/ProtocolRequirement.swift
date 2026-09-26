@@ -1,19 +1,11 @@
 import MachOKit
 import MachOBase
 
+@LocatableLayoutWrapping
 public struct ProtocolRequirement: ResolvableLocatableLayoutWrapper {
     public struct Layout: LayoutProtocol {
         public let flags: ProtocolRequirementFlags
         public let defaultImplementation: RelativeDirectRawPointer
-    }
-
-    public let offset: Int
-
-    public var layout: Layout
-
-    public init(layout: Layout, offset: Int) {
-        self.offset = offset
-        self.layout = layout
     }
 }
 
@@ -23,22 +15,13 @@ extension ProtocolRequirement {
     /// descriptor's own offset; symbol attribution is `SwiftInspection`'s
     /// `defaultImplementationSymbols(in:)`, one layer up.
     public var defaultImplementationOffset: Int? {
-        guard layout.defaultImplementation.isValid else { return nil }
-        return layout.defaultImplementation.resolveDirectOffset(from: offset(of: \.defaultImplementation))
+        resolvedDirectOffset(from: \.defaultImplementation)
     }
 }
 
+@LocatableLayoutWrapping
 public struct ProtocolBaseRequirement: ResolvableLocatableLayoutWrapper {
     public struct Layout: LayoutProtocol {}
-
-    public let offset: Int
-
-    public var layout: Layout
-
-    public init(layout: Layout, offset: Int) {
-        self.offset = offset
-        self.layout = layout
-    }
 }
 
 // MARK: - ReadingContext Support

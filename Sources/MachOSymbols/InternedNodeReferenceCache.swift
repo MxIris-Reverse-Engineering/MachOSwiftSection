@@ -12,7 +12,7 @@ import SwiftStdlibToolbox
 /// persistently — structurally equal trees return the *same* reference
 /// (store identity included), at any two points in the scope's lifetime.
 /// The name-construction sites (`TypeName` / `ProtocolName` /
-/// `ExtensionName` built from `MetadataReader` trees, and `TypeDefinition`'s
+/// `ExtensionName` built from `SymbolicDemangler` trees, and `TypeDefinition`'s
 /// field type trees) intern once per *occurrence*, and occurrences repeat
 /// heavily: every conformance re-interns its protocol's name, every nested
 /// type re-interns its parent's, every extension its target's. Sharing one
@@ -65,7 +65,7 @@ public final class InternedNodeReferenceCache: SharedCache<InternedNodeReference
     }
 
     /// The image-scoped shared reference for `node`'s structural identity.
-    public func reference<MachO: MachORepresentableWithCache>(interning node: Node, in machO: MachO) -> NodeReference {
+    public func reference(interning node: Node, in machO: some MachORepresentableWithCache) -> NodeReference {
         guard let storage = storage(in: machO) else { return NodeReference(interning: node) }
         return storage.reference(interning: node)
     }

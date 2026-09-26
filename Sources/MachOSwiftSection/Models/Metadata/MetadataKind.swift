@@ -32,6 +32,12 @@ public enum MetadataKind: UInt32 {
     case extendedExistential = 0x307
     /// 8 | Self.isNonHeap | Self.isRuntimePrivate
     case fixedArray = 0x308
+    /// 9 | Self.isNonHeap | Self.isRuntimePrivate
+    ///
+    /// A `Builtin.Borrow<T>` (Swift 6.4 runtime): the metadata behind the
+    /// standard library's `Ref` / `MutableRef` storage. Runtime-private, never
+    /// emitted into a binary's sections — only reachable in-process.
+    case borrow = 0x309
     /// 0 | Self.isNonType
     case heapLocalVariable = 0x400
     /// 0 | Self.isNonType | Self.isRuntimePrivate

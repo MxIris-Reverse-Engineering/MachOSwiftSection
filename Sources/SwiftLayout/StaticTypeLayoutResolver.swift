@@ -29,7 +29,7 @@ final class StaticTypeLayoutResolver<MachO: MachOSwiftSectionRepresentableWithCa
     ) throws -> StaticTypeLayout {
         let typeNode: Node
         do {
-            typeNode = try MetadataReader.demangleType(for: mangledTypeName, in: originImage.machO)
+            typeNode = try SymbolicDemangler.demangleType(for: mangledTypeName, in: originImage.machO)
         } catch {
             throw LayoutResolutionError.unknown(.demangleFailure)
         }
@@ -50,6 +50,11 @@ final class StaticTypeLayoutResolver<MachO: MachOSwiftSectionRepresentableWithCa
                 throw LayoutResolutionError.unknown(.unsupportedTypeKind(nodeKindName: "builtinFixedArray(malformed)"))
             }
             return try fixedArrayLayout(countNode: countNode, elementTypeNode: elementTypeNode, in: originImage)
+        case .builtinBorrow:
+            guard let referentTypeNode = node.firstChild else {
+                throw LayoutResolutionError.unknown(.unsupportedTypeKind(nodeKindName: "builtinBorrow(malformed)"))
+            }
+            return try borrowLayout(referentTypeNode: referentTypeNode, in: originImage)
         case .class, .boundGenericClass:
             // A class field is a single reference; do not recurse (this is also
             // what breaks any potential layout cycle).
@@ -58,6 +63,8 @@ final class StaticTypeLayoutResolver<MachO: MachOSwiftSectionRepresentableWithCa
             return try structureLayout(forNode: node, in: originImage)
         case .enum, .boundGenericEnum:
             return try enumLayout(forNode: node, in: originImage)
+        case .typeAlias:
+            return try cImportedTypeAliasLayout(forNode: node, in: originImage)
         case .tuple:
             return try tupleLayout(forNode: node, in: originImage)
         case .functionType:
@@ -139,11 +146,64 @@ final class StaticTypeLayoutResolver<MachO: MachOSwiftSectionRepresentableWithCa
             return .pointerSized
         case .structure, .boundGenericStructure,
              .enum, .boundGenericEnum,
-             .tuple, .builtinTypeName, .builtinFixedArray:
+             .tuple, .builtinTypeName, .builtinFixedArray, .builtinBorrow:
             return .empty
+        case .typeAlias:
+            // A C typedef promoted to a nominal type: thick for a CF class,
+            // thin for a struct or enum, decided by its descriptor.
+            switch try cImportedTypeAliasDescriptor(forNode: instance).descriptor {
+            case .class:
+                return .pointerSized
+            case .struct, .enum:
+                return .empty
+            }
         default:
             throw LayoutResolutionError.unknown(.unsupportedTypeKind(nodeKindName: "metatype(\(instance.kind))"))
         }
+    }
+
+    // MARK: - C typedefs promoted to nominal types
+
+    /// The layout of a `.typeAlias` node.
+    ///
+    /// In a mangling a `typeAlias` in `__C` is not an alias at all: it is how
+    /// the compiler spells a C typedef the importer promoted to its own
+    /// nominal type — a typedef of an anonymous struct (`__C.CMTime`,
+    /// `__C.NSDecimal`), a `swift_wrapper` typedef, or a CF class
+    /// (`__C.CGColorRef`) — and the descriptor-derived tree spells it the same
+    /// way since evolution proposal `type-import-info-identity`. The node kind
+    /// says nothing about the layout; the descriptor's kind does. An imported
+    /// C value type is first looked up in the image's `__swift5_builtin`
+    /// whole-type records, exactly like a `.structure` node.
+    private func cImportedTypeAliasLayout(forNode node: Node, in originImage: ImageReference<MachO>) throws -> StaticTypeLayout {
+        guard let qualifiedTypeName = NodeTypeNaming.nominalQualifiedName(of: node) else {
+            throw LayoutResolutionError.unknown(.demangleFailure)
+        }
+        if let builtinLayout = originImage.builtinLayoutIndex.layout(forTypeName: qualifiedTypeName) {
+            return builtinLayout
+        }
+        switch try cImportedTypeAliasDescriptor(forNode: node).descriptor {
+        case .class:
+            // A CF class reference is a single object pointer.
+            return .pointerSized
+        case .struct:
+            return try structureLayout(forNode: node, in: originImage)
+        case .enum:
+            return try enumLayout(forNode: node, in: originImage)
+        }
+    }
+
+    /// The descriptor behind a `.typeAlias` node, resolved by qualified name
+    /// through the universe. Throws `typeDescriptorNotFound` when no image in
+    /// scope declares it.
+    private func cImportedTypeAliasDescriptor(forNode node: Node) throws -> (image: ImageReference<MachO>, descriptor: TypeContextDescriptorWrapper) {
+        guard let qualifiedTypeName = NodeTypeNaming.nominalQualifiedName(of: node) else {
+            throw LayoutResolutionError.unknown(.demangleFailure)
+        }
+        guard let resolved = imageUniverse.resolveType(byQualifiedTypeName: qualifiedTypeName) else {
+            throw LayoutResolutionError.unknown(.typeDescriptorNotFound(qualifiedTypeName: qualifiedTypeName))
+        }
+        return resolved
     }
 
     // MARK: - Reference storage (weak / unowned / unowned(unsafe))
@@ -346,18 +406,61 @@ final class StaticTypeLayoutResolver<MachO: MachOSwiftSectionRepresentableWithCa
             guard !didOverflow else {
                 throw LayoutResolutionError.unknown(.unsupportedTypeKind(nodeKindName: "fixedArrayCount(overflow)"))
             }
+            // A fixed array is addressable-for-dependencies regardless of its
+            // element (IRGen's `FixedArrayTypeInfo`; the Swift 6.4 runtime sets
+            // the same flag in `FixedArrayCacheEntry::tryInitialize`), so a
+            // borrow of one always takes the pointer representation.
             return StaticTypeLayout(
                 size: byteCount,
                 stride: byteCount,
                 alignmentMask: elementLayout.alignmentMask,
                 extraInhabitantCount: elementLayout.extraInhabitantCount,
-                isBitwiseTakable: elementLayout.isBitwiseTakable
+                isBitwiseTakable: elementLayout.isBitwiseTakable,
+                isBitwiseBorrowable: elementLayout.isBitwiseBorrowable,
+                isAddressableForDependencies: true
             )
         case .dependentGenericParamType:
             throw LayoutResolutionError.unknown(.genericParameterUnsubstituted)
         default:
             throw LayoutResolutionError.unknown(.unsupportedTypeKind(nodeKindName: "fixedArrayCount(\(count.kind))"))
         }
+    }
+
+    // MARK: - Borrow
+
+    /// The layout of `Builtin.Borrow<Referent>` (Swift 6.4), the storage
+    /// behind `Swift.Ref` / `Swift.MutableRef`. Ported from the runtime's
+    /// `swift_getBorrowRepresentation` (`stdlib/public/runtime/Borrow.cpp`)
+    /// and cross-checked against RemoteInspection's `BorrowTypeInfo`: the
+    /// borrow is laid out **inline** — same size, stride, alignment and extra
+    /// inhabitants as the referent — unless the referent is larger than four
+    /// pointers, addressable-for-dependencies, or not bitwise-borrowable, in
+    /// which case it is a single `Builtin.RawPointer`. The borrow itself is
+    /// always bitwise-takable and -borrowable, and never
+    /// addressable-for-dependencies.
+    ///
+    /// The referent's two flags come from the layout engine's own
+    /// propagation (`StaticTypeLayout.isBitwiseBorrowable` /
+    /// `isAddressableForDependencies`); a referent whose `@_rawLayout` or
+    /// `@_addressableForDependencies` attribute the binary does not record
+    /// is answered as inline, which is the same limit the RemoteInspection
+    /// port has.
+    private func borrowLayout(referentTypeNode: Node, in originImage: ImageReference<MachO>) throws -> StaticTypeLayout {
+        let referentLayout = try layout(forTypeNode: referentTypeNode, in: originImage)
+        let pointerLayout = StaticTypeLayout.rawPointer
+        let usesPointerRepresentation = referentLayout.size > 4 * pointerLayout.size
+            || referentLayout.isAddressableForDependencies
+            || !referentLayout.isBitwiseBorrowable
+        let representation = usesPointerRepresentation ? pointerLayout : referentLayout
+        return StaticTypeLayout(
+            size: representation.size,
+            stride: representation.stride,
+            alignmentMask: representation.alignmentMask,
+            extraInhabitantCount: representation.extraInhabitantCount,
+            isBitwiseTakable: true,
+            isBitwiseBorrowable: true,
+            isAddressableForDependencies: false
+        )
     }
 
     // MARK: - Structure
@@ -486,7 +589,7 @@ final class StaticTypeLayoutResolver<MachO: MachOSwiftSectionRepresentableWithCa
     ) throws -> StaticTypeLayout {
         let typeNode: Node
         do {
-            typeNode = try MetadataReader.demangleType(for: mangledTypeName, in: originImage.machO)
+            typeNode = try SymbolicDemangler.demangleType(for: mangledTypeName, in: originImage.machO)
         } catch {
             throw LayoutResolutionError.unknown(.demangleFailure)
         }
@@ -571,7 +674,7 @@ final class StaticTypeLayoutResolver<MachO: MachOSwiftSectionRepresentableWithCa
     ) -> Int {
         guard
             !descriptor.layout.flags.isGeneric,
-            let contextNode = try? MetadataReader.demangleContext(
+            let contextNode = try? SymbolicDemangler.demangleContext(
                 for: TypeContextDescriptorWrapper.class(descriptor).asContextDescriptorWrapper,
                 in: image.machO
             ),
@@ -597,7 +700,7 @@ final class StaticTypeLayoutResolver<MachO: MachOSwiftSectionRepresentableWithCa
         }
         let demangledSuperclassNode: Node
         do {
-            demangledSuperclassNode = try MetadataReader.demangleType(for: superclassMangledName, in: image.machO)
+            demangledSuperclassNode = try SymbolicDemangler.demangleType(for: superclassMangledName, in: image.machO)
         } catch {
             throw LayoutResolutionError.unknown(.demangleFailure)
         }
@@ -672,8 +775,44 @@ final class StaticTypeLayoutResolver<MachO: MachOSwiftSectionRepresentableWithCa
         fieldLayouts.reserveCapacity(records.count)
         for record in records {
             let mangledTypeName = try record.mangledTypeName(in: image.machO)
-            fieldLayouts.append(try layout(forMangledTypeName: mangledTypeName, in: image, environment: environment))
+            let fieldLayout = try layout(forMangledTypeName: mangledTypeName, in: image, environment: environment)
+            fieldLayouts.append(try Self.isRawLayoutStorageRecord(record, in: image) ? Self.rawLayoutStorage(likeTypeLayout: fieldLayout) : fieldLayout)
         }
         return fieldLayouts
+    }
+
+    /// The storage a `@_rawLayout(like: T)` struct describes through its
+    /// **artificial** field record (Swift 6.4 emits one, named `_rawLayout`,
+    /// so offline tools can size the type; the struct has no stored
+    /// properties). It takes the like type's size, stride and alignment
+    /// but none of its extra inhabitants — raw storage is opaque, so
+    /// `Optional<_Cell<UnsafePointer<Int>>>` needs a tag byte (RemoteInspection
+    /// fixed the same mistake in 6.4). Raw-layout types are never
+    /// bitwise-borrowable and are always addressable-for-dependencies
+    /// (SIL `TypeLowering` sets it unconditionally for `RawLayoutAttr`).
+    /// Whether the value moves as its like type (`movesAsLike`) is not
+    /// recorded in the binary, so bitwise-takability follows the like type — a
+    /// flag-only divergence that moves no offset.
+    /// The name a Swift 6.4 compiler gives the artificial record (the same
+    /// literal `SwiftDeclarationRendering.FieldRecordRendering` uses; this
+    /// module sits below it). The artificial flag alone is not enough: an
+    /// actor's `$defaultActor` storage is artificial too and is a real field.
+    static var rawLayoutStorageFieldName: String { "_rawLayout" }
+
+    static func isRawLayoutStorageRecord(_ record: FieldRecord, in image: ImageReference<MachO>) throws -> Bool {
+        guard record.flags.contains(.isArtificial) else { return false }
+        return try record.fieldName(in: image.machO) == rawLayoutStorageFieldName
+    }
+
+    static func rawLayoutStorage(likeTypeLayout: StaticTypeLayout) -> StaticTypeLayout {
+        StaticTypeLayout(
+            size: likeTypeLayout.size,
+            stride: likeTypeLayout.stride,
+            alignmentMask: likeTypeLayout.alignmentMask,
+            extraInhabitantCount: 0,
+            isBitwiseTakable: likeTypeLayout.isBitwiseTakable,
+            isBitwiseBorrowable: false,
+            isAddressableForDependencies: true
+        )
     }
 }

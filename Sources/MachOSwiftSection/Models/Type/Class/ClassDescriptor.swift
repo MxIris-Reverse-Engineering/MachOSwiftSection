@@ -2,6 +2,7 @@ import Foundation
 import MachOKit
 import MachOBase
 
+@LocatableLayoutWrapping
 public struct ClassDescriptor: TypeContextDescriptorProtocol {
     public struct Layout: ClassDescriptorLayout {
         public let flags: ContextDescriptorFlags
@@ -16,15 +17,6 @@ public struct ClassDescriptor: TypeContextDescriptorProtocol {
         public let numFields: UInt32
         public let fieldOffsetVectorOffset: UInt32
     }
-
-    public let offset: Int
-
-    public var layout: Layout
-
-    public init(layout: Layout, offset: Int) {
-        self.offset = offset
-        self.layout = layout
-    }
 }
 
 extension ClassDescriptor {
@@ -35,7 +27,7 @@ extension ClassDescriptor {
         return resilientSuperclassReferenceKind
     }
 
-    public func resilientMetadataBounds<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> StoredClassMetadataBounds {
+    public func resilientMetadataBounds(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> StoredClassMetadataBounds {
         return try RelativeDirectPointer<StoredClassMetadataBounds>(relativeOffset: Int32(bitPattern: layout.metadataNegativeSizeInWordsOrResilientMetadataBounds)).resolve(from: offset(of: \.metadataNegativeSizeInWordsOrResilientMetadataBounds), in: machO)
     }
 
@@ -44,7 +36,7 @@ extension ClassDescriptor {
         return try RelativeDirectPointer<StoredClassMetadataBounds>(relativeOffset: Int32(bitPattern: layout.metadataNegativeSizeInWordsOrResilientMetadataBounds)).resolve(from: pointer(of: \.metadataNegativeSizeInWordsOrResilientMetadataBounds))
     }
 
-    public func superclassTypeMangledName<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> MangledName? {
+    public func superclassTypeMangledName(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> MangledName? {
         try layout.superclassType.resolve(from: offset(of: \.superclassType), in: machO)
     }
 
@@ -103,11 +95,11 @@ extension ClassDescriptor {
 // MARK: - ReadingContext Support
 
 extension ClassDescriptor {
-    public func resilientMetadataBounds<Context: ReadingContext>(in context: Context) throws -> StoredClassMetadataBounds {
+    public func resilientMetadataBounds(in context: some ReadingContext) throws -> StoredClassMetadataBounds {
         return try RelativeDirectPointer<StoredClassMetadataBounds>(relativeOffset: Int32(bitPattern: layout.metadataNegativeSizeInWordsOrResilientMetadataBounds)).resolve(at: try context.addressFromOffset(offset(of: \.metadataNegativeSizeInWordsOrResilientMetadataBounds)), in: context)
     }
 
-    public func superclassTypeMangledName<Context: ReadingContext>(in context: Context) throws -> MangledName? {
+    public func superclassTypeMangledName(in context: some ReadingContext) throws -> MangledName? {
         try layout.superclassType.resolve(at: try context.addressFromOffset(offset(of: \.superclassType)), in: context)
     }
 }

@@ -1,5 +1,7 @@
 import MemberwiseInit
 import Demangling
+import SwiftDeclarationRendering
+import SwiftInspection
 
 public struct FieldFlags: OptionSet, Sendable {
     public let rawValue: Int
@@ -51,4 +53,22 @@ public struct FieldDefinition: AccessorRepresentable, Sendable {
     // here because it predates the conformance (evolution proposal 0006) and
     // callers read it as a field-level fact.
     public var hasVTableAccessor: Bool { accessors.contains { $0.methodDescriptor != nil } }
+
+    /// A stored property's accessors are not in the ObjC method table under
+    /// the field's own name, and a stored property cannot override anything
+    /// (Swift forbids overriding with storage), so the ObjC-side fact never
+    /// applies to a field.
+    public var objcMember: ObjCMember? { nil }
+}
+
+extension FieldDefinition {
+    /// Whether this is the artificial `_rawLayout` record a Swift 6.4 compiler
+    /// emits for a `@_rawLayout(like:)` struct — the like type, recorded so
+    /// offline tools can size the struct; not a stored property. Both
+    /// conditions matter: an actor's `$defaultActor` storage is artificial
+    /// too and is a real field, and nothing stops a stored property from
+    /// being named `_rawLayout`.
+    public var isRawLayoutStorage: Bool {
+        FieldRecordRendering.isRawLayoutStorageRecord(name: name, isArtificial: flags.contains(.isArtificial))
+    }
 }

@@ -68,14 +68,14 @@ struct ProtocolFactsResolver<MachO: MachOSwiftSectionRepresentableWithCache> {
     func protocolReference(from symbolOrElement: SymbolOrElement<ProtocolDescriptorWithObjCInterop>) async -> ProtocolReference? {
         switch symbolOrElement {
         case .symbol(let symbol):
-            guard let symbolNode = try? MetadataReader.demangleType(for: symbol, in: machO) else { return nil }
+            guard let symbolNode = try? SymbolicDemangler.demangleType(for: symbol, in: machO) else { return nil }
             let qualifiedName = await symbolNode.print(using: .opaqueTypeBuilderOnly)
             guard !qualifiedName.isEmpty else { return nil }
             return ProtocolReference(qualifiedName: qualifiedName, descriptor: nil)
         case .element(let descriptorWithObjCInterop):
             switch descriptorWithObjCInterop {
             case .swift(let descriptor):
-                guard let contextNode = try? MetadataReader.demangleContext(for: .protocol(descriptor), in: machO) else { return nil }
+                guard let contextNode = try? SymbolicDemangler.demangleContext(for: .protocol(descriptor), in: machO) else { return nil }
                 let qualifiedName = await contextNode.print(using: .opaqueTypeBuilderOnly)
                 guard !qualifiedName.isEmpty else { return nil }
                 return ProtocolReference(qualifiedName: qualifiedName, descriptor: descriptor)
@@ -90,7 +90,7 @@ struct ProtocolFactsResolver<MachO: MachOSwiftSectionRepresentableWithCache> {
 
     private func facts(fromDescriptor descriptor: ProtocolDescriptor) async -> ProtocolFacts? {
         guard let protocolModel = try? `Protocol`(descriptor: descriptor, in: machO) else { return nil }
-        guard let contextNode = try? MetadataReader.demangleContext(for: .protocol(descriptor), in: machO) else { return nil }
+        guard let contextNode = try? SymbolicDemangler.demangleContext(for: .protocol(descriptor), in: machO) else { return nil }
         let qualifiedName = await contextNode.print(using: .opaqueTypeBuilderOnly)
         guard !qualifiedName.isEmpty else { return nil }
 

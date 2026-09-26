@@ -4,7 +4,7 @@ import Demangling
 @_spi(Internals) import SwiftInspection
 
 extension ProtocolConformance {
-    package func typeNode<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> Node? {
+    package func typeNode(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> Node? {
         return try typeReference.node(in: machO)
     }
 
@@ -12,12 +12,12 @@ extension ProtocolConformance {
         return try typeReference.node()
     }
 
-    package func protocolNode<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> Node? {
+    package func protocolNode(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> Node? {
         switch `protocol` {
         case .symbol(let symbol):
-            return try MetadataReader.demangleType(for: symbol, in: machO)
+            return try SymbolicDemangler.demangleType(for: symbol, in: machO)
         case .element(let element):
-            return try MetadataReader.demangleContext(for: .protocol(element), in: machO)
+            return try SymbolicDemangler.demangleContext(for: .protocol(element), in: machO)
         case .none:
             return nil
         }
@@ -26,9 +26,9 @@ extension ProtocolConformance {
     package func protocolNode() throws -> Node? {
         switch `protocol` {
         case .symbol(let symbol):
-            return try MetadataReader.demangleType(for: symbol)
+            return try SymbolicDemangler.demangleType(for: symbol)
         case .element(let element):
-            return try MetadataReader.demangleContext(for: .protocol(element))
+            return try SymbolicDemangler.demangleContext(for: .protocol(element))
         case .none:
             return nil
         }

@@ -8,6 +8,7 @@
 
 | # | 标题 | 状态 |
 |---|------|------|
+| [cross-repository draft](https://github.com/MxIris-Reverse-Engineering/swift-decompiler/blob/fix/microcode-operand-pairs/docs/evolutions/draft-nested-coordinate-field-extents.md) | 嵌套坐标字段的精确访问大小：由 swift-decompiler 维护唯一提案；本库补充经校验的字段大小 | In Progress |
 | [0001](0001-symbol-name-offsetization.md) | SymbolIndexStore 符号名 offset 化：驻留字符串换字符串表引用 | Implemented |
 | [0002](0002-declaration-model-descriptor-slimming.md) | 声明模型 descriptor 化：TypeDefinition / ExtensionDefinition / ProtocolDefinition 不再驻留急切解析的胖 wrapper | Implemented |
 | [0003](0003-symbol-row-bucket-flattening.md) | SymbolIndexStore `[UInt32]` 行号桶扁平化：单元素桶内联化 | Implemented |
@@ -28,3 +29,34 @@
 | [0018](0018-self-contained-abi-layer.md) | ABI 层自包含：MachOSwiftSection 不再依赖符号索引——描述符只暴露实现地址，符号查询上移 SwiftInspection，值类型下沉 MachOResolving | Implemented |
 | [0019](0019-large-stack-executor-and-cross-version-parallelism.md) | 大栈任务执行器接入与跨版本并行准备：打印路径零线程跳转（执行器本体在 swift-demangling 0014），diff / evolution 多版本并行 | Implemented |
 | [0020](0020-vtable-slot-attribution-via-method-descriptor-symbols.md) | vtable 槽归属改用 method descriptor 符号：ICF 折叠下的错名修正与墓碑槽还原 | Implemented |
+| [0021](0021-metadata-reader-deterministic-node-extraction.md) | MetadataReader 符号引用解析去搜索化：ObjC protocol 引用与 extension 目标按 ABI 固定形状取节点，删掉靠深度优先搜索碰运气的 `typeSymbol` / `extensionSymbol` | Implemented |
+| [0022](0022-rename-metadata-reader-to-symbolic-demangler.md) | `MetadataReader` 改名为 `SymbolicDemangler`：它只做 symbolic reference 回镜像解析的 demangle，与 metadata 记录无关；留一个 deprecated typealias 过渡 | Implemented |
+| [0023](0023-type-import-info-identity.md) | 读取 TypeImportInfo，按运行时 `_swift_buildDemanglingForContext` 的规则给 C 导入类型定名字和种类：ABI 名覆盖、typedef 改 typeAlias、C tag 枚举改 structure、关联实体包 relatedEntityDeclName | Implemented |
+| [0024](0024-exported-declaration-flag.md) | Type / Protocol Definition 的导出标志：四态 `ExportStatus` 下沉到声明模型，索引期无条件填充 | Implemented |
+| [0025](0025-key-path-component-and-property-descriptor.md) | Key path component header 与 property descriptor 的 ABI 模型：`…vpMV` 符号指向的那段常量按 key path component 编码解析，四种形态（trivial / 内联偏移 / 元数据内偏移 / computed）齐全 | Implemented |
+| [0026](0026-missing-abi-structures.md) | 补齐五组缺失的 ABI 结构：async / coro function pointer 记录、capture descriptor（`__swift5_capture`）、generic metadata pattern 家族、accessible function record（`__swift5_acfuncs`）、function type metadata 尾随对象 | Implemented |
+| [0027](0027-locatable-layout-wrapping-macro.md) | `@LocatableLayoutWrapping`：`LocatableLayoutWrapper` 三项存储级要求（`layout` / `offset` / `init(layout:offset:)`）收进宏，97 处手写样板一次性替换 | Implemented |
+| [0028](0028-offline-opaque-accessor-thunk-resolution.md) | 离线解析不透明类型的 accessor thunk：SwiftUI 那 17 条渲染成裸地址的 `Body`，其 underlying type 是 availability-conditional 的 kind-9 thunk（版本检查 + 两分支各指一个类型）。用 Capstone 反汇编把两支都解出来，新增可选 target `SwiftThunkAnalysis`（SPM trait，默认关闭）；实测 17 → 5 | Implemented |
+| [0029](0029-thunk-type-construction-evaluation.md) | accessor thunk 的类型构造求值：离线解掉最后的 kind-9 引用——thunk 是只用 metadata accessor / `swift_getWitnessTable` / mangled name 实例化写成的类型构造程序，按指令顺序做符号求值即可得到每一支的类型；SwiftUI 离线 6 → 0，field record 的 kind-9 走同一条路（0028 的延续） | Implemented |
+| [0030](0030-standalone-file-thunk-resolution.md) | 独立文件上的 accessor thunk 解析：第三方 app、iOS 26 及更早的模拟器运行时这类不在 dyld cache 里的 Mach-O，跨镜像调用全走 GOT bind，求值器一失败，单查找回退就把中间值当答案（`OnModifierKeysChangedModifier.Body` 印成 `_TaskModifier2`）。收紧回退；bind 名经依赖镜像的 accessor 索引解析（新增 `DependencySearchPath.systemRoot` 与 RuntimeRoot 推断）；带符号的 bound-generic accessor 直接取符号里的类型。合并 accessor `…MaTm` 留给下一个提案 | Implemented |
+| [0031](0031-merged-accessor-inline-evaluation.md) | 合并 accessor 的内联求值：SwiftUICore 剩下两个 `Mutex` 字段的 thunk 调的是编译器合并的 `…MaTm` 函数体（真正的 accessor 从 `x3` 传入，函数体只查缓存、`blr x3`），类型信息全在调用方寄存器里。求值器现在跟进本镜像内没名字的被调函数（带当前寄存器状态的子求值器）、解码 `blr`、把 GOT bind 槽读出来的函数指针当函数引用；可用性检查绝不跟进，递归不跟进，深度上限 3。iOS 26.5 模拟器与 macOS cache 的 SwiftUICore 未读 2 → 0 | Implemented |
+| [0032](0032-cache-stub-islands-and-unmodelled-instructions.md) | cache 里的 stub island，和不认识的指令不再被跳过：iOS 设备 cache 的跨镜像调用是 `bl` 到镜像之间的跳板（读槽的 stub 或算地址的 island），环境对任何地址都认跳板并对目标再认一次；不认识的条件跳转放弃那一支（直行落点是 `brk` 的例外，按跳走）、不认识的指令作废它写的寄存器、PAC 指令保值。iOS 26.3.1 SwiftUI 7 → 0、SwiftUICore 2 → 0 | Implemented |
+| [0033](0033-by-name-opaque-reference-expansion.md) | 按名字引用的 opaque 类型也展开：独立文件的 witness 用到别的镜像的 `some` 结果时只有一个 bind 名，demangler 解成 `opaqueReturnTypeOf`，dump 印 `<<opaque return type of …>>`，interface 更是把 conformer 印成 witness。rewriter 把描述符符号名重新 mangle 出来、按搜索路径定位镜像、在那个镜像里展开。iOS 26.5 模拟器 SwiftUI dump 207 行 witness → 0 | Implemented |
+| [0034](0034-interface-printer-node-kind-parity.md) | interface 打印器与上游 NodePrinter 的 node kind parity：`dispatchPrintName` 五问全否就什么都不写，缺 `case` 的 node kind 静默渲染成空串（SwiftUI 上 `Predicate<>` 201 处、`-> ` 8 处、`init<>()` 122 处）；补齐类型位置上缺失的 kind，空泛型参数列表不再加尖括号 | Implemented |
+| [0035](0035-node-printer-declaration-layer-and-context-roles.md) | NodePrinter 补声明层协议、Context 按层拆角色：三个成员 printer 的重复逻辑与 9 个字段样板收进默认实现，每个 `*NodePrintable` 只声明自己读写的 Context 属性 | Implemented |
+| [0036](0036-objc-subcommands.md) | 把 objc-section 并入 swift-section：`swift-section objc` 子命令组（只搬命令行，ObjC 的库仍在 MachOObjCSection；与 objc-section 0.8.106 逐字节对比一致） | Implemented |
+| [0037](0037-agents-md-slimming.md) | AGENTS.md 瘦身：指令文件回归指令，架构细节回归文档 | Implemented |
+| [0038](0038-field-layout-renderable-decoupling.md) | FieldLayoutRenderable 不再继承 MachOSwiftSectionRepresentableWithCache：渲染能力与 reader 能力解耦，上层约束改用组合 typealias `MachOFieldLayoutRenderable` | Implemented |
+| [0039](0039-builtin-borrow-support.md) | `Builtin.Borrow` 支持：Swift 6.4 新元数据种类的读取、进程内构建与静态布局 | Implemented |
+| [0040](0040-raw-layout-artificial-field-handling.md) | `@_rawLayout` 人造字段、空名字 enum case 与静态布局的依赖搜索路径 | Implemented |
+| [0041](0041-interface-hides-compiler-synthesized-members.md) | interface 不打印编译器合成的成员：actor 默认存储与 property wrapper 的 `_x` / `$x` | Implemented |
+| [0042](0042-swift-declaration-file-layout.md) | SwiftDeclaration 模块的文件归位与 TypeDefinition 拆分 | Implemented |
+| [0043](0043-annotated-symbol-payload.md) | `AnnotatedSymbol<Payload>`：构建期符号包装泛型化，两个 offset 不再同名 | Implemented |
+| [0044](0044-opaque-parameters-for-single-use-generics.md) | 只用一次的泛型参数改写为 opaque parameter（`some`）：522 处签名去掉只出现一次的 `<MachO: …>` / `<Context: …>` | Implemented |
+| [0045](0045-opaque-reference-spelling-and-member-projection.md) | 展不开的 opaque 引用改用 `@_opaqueReturnTypeOf` 拼法，`(some P).Element` 化简为 type witness，`numUnderlyingTypeArguments` 改名 | Implemented |
+| [0046](0046-objc-implementation-class-recognition.md) | 识别 `@objc @implementation` 类：ObjC class 数据与 Swift 符号的联合归属——interface 标注 + 存储属性还原，dump 新增 `objcImplementationClasses` 段 | Implemented |
+| [0047](0047-objc-ancestor-override-recovery.md) | 从 ObjC 祖先链还原 `override`：ObjC 派生 Swift 类与 `@objc @implementation` 类的覆写成员 | Implemented |
+| [0048](0048-objc-member-selector-recovery.md) | 从 ObjC 方法表还原每个 `@objc` 成员：strip 后的 `@objc`、显式 selector 与 category 成员 | Implemented |
+| [0049](0049-objc-ancestor-dependency-closure.md) | ObjC 祖先链走依赖闭包：独立文件上的父类与 category 目标类按名字在依赖镜像里解析 | Implemented |
+| [0050](0050-symbolic-mangling-symbol-index.md) | `_symbolic` 符号索引：被符号引用的对象 → 编译器写下的完整名字 | Implemented |
+| draft | [静态布局引擎读取 accessor thunk 背后的字段类型](draft-static-layout-through-accessor-thunks.md) | Draft |

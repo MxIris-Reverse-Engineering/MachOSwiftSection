@@ -13,7 +13,7 @@ import MachOSwiftSection
 protocol OpaqueTypeTests {}
 
 extension OpaqueTypeTests {
-    func opaqueTypes<MachO: FieldLayoutRenderable>(in machO: MachO) async throws {
+    func opaqueTypes(in machO: some MachOFieldLayoutRenderable) async throws {
         let symbols = SymbolIndexStore.shared.symbols(of: .opaqueTypeDescriptor, in: machO)
         for symbol in symbols {
             guard symbol.offset > 0 else { continue }
@@ -27,13 +27,13 @@ extension OpaqueTypeTests {
             for requirement in try opaqueType.requirements(in: machO) {
                 let requirementString = try await requirement.dump(using: .default, in: machO).string
                 requirementString.print()
-                if let node = try MetadataReader.buildGenericSignature(for: [requirement], in: machO) {
+                if let node = try SymbolicDemangler.buildGenericSignature(for: [requirement], in: machO) {
                     node.description.print()
                 }
             }
             print("Underlying Types:")
             for underlyingTypeArgumentMangledName in opaqueType.underlyingTypeArgumentMangledNames {
-                let node = try MetadataReader.demangleType(for: underlyingTypeArgumentMangledName, in: machO)
+                let node = try SymbolicDemangler.demangleType(for: underlyingTypeArgumentMangledName, in: machO)
                 node.description.print()
                 await node.print(using: .default).print()
             }

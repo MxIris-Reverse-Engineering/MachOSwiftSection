@@ -20,6 +20,7 @@ public enum MetadataWrapper: Resolvable {
     case existentialMetatype(ExistentialMetatypeMetadata)
     case extendedExistential(ExtendedExistentialTypeMetadata)
     case fixedArray(FixedArrayTypeMetadata)
+    case borrow(BorrowTypeMetadata)
     case heapLocalVariable(HeapLocalVariableMetadata)
     case heapGenericLocalVariable(GenericBoxHeapMetadata)
     case errorObject(EnumMetadata)
@@ -58,6 +59,8 @@ public enum MetadataWrapper: Resolvable {
             return extendedExistentialTypeMetadata
         case .fixedArray(let fixedArrayTypeMetadata):
             return fixedArrayTypeMetadata
+        case .borrow(let borrowTypeMetadata):
+            return borrowTypeMetadata
         case .heapLocalVariable(let heapLocalVariableMetadata):
             return heapLocalVariableMetadata
         case .heapGenericLocalVariable(let genericBoxHeapMetadata):
@@ -104,6 +107,8 @@ public enum MetadataWrapper: Resolvable {
                 return try extendedExistentialTypeMetadata.asMetadata()
             case .fixedArray(let fixedArrayTypeMetadata):
                 return try fixedArrayTypeMetadata.asMetadata()
+            case .borrow(let borrowTypeMetadata):
+                return try borrowTypeMetadata.asMetadata()
             case .heapLocalVariable(let heapLocalVariableMetadata):
                 return try heapLocalVariableMetadata.asMetadata()
             case .heapGenericLocalVariable(let genericBoxHeapMetadata):
@@ -156,6 +161,8 @@ public enum MetadataWrapper: Resolvable {
             return try extendedExistentialTypeMetadata.asFullMetadata(in: machO).valueWitnesses.resolve(in: machO)
         case .fixedArray(let fixedArrayTypeMetadata):
             return try fixedArrayTypeMetadata.asFullMetadata(in: machO).valueWitnesses.resolve(in: machO)
+        case .borrow(let borrowTypeMetadata):
+            return try borrowTypeMetadata.asFullMetadata(in: machO).valueWitnesses.resolve(in: machO)
         case .heapLocalVariable(let heapLocalVariableMetadata):
             return try heapLocalVariableMetadata.asFullMetadata(in: machO).valueWitnesses.resolve(in: machO)
         case .heapGenericLocalVariable(let genericBoxHeapMetadata):
@@ -201,6 +208,8 @@ public enum MetadataWrapper: Resolvable {
             return try extendedExistentialTypeMetadata.asFullMetadata().valueWitnesses.resolve()
         case .fixedArray(let fixedArrayTypeMetadata):
             return try fixedArrayTypeMetadata.asFullMetadata().valueWitnesses.resolve()
+        case .borrow(let borrowTypeMetadata):
+            return try borrowTypeMetadata.asFullMetadata().valueWitnesses.resolve()
         case .heapLocalVariable(let heapLocalVariableMetadata):
             return try heapLocalVariableMetadata.asFullMetadata().valueWitnesses.resolve()
         case .heapGenericLocalVariable(let genericBoxHeapMetadata):
@@ -214,7 +223,7 @@ public enum MetadataWrapper: Resolvable {
         }
     }
     
-    public static func resolve<MachO: MachORepresentableWithCache & Readable>(from offset: Int, in machO: MachO) throws -> Self {
+    public static func resolve(from offset: Int, in machO: some MachORepresentableWithCache & Readable) throws -> Self {
         let metadata = try machO.readWrapperElement(offset: offset) as Metadata
         switch metadata.kind {
         case .class:
@@ -247,6 +256,8 @@ public enum MetadataWrapper: Resolvable {
             return try .extendedExistential(machO.readWrapperElement(offset: offset))
         case .fixedArray:
             return try .fixedArray(machO.readWrapperElement(offset: offset))
+        case .borrow:
+            return try .borrow(machO.readWrapperElement(offset: offset))
         case .heapLocalVariable:
             return try .heapLocalVariable(machO.readWrapperElement(offset: offset))
         case .heapGenericLocalVariable:
@@ -295,6 +306,8 @@ public enum MetadataWrapper: Resolvable {
             return try .extendedExistential(.resolve(from: ptr))
         case .fixedArray:
             return try .fixedArray(.resolve(from: ptr))
+        case .borrow:
+            return try .borrow(.resolve(from: ptr))
         case .heapLocalVariable:
             return try .heapLocalVariable(.resolve(from: ptr))
         case .heapGenericLocalVariable:
@@ -314,7 +327,7 @@ public enum MetadataWrapper: Resolvable {
 // MARK: - ReadingContext Support
 
 extension MetadataWrapper {
-    public func valueWitnessTable<Context: ReadingContext>(in context: Context) throws -> ValueWitnessTable {
+    public func valueWitnessTable(in context: some ReadingContext) throws -> ValueWitnessTable {
         switch self {
         case .class(let classMetadataObjCInterop):
             return try classMetadataObjCInterop.asFullMetadata(in: context).valueWitnesses.resolve(in: context)
@@ -346,6 +359,8 @@ extension MetadataWrapper {
             return try extendedExistentialTypeMetadata.asFullMetadata(in: context).valueWitnesses.resolve(in: context)
         case .fixedArray(let fixedArrayTypeMetadata):
             return try fixedArrayTypeMetadata.asFullMetadata(in: context).valueWitnesses.resolve(in: context)
+        case .borrow(let borrowTypeMetadata):
+            return try borrowTypeMetadata.asFullMetadata(in: context).valueWitnesses.resolve(in: context)
         case .heapLocalVariable(let heapLocalVariableMetadata):
             return try heapLocalVariableMetadata.asFullMetadata(in: context).valueWitnesses.resolve(in: context)
         case .heapGenericLocalVariable(let genericBoxHeapMetadata):
@@ -392,6 +407,8 @@ extension MetadataWrapper {
             return try .extendedExistential(context.readWrapperElement(at: address))
         case .fixedArray:
             return try .fixedArray(context.readWrapperElement(at: address))
+        case .borrow:
+            return try .borrow(context.readWrapperElement(at: address))
         case .heapLocalVariable:
             return try .heapLocalVariable(context.readWrapperElement(at: address))
         case .heapGenericLocalVariable:

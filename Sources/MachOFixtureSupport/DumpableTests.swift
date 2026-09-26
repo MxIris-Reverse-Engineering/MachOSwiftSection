@@ -43,14 +43,14 @@ extension DumperConfiguration {
 extension DumpableTests {
     package var isEnabledSearchMetadata: Bool { false }
 
-    package func dumpProtocols<MachO: FieldLayoutRenderable>(for machO: MachO) async throws {
+    package func dumpProtocols(for machO: some MachOFieldLayoutRenderable) async throws {
         let protocolDescriptors = try machO.swift.protocolDescriptors
         for protocolDescriptor in protocolDescriptors {
             try await Protocol(descriptor: protocolDescriptor, in: machO).dump(using: .test, in: machO).string.print()
         }
     }
     
-    package func dumpProtocolConformances<MachO: FieldLayoutRenderable>(for machO: MachO) async throws {
+    package func dumpProtocolConformances(for machO: some MachOFieldLayoutRenderable) async throws {
         let protocolConformanceDescriptors = try machO.swift.protocolConformanceDescriptors
 
         for protocolConformanceDescriptor in protocolConformanceDescriptors {
@@ -58,7 +58,7 @@ extension DumpableTests {
         }
     }
 
-    package func dumpTypes<MachO: FieldLayoutRenderable>(for machO: MachO, isDetail: Bool = true, options: DumpableTypeOptions = [.enum, .struct, .class], using configuration: DumperConfiguration? = nil) async throws {
+    package func dumpTypes(for machO: some MachOFieldLayoutRenderable, isDetail: Bool = true, options: DumpableTypeOptions = [.enum, .struct, .class], using configuration: DumperConfiguration? = nil) async throws {
         let typeContextDescriptors = try machO.swift.typeContextDescriptors
         for typeContextDescriptor in typeContextDescriptors {
             switch typeContextDescriptor {
@@ -102,7 +102,7 @@ extension DumpableTests {
         }
     }
 
-    package func dumpOpaqueTypes<MachO: FieldLayoutRenderable>(for machO: MachO) async throws {
+    package func dumpOpaqueTypes(for machO: some MachOFieldLayoutRenderable) async throws {
         @Dependency(\.symbolIndexStore)
         var symbolIndexStore
         let symbols = symbolIndexStore.symbols(of: .opaqueTypeDescriptor, in: machO)
@@ -110,20 +110,20 @@ extension DumpableTests {
             let opaqueTypeDescriptor = try machO.readWrapperElement(offset: symbol.offset) as OpaqueTypeDescriptor
             let opaqueType = try OpaqueType(descriptor: opaqueTypeDescriptor, in: machO)
             for underlyingTypeArgumentMangledName in opaqueType.underlyingTypeArgumentMangledNames {
-                try await MetadataReader.demangleType(for: underlyingTypeArgumentMangledName, in: machO).print(using: .interface).print()
+                try await SymbolicDemangler.demangleType(for: underlyingTypeArgumentMangledName, in: machO).print(using: .interface).print()
             }
             "-----".print()
         }
     }
 
-    package func dumpAssociatedTypes<MachO: FieldLayoutRenderable>(for machO: MachO) async throws {
+    package func dumpAssociatedTypes(for machO: some MachOFieldLayoutRenderable) async throws {
         let associatedTypeDescriptors = try machO.swift.associatedTypeDescriptors
         for associatedTypeDescriptor in associatedTypeDescriptors {
             try await AssociatedType(descriptor: associatedTypeDescriptor, in: machO).dump(using: .test, in: machO).string.print()
         }
     }
 
-    package func dumpBuiltinTypes<MachO: FieldLayoutRenderable>(for machO: MachO) async throws {
+    package func dumpBuiltinTypes(for machO: some MachOFieldLayoutRenderable) async throws {
         let descriptors = try machO.swift.builtinTypeDescriptors
         for descriptor in descriptors {
             try print(BuiltinType(descriptor: descriptor, in: machO))

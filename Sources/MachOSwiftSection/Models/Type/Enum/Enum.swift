@@ -28,7 +28,7 @@ public struct Enum: TopLevelType, ContextProtocol {
     public private(set) var invertibleProtocolSet: InvertibleProtocolSet?
     public private(set) var singletonMetadataPointer: SingletonMetadataPointer?
 
-    public init<MachO: MachOSwiftSectionRepresentableWithCache>(descriptor: EnumDescriptor, in machO: MachO) throws {
+    public init(descriptor: EnumDescriptor, in machO: some MachOSwiftSectionRepresentableWithCache) throws {
         self.descriptor = descriptor
         var currentOffset = descriptor.offset + descriptor.layoutSize
         let genericContext = try descriptor.typeGenericContext(in: machO)
@@ -50,7 +50,7 @@ public struct Enum: TopLevelType, ContextProtocol {
         try initialize(descriptor: descriptor, currentOffset: &currentOffset, in: descriptor.asPointer)
     }
     
-    private mutating func initialize<Reader: Readable>(descriptor: EnumDescriptor, currentOffset: inout Int, in reader: Reader) throws {
+    private mutating func initialize(descriptor: EnumDescriptor, currentOffset: inout Int, in reader: some Readable) throws {
         
         let typeFlags = try required(descriptor.flags.kindSpecificFlags?.typeFlags)
 
@@ -103,7 +103,7 @@ public struct Enum: TopLevelType, ContextProtocol {
 // MARK: - ReadingContext Support
 
 extension Enum {
-    public init<Context: ReadingContext>(descriptor: EnumDescriptor, in context: Context) throws {
+    public init(descriptor: EnumDescriptor, in context: some ReadingContext) throws {
         self.descriptor = descriptor
         var currentOffset = descriptor.offset + descriptor.layoutSize
         let genericContext = try descriptor.typeGenericContext(in: context)
@@ -114,7 +114,7 @@ extension Enum {
         try initialize(descriptor: descriptor, currentOffset: &currentOffset, in: context)
     }
 
-    private mutating func initialize<Context: ReadingContext>(descriptor: EnumDescriptor, currentOffset: inout Int, in context: Context) throws {
+    private mutating func initialize(descriptor: EnumDescriptor, currentOffset: inout Int, in context: some ReadingContext) throws {
 
         let typeFlags = try required(descriptor.flags.kindSpecificFlags?.typeFlags)
 

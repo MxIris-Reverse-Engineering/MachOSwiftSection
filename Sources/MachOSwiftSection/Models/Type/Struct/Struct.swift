@@ -13,7 +13,7 @@ public struct Struct: TopLevelType, ContextProtocol {
     public private(set) var invertibleProtocolSet: InvertibleProtocolSet?
     public private(set) var singletonMetadataPointer: SingletonMetadataPointer?
 
-    public init<MachO: MachOSwiftSectionRepresentableWithCache>(descriptor: StructDescriptor, in machO: MachO) throws {
+    public init(descriptor: StructDescriptor, in machO: some MachOSwiftSectionRepresentableWithCache) throws {
         self.descriptor = descriptor
 
         var currentOffset = descriptor.offset + descriptor.layoutSize
@@ -45,7 +45,7 @@ public struct Struct: TopLevelType, ContextProtocol {
         try initialize(descriptor: descriptor, currentOffset: &currentOffset, in: descriptor.asPointer)
     }
 
-    private mutating func initialize<Reader: Readable>(descriptor: StructDescriptor, currentOffset: inout Int, in machO: Reader) throws {
+    private mutating func initialize(descriptor: StructDescriptor, currentOffset: inout Int, in machO: some Readable) throws {
         let typeFlags = try required(descriptor.flags.kindSpecificFlags?.typeFlags)
 
         if typeFlags.hasForeignMetadataInitialization {
@@ -97,7 +97,7 @@ public struct Struct: TopLevelType, ContextProtocol {
 // MARK: - ReadingContext Support
 
 extension Struct {
-    public init<Context: ReadingContext>(descriptor: StructDescriptor, in context: Context) throws {
+    public init(descriptor: StructDescriptor, in context: some ReadingContext) throws {
         self.descriptor = descriptor
 
         var currentOffset = descriptor.offset + descriptor.layoutSize
@@ -113,7 +113,7 @@ extension Struct {
         try initialize(descriptor: descriptor, currentOffset: &currentOffset, in: context)
     }
 
-    private mutating func initialize<Context: ReadingContext>(descriptor: StructDescriptor, currentOffset: inout Int, in context: Context) throws {
+    private mutating func initialize(descriptor: StructDescriptor, currentOffset: inout Int, in context: some ReadingContext) throws {
         let typeFlags = try required(descriptor.flags.kindSpecificFlags?.typeFlags)
 
         if typeFlags.hasForeignMetadataInitialization {

@@ -84,7 +84,24 @@ public final class ExtensionDefinition: Definition, MutableDefinition {
 
     public package(set) var orderedMembers: [OrderedMember] = []
 
-    public private(set) var isIndexed: Bool = false
+    /// Non-nil when this extension of a `__C` class IS the class's
+    /// `@objc @implementation` (evolution proposal
+    /// `objc-implementation-class-recognition`): the image defines the class
+    /// as a pure ObjC class object and the Swift side proves (or, with every
+    /// symbol stripped, infers) that Swift implements it. Carries the ObjC
+    /// side's facts — ivars with their Swift field-offset join, method and
+    /// property lists, the evidence tier — for the printer, which renders the
+    /// `@objc @implementation` header and the stored properties from them.
+    /// Deliberately NOT part of the ABI-diff container key: a class moving
+    /// from a clang implementation to Swift is not a Swift ABI change.
+    public package(set) var objcImplementation: ObjCImplementationClassFacts? = nil
+
+    /// Whether `index(in:)` has completed a pass over this definition.
+    ///
+    /// The setter is `internal`, not `private`, only because the indexing
+    /// pass lives in `ExtensionDefinition+Indexing.swift`: nothing outside this
+    /// target may flip it, and inside it only that pass does.
+    public internal(set) var isIndexed: Bool = false
 
     public var hasMembers: Bool {
         !variables.isEmpty || !functions.isEmpty || !staticVariables.isEmpty || !staticFunctions.isEmpty || !allocators.isEmpty || !constructors.isEmpty || !staticSubscripts.isEmpty || !subscripts.isEmpty
@@ -96,7 +113,7 @@ public final class ExtensionDefinition: Definition, MutableDefinition {
     /// parsed wrapper is released once the indexer's grouping pass ends. Its
     /// `[ResilientWitness]` goes with it, except for the unresolvable subset
     /// `index(in:)` copies onto `missingSymbolWitnesses`.
-    public init<MachO: MachOSwiftSectionRepresentableWithCache>(extensionName: ExtensionName, genericSignature: NodeReference?, protocolConformance: ProtocolConformance?, conformingProtocolName: ProtocolName? = nil, associatedTypes: [AssociatedType] = [], resolvedAssociatedTypeWitnesses: [AssociatedTypeWitnessProjection] = [], in machO: MachO) throws {
+    public init(extensionName: ExtensionName, genericSignature: NodeReference?, protocolConformance: ProtocolConformance?, conformingProtocolName: ProtocolName? = nil, associatedTypes: [AssociatedType] = [], resolvedAssociatedTypeWitnesses: [AssociatedTypeWitnessProjection] = [], in machO: some MachOSwiftSectionRepresentableWithCache) throws {
         self.extensionName = extensionName
         self.genericSignature = genericSignature
         self.protocolConformanceDescriptor = protocolConformance?.descriptor
@@ -134,7 +151,7 @@ public final class ExtensionDefinition: Definition, MutableDefinition {
     /// extensions. Materialization discipline (evolution proposal 0002):
     /// call at most once per operation and thread the result through as a
     /// local variable — the result is deliberately not cached.
-    public func materializedProtocolConformance<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> ProtocolConformance? {
+    public func materializedProtocolConformance(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> ProtocolConformance? {
         try protocolConformanceDescriptor.map { try ProtocolConformance(descriptor: $0, in: machO) }
     }
 
@@ -169,120 +186,35 @@ public final class ExtensionDefinition: Definition, MutableDefinition {
         staticSubscripts.append(contentsOf: other.staticSubscripts)
         missingSymbolWitnesses.append(contentsOf: other.missingSymbolWitnesses)
         absorbAssociatedTypes(of: other)
+        // Either producer may have been the one that ran the recognition
+        // (the member-symbol scan does; the nested-type discovery does not),
+        // so the fact survives the merge whichever definition is primary.
+        if objcImplementation == nil {
+            objcImplementation = other.objcImplementation
+        }
         orderedMembers = OrderedMember.offsetOrdered(OrderedMember.allMembers(from: self))
     }
 
-    package func index<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) async throws {
-        guard !isIndexed else { return }
-
-        // Cheap pre-check on the retained descriptor keeps the typealias-only
-        // majority from materializing at all; the one materialization below
-        // is this operation's single allowed one (proposal 0002). Both early
-        // returns are COMPLETED indexings ("nothing to index"), so they must
-        // set `isIndexed` — otherwise every later consumer (the printer's
-        // three probes plus the diffable builder) re-enters the whole
-        // materialization per print. A thrown materialization deliberately
-        // leaves the flag unset so a failed read can be retried.
-        guard protocolConformanceDescriptor != nil else {
-            isIndexed = true
-            return
+    /// Records the recognition and joins the variables built from accessor
+    /// symbols with the stored properties the ObjC ivar list carries, by the
+    /// Swift property name the field-offset symbol supplies.
+    package func attachObjCImplementation(_ facts: ObjCImplementationClassFacts) {
+        objcImplementation = facts
+        for index in variables.indices {
+            variables[index].objcImplementationStorage = facts.instanceVariable(forSwiftPropertyNamed: variables[index].name)
         }
-        guard let protocolConformance = try materializedProtocolConformance(in: machO), !protocolConformance.resilientWitnesses.isEmpty else {
-            isIndexed = true
-            return
-        }
-
-        // Structurally keyed: `demangleSymbolReference` returns references from
-        // different stores, and store-identity equality would let the same
-        // implementation symbol be claimed by two witnesses.
-        func _symbol(for symbols: Symbols, typeName: String, visitedNodes: borrowing OrderedSet<StructuralNodeReferenceKey> = []) throws -> DemangledSymbol? {
-            for symbol in symbols {
-                if let node = MetadataReader.demangleSymbolReference(for: symbol, in: machO), let protocolConformanceNode = node.first(of: .protocolConformance), let symbolTypeName = protocolConformanceNode.children.first?.print(using: .interfaceTypeBuilderOnly), symbolTypeName == typeName || PrimitiveTypeMappingCache.shared.storage(in: machO)?.primitiveType(for: typeName) == symbolTypeName, !visitedNodes.contains(StructuralNodeReferenceKey(node)) {
-                    return .init(symbol: symbol, demangledNode: node)
-                }
-            }
-            return nil
-        }
-        var visitedNodes: OrderedSet<StructuralNodeReferenceKey> = []
-        var memberSymbolsByKind: OrderedDictionary<SymbolIndexStore.MemberKind, [DemangledSymbolWithOffset]> = [:]
-        var defaultImplementationSymbolNames: Set<String> = []
-
-        for resilientWitness in protocolConformance.resilientWitnesses {
-            if let symbols = resilientWitness.implementationSymbols(in: machO), let symbol = try _symbol(for: symbols, typeName: extensionName.name, visitedNodes: visitedNodes) {
-                _ = visitedNodes.append(StructuralNodeReferenceKey(symbol.demangledNode))
-                addSymbol(.init(symbol), memberSymbolsByKind: &memberSymbolsByKind, inExtension: true)
-            } else if let requirement = try resilientWitness.requirement(in: machO) {
-                switch requirement {
-                case .symbol(let symbol):
-                    if let demangledNode = MetadataReader.demangleSymbolReference(for: symbol, in: machO) {
-                        addSymbol(.init(.init(symbol: symbol, demangledNode: demangledNode)), memberSymbolsByKind: &memberSymbolsByKind, inExtension: true)
-                    }
-                case .element(let element):
-                    if let symbols = machO.symbols(offset: element.offset), let symbol = try _symbol(for: symbols, typeName: extensionName.name, visitedNodes: visitedNodes) {
-                        _ = visitedNodes.append(StructuralNodeReferenceKey(symbol.demangledNode))
-                        addSymbol(.init(symbol), memberSymbolsByKind: &memberSymbolsByKind, inExtension: true)
-                    } else if let defaultImplementationSymbols = element.defaultImplementationSymbols(in: machO), let symbol = try _symbol(for: defaultImplementationSymbols, typeName: extensionName.name, visitedNodes: visitedNodes) {
-                        _ = visitedNodes.append(StructuralNodeReferenceKey(symbol.demangledNode))
-                        // The witness resolved through the requirement's
-                        // DEFAULT implementation — the code lives in a
-                        // protocol extension, not on the conforming type
-                        // (evolution proposal 0007). Remember the symbol so
-                        // the built member can carry the fact.
-                        defaultImplementationSymbolNames.insert(symbol.name)
-                        addSymbol(.init(symbol), memberSymbolsByKind: &memberSymbolsByKind, inExtension: true)
-                    } else if !element.defaultImplementation.isNull {
-                        missingSymbolWitnesses.append(resilientWitness)
-                    } else if !resilientWitness.implementation.isNull {
-                        missingSymbolWitnesses.append(resilientWitness)
-                    } else {
-                        missingSymbolWitnesses.append(resilientWitness)
-                    }
-                }
-            } else if !resilientWitness.implementation.isNull {
-                missingSymbolWitnesses.append(resilientWitness)
-            } else {
-                missingSymbolWitnesses.append(resilientWitness)
-            }
-        }
-
-        setDefinitions(for: memberSymbolsByKind, inExtension: true)
-
-        if !defaultImplementationSymbolNames.isEmpty {
-            markProtocolExtensionDefaults(named: defaultImplementationSymbolNames)
-        }
-
-        orderedMembers = OrderedMember.offsetOrdered(OrderedMember.allMembers(from: self))
-
-        isIndexed = true
     }
 
-    /// Marks the members whose witness resolved through a protocol
-    /// requirement's default implementation, matched back by mangled symbol
-    /// name after `setDefinitions` built them.
-    private func markProtocolExtensionDefaults(named symbolNames: Set<String>) {
-        for index in functions.indices where symbolNames.contains(functions[index].symbol.name) {
-            functions[index].isProtocolExtensionDefault = true
-        }
-        for index in staticFunctions.indices where symbolNames.contains(staticFunctions[index].symbol.name) {
-            staticFunctions[index].isProtocolExtensionDefault = true
-        }
-        for index in allocators.indices where symbolNames.contains(allocators[index].symbol.name) {
-            allocators[index].isProtocolExtensionDefault = true
-        }
-        for index in constructors.indices where symbolNames.contains(constructors[index].symbol.name) {
-            constructors[index].isProtocolExtensionDefault = true
-        }
-        for index in variables.indices where variables[index].accessors.contains(where: { symbolNames.contains($0.symbol.name) }) {
-            variables[index].isProtocolExtensionDefault = true
-        }
-        for index in staticVariables.indices where staticVariables[index].accessors.contains(where: { symbolNames.contains($0.symbol.name) }) {
-            staticVariables[index].isProtocolExtensionDefault = true
-        }
-        for index in subscripts.indices where subscripts[index].accessors.contains(where: { symbolNames.contains($0.symbol.name) }) {
-            subscripts[index].isProtocolExtensionDefault = true
-        }
-        for index in staticSubscripts.indices where staticSubscripts[index].accessors.contains(where: { symbolNames.contains($0.symbol.name) }) {
-            staticSubscripts[index].isProtocolExtensionDefault = true
+    /// The ivars of an `@objc @implementation` no member definition accounts
+    /// for — their accessor symbols were stripped or they never had any — in
+    /// ivar-list order. The printer renders these on their own, since nothing
+    /// else would show them.
+    public var unrepresentedObjCImplementationInstanceVariables: [ObjCImplementationClassFacts.InstanceVariable] {
+        guard let objcImplementation else { return [] }
+        let representedNames = Set(variables.compactMap { $0.objcImplementationStorage?.swiftPropertyName })
+        return objcImplementation.instanceVariables.filter { instanceVariable in
+            guard let swiftPropertyName = instanceVariable.swiftPropertyName else { return true }
+            return !representedNames.contains(swiftPropertyName)
         }
     }
 }

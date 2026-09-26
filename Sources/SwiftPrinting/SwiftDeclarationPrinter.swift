@@ -16,11 +16,20 @@ import Utilities
 @_spi(Internals) import SwiftInspection
 
 @_spi(Support)
-public final class SwiftDeclarationPrinter<MachO: FieldLayoutRenderable>: Sendable {
+public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: Sendable {
     public let machO: MachO
 
     @Mutex
     public private(set) var configuration: SwiftDeclarationPrintConfiguration = .init()
+
+    /// This printer's verdict on the ObjC member recovery's NAME-only
+    /// evidence tier, which the index always records and no consumer has to
+    /// act on. Every member read of `override` / `class` / `final` / `@objc`
+    /// goes through `resolvedObjCMemberFacts(trustingSelectorNameEvidence:)`
+    /// with this, so the whole keyword set moves together.
+    var trustsSelectorNameEvidence: Bool {
+        configuration.infersObjCOverridesFromSelectorNames
+    }
 
     /// Resolvers binned per role at registration time (`addTypeNameResolver`),
     /// so each delegate query walks only the resolvers that can answer it and
@@ -65,6 +74,32 @@ public final class SwiftDeclarationPrinter<MachO: FieldLayoutRenderable>: Sendab
         case computed((any StaticFieldLayoutProvider)?)
     }
 
+    /// Memoized `__swift5_builtin` lookup behind `rawLayoutBuiltinStorage(of:)`
+    /// (`SwiftDeclarationPrinter+RawLayoutBuiltinStorage.swift`), built once
+    /// on first use with the same double-checked pattern as the layout
+    /// provider above.
+    @Mutex
+    private var memoizedRawLayoutBuiltinStorage: RawLayoutBuiltinStorageState = .uncomputed
+
+    private enum RawLayoutBuiltinStorageState: Sendable {
+        case uncomputed
+        case computed([SwiftDeclaration.TypeName: RawLayoutBuiltinStorage])
+    }
+
+    func rawLayoutBuiltinStorageByTypeName() -> [SwiftDeclaration.TypeName: RawLayoutBuiltinStorage] {
+        if case .computed(let storage) = memoizedRawLayoutBuiltinStorage {
+            return storage
+        }
+        return _memoizedRawLayoutBuiltinStorage.withLock { state in
+            if case .computed(let storage) = state {
+                return storage
+            }
+            let storage = computeRawLayoutBuiltinStorageByTypeName()
+            state = .computed(storage)
+            return storage
+        }
+    }
+
     /// Builds (once) and returns the offline field-layout provider for the
     /// current configuration, or `nil` for the in-process (`MachOImage`) path or
     /// when no layout-bearing flag is set.
@@ -107,7 +142,7 @@ public final class SwiftDeclarationPrinter<MachO: FieldLayoutRenderable>: Sendab
         eventDispatcher.addHandlers(eventHandlers)
         self.typeDemangleResolver = .using { [weak self] node in
             if let self {
-                var printer = TypeNodePrinter(delegate: self)
+                var printer = SemanticTypeNodePrinter(delegate: self)
                 try await printer.printRoot(node)
             }
         }
@@ -126,7 +161,7 @@ public final class SwiftDeclarationPrinter<MachO: FieldLayoutRenderable>: Sendab
         self.configuration = configuration
         self.typeDemangleResolver = .using { [weak self] node in
             if let self {
-                var printer = TypeNodePrinter(delegate: self)
+                var printer = SemanticTypeNodePrinter(delegate: self)
                 try await printer.printRoot(node)
             }
         }
@@ -202,6 +237,29 @@ public final class SwiftDeclarationPrinter<MachO: FieldLayoutRenderable>: Sendab
         for attribute in typeDefinition.attributes {
             Indent(level: level - 1)
             Keyword(attribute.keyword)
+            BreakLine()
+        }
+
+        // `@_rawLayout(like: T)`: a Swift 6.4 compiler records the like type
+        // as an artificial `_rawLayout` field so offline tools can size the
+        // struct. The source attribute is what it stands for, so print that;
+        // `movesAsLike` leaves no trace in the binary and is not guessed.
+        if let rawLayoutStorageField = typeDefinition.fields.first(where: \.isRawLayoutStorage) {
+            Indent(level: level - 1)
+            Standard("@_rawLayout(like: ")
+            try await printThrowingType(rawLayoutStorageField.typeNode.materialize(), isProtocol: false, level: level)
+            Standard(")")
+            BreakLine()
+        } else if let rawLayoutBuiltinStorage = rawLayoutBuiltinStorage(of: typeDefinition) {
+            // The other spellings (`size:alignment:`, a non-generic
+            // `likeArrayOf:count:`) leave no field record, only the
+            // `__swift5_builtin` descriptor every fixed-size raw-layout
+            // struct gets; print the layout it records and say where it
+            // came from, since `likeArrayOf:` is recorded the same way.
+            Indent(level: level - 1)
+            Standard("@_rawLayout(size: \(rawLayoutBuiltinStorage.size), alignment: \(rawLayoutBuiltinStorage.alignment))")
+            Space()
+            Comment(FieldRecordRendering.rawLayoutBuiltinStorageComment)
             BreakLine()
         }
 
@@ -402,6 +460,11 @@ public final class SwiftDeclarationPrinter<MachO: FieldLayoutRenderable>: Sendab
                 try await renderMergedAssociatedTypeRecords(of: extensionDefinition.associatedTypes, level: 1)
             }
 
+            // Stored properties of an `@objc @implementation` that no member
+            // definition represents (no accessor symbol survived) — rendered
+            // from the ObjC ivar list, ahead of the symbol-derived members.
+            await renderUnrepresentedObjCImplementationInstanceVariables(extensionDefinition, level: 1)
+
             try await printDefinition(extensionDefinition, level: 1)
         }
     }
@@ -412,6 +475,21 @@ public final class SwiftDeclarationPrinter<MachO: FieldLayoutRenderable>: Sendab
     /// printer calls it too, so there is a single source of truth.
     @SemanticStringBuilder
     public func printExtensionHeader(_ extensionDefinition: ExtensionDefinition, level: Int) async throws -> SemanticString {
+        // The class body of an `@objc @implementation` (evolution proposal
+        // `objc-implementation-class-recognition`). Kept on the header LINE —
+        // the diff and evolution renderers anchor on a container's last
+        // header line, so the evidence note of an inferred recognition goes
+        // inline rather than on a line of its own.
+        if let objcImplementation = extensionDefinition.objcImplementation {
+            Keyword(.atObjc)
+            Space()
+            Keyword(.atImplementation)
+            Space()
+            if objcImplementation.evidence.isInferred {
+                InlineComment(objcImplementation.evidence.description)
+                Space()
+            }
+        }
         Keyword(.extension)
         Space()
         extensionDefinition.extensionName.print()
@@ -428,22 +506,11 @@ public final class SwiftDeclarationPrinter<MachO: FieldLayoutRenderable>: Sendab
         // "no conformance at all").
         let materializedProtocolConformance = try extensionDefinition.materializedProtocolConformance(in: machO)
 
-        // Pre-leaf-migration `dumpProtocolName` semantics: a `nil` protocol
-        // node collapses to an *empty* name but still emits the clause (the
-        // dangling `extension Foo: @retroactive ` form), while a *thrown*
-        // resolution error drops the whole clause. The post-migration
-        // optional-chain conflated the two, silently suppressing the clause —
-        // including its `@retroactive` / global-actor markers — whenever the
-        // reference was unresolvable.
-        let conformanceProtocolName: SemanticString? = {
-            guard let protocolConformance = materializedProtocolConformance else { return nil }
-            do {
-                let protocolNode = try protocolConformance.protocolNode(in: machO)
-                return protocolNode?.printSemantic(using: .interfaceTypeBuilderOnly) ?? SemanticString()
-            } catch {
-                return nil
-            }
-        }()
+        let conformanceProtocolName = await printConformanceProtocolName(
+            of: materializedProtocolConformance,
+            isProtocol: extensionDefinition.extensionName.isProtocol,
+            level: level
+        )
         if let protocolConformance = materializedProtocolConformance,
            let protocolName = conformanceProtocolName {
             Standard(":")
@@ -454,7 +521,7 @@ public final class SwiftDeclarationPrinter<MachO: FieldLayoutRenderable>: Sendab
             }
             if let globalActorReference = protocolConformance.globalActorReference,
                let globalActorTypeName = try? globalActorReference.typeName(in: machO),
-               let globalActorNode = try? MetadataReader.demangleType(for: globalActorTypeName, in: machO) {
+               let globalActorNode = try? SymbolicDemangler.demangleType(for: globalActorTypeName, in: machO) {
                 Standard("@")
                 try await printThrowingType(globalActorNode, isProtocol: false, level: level)
                 Space()
@@ -463,7 +530,7 @@ public final class SwiftDeclarationPrinter<MachO: FieldLayoutRenderable>: Sendab
         }
 
         if let genericSignature = extensionDefinition.genericSignature {
-            let nodes = genericSignature.all(of: .requirementKinds)
+            let nodes = genericSignature.all(of: .printableRequirementKinds)
             for (index, node) in nodes.enumerated() {
                 if index == 0 {
                     Space()
@@ -478,6 +545,35 @@ public final class SwiftDeclarationPrinter<MachO: FieldLayoutRenderable>: Sendab
                     Space()
                 }
             }
+        }
+    }
+
+    /// The protocol a conformance clause names, printed by this printer's own
+    /// type printer like every other type reference in the interface — the
+    /// global-actor attribute in front of it included.
+    ///
+    /// It used to go through the demangler's generic `printSemantic`, carried
+    /// over from SwiftDump's `dumpProtocolName`, which lost both halves of a
+    /// `private` / `fileprivate` protocol's name: its semantic type (it came
+    /// out `.standard`) and its span identity. RuntimeViewer highlights and
+    /// links a name by those two, so a conformance to a private protocol was
+    /// plain, unclickable text while the same protocol named in a member
+    /// signature was fine.
+    ///
+    /// Pre-leaf-migration `dumpProtocolName` semantics: a `nil` protocol node
+    /// collapses to an *empty* name but still emits the clause (the dangling
+    /// `extension Foo: @retroactive ` form), while a *thrown* resolution error
+    /// — `nil` here — drops the whole clause. The post-migration optional-chain
+    /// conflated the two, silently suppressing the clause — including its
+    /// `@retroactive` / global-actor markers — whenever the reference was
+    /// unresolvable.
+    private func printConformanceProtocolName(of protocolConformance: ProtocolConformance?, isProtocol: Bool, level: Int) async -> SemanticString? {
+        guard let protocolConformance else { return nil }
+        do {
+            guard let protocolNode = try protocolConformance.protocolNode(in: machO) else { return SemanticString() }
+            return try await printThrowingType(protocolNode, isProtocol: isProtocol, level: level)
+        } catch {
+            return nil
         }
     }
 
@@ -512,9 +608,10 @@ public final class SwiftDeclarationPrinter<MachO: FieldLayoutRenderable>: Sendab
         let printExportStatus = configuration.printExportStatus
         let vtableTransformerClosure = vtableOffsetTransformerClosure
 
+        let synthesizedPropertyWrapperMembers = synthesizedPropertyWrapperMembers(of: definition)
         await MemberList(level: level) {
-            for member in definition.orderedMembers where !isExcludedByExportFilter(member) {
-                await renderMember(member, level: level, offsetCommentPrefix: offsetCommentPrefix, emitOffsetComment: emitOffsetComment, printVTableOffset: printVTableOffset, printMemberAddress: printMemberAddress, printExportStatus: printExportStatus, vtableTransformerClosure: vtableTransformerClosure)
+            for member in definition.orderedMembers where !isExcludedByExportFilter(member) && !synthesizedPropertyWrapperMembers.contains(member) {
+                await renderMember(member, level: level, offsetCommentPrefix: offsetCommentPrefix, emitOffsetComment: emitOffsetComment, printVTableOffset: printVTableOffset, printMemberAddress: printMemberAddress, printExportStatus: printExportStatus, vtableTransformerClosure: vtableTransformerClosure, synthesizedPropertyWrapperMembers: synthesizedPropertyWrapperMembers)
             }
 
             // Terminal step: emit `deinit` for classes and noncopyable
@@ -544,10 +641,11 @@ public final class SwiftDeclarationPrinter<MachO: FieldLayoutRenderable>: Sendab
         let printExportStatus = configuration.printExportStatus
         let vtableTransformerClosure = vtableOffsetTransformerClosure
 
+        let synthesizedPropertyWrapperMembers = synthesizedPropertyWrapperMembers(of: definition)
         for category in MemberCategory.allCases {
             await MemberList(level: level) {
-                for member in definition.members(in: category) where !isExcludedByExportFilter(member) {
-                    await renderMember(member, level: level, offsetCommentPrefix: offsetCommentPrefix, emitOffsetComment: emitOffsetComment, printVTableOffset: printVTableOffset, printMemberAddress: printMemberAddress, printExportStatus: printExportStatus, vtableTransformerClosure: vtableTransformerClosure)
+                for member in definition.members(in: category) where !isExcludedByExportFilter(member) && !synthesizedPropertyWrapperMembers.contains(member) {
+                    await renderMember(member, level: level, offsetCommentPrefix: offsetCommentPrefix, emitOffsetComment: emitOffsetComment, printVTableOffset: printVTableOffset, printMemberAddress: printMemberAddress, printExportStatus: printExportStatus, vtableTransformerClosure: vtableTransformerClosure, synthesizedPropertyWrapperMembers: synthesizedPropertyWrapperMembers)
                 }
             }
         }
@@ -584,7 +682,8 @@ public final class SwiftDeclarationPrinter<MachO: FieldLayoutRenderable>: Sendab
         printVTableOffset: Bool,
         printMemberAddress: Bool,
         printExportStatus: Bool,
-        vtableTransformerClosure: (@Sendable (Int, String?) -> SemanticString)?
+        vtableTransformerClosure: (@Sendable (Int, String?) -> SemanticString)?,
+        synthesizedPropertyWrapperMembers: SynthesizedPropertyWrapperMembers
     ) async -> SemanticString {
         await Rows(level: level) {
             switch member {
@@ -607,13 +706,21 @@ public final class SwiftDeclarationPrinter<MachO: FieldLayoutRenderable>: Sendab
                 // reachable — annotating them would be a false positive
                 // (verified on the fixture: `public override` and
                 // `@objc public dynamic` members both trie-miss).
-                if printExportStatus, !function.isOverride, !function.attributes.contains(.objc) {
+                let objcFacts = function.resolvedObjCMemberFacts(trustingSelectorNameEvidence: trustsSelectorNameEvidence)
+                if printExportStatus, !objcFacts.isOverride, !objcFacts.isObjC {
                     ExportStatusComment(isExported: exportVerdict(forSymbolNames: [function.symbol.name]))
                 }
                 await printFunction(function, level: level)
 
             case .variable(let variable):
-                OffsetComment(prefix: offsetCommentPrefix, offset: variable.offset, emit: emitOffsetComment)
+                // A stored property of an `@objc @implementation` carries its
+                // REAL field offset (from the ObjC ivar list), so the generic
+                // symbol-offset comment gives way to the field-offset one.
+                if let storage = variable.objcImplementationStorage {
+                    ObjCImplementationFieldOffsetComment(instanceVariable: storage, emit: configuration.printFieldOffset, transformer: configuration.fieldOffsetTransformer)
+                } else {
+                    OffsetComment(prefix: offsetCommentPrefix, offset: variable.offset, emit: emitOffsetComment)
+                }
                 for accessor in variable.accessors {
                     VTableOffsetComment(vtableOffset: accessor.vtableOffset, label: accessor.kind.addressLabel, emit: printVTableOffset, transformer: vtableTransformerClosure)
                     AddressComment(addressString: memberAddressString(forOffset: accessor.symbol.offset), label: accessor.kind.addressLabel, emit: printMemberAddress)
@@ -621,10 +728,15 @@ public final class SwiftDeclarationPrinter<MachO: FieldLayoutRenderable>: Sendab
                 if printMemberAddress, variable.isProtocolExtensionDefault {
                     Comment("protocol-extension default")
                 }
-                if printExportStatus, !variable.isOverride, !variable.attributes.contains(.objc) {
+                let objcFacts = variable.resolvedObjCMemberFacts(trustingSelectorNameEvidence: trustsSelectorNameEvidence)
+                if printExportStatus, !objcFacts.isOverride, !objcFacts.isObjC {
                     ExportStatusComment(isExported: exportVerdict(forSymbolNames: variable.accessors.map(\.symbol.name)))
                 }
-                await printVariable(variable, level: level)
+                if let storage = variable.objcImplementationStorage {
+                    await printObjCImplementationStoredProperty(variable, storage: storage, level: level)
+                } else {
+                    await printVariable(variable, level: level, propertyWrapperAttributeTypeNode: synthesizedPropertyWrapperMembers.wrapperAttributeTypeNode(for: variable))
+                }
 
             case .subscript(let `subscript`):
                 OffsetComment(prefix: offsetCommentPrefix, offset: `subscript`.offset, emit: emitOffsetComment)
@@ -635,7 +747,8 @@ public final class SwiftDeclarationPrinter<MachO: FieldLayoutRenderable>: Sendab
                 if printMemberAddress, `subscript`.isProtocolExtensionDefault {
                     Comment("protocol-extension default")
                 }
-                if printExportStatus, !`subscript`.isOverride, !`subscript`.attributes.contains(.objc) {
+                let objcFacts = `subscript`.resolvedObjCMemberFacts(trustingSelectorNameEvidence: trustsSelectorNameEvidence)
+                if printExportStatus, !objcFacts.isOverride, !objcFacts.isObjC {
                     ExportStatusComment(isExported: exportVerdict(forSymbolNames: `subscript`.accessors.map(\.symbol.name)))
                 }
                 await printSubscript(`subscript`, level: level)
@@ -680,10 +793,14 @@ public final class SwiftDeclarationPrinter<MachO: FieldLayoutRenderable>: Sendab
         return false
     }
 
+    /// - Parameter propertyWrapperAttributeTypeNode: The wrapper type to print
+    ///   as the property's attribute (`@Wrapper var x`), when the enclosing
+    ///   type recognized `x` as a wrapped property — see
+    ///   `synthesizedPropertyWrapperMembers(of:)`. `nil` prints no attribute.
     @SemanticStringBuilder
-    public func printVariable(_ variable: VariableDefinition, level: Int) async -> SemanticString {
+    public func printVariable(_ variable: VariableDefinition, level: Int, propertyWrapperAttributeTypeNode: Node? = nil) async -> SemanticString {
         await dispatchingCatchedThrowing(.init(name: variable.name, kind: .variable)) {
-            try await printThrowingVariable(variable, level: level)
+            try await printThrowingVariable(variable, level: level, propertyWrapperAttributeTypeNode: propertyWrapperAttributeTypeNode)
         }
     }
 
@@ -708,7 +825,7 @@ public final class SwiftDeclarationPrinter<MachO: FieldLayoutRenderable>: Sendab
         }
     }
 
-    private func dispatchingCatchedThrowing(_ context: SwiftIndexEvents.PrintingContext, @SemanticStringBuilder _ body: () async throws -> SemanticString) async -> SemanticString? {
+    func dispatchingCatchedThrowing(_ context: SwiftIndexEvents.PrintingContext, @SemanticStringBuilder _ body: () async throws -> SemanticString) async -> SemanticString? {
         do {
             return try await body()
         } catch {
@@ -718,38 +835,66 @@ public final class SwiftDeclarationPrinter<MachO: FieldLayoutRenderable>: Sendab
     }
 
     @SemanticStringBuilder
-    public func printThrowingVariable(_ variable: VariableDefinition, level: Int) async throws -> SemanticString {
-        for attribute in variable.attributes {
-            Keyword(attribute.keyword)
+    public func printThrowingVariable(_ variable: VariableDefinition, level: Int, propertyWrapperAttributeTypeNode: Node? = nil) async throws -> SemanticString {
+        // The wrapper attribute comes first, as the compiler's own
+        // swiftinterface prints it (`@SwiftUICore.Binding public var isOn`).
+        if let propertyWrapperAttributeTypeNode {
+            Standard("@")
+            try await printThrowingType(propertyWrapperAttributeTypeNode, isProtocol: false, level: level)
             Space()
         }
-        var printer = VariableNodePrinter(isStored: variable.isStored, isOverride: variable.isOverride, isClassMember: variable.isClassMember, isFinal: variable.isFinal, hasSetter: variable.hasSetter, indentation: level, delegate: self)
+        let objcFacts = variable.resolvedObjCMemberFacts(trustingSelectorNameEvidence: trustsSelectorNameEvidence)
+        for attribute in objcFacts.attributes {
+            Keyword(attribute.keyword)
+            // An `@objc(name)` the source spelled out (evolution proposal
+            // `objc-member-selector-recovery`): the selector the ObjC method
+            // table carries is not the one the compiler derives from the name.
+            if attribute == .objc, let explicitSelector = objcFacts.explicitSelector {
+                Standard("(\(explicitSelector))")
+            }
+            Space()
+        }
+        var printer = SemanticVariableNodePrinter(isStored: variable.isStored, isOverride: objcFacts.isOverride, isClassMember: objcFacts.isClassMember, isFinal: objcFacts.isFinal, hasSetter: variable.hasSetter, indentation: level, delegate: self)
         try await printer.printRoot(variable.node.materialize())
     }
 
     @SemanticStringBuilder
     public func printThrowingFunction(_ function: FunctionDefinition, level: Int) async throws -> SemanticString {
-        for attribute in function.attributes {
+        let objcFacts = function.resolvedObjCMemberFacts(trustingSelectorNameEvidence: trustsSelectorNameEvidence)
+        for attribute in objcFacts.attributes {
             Keyword(attribute.keyword)
+            // An `@objc(name)` the source spelled out (evolution proposal
+            // `objc-member-selector-recovery`): the selector the ObjC method
+            // table carries is not the one the compiler derives from the name.
+            if attribute == .objc, let explicitSelector = objcFacts.explicitSelector {
+                Standard("(\(explicitSelector))")
+            }
             Space()
         }
-        var printer = FunctionNodePrinter(isOverride: function.isOverride, isClassMember: function.isClassMember, isFinal: function.isFinal, delegate: self)
+        var printer = SemanticFunctionNodePrinter(isOverride: objcFacts.isOverride, isClassMember: objcFacts.isClassMember, isFinal: objcFacts.isFinal, delegate: self)
         try await printer.printRoot(function.node.materialize())
     }
 
     @SemanticStringBuilder
     public func printThrowingSubscript(_ `subscript`: SubscriptDefinition, level: Int) async throws -> SemanticString {
-        for attribute in `subscript`.attributes {
+        let objcFacts = `subscript`.resolvedObjCMemberFacts(trustingSelectorNameEvidence: trustsSelectorNameEvidence)
+        for attribute in objcFacts.attributes {
             Keyword(attribute.keyword)
+            // An `@objc(name)` the source spelled out (evolution proposal
+            // `objc-member-selector-recovery`): the selector the ObjC method
+            // table carries is not the one the compiler derives from the name.
+            if attribute == .objc, let explicitSelector = objcFacts.explicitSelector {
+                Standard("(\(explicitSelector))")
+            }
             Space()
         }
-        var printer = SubscriptNodePrinter(isOverride: `subscript`.isOverride, isClassMember: `subscript`.isClassMember, isFinal: `subscript`.isFinal, hasSetter: `subscript`.hasSetter, indentation: level, delegate: self)
+        var printer = SemanticSubscriptNodePrinter(isOverride: objcFacts.isOverride, isClassMember: objcFacts.isClassMember, isFinal: objcFacts.isFinal, hasSetter: `subscript`.hasSetter, indentation: level, delegate: self)
         try await printer.printRoot(`subscript`.node.materialize())
     }
 
     @SemanticStringBuilder
     public func printThrowingType(_ typeNode: Node, isProtocol: Bool, level: Int) async throws -> SemanticString {
-        var printer = TypeNodePrinter(delegate: self, isProtocol: isProtocol)
+        var printer = SemanticTypeNodePrinter(delegate: self, isProtocol: isProtocol)
         try await printer.printRoot(typeNode)
     }
 

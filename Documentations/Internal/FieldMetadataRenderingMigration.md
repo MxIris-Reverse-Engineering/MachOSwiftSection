@@ -111,7 +111,7 @@ layout / spare-bit / per-case type layout 全部集中到这里。`SwiftDump` �
 
 现象：model 驱动的接口（`SwiftDeclarationPrinter`）里，**重载下标与（合并的）`@objc func` 成员顺序每次运行都变**（同一批成员、同样 metadata，仅顺序不同）。dump 路径不受影响（它直接按 `symbolIndexStore.memberSymbols` 的有序结果渲染）。
 
-根因：`Sources/SwiftDeclaration/Components/Definitions/DefinitionBuilder.swift` 有 **3 处普通 `Dictionary` 迭代**，Swift 字典迭代顺序随进程哈希随机化：
+根因：`Sources/SwiftDeclaration/Components/Building/DefinitionBuilder.swift` 有 **3 处普通 `Dictionary` 迭代**，Swift 字典迭代顺序随进程哈希随机化：
 - `subscripts(...)`：`accessorsByNode: [Node: [Accessor]]`（重载下标都叫 "subscript"，无法像 `variables` 那样按名排序）；
 - `functions(...)` / `allocators(...)`：`pendingMergedBy*Node: [Node: ...]`（合并 thunk 尾部追加）。
 

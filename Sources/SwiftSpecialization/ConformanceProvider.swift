@@ -221,7 +221,7 @@ extension IndexerConformanceProvider: ConformanceProvider {
             }
             guard let superNode else { continue }
 
-            // `MetadataReader.demangleType` may wrap the result in a
+            // `SymbolicDemangler.demangleType` may wrap the result in a
             // `.type` node or return a deeper tree depending on the
             // mangled shape. `.first(of: .type)` mirrors how
             // `SwiftDeclarationIndexer` itself extracts the type node when

@@ -1,5 +1,6 @@
 import Foundation
 
+@LocatableLayoutWrapping
 public struct ClassMetadataBounds: ClassMetadataBoundsProtocol {
     public struct Layout: ClassMetadataBoundsLayout {
         public let negativeSizeInWords: UInt32
@@ -17,14 +18,5 @@ public struct ClassMetadataBounds: ClassMetadataBoundsProtocol {
             self.positiveSizeInWords = positiveSizeInWords
             self.immediateMembersOffset = immediateMembersOffset
         }
-    }
-
-    public var layout: Layout
-
-    public let offset: Int
-
-    public init(layout: Layout, offset: Int) {
-        self.layout = layout
-        self.offset = offset
     }
 }

@@ -8,6 +8,13 @@ import SwiftDeclarationRendering
 import MachOFixtureSupport
 import Semantic
 
+/// Private at file scope, so the compiler parents it on an anonymous context,
+/// which the runtime's own name for a specialization spells by its descriptor
+/// address. See `specializedPrivateStructDeclarationKeepsItsModule`.
+private struct RuntimeNamedDumpPrivateBox<Element> {
+    let element: Element
+}
+
 // MARK: - Specialized dumper field-type substitution
 
 /// End-to-end check on the dumper-side substitution that pairs with
@@ -233,6 +240,24 @@ struct SpecializedDumperFieldTypeTests {
                 "expected bound class declaration to mention Int; got: \(renderedDeclaration)")
         #expect(!renderedDeclaration.contains("<A>"),
                 "expected bound class declaration to drop unbound `<A>` form; got: \(renderedDeclaration)")
+    }
+
+    /// The bound name comes from the runtime, which spells the private type's
+    /// anonymous context by address: the stock printer rendered it as
+    /// `(unknown context at $…)` or, under interface options, as nothing, leaving
+    /// the separator in front of the name.
+    @Test("specialized private struct declaration keeps its module")
+    func specializedPrivateStructDeclarationKeepsItsModule() async throws {
+        let descriptor = try structDescriptor(named: "RuntimeNamedDumpPrivateBox")
+        let structValue = try Struct(descriptor: descriptor, in: machO)
+        let specializedMetadata = try StructMetadata.createInProcess(RuntimeNamedDumpPrivateBox<Int>.self)
+        let metadataContext = DumperMetadataContext(metadata: specializedMetadata, readingContext: InProcessContext.shared)
+
+        let dumper = StructDumper(structValue, metadataContext: metadataContext, using: configuration, in: machO)
+        let renderedDeclaration = try await dumper.declaration.string
+
+        #expect(renderedDeclaration.contains("struct MachOSwiftSectionTests.RuntimeNamedDumpPrivateBox<Swift.Int>"),
+                "got: \(renderedDeclaration)")
     }
 
     @Test("non-specialized struct declaration keeps unbound generic clause")

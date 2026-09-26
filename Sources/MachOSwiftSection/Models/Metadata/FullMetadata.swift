@@ -2,6 +2,7 @@ import Foundation
 import MachOKit
 import MachOBase
 
+@LocatableLayoutWrapping
 public struct FullMetadata<Metadata: MetadataProtocol>: ResolvableLocatableLayoutWrapper {
     @dynamicMemberLookup
     public struct Layout: LayoutProtocol {
@@ -15,13 +16,5 @@ public struct FullMetadata<Metadata: MetadataProtocol>: ResolvableLocatableLayou
         public subscript<T>(dynamicMember keyPath: KeyPath<Metadata.Layout, T>) -> T {
             metadata[keyPath: keyPath]
         }
-    }
-
-    public let offset: Int
-    public var layout: Layout
-
-    public init(layout: Layout, offset: Int) {
-        self.offset = offset
-        self.layout = layout
     }
 }

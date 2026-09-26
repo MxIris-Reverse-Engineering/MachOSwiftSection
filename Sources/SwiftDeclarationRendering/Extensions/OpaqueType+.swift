@@ -17,7 +17,8 @@ extension OpaqueType {
         var results: [GenericRequirementDescriptor] = []
         for currentRequirement in currentRequirements {
             if currentRequirement.content.isType {
-                if let node = try MetadataReader.buildGenericSignature(for: currentRequirement, in: machO), let sameTypeRequirementNode = node.first(of: .dependentGenericSameTypeRequirement) {
+                guard let node = try SymbolicDemangler.buildGenericSignature(for: currentRequirement, in: machO) else { continue }
+                if let sameTypeRequirementNode = node.first(of: .dependentGenericSameTypeRequirement) {
                     let sameTypeRequirementCopy: Node
                     if let associatedTypeRefNode = sameTypeRequirementNode.first(of: .dependentAssociatedTypeRef) {
                         let modifiedAssociatedTypeRef = NodeBuilder(associatedTypeRefNode).removingChild(at: 1)
@@ -28,9 +29,18 @@ extension OpaqueType {
                     if !usedRequirements.contains(sameTypeRequirementNode), !usedRequirements.contains(sameTypeRequirementCopy) {
                         results.append(currentRequirement)
                     }
+                } else if let conformanceRequirementNode = node.first(of: .dependentGenericConformanceRequirement), !usedRequirements.contains(conformanceRequirementNode) {
+                    // A superclass requirement (`some Base`): its content is a
+                    // mangled type like a same-type requirement's, and
+                    // `buildGenericSignature` spells it as a conformance
+                    // requirement whose constraint is the class — the node a
+                    // symbol's own signature uses for a superclass bound.
+                    // Dropping it here left the provider unable to render the
+                    // class at all.
+                    results.append(currentRequirement)
                 }
             } else if currentRequirement.content.isProtocol {
-                if let node = try MetadataReader.buildGenericSignature(for: currentRequirement, in: machO), let conformanceRequirementNode = node.first(of: .dependentGenericConformanceRequirement), !usedRequirements.contains(conformanceRequirementNode) {
+                if let node = try SymbolicDemangler.buildGenericSignature(for: currentRequirement, in: machO), let conformanceRequirementNode = node.first(of: .dependentGenericConformanceRequirement), !usedRequirements.contains(conformanceRequirementNode) {
                     results.append(currentRequirement)
                 }
             }

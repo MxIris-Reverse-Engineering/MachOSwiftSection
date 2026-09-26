@@ -38,7 +38,7 @@ final class DependencyClosureTests: MachOSwiftSectionFixtureTests, @unchecked Se
         images.map { DependencyLoadName.bareImageName(of: $0.imagePath) }
     }
 
-    private func directLoadNameBareImageNames<MachO: MachORepresentableWithCache>(of root: MachO) -> [String] {
+    private func directLoadNameBareImageNames(of root: some MachORepresentableWithCache) -> [String] {
         var seen: Set<String> = []
         return root.dependencies.map { DependencyLoadName.bareImageName(of: $0.dylib.name) }.filter { seen.insert($0).inserted }
     }

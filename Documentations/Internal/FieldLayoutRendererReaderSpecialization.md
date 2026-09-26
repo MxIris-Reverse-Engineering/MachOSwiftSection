@@ -26,12 +26,16 @@ Type Layout / expanded 树 / Enum Layout **全部为空**。
 `enumPrefixComments`、`enumCaseComments`）。分派**不在运行时判断 reader 类型**，而是由类型系统在编译期选定：
 
 ```swift
-public protocol FieldLayoutRenderable: MachOSwiftSectionRepresentableWithCache {
+public protocol FieldLayoutRenderable {
     static func renderFieldOffsets(_ state: FieldLayoutRenderState, machO: Self) -> [Int]?
     // storedFieldComments / enumLayout / enumPrefixComments / enumCaseComments
     // + makeStaticFieldLayoutProvider / precomputedStaticAggregateFieldLayout
 }
-package struct FieldLayoutRenderer<MachO: FieldLayoutRenderable> {
+
+// 上层泛型链要的是两种能力的组合，不是其中一个继承另一个
+public typealias MachOFieldLayoutRenderable = MachOSwiftSectionRepresentableWithCache & FieldLayoutRenderable
+
+package struct FieldLayoutRenderer<MachO: MachOFieldLayoutRenderable> {
     package var fieldOffsets: [Int]? { MachO.renderFieldOffsets(renderState, machO: machO) }  // 无 as?
 }
 ```
@@ -51,10 +55,9 @@ configuration/isGeneric/staticAggregateFieldLayout，不含 `Self`）传递 rend
 - `StaticFieldLayoutBackend.swift`（`struct`，持 `state + machO: MachOFile`）：SwiftLayout 静态实现，
   `extension MachOFile: FieldLayoutRenderable` 薄转发。
 
-**约束传染**：`FieldLayoutRenderable` refine `MachOSwiftSectionRepresentableWithCache`，沿构造 renderer 的整条
-泛型链机械传染——`Dumpable`/`NamedDumpable`/`ConformedDumpable`/`Dumper` 协议要求、`Struct/Class/Enum` dumper、
-`SwiftDeclarationPrinter`、`SwiftInterfaceBuilder`/`SwiftDiffableInterfaceBuilder` 及 dump/interface 测试辅助。
-只有 `MachOFile`/`MachOImage` conform，故所有真实调用方不受影响（interface 快照无变化）。
+**约束传染**：构造 renderer 的整条泛型链都要求 `MachOFieldLayoutRenderable`——`Dumpable`/`NamedDumpable`/`ConformedDumpable`/`Dumper` 协议要求、`Struct/Class/Enum` dumper、`SwiftDeclarationPrinter`、`SwiftInterfaceBuilder`/`SwiftDiffableInterfaceBuilder` 及 dump/interface 测试辅助，共 83 处约束位置。只有 `MachOFile`/`MachOImage` 同时满足两半，故所有真实调用方不受影响（interface 快照无变化）。
+
+传的是 typealias 拼出的**组合**，不是继承：`FieldLayoutRenderable` 最初 refine `MachOSwiftSectionRepresentableWithCache`，但「会渲染字段布局注释」和「身上有 `__swift5_*` section 且带缓存」是两种彼此独立的能力，恰好被同两个具体类型持有，并不是 is-a 关系。继承会让任何只想提供渲染 witness 的类型被迫先成为一个 Mach-O reader，协议自己的语义边界也跟着糊掉。拆开后协议只剩 6 个 witness 要求，需要两半能力的调用点写 `MachOFieldLayoutRenderable`——约束点长度不变，语义回到「我要这两样东西」。
 
 > 早期曾用运行时 `self as? FieldLayoutRenderer<MachOImage>/<MachOFile>` 分派；现已全面改为上述编译期 witness，
 > 渲染路径零运行时类型转换（printer 选 provider、init 预算 aggregate 也都走 witness）。

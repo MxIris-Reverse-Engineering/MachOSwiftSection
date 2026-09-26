@@ -42,19 +42,28 @@ class vtable 每个槽打印成哪个成员，今天是靠「实现地址反查�
 
 **二、候选筛选过松。** `Sources/SwiftDump/Dumper/ClassDumper.swift:618` 用 `node.first(of: .class)` 深度优先找第一个 class 节点来判断「这个符号属不属于本类」。`GraphHost.Data.graph.modify` 的 context 链是 `class GraphHost → struct Data`，`first(of: .class)` 命中 `GraphHost`，于是嵌套类型的成员被认作本类的 vtable 方法。这一条独立于 ICF 也是错的。
 
-### 影响面（SwiftUICore iOS 18.5 arm64，171 个非泛型带 vtable 的类 / 512 个槽）
+### 影响面与修复前后行为对照（SwiftUICore iOS 18.5 arm64，171 个非泛型带 vtable 的类 / 512 个槽）
 
-| 情况 | 槽数 | 占比 | 本提案后 |
-|---|---|---|---|
-| implementation 符号唯一 + 有 `Tq` | 224 | 43.8% | 已正确，`Tq` 只是加固 |
-| implementation 为 null（墓碑）+ 有 `Tq` | 79 | 15.4% | **从 `Symbol not found` 变成有名字** |
-| implementation 多符号（ICF）+ 有 `Tq` | 64 | 12.5% | **从错名变正确名**（GraphHost 属于此类） |
-| implementation 符号唯一 + 无 `Tq` | 27 | 5.3% | 已正确，走回退 |
-| implementation 多符号（ICF）+ 无 `Tq` | 19 | 3.7% | 仍不可归属，标注为不可靠 |
-| implementation 为 null（墓碑）+ 无 `Tq` | 91 | 17.8% | 仍无名，标注为无实现 |
-| implementation 无符号 | 8 | 1.6% | 仍无名 |
+修复前**所有**槽走同一条路：拿实现地址查符号，挑第一个属于本类的。这条路在地址上恰好只有一个本类符号时碰巧正确（49%），在地址被 ICF 折叠时是纯猜（16%），在实现为 null 时无从下手（33%）——而且猜是静默的，输出里分不出哪个名字是查出来的、哪个是挑出来的。修复后 `Tq` 覆盖的 72% 精确归属，猜只剩 3.7% 且带标注。
+
+| 槽的情况 | 槽数 | 占比 | 修复前 | 修复后 |
+|---|---|---|---|---|
+| 实现地址上只有一个本类符号，有 `Tq` | 224 | 43.8% | 反查地址，唯一候选，**碰巧对**；静默 | `Tq` 精确归属。结果同前，唯一可见差别是 async 成员从 `async function pointer to X.foo()`（实现地址上的 `Tu` 常量符号）变成 `X.foo()` |
+| 实现地址上只有一个本类符号，无 `Tq` | 27 | 5.3% | 同上，碰巧对 | 回退到地址反查，唯一候选，对；不打标注 |
+| 实现地址被 ICF 折叠，有 `Tq` | 64 | 12.5% | **纯猜**：按符号表顺序给，与别的槽共享同一地址的必错至少一个；静默 | `Tq` 精确归属，**修好了**（GraphHost 的槽 26–29 属于此类） |
+| 实现地址被 ICF 折叠，无 `Tq` | 19 | 3.7% | 纯猜；静默 | **仍然猜**，但打 `// Attribution: ambiguous — N symbols folded at this address`。注意 N 目前是折叠地址上的原始符号总数，不是本类候选数，见 PR #123 review 第 2 条 |
+| 实现为 null（墓碑），有 `Tq` | 79 | 15.4% | `Symbol not found` | `Tq` 精确给出名字 + 墓碑注释，**修好了**。这里没有地址可查，猜的路径物理上跑不起来，名字只可能来自 `Tq` |
+| 实现为 null（墓碑），无 `Tq` | 91 | 17.8% | `Symbol not found` | `<unnamed vtable slot>` + 墓碑注释；不猜 |
+| 实现地址上一个符号都没有 | 8 | 1.6% | `sub_XXXX` 地址 | 不变 |
 
 泛型类的 vtable 不在这份统计里（统计脚本跳过了 trailing object 布局较复杂的泛型描述符），但归属机制与非泛型类完全相同，修复同样覆盖。
+
+两条不在表里的行为变化：
+
+- **嵌套类型串味的筛选**：修复前候选筛选用 `first(of: .class)`，嵌套 struct 的成员会被当成外层类的成员——GraphHost 那三条 `Data.*.modify … .resume.0` 就是这么来的；修复后改看成员的直接声明上下文（`declarationContextNode`）。在 SwiftUICore 上单独回退这一处，输出逐字节不变，因为 `Tq` 已经把会出问题的槽全接走了；它只加固回退路径。
+- **interface 路径**（`TypeDefinition.index`）：修复前同样靠地址反查做 join，join 不上就丢 vtable 注释和 `override` 关键字（GraphHost 有三个方法完全没标）；修复后同样 `Tq` 优先。但回退命中折叠地址时**没有任何标注**，与 dump 路径不对称（PR #123 review 第 7 条）。
+
+两处**没动**的：override 槽两边都走地址反查（它们没有自己的 `Tq`，指向的是父类 descriptor，见「改动」第 1 条）；`final` 关键字还原的访问器名收集也仍按实现地址来（见「已知遗留」）。
 
 ### 改动
 
@@ -109,3 +118,4 @@ class vtable 每个槽打印成哪个成员，今天是靠「实现地址反查�
 | 2026-09-06 | 更新 10 份快照基线（9 份 dump + 1 份 interface） | 逐条审查确认全部为修正：16 条墓碑注释新增、10 条 `[Init] Symbol not found` 拿到真名、6 条降级为 `<unnamed vtable slot>`、4 条去掉 `async function pointer to` 前缀（vtable 槽显示成员本身而非 `Tu` 常量）、`FinalMembersTest` 三条 kind 与名字的系统性错位修正（`[Setter]` 配 `plainMethod()` 这类）、interface 的 `static func classMethod()` → `class func classMethod()`（fixture 源码写的就是 `public class func`，此前因归属错位没 join 上 descriptor 而误印 `static`） |
 | 2026-09-07 | `/code-review xhigh` 跑完 PR #123，15 条发现全部按四问裁决：真缺陷 4、建议同批修 3、低优先级 3、误报或已有裁决 3、流程 2 | 清单与逐条论证见 [`Roadmaps/2026-09-06-pr123-review-findings.md`](../../Roadmaps/2026-09-06-pr123-review-findings.md)；「不修 / 误报 / 延后」的终审登记为 A34–A39。本轮**只落记录，代码未改**，修复批次另起 |
 | 2026-09-07 | 上面 2026-09-06「墓碑槽」那条决定**成立**，只有措辞要改（本行取代同日一条判它「因果前提被推翻」的记录，那条判断经复核有误，已撤回） | 初判依据是「fixture 里 `TestsObjects` 的 `init()` 明明存在却被标成 deleted」，错在把「声明存在」当成「实现存在」。IRGen 的 `buildMethodDescriptorFields`（`lib/IRGen/GenMeta.cpp` 约 340–364 行）只有两个分支，写 null 那支的原注释即 "The method is removed by dead method elimination."——null 是编译器唯一的写入路径，不是本库的推断。真实根因是**访问级别**：public 类型里不写修饰符的 `init()` 默认 internal，整模块优化下不是死函数消除的 anchor，没人调就被删实现体；fixture 里被标记的全是 internal 或函数内局部类成员，未标记的全是显式 `public init`（`AsyncInitializerActorTest` 幸免是因为 public，与 async 无关）。独立探针确证：`-O -wmo -enable-library-evolution` 下 internal init / 访问器只剩 `Tq` 无函数符号，`dyld_info` 数出的 `_swift_deletedMethodError` bind 数与预期精确吻合。故 SwiftUICore 33% 的比例可信。待修：注释措辞改为 `Implementation removed by dead-method elimination; vtable slot kept for layout (calling it traps)`，并在文档补上「`swift_deletedMethodError` 只填静态 metadata，运行时实例化路径 null 保持 null」这一限定 |
+| 2026-09-07 | 「影响面」一节扩成修复前后行为对照表 | 用户复盘时问「以前是不是全靠猜」，原表只有一列「本提案后」，说不清修复前每类槽各是什么行为、猜发生在哪；改成每类槽修复前 / 修复后并列，并把表外的两条行为变化（嵌套串味筛选、interface 路径）与两处未动的写明 |

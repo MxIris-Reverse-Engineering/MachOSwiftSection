@@ -1,11 +1,15 @@
 import SwiftDeclaration
+import SwiftDeclarationRendering
 import Foundation
 import MachOSwiftSection
 import MemberwiseInit
 import OrderedCollections
-import Demangling
+@_spi(Internals) import Demangling
+import SwiftThunkAnalysis
+import SwiftInspection
 import SwiftStdlibToolbox
 import MachOKit
+import MachOFoundation
 import Dependencies
 import Utilities
 @_spi(Internals) import MachOSymbols
@@ -187,6 +191,21 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
                 @Dependency(\.symbolIndexStore)
                 var symbolIndexStore
                 symbolIndexStore.remove(for: machO)
+                // Holds the symbol store's symbolic-mangling table, which it
+                // would otherwise pin.
+                SymbolicManglingIndex.shared.remove(for: machO)
+                // Holds `NodeReference`s into the symbol store's node arena, so
+                // it goes with the store it would otherwise pin.
+                ObjCImplementationClasses.removeCache(for: machO)
+                // The ObjC class-method index and the host's hierarchy-provider
+                // registration are per-image state of the same lifetime.
+                ObjCClassHierarchies.removeCache(for: machO)
+            }
+            if claims.propertyWrapperCatalog {
+                PropertyWrapperTypeCatalogStore.shared.remove(for: machO)
+            }
+            if claims.objcAncestorResolver {
+                ObjCAncestorResolverStore.shared.remove(for: machO)
             }
             // Claimed separately from the symbol store: both of these are also
             // populated by SwiftLayout, the renderers and SwiftSpecialization,
@@ -205,7 +224,7 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
                 InternedNodeReferenceCache.shared.remove(for: machO)
             }
             if claims.demangleMemo {
-                MetadataReader.removeCache(for: machO)
+                SymbolicDemangler.removeCache(for: machO)
             }
         }
     }
@@ -225,6 +244,17 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
             isPrepared = false
             try await prepare()
         }
+    }
+
+    /// Installs the ObjC class hierarchies a host already indexed for this
+    /// image (evolution proposal `objc-ancestor-override-recovery`), so the
+    /// `override` recovery of ObjC-inherited members reads them instead of
+    /// the image's ObjC metadata a second time. Register before the classes
+    /// are indexed — they index lazily, on first print or browse — and the
+    /// library's own reader stays the fallback for any class the provider
+    /// answers `nil` about. Held weakly; evicted with the image's caches.
+    public func registerObjCClassHierarchyProvider(_ provider: any ObjCClassHierarchyProviding) {
+        ObjCClassHierarchyProviderStore.shared.register(provider, for: machO)
     }
 
     public func addSubIndexer(_ subIndexer: SwiftDeclarationIndexer<MachO>) {
@@ -345,7 +375,9 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
             .init(
                 symbolStore: !symbolIndexStore.contains(in: machO),
                 internedNames: !InternedNodeReferenceCache.shared.contains(in: machO),
-                demangleMemo: !MetadataReader.cacheExists(for: machO)
+                demangleMemo: !SymbolicDemangler.cacheExists(for: machO),
+                propertyWrapperCatalog: !PropertyWrapperTypeCatalogStore.shared.contains(in: machO),
+                objcAncestorResolver: !ObjCAncestorResolverStore.shared.contains(in: machO)
             )
         }
 
@@ -395,6 +427,58 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
         isPrepared = true
     }
 
+    /// Installs the configuration's ObjC member recovery options for the
+    /// image (the name-only override inference switch). Both the type pass
+    /// and the extension pass read the store, so a host that renders without
+    /// an indexer — `swift-section dump` — registers the same way.
+    /// Installs the two per-image consumers of the configured dependency
+    /// search paths: the property-wrapper catalog and — for a file, whose
+    /// superclass and category-target binds the ObjC reader cannot follow —
+    /// the ObjC ancestor resolver (evolution proposal
+    /// `objc-ancestor-dependency-closure`). Both take the SAME lazily
+    /// resolved closure: resolving it twice would index every search-path
+    /// cache twice. Search paths that fail to open are reported the way
+    /// `SwiftInterfaceBuilderDependencies` reports them, when the closure is
+    /// first resolved; an in-process image resolves through the loaded
+    /// images and needs no resolver.
+    private func registerDependencyClosureConsumers() {
+        guard let machOFile = machO as? MachOFile else {
+            PropertyWrapperTypeCatalogStore.shared.register(
+                PropertyWrapperTypeCatalog.make(root: machO, searchPaths: configuration.dependencySearchPaths),
+                for: machO
+            )
+            if let machOImage = machO as? MachOImage {
+                ObjCAncestorResolverStore.shared.register(ObjCAncestorResolver(inProcessRoot: machOImage), for: machO)
+            }
+            return
+        }
+        let searchPaths = configuration.dependencySearchPaths
+        let sharedClosure = SharedDependencyClosure { [weak eventDispatcher] in
+            let closure = DependencyClosure(root: machOFile, searchPaths: searchPaths, traversal: .transitive)
+            for loadFailure in closure.searchPathLoadFailures {
+                // The subject is the bare path for a path-carrying entry,
+                // as `SwiftInterfaceBuilderDependencies` reports it.
+                let subject: String = switch loadFailure.searchPath {
+                case .machOFile(let path), .dyldSharedCache(let path), .systemRoot(let path): path
+                case .systemDyldSharedCache: loadFailure.searchPath.description
+                }
+                eventDispatcher?.dispatch(.renderingDegraded(
+                    context: .init(source: .dependencyLoad, subject: subject),
+                    error: loadFailure.error
+                ))
+            }
+            return closure
+        }
+        PropertyWrapperTypeCatalogStore.shared.register(
+            PropertyWrapperTypeCatalog.make(root: machOFile) { sharedClosure.closure.images },
+            for: machO
+        )
+        ObjCAncestorResolverStore.shared.register(
+            ObjCAncestorResolver { sharedClosure.closure.images },
+            for: machO
+        )
+    }
+
     private func index() async throws {
         eventDispatcher.dispatch(.phaseTransition(phase: .indexing, state: .started))
 
@@ -411,6 +495,11 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
 
         do {
             eventDispatcher.dispatch(.phaseOperationStarted(phase: .indexing, operation: .typeIndexing))
+            // Wrapped-property recovery (`TypeDefinition.index(in:)`) asks this
+            // catalog whether a field's type is a wrapper from another image;
+            // install it with the configured search paths before any type is
+            // indexed, or the store would fall back to the system cache.
+            registerDependencyClosureConsumers()
             try await indexTypes()
             eventDispatcher.dispatch(.phaseOperationCompleted(phase: .indexing, operation: .typeIndexing))
         } catch {
@@ -536,15 +625,15 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
                 switch parentContext {
                 case .extension(let extensionContext):
                     guard let extendedContextMangledName = extensionContext.extendedContextMangledName else { continue }
-                    guard let extensionTypeNode = try MetadataReader.demangleType(for: extendedContextMangledName, in: machO).first(of: .type) else { continue }
-                    guard let extensionTypeKind = extensionTypeNode.typeKind else { continue }
+                    guard let extensionTypeNode = try SymbolicDemangler.demangleType(for: extendedContextMangledName, in: machO).first(of: .type) else { continue }
+                    guard let extensionTypeKind = try extendedTypeKind(of: extensionTypeNode, extendedContext: extendedContextMangledName) else { continue }
 
                     let extensionTypeName = TypeName(node: InternedNodeReferenceCache.shared.reference(interning: extensionTypeNode, in: machO), kind: extensionTypeKind)
 
                     var genericSignature: NodeReference?
 
                     if let currentRequirements = extensionContext.genericContext?.uniqueCurrentRequirements(in: machO), !currentRequirements.isEmpty {
-                        genericSignature = try MetadataReader.buildGenericSignature(for: currentRequirements, in: machO).map { InternedNodeReferenceCache.shared.reference(interning: $0, in: machO) }
+                        genericSignature = try SymbolicDemangler.buildGenericSignature(for: currentRequirements, in: machO).map { InternedNodeReferenceCache.shared.reference(interning: $0, in: machO) }
                     }
 
                     let extensionDefinition = try ExtensionDefinition(extensionName: extensionTypeName.extensionName, genericSignature: genericSignature, protocolConformance: nil, in: machO)
@@ -556,7 +645,7 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
                     extensionDefinition.types = [typeDefinition]
                     currentStorage.typeExtensionDefinitions[extensionDefinition.extensionName, default: []].append(extensionDefinition)
                 case .symbol(let symbol):
-                    guard let type = try MetadataReader.demangleType(for: symbol, in: machO)?.first(of: .type), let kind = type.typeKind else { continue }
+                    guard let type = try SymbolicDemangler.demangleType(for: symbol, in: machO)?.first(of: .type), let kind = type.typeKind else { continue }
                     let parentTypeName = TypeName(node: InternedNodeReferenceCache.shared.reference(interning: type, in: machO), kind: kind)
                     let extensionDefinition = try ExtensionDefinition(extensionName: parentTypeName.extensionName, genericSignature: nil, protocolConformance: nil, in: machO)
                     extensionDefinition.types = [typeDefinition]
@@ -569,6 +658,27 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
         currentStorage.allTypeDefinitions = currentModuleTypeDefinitions
 
         eventDispatcher.dispatch(.typeIndexingCompleted(result: SwiftIndexEvents.TypeIndexingResult(totalProcessed: currentStorage.types.count, successful: successfulCount, failed: failedCount, cImportedSkipped: cImportedCount, nestedTypes: nestedTypeCount, extensionTypes: extensionTypeCount)))
+    }
+
+    /// The kind a synthetic extension of the extended type `node` spells is
+    /// filed under (`ExtensionName.kind`, which a host such as RuntimeViewer
+    /// groups extensions by).
+    ///
+    /// The tree decides, except for a C typedef the importer promoted to a
+    /// nominal type: it demangles as a `typeAlias` whatever its descriptor
+    /// is (evolution proposal `type-import-info-identity`), and
+    /// `Node.typeKind`'s `.struct` fallback cannot tell a CF class from a
+    /// typedef struct — it filed SwiftUICore's `__C.AGSubgraphRef` extension
+    /// under structs once the name stopped being `__C.Subgraph`. The extended
+    /// context's descriptor can tell, and it is reachable exactly when the
+    /// mangling opens with a symbolic reference to it; when it is not, the
+    /// fallback stands. Pinned by `CImportedExtensionKindTests`.
+    private func extendedTypeKind(of node: Node, extendedContext mangledName: MangledName) throws -> TypeKind? {
+        if node.children.first?.kind == .typeAlias,
+           let descriptor = try SymbolicDemangler.extendedTypeContextDescriptor(forExtendedContext: mangledName, in: machO) {
+            return descriptor.kind
+        }
+        return node.typeKind
     }
 
     private func indexProtocols() async throws {
@@ -605,12 +715,12 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
                     if isRoot {
                         rootProtocolDefinitions[protocolName] = protocolDefinition
                     } else if let extensionContext = protocolDefinition.extensionContext, let extendedContextMangledName = extensionContext.extendedContextMangledName {
-                        guard let typeNode = try MetadataReader.demangleType(for: extendedContextMangledName, in: machO).first(of: .type) else { continue }
-                        guard let typeKind = typeNode.typeKind else { continue }
+                        guard let typeNode = try SymbolicDemangler.demangleType(for: extendedContextMangledName, in: machO).first(of: .type) else { continue }
+                        guard let typeKind = try extendedTypeKind(of: typeNode, extendedContext: extendedContextMangledName) else { continue }
                         let typeName = TypeName(node: InternedNodeReferenceCache.shared.reference(interning: typeNode, in: machO), kind: typeKind)
                         var genericSignature: NodeReference?
                         if let currentRequirements = extensionContext.genericContext?.uniqueCurrentRequirements(in: machO), !currentRequirements.isEmpty {
-                            genericSignature = try MetadataReader.buildGenericSignature(for: currentRequirements, in: machO).map { InternedNodeReferenceCache.shared.reference(interning: $0, in: machO) }
+                            genericSignature = try SymbolicDemangler.buildGenericSignature(for: currentRequirements, in: machO).map { InternedNodeReferenceCache.shared.reference(interning: $0, in: machO) }
                         }
                         let extensionDefinition = try ExtensionDefinition(extensionName: typeName.extensionName, genericSignature: genericSignature, protocolConformance: nil, in: machO)
                         extensionDefinition.protocols = [protocolDefinition]
@@ -702,7 +812,7 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
                     }
 
                     let conformanceAssociatedTypes = associatedType.map { [$0] } ?? []
-                    let extensionDefinition = try ExtensionDefinition(extensionName: typeName.extensionName, genericSignature: MetadataReader.buildGenericSignature(for: protocolConformance.conditionalRequirements, in: machO).map { InternedNodeReferenceCache.shared.reference(interning: $0, in: machO) }, protocolConformance: protocolConformance, conformingProtocolName: protocolName, associatedTypes: conformanceAssociatedTypes, resolvedAssociatedTypeWitnesses: resolvedWitnessProjections(of: conformanceAssociatedTypes), in: machO)
+                    let extensionDefinition = try ExtensionDefinition(extensionName: typeName.extensionName, genericSignature: SymbolicDemangler.buildGenericSignature(for: protocolConformance.conditionalRequirements, in: machO).map { InternedNodeReferenceCache.shared.reference(interning: $0, in: machO) }, protocolConformance: protocolConformance, conformingProtocolName: protocolName, associatedTypes: conformanceAssociatedTypes, resolvedAssociatedTypeWitnesses: resolvedWitnessProjections(of: conformanceAssociatedTypes), in: machO)
                     extensionDefinition.isRetroactive = protocolConformance.flags.isRetroactive
                     conformanceExtensionDefinitions[extensionDefinition.extensionName, default: []].append(extensionDefinition)
                     extensionCount += 1
@@ -768,6 +878,15 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
     /// while the Mach-O is still in hand — the record accessors cannot be
     /// resolved later by the snapshot layer. An unresolvable record is skipped
     /// (same tolerance as the printers' record collection).
+    ///
+    /// Opaque types are expanded before printing, the same as the printers
+    /// do. Printing the raw `opaqueType` node froze `opaque type symbolic
+    /// reference 0x<descriptor offset>.0` into every `some View` witness, and
+    /// since the diff layer folds this text into the `assocwitness:` payload
+    /// key and the offset moves with every build, two OS versions reported
+    /// every `Body` as modified. An availability-conditional thunk's other
+    /// branches ride along as `conditionalCandidates` (evolution proposal
+    /// `offline-opaque-accessor-thunk-resolution`).
     private func resolvedWitnessProjections(of associatedTypes: [AssociatedType]) -> [AssociatedTypeWitnessProjection] {
         var seenNames: Set<String> = []
         var projections: [AssociatedTypeWitnessProjection] = []
@@ -775,10 +894,26 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
             for record in associatedType.records {
                 guard let recordName = try? record.name(in: machO),
                       let mangledTypeName = try? record.substitutedTypeName(in: machO),
-                      let typeNode = try? MetadataReader.demangleType(for: mangledTypeName, in: machO)
+                      let typeNode = try? SymbolicDemangler.demangleType(for: mangledTypeName, in: machO)
                 else { continue }
                 guard seenNames.insert(recordName).inserted else { continue }
-                projections.append(AssociatedTypeWitnessProjection(name: recordName, substitutedTypeText: typeNode.print(using: .default)))
+                let resolution = typeNode.resolveOpaqueTypeCollectingConditionalCandidates(
+                    witnessMangledName: mangledTypeName,
+                    conformingTypeName: associatedType.conformingTypeName,
+                    in: machO
+                )
+                let conditionalCandidates = resolution.conditionalCandidates.map { candidate in
+                    ConditionalWitnessCandidate(
+                        availability: candidate.availability,
+                        candidateTypeText: candidate.candidateTypeNode.print(using: .default),
+                        substitutedTypeText: candidate.substitutedNode.print(using: .default)
+                    )
+                }
+                projections.append(AssociatedTypeWitnessProjection(
+                    name: recordName,
+                    substitutedTypeText: resolution.node.print(using: .default),
+                    conditionalCandidates: conditionalCandidates
+                ))
             }
         }
         return projections
@@ -833,35 +968,71 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
                 for (kind, memberSymbols) in memberSymbolsByKind {
                     switch kind {
                     case .allocator(inExtension: true):
-                        let allocators = DefinitionBuilder.allocators(for: memberSymbols.mapToDemangledSymbolWithOffset())
+                        let allocators = DefinitionBuilder.allocators(for: memberSymbols.mapToAnnotatedSymbols())
                         extensionDefinition.allocators.append(contentsOf: allocators)
                         memberCount += allocators.count
                     case .variable(inExtension: true, isStatic: false, isStorage: false):
-                        let variables = DefinitionBuilder.variables(for: memberSymbols.mapToDemangledSymbolWithOffset(), fieldNames: [], isGlobalOrStatic: false)
+                        let variables = DefinitionBuilder.variables(for: memberSymbols.mapToAnnotatedSymbols(), fieldNames: [], isGlobalOrStatic: false)
                         extensionDefinition.variables.append(contentsOf: variables)
                         memberCount += variables.count
                     case .function(inExtension: true, isStatic: false):
-                        let functions = DefinitionBuilder.functions(for: memberSymbols.mapToDemangledSymbolWithOffset(), isGlobalOrStatic: false)
+                        let functions = DefinitionBuilder.functions(for: memberSymbols.mapToAnnotatedSymbols(), isGlobalOrStatic: false)
                         extensionDefinition.functions.append(contentsOf: functions)
                         memberCount += functions.count
                     case .variable(inExtension: true, isStatic: true, _):
-                        let staticVariables = DefinitionBuilder.variables(for: memberSymbols.mapToDemangledSymbolWithOffset(), fieldNames: [], isGlobalOrStatic: true)
+                        let staticVariables = DefinitionBuilder.variables(for: memberSymbols.mapToAnnotatedSymbols(), fieldNames: [], isGlobalOrStatic: true)
                         extensionDefinition.staticVariables.append(contentsOf: staticVariables)
                         memberCount += staticVariables.count
                     case .function(inExtension: true, isStatic: true):
-                        let staticFunctions = DefinitionBuilder.functions(for: memberSymbols.mapToDemangledSymbolWithOffset(), isGlobalOrStatic: true)
+                        let staticFunctions = DefinitionBuilder.functions(for: memberSymbols.mapToAnnotatedSymbols(), isGlobalOrStatic: true)
                         extensionDefinition.staticFunctions.append(contentsOf: staticFunctions)
                         memberCount += staticFunctions.count
                     case .subscript(inExtension: true, isStatic: false):
-                        let subscripts = DefinitionBuilder.subscripts(for: memberSymbols.mapToDemangledSymbolWithOffset(), isStatic: false)
+                        let subscripts = DefinitionBuilder.subscripts(for: memberSymbols.mapToAnnotatedSymbols(), isStatic: false)
                         extensionDefinition.subscripts.append(contentsOf: subscripts)
                         memberCount += subscripts.count
                     case .subscript(inExtension: true, isStatic: true):
-                        let staticSubscripts = DefinitionBuilder.subscripts(for: memberSymbols.mapToDemangledSymbolWithOffset(), isStatic: true)
+                        let staticSubscripts = DefinitionBuilder.subscripts(for: memberSymbols.mapToAnnotatedSymbols(), isStatic: true)
                         extensionDefinition.staticSubscripts.append(contentsOf: staticSubscripts)
                         memberCount += staticSubscripts.count
                     default:
                         break
+                    }
+                }
+
+                // `@objc` / `@nonobjc` / `distributed` from the members' thunk
+                // symbols — the same evidence `TypeDefinition.index` applies to
+                // a type's own members; extension members never got it before.
+                extensionDefinition.applyThunkAttributes(symbolIndexStore: symbolIndexStore, typeName: name, typeNode: node, in: machO)
+
+                // `@objc @implementation` recognition (evolution proposal
+                // `objc-implementation-class-recognition`): an extension of a
+                // `__C` class that this image defines as a pure ObjC class object
+                // with Swift evidence behind it IS the class body.
+                if case .type(.class) = kind, let className = ObjCImplementationClasses.cImportedClassName(of: node) {
+                    if let facts = ObjCImplementationClasses.facts(forClassNamed: className, in: machO) {
+                        extensionDefinition.attachObjCImplementation(facts)
+                        eventDispatcher.dispatch(.objcImplementationClassRecognized(context: SwiftIndexEvents.ObjCImplementationClassContext(className: className, evidence: facts.evidence.description, isInferred: facts.evidence.isInferred, instanceVariableCount: facts.instanceVariables.count, memberCount: memberCount)))
+                    }
+                    // The class's ObjC method table (evolution proposals
+                    // `objc-ancestor-override-recovery` and
+                    // `objc-member-selector-recovery`): an `@implementation`
+                    // class has no Swift vtable, so the table is the only
+                    // evidence of `@objc`, `override` and explicit selectors —
+                    // and for a class this image does not define, the table
+                    // holds the image's categories on it (a Swift `extension
+                    // NSView` with `@objc` members). Nil when there is neither.
+                    if let table = ObjCMembers.table(forObjCClassNamed: className, in: machO) {
+                        extensionDefinition.applyObjCMembers(table)
+                    }
+                } else if case .type(.class) = kind, let qualifiedName = NodeTypeNaming.nominalQualifiedName(of: node.materialize()) {
+                    // A Swift class's own extension: its `@objc` members
+                    // compiled to a category on the class, which the table
+                    // folds in — `@objc` (stripped thunks or not), an
+                    // `override` of an ObjC-inherited member declared in the
+                    // extension, an explicit selector.
+                    if let table = ObjCMembers.table(forSwiftClassQualifiedName: qualifiedName, in: machO), !table.isEmpty {
+                        extensionDefinition.applyObjCMembers(table)
                     }
                 }
 
@@ -934,6 +1105,33 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
             }
         }
 
+        // An `@objc @implementation` class none of whose members left a symbol
+        // (a fully stripped image — the inferred tier's home turf) has no
+        // extension for the loop above to recognize, yet the ObjC side still
+        // knows it: give it an empty extension carrying the facts, so the
+        // interface shows the class body and its stored properties instead of
+        // nothing. Same-name definitions from the other producers merge into
+        // it in `unifyExtensionContainers`.
+        for facts in ObjCImplementationClasses.all(in: machO) {
+            let classNode = Node.createTransient(kind: .class, children: [
+                Node.createTransient(kind: .module, contents: .text(CImportedModuleNames.objectiveC)),
+                Node.createTransient(kind: .identifier, contents: .text(facts.className)),
+            ])
+            let typeNode = InternedNodeReferenceCache.shared.reference(interning: Node.createTransient(kind: .type, child: classNode), in: machO)
+            let extensionName = ExtensionName(node: typeNode, kind: .type(.class))
+            guard typeExtensionDefinitions[extensionName] == nil else { continue }
+            do {
+                let extensionDefinition = try ExtensionDefinition(extensionName: extensionName, genericSignature: nil, protocolConformance: nil, in: machO)
+                extensionDefinition.attachObjCImplementation(facts)
+                typeExtensionDefinitions[extensionName] = [extensionDefinition]
+                typeExtensionCount += 1
+                eventDispatcher.dispatch(.objcImplementationClassRecognized(context: SwiftIndexEvents.ObjCImplementationClassContext(className: facts.className, evidence: facts.evidence.description, isInferred: facts.evidence.isInferred, instanceVariableCount: facts.instanceVariables.count, memberCount: 0)))
+            } catch {
+                eventDispatcher.dispatch(.extensionCreationFailed(targetName: facts.className, error: error))
+                failedExtensions += 1
+            }
+        }
+
         for (extensionName, typeExtensionDefinition) in typeExtensionDefinitions {
             currentStorage.typeExtensionDefinitions[extensionName, default: []].append(contentsOf: typeExtensionDefinition)
         }
@@ -944,6 +1142,12 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
 
         currentStorage.typeAliasExtensionDefinitions = typeAliasExtensionDefinitions
 
+        // Surfaced here rather than logged where they happened: the index is
+        // built in SwiftInspection, below the event layer.
+        for skippedClass in ObjCImplementationClasses.skipped(in: machO) {
+            eventDispatcher.dispatch(.objcImplementationClassSkipped(className: skippedClass.className, reason: skippedClass.reason))
+        }
+
         eventDispatcher.dispatch(.extensionIndexingCompleted(result: SwiftIndexEvents.ExtensionIndexingResult(typeExtensions: typeExtensionCount, protocolExtensions: protocolExtensionCount, typeAliasExtensions: typeAliasExtensionCount, failed: failedExtensions)))
     }
 
@@ -951,8 +1155,8 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
         @Dependency(\.symbolIndexStore)
         var symbolIndexStore
 
-        currentStorage.globalVariableDefinitions = DefinitionBuilder.variables(for: symbolIndexStore.globalSymbols(of: .variable(isStorage: false), .variable(isStorage: true), in: machO).mapToDemangledSymbolWithOffset(), fieldNames: [], isGlobalOrStatic: true)
-        currentStorage.globalFunctionDefinitions = DefinitionBuilder.functions(for: symbolIndexStore.globalSymbols(of: .function, in: machO).mapToDemangledSymbolWithOffset(), isGlobalOrStatic: true)
+        currentStorage.globalVariableDefinitions = DefinitionBuilder.variables(for: symbolIndexStore.globalSymbols(of: .variable(isStorage: false), .variable(isStorage: true), in: machO).mapToAnnotatedSymbols(), fieldNames: [], isGlobalOrStatic: true)
+        currentStorage.globalFunctionDefinitions = DefinitionBuilder.functions(for: symbolIndexStore.globalSymbols(of: .function, in: machO).mapToAnnotatedSymbols(), isGlobalOrStatic: true)
     }
 
     // MARK: - Extension container unification (evolution proposal 0007)
@@ -960,7 +1164,7 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
     /// The (protocol, where-clause, retroactive) identity that decides whether
     /// two definitions filed under one `ExtensionName` are the same source
     /// container. Structurally keyed: the definitions' nodes may come from
-    /// different stores (the interned image store vs `MetadataReader` minis),
+    /// different stores (the interned image store vs `SymbolicDemangler` minis),
     /// where store-identity equality never matches.
     private struct ExtensionContainerIdentity: Hashable {
         let protocolNodeKey: StructuralNodeReferenceKey?
@@ -1291,7 +1495,7 @@ private enum PerImageCacheEvictionRegistry {
     ///
     /// Claimed PER CACHE rather than once for all three: the symbol store is
     /// the only one an indexer's `prepare()` necessarily builds. The
-    /// interned-name store and the `MetadataReader` demangle memo are also
+    /// interned-name store and the `SymbolicDemangler` demangle memo are also
     /// populated by SwiftLayout, `SwiftDeclarationRendering` and
     /// `SwiftSpecialization` — a "dump the image, then build its interface"
     /// sequence fills both without ever touching the symbol store. Under a
@@ -1302,6 +1506,16 @@ private enum PerImageCacheEvictionRegistry {
         var symbolStore: Bool = false
         var internedNames: Bool = false
         var demangleMemo: Bool = false
+        /// The per-image `PropertyWrapperTypeCatalog` (wrapped-property
+        /// recovery's cross-image lookups). Registered by `prepare()` with
+        /// the indexer's own search paths, so the indexer that installed it
+        /// is the one to evict it.
+        var propertyWrapperCatalog: Bool = false
+        /// The per-image `ObjCAncestorResolver` (the ObjC ancestor chain's
+        /// cross-image lookups). Registered by `prepare()` alongside the
+        /// catalog, over the same dependency closure, and evicted on the
+        /// same terms.
+        var objcAncestorResolver: Bool = false
 
         static let none = Claims()
 
@@ -1309,6 +1523,8 @@ private enum PerImageCacheEvictionRegistry {
             symbolStore = symbolStore || other.symbolStore
             internedNames = internedNames || other.internedNames
             demangleMemo = demangleMemo || other.demangleMemo
+            propertyWrapperCatalog = propertyWrapperCatalog || other.propertyWrapperCatalog
+            objcAncestorResolver = objcAncestorResolver || other.objcAncestorResolver
         }
 
         /// Pairs the two claims that cannot be honoured independently.

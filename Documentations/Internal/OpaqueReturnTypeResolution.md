@@ -8,6 +8,8 @@
 > 是决策记录（为什么做、放弃了什么）；
 > [OpaquePrimaryAssociatedTypeAttribution.md](OpaquePrimaryAssociatedTypeAttribution.md)
 > 是实现说明（最终代码结构、与提案的差异）。本文不重复它们，聚焦原理与方法。
+> 官方对这套机制的概念说明（opaque 结果泛型签名、opaque archetype、`@_opaqueReturnTypeOf`、descriptor 的运行时角色）见
+> [References/SwiftGenericsOpaqueResultTypes.md](References/SwiftGenericsOpaqueResultTypes.md)（《Compiling Swift Generics》对应章节的中译）。
 > 文中所有字节级素材取自 fixture `SymbolTestsCore` 的真实取证（2026-08-24 会话）。
 
 ---
@@ -100,6 +102,28 @@ symbolic reference：字符串里的 `\x01`（直接）/ `\x02`（间接）+ 4 �
 descriptor（或其 GOT 槽）。本模块协议（ProtocolTest）走 `\x02<ref>`；stdlib 协议直接用
 标准替换字母（`ST` = Sequence，`Sl`/`Sk` 集合系，`SQ` = Equatable…）。
 
+### 1.3 一个 opaque 参数可以一条约束都没有
+
+`some Sendable` 在 descriptor 里只剩下参数本身：marker protocol（Sendable、Copyable、Escapable、BitwiseCopyable）从不进 generic requirements（`swift/lib/IRGen/GenMeta.cpp` 里 "Marker protocols do not record generic requirements at all"），`some Any` 本来就没有约束，`some AnyObject` 只有一条 layout 约束（kind `0x1F`），`SwiftInterfaceBuilderOpaqueTypeProvider` 不读 layout。这三种形状里 `numRequirements` 与父级相同，全部是继承来的。
+
+因此 provider 定位参数**只能按坐标，不能按位置**：opaque 自己的参数全在同一深度，下标就是它在声明里的序号（`Qr` 是 0，`QR<n>` 是 n + 1，见 `ASTMangler::appendOpaqueTypeArchetype`）。深度从 descriptor 算：父级每让参数总数增长一次算一层（非泛型嵌套类型不占层，与运行时 `_gatherGenericParameterCounts` 一致），声明自己泛型再加一层（type 节点套着 `dependentGenericType`）。**不要**从声明的 mangled 签名数层——`swift-demangle -expand` 看 `Outer<Element>.generic<Argument>() -> some Equatable` 的 `QOMQ` 符号，签名里只有一个 `DependentGenericParamCount`，外层类型那一层被 `appendGenericSignatureParts` 省掉了；也不要用 `GenericContext.depth`，它对每个带泛型上下文的父级都加一。
+
+查不到就返回 nil，printer 打出裸 `some`。这是有意的：`some Any` 会把 `some Sendable` 写成一个不对的类型，裸 `some` 至少不撒谎，而且与 `swift-section interface` 不带 `--parse-opaque-return-type`（默认）时的输出形态一致。回归测试是 `Tests/SwiftInterfaceTests/OpaqueParameterWithoutProtocolRequirementTests.swift`（2026-09-18，RuntimeViewer 批量导出 PhotosUIFoundation 在 `PhotosGroupingItemListManager.GroupItem.value` 上崩溃的复现）。
+
+### 1.4 第二种约束形态：superclass（`some Base`）
+
+`some` 后面的约束类型是类时，descriptor 里记的不是 protocol 约束，而是一条 kind `2`（baseClass）的约束：subject 仍是那个 opaque 参数，content 是父类的 mangled 类型名，与 sameType 的 content 同形。`some Base & P` 则是一条 baseClass 加一条 protocol。这是官方文档明确列出的两种约束形态之一（[译文](References/SwiftGenericsOpaqueResultTypes.md)「opaque 结果泛型签名」第 3 条），却一直没被读：`OpaqueType.requirements(in:)` 只放行 `.type` 内容里能找到 same-type 节点的约束，provider 也只按 `isProtocol` 收，于是 `some Base` 打成裸 `some`、`some Base & P` 打成 `some P`，父类无声消失。fixture 里没有一个带类约束的 `some`，基线从没红过，2026-09-18 用探针 dylib 对拍才发现。现在两处都放行 baseClass，渲染时父类排在组合最前面，与编译器自己的 `.swiftinterface` 拼法一致（`some Probe.Base & Probe.P`）。回归测试 `Tests/SwiftInterfaceTests/OpaqueConstraintRenderingTests.swift`。
+
+`some AnyObject` 仍然是裸 `some`：它是 layout 约束（kind `0x1F`），不在这次的范围内。
+
+### 1.5 展不开的引用怎么拼：`@_opaqueReturnTypeOf`
+
+witness 或签名里引用**别的声明**的 opaque 类型（`Qo` 节点：owner declaration 的名字或描述符指针 + 序号 + 泛型实参表）而 rewriter 展不开时——描述符所在镜像没在搜索路径里、thunk 读不出——以前留的是 demangler 的 `<<opaque return type of …>>.0`，不是合法 Swift。Swift 引用一个已有 opaque archetype 只有一种语法，textual interface 的 `@_opaqueReturnTypeOf("owner 的 mangling", 序号) __<实参>`（[译文](References/SwiftGenericsOpaqueResultTypes.md)「Textual interfaces」一节），2026-09-18 起改用它兜底（提案 [0045-opaque-reference-spelling-and-member-projection](../Evolutions/0045-opaque-reference-spelling-and-member-projection.md)）。
+
+实现在 `SwiftDeclarationRendering/OpaqueReferenceSpelling.swift`：`resolveOpaqueType*` 出口处把残留的 `opaqueType` 节点改写成一片 `.identifier` 叶子，两套打印器（上游 `NodePrinter`、`SwiftPrinting`）对 `.type(.identifier)` 都原样打字，所以 indexer 冻结的 witness 文本、dump 的宿主 resolver、interface 三条路一致。mangling 由名字节点重新 mangle 得到（`_$s` 去掉前导下划线），指针形式先读描述符、走 `demangleContext` 建名字，再不行取描述符自己的符号；实参按 depth 顺序拍平；引用是 dependent member 的 base 时加括号 `(@_opaqueReturnTypeOf(…) __<X>).Element`，与编译器一致。开关 `OpaqueReferenceSpelling`：`.textualInterface`（interface、indexer 默认）只写 attribute；`.annotated`（`AssociatedTypeDumper`）在后面附 `/* owner 的 demangle 文本 */`。签名里按名字引用的（符号 demangle 出来的永远是名字形式）在 `SwiftPrinting.printOpaqueType` 里同样拼成 attribute。
+
+一个容易误判的点：编译器自己的 `.swiftinterface` 写的不一定是同一个引用。fixture 里 `Outer.body: some Equatable { helper() }` 的 witness `B`，编译器写 `@_opaqueReturnTypeOf("$s11ProbeClient5OuterV4bodyQrvp", 0) __`——`body` 自己声明的 opaque；二进制的 witness 记录已经被 IRGen 代入一层（同模块可见），指向 `helper()` 的。拼法相同，层级差一。`CrossImageOpaqueReferenceTests` 因此用显式期望串，`ProjectedOpaqueMemberWitnessTests` 的 client 自己没有 opaque，才能和编译器的 interface 逐字比。
+
 ---
 
 ## 2. 协议、关联类型、约束与 opaque 的关系
@@ -153,9 +177,13 @@ anchor 的两个关键脾气：
 
 第二个 opaque 的约束（表中 #1）是 `x == τ_1_1.[ProtocolTest]Body`——**外层参数在左、
 opaque 的 dependent member 在右**。这是 `some ProtocolTest<A>` 脱糖后
-`τ_1_1.Body == A` 的规范化形态（哪边当 subject 由 canonical ordering 决定）。解析时要
+`τ_1_1.Body == A` 的规范化形态（哪边当 subject 有确定规则，见下）。解析时要
 识别这个方向：约束真正「属于」右边的 τ_1_1，尖括号参数是左边的 `A`（provider 里经
 `SubstitutionMap.rootOriginal` 还原，因为可能有链式替换）。
+
+哪边在左不是随机的。Requirement Machine 把一个 same-type 连通分量按类型参数序排好，取最小的那个当代表元放在左边，其余成员依次挂到右边（`lib/AST/RequirementMachine/RequirementBuilder.cpp` 的 `ConnectedComponent::buildRequirements`）；而 opaque 结果泛型签名用的是**加权类型参数序**——外层参数权重 0、opaque 自己的参数权重 1，先比权重再比长度，所以外层那一侧永远是代表元。这条规则保证的不只是 `A == τ_1_1.Body` 这种裸参数在左：外层的 dependent member 也在左，`some Sequence<T.A.A>` 写进 descriptor 是 `τ_0_0.A.A == τ_1_0.Element`，即使它比右边长（这正是加权序被引入的原因，Swift issue #59391）。provider 的「右边是 dependent member 就走反向 pin」判据靠的就是这一点。原理见[译文](References/SwiftGenericsOpaqueResultTypes.md)「Opaque 泛型环境」一节。
+
+顺带一个打印陷阱：这条约束左边的 `τ_0_0.A.A` 在 mangling 里每一步都带着声明它的协议（`τ_0_0.[N]A.[N]A`），上游 `NodePrinter` 会原样打成 `A.Probe.N.A.Probe.N.A`。provider 打印实参前先 `strippingAssociatedTypeProtocolQualifiers()`（2026-09-18 修），本库自己的 `SwiftPrinting` 打印器本来就不打这个限定。
 
 ### 2.4 primary 与否，运行时不知道
 
@@ -173,6 +201,14 @@ SE-0346 的 primary associated types **不产生任何运行时元数据**：pro
 descriptor 里协议 requirement 的顺序（#5 Equatable、#6 Sequence）是 canonical 排序，
 不是源码顺序（源码是 `Sequence<[A]> & Equatable`）。输出 `Equatable & Sequence<[A]>`
 不是 bug，源码顺序**不可恢复**，别试图修。
+
+### 2.6 opaque archetype 的 dependent member：按 witness 记录投影
+
+owner declaration 在开了 library evolution 的另一个模块里时，client 的 witness 可以是 opaque archetype 的**成员**：`Source` 协议要求 `Element == Output.Element`，`Output` 由 `some IteratorProtocol` 推断出来，`Element` 就是 `(↻τ).Element`，mangling 是 `Qo` 后跟 `Qx`（`ASTMangler::appendOpaqueTypeArchetype` 的 dependent member 分支）。展开 `Qo` 之后剩下 `dependentMemberType(IndexingIterator<[Int]>, [IteratorProtocol]Element)`，以前就停在这里打成 `Swift.IndexingIterator<[Swift.Int]>.Element`；官方的「Map type parameter into opaque generic environment」算法第 3 步会把它化成 `Int`。
+
+2026-09-18 起 `OpaqueTypeRewriter` 在访问 `dependentMemberType` 且 base 已是具体 nominal 时做这一步投影：去 base 对 anchor protocol 的 conformance 的 `__swift5_assocty` 记录里取 witness，代入 base 的泛型实参，再在声明该 conformance 的镜像里递归展开（witness 自己可能又是 opaque 或另一个 dependent member，`IndexingIterator.Element` 是 `Elements.Element`，代入后变成 `[Int].Element`，第二跳才到 `Int`）。查找复用 `SwiftLayout` 的 `ImageUniverse.resolveAssociatedTypeWitness`（`DependentMemberTypeBridge` 算布局用的同一份索引），新入口 `ImageUniverse.projectedAssociatedTypeWitness(base:associatedTypeReference:)` 返回节点；universe 按根镜像与搜索路径懒建、缓存在 `DependentMemberProjection` 里，搜索路径 = 按名字展开用的那组 + 宿主 cache（stdlib 的记录在那里；CLI 给了 `--dependency-search-path` 时 thunk resolver 的路径里没有 cache，投影自己补上）。进程内走 `ImageUniverse.dependencyClosure(root: MachOImage)`。
+
+三条边界：base 还是泛型参数（`A.Element`）不碰，cheap 判断在建 universe 之前；关联类型引用没带 anchor protocol 不碰（IRGen mangle 的引用都带，不值得为它扫全部 conformance）；递归共用 opaque 展开的嵌套上限。每一跳记进 `OpaqueTypeResolution.projectedMembers`，dump 在 `typealias` 上方打 `Element is projected through associated type witnesses:` 加逐跳一行，interface 只打化简后的类型。测试：`ProjectedOpaqueMemberWitnessTests`（离线、进程内、账本、无搜索路径时的 `(@_opaqueReturnTypeOf(…) __<Client>).Element` 拼法逐字等于编译器 interface）、`OpaqueWitnessDumpAnnotationTests`。
 
 ---
 
@@ -312,10 +348,15 @@ swift run --scratch-path <scratch> swift-section interface --parse-opaque-return
 ### 4.6 第六步：对照权威来源
 
 - **编译器/运行时行为**（约束怎么最小化、什么会塌缩、descriptor 怎么 emit）：本机
-  Swift 源码树 `/Volumes/SwiftProjects/swift-project/swift`（`swift-6.3.2-RELEASE`）。
-  关键位置：`lib/AST/RequirementMachine/`（最小化与 canonical anchor）、
-  `lib/IRGen/GenReflection.cpp`（requirement 编码）、`include/swift/ABI/Metadata.h`
-  （descriptor 布局）、`docs/ABI/Mangling.rst`。
+  Swift 源码树 `/Volumes/SwiftProjects/swift-project/swift`（现为 `swift-6.4.0-RELEASE`）。
+  关键位置：`lib/AST/RequirementMachine/`（最小化与 canonical anchor；`RequirementBuilder.cpp`
+  决定 same-type 哪边在左）、`lib/IRGen/GenReflection.cpp`（requirement 编码）、
+  `lib/IRGen/GenMeta.cpp`（`OpaqueTypeDescriptorBuilder`：underlying argument 排布与哪些约束占 witness table 槽）、
+  `include/swift/ABI/Metadata.h`（descriptor 布局）、`docs/ABI/Mangling.rst`。
+- **官方的概念说明**：《Compiling Swift Generics》的「Opaque Result Types」一章
+  （源码树 `docs/Generics/chapters/opaque-result-types.tex`）讲清了 opaque 结果泛型签名、
+  opaque archetype 与替换表、`@_opaqueReturnTypeOf` 语法和 descriptor 的运行时角色，
+  本仓库有[中译](References/SwiftGenericsOpaqueResultTypes.md)。
 - **stdlib 协议的 primary / refine 事实**：源码树 `stdlib/public/core/*.swift` grep
   `^public protocol \w+<`，或 SDK 的 `Swift.swiftmodule/*.swiftinterface`。注意
   Concurrency 协议 mangle 在 `Swift` 模块名下（`$sSciMp` → `Swift.AsyncSequence`），
@@ -336,3 +377,12 @@ swift run --scratch-path <scratch> swift-section interface --parse-opaque-return
   和源码逐字比对前，先想清楚哪些差异是 canonical 化的合法结果。
 - **descriptor 同形不可强分**：塌缩 pin 与未 pin 同形（§2.2/§3.3）是这个领域的硬边界。
   遇到「两种源码编译出相同字节」的情形，解析端只能选边并记录，不要发明启发式硬分。
+- **上游 demangler 的 `*BuilderOnly` 打印选项是给「类型名」用的**：`interfaceTypeBuilderOnly` /
+  `opaqueTypeBuilderOnly` 带 `removeBoundGeneric`（`Foo<Int>` 打成 `Foo`），且上游 `NodePrinter`
+  会把关联类型的协议限定原样打出来（`A.Probe.N.A`）。拿它们打一个**完整类型**就同时出这两种错——
+  2026-09-18 之前 provider 把 `some Sequence<GenericBase<Int>>` 打成 `some Sequence<GenericBase>`、
+  `Set<Int>` 打成 `Swift.Set`。实参与父类现在用去掉 `removeBoundGeneric` 的选项打印，并先
+  `strippingAssociatedTypeProtocolQualifiers()`；本库自己的 `SwiftPrinting` 打印器不在此列。
+- **provider 之前还有一道过滤**：`OpaqueType.requirements(in:)` 先把 descriptor 的约束与函数符号
+  签名里已有的去重，再交给 provider。它按「`.type` 内容里找得到 same-type 节点」放行，会把同样是
+  `.type` 内容的 baseClass 约束一并丢掉——查「约束读不到」先看这里，再看 provider。

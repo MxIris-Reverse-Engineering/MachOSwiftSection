@@ -2,6 +2,7 @@ import Foundation
 import MachOKit
 import MachOBase
 
+@LocatableLayoutWrapping
 public struct FieldDescriptor: ResolvableLocatableLayoutWrapper {
     public struct Layout: LayoutProtocol {
         public let mangledTypeName: RelativeDirectPointer<MangledName>
@@ -10,15 +11,6 @@ public struct FieldDescriptor: ResolvableLocatableLayoutWrapper {
         public let fieldRecordSize: UInt16
         public let numFields: UInt32
     }
-
-    public let offset: Int
-
-    public var layout: Layout
-
-    public init(layout: Layout, offset: Int) {
-        self.offset = offset
-        self.layout = layout
-    }
 }
 
 extension FieldDescriptor {
@@ -26,11 +18,11 @@ extension FieldDescriptor {
 }
 
 extension FieldDescriptor {
-    public func mangledTypeName<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> MangledName {
+    public func mangledTypeName(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> MangledName {
         return try layout.mangledTypeName.resolve(from: offset(of: \.mangledTypeName), in: machO)
     }
 
-    public func records<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> [FieldRecord] {
+    public func records(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> [FieldRecord] {
         guard layout.fieldRecordSize != 0 else { return [] }
         let offset = offset + MemoryLayout<FieldDescriptor.Layout>.size
         return try machO.readWrapperElements(offset: offset, numberOfElements: layout.numFields.cast())
@@ -52,11 +44,11 @@ extension FieldDescriptor {
 // MARK: - ReadingContext Support
 
 extension FieldDescriptor {
-    public func mangledTypeName<Context: ReadingContext>(in context: Context) throws -> MangledName {
+    public func mangledTypeName(in context: some ReadingContext) throws -> MangledName {
         return try layout.mangledTypeName.resolve(at: try context.addressFromOffset(offset(of: \.mangledTypeName)), in: context)
     }
 
-    public func records<Context: ReadingContext>(in context: Context) throws -> [FieldRecord] {
+    public func records(in context: some ReadingContext) throws -> [FieldRecord] {
         guard layout.fieldRecordSize != 0 else { return [] }
         let offset = offset + MemoryLayout<FieldDescriptor.Layout>.size
         return try context.readWrapperElements(at: try context.addressFromOffset(offset), numberOfElements: layout.numFields.cast())

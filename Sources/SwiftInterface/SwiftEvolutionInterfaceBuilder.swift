@@ -28,7 +28,7 @@ import Semantic
 /// See ``AnySwiftEvolutionInterfaceBuilder`` for the pipeline's semantics
 /// (union interface, lifecycle annotations, annotation-fact sourcing).
 @available(macOS 14.0, iOS 17.0, tvOS 17.0, watchOS 10.0, *)
-public final class SwiftEvolutionInterfaceBuilder<each MachO: FieldLayoutRenderable>: Sendable {
+public final class SwiftEvolutionInterfaceBuilder<each MachO: MachOFieldLayoutRenderable>: Sendable {
     /// The type-erased core every entry point delegates to. Exposed so a
     /// pack-typed builder can be handed to API that takes the erased form.
     public let erased: AnySwiftEvolutionInterfaceBuilder

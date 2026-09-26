@@ -5,11 +5,11 @@ import Demangling
 @_spi(Internals) import SwiftInspection
 
 extension ContextDescriptorWrapper {
-    package func dumpName<MachO: MachOSwiftSectionRepresentableWithCache>(using options: DemangleOptions, in machO: MachO) throws -> SemanticString {
+    package func dumpName(using options: DemangleOptions, in machO: some MachOSwiftSectionRepresentableWithCache) throws -> SemanticString {
         try dumpNameNode(in: machO).printSemantic(using: options)
     }
 
-    package func dumpNameNode<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> Node {
-        try MetadataReader.demangleContext(for: self, in: machO)
+    package func dumpNameNode(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> Node {
+        try SymbolicDemangler.demangleContext(for: self, in: machO)
     }
 }

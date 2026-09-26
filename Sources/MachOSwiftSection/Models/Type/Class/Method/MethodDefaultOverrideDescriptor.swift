@@ -2,37 +2,28 @@ import Foundation
 import MachOKit
 import MachOBase
 
+@LocatableLayoutWrapping
 public struct MethodDefaultOverrideDescriptor: ResolvableLocatableLayoutWrapper {
     public struct Layout: LayoutProtocol {
         public let replacement: RelativeMethodDescriptorPointer
         public let original: RelativeMethodDescriptorPointer
         public let implementation: RelativeDirectRawPointer
     }
-
-    public var layout: Layout
-
-    public let offset: Int
-
-    public init(layout: Layout, offset: Int) {
-        self.layout = layout
-        self.offset = offset
-    }
 }
 
 extension MethodDefaultOverrideDescriptor {
-    public func originalMethodDescriptor<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> SymbolOrElement<MethodDescriptor>? {
+    public func originalMethodDescriptor(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> SymbolOrElement<MethodDescriptor>? {
         return try layout.original.resolve(from: offset(of: \.original), in: machO).asOptional
     }
 
-    public func replacementMethodDescriptor<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> SymbolOrElement<MethodDescriptor>? {
+    public func replacementMethodDescriptor(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> SymbolOrElement<MethodDescriptor>? {
         return try layout.replacement.resolve(from: offset(of: \.replacement), in: machO).asOptional
     }
 
     /// File offset of the default-override implementation, or `nil` for a
     /// null pointer. See `MethodDescriptor.implementationOffset`.
     public var implementationOffset: Int? {
-        guard layout.implementation.isValid else { return nil }
-        return layout.implementation.resolveDirectOffset(from: offset(of: \.implementation))
+        resolvedDirectOffset(from: \.implementation)
     }
 }
 
@@ -49,11 +40,11 @@ extension MethodDefaultOverrideDescriptor {
 // MARK: - ReadingContext Support
 
 extension MethodDefaultOverrideDescriptor {
-    public func originalMethodDescriptor<Context: ReadingContext>(in context: Context) throws -> SymbolOrElement<MethodDescriptor>? {
+    public func originalMethodDescriptor(in context: some ReadingContext) throws -> SymbolOrElement<MethodDescriptor>? {
         return try layout.original.resolve(at: try context.addressFromOffset(offset(of: \.original)), in: context).asOptional
     }
 
-    public func replacementMethodDescriptor<Context: ReadingContext>(in context: Context) throws -> SymbolOrElement<MethodDescriptor>? {
+    public func replacementMethodDescriptor(in context: some ReadingContext) throws -> SymbolOrElement<MethodDescriptor>? {
         return try layout.replacement.resolve(at: try context.addressFromOffset(offset(of: \.replacement)), in: context).asOptional
     }
 

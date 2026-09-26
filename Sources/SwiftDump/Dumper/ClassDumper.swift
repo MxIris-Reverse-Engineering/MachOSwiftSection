@@ -7,9 +7,10 @@ import Dependencies
 import OrderedCollections
 @_spi(Internals) import MachOSymbols
 @_spi(Internals) import SwiftInspection
+import SwiftThunkAnalysis
 import SwiftDeclarationRendering
 
-package struct ClassDumper<MachO: FieldLayoutRenderable>: TypedDumper {
+package struct ClassDumper<MachO: MachOFieldLayoutRenderable>: TypedDumper {
     package typealias Dumped = Class
 
     package typealias Metadata = ClassMetadataObjCInterop
@@ -38,6 +39,16 @@ package struct ClassDumper<MachO: FieldLayoutRenderable>: TypedDumper {
 
     private var demangleResolver: DemangleResolver {
         configuration.demangleResolver
+    }
+
+    /// The class's ObjC ancestor chain for the header comment: the same table
+    /// the member sections annotate from, looked up once more here because the
+    /// header prints before the member loop computes its context node.
+    private var objcAncestorChainHierarchy: ObjCClassHierarchy? {
+        guard let contextNode = try? SymbolicDemangler.demangleContext(for: .type(.class(dumped.descriptor)), in: machO),
+              let qualifiedName = NodeTypeNaming.nominalQualifiedName(ofDemangledRoot: contextNode)
+        else { return nil }
+        return ObjCMembers.table(forSwiftClassQualifiedName: qualifiedName, in: machO)?.hierarchy
     }
 
     package var declaration: SemanticString {
@@ -78,7 +89,7 @@ package struct ClassDumper<MachO: FieldLayoutRenderable>: TypedDumper {
         get throws {
             guard dumped.descriptor.isActor else { return [] }
 
-            let currentTypeNode = try MetadataReader.demangleContext(for: .type(.class(dumped.descriptor)), in: machO)
+            let currentTypeNode = try SymbolicDemangler.demangleContext(for: .type(.class(dumped.descriptor)), in: machO)
             let currentTypeName = currentTypeNode.print(using: .interfaceTypeBuilderOnly)
 
             var nodes: Set<StructuralNodeReferenceKey> = []
@@ -111,7 +122,7 @@ package struct ClassDumper<MachO: FieldLayoutRenderable>: TypedDumper {
             if let superclassMangledName = try dumped.descriptor.superclassTypeMangledName(in: machO) {
                 Standard(":")
                 Space()
-                try await demangleResolver.resolve(for: MetadataReader.demangleType(for: superclassMangledName, in: machO))
+                try await demangleResolver.resolve(for: SymbolicDemangler.demangleType(for: superclassMangledName, in: machO))
                 if hasInvertedProtocols {
                     Standard(",")
                     Space()
@@ -159,7 +170,7 @@ package struct ClassDumper<MachO: FieldLayoutRenderable>: TypedDumper {
             // be node-matched exactly like the member loops in `members`
             // (issue #115). A context that cannot be demangled falls back to
             // the name-only (merged) lookup rather than dropping evidence.
-            let finalRecoveryContextNode = canRecoverFinalFields ? try? MetadataReader.demangleContext(for: .type(.class(dumped.descriptor)), in: machO) : nil
+            let finalRecoveryContextNode = canRecoverFinalFields ? try? SymbolicDemangler.demangleContext(for: .type(.class(dumped.descriptor)), in: machO) : nil
             let vtableAccessorNames = canRecoverFinalFields ? vtableAccessorFieldNames(interfaceNameString: finalRecoveryInterfaceName, contextNode: finalRecoveryContextNode) : []
             let storedAccessorNames = canRecoverFinalFields ? storedAccessorFieldNames(interfaceNameString: finalRecoveryInterfaceName, contextNode: finalRecoveryContextNode) : []
             for (offset, fieldRecord) in try dumped.descriptor.fieldDescriptor(in: machO).records(in: machO).offsetEnumerated() {
@@ -213,6 +224,16 @@ package struct ClassDumper<MachO: FieldLayoutRenderable>: TypedDumper {
 
             Standard("{")
 
+            // The ObjC ancestor chain (evolution proposal
+            // `objc-ancestor-override-recovery`) right under the header, on a
+            // line of its own — whether or not any member follows.
+            if let hierarchy = objcAncestorChainHierarchy, !hierarchy.ancestors.isEmpty {
+                BreakLine()
+                Indent(level: 1)
+                Comment(ObjCMemberRendering.ancestorChainComment(for: hierarchy))
+                BreakLine()
+            }
+
             try await fields
 
             let distributedFunctionNodes = (try? self.distributedFunctionNodes) ?? []
@@ -226,9 +247,8 @@ package struct ClassDumper<MachO: FieldLayoutRenderable>: TypedDumper {
                     configuration.vtableOffsetComment(slotOffset: vtableBaseOffset + offset.index)
                 }
 
-                if configuration.printMemberAddress, !descriptor.implementation.isNull {
-                    let implOffset = descriptor.implementation.resolveDirectOffset(from: descriptor.offset(of: \.implementation))
-                    configuration.memberAddressComment(offset: implOffset, addressString: machO.addressString(forOffset: implOffset))
+                if configuration.printMemberAddress, let implementationOffset = descriptor.implementationOffset {
+                    configuration.memberAddressComment(offset: implementationOffset, addressString: machO.addressString(forOffset: implementationOffset))
                 }
 
                 // Attribution, in order of evidence: the descriptor's own `Tq`
@@ -282,9 +302,8 @@ package struct ClassDumper<MachO: FieldLayoutRenderable>: TypedDumper {
                     }
                 }
 
-                if configuration.printMemberAddress, !descriptor.implementation.isNull {
-                    let implOffset = descriptor.implementation.resolveDirectOffset(from: descriptor.offset(of: \.implementation))
-                    configuration.memberAddressComment(offset: implOffset, addressString: machO.addressString(forOffset: implOffset))
+                if configuration.printMemberAddress, let implementationOffset = descriptor.implementationOffset {
+                    configuration.memberAddressComment(offset: implementationOffset, addressString: machO.addressString(forOffset: implementationOffset))
                 }
 
                 Indent(level: 1)
@@ -301,17 +320,17 @@ package struct ClassDumper<MachO: FieldLayoutRenderable>: TypedDumper {
                     Space()
                     try await demangleResolver.resolve(for: node)
                     _ = methodOverrideVisitedNodes.append(StructuralNodeReferenceKey(node))
-                } else if !descriptor.implementation.isNull {
+                } else if let implementationOffset = descriptor.implementationOffset {
                     dumpMethodKind(for: methodDescriptor?.resolved)
                     Keyword(.override)
                     Space()
-                    FunctionDeclaration(machO.addressString(forOffset: descriptor.implementation.resolveDirectOffset(from: descriptor.offset(of: \.implementation))).insertSubFunctionPrefix)
+                    FunctionDeclaration(machO.addressString(forOffset: implementationOffset).insertSubFunctionPrefix)
                 } else if let methodDescriptor {
                     switch methodDescriptor {
                     case .symbol(let symbol):
                         Keyword(.override)
                         Space()
-                        try await MetadataReader.demangleSymbolReference(for: symbol, in: machO).asyncMap { try await demangleResolver.resolve(for: $0) }
+                        try await SymbolicDemangler.demangleSymbolReference(for: symbol, in: machO).asyncMap { try await demangleResolver.resolve(for: $0) }
                     case .element(let element):
                         dumpMethodKind(for: element)
                         Keyword(.override)
@@ -332,9 +351,8 @@ package struct ClassDumper<MachO: FieldLayoutRenderable>: TypedDumper {
             for (offset, descriptor) in dumped.methodDefaultOverrideDescriptors.offsetEnumerated() {
                 BreakLine()
 
-                if configuration.printMemberAddress, !descriptor.implementation.isNull {
-                    let implOffset = descriptor.implementation.resolveDirectOffset(from: descriptor.offset(of: \.implementation))
-                    configuration.memberAddressComment(offset: implOffset, addressString: machO.addressString(forOffset: implOffset))
+                if configuration.printMemberAddress, let implementationOffset = descriptor.implementationOffset {
+                    configuration.memberAddressComment(offset: implementationOffset, addressString: machO.addressString(forOffset: implementationOffset))
                 }
 
                 Indent(level: 1)
@@ -348,8 +366,8 @@ package struct ClassDumper<MachO: FieldLayoutRenderable>: TypedDumper {
                 if let symbols = descriptor.implementationSymbols(in: machO), let node = try await validNode(for: symbols, visitedNodes: methodDefaultOverrideVisitedNodes) {
                     try await demangleResolver.resolve(for: node)
                     _ = methodDefaultOverrideVisitedNodes.append(StructuralNodeReferenceKey(node))
-                } else if !descriptor.implementation.isNull {
-                    FunctionDeclaration(machO.addressString(forOffset: descriptor.implementation.resolveDirectOffset(from: descriptor.offset(of: \.implementation))).insertSubFunctionPrefix)
+                } else if let implementationOffset = descriptor.implementationOffset {
+                    FunctionDeclaration(machO.addressString(forOffset: implementationOffset).insertSubFunctionPrefix)
                 } else {
                     Error("Symbol not found")
                 }
@@ -375,14 +393,30 @@ package struct ClassDumper<MachO: FieldLayoutRenderable>: TypedDumper {
             // context node picks this type's own sub-bucket (issue #115).
             // A context that cannot be demangled falls back to the name-only
             // (merged) lookup rather than dropping members.
-            let contextNode = try? MetadataReader.demangleContext(for: .type(.class(dumped.descriptor)), in: machO)
+            let contextNode = try? SymbolicDemangler.demangleContext(for: .type(.class(dumped.descriptor)), in: machO)
 
-            for kind in SymbolIndexStore.MemberKind.allCases {
-                let memberSymbols = if let contextNode {
-                    symbolIndexStore.memberSymbols(of: kind, for: interfaceNameString, node: contextNode, in: machO)
+            // `override` of ObjC-inherited members (evolution proposal
+            // `objc-ancestor-override-recovery`): the class's own ObjC method
+            // table against its ancestors'. Nil for a class with no static
+            // class object (generic) or no ObjC methods of its own. The
+            // chain itself printed under the header, above.
+            let objcMemberTable = contextNode
+                .flatMap { NodeTypeNaming.nominalQualifiedName(ofDemangledRoot: $0) }
+                .flatMap { ObjCMembers.table(forSwiftClassQualifiedName: $0, in: machO) }
+
+            let memberSymbolsByKind = SymbolIndexStore.MemberKind.allCases.map { kind in
+                if let contextNode {
+                    (kind: kind, symbols: symbolIndexStore.memberSymbols(of: kind, for: interfaceNameString, node: contextNode, in: machO))
                 } else {
-                    symbolIndexStore.memberSymbols(of: kind, for: interfaceNameString, in: machO)
+                    (kind: kind, symbols: symbolIndexStore.memberSymbols(of: kind, for: interfaceNameString, in: machO))
                 }
+            }
+            // The name-only third tier over the overriding methods the table
+            // tied to no symbol. Always rendered — the comment names the
+            // evidence, so a name-only tie reads as one.
+            let inferredObjCMembers = ObjCMemberRendering.inferredOverrides(for: objcMemberTable, memberSymbols: memberSymbolsByKind.flatMap(\.symbols))
+
+            for (kind, memberSymbols) in memberSymbolsByKind {
                 for (offset, symbol) in memberSymbols.offsetEnumerated() {
                     if offset.isStart {
                         BreakLine()
@@ -401,6 +435,9 @@ package struct ClassDumper<MachO: FieldLayoutRenderable>: TypedDumper {
                     if configuration.printExportStatus,
                        !overrideImplementationSymbolNames.contains(symbol.name),
                        !symbolIndexStore.containsSymbol(named: symbol.name + "To", in: machO),
+                       objcMemberTable?.member(forMemberSymbolNamed: symbol.name) == nil,
+                       objcMemberTable?.member(forAllocatorSymbolNamed: symbol.name) == nil,
+                       inferredObjCMembers[symbol.name] == nil,
                        symbolIndexStore.isExportedIncludingDerivedSymbols(name: symbol.name, in: machO) == false {
                         configuration.exportStatusComment()
                     }
@@ -408,6 +445,11 @@ package struct ClassDumper<MachO: FieldLayoutRenderable>: TypedDumper {
                     Indent(level: 1)
 
                     try await demangleResolver.resolve(for: symbol.demangledNode)
+
+                    if let member = objcMemberTable?.member(forMemberSymbolNamed: symbol.name) ?? objcMemberTable?.member(forAllocatorSymbolNamed: symbol.name) ?? inferredObjCMembers[symbol.name] {
+                        Space()
+                        Comment(ObjCMemberRendering.memberComment(for: member))
+                    }
 
                     if offset.isEnd {
                         BreakLine()
@@ -507,7 +549,7 @@ package struct ClassDumper<MachO: FieldLayoutRenderable>: TypedDumper {
     @SemanticStringBuilder
     private func _name(using resolver: DemangleResolver) async throws -> SemanticString {
         if configuration.displayParentName {
-            try await resolver.resolve(for: MetadataReader.demangleContext(for: .type(.class(dumped.descriptor)), in: machO)).replacingTypeNameOrOtherToTypeDeclaration()
+            try await resolver.resolve(for: SymbolicDemangler.demangleContext(for: .type(.class(dumped.descriptor)), in: machO)).replacingTypeNameOrOtherToTypeDeclaration()
         } else {
             try TypeDeclaration(kind: .class, dumped.descriptor.name(in: machO))
         }
@@ -567,8 +609,8 @@ package struct ClassDumper<MachO: FieldLayoutRenderable>: TypedDumper {
         if let node {
             try await demangleResolver.resolve(for: node)
             _ = visitedNodes.append(StructuralNodeReferenceKey(node))
-        } else if !descriptor.implementation.isNull {
-            FunctionDeclaration(machO.addressString(forOffset: descriptor.implementation.resolveDirectOffset(from: descriptor.offset(of: \.implementation))).insertSubFunctionPrefix)
+        } else if let implementationOffset = descriptor.implementationOffset {
+            FunctionDeclaration(machO.addressString(forOffset: implementationOffset).insertSubFunctionPrefix)
         } else {
             // A null implementation with no `Tq` symbol to name it: the slot is
             // an ABI tombstone (see `deletedMethodSlotComment`) whose member
@@ -594,7 +636,7 @@ package struct ClassDumper<MachO: FieldLayoutRenderable>: TypedDumper {
         for descriptor in dumped.methodDescriptors where accessorKinds.contains(descriptor.flags.kind) {
             guard let symbols = descriptor.implementationSymbols(in: machO) else { continue }
             for symbol in symbols {
-                guard let node = MetadataReader.demangleSymbolReference(for: symbol, in: machO),
+                guard let node = SymbolicDemangler.demangleSymbolReference(for: symbol, in: machO),
                       let variableName = node.first(of: .variable)?.identifier else { continue }
                 names.insert(variableName)
             }
@@ -655,7 +697,7 @@ package struct ClassDumper<MachO: FieldLayoutRenderable>: TypedDumper {
     package func validNode(for symbols: Symbols, visitedNodes: borrowing OrderedSet<StructuralNodeReferenceKey> = []) async throws -> NodeReference? {
         let currentInterfaceName = try await _name(using: .options(.interfaceType)).string
         for symbol in symbols {
-            guard let node = MetadataReader.demangleSymbolReference(for: symbol, in: machO),
+            guard let node = SymbolicDemangler.demangleSymbolReference(for: symbol, in: machO),
                   let declarationContextNode = node.declarationContextNode,
                   await declarationContextNode.print(using: .interfaceType) == currentInterfaceName,
                   !visitedNodes.contains(StructuralNodeReferenceKey(node)) else { continue }

@@ -22,6 +22,20 @@ package enum BaselineFixturePicker {
         )
     }
 
+    /// Picks the foreign (C-imported) struct `__C.NSDecimal` — the descriptor
+    /// the fixture emits for Foundation's `Decimal`, whose user-facing name
+    /// is `Decimal` and whose import info carries the `NSDecimal` ABI name
+    /// and the C-typedef symbol namespace. Exercises the import-info paths.
+    package static func struct_ForeignDecimal(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> StructDescriptor {
+        try required(
+            try machO.swift.typeContextDescriptors.compactMap(\.struct).first(where: { descriptor in
+                try descriptor.name(in: machO) == "Decimal" && descriptor.isCImportedContextDescriptor(in: machO)
+            })
+        )
+    }
+
     /// Picks the generic struct
     /// `GenericFieldLayout.GenericStructNonRequirement<A>` from the
     /// `SymbolTestsCore` fixture. Exercises generic context paths.
@@ -234,6 +248,21 @@ package enum BaselineFixturePicker {
         try required(
             try machO.swift.typeContextDescriptors.compactMap(\.class).first(where: { descriptor in
                 try descriptor.name(in: machO) == "ClassTest"
+            })
+        )
+    }
+
+    /// Picks `VTableEntryVariants.VTableBaseTest` from the `SymbolTestsCore`
+    /// fixture. Its vtable carries one slot per calling convention worth
+    /// distinguishing — plain, `throws`, `async`, `async throws` — which is
+    /// what makes it the carrier for "an async slot's implementation pointer
+    /// lands on the async function pointer RECORD".
+    package static func class_VTableBaseTest(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> ClassDescriptor {
+        try required(
+            try machO.swift.typeContextDescriptors.compactMap(\.class).first(where: { descriptor in
+                try descriptor.name(in: machO) == "VTableBaseTest"
             })
         )
     }
@@ -764,4 +793,300 @@ package enum BaselineFixturePicker {
         )
     }
 
+}
+
+// MARK: - Property Descriptors
+
+/// The `…vpMV` symbols the property-descriptor fixtures are pinned to.
+///
+/// Property descriptors sit in no `__swift5_*` section, so unlike every other
+/// picker here they cannot be found by walking a section — a symbol is the
+/// only way in. Each constant below was chosen for the descriptor SHAPE it
+/// carries, so that the four forms a property descriptor can take are all
+/// covered:
+///
+/// | symbol | header | form |
+/// | --- | --- | --- |
+/// | `staticMemberStoredConstant` | `0x00000000` | trivial (shared, aliased) |
+/// | `markerConformingStructValue` | `0x01800000` | struct, offset inline |
+/// | `propertyWrapperWrappedValue` | `0x01fffffe` | struct, offset in metadata |
+/// | `codableClassIdentifier` | `0x02400000` | computed, settable |
+package enum PropertyDescriptorFixtureSymbol {
+    /// `StaticMembers.StaticMemberStructTest.storedConstant` — a `static let`
+    /// whose descriptor is the module's shared trivial one.
+    package static let staticMemberStoredConstant =
+        "$s15SymbolTestsCore13StaticMembersO0D16MemberStructTestV14storedConstantSivpZMV"
+
+    /// `MarkerProtocols.MarkerConformingStructTest.value` — a stored property
+    /// of a non-generic struct, so its offset is a constant in the header.
+    package static let markerConformingStructValue =
+        "$s15SymbolTestsCore15MarkerProtocolsO0D20ConformingStructTestV5valueSivpMV"
+
+    /// `Attributes.PropertyWrapperStruct.wrappedValue` — a stored property of
+    /// a GENERIC struct, so the header carries the `unresolvedFieldOffset`
+    /// sentinel and the body carries the offset of the field-offset word.
+    package static let propertyWrapperWrappedValue =
+        "$s15SymbolTestsCore10AttributesO21PropertyWrapperStructV12wrappedValuexvpMV"
+
+    /// `CodableTests.CodableClassTest.identifier` — a settable property of a
+    /// resilient class, which is dispatched through accessors, so the
+    /// descriptor is a computed component with identifier, getter and setter.
+    package static let codableClassIdentifier =
+        "$s15SymbolTestsCore07CodableB0O0D9ClassTestC10identifierSivpMV"
+}
+
+extension BaselineFixturePicker {
+    /// The offset a mangled symbol name resolves to, for the records that sit
+    /// in no `__swift5_*` section and can only be reached by symbol.
+    ///
+    /// Two things make this less direct than it looks. The symbol table spells
+    /// C-level names with a leading underscore, so the mangled name has to be
+    /// matched in both spellings. And a Release build carries debug (stab)
+    /// entries under the SAME names whose `n_value` is zero — matching one of
+    /// those silently reads the Mach-O header instead of the record, so stab
+    /// entries must be skipped explicitly.
+    package static func offset(
+        forSymbolNamed symbolName: String,
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> Int {
+        let underscoredSymbolName = "_" + symbolName
+        let matched = try required(
+            machO.symbols.first(where: { symbol in
+                symbol.nlist.flags?.stab == nil
+                    && (symbol.name == symbolName || symbol.name == underscoredSymbolName)
+            })
+        )
+        return matched.offset
+    }
+}
+
+extension BaselineFixturePicker {
+    /// Resolves the property descriptor a `…vpMV` symbol names.
+    ///
+    /// The symbol table is the only entry point: nothing in the Swift
+    /// metadata sections references a property descriptor, and the runtime
+    /// only ever reaches one through a key path pattern's relative pointer.
+    package static func propertyDescriptor(
+        forSymbolNamed symbolName: String,
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> PropertyDescriptor {
+        try PropertyDescriptor.resolve(from: offset(forSymbolNamed: symbolName, in: machO), in: machO)
+    }
+
+    /// The module's shared trivial descriptor — header word zero, no body.
+    package static func propertyDescriptor_trivial(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> PropertyDescriptor {
+        try propertyDescriptor(forSymbolNamed: PropertyDescriptorFixtureSymbol.staticMemberStoredConstant, in: machO)
+    }
+
+    /// A stored property whose offset is inline in the header.
+    package static func propertyDescriptor_inlineStoredOffset(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> PropertyDescriptor {
+        try propertyDescriptor(forSymbolNamed: PropertyDescriptorFixtureSymbol.markerConformingStructValue, in: machO)
+    }
+
+    /// A stored property of a generic type: the header holds the
+    /// `unresolvedFieldOffset` sentinel and the body holds the offset of the
+    /// metadata word carrying the real field offset.
+    package static func propertyDescriptor_unresolvedFieldOffset(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> PropertyDescriptor {
+        try propertyDescriptor(forSymbolNamed: PropertyDescriptorFixtureSymbol.propertyWrapperWrappedValue, in: machO)
+    }
+
+    /// A settable computed component: identifier, getter and setter.
+    package static func propertyDescriptor_computedSettable(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> PropertyDescriptor {
+        try propertyDescriptor(forSymbolNamed: PropertyDescriptorFixtureSymbol.codableClassIdentifier, in: machO)
+    }
+}
+
+/// The `…Tu` symbols the async-function-pointer fixtures are picked by, one
+/// per shape worth distinguishing: a plain global `async` function, an
+/// `async` method that a vtable slot points at (the case that proves a
+/// method descriptor's implementation pointer lands on the RECORD, not on the
+/// code), and a distributed thunk, whose async context is an order of
+/// magnitude larger.
+package enum AsyncFunctionPointerFixtureSymbol {
+    /// `globalAsyncFunction()` — a top-level `async` function.
+    package static let globalAsyncFunction =
+        "$s15SymbolTestsCore19globalAsyncFunctionSiyYaFTu"
+
+    /// `VTableEntryVariants.VTableBaseTest.asyncMethod()` — an `async`
+    /// class method, so the class's vtable slot and method descriptor both
+    /// carry the address of its record rather than of its body.
+    package static let vtableBaseAsyncMethod =
+        "$s15SymbolTestsCore19VTableEntryVariantsO0D8BaseTestC11asyncMethodSiyYaFTu"
+
+    /// `DistributedActors.DistributedActorTest.parameterizedMethod(label:count:)`'s
+    /// distributed thunk — the largest async context in the fixture.
+    package static let distributedParameterizedMethodThunk =
+        "$s15SymbolTestsCore17DistributedActorsO0D9ActorTestC19parameterizedMethod5label5countS2S_SitYaKFTETu"
+}
+
+extension BaselineFixturePicker {
+    /// Resolves the async function pointer record a `…Tu` symbol names.
+    ///
+    /// Like a property descriptor, the record sits in no `__swift5_*` section
+    /// — it lives in `__TEXT,__const` and is reached by symbol or by another
+    /// descriptor's relative pointer.
+    package static func asyncFunctionPointer(
+        forSymbolNamed symbolName: String,
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> AsyncFunctionPointer {
+        try AsyncFunctionPointer.resolve(from: offset(forSymbolNamed: symbolName, in: machO), in: machO)
+    }
+
+    /// A top-level `async` function's record.
+    package static func asyncFunctionPointer_globalFunction(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> AsyncFunctionPointer {
+        try asyncFunctionPointer(forSymbolNamed: AsyncFunctionPointerFixtureSymbol.globalAsyncFunction, in: machO)
+    }
+
+    /// The record a vtable slot / method descriptor points at for an `async`
+    /// class method.
+    package static func asyncFunctionPointer_vtableMethod(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> AsyncFunctionPointer {
+        try asyncFunctionPointer(forSymbolNamed: AsyncFunctionPointerFixtureSymbol.vtableBaseAsyncMethod, in: machO)
+    }
+
+    /// A distributed thunk's record — a much larger async context.
+    package static func asyncFunctionPointer_distributedThunk(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> AsyncFunctionPointer {
+        try asyncFunctionPointer(forSymbolNamed: AsyncFunctionPointerFixtureSymbol.distributedParameterizedMethodThunk, in: machO)
+    }
+}
+
+extension BaselineFixturePicker {
+    /// Every `__swift5_acfuncs` record in the fixture. All four come from
+    /// `DistributedActors`, which is the only feature that emits them today.
+    package static func accessibleFunctionRecords(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> [AccessibleFunctionRecord] {
+        try machO.swift.accessibleFunctionRecords
+    }
+
+    /// `DistributedActors.DistributedActorTest.remoteMethod(value:)`'s record
+    /// — a non-generic distributed target, so its generic environment pointer
+    /// is null.
+    package static func accessibleFunctionRecord_nonGeneric(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> AccessibleFunctionRecord {
+        try required(
+            try accessibleFunctionRecords(in: machO).first(where: { record in
+                try record.name(in: machO).contains("remoteMethod") && record.resolvedDirectOffset(from: \.genericEnvironment) == nil
+            })
+        )
+    }
+
+    /// `DistributedActors.GenericDistributedActorTest.process(element:)`'s
+    /// record — the one distributed target with a generic signature, so it is
+    /// the only record whose generic environment pointer is non-null.
+    package static func accessibleFunctionRecord_generic(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> AccessibleFunctionRecord {
+        try required(
+            try accessibleFunctionRecords(in: machO).first(where: { record in
+                record.resolvedDirectOffset(from: \.genericEnvironment) != nil
+            })
+        )
+    }
+}
+
+extension BaselineFixturePicker {
+    /// The `__swift5_capture` descriptors, in section order.
+    package static func captureDescriptors(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> [CaptureDescriptor] {
+        try machO.swift.captureDescriptors
+    }
+
+    /// A non-generic closure's context: captured values only, no metadata
+    /// source map and no bindings.
+    package static func captureDescriptor_withoutMetadataSources(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> CaptureDescriptor {
+        try required(
+            try captureDescriptors(in: machO).first(where: { $0.numberOfMetadataSources == 0 && $0.numberOfCaptureTypes > 0 })
+        )
+    }
+
+    /// A closure inside a one-parameter generic function: one binding at the
+    /// head of the context, so one metadata source entry.
+    package static func captureDescriptor_withSingleMetadataSource(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> CaptureDescriptor {
+        try required(
+            try captureDescriptors(in: machO).first(where: { $0.numberOfMetadataSources == 1 })
+        )
+    }
+
+    /// A closure inside a two-parameter generic function — the carrier that
+    /// keeps the metadata source array from being testable at length one
+    /// only.
+    package static func captureDescriptor_withMultipleMetadataSources(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> CaptureDescriptor {
+        try required(
+            try captureDescriptors(in: machO).first(where: { $0.numberOfMetadataSources > 1 })
+        )
+    }
+}
+
+extension BaselineFixturePicker {
+    /// Picks the generic class `GenericFieldLayout.GenericClassNonRequirement<A>`
+    /// — a plain generic class with no generic requirements, so its
+    /// instantiation pattern is the simplest a class can have.
+    package static func class_GenericClassNonRequirement(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> ClassDescriptor {
+        try required(
+            try machO.swift.typeContextDescriptors.compactMap(\.class).first(where: { descriptor in
+                try descriptor.name(in: machO) == "GenericClassNonRequirement"
+            })
+        )
+    }
+
+    /// The value metadata pattern of `GenericStructNonRequirement<A>`,
+    /// reached the way the runtime reaches it: through the type's generic
+    /// context header.
+    package static func genericValueMetadataPattern_structNonRequirement(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> GenericValueMetadataPattern {
+        let descriptor = try struct_GenericStructNonRequirement(in: machO)
+        let genericContext = try required(try descriptor.typeGenericContext(in: machO))
+        let patternOffset = try required(genericContext.header.resolvedDirectOffset(from: \.defaultInstantiationPattern))
+        return try GenericValueMetadataPattern.resolve(from: patternOffset, in: machO)
+    }
+
+    /// The class metadata pattern of `GenericClassNonRequirement<A>`, reached
+    /// through the type's generic context header.
+    package static func genericClassMetadataPattern_classNonRequirement(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> GenericClassMetadataPattern {
+        let descriptor = try class_GenericClassNonRequirement(in: machO)
+        let genericContext = try required(try descriptor.typeGenericContext(in: machO))
+        let patternOffset = try required(genericContext.header.resolvedDirectOffset(from: \.defaultInstantiationPattern))
+        return try GenericClassMetadataPattern.resolve(from: patternOffset, in: machO)
+    }
+
+    /// The resilient class pattern of `ResilientClassFixtures.ResilientChild`
+    /// — a NON-generic class whose superclass lives in another resilience
+    /// domain, so its pattern hangs off the singleton metadata
+    /// initialization record rather than off a generic context.
+    package static func resilientClassMetadataPattern_resilientChild(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> ResilientClassMetadataPattern {
+        let descriptor = try class_ResilientChild(in: machO)
+        let resilientChild = try Class(descriptor: descriptor, in: machO)
+        let initialization = try required(resilientChild.singletonMetadataInitialization)
+        let patternOffset = try required(initialization.resolvedDirectOffset(from: \.incompleteMetadata))
+        return try ResilientClassMetadataPattern.resolve(from: patternOffset, in: machO)
+    }
 }

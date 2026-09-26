@@ -86,6 +86,28 @@ extension MachOFile.Swift: SwiftSectionRepresentable {
             return try _readDescriptors(from: .__swift5_mpenum)
         }
     }
+
+    /// The `__swift5_capture` records: one per closure context or box the
+    /// module emits, describing what it captures and how the runtime
+    /// recovers generic metadata from it.
+    public var captureDescriptors: [CaptureDescriptor] {
+        get throws {
+            return try _readDescriptors(from: .__swift5_capture)
+        }
+    }
+
+    /// The `__swift5_acfuncs` records: functions the runtime can find again
+    /// by string key and call through a fully abstracted entry point
+    /// (distributed actor targets, today).
+    ///
+    /// Throws `MachOSwiftSectionError.sectionNotFound` when the image emits
+    /// no such section, which is the common case — a module only gets one if
+    /// something in it needs dynamic lookup.
+    public var accessibleFunctionRecords: [AccessibleFunctionRecord] {
+        get throws {
+            return try _readFixedSizeRecords(from: .__swift5_acfuncs)
+        }
+    }
 }
 
 extension MachOFile.Swift {
@@ -131,5 +153,12 @@ extension MachOFile.Swift {
         let recordSize = ProtocolRecord.layoutSize
         let records: [ProtocolRecord] = try machO.readWrapperElements(offset: offset, numberOfElements: size / recordSize)
         return try records.compactMap { try $0.protocolDescriptor(in: machO) }
+    }
+
+    /// Reads a section that is a flat, gapless array of fixed-size records —
+    /// the record itself, not a relative pointer to one.
+    private func _readFixedSizeRecords<Record: ResolvableLocatableLayoutWrapper>(from swiftMachOSection: MachOSwiftSectionName) throws -> [Record] {
+        let (offset, size) = try _sectionOffsetAndSize(of: swiftMachOSection)
+        return try machO.readWrapperElements(offset: offset, numberOfElements: size / Record.layoutSize)
     }
 }

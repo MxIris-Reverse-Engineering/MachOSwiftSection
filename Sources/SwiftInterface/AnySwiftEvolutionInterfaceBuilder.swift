@@ -55,7 +55,7 @@ public final class AnySwiftEvolutionInterfaceBuilder: Sendable {
     ///
     /// - Throws: `ABIEvolutionError.fewerThanTwoVersions` /
     ///   `.labelCountMismatch` on invalid input shapes.
-    public init<MachO: FieldLayoutRenderable>(
+    public init<MachO: MachOFieldLayoutRenderable>(
         configuration: SwiftDeclarationIndexConfiguration = .init(),
         eventHandlers: [SwiftIndexEvents.Handler] = [],
         eventHandlersPerVersion: ((_ versionIndex: Int, _ label: String) -> [SwiftIndexEvents.Handler])? = nil,
@@ -77,7 +77,7 @@ public final class AnySwiftEvolutionInterfaceBuilder: Sendable {
     /// Packs in *function* position need no runtime-availability gate (unlike
     /// packs in a type's generic parameter list), so this initializer is
     /// available everywhere the package deploys.
-    public init<each Reader: FieldLayoutRenderable>(
+    public init<each Reader: MachOFieldLayoutRenderable>(
         configuration: SwiftDeclarationIndexConfiguration = .init(),
         eventHandlers: [SwiftIndexEvents.Handler] = [],
         versions: repeat each Reader,

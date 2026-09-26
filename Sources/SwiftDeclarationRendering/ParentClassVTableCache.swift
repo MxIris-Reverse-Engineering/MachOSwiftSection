@@ -17,9 +17,9 @@ package struct ParentClassVTableCache {
     /// override cannot be resolved (missing original method, missing parent class
     /// context, parent class without a vtable, or original method not found in
     /// the parent's vtable).
-    package mutating func slotIndex<MachO: MachOSwiftSectionRepresentableWithCache>(
+    package mutating func slotIndex(
         for descriptor: MethodOverrideDescriptor,
-        in machO: MachO
+        in machO: some MachOSwiftSectionRepresentableWithCache
     ) throws -> Int? {
         guard let methodResult = try descriptor.methodDescriptor(in: machO),
               case .element(let originalMethod) = methodResult else {

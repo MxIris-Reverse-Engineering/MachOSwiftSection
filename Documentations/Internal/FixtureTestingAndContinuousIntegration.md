@@ -72,6 +72,12 @@ workflow 里的 "Normalize SymbolTestsCore fixture path" 步骤用符号链接�
 ObjC class wrapper、canonical specialized metadata、foreign types、value generics 等形态
 （见下文 ABI 覆盖层）。
 
+### 现场编译的 fixture 为什么都带一个 class（2026-08-26 至 2026-09-26）
+
+测试里现场编译的 dylib 几乎都带一个用不上的 class（`FixtureAnchor`、`Anchor` 之类），这是在绕 MachOKit 0.52.103 之前的一个越界读。`dyld_chained_starts_in_image` 里没有 fixup 的段，`seg_info_offset` 是 0，dyld 会跳过它；MachOKit 却照样在偏移 0 处读 `dyld_chained_starts_in_segment`，把镜像级的头部当成这一段的 starts。只含 struct 的模块编出来没有 `__DATA` 段，只有三个段，误读出来的 `page_count` 正好落在真实段的 `page_size`（0x4000）上，于是往后多读 32 KB，越过文件映射的末尾就是 SIGSEGV / SIGBUS，而且时有时无。
+
+2026-08-26 第一次碰到时，只在测试侧加了 class 来绕开，AGENTS.md 也写成了一条规则。直到 0.20.0 发版验证时发现 Homebrew 配方自带的测试（`dump` 一个只有 struct 的 dylib）大约每五次崩一次，0.19.0 的正式版同样如此，才在 MachOKit fork 里修掉（`0ef5c24`，发布为 0.52.103，本库的下限随之抬高）。现有 fixture 里的 class 保留不删：已经不需要了，但删掉它们会改动已经钉住的快照与布局。
+
 ## 集成/E2E 层（2026-04-10）
 
 两层分工：`SymbolTestsCoreIntegrationTests` 加载二进制后在 **`TypeDefinition` 模型层**断言

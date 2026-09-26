@@ -90,6 +90,7 @@ var dependencies: [Package.Dependency] = [
     .MachOKitExtensions,
     .Demangling,
     .Semantic,
+    .Capstone,
 
     .package(url: "https://github.com/swiftlang/swift-syntax.git", "509.1.0" ..< "604.0.0"),
     .package(url: "https://github.com/apple/swift-async-algorithms", from: "1.0.4"),
@@ -124,7 +125,9 @@ extension Package.Dependency {
         ),
         remote: .package(
             url: "https://github.com/MxIris-Reverse-Engineering/MachOKit.git",
-            "0.52.101" ..< "0.53.0",
+            // 0.52.103 stops reading chained-fixup starts for a segment that has
+            // none, which crashed on a dylib with no `__DATA` segment.
+            "0.52.103" ..< "0.53.0",
         ),
     )
 
@@ -146,7 +149,9 @@ extension Package.Dependency {
         ),
         remote: .package(
             url: "https://github.com/MxIris-Reverse-Engineering/MachOObjCSection.git",
-            "0.8.105" ..< "0.9.0",
+            // 0.8.106 is the first release with ObjCDiffing, which the `objc`
+            // subcommands (snapshot / diff / evolution) are built on.
+            "0.8.106" ..< "0.9.0",
         ),
     )
 }
@@ -159,7 +164,9 @@ extension Package.Dependency {
         ),
         remote: .package(
             url: "https://github.com/MxIris-Reverse-Engineering/swift-demangling",
-            "0.6.3" ..< "0.7.0",
+            // 0.7.1 gives a private / local entity name its kind and scope when
+            // printed, which `dump`'s semantic output of such names relies on.
+            "0.7.1" ..< "0.8.0",
         ),
     )
 
@@ -173,6 +180,31 @@ extension Package.Dependency {
             from: "0.3.0",
         ),
     )
+
+    /// Capstone's Swift bindings, used by `SwiftThunkAnalysis` to decode a
+    /// metadata accessor thunk's instructions.
+    ///
+    /// Only its AARCH64 trait is forwarded: the thunk decoder is ARM64-only,
+    /// so the other architectures Capstone ships stay out of the build.
+    static let Capstone = Package.Dependency.package(
+        local: .package(
+            path: "../swift-capstone",
+            isRelative: true,
+            traits: capstoneTraits,
+        ),
+        remote: .package(
+            url: "https://github.com/MxIris-Reverse-Engineering/swift-capstone",
+            from: "6.0.0",
+            traits: capstoneTraits,
+        ),
+    )
+
+    /// The one architecture the thunk decoder reads. A Capstone built without
+    /// its AARCH64 backend would let `SwiftThunkAnalysis` compile and every
+    /// decode fail.
+    private static let capstoneTraits: Set<Package.Dependency.Trait> = [
+        .trait(name: "AARCH64"),
+    ]
 }
 
 extension Target.Dependency {
@@ -207,6 +239,10 @@ extension Target.Dependency {
     static let OutputTransformer = Target.Dependency.product(
         name: "OutputTransformer",
         package: "swift-semantic-string",
+    )
+    static let Capstone = Target.Dependency.product(
+        name: "Capstone",
+        package: "swift-capstone",
     )
     static let SwiftSyntax = Target.Dependency.product(
         name: "SwiftSyntax",
@@ -390,11 +426,13 @@ extension Target {
             .product(.MachOObjCSection),
             .product(.Semantic),
             .product(.Demangling),
+            .product(name: "FoundationToolbox", package: "FrameworkToolbox"),
+            .target(.Utilities),
+            .target(.MachOCaches),
+            .target(.MachOFoundation),
             .target(.MachOSwiftSection),
             .target(.MachOSwiftSectionC),
-            .target(.Utilities),
             .target(.SwiftOutputTransformer),
-            .target(.MachOFoundation),
         ],
     )
 
@@ -410,11 +448,11 @@ extension Target {
             .product(.MachOKit),
             .product(.MachOObjCSection),
             .product(.Demangling),
+            .target(.Utilities),
             .target(.MachODependencies),
             .target(.MachOFoundation),
             .target(.MachOSwiftSection),
             .target(.SwiftInspection),
-            .target(.Utilities),
         ],
     )
 
@@ -432,14 +470,42 @@ extension Target {
             .product(.Semantic),
             .product(.Demangling),
             .product(name: "FoundationToolbox", package: "FrameworkToolbox"),
+            .target(.Utilities),
             .target(.MachOCaches),
             .target(.MachODependencies),
             .target(.MachOFoundation),
             .target(.MachOSwiftSection),
-            .target(.Utilities),
             .target(.SwiftOutputTransformer),
             .target(.SwiftInspection),
             .target(.SwiftLayout),
+            .target(.SwiftThunkAnalysis),
+        ],
+    )
+
+    /// Recovers what a **kind-9 accessor-function symbolic reference** points
+    /// at without executing it: disassembles the metadata accessor thunk,
+    /// recognizes the availability check and the branch it selects with, and
+    /// reads back each branch's type (evolution proposal
+    /// `offline-opaque-accessor-thunk-resolution`).
+    ///
+    /// A target of its own because it is the only thing in the package that
+    /// needs a C disassembly engine, so the engine stays out of every module
+    /// that does not read thunks. `SwiftDeclarationRendering` depends on it
+    /// and calls the reader directly; this target knows nothing about the
+    /// rendering layer.
+    static let SwiftThunkAnalysis = Target.target(
+        name: "SwiftThunkAnalysis",
+        dependencies: [
+            .product(.MachOKit),
+            .product(.MachOKitExtensions),
+            .product(.Demangling),
+            .product(.Capstone),
+            .product(name: "FoundationToolbox", package: "FrameworkToolbox"),
+            .target(.Utilities),
+            .target(.MachOCaches),
+            .target(.MachOFoundation),
+            .target(.MachOSwiftSection),
+            .target(.SwiftInspection),
         ],
     )
 
@@ -450,11 +516,12 @@ extension Target {
             .product(.MachOObjCSection),
             .product(.Semantic),
             .product(.Demangling),
-            .target(.MachOSwiftSection),
             .target(.Utilities),
+            .target(.MachOFoundation),
+            .target(.MachOSwiftSection),
             .target(.SwiftInspection),
             .target(.SwiftDeclarationRendering),
-            .target(.MachOFoundation),
+            .target(.SwiftThunkAnalysis),
         ],
     )
 
@@ -475,11 +542,12 @@ extension Target {
             // `os_log` that a bare `os.Logger` would need here — this package
             // deploys to macOS 10.15, below `Logger`'s macOS 11.
             .product(name: "FoundationToolbox", package: "FrameworkToolbox"),
+            .target(.Utilities),
+            .target(.MachOFoundation),
             .target(.MachOSwiftSection),
             .target(.SwiftInspection),
             .target(.SwiftDeclarationRendering),
-            .target(.Utilities),
-            .target(.MachOFoundation),
+            .target(.SwiftThunkAnalysis),
         ],
     )
 
@@ -491,13 +559,20 @@ extension Target {
         dependencies: [
             .product(.MachOKit),
             .product(.MachOObjCSection),
+            // The adapter that hands `ObjCIndexing.ObjCInterfaceIndexer`'s class
+            // groups to the ObjC-ancestor override recovery
+            // (`ObjCInterfaceIndexerClassHierarchyProvider`).
+            .product(name: "ObjCIndexing", package: "MachOObjCSection"),
+            .product(name: "ObjCMetadataSource", package: "MachOObjCSection"),
             .product(.Semantic),
             .product(.Demangling),
+            .target(.Utilities),
+            .target(.MachOFoundation),
             .target(.MachOSwiftSection),
             .target(.SwiftInspection),
-            .target(.Utilities),
+            .target(.SwiftThunkAnalysis),
             .target(.SwiftDeclaration),
-            .target(.MachOFoundation),
+            .target(.SwiftDeclarationRendering),
         ],
     )
 
@@ -512,9 +587,9 @@ extension Target {
             .product(.MachOObjCSection),
             .product(.Semantic),
             .product(.Demangling),
+            .target(.Utilities),
             .target(.MachOSwiftSection),
             .target(.SwiftInspection),
-            .target(.Utilities),
             .target(.SwiftDeclaration),
         ],
     )
@@ -542,14 +617,14 @@ extension Target {
             .product(.MachOObjCSection),
             .product(.Semantic),
             .product(.Demangling),
+            .target(.Utilities),
+            .target(.MachOFoundation),
             .target(.MachOSwiftSection),
             .target(.SwiftOutputTransformer),
             .target(.SwiftInspection),
             .target(.SwiftDeclarationRendering),
-            .target(.Utilities),
             .target(.SwiftDeclaration),
             .target(.SwiftAttributeInference),
-            .target(.MachOFoundation),
         ],
     )
 
@@ -565,10 +640,10 @@ extension Target {
             .product(.MachOObjCSection),
             .product(.Semantic),
             .product(.Demangling),
+            .target(.Utilities),
             .target(.MachOSymbols),
             .target(.MachOSwiftSection),
             .target(.SwiftInspection),
-            .target(.Utilities),
             .target(.SwiftDeclaration),
             .target(.SwiftIndexing),
         ],
@@ -579,16 +654,17 @@ extension Target {
     static let SwiftInterface = Target.target(
         name: "SwiftInterface",
         dependencies: [
+            .product(name: "FoundationToolbox", package: "FrameworkToolbox"),
             .product(.MachOKit),
             .product(.MachOObjCSection),
             .product(.Semantic),
             .product(.Demangling),
+            .target(.Utilities),
             .target(.MachODependencies),
             .target(.MachOFoundation),
             .target(.MachOSwiftSection),
             .target(.SwiftInspection),
             .target(.SwiftDeclarationRendering),
-            .target(.Utilities),
             .target(.SwiftDeclaration),
             .target(.SwiftIndexing),
             .target(.SwiftAttributeInference),
@@ -619,7 +695,9 @@ extension Target {
     static let swift_section = Target.executableTarget(
         name: "swift-section",
         dependencies: [
+            .target(.MachOFoundation),
             .target(.SwiftDump),
+            .target(.SwiftInspection),
             .target(.SwiftOutputTransformer),
             .target(.SwiftDeclaration),
             .target(.SwiftIndexing),
@@ -627,9 +705,20 @@ extension Target {
             .target(.SwiftDiffing),
             .target(.SwiftInterface),
             .target(.TypeIndexing),
+            // The `objc` subcommand group (formerly the `objc-section`
+            // executable of MachOObjCSection).
+            .product(name: "ObjCDeclarationRendering", package: "MachOObjCSection"),
+            .product(name: "ObjCDiffing", package: "MachOObjCSection"),
+            .product(name: "ObjCIndexing", package: "MachOObjCSection"),
+            .product(name: "ObjCInterface", package: "MachOObjCSection"),
+            // `ObjCInterfaceSession` names `ObjCInterfaceIndexer<MachOFile>`,
+            // whose `MachOFile: ObjCMetadataSource` conformance lives here;
+            // Swift 6.4 warns when a file uses a conformance from a module it
+            // does not import.
+            .product(name: "ObjCMetadataSource", package: "MachOObjCSection"),
+            .product(name: "ObjCOutputTransformer", package: "MachOObjCSection"),
             .product(name: "Rainbow", package: "Rainbow"),
             .product(name: "ArgumentParser", package: "swift-argument-parser"),
-            .target(.MachOFoundation),
         ],
     )
 
@@ -817,6 +906,7 @@ extension Target {
     static let SwiftDumpTests = Target.testTarget(
         name: "SwiftDumpTests",
         dependencies: [
+            .target(.SwiftThunkAnalysis),
             .target(.SwiftDump),
             .target(.MachOTestingSupport),
             .target(.MachOFixtureSupport),
@@ -826,6 +916,7 @@ extension Target {
             .product(name: "SnapshotTesting", package: "swift-snapshot-testing"),
             .target(.MachOFoundation),
         ],
+        exclude: ["Snapshots/__Snapshots__"],
         swiftSettings: testSettings,
     )
 
@@ -842,6 +933,9 @@ extension Target {
         dependencies: [
             .target(.SwiftDeclaration),
             .target(.SwiftIndexing),
+            .product(name: "ObjCIndexing", package: "MachOObjCSection"),
+            .product(name: "ObjCMetadataSource", package: "MachOObjCSection"),
+            .target(.SwiftThunkAnalysis),
             .target(.SwiftPrinting),
             .target(.SwiftSpecialization),
             .target(.SwiftInterface),
@@ -851,6 +945,7 @@ extension Target {
             .product(name: "SnapshotTesting", package: "swift-snapshot-testing"),
             .target(.MachOFoundation),
         ],
+        exclude: ["Snapshots/__Snapshots__"],
         swiftSettings: testSettings,
     )
 
@@ -875,11 +970,26 @@ extension Target {
             .target(.SwiftInspection),
             .target(.SwiftLayout),
             .target(.SwiftDeclarationRendering),
+            .target(.SwiftThunkAnalysis),
             .target(.MachOTestingSupport),
             .target(.MachOFixtureSupport),
             .product(.Semantic),
             .product(.Demangling),
             .target(.MachOFoundation),
+        ],
+        swiftSettings: testSettings,
+    )
+
+    static let SwiftThunkAnalysisTests = Target.testTarget(
+        name: "SwiftThunkAnalysisTests",
+        dependencies: [
+            .target(.SwiftThunkAnalysis),
+            .target(.SwiftDeclarationRendering),
+            .target(.SwiftDump),
+            .target(.MachOTestingSupport),
+            .target(.MachOFixtureSupport),
+            .target(.MachOFoundation),
+            .product(.Demangling),
         ],
         swiftSettings: testSettings,
     )
@@ -914,6 +1024,9 @@ extension Target {
             .target(.SwiftOutputTransformer),
             .target(.SwiftDeclarationRendering),
             .target(.SwiftPrinting),
+            // For the `objc` subcommand tests under `ObjC/`.
+            .product(name: "ObjCDeclarationRendering", package: "MachOObjCSection"),
+            .product(name: "ObjCOutputTransformer", package: "MachOObjCSection"),
             .product(name: "ArgumentParser", package: "swift-argument-parser"),
         ],
         swiftSettings: testSettings,
@@ -1008,6 +1121,7 @@ let package = Package(
         .library(.SwiftInspection),
         .library(.SwiftLayout),
         .library(.SwiftDeclarationRendering),
+        .library(.SwiftThunkAnalysis),
         .library(.SwiftDump),
         .library(.SwiftDeclaration),
         .library(.SwiftAttributeInference),
@@ -1037,6 +1151,7 @@ let package = Package(
         .SwiftInspection,
         .SwiftLayout,
         .SwiftDeclarationRendering,
+        .SwiftThunkAnalysis,
         .SwiftDump,
         .SwiftDeclaration,
         .SwiftAttributeInference,
@@ -1070,6 +1185,7 @@ let package = Package(
         .TypeIndexingTests,
         .SwiftPrintingTests,
         .SwiftDeclarationRenderingTests,
+        .SwiftThunkAnalysisTests,
         .SwiftAttributeInferenceTests,
         .SwiftDiffingTests,
         .SwiftSectionCommandTests,

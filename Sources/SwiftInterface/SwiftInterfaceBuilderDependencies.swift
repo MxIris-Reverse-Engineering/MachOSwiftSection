@@ -76,7 +76,7 @@ extension SwiftInterfaceBuilderDependencies<MachOFile> {
     /// was before the search paths were unified.
     private static func eventSubject(for searchPath: DependencySearchPath) -> String {
         switch searchPath {
-        case .machOFile(let path), .dyldSharedCache(let path):
+        case .machOFile(let path), .dyldSharedCache(let path), .systemRoot(let path):
             return path
         case .systemDyldSharedCache:
             return searchPath.description

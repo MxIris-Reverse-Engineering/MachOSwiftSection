@@ -60,9 +60,9 @@ final class MultiPayloadEnumDescriptorCache: SharedCache<MultiPayloadEnumDescrip
     /// Separated from `buildStorage` so the per-descriptor error contract is
     /// unit-testable: a deliberately unreadable descriptor can be spliced into
     /// the sequence, which the section-backed property cannot express.
-    static func indexDescriptors<MachO: MachOSwiftSectionRepresentableWithCache>(
+    static func indexDescriptors(
         _ multiPayloadEnumDescriptors: some Sequence<MultiPayloadEnumDescriptor>,
-        in machO: MachO
+        in machO: some MachOSwiftSectionRepresentableWithCache
     ) -> [Node: MultiPayloadEnumDescriptor] {
         var multiPayloadEnumDescriptorByNode: [Node: MultiPayloadEnumDescriptor] = [:]
         for multiPayloadEnumDescriptor in multiPayloadEnumDescriptors {
@@ -75,7 +75,7 @@ final class MultiPayloadEnumDescriptorCache: SharedCache<MultiPayloadEnumDescrip
             do {
                 let mangledTypeName = try multiPayloadEnumDescriptor.mangledTypeName(in: machO)
 
-                let node = try MetadataReader.demangleType(for: mangledTypeName, in: machO)
+                let node = try SymbolicDemangler.demangleType(for: mangledTypeName, in: machO)
 
                 multiPayloadEnumDescriptorByNode[node] = multiPayloadEnumDescriptor
             } catch {

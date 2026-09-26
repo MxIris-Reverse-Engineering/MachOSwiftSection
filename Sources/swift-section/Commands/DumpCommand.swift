@@ -4,6 +4,7 @@ import MachOKit
 import MachOFoundation
 import MachOSwiftSection
 import SwiftDump
+import SwiftInspection
 import OutputTransformer
 import SwiftOutputTransformer
 import SwiftDeclarationRendering
@@ -16,9 +17,12 @@ struct DumpCommand: AsyncParsableCommand, Sendable {
         case `protocol`(MachOSwiftSection.`Protocol`)
         case protocolConformance(ProtocolConformance)
         case associatedType(AssociatedType)
+        case objcImplementationClass(ObjCImplementationClass)
 
         var offset: Int {
             switch self {
+            case .objcImplementationClass(let objcImplementationClass):
+                return objcImplementationClass.offset
             case .type(let type):
                 switch type {
                 case .enum(let `enum`):
@@ -94,8 +98,21 @@ struct DumpCommand: AsyncParsableCommand, Sendable {
     var emitExportStatus: Bool = false
 
     mutating func run() async throws {
-        let machOFile = try MachOFile.load(options: machOOptions)
+        try await AccessorThunkResolution.withResolver(from: machOOptions) {
+            try await dump()
+        }
+    }
 
+    private mutating func dump() async throws {
+        let machOFile = try MachOFile.load(options: machOOptions)
+        // The ObjC ancestor chain behind the `overrides` / `explicit selector`
+        // comments follows a standalone file's binds into the same images the
+        // interface's indexer would use; `dump` has no indexer, so it installs
+        // the resolver itself.
+        ObjCAncestorResolverStore.shared.register(
+            ObjCAncestorResolver(root: machOFile, searchPaths: machOOptions.indexDependencySearchPaths),
+            for: machOFile
+        )
         var dumpConfiguration: DumperConfiguration = .demangleOptions(demangleOptions.buildSwiftDumpDemangleOptions())
 
         dumpConfiguration.printMemberAddress = emitMemberAddresses
@@ -116,6 +133,7 @@ struct DumpCommand: AsyncParsableCommand, Sendable {
         // provider; build it once per session when any layout comment is
         // requested. Without it the offline dumpers emit no layout comments
         // (offline metadata is unavailable), exactly as before.
+        dumpConfiguration.staticLayoutDependencyResolution = machOOptions.staticLayoutDependencyResolution
         if dumpConfiguration.printFieldOffset || dumpConfiguration.printTypeLayout || dumpConfiguration.printEnumLayout || dumpConfiguration.printExpandedFieldOffsets {
             dumpConfiguration.staticFieldLayoutProvider = MachOFileStaticFieldLayoutProvider(
                 machOFile: machOFile,
@@ -162,6 +180,10 @@ struct DumpCommand: AsyncParsableCommand, Sendable {
                 }
             }
 
+            if sections.contains(.objcImplementationClasses) {
+                topLevelContexts.append(contentsOf: ObjCImplementationClass.all(in: machOFile).map { TopLevelContext.objcImplementationClass($0) })
+            }
+
             topLevelContexts.sort(by: { $0.offset < $1.offset })
 
             if sections.contains(.protocolConformances) {
@@ -196,6 +218,8 @@ struct DumpCommand: AsyncParsableCommand, Sendable {
                     try? await dumpProtocolConformance(protocolConformance, using: dumpConfiguration, in: machOFile)
                 case .associatedType(let associatedType):
                     try? await dumpAssociatedType(associatedType, using: dumpConfiguration, in: machOFile)
+                case .objcImplementationClass(let objcImplementationClass):
+                    try? await dumpObjCImplementationClass(objcImplementationClass, using: dumpConfiguration, in: machOFile)
                 }
             }
 
@@ -241,6 +265,16 @@ struct DumpCommand: AsyncParsableCommand, Sendable {
                         if !isDefaultSections {
                             dumpError(error)
                         }
+                    }
+                case .objcImplementationClasses:
+                    let objcImplementationClasses = ObjCImplementationClass.all(in: machOFile)
+                    if objcImplementationClasses.isEmpty, !isDefaultSections {
+                        // Asked for explicitly and nothing there: say so, as the
+                        // section-backed cases do, rather than print nothing.
+                        dumpOrPrint(SemanticString { Comment("No @objc @implementation classes recognized in this image.") })
+                    }
+                    for objcImplementationClass in objcImplementationClasses {
+                        try await dumpObjCImplementationClass(objcImplementationClass, using: dumpConfiguration, in: machOFile)
                     }
                 }
             }
@@ -288,6 +322,13 @@ struct DumpCommand: AsyncParsableCommand, Sendable {
     private mutating func dumpProtocolConformance(_ protocolConformance: ProtocolConformance, using configuration: DumperConfiguration, in machO: MachOFile) async throws {
         await performDump {
             try await protocolConformance.dump(using: configuration, in: machO)
+        }
+    }
+
+    @MainActor
+    private mutating func dumpObjCImplementationClass(_ objcImplementationClass: ObjCImplementationClass, using configuration: DumperConfiguration, in machO: MachOFile) async throws {
+        await performDump {
+            try await objcImplementationClass.dump(using: configuration, in: machO)
         }
     }
 

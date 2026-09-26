@@ -99,7 +99,7 @@ extension SwiftDeclarationPrinter {
     @SemanticStringBuilder
     private func renderUnboundTypeName(_ kind: SemanticType.TypeKind, descriptorWrapper: ContextDescriptorWrapper, name: String, displayParentName: Bool, leafNameNode: Node?, resolver: DemangleResolver) async throws -> SemanticString {
         if displayParentName {
-            try await resolver.resolve(for: MetadataReader.demangleContext(for: descriptorWrapper, in: machO)).replacingTypeNameOrOtherToTypeDeclaration()
+            try await resolver.resolve(for: SymbolicDemangler.demangleContext(for: descriptorWrapper, in: machO)).replacingTypeNameOrOtherToTypeDeclaration()
         } else {
             renderLeafName(kind: kind, bareName: name, leafNameNode: leafNameNode)
         }
@@ -130,7 +130,7 @@ extension SwiftDeclarationPrinter {
         if let superclassMangledName = try dumped.descriptor.superclassTypeMangledName(in: machO) {
             Standard(":")
             Space()
-            try await resolver.resolve(for: MetadataReader.demangleType(for: superclassMangledName, in: machO))
+            try await resolver.resolve(for: SymbolicDemangler.demangleType(for: superclassMangledName, in: machO))
             if hasInvertedProtocols {
                 Standard(",")
                 Space()
@@ -156,7 +156,7 @@ extension SwiftDeclarationPrinter {
         guard dumped.descriptor.isActor else { return false }
         @Dependency(\.symbolIndexStore) var symbolIndexStore
 
-        guard let currentTypeNode = try? MetadataReader.demangleContext(for: .type(.class(dumped.descriptor)), in: machO) else { return false }
+        guard let currentTypeNode = try? SymbolicDemangler.demangleContext(for: .type(.class(dumped.descriptor)), in: machO) else { return false }
         let currentTypeName = currentTypeNode.print(using: .interfaceTypeBuilderOnly)
 
         for thunkSymbol in symbolIndexStore.symbols(of: .distributedThunk, in: machO) {
@@ -181,7 +181,7 @@ extension SwiftDeclarationPrinter {
         Keyword(.protocol)
         Space()
         if displayParentName {
-            try await resolver.resolve(for: MetadataReader.demangleContext(for: .protocol(dumped.descriptor), in: machO)).replacingTypeNameOrOtherToTypeDeclaration()
+            try await resolver.resolve(for: SymbolicDemangler.demangleContext(for: .protocol(dumped.descriptor), in: machO)).replacingTypeNameOrOtherToTypeDeclaration()
         } else {
             renderLeafName(kind: .protocol, bareName: try dumped.descriptor.name(in: machO), leafNameNode: leafNameNode)
         }
@@ -235,12 +235,29 @@ extension SwiftDeclarationPrinter {
     // MARK: - Extension merged associated-type typealiases
 
     /// Emits a deduplicated `typealias` block collected from sibling
-    /// conformances, mirroring `AssociatedTypeDumper.mergedRecords`.
+    /// conformances, mirroring `AssociatedTypeDumper.records`.
+    ///
+    /// A witness whose underlying type an availability-conditional accessor
+    /// thunk decides gets every branch listed in a comment above its
+    /// `typealias` (``ConditionalWitnessComment``); the `typealias` itself is
+    /// the newest platform's branch, as before.
     @SemanticStringBuilder
     func renderMergedAssociatedTypeRecords(of associatedTypes: [AssociatedType], level: Int) async throws -> SemanticString {
         let resolver = typeDemangleResolver
         let orderedRecords = collectUniqueAssociatedTypeRecords(of: associatedTypes)
         for (offset, record) in orderedRecords.offsetEnumerated() {
+            let resolution = try SymbolicDemangler.demangleType(for: record.mangledTypeName, in: machO)
+                .resolveOpaqueTypeCollectingConditionalCandidates(
+                    witnessMangledName: record.mangledTypeName,
+                    conformingTypeName: record.conformingTypeName,
+                    in: machO,
+                    reportingDegradationTo: opaqueTypeDegradationReporter(subject: record.name)
+                )
+            for line in try await resolution.conditionalWitnessCommentLines(associatedTypeName: record.name, resolvedBy: resolver) {
+                BreakLine()
+                Indent(level: level)
+                Comment(line)
+            }
             BreakLine()
             Indent(level: level)
             Keyword(.typealias)
@@ -249,10 +266,7 @@ extension SwiftDeclarationPrinter {
             Space()
             Standard("=")
             Space()
-            try await resolver.resolve(
-                for: MetadataReader.demangleType(for: record.mangledTypeName, in: machO)
-                    .resolveOpaqueType(in: machO, reportingDegradationTo: opaqueTypeDegradationReporter(subject: record.name))
-            )
+            try await resolver.resolve(for: resolution.node)
             if offset.isEnd {
                 BreakLine()
             }
@@ -264,9 +278,9 @@ extension SwiftDeclarationPrinter {
         let mangledTypeName: MangledName
     }
 
-    private func collectUniqueAssociatedTypeRecords(of associatedTypes: [AssociatedType]) -> [(name: String, mangledTypeName: MangledName)] {
+    private func collectUniqueAssociatedTypeRecords(of associatedTypes: [AssociatedType]) -> [(name: String, mangledTypeName: MangledName, conformingTypeName: MangledName)] {
         var seenKeys: Set<AssociatedTypeRecordDedupKey> = []
-        var orderedRecords: [(name: String, mangledTypeName: MangledName)] = []
+        var orderedRecords: [(name: String, mangledTypeName: MangledName, conformingTypeName: MangledName)] = []
         for associatedType in associatedTypes {
             for record in associatedType.records {
                 let recordName: String
@@ -278,7 +292,7 @@ extension SwiftDeclarationPrinter {
                     continue
                 }
                 if seenKeys.insert(AssociatedTypeRecordDedupKey(name: recordName, mangledTypeName: mangledTypeName)).inserted {
-                    orderedRecords.append((recordName, mangledTypeName))
+                    orderedRecords.append((recordName, mangledTypeName, associatedType.conformingTypeName))
                 }
             }
         }
@@ -358,7 +372,19 @@ extension SwiftDeclarationPrinter {
         // (field records and layout comments are positional) and the trailing
         // break still follows the last field actually rendered. Enum cases
         // own no symbols and are never filtered.
-        let renderedFields = Array(typeDefinition.fields.enumerated()).filter { isEnum || !isExcludedByExportFilter(field: $0.element) }
+        // An artificial record is compiler-emitted storage, not a declared
+        // stored property, so the interface — which reads like the source —
+        // leaves it out: an actor's `$defaultActor` storage is already implied
+        // by the `actor` keyword (or the `@globalActor` attribute), and a
+        // `@_rawLayout(like:)` struct's `_rawLayout` record (Swift 6.4)
+        // renders as the type-level attribute instead. dump keeps showing
+        // both, because dump shows what the records say.
+        // A wrapped property's `_x` backing storage is hidden as well when its
+        // member variable `x` renders instead; when `x`'s accessors are
+        // stripped, `_x` stays in the list and the recovered declaration
+        // prints in its place (`synthesizedPropertyWrapperMembers(of:)`).
+        let synthesizedPropertyWrapperMembers = synthesizedPropertyWrapperMembers(of: typeDefinition)
+        let renderedFields = Array(typeDefinition.fields.enumerated()).filter { !$0.element.flags.contains(.isArtificial) && !synthesizedPropertyWrapperMembers.hiddenFieldNames.contains($0.element.name) && (isEnum || !isExcludedByExportFilter(field: $0.element)) }
         for (offset, indexedField) in renderedFields.offsetEnumerated() {
             let fieldIndex = indexedField.offset
             let field = indexedField.element
@@ -414,6 +440,13 @@ extension SwiftDeclarationPrinter {
                 // `EnumDumper` gating — so a `Void` payload keeps its
                 // parentheses and both paths spell the same case.
                 try await printThrowingEnumCase(field, level: level, substitutedTypeNode: substitutedTypeNode)
+            } else if let synthesizedWrappedProperty = synthesizedPropertyWrapperMembers.synthesizedDeclaration(inPlaceOfField: field) {
+                // The field's layout comments above still describe this
+                // storage; the declaration is the source's, recovered from it.
+                Comment(FieldRecordRendering.synthesizedWrappedPropertyComment(backingFieldName: field.name))
+                BreakLine()
+                Indent(level: level)
+                try await printThrowingSynthesizedWrappedProperty(synthesizedWrappedProperty, level: level)
             } else {
                 try await printThrowingField(field, level: level, substitutedTypeNode: substitutedTypeNode)
             }

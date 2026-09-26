@@ -18,12 +18,12 @@ extension Symbol {
     ///
     /// A lookup, not a read: this is why it lives here and not on the value
     /// type in `MachOResolving` (evolution proposal `self-contained-abi-layer`).
-    public static func resolve<MachO: MachORepresentableWithCache & Readable>(from offset: Int, in machO: MachO) throws -> Self {
+    public static func resolve(from offset: Int, in machO: some MachORepresentableWithCache & Readable) throws -> Self {
         try required(resolve(from: offset, in: machO))
     }
 
     /// Optional form of ``resolve(from:in:)-swift.type.method``.
-    public static func resolve<MachO: MachORepresentableWithCache & Readable>(from offset: Int, in machO: MachO) throws -> Self? {
+    public static func resolve(from offset: Int, in machO: some MachORepresentableWithCache & Readable) throws -> Self? {
         if resolvesSymbolUsingIndexStore {
             return machO.symbols(offset: offset)?.first
         } else {

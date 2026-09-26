@@ -50,6 +50,8 @@ package enum TypeGenericContextDescriptorHeaderBaselineGenerator {
                 let layoutNumRequirements: UInt16
                 let layoutNumKeyArguments: UInt16
                 let layoutFlagsRawValue: UInt16
+                let instantiationCacheOffset: Int?
+                let defaultInstantiationPatternOffset: Int?
             }
 
             static let genericStructLayoutRequirement = \(raw: entryExpr)
@@ -74,7 +76,9 @@ package enum TypeGenericContextDescriptorHeaderBaselineGenerator {
             layoutNumParams: \(literal: numParams),
             layoutNumRequirements: \(literal: numRequirements),
             layoutNumKeyArguments: \(literal: numKeyArguments),
-            layoutFlagsRawValue: \(raw: BaselineEmitter.hex(flagsRawValue))
+            layoutFlagsRawValue: \(raw: BaselineEmitter.hex(flagsRawValue)),
+            instantiationCacheOffset: \(raw: BaselineEmitter.optionalHex(header.resolvedDirectOffset(from: \.instantiationCache))),
+            defaultInstantiationPatternOffset: \(raw: BaselineEmitter.optionalHex(header.resolvedDirectOffset(from: \.defaultInstantiationPattern)))
         )
         """
         return expr.description

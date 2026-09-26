@@ -312,22 +312,22 @@ struct RuntimeFieldLayoutBackend {
         }
     }
 
-    private func resolveNestedMetatype<ParentMetadata: ValueMetadataProtocol>(for mangledTypeName: MangledName, parentMetadata: ParentMetadata) -> Any.Type? {
+    private func resolveNestedMetatype(for mangledTypeName: MangledName, parentMetadata: some ValueMetadataProtocol) -> Any.Type? {
         if let boundType = staticallyBoundMetatype(for: mangledTypeName, parentMetadata: parentMetadata) {
             return boundType
         }
-        guard let node = try? MetadataReader.demangleTypeUncached(for: mangledTypeName),
+        guard let node = try? SymbolicDemangler.demangleTypeUncached(for: mangledTypeName),
               !nodeContainsDependentReference(node)
         else { return nil }
         return try? RuntimeFunctions.getTypeByMangledNameInContext(mangledTypeName)
     }
 
-    private func nestedTypeName<ParentMetadata: ValueMetadataProtocol>(for mangledTypeName: MangledName?, parentMetadata: ParentMetadata) -> String {
+    private func nestedTypeName(for mangledTypeName: MangledName?, parentMetadata: some ValueMetadataProtocol) -> String {
         guard let mangledTypeName else { return "" }
         if let substitutedNode = substitutedNestedTypeNode(for: mangledTypeName, parentMetadata: parentMetadata) {
             return substitutedNode.printSemantic(using: .default).string
         }
-        return (try? MetadataReader.demangleTypeUncached(for: mangledTypeName).printSemantic(using: .default).string) ?? ""
+        return (try? SymbolicDemangler.demangleTypeUncached(for: mangledTypeName).printSemantic(using: .default).string) ?? ""
     }
 
     // MARK: - Static generic-argument substitution (PAC-fault-avoiding)
@@ -364,14 +364,14 @@ struct RuntimeFieldLayoutBackend {
         let metadataPackShapeDescriptors: [GenericPackShapeDescriptor]
     }
 
-    private func substitutedNestedTypeNode<ParentMetadata: ValueMetadataProtocol>(for mangledTypeName: MangledName, parentMetadata: ParentMetadata) -> Node? {
-        guard let node = try? MetadataReader.demangleTypeUncached(for: mangledTypeName) else { return nil }
+    private func substitutedNestedTypeNode(for mangledTypeName: MangledName, parentMetadata: some ValueMetadataProtocol) -> Node? {
+        guard let node = try? SymbolicDemangler.demangleTypeUncached(for: mangledTypeName) else { return nil }
         guard let layout = topLevelGenericLayout(of: parentMetadata) else { return node }
         return substitutingGenericParameters(in: node, parentMetadata: parentMetadata, layout: layout)
     }
 
-    private func staticallyBoundMetatype<ParentMetadata: ValueMetadataProtocol>(for mangledTypeName: MangledName, parentMetadata: ParentMetadata) -> Any.Type? {
-        guard let node = try? MetadataReader.demangleTypeUncached(for: mangledTypeName) else { return nil }
+    private func staticallyBoundMetatype(for mangledTypeName: MangledName, parentMetadata: some ValueMetadataProtocol) -> Any.Type? {
+        guard let node = try? SymbolicDemangler.demangleTypeUncached(for: mangledTypeName) else { return nil }
         let typeNode = innerTypeNode(of: node)
         guard typeNode.kind == .dependentGenericParamType,
               let (depthValue, indexValue) = genericParameterDepthAndIndex(of: typeNode),
@@ -412,7 +412,7 @@ struct RuntimeFieldLayoutBackend {
     /// would. The result is print-only (`nestedTypeName` →
     /// `printSemantic(using: .default)`); it is never remangled, so a bare
     /// `pack` child (printed as `Pack{…}`) needs no further wrapping.
-    private func substitutingGenericParameters<ParentMetadata: ValueMetadataProtocol>(in node: Node, parentMetadata: ParentMetadata, layout: TopLevelGenericLayout) -> Node {
+    private func substitutingGenericParameters(in node: Node, parentMetadata: some ValueMetadataProtocol, layout: TopLevelGenericLayout) -> Node {
         if #available(macOS 11, iOS 14, tvOS 14, watchOS 7, *),
            node.kind == .dependentGenericParamType,
            let (depthValue, indexValue) = genericParameterDepthAndIndex(of: node),
@@ -424,8 +424,7 @@ struct RuntimeFieldLayoutBackend {
             switch layout.parameters[indexValue].kind {
             case .type:
                 if let argumentType = boundGenericArgumentType(atSlot: slot, totalKeyArguments: layout.totalKeyArguments, of: parentMetadata),
-                   let argumentMangledString = _mangledTypeName(argumentType),
-                   let argumentNode = try? demangleAsNodeTransient(argumentMangledString, isType: true) {
+                   let argumentNode = RuntimeTypeNameDemangling.node(forMetatype: argumentType) {
                     return innerTypeNode(of: argumentNode)
                 }
             case .value:
@@ -455,7 +454,7 @@ struct RuntimeFieldLayoutBackend {
     }
 
     /// Resolves a `.type` key-argument slot to its concrete `Any.Type`.
-    private func boundGenericArgumentType<ParentMetadata: ValueMetadataProtocol>(atSlot slot: Int, totalKeyArguments: Int, of parentMetadata: ParentMetadata) -> Any.Type? {
+    private func boundGenericArgumentType(atSlot slot: Int, totalKeyArguments: Int, of parentMetadata: some ValueMetadataProtocol) -> Any.Type? {
         guard let word = genericArgumentWord(atSlot: slot, totalKeyArguments: totalKeyArguments, of: parentMetadata) else { return nil }
         // The slot must hold a pointer-aligned metadata pointer. Reject a null
         // or misaligned word defensively: a stray non-pointer value reaching
@@ -469,7 +468,7 @@ struct RuntimeFieldLayoutBackend {
 
     /// Builds an `integer` / `negativeInteger` literal node for a `.value`
     /// (SE-0452) key-argument slot, which stores the raw `Int` value inline.
-    private func substitutedValueNode<ParentMetadata: ValueMetadataProtocol>(atSlot slot: Int, totalKeyArguments: Int, of parentMetadata: ParentMetadata) -> Node? {
+    private func substitutedValueNode(atSlot slot: Int, totalKeyArguments: Int, of parentMetadata: some ValueMetadataProtocol) -> Node? {
         guard let word = genericArgumentWord(atSlot: slot, totalKeyArguments: totalKeyArguments, of: parentMetadata) else { return nil }
         let value = Int(bitPattern: word)
         if value >= 0 {
@@ -483,7 +482,7 @@ struct RuntimeFieldLayoutBackend {
     /// slot, which stores a `MetadataPackPointer` (its low bit is the on-heap
     /// lifetime flag). The pack length lives in the leading shape-class slot
     /// named by the parameter's metadata pack-shape descriptor.
-    private func substitutedPackNode<ParentMetadata: ValueMetadataProtocol>(forParameterAtIndex parameterIndex: Int, layout: TopLevelGenericLayout, of parentMetadata: ParentMetadata) -> Node? {
+    private func substitutedPackNode(forParameterAtIndex parameterIndex: Int, layout: TopLevelGenericLayout, of parentMetadata: some ValueMetadataProtocol) -> Node? {
         guard #available(macOS 11, iOS 14, tvOS 14, watchOS 7, *) else { return nil }
         guard parameterIndex < layout.parameters.count else { return nil }
         // The k-th metadata pack-shape descriptor describes the k-th `.typePack`
@@ -520,8 +519,7 @@ struct RuntimeFieldLayoutBackend {
                   elementWord % UInt(MemoryLayout<UnsafeRawPointer>.alignment) == 0,
                   let elementPointer = UnsafeRawPointer(bitPattern: elementWord) else { return nil }
             let elementType = unsafeBitCast(elementPointer, to: Any.Type.self)
-            guard let elementMangledString = _mangledTypeName(elementType),
-                  let elementNode = try? demangleAsNodeTransient(elementMangledString, isType: true) else { return nil }
+            guard let elementNode = RuntimeTypeNameDemangling.node(forMetatype: elementType) else { return nil }
             elementNodes.append(elementNode)
         }
         return Node.createTransient(kind: .pack, children: elementNodes)
@@ -535,7 +533,7 @@ struct RuntimeFieldLayoutBackend {
         return genericArgumentsBase.load(fromByteOffset: slot * MemoryLayout<UInt>.size, as: UInt.self)
     }
 
-    private func topLevelGenericLayout<ParentMetadata: ValueMetadataProtocol>(of parentMetadata: ParentMetadata) -> TopLevelGenericLayout? {
+    private func topLevelGenericLayout(of parentMetadata: some ValueMetadataProtocol) -> TopLevelGenericLayout? {
         guard let descriptor = try? parentMetadata.descriptor(),
               let genericContext = try? descriptor.genericContext(),
               let topLevelParameters = genericContext.allParameters.first
@@ -605,7 +603,7 @@ struct RuntimeFieldLayoutBackend {
         let numberOfEmptyCases = enumValue.numberOfEmptyCases
         var layoutResult: EnumLayoutCalculator.LayoutResult
         if enumValue.isMultiPayload {
-            let node = try MetadataReader.demangleContext(for: .type(.enum(enumValue.descriptor)), in: machOImage)
+            let node = try SymbolicDemangler.demangleContext(for: .type(.enum(enumValue.descriptor)), in: machOImage)
             if let multiPayloadEnumDescriptor = MultiPayloadEnumDescriptorCache.shared.multiPayloadEnumDescriptor(for: node, in: machOImage), multiPayloadEnumDescriptor.usesPayloadSpareBits {
                 let spareBytes = try multiPayloadEnumDescriptor.payloadSpareBits(in: machOImage)
                 let spareBytesOffset = try multiPayloadEnumDescriptor.payloadSpareBitMaskByteOffset(in: machOImage)
@@ -729,7 +727,7 @@ struct RuntimeFieldLayoutBackend {
 
     private func spareBitAnalysis(for enumValue: Enum, in machOImage: MachOImage) -> SpareBitAnalyzer.Analysis? {
         try? {
-            let node = try MetadataReader.demangleContext(for: .type(.enum(enumValue.descriptor)), in: machOImage)
+            let node = try SymbolicDemangler.demangleContext(for: .type(.enum(enumValue.descriptor)), in: machOImage)
             guard let multiPayloadEnumDescriptor = MultiPayloadEnumDescriptorCache.shared.multiPayloadEnumDescriptor(for: node, in: machOImage),
                   multiPayloadEnumDescriptor.usesPayloadSpareBits else { return nil }
             let spareBytes = try multiPayloadEnumDescriptor.payloadSpareBits(in: machOImage)

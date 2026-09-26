@@ -27,7 +27,7 @@ final class MultiPayloadEnumTests: MachOImageTests {
         let descriptors = try machO.swift.multiPayloadEnumDescriptors
         for descriptor in descriptors {
             let inProcessDescriptor = descriptor.asPointerWrapper(in: machO)
-            try await multiPayloadEnumDescriptorByMangledName[MetadataReader.demangleType(for: inProcessDescriptor.mangledTypeName()).print(using: demangleOptions)] = inProcessDescriptor
+            try await multiPayloadEnumDescriptorByMangledName[SymbolicDemangler.demangleType(for: inProcessDescriptor.mangledTypeName()).print(using: demangleOptions)] = inProcessDescriptor
         }
     }
 
@@ -54,7 +54,7 @@ final class MultiPayloadEnumTests: MachOImageTests {
             let records = try fieldDescriptor.records()
             guard !records.isEmpty else { continue }
 
-            let typeName = try await MetadataReader.demangleContext(for: .type(.enum(typeContextDescriptor as! EnumDescriptor))).print(using: demangleOptions)
+            let typeName = try await SymbolicDemangler.demangleContext(for: .type(.enum(typeContextDescriptor as! EnumDescriptor))).print(using: demangleOptions)
 
             print(typeName)
             print("")
@@ -101,7 +101,7 @@ final class MultiPayloadEnumTests: MachOImageTests {
                     payloadCases += 1
                 }
 
-                let node = try MetadataReader.demangleType(for: mangledTypeName)
+                let node = try SymbolicDemangler.demangleType(for: mangledTypeName)
                 var isTuplePayload = false
                 if node.firstChild?.isKind(of: .tuple) ?? false {
                     isTuplePayload = true
@@ -128,7 +128,7 @@ final class MultiPayloadEnumTests: MachOImageTests {
                             let tupleElementMetadata = try element.type.resolve()
                             if let descriptor = try tupleElementMetadata.typeContextDescriptorWrapper()?.asContextDescriptorWrapper {
                                 print(indent + "Index: " + index.description)
-                                try await print(indent + "Type: " + MetadataReader.demangleContext(for: descriptor).print(using: demangleOptions))
+                                try await print(indent + "Type: " + SymbolicDemangler.demangleContext(for: descriptor).print(using: demangleOptions))
                             }
                             let tupleElementTypeLayout = try tupleElementMetadata.asFullMetadata().valueWitnesses.resolve().typeLayout
                             print(indent + "- " + tupleElementTypeLayout.description)

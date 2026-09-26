@@ -61,7 +61,7 @@ public enum TypeContextWrapper: Sendable {
 // MARK: - ReadingContext Support
 
 extension TypeContextWrapper {
-    public static func forTypeContextDescriptorWrapper<Context: ReadingContext>(_ typeContextDescriptorWrapper: TypeContextDescriptorWrapper, in context: Context) throws -> Self {
+    public static func forTypeContextDescriptorWrapper(_ typeContextDescriptorWrapper: TypeContextDescriptorWrapper, in context: some ReadingContext) throws -> Self {
         switch typeContextDescriptorWrapper {
         case .enum(let enumDescriptor):
             return try .enum(.init(descriptor: enumDescriptor, in: context))

@@ -30,18 +30,42 @@ public struct StaticTypeLayout: Sendable, Hashable {
     /// an aggregate is bitwise-takable only when all its fields are.
     public let isBitwiseTakable: Bool
 
+    /// Whether a value can be borrowed by copying its bits
+    /// (`TargetValueWitnessFlags::isBitwiseBorrowable`: bitwise-takable and
+    /// not `IsNotBitwiseBorrowable`). Only `@_rawLayout` types and aggregates
+    /// containing one clear it; everything else follows `isBitwiseTakable`,
+    /// which is what the default derives. It decides whether a
+    /// `Builtin.Borrow` of the type is laid out inline or as a pointer.
+    public let isBitwiseBorrowable: Bool
+
+    /// Whether the type is `@_addressableForDependencies`
+    /// (`TargetValueWitnessFlags::IsAddressableForDependencies`): a value's
+    /// address is part of its identity for lifetime-dependent borrows.
+    /// Aggregates inherit it from any field; `Builtin.FixedArray` carries it
+    /// (Swift 6.4 runtime). A `Builtin.Borrow` of such a type uses the pointer
+    /// representation.
+    public let isAddressableForDependencies: Bool
+
+    /// - Parameters:
+    ///   - isBitwiseBorrowable: Pass `nil` (the default) to derive it from
+    ///     `isBitwiseTakable`, which is exact for every type without a
+    ///     `@_rawLayout` component.
     public init(
         size: Int,
         stride: Int,
         alignmentMask: Int,
         extraInhabitantCount: Int,
-        isBitwiseTakable: Bool
+        isBitwiseTakable: Bool,
+        isBitwiseBorrowable: Bool? = nil,
+        isAddressableForDependencies: Bool = false
     ) {
         self.size = size
         self.stride = stride
         self.alignmentMask = alignmentMask
         self.extraInhabitantCount = extraInhabitantCount
         self.isBitwiseTakable = isBitwiseTakable
+        self.isBitwiseBorrowable = isBitwiseTakable && (isBitwiseBorrowable ?? true)
+        self.isAddressableForDependencies = isAddressableForDependencies
     }
 
     /// The alignment in bytes (`alignmentMask + 1`).

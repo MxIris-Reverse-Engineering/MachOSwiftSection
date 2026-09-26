@@ -250,7 +250,12 @@ public struct ABIDiffer: Sendable {
                 records.append(.makeCase(field, tag: tag))
             }
         } else {
-            records.append(contentsOf: definition.fields.map(MemberRecord.make))
+            // A `@_rawLayout(like:)` struct's artificial `_rawLayout` record
+            // (Swift 6.4) describes storage for offline layout tools; it is not
+            // a stored property, and a binary built by an older compiler has
+            // no such record, so keying on it would report a toolchain
+            // difference as an ABI change.
+            records.append(contentsOf: definition.fields.filter { !$0.isRawLayoutStorage }.map(MemberRecord.make))
         }
         if definition.hasDeallocator {
             records.append(.makeDeinit())

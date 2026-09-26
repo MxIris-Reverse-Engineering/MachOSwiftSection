@@ -175,6 +175,34 @@ opaque 尖括号参数归属的第三条规则：协议无任何 anchor 命中�
 - **主要出现在**：上游 `swift-demangling`；本仓库消费面见 AGENTS.md「Symbol indexing」段
 - **延伸阅读**：[NodeStoreMigrationPlan.md](Internal/NodeStoreMigrationPlan.md)
 
+### ObjC implementation class（`@objc @implementation` 类）
+
+用 SE-0436 的 `@objc @implementation extension` 实现的类：声明在 ObjC 头文件里，实现写在 Swift 里，对 ObjC runtime 来说它就是一个普通 ObjC 类。编译器给它发出的是纯 ObjC class object：`__swift5_types` 里没有 nominal type descriptor，`__swift5_fieldmd` 里没有 field descriptor，class data 指针的 Swift bit 为 0。Swift 侧只留下成员符号（mangle 成模块对 `__C.<类>` 的 extension）、存储属性的 `Wvd` 字段偏移全局变量和本镜像**导出**的 metadata accessor `$sSo<类>CMa`（imported 类在任何用到它的镜像里都会有一个 hidden 的 non-unique accessor，那个不算）。和普通「Swift extension of an imported ObjC class」的区别是后者只产生 category，类本身不由本镜像定义。macOS 26 起 AppKit / UIKitCore 大量采用（NSGlassEffectView、NSScreen、NSGradient 等）。
+
+- **主要出现在**：提案 0046-objc-implementation-class-recognition 的判据与证据分级
+- **延伸阅读**：[提案 0046-objc-implementation-class-recognition](Evolutions/0046-objc-implementation-class-recognition.md)
+
+### ObjC ancestor override（ObjC 祖先覆写）
+
+一个 Swift 成员覆写了从 ObjC 继承来的成员——NSView 的 `layout()`、NSObject 的 `description`——这件事在 Swift 元数据里没有记录：编译器给这种覆写发的是一条**新的**普通 vtable 项而不是 override 表项（`NeedsNewVTableEntryRequest` 对「被覆写者来自 clang」答「需要新项」），`@objc @implementation` 类更是没有 vtable。本仓库从 ObjC 侧判：类自己的 ObjC 方法表里某条方法的 selector 在祖先链（NSView → NSResponder → NSObject，跨镜像）上有人实现，它就是覆写；再把那条方法联结到 Swift 成员——IMP 处的 `To` 符号、或反汇编 IMP 找它引用的成员实现、或（默认关）只按 selector 名字唯一匹配。三档证据记在 `ObjCMember.evidence` 里，dump 打出来，interface 只打 `override`。自提案 `objc-member-selector-recovery` 起它是「ObjC member table」的一个投影（`overriddenAncestorClassName` 非空的成员）。
+
+- **主要出现在**：`SwiftInspection/ObjCMember.swift`、`SwiftThunkAnalysis/ObjCMembers/`
+- **延伸阅读**：[提案 0047-objc-ancestor-override-recovery](Evolutions/0047-objc-ancestor-override-recovery.md)、[ObjCMemberRecovery.md](Internal/ObjCMemberRecovery.md)
+
+### ObjC member table（ObjC 成员表）
+
+一个类的 ObjC 方法表——实例方法表、元类方法表、本镜像 `__objc_catlist` 里指向它的 category——的每一条联结到实现它的 Swift 成员之后得到的 per-class 表（`ObjCMemberTable`，按 Swift 符号名索引 `ObjCMember`）。方法表就是类的 `@objc` 成员清单，运行时靠它派发、strip 不会碰，所以它是三个 Swift 元数据不记的事实的来源：成员是 `@objc`（OS 框架 strip 掉 `To` thunk 符号后这是唯一证据）、它覆写了哪个祖先的成员（selector 在祖先链上有人实现）、它的 selector 是不是源码里 `@objc(name)` 写出来的（与编译器从 Swift 名正向推出的默认值不同，且不是从被覆写者或协议要求继承的——祖先链或协议没读完就不下这个判定）。联结证据分三档：IMP 处的 `To` 符号；反汇编无名 thunk 收它引用的成员实现，配「所属类」与「importer 拼法」两道守卫；只按名字（只对覆写）。三档**都在索引期跑完**并记进 `ObjCMember.evidence`，用不用是消费者的事：dump 每条都标证据，第三档写成 `(selector name, no symbol evidence)` 照常渲染；interface 只有 `override` 一个关键字、没处说明证据来源，默认不打，`--infer-objc-overrides` 才打。`@objc @implementation` 体不是例外：编译器同样从 Swift 名推导 selector 并要求头文件里有它，`draw(in:)` 要对上 `drawInRect:` 就得写 `@objc(drawInRect:)`。
+
+- **主要出现在**：`SwiftInspection/ObjCMember.swift`、`SwiftInspection/ObjCMemberShape.swift`、`SwiftThunkAnalysis/ObjCMembers/`、`SwiftDeclaration/Components/Building/ObjCMemberApplication.swift`、`SwiftDeclaration/Components/Definitions/ResolvedObjCMemberFacts.swift`
+- **延伸阅读**：[提案 0048-objc-member-selector-recovery](Evolutions/0048-objc-member-selector-recovery.md)、[ObjCMemberRecovery.md](Internal/ObjCMemberRecovery.md)
+
+### ObjC ancestor resolver（ObjC 祖先解析器）
+
+独立 Mach-O 文件的父类指针是 bind，ObjC 读取器跟不过去；祖先解析器（`ObjCAncestorResolver`）拿 bind 符号里的类名（`_OBJC_CLASS_$_UIView` 去前缀，Swift 父类是 `_TtC…` 运行时名）在文件的传递依赖闭包里找定义它的镜像——先问每个镜像的 export trie（bind 只能落到导出符号），有才建那个镜像的名字表，第一个命中即返回——祖先链从那个镜像继续走。祖先链的每一跳还把根镜像与闭包里每个独立文件对该祖先的 category 折进它的 selector 集合（cache 里的类由 dyld 预挂，文件世界里离线看不到）。按镜像登记在 `ObjCAncestorResolverStore`：indexer 与 `dump` 用各自的搜索路径注册，无人注册的文件默认走系统 cache，进程内镜像没有解析器。hierarchy 的 memo 键带解析器身份，宿主 provider 交出的断链也用它续。配套的平台守卫在 MachODependencies：cache 里另一个平台的同名镜像（macOS cache 的 Catalyst UIKit）永远不是候选。
+
+- **主要出现在**：`SwiftInspection/ObjCAncestorResolver.swift`、`SwiftInspection/ObjCClassMethodIndex.swift`、`MachODependencies/DependencyPlatforms.swift`
+- **延伸阅读**：[提案 0049-objc-ancestor-dependency-closure](Evolutions/0049-objc-ancestor-dependency-closure.md)、[ObjCMemberRecovery.md](Internal/ObjCMemberRecovery.md)
+
 ### permutation 二分（permutation binary search）
 
 不给数据本体排序，而是另存一条「按某序排列的下标数组」（permutation），查询时在这条下标序列上二分。`SymbolTable.rowsSortedByName` 即名字序 permutation：行本体保持插入序不动，名字查找二分这条 `[UInt32]`。替代了被退役的名字键字典 `tableRowByName`。
@@ -208,11 +236,50 @@ TypeIndexing 的外部知识入口：标准 `.apinotes` 格式的**用户自备*
 - **主要出现在**：`Sources/MachOSymbols/SymbolIndexStore.swift`（`buildStorageSweep`）
 - **延伸阅读**：[提案 0001](Evolutions/0001-symbol-name-offsetization.md)、[SymbolIndexStoreMemoryOptimization.md](Internal/SymbolIndexStoreMemoryOptimization.md)
 
+### symbolic-mangling symbol（`_symbolic` 符号）与被引用者（referent）
+
+编译器给每条带 symbolic reference 的 mangled name 生成的链接器去重符号：`_symbolic ` / `_default assoc type ` 前缀，
+接着是把每个 5 字节引用写成 `_____` 的 mangled name，再按引用顺序、空格分隔地写出每个**被引用者**——引用所指对象的
+完整 mangling（模块、外层类型、private 鉴别符都在）。symbolic reference 本身只是相对偏移，这是二进制里唯一写出被引用者
+名字的地方，dyld shared cache 也保留着。被引用者不能单独 demangle：同一个 mangler 依次写出它们，后面的会借用前面的
+substitution，必须连在一个 `$s` 后面一起 demangle。
+
+- **主要出现在**：`Sources/MachOSymbols/SymbolicManglingSymbols.swift`（收集）、`Sources/SwiftInspection/SymbolicManglingIndex.swift`（配对与解码）
+- **延伸阅读**：[SymbolicManglingSymbols.md](Internal/SymbolicManglingSymbols.md)、[提案 0050-symbolic-mangling-symbol-index](Evolutions/0050-symbolic-mangling-symbol-index.md)
+
+### SymbolicDemangler（旧名 MetadataReader）
+
+`SwiftInspection` 里带镜像上下文的 demangler：mangled name 里的 symbolic reference（指向 context descriptor、opaque type descriptor、protocol descriptor、existential shape 的相对指针）要回到镜像里解析，它读出被引用的描述符、建出编译器本来会 mangle 进去的那棵子树，对应运行时的 `ResolveAsSymbolicReference` 加 `_swift_buildDemanglingForContext`。另外直接为 context descriptor 和 generic requirement 列表建 demangling（`demangleContext(for:)`、`buildGenericSignature(for:)`）。它从不读 `Metadata` 记录，metadata 指针变类型那个方向是 `RuntimeMetadataTypeBuilder`。2026-09-09 之前叫 `MetadataReader`，名字抄自上游 `swift/Remote/MetadataReader.h`，但上游那个类型的主业正是「从远程进程内存读 metadata 记录再交给 Builder」，我们只对应它 demangle 那一半；带日期的旧文档里仍用旧名。
+
+- **主要出现在**：`Sources/SwiftInspection/SymbolicDemangler.swift`
+- **延伸阅读**：[提案 0022](Evolutions/0022-rename-metadata-reader-to-symbolic-demangler.md)、[ReadingContextAbstraction.md](Internal/ReadingContextAbstraction.md)
+
+### TypeImportInfo（C 导入类型身份）
+
+C 导入类型的 type context descriptor 在名字字符串后面追加的一串以空字符分隔的身份分量，由 `TypeContextDescriptorFlags.hasImportInfo` 宣告：`N` 前缀是 ABI 名（`NSRange` 的 tag 叫 `_NSRange`，`CGColor` 是 `CGColorRef` typedef，`Decimal` 是 `NSDecimal`），`S` 前缀是符号命名空间（唯一取值 `t`，表示被提升为独立类型的 C typedef，mangling 里拼成 `typeAlias`），`R` 前缀是 importer 合成的关联实体名（`NS_ERROR_ENUM` 合成的错误 struct 是 `e`，mangling 里包一层 `relatedEntityDeclName`）。运行时 `_swift_buildDemanglingForContext` 据此改写 demangling 树，本项目的 `SymbolicDemangler` 照同一套规则改写；另有一条不依赖 import info 的规则：`__C` 下的 tag 枚举一律 mangle 成 `structure`。
+
+- **主要出现在**：`Sources/MachOSwiftSection/Models/Type/TypeImportInfo.swift`、`SymbolicDemangler.cImportedTypeIdentity`
+- **延伸阅读**：[提案 0023](Evolutions/0023-type-import-info-identity.md)、上游 `swift/ABI/TypeIdentity.h`
+
 ### trailing objects
 
 Swift runtime 的 descriptor 布局惯例：固定头之后按 flags 跟着可变数量的附加记录（vtable 方法描述符、resilient witnesses、泛型上下文等），源自 C++ 侧的 `TrailingObjects` 模板。本仓库的高层 wrapper 构造时把它们全部解析成 Swift 数组——0002 要治理的驻留正是这些解析产物。
 
 - **主要出现在**：`Sources/MachOSwiftSection/Models/`（各 wrapper 的 `initialize` 尾部解析）
+
+### system root（系统根目录搜索路径）
+
+- **定义**：`DependencySearchPath.systemRoot(path:)`，一棵目录树，把依赖的绝对 install name 直接拼在它下面找文件：`<root>/System/Library/Frameworks/Foo.framework/Foo`。iOS 26 及更早的模拟器运行时的 `RuntimeRoot` 就是这个形状；iOS 27 起模拟器改带自己的 `dyld_sim_shared_cache`，对应 `.dyldSharedCache(path:)`。
+- **为什么要有**：不在 cache 里的二进制（第三方 app、老模拟器框架）调别的镜像里的 metadata accessor 时只有一个 bind 名，得先找到那个镜像才能查它的 accessor 索引。`DependencySearchPath.inferred(forRoot:)` 从根文件的磁盘位置推断出 cache 或 system root。
+- **不要混淆**：`.machOFile(path:)` 是显式指定一个文件；system root 是按 install name 在目录树里现找。
+- **延伸阅读**：[MachODependencies 模块文档](Internal/Modules/MachODependencies.md)、[提案 standalone-file-thunk-resolution](Evolutions/0030-standalone-file-thunk-resolution.md)
+
+### type-construction evaluation（类型构造求值）
+
+离线读 kind-9 accessor thunk 的方法：不执行 thunk，按指令顺序做符号求值——寄存器和栈槽里放「类型表达式」（参数缓冲区第 k 个词、某 descriptor 的 accessor 以若干实参调用的结果、常量 metadata 地址、mangled name 实例化）而不是数值。thunk 只用几种运行时入口（泛型类型的 metadata accessor、`swift_getWitnessTable`、`__swift_instantiateConcreteTypeFromMangledName`）构造类型，每一种的语义都是类型层面的，所以函数返回时 `x0` 里的表达式就是答案。条件跳转能判定的（运行时能力标志、已知立即数）直接判定，判定不了的（版本检查的结果）按「假设为假 / 假设为真」各跑一遍，两次结果即 `if #available` 的两支。与「查表」读法（只认 `csel` 的两个操作数或分支里唯一一次调用）的区别：后者忽略了尾调用，会把 `ModifiedContent<…, X>` 读成 `X`、把中间调用的结果当答案。
+
+- **主要出现在**：`Sources/SwiftThunkAnalysis/Analysis/ThunkTypeEvaluator.swift`、`AccessorThunkAnalyzer.swift`
+- **延伸阅读**：[专题导读](Internal/AccessorThunkResolutionExplained.md)、[提案 0029](Evolutions/0029-thunk-type-construction-evaluation.md)、[提案 0028](Evolutions/0028-offline-opaque-accessor-thunk-resolution.md)
 
 ### union interface（并集接口）
 

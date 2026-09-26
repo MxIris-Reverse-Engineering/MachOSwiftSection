@@ -42,7 +42,7 @@ public struct ProtocolConformance: TopLevelType {
 
     public private(set) var globalActorReference: GlobalActorReference?
 
-    public init<MachO: MachOSwiftSectionRepresentableWithCache>(descriptor: ProtocolConformanceDescriptor, in machO: MachO) throws {
+    public init(descriptor: ProtocolConformanceDescriptor, in machO: some MachOSwiftSectionRepresentableWithCache) throws {
         self.descriptor = descriptor
 
         self.protocol = try descriptor.protocolDescriptor(in: machO)
@@ -88,7 +88,7 @@ public struct ProtocolConformance: TopLevelType {
         try initialize(descriptor: descriptor, currentOffset: &currentOffset, in: pointer)
     }
 
-    private mutating func initialize<Reader: Readable>(descriptor: ProtocolConformanceDescriptor, currentOffset: inout Int, in reader: Reader) throws {
+    private mutating func initialize(descriptor: ProtocolConformanceDescriptor, currentOffset: inout Int, in reader: some Readable) throws {
         if descriptor.flags.numConditionalRequirements > 0 {
             conditionalRequirements = try reader.readWrapperElements(offset: currentOffset, numberOfElements: descriptor.flags.numConditionalRequirements.cast()) as [GenericRequirementDescriptor]
             currentOffset.offset(of: GenericRequirementDescriptor.self, numbersOfElements: descriptor.flags.numConditionalRequirements.cast())
@@ -135,7 +135,7 @@ public struct ProtocolConformance: TopLevelType {
 // MARK: - ReadingContext Support
 
 extension ProtocolConformance {
-    public init<Context: ReadingContext>(descriptor: ProtocolConformanceDescriptor, in context: Context) throws {
+    public init(descriptor: ProtocolConformanceDescriptor, in context: some ReadingContext) throws {
         self.descriptor = descriptor
 
         self.protocol = try descriptor.protocolDescriptor(in: context)
@@ -157,7 +157,7 @@ extension ProtocolConformance {
         try initialize(descriptor: descriptor, currentOffset: &currentOffset, in: context)
     }
 
-    private mutating func initialize<Context: ReadingContext>(descriptor: ProtocolConformanceDescriptor, currentOffset: inout Int, in context: Context) throws {
+    private mutating func initialize(descriptor: ProtocolConformanceDescriptor, currentOffset: inout Int, in context: some ReadingContext) throws {
         if descriptor.flags.numConditionalRequirements > 0 {
             conditionalRequirements = try context.readWrapperElements(at: try context.addressFromOffset(currentOffset), numberOfElements: descriptor.flags.numConditionalRequirements.cast()) as [GenericRequirementDescriptor]
             currentOffset.offset(of: GenericRequirementDescriptor.self, numbersOfElements: descriptor.flags.numConditionalRequirements.cast())

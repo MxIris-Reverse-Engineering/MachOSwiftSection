@@ -8,7 +8,7 @@ import Demangling
 import OrderedCollections
 import SwiftDeclarationRendering
 
-package struct AssociatedTypeDumper<MachO: FieldLayoutRenderable>: ConformedDumper {
+package struct AssociatedTypeDumper<MachO: MachOFieldLayoutRenderable>: ConformedDumper {
     package let dumped: AssociatedType
 
     package let configuration: DumperConfiguration
@@ -47,6 +47,27 @@ package struct AssociatedTypeDumper<MachO: FieldLayoutRenderable>: ConformedDump
     package var records: SemanticString {
         get async throws {
             for (offset, record) in dumped.records.offsetEnumerated() {
+                let recordName = try record.name(in: machO)
+                let witnessMangledName = try record.substitutedTypeName(in: machO)
+                // The dump's spelling of a reference that could not be
+                // expanded names the owner declaration in a trailing comment;
+                // the interface's, the indexer's default, does not.
+                let resolution = try SymbolicDemangler.demangleType(for: witnessMangledName, in: machO)
+                    .resolveOpaqueTypeCollectingConditionalCandidates(witnessMangledName: witnessMangledName, conformingTypeName: dumped.conformingTypeName, in: machO, spelling: .annotated)
+
+                // Every branch of an availability-conditional witness, above
+                // the `typealias` that shows the newest platform's one — and
+                // every hop of a projected member, above the answer.
+                let commentLines = try await resolution.conditionalWitnessCommentLines(associatedTypeName: recordName, resolvedBy: demangleResolver)
+                    + resolution.projectedMemberCommentLines(associatedTypeName: recordName, resolvedBy: demangleResolver)
+                for line in commentLines {
+                    BreakLine()
+
+                    Indent(level: 1)
+
+                    Comment(line)
+                }
+
                 BreakLine()
 
                 Indent(level: 1)
@@ -55,7 +76,7 @@ package struct AssociatedTypeDumper<MachO: FieldLayoutRenderable>: ConformedDump
 
                 Space()
 
-                try TypeDeclaration(kind: .other, record.name(in: machO))
+                TypeDeclaration(kind: .other, recordName)
 
                 Space()
 
@@ -63,7 +84,7 @@ package struct AssociatedTypeDumper<MachO: FieldLayoutRenderable>: ConformedDump
 
                 Space()
 
-                try await demangleResolver.resolve(for: MetadataReader.demangleType(for: record.substitutedTypeName(in: machO), in: machO).resolveOpaqueType(in: machO))
+                try await demangleResolver.resolve(for: resolution.node)
 
                 if offset.isEnd {
                     BreakLine()
@@ -88,13 +109,13 @@ package struct AssociatedTypeDumper<MachO: FieldLayoutRenderable>: ConformedDump
 
     package var typeName: SemanticString {
         get async throws {
-            try await demangleResolver.resolve(for: MetadataReader.demangleType(for: dumped.conformingTypeName, in: machO)).replacingTypeNameOrOtherToTypeDeclaration()
+            try await demangleResolver.resolve(for: SymbolicDemangler.demangleType(for: dumped.conformingTypeName, in: machO)).replacingTypeNameOrOtherToTypeDeclaration()
         }
     }
 
     package var protocolName: SemanticString {
         get async throws {
-            try await demangleResolver.resolve(for: MetadataReader.demangleType(for: dumped.protocolTypeName, in: machO))
+            try await demangleResolver.resolve(for: SymbolicDemangler.demangleType(for: dumped.protocolTypeName, in: machO))
         }
     }
 }

@@ -9,7 +9,7 @@ public struct ExtensionContext: TopLevelType, ContextProtocol {
 
     public let extendedContextMangledName: MangledName?
 
-    public init<MachO: MachOSwiftSectionRepresentableWithCache>(descriptor: ExtensionContextDescriptor, in machO: MachO) throws {
+    public init(descriptor: ExtensionContextDescriptor, in machO: some MachOSwiftSectionRepresentableWithCache) throws {
         self.descriptor = descriptor
         self.extendedContextMangledName = try descriptor.extendedContext(in: machO)
         self.genericContext = try descriptor.genericContext(in: machO)
@@ -25,7 +25,7 @@ public struct ExtensionContext: TopLevelType, ContextProtocol {
 // MARK: - ReadingContext Support
 
 extension ExtensionContext {
-    public init<Context: ReadingContext>(descriptor: ExtensionContextDescriptor, in context: Context) throws {
+    public init(descriptor: ExtensionContextDescriptor, in context: some ReadingContext) throws {
         self.descriptor = descriptor
         self.extendedContextMangledName = try descriptor.extendedContext(in: context)
         self.genericContext = try descriptor.genericContext(in: context)

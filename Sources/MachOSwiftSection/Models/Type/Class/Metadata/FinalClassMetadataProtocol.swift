@@ -5,7 +5,7 @@ import MachOBase
 public protocol FinalClassMetadataProtocol: HeapMetadataProtocol {}
 
 extension FinalClassMetadataProtocol where Layout: FinalClassMetadataLayout {
-    public func fieldOffsets<MachO: MachOSwiftSectionRepresentableWithCache>(for descriptor: ClassDescriptor? = nil, in machO: MachO) throws -> [StoredPointer] {
+    public func fieldOffsets(for descriptor: ClassDescriptor? = nil, in machO: some MachOSwiftSectionRepresentableWithCache) throws -> [StoredPointer] {
         guard let descriptor = try descriptor ?? layout.descriptor.resolve(in: machO) else { return [] }
         guard descriptor.fieldOffsetVectorOffset != .zero else { return [] }
         let offset = offset.offseting(of: StoredPointer.self, numbersOfElements: descriptor.fieldOffsetVectorOffset.cast())
@@ -19,7 +19,7 @@ extension FinalClassMetadataProtocol where Layout: FinalClassMetadataLayout {
         return try asPointer.readElements(offset: offset, numberOfElements: descriptor.numFields.cast())
     }
     
-    public func descriptor<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> ClassDescriptor? {
+    public func descriptor(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> ClassDescriptor? {
         try layout.descriptor.resolve(in: machO)
     }
 
@@ -31,14 +31,14 @@ extension FinalClassMetadataProtocol where Layout: FinalClassMetadataLayout {
 // MARK: - ReadingContext Support
 
 extension FinalClassMetadataProtocol where Layout: FinalClassMetadataLayout {
-    public func fieldOffsets<Context: ReadingContext>(for descriptor: ClassDescriptor? = nil, in context: Context) throws -> [StoredPointer] {
+    public func fieldOffsets(for descriptor: ClassDescriptor? = nil, in context: some ReadingContext) throws -> [StoredPointer] {
         guard let descriptor = try descriptor ?? layout.descriptor.resolve(in: context) else { return [] }
         guard descriptor.fieldOffsetVectorOffset != .zero else { return [] }
         let fieldOffsetsOffset = offset.offseting(of: StoredPointer.self, numbersOfElements: descriptor.fieldOffsetVectorOffset.cast())
         return try context.readElements(at: try context.addressFromOffset(fieldOffsetsOffset), numberOfElements: descriptor.numFields.cast())
     }
 
-    public func descriptor<Context: ReadingContext>(in context: Context) throws -> ClassDescriptor? {
+    public func descriptor(in context: some ReadingContext) throws -> ClassDescriptor? {
         try layout.descriptor.resolve(in: context)
     }
 }

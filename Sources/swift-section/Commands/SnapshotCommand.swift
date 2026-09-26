@@ -1,5 +1,6 @@
 import ArgumentParser
 import Foundation
+import SwiftDeclarationRendering
 import SwiftDiffing
 
 struct SnapshotCommand: AsyncParsableCommand {
@@ -20,15 +21,17 @@ struct SnapshotCommand: AsyncParsableCommand {
         guard let filePath = machOOptions.filePath else {
             throw ValidationError("A Mach-O file path is required.")
         }
-        let document = try await ABISnapshotInputLoader.loadDocument(
-            path: filePath,
-            architecture: machOOptions.architecture,
-            isDyldSharedCache: machOOptions.isDyldSharedCache,
-            cacheImageName: machOOptions.cacheImageName,
-            cacheImagePath: machOOptions.cacheImagePath,
-            label: label,
-            log: log
-        )
+        let document = try await AccessorThunkResolution.withResolver(from: machOOptions) {
+            try await ABISnapshotInputLoader.loadDocument(
+                path: filePath,
+                architecture: machOOptions.architecture,
+                isDyldSharedCache: machOOptions.isDyldSharedCache,
+                cacheImageName: machOOptions.cacheImageName,
+                cacheImagePath: machOOptions.cacheImagePath,
+                label: label,
+                log: log
+            )
+        }
         let encoded = try document.encoded()
         if let outputPath {
             try encoded.write(to: URL(fileURLWithPath: outputPath), options: .atomic)

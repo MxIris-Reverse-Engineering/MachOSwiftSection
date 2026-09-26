@@ -43,7 +43,7 @@ final class MultiPayloadEnumStructuralTests: MachOSwiftSectionFixtureTests, @unc
                 !descriptor.typeContextDescriptor.layout.flags.isGeneric
             else { continue }
             guard
-                let node = try? MetadataReader.demangleContext(for: contextDescriptor, in: machO),
+                let node = try? SymbolicDemangler.demangleContext(for: contextDescriptor, in: machO),
                 let qualifiedTypeName = NodeTypeNaming.nominalQualifiedName(of: node),
                 qualifiedTypeName.hasPrefix("SymbolTests")
             else { continue }

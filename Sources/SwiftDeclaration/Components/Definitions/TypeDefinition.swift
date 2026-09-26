@@ -1,16 +1,5 @@
-import Foundation
-import FoundationToolbox
 import MachOSwiftSection
-import MachOKit
-import MemberwiseInit
-import OrderedCollections
-import SwiftDeclarationRendering
-import Demangling
-import Semantic
-import SwiftStdlibToolbox
-import Dependencies
 @_spi(Internals) import MachOSymbols
-@_spi(Internals) import SwiftInspection
 
 public final class TypeDefinition: Definition {
     /// The type's context descriptor reference (evolution proposal 0002).
@@ -34,6 +23,24 @@ public final class TypeDefinition: Definition {
     /// construction time, so callers can branch on the type kind without
     /// inspecting the optional `metadata` field.
     public let isSpecialized: Bool
+
+    /// Whether this type's nominal type descriptor is in the image's export
+    /// trie, resolved once at construction (see ``ExportStatus``). Available
+    /// the moment `SwiftDeclarationIndexer.prepare()` returns — the verdict
+    /// needs only the descriptor's offset and the name node, never
+    /// `index(in:)`'s products — so a host listing types can annotate every
+    /// row before any of them is indexed. A specialized definition inherits
+    /// the value of the generic definition it was derived from: same
+    /// descriptor, same fact.
+    ///
+    /// Resolving it queries the image's symbol index, so constructing a
+    /// definition through `init(type:in:)` for an image whose index has not
+    /// been built yet builds it (`SymbolIndexStore.storage(in:)` is
+    /// get-or-build). Through `SwiftDeclarationIndexer.prepare()` — the
+    /// normal path — the index is already up by the time definitions are
+    /// constructed, which is why the whole sweep costs well under 1% of
+    /// preparation.
+    public let exportStatus: ExportStatus
 
     public package(set) weak var parent: TypeDefinition?
 
@@ -64,6 +71,12 @@ public final class TypeDefinition: Definition {
     public package(set) var extensions: [ExtensionDefinition] = []
 
     public package(set) var fields: [FieldDefinition] = []
+
+    /// The properties declared with a property wrapper, recovered at index
+    /// time from their compiler-synthesized storage (`_x`) and projection
+    /// (`$x`) — which stay in `fields` / `variables` as the binary has them.
+    /// See `WrappedPropertyDefinition`.
+    public package(set) var wrappedProperties: [WrappedPropertyDefinition] = []
 
     public package(set) var variables: [VariableDefinition] = []
 
@@ -113,7 +126,12 @@ public final class TypeDefinition: Definition {
 
     public package(set) var attributes: [SwiftAttribute] = []
 
-    public private(set) var isIndexed: Bool = false
+    /// Whether `index(in:)` has completed a pass over this definition.
+    ///
+    /// The setter is `internal`, not `private`, only because the indexing
+    /// pass lives in `TypeDefinition+Indexing.swift`: nothing outside this
+    /// target may flip it, and inside it only that pass's tail does.
+    public internal(set) var isIndexed: Bool = false
 
     /// Specialized metadata bound to this definition.
     ///
@@ -140,10 +158,11 @@ public final class TypeDefinition: Definition {
     /// path holds one anyway (indexing needs it for `typeName(in:)`) — but
     /// only its descriptor reference is retained, so the caller's parsed
     /// wrapper is released as soon as construction returns.
-    package init(type: TypeContextWrapper, typeName: TypeName, isSpecialized: Bool) {
+    package init(type: TypeContextWrapper, typeName: TypeName, isSpecialized: Bool, exportStatus: ExportStatus) {
         self.typeContextDescriptorWrapper = type.typeContextDescriptorWrapper
         self.typeName = typeName
         self.isSpecialized = isSpecialized
+        self.exportStatus = exportStatus
     }
 
     /// Test/tooling surface: constructs a definition around a RAW descriptor
@@ -151,366 +170,29 @@ public final class TypeDefinition: Definition {
     /// build a definition whose indexing/materialization deterministically
     /// fails (a real descriptor layout re-wrapped at an out-of-bounds
     /// offset).
-    package init(typeContextDescriptorWrapper: TypeContextDescriptorWrapper, typeName: TypeName, isSpecialized: Bool) {
+    /// `exportStatus` defaults to the no-verdict case because a definition
+    /// built this way has no trustworthy descriptor to rule on.
+    package init(
+        typeContextDescriptorWrapper: TypeContextDescriptorWrapper,
+        typeName: TypeName,
+        isSpecialized: Bool,
+        exportStatus: ExportStatus = .descriptorSymbolNameUnresolvable
+    ) {
         self.typeContextDescriptorWrapper = typeContextDescriptorWrapper
         self.typeName = typeName
         self.isSpecialized = isSpecialized
+        self.exportStatus = exportStatus
     }
 
-    public convenience init<MachO: MachOSwiftSectionRepresentableWithCache>(type: TypeContextWrapper, in machO: MachO) async throws {
+    public convenience init(type: TypeContextWrapper, in machO: some MachOSwiftSectionRepresentableWithCache) async throws {
         let typeName = try type.typeName(in: machO)
-        self.init(type: type, typeName: typeName, isSpecialized: false)
+        let exportStatus = ExportStatus.resolve(
+            forNominalTypeDescriptorAt: type.typeContextDescriptorWrapper.typeContextDescriptor.offset,
+            typeNameNode: typeName.node,
+            in: machO
+        )
+        self.init(type: type, typeName: typeName, isSpecialized: false, exportStatus: exportStatus)
     }
-
-    package func index<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) async throws {
-        guard !isIndexed else { return }
-
-        @Dependency(\.symbolIndexStore)
-        var symbolIndexStore
-
-        let typeContextDescriptor = typeContextDescriptorWrapper.typeContextDescriptor
-        let fieldDescriptor = try typeContextDescriptor.fieldDescriptor(in: machO)
-        let records = try fieldDescriptor.records(in: machO)
-        // Field type trees intern into the image's shared store
-        // (`InternedNodeReferenceCache`), so common subtrees (module
-        // references, stdlib types) deduplicate across the whole image —
-        // the per-type builder+freeze store this replaced could only
-        // deduplicate within one type.
-        var indexedFields: [FieldDefinition] = []
-        for record in records {
-            let typeNode = try record.demangledTypeNode(in: machO)
-            let name = try record.fieldName(in: machO)
-            var fieldFlags = FieldFlags()
-            if name.hasLazyPrefix {
-                fieldFlags.insert(.isLazy)
-            }
-            if typeNode.contains(.weak) {
-                fieldFlags.insert(.isWeak)
-            }
-            if typeNode.contains(.unmanaged) {
-                fieldFlags.insert(.isUnownedUnsafe)
-            } else if typeNode.contains(.unowned) {
-                fieldFlags.insert(.isUnowned)
-            }
-            if record.flags.contains(.isVariadic) {
-                fieldFlags.insert(.isVariable)
-            }
-            if record.flags.contains(.isIndirectCase) {
-                fieldFlags.insert(.isIndirectCase)
-            }
-            if record.flags.contains(.isArtificial) {
-                fieldFlags.insert(.isArtificial)
-            }
-            if try !record.mangledTypeName(in: machO).isEmpty {
-                fieldFlags.insert(.hasMangledTypeName)
-            }
-            indexedFields.append(FieldDefinition(name: name.stripLazyPrefix, typeNode: InternedNodeReferenceCache.shared.reference(interning: typeNode, in: machO), flags: fieldFlags))
-        }
-        // `self.fields` is assigned after the member build below, once the
-        // stored-property accessor groups have been folded back in.
-
-        let fieldNames = Set(indexedFields.map(\.name))
-
-        // `final` recovery evidence gate (evolution proposal 0006): only a
-        // non-actor class whose vtable trailing objects are present can
-        // testify that a descriptor-less member is `final` — actors cannot be
-        // subclassed, and a class without a vtable header is indistinguishable
-        // from a `final` class, so both stay unmarked.
-        var classCanRecoverFinalMembers = false
-
-        var methodDescriptorLookup: [StructuralNodeReferenceKey: MethodDescriptorWrapper] = [:]
-        var vtableOffsetLookup: [StructuralNodeReferenceKey: Int] = [:]
-        // Fallback lookups keyed by implementation file offset (for methods where node-based matching fails)
-        var implOffsetDescriptorLookup: [Int: MethodDescriptorWrapper] = [:]
-        var implOffsetVTableSlotLookup: [Int: Int] = [:]
-        // The vtable / override tables live in the class wrapper's trailing
-        // objects, so the class branch is the one place indexing has to
-        // materialize the full wrapper — once, as a local, released when this
-        // function returns (materialization discipline, proposal 0002).
-        if case .class(let classDescriptor) = typeContextDescriptorWrapper {
-            let classWrapper = try Class(descriptor: classDescriptor, in: machO)
-            var visitedNodes: OrderedSet<StructuralNodeReferenceKey> = []
-            let typeNode = try MetadataReader.demangleContext(for: .type(.class(classWrapper.descriptor)), in: machO)
-            let vtableBaseOffset = classWrapper.vTableDescriptorHeader.map { Int($0.layout.vTableOffset) }
-            classCanRecoverFinalMembers = classWrapper.vTableDescriptorHeader != nil && !classDescriptor.isActor
-
-            // Build offset-based fallback lookups. Uniqueness must be checked against
-            // ALL descriptor kinds (method + override + defaultOverride), because
-            // trampolines/thunks/shared implementations can have multiple descriptors
-            // pointing at the same impl address. If the impl is not globally unique,
-            // we cannot use offset-based fallback — we would not know which descriptor
-            // to associate the symbol with.
-            var implOffsetCounts: [Int: Int] = [:]
-            for descriptor in classWrapper.methodDescriptors where !descriptor.implementation.isNull {
-                let implOffset = descriptor.implementation.resolveDirectOffset(from: descriptor.offset(of: \.implementation))
-                implOffsetCounts[implOffset, default: 0] += 1
-            }
-            for descriptor in classWrapper.methodOverrideDescriptors where !descriptor.implementation.isNull {
-                let implOffset = descriptor.implementation.resolveDirectOffset(from: descriptor.offset(of: \.implementation))
-                implOffsetCounts[implOffset, default: 0] += 1
-            }
-            for descriptor in classWrapper.methodDefaultOverrideDescriptors where !descriptor.implementation.isNull {
-                let implOffset = descriptor.implementation.resolveDirectOffset(from: descriptor.offset(of: \.implementation))
-                implOffsetCounts[implOffset, default: 0] += 1
-            }
-            for (index, descriptor) in classWrapper.methodDescriptors.enumerated() where !descriptor.implementation.isNull {
-                let implOffset = descriptor.implementation.resolveDirectOffset(from: descriptor.offset(of: \.implementation))
-                // Only use offset-based fallback for globally unique implementation addresses
-                if implOffsetCounts[implOffset] == 1 {
-                    implOffsetDescriptorLookup[implOffset] = .method(descriptor)
-                    if let vtableBaseOffset {
-                        implOffsetVTableSlotLookup[implOffset] = vtableBaseOffset + index
-                    }
-                }
-            }
-
-            // Attribution evidence order, same as the dump path's
-            // `ClassDumper`: the descriptor's own `Tq` symbol first — one per
-            // member, at the descriptor's own address, so identical code
-            // folding cannot reach it — and the symbols at the implementation
-            // address only as a fallback, since folding makes that mapping
-            // non-invertible.
-            for (index, descriptor) in classWrapper.methodDescriptors.enumerated() {
-                let node: NodeReference
-                if let attributedNode = descriptor.attributedMemberNode(in: machO) {
-                    node = attributedNode
-                } else if let symbols = descriptor.implementationSymbols(in: machO),
-                          let overrideSymbol = demangledOverrideSymbol(for: symbols, typeNode: typeNode, visitedNodes: visitedNodes, in: machO) {
-                    node = overrideSymbol.demangledNode
-                } else {
-                    continue
-                }
-                visitedNodes.append(StructuralNodeReferenceKey(node))
-                let joinKey = memberJoinKey(for: node, in: machO)
-                methodDescriptorLookup[joinKey] = .method(descriptor)
-                if let vtableBaseOffset {
-                    vtableOffsetLookup[joinKey] = vtableBaseOffset + index
-                }
-            }
-            var parentVTableCache = ParentClassVTableCache()
-
-            for descriptor in classWrapper.methodOverrideDescriptors {
-                // Override slots keep the implementation-address route: the
-                // join below is against THIS class's member symbols, which a
-                // parent-shaped node from the overridden descriptor's `Tq`
-                // symbol never matches. See
-                // `Descriptor+MethodDescriptorSymbols.swift`.
-                guard let symbols = descriptor.implementationSymbols(in: machO) else { continue }
-                guard let overrideSymbol = demangledOverrideSymbol(for: symbols, typeNode: typeNode, visitedNodes: visitedNodes, in: machO) else { continue }
-                let node = overrideSymbol.demangledNode
-                visitedNodes.append(StructuralNodeReferenceKey(node))
-                let joinKey = memberJoinKey(for: node, in: machO)
-                methodDescriptorLookup[joinKey] = .methodOverride(descriptor)
-
-                if let vtableSlot = try? parentVTableCache.slotIndex(for: descriptor, in: machO) {
-                    vtableOffsetLookup[joinKey] = vtableSlot
-                }
-            }
-            for descriptor in classWrapper.methodDefaultOverrideDescriptors {
-                // Override slots keep the implementation-address route: the
-                // join below is against THIS class's member symbols, which a
-                // parent-shaped node from the overridden descriptor's `Tq`
-                // symbol never matches. See
-                // `Descriptor+MethodDescriptorSymbols.swift`.
-                guard let symbols = descriptor.implementationSymbols(in: machO) else { continue }
-                guard let overrideSymbol = demangledOverrideSymbol(for: symbols, typeNode: typeNode, visitedNodes: visitedNodes, in: machO) else { continue }
-                let node = overrideSymbol.demangledNode
-                visitedNodes.append(StructuralNodeReferenceKey(node))
-                methodDescriptorLookup[memberJoinKey(for: node, in: machO)] = .methodDefaultOverride(descriptor)
-            }
-        }
-
-        let name = typeName.name
-        let node = typeName.node
-
-        allocators = DefinitionBuilder.allocators(
-            for: symbolIndexStore.memberSymbols(of: .allocator(inExtension: false), for: name, node: node, in: machO).map { .init(base: $0, offset: nil) },
-            methodDescriptorLookup: methodDescriptorLookup,
-            vtableOffsetLookup: vtableOffsetLookup,
-            implOffsetDescriptorLookup: implOffsetDescriptorLookup,
-            implOffsetVTableSlotLookup: implOffsetVTableSlotLookup
-        )
-
-        // See the property doc comments for the role each symbol plays.
-        // The deallocator drives whether `deinit` is printed at all; the
-        // destructor (only present on classes) is exposed as an extra
-        // address comment. Both go through the node-matched overload like
-        // every other member kind — a name-only `.first` could hand a
-        // same-named private sibling's deinit address to this type
-        // (issue #115's family).
-        deallocatorSymbol = symbolIndexStore.memberSymbols(of: .deallocator, for: name, node: node, in: machO).first?.detachedFromSharedTable()
-        destructorSymbol = symbolIndexStore.memberSymbols(of: .destructor, for: name, node: node, in: machO).first?.detachedFromSharedTable()
-
-        let variablesProduct = DefinitionBuilder.variablesProduct(
-            for: symbolIndexStore.memberSymbols(of: .variable(inExtension: false, isStatic: false, isStorage: false), for: name, node: node, in: machO).map { .init(base: $0, offset: nil) },
-            fieldNames: fieldNames,
-            methodDescriptorLookup: methodDescriptorLookup,
-            vtableOffsetLookup: vtableOffsetLookup,
-            implOffsetDescriptorLookup: implOffsetDescriptorLookup,
-            implOffsetVTableSlotLookup: implOffsetVTableSlotLookup,
-            isGlobalOrStatic: false
-        )
-        variables = variablesProduct.variables
-
-        // Fold the stored-property accessor groups (suppressed from
-        // `variables` so the property still renders once, from the field
-        // descriptor) back onto their fields: the resolved method descriptors
-        // carry the dispatch facts (vtable slots, `final`), and a lazy field's
-        // getter carries the caller-facing type its storage record hides.
-        for index in indexedFields.indices {
-            guard let accessors = variablesProduct.storedPropertyAccessorsByFieldName[indexedFields[index].name] else { continue }
-            indexedFields[index].accessors = accessors
-            if indexedFields[index].flags.contains(.isLazy),
-               let getterNode = accessors.first(where: { $0.kind == .getter })?.symbol.demangledNode,
-               let accessorTypeNode = getterNode.first(of: .variable)?.children.first(of: .type) {
-                indexedFields[index].accessorTypeNode = accessorTypeNode
-            }
-        }
-
-        staticVariables = DefinitionBuilder.variables(
-            for: symbolIndexStore.memberSymbols(
-                of: .variable(inExtension: false, isStatic: true, isStorage: false),
-                .variable(inExtension: false, isStatic: true, isStorage: true),
-                for: name,
-                node: node,
-                in: machO
-            ).map { .init(base: $0, offset: nil) },
-            methodDescriptorLookup: methodDescriptorLookup,
-            vtableOffsetLookup: vtableOffsetLookup,
-            implOffsetDescriptorLookup: implOffsetDescriptorLookup,
-            implOffsetVTableSlotLookup: implOffsetVTableSlotLookup,
-            isGlobalOrStatic: true
-        )
-
-        functions = DefinitionBuilder.functions(
-            for: symbolIndexStore.memberSymbols(of: .function(inExtension: false, isStatic: false), for: name, node: node, in: machO).map { .init(base: $0, offset: nil) },
-            methodDescriptorLookup: methodDescriptorLookup,
-            vtableOffsetLookup: vtableOffsetLookup,
-            implOffsetDescriptorLookup: implOffsetDescriptorLookup,
-            implOffsetVTableSlotLookup: implOffsetVTableSlotLookup,
-            isGlobalOrStatic: false
-        )
-
-        staticFunctions = DefinitionBuilder.functions(
-            for: symbolIndexStore.memberSymbols(of: .function(inExtension: false, isStatic: true), for: name, node: node, in: machO).map { .init(base: $0, offset: nil) },
-            methodDescriptorLookup: methodDescriptorLookup,
-            vtableOffsetLookup: vtableOffsetLookup,
-            implOffsetDescriptorLookup: implOffsetDescriptorLookup,
-            implOffsetVTableSlotLookup: implOffsetVTableSlotLookup,
-            isGlobalOrStatic: true
-        )
-
-        subscripts = DefinitionBuilder.subscripts(
-            for: symbolIndexStore.memberSymbols(of: .subscript(inExtension: false, isStatic: false), for: name, node: node, in: machO).map { .init(base: $0, offset: nil) },
-            methodDescriptorLookup: methodDescriptorLookup,
-            vtableOffsetLookup: vtableOffsetLookup,
-            implOffsetDescriptorLookup: implOffsetDescriptorLookup,
-            implOffsetVTableSlotLookup: implOffsetVTableSlotLookup,
-            isStatic: false
-        )
-
-        staticSubscripts = DefinitionBuilder.subscripts(
-            for: symbolIndexStore.memberSymbols(of: .subscript(inExtension: false, isStatic: true), for: name, node: node, in: machO).map { .init(base: $0, offset: nil) },
-            methodDescriptorLookup: methodDescriptorLookup,
-            vtableOffsetLookup: vtableOffsetLookup,
-            implOffsetDescriptorLookup: implOffsetDescriptorLookup,
-            implOffsetVTableSlotLookup: implOffsetVTableSlotLookup,
-            isStatic: true
-        )
-
-        // Cross-reference @objc and @nonobjc thunk symbols with built definitions
-        applyThunkAttributes(symbolIndexStore: symbolIndexStore, typeName: name, typeNode: node, in: machO)
-
-        // `final` recovery (evolution proposal 0006) — the mirror image of the
-        // `class`/`static` recovery documented in ClassMemberKeywordRecovery.md:
-        // a class member with no vtable method descriptor has no dynamic
-        // dispatch entry, which is exactly what declaring it `final` compiles
-        // to. Two exclusions keep the honest side of the ledger: a member
-        // whose accessor symbols never joined stays unmarked (absence of
-        // evidence is not `final`), and an `@objc` member without a descriptor
-        // dispatches through the ObjC runtime (`@objc dynamic`) — overridable,
-        // so never `final`. Runs after `applyThunkAttributes` (the `@objc`
-        // evidence) and before `orderedMembers` is built below, which copies
-        // the member values.
-        if classCanRecoverFinalMembers {
-            // Node-matched, like `applyThunkAttributes` above: this gate
-            // SUPPRESSES `final`, so a same-named private sibling's `@objc`
-            // member would silently strip the keyword off this type's
-            // genuinely final member (issue #115's family).
-            let objcThunkMemberNames = Set(symbolIndexStore.thunkAttributeMembers(of: .objCAttribute, for: name, node: node, in: machO).filter { !$0.isStatic }.map(\.memberName))
-            // Fourth gate — `Tq` method-descriptor SYMBOLS as negative
-            // evidence: they are per-member data symbols at unique addresses,
-            // immune to the identical-code-folding that defeats the
-            // descriptor→implementation-symbol join (SourceEditor folds 1128
-            // empty implementations onto one address, where the join cannot
-            // pair descriptors with members and every folded member would
-            // read as `final`). A member name with a `Tq` symbol provably has
-            // a vtable entry — never `final`, even when the join missed it.
-            var methodDescriptorSymbolMemberNames: Set<String> = []
-            var subscriptMethodDescriptorNodeKeys: Set<StructuralNodeReferenceKey> = []
-            let instanceMemberKinds: [SymbolIndexStore.MemberKind] = [
-                .function(inExtension: false, isStatic: false),
-                .variable(inExtension: false, isStatic: false, isStorage: false),
-                .subscript(inExtension: false, isStatic: false),
-            ]
-            for kind in instanceMemberKinds {
-                // Node-matched for the same reason as the `@objc` gate above:
-                // a sibling's `Tq` descriptor under the stripped name would
-                // read as this type's vtable evidence and suppress `final`.
-                for descriptorSymbol in symbolIndexStore.methodDescriptorMemberSymbols(of: kind, for: name, node: node, in: machO) {
-                    if let functionName = descriptorSymbol.demangledNode.first(of: .function)?.identifier {
-                        methodDescriptorSymbolMemberNames.insert(functionName)
-                    } else if let variableName = descriptorSymbol.demangledNode.first(of: .variable)?.identifier {
-                        methodDescriptorSymbolMemberNames.insert(variableName)
-                    } else if let subscriptNode = descriptorSymbol.demangledNode.first(of: .subscript) {
-                        // Overloaded subscripts share one name, so they key on
-                        // the subscript subtree — the same extraction
-                        // `DefinitionBuilder.subscripts` groups accessors by.
-                        subscriptMethodDescriptorNodeKeys.insert(StructuralNodeReferenceKey(subscriptNode))
-                    }
-                }
-            }
-            for index in functions.indices where functions[index].methodDescriptor == nil && !functions[index].attributes.contains(.objc) && !methodDescriptorSymbolMemberNames.contains(functions[index].name) {
-                functions[index].isFinal = true
-            }
-            for index in variables.indices where !variables[index].accessors.isEmpty && !variables[index].hasVTableAccessor && !variables[index].attributes.contains(.objc) && !methodDescriptorSymbolMemberNames.contains(variables[index].name) {
-                variables[index].isFinal = true
-            }
-            for index in subscripts.indices where !subscripts[index].accessors.isEmpty && !subscripts[index].hasVTableAccessor && !subscripts[index].attributes.contains(.objc) {
-                let subscriptNodeKey = subscripts[index].node.first(of: .subscript).map { StructuralNodeReferenceKey($0) }
-                if let subscriptNodeKey, subscriptMethodDescriptorNodeKeys.contains(subscriptNodeKey) { continue }
-                subscripts[index].isFinal = true
-            }
-            // Stored `let`s are not overridable to begin with, so `final` on
-            // them is pure noise — only stored `var`s (field records carrying
-            // the IsVar flag) participate.
-            for index in indexedFields.indices where indexedFields[index].flags.contains(.isVariable) && !indexedFields[index].accessors.isEmpty && !indexedFields[index].hasVTableAccessor && !objcThunkMemberNames.contains(indexedFields[index].name) && !methodDescriptorSymbolMemberNames.contains(indexedFields[index].name) {
-                indexedFields[index].isFinal = true
-            }
-        }
-        self.fields = indexedFields
-
-        // P1-10: drop body-side copies of auto-synthesized Equatable / Hashable /
-        // Codable / CaseIterable / RawRepresentable / CodingKey members. The
-        // canonical copy remains on the conformance extension, avoiding the
-        // "same member printed twice with different addresses" duplication.
-        // This must run *after* applyThunkAttributes so that any user-declared
-        // override flagged with an attribute is dropped alongside its body
-        // entry; the extension copy (which carries the same attribute after
-        // its own indexing pass) is the surviving one.
-        deduplicateSynthesizedProtocolMembers()
-
-        // Build ordered members list
-        let allMembers = OrderedMember.allMembers(from: self)
-        if case .class = typeContextDescriptorWrapper {
-            orderedMembers = OrderedMember.classOrdered(allMembers)
-        } else {
-            orderedMembers = OrderedMember.offsetOrdered(allMembers)
-        }
-
-        isIndexed = true
-    }
-
     /// Rebuilds the full `TypeContextWrapper` — trailing objects included —
     /// from the retained descriptor, exactly the parse the model-build sweep
     /// performed once already.
@@ -520,184 +202,7 @@ public final class TypeDefinition: Definition {
     /// the result through as a local variable. The result is deliberately
     /// not cached — retaining it on the definition would re-accumulate, in
     /// browse order, the memory the descriptor slimming reclaimed.
-    public func materializedTypeContext<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> TypeContextWrapper {
+    public func materializedTypeContext(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> TypeContextWrapper {
         try TypeContextWrapper.forTypeContextDescriptorWrapper(typeContextDescriptorWrapper, in: machO)
-    }
-
-    /// Cross-references `@objc` / `@nonobjc` thunk attribute members (pre-extracted
-    /// and bucketed by parent type name inside `SymbolIndexStore`) with the
-    /// already-built member definitions of this type, appending the matching
-    /// attribute to each affected member.
-    private func applyThunkAttributes<MachO: MachORepresentableWithCache>(
-        symbolIndexStore: SymbolIndexStore,
-        typeName: String,
-        typeNode: NodeReference,
-        in machO: MachO
-    ) {
-        let thunkKindsAndAttributes: [(Node.Kind, SwiftAttribute)] = [
-            (.objCAttribute, .objc),
-            (.nonObjCAttribute, .nonobjc),
-            (.distributedThunk, .distributed),
-        ]
-
-        for (thunkKind, attribute) in thunkKindsAndAttributes {
-            // Node-matched: the member-name matching below is string-based,
-            // so a same-named private sibling's thunks must never reach it
-            // (issue #115's family).
-            let members = symbolIndexStore.thunkAttributeMembers(of: thunkKind, for: typeName, node: typeNode, in: machO)
-            for member in members {
-                if member.isStatic {
-                    applyAttributeToFunction(name: member.memberName, attribute: attribute, in: &staticFunctions)
-                    applyAttributeToVariable(name: member.memberName, attribute: attribute, in: &staticVariables)
-                } else {
-                    applyAttributeToFunction(name: member.memberName, attribute: attribute, in: &functions)
-                    applyAttributeToVariable(name: member.memberName, attribute: attribute, in: &variables)
-                    if member.isInit {
-                        applyAttributeToAllocator(attribute: attribute, in: &allocators)
-                    }
-                }
-            }
-        }
-    }
-
-    private func applyAttributeToFunction(name: String, attribute: SwiftAttribute, in definitions: inout [FunctionDefinition]) {
-        for definitionIndex in definitions.indices {
-            if definitions[definitionIndex].name == name && !definitions[definitionIndex].attributes.contains(attribute) {
-                definitions[definitionIndex].attributes.append(attribute)
-            }
-        }
-    }
-
-    private func applyAttributeToVariable(name: String, attribute: SwiftAttribute, in definitions: inout [VariableDefinition]) {
-        for definitionIndex in definitions.indices {
-            if definitions[definitionIndex].name == name && !definitions[definitionIndex].attributes.contains(attribute) {
-                definitions[definitionIndex].attributes.append(attribute)
-            }
-        }
-    }
-
-    private func applyAttributeToAllocator(attribute: SwiftAttribute, in definitions: inout [FunctionDefinition]) {
-        for definitionIndex in definitions.indices {
-            if !definitions[definitionIndex].attributes.contains(attribute) {
-                definitions[definitionIndex].attributes.append(attribute)
-            }
-        }
-    }
-
-    /// Drops body-side copies of members that Swift auto-synthesizes for
-    /// `Equatable` / `Hashable` / `Codable` / `CaseIterable` / `RawRepresentable` /
-    /// `CodingKey` conformances. These members are emitted twice in binary
-    /// metadata — once as a direct entry on the nominal type (which ends up in
-    /// this type's `functions` / `staticFunctions` / `variables`) and once as a
-    /// witness thunk on the protocol conformance descriptor (which ends up in
-    /// the generated conformance extension). The extension copy is the one
-    /// Swift source conventionally shows for these protocols, so we drop the
-    /// body-side copy.
-    ///
-    /// Detection is gated on the type actually conforming to the relevant
-    /// protocol (via `conformingProtocolNames`), and on the member matching
-    /// the canonical synthesized shape (name + label list). A user-written
-    /// override with a compatible signature will also be dropped from the
-    /// body, but the equivalent entry remains visible in the conformance
-    /// extension, so nothing is hidden — the output is just no longer
-    /// duplicated. See roadmap P1-10.
-    private func deduplicateSynthesizedProtocolMembers() {
-        // Precompute the short (unqualified) names of every protocol this
-        // type conforms to, so downstream checks can ignore module qualifiers.
-        var shortProtocolNames: Set<String> = []
-        for protocolName in conformingProtocolNames {
-            if let dotIndex = protocolName.lastIndex(of: ".") {
-                shortProtocolNames.insert(String(protocolName[protocolName.index(after: dotIndex)...]))
-            } else {
-                shortProtocolNames.insert(protocolName)
-            }
-        }
-
-        if shortProtocolNames.isEmpty { return }
-
-        // Returns the argument label list of a member as an array of strings,
-        // with "_" for unnamed parameters. Works on function / constructor /
-        // allocator / getter nodes; returns an empty array if no labelList
-        // node exists (which means the function either takes no parameters
-        // or takes exclusively unnamed parameters — the demangler does not
-        // always emit an explicit labelList for the all-unnamed case).
-        func labels(of node: NodeReference) -> [String] {
-            guard let list = node.first(of: .labelList) else { return [] }
-            return list.children.map { child in
-                if child.kind == .firstElementMarker { return "_" }
-                return child.text ?? "_"
-            }
-        }
-
-        // Hashable implies Equatable, but Swift still emits both conformances,
-        // so we check them independently.
-        //
-        // `==` is the Swift operator name and is uniquely reserved for
-        // Equatable-shaped comparison at source level, so matching on name
-        // alone is safe. The argument labels of `==` are always unnamed
-        // (`_`, `_`) and the demangler elides the labelList in that case,
-        // which is why we cannot gate on a `[_, _]` label shape here.
-        if shortProtocolNames.contains("Equatable") || shortProtocolNames.contains("Hashable") {
-            staticFunctions.removeAll { function in
-                function.name == "=="
-            }
-        }
-
-        if shortProtocolNames.contains("Hashable") {
-            functions.removeAll { function in
-                (function.name == "hash" && labels(of: function.node) == ["into"])
-                    || (function.name == "_rawHashValue" && labels(of: function.node) == ["seed"])
-            }
-            variables.removeAll { variable in
-                variable.name == "hashValue"
-            }
-        }
-
-        if shortProtocolNames.contains("CaseIterable") {
-            staticVariables.removeAll { variable in
-                variable.name == "allCases"
-            }
-        }
-
-        if shortProtocolNames.contains("RawRepresentable") {
-            variables.removeAll { variable in
-                variable.name == "rawValue"
-            }
-            // `init?(rawValue:)` can appear either as an allocator or a constructor
-            // depending on whether the type has its metadata accessor.
-            allocators.removeAll { function in
-                labels(of: function.node) == ["rawValue"]
-            }
-            constructors.removeAll { function in
-                labels(of: function.node) == ["rawValue"]
-            }
-        }
-
-        if shortProtocolNames.contains("Encodable") || shortProtocolNames.contains("Codable") {
-            functions.removeAll { function in
-                function.name == "encode" && labels(of: function.node) == ["to"]
-            }
-        }
-
-        if shortProtocolNames.contains("Decodable") || shortProtocolNames.contains("Codable") {
-            allocators.removeAll { function in
-                labels(of: function.node) == ["from"]
-            }
-            constructors.removeAll { function in
-                labels(of: function.node) == ["from"]
-            }
-        }
-
-        if shortProtocolNames.contains("CodingKey") {
-            variables.removeAll { variable in
-                variable.name == "stringValue" || variable.name == "intValue"
-            }
-            allocators.removeAll { function in
-                labels(of: function.node) == ["stringValue"] || labels(of: function.node) == ["intValue"]
-            }
-            constructors.removeAll { function in
-                labels(of: function.node) == ["stringValue"] || labels(of: function.node) == ["intValue"]
-            }
-        }
     }
 }

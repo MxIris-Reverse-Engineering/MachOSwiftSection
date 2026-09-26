@@ -164,9 +164,11 @@ RuntimeFunctions.getTypeByMangledNameInContext(mangledTypeName, specializedFrom:
 
 | kind | 槽里是什么 | 怎么渲染 |
 |---|---|---|
-| `.type` | `const Metadata*` | `_mangledTypeName(指针)` → demangle → 拼入节点（原始路径） |
+| `.type` | `const Metadata*` | `RuntimeTypeNameDemangling.node(forMetatype:)`（`_mangledTypeName` → demangle → 去掉私有类型的 anonymous context）→ 拼入节点（原始路径） |
 | `.value` | 原始整数（SE-0452 值泛型） | 建 `.integer` / `.negativeInteger` 字面量节点，如 `InlineArray<3, UInt8>` |
-| `.typePack` | `MetadataPackPointer` | 读 pack（`& ~1` 去标记、count 取自 `ShapeClass` 槽）→ 逐元素 `_mangledTypeName` → 建 `.pack` 节点（`Pack{…}`） |
+| `.typePack` | `MetadataPackPointer` | 读 pack（`& ~1` 去标记、count 取自 `ShapeClass` 槽）→ 逐元素 `RuntimeTypeNameDemangling.node(forMetatype:)` → 建 `.pack` 节点（`Pack{…}`） |
+
+私有类型为什么要去掉 anonymous context，见 [SpecializedInterfaceBoundRenderingRestoration.md](SpecializedInterfaceBoundRenderingRestoration.md)「私有类型的运行时名字」。
 
 槽位一律用 §4 的统一公式 `numShapeClasses + flatIndex`（pack 也可直接用 `descriptor.Index`，二者一致）。
 

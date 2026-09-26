@@ -86,7 +86,7 @@ final class WholeTypeLayoutVsRuntimeTests: MachOSwiftSectionFixtureTests, @unche
             // its instance layout is validated field-by-field by the offset suite.
             guard descriptor.isStruct || descriptor.isEnum else { continue }
             guard
-                let qualifiedTypeName = (try? MetadataReader.demangleContext(for: contextDescriptor, in: machO))
+                let qualifiedTypeName = (try? SymbolicDemangler.demangleContext(for: contextDescriptor, in: machO))
                     .flatMap(NodeTypeNaming.nominalQualifiedName(of:)),
                 qualifiedTypeName.hasPrefix("SymbolTests")
             else { continue }
@@ -145,7 +145,7 @@ final class WholeTypeLayoutVsRuntimeTests: MachOSwiftSectionFixtureTests, @unche
         for contextDescriptor in try machO.swift.contextDescriptors {
             guard let descriptor = contextDescriptor.typeContextDescriptorWrapper else { continue }
             guard
-                (try? MetadataReader.demangleContext(for: contextDescriptor, in: machO))
+                (try? SymbolicDemangler.demangleContext(for: contextDescriptor, in: machO))
                     .flatMap(NodeTypeNaming.nominalQualifiedName(of:)) == qualifiedTypeName
             else { continue }
             return descriptor

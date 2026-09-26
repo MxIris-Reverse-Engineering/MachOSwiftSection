@@ -7,7 +7,7 @@ public struct ModuleContext: TopLevelType, ContextProtocol {
 
     public let name: String
 
-    public init<MachO: MachOSwiftSectionRepresentableWithCache>(descriptor: ModuleContextDescriptor, in machO: MachO) throws {
+    public init(descriptor: ModuleContextDescriptor, in machO: some MachOSwiftSectionRepresentableWithCache) throws {
         self.descriptor = descriptor
         self.name = try descriptor.name(in: machO)
     }
@@ -21,7 +21,7 @@ public struct ModuleContext: TopLevelType, ContextProtocol {
 // MARK: - ReadingContext Support
 
 extension ModuleContext {
-    public init<Context: ReadingContext>(descriptor: ModuleContextDescriptor, in context: Context) throws {
+    public init(descriptor: ModuleContextDescriptor, in context: some ReadingContext) throws {
         self.descriptor = descriptor
         self.name = try descriptor.name(in: context)
     }

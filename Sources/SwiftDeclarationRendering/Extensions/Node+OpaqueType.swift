@@ -5,6 +5,9 @@ import MachOSwiftSection
 import Demangling
 import OrderedCollections
 @_spi(Internals) import SwiftInspection
+import SwiftThunkAnalysis
+import MachODependencies
+@_spi(Internals) import MachOSymbols
 
 /// Carries the logging floor onto the rewriter.
 ///
@@ -34,6 +37,36 @@ fileprivate protocol OpaqueTypeRewriteLogging {}
 package typealias OpaqueTypeDegradationReporter = @Sendable (any Error) -> Void
 
 extension Node {
+    /// The generic arguments an `opaqueType` node carries, keyed by the depth
+    /// each level substitutes.
+    ///
+    /// Internal rather than private for the same reason the rewriter below is:
+    /// reaching this through `resolveOpaqueType(in:)` needs a binary that
+    /// happens to carry an opaque type with a matching type list, and what it
+    /// pins fails *silently* in rendered output — a mis-collected list either
+    /// leaves a parameter unsubstituted (printing `A` / `A1`) or substitutes a
+    /// type belonging to a different parameter, and neither raises.
+    ///
+    /// The walk mirrors `TypeDecoder.decodeMangledType`'s over the same child,
+    /// including its stop at the first level that is not a `typeList`.
+    static func opaqueTypeGenericArgumentsByDepth(of opaqueTypeNode: Node) -> OrderedDictionary<Int, [Node]> {
+        var argumentsByDepth: OrderedDictionary<Int, [Node]> = [:]
+        guard let rootTypeListNode = opaqueTypeNode[safeChild: 2] else { return argumentsByDepth }
+        for (depth, typeListNode) in rootTypeListNode.children.enumerated() {
+            guard typeListNode.isKind(of: .typeList) else { break }
+            // `.children`, NOT the node itself: `Node` iterates in PREORDER
+            // *including the root*, so `for type in typeListNode` yields the
+            // `typeList` node, then every element, then every descendant of
+            // every element. Position 0 was therefore the `typeList` node —
+            // kind `.typeList`, which the rewriter's `isKind(of: .type)` guard
+            // rejects, so parameter 0 was never substituted — and every later
+            // parameter read whatever preorder left at its index: the element
+            // to its left, or a fragment of that element's subtree.
+            argumentsByDepth[depth] = Array(typeListNode.children)
+        }
+        return argumentsByDepth
+    }
+
     /// Substitutes an opaque type's generic parameters with the concrete
     /// arguments carried by the `opaqueType` node's type list.
     ///
@@ -65,62 +98,420 @@ extension Node {
         }
     }
 
+    /// Which branch of each availability-conditional accessor thunk to
+    /// substitute, keyed by the thunk's offset.
+    ///
+    /// A thunk absent from the selection takes index 0 — the branch the
+    /// current platform takes, which is what ``AccessorThunkResolving`` puts
+    /// first. A caller rendering "what this reads as on the other OS" names
+    /// the other index.
+    typealias AccessorThunkBranchSelection = [Int: Int]
+
+    /// Records what every accessor thunk met during a rewrite resolved to.
+    ///
+    /// A class rather than a value so the nested rewriters — one per opaque
+    /// expansion level — all write into the same ledger. Keyed by thunk
+    /// offset because that is the thunk's identity: the same thunk reached
+    /// through two records is one thunk with one candidate list.
+    final class AccessorThunkCandidateLedger {
+        private(set) var candidatesByThunkOffset: OrderedDictionary<Int, [ConditionalUnderlyingType]> = [:]
+
+        func record(_ candidates: [ConditionalUnderlyingType], forThunkAt thunkOffset: Int) {
+            guard candidatesByThunkOffset[thunkOffset] == nil else { return }
+            candidatesByThunkOffset[thunkOffset] = candidates
+        }
+    }
+
+    /// Replaces kind-9 accessor-function references with the type the thunk
+    /// yields.
+    ///
+    /// Records whether it actually replaced anything, because "the tree
+    /// contains such a reference" and "the reference resolved" are different
+    /// facts and only the second licenses taking the new path.
+    ///
+    /// Internal rather than private so its substitution contract can be unit
+    /// tested with a stand-in resolver: reaching it through
+    /// `resolveOpaqueType(in:)` needs a binary that carries an
+    /// availability-conditional opaque type, which the fixture does not.
+    final class AccessorFunctionReferenceRewriter: Node.Rewriter {
+        private let resolver: any AccessorThunkResolving
+        private let machO: MachOFile
+        private let ownerLayout: AccessorThunkOwnerLayout
+        private let branchSelection: AccessorThunkBranchSelection
+        private let candidateLedger: AccessorThunkCandidateLedger?
+
+        private(set) var didResolveAnyReference = false
+
+        init(
+            resolver: any AccessorThunkResolving,
+            machO: MachOFile,
+            ownerLayout: AccessorThunkOwnerLayout = .unknown,
+            branchSelection: AccessorThunkBranchSelection = [:],
+            candidateLedger: AccessorThunkCandidateLedger? = nil
+        ) {
+            self.resolver = resolver
+            self.machO = machO
+            self.ownerLayout = ownerLayout
+            self.branchSelection = branchSelection
+            self.candidateLedger = candidateLedger
+        }
+
+        override func visit(_ node: Node) -> Node {
+            guard node.isKind(of: .accessorFunctionReference),
+                  let thunkOffset: Int = node.index?.cast()
+            else { return node }
+            let underlyingTypes = resolver.underlyingTypes(forAccessorThunkAt: thunkOffset, in: machO, ownerLayout: ownerLayout)
+            candidateLedger?.record(underlyingTypes, forThunkAt: thunkOffset)
+            // Index 0 is the branch the current platform takes; a caller
+            // rendering the other branches selects one by index.
+            let branchIndex = branchSelection[thunkOffset] ?? 0
+            guard let chosenBranch = underlyingTypes[safe: branchIndex] else { return node }
+            let typeNode = chosenBranch.typeNode
+            didResolveAnyReference = true
+            // Unwrapped so the result composes where a type belongs — a
+            // `.type` envelope nested inside a generic argument list renders
+            // as an extra level.
+            if typeNode.kind == .type, let firstChild = typeNode.firstChild { return firstChild.copy() }
+            return typeNode.copy()
+        }
+    }
+
     private final class OpaqueTypeRewriter<MachO: MachOSwiftSectionRepresentableWithCache>: Node.Rewriter, OpaqueTypeRewriteLogging {
+        /// How many times an expansion's own opaque types are expanded in turn.
+        ///
+        /// Bounded because the relation can cycle — an opaque type's underlying
+        /// type may reach that opaque type again — and there is no cheap way to
+        /// prove it does not. Eight covers the modifier chains measured in
+        /// SwiftUI, where nesting is one layer per `.onChange` / `.task` link.
+        static var maximumNestedExpansionDepth: Int { 8 }
+
         let machO: MachO
 
         let reportDegradation: OpaqueTypeDegradationReporter?
 
-        init(machO: MachO, reportDegradation: OpaqueTypeDegradationReporter?) {
+        /// How many expansions deep this rewriter already is; see
+        /// ``expandingNestedOpaqueTypes(in:)``.
+        let expansionDepth: Int
+
+        /// Which branch to take at each accessor thunk; see
+        /// ``AccessorThunkBranchSelection``.
+        let branchSelection: AccessorThunkBranchSelection
+
+        /// Where the thunks met during this rewrite leave their candidates,
+        /// when a caller asked for them.
+        let candidateLedger: AccessorThunkCandidateLedger?
+
+        /// Where the member projections made during this rewrite are
+        /// recorded, when a caller asked for them.
+        let projectionLedger: DependentMemberProjectionLedger?
+
+        init(
+            machO: MachO,
+            reportDegradation: OpaqueTypeDegradationReporter?,
+            expansionDepth: Int = 0,
+            branchSelection: AccessorThunkBranchSelection = [:],
+            candidateLedger: AccessorThunkCandidateLedger? = nil,
+            projectionLedger: DependentMemberProjectionLedger? = nil
+        ) {
             self.machO = machO
             self.reportDegradation = reportDegradation
+            self.expansionDepth = expansionDepth
+            self.branchSelection = branchSelection
+            self.candidateLedger = candidateLedger
+            self.projectionLedger = projectionLedger
+        }
+
+        /// Expands opaque types that the substitution just brought in.
+        ///
+        /// `Node.Rewriter` walks bottom-up and never re-visits what `visit`
+        /// returns, so an expansion whose underlying type mentions another
+        /// `some` type stopped one layer short: the inner reference reached the
+        /// reader as `opaque type symbolic reference 0x…`, a raw address where
+        /// a type name belongs. Nested `some` is the norm rather than the
+        /// exception — a SwiftUI `body` is one opaque type per modifier link.
+        ///
+        /// At the ceiling the innermost reference is left as it is, which is
+        /// the same honest degradation an unresolvable descriptor already gets.
+        /// Replaces every kind-9 accessor-function reference in an opaque
+        /// type's underlying type with the type the thunk actually yields, or
+        /// answers `nil` when there is nothing to replace or nothing to
+        /// replace it with.
+        ///
+        /// Returning `nil` rather than the unchanged node is what keeps this
+        /// additive: the caller falls through to the pre-existing path, so a
+        /// thunk shape the reader does not read renders byte-for-byte what it
+        /// rendered before.
+        ///
+        /// The reference can sit anywhere in the tree, not just at its root:
+        /// `SwiftUI.FeedbackGenerator.Body` carries one inside a
+        /// `ModifiedContent<ModifiedContent<…>, _AppearanceActionModifier>`,
+        /// which is why this is a rewrite rather than a root check.
+        ///
+        /// When a thunk is availability-conditional it has more than one
+        /// answer and the **first** — the branch the current OS takes — is
+        /// substituted here. The others are not lost: they are what
+        /// ``AccessorThunkResolving`` vends to a host that wants to show them.
+        private func resolvingAccessorFunctionReferences(in node: Node, ownerLayout: AccessorThunkOwnerLayout) -> Node? {
+            guard node.contains(Node.Kind.accessorFunctionReference) else { return nil }
+            guard let machOFile = machO as? MachOFile else { return nil }
+
+            let rewriter = AccessorFunctionReferenceRewriter(
+                resolver: AccessorThunkResolution.effectiveResolver,
+                machO: machOFile,
+                ownerLayout: ownerLayout,
+                branchSelection: branchSelection,
+                candidateLedger: candidateLedger
+            )
+            let rewritten = rewriter.rewrite(node.copy())
+            guard rewriter.didResolveAnyReference else { return nil }
+            // Unwrap the `.type` envelope the way the pre-existing path does,
+            // so both feed the parameter substitution the same shape.
+            if rewritten.kind == .type, let firstChild = rewritten.firstChild { return firstChild.copy() }
+            return rewritten
+        }
+
+        /// The underlying type an opaque type expands to, or `nil` when the
+        /// demangled tree has a shape this rewriter does not substitute.
+        ///
+        /// Three shapes are taken. A tree the thunk resolver rewrote comes
+        /// back already unwrapped. A `.type` envelope sheds it, the way the
+        /// pre-existing path always did. And a tree that still carries a
+        /// kind-9 `accessorFunctionReference` — no resolver installed, or a
+        /// thunk shape it does not read — is kept AS IS: it demangles bare,
+        /// with no envelope, and answering `nil` here was what rendered
+        /// `opaque type symbolic reference 0x…`, the descriptor's address with
+        /// the surrounding `ModifiedContent<…>` chain and every generic
+        /// argument thrown away. Kept, the reference prints as
+        /// `accessor function at N` (the wording both printers already use for
+        /// a kind-9 field record) inside an otherwise complete type.
+        private func underlyingTypeContent(of underlyingTypeArgumentNode: Node, ownerLayout: AccessorThunkOwnerLayout) -> Node? {
+            if let resolvedNode = resolvingAccessorFunctionReferences(in: underlyingTypeArgumentNode, ownerLayout: ownerLayout) {
+                return resolvedNode
+            }
+            if underlyingTypeArgumentNode.kind == .type, let firstChild = underlyingTypeArgumentNode.firstChild {
+                return firstChild.copy()
+            }
+            if underlyingTypeArgumentNode.contains(Node.Kind.accessorFunctionReference) {
+                return underlyingTypeArgumentNode.copy()
+            }
+            return nil
+        }
+
+        private func expandingNestedOpaqueTypes(in node: Node) -> Node {
+            guard node.contains(Node.Kind.opaqueType) else { return node }
+            guard expansionDepth < Self.maximumNestedExpansionDepth else {
+                #log(.info, "opaque type expansion reached the nesting limit \(Self.maximumNestedExpansionDepth, privacy: .public) — leaving the innermost reference unexpanded")
+                return node
+            }
+            return OpaqueTypeRewriter(
+                machO: machO,
+                reportDegradation: reportDegradation,
+                expansionDepth: expansionDepth + 1,
+                branchSelection: branchSelection,
+                candidateLedger: candidateLedger,
+                projectionLedger: projectionLedger
+            ).rewrite(node)
+        }
+
+        /// The opaque type an `opaqueType` node's first child refers to when
+        /// the descriptor is in THIS image, by either spelling the demangler
+        /// produces for it.
+        ///
+        /// **By pointer** (`opaqueTypeDescriptorSymbolicReference`): the
+        /// node carries the descriptor's offset — or, in any `MachOImage`
+        /// environment, its absolute in-process pointer bit pattern, which
+        /// `SymbolicDemangler` stashes in `Node.index` regardless of whether
+        /// the descriptor lives in this image or a sibling loaded one
+        /// (cross-image refs from `View.searchFieldStyle`-style helpers,
+        /// weakly-linked descriptors), so the whole chain runs through
+        /// `InProcessContext` via the pointer, matching the runtime's own
+        /// `(ContextDescriptor *)demangleNode->getIndex()`. `MachOFile` keeps
+        /// the file-offset semantic because it lives off-process.
+        ///
+        /// **By name** (`opaqueReturnTypeOf`): what the demangler builds when
+        /// the reference is a *symbol* rather than a pointer — a standalone
+        /// file's bind to an opaque descriptor another image exports. The
+        /// symbol index keys every `…MQ` descriptor symbol of this image by
+        /// the declaration it belongs to (the interface printer's `some`
+        /// expansion uses the same lookup), so a name this image does carry
+        /// resolves here; one it does not is ``foreignOpaqueType(referencedBy:)``'s.
+        private func opaqueType(referencedBy reference: Node) throws -> OpaqueType? {
+            if reference.isKind(of: .opaqueTypeDescriptorSymbolicReference), let offset: Int = reference.index?.cast() {
+                if machO is MachOImage, let absolutePointer = UnsafeRawPointer(bitPattern: offset) {
+                    let opaqueTypeDescriptor: OpaqueTypeDescriptor = try absolutePointer.readWrapperElement()
+                    return try OpaqueType(descriptor: opaqueTypeDescriptor)
+                }
+                return try OpaqueType(descriptor: OpaqueTypeDescriptor.resolve(from: offset, in: machO), in: machO)
+            }
+            if reference.isKind(of: .opaqueReturnTypeOf), let memberNode = reference.firstChild,
+               let descriptorSymbol = SymbolIndexStore.shared.opaqueTypeDescriptorSymbol(for: memberNode, in: machO) {
+                return try OpaqueType(descriptor: OpaqueTypeDescriptor.resolve(from: descriptorSymbol.offset, in: machO), in: machO)
+            }
+            return nil
+        }
+
+        /// The opaque type a by-name reference names in ANOTHER image, and
+        /// that image.
+        ///
+        /// A standalone file's associated-type witness may be built from a
+        /// `some` result declared elsewhere: SwiftUI's `SidebarListBody
+        /// .CollectionViewBody.Body` is `ModifiedContent<opaque(View.staticIf),
+        /// …>`, and `View.staticIf` — module name `SwiftUI`, the same — lives in
+        /// SwiftUICore. The mangled name references its descriptor through a
+        /// GOT bind, a name, and `SymbolicDemangler` demangles that name into
+        /// `opaqueReturnTypeOf(the declaration)`; inside a cache the same slot
+        /// is a rebase to a concrete address the reader follows across images
+        /// unaided, which is why the macOS caches never showed this shape.
+        /// The descriptor symbol is remangled from the node (`…QOMQ`), located
+        /// among the file's direct dependencies with the same search paths
+        /// the accessor-thunk reader uses, and read in the image that exports
+        /// it. Measured on iOS 26.5 simulator SwiftUI: 207 witnesses printed
+        /// `<<opaque return type of …>>` in the dump for want of this — and the
+        /// interface, whose `printOpaqueType` prints only the node's argument
+        /// list, printed the conformer itself as the witness (`typealias Body
+        /// = SidebarListBody.CollectionViewBody`), a real, wrong type.
+        private func foreignOpaqueType(referencedBy reference: Node) throws -> (image: MachOFile, opaqueType: OpaqueType)? {
+            guard reference.isKind(of: .opaqueReturnTypeOf), let machOFile = machO as? MachOFile else { return nil }
+            let descriptorSymbolNode = Node.create(kind: .global, children: [Node.create(kind: .opaqueTypeDescriptor, children: [reference.copy()])])
+            let descriptorSymbolName = try mangleAsString(descriptorSymbolNode)
+            let searchPaths = (AccessorThunkResolution.effectiveResolver as? DisassemblingAccessorThunkResolver)?.searchPaths
+                ?? MachOThunkEnvironment.defaultSearchPaths(for: machOFile)
+            guard let location = DependencyImageResolver.resolver(for: machOFile).location(ofExportedSymbol: descriptorSymbolName, searchPaths: searchPaths) else {
+                #log(.info, "no search path located an image exporting \(descriptorSymbolName, privacy: .public)")
+                return nil
+            }
+            let imageAddressSpace = ThunkAddressSpace(of: location.image)
+            guard let descriptorAddress = imageAddressSpace.address(forExportedSymbolOffset: location.exportedSymbolOffset),
+                  let descriptorOffset = imageAddressSpace.offset(forAddress: descriptorAddress)
+            else { return nil }
+            let opaqueType = try OpaqueType(descriptor: OpaqueTypeDescriptor.resolve(from: descriptorOffset, in: location.image), in: location.image)
+            return (image: location.image, opaqueType: opaqueType)
+        }
+
+        /// What `node` — an `opaqueType` reference — expands to given the
+        /// opaque type it refers to, read in THIS rewriter's image: the
+        /// underlying type at the node's ordinal, its kind-9 thunks resolved,
+        /// the node's generic arguments substituted, nested opaque types
+        /// expanded in turn. `nil` when the underlying type has no shape this
+        /// rewriter substitutes.
+        fileprivate func expansion(of opaqueType: OpaqueType, forNode node: Node) -> Node? {
+            // The ordinal — the opaque type's own position among the
+            // `some` results of the declaration that produced it — is
+            // what indexes the underlying-type array. Measured on a
+            // fixture whose single declaration returns
+            // `Pair<some P, some P>`: the descriptor carries four
+            // entries, `[underlying 0, underlying 1, conformance 0,
+            // conformance 1]` — every replacement type first, then the
+            // conformances, which is the order IRGen writes the
+            // underlying substitution map in and the order the
+            // runtime's `_getOpaqueTypeMetadata` reads it back in.
+            // Hardcoding 0 therefore rendered a declaration's second
+            // `some` as its first, silently. Every opaque reference in
+            // SwiftUI's and SwiftUICore's associated-type records
+            // carries ordinal 0, so this is correctness for a shape
+            // those two do not have and a client binary may.
+            let ordinal: Int = node[safeChild: 1]?.index?.cast() ?? 0
+            let allTypeList = Node.opaqueTypeGenericArgumentsByDepth(of: node)
+            guard let underlyingTypeArgumentMangledName = opaqueType.underlyingTypeArgumentMangledNames[safe: ordinal] else { return nil }
+            let underlyingTypeArgumentNode: Node?
+            if machO is MachOImage {
+                underlyingTypeArgumentNode = try? SymbolicDemangler.demangleType(for: underlyingTypeArgumentMangledName)
+            } else {
+                underlyingTypeArgumentNode = try? SymbolicDemangler.demangleType(for: underlyingTypeArgumentMangledName, in: machO)
+            }
+            // The thunk's argument buffer is the opaque
+            // descriptor's generic arguments, so its generic
+            // context is what names an argument the thunk reads.
+            let ownerLayout = AccessorThunkOwnerLayout(genericContext: opaqueType.genericContext)
+            guard let underlyingTypeArgumentNode,
+                  let resolvedNode = underlyingTypeContent(of: underlyingTypeArgumentNode, ownerLayout: ownerLayout)
+            else { return nil }
+            let substituted = OpaqueTypeGenericParameterRewriter(machO: machO, typeList: allTypeList).rewrite(resolvedNode)
+            return expandingNestedOpaqueTypes(in: substituted)
+        }
+
+        /// Whether `baseTypeNode` is a nominal type a projection can start
+        /// from — the cheap test that keeps every `A.Element` of a generic
+        /// witness from building an image universe for nothing.
+        private static func isConcreteNominal(_ baseTypeNode: Node) -> Bool {
+            let content = baseTypeNode.isKind(of: .type) ? baseTypeNode.firstChild : baseTypeNode
+            guard let content else { return false }
+            switch content.kind {
+            case .structure, .enum, .class, .boundGenericStructure, .boundGenericEnum, .boundGenericClass:
+                return true
+            default:
+                return false
+            }
+        }
+
+        /// A member of an expanded opaque archetype — `dependentMemberType`
+        /// whose base the expansion just made concrete — projected through
+        /// the base's conformance record to the type the member stands for
+        /// (the generics book's "Map type parameter into opaque generic
+        /// environment", step 3, read from `__swift5_assocty`), with the
+        /// witness's own opaque references, thunks and members resolved in
+        /// turn in the image the record came from. `nil` when the base is
+        /// not concrete, no record answers, or the nesting ceiling is hit,
+        /// leaving the member as it is (`IndexingIterator<[Int]>.Element`):
+        /// valid Swift, just not reduced.
+        private func projectedMember(_ node: Node) -> Node? {
+            guard let baseTypeNode = node.firstChild, Self.isConcreteNominal(baseTypeNode),
+                  let associatedTypeReference = node[safeChild: 1]
+            else { return nil }
+            guard let projection = DependentMemberProjection.project(base: baseTypeNode, associatedTypeReference: associatedTypeReference, in: machO) else { return nil }
+            guard expansionDepth < Self.maximumNestedExpansionDepth else {
+                #log(.info, "member projection reached the nesting limit \(Self.maximumNestedExpansionDepth, privacy: .public) — leaving the innermost member unprojected")
+                return nil
+            }
+            projectionLedger?.record(ProjectedDependentMember(
+                originNode: node,
+                witnessNode: projection.witnessNode,
+                conformingQualifiedName: projection.conformingQualifiedName,
+                protocolQualifiedName: projection.protocolQualifiedName
+            ))
+            // The witness is that image's tree: its references are resolved
+            // there, one nesting level down.
+            let rewritten = OpaqueTypeRewriter(
+                machO: projection.image,
+                reportDegradation: reportDegradation,
+                expansionDepth: expansionDepth + 1,
+                branchSelection: branchSelection,
+                candidateLedger: candidateLedger,
+                projectionLedger: projectionLedger
+            ).rewrite(projection.witnessNode)
+            // Unwrapped so the result composes where a type belongs, the
+            // way `expansion(of:forNode:)`'s does.
+            if rewritten.kind == .type, let content = rewritten.firstChild { return content }
+            return rewritten
         }
 
         override func visit(_ node: Node) -> Node {
+            if node.isKind(of: .dependentMemberType), let projected = projectedMember(node) {
+                return projected
+            }
             do {
-                if node.isKind(of: .opaqueType),
-                   let firstChild = node.firstChild,
-                   firstChild.isKind(of: .opaqueTypeDescriptorSymbolicReference),
-                   let offset: Int = firstChild.index?.cast() {
-                    // `opaqueTypeDescriptorSymbolicReference` is unified to InProcess in any
-                    // MachOImage environment: MetadataReader stashes the descriptor's
-                    // absolute in-process pointer bit pattern in Node.index regardless of
-                    // whether the descriptor lives in the current image or in a sibling
-                    // loaded image (cross-image refs from `View.searchFieldStyle`-style
-                    // helpers, weakly-linked descriptors, etc). The whole opaque-type chain —
-                    // descriptor read, generic context, underlying type demangle — then runs
-                    // through `InProcessContext` via the pointer, matching the Swift runtime's
-                    // own scheme of `(ContextDescriptor *)demangleNode->getIndex()`. No
-                    // per-image MachO bookkeeping is needed because every read is just a
-                    // pointer deref. MachOFile keeps the legacy file-offset semantic because
-                    // it lives off-process and has no cross-image issue.
-                    let opaqueTypeDescriptor: OpaqueTypeDescriptor
-                    let opaqueType: OpaqueType
-                    if machO is MachOImage, let absolutePointer = UnsafeRawPointer(bitPattern: offset) {
-                        opaqueTypeDescriptor = try absolutePointer.readWrapperElement()
-                        opaqueType = try OpaqueType(descriptor: opaqueTypeDescriptor)
-                    } else {
-                        opaqueTypeDescriptor = try OpaqueTypeDescriptor.resolve(from: offset, in: machO)
-                        opaqueType = try OpaqueType(descriptor: opaqueTypeDescriptor, in: machO)
+                if node.isKind(of: .opaqueType), let firstChild = node.firstChild {
+                    if let opaqueType = try opaqueType(referencedBy: firstChild),
+                       let expanded = expansion(of: opaqueType, forNode: node) {
+                        return expanded
                     }
-
-                    var allTypeList: OrderedDictionary<Int, [Node]> = [:]
-                    if let rootTypeListNode = node[safeChild: 2] {
-                        for (depth, typeList) in rootTypeListNode.children.enumerated() {
-                            for type in typeList {
-                                allTypeList[depth, default: []].append(type)
-                            }
-                        }
-                    }
-                    if let underlyingTypeArgumentMangledName = opaqueType.underlyingTypeArgumentMangledNames[safe: 0] {
-                        let underlyingTypeArgumentNode: Node?
-                        if machO is MachOImage {
-                            underlyingTypeArgumentNode = try? MetadataReader.demangleType(for: underlyingTypeArgumentMangledName)
-                        } else {
-                            underlyingTypeArgumentNode = try? MetadataReader.demangleType(for: underlyingTypeArgumentMangledName, in: machO)
-                        }
-                        if let underlyingTypeArgumentNode, underlyingTypeArgumentNode.kind == .type,
-                           let firstChild = underlyingTypeArgumentNode.firstChild {
-                            return OpaqueTypeGenericParameterRewriter(machO: machO, typeList: allTypeList).rewrite(firstChild.copy())
+                    // A descriptor another image exports is read — and its
+                    // underlying type demangled, its thunks resolved, its own
+                    // nested opaque types expanded — in THAT image: every
+                    // relative pointer and symbolic reference in it is that
+                    // image's. The generic arguments substituted into the
+                    // result are this node's, plain trees either way.
+                    if let foreign = try foreignOpaqueType(referencedBy: firstChild) {
+                        let foreignRewriter = OpaqueTypeRewriter<MachOFile>(
+                            machO: foreign.image,
+                            reportDegradation: reportDegradation,
+                            expansionDepth: expansionDepth,
+                            branchSelection: branchSelection,
+                            candidateLedger: candidateLedger,
+                            projectionLedger: projectionLedger
+                        )
+                        if let expanded = foreignRewriter.expansion(of: foreign.opaqueType, forNode: node) {
+                            return expanded
                         }
                     }
                 }
@@ -144,10 +535,145 @@ extension Node {
         }
     }
 
+    /// Records every member projection a rewrite made — a class so the
+    /// nested rewriters, one per expansion level and one per projected
+    /// witness, all write into the same ledger, in the order the hops were
+    /// taken.
+    final class DependentMemberProjectionLedger {
+        private(set) var projections: [ProjectedDependentMember] = []
+
+        func record(_ projection: ProjectedDependentMember) {
+            projections.append(projection)
+        }
+    }
+
+    /// Expands every opaque reference the image can answer for, projects
+    /// members of what it expanded, and spells whatever is left the way
+    /// `spelling` says.
     package func resolveOpaqueType(
         in machO: some MachOSwiftSectionRepresentableWithCache,
+        spelling: OpaqueReferenceSpelling = .textualInterface,
         reportingDegradationTo reportDegradation: OpaqueTypeDegradationReporter? = nil
     ) throws -> Node {
-        OpaqueTypeRewriter(machO: machO, reportDegradation: reportDegradation).rewrite(self)
+        OpaqueTypeRewriter(machO: machO, reportDegradation: reportDegradation)
+            .rewrite(self)
+            .spellingUnexpandedOpaqueReferences(as: spelling, in: machO)
+    }
+
+    /// Replaces the kind-9 accessor-function references a *field record's*
+    /// type carries with the types their thunks yield — offline, through
+    /// ``AccessorThunkResolution/effectiveResolver``, with `ownerLayout`
+    /// describing the generic parameters of the type the field belongs to (the
+    /// thunk's argument buffer is that type's generic arguments). Answers
+    /// `self` unchanged when there is nothing to replace or the reader is
+    /// in-process.
+    ///
+    /// The opaque-type path reaches the same rewriter through
+    /// ``resolveOpaqueType(in:reportingDegradationTo:)``; this is the entry
+    /// for a type that is not behind an opaque descriptor at all.
+    package func resolvingAccessorFunctionReferences(
+        in machO: some MachOSwiftSectionRepresentableWithCache,
+        ownerLayout: AccessorThunkOwnerLayout
+    ) -> Node {
+        guard contains(Node.Kind.accessorFunctionReference),
+              let machOFile = machO as? MachOFile
+        else { return self }
+        let rewriter = AccessorFunctionReferenceRewriter(resolver: AccessorThunkResolution.effectiveResolver, machO: machOFile, ownerLayout: ownerLayout)
+        let rewritten = rewriter.rewrite(copy())
+        return rewriter.didResolveAnyReference ? rewritten : self
+    }
+
+    /// One branch of an availability-conditional accessor thunk, in place:
+    /// the thunk's own answer, and the whole tree with that answer
+    /// substituted.
+    package struct ResolvedConditionalCandidate {
+        package let availability: PlatformAvailabilityCondition?
+        package let candidateTypeNode: Node
+        package let substitutedNode: Node
+    }
+
+    /// One hop of projecting a member of an expanded opaque archetype
+    /// (`IndexingIterator<[Int]>.Element`) through the conformance's
+    /// type-witness record to the type it stands for (`[Int].Element`, then
+    /// `Int` on the next hop) — the generics book's "Map type parameter into
+    /// opaque generic environment", step 3, done offline from
+    /// `__swift5_assocty`.
+    package struct ProjectedDependentMember {
+        /// The `dependentMemberType` as it stood before the hop, its base
+        /// already concrete.
+        package let originNode: Node
+        /// What the witness record says the member is, with the base's
+        /// generic arguments substituted and its own opaque references
+        /// expanded.
+        package let witnessNode: Node
+        /// The conformance whose record answered, `Swift.IndexingIterator`
+        /// for `Swift.IteratorProtocol`.
+        package let conformingQualifiedName: String
+        package let protocolQualifiedName: String
+
+        package init(originNode: Node, witnessNode: Node, conformingQualifiedName: String, protocolQualifiedName: String) {
+            self.originNode = originNode
+            self.witnessNode = witnessNode
+            self.conformingQualifiedName = conformingQualifiedName
+            self.protocolQualifiedName = protocolQualifiedName
+        }
+    }
+
+    /// What ``resolveOpaqueType(in:spelling:reportingDegradationTo:)``
+    /// produces, plus every branch of every availability-conditional accessor
+    /// thunk the resolution met and every member projection it made.
+    package struct OpaqueTypeResolution {
+        /// The tree with the current platform's branch taken at every thunk —
+        /// byte-identical to `resolveOpaqueType(in:)`'s answer.
+        package let node: Node
+        /// Empty when no thunk was met, when none resolved, or when reading
+        /// in-process (the runtime answers for this OS alone).
+        package let conditionalCandidates: [ResolvedConditionalCandidate]
+        /// Every projection hop, in the order they were made; empty when no
+        /// member of an expanded archetype was met or none could be projected.
+        package let projectedMembers: [ProjectedDependentMember]
+
+        package init(node: Node, conditionalCandidates: [ResolvedConditionalCandidate], projectedMembers: [ProjectedDependentMember] = []) {
+            self.node = node
+            self.conditionalCandidates = conditionalCandidates
+            self.projectedMembers = projectedMembers
+        }
+    }
+
+    /// Resolves opaque types like ``resolveOpaqueType(in:spelling:reportingDegradationTo:)``
+    /// and also reports every branch an availability-conditional accessor
+    /// thunk offered.
+    ///
+    /// The other branches are rendered by running the same rewrite again with
+    /// that branch selected at that one thunk — one rerun per non-default
+    /// branch, so a witness with one two-way thunk (every case measured in
+    /// SwiftUI) costs one extra pass, and there is never a cross product.
+    package func resolveOpaqueTypeCollectingConditionalCandidates(
+        in machO: some MachOSwiftSectionRepresentableWithCache,
+        spelling: OpaqueReferenceSpelling = .textualInterface,
+        reportingDegradationTo reportDegradation: OpaqueTypeDegradationReporter? = nil
+    ) -> OpaqueTypeResolution {
+        let candidateLedger = AccessorThunkCandidateLedger()
+        let projectionLedger = DependentMemberProjectionLedger()
+        let node = OpaqueTypeRewriter(machO: machO, reportDegradation: reportDegradation, candidateLedger: candidateLedger, projectionLedger: projectionLedger)
+            .rewrite(self)
+            .spellingUnexpandedOpaqueReferences(as: spelling, in: machO)
+
+        var conditionalCandidates: [ResolvedConditionalCandidate] = []
+        for (thunkOffset, thunkCandidates) in candidateLedger.candidatesByThunkOffset {
+            for (branchIndex, candidate) in thunkCandidates.enumerated() {
+                let substitutedNode = branchIndex == 0
+                    ? node
+                    : OpaqueTypeRewriter(machO: machO, reportDegradation: reportDegradation, branchSelection: [thunkOffset: branchIndex])
+                        .rewrite(self)
+                        .spellingUnexpandedOpaqueReferences(as: spelling, in: machO)
+                conditionalCandidates.append(ResolvedConditionalCandidate(
+                    availability: candidate.availability,
+                    candidateTypeNode: candidate.typeNode,
+                    substitutedNode: substitutedNode
+                ))
+            }
+        }
+        return OpaqueTypeResolution(node: node, conditionalCandidates: conditionalCandidates, projectedMembers: projectionLedger.projections)
     }
 }

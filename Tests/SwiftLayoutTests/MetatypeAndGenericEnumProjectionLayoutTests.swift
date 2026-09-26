@@ -137,14 +137,14 @@ final class MetatypeAndGenericEnumProjectionLayoutTests: MachOSwiftSectionFixtur
         #expect(fileProjection != nil, "the MachOFile reader must project it too")
     }
 
-    private static func findEnumDescriptor<MachO: MachOSwiftSectionRepresentableWithCache>(
+    private static func findEnumDescriptor(
         named qualifiedTypeName: String,
-        in machO: MachO
+        in machO: some MachOSwiftSectionRepresentableWithCache
     ) throws -> TypeContextDescriptorWrapper? {
         for contextDescriptor in try machO.swift.contextDescriptors {
             guard let descriptor = contextDescriptor.typeContextDescriptorWrapper, descriptor.isEnum else { continue }
             guard
-                let name = (try? MetadataReader.demangleContext(for: contextDescriptor, in: machO))
+                let name = (try? SymbolicDemangler.demangleContext(for: contextDescriptor, in: machO))
                     .flatMap(NodeTypeNaming.nominalQualifiedName(of:)),
                 name == qualifiedTypeName
             else { continue }

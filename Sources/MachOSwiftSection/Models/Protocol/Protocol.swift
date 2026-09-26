@@ -33,7 +33,7 @@ public struct `Protocol`: TopLevelType, ContextProtocol {
         descriptor.numRequirementsInSignature.cast()
     }
 
-    public init<MachO: MachOSwiftSectionRepresentableWithCache>(descriptor: ProtocolDescriptor, in machO: MachO) throws {
+    public init(descriptor: ProtocolDescriptor, in machO: some MachOSwiftSectionRepresentableWithCache) throws {
         guard let protocolFlags = descriptor.flags.kindSpecificFlags?.protocolFlags else {
             throw Error.invalidProtocolDescriptor
         }
@@ -72,7 +72,7 @@ public struct `Protocol`: TopLevelType, ContextProtocol {
         try initialize(descriptor: descriptor, currentOffset: &currentOffset, in: pointer)
     }
 
-    private mutating func initialize<Reader: Readable>(descriptor: ProtocolDescriptor, currentOffset: inout Int, in reader: Reader) throws {
+    private mutating func initialize(descriptor: ProtocolDescriptor, currentOffset: inout Int, in reader: some Readable) throws {
         if descriptor.numRequirements > 0 {
             let baseRequirementOffset = currentOffset - ProtocolRequirement.layoutSize
             baseRequirement = try reader.readWrapperElement(offset: baseRequirementOffset) as ProtocolBaseRequirement
@@ -88,7 +88,7 @@ public struct `Protocol`: TopLevelType, ContextProtocol {
 // MARK: - ReadingContext Support
 
 extension `Protocol` {
-    public init<Context: ReadingContext>(descriptor: ProtocolDescriptor, in context: Context) throws {
+    public init(descriptor: ProtocolDescriptor, in context: some ReadingContext) throws {
         guard let protocolFlags = descriptor.flags.kindSpecificFlags?.protocolFlags else {
             throw Error.invalidProtocolDescriptor
         }
@@ -107,7 +107,7 @@ extension `Protocol` {
         try initialize(descriptor: descriptor, currentOffset: &currentOffset, in: context)
     }
 
-    private mutating func initialize<Context: ReadingContext>(descriptor: ProtocolDescriptor, currentOffset: inout Int, in context: Context) throws {
+    private mutating func initialize(descriptor: ProtocolDescriptor, currentOffset: inout Int, in context: some ReadingContext) throws {
         if descriptor.numRequirements > 0 {
             let baseRequirementOffset = currentOffset - ProtocolRequirement.layoutSize
             baseRequirement = try context.readWrapperElement(at: try context.addressFromOffset(baseRequirementOffset)) as ProtocolBaseRequirement

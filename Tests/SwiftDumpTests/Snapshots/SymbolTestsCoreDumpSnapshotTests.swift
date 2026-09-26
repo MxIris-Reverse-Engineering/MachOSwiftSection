@@ -83,11 +83,13 @@ final class SymbolTestsCoreDumpSnapshotTests: MachOFileTests, SnapshotDumpableTe
     ]
 
     @Test func accessorFunctionReferencesSnapshot() async throws {
-        // Offsets are normalized (`accessor function at <offset>`) because the
-        // referenced thunk's file offset shifts on every fixture rebuild; the
-        // snapshot pins the fallback's *shape* — honest text instead of an
-        // empty render, parentheses around payload cases, bare empty case,
-        // rendering continuing past a kind-9 field.
+        // The fixture's kind-9 field records resolve through the thunk reader
+        // (`FieldRecordThunkResolutionTests` pins the types they resolve to).
+        // The offset normalization (`accessor function at <offset>`) stays so
+        // a thunk the reader ever refuses still snapshots by *shape* — honest
+        // text instead of an empty render, parentheses around payload cases,
+        // bare empty case — rather than by a file offset that shifts on every
+        // fixture rebuild.
         let output = try await collectDump(for: machOFile, inNamespace: "AccessorFunctionReferences")
         assertSnapshot(of: normalizingAccessorFunctionOffsets(output), as: .lines)
     }

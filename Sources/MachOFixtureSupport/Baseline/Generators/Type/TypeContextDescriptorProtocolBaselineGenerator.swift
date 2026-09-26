@@ -30,8 +30,13 @@ package enum TypeContextDescriptorProtocolBaselineGenerator {
         outputDirectory: URL
     ) throws {
         let descriptor = try BaselineFixturePicker.struct_StructTest(in: machO)
+        // A C-imported struct whose descriptor carries import info: `Decimal`
+        // is the `NSDecimal` typedef of an anonymous C struct, so its name is
+        // followed by an ABI-name and a typedef-namespace component.
+        let foreignDescriptor = try BaselineFixturePicker.struct_ForeignDecimal(in: machO)
 
         let entryExpr = try emitEntryExpr(for: descriptor, in: machO)
+        let foreignEntryExpr = try emitEntryExpr(for: foreignDescriptor, in: machO)
 
         // Public members declared in `extension TypeContextDescriptorProtocol { ... }`
         // (across the body, an in-process variant, and a ReadingContext variant).
@@ -49,6 +54,7 @@ package enum TypeContextDescriptorProtocolBaselineGenerator {
             "hasSingletonMetadataPointer",
             "metadataAccessorFunction",
             "typeGenericContext",
+            "typeImportInfo",
         ]
 
         let header = """
@@ -80,9 +86,14 @@ package enum TypeContextDescriptorProtocolBaselineGenerator {
                 let hasLayoutString: Bool
                 let hasCanonicalMetadataPrespecializations: Bool
                 let hasSingletonMetadataPointer: Bool
+                let typeImportInfoABIName: String?
+                let typeImportInfoSymbolNamespace: String?
+                let typeImportInfoRelatedEntityName: String?
             }
 
             static let structTest = \(raw: entryExpr)
+
+            static let foreignDecimal = \(raw: foreignEntryExpr)
         }
         """
 
@@ -105,6 +116,7 @@ package enum TypeContextDescriptorProtocolBaselineGenerator {
         let hasLayoutString = descriptor.hasLayoutString
         let hasCanonicalMetadataPrespecializations = descriptor.hasCanonicalMetadataPrespecializations
         let hasSingletonMetadataPointer = descriptor.hasSingletonMetadataPointer
+        let typeImportInfo = try descriptor.typeImportInfo(in: machO)
 
         let expr: ExprSyntax = """
         Entry(
@@ -117,7 +129,10 @@ package enum TypeContextDescriptorProtocolBaselineGenerator {
             hasCanonicalMetadataPrespecializationsOrSingletonMetadataPointer: \(literal: hasCanonicalMetadataPrespecializationsOrSingletonMetadataPointer),
             hasLayoutString: \(literal: hasLayoutString),
             hasCanonicalMetadataPrespecializations: \(literal: hasCanonicalMetadataPrespecializations),
-            hasSingletonMetadataPointer: \(literal: hasSingletonMetadataPointer)
+            hasSingletonMetadataPointer: \(literal: hasSingletonMetadataPointer),
+            typeImportInfoABIName: \(literal: typeImportInfo?.abiName),
+            typeImportInfoSymbolNamespace: \(literal: typeImportInfo?.symbolNamespace),
+            typeImportInfoRelatedEntityName: \(literal: typeImportInfo?.relatedEntityName)
         )
         """
         return expr.description

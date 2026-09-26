@@ -93,6 +93,16 @@ final class ValueWitnessFlagsTests: MachOSwiftSectionFixtureTests, FixtureSuite,
         #expect(ValueWitnessFlags.isNonBitwiseBorrowable.rawValue == 0x0100_0000)
     }
 
+    @Test func isAddressableForDependencies() async throws {
+        for entry in ValueWitnessFlagsBaseline.cases {
+            let flags = ValueWitnessFlags(rawValue: entry.rawValue)
+            #expect(flags.isAddressableForDependencies == entry.isAddressableForDependencies)
+        }
+        // Static `let isAddressableForDependencies = ValueWitnessFlags(rawValue: 0x0200_0000)`
+        // (`TargetValueWitnessFlags::IsAddressableForDependencies`).
+        #expect(ValueWitnessFlags.isAddressableForDependencies.rawValue == 0x0200_0000)
+    }
+
     @Test func isCopyable() async throws {
         for entry in ValueWitnessFlagsBaseline.cases {
             let flags = ValueWitnessFlags(rawValue: entry.rawValue)

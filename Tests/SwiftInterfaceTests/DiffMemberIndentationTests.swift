@@ -36,7 +36,7 @@ struct DiffMemberIndentationTests {
     ///
     /// The `Anchor` class is load-bearing fixture ballast, not part of the
     /// scenario: a struct-only module compiles to a dylib with NO `__DATA`
-    /// segment, and the pinned MachOKit release mis-walks that layout's
+    /// segment, and MachOKit releases before 0.52.103 mis-walked that layout's
     /// chained-fixup pages during `resolveBind` — reading past the file
     /// mapping's end and crashing the indexer with SIGSEGV/SIGBUS. Any class
     /// forces a `__DATA` segment and keeps the fixture on the well-trodden

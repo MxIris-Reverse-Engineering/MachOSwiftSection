@@ -62,8 +62,8 @@ public protocol MutableFlagSet: FlagSet {
 
     mutating func setFlag(_ value: Bool, bit: Int)
 
-    mutating func setField<FieldType: FixedWidthInteger>(
-        _ value: FieldType,
+    mutating func setField(
+        _ value: some FixedWidthInteger,
         firstBit: Int,
         bitWidth: Int
     )
@@ -82,8 +82,8 @@ extension MutableFlagSet {
     }
 
     @inline(__always)
-    public mutating func setField<FieldType: FixedWidthInteger>(
-        _ value: FieldType,
+    public mutating func setField(
+        _ value: some FixedWidthInteger,
         firstBit: Int,
         bitWidth: Int
     ) {

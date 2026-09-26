@@ -61,7 +61,7 @@ protocol InterfaceVersionRendering: Sendable {
 /// too. (Printers constructed with the bare `.init(in:)` have no sink at all,
 /// which once left the whole diff path dropping failures silently — the very
 /// silence the header-failure reporting exists to end.)
-final class InterfaceVersionUnit<MachO: FieldLayoutRenderable>: InterfaceVersionRendering {
+final class InterfaceVersionUnit<MachO: MachOFieldLayoutRenderable>: InterfaceVersionRendering {
     private let builder: SwiftDiffableInterfaceBuilder<MachO>
     private let printer: SwiftDeclarationPrinter<MachO>
 

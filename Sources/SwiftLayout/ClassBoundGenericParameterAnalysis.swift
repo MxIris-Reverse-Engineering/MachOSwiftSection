@@ -88,13 +88,13 @@ enum ClassBoundGenericParameterAnalysis {
     /// or `nil` when the RHS is not `.type`, does not demangle, or is not fully
     /// concrete (it references a generic parameter / dependent member, so it
     /// cannot be substituted standalone).
-    private static func concreteSameType<MachO: MachOSwiftSectionRepresentableWithCache>(
+    private static func concreteSameType(
         of requirement: GenericRequirementDescriptor,
-        in machO: MachO
+        in machO: some MachOSwiftSectionRepresentableWithCache
     ) -> Node? {
         guard
             case .type(let rightHandSideName)? = try? requirement.resolvedContent(in: machO),
-            let rightHandSideNode = try? MetadataReader.demangleType(for: rightHandSideName, in: machO)
+            let rightHandSideNode = try? SymbolicDemangler.demangleType(for: rightHandSideName, in: machO)
         else { return nil }
         let unwrapped = rightHandSideNode.kind == .type ? (rightHandSideNode.firstChild ?? rightHandSideNode) : rightHandSideNode
         guard !nodeReferencesParameterOrMember(unwrapped) else { return nil }
@@ -112,13 +112,13 @@ enum ClassBoundGenericParameterAnalysis {
     /// The `(depth, index)` of a requirement whose subject is a bare generic
     /// parameter, or `nil` when the subject is a dependent member type (or
     /// cannot be demangled).
-    private static func bareParameterKey<MachO: MachOSwiftSectionRepresentableWithCache>(
+    private static func bareParameterKey(
         of requirement: GenericRequirementDescriptor,
-        in machO: MachO
+        in machO: some MachOSwiftSectionRepresentableWithCache
     ) -> GenericParameterKey? {
         guard
             let parameterMangledName = try? requirement.paramMangledName(in: machO),
-            let parameterNode = try? MetadataReader.demangleType(for: parameterMangledName, in: machO)
+            let parameterNode = try? SymbolicDemangler.demangleType(for: parameterMangledName, in: machO)
         else { return nil }
         let unwrapped = parameterNode.kind == .type ? (parameterNode.firstChild ?? parameterNode) : parameterNode
         guard
@@ -174,7 +174,7 @@ enum ClassBoundGenericParameterAnalysis {
             }
         case .symbol(let symbol):
             guard
-                let symbolNode = try? MetadataReader.demangleType(for: symbol, in: image.machO),
+                let symbolNode = try? SymbolicDemangler.demangleType(for: symbol, in: image.machO),
                 let protocolNode = symbolNode.kind == .protocol ? symbolNode : symbolNode.first(of: .protocol),
                 let qualifiedProtocolName = NodeTypeNaming.protocolQualifiedName(of: protocolNode)
             else { return false }

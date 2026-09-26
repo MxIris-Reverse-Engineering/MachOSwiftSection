@@ -65,5 +65,28 @@ final class TypeGenericContextDescriptorHeaderTests: MachOSwiftSectionFixtureTes
         #expect(numRequirements == TypeGenericContextDescriptorHeaderBaseline.genericStructLayoutRequirement.layoutNumRequirements)
         #expect(numKeyArguments == TypeGenericContextDescriptorHeaderBaseline.genericStructLayoutRequirement.layoutNumKeyArguments)
         #expect(flagsRawValue == TypeGenericContextDescriptorHeaderBaseline.genericStructLayoutRequirement.layoutFlagsRawValue)
+
+        // The instantiation cache is mutable runtime state and reads as zero
+        // in the file; only where it sits is a static fact.
+        let instantiationCacheOffset = try acrossAllReaders(
+            file: { headers.file.resolvedDirectOffset(from: \.instantiationCache) },
+            image: { headers.image.resolvedDirectOffset(from: \.instantiationCache) }
+        )
+        #expect(instantiationCacheOffset == TypeGenericContextDescriptorHeaderBaseline.genericStructLayoutRequirement.instantiationCacheOffset)
+
+        // The entry point to the whole generic-pattern family. The pattern
+        // Suites reach their carriers through exactly this field, so a wrong
+        // answer here would surface there too.
+        let patternOffset = try acrossAllReaders(
+            file: { headers.file.resolvedDirectOffset(from: \.defaultInstantiationPattern) },
+            image: { headers.image.resolvedDirectOffset(from: \.defaultInstantiationPattern) }
+        )
+        #expect(patternOffset == TypeGenericContextDescriptorHeaderBaseline.genericStructLayoutRequirement.defaultInstantiationPatternOffset)
+
+        // Resolving what it points at must produce a struct pattern, since
+        // the carrier is a struct.
+        let pattern = try GenericValueMetadataPattern.resolve(from: try required(patternOffset), in: machOFile)
+        #expect(pattern.metadataKind == .struct)
     }
+
 }

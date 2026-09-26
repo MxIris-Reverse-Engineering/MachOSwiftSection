@@ -42,15 +42,15 @@ public enum TypeContextDescriptorWrapper {
         }
     }
 
-    public func parent<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> SymbolOrElement<ContextDescriptorWrapper>? {
+    public func parent(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> SymbolOrElement<ContextDescriptorWrapper>? {
         return try contextDescriptor.parent(in: machO)
     }
 
-    public func genericContext<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> GenericContext? {
+    public func genericContext(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> GenericContext? {
         return try contextDescriptor.genericContext(in: machO)
     }
 
-    public func typeGenericContext<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> TypeGenericContext? {
+    public func typeGenericContext(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> TypeGenericContext? {
         return try typeContextDescriptor.typeGenericContext(in: machO)
     }
     
@@ -68,15 +68,15 @@ public enum TypeContextDescriptorWrapper {
 
     // MARK: - ReadingContext Support
 
-    public func parent<Context: ReadingContext>(in context: Context) throws -> SymbolOrElement<ContextDescriptorWrapper>? {
+    public func parent(in context: some ReadingContext) throws -> SymbolOrElement<ContextDescriptorWrapper>? {
         return try contextDescriptor.parent(in: context)
     }
 
-    public func genericContext<Context: ReadingContext>(in context: Context) throws -> GenericContext? {
+    public func genericContext(in context: some ReadingContext) throws -> GenericContext? {
         return try contextDescriptor.genericContext(in: context)
     }
 
-    public func typeGenericContext<Context: ReadingContext>(in context: Context) throws -> TypeGenericContext? {
+    public func typeGenericContext(in context: some ReadingContext) throws -> TypeGenericContext? {
         return try typeContextDescriptor.typeGenericContext(in: context)
     }
 
@@ -101,7 +101,7 @@ extension TypeContextDescriptorWrapper: Resolvable {
         case invalidTypeContextDescriptor
     }
 
-    public static func resolve<MachO: MachORepresentableWithCache & Readable>(from offset: Int, in machO: MachO) throws -> Self {
+    public static func resolve(from offset: Int, in machO: some MachORepresentableWithCache & Readable) throws -> Self {
         let contextDescriptor: ContextDescriptor = try machO.readWrapperElement(offset: offset)
         switch contextDescriptor.flags.kind {
         case .class:
@@ -115,7 +115,7 @@ extension TypeContextDescriptorWrapper: Resolvable {
         }
     }
 
-    public static func resolve<MachO: MachORepresentableWithCache & Readable>(from offset: Int, in machO: MachO) throws -> Self? {
+    public static func resolve(from offset: Int, in machO: some MachORepresentableWithCache & Readable) throws -> Self? {
         do {
             return try resolve(from: offset, in: machO) as Self
         } catch {
@@ -206,11 +206,11 @@ public enum ValueTypeDescriptorWrapper {
         }
     }
 
-    public func parent<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> SymbolOrElement<ContextDescriptorWrapper>? {
+    public func parent(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> SymbolOrElement<ContextDescriptorWrapper>? {
         return try contextDescriptor.parent(in: machO)
     }
 
-    public func genericContext<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> GenericContext? {
+    public func genericContext(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> GenericContext? {
         return try contextDescriptor.genericContext(in: machO)
     }
 
@@ -224,11 +224,11 @@ public enum ValueTypeDescriptorWrapper {
 
     // MARK: - ReadingContext Support
 
-    public func parent<Context: ReadingContext>(in context: Context) throws -> SymbolOrElement<ContextDescriptorWrapper>? {
+    public func parent(in context: some ReadingContext) throws -> SymbolOrElement<ContextDescriptorWrapper>? {
         return try contextDescriptor.parent(in: context)
     }
 
-    public func genericContext<Context: ReadingContext>(in context: Context) throws -> GenericContext? {
+    public func genericContext(in context: some ReadingContext) throws -> GenericContext? {
         return try contextDescriptor.genericContext(in: context)
     }
 
@@ -251,7 +251,7 @@ extension ValueTypeDescriptorWrapper: Resolvable {
         case invalidTypeContextDescriptor
     }
 
-    public static func resolve<MachO: MachORepresentableWithCache & Readable>(from offset: Int, in machO: MachO) throws -> Self {
+    public static func resolve(from offset: Int, in machO: some MachORepresentableWithCache & Readable) throws -> Self {
         let contextDescriptor: ContextDescriptor = try machO.readWrapperElement(offset: offset)
         switch contextDescriptor.flags.kind {
         case .enum:
@@ -263,7 +263,7 @@ extension ValueTypeDescriptorWrapper: Resolvable {
         }
     }
 
-    public static func resolve<MachO: MachORepresentableWithCache & Readable>(from offset: Int, in machO: MachO) throws -> Self? {
+    public static func resolve(from offset: Int, in machO: some MachORepresentableWithCache & Readable) throws -> Self? {
         do {
             return try resolve(from: offset, in: machO) as Self
         } catch {

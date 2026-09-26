@@ -12,7 +12,7 @@ import Demangling
 /// Different stores are the norm rather than the exception once demangled trees
 /// leave `SymbolIndexStore`: `demangledNodeReference(for:)` falls back to a mini
 /// store for names outside the build sweep, and `NodeReference(interning:)` —
-/// which `MetadataReader` uses for every metadata-derived tree — mints a fresh
+/// which `SymbolicDemangler` uses for every metadata-derived tree — mints a fresh
 /// private store on each call by design. Collections that mix those with
 /// references drawn from the shared image store must use this wrapper.
 ///

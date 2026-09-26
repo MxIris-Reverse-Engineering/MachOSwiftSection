@@ -179,6 +179,12 @@ public final class SwiftIndexEventReporter: SwiftIndexEvents.Handler, Sendable {
         case .extensionCreationFailed(let targetName, let error):
             yield(.error, .indexing, "Extension creation failed: \(targetName)", detail: String(describing: error))
 
+        case .objcImplementationClassRecognized(let context):
+            yield(.trace, .indexing, "@objc @implementation: \(context.className) (\(context.instanceVariableCount) ivars, \(context.memberCount) members)", detail: context.evidence)
+
+        case .objcImplementationClassSkipped(let className, let reason):
+            yield(.error, .indexing, "@objc @implementation recognition skipped: \(className)", detail: reason)
+
         case .protocolProcessed(let context):
             yield(.trace, .indexing, "Protocol: \(context.protocolName) (\(context.requirementCount) requirements)")
 

@@ -2,6 +2,7 @@ import Foundation
 import MachOKit
 import MachOBase
 
+@LocatableLayoutWrapping
 public struct AssociatedTypeDescriptor: ResolvableLocatableLayoutWrapper {
     public struct Layout: LayoutProtocol {
         public let conformingTypeName: RelativeDirectPointer<MangledName>
@@ -9,26 +10,18 @@ public struct AssociatedTypeDescriptor: ResolvableLocatableLayoutWrapper {
         public let numAssociatedTypes: UInt32
         public let associatedTypeRecordSize: UInt32
     }
-
-    public var layout: Layout
-    public let offset: Int
-
-    public init(layout: Layout, offset: Int) {
-        self.offset = offset
-        self.layout = layout
-    }
 }
 
 extension AssociatedTypeDescriptor {
-    public func conformingTypeName<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> MangledName {
+    public func conformingTypeName(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> MangledName {
         return try layout.conformingTypeName.resolve(from: offset(of: \.conformingTypeName), in: machO)
     }
 
-    public func protocolTypeName<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> MangledName {
+    public func protocolTypeName(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> MangledName {
         return try layout.protocolTypeName.resolve(from: offset(of: \.protocolTypeName), in: machO)
     }
 
-    public func associatedTypeRecords<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> [AssociatedTypeRecord] {
+    public func associatedTypeRecords(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> [AssociatedTypeRecord] {
         return try machO.readWrapperElements(offset: offset + layoutSize, numberOfElements: layout.numAssociatedTypes.cast())
     }
 }
@@ -54,15 +47,15 @@ extension AssociatedTypeDescriptor: TopLevelDescriptor {
 // MARK: - ReadingContext Support
 
 extension AssociatedTypeDescriptor {
-    public func conformingTypeName<Context: ReadingContext>(in context: Context) throws -> MangledName {
+    public func conformingTypeName(in context: some ReadingContext) throws -> MangledName {
         return try layout.conformingTypeName.resolve(at: try context.addressFromOffset(offset(of: \.conformingTypeName)), in: context)
     }
 
-    public func protocolTypeName<Context: ReadingContext>(in context: Context) throws -> MangledName {
+    public func protocolTypeName(in context: some ReadingContext) throws -> MangledName {
         return try layout.protocolTypeName.resolve(at: try context.addressFromOffset(offset(of: \.protocolTypeName)), in: context)
     }
 
-    public func associatedTypeRecords<Context: ReadingContext>(in context: Context) throws -> [AssociatedTypeRecord] {
+    public func associatedTypeRecords(in context: some ReadingContext) throws -> [AssociatedTypeRecord] {
         return try context.readWrapperElements(at: try context.addressFromOffset(offset + layoutSize), numberOfElements: layout.numAssociatedTypes.cast())
     }
 }

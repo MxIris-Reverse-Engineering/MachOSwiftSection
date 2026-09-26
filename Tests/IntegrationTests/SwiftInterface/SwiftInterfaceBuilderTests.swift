@@ -20,7 +20,7 @@ extension SwiftInterfaceBuilderTests {
     var builderConfiguration: SwiftInterfaceBuilderConfiguration {
         SwiftInterfaceBuilderConfiguration(
             indexConfiguration: .init(
-                showCImportedTypes: false
+                showCImportedTypes: false,
             ),
             printConfiguration: .init(
                 printStrippedSymbolicItem: true,
@@ -29,14 +29,15 @@ extension SwiftInterfaceBuilderTests {
                 printMemberAddress: true,
                 printVTableOffset: true,
                 printPWTOffset: true,
+                infersObjCOverridesFromSelectorNames: true,
                 memberSortOrder: .byOffset,
                 printTypeLayout: true,
                 printEnumLayout: true,
-            )
+            ),
         )
     }
 
-    private func makeBuilder<MachO: FieldLayoutRenderable>(in machO: MachO) throws -> SwiftInterfaceBuilder<MachO> {
+    private func makeBuilder<MachO: MachOFieldLayoutRenderable>(in machO: MachO) throws -> SwiftInterfaceBuilder<MachO> {
         let builder = try SwiftInterfaceBuilder(configuration: builderConfiguration, eventHandlers: [], in: machO)
         builder.addExtraDataProvider(SwiftInterfaceBuilderOpaqueTypeProvider(machO: machO))
         return builder
@@ -44,29 +45,28 @@ extension SwiftInterfaceBuilderTests {
 
     /// Builds the interface (timed) and returns the rendered source. The two
     /// `@Test` entry points below only differ in where they send this string.
-    private func buildInterfaceString<MachO: FieldLayoutRenderable>(in machO: MachO) async throws -> String {
+    private func buildInterfaceString(in machO: some MachOFieldLayoutRenderable) async throws -> String {
         let builder = try makeBuilder(in: machO)
         try await measuringPreparation { try await builder.prepare() }
         return try await builder.printRoot().string
     }
 
-    func buildString<MachO: FieldLayoutRenderable>(in machO: MachO) async throws {
-        printResult(try await buildInterfaceString(in: machO))
+    func buildString(in machO: some MachOFieldLayoutRenderable) async throws {
+        try await printResult(buildInterfaceString(in: machO))
     }
 
-    func buildFile<MachO: FieldLayoutRenderable>(in machO: MachO) async throws {
+    func buildFile(in machO: some MachOFieldLayoutRenderable) async throws {
         // Preserve the historical `-FileDump` / `-ImageDump` naming so the file
         // tells you which reader produced it.
         let suffix = machO is MachOImage ? "ImageDump" : "FileDump"
-        try write(try await buildInterfaceString(in: machO), for: machO, suffix: suffix)
+        try await write(buildInterfaceString(in: machO), for: machO, suffix: suffix)
     }
 }
 
-@Suite
 enum SwiftInterfaceBuilderTestSuite {
     class DyldCacheTests: MachOTestingSupport.DyldCacheTests, SwiftInterfaceBuilderTests, @unchecked Sendable {
         override class var cacheImageName: MachOImageName {
-            .SwiftUICore
+            .AppKit
         }
 
         override class var cachePath: DyldSharedCachePath {

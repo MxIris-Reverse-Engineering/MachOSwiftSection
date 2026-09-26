@@ -5,7 +5,7 @@ import MachOBase
 public protocol AnyClassMetadataProtocol: HeapMetadataProtocol where Layout: AnyClassMetadataLayout {}
 
 extension AnyClassMetadataProtocol {
-    public func asFinalClassMetadata<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> AnyClassMetadata {
+    public func asFinalClassMetadata(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> AnyClassMetadata {
         try .resolve(from: offset, in: machO)
     }
 
@@ -17,7 +17,7 @@ extension AnyClassMetadataProtocol {
 // MARK: - ReadingContext Support
 
 extension AnyClassMetadataProtocol {
-    public func asFinalClassMetadata<Context: ReadingContext>(in context: Context) throws -> AnyClassMetadata {
+    public func asFinalClassMetadata(in context: some ReadingContext) throws -> AnyClassMetadata {
         try .resolve(at: try context.addressFromOffset(offset), in: context)
     }
 }

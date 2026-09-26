@@ -6,6 +6,7 @@ import MachOKit
 import MachOFoundation
 import MachOSwiftSection
 import SwiftInterface
+import SwiftDeclarationRendering
 import ArgumentParser
 #if os(macOS)
 import TypeIndexing
@@ -19,6 +20,9 @@ struct InterfaceCommand: AsyncParsableCommand {
 
     @OptionGroup
     var machOOptions: MachOOptionGroup
+
+    @OptionGroup
+    var objcMemberOptions: ObjCMemberOptionGroup
 
     @OptionGroup(title: "Comment Templates")
     var transformerOptions: TransformerOptionGroup
@@ -72,6 +76,12 @@ struct InterfaceCommand: AsyncParsableCommand {
     var colorScheme: SemanticColorScheme = .none
 
     func run() async throws {
+        try await AccessorThunkResolution.withResolver(from: machOOptions) {
+            try await buildInterface()
+        }
+    }
+
+    private func buildInterface() async throws {
         let machOFile = try MachOFile.load(options: machOOptions)
 
         let effectiveEmitOffsetComments = emitOffsetComments || emitExpandedFieldOffsets
@@ -94,10 +104,15 @@ struct InterfaceCommand: AsyncParsableCommand {
         if let transformers = try transformerOptions.buildTransformerConfiguration() {
             printConfiguration.applyTransformersEnablingCommentKinds(transformers)
         }
+        printConfiguration.staticLayoutDependencyResolution = machOOptions.staticLayoutDependencyResolution
+        // The index records the name-only ObjC tie either way; this decides
+        // whether it prints as `@objc override`.
+        printConfiguration.infersObjCOverridesFromSelectorNames = objcMemberOptions.infersOverridesFromSelectorNames
 
         var configuration = SwiftInterfaceBuilderConfiguration(
             indexConfiguration: .init(
-                showCImportedTypes: showCImportedTypes
+                showCImportedTypes: showCImportedTypes,
+                dependencySearchPaths: machOOptions.indexDependencySearchPaths
             ),
             printConfiguration: printConfiguration
         )

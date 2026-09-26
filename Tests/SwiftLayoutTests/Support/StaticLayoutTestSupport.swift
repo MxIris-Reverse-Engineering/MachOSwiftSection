@@ -25,7 +25,7 @@ func fieldLayout<MachO: MachOSwiftSectionRepresentableWithCache>(
         guard let descriptor = contextDescriptor.typeContextDescriptorWrapper else { continue }
         guard descriptor.isStruct || descriptor.isClass else { continue }
         guard
-            let name = (try? MetadataReader.demangleContext(for: contextDescriptor, in: machO))
+            let name = (try? SymbolicDemangler.demangleContext(for: contextDescriptor, in: machO))
                 .flatMap(NodeTypeNaming.nominalQualifiedName(of:)),
             name == qualifiedTypeName
         else { continue }
@@ -50,7 +50,7 @@ func fieldLayout<MachO: MachOSwiftSectionRepresentableWithCache>(
         guard let descriptor = contextDescriptor.typeContextDescriptorWrapper else { continue }
         guard descriptor.isStruct || descriptor.isClass else { continue }
         guard
-            let name = (try? MetadataReader.demangleContext(for: contextDescriptor, in: machO))
+            let name = (try? SymbolicDemangler.demangleContext(for: contextDescriptor, in: machO))
                 .flatMap(NodeTypeNaming.nominalQualifiedName(of:)),
             name == qualifiedTypeName
         else { continue }
@@ -74,7 +74,7 @@ func runtimeFieldOffsets(
     for contextDescriptor in try machO.swift.contextDescriptors {
         guard let descriptor = contextDescriptor.typeContextDescriptorWrapper else { continue }
         guard
-            let name = (try? MetadataReader.demangleContext(for: contextDescriptor, in: machO))
+            let name = (try? SymbolicDemangler.demangleContext(for: contextDescriptor, in: machO))
                 .flatMap(NodeTypeNaming.nominalQualifiedName(of:)),
             name == qualifiedTypeName,
             let accessor = try descriptor.typeContextDescriptor.metadataAccessorFunction(in: machO)
@@ -100,7 +100,7 @@ func runtimeFieldOffsets(ofQualifiedTypeName qualifiedTypeName: String, in machO
     for contextDescriptor in try machO.swift.contextDescriptors {
         guard let descriptor = contextDescriptor.typeContextDescriptorWrapper else { continue }
         guard
-            let name = (try? MetadataReader.demangleContext(for: contextDescriptor, in: machO))
+            let name = (try? SymbolicDemangler.demangleContext(for: contextDescriptor, in: machO))
                 .flatMap(NodeTypeNaming.nominalQualifiedName(of:)),
             name == qualifiedTypeName,
             let accessor = try descriptor.typeContextDescriptor.metadataAccessorFunction(in: machO)
@@ -131,7 +131,7 @@ func runtimeValueWitnessLayout(
     for contextDescriptor in try machO.swift.contextDescriptors {
         guard let descriptor = contextDescriptor.typeContextDescriptorWrapper else { continue }
         guard
-            let name = (try? MetadataReader.demangleContext(for: contextDescriptor, in: machO))
+            let name = (try? SymbolicDemangler.demangleContext(for: contextDescriptor, in: machO))
                 .flatMap(NodeTypeNaming.nominalQualifiedName(of:)),
             name == qualifiedTypeName,
             let accessor = try descriptor.typeContextDescriptor.metadataAccessorFunction(in: machO)
@@ -156,7 +156,7 @@ func runtimeMetatype(ofQualifiedTypeName qualifiedTypeName: String, in machO: Ma
     for contextDescriptor in try machO.swift.contextDescriptors {
         guard let descriptor = contextDescriptor.typeContextDescriptorWrapper else { continue }
         guard
-            let name = (try? MetadataReader.demangleContext(for: contextDescriptor, in: machO))
+            let name = (try? SymbolicDemangler.demangleContext(for: contextDescriptor, in: machO))
                 .flatMap(NodeTypeNaming.nominalQualifiedName(of:)),
             name == qualifiedTypeName,
             let accessor = try descriptor.typeContextDescriptor.metadataAccessorFunction(in: machO)

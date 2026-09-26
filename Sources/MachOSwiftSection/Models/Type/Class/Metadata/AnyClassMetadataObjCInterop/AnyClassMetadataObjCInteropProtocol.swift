@@ -5,7 +5,7 @@ import MachOBase
 public protocol AnyClassMetadataObjCInteropProtocol: HeapMetadataProtocol where Layout: AnyClassMetadataObjCInteropLayout {}
 
 extension AnyClassMetadataObjCInteropProtocol {
-    public func asFinalClassMetadata<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> ClassMetadataObjCInterop {
+    public func asFinalClassMetadata(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> ClassMetadataObjCInterop {
         try .resolve(from: offset, in: machO)
     }
     
@@ -15,7 +15,7 @@ extension AnyClassMetadataObjCInteropProtocol {
 }
 
 extension AnyClassMetadataObjCInteropProtocol {
-    public func superclass<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> AnyClassMetadataObjCInterop? {
+    public func superclass(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> AnyClassMetadataObjCInterop? {
         try layout.superclass.resolve(in: machO)
     }
     
@@ -35,11 +35,11 @@ extension AnyClassMetadataObjCInteropProtocol {
 // MARK: - ReadingContext Support
 
 extension AnyClassMetadataObjCInteropProtocol {
-    public func asFinalClassMetadata<Context: ReadingContext>(in context: Context) throws -> ClassMetadataObjCInterop {
+    public func asFinalClassMetadata(in context: some ReadingContext) throws -> ClassMetadataObjCInterop {
         try .resolve(at: try context.addressFromOffset(offset), in: context)
     }
 
-    public func superclass<Context: ReadingContext>(in context: Context) throws -> AnyClassMetadataObjCInterop? {
+    public func superclass(in context: some ReadingContext) throws -> AnyClassMetadataObjCInterop? {
         try layout.superclass.resolve(in: context)
     }
 }

@@ -128,6 +128,8 @@ extension StaticTypeLayoutResolver {
         let payloadSize = payloadArea.size
         let payloadAlignmentMask = payloadArea.alignmentMask
         let isBitwiseTakable = payloadArea.isBitwiseTakable
+        let isBitwiseBorrowable = payloadArea.isBitwiseBorrowable
+        let isAddressableForDependencies = payloadArea.isAddressableForDependencies
 
         let qualifiedTypeName = NodeTypeNaming.nominalQualifiedName(of: node)
         let result: EnumLayoutCalculator.LayoutResult
@@ -183,7 +185,9 @@ extension StaticTypeLayoutResolver {
             stride: stride,
             alignmentMask: payloadAlignmentMask,
             extraInhabitantCount: result.extraInhabitantCount,
-            isBitwiseTakable: isBitwiseTakable
+            isBitwiseTakable: isBitwiseTakable,
+            isBitwiseBorrowable: isBitwiseBorrowable,
+            isAddressableForDependencies: isAddressableForDependencies
         )
     }
 
@@ -196,10 +200,12 @@ extension StaticTypeLayoutResolver {
         of descriptor: EnumDescriptor,
         in image: ImageReference<MachO>,
         environment: GenericArgumentEnvironment
-    ) throws -> (size: Int, alignmentMask: Int, isBitwiseTakable: Bool) {
+    ) throws -> (size: Int, alignmentMask: Int, isBitwiseTakable: Bool, isBitwiseBorrowable: Bool, isAddressableForDependencies: Bool) {
         var payloadSize = 0
         var payloadAlignmentMask = 0
         var isBitwiseTakable = true
+        var isBitwiseBorrowable = true
+        var isAddressableForDependencies = false
         let records = try descriptor.fieldDescriptor(in: image.machO).records(in: image.machO)
         for record in records {
             let isIndirect = record.layout.flags.contains(.isIndirectCase)
@@ -211,8 +217,12 @@ extension StaticTypeLayoutResolver {
             payloadSize = max(payloadSize, payloadLayout.size)
             payloadAlignmentMask = max(payloadAlignmentMask, payloadLayout.alignmentMask)
             isBitwiseTakable = isBitwiseTakable && payloadLayout.isBitwiseTakable
+            // `swift_initEnumMetadataMultiPayload`: borrowability is the AND of
+            // the payloads, addressable-for-dependencies the OR (Swift 6.4).
+            isBitwiseBorrowable = isBitwiseBorrowable && payloadLayout.isBitwiseBorrowable
+            isAddressableForDependencies = isAddressableForDependencies || payloadLayout.isAddressableForDependencies
         }
-        return (payloadSize, payloadAlignmentMask, isBitwiseTakable)
+        return (payloadSize, payloadAlignmentMask, isBitwiseTakable, isBitwiseBorrowable, isAddressableForDependencies)
     }
 
     /// Finds the `MultiPayloadEnumDescriptor` (`__swift5_mpenum`) for an enum by
@@ -226,7 +236,7 @@ extension StaticTypeLayoutResolver {
         for descriptor in descriptors {
             guard
                 let mangledTypeName = try? descriptor.mangledTypeName(in: image.machO),
-                let node = try? MetadataReader.demangleType(for: mangledTypeName, in: image.machO),
+                let node = try? SymbolicDemangler.demangleType(for: mangledTypeName, in: image.machO),
                 NodeTypeNaming.nominalQualifiedName(of: node) == qualifiedTypeName
             else { continue }
             return descriptor
@@ -305,7 +315,7 @@ extension StaticTypeLayoutResolver {
         let emptyCaseCount = descriptor.numberOfEmptyCases
         guard payloadCaseCount > 0 else { return nil }
 
-        let node = try MetadataReader.demangleContext(for: .type(.enum(descriptor)), in: image.machO)
+        let node = try SymbolicDemangler.demangleContext(for: .type(.enum(descriptor)), in: image.machO)
         let layoutResult: EnumLayoutCalculator.LayoutResult
         if payloadCaseCount == 1 {
             let payload = try singlePayloadType(descriptor: descriptor, node: node, in: image, environment: environment)
@@ -377,7 +387,9 @@ extension StaticTypeLayoutResolver {
             stride: stride,
             alignmentMask: alignmentMask,
             extraInhabitantCount: remainingExtraInhabitants,
-            isBitwiseTakable: payload.isBitwiseTakable
+            isBitwiseTakable: payload.isBitwiseTakable,
+            isBitwiseBorrowable: payload.isBitwiseBorrowable,
+            isAddressableForDependencies: payload.isAddressableForDependencies
         )
     }
 

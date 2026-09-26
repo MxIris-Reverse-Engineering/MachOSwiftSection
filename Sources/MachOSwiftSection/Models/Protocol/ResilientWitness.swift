@@ -2,24 +2,16 @@ import Foundation
 import MachOKit
 import MachOBase
 
+@LocatableLayoutWrapping
 public struct ResilientWitness: ResolvableLocatableLayoutWrapper {
     public struct Layout: LayoutProtocol {
         public let requirement: RelativeProtocolRequirementPointer
         public let implementation: RelativeDirectRawPointer
     }
-
-    public let offset: Int
-
-    public var layout: Layout
-
-    public init(layout: Layout, offset: Int) {
-        self.offset = offset
-        self.layout = layout
-    }
 }
 
 extension ResilientWitness {
-    public func requirement<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> SymbolOrElement<ProtocolRequirement>? {
+    public func requirement(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> SymbolOrElement<ProtocolRequirement>? {
         return try layout.requirement.resolve(from: offset(of: \.requirement), in: machO).asOptional
     }
     
@@ -32,8 +24,7 @@ extension ResilientWitness {
     /// symbol attribution is `SwiftInspection`'s `implementationSymbols(in:)`,
     /// one layer up.
     public var implementationOffset: Int? {
-        guard layout.implementation.isValid else { return nil }
-        return layout.implementation.resolveDirectOffset(from: offset(of: \.implementation))
+        resolvedDirectOffset(from: \.implementation)
     }
 
     /// MachO-only debug formatter (`nil` for a null pointer); no
@@ -50,7 +41,7 @@ extension ResilientWitness {
 // MARK: - ReadingContext Support
 
 extension ResilientWitness {
-    public func requirement<Context: ReadingContext>(in context: Context) throws -> SymbolOrElement<ProtocolRequirement>? {
+    public func requirement(in context: some ReadingContext) throws -> SymbolOrElement<ProtocolRequirement>? {
         return try layout.requirement.resolve(at: try context.addressFromOffset(offset(of: \.requirement)), in: context).asOptional
     }
 

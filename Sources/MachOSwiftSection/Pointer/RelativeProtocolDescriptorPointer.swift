@@ -23,7 +23,7 @@ public enum RelativeProtocolDescriptorPointer: Sendable, Equatable {
         }
     }
 
-    public func protocolDescriptorRef<MachO: MachOSwiftSectionRepresentableWithCache>(from offset: Int, in machO: MachO) throws -> ProtocolDescriptorRef {
+    public func protocolDescriptorRef(from offset: Int, in machO: some MachOSwiftSectionRepresentableWithCache) throws -> ProtocolDescriptorRef {
         let storedPointer = try rawPointer.resolveIndirectType(from: offset, in: machO).address
         if isObjC {
             return .forObjC(storedPointer)
@@ -32,7 +32,7 @@ public enum RelativeProtocolDescriptorPointer: Sendable, Equatable {
         }
     }
 
-    public func resolve<MachO: MachOSwiftSectionRepresentableWithCache>(from offset: Int, in machO: MachO) throws -> SymbolOrElement<ProtocolDescriptorWithObjCInterop> {
+    public func resolve(from offset: Int, in machO: some MachOSwiftSectionRepresentableWithCache) throws -> SymbolOrElement<ProtocolDescriptorWithObjCInterop> {
         switch self {
         case .objcPointer(let relativeIndirectablePointerIntPair):
             return try relativeIndirectablePointerIntPair.resolve(from: offset, in: machO).map { .objc($0) }

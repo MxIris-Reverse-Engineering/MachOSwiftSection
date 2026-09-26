@@ -50,18 +50,19 @@ final class PerImageCacheEvictionTests: MachOFileTests, @unchecked Sendable {
         @Dependency(\.symbolIndexStore)
         var symbolIndexStore
         symbolIndexStore.remove(for: machOFile)
+        SymbolicManglingIndex.shared.remove(for: machOFile)
         InternedNodeReferenceCache.shared.remove(for: machOFile)
-        MetadataReader.removeCache(for: machOFile)
+        SymbolicDemangler.removeCache(for: machOFile)
     }
 
     /// Populates the interned-name store and the demangle memo the way a
     /// NON-indexer consumer does (SwiftLayout and the renderers reach
-    /// `MetadataReader` directly), deliberately leaving the symbol store
+    /// `SymbolicDemangler` directly), deliberately leaving the symbol store
     /// untouched.
     @discardableResult
     private func populateNonIndexerCaches(for machOFile: MachOFile) throws -> Bool {
         let typeDescriptor = try #require(try machOFile.swift.typeContextDescriptors.first)
-        let typeNode = try MetadataReader.demangleContext(for: .type(typeDescriptor), in: machOFile)
+        let typeNode = try SymbolicDemangler.demangleContext(for: .type(typeDescriptor), in: machOFile)
         _ = InternedNodeReferenceCache.shared.reference(interning: typeNode, in: machOFile)
         return true
     }
@@ -77,7 +78,7 @@ final class PerImageCacheEvictionTests: MachOFileTests, @unchecked Sendable {
     /// started being sampled and honoured independently.
     ///
     /// Reaching that combination needs `interned: absent, memo: present`, and
-    /// the obvious route does not produce it — `MetadataReader.demangleContext`
+    /// the obvious route does not produce it — `SymbolicDemangler.demangleContext`
     /// populates BOTH (verified: a "seed the memo only" helper left the store
     /// present too). This state arises the way it does in production instead:
     /// the cache's memory-pressure eviction drops the interned store without
@@ -95,7 +96,7 @@ final class PerImageCacheEvictionTests: MachOFileTests, @unchecked Sendable {
             "the store must be absent, or the indexer will not claim it and this test stops being about the pairing"
         )
         try #require(
-            MetadataReader.cacheExists(for: unsafeMachOFile),
+            SymbolicDemangler.cacheExists(for: unsafeMachOFile),
             "the memo must survive that eviction, or there is no unpaired memo to leave behind"
         )
 
@@ -110,7 +111,7 @@ final class PerImageCacheEvictionTests: MachOFileTests, @unchecked Sendable {
             "the indexer rebuilt the interned store, so it claimed it and its deinit must drop it"
         )
         #expect(
-            !MetadataReader.cacheExists(for: unsafeMachOFile),
+            !SymbolicDemangler.cacheExists(for: unsafeMachOFile),
             "the memo references the interned store just dropped; left behind it pins that store's buffers and the eviction reclaims nothing"
         )
     }
@@ -129,8 +130,30 @@ final class PerImageCacheEvictionTests: MachOFileTests, @unchecked Sendable {
 
             #expect(!SymbolIndexStore.shared.contains(in: unsafeMachOFile), "cycle \(cycle) left the symbol store behind")
             #expect(!InternedNodeReferenceCache.shared.contains(in: unsafeMachOFile), "cycle \(cycle) left the interned store behind")
-            #expect(!MetadataReader.cacheExists(for: unsafeMachOFile), "cycle \(cycle) left the demangle memo behind")
+            #expect(!SymbolicDemangler.cacheExists(for: unsafeMachOFile), "cycle \(cycle) left the demangle memo behind")
         }
+    }
+
+    /// `SymbolicManglingIndex` holds the symbol store's symbolic-mangling
+    /// table, so the indexer that reclaims the store must reclaim the index
+    /// with it: left behind, the index pins the very table the eviction meant
+    /// to free (evolution proposal `symbolic-mangling-symbol-index`).
+    @Test func symbolicManglingIndexGoesWithTheSymbolStore() async throws {
+        let unsafeMachOFile = machOFile
+        clearAllPerImageCaches(for: unsafeMachOFile)
+
+        var indexer: SwiftDeclarationIndexer<MachOFile>? = SwiftDeclarationIndexer(in: unsafeMachOFile)
+        try await indexer?.prepare()
+        _ = SymbolicManglingIndex.shared.references(in: unsafeMachOFile)
+        try #require(SymbolicManglingIndex.shared.contains(in: unsafeMachOFile))
+
+        indexer = nil
+
+        #expect(!SymbolIndexStore.shared.contains(in: unsafeMachOFile), "the indexer built the symbol store, so it must reclaim it")
+        #expect(
+            !SymbolicManglingIndex.shared.contains(in: unsafeMachOFile),
+            "the index outlived the symbol store and pins its symbolic-mangling table"
+        )
     }
 
     @Test func survivingIndexerKeepsPerImageCaches() async throws {
@@ -146,7 +169,7 @@ final class PerImageCacheEvictionTests: MachOFileTests, @unchecked Sendable {
         // below degrade to `false == false` and pin nothing.
         try #require(SymbolIndexStore.shared.contains(in: unsafeMachOFile))
         try #require(InternedNodeReferenceCache.shared.contains(in: unsafeMachOFile))
-        try #require(MetadataReader.cacheExists(for: unsafeMachOFile))
+        try #require(SymbolicDemangler.cacheExists(for: unsafeMachOFile))
 
         // The first indexer populated the caches, so under a per-indexer
         // ownership flag its deinit would evict all three out from under
@@ -162,7 +185,7 @@ final class PerImageCacheEvictionTests: MachOFileTests, @unchecked Sendable {
             "the first indexer's deinit evicted the interned-name store while a second live indexer was using the image"
         )
         #expect(
-            MetadataReader.cacheExists(for: unsafeMachOFile),
+            SymbolicDemangler.cacheExists(for: unsafeMachOFile),
             "the first indexer's deinit evicted the demangle memo while a second live indexer was using the image"
         )
 
@@ -180,7 +203,7 @@ final class PerImageCacheEvictionTests: MachOFileTests, @unchecked Sendable {
 
         try #require(SymbolIndexStore.shared.contains(in: unsafeMachOFile))
         try #require(InternedNodeReferenceCache.shared.contains(in: unsafeMachOFile))
-        try #require(MetadataReader.cacheExists(for: unsafeMachOFile))
+        try #require(SymbolicDemangler.cacheExists(for: unsafeMachOFile))
 
         firstIndexer = nil
         secondIndexer = nil
@@ -190,14 +213,14 @@ final class PerImageCacheEvictionTests: MachOFileTests, @unchecked Sendable {
             "the image's LAST live indexer must still perform the eviction — otherwise the per-image caches leak for the rest of the process lifetime"
         )
         #expect(!InternedNodeReferenceCache.shared.contains(in: unsafeMachOFile))
-        #expect(!MetadataReader.cacheExists(for: unsafeMachOFile))
+        #expect(!SymbolicDemangler.cacheExists(for: unsafeMachOFile))
     }
 
     /// Caches an indexer did NOT build must survive its deinit.
     ///
     /// The realistic sequence this reproduces: a host does static layout work
     /// or a dump over an image (populating the interned-name store and the
-    /// demangle memo through `MetadataReader`, never touching the symbol
+    /// demangle memo through `SymbolicDemangler`, never touching the symbol
     /// store), then separately creates and destroys an indexer for the same
     /// image. Sampling one combined claim from the symbol store alone answers
     /// "nobody had this, so I claim it" for all three, and the indexer's deinit
@@ -215,7 +238,7 @@ final class PerImageCacheEvictionTests: MachOFileTests, @unchecked Sendable {
         // populated, the symbol store is not — exactly the state a combined
         // claim reads backwards.
         try #require(InternedNodeReferenceCache.shared.contains(in: unsafeMachOFile))
-        try #require(MetadataReader.cacheExists(for: unsafeMachOFile))
+        try #require(SymbolicDemangler.cacheExists(for: unsafeMachOFile))
         try #require(!SymbolIndexStore.shared.contains(in: unsafeMachOFile))
 
         var indexer: SwiftDeclarationIndexer<MachOFile>? = SwiftDeclarationIndexer(in: unsafeMachOFile)
@@ -227,7 +250,7 @@ final class PerImageCacheEvictionTests: MachOFileTests, @unchecked Sendable {
             "the indexer evicted an interned-name store that non-indexer work had built and may still be using"
         )
         #expect(
-            MetadataReader.cacheExists(for: unsafeMachOFile),
+            SymbolicDemangler.cacheExists(for: unsafeMachOFile),
             "the indexer evicted a demangle memo that non-indexer work had built and may still be using"
         )
         // The symbol store IS the indexer's to reclaim: it built that one.

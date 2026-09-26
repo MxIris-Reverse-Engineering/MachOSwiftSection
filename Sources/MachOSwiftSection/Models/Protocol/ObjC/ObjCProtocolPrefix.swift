@@ -2,28 +2,20 @@ import Foundation
 import MachOKit
 import MachOBase
 
+@LocatableLayoutWrapping
 public struct ObjCProtocolPrefix: ResolvableLocatableLayoutWrapper {
     public struct Layout: LayoutProtocol {
         public let isa: RawPointer
         public let name: Pointer<String>
     }
-
-    public let offset: Int
-
-    public var layout: Layout
-
-    public init(layout: Layout, offset: Int) {
-        self.offset = offset
-        self.layout = layout
-    }
 }
 
 extension ObjCProtocolPrefix {
-    public func name<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> String {
+    public func name(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> String {
         try layout.name.resolve(in: machO)
     }
 
-    public func mangledName<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> MangledName {
+    public func mangledName(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> MangledName {
         try layout.name.resolveAny(in: machO)
     }
 
@@ -39,11 +31,11 @@ extension ObjCProtocolPrefix {
 // MARK: - ReadingContext Support
 
 extension ObjCProtocolPrefix {
-    public func name<Context: ReadingContext>(in context: Context) throws -> String {
+    public func name(in context: some ReadingContext) throws -> String {
         try layout.name.resolve(in: context)
     }
 
-    public func mangledName<Context: ReadingContext>(in context: Context) throws -> MangledName {
+    public func mangledName(in context: some ReadingContext) throws -> MangledName {
         try layout.name.resolveAny(in: context)
     }
 }

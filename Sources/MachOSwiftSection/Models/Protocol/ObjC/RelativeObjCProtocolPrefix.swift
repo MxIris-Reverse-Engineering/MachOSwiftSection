@@ -2,24 +2,16 @@ import Foundation
 import MachOKit
 import MachOBase
 
+@LocatableLayoutWrapping
 public struct RelativeObjCProtocolPrefix: ResolvableLocatableLayoutWrapper {
     public struct Layout: LayoutProtocol {
         public let isa: RelativeDirectRawPointer
         public let mangledName: RelativeDirectPointer<MangledName>
     }
-
-    public let offset: Int
-
-    public var layout: Layout
-
-    public init(layout: Layout, offset: Int) {
-        self.offset = offset
-        self.layout = layout
-    }
 }
 
 extension RelativeObjCProtocolPrefix {
-    public func mangledName<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> MangledName {
+    public func mangledName(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> MangledName {
         return try layout.mangledName.resolve(from: offset(of: \.mangledName), in: machO)
     }
 
@@ -31,7 +23,7 @@ extension RelativeObjCProtocolPrefix {
 // MARK: - ReadingContext Support
 
 extension RelativeObjCProtocolPrefix {
-    public func mangledName<Context: ReadingContext>(in context: Context) throws -> MangledName {
+    public func mangledName(in context: some ReadingContext) throws -> MangledName {
         let baseAddress = try context.addressFromOffset(offset(of: \.mangledName))
         return try layout.mangledName.resolve(at: baseAddress, in: context)
     }

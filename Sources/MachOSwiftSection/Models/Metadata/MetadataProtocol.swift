@@ -52,11 +52,11 @@ extension MetadataProtocol {
 }
 
 extension MetadataProtocol where HeaderType: TypeMetadataHeaderBaseProtocol {
-    public func asFullMetadata<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> FullMetadata<Self> {
+    public func asFullMetadata(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> FullMetadata<Self> {
         try FullMetadata<Self>.resolve(from: offset - HeaderType.layoutSize, in: machO)
     }
 
-    public func valueWitnesses<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> ValueWitnessTable {
+    public func valueWitnesses(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> ValueWitnessTable {
         let fullMetadata = try asFullMetadata(in: machO)
         return try fullMetadata.layout.header.valueWitnesses.resolve(in: machO)
     }
@@ -141,32 +141,32 @@ extension MetadataProtocol where HeaderType: TypeMetadataHeaderBaseProtocol {
 // MARK: - ReadingContext Support
 
 extension MetadataProtocol {
-    public func asMetadataWrapper<Context: ReadingContext>(in context: Context) throws -> MetadataWrapper {
+    public func asMetadataWrapper(in context: some ReadingContext) throws -> MetadataWrapper {
         try .resolve(at: try context.addressFromOffset(offset), in: context)
     }
 
-    public func asMetadata<Context: ReadingContext>(in context: Context) throws -> Metadata {
+    public func asMetadata(in context: some ReadingContext) throws -> Metadata {
         try .resolve(at: try context.addressFromOffset(offset), in: context)
     }
 }
 
 extension MetadataProtocol where HeaderType: TypeMetadataHeaderBaseProtocol {
-    public func asFullMetadata<Context: ReadingContext>(in context: Context) throws -> FullMetadata<Self> {
+    public func asFullMetadata(in context: some ReadingContext) throws -> FullMetadata<Self> {
         try FullMetadata<Self>.resolve(at: try context.addressFromOffset(offset - HeaderType.layoutSize), in: context)
     }
 
-    public func valueWitnesses<Context: ReadingContext>(in context: Context) throws -> ValueWitnessTable {
+    public func valueWitnesses(in context: some ReadingContext) throws -> ValueWitnessTable {
         let fullMetadata = try asFullMetadata(in: context)
         return try fullMetadata.layout.header.valueWitnesses.resolve(in: context)
     }
 }
 
 extension MetadataProtocol where HeaderType: TypeMetadataHeaderBaseProtocol {
-    public func typeLayout<Context: ReadingContext>(in context: Context) throws -> TypeLayout {
+    public func typeLayout(in context: some ReadingContext) throws -> TypeLayout {
         try valueWitnesses(in: context).typeLayout
     }
 
-    public func typeContextDescriptorWrapper<Context: ReadingContext>(in context: Context) throws -> TypeContextDescriptorWrapper? {
+    public func typeContextDescriptorWrapper(in context: some ReadingContext) throws -> TypeContextDescriptorWrapper? {
         switch kind {
         case .class:
             let cls = try AnyClassMetadataObjCInterop.resolve(at: try context.addressFromOffset(offset), in: context)

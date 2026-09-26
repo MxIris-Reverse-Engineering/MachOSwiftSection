@@ -9,7 +9,7 @@
 // flags recorded here.
 
 enum TypeContextDescriptorProtocolBaseline {
-    static let registeredTestMethodNames: Set<String> = ["fieldDescriptor", "genericContext", "hasCanonicalMetadataPrespecializations", "hasCanonicalMetadataPrespecializationsOrSingletonMetadataPointer", "hasForeignMetadataInitialization", "hasImportInfo", "hasLayoutString", "hasSingletonMetadataInitialization", "hasSingletonMetadataPointer", "metadataAccessorFunction", "typeGenericContext"]
+    static let registeredTestMethodNames: Set<String> = ["fieldDescriptor", "genericContext", "hasCanonicalMetadataPrespecializations", "hasCanonicalMetadataPrespecializationsOrSingletonMetadataPointer", "hasForeignMetadataInitialization", "hasImportInfo", "hasLayoutString", "hasSingletonMetadataInitialization", "hasSingletonMetadataPointer", "metadataAccessorFunction", "typeGenericContext", "typeImportInfo"]
 
     struct Entry {
         let hasFieldDescriptor: Bool
@@ -22,6 +22,9 @@ enum TypeContextDescriptorProtocolBaseline {
         let hasLayoutString: Bool
         let hasCanonicalMetadataPrespecializations: Bool
         let hasSingletonMetadataPointer: Bool
+        let typeImportInfoABIName: String?
+        let typeImportInfoSymbolNamespace: String?
+        let typeImportInfoRelatedEntityName: String?
     }
 
     static let structTest = Entry(
@@ -34,6 +37,25 @@ enum TypeContextDescriptorProtocolBaseline {
     hasCanonicalMetadataPrespecializationsOrSingletonMetadataPointer: false,
     hasLayoutString: false,
     hasCanonicalMetadataPrespecializations: false,
-    hasSingletonMetadataPointer: false
+    hasSingletonMetadataPointer: false,
+    typeImportInfoABIName: nil,
+    typeImportInfoSymbolNamespace: nil,
+    typeImportInfoRelatedEntityName: nil
+    )
+
+    static let foreignDecimal = Entry(
+    hasFieldDescriptor: true,
+    hasGenericContext: false,
+    hasTypeGenericContext: false,
+    hasSingletonMetadataInitialization: false,
+    hasForeignMetadataInitialization: true,
+    hasImportInfo: true,
+    hasCanonicalMetadataPrespecializationsOrSingletonMetadataPointer: false,
+    hasLayoutString: false,
+    hasCanonicalMetadataPrespecializations: false,
+    hasSingletonMetadataPointer: false,
+    typeImportInfoABIName: "NSDecimal",
+    typeImportInfoSymbolNamespace: "t",
+    typeImportInfoRelatedEntityName: nil
     )
 }

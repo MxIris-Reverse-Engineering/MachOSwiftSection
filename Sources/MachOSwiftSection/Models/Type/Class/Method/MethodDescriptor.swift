@@ -2,19 +2,11 @@ import Foundation
 import MachOKit
 import MachOBase
 
+@LocatableLayoutWrapping
 public struct MethodDescriptor: ResolvableLocatableLayoutWrapper {
     public struct Layout: LayoutProtocol {
         public let flags: MethodDescriptorFlags
         public let implementation: RelativeDirectRawPointer
-    }
-
-    public var layout: Layout
-
-    public let offset: Int
-
-    public init(layout: Layout, offset: Int) {
-        self.layout = layout
-        self.offset = offset
     }
 }
 
@@ -25,8 +17,7 @@ extension MethodDescriptor {
     /// no reader involved. Attributing symbol names to that offset is
     /// `SwiftInspection`'s `implementationSymbols(in:)`, one layer up.
     public var implementationOffset: Int? {
-        guard layout.implementation.isValid else { return nil }
-        return layout.implementation.resolveDirectOffset(from: offset(of: \.implementation))
+        resolvedDirectOffset(from: \.implementation)
     }
 }
 

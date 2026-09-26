@@ -297,7 +297,7 @@ extension GenericSpecializer {
         for genericRequirement in genericRequirements {
             // Get the mangled param name and demangle it
             let mangledParamName = try genericRequirement.paramMangledName(in: machO)
-            let paramNode = try MetadataReader.demangleType(for: mangledParamName, in: machO)
+            let paramNode = try SymbolicDemangler.demangleType(for: mangledParamName, in: machO)
 
             // The requirement applies to this parameter only if its LHS is the
             // generic parameter directly (not an associated-type reference like A.Element).
@@ -431,12 +431,12 @@ extension GenericSpecializer {
 
         case .sameType:
             let mangledTypeName = try genericRequirement.type(in: machO)
-            let demangledTypeNode = try MetadataReader.demangleType(for: mangledTypeName, in: machO)
+            let demangledTypeNode = try SymbolicDemangler.demangleType(for: mangledTypeName, in: machO)
             return .sameType(demangledTypeNode: demangledTypeNode, mangledName: mangledTypeName)
 
         case .baseClass:
             let mangledTypeName = try genericRequirement.type(in: machO)
-            let demangledTypeNode = try MetadataReader.demangleType(for: mangledTypeName, in: machO)
+            let demangledTypeNode = try SymbolicDemangler.demangleType(for: mangledTypeName, in: machO)
             return .baseClass(demangledTypeNode: demangledTypeNode, mangledName: mangledTypeName)
 
         case .layout:
@@ -485,7 +485,7 @@ extension GenericSpecializer {
 
         for genericRequirement in genericRequirements {
             let mangledParamName = try genericRequirement.paramMangledName(in: machO)
-            let paramNode = try MetadataReader.demangleType(for: mangledParamName, in: machO)
+            let paramNode = try SymbolicDemangler.demangleType(for: mangledParamName, in: machO)
 
             // Only handle dependent-member chains here; direct GP requirements
             // are collected per parameter in `collectRequirements`.
@@ -1208,7 +1208,7 @@ extension GenericSpecializer where MachO == MachOImage {
     /// placeholder when demangling fails (rare; should never block the
     /// rest of the validation pipeline).
     private func constraintDisplayName(for mangledName: MangledName) -> String {
-        if let node = try? MetadataReader.demangleType(for: mangledName, in: machO) {
+        if let node = try? SymbolicDemangler.demangleType(for: mangledName, in: machO) {
             return node.print(using: .interfaceTypeBuilderOnly)
         }
         return "<unprintable>"
@@ -1907,7 +1907,7 @@ extension GenericSpecializer where MachO == MachOImage {
                   let protocolDescriptor = requirementProtocolDescriptor.swift else { continue }
 
             let requirementProtocol = try MachOSwiftSection.`Protocol`(descriptor: protocolDescriptor)
-            let paramNode = try MetadataReader.demangleType(for: requirement.paramManagledName)
+            let paramNode = try SymbolicDemangler.demangleType(for: requirement.paramManagledName)
 
             guard let pathInfo = Self.extractAssociatedPath(of: paramNode) else {
                 throw AssociatedTypeResolutionError.unknownParamNodeStructure(paramNode: paramNode)

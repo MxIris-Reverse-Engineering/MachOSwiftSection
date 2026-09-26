@@ -5,15 +5,15 @@ import MachOSwiftSection
 import SwiftDump
 import SwiftDeclarationRendering
 import Demangling
-// Needs SPI access to MetadataReader.demangleType for associated-type owning-protocol lookup.
+// Needs SPI access to SymbolicDemangler.demangleType for associated-type owning-protocol lookup.
 @_spi(Internals) import SwiftInspection
 
 @MainActor
 package protocol SnapshotDumpableTests {}
 
 extension SnapshotDumpableTests {
-    package func collectDumpTypes<MachO: FieldLayoutRenderable>(
-        for machO: MachO,
+    package func collectDumpTypes(
+        for machO: some MachOFieldLayoutRenderable,
         options: DumpableTypeOptions = [.enum, .struct, .class],
         using configuration: DumperConfiguration? = nil
     ) async throws -> String {
@@ -53,8 +53,8 @@ extension SnapshotDumpableTests {
         return results.joined(separator: "\n")
     }
 
-    package func collectDumpProtocols<MachO: FieldLayoutRenderable>(
-        for machO: MachO
+    package func collectDumpProtocols(
+        for machO: some MachOFieldLayoutRenderable
     ) async throws -> String {
         let protocolDescriptors = try machO.swift.protocolDescriptors
         var results: [String] = []
@@ -70,8 +70,8 @@ extension SnapshotDumpableTests {
         return results.joined(separator: "\n")
     }
 
-    package func collectDumpProtocolConformances<MachO: FieldLayoutRenderable>(
-        for machO: MachO
+    package func collectDumpProtocolConformances(
+        for machO: some MachOFieldLayoutRenderable
     ) async throws -> String {
         let protocolConformanceDescriptors = try machO.swift.protocolConformanceDescriptors
         var results: [String] = []
@@ -87,8 +87,8 @@ extension SnapshotDumpableTests {
         return results.joined(separator: "\n")
     }
 
-    package func collectDumpAssociatedTypes<MachO: FieldLayoutRenderable>(
-        for machO: MachO
+    package func collectDumpAssociatedTypes(
+        for machO: some MachOFieldLayoutRenderable
     ) async throws -> String {
         let associatedTypeDescriptors = try machO.swift.associatedTypeDescriptors
         var results: [String] = []
@@ -117,9 +117,9 @@ extension SnapshotDumpableTests {
     /// `SwiftActor -> Actors -> <module>`, this returns `"Actors"`.
     /// For a descriptor sitting directly under the module, returns the descriptor's own
     /// name.
-    package func rootNamespace<MachO: FieldLayoutRenderable>(
+    package func rootNamespace(
         of descriptor: TypeContextDescriptorWrapper,
-        in machO: MachO
+        in machO: some MachOFieldLayoutRenderable
     ) throws -> String? {
         let selfName = try descriptor.namedContextDescriptor.name(in: machO)
         return try walkRootNamespace(
@@ -132,9 +132,9 @@ extension SnapshotDumpableTests {
     /// Walks the parent chain of a ``ProtocolDescriptor`` and returns the name of the
     /// top-level enclosing context (the category namespace), or `nil` when no named
     /// enclosing context can be found.
-    package func rootNamespace<MachO: FieldLayoutRenderable>(
+    package func rootNamespace(
         of descriptor: ProtocolDescriptor,
-        in machO: MachO
+        in machO: some MachOFieldLayoutRenderable
     ) throws -> String? {
         let selfName = try descriptor.name(in: machO)
         return try walkRootNamespace(
@@ -147,10 +147,10 @@ extension SnapshotDumpableTests {
     /// Walks the parent chain, returning the name of the last *named, non-module* context
     /// encountered. `initialName` is the name of the descriptor whose namespace is being
     /// resolved — it becomes the result if the descriptor sits directly under the module.
-    private func walkRootNamespace<MachO: FieldLayoutRenderable>(
+    private func walkRootNamespace(
         initialName: String,
         startingParent: SymbolOrElement<ContextDescriptorWrapper>?,
-        in machO: MachO
+        in machO: some MachOFieldLayoutRenderable
     ) throws -> String? {
         var lastNamedName: String? = initialName
         var currentParent: SymbolOrElement<ContextDescriptorWrapper>? = startingParent
@@ -176,8 +176,8 @@ extension SnapshotDumpableTests {
     /// Category-filtered counterpart of ``collectDumpTypes(for:options:using:)``. Filters
     /// type context descriptors by ``rootNamespace(of:in:)`` and dumps them using the same
     /// per-descriptor logic (including `Error: <error>` strings).
-    package func collectDumpTypes<MachO: FieldLayoutRenderable>(
-        for machO: MachO,
+    package func collectDumpTypes(
+        for machO: some MachOFieldLayoutRenderable,
         inNamespace category: String,
         options: DumpableTypeOptions = [.enum, .struct, .class]
     ) async throws -> String {
@@ -219,8 +219,8 @@ extension SnapshotDumpableTests {
     }
 
     /// Category-filtered counterpart of ``collectDumpProtocols(for:)``.
-    package func collectDumpProtocols<MachO: FieldLayoutRenderable>(
-        for machO: MachO,
+    package func collectDumpProtocols(
+        for machO: some MachOFieldLayoutRenderable,
         inNamespace category: String
     ) async throws -> String {
         let protocolDescriptors = try machO.swift.protocolDescriptors
@@ -251,8 +251,8 @@ extension SnapshotDumpableTests {
     ///   `SymbolOrElement.symbol` reference).
     /// - **No double-counting:** if the default rule places a conformance in the current
     ///   category, we don't additionally match `NeverExtensions`.
-    package func collectDumpProtocolConformances<MachO: FieldLayoutRenderable>(
-        for machO: MachO,
+    package func collectDumpProtocolConformances(
+        for machO: some MachOFieldLayoutRenderable,
         inNamespace category: String
     ) async throws -> String {
         let protocolConformanceDescriptors = try machO.swift.protocolConformanceDescriptors
@@ -274,10 +274,10 @@ extension SnapshotDumpableTests {
         return results.joined(separator: "\n")
     }
 
-    private func matchesConformanceNamespace<MachO: FieldLayoutRenderable>(
+    private func matchesConformanceNamespace(
         descriptor: ProtocolConformanceDescriptor,
         category: String,
-        in machO: MachO
+        in machO: some MachOFieldLayoutRenderable
     ) throws -> Bool {
         let resolvedTypeReference = try descriptor.resolvedTypeReference(in: machO)
         let defaultRuleNamespace = try conformingTypeRootNamespace(
@@ -300,9 +300,9 @@ extension SnapshotDumpableTests {
     /// Returns the root namespace of the conformance's conforming type when that type is
     /// a ``TypeContextDescriptorWrapper`` reachable from the binary. Returns `nil` for
     /// external symbols, ObjC classes, or any reference we don't know how to attribute.
-    private func conformingTypeRootNamespace<MachO: FieldLayoutRenderable>(
+    private func conformingTypeRootNamespace(
         resolvedTypeReference: ResolvedTypeReference,
-        in machO: MachO
+        in machO: some MachOFieldLayoutRenderable
     ) throws -> String? {
         switch resolvedTypeReference {
         case .directTypeDescriptor(let contextDescriptor):
@@ -354,8 +354,8 @@ extension SnapshotDumpableTests {
     /// the owning protocol's root namespace — owning protocol is resolved by matching the
     /// associated type descriptor's `protocolTypeName` against the `ProtocolDescriptor`s
     /// discovered in the binary's protocol descriptors section.
-    package func collectDumpAssociatedTypes<MachO: FieldLayoutRenderable>(
-        for machO: MachO,
+    package func collectDumpAssociatedTypes(
+        for machO: some MachOFieldLayoutRenderable,
         inNamespace category: String
     ) async throws -> String {
         let associatedTypeDescriptors = try machO.swift.associatedTypeDescriptors
@@ -384,9 +384,9 @@ extension SnapshotDumpableTests {
         return results.joined(separator: "\n")
     }
 
-    private func buildProtocolLookup<MachO: FieldLayoutRenderable>(
+    private func buildProtocolLookup(
         protocolDescriptors: [ProtocolDescriptor],
-        in machO: MachO
+        in machO: some MachOFieldLayoutRenderable
     ) throws -> [String: ProtocolDescriptor] {
         var lookup: [String: ProtocolDescriptor] = [:]
         for protocolDescriptor in protocolDescriptors {
@@ -406,15 +406,15 @@ extension SnapshotDumpableTests {
         return lookup
     }
 
-    private func associatedTypeOwningNamespace<MachO: FieldLayoutRenderable>(
+    private func associatedTypeOwningNamespace(
         descriptor: AssociatedTypeDescriptor,
         protocolIndex: [String: ProtocolDescriptor],
-        in machO: MachO
+        in machO: some MachOFieldLayoutRenderable
     ) throws -> String? {
         let protocolTypeName = try descriptor.protocolTypeName(in: machO)
         let protocolNode: Node
         do {
-            protocolNode = try MetadataReader.demangleType(for: protocolTypeName, in: machO)
+            protocolNode = try SymbolicDemangler.demangleType(for: protocolTypeName, in: machO)
         } catch {
             return nil
         }
@@ -439,8 +439,8 @@ extension SnapshotDumpableTests {
     /// Associated Types sections with `// MARK:` headers, skipping any section whose
     /// filtered output is empty after whitespace trimming. Returns an empty string when all
     /// four sections are empty (used by the "GlobalDeclarations" edge-case bucket).
-    package func collectDump<MachO: FieldLayoutRenderable>(
-        for machO: MachO,
+    package func collectDump(
+        for machO: some MachOFieldLayoutRenderable,
         inNamespace category: String
     ) async throws -> String {
         let typesOutput = try await collectDumpTypes(for: machO, inNamespace: category)

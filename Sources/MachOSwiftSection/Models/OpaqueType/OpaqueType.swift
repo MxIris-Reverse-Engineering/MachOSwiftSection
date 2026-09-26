@@ -11,7 +11,7 @@ public struct OpaqueType: TopLevelType, ContextProtocol {
 
     public let invertedProtocols: InvertibleProtocolSet?
 
-    public init<MachO: MachOSwiftSectionRepresentableWithCache>(descriptor: OpaqueTypeDescriptor, in machO: MachO) throws {
+    public init(descriptor: OpaqueTypeDescriptor, in machO: some MachOSwiftSectionRepresentableWithCache) throws {
         self.descriptor = descriptor
         var currentOffset = descriptor.offset + descriptor.layoutSize
 
@@ -22,8 +22,8 @@ public struct OpaqueType: TopLevelType, ContextProtocol {
         }
         self.genericContext = genericContext
 
-        if descriptor.numUnderlyingTypeArugments > 0 {
-            let underlyingTypeArgumentMangledNamePointers: [RelativeDirectPointer<MangledName>] = try machO.readElements(offset: currentOffset, numberOfElements: descriptor.numUnderlyingTypeArugments)
+        if descriptor.numUnderlyingTypeArguments > 0 {
+            let underlyingTypeArgumentMangledNamePointers: [RelativeDirectPointer<MangledName>] = try machO.readElements(offset: currentOffset, numberOfElements: descriptor.numUnderlyingTypeArguments)
             var underlyingTypeArgumentMangledNames: [MangledName] = []
             for underlyingTypeArgumentMangledNamePointer in underlyingTypeArgumentMangledNamePointers {
                 try underlyingTypeArgumentMangledNames.append(underlyingTypeArgumentMangledNamePointer.resolve(from: currentOffset, in: machO))
@@ -56,8 +56,8 @@ public struct OpaqueType: TopLevelType, ContextProtocol {
         }
         self.genericContext = genericContext
 
-        if descriptor.numUnderlyingTypeArugments > 0 {
-            let underlyingTypeArgumentMangledNamePointers: [RelativeDirectPointer<MangledName>] = try pointer.readElements(offset: currentOffset, numberOfElements: descriptor.numUnderlyingTypeArugments)
+        if descriptor.numUnderlyingTypeArguments > 0 {
+            let underlyingTypeArgumentMangledNamePointers: [RelativeDirectPointer<MangledName>] = try pointer.readElements(offset: currentOffset, numberOfElements: descriptor.numUnderlyingTypeArguments)
             var underlyingTypeArgumentMangledNames: [MangledName] = []
             for underlyingTypeArgumentMangledNamePointer in underlyingTypeArgumentMangledNamePointers {
                 try underlyingTypeArgumentMangledNames.append(underlyingTypeArgumentMangledNamePointer.resolve(from: pointer.advanced(by: currentOffset)))
@@ -80,7 +80,7 @@ public struct OpaqueType: TopLevelType, ContextProtocol {
 // MARK: - ReadingContext Support
 
 extension OpaqueType {
-    public init<Context: ReadingContext>(descriptor: OpaqueTypeDescriptor, in context: Context) throws {
+    public init(descriptor: OpaqueTypeDescriptor, in context: some ReadingContext) throws {
         self.descriptor = descriptor
         var currentOffset = descriptor.offset + descriptor.layoutSize
 
@@ -91,8 +91,8 @@ extension OpaqueType {
         }
         self.genericContext = genericContext
 
-        if descriptor.numUnderlyingTypeArugments > 0 {
-            let underlyingTypeArgumentMangledNamePointers: [RelativeDirectPointer<MangledName>] = try context.readElements(at: try context.addressFromOffset(currentOffset), numberOfElements: descriptor.numUnderlyingTypeArugments)
+        if descriptor.numUnderlyingTypeArguments > 0 {
+            let underlyingTypeArgumentMangledNamePointers: [RelativeDirectPointer<MangledName>] = try context.readElements(at: try context.addressFromOffset(currentOffset), numberOfElements: descriptor.numUnderlyingTypeArguments)
             var underlyingTypeArgumentMangledNames: [MangledName] = []
             for underlyingTypeArgumentMangledNamePointer in underlyingTypeArgumentMangledNamePointers {
                 try underlyingTypeArgumentMangledNames.append(underlyingTypeArgumentMangledNamePointer.resolve(at: try context.addressFromOffset(currentOffset), in: context))

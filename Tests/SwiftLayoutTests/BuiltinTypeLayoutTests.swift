@@ -46,12 +46,12 @@ final class BuiltinTypeLayoutTests: MachOSwiftSectionFixtureTests, @unchecked Se
         }
     }
 
-    /// `__C.Decimal` — an imported C value type with no Swift type descriptor —
+    /// `__C.NSDecimal` — an imported C value type with no Swift type descriptor —
     /// resolves through the builtin index (it would otherwise be unreachable).
     @MainActor
     @Test func builtinIndexResolvesImportedCValueType() async throws {
         let builtinIndex = try BuiltinTypeLayoutIndex(machO: machOImage)
-        let decimalLayout = builtinIndex.layout(forTypeName: "__C.Decimal")
+        let decimalLayout = builtinIndex.layout(forTypeName: "__C.NSDecimal")
         #expect(decimalLayout?.size == 20)
         #expect(decimalLayout?.stride == 20)
         #expect(decimalLayout?.alignmentMask == 3)
@@ -70,7 +70,7 @@ final class BuiltinTypeLayoutTests: MachOSwiftSectionFixtureTests, @unchecked Se
         var resolved: StaticTypeLayout?
         for contextDescriptor in try machO.swift.contextDescriptors {
             guard
-                let node = try? MetadataReader.demangleContext(for: contextDescriptor, in: machO),
+                let node = try? SymbolicDemangler.demangleContext(for: contextDescriptor, in: machO),
                 NodeTypeNaming.nominalQualifiedName(of: node) == targetName
             else { continue }
             resolved = try resolver.layout(forTypeNode: node, in: universe.rootImage)

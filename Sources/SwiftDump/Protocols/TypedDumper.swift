@@ -6,6 +6,7 @@ import MachOKit
 @_spi(Internals) import Demangling
 @_spi(Internals) import SwiftInspection
 import SwiftDeclarationRendering
+import SwiftThunkAnalysis
 
 package protocol TypedDumper: NamedDumper where Dumped: TopLevelType, Dumped.Descriptor: TypeContextDescriptorProtocol {
     associatedtype Metadata: MetadataProtocol
@@ -181,7 +182,7 @@ extension TypedDumper {
     /// is operating on a specialized in-process metadata.
     ///
     /// Strategy:
-    ///   - Non-generic dumps fall through to `MetadataReader.demangleType`
+    ///   - Non-generic dumps fall through to `SymbolicDemangler.demangleType`
     ///     against the binary's raw bytes (the existing path; the result
     ///     contains no generic-param references).
     ///   - Generic dumps with a `metadataContext` use the resolved
@@ -196,15 +197,18 @@ extension TypedDumper {
         if let substituted = substitutedFieldNode(for: mangledTypeName) {
             return substituted
         }
-        return try MetadataReader.demangleType(for: mangledTypeName, in: machO)
+        let typeNode = try SymbolicDemangler.demangleType(for: mangledTypeName, in: machO)
+        guard typeNode.contains(Node.Kind.accessorFunctionReference) else { return typeNode }
+        // A kind-9 field type: read the thunk offline (the registered
+        // resolver, `MachOFile` only), naming its arguments as this type's
+        // generic parameters — the same leg `TypeDefinition.index` takes.
+        let ownerLayout = AccessorThunkOwnerLayout(genericContext: try dumped.descriptor.genericContext(in: machO))
+        return typeNode.resolvingAccessorFunctionReferences(in: machO, ownerLayout: ownerLayout)
     }
 
-    /// Splits the SwiftStdlib 5.3 availability gate (required for
-    /// `_mangledTypeName`) out of the main control flow. Returns `nil` when
-    /// the dumper isn't operating on a specialized metadata, when the
-    /// runtime resolver fails, when the host runtime predates the
-    /// `_mangledTypeName` SPI, or when `demangleAsNode` cannot parse the
-    /// resulting string.
+    /// Returns `nil` when the dumper isn't operating on a specialized
+    /// metadata, when the runtime resolver fails, or when the runtime has no
+    /// name for the resolved type (see `RuntimeTypeNameDemangling`).
     private func substitutedFieldNode(for mangledTypeName: MangledName) -> Node? {
         guard dumped.flags.isGeneric,
               let machOImage = machO.asMachOImage,
@@ -212,7 +216,7 @@ extension TypedDumper {
         else {
             return nil
         }
-        return demangledNode(forMetatype: resolvedMetatype)
+        return RuntimeTypeNameDemangling.node(forMetatype: resolvedMetatype)
     }
 
     /// Returns a demangled `Node` for the *dumped* type itself, with its
@@ -222,19 +226,7 @@ extension TypedDumper {
     /// to the existing unbound name path).
     package func boundDumpedTypeNode() -> Node? {
         guard let metatype = boundDumpedMetatype() else { return nil }
-        return demangledNode(forMetatype: metatype)
-    }
-
-    /// Shared wrapper around `_mangledTypeName` + `demangleAsNode` so the
-    /// SwiftStdlib-availability + nil-handling lives in exactly one spot
-    /// for both field-type and dumped-type substitution.
-    private func demangledNode(forMetatype metatype: Any.Type) -> Node? {
-        // `_mangledTypeName` is `SwiftStdlib 5.3` — translates to macOS 11 /
-        // iOS 14 / tvOS 14 / watchOS 7. Fall back to nil on older runtimes
-        // so callers stay on the unbound representation.
-        guard #available(macOS 11, iOS 14, tvOS 14, watchOS 7, *) else { return nil }
-        guard let resolvedMangledString = _mangledTypeName(metatype) else { return nil }
-        return try? demangleAsNodeTransient(resolvedMangledString, isType: true)
+        return RuntimeTypeNameDemangling.node(forMetatype: metatype)
     }
 
     /// Render the bound generic dumped name so that the type's qualified

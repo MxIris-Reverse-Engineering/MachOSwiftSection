@@ -11,6 +11,7 @@ import MachOBase
 /// Only Swift protocols are defined by a protocol descriptor, whereas
 /// Objective-C (including protocols defined in Swift as @objc) use the
 /// Objective-C protocol layout.
+@LocatableLayoutWrapping
 public struct ProtocolDescriptor: ProtocolDescriptorProtocol {
     public struct Layout: ProtocolDescriptorLayout {
         public let flags: ContextDescriptorFlags
@@ -20,18 +21,10 @@ public struct ProtocolDescriptor: ProtocolDescriptorProtocol {
         public var numRequirements: UInt32
         public var associatedTypes: RelativeDirectPointer<String>
     }
-
-    public var offset: Int
-    public var layout: Layout
-
-    public init(layout: Layout, offset: Int) {
-        self.offset = offset
-        self.layout = layout
-    }
 }
 
 extension ProtocolDescriptor {
-    public func associatedTypes<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> [String] {
+    public func associatedTypes(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> [String] {
         guard layout.associatedTypes.isValid else { return [] }
         return try layout.associatedTypes.resolve(from: offset(of: \.associatedTypes), in: machO).components(separatedBy: " ")
     }
@@ -45,7 +38,7 @@ extension ProtocolDescriptor {
 // MARK: - ReadingContext Support
 
 extension ProtocolDescriptor {
-    public func associatedTypes<Context: ReadingContext>(in context: Context) throws -> [String] {
+    public func associatedTypes(in context: some ReadingContext) throws -> [String] {
         guard layout.associatedTypes.isValid else { return [] }
         return try layout.associatedTypes.resolve(at: try context.addressFromOffset(offset(of: \.associatedTypes)), in: context).components(separatedBy: " ")
     }

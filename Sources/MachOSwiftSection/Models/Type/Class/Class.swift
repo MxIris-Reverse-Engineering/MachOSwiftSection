@@ -46,7 +46,7 @@ public struct Class: TopLevelType, ContextProtocol {
     public private(set) var methodDefaultOverrideTableHeader: MethodDefaultOverrideTableHeader?
     public private(set) var methodDefaultOverrideDescriptors: [MethodDefaultOverrideDescriptor] = []
 
-    public init<MachO: MachOSwiftSectionRepresentableWithCache>(descriptor: ClassDescriptor, in machO: MachO) throws {
+    public init(descriptor: ClassDescriptor, in machO: some MachOSwiftSectionRepresentableWithCache) throws {
         self.descriptor = descriptor
         let genericContext = try descriptor.typeGenericContext(in: machO)
         self.genericContext = genericContext
@@ -68,7 +68,7 @@ public struct Class: TopLevelType, ContextProtocol {
         try initialize(descriptor: descriptor, currentOffset: &currentOffset, in: descriptor.asPointer)
     }
     
-    private mutating func initialize<Reader: Readable>(descriptor: ClassDescriptor, currentOffset: inout Int, in reader: Reader) throws {
+    private mutating func initialize(descriptor: ClassDescriptor, currentOffset: inout Int, in reader: some Readable) throws {
         if descriptor.hasResilientSuperclass {
             let resilientSuperclass: ResilientSuperclass = try reader.readWrapperElement(offset: currentOffset)
             self.resilientSuperclass = resilientSuperclass
@@ -179,7 +179,7 @@ public struct Class: TopLevelType, ContextProtocol {
 // MARK: - ReadingContext Support
 
 extension Class {
-    public init<Context: ReadingContext>(descriptor: ClassDescriptor, in context: Context) throws {
+    public init(descriptor: ClassDescriptor, in context: some ReadingContext) throws {
         self.descriptor = descriptor
         let genericContext = try descriptor.typeGenericContext(in: context)
         self.genericContext = genericContext
@@ -190,7 +190,7 @@ extension Class {
         try initialize(descriptor: descriptor, currentOffset: &currentOffset, in: context)
     }
 
-    private mutating func initialize<Context: ReadingContext>(descriptor: ClassDescriptor, currentOffset: inout Int, in context: Context) throws {
+    private mutating func initialize(descriptor: ClassDescriptor, currentOffset: inout Int, in context: some ReadingContext) throws {
         if descriptor.hasResilientSuperclass {
             let resilientSuperclass: ResilientSuperclass = try context.readWrapperElement(at: try context.addressFromOffset(currentOffset))
             self.resilientSuperclass = resilientSuperclass

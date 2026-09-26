@@ -2,6 +2,7 @@ import Foundation
 import MachOKit
 import MachOBase
 
+@LocatableLayoutWrapping
 public struct BuiltinTypeDescriptor: ResolvableLocatableLayoutWrapper, TopLevelDescriptor {
     public struct Layout: LayoutProtocol {
         public let typeName: RelativeDirectPointer<MangledName?>
@@ -10,19 +11,10 @@ public struct BuiltinTypeDescriptor: ResolvableLocatableLayoutWrapper, TopLevelD
         public let stride: UInt32
         public let numExtraInhabitants: UInt32
     }
-
-    public var layout: Layout
-
-    public let offset: Int
-
-    public init(layout: Layout, offset: Int) {
-        self.layout = layout
-        self.offset = offset
-    }
 }
 
 extension BuiltinTypeDescriptor {
-    public func typeName<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> MangledName? {
+    public func typeName(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> MangledName? {
         return try layout.typeName.resolve(from: offset(of: \.typeName), in: machO)
     }
 
@@ -46,7 +38,7 @@ extension BuiltinTypeDescriptor {
 // MARK: - ReadingContext Support
 
 extension BuiltinTypeDescriptor {
-    public func typeName<Context: ReadingContext>(in context: Context) throws -> MangledName? {
+    public func typeName(in context: some ReadingContext) throws -> MangledName? {
         return try layout.typeName.resolve(at: try context.addressFromOffset(offset(of: \.typeName)), in: context)
     }
 }

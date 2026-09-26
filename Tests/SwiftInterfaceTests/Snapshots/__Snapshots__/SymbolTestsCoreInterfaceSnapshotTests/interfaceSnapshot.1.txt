@@ -35,9 +35,9 @@ enum AccessorFunctionReferences {
     }
     struct NoncopyableFieldHolderTest: ~Swift.Copyable {
         // Field offset: unknown (unsupported type kind AccessorFunctionReference)
-        var resource: accessor function at <offset>
+        var resource: SymbolTestsCore.AccessorFunctionReferences.NoncopyableResourceTest
         // Field offset: unknown (preceding field unresolved)
-        var boxedInteger: accessor function at <offset>
+        var boxedInteger: SymbolTestsCore.AccessorFunctionReferences.NoncopyableGenericBoxTest<Swift.Int>
         // Field offset: unknown (preceding field unresolved)
         // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
         var trailingOrdinaryField: Swift.Int
@@ -45,8 +45,8 @@ enum AccessorFunctionReferences {
         init(resource: SymbolTestsCore.AccessorFunctionReferences.NoncopyableResourceTest, boxedInteger: SymbolTestsCore.AccessorFunctionReferences.NoncopyableGenericBoxTest<Swift.Int>, trailingOrdinaryField: Swift.Int)
     }
     enum NoncopyablePayloadEnumTest: ~Swift.Copyable {
-        case holding(accessor function at <offset>)
-        case boxed(accessor function at <offset>)
+        case holding(SymbolTestsCore.AccessorFunctionReferences.NoncopyableResourceTest)
+        case boxed(SymbolTestsCore.AccessorFunctionReferences.NoncopyableGenericBoxTest<Swift.Int>)
         case empty
 
         func consumeFileDescriptor() -> Swift.Int
@@ -54,9 +54,6 @@ enum AccessorFunctionReferences {
 }
 enum Actors {
     actor ActorTest {
-        // Field offset: 0x10
-        // Type Layout: (size: 96, stride: 96, alignment: 16, extraInhabitantCount: 0)
-        var $defaultActor: Builtin.DefaultActorStorage
         // Field offset: 0x70
         // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
         var state: Swift.Int
@@ -73,10 +70,6 @@ enum Actors {
     }
     @globalActor
     actor CustomGlobalActor {
-        // Field offset: 0x10
-        // Type Layout: (size: 96, stride: 96, alignment: 16, extraInhabitantCount: 0)
-        var $defaultActor: Builtin.DefaultActorStorage
-
         var unownedExecutor: Swift.UnownedSerialExecutor {
             get
         }
@@ -185,7 +178,7 @@ enum Attributes {
         func dynamicallyCall(withKeywordArguments: Swift.KeyValuePairs<Swift.String, Swift.Int>) -> Swift.Int
     }
     class ObjCAttributeClass: __C.NSObject {
-        @objc init()
+        @objc override init()
 
         @objc func objcMethod()
         func nonobjcMethod()
@@ -323,9 +316,9 @@ enum Classes {
         deinit
     }
     class ExternalObjCSubclassTest: __C.NSObject {
-        @objc init()
+        @objc override init()
 
-        @objc func isKind(of: Swift.AnyObject.Type) -> Swift.Bool
+        @objc override func isKind(of: Swift.AnyObject.Type) -> Swift.Bool
 
         deinit
     }
@@ -418,7 +411,7 @@ enum Classes {
         // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
         var property: Swift.Int
 
-        @objc init()
+        @objc override init()
 
         @objc func method() -> Swift.Int
 
@@ -705,9 +698,6 @@ enum DeinitVariants {
         deinit
     }
     actor ActorDeinitTest {
-        // Field offset: 0x10
-        // Type Layout: (size: 96, stride: 96, alignment: 16, extraInhabitantCount: 0)
-        var $defaultActor: Builtin.DefaultActorStorage
         // Field offset: 0x70
         // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
         var state: Swift.Int
@@ -805,9 +795,6 @@ enum DiamondInheritance {
 }
 enum DistributedActors {
     distributed actor DistributedActorTest {
-        // Field offset: 0x10
-        // Type Layout: (size: 96, stride: 96, alignment: 16, extraInhabitantCount: 0)
-        var $defaultActor: Builtin.DefaultActorStorage
         // Field offset: 0x70
         // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 2147483647)
         let id: Distributed.LocalTestingActorID
@@ -833,9 +820,6 @@ enum DistributedActors {
         deinit
     }
     distributed actor GenericDistributedActorTest<A> where A: Swift.Decodable, A: Swift.Encodable {
-        // Field offset: 0x10
-        // Type Layout: (size: 96, stride: 96, alignment: 16, extraInhabitantCount: 0)
-        var $defaultActor: Builtin.DefaultActorStorage
         // Field offset: 0x70
         // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 2147483647)
         let id: Distributed.LocalTestingActorID
@@ -872,7 +856,7 @@ enum Enums {
         // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 12)
         case data(Foundation.Data)
         // Type Layout: (size: 20, stride: 20, alignment: 4, extraInhabitantCount: 0)
-        case nsNumber(__C.Decimal)
+        case nsNumber(__C.NSDecimal)
         // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
         case date(Foundation.Date)
         // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 2147483647)
@@ -1559,19 +1543,19 @@ enum GenericFieldLayout {
     }
     struct VariadicPack<each A> {
         // Field offset: unknown (generic parameter not substituted)
-        var values: (repeat A)
+        var values: (repeat (each A))
     }
     struct MixedScalarAndPack<A, each B> {
         // Field offset: unknown (generic parameter not substituted)
         var first: A
         // Field offset: unknown (preceding field unresolved)
-        var rest: (repeat B?)
+        var rest: (repeat (each B)?)
     }
     struct VariadicForwarder<each A> {
         // Field offset: unknown (generic parameter not substituted)
-        var forwarded: SymbolTestsCore.GenericFieldLayout.VariadicPack<>
+        var forwarded: SymbolTestsCore.GenericFieldLayout.VariadicPack<repeat (each A)>
         // Field offset: unknown (preceding field unresolved)
-        var wrapped: (repeat SymbolTestsCore.GenericFieldLayout.Box<A>)
+        var wrapped: (repeat SymbolTestsCore.GenericFieldLayout.Box<(each A)>)
     }
     struct ValueGenericBuffer<let a: Int> {
         // Field offset: unknown (generic parameter not substituted)
@@ -1586,10 +1570,10 @@ enum GenericFieldLayout {
         var leading: Swift.Int
         // Field offset: 0x8
         // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 0)
-        var triple: SymbolTestsCore.GenericFieldLayout.VariadicPack<>
+        var triple: SymbolTestsCore.GenericFieldLayout.VariadicPack<Swift.Int32, Swift.Int8, Swift.Int64>
         // Field offset: 0x18
         // Type Layout: (size: 2, stride: 2, alignment: 2, extraInhabitantCount: 0)
-        var single: SymbolTestsCore.GenericFieldLayout.VariadicPack<>
+        var single: SymbolTestsCore.GenericFieldLayout.VariadicPack<Swift.Int16>
         // Field offset: 0x0
         // Type Layout: (size: 0, stride: 1, alignment: 1, extraInhabitantCount: 0)
         var empty: SymbolTestsCore.GenericFieldLayout.VariadicPack<>
@@ -1603,7 +1587,7 @@ enum GenericFieldLayout {
         var leading: Swift.Int
         // Field offset: 0x8
         // Type Layout: (size: 11, stride: 16, alignment: 8, extraInhabitantCount: 253)
-        var mixed: SymbolTestsCore.GenericFieldLayout.MixedScalarAndPack<Swift.Int, >
+        var mixed: SymbolTestsCore.GenericFieldLayout.MixedScalarAndPack<Swift.Int, Swift.Bool, Swift.Int8>
         // Field offset: 0x18
         // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
         var trailing: Swift.Int
@@ -1614,7 +1598,7 @@ enum GenericFieldLayout {
         var leading: Swift.Int
         // Field offset: 0x8
         // Type Layout: (size: 13, stride: 16, alignment: 4, extraInhabitantCount: 254)
-        var forwarder: SymbolTestsCore.GenericFieldLayout.VariadicForwarder<>
+        var forwarder: SymbolTestsCore.GenericFieldLayout.VariadicForwarder<Swift.Int32, Swift.Bool>
         // Field offset: 0x18
         // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
         var trailing: Swift.Int
@@ -2054,15 +2038,15 @@ enum GenericRequirementVariants {
     }
     struct ParameterPackRequirementTest<each A> {
         // Field offset: unknown (generic parameter not substituted)
-        var elements: (repeat A)
+        var elements: (repeat (each A))
 
-        init(elements: (repeat A))
+        init(elements: (repeat (each A)))
     }
     struct ConstrainedParameterPackTest<each A> where repeat each A: SymbolTestsCore.Protocols.ProtocolTest {
         // Field offset: unknown (generic parameter not substituted)
-        var elements: (repeat A)
+        var elements: (repeat (each A))
 
-        init(elements: (repeat A))
+        init(elements: (repeat (each A)))
     }
     struct InvertibleProtocolRequirementTest<A>: ~Swift.Copyable where A: ~Swift.Copyable {
         // Field offset: unknown (generic parameter not substituted)
@@ -2084,7 +2068,7 @@ enum Generics {
     }
     struct GenericPackTest<A, each B, C> where repeat each B: SymbolTestsCore.Protocols.ProtocolTest {
         // Field offset: unknown (generic parameter not substituted)
-        var _content: (repeat B)
+        var _content: (repeat (each B))
 
         var body: Swift.Never {
             get
@@ -2172,9 +2156,6 @@ enum Initializers {
         init(value: Swift.Int) throws(SymbolTestsCore.Initializers.CustomInitializerError)
     }
     actor AsyncInitializerActorTest {
-        // Field offset: 0x10
-        // Type Layout: (size: 96, stride: 96, alignment: 16, extraInhabitantCount: 0)
-        var $defaultActor: Builtin.DefaultActorStorage
         // Field offset: 0x70
         // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
         let identifier: Swift.Int
@@ -3468,6 +3449,8 @@ extension SymbolTestsCore.Actors.CustomGlobalActor: Swift.Actor {
     }
 }
 extension SymbolTestsCore.Actors.CustomGlobalActor: Swift.GlobalActor {
+    typealias ActorType = SymbolTestsCore.Actors.CustomGlobalActor
+
     static var shared: Self.ActorType {
         get
     }
@@ -3477,30 +3460,81 @@ extension SymbolTestsCore.Actors.CustomGlobalActor: Swift.GlobalActor {
 }
 extension SymbolTestsCore.Actors.GlobalActorIsolatedConformanceTest: @Swift.MainActor SymbolTestsCore.Actors.GlobalActorIsolatedProtocolTest {}
 extension SymbolTestsCore.Actors.GlobalActorIsolatedConformanceTest: @SymbolTestsCore.Actors.CustomGlobalActor SymbolTestsCore.Actors.CustomGlobalActorIsolatedProtocolTest {}
-extension SymbolTestsCore.AssociatedTypeWitnessPatterns.ConcreteWitnessTest: SymbolTestsCore.AssociatedTypeWitnessPatterns.AssociatedPatternProtocol {}
-extension SymbolTestsCore.AssociatedTypeWitnessPatterns.NestedWitnessTest: SymbolTestsCore.AssociatedTypeWitnessPatterns.AssociatedPatternProtocol {}
-extension SymbolTestsCore.AssociatedTypeWitnessPatterns.GenericParameterWitnessTest: SymbolTestsCore.AssociatedTypeWitnessPatterns.AssociatedPatternProtocol {}
-extension SymbolTestsCore.AssociatedTypeWitnessPatterns.RecursiveWitnessTest: SymbolTestsCore.AssociatedTypeWitnessPatterns.AssociatedPatternProtocol {}
-extension SymbolTestsCore.AssociatedTypeWitnessPatterns.DependentWitnessTest: SymbolTestsCore.AssociatedTypeWitnessPatterns.AssociatedPatternProtocol {}
+extension SymbolTestsCore.AssociatedTypeWitnessPatterns.ConcreteWitnessTest: SymbolTestsCore.AssociatedTypeWitnessPatterns.AssociatedPatternProtocol {
+    typealias First = Swift.Int
+    typealias Second = [Swift.String]
+    typealias Third = Swift.Double
+    typealias Fourth = Swift.Bool
+    typealias Fifth = Swift.Character
+}
+extension SymbolTestsCore.AssociatedTypeWitnessPatterns.NestedWitnessTest: SymbolTestsCore.AssociatedTypeWitnessPatterns.AssociatedPatternProtocol {
+    typealias First = SymbolTestsCore.AssociatedTypeWitnessPatterns.NestedWitnessTest.NestedFirst
+    typealias Second = [SymbolTestsCore.AssociatedTypeWitnessPatterns.NestedWitnessTest.NestedFirst]
+    typealias Third = SymbolTestsCore.AssociatedTypeWitnessPatterns.NestedWitnessTest.NestedThird
+    typealias Fourth = (SymbolTestsCore.AssociatedTypeWitnessPatterns.NestedWitnessTest.NestedFirst, SymbolTestsCore.AssociatedTypeWitnessPatterns.NestedWitnessTest.NestedThird)
+    typealias Fifth = SymbolTestsCore.AssociatedTypeWitnessPatterns.NestedWitnessTest.NestedFirst?
+}
+extension SymbolTestsCore.AssociatedTypeWitnessPatterns.GenericParameterWitnessTest: SymbolTestsCore.AssociatedTypeWitnessPatterns.AssociatedPatternProtocol {
+    typealias First = A
+    typealias Second = [A]
+    typealias Third = A?
+    typealias Fourth = (A, A)
+    typealias Fifth = [Swift.String : A]
+}
+extension SymbolTestsCore.AssociatedTypeWitnessPatterns.RecursiveWitnessTest: SymbolTestsCore.AssociatedTypeWitnessPatterns.AssociatedPatternProtocol {
+    typealias First = SymbolTestsCore.AssociatedTypeWitnessPatterns.RecursiveWitnessTest
+    typealias Second = [SymbolTestsCore.AssociatedTypeWitnessPatterns.RecursiveWitnessTest]
+    typealias Third = SymbolTestsCore.AssociatedTypeWitnessPatterns.RecursiveWitnessTest?
+    typealias Fourth = (SymbolTestsCore.AssociatedTypeWitnessPatterns.RecursiveWitnessTest, SymbolTestsCore.AssociatedTypeWitnessPatterns.RecursiveWitnessTest)
+    typealias Fifth = [Swift.String : SymbolTestsCore.AssociatedTypeWitnessPatterns.RecursiveWitnessTest]
+}
+extension SymbolTestsCore.AssociatedTypeWitnessPatterns.DependentWitnessTest: SymbolTestsCore.AssociatedTypeWitnessPatterns.AssociatedPatternProtocol {
+    typealias First = A.Element
+    typealias Second = A
+    typealias Third = A.Iterator
+    typealias Fourth = A.Index
+    typealias Fifth = A.SubSequence
+}
 extension SymbolTestsCore.AsyncSequenceTests.AsyncSequenceTest.AsyncIterator: Swift.AsyncIteratorProtocol {
+    typealias Element = Swift.Int
+    typealias Failure = Swift.Never
+
     func next() async throws -> Self.Element?
     func next(isolation: isolated Swift.Actor?) async throws(Self.Failure) -> Self.Element?
 }
 extension SymbolTestsCore.AsyncSequenceTests.AsyncSequenceTest: Swift.AsyncSequence {
+    typealias AsyncIterator = SymbolTestsCore.AsyncSequenceTests.AsyncSequenceTest.AsyncIterator
+    typealias Element = Swift.Int
+    typealias Failure = Swift.Never
+
     func makeAsyncIterator() -> Self.AsyncIterator
 }
 extension SymbolTestsCore.AsyncSequenceTests.ThrowingAsyncSequenceTest.AsyncIterator: Swift.AsyncIteratorProtocol {
+    typealias Element = Swift.String
+    typealias Failure = Swift.Error
+
     func next() async throws -> Self.Element?
     func next(isolation: isolated Swift.Actor?) async throws(Self.Failure) -> Self.Element?
 }
 extension SymbolTestsCore.AsyncSequenceTests.ThrowingAsyncSequenceTest: Swift.AsyncSequence {
+    typealias AsyncIterator = SymbolTestsCore.AsyncSequenceTests.ThrowingAsyncSequenceTest.AsyncIterator
+    typealias Element = Swift.String
+    typealias Failure = Swift.Error
+
     func makeAsyncIterator() -> Self.AsyncIterator
 }
 extension SymbolTestsCore.AsyncSequenceTests.GenericAsyncSequenceTest.AsyncIterator: Swift.AsyncIteratorProtocol {
+    typealias Element = A
+    typealias Failure = Swift.Never
+
     func next() async throws -> Self.Element?
     func next(isolation: isolated Swift.Actor?) async throws(Self.Failure) -> Self.Element?
 }
 extension SymbolTestsCore.AsyncSequenceTests.GenericAsyncSequenceTest: Swift.AsyncSequence {
+    typealias AsyncIterator = SymbolTestsCore.AsyncSequenceTests.GenericAsyncSequenceTest<A>.AsyncIterator
+    typealias Element = A
+    typealias Failure = Swift.Never
+
     func makeAsyncIterator() -> Self.AsyncIterator
 }
 extension SymbolTestsCore.CodableTests.SynthesizedCodableTest: Swift.Decodable {
@@ -3788,9 +3822,14 @@ extension SymbolTestsCore.CodableTests.GenericCodableTest.CodingKeys: Swift.Codi
     }
 }
 extension SymbolTestsCore.CollectionConformances.CustomSequenceTest.Iterator: Swift.IteratorProtocol {
+    typealias Element = Swift.Int
+
     func next() -> Self.Element?
 }
 extension SymbolTestsCore.CollectionConformances.CustomSequenceTest: Swift.Sequence {
+    typealias Element = Swift.Int
+    typealias Iterator = SymbolTestsCore.CollectionConformances.CustomSequenceTest.Iterator
+
     var underestimatedCount: Swift.Int {
         get
     }
@@ -3802,6 +3841,12 @@ extension SymbolTestsCore.CollectionConformances.CustomSequenceTest: Swift.Seque
     func withContiguousStorageIfAvailable<A1>(_: (_: Swift.UnsafeBufferPointer<Self.Element>) throws -> A1) throws -> A1?
 }
 extension SymbolTestsCore.CollectionConformances.CustomCollectionTest: Swift.Collection {
+    typealias Element = Swift.Int
+    typealias Index = Swift.Int
+    typealias Iterator = Swift.IndexingIterator<SymbolTestsCore.CollectionConformances.CustomCollectionTest>
+    typealias SubSequence = Swift.Slice<SymbolTestsCore.CollectionConformances.CustomCollectionTest>
+    typealias Indices = Swift.DefaultIndices<SymbolTestsCore.CollectionConformances.CustomCollectionTest>
+
     var count: Swift.Int {
         get
     }
@@ -3832,6 +3877,9 @@ extension SymbolTestsCore.CollectionConformances.CustomCollectionTest: Swift.Col
     }
 }
 extension SymbolTestsCore.CollectionConformances.CustomCollectionTest: Swift.Sequence {
+    typealias Element = Swift.Int
+    typealias Iterator = Swift.IndexingIterator<SymbolTestsCore.CollectionConformances.CustomCollectionTest>
+
     var count: Swift.Int {
         get
     }
@@ -3845,6 +3893,11 @@ extension SymbolTestsCore.CollectionConformances.CustomCollectionTest: Swift.Seq
     func withContiguousStorageIfAvailable<A1>(_: (_: Swift.UnsafeBufferPointer<Self.Element>) throws -> A1) throws -> A1?
 }
 extension SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTest: Swift.BidirectionalCollection {
+    typealias Element = Swift.String
+    typealias Index = Swift.Int
+    typealias SubSequence = Swift.Slice<SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTest>
+    typealias Indices = Swift.DefaultIndices<SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTest>
+
     func index(before: Self.Index) -> Self.Index
     func formIndex(before: inout Self.Index)
     func index(_: Self.Index, offsetBy: Swift.Int) -> Self.Index
@@ -3852,6 +3905,12 @@ extension SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTe
     func distance(from: Self.Index, to: Self.Index) -> Swift.Int
 }
 extension SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTest: Swift.Collection {
+    typealias Element = Swift.String
+    typealias Index = Swift.Int
+    typealias Iterator = Swift.IndexingIterator<SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTest>
+    typealias SubSequence = Swift.Slice<SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTest>
+    typealias Indices = Swift.DefaultIndices<SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTest>
+
     var count: Swift.Int {
         get
     }
@@ -3884,6 +3943,9 @@ extension SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTe
     }
 }
 extension SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTest: Swift.Sequence {
+    typealias Element = Swift.String
+    typealias Iterator = Swift.IndexingIterator<SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTest>
+
     var count: Swift.Int {
         get
     }
@@ -3897,11 +3959,21 @@ extension SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTe
     func withContiguousStorageIfAvailable<A1>(_: (_: Swift.UnsafeBufferPointer<Self.Element>) throws -> A1) throws -> A1?
 }
 extension SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest: Swift.RandomAccessCollection {
+    typealias Element = Swift.Double
+    typealias Index = Swift.Int
+    typealias SubSequence = Swift.Slice<SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest>
+    typealias Indices = Swift.Range<Swift.Int>
+
     func index(_: Self.Index, offsetBy: Swift.Int) -> Self.Index
     func index(_: Self.Index, offsetBy: Swift.Int, limitedBy: Self.Index) -> Self.Index?
     func distance(from: Self.Index, to: Self.Index) -> Swift.Int
 }
 extension SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest: Swift.BidirectionalCollection {
+    typealias Element = Swift.Double
+    typealias Index = Swift.Int
+    typealias SubSequence = Swift.Slice<SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest>
+    typealias Indices = Swift.Range<Swift.Int>
+
     func index(before: Self.Index) -> Self.Index
     func formIndex(before: inout Self.Index)
     func index(_: Self.Index, offsetBy: Swift.Int) -> Self.Index
@@ -3909,6 +3981,12 @@ extension SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTes
     func distance(from: Self.Index, to: Self.Index) -> Swift.Int
 }
 extension SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest: Swift.Collection {
+    typealias Element = Swift.Double
+    typealias Index = Swift.Int
+    typealias Iterator = Swift.IndexingIterator<SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest>
+    typealias SubSequence = Swift.Slice<SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest>
+    typealias Indices = Swift.Range<Swift.Int>
+
     var count: Swift.Int {
         get
     }
@@ -3941,6 +4019,9 @@ extension SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTes
     }
 }
 extension SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest: Swift.Sequence {
+    typealias Element = Swift.Double
+    typealias Iterator = Swift.IndexingIterator<SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest>
+
     var count: Swift.Int {
         get
     }
@@ -3987,27 +4068,44 @@ extension SymbolTestsCore.ConditionalConformanceVariants.ConditionalContainerTes
 extension SymbolTestsCore.ConditionalConformanceVariants.ConditionalContainerTest: SymbolTestsCore.ConditionalConformanceVariants.ConditionalSecondProtocol where A: SymbolTestsCore.ConditionalConformanceVariants.ConditionalFirstProtocol, A: SymbolTestsCore.ConditionalConformanceVariants.ConditionalSecondProtocol {}
 extension SymbolTestsCore.ConditionalConformanceVariants.ConditionalContainerTest: SymbolTestsCore.ConditionalConformanceVariants.ConditionalThirdProtocol where A: SymbolTestsCore.ConditionalConformanceVariants.ConditionalFirstProtocol, A: SymbolTestsCore.ConditionalConformanceVariants.ConditionalSecondProtocol, A: SymbolTestsCore.ConditionalConformanceVariants.ConditionalThirdProtocol {}
 extension SymbolTestsCore.CustomLiterals.IntegerLiteralTest: Swift.ExpressibleByIntegerLiteral {
+    typealias IntegerLiteralType = Swift.Int64
+
     init(integerLiteral: Self.IntegerLiteralType)
 }
 extension SymbolTestsCore.CustomLiterals.StringLiteralTest: Swift.ExpressibleByStringLiteral {
+    typealias StringLiteralType = Swift.String
+
     init(stringLiteral: Self.StringLiteralType)
 }
 extension SymbolTestsCore.CustomLiterals.StringLiteralTest: Swift.ExpressibleByUnicodeScalarLiteral {
+    typealias UnicodeScalarLiteralType = Swift.String
+
     init(stringLiteral: Self.StringLiteralType)
 }
 extension SymbolTestsCore.CustomLiterals.StringLiteralTest: Swift.ExpressibleByExtendedGraphemeClusterLiteral {
+    typealias ExtendedGraphemeClusterLiteralType = Swift.String
+
     init(stringLiteral: Self.StringLiteralType)
 }
 extension SymbolTestsCore.CustomLiterals.ArrayLiteralTest: Swift.ExpressibleByArrayLiteral {
+    typealias ArrayLiteralElement = Swift.Int
+
     init(arrayLiteral: Self.ArrayLiteralElement...)
 }
 extension SymbolTestsCore.CustomLiterals.DictionaryLiteralTest: Swift.ExpressibleByDictionaryLiteral {
+    typealias Key = Swift.String
+    typealias Value = Swift.Int
+
     init(dictionaryLiteral: (Self.Key, Self.Value)...)
 }
 extension SymbolTestsCore.CustomLiterals.BooleanLiteralTest: Swift.ExpressibleByBooleanLiteral {
+    typealias BooleanLiteralType = Swift.Bool
+
     init(booleanLiteral: Self.BooleanLiteralType)
 }
 extension SymbolTestsCore.CustomLiterals.FloatLiteralTest: Swift.ExpressibleByFloatLiteral {
+    typealias FloatLiteralType = Swift.Double
+
     init(floatLiteral: Self.FloatLiteralType)
 }
 extension SymbolTestsCore.CustomLiterals.NilLiteralTest: Swift.ExpressibleByNilLiteral {
@@ -4023,6 +4121,9 @@ extension SymbolTestsCore.DiamondInheritance.DiamondImplementationTest: SymbolTe
 extension SymbolTestsCore.DiamondInheritance.DiamondImplementationTest: SymbolTestsCore.DiamondInheritance.DiamondRightProtocol {}
 extension SymbolTestsCore.DiamondInheritance.DiamondImplementationTest: SymbolTestsCore.DiamondInheritance.DiamondBaseProtocol {}
 extension SymbolTestsCore.DistributedActors.DistributedActorTest: Distributed.DistributedActor {
+    typealias ActorSystem = Distributed.LocalTestingDistributedActorSystem
+    typealias SerializationRequirement = Swift.Decodable & Swift.Encodable
+
     var actorSystem: Self.ActorSystem {
         get
     }
@@ -4041,6 +4142,8 @@ extension SymbolTestsCore.DistributedActors.DistributedActorTest: Swift.Hashable
     func _rawHashValue(seed: Swift.Int) -> Swift.Int
 }
 extension SymbolTestsCore.DistributedActors.DistributedActorTest: Swift.Identifiable {
+    typealias ID = Distributed.LocalTestingActorID
+
     var id: Self.ID {
         get
     }
@@ -4055,6 +4158,9 @@ extension SymbolTestsCore.DistributedActors.DistributedActorTest: Swift.Decodabl
     init(from: Swift.Decoder) throws
 }
 extension SymbolTestsCore.DistributedActors.GenericDistributedActorTest: Distributed.DistributedActor {
+    typealias ActorSystem = Distributed.LocalTestingDistributedActorSystem
+    typealias SerializationRequirement = Swift.Decodable & Swift.Encodable
+
     var actorSystem: Self.ActorSystem {
         get
     }
@@ -4073,6 +4179,8 @@ extension SymbolTestsCore.DistributedActors.GenericDistributedActorTest: Swift.H
     func _rawHashValue(seed: Swift.Int) -> Swift.Int
 }
 extension SymbolTestsCore.DistributedActors.GenericDistributedActorTest: Swift.Identifiable {
+    typealias ID = Distributed.LocalTestingActorID
+
     var id: Self.ID {
         get
     }
@@ -4297,9 +4405,15 @@ extension SymbolTestsCore.ErrorTypes.SendableErrorTest: Swift.Error {
 
     func _getEmbeddedNSError() -> Swift.AnyObject?
 }
-extension SymbolTestsCore.Extensions.ExtensionConstrainedStruct: SymbolTestsCore.Extensions.ExtensionProtocol where A: Swift.Hashable {}
-extension SymbolTestsCore.Generics.GenericRequirementTest: SymbolTestsCore.Protocols.ProtocolTest {}
+extension SymbolTestsCore.Extensions.ExtensionConstrainedStruct: SymbolTestsCore.Extensions.ExtensionProtocol where A: Swift.Hashable {
+    typealias Item = A
+}
+extension SymbolTestsCore.Generics.GenericRequirementTest: SymbolTestsCore.Protocols.ProtocolTest {
+    typealias Body = A
+}
 extension SymbolTestsCore.Generics.GenericRequirementTest: Swift.RawRepresentable where A: Swift.RawRepresentable {
+    typealias RawValue = A
+
     init?(rawValue: Self.RawValue)
 
     var body: Self.Body {
@@ -4309,8 +4423,12 @@ extension SymbolTestsCore.Generics.GenericRequirementTest: Swift.RawRepresentabl
 extension SymbolTestsCore.Generics.GenericRequirementTest: Swift.Equatable where A: Swift.Equatable {
     static func == (_: Self, _: Self) -> Swift.Bool
 }
-extension SymbolTestsCore.Generics.GenericPackTest: SymbolTestsCore.Protocols.ProtocolTest {}
-extension SymbolTestsCore.Generics.GenericValueTest: SymbolTestsCore.Protocols.ProtocolTest {}
+extension SymbolTestsCore.Generics.GenericPackTest: SymbolTestsCore.Protocols.ProtocolTest {
+    typealias Body = Swift.Never
+}
+extension SymbolTestsCore.Generics.GenericValueTest: SymbolTestsCore.Protocols.ProtocolTest {
+    typealias Body = Swift.Never
+}
 extension SymbolTestsCore.Initializers.CustomInitializerError: Swift.Error {
     var _code: Swift.Int {
         get
@@ -4368,8 +4486,12 @@ extension Swift.Never: @retroactive Swift.Sequence {
     func _copyContents(initializing: Swift.UnsafeMutableBufferPointer<Self.Element>) -> (Self.Iterator, Swift.Int)
     func withContiguousStorageIfAvailable<A1>(_: (_: Swift.UnsafeBufferPointer<Self.Element>) throws -> A1) throws -> A1?
 }
-extension SymbolTestsCore.OpaqueReturnTypes.OpaqueReturnTypeTest.NameFallbackGuardWitness: SymbolTestsCore.Protocols.TestCollection {}
-extension SymbolTestsCore.OpaqueReturnTypes.OpaqueReturnTypeTest.NameFallbackGuardWitness: SymbolTestsCore.Protocols.UnpinnedElementProtocol {}
+extension SymbolTestsCore.OpaqueReturnTypes.OpaqueReturnTypeTest.NameFallbackGuardWitness: SymbolTestsCore.Protocols.TestCollection {
+    typealias Element = A
+}
+extension SymbolTestsCore.OpaqueReturnTypes.OpaqueReturnTypeTest.NameFallbackGuardWitness: SymbolTestsCore.Protocols.UnpinnedElementProtocol {
+    typealias Element = A
+}
 extension SymbolTestsCore.OpaqueReturnTypes.OpaqueReturnTypeTest.NameFallbackGuardWitness: Swift.Equatable {
     static func == (_: Self, _: Self) -> Swift.Bool
 }
@@ -4377,13 +4499,19 @@ extension SymbolTestsCore.OpaqueReturnTypes.OpaqueReturnTypeTest.ModuleRefineClo
 extension SymbolTestsCore.OpaqueReturnTypes.OpaqueReturnTypeTest.ModuleRefineClosureWitness: Swift.Equatable {
     static func == (_: Self, _: Self) -> Swift.Bool
 }
-extension SymbolTestsCore.OpaqueReturnTypes.OpaqueReturnTypeTest.ModuleRefineClosureWitness: SymbolTestsCore.Protocols.ModuleBaseProtocol {}
+extension SymbolTestsCore.OpaqueReturnTypes.OpaqueReturnTypeTest.ModuleRefineClosureWitness: SymbolTestsCore.Protocols.ModuleBaseProtocol {
+    typealias Item = Swift.Int
+}
 extension SymbolTestsCore.OpaqueReturnTypes.OpaqueReturnTypeTest.CrossImageRefineClosureWitness: SymbolTestsHelper.HelperRefinedProtocol {}
 extension SymbolTestsCore.OpaqueReturnTypes.OpaqueReturnTypeTest.CrossImageRefineClosureWitness: Swift.Equatable {
     static func == (_: Self, _: Self) -> Swift.Bool
 }
-extension SymbolTestsCore.OpaqueReturnTypes.OpaqueReturnTypeTest.CrossImageRefineClosureWitness: SymbolTestsHelper.HelperBaseProtocol {}
-extension SymbolTestsCore.OpaqueReturnTypes.OpaqueReturnTypeTest.AnyProtocolTest: SymbolTestsCore.Protocols.ProtocolTest {}
+extension SymbolTestsCore.OpaqueReturnTypes.OpaqueReturnTypeTest.CrossImageRefineClosureWitness: SymbolTestsHelper.HelperBaseProtocol {
+    typealias Item = Swift.Int
+}
+extension SymbolTestsCore.OpaqueReturnTypes.OpaqueReturnTypeTest.AnyProtocolTest: SymbolTestsCore.Protocols.ProtocolTest {
+    typealias Body = A
+}
 extension SymbolTestsCore.OpaqueReturnTypes.ProtocolPrimaryAssociatedTypeFirst: SymbolTestsCore.Protocols.ProtocolTest {
     typealias Body = SymbolTestsCore.OpaqueReturnTypes.ProtocolPrimaryAssociatedTypeFirst
 }
@@ -4409,9 +4537,13 @@ extension SymbolTestsCore.Operators.OperatorTestType: Swift.Equatable {
     static func == (_: Self, _: Self) -> Swift.Bool
 }
 extension SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest: Swift.OptionSet {
+    typealias Element = SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest
+
     init(rawValue: Self.RawValue)
 }
 extension SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest: Swift.RawRepresentable {
+    typealias RawValue = Swift.UInt
+
     init?(rawValue: Self.RawValue)
 
     var rawValue: Self.RawValue {
@@ -4419,6 +4551,8 @@ extension SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest: Swift.RawR
     }
 }
 extension SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest: Swift.SetAlgebra {
+    typealias Element = SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest
+
     init()
     init<A1>(_: consuming A1) where A1: Swift.Sequence, Self.Element == A1.Element
 
@@ -4446,9 +4580,13 @@ extension SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest: Swift.Equa
     static func == (_: Self, _: Self) -> Swift.Bool
 }
 extension SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest: Swift.ExpressibleByArrayLiteral {
+    typealias ArrayLiteralElement = SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest
+
     init(arrayLiteral: Self.ArrayLiteralElement...)
 }
 extension SymbolTestsCore.OptionSetAndRawRepresentable.StringRawRepresentableTest: Swift.RawRepresentable {
+    typealias RawValue = Swift.String
+
     init?(rawValue: Self.RawValue)
 
     var rawValue: Self.RawValue {
@@ -4456,6 +4594,8 @@ extension SymbolTestsCore.OptionSetAndRawRepresentable.StringRawRepresentableTes
     }
 }
 extension SymbolTestsCore.OptionSetAndRawRepresentable.IntRawRepresentableTest: Swift.RawRepresentable {
+    typealias RawValue = Swift.Int
+
     init?(rawValue: Self.RawValue)
 
     var rawValue: Self.RawValue {
@@ -4463,6 +4603,8 @@ extension SymbolTestsCore.OptionSetAndRawRepresentable.IntRawRepresentableTest: 
     }
 }
 extension SymbolTestsCore.OptionSetAndRawRepresentable.GenericRawRepresentableTest: Swift.RawRepresentable {
+    typealias RawValue = A
+
     init?(rawValue: Self.RawValue)
 
     var rawValue: Self.RawValue {
@@ -4475,23 +4617,35 @@ extension Swift.Array: SymbolTestsCore.Protocols.TestCollection {
     typealias Element = A
 }
 extension SymbolTestsCore.StringInterpolations.CustomStringInterpolationTest.StringInterpolation: Swift.StringInterpolationProtocol {
+    typealias StringLiteralType = Swift.String
+
     init(literalCapacity: Swift.Int, interpolationCount: Swift.Int)
 
     func appendLiteral(_: Self.StringLiteralType)
 }
 extension SymbolTestsCore.StringInterpolations.CustomStringInterpolationTest: Swift.ExpressibleByStringLiteral {
+    typealias StringLiteralType = Swift.String
+
     init(stringInterpolation: Self.StringInterpolation)
 }
 extension SymbolTestsCore.StringInterpolations.CustomStringInterpolationTest: Swift.ExpressibleByStringInterpolation {
+    typealias StringInterpolation = SymbolTestsCore.StringInterpolations.CustomStringInterpolationTest.StringInterpolation
+
     init(stringInterpolation: Self.StringInterpolation)
 }
 extension SymbolTestsCore.StringInterpolations.CustomStringInterpolationTest: Swift.ExpressibleByExtendedGraphemeClusterLiteral {
+    typealias ExtendedGraphemeClusterLiteralType = Swift.String
+
     init(stringInterpolation: Self.StringInterpolation)
 }
 extension SymbolTestsCore.StringInterpolations.CustomStringInterpolationTest: Swift.ExpressibleByUnicodeScalarLiteral {
+    typealias UnicodeScalarLiteralType = Swift.String
+
     init(stringInterpolation: Self.StringInterpolation)
 }
-extension SymbolTestsCore.Structs.StructTest: SymbolTestsCore.Protocols.ProtocolTest {}
+extension SymbolTestsCore.Structs.StructTest: SymbolTestsCore.Protocols.ProtocolTest {
+    typealias Body = SymbolTestsCore.Structs.PrivateProtocolTest
+}
 extension SymbolTestsCore.Structs.StructTest: SymbolTestsCore.Protocols.ProtocolWitnessTableTest {}
 extension SymbolTestsCore.Structs.PrivateProtocolTest: Swift.Hashable {
     var hashValue: Swift.Int {
@@ -4506,179 +4660,4 @@ extension SymbolTestsCore.Structs.PrivateProtocolTest: Swift.Equatable {
 }
 extension SymbolTestsCore.Structs.PrivateProtocolTest: SymbolTestsCore.Protocols.ProtocolTest {
     typealias Body = Swift.Never
-}
-extension SymbolTestsCore.Actors.CustomGlobalActor {
-    typealias ActorType = SymbolTestsCore.Actors.CustomGlobalActor
-}
-extension SymbolTestsCore.AssociatedTypeWitnessPatterns.ConcreteWitnessTest {
-    typealias First = Swift.Int
-    typealias Second = [Swift.String]
-    typealias Third = Swift.Double
-    typealias Fourth = Swift.Bool
-    typealias Fifth = Swift.Character
-}
-extension SymbolTestsCore.AssociatedTypeWitnessPatterns.NestedWitnessTest {
-    typealias First = SymbolTestsCore.AssociatedTypeWitnessPatterns.NestedWitnessTest.NestedFirst
-    typealias Second = [SymbolTestsCore.AssociatedTypeWitnessPatterns.NestedWitnessTest.NestedFirst]
-    typealias Third = SymbolTestsCore.AssociatedTypeWitnessPatterns.NestedWitnessTest.NestedThird
-    typealias Fourth = (SymbolTestsCore.AssociatedTypeWitnessPatterns.NestedWitnessTest.NestedFirst, SymbolTestsCore.AssociatedTypeWitnessPatterns.NestedWitnessTest.NestedThird)
-    typealias Fifth = SymbolTestsCore.AssociatedTypeWitnessPatterns.NestedWitnessTest.NestedFirst?
-}
-extension SymbolTestsCore.AssociatedTypeWitnessPatterns.GenericParameterWitnessTest {
-    typealias First = A
-    typealias Second = [A]
-    typealias Third = A?
-    typealias Fourth = (A, A)
-    typealias Fifth = [Swift.String : A]
-}
-extension SymbolTestsCore.AssociatedTypeWitnessPatterns.RecursiveWitnessTest {
-    typealias First = SymbolTestsCore.AssociatedTypeWitnessPatterns.RecursiveWitnessTest
-    typealias Second = [SymbolTestsCore.AssociatedTypeWitnessPatterns.RecursiveWitnessTest]
-    typealias Third = SymbolTestsCore.AssociatedTypeWitnessPatterns.RecursiveWitnessTest?
-    typealias Fourth = (SymbolTestsCore.AssociatedTypeWitnessPatterns.RecursiveWitnessTest, SymbolTestsCore.AssociatedTypeWitnessPatterns.RecursiveWitnessTest)
-    typealias Fifth = [Swift.String : SymbolTestsCore.AssociatedTypeWitnessPatterns.RecursiveWitnessTest]
-}
-extension SymbolTestsCore.AssociatedTypeWitnessPatterns.DependentWitnessTest {
-    typealias First = A.Element
-    typealias Second = A
-    typealias Third = A.Iterator
-    typealias Fourth = A.Index
-    typealias Fifth = A.SubSequence
-}
-extension SymbolTestsCore.AsyncSequenceTests.AsyncSequenceTest.AsyncIterator {
-    typealias Element = Swift.Int
-    typealias Failure = Swift.Never
-}
-extension SymbolTestsCore.AsyncSequenceTests.AsyncSequenceTest {
-    typealias AsyncIterator = SymbolTestsCore.AsyncSequenceTests.AsyncSequenceTest.AsyncIterator
-    typealias Element = Swift.Int
-    typealias Failure = Swift.Never
-}
-extension SymbolTestsCore.AsyncSequenceTests.ThrowingAsyncSequenceTest.AsyncIterator {
-    typealias Element = Swift.String
-    typealias Failure = Swift.Error
-}
-extension SymbolTestsCore.AsyncSequenceTests.ThrowingAsyncSequenceTest {
-    typealias AsyncIterator = SymbolTestsCore.AsyncSequenceTests.ThrowingAsyncSequenceTest.AsyncIterator
-    typealias Element = Swift.String
-    typealias Failure = Swift.Error
-}
-extension SymbolTestsCore.AsyncSequenceTests.GenericAsyncSequenceTest.AsyncIterator {
-    typealias Element = A
-    typealias Failure = Swift.Never
-}
-extension SymbolTestsCore.AsyncSequenceTests.GenericAsyncSequenceTest {
-    typealias AsyncIterator = SymbolTestsCore.AsyncSequenceTests.GenericAsyncSequenceTest<A>.AsyncIterator
-    typealias Element = A
-    typealias Failure = Swift.Never
-}
-extension SymbolTestsCore.CollectionConformances.CustomSequenceTest.Iterator {
-    typealias Element = Swift.Int
-}
-extension SymbolTestsCore.CollectionConformances.CustomSequenceTest {
-    typealias Element = Swift.Int
-    typealias Iterator = SymbolTestsCore.CollectionConformances.CustomSequenceTest.Iterator
-}
-extension SymbolTestsCore.CollectionConformances.CustomCollectionTest {
-    typealias Element = Swift.Int
-    typealias Index = Swift.Int
-    typealias Iterator = Swift.IndexingIterator<SymbolTestsCore.CollectionConformances.CustomCollectionTest>
-    typealias SubSequence = Swift.Slice<SymbolTestsCore.CollectionConformances.CustomCollectionTest>
-    typealias Indices = Swift.DefaultIndices<SymbolTestsCore.CollectionConformances.CustomCollectionTest>
-}
-extension SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTest {
-    typealias Element = Swift.String
-    typealias Index = Swift.Int
-    typealias SubSequence = Swift.Slice<SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTest>
-    typealias Indices = Swift.DefaultIndices<SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTest>
-    typealias Iterator = Swift.IndexingIterator<SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTest>
-}
-extension SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest {
-    typealias Element = Swift.Double
-    typealias Index = Swift.Int
-    typealias SubSequence = Swift.Slice<SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest>
-    typealias Indices = Swift.Range<Swift.Int>
-    typealias Iterator = Swift.IndexingIterator<SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest>
-}
-extension SymbolTestsCore.CustomLiterals.IntegerLiteralTest {
-    typealias IntegerLiteralType = Swift.Int64
-}
-extension SymbolTestsCore.CustomLiterals.StringLiteralTest {
-    typealias StringLiteralType = Swift.String
-    typealias UnicodeScalarLiteralType = Swift.String
-    typealias ExtendedGraphemeClusterLiteralType = Swift.String
-}
-extension SymbolTestsCore.CustomLiterals.ArrayLiteralTest {
-    typealias ArrayLiteralElement = Swift.Int
-}
-extension SymbolTestsCore.CustomLiterals.DictionaryLiteralTest {
-    typealias Key = Swift.String
-    typealias Value = Swift.Int
-}
-extension SymbolTestsCore.CustomLiterals.BooleanLiteralTest {
-    typealias BooleanLiteralType = Swift.Bool
-}
-extension SymbolTestsCore.CustomLiterals.FloatLiteralTest {
-    typealias FloatLiteralType = Swift.Double
-}
-extension SymbolTestsCore.DistributedActors.DistributedActorTest {
-    typealias ActorSystem = Distributed.LocalTestingDistributedActorSystem
-    typealias SerializationRequirement = Swift.Decodable & Swift.Encodable
-    typealias ID = Distributed.LocalTestingActorID
-}
-extension SymbolTestsCore.DistributedActors.GenericDistributedActorTest {
-    typealias ActorSystem = Distributed.LocalTestingDistributedActorSystem
-    typealias SerializationRequirement = Swift.Decodable & Swift.Encodable
-    typealias ID = Distributed.LocalTestingActorID
-}
-extension SymbolTestsCore.Extensions.ExtensionConstrainedStruct {
-    typealias Item = A
-}
-extension SymbolTestsCore.Generics.GenericRequirementTest {
-    typealias Body = A
-    typealias RawValue = A
-}
-extension SymbolTestsCore.Generics.GenericPackTest {
-    typealias Body = Swift.Never
-}
-extension SymbolTestsCore.Generics.GenericValueTest {
-    typealias Body = Swift.Never
-}
-extension SymbolTestsCore.OpaqueReturnTypes.OpaqueReturnTypeTest.NameFallbackGuardWitness {
-    typealias Element = A
-}
-extension SymbolTestsCore.OpaqueReturnTypes.OpaqueReturnTypeTest.ModuleRefineClosureWitness {
-    typealias Item = Swift.Int
-}
-extension SymbolTestsCore.OpaqueReturnTypes.OpaqueReturnTypeTest.CrossImageRefineClosureWitness {
-    typealias Item = Swift.Int
-}
-extension SymbolTestsCore.OpaqueReturnTypes.OpaqueReturnTypeTest.AnyProtocolTest {
-    typealias Body = A
-}
-extension SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest {
-    typealias Element = SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest
-    typealias RawValue = Swift.UInt
-    typealias ArrayLiteralElement = SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest
-}
-extension SymbolTestsCore.OptionSetAndRawRepresentable.StringRawRepresentableTest {
-    typealias RawValue = Swift.String
-}
-extension SymbolTestsCore.OptionSetAndRawRepresentable.IntRawRepresentableTest {
-    typealias RawValue = Swift.Int
-}
-extension SymbolTestsCore.OptionSetAndRawRepresentable.GenericRawRepresentableTest {
-    typealias RawValue = A
-}
-extension SymbolTestsCore.StringInterpolations.CustomStringInterpolationTest.StringInterpolation {
-    typealias StringLiteralType = Swift.String
-}
-extension SymbolTestsCore.StringInterpolations.CustomStringInterpolationTest {
-    typealias StringLiteralType = Swift.String
-    typealias StringInterpolation = SymbolTestsCore.StringInterpolations.CustomStringInterpolationTest.StringInterpolation
-    typealias ExtendedGraphemeClusterLiteralType = Swift.String
-    typealias UnicodeScalarLiteralType = Swift.String
-}
-extension SymbolTestsCore.Structs.StructTest {
-    typealias Body = SymbolTestsCore.Structs.PrivateProtocolTest
 }

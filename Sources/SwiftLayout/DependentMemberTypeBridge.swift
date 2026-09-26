@@ -59,7 +59,7 @@ extension StaticTypeLayoutResolver {
         let witnessTypeName = try witness.record.substitutedTypeName(in: witness.image.machO)
         let witnessNode: Node
         do {
-            witnessNode = try MetadataReader.demangleType(for: witnessTypeName, in: witness.image.machO)
+            witnessNode = try SymbolicDemangler.demangleType(for: witnessTypeName, in: witness.image.machO)
         } catch {
             throw LayoutResolutionError.unknown(.demangleFailure)
         }

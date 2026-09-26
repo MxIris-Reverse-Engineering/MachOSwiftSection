@@ -27,8 +27,9 @@
 
 ```
 Sources/SwiftDeclaration/Components/Definitions/
-├── ExtensionDefinition.swift   # + isAttachedToProtocolDefinition / absorbMembers / 默认实现打标
-├── ProtocolDefinition.swift    # index()：descriptor 合成降级为 fallback
+├── ExtensionDefinition.swift            # + isAttachedToProtocolDefinition / absorbMembers
+├── ExtensionDefinition+Indexing.swift   # 默认实现打标（markProtocolExtensionDefaults）
+├── ProtocolDefinition+Indexing.swift    # index()：descriptor 合成降级为 fallback
 └── {Function,Variable,Subscript}Definition.swift  # + isProtocolExtensionDefault
 Sources/SwiftIndexing/SwiftDeclarationIndexer.swift
     # index() 入口四桶重置；unifyExtensionContainers()（桶内同身份合并 + 协议附着）；

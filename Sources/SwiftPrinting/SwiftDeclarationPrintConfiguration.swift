@@ -37,6 +37,23 @@ public struct SwiftDeclarationPrintConfiguration: Equatable, Sendable {
     /// (no export information, no joined symbols, `override` / `@objc`
     /// members) is kept, so the filter never drops on a guess.
     public var printExportedDeclarationsOnly: Bool = false
+
+    /// Whether to act on the ObjC member recovery's NAME-only evidence tier
+    /// (evolution proposal `objc-member-selector-recovery`): an overriding
+    /// ObjC method neither joining tier could tie to a Swift member — its IMP
+    /// carries no `To` thunk symbol and its code references no Swift symbol,
+    /// the optimizer having inlined the body into the thunk (`viewDidHide`,
+    /// `encodeWithCoder:` in an OS framework) — was attributed at index time
+    /// to the ONE member of the class whose name is the importer's spelling
+    /// of its selector. The index always records it; set this to print the
+    /// `@objc override` it implies.
+    ///
+    /// Off by default: the interface has nowhere to say which keyword rests
+    /// on a name rather than a symbol, where the dump marks the same tie
+    /// `(selector name, no symbol evidence)` and so always renders it. Only
+    /// ever supplies an override — a method no ancestor implements is left
+    /// alone, so this can never invent an `@objc(name)`.
+    public var infersObjCOverridesFromSelectorNames: Bool = false
     public var memberSortOrder: SwiftDeclarationMemberSortOrder = .byCategory
     public var printTypeLayout: Bool = false
     public var printEnumLayout: Bool = false

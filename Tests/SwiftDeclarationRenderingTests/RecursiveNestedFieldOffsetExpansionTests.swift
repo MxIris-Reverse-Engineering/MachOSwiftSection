@@ -107,7 +107,7 @@ final class RecursiveNestedFieldOffsetExpansionTests: MachOSwiftSectionFixtureTe
     private func findFixtureStruct(named typeName: String) throws -> TypeContextWrapper? {
         for type in try machOImage.swift.types {
             guard case .struct(let structType) = type, !structType.descriptor.isGeneric else { continue }
-            guard let node = try? MetadataReader.demangleContext(for: .type(.struct(structType.descriptor)), in: machOImage) else { continue }
+            guard let node = try? SymbolicDemangler.demangleContext(for: .type(.struct(structType.descriptor)), in: machOImage) else { continue }
             if node.print(using: .default).hasSuffix(typeName) {
                 return type
             }

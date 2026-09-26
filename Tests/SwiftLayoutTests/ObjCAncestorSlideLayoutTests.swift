@@ -64,7 +64,7 @@ final class ObjCAncestorSlideLayoutTests: MachOSwiftSectionFixtureTests, @unchec
                 let descriptor = contextDescriptor.typeContextDescriptorWrapper,
                 descriptor.isClass,
                 !descriptor.typeContextDescriptor.layout.flags.isGeneric,
-                let qualifiedTypeName = (try? MetadataReader.demangleContext(for: contextDescriptor, in: rootFile))
+                let qualifiedTypeName = (try? SymbolicDemangler.demangleContext(for: contextDescriptor, in: rootFile))
                     .flatMap(NodeTypeNaming.nominalQualifiedName(of:)),
                 targetNameSuffixes.contains(where: { qualifiedTypeName.contains($0) })
             else { continue }
@@ -100,7 +100,7 @@ final class ObjCAncestorSlideLayoutTests: MachOSwiftSectionFixtureTests, @unchec
             guard
                 let descriptor = contextDescriptor.typeContextDescriptorWrapper,
                 descriptor.isClass,
-                let name = (try? MetadataReader.demangleContext(for: contextDescriptor, in: machO))
+                let name = (try? SymbolicDemangler.demangleContext(for: contextDescriptor, in: machO))
                     .flatMap(NodeTypeNaming.nominalQualifiedName(of:)),
                 name == qualifiedTypeName,
                 let accessor = try? descriptor.typeContextDescriptor.metadataAccessorFunction(in: machO),

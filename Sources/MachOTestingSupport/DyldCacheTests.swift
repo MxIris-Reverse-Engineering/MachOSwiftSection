@@ -30,7 +30,7 @@ package class DyldCacheTests: Sendable {
         self.mainCache = try DyldCache(path: Self.cachePath)
         self.subCache = try required(mainCache.subCaches?.first?.subcache(for: mainCache))
         self.fullCache = try FullDyldCache(path: Self.cachePath)
-        self.machOFileInCache = try #require(mainCache.machOFile(named: Self.cacheImageName))
+        self.machOFileInCache = try #require(fullCache.machOFile(named: Self.cacheImageName))
         self.machOFileInMainCache = try #require(mainCache.machOFile(named: Self.mainCacheImageName))
         self.machOFileInSubCache = try #require(subCache.machOFiles().first(where: { _ in true }))
     }

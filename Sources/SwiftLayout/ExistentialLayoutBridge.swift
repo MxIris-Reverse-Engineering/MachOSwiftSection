@@ -1,5 +1,6 @@
 import MachOSwiftSection
 import Demangling
+@_spi(Internals) import SwiftInspection
 
 /// The fully-qualified name of the standard-library `Error` protocol, whose
 /// bare existential (`any Error`) uses the special boxed representation.

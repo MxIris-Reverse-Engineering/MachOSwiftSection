@@ -21,7 +21,7 @@ extension ContextProtocol {
 // MARK: - ReadingContext Support
 
 extension ContextProtocol {
-    public func parent<Context: ReadingContext>(in context: Context) throws -> SymbolOrElement<ContextWrapper>? {
+    public func parent(in context: some ReadingContext) throws -> SymbolOrElement<ContextWrapper>? {
         try descriptor.parent(in: context)?.map { try ContextWrapper.forContextDescriptorWrapper($0, in: context) }
     }
 }

@@ -150,7 +150,7 @@ You can get the swift-section CLI tool in three ways:
 
 ### Usage
 
-The swift-section CLI tool provides six subcommands: `dump`, `interface`, `diff`, `snapshot`, `evolution`, and `transformer`.
+The swift-section CLI tool provides seven subcommands: `dump`, `interface`, `diff`, `snapshot`, `evolution`, `transformer`, and `objc` — the Objective-C side, with five subcommands of its own.
 
 > [!IMPORTANT]
 > As of 0.10.0, when the input is a fat / universal binary you must pass `--architecture <arch>`. The tool no longer picks a default slice silently.
@@ -168,8 +168,31 @@ swift-section dump [options] [file-path]
 # Dump all Swift information from a Mach-O file
 swift-section dump /path/to/binary
 
-# Dump only types and protocols
-swift-section dump --sections types,protocols /path/to/binary
+# Dump only types and protocols. `--sections` takes space-separated values up to
+# the next option, so the file path must come before it (or the list must be
+# terminated with `--`).
+swift-section dump /path/to/binary --sections types protocols
+
+# Only the classes implemented through `@objc @implementation` (SE-0436): the ObjC
+# class data joined with the Swift symbols — ivars, method lists, evidence. Every
+# class dump (this section and `types`) also names the ObjC ancestor chain and, on
+# each member the class's ObjC method table ties to a Swift member, its selector —
+# `overrides -[NSView layout]` for an override of an ObjC-inherited member, `@objc
+# -[Class selector]` otherwise, `explicit selector` when the source spelled it in
+# `@objc(name)`. Swift metadata carries none of this, and OS frameworks strip the
+# thunk symbols that used to be the only `@objc` evidence, so `interface` prints
+# `@objc`, `override` and `@objc(selector)` from the same recovery.
+swift-section dump /path/to/binary --sections objcImplementationClasses
+
+# An override whose body the optimizer inlined into its thunk (`viewDidHide`,
+# `encodeWithCoder:` in an OS framework) ties to no Swift symbol at all. The
+# recovery still attributes it — to the one member of the class whose name is
+# the importer's spelling of its selector — and the dump always shows the tie,
+# marked `(selector name, no symbol evidence)`. An interface has nowhere to say
+# a keyword rests on a name, so there it takes `--infer-objc-overrides`. Either
+# way a method no ancestor implements is left alone: this can add `override`,
+# never `@objc(name)`.
+swift-section interface --infer-objc-overrides /path/to/binary
 
 # Save output to file
 swift-section dump --output-path output.txt /path/to/binary
@@ -235,6 +258,34 @@ swift-section dump --uses-system-dyld-shared-cache --cache-image-name SwiftUICor
 # Dump from specific dyld shared cache
 swift-section dump --dyld-shared-cache --cache-image-path /path/to/cache /path/to/dyld_shared_cache
 ```
+
+**Types read out of other images' metadata accessors:** an availability-conditional
+opaque result type (SE-0360) and a noncopyable field type are stored as a pointer
+to a metadata accessor thunk, which `dump` and `interface` read without executing
+it. A binary that is not in a dyld cache — an app, an embedded framework, an
+iOS 26 or earlier simulator runtime's framework — calls the accessors it needs in
+other images by name, so those images must be findable. By default they are
+looked for where the binary sits (a simulator runtime's `RuntimeRoot`, or its own
+`dyld_sim_shared_cache` from iOS 27 on) and then in the running system's cache;
+pass `--dependency-search-path` (repeatable) when neither applies, for example a
+simulator app whose runtime is not an ancestor of the app. The same paths let the
+interface recognize a property wrapper defined in another image (`@State`,
+`@EnvironmentObject`, …), so a wrapped property prints as the source declared it —
+`@SwiftUI.State var name: Swift.String` — instead of its `_name` storage, and let
+both `dump` and `interface` follow a class's ObjC ancestors into the images that
+define them (a standalone file's superclass is a bind), which is where the
+`override` of an ObjC-inherited member and the explicit-selector verdict come from.
+Images of another platform in the running system's cache are never candidates, so an
+iOS binary on a macOS host needs its simulator runtime named here:
+```bash
+swift-section dump --dependency-search-path "/Library/Developer/CoreSimulator/Volumes/iOS_24A434/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 27.0.simruntime/Contents/Resources/RuntimeRoot/System/Library/Caches/com.apple.dyld/dyld_sim_shared_cache_arm64" /path/to/MyApp.app/MyApp
+```
+A directory is used as a system root under which absolute install names resolve,
+a `dyld_shared_cache_*` / `dyld_sim_shared_cache_*` file as a cache, anything else
+as a Mach-O file. `interface` and `snapshot` take the same option. The same paths
+also feed the static field-offset / type-layout comments, ahead of the running
+system's cache, so a binary can be laid out against the OS version whose cache you
+name rather than the host's.
 
 Dump output includes richer annotations:
 
@@ -434,6 +485,95 @@ swift-section transformer config \
 swift-section dump --transformer-config comments.json /path/to/binary
 swift-section interface --transformer-config comments.json /path/to/binary
 ```
+
+#### objc - Objective-C Declarations and API Diffing
+
+The Objective-C side of a binary, read without loading it into a process — including binaries
+for another architecture or platform. `objc` has five subcommands of its own: `dump` (the
+default), `interface`, `snapshot`, `diff` and `evolution`. They take the same `-n` / `-p` /
+`--dyld-shared-cache` / `--uses-system-dyld-shared-cache` / `-a` input options as the Swift
+commands. The Objective-C libraries underneath live in
+[MachOObjCSection](https://github.com/MxIris-Reverse-Engineering/MachOObjCSection).
+
+> [!NOTE]
+> These commands used to ship as a separate `objc-section` executable from MachOObjCSection,
+> last released as 0.8.106. Options, output and exit codes are unchanged; replace
+> `objc-section <subcommand>` with `swift-section objc <subcommand>`.
+
+```bash
+# Every Objective-C declaration in a binary, as a header
+swift-section objc dump /path/to/Some.framework/Some
+
+# One class, protocol, category, struct or union
+swift-section objc interface NSString /path/to/Some.framework/Some
+
+# An image inside a dyld shared cache
+swift-section objc dump /path/to/dyld_shared_cache_arm64e --dyld-shared-cache -n Foundation
+swift-section objc interface NSError --uses-system-dyld-shared-cache -n Foundation
+
+# A fat binary needs an architecture
+swift-section objc dump /path/to/Universal -a arm64e
+```
+
+Each of the ten generation switches has a flag, and all of them default to off, so a bare
+`dump` prints the metadata as it stands:
+
+```bash
+swift-section objc interface ACAssetSymbolGeneratorOptions ./AssetCatalogFoundation \
+  --strip-synthesized-methods --strip-dtor-method \
+  --emit-ivar-offsets --emit-method-imp-addresses \
+  --c-type-replacement "long long=NSInteger"
+```
+
+```objc
+@interface ACAssetSymbolGeneratorOptions : NSObject {
+    NSInteger targetPlatform; // offset: 8
+    BOOL generateExtensions; // offset: 16
+    ...
+}
+
+@property (nonatomic, readonly) NSInteger targetPlatform;
+...
+
+- (id)init; // IMP: 0x10B400
+
+@end
+```
+
+Other `dump` options: `-s/--sections` to pick declaration kinds (comma-separated:
+`--sections classes,protocols`), `-f/--filter` to match names, `-o/--output-path` to write a
+file, `-c/--color-scheme` for terminal colours, and `-v/--verbose` to report indexing progress
+on stderr. A `dump` that finds nothing still exits 0, but says why on stderr — no Objective-C
+metadata at all, an empty kind named in `--sections`, or a `--filter` that matched nothing.
+
+`snapshot`, `diff` and `evolution` compare the Objective-C API across binaries, with the same
+option spelling as their Swift counterparts. Any input can be a Mach-O / fat binary, a dyld
+shared cache (with `--dyld-shared-cache -n <image>`), or a baseline JSON produced by
+`snapshot`; the two are told apart automatically.
+
+```bash
+# Freeze a binary's Objective-C API as a baseline (indexing is the slow part;
+# comparisons against the JSON later need no original binary)
+swift-section objc snapshot 15.5/dyld_shared_cache_arm64e --dyld-shared-cache -n CoreLocation \
+  --label 15.5 -o CoreLocation-15.5.json
+
+# Classes, protocols and categories, with methods, properties, ivars, protocol
+# adoptions and superclass changes classified as added / removed / modified
+swift-section objc diff CoreLocation-15.5.json CoreLocation-26.5.json
+
+# Every declaration's lifeline across N ordered versions
+swift-section objc evolution CoreLocation-*.json --labels 15.5,26.0,26.5 --summary-only
+```
+
+Both `diff` and `evolution` support `--json`, `--summary-only`, `--fail-on-breaking` (exit
+nonzero on an API-breaking change, for CI gating) and `-o`. Baselines carry a `formatVersion`;
+one written by a different format version is rejected with an error rather than silently
+mis-compared, so regenerate it with the current tool. Baselines written by `objc-section`
+0.8.106 read unchanged.
+
+The contracts that neither the signatures nor `--help` show — how file mode truncates the
+superclass chain, why pure-Swift classes' ivar records do not line up, and the rest — are in
+[Objective-C Command Line](Documentations/ObjCCommandLine.md).
 
 ## Running Tests
 

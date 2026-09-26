@@ -119,6 +119,39 @@ final class TypeContextDescriptorProtocolTests: MachOSwiftSectionFixtureTests, F
         #expect(result == TypeContextDescriptorProtocolBaseline.structTest.hasImportInfo)
     }
 
+    /// `typeImportInfo` on a plain Swift struct is `nil`; on the C-imported
+    /// `Decimal` (the `NSDecimal` typedef) it carries the ABI name and the
+    /// C-typedef namespace, identically through every reader.
+    @Test func typeImportInfo() async throws {
+        let (fileSubject, imageSubject) = try loadStructTestDescriptors()
+        let swiftResult = try acrossAllReaders(
+            file: { try fileSubject.typeImportInfo(in: machOFile) },
+            image: { try imageSubject.typeImportInfo(in: machOImage) }
+        )
+        #expect(swiftResult == nil)
+        #expect(TypeContextDescriptorProtocolBaseline.structTest.typeImportInfoABIName == nil)
+
+        let foreignFile = try BaselineFixturePicker.struct_ForeignDecimal(in: machOFile)
+        let foreignImage = try BaselineFixturePicker.struct_ForeignDecimal(in: machOImage)
+        let foreignResult = try acrossAllReaders(
+            file: { try foreignFile.typeImportInfo(in: machOFile) },
+            image: { try foreignImage.typeImportInfo(in: machOImage) }
+        )
+        let expected = TypeContextDescriptorProtocolBaseline.foreignDecimal
+        #expect(foreignResult?.abiName == expected.typeImportInfoABIName)
+        #expect(foreignResult?.symbolNamespace == expected.typeImportInfoSymbolNamespace)
+        #expect(foreignResult?.relatedEntityName == expected.typeImportInfoRelatedEntityName)
+        #expect(foreignResult?.isCTypedef == true)
+        #expect(foreignResult?.isRelatedEntity == false)
+
+        // ReadingContext-based overload also exercised. (The pointer-based
+        // in-process overload needs a descriptor whose offset is a live
+        // address, which a `MachOImage`-read descriptor is not — same as
+        // `fieldDescriptor()` above.)
+        let imageContextResult = try foreignImage.typeImportInfo(in: imageContext)
+        #expect(imageContextResult == foreignResult)
+    }
+
     @Test func hasCanonicalMetadataPrespecializationsOrSingletonMetadataPointer() async throws {
         let (fileSubject, imageSubject) = try loadStructTestDescriptors()
         let result = try acrossAllReaders(

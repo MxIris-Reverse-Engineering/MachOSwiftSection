@@ -9,7 +9,7 @@ import Demangling
 @_spi(Internals) import SwiftInspection
 import SwiftDeclarationRendering
 
-package struct StructDumper<MachO: FieldLayoutRenderable>: TypedDumper {
+package struct StructDumper<MachO: MachOFieldLayoutRenderable>: TypedDumper {
     package typealias Dumped = Struct
 
     package typealias Metadata = StructMetadata
@@ -89,6 +89,15 @@ package struct StructDumper<MachO: FieldLayoutRenderable>: TypedDumper {
 
                 try await fieldLayoutRenderer.storedFieldComments(forFieldAtIndex: offset.index, mangledTypeName: mangledTypeName, fieldOffsets: fieldOffsets)
 
+                // dump shows what the record says, so a `@_rawLayout(like:)`
+                // struct's artificial `_rawLayout` record (Swift 6.4) still
+                // renders — behind a comment saying it is not a stored property.
+                if FieldRecordRendering.isRawLayoutStorageRecord(name: try fieldRecord.fieldName(in: machO), isArtificial: fieldRecord.flags.contains(.isArtificial)) {
+                    Indent(level: configuration.indentation)
+                    Comment(FieldRecordRendering.artificialRawLayoutRecordComment)
+                    BreakLine()
+                }
+
                 Indent(level: configuration.indentation)
 
                 let demangledTypeNode = try fieldDemangledTypeNode(for: mangledTypeName)
@@ -133,7 +142,7 @@ package struct StructDumper<MachO: FieldLayoutRenderable>: TypedDumper {
             // bucket; the context node picks this type's own sub-bucket
             // (issue #115). A context that cannot be demangled falls back to
             // the name-only (merged) lookup rather than dropping members.
-            let contextNode = try? MetadataReader.demangleContext(for: .type(.struct(dumped.descriptor)), in: machO)
+            let contextNode = try? SymbolicDemangler.demangleContext(for: .type(.struct(dumped.descriptor)), in: machO)
 
             for kind in SymbolIndexStore.MemberKind.allCases {
                 let memberSymbols = if let contextNode {
@@ -201,7 +210,7 @@ package struct StructDumper<MachO: FieldLayoutRenderable>: TypedDumper {
     @SemanticStringBuilder
     private func _name(using resolver: DemangleResolver) async throws -> SemanticString {
         if configuration.displayParentName {
-            try await resolver.resolve(for: MetadataReader.demangleContext(for: .type(.struct(dumped.descriptor)), in: machO)).replacingTypeNameOrOtherToTypeDeclaration()
+            try await resolver.resolve(for: SymbolicDemangler.demangleContext(for: .type(.struct(dumped.descriptor)), in: machO)).replacingTypeNameOrOtherToTypeDeclaration()
         } else {
             try TypeDeclaration(kind: .struct, dumped.descriptor.name(in: machO))
         }

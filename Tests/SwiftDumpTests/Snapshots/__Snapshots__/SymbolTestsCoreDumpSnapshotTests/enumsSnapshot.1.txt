@@ -10,7 +10,7 @@ enum SymbolTestsCore.Enums.MultiPayloadEnumTests {
 enum SymbolTestsCore.Enums.MultiPayloadEnumTests1 {
     case string(Swift.String)
     case data(Foundation.Data)
-    case nsNumber(Decimal)
+    case nsNumber(NSDecimal)
     case date(Foundation.Date)
     case url(Foundation.URL)
     case attributedString(Foundation.AttributedString)

@@ -1,6 +1,7 @@
 import MachOKit
 @_spi(Core) import MachOObjCSection
 @_spi(Internals) import Demangling
+@_spi(Internals) import SwiftInspection
 
 /// Builds a per-image index from an Objective-C class's bare name to the start
 /// layout a Swift subclass inherits from it: the class's `instanceSize` (where a
@@ -108,22 +109,11 @@ enum ObjCClassIndex {
         return instanceStartsByQualifiedName
     }
 
-    /// Demangles a Swift class's ObjC runtime name (`_TtC7SwiftUI3Foo`, incl.
-    /// private-discriminator forms) to the engine's qualified-name key. Plain
-    /// ObjC class names (no mangling prefix) return `nil` without invoking the
-    /// demangler.
+    /// The engine's qualified-name key for a Swift class's ObjC runtime name;
+    /// the demangle itself lives in `SwiftInspection.NodeTypeNaming` so the
+    /// ObjC-side indexes key their Swift classes the same way.
     private static func swiftClassQualifiedName(fromRuntimeName runtimeName: String) -> String? {
-        guard runtimeName.hasPrefix("_Tt") || runtimeName.hasPrefix("$s") else { return nil }
-        // The demangler wraps the result in `.global`; the qualified-name
-        // builder wants the bare nominal class node (the same shape
-        // `MetadataReader.demangleContext` produces on the descriptor side).
-        // Transient demangle: only the qualified-name string survives this
-        // call, so the tree must not be interned into the global `NodeCache`.
-        guard
-            let node = try? demangleAsNodeTransient(runtimeName),
-            let classNode = node.first(of: .class)
-        else { return nil }
-        return NodeTypeNaming.nominalQualifiedName(of: classNode)
+        NodeTypeNaming.swiftClassQualifiedName(fromRuntimeName: runtimeName)
     }
 
     /// The instance `class_ro_t` of an in-process ObjC class, resolving the

@@ -24,5 +24,5 @@ package protocol MutableDefinition: Definition {
     var staticFunctions: [FunctionDefinition] { get set }
     var staticSubscripts: [SubscriptDefinition] { get set }
 
-    func index<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) async throws
+    func index(in machO: some MachOSwiftSectionRepresentableWithCache) async throws
 }

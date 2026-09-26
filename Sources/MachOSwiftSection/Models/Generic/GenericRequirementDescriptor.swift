@@ -2,20 +2,12 @@ import Foundation
 import MachOKit
 import MachOBase
 
+@LocatableLayoutWrapping
 public struct GenericRequirementDescriptor: ResolvableLocatableLayoutWrapper {
     public struct Layout: LayoutProtocol {
         public let flags: GenericRequirementFlags
         public let param: RelativeDirectPointer<MangledName>
         public let content: RelativeOffset
-    }
-
-    public var layout: Layout
-
-    public let offset: Int
-
-    public init(layout: Layout, offset: Int) {
-        self.offset = offset
-        self.layout = layout
     }
 }
 
@@ -47,21 +39,21 @@ extension GenericRequirementDescriptor {
 }
 
 extension GenericRequirementDescriptor {
-    public func isContentEqual<MachO: MachOSwiftSectionRepresentableWithCache>(to other: GenericRequirementDescriptor, in machO: MachO) -> Bool {
+    public func isContentEqual(to other: GenericRequirementDescriptor, in machO: some MachOSwiftSectionRepresentableWithCache) -> Bool {
         guard let lhsResolvedParam = try? paramMangledName(in: machO), let rhsResolvedParam = try? other.paramMangledName(in: machO) else { return false }
         guard let lhsResolvedContent = try? resolvedContent(in: machO), let rhsResolvedContent = try? other.resolvedContent(in: machO) else { return false }
         return layout.flags == other.flags && lhsResolvedParam == rhsResolvedParam && lhsResolvedContent == rhsResolvedContent
     }
 
-    public func paramMangledName<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> MangledName {
+    public func paramMangledName(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> MangledName {
         return try layout.param.resolve(from: offset(of: \.param), in: machO)
     }
 
-    public func type<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> MangledName {
+    public func type(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> MangledName {
         return try RelativeDirectPointer<MangledName>(relativeOffset: layout.content).resolve(from: offset(of: \.content), in: machO)
     }
 
-    public func resolvedContent<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> ResolvedGenericRequirementContent {
+    public func resolvedContent(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> ResolvedGenericRequirementContent {
         let offset = offset(of: \.content)
         switch content {
         case .type(let relativeDirectPointer):
@@ -113,23 +105,23 @@ extension GenericRequirementDescriptor {
 // MARK: - ReadingContext Support
 
 extension GenericRequirementDescriptor {
-    public func isContentEqual<Context: ReadingContext>(to other: GenericRequirementDescriptor, in context: Context) -> Bool {
+    public func isContentEqual(to other: GenericRequirementDescriptor, in context: some ReadingContext) -> Bool {
         guard let lhsResolvedParam = try? paramMangledName(in: context), let rhsResolvedParam = try? other.paramMangledName(in: context) else { return false }
         guard let lhsResolvedContent = try? resolvedContent(in: context), let rhsResolvedContent = try? other.resolvedContent(in: context) else { return false }
         return layout.flags == other.flags && lhsResolvedParam == rhsResolvedParam && lhsResolvedContent == rhsResolvedContent
     }
 
-    public func paramMangledName<Context: ReadingContext>(in context: Context) throws -> MangledName {
+    public func paramMangledName(in context: some ReadingContext) throws -> MangledName {
         let baseAddress = try context.addressFromOffset(offset(of: \.param))
         return try layout.param.resolve(at: baseAddress, in: context)
     }
 
-    public func type<Context: ReadingContext>(in context: Context) throws -> MangledName {
+    public func type(in context: some ReadingContext) throws -> MangledName {
         let baseAddress = try context.addressFromOffset(offset(of: \.content))
         return try RelativeDirectPointer<MangledName>(relativeOffset: layout.content).resolve(at: baseAddress, in: context)
     }
 
-    public func resolvedContent<Context: ReadingContext>(in context: Context) throws -> ResolvedGenericRequirementContent {
+    public func resolvedContent(in context: some ReadingContext) throws -> ResolvedGenericRequirementContent {
         let contentOffset = offset(of: \.content)
         let baseAddress = try context.addressFromOffset(contentOffset)
         switch content {

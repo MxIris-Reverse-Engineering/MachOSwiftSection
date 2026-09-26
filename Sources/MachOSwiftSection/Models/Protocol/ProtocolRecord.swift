@@ -13,22 +13,15 @@ import MachOBase
 /// itself; the next bit ("reserved for future use", see
 /// `Metadata.h:2769`) is exposed via `Bit` and currently ignored by the
 /// runtime (`MetadataLookup.cpp:821` only calls `getPointer()`).
+@LocatableLayoutWrapping
 public struct ProtocolRecord: ResolvableLocatableLayoutWrapper {
     public struct Layout: LayoutProtocol {
         public let `protocol`: RelativeIndirectablePointerIntPair<ProtocolDescriptor?, Bit, Pointer<ProtocolDescriptor?>>
     }
-
-    public let offset: Int
-    public var layout: Layout
-
-    public init(layout: Layout, offset: Int) {
-        self.offset = offset
-        self.layout = layout
-    }
 }
 
 extension ProtocolRecord {
-    public func protocolDescriptor<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> ProtocolDescriptor? {
+    public func protocolDescriptor(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> ProtocolDescriptor? {
         try layout.protocol.resolve(from: offset(of: \.protocol), in: machO)
     }
 }
@@ -36,7 +29,7 @@ extension ProtocolRecord {
 // MARK: - ReadingContext Support
 
 extension ProtocolRecord {
-    public func protocolDescriptor<Context: ReadingContext>(in context: Context) throws -> ProtocolDescriptor? {
+    public func protocolDescriptor(in context: some ReadingContext) throws -> ProtocolDescriptor? {
         try layout.protocol.resolve(at: try context.addressFromOffset(offset(of: \.protocol)), in: context)
     }
 }

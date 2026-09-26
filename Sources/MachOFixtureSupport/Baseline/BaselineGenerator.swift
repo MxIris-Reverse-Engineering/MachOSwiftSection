@@ -186,6 +186,7 @@ package enum BaselineGenerator {
         try dispatchSuite("CanonicalSpecializedMetadatasCachingOnceToken", in: machOFile, outputDirectory: outputDirectory)
         try dispatchSuite("CanonicalSpecializedMetadatasListCount", in: machOFile, outputDirectory: outputDirectory)
         try dispatchSuite("CanonicalSpecializedMetadatasListEntry", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("BorrowTypeMetadata", in: machOFile, outputDirectory: outputDirectory)
         try dispatchSuite("FixedArrayTypeMetadata", in: machOFile, outputDirectory: outputDirectory)
         try dispatchSuite("FullMetadata", in: machOFile, outputDirectory: outputDirectory)
         try dispatchSuite("Metadata", in: machOFile, outputDirectory: outputDirectory)
@@ -227,9 +228,30 @@ package enum BaselineGenerator {
         // Function/ — FunctionTypeMetadata is runtime-allocated only.
         try dispatchSuite("FunctionTypeFlags", in: machOFile, outputDirectory: outputDirectory)
         try dispatchSuite("FunctionTypeMetadata", in: machOFile, outputDirectory: outputDirectory)
+        // Generic/Pattern/ — GenericMetadataPatternFlags is a pure bitfield.
+        try dispatchSuite("GenericClassMetadataPattern", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("GenericMetadataPartialPattern", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("GenericMetadataPatternProtocol", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("GenericValueMetadataPattern", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("ResilientClassMetadataPattern", in: machOFile, outputDirectory: outputDirectory)
+        // Capture/
+        try dispatchSuite("CaptureDescriptor", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("CaptureTypeRecord", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("MetadataSourceRecord", in: machOFile, outputDirectory: outputDirectory)
+        // AccessibleFunction/ — the flags type is a pure OptionSet.
+        try dispatchSuite("AccessibleFunctionRecord", in: machOFile, outputDirectory: outputDirectory)
+        // FunctionPointer/ — CoroFunctionPointer needs a CoroutineAccessors
+        // build, so its Suite compiles its own fixture and pins no baseline.
+        try dispatchSuite("AsyncFunctionPointer", in: machOFile, outputDirectory: outputDirectory)
         // Heap/ — both metadata types are runtime-allocated only.
         try dispatchSuite("GenericBoxHeapMetadata", in: machOFile, outputDirectory: outputDirectory)
         try dispatchSuite("HeapLocalVariableMetadata", in: machOFile, outputDirectory: outputDirectory)
+        // KeyPath/ — the enums (component kind, identifier kind/resolution,
+        // stored-offset kind) are pure data with no public func/var.
+        try dispatchSuite("KeyPathComponentHeader", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("KeyPathComputedPropertyBody", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("KeyPathStoredFieldOffset", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("PropertyDescriptor", in: machOFile, outputDirectory: outputDirectory)
         // Mangling/ — MangledNameKind is a pure enum (no public func/var/init),
         // so only MangledName needs a Suite.
         try dispatchSuite("MangledName", in: machOFile, outputDirectory: outputDirectory)
@@ -506,6 +528,8 @@ package enum BaselineGenerator {
             try CanonicalSpecializedMetadatasListCountBaselineGenerator.generate(outputDirectory: outputDirectory)
         case "CanonicalSpecializedMetadatasListEntry":
             try CanonicalSpecializedMetadatasListEntryBaselineGenerator.generate(outputDirectory: outputDirectory)
+        case "BorrowTypeMetadata":
+            try BorrowTypeMetadataBaselineGenerator.generate(outputDirectory: outputDirectory)
         case "FixedArrayTypeMetadata":
             try FixedArrayTypeMetadataBaselineGenerator.generate(outputDirectory: outputDirectory)
         case "FullMetadata":
@@ -590,6 +614,39 @@ package enum BaselineGenerator {
             try GenericBoxHeapMetadataBaselineGenerator.generate(outputDirectory: outputDirectory)
         case "HeapLocalVariableMetadata":
             try HeapLocalVariableMetadataBaselineGenerator.generate(outputDirectory: outputDirectory)
+        // Generic/Pattern/
+        case "GenericClassMetadataPattern":
+            try GenericClassMetadataPatternBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
+        case "GenericMetadataPartialPattern":
+            try GenericMetadataPartialPatternBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
+        case "GenericMetadataPatternProtocol":
+            try GenericMetadataPatternProtocolBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
+        case "GenericValueMetadataPattern":
+            try GenericValueMetadataPatternBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
+        case "ResilientClassMetadataPattern":
+            try ResilientClassMetadataPatternBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
+        // Capture/
+        case "CaptureDescriptor":
+            try CaptureDescriptorBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
+        case "CaptureTypeRecord":
+            try CaptureTypeRecordBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
+        case "MetadataSourceRecord":
+            try MetadataSourceRecordBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
+        // AccessibleFunction/
+        case "AccessibleFunctionRecord":
+            try AccessibleFunctionRecordBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
+        // FunctionPointer/
+        case "AsyncFunctionPointer":
+            try AsyncFunctionPointerBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
+        // KeyPath/
+        case "KeyPathComponentHeader":
+            try KeyPathComponentHeaderBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
+        case "KeyPathComputedPropertyBody":
+            try KeyPathComputedPropertyBodyBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
+        case "KeyPathStoredFieldOffset":
+            try KeyPathStoredFieldOffsetBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
+        case "PropertyDescriptor":
+            try PropertyDescriptorBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
         // Mangling/
         case "MangledName":
             try MangledNameBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
@@ -657,7 +714,18 @@ package enum BaselineGenerator {
             "AnyClassMetadataObjCInteropTests",
             "AnyClassMetadataProtocolTests",
             "AnyClassMetadataTests",
+            "AccessibleFunctionRecordTests",
+            "CaptureDescriptorTests",
+            "GenericClassMetadataPatternTests",
+            "GenericMetadataPartialPatternTests",
+            "GenericMetadataPatternProtocolTests",
+            "GenericValueMetadataPatternTests",
+            "ResilientClassMetadataPatternTests",
+            "CaptureTypeRecordTests",
+            "MetadataSourceRecordTests",
             "AssociatedTypeDescriptorTests",
+            "AsyncFunctionPointerTests",
+            "CoroFunctionPointerTests",
             "AssociatedTypeRecordTests",
             "AssociatedTypeTests",
             "BuiltinTypeDescriptorTests",
@@ -698,9 +766,14 @@ package enum BaselineGenerator {
             "ExtensionContextTests",
             "ExtraClassDescriptorFlagsTests",
             "FieldDescriptorTests",
+            "KeyPathComponentHeaderTests",
+            "KeyPathComputedPropertyBodyTests",
+            "KeyPathStoredFieldOffsetTests",
+            "PropertyDescriptorTests",
             "FieldRecordFlagsTests",
             "FieldRecordTests",
             "FinalClassMetadataProtocolTests",
+            "BorrowTypeMetadataTests",
             "FixedArrayTypeMetadataTests",
             "ForeignClassMetadataTests",
             "ForeignMetadataInitializationTests",

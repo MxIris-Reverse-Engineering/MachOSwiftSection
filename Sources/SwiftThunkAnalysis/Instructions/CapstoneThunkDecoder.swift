@@ -1,0 +1,383 @@
+import Foundation
+import Capstone
+
+/// Decodes a thunk's machine code into ``ThunkInstruction`` values.
+///
+/// The **only** file in the module that knows Capstone exists. Everything
+/// above it works on the engine-independent vocabulary in
+/// `ThunkInstruction.swift`, so the shape recognizer can be driven from
+/// synthesized sequences and a future decoder (another engine, or x86_64)
+/// replaces this file alone.
+///
+/// A disassembler is used rather than hand-decoding the instruction words,
+/// even though the set of shapes is small. Two reasons, both measured during
+/// the proposal's research: the thunks already come in more than one shape and
+/// drift with the compiler, so hand-decoding means a new bit-field reader per
+/// shape; and the arithmetic that a hand decoder gets wrong is exactly the
+/// PC-relative kind — `adrp`'s page base is relative to the instruction's own
+/// address, and computing it from a *file offset* silently produces a
+/// plausible-looking address in the wrong place.
+public enum CapstoneThunkDecoder {
+    /// How many instructions to decode before giving up on recognizing the
+    /// thunk.
+    ///
+    /// Every shape seen so far resolves within a dozen instructions — the
+    /// availability-conditional one is the longest at roughly fourteen. The
+    /// bound exists so a mis-located offset lands in unrelated code and stops,
+    /// rather than disassembling an entire `__TEXT` segment.
+    public static let defaultMaximumInstructionCount = 48
+
+    /// The cap for a whole thunk read by ``AccessorThunkReader``: a
+    /// type-construction thunk (`SwiftUI.DefinesSearchCompletionModifier.Body`)
+    /// runs to about ninety instructions, both branches included.
+    public static let constructionMaximumInstructionCount = 160
+
+    /// Decodes one function: from `startAddress` to wherever control leaves it
+    /// for good.
+    ///
+    /// The thunks carry no symbol and no size — they sit in a stripped
+    /// `__TEXT` where the next function begins immediately — so the end has to
+    /// be *derived*. The rule is the standard linear-sweep one: a `ret`, or a
+    /// `b` whose target lies outside the bytes decoded so far (a tail call),
+    /// ends the function **provided** no conditional branch already seen
+    /// points past it. That proviso is what keeps the two halves of an
+    /// `if #available` together: the satisfied branch ends in a `b` over the
+    /// unsatisfied one, and stopping there would silently drop one of the two
+    /// candidates — which is the whole answer this module exists to produce.
+    public static func decodeFunction(
+        machineCode: Data,
+        startAddress: UInt64,
+        maximumInstructionCount: Int = defaultMaximumInstructionCount,
+        isKnownFunction: (UInt64) -> Bool = { _ in false }
+    ) throws -> [ThunkInstruction] {
+        let decodedInstructions = try decode(
+            machineCode: machineCode,
+            startAddress: startAddress,
+            maximumInstructionCount: maximumInstructionCount
+        )
+        let decodedUpperBound = startAddress + UInt64(machineCode.count)
+        var furthestInFunctionTarget = startAddress
+        var functionInstructions: [ThunkInstruction] = []
+
+        func isInFunction(_ target: UInt64) -> Bool {
+            target > startAddress && target < decodedUpperBound
+        }
+
+        for instruction in decodedInstructions {
+            functionInstructions.append(instruction)
+            switch instruction.operation {
+            case .branchIfZero(_, let target), .branchIfNotZero(_, let target), .conditionalBranchNotModelled(let target):
+                if isInFunction(target) {
+                    furthestInFunctionTarget = max(furthestInFunctionTarget, target)
+                }
+            case .branch(let target):
+                // A forward `b` to a function the caller can name is a tail
+                // call, not a jump — the function it names may sit right
+                // after this one inside the decoded window (the fixture's
+                // thunk tail-calls the image's own
+                // `__swift_instantiateConcreteTypeFromMangledNameV2` copy,
+                // which follows it), and reading it as a jump would extend
+                // this function into that one.
+                if isInFunction(target), !isKnownFunction(target) {
+                    furthestInFunctionTarget = max(furthestInFunctionTarget, target)
+                } else if instruction.address >= furthestInFunctionTarget {
+                    return functionInstructions
+                }
+            case .indirectBranch:
+                // A register jump never returns here either (a shared-cache
+                // stub's `braa x16, x17`, a tail call through a pointer).
+                if instruction.address >= furthestInFunctionTarget {
+                    return functionInstructions
+                }
+            case .returnFromFunction:
+                if instruction.address >= furthestInFunctionTarget {
+                    return functionInstructions
+                }
+            default:
+                break
+            }
+        }
+        return functionInstructions
+    }
+
+    /// Decodes up to `maximumInstructionCount` instructions starting at
+    /// `startAddress`, with no notion of where the function ends.
+    ///
+    /// `startAddress` must be the address the code will be *interpreted* at
+    /// (the virtual address), not the offset it was read from: Capstone
+    /// resolves `adrp` and `bl` operands against it, and every absolute
+    /// address the analysis derives comes from those operands.
+    public static func decode(
+        machineCode: Data,
+        startAddress: UInt64,
+        maximumInstructionCount: Int = defaultMaximumInstructionCount
+    ) throws -> [ThunkInstruction] {
+        let capstone = try Capstone(arch: .aarch64, mode: [Mode.endian.little])
+        try capstone.set(option: .detail(value: true))
+        let decodedInstructions: [AArch64Instruction] = try capstone.disassemble(
+            code: machineCode,
+            address: startAddress,
+            count: maximumInstructionCount
+        )
+        return decodedInstructions.map(thunkInstruction(from:))
+    }
+
+    private static func thunkInstruction(from instruction: AArch64Instruction) -> ThunkInstruction {
+        ThunkInstruction(
+            address: instruction.address,
+            operation: operation(from: instruction),
+            mnemonic: instruction.mnemonic
+        )
+    }
+
+    private static func operation(from instruction: AArch64Instruction) -> ThunkOperation {
+        let operation = modelledOperation(from: instruction)
+        if case .unmodelled = operation {
+            return .unmodelled(writtenRegisters: writtenRegisters(of: instruction))
+        }
+        return operation
+    }
+
+    /// The general-purpose registers an instruction writes, per the
+    /// disassembler's register-access list (explicit and implicit).
+    private static func writtenRegisters(of instruction: AArch64Instruction) -> [ThunkRegister] {
+        var registers: [ThunkRegister] = []
+        for register in instruction.registersAccessed.written + instruction.registersAccessedImplicitly.written {
+            guard let thunkRegister = thunkRegister(from: register), !registers.contains(thunkRegister) else { continue }
+            registers.append(thunkRegister)
+        }
+        return registers
+    }
+
+    private static func modelledOperation(from instruction: AArch64Instruction) -> ThunkOperation {
+        let operands = instruction.operands
+        switch semanticInstruction(of: instruction) {
+        case .adrp:
+            guard let destination = register(at: 0, of: operands),
+                  let pageBaseAddress = immediateValue(at: 1, of: operands)
+            else { return .unmodelled(writtenRegisters: []) }
+            return .materializePageAddress(destination: destination, pageBaseAddress: UInt64(bitPattern: pageBaseAddress))
+        case .adr:
+            // `adr` materializes a full address on its own, which the tracker
+            // models as a page address with nothing added to it.
+            guard let destination = register(at: 0, of: operands),
+                  let address = immediateValue(at: 1, of: operands)
+            else { return .unmodelled(writtenRegisters: []) }
+            return .materializePageAddress(destination: destination, pageBaseAddress: UInt64(bitPattern: address))
+        case .add:
+            guard let destination = register(at: 0, of: operands),
+                  let source = register(at: 1, of: operands),
+                  let addend = immediateValue(at: 2, of: operands)
+            else { return .unmodelled(writtenRegisters: []) }
+            return .addImmediate(destination: destination, source: source, addend: addend)
+        case .sub:
+            // `sub sp, sp, #48` opens a frame; modelled as adding the negated
+            // immediate so a stack model sees one kind of base adjustment.
+            guard let destination = register(at: 0, of: operands),
+                  let source = register(at: 1, of: operands),
+                  let subtrahend = immediateValue(at: 2, of: operands)
+            else { return .unmodelled(writtenRegisters: []) }
+            return .addImmediate(destination: destination, source: source, addend: -subtrahend)
+        case .mov, .movz:
+            // Copy aliases have already been normalized above. A genuine
+            // `orr` must not discard one input and masquerade as a copy.
+            guard let destination = register(at: 0, of: operands) else { return .unmodelled(writtenRegisters: []) }
+            if let value = immediateValue(at: 1, of: operands) {
+                return .moveImmediate(destination: destination, value: value)
+            }
+            if let source = register(at: 1, of: operands) {
+                return .moveRegister(destination: destination, source: source)
+            }
+            return .unmodelled(writtenRegisters: [])
+        case .ldr, .ldur:
+            guard let destination = register(at: 0, of: operands),
+                  let memory = memoryOperand(at: 1, of: instruction),
+                  !writesBack(instruction)
+            else { return .unmodelled(writtenRegisters: []) }
+            return .loadFromMemory(
+                destination: destination,
+                base: memory.base,
+                displacement: memory.displacement
+            )
+        case .ldp:
+            guard let first = register(at: 0, of: operands),
+                  let second = register(at: 1, of: operands),
+                  let memory = memoryOperand(at: 2, of: instruction)
+            else { return .unmodelled(writtenRegisters: []) }
+            return .loadPairFromMemory(
+                first: first,
+                second: second,
+                base: memory.base,
+                displacement: memory.displacement,
+                adjustsBase: writesBack(instruction)
+            )
+        case .str, .stur:
+            guard let source = register(at: 0, of: operands),
+                  let memory = memoryOperand(at: 1, of: instruction),
+                  !writesBack(instruction)
+            else { return .unmodelled(writtenRegisters: []) }
+            return .storeToMemory(source: source, base: memory.base, displacement: memory.displacement)
+        case .stp:
+            guard let first = register(at: 0, of: operands),
+                  let second = register(at: 1, of: operands),
+                  let memory = memoryOperand(at: 2, of: instruction)
+            else { return .unmodelled(writtenRegisters: []) }
+            return .storePairToMemory(
+                first: first,
+                second: second,
+                base: memory.base,
+                displacement: memory.displacement,
+                adjustsBase: writesBack(instruction)
+            )
+        case .bl:
+            guard let target = immediateValue(at: 0, of: operands) else { return .unmodelled(writtenRegisters: []) }
+            return .call(target: UInt64(bitPattern: target))
+        case .b:
+            guard let target = immediateValue(at: 0, of: operands) else { return .unmodelled(writtenRegisters: []) }
+            // A conditional `b.<cond>` carries the same operand shape; the
+            // condition code is what tells them apart. Only the unconditional
+            // form is a branch — a conditional one is a shape the analysis
+            // has not been taught, kept with its target so the evaluator can
+            // refuse it and the boundary rule can still see where it points.
+            guard instruction.conditionCode == nil else { return .conditionalBranchNotModelled(target: UInt64(bitPattern: target)) }
+            return .branch(target: UInt64(bitPattern: target))
+        case .bc:
+            guard let target = immediateValue(at: 0, of: operands) else { return .unmodelled(writtenRegisters: []) }
+            return .conditionalBranchNotModelled(target: UInt64(bitPattern: target))
+        case .tbz, .tbnz:
+            // `tbz <register>, #<bit>, #<target>`: the bit test is not modelled.
+            guard let target = immediateValue(at: 2, of: operands) else { return .unmodelled(writtenRegisters: []) }
+            return .conditionalBranchNotModelled(target: UInt64(bitPattern: target))
+        case .cbz:
+            guard let register = register(at: 0, of: operands),
+                  let target = immediateValue(at: 1, of: operands)
+            else { return .unmodelled(writtenRegisters: []) }
+            return .branchIfZero(register: register, target: UInt64(bitPattern: target))
+        case .cbnz:
+            guard let register = register(at: 0, of: operands),
+                  let target = immediateValue(at: 1, of: operands)
+            else { return .unmodelled(writtenRegisters: []) }
+            return .branchIfNotZero(register: register, target: UInt64(bitPattern: target))
+        case .aliasCmp:
+            guard let register = register(at: 0, of: operands),
+                  let value = immediateValue(at: 1, of: operands)
+            else { return .unmodelled(writtenRegisters: []) }
+            return .compareImmediate(register: register, value: value)
+        case .csel:
+            guard let destination = register(at: 0, of: operands),
+                  let whenConditionHolds = register(at: 1, of: operands),
+                  let otherwise = register(at: 2, of: operands)
+            else { return .unmodelled(writtenRegisters: []) }
+            return .conditionalSelect(
+                destination: destination,
+                whenConditionHolds: whenConditionHolds,
+                otherwise: otherwise,
+                condition: condition(from: instruction.conditionCode)
+            )
+        case .ret, .retaa, .retab:
+            // `retaa` / `retab` are `ret` with pointer authentication of the
+            // return address; reading them as ordinary instructions let the
+            // decoder walk straight past a function's end into the next one.
+            return .returnFromFunction
+        case .br, .braa, .brab:
+            guard let register = register(at: 0, of: operands) else { return .unmodelled(writtenRegisters: []) }
+            return .indirectBranch(register: register)
+        case .brk:
+            return .trap
+        case .pacia, .pacib, .pacda, .pacdb, .paciza, .pacizb, .pacdza, .pacdzb,
+             .autia, .autib, .autda, .autdb, .autiza, .autizb, .autdza, .autdzb,
+             .xpaci, .xpacd:
+            guard let register = register(at: 0, of: operands) else { return .unmodelled(writtenRegisters: []) }
+            return .signOrAuthenticatePointer(register: register)
+        case .blr, .blraa, .blrab, .blraaz, .blrabz:
+            guard let register = register(at: 0, of: operands) else { return .unmodelled(writtenRegisters: []) }
+            return .indirectCall(register: register)
+        default:
+            return .unmodelled(writtenRegisters: [])
+        }
+    }
+
+    private static func semanticInstruction(of instruction: AArch64Instruction) -> AArch64Ins? {
+        // v6 combines an underlying opcode with the displayed alias's operands.
+        // Match both before interpreting a shortened move or comparison list.
+        switch (instruction.instruction, instruction.mnemonic) {
+        case (.orr, "mov"), (.add, "mov"), (.movz, "mov"), (.movn, "mov"):
+            return .mov
+        case (.subs, "cmp"):
+            return .aliasCmp
+        default:
+            return instruction.instruction
+        }
+    }
+
+    private static func writesBack(_ instruction: AArch64Instruction) -> Bool {
+        // v6 exposes post-indexing but no general write-back flag. Pre-indexed
+        // memory operands retain the `!` marker in Capstone's printed syntax.
+        // A written base register alone is insufficient: `ldr x0, [x0]` also
+        // writes its base, through the load destination rather than write-back.
+        instruction.isPostIndex == true || instruction.operandsString.contains("]!")
+    }
+
+    private static func condition(from conditionCode: AArch64CondCode?) -> ThunkCondition {
+        switch conditionCode {
+        case .eq: .equal
+        case .ne: .notEqual
+        default: .unsupported
+        }
+    }
+
+    private static func register(at index: Int, of operands: [AArch64Instruction.Operand]) -> ThunkRegister? {
+        guard index < operands.count, let register = operands[index].register else { return nil }
+        return thunkRegister(from: register)
+    }
+
+    private static func immediateValue(at index: Int, of operands: [AArch64Instruction.Operand]) -> Int64? {
+        guard index < operands.count, let value = operands[index].immediateValue else { return nil }
+        guard let shift = operands[index].shift else { return value }
+        guard shift.type == .lsl, shift.value < 64 else { return nil }
+        return value << shift.value
+    }
+
+    private static func memoryOperand(
+        at index: Int,
+        of instruction: AArch64Instruction
+    ) -> (base: ThunkRegister, displacement: Int64)? {
+        let operands = instruction.operands
+        guard index < operands.count, let memory = operands[index].memory else { return nil }
+        // An indexed load reads a register this analysis does not track, so it
+        // is not a plain displacement and must not be reported as one.
+        guard memory.index == nil, let base = thunkRegister(from: memory.base) else { return nil }
+        // v6 places the post-index update in mem.disp; the access itself still
+        // reads the old base. The evaluator separately refuses write-back.
+        return (base: base, displacement: instruction.isPostIndex == true ? 0 : memory.displacement)
+    }
+
+    /// Folds Capstone's separate 32-bit and 64-bit register spellings onto one
+    /// register number; see ``ThunkRegister``.
+    private static func thunkRegister(from register: AArch64Reg) -> ThunkRegister? {
+        switch register {
+        case .fp:
+            return ThunkRegister(number: 29)
+        case .lr:
+            return ThunkRegister(number: 30)
+        case .xzr, .wzr:
+            return .zeroRegister
+        case .sp, .wsp:
+            return .stackPointer
+        default:
+            break
+        }
+        let rawValue = Int(register.rawValue)
+        let firstWordRegister = Int(AArch64Reg.w0.rawValue)
+        let firstDoubleWordRegister = Int(AArch64Reg.x0.rawValue)
+        // `w0`–`w30` and `x0`–`x28` are two contiguous runs; `x29` / `x30` are
+        // spelled `fp` / `lr` and handled above.
+        if rawValue >= firstWordRegister, rawValue <= Int(AArch64Reg.w30.rawValue) {
+            return ThunkRegister(number: rawValue - firstWordRegister)
+        }
+        if rawValue >= firstDoubleWordRegister, rawValue <= Int(AArch64Reg.x28.rawValue) {
+            return ThunkRegister(number: rawValue - firstDoubleWordRegister)
+        }
+        return nil
+    }
+}

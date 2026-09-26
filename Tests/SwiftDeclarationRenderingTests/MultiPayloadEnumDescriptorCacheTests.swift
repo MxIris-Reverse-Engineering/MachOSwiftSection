@@ -33,7 +33,7 @@ final class MultiPayloadEnumDescriptorCacheTests: MachOSwiftSectionFixtureTests,
 
         for multiPayloadEnumDescriptor in multiPayloadEnumDescriptors {
             let mangledTypeName = try multiPayloadEnumDescriptor.mangledTypeName(in: machOImage)
-            let node = try MetadataReader.demangleType(for: mangledTypeName, in: machOImage)
+            let node = try SymbolicDemangler.demangleType(for: mangledTypeName, in: machOImage)
             let cached = MultiPayloadEnumDescriptorCache.shared.multiPayloadEnumDescriptor(for: node, in: machOImage)
             #expect(cached != nil, "cache missed a descriptor the build sweep should have indexed")
         }
@@ -61,7 +61,7 @@ final class MultiPayloadEnumDescriptorCacheTests: MachOSwiftSectionFixtureTests,
 
         for realDescriptor in realDescriptors {
             let mangledTypeName = try realDescriptor.mangledTypeName(in: machOFile)
-            let node = try MetadataReader.demangleType(for: mangledTypeName, in: machOFile)
+            let node = try SymbolicDemangler.demangleType(for: mangledTypeName, in: machOFile)
             #expect(
                 indexedDescriptorByNode[node] != nil,
                 "a descriptor after the unreadable one was dropped — the catch is truncating the map instead of skipping one entry"
@@ -84,14 +84,10 @@ final class MultiPayloadEnumDescriptorCacheTests: MachOSwiftSectionFixtureTests,
     }
 
     /// Presence trip-wire for the wholesale-suppression regression: every
-    /// non-generic **copyable** multi-payload enum in the fixture must produce
-    /// an enum layout through the runtime renderer when `printEnumLayout` is
-    /// on. Noncopyable enums are excluded: their payload field records carry
-    /// kind-9 (accessor-function) symbolic references, which the static
-    /// demangle path cannot resolve to a payload size — they degrade to no
-    /// layout by design (pinned separately below; resolving them in-process
-    /// is the recorded layer-1 follow-up in
-    /// `Documentations/Internal/AccessorFunctionReferenceRendering.md`).
+    /// non-generic multi-payload enum in the fixture must produce an enum
+    /// layout through the runtime renderer when `printEnumLayout` is on —
+    /// noncopyable ones included, whose payload field records carry kind-9
+    /// (accessor-function) symbolic references; see the test below.
     @MainActor
     @Test func everyFixtureMultiPayloadEnumRendersALayout() async throws {
         var configuration = DeclarationRenderConfiguration.demangleOptions(.default)
@@ -99,8 +95,7 @@ final class MultiPayloadEnumDescriptorCacheTests: MachOSwiftSectionFixtureTests,
 
         var checkedEnumCount = 0
         for type in try machOImage.swift.types {
-            guard case .enum(let enumType) = type, !enumType.descriptor.isGeneric, enumType.isMultiPayload,
-                  !(enumType.invertibleProtocolSet?.hasInvertedProtocols ?? false) else { continue }
+            guard case .enum(let enumType) = type, !enumType.descriptor.isGeneric, enumType.isMultiPayload else { continue }
             let renderer = FieldLayoutRenderer(type: type, metadata: nil, machO: machOImage, configuration: configuration)
             let enumLayout = await renderer.enumLayout
             #expect(enumLayout != nil, "no layout for \(enumType.descriptor)")
@@ -109,25 +104,35 @@ final class MultiPayloadEnumDescriptorCacheTests: MachOSwiftSectionFixtureTests,
         try #require(checkedEnumCount > 0, "fixture must contain non-generic multi-payload enums")
     }
 
-    /// The honest-degradation contract for the excluded class above: a
-    /// noncopyable multi-payload enum (kind-9 payload references) yields *no*
-    /// layout rather than a fabricated one. If in-process resolution of
-    /// accessor-function references lands (layer 1), this pin flips and must
-    /// be updated deliberately together with the sweep's exclusion.
+    /// `AccessorFunctionReferences.NoncopyablePayloadEnumTest` is
+    /// `~Copyable`, so its payload field records name their types through
+    /// kind-9 (accessor-function) symbolic references. The in-process backend
+    /// asks the runtime for each payload type
+    /// (`swift_getTypeByMangledNameInContext`, which runs the accessor), so
+    /// the layout follows from the source like any other: both payloads are
+    /// one `Int` wide and have no spare bits, so an extra tag byte after the
+    /// 8-byte payload area tells the cases apart — `holding` 0, `boxed` 1, and
+    /// the empty case 2 over a zeroed payload area.
+    ///
+    /// This test used to pin the opposite, that such an enum degrades to no
+    /// layout, as a trip-wire for the day kind-9 payloads resolved; it had
+    /// been failing on `next` since at least 2026-09-17.
     @MainActor
-    @Test func noncopyableMultiPayloadEnumDegradesToNoLayout() async throws {
+    @Test func noncopyableMultiPayloadEnumLaysOutFromItsResolvedPayloads() async throws {
         var configuration = DeclarationRenderConfiguration.demangleOptions(.default)
         configuration.printEnumLayout = true
 
-        var checkedEnumCount = 0
-        for type in try machOImage.swift.types {
-            guard case .enum(let enumType) = type, !enumType.descriptor.isGeneric, enumType.isMultiPayload,
-                  enumType.invertibleProtocolSet?.hasInvertedProtocols == true else { continue }
-            let renderer = FieldLayoutRenderer(type: type, metadata: nil, machO: machOImage, configuration: configuration)
-            let enumLayout = await renderer.enumLayout
-            #expect(enumLayout == nil, "unexpected layout for noncopyable multi-payload enum \(enumType.descriptor) — layer 1 landed? update the sweep exclusion too")
-            checkedEnumCount += 1
-        }
-        try #require(checkedEnumCount > 0, "fixture must contain a noncopyable multi-payload enum (AccessorFunctionReferences.NoncopyablePayloadEnumTest)")
+        let noncopyableEnumType = try #require(try machOImage.swift.types.first { type in
+            guard case .enum(let enumType) = type else { return false }
+            return try enumType.descriptor.name(in: machOImage) == "NoncopyablePayloadEnumTest"
+        }, "fixture must contain AccessorFunctionReferences.NoncopyablePayloadEnumTest")
+        let renderer = FieldLayoutRenderer(type: noncopyableEnumType, metadata: nil, machO: machOImage, configuration: configuration)
+        let enumLayout = try #require(await renderer.enumLayout)
+
+        #expect(enumLayout.tagRegion?.range == 8 ..< 9)
+        #expect(enumLayout.numTags == 3)
+        #expect(enumLayout.cases.map(\.declaredName) == ["holding", "boxed", "empty"])
+        #expect(enumLayout.cases.map(\.tagValue) == [0, 1, 2])
+        #expect(enumLayout.cases.map(\.isPayloadCase) == [true, true, false])
     }
 }

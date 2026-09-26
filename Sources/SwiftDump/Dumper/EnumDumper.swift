@@ -10,7 +10,7 @@ import Dependencies
 @_spi(Internals) import SwiftInspection
 import SwiftDeclarationRendering
 
-package struct EnumDumper<MachO: FieldLayoutRenderable>: TypedDumper {
+package struct EnumDumper<MachO: MachOFieldLayoutRenderable>: TypedDumper {
     package typealias Dumped = Enum
 
     package typealias Metadata = EnumMetadata
@@ -92,32 +92,41 @@ package struct EnumDumper<MachO: FieldLayoutRenderable>: TypedDumper {
 
                 Indent(level: configuration.indentation)
 
-                if fieldRecord.flags.contains(.isIndirectCase) {
-                    Keyword(.indirect)
-                    Space()
-                    Keyword(.case)
-                    Space()
+                let caseName = try fieldRecord.fieldName(in: machO)
+                if caseName.isEmpty {
+                    // Swift 6.4: an element unavailable at run time keeps its
+                    // tag, but the compiler emits neither its name nor its
+                    // payload type. Say so rather than print a nameless `case`;
+                    // mirrors `printThrowingEnumCase`.
+                    Comment(FieldRecordRendering.namelessEnumCaseComment)
                 } else {
-                    Keyword(.case)
-                    Space()
-                }
+                    if fieldRecord.flags.contains(.isIndirectCase) {
+                        Keyword(.indirect)
+                        Space()
+                        Keyword(.case)
+                        Space()
+                    } else {
+                        Keyword(.case)
+                        Space()
+                    }
 
-                try MemberDeclaration("\(fieldRecord.fieldName(in: machO))")
+                    MemberDeclaration(caseName)
 
-                if !mangledTypeName.isEmpty {
-                    let node = try fieldDemangledTypeNode(for: mangledTypeName)
-                    let demangledName = try await demangleResolver.resolve(for: node)
-                    // A payload node the resolver renders as an empty string
-                    // (an uncovered `Node.Kind`) degrades to the bare case —
-                    // `case name()` is not valid Swift. Mirrors
-                    // `printThrowingEnumCase` so both paths spell the same.
-                    if !demangledName.string.isEmpty {
-                        if node.firstChild?.isKind(of: .tuple) ?? false {
-                            demangledName
-                        } else {
-                            Standard("(")
-                            demangledName
-                            Standard(")")
+                    if !mangledTypeName.isEmpty {
+                        let node = try fieldDemangledTypeNode(for: mangledTypeName)
+                        let demangledName = try await demangleResolver.resolve(for: node)
+                        // A payload node the resolver renders as an empty string
+                        // (an uncovered `Node.Kind`) degrades to the bare case —
+                        // `case name()` is not valid Swift. Mirrors
+                        // `printThrowingEnumCase` so both paths spell the same.
+                        if !demangledName.string.isEmpty {
+                            if node.firstChild?.isKind(of: .tuple) ?? false {
+                                demangledName
+                            } else {
+                                Standard("(")
+                                demangledName
+                                Standard(")")
+                            }
                         }
                     }
                 }
@@ -145,7 +154,7 @@ package struct EnumDumper<MachO: FieldLayoutRenderable>: TypedDumper {
             // context node picks this type's own sub-bucket (issue #115).
             // A context that cannot be demangled falls back to the name-only
             // (merged) lookup rather than dropping members.
-            let contextNode = try? MetadataReader.demangleContext(for: .type(.enum(dumped.descriptor)), in: machO)
+            let contextNode = try? SymbolicDemangler.demangleContext(for: .type(.enum(dumped.descriptor)), in: machO)
 
             for kind in SymbolIndexStore.MemberKind.allCases {
                 let memberSymbols = if let contextNode {
@@ -205,7 +214,7 @@ package struct EnumDumper<MachO: FieldLayoutRenderable>: TypedDumper {
     @SemanticStringBuilder
     private func _name(using resolver: DemangleResolver) async throws -> SemanticString {
         if configuration.displayParentName {
-            try await resolver.resolve(for: MetadataReader.demangleContext(for: .type(.enum(dumped.descriptor)), in: machO)).replacingTypeNameOrOtherToTypeDeclaration()
+            try await resolver.resolve(for: SymbolicDemangler.demangleContext(for: .type(.enum(dumped.descriptor)), in: machO)).replacingTypeNameOrOtherToTypeDeclaration()
         } else {
             try TypeDeclaration(kind: .enum, dumped.descriptor.name(in: machO))
         }

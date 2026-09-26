@@ -37,8 +37,8 @@ extension SwiftEvolutionInterfaceDumpTests {
     /// Builds and `prepare()`s the whole axis in one timed step — indexing N
     /// binaries is the real cost; the lineage join and rendering afterwards
     /// are cheap by comparison.
-    private func preparedBuilder<MachO: FieldLayoutRenderable>(
-        versions: [(label: String, machO: MachO)]
+    private func preparedBuilder(
+        versions: [(label: String, machO: some MachOFieldLayoutRenderable)]
     ) async throws -> AnySwiftEvolutionInterfaceBuilder {
         let builder = try AnySwiftEvolutionInterfaceBuilder(
             configuration: indexConfiguration,
@@ -63,7 +63,7 @@ extension SwiftEvolutionInterfaceDumpTests {
 
     /// Console analogue of `evolutionString`: prepares every version, then
     /// prints the annotated union interface.
-    func evolutionInterfaceString<MachO: FieldLayoutRenderable>(versions: [(label: String, machO: MachO)]) async throws {
+    func evolutionInterfaceString(versions: [(label: String, machO: some MachOFieldLayoutRenderable)]) async throws {
         let builder = try await preparedBuilder(versions: versions)
         printResult(try await annotatedInterfaceReport(of: builder))
     }
@@ -71,7 +71,7 @@ extension SwiftEvolutionInterfaceDumpTests {
     /// File analogue of `evolutionFile`: writes the annotated union interface
     /// (`-EvolutionInterface.swiftinterface`) next to the lineage-report and
     /// diff dumps, named after the *newest* version.
-    func evolutionInterfaceFile<MachO: FieldLayoutRenderable>(versions: [(label: String, machO: MachO)]) async throws {
+    func evolutionInterfaceFile(versions: [(label: String, machO: some MachOFieldLayoutRenderable)]) async throws {
         let builder = try await preparedBuilder(versions: versions)
         guard let newestVersion = versions.last else { return }
         try await write(annotatedInterfaceReport(of: builder), for: newestVersion.machO, suffix: "EvolutionInterface")

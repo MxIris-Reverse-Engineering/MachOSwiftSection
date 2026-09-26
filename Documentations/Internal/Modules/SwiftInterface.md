@@ -27,7 +27,7 @@ SwiftInterface 是接口生成的**编排层**（thin orchestrator）：它自�
 
 ## 子系统 1：单版本接口生成
 
-`SwiftInterfaceBuilder<MachO: FieldLayoutRenderable>` 持有一对 `SwiftDeclarationIndexer` + `SwiftDeclarationPrinter`（`@_spi(Support)` 暴露，宿主可直接触达），生命周期是两步：`prepare()` 然后 `printRoot()`。
+`SwiftInterfaceBuilder<MachO: MachOFieldLayoutRenderable>` 持有一对 `SwiftDeclarationIndexer` + `SwiftDeclarationPrinter`（`@_spi(Support)` 暴露，宿主可直接触达），生命周期是两步：`prepare()` 然后 `printRoot()`。
 
 **`prepare()` 的顺序与失败语义**：先逐个 `extraDataProvider.setup()`（失败**降级**为 `renderingDegraded` 事件，不阻断——外挂数据源坏了不该毁掉整份接口），再 `indexer.prepare()`（失败**抛出**），最后 `collectModules()`（失败**抛出**）。全程用 `phaseTransition` 事件汇报阶段。
 
@@ -52,7 +52,7 @@ SwiftInterface 是接口生成的**编排层**（thin orchestrator）：它自�
 
 把 `some P` 的占位还原成带 primary associated type 实参的完整拼写（`some Collection<Int> & Sendable`）。领域细节已有两篇专文——[OpaqueReturnTypeResolution.md](../OpaqueReturnTypeResolution.md)（descriptor 编码、anchor/塌缩机制、字节级调试）与 [OpaquePrimaryAssociatedTypeAttribution.md](../OpaquePrimaryAssociatedTypeAttribution.md)（提案 0011 的实现说明）——本节只给文件分工：
 
-- **`SwiftInterfaceBuilderOpaqueTypeProvider`**：入口，也是一个 `ExtraDataProvider`（挂到 builder 上，printer 打印 `some` 返回类型时经 `opaqueType(forNode:index:)` 回查）。从符号表定位 opaque type descriptor，把 generic requirements 拆成协议项与 same-type 项，逐协议调用归属判定（anchor 直接命中 → refine 闭包 → 名字兜底，兜底四条件缺一不可——宁可少一个实参也不捏造一个）。
+- **`SwiftInterfaceBuilderOpaqueTypeProvider`**：入口，也是一个 `ExtraDataProvider`（挂到 builder 上，printer 打印 `some` 返回类型时经 `opaqueType(forNode:index:)` 回查）。从符号表定位 opaque type descriptor，把 generic requirements 拆成 superclass 项、协议项与 same-type 项（`some Base & P` 的父类排在组合最前，与编译器 `.swiftinterface` 同形；2026-09-18 之前 superclass 项被 `OpaqueType.requirements(in:)` 与 provider 双双丢弃，`some Base` 打成裸 `some`），逐协议调用归属判定（anchor 直接命中 → refine 闭包 → 名字兜底，兜底四条件缺一不可——宁可少一个实参也不捏造一个）。参数按坐标（深度 + 序号）定位而不是按位置：没有运行时可见约束的参数（`some Sendable` / `some Any` / `some AnyObject`）返回 nil、渲染为裸 `some`，走不到的状态 `#log(.fault)` 加 debug 断言，读取失败 `#log(.error)`（见 [OpaqueReturnTypeResolution.md](../OpaqueReturnTypeResolution.md) §1.3、§1.4）。实参与父类这类**完整类型**用去掉 `removeBoundGeneric` 的选项打印，并先剥掉关联类型的协议限定（`Node.strippingAssociatedTypeProtocolQualifiers()`，在 `SwiftDeclarationRendering`）——上游 `NodePrinter` 的 `*BuilderOnly` 选项是给类型名用的，直接拿来打类型会丢泛型实参、多出 `A.Probe.N.A` 这样的限定（同文 §2.3、§4.7）。
 - **`OpaqueSameTypeConstraint`** / **`OpaqueDependentMemberProjection`**：从 requirement 节点里挖出来的单条 same-type 约束（区分正向 pin `τ.Name == X` 与反向 pin `outer == τ.Name`，后者渲染期经 `SubstitutionMap` 回溯）及其解析器。
 - **`ProtocolFactsResolver`**：按「可达 descriptor 优先、内置表兜底」的链条解析协议事实（自声明的 associated type 名、refine 闭包），`refineClosureContainsAnchor` 对不完整闭包返回三态（命中 / 完整排除 / `nil` 不可证）。
 - **`BuiltinStandardLibraryProtocolFacts`**：冻结的 stdlib 协议表——**primary associated type 名单与顺序的唯一来源**（SE-0346 不留运行时痕迹），也是离线 bind-only 外部协议的兜底。无 associated type 的协议也登记空条目，让归属能说「确定不附着」而非降级。
@@ -92,7 +92,7 @@ N ≥ 2 版本渲染成**一份**并集接口，声明尾注生命周期注解�
 
 | 入口 | 路径 |
 |---|---|
-| `swift-section interface` | `SwiftInterfaceBuilder`（+ `--resolve-c-module-names` 挂 TypeIndexing provider，opaque provider 默认挂） |
+| `swift-section interface` | `SwiftInterfaceBuilder`（+ `--resolve-c-module-names` 挂 TypeIndexing provider，opaque provider 只在 `--parse-opaque-return-type` 下挂，默认关） |
 | `swift-section diff --interface` | `SwiftDiffableInterfaceBuilder` ×2 + `SwiftDiffableInterfaceRenderer` |
 | `swift-section evolution --interface` | `AnySwiftEvolutionInterfaceBuilder`（与 `--json`/`--summary-only` 互斥） |
 | `swift-section diff` / `snapshot` / `evolution`（数据路径） | `SwiftDiffableInterfaceBuilder.abiModule()/snapshot()` → SwiftDiffing |
