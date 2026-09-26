@@ -707,6 +707,11 @@ extension Target {
             .product(name: "ObjCDiffing", package: "MachOObjCSection"),
             .product(name: "ObjCIndexing", package: "MachOObjCSection"),
             .product(name: "ObjCInterface", package: "MachOObjCSection"),
+            // `ObjCInterfaceSession` names `ObjCInterfaceIndexer<MachOFile>`,
+            // whose `MachOFile: ObjCMetadataSource` conformance lives here;
+            // Swift 6.4 warns when a file uses a conformance from a module it
+            // does not import.
+            .product(name: "ObjCMetadataSource", package: "MachOObjCSection"),
             .product(name: "ObjCOutputTransformer", package: "MachOObjCSection"),
             .product(name: "Rainbow", package: "Rainbow"),
             .product(name: "ArgumentParser", package: "swift-argument-parser"),
