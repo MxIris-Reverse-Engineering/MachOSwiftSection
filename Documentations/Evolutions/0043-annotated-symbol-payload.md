@@ -1,10 +1,10 @@
-# Draft - `AnnotatedSymbol<Payload>`：构建期符号包装泛型化，两个 offset 不再同名
+# 0043 - `AnnotatedSymbol<Payload>`：构建期符号包装泛型化，两个 offset 不再同名
 
-- **状态**: In Progress
+- **状态**: Implemented
 - **创建日期**: 2026-09-17
-- **最后更新**: 2026-09-17
+- **最后更新**: 2026-09-26
 - **所属愿景**: 无
-- **关联提案**: [draft-swift-declaration-file-layout](draft-swift-declaration-file-layout.md)（那批把这个类型从 `ProtocolDefinition.swift` 抽成独立文件，当时名为 `DemangledSymbolWithOffset.swift`；本提案改它的建模与文件名。该提案正文保留当时的名字不动——它记录的是自己那批做了什么，改写会让它的决策日志指向一个当时并不存在的名字）
+- **关联提案**: [0042-swift-declaration-file-layout](0042-swift-declaration-file-layout.md)（那批把这个类型从 `ProtocolDefinition.swift` 抽成独立文件，当时名为 `DemangledSymbolWithOffset.swift`；本提案改它的建模与文件名。该提案正文保留当时的名字不动——它记录的是自己那批做了什么，改写会让它的决策日志指向一个当时并不存在的名字）
 - **实现分支 / PR**: `next`
 - **配套文档**: [Modules/SwiftDeclaration.md](../Internal/Modules/SwiftDeclaration.md)（构建期机器一行）；[DefaultImplementationAwareCompatibility.md](../Internal/DefaultImplementationAwareCompatibility.md)（索引期数据通路一段）
 
@@ -53,3 +53,4 @@ package typealias MemberSymbol = AnnotatedSymbol<ProtocolWitnessTableOffset?>
 - **2026-09-17 为什么不下沉到 `Utilities`**：`base` 写死了 `DemangledSymbol`，最低只能到 `MachOSymbols`；真要进 `Utilities` 得连 base 一起泛型化成 `Annotated<Base, Payload>`，写起来 `Annotated<DemangledSymbol, Int?>` 反而更长，而且那一层现在没有第二个用例。等真出现第二个消费者再搬。
 - **2026-09-17 `package struct` 的 `Sendable` 推断**：typecheck 探针证实 `package` 类型会被推断为 `Sendable`，但本提案仍在 `ProtocolWitnessTableOffset` 上显式写出——探针只覆盖单模块，而真实用法是 `SwiftDeclaration` 定义、`SwiftIndexing` 消费，不赌推断规则。
 - **2026-09-17 `.map(ProtocolWitnessTableOffset.init)` 编译不过**：`init(rawValue:)` 与 `init(_:)` 都只收一个 `Int`，裸 `.init` 报 `ambiguous use of 'init'`，必须写全 `.init(_:)`。两个 init 都保留——`init(_:)` 让内部构造短，`init(rawValue:)` 是 `RawRepresentable` 的要求。
+- **2026-09-26 In Progress → Implemented，落地编号 0043**：代码已于 2026-09-17 随 `a3ff2c45` 合入 `next`，当时状态停在 In Progress、没有取号；0.20.0 发版收尾时按合入顺序补取。配套文档见头部，已随代码更新；没有新的项目术语。

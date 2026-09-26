@@ -1,9 +1,9 @@
-# Draft - 识别 `@objc @implementation` 类：ObjC class 数据与 Swift 符号的联合归属
+# 0046 - 识别 `@objc @implementation` 类：ObjC class 数据与 Swift 符号的联合归属
 
 - **状态**: Implemented
 - **作者**: JH
 - **创建日期**: 2026-09-20
-- **最后更新**: 2026-09-20
+- **最后更新**: 2026-09-26
 - **所属愿景**: 无
 - **关联提案**: [0018-self-contained-abi-layer](0018-self-contained-abi-layer.md)（符号归属一律放 SwiftInspection，本提案的联合索引沿用这个归宿）、[0007-extension-container-dedup-and-default-impl-attribution](0007-extension-container-dedup-and-default-impl-attribution.md)（extension 容器合并，新加的事实必须在合并时保留）、[0016-exported-only-interface](0016-exported-only-interface.md)（`--exported-only` 对这类 extension 的裁决不动）
 - **实现分支 / PR**: `feature/objc-implementation-class-recognition`（worktree `.worktrees/MachOSwiftSection-ObjCImplementationClasses`，自 `next` 分出）
@@ -137,3 +137,4 @@ count // Tq,N,Vcount
 | 2026-09-20 | `ObjCImplementationClassFacts` 与 `InstanceVariable` 做成不可变 final class | 第一版是 struct，`ExtensionDefinition` 实例从 ≤ 320 B 涨到 360 B，`DeclarationModelInstanceSizeTests` 红；每个 `VariableDefinition` 也会内联一份约百字节的 ivar 事实。改成引用后各占 8 B |
 | 2026-09-20 | accessor 证据只认导出表里的那个 | 渲染 A/B 抓到误报：SwiftUICore 里 clang 编的 `DateFormattingContext` 被认成 `@implementation`，因为 cache 的本地符号表里有一个 hidden 的 non-unique `$sSo21DateFormattingContextCMa`（`MetadataRequest.cpp`：imported 类的 `PublicNonUnique` linkage 走 `NonUniqueAccessor`，谁用谁发）。改为 `isExported == true` 才算；fixture 的 clang 反例补了一句 `String(describing: ClangWidget.self)` 让它也带上这种 accessor（一个空数组字面量不够，优化后不实例化 metadata） |
 | 2026-09-20 | In Progress → Implemented | 实现连同文档合入 `next`；配套文档（实现说明、任务报告）已登记在头部，术语已入术语表；编号按仓库惯例在发布合入 `main` 时分配 |
+| 2026-09-26 | 落地编号 0046 | 已于 2026-09-20 随 `584f1ff7` 起的一组提交 合入 `next` 并标为 Implemented，但当时没有取号；0.20.0 发版收尾时按合入顺序补取 |

@@ -1,10 +1,10 @@
-# Draft - interface 不打印编译器合成的成员：actor 默认存储与 property wrapper 的 `_x` / `$x`
+# 0041 - interface 不打印编译器合成的成员：actor 默认存储与 property wrapper 的 `_x` / `$x`
 
-- **状态**: In Progress
+- **状态**: Implemented
 - **创建日期**: 2026-09-16
-- **最后更新**: 2026-09-17
+- **最后更新**: 2026-09-26
 - **所属愿景**: 无
-- **关联提案**: [draft-raw-layout-artificial-field-handling](draft-raw-layout-artificial-field-handling.md)（人造字段那批引出了本提案的第一条裁定）
+- **关联提案**: [0040-raw-layout-artificial-field-handling](0040-raw-layout-artificial-field-handling.md)（人造字段那批引出了本提案的第一条裁定）
 - **实现分支 / PR**: `feature/swift-6.4-adaptation`
 - **配套文档**: [Modules/SwiftDeclaration.md](../Internal/Modules/SwiftDeclaration.md)（`wrappedProperties` 一段）；规则写在 `TypeDefinition+WrappedProperties.swift` 与 `PropertyWrapperTypeCatalog.swift` 的文档注释里
 
@@ -39,3 +39,4 @@ interface 的契约是「像源码」。两类成员在源码里并不存在，�
 | 2026-09-16 | 实现完成并验证通过，状态保持 In Progress | Swift 6.4 工具链：`SwiftInterfaceTests \| SwiftPrintingTests \| SwiftLayoutTests` 全绿（原始退出码 0），现场编译 fixture 补了泛型 wrapper（`@Boxed var title: String`）与双参数 wrapper（`@Tagged<String, Int> var count: Int`）两例；fixture 快照不受影响（`SymbolTestsCore` 定义了三个 wrapper 但没有用法） |
 | 2026-09-17 | 去掉槽位与 `SwiftInterfaceBuilder` 的安装点；跨镜像 wrapper 查 wrapper 所在镜像的导出表；accessor 被 strip 时从 `_x` 合成 `@Wrapper var x` | 用户裁定：「这个功能不要挂在 SwiftInterfaceBuilder 里面，有些下游不使用这个类会自定义打印」；三个候选里用户选了导出表识别、从 `_x` 合成 |
 | 2026-09-17 | 识别与合成放到索引（`TypeDefinition.index(in:)`）产出 `wrappedProperties`，打印只读模型 | 用户裁定：「这个活应该是索引那边干，打印只读取索引完成的类型定义里面的特定内容就可以打印出来」「索引的时候就能顺手把这些东西做了」 |
+| 2026-09-26 | In Progress → Implemented，落地编号 0041 | 代码已于 2026-09-16 至 2026-09-17 随 `f160cec4` 与 `01fe2f82` 合入 `next`，当时状态停在 In Progress、没有取号；0.20.0 发版收尾时按合入顺序补取。配套文档见头部，已随代码更新；没有新的项目术语 |

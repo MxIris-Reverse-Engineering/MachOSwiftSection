@@ -1,8 +1,8 @@
-# Draft - 展不开的 opaque 引用改用 `@_opaqueReturnTypeOf` 拼法，`(some P).Element` 化简为 type witness，`numUnderlyingTypeArguments` 改名
+# 0045 - 展不开的 opaque 引用改用 `@_opaqueReturnTypeOf` 拼法，`(some P).Element` 化简为 type witness，`numUnderlyingTypeArguments` 改名
 
 - **状态**: Implemented
 - **创建日期**: 2026-09-18
-- **最后更新**: 2026-09-18
+- **最后更新**: 2026-09-26
 - **所属愿景**: 无
 - **关联提案**: [0033](0033-by-name-opaque-reference-expansion.md)（按名字引用的 opaque 类型展开）、[0028](0028-offline-opaque-accessor-thunk-resolution.md)（可用性分支的 witness 注释机制，本提案的 dump 注释沿用它）
 - **实现分支 / PR**: `next`
@@ -32,3 +32,4 @@
 | 2026-09-18 | ② 复用 `SwiftLayout.ImageUniverse` 的 witness 索引 | 同一份 `__swift5_assocty` 读取与跨镜像懒索引已经存在，再写一套等于两份真相 |
 | 2026-09-18 | 断言不再逐字比编译器的 `.swiftinterface`，改用显式期望串（`CrossImageOpaqueReferenceTests`），只在 client 自己没有 opaque 的投影 fixture 上与编译器逐字比 | `Outer.body: some Equatable { helper() }` 的 witness 编译器写 `body` 自己的 opaque，二进制记录已被 IRGen 代入一层指向 `helper()`——拼法同、层级差一 |
 | 2026-09-18 | 状态置为 Implemented。配套文档：[OpaqueReturnTypeResolution.md](../Internal/OpaqueReturnTypeResolution.md) §1.5、§2.6 记实现与边界，不另写实现说明；术语表不登记新词——`@_opaqueReturnTypeOf`、type witness、projection 都是编译器与官方文档的既有术语，`.annotated` 只是一个枚举 case | 实现说明的判据（下一位维护者会踩、代码里看不出的决定）在专题文档里已经有落点 |
+| 2026-09-26 | 落地编号 0045 | 已于 2026-09-18 随 `72b5c5f6` 合入 `next` 并标为 Implemented，但当时没有取号；0.20.0 发版收尾时按合入顺序补取 |

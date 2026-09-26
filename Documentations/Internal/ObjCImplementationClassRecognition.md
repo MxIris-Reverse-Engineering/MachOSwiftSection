@@ -1,6 +1,6 @@
 # `@objc @implementation` 类的识别
 
-> 提案 [draft-objc-implementation-class-recognition](../Evolutions/draft-objc-implementation-class-recognition.md) 的实现说明。读者：维护者。二进制事实与判据的推导过程在提案里，本文只讲落地后的形状、为什么这样落、以及边界。
+> 提案 [0046-objc-implementation-class-recognition](../Evolutions/0046-objc-implementation-class-recognition.md) 的实现说明。读者：维护者。二进制事实与判据的推导过程在提案里，本文只讲落地后的形状、为什么这样落、以及边界。
 
 ## 一句话
 

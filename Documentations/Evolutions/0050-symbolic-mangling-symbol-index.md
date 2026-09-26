@@ -1,9 +1,9 @@
-# Draft - `_symbolic` 符号索引：被符号引用的对象 → 编译器写下的完整名字
+# 0050 - `_symbolic` 符号索引：被符号引用的对象 → 编译器写下的完整名字
 
 - **状态**: Implemented
 - **作者**: JH
 - **创建日期**: 2026-09-24
-- **最后更新**: 2026-09-24
+- **最后更新**: 2026-09-26
 - **所属愿景**: 无
 - **关联提案**: [0018-self-contained-abi-layer](0018-self-contained-abi-layer.md)（符号归属放 SwiftInspection，ABI 模型不碰符号——本提案的解码层沿用这个归宿）、[0001-symbol-name-offsetization](0001-symbol-name-offsetization.md) / [0003-symbol-row-bucket-flattening](0003-symbol-row-bucket-flattening.md)（符号索引的内存纪律：名字不常驻 `String`，按行引用）、[0022-rename-metadata-reader-to-symbolic-demangler](0022-rename-metadata-reader-to-symbolic-demangler.md)（`SymbolicDemangler` 从描述符还原的，正是本提案读出的编译器写法）
 - **实现分支 / PR**: `feature/symbolic-mangling-symbol-index`，合入 `next`
@@ -133,3 +133,4 @@ SwiftInspection 新增一个按镜像的解码索引，私有鉴别符改为它�
 | 2026-09-24 | 全量测试通过（除既有不稳定项） | `swift test --skip IntegrationTests`：2086 个测试 / 391 个 suite，5 个失败全是既有的不稳定测试——`SharedCacheTests` 的 3 条墙钟断言、`argumentCandidatePathSpecializesNonGenericCandidate`、以及满载时的 arm64e 探针（子进程没启用 PAC），后者单独重跑 3 条全过；另有局部类型那 1 个已知问题 |
 | 2026-09-24 | Implemented：合入 `next`，与私有鉴别符修复分两个提交 | 用户：「都提交推送一下」。先提交私有鉴别符修复本身（它自己扫符号表的那一版），再提交本提案，历史里两件事各自可读。配套文档：实现说明 `Internal/SymbolicManglingSymbols.md` 已写并登记进 `Documentations/README.md` 与本文头部；新术语「symbolic-mangling symbol / 被引用者」已进术语表；AGENTS.md 的模块清单与「demangler / 符号索引」陷阱清单各补一条。编号按本仓库惯例在进入 `main` 时再取 |
 | 2026-09-24 | 接受：进程内第一次查私有鉴别符改为先建该镜像的 `SymbolIndexStore` | 离线路径找符号本来就经符号库，不多花；进程内路径找符号走 MachOKit，不建符号库，原先查鉴别符只扫一遍符号表。改为经本索引后第一次查询要建全量符号库。RuntimeViewer 这类宿主通常早已为正在看的镜像建好，未单独测量 |
+| 2026-09-26 | 落地编号 0050 | 已于 2026-09-24 随 合并提交 `5cbf0378` 合入 `next` 并标为 Implemented，但当时没有取号；0.20.0 发版收尾时按合入顺序补取 |

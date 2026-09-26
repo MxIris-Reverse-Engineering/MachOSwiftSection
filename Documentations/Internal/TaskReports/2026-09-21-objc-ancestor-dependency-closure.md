@@ -16,7 +16,7 @@
 
 ## 最终方案
 
-提案已写（`draft-objc-ancestor-dependency-closure`），用户一句话批准。落地与提案的差异全部记在提案的「落地形状与方案的差异」与决策日志里，要点：解析器按镜像登记、无人登记的文件默认走系统 cache（与 catalog 同一契约）；hierarchy memo 的键带解析器身份；provider 交出的断链也续；闭包与 catalog 共用一次求值（`SharedDependencyClosure`）；`swift-section dump` 自己注册；A/B 模拟器腿对两侧都传 `--dependency-search-path <RuntimeRoot>`；SwiftLayout 的 `ObjCClassIndex` 不收拢。
+提案已写（`0049-objc-ancestor-dependency-closure`），用户一句话批准。落地与提案的差异全部记在提案的「落地形状与方案的差异」与决策日志里，要点：解析器按镜像登记、无人登记的文件默认走系统 cache（与 catalog 同一契约）；hierarchy memo 的键带解析器身份；provider 交出的断链也续；闭包与 catalog 共用一次求值（`SharedDependencyClosure`）；`swift-section dump` 自己注册；A/B 模拟器腿对两侧都传 `--dependency-search-path <RuntimeRoot>`；SwiftLayout 的 `ObjCClassIndex` 不收拢。
 
 ## 执行
 

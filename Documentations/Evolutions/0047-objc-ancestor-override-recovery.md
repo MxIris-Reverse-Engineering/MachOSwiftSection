@@ -1,11 +1,11 @@
-# Draft - 从 ObjC 祖先链还原 `override`：ObjC 派生 Swift 类与 `@objc @implementation` 类的覆写成员
+# 0047 - 从 ObjC 祖先链还原 `override`：ObjC 派生 Swift 类与 `@objc @implementation` 类的覆写成员
 
 - **状态**: Implemented
 - **作者**: JH
 - **创建日期**: 2026-09-20
-- **最后更新**: 2026-09-20
+- **最后更新**: 2026-09-26
 - **所属愿景**: 无
-- **关联提案**: [draft-objc-implementation-class-recognition](draft-objc-implementation-class-recognition.md)（本提案叠在它之上：复用它的 ObjC 方法表读取与 `To` thunk 联结，并把 `@implementation` 类纳入同一套覆写判定）、[0006-final-keyword-and-lazy-accessor-type-recovery](0006-final-keyword-and-lazy-accessor-type-recovery.md)（`final` 还原用「没有 vtable 项」做证据，本提案的成员都有 ObjC 派发路径，两边判据互不干扰）、[0008-interface-header-and-export-status-annotations](0008-interface-header-and-export-status-annotations.md)（`override` 成员豁免 `// not exported` 标注，新识别出的 override 沿用同一豁免）
+- **关联提案**: [0046-objc-implementation-class-recognition](0046-objc-implementation-class-recognition.md)（本提案叠在它之上：复用它的 ObjC 方法表读取与 `To` thunk 联结，并把 `@implementation` 类纳入同一套覆写判定）、[0006-final-keyword-and-lazy-accessor-type-recovery](0006-final-keyword-and-lazy-accessor-type-recovery.md)（`final` 还原用「没有 vtable 项」做证据，本提案的成员都有 ObjC 派发路径，两边判据互不干扰）、[0008-interface-header-and-export-status-annotations](0008-interface-header-and-export-status-annotations.md)（`override` 成员豁免 `// not exported` 标注，新识别出的 override 沿用同一豁免）
 - **实现分支 / PR**: `feature/objc-ancestor-override-recovery`（worktree `.worktrees/MachOSwiftSection-ObjCImplementationClasses`，自 `feature/objc-implementation-class-recognition` 分出）
 - **配套文档**: [ObjCMemberRecovery.md](../Internal/ObjCMemberRecovery.md)（实现说明；提案 `objc-member-selector-recovery` 落地时自 `ObjCAncestorOverrideRecovery.md` 改名扩写，两份提案共用）、[TaskReports/2026-09-20-objc-ancestor-override-recovery.md](../Internal/TaskReports/2026-09-20-objc-ancestor-override-recovery.md)（过程复盘）
 
@@ -80,3 +80,4 @@ interface 里 `override` 的唯一来源是 Swift vtable 的 override 表（`Met
 | 2026-09-22 | 第 3 档的开关改为按镜像（`ObjCMemberRecoveryOptions` / `ObjCMemberRecoveryOptionsStore`），并接到 indexer 配置与 CLI `--infer-objc-overrides`；默认仍关（随提案 `objc-member-selector-recovery` 的决策日志） | 本提案落地时的 `ObjCAncestorOverrides.infersOverridesFromSelectorNames` 是进程级静态属性，CLI 与 RuntimeViewer 都没接；用户在 AppKit 的 `NSGlassEffectView` 上再次碰到没有 `override` 的内联覆写，要求加开关 |
 | 2026-09-22 | 第 3 档改为始终索引，开关整体移到打印期（dump 无条件渲染，interface 看 `SwiftDeclarationPrintConfiguration.infersObjCOverridesFromSelectorNames`）；按镜像的那套开关删除（随提案 `objc-member-selector-recovery` 的决策日志） | 用户要求「始终索引，输不输出由 printer 决定」。同日早些时候刚落地的按镜像开关只活了半天，因为它解决的是「谁能开」而不是「谁来裁决」——索引期一旦决定不记，消费者就再没有选择的余地 |
 | 2026-09-21 | 旧 `LC_DYLD_INFO` bind 格式的父类槽位不再当根类（随提案 `objc-member-selector-recovery` 落地） | 那种文件（iOS 15.5 模拟器运行时）的 bind 槽位是 0，链曾被打成走完、注释不带 `(bound; chain not resolvable offline)`；读取器补 MachOKitExtensions 的 `resolveBind(fileOffset:)` 取 bind 名并以 `isSwift` 兜底，链注释从此诚实 |
+| 2026-09-26 | 落地编号 0047 | 已于 2026-09-20 随 合并提交 `74c4eb24` 合入 `next` 并标为 Implemented，但当时没有取号；0.20.0 发版收尾时按合入顺序补取 |

@@ -1,10 +1,10 @@
-# Draft - `@_rawLayout` 人造字段、空名字 enum case 与静态布局的依赖搜索路径
+# 0040 - `@_rawLayout` 人造字段、空名字 enum case 与静态布局的依赖搜索路径
 
-- **状态**: In Progress
+- **状态**: Implemented
 - **创建日期**: 2026-09-16
-- **最后更新**: 2026-09-16
+- **最后更新**: 2026-09-26
 - **所属愿景**: 无
-- **关联提案**: [draft-builtin-borrow-support](draft-builtin-borrow-support.md)（同一分支的前一批，提供本批依赖的 bitwise-borrowable / addressable-for-dependencies 两个事实）
+- **关联提案**: [0039-builtin-borrow-support](0039-builtin-borrow-support.md)（同一分支的前一批，提供本批依赖的 bitwise-borrowable / addressable-for-dependencies 两个事实）
 - **实现分支 / PR**: `feature/swift-6.4-adaptation`
 - **配套文档**: [Modules/SwiftLayout.md](../Internal/Modules/SwiftLayout.md)（同批补 raw layout 一段）
 
@@ -55,3 +55,4 @@ builtin 描述符是 IRGen 对 `@_alignment` / `@_rawLayout` 类型一律发的�
 | 2026-09-16 | 只留下 builtin 描述符的写法（`size:alignment:`、非泛型 `likeArrayOf:`）在 interface 打成 `@_rawLayout(size:alignment:)` 并加一句来源注释；泛型 `likeArrayOf:` 不打、记入文档 | 用户要求考虑非标准库使用者；三种候选（印并加注释 / 印不加注释 / 不印）中用户选了第一种：布局事实准确，写法可能与源码不同，注释把这一点说明白 |
 | 2026-09-16 | thunk 字段的静态布局缺口另开提案，本批不做 | 用户裁定：涉及渲染层与布局引擎的接口，单独一份轻量提案 |
 | 2026-09-16 | 运行时照抄 like 类型 extra inhabitant 的不一致只记录、不跟 | 本库对齐的是编译期布局（决定字段偏移）与 6.4 RemoteInspection；上游 bug 是否上报由用户定 |
+| 2026-09-26 | In Progress → Implemented，落地编号 0040 | 代码已于 2026-09-16 随 `1120e18c` 合入 `next`，当时状态停在 In Progress、没有取号；0.20.0 发版收尾时按合入顺序补取。配套文档见头部，已随代码更新；没有新的项目术语 |

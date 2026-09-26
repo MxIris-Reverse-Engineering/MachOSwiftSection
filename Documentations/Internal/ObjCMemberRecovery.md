@@ -1,6 +1,6 @@
 # 从 ObjC 方法表还原 Swift 成员的 ObjC 事实：`@objc`、`override`、显式 selector
 
-> 提案 [draft-objc-ancestor-override-recovery](../Evolutions/draft-objc-ancestor-override-recovery.md)（`override`）与 [draft-objc-member-selector-recovery](../Evolutions/draft-objc-member-selector-recovery.md)（`@objc` 与显式 selector，把前者推广到类的每一条 ObjC 方法）的实现说明。读者：维护者。为什么 Swift 元数据里没有这些事实、判据怎么推导的在提案里，本文只讲落地后的形状、证据档位在代码里的位置、以及边界。
+> 提案 [0047-objc-ancestor-override-recovery](../Evolutions/0047-objc-ancestor-override-recovery.md)（`override`）与 [0048-objc-member-selector-recovery](../Evolutions/0048-objc-member-selector-recovery.md)（`@objc` 与显式 selector，把前者推广到类的每一条 ObjC 方法）的实现说明。读者：维护者。为什么 Swift 元数据里没有这些事实、判据怎么推导的在提案里，本文只讲落地后的形状、证据档位在代码里的位置、以及边界。
 
 ## 一句话
 

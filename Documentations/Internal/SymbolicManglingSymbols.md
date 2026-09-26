@@ -1,6 +1,6 @@
 # `_symbolic` 符号：编译器写下的被引用者
 
-> 提案 [draft-symbolic-mangling-symbol-index](../Evolutions/draft-symbolic-mangling-symbol-index.md) 的实现说明。读者：维护者。
+> 提案 [0050-symbolic-mangling-symbol-index](../Evolutions/0050-symbolic-mangling-symbol-index.md) 的实现说明。读者：维护者。
 > 格式事实与取舍过程在提案里，本文讲落地后的形状、为什么这样落、边界和实测。
 
 ## 一句话
@@ -102,7 +102,7 @@ name」这种东西：typeref 本体里的 substitution 把 symbolic reference �
 
 ## 相关文档
 
-- 提案：[draft-symbolic-mangling-symbol-index](../Evolutions/draft-symbolic-mangling-symbol-index.md)；上游
+- 提案：[0050-symbolic-mangling-symbol-index](../Evolutions/0050-symbolic-mangling-symbol-index.md)；上游
   [0018](../Evolutions/0018-self-contained-abi-layer.md)（符号归属在 SwiftInspection）、[0001](../Evolutions/0001-symbol-name-offsetization.md) /
   [0003](../Evolutions/0003-symbol-row-bucket-flattening.md)（符号表的行与名字来源）。
 - [Modules/MachOSymbols.md](Modules/MachOSymbols.md)「子系统 5」。

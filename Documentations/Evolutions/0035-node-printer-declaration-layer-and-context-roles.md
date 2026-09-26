@@ -91,7 +91,7 @@ struct VariableNodePrinter: MemberDeclarationNodePrintable {
 
 ### 未询问即采用的假设
 
-- 走 feature 分支加独立 worktree，不在 `next` 直落。`NodePrintables/` 每个文件都会动；in-flight 的 `draft-interface-hides-compiler-synthesized-members` 触碰过 `SwiftDeclarationPrinter+PropertyWrapperSynthesis.swift` 里的 `VariableNodePrinter` 构造，签名不变即零冲突。
+- 走 feature 分支加独立 worktree，不在 `next` 直落。`NodePrintables/` 每个文件都会动；in-flight 的 `0041-interface-hides-compiler-synthesized-members` 触碰过 `SwiftDeclarationPrinter+PropertyWrapperSynthesis.swift` 里的 `VariableNodePrinter` 构造，签名不变即零冲突。
 - `target` 与 `delegate` 留在 printer 上，不进 Context（理由见决策日志）。
 - 缩写改名限于 `NodePrinter/` 与 `NodePrintables/` 两个目录。
 - 不另立实现说明，裁决记在本文决策日志。`Internal/Modules/` 目前没有 SwiftPrinting 的模块文档，不在本案新建。
