@@ -284,13 +284,20 @@ package final class SymbolicManglingIndex: SharedCache<SymbolicManglingIndex.Sto
     /// the symbol's referents; `nil` when the two do not pair up — a different
     /// count, or an absolute reference, which the compiler never writes into
     /// these names.
+    ///
+    /// `offset` is the symbol's value, which the binary supplies. A negative
+    /// one — an `n_value` of 2^63 or more in a standalone file, or below the
+    /// shared region in a cache image — is refused before any read: the file
+    /// reader converts every offset to `UInt64` first, and that conversion
+    /// traps where no `try?` can catch it. The binary under analysis must not
+    /// decide whether the host process lives.
     private static func pairedReferences(
         ofSymbolAt symbolPosition: Int,
         offset: Int,
         referentCount: Int,
         in machO: some MachOSwiftSectionRepresentableWithCache
     ) -> [SymbolicManglingReference]? {
-        guard let mangledName = try? MangledName.resolve(from: offset, in: machO) else { return nil }
+        guard offset >= 0, let mangledName = try? MangledName.resolve(from: offset, in: machO) else { return nil }
         let lookups = mangledName.lookupElements
         guard lookups.count == referentCount, referentCount <= Int(UInt16.max) else { return nil }
         var references: [SymbolicManglingReference] = []
