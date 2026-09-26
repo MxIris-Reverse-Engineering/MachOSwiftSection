@@ -8,7 +8,7 @@ import MachOSwiftSection
 @_spi(Support) @testable import SwiftIndexing
 
 /// Two modules compiled on the fly, each carrying a class (a struct-only
-/// fixture dylib has no `__DATA` segment and the pinned MachOKit mis-walks
+/// fixture dylib has no `__DATA` segment and MachOKit before 0.52.103 mis-walked
 /// its chained-fixup pages):
 ///
 /// - `ProbeWrapperKit` defines the wrappers — two public, one internal —

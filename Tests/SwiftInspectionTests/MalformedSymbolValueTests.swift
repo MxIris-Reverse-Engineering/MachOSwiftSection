@@ -22,7 +22,7 @@ import Demangling
 /// gives the compiler a well-formed symbolic-mangling symbol to emit beside
 /// them and puts a class in `__objc_classlist`; it is also the ballast every
 /// compiled-on-the-fly fixture needs (a struct-only dylib has no `__DATA`
-/// segment, whose chained-fixup pages the pinned MachOKit mis-walks).
+/// segment, whose chained-fixup pages MachOKit before 0.52.103 mis-walked).
 @Suite(.serialized)
 struct MalformedSymbolValueTests {
     private static let malformedSymbolicManglingSymbolName = "_symbolic _____ 4Main3FooV"

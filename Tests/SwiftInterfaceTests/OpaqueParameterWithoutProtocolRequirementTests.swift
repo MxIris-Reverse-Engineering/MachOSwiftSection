@@ -78,7 +78,7 @@ struct OpaqueParameterWithoutProtocolRequirementTests {
     }
 
     /// The class is ballast: a struct-only fixture dylib has no `__DATA`
-    /// segment and the pinned MachOKit mis-walks its chained-fixup pages.
+    /// segment and MachOKit before 0.52.103 mis-walked its chained-fixup pages.
     private static let source = """
     public final class FixtureAnchor {}
 

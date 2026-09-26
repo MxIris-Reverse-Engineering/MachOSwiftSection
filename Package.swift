@@ -125,7 +125,9 @@ extension Package.Dependency {
         ),
         remote: .package(
             url: "https://github.com/MxIris-Reverse-Engineering/MachOKit.git",
-            "0.52.101" ..< "0.53.0",
+            // 0.52.103 stops reading chained-fixup starts for a segment that has
+            // none, which crashed on a dylib with no `__DATA` segment.
+            "0.52.103" ..< "0.53.0",
         ),
     )
 

@@ -16,8 +16,8 @@ import SwiftInterface
 /// not be mistaken for one.
 ///
 /// One module compiled on the fly with the feature enabled (it carries a
-/// class: a struct-only fixture dylib has no `__DATA` segment and the pinned
-/// MachOKit mis-walks its chained-fixup pages). Whichever toolchain compiles
+/// class: a struct-only fixture dylib has no `__DATA` segment and MachOKit before
+/// 0.52.103 mis-walked its chained-fixup pages). Whichever toolchain compiles
 /// it — the builtin descriptor predates Swift 6.4, the artificial `like:`
 /// record does not — the assertions hold; see the last test.
 @Suite(.serialized)

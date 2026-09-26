@@ -101,7 +101,7 @@ struct ProjectedOpaqueMemberWitnessTests {
     }
 
     /// Both modules carry a class: a struct-only fixture dylib has no
-    /// `__DATA` segment and the pinned MachOKit mis-walks its chained-fixup
+    /// `__DATA` segment and MachOKit before 0.52.103 mis-walked its chained-fixup
     /// pages.
     private static let coreSource = """
     public final class CoreAnchor {}

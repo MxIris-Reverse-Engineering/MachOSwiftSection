@@ -9,7 +9,7 @@ import Demangling
 
 /// The fixture the two suites below share: a module with `@_rawLayout`
 /// enabled, compiled on the fly (it carries a class: a struct-only fixture
-/// dylib has no `__DATA` segment and the pinned MachOKit mis-walks its
+/// dylib has no `__DATA` segment and MachOKit before 0.52.103 mis-walked its
 /// chained-fixup pages). A separate type on purpose: a `@Suite(.enabled(if:))`
 /// condition that reads a static of the suite it decorates is a circular
 /// macro reference.
