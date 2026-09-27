@@ -156,6 +156,27 @@ final class PerImageCacheEvictionTests: MachOFileTests, @unchecked Sendable {
         )
     }
 
+    /// `SwiftClassObjectIndex` is ObjC-side per-image state of the same
+    /// lifetime as the class-method index whose Swift-class lookups fall back
+    /// to it (evolution proposal `objc-custom-class-name`): the indexer that
+    /// reclaims the one reclaims the other.
+    @Test func swiftClassObjectIndexGoesWithTheObjCClassHierarchies() async throws {
+        let unsafeMachOFile = machOFile
+        clearAllPerImageCaches(for: unsafeMachOFile)
+
+        var indexer: SwiftDeclarationIndexer<MachOFile>? = SwiftDeclarationIndexer(in: unsafeMachOFile)
+        try await indexer?.prepare()
+        _ = SwiftClassObjectIndex.shared.customObjCClassName(forClassDescriptorOffset: 0, in: unsafeMachOFile)
+        try #require(SwiftClassObjectIndex.shared.contains(in: unsafeMachOFile))
+
+        indexer = nil
+
+        #expect(
+            !SwiftClassObjectIndex.shared.contains(in: unsafeMachOFile),
+            "the renamed-class index outlived the indexer that reclaims the image's ObjC-side state"
+        )
+    }
+
     @Test func survivingIndexerKeepsPerImageCaches() async throws {
         let unsafeMachOFile = machOFile
         clearAllPerImageCaches(for: unsafeMachOFile)
