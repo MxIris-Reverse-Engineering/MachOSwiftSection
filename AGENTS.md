@@ -268,6 +268,17 @@ Keeping this file's module list and `Documentations/README.md`'s index in sync w
 
 </important>
 
+<important if="you are changing the swift-section CLI — a subcommand, a flag, its output or exit codes — or releasing a version">
+
+`AgentPlugins/swift-section/` is the agent plugin users install into Claude Code and Codex to learn this CLI; its skill (`skills/swift-section-cli/SKILL.md`, `references/objc.md`) is the only copy anywhere, so nobody else will fix it.
+
+- **A CLI change updates the skill in the same batch** — a new or renamed flag, a changed default, a new trap in the output. Check every flag it names still exists: `grep -ohE -- '--[a-z][a-z0-9-]+'` over the skill against the subcommands' `--help`.
+- **A release sets `version` in both `plugin.json` files to `BundledVersion.value`.** Claude Code and Codex only update an installed plugin when that version changes; `version-check.yml` fails a PR to `main` that forgets.
+- Validate before pushing: `claude plugin validate AgentPlugins/swift-section` and `claude plugin validate .claude-plugin/marketplace.json --strict`; for Codex, the `validate_plugin.py` of its `plugin-creator` skill.
+- The directory is `AgentPlugins/`, never `plugins/`: on a case-insensitive disk that is SwiftPM's `Plugins/`. The two marketplace files are `.claude-plugin/marketplace.json` (Claude Code) and `.agents/plugins/marketplace.json` (Codex). Why and how: [0051-agent-plugin](Documentations/Evolutions/0051-agent-plugin.md).
+
+</important>
+
 ## Work in progress
 
 **GenericSpecializer** (`Sources/SwiftSpecialization/`) — interactive runtime specialization of generic types. Core implementation complete with tests. Two-step API: `makeRequest()` returns parameters and candidates, `specialize()` executes with the user's selections. Only protocol requirements need witness tables, passed in requirement order; `baseClass` / `layout` / `sameType` need validation only. Generic parameter names are derived from depth/index (A, B, A1, …) because the binary does not preserve them.
