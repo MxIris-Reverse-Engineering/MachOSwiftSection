@@ -1,0 +1,28 @@
+{
+  "name": "swift-section",
+  "version": "0.20.0",
+  "description": "Teaches coding agents to drive the swift-section CLI: Swift and Objective-C declarations, memory layout and ABI diffs recovered from a Mach-O binary or a dyld shared cache.",
+  "author": {
+    "name": "MxIris-Reverse-Engineering",
+    "url": "https://github.com/MxIris-Reverse-Engineering"
+  },
+  "homepage": "https://github.com/MxIris-Reverse-Engineering/MachOSwiftSection#agent-plugin",
+  "repository": "https://github.com/MxIris-Reverse-Engineering/MachOSwiftSection",
+  "license": "MIT",
+  "keywords": ["swift", "objective-c", "mach-o", "dyld-shared-cache", "reverse-engineering", "abi"],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "swift-section",
+    "shortDescription": "Swift and ObjC declarations out of a Mach-O binary",
+    "longDescription": "How to drive the swift-section CLI: dump and interface for Swift declarations, objc for Objective-C headers with IMP addresses, static field-offset and enum-layout comments, and diff / snapshot / evolution for comparing the API of two builds. Covers the flag spellings and output traps that produce a plausible but wrong answer. Requires the swift-section CLI (brew install swift-section).",
+    "developerName": "MxIris-Reverse-Engineering",
+    "category": "Developer Tools",
+    "capabilities": ["Read"],
+    "websiteURL": "https://github.com/MxIris-Reverse-Engineering/MachOSwiftSection",
+    "defaultPrompt": [
+      "Dump the Swift types in this binary",
+      "Diff the Swift ABI of these two builds",
+      "Show the ObjC interface of this class"
+    ]
+  }
+}

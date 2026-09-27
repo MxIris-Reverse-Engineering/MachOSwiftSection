@@ -1,0 +1,17 @@
+{
+  "name": "machoswiftsection",
+  "owner": {
+    "name": "MxIris-Reverse-Engineering",
+    "url": "https://github.com/MxIris-Reverse-Engineering"
+  },
+  "metadata": {
+    "description": "Agent plugins for MachOSwiftSection and its swift-section CLI."
+  },
+  "plugins": [
+    {
+      "name": "swift-section",
+      "source": "./AgentPlugins/swift-section",
+      "description": "Teaches coding agents to drive the swift-section CLI: Swift and Objective-C declarations, memory layout and ABI diffs recovered from a Mach-O binary or a dyld shared cache."
+    }
+  ]
+}

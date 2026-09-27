@@ -1,0 +1,20 @@
+{
+  "name": "machoswiftsection",
+  "interface": {
+    "displayName": "MachOSwiftSection"
+  },
+  "plugins": [
+    {
+      "name": "swift-section",
+      "source": {
+        "source": "local",
+        "path": "./AgentPlugins/swift-section"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    }
+  ]
+}
