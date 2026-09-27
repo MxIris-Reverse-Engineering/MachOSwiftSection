@@ -1,9 +1,8 @@
 # MachOSwiftSection
 
-A Swift library for parsing mach-o files to obtain Swift information.
-（Types/Protocol/ProtocolConformance info）
+A Swift library that recovers Swift metadata — types, protocols, conformances, field layouts — from Mach-O files and dyld shared caches without loading them into a process. It carries its own demangler, symbolic references included, and reimplements the Swift runtime's own reading logic.
 
-It may be the most powerful swift dump you can find so far, as it uses a custom Demangler to parse symbolic references and restore the original logic of the Swift Runtime as much as possible.
+On top of that model it generates complete Swift interfaces, diffs a module's ABI between two builds or tracks it across many versions, and computes field offsets and enum layouts statically. The companion `swift-section` CLI exposes all of it, and covers the Objective-C side of a binary as well.
 
 > [!NOTE]
 > This library is developed as an extension of [MachOKit](https://github.com/p-x9/MachOKit) for Swift
@@ -26,8 +25,7 @@ It may be the most powerful swift dump you can find so far, as it uses a custom 
 - [x] Builtin Type Descriptors
 - [x] Swift Interface Support
 - [x] Runtime Metadata Inspection (`SwiftInspection`)
-- [ ] Type Member Layout (WIP, MachOImage only)
-- [ ] Swift Section MCP
+- [x] Type Member Layout (`SwiftLayout`, computed statically — `MachOFile` included)
 
 ### Swift Package Manager
 
@@ -35,7 +33,7 @@ Add the package to your `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/MxIris-Reverse-Engineering/MachOSwiftSection", from: "0.10.0"),
+    .package(url: "https://github.com/MxIris-Reverse-Engineering/MachOSwiftSection", from: "0.20.0"),
 ],
 targets: [
     .target(
@@ -43,69 +41,91 @@ targets: [
         dependencies: [
             .product(name: "MachOSwiftSection", package: "MachOSwiftSection"),
             // Optional higher-level products:
+            .product(name: "MachOFoundation", package: "MachOSwiftSection"),
             .product(name: "SwiftInspection", package: "MachOSwiftSection"),
             .product(name: "SwiftDump", package: "MachOSwiftSection"),
             .product(name: "SwiftInterface", package: "MachOSwiftSection"),
-            .product(name: "TypeIndexing", package: "MachOSwiftSection"),
         ]
     ),
 ]
 ```
 
+Declare every product whose module you import. In particular, `MachOSwiftSection` no longer re-exports the symbol index (since 0.19.0): a file that uses `SymbolIndexStore`, `DemangledSymbol` or `DependencyClosure` needs `import MachOFoundation` **and** the `MachOFoundation` product on its target.
+
+**The ABI model and the Mach-O layer**
+
 | Product | Purpose |
 | --- | --- |
-| `MachOSwiftSection` | Low-level parsing of `__swift5_*` sections (raw descriptors). |
-| `SwiftInspection` | Runtime metadata inspection — `EnumLayoutCalculator` (multi-payload enum layouts), `ClassHierarchyDumper`, `MetadataReader`. |
-| `SwiftDump` | High-level type wrappers (`Struct`, `Enum`, `Class`, `Protocol`, `ProtocolConformance`, …). |
-| `SwiftInterface` | End-to-end Swift interface generation. |
-| `TypeIndexing` | Index types / extensions / conformances for cross-binary analysis. |
+| `MachOSwiftSection` | The ABI model: the `__swift5_*` sections, every descriptor in them, and the wrappers built from them (`Struct`, `Enum`, `Class`, `Protocol`, `ProtocolConformance`, …). Depends on `MachOBase` only — no symbol index, no demangler. |
+| `MachOBase` | Reading, address resolution and relative pointers — everything the ABI model sees. Re-exported by `MachOSwiftSection`. |
+| `MachOFoundation` | `MachOBase` plus the symbol index, demangling, and dependency resolution. |
+| `MachODependencies` | Resolves the images a binary links, in process or from files and dyld shared caches. |
+
+**Analysis**
+
+| Product | Purpose |
+| --- | --- |
+| `SwiftInspection` | Symbol attribution and runtime metadata analysis — `SymbolicDemangler` (formerly `MetadataReader`), `EnumLayoutCalculator`, `ClassHierarchyDumper`. |
+| `SwiftLayout` | The static layout engine: field offsets, type layouts and enum layouts computed offline, the way the runtime computes them at load time. |
+| `SwiftThunkAnalysis` | Reads a type stored behind a metadata accessor thunk (availability-conditional opaque types, noncopyable fields) by evaluating its ARM64 code instead of running it, and ties a class's ObjC method table to its Swift members. |
+| `SwiftSpecialization` | Runtime specialization of generic types (`GenericSpecializer`). |
+| `TypeIndexing` | Attributes `__C` types to their real module (`__C.NSString` → `Foundation.NSString`) through SDK module interfaces and APINotes. macOS only. |
+
+**Declarations and output**
+
+| Product | Purpose |
+| --- | --- |
+| `SwiftDump` | `dump(using:in:)` on the ABI wrappers — what `swift-section dump` prints. |
+| `SwiftInterface` | End-to-end interface generation: a single version, a two-version diff, or an N-version evolution. |
+| `SwiftDiffing` | ABI comparison over the indexed model, with no Mach-O needed: `ABIDiffer`, `ABIEvolution`, `ABISnapshot`. |
+| `SwiftDeclaration` | The declaration model shared by indexing, printing and diffing. |
+| `SwiftIndexing` | Builds the declaration model from an image. |
+| `SwiftPrinting` | Renders the declaration model as Swift source. |
+| `SwiftAttributeInference` | Infers source-level attributes (`@propertyWrapper`, `@resultBuilder`, `@dynamicMemberLookup`, `@objc`, …). |
+| `SwiftDeclarationRendering` | The comment rendering shared by dump and interface (field layouts, opaque types, specialized metadata). |
+| `SwiftOutputTransformer` | Token templates for the layout comments, shared with RuntimeViewer's settings UI. |
 
 ### Usage
 
 #### Basic
 
-Swift information from MachOImage or MachOFile can be retrieved via the `swift` property.
+Swift information from a `MachOFile` or `MachOImage` is reached through its `swift` property.
 
 ```swift
 import MachOKit
 import MachOSwiftSection
 
-let machO //` MachOFile` or `MachOImage`
+let machO: MachOFile // or MachOImage
 
-// Protocol Descriptors
-let protocolDescriptors = try machO.swift.protocolDescriptors
-for protocolDescriptor in protocolDescriptors {
-    let protocolType = try Protocol(descriptor: protocolDescriptor, in: machO)
-    // do somethings ...
-}
-
-// Protocol Conformance Descriptors
-let protocolConformanceDescriptors = try machO.swift.protocolConformanceDescriptors
-for protocolConformanceDescriptor in protocolConformanceDescriptors {
-    let protocolConformance = try ProtocolConformance(descriptor: protocolConformanceDescriptor, in: machO)
-    // do somethings ...
-}
-
-// Type/Nominal Descriptors
-let typeContextDescriptors = try machO.swift.typesContextDescriptors
-for typeContextDescriptor in typeContextDescriptors {
+// Types
+for typeContextDescriptor in try machO.swift.typeContextDescriptors {
     switch typeContextDescriptor {
-    case .type(let typeContextDescriptorWrapper):
-        switch typeContextDescriptorWrapper {
-        case .enum(let enumDescriptor):
-            let enumType = try Enum(descriptor: enumDescriptor, in: machO)
-            // do somethings ...
-        case .struct(let structDescriptor):
-            let structType = try Struct(descriptor: structDescriptor, in: machO)
-            // do somethings ...
-        case .class(let classDescriptor):
-            let classType = try Class(descriptor: classDescriptor, in: machO)
-            // do somethings ...
-        }
-    default:
-        break
+    case .enum(let enumDescriptor):
+        let enumType = try Enum(descriptor: enumDescriptor, in: machO)
+    case .struct(let structDescriptor):
+        let structType = try Struct(descriptor: structDescriptor, in: machO)
+    case .class(let classDescriptor):
+        let classType = try Class(descriptor: classDescriptor, in: machO)
     }
 }
+
+// Protocols
+for protocolDescriptor in try machO.swift.protocolDescriptors {
+    let protocolType = try Protocol(descriptor: protocolDescriptor, in: machO)
+}
+
+// Protocol conformances
+for protocolConformanceDescriptor in try machO.swift.protocolConformanceDescriptors {
+    let protocolConformance = try ProtocolConformance(descriptor: protocolConformanceDescriptor, in: machO)
+}
+```
+
+`machO.swift.types`, `.protocols`, `.protocolConformances`, `.associatedTypes` and `.builtinTypes` build the same wrappers in one step. `SwiftDump` renders any of them as text:
+
+```swift
+import SwiftDump
+
+let text = try await structType.dump(using: .demangleOptions(.default), in: machO).string
 ```
 
 #### Generate Complete Swift Interface
@@ -118,12 +138,16 @@ import SwiftInterface
 
 let builder = try SwiftInterfaceBuilder(configuration: .init(), eventHandlers: [], in: machO)
 try await builder.prepare()
-let result = try await builder.printRoot()
+let interface = try await builder.printRoot().string
 ```
 
 Generated interfaces reflect a wide range of Swift language features:
 
 - Type / member attributes: `@objc`, `@nonobjc`, `dynamic`, `@retroactive`, `@globalActor`, `@escaping`, `consuming` / `borrowing` parameter modifiers
+- `@objc`, `override` and `@objc(selector)` recovered from a class's ObjC method table, including in OS frameworks that strip the thunk symbols these used to be read from
+- `@objc @implementation extension` for classes implemented through SE-0436, with their stored properties
+- Property wrappers as the source declared them (`@SwiftUI.State var name`), with the synthesized `_name` / `$name` hidden — for wrappers defined in other images too
+- Types stored behind a metadata accessor — availability-conditional `some View`, noncopyable fields — read without running any code, with their availability branches as a comment
 - `distributed actor` declarations and `distributed func` members
 - `deinit` for classes and noncopyable types
 - VTable offset comments alongside class members, ordered to match the on-disk layout
@@ -136,7 +160,7 @@ Generated interfaces reflect a wide range of Swift language features:
 
 - `EnumLayoutCalculator` — compute the on-disk layout of Swift enums, including single-payload and multi-payload (tagged and untagged) cases. Mirrors the ABI rules in `swift/ABI/Enum.h`.
 - `ClassHierarchyDumper` — walk a class's inheritance chain across Swift/ObjC boundaries (requires `@_spi(Internals) import SwiftInspection`, `MachOImage` only).
-- `MetadataReader` — demangle types, symbols, context descriptors, and build generic signatures against a Mach-O.
+- `SymbolicDemangler` — demangle types, symbols, context descriptors, and build generic signatures against a Mach-O (requires `@_spi(Internals) import SwiftInspection`). Named `MetadataReader` before 0.20.0; the old name remains as a deprecated alias for one release.
 
 ## swift-section CLI Tool
 
@@ -173,26 +197,12 @@ swift-section dump /path/to/binary
 # terminated with `--`).
 swift-section dump /path/to/binary --sections types protocols
 
-# Only the classes implemented through `@objc @implementation` (SE-0436): the ObjC
-# class data joined with the Swift symbols — ivars, method lists, evidence. Every
-# class dump (this section and `types`) also names the ObjC ancestor chain and, on
-# each member the class's ObjC method table ties to a Swift member, its selector —
-# `overrides -[NSView layout]` for an override of an ObjC-inherited member, `@objc
-# -[Class selector]` otherwise, `explicit selector` when the source spelled it in
-# `@objc(name)`. Swift metadata carries none of this, and OS frameworks strip the
-# thunk symbols that used to be the only `@objc` evidence, so `interface` prints
-# `@objc`, `override` and `@objc(selector)` from the same recovery.
+# Only the classes implemented through `@objc @implementation` (SE-0436), with
+# their ivars and ObjC method lists. Every class dump (this section and `types`)
+# also names the class's ObjC ancestors and marks each member tied to an ObjC
+# method with its selector: `overrides -[NSView layout]`, `@objc -[Class selector]`,
+# or `explicit selector` where the source spelled `@objc(name)`.
 swift-section dump /path/to/binary --sections objcImplementationClasses
-
-# An override whose body the optimizer inlined into its thunk (`viewDidHide`,
-# `encodeWithCoder:` in an OS framework) ties to no Swift symbol at all. The
-# recovery still attributes it — to the one member of the class whose name is
-# the importer's spelling of its selector — and the dump always shows the tie,
-# marked `(selector name, no symbol evidence)`. An interface has nowhere to say
-# a keyword rests on a name, so there it takes `--infer-objc-overrides`. Either
-# way a method no ancestor implements is left alone: this can add `override`,
-# never `@objc(name)`.
-swift-section interface --infer-objc-overrides /path/to/binary
 
 # Save output to file
 swift-section dump --output-path output.txt /path/to/binary
@@ -237,7 +247,23 @@ swift-section dump --emit-header /path/to/binary
 swift-section dump --emit-export-status /path/to/binary
 ```
 
-Every comment kind above can also be reformatted with your own template — see
+**Addresses and ordering:**
+```bash
+# The address of each member's symbol
+swift-section dump --emit-member-addresses /path/to/binary
+
+# The vtable slot offset of each class method
+swift-section dump --emit-vtable-offsets /path/to/binary
+
+# The protocol witness table (PWT) address of each conformance
+swift-section dump --emit-pwt-addresses /path/to/binary
+
+# Types and protocols in the order the binary stores them, instead of by kind
+swift-section dump --preferred-binary-order /path/to/binary
+```
+
+The field-offset, type-layout, enum-layout, member-address and vtable-offset
+comments can also be reformatted with your own template — see
 [transformer](#transformer---customize-comment-formats). Passing a template
 option implies the matching `--emit-…` flag.
 
@@ -291,7 +317,7 @@ Dump output includes richer annotations:
 
 - Protocol witness table (PWT) entries are annotated with the requirement they satisfy
 - Inverted protocol constraints (`~Copyable`, `~Escapable`) are rendered on types and generic requirements
-- Protocol conformances can include the PWT address
+- Protocol conformances can include the PWT address (`--emit-pwt-addresses`)
 
 #### interface - Generate Swift Interface
 
@@ -322,11 +348,54 @@ swift-section interface --emit-offset-comments /path/to/binary
 
 # Per-field type layout (size / stride / alignment) and enum layout
 swift-section interface --emit-type-layout --emit-enum-layout /path/to/binary
+
+# Member addresses and vtable slot offsets
+swift-section interface --emit-member-addresses --emit-vtable-offsets /path/to/binary
+
+# Members sorted by their binary layout offset instead of grouped by kind
+swift-section interface --sort-members-by-offset /path/to/binary
 ```
 
 These use the same static `SwiftLayout` engine as `dump`, and accept the same
 comment-template options — see
 [transformer](#transformer---customize-comment-formats).
+
+**Objective-C members:** `@objc`, the `override` of an ObjC-inherited member, and
+`@objc(selector)` are recovered from each class's ObjC method table and printed by
+default — Swift metadata carries none of them, and OS frameworks strip the thunk
+symbols that used to be the only evidence. One case stays opt-in: an override
+whose body the optimizer inlined into its thunk (`viewDidHide`,
+`encodeWithCoder:` in an OS framework) ties to no Swift symbol, and can only be
+matched to a member by its selector's name. `dump` always shows such ties, marked
+`(selector name, no symbol evidence)`; `interface` marks them `override` only
+when asked. It can add `override`, never `@objc(name)` — a method no ancestor
+implements is left alone.
+
+```bash
+swift-section interface --infer-objc-overrides /path/to/binary
+```
+
+**C-imported types and opaque result types:**
+
+```bash
+# Include the imported C types in the generated interface
+swift-section interface --show-c-imported-types /path/to/binary
+
+# Attribute `__C` types to their real modules (`__C.NSString` → `Foundation.NSString`)
+# by indexing the SDK modules the binary links. macOS only and requires Xcode;
+# the first run per SDK is slow, later runs reuse the cached extraction.
+swift-section interface --resolve-c-module-names /path/to/binary
+
+# Frameworks with no SDK module (AttributeGraph, …) take user-provided APINotes
+swift-section interface --resolve-c-module-names --supplementary-apinotes AttributeGraph.apinotes /path/to/binary
+
+# Experimental: spell opaque result types (`some View`) from their opaque type
+# descriptors; complex return types may fail to parse
+swift-section interface --parse-opaque-return-type /path/to/binary
+```
+
+Writing supplementary APINotes is covered in
+[Supplementary Type Mappings](Documentations/SupplementaryTypeMappings.md).
 
 **Header and export-status annotations:**
 
@@ -357,10 +426,10 @@ All three flags default to off, keeping default output byte-identical.
 **Working with dyld shared cache:**
 
 ```bash
-# Dump from system dyld shared cache
+# Generate from the system dyld shared cache
 swift-section interface --uses-system-dyld-shared-cache --cache-image-name SwiftUICore
 
-# Dump from specific dyld shared cache
+# Generate from a specific dyld shared cache
 swift-section interface --dyld-shared-cache --cache-image-path /path/to/cache /path/to/dyld_shared_cache
 ```
 
@@ -382,6 +451,8 @@ swift-section diff old.dylib new.dylib --summary-only --fail-on-breaking
 # Full interface annotated with +/- diff markers (needs two binaries)
 swift-section diff old.dylib new.dylib --interface --format unified
 ```
+
+Both sides are indexed at once by default. `--jobs 1` indexes them one after the other; the result is identical either way.
 
 #### snapshot - Persist an ABI Baseline
 
@@ -409,6 +480,10 @@ swift-section evolution --dyld-shared-cache -n SwiftUICore cache-17 cache-18 cac
 swift-section evolution v1.json v2.json v3.json --summary-only --fail-on-breaking
 swift-section evolution v1.json v2.json v3.json --json
 ```
+
+`--jobs N` sets how many versions are indexed at once — the processor count by
+default, `1` for one at a time. The result is identical either way; lower it
+when memory is tight, since every version in flight holds its own index.
 
 With `--interface`, the same axis renders as a single **annotated union
 interface** instead of the lineage list: every declaration that ever existed
@@ -575,24 +650,38 @@ The contracts that neither the signatures nor `--help` show — how file mode tr
 superclass chain, why pure-Swift classes' ivar records do not line up, and the rest — are in
 [Objective-C Command Line](Documentations/ObjCCommandLine.md).
 
+## Documentation
+
+- [Swift Enum Memory Layout](Documentations/SwiftEnumLayout.md) ([中文](Documentations/SwiftEnumLayout_zh.md)) — how Swift lays out enums, and how to read the `--emit-enum-layout` comments.
+- [Supplementary Type Mappings](Documentations/SupplementaryTypeMappings.md) — user-provided APINotes for `interface --resolve-c-module-names`.
+- [Objective-C Command Line](Documentations/ObjCCommandLine.md) ([中文](Documentations/ObjCCommandLine_zh.md)) — the contracts behind `swift-section objc`.
+- [Changelogs](Changelogs/) — what changed in each release, including source-breaking API changes and how to migrate.
+- [Documentations/README.md](Documentations/README.md) — the index of every document, maintainer notes and evolution proposals included.
+
 ## Running Tests
 
-The snapshot tests in this repository rely on a fixture framework (`SymbolTestsCore`) built from an Xcode project in `Tests/Projects/SymbolTests/`. The framework binary is not checked in — rebuild it once after cloning:
+The snapshot and baseline tests rely on a fixture framework (`SymbolTestsCore`) built from an Xcode project in `Tests/Projects/SymbolTests/`. The framework binary is not checked in — build it once after cloning, and again whenever the fixture's sources change:
 
 ```bash
-./Scripts/build-test-fixtures.sh
+xcodebuild -project Tests/Projects/SymbolTests/SymbolTests.xcodeproj \
+    -scheme SymbolTestsCore -configuration Release \
+    -destination 'generic/platform=macOS' \
+    -derivedDataPath Tests/Projects/SymbolTests/DerivedData/SymbolTests \
+    CODE_SIGN_IDENTITY=- CODE_SIGNING_REQUIRED=NO \
+    build
 ```
 
-Then run the tests:
+Build it ad-hoc signed, as above and as CI does. The ABI baselines pin absolute implementation offsets, and an unsigned build (`CODE_SIGNING_ALLOWED=NO`) shifts every one of them, turning several suites red with no code change.
+
+Then run the tests, skipping `IntegrationTests` — a manual-inspection target that prints results without asserting anything:
 
 ```bash
-swift package update
-swift test
+swift test --skip IntegrationTests
 ```
 
-Skipping the fixture build causes `MachOFileTests` to throw a "file not found" error at `Tests/Projects/SymbolTests/DerivedData/.../SymbolTestsCore` during test `init()`, before any assertions run.
+Without the fixture, every fixture-bound test fails within milliseconds with `The file 'SymbolTestsCore' doesn't exist`.
 
-To regenerate snapshots after a legitimate Swift-compiler / metadata change:
+To regenerate the output snapshots after a legitimate Swift-compiler / metadata change:
 
 ```bash
 SNAPSHOT_TESTING_RECORD=all swift test \
@@ -600,14 +689,21 @@ SNAPSHOT_TESTING_RECORD=all swift test \
     --filter SymbolTestsCoreInterfaceSnapshotTests
 ```
 
-Commit the updated `__Snapshots__/` files alongside the source change that prompted the regeneration.
+To regenerate the ABI baselines under `Tests/MachOSwiftSectionTests/Fixtures/__Baseline__/` after a fixture rebuild or a toolchain upgrade (run it from the package directory):
+
+```bash
+swift package --allow-writing-to-package-directory regen-baselines
+```
+
+Review the diff, then commit the updated `__Snapshots__/` and `__Baseline__/` files alongside the change that prompted the regeneration.
+
+## Acknowledgements
+
+- [MachOKit](https://github.com/p-x9/MachOKit) by p-x9 — the Mach-O reading foundation this library extends, used through the [MxIris-Reverse-Engineering fork](https://github.com/MxIris-Reverse-Engineering/MachOKit).
+- [MachOObjCSection](https://github.com/p-x9/MachOObjCSection) by p-x9 — Objective-C metadata parsing, behind `swift-section objc` and the ObjC member recovery, used through the [MxIris-Reverse-Engineering fork](https://github.com/MxIris-Reverse-Engineering/MachOObjCSection).
+- [CwlDemangle](https://github.com/mattgallagher/CwlDemangle) by Matt Gallagher — the origin of the demangler, which now lives in [swift-demangling](https://github.com/MxIris-Reverse-Engineering/swift-demangling).
+- [Capstone](https://www.capstone-engine.org) — the disassembler `SwiftThunkAnalysis` decodes metadata accessor thunks with, through [swift-capstone](https://github.com/MxIris-Reverse-Engineering/swift-capstone).
 
 ## License
 
-[MachOObjCSection](https://github.com/p-x9/MachOObjCSection)
-
-[MachOKit](https://github.com/p-x9/MachOKit)
-
-[CwlDemangle](https://github.com/mattgallagher/CwlDemangle)
-
-MachOSwiftSection is released under the MIT License. See [LICENSE](./LICENSE)
+MachOSwiftSection is released under the MIT License. See [LICENSE](./LICENSE).
