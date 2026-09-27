@@ -15,8 +15,10 @@ import MachOReading
 /// each class object's `class_ro_t` name — the ObjC runtime name → class
 /// object table, and for Swift classes the qualified-name → runtime-name
 /// table the Swift side needs to ask by (a `TypeDefinition` knows its
-/// qualified name, the ObjC side files the class under `_TtC…`) — plus one
-/// pass over `__objc_catlist` reading only each category's target class name.
+/// qualified name, the ObjC side files the class under `_TtC…`; a class the
+/// source renamed files under the name it chose, and is found through
+/// `SwiftClassObjectIndex` instead) — plus one pass over `__objc_catlist`
+/// reading only each category's target class name.
 /// Method lists are NOT read here: they are read per class on demand and
 /// memoized, so an image's clang classes cost nothing and NSView's two
 /// thousand selectors are read once for AppKit's 173 Swift subclasses. An
@@ -123,8 +125,19 @@ package final class ObjCClassMethodIndex: SharedCache<ObjCClassMethodIndex.Stora
     /// The runtime names of the Swift classes whose qualified name is
     /// `qualifiedName`; empty when the image defines no such class object
     /// (a generic class has none — it is instantiated at runtime).
+    ///
+    /// A class the source renamed (`@objc(NSScrollPocket)`) files under a
+    /// runtime name that demangles to nothing, so the table built here never
+    /// keys it; the renamed classes are looked up by the qualified name their
+    /// metadata's descriptor gives (evolution proposal
+    /// `objc-custom-class-name`), and both answers count: the qualified name
+    /// drops the private discriminator, so two same-named private classes stay
+    /// ambiguous whichever of them was renamed. Only an image whose Swift
+    /// classes are asked about builds that index — the ancestor walk never
+    /// asks by Swift name.
     package func runtimeNames(forSwiftClassQualifiedName qualifiedName: String, in machO: some MachORepresentableWithCache) -> [String] {
-        storage(in: machO)?.runtimeNamesBySwiftQualifiedName[qualifiedName] ?? []
+        let demangledRuntimeNames = storage(in: machO)?.runtimeNamesBySwiftQualifiedName[qualifiedName] ?? []
+        return demangledRuntimeNames + SwiftClassObjectIndex.shared.customRuntimeNames(forSwiftClassQualifiedName: qualifiedName, in: machO)
     }
 
     /// The hierarchy of the class the image defines under `runtimeName` —

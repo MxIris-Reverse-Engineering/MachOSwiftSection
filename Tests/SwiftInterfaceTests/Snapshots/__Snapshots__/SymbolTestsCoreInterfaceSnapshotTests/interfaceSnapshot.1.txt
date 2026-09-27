@@ -2349,17 +2349,19 @@ enum Noncopyable {
     }
 }
 enum ObjCClassWrapperFixtures {
+    @objc(SymbolTestsCoreObjCBridgeClass)
     class ObjCBridge: __C.NSObject {
         // Field offset: 0x8
         // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 2147483647)
         var label: Swift.String
 
-        @objc init()
+        @objc override init()
 
         deinit
     }
+    @objc(SymbolTestsCoreObjCBridgeWithProto)
     class ObjCBridgeWithProto: __C.NSObject {
-        @objc init()
+        @objc override init()
 
         @objc func ping()
 

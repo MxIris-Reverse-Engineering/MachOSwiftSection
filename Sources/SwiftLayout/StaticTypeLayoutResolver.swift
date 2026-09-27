@@ -666,20 +666,27 @@ final class StaticTypeLayoutResolver<MachO: MachOSwiftSectionRepresentableWithCa
     /// by the Swift runtime instead (`initClassFieldOffsetVector`, which
     /// starts at the exact superclass instance size with per-field alignment
     /// only), so the existing rule stands.
+    ///
+    /// The classlist table is keyed by the qualified name its `_TtC…` runtime
+    /// name demangles to. A class the source renamed (`@objc(MyController)`,
+    /// routine in app binaries) demangles to nothing there, so a miss asks
+    /// the renamed-class index by descriptor (evolution proposal
+    /// `objc-custom-class-name`).
     func classFieldStartOffset(
         of descriptor: ClassDescriptor,
         in image: ImageReference<MachO>,
         superclassInstanceSize: Int,
         ownFieldAlignmentMask: Int
     ) -> Int {
-        guard
-            !descriptor.layout.flags.isGeneric,
-            let contextNode = try? SymbolicDemangler.demangleContext(
-                for: TypeContextDescriptorWrapper.class(descriptor).asContextDescriptorWrapper,
-                in: image.machO
-            ),
-            let qualifiedTypeName = NodeTypeNaming.nominalQualifiedName(of: contextNode),
-            let ownInstanceStart = image.swiftClassInstanceStartsByQualifiedName[qualifiedTypeName]
+        guard !descriptor.layout.flags.isGeneric else { return superclassInstanceSize }
+        let classListInstanceStart = (try? SymbolicDemangler.demangleContext(
+            for: TypeContextDescriptorWrapper.class(descriptor).asContextDescriptorWrapper,
+            in: image.machO
+        ))
+            .flatMap { NodeTypeNaming.nominalQualifiedName(of: $0) }
+            .flatMap { image.swiftClassInstanceStartsByQualifiedName[$0] }
+        guard let ownInstanceStart = classListInstanceStart
+            ?? SwiftClassObjectIndex.shared.renamedClassInstanceStart(forClassDescriptorOffset: descriptor.offset, in: image.machO)
         else { return superclassInstanceSize }
         guard superclassInstanceSize > ownInstanceStart else { return ownInstanceStart }
         let slide = (superclassInstanceSize - ownInstanceStart + ownFieldAlignmentMask) & ~ownFieldAlignmentMask

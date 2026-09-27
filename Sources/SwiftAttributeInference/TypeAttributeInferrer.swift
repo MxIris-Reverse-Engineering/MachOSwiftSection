@@ -9,7 +9,8 @@ import Demangling
 /// - `@resultBuilder`: type has a `static buildBlock` method (also checks extensions)
 /// - `@dynamicMemberLookup`: type has `subscript(dynamicMember:)`
 /// - `@dynamicCallable`: type has a `dynamicallyCall` method
-/// - `@objc("Name")`: class with custom ObjC name (requires runtime metadata)
+/// - `@objc(Name)` / `@_objcRuntimeName(Name)`: class the source renamed for
+///   the ObjC runtime, as `index(in:)` read it off the class metadata
 /// - `@globalActor`: type conforms to `GlobalActor` protocol
 public struct TypeAttributeInferrer: Sendable {
     public init() {}
@@ -143,18 +144,19 @@ public struct TypeAttributeInferrer: Sendable {
         }
     }
 
+    /// The renamed class's attribute (evolution proposal
+    /// `objc-custom-class-name`). The flag and the name live in the class
+    /// metadata, not the descriptor; `TypeDefinition.index(in:)` has already
+    /// read them, together with the object model that decides the spelling.
+    /// The printer adds the name in parentheses.
     private func inferObjCType(typeDefinition: TypeDefinition, into attributes: inout [SwiftAttribute]) {
-        // @objc("CustomName") on class is stored in ClassFlags.hasCustomObjCName
-        // ClassFlags is part of runtime metadata (loaded class metadata), not the descriptor.
-        // We can only detect this from the ClassDescriptor if we check the
-        // metadataPositiveSizeInWordsOrExtraClassFlags field when the class has a resilient superclass.
-        // For now, we check via the descriptor's extra class flags if available.
-        guard case .class(let classDescriptor) = typeDefinition.typeContextDescriptorWrapper else { return }
-
-        // The hasCustomObjCName flag is in the runtime ClassFlags (swiftClassFlags),
-        // which are only available when the binary is loaded as a MachOImage.
-        // The descriptor itself does not directly encode this information.
-        // This detection will be enhanced in a future task when runtime metadata reading is added.
-        _ = classDescriptor
+        switch typeDefinition.customObjCClassName?.attribute {
+        case .objc:
+            attributes.append(.objcType)
+        case .objcRuntimeName:
+            attributes.append(.objcRuntimeName)
+        case nil:
+            break
+        }
     }
 }

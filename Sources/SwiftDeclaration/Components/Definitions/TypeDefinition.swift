@@ -1,4 +1,5 @@
 import MachOSwiftSection
+import SwiftInspection
 @_spi(Internals) import MachOSymbols
 
 public final class TypeDefinition: Definition {
@@ -126,6 +127,13 @@ public final class TypeDefinition: Definition {
 
     public package(set) var attributes: [SwiftAttribute] = []
 
+    /// The Objective-C runtime name the class's source chose —
+    /// `@objc(NSColorModel)` or `@_objcRuntimeName(Name)` — read off the class
+    /// metadata by `index(in:)` (evolution proposal `objc-custom-class-name`).
+    /// `nil` for every type that is not a class, and for a class the runtime
+    /// knows by its `_TtC…` mangling.
+    public package(set) var customObjCClassName: CustomObjCClassName? = nil
+
     /// Whether `index(in:)` has completed a pass over this definition.
     ///
     /// The setter is `internal`, not `private`, only because the indexing
@@ -204,5 +212,19 @@ public final class TypeDefinition: Definition {
     /// browse order, the memory the descriptor slimming reclaimed.
     public func materializedTypeContext(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> TypeContextWrapper {
         try TypeContextWrapper.forTypeContextDescriptorWrapper(typeContextDescriptorWrapper, in: machO)
+    }
+
+    /// What a type-level attribute prints in parentheses, or `nil` when it
+    /// takes no argument: the runtime name of `@objc(NSColorModel)` and
+    /// `@_objcRuntimeName(Name)` (evolution proposal `objc-custom-class-name`).
+    /// Shared by the printer's two header paths, the full declaration and the
+    /// diff / evolution header.
+    package func attributeArgument(for attribute: SwiftAttribute) -> String? {
+        switch attribute {
+        case .objcType, .objcRuntimeName:
+            return customObjCClassName?.name
+        default:
+            return nil
+        }
     }
 }

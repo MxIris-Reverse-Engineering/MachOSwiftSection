@@ -23,6 +23,11 @@ public enum SwiftAttribute: Int, Comparable, Sendable, CaseIterable, Codable {
     // Conformance-level
     case retroactive
 
+    // Type-level (from metadata flags): a class on the native Swift object
+    // model renamed for the ObjC runtime, where `@objc` is not legal.
+    // Declared last so the raw values above stay put.
+    case objcRuntimeName
+
     public static func < (lhs: SwiftAttribute, rhs: SwiftAttribute) -> Bool {
         lhs.rawValue < rhs.rawValue
     }
@@ -40,6 +45,7 @@ public enum SwiftAttribute: Int, Comparable, Sendable, CaseIterable, Codable {
         case .distributed: return "distributed"
         case .globalActor: return "@globalActor"
         case .retroactive: return "@retroactive"
+        case .objcRuntimeName: return "@_objcRuntimeName"
         }
     }
 
@@ -56,6 +62,7 @@ public enum SwiftAttribute: Int, Comparable, Sendable, CaseIterable, Codable {
         case .distributed: return .distributed
         case .globalActor: return .atGlobalActor
         case .retroactive: return .atRetroactive
+        case .objcRuntimeName: return .atObjCRuntimeName
         }
     }
 }

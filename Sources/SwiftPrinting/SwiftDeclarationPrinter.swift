@@ -237,6 +237,11 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
         for attribute in typeDefinition.attributes {
             Indent(level: level - 1)
             Keyword(attribute.keyword)
+            // `@objc(NSColorModel)`: the runtime name a renamed class carries
+            // (evolution proposal `objc-custom-class-name`).
+            if let argument = typeDefinition.attributeArgument(for: attribute) {
+                Standard("(\(argument))")
+            }
             BreakLine()
         }
 
