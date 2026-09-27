@@ -43,3 +43,23 @@ jobs:
             exit 1
           fi
           echo "Found $changelog"
+
+      - name: Verify agent plugin versions match
+        run: |
+          set -euo pipefail
+          value="${{ steps.version.outputs.version }}"
+          # Claude Code and Codex only update an installed plugin when its
+          # version changes, so a release that leaves these behind never
+          # reaches the users of the plugin.
+          status=0
+          for manifest in AgentPlugins/swift-section/.claude-plugin/plugin.json \
+                          AgentPlugins/swift-section/.codex-plugin/plugin.json; do
+            pluginVersion=$(jq -r '.version // empty' "$manifest")
+            if [ "$pluginVersion" != "$value" ]; then
+              echo "::error file=$manifest::version is '$pluginVersion' but BundledVersion.value is '$value' — bump the plugin with the CLI."
+              status=1
+            else
+              echo "$manifest: $pluginVersion"
+            fi
+          done
+          exit $status

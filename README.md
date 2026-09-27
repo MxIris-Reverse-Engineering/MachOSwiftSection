@@ -650,6 +650,32 @@ The contracts that neither the signatures nor `--help` show — how file mode tr
 superclass chain, why pure-Swift classes' ivar records do not line up, and the rest — are in
 [Objective-C Command Line](Documentations/ObjCCommandLine.md).
 
+## Agent Plugin
+
+The `swift-section` plugin teaches coding agents to drive the CLI: which subcommand answers
+which question, the flag spellings that differ between `dump` and `interface`, and the output
+traps that produce a plausible but wrong answer. It is a skill only — install the CLI itself
+separately (see [Installation](#installation)).
+
+**Claude Code** — inside a session:
+
+```
+/plugin marketplace add MxIris-Reverse-Engineering/MachOSwiftSection
+/plugin install swift-section@machoswiftsection
+```
+
+**Codex**:
+
+```bash
+codex plugin marketplace add MxIris-Reverse-Engineering/MachOSwiftSection
+codex plugin add swift-section@machoswiftsection
+```
+
+The plugin's version follows the CLI's, and an installed plugin only picks up a new release
+when that version changes. To pull one in: `claude plugin marketplace update machoswiftsection`
+then `claude plugin update swift-section@machoswiftsection` for Claude Code,
+`codex plugin marketplace upgrade machoswiftsection` for Codex.
+
 ## Documentation
 
 - [Swift Enum Memory Layout](Documentations/SwiftEnumLayout.md) ([中文](Documentations/SwiftEnumLayout_zh.md)) — how Swift lays out enums, and how to read the `--emit-enum-layout` comments.
