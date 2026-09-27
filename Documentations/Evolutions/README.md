@@ -59,4 +59,5 @@
 | [0048](0048-objc-member-selector-recovery.md) | 从 ObjC 方法表还原每个 `@objc` 成员：strip 后的 `@objc`、显式 selector 与 category 成员 | Implemented |
 | [0049](0049-objc-ancestor-dependency-closure.md) | ObjC 祖先链走依赖闭包：独立文件上的父类与 category 目标类按名字在依赖镜像里解析 | Implemented |
 | [0050](0050-symbolic-mangling-symbol-index.md) | `_symbolic` 符号索引：被符号引用的对象 → 编译器写下的完整名字 | Implemented |
+| [0051](0051-agent-plugin.md) | `swift-section` 的 agent 插件：教 agent 用 CLI 的 skill 随仓库发布，Claude Code 与 Codex 直接安装 | Implemented |
 | draft | [静态布局引擎读取 accessor thunk 背后的字段类型](draft-static-layout-through-accessor-thunks.md) | Draft |

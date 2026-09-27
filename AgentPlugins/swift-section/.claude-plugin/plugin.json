@@ -1,0 +1,13 @@
+{
+  "name": "swift-section",
+  "version": "0.20.0",
+  "description": "Teaches coding agents to drive the swift-section CLI: Swift and Objective-C declarations, memory layout and ABI diffs recovered from a Mach-O binary or a dyld shared cache.",
+  "author": {
+    "name": "MxIris-Reverse-Engineering",
+    "url": "https://github.com/MxIris-Reverse-Engineering"
+  },
+  "homepage": "https://github.com/MxIris-Reverse-Engineering/MachOSwiftSection#agent-plugin",
+  "repository": "https://github.com/MxIris-Reverse-Engineering/MachOSwiftSection",
+  "license": "MIT",
+  "keywords": ["swift", "objective-c", "mach-o", "dyld-shared-cache", "reverse-engineering", "abi"]
+}

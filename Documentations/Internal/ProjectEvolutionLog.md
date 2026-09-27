@@ -1992,6 +1992,16 @@
 - **关联文档**：[ReviewAdjudications A50、A51](ReviewAdjudications.md)；[发版审查记录](../../Roadmaps/2026-09-26-release-0.20.0-review-findings.md)；[FixtureTestingAndContinuousIntegration.md](FixtureTestingAndContinuousIntegration.md)（现场编译 fixture 的语言模式）。
 - **对应版本**：0.20.0 之后未发布区间（MachOKitExtensions 下限 0.1.2）。
 
+## 62. `swift-section` 的 agent 插件
+
+- **时间段**：2026-09-27（单日）。直落 `main` 时编为第 61 节；并入 `next` 时，`next` 上已有先推上去的第 61 节，按节号规则让位为 62。
+- **动机**：教 coding agent 用 `swift-section` 的 skill 只存在于维护者本机的全局配置里——别人装不到，CLI 改了参数也不会有人同步它。
+- **关键决策**：做成 Claude Code 与 Codex 都能从 GitHub 直接安装的插件，两边的 marketplace 各放在各自的固定位置、指向同一个插件目录，skill 只有一份。目录叫 `AgentPlugins/` 而不是 `plugins/`，因为后者在不区分大小写的磁盘上就是 SwiftPM 的 `Plugins/`。插件版本号跟 CLI 版本走，两个工具只在版本号变化时才更新已安装的插件，所以由 `version-check.yml` 在合入 `main` 的 PR 上核对，而不只靠 `AGENTS.md` 里的提醒。skill 搬家时去掉了本机专属的交叉引用，把 `objc` 子命令的用法与坑一并收进 `references/objc.md`，补上 0.20.0 的 `--dependency-search-path` 与 `--infer-objc-overrides`。直接 PR 进 `main`，不等下个版本：只加插件与文档，不动库代码。
+- **落地模块**：`AgentPlugins/swift-section/`、`.claude-plugin/marketplace.json`、`.agents/plugins/marketplace.json`、`.github/workflows/version-check.yml`、`Sources/swift-section/Version.swift`（仅注释）、`AGENTS.md`、`README.md`。
+- **验证**：Claude Code 的 `claude plugin validate`（marketplace 用 `--strict`）、Codex 的 `validate_plugin.py` 与 `quick_validate.py` 均通过；临时 `CODEX_HOME` 里实际装上了插件；skill 中出现的每个 `--flag` 都在 0.20.0 的 `--help` 里；CI 新增的版本核对在版本一致时通过、不一致时对两个文件各报一条错误。
+- **关联文档**：[0051-agent-plugin](../Evolutions/0051-agent-plugin.md)；README「Agent Plugin」。
+- **对应版本**：0.20.0（插件版本 0.20.0）。
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节
