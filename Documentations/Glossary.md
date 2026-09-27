@@ -210,6 +210,13 @@ opaque 尖括号参数归属的第三条规则：协议无任何 anchor 命中�
 - **主要出现在**：`Sources/MachOSymbols/SymbolTable.swift`（`row(forName:)`）
 - **延伸阅读**：[提案 0001](Evolutions/0001-symbol-name-offsetization.md)
 
+### renamed class（改名类，`@objc(Name)` / `@_objcRuntimeName(Name)`）
+
+源码给 ObjC 运行时另起了名字的 Swift 类：类对象的 `class_ro_t` 名是源码写的名字（`NSScrollPocket`），而不是 `_TtC6AppKit14NSScrollPocket` 这样的 mangling。二进制里只剩类元数据 flag 字里的 `HasCustomObjCName` 与名字本身，`SwiftClassObjectIndex` 顺着类元数据自带的描述符指针把它们配到 Swift 类上（父类在另一个 resilience domain、不进 classlist 的类读 metadata pattern）。本仓库凡是「demangle 运行时名找 Swift 类」的地方都要为它回退，否则一律配不上——成员恢复与布局引擎以前就是这样漏掉它们的。interface 与 dump 打印 `@objc(Name)`，原生 Swift 对象模型的类打印 `@_objcRuntimeName(Name)`。
+
+- **主要出现在**：`SwiftInspection/SwiftClassObjectIndex.swift`、`SwiftInspection/CustomObjCClassName.swift`
+- **延伸阅读**：[提案 draft-objc-custom-class-name](Evolutions/draft-objc-custom-class-name.md)、[CustomObjCClassNames.md](Internal/CustomObjCClassNames.md)
+
 ### row / `SymbolRow`（行）
 
 `SymbolTable` 的最小单位：每个唯一符号名一行，16 字节（canonical offset + `PackedNameReference`），行号（`UInt32`）是全部分类索引引用符号的方式。「一名一行」意味着按名字查询的语义是纯函数——同名必同行。

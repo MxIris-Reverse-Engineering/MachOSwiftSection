@@ -258,6 +258,12 @@ Attribution against a non-macOS binary is limited (it warns and degrades rather 
   are stripped — see the strip-state warning in §7.
 - **Enum-layout patterns marked "not resolved offline"** mean only the extra-inhabitant *index*
   is derivable statically; the concrete bytes need the live metadata.
+- **`@objc(Name)` above a class** is the name the Objective-C runtime knows it by, and matters
+  even when it equals the Swift name (`@objc(NSScrollPocket) class NSScrollPocket`): without it
+  the runtime name would be the `_TtC…` mangling. That is also the class name `objc` headers
+  and `-[Class selector]` comments use. **`@_objcRuntimeName(Name)`** is the same fact on a
+  class with no Objective-C ancestor, where `@objc` would not be legal Swift (mostly the
+  standard library) — not a typo.
 
 ## 10. Where the details live
 

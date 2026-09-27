@@ -2002,6 +2002,16 @@
 - **关联文档**：[0051-agent-plugin](../Evolutions/0051-agent-plugin.md)；README「Agent Plugin」。
 - **对应版本**：0.20.0（插件版本 0.20.0）。
 
+## 2026-09-27 改过 ObjC 运行时名的 Swift 类：打印 `@objc(Name)`，按描述符指针配对类对象
+
+- **时间段**：2026-09-27（单日）。节号落地时取。
+- **动机**：RuntimeViewer 会话代用户转来的需求：生成的接口要给用 `@objc(Name)` 改过 ObjC 运行时名的 Swift 类（macOS 27 AppKit 的 `NSColorModel`、`NSScrollPocket`）打印 `@objc(ClassName)`，配对与角标由 RuntimeViewer 自己做。这是路线图 P2-14 的复活——2026-04-15 以「缺真实用例、需要按地址配对」搁置。调研时发现同一个缺口还连着两处可见缺陷：成员恢复与静态布局引擎都靠 demangle 运行时名找 Swift 类的类对象，改名类一律配不上——`NSScrollPocket.layout()` 丢了 `@objc override`，strip 后的形态里 `description` 被 `final` 还原误标成 `final`，仓库自己的 SymbolTestsCore 快照里 `ObjCBridge` 的 `init()` 也少了 `override`。
+- **关键决策**：① **按类元数据配对**：classlist 里 Swift 类的类对象就是它的元数据，flag 字与描述符指针直接读；描述符指针按字段位置解 rebase（不能走 `descriptor(in:)`，那条路在 cache 镜像上拿到未解码的原值）；父类在另一个 resilience domain、不进 classlist 的类读 `ResilientClassMetadataPattern`。② **写法**：`UsesSwiftRefcounting` 清零印 `@objc(Name)`，置位印 `@_objcRuntimeName(Name)`（原生对象模型上 `@objc` 不合法），`@objc` actor 例外。③ **在查询时补，不在建表时补**：`ObjCClassMethodIndex` 的限定名查找在查询时并上新索引的结果（合并而不是查不到才回退——两个同名 private 类里有一个改过名时仍要判为歧义），布局引擎的 `instanceStart` 查找在查不到时按描述符问新索引；祖先链经过的镜像不会因此建它，`_TtC…` 类的既有路径一行不动。④ **不动 SymbolTestsCore**：另起现场编译的三镜像 fixture（library evolution 的 Swift kit、实现文件里藏 ivar 的 ObjC 父类、客户端的全量与 `strip -x` 两个变体）。⑤ 用户指示「写完直接开工，不用问我」，按轻量档提案落盘后即开工，没有发问；范围扩到两处配对缺陷记进提案决策日志。
+- **落地模块**：SwiftInspection（新增 `SwiftClassObjectIndex`、`CustomObjCClassName`；`ObjCClassMethodIndex.runtimeNames` 回退；`ObjCClassHierarchies.removeCache` 一并驱逐）、SwiftDeclaration（`TypeDefinition.customObjCClassName` / `attributeArgument(for:)`、`SwiftAttribute.objcRuntimeName`）、SwiftAttributeInference（`inferObjCType` 从空函数变为实现）、SwiftDeclarationRendering（`@_objcRuntimeName` 关键字）、SwiftPrinting 与 SwiftInterface（完整打印与 diff / evolution 头部）、SwiftDump（`ClassDumper`）、SwiftLayout（`classFieldStartOffset`）；MachOTestingSupport 的 `RenamedObjCClassFixture` 与四组新测试；SymbolTestsCore 的 interface 与 `objCClassWrappers` dump 两份快照；agent 插件 skill 的读输出说明；README 特性清单。
+- **验证**：详见实现说明「验证」一节。新测试在修复前的 `next` 上逐条失败（未改名的反例除外），修复后全部通过；全量 `swift test --skip IntegrationTests`（默认工具链 Xcode 27）2116 个测试、原始退出码 0，唯一一条 known issue 是 `SymbolicManglingIndexTests` 既有的 `withKnownIssue`。macOS 27（26A428）系统 cache 的 AppKit interface 前后对比：新增 74 行 `@objc(…)`，其余差异全是这些类恢复出的 `@objc` / `override`。渲染 A/B（96 对）：48 对逐字节一致，48 对的差异逐行归类后只有属性行、成员的 `@objc` / `override` / 显式 selector、dump 的祖先链与成员注释四种，意外改动为 0。
+- **关联文档**：[draft-objc-custom-class-name](../Evolutions/draft-objc-custom-class-name.md)、[CustomObjCClassNames.md](CustomObjCClassNames.md)、[ObjCMemberRecovery.md](ObjCMemberRecovery.md)、[StaticLayoutEngine.md](StaticLayoutEngine.md)、路线图 P2-14。
+- **对应版本**：0.20.0 之后未发布区间。
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节

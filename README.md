@@ -145,6 +145,7 @@ Generated interfaces reflect a wide range of Swift language features:
 
 - Type / member attributes: `@objc`, `@nonobjc`, `dynamic`, `@retroactive`, `@globalActor`, `@escaping`, `consuming` / `borrowing` parameter modifiers
 - `@objc`, `override` and `@objc(selector)` recovered from a class's ObjC method table, including in OS frameworks that strip the thunk symbols these used to be read from
+- `@objc(Name)` on a class its source renamed for the Objective-C runtime (`@_objcRuntimeName(Name)` on a native Swift class), read from the class metadata — AppKit alone renames dozens (`NSScrollPocket`, `NSColorModel`)
 - `@objc @implementation extension` for classes implemented through SE-0436, with their stored properties
 - Property wrappers as the source declared them (`@SwiftUI.State var name`), with the synthesized `_name` / `$name` hidden — for wrappers defined in other images too
 - Types stored behind a metadata accessor — availability-conditional `some View`, noncopyable fields — read without running any code, with their availability branches as a comment
