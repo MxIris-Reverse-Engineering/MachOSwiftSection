@@ -354,6 +354,7 @@ swift-section interface --emit-type-layout --emit-enum-layout /path/to/binary
 swift-section interface --emit-member-addresses --emit-vtable-offsets /path/to/binary
 
 # Members sorted by their binary layout offset instead of grouped by kind
+# (either way, a class's vtable members come first, in vtable slot order)
 swift-section interface --sort-members-by-offset /path/to/binary
 ```
 

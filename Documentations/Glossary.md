@@ -80,6 +80,15 @@
 - **主要出现在**：`Sources/MachOSymbols/SymbolIndexStore.swift`
 - **延伸阅读**：[提案 0008](Evolutions/0008-interface-header-and-export-status-annotations.md)、[InterfaceHeaderAndExportStatusAnnotations.md](Internal/InterfaceHeaderAndExportStatusAnnotations.md)
 
+### descriptor-only member（只剩 method descriptor 符号的成员）
+
+class 的 vtable 成员里，实现函数没有符号、只剩它自己 method descriptor 的 `Tq` 符号能说出它是谁的那一类。library-evolution 构建本来就只导出 `Tj` / `Tq`，实现符号保持 local（见上一条 derived symbol forms），所以镜像的 local 符号一旦被剥掉——系统 dyld shared cache 里的 AppKit、`strip -x` 过的二进制——public 的 class 方法和访问器就全都属于这一类：macOS 26.7 的 AppKit 因此在 interface 里少了 53 个成员。「实现符号没导出」不等于「没符号」：同一份 cache 里的 SwiftUI、SwiftUICore、Foundation 保留了 local 符号，不属于这一类。协议 requirement 也有 `Tq`，但它们从协议描述符打印，也不在此列。interface 过去只从实现符号建成员，这一类整个缺席；现在 `classDispatchLookups` 为每个有 `Tq`、实现指针非 null 的槽造一个成员符号（名字是 `Tq` 名去掉后缀，也就是实现函数本来的 mangled 名；偏移是 descriptor 记录的实现偏移，async 方法再跳一次到函数入口），`indexMembers` 在实现符号没有声明这个成员时用它补建。
+
+和 ABI 墓碑的区别：墓碑的实现指针是 null，镜像里根本没有这个成员的代码，所以不补建；descriptor-only member 的代码还在，只是没有名字。
+
+- **主要出现在**：`TypeDefinition+ClassDispatch.swift`、`ClassDispatchLookups.vtableSlotMemberSymbols`、`TypeDefinition+MemberIndexing.swift`
+- **延伸阅读**：[提案 interface-descriptor-only-vtable-members](Evolutions/draft-interface-descriptor-only-vtable-members.md)
+
 ### detach（脱表，`detachedFromSharedTable()`）
 
 把一个查询期 vend 出来的 `DemangledSymbol` 从共享 `SymbolTable` 上摘下来、换成自带单行表的独立值。共享表对「vend 十万个、随手丢弃」是正确的取舍，但**存进声明模型的长命值必须先 detach**——一个存活值会把整张表（几十万行 + 对镜像映射内存的引用）钉在内存里，让按镜像回收失效。六个存储点由 `SymbolTableRetentionTests` 钉住；查询路径**不要** detach。

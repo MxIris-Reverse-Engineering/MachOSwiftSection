@@ -63,8 +63,11 @@ extension TypeDefinition {
         // non-invertible.
         for (index, descriptor) in classWrapper.methodDescriptors.enumerated() {
             let node: NodeReference
-            if let attributedNode = descriptor.attributedMemberNode(in: machO) {
-                node = attributedNode
+            if let attributedMember = descriptor.attributedMember(in: machO) {
+                node = attributedMember.memberNode
+                if let slotMemberSymbol = vtableSlotMemberSymbol(for: descriptor, attributedMember: attributedMember, in: machO) {
+                    lookups.vtableSlotMemberSymbols.append(slotMemberSymbol)
+                }
             } else if let symbols = descriptor.implementationSymbols(in: machO),
                       let overrideSymbol = demangledOverrideSymbol(for: symbols, typeNode: typeNode, visitedNodes: visitedNodes, in: machO) {
                 node = overrideSymbol.demangledNode
@@ -110,5 +113,55 @@ extension TypeDefinition {
             lookups.methodDescriptorLookup[memberJoinKey(for: node, in: machO)] = .methodDefaultOverride(descriptor)
         }
         return lookups
+    }
+
+    /// The symbol a vtable slot's member would carry, built from the slot's
+    /// `Tq` symbol for the member builders to fall back to when the image
+    /// has no implementation symbol for it (evolution proposal
+    /// `interface-descriptor-only-vtable-members`): the implementation's
+    /// mangled name at the implementation's entry point.
+    ///
+    /// `nil` for a slot there is no member to build from:
+    /// - an ABI tombstone — a null implementation, the body removed by
+    ///   dead-method elimination and the slot kept; this image holds no code
+    ///   for the member, and the dump already lists the slot as such;
+    /// - a `modify` / `read` coroutine: the symbol index never files those
+    ///   accessors as members, so the interface never prints them for a
+    ///   class whose symbols are intact either;
+    /// - a `Tq` symbol not spelled with the suffix.
+    private func vtableSlotMemberSymbol(
+        for descriptor: MethodDescriptor,
+        attributedMember: MethodDescriptorAttribution.AttributedMember,
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) -> DemangledSymbol? {
+        switch descriptor.flags.kind {
+        case .method,
+             .`init`,
+             .getter,
+             .setter:
+            break
+        case .modifyCoroutine,
+             .readCoroutine:
+            return nil
+        }
+        guard let implementationOffset = descriptor.implementationOffset,
+              let implementationSymbolName = attributedMember.implementationSymbolName else { return nil }
+        // An async method's slot holds its async function pointer — the `Tu`
+        // constant a caller reads the context size from — not its code; the
+        // implementation symbol sits where that record points.
+        let entryOffset = descriptor.flags.isAsync ? asyncFunctionEntryOffset(ofAsyncFunctionPointerAt: implementationOffset, in: machO) ?? implementationOffset : implementationOffset
+        return DemangledSymbol(symbol: Symbol(offset: entryOffset, name: implementationSymbolName), demangledNode: attributedMember.memberNode)
+    }
+
+    /// The code an async function pointer points to, or `nil` when the
+    /// record cannot be read.
+    private func asyncFunctionEntryOffset(ofAsyncFunctionPointerAt offset: Int, in machO: some MachOSwiftSectionRepresentableWithCache) -> Int? {
+        do {
+            // Annotated: the optional-returning overload reads another shape.
+            let asyncFunctionPointer: AsyncFunctionPointer = try AsyncFunctionPointer.resolve(from: offset, in: machO)
+            return asyncFunctionPointer.resolvedDirectOffset(from: \.function)
+        } catch {
+            return nil
+        }
     }
 }

@@ -39,8 +39,16 @@ extension MethodDescriptor {
     /// implementation-symbol route yields — so printers and join keys need no
     /// special case for it.
     public func attributedMemberNode(in machO: some MachOSwiftSectionRepresentableWithCache) -> NodeReference? {
+        attributedMember(in: machO)?.memberNode
+    }
+
+    /// The member this vtable slot belongs to together with the `Tq` symbol
+    /// that named it — what a caller needs to stand the member in for an
+    /// implementation symbol the image does not carry (see
+    /// ``MethodDescriptorAttribution/AttributedMember/implementationSymbolName``).
+    public func attributedMember(in machO: some MachOSwiftSectionRepresentableWithCache) -> MethodDescriptorAttribution.AttributedMember? {
         guard let symbols = methodDescriptorSymbols(in: machO) else { return nil }
-        return MethodDescriptorAttribution.memberNode(forMethodDescriptorSymbols: symbols, in: machO)
+        return MethodDescriptorAttribution.attributedMember(forMethodDescriptorSymbols: symbols, in: machO)
     }
 }
 
@@ -59,6 +67,35 @@ extension MethodDescriptor {
 
 /// The shared unwrapping behind `attributedMemberNode`.
 public enum MethodDescriptorAttribution {
+    /// A vtable slot's member as its method descriptor's `Tq` symbol names it.
+    public struct AttributedMember: Sendable {
+        /// The `Tq` symbol at the descriptor's own address.
+        public let methodDescriptorSymbol: Symbol
+
+        /// The member, member-shaped (`global(<entity>)`).
+        public let memberNode: NodeReference
+
+        /// The mangled name of the member's implementation symbol.
+        ///
+        /// The mangling appends `Tq` verbatim to the entity's name, so
+        /// dropping it gives the name the implementation carries — or carried,
+        /// before a strip removed every local symbol. A library-evolution
+        /// image keeps that symbol local and exports only its `Tj` / `Tq`
+        /// forms (clients call through the dispatch thunk), which is why an
+        /// image stripped of its local symbols — AppKit in the OS dyld shared
+        /// cache — has no name at a public class method's implementation
+        /// address. `nil` for a symbol not spelled with the suffix.
+        public var implementationSymbolName: String? {
+            let name = methodDescriptorSymbol.name
+            let suffix = MethodDescriptorAttribution.methodDescriptorSymbolSuffix
+            guard name.hasSuffix(suffix) else { return nil }
+            return String(name.dropLast(suffix.count))
+        }
+    }
+
+    /// The mangling suffix of a method descriptor symbol.
+    private static let methodDescriptorSymbolSuffix = "Tq"
+
     /// The first symbol among `symbols` that demangles to a method descriptor,
     /// unwrapped to its member.
     ///
@@ -69,10 +106,19 @@ public enum MethodDescriptorAttribution {
         forMethodDescriptorSymbols symbols: Symbols,
         in machO: some MachOSwiftSectionRepresentableWithCache
     ) -> NodeReference? {
+        attributedMember(forMethodDescriptorSymbols: symbols, in: machO)?.memberNode
+    }
+
+    /// `memberNode(forMethodDescriptorSymbols:in:)` together with the symbol
+    /// it came from.
+    public static func attributedMember(
+        forMethodDescriptorSymbols symbols: Symbols,
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) -> AttributedMember? {
         for symbol in symbols {
             guard let node = SymbolicDemangler.demangleSymbolReference(for: symbol, in: machO),
                   let memberNode = memberNode(unwrappingMethodDescriptorNode: node, in: machO) else { continue }
-            return memberNode
+            return AttributedMember(methodDescriptorSymbol: symbol, memberNode: memberNode)
         }
         return nil
     }

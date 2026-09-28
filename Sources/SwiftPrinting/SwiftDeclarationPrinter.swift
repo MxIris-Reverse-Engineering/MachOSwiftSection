@@ -647,9 +647,21 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
         let vtableTransformerClosure = vtableOffsetTransformerClosure
 
         let synthesizedPropertyWrapperMembers = synthesizedPropertyWrapperMembers(of: definition)
+        // A class's vtable members come first, in slot order — the order the
+        // class metadata lays its vtable out in, and for the class's own
+        // slots the source's declaration order — the way the dump walks them
+        // (evolution proposal `interface-descriptor-only-vtable-members`).
+        // Everything that owns no slot follows, grouped by category. Only a
+        // class body has vtable members, so every other definition renders
+        // exactly as before.
+        await MemberList(level: level) {
+            for member in OrderedMember.vtableOrdered(OrderedMember.allMembers(from: definition)) where !isExcludedByExportFilter(member) && !synthesizedPropertyWrapperMembers.contains(member) {
+                await renderMember(member, level: level, offsetCommentPrefix: offsetCommentPrefix, emitOffsetComment: emitOffsetComment, printVTableOffset: printVTableOffset, printMemberAddress: printMemberAddress, printExportStatus: printExportStatus, vtableTransformerClosure: vtableTransformerClosure, synthesizedPropertyWrapperMembers: synthesizedPropertyWrapperMembers)
+            }
+        }
         for category in MemberCategory.allCases {
             await MemberList(level: level) {
-                for member in definition.members(in: category) where !isExcludedByExportFilter(member) && !synthesizedPropertyWrapperMembers.contains(member) {
+                for member in definition.members(in: category) where member.minVTableOffset == nil && !isExcludedByExportFilter(member) && !synthesizedPropertyWrapperMembers.contains(member) {
                     await renderMember(member, level: level, offsetCommentPrefix: offsetCommentPrefix, emitOffsetComment: emitOffsetComment, printVTableOffset: printVTableOffset, printMemberAddress: printMemberAddress, printExportStatus: printExportStatus, vtableTransformerClosure: vtableTransformerClosure, synthesizedPropertyWrapperMembers: synthesizedPropertyWrapperMembers)
                 }
             }

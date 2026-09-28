@@ -63,3 +63,4 @@
 | draft | [静态布局引擎读取 accessor thunk 背后的字段类型](draft-static-layout-through-accessor-thunks.md) | Draft |
 | draft | [改过 ObjC 运行时名的 Swift 类：打印 `@objc(Name)`，并按描述符指针配对它的类对象](draft-objc-custom-class-name.md) | In Progress |
 | draft | [按镜像缓存整治：`SharedCache` 去继承、键去装箱、驱逐收口到注册表](draft-shared-cache-composition-and-eviction-registry.md) | In Progress |
+| draft | [interface 按 vtable 槽位顺序打印类成员，补上只剩 method descriptor 符号的成员](draft-interface-descriptor-only-vtable-members.md) | In Progress |

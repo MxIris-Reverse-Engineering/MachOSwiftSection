@@ -16,6 +16,13 @@ public struct ABISnapshotDocument: Sendable, Codable, Equatable {
     /// `ABIDiffer.extensionBucketKey(for:)`).
     ///
     /// History:
+    /// - 6: a class container of a stripped image carries the vtable members
+    ///   whose only symbol is their method descriptor's `Tq` (evolution
+    ///   proposal `interface-descriptor-only-vtable-members`) — the public
+    ///   class methods and accessors of an image stripped of its local
+    ///   symbols (AppKit in the OS dyld shared cache), which the index used
+    ///   to drop. Key scheme unchanged; an older baseline of such an image
+    ///   would misreport all of them as added.
     /// - 5: `MemberRecord` gains the optional `hasDefaultImplementation`
     ///   verdict metadata (key scheme unchanged from v4 — the bump keeps
     ///   "one version, one schema" unambiguous; an older baseline would
@@ -34,7 +41,7 @@ public struct ABISnapshotDocument: Sendable, Codable, Equatable {
     ///   (`tag:N|indirect|…`), so a version-1 baseline would silently miss
     ///   that transition.
     /// - 1: initial versioned format.
-    public static let currentFormatVersion = 5
+    public static let currentFormatVersion = 6
 
     public let formatVersion: Int
     public var provenance: ABIProvenance?
