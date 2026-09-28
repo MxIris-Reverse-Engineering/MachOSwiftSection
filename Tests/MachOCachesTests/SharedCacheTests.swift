@@ -91,7 +91,12 @@ struct SharedCacheResolveTests {
     /// fix, all N builds overlap, so wall-clock is ~T.
     @Test func concurrentCallsForDifferentKeysRunInParallel() {
         let cache = makeTestCache()
-        let keyCount = 8
+        // Two keys, not eight: every blocked build holds a libdispatch
+        // worker, and under a saturated full-suite run eight workers were not
+        // granted within the 30 s timeout (2026-09-28), which read as the
+        // serialization failure this test exists to catch. Two builds prove
+        // the overlap and cannot starve themselves.
+        let keyCount = 2
 
         // Deterministic parallelism proof instead of a wall-clock heuristic
         // (which flaked under CPU saturation): every build blocks until all
