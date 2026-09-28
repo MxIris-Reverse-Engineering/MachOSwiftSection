@@ -64,7 +64,7 @@ One or two lines each; the linked document is the authority.
 - **MachOReading / MachOResolving** — reading abstractions; address/offset resolution. `MachOResolving` also holds the symbol *value* types (`Symbol`, `Symbols`, `SymbolOrElement`), which carry no lookup behavior — "the symbols at this offset" is a query, not a read.
 - **MachOPointers** — relative and indirect pointer types, plus `SymbolOrElementPointer`.
 - **MachOSymbols** — the symbol *index*: table parsing, demangling, the per-image node stores, and `LargeStackTaskExecution`; also collects the image's `_symbolic` symbols into a table of their own that no offset or name query sees (`symbolicManglingSymbols(in:)`). [Modules/MachOSymbols.md](Documentations/Internal/Modules/MachOSymbols.md).
-- **MachOCaches** — dyld shared cache support.
+- **MachOCaches** — the per-image cache primitive, NOT dyld shared cache support (that is `MachOKitExtensions` and `MachODependencies`): `SharedCache` (get-or-build per image, one build shared by concurrent callers, the build closure supplied at the call site), `SharedCacheKey` (hashes a file on its UUID alone) and `SharedCacheRegistry` + `SharedCacheEvictionGroup` (which caches an indexer claims for an image and what its last live instance evicts). [Modules/MachOCaches.md](Documentations/Internal/Modules/MachOCaches.md).
 - **MachODependencies** — the one dependency-resolution implementation every feature shares (`DependencyClosure`, the in-process and file locators, `DependencySearchPath`, `SharedDependencyClosure` for consumers of one root that resolve lazily). The file locator filters dyld-cache candidates by platform (`DependencyPlatforms`, from `LC_BUILD_VERSION`): the host's macOS cache is every root's default search path and carries Mac Catalyst UIKit / SwiftUI under `/System/iOSSupport`, which an iOS root used to resolve to by bare name. [Modules/MachODependencies.md](Documentations/Internal/Modules/MachODependencies.md).
 - **MachOKitExtensions** (external sibling, `../MachOKitExtensions`) — MachOKit extensions. Three behaviors this repo's tests still pin live there: legacy `LC_DYLD_INFO` bind resolution (`LegacyDyldInfoBindTests`), ranked dyld-cache image name lookup (`DyldCacheImageSearchTests`), and whether an in-process image is in the shared cache — read from its header flag, never from its load address (`MachOImageCacheMembershipTests`). It cannot move back in-repo — `MachOObjCSection` depends on it, which would make a package-level cycle.
 
@@ -194,6 +194,17 @@ Detail: [Modules/MachOSymbols.md](Documentations/Internal/Modules/MachOSymbols.m
 - **`LayoutWrapper` is `@dynamicMemberLookup` over `Layout`**, so every layout field already reads as `record.field`. Do NOT re-declare a property that only forwards to `layout`, nor one that only widens a field to `Int` (the house style casts at the use site). A same-named property of a different type shadows the dynamic member and reads as a trap. The lookup does not reach through an existential — code iterating erased conformers needs a genuine protocol member.
 - **`resolvedDirectOffset(from:)` needs a key path to a *stored* property of the CONCRETE `Layout`.** One formed in a generic context against a layout *protocol* addresses a witness instead; the lookup answers nil and the force-unwrap behind it traps at runtime — so a shared implementation over a layout protocol cannot use it, each conformer calls it itself. It always answers the DIRECT reading, so a relative-*indirectable* field rules out `isIndirect` first. A descriptor already exposing a named `…Offset` property is what a consumer calls; re-deriving it at the use site is what that property exists to prevent.
 - **Trap:** `context.readElement(at:)` inferred at `Optional<Pointer<…>>` reads a different in-memory shape and silently answers nil — annotate the non-optional read and return it.
+
+</important>
+
+<important if="you are adding a per-image cache, evicting one, or handling memory pressure">
+
+- **Every per-image cache is a `SharedCache` with a `SharedCacheEvictionGroup`, held by composition** — never a hand-written lock plus `[key: value]` dictionary, never a subclass. The build closure goes at the call site; re-type the reader once through `swiftSectionReader` / `objcImplementationClassReader` (SwiftInspection) instead of an `as? MachOFile` / `as? MachOImage` split.
+- **A build closure must not query the entry it is building.** On the builder's own thread that traps with the key; after a thread hop (`withLargeStack`) it hangs, undetected.
+- **Eviction belongs to the registry**: the indexer claims what its `prepare()` found absent and its last live instance evicts it plus the group's `dependents`. The three `removeCache` helpers are the explicit form and forward to `SharedCacheRegistry.evict(groups:for:)`.
+- **The library never reacts to memory pressure.** The per-instance monitors that used to `removeAll()` bypassed the ownership rules and freed nothing (live `NodeReference`s pin the storage). A host sheds state by calling `SharedCacheRegistry.shared.evictImagesWithoutLiveOwners()`.
+
+[Modules/MachOCaches.md](Documentations/Internal/Modules/MachOCaches.md).
 
 </important>
 

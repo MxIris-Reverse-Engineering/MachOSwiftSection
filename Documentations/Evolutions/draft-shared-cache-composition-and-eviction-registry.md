@@ -6,8 +6,8 @@
 - **最后更新**: 2026-09-28
 - **所属愿景**: 无
 - **关联提案**: [0019-large-stack-executor-and-cross-version-parallelism](0019-large-stack-executor-and-cross-version-parallelism.md)（已裁决不做 `SharedCache` / `SymbolIndexStore` 的 async 建表路径，本提案沿用；`NSCondition` 等待占住执行器线程是那里记录的契约）、[0001-symbol-name-offsetization](0001-symbol-name-offsetization.md) / [0003-symbol-row-bucket-flattening](0003-symbol-row-bucket-flattening.md)（本提案不碰各 `Storage` 的内容，那两份提案定下的存储模型原样保留）
-- **实现分支 / PR**: 待定
-- **配套文档**: 待定 —— 落地时新建 `Internal/Modules/MachOCaches.md`（模块文档，今天在模块索引里是「待写」），并在此登记
+- **实现分支 / PR**: `feature/shared-cache-composition-and-eviction-registry`，目标 `next`
+- **配套文档**: [`Internal/Modules/MachOCaches.md`](../Internal/Modules/MachOCaches.md)（模块文档：定位、get-or-build、键、驱逐规则与 group 对照表、契约与坑）
 
 ## 摘要
 
@@ -318,3 +318,11 @@ public final class SharedCacheBuildPromise<Value>: @unchecked Sendable {
 | 2026-09-28 | 否决引入 hyperoslo/Cache | 用户提出、读源码后否决：无 get-or-build 与在途去重、内存层是自行丢对象的 `NSCache`、每次访问一次串行队列跳转、带锁入口必须带磁盘配置与 `Transformer`、Swift 5 模式无 Sendable。换掉的只是最简单的锁加字典，promise、注册表、认领照写。 |
 | 2026-09-28 | 沿用 0019：不做 async 建表 | 已有裁决（2026-09-03 评估收益小），不重开。 |
 | 2026-09-28 | Draft → Accepted → In Progress | 用户「开工」批准；按落地步骤 1 起实现。 |
+| 2026-09-28 | 实现偏差：读者分派集中而非消失 | 各索引的查询 API 以 `MachORepresentableWithCache` 为参数（消费者手里就是它），所以构建闭包不能直接拿到更强的类型；改为持有者的 `storage(in:)` 经 `swiftSectionReader` / `objcImplementationClassReader`（`SwiftInspection/Extensions/MachORepresentableWithCache+ReaderKinds.swift`）把读者改一次类型，交给 `some P` 参数的泛型 `build(in:)` 隐式打开。11 处 `as?` 收成 1 个助手，没有变成 0。 |
+| 2026-09-28 | 注册表自己采样认领 | `registerLiveOwner(_:for:)` 在锁内对全部 group 采样，indexer 不再传 claims；五个 flag 的 `Claims` 推广为 `Set<SharedCacheEvictionGroup>`。`ObjCClassHierarchyProviderStore` 不是 `SharedCache`，经 `@_spi(Internals)` 扩展手工遵循 `SharedCacheEvicting` 加入 `.objcHierarchy`（public 类型不能直接遵循 SPI 协议）。 |
+| 2026-09-28 | 保留 `SymbolIndexStore.buildStorage(for:)` | 两个基线测量测试（`SymbolIndexStoreFixtureTests`、IntegrationTests 的 `SymbolIndexStoreBaselineTests`）直接计时 sweep；改为不经缓存的公开方法，不再是 override。 |
+| 2026-09-28 | 两个进程作用域 memo 标 `@unchecked Sendable` | 放进 `static let` 的类型必须 Sendable；`SymbolicDemanglerCache.Storage` 的每个字典各在自己的 `@Mutex` 后面。 |
+| 2026-09-28 | `MultiPayloadEnumDescriptorCacheTests` 的两条红与本提案无关 | `everyFixtureMultiPayloadEnumRendersALayout` / `noncopyableMultiPayloadEnumLaysOutFromItsResolvedPayloads` 在本分支失败，在同一 fixture、同一工具链（Xcode 26.6）的基线 worktree（`next` @ b521c339）上同样失败、同样的两条断言；单独跑也失败，不是并发抖动。它们是 b8e2c596（2026-09-26）改成「kind-9 payload 在进程内能解出」后在本机不成立，另行处理。 |
+| 2026-09-28 | 验证通过 | 全量 2135 / 402 套件，5 个 issue 无一为本批引入（详见演进账本本节）；渲染 A/B 78 对逐字节一致（26.6 归档腿本机缺席；当前系统 cache 腿按脚本同样的命令手动补跑，12 对一致）；`concurrentCallsForDifferentKeysRunInParallel` 在全量负载下 8 个 dispatch worker 拿不齐，改为 2 个构建的会合点。 |
+| 2026-09-28 | 句柄 API 不立项 | `sample` 剖析 release `dump` SwiftUI（当前系统 cache）：整个查找路径去掉构建闭包后占 1.12%，键的构造 0.35%（大头是 `MachOFile.identifier` 的关联对象读取 0.27%）、哈希 0.14%。远低于「显著」，不另起提案。 |
+
