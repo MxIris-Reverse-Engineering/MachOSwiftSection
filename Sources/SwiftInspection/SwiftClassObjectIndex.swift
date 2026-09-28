@@ -49,7 +49,7 @@ import Demangling
 package final class SwiftClassObjectIndex: @unchecked Sendable {
     package static let shared = SwiftClassObjectIndex()
 
-    private let cache = SharedCache<Storage>()
+    private let cache = SharedCache<Storage>(evictionGroup: .objcHierarchy)
 
     private init() {}
 

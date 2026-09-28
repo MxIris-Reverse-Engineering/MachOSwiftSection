@@ -40,7 +40,7 @@ import MachOSwiftSection
 package final class AnonymousContextPrivateDiscriminatorIndex: @unchecked Sendable {
     package static let shared = AnonymousContextPrivateDiscriminatorIndex()
 
-    private let cache = SharedCache<Storage>()
+    private let cache = SharedCache<Storage>(evictionGroup: .demangleMemo)
 
     private init() {}
 

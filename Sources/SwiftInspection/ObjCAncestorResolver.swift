@@ -167,7 +167,7 @@ public final class ObjCAncestorResolver: @unchecked Sendable {
 public final class ObjCAncestorResolverStore: @unchecked Sendable {
     public static let shared = ObjCAncestorResolverStore()
 
-    private let cache = SharedCache<ObjCAncestorResolver>()
+    private let cache = SharedCache<ObjCAncestorResolver>(evictionGroup: .objcAncestorResolver)
 
     private init() {}
 

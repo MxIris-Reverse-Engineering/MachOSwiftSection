@@ -190,7 +190,7 @@ public final class PropertyWrapperTypeCatalog: @unchecked Sendable {
 public final class PropertyWrapperTypeCatalogStore: @unchecked Sendable {
     public static let shared = PropertyWrapperTypeCatalogStore()
 
-    private let cache = SharedCache<PropertyWrapperTypeCatalog>()
+    private let cache = SharedCache<PropertyWrapperTypeCatalog>(evictionGroup: .propertyWrapperCatalog)
 
     private init() {}
 

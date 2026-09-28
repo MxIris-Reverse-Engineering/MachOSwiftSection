@@ -29,7 +29,7 @@ import FoundationToolbox
 final class MultiPayloadEnumDescriptorCache: @unchecked Sendable {
     static let shared = MultiPayloadEnumDescriptorCache()
 
-    private let cache = SharedCache<Storage>()
+    private let cache = SharedCache<Storage>(evictionGroup: .multiPayloadEnumDescriptors)
 
     private init() {}
 
@@ -42,6 +42,14 @@ final class MultiPayloadEnumDescriptorCache: @unchecked Sendable {
     /// lifetime.
     func storage(in machO: some MachORepresentableWithCache) -> Storage? {
         cache.storage(in: machO) { self.build(in: $0) }
+    }
+
+    func contains(in machO: some MachORepresentableWithCache) -> Bool {
+        cache.contains(in: machO)
+    }
+
+    func remove(for machO: some MachORepresentableWithCache) {
+        cache.remove(for: machO)
     }
 
     private func build(in machO: some MachORepresentableWithCache) -> Storage? {

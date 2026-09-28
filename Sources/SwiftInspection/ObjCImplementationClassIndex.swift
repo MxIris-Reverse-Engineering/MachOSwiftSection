@@ -37,7 +37,7 @@ import MachOSwiftSection
 package final class ObjCImplementationClassIndex: @unchecked Sendable {
     package static let shared = ObjCImplementationClassIndex()
 
-    private let cache = SharedCache<Storage>()
+    private let cache = SharedCache<Storage>(evictionGroup: .objcImplementationClasses)
 
     private init() {}
 
@@ -334,7 +334,7 @@ public enum ObjCImplementationClasses {
     /// Drops the image's index; the declaration indexer calls this alongside
     /// the other per-image cache evictions.
     public static func removeCache(for machO: some MachORepresentableWithCache) {
-        ObjCImplementationClassIndex.shared.remove(for: machO)
+        SharedCacheRegistry.shared.evict(groups: [.objcImplementationClasses], for: SharedCacheKey(machO))
     }
 
     /// The bare ObjC class name when `typeNode` names a class imported from

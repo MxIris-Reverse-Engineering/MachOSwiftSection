@@ -78,9 +78,9 @@ extension SymbolicDemangler {
     /// references into that interned scope store, so leaving the memo behind
     /// would keep the dropped store's buffers alive.
     public static func removeCache(for machO: some MachOSwiftSectionRepresentableWithCache) {
-        SymbolicDemanglerCache.shared.remove(for: machO)
-        // Per-image state the same demanglings read, with the same lifetime.
-        AnonymousContextPrivateDiscriminatorIndex.shared.remove(for: machO)
+        // The memo and the per-image state the same demanglings read
+        // (`AnonymousContextPrivateDiscriminatorIndex`) share the group.
+        SharedCacheRegistry.shared.evict(groups: [.demangleMemo], for: SharedCacheKey(machO))
     }
 
     /// Non-creating membership probe for the per-image demangle memo —
@@ -834,7 +834,7 @@ extension SymbolicDemangler {
 private final class SymbolicDemanglerCache: @unchecked Sendable {
     fileprivate static let shared = SymbolicDemanglerCache()
 
-    private let cache = SharedCache<Storage>()
+    private let cache = SharedCache<Storage>(evictionGroup: .demangleMemo)
 
     /// The process-scoped memo, for the in-process reading paths that have
     /// no Mach-O handle to key on. A `static let` is created lazily and is

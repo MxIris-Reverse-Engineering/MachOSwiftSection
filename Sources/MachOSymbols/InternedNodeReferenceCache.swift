@@ -46,7 +46,7 @@ import SwiftStdlibToolbox
 public final class InternedNodeReferenceCache: @unchecked Sendable {
     public static let shared = InternedNodeReferenceCache()
 
-    private let cache = SharedCache<Storage>()
+    private let cache = SharedCache<Storage>(evictionGroup: .internedNames)
 
     /// The process-scoped arena, for the in-process reading paths that have
     /// no Mach-O handle. A `static let` is created lazily and is thread-safe

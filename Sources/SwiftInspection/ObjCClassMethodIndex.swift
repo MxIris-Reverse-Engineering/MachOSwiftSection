@@ -44,7 +44,7 @@ import MachOReading
 package final class ObjCClassMethodIndex: @unchecked Sendable {
     package static let shared = ObjCClassMethodIndex()
 
-    private let cache = SharedCache<Storage>()
+    private let cache = SharedCache<Storage>(evictionGroup: .objcHierarchy)
 
     private init() {}
 

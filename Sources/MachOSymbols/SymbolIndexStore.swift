@@ -457,7 +457,7 @@ public final class SymbolIndexStore: @unchecked Sendable {
 
     public static let shared = SymbolIndexStore()
 
-    private let cache = SharedCache<Storage>()
+    private let cache = SharedCache<Storage>(evictionGroup: .symbolStore)
 
     private init() {}
 
