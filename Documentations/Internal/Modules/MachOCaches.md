@@ -70,30 +70,30 @@ package final class ObjCClassMethodIndex: @unchecked Sendable {
 
 ## 3. 驱逐（`SharedCacheRegistry` / `SharedCacheEvictionGroup`）
 
-每个 `SharedCache` 在创建时声明自己的 eviction group，并向进程级 `SharedCacheRegistry.shared` 登记（弱引用）。group 与 cache 的对应：
+每个 `SharedCache` 在创建时声明自己的 eviction group，并向进程级 `SharedCacheRegistry.shared` 登记（弱引用）。**`MachOCaches` 自己不定义任何 group**：`SharedCacheEvictionGroup` 是一个只有名字的结构体，各模块在自己的扩展文件（`SharedCacheEvictionGroup+<模块>.swift`）里声明自己的常量，注册表处理的是「登记过的 group 的集合」，加一个 cache 不需要回来改这个模块。持有别的 group 存储引用的 cache 在创建时用 `follows:` 说明它跟谁走（`SharedCache(evictionGroup: .symbolicMangling, follows: [.symbolStore])`），注册表据此反向建表，同一 group 下多个 cache 的声明取并集。今天的对照：
 
-| group | cache |
-|---|---|
-| `symbolStore` | `SymbolIndexStore` |
-| `symbolicMangling` | `SymbolicManglingIndex`（持有符号表的 `_symbolic` 表） |
-| `objcImplementationClasses` | `ObjCImplementationClassIndex`（持有指向符号表 arena 的 `NodeReference`） |
-| `objcHierarchy` | `ObjCClassMethodIndex`、`SwiftClassObjectIndex`、`ObjCClassHierarchyProviderStore`（宿主的弱引用注册，手工遵循 `SharedCacheEvicting`） |
-| `objcAncestorResolver` | `ObjCAncestorResolverStore` |
-| `internedNames` | `InternedNodeReferenceCache` |
-| `demangleMemo` | `SymbolicDemanglerCache`、`AnonymousContextPrivateDiscriminatorIndex` |
-| `propertyWrapperCatalog` | `PropertyWrapperTypeCatalogStore` |
-| `multiPayloadEnumDescriptors` | `MultiPayloadEnumDescriptorCache` |
-| `dependentMemberProjection` | `DependentMemberProjection` 的两个实例 |
-| `thunkResolution` | `MetadataAccessorIndex`、`DependencyImageResolver` |
+| group（声明所在模块） | cache | follows |
+|---|---|---|
+| `symbolStore`（MachOSymbols） | `SymbolIndexStore` | — |
+| `internedNames`（MachOSymbols） | `InternedNodeReferenceCache` | — |
+| `symbolicMangling`（SwiftInspection） | `SymbolicManglingIndex`（持有符号表的 `_symbolic` 表） | `symbolStore` |
+| `objcImplementationClasses`（SwiftInspection） | `ObjCImplementationClassIndex`（持有指向符号表 arena 的 `NodeReference`） | `symbolStore` |
+| `objcHierarchy`（SwiftInspection） | `ObjCClassMethodIndex`、`SwiftClassObjectIndex`、`ObjCClassHierarchyProviderStore`（宿主的弱引用注册，手工遵循 `SharedCacheEvicting`） | `symbolStore` |
+| `objcAncestorResolver`（SwiftInspection） | `ObjCAncestorResolverStore` | `symbolStore` |
+| `demangleMemo`（SwiftInspection） | `SymbolicDemanglerCache`、`AnonymousContextPrivateDiscriminatorIndex` | `internedNames` |
+| `propertyWrapperCatalog`（SwiftDeclarationRendering） | `PropertyWrapperTypeCatalogStore` | — |
+| `multiPayloadEnumDescriptors`（SwiftDeclarationRendering） | `MultiPayloadEnumDescriptorCache` | — |
+| `dependentMemberProjection`（SwiftDeclarationRendering） | `DependentMemberProjection` 的两个实例 | — |
+| `thunkResolution`（SwiftThunkAnalysis） | `MetadataAccessorIndex`、`DependencyImageResolver` | — |
 
 **认领与驱逐的规则**（PR #103 review 的 M6，原来是 `SwiftDeclarationIndexer.swift` 里的私有注册表，现在下沉到这里并推广到全部 group）：
 
-- 一个持有者（`SwiftDeclarationIndexer`）在 `prepare()` 开头调 `registerLiveOwner(_:for:)`，注册表在自己的锁内采样：这个镜像在哪些 group 里还没有完成的条目，那些就是它要建的，全部认领。锁内采样是为了关掉一个窗口：采样在锁外做，兄弟 indexer 的注销恰好落在中间，会让它看到缓存都在、什么都不认领、随后重建一切又没有认领可驱逐，符号表就泄漏到进程结束。
+- 一个持有者（`SwiftDeclarationIndexer`）在 `prepare()` 开头调 `registerLiveOwner(_:for:)`，注册表在自己的锁内采样：这个镜像在哪些登记过的 group 里还没有完成的条目，那些就是它要建的，全部认领。锁内采样是为了关掉一个窗口：采样在锁外做，兄弟 indexer 的注销恰好落在中间，会让它看到缓存都在、什么都不认领、随后重建一切又没有认领可驱逐，符号表就泄漏到进程结束。
 - 只有第一次注册采样。同一持有者再注册（`prepare()` 重跑）看到的是自己刚建的缓存，再采样会反着读。
 - `deregisterLiveOwner(_:for:)` 只在它是这个镜像**最后一个**活着的持有者时驱逐；提早走的兄弟什么都不清，否则幸存者已建好的名字留在孤儿 store 里、新名字落进新 store，`store ===` 快速路径从此分裂。驱逐在注册表锁内做，理由同上。
-- 驱逐认领的 group 时连带 `dependents`：`symbolStore ⇒ symbolicMangling、objcImplementationClasses、objcHierarchy、objcAncestorResolver`，`internedNames ⇒ demangleMemo`（memo 的值是指向 interned arena 的引用，留着它 arena 释放不了）。单向：扔 memo 不要求扔 arena。
+- 驱逐认领的 group 时连带跟着它走的 group（`follows` 的反向，传递闭包）：按上表，`symbolStore` 带走 `symbolicMangling`、`objcImplementationClasses`、`objcHierarchy`、`objcAncestorResolver`，`internedNames` 带走 `demangleMemo`（memo 的值是指向 interned arena 的引用，留着它 arena 释放不了）。单向：扔 memo 不要求扔 arena。
 - 非持有者（`SwiftLayout`、渲染器、`SwiftSpecialization`）在 `prepare()` 之前填的条目不会被认领，也就不会被 indexer 驱逐；在 indexer 生命周期内填的会随它走（误认领的代价只是事后多建一次）。
-- `evict(groups:for:)` 是显式驱逐，**不展开 dependents**：调用方点名要清什么。`ObjCClassHierarchies.removeCache`、`ObjCImplementationClasses.removeCache`、`SymbolicDemangler.removeCache` 三个公开助手都是它的转发。
+- `evict(groups:for:)` 是显式驱逐，**不展开 followers**：调用方点名要清什么。`ObjCClassHierarchies.removeCache`、`ObjCImplementationClasses.removeCache`、`SymbolicDemangler.removeCache` 三个公开助手都是它的转发。
 
 **内存压力**：库不再监听。以前每个 `SharedCache` 实例各挂一个 `MemoryPressureMonitor`，warning 就 `removeAll()`，绕过认领规则，而且清掉的存储被活着的 `NodeReference` 钉着、回收不到内存。现在宿主想清就调 `SharedCacheRegistry.shared.evictImagesWithoutLiveOwners()`：清所有出现在任一 cache 里、且没有活持有者的镜像的全部 group。非持有者临时填的镜像也会被清，这是宿主显式调用的后果。
 
@@ -101,7 +101,7 @@ package final class ObjCClassMethodIndex: @unchecked Sendable {
 
 ## 4. 契约与坑
 
-- **新加一个按镜像的 cache**：在 `SharedCacheEvictionGroup` 里选或加一个 group（加的话在 `dependents` 里想清楚它是否随别的 group 走）；持有者按第 1 节的形状写；在这份文档的对照表登记。不要再手写 `NSLock` 加字典。
+- **新加一个按镜像的 cache**：在自己模块的 `SharedCacheEvictionGroup+<模块>.swift` 里选或加一个 group 常量；持有者按第 1 节的形状写，条目引用了别的 group 的存储就加 `follows:`；在这份文档的对照表登记。`MachOCaches` 不用动。不要再手写 `NSLock` 加字典。
 - **构建闭包里不要查自己的 cache**：同线程会崩，跨线程会挂。需要别的 cache 可以（`buildClosureMayResolveOtherKey` 钉住）。
 - **`MachOSymbols` 里的公开类型布局变了要 `swift package clean`**（AGENTS.md 的既有契约）：`SymbolIndexStore` 不再是 `SharedCache` 的子类就是这样一次变化。
 - **测试怎么写**：`SharedCache(evictionGroup:registry:)` 与 `SharedCacheRegistry()` 都是 `package` 可见，测试自建注册表、用 `SharedCacheKey(opaque:)` 造键、用 `resolve(key:)` 驱动，不需要真镜像；端到端规则由 `SwiftIndexingTests/PerImageCacheEvictionTests` 在 fixture 上钉。

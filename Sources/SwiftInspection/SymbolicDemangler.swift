@@ -834,7 +834,7 @@ extension SymbolicDemangler {
 private final class SymbolicDemanglerCache: @unchecked Sendable {
     fileprivate static let shared = SymbolicDemanglerCache()
 
-    private let cache = SharedCache<Storage>(evictionGroup: .demangleMemo)
+    private let cache = SharedCache<Storage>(evictionGroup: .demangleMemo, follows: [.internedNames])
 
     /// The process-scoped memo, for the in-process reading paths that have
     /// no Mach-O handle to key on. A `static let` is created lazily and is

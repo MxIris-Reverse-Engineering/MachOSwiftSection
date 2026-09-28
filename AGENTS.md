@@ -201,7 +201,7 @@ Detail: [Modules/MachOSymbols.md](Documentations/Internal/Modules/MachOSymbols.m
 
 - **Every per-image cache is a `SharedCache` with a `SharedCacheEvictionGroup`, held by composition** — never a hand-written lock plus `[key: value]` dictionary, never a subclass. The build closure goes at the call site; re-type the reader once through `swiftSectionReader` / `objcImplementationClassReader` (SwiftInspection) instead of an `as? MachOFile` / `as? MachOImage` split.
 - **A build closure must not query the entry it is building.** On the builder's own thread that traps with the key; after a thread hop (`withLargeStack`) it hangs, undetected.
-- **Eviction belongs to the registry**: the indexer claims what its `prepare()` found absent and its last live instance evicts it plus the group's `dependents`. The three `removeCache` helpers are the explicit form and forward to `SharedCacheRegistry.evict(groups:for:)`.
+- **Eviction belongs to the registry**: the indexer claims what its `prepare()` found absent and its last live instance evicts it plus every group that `follows` it. `MachOCaches` declares no group: a module declares its own in a `SharedCacheEvictionGroup+<Module>.swift` extension, and a cache whose entries point into another group's storage says `follows:` at creation. The three `removeCache` helpers are the explicit form and forward to `SharedCacheRegistry.evict(groups:for:)`.
 - **The library never reacts to memory pressure.** The per-instance monitors that used to `removeAll()` bypassed the ownership rules and freed nothing (live `NodeReference`s pin the storage). A host sheds state by calling `SharedCacheRegistry.shared.evictImagesWithoutLiveOwners()`.
 
 [Modules/MachOCaches.md](Documentations/Internal/Modules/MachOCaches.md).

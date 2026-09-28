@@ -270,7 +270,7 @@ private typealias TestCache = SharedCache<Int>
 /// A cache registered with a registry of its own, so a test's caches never
 /// take part in the process-wide registry's eviction sweeps.
 private func makeTestCache() -> TestCache {
-    SharedCache(evictionGroup: .symbolStore, registry: SharedCacheRegistry())
+    SharedCache(evictionGroup: SharedCacheEvictionGroup("test.cache"), registry: SharedCacheRegistry())
 }
 
 /// Mirror of ``SharedCacheResolveTests`` driven through Swift Concurrency

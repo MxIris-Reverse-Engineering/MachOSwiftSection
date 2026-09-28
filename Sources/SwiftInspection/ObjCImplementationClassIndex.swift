@@ -37,7 +37,7 @@ import MachOSwiftSection
 package final class ObjCImplementationClassIndex: @unchecked Sendable {
     package static let shared = ObjCImplementationClassIndex()
 
-    private let cache = SharedCache<Storage>(evictionGroup: .objcImplementationClasses)
+    private let cache = SharedCache<Storage>(evictionGroup: .objcImplementationClasses, follows: [.symbolStore])
 
     private init() {}
 

@@ -112,7 +112,7 @@ package struct SymbolicManglingReference: Hashable, Sendable {
 package final class SymbolicManglingIndex: @unchecked Sendable {
     package static let shared = SymbolicManglingIndex()
 
-    private let cache = SharedCache<Storage>(evictionGroup: .symbolicMangling)
+    private let cache = SharedCache<Storage>(evictionGroup: .symbolicMangling, follows: [.symbolStore])
 
     private init() {}
 

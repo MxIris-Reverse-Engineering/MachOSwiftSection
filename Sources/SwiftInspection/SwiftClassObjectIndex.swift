@@ -7,6 +7,7 @@ import MachOSwiftSection
 import Demangling
 @_spi(Core) import MachOObjCSection
 @_spi(Internals) import MachOCaches
+@_spi(Internals) import MachOSymbols
 
 /// Per-image index of the Swift classes whose source renamed them for the
 /// Objective-C runtime — `@objc(Name)` or `@_objcRuntimeName(Name)` —
@@ -49,7 +50,7 @@ import Demangling
 package final class SwiftClassObjectIndex: @unchecked Sendable {
     package static let shared = SwiftClassObjectIndex()
 
-    private let cache = SharedCache<Storage>(evictionGroup: .objcHierarchy)
+    private let cache = SharedCache<Storage>(evictionGroup: .objcHierarchy, follows: [.symbolStore])
 
     private init() {}
 

@@ -2,6 +2,7 @@ import Foundation
 import MachOKit
 import MachOKitExtensions
 @_spi(Internals) import MachOCaches
+@_spi(Internals) import MachOSymbols
 
 /// What the ObjC side knows about one class that the member recovery needs
 /// (evolution proposals `objc-ancestor-override-recovery` and
@@ -190,7 +191,7 @@ public final class ObjCClassHierarchyProviderStore: @unchecked Sendable {
     /// but it is per-image state of the ObjC hierarchy's lifetime, so it
     /// joins the registry under that group by hand.
     private init() {
-        SharedCacheRegistry.shared.register(self, group: .objcHierarchy)
+        SharedCacheRegistry.shared.register(self, group: .objcHierarchy, follows: [.symbolStore])
     }
 
     /// Installs `provider` for `machO`, replacing any earlier registration.

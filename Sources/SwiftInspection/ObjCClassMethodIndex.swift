@@ -4,6 +4,7 @@ import MachOKit
 import MachOKitExtensions
 @_spi(Core) import MachOObjCSection
 @_spi(Internals) import MachOCaches
+@_spi(Internals) import MachOSymbols
 import MachOReading
 
 /// The library's own ``ObjCClassHierarchy`` reader (evolution proposals
@@ -44,7 +45,7 @@ import MachOReading
 package final class ObjCClassMethodIndex: @unchecked Sendable {
     package static let shared = ObjCClassMethodIndex()
 
-    private let cache = SharedCache<Storage>(evictionGroup: .objcHierarchy)
+    private let cache = SharedCache<Storage>(evictionGroup: .objcHierarchy, follows: [.symbolStore])
 
     private init() {}
 

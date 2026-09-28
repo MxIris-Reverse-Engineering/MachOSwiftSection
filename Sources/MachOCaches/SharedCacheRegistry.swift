@@ -17,18 +17,23 @@ public protocol SharedCacheEvicting: AnyObject, Sendable {
 /// Process-wide coordination of per-image cache eviction.
 ///
 /// Every ``SharedCache`` registers itself here under its
-/// ``SharedCacheEvictionGroup``. An owner of an image's caches — the
+/// ``SharedCacheEvictionGroup``, naming the groups it `follows` — the ones
+/// whose storage its entries point into. An owner of an image's caches — the
 /// declaration indexer — registers as a **live owner** when it prepares the
 /// image and deregisters when it goes away. Registration claims, for that
-/// image, every group that has no finished entry yet: those are the groups
-/// the owner's preparation is about to build, and entries built by
-/// non-owner callers before it are never claimed and never evicted here.
+/// image, every registered group that has no finished entry yet: those are
+/// the groups the owner's preparation is about to build, and entries built
+/// by non-owner callers before it are never claimed and never evicted here.
 /// Deregistration of the image's **last** live owner evicts the claimed
-/// groups and their ``SharedCacheEvictionGroup/dependents``. An owner
-/// leaving earlier evicts nothing: the survivor's already-built names would
-/// keep an orphaned store alive while new names land in a fresh one,
+/// groups together with every group that follows them, transitively. An
+/// owner leaving earlier evicts nothing: the survivor's already-built names
+/// would keep an orphaned store alive while new names land in a fresh one,
 /// splitting the `store ===` fast paths for the rest of its lifetime
 /// (PR #103 review, finding M6).
+///
+/// The registry knows no group by name. The set it works over is the set
+/// the caches registered, so a module adding a cache adds a group without
+/// touching this module.
 ///
 /// The library does not react to memory pressure by itself. A host that
 /// wants to shed cached state under pressure calls
@@ -51,18 +56,41 @@ public final class SharedCacheRegistry: @unchecked Sendable {
 
     private let lock = NSLock()
     private var cachesByGroup: [SharedCacheEvictionGroup: [WeakCache]] = [:]
+    /// Followed group → the groups that follow it, as the caches declared.
+    private var followersByGroup: [SharedCacheEvictionGroup: Set<SharedCacheEvictionGroup>] = [:]
     private var entriesByImageKey: [SharedCacheKey: ImageEntry] = [:]
 
     /// `package` so a test can drive a registry of its own, with caches
     /// created against it, instead of the process-wide one.
     package init() {}
 
-    /// Registers `cache` under `group`. Called by ``SharedCache``'s
-    /// initializer; held weakly.
-    public func register(_ cache: any SharedCacheEvicting, group: SharedCacheEvictionGroup) {
+    /// Registers `cache` under `group`, following `follows`. Called by
+    /// ``SharedCache``'s initializer; held weakly. Declarations are unioned:
+    /// a group follows every group any of its caches named.
+    public func register(_ cache: any SharedCacheEvicting, group: SharedCacheEvictionGroup, follows: Set<SharedCacheEvictionGroup> = []) {
         lock.lock()
         defer { lock.unlock() }
         cachesByGroup[group, default: []].append(WeakCache(cache: cache))
+        for followed in follows {
+            followersByGroup[followed, default: []].insert(group)
+        }
+    }
+
+    /// Every group a cache registered under.
+    public var registeredGroups: Set<SharedCacheEvictionGroup> {
+        lock.lock()
+        defer { lock.unlock() }
+        return Set(cachesByGroup.keys)
+    }
+
+    /// The groups evicted along with `group` when it is claimed and evicted:
+    /// the ones that declared they follow it, transitively.
+    public func followers(of group: SharedCacheEvictionGroup) -> Set<SharedCacheEvictionGroup> {
+        lock.lock()
+        defer { lock.unlock() }
+        var followers = expandingFollowers(of: [group])
+        followers.remove(group)
+        return followers
     }
 
     /// The groups with a finished entry for `key` in at least one of their
@@ -74,7 +102,8 @@ public final class SharedCacheRegistry: @unchecked Sendable {
     }
 
     /// Registers `owner` as a live owner of `key`'s caches, claiming — in the
-    /// same critical section — every group with no finished entry for `key`.
+    /// same critical section — every registered group with no finished entry
+    /// for `key`.
     ///
     /// Sampled under the lock on purpose: sampled before it, a sibling's
     /// deregistration landing in between let an owner observe the caches as
@@ -92,14 +121,14 @@ public final class SharedCacheRegistry: @unchecked Sendable {
         let isFirstRegistration = entry.liveOwners.insert(owner).inserted
         if isFirstRegistration {
             let present = presentGroupsLocked(for: key)
-            entry.claims.formUnion(SharedCacheEvictionGroup.allCases.filter { !present.contains($0) })
+            entry.claims.formUnion(cachesByGroup.keys.filter { !present.contains($0) })
         }
         entriesByImageKey[key] = entry
     }
 
     /// Deregisters `owner`, and — only if it was `key`'s LAST live owner, so
     /// a shared entry never disappears under a live sibling — evicts the
-    /// claimed groups and their dependents.
+    /// claimed groups and their followers.
     ///
     /// The eviction runs under the lock, in the same critical section as the
     /// deregistration: done afterwards, a sibling could sample the caches as
@@ -115,7 +144,7 @@ public final class SharedCacheRegistry: @unchecked Sendable {
             return
         }
         entriesByImageKey.removeValue(forKey: key)
-        evictLocked(groups: expandingDependents(of: entry.claims), for: key)
+        evictLocked(groups: expandingFollowers(of: entry.claims), for: key)
     }
 
     /// Whether any live owner is registered for `key`.
@@ -133,7 +162,7 @@ public final class SharedCacheRegistry: @unchecked Sendable {
     }
 
     /// Drops `key`'s entries from every cache in `groups` — exactly those
-    /// groups, no dependents: an explicit eviction names what it wants gone.
+    /// groups, no followers: an explicit eviction names what it wants gone.
     public func evict(groups: Set<SharedCacheEvictionGroup>, for key: SharedCacheKey) {
         lock.lock()
         defer { lock.unlock() }
@@ -141,10 +170,10 @@ public final class SharedCacheRegistry: @unchecked Sendable {
     }
 
     /// Drops every cached entry of every image that has no live owner, in
-    /// every group. The host's memory-pressure hook: the library never calls
-    /// this by itself. An image populated only by non-owner callers (a dump,
-    /// a layout query) has no owner and is cleared too — the caller decides
-    /// when that is acceptable.
+    /// every registered group. The host's memory-pressure hook: the library
+    /// never calls this by itself. An image populated only by non-owner
+    /// callers (a dump, a layout query) has no owner and is cleared too —
+    /// the caller decides when that is acceptable.
     ///
     /// - Returns: The number of images cleared.
     @discardableResult
@@ -160,7 +189,7 @@ public final class SharedCacheRegistry: @unchecked Sendable {
         }
         let unownedKeys = keys.filter { entriesByImageKey[$0]?.liveOwners.isEmpty ?? true }
         for key in unownedKeys {
-            evictLocked(groups: Set(SharedCacheEvictionGroup.allCases), for: key)
+            evictLocked(groups: Set(cachesByGroup.keys), for: key)
         }
         return unownedKeys.count
     }
@@ -179,10 +208,15 @@ public final class SharedCacheRegistry: @unchecked Sendable {
         return present
     }
 
-    private func expandingDependents(of groups: Set<SharedCacheEvictionGroup>) -> Set<SharedCacheEvictionGroup> {
+    /// `groups` plus everything that follows them, transitively: a group
+    /// following a follower goes too.
+    private func expandingFollowers(of groups: Set<SharedCacheEvictionGroup>) -> Set<SharedCacheEvictionGroup> {
         var expanded = groups
-        for group in groups {
-            expanded.formUnion(group.dependents)
+        var pending = Array(groups)
+        while let group = pending.popLast() {
+            for follower in followersByGroup[group] ?? [] where expanded.insert(follower).inserted {
+                pending.append(follower)
+            }
         }
         return expanded
     }

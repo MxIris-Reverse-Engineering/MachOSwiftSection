@@ -68,7 +68,7 @@ selects names using each access's offset and width.
 |---|---|
 | [Modules/](Internal/Modules/README.md) | **按模块组织的参考文档系列**：每个库模块一篇权威入口（定位 / 子系统分工 / 跨文件契约 / 细节文档指路）；该目录 README 是覆盖状态表。 |
 | [Modules/MachODependencies.md](Internal/Modules/MachODependencies.md) | MachODependencies 模块参考：所有功能共用的依赖解析——搜索路径、load name 归一（与 `MachOImage(name:)` 的契约）、两种定位器（进程内 / 文件：install path 精确优先、bare name 排序兜底、cache 一次性索引）、direct / transitive 遍历与顺序契约、未解析清单；SwiftLayout 与 SwiftInterface 两处薄包装的语义边界与测试锚点。 |
-| [Modules/MachOCaches.md](Internal/Modules/MachOCaches.md) | MachOCaches 模块参考：不是 dyld cache 的支持层，是按镜像缓存的原语——`SharedCache` 的 get-or-build 三段式与「构建闭包在调用点」、`SharedCacheKey` 只哈希 UUID、`SharedCacheRegistry` 的认领与最后持有者驱逐、eviction group 与 dependents 对照表、宿主接内存压力的入口、新加一个 cache 的三步。 |
+| [Modules/MachOCaches.md](Internal/Modules/MachOCaches.md) | MachOCaches 模块参考：不是 dyld cache 的支持层，是按镜像缓存的原语——`SharedCache` 的 get-or-build 三段式与「构建闭包在调用点」、`SharedCacheKey` 只哈希 UUID、`SharedCacheRegistry` 的认领与最后持有者驱逐、eviction group 与 follows 对照表、宿主接内存压力的入口、新加一个 cache 的三步。 |
 | [Modules/SwiftInterface.md](Internal/Modules/SwiftInterface.md) | SwiftInterface 模块参考：编排层定位与三种输出产品（单版本 interface / 两侧 diff / N 路 evolution），五个子系统（核心 builder、opaque 解析、共享 union 走查、diff 渲染、evolution 渲染）的分工、契约与测试锚点，消费入口速查。 |
 | [Modules/SwiftDeclaration.md](Internal/Modules/SwiftDeclaration.md) | SwiftDeclaration 模块参考：共享声明模型的定位与七个子系统，四条关键契约（持描述符引用而非胖 wrapper 的 materialization 纪律、名字按结构相等且 `kind` 不参与、四态 `ExportStatus` 的两种「无结论」作用域、库代码不写进程流与事件兜底）。 |
 | [Modules/MachOSymbols.md](Internal/Modules/MachOSymbols.md) | MachOSymbols 模块参考：符号索引层的定位与四个子系统（索引本体与非单射的名字键、查询出口与 detach 规则、跨 store 对账为什么必须用 `StructuralNodeReferenceKey`、大栈执行器），以及改结构布局要先 clean 等契约。 |

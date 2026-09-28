@@ -325,4 +325,5 @@ public final class SharedCacheBuildPromise<Value>: @unchecked Sendable {
 | 2026-09-28 | `MultiPayloadEnumDescriptorCacheTests` 的两条红与本提案无关 | `everyFixtureMultiPayloadEnumRendersALayout` / `noncopyableMultiPayloadEnumLaysOutFromItsResolvedPayloads` 在本分支失败，在同一 fixture、同一工具链（Xcode 26.6）的基线 worktree（`next` @ b521c339）上同样失败、同样的两条断言；单独跑也失败，不是并发抖动。它们是 b8e2c596（2026-09-26）改成「kind-9 payload 在进程内能解出」后在本机不成立，另行处理。 |
 | 2026-09-28 | 验证通过 | 全量 2135 / 402 套件，5 个 issue 无一为本批引入（详见演进账本本节）；渲染 A/B 78 对逐字节一致（26.6 归档腿本机缺席；当前系统 cache 腿按脚本同样的命令手动补跑，12 对一致）；`concurrentCallsForDifferentKeysRunInParallel` 在全量负载下 8 个 dispatch worker 拿不齐，改为 2 个构建的会合点。 |
 | 2026-09-28 | 句柄 API 不立项 | `sample` 剖析 release `dump` SwiftUI（当前系统 cache）：整个查找路径去掉构建闭包后占 1.12%，键的构造 0.35%（大头是 `MachOFile.identifier` 的关联对象读取 0.27%）、哈希 0.14%。远低于「显著」，不另起提案。 |
+| 2026-09-28 | `SharedCacheEvictionGroup` 改开放结构体 | 用户审阅指出：封闭枚举让 `MachOCaches` 知道上面每个模块的缓存，每加一个 cache 都要回来改它，该模块做完就该尽量不动。改为只有名字的结构体，`MachOCaches` 一个 group 都不声明，各模块在 `SharedCacheEvictionGroup+<模块>.swift` 里声明自己的常量；提案里的 `dependents` 表改为 cache 创建时的 `follows:`（由持有引用的一方声明），注册表反向建表并传递展开，采样与全量驱逐的范围是登记过的 group。 |
 

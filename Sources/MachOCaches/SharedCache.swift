@@ -36,11 +36,15 @@ public final class SharedCache<Storage>: SharedCacheEvicting, @unchecked Sendabl
 
     /// - Parameters:
     ///   - evictionGroup: The family the entries belong to.
+    ///   - follows: The families whose storage this cache's entries point
+    ///     into; whenever one of them is claimed and evicted, this cache's
+    ///     family goes with it. Declared here, by the cache that holds the
+    ///     reference, because this is where the fact is known.
     ///   - registry: Where the cache registers itself. The process-wide
     ///     registry, except for a test driving a registry of its own.
-    package init(evictionGroup: SharedCacheEvictionGroup, registry: SharedCacheRegistry = .shared) {
+    package init(evictionGroup: SharedCacheEvictionGroup, follows: Set<SharedCacheEvictionGroup> = [], registry: SharedCacheRegistry = .shared) {
         self.evictionGroup = evictionGroup
-        registry.register(self, group: evictionGroup)
+        registry.register(self, group: evictionGroup, follows: follows)
     }
 
     /// Per-key state: a finished build (`completed`) or an in-flight build
