@@ -172,6 +172,18 @@ open class SharedCache<Storage>: @unchecked Sendable {
         case .completed(let storage):
             return storage
         case .wait(let promise):
+            // A build closure that queries the entry it is itself building
+            // finds its own in-flight marker here. Waiting would block
+            // forever: the promise is fulfilled only when that closure
+            // returns, and the closure is the one waiting. Before the
+            // promise-based rewrite this trapped on the non-reentrant cache
+            // lock, which at least left a crash log; a silent hang is worse,
+            // so the same-thread case traps on purpose. A build that moved
+            // to another thread first is not detectable at this layer.
+            precondition(
+                !promise.isBuilderCurrentThread,
+                "SharedCache: re-entrant build for key \(key) — the build closure queried the entry it is building, on its own thread; waiting here would never return"
+            )
             return promise.wait()
         case .build(let promise):
             let result = build()

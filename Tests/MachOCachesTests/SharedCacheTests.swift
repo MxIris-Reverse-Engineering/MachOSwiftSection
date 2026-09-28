@@ -153,6 +153,70 @@ struct SharedCacheResolveTests {
         }
         #expect(result == 10)
     }
+
+    /// A build closure that resolves the **same** key on its own thread
+    /// finds its own in-flight marker and would wait for a promise that only
+    /// its own return can fulfill. That used to trap on the non-reentrant
+    /// cache lock; after the promise rewrite it hung silently. The cache now
+    /// traps on purpose, with a message naming the key, so the hang can never
+    /// come back unnoticed. An exit test is the only way to pin a trap.
+    @Test func reentrantBuildForTheSameKeyTrapsInsteadOfHanging() async {
+        await #expect(processExitsWith: .failure) {
+            let cache = TestCache()
+            _ = cache.resolve(key: AnyHashable("self")) {
+                cache.resolve(key: AnyHashable("self")) { 1 }
+            }
+        }
+    }
+}
+
+/// Every build blocks inside its closure until `expectedCount` builds have
+/// entered theirs, then all of them return together. Two builds for
+/// distinct keys can only both be inside their closures at once if the cache
+/// does not hold its lock across the build — so the rendezvous completing is
+/// the parallelism proof, with no wall-clock involved.
+///
+/// The wait is timed: on a scheduler that never gives the second build a
+/// thread, an untimed wait would park the first build forever, hang the whole
+/// test process and leave the key permanently in flight. On timeout every
+/// waiter is released and ``everyBuildOverlapped`` reads `false`, which turns
+/// the failure into an ordinary assertion.
+private final class BuildRendezvous: @unchecked Sendable {
+    private let condition = NSCondition()
+    private let expectedCount: Int
+    private let timeout: TimeInterval
+    private var arrivedCount = 0
+    private var isAbandoned = false
+
+    init(expectedCount: Int, timeout: TimeInterval = 30) {
+        self.expectedCount = expectedCount
+        self.timeout = timeout
+    }
+
+    func arriveAndWait() {
+        condition.lock()
+        defer { condition.unlock() }
+        arrivedCount += 1
+        if arrivedCount >= expectedCount {
+            condition.broadcast()
+            return
+        }
+        let deadline = Date(timeIntervalSinceNow: timeout)
+        while arrivedCount < expectedCount, !isAbandoned {
+            if !condition.wait(until: deadline) {
+                isAbandoned = true
+                condition.broadcast()
+            }
+        }
+    }
+
+    /// `true` only when every expected build entered its closure while the
+    /// earlier arrivals were still blocked inside theirs.
+    var everyBuildOverlapped: Bool {
+        condition.lock()
+        defer { condition.unlock() }
+        return !isAbandoned && arrivedCount == expectedCount
+    }
 }
 
 /// Minimal SharedCache instantiation for tests. `SharedCache.init()` is
@@ -222,84 +286,67 @@ struct SharedCacheResolveSwiftConcurrencyTests {
         }
     }
 
+    /// Builds for distinct keys spawned as TaskGroup children must overlap.
+    /// Proven by rendezvous rather than by wall-clock: each build blocks
+    /// inside its closure until the other has entered too, which can only
+    /// happen if the cache releases its lock around the build. The earlier
+    /// form timed 8 sleeping builds against half the serial ceiling, and
+    /// failed whenever a loaded full-suite run starved the cooperative pool.
+    ///
+    /// Two builds, not eight: every build blocks a cooperative-pool thread
+    /// while it waits, and the pool is only as wide as the core count and is
+    /// shared with every other test in the process. Two is the smallest
+    /// count that proves overlap and the largest that cannot starve itself.
     @Test func differentKeysParallelViaTaskGroup() async {
         let cache = TestCache()
-        let keyCount = 8
-        let perBuildSeconds: Double = 0.20
+        let keyCount = 2
+        let rendezvous = BuildRendezvous(expectedCount: keyCount)
 
-        let start = ContinuousClock.now
+        var results: [Int?] = []
         await withTaskGroup(of: Int?.self) { group in
             for index in 0 ..< keyCount {
                 group.addTask {
                     cache.resolve(key: AnyHashable(index)) {
-                        Thread.sleep(forTimeInterval: perBuildSeconds)
+                        rendezvous.arriveAndWait()
                         return index
                     }
                 }
             }
-            for await _ in group {}
+            for await result in group {
+                results.append(result)
+            }
         }
-        let elapsed = ContinuousClock.now - start
-        let elapsedSeconds = Double(elapsed.components.seconds)
-            + Double(elapsed.components.attoseconds) / 1e18
 
-        let serialCeiling = Double(keyCount) * perBuildSeconds
-        let parallelBudget = serialCeiling * 0.5
-        #expect(elapsedSeconds < parallelBudget,
-                "elapsed=\(elapsedSeconds)s should be well below serial=\(serialCeiling)s — TaskGroup pool size and Thread.sleep blocking the cooperative pool both factor in, so this only verifies we are not fully serial")
+        #expect(results.compactMap { $0 }.sorted() == Array(0 ..< keyCount))
+        #expect(rendezvous.everyBuildOverlapped,
+                "builds for distinct keys did not overlap: the second build never entered its closure while the first was still inside its own")
     }
 
-    /// async-let variant: build a small batch of distinct keys, then return
-    /// the dictionary of results. Validates that the structured-concurrency
-    /// `async let` form works the same as `TaskGroup` for distinct keys.
+    /// async-let variant of the rendezvous above: the structured-concurrency
+    /// `async let` form must give distinct keys the same overlap that the
+    /// TaskGroup form does.
     @Test func differentKeysParallelViaAsyncLet() async {
         let cache = TestCache()
-        // 0.40s per build keeps the parallel budget (half the 1.6s serial
-        // ceiling, matching the TaskGroup variant above) far enough above
-        // scheduler noise that a fully-loaded parallel test run cannot push a
-        // genuinely-parallel result over it — 0.10s builds with a fixed 0.30s
-        // budget flaked exactly that way.
-        let perBuildSeconds: Double = 0.40
+        let rendezvous = BuildRendezvous(expectedCount: 2)
 
-        let start = ContinuousClock.now
-        async let a = Task.detached {
+        async let first = Task.detached {
             cache.resolve(key: AnyHashable("a")) {
-                Thread.sleep(forTimeInterval: perBuildSeconds); return 1
+                rendezvous.arriveAndWait()
+                return 1
             }
         }.value
-        async let b = Task.detached {
+        async let second = Task.detached {
             cache.resolve(key: AnyHashable("b")) {
-                Thread.sleep(forTimeInterval: perBuildSeconds); return 2
-            }
-        }.value
-        async let c = Task.detached {
-            cache.resolve(key: AnyHashable("c")) {
-                Thread.sleep(forTimeInterval: perBuildSeconds); return 3
-            }
-        }.value
-        async let d = Task.detached {
-            cache.resolve(key: AnyHashable("d")) {
-                Thread.sleep(forTimeInterval: perBuildSeconds); return 4
+                rendezvous.arriveAndWait()
+                return 2
             }
         }.value
 
-        let results = await [a, b, c, d]
-        let elapsed = ContinuousClock.now - start
-        let elapsedSeconds = Double(elapsed.components.seconds)
-            + Double(elapsed.components.attoseconds) / 1e18
+        let results = await [first, second]
 
-        #expect(results == [1, 2, 3, 4])
-        // Four builds run in parallel ⇒ wall-clock ≈ one build. Same budget
-        // idiom as the TaskGroup variant: only verifies we are not fully
-        // serial (≥ 1.6s), with headroom for a loaded machine. 0.75 rather
-        // than the TaskGroup variant's 0.5 because detached tasks acquire
-        // pool threads later under a saturated full-suite run — 0.5 left only
-        // ~2× headroom over scheduler noise and still flaked (0.845s
-        // observed against the 0.8s budget).
-        let serialCeiling = 4 * perBuildSeconds
-        let parallelBudget = serialCeiling * 0.75
-        #expect(elapsedSeconds < parallelBudget,
-                "elapsed=\(elapsedSeconds)s should be well below serial=\(serialCeiling)s")
+        #expect(results == [1, 2])
+        #expect(rendezvous.everyBuildOverlapped,
+                "builds for distinct keys did not overlap: the second build never entered its closure while the first was still inside its own")
     }
 
     /// Reentrancy from inside a Task body: a build for one key spawns a
