@@ -128,16 +128,16 @@ extension SymbolicDemangler {
         return try demangle(for: mangledName, kind: .type, in: InProcessContext.shared)
     }
 
-    /// Demangles a type WITHOUT touching the shared node cache.
+    /// Demangles a type WITHOUT touching the shared node memo.
     ///
-    /// The cached `demangleType(for:)` goes through `SymbolicDemanglerCache`'s
-    /// `storage()` (a lazily-built, lock-guarded `SharedCache`). When a caller
-    /// invokes it *while the same thread is still inside that cache's build
-    /// closure* — e.g. a deeply recursive dumper that demangles a field type,
-    /// resolves it, then demangles a nested field type during the same
-    /// in-flight build — the re-entrant `storage()` lookup traps. Callers on
-    /// such recursive paths use this uncached entry to stay re-entrancy-safe;
-    /// they trade the node cache for correctness.
+    /// The cached `demangleType(for:)` reads and fills the process-scoped
+    /// memo. Callers on deeply recursive paths — a dumper that demangles a
+    /// field type, resolves it, then demangles a nested field type — use this
+    /// entry to keep the memo out of the recursion; they trade memoization
+    /// for a fresh demangle. (The memo used to be a lazily built cache entry
+    /// whose re-entrant lookup trapped, which is where this entry comes from;
+    /// the memo is a plain static now, and the entry stays for the callers
+    /// that want no memoization.)
     public static func demangleTypeUncached(for mangledName: MangledName) throws -> Node {
         return try _demangleType(for: mangledName)
     }
@@ -831,10 +831,20 @@ extension SymbolicDemangler {
 /// materializes a fresh tree, so the cache retains no class `Node` and the
 /// returned instances are never shared across calls — key long-lived state
 /// structurally, never by `ObjectIdentifier` of a returned node.
-private final class SymbolicDemanglerCache: SharedCache<SymbolicDemanglerCache.Storage>, @unchecked Sendable {
+private final class SymbolicDemanglerCache: @unchecked Sendable {
     fileprivate static let shared = SymbolicDemanglerCache()
 
-    private override init() {}
+    private let cache = SharedCache<Storage>()
+
+    /// The process-scoped memo, for the in-process reading paths that have
+    /// no Mach-O handle to key on. A `static let` is created lazily and is
+    /// thread-safe by language rule. Unlike the per-image entries it is
+    /// never evicted: nothing owns it the way an indexer owns an image's
+    /// entries, and its size is bounded by the unique names the process
+    /// demangles in-process.
+    private static let processScopedStorage = Storage()
+
+    private init() {}
 
     fileprivate struct MangledNameBox: Hashable {
         let wrappedValue: MangledName
@@ -852,7 +862,10 @@ private final class SymbolicDemanglerCache: SharedCache<SymbolicDemanglerCache.S
         }
     }
 
-    final class Storage {
+    /// `@unchecked Sendable`: every stored dictionary is behind its own
+    /// `@Mutex`, which is what lets the process-scoped instance live in a
+    /// `static let`.
+    final class Storage: @unchecked Sendable {
         @Mutex
         fileprivate var nodeReferenceForMangledNameBox: [MangledNameBox: NodeReference] = [:]
 
@@ -867,12 +880,16 @@ private final class SymbolicDemanglerCache: SharedCache<SymbolicDemanglerCache.S
         fileprivate var nodeReferenceForSymbolName: [String: NodeReference?] = [:]
     }
 
-    override func buildStorage(for machO: some MachORepresentableWithCache) -> Storage? {
-        Storage()
+    private func storage(in machO: some MachORepresentableWithCache) -> Storage? {
+        cache.storage(in: machO) { _ in Storage() }
     }
 
-    override func buildStorage() -> Storage? {
-        Storage()
+    fileprivate func contains(in machO: some MachORepresentableWithCache) -> Bool {
+        cache.contains(in: machO)
+    }
+
+    fileprivate func remove(for machO: some MachORepresentableWithCache) {
+        cache.remove(for: machO)
     }
 
     func demangleType(for mangledName: MangledName, in machO: some MachOSwiftSectionRepresentableWithCache) throws -> Node {
@@ -886,11 +903,11 @@ private final class SymbolicDemanglerCache: SharedCache<SymbolicDemanglerCache.S
     }
 
     func demangleType(for mangledName: MangledName) throws -> Node {
-        if let reference = storage()?.nodeReferenceForMangledNameBox[MangledNameBox(mangledName)] {
+        if let reference = Self.processScopedStorage.nodeReferenceForMangledNameBox[MangledNameBox(mangledName)] {
             return reference.materialize()
         } else {
             let node = try SymbolicDemangler._demangleType(for: mangledName)
-            storage()?.nodeReferenceForMangledNameBox[MangledNameBox(mangledName)] = InternedNodeReferenceCache.shared.reference(interning: node)
+            Self.processScopedStorage.nodeReferenceForMangledNameBox[MangledNameBox(mangledName)] = InternedNodeReferenceCache.shared.reference(interning: node)
             return node
         }
     }
@@ -910,11 +927,11 @@ private final class SymbolicDemanglerCache: SharedCache<SymbolicDemanglerCache.S
 
     func demangleContext(for context: ContextDescriptorWrapper) throws -> Node {
         let key = context.contextDescriptor.offset
-        if let reference = storage()?.nodeReferenceForContextOffset[key] {
+        if let reference = Self.processScopedStorage.nodeReferenceForContextOffset[key] {
             return reference.materialize()
         } else {
             let node = try SymbolicDemangler._demangleContext(for: context)
-            storage()?.nodeReferenceForContextOffset[key] = InternedNodeReferenceCache.shared.reference(interning: node)
+            Self.processScopedStorage.nodeReferenceForContextOffset[key] = InternedNodeReferenceCache.shared.reference(interning: node)
             return node
         }
     }
@@ -936,11 +953,11 @@ private final class SymbolicDemanglerCache: SharedCache<SymbolicDemanglerCache.S
 
     func buildContextManglingForSymbol(_ symbol: Symbol) throws -> Node? {
         let key = symbol.name
-        if let cachedVerdict = storage()?.nodeReferenceForSymbolName[key] {
+        if let cachedVerdict = Self.processScopedStorage.nodeReferenceForSymbolName[key] {
             return cachedVerdict?.materialize()
         } else {
             let node = try SymbolicDemangler._buildContextManglingForSymbol(symbol, in: InProcessContext.shared)
-            storage()?.nodeReferenceForSymbolName.updateValue(node.map { InternedNodeReferenceCache.shared.reference(interning: $0) }, forKey: key)
+            Self.processScopedStorage.nodeReferenceForSymbolName.updateValue(node.map { InternedNodeReferenceCache.shared.reference(interning: $0) }, forKey: key)
             return node
         }
     }

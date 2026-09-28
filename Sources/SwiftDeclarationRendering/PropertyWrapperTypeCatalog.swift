@@ -190,42 +190,30 @@ public final class PropertyWrapperTypeCatalog: @unchecked Sendable {
 public final class PropertyWrapperTypeCatalogStore: @unchecked Sendable {
     public static let shared = PropertyWrapperTypeCatalogStore()
 
-    private let lock = NSLock()
-    private var catalogsByImageKey: [SharedCacheKey: PropertyWrapperTypeCatalog] = [:]
+    private let cache = SharedCache<PropertyWrapperTypeCatalog>()
 
     private init() {}
 
     /// Installs the catalog an indexer built with its configured search
     /// paths, replacing any default one a lookup created before it.
     public func register(_ catalog: PropertyWrapperTypeCatalog, for machO: some MachORepresentableWithCache) {
-        lock.lock()
-        defer { lock.unlock() }
-        catalogsByImageKey[SharedCacheKey(machO)] = catalog
+        cache.register(catalog, for: machO)
     }
 
     /// The image's catalog — the registered one, or a default over the
-    /// system dyld shared cache created on first use.
+    /// system dyld shared cache created on first use. The default is built
+    /// outside the cache's lock, and concurrent first lookups for one image
+    /// share a single build.
     public func catalog(for machO: some MachORepresentableWithCache) -> PropertyWrapperTypeCatalog {
-        lock.lock()
-        defer { lock.unlock() }
-        let key = SharedCacheKey(machO)
-        if let existing = catalogsByImageKey[key] {
-            return existing
-        }
-        let catalog = PropertyWrapperTypeCatalog.make(root: machO, searchPaths: [.systemDyldSharedCache])
-        catalogsByImageKey[key] = catalog
-        return catalog
+        cache.storage(in: machO) { PropertyWrapperTypeCatalog.make(root: $0, searchPaths: [.systemDyldSharedCache]) }
+            ?? PropertyWrapperTypeCatalog.make(root: machO, searchPaths: [.systemDyldSharedCache])
     }
 
     public func contains(in machO: some MachORepresentableWithCache) -> Bool {
-        lock.lock()
-        defer { lock.unlock() }
-        return catalogsByImageKey[SharedCacheKey(machO)] != nil
+        cache.contains(in: machO)
     }
 
     public func remove(for machO: some MachORepresentableWithCache) {
-        lock.lock()
-        defer { lock.unlock() }
-        catalogsByImageKey[SharedCacheKey(machO)] = nil
+        cache.remove(for: machO)
     }
 }

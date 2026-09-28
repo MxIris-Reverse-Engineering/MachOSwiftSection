@@ -167,46 +167,31 @@ public final class ObjCAncestorResolver: @unchecked Sendable {
 public final class ObjCAncestorResolverStore: @unchecked Sendable {
     public static let shared = ObjCAncestorResolverStore()
 
-    private let lock = NSLock()
-    private var resolversByImageKey: [SharedCacheKey: ObjCAncestorResolver] = [:]
+    private let cache = SharedCache<ObjCAncestorResolver>()
 
     private init() {}
 
     /// Installs `resolver` for `machO`, replacing any earlier registration —
     /// a default one a lookup created before it included.
     public func register(_ resolver: ObjCAncestorResolver, for machO: some MachORepresentableWithCache) {
-        lock.lock()
-        defer { lock.unlock() }
-        resolversByImageKey[SharedCacheKey(machO)] = resolver
+        cache.register(resolver, for: machO)
     }
 
     /// A file's resolver: the registered one, else a default over the
-    /// running system's dyld shared cache, created on first use.
+    /// running system's dyld shared cache, created on first use. The default
+    /// is built outside the cache's lock, and concurrent first lookups for
+    /// one file share a single build.
     public func resolver(for machOFile: MachOFile) -> ObjCAncestorResolver {
-        lock.lock()
-        defer { lock.unlock() }
-        let key = SharedCacheKey(machOFile)
-        if let existing = resolversByImageKey[key] {
-            return existing
-        }
-        let resolver = ObjCAncestorResolver(root: machOFile, searchPaths: [.systemDyldSharedCache])
-        resolversByImageKey[key] = resolver
-        return resolver
+        cache.storage(in: machOFile) { ObjCAncestorResolver(root: $0, searchPaths: [.systemDyldSharedCache]) }
+            ?? ObjCAncestorResolver(root: machOFile, searchPaths: [.systemDyldSharedCache])
     }
 
     /// An in-process image's resolver: the registered one, else a default
     /// over the loaded images, created on first use — consulted for the
     /// category fold only, never for a bind.
     public func resolver(for machOImage: MachOImage) -> ObjCAncestorResolver {
-        lock.lock()
-        defer { lock.unlock() }
-        let key = SharedCacheKey(machOImage)
-        if let existing = resolversByImageKey[key] {
-            return existing
-        }
-        let resolver = ObjCAncestorResolver(inProcessRoot: machOImage)
-        resolversByImageKey[key] = resolver
-        return resolver
+        cache.storage(in: machOImage) { ObjCAncestorResolver(inProcessRoot: $0) }
+            ?? ObjCAncestorResolver(inProcessRoot: machOImage)
     }
 
     /// The resolver for whichever reader kind `machO` is; `nil` for a reader
@@ -226,14 +211,10 @@ public final class ObjCAncestorResolverStore: @unchecked Sendable {
     }
 
     public func contains(in machO: some MachORepresentableWithCache) -> Bool {
-        lock.lock()
-        defer { lock.unlock() }
-        return resolversByImageKey[SharedCacheKey(machO)] != nil
+        cache.contains(in: machO)
     }
 
     public func remove(for machO: some MachORepresentableWithCache) {
-        lock.lock()
-        defer { lock.unlock() }
-        resolversByImageKey[SharedCacheKey(machO)] = nil
+        cache.remove(for: machO)
     }
 }

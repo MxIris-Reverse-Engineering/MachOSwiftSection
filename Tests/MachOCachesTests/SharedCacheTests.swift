@@ -219,11 +219,11 @@ private final class BuildRendezvous: @unchecked Sendable {
     }
 }
 
-/// Minimal SharedCache instantiation for tests. `SharedCache.init()` is
-/// `package`-visible and constructs a usable cache without any MachO
-/// scaffolding because every public entry point that requires
-/// `MachORepresentableWithCache` ultimately delegates to `resolve(key:build:)`.
-private final class TestCache: SharedCache<Int>, @unchecked Sendable {}
+/// The cache under test. `SharedCache.init()` is `package`-visible and
+/// constructs a usable cache without any Mach-O scaffolding, because every
+/// entry point that takes a `MachORepresentableWithCache` delegates to
+/// `resolve(key:build:)`.
+private typealias TestCache = SharedCache<Int>
 
 /// Mirror of ``SharedCacheResolveTests`` driven through Swift Concurrency
 /// primitives (`TaskGroup`, `AsyncStream`) instead of GCD. `resolve` itself

@@ -37,12 +37,12 @@ import MachOSwiftSection
 /// with the demangle memo (`SymbolicDemangler.removeCache(for:)`). It keeps
 /// nothing of `SymbolicManglingIndex`, whose storage goes with the symbol
 /// store instead.
-package final class AnonymousContextPrivateDiscriminatorIndex: SharedCache<AnonymousContextPrivateDiscriminatorIndex.Storage>, @unchecked Sendable {
+package final class AnonymousContextPrivateDiscriminatorIndex: @unchecked Sendable {
     package static let shared = AnonymousContextPrivateDiscriminatorIndex()
 
-    private override init() {
-        super.init()
-    }
+    private let cache = SharedCache<Storage>()
+
+    private init() {}
 
     package final class Storage: @unchecked Sendable {
         /// Anonymous context descriptor offset → the private discriminator of
@@ -54,13 +54,21 @@ package final class AnonymousContextPrivateDiscriminatorIndex: SharedCache<Anony
         }
     }
 
-    override package func buildStorage(for machO: some MachORepresentableWithCache) -> Storage? {
-        if let machOFile = machO as? MachOFile {
-            return Self.build(in: machOFile)
-        } else if let machOImage = machO as? MachOImage {
-            return Self.build(in: machOImage)
+    /// The image's index, built on first use. The build re-types the reader
+    /// once (`swiftSectionReader`): the cache is typed with the reader
+    /// protocol every consumer holds, the build reads descriptors.
+    package func storage(in machO: some MachORepresentableWithCache) -> Storage? {
+        cache.storage(in: machO) { machO in
+            machO.swiftSectionReader.map { Self.build(in: $0) }
         }
-        return nil
+    }
+
+    package func contains(in machO: some MachORepresentableWithCache) -> Bool {
+        cache.contains(in: machO)
+    }
+
+    package func remove(for machO: some MachORepresentableWithCache) {
+        cache.remove(for: machO)
     }
 
     // MARK: - Queries

@@ -46,12 +46,12 @@ import Demangling
 /// (`ObjCClassHierarchies.removeCache(for:)`). This module sits below the
 /// event layer, so a class that could not be read is only logged.
 @Loggable(.private, subsystem: "com.machoswiftsection.swift-inspection", category: "SwiftClassObjectIndex")
-package final class SwiftClassObjectIndex: SharedCache<SwiftClassObjectIndex.Storage>, @unchecked Sendable {
+package final class SwiftClassObjectIndex: @unchecked Sendable {
     package static let shared = SwiftClassObjectIndex()
 
-    private override init() {
-        super.init()
-    }
+    private let cache = SharedCache<Storage>()
+
+    private init() {}
 
     /// One renamed class.
     struct RenamedClass {
@@ -78,13 +78,22 @@ package final class SwiftClassObjectIndex: SharedCache<SwiftClassObjectIndex.Sto
         }
     }
 
-    override package func buildStorage(for machO: some MachORepresentableWithCache) -> Storage? {
-        if let machOFile = machO as? MachOFile {
-            return Self.build(in: machOFile)
-        } else if let machOImage = machO as? MachOImage {
-            return Self.build(in: machOImage)
+    /// The image's index, built on first use. The build re-types the reader
+    /// once (`objcImplementationClassReader`): the cache is typed with the
+    /// reader protocol every consumer holds, the build needs the ObjC reads
+    /// and the descriptors.
+    package func storage(in machO: some MachORepresentableWithCache) -> Storage? {
+        cache.storage(in: machO) { machO in
+            machO.objcImplementationClassReader.map { Self.build(in: $0) }
         }
-        return nil
+    }
+
+    package func contains(in machO: some MachORepresentableWithCache) -> Bool {
+        cache.contains(in: machO)
+    }
+
+    package func remove(for machO: some MachORepresentableWithCache) {
+        cache.remove(for: machO)
     }
 
     // MARK: - Queries
