@@ -58,13 +58,13 @@ enum Actors {
         // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
         var state: Swift.Int
 
+        func mutateState()
+        func readState() -> Swift.Int
+        func nonisolatedMethod() -> Swift.String
+
         var unownedExecutor: Swift.UnownedSerialExecutor {
             get
         }
-
-        func mutateState()
-        func nonisolatedMethod() -> Swift.String
-        func readState() -> Swift.Int
 
         deinit
     }
@@ -92,8 +92,8 @@ enum Actors {
         // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
         var value: Swift.Int
 
-        func nonisolatedMethod() -> Swift.String
         func method() -> Swift.Int
+        func nonisolatedMethod() -> Swift.String
 
         deinit
     }
@@ -178,10 +178,11 @@ enum Attributes {
         func dynamicallyCall(withKeywordArguments: Swift.KeyValuePairs<Swift.String, Swift.Int>) -> Swift.Int
     }
     class ObjCAttributeClass: __C.NSObject {
-        @objc override init()
-
         @objc func objcMethod()
         func nonobjcMethod()
+
+        @objc override init()
+
         @objc func objcDynamicMethod()
 
         deinit
@@ -323,17 +324,16 @@ enum Classes {
         deinit
     }
     class ClassTest {
-        var dynamicVariable: Swift.Bool {
-            get
-            set
-        }
         var instanceVariable: Swift.Bool {
             get
             set
         }
-
-        func dynamicMethod()
         func instanceMethod() -> Self
+        var dynamicVariable: Swift.Bool {
+            get
+            set
+        }
+        func dynamicMethod()
 
         deinit
     }
@@ -342,24 +342,23 @@ enum Classes {
             get
             set
         }
+        override func instanceMethod() -> Self
         override var instanceVariable: Swift.Bool {
             get
             set
         }
 
         func dynamicMethod()
-        override func instanceMethod() -> Self
 
         deinit
     }
     class FinalClassTest: SymbolTestsCore.Classes.SubclassTest {
+        override func instanceMethod() -> Self
         override var dynamicVariable: Swift.Bool {
             get
             set
         }
-
         override func dynamicMethod()
-        override func instanceMethod() -> Self
 
         deinit
     }
@@ -382,27 +381,23 @@ enum Classes {
         deinit
     }
     class OpenAccessTest {
-        init()
-
         var openProperty: Swift.Int {
             get
             set
         }
-
         func openMethod() -> Swift.String
         func publicMethod() -> Swift.Int
+        init()
 
         deinit
     }
     class OpenAccessSubTest: SymbolTestsCore.Classes.OpenAccessTest {
-        override init()
-
         override var openProperty: Swift.Int {
             get
             set
         }
-
         override func openMethod() -> Swift.String
+        override init()
 
         deinit
     }
@@ -411,9 +406,9 @@ enum Classes {
         // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
         var property: Swift.Int
 
-        @objc override init()
-
         @objc func method() -> Swift.Int
+
+        @objc override init()
 
         deinit
     }
@@ -427,11 +422,9 @@ enum Classes {
         deinit
     }
     class DefaultParameterClassTest {
-        init()
-
         func method(first: Swift.Int, second: Swift.String) -> Swift.Int
-
         class func classMethod(value: Swift.Int) -> Swift.Int
+        init()
 
         deinit
     }
@@ -802,18 +795,17 @@ enum DistributedActors {
         // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 2147483647)
         let actorSystem: Distributed.LocalTestingDistributedActorSystem
 
-        init(actorSystem: Distributed.LocalTestingDistributedActorSystem)
-
+        func remoteMethod(value: Swift.Int) -> Swift.Int
+        func remoteThrowingMethod() throws -> Swift.String
         var nonisolatedProperty: Swift.String {
             get
         }
+        func parameterizedMethod(label: Swift.String, count: Swift.Int) -> Swift.String
+        init(actorSystem: Distributed.LocalTestingDistributedActorSystem)
+
         var unownedExecutor: Swift.UnownedSerialExecutor {
             get
         }
-
-        func remoteMethod(value: Swift.Int) -> Swift.Int
-        func remoteThrowingMethod() throws -> Swift.String
-        func parameterizedMethod(label: Swift.String, count: Swift.Int) -> Swift.String
 
         static func resolve(id: Distributed.LocalTestingActorID, using: Distributed.LocalTestingDistributedActorSystem) throws -> SymbolTestsCore.DistributedActors.DistributedActorTest
 
@@ -827,13 +819,12 @@ enum DistributedActors {
         // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 2147483647)
         let actorSystem: Distributed.LocalTestingDistributedActorSystem
 
+        func process(element: A) -> A
         init(actorSystem: Distributed.LocalTestingDistributedActorSystem)
 
         var unownedExecutor: Swift.UnownedSerialExecutor {
             get
         }
-
-        func process(element: A) -> A
 
         static func resolve(id: Distributed.LocalTestingActorID, using: Distributed.LocalTestingDistributedActorSystem) throws -> SymbolTestsCore.DistributedActors.GenericDistributedActorTest<A>
 
@@ -1391,6 +1382,7 @@ enum GenericFieldLayout {
         var field3: Swift.Int
 
         @objc init(field1: Swift.Double, field2: A, field3: Swift.Int)
+
         @objc init()
 
         deinit
@@ -1407,6 +1399,7 @@ enum GenericFieldLayout {
         var field3: Swift.Int
 
         @objc init(field1: Swift.Double, field2: A, field3: Swift.Int)
+
         @objc init()
 
         deinit
@@ -1537,6 +1530,7 @@ enum GenericFieldLayout {
         var ownValue: Swift.Int
 
         init(baseValue: Swift.Int, ownValue: Swift.Int)
+
         init(baseValue: Swift.Int)
 
         deinit
@@ -1916,6 +1910,7 @@ enum GenericFieldLayout {
         final var subclassIdentifier: Swift.Int64
 
         init(baseElement: A, subclassElement: A, subclassIdentifier: Swift.Int64)
+
         init(baseElement: A)
 
         deinit
@@ -1929,6 +1924,7 @@ enum GenericFieldLayout {
         final var identifier: Swift.Int
 
         @objc init(element: A, identifier: Swift.Int)
+
         @objc init()
 
         deinit
@@ -2114,9 +2110,10 @@ enum Initializers {
         // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 2147483647)
         let secondaryValue: Swift.String
 
+        init(primaryValue: Swift.Int, secondaryValue: Swift.String)
+
         init(primaryValue: Swift.Int)
         init()
-        init(primaryValue: Swift.Int, secondaryValue: Swift.String)
 
         deinit
     }
@@ -2125,8 +2122,8 @@ enum Initializers {
         // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
         let value: Swift.Int
 
-        init()
         init(value: Swift.Int)
+        init()
 
         deinit
     }
@@ -2361,9 +2358,9 @@ enum ObjCClassWrapperFixtures {
     }
     @objc(SymbolTestsCoreObjCBridgeWithProto)
     class ObjCBridgeWithProto: __C.NSObject {
-        @objc override init()
-
         @objc func ping()
+
+        @objc override init()
 
         deinit
     }
@@ -2507,7 +2504,6 @@ class PrivateDoppelgangerClass {
     var alphaOnlyStoredProperty: Swift.Int64
 
     init(alphaSeed: Swift.Int64)
-
     func sharedNameMethod() -> Swift.Int64
     func alphaClassMethod() -> Swift.Int64
 
@@ -2538,9 +2534,9 @@ class PrivateDoppelgangerClass {
     var betaOnlyStoredProperty: Swift.Int64
 
     init(betaSeed: Swift.Int64)
+    func betaClassMethod() -> Swift.Int64
 
     final func sharedNameMethod() -> Swift.Int64
-    func betaClassMethod() -> Swift.Int64
 
     deinit
 }
@@ -2848,29 +2844,27 @@ enum StaticMembers {
         }
     }
     class StaticMemberClassTest {
-        init()
-
         class var classComputed: Swift.Int {
             get
         }
+        class func classMethod() -> Swift.Int
+        init()
+
         static var storedConstant: Swift.Int {
             get
         }
         static var storedMutable: Swift.String
 
-        class func classMethod() -> Swift.Int
         static func staticMethod() -> Swift.Int
 
         deinit
     }
     class StaticMemberSubclassTest: SymbolTestsCore.StaticMembers.StaticMemberClassTest {
-        override init()
-
         override class var classComputed: Swift.Int {
             get
         }
-
         override class func classMethod() -> Swift.Int
+        override init()
 
         deinit
     }
@@ -3053,49 +3047,45 @@ enum UnsafePointers {
 }
 enum VTableEntryVariants {
     class VTableBaseTest {
-        init()
-
-        var asyncProperty: Swift.Int {
-            get
-        }
+        func normalMethod()
+        func overridableMethod() -> Swift.Int
+        func asyncMethod() async -> Swift.Int
+        func throwingMethod() throws -> Swift.Int
+        func asyncThrowingMethod() async throws -> Swift.Int
         var normalProperty: Swift.Int {
             get
             set
         }
+        var asyncProperty: Swift.Int {
+            get
+        }
         var throwingProperty: Swift.Int {
             get
         }
+        init()
 
-        func normalMethod()
-        func overridableMethod() -> Swift.Int
-        func throwingMethod() throws -> Swift.Int
-        func asyncMethod() async -> Swift.Int
-        func asyncThrowingMethod() async throws -> Swift.Int
         final func finalMethod()
 
         deinit
     }
     class VTableOverrideTest: SymbolTestsCore.VTableEntryVariants.VTableBaseTest {
-        override init()
-
         override func overridableMethod() -> Swift.Int
-        override func throwingMethod() throws -> Swift.Int
         override func asyncMethod() async -> Swift.Int
+        override func throwingMethod() throws -> Swift.Int
+        override init()
 
         deinit
     }
     class VTableFinalOverrideTest: SymbolTestsCore.VTableEntryVariants.VTableBaseTest {
-        override init()
-
         override func overridableMethod() -> Swift.Int
+        override init()
 
         deinit
     }
     class VTableDeepOverrideTest: SymbolTestsCore.VTableEntryVariants.VTableOverrideTest {
-        override init()
-
         override func overridableMethod() -> Swift.Int
         override func asyncMethod() async -> Swift.Int
+        override init()
 
         deinit
     }
@@ -3116,28 +3106,28 @@ enum VTableEntryVariants {
         // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 2147483646)
         lazy var plainLazyProperty: Swift.String
 
+        var plainComputedProperty: Swift.Int {
+            get
+            set
+        }
+        func plainMethod()
+        subscript(plainIndex: Swift.Int) -> Swift.Int {
+            get
+            set
+        }
+        class func classMethod()
         init()
 
         final var finalComputedProperty: Swift.Int {
             get
         }
-        var plainComputedProperty: Swift.Int {
-            get
-            set
-        }
 
-        func plainMethod()
         final func finalMethod()
 
-        subscript(plainIndex: Swift.Int) -> Swift.Int {
-            get
-            set
-        }
         final subscript(finalIndex: Swift.Int) -> Swift.Int {
             get
         }
 
-        class func classMethod()
         static func staticMethod()
 
         deinit

@@ -44,11 +44,17 @@ public enum OrderedMember: Sendable {
 
     /// Sort: vtable members first (by vtable offset), then remaining (by symbol offset).
     package static func classOrdered(_ members: [OrderedMember]) -> [OrderedMember] {
-        let withVTable = members.filter { $0.minVTableOffset != nil }
-            .sorted { ($0.minVTableOffset ?? 0) < ($1.minVTableOffset ?? 0) }
         let withoutVTable = members.filter { $0.minVTableOffset == nil }
             .sorted { $0.minSymbolOffset < $1.minSymbolOffset }
-        return withVTable + withoutVTable
+        return vtableOrdered(members) + withoutVTable
+    }
+
+    /// The members that own a vtable slot, in slot order — the order the
+    /// class metadata lays its vtable out in, which for the class's own slots
+    /// is the source's declaration order. Members without a slot are left out.
+    package static func vtableOrdered(_ members: [OrderedMember]) -> [OrderedMember] {
+        members.filter { $0.minVTableOffset != nil }
+            .sorted { ($0.minVTableOffset ?? 0) < ($1.minVTableOffset ?? 0) }
     }
 
     /// Sort by MachO symbol file offset.
