@@ -2,6 +2,7 @@ import Foundation
 @_spi(Internals) import Demangling
 import MachOKit
 import MachOFoundation
+@_spi(Internals) import MachOCaches
 
 /// What a wrapper type's `wrappedValue` accessor symbols say about it.
 public struct PropertyWrapperEvidence: Sendable {
@@ -190,7 +191,7 @@ public final class PropertyWrapperTypeCatalogStore: @unchecked Sendable {
     public static let shared = PropertyWrapperTypeCatalogStore()
 
     private let lock = NSLock()
-    private var catalogsByImageIdentifier: [AnyHashable: PropertyWrapperTypeCatalog] = [:]
+    private var catalogsByImageKey: [SharedCacheKey: PropertyWrapperTypeCatalog] = [:]
 
     private init() {}
 
@@ -199,7 +200,7 @@ public final class PropertyWrapperTypeCatalogStore: @unchecked Sendable {
     public func register(_ catalog: PropertyWrapperTypeCatalog, for machO: some MachORepresentableWithCache) {
         lock.lock()
         defer { lock.unlock() }
-        catalogsByImageIdentifier[AnyHashable(machO.identifier)] = catalog
+        catalogsByImageKey[SharedCacheKey(machO)] = catalog
     }
 
     /// The image's catalog — the registered one, or a default over the
@@ -207,24 +208,24 @@ public final class PropertyWrapperTypeCatalogStore: @unchecked Sendable {
     public func catalog(for machO: some MachORepresentableWithCache) -> PropertyWrapperTypeCatalog {
         lock.lock()
         defer { lock.unlock() }
-        let key = AnyHashable(machO.identifier)
-        if let existing = catalogsByImageIdentifier[key] {
+        let key = SharedCacheKey(machO)
+        if let existing = catalogsByImageKey[key] {
             return existing
         }
         let catalog = PropertyWrapperTypeCatalog.make(root: machO, searchPaths: [.systemDyldSharedCache])
-        catalogsByImageIdentifier[key] = catalog
+        catalogsByImageKey[key] = catalog
         return catalog
     }
 
     public func contains(in machO: some MachORepresentableWithCache) -> Bool {
         lock.lock()
         defer { lock.unlock() }
-        return catalogsByImageIdentifier[AnyHashable(machO.identifier)] != nil
+        return catalogsByImageKey[SharedCacheKey(machO)] != nil
     }
 
     public func remove(for machO: some MachORepresentableWithCache) {
         lock.lock()
         defer { lock.unlock() }
-        catalogsByImageIdentifier[AnyHashable(machO.identifier)] = nil
+        catalogsByImageKey[SharedCacheKey(machO)] = nil
     }
 }

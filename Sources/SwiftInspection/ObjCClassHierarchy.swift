@@ -184,7 +184,7 @@ public final class ObjCClassHierarchyProviderStore: @unchecked Sendable {
     }
 
     private let lock = NSLock()
-    private var providersByImageIdentifier: [AnyHashable: WeakProvider] = [:]
+    private var providersByImageKey: [SharedCacheKey: WeakProvider] = [:]
 
     private init() {}
 
@@ -192,17 +192,17 @@ public final class ObjCClassHierarchyProviderStore: @unchecked Sendable {
     public func register(_ provider: any ObjCClassHierarchyProviding, for machO: some MachORepresentableWithCache) {
         lock.lock()
         defer { lock.unlock() }
-        providersByImageIdentifier[AnyHashable(machO.identifier)] = WeakProvider(provider: provider)
+        providersByImageKey[SharedCacheKey(machO)] = WeakProvider(provider: provider)
     }
 
     /// The live provider registered for `machO`, if any.
     public func provider(for machO: some MachORepresentableWithCache) -> (any ObjCClassHierarchyProviding)? {
         lock.lock()
         defer { lock.unlock() }
-        let key = AnyHashable(machO.identifier)
-        guard let entry = providersByImageIdentifier[key] else { return nil }
+        let key = SharedCacheKey(machO)
+        guard let entry = providersByImageKey[key] else { return nil }
         guard let provider = entry.provider else {
-            providersByImageIdentifier[key] = nil
+            providersByImageKey[key] = nil
             return nil
         }
         return provider
@@ -211,7 +211,7 @@ public final class ObjCClassHierarchyProviderStore: @unchecked Sendable {
     public func remove(for machO: some MachORepresentableWithCache) {
         lock.lock()
         defer { lock.unlock() }
-        providersByImageIdentifier[AnyHashable(machO.identifier)] = nil
+        providersByImageKey[SharedCacheKey(machO)] = nil
     }
 }
 

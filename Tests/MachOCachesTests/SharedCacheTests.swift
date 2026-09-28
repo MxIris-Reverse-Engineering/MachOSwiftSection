@@ -10,21 +10,21 @@ struct SharedCacheResolveTests {
     @Test func singleThreadedHitMissAndNilDontCache() {
         let cache = TestCache()
 
-        let first = cache.resolve(key: AnyHashable("a")) { 1 }
+        let first = cache.resolve(key: SharedCacheKey(opaque: "a")) { 1 }
         #expect(first == 1)
 
         // Second call hits the cache: the build closure must not run.
-        let second = cache.resolve(key: AnyHashable("a")) {
+        let second = cache.resolve(key: SharedCacheKey(opaque: "a")) {
             Issue.record("build was called for an already-cached key")
             return 99
         }
         #expect(second == 1)
 
         // A `nil` build is not cached, so the next call gets a fresh attempt.
-        let nilFirst: Int? = cache.resolve(key: AnyHashable("b")) { nil }
+        let nilFirst: Int? = cache.resolve(key: SharedCacheKey(opaque: "b")) { nil }
         #expect(nilFirst == nil)
 
-        let nilRetry = cache.resolve(key: AnyHashable("b")) { 7 }
+        let nilRetry = cache.resolve(key: SharedCacheKey(opaque: "b")) { 7 }
         #expect(nilRetry == 7)
     }
 
@@ -43,7 +43,7 @@ struct SharedCacheResolveTests {
         // to that marker rather than invoking `build` again.
         let firstCallerDone = DispatchSemaphore(value: 0)
         DispatchQueue.global().async {
-            let result = cache.resolve(key: AnyHashable("shared")) {
+            let result = cache.resolve(key: SharedCacheKey(opaque: "shared")) {
                 buildCount.withLock { $0 += 1 }
                 buildEnter.signal()
                 buildRelease.wait()
@@ -61,7 +61,7 @@ struct SharedCacheResolveTests {
         let observed = OSAllocatedUnfairLock(initialState: [Int]())
         for _ in 0 ..< waiterCount {
             DispatchQueue.global().async {
-                let result = cache.resolve(key: AnyHashable("shared")) {
+                let result = cache.resolve(key: SharedCacheKey(opaque: "shared")) {
                     Issue.record("a waiter ran build instead of joining the in-flight promise")
                     return -1
                 }
@@ -124,7 +124,7 @@ struct SharedCacheResolveTests {
 
         for index in 0 ..< keyCount {
             DispatchQueue.global().async {
-                _ = cache.resolve(key: AnyHashable(index)) {
+                _ = cache.resolve(key: SharedCacheKey(opaque: index)) {
                     enteredBuild.signal()
                     proceedWithBuild.wait()
                     return index
@@ -148,8 +148,8 @@ struct SharedCacheResolveTests {
     /// with, worth pinning.)
     @Test func buildClosureMayResolveOtherKey() {
         let cache = TestCache()
-        let result = cache.resolve(key: AnyHashable("outer")) {
-            cache.resolve(key: AnyHashable("inner")) { 5 }.map { $0 * 2 }
+        let result = cache.resolve(key: SharedCacheKey(opaque: "outer")) {
+            cache.resolve(key: SharedCacheKey(opaque: "inner")) { 5 }.map { $0 * 2 }
         }
         #expect(result == 10)
     }
@@ -163,8 +163,8 @@ struct SharedCacheResolveTests {
     @Test func reentrantBuildForTheSameKeyTrapsInsteadOfHanging() async {
         await #expect(processExitsWith: .failure) {
             let cache = TestCache()
-            _ = cache.resolve(key: AnyHashable("self")) {
-                cache.resolve(key: AnyHashable("self")) { 1 }
+            _ = cache.resolve(key: SharedCacheKey(opaque: "self")) {
+                cache.resolve(key: SharedCacheKey(opaque: "self")) { 1 }
             }
         }
     }
@@ -247,7 +247,7 @@ struct SharedCacheResolveSwiftConcurrencyTests {
 
         await withTaskGroup(of: Int?.self) { group in
             group.addTask {
-                cache.resolve(key: AnyHashable("shared")) {
+                cache.resolve(key: SharedCacheKey(opaque: "shared")) {
                     buildCount.withLock { $0 += 1 }
                     buildEnteredContinuation.yield()
                     buildEnteredContinuation.finish()
@@ -266,7 +266,7 @@ struct SharedCacheResolveSwiftConcurrencyTests {
 
             for _ in 0 ..< waiterCount {
                 group.addTask {
-                    cache.resolve(key: AnyHashable("shared")) {
+                    cache.resolve(key: SharedCacheKey(opaque: "shared")) {
                         Issue.record("waiter ran build instead of joining the in-flight promise")
                         return -1
                     }
@@ -306,7 +306,7 @@ struct SharedCacheResolveSwiftConcurrencyTests {
         await withTaskGroup(of: Int?.self) { group in
             for index in 0 ..< keyCount {
                 group.addTask {
-                    cache.resolve(key: AnyHashable(index)) {
+                    cache.resolve(key: SharedCacheKey(opaque: index)) {
                         rendezvous.arriveAndWait()
                         return index
                     }
@@ -330,13 +330,13 @@ struct SharedCacheResolveSwiftConcurrencyTests {
         let rendezvous = BuildRendezvous(expectedCount: 2)
 
         async let first = Task.detached {
-            cache.resolve(key: AnyHashable("a")) {
+            cache.resolve(key: SharedCacheKey(opaque: "a")) {
                 rendezvous.arriveAndWait()
                 return 1
             }
         }.value
         async let second = Task.detached {
-            cache.resolve(key: AnyHashable("b")) {
+            cache.resolve(key: SharedCacheKey(opaque: "b")) {
                 rendezvous.arriveAndWait()
                 return 2
             }
@@ -356,12 +356,12 @@ struct SharedCacheResolveSwiftConcurrencyTests {
     @Test func reentrancyFromTask() async {
         let cache = TestCache()
         let outerResult = await Task.detached {
-            cache.resolve(key: AnyHashable("outer")) {
+            cache.resolve(key: SharedCacheKey(opaque: "outer")) {
                 // Spawn a nested Task that resolves a different key. We can
                 // only block-wait it because the outer build closure is
                 // sync — `await` is not allowed here.
                 let inner = Task.detached {
-                    cache.resolve(key: AnyHashable("inner")) { 5 }
+                    cache.resolve(key: SharedCacheKey(opaque: "inner")) { 5 }
                 }
                 // `Task.value` is async, so we hop back through a Dispatch
                 // semaphore — proves reentrancy works regardless of how the
@@ -395,7 +395,7 @@ struct SharedCacheResolveSwiftConcurrencyTests {
             // Builder: blocks long enough that we can spawn-and-cancel a
             // herd of waiter tasks while it is still in flight.
             group.addTask {
-                cache.resolve(key: AnyHashable("k")) {
+                cache.resolve(key: SharedCacheKey(opaque: "k")) {
                     buildCount.withLock { $0 += 1 }
                     buildEnteredContinuation.yield()
                     buildEnteredContinuation.finish()
@@ -413,7 +413,7 @@ struct SharedCacheResolveSwiftConcurrencyTests {
             // the cache is not poisoned by the cancellation.
             for _ in 0 ..< 8 {
                 let task = Task.detached {
-                    cache.resolve(key: AnyHashable("k")) {
+                    cache.resolve(key: SharedCacheKey(opaque: "k")) {
                         Issue.record("waiter ran build")
                         return -1
                     }
@@ -430,7 +430,7 @@ struct SharedCacheResolveSwiftConcurrencyTests {
 
         // After the builder published, the cache should hold the result —
         // a fresh caller must not trigger another build.
-        let post = cache.resolve(key: AnyHashable("k")) {
+        let post = cache.resolve(key: SharedCacheKey(opaque: "k")) {
             Issue.record("post-cancellation caller ran build, cache was corrupted")
             return -1
         }

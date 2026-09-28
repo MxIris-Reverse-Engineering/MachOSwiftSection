@@ -185,7 +185,7 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
     deinit {
         PerImageCacheEvictionRegistry.deregisterLiveIndexer(
             ObjectIdentifier(self),
-            forImageIdentifier: machO.identifier
+            forImageKey: SharedCacheKey(machO)
         ) { claims in
             if claims.symbolStore {
                 @Dependency(\.symbolIndexStore)
@@ -368,7 +368,7 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
         // that guarantee only holds if the three are sampled separately.
         PerImageCacheEvictionRegistry.registerLiveIndexer(
             ObjectIdentifier(self),
-            forImageIdentifier: machO.identifier
+            forImageKey: SharedCacheKey(machO)
         ) {
             // Inside the registry's lock — see `registerLiveIndexer`. As
             // argument expressions these ran before it was taken.
@@ -1567,7 +1567,7 @@ private enum PerImageCacheEvictionRegistry {
 
     private static let registryLock = NSLock()
 
-    private nonisolated(unsafe) static var entriesByImageIdentifier: [AnyHashable: ImageEntry] = [:]
+    private nonisolated(unsafe) static var entriesByImageKey: [SharedCacheKey: ImageEntry] = [:]
 
     /// - Parameter sampleClaims: Tests cache membership. Taken as a closure so
     ///   it runs **under the lock**, in the same critical section as the
@@ -1579,12 +1579,12 @@ private enum PerImageCacheEvictionRegistry {
     ///   (185,988 rows on SwiftUI) plus its arena for the process lifetime.
     static func registerLiveIndexer(
         _ indexerIdentity: ObjectIdentifier,
-        forImageIdentifier imageIdentifier: AnyHashable,
+        forImageKey imageKey: SharedCacheKey,
         samplingClaims sampleClaims: () -> Claims
     ) {
         registryLock.lock()
         defer { registryLock.unlock() }
-        var imageEntry = entriesByImageIdentifier[imageIdentifier, default: ImageEntry()]
+        var imageEntry = entriesByImageKey[imageKey, default: ImageEntry()]
         let isFirstRegistration = imageEntry.liveIndexers.insert(indexerIdentity).inserted
         // Only a first registration contributes claims: a re-entrant
         // `prepare()` samples the caches its own earlier pass just built and
@@ -1592,7 +1592,7 @@ private enum PerImageCacheEvictionRegistry {
         if isFirstRegistration {
             imageEntry.claims.formUnion(sampleClaims())
         }
-        entriesByImageIdentifier[imageIdentifier] = imageEntry
+        entriesByImageKey[imageKey] = imageEntry
     }
 
     /// Deregisters, and — only if this was the image's LAST live indexer, so a
@@ -1610,18 +1610,18 @@ private enum PerImageCacheEvictionRegistry {
     ///   and would deadlock if one ever did.
     static func deregisterLiveIndexer(
         _ indexerIdentity: ObjectIdentifier,
-        forImageIdentifier imageIdentifier: AnyHashable,
+        forImageKey imageKey: SharedCacheKey,
         evicting evict: (Claims) -> Void
     ) {
         registryLock.lock()
         defer { registryLock.unlock() }
-        guard var imageEntry = entriesByImageIdentifier[imageIdentifier] else { return }
+        guard var imageEntry = entriesByImageKey[imageKey] else { return }
         imageEntry.liveIndexers.remove(indexerIdentity)
         guard imageEntry.liveIndexers.isEmpty else {
-            entriesByImageIdentifier[imageIdentifier] = imageEntry
+            entriesByImageKey[imageKey] = imageEntry
             return
         }
-        entriesByImageIdentifier.removeValue(forKey: imageIdentifier)
+        entriesByImageKey.removeValue(forKey: imageKey)
         evict(imageEntry.claims.normalized)
     }
 }

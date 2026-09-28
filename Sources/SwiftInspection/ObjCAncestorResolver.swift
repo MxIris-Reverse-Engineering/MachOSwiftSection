@@ -168,7 +168,7 @@ public final class ObjCAncestorResolverStore: @unchecked Sendable {
     public static let shared = ObjCAncestorResolverStore()
 
     private let lock = NSLock()
-    private var resolversByImageIdentifier: [AnyHashable: ObjCAncestorResolver] = [:]
+    private var resolversByImageKey: [SharedCacheKey: ObjCAncestorResolver] = [:]
 
     private init() {}
 
@@ -177,7 +177,7 @@ public final class ObjCAncestorResolverStore: @unchecked Sendable {
     public func register(_ resolver: ObjCAncestorResolver, for machO: some MachORepresentableWithCache) {
         lock.lock()
         defer { lock.unlock() }
-        resolversByImageIdentifier[AnyHashable(machO.identifier)] = resolver
+        resolversByImageKey[SharedCacheKey(machO)] = resolver
     }
 
     /// A file's resolver: the registered one, else a default over the
@@ -185,12 +185,12 @@ public final class ObjCAncestorResolverStore: @unchecked Sendable {
     public func resolver(for machOFile: MachOFile) -> ObjCAncestorResolver {
         lock.lock()
         defer { lock.unlock() }
-        let key = AnyHashable(machOFile.identifier)
-        if let existing = resolversByImageIdentifier[key] {
+        let key = SharedCacheKey(machOFile)
+        if let existing = resolversByImageKey[key] {
             return existing
         }
         let resolver = ObjCAncestorResolver(root: machOFile, searchPaths: [.systemDyldSharedCache])
-        resolversByImageIdentifier[key] = resolver
+        resolversByImageKey[key] = resolver
         return resolver
     }
 
@@ -200,12 +200,12 @@ public final class ObjCAncestorResolverStore: @unchecked Sendable {
     public func resolver(for machOImage: MachOImage) -> ObjCAncestorResolver {
         lock.lock()
         defer { lock.unlock() }
-        let key = AnyHashable(machOImage.identifier)
-        if let existing = resolversByImageIdentifier[key] {
+        let key = SharedCacheKey(machOImage)
+        if let existing = resolversByImageKey[key] {
             return existing
         }
         let resolver = ObjCAncestorResolver(inProcessRoot: machOImage)
-        resolversByImageIdentifier[key] = resolver
+        resolversByImageKey[key] = resolver
         return resolver
     }
 
@@ -228,12 +228,12 @@ public final class ObjCAncestorResolverStore: @unchecked Sendable {
     public func contains(in machO: some MachORepresentableWithCache) -> Bool {
         lock.lock()
         defer { lock.unlock() }
-        return resolversByImageIdentifier[AnyHashable(machO.identifier)] != nil
+        return resolversByImageKey[SharedCacheKey(machO)] != nil
     }
 
     public func remove(for machO: some MachORepresentableWithCache) {
         lock.lock()
         defer { lock.unlock() }
-        resolversByImageIdentifier[AnyHashable(machO.identifier)] = nil
+        resolversByImageKey[SharedCacheKey(machO)] = nil
     }
 }

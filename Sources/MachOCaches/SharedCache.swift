@@ -10,11 +10,11 @@ open class SharedCache<Storage>: @unchecked Sendable {
 
     package init() {
         memoryPressureMonitor.memoryWarningHandler = { [weak self] in
-            self?.storageByIdentifier.removeAll()
+            self?.storageByKey.removeAll()
         }
 
         memoryPressureMonitor.memoryCriticalHandler = { [weak self] in
-            self?.storageByIdentifier.removeAll()
+            self?.storageByKey.removeAll()
         }
 
         memoryPressureMonitor.startMonitoring()
@@ -31,7 +31,7 @@ open class SharedCache<Storage>: @unchecked Sendable {
     }
 
     @Mutex
-    private var storageByIdentifier: [AnyHashable: Entry] = [:]
+    private var storageByKey: [SharedCacheKey: Entry] = [:]
 
     /// Routing decision the cache lock makes on behalf of `storage(...)`:
     /// either return a cached value, await someone else's in-flight build,
@@ -70,12 +70,13 @@ open class SharedCache<Storage>: @unchecked Sendable {
         in machO: MachO,
         buildUsing build: (MachO) -> Storage?
     ) -> Storage? {
-        let key: AnyHashable = machO.identifier
-        return resolve(key: key) { build(machO) }
+        return resolve(key: SharedCacheKey(machO)) { build(machO) }
     }
 
-    private var currentIdentifer: ObjectIdentifier {
-        .init(Self.self)
+    /// The key of the one process-scoped entry (`storage()`): the cache's
+    /// own type, so every instance of a subclass shares it.
+    private var processScopeKey: SharedCacheKey {
+        SharedCacheKey(opaque: ObjectIdentifier(Self.self))
     }
 
     open func buildStorage() -> Storage? {
@@ -83,8 +84,7 @@ open class SharedCache<Storage>: @unchecked Sendable {
     }
 
     open func storage() -> Storage? {
-        let key: AnyHashable = currentIdentifer
-        return resolve(key: key) { buildStorage() }
+        return resolve(key: processScopeKey) { buildStorage() }
     }
 
     /// Returns `true` when a finished build is already cached for `machO`'s
@@ -95,16 +95,16 @@ open class SharedCache<Storage>: @unchecked Sendable {
     /// still cooperative ownership, not sole ownership, so reporting `true`
     /// for in-flight would mislead the bookkeeping.
     public func contains(in machO: some MachORepresentableWithCache) -> Bool {
-        return contains(key: machO.identifier)
+        return contains(key: SharedCacheKey(machO))
     }
 
     /// Type-keyed variant matching ``storage()``.
     public func contains() -> Bool {
-        return contains(key: currentIdentifer)
+        return contains(key: processScopeKey)
     }
 
-    private func contains(key: AnyHashable) -> Bool {
-        _storageByIdentifier.withLockUnchecked { dict in
+    private func contains(key: SharedCacheKey) -> Bool {
+        _storageByKey.withLockUnchecked { dict in
             if case .completed = dict[key] {
                 return true
             }
@@ -119,16 +119,16 @@ open class SharedCache<Storage>: @unchecked Sendable {
     /// marker has already been removed by the time we check on the build
     /// path. Safe to call even when no entry exists.
     public func remove(for machO: some MachORepresentableWithCache) {
-        remove(key: machO.identifier)
+        remove(key: SharedCacheKey(machO))
     }
 
     /// Type-keyed variant matching ``storage()``.
     public func remove() {
-        remove(key: currentIdentifer)
+        remove(key: processScopeKey)
     }
 
-    private func remove(key: AnyHashable) {
-        _storageByIdentifier.withLockUnchecked { dict in
+    private func remove(key: SharedCacheKey) {
+        _storageByKey.withLockUnchecked { dict in
             if case .completed = dict[key] {
                 dict.removeValue(forKey: key)
             }
@@ -139,7 +139,7 @@ open class SharedCache<Storage>: @unchecked Sendable {
     /// available to callers that want explicit control (e.g. tests, or a
     /// long-lived process flushing between unrelated batches).
     public func removeAll() {
-        _storageByIdentifier.withLockUnchecked { dict in
+        _storageByKey.withLockUnchecked { dict in
             dict.removeAll(keepingCapacity: false)
         }
     }
@@ -153,8 +153,8 @@ open class SharedCache<Storage>: @unchecked Sendable {
     /// `package`-visible so the in-package test target can exercise the
     /// concurrency contract directly without manufacturing a fake
     /// `MachORepresentableWithCache` conformer.
-    package func resolve(key: AnyHashable, build: () -> Storage?) -> Storage? {
-        let outcome: Outcome = _storageByIdentifier.withLockUnchecked { dict in
+    package func resolve(key: SharedCacheKey, build: () -> Storage?) -> Storage? {
+        let outcome: Outcome = _storageByKey.withLockUnchecked { dict in
             if let entry = dict[key] {
                 switch entry {
                 case .completed(let storage):
@@ -187,7 +187,7 @@ open class SharedCache<Storage>: @unchecked Sendable {
             return promise.wait()
         case .build(let promise):
             let result = build()
-            _storageByIdentifier.withLockUnchecked { dict in
+            _storageByKey.withLockUnchecked { dict in
                 // Only publish back if our promise is still the in-flight
                 // marker. `removeAll()` on memory pressure could have
                 // cleared the dict mid-build, and a fresh caller may have
