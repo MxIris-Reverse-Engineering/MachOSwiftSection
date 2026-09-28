@@ -74,32 +74,90 @@ extension Node {
         case implicitlyUnwrappedOptional
     }
 
+    /// Whether the initializer this node declares is failable: whether ITS
+    /// OWN result, the `returnType` child of its function type, is an
+    /// Optional of its Self.
+    ///
+    /// Not a whole-tree `first(of: .returnType)`: a closure parameter's
+    /// return type comes first in that walk, which went wrong both ways —
+    /// AppKit's non-failable
+    /// `NSCollectionViewDiffableDataSource.init(collectionView:itemProvider:)`
+    /// (its item provider returns `NSCollectionViewItem?`) printed as
+    /// `init?`, and SwiftUI's failable `CoreDisplayLink.init?(displayID:handler:)`
+    /// (its handler returns `()`) as `init`.
     var initFailabilityKind: InitFailabilityKind {
-        guard let returnType = first(of: .returnType),
-              let type = returnType.children.first,
-              let boundGenericEnum = type.children.first,
-              boundGenericEnum.isKind(of: .boundGenericEnum),
-              let enumNode = boundGenericEnum.children.first?.children.first,
-              enumNode.kind == .enum,
-              let moduleChild = enumNode.children.first,
-              moduleChild.kind == .module,
-              moduleChild.text == "Swift",
-              let identifierChild = enumNode.children.at(1),
-              identifierChild.kind == .identifier,
-              let identifierText = identifierChild.text else {
+        guard let resultType = declaredFunctionType?.children.first(of: .returnType)?.children.first,
+              let resultWrapping = resultType.optionalWrapping else {
             return .none
         }
-        switch identifierText {
+        // An initializer declared on `Optional` itself — `Optional.init(_:)`,
+        // SwiftUI's `extension Optional { init(if:then:) }` — returns
+        // `Wrapped?` because that is its Self; only a failable one wraps it
+        // once more.
+        if isDeclaredOnOptional, resultWrapping.wrappedType.optionalWrapping == nil {
+            return .none
+        }
+        return resultWrapping.kind
+    }
+
+    var isReturnOptional: Bool {
+        initFailabilityKind == .optional
+    }
+
+    /// Whether the member this node declares belongs to `Optional`, directly
+    /// or through an extension of it.
+    private var isDeclaredOnOptional: Bool {
+        guard var declaringType = children.first else { return false }
+        if declaringType.kind == .extension, let extendedType = declaringType.children.at(1) {
+            declaringType = extendedType
+        }
+        return declaringType.optionalKind != nil
+    }
+
+    /// For a `type` node spelling `Optional<Wrapped>` (or the legacy
+    /// `ImplicitlyUnwrappedOptional<Wrapped>`): which of the two, and the
+    /// `type` node of `Wrapped`.
+    private var optionalWrapping: (kind: InitFailabilityKind, wrappedType: Node)? {
+        guard let boundGenericEnum = children.first,
+              boundGenericEnum.isKind(of: .boundGenericEnum),
+              let enumNode = boundGenericEnum.children.first?.children.first,
+              let wrappingKind = enumNode.optionalKind,
+              let wrappedType = boundGenericEnum.children.at(1)?.children.first else {
+            return nil
+        }
+        return (wrappingKind, wrappedType)
+    }
+
+    /// `.optional` for the `Swift.Optional` enum node,
+    /// `.implicitlyUnwrappedOptional` for `Swift.ImplicitlyUnwrappedOptional`,
+    /// `nil` for anything else.
+    private var optionalKind: InitFailabilityKind? {
+        guard kind == .enum,
+              let moduleChild = children.first,
+              moduleChild.kind == .module,
+              moduleChild.text == "Swift",
+              let identifierChild = children.at(1),
+              identifierChild.kind == .identifier else {
+            return nil
+        }
+        switch identifierChild.text {
         case "Optional":
             return .optional
         case "ImplicitlyUnwrappedOptional":
             return .implicitlyUnwrappedOptional
         default:
-            return .none
+            return nil
         }
     }
 
-    var isReturnOptional: Bool {
-        initFailabilityKind == .optional
+    /// The function type a function-shaped node declares: the child of its
+    /// `type` child, reached through the `dependentGenericType` wrapper a
+    /// generic context puts around it.
+    private var declaredFunctionType: Node? {
+        guard var functionType = children.first(of: .type)?.children.first else { return nil }
+        if functionType.kind == .dependentGenericType, let genericFunctionType = functionType.children.first(of: .type)?.children.first {
+            functionType = genericFunctionType
+        }
+        return functionType
     }
 }
