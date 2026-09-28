@@ -86,16 +86,19 @@ struct SharedCacheResolveTests {
     }
 
     /// Concurrent calls for **different** keys must build in parallel, not
-    /// serialize behind one another. Verified by wall-clock: with the lock
-    /// held over the build, N keys × T per build = N*T; with the promise
-    /// fix, all N builds overlap, so wall-clock is ~T.
+    /// serialize behind one another. Verified by rendezvous — every build
+    /// blocks until the other has entered its closure — on threads of the
+    /// test's own: with the lock held across the build the second build
+    /// could never enter, and the timed wait below turns that into a failure.
     @Test func concurrentCallsForDifferentKeysRunInParallel() {
         let cache = makeTestCache()
-        // Two keys, not eight: every blocked build holds a libdispatch
-        // worker, and under a saturated full-suite run eight workers were not
-        // granted within the 30 s timeout (2026-09-28), which read as the
-        // serialization failure this test exists to catch. Two builds prove
-        // the overlap and cannot starve themselves.
+        // Two keys, on dedicated threads rather than the global dispatch
+        // queue. The builds block until they meet, so each needs a thread of
+        // its own for the whole wait; under a saturated full-suite run the
+        // dispatch pool did not grant eight workers, and then not even two,
+        // within the 30 s timeout (2026-09-28), which read as the
+        // serialization failure this test exists to catch. A `Thread` exists
+        // the moment it is started, whatever the pool is doing.
         let keyCount = 2
 
         // Deterministic parallelism proof instead of a wall-clock heuristic
@@ -117,7 +120,7 @@ struct SharedCacheResolveTests {
         // stranding libdispatch threads and leaving those keys permanently
         // in-flight — a later test resolving them would then deadlock instead
         // of seeing this test's clean failure.
-        DispatchQueue.global().async {
+        Thread {
             for _ in 0 ..< keyCount {
                 guard enteredBuild.wait(timeout: .now() + 30) == .success else {
                     everyBuildEntered.withLock { $0 = false }
@@ -125,17 +128,17 @@ struct SharedCacheResolveTests {
                 }
             }
             for _ in 0 ..< keyCount { proceedWithBuild.signal() }
-        }
+        }.start()
 
         for index in 0 ..< keyCount {
-            DispatchQueue.global().async {
+            Thread {
                 _ = cache.resolve(key: SharedCacheKey(opaque: index)) {
                     enteredBuild.signal()
                     proceedWithBuild.wait()
                     return index
                 }
                 buildFinished.signal()
-            }
+            }.start()
         }
 
         var timedOut = false
