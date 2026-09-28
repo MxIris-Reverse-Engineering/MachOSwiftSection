@@ -133,7 +133,5 @@ SwiftInspection 新增一个按镜像的解码索引，私有鉴别符改为它�
 | 2026-09-24 | 输出不变、耗时测不出差别 | 与私有鉴别符修复那一版的 debug CLI 对比（同一 cache）：AppKit `dump` 与 `interface` 逐字节相同，`dump` 也与该版早上的输出相同。耗时在系统负载 25–30 下交替各跑 3 次：`interface` 墙钟 28.7 / 30.2 / 32.1 秒 vs 32.6 / 28.2 / 29.8 秒，区间重叠；`dump` 10.6 vs 10.5 秒 |
 | 2026-09-24 | 全量测试通过（除既有不稳定项） | `swift test --skip IntegrationTests`：2086 个测试 / 391 个 suite，5 个失败全是既有的不稳定测试——`SharedCacheTests` 的 3 条墙钟断言、`argumentCandidatePathSpecializesNonGenericCandidate`、以及满载时的 arm64e 探针（子进程没启用 PAC），后者单独重跑 3 条全过；另有局部类型那 1 个已知问题 |
 | 2026-09-24 | Implemented：合入 `next`，与私有鉴别符修复分两个提交 | 用户：「都提交推送一下」。先提交私有鉴别符修复本身（它自己扫符号表的那一版），再提交本提案，历史里两件事各自可读。配套文档：实现说明 `Internal/SymbolicManglingSymbols.md` 已写并登记进 `Documentations/README.md` 与本文头部；新术语「symbolic-mangling symbol / 被引用者」已进术语表；AGENTS.md 的模块清单与「demangler / 符号索引」陷阱清单各补一条。编号按本仓库惯例在进入 `main` 时再取 |
-| 2026-09-24 | 接受：进程内第一次查私有鉴别符改为先建该镜像的 `SymbolIndexStore` | 离线路径找符号本来就经符号库，不多花；进程内路径找符号走 MachOKit，不建符号库，原先查鉴别符只扫一遍符号表。改为经本索引后第一次查询要建全量符号库。RuntimeViewer 这类宿主通常早已为正在看的镜像建好，未单独测量 |
 | 2026-09-24 | 局部类型的问题记入待办，修复另起 | 用户：「第二个先记下来」。现象、推断的成因、修复方向与验收写在 [Roadmaps/2026-09-24-local-type-context-names.md](../../Roadmaps/2026-09-24-local-type-context-names.md) |
 | 2026-09-26 | 落地编号 0050 | 已于 2026-09-24 随 合并提交 `5cbf0378` 合入 `next` 并标为 Implemented，但当时没有取号；0.20.0 发版收尾时按合入顺序补取 |
-

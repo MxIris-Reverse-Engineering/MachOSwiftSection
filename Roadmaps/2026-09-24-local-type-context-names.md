@@ -1,6 +1,6 @@
 # 函数体里的局部类型丢了函数上下文（2026-09-24）
 
-提案 [draft-symbolic-mangling-symbol-index](../Documentations/Evolutions/draft-symbolic-mangling-symbol-index.md) 的对照测试发现的问题：
+提案 [0050-symbolic-mangling-symbol-index](../Documentations/Evolutions/0050-symbolic-mangling-symbol-index.md) 的对照测试发现的问题：
 `SymbolicDemangler` 从描述符还原函数体里声明的类型时，丢掉了函数那一层。
 
 **当前状态：只落记录，代码未改。** 用户裁定先记下来（「第二个先记下来」），修复批次另起。
