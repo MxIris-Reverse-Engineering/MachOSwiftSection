@@ -2012,6 +2012,16 @@
 - **关联文档**：[draft-objc-custom-class-name](../Evolutions/draft-objc-custom-class-name.md)、[CustomObjCClassNames.md](CustomObjCClassNames.md)、[ObjCMemberRecovery.md](ObjCMemberRecovery.md)、[StaticLayoutEngine.md](StaticLayoutEngine.md)、路线图 P2-14。
 - **对应版本**：0.20.0 之后未发布区间。
 
+## 2026-09-28 interface 按 vtable 槽位顺序打印类成员，补上只剩 method descriptor 符号的成员
+
+- **时间段**：2026-09-28（单日）。节号落地时取。
+- **动机**：用户发现本库生成的 AppKit interface 里 `NSTableViewDiffableDataSource` / `NSCollectionViewDiffableDataSource` 只有 `init` 和 `deinit`，SDK 里却有十几个成员。原因：interface 的成员全部从实现符号建，而 library evolution 模块只导出 public class 方法的 `Tj` / `Tq`，镜像的 local 符号被剥掉后（系统 cache 里的 AppKit）这些实现没有名字，整个 AppKit 因此少了 53 个成员；SwiftUI、SwiftUICore、Foundation 保留了 local 符号，不受影响。dump 逐个 vtable 槽打印、用 `Tq` 命名，一直不缺。调研中顺带发现 `init(collectionView:itemProvider:)` 被打成 `init?`：失败性判定用整树搜索找 `returnType`，先碰到闭包参数的返回类型。
+- **关键决策**：① 在索引期从 vtable 槽补成员（进模型，RuntimeViewer、diff、ABI snapshot 一起受益），不在打印层补。② 替身成员符号按实现符号的样子造：`Tq` 名去掉后缀、实现偏移、async 方法再跳到函数入口——下游按符号名推导的导出判定、ObjC 方法表 join、ABI 身份都不用分支。③ 真实符号优先，按成员实体节点去重。④ 用户指示「方法跟 dump 一样按 vtable 顺序打印，没有符号的跳过不打印」：默认 `byCategory` 模式下 class 的 vtable 成员按槽号排在最前（本类的槽就是声明顺序），其余照旧按类别；叫不出名字的槽不打占位符。⑤ ABI 墓碑、modify / read 协程、override 槽不补。⑥ ABI snapshot `formatVersion` 5 → 6。⑦ 规模一度按导出表估算，把协议 requirement 算了进去、又把「没导出」当成「没符号」，已改为渲染 A/B 的实测（决策日志留档）。⑧ 验证中发现 `init?` 修正有一处反向误判：声明在 `Optional` 上的 init 返回 `Wrapped?` 是它的 Self，要再包一层才算可失败，已补测试并修正。
+- **落地模块**：SwiftInspection（`MethodDescriptor.attributedMember(in:)`、`MethodDescriptorAttribution.AttributedMember`）、SwiftDeclaration（`ClassDispatchLookups.vtableSlotMemberSymbols` / `supplementing(_:in:)`、`classDispatchLookups` 造替身、`indexMembers` 补建、`OrderedMember.vtableOrdered`）、SwiftPrinting（`printMembersByCategory` 的 vtable 段、`initFailabilityKind`）、SwiftDiffing（`currentFormatVersion`）；测试 `DescriptorOnlyVTableMemberTests`（现场编译的 library-evolution fixture，完整版与 `strip -x` 版对照）与 `InitializerFailabilityPrintingTests`；SymbolTestsCore interface 快照（纯重排）；渲染 A/B 脚本的归档 cache 常量（`26.6` → `26.6.2`）；agent 插件 skill 的读输出说明与 snapshot 版本说明。
+- **验证**：详见实现说明「验证」一节。新测试在修复前的代码上逐条失败，修复后通过；SymbolTestsCore interface 快照只重排、行集合不变；全量 `swift test --skip IntegrationTests` 2121 个测试，失败的 6 条全是既有问题（墙钟 flaky、`next` 上本来就红的两条、特化 candidate 路径的随机失败）。渲染 A/B 46 对：dump 23 对全部逐字节一致；interface 差异逐行归类后只有 `init` / `init?` 的修正与 AppKit 找回的 53 个成员，没有任何成员丢失。
+- **关联文档**：[draft-interface-descriptor-only-vtable-members](../Evolutions/draft-interface-descriptor-only-vtable-members.md)、[DescriptorOnlyVTableMembers.md](DescriptorOnlyVTableMembers.md)、[提案 0020](../Evolutions/0020-vtable-slot-attribution-via-method-descriptor-symbols.md)（`Tq` 归属的来历）。
+- **对应版本**：0.20.0 之后未发布区间。
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节

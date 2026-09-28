@@ -34,8 +34,8 @@ SwiftDeclaration 是**共享声明模型**：`SwiftIndexing` 往里填，`SwiftP
 |---|---|
 | `TypeDefinition.swift` | 存储属性、两个 `init`、`materializedTypeContext(in:)`——不含任何索引逻辑 |
 | `+Indexing` | `index(in:)` 主干、字段记录 → `FieldDefinition`、accessor 组回折 |
-| `+ClassDispatch` | vtable / override / defaultOverride 三张表 → `ClassDispatchLookups` |
-| `+MemberIndexing` | 六类成员与两个 `deinit` 符号 |
+| `+ClassDispatch` | vtable / override / defaultOverride 三张表 → `ClassDispatchLookups`；另为本类每个 `Tq` 能命名的 vtable 槽造一个替身成员符号 |
+| `+MemberIndexing` | 六类成员与两个 `deinit` 符号；实现符号缺席的 vtable 成员用替身补上 |
 | `+FinalRecovery` | 提案 0006 的 `final` 恢复与它的四道门 |
 | `+ThunkAttributes` | `@objc` / `@nonobjc` / `@distributed` 的交叉引用 |
 | `+SynthesizedMembers` | 自动合成成员的去重 |
@@ -91,6 +91,10 @@ Handler 的调用是**进程级串行**的（跨所有 dispatcher 一把递归�
 
 SE-0436 的类在 `__swift5_*` 里没有身影，模型里它就是那个 `__C.X` 的 `ExtensionDefinition`：`objcImplementation` 装 `SwiftInspection.ObjCImplementationClassFacts`（证据档位、ivar 与 `Wvd` 的 join、方法表），`VariableDefinition.objcImplementationStorage` 标出由访问器符号建出来却是存储属性的成员。这个事实**不进** ABI 快照的容器 key。详见 [ObjCImplementationClassRecognition.md](../ObjCImplementationClassRecognition.md)。
 
+### 成员从符号建，vtable 槽补上缺席的那些
+
+成员定义是符号驱动的：`FunctionDefinition.symbol`、`Accessor.symbol` 都不是可选值，`DefinitionBuilder` 的每个构造点都从一个 `DemangledSymbol` 出发。class 的 vtable 成员是例外来源：library evolution 模块只导出 public class 方法的 `Tj` / `Tq`，实现符号是 local 的，镜像的 local 符号被剥掉之后（系统 dyld shared cache 里的 AppKit、`strip -x` 过的二进制）这些成员没有符号可建。`classDispatchLookups` 为本类每个 `Tq` 能命名、实现指针非 null 的槽造一个替身符号——名字是 `Tq` 名去掉后缀（实现函数本来的 mangled 名），偏移是实现偏移（async 方法再跳到函数入口）——`indexMembers` 经 `ClassDispatchLookups.supplementing(_:in:)` 只补真实符号没有声明的成员。替身按实现符号的样子造，所以导出判定、ObjC 方法表 join、ABI 身份都不用分支。ABI 墓碑、modify / read 协程、override 槽不补。打印时 class 的 vtable 成员（有槽号的成员）按槽号排在最前（`OrderedMember.vtableOrdered`）。详见 [DescriptorOnlyVTableMembers.md](../DescriptorOnlyVTableMembers.md)。
+
 ### ObjC 方法表给出的成员事实：`@objc`、`override`、显式 selector
 
 `FunctionDefinition` / `VariableDefinition` / `SubscriptDefinition` 各有一个 `objcMember: ObjCMember?`——这个成员实现的 ObjC 方法：selector、是否类方法、覆写的祖先（可空）、证据档位、selector 是否为源码里 `@objc(name)` 写出的。`isOverride` 与 `isClassMember` 都 OR 上 `objcMember?.isOverride`（覆写的类方法必须打 `class`）；联结上的成员缺 `.objc` 属性就补上（OS 框架 strip 掉了 `To` thunk 符号，方法表是 `@objc` 的唯一证据）；printer 在 `hasExplicitSelector` 时打 `@objc(selector)`。表联结不上的覆写方法**始终**按名字归属一次（第三档），结果照样写进 `objcMember`（`evidence == .selectorName`）——但**不写 `attributes`**，因为紧跟其后的 `final` 还原会把 `@objc` 读成 `@objc dynamic` 的证据，那是消费者还没下的裁决。用不用这一档由消费者决定：`resolvedObjCMemberFacts(trustingSelectorNameEvidence:)`（`ResolvedObjCMemberFacts.swift`）按裁决一次性给出 `attributes` / `isOverride` / `isClassMember` / `isFinal`，printer 传 `SwiftDeclarationPrintConfiguration.infersObjCOverridesFromSelectorNames`。定义自己的 `isOverride` / `isClassMember` 只认前两档（`ObjCMember.isJoinedOverride`）。它由 `Building/ObjCMemberApplication` 在 `TypeDefinition.index(in:)`（`applyThunkAttributes` 之后、`recoverFinalMembers` 之前——`final` 还原用 `@objc` 排除 `@objc dynamic`）和 `SwiftDeclarationIndexer.indexExtensions()`（`__C` 类的 extension 与本镜像 Swift 类的 extension）里从 `SwiftThunkAnalysis.ObjCMembers` 的表 join 上来：函数按自己的符号名，属性 / 下标先按 getter 再按任一 accessor 符号，`init` 按 allocator 符号换 initializer 后缀。第三档「只按名字」的覆写推断也在这里做。这个事实**不进** ABI 快照。详见 [ObjCMemberRecovery.md](../ObjCMemberRecovery.md)。
@@ -103,4 +107,5 @@ SE-0436 的类在 `__swift5_*` 里没有身影，模型里它就是那个 `__C.X
 - [ExtensionContainerUnification.md](../ExtensionContainerUnification.md)——extension 容器归并。
 - [PerConformanceAttribution.md](../PerConformanceAttribution.md)——逐 conformance 的归属。
 - [ExportedOnlyInterfaceFiltering.md](../ExportedOnlyInterfaceFiltering.md)、[InterfaceHeaderAndExportStatusAnnotations.md](../InterfaceHeaderAndExportStatusAnnotations.md)——导出状态的两种消费方式。
+- [DescriptorOnlyVTableMembers.md](../DescriptorOnlyVTableMembers.md)——实现符号被剥掉的 class vtable 成员怎么从 `Tq` 补回来，以及 vtable 顺序打印。
 - 演进提案：[0002](../../Evolutions/0002-declaration-model-descriptor-slimming.md) 描述符化瘦身 · [0005](../../Evolutions/0005-event-based-degradation-reporting.md) 事件化上报 · [0023](../../Evolutions/0023-type-import-info-identity.md) C 导入类型的身份 · [0024](../../Evolutions/0024-exported-declaration-flag.md) 导出标志。
