@@ -77,7 +77,8 @@ name」这种东西：typeref 本体里的 substitution 把 symbolic reference �
 - 不提供被引用者的原始文本：单独拿去 demangle 就会踩上面那个坑。
 - 函数体里声明的局部类型：编译器写 `DeferralState #1 in AppKit.NSWMDeferrableWMWindowTransaction.deferCompletionUntil() -> () -> ()`，
   `SymbolicDemangler` 从描述符还原时丢掉函数那一层——和私有鉴别符是同一类问题（匿名上下文没有名字）。对照测试把它登记为
-  已知问题（`withKnownIssue`），本提案不修。
+  已知问题（`withKnownIssue`），本提案不修；待办记在
+  [Roadmaps/2026-09-24-local-type-context-names.md](../../Roadmaps/2026-09-24-local-type-context-names.md)。
 
 ## 实测（macOS 26.7 系统 dyld shared cache）
 

@@ -129,8 +129,11 @@ SwiftInspection 新增一个按镜像的解码索引，私有鉴别符改为它�
 | 2026-09-24 | 撤掉「逐条列出并给出把占位换掉之后的完整 mangled name」这项查询 | 同一原因：typeref 本体里的 substitution 把 symbolic reference 算作一格，被引用者里的 substitution 指向符号名里前面的被引用者，文字拼接让两边的编号同时错位；AppKit 实测拼出来的名字 demangle 失败 |
 | 2026-09-24 | 函数体里的局部类型：对照测试登记为已知问题，本提案不修 | AppKit 880 个被直接引用的类型与协议描述符里，878 个「从描述符还原」与「编译器写的」逐字一致；剩下 2 个都是局部类型（`DeferralState #1 in …deferCompletionUntil()`），`SymbolicDemangler` 丢了函数那一层。与私有鉴别符同属「匿名上下文没有名字」一类，按上文「第二个消费者」一节的约定先登记，是否修另议 |
 | 2026-09-24 | 实测：两种角色都收得到，内存增量可接受 | macOS 26.7 cache 的 `MachOFile`：AppKit 3028 个符号 / 4826 个引用，表 307 KB、索引 135 KB；SwiftUICore 7531 / 8827，657 KB / 247 KB，其中 9 个 `default assoc type`；SwiftUI 12348 个符号，表 1.28 MB（名字占 1.03 MB）。`MachOImage` 的名字不拷贝，表只剩每行 20 字节。AppKit 没有 `default assoc type`，SwiftUICore 覆盖这个角色 |
+| 2026-09-24 | 接受：进程内第一次查私有鉴别符改为先建该镜像的 `SymbolIndexStore` | 离线路径找符号本来就经符号库，不多花；进程内路径找符号走 MachOKit，不建符号库，原先查鉴别符只扫一遍符号表。改为经本索引后第一次查询要建全量符号库。RuntimeViewer 这类宿主通常早已为正在看的镜像建好，未单独测量 |
 | 2026-09-24 | 输出不变、耗时测不出差别 | 与私有鉴别符修复那一版的 debug CLI 对比（同一 cache）：AppKit `dump` 与 `interface` 逐字节相同，`dump` 也与该版早上的输出相同。耗时在系统负载 25–30 下交替各跑 3 次：`interface` 墙钟 28.7 / 30.2 / 32.1 秒 vs 32.6 / 28.2 / 29.8 秒，区间重叠；`dump` 10.6 vs 10.5 秒 |
 | 2026-09-24 | 全量测试通过（除既有不稳定项） | `swift test --skip IntegrationTests`：2086 个测试 / 391 个 suite，5 个失败全是既有的不稳定测试——`SharedCacheTests` 的 3 条墙钟断言、`argumentCandidatePathSpecializesNonGenericCandidate`、以及满载时的 arm64e 探针（子进程没启用 PAC），后者单独重跑 3 条全过；另有局部类型那 1 个已知问题 |
 | 2026-09-24 | Implemented：合入 `next`，与私有鉴别符修复分两个提交 | 用户：「都提交推送一下」。先提交私有鉴别符修复本身（它自己扫符号表的那一版），再提交本提案，历史里两件事各自可读。配套文档：实现说明 `Internal/SymbolicManglingSymbols.md` 已写并登记进 `Documentations/README.md` 与本文头部；新术语「symbolic-mangling symbol / 被引用者」已进术语表；AGENTS.md 的模块清单与「demangler / 符号索引」陷阱清单各补一条。编号按本仓库惯例在进入 `main` 时再取 |
 | 2026-09-24 | 接受：进程内第一次查私有鉴别符改为先建该镜像的 `SymbolIndexStore` | 离线路径找符号本来就经符号库，不多花；进程内路径找符号走 MachOKit，不建符号库，原先查鉴别符只扫一遍符号表。改为经本索引后第一次查询要建全量符号库。RuntimeViewer 这类宿主通常早已为正在看的镜像建好，未单独测量 |
+| 2026-09-24 | 局部类型的问题记入待办，修复另起 | 用户：「第二个先记下来」。现象、推断的成因、修复方向与验收写在 [Roadmaps/2026-09-24-local-type-context-names.md](../../Roadmaps/2026-09-24-local-type-context-names.md) |
 | 2026-09-26 | 落地编号 0050 | 已于 2026-09-24 随 合并提交 `5cbf0378` 合入 `next` 并标为 Implemented，但当时没有取号；0.20.0 发版收尾时按合入顺序补取 |
+
