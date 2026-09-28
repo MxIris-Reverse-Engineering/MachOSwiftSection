@@ -4,6 +4,7 @@ import MachOKit
 import MachOKitExtensions
 @_spi(Core) import MachOObjCSection
 @_spi(Internals) import MachOCaches
+@_spi(Internals) import MachOSymbols
 import MachOReading
 
 /// The library's own ``ObjCClassHierarchy`` reader (evolution proposals
@@ -41,8 +42,12 @@ import MachOReading
 /// where no dependency image defines the class, the chain stops there and
 /// says so (`isAncestorChainComplete == false`).
 @Loggable(.private, subsystem: "com.machoswiftsection.swift-inspection", category: "ObjCClassMethodIndex")
-package final class ObjCClassMethodIndex: SharedCache<ObjCClassMethodIndex.Storage>, @unchecked Sendable {
+package final class ObjCClassMethodIndex: @unchecked Sendable {
     package static let shared = ObjCClassMethodIndex()
+
+    private let cache = SharedCache<Storage>(evictionGroup: .objcHierarchy, follows: [.symbolStore])
+
+    private init() {}
 
     /// One ancestor's selector sets, memoized per class object.
     struct SelectorSets {
@@ -111,13 +116,21 @@ package final class ObjCClassMethodIndex: SharedCache<ObjCClassMethodIndex.Stora
         }
     }
 
-    override package func buildStorage(for machO: some MachORepresentableWithCache) -> Storage? {
-        if let machOFile = machO as? MachOFile {
-            return Self.build(in: machOFile)
-        } else if let machOImage = machO as? MachOImage {
-            return Self.build(in: machOImage)
+    /// The image's index, built on first use. The build re-types the reader
+    /// once (`objcImplementationClassReader`): the cache is typed with the
+    /// reader protocol every consumer holds, the build needs the ObjC reads.
+    package func storage(in machO: some MachORepresentableWithCache) -> Storage? {
+        cache.storage(in: machO) { machO in
+            machO.objcImplementationClassReader.map { Self.build(in: $0) }
         }
-        return nil
+    }
+
+    package func contains(in machO: some MachORepresentableWithCache) -> Bool {
+        cache.contains(in: machO)
+    }
+
+    package func remove(for machO: some MachORepresentableWithCache) {
+        cache.remove(for: machO)
     }
 
     // MARK: - Queries

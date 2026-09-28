@@ -10,6 +10,7 @@ import MachOFixtureSupport
 @_spi(Internals) @testable import SwiftInspection
 @_spi(Internals) import Demangling
 @testable import MachOSwiftSection
+@testable import SwiftDeclarationRendering
 
 /// The indexer's `deinit` cleans up three per-image caches (symbol store,
 /// interned-name store, demangle memo). Two rules govern that cleanup:
@@ -278,6 +279,30 @@ final class PerImageCacheEvictionTests: MachOFileTests, @unchecked Sendable {
         #expect(
             !SymbolIndexStore.shared.contains(in: unsafeMachOFile),
             "the symbol store the indexer built must still be reclaimed"
+        )
+    }
+
+    /// The renderer-side caches that had no per-image eviction at all before
+    /// the registry — the multi-payload enum descriptor map among them — now
+    /// belong to an eviction group like every other: an indexer whose
+    /// preparation found the group empty claims it, and whatever the image
+    /// accumulates there during the indexer's lifetime goes with its last
+    /// live indexer.
+    @Test func lastIndexerEvictsTheRendererCachesItsImageAccumulated() async throws {
+        let unsafeMachOFile = machOFile
+        clearAllPerImageCaches(for: unsafeMachOFile)
+        MultiPayloadEnumDescriptorCache.shared.remove(for: unsafeMachOFile)
+
+        var indexer: SwiftDeclarationIndexer<MachOFile>? = SwiftDeclarationIndexer(in: unsafeMachOFile)
+        try await indexer?.prepare()
+        _ = MultiPayloadEnumDescriptorCache.shared.storage(in: unsafeMachOFile)
+        try #require(MultiPayloadEnumDescriptorCache.shared.contains(in: unsafeMachOFile))
+
+        indexer = nil
+
+        #expect(
+            !MultiPayloadEnumDescriptorCache.shared.contains(in: unsafeMachOFile),
+            "the descriptor map was built under the indexer's claim and must go with it"
         )
     }
 }

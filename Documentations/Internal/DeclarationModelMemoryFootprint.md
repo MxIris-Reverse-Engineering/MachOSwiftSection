@@ -107,7 +107,7 @@ case .type(let parentType):
 
 - `NodeReference(interning:)` 的语义是**每次调用新建一个私有 store**（其文档注释已明示，并指出批量场景应直接驱动 `NodeStoreBuilder` 共享 arena）。28 处调用点中，热点是按类型/协议/conformance 逐个派生名字的地方——这是 67,056 个 `NodeStore` 的来源。单个小名字树的开销约 270 字节（对象 48 + nodes 缓冲 160 + text 缓冲 64），而真正载荷仅约 150 字节；更大的损失是**跨名字的 hash-consing 去重被切断**（同模块几万个名字里 `Module("SwiftUI")` 这类叶子各存一份）。估算约 **18 MB**。
   - 修法建议**分块 arena**：每 N 个名字共用一个 builder，写满即冻结换新。不破坏「冻结后不可变 ⇒ `Sendable` 免锁」这一性质。`TypeDefinition.index` 已有同类范例（一个类型的所有字段树共享一个 store）。
-- `MetadataReaderCache.Storage` 仍以三个字典缓存 **`Node` 类树**（`nodeForMangledNameBox` / `nodeForContextOffset` / `nodeForSymbolName`）——这是残留 183,994 个 `Node` 的来源。Stage 5c 只把**构造**改为 transient（阻止 `NodeCache` 增长），并未改变**持有**形态。改持 `NodeReference` 即可清零，估算约 **8 MB**。它继承自 `SharedCache`，走内存压力清理与按镜像驱逐，属稳态占用而非泄漏。
+- `MetadataReaderCache.Storage` 仍以三个字典缓存 **`Node` 类树**（`nodeForMangledNameBox` / `nodeForContextOffset` / `nodeForSymbolName`）——这是残留 183,994 个 `Node` 的来源。Stage 5c 只把**构造**改为 transient（阻止 `NodeCache` 增长），并未改变**持有**形态。改持 `NodeReference` 即可清零，估算约 **8 MB**。它持有一个 `SharedCache`，走按镜像驱逐（内存压力清理已于 2026-09-28 去掉），属稳态占用而非泄漏。
 
 ## 六、结论：当前不建议实施
 

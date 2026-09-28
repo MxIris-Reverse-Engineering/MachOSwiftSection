@@ -28,7 +28,7 @@
 
 ## 关键设计取舍
 
-- **late 路径的 store 为什么自持、不共用镜像 cache 的 store**。`InternedNodeReferenceCache` 是 `SharedCache`，会被内存压力驱逐再重建；`SymbolIndexStore.Storage` 不随之重建。如果共用，驱逐一发生，cache 换上了新 store，而 `Storage` 还引着旧的——两个 store 并存。这没有正确性问题（旧引用照常可读），但状态混乱。自持让 store 的生命周期与 `Storage` 严格一致，`removeSubIndexer` 时一起释放。代价是每镜像 2 个 store 而不是 1 个，可忽略。
+- **late 路径的 store 为什么自持、不共用镜像 cache 的 store**。`InternedNodeReferenceCache` 的镜像作用域 store 是 `SharedCache` 条目，会被按镜像驱逐再重建（2026-09-28 起不再有内存压力驱逐，indexer 的驱逐照样重建）；`SymbolIndexStore.Storage` 不随之重建。如果共用，驱逐一发生，cache 换上了新 store，而 `Storage` 还引着旧的——两个 store 并存。这没有正确性问题（旧引用照常可读），但状态混乱。自持让 store 的生命周期与 `Storage` 严格一致，`removeSubIndexer` 时一起释放。代价是每镜像 2 个 store 而不是 1 个，可忽略。
 - **驱逐后的内存回收语义与今天一致**。`SharedNodeStore` 被作用域释放后，存活的外部引用会继续保活底层存储——intern 停止、读取不坏。mini store 今天就是这个语义，所以无回归；真正的内存回收仍以「外部引用也全部放掉」为条件。
 
 ## 验收计划

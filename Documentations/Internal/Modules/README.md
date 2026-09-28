@@ -34,7 +34,7 @@
 | MachOBase | — | 待写（伞模块：ABI 层允许看到的全部——reading / resolving / pointers；见 [SelfContainedABILayer.md](../SelfContainedABILayer.md)） |
 | MachOPointers | — | 待写（`SymbolOrElementPointer` 自 `MachOSymbolPointers` 并入，见 [SelfContainedABILayer.md](../SelfContainedABILayer.md)） |
 | MachOReading / MachOResolving | — | 待写 |
-| MachOCaches | — | 待写 |
+| MachOCaches | [MachOCaches.md](MachOCaches.md) | ✅ 已写 |
 | MachODependencies | [MachODependencies.md](MachODependencies.md) | ✅ 已写 |
 | MachOSwiftSectionC | — | 待写 |
 | MachOMacros | — | 待写 |

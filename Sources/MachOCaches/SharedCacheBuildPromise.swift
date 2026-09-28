@@ -18,12 +18,29 @@ import Foundation
 @_spi(Internals)
 public final class SharedCacheBuildPromise<Value>: @unchecked Sendable {
     private let condition = NSCondition()
+    /// The thread that installed this promise and runs the build it stands
+    /// for. `SharedCache.resolve` creates the promise on the very thread that
+    /// goes on to call the build closure, so the thread is captured here and
+    /// never assigned again. A build that hops to another thread (the symbol
+    /// index sweep moves onto a large-stack worker) is not covered by this:
+    /// only the builder's own thread can be told apart from a legitimate
+    /// waiter, which is the case ``isBuilderCurrentThread`` exists for.
+    private let builderThread: pthread_t = pthread_self()
     /// Outer optional encodes "fulfilled yet?"; inner optional matches
     /// `(MachO) -> Storage?` — a build that returned `nil` is a valid
     /// terminal state, distinct from "still pending".
     private var result: Value??
 
     public init() {}
+
+    /// `true` when the calling thread is the one running this promise's
+    /// build. A `wait()` from that thread can never return: the promise is
+    /// fulfilled only after the build closure returns, and the build closure
+    /// is what is waiting. `SharedCache.resolve` checks this before waiting
+    /// and traps with a message instead of hanging silently.
+    public var isBuilderCurrentThread: Bool {
+        pthread_equal(builderThread, pthread_self()) != 0
+    }
 
     /// Blocks until ``fulfill(_:)`` is called and returns whatever the builder
     /// produced. Safe to call from any thread.

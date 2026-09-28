@@ -51,7 +51,7 @@ package final class DependencyImageResolver: @unchecked Sendable {
         cache.storage(in: root) { DependencyImageResolver(root: $0) } ?? DependencyImageResolver(root: root)
     }
 
-    private static let cache = SharedCache<DependencyImageResolver>()
+    private static let cache = SharedCache<DependencyImageResolver>(evictionGroup: .thunkResolution)
 
     /// The image among the root's direct dependencies — located through
     /// `searchPaths` — that exports `name`, and where. A bind may spell the

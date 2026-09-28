@@ -2,6 +2,7 @@ import Foundation
 import MachOKit
 import MachOKitExtensions
 @_spi(Internals) import MachOCaches
+@_spi(Internals) import MachOSymbols
 
 /// What the ObjC side knows about one class that the member recovery needs
 /// (evolution proposals `objc-ancestor-override-recovery` and
@@ -184,47 +185,73 @@ public final class ObjCClassHierarchyProviderStore: @unchecked Sendable {
     }
 
     private let lock = NSLock()
-    private var providersByImageIdentifier: [AnyHashable: WeakProvider] = [:]
+    private var providersByImageKey: [SharedCacheKey: WeakProvider] = [:]
 
-    private init() {}
+    /// Not a `SharedCache` — it holds a registration, not a built value —
+    /// but it is per-image state of the ObjC hierarchy's lifetime, so it
+    /// joins the registry under that group by hand.
+    private init() {
+        SharedCacheRegistry.shared.register(self, group: .objcHierarchy, follows: [.symbolStore])
+    }
 
     /// Installs `provider` for `machO`, replacing any earlier registration.
     public func register(_ provider: any ObjCClassHierarchyProviding, for machO: some MachORepresentableWithCache) {
         lock.lock()
         defer { lock.unlock() }
-        providersByImageIdentifier[AnyHashable(machO.identifier)] = WeakProvider(provider: provider)
+        providersByImageKey[SharedCacheKey(machO)] = WeakProvider(provider: provider)
     }
 
     /// The live provider registered for `machO`, if any.
     public func provider(for machO: some MachORepresentableWithCache) -> (any ObjCClassHierarchyProviding)? {
         lock.lock()
         defer { lock.unlock() }
-        let key = AnyHashable(machO.identifier)
-        guard let entry = providersByImageIdentifier[key] else { return nil }
+        let key = SharedCacheKey(machO)
+        guard let entry = providersByImageKey[key] else { return nil }
         guard let provider = entry.provider else {
-            providersByImageIdentifier[key] = nil
+            providersByImageKey[key] = nil
             return nil
         }
         return provider
     }
 
     public func remove(for machO: some MachORepresentableWithCache) {
+        removeEntry(for: SharedCacheKey(machO))
+    }
+}
+
+/// The registry-facing side, on the package-internal SPI like the registry
+/// itself: a host sees the store's public API and nothing of the eviction
+/// machinery behind it.
+@_spi(Internals)
+extension ObjCClassHierarchyProviderStore: SharedCacheEvicting {
+    /// A registration whose provider deinitialized reads as absent.
+    @_spi(Internals) public func containsEntry(for key: SharedCacheKey) -> Bool {
         lock.lock()
         defer { lock.unlock() }
-        providersByImageIdentifier[AnyHashable(machO.identifier)] = nil
+        return providersByImageKey[key]?.provider != nil
+    }
+
+    @_spi(Internals) public func removeEntry(for key: SharedCacheKey) {
+        lock.lock()
+        defer { lock.unlock() }
+        providersByImageKey[key] = nil
+    }
+
+    @_spi(Internals) public var entryKeys: [SharedCacheKey] {
+        lock.lock()
+        defer { lock.unlock() }
+        return providersByImageKey.compactMap { key, entry in entry.provider == nil ? nil : key }
     }
 }
 
 /// Per-image eviction of the hierarchy-side state: the reader index, the
 /// renamed-class index its Swift-class keys draw on, the host's provider
-/// registration and the ancestor resolver (which holds the file's dependency
-/// images once it has resolved them). The declaration indexer calls this
-/// alongside the other per-image cache evictions.
+/// registration (all `.objcHierarchy`) and the ancestor resolver (which
+/// holds the file's dependency images once it has resolved them). The
+/// declaration indexer's last live instance evicts the same groups through
+/// the registry's ownership rules; this is the explicit form.
 public enum ObjCClassHierarchies {
     public static func removeCache(for machO: some MachORepresentableWithCache) {
-        ObjCClassMethodIndex.shared.remove(for: machO)
-        SwiftClassObjectIndex.shared.remove(for: machO)
-        ObjCClassHierarchyProviderStore.shared.remove(for: machO)
-        ObjCAncestorResolverStore.shared.remove(for: machO)
+        SharedCacheRegistry.shared.evict(groups: [.objcHierarchy, .objcAncestorResolver], for: SharedCacheKey(machO))
     }
 }

@@ -62,3 +62,4 @@
 | [0051](0051-agent-plugin.md) | `swift-section` 的 agent 插件：教 agent 用 CLI 的 skill 随仓库发布，Claude Code 与 Codex 直接安装 | Implemented |
 | draft | [静态布局引擎读取 accessor thunk 背后的字段类型](draft-static-layout-through-accessor-thunks.md) | Draft |
 | draft | [改过 ObjC 运行时名的 Swift 类：打印 `@objc(Name)`，并按描述符指针配对它的类对象](draft-objc-custom-class-name.md) | In Progress |
+| draft | [按镜像缓存整治：`SharedCache` 去继承、键去装箱、驱逐收口到注册表](draft-shared-cache-composition-and-eviction-registry.md) | In Progress |

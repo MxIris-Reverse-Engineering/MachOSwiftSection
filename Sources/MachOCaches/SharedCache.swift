@@ -4,20 +4,47 @@ import MachOKitExtensions
 import Utilities
 import SwiftStdlibToolbox
 
+/// One lazily built value per Mach-O image, shared by every caller that
+/// asks for it.
+///
+/// Entries are keyed by ``SharedCacheKey``. A lookup that finds a finished
+/// value returns it; one that finds a build in flight joins it; one that
+/// finds nothing installs an in-flight marker, runs the caller's build
+/// closure **outside** the cache lock, and publishes the result. So callers
+/// building entries for different images run in parallel, and callers
+/// building the same image's entry share one build.
+///
+/// The build closure is the caller's. The cache knows nothing about what a
+/// reader can read, so the type that owns an index supplies the build at its
+/// own call site, where the reader's concrete capabilities are known. A build
+/// that returns `nil` is not cached, and the next lookup tries again.
+///
+/// Every cache belongs to a ``SharedCacheEvictionGroup`` and registers
+/// itself with a ``SharedCacheRegistry`` at creation; eviction per image is
+/// the registry's business. The cache itself never drops an entry on its
+/// own — in particular not on memory pressure, which it once did per
+/// instance, behind the registry's back and to no effect, since the entries
+/// were pinned by live references anyway.
+///
+/// `final`: an owning type holds a private instance and forwards to it,
+/// rather than subclassing. `@unchecked Sendable` because the mutable state
+/// is behind an `os_unfair_lock`.
 @_spi(Internals)
-open class SharedCache<Storage>: @unchecked Sendable {
-    private let memoryPressureMonitor = MemoryPressureMonitor()
+public final class SharedCache<Storage>: SharedCacheEvicting, @unchecked Sendable {
+    /// The family this cache's entries are evicted with.
+    public let evictionGroup: SharedCacheEvictionGroup
 
-    package init() {
-        memoryPressureMonitor.memoryWarningHandler = { [weak self] in
-            self?.storageByIdentifier.removeAll()
-        }
-
-        memoryPressureMonitor.memoryCriticalHandler = { [weak self] in
-            self?.storageByIdentifier.removeAll()
-        }
-
-        memoryPressureMonitor.startMonitoring()
+    /// - Parameters:
+    ///   - evictionGroup: The family the entries belong to.
+    ///   - follows: The families whose storage this cache's entries point
+    ///     into; whenever one of them is claimed and evicted, this cache's
+    ///     family goes with it. Declared here, by the cache that holds the
+    ///     reference, because this is where the fact is known.
+    ///   - registry: Where the cache registers itself. The process-wide
+    ///     registry, except for a test driving a registry of its own.
+    package init(evictionGroup: SharedCacheEvictionGroup, follows: Set<SharedCacheEvictionGroup> = [], registry: SharedCacheRegistry = .shared) {
+        self.evictionGroup = evictionGroup
+        registry.register(self, group: evictionGroup, follows: follows)
     }
 
     /// Per-key state: a finished build (`completed`) or an in-flight build
@@ -31,7 +58,7 @@ open class SharedCache<Storage>: @unchecked Sendable {
     }
 
     @Mutex
-    private var storageByIdentifier: [AnyHashable: Entry] = [:]
+    private var storageByKey: [SharedCacheKey: Entry] = [:]
 
     /// Routing decision the cache lock makes on behalf of `storage(...)`:
     /// either return a cached value, await someone else's in-flight build,
@@ -42,23 +69,12 @@ open class SharedCache<Storage>: @unchecked Sendable {
         case build(SharedCacheBuildPromise<Storage>)
     }
 
-    open func buildStorage(for machO: some MachORepresentableWithCache) -> Storage? {
-        return nil
-    }
-
-    open func storage(in machO: some MachORepresentableWithCache) -> Storage? {
-        return storage(in: machO) { machO in
-            buildStorage(for: machO)
-        }
-    }
-
     /// Atomic get-or-build with a caller-provided build closure.
     ///
-    /// Unlike `storage(in:)` which uses the overridden `buildStorage(for:)`,
-    /// this variant lets the caller inject a custom build closure that can
-    /// capture per-call context (progress continuations, options, etc.). The
-    /// per-call context flows through closure capture, never through shared
-    /// instance state, so concurrent calls cannot interfere.
+    /// The closure may capture per-call context (progress continuations,
+    /// options, the reader's concrete type); that context flows through
+    /// closure capture, never through shared instance state, so concurrent
+    /// calls cannot interfere.
     ///
     /// The cache lock is held only long enough to look up the key and either
     /// hand back a finished value, attach to an in-flight build, or install
@@ -70,41 +86,61 @@ open class SharedCache<Storage>: @unchecked Sendable {
         in machO: MachO,
         buildUsing build: (MachO) -> Storage?
     ) -> Storage? {
-        let key: AnyHashable = machO.identifier
-        return resolve(key: key) { build(machO) }
+        return resolve(key: SharedCacheKey(machO)) { build(machO) }
     }
 
-    private var currentIdentifer: ObjectIdentifier {
-        .init(Self.self)
+    /// Installs `storage` as the image's finished entry, replacing whatever
+    /// was there. A build in flight for the same image loses: when it
+    /// returns it finds a marker that is not its own and does not publish,
+    /// though it still hands its own result to the callers that joined it.
+    /// This is what lets an owner with configuration of its own — an
+    /// indexer with search paths — override the default an earlier lookup
+    /// built.
+    public func register(_ storage: Storage, for machO: some MachORepresentableWithCache) {
+        register(storage, forKey: SharedCacheKey(machO))
     }
 
-    open func buildStorage() -> Storage? {
-        return nil
-    }
-
-    open func storage() -> Storage? {
-        let key: AnyHashable = currentIdentifer
-        return resolve(key: key) { buildStorage() }
+    /// Key-taking form of ``register(_:for:)``, for the in-package tests.
+    package func register(_ storage: Storage, forKey key: SharedCacheKey) {
+        _storageByKey.withLockUnchecked { dict in
+            dict[key] = .completed(storage)
+        }
     }
 
     /// Returns `true` when a finished build is already cached for `machO`'s
     /// identifier. In-flight builds count as **not** cached: a caller that
-    /// observes `false` here, then runs ``storage(in:)``, may end up sharing
-    /// an existing in-flight build with another caller — but from the
-    /// "self-triggered" perspective (see ``SwiftDeclarationIndexer``) that is
+    /// observes `false` here, then runs ``storage(in:buildUsing:)``, may end
+    /// up sharing an existing in-flight build with another caller — but from
+    /// the "self-triggered" perspective (see ``SharedCacheRegistry``) that is
     /// still cooperative ownership, not sole ownership, so reporting `true`
     /// for in-flight would mislead the bookkeeping.
     public func contains(in machO: some MachORepresentableWithCache) -> Bool {
-        return contains(key: machO.identifier)
+        return containsEntry(for: SharedCacheKey(machO))
     }
 
-    /// Type-keyed variant matching ``storage()``.
-    public func contains() -> Bool {
-        return contains(key: currentIdentifer)
+    /// Drops the cached entry for `machO`'s identifier so the next lookup
+    /// rebuilds from scratch. In-flight builds are left alone: their waiters
+    /// still need the promise to settle, and the next completed result
+    /// simply won't be re-installed because the in-flight marker has already
+    /// been removed by the time we check on the build path. Safe to call
+    /// even when no entry exists.
+    public func remove(for machO: some MachORepresentableWithCache) {
+        removeEntry(for: SharedCacheKey(machO))
     }
 
-    private func contains(key: AnyHashable) -> Bool {
-        _storageByIdentifier.withLockUnchecked { dict in
+    /// Drops every cached entry — for tests, or a long-lived process
+    /// flushing between unrelated batches. Bypasses the registry's
+    /// ownership rules, so not something library code calls.
+    public func removeAll() {
+        _storageByKey.withLockUnchecked { dict in
+            dict.removeAll(keepingCapacity: false)
+        }
+    }
+
+    // MARK: - SharedCacheEvicting
+
+    public func containsEntry(for key: SharedCacheKey) -> Bool {
+        _storageByKey.withLockUnchecked { dict in
             if case .completed = dict[key] {
                 return true
             }
@@ -112,49 +148,36 @@ open class SharedCache<Storage>: @unchecked Sendable {
         }
     }
 
-    /// Drops the cached entry for `machO`'s identifier so the next
-    /// ``storage(in:)`` call rebuilds from scratch. In-flight builds are left
-    /// alone: their waiters still need the promise to settle, and the next
-    /// completed result simply won't be re-installed because the in-flight
-    /// marker has already been removed by the time we check on the build
-    /// path. Safe to call even when no entry exists.
-    public func remove(for machO: some MachORepresentableWithCache) {
-        remove(key: machO.identifier)
-    }
-
-    /// Type-keyed variant matching ``storage()``.
-    public func remove() {
-        remove(key: currentIdentifer)
-    }
-
-    private func remove(key: AnyHashable) {
-        _storageByIdentifier.withLockUnchecked { dict in
+    public func removeEntry(for key: SharedCacheKey) {
+        _storageByKey.withLockUnchecked { dict in
             if case .completed = dict[key] {
                 dict.removeValue(forKey: key)
             }
         }
     }
 
-    /// Drops every cached entry. Equivalent to the memory-pressure path but
-    /// available to callers that want explicit control (e.g. tests, or a
-    /// long-lived process flushing between unrelated batches).
-    public func removeAll() {
-        _storageByIdentifier.withLockUnchecked { dict in
-            dict.removeAll(keepingCapacity: false)
+    public var entryKeys: [SharedCacheKey] {
+        _storageByKey.withLockUnchecked { dict in
+            dict.compactMap { key, entry in
+                if case .completed = entry {
+                    return key
+                }
+                return nil
+            }
         }
     }
 
-    /// Shared core for both `storage(in:buildUsing:)` and `storage()`. Holds
-    /// the cache lock only across the dictionary lookup / marker install and
-    /// across the post-build dictionary update — the actual `build` call
-    /// runs unsynchronized so that concurrent builds for distinct keys don't
+    /// The core of ``storage(in:buildUsing:)``. Holds the cache lock only
+    /// across the dictionary lookup / marker install and across the
+    /// post-build dictionary update — the actual `build` call runs
+    /// unsynchronized so that concurrent builds for distinct keys don't
     /// serialize.
     ///
     /// `package`-visible so the in-package test target can exercise the
     /// concurrency contract directly without manufacturing a fake
     /// `MachORepresentableWithCache` conformer.
-    package func resolve(key: AnyHashable, build: () -> Storage?) -> Storage? {
-        let outcome: Outcome = _storageByIdentifier.withLockUnchecked { dict in
+    package func resolve(key: SharedCacheKey, build: () -> Storage?) -> Storage? {
+        let outcome: Outcome = _storageByKey.withLockUnchecked { dict in
             if let entry = dict[key] {
                 switch entry {
                 case .completed(let storage):
@@ -172,15 +195,27 @@ open class SharedCache<Storage>: @unchecked Sendable {
         case .completed(let storage):
             return storage
         case .wait(let promise):
+            // A build closure that queries the entry it is itself building
+            // finds its own in-flight marker here. Waiting would block
+            // forever: the promise is fulfilled only when that closure
+            // returns, and the closure is the one waiting. Before the
+            // promise-based rewrite this trapped on the non-reentrant cache
+            // lock, which at least left a crash log; a silent hang is worse,
+            // so the same-thread case traps on purpose. A build that moved
+            // to another thread first is not detectable at this layer.
+            precondition(
+                !promise.isBuilderCurrentThread,
+                "SharedCache: re-entrant build for key \(key) — the build closure queried the entry it is building, on its own thread; waiting here would never return"
+            )
             return promise.wait()
         case .build(let promise):
             let result = build()
-            _storageByIdentifier.withLockUnchecked { dict in
+            _storageByKey.withLockUnchecked { dict in
                 // Only publish back if our promise is still the in-flight
-                // marker. `removeAll()` on memory pressure could have
-                // cleared the dict mid-build, and a fresh caller may have
-                // installed a different promise; in either case the dict is
-                // not ours to write — but our promise still has waiters
+                // marker. `removeAll()` could have cleared the dict
+                // mid-build, or `register(_:for:)` could have installed a
+                // finished entry over ours; in either case the dict is not
+                // ours to write — but our promise still has waiters
                 // attached, so we always call `fulfill(_:)` below.
                 if case .inFlight(let installed) = dict[key], installed === promise {
                     if let storage = result {
