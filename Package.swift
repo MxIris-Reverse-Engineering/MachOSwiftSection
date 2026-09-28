@@ -196,7 +196,7 @@ extension Package.Dependency {
         ),
         remote: .package(
             url: "https://github.com/MxIris-Reverse-Engineering/swift-capstone",
-            from: "6.0.0",
+            from: "6.0.1",
             traits: capstoneTraits,
         ),
     )
