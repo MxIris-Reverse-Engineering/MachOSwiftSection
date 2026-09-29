@@ -165,6 +165,13 @@ sweep 覆盖范围之外的名字走的旁路：demangle 后 intern 进 `Storage
 - **主要出现在**：`Sources/Output/SwiftInterface/EvolutionMarking.swift`、`EvolutionAnnotationIndex.swift`
 - **延伸阅读**：[提案 0013](Evolutions/0013-swift-evolution-interface-builder.md)
 
+### marking mode（标记模式，`marksOptionalContent`）
+
+`SwiftDeclarationPrintConfiguration.marksOptionalContent` 为 `true` 时的打印：受显示选项控制的输出（偏移 / 地址 / 布局注释、stripped symbolic item、opaque 类型的约束、按 selector 名推断的 `@objc override`）不再由选项决定打不打，而是全部打出，包进 swift-semantic-string 的 `VisibilityRegion`，条件是对应的 `SwiftVisibilityOption`。条件记在原子的 `identifier` 上，所以文字与全部打开时逐字节相同。冻结后拆出区域表，按某组配置的 `isVisibilityOptionEnabled(_:resolvesOpaqueTypes:)` 投影，与按那组配置直接打印（「普通打印」，即该开关为 `false`）完全相同。「可见性区域」「投影」是 swift-semantic-string 的术语，定义见其 `docs/VisibilityRegions.md`；MachOObjCSection 的对应物叫 marked rendering（其提案 0011）。
+
+- **主要出现在**：`Sources/Output/SwiftPrinting/SwiftDeclarationPrinter+VisibilityRegions.swift`、`SwiftDeclarationPrintConfiguration.swift`、`Sources/Output/SwiftDeclarationRendering/DeclarationRenderConfiguration.swift`、`SwiftVisibilityOption.swift`
+- **延伸阅读**：[提案 0056](Evolutions/0056-visibility-regions.md)
+
 ### materialize（物化）
 
 从轻量引用（表行号、descriptor、`NodeReference`）按需构造出完整值（`String`、wrapper、`Node` 树）的动作，与「驻留」相对。本项目的内存优化主线就是「驻留只留定位信息，重内容用时物化、用完即弃」：0001 物化符号名，0002 物化 wrapper。物化纪律：每处理一个对象至多物化一次、局部贯穿，不做 per-access。

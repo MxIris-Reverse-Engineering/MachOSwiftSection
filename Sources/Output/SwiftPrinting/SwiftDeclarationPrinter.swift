@@ -120,7 +120,7 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
                 return provider
             }
             let provider: (any StaticFieldLayoutProvider)?
-            if configurationSnapshot.printFieldOffset || configurationSnapshot.printTypeLayout || configurationSnapshot.printEnumLayout || configurationSnapshot.printExpandedFieldOffsets {
+            if configurationSnapshot.marksOptionalContent || configurationSnapshot.printFieldOffset || configurationSnapshot.printTypeLayout || configurationSnapshot.printEnumLayout || configurationSnapshot.printExpandedFieldOffsets {
                 // Reader-type-dispatched (no runtime cast): only `MachOFile` builds a
                 // provider; `MachOImage` returns nil.
                 provider = MachO.makeStaticFieldLayoutProvider(machO: machO, resolution: configurationSnapshot.staticLayoutDependencyResolution)
@@ -363,11 +363,15 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
 
             try await printDefinition(protocolDefinition, level: level)
 
-            if configuration.printStrippedSymbolicItem, !protocolDefinition.strippedSymbolicRequirements.isEmpty {
-                for strippedSymbolicRequirement in protocolDefinition.strippedSymbolicRequirements {
-                    MemberList(level: level) {
-                        OffsetComment(prefix: "PWT offset", offset: strippedSymbolicRequirement.pwtOffset, emit: configuration.printPWTOffset)
-                        strippedSymbolicRequirement.strippedSymbolicInfo()
+            if !protocolDefinition.strippedSymbolicRequirements.isEmpty {
+                optionalContent(.printStrippedSymbolicItem) {
+                    for strippedSymbolicRequirement in protocolDefinition.strippedSymbolicRequirements {
+                        MemberList(level: level) {
+                            optionalContent(.printPWTOffset) {
+                                OffsetComment(prefix: "PWT offset", offset: strippedSymbolicRequirement.pwtOffset, emit: true)
+                            }
+                            strippedSymbolicRequirement.strippedSymbolicInfo()
+                        }
                     }
                 }
             }
@@ -607,16 +611,14 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
     @SemanticStringBuilder
     private func printMembersByOffset(_ definition: some Definition, level: Int, isProtocol: Bool) async -> SemanticString {
         let offsetCommentPrefix = isProtocol ? "PWT offset" : "Field offset"
-        let emitOffsetComment = isProtocol ? configuration.printPWTOffset : configuration.printFieldOffset
-        let printMemberAddress = configuration.printMemberAddress
-        let printVTableOffset = configuration.printVTableOffset
+        let offsetCommentOption: SwiftVisibilityOption = isProtocol ? .printPWTOffset : .printFieldOffset
         let printExportStatus = configuration.printExportStatus
         let vtableTransformerClosure = vtableOffsetTransformerClosure
 
         let synthesizedPropertyWrapperMembers = synthesizedPropertyWrapperMembers(of: definition)
         await MemberList(level: level) {
             for member in definition.orderedMembers where !isExcludedByExportFilter(member) && !synthesizedPropertyWrapperMembers.contains(member) {
-                await renderMember(member, level: level, offsetCommentPrefix: offsetCommentPrefix, emitOffsetComment: emitOffsetComment, printVTableOffset: printVTableOffset, printMemberAddress: printMemberAddress, printExportStatus: printExportStatus, vtableTransformerClosure: vtableTransformerClosure, synthesizedPropertyWrapperMembers: synthesizedPropertyWrapperMembers)
+                await renderMember(member, level: level, offsetCommentPrefix: offsetCommentPrefix, offsetCommentOption: offsetCommentOption, printExportStatus: printExportStatus, vtableTransformerClosure: vtableTransformerClosure, synthesizedPropertyWrapperMembers: synthesizedPropertyWrapperMembers)
             }
 
             // Terminal step: emit `deinit` for classes and noncopyable
@@ -630,8 +632,12 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
             // body on classes. The destructor variant collapses to nothing
             // when the type is an actor or value type.
             if let typeDefinition = definition as? TypeDefinition, let deallocatorSymbol = typeDefinition.deallocatorSymbol {
-                AddressComment(addressString: memberAddressString(forOffset: deallocatorSymbol.offset), emit: printMemberAddress)
-                AddressComment(addressString: memberAddressString(forOffset: typeDefinition.destructorSymbol?.offset), label: "destructor", emit: printMemberAddress)
+                optionalContent(.printMemberAddress) {
+                    AddressComment(addressString: memberAddressString(forOffset: deallocatorSymbol.offset), emit: true)
+                }
+                optionalContent(.printMemberAddress) {
+                    AddressComment(addressString: memberAddressString(forOffset: typeDefinition.destructorSymbol?.offset), label: "destructor", emit: true)
+                }
                 Keyword(.deinit)
             }
         }
@@ -640,9 +646,7 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
     @SemanticStringBuilder
     private func printMembersByCategory(_ definition: some Definition, level: Int, isProtocol: Bool) async -> SemanticString {
         let offsetCommentPrefix = isProtocol ? "PWT offset" : "Field offset"
-        let emitOffsetComment = isProtocol ? configuration.printPWTOffset : configuration.printFieldOffset
-        let printMemberAddress = configuration.printMemberAddress
-        let printVTableOffset = configuration.printVTableOffset
+        let offsetCommentOption: SwiftVisibilityOption = isProtocol ? .printPWTOffset : .printFieldOffset
         let printExportStatus = configuration.printExportStatus
         let vtableTransformerClosure = vtableOffsetTransformerClosure
 
@@ -656,13 +660,13 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
         // exactly as before.
         await MemberList(level: level) {
             for member in OrderedMember.vtableOrdered(OrderedMember.allMembers(from: definition)) where !isExcludedByExportFilter(member) && !synthesizedPropertyWrapperMembers.contains(member) {
-                await renderMember(member, level: level, offsetCommentPrefix: offsetCommentPrefix, emitOffsetComment: emitOffsetComment, printVTableOffset: printVTableOffset, printMemberAddress: printMemberAddress, printExportStatus: printExportStatus, vtableTransformerClosure: vtableTransformerClosure, synthesizedPropertyWrapperMembers: synthesizedPropertyWrapperMembers)
+                await renderMember(member, level: level, offsetCommentPrefix: offsetCommentPrefix, offsetCommentOption: offsetCommentOption, printExportStatus: printExportStatus, vtableTransformerClosure: vtableTransformerClosure, synthesizedPropertyWrapperMembers: synthesizedPropertyWrapperMembers)
             }
         }
         for category in MemberCategory.allCases {
             await MemberList(level: level) {
                 for member in definition.members(in: category) where member.minVTableOffset == nil && !isExcludedByExportFilter(member) && !synthesizedPropertyWrapperMembers.contains(member) {
-                    await renderMember(member, level: level, offsetCommentPrefix: offsetCommentPrefix, emitOffsetComment: emitOffsetComment, printVTableOffset: printVTableOffset, printMemberAddress: printMemberAddress, printExportStatus: printExportStatus, vtableTransformerClosure: vtableTransformerClosure, synthesizedPropertyWrapperMembers: synthesizedPropertyWrapperMembers)
+                    await renderMember(member, level: level, offsetCommentPrefix: offsetCommentPrefix, offsetCommentOption: offsetCommentOption, printExportStatus: printExportStatus, vtableTransformerClosure: vtableTransformerClosure, synthesizedPropertyWrapperMembers: synthesizedPropertyWrapperMembers)
                 }
             }
         }
@@ -672,8 +676,12 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
         // and the rationale behind the two address comments.
         if let typeDefinition = definition as? TypeDefinition, let deallocatorSymbol = typeDefinition.deallocatorSymbol {
             MemberList(level: level) {
-                AddressComment(addressString: memberAddressString(forOffset: deallocatorSymbol.offset), emit: printMemberAddress)
-                AddressComment(addressString: memberAddressString(forOffset: typeDefinition.destructorSymbol?.offset), label: "destructor", emit: printMemberAddress)
+                optionalContent(.printMemberAddress) {
+                    AddressComment(addressString: memberAddressString(forOffset: deallocatorSymbol.offset), emit: true)
+                }
+                optionalContent(.printMemberAddress) {
+                    AddressComment(addressString: memberAddressString(forOffset: typeDefinition.destructorSymbol?.offset), label: "destructor", emit: true)
+                }
                 Keyword(.deinit)
             }
         }
@@ -695,9 +703,7 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
         _ member: OrderedMember,
         level: Int,
         offsetCommentPrefix: String,
-        emitOffsetComment: Bool,
-        printVTableOffset: Bool,
-        printMemberAddress: Bool,
+        offsetCommentOption: SwiftVisibilityOption,
         printExportStatus: Bool,
         vtableTransformerClosure: (@Sendable (Int, String?) -> SemanticString)?,
         synthesizedPropertyWrapperMembers: SynthesizedPropertyWrapperMembers
@@ -705,15 +711,23 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
         await Rows(level: level) {
             switch member {
             case .allocator(let function), .function(let function):
-                OffsetComment(prefix: offsetCommentPrefix, offset: function.offset, emit: emitOffsetComment)
-                VTableOffsetComment(vtableOffset: function.vtableOffset, emit: printVTableOffset, transformer: vtableTransformerClosure)
-                AddressComment(addressString: memberAddressString(forOffset: function.symbol.offset), emit: printMemberAddress)
+                optionalContent(offsetCommentOption) {
+                    OffsetComment(prefix: offsetCommentPrefix, offset: function.offset, emit: true)
+                }
+                optionalContent(.printVTableOffset) {
+                    VTableOffsetComment(vtableOffset: function.vtableOffset, emit: true, transformer: vtableTransformerClosure)
+                }
+                optionalContent(.printMemberAddress) {
+                    AddressComment(addressString: memberAddressString(forOffset: function.symbol.offset), emit: true)
+                }
                 // Qualifies the address above (evolution proposal 0007): the
                 // witness resolved to a protocol-extension DEFAULT — the code
                 // lives on the protocol, and several such witnesses typically
                 // share one identical-code-folded address.
-                if printMemberAddress, function.isProtocolExtensionDefault {
-                    Comment("protocol-extension default")
+                if function.isProtocolExtensionDefault {
+                    optionalContent(.printMemberAddress) {
+                        Comment("protocol-extension default")
+                    }
                 }
                 // Export status is only ruled on for members whose OWN
                 // symbols are the linkage surface: an `override` links
@@ -734,16 +748,26 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
                 // REAL field offset (from the ObjC ivar list), so the generic
                 // symbol-offset comment gives way to the field-offset one.
                 if let storage = variable.objcImplementationStorage {
-                    ObjCImplementationFieldOffsetComment(instanceVariable: storage, emit: configuration.printFieldOffset, transformer: configuration.fieldOffsetTransformer)
+                    optionalContent(.printFieldOffset) {
+                        ObjCImplementationFieldOffsetComment(instanceVariable: storage, emit: true, transformer: configuration.fieldOffsetTransformer)
+                    }
                 } else {
-                    OffsetComment(prefix: offsetCommentPrefix, offset: variable.offset, emit: emitOffsetComment)
+                    optionalContent(offsetCommentOption) {
+                        OffsetComment(prefix: offsetCommentPrefix, offset: variable.offset, emit: true)
+                    }
                 }
                 for accessor in variable.accessors {
-                    VTableOffsetComment(vtableOffset: accessor.vtableOffset, label: accessor.kind.addressLabel, emit: printVTableOffset, transformer: vtableTransformerClosure)
-                    AddressComment(addressString: memberAddressString(forOffset: accessor.symbol.offset), label: accessor.kind.addressLabel, emit: printMemberAddress)
+                    optionalContent(.printVTableOffset) {
+                        VTableOffsetComment(vtableOffset: accessor.vtableOffset, label: accessor.kind.addressLabel, emit: true, transformer: vtableTransformerClosure)
+                    }
+                    optionalContent(.printMemberAddress) {
+                        AddressComment(addressString: memberAddressString(forOffset: accessor.symbol.offset), label: accessor.kind.addressLabel, emit: true)
+                    }
                 }
-                if printMemberAddress, variable.isProtocolExtensionDefault {
-                    Comment("protocol-extension default")
+                if variable.isProtocolExtensionDefault {
+                    optionalContent(.printMemberAddress) {
+                        Comment("protocol-extension default")
+                    }
                 }
                 let objcFacts = variable.resolvedObjCMemberFacts(trustingSelectorNameEvidence: trustsSelectorNameEvidence)
                 if printExportStatus, !objcFacts.isOverride, !objcFacts.isObjC {
@@ -756,13 +780,21 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
                 }
 
             case .subscript(let `subscript`):
-                OffsetComment(prefix: offsetCommentPrefix, offset: `subscript`.offset, emit: emitOffsetComment)
-                for accessor in `subscript`.accessors {
-                    VTableOffsetComment(vtableOffset: accessor.vtableOffset, label: accessor.kind.addressLabel, emit: printVTableOffset, transformer: vtableTransformerClosure)
-                    AddressComment(addressString: memberAddressString(forOffset: accessor.symbol.offset), label: accessor.kind.addressLabel, emit: printMemberAddress)
+                optionalContent(offsetCommentOption) {
+                    OffsetComment(prefix: offsetCommentPrefix, offset: `subscript`.offset, emit: true)
                 }
-                if printMemberAddress, `subscript`.isProtocolExtensionDefault {
-                    Comment("protocol-extension default")
+                for accessor in `subscript`.accessors {
+                    optionalContent(.printVTableOffset) {
+                        VTableOffsetComment(vtableOffset: accessor.vtableOffset, label: accessor.kind.addressLabel, emit: true, transformer: vtableTransformerClosure)
+                    }
+                    optionalContent(.printMemberAddress) {
+                        AddressComment(addressString: memberAddressString(forOffset: accessor.symbol.offset), label: accessor.kind.addressLabel, emit: true)
+                    }
+                }
+                if `subscript`.isProtocolExtensionDefault {
+                    optionalContent(.printMemberAddress) {
+                        Comment("protocol-extension default")
+                    }
                 }
                 let objcFacts = `subscript`.resolvedObjCMemberFacts(trustingSelectorNameEvidence: trustsSelectorNameEvidence)
                 if printExportStatus, !objcFacts.isOverride, !objcFacts.isObjC {
@@ -860,53 +892,29 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
             try await printThrowingType(propertyWrapperAttributeTypeNode, isProtocol: false, level: level)
             Space()
         }
-        let objcFacts = variable.resolvedObjCMemberFacts(trustingSelectorNameEvidence: trustsSelectorNameEvidence)
-        for attribute in objcFacts.attributes {
-            Keyword(attribute.keyword)
-            // An `@objc(name)` the source spelled out (evolution proposal
-            // `objc-member-selector-recovery`): the selector the ObjC method
-            // table carries is not the one the compiler derives from the name.
-            if attribute == .objc, let explicitSelector = objcFacts.explicitSelector {
-                Standard("(\(explicitSelector))")
-            }
-            Space()
+        try await printUnderObjCVerdicts(of: variable.resolvedObjCMemberFacts(trustingSelectorNameEvidence:)) { objcFacts in
+            objcAttributes(objcFacts)
+            var printer = SemanticVariableNodePrinter(isStored: variable.isStored, isOverride: objcFacts.isOverride, isClassMember: objcFacts.isClassMember, isFinal: objcFacts.isFinal, hasSetter: variable.hasSetter, indentation: level, delegate: self)
+            try await printer.printRoot(variable.node.materialize())
         }
-        var printer = SemanticVariableNodePrinter(isStored: variable.isStored, isOverride: objcFacts.isOverride, isClassMember: objcFacts.isClassMember, isFinal: objcFacts.isFinal, hasSetter: variable.hasSetter, indentation: level, delegate: self)
-        try await printer.printRoot(variable.node.materialize())
     }
 
     @SemanticStringBuilder
     public func printThrowingFunction(_ function: FunctionDefinition, level: Int) async throws -> SemanticString {
-        let objcFacts = function.resolvedObjCMemberFacts(trustingSelectorNameEvidence: trustsSelectorNameEvidence)
-        for attribute in objcFacts.attributes {
-            Keyword(attribute.keyword)
-            // An `@objc(name)` the source spelled out (evolution proposal
-            // `objc-member-selector-recovery`): the selector the ObjC method
-            // table carries is not the one the compiler derives from the name.
-            if attribute == .objc, let explicitSelector = objcFacts.explicitSelector {
-                Standard("(\(explicitSelector))")
-            }
-            Space()
+        try await printUnderObjCVerdicts(of: function.resolvedObjCMemberFacts(trustingSelectorNameEvidence:)) { objcFacts in
+            objcAttributes(objcFacts)
+            var printer = SemanticFunctionNodePrinter(isOverride: objcFacts.isOverride, isClassMember: objcFacts.isClassMember, isFinal: objcFacts.isFinal, delegate: self)
+            try await printer.printRoot(function.node.materialize())
         }
-        var printer = SemanticFunctionNodePrinter(isOverride: objcFacts.isOverride, isClassMember: objcFacts.isClassMember, isFinal: objcFacts.isFinal, delegate: self)
-        try await printer.printRoot(function.node.materialize())
     }
 
     @SemanticStringBuilder
     public func printThrowingSubscript(_ `subscript`: SubscriptDefinition, level: Int) async throws -> SemanticString {
-        let objcFacts = `subscript`.resolvedObjCMemberFacts(trustingSelectorNameEvidence: trustsSelectorNameEvidence)
-        for attribute in objcFacts.attributes {
-            Keyword(attribute.keyword)
-            // An `@objc(name)` the source spelled out (evolution proposal
-            // `objc-member-selector-recovery`): the selector the ObjC method
-            // table carries is not the one the compiler derives from the name.
-            if attribute == .objc, let explicitSelector = objcFacts.explicitSelector {
-                Standard("(\(explicitSelector))")
-            }
-            Space()
+        try await printUnderObjCVerdicts(of: `subscript`.resolvedObjCMemberFacts(trustingSelectorNameEvidence:)) { objcFacts in
+            objcAttributes(objcFacts)
+            var printer = SemanticSubscriptNodePrinter(isOverride: objcFacts.isOverride, isClassMember: objcFacts.isClassMember, isFinal: objcFacts.isFinal, hasSetter: `subscript`.hasSetter, indentation: level, delegate: self)
+            try await printer.printRoot(`subscript`.node.materialize())
         }
-        var printer = SemanticSubscriptNodePrinter(isOverride: objcFacts.isOverride, isClassMember: objcFacts.isClassMember, isFinal: objcFacts.isFinal, hasSetter: `subscript`.hasSetter, indentation: level, delegate: self)
-        try await printer.printRoot(`subscript`.node.materialize())
     }
 
     @SemanticStringBuilder
@@ -994,5 +1002,9 @@ extension SwiftDeclarationPrinter: NodePrintableDelegate {
 
     public func opaqueType(forNode node: Node, index: Int?) async -> String? {
         await typeNameResolverRegistry.opaqueTypeResolvers.asyncFirstNonNil { await $0.opaqueType(forNode: node, index: index) }
+    }
+
+    var marksOptionalContent: Bool {
+        configuration.marksOptionalContent
     }
 }

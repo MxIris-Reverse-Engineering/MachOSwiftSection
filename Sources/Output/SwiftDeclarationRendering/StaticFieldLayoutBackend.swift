@@ -17,7 +17,7 @@ extension MachOFile: FieldLayoutRenderable {
     public static func precomputedStaticAggregateFieldLayout(for type: TypeContextWrapper, machO: MachOFile, configuration: DeclarationRenderConfiguration) -> AggregateFieldLayout? {
         // Only when a layout-bearing flag is on and a provider was injected;
         // enums (no field-offset vector) compute their layout lazily instead.
-        guard configuration.printFieldOffset || configuration.printTypeLayout || configuration.printExpandedFieldOffsets,
+        guard configuration.producesContent(for: .printFieldOffset) || configuration.producesContent(for: .printTypeLayout) || configuration.producesContent(for: .printExpandedFieldOffsets),
               let provider = configuration.staticFieldLayoutProvider else {
             return nil
         }
@@ -82,7 +82,7 @@ struct StaticFieldLayoutBackend {
     /// SwiftLayout could not resolve (so a degraded field and everything after it
     /// emit no offset comment rather than a wrong one).
     var fieldOffsets: [Int]? {
-        guard configuration.printFieldOffset else { return nil }
+        guard configuration.producesContent(for: .printFieldOffset) else { return nil }
         return staticAggregateFieldLayout?.computedFieldOffsets
     }
 
@@ -103,24 +103,31 @@ struct StaticFieldLayoutBackend {
             } else {
                 endOffset = nil
             }
-            configuration.fieldOffsetComment(startOffset: startOffset, endOffset: endOffset)
-
-            if configuration.printExpandedFieldOffsets {
-                expandedFieldOffsets(for: mangledTypeName, baseOffset: startOffset)
+            configuration.optionalContent(.printFieldOffset) {
+                configuration.fieldOffsetComment(startOffset: startOffset, endOffset: endOffset)
+                // Expanded offsets hang off the field offset: printed only
+                // when both are on.
+                configuration.optionalContent(.printExpandedFieldOffsets) {
+                    expandedFieldOffsets(for: mangledTypeName, baseOffset: startOffset)
+                }
             }
         } else if
-            configuration.printFieldOffset,
+            configuration.producesContent(for: .printFieldOffset),
             case .unknown(let reason)? = staticAggregateFieldLayout?.fields[safe: index]?.resolution
         {
             // The offset could not be computed: say why, instead of silently
             // omitting the comment (an unresolved generic parameter reads very
             // differently from a disabled flag). The field's own type layout —
             // often still resolvable — renders below as usual.
-            configuration.unknownFieldOffsetComment(reasonDescription: Self.shortDescription(of: reason))
+            configuration.optionalContent(.printFieldOffset) {
+                configuration.unknownFieldOffsetComment(reasonDescription: Self.shortDescription(of: reason))
+            }
         }
 
-        if configuration.printTypeLayout, let fieldLayout = staticAggregateFieldLayout?.fields[safe: index]?.layout {
-            configuration.staticTypeLayoutComment(fieldLayout)
+        if configuration.producesContent(for: .printTypeLayout), let fieldLayout = staticAggregateFieldLayout?.fields[safe: index]?.layout {
+            configuration.optionalContent(.printTypeLayout) {
+                configuration.staticTypeLayoutComment(fieldLayout)
+            }
         }
     }
 
@@ -185,21 +192,28 @@ struct StaticFieldLayoutBackend {
         var isTypeLayoutPrinted = false
 
         if !mangledTypeName.isEmpty,
-           configuration.printTypeLayout,
+           configuration.producesContent(for: .printTypeLayout),
            let provider = configuration.staticFieldLayoutProvider,
            let payloadTypeLayout = payloadTypeLayout(for: mangledTypeName, provider: provider) {
-            configuration.staticTypeLayoutComment(payloadTypeLayout)
+            configuration.optionalContent(.printTypeLayout) {
+                configuration.staticTypeLayoutComment(payloadTypeLayout)
+            }
             isTypeLayoutPrinted = true
         }
 
         if let caseProjection = enumLayout?.cases[safe: index] {
-            if isTypeLayoutPrinted {
+            configuration.optionalContent(.printEnumLayout) {
+                // The line between the two blocks exists only when both do.
+                if isTypeLayoutPrinted {
+                    configuration.optionalContent(.printTypeLayout) {
+                        BreakLine()
+                    }
+                }
+                configuration.indentString
+                InlineComment("Enum Layout")
                 BreakLine()
+                configuration.enumLayoutCaseComment(caseProjection: caseProjection)
             }
-            configuration.indentString
-            InlineComment("Enum Layout")
-            BreakLine()
-            configuration.enumLayoutCaseComment(caseProjection: caseProjection)
         }
     }
 
@@ -213,7 +227,7 @@ struct StaticFieldLayoutBackend {
     /// before.
     var enumLayout: EnumLayoutCalculator.LayoutResult? {
         get async {
-            guard configuration.printEnumLayout,
+            guard configuration.producesContent(for: .printEnumLayout),
                   let enumValue,
                   let provider = configuration.staticFieldLayoutProvider else { return nil }
             return provider.enumCaseLayoutResult(forDescriptor: .enum(enumValue.descriptor))
@@ -232,9 +246,11 @@ struct StaticFieldLayoutBackend {
 
     @SemanticStringBuilder
     func enumPrefixComments(enumLayout: EnumLayoutCalculator.LayoutResult?) async -> SemanticString {
-        if configuration.printEnumLayout, let enumLayout {
-            BreakLine()
-            configuration.enumLayoutComment(layoutResult: enumLayout)
+        if let enumLayout {
+            configuration.optionalContent(.printEnumLayout) {
+                BreakLine()
+                configuration.enumLayoutComment(layoutResult: enumLayout)
+            }
         }
 
         if configuration.printSpareBitAnalysis,

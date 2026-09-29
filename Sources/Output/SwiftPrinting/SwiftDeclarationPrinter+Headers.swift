@@ -344,7 +344,8 @@ extension SwiftDeclarationPrinter {
             enumLayoutTransformer: configuration.enumLayoutTransformer,
             enumLayoutCaseTransformer: configuration.enumLayoutCaseTransformer,
             staticFieldLayoutProvider: staticFieldLayoutProvider(),
-            staticLayoutDependencyResolution: configuration.staticLayoutDependencyResolution
+            staticLayoutDependencyResolution: configuration.staticLayoutDependencyResolution,
+            marksOptionalContent: configuration.marksOptionalContent
         )
         let fieldLayoutRenderer = FieldLayoutRenderer(type: typeContext, metadata: typeDefinition.metadata, machO: machO, configuration: renderConfiguration)
         let fieldRecords = try typeDefinition.typeContextDescriptorWrapper.typeContextDescriptor.fieldDescriptor(in: machO).records(in: machO)
@@ -407,10 +408,12 @@ extension SwiftDeclarationPrinter {
             // the computed members get, so a stored property without any
             // vtable comment genuinely is statically dispatched rather than
             // silently unattributed (issue #106 §1).
-            if !isEnum, configuration.printVTableOffset {
+            if !isEnum {
                 for accessor in field.accessors {
                     if let accessorVTableOffset = accessor.vtableOffset {
-                        renderConfiguration.vtableOffsetComment(slotOffset: accessorVTableOffset, label: accessor.kind.addressLabel)
+                        renderConfiguration.optionalContent(.printVTableOffset) {
+                            renderConfiguration.vtableOffsetComment(slotOffset: accessorVTableOffset, label: accessor.kind.addressLabel)
+                        }
                     }
                 }
             }

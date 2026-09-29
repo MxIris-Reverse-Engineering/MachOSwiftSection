@@ -90,6 +90,12 @@ public struct DeclarationRenderConfiguration: Sendable {
     /// transitive dependency closure over the system dyld shared cache.
     public var staticLayoutDependencyResolution: StaticLayoutDependencyResolution = .default
 
+    /// Set by a printer that marks optional content
+    /// (`SwiftDeclarationPrintConfiguration.marksOptionalContent`): every
+    /// layout comment is worked out and printed, each conditioned on its
+    /// option with a `VisibilityRegion`, whatever the `print…` flags say.
+    public var marksOptionalContent: Bool = false
+
     public static func demangleOptions(_ demangleOptions: DemangleOptions) -> Self {
         .init(demangleResolver: .options(demangleOptions))
     }
@@ -98,6 +104,47 @@ public struct DeclarationRenderConfiguration: Sendable {
 extension DeclarationRenderConfiguration {
     package var indentString: Indent {
         .init(level: indentation)
+    }
+
+    /// Whether the flag for `option` is on. Options this configuration does
+    /// not carry read as off.
+    package func isEnabled(_ option: SwiftVisibilityOption) -> Bool {
+        switch option {
+        case .printFieldOffset: printFieldOffset
+        case .printExpandedFieldOffsets: printExpandedFieldOffsets
+        case .printMemberAddress: printMemberAddress
+        case .printVTableOffset: printVTableOffset
+        case .printTypeLayout: printTypeLayout
+        case .printEnumLayout: printEnumLayout
+        case .printStrippedSymbolicItem, .printPWTOffset, .infersObjCOverridesFromSelectorNames, .opaqueTypeResolution: false
+        }
+    }
+
+    /// Whether the content `option` controls is worked out at all: when its
+    /// flag is on, and always when marking.
+    package func producesContent(for option: SwiftVisibilityOption) -> Bool {
+        marksOptionalContent || isEnabled(option)
+    }
+
+    /// `content` when `option`'s flag is on; when marking, always, in a
+    /// region conditioned on `option`.
+    @SemanticStringBuilder
+    package func optionalContent(_ option: SwiftVisibilityOption, @SemanticStringBuilder content: () -> SemanticString) -> SemanticString {
+        if marksOptionalContent {
+            VisibilityRegion(.enabled(option.rawValue), content: content())
+        } else if isEnabled(option) {
+            content()
+        }
+    }
+
+    /// The async form of `optionalContent(_:content:)`.
+    @SemanticStringBuilder
+    package func optionalContent(_ option: SwiftVisibilityOption, @SemanticStringBuilder content: () async throws -> SemanticString) async rethrows -> SemanticString {
+        if marksOptionalContent {
+            try await VisibilityRegion(.enabled(option.rawValue), content: content)
+        } else if isEnabled(option) {
+            try await content()
+        }
     }
 
     /// Builds a member address comment line for the given symbol offset.
