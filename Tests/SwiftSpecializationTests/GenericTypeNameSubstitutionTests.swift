@@ -391,7 +391,7 @@ struct GenericTypeNameSubstitutionEndToEndTests: GenericSpecializationTestingEnv
         let resolvedIndexer = try await indexer
         let baseDefinition = try #require(
             resolvedIndexer.allTypeDefinitions.first(where: { entry in
-                entry.value.typeName.currentName == "NestedGenericInheritedOnlyOuter"
+                entry.value.typeName.declaredNameForTesting == "NestedGenericInheritedOnlyOuter"
             })?.value,
             "expected indexer to have the root outer fixture definition"
         )
@@ -472,7 +472,7 @@ struct GenericTypeNameSubstitutionEndToEndTests: GenericSpecializationTestingEnv
         let resolvedIndexer = try await indexer
         let baseDefinition = try #require(
             resolvedIndexer.allTypeDefinitions.first(where: { entry in
-                entry.value.typeName.currentName == "NestedGenericInheritedOnlyOuter"
+                entry.value.typeName.declaredNameForTesting == "NestedGenericInheritedOnlyOuter"
             })?.value,
             "expected indexer to surface the root outer fixture definition"
         )

@@ -38,7 +38,7 @@ final class SubclassMapMaterializationFailureTests: MachOFileTests, @unchecked S
     }
 
     private func typeName(named leafName: String, in indexer: SwiftDeclarationIndexer<MachOFile>) throws -> TypeName {
-        try #require(indexer.allTypeDefinitions.keys.first { $0.currentName == leafName })
+        try #require(indexer.allTypeDefinitions.keys.first { $0.declaredNameForTesting == leafName })
     }
 
     /// A class whose wrapper cannot be materialized is reported as an event, and

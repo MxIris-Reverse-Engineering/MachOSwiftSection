@@ -803,6 +803,7 @@ extension Target {
         name: "MachOTestingSupport",
         dependencies: [
             .product(.MachOKit),
+            .product(.Demangling),
             .target(.MachOFoundation),
             .target(.MachOReading),
             .target(.MachOResolving),
@@ -1068,6 +1069,8 @@ extension Target {
         dependencies: [
             .target(.MachOTestingSupport),
             .target(.MachOFixtureSupport),
+            .target(.SwiftDeclaration),
+            .product(.Demangling),
         ],
         exclude: [
             "Coverage/Fixtures/SampleSource.swift.txt",

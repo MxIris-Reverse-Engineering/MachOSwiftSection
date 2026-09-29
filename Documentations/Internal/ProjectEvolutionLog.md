@@ -2053,6 +2053,16 @@
 - **关联文档**：[FixtureTestingAndContinuousIntegration.md](FixtureTestingAndContinuousIntegration.md)「runner 只有 3 核」一节。
 - **对应版本**：0.21.0（发版 PR 合入 main 之前补上；只动测试与 CI，发布产物不变）。
 
+## 68. 特化测试时好时坏的根因：测试按 `currentName` 挑候选，挑到了库里的函数局部类型
+
+- **时间段**：2026-09-29（单日，0.21.0 发布之后）。
+- **动机**：第 67 节补记里暂时用 `withKnownIssue` 包住的 `argumentCandidatePathSpecializesNonGenericCandidate`，用户要求发版后接着查根因。
+- **关键决策**：**① 先把反馈回路做快**：这个测试单跑一次要 4 分钟（索引测试程序本身、Foundation、libswiftCore），且只在部分进程里失败。临时探测测试（不提交）在准备好索引器后，于同一进程里把两条路径循环比较 40 次，并打出每次的候选名单和 metadata、witness table 地址。第一次运行就看到了根因：候选里有两个 `currentName == "Int"`，另一个是 `ObjCMemberApplication.inferFromSelectorNames(...) -> Int` 函数体里的 `enum MemberKey`。它的打印名以函数签名结尾，`currentName` 按 `.` 切出来就是 `Int`。之前推测的「witness table 不同」是错的。**② 库不动，改测试**：用户界定 `currentName` 是 dump/interface 的类型、协议声明用的，不是给测试查找定义用的，测试应该自己写方法。挑标准库候选的 14 处改为按全名比较；其余 13 处改用新加的 `DefinitionName.declaredNameForTesting`（`MachOTestingSupport`），它从节点读声明名，局部类型得到 `MemberKey`。**③ 规则写进 `AGENTS.md`**，防止以后的测试再用 `currentName` 查找定义。**④ 不在本批**：`currentName` 对局部类型的显示问题、上游 `Node.identifier` 不认 `.localDeclName`、该候选镜像路径为空，三件记在 A52 的「遗留」里。
+- **落地模块**：`Sources/MachOTestingSupport/DefinitionName+DeclaredNameForTesting.swift`（新）、`Package.swift`（`MachOTestingSupport` 声明 `Demangling` 依赖，`MachOTestingSupportTests` 声明 `SwiftDeclaration` 与 `Demangling`）、`Tests/MachOTestingSupportTests/DeclaredNameForTestingTests.swift`（新）、6 个测试文件的 27 处调用点、`AGENTS.md`、[ReviewAdjudications.md](ReviewAdjudications.md) A52。
+- **验证**：受影响的 8 个套件（`GenericSpecializationTests`、`STCoreTests`、`DiffRendererHeaderFailureTests`、`PrintFailureEventTests`、两个 `GenericTypeNameSubstitution…`、`SubclassMapMaterializationFailureTests`、`DeclaredNameForTestingTests`）共 146 个测试 / 17 个套件，原始退出码 0；`MachOTestingSupportTests` 26 个测试通过。去掉 `withKnownIssue` 之后 `argumentCandidatePathSpecializesNonGenericCandidate` 单独跑 5 次全部通过，修复前同样条件下每次约一半到三分之二失败。
+- **关联文档**：[ReviewAdjudications.md](ReviewAdjudications.md) A52。
+- **对应版本**：0.21.0 之后（只动测试，发布产物不变）。
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节

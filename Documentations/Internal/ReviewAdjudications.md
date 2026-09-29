@@ -576,12 +576,28 @@
 
 ---
 
-## A52 — `argumentCandidatePathSpecializesNonGenericCandidate` 时好时坏：`.candidate(Int)` 与 `.metatype(Int.self)` 特化出两份 metadata（0.21.0 发版 CI 发现，**基线既有，暂缓**）
+## A52 — `argumentCandidatePathSpecializesNonGenericCandidate` 时好时坏：`.candidate(Int)` 与 `.metatype(Int.self)` 特化出两份 metadata（0.21.0 发版 CI 发现，**基线既有，2026-09-29 已修**）
 
-- **裁决**：暂缓修（2026-09-29），断言先用 `withKnownIssue(isIntermittent: true)` 包住，发版之后单独查根因。用户在「再重跑一次 / 先标成已知问题 / 现在就查」三个选项里选了第二个。
-- **发现**：`GenericSpecializationTests.swift` 里这条断言要求两条路径拿到同一个 `TestSingleProtocolStruct<Int>` metadata 指针，时常拿到两份，地址相差 3872 字节。0.21.0 发版当天 debug 下 1 过 3 挂：本地两次、PR #127 两次失败，PR #128 的验证 run 通过；release 在 CI 上一直通过。它连续两次卡住了发版 PR 的 CI。
-- **复现 / 是否误报**：属实。2026-09-23 实测单独跑 4 次挂 2 次；2026-09-29 加上 `withKnownIssue` 后单独跑 6 次，4 次记为已知问题、2 次干净通过，退出码都是 0。fixture 里没有第二个叫 `Int` 的类型，所以不是测试挑错了候选。未验证的方向：两条路径给 `Hashable` 用了不同的 witness table，于是运行时泛型 metadata 缓存的键不同；候选列表来自 `ConformanceProvider.swift` 里的 `Set`，顺序每个进程都不一样，和「时好时坏」对得上。
-- **与 main 基线对比**：基线既有。2026-09-23 在 `b3e93a80`（已在 main 上）上就同样失败；main 的 CI 此前几次通过是碰巧。
-- **为什么暂缓**：和发版内容无关，查根因要单独花时间；一直红会让 CI 失去意义，而断言本身是对的，所以不删、不放宽，只标成间歇性已知问题。`withKnownIssue` 在它通过时也不会报错，失败时记为已知问题，不影响退出码。
-- **既往修复**：`325a0b10`（2026-05-02）把候选从「第一个非泛型候选」固定为 `Int`，修的是「挑错候选」那一层，没有碰到「同一类型两份 metadata」。测试由 `dea51656` 引入。
-- **复审条件**：查到根因并修掉后，去掉 `withKnownIssue`，让它在 debug 下连续多次通过（例如单独跑 20 次）再关闭本条。
+- **裁决**：**已修**（2026-09-29）。根因是测试按 `currentName == "Int"` 挑候选，会挑到库里一个函数局部类型；测试改为按全名挑，库不动。当天早些时候的原裁决是「暂缓修，断言先用 `withKnownIssue(isIntermittent: true)` 包住」（用户在「再重跑一次 / 先标成已知问题 / 现在就查」里选了第二个），发版之后接着查到了根因，包装已去掉。
+- **发现**：`GenericSpecializationTests.swift` 里这条断言要求两条路径拿到同一个 `TestSingleProtocolStruct<Int>` metadata 指针，时常拿到两份。0.21.0 发版当天 debug 下 1 过 3 挂：本地两次、PR #127 两次失败，PR #128 的验证 run 通过。它连续两次卡住了发版 PR 的 CI。
+- **根因**：
+  - 这组测试的索引器会索引测试程序本身（`MachOImage.current()`），库代码是静态链接进去的，所以库里的类型也会成为特化候选。
+  - 2026-09-20 的 `4c8643c0` 在 `ObjCMemberApplication.inferFromSelectorNames(...) -> Int` 的函数体里声明了 `enum MemberKey: Hashable`。它打印出来是 `MemberKey #1 in static SwiftDeclaration.ObjCMemberApplication.inferFromSelectorNames(...) -> Swift.Int`。
+  - `currentName` 取的是打印名按 `.` 切开后的最后一段，所以这个局部类型的 `currentName` 是 `Int`。
+  - `A: Hashable` 的候选里于是有两个 `currentName == "Int"`：`Swift.Int` 和 `MemberKey`。候选列表的顺序来自 `ConformanceProvider` 里的 `Set`，每个进程都不一样。排到 `MemberKey` 时测试特化出的是 `TestSingleProtocolStruct<MemberKey>`，和 `.metatype(Int.self)` 那份自然不同。
+- **更正原条目**：原条目说「fixture 里没有第二个叫 `Int` 的类型，所以不是测试挑错了候选」，推测是「两条路径给 `Hashable` 用了不同的 witness table」。两句都错了：挑错的正是候选，只是那个类型不在 fixture 里，而在测试程序自己链接的库代码里；witness table 不同只是因为类型本身就不同。
+- **复现 / 是否误报**：属实。临时探测测试准备好索引器后，在同一进程里循环 40 次比较两条路径：每次候选里都有这两个 `Int`，其中 1 次挑中了 `MemberKey`（它的 metadata 是 `0x1161600f8`，`Swift.Int` 是 `0x1f77118d8`）。此前的记录是 2026-09-23 单独跑 4 次挂 2 次；加上 `withKnownIssue` 后单独跑 6 次，4 次记为已知问题。
+- **与 main 基线对比**：基线既有。触发它的局部类型 `4c8643c0` 在 main 上；`currentName` 的写法从 2025 年就是这样。main 的 CI 此前几次通过是碰巧。
+- **修复**：
+  - 按用户的界定，`currentName` 是给 dump/interface 的类型、协议声明用的，不是给测试查找定义用的，所以库不改，改测试。
+  - `GenericSpecializationTests.swift` 里挑 `Int` / `Array` / `Dictionary` 候选的 14 处改为按全名（`Swift.Int` 等）比较。
+  - 按短名查定义、比较名字集合的其余 13 处（6 个文件共 27 处），改用新加的测试专用方法 `DefinitionName.declaredNameForTesting`（`Sources/MachOTestingSupport/`）。它从节点读声明本身的名字，依次处理 `.identifier`、`.localDeclName`、`.privateDeclName`，不认识的形状退回完整打印名，让短名比较失败而不是误配。
+  - `AGENTS.md` 写测试一节加了一条规则。
+- **回归测试**：
+  - `DeclaredNameForTestingTests` 用 `$s4Main3fooSiyF9MemberKeyL_OD`（打印为 `MemberKey #1 in Main.foo() -> Swift.Int`，与出事的候选同形）断言新方法取到 `MemberKey`，同时断言 `currentName` 在同一个节点上是 `Int`，把这个差别钉住。
+  - 原测试去掉 `withKnownIssue`，恢复成普通断言；按全名挑候选之后，结果不再取决于候选顺序。
+- **既往修复**：`325a0b10`（2026-05-02）把候选从「第一个非泛型候选」固定为按 `currentName` 匹配 `Int`，当时库里还没有叫 `Int` 的局部类型，这种写法是安全的；直到 `4c8643c0` 加了那个局部 enum，它才开始误配。测试由 `dea51656` 引入。
+- **遗留**：
+  - dump/interface 打印的声明里如果出现函数局部类型，`currentName` 会把它显示成外层函数签名的尾巴。库代码里目前没有调用它，影响待查。
+  - 上游 swift-demangling 的 `Node.identifier` 同样不认 `.localDeclName`。
+  - `MemberKey` 这个候选的镜像路径是空字符串，原因没查。
