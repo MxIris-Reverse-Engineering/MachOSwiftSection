@@ -573,3 +573,15 @@
 - **与 main 基线对比**：基线既有。MachOKitExtensions 0.1.1 起就是这样，0.19.0 依赖的也是它。
 - **既往修复**：无。这段判断在 2026-08-10 拆出 MachOKitExtensions 时原样搬过去。同一个崩溃在 2026-09-09 的全量测试里出现过一次，当时被判为并行测试的环境抖动，没有追到根因（[TaskReports/2026-09-09-type-import-info-identity.md](TaskReports/2026-09-09-type-import-info-identity.md)）。
 - **修复与回归测试**：MachOKit 自己判断进程内镜像是否在 cache 里时看的就是这个标志（`MachORepresentable` 里的平台判断），MachOObjCSection 的 `objcImageIndex`、本库的 `ObjCAncestorResolver` 也一样；横向排查的结果是，全栈只按地址判断的写法只有这一处。回归测试 `MachOImageCacheMembershipTests`（`Tests/MachOCachesTests/`）把测试 bundle 自己的 header 和 load commands 复制到 shared region 之后的地址：修复前（0.1.1）两条重定位用例失败（被判成 cache 镜像，地址报成 `0x6FEE6F8000` 而不是 `0x4000`），修复后通过；这个套件已加入 CI 过滤器。
+
+---
+
+## A52 — `argumentCandidatePathSpecializesNonGenericCandidate` 时好时坏：`.candidate(Int)` 与 `.metatype(Int.self)` 特化出两份 metadata（0.21.0 发版 CI 发现，**基线既有，暂缓**）
+
+- **裁决**：暂缓修（2026-09-29），断言先用 `withKnownIssue(isIntermittent: true)` 包住，发版之后单独查根因。用户在「再重跑一次 / 先标成已知问题 / 现在就查」三个选项里选了第二个。
+- **发现**：`GenericSpecializationTests.swift` 里这条断言要求两条路径拿到同一个 `TestSingleProtocolStruct<Int>` metadata 指针，时常拿到两份，地址相差 3872 字节。0.21.0 发版当天 debug 下 1 过 3 挂：本地两次、PR #127 两次失败，PR #128 的验证 run 通过；release 在 CI 上一直通过。它连续两次卡住了发版 PR 的 CI。
+- **复现 / 是否误报**：属实。2026-09-23 实测单独跑 4 次挂 2 次；2026-09-29 加上 `withKnownIssue` 后单独跑 6 次，4 次记为已知问题、2 次干净通过，退出码都是 0。fixture 里没有第二个叫 `Int` 的类型，所以不是测试挑错了候选。未验证的方向：两条路径给 `Hashable` 用了不同的 witness table，于是运行时泛型 metadata 缓存的键不同；候选列表来自 `ConformanceProvider.swift` 里的 `Set`，顺序每个进程都不一样，和「时好时坏」对得上。
+- **与 main 基线对比**：基线既有。2026-09-23 在 `b3e93a80`（已在 main 上）上就同样失败；main 的 CI 此前几次通过是碰巧。
+- **为什么暂缓**：和发版内容无关，查根因要单独花时间；一直红会让 CI 失去意义，而断言本身是对的，所以不删、不放宽，只标成间歇性已知问题。`withKnownIssue` 在它通过时也不会报错，失败时记为已知问题，不影响退出码。
+- **既往修复**：`325a0b10`（2026-05-02）把候选从「第一个非泛型候选」固定为 `Int`，修的是「挑错候选」那一层，没有碰到「同一类型两份 metadata」。测试由 `dea51656` 引入。
+- **复审条件**：查到根因并修掉后，去掉 `withKnownIssue`，让它在 debug 下连续多次通过（例如单独跑 20 次）再关闭本条。
