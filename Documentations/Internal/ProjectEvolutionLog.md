@@ -2083,6 +2083,16 @@
 - **关联文档**：MachOKitExtensions 仓库的提案 `Documentations/Evolutions/0001-cached-view.md`。
 - **对应版本**：下一个版本（要求 MachOKitExtensions 1.0.0）。
 
+## 71. 标记模式：一次打印全量 interface，标出每段内容受哪个选项控制
+
+- **时间段**：2026-09-29 — 2026-09-30。
+- **动机**：RuntimeViewer 的 Find 给每个类型存一份打印好的 interface 供全文搜索。用户报告能搜到内容区不显示的内容（被 strip 的 ivar、合成 getter / setter），并要求「语料要为所有可能出现的内容进行索引，但是只输出匹配当前options的内容」，切换选项不重新打印（SwiftUI 打一遍约两分钟）；「每个选项各打一遍再 diff」被否：「目前打印2次的方法可能会有性能问题」，且偏移 / 地址注释的文字会被 transformer 改写，diff 出来也认不出归属。
+- **关键决策**：**① 归属由打印器在输出时给出**：`marksOptionalContent` 为真时，受选项控制的内容全部打出，包进 swift-semantic-string 的 `VisibilityRegion`（条件记在原子的 `identifier` 上，文字逐字节不变）；这些注释要用的数据在标记模式下总是计算。**② opaque 类型约束事后补标**：`printOpaqueReturnType` 照常写入，写完用 `markAtoms(from:visibleUnder:)` 补条件，原子个数与类型引用的 identifier 都不变。**③ `infersObjCOverridesFromSelectorNames` 是替换不是增删**：两种判定结果不同时整条声明按两种各打一遍，分别包进开、关两个区域。**④ 容器不归打印器管**：swift-semantic-string 的容器把成员的条件带到自己打的换行、分隔符与前后缀上。**⑤ 不覆盖** `printExportStatus` 等 RuntimeViewer 不用的选项，也不覆盖 `memberSortOrder`（重排，区域表达不了）。
+- **落地模块**：`Sources/Output/SwiftPrinting/`（`SwiftDeclarationPrintConfiguration`、`SwiftDeclarationPrinter` 与 `+Headers` / `+ObjCImplementation`、新增的 `+VisibilityRegions`、`NodePrintables/{NodePrintableDelegate,TypeNodePrintable}`）、`Sources/Output/SwiftDeclarationRendering/`（`DeclarationRenderConfiguration`、两个布局后端、新增的 `SwiftVisibilityOption`）、`Tests/SwiftInterfaceTests/VisibilityRegionProjectionTests.swift`。
+- **验证**：`VisibilityRegionProjectionTests` 对 SymbolTestsCore 的每个顶层类型、协议与扩展断言「标记打印按某配置投影」与「按该配置直接打印」完全相等（文本、span、identifier）：进程内 22 组配置、从文件 10 组。rebase 到 `next` 后，本地依赖下 `USING_LOCAL_DEPENDENCIES=1 swift test --skip IntegrationTests` 原始退出码 0，19 批、2146 个测试、406 个套件全部通过（一个既有的 known issue）；快照测试全过，普通打印的输出不变。
+- **关联文档**：[0056-visibility-regions](../Evolutions/0056-visibility-regions.md)；swift-semantic-string 的 `docs/VisibilityRegions.md`；MachOObjCSection 提案 0011；RuntimeViewer 提案 `draft-find-navigator`。
+- **对应版本**：下一个版本（要求带 `VisibilityRegion` 的 swift-semantic-string，发布后抬 `from:`）。
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节

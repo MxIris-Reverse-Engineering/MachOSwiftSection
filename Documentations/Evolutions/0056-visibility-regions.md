@@ -1,11 +1,11 @@
-# Draft - 标记模式：一次打印全量 interface，并标出每段内容受哪个开关控制
+# 0056 - 标记模式：一次打印全量 interface，并标出每段内容受哪个开关控制
 
-- **状态**: In Progress
+- **状态**: Implemented
 - **创建日期**: 2026-09-29
-- **最后更新**: 2026-09-29
+- **最后更新**: 2026-09-30
 - **所属愿景**: 无
 - **关联提案**: swift-semantic-string 的设计记录 `docs/VisibilityRegions.md`（`VisibilityRegion`、区域表与投影）；
-  MachOObjCSection 的同名提案 `draft-visibility-regions`；RuntimeViewer 的 `draft-find-navigator`（使用方）
+  MachOObjCSection 的提案 0011 `visibility-regions`；RuntimeViewer 的 `draft-find-navigator`（使用方）
 - **实现分支 / PR**: `feature/visibility-regions`
 - **配套文档**: 无
 
@@ -61,3 +61,5 @@ RuntimeViewer 的 Find 在引擎里给每个类型存一份打印好的 interfac
 | 2026-09-29 | `synthesizeOpaqueType` 与 `infersObjCOverridesFromSelectorNames` 纳入标记 | 用户指出前者「输出的结果是固定的，只是要改的地方是返回值」；核实后它关掉时只剩 `some`，是纯删减。后者核实为替换（加 `@objc` / `override` / `class`，去 `final`），用同一选项的开、关两种区域表达。 |
 | 2026-09-29 | 容器不需要打印器另外处理；opaque 约束用 `markAtoms` 事后补标 | 容器由 swift-semantic-string 按成员条件自动带上装饰。opaque 约束是 NodePrinter 经泛型输出目标逐段写入的，写完后给这几个原子补标，文本与原子个数都不变，也保住了类型引用作用域盖上的 identifier。 |
 | 2026-09-29 | Accepted → In Progress | 实现与测试完成于 `feature/visibility-regions`（基于 `next` 7ba306ed），未提交。与同一提交的临时基线比较 `SwiftInterfaceTests` / `SwiftPrintingTests` / `SwiftDumpTests` / `SwiftDeclarationRenderingTests`：基线 41 + 256 + 95 + 39 全过，本分支多出两条对照测试，唯一的失败是源码扫描测试把名为 `print` 的闭包参数当成了标准输出，改名为 `render` 后复跑。快照测试两边都过，普通打印的输出没有变化。 |
+| 2026-09-30 | In Progress → Implemented，编号 0056，合入 `next` | rebase 到 `next`（4d93f328，抛错版 `init(bitPattern:)` 收回本仓库）无冲突。本地依赖模式（MachOKit `next` 0.53.101、MachOKitExtensions、已合入 `VisibilityRegion` 的 swift-semantic-string `next`、MachOObjCSection `next`）下`USING_LOCAL_DEPENDENCIES=1 swift test --skip IntegrationTests` 原始退出码 0：19 批、2146 个测试、406 个套件全部通过，唯一的 known issue 是既有的 `SymbolicManglingIndexTests`。远程依赖下限未抬：`from: "0.3.0"` 的 swift-semantic-string 没有 `VisibilityRegion`，带它的版本发布后同批抬下限；在此之前 `next` 只能以 `USING_LOCAL_DEPENDENCIES=1` 构建。 |
+| 2026-09-30 | 不另写使用指南与实现说明；术语表登记「marking mode（标记模式）」，账本记第 71 节 | 用法与契约写在 `marksOptionalContent` 与 `SwiftDeclarationPrinter+VisibilityRegions.swift` 的文档注释和本提案「方案」里，包括两条不在签名里的约定：transformer、排序与导出选项照常生效（在打印时定死，投影改不了），以及 opaque 类型约束要先注册解析器才有内容可标。「可见性区域」「投影」由 swift-semantic-string 的设计记录定义。 |
