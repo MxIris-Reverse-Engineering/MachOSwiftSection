@@ -2032,6 +2032,16 @@
 - **关联文档**：[0054-interface-descriptor-only-vtable-members](../Evolutions/0054-interface-descriptor-only-vtable-members.md)、[DescriptorOnlyVTableMembers.md](DescriptorOnlyVTableMembers.md)、[提案 0020](../Evolutions/0020-vtable-slot-attribution-via-method-descriptor-symbols.md)（`Tq` 归属的来历）。
 - **对应版本**：0.21.0。
 
+## 66. 0.21.0 发版
+
+- **时间段**：2026-09-29（单日）。
+- **动机**：用户指示「最新的 next 分支发一个新版本，0.21.0」。自 0.20.0 以来 `next` 多了 25 个提交：第 61、63–65 节的四批工作，外加 swift-capstone 下限抬到 6.0.1。
+- **关键决策**：**① 不做发版审查**：用户在「先审查」与「只验证」之间选了后者。理由是这三批功能合入时都各自跑过全量测试与渲染 A/B，这次只在只含远端依赖的发版分支上重新验证一遍。**② 提案取号**：三份已合入、仍标 In Progress 的提案按合入顺序取号 0052–0054 并改为 Implemented；本账本对应的三节编为 63–65。代码注释按提案规则继续只写 slug。**③ ABI snapshot 格式 5 → 6 写进 changelog 的 Compatibility**：0.20.0 保存的 baseline 读取时会报格式版本错误，需要用 0.21.0 重新生成。插件 skill 里原先写的「Format 6 (after 0.20.0)」改为「0.21.0 and later」。**④ `SharedCache` 的破坏性变更虽然都在 `@_spi(Internals)` 面上，仍写进 Breaking**：库不再在内存压力下自动清缓存，这是宿主看得到的行为变化（0053 当时也要求在 release note 里提一句）。**⑤ 版本号**：`Version.swift`、两个 `plugin.json` 改为 0.21.0，README 的安装示例同步；CLI 参数自 0.20.0 以来没有变化，插件 skill 除上面那一句外不用改。
+- **落地模块**：`Sources/swift-section/Version.swift`、`AgentPlugins/swift-section/`（两个 `plugin.json`、SKILL.md 一句）、`Changelogs/0.21.0.md`、`README.md`、`Documentations/`（提案改名与互链、两个索引、术语表、本账本）、`Roadmaps/2026-04-13-swiftinterface-dump-improvements.md`（链接）。
+- **验证**：发版分支使用新鲜 scratch，依赖全部从远端解析（MachOKit 0.52.103、MachOKitExtensions 0.1.2、MachOObjCSection 0.8.106、swift-demangling 0.7.1、swift-capstone 6.0.1），工具链为 Xcode 26.6。全量 `swift test --skip IntegrationTests` 共 2141 个测试 / 404 个套件，原始退出码 0；唯一的 known issue 是 `SymbolicManglingIndexTests` 里局部类型的那一条 `withKnownIssue`。第 64 节记录的 `MultiPayloadEnumDescriptorCacheTests` 两条红、墙钟 flaky、特化 candidate 路径的随机失败，这次一条都没出现。release 构建（`swift-section`）三份：Xcode 26.6 的 x86_64 与 arm64、Xcode 27 的 arm64，都是 0 warning，两个架构的二进制都报 `0.21.0`。Homebrew 配方测试的场景（`dump` 一个只含 struct 的 dylib）连跑 30 次，0 次失败。Claude Code 的 `claude plugin validate`（marketplace 加 `--strict`）与 Codex 的 `validate_plugin.py` 均通过。
+- **关联文档**：[Changelogs/0.21.0.md](../../Changelogs/0.21.0.md)；[0052](../Evolutions/0052-objc-custom-class-name.md)、[0053](../Evolutions/0053-shared-cache-composition-and-eviction-registry.md)、[0054](../Evolutions/0054-interface-descriptor-only-vtable-members.md)。
+- **对应版本**：0.21.0。
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节
