@@ -32,8 +32,8 @@ SE-0436 的 `@objc @implementation extension` 让 ObjC 头文件里声明的类�
 
 ## 两个 join 是怎么做的
 
-- **ivar ↔ `Wvd` 符号**：按**偏移值**。ivar_t 的 `offset` 字段指向的就是 `Wvd` 符号命名的那个全局变量，索引读出该全局变量的值（一个 word）与 `ivar.offset(in:)` 相等即配对。之所以不按名字：即时编译的 fixture 里头文件声明的 `title` 属性其 ivar name 字段是空指针；名字只作兜底。`Wvi`（间接字段偏移）不参与，`@implementation` 类没有 field offset vector，编译器也不会给它发 `Wvi`。
-- **存储属性 ↔ 成员定义**：按 Swift 属性名。`attachObjCImplementation(_:)` 把 `VariableDefinition.objcImplementationStorage` 填上，打印器据此改打存储形态；没对上的 ivar 由 `unrepresentedObjCImplementationInstanceVariables` 单独渲染，有 `Wvd` 的打 `var name: Type`，没有的打一行诚实注释。
+- **ivar ↔ `Wvd` 符号**：按**偏移值**。ivar_t 的 `offset` 字段指向的就是 `Wvd` 符号命名的那个全局变量，索引读出该全局变量的值（一个 word）与 `ivar.offset(in:)` 相等即配对。之所以不按名字：即时编译的 fixture 里头文件声明的 `title` 属性其 ivar name 字段是空指针；名字只作兜底。`Wvi`（间接字段偏移）不参与，`@implementation` 类没有 field offset vector，编译器也不会给它发 `Wvi`。符号里 `variable` 节点的名字有两种形状：普通属性是 `identifier`；`private` / `fileprivate` 属性和**每个 `lazy var` 的合成存储**（编译器总把它设为 private，不管属性本身写的什么访问级别）是 `privateDeclName`（鉴别符 + 名字）。第一版只认前者，这两类 ivar 在符号齐全的二进制里也拿不到类型，打出「Swift type not recoverable」注释，对应的成员还被打成 `{ get set }` 的计算属性（2026-09-29 修复）。
+- **存储属性 ↔ 成员定义**：按 Swift 属性名。`attachObjCImplementation(_:)` 用 `ObjCImplementationClassFacts.storageInstanceVariable(forPropertyNamed:)` 把 `VariableDefinition.objcImplementationStorage` 填上，打印器据此改打存储形态；没对上的 ivar 由 `unrepresentedObjCImplementationInstanceVariables` 单独渲染，有 `Wvd` 的打 `var name: Type`，没有的打一行诚实注释。`lazy var x` 的存储名是 `$__lazy_storage_$_x`，永远对不上属性自己的名字，所以查询先按原名找、找不到再找 `lazyPropertyName == x` 的 ivar。`lazyPropertyName` 读 Swift 名，`Wvd` 被剥掉后读 ObjC ivar 名，两者拼法相同（macOS 27.0 AppKit 的 `_NSTextFormattingViewController.campoTextSuggestionsViewController` 就是后一种：访问器导出，存储的 `Wvd` 是 local 符号、被剥掉了）；只靠 ObjC 名连上的存储没有 Swift 名，所以「已有成员代表」的判断除按 Swift 名外还按对象身份。渲染规则照抄 Swift 类型自己的 lazy 字段：interface 打 `lazy var x: <getter 的类型>`，没有 getter 可连时打存储类型 `Optional<…>`；dump 与 `ClassDumper` 一样打 `lazy var x: <存储类型>`。
 
 ## 边界与已知限制
 
@@ -43,6 +43,11 @@ SE-0436 的 `@objc @implementation extension` 让 ObjC 头文件里声明的类�
 - **IMP 偏移语义随 reader 变**：MachOFile 上 ObjC reader 给的是相对 header（cache 镜像为相对主 cache）的偏移，MachOImage 上是地址；索引按 reader 各自换算，dump 用 `addressString(forOffset:)` 打印。
 - **在非主模块实现的 `@implementation`**（头文件在别的框架里）只得到 non-unique accessor，不进导出表；那种类靠 `Wvd` 或 inferred 档。
 - **`-exported_symbols_list` 为空再 `strip -x` 的 app 二进制**只剩 inferred 档；一个存储属性类型全部 ObjC 可表示的类（没有 `?` / 空 encoding）在这种镜像里识别不到，输出维持今天的形态。
+- **Swift 侧的名字和类型只在符号里**：编译器不给 `@implementation` 类发 field descriptor（`GenReflection.cpp` 在 `getObjCImplementationDecl()` 时置 `needsFieldDescriptor = false`），也没有 vtable 和 method descriptor。符号的链接属性跟 Swift 访问级别走，SE-0436 又不要求这些成员写 `public`，所以系统 cache 里剥掉 local 符号的 AppKit 只剩 `public` 成员和编译器合成的 `override init()`（它取被实现类的访问级别，而导入的 ObjC 类是 public）。实测 macOS 26.7 AppKit 的 38 个类，Swift 侧成员与 export trie 逐类一致：NSScreen 有 138 个 ObjC 方法，Swift 侧只有 6 个。ObjC 方法表永远完整，dump 的 ObjC 段照常全列。
+- **ivar 编码**：`""` 表示这个存储属性不是 `@objc`（`final` / `@nonobjc` 的 Swift 独有成员、`lazy var` 的存储）；`"?"` 表示是 `@objc`，但存储类型不能直接用 ObjC 表示（桥接的 `String` 与集合、`weak`、`AnyObject.Type`、闭包、可选的 typed enum）。ObjCSection 把这两种都打成 `Unknown`。
+- **`weak` / `unowned` 不打**：`Wvd` 的 mangled 类型不带引用的所有权修饰，这个信息普通 Swift 类放在 field descriptor 里，这类类没有；`weak var delegate` 因此打成普通 `var`。
+- **编译期限制**：`@implementation` 的实例属性不能用 property wrapper；存储属性不能用 library evolution 下大小可变的类型（`Date`、`URL`），所以 `ivar_t` 的大小永远准确；非 `final` 成员即使是 `private` 也隐式 `@objc`。
+- 还解不出的部分和已经验证过的推断路线（只用元数据的推断、SDK 头文件、运行时采样、反汇编）记在 [Roadmaps/2026-09-29-objc-implementation-unresolved-members.md](../../Roadmaps/2026-09-29-objc-implementation-unresolved-members.md)。
 
 ## 副作用：extension 成员的 `@objc`
 
@@ -50,8 +55,9 @@ SE-0436 的 `@objc @implementation extension` 让 ObjC 头文件里声明的类�
 
 ## 验证
 
-- `ObjCImplementationClassRecognitionTests`（SwiftInterfaceTests）：即时编译的 fixture 三个变体各测一档，clang 类与普通 Swift 类作反例，事件派发。
+- `ObjCImplementationClassRecognitionTests`（SwiftInterfaceTests）：即时编译的 fixture 三个变体各测一档，clang 类与普通 Swift 类作反例，事件派发。fixture 的 `Widget` 另有 `private final var hiddenTally` 与 `final lazy var summary`：`.full` 变体上两者都得到类型并按存储形态渲染（`var hiddenTally: Swift.Int`、`lazy var summary: Swift.String`），`strippedLocals` 上照旧是诚实注释。这几条在 2026-09-29 修复前的代码上逐条失败。
+- `ObjCMemberRecoveryTests.privateMembersHaveShapes`：`private` 成员的符号也能建出 `ObjCMemberShape`（名字在 `privateDeclName` 里）。
 - `AppKitObjCImplementationClassTests`：系统 cache 的 AppKit，NSGlassEffectView 为 definitive 且 ≥ 9 个字段偏移符号，NSScreen / NSGradient / NSScene 命中，NSView / NSWindow 不命中，命中总数 ≥ 30；macOS 26 以下跳过。
-- `ObjCImplementationClassDumpTests`（SwiftDumpTests）：dump 段的三段渲染与开关。
+- `ObjCImplementationClassDumpTests`（SwiftDumpTests）：dump 段的三段渲染与开关，含 `private` 属性与 lazy 存储的 ivar 行。
 - `DumpSectionsOptionTests`（SwiftSectionCommandTests）：`--sections objcImplementationClasses`。
 - 渲染 A/B：预期 dump 侧六个框架无差异（`So…CMa` 普查为零），interface 侧差异仅为 extension 成员新增的 `@objc` 等 attribute；见任务报告。
