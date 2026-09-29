@@ -2073,6 +2073,16 @@
 - **关联文档**：[0055-group-sources-by-layer](../Evolutions/0055-group-sources-by-layer.md)。
 - **对应版本**：0.21.0 之后（发布产物不变）。
 
+## 70. 抛错版 `init(bitPattern:)` 从 MachOKitExtensions 收回本仓库
+
+- **时间段**：2026-09-29（单日）。
+- **动机**：MachOKitExtensions 接手了 MachOKit fork 里的缓存改动（它的提案 0001），MachOObjCSection 的核心 target 因此要依赖它。它原先公开的 `UnsafeRawPointer` / `UnsafePointer` 抛错版 `init(bitPattern:)` 借着 Swift「导入模块的扩展成员在整个模块可见」的规则，遮住了标准库的可失败版本，核心 target 里 27 处 `UnsafeRawPointer(bitPattern:)!` 因此编译不过。
+- **关键决策**：**① 移进本仓库的 `Utilities`，访问级别 `package`**：只有本仓库调用它们（用户确认），`package` 让它们不再漏给下游。**② 名字和语义不变**，调用点零改动；只有 `InProcessContext.swift` 补了一行 `import Utilities`，因为 `MachOReading` 里原本没有文件 import 它。**③ MachOKitExtensions 的要求提到 `from: "1.0.0"`**：1.0.0 起它不再导出这两个初始化方法，更早的版本仍然导出，与这里的声明同名会产生歧义。
+- **落地模块**：`Sources/Support/Utilities/ThrowingBitPatternInitializers.swift`（新增）、`Sources/MachO/MachOReading/ReadingContext/InProcessContext.swift`、`Package.swift`。
+- **验证**：`USING_LOCAL_DEPENDENCIES=1 swift test --skip IntegrationTests` 原始退出码 0，各批全部通过（一个既有的 known issue）。另把本分支、MachOObjCSection 的新核心 target、新 MachOKitExtensions 与恢复成上游原样的 MachOKit 放在一起 `swift build --build-tests`，退出码 0。纯搬迁，未跑渲染 A/B 验证。
+- **关联文档**：MachOKitExtensions 仓库的提案 `Documentations/Evolutions/0001-cached-view.md`。
+- **对应版本**：下一个版本（要求 MachOKitExtensions 1.0.0）。
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节

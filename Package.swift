@@ -136,9 +136,10 @@ extension Package.Dependency {
         ),
         remote: .package(
             url: "https://github.com/MxIris-Reverse-Engineering/MachOKitExtensions",
-            // 0.1.2 decides whether an in-process image is in the shared cache
-            // from its header flag, not from where it happens to be loaded.
-            from: "0.1.2",
+            // 1.0.0 no longer exports the throwing `init(bitPattern:)`, which
+            // Utilities now declares; an earlier release would make every
+            // call ambiguous.
+            from: "1.0.0",
         ),
     )
 
