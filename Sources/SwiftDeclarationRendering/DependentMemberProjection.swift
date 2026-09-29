@@ -67,8 +67,8 @@ package enum DependentMemberProjection {
         }
     }
 
-    private static let fileRegistries = SharedCache<FileRegistry>()
-    private static let imageEntries = SharedCache<Entry<MachOImage>>()
+    private static let fileRegistries = SharedCache<FileRegistry>(evictionGroup: .dependentMemberProjection)
+    private static let imageEntries = SharedCache<Entry<MachOImage>>(evictionGroup: .dependentMemberProjection)
 
     /// The search paths a projection from `machOFile` walks: what by-name
     /// opaque expansion walks, plus the host's shared cache.

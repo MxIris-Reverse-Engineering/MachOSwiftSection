@@ -43,7 +43,7 @@ MachOSymbols 是**符号索引**层：把一个镜像的符号表和 export trie
 
 ## 子系统 3：跨 store 对账
 
-节点引用的 `Hashable` 是 **store 身份**语义。一个镜像内部同时存在好几个 store——冻结的主符号 store、迟到名字的旁路 store、缓存的各作用域 store，内存压力驱逐还会把某个作用域重建到新 store 上而旧引用仍然钉着旧的——所以跨 store 是常态，不是例外。
+节点引用的 `Hashable` 是 **store 身份**语义。一个镜像内部同时存在好几个 store——冻结的主符号 store、迟到名字的旁路 store、缓存的各作用域 store，按镜像驱逐还会把某个作用域重建到新 store 上而旧引用仍然钉着旧的（2026-09-28 之前内存压力也会）——所以跨 store 是常态，不是例外。
 
 > **任何 key 与查询可能来自不同 store 的 `Dictionary` / `Set`，必须以 `StructuralNodeReferenceKey` 为 key，不能用裸 `NodeReference`。**
 

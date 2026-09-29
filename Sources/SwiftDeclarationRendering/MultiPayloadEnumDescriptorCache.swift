@@ -26,19 +26,33 @@ import FoundationToolbox
 /// `SwiftIndexEvents` lives in `SwiftDeclaration`, which depends on this module —
 /// so there is no dispatcher here to report through.
 @Loggable(.private, subsystem: "com.machoswiftsection.swift-declaration-rendering", category: "MultiPayloadEnumDescriptorCache")
-final class MultiPayloadEnumDescriptorCache: SharedCache<MultiPayloadEnumDescriptorCache.Storage>, @unchecked Sendable {
+final class MultiPayloadEnumDescriptorCache: @unchecked Sendable {
     static let shared = MultiPayloadEnumDescriptorCache()
 
-    private override init() {
-        super.init()
-    }
+    private let cache = SharedCache<Storage>(evictionGroup: .multiPayloadEnumDescriptors)
+
+    private init() {}
 
     final class Storage {
         @Mutex
         var multiPayloadEnumDescriptorByNode: [Node: MultiPayloadEnumDescriptor] = [:]
     }
 
-    override func buildStorage(for machO: some MachORepresentableWithCache) -> Storage? {
+    /// The image's map, built on first use and kept for the image's
+    /// lifetime.
+    func storage(in machO: some MachORepresentableWithCache) -> Storage? {
+        cache.storage(in: machO) { self.build(in: $0) }
+    }
+
+    func contains(in machO: some MachORepresentableWithCache) -> Bool {
+        cache.contains(in: machO)
+    }
+
+    func remove(for machO: some MachORepresentableWithCache) {
+        cache.remove(for: machO)
+    }
+
+    private func build(in machO: some MachORepresentableWithCache) -> Storage? {
         guard let machO = machO as? (any MachOSwiftSectionRepresentableWithCache) else { return nil }
         var multiPayloadEnumDescriptorByNode: [Node: MultiPayloadEnumDescriptor] = [:]
 

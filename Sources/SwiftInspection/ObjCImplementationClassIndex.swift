@@ -34,12 +34,12 @@ import MachOSwiftSection
 /// sits below the event layer, so anything skipped is reported through `#log`
 /// and kept on ``skippedClasses(in:)`` for the indexer to surface as events.
 @Loggable(.private, subsystem: "com.machoswiftsection.swift-inspection", category: "ObjCImplementationClassIndex")
-package final class ObjCImplementationClassIndex: SharedCache<ObjCImplementationClassIndex.Storage>, @unchecked Sendable {
+package final class ObjCImplementationClassIndex: @unchecked Sendable {
     package static let shared = ObjCImplementationClassIndex()
 
-    private override init() {
-        super.init()
-    }
+    private let cache = SharedCache<Storage>(evictionGroup: .objcImplementationClasses, follows: [.symbolStore])
+
+    private init() {}
 
     package typealias SkippedClass = ObjCImplementationClasses.SkippedClass
 
@@ -62,13 +62,21 @@ package final class ObjCImplementationClassIndex: SharedCache<ObjCImplementation
         }
     }
 
-    override package func buildStorage(for machO: some MachORepresentableWithCache) -> Storage? {
-        if let machOFile = machO as? MachOFile {
-            return Self.build(in: machOFile)
-        } else if let machOImage = machO as? MachOImage {
-            return Self.build(in: machOImage)
+    /// The image's index, built on first use. The build re-types the reader
+    /// once (`objcImplementationClassReader`): the cache is typed with the
+    /// reader protocol every consumer holds, the build needs the ObjC reads.
+    package func storage(in machO: some MachORepresentableWithCache) -> Storage? {
+        cache.storage(in: machO) { machO in
+            machO.objcImplementationClassReader.map { Self.build(in: $0) }
         }
-        return nil
+    }
+
+    package func contains(in machO: some MachORepresentableWithCache) -> Bool {
+        cache.contains(in: machO)
+    }
+
+    package func remove(for machO: some MachORepresentableWithCache) {
+        cache.remove(for: machO)
     }
 
     // MARK: - Queries
@@ -326,7 +334,7 @@ public enum ObjCImplementationClasses {
     /// Drops the image's index; the declaration indexer calls this alongside
     /// the other per-image cache evictions.
     public static func removeCache(for machO: some MachORepresentableWithCache) {
-        ObjCImplementationClassIndex.shared.remove(for: machO)
+        SharedCacheRegistry.shared.evict(groups: [.objcImplementationClasses], for: SharedCacheKey(machO))
     }
 
     /// The bare ObjC class name when `typeNode` names a class imported from

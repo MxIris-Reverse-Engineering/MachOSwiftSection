@@ -60,4 +60,7 @@
 | [0049](0049-objc-ancestor-dependency-closure.md) | ObjC 祖先链走依赖闭包：独立文件上的父类与 category 目标类按名字在依赖镜像里解析 | Implemented |
 | [0050](0050-symbolic-mangling-symbol-index.md) | `_symbolic` 符号索引：被符号引用的对象 → 编译器写下的完整名字 | Implemented |
 | [0051](0051-agent-plugin.md) | `swift-section` 的 agent 插件：教 agent 用 CLI 的 skill 随仓库发布，Claude Code 与 Codex 直接安装 | Implemented |
+| [0052](0052-objc-custom-class-name.md) | 改过 ObjC 运行时名的 Swift 类：打印 `@objc(Name)`，并按描述符指针配对它的类对象 | Implemented |
+| [0053](0053-shared-cache-composition-and-eviction-registry.md) | 按镜像缓存整治：`SharedCache` 去继承、键去装箱、驱逐收口到注册表 | Implemented |
+| [0054](0054-interface-descriptor-only-vtable-members.md) | interface 按 vtable 槽位顺序打印类成员，补上只剩 method descriptor 符号的成员 | Implemented |
 | draft | [静态布局引擎读取 accessor thunk 背后的字段类型](draft-static-layout-through-accessor-thunks.md) | Draft |

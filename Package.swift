@@ -138,7 +138,9 @@ extension Package.Dependency {
         ),
         remote: .package(
             url: "https://github.com/MxIris-Reverse-Engineering/MachOKitExtensions",
-            from: "0.1.1",
+            // 0.1.2 decides whether an in-process image is in the shared cache
+            // from its header flag, not from where it happens to be loaded.
+            from: "0.1.2",
         ),
     )
 
@@ -194,7 +196,7 @@ extension Package.Dependency {
         ),
         remote: .package(
             url: "https://github.com/MxIris-Reverse-Engineering/swift-capstone",
-            from: "6.0.0",
+            from: "6.0.1",
             traits: capstoneTraits,
         ),
     )

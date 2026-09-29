@@ -10,6 +10,9 @@ jobs:
   macos_test:
     name: Execute tests on macOS
     runs-on: ${{ matrix.os }}
+    # A healthy job takes 8-26 minutes. Without a limit a stalled test run
+    # sits until GitHub's 360-minute default (it did on 2026-09-29).
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
@@ -117,4 +120,26 @@ jobs:
             -c ${{ matrix.configuration }} \
             --enable-experimental-prebuilts \
             --build-path .build-test-${{ matrix.configuration }} \
-            --filter '\.(SymbolTestsCoreDumpSnapshotTests|SymbolTestsCoreInterfaceSnapshotTests|SymbolTestsCoreCoverageInvariantTests|STCoreE2ETests|STCoreTests|GenericSpecializationTests|MultiPayloadEnumTests|SymbolicDemanglerDemanglingTests|MalformedSymbolValueTests|ContinuousIntegrationTestFilterTests|DependencyLoadNameTests|DependencyClosureTests|FileDependencyLocatorTests|SwiftInterfaceBuilderDependenciesTests|ManglingPrefixTests|MethodDescriptorTests|MethodOverrideDescriptorTests|MethodDefaultOverrideDescriptorTests|ProtocolRequirementTests|ResilientWitnessTests|LargeStackTaskExecutionTests|BoundedConcurrentMapTests|SwiftEvolutionInterfaceBuilderTests|EvolutionCommandValidationTests|DiffCommandValidationTests|ObjCSectionCommandTests|ObjCAPICommandParsingTests|ObjCDumpDiagnosticsTests)(/|$)'
+            --filter '\.(SymbolTestsCoreDumpSnapshotTests|SymbolTestsCoreInterfaceSnapshotTests|SymbolTestsCoreCoverageInvariantTests|STCoreE2ETests|STCoreTests|GenericSpecializationTests|MultiPayloadEnumTests|SymbolicDemanglerDemanglingTests|MalformedSymbolValueTests|ContinuousIntegrationTestFilterTests|MachOImageCacheMembershipTests|SharedCacheResolveTests|SharedCacheResolveSwiftConcurrencyTests|SharedCacheKeyTests|SharedCacheRegistryTests|DependencyLoadNameTests|DependencyClosureTests|FileDependencyLocatorTests|SwiftInterfaceBuilderDependenciesTests|ManglingPrefixTests|MethodDescriptorTests|MethodOverrideDescriptorTests|MethodDefaultOverrideDescriptorTests|ProtocolRequirementTests|ResilientWitnessTests|LargeStackTaskExecutionTests|BoundedConcurrentMapTests|SwiftEvolutionInterfaceBuilderTests|EvolutionCommandValidationTests|DiffCommandValidationTests|ObjCSectionCommandTests|ObjCAPICommandParsingTests|ObjCDumpDiagnosticsTests)(/|$)'
+
+      - name: Run the SharedCache suites on a one-thread cooperative pool (${{ matrix.configuration }})
+        # The runner has 3 cores, so the Swift Concurrency cooperative pool is
+        # 3 threads wide. On 2026-09-29 three tests each blocked one of those
+        # threads waiting for work that itself needed a thread, and the whole
+        # test process froze. With the pool forced down to one thread, a test
+        # that blocks a pool thread on such work hangs here on every run —
+        # rather than only when three of them happen to line up — and the
+        # step timeout turns the hang into a failure. The two
+        # `differentKeysParallelVia…` tests are skipped: they prove overlap,
+        # which needs two pool threads by design.
+        timeout-minutes: 5
+        env:
+          LIBDISPATCH_COOPERATIVE_POOL_STRICT: 1
+        run: |
+          swift test \
+            -c ${{ matrix.configuration }} \
+            --skip-build \
+            --enable-experimental-prebuilts \
+            --build-path .build-test-${{ matrix.configuration }} \
+            --filter '\.(SharedCacheResolveTests|SharedCacheResolveSwiftConcurrencyTests)/' \
+            --skip 'differentKeysParallelVia'

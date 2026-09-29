@@ -6,6 +6,8 @@ import MachOSwiftSection
 
 public enum SwiftDeclarationMemberSortOrder: Hashable, Codable, Sendable, CaseIterable {
     /// Group members by category: allocators, variables, functions, subscripts, then static members.
+    /// A class's vtable members come first, in vtable slot order — for its own slots, the source's
+    /// declaration order — and only the members that own no slot are grouped.
     case byCategory
     /// Sort members by binary layout offset (vtable/PWT/MachO offset depending on context).
     case byOffset

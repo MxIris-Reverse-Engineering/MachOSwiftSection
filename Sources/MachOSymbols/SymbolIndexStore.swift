@@ -14,7 +14,7 @@ import AsyncAlgorithms
 @_spi(ForSymbolViewer)
 @_spi(Internals)
 @Loggable(.private)
-public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unchecked Sendable {
+public final class SymbolIndexStore: @unchecked Sendable {
     public enum MemberKind: Hashable, CaseIterable, CustomStringConvertible, Sendable {
         fileprivate struct Traits: OptionSet, Hashable, Sendable {
             fileprivate let rawValue: Int
@@ -457,12 +457,29 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
 
     public static let shared = SymbolIndexStore()
 
-    private override init() {
-        super.init()
+    private let cache = SharedCache<Storage>(evictionGroup: .symbolStore)
+
+    private init() {}
+
+    /// The image's storage: built on first use, shared with every later
+    /// caller, and dropped through ``remove(for:)`` by the declaration
+    /// indexer's per-image cleanup.
+    public func storage(in machO: some MachORepresentableWithCache) -> Storage? {
+        cache.storage(in: machO) { buildStorage(for: $0) }
     }
 
-    public override func buildStorage(for machO: some MachORepresentableWithCache) -> Storage? {
+    /// Builds the storage without consulting or filling the cache. The
+    /// baseline measurements time the sweep itself through this.
+    public func buildStorage(for machO: some MachORepresentableWithCache) -> Storage? {
         return buildStorageImpl(for: machO, progressContinuation: nil)
+    }
+
+    public func contains(in machO: some MachORepresentableWithCache) -> Bool {
+        cache.contains(in: machO)
+    }
+
+    public func remove(for machO: some MachORepresentableWithCache) {
+        cache.remove(for: machO)
     }
 
     /// Batch boundary for the sweep's per-symbol demangling.
@@ -1315,7 +1332,7 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
             // continuation flows into buildStorageImpl via closure capture only.
             // No shared instance state is involved, so concurrent calls cannot
             // interfere with each other's progress streams.
-            _ = self.storage(in: machO) { machO in
+            _ = self.cache.storage(in: machO) { machO in
                 self.buildStorageImpl(for: machO, progressContinuation: continuation)
             }
         }

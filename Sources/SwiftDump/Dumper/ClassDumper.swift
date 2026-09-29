@@ -218,6 +218,14 @@ package struct ClassDumper<MachO: MachOFieldLayoutRenderable>: TypedDumper {
 
     package var body: SemanticString {
         get async throws {
+            // The ObjC runtime name the source chose (evolution proposal
+            // `objc-custom-class-name`), as the attribute the interface prints.
+            if let customObjCClassName = SwiftClassObjectIndex.shared.customObjCClassName(forClassDescriptorOffset: dumped.descriptor.offset, in: machO) {
+                Keyword(customObjCClassName.attribute.keyword)
+                Standard("(\(customObjCClassName.name))")
+                BreakLine()
+            }
+
             try await declaration
 
             Space()

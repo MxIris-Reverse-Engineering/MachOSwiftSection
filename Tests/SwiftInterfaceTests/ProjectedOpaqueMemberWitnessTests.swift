@@ -65,13 +65,15 @@ struct ProjectedOpaqueMemberWitnessTests {
             let clientInterfaceURL = workingDirectory.appendingPathComponent("ProbeProjectionClient.swiftinterface")
             try run(swiftcArguments: [
                 "-O", "-emit-library", "-emit-module", "-module-name", "ProbeProjectionCore",
-                "-target", "arm64-apple-macosx15.0", "-enable-library-evolution",
+                "-target", "arm64-apple-macosx15.0", "-enable-library-evolution", "-swift-version", "5",
                 "-Xlinker", "-install_name", "-Xlinker", "@rpath/libProbeProjectionCore.dylib",
                 coreSourceURL.path, "-o", coreLibraryURL.path,
             ])
+            // Swift 6.4 refuses to emit a module interface without an explicit
+            // language mode; Swift 6.3 only warned.
             try run(swiftcArguments: [
                 "-O", "-emit-library", "-emit-module", "-module-name", "ProbeProjectionClient",
-                "-target", "arm64-apple-macosx15.0", "-enable-library-evolution",
+                "-target", "arm64-apple-macosx15.0", "-enable-library-evolution", "-swift-version", "5",
                 "-emit-module-interface-path", clientInterfaceURL.path,
                 "-Xlinker", "-install_name", "-Xlinker", "@rpath/libProbeProjectionClient.dylib",
                 "-I", workingDirectory.path, "-L", workingDirectory.path, "-lProbeProjectionCore",
@@ -143,6 +145,12 @@ struct ProjectedOpaqueMemberWitnessTests {
     /// by the bare name of the type the alias sits in. `Client` declares no
     /// opaque type of its own, so what the compiler names here is exactly
     /// what the binary's witness record names: `produce()`'s archetype.
+    ///
+    /// Swift 6.4 writes a module-qualified name in an interface with a module
+    /// selector (`ProbeProjectionClient::Client`, SE-0491) where Swift 6.3
+    /// wrote a dot. The interface printer writes the dotted form, which every
+    /// toolchain parses, so the selector is normalized before comparing: what
+    /// this suite pins is the attribute form and the parentheses.
     private func compilerSpellings(named associatedTypeName: String) throws -> [String: String] {
         let interfaceText = try Self.fixtureCompilationResult.get().clientInterfaceText
         var spellings: [String: String] = [:]
@@ -155,7 +163,7 @@ struct ProjectedOpaqueMemberWitnessTests {
                 currentTypeName = declared.split(whereSeparator: { $0 == " " || $0 == ":" || $0 == "<" || $0 == "{" }).first.map(String.init)
             }
             if line.hasPrefix(aliasPrefix), let currentTypeName {
-                spellings[currentTypeName] = String(line.dropFirst(aliasPrefix.count))
+                spellings[currentTypeName] = String(line.dropFirst(aliasPrefix.count)).replacingOccurrences(of: "::", with: ".")
             }
         }
         return spellings

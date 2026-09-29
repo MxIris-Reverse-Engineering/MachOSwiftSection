@@ -36,6 +36,9 @@ package extension SwiftDeclarationPrinter {
         // when it marks the lines, so none is emitted here.
         for attribute in typeDefinition.attributes {
             Keyword(attribute.keyword)
+            if let argument = typeDefinition.attributeArgument(for: attribute) {
+                Standard("(\(argument))")
+            }
             BreakLine()
         }
 

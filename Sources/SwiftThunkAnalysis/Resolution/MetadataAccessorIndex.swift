@@ -33,7 +33,7 @@ package final class MetadataAccessorIndex: Sendable {
         cache.storage(in: machO) { machO in build(for: machO) } ?? MetadataAccessorIndex(descriptorOffsetsByAccessorOffset: [:])
     }
 
-    private static let cache = SharedCache<MetadataAccessorIndex>()
+    private static let cache = SharedCache<MetadataAccessorIndex>(evictionGroup: .thunkResolution)
 
     private static func build(for machO: MachOFile) -> MetadataAccessorIndex {
         var descriptorOffsetsByAccessorOffset: [Int: Int] = [:]

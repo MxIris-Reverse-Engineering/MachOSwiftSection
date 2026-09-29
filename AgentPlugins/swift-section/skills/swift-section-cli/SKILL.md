@@ -233,6 +233,11 @@ swift-section evolution 17.0.json 18.0.json /path/Foo --labels 17.0,18.0,26.0
 - Compare binaries in **similar strip states**. A symbol-rich build against a stripped one
   reports the same protocol requirement as a member swap, because a stripped protocol diffs by
   witness-table slot rather than by symbol.
+- **A snapshot does not cross format versions.** The JSON carries a `formatVersion`; any other
+  version is rejected with a typed error, and the fix is to regenerate the baseline with the
+  current tool. Format 6 (0.21.0 and later) rejects every format-5 baseline: in an image stripped
+  of its local symbols the newer tool also records the class members that only their method
+  descriptor names (see §9), which an old baseline would report as added wholesale.
 
 ## 8. `--resolve-c-module-names` (interface, macOS only)
 
@@ -256,8 +261,25 @@ Attribution against a non-macOS binary is limited (it warns and degrades rather 
   parameter metatypes do resolve unspecialized.
 - **`pwtslot:` records in a protocol diff** are the fallback view used when requirement symbols
   are stripped — see the strip-state warning in §7.
+- **A class's members print in vtable slot order**, not grouped by kind: for the class's own
+  members that is the source's declaration order, so an `init` can sit between two methods.
+  Only the members that own no slot (`final`, `static`, `@objc dynamic`, an ObjC-inherited
+  `init`) follow, grouped by kind.
+- **In an image stripped of its local symbols (AppKit in the OS dyld shared cache), a public
+  class method may print without `@objc` or `override`.** Its implementation symbol is gone
+  (a library-evolution image exports only the dispatch thunk `Tj` and method descriptor `Tq`),
+  so the member is rebuilt from the `Tq` symbol — the name and signature are exact, but the
+  `@objc` / ObjC-override facts are joined through the implementation's symbol and are
+  missing. A vtable slot nothing names (an internal member in a stripped image) is
+  left out; `dump` lists it as `sub_…` or `<unnamed vtable slot>`.
 - **Enum-layout patterns marked "not resolved offline"** mean only the extra-inhabitant *index*
   is derivable statically; the concrete bytes need the live metadata.
+- **`@objc(Name)` above a class** is the name the Objective-C runtime knows it by, and matters
+  even when it equals the Swift name (`@objc(NSScrollPocket) class NSScrollPocket`): without it
+  the runtime name would be the `_TtC…` mangling. That is also the class name `objc` headers
+  and `-[Class selector]` comments use. **`@_objcRuntimeName(Name)`** is the same fact on a
+  class with no Objective-C ancestor, where `@objc` would not be legal Swift (mostly the
+  standard library) — not a typo.
 
 ## 10. Where the details live
 

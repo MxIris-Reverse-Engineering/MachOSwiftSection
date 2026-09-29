@@ -4,6 +4,7 @@ import MachOKit
 import MachOKitExtensions
 @_spi(Core) import MachOObjCSection
 @_spi(Internals) import MachOCaches
+@_spi(Internals) import MachOSymbols
 import MachOReading
 
 /// The library's own ``ObjCClassHierarchy`` reader (evolution proposals
@@ -15,8 +16,10 @@ import MachOReading
 /// each class object's `class_ro_t` name — the ObjC runtime name → class
 /// object table, and for Swift classes the qualified-name → runtime-name
 /// table the Swift side needs to ask by (a `TypeDefinition` knows its
-/// qualified name, the ObjC side files the class under `_TtC…`) — plus one
-/// pass over `__objc_catlist` reading only each category's target class name.
+/// qualified name, the ObjC side files the class under `_TtC…`; a class the
+/// source renamed files under the name it chose, and is found through
+/// `SwiftClassObjectIndex` instead) — plus one pass over `__objc_catlist`
+/// reading only each category's target class name.
 /// Method lists are NOT read here: they are read per class on demand and
 /// memoized, so an image's clang classes cost nothing and NSView's two
 /// thousand selectors are read once for AppKit's 173 Swift subclasses. An
@@ -39,8 +42,12 @@ import MachOReading
 /// where no dependency image defines the class, the chain stops there and
 /// says so (`isAncestorChainComplete == false`).
 @Loggable(.private, subsystem: "com.machoswiftsection.swift-inspection", category: "ObjCClassMethodIndex")
-package final class ObjCClassMethodIndex: SharedCache<ObjCClassMethodIndex.Storage>, @unchecked Sendable {
+package final class ObjCClassMethodIndex: @unchecked Sendable {
     package static let shared = ObjCClassMethodIndex()
+
+    private let cache = SharedCache<Storage>(evictionGroup: .objcHierarchy, follows: [.symbolStore])
+
+    private init() {}
 
     /// One ancestor's selector sets, memoized per class object.
     struct SelectorSets {
@@ -109,13 +116,21 @@ package final class ObjCClassMethodIndex: SharedCache<ObjCClassMethodIndex.Stora
         }
     }
 
-    override package func buildStorage(for machO: some MachORepresentableWithCache) -> Storage? {
-        if let machOFile = machO as? MachOFile {
-            return Self.build(in: machOFile)
-        } else if let machOImage = machO as? MachOImage {
-            return Self.build(in: machOImage)
+    /// The image's index, built on first use. The build re-types the reader
+    /// once (`objcImplementationClassReader`): the cache is typed with the
+    /// reader protocol every consumer holds, the build needs the ObjC reads.
+    package func storage(in machO: some MachORepresentableWithCache) -> Storage? {
+        cache.storage(in: machO) { machO in
+            machO.objcImplementationClassReader.map { Self.build(in: $0) }
         }
-        return nil
+    }
+
+    package func contains(in machO: some MachORepresentableWithCache) -> Bool {
+        cache.contains(in: machO)
+    }
+
+    package func remove(for machO: some MachORepresentableWithCache) {
+        cache.remove(for: machO)
     }
 
     // MARK: - Queries
@@ -123,8 +138,19 @@ package final class ObjCClassMethodIndex: SharedCache<ObjCClassMethodIndex.Stora
     /// The runtime names of the Swift classes whose qualified name is
     /// `qualifiedName`; empty when the image defines no such class object
     /// (a generic class has none — it is instantiated at runtime).
+    ///
+    /// A class the source renamed (`@objc(NSScrollPocket)`) files under a
+    /// runtime name that demangles to nothing, so the table built here never
+    /// keys it; the renamed classes are looked up by the qualified name their
+    /// metadata's descriptor gives (evolution proposal
+    /// `objc-custom-class-name`), and both answers count: the qualified name
+    /// drops the private discriminator, so two same-named private classes stay
+    /// ambiguous whichever of them was renamed. Only an image whose Swift
+    /// classes are asked about builds that index — the ancestor walk never
+    /// asks by Swift name.
     package func runtimeNames(forSwiftClassQualifiedName qualifiedName: String, in machO: some MachORepresentableWithCache) -> [String] {
-        storage(in: machO)?.runtimeNamesBySwiftQualifiedName[qualifiedName] ?? []
+        let demangledRuntimeNames = storage(in: machO)?.runtimeNamesBySwiftQualifiedName[qualifiedName] ?? []
+        return demangledRuntimeNames + SwiftClassObjectIndex.shared.customRuntimeNames(forSwiftClassQualifiedName: qualifiedName, in: machO)
     }
 
     /// The hierarchy of the class the image defines under `runtimeName` —

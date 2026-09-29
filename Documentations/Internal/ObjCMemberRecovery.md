@@ -51,13 +51,14 @@
 
 ## 三个 join 的键
 
-- **Swift 类 ↔ ObjC class object**：`TypeDefinition.typeName.node` 物化后 `NodeTypeNaming.nominalQualifiedName(ofDemangledRoot:)`，与 `ObjCClassMethodIndex` 对 `_TtC…` / `$s…` 运行时名 demangle 后算的限定名是同一个函数。同名私有类落进同一个 key 时（两条运行时名）拒绝归属并 `#log`。泛型类不在 classlist 里，查不到就什么都不标。
+- **Swift 类 ↔ ObjC class object**：`TypeDefinition.typeName.node` 物化后 `NodeTypeNaming.nominalQualifiedName(ofDemangledRoot:)`，与 `ObjCClassMethodIndex` 对 `_TtC…` / `$s…` 运行时名 demangle 后算的限定名是同一个函数。同名私有类落进同一个 key 时（两条运行时名）拒绝归属并 `#log`。泛型类不在 classlist 里，查不到就什么都不标。源码改过运行时名的类（`@objc(NSScrollPocket)`）的运行时名 demangle 不出任何东西，这张表里没有它的键；`runtimeNames(forSwiftClassQualifiedName:in:)` 查询时把 `SwiftClassObjectIndex` 按类元数据的描述符指针配好的「限定名 → 运行时名」并进来（提案 `0052-objc-custom-class-name`，见 [CustomObjCClassNames.md](CustomObjCClassNames.md)）；是合并而不是查不到才回退，所以两个同名 private 类里有一个改过名时仍判为歧义。在那之前这些类的成员一条都联结不上，strip 后还会被 `final` 还原误标成 `final`；macOS 27 的 AppKit 有 74 个这样的类。
 - **extension ↔ 表**：`__C.X` 的 extension 按裸名 `X`（`@implementation` 主体、category、对外部类的 category 共用一张表）；本镜像 Swift 类的 extension 按限定名，与类本体同一张表——category 成员本就折进了类的 hierarchy。
 - **成员定义 ↔ 表**：按符号名，见上。属性 / 下标任一 accessor 命中即整个成员标记，getter 优先。
 
 ## 边界与已知限制
 
 - **泛型 ObjC 派生类**（SwiftUI 26 个）无静态 class object，不标。它们的 `class_ro_t` 在泛型 metadata pattern 的 extra-data 块里，留待后续。
+- **父类在另一个 resilience domain 的类**同样不在 classlist 里，改过名的也一样（它的名字从 `ResilientClassMetadataPattern` 读得到，方法表读不到），不标。
 - **iOS 18.5 及之后的模拟器运行时文件**：UIKitCore / Foundation 的 `__objc_classlist` 有约六分之一读不出（探针实测 UIKitCore 5017 项里 791 个 `class_ro_t` 读不到、624 个被误读为元类），`UIView` / `UIResponder` 这类根类恰在其中，解析器查不到它们的 class object，链在那里断并标 `(bound; chain not resolvable offline)`；iOS 15.5（旧 rebase 格式）大部分读得出。是 MachOKit / MachOObjCSection 对这批 chained-fixup 文件的读取问题，不在成员表这一层。
 - **磁盘上的独立二进制**：父类在别的镜像时是 bind，`superclassLocation` 返回 `.unresolvable(name)`；2026-09-21 起这个名字交给镜像的祖先解析器在依赖闭包里找（见下一节），找不到——依赖镜像不在宿主上、iOS 二进制在 macOS 宿主上没给 `--dependency-search-path`、`.unresolvable(nil)`（Swift 类的槽位为零又没有 bind 名）——链才在那里断；祖先的 category 若在闭包够不到的镜像里（闭包报为未解析的依赖），那个 category 的方法看不见，覆写它的成员会被判成显式 selector（fixture 的 `categoryInAnUnreachableImageIsInvisible` 钉住这条边界）；断了的话同镜像祖先照常判，显式 selector 一律不判。旧的 `LC_DYLD_INFO` bind 格式（部署目标低于 macOS 12 / iOS 16——iOS 15.5 模拟器运行时的全部框架）把 bind 槽位留成 0，MachOObjCSection 把它读成「没有父类」；读取器补了一道 MachOKitExtensions 的 `resolveBind(fileOffset:)`（两种格式都认）取 bind 符号名，再兜一道「Swift 类不可能是 ObjC 根类」，否则链会被误判为走完、每个 UIKit 覆写都成了显式 selector（第一轮 A/B 的模拟器腿就是这样）；这个名字现在也是解析器的输入。fixture 的 `.legacyBinds` 变体固定两种结果：空解析器下断在 `NSObject`，默认解析器下经宿主 cache 走完。
 - **strip 后的显式 selector**：只有第一档能给；第二档的 importer 拼法守卫天然拒绝它（见上），第三档只管覆写。

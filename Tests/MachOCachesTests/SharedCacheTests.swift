@@ -8,31 +8,40 @@ struct SharedCacheResolveTests {
     /// Single-threaded sanity: a hit reuses the storage, a miss runs build,
     /// and a `nil` build is not cached.
     @Test func singleThreadedHitMissAndNilDontCache() {
-        let cache = TestCache()
+        let cache = makeTestCache()
 
-        let first = cache.resolve(key: AnyHashable("a")) { 1 }
+        let first = cache.resolve(key: SharedCacheKey(opaque: "a")) { 1 }
         #expect(first == 1)
 
         // Second call hits the cache: the build closure must not run.
-        let second = cache.resolve(key: AnyHashable("a")) {
+        let second = cache.resolve(key: SharedCacheKey(opaque: "a")) {
             Issue.record("build was called for an already-cached key")
             return 99
         }
         #expect(second == 1)
 
         // A `nil` build is not cached, so the next call gets a fresh attempt.
-        let nilFirst: Int? = cache.resolve(key: AnyHashable("b")) { nil }
+        let nilFirst: Int? = cache.resolve(key: SharedCacheKey(opaque: "b")) { nil }
         #expect(nilFirst == nil)
 
-        let nilRetry = cache.resolve(key: AnyHashable("b")) { 7 }
+        let nilRetry = cache.resolve(key: SharedCacheKey(opaque: "b")) { 7 }
         #expect(nilRetry == 7)
     }
 
     /// Concurrent calls for the **same** key must share one build — the
     /// promise-based marker is the whole point of this refactor over the
     /// previous "build under the global lock" implementation.
+    ///
+    /// The callers run on threads of the test's own, not the global dispatch
+    /// queue: this synchronous test body blocks a cooperative thread until
+    /// they finish. On the 3-core CI runner the global queue granted no
+    /// worker while the cooperative pool was blocked (2026-09-29), and this
+    /// test, ``registeringOverAnInFlightBuildWinsAndTheBuilderStillAnswersItsWaiters()``
+    /// and `reentrancyFromTask()` held all three pool threads between them —
+    /// no other test in the process could run again. A `Thread` exists the
+    /// moment it is started, whatever the pools are doing.
     @Test func concurrentCallsForSameKeyShareOneBuild() {
-        let cache = TestCache()
+        let cache = makeTestCache()
         let buildCount = OSAllocatedUnfairLock(initialState: 0)
         let buildEnter = DispatchSemaphore(value: 0)
         let buildRelease = DispatchSemaphore(value: 0)
@@ -42,8 +51,8 @@ struct SharedCacheResolveTests {
         // `build` until we release it. Every subsequent caller must attach
         // to that marker rather than invoking `build` again.
         let firstCallerDone = DispatchSemaphore(value: 0)
-        DispatchQueue.global().async {
-            let result = cache.resolve(key: AnyHashable("shared")) {
+        Thread {
+            let result = cache.resolve(key: SharedCacheKey(opaque: "shared")) {
                 buildCount.withLock { $0 += 1 }
                 buildEnter.signal()
                 buildRelease.wait()
@@ -51,7 +60,7 @@ struct SharedCacheResolveTests {
             }
             #expect(result == 42)
             firstCallerDone.signal()
-        }
+        }.start()
 
         buildEnter.wait()  // first caller is now blocked inside `build`
 
@@ -60,14 +69,14 @@ struct SharedCacheResolveTests {
         let herdDone = DispatchSemaphore(value: 0)
         let observed = OSAllocatedUnfairLock(initialState: [Int]())
         for _ in 0 ..< waiterCount {
-            DispatchQueue.global().async {
-                let result = cache.resolve(key: AnyHashable("shared")) {
+            Thread {
+                let result = cache.resolve(key: SharedCacheKey(opaque: "shared")) {
                     Issue.record("a waiter ran build instead of joining the in-flight promise")
                     return -1
                 }
                 observed.withLock { $0.append(result ?? -1) }
                 herdDone.signal()
-            }
+            }.start()
         }
 
         // Give the herd a beat to all enter `resolve` and attach to the
@@ -86,12 +95,20 @@ struct SharedCacheResolveTests {
     }
 
     /// Concurrent calls for **different** keys must build in parallel, not
-    /// serialize behind one another. Verified by wall-clock: with the lock
-    /// held over the build, N keys × T per build = N*T; with the promise
-    /// fix, all N builds overlap, so wall-clock is ~T.
+    /// serialize behind one another. Verified by rendezvous — every build
+    /// blocks until the other has entered its closure — on threads of the
+    /// test's own: with the lock held across the build the second build
+    /// could never enter, and the timed wait below turns that into a failure.
     @Test func concurrentCallsForDifferentKeysRunInParallel() {
-        let cache = TestCache()
-        let keyCount = 8
+        let cache = makeTestCache()
+        // Two keys, on dedicated threads rather than the global dispatch
+        // queue. The builds block until they meet, so each needs a thread of
+        // its own for the whole wait; under a saturated full-suite run the
+        // dispatch pool did not grant eight workers, and then not even two,
+        // within the 30 s timeout (2026-09-28), which read as the
+        // serialization failure this test exists to catch. A `Thread` exists
+        // the moment it is started, whatever the pool is doing.
+        let keyCount = 2
 
         // Deterministic parallelism proof instead of a wall-clock heuristic
         // (which flaked under CPU saturation): every build blocks until all
@@ -112,7 +129,7 @@ struct SharedCacheResolveTests {
         // stranding libdispatch threads and leaving those keys permanently
         // in-flight — a later test resolving them would then deadlock instead
         // of seeing this test's clean failure.
-        DispatchQueue.global().async {
+        Thread {
             for _ in 0 ..< keyCount {
                 guard enteredBuild.wait(timeout: .now() + 30) == .success else {
                     everyBuildEntered.withLock { $0 = false }
@@ -120,17 +137,17 @@ struct SharedCacheResolveTests {
                 }
             }
             for _ in 0 ..< keyCount { proceedWithBuild.signal() }
-        }
+        }.start()
 
         for index in 0 ..< keyCount {
-            DispatchQueue.global().async {
-                _ = cache.resolve(key: AnyHashable(index)) {
+            Thread {
+                _ = cache.resolve(key: SharedCacheKey(opaque: index)) {
                     enteredBuild.signal()
                     proceedWithBuild.wait()
                     return index
                 }
                 buildFinished.signal()
-            }
+            }.start()
         }
 
         var timedOut = false
@@ -147,19 +164,129 @@ struct SharedCacheResolveTests {
     /// the whole reason the lock-during-build design was a problem to begin
     /// with, worth pinning.)
     @Test func buildClosureMayResolveOtherKey() {
-        let cache = TestCache()
-        let result = cache.resolve(key: AnyHashable("outer")) {
-            cache.resolve(key: AnyHashable("inner")) { 5 }.map { $0 * 2 }
+        let cache = makeTestCache()
+        let result = cache.resolve(key: SharedCacheKey(opaque: "outer")) {
+            cache.resolve(key: SharedCacheKey(opaque: "inner")) { 5 }.map { $0 * 2 }
         }
         #expect(result == 10)
     }
+
+    /// A build closure that resolves the **same** key on its own thread
+    /// finds its own in-flight marker and would wait for a promise that only
+    /// its own return can fulfill. That used to trap on the non-reentrant
+    /// cache lock; after the promise rewrite it hung silently. The cache now
+    /// traps on purpose, with a message naming the key, so the hang can never
+    /// come back unnoticed. An exit test is the only way to pin a trap.
+    @Test func reentrantBuildForTheSameKeyTrapsInsteadOfHanging() async {
+        await #expect(processExitsWith: .failure) {
+            let cache = makeTestCache()
+            _ = cache.resolve(key: SharedCacheKey(opaque: "self")) {
+                cache.resolve(key: SharedCacheKey(opaque: "self")) { 1 }
+            }
+        }
+    }
+
+    /// `register(_:for:)` installs a finished entry over whatever is there,
+    /// an in-flight build included: the builder, once it returns, must not
+    /// publish over the registered value — but it still hands its own result
+    /// to the callers that joined it, since their promise is still its own.
+    ///
+    /// The builder runs on a thread of its own for the reason
+    /// ``concurrentCallsForSameKeyShareOneBuild()`` gives.
+    @Test func registeringOverAnInFlightBuildWinsAndTheBuilderStillAnswersItsWaiters() {
+        let cache = makeTestCache()
+        let key = SharedCacheKey(opaque: "k")
+        let buildEnter = DispatchSemaphore(value: 0)
+        let buildRelease = DispatchSemaphore(value: 0)
+        let builderDone = DispatchSemaphore(value: 0)
+        let builderResult = OSAllocatedUnfairLock<Int?>(initialState: nil)
+
+        Thread {
+            let result = cache.resolve(key: key) {
+                buildEnter.signal()
+                buildRelease.wait()
+                return 1
+            }
+            builderResult.withLock { $0 = result }
+            builderDone.signal()
+        }.start()
+        buildEnter.wait()
+
+        cache.register(2, forKey: key)
+        #expect(cache.containsEntry(for: key), "a registered value is a finished entry at once, in-flight build or not")
+
+        buildRelease.signal()
+        builderDone.wait()
+
+        #expect(builderResult.withLock { $0 } == 1, "the builder answers with what it built")
+        let published = cache.resolve(key: key) {
+            Issue.record("the registered entry must be found, not rebuilt")
+            return -1
+        }
+        #expect(published == 2, "the builder must not publish over the registered entry")
+    }
 }
 
-/// Minimal SharedCache instantiation for tests. `SharedCache.init()` is
-/// `package`-visible and constructs a usable cache without any MachO
-/// scaffolding because every public entry point that requires
-/// `MachORepresentableWithCache` ultimately delegates to `resolve(key:build:)`.
-private final class TestCache: SharedCache<Int>, @unchecked Sendable {}
+/// Every build blocks inside its closure until `expectedCount` builds have
+/// entered theirs, then all of them return together. Two builds for
+/// distinct keys can only both be inside their closures at once if the cache
+/// does not hold its lock across the build — so the rendezvous completing is
+/// the parallelism proof, with no wall-clock involved.
+///
+/// The wait is timed: on a scheduler that never gives the second build a
+/// thread, an untimed wait would park the first build forever, hang the whole
+/// test process and leave the key permanently in flight. On timeout every
+/// waiter is released and ``everyBuildOverlapped`` reads `false`, which turns
+/// the failure into an ordinary assertion.
+private final class BuildRendezvous: @unchecked Sendable {
+    private let condition = NSCondition()
+    private let expectedCount: Int
+    private let timeout: TimeInterval
+    private var arrivedCount = 0
+    private var isAbandoned = false
+
+    init(expectedCount: Int, timeout: TimeInterval = 30) {
+        self.expectedCount = expectedCount
+        self.timeout = timeout
+    }
+
+    func arriveAndWait() {
+        condition.lock()
+        defer { condition.unlock() }
+        arrivedCount += 1
+        if arrivedCount >= expectedCount {
+            condition.broadcast()
+            return
+        }
+        let deadline = Date(timeIntervalSinceNow: timeout)
+        while arrivedCount < expectedCount, !isAbandoned {
+            if !condition.wait(until: deadline) {
+                isAbandoned = true
+                condition.broadcast()
+            }
+        }
+    }
+
+    /// `true` only when every expected build entered its closure while the
+    /// earlier arrivals were still blocked inside theirs.
+    var everyBuildOverlapped: Bool {
+        condition.lock()
+        defer { condition.unlock() }
+        return !isAbandoned && arrivedCount == expectedCount
+    }
+}
+
+/// The cache under test. `SharedCache.init(evictionGroup:registry:)` is
+/// `package`-visible and constructs a usable cache without any Mach-O
+/// scaffolding, because every entry point that takes a
+/// `MachORepresentableWithCache` delegates to `resolve(key:build:)`.
+private typealias TestCache = SharedCache<Int>
+
+/// A cache registered with a registry of its own, so a test's caches never
+/// take part in the process-wide registry's eviction sweeps.
+private func makeTestCache() -> TestCache {
+    SharedCache(evictionGroup: SharedCacheEvictionGroup("test.cache"), registry: SharedCacheRegistry())
+}
 
 /// Mirror of ``SharedCacheResolveTests`` driven through Swift Concurrency
 /// primitives (`TaskGroup`, `AsyncStream`) instead of GCD. `resolve` itself
@@ -170,7 +297,7 @@ private final class TestCache: SharedCache<Int>, @unchecked Sendable {}
 @Suite("SharedCache.resolve under Swift Concurrency")
 struct SharedCacheResolveSwiftConcurrencyTests {
     @Test func sameKeyDedupViaTaskGroup() async {
-        let cache = TestCache()
+        let cache = makeTestCache()
         let buildCount = OSAllocatedUnfairLock(initialState: 0)
         let waiterCount = 16
 
@@ -183,7 +310,7 @@ struct SharedCacheResolveSwiftConcurrencyTests {
 
         await withTaskGroup(of: Int?.self) { group in
             group.addTask {
-                cache.resolve(key: AnyHashable("shared")) {
+                cache.resolve(key: SharedCacheKey(opaque: "shared")) {
                     buildCount.withLock { $0 += 1 }
                     buildEnteredContinuation.yield()
                     buildEnteredContinuation.finish()
@@ -202,7 +329,7 @@ struct SharedCacheResolveSwiftConcurrencyTests {
 
             for _ in 0 ..< waiterCount {
                 group.addTask {
-                    cache.resolve(key: AnyHashable("shared")) {
+                    cache.resolve(key: SharedCacheKey(opaque: "shared")) {
                         Issue.record("waiter ran build instead of joining the in-flight promise")
                         return -1
                     }
@@ -222,115 +349,108 @@ struct SharedCacheResolveSwiftConcurrencyTests {
         }
     }
 
+    /// Builds for distinct keys spawned as TaskGroup children must overlap.
+    /// Proven by rendezvous rather than by wall-clock: each build blocks
+    /// inside its closure until the other has entered too, which can only
+    /// happen if the cache releases its lock around the build. The earlier
+    /// form timed 8 sleeping builds against half the serial ceiling, and
+    /// failed whenever a loaded full-suite run starved the cooperative pool.
+    ///
+    /// Two builds, not eight: every build blocks a cooperative-pool thread
+    /// while it waits, and the pool is only as wide as the core count and is
+    /// shared with every other test in the process. Two is the smallest
+    /// count that proves overlap and the largest that cannot starve itself.
     @Test func differentKeysParallelViaTaskGroup() async {
-        let cache = TestCache()
-        let keyCount = 8
-        let perBuildSeconds: Double = 0.20
+        let cache = makeTestCache()
+        let keyCount = 2
+        let rendezvous = BuildRendezvous(expectedCount: keyCount)
 
-        let start = ContinuousClock.now
+        var results: [Int?] = []
         await withTaskGroup(of: Int?.self) { group in
             for index in 0 ..< keyCount {
                 group.addTask {
-                    cache.resolve(key: AnyHashable(index)) {
-                        Thread.sleep(forTimeInterval: perBuildSeconds)
+                    cache.resolve(key: SharedCacheKey(opaque: index)) {
+                        rendezvous.arriveAndWait()
                         return index
                     }
                 }
             }
-            for await _ in group {}
+            for await result in group {
+                results.append(result)
+            }
         }
-        let elapsed = ContinuousClock.now - start
-        let elapsedSeconds = Double(elapsed.components.seconds)
-            + Double(elapsed.components.attoseconds) / 1e18
 
-        let serialCeiling = Double(keyCount) * perBuildSeconds
-        let parallelBudget = serialCeiling * 0.5
-        #expect(elapsedSeconds < parallelBudget,
-                "elapsed=\(elapsedSeconds)s should be well below serial=\(serialCeiling)s — TaskGroup pool size and Thread.sleep blocking the cooperative pool both factor in, so this only verifies we are not fully serial")
+        #expect(results.compactMap { $0 }.sorted() == Array(0 ..< keyCount))
+        #expect(rendezvous.everyBuildOverlapped,
+                "builds for distinct keys did not overlap: the second build never entered its closure while the first was still inside its own")
     }
 
-    /// async-let variant: build a small batch of distinct keys, then return
-    /// the dictionary of results. Validates that the structured-concurrency
-    /// `async let` form works the same as `TaskGroup` for distinct keys.
+    /// async-let variant of the rendezvous above: the structured-concurrency
+    /// `async let` form must give distinct keys the same overlap that the
+    /// TaskGroup form does.
     @Test func differentKeysParallelViaAsyncLet() async {
-        let cache = TestCache()
-        // 0.40s per build keeps the parallel budget (half the 1.6s serial
-        // ceiling, matching the TaskGroup variant above) far enough above
-        // scheduler noise that a fully-loaded parallel test run cannot push a
-        // genuinely-parallel result over it — 0.10s builds with a fixed 0.30s
-        // budget flaked exactly that way.
-        let perBuildSeconds: Double = 0.40
+        let cache = makeTestCache()
+        let rendezvous = BuildRendezvous(expectedCount: 2)
 
-        let start = ContinuousClock.now
-        async let a = Task.detached {
-            cache.resolve(key: AnyHashable("a")) {
-                Thread.sleep(forTimeInterval: perBuildSeconds); return 1
+        async let first = Task.detached {
+            cache.resolve(key: SharedCacheKey(opaque: "a")) {
+                rendezvous.arriveAndWait()
+                return 1
             }
         }.value
-        async let b = Task.detached {
-            cache.resolve(key: AnyHashable("b")) {
-                Thread.sleep(forTimeInterval: perBuildSeconds); return 2
-            }
-        }.value
-        async let c = Task.detached {
-            cache.resolve(key: AnyHashable("c")) {
-                Thread.sleep(forTimeInterval: perBuildSeconds); return 3
-            }
-        }.value
-        async let d = Task.detached {
-            cache.resolve(key: AnyHashable("d")) {
-                Thread.sleep(forTimeInterval: perBuildSeconds); return 4
+        async let second = Task.detached {
+            cache.resolve(key: SharedCacheKey(opaque: "b")) {
+                rendezvous.arriveAndWait()
+                return 2
             }
         }.value
 
-        let results = await [a, b, c, d]
-        let elapsed = ContinuousClock.now - start
-        let elapsedSeconds = Double(elapsed.components.seconds)
-            + Double(elapsed.components.attoseconds) / 1e18
+        let results = await [first, second]
 
-        #expect(results == [1, 2, 3, 4])
-        // Four builds run in parallel ⇒ wall-clock ≈ one build. Same budget
-        // idiom as the TaskGroup variant: only verifies we are not fully
-        // serial (≥ 1.6s), with headroom for a loaded machine. 0.75 rather
-        // than the TaskGroup variant's 0.5 because detached tasks acquire
-        // pool threads later under a saturated full-suite run — 0.5 left only
-        // ~2× headroom over scheduler noise and still flaked (0.845s
-        // observed against the 0.8s budget).
-        let serialCeiling = 4 * perBuildSeconds
-        let parallelBudget = serialCeiling * 0.75
-        #expect(elapsedSeconds < parallelBudget,
-                "elapsed=\(elapsedSeconds)s should be well below serial=\(serialCeiling)s")
+        #expect(results == [1, 2])
+        #expect(rendezvous.everyBuildOverlapped,
+                "builds for distinct keys did not overlap: the second build never entered its closure while the first was still inside its own")
     }
 
-    /// Reentrancy from inside a Task body: a build for one key spawns a
-    /// child Task that calls `resolve` for a different key, and the parent
-    /// awaits the child's result. The fix's lock-free build path keeps this
-    /// from deadlocking even though both calls share the same cache.
+    /// Reentrancy through a Task: a build for one key spawns a child Task
+    /// that calls `resolve` for a different key, and the build waits for the
+    /// child's result. The fix's lock-free build path keeps this from
+    /// deadlocking even though both calls share the same cache.
+    ///
+    /// The outer build runs on a thread of its own, not in a Task: it blocks
+    /// until the child Task has run, and a child Task needs a cooperative
+    /// thread. Blocking one of those to wait for another is what froze the
+    /// whole test process on the 3-core CI runner (2026-09-29), where the
+    /// pool is three threads wide — see
+    /// `SharedCacheResolveTests.concurrentCallsForSameKeyShareOneBuild()`.
     @Test func reentrancyFromTask() async {
-        let cache = TestCache()
-        let outerResult = await Task.detached {
-            cache.resolve(key: AnyHashable("outer")) {
-                // Spawn a nested Task that resolves a different key. We can
-                // only block-wait it because the outer build closure is
-                // sync — `await` is not allowed here.
-                let inner = Task.detached {
-                    cache.resolve(key: AnyHashable("inner")) { 5 }
+        let cache = makeTestCache()
+        let outerResult: Int? = await withCheckedContinuation { continuation in
+            Thread {
+                let result = cache.resolve(key: SharedCacheKey(opaque: "outer")) {
+                    // Spawn a nested Task that resolves a different key. We can
+                    // only block-wait it because the outer build closure is
+                    // sync — `await` is not allowed here.
+                    let inner = Task.detached {
+                        cache.resolve(key: SharedCacheKey(opaque: "inner")) { 5 }
+                    }
+                    // `Task.value` is async, so we hop back through a Dispatch
+                    // semaphore — proves reentrancy works regardless of how the
+                    // caller chooses to bridge.
+                    let semaphore = DispatchSemaphore(value: 0)
+                    let result = OSAllocatedUnfairLock<Int?>(initialState: nil)
+                    Task {
+                        let value = await inner.value
+                        result.withLock { $0 = value }
+                        semaphore.signal()
+                    }
+                    semaphore.wait()
+                    let value = result.withLock { $0 }
+                    return value.map { $0 * 2 }
                 }
-                // `Task.value` is async, so we hop back through a Dispatch
-                // semaphore — proves reentrancy works regardless of how the
-                // caller chooses to bridge.
-                let semaphore = DispatchSemaphore(value: 0)
-                let result = OSAllocatedUnfairLock<Int?>(initialState: nil)
-                Task {
-                    let value = await inner.value
-                    result.withLock { $0 = value }
-                    semaphore.signal()
-                }
-                semaphore.wait()
-                let value = result.withLock { $0 }
-                return value.map { $0 * 2 }
-            }
-        }.value
+                continuation.resume(returning: result)
+            }.start()
+        }
         #expect(outerResult == 10)
     }
 
@@ -339,7 +459,7 @@ struct SharedCacheResolveSwiftConcurrencyTests {
     /// still publishes the result, and a fresh post-cancellation caller
     /// observes the cached value rather than re-running the build.
     @Test func cancellingWaitersLeavesCacheIntact() async {
-        let cache = TestCache()
+        let cache = makeTestCache()
         let buildCount = OSAllocatedUnfairLock(initialState: 0)
         let (buildEnteredStream, buildEnteredContinuation) =
             AsyncStream<Void>.makeStream()
@@ -348,7 +468,7 @@ struct SharedCacheResolveSwiftConcurrencyTests {
             // Builder: blocks long enough that we can spawn-and-cancel a
             // herd of waiter tasks while it is still in flight.
             group.addTask {
-                cache.resolve(key: AnyHashable("k")) {
+                cache.resolve(key: SharedCacheKey(opaque: "k")) {
                     buildCount.withLock { $0 += 1 }
                     buildEnteredContinuation.yield()
                     buildEnteredContinuation.finish()
@@ -366,7 +486,7 @@ struct SharedCacheResolveSwiftConcurrencyTests {
             // the cache is not poisoned by the cancellation.
             for _ in 0 ..< 8 {
                 let task = Task.detached {
-                    cache.resolve(key: AnyHashable("k")) {
+                    cache.resolve(key: SharedCacheKey(opaque: "k")) {
                         Issue.record("waiter ran build")
                         return -1
                     }
@@ -383,7 +503,7 @@ struct SharedCacheResolveSwiftConcurrencyTests {
 
         // After the builder published, the cache should hold the result —
         // a fresh caller must not trigger another build.
-        let post = cache.resolve(key: AnyHashable("k")) {
+        let post = cache.resolve(key: SharedCacheKey(opaque: "k")) {
             Issue.record("post-cancellation caller ran build, cache was corrupted")
             return -1
         }

@@ -40,6 +40,13 @@ extension TypeDefinition {
         // Cross-reference @objc and @nonobjc thunk symbols with built definitions
         applyThunkAttributes(symbolIndexStore: symbolIndexStore, typeName: typeName.name, typeNode: typeName.node, in: machO)
 
+        // The ObjC runtime name the source chose, if it chose one (evolution
+        // proposal `objc-custom-class-name`): no symbol carries it, the class
+        // metadata keyed by this descriptor does.
+        if case .class(let classDescriptor) = typeContextDescriptorWrapper {
+            customObjCClassName = SwiftClassObjectIndex.shared.customObjCClassName(forClassDescriptorOffset: classDescriptor.offset, in: machO)
+        }
+
         // The class's own ObjC method table tied to its members (evolution
         // proposals `objc-ancestor-override-recovery` and
         // `objc-member-selector-recovery`): `@objc` on every member the table

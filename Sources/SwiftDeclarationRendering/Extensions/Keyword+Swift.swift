@@ -30,6 +30,7 @@ extension Keyword {
         case `each`
         case `repeat`
         case atObjc = "@objc"
+        case atObjCRuntimeName = "@_objcRuntimeName"
         case atImplementation = "@implementation"
         case atNonobjc = "@nonobjc"
         case atPropertyWrapper = "@propertyWrapper"

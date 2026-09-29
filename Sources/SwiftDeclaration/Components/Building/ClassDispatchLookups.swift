@@ -41,7 +41,82 @@ package struct ClassDispatchLookups {
     /// class, so both stay unmarked.
     package var canRecoverFinalMembers: Bool = false
 
+    /// A member symbol for every one of the class's own vtable slots that its
+    /// method descriptor's `Tq` symbol names, in slot order — what the member
+    /// builders fall back to for a member the image has no implementation
+    /// symbol for (evolution proposal
+    /// `interface-descriptor-only-vtable-members`). Each stands in for the
+    /// implementation symbol: the implementation's mangled name at the
+    /// implementation's offset, so everything downstream that derives from
+    /// the name — the export verdict, the ObjC method table join, the ABI
+    /// identity — reads it as the symbol it replaces.
+    ///
+    /// A library-evolution image keeps those implementation symbols local and
+    /// exports only the `Tj` / `Tq` forms, so once the local symbols are gone
+    /// — AppKit in the OS dyld shared cache, or a binary run through
+    /// `strip -x` — these are the only record of the class's public methods
+    /// and accessors. Use through
+    /// `supplementing(_:in:)`, which adds only the members the real symbols do
+    /// not already declare.
+    package var vtableSlotMemberSymbols: [DemangledSymbol] = []
+
     package init() {}
+
+    /// `memberSymbols` plus the vtable slot member symbols of `category`
+    /// whose member none of `memberSymbols` declares. A real symbol always
+    /// wins: the stand-ins only fill in what the image lost.
+    package func supplementing(_ memberSymbols: [DemangledSymbol], in category: MemberCategory) -> [DemangledSymbol] {
+        let categorySlotSymbols = vtableSlotMemberSymbols.filter { Self.memberCategory(ofMemberNode: $0.demangledNode) == category }
+        guard !categorySlotSymbols.isEmpty else { return memberSymbols }
+        let declaredEntityKeys = Set(memberSymbols.compactMap(Self.declaredEntityKey(of:)))
+        return memberSymbols + categorySlotSymbols.filter { slotSymbol in
+            guard let entityKey = Self.declaredEntityKey(of: slotSymbol) else { return false }
+            return !declaredEntityKeys.contains(entityKey)
+        }
+    }
+
+    /// The member a symbol declares, keyed structurally: its entity node,
+    /// past the marker a merged-function thunk leads with — the builders fold
+    /// a thunk onto the member it stands for, so it declares that member as
+    /// much as the canonical symbol does.
+    private static func declaredEntityKey(of memberSymbol: DemangledSymbol) -> StructuralNodeReferenceKey? {
+        let children = memberSymbol.demangledNode.children
+        guard let firstChild = children.first else { return nil }
+        if firstChild.kind == .mergedFunction {
+            return children.second.map(StructuralNodeReferenceKey.init)
+        }
+        return StructuralNodeReferenceKey(firstChild)
+    }
+
+    /// The builder input a vtable member belongs in, read off its node the
+    /// way the symbol index files the same member's implementation symbol —
+    /// `nil` for anything the member builders take no part in.
+    private static func memberCategory(ofMemberNode node: NodeReference) -> MemberCategory? {
+        guard var entityNode = node.children.first else { return nil }
+        var isStatic = false
+        if entityNode.kind == .static, let staticEntityNode = entityNode.children.first {
+            isStatic = true
+            entityNode = staticEntityNode
+        }
+        switch entityNode.kind {
+        case .allocator:
+            return .allocators
+        case .function:
+            return isStatic ? .staticFunctions : .functions
+        case .getter,
+             .setter:
+            switch entityNode.children.first?.kind {
+            case .variable:
+                return isStatic ? .staticVariables : .variables
+            case .subscript:
+                return isStatic ? .staticSubscripts : .subscripts
+            default:
+                return nil
+            }
+        default:
+            return nil
+        }
+    }
 
     /// The dispatch facts for one member symbol: its method descriptor and
     /// vtable slot, node key first and the implementation offset as the

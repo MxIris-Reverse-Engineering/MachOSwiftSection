@@ -1,7 +1,10 @@
 // MARK: - Types
 
 enum SymbolTestsCore.ObjCClassWrapperFixtures {}
+@objc(SymbolTestsCoreObjCBridgeClass)
 class SymbolTestsCore.ObjCClassWrapperFixtures.ObjCBridge: NSObject {
+    // ObjC ancestor chain: NSObject
+
     var label: Swift.String
 
     /* [Getter] */ SymbolTestsCore.ObjCClassWrapperFixtures.ObjCBridge.label.getter : Swift.String
@@ -9,37 +12,40 @@ class SymbolTestsCore.ObjCClassWrapperFixtures.ObjCBridge: NSObject {
     /* [Modify] */ SymbolTestsCore.ObjCClassWrapperFixtures.ObjCBridge.label.modify : Swift.String
 
     /* Allocator */
-    SymbolTestsCore.ObjCClassWrapperFixtures.ObjCBridge.__allocating_init() -> SymbolTestsCore.ObjCClassWrapperFixtures.ObjCBridge
+    SymbolTestsCore.ObjCClassWrapperFixtures.ObjCBridge.__allocating_init() -> SymbolTestsCore.ObjCClassWrapperFixtures.ObjCBridge // overrides -[NSObject init] (To thunk symbol at the IMP)
 
     /* Deallocator */
     merged SymbolTestsCore.ObjCClassWrapperFixtures.ObjCBridge.__deallocating_deinit
     SymbolTestsCore.ObjCClassWrapperFixtures.ObjCBridge.__deallocating_deinit
 
     /* Constructor */
-    SymbolTestsCore.ObjCClassWrapperFixtures.ObjCBridge.init() -> SymbolTestsCore.ObjCClassWrapperFixtures.ObjCBridge
+    SymbolTestsCore.ObjCClassWrapperFixtures.ObjCBridge.init() -> SymbolTestsCore.ObjCClassWrapperFixtures.ObjCBridge // overrides -[NSObject init] (To thunk symbol at the IMP)
 
     /* Variable */
-    SymbolTestsCore.ObjCClassWrapperFixtures.ObjCBridge.label.getter : Swift.String
-    SymbolTestsCore.ObjCClassWrapperFixtures.ObjCBridge.label.setter : Swift.String
+    SymbolTestsCore.ObjCClassWrapperFixtures.ObjCBridge.label.getter : Swift.String // @objc -[SymbolTestsCoreObjCBridgeClass label] (To thunk symbol at the IMP)
+    SymbolTestsCore.ObjCClassWrapperFixtures.ObjCBridge.label.setter : Swift.String // @objc -[SymbolTestsCoreObjCBridgeClass setLabel:] (To thunk symbol at the IMP)
 
     /* [Method] Variable */
     method descriptor for SymbolTestsCore.ObjCClassWrapperFixtures.ObjCBridge.label.getter : Swift.String
     method descriptor for SymbolTestsCore.ObjCClassWrapperFixtures.ObjCBridge.label.setter : Swift.String
 }
+@objc(SymbolTestsCoreObjCBridgeWithProto)
 class SymbolTestsCore.ObjCClassWrapperFixtures.ObjCBridgeWithProto: NSObject {
+    // ObjC ancestor chain: NSObject
+
     /* [Method] */ func SymbolTestsCore.ObjCClassWrapperFixtures.ObjCBridgeWithProto.ping() -> ()
 
     /* Allocator */
-    SymbolTestsCore.ObjCClassWrapperFixtures.ObjCBridgeWithProto.__allocating_init() -> SymbolTestsCore.ObjCClassWrapperFixtures.ObjCBridgeWithProto
+    SymbolTestsCore.ObjCClassWrapperFixtures.ObjCBridgeWithProto.__allocating_init() -> SymbolTestsCore.ObjCClassWrapperFixtures.ObjCBridgeWithProto // overrides -[NSObject init] (To thunk symbol at the IMP)
 
     /* Deallocator */
     SymbolTestsCore.ObjCClassWrapperFixtures.ObjCBridgeWithProto.__deallocating_deinit
 
     /* Constructor */
-    SymbolTestsCore.ObjCClassWrapperFixtures.ObjCBridgeWithProto.init() -> SymbolTestsCore.ObjCClassWrapperFixtures.ObjCBridgeWithProto
+    SymbolTestsCore.ObjCClassWrapperFixtures.ObjCBridgeWithProto.init() -> SymbolTestsCore.ObjCClassWrapperFixtures.ObjCBridgeWithProto // overrides -[NSObject init] (To thunk symbol at the IMP)
 
     /* Function */
-    SymbolTestsCore.ObjCClassWrapperFixtures.ObjCBridgeWithProto.ping() -> ()
+    SymbolTestsCore.ObjCClassWrapperFixtures.ObjCBridgeWithProto.ping() -> () // @objc -[SymbolTestsCoreObjCBridgeWithProto ping] (To thunk symbol at the IMP)
 
     /* [Method] Function */
     method descriptor for SymbolTestsCore.ObjCClassWrapperFixtures.ObjCBridgeWithProto.ping() -> ()

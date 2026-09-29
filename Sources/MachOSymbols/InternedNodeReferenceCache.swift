@@ -31,8 +31,8 @@ import SwiftStdlibToolbox
 ///   cache, and dropped by `SwiftDeclarationIndexer`'s per-image cleanup so
 ///   the recycling model holds.
 /// - **Per process** (`reference(interning:)`): for the in-process reading
-///   paths that have no Mach-O handle. One type-keyed store, memory-pressure
-///   evictable, bounded by the unique names the process actually touches.
+///   paths that have no Mach-O handle. One process-wide store that is never
+///   evicted, bounded by the unique names the process actually touches.
 ///
 /// Eviction reclaims nothing while external references survive: a
 /// `NodeReference` keeps its backing storage alive after the scope drops
@@ -43,8 +43,19 @@ import SwiftStdlibToolbox
 /// ever wanted.
 @_spi(ForSymbolViewer)
 @_spi(Internals)
-public final class InternedNodeReferenceCache: SharedCache<InternedNodeReferenceCache.Storage>, @unchecked Sendable {
+public final class InternedNodeReferenceCache: @unchecked Sendable {
     public static let shared = InternedNodeReferenceCache()
+
+    private let cache = SharedCache<Storage>(evictionGroup: .internedNames)
+
+    /// The process-scoped arena, for the in-process reading paths that have
+    /// no Mach-O handle. A `static let` is created lazily and is thread-safe
+    /// by language rule. It is never evicted: nothing owns it the way an
+    /// indexer owns an image's entries, and it is bounded by the unique
+    /// names the process interns in-process.
+    private static let processScopedStorage = Storage()
+
+    private init() {}
 
     public final class Storage: Sendable {
         /// The scope's single appendable arena; `intern` serializes on the
@@ -56,24 +67,23 @@ public final class InternedNodeReferenceCache: SharedCache<InternedNodeReference
         }
     }
 
-    override public func buildStorage(for machO: some MachORepresentableWithCache) -> Storage? {
-        Storage()
-    }
-
-    override public func buildStorage() -> Storage? {
-        Storage()
-    }
-
     /// The image-scoped shared reference for `node`'s structural identity.
     public func reference(interning node: Node, in machO: some MachORepresentableWithCache) -> NodeReference {
-        guard let storage = storage(in: machO) else { return NodeReference(interning: node) }
+        guard let storage = cache.storage(in: machO, buildUsing: { _ in Storage() }) else { return NodeReference(interning: node) }
         return storage.reference(interning: node)
     }
 
     /// The process-scoped shared reference for `node`'s structural identity,
     /// for call sites without a Mach-O handle (in-process reading contexts).
     public func reference(interning node: Node) -> NodeReference {
-        guard let storage = storage() else { return NodeReference(interning: node) }
-        return storage.reference(interning: node)
+        Self.processScopedStorage.reference(interning: node)
+    }
+
+    public func contains(in machO: some MachORepresentableWithCache) -> Bool {
+        cache.contains(in: machO)
+    }
+
+    public func remove(for machO: some MachORepresentableWithCache) {
+        cache.remove(for: machO)
     }
 }
