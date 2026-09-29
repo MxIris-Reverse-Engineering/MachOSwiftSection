@@ -10,6 +10,9 @@ jobs:
   macos_test:
     name: Execute tests on macOS
     runs-on: ${{ matrix.os }}
+    # DIAGNOSTICS BRANCH — not for merging. Fail a stalled run instead of
+    # letting it sit until GitHub's 360-minute default.
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
@@ -99,8 +102,10 @@ jobs:
           path: Tests/Projects/SymbolTests/DerivedData/Logs
           if-no-files-found: ignore
 
-      - name: Cache SwiftPM build directory
-        uses: actions/cache@v4
+      - name: Restore SwiftPM build directory
+        # Restore only: a diagnostics PR must not save another 2.5 GB
+        # PR-scoped cache and push main's caches out of the 10 GB quota.
+        uses: actions/cache/restore@v4
         with:
           path: .build-test-${{ matrix.configuration }}
           # This step runs after `swift package update`, so the key hashes the
@@ -111,10 +116,95 @@ jobs:
           restore-keys: |
             spm-build-${{ matrix.os }}-${{ matrix.xcode-version }}-${{ matrix.configuration }}-
 
-      - name: Build and run tests (${{ matrix.configuration }})
+      - name: Build tests (${{ matrix.configuration }})
         run: |
-          swift test \
+          swift build --build-tests \
             -c ${{ matrix.configuration }} \
             --enable-experimental-prebuilts \
+            --build-path .build-test-${{ matrix.configuration }}
+
+      - name: Run tests under a hang watchdog (${{ matrix.configuration }})
+        env:
+          # A healthy test phase takes 2-7 minutes; past this the run is stalled.
+          WATCHDOG_SECONDS: 720
+        run: |
+          set +e
+          diagnostics="$RUNNER_TEMP/hang-diagnostics"
+          mkdir -p "$diagnostics"
+          events="$diagnostics/events.jsonl"
+          echo "Runner: $(sysctl -n hw.activecpu) active CPUs, $(( $(sysctl -n hw.memsize) / 1073741824 )) GB memory"
+
+          # The event stream is written per event, unlike the console output,
+          # which reaches the log in buffered chunks and hides where a stall is.
+          swift test \
+            -c ${{ matrix.configuration }} \
+            --skip-build \
+            --enable-experimental-prebuilts \
             --build-path .build-test-${{ matrix.configuration }} \
-            --filter '\.(SymbolTestsCoreDumpSnapshotTests|SymbolTestsCoreInterfaceSnapshotTests|SymbolTestsCoreCoverageInvariantTests|STCoreE2ETests|STCoreTests|GenericSpecializationTests|MultiPayloadEnumTests|SymbolicDemanglerDemanglingTests|MalformedSymbolValueTests|ContinuousIntegrationTestFilterTests|MachOImageCacheMembershipTests|SharedCacheResolveTests|SharedCacheResolveSwiftConcurrencyTests|SharedCacheKeyTests|SharedCacheRegistryTests|DependencyLoadNameTests|DependencyClosureTests|FileDependencyLocatorTests|SwiftInterfaceBuilderDependenciesTests|ManglingPrefixTests|MethodDescriptorTests|MethodOverrideDescriptorTests|MethodDefaultOverrideDescriptorTests|ProtocolRequirementTests|ResilientWitnessTests|LargeStackTaskExecutionTests|BoundedConcurrentMapTests|SwiftEvolutionInterfaceBuilderTests|EvolutionCommandValidationTests|DiffCommandValidationTests|ObjCSectionCommandTests|ObjCAPICommandParsingTests|ObjCDumpDiagnosticsTests)(/|$)'
+            --event-stream-output-path "$events" \
+            --event-stream-version 0 \
+            --filter '\.(SymbolTestsCoreDumpSnapshotTests|SymbolTestsCoreInterfaceSnapshotTests|SymbolTestsCoreCoverageInvariantTests|STCoreE2ETests|STCoreTests|GenericSpecializationTests|MultiPayloadEnumTests|SymbolicDemanglerDemanglingTests|MalformedSymbolValueTests|ContinuousIntegrationTestFilterTests|MachOImageCacheMembershipTests|SharedCacheResolveTests|SharedCacheResolveSwiftConcurrencyTests|SharedCacheKeyTests|SharedCacheRegistryTests|DependencyLoadNameTests|DependencyClosureTests|FileDependencyLocatorTests|SwiftInterfaceBuilderDependenciesTests|ManglingPrefixTests|MethodDescriptorTests|MethodOverrideDescriptorTests|MethodDefaultOverrideDescriptorTests|ProtocolRequirementTests|ResilientWitnessTests|LargeStackTaskExecutionTests|BoundedConcurrentMapTests|SwiftEvolutionInterfaceBuilderTests|EvolutionCommandValidationTests|DiffCommandValidationTests|ObjCSectionCommandTests|ObjCAPICommandParsingTests|ObjCDumpDiagnosticsTests)(/|$)' > "$diagnostics/test-output.log" 2>&1 &
+          test_pid=$!
+
+          started_at=$SECONDS
+          while kill -0 "$test_pid" 2>/dev/null && (( SECONDS - started_at < WATCHDOG_SECONDS )); do
+            sleep 15
+          done
+
+          if kill -0 "$test_pid" 2>/dev/null; then
+            echo "::error::swift test still running after ${WATCHDOG_SECONDS}s; capturing diagnostics"
+
+            echo "::group::Memory"
+            vm_stat
+            sysctl vm.swapusage
+            memory_pressure -Q
+            echo "::endgroup::"
+
+            echo "::group::Top processes"
+            top -l 1 -o cpu -n 20 -stats pid,command,cpu,th,mem,state
+            echo "::endgroup::"
+
+            echo "::group::Tests started but never ended (start time, test ID)"
+            jq -r 'select(.kind == "event") | .payload
+                   | select(.kind == "testStarted" or .kind == "testEnded")
+                   | [.kind, (.instant.since1970 | tostring), .testID] | @tsv' "$events" \
+              | awk -F'\t' '$1 == "testStarted" { started[$3] = $2 } $1 == "testEnded" { delete started[$3] } END { for (id in started) print started[id], id }' \
+              | sort -n
+            echo "::endgroup::"
+
+            echo "::group::Last 40 events"
+            tail -n 40 "$events" | jq -c '.payload | {kind, testID, since1970: .instant.since1970}'
+            echo "::endgroup::"
+
+            for pid in $(pgrep -f swiftpm-testing-helper) $(pgrep -x xctest); do
+              echo "::group::Thread stacks of $pid ($(ps -o command= -p "$pid" | cut -c1-160))"
+              if sample "$pid" 5 -mayDie -file "$diagnostics/sample-$pid.txt" >/dev/null 2>&1; then
+                cat "$diagnostics/sample-$pid.txt"
+              else
+                sudo spindump "$pid" 5 -file "$diagnostics/spindump-$pid.txt" >/dev/null 2>&1
+                sudo cat "$diagnostics/spindump-$pid.txt"
+              fi
+              echo "::endgroup::"
+            done
+
+            kill -TERM "$test_pid"
+            sleep 5
+            pkill -KILL -f swiftpm-testing-helper
+            test_status=124
+          else
+            wait "$test_pid"
+            test_status=$?
+          fi
+
+          echo "::group::swift test output"
+          cat "$diagnostics/test-output.log"
+          echo "::endgroup::"
+          exit "$test_status"
+
+      - name: Upload hang diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hang-diagnostics-${{ matrix.configuration }}
+          path: ${{ runner.temp }}/hang-diagnostics
+          if-no-files-found: ignore
