@@ -118,10 +118,13 @@ jobs:
 
       - name: Build tests (${{ matrix.configuration }})
         run: |
+          # `swift test -c release` turns testability on by itself;
+          # `swift build` does not, and `@testable import` then fails.
           swift build --build-tests \
             -c ${{ matrix.configuration }} \
             --enable-experimental-prebuilts \
-            --build-path .build-test-${{ matrix.configuration }}
+            --build-path .build-test-${{ matrix.configuration }} \
+            ${{ matrix.configuration == 'release' && '-Xswiftc -enable-testing' || '' }}
 
       - name: Run tests under a hang watchdog (${{ matrix.configuration }})
         env:
@@ -200,6 +203,20 @@ jobs:
           cat "$diagnostics/test-output.log"
           echo "::endgroup::"
           exit "$test_status"
+
+      - name: Run the SharedCache suites on a one-thread cooperative pool (${{ matrix.configuration }})
+        # Same step as the fix branch adds to the real workflow.
+        timeout-minutes: 5
+        env:
+          LIBDISPATCH_COOPERATIVE_POOL_STRICT: 1
+        run: |
+          swift test \
+            -c ${{ matrix.configuration }} \
+            --skip-build \
+            --enable-experimental-prebuilts \
+            --build-path .build-test-${{ matrix.configuration }} \
+            --filter '\.(SharedCacheResolveTests|SharedCacheResolveSwiftConcurrencyTests)/' \
+            --skip 'differentKeysParallelVia'
 
       - name: Upload hang diagnostics
         if: always()
