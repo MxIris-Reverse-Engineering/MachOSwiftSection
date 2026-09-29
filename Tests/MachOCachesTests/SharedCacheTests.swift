@@ -31,6 +31,15 @@ struct SharedCacheResolveTests {
     /// Concurrent calls for the **same** key must share one build — the
     /// promise-based marker is the whole point of this refactor over the
     /// previous "build under the global lock" implementation.
+    ///
+    /// The callers run on threads of the test's own, not the global dispatch
+    /// queue: this synchronous test body blocks a cooperative thread until
+    /// they finish. On the 3-core CI runner the global queue granted no
+    /// worker while the cooperative pool was blocked (2026-09-29), and this
+    /// test, ``registeringOverAnInFlightBuildWinsAndTheBuilderStillAnswersItsWaiters()``
+    /// and `reentrancyFromTask()` held all three pool threads between them —
+    /// no other test in the process could run again. A `Thread` exists the
+    /// moment it is started, whatever the pools are doing.
     @Test func concurrentCallsForSameKeyShareOneBuild() {
         let cache = makeTestCache()
         let buildCount = OSAllocatedUnfairLock(initialState: 0)
@@ -42,7 +51,7 @@ struct SharedCacheResolveTests {
         // `build` until we release it. Every subsequent caller must attach
         // to that marker rather than invoking `build` again.
         let firstCallerDone = DispatchSemaphore(value: 0)
-        DispatchQueue.global().async {
+        Thread {
             let result = cache.resolve(key: SharedCacheKey(opaque: "shared")) {
                 buildCount.withLock { $0 += 1 }
                 buildEnter.signal()
@@ -51,7 +60,7 @@ struct SharedCacheResolveTests {
             }
             #expect(result == 42)
             firstCallerDone.signal()
-        }
+        }.start()
 
         buildEnter.wait()  // first caller is now blocked inside `build`
 
@@ -60,14 +69,14 @@ struct SharedCacheResolveTests {
         let herdDone = DispatchSemaphore(value: 0)
         let observed = OSAllocatedUnfairLock(initialState: [Int]())
         for _ in 0 ..< waiterCount {
-            DispatchQueue.global().async {
+            Thread {
                 let result = cache.resolve(key: SharedCacheKey(opaque: "shared")) {
                     Issue.record("a waiter ran build instead of joining the in-flight promise")
                     return -1
                 }
                 observed.withLock { $0.append(result ?? -1) }
                 herdDone.signal()
-            }
+            }.start()
         }
 
         // Give the herd a beat to all enter `resolve` and attach to the
@@ -181,6 +190,9 @@ struct SharedCacheResolveTests {
     /// an in-flight build included: the builder, once it returns, must not
     /// publish over the registered value — but it still hands its own result
     /// to the callers that joined it, since their promise is still its own.
+    ///
+    /// The builder runs on a thread of its own for the reason
+    /// ``concurrentCallsForSameKeyShareOneBuild()`` gives.
     @Test func registeringOverAnInFlightBuildWinsAndTheBuilderStillAnswersItsWaiters() {
         let cache = makeTestCache()
         let key = SharedCacheKey(opaque: "k")
@@ -189,7 +201,7 @@ struct SharedCacheResolveTests {
         let builderDone = DispatchSemaphore(value: 0)
         let builderResult = OSAllocatedUnfairLock<Int?>(initialState: nil)
 
-        DispatchQueue.global().async {
+        Thread {
             let result = cache.resolve(key: key) {
                 buildEnter.signal()
                 buildRelease.wait()
@@ -197,7 +209,7 @@ struct SharedCacheResolveTests {
             }
             builderResult.withLock { $0 = result }
             builderDone.signal()
-        }
+        }.start()
         buildEnter.wait()
 
         cache.register(2, forKey: key)
@@ -400,35 +412,45 @@ struct SharedCacheResolveSwiftConcurrencyTests {
                 "builds for distinct keys did not overlap: the second build never entered its closure while the first was still inside its own")
     }
 
-    /// Reentrancy from inside a Task body: a build for one key spawns a
-    /// child Task that calls `resolve` for a different key, and the parent
-    /// awaits the child's result. The fix's lock-free build path keeps this
-    /// from deadlocking even though both calls share the same cache.
+    /// Reentrancy through a Task: a build for one key spawns a child Task
+    /// that calls `resolve` for a different key, and the build waits for the
+    /// child's result. The fix's lock-free build path keeps this from
+    /// deadlocking even though both calls share the same cache.
+    ///
+    /// The outer build runs on a thread of its own, not in a Task: it blocks
+    /// until the child Task has run, and a child Task needs a cooperative
+    /// thread. Blocking one of those to wait for another is what froze the
+    /// whole test process on the 3-core CI runner (2026-09-29), where the
+    /// pool is three threads wide — see
+    /// `SharedCacheResolveTests.concurrentCallsForSameKeyShareOneBuild()`.
     @Test func reentrancyFromTask() async {
         let cache = makeTestCache()
-        let outerResult = await Task.detached {
-            cache.resolve(key: SharedCacheKey(opaque: "outer")) {
-                // Spawn a nested Task that resolves a different key. We can
-                // only block-wait it because the outer build closure is
-                // sync — `await` is not allowed here.
-                let inner = Task.detached {
-                    cache.resolve(key: SharedCacheKey(opaque: "inner")) { 5 }
+        let outerResult: Int? = await withCheckedContinuation { continuation in
+            Thread {
+                let result = cache.resolve(key: SharedCacheKey(opaque: "outer")) {
+                    // Spawn a nested Task that resolves a different key. We can
+                    // only block-wait it because the outer build closure is
+                    // sync — `await` is not allowed here.
+                    let inner = Task.detached {
+                        cache.resolve(key: SharedCacheKey(opaque: "inner")) { 5 }
+                    }
+                    // `Task.value` is async, so we hop back through a Dispatch
+                    // semaphore — proves reentrancy works regardless of how the
+                    // caller chooses to bridge.
+                    let semaphore = DispatchSemaphore(value: 0)
+                    let result = OSAllocatedUnfairLock<Int?>(initialState: nil)
+                    Task {
+                        let value = await inner.value
+                        result.withLock { $0 = value }
+                        semaphore.signal()
+                    }
+                    semaphore.wait()
+                    let value = result.withLock { $0 }
+                    return value.map { $0 * 2 }
                 }
-                // `Task.value` is async, so we hop back through a Dispatch
-                // semaphore — proves reentrancy works regardless of how the
-                // caller chooses to bridge.
-                let semaphore = DispatchSemaphore(value: 0)
-                let result = OSAllocatedUnfairLock<Int?>(initialState: nil)
-                Task {
-                    let value = await inner.value
-                    result.withLock { $0 = value }
-                    semaphore.signal()
-                }
-                semaphore.wait()
-                let value = result.withLock { $0 }
-                return value.map { $0 * 2 }
-            }
-        }.value
+                continuation.resume(returning: result)
+            }.start()
+        }
         #expect(outerResult == 10)
     }
 

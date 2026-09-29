@@ -164,6 +164,29 @@ allowlist 并填 reason」，实施时被偷换成永远通过的 sentinel 测�
   任何 bump 都应是有意的、可 review 的变更（工具链升级可能合法地改变发出的元数据与 section 顺序，
   后者由 linker 决定，同工具链内稳定）。
 
+### runner 只有 3 核：测试不能拿不设超时的等待占住 cooperative thread（2026-09-29）
+
+GitHub 的 `macos-26` runner 是 3 核、7 GB 内存。Swift Concurrency 的 cooperative pool 按核心数开线程，所以 CI 上同一时刻只有 3 个 cooperative thread；本机 10 核就有 10 个。Swift Testing 把所有测试（同步测试也一样）都放在这个 pool 上跑。
+
+0.21.0 的发版 PR 上，debug 和 release 两个 job 都在测试开始几秒后整体停住，一直挂到手动取消（约 70 分钟）。诊断 run 用看门狗抓到的现场：所有测试同时开始、一个都没结束，进程 CPU 0%，没有 swap；3 个 cooperative thread 全部停在 `semaphore_wait_trap`，分别来自 `SharedCacheTests.swift` 里的三个测试：
+
+| 测试 | 在等什么 |
+|---|---|
+| `reentrancyFromTask` | build 闭包里起的 `Task` 跑完——而这个 `Task` 要从同一个 pool 里分一个线程 |
+| `concurrentCallsForSameKeyShareOneBuild` | 丢给 `DispatchQueue.global()` 的 block 跑起来 |
+| `registeringOverAnInFlightBuildWinsAndTheBuilderStillAnswersItsWaiters` | 同上 |
+
+那两个 GCD block 从头到尾没有被调度：进程里有一个空闲的 workqueue 线程，却没有任何线程在执行它们。三个等待都不设超时，于是三个线程永远等下去，其余所有测试也再分不到线程。main 上只有前两个测试，总还剩一个线程能推进；第三个是 0053（`SharedCache` 组合化）那批新加的，正好凑满 3 个。本机 10 个线程永远占不满，所以本地复现不出来。
+
+**规则**：测试不能让 cooperative thread 去等一件自己也需要线程才能完成的事，除非这个等待设了超时。需要一个一直在跑的对手方时，用 `Thread { … }.start()`——线程一启动就存在，不依赖任何线程池有没有空位（`30bf459b` 已经这样改过 `concurrentCallsForDifferentKeysRunInParallel`）；需要从同步 build 闭包里等一个 `Task` 时，让这个 build 跑在自己的 `Thread` 上，再用 continuation 把结果交回异步测试。
+
+**CI 上的两道防线**：
+
+- **单线程 pool 跑一遍 SharedCache 套件**：workflow 在主测试之后用 `LIBDISPATCH_COOPERATIVE_POOL_STRICT=1`（libdispatch 把 cooperative pool 压到 1 个线程）复用已编译产物再跑 `SharedCacheResolveTests` 和 `SharedCacheResolveSwiftConcurrencyTests`，几秒钟。违反上面规则的测试在 1 个线程下每次都会卡住，而不是等三个凑巧撞在一起才卡；这一步自己带 5 分钟超时，把卡住变成失败。修复前的 `reentrancyFromTask` 在这个模式下单跑就会卡住，这就是它的复现。两个 `differentKeysParallelVia…` 测试被跳过：它们要证明两个 build 同时在跑，天生需要两个线程，而且等待都设了 30 秒超时。
+- **job 级 `timeout-minutes: 45`**：健康的 job 是 8–26 分钟。以前没有设，卡住的 run 要挂满 GitHub 默认的 360 分钟。
+
+**排查这类卡住的办法**：`swift test` 的控制台输出是分块缓冲后才进日志的，只看日志分不清是哪个测试卡住。当时用的诊断 workflow 在 PR #128 的提交 `e473b89d` 里，可以照搬：测试放后台跑并打开 `--event-stream-output-path`（每个事件单独写一行），超过 12 分钟就列出「已开始但没结束」的测试、内存状态，并对 `swiftpm-testing-helper` 做 `sample`（它带 `get-task-allow`，不需要 sudo）。
+
 ## 相关文档
 
 - [AGENTS.md](../../AGENTS.md) —— 覆盖体系的现行操作规程（invariants、regen-baselines、环境漂移排查）

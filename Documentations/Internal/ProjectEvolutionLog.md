@@ -2042,6 +2042,16 @@
 - **关联文档**：[Changelogs/0.21.0.md](../../Changelogs/0.21.0.md)；[0052](../Evolutions/0052-objc-custom-class-name.md)、[0053](../Evolutions/0053-shared-cache-composition-and-eviction-registry.md)、[0054](../Evolutions/0054-interface-descriptor-only-vtable-members.md)。
 - **对应版本**：0.21.0。
 
+## 67. CI 卡死：SharedCache 的三个测试占满 3 个线程的 cooperative pool
+
+- **时间段**：2026-09-29（单日）。
+- **动机**：用户问 0.21.0 发版 PR（#127）的 CI 为什么跑这么久。两个 job 在测试开始几秒后整体停住，挂了约 70 分钟，取消后日志也只能看出「进程停了」，看不出停在哪：`swift test` 的控制台输出是分块缓冲进日志的。本机用同一份 `--filter` 跑 debug，369 个测试 278 秒跑完，复现不出来。
+- **关键决策**：**① 先诊断再修**：开了一个只改 workflow 的诊断 PR（#128，提交 `e473b89d`，不合入）：测试放后台跑、打开 Swift Testing 的事件流，12 分钟没结束就列出「已开始但没结束」的测试、内存状态，并对测试进程做 `sample`。现场是：runner 3 核，cooperative pool 3 个线程全部卡在 `semaphore_wait_trap`，分属 `reentrancyFromTask`、`concurrentCallsForSameKeyShareOneBuild`、`registeringOverAnInFlightBuildWinsAndTheBuilderStillAnswersItsWaiters`，前者等一个需要 pool 线程的 `Task`，后两者等丢给 `DispatchQueue.global()` 却一直没被调度的 block；内存、swap 正常，排除了「删掉内存压力监听导致换页」的猜测。第三个测试是第 64 节那批新加的，main 上只有前两个，所以 main 的 CI 一直没事。**② 只改测试，不改库**：库本身没有死锁，是测试让 cooperative thread 去等需要线程才能完成的事。两个 GCD 测试的对手方改成 `Thread { … }.start()`（与 `30bf459b` 对 `concurrentCallsForDifferentKeysRunInParallel` 的改法一致）；`reentrancyFromTask` 让外层 build 跑在自己的 `Thread` 上，结果经 continuation 交回——测试从「在 `Task` 里调 resolve」变成「在普通线程上调、在 build 闭包里起 `Task`」，被测的性质（build 期间不持锁，另一个 key 能 resolve）不变。**③ 永久防线放在 CI**：主测试后用 `LIBDISPATCH_COOPERATIVE_POOL_STRICT=1`（pool 压到 1 个线程）复用产物再跑两个 SharedCache 套件，带 5 分钟超时；修复前的 `reentrancyFromTask` 在这个模式下单跑就卡住，是本地能造出来的复现。两个 GCD 测试在本机 strict 模式下不卡（10 核机器上 GCD 名额够），它们的防线是改成 `Thread` 之后不再依赖任何线程池。**④ job 级 `timeout-minutes: 45`**：以前没设，卡住要挂满 360 分钟。
+- **落地模块**：`Tests/MachOCachesTests/SharedCacheTests.swift`、`.github/workflows/macOS.yml`、`AGENTS.md`（写测试一节加一条规则）、[FixtureTestingAndContinuousIntegration.md](FixtureTestingAndContinuousIntegration.md)（新增一小节）。
+- **验证**：本机 strict 模式（`LIBDISPATCH_COOPERATIVE_POOL_STRICT=1`）下，修复前的 `reentrancyFromTask` 单跑 45 秒不结束，修复后两个 SharedCache 套件（跳过两个 `differentKeysParallelVia…`）9 个测试 0.42 秒通过；正常模式下 CI 的完整 `--filter` 369 个测试唯一的失败是既有的 `argumentCandidatePathSpecializesNonGenericCandidate` 随机失败，`MachOCachesTests` 44 个测试全过。在 3 核 / 7 GB 的 runner 上（PR #128 带修复的 run `36514967139`）：debug 369 个测试 301 秒、release 191 秒全部通过，两边的单线程 pool 一步都是 9 个测试不到 1 秒通过。
+- **关联文档**：[FixtureTestingAndContinuousIntegration.md](FixtureTestingAndContinuousIntegration.md)「runner 只有 3 核」一节。
+- **对应版本**：0.21.0（发版 PR 合入 main 之前补上；只动测试与 CI，发布产物不变）。
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节
