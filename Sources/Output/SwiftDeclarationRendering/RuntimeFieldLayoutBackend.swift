@@ -83,7 +83,7 @@ struct RuntimeFieldLayoutBackend {
     /// offsets are disabled, no metadata is available, or the type is not a
     /// stored-field aggregate.
     var fieldOffsets: [Int]? {
-        guard configuration.printFieldOffset, let metadata else { return nil }
+        guard configuration.producesContent(for: .printFieldOffset), let metadata else { return nil }
         switch type {
         case .struct(let structType):
             guard let structMetadata = metadata.struct else { return nil }
@@ -112,17 +112,22 @@ struct RuntimeFieldLayoutBackend {
             } else {
                 endOffset = nil
             }
-            configuration.fieldOffsetComment(startOffset: startOffset, endOffset: endOffset)
-
-            if configuration.printExpandedFieldOffsets {
-                expandedFieldOffsets(for: mangledTypeName, baseOffset: startOffset, baseIndentation: configuration.indentation, ancestors: [], in: machO)
+            configuration.optionalContent(.printFieldOffset) {
+                configuration.fieldOffsetComment(startOffset: startOffset, endOffset: endOffset)
+                // Expanded offsets hang off the field offset: printed only
+                // when both are on.
+                configuration.optionalContent(.printExpandedFieldOffsets) {
+                    expandedFieldOffsets(for: mangledTypeName, baseOffset: startOffset, baseIndentation: configuration.indentation, ancestors: [], in: machO)
+                }
             }
         }
 
-        if configuration.printTypeLayout,
+        if configuration.producesContent(for: .printTypeLayout),
            let resolvedMetatype = resolveFieldMetatype(for: mangledTypeName, in: machO),
            let resolvedMetadata = try? StructMetadata.createInProcess(resolvedMetatype) {
-            try await resolvedMetadata.asMetadataWrapper().dumpTypeLayout(using: configuration)
+            try await configuration.optionalContent(.printTypeLayout) {
+                try await resolvedMetadata.asMetadataWrapper().dumpTypeLayout(using: configuration)
+            }
         }
     }
 
@@ -137,21 +142,28 @@ struct RuntimeFieldLayoutBackend {
         var isTypeLayoutPrinted = false
 
         if !mangledTypeName.isEmpty,
-           configuration.printTypeLayout,
+           configuration.producesContent(for: .printTypeLayout),
            let resolvedMetatype = resolveFieldMetatype(for: mangledTypeName, in: machO),
            let resolvedMetadata = try? StructMetadata.createInProcess(resolvedMetatype) {
-            try await resolvedMetadata.asMetadataWrapper().dumpTypeLayout(using: configuration)
+            try await configuration.optionalContent(.printTypeLayout) {
+                try await resolvedMetadata.asMetadataWrapper().dumpTypeLayout(using: configuration)
+            }
             isTypeLayoutPrinted = true
         }
 
         if let caseProjection = enumLayout?.cases[safe: index] {
-            if isTypeLayoutPrinted {
+            configuration.optionalContent(.printEnumLayout) {
+                // The line between the two blocks exists only when both do.
+                if isTypeLayoutPrinted {
+                    configuration.optionalContent(.printTypeLayout) {
+                        BreakLine()
+                    }
+                }
+                configuration.indentString
+                InlineComment("Enum Layout")
                 BreakLine()
+                configuration.enumLayoutCaseComment(caseProjection: caseProjection)
             }
-            configuration.indentString
-            InlineComment("Enum Layout")
-            BreakLine()
-            configuration.enumLayoutCaseComment(caseProjection: caseProjection)
         }
     }
 
@@ -590,7 +602,7 @@ struct RuntimeFieldLayoutBackend {
 
     var enumLayout: EnumLayoutCalculator.LayoutResult? {
         get async {
-            guard configuration.printEnumLayout,
+            guard configuration.producesContent(for: .printEnumLayout),
                   let enumValue,
                   !enumValue.descriptor.isGeneric else { return nil }
             return try? await computeEnumLayout(enumValue, in: machO)
@@ -712,9 +724,11 @@ struct RuntimeFieldLayoutBackend {
 
     @SemanticStringBuilder
     func enumPrefixComments(enumLayout: EnumLayoutCalculator.LayoutResult?) async -> SemanticString {
-        if configuration.printEnumLayout, let enumLayout {
-            BreakLine()
-            configuration.enumLayoutComment(layoutResult: enumLayout)
+        if let enumLayout {
+            configuration.optionalContent(.printEnumLayout) {
+                BreakLine()
+                configuration.enumLayoutComment(layoutResult: enumLayout)
+            }
         }
 
         if configuration.printSpareBitAnalysis,

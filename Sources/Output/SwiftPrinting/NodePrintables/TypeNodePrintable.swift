@@ -1,6 +1,7 @@
 import SwiftDeclaration
 import SwiftDeclarationRendering
 import Demangling
+import Semantic
 
 /// The slice of printer state the type layer reads.
 protocol TypeNodePrintableContext: NodePrintableContext {
@@ -90,8 +91,22 @@ extension TypeNodePrintable {
     mutating func printOpaqueReturnType(_ node: Node) async {
         target.write("some", context: .context(for: node, state: .printKeyword))
         if let targetNode = context.targetNode, let opaqueType = await delegate?.opaqueType(forNode: targetNode, index: node.first(of: .opaqueReturnTypeIndex)?.index?.int) {
+            let constraintStart = target.writtenUnitCount
             target.writeSpace()
             target.write(opaqueType)
+            // What the resolver supplied, marked when marking optional content
+            // (evolution proposal `visibility-regions`): a projection with
+            // opaque type resolution off reads `some` alone, as printing
+            // without the resolver does. Only a `SemanticString` target
+            // carries marks; `writtenUnitCount` is its atom count.
+            if delegate?.marksOptionalContent == true, var semanticTarget = target as? SemanticString {
+                // Drop the target's reference first, so the mark mutates the
+                // atoms in place instead of copying the whole print so far.
+                target = Target()
+                semanticTarget.markAtoms(from: constraintStart, visibleUnder: .enabled(SwiftVisibilityOption.opaqueTypeResolution.rawValue))
+                // `Target` is `SemanticString` here — the cast above said so.
+                target = semanticTarget as! Target
+            }
         }
     }
 

@@ -60,6 +60,19 @@ public struct SwiftDeclarationPrintConfiguration: Equatable, Sendable {
     public var printTypeLayout: Bool = false
     public var printEnumLayout: Bool = false
 
+    /// Print everything the options named by `SwiftVisibilityOption` control,
+    /// each piece marked with a `VisibilityRegion` conditioned on its option,
+    /// instead of letting those options decide (evolution proposal
+    /// `visibility-regions`). A marked interface, frozen, separated and
+    /// projected with `isVisibilityOptionEnabled(_:resolvesOpaqueTypes:)` of
+    /// some configuration, reads byte for byte as printing with that
+    /// configuration. Everything else here — the transformers, the sort
+    /// order, the export options — applies as usual.
+    ///
+    /// For the opaque type constraints to be there to mark, register the
+    /// opaque type resolver as for a normal print.
+    public var marksOptionalContent: Bool = false
+
     /// How the static (`MachOFile`) field-layout path resolves cross-module
     /// types when a layout-bearing flag is on. Defaults to the full transitive
     /// dependency closure over the system dyld shared cache; set `.singleImage`
@@ -73,4 +86,33 @@ public struct SwiftDeclarationPrintConfiguration: Equatable, Sendable {
     public var typeLayoutTransformer: TypeLayoutTransformer? = nil
     public var enumLayoutTransformer: EnumLayoutTransformer? = nil
     public var enumLayoutCaseTransformer: EnumLayoutCaseTransformer? = nil
+}
+
+// MARK: - Visibility Options
+
+extension SwiftDeclarationPrintConfiguration {
+    /// Whether `option` is on in this configuration. `resolvesOpaqueTypes`
+    /// answers for `.opaqueTypeResolution`, which is not a setting of the
+    /// configuration but whether an opaque type resolver is registered.
+    public func isEnabled(_ option: SwiftVisibilityOption, resolvesOpaqueTypes: Bool) -> Bool {
+        switch option {
+        case .printStrippedSymbolicItem: printStrippedSymbolicItem
+        case .printFieldOffset: printFieldOffset
+        case .printExpandedFieldOffsets: printExpandedFieldOffsets
+        case .printMemberAddress: printMemberAddress
+        case .printVTableOffset: printVTableOffset
+        case .printPWTOffset: printPWTOffset
+        case .printTypeLayout: printTypeLayout
+        case .printEnumLayout: printEnumLayout
+        case .infersObjCOverridesFromSelectorNames: infersObjCOverridesFromSelectorNames
+        case .opaqueTypeResolution: resolvesOpaqueTypes
+        }
+    }
+
+    /// Whether the option named `optionName` is on — the predicate to project
+    /// a marked interface with. A name that is not a `SwiftVisibilityOption`
+    /// reads as off.
+    public func isVisibilityOptionEnabled(_ optionName: String, resolvesOpaqueTypes: Bool) -> Bool {
+        SwiftVisibilityOption(rawValue: optionName).map { isEnabled($0, resolvesOpaqueTypes: resolvesOpaqueTypes) } ?? false
+    }
 }

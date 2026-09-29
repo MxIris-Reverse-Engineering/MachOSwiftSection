@@ -40,27 +40,19 @@ extension SwiftDeclarationPrinter {
 
     @SemanticStringBuilder
     func printThrowingObjCImplementationStoredProperty(_ variable: VariableDefinition, storage: ObjCImplementationClassFacts.InstanceVariable, level: Int) async throws -> SemanticString {
-        let objcFacts = variable.resolvedObjCMemberFacts(trustingSelectorNameEvidence: trustsSelectorNameEvidence)
-        for attribute in objcFacts.attributes {
-            Keyword(attribute.keyword)
-            // An `@objc(name)` the source spelled out (evolution proposal
-            // `objc-member-selector-recovery`): the selector the ObjC method
-            // table carries is not the one the compiler derives from the name.
-            if attribute == .objc, let explicitSelector = objcFacts.explicitSelector {
-                Standard("(\(explicitSelector))")
-            }
+        try await printUnderObjCVerdicts(of: variable.resolvedObjCMemberFacts(trustingSelectorNameEvidence:)) { objcFacts in
+            objcAttributes(objcFacts)
+            // A stored property with no setter symbol was declared `let`.
+            Keyword(variable.hasSetter ? .var : .let)
             Space()
-        }
-        // A stored property with no setter symbol was declared `let`.
-        Keyword(variable.hasSetter ? .var : .let)
-        Space()
-        MemberDeclaration(variable.name)
-        Standard(":")
-        Space()
-        if let typeNode = storage.swiftTypeNode ?? Self.declaredTypeNode(ofVariableNode: variable.node) {
-            try await printThrowingType(typeNode.materialize(), isProtocol: false, level: level)
-        } else {
-            InlineComment("type not recoverable")
+            MemberDeclaration(variable.name)
+            Standard(":")
+            Space()
+            if let typeNode = storage.swiftTypeNode ?? Self.declaredTypeNode(ofVariableNode: variable.node) {
+                try await printThrowingType(typeNode.materialize(), isProtocol: false, level: level)
+            } else {
+                InlineComment("type not recoverable")
+            }
         }
     }
 
@@ -82,7 +74,9 @@ extension SwiftDeclarationPrinter {
             await MemberList(level: level) {
                 for instanceVariable in instanceVariables {
                     await Rows(level: level) {
-                        ObjCImplementationFieldOffsetComment(instanceVariable: instanceVariable, emit: configuration.printFieldOffset, transformer: configuration.fieldOffsetTransformer)
+                        optionalContent(.printFieldOffset) {
+                            ObjCImplementationFieldOffsetComment(instanceVariable: instanceVariable, emit: true, transformer: configuration.fieldOffsetTransformer)
+                        }
                         if let typeNode = instanceVariable.swiftTypeNode, let propertyName = instanceVariable.swiftPropertyName {
                             SemanticString {
                                 Keyword(.var)
