@@ -1,9 +1,9 @@
-# Draft - 按镜像缓存整治：`SharedCache` 去继承、键去装箱、驱逐收口到注册表
+# 0053 - 按镜像缓存整治：`SharedCache` 去继承、键去装箱、驱逐收口到注册表
 
-- **状态**: In Progress
+- **状态**: Implemented
 - **作者**: JH
 - **创建日期**: 2026-09-28
-- **最后更新**: 2026-09-28
+- **最后更新**: 2026-09-29
 - **所属愿景**: 无
 - **关联提案**: [0019-large-stack-executor-and-cross-version-parallelism](0019-large-stack-executor-and-cross-version-parallelism.md)（已裁决不做 `SharedCache` / `SymbolIndexStore` 的 async 建表路径，本提案沿用；`NSCondition` 等待占住执行器线程是那里记录的契约）、[0001-symbol-name-offsetization](0001-symbol-name-offsetization.md) / [0003-symbol-row-bucket-flattening](0003-symbol-row-bucket-flattening.md)（本提案不碰各 `Storage` 的内容，那两份提案定下的存储模型原样保留）
 - **实现分支 / PR**: `feature/shared-cache-composition-and-eviction-registry`，目标 `next`
@@ -326,4 +326,5 @@ public final class SharedCacheBuildPromise<Value>: @unchecked Sendable {
 | 2026-09-28 | 验证通过 | 全量 2135 / 402 套件，5 个 issue 无一为本批引入（详见演进账本本节）；渲染 A/B 78 对逐字节一致（26.6 归档腿本机缺席；当前系统 cache 腿按脚本同样的命令手动补跑，12 对一致）；`concurrentCallsForDifferentKeysRunInParallel` 在全量负载下 8 个 dispatch worker 拿不齐，改为 2 个构建的会合点。 |
 | 2026-09-28 | 句柄 API 不立项 | `sample` 剖析 release `dump` SwiftUI（当前系统 cache）：整个查找路径去掉构建闭包后占 1.12%，键的构造 0.35%（大头是 `MachOFile.identifier` 的关联对象读取 0.27%）、哈希 0.14%。远低于「显著」，不另起提案。 |
 | 2026-09-28 | `SharedCacheEvictionGroup` 改开放结构体 | 用户审阅指出：封闭枚举让 `MachOCaches` 知道上面每个模块的缓存，每加一个 cache 都要回来改它，该模块做完就该尽量不动。改为只有名字的结构体，`MachOCaches` 一个 group 都不声明，各模块在 `SharedCacheEvictionGroup+<模块>.swift` 里声明自己的常量；提案里的 `dependents` 表改为 cache 创建时的 `follows:`（由持有引用的一方声明），注册表反向建表并传递展开，采样与全量驱逐的范围是登记过的 group。 |
+| 2026-09-29 | In Progress → Implemented，落地编号 0053 | 代码已于 2026-09-28 随合并提交 `ac9da4c5` 合入 `next`，当时状态停在 In Progress、没有取号；0.21.0 发版时按合入顺序补取。配套文档见头部，已随代码更新；术语表「eviction group / claim / live owner」已同批登记 |
 

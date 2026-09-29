@@ -1,8 +1,8 @@
-# Draft - interface 按 vtable 槽位顺序打印类成员，补上只剩 method descriptor 符号的成员
+# 0054 - interface 按 vtable 槽位顺序打印类成员，补上只剩 method descriptor 符号的成员
 
-- **状态**: In Progress
+- **状态**: Implemented
 - **创建日期**: 2026-09-28
-- **最后更新**: 2026-09-28
+- **最后更新**: 2026-09-29
 - **实现分支 / PR**: `feature/interface-vtable-members`（worktree `.worktrees/MachOSwiftSection-InterfaceVTableMembers`）
 - **配套文档**: [DescriptorOnlyVTableMembers.md](../Internal/DescriptorOnlyVTableMembers.md)（实现说明）
 
@@ -47,3 +47,4 @@
 | 2026-09-28 | ABI snapshot `formatVersion` 5 → 6 | key 方案没变，但剥离镜像的 class 容器会多出这批成员，旧 baseline 会把它们全部误报为新增；与 v4 引入 `pwtslot:` 时同一理由 |
 | 2026-09-28 | 顺带把渲染 A/B 脚本的归档 cache 常量从 `26.6` 改回 `26.6.2` | 卷上目录又改了名；常量对不上时这条腿静默消失，验证文档记过前两次 |
 | 2026-09-28 | `init?` 判定补上「声明在 `Optional` 上」这一种：返回 `Wrapped?` 不算可失败，`Wrapped??` 才算 | 第一轮 A/B 里 SwiftUICore 的 `extension Optional { init(if:then:) }` 被新判定打成 `init?`（旧的整树搜索碰巧先看到 autoclosure 的返回类型，反而没错）。先补测试确认红，再修；第一轮 A/B 的其余 `init` 差异逐条核过都是修正，两个方向都有 |
+| 2026-09-29 | In Progress → Implemented，落地编号 0054 | 代码已于 2026-09-28 随合并提交 `14379254` 合入 `next`，当时状态停在 In Progress、没有取号；0.21.0 发版时按合入顺序补取。配套文档见头部，已随代码更新；术语表「descriptor-only member」已同批登记 |

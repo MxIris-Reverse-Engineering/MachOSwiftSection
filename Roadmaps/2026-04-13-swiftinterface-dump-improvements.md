@@ -487,7 +487,7 @@ Small-medium (half a day): conformance descriptor layout extension + node-emit p
 
 ### P2-14. `@objc` attribute from `ClassFlags::HasCustomObjCName` — **revived and implemented (2026-09-27)**
 
-**Revived (2026-09-27).** The use case appeared — RuntimeViewer needs the name, and macOS 27's AppKit renames 74 of its Swift classes — and the item is implemented by evolution proposal `objc-custom-class-name` ([draft-objc-custom-class-name](../Documentations/Evolutions/draft-objc-custom-class-name.md), implementation note [CustomObjCClassNames.md](../Documentations/Internal/CustomObjCClassNames.md)). The join does not go through the `$s…N` symbols suggested below, which OS frameworks strip: a Swift class object IS its metadata, whose descriptor pointer names the class directly. The same missing join had also kept the ObjC member recovery and the layout engine's `instanceStart` away from every renamed class; both now fall back to it.
+**Revived (2026-09-27).** The use case appeared — RuntimeViewer needs the name, and macOS 27's AppKit renames 74 of its Swift classes — and the item is implemented by evolution proposal `0052-objc-custom-class-name` ([0052-objc-custom-class-name](../Documentations/Evolutions/0052-objc-custom-class-name.md), implementation note [CustomObjCClassNames.md](../Documentations/Internal/CustomObjCClassNames.md)). The join does not go through the `$s…N` symbols suggested below, which OS frameworks strip: a Swift class object IS its metadata, whose descriptor pointer names the class directly. The same missing join had also kept the ObjC member recovery and the layout engine's `instanceStart` away from every renamed class; both now fall back to it.
 
 **Status (2026-04-15).** After investigation, the implementation cost does not justify the value for this repo's workflow. Skipped indefinitely. Revisit only if a concrete downstream use case appears (e.g. a dyld-cache target where `@objc("CustomName")` classes are common and the custom name is actually needed for reverse engineering).
 
@@ -840,7 +840,7 @@ The order below reflects uniqueness × user value × implementation cost.
 
 Removed from the list:
 - **P1-11** moved to [L-11](#l-11-printfieldoffset--printtypelayout--printenumlayout-require-a-running-machoimage) — the underlying data requires a running `MachOImage`.
-- **P2-14** deferred on 2026-04-15, revived and implemented on 2026-09-27 (proposal `objc-custom-class-name`) — see the P2-14 section.
+- **P2-14** deferred on 2026-04-15, revived and implemented on 2026-09-27 (proposal `0052-objc-custom-class-name`) — see the P2-14 section.
 
 ---
 

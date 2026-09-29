@@ -1990,7 +1990,7 @@
 - **落地模块**：MachOKitExtensions（`MachORepresentableWithCache.swift` 的 `MachOImage.cache`）；本库 `Package.swift`（下限抬到 0.1.2）、`.github/workflows/macOS.yml`、`AGENTS.md`；测试新增 `Tests/MachOCachesTests/MachOImageCacheMembershipTests.swift`，改 `Tests/SwiftInterfaceTests/ProjectedOpaqueMemberWitnessTests.swift`。
 - **验证**：新套件在 MachOKitExtensions 0.1.1 上原始退出码 1：两条重定位用例失败，复制到 `0x7000000000` 的镜像被判成 cache 镜像，`address(forOffset: 0x4000)` 报成 `0x6FEE6F8000`（原镜像报 `0x4000`）；cache 镜像的对照用例通过。用 `swift package edit` 换成修复后的 MachOKitExtensions，三条全部通过（原始退出码 0）。同一配置下的全量 `swift test --skip IntegrationTests`（默认工具链 Xcode 27 / Swift 6.4）：2097 个测试，原始退出码 1，`ProtocolRecordTests` 通过；唯一的失败是 `ProjectedOpaqueMemberWitnessTests` 的 4 条，与本批无关：它现场编译 fixture 时带 `-emit-module-interface-path` 却没指定语言模式，Swift 6.3.3（Xcode 26.6）对此只给 warning，Swift 6.4 改成了 error，用一个空文件在两个工具链上复现过。0.1.2 发布、下限抬高之后，用远端依赖重跑：`MachOImageCacheMembershipTests` 3 条与 `ContinuousIntegrationTestFilterTests` 通过；`ProjectedOpaqueMemberWitnessTests` 补上语言模式后能编，4 条里仍有 1 条因 module selector 写法失败，归一后 4 条全过（均为 Xcode 27）。这个套件没有在 Xcode 26.6 上重跑：`-swift-version 5` 在 26.6 上用同一份 fixture 源码编过、零诊断，归一对 6.3 的输出不起作用。
 - **关联文档**：[ReviewAdjudications A50、A51](ReviewAdjudications.md)；[发版审查记录](../../Roadmaps/2026-09-26-release-0.20.0-review-findings.md)；[FixtureTestingAndContinuousIntegration.md](FixtureTestingAndContinuousIntegration.md)（现场编译 fixture 的语言模式）。
-- **对应版本**：0.20.0 之后未发布区间（MachOKitExtensions 下限 0.1.2）。
+- **对应版本**：0.21.0（MachOKitExtensions 下限 0.1.2）。
 
 ## 62. `swift-section` 的 agent 插件
 
@@ -2002,35 +2002,45 @@
 - **关联文档**：[0051-agent-plugin](../Evolutions/0051-agent-plugin.md)；README「Agent Plugin」。
 - **对应版本**：0.20.0（插件版本 0.20.0）。
 
-## 2026-09-27 改过 ObjC 运行时名的 Swift 类：打印 `@objc(Name)`，按描述符指针配对类对象
+## 63. 改过 ObjC 运行时名的 Swift 类：打印 `@objc(Name)`，按描述符指针配对类对象
 
-- **时间段**：2026-09-27（单日）。节号落地时取。
+- **时间段**：2026-09-27 至 2026-09-28。节号在 0.21.0 发版时按合入 `next` 的顺序补取。
 - **动机**：RuntimeViewer 会话代用户转来的需求：生成的接口要给用 `@objc(Name)` 改过 ObjC 运行时名的 Swift 类（macOS 27 AppKit 的 `NSColorModel`、`NSScrollPocket`）打印 `@objc(ClassName)`，配对与角标由 RuntimeViewer 自己做。这是路线图 P2-14 的复活——2026-04-15 以「缺真实用例、需要按地址配对」搁置。调研时发现同一个缺口还连着两处可见缺陷：成员恢复与静态布局引擎都靠 demangle 运行时名找 Swift 类的类对象，改名类一律配不上——`NSScrollPocket.layout()` 丢了 `@objc override`，strip 后的形态里 `description` 被 `final` 还原误标成 `final`，仓库自己的 SymbolTestsCore 快照里 `ObjCBridge` 的 `init()` 也少了 `override`。
 - **关键决策**：① **按类元数据配对**：classlist 里 Swift 类的类对象就是它的元数据，flag 字与描述符指针直接读；描述符指针按字段位置解 rebase（不能走 `descriptor(in:)`，那条路在 cache 镜像上拿到未解码的原值）；父类在另一个 resilience domain、不进 classlist 的类读 `ResilientClassMetadataPattern`。② **写法**：`UsesSwiftRefcounting` 清零印 `@objc(Name)`，置位印 `@_objcRuntimeName(Name)`（原生对象模型上 `@objc` 不合法），`@objc` actor 例外。③ **在查询时补，不在建表时补**：`ObjCClassMethodIndex` 的限定名查找在查询时并上新索引的结果（合并而不是查不到才回退——两个同名 private 类里有一个改过名时仍要判为歧义），布局引擎的 `instanceStart` 查找在查不到时按描述符问新索引；祖先链经过的镜像不会因此建它，`_TtC…` 类的既有路径一行不动。④ **不动 SymbolTestsCore**：另起现场编译的三镜像 fixture（library evolution 的 Swift kit、实现文件里藏 ivar 的 ObjC 父类、客户端的全量与 `strip -x` 两个变体）。⑤ 用户指示「写完直接开工，不用问我」，按轻量档提案落盘后即开工，没有发问；范围扩到两处配对缺陷记进提案决策日志。
 - **落地模块**：SwiftInspection（新增 `SwiftClassObjectIndex`、`CustomObjCClassName`；`ObjCClassMethodIndex.runtimeNames` 回退；`ObjCClassHierarchies.removeCache` 一并驱逐）、SwiftDeclaration（`TypeDefinition.customObjCClassName` / `attributeArgument(for:)`、`SwiftAttribute.objcRuntimeName`）、SwiftAttributeInference（`inferObjCType` 从空函数变为实现）、SwiftDeclarationRendering（`@_objcRuntimeName` 关键字）、SwiftPrinting 与 SwiftInterface（完整打印与 diff / evolution 头部）、SwiftDump（`ClassDumper`）、SwiftLayout（`classFieldStartOffset`）；MachOTestingSupport 的 `RenamedObjCClassFixture` 与四组新测试；SymbolTestsCore 的 interface 与 `objCClassWrappers` dump 两份快照；agent 插件 skill 的读输出说明；README 特性清单。
 - **验证**：详见实现说明「验证」一节。新测试在修复前的 `next` 上逐条失败（未改名的反例除外），修复后全部通过；全量 `swift test --skip IntegrationTests`（默认工具链 Xcode 27）2116 个测试、原始退出码 0，唯一一条 known issue 是 `SymbolicManglingIndexTests` 既有的 `withKnownIssue`。macOS 27（26A428）系统 cache 的 AppKit interface 前后对比：新增 74 行 `@objc(…)`，其余差异全是这些类恢复出的 `@objc` / `override`。渲染 A/B（96 对）：48 对逐字节一致，48 对的差异逐行归类后只有属性行、成员的 `@objc` / `override` / 显式 selector、dump 的祖先链与成员注释四种，意外改动为 0。
-- **关联文档**：[draft-objc-custom-class-name](../Evolutions/draft-objc-custom-class-name.md)、[CustomObjCClassNames.md](CustomObjCClassNames.md)、[ObjCMemberRecovery.md](ObjCMemberRecovery.md)、[StaticLayoutEngine.md](StaticLayoutEngine.md)、路线图 P2-14。
-- **对应版本**：0.20.0 之后未发布区间。
+- **关联文档**：[0052-objc-custom-class-name](../Evolutions/0052-objc-custom-class-name.md)、[CustomObjCClassNames.md](CustomObjCClassNames.md)、[ObjCMemberRecovery.md](ObjCMemberRecovery.md)、[StaticLayoutEngine.md](StaticLayoutEngine.md)、路线图 P2-14。
+- **对应版本**：0.21.0。
 
-## 2026-09-28 按镜像缓存整治：`SharedCache` 去继承、键去装箱、驱逐收口到注册表
+## 64. 按镜像缓存整治：`SharedCache` 去继承、键去装箱、驱逐收口到注册表
 
-- **时间段**：2026-09-28（单日）。节号落地时取。
+- **时间段**：2026-09-28（单日）。节号在 0.21.0 发版时按合入 `next` 的顺序补取。
 - **动机**：用户要求「看看 SharedCache 怎么优化，包括 API 设计和性能」。读码结论：promise 去重与锁外构建的并发核心是对的，问题在四处——每个实例各自监听内存压力并 `removeAll()`，绕过「最后一个 indexer 才驱逐」的认领规则，且清掉的存储被活引用钉住、回收不到；基类 `buildStorage(for: some MachORepresentableWithCache)` 擦掉读者类型，六个子类各自 `as? MachOFile / as? MachOImage` 再分派，漏写 override 不报错；每次查找把 identifier 装箱成 `AnyHashable` 并哈希整条路径，而查找发生在按符号、按 mangled name 的循环里；同线程同键重入静默死锁，注释还以为它会 trap。
 - **关键决策**：① 继承换组合：`SharedCache` 改 `final`，构建闭包在调用点给；11 个子类保留 `.shared` 与查询 API，各持一个私有 cache 转发；读者分派收成 `SwiftInspection` 的一个助手（`swiftSectionReader` / `objcImplementationClassReader`，existential 交给 `some P` 参数隐式打开），没有变成零——查询 API 以弱协议为参数是消费者的现实。② 键改 `SharedCacheKey`：`.uuidFile` 只哈希 UUID、`.image` 只哈希基址，等值仍比完整值；不动 sibling 里的 `associatedtype Identifier`。③ 驱逐收口：indexer 私有的 `PerImageCacheEvictionRegistry` 下沉为 `MachOCaches.SharedCacheRegistry`，每个 cache 创建时声明 `SharedCacheEvictionGroup`；用户指出底层模块不该把上面每个模块的缓存点名，于是 group 改成只有名字的开放结构体，各模块在自己的扩展里声明常量，引用了别的 group 存储的 cache 用 `follows:` 声明跟谁走，注册表反向建表接替 `Claims.normalized` 与三个 `removeCache` 助手各自拼出的关系，加 cache 不用再动 `MachOCaches`；认领在注册表锁内对登记过的 group 采样；原本从不按镜像驱逐的五个 cache（多载荷枚举描述符、依赖闭包投影、thunk 解析的两个）得到 group。④ 内存压力监听整个删除（用户裁决：库不替宿主做生命周期决定），宿主改调 `evictImagesWithoutLiveOwners()`。⑤ 重入：promise 记构建线程，同线程重入 `precondition` 崩溃并报键；跨线程 hop（`withLargeStack`）抓不到，注释写明。⑥ 两个进程作用域 memo 改 `static let`，不再经按镜像的字典。⑦ 否决引入 hyperoslo/Cache（无 get-or-build、内存层是自行丢对象的 `NSCache`、每次访问一次串行队列跳转、带锁入口必须带磁盘配置）；暂不改名；句柄 API 按测量不立项（见验证）。
 - **落地模块**：MachOCaches（`SharedCache` 重写，新增 `SharedCacheKey` / `SharedCacheRegistry` / `SharedCacheEvictionGroup`，promise 记线程）、Utilities（删 `MemoryPressureMonitor`）、MachOSymbols（`SymbolIndexStore`、`InternedNodeReferenceCache`）、SwiftInspection（六个索引、`SymbolicDemanglerCache`、`ObjCAncestorResolverStore`，`ObjCClassHierarchyProviderStore` 经 `@_spi(Internals)` 扩展手工遵循 `SharedCacheEvicting`，新增 `Extensions/MachORepresentableWithCache+ReaderKinds.swift`）、SwiftDeclarationRendering（`MultiPayloadEnumDescriptorCache`、`PropertyWrapperTypeCatalogStore`、`DependentMemberProjection`）、SwiftThunkAnalysis（两个裸实例）、SwiftIndexing（`prepare()` 一句登记、`deinit` 一句注销、私有注册表删除）、CI filter 加四个缓存套件。
 - **验证**：全量 `swift test --skip IntegrationTests` 2135 个测试 / 402 套件，5 个 issue 无一是本批引入：`MultiPayloadEnumDescriptorCacheTests` 两条在同一 fixture、同一工具链（Xcode 26.6）的基线 worktree（`next` @ b521c339）上同样红、同样两条断言；`argumentCandidatePathSpecializesNonGenericCandidate` 既有 flaky；1 个 known issue；`concurrentCallsForDifferentKeysRunInParallel` 在全量负载下 8 个 dispatch worker 30 s 内拿不齐，已改为 2 个构建的会合点，缓存套件单跑 43/43。渲染 A/B（基线 b521c339 vs 本分支，同一份 fixture 与 `Package.resolved`）：78 对逐字节一致——cache-15.5、sim-iOS-15.5 / 18.5 / 18.6 / 26.5、machoimage-current；脚本写死的 26.6 归档目录本机不存在（只有 26.6.2），该腿缺席，当前系统 cache 腿按脚本同样的命令手动补跑，12 对（六个框架各 dump / interface）全部一致，过程见任务报告。`sample` 剖析 release `dump` SwiftUI（当前系统 cache，40 s，143,621 个样本）：`resolve` 含构建 3.1%，去掉构建闭包后的查找开销 1.12%，`SharedCacheKey.init` 0.35%（其中 `MachOFile.identifier.getter` 0.27%，即关联对象读取）、`hash(into:)` 0.14%——句柄 API 不立项。
-- **关联文档**：[draft-shared-cache-composition-and-eviction-registry](../Evolutions/draft-shared-cache-composition-and-eviction-registry.md)、[Modules/MachOCaches.md](Modules/MachOCaches.md)、[TaskReports/2026-09-28-shared-cache-composition-and-eviction-registry.md](TaskReports/2026-09-28-shared-cache-composition-and-eviction-registry.md)、术语表「eviction group / claim / live owner」。
-- **对应版本**：0.20.0 之后未发布区间。
+- **关联文档**：[0053-shared-cache-composition-and-eviction-registry](../Evolutions/0053-shared-cache-composition-and-eviction-registry.md)、[Modules/MachOCaches.md](Modules/MachOCaches.md)、[TaskReports/2026-09-28-shared-cache-composition-and-eviction-registry.md](TaskReports/2026-09-28-shared-cache-composition-and-eviction-registry.md)、术语表「eviction group / claim / live owner」。
+- **对应版本**：0.21.0。
 
-## 2026-09-28 interface 按 vtable 槽位顺序打印类成员，补上只剩 method descriptor 符号的成员
+## 65. interface 按 vtable 槽位顺序打印类成员，补上只剩 method descriptor 符号的成员
 
-- **时间段**：2026-09-28（单日）。节号落地时取。
+- **时间段**：2026-09-28（单日）。节号在 0.21.0 发版时按合入 `next` 的顺序补取。
 - **动机**：用户发现本库生成的 AppKit interface 里 `NSTableViewDiffableDataSource` / `NSCollectionViewDiffableDataSource` 只有 `init` 和 `deinit`，SDK 里却有十几个成员。原因：interface 的成员全部从实现符号建，而 library evolution 模块只导出 public class 方法的 `Tj` / `Tq`，镜像的 local 符号被剥掉后（系统 cache 里的 AppKit）这些实现没有名字，整个 AppKit 因此少了 53 个成员；SwiftUI、SwiftUICore、Foundation 保留了 local 符号，不受影响。dump 逐个 vtable 槽打印、用 `Tq` 命名，一直不缺。调研中顺带发现 `init(collectionView:itemProvider:)` 被打成 `init?`：失败性判定用整树搜索找 `returnType`，先碰到闭包参数的返回类型。
 - **关键决策**：① 在索引期从 vtable 槽补成员（进模型，RuntimeViewer、diff、ABI snapshot 一起受益），不在打印层补。② 替身成员符号按实现符号的样子造：`Tq` 名去掉后缀、实现偏移、async 方法再跳到函数入口——下游按符号名推导的导出判定、ObjC 方法表 join、ABI 身份都不用分支。③ 真实符号优先，按成员实体节点去重。④ 用户指示「方法跟 dump 一样按 vtable 顺序打印，没有符号的跳过不打印」：默认 `byCategory` 模式下 class 的 vtable 成员按槽号排在最前（本类的槽就是声明顺序），其余照旧按类别；叫不出名字的槽不打占位符。⑤ ABI 墓碑、modify / read 协程、override 槽不补。⑥ ABI snapshot `formatVersion` 5 → 6。⑦ 规模一度按导出表估算，把协议 requirement 算了进去、又把「没导出」当成「没符号」，已改为渲染 A/B 的实测（决策日志留档）。⑧ 验证中发现 `init?` 修正有一处反向误判：声明在 `Optional` 上的 init 返回 `Wrapped?` 是它的 Self，要再包一层才算可失败，已补测试并修正。
 - **落地模块**：SwiftInspection（`MethodDescriptor.attributedMember(in:)`、`MethodDescriptorAttribution.AttributedMember`）、SwiftDeclaration（`ClassDispatchLookups.vtableSlotMemberSymbols` / `supplementing(_:in:)`、`classDispatchLookups` 造替身、`indexMembers` 补建、`OrderedMember.vtableOrdered`）、SwiftPrinting（`printMembersByCategory` 的 vtable 段、`initFailabilityKind`）、SwiftDiffing（`currentFormatVersion`）；测试 `DescriptorOnlyVTableMemberTests`（现场编译的 library-evolution fixture，完整版与 `strip -x` 版对照）与 `InitializerFailabilityPrintingTests`；SymbolTestsCore interface 快照（纯重排）；渲染 A/B 脚本的归档 cache 常量（`26.6` → `26.6.2`）；agent 插件 skill 的读输出说明与 snapshot 版本说明。
 - **验证**：详见实现说明「验证」一节。新测试在修复前的代码上逐条失败，修复后通过；SymbolTestsCore interface 快照只重排、行集合不变；全量 `swift test --skip IntegrationTests` 2121 个测试，失败的 6 条全是既有问题（墙钟 flaky、`next` 上本来就红的两条、特化 candidate 路径的随机失败）。渲染 A/B 46 对：dump 23 对全部逐字节一致；interface 差异逐行归类后只有 `init` / `init?` 的修正与 AppKit 找回的 53 个成员，没有任何成员丢失。
-- **关联文档**：[draft-interface-descriptor-only-vtable-members](../Evolutions/draft-interface-descriptor-only-vtable-members.md)、[DescriptorOnlyVTableMembers.md](DescriptorOnlyVTableMembers.md)、[提案 0020](../Evolutions/0020-vtable-slot-attribution-via-method-descriptor-symbols.md)（`Tq` 归属的来历）。
-- **对应版本**：0.20.0 之后未发布区间。
+- **关联文档**：[0054-interface-descriptor-only-vtable-members](../Evolutions/0054-interface-descriptor-only-vtable-members.md)、[DescriptorOnlyVTableMembers.md](DescriptorOnlyVTableMembers.md)、[提案 0020](../Evolutions/0020-vtable-slot-attribution-via-method-descriptor-symbols.md)（`Tq` 归属的来历）。
+- **对应版本**：0.21.0。
+
+## 66. 0.21.0 发版
+
+- **时间段**：2026-09-29（单日）。
+- **动机**：用户指示「最新的 next 分支发一个新版本，0.21.0」。自 0.20.0 以来 `next` 多了 25 个提交：第 61、63–65 节的四批工作，外加 swift-capstone 下限抬到 6.0.1。
+- **关键决策**：**① 不做发版审查**：用户在「先审查」与「只验证」之间选了后者。理由是这三批功能合入时都各自跑过全量测试与渲染 A/B，这次只在只含远端依赖的发版分支上重新验证一遍。**② 提案取号**：三份已合入、仍标 In Progress 的提案按合入顺序取号 0052–0054 并改为 Implemented；本账本对应的三节编为 63–65。代码注释按提案规则继续只写 slug。**③ ABI snapshot 格式 5 → 6 写进 changelog 的 Compatibility**：0.20.0 保存的 baseline 读取时会报格式版本错误，需要用 0.21.0 重新生成。插件 skill 里原先写的「Format 6 (after 0.20.0)」改为「0.21.0 and later」。**④ `SharedCache` 的破坏性变更虽然都在 `@_spi(Internals)` 面上，仍写进 Breaking**：库不再在内存压力下自动清缓存，这是宿主看得到的行为变化（0053 当时也要求在 release note 里提一句）。**⑤ 版本号**：`Version.swift`、两个 `plugin.json` 改为 0.21.0，README 的安装示例同步；CLI 参数自 0.20.0 以来没有变化，插件 skill 除上面那一句外不用改。
+- **落地模块**：`Sources/swift-section/Version.swift`、`AgentPlugins/swift-section/`（两个 `plugin.json`、SKILL.md 一句）、`Changelogs/0.21.0.md`、`README.md`、`Documentations/`（提案改名与互链、两个索引、术语表、本账本）、`Roadmaps/2026-04-13-swiftinterface-dump-improvements.md`（链接）。
+- **验证**：发版分支使用新鲜 scratch，依赖全部从远端解析（MachOKit 0.52.103、MachOKitExtensions 0.1.2、MachOObjCSection 0.8.106、swift-demangling 0.7.1、swift-capstone 6.0.1），工具链为 Xcode 26.6。全量 `swift test --skip IntegrationTests` 共 2141 个测试 / 404 个套件，原始退出码 0；唯一的 known issue 是 `SymbolicManglingIndexTests` 里局部类型的那一条 `withKnownIssue`。第 64 节记录的 `MultiPayloadEnumDescriptorCacheTests` 两条红、墙钟 flaky、特化 candidate 路径的随机失败，这次一条都没出现。release 构建（`swift-section`）三份：Xcode 26.6 的 x86_64 与 arm64、Xcode 27 的 arm64，都是 0 warning，两个架构的二进制都报 `0.21.0`。Homebrew 配方测试的场景（`dump` 一个只含 struct 的 dylib）连跑 30 次，0 次失败。Claude Code 的 `claude plugin validate`（marketplace 加 `--strict`）与 Codex 的 `validate_plugin.py` 均通过。
+- **关联文档**：[Changelogs/0.21.0.md](../../Changelogs/0.21.0.md)；[0052](../Evolutions/0052-objc-custom-class-name.md)、[0053](../Evolutions/0053-shared-cache-composition-and-eviction-registry.md)、[0054](../Evolutions/0054-interface-descriptor-only-vtable-members.md)。
+- **对应版本**：0.21.0。
 
 ## 维护约定
 

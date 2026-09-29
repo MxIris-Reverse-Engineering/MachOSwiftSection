@@ -51,7 +51,7 @@
 
 ## 三个 join 的键
 
-- **Swift 类 ↔ ObjC class object**：`TypeDefinition.typeName.node` 物化后 `NodeTypeNaming.nominalQualifiedName(ofDemangledRoot:)`，与 `ObjCClassMethodIndex` 对 `_TtC…` / `$s…` 运行时名 demangle 后算的限定名是同一个函数。同名私有类落进同一个 key 时（两条运行时名）拒绝归属并 `#log`。泛型类不在 classlist 里，查不到就什么都不标。源码改过运行时名的类（`@objc(NSScrollPocket)`）的运行时名 demangle 不出任何东西，这张表里没有它的键；`runtimeNames(forSwiftClassQualifiedName:in:)` 查询时把 `SwiftClassObjectIndex` 按类元数据的描述符指针配好的「限定名 → 运行时名」并进来（提案 `objc-custom-class-name`，见 [CustomObjCClassNames.md](CustomObjCClassNames.md)）；是合并而不是查不到才回退，所以两个同名 private 类里有一个改过名时仍判为歧义。在那之前这些类的成员一条都联结不上，strip 后还会被 `final` 还原误标成 `final`；macOS 27 的 AppKit 有 74 个这样的类。
+- **Swift 类 ↔ ObjC class object**：`TypeDefinition.typeName.node` 物化后 `NodeTypeNaming.nominalQualifiedName(ofDemangledRoot:)`，与 `ObjCClassMethodIndex` 对 `_TtC…` / `$s…` 运行时名 demangle 后算的限定名是同一个函数。同名私有类落进同一个 key 时（两条运行时名）拒绝归属并 `#log`。泛型类不在 classlist 里，查不到就什么都不标。源码改过运行时名的类（`@objc(NSScrollPocket)`）的运行时名 demangle 不出任何东西，这张表里没有它的键；`runtimeNames(forSwiftClassQualifiedName:in:)` 查询时把 `SwiftClassObjectIndex` 按类元数据的描述符指针配好的「限定名 → 运行时名」并进来（提案 `0052-objc-custom-class-name`，见 [CustomObjCClassNames.md](CustomObjCClassNames.md)）；是合并而不是查不到才回退，所以两个同名 private 类里有一个改过名时仍判为歧义。在那之前这些类的成员一条都联结不上，strip 后还会被 `final` 还原误标成 `final`；macOS 27 的 AppKit 有 74 个这样的类。
 - **extension ↔ 表**：`__C.X` 的 extension 按裸名 `X`（`@implementation` 主体、category、对外部类的 category 共用一张表）；本镜像 Swift 类的 extension 按限定名，与类本体同一张表——category 成员本就折进了类的 hierarchy。
 - **成员定义 ↔ 表**：按符号名，见上。属性 / 下标任一 accessor 命中即整个成员标记，getter 优先。
 

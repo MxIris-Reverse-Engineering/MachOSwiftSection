@@ -235,7 +235,7 @@ swift-section evolution 17.0.json 18.0.json /path/Foo --labels 17.0,18.0,26.0
   witness-table slot rather than by symbol.
 - **A snapshot does not cross format versions.** The JSON carries a `formatVersion`; any other
   version is rejected with a typed error, and the fix is to regenerate the baseline with the
-  current tool. Format 6 (after 0.20.0) rejects every format-5 baseline: in an image stripped
+  current tool. Format 6 (0.21.0 and later) rejects every format-5 baseline: in an image stripped
   of its local symbols the newer tool also records the class members that only their method
   descriptor names (see §9), which an old baseline would report as added wholesale.
 

@@ -1,6 +1,6 @@
 {
   "name": "swift-section",
-  "version": "0.20.0",
+  "version": "0.21.0",
   "description": "Teaches coding agents to drive the swift-section CLI: Swift and Objective-C declarations, memory layout and ABI diffs recovered from a Mach-O binary or a dyld shared cache.",
   "author": {
     "name": "MxIris-Reverse-Engineering",

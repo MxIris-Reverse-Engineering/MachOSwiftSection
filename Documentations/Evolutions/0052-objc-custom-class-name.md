@@ -1,8 +1,8 @@
-# Draft - 改过 ObjC 运行时名的 Swift 类：打印 `@objc(Name)`，并按描述符指针配对它的类对象
+# 0052 - 改过 ObjC 运行时名的 Swift 类：打印 `@objc(Name)`，并按描述符指针配对它的类对象
 
-- **状态**: In Progress
+- **状态**: Implemented
 - **创建日期**: 2026-09-27
-- **最后更新**: 2026-09-27
+- **最后更新**: 2026-09-29
 - **所属愿景**: 无
 - **关联提案**: [0047-objc-ancestor-override-recovery](0047-objc-ancestor-override-recovery.md)、[0048-objc-member-selector-recovery](0048-objc-member-selector-recovery.md)（成员恢复靠的配对正是本提案要补的那一处）
 - **实现分支 / PR**: `feature/objc-custom-class-name`
@@ -47,3 +47,4 @@ AppKit 等系统框架里有一批 Swift 类用 `@objc(Name)` 改过 ObjC 运行
 | 2026-09-27 | 查询时两边合并，不是查不到才回退 | 第一版是查不到才回退；自查时发现限定名去掉了 private 鉴别符，两个同名 private 类里一个改过名时，只查旧表会把没改名那个的成员表错配给改过名的那个。合并后照旧判为歧义，fixture 加了 `PrivateTwin` 钉住 |
 | 2026-09-27 | 布局引擎的回退按描述符查，不按限定名 | `classFieldStartOffset` 手上就有描述符，省一次 demangle |
 | 2026-09-27 | 测试 fixture 另起现场编译的三镜像 fixture（`RenamedObjCClassFixture`），不改 SymbolTestsCore | 共享 fixture 改动会让 ABI baseline 整体漂移；resilient 父类、原生对象模型、实现文件里藏 ivar 的 ObjC 父类这几种形态也需要多个镜像 |
+| 2026-09-29 | In Progress → Implemented，落地编号 0052 | 代码已于 2026-09-28 以 `28c0e6c9`–`b521c339` 三个提交直接落在 `next` 上，当时状态停在 In Progress、没有取号；0.21.0 发版时按合入顺序补取。配套文档见头部，已随代码更新；术语表「renamed class」已同批登记 |
