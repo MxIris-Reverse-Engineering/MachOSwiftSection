@@ -66,7 +66,7 @@ final class PrintFailureEventTests: MachOFileTests, @unchecked Sendable {
     }
 
     private func findTypeDefinition(named name: String, in indexer: SwiftDeclarationIndexer<MachOFile>) -> TypeDefinition? {
-        indexer.allTypeDefinitions.values.first { $0.typeName.currentName == name }
+        indexer.allTypeDefinitions.values.first { $0.typeName.declaredNameForTesting == name }
     }
 
     /// A real struct descriptor re-wrapped at an offset far past the fixture's

@@ -925,17 +925,21 @@ struct GenericSpecializationTests {
 
             // Use `.excludeGenerics` so the parameter's candidate list only
             // surfaces directly-specializable types. Pin the candidate to
-            // `Swift.Int` (matched via `currentName`) so the assertion below
-            // can compare against the equivalent `.metatype(Int.self)` path —
-            // an order-dependent `first { !$0.isGeneric }` would silently
-            // degrade if the indexer's iteration shifted.
+            // `Swift.Int` by its full name so the assertion below can compare
+            // against the equivalent `.metatype(Int.self)` path — an
+            // order-dependent `first { !$0.isGeneric }` would silently degrade
+            // if the indexer's iteration shifted. Matching the short name
+            // `Int` did exactly that: a `Hashable` enum declared in a function
+            // returning `Int` has `Int` as its `currentName`, and the candidate
+            // order decided which of the two the test specialized
+            // (ReviewAdjudications A52).
             let request = try specializer.makeRequest(
                 for: TypeContextDescriptorWrapper.struct(descriptor),
                 candidateOptions: .excludeGenerics
             )
             let intCandidate = try #require(
                 request.parameters[0].candidates.first {
-                    $0.typeName.currentName == "Int" && !$0.isGeneric
+                    $0.typeName.name == "Swift.Int" && !$0.isGeneric
                 },
                 "expected Swift.Int candidate after .excludeGenerics"
             )
@@ -948,16 +952,10 @@ struct GenericSpecializationTests {
             // accessor that `.metatype` already exercises.
             let candidateMetadata = try viaCandidate.metadata()
             let metatypeMetadata = try viaMetatype.metadata()
-            // In some processes the two paths come back with two different
-            // `TestSingleProtocolStruct<Int>` metadata instances; the cause is
-            // not yet known. Tracked as ReviewAdjudications A52 — remove this
-            // wrapper once it is fixed.
-            withKnownIssue("the candidate path sometimes reaches a second metadata instance for the same type", isIntermittent: true) {
-                #expect(
-                    candidateMetadata == metatypeMetadata,
-                    "Argument.candidate path must reach the same metadata pointer as Argument.metatype for the same concrete type"
-                )
-            }
+            #expect(
+                candidateMetadata == metatypeMetadata,
+                "Argument.candidate path must reach the same metadata pointer as Argument.metatype for the same concrete type"
+            )
 
             #expect(viaCandidate.resolvedArguments.count == 1)
             #expect(viaCandidate.resolvedArguments[0].hasWitnessTables)
@@ -1004,13 +1002,13 @@ struct GenericSpecializationTests {
             // the fail-fast logic (test body) or a fixture shift (#require message),
             // rather than the generic "no isGeneric candidate" mode the original
             // first-matching-any-candidate form would silently degrade into.
-            // `currentName` strips the module prefix (e.g. "Swift.Int" → "Int").
+            // Matched by full name: see `argumentCandidatePathSpecializesNonGenericCandidate`.
             let genericCandidate = try #require(
-                request.parameters[0].candidates.first { $0.typeName.currentName == "Array" && $0.isGeneric },
+                request.parameters[0].candidates.first { $0.typeName.name == "Swift.Array" && $0.isGeneric },
                 "expected Swift.Array candidate flagged isGeneric"
             )
             let nonGenericCandidate = try #require(
-                request.parameters[0].candidates.first { $0.typeName.currentName == "Int" && !$0.isGeneric },
+                request.parameters[0].candidates.first { $0.typeName.name == "Swift.Int" && !$0.isGeneric },
                 "expected Swift.Int candidate flagged non-generic"
             )
 
@@ -1041,7 +1039,7 @@ struct GenericSpecializationTests {
             let request = try specializer.makeRequest(for: TypeContextDescriptorWrapper.struct(descriptor))
 
             let genericCandidate = try #require(
-                request.parameters[0].candidates.first { $0.typeName.currentName == "Array" && $0.isGeneric },
+                request.parameters[0].candidates.first { $0.typeName.name == "Swift.Array" && $0.isGeneric },
                 "expected Swift.Array candidate flagged isGeneric"
             )
 
@@ -1791,7 +1789,7 @@ struct GenericSpecializationTests {
                 "subclasses(of: \(baseClassTypeName.name)) returned empty — narrowing falls back to 'do not narrow'"
             )
 
-            let candidateNames = Set(parameter.candidates.map { $0.typeName.currentName })
+            let candidateNames = Set(parameter.candidates.map { $0.typeName.declaredNameForTesting })
 
             // Must include the base class itself plus the two known
             // subclasses (the BFS over the parent → child map walks
@@ -2280,7 +2278,7 @@ struct GenericSpecializationTests {
             )
             let intCandidate = try #require(
                 request.parameters[0].candidates.first {
-                    $0.typeName.currentName == "Int" && !$0.isGeneric
+                    $0.typeName.name == "Swift.Int" && !$0.isGeneric
                 },
                 "expected Swift.Int candidate after .excludeGenerics"
             )
@@ -2364,7 +2362,7 @@ struct GenericSpecializationTests {
             )
             let candidate = try #require(
                 request.parameters[0].candidates.first {
-                    $0.typeName.currentName == "Int" && !$0.isGeneric
+                    $0.typeName.name == "Swift.Int" && !$0.isGeneric
                 },
                 "expected Swift.Int candidate after .excludeGenerics"
             )
@@ -2628,7 +2626,7 @@ struct GenericSpecializationTests {
             )
             let arrayCandidate = try #require(
                 request.parameters[0].candidates.first {
-                    $0.typeName.currentName == "Array" && $0.isGeneric
+                    $0.typeName.name == "Swift.Array" && $0.isGeneric
                 },
                 "expected Swift.Array candidate flagged isGeneric in TestSingleProtocolStruct's candidate list"
             )
@@ -2683,13 +2681,13 @@ struct GenericSpecializationTests {
             )
             let dictionaryCandidate = try #require(
                 request.parameters[0].candidates.first {
-                    $0.typeName.currentName == "Dictionary" && $0.isGeneric
+                    $0.typeName.name == "Swift.Dictionary" && $0.isGeneric
                 },
                 "expected Swift.Dictionary candidate flagged isGeneric"
             )
             let arrayCandidate = try #require(
                 request.parameters[0].candidates.first {
-                    $0.typeName.currentName == "Array" && $0.isGeneric
+                    $0.typeName.name == "Swift.Array" && $0.isGeneric
                 },
                 "expected Swift.Array candidate flagged isGeneric"
             )
@@ -2801,7 +2799,7 @@ struct GenericSpecializationTests {
             )
             let arrayCandidate = try #require(
                 request.parameters[0].candidates.first {
-                    $0.typeName.currentName == "Array" && $0.isGeneric
+                    $0.typeName.name == "Swift.Array" && $0.isGeneric
                 },
                 "expected Swift.Array candidate flagged isGeneric on A's candidate list"
             )
@@ -2870,7 +2868,7 @@ struct GenericSpecializationTests {
             // typed cause.
             let intCandidate = try #require(
                 request.parameters[0].candidates.first {
-                    $0.typeName.currentName == "Int" && !$0.isGeneric
+                    $0.typeName.name == "Swift.Int" && !$0.isGeneric
                 },
                 "expected Swift.Int non-generic candidate"
             )
@@ -2943,7 +2941,7 @@ struct GenericSpecializationTests {
             // request, so the tree terminates here.
             let intCandidate = try #require(
                 request.parameters[0].candidates.first {
-                    $0.typeName.currentName == "Int" && !$0.isGeneric
+                    $0.typeName.name == "Swift.Int" && !$0.isGeneric
                 }
             )
             let candidateResult = try specializer.specialize(request, with: [
@@ -3008,12 +3006,12 @@ struct GenericSpecializationTests {
             )
             let dictionaryCandidate = try #require(
                 request.parameters[0].candidates.first {
-                    $0.typeName.currentName == "Dictionary" && $0.isGeneric
+                    $0.typeName.name == "Swift.Dictionary" && $0.isGeneric
                 }
             )
             let arrayCandidate = try #require(
                 request.parameters[0].candidates.first {
-                    $0.typeName.currentName == "Array" && $0.isGeneric
+                    $0.typeName.name == "Swift.Array" && $0.isGeneric
                 }
             )
 
