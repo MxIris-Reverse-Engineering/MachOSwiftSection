@@ -1,4 +1,4 @@
-// swift-tools-version: 6.2
+// swift-tools-version: 6.3
 // The swift-tools-version declares the minimum version of Swift required to build this package.
 
 @preconcurrency import PackageDescription
@@ -74,8 +74,6 @@ extension Package.Dependency {
     }
 }
 
-let MachOKitVersion: Version = "0.46.1"
-
 let isSilentTest = envEnable("MACHO_SWIFT_SECTION_SILENT_TEST", default: false)
 
 var testSettings: [SwiftSetting] = []
@@ -92,7 +90,7 @@ var dependencies: [Package.Dependency] = [
     .Semantic,
     .Capstone,
 
-    .package(url: "https://github.com/swiftlang/swift-syntax.git", "509.1.0" ..< "604.0.0"),
+    .package(url: "https://github.com/swiftlang/swift-syntax.git", "602.0.0" ..< "605.0.0"),
     .package(url: "https://github.com/apple/swift-async-algorithms", from: "1.0.4"),
     .package(url: "https://github.com/apple/swift-argument-parser", from: "1.5.1"),
     .package(url: "https://github.com/apple/swift-collections", from: "1.2.0"),
