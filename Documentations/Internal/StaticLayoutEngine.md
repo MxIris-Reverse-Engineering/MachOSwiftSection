@@ -21,7 +21,7 @@
 ## 模块结构
 
 ```
-Sources/SwiftLayout/
+Sources/Analysis/SwiftLayout/
 ├── StaticTypeLayout.swift          # 输出值类型 (size/stride/alignmentMask/XI/isBitwiseTakable)
 ├── BasicLayout.swift               # runBasicLayout 内核（performBasicLayout 离线移植）
 ├── KnownLayoutTable.swift          # 硬编码 stdlib 固定布局表

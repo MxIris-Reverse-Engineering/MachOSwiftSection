@@ -19,7 +19,7 @@
   2. 根治在上游：把约 6200 行的 Remangler 泛型化到 `DemanglingNode`（需引入 overlay 节点表示"新脊柱挂旧子树"的两簇合成点，并把替换表的身份 hash / 深比较异构化）。上游已把它列为既定方向——`materializedNode` 的文档注释原话是 *"remangling until the `Remangler` is genericized"*——且所需基础设施（跨表示 `structurallyEquals` / 一致的 `structuralHash`、`printCacheIdentity` 身份抽象、printer 泛型化先例）在 `feature/node-store` 分支均已就绪。
   3. 下游任何 workaround（如自写泛型 remangler、绕过 `ABIKey` 的 remangle 身份）都比等上游代价大。
 - **既往修复**：无。上游有意设计，非回归。
-- **代码锚点**：`Sources/SwiftDiffing/ABIKey.swift` `make(for:)` 调用点注释（"Adjudicated — not worth fixing"）。
+- **代码锚点**：`Sources/Output/SwiftDiffing/ABIKey.swift` `make(for:)` 调用点注释（"Adjudicated — not worth fixing"）。
 - **复审条件**：① 上游发布泛型化的 Remangler 后，删调用点注释即可直接受益，本条目关闭；② profiling 显示批量建 key 时 materialize 占总耗时比例可观（当前仅为推断成本，无测量数据）——届时正确动作是推动上游泛型化，而非下游绕路。
 - **关联上游事项**（非本表裁决，仅备查）：`structuralHash` 分配一条见 A2。~~同轮核对的 `NodeReference` 缺 async `print(using:)` 一条属上游补齐范畴~~——**已闭环（2026-08-03）**：上游 `f913742` 把 print 便利方法整体迁到 `DemanglingNode` 协议扩展并补 async 变体，发布为 **0.5.1**，对 `NodeReference` 直接可用；本仓库依赖已升 `from: "0.5.1"`，`indexExtensions` 的 `await` 已恢复。
 
@@ -241,7 +241,7 @@
 - **与 main 基线对比**：行为变化确由本 PR 引入，但项目已把旧行为定性为 bug，故不是回归。
 - **既往修复**：无。这是首次把发射对齐 first-wins 的 deliberate 改动。
 - **残余关切（不构成缺陷）**：`--interface` 模式直接从 live model 渲染、不经 `ABIDiff`，所以 `keyCollisions()` 诊断在该视图无处输出。**main 同样如此**，属可选增强而非本 PR 缺陷。
-- **代码锚点**：`Sources/SwiftInterface/InterfaceUnionWalker.swift` `matchAcrossVersions` 的 first-wins 注释。
+- **代码锚点**：`Sources/Output/SwiftInterface/InterfaceUnionWalker.swift` `matchAcrossVersions` 的 first-wins 注释。
 - **复审条件**：把碰撞诊断带进 interface 视图（事件或注释形式）被单独提案时，本条目关闭。
 
 ---
@@ -276,7 +276,7 @@
 ## A23 — `MachOSwiftSection` 对 `FoundationToolbox` / `SwiftStdlibToolbox` / `MachOReading` 的 import 未在 manifest 声明（PR #121 review 发现 I，部分）
 
 - **裁决**：本 PR 只补新丢的 `.target(.Utilities)`；其余三个模块的未声明 import **延后**到独立清理批次（2026-09-04）。
-- **发现**：`Sources/MachOSwiftSection` 里 `import FoundationToolbox` ×5、`import SwiftStdlibToolbox` ×6、`import MachOReading` ×5，target 依赖列表里都没有；今天能编是因为 `MachOBase` 再导出 `MachOReading`，而 FrameworkToolbox 的两个模块经 `MachOKitExtensions` 等传递可见。
+- **发现**：`Sources/ABI/MachOSwiftSection` 里 `import FoundationToolbox` ×5、`import SwiftStdlibToolbox` ×6、`import MachOReading` ×5，target 依赖列表里都没有；今天能编是因为 `MachOBase` 再导出 `MachOReading`，而 FrameworkToolbox 的两个模块经 `MachOKitExtensions` 等传递可见。
 - **复现 / 是否误报**：属实。`git diff f3782248 -- Package.swift` 证明 `Utilities` 是本 PR 从依赖列表里删掉的（`MachOFoundation` → `MachOBase` 替换时一并丢失），其余三个在 `next` 上就没声明。
 - **与 main 基线对比**：`Utilities` 一条为本 PR 引入（已补）；其余为既有状态，非回归。
 - **为什么延后**：整仓同类问题不止这一个 target（PR #121 自己就补了 16 个 target 的 `MachOFoundation` 声明），应当一次性用「每个 import 都有直接声明」的脚本扫全仓并统一修，而不是每个 PR 顺手补几条。零行为影响，无用户可见后果。
@@ -298,7 +298,7 @@
 ## A25 — 「六个 `import MachOFoundation` 冗余」（PR #122 review 发现 F11，**误报**）
 
 - **裁决**：误报（2026-09-04）。
-- **发现**：审查者依据「`Sources/MachOSwiftSection/Exported.swift` 是 `@_exported import MachOFoundation`」判定 `SwiftDump/Dumpable/*+Dumpable.swift` 六处新增的 `import MachOFoundation` 多余。
+- **发现**：审查者依据「`Sources/ABI/MachOSwiftSection/Exported.swift` 是 `@_exported import MachOFoundation`」判定 `SwiftDump/Dumpable/*+Dumpable.swift` 六处新增的 `import MachOFoundation` 多余。
 - **为什么是误报**：提案 0018 把 ABI 层的再导出收窄到 `MachOBase`（注释原文 "the ABI layer deliberately stops here"），`LargeStackTaskExecution` 住在 `MachOSymbols`，只有 `MachOFoundation` 再导出它；去掉那六行编译不过。审查者读的是 0018 之前的状态。
 - **附带子主张**：① `MachOSymbols` target 未声明 `FoundationToolbox` product 而 `LargeStackTaskExecution.swift` import 它——属实但基线既有（`SymbolIndexStore.swift` / `Symbol.swift` 同样如此），归 A23 同类清理批次；② `AnySwiftEvolutionInterfaceBuilder.swift` 新加的 `import Utilities` 冗余（`MachOSwiftSection → MachOBase → Utilities`）——属实，已删。
 - **复审条件**：无。
@@ -317,7 +317,7 @@
 ## A27 — 新 `Collection.concurrentMap(maximumConcurrency:)` 与既有 `Array.concurrentMap(_:)` 同名而语义不同（PR #122 review 发现 F10）
 
 - **裁决**：不修（2026-09-04）。
-- **发现**：`Sources/Utilities/ConcurrentMap.swift` 的 `concurrentMap(_:)` 是 `DispatchQueue.concurrentPerform` 的同步阻塞版；新函数是 async、窗口化、可抛错。参数标签不同、无重载歧义，纯可读性。
+- **发现**：`Sources/Support/Utilities/ConcurrentMap.swift` 的 `concurrentMap(_:)` 是 `DispatchQueue.concurrentPerform` 的同步阻塞版；新函数是 async、窗口化、可抛错。参数标签不同、无重载歧义，纯可读性。
 - **为什么不修**：两者的调用形态（`await` + `try` + `maximumConcurrency:` 标签）已把区别写在调用点上；改名或合并文件是纯搬动。既有同步版零调用方（2026-09-03 调研已记录），更合适的动作是下次清理批次删掉它。
 - **复审条件**：同步版被删或被重新启用时一并统一命名。
 
@@ -371,7 +371,7 @@
 ## A33 — `TypeIndexing.TypeDatabase.index` 的 task group 用 `addTask`，取消后仍提交剩余模块（PR #122 review 发现 1 的横向同类）
 
 - **裁决**：延后（2026-09-04）。
-- **发现**：`Sources/TypeIndexing/TypeDatabase.swift:76` 与 `concurrentMap` 修复前同形；基线既有，非本 PR 引入。
+- **发现**：`Sources/Declaration/TypeIndexing/TypeDatabase.swift:76` 与 `concurrentMap` 修复前同形；基线既有，非本 PR 引入。
 - **为什么延后**：正确修法是 `addTaskUnlessCancelled` + 注册前 `Task.checkCancellation()`（否则取消会把残缺索引静默登记进去），而 `index(dependencies:moduleFilter:)` 直接构造 `SDKIndexer` / `ModuleInterfaceIndexer`（需要 SourceKit 与 SDK），没有注入缝可以写单元级复现测试；按「修复必带能变红的测试」规则，先补注入缝再修。
 - **复审条件**：`TypeDatabase` 获得 indexer 注入缝时一并修，或 GUI 宿主报告取消 `--resolve-c-module-names` 后 CPU 仍被占用。
 
@@ -591,7 +591,7 @@
 - **修复**：
   - 按用户的界定，`currentName` 是给 dump/interface 的类型、协议声明用的，不是给测试查找定义用的，所以库不改，改测试。
   - `GenericSpecializationTests.swift` 里挑 `Int` / `Array` / `Dictionary` 候选的 14 处改为按全名（`Swift.Int` 等）比较。
-  - 按短名查定义、比较名字集合的其余 13 处（6 个文件共 27 处），改用新加的测试专用方法 `DefinitionName.declaredNameForTesting`（`Sources/MachOTestingSupport/`）。它从节点读声明本身的名字，依次处理 `.identifier`、`.localDeclName`、`.privateDeclName`，不认识的形状退回完整打印名，让短名比较失败而不是误配。
+  - 按短名查定义、比较名字集合的其余 13 处（6 个文件共 27 处），改用新加的测试专用方法 `DefinitionName.declaredNameForTesting`（`Sources/TestSupport/MachOTestingSupport/`）。它从节点读声明本身的名字，依次处理 `.identifier`、`.localDeclName`、`.privateDeclName`，不认识的形状退回完整打印名，让短名比较失败而不是误配。
   - `AGENTS.md` 写测试一节加了一条规则。
 - **回归测试**：
   - `DeclaredNameForTestingTests` 用 `$s4Main3fooSiyF9MemberKeyL_OD`（打印为 `MemberKey #1 in Main.foo() -> Swift.Int`，与出事的候选同形）断言新方法取到 `MemberKey`，同时断言 `currentName` 在同一个节点上是 `Int`，把这个差别钉住。

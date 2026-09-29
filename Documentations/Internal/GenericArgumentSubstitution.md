@@ -238,12 +238,12 @@ expanded offsets**（一个独立的 metadata 回归）；修掉那个回归后�
 
 ## 10. 涉及的文件 / commit
 
-- 实现：`Sources/SwiftDeclarationRendering/FieldLayoutRenderer.swift`
+- 实现：`Sources/Output/SwiftDeclarationRendering/FieldLayoutRenderer.swift`
   （`substitutingGenericParameters` / `staticallyBoundMetatype` / `boundGenericArgumentType` /
   `substitutedValueNode` / `substitutedPackNode` / `genericArgumentWord` / `topLevelGenericLayout`）。
-- 模型：`Sources/MachOSwiftSection/Models/Generic/`（`GenericParamDescriptor` / `GenericParamKind` /
+- 模型：`Sources/ABI/MachOSwiftSection/Models/Generic/`（`GenericParamDescriptor` / `GenericParamKind` /
   `GenericPackShapeDescriptor` / `GenericPackShapeHeader` / `GenericValueDescriptor` / `GenericContext`）。
-- 运行期入口：`Sources/MachOSwiftSection/Runtime/RuntimeFunctions.swift`
+- 运行期入口：`Sources/ABI/MachOSwiftSection/Runtime/RuntimeFunctions.swift`
   （`getTypeByMangledNameInContext(specializedFrom:)`——即 §2 那条“会 trap”的路径）。
 - 关键 commit：`0107c8a`（引入静态替换止 trap）、value-generic 止崩与 `kind` 硬化、value/pack 渲染支持。
 - 权威 ABI 出处：`swift/include/swift/ABI/{GenericContext.h, Metadata.h, MetadataValues.h}`、

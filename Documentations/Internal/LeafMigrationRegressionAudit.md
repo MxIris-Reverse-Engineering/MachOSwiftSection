@@ -28,12 +28,12 @@ leaf"，首发 0.12.0-beta.6）及其直接配套提交（`ebb04d3` 等）的全
 
 ### 1. 多 payload 枚举 Enum Layout 注释：错误容忍丢失 + 每枚举线性重扫
 
-- 旧：`MultiPayloadEnumDescriptorCache`（`ebb04d3^:Sources/SwiftDump/Dumper/EnumDumper.swift:249-286`）
+- 旧：`MultiPayloadEnumDescriptorCache`（`ebb04d3^:Sources/Output/SwiftDump/Dumper/EnumDumper.swift:249-286`）
   每 image 构建一次 `[Node: MultiPayloadEnumDescriptor]`，构建循环整体
   `do/catch { print(error) }` 并发布**部分** map——单个 descriptor demangle 失败只让
   那一个枚举查不到、降级到 `calculateTaggedMultiPayload` 仍出注释。
 - 新：`RuntimeFieldLayoutBackend.multiPayloadEnumDescriptor(for:in:)`
-  （`Sources/SwiftDeclarationRendering/RuntimeFieldLayoutBackend.swift:681-691`）
+  （`Sources/Output/SwiftDeclarationRendering/RuntimeFieldLayoutBackend.swift:681-691`）
   内联线性扫描且 `throws`，错误经 `computeEnumLayout` 传播到 `try? await`
   （`:539`）→ `enumLayout == nil`：**section 中任一坏 descriptor 都会抑制该枚举的
   Enum Layout 策略行与全部 per-case 块**。同时每枚举重扫 + 重 demangle 全部
@@ -44,7 +44,7 @@ leaf"，首发 0.12.0-beta.6）及其直接配套提交（`ebb04d3` 等）的全
 ### 2. 嵌套 field-offset 展开：深度截断诊断丢失，测试钉在死常量上
 
 - 旧：`walkNestedExpandedFieldOffsets` 触达深度上限时经 `@Loggable` 发
-  `#log(.info, …)`（`ebb04d3^:Sources/SwiftDump/Protocols/TypedDumper.swift:522-551`）。
+  `#log(.info, …)`（`ebb04d3^:Sources/Output/SwiftDump/Protocols/TypedDumper.swift:522-551`）。
 - 新：`RuntimeFieldLayoutBackend.swift:200-201` 直接返回空 `SemanticString()`——截断
   完全静默。
 - 复合问题：`nestedFieldOffsetExpansionDepthLimit` 现有两份——活值在
@@ -59,9 +59,9 @@ leaf"，首发 0.12.0-beta.6）及其直接配套提交（`ebb04d3` 等）的全
 ### 3. Void payload 的枚举 case 丢括号，dump / interface 两路不一致
 
 - 旧（dump 路径至今仍是）：按 `!mangledTypeName.isEmpty` gating → `case a()`
-  （`Sources/SwiftDump/Dumper/EnumDumper.swift:105-115`）。
+  （`Sources/Output/SwiftDump/Dumper/EnumDumper.swift:105-115`）。
 - 新（interface 路径）：按渲染文本 gating——`payloadText != "()"`
-  （`Sources/SwiftPrinting/SwiftDeclarationPrinter+Members.swift`，`printEnumCase`）
+  （`Sources/Output/SwiftPrinting/SwiftDeclarationPrinter+Members.swift`，`printEnumCase`）
   → `case a`。同一枚举两路输出不同；无 baseline 覆盖，实际触发罕见。
 - 建议：二选一统一（倾向 interface 形式更接近源码，可改 dump 路径对齐并记录）。
 
@@ -79,7 +79,7 @@ leaf"，首发 0.12.0-beta.6）及其直接配套提交（`ebb04d3` 等）的全
 
 - 旧：`dumpProtocolName` 对 nil protocol 节点塌缩为空 `SemanticString`（非 nil），
   输出悬空的 `extension Foo: `（外加 `@retroactive` / global-actor 标记）。
-- 新：`Sources/SwiftPrinting/SwiftDeclarationPrinter.swift:234-235` 的
+- 新：`Sources/Output/SwiftPrinting/SwiftDeclarationPrinter.swift:234-235` 的
   `try?` + optional-chain 使 nil 节点 → 整个子句（含 `@retroactive` / actor 标记）
   被丢弃，输出 `extension Foo`。
 - 新输出更干净，但丢了 retroactive/actor 信号且无文档。建议：接受现状并记录，或
@@ -88,7 +88,7 @@ leaf"，首发 0.12.0-beta.6）及其直接配套提交（`ebb04d3` 等）的全
 ### 6. SwiftDump 中的死代码副本（漂移风险）
 
 - `AssociatedTypeDumper.mergedRecords` + `collectUniqueRecords`
-  （`Sources/SwiftDump/Dumper/AssociatedTypeDumper.swift:84`、`:117`）——interface
+  （`Sources/Output/SwiftDump/Dumper/AssociatedTypeDumper.swift:84`、`:117`）——interface
   路径在 `SwiftDeclarationPrinter+Headers.swift` 持有等价复制品后，SwiftDump 原件
   已无任何调用者。
 - `nestedFieldOffsetExpansionDepthLimit` 死副本（见问题 2）。
@@ -108,9 +108,9 @@ leaf"，首发 0.12.0-beta.6）及其直接配套提交（`ebb04d3` 等）的全
 - diff 路径的 extension 头用 `conformingProtocolName.node.printSemantic(using: .default)`
   而非 `.interfaceTypeBuilderOnly`，且缺 `@retroactive` / global-actor 标记——与
   `printExtensionHeader` 对同一 extension 的拼写不一致
-  （`Sources/SwiftInterface/SwiftDiffableInterfaceRenderer.swift:265-276`）。
+  （`Sources/Output/SwiftInterface/SwiftDiffableInterfaceRenderer.swift:265-276`）。
 - diff/snapshot 的 associated-type witness 投影按 **name 单键**去重且不做
-  `resolveOpaqueType`（`Sources/SwiftIndexing/SwiftDeclarationIndexer.swift:615-627`）：
+  `resolveOpaqueType`（`Sources/Declaration/SwiftIndexing/SwiftDeclarationIndexer.swift:615-627`）：
   同名不同 witness 的第二条被静默丢弃；opaque witness 以 `some P` 形态参与 diff 而
   interface 打印的是解析后的 underlying type。
 

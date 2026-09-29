@@ -32,7 +32,7 @@ struct MachOSwiftSectionCoverageInvariantTests {
             .deletingLastPathComponent()  // Fixtures/
             .deletingLastPathComponent()  // MachOSwiftSectionTests/
             .deletingLastPathComponent()  // Tests/
-            .appendingPathComponent("../Sources/MachOSwiftSection/Models")
+            .appendingPathComponent("../Sources/ABI/MachOSwiftSection/Models")
             .standardizedFileURL
     }
 

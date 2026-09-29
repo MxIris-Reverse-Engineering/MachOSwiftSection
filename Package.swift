@@ -291,6 +291,7 @@ extension Target {
             .product(name: "Dependencies", package: "swift-dependencies"),
             .product(name: "AsyncAlgorithms", package: "swift-async-algorithms"),
         ],
+        path: "Sources/Support/Utilities",
     )
 
     static let MachOCaches = Target.target(
@@ -300,6 +301,7 @@ extension Target {
             .product(.MachOKitExtensions),
             .target(.Utilities),
         ],
+        path: "Sources/MachO/MachOCaches",
     )
 
     /// Dependency resolution shared by every feature that needs a binary's
@@ -314,6 +316,7 @@ extension Target {
             .product(.MachOKit),
             .product(.MachOKitExtensions),
         ],
+        path: "Sources/MachO/MachODependencies",
     )
 
     static let MachOReading = Target.target(
@@ -324,6 +327,7 @@ extension Target {
             .target(.Utilities),
             .product(name: "FileIO", package: "swift-fileio"),
         ],
+        path: "Sources/MachO/MachOReading",
     )
 
     static let MachOResolving = Target.target(
@@ -333,6 +337,7 @@ extension Target {
             .product(.MachOKitExtensions),
             .target(.MachOReading),
         ],
+        path: "Sources/MachO/MachOResolving",
     )
 
     static let MachOSymbols = Target.target(
@@ -345,6 +350,7 @@ extension Target {
             .target(.Utilities),
             .target(.MachOCaches),
         ],
+        path: "Sources/MachO/MachOSymbols",
     )
 
     static let MachOPointers = Target.target(
@@ -356,6 +362,7 @@ extension Target {
             .target(.MachOResolving),
             .target(.Utilities),
         ],
+        path: "Sources/MachO/MachOPointers",
     )
 
     /// The reader / resolver / pointer layer as one import: everything the
@@ -371,6 +378,7 @@ extension Target {
             .target(.MachOPointers),
             .target(.Utilities),
         ],
+        path: "Sources/MachO/MachOBase",
     )
 
     static let MachOFoundation = Target.target(
@@ -381,10 +389,12 @@ extension Target {
             .target(.MachOSymbols),
             .target(.MachODependencies),
         ],
+        path: "Sources/MachO/MachOFoundation",
     )
 
     static let MachOSwiftSectionC = Target.target(
         name: "MachOSwiftSectionC",
+        path: "Sources/ABI/MachOSwiftSectionC",
     )
 
     /// The ABI model. Depends on the reader / resolver / pointer layer only:
@@ -398,6 +408,7 @@ extension Target {
             .target(.Utilities),
             .target(.MachOSwiftSectionC),
         ],
+        path: "Sources/ABI/MachOSwiftSection",
     )
 
     /// Token-template transformers for rendered output — the `Transformer`
@@ -417,6 +428,7 @@ extension Target {
         dependencies: [
             .product(.OutputTransformer),
         ],
+        path: "Sources/Output/SwiftOutputTransformer",
     )
 
     static let SwiftInspection = Target.target(
@@ -434,6 +446,7 @@ extension Target {
             .target(.MachOSwiftSectionC),
             .target(.SwiftOutputTransformer),
         ],
+        path: "Sources/Analysis/SwiftInspection",
     )
 
     /// Static aggregate-layout engine: computes Swift struct/class field
@@ -454,6 +467,7 @@ extension Target {
             .target(.MachOSwiftSection),
             .target(.SwiftInspection),
         ],
+        path: "Sources/Analysis/SwiftLayout",
     )
 
     /// Low-level Swift declaration rendering engine extracted from `SwiftDump`:
@@ -480,6 +494,7 @@ extension Target {
             .target(.SwiftLayout),
             .target(.SwiftThunkAnalysis),
         ],
+        path: "Sources/Output/SwiftDeclarationRendering",
     )
 
     /// Recovers what a **kind-9 accessor-function symbolic reference** points
@@ -507,6 +522,7 @@ extension Target {
             .target(.MachOSwiftSection),
             .target(.SwiftInspection),
         ],
+        path: "Sources/Analysis/SwiftThunkAnalysis",
     )
 
     static let SwiftDump = Target.target(
@@ -523,6 +539,7 @@ extension Target {
             .target(.SwiftDeclarationRendering),
             .target(.SwiftThunkAnalysis),
         ],
+        path: "Sources/Output/SwiftDump",
     )
 
     /// Shared declaration model: `TypeDefinition`, `ProtocolDefinition`,
@@ -549,6 +566,7 @@ extension Target {
             .target(.SwiftDeclarationRendering),
             .target(.SwiftThunkAnalysis),
         ],
+        path: "Sources/Declaration/SwiftDeclaration",
     )
 
     /// Builds the `SwiftDeclaration` model from a Mach-O image:
@@ -574,6 +592,7 @@ extension Target {
             .target(.SwiftDeclaration),
             .target(.SwiftDeclarationRendering),
         ],
+        path: "Sources/Declaration/SwiftIndexing",
     )
 
     /// Infers source-level Swift attributes (`@propertyWrapper`,
@@ -592,6 +611,7 @@ extension Target {
             .target(.SwiftInspection),
             .target(.SwiftDeclaration),
         ],
+        path: "Sources/Declaration/SwiftAttributeInference",
     )
 
     /// Diffs the Swift ABI of two indexed modules. Keys every declaration on
@@ -604,6 +624,7 @@ extension Target {
             .product(.Demangling),
             .target(.SwiftDeclaration),
         ],
+        path: "Sources/Output/SwiftDiffing",
     )
 
     /// Renders the `SwiftDeclaration` model as Swift source:
@@ -626,6 +647,7 @@ extension Target {
             .target(.SwiftDeclaration),
             .target(.SwiftAttributeInference),
         ],
+        path: "Sources/Output/SwiftPrinting",
     )
 
     /// Runtime generic-specialization engine (`GenericSpecializer`,
@@ -647,6 +669,7 @@ extension Target {
             .target(.SwiftDeclaration),
             .target(.SwiftIndexing),
         ],
+        path: "Sources/Declaration/SwiftSpecialization",
     )
 
     /// Orchestrator: `SwiftInterfaceBuilder` ties indexing and printing
@@ -672,6 +695,7 @@ extension Target {
             .target(.SwiftSpecialization),
             .target(.SwiftDiffing),
         ],
+        path: "Sources/Output/SwiftInterface",
     )
 
     /// Module-attribution index for `__C` types (evolution proposal 0009):
@@ -690,6 +714,7 @@ extension Target {
             .product(name: "SourceKitD", package: "SourceKitD", condition: .when(platforms: [.macOS])),
             .product(name: "APINotes", package: "swift-apinotes", condition: .when(platforms: [.macOS])),
         ],
+        path: "Sources/Declaration/TypeIndexing",
     )
 
     static let swift_section = Target.executableTarget(
@@ -720,6 +745,7 @@ extension Target {
             .product(name: "Rainbow", package: "Rainbow"),
             .product(name: "ArgumentParser", package: "swift-argument-parser"),
         ],
+        path: "Sources/Executables/swift-section",
     )
 
     static let baseline_generator = Target.executableTarget(
@@ -728,6 +754,7 @@ extension Target {
             .target(.MachOFixtureSupport),
             .product(name: "ArgumentParser", package: "swift-argument-parser"),
         ],
+        path: "Sources/Executables/baseline-generator",
         swiftSettings: testSettings,
     )
 
@@ -764,6 +791,7 @@ extension Target {
             .product(.SwiftCompilerPlugin),
             .product(.SwiftSyntaxBuilder),
         ],
+        path: "Sources/Support/MachOMacros",
     )
 
     // MARK: - Testing
@@ -790,6 +818,7 @@ extension Target {
             .product(.SwiftParser),
             .product(.SwiftSyntaxBuilder),
         ],
+        path: "Sources/TestSupport/MachOFixtureSupport",
         swiftSettings: testSettings,
     )
 
@@ -813,6 +842,7 @@ extension Target {
             .target(.SwiftSpecialization),
             .target(.SwiftInterface),
         ],
+        path: "Sources/TestSupport/MachOTestingSupport",
         swiftSettings: testSettings,
     )
 
@@ -820,6 +850,7 @@ extension Target {
         name: "MachOTestingSupportC",
         dependencies: [
         ],
+        path: "Sources/TestSupport/MachOTestingSupportC",
         swiftSettings: testSettings,
     )
 

@@ -5,7 +5,7 @@ import Foundation
 /// Each Suite type provides:
 /// - `testedTypeName`: the source-code Type whose public members the Suite covers
 ///   (e.g. "StructDescriptor"). Must match the type name exactly as it appears in
-///   `Sources/MachOSwiftSection/Models/`.
+///   `Sources/ABI/MachOSwiftSection/Models/`.
 /// - `registeredTestMethodNames`: the member names covered by `@Test` methods in this Suite.
 ///   For each entry "foo", the Coverage Invariant test expects a public member
 ///   `<testedTypeName>.foo` (any overload group) to exist in the source.
@@ -15,7 +15,7 @@ import Foundation
 /// Code iterating `[any FixtureSuite.Type]` (e.g., the Coverage Invariant Test in
 /// Task 16) must run on the main actor too.
 ///
-/// **Suite inclusion rule:** Every Swift file under `Sources/MachOSwiftSection/Models/`
+/// **Suite inclusion rule:** Every Swift file under `Sources/ABI/MachOSwiftSection/Models/`
 /// gets a corresponding `<File>Tests.swift` Suite UNLESS:
 /// - The file declares only `*Layout` types (covered by LayoutTests).
 /// - The file declares only enums/flags/protocols with no public func/var/init.

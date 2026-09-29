@@ -92,7 +92,7 @@
 - `allOpaqueTypeDescriptorSymbols(in:)` 在 `Sources/` 与 `Tests/` 中**零调用点**。
 - RuntimeViewer 的 `main` 与 `feature/node-store-adoption` 两条分支均未调用这两个 API。
 
-当时给将来重开留的修法：vend `StructuralNodeReferenceKey`（或 `Node`）作键，或不暴露裸字典而改提供查询方法；修复位置在本仓库 `Sources/MachOSymbols/SymbolIndexStore.swift`。
+当时给将来重开留的修法：vend `StructuralNodeReferenceKey`（或 `Node`）作键，或不暴露裸字典而改提供查询方法；修复位置在本仓库 `Sources/MachO/MachOSymbols/SymbolIndexStore.swift`。
 
 > **2026-08-14 更新——「不修」裁决已被推翻，两处均已按上述修法改为 `StructuralNodeReferenceKey` 键。** 上面记录的事实（类型级 SPI、包内调用点只遍历、RuntimeViewer 零调用）复核后仍然成立；推翻的理由是：同一类 bug 已经真实造成过一次回归——NodeStore 迁移 Stage 5a（声明层换持 `NodeReference` 的那一阶段）曾因裸键丢掉 `override` 关键字与 vtable offset 注释，单条查询版正是为此改成结构化键，这两个批量版是那次修复漏下的——且修复成本是每处一行。完整裁决见 [`ReviewAdjudications.md`](ReviewAdjudications.md) 的 A9（该文件是 code review 裁决的汇总台账，A 编号是其中的裁决序号）——**A9 是这一裁决的权威记录，本条不再单独维护**。
 
@@ -129,7 +129,7 @@
 
 **可选优化**：在 `Storage.init` 里一次性建一份 `[StructuralNodeReferenceKey: NodeStore.NodeIndex]` 旁路索引——opaque 类型查找那一侧最终就是这么修的（2026-08-13 起为 `opaqueTypeDescriptorSymbolRowByMemberNode: [StructuralNodeReferenceKey: UInt32]`，单次哈希命中）。注意本条早先点名效仿的 `opaqueTypeDescriptorEntriesByMemberIdentifier`（按 `DemanglingNode.identifier` 分桶）是已被裁定不充分并移除的过渡手法——identifier 是成员名，SwiftUI 的 `some View` 实现几乎全叫 `body`，单桶数百项、桶内扫描仍是二次方；照抄它会复现已修掉的问题。收益上限受限于上面引用块里的实测，排期时不应优先于真正的回归项。
 
-**修复位置**：本仓库 `Sources/MachOSymbols/SymbolIndexStore.swift`。
+**修复位置**：本仓库 `Sources/MachO/MachOSymbols/SymbolIndexStore.swift`。
 
 ### 6. ~~build sweep 由并行改为串行，且每个符号都无条件跨线程往返~~ —— 跨线程往返已修 ✅（2026-08-02，本仓库侧）
 
@@ -149,7 +149,7 @@
 
 成因：`ABIKey.make(for:)` / `makeUnwrappingType(for:)` 泛型化到 `DemanglingNode` 之后，走的是 `mangleAsString` 的 `DemanglingNode` 重载，其实现是 `mangleAsString(node.materializedNode)`。而 `TypeName.node` / `ProtocolName.node` / `FieldDefinition.typeNode` / `FunctionDefinition.node` 现在全是 `NodeReference`，于是构建 `ABISnapshot` 时每个类型、协议、扩展容器、成员、字段的 key 都会重建一整棵 class 树再丢掉。
 
-当初认定的修法：`mangleAsString` 增加一条 store 原生路径（上游），或 `ABIKey` 改成每个声明 materialize 一次而非每个 key 一次（本仓库 `Sources/SwiftDiffing/ABIKey.swift`），取决于选哪条路。
+当初认定的修法：`mangleAsString` 增加一条 store 原生路径（上游），或 `ABIKey` 改成每个声明 materialize 一次而非每个 key 一次（本仓库 `Sources/Output/SwiftDiffing/ABIKey.swift`），取决于选哪条路。
 
 **上游 `0.5.0` 状态（2026-08-03 核对）：仍然打开。** `mangleAsString(_ node: some DemanglingNode)` 的实现依旧是 `mangleAsString(node.materializedNode)`（`RemangleInterface.swift:49`）；根治需要 `Remangler` 泛型化到 `DemanglingNode`。本仓库侧每个 key 本来只 materialize 一次，无重复可省。
 

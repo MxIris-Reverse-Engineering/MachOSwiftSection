@@ -2063,6 +2063,16 @@
 - **关联文档**：[ReviewAdjudications.md](ReviewAdjudications.md) A52。
 - **对应版本**：0.21.0 之后（只动测试，发布产物不变）。
 
+## 69. `Sources/` 按层分组
+
+- **时间段**：2026-09-29（单日）。
+- **动机**：`Sources/` 下平铺 31 个 target，用户嫌太杂，要求分目录归类。
+- **关键决策**：**① 按层分 8 组**：`Support/`、`MachO/`、`ABI/`、`Analysis/`、`Declaration/`、`Output/`、`Executables/`、`TestSupport/`，对应 AGENTS.md 的依赖层级。用户在「按层 8 组」与「粗分 4 组」之间选了前者，因为粗分方案里 `Swift/` 下仍有 16 个 target。**② target / product / 模块名一律不变**，`Package.swift` 逐个写字面量 `path:`，下游无感。**③ 修掉依赖目录深度的代码**：fixture 路径的 rawValue 从 `../../Tests/…` 改成 `../../../Tests/…`（三处 `#filePath` 解析器的约定不变）；`PrintFailureEventTests` 取 `Sources` 下两层作模块名；覆盖率不变式测试的 `Models/` 路径加 `ABI/`。**④ 文档只改活的**：AGENTS.md、Glossary、`SwiftEnumLayout` 两份、`Internal/` 主题笔记里的路径改成新路径；TaskReports、Reviews、Roadmaps、已落地提案、本账本保留当时的路径。AGENTS.md 加一段说明分组，以及新 target 必须声明 `path:`。**⑤ 顺带**：`next` 工作树里那份未提交的 `Package.swift` 改动（tools-version 6.3、swift-syntax `602..<605`、删掉没人用的 `MachOKitVersion`）按用户要求先单独提交，再从它切出分组分支。
+- **落地模块**：`Sources/` 全部 31 个 target 的目录、`Package.swift`、`Sources/TestSupport/MachOFixtureSupport/{MachOFileName,MachOImageName}.swift` 与两处解析器的注释、`Tests/SwiftInterfaceTests/PrintFailureEventTests.swift`、`Tests/MachOSwiftSectionTests/Fixtures/MachOSwiftSectionCoverageInvariantTests.swift`、`.github/workflows/{release,version-check}.yml`、26 份活文档。
+- **验证**：`swift test --skip IntegrationTests` 原始退出码 0，19 批、2145 个测试、405 个套件全部通过；三个扫描源码树的套件（`PrintFailureEventTests`、`NodeStoreMigrationInvariantTests`、`MachOSwiftSectionCoverageInvariantTests`）均为绿。纯搬迁，未跑渲染 A/B 验证。
+- **关联文档**：[0055-group-sources-by-layer](../Evolutions/0055-group-sources-by-layer.md)。
+- **对应版本**：0.21.0 之后（发布产物不变）。
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节

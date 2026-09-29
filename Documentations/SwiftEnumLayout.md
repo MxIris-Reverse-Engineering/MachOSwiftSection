@@ -876,14 +876,14 @@ This project implements the ABI twice, for two different trust models.
 
 Used when the enum's metadata is loaded in-process (`MachOImage`). Pipeline (in `RuntimeFieldLayoutBackend` + `SwiftInspection`):
 
-1. **Formulas first.** `EnumLayoutCalculator` (in `Sources/SwiftInspection/EnumLayoutCalculator.swift`) is a line-audited port of the algorithms in Part 2 — `calculateSinglePayload`, `calculateMultiPayload` (spare bits, from the `__swift5_mpenum` mask), `calculateTaggedMultiPayload`. It produces per-case projections including per-byte **fixed-bit masks** (3.3) and per-strategy XI counts (2.6.6, 2.7.4).
+1. **Formulas first.** `EnumLayoutCalculator` (in `Sources/Analysis/SwiftInspection/EnumLayoutCalculator.swift`) is a line-audited port of the algorithms in Part 2 — `calculateSinglePayload`, `calculateMultiPayload` (spare bits, from the `__swift5_mpenum` mask), `calculateTaggedMultiPayload`. It produces per-case projections including per-byte **fixed-bit masks** (3.3) and per-strategy XI counts (2.6.6, 2.7.4).
 2. **Payload XI from the real VWT.** The payload's XI count is read from its live value witness table. An `indirect` payload is special-cased to the heap-object count `0x7FFF_FFFF` (2.5.2). If the payload type cannot be resolved, the count is *inverted* from the enum's own VWT: for a payload-sized layout, `payloadXI = enumXI + emptyCases` exactly reverses the runtime's subtraction (2.5.1) — and for an overflow layout it is not invertible, so the layout is dropped rather than guessed.
-3. **Exact patterns from the witnesses.** `RuntimeEnumCaseProjector` (`Sources/SwiftInspection/RuntimeEnumCaseProjector.swift`) resolves XI patterns (3.4) by *running* the enum's own `destructiveInjectEnumTag` witness twice per case — once into an all-`0x00` buffer, once into all-`0xFF` — and keeping the bytes both runs agree on: those were deterministically written. Empty cases must round-trip through `getEnumTag`, or the projection is rejected. (The dual-baseline trick is valid precisely because single-payload injection *stores* patterns; a spare-bits injection ORs, so that strategy takes its patterns from the mask instead.)
+3. **Exact patterns from the witnesses.** `RuntimeEnumCaseProjector` (`Sources/Analysis/SwiftInspection/RuntimeEnumCaseProjector.swift`) resolves XI patterns (3.4) by *running* the enum's own `destructiveInjectEnumTag` witness twice per case — once into an all-`0x00` buffer, once into all-`0xFF` — and keeping the bytes both runs agree on: those were deterministically written. Empty cases must round-trip through `getEnumTag`, or the projection is rejected. (The dual-baseline trick is valid precisely because single-payload injection *stores* patterns; a spare-bits injection ORs, so that strategy takes its patterns from the mask instead.)
 4. **Cross-check against ground truth.** The assembled layout's implied total size must equal the enum VWT's size, or the layout is discarded — derived inputs (payload sizes, spare masks) can be subtly wrong, and a confident wrong answer is worse than none.
 
 #### The static path — offline, honest about limits
 
-Used for `MachOFile` (no process). `EnumLayoutBridge` (`Sources/SwiftLayout/EnumLayoutBridge.swift`) resolves, in order:
+Used for `MachOFile` (no process). `EnumLayoutBridge` (`Sources/Analysis/SwiftLayout/EnumLayoutBridge.swift`) resolves, in order:
 
 1. **The compiler's own answer when available:** the `__swift5_builtin` whole-type descriptor (size/stride/alignment/XI as IRGen computed them) — the same source RemoteInspection trusts.
 2. **Structural computation otherwise:** payload types are resolved recursively (through the image's dependency closure), the `__swift5_mpenum` mask feeds `calculateMultiPayload`, and — going one step beyond the official offline implementation — **spare-bits XI counts are derived structurally** (`TypeLowering.cpp` never does this; it falls back to tagged XI without a builtin descriptor).
@@ -925,10 +925,10 @@ In this repository:
 
 | File | Role |
 |---|---|
-| `Sources/SwiftInspection/EnumLayoutCalculator.swift` | the formula port (all three strategies, per-case projections, fixed-bit masks) |
-| `Sources/SwiftInspection/RuntimeEnumCaseProjector.swift` | witness-driven exact pattern projection |
-| `Sources/SwiftDeclarationRendering/RuntimeFieldLayoutBackend.swift` | runtime-path assembly: VWT reads, XI inversion, size cross-check |
-| `Sources/SwiftLayout/EnumLayoutBridge.swift` | static-path assembly: builtin descriptors, `__swift5_mpenum`, structural fallback |
+| `Sources/Analysis/SwiftInspection/EnumLayoutCalculator.swift` | the formula port (all three strategies, per-case projections, fixed-bit masks) |
+| `Sources/Analysis/SwiftInspection/RuntimeEnumCaseProjector.swift` | witness-driven exact pattern projection |
+| `Sources/Output/SwiftDeclarationRendering/RuntimeFieldLayoutBackend.swift` | runtime-path assembly: VWT reads, XI inversion, size cross-check |
+| `Sources/Analysis/SwiftLayout/EnumLayoutBridge.swift` | static-path assembly: builtin descriptors, `__swift5_mpenum`, structural fallback |
 | `Tests/SwiftInspectionTests/EnumLayoutVerificationTests.swift` | every formula in this document, verified against live memory |
 
 ---

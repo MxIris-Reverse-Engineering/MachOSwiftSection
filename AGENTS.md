@@ -33,6 +33,8 @@ SwiftInspection and everything above it also import
 
 `SwiftLayout` is a peer of that spine: it depends on `SwiftInspection` + `MachOSwiftSection` (+ `MachOObjCSection` for ObjC-ancestor instance sizes) and is consumed by `SwiftDeclarationRendering`. `TypeIndexing`, `SwiftDiffing` and `OutputTransformer` hang off the same level as the modules that use them.
 
+**`Sources/` is grouped by layer, not flat**: `Support/`, `MachO/`, `ABI/`, `Analysis/`, `Declaration/`, `Output/`, `Executables/`, `TestSupport/`, each holding the targets of that layer. SwiftPM's default `Sources/<Target>` therefore never applies — a new target goes into a group directory and declares `path: "Sources/<Group>/<Target>"` in `Package.swift`. Code that locates a source file from `#filePath` assumes this depth: the fixture paths in `MachOFileName` / `MachOImageName` climb three levels to the package root, and the source scans in the tests take the module name from two levels below `Sources`. [0055-group-sources-by-layer](Documentations/Evolutions/0055-group-sources-by-layer.md).
+
 ## What each module does
 
 One or two lines each; the linked document is the authority.
@@ -156,7 +158,7 @@ Rule out all three environment drifts **before** attributing red tests to a code
 
 </important>
 
-<important if="you are adding a public method under Sources/MachOSwiftSection/Models/">
+<important if="you are adding a public method under Sources/ABI/MachOSwiftSection/Models/">
 
 That directory is exhaustively covered by `Tests/MachOSwiftSectionTests/Fixtures/`, and `MachOSwiftSectionCoverageInvariantTests` enforces it in both directions (every public method registered; every registered name real; sentinel-tagged suites actually sentinel; sentinel-behavior suites actually tagged). The procedure:
 
@@ -294,4 +296,4 @@ Keeping this file's module list and `Documentations/README.md`'s index in sync w
 
 ## Work in progress
 
-**GenericSpecializer** (`Sources/SwiftSpecialization/`) — interactive runtime specialization of generic types. Core implementation complete with tests. Two-step API: `makeRequest()` returns parameters and candidates, `specialize()` executes with the user's selections. Only protocol requirements need witness tables, passed in requirement order; `baseClass` / `layout` / `sameType` need validation only. Generic parameter names are derived from depth/index (A, B, A1, …) because the binary does not preserve them.
+**GenericSpecializer** (`Sources/Declaration/SwiftSpecialization/`) — interactive runtime specialization of generic types. Core implementation complete with tests. Two-step API: `makeRequest()` returns parameters and candidates, `specialize()` executes with the user's selections. Only protocol requirements need witness tables, passed in requirement order; `baseClass` / `layout` / `sameType` need validation only. Generic parameter names are derived from depth/index (A, B, A1, …) because the binary does not preserve them.
