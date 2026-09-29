@@ -87,7 +87,7 @@ class 的 vtable 成员里，实现函数没有符号、只剩它自己 method d
 和 ABI 墓碑的区别：墓碑的实现指针是 null，镜像里根本没有这个成员的代码，所以不补建；descriptor-only member 的代码还在，只是没有名字。
 
 - **主要出现在**：`TypeDefinition+ClassDispatch.swift`、`ClassDispatchLookups.vtableSlotMemberSymbols`、`TypeDefinition+MemberIndexing.swift`
-- **延伸阅读**：[提案 interface-descriptor-only-vtable-members](Evolutions/draft-interface-descriptor-only-vtable-members.md)
+- **延伸阅读**：[提案 0054-interface-descriptor-only-vtable-members](Evolutions/0054-interface-descriptor-only-vtable-members.md)
 
 ### detach（脱表，`detachedFromSharedTable()`）
 
@@ -105,7 +105,7 @@ Requirement Machine 最小化泛型签名时，把 pin 到同一具体类型的�
 
 ### eviction group（驱逐分组）、claim（认领）、live owner（活持有者）
 
-按镜像缓存的三个所有权概念（`MachOCaches.SharedCacheRegistry`，2026-09-28 提案 `shared-cache-composition-and-eviction-registry`）。**eviction group** 是一个 `SharedCache` 在创建时声明的家族（`SharedCacheEvictionGroup`，只有名字的结构体；`MachOCaches` 不定义任何家族，各模块在自己的扩展里声明 `symbolStore`、`internedNames`、`demangleMemo`、`objcHierarchy`……），一个镜像的缓存按家族而不是按 cache 驱逐；条目引用着别的家族存储的 cache 在创建时用 `follows:` 声明跟谁走（`symbolicMangling` / `objcImplementationClasses` / `objcHierarchy` / `objcAncestorResolver` 跟 `symbolStore`，`demangleMemo` 跟 `internedNames`），因为单独留下它们什么都释放不了；注册表据此反向建表、传递展开。**live owner** 是向注册表登记「我在用这个镜像的缓存」的对象，今天只有 `SwiftDeclarationIndexer`；**claim** 是它登记时在注册表锁内采样得到的「这个镜像还没有条目的家族」——那些是它即将建的，由它负责；镜像的最后一个 live owner 注销时驱逐它们认领的家族及其 dependents，提早注销的什么都不清。非持有者（渲染器、SwiftLayout）在登记之前填的条目永远不被认领。
+按镜像缓存的三个所有权概念（`MachOCaches.SharedCacheRegistry`，2026-09-28 提案 `0053-shared-cache-composition-and-eviction-registry`）。**eviction group** 是一个 `SharedCache` 在创建时声明的家族（`SharedCacheEvictionGroup`，只有名字的结构体；`MachOCaches` 不定义任何家族，各模块在自己的扩展里声明 `symbolStore`、`internedNames`、`demangleMemo`、`objcHierarchy`……），一个镜像的缓存按家族而不是按 cache 驱逐；条目引用着别的家族存储的 cache 在创建时用 `follows:` 声明跟谁走（`symbolicMangling` / `objcImplementationClasses` / `objcHierarchy` / `objcAncestorResolver` 跟 `symbolStore`，`demangleMemo` 跟 `internedNames`），因为单独留下它们什么都释放不了；注册表据此反向建表、传递展开。**live owner** 是向注册表登记「我在用这个镜像的缓存」的对象，今天只有 `SwiftDeclarationIndexer`；**claim** 是它登记时在注册表锁内采样得到的「这个镜像还没有条目的家族」——那些是它即将建的，由它负责；镜像的最后一个 live owner 注销时驱逐它们认领的家族及其 dependents，提早注销的什么都不清。非持有者（渲染器、SwiftLayout）在登记之前填的条目永远不被认领。
 
 - **不要混淆**：`evict(groups:for:)` 是显式驱逐，只清点名的家族、不展开 followers；followers 只在最后一个持有者注销时展开。「内存压力驱逐」已不存在，宿主要清就调 `evictImagesWithoutLiveOwners()`。
 - **主要出现在**：`Sources/MachOCaches/SharedCacheRegistry.swift`、`Sources/MachOCaches/SharedCacheEvictionGroup.swift`、各模块的 `SharedCacheEvictionGroup+<模块>.swift`、`Sources/SwiftIndexing/SwiftDeclarationIndexer.swift`（`prepare()` 与 `deinit`）
@@ -232,7 +232,7 @@ opaque 尖括号参数归属的第三条规则：协议无任何 anchor 命中�
 源码给 ObjC 运行时另起了名字的 Swift 类：类对象的 `class_ro_t` 名是源码写的名字（`NSScrollPocket`），而不是 `_TtC6AppKit14NSScrollPocket` 这样的 mangling。二进制里只剩类元数据 flag 字里的 `HasCustomObjCName` 与名字本身，`SwiftClassObjectIndex` 顺着类元数据自带的描述符指针把它们配到 Swift 类上（父类在另一个 resilience domain、不进 classlist 的类读 metadata pattern）。本仓库凡是「demangle 运行时名找 Swift 类」的地方都要为它回退，否则一律配不上——成员恢复与布局引擎以前就是这样漏掉它们的。interface 与 dump 打印 `@objc(Name)`，原生 Swift 对象模型的类打印 `@_objcRuntimeName(Name)`。
 
 - **主要出现在**：`SwiftInspection/SwiftClassObjectIndex.swift`、`SwiftInspection/CustomObjCClassName.swift`
-- **延伸阅读**：[提案 draft-objc-custom-class-name](Evolutions/draft-objc-custom-class-name.md)、[CustomObjCClassNames.md](Internal/CustomObjCClassNames.md)
+- **延伸阅读**：[提案 0052-objc-custom-class-name](Evolutions/0052-objc-custom-class-name.md)、[CustomObjCClassNames.md](Internal/CustomObjCClassNames.md)
 
 ### row / `SymbolRow`（行）
 

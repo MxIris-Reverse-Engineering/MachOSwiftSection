@@ -1,6 +1,6 @@
 # interface 里只剩 method descriptor 符号的 class 成员
 
-> 提案 [draft-interface-descriptor-only-vtable-members](../Evolutions/draft-interface-descriptor-only-vtable-members.md) 的实现说明。读者：维护者。为什么要做、范围怎么定的在提案里，本文讲落地后的形状、几个看代码看不出来的决定，以及边界。
+> 提案 [0054-interface-descriptor-only-vtable-members](../Evolutions/0054-interface-descriptor-only-vtable-members.md) 的实现说明。读者：维护者。为什么要做、范围怎么定的在提案里，本文讲落地后的形状、几个看代码看不出来的决定，以及边界。
 
 ## 一句话
 

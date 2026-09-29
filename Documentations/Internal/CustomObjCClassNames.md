@@ -1,6 +1,6 @@
 # 改过 ObjC 运行时名的 Swift 类
 
-> 提案 [draft-objc-custom-class-name](../Evolutions/draft-objc-custom-class-name.md) 的实现说明。读者：维护者。为什么要做、范围怎么定的在提案里，本文讲落地后的形状、几个看代码看不出来的决定，以及边界。
+> 提案 [0052-objc-custom-class-name](../Evolutions/0052-objc-custom-class-name.md) 的实现说明。读者：维护者。为什么要做、范围怎么定的在提案里，本文讲落地后的形状、几个看代码看不出来的决定，以及边界。
 
 ## 一句话
 

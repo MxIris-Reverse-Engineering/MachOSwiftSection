@@ -1,7 +1,7 @@
 # MachOCaches 模块
 
 > 模块参考文档（module reference），随代码维护。读者：维护者。
-> 提案：[draft-shared-cache-composition-and-eviction-registry](../../Evolutions/draft-shared-cache-composition-and-eviction-registry.md)。
+> 提案：[0053-shared-cache-composition-and-eviction-registry](../../Evolutions/0053-shared-cache-composition-and-eviction-registry.md)。
 
 ## 模块定位
 
