@@ -370,8 +370,21 @@ public struct ObjCMemberShape: Sendable, Hashable {
 
     // MARK: - Node reading
 
+    /// The declared name: an `identifier` child, or the name inside a
+    /// `privateDeclName` (discriminator, name), which is what a `private` /
+    /// `fileprivate` member spells.
     private static func declaredName(of node: Node) -> String? {
-        node.children.first { $0.kind == .identifier }?.text
+        for child in node.children {
+            switch child.kind {
+            case .identifier:
+                return child.text
+            case .privateDeclName where child.children.count == 2 && child.children[1].kind == .identifier:
+                return child.children[1].text
+            default:
+                continue
+            }
+        }
+        return nil
     }
 
     private static func labels(of node: Node) -> [String?] {

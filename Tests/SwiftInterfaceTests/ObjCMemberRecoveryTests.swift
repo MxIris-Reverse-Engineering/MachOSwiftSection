@@ -628,6 +628,22 @@ struct ObjCMemberRecoveryTests {
 
     // MARK: - Shapes
 
+    /// A `private` / `fileprivate` member's name is the second child of a
+    /// `privateDeclName`, not an `identifier`; the first version of the shape
+    /// reader saw no name there and gave such a member no shape at all.
+    @Test func privateMembersHaveShapes() throws {
+        let getter = try #require(ObjCMemberShape(demangledSymbol: try demangleAsNode("$sSo17NSGlassEffectViewC6AppKitE11hiddenTally33_0123456789ABCDEF0123456789ABCDEFLLSivg")))
+        #expect(getter.kind == .getter(propertyName: "hiddenTally"))
+        #expect(getter.ownerQualifiedName == "__C.NSGlassEffectView")
+        #expect(getter.isConsistent(withSelector: "hiddenTally", isClassMethod: false))
+
+        let method = try #require(ObjCMemberShape(demangledSymbol: try demangleAsNode("$sSo17NSGlassEffectViewC6AppKitE9recompute33_0123456789ABCDEF0123456789ABCDEFLLyyF")))
+        #expect(method.kind == .method(baseName: "recompute", labels: [], arity: 0))
+        #expect(method.isConsistent(withSelector: "recompute", isClassMethod: false))
+        let methodThunk = try #require(ObjCMemberShape(demangledSymbol: try demangleAsNode("$sSo17NSGlassEffectViewC6AppKitE9recompute33_0123456789ABCDEF0123456789ABCDEFLLyyFTo")))
+        #expect(methodThunk == method)
+    }
+
     @Test func memberShapesFollowTheImporterSpelling() throws {
         let viewWillMove = try #require(ObjCMemberShape(demangledSymbol: try demangleAsNode("$sSo17NSGlassEffectViewC6AppKitE12viewWillMove8toWindowySo8NSWindowCSg_tF")))
         #expect(viewWillMove.kind == .method(baseName: "viewWillMove", labels: ["toWindow"], arity: 1))
