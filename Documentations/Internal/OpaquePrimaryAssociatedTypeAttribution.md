@@ -9,7 +9,7 @@
 
 `SwiftInterfaceBuilderOpaqueTypeProvider` 曾把 opaque 参数上的 same-type 约束（primary associated type 的尖括号参数）无差别分发给该参数组合里的每一个协议，产出 `some Swift.Equatable<[A]>` 这类非法 Swift。修复后按 anchor 协议逐条裁决归属。
 
-## 实现结构（`Sources/SwiftInterface/`）
+## 实现结构（`Sources/Output/SwiftInterface/`）
 
 | 文件 | 职责 |
 |---|---|

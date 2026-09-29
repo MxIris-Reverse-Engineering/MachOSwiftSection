@@ -12,8 +12,8 @@
 
 新增：
 
-- `Sources/swift-section/Models/TransformerOptionGroup.swift` —— `dump` 与 `interface` 共享的参数组
-- `Sources/swift-section/Commands/TransformerCommand.swift` —— `swift-section transformer` 发现性子命令（`tokens` / `templates` / `config`）
+- `Sources/Executables/swift-section/Models/TransformerOptionGroup.swift` —— `dump` 与 `interface` 共享的参数组
+- `Sources/Executables/swift-section/Commands/TransformerCommand.swift` —— `swift-section transformer` 发现性子命令（`tokens` / `templates` / `config`）
 
 修改：
 

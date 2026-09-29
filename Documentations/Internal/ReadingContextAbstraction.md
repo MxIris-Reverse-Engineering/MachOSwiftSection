@@ -291,7 +291,7 @@ Sources/
 ## Model Coverage Completion Pass (2026-05)
 
 When the abstraction landed, only ~15 of the ~60 files under
-`Sources/MachOSwiftSection/Models/` that expose a MachO-based API also exposed a
+`Sources/ABI/MachOSwiftSection/Models/` that expose a MachO-based API also exposed a
 `ReadingContext` overload — any caller adopting the abstraction had to drop back
 to the MachO/InProcess APIs for the rest. A dedicated completion pass (original
 spec: `docs/superpowers/specs/2026-05-02-reading-context-api-design.md`, now in

@@ -75,10 +75,10 @@ package class MachOSwiftSectionFixtureTests: Sendable {
         _ = dlopenOnce
     }
 
-    /// Resolve a relative MachOImageName path (rooted at the package-relative `../../Tests/...`
+    /// Resolve a relative MachOImageName path (rooted at the package-relative `../../../Tests/...`
     /// convention) to an absolute filesystem path. Uses the same anchor strategy as
     /// `loadFromFile` for parity: relative paths resolve against the directory containing
-    /// this source file (i.e. `Sources/MachOTestingSupport/`).
+    /// this source file (i.e. `Sources/TestSupport/MachOTestingSupport/`).
     private static func resolveFixturePath(_ relativePath: String) -> String {
         if relativePath.hasPrefix("/") { return relativePath }
         let url = URL(fileURLWithPath: relativePath, relativeTo: URL(fileURLWithPath: #filePath))

@@ -272,9 +272,10 @@ final class PrintFailureEventTests: MachOFileTests, @unchecked Sendable {
         let enumerator = try #require(FileManager.default.enumerator(at: sourcesDirectory, includingPropertiesForKeys: nil))
         var files: [URL] = []
         for case let fileURL as URL in enumerator where fileURL.pathExtension == "swift" {
+            // `Sources/<Group>/<Module>/…`: the module is two levels below `Sources`.
             let moduleName = fileURL.pathComponents
                 .drop(while: { $0 != "Sources" })
-                .dropFirst()
+                .dropFirst(2)
                 .first
             if let moduleName, hostModules.contains(moduleName) { continue }
             files.append(fileURL)

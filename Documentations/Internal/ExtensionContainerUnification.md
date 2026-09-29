@@ -26,18 +26,18 @@
 ## 模块结构
 
 ```
-Sources/SwiftDeclaration/Components/Definitions/
+Sources/Declaration/SwiftDeclaration/Components/Definitions/
 ├── ExtensionDefinition.swift            # + isAttachedToProtocolDefinition / absorbMembers
 ├── ExtensionDefinition+Indexing.swift   # 默认实现打标（markProtocolExtensionDefaults）
 ├── ProtocolDefinition+Indexing.swift    # index()：descriptor 合成降级为 fallback
 └── {Function,Variable,Subscript}Definition.swift  # + isProtocolExtensionDefault
-Sources/SwiftIndexing/SwiftDeclarationIndexer.swift
+Sources/Declaration/SwiftIndexing/SwiftDeclarationIndexer.swift
     # index() 入口四桶重置；unifyExtensionContainers()（桶内同身份合并 + 协议附着）；
     # 变量签名分桶的空 requirement 折叠；updateConfiguration 复位 isPrepared
-Sources/SwiftInterface/SwiftInterfaceBuilder.swift
+Sources/Output/SwiftInterface/SwiftInterfaceBuilder.swift
     # allExtensionDefinitions 过滤已附着项；嵌套协议扩展块循环修复
-Sources/SwiftPrinting/SwiftDeclarationPrinter.swift   # renderMember 的默认实现标注
-Sources/SwiftDump/Dumper/ProtocolConformanceDumper.swift  # dump 侧标注
+Sources/Output/SwiftPrinting/SwiftDeclarationPrinter.swift   # renderMember 的默认实现标注
+Sources/Output/SwiftDump/Dumper/ProtocolConformanceDumper.swift  # dump 侧标注
 ```
 
 ## 与提案的差异

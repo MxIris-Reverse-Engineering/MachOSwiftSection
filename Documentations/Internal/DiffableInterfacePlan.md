@@ -98,11 +98,11 @@ as metadata, but nothing is dropped now.
   - `Compatibility` — `breaking`/`additive`, `ABIDiff.hasBreakingChange` /
     `.isBackwardCompatible`.
   - 33 unit tests pass (`Tests/SwiftDiffingTests/`).
-- **`SwiftDiffableInterfaceBuilder<MachO>`** (in `Sources/SwiftInterface/`):
+- **`SwiftDiffableInterfaceBuilder<MachO>`** (in `Sources/Output/SwiftInterface/`):
   per-binary — `prepare()` indexes AND fully `index(in:)`-es every definition
   (members are lazy otherwise); `abiModule()` (1:1 passthrough of the indexer's
   10 buckets); `snapshot()`.
-- **`swift-section diff` CLI** (`Sources/swift-section/Commands/DiffCommand.swift`):
+- **`swift-section diff` CLI** (`Sources/Executables/swift-section/Commands/DiffCommand.swift`):
   two file paths (thin/fat, arm64 slice) OR `--dyld-shared-cache -n SwiftUICore`
   two caches. Outputs `ABIDiffReporter` text + breaking verdict.
 - Validated end-to-end on SwiftUICore: iOS 18.6 vs 26.5 (standalone, 88s) and

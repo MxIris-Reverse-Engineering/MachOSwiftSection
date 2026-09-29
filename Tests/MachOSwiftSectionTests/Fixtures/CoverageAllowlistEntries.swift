@@ -2,7 +2,7 @@ import Foundation
 @testable import MachOTestingSupport
 import MachOFixtureSupport
 
-/// Public members of `Sources/MachOSwiftSection/Models/` that are intentionally
+/// Public members of `Sources/ABI/MachOSwiftSection/Models/` that are intentionally
 /// not under cross-reader fixture coverage. Each entry MUST carry either a
 /// legacy exemption reason or a typed `SentinelReason`. The Coverage Invariant
 /// Test treats listed entries as if they had been tested.

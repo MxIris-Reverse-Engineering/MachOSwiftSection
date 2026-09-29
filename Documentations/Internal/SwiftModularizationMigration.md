@@ -15,7 +15,7 @@
 
 ## 1. SwiftInterface 单体 → 分层模块（`47b5961`）
 
-重构前 `Sources/SwiftInterface/` 是一个大单体（模型 + 索引 + 打印 + 节点打印器 + 属性推断 + 泛型特化 + 编排）。拆成了 6 个分层模块，`SwiftInterface` 只留下薄薄的编排器。
+重构前 `Sources/Output/SwiftInterface/` 是一个大单体（模型 + 索引 + 打印 + 节点打印器 + 属性推断 + 泛型特化 + 编排）。拆成了 6 个分层模块，`SwiftInterface` 只留下薄薄的编排器。
 
 ### 1.1 → `SwiftDeclaration`（共享声明模型）
 

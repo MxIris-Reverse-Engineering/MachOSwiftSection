@@ -26,7 +26,7 @@ class 成员是否 `final` 决定调用方走 dispatch thunk 还是直接符号�
 ## 模块结构
 
 ```
-Sources/SwiftDeclaration/Components/
+Sources/Declaration/SwiftDeclaration/Components/
 ├── Definitions/FieldDefinition.swift              # + accessors / accessorTypeNode / isFinal / hasVTableAccessor
 ├── Definitions/VariableDefinition.swift           # + isFinal（Function/Subscript 同形）
 ├── Definitions/TypeDefinition+Indexing.swift      # 主干：折回 accessor 组
@@ -34,12 +34,12 @@ Sources/SwiftDeclaration/Components/
 ├── Definitions/TypeDefinition+FinalRecovery.swift # final 标记块与它的四道门
 ├── Building/DefinitionBuilder.swift               # variables → variablesProduct（交还被抑制的 accessor 组）
 └── Building/OverrideSymbolMatcher.swift           # + memberJoinKey（Tu 标记剥离）
-Sources/SwiftPrinting/
+Sources/Output/SwiftPrinting/
 ├── SwiftDeclarationPrinter+Members.swift  # printThrowingField：final 关键字 + fieldTypeNode 取型
 ├── SwiftDeclarationPrinter+Headers.swift  # renderModelFields：stored var 的 vtable 注释
 ├── SwiftDeclarationPrinter.swift          # isFinal 传入三个 node printer
 └── NodePrintables/MemberDeclarationNodePrintable.swift  # 三个成员 printer 共用的 printRoot 写 "final "（提案 node-printer-declaration-layer-and-context-roles 之前是 NodePrinter/{Variable,Function,Subscript}NodePrinter.swift 各写一份）
-Sources/SwiftDump/
+Sources/Output/SwiftDump/
 ├── Protocols/TypedDumper.swift   # fieldDeclarationKeywords + isFinal 参数
 └── Dumper/ClassDumper.swift      # 名字级 join（vtableAccessorFieldNames / storedAccessorFieldNames）
 ```

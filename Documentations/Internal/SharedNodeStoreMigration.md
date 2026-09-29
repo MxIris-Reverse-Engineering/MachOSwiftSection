@@ -16,9 +16,9 @@
 
 | 位置 | 改什么 |
 |---|---|
-| `Sources/MachOSymbols/InternedNodeReferenceCache.swift` | `Storage` 里的结构哈希桶 `[Int: [NodeReference]]` 整层退役，换成持有一个 `SharedNodeStore`；`reference(interning:)` 的实现缩成一句 `store.intern(node)`。**类本身保留**，因为它做的事 `SharedNodeStore` 不会做：`SharedNodeStore` 不认识 Mach-O 镜像，per-image / per-process 两个作用域的键控、以及和 `SharedCache` 内存压力驱逐的接线，是这个类继续存在的理由。31 个调用点（分布在 7 个文件）的公开 API 不变，零波及。 |
-| `Sources/SwiftDeclaration/Components/Definitions/TypeDefinition.swift:164–195` | 删除 `fieldNodeStoreBuilder` + `freeze()` 的「每类型一个批量 store」两阶段流程。字段类型树改走 `InternedNodeReferenceCache.shared.reference(interning:in:)`，直接汇入镜像 store。顺带拿到一项旧形态给不了的收益：跨类型的结构去重——每类型各一个 store 时，两个类型共用的子树只能各存一份。 |
-| `Sources/MachOSymbols/SymbolIndexStore.swift:256–275` | 删除 `lateDemangledNode(forName:)` 的「每个名字铸一个 builder」形态。`Storage` 自持一个 late-names 专用的 `SharedNodeStore`，demangle 改为 `lateStore.demangle(name)`。名字 → 裁决字典**保留**——拒绝名的 `nil` 裁决和成功结果的 memo 都还需要，`SharedNodeStore` 不按名字缓存拒绝。insert-if-absent 的写入流程保留，但竞态的后果从「有害」变「良性」：两个线程同时 miss 时，双方各自 demangle、各自 intern 进同一个 store，结构去重保证它们拿到同一个引用，于是原来处理「输家丢弃自己那个 store」的一整段代码直接删除。 |
+| `Sources/MachO/MachOSymbols/InternedNodeReferenceCache.swift` | `Storage` 里的结构哈希桶 `[Int: [NodeReference]]` 整层退役，换成持有一个 `SharedNodeStore`；`reference(interning:)` 的实现缩成一句 `store.intern(node)`。**类本身保留**，因为它做的事 `SharedNodeStore` 不会做：`SharedNodeStore` 不认识 Mach-O 镜像，per-image / per-process 两个作用域的键控、以及和 `SharedCache` 内存压力驱逐的接线，是这个类继续存在的理由。31 个调用点（分布在 7 个文件）的公开 API 不变，零波及。 |
+| `Sources/Declaration/SwiftDeclaration/Components/Definitions/TypeDefinition.swift:164–195` | 删除 `fieldNodeStoreBuilder` + `freeze()` 的「每类型一个批量 store」两阶段流程。字段类型树改走 `InternedNodeReferenceCache.shared.reference(interning:in:)`，直接汇入镜像 store。顺带拿到一项旧形态给不了的收益：跨类型的结构去重——每类型各一个 store 时，两个类型共用的子树只能各存一份。 |
+| `Sources/MachO/MachOSymbols/SymbolIndexStore.swift:256–275` | 删除 `lateDemangledNode(forName:)` 的「每个名字铸一个 builder」形态。`Storage` 自持一个 late-names 专用的 `SharedNodeStore`，demangle 改为 `lateStore.demangle(name)`。名字 → 裁决字典**保留**——拒绝名的 `nil` 裁决和成功结果的 memo 都还需要，`SharedNodeStore` 不按名字缓存拒绝。insert-if-absent 的写入流程保留，但竞态的后果从「有害」变「良性」：两个线程同时 miss 时，双方各自 demangle、各自 intern 进同一个 store，结构去重保证它们拿到同一个引用，于是原来处理「输家丢弃自己那个 store」的一整段代码直接删除。 |
 
 ## 明确不动的部分
 

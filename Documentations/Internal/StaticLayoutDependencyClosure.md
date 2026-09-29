@@ -128,9 +128,9 @@ ObjC 祖先（`ObjCMembersTest` / `ObjCBridge`）：接 MachOObjCSection 读 `cl
 
 ## 关键文件
 
-- 复用：`Sources/SwiftInterface/SwiftInterfaceBuilderDependencies.swift`（依赖解析两条路径）、`Sources/SwiftInterface/DependencyPath.swift`
+- 复用：`Sources/Output/SwiftInterface/SwiftInterfaceBuilderDependencies.swift`（依赖解析两条路径）、`Sources/Output/SwiftInterface/DependencyPath.swift`
 - 复用：上游包 `MachOKitExtensions` 的 `DyldCache+.swift`（`machOFile(by:)`、bare-name 匹配）、`MachORepresentableWithCache.swift`（`imagePath` / `cache`）
-- 改动：`Sources/SwiftLayout/ImageUniverse.swift`、`Sources/SwiftLayout/ImageReference.swift`（**仅这两个** + 新增便利工厂文件）
+- 改动：`Sources/Analysis/SwiftLayout/ImageUniverse.swift`、`Sources/Analysis/SwiftLayout/ImageReference.swift`（**仅这两个** + 新增便利工厂文件）
 - 不动：`StaticTypeLayoutResolver.swift`、`BasicLayout.swift`、`ExistentialLayoutBridge.swift`、`EnumLayoutBridge.swift`
 - runtime 参照：`/Volumes/SwiftProjects/swift-project/swift/stdlib/public/runtime/Metadata.cpp:3767-3830`（class 字段布局 + Swift/ObjC 父类分派）
 

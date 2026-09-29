@@ -30,7 +30,7 @@ CI 上可复现性是唯一判据：
 
 `MachOFileName.SymbolTestsCore` 存的是相对路径
 `../../Tests/Projects/SymbolTests/DerivedData/...`，**不是**对 CWD 解析，而是对
-`Sources/MachOTestingSupport/Extensions.swift` 的 `#filePath` 解析——`../../` 爬回仓库根再下行。
+`Sources/TestSupport/MachOTestingSupport/Extensions.swift` 的 `#filePath` 解析——`../../` 爬回仓库根再下行。
 而构建端 `xcodebuild -derivedDataPath Tests/Projects/SymbolTests/DerivedData` 是对
 `xcodebuild` 自己的 CWD 解析。两者对齐**当且仅当**构建从仓库根发起——任何从子目录跑
 `xcodebuild` 的 CI 步骤都会悄悄打破对齐。CI 还遇到过第三种形态：runner 上 `xcodebuild`
