@@ -36,6 +36,13 @@ import Testing
 /// images, since the runtime attaches it where the readers do not look).
 /// `dependencySearchPaths()` names the dylib for a resolver.
 ///
+/// `Widget` also carries the two stored properties whose field-offset symbols
+/// name the variable through a `privateDeclName` instead of an `identifier`:
+/// a `private` property, and the synthesized storage of a `lazy var`, which
+/// the compiler makes private whatever the property's own access level. The
+/// recognition's first version accepted only the `identifier` shape and left
+/// both untyped even with every symbol present.
+///
 /// Five link/strip variants exercise the evidence tiers and the bind formats:
 /// - `.full`: every symbol present — accessor, field-offset globals, `To`
 ///   thunks at the class's own IMPs.
@@ -132,6 +139,9 @@ package enum ObjCImplementationFixture {
         var title: String
         var count: Int
         final var swiftOnlyCache: [Int] = []
+        // Their field-offset symbols carry a private discriminator.
+        private final var hiddenTally: Int = 0
+        final lazy var summary: String = "\\(title) x\\(count)"
 
         init(title: String) {
             self.title = title

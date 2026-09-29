@@ -197,11 +197,13 @@ public final class ExtensionDefinition: Definition, MutableDefinition {
 
     /// Records the recognition and joins the variables built from accessor
     /// symbols with the stored properties the ObjC ivar list carries, by the
-    /// Swift property name the field-offset symbol supplies.
+    /// Swift property name the field-offset symbol supplies — a `lazy var`
+    /// with the storage its name prefixes, which the ObjC ivar name still
+    /// spells once that symbol is stripped.
     package func attachObjCImplementation(_ facts: ObjCImplementationClassFacts) {
         objcImplementation = facts
         for index in variables.indices {
-            variables[index].objcImplementationStorage = facts.instanceVariable(forSwiftPropertyNamed: variables[index].name)
+            variables[index].objcImplementationStorage = facts.storageInstanceVariable(forPropertyNamed: variables[index].name)
         }
     }
 
@@ -211,8 +213,13 @@ public final class ExtensionDefinition: Definition, MutableDefinition {
     /// else would show them.
     public var unrepresentedObjCImplementationInstanceVariables: [ObjCImplementationClassFacts.InstanceVariable] {
         guard let objcImplementation else { return [] }
-        let representedNames = Set(variables.compactMap { $0.objcImplementationStorage?.swiftPropertyName })
+        let representedStorages = variables.compactMap(\.objcImplementationStorage)
+        let representedNames = Set(representedStorages.compactMap(\.swiftPropertyName))
+        // A `lazy var`'s storage joins through the ObjC ivar name alone once
+        // its field-offset symbol is stripped, so it has no Swift name to match.
+        let representedIdentities = Set(representedStorages.map(ObjectIdentifier.init))
         return objcImplementation.instanceVariables.filter { instanceVariable in
+            if representedIdentities.contains(ObjectIdentifier(instanceVariable)) { return false }
             guard let swiftPropertyName = instanceVariable.swiftPropertyName else { return true }
             return !representedNames.contains(swiftPropertyName)
         }

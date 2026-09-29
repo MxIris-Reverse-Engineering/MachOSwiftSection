@@ -113,6 +113,19 @@ public final class ObjCImplementationClassFacts: Sendable {
         public var isObjCVisible: Bool {
             !typeEncoding.isEmpty
         }
+
+        /// The prefix the compiler gives the storage of a `lazy var`.
+        public static let lazyStorageNamePrefix = "$__lazy_storage_$_"
+
+        /// The `lazy var` this ivar is the synthesized storage of — `summary`
+        /// for `$__lazy_storage_$_summary` — read off the Swift name or, once
+        /// the field-offset symbol is stripped, off the ObjC ivar name, which
+        /// spells the same; `nil` for any other ivar.
+        public var lazyPropertyName: String? {
+            let storageName = swiftPropertyName ?? name
+            guard storageName.hasPrefix(Self.lazyStorageNamePrefix) else { return nil }
+            return String(storageName.dropFirst(Self.lazyStorageNamePrefix.count))
+        }
     }
 
     /// One entry of a method list, with the Swift symbols found at its
@@ -171,6 +184,13 @@ public final class ObjCImplementationClassFacts: Sendable {
     /// The ivar joined with the Swift property `name`, if any.
     public func instanceVariable(forSwiftPropertyNamed name: String) -> InstanceVariable? {
         instanceVariables.first { $0.swiftPropertyName == name }
+    }
+
+    /// The ivar that stores the Swift property `name`: the one joined with
+    /// that name, else the storage of a `lazy var` so named, whose name is
+    /// never the property's own.
+    public func storageInstanceVariable(forPropertyNamed name: String) -> InstanceVariable? {
+        instanceVariable(forSwiftPropertyNamed: name) ?? instanceVariables.first { $0.lazyPropertyName == name }
     }
 }
 

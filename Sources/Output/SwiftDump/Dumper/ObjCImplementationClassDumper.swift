@@ -139,9 +139,20 @@ package struct ObjCImplementationClassDumper<MachO: MachOFieldLayoutRenderable>:
             }
             Indent(level: 1)
             if let typeNode = instanceVariable.swiftTypeNode, let propertyName = instanceVariable.swiftPropertyName {
-                Keyword(.var)
-                Space()
-                MemberDeclaration(propertyName)
+                // A `lazy var`'s storage prints under the property's name with
+                // its storage type, as `ClassDumper` prints a Swift type's own
+                // lazy field.
+                if let lazyPropertyName = instanceVariable.lazyPropertyName {
+                    Keyword(.lazy)
+                    Space()
+                    Keyword(.var)
+                    Space()
+                    MemberDeclaration(lazyPropertyName)
+                } else {
+                    Keyword(.var)
+                    Space()
+                    MemberDeclaration(propertyName)
+                }
                 Standard(":")
                 Space()
                 try await demangleResolver.resolve(for: typeNode.materialize())

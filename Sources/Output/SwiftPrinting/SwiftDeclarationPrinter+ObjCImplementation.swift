@@ -42,24 +42,31 @@ extension SwiftDeclarationPrinter {
     func printThrowingObjCImplementationStoredProperty(_ variable: VariableDefinition, storage: ObjCImplementationClassFacts.InstanceVariable, level: Int) async throws -> SemanticString {
         try await printUnderObjCVerdicts(of: variable.resolvedObjCMemberFacts(trustingSelectorNameEvidence:)) { objcFacts in
             objcAttributes(objcFacts)
-            // A stored property with no setter symbol was declared `let`.
-            Keyword(variable.hasSetter ? .var : .let)
+            let isLazy = storage.lazyPropertyName != nil
+            if isLazy {
+                Keyword(.lazy)
+                Space()
+                Keyword(.var)
+            } else {
+                // A stored property with no setter symbol was declared `let`.
+                Keyword(variable.hasSetter ? .var : .let)
+            }
             Space()
             MemberDeclaration(variable.name)
             Standard(":")
             Space()
-            if let typeNode = storage.swiftTypeNode ?? Self.declaredTypeNode(ofVariableNode: variable.node) {
-                try await printThrowingType(typeNode.materialize(), isProtocol: false, level: level)
+            // A `lazy var` renders as a Swift type's own lazy field does: the
+            // getter's caller-facing type, not its storage's `Optional`.
+            let declaredTypeNode = WrappedPropertyRecovery.declaredTypeNode(of: variable)
+            let typeNode = isLazy
+                ? declaredTypeNode ?? storage.swiftTypeNode?.materialize()
+                : storage.swiftTypeNode?.materialize() ?? declaredTypeNode
+            if let typeNode {
+                try await printThrowingType(typeNode, isProtocol: false, level: level)
             } else {
                 InlineComment("type not recoverable")
             }
         }
-    }
-
-    /// The `type` child of a `variable` node (context, identifier, type).
-    static func declaredTypeNode(ofVariableNode node: NodeReference) -> NodeReference? {
-        guard let last = node.children.last, last.kind == .type else { return nil }
-        return last
     }
 
     /// The ivars no member definition accounts for — their accessor symbols
@@ -79,9 +86,20 @@ extension SwiftDeclarationPrinter {
                         }
                         if let typeNode = instanceVariable.swiftTypeNode, let propertyName = instanceVariable.swiftPropertyName {
                             SemanticString {
-                                Keyword(.var)
-                                Space()
-                                MemberDeclaration(propertyName)
+                                // With no getter joined, a `lazy var`'s storage
+                                // type is the honest fallback, as for a Swift
+                                // type's own lazy field.
+                                if let lazyPropertyName = instanceVariable.lazyPropertyName {
+                                    Keyword(.lazy)
+                                    Space()
+                                    Keyword(.var)
+                                    Space()
+                                    MemberDeclaration(lazyPropertyName)
+                                } else {
+                                    Keyword(.var)
+                                    Space()
+                                    MemberDeclaration(propertyName)
+                                }
                                 Standard(":")
                                 Space()
                             }

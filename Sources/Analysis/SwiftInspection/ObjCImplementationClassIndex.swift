@@ -157,7 +157,7 @@ package final class ObjCImplementationClassIndex: @unchecked Sendable {
                 evidence.metadataAccessorSymbolNameByClassName[className] = symbol.symbol.name
             }
 
-            // `…vpWvd`: global(fieldOffset(directness, variable(extension(module, class), identifier, type))).
+            // `…vpWvd`: global(fieldOffset(directness, variable(extension(module, class), name, type))).
             for symbol in symbolIndexStore.symbols(of: .fieldOffset, in: machO) {
                 guard let fieldOffsetNode = symbol.demangledNode.children.first,
                       fieldOffsetNode.children.count == 2
@@ -165,11 +165,11 @@ package final class ObjCImplementationClassIndex: @unchecked Sendable {
                 let variableNode = fieldOffsetNode.children[1]
                 guard variableNode.kind == .variable, variableNode.children.count == 3 else { continue }
                 let contextNode = variableNode.children[0]
-                let identifierNode = variableNode.children[1]
+                let nameNode = variableNode.children[1]
                 let typeNode = variableNode.children[2]
                 guard contextNode.kind == .extension, contextNode.children.count >= 2,
                       let className = cImportedClassName(ofClassNode: contextNode.children[1]),
-                      identifierNode.kind == .identifier, let propertyName = identifierNode.text
+                      let propertyName = declaredName(ofVariableNameNode: nameNode)
                 else { continue }
                 let moduleNode = contextNode.children[0]
                 let implementingModuleName = moduleNode.kind == .module ? moduleNode.text : nil
@@ -188,6 +188,23 @@ package final class ObjCImplementationClassIndex: @unchecked Sendable {
                 )
             }
             return evidence
+        }
+
+        /// The name a `variable` node's name child spells: an `identifier`, or
+        /// the name inside a `privateDeclName` (discriminator, name) — what a
+        /// `private` / `fileprivate` property gets, and so does the storage of
+        /// every `lazy var`, which the compiler makes private whatever the
+        /// property's own access level.
+        private static func declaredName(ofVariableNameNode node: NodeReference) -> String? {
+            switch node.kind {
+            case .identifier:
+                return node.text
+            case .privateDeclName:
+                guard node.children.count == 2, node.children[1].kind == .identifier else { return nil }
+                return node.children[1].text
+            default:
+                return nil
+            }
         }
     }
 
