@@ -152,7 +152,7 @@ public final class ExtensionDefinition: Definition, MutableDefinition {
     /// call at most once per operation and thread the result through as a
     /// local variable — the result is deliberately not cached.
     public func materializedProtocolConformance(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> ProtocolConformance? {
-        try protocolConformanceDescriptor.map { try ProtocolConformance(descriptor: $0, in: machO) }
+        try protocolConformanceDescriptor.map { try ProtocolConformance(descriptor: $0, in: machO.context) }
     }
 
     /// Folds another definition's associated types (and their frozen witness

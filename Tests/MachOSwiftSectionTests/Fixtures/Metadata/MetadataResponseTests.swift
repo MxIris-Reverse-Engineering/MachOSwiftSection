@@ -25,7 +25,7 @@ final class MetadataResponseTests: MachOSwiftSectionFixtureTests, FixtureSuite, 
 
     private func loadStructTestResponse() throws -> MetadataResponse {
         let descriptor = try BaselineFixturePicker.struct_StructTest(in: machOImage)
-        let accessor = try required(try descriptor.metadataAccessorFunction(in: machOImage))
+        let accessor = try required(try descriptor.metadataAccessorFunction(in: imageContext))
         return try accessor(request: .completeAndBlocking)
     }
 
@@ -33,7 +33,7 @@ final class MetadataResponseTests: MachOSwiftSectionFixtureTests, FixtureSuite, 
     /// requested struct's wrapper.
     @Test func value() async throws {
         let response = try loadStructTestResponse()
-        let wrapper = try response.value.resolve(in: machOImage)
+        let wrapper = try response.value.resolve(in: imageContext)
         #expect(wrapper.isStruct)
     }
 

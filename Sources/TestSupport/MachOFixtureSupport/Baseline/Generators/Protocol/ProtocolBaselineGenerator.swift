@@ -22,11 +22,11 @@ package enum ProtocolBaselineGenerator {
         outputDirectory: URL
     ) throws {
         let protocolTestDescriptor = try BaselineFixturePicker.protocol_ProtocolTest(in: machO)
-        let protocolTest = try `Protocol`(descriptor: protocolTestDescriptor, in: machO)
+        let protocolTest = try `Protocol`(descriptor: protocolTestDescriptor, in: machO.context)
         let protocolTestExpr = emitEntryExpr(for: protocolTest)
 
         let witnessTableTestDescriptor = try BaselineFixturePicker.protocol_ProtocolWitnessTableTest(in: machO)
-        let witnessTableTest = try `Protocol`(descriptor: witnessTableTestDescriptor, in: machO)
+        let witnessTableTest = try `Protocol`(descriptor: witnessTableTestDescriptor, in: machO.context)
         let witnessTableTestExpr = emitEntryExpr(for: witnessTableTest)
 
         // Public members declared directly in Protocol.swift (across the main

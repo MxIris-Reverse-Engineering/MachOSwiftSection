@@ -20,8 +20,8 @@ public struct ClassHierarchyDumper {
 
     public func dump(for classDescriptor: ClassDescriptor) throws -> [String] {
         var classes: [String] = []
-        if let metadataAccessor = try `classDescriptor`.metadataAccessorFunction(in: machO), !`classDescriptor`.flags.isGeneric {
-            let metadata = try metadataAccessor(request: .init()).value.resolve(in: machO)
+        if let metadataAccessor = try `classDescriptor`.metadataAccessorFunction(in: machO.context), !`classDescriptor`.flags.isGeneric {
+            let metadata = try metadataAccessor(request: .init()).value.resolve(in: machO.context)
             switch metadata {
             case .class(let classMetadataObjCInterop):
                 try perform(classMetadata: classMetadataObjCInterop, classDescriptor: `classDescriptor`, classes: &classes)
@@ -42,13 +42,13 @@ public struct ClassHierarchyDumper {
     }
 
     private func perform(classMetadata: ClassMetadataObjCInterop, classDescriptor: ClassDescriptor, classes: inout [String]) throws {
-        try classes.append(classDescriptor.name(in: machO))
-        if let superclassMetadata = try classMetadata.superclass(in: machO) {
+        try classes.append(classDescriptor.name(in: machO.context))
+        if let superclassMetadata = try classMetadata.superclass(in: machO.context) {
             if superclassMetadata.isPureObjC {
-                let objcClass = try ObjCClass64.resolve(from: superclassMetadata.offset, in: machO)
+                let objcClass = try ObjCClass64.resolve(at: superclassMetadata.offset, in: machO.context)
                 try perform(objcClass: objcClass, classes: &classes)
-            } else if let superclassDescriptor = try superclassMetadata.asFinalClassMetadata(in: machO).descriptor(in: machO) {
-                try perform(classMetadata: superclassMetadata.asFinalClassMetadata(in: machO), classDescriptor: superclassDescriptor, classes: &classes)
+            } else if let superclassDescriptor = try superclassMetadata.asFinalClassMetadata(in: machO.context).descriptor(in: machO.context) {
+                try perform(classMetadata: superclassMetadata.asFinalClassMetadata(in: machO.context), classDescriptor: superclassDescriptor, classes: &classes)
             }
         }
     }

@@ -20,19 +20,19 @@ extension ResilientSuperclass {
 
     package func dumpSuperclassNode(for kind: TypeReferenceKind, in machO: some MachOSwiftSectionRepresentableWithCache) throws -> Node? {
         let typeReference = TypeReference.forKind(kind, at: layout.superclass.relativeOffset)
-        let resolvedTypeReference = try typeReference.resolve(at: offset(of: \.superclass), in: machO)
+        let resolvedTypeReference = try typeReference.resolve(at: offset(of: \.superclass), in: machO.context)
         return try resolvedTypeReference.node(in: machO)
     }
 
     package func superclassResolvedTypeReference(for kind: TypeReferenceKind, in machO: some MachOSwiftSectionRepresentableWithCache) throws -> ResolvedTypeReference {
         let typeReference = TypeReference.forKind(kind, at: layout.superclass.relativeOffset)
-        return try typeReference.resolve(at: offset(of: \.superclass), in: machO)
+        return try typeReference.resolve(at: offset(of: \.superclass), in: machO.context)
     }
 }
 
 extension Class {
     package func superclassNode(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> Node? {
-        if let superclassTypeMangledName = try descriptor.superclassTypeMangledName(in: machO) {
+        if let superclassTypeMangledName = try descriptor.superclassTypeMangledName(in: machO.context) {
             return try SymbolicDemangler.demangleType(for: superclassTypeMangledName, in: machO)
         } else if let resilientSuperclassReferenceKind = descriptor.resilientSuperclassReferenceKind, let resilientSuperclass {
             return try resilientSuperclass.dumpSuperclassNode(for: resilientSuperclassReferenceKind, in: machO)

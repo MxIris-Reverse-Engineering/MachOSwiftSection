@@ -22,9 +22,9 @@ final class ClassMetadataObjCInteropTests: MachOSwiftSectionFixtureTests, Fixtur
 
     private func loadInteropMetadata() throws -> ClassMetadataObjCInterop {
         let descriptor = try BaselineFixturePicker.class_ClassTest(in: machOImage)
-        let accessor = try required(try descriptor.metadataAccessorFunction(in: machOImage))
+        let accessor = try required(try descriptor.metadataAccessorFunction(in: imageContext))
         let response = try accessor(request: .init())
-        let wrapper = try response.value.resolve(in: machOImage)
+        let wrapper = try response.value.resolve(in: imageContext)
         return try required(wrapper.class)
     }
 
@@ -44,7 +44,7 @@ final class ClassMetadataObjCInteropTests: MachOSwiftSectionFixtureTests, Fixtur
         // should return a non-nil ClassDescriptor whose offset matches
         // the picker.
         let pickedDescriptor = try BaselineFixturePicker.class_ClassTest(in: machOImage)
-        let resolvedDescriptor = try metadata.layout.descriptor.resolve(in: machOImage)
+        let resolvedDescriptor = try metadata.layout.descriptor.resolve(in: imageContext)
         #expect(resolvedDescriptor?.offset == pickedDescriptor.offset)
     }
 }

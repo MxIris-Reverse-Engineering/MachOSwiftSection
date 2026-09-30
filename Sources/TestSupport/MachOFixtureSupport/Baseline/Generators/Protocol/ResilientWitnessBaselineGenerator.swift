@@ -14,8 +14,8 @@ import MachOFoundation
 /// Picker: the first `ProtocolConformance` from the fixture with a
 /// non-empty `resilientWitnesses` array. We pin the resolved offset of
 /// the first witness's `requirement(in:)` and its `implementationOffset`
-/// (pure relative-pointer arithmetic). `implementationAddress(in:)` is a
-/// MachO-only debug formatter (see `ResilientWitness.swift` doc-comment)
+/// (pure relative-pointer arithmetic). `implementationAddressString(in:)`
+/// is a Mach-O display helper (see `ResilientWitness.swift` doc-comment)
 /// — we register the name but do not assert on the live address string
 /// (it's a base-16 representation of an in-memory pointer).
 package enum ResilientWitnessBaselineGenerator {
@@ -26,7 +26,7 @@ package enum ResilientWitnessBaselineGenerator {
         let conformance = try BaselineFixturePicker.protocolConformance_resilientWitnessFirst(in: machO)
         let firstWitness = try required(conformance.resilientWitnesses.first)
 
-        let requirement = try firstWitness.requirement(in: machO)
+        let requirement = try firstWitness.requirement(in: machO.context)
         let hasRequirement = requirement != nil
         let implementationOffset = firstWitness.implementationOffset
 
@@ -37,14 +37,18 @@ package enum ResilientWitnessBaselineGenerator {
         )
 
         // Public members declared directly in ResilientWitness.swift.
-        // The `requirement(in:)` overloads (MachO + InProcess +
-        // ReadingContext) collapse to a single MethodKey under the scanner's
-        // name-based deduplication, as do the two `implementationAddress(in:)`
-        // forms (the MachO-only debug formatter and the ReadingContext
-        // address). Symbol attribution (`implementationSymbols(in:)`) lives in
-        // SwiftInspection since evolution proposal `self-contained-abi-layer`.
+        // The `requirement(in:)` overloads (the ReadingContext form and its
+        // deprecated Mach-O and pointer forwarders) collapse to a single
+        // MethodKey under the scanner's name-based deduplication, as do the
+        // two `implementationAddress(in:)` forms (the ReadingContext address
+        // and the deprecated name of the display helper, which is
+        // `implementationAddressString(in:)` since evolution proposal
+        // `reading-context-migration`). Symbol attribution
+        // (`implementationSymbols(in:)`) lives in SwiftInspection since
+        // evolution proposal `self-contained-abi-layer`.
         let registered = [
             "implementationAddress",
+            "implementationAddressString",
             "implementationOffset",
             "layout",
             "offset",

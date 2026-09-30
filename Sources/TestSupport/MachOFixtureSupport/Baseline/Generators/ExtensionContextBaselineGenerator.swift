@@ -18,7 +18,7 @@ package enum ExtensionContextBaselineGenerator {
         outputDirectory: URL
     ) throws {
         let descriptor = try BaselineFixturePicker.extension_first(in: machO)
-        let context = try ExtensionContext(descriptor: descriptor, in: machO)
+        let context = try ExtensionContext(descriptor: descriptor, in: machO.context)
 
         let entryExpr = emitEntryExpr(for: context)
 

@@ -146,7 +146,7 @@ final class CoroFunctionPointerTests: FixtureSuite, @unchecked Sendable {
             }),
             "the fixture carries no coro function pointer — CoroutineAccessors may no longer lower `_read` to `yield_once_2`"
         )
-        return (machOFile, try CoroFunctionPointer.resolve(from: symbol.offset, in: machOFile))
+        return (machOFile, try CoroFunctionPointer.resolve(at: symbol.offset, in: machOFile.context))
     }
 
     /// File-offset range of `__TEXT,__text`, used to prove the resolved

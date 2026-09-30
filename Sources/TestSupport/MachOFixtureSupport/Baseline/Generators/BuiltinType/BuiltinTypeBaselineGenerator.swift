@@ -16,7 +16,7 @@ package enum BuiltinTypeBaselineGenerator {
         outputDirectory: URL
     ) throws {
         let descriptor = try BaselineFixturePicker.builtinTypeDescriptor_first(in: machO)
-        let builtin = try BuiltinType(descriptor: descriptor, in: machO)
+        let builtin = try BuiltinType(descriptor: descriptor, in: machO.context)
         let entryExpr = emitEntryExpr(for: builtin)
 
         // Public members declared in BuiltinType.swift. The two MachO

@@ -200,7 +200,7 @@ extension IndexerConformanceProvider: ConformanceProvider {
             // a specialization search by a candidate that silently went missing.
             let classWrapper: Class
             do {
-                classWrapper = try Class(descriptor: classDescriptor, in: entry.machO)
+                classWrapper = try Class(descriptor: classDescriptor, in: entry.machO.context)
             } catch {
                 indexer.eventDispatcher.dispatch(
                     .renderingDegraded(

@@ -42,7 +42,7 @@ struct SpecializedDumperFieldTypeTests {
     private func structDescriptor(named nameContains: String) throws -> StructDescriptor {
         try #require(
             try machO.swift.typeContextDescriptors.first {
-                try $0.struct?.name(in: machO).contains(nameContains) == true
+                try $0.struct?.name(in: machO.context).contains(nameContains) == true
             }?.struct,
             "expected a struct descriptor whose name contains \"\(nameContains)\""
         )
@@ -51,7 +51,7 @@ struct SpecializedDumperFieldTypeTests {
     private func enumDescriptor(named nameContains: String) throws -> EnumDescriptor {
         try #require(
             try machO.swift.typeContextDescriptors.first {
-                try $0.enum?.name(in: machO).contains(nameContains) == true
+                try $0.enum?.name(in: machO.context).contains(nameContains) == true
             }?.enum,
             "expected an enum descriptor whose name contains \"\(nameContains)\""
         )
@@ -60,7 +60,7 @@ struct SpecializedDumperFieldTypeTests {
     private func classDescriptor(named nameContains: String) throws -> ClassDescriptor {
         try #require(
             try machO.swift.typeContextDescriptors.first {
-                try $0.class?.name(in: machO).contains(nameContains) == true
+                try $0.class?.name(in: machO.context).contains(nameContains) == true
             }?.class,
             "expected a class descriptor whose name contains \"\(nameContains)\""
         )
@@ -73,7 +73,7 @@ struct SpecializedDumperFieldTypeTests {
         _ = Fixtures.SingleParameterBox<Int>.self
 
         let descriptor = try structDescriptor(named: "SingleParameterBox")
-        let structValue = try Struct(descriptor: descriptor, in: machO)
+        let structValue = try Struct(descriptor: descriptor, in: machO.context)
         let specializedMetadata = try StructMetadata.createInProcess(Fixtures.SingleParameterBox<Int>.self)
         let metadataContext = DumperMetadataContext(metadata: specializedMetadata, readingContext: InProcessContext.shared)
 
@@ -92,7 +92,7 @@ struct SpecializedDumperFieldTypeTests {
         _ = Fixtures.SingleParameterBox<String>.self
 
         let descriptor = try structDescriptor(named: "SingleParameterBox")
-        let structValue = try Struct(descriptor: descriptor, in: machO)
+        let structValue = try Struct(descriptor: descriptor, in: machO.context)
 
         let intMetadata = try StructMetadata.createInProcess(Fixtures.SingleParameterBox<Int>.self)
         let intContext = DumperMetadataContext(metadata: intMetadata, readingContext: InProcessContext.shared)
@@ -118,7 +118,7 @@ struct SpecializedDumperFieldTypeTests {
         _ = Fixtures.GenericArrayWrapper<Double>.self
 
         let descriptor = try structDescriptor(named: "GenericArrayWrapper")
-        let structValue = try Struct(descriptor: descriptor, in: machO)
+        let structValue = try Struct(descriptor: descriptor, in: machO.context)
         let specializedMetadata = try StructMetadata.createInProcess(Fixtures.GenericArrayWrapper<Double>.self)
         let metadataContext = DumperMetadataContext(metadata: specializedMetadata, readingContext: InProcessContext.shared)
 
@@ -139,7 +139,7 @@ struct SpecializedDumperFieldTypeTests {
         _ = Fixtures.GenericResultEnum<Int, Fixtures.FixtureError>.self
 
         let descriptor = try enumDescriptor(named: "GenericResultEnum")
-        let enumValue = try Enum(descriptor: descriptor, in: machO)
+        let enumValue = try Enum(descriptor: descriptor, in: machO.context)
         let specializedMetadata = try EnumMetadata.createInProcess(Fixtures.GenericResultEnum<Int, Fixtures.FixtureError>.self)
         let metadataContext = DumperMetadataContext(metadata: specializedMetadata, readingContext: InProcessContext.shared)
 
@@ -159,7 +159,7 @@ struct SpecializedDumperFieldTypeTests {
         _ = Fixtures.GenericContainerClass<Int>.self
 
         let descriptor = try classDescriptor(named: "GenericContainerClass")
-        let classValue = try Class(descriptor: descriptor, in: machO)
+        let classValue = try Class(descriptor: descriptor, in: machO.context)
         let specializedMetadata = try ClassMetadataObjCInterop.createInProcess(Fixtures.GenericContainerClass<Int>.self)
         let metadataContext = DumperMetadataContext(metadata: specializedMetadata, readingContext: InProcessContext.shared)
 
@@ -177,7 +177,7 @@ struct SpecializedDumperFieldTypeTests {
         _ = Fixtures.SingleParameterBox<Int>.self
 
         let descriptor = try structDescriptor(named: "SingleParameterBox")
-        let structValue = try Struct(descriptor: descriptor, in: machO)
+        let structValue = try Struct(descriptor: descriptor, in: machO.context)
         let specializedMetadata = try StructMetadata.createInProcess(Fixtures.SingleParameterBox<Int>.self)
         let metadataContext = DumperMetadataContext(metadata: specializedMetadata, readingContext: InProcessContext.shared)
 
@@ -198,7 +198,7 @@ struct SpecializedDumperFieldTypeTests {
         _ = Fixtures.SingleParameterBox<String>.self
 
         let descriptor = try structDescriptor(named: "SingleParameterBox")
-        let structValue = try Struct(descriptor: descriptor, in: machO)
+        let structValue = try Struct(descriptor: descriptor, in: machO.context)
 
         let intMetadata = try StructMetadata.createInProcess(Fixtures.SingleParameterBox<Int>.self)
         let intDumper = StructDumper(
@@ -229,7 +229,7 @@ struct SpecializedDumperFieldTypeTests {
         _ = Fixtures.GenericContainerClass<Int>.self
 
         let descriptor = try classDescriptor(named: "GenericContainerClass")
-        let classValue = try Class(descriptor: descriptor, in: machO)
+        let classValue = try Class(descriptor: descriptor, in: machO.context)
         let specializedMetadata = try ClassMetadataObjCInterop.createInProcess(Fixtures.GenericContainerClass<Int>.self)
         let metadataContext = DumperMetadataContext(metadata: specializedMetadata, readingContext: InProcessContext.shared)
 
@@ -249,7 +249,7 @@ struct SpecializedDumperFieldTypeTests {
     @Test("specialized private struct declaration keeps its module")
     func specializedPrivateStructDeclarationKeepsItsModule() async throws {
         let descriptor = try structDescriptor(named: "RuntimeNamedDumpPrivateBox")
-        let structValue = try Struct(descriptor: descriptor, in: machO)
+        let structValue = try Struct(descriptor: descriptor, in: machO.context)
         let specializedMetadata = try StructMetadata.createInProcess(RuntimeNamedDumpPrivateBox<Int>.self)
         let metadataContext = DumperMetadataContext(metadata: specializedMetadata, readingContext: InProcessContext.shared)
 
@@ -266,7 +266,7 @@ struct SpecializedDumperFieldTypeTests {
         // fall back to the existing unbound path — the bound substitution
         // is gated on the in-process specialized metadata being present.
         let descriptor = try structDescriptor(named: "SingleParameterBox")
-        let structValue = try Struct(descriptor: descriptor, in: machO)
+        let structValue = try Struct(descriptor: descriptor, in: machO.context)
 
         let dumper = StructDumper(structValue, using: configuration, in: machO)
         let renderedDeclaration = try await dumper.declaration.string
@@ -284,7 +284,7 @@ struct SpecializedDumperFieldTypeTests {
         _ = Fixtures.NestedStructHostingStruct<Int>.self
 
         let descriptor = try structDescriptor(named: "NestedStructHostingStruct")
-        let structValue = try Struct(descriptor: descriptor, in: machO)
+        let structValue = try Struct(descriptor: descriptor, in: machO.context)
         let specializedMetadata = try StructMetadata.createInProcess(Fixtures.NestedStructHostingStruct<Int>.self)
         let metadataContext = DumperMetadataContext(metadata: specializedMetadata, readingContext: InProcessContext.shared)
 
@@ -317,7 +317,7 @@ struct SpecializedDumperFieldTypeTests {
         _ = Fixtures.NestedStructHostingStruct<Double>.self
 
         let descriptor = try structDescriptor(named: "NestedStructHostingStruct")
-        let structValue = try Struct(descriptor: descriptor, in: machO)
+        let structValue = try Struct(descriptor: descriptor, in: machO.context)
         let specializedMetadata = try StructMetadata.createInProcess(Fixtures.NestedStructHostingStruct<Double>.self)
         let metadataContext = DumperMetadataContext(metadata: specializedMetadata, readingContext: InProcessContext.shared)
 
@@ -342,7 +342,7 @@ struct SpecializedDumperFieldTypeTests {
         _ = Fixtures.OptionalGenericFieldStruct<Fixtures.SingleParameterBox<Int>>.self
 
         let descriptor = try structDescriptor(named: "OptionalGenericFieldStruct")
-        let structValue = try Struct(descriptor: descriptor, in: machO)
+        let structValue = try Struct(descriptor: descriptor, in: machO.context)
         let specializedMetadata = try StructMetadata.createInProcess(
             Fixtures.OptionalGenericFieldStruct<Fixtures.SingleParameterBox<Int>>.self
         )
@@ -377,7 +377,7 @@ struct SpecializedDumperFieldTypeTests {
         _ = Fixtures.SingleParameterBox<Int>.self
 
         let descriptor = try structDescriptor(named: "SingleParameterBox")
-        let structValue = try Struct(descriptor: descriptor, in: machO)
+        let structValue = try Struct(descriptor: descriptor, in: machO.context)
         let specializedMetadata = try StructMetadata.createInProcess(Fixtures.SingleParameterBox<Int>.self)
         let metadataContext = DumperMetadataContext(metadata: specializedMetadata, readingContext: InProcessContext.shared)
 
@@ -429,7 +429,7 @@ struct SpecializedDumperFieldTypeTests {
         _ = Fixtures.OptionalGenericFieldStruct<Fixtures.GenericContainerClass<Int>>.self
 
         let descriptor = try structDescriptor(named: "OptionalGenericFieldStruct")
-        let structValue = try Struct(descriptor: descriptor, in: machO)
+        let structValue = try Struct(descriptor: descriptor, in: machO.context)
         let specializedMetadata = try StructMetadata.createInProcess(
             Fixtures.OptionalGenericFieldStruct<Fixtures.GenericContainerClass<Int>>.self
         )
@@ -467,7 +467,7 @@ struct SpecializedDumperFieldTypeTests {
         _ = Fixtures.StructHostingClassField<Int>.self
 
         let descriptor = try structDescriptor(named: "StructHostingClassField")
-        let structValue = try Struct(descriptor: descriptor, in: machO)
+        let structValue = try Struct(descriptor: descriptor, in: machO.context)
         let specializedMetadata = try StructMetadata.createInProcess(Fixtures.StructHostingClassField<Int>.self)
         let metadataContext = DumperMetadataContext(metadata: specializedMetadata, readingContext: InProcessContext.shared)
 

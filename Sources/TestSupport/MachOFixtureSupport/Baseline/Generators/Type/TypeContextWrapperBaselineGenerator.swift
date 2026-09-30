@@ -27,7 +27,7 @@ package enum TypeContextWrapperBaselineGenerator {
     ) throws {
         let descriptor = try BaselineFixturePicker.struct_StructTest(in: machO)
         let descriptorWrapper = TypeContextDescriptorWrapper.struct(descriptor)
-        let wrapper = try TypeContextWrapper.forTypeContextDescriptorWrapper(descriptorWrapper, in: machO)
+        let wrapper = try TypeContextWrapper.forTypeContextDescriptorWrapper(descriptorWrapper, in: machO.context)
         let entryExpr = emitEntryExpr(for: wrapper)
 
         let registered = [

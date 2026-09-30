@@ -27,9 +27,9 @@ final class ValueMetadataTests: MachOSwiftSectionFixtureTests, FixtureSuite, @un
     /// `kind`/`descriptor` prefix with `ValueMetadata`.
     private func loadStructTestValueMetadata() throws -> ValueMetadata {
         let descriptor = try BaselineFixturePicker.struct_StructTest(in: machOImage)
-        let accessor = try required(try descriptor.metadataAccessorFunction(in: machOImage))
+        let accessor = try required(try descriptor.metadataAccessorFunction(in: imageContext))
         let response = try accessor(request: .init())
-        let structMetadata = try required(try response.value.resolve(in: machOImage).struct)
+        let structMetadata = try required(try response.value.resolve(in: imageContext).struct)
         // ValueMetadata shares the (kind, descriptor) prefix with StructMetadata.
         return try machOImage.readWrapperElement(offset: structMetadata.offset)
     }
@@ -44,7 +44,7 @@ final class ValueMetadataTests: MachOSwiftSectionFixtureTests, FixtureSuite, @un
         let metadata = try loadStructTestValueMetadata()
         // The descriptor pointer in the layout should resolve to the same
         // `ValueTypeDescriptorWrapper` we obtained from the picker.
-        let descriptorWrapper = try metadata.layout.descriptor.resolve(in: machOImage)
+        let descriptorWrapper = try metadata.layout.descriptor.resolve(in: imageContext)
         let pickerDescriptor = try BaselineFixturePicker.struct_StructTest(in: machOImage)
         let resolvedStructOffset = try required(descriptorWrapper.struct).offset
         #expect(resolvedStructOffset == pickerDescriptor.offset)

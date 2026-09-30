@@ -87,26 +87,20 @@ final class GenericMetadataPatternProtocolTests: MachOSwiftSectionFixtureTests, 
 
     @Test func partialPatterns() async throws {
         for carrier in try allCarriers() {
-            let offsets = try acrossAllReaders(
-                file: { try carrier.file.partialPatterns(in: machOFile).map(\.offset) },
-                image: { try carrier.image.partialPatterns(in: machOImage).map(\.offset) }
-            )
-            #expect(offsets.count == carrier.expected.partialPatternCount, "\(carrier.label)")
-            #expect(offsets.first == (carrier.expected.partialPatternCount > 0 ? carrier.expected.partialPatternsOffset : nil), "\(carrier.label)")
-
-            let fromContext = try acrossAllContexts(
+            let offsets = try acrossAllContexts(
                 file: { try carrier.file.partialPatterns(in: fileContext).map(\.offset) },
                 image: { try carrier.image.partialPatterns(in: imageContext).map(\.offset) }
             )
-            #expect(fromContext == offsets, "\(carrier.label)")
+            #expect(offsets.count == carrier.expected.partialPatternCount, "\(carrier.label)")
+            #expect(offsets.first == (carrier.expected.partialPatternCount > 0 ? carrier.expected.partialPatternsOffset : nil), "\(carrier.label)")
         }
     }
 
     @Test func extraDataPattern() async throws {
         for carrier in try allCarriers() {
-            let result = try acrossAllReaders(
-                file: { try carrier.file.extraDataPattern(in: machOFile)?.offset },
-                image: { try carrier.image.extraDataPattern(in: machOImage)?.offset }
+            let result = try acrossAllContexts(
+                file: { try carrier.file.extraDataPattern(in: fileContext)?.offset },
+                image: { try carrier.image.extraDataPattern(in: imageContext)?.offset }
             )
             let expected = carrier.expected.hasExtraDataPattern ? carrier.expected.partialPatternsOffset : nil
             #expect(result == expected, "\(carrier.label)")

@@ -61,7 +61,7 @@ struct AnonymousContextPrivateDiscriminatorTests {
         let machOImage = try Self.loadedAppKitImage()
         let classDescriptor = try #require(try Self.classDescriptor(named: Self.privateClassName, in: machOImage))
         let expectedDiscriminator = try #require(try Self.discriminatorFromObjCRuntimeName(in: machOImage))
-        let inProcessDescriptor: ContextDescriptorWrapper = try .resolve(from: machOImage.ptr.advanced(by: classDescriptor.offset))
+        let inProcessDescriptor: ContextDescriptorWrapper = try .resolve(at: machOImage.ptr.advanced(by: classDescriptor.offset), in: .inProcess)
 
         let node = try SymbolicDemangler.demangleContext(for: inProcessDescriptor)
 
@@ -87,7 +87,7 @@ struct AnonymousContextPrivateDiscriminatorTests {
                   runtimeName.hasPrefix("_Tt")
             else { continue }
             let metadata: ClassMetadataObjCInterop = try machOImage.readWrapperElement(offset: classObject.offset)
-            let classDescriptor = try #require(try metadata.descriptor(in: machOImage), "\(runtimeName) has no class descriptor")
+            let classDescriptor = try #require(try metadata.descriptor(in: machOImage.context), "\(runtimeName) has no class descriptor")
             let descriptorBuiltName = try Self.qualifiedName(ofNominal: SymbolicDemangler.demangleContext(for: .type(.class(classDescriptor)), in: machOImage))
             let runtimeNameBuiltName = try Self.qualifiedName(ofNominal: demangleAsNodeTransient(runtimeName))
             comparedCount += 1
@@ -125,7 +125,7 @@ struct AnonymousContextPrivateDiscriminatorTests {
     private static func classDescriptor(named name: String, in machO: some MachOSwiftSectionRepresentableWithCache) throws -> ClassDescriptor? {
         for typeContextDescriptor in try machO.swift.typeContextDescriptors {
             guard case .class(let classDescriptor) = typeContextDescriptor else { continue }
-            if try classDescriptor.name(in: machO) == name {
+            if try classDescriptor.name(in: machO.context) == name {
                 return classDescriptor
             }
         }

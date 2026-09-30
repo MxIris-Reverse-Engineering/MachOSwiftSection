@@ -42,7 +42,7 @@ extension TargetGenericContext {
 
         try await conformancesBuilder()
 
-        if (isDumpCurrentLevelRequirements ? uniqueCurrentRequirements(in: machO) : requirements).count > 0 {
+        if (isDumpCurrentLevelRequirements ? uniqueCurrentRequirements(in: machO.context) : requirements).count > 0 {
             Space()
             Keyword(.where)
             Space()
@@ -197,7 +197,7 @@ extension TargetGenericContext {
 
     @SemanticStringBuilder
     package func dumpGenericRequirements(in machO: some MachOSwiftSectionRepresentableWithCache, isDumpCurrentLevel: Bool = true, @SemanticStringBuilder builder: (Node) async throws -> SemanticString) async throws -> SemanticString {
-        for (offset, requirement) in (isDumpCurrentLevel ? uniqueCurrentRequirements(in: machO) : requirements).offsetEnumerated() {
+        for (offset, requirement) in (isDumpCurrentLevel ? uniqueCurrentRequirements(in: machO.context) : requirements).offsetEnumerated() {
             try await requirement.dump(in: machO, builder: builder)
             if !offset.isEnd {
                 Standard(",")
@@ -276,7 +276,7 @@ extension GenericRequirementDescriptor {
     }
 
     package func dumpParameterName(in machO: some MachOSwiftSectionRepresentableWithCache) async throws -> Node {
-        try SymbolicDemangler.demangleType(for: paramMangledName(in: machO), in: machO)
+        try SymbolicDemangler.demangleType(for: paramMangledName(in: machO.context), in: machO)
     }
 
     @SemanticStringBuilder
@@ -296,7 +296,7 @@ extension GenericRequirementDescriptor {
 
     @SemanticStringBuilder
     package func dumpContent(in machO: some MachOSwiftSectionRepresentableWithCache, @SemanticStringBuilder builder: (Node) async throws -> SemanticString) async throws -> SemanticString {
-        switch try resolvedContent(in: machO) {
+        switch try resolvedContent(in: machO.context) {
         case .type(let mangledName):
             try await builder(SymbolicDemangler.demangleType(for: mangledName, in: machO))
         case .protocol(let resolvableElement):
@@ -306,7 +306,7 @@ extension GenericRequirementDescriptor {
             case .element(let element):
                 switch element {
                 case .objc(let objc):
-                    let objcName = try objc.mangledName(in: machO).rawString
+                    let objcName = try objc.mangledName(in: machO.context).rawString
                     let node = Node.createTransient(kind: .global, children: [
                         Node.createTransient(kind: .type, children: [
                             Node.createTransient(kind: .protocol, children: [
@@ -367,7 +367,7 @@ extension GenericRequirementDescriptor {
 
     @SemanticStringBuilder
     package func dumpProtocolParameterName(in machO: some MachOSwiftSectionRepresentableWithCache, @SemanticStringBuilder builder: (Node) async throws -> SemanticString) async throws -> SemanticString {
-        try await dumpProtocolMangledName(paramMangledName(in: machO), in: machO, builder: builder)
+        try await dumpProtocolMangledName(paramMangledName(in: machO.context), in: machO, builder: builder)
     }
 
     @SemanticStringBuilder
@@ -398,7 +398,7 @@ extension GenericRequirementDescriptor {
 
     @SemanticStringBuilder
     package func dumpProtocolContent(in machO: some MachOSwiftSectionRepresentableWithCache, @SemanticStringBuilder builder: (Node) async throws -> SemanticString) async throws -> SemanticString {
-        switch try resolvedContent(in: machO) {
+        switch try resolvedContent(in: machO.context) {
         case .type(let mangledName):
 //            try builder(SymbolicDemangler.demangleType(for: mangledName, in: machO))
             try await dumpProtocolMangledName(mangledName, in: machO, builder: builder)
@@ -409,7 +409,7 @@ extension GenericRequirementDescriptor {
             case .element(let element):
                 switch element {
                 case .objc(let objc):
-                    let objcName = try objc.mangledName(in: machO).rawString
+                    let objcName = try objc.mangledName(in: machO.context).rawString
                     let node = Node.createTransient(kind: .global, children: [
                         Node.createTransient(kind: .type, children: [
                             Node.createTransient(kind: .protocol, children: [

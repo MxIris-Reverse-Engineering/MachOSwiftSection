@@ -68,10 +68,10 @@ final class RuntimeEnumLayoutRenderingTests: MachOSwiftSectionFixtureTests, @unc
         let strategyComment = await renderer.enumPrefixComments(enumLayout: enumLayout).string
         #expect(strategyComment.contains("Single Payload"), "got: \(strategyComment)")
 
-        let records = try #require(try? type.contextDescriptorWrapper.typeContextDescriptor?.fieldDescriptor(in: machOImage).records(in: machOImage))
+        let records = try #require(try? type.contextDescriptorWrapper.typeContextDescriptor?.fieldDescriptor(in: imageContext).records(in: imageContext))
         let firstCaseComment = try await renderer.enumCaseComments(
             forCaseAtIndex: 1,
-            mangledTypeName: records[1].mangledTypeName(in: machOImage),
+            mangledTypeName: records[1].mangledTypeName(in: imageContext),
             enumLayout: enumLayout
         ).string
         #expect(firstCaseComment.contains("`first`"), "got: \(firstCaseComment)")
@@ -79,7 +79,7 @@ final class RuntimeEnumLayoutRenderingTests: MachOSwiftSectionFixtureTests, @unc
 
         let secondCaseComment = try await renderer.enumCaseComments(
             forCaseAtIndex: 2,
-            mangledTypeName: records[2].mangledTypeName(in: machOImage),
+            mangledTypeName: records[2].mangledTypeName(in: imageContext),
             enumLayout: enumLayout
         ).string
         #expect(secondCaseComment.contains("bytes[0x0..<0x8] = 0x1"), "got: \(secondCaseComment)")

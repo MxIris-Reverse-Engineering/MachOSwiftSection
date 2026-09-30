@@ -29,12 +29,12 @@ final class GenericRequirementTests: MachOSwiftSectionFixtureTests, FixtureSuite
     ) throws -> (file: GenericRequirement, image: GenericRequirement) {
         let fileDescriptor = try filePicker(machOFile)
         let imageDescriptor = try imagePicker(machOImage)
-        let fileGenericCtx = try required(try fileDescriptor.typeGenericContext(in: machOFile))
-        let imageGenericCtx = try required(try imageDescriptor.typeGenericContext(in: machOImage))
+        let fileGenericCtx = try required(try fileDescriptor.typeGenericContext(in: fileContext))
+        let imageGenericCtx = try required(try imageDescriptor.typeGenericContext(in: imageContext))
         let fileReqDesc = try required(fileGenericCtx.currentRequirements.first)
         let imageReqDesc = try required(imageGenericCtx.currentRequirements.first)
-        let fileReq = try GenericRequirement(descriptor: fileReqDesc, in: machOFile)
-        let imageReq = try GenericRequirement(descriptor: imageReqDesc, in: machOImage)
+        let fileReq = try GenericRequirement(descriptor: fileReqDesc, in: fileContext)
+        let imageReq = try GenericRequirement(descriptor: imageReqDesc, in: imageContext)
         return (file: fileReq, image: imageReq)
     }
 
@@ -78,28 +78,27 @@ final class GenericRequirementTests: MachOSwiftSectionFixtureTests, FixtureSuite
     @Test("init(descriptor:in:)") func initializerWithMachO() async throws {
         let fileDescriptor = try BaselineFixturePicker.struct_GenericStructLayoutRequirement(in: machOFile)
         let imageDescriptor = try BaselineFixturePicker.struct_GenericStructLayoutRequirement(in: machOImage)
-        let fileContext = try required(try fileDescriptor.typeGenericContext(in: machOFile))
-        let imageContext = try required(try imageDescriptor.typeGenericContext(in: machOImage))
-        let fileReqDesc = try required(fileContext.currentRequirements.first)
-        let imageReqDesc = try required(imageContext.currentRequirements.first)
+        let fileGenericContext = try required(try fileDescriptor.typeGenericContext(in: fileContext))
+        let imageGenericContext = try required(try imageDescriptor.typeGenericContext(in: imageContext))
+        let fileReqDesc = try required(fileGenericContext.currentRequirements.first)
+        let imageReqDesc = try required(imageGenericContext.currentRequirements.first)
 
-        let fileReq = try GenericRequirement(descriptor: fileReqDesc, in: machOFile)
-        let imageReq = try GenericRequirement(descriptor: imageReqDesc, in: machOImage)
-        let fileCtxReq = try GenericRequirement(descriptor: fileReqDesc, in: self.fileContext)
+        let fileReq = try GenericRequirement(descriptor: fileReqDesc, in: fileContext)
+        let imageReq = try GenericRequirement(descriptor: imageReqDesc, in: imageContext)
 
         #expect(fileReq.descriptor.offset == GenericRequirementBaseline.layoutRequirement.descriptorOffset)
         #expect(imageReq.descriptor.offset == GenericRequirementBaseline.layoutRequirement.descriptorOffset)
-        #expect(fileCtxReq.descriptor.offset == GenericRequirementBaseline.layoutRequirement.descriptorOffset)
     }
 
     @Test("init(descriptor:)") func initializerInProcess() async throws {
-        // The InProcess init walks the descriptor via raw pointer arithmetic.
-        // We pull a descriptor from the image then re-wrap as a pointer-form.
+        // The init over the in-process context walks the descriptor via raw
+        // pointer arithmetic. We pull a descriptor from the image then
+        // re-wrap as a pointer-form.
         let imageDescriptor = try BaselineFixturePicker.struct_GenericStructLayoutRequirement(in: machOImage)
-        let imageContext = try required(try imageDescriptor.typeGenericContext(in: machOImage))
-        let imageReqDesc = try required(imageContext.currentRequirements.first)
+        let imageGenericContext = try required(try imageDescriptor.typeGenericContext(in: imageContext))
+        let imageReqDesc = try required(imageGenericContext.currentRequirements.first)
         let pointerDescriptor = imageReqDesc.asPointerWrapper(in: machOImage)
-        let inProcess = try GenericRequirement(descriptor: pointerDescriptor)
+        let inProcess = try GenericRequirement(descriptor: pointerDescriptor, in: inProcessContext)
         // The in-process descriptor.offset is a pointer bit pattern; just
         // assert it resolved.
         #expect(inProcess.descriptor.offset != 0)

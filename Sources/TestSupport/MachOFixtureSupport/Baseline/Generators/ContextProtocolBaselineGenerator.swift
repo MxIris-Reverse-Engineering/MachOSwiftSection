@@ -20,8 +20,8 @@ package enum ContextProtocolBaselineGenerator {
         outputDirectory: URL
     ) throws {
         let descriptor = try BaselineFixturePicker.struct_StructTest(in: machO)
-        let context = try Struct(descriptor: descriptor, in: machO)
-        let hasParent = (try context.parent(in: machO)) != nil
+        let context = try Struct(descriptor: descriptor, in: machO.context)
+        let hasParent = (try context.parent(in: machO.context)) != nil
 
         let entryExpr = emitEntryExpr(hasParent: hasParent)
 

@@ -20,7 +20,7 @@ package enum GenericValueHeaderBaselineGenerator {
         outputDirectory: URL
     ) throws {
         let descriptor = try BaselineFixturePicker.struct_FixedSizeArray(in: machO)
-        let context = try required(try descriptor.typeGenericContext(in: machO))
+        let context = try required(try descriptor.typeGenericContext(in: machO.context))
         let header = try required(context.valueHeader)
 
         let entryExpr = emitEntryExpr(for: header)

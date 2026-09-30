@@ -20,7 +20,7 @@ final class DyldCacheAssociatedTypeTests: DyldCacheTests, @unchecked Sendable {
             conformingTypeName.print()
             protocolTypeName.print()
             for record in associatedType.records {
-                let substitutedTypeName = try record.substitutedTypeName(in: machO)
+                let substitutedTypeName = try record.substitutedTypeName(in: machO.context)
                 try SymbolicDemangler.demangleType(for: substitutedTypeName, in: machO).print().print()
 //                    substitutedTypeName.startOffset.print()
             }

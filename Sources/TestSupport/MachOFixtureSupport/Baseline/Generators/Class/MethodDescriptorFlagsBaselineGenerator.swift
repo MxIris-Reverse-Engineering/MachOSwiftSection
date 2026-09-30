@@ -17,7 +17,7 @@ package enum MethodDescriptorFlagsBaselineGenerator {
         outputDirectory: URL
     ) throws {
         let descriptor = try BaselineFixturePicker.class_ClassTest(in: machO)
-        let classWrapper = try Class(descriptor: descriptor, in: machO)
+        let classWrapper = try Class(descriptor: descriptor, in: machO.context)
         let firstMethod = try required(classWrapper.methodDescriptors.first)
         let flags = firstMethod.layout.flags
 

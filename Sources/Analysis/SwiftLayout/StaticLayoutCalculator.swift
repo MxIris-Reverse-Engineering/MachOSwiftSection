@@ -173,7 +173,7 @@ public struct StaticLayoutCalculator<MachO: MachOSwiftSectionRepresentableWithCa
         let environment = environment.augmented(
             withRequirementFacts: ClassBoundGenericParameterAnalysis.layoutFacts(of: descriptor, in: image, imageUniverse: imageUniverse)
         )
-        let records = try descriptor.fieldDescriptor(in: image.machO).records(in: image.machO)
+        let records = try descriptor.fieldDescriptor(in: image.machO.context).records(in: image.machO.context)
         let structural = try accumulateFieldLayout(
             records: records,
             startOffset: 0,
@@ -300,7 +300,7 @@ public struct StaticLayoutCalculator<MachO: MachOSwiftSectionRepresentableWithCa
         let environment = environment.augmented(
             withRequirementFacts: ClassBoundGenericParameterAnalysis.layoutFacts(of: descriptor, in: image, imageUniverse: imageUniverse)
         )
-        let records = try descriptor.fieldDescriptor(in: image.machO).records(in: image.machO)
+        let records = try descriptor.fieldDescriptor(in: image.machO.context).records(in: image.machO.context)
         do {
             let start = try resolver.superclassStartLayout(of: descriptor, in: image, environment: environment)
             // The maximum own-field alignment drives the ObjC ivar-slide
@@ -309,7 +309,7 @@ public struct StaticLayoutCalculator<MachO: MachOSwiftSectionRepresentableWithCa
             // mask only affects an already-degraded region.
             let ownFieldAlignmentMask = records.reduce(into: 0) { mask, record in
                 guard
-                    let mangledTypeName = try? record.mangledTypeName(in: image.machO),
+                    let mangledTypeName = try? record.mangledTypeName(in: image.machO.context),
                     let fieldLayout = try? resolver.layout(forMangledTypeName: mangledTypeName, in: image, environment: environment)
                 else { return }
                 mask = max(mask, fieldLayout.alignmentMask)
@@ -333,9 +333,9 @@ public struct StaticLayoutCalculator<MachO: MachOSwiftSectionRepresentableWithCa
             // *own* type layout is still resolved where possible — offsets need
             // the superclass start, per-type size/stride does not.
             let unresolvedFields = try records.map { record in
-                let mangledTypeName = try record.mangledTypeName(in: image.machO)
+                let mangledTypeName = try record.mangledTypeName(in: image.machO.context)
                 return FieldLayoutEntry(
-                    fieldName: (try? record.fieldName(in: image.machO)) ?? "",
+                    fieldName: (try? record.fieldName(in: image.machO.context)) ?? "",
                     offset: 0,
                     typeMangledName: mangledTypeName.typeString,
                     layout: try? resolver.layout(forMangledTypeName: mangledTypeName, in: image, environment: environment),
@@ -364,8 +364,8 @@ public struct StaticLayoutCalculator<MachO: MachOSwiftSectionRepresentableWithCa
         var accumulatorIsTrustworthy = true
 
         for record in records {
-            let fieldName = (try? record.fieldName(in: image.machO)) ?? ""
-            let mangledTypeName = try record.mangledTypeName(in: image.machO)
+            let fieldName = (try? record.fieldName(in: image.machO.context)) ?? ""
+            let mangledTypeName = try record.mangledTypeName(in: image.machO.context)
             let typeNameString = mangledTypeName.typeString
 
             guard accumulatorIsTrustworthy else {

@@ -29,39 +29,39 @@ final class EnumMetadataProtocolTests: MachOSwiftSectionFixtureTests, FixtureSui
 
     private func loadNoPayloadEnumMetadata() throws -> EnumMetadata {
         let descriptor = try BaselineFixturePicker.enum_NoPayloadEnumTest(in: machOImage)
-        let accessor = try required(try descriptor.metadataAccessorFunction(in: machOImage))
+        let accessor = try required(try descriptor.metadataAccessorFunction(in: imageContext))
         let response = try accessor(request: .init())
-        let wrapper = try response.value.resolve(in: machOImage)
+        let wrapper = try response.value.resolve(in: imageContext)
         return try required(wrapper.enum)
     }
 
-    /// `enumDescriptor(in:)` / `enumDescriptor()` — the descriptor recovered
-    /// from the metadata must match the one we picked from the MachOImage's
-    /// type list (same descriptor offset).
+    /// `enumDescriptor(in:)` — the descriptor recovered from the metadata
+    /// must match the one we picked from the MachOImage's type list (same
+    /// descriptor offset).
     @Test func enumDescriptor() async throws {
         let pickedDescriptor = try BaselineFixturePicker.enum_NoPayloadEnumTest(in: machOImage)
         let metadata = try loadNoPayloadEnumMetadata()
 
-        let imageDescriptor = try metadata.enumDescriptor(in: machOImage)
+        let imageDescriptor = try metadata.enumDescriptor(in: imageContext)
         let imageCtxDescriptor = try metadata.enumDescriptor(in: imageContext)
-        let inProcessDescriptor = try metadata.enumDescriptor()
+        let inProcessDescriptor = try metadata.enumDescriptor(in: inProcessContext)
 
         // The two MachO-backed paths agree on the descriptor offset.
         #expect(imageDescriptor.offset == pickedDescriptor.offset)
         #expect(imageCtxDescriptor.offset == pickedDescriptor.offset)
         // The InProcess path returns the same descriptor by name.
-        #expect(try inProcessDescriptor.name() == "NoPayloadEnumTest")
+        #expect(try inProcessDescriptor.name(in: inProcessContext) == "NoPayloadEnumTest")
     }
 
-    /// `payloadSize(descriptor:in:)` / `payloadSize(descriptor:)` — for
-    /// `Enums.NoPayloadEnumTest` (no payload cases, `payloadSizeOffset == 0`),
-    /// this returns nil regardless of the reader.
+    /// `payloadSize(descriptor:in:)` — for `Enums.NoPayloadEnumTest` (no
+    /// payload cases, `payloadSizeOffset == 0`), this returns nil
+    /// regardless of the reader.
     @Test func payloadSize() async throws {
         let metadata = try loadNoPayloadEnumMetadata()
 
-        let imagePayload = try metadata.payloadSize(in: machOImage)
+        let imagePayload = try metadata.payloadSize(in: imageContext)
         let imageCtxPayload = try metadata.payloadSize(in: imageContext)
-        let inProcessPayload = try metadata.payloadSize()
+        let inProcessPayload = try metadata.payloadSize(in: inProcessContext)
 
         // No payload cases ⇒ no `payloadSizeOffset` ⇒ all nil.
         #expect(imagePayload == nil)

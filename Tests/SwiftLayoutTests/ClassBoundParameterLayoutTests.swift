@@ -249,15 +249,15 @@ final class ClassBoundParameterLayoutTests: MachOSwiftSectionFixtureTests, @unch
                 let name = (try? SymbolicDemangler.demangleContext(for: contextDescriptor, in: machO))
                     .flatMap(NodeTypeNaming.nominalQualifiedName(of:)),
                 name == qualifiedTypeName,
-                let accessor = try descriptor.typeContextDescriptor.metadataAccessorFunction(in: machO)
+                let accessor = try descriptor.typeContextDescriptor.metadataAccessorFunction(in: machO.context)
             else { continue }
             let response = try accessor(request: .init(), metatypes: firstArgumentMetatype, secondArgumentMetatype)
-            let metadata = try response.value.resolve(in: machO)
+            let metadata = try response.value.resolve(in: machO.context)
             switch metadata {
             case .struct(let structMetadata):
-                return try structMetadata.fieldOffsets(in: machO).map { Int($0) }
+                return try structMetadata.fieldOffsets(in: machO.context).map { Int($0) }
             case .class(let classMetadata):
-                return try classMetadata.fieldOffsets(in: machO).map { Int($0) }
+                return try classMetadata.fieldOffsets(in: machO.context).map { Int($0) }
             default:
                 return nil
             }

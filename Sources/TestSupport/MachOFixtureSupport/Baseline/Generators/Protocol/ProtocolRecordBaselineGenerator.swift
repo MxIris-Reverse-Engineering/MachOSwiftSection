@@ -17,9 +17,9 @@ package enum ProtocolRecordBaselineGenerator {
         outputDirectory: URL
     ) throws {
         let record = try BaselineFixturePicker.protocolRecord_first(in: machO)
-        let resolvedDescriptor = try required(record.protocolDescriptor(in: machO))
+        let resolvedDescriptor = try required(record.protocolDescriptor(in: machO.context))
         let resolvedDescriptorOffset = resolvedDescriptor.offset
-        let resolvedDescriptorName = try resolvedDescriptor.name(in: machO)
+        let resolvedDescriptorName = try resolvedDescriptor.name(in: machO.context)
 
         let entryExpr = emitEntryExpr(
             recordOffset: record.offset,

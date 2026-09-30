@@ -73,31 +73,28 @@ final class ProtocolConformanceDescriptorTests: MachOSwiftSectionFixtureTests, F
 
     /// `protocolDescriptor(in:)` is exposed in three overloads (MachO +
     /// in-process + ReadingContext) that all collapse to a single
-    /// `MethodKey`. Exercise the MachO and ReadingContext overloads here.
+    /// `MethodKey`. Exercise the ReadingContext overload over both readers
+    /// here.
     @Test func protocolDescriptor() async throws {
         let (file, image) = try loadStructTestProtocolTestDescriptors()
-        let result = try acrossAllReaders(
-            file: { (try file.protocolDescriptor(in: machOFile)) != nil },
-            image: { (try image.protocolDescriptor(in: machOImage)) != nil }
+        let result = try acrossAllContexts(
+            file: { (try file.protocolDescriptor(in: fileContext)) != nil },
+            image: { (try image.protocolDescriptor(in: imageContext)) != nil }
         )
         #expect(result == ProtocolConformanceDescriptorBaseline.structTestProtocolTest.hasProtocolDescriptor)
-
-        // ReadingContext overload also exercised.
-        let imageContextResult = (try image.protocolDescriptor(in: imageContext)) != nil
-        #expect(imageContextResult == ProtocolConformanceDescriptorBaseline.structTestProtocolTest.hasProtocolDescriptor)
     }
 
     /// `resolvedTypeReference(in:)` is exposed in three overloads (MachO +
     /// in-process + ReadingContext) that all collapse to a single
-    /// `MethodKey`. Exercise the MachO and ReadingContext overloads here.
+    /// `MethodKey`. Exercise the ReadingContext overload over both readers
+    /// here.
     @Test func resolvedTypeReference() async throws {
         let (file, image) = try loadStructTestProtocolTestDescriptors()
 
-        let fileResolved = try file.resolvedTypeReference(in: machOFile)
-        let imageResolved = try image.resolvedTypeReference(in: machOImage)
-        let imageContextResolved = try image.resolvedTypeReference(in: imageContext)
+        let fileResolved = try file.resolvedTypeReference(in: fileContext)
+        let imageResolved = try image.resolvedTypeReference(in: imageContext)
 
-        for (label, resolved) in [("file", fileResolved), ("image", imageResolved), ("imageContext", imageContextResolved)] {
+        for (label, resolved) in [("file", fileResolved), ("image", imageResolved)] {
             if case .directTypeDescriptor = resolved {
                 // Expected.
             } else {
@@ -109,17 +106,14 @@ final class ProtocolConformanceDescriptorTests: MachOSwiftSectionFixtureTests, F
 
     /// `witnessTablePattern(in:)` is exposed in three overloads (MachO +
     /// in-process + ReadingContext) that all collapse to a single
-    /// `MethodKey`. Exercise the MachO and ReadingContext overloads here.
+    /// `MethodKey`. Exercise the ReadingContext overload over both readers
+    /// here.
     @Test func witnessTablePattern() async throws {
         let (file, image) = try loadStructTestProtocolTestDescriptors()
-        let result = try acrossAllReaders(
-            file: { (try file.witnessTablePattern(in: machOFile)) != nil },
-            image: { (try image.witnessTablePattern(in: machOImage)) != nil }
+        let result = try acrossAllContexts(
+            file: { (try file.witnessTablePattern(in: fileContext)) != nil },
+            image: { (try image.witnessTablePattern(in: imageContext)) != nil }
         )
         #expect(result == ProtocolConformanceDescriptorBaseline.structTestProtocolTest.hasWitnessTablePattern)
-
-        // ReadingContext overload also exercised.
-        let imageContextResult = (try image.witnessTablePattern(in: imageContext)) != nil
-        #expect(imageContextResult == ProtocolConformanceDescriptorBaseline.structTestProtocolTest.hasWitnessTablePattern)
     }
 }

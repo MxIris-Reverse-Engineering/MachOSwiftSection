@@ -103,7 +103,7 @@ final class ObjCAncestorSlideLayoutTests: MachOSwiftSectionFixtureTests, @unchec
                 let name = (try? SymbolicDemangler.demangleContext(for: contextDescriptor, in: machO))
                     .flatMap(NodeTypeNaming.nominalQualifiedName(of:)),
                 name == qualifiedTypeName,
-                let accessor = try? descriptor.typeContextDescriptor.metadataAccessorFunction(in: machO),
+                let accessor = try? descriptor.typeContextDescriptor.metadataAccessorFunction(in: machO.context),
                 let response = try? accessor(request: .init())
             else { continue }
             let anyClass = unsafeBitCast(UInt(response.value.address), to: AnyClass.self)

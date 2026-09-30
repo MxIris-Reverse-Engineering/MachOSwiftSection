@@ -22,8 +22,8 @@ final class MangledNameTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unch
     private func loadMangledNames() throws -> (file: MangledName, image: MangledName) {
         let fileDescriptor = try BaselineFixturePicker.multiPayloadEnumDescriptor_MultiPayloadEnumTest(in: machOFile)
         let imageDescriptor = try BaselineFixturePicker.multiPayloadEnumDescriptor_MultiPayloadEnumTest(in: machOImage)
-        let file = try fileDescriptor.mangledTypeName(in: machOFile)
-        let image = try imageDescriptor.mangledTypeName(in: machOImage)
+        let file = try fileDescriptor.mangledTypeName(in: fileContext)
+        let image = try imageDescriptor.mangledTypeName(in: imageContext)
         return (file: file, image: image)
     }
 
@@ -81,8 +81,8 @@ final class MangledNameTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unch
 
     @Test func resolve() async throws {
         // Static `resolve` overloads collapse to one MethodKey. Exercise
-        // the MachO-based overloads against the descriptor's
-        // mangledTypeName offset.
+        // the ReadingContext-based overload over both readers against the
+        // descriptor's mangledTypeName offset.
         let fileDescriptor = try BaselineFixturePicker.multiPayloadEnumDescriptor_MultiPayloadEnumTest(in: machOFile)
         let imageDescriptor = try BaselineFixturePicker.multiPayloadEnumDescriptor_MultiPayloadEnumTest(in: machOImage)
         let mangledNameOffset = fileDescriptor.offset(of: \.mangledTypeName)
@@ -90,8 +90,8 @@ final class MangledNameTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unch
         let relativeFile = fileDescriptor.layout.mangledTypeName.relativeOffset
         let relativeImage = imageDescriptor.layout.mangledTypeName.relativeOffset
 
-        let fileResolved = try MangledName.resolve(from: mangledNameOffset + Int(relativeFile), in: machOFile)
-        let imageResolved = try MangledName.resolve(from: imageOffset + Int(relativeImage), in: machOImage)
+        let fileResolved = try MangledName.resolve(at: mangledNameOffset + Int(relativeFile), in: fileContext)
+        let imageResolved = try MangledName.resolve(at: imageOffset + Int(relativeImage), in: imageContext)
         #expect(fileResolved.lookupElements.count == MangledNameBaseline.multiPayloadEnumName.lookupElementsCount)
         #expect(imageResolved.lookupElements.count == MangledNameBaseline.multiPayloadEnumName.lookupElementsCount)
     }

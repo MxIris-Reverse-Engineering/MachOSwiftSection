@@ -25,8 +25,8 @@ package enum ClassBaselineGenerator {
         let classTestDescriptor = try BaselineFixturePicker.class_ClassTest(in: machO)
         let subclassTestDescriptor = try BaselineFixturePicker.class_SubclassTest(in: machO)
 
-        let classTestClass = try Class(descriptor: classTestDescriptor, in: machO)
-        let subclassTestClass = try Class(descriptor: subclassTestDescriptor, in: machO)
+        let classTestClass = try Class(descriptor: classTestDescriptor, in: machO.context)
+        let subclassTestClass = try Class(descriptor: subclassTestDescriptor, in: machO.context)
 
         let classTestExpr = emitEntryExpr(for: classTestClass)
         let subclassTestExpr = emitEntryExpr(for: subclassTestClass)

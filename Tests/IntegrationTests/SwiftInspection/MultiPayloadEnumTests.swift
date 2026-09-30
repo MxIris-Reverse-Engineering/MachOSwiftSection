@@ -27,15 +27,15 @@ final class MultiPayloadEnumTests: MachOImageTests {
         let descriptors = try machO.swift.multiPayloadEnumDescriptors
         for descriptor in descriptors {
             let inProcessDescriptor = descriptor.asPointerWrapper(in: machO)
-            try await multiPayloadEnumDescriptorByMangledName[SymbolicDemangler.demangleType(for: inProcessDescriptor.mangledTypeName()).print(using: demangleOptions)] = inProcessDescriptor
+            try await multiPayloadEnumDescriptorByMangledName[SymbolicDemangler.demangleType(for: inProcessDescriptor.mangledTypeName(in: .inProcess)).print(using: demangleOptions)] = inProcessDescriptor
         }
     }
 
     private func printMultiPayloadEnum(_ descriptor: MultiPayloadEnumDescriptor) throws {
         guard descriptor.usesPayloadSpareBits else { return }
-        let offset = try descriptor.payloadSpareBitMaskByteOffset()
-        let count = try descriptor.payloadSpareBitMaskByteCount()
-        let payloadSpareBits = try descriptor.payloadSpareBits()
+        let offset = try descriptor.payloadSpareBitMaskByteOffset(in: .inProcess)
+        let count = try descriptor.payloadSpareBitMaskByteCount(in: .inProcess)
+        let payloadSpareBits = try descriptor.payloadSpareBits(in: .inProcess)
         print("SpareBitMaskByteOffset:", offset)
         print("SpareBitMaskByteCount:", count)
         SpareBitAnalyzer.printAnalysis(bytes: payloadSpareBits, startOffset: offset.cast())
@@ -48,10 +48,10 @@ final class MultiPayloadEnumTests: MachOImageTests {
             let typeContextDescriptor = typeContextDescriptorWrapper.typeContextDescriptor.asPointerWrapper(in: machO)
             guard !typeContextDescriptor.layout.flags.isGeneric else { continue }
             guard case .enum(let enumDescriptor) = typeContextDescriptorWrapper else { continue }
-            guard case .enum(let enumMetadata) = try typeContextDescriptor.metadataAccessorFunction()?(request: .init()).value.resolve() else { continue }
+            guard case .enum(let enumMetadata) = try typeContextDescriptor.metadataAccessorFunction(in: .inProcess)?(request: .init()).value.resolve(in: .inProcess) else { continue }
 
-            let fieldDescriptor = try typeContextDescriptor.fieldDescriptor()
-            let records = try fieldDescriptor.records()
+            let fieldDescriptor = try typeContextDescriptor.fieldDescriptor(in: .inProcess)
+            let records = try fieldDescriptor.records(in: .inProcess)
             guard !records.isEmpty else { continue }
 
             let typeName = try await SymbolicDemangler.demangleContext(for: .type(.enum(typeContextDescriptor as! EnumDescriptor))).print(using: demangleOptions)
@@ -65,8 +65,8 @@ final class MultiPayloadEnumTests: MachOImageTests {
             defer {
                 if enumDescriptor.isMultiPayload {
                     if let multiPayloadEnumDescriptor = multiPayloadEnumDescriptorByMangledName[typeName], multiPayloadEnumDescriptor.usesPayloadSpareBits,
-                        let spareBytes = try? multiPayloadEnumDescriptor.payloadSpareBits(),
-                        let spareBytesOffset = try? multiPayloadEnumDescriptor.payloadSpareBitMaskByteOffset() {
+                        let spareBytes = try? multiPayloadEnumDescriptor.payloadSpareBits(in: .inProcess),
+                        let spareBytesOffset = try? multiPayloadEnumDescriptor.payloadSpareBitMaskByteOffset(in: .inProcess) {
                         try? printMultiPayloadEnum(multiPayloadEnumDescriptor)
                         let multiPayloadResult = Calculator.calculateMultiPayload( /* enumSize: enumTypeLayout.size.cast(), */ payloadSize: payloadSize.cast(), spareBytes: spareBytes, spareBytesOffset: spareBytesOffset.cast(), numPayloadCases: payloadCases.cast(), numEmptyCases: emptyCases.cast())
                         multiPayloadResult.print()
@@ -85,14 +85,14 @@ final class MultiPayloadEnumTests: MachOImageTests {
                 print("---------------------")
             }
             for record in records {
-                let mangledTypeName = try record.mangledTypeName()
+                let mangledTypeName = try record.mangledTypeName(in: .inProcess)
                 let isIndirectCase = record.flags.contains(.isIndirectCase)
                 var indirectCaseString = ""
                 if isIndirectCase {
                     indirectCaseString = "indirect "
                 }
                 guard !mangledTypeName.isEmpty else {
-                    try print("\(indirectCaseString)case", record.fieldName())
+                    try print("\(indirectCaseString)case", record.fieldName(in: .inProcess))
                     emptyCases += 1
                     continue
                 }
@@ -118,19 +118,19 @@ final class MultiPayloadEnumTests: MachOImageTests {
                 let mangledTypeNameString = try await mangleAsString(node)
                 if let metatype = try RuntimeFunctions.getTypeByMangledNameInContext(mangledTypeName, genericContext: nil, genericArguments: nil) {
                     let currentMetadata = try Metadata.createInProcess(metatype)
-                    try await print("\(indirectCaseString)case \(record.fieldName())\(payloadString("\(node.print(using: .interfaceTypeBuilderOnly))"))")
-                    let metadataWrapper = try currentMetadata.asMetadataWrapper()
-                    let typeLayout = try currentMetadata.asFullMetadata().valueWitnesses.resolve().typeLayout
+                    try await print("\(indirectCaseString)case \(record.fieldName(in: .inProcess))\(payloadString("\(node.print(using: .interfaceTypeBuilderOnly))"))")
+                    let metadataWrapper = try currentMetadata.asMetadataWrapper(in: .inProcess)
+                    let typeLayout = try currentMetadata.asFullMetadata(in: .inProcess).valueWitnesses.resolve(in: .inProcess).typeLayout
                     let indentLevel = 1
                     let indent = "    " * indentLevel
                     if let tupleMetadata = metadataWrapper.tuple {
-                        for (index, element) in try tupleMetadata.elements().enumerated() {
-                            let tupleElementMetadata = try element.type.resolve()
-                            if let descriptor = try tupleElementMetadata.typeContextDescriptorWrapper()?.asContextDescriptorWrapper {
+                        for (index, element) in try tupleMetadata.elements(in: .inProcess).enumerated() {
+                            let tupleElementMetadata = try element.type.resolve(in: .inProcess)
+                            if let descriptor = try tupleElementMetadata.typeContextDescriptorWrapper(in: .inProcess)?.asContextDescriptorWrapper {
                                 print(indent + "Index: " + index.description)
                                 try await print(indent + "Type: " + SymbolicDemangler.demangleContext(for: descriptor).print(using: demangleOptions))
                             }
-                            let tupleElementTypeLayout = try tupleElementMetadata.asFullMetadata().valueWitnesses.resolve().typeLayout
+                            let tupleElementTypeLayout = try tupleElementMetadata.asFullMetadata(in: .inProcess).valueWitnesses.resolve(in: .inProcess).typeLayout
                             print(indent + "- " + tupleElementTypeLayout.description)
                         }
                         print(indent + "Total: ")
@@ -140,11 +140,11 @@ final class MultiPayloadEnumTests: MachOImageTests {
                     payloadSize = isIndirectCase ? max(payloadSize, 8) : max(payloadSize, typeLayout.size)
 
                     let optionalMetadata = try Metadata.createInProcess(makeOptionalMetatype(metatype))
-                    let optionalTypeLayout = try optionalMetadata.asFullMetadata().valueWitnesses.resolve().typeLayout
+                    let optionalTypeLayout = try optionalMetadata.asFullMetadata(in: .inProcess).valueWitnesses.resolve(in: .inProcess).typeLayout
                     optionalSize = optionalTypeLayout.size.cast()
 
                 } else {
-                    try await print("NotFound:", "case", record.fieldName(), mangledTypeNameString, node.print(using: .default))
+                    try await print("NotFound:", "case", record.fieldName(in: .inProcess), mangledTypeNameString, node.print(using: .default))
                 }
             }
             print("")

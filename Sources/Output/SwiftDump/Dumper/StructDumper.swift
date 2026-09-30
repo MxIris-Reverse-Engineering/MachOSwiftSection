@@ -82,17 +82,17 @@ package struct StructDumper<MachO: MachOFieldLayoutRenderable>: TypedDumper {
                 autoResolveAccessorMetadata: false
             )
             let fieldOffsets = fieldLayoutRenderer.fieldOffsets
-            for (offset, fieldRecord) in try dumped.descriptor.fieldDescriptor(in: machO).records(in: machO).offsetEnumerated() {
+            for (offset, fieldRecord) in try dumped.descriptor.fieldDescriptor(in: machO.context).records(in: machO.context).offsetEnumerated() {
                 BreakLine()
 
-                let mangledTypeName = try fieldRecord.mangledTypeName(in: machO)
+                let mangledTypeName = try fieldRecord.mangledTypeName(in: machO.context)
 
                 try await fieldLayoutRenderer.storedFieldComments(forFieldAtIndex: offset.index, mangledTypeName: mangledTypeName, fieldOffsets: fieldOffsets)
 
                 // dump shows what the record says, so a `@_rawLayout(like:)`
                 // struct's artificial `_rawLayout` record (Swift 6.4) still
                 // renders — behind a comment saying it is not a stored property.
-                if FieldRecordRendering.isRawLayoutStorageRecord(name: try fieldRecord.fieldName(in: machO), isArtificial: fieldRecord.flags.contains(.isArtificial)) {
+                if FieldRecordRendering.isRawLayoutStorageRecord(name: try fieldRecord.fieldName(in: machO.context), isArtificial: fieldRecord.flags.contains(.isArtificial)) {
                     Indent(level: configuration.indentation)
                     Comment(FieldRecordRendering.artificialRawLayoutRecordComment)
                     BreakLine()
@@ -102,7 +102,7 @@ package struct StructDumper<MachO: MachOFieldLayoutRenderable>: TypedDumper {
 
                 let demangledTypeNode = try fieldDemangledTypeNode(for: mangledTypeName)
 
-                let fieldName = try fieldRecord.fieldName(in: machO)
+                let fieldName = try fieldRecord.fieldName(in: machO.context)
 
                 fieldDeclarationKeywords(for: fieldRecord, typeNode: demangledTypeNode, fieldName: fieldName)
 
@@ -212,7 +212,7 @@ package struct StructDumper<MachO: MachOFieldLayoutRenderable>: TypedDumper {
         if configuration.displayParentName {
             try await resolver.resolve(for: SymbolicDemangler.demangleContext(for: .type(.struct(dumped.descriptor)), in: machO)).replacingTypeNameOrOtherToTypeDeclaration()
         } else {
-            try TypeDeclaration(kind: .struct, dumped.descriptor.name(in: machO))
+            try TypeDeclaration(kind: .struct, dumped.descriptor.name(in: machO.context))
         }
     }
 }

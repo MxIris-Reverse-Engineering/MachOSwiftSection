@@ -44,7 +44,7 @@ extension ExtensionDefinition {
             if let symbols = resilientWitness.implementationSymbols(in: machO), let symbol = try _symbol(for: symbols, typeName: extensionName.name, visitedNodes: visitedNodes) {
                 _ = visitedNodes.append(StructuralNodeReferenceKey(symbol.demangledNode))
                 addSymbol(.init(symbol), memberSymbolsByKind: &memberSymbolsByKind, inExtension: true)
-            } else if let requirement = try resilientWitness.requirement(in: machO) {
+            } else if let requirement = try resilientWitness.requirement(in: machO.context) {
                 switch requirement {
                 case .symbol(let symbol):
                     if let demangledNode = SymbolicDemangler.demangleSymbolReference(for: symbol, in: machO) {

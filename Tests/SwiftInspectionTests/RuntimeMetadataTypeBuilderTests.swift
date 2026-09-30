@@ -126,7 +126,7 @@ struct RuntimeMetadataTypeBuilderTests {
             break
         }
         guard let declarationName, let instantiation = knownInstantiations[declarationName] else { return nil }
-        guard let wrapper = try? Metadata.createInProcess(instantiation).typeContextDescriptorWrapper() else { return nil }
+        guard let wrapper = try? Metadata.createInProcess(instantiation).typeContextDescriptorWrapper(in: .inProcess) else { return nil }
         return try? wrapper.typeContextDescriptor.asPointer
     }
 

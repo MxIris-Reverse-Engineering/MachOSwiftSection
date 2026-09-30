@@ -30,8 +30,8 @@ final class AssociatedTypeTests: MachOSwiftSectionFixtureTests, FixtureSuite, @u
     private func loadAssociatedTypes() throws -> (file: AssociatedType, image: AssociatedType) {
         let fileDescriptor = try BaselineFixturePicker.associatedTypeDescriptor_ConcreteWitnessTest(in: machOFile)
         let imageDescriptor = try BaselineFixturePicker.associatedTypeDescriptor_ConcreteWitnessTest(in: machOImage)
-        let file = try AssociatedType(descriptor: fileDescriptor, in: machOFile)
-        let image = try AssociatedType(descriptor: imageDescriptor, in: machOImage)
+        let file = try AssociatedType(descriptor: fileDescriptor, in: fileContext)
+        let image = try AssociatedType(descriptor: imageDescriptor, in: imageContext)
         return (file: file, image: image)
     }
 
@@ -41,24 +41,21 @@ final class AssociatedTypeTests: MachOSwiftSectionFixtureTests, FixtureSuite, @u
         let fileDescriptor = try BaselineFixturePicker.associatedTypeDescriptor_ConcreteWitnessTest(in: machOFile)
         let imageDescriptor = try BaselineFixturePicker.associatedTypeDescriptor_ConcreteWitnessTest(in: machOImage)
 
-        let fileMachO = try AssociatedType(descriptor: fileDescriptor, in: machOFile)
-        let imageMachO = try AssociatedType(descriptor: imageDescriptor, in: machOImage)
         let fileCtx = try AssociatedType(descriptor: fileDescriptor, in: fileContext)
         let imageCtx = try AssociatedType(descriptor: imageDescriptor, in: imageContext)
 
-        #expect(fileMachO.descriptor.offset == AssociatedTypeBaseline.concreteWitnessTest.descriptorOffset)
-        #expect(imageMachO.descriptor.offset == AssociatedTypeBaseline.concreteWitnessTest.descriptorOffset)
         #expect(fileCtx.descriptor.offset == AssociatedTypeBaseline.concreteWitnessTest.descriptorOffset)
         #expect(imageCtx.descriptor.offset == AssociatedTypeBaseline.concreteWitnessTest.descriptorOffset)
     }
 
     @Test("init(descriptor:)") func initializerInProcess() async throws {
-        // The InProcess `init(descriptor:)` walks the descriptor via raw
-        // pointer arithmetic; we just assert it succeeds and produces a
-        // non-zero descriptor offset (the absolute pointer is per-process).
+        // `init(descriptor:in:)` over the in-process context walks the
+        // descriptor via raw pointer arithmetic; we just assert it succeeds
+        // and produces a non-zero descriptor offset (the absolute pointer is
+        // per-process).
         let imageDescriptor = try BaselineFixturePicker.associatedTypeDescriptor_ConcreteWitnessTest(in: machOImage)
         let pointerWrapper = imageDescriptor.asPointerWrapper(in: machOImage)
-        let inProcess = try AssociatedType(descriptor: pointerWrapper)
+        let inProcess = try AssociatedType(descriptor: pointerWrapper, in: inProcessContext)
         #expect(inProcess.descriptor.offset != 0)
         #expect(inProcess.records.count == AssociatedTypeBaseline.concreteWitnessTest.recordsCount)
     }

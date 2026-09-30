@@ -137,16 +137,16 @@ struct MergedAccessorFixtureTests {
         var texts: [String: String] = [:]
         for wrapper in try machOFile.swift.typeContextDescriptors {
             let descriptor = wrapper.typeContextDescriptor
-            guard let fieldDescriptor = try? descriptor.fieldDescriptor(in: machOFile) else { continue }
-            let ownerLayout = AccessorThunkOwnerLayout(genericContext: try descriptor.genericContext(in: machOFile))
+            guard let fieldDescriptor = try? descriptor.fieldDescriptor(in: machOFile.context) else { continue }
+            let ownerLayout = AccessorThunkOwnerLayout(genericContext: try descriptor.genericContext(in: machOFile.context))
             let ownerName = try SymbolicDemangler.demangleContext(for: wrapper.asContextDescriptorWrapper, in: machOFile).print(using: .default)
-            for record in try fieldDescriptor.records(in: machOFile) {
-                guard let mangledTypeName = try? record.mangledTypeName(in: machOFile),
+            for record in try fieldDescriptor.records(in: machOFile.context) {
+                guard let mangledTypeName = try? record.mangledTypeName(in: machOFile.context),
                       let typeNode = try? SymbolicDemangler.demangleType(for: mangledTypeName, in: machOFile),
                       typeNode.contains(Node.Kind.accessorFunctionReference)
                 else { continue }
                 let resolvedNode = typeNode.resolvingAccessorFunctionReferences(in: machOFile, ownerLayout: ownerLayout)
-                texts["\(ownerName).\(try record.fieldName(in: machOFile))"] = resolvedNode.print(using: .default)
+                texts["\(ownerName).\(try record.fieldName(in: machOFile.context))"] = resolvedNode.print(using: .default)
             }
         }
         return texts

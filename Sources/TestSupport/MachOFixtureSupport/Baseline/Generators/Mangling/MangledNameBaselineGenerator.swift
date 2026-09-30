@@ -24,7 +24,7 @@ package enum MangledNameBaselineGenerator {
         outputDirectory: URL
     ) throws {
         let descriptor = try BaselineFixturePicker.multiPayloadEnumDescriptor_MultiPayloadEnumTest(in: machO)
-        let mangledName = try descriptor.mangledTypeName(in: machO)
+        let mangledName = try descriptor.mangledTypeName(in: machO.context)
         let entryExpr = emitEntryExpr(for: mangledName)
 
         // Public members declared in MangledName.swift. The three

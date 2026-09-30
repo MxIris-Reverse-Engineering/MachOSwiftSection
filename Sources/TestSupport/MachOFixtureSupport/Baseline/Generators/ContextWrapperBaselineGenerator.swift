@@ -23,7 +23,7 @@ package enum ContextWrapperBaselineGenerator {
     ) throws {
         let descriptor = try BaselineFixturePicker.struct_StructTest(in: machO)
         let descriptorWrapper = ContextDescriptorWrapper.type(.struct(descriptor))
-        let wrapper = try ContextWrapper.forContextDescriptorWrapper(descriptorWrapper, in: machO)
+        let wrapper = try ContextWrapper.forContextDescriptorWrapper(descriptorWrapper, in: machO.context)
         let entryExpr = try emitEntryExpr(for: wrapper, in: machO)
 
         let registered = [
@@ -63,7 +63,7 @@ package enum ContextWrapperBaselineGenerator {
         in machO: some MachOSwiftSectionRepresentableWithCache
     ) throws -> String {
         let descriptorOffset = wrapper.context.descriptor.offset
-        let hasParent = (try wrapper.parent(in: machO)) != nil
+        let hasParent = (try wrapper.parent(in: machO.context)) != nil
 
         let expr: ExprSyntax = """
         Entry(

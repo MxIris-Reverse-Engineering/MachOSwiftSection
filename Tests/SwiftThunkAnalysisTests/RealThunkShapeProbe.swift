@@ -31,7 +31,7 @@ struct RealThunkShapeProbe {
                 let conformingTypeName = await (try SymbolicDemangler
                     .demangleType(for: associatedType.conformingTypeName, in: machO))
                     .print(using: DemangleOptions.default)
-                var description = "######## \(conformingTypeName).\(try record.name(in: machO)) — thunk at file offset \(thunkOffset)"
+                var description = "######## \(conformingTypeName).\(try record.name(in: machO.context)) — thunk at file offset \(thunkOffset)"
 
                 if let virtualAddress = virtualAddress(ofFileOffset: thunkOffset, in: machO) {
                     description += " / VM 0x\(String(virtualAddress, radix: 16))"
@@ -54,7 +54,7 @@ struct RealThunkShapeProbe {
     /// Walks an associated-type record to the accessor thunk its opaque
     /// underlying type points at, if it has one.
     private func accessorThunkOffset(ofRecord record: AssociatedTypeRecord, in machO: MachOFile) throws -> Int? {
-        let substitutedTypeNode = try SymbolicDemangler.demangleType(for: record.substitutedTypeName(in: machO), in: machO)
+        let substitutedTypeNode = try SymbolicDemangler.demangleType(for: record.substitutedTypeName(in: machO.context), in: machO)
         guard let opaqueTypeNode = substitutedTypeNode.first(of: Node.Kind.opaqueType),
               let descriptorReference = opaqueTypeNode.firstChild,
               descriptorReference.isKind(of: .opaqueTypeDescriptorSymbolicReference),
@@ -62,8 +62,8 @@ struct RealThunkShapeProbe {
         else { return nil }
 
         let ordinal: Int = opaqueTypeNode[safeChild: 1]?.index?.cast() ?? 0
-        let descriptor = try OpaqueTypeDescriptor.resolve(from: descriptorOffset, in: machO)
-        let opaqueType = try OpaqueType(descriptor: descriptor, in: machO)
+        let descriptor = try OpaqueTypeDescriptor.resolve(at: descriptorOffset, in: machO.context)
+        let opaqueType = try OpaqueType(descriptor: descriptor, in: machO.context)
         guard ordinal < opaqueType.underlyingTypeArgumentMangledNames.count else { return nil }
         let underlyingTypeNode = try SymbolicDemangler.demangleType(
             for: opaqueType.underlyingTypeArgumentMangledNames[ordinal],

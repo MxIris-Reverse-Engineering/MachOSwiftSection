@@ -19,7 +19,7 @@ package enum MethodOverrideDescriptorBaselineGenerator {
         outputDirectory: URL
     ) throws {
         let descriptor = try BaselineFixturePicker.class_SubclassTest(in: machO)
-        let classWrapper = try Class(descriptor: descriptor, in: machO)
+        let classWrapper = try Class(descriptor: descriptor, in: machO.context)
         let firstOverride = try required(classWrapper.methodOverrideDescriptors.first)
 
         let entryExpr = emitEntryExpr(for: firstOverride)

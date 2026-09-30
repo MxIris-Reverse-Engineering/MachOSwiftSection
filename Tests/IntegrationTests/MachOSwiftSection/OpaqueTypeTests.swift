@@ -21,8 +21,8 @@ extension OpaqueTypeTests {
             print("Demangled:")
             await symbol.demangledNode.print(using: .default).print()
             symbol.demangledNode.description.print()
-            let opaqueTypeDescriptor = try OpaqueTypeDescriptor.resolve(from: symbol.offset, in: machO)
-            let opaqueType = try OpaqueType(descriptor: opaqueTypeDescriptor, in: machO)
+            let opaqueTypeDescriptor = try OpaqueTypeDescriptor.resolve(at: symbol.offset, in: machO.context)
+            let opaqueType = try OpaqueType(descriptor: opaqueTypeDescriptor, in: machO.context)
             print("Current Requirements:")
             for requirement in try opaqueType.requirements(in: machO) {
                 let requirementString = try await requirement.dump(using: .default, in: machO).string
@@ -53,7 +53,7 @@ final class OpaqueTypeDyldCacheTests: DyldCacheTests, OpaqueTypeTests, @unchecke
     @Test func test() async throws {
         let machO = machOFileInCache
         print(machO.startOffset)
-        try print(OpaqueType(descriptor: .resolve(from: 895065692, in: machO), in: machO))
+        try print(OpaqueType(descriptor: .resolve(at: 895065692, in: machO.context), in: machO.context))
         print(machO.symbols(offset: 895065692) as Symbols?)
     }
 }

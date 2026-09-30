@@ -29,12 +29,12 @@ package enum MetadataSourceRecordBaselineGenerator {
         // unparsed recipe for recovering it.
         """
 
-        let entries = try descriptor.metadataSourceRecords(in: machO).map { record -> String in
+        let entries = try descriptor.metadataSourceRecords(in: machO.context).map { record -> String in
             let expr: ExprSyntax = """
             Entry(
                 offset: \(raw: BaselineEmitter.hex(record.offset)),
-                mangledTypeName: \(literal: try record.mangledTypeName(in: machO).rawString),
-                mangledMetadataSource: \(literal: try record.mangledMetadataSource(in: machO).rawString)
+                mangledTypeName: \(literal: try record.mangledTypeName(in: machO.context).rawString),
+                mangledMetadataSource: \(literal: try record.mangledMetadataSource(in: machO.context).rawString)
             )
             """
             return expr.description

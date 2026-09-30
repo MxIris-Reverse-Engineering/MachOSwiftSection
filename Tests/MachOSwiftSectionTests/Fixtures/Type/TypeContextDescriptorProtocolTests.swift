@@ -34,9 +34,9 @@ final class TypeContextDescriptorProtocolTests: MachOSwiftSectionFixtureTests, F
 
     @Test func fieldDescriptor() async throws {
         let (fileSubject, imageSubject) = try loadStructTestDescriptors()
-        let presence = try acrossAllReaders(
-            file: { (try? fileSubject.fieldDescriptor(in: machOFile)) != nil },
-            image: { (try? imageSubject.fieldDescriptor(in: machOImage)) != nil }
+        let presence = try acrossAllContexts(
+            file: { (try? fileSubject.fieldDescriptor(in: fileContext)) != nil },
+            image: { (try? imageSubject.fieldDescriptor(in: imageContext)) != nil }
         )
         #expect(presence == TypeContextDescriptorProtocolBaseline.structTest.hasFieldDescriptor)
 
@@ -47,9 +47,9 @@ final class TypeContextDescriptorProtocolTests: MachOSwiftSectionFixtureTests, F
 
     @Test func genericContext() async throws {
         let (fileSubject, imageSubject) = try loadStructTestDescriptors()
-        let presence = try acrossAllReaders(
-            file: { (try fileSubject.genericContext(in: machOFile)) != nil },
-            image: { (try imageSubject.genericContext(in: machOImage)) != nil }
+        let presence = try acrossAllContexts(
+            file: { (try fileSubject.genericContext(in: fileContext)) != nil },
+            image: { (try imageSubject.genericContext(in: imageContext)) != nil }
         )
         #expect(presence == TypeContextDescriptorProtocolBaseline.structTest.hasGenericContext)
 
@@ -60,9 +60,9 @@ final class TypeContextDescriptorProtocolTests: MachOSwiftSectionFixtureTests, F
 
     @Test func typeGenericContext() async throws {
         let (fileSubject, imageSubject) = try loadStructTestDescriptors()
-        let presence = try acrossAllReaders(
-            file: { (try fileSubject.typeGenericContext(in: machOFile)) != nil },
-            image: { (try imageSubject.typeGenericContext(in: machOImage)) != nil }
+        let presence = try acrossAllContexts(
+            file: { (try fileSubject.typeGenericContext(in: fileContext)) != nil },
+            image: { (try imageSubject.typeGenericContext(in: imageContext)) != nil }
         )
         #expect(presence == TypeContextDescriptorProtocolBaseline.structTest.hasTypeGenericContext)
 
@@ -71,15 +71,14 @@ final class TypeContextDescriptorProtocolTests: MachOSwiftSectionFixtureTests, F
         #expect(imageCtxPresence == TypeContextDescriptorProtocolBaseline.structTest.hasTypeGenericContext)
     }
 
-    /// `metadataAccessorFunction(in:)` is a `MachOImage`-only path: the
-    /// MachO-based overload guards on `as? MachOImage` and returns nil
-    /// otherwise; the ReadingContext-based overload uses
-    /// `context.runtimePointer(at:)` which only resolves when the
-    /// underlying reader is image-backed. We exercise both overloads
-    /// against the image path and assert non-nil.
+    /// `metadataAccessorFunction(in:)` is a `MachOImage`-only path: it uses
+    /// `context.runtimePointer(at:)`, which only resolves when the
+    /// underlying reader is image-backed and answers nil for a file
+    /// context. We exercise it against the image context and assert
+    /// non-nil.
     @Test func metadataAccessorFunction() async throws {
         let (_, imageSubject) = try loadStructTestDescriptors()
-        let imagePresence = (try imageSubject.metadataAccessorFunction(in: machOImage)) != nil
+        let imagePresence = (try imageSubject.metadataAccessorFunction(in: imageContext)) != nil
         #expect(imagePresence)
 
         // ReadingContext-based overload exercised but not asserted on
@@ -124,18 +123,18 @@ final class TypeContextDescriptorProtocolTests: MachOSwiftSectionFixtureTests, F
     /// C-typedef namespace, identically through every reader.
     @Test func typeImportInfo() async throws {
         let (fileSubject, imageSubject) = try loadStructTestDescriptors()
-        let swiftResult = try acrossAllReaders(
-            file: { try fileSubject.typeImportInfo(in: machOFile) },
-            image: { try imageSubject.typeImportInfo(in: machOImage) }
+        let swiftResult = try acrossAllContexts(
+            file: { try fileSubject.typeImportInfo(in: fileContext) },
+            image: { try imageSubject.typeImportInfo(in: imageContext) }
         )
         #expect(swiftResult == nil)
         #expect(TypeContextDescriptorProtocolBaseline.structTest.typeImportInfoABIName == nil)
 
         let foreignFile = try BaselineFixturePicker.struct_ForeignDecimal(in: machOFile)
         let foreignImage = try BaselineFixturePicker.struct_ForeignDecimal(in: machOImage)
-        let foreignResult = try acrossAllReaders(
-            file: { try foreignFile.typeImportInfo(in: machOFile) },
-            image: { try foreignImage.typeImportInfo(in: machOImage) }
+        let foreignResult = try acrossAllContexts(
+            file: { try foreignFile.typeImportInfo(in: fileContext) },
+            image: { try foreignImage.typeImportInfo(in: imageContext) }
         )
         let expected = TypeContextDescriptorProtocolBaseline.foreignDecimal
         #expect(foreignResult?.abiName == expected.typeImportInfoABIName)

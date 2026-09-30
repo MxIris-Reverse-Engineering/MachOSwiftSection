@@ -36,12 +36,12 @@ final class RecursiveNestedFieldOffsetTreeTests: MachOSwiftSectionFixtureTests, 
                 name == qualifiedTypeName
             else { continue }
 
-            let records = try descriptor.typeContextDescriptor.fieldDescriptor(in: machO).records(in: machO)
+            let records = try descriptor.typeContextDescriptor.fieldDescriptor(in: fileContext).records(in: fileContext)
             let record = try #require(
-                records.first { (try? $0.fieldName(in: machO)) == targetFieldName },
+                records.first { (try? $0.fieldName(in: fileContext)) == targetFieldName },
                 "\(qualifiedTypeName) has no stored property named \(targetFieldName)"
             )
-            let mangledTypeName = try record.mangledTypeName(in: machO)
+            let mangledTypeName = try record.mangledTypeName(in: fileContext)
             return calculator.nestedFieldOffsetTree(
                 forMangledTypeName: mangledTypeName,
                 baseOffset: 0,

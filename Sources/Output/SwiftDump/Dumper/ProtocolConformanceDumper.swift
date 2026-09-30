@@ -68,7 +68,7 @@ package struct ProtocolConformanceDumper<MachO: MachOFieldLayoutRenderable>: Con
                 Space()
                 if configuration.printConformancePWTAddress, let proto = dumped.protocol?.resolved {
                     Standard("{")
-                    let protocolModel = try Protocol(descriptor: proto, in: machO)
+                    let protocolModel = try Protocol(descriptor: proto, in: machO.context)
                     if !protocolModel.requirements.isEmpty, let witnessTablePattern = dumped.witnessTablePattern {
                         BreakLine()
                         for (requirementIndex, requirement) in protocolModel.requirements.enumerated() {
@@ -102,7 +102,7 @@ package struct ProtocolConformanceDumper<MachO: MachOFieldLayoutRenderable>: Con
                 for resilientWitness in dumped.resilientWitnesses {
                     BreakLine()
 
-                    if configuration.printMemberAddress, let implementationOffset = resilientWitness.implementationOffset, let implementationAddressString = resilientWitness.implementationAddress(in: machO) {
+                    if configuration.printMemberAddress, let implementationOffset = resilientWitness.implementationOffset, let implementationAddressString = resilientWitness.implementationAddressString(in: machO) {
                         configuration.memberAddressComment(offset: implementationOffset, addressString: implementationAddressString)
                     }
                     
@@ -111,7 +111,7 @@ package struct ProtocolConformanceDumper<MachO: MachOFieldLayoutRenderable>: Con
                     if let symbols = resilientWitness.implementationSymbols(in: machO), let node = Self.demangledSymbol(for: symbols, typeName: typeNameString, visitedNodes: visitedNodes, in: machO)?.demangledNode {
                         _ = visitedNodes.append(StructuralNodeReferenceKey(node))
                         try await demangleResolver.resolve(for: node)
-                    } else if let requirement = try resilientWitness.requirement(in: machO) {
+                    } else if let requirement = try resilientWitness.requirement(in: machO.context) {
 
                         switch requirement {
                         case .symbol(let symbol):

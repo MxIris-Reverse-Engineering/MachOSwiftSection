@@ -492,7 +492,7 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
         var failedCount = 0
 
         for type in currentStorage.types {
-            if let isCImportedContext = try? type.contextDescriptorWrapper.contextDescriptor.isCImportedContextDescriptor(in: machO), !configuration.showCImportedTypes, isCImportedContext {
+            if let isCImportedContext = try? type.contextDescriptorWrapper.contextDescriptor.isCImportedContextDescriptor(in: machO.context), !configuration.showCImportedTypes, isCImportedContext {
                 cImportedCount += 1
                 eventDispatcher.dispatch(.typeProcessingSkippedCImported)
                 continue
@@ -528,7 +528,7 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
             }
 
             var resolvedParentName: String?
-            var parentContext = try ContextWrapper.type(type).parent(in: machO)
+            var parentContext = try ContextWrapper.type(type).parent(in: machO.context)
 
             parentLoop: while let currentContextOrSymbol = parentContext {
                 switch currentContextOrSymbol {
@@ -552,7 +552,7 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
                         extensionTypeCount += 1
                         break parentLoop
                     }
-                    parentContext = try currentContext.parent(in: machO)
+                    parentContext = try currentContext.parent(in: machO.context)
                 }
             }
 
@@ -575,7 +575,7 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
 
                     var genericSignature: NodeReference?
 
-                    if let currentRequirements = extensionContext.genericContext?.uniqueCurrentRequirements(in: machO), !currentRequirements.isEmpty {
+                    if let currentRequirements = extensionContext.genericContext?.uniqueCurrentRequirements(in: machO.context), !currentRequirements.isEmpty {
                         genericSignature = try SymbolicDemangler.buildGenericSignature(for: currentRequirements, in: machO).map { InternedNodeReferenceCache.shared.reference(interning: $0, in: machO) }
                     }
 
@@ -637,7 +637,7 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
                 let protocolDefinition = try ProtocolDefinition(protocol: proto, in: machO)
                 protocolName = try proto.protocolName(in: machO)
                 if let protocolName {
-                    var parentContext = try ContextWrapper.protocol(proto).parent(in: machO)?.resolved
+                    var parentContext = try ContextWrapper.protocol(proto).parent(in: machO.context)?.resolved
                     var isRoot = true
                     while let currentContext = parentContext {
                         if case .type(let typeContext) = currentContext, let parentTypeName = try? typeContext.typeName(in: machO) {
@@ -652,7 +652,7 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
                             isRoot = false
                             break
                         }
-                        parentContext = try currentContext.parent(in: machO)?.resolved
+                        parentContext = try currentContext.parent(in: machO.context)?.resolved
                     }
                     allProtocolDefinitions[protocolName] = protocolDefinition
                     if isRoot {
@@ -662,7 +662,7 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
                         guard let typeKind = try extendedTypeKind(of: typeNode, extendedContext: extendedContextMangledName) else { continue }
                         let typeName = TypeName(node: InternedNodeReferenceCache.shared.reference(interning: typeNode, in: machO), kind: typeKind)
                         var genericSignature: NodeReference?
-                        if let currentRequirements = extensionContext.genericContext?.uniqueCurrentRequirements(in: machO), !currentRequirements.isEmpty {
+                        if let currentRequirements = extensionContext.genericContext?.uniqueCurrentRequirements(in: machO.context), !currentRequirements.isEmpty {
                             genericSignature = try SymbolicDemangler.buildGenericSignature(for: currentRequirements, in: machO).map { InternedNodeReferenceCache.shared.reference(interning: $0, in: machO) }
                         }
                         let extensionDefinition = try ExtensionDefinition(extensionName: typeName.extensionName, genericSignature: genericSignature, protocolConformance: nil, in: machO)
@@ -835,8 +835,8 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
         var projections: [AssociatedTypeWitnessProjection] = []
         for associatedType in associatedTypes {
             for record in associatedType.records {
-                guard let recordName = try? record.name(in: machO),
-                      let mangledTypeName = try? record.substitutedTypeName(in: machO),
+                guard let recordName = try? record.name(in: machO.context),
+                      let mangledTypeName = try? record.substitutedTypeName(in: machO.context),
                       let typeNode = try? SymbolicDemangler.demangleType(for: mangledTypeName, in: machO)
                 else { continue }
                 guard seenNames.insert(recordName).inserted else { continue }

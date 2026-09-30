@@ -58,15 +58,15 @@ struct SimulatorStandaloneSwiftUIThunkTests {
             let descriptor = wrapper.typeContextDescriptor
             guard let name = try? SymbolicDemangler.demangleContext(for: wrapper.asContextDescriptorWrapper, in: machOFile).print(using: .default),
                   name == typeName,
-                  let fieldDescriptor = try? descriptor.fieldDescriptor(in: machOFile)
+                  let fieldDescriptor = try? descriptor.fieldDescriptor(in: machOFile.context)
             else { continue }
-            let ownerLayout = AccessorThunkOwnerLayout(genericContext: try descriptor.genericContext(in: machOFile))
-            for record in try fieldDescriptor.records(in: machOFile) {
-                guard let mangledTypeName = try? record.mangledTypeName(in: machOFile),
+            let ownerLayout = AccessorThunkOwnerLayout(genericContext: try descriptor.genericContext(in: machOFile.context))
+            for record in try fieldDescriptor.records(in: machOFile.context) {
+                guard let mangledTypeName = try? record.mangledTypeName(in: machOFile.context),
                       let typeNode = try? SymbolicDemangler.demangleType(for: mangledTypeName, in: machOFile)
                 else { continue }
                 let resolvedNode = typeNode.resolvingAccessorFunctionReferences(in: machOFile, ownerLayout: ownerLayout)
-                texts[try record.fieldName(in: machOFile)] = resolvedNode.print(using: .default)
+                texts[try record.fieldName(in: machOFile.context)] = resolvedNode.print(using: .default)
             }
         }
         return texts
@@ -134,13 +134,13 @@ struct SimulatorStandaloneSwiftUIThunkTests {
         for associatedType in try machOFile.swift.associatedTypes {
             let conformingTypeName = await (try SymbolicDemangler.demangleType(for: associatedType.conformingTypeName, in: machOFile)).print(using: DemangleOptions.default)
             for record in associatedType.records {
-                guard let mangledName = try? record.substitutedTypeName(in: machOFile),
+                guard let mangledName = try? record.substitutedTypeName(in: machOFile.context),
                       let node = try? SymbolicDemangler.demangleType(for: mangledName, in: machOFile),
                       node.contains(Node.Kind.opaqueType)
                 else { continue }
                 let resolved = node.resolveOpaqueTypeCollectingConditionalCandidates(in: machOFile).node
                 if resolved.contains(Node.Kind.opaqueReturnTypeOf) { byNameLeftovers.append(conformingTypeName) }
-                if conformingTypeName.hasPrefix("SwiftUI.SidebarListBody.(CollectionViewBody in "), try record.name(in: machOFile) == "Body" {
+                if conformingTypeName.hasPrefix("SwiftUI.SidebarListBody.(CollectionViewBody in "), try record.name(in: machOFile.context) == "Body" {
                     collectionViewBodyWitness = await resolved.print(using: DemangleOptions.default)
                 }
             }
@@ -159,7 +159,7 @@ struct SimulatorStandaloneSwiftUIThunkTests {
         for associatedType in try machOFile.swift.associatedTypes {
             var hasConditionalWitness = false
             for record in associatedType.records {
-                guard let mangledName = try? record.substitutedTypeName(in: machOFile),
+                guard let mangledName = try? record.substitutedTypeName(in: machOFile.context),
                       let node = try? SymbolicDemangler.demangleType(for: mangledName, in: machOFile),
                       node.contains(Node.Kind.opaqueType)
                 else { continue }
@@ -201,7 +201,7 @@ struct SimulatorCacheSwiftUIThunkTests {
         var conditionalWitnessCount = 0
         for associatedType in try machO.swift.associatedTypes {
             for record in associatedType.records {
-                guard let mangledName = try? record.substitutedTypeName(in: machO),
+                guard let mangledName = try? record.substitutedTypeName(in: machO.context),
                       let node = try? SymbolicDemangler.demangleType(for: mangledName, in: machO),
                       node.contains(Node.Kind.opaqueType)
                 else { continue }
@@ -247,15 +247,15 @@ struct ArchivedMacOSCacheSwiftUICoreMergedAccessorTests {
             let descriptor = wrapper.typeContextDescriptor
             guard let name = try? SymbolicDemangler.demangleContext(for: wrapper.asContextDescriptorWrapper, in: machOFile).print(using: .default),
                   name == "SwiftUI.PlatformAccessibilitySettingsDefinition" || name == "SwiftUI.NamedImage.Cache",
-                  let fieldDescriptor = try? descriptor.fieldDescriptor(in: machOFile)
+                  let fieldDescriptor = try? descriptor.fieldDescriptor(in: machOFile.context)
             else { continue }
-            let ownerLayout = AccessorThunkOwnerLayout(genericContext: try descriptor.genericContext(in: machOFile))
-            for record in try fieldDescriptor.records(in: machOFile) {
-                guard let mangledTypeName = try? record.mangledTypeName(in: machOFile),
+            let ownerLayout = AccessorThunkOwnerLayout(genericContext: try descriptor.genericContext(in: machOFile.context))
+            for record in try fieldDescriptor.records(in: machOFile.context) {
+                guard let mangledTypeName = try? record.mangledTypeName(in: machOFile.context),
                       let typeNode = try? SymbolicDemangler.demangleType(for: mangledTypeName, in: machOFile),
                       typeNode.contains(Node.Kind.accessorFunctionReference)
                 else { continue }
-                texts["\(name).\(try record.fieldName(in: machOFile))"] = typeNode.resolvingAccessorFunctionReferences(in: machOFile, ownerLayout: ownerLayout).print(using: .default)
+                texts["\(name).\(try record.fieldName(in: machOFile.context))"] = typeNode.resolvingAccessorFunctionReferences(in: machOFile, ownerLayout: ownerLayout).print(using: .default)
             }
         }
         try #require(texts.count == 2, "the premise: this cache's SwiftUICore names both fields through accessor-function references")

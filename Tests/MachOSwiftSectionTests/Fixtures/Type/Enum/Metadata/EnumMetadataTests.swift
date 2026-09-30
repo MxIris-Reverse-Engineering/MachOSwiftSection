@@ -27,9 +27,9 @@ final class EnumMetadataTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unc
     /// response's value-type wrapper.
     private func loadNoPayloadEnumMetadata() throws -> EnumMetadata {
         let descriptor = try BaselineFixturePicker.enum_NoPayloadEnumTest(in: machOImage)
-        let accessor = try required(try descriptor.metadataAccessorFunction(in: machOImage))
+        let accessor = try required(try descriptor.metadataAccessorFunction(in: imageContext))
         let response = try accessor(request: .init())
-        let wrapper = try response.value.resolve(in: machOImage)
+        let wrapper = try response.value.resolve(in: imageContext)
         return try required(wrapper.enum)
     }
 
@@ -46,11 +46,11 @@ final class EnumMetadataTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unc
         let metadata = try loadNoPayloadEnumMetadata()
         // Cross-reader equality on the descriptor pointer and kind. The
         // descriptor reachable via `descriptor(in:)` should be the same
-        // ValueTypeDescriptorWrapper kind across MachOImage/imageContext/
-        // inProcess paths.
-        let imageDescriptor = try metadata.descriptor(in: machOImage)
+        // ValueTypeDescriptorWrapper kind across the imageContext and
+        // inProcessContext paths.
+        let imageDescriptor = try metadata.descriptor(in: imageContext)
         let imageCtxDescriptor = try metadata.descriptor(in: imageContext)
-        let inProcessDescriptor = try metadata.descriptor()
+        let inProcessDescriptor = try metadata.descriptor(in: inProcessContext)
 
         // ValueTypeDescriptorWrapper isn't Equatable, so compare via the
         // concrete `enum` payload's offset.

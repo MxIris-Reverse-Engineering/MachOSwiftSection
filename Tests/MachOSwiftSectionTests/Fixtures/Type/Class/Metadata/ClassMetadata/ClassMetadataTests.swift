@@ -26,9 +26,9 @@ final class ClassMetadataTests: MachOSwiftSectionFixtureTests, FixtureSuite, @un
     /// static lookup on `ClassMetadata`.
     private func loadInteropMetadata() throws -> ClassMetadataObjCInterop {
         let descriptor = try BaselineFixturePicker.class_ClassTest(in: machOImage)
-        let accessor = try required(try descriptor.metadataAccessorFunction(in: machOImage))
+        let accessor = try required(try descriptor.metadataAccessorFunction(in: imageContext))
         let response = try accessor(request: .init())
-        let wrapper = try response.value.resolve(in: machOImage)
+        let wrapper = try response.value.resolve(in: imageContext)
         return try required(wrapper.class)
     }
 

@@ -31,11 +31,11 @@ package enum CaptureTypeRecordBaselineGenerator {
         """
 
         let entries = try descriptors.all.map { descriptor -> String in
-            let record = try descriptor.captureTypeRecords(in: machO)[0]
+            let record = try descriptor.captureTypeRecords(in: machO.context)[0]
             let expr: ExprSyntax = """
             Entry(
                 offset: \(raw: BaselineEmitter.hex(record.offset)),
-                hasMangledTypeName: \(literal: !(try record.mangledTypeName(in: machO).isEmpty))
+                hasMangledTypeName: \(literal: !(try record.mangledTypeName(in: machO.context).isEmpty))
             )
             """
             return expr.description

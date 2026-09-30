@@ -17,7 +17,7 @@ package enum BaselineFixturePicker {
     ) throws -> StructDescriptor {
         try required(
             try machO.swift.typeContextDescriptors.compactMap(\.struct).first(where: { descriptor in
-                try descriptor.name(in: machO) == "StructTest"
+                try descriptor.name(in: machO.context) == "StructTest"
             })
         )
     }
@@ -31,7 +31,7 @@ package enum BaselineFixturePicker {
     ) throws -> StructDescriptor {
         try required(
             try machO.swift.typeContextDescriptors.compactMap(\.struct).first(where: { descriptor in
-                try descriptor.name(in: machO) == "Decimal" && descriptor.isCImportedContextDescriptor(in: machO)
+                try descriptor.name(in: machO.context) == "Decimal" && descriptor.isCImportedContextDescriptor(in: machO.context)
             })
         )
     }
@@ -44,7 +44,7 @@ package enum BaselineFixturePicker {
     ) throws -> StructDescriptor {
         try required(
             try machO.swift.typeContextDescriptors.compactMap(\.struct).first(where: { descriptor in
-                try descriptor.name(in: machO) == "GenericStructNonRequirement"
+                try descriptor.name(in: machO.context) == "GenericStructNonRequirement"
             })
         )
     }
@@ -60,7 +60,7 @@ package enum BaselineFixturePicker {
     ) throws -> StructDescriptor {
         try required(
             try machO.swift.typeContextDescriptors.compactMap(\.struct).first(where: { descriptor in
-                try descriptor.name(in: machO) == "GenericStructLayoutRequirement"
+                try descriptor.name(in: machO.context) == "GenericStructLayoutRequirement"
             })
         )
     }
@@ -76,7 +76,7 @@ package enum BaselineFixturePicker {
     ) throws -> StructDescriptor {
         try required(
             try machO.swift.typeContextDescriptors.compactMap(\.struct).first(where: { descriptor in
-                try descriptor.name(in: machO) == "GenericStructSwiftProtocolRequirement"
+                try descriptor.name(in: machO.context) == "GenericStructSwiftProtocolRequirement"
             })
         )
     }
@@ -92,7 +92,7 @@ package enum BaselineFixturePicker {
     ) throws -> StructDescriptor {
         try required(
             try machO.swift.typeContextDescriptors.compactMap(\.struct).first(where: { descriptor in
-                try descriptor.name(in: machO) == "GenericStructObjCProtocolRequirement"
+                try descriptor.name(in: machO.context) == "GenericStructObjCProtocolRequirement"
             })
         )
     }
@@ -108,7 +108,7 @@ package enum BaselineFixturePicker {
     ) throws -> StructDescriptor {
         try required(
             try machO.swift.typeContextDescriptors.compactMap(\.struct).first(where: { descriptor in
-                try descriptor.name(in: machO) == "SameTypeRequirementTest"
+                try descriptor.name(in: machO.context) == "SameTypeRequirementTest"
             })
         )
     }
@@ -123,7 +123,7 @@ package enum BaselineFixturePicker {
     ) throws -> StructDescriptor {
         try required(
             try machO.swift.typeContextDescriptors.compactMap(\.struct).first(where: { descriptor in
-                try descriptor.name(in: machO) == "ParameterPackRequirementTest"
+                try descriptor.name(in: machO.context) == "ParameterPackRequirementTest"
             })
         )
     }
@@ -141,7 +141,7 @@ package enum BaselineFixturePicker {
     ) throws -> StructDescriptor {
         try required(
             try machO.swift.typeContextDescriptors.compactMap(\.struct).first(where: { descriptor in
-                try descriptor.name(in: machO) == "InvertibleProtocolRequirementTest"
+                try descriptor.name(in: machO.context) == "InvertibleProtocolRequirementTest"
             })
         )
     }
@@ -157,7 +157,7 @@ package enum BaselineFixturePicker {
     ) throws -> StructDescriptor {
         try required(
             try machO.swift.typeContextDescriptors.compactMap(\.struct).first(where: { descriptor in
-                try descriptor.name(in: machO) == "BaseClassRequirementTest"
+                try descriptor.name(in: machO.context) == "BaseClassRequirementTest"
             })
         )
     }
@@ -172,13 +172,13 @@ package enum BaselineFixturePicker {
         in machO: some MachOSwiftSectionRepresentableWithCache
     ) throws -> AnonymousContextDescriptor {
         for typeDescriptor in try machO.swift.contextDescriptors {
-            var current: SymbolOrElement<ContextDescriptorWrapper>? = try typeDescriptor.parent(in: machO)
+            var current: SymbolOrElement<ContextDescriptorWrapper>? = try typeDescriptor.parent(in: machO.context)
             while let cursor = current {
                 if let resolved = cursor.resolved {
                     if let anonymous = resolved.anonymousContextDescriptor {
                         return anonymous
                     }
-                    current = try resolved.parent(in: machO)
+                    current = try resolved.parent(in: machO.context)
                 } else {
                     current = nil
                 }
@@ -196,14 +196,14 @@ package enum BaselineFixturePicker {
         in machO: some MachOSwiftSectionRepresentableWithCache
     ) throws -> ModuleContextDescriptor {
         for typeDescriptor in try machO.swift.contextDescriptors {
-            var current: SymbolOrElement<ContextDescriptorWrapper>? = try typeDescriptor.parent(in: machO)
+            var current: SymbolOrElement<ContextDescriptorWrapper>? = try typeDescriptor.parent(in: machO.context)
             while let cursor = current {
                 if let resolved = cursor.resolved {
                     if let module = resolved.moduleContextDescriptor,
-                       try module.name(in: machO) == "SymbolTestsCore" {
+                       try module.name(in: machO.context) == "SymbolTestsCore" {
                         return module
                     }
-                    current = try resolved.parent(in: machO)
+                    current = try resolved.parent(in: machO.context)
                 } else {
                     current = nil
                 }
@@ -223,13 +223,13 @@ package enum BaselineFixturePicker {
         in machO: some MachOSwiftSectionRepresentableWithCache
     ) throws -> ExtensionContextDescriptor {
         for typeDescriptor in try machO.swift.contextDescriptors {
-            var current: SymbolOrElement<ContextDescriptorWrapper>? = try typeDescriptor.parent(in: machO)
+            var current: SymbolOrElement<ContextDescriptorWrapper>? = try typeDescriptor.parent(in: machO.context)
             while let cursor = current {
                 if let resolved = cursor.resolved {
                     if let ext = resolved.extensionContextDescriptor {
                         return ext
                     }
-                    current = try resolved.parent(in: machO)
+                    current = try resolved.parent(in: machO.context)
                 } else {
                     current = nil
                 }
@@ -247,7 +247,7 @@ package enum BaselineFixturePicker {
     ) throws -> ClassDescriptor {
         try required(
             try machO.swift.typeContextDescriptors.compactMap(\.class).first(where: { descriptor in
-                try descriptor.name(in: machO) == "ClassTest"
+                try descriptor.name(in: machO.context) == "ClassTest"
             })
         )
     }
@@ -262,7 +262,7 @@ package enum BaselineFixturePicker {
     ) throws -> ClassDescriptor {
         try required(
             try machO.swift.typeContextDescriptors.compactMap(\.class).first(where: { descriptor in
-                try descriptor.name(in: machO) == "VTableBaseTest"
+                try descriptor.name(in: machO.context) == "VTableBaseTest"
             })
         )
     }
@@ -275,7 +275,7 @@ package enum BaselineFixturePicker {
     ) throws -> ClassDescriptor {
         try required(
             try machO.swift.typeContextDescriptors.compactMap(\.class).first(where: { descriptor in
-                try descriptor.name(in: machO) == "SubclassTest"
+                try descriptor.name(in: machO.context) == "SubclassTest"
             })
         )
     }
@@ -289,7 +289,7 @@ package enum BaselineFixturePicker {
     ) throws -> EnumDescriptor {
         try required(
             try machO.swift.typeContextDescriptors.compactMap(\.enum).first(where: { descriptor in
-                try descriptor.name(in: machO) == "NoPayloadEnumTest"
+                try descriptor.name(in: machO.context) == "NoPayloadEnumTest"
             })
         )
     }
@@ -303,7 +303,7 @@ package enum BaselineFixturePicker {
     ) throws -> EnumDescriptor {
         try required(
             try machO.swift.typeContextDescriptors.compactMap(\.enum).first(where: { descriptor in
-                try descriptor.name(in: machO) == "SinglePayloadEnumTest"
+                try descriptor.name(in: machO.context) == "SinglePayloadEnumTest"
             })
         )
     }
@@ -318,7 +318,7 @@ package enum BaselineFixturePicker {
     ) throws -> EnumDescriptor {
         try required(
             try machO.swift.typeContextDescriptors.compactMap(\.enum).first(where: { descriptor in
-                try descriptor.name(in: machO) == "MultiPayloadEnumTests"
+                try descriptor.name(in: machO.context) == "MultiPayloadEnumTests"
             })
         )
     }
@@ -340,7 +340,7 @@ package enum BaselineFixturePicker {
         let targetOffset = enumDescriptor.offset
         return try required(
             try machO.swift.multiPayloadEnumDescriptors.first(where: { descriptor in
-                let mangledName = try descriptor.mangledTypeName(in: machO)
+                let mangledName = try descriptor.mangledTypeName(in: machO.context)
                 for lookup in mangledName.lookupElements {
                     guard case .relative(let relative) = lookup.reference else { continue }
                     let resolvedOffset = lookup.offset + Int(relative.relativeOffset)
@@ -363,7 +363,7 @@ package enum BaselineFixturePicker {
     ) throws -> ProtocolDescriptor {
         try required(
             try machO.swift.protocolDescriptors.first(where: { descriptor in
-                try descriptor.name(in: machO) == "ProtocolTest"
+                try descriptor.name(in: machO.context) == "ProtocolTest"
             })
         )
     }
@@ -378,7 +378,7 @@ package enum BaselineFixturePicker {
     ) throws -> ProtocolDescriptor {
         try required(
             try machO.swift.protocolDescriptors.first(where: { descriptor in
-                try descriptor.name(in: machO) == "ProtocolWitnessTableTest"
+                try descriptor.name(in: machO.context) == "ProtocolWitnessTableTest"
             })
         )
     }
@@ -393,7 +393,7 @@ package enum BaselineFixturePicker {
     ) throws -> ProtocolDescriptor {
         try required(
             try machO.swift.protocolDescriptors.first(where: { descriptor in
-                try descriptor.name(in: machO) == "BasicDefaultProtocol"
+                try descriptor.name(in: machO.context) == "BasicDefaultProtocol"
             })
         )
     }
@@ -407,7 +407,7 @@ package enum BaselineFixturePicker {
     ) throws -> ProtocolDescriptor {
         try required(
             try machO.swift.protocolDescriptors.first(where: { descriptor in
-                try descriptor.name(in: machO) == "BaseProtocolTest"
+                try descriptor.name(in: machO.context) == "BaseProtocolTest"
             })
         )
     }
@@ -549,7 +549,7 @@ package enum BaselineFixturePicker {
     ) throws -> String? {
         guard let protocolReference = conformance.protocol else { return nil }
         guard case .element(let descriptor) = protocolReference else { return nil }
-        return try descriptor.name(in: machO)
+        return try descriptor.name(in: machO.context)
     }
 
     /// Helper: extract the conforming-type-descriptor name from a
@@ -562,7 +562,7 @@ package enum BaselineFixturePicker {
         switch conformance.typeReference {
         case .directTypeDescriptor(let wrapper):
             guard let wrapper else { return nil }
-            return try wrapper.namedContextDescriptor?.name(in: machO)
+            return try wrapper.namedContextDescriptor?.name(in: machO.context)
         case .indirectTypeDescriptor:
             return nil
         case .directObjCClassName:
@@ -585,10 +585,10 @@ package enum BaselineFixturePicker {
     ) throws -> ObjCProtocolPrefix {
         let inheritingProtoDescriptor = try required(
             try machO.swift.protocolDescriptors.first(where: { descriptor in
-                try descriptor.name(in: machO) == "ObjCInheritingProtocolTest"
+                try descriptor.name(in: machO.context) == "ObjCInheritingProtocolTest"
             })
         )
-        let protocolType = try `Protocol`(descriptor: inheritingProtoDescriptor, in: machO)
+        let protocolType = try `Protocol`(descriptor: inheritingProtoDescriptor, in: machO.context)
         for requirementInSignature in protocolType.requirementInSignatures {
             if case .protocol(let symbolOrElement) = requirementInSignature.content,
                case .element(let descriptorWithObjCInterop) = symbolOrElement,
@@ -626,7 +626,7 @@ package enum BaselineFixturePicker {
     ) throws -> ClassDescriptor {
         try required(
             try machO.swift.typeContextDescriptors.compactMap(\.class).first(where: { descriptor in
-                try descriptor.name(in: machO) == "ResilientChild"
+                try descriptor.name(in: machO.context) == "ResilientChild"
             })
         )
     }
@@ -645,7 +645,7 @@ package enum BaselineFixturePicker {
     ) throws -> ClassDescriptor {
         try required(
             try machO.swift.typeContextDescriptors.compactMap(\.class).first(where: { descriptor in
-                try descriptor.name(in: machO) == "ObjCBridge"
+                try descriptor.name(in: machO.context) == "ObjCBridge"
             })
         )
     }
@@ -661,7 +661,7 @@ package enum BaselineFixturePicker {
     ) throws -> ClassDescriptor {
         try required(
             try machO.swift.typeContextDescriptors.compactMap(\.class).first(where: { descriptor in
-                try descriptor.name(in: machO) == "ObjCBridgeWithProto"
+                try descriptor.name(in: machO.context) == "ObjCBridgeWithProto"
             })
         )
     }
@@ -682,7 +682,7 @@ package enum BaselineFixturePicker {
     ) throws -> ClassDescriptor {
         try required(
             try machO.swift.typeContextDescriptors.compactMap(\.class).first(where: { descriptor in
-                try descriptor.name(in: machO) == "ResilientObjCStubChild"
+                try descriptor.name(in: machO.context) == "ResilientObjCStubChild"
             })
         )
     }
@@ -710,13 +710,13 @@ package enum BaselineFixturePicker {
     ) throws -> AssociatedTypeDescriptor {
         let conformingDescriptor = try required(
             try machO.swift.typeContextDescriptors.compactMap(\.struct).first(where: { descriptor in
-                try descriptor.name(in: machO) == "ConcreteWitnessTest"
+                try descriptor.name(in: machO.context) == "ConcreteWitnessTest"
             })
         )
         let targetOffset = conformingDescriptor.offset
         return try required(
             try machO.swift.associatedTypeDescriptors.first(where: { descriptor in
-                let mangledName = try descriptor.conformingTypeName(in: machO)
+                let mangledName = try descriptor.conformingTypeName(in: machO.context)
                 for lookup in mangledName.lookupElements {
                     guard case .relative(let relative) = lookup.reference else { continue }
                     let resolvedOffset = lookup.offset + Int(relative.relativeOffset)
@@ -768,7 +768,7 @@ package enum BaselineFixturePicker {
     ) throws -> StructDescriptor {
         try required(
             try machO.swift.typeContextDescriptors.compactMap(\.struct).first(where: { descriptor in
-                try descriptor.name(in: machO) == "InnerMostConstrainedTest"
+                try descriptor.name(in: machO.context) == "InnerMostConstrainedTest"
             })
         )
     }
@@ -788,7 +788,7 @@ package enum BaselineFixturePicker {
     ) throws -> StructDescriptor {
         try required(
             try machO.swift.typeContextDescriptors.compactMap(\.struct).first(where: { descriptor in
-                try descriptor.name(in: machO) == "FixedSizeArray"
+                try descriptor.name(in: machO.context) == "FixedSizeArray"
             })
         )
     }
@@ -870,7 +870,7 @@ extension BaselineFixturePicker {
         forSymbolNamed symbolName: String,
         in machO: some MachOSwiftSectionRepresentableWithCache
     ) throws -> PropertyDescriptor {
-        try PropertyDescriptor.resolve(from: offset(forSymbolNamed: symbolName, in: machO), in: machO)
+        try PropertyDescriptor.resolve(at: offset(forSymbolNamed: symbolName, in: machO), in: machO.context)
     }
 
     /// The module's shared trivial descriptor — header word zero, no body.
@@ -937,7 +937,7 @@ extension BaselineFixturePicker {
         forSymbolNamed symbolName: String,
         in machO: some MachOSwiftSectionRepresentableWithCache
     ) throws -> AsyncFunctionPointer {
-        try AsyncFunctionPointer.resolve(from: offset(forSymbolNamed: symbolName, in: machO), in: machO)
+        try AsyncFunctionPointer.resolve(at: offset(forSymbolNamed: symbolName, in: machO), in: machO.context)
     }
 
     /// A top-level `async` function's record.
@@ -980,7 +980,7 @@ extension BaselineFixturePicker {
     ) throws -> AccessibleFunctionRecord {
         try required(
             try accessibleFunctionRecords(in: machO).first(where: { record in
-                try record.name(in: machO).contains("remoteMethod") && record.resolvedDirectOffset(from: \.genericEnvironment) == nil
+                try record.name(in: machO.context).contains("remoteMethod") && record.resolvedDirectOffset(from: \.genericEnvironment) == nil
             })
         )
     }
@@ -1048,7 +1048,7 @@ extension BaselineFixturePicker {
     ) throws -> ClassDescriptor {
         try required(
             try machO.swift.typeContextDescriptors.compactMap(\.class).first(where: { descriptor in
-                try descriptor.name(in: machO) == "GenericClassNonRequirement"
+                try descriptor.name(in: machO.context) == "GenericClassNonRequirement"
             })
         )
     }
@@ -1060,9 +1060,9 @@ extension BaselineFixturePicker {
         in machO: some MachOSwiftSectionRepresentableWithCache
     ) throws -> GenericValueMetadataPattern {
         let descriptor = try struct_GenericStructNonRequirement(in: machO)
-        let genericContext = try required(try descriptor.typeGenericContext(in: machO))
+        let genericContext = try required(try descriptor.typeGenericContext(in: machO.context))
         let patternOffset = try required(genericContext.header.resolvedDirectOffset(from: \.defaultInstantiationPattern))
-        return try GenericValueMetadataPattern.resolve(from: patternOffset, in: machO)
+        return try GenericValueMetadataPattern.resolve(at: patternOffset, in: machO.context)
     }
 
     /// The class metadata pattern of `GenericClassNonRequirement<A>`, reached
@@ -1071,9 +1071,9 @@ extension BaselineFixturePicker {
         in machO: some MachOSwiftSectionRepresentableWithCache
     ) throws -> GenericClassMetadataPattern {
         let descriptor = try class_GenericClassNonRequirement(in: machO)
-        let genericContext = try required(try descriptor.typeGenericContext(in: machO))
+        let genericContext = try required(try descriptor.typeGenericContext(in: machO.context))
         let patternOffset = try required(genericContext.header.resolvedDirectOffset(from: \.defaultInstantiationPattern))
-        return try GenericClassMetadataPattern.resolve(from: patternOffset, in: machO)
+        return try GenericClassMetadataPattern.resolve(at: patternOffset, in: machO.context)
     }
 
     /// The resilient class pattern of `ResilientClassFixtures.ResilientChild`
@@ -1084,9 +1084,9 @@ extension BaselineFixturePicker {
         in machO: some MachOSwiftSectionRepresentableWithCache
     ) throws -> ResilientClassMetadataPattern {
         let descriptor = try class_ResilientChild(in: machO)
-        let resilientChild = try Class(descriptor: descriptor, in: machO)
+        let resilientChild = try Class(descriptor: descriptor, in: machO.context)
         let initialization = try required(resilientChild.singletonMetadataInitialization)
         let patternOffset = try required(initialization.resolvedDirectOffset(from: \.incompleteMetadata))
-        return try ResilientClassMetadataPattern.resolve(from: patternOffset, in: machO)
+        return try ResilientClassMetadataPattern.resolve(at: patternOffset, in: machO.context)
     }
 }

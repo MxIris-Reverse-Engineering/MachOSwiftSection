@@ -27,10 +27,10 @@ final class TypeMetadataHeaderTests: MachOSwiftSectionFixtureTests, FixtureSuite
     /// header projection.
     private func loadStructTestTypeHeader() throws -> TypeMetadataHeader {
         let descriptor = try BaselineFixturePicker.struct_StructTest(in: machOImage)
-        let accessor = try required(try descriptor.metadataAccessorFunction(in: machOImage))
+        let accessor = try required(try descriptor.metadataAccessorFunction(in: imageContext))
         let response = try accessor(request: .init())
-        let structMetadata = try required(try response.value.resolve(in: machOImage).struct)
-        let fullMetadata = try structMetadata.asFullMetadata(in: machOImage)
+        let structMetadata = try required(try response.value.resolve(in: imageContext).struct)
+        let fullMetadata = try structMetadata.asFullMetadata(in: imageContext)
         // Header lives at structMetadata.offset - layoutSize.
         return try machOImage.readWrapperElement(offset: fullMetadata.offset)
     }

@@ -110,9 +110,9 @@ final class FieldLayoutRendererReaderSpecializationTests: MachOSwiftSectionFixtu
             let renderer = FieldLayoutRenderer(type: type, metadata: nil, machO: machOFile, configuration: configuration, autoResolveAccessorMetadata: false)
             let offsets = renderer.fieldOffsets ?? []
             guard !offsets.isEmpty else { continue }
-            let records = try structType.descriptor.fieldDescriptor(in: machOFile).records(in: machOFile)
+            let records = try structType.descriptor.fieldDescriptor(in: fileContext).records(in: fileContext)
             guard let firstRecord = records.first else { continue }
-            let mangledTypeName = try firstRecord.mangledTypeName(in: machOFile)
+            let mangledTypeName = try firstRecord.mangledTypeName(in: fileContext)
 
             let comments = try await renderer.storedFieldComments(forFieldAtIndex: 0, mangledTypeName: mangledTypeName, fieldOffsets: offsets).string
             #expect(comments.contains("Field offset"), "expected a Field offset comment, got: \(comments)")

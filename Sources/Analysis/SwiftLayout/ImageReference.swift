@@ -112,14 +112,14 @@ public final class ImageReference<MachO: MachOSwiftSectionRepresentableWithCache
         var witnessIndex: [String: AssociatedTypeRecord] = [:]
         for descriptor in try Self.associatedTypeDescriptorsOrEmpty(in: machO) {
             guard
-                let conformingNode = try? SymbolicDemangler.demangleType(for: descriptor.conformingTypeName(in: machO), in: machO),
+                let conformingNode = try? SymbolicDemangler.demangleType(for: descriptor.conformingTypeName(in: machO.context), in: machO),
                 let conformingName = NodeTypeNaming.nominalQualifiedName(of: conformingNode),
-                let protocolNode = try? SymbolicDemangler.demangleType(for: descriptor.protocolTypeName(in: machO), in: machO),
+                let protocolNode = try? SymbolicDemangler.demangleType(for: descriptor.protocolTypeName(in: machO.context), in: machO),
                 let protocolName = NodeTypeNaming.protocolQualifiedName(of: protocolNode),
-                let records = try? descriptor.associatedTypeRecords(in: machO)
+                let records = try? descriptor.associatedTypeRecords(in: machO.context)
             else { continue }
             for record in records {
-                guard let associatedTypeName = try? record.name(in: machO) else { continue }
+                guard let associatedTypeName = try? record.name(in: machO.context) else { continue }
                 witnessIndex[Self.associatedTypeWitnessKey(conformingName: conformingName, protocolName: protocolName, associatedTypeName: associatedTypeName)] = record
             }
         }

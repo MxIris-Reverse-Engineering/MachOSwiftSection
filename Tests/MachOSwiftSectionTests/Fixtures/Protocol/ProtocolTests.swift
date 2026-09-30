@@ -22,16 +22,16 @@ final class ProtocolTests: MachOSwiftSectionFixtureTests, FixtureSuite, @uncheck
     private func loadProtocolTestProtocols() throws -> (file: MachOSwiftSection.`Protocol`, image: MachOSwiftSection.`Protocol`) {
         let fileDescriptor = try BaselineFixturePicker.protocol_ProtocolTest(in: machOFile)
         let imageDescriptor = try BaselineFixturePicker.protocol_ProtocolTest(in: machOImage)
-        let file = try MachOSwiftSection.`Protocol`(descriptor: fileDescriptor, in: machOFile)
-        let image = try MachOSwiftSection.`Protocol`(descriptor: imageDescriptor, in: machOImage)
+        let file = try MachOSwiftSection.`Protocol`(descriptor: fileDescriptor, in: fileContext)
+        let image = try MachOSwiftSection.`Protocol`(descriptor: imageDescriptor, in: imageContext)
         return (file: file, image: image)
     }
 
     private func loadWitnessTableTestProtocols() throws -> (file: MachOSwiftSection.`Protocol`, image: MachOSwiftSection.`Protocol`) {
         let fileDescriptor = try BaselineFixturePicker.protocol_ProtocolWitnessTableTest(in: machOFile)
         let imageDescriptor = try BaselineFixturePicker.protocol_ProtocolWitnessTableTest(in: machOImage)
-        let file = try MachOSwiftSection.`Protocol`(descriptor: fileDescriptor, in: machOFile)
-        let image = try MachOSwiftSection.`Protocol`(descriptor: imageDescriptor, in: machOImage)
+        let file = try MachOSwiftSection.`Protocol`(descriptor: fileDescriptor, in: fileContext)
+        let image = try MachOSwiftSection.`Protocol`(descriptor: imageDescriptor, in: imageContext)
         return (file: file, image: image)
     }
 
@@ -115,21 +115,21 @@ final class ProtocolTests: MachOSwiftSectionFixtureTests, FixtureSuite, @uncheck
 
     @Test("init(descriptor:in:)") func initializerWithDescriptorAndMachO() async throws {
         let descriptor = try BaselineFixturePicker.protocol_ProtocolTest(in: machOFile)
-        let protocolType = try MachOSwiftSection.`Protocol`(descriptor: descriptor, in: machOFile)
+        let protocolType = try MachOSwiftSection.`Protocol`(descriptor: descriptor, in: fileContext)
         #expect(protocolType.name == ProtocolBaseline.protocolTest.name)
         #expect(protocolType.descriptor.offset == ProtocolBaseline.protocolTest.descriptorOffset)
     }
 
     @Test("init(descriptor:)") func initializerWithDescriptor() async throws {
-        // The descriptor-only init reads via `descriptor.asPointer` (in-process
-        // pointer dereference, treating `offset` as the carrier pointer). It
+        // The init over the in-process context reads through in-process
+        // pointer dereference, treating `offset` as the carrier pointer. It
         // requires the descriptor's `offset` to be a valid raw pointer
         // bit-pattern — true only if the descriptor was loaded via
         // `asPointerWrapper(in: machOImage)`, NOT via the section walk
         // (which carries offsets relative to the image base).
         let imageDescriptor = try BaselineFixturePicker.protocol_ProtocolTest(in: machOImage)
         let pointerDescriptor = imageDescriptor.asPointerWrapper(in: machOImage)
-        let protocolType = try MachOSwiftSection.`Protocol`(descriptor: pointerDescriptor)
+        let protocolType = try MachOSwiftSection.`Protocol`(descriptor: pointerDescriptor, in: inProcessContext)
         #expect(protocolType.name == ProtocolBaseline.protocolTest.name)
         // The descriptor offset on a pointer-form wrapper is the raw pointer
         // bit-pattern, not the image-relative offset; validate the name

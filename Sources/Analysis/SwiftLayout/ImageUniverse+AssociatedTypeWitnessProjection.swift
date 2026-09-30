@@ -57,7 +57,7 @@ extension ImageUniverse {
 
         // Demangled in the image that declares the conformance: its symbolic
         // references are relative to that image.
-        guard let witnessTypeName = try? witness.record.substitutedTypeName(in: witness.image.machO),
+        guard let witnessTypeName = try? witness.record.substitutedTypeName(in: witness.image.machO.context),
               let witnessNode = try? SymbolicDemangler.demangleType(for: witnessTypeName, in: witness.image.machO)
         else { return nil }
 

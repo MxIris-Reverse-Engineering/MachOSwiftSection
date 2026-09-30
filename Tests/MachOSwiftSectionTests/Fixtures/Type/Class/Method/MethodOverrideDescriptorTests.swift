@@ -23,8 +23,8 @@ final class MethodOverrideDescriptorTests: MachOSwiftSectionFixtureTests, Fixtur
     private func loadFirstOverrides() throws -> (file: MethodOverrideDescriptor, image: MethodOverrideDescriptor) {
         let fileDescriptor = try BaselineFixturePicker.class_SubclassTest(in: machOFile)
         let imageDescriptor = try BaselineFixturePicker.class_SubclassTest(in: machOImage)
-        let fileClass = try Class(descriptor: fileDescriptor, in: machOFile)
-        let imageClass = try Class(descriptor: imageDescriptor, in: machOImage)
+        let fileClass = try Class(descriptor: fileDescriptor, in: fileContext)
+        let imageClass = try Class(descriptor: imageDescriptor, in: imageContext)
         let fileOverride = try required(fileClass.methodOverrideDescriptors.first)
         let imageOverride = try required(imageClass.methodOverrideDescriptors.first)
         return (file: fileOverride, image: imageOverride)
@@ -55,9 +55,9 @@ final class MethodOverrideDescriptorTests: MachOSwiftSectionFixtureTests, Fixtur
     /// ancestor depending on layout). Verify cross-reader presence.
     @Test func classDescriptor() async throws {
         let overrides = try loadFirstOverrides()
-        let presence = try acrossAllReaders(
-            file: { (try overrides.file.classDescriptor(in: machOFile)) != nil },
-            image: { (try overrides.image.classDescriptor(in: machOImage)) != nil }
+        let presence = try acrossAllContexts(
+            file: { (try overrides.file.classDescriptor(in: fileContext)) != nil },
+            image: { (try overrides.image.classDescriptor(in: imageContext)) != nil }
         )
         #expect(presence == true)
 
@@ -67,12 +67,12 @@ final class MethodOverrideDescriptorTests: MachOSwiftSectionFixtureTests, Fixtur
     }
 
     /// `methodDescriptor(in:)` returns the underlying method being overridden.
-    /// Exercise both the MachO and pointer-based overloads.
+    /// Exercise the ReadingContext overload across both readers.
     @Test func methodDescriptor() async throws {
         let overrides = try loadFirstOverrides()
-        let presence = try acrossAllReaders(
-            file: { (try overrides.file.methodDescriptor(in: machOFile)) != nil },
-            image: { (try overrides.image.methodDescriptor(in: machOImage)) != nil }
+        let presence = try acrossAllContexts(
+            file: { (try overrides.file.methodDescriptor(in: fileContext)) != nil },
+            image: { (try overrides.image.methodDescriptor(in: imageContext)) != nil }
         )
         #expect(presence == true)
     }

@@ -46,7 +46,7 @@ extension DumpableTests {
     package func dumpProtocols(for machO: some MachOFieldLayoutRenderable) async throws {
         let protocolDescriptors = try machO.swift.protocolDescriptors
         for protocolDescriptor in protocolDescriptors {
-            try await Protocol(descriptor: protocolDescriptor, in: machO).dump(using: .test, in: machO).string.print()
+            try await Protocol(descriptor: protocolDescriptor, in: machO.context).dump(using: .test, in: machO).string.print()
         }
     }
     
@@ -54,7 +54,7 @@ extension DumpableTests {
         let protocolConformanceDescriptors = try machO.swift.protocolConformanceDescriptors
 
         for protocolConformanceDescriptor in protocolConformanceDescriptors {
-            try await ProtocolConformance(descriptor: protocolConformanceDescriptor, in: machO).dump(using: .test, in: machO).string.print()
+            try await ProtocolConformance(descriptor: protocolConformanceDescriptor, in: machO.context).dump(using: .test, in: machO).string.print()
         }
     }
 
@@ -66,7 +66,7 @@ extension DumpableTests {
                 guard options.contains(.enum) else { continue }
                 do {
                     if isDetail {
-                        let enumType = try Enum(descriptor: enumDescriptor, in: machO)
+                        let enumType = try Enum(descriptor: enumDescriptor, in: machO.context)
                         try await enumType.dump(using: configuration ?? .test, in: machO).string.print()
                     } else {
                         print(enumDescriptor)
@@ -78,7 +78,7 @@ extension DumpableTests {
                 guard options.contains(.struct) else { continue }
                 do {
                     if isDetail {
-                        let structType = try Struct(descriptor: structDescriptor, in: machO)
+                        let structType = try Struct(descriptor: structDescriptor, in: machO.context)
                         try await structType.dump(using: configuration ?? .test, in: machO).string.print()
                     } else {
                         print(structDescriptor)
@@ -90,7 +90,7 @@ extension DumpableTests {
                 guard options.contains(.class) else { continue }
                 do {
                     if isDetail {
-                        let classType = try Class(descriptor: classDescriptor, in: machO)
+                        let classType = try Class(descriptor: classDescriptor, in: machO.context)
                         try await classType.dump(using: configuration ?? .test, in: machO).string.print()
                     } else {
                         print(classDescriptor)
@@ -108,7 +108,7 @@ extension DumpableTests {
         let symbols = symbolIndexStore.symbols(of: .opaqueTypeDescriptor, in: machO)
         for symbol in symbols where symbol.offset != 0 {
             let opaqueTypeDescriptor = try machO.readWrapperElement(offset: symbol.offset) as OpaqueTypeDescriptor
-            let opaqueType = try OpaqueType(descriptor: opaqueTypeDescriptor, in: machO)
+            let opaqueType = try OpaqueType(descriptor: opaqueTypeDescriptor, in: machO.context)
             for underlyingTypeArgumentMangledName in opaqueType.underlyingTypeArgumentMangledNames {
                 try await SymbolicDemangler.demangleType(for: underlyingTypeArgumentMangledName, in: machO).print(using: .interface).print()
             }
@@ -119,14 +119,14 @@ extension DumpableTests {
     package func dumpAssociatedTypes(for machO: some MachOFieldLayoutRenderable) async throws {
         let associatedTypeDescriptors = try machO.swift.associatedTypeDescriptors
         for associatedTypeDescriptor in associatedTypeDescriptors {
-            try await AssociatedType(descriptor: associatedTypeDescriptor, in: machO).dump(using: .test, in: machO).string.print()
+            try await AssociatedType(descriptor: associatedTypeDescriptor, in: machO.context).dump(using: .test, in: machO).string.print()
         }
     }
 
     package func dumpBuiltinTypes(for machO: some MachOFieldLayoutRenderable) async throws {
         let descriptors = try machO.swift.builtinTypeDescriptors
         for descriptor in descriptors {
-            try print(BuiltinType(descriptor: descriptor, in: machO))
+            try print(BuiltinType(descriptor: descriptor, in: machO.context))
         }
     }
 }

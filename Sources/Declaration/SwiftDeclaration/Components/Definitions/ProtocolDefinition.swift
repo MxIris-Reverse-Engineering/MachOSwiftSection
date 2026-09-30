@@ -115,6 +115,6 @@ public final class ProtocolDefinition: Definition, MutableDefinition {
     /// the result through as a local variable — the result is deliberately
     /// not cached.
     public func materializedProtocol(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> MachOSwiftSection.`Protocol` {
-        try MachOSwiftSection.`Protocol`(descriptor: protocolDescriptor, in: machO)
+        try MachOSwiftSection.`Protocol`(descriptor: protocolDescriptor, in: machO.context)
     }
 }

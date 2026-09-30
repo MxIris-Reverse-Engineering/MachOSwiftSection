@@ -19,7 +19,7 @@ package enum AnonymousContextBaselineGenerator {
         outputDirectory: URL
     ) throws {
         let descriptor = try BaselineFixturePicker.anonymous_first(in: machO)
-        let context = try AnonymousContext(descriptor: descriptor, in: machO)
+        let context = try AnonymousContext(descriptor: descriptor, in: machO.context)
 
         let entryExpr = emitEntryExpr(for: context)
 

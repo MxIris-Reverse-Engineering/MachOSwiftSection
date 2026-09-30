@@ -29,7 +29,7 @@ package enum GlobalActorReferenceBaselineGenerator {
     ) throws {
         let conformance = try BaselineFixturePicker.protocolConformance_globalActorFirst(in: machO)
         let reference = try required(conformance.globalActorReference)
-        let typeName = try reference.typeName(in: machO)
+        let typeName = try reference.typeName(in: machO.context)
         let entryExpr = emitEntryExpr(offset: reference.offset, typeNameString: typeName.symbolString)
 
         // Public members declared directly in GlobalActorReference.swift.

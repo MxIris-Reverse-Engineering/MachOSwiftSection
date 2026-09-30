@@ -19,8 +19,8 @@ package enum NamedContextDescriptorProtocolBaselineGenerator {
         outputDirectory: URL
     ) throws {
         let descriptor = try BaselineFixturePicker.struct_StructTest(in: machO)
-        let name = try descriptor.name(in: machO)
-        let hasMangledName = (try? descriptor.mangledName(in: machO)) != nil
+        let name = try descriptor.name(in: machO.context)
+        let hasMangledName = (try? descriptor.mangledName(in: machO.context)) != nil
 
         let entryExpr = emitEntryExpr(name: name, hasMangledName: hasMangledName)
 

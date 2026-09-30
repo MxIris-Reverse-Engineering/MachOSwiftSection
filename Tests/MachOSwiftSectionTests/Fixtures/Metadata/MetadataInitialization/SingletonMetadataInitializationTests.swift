@@ -26,8 +26,8 @@ final class SingletonMetadataInitializationTests: MachOSwiftSectionFixtureTests,
     private func loadInits() throws -> (file: SingletonMetadataInitialization, image: SingletonMetadataInitialization) {
         let fileDescriptor = try BaselineFixturePicker.class_singletonMetadataInitFirst(in: machOFile)
         let imageDescriptor = try BaselineFixturePicker.class_singletonMetadataInitFirst(in: machOImage)
-        let fileClass = try Class(descriptor: fileDescriptor, in: machOFile)
-        let imageClass = try Class(descriptor: imageDescriptor, in: machOImage)
+        let fileClass = try Class(descriptor: fileDescriptor, in: fileContext)
+        let imageClass = try Class(descriptor: imageDescriptor, in: imageContext)
         return (
             file: try required(fileClass.singletonMetadataInitialization),
             image: try required(imageClass.singletonMetadataInitialization)

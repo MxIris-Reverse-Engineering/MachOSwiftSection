@@ -137,9 +137,9 @@ final class TopLevelGenericInstantiationLayoutTests: MachOSwiftSectionFixtureTes
                     .flatMap(NodeTypeNaming.nominalQualifiedName(of:)),
                 name == qualifiedTypeName
             else { continue }
-            let records = try descriptor.typeContextDescriptor.fieldDescriptor(in: machO).records(in: machO)
-            for record in records where (try? record.fieldName(in: machO)) == fieldName {
-                return try record.mangledTypeName(in: machO)
+            let records = try descriptor.typeContextDescriptor.fieldDescriptor(in: machO.context).records(in: machO.context)
+            for record in records where (try? record.fieldName(in: machO.context)) == fieldName {
+                return try record.mangledTypeName(in: machO.context)
             }
         }
         return nil

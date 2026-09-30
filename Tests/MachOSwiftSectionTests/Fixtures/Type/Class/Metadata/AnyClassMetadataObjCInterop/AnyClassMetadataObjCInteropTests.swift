@@ -24,13 +24,13 @@ final class AnyClassMetadataObjCInteropTests: MachOSwiftSectionFixtureTests, Fix
     /// its superclass to get an `AnyClassMetadataObjCInterop` slim view.
     private func loadAnyInteropSuperclass() throws -> AnyClassMetadataObjCInterop {
         let descriptor = try BaselineFixturePicker.class_ClassTest(in: machOImage)
-        let accessor = try required(try descriptor.metadataAccessorFunction(in: machOImage))
+        let accessor = try required(try descriptor.metadataAccessorFunction(in: imageContext))
         let response = try accessor(request: .init())
-        let wrapper = try response.value.resolve(in: machOImage)
+        let wrapper = try response.value.resolve(in: imageContext)
         let interop = try required(wrapper.class)
         // ClassTest's superclass is the implicit Swift root `SwiftObject`,
         // which surfaces as a non-nil ObjC-interop class metadata pointer.
-        return try required(try interop.superclass(in: machOImage))
+        return try required(try interop.superclass(in: imageContext))
     }
 
     @Test func offset() async throws {

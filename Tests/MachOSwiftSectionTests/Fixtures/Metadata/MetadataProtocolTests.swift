@@ -16,7 +16,7 @@ import MachOFixtureSupport
 ///
 /// **Reader asymmetry:** the metadata carrier originates from MachOImage's
 /// accessor; `MachOFile` cannot invoke metadata accessors. Members are
-/// exercised via the carrier's MachOImage / imageContext / in-process paths.
+/// exercised via the carrier's imageContext / in-process paths.
 @Suite
 final class MetadataProtocolTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
     static let testedTypeName = "MetadataProtocol"
@@ -28,9 +28,9 @@ final class MetadataProtocolTests: MachOSwiftSectionFixtureTests, FixtureSuite, 
     /// `Structs.StructTest` from a MachOImage metadata accessor.
     private func loadStructTestStructMetadata() throws -> StructMetadata {
         let descriptor = try BaselineFixturePicker.struct_StructTest(in: machOImage)
-        let accessor = try required(try descriptor.metadataAccessorFunction(in: machOImage))
+        let accessor = try required(try descriptor.metadataAccessorFunction(in: imageContext))
         let response = try accessor(request: .init())
-        return try required(try response.value.resolve(in: machOImage).struct)
+        return try required(try response.value.resolve(in: imageContext).struct)
     }
 
     /// `createInMachO(_:)` recovers the (MachOImage, metadata) pair from a
@@ -56,7 +56,7 @@ final class MetadataProtocolTests: MachOSwiftSectionFixtureTests, FixtureSuite, 
     /// `MetadataWrapper` enum and projects the matching arm.
     @Test func asMetadataWrapper() async throws {
         let carrier = try loadStructTestStructMetadata()
-        let imageWrapper = try carrier.asMetadataWrapper(in: machOImage)
+        let imageWrapper = try carrier.asMetadataWrapper(in: imageContext)
         let imageCtxWrapper = try carrier.asMetadataWrapper(in: imageContext)
         #expect(imageWrapper.isStruct)
         #expect(imageCtxWrapper.isStruct)
@@ -66,7 +66,7 @@ final class MetadataProtocolTests: MachOSwiftSectionFixtureTests, FixtureSuite, 
     /// carrier's offset. The recovered `kind` must match.
     @Test func asMetadata() async throws {
         let carrier = try loadStructTestStructMetadata()
-        let imageMetadata = try carrier.asMetadata(in: machOImage)
+        let imageMetadata = try carrier.asMetadata(in: imageContext)
         let imageCtxMetadata = try carrier.asMetadata(in: imageContext)
         #expect(imageMetadata.kind == .struct)
         #expect(imageCtxMetadata.kind == .struct)
@@ -95,7 +95,7 @@ final class MetadataProtocolTests: MachOSwiftSectionFixtureTests, FixtureSuite, 
     /// readers.
     @Test func asFullMetadata() async throws {
         let carrier = try loadStructTestStructMetadata()
-        let imageFull = try carrier.asFullMetadata(in: machOImage)
+        let imageFull = try carrier.asFullMetadata(in: imageContext)
         let imageCtxFull = try carrier.asFullMetadata(in: imageContext)
         // Both readers must agree on the metadata sub-layout.
         #expect(imageFull.layout.metadata.kind == imageCtxFull.layout.metadata.kind)
@@ -105,7 +105,7 @@ final class MetadataProtocolTests: MachOSwiftSectionFixtureTests, FixtureSuite, 
     /// full-metadata header.
     @Test func valueWitnesses() async throws {
         let carrier = try loadStructTestStructMetadata()
-        let imageVW = try carrier.valueWitnesses(in: machOImage)
+        let imageVW = try carrier.valueWitnesses(in: imageContext)
         let imageCtxVW = try carrier.valueWitnesses(in: imageContext)
         // Type layouts must agree across readers (size/stride/flags).
         #expect(imageVW.typeLayout.size == imageCtxVW.typeLayout.size)
@@ -121,7 +121,7 @@ final class MetadataProtocolTests: MachOSwiftSectionFixtureTests, FixtureSuite, 
     /// table; cross-reader equality on `size`.
     @Test func typeLayout() async throws {
         let carrier = try loadStructTestStructMetadata()
-        let imageTL = try carrier.typeLayout(in: machOImage)
+        let imageTL = try carrier.typeLayout(in: imageContext)
         let imageCtxTL = try carrier.typeLayout(in: imageContext)
         #expect(imageTL.size == imageCtxTL.size)
     }
@@ -130,7 +130,7 @@ final class MetadataProtocolTests: MachOSwiftSectionFixtureTests, FixtureSuite, 
     /// for the carrier; for our `StructTest` this is the `.struct` arm.
     @Test func typeContextDescriptorWrapper() async throws {
         let carrier = try loadStructTestStructMetadata()
-        let imageWrapper = try required(try carrier.typeContextDescriptorWrapper(in: machOImage))
+        let imageWrapper = try required(try carrier.typeContextDescriptorWrapper(in: imageContext))
         let imageCtxWrapper = try required(try carrier.typeContextDescriptorWrapper(in: imageContext))
         // ValueTypeDescriptorWrapper isn't trivially Equatable; compare
         // via the `.struct` payload's offset.

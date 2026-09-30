@@ -28,8 +28,8 @@ final class ContextWrapperTests: MachOSwiftSectionFixtureTests, FixtureSuite, @u
     private func loadStructTestWrappers() throws -> (file: ContextWrapper, image: ContextWrapper) {
         let fileDescriptor = try BaselineFixturePicker.struct_StructTest(in: machOFile)
         let imageDescriptor = try BaselineFixturePicker.struct_StructTest(in: machOImage)
-        let fileWrapper = try ContextWrapper.forContextDescriptorWrapper(.type(.struct(fileDescriptor)), in: machOFile)
-        let imageWrapper = try ContextWrapper.forContextDescriptorWrapper(.type(.struct(imageDescriptor)), in: machOImage)
+        let fileWrapper = try ContextWrapper.forContextDescriptorWrapper(.type(.struct(fileDescriptor)), in: fileContext)
+        let imageWrapper = try ContextWrapper.forContextDescriptorWrapper(.type(.struct(imageDescriptor)), in: imageContext)
         return (file: fileWrapper, image: imageWrapper)
     }
 
@@ -49,27 +49,22 @@ final class ContextWrapperTests: MachOSwiftSectionFixtureTests, FixtureSuite, @u
         let imageDescriptor = try BaselineFixturePicker.struct_StructTest(in: machOImage)
 
         // All three overloads (MachO, ReadingContext, InProcess) collapse to
-        // a single MethodKey. Exercise each path and assert the resulting
-        // wrapper's descriptor offset matches the baseline.
-        let fileWrapper = try ContextWrapper.forContextDescriptorWrapper(.type(.struct(fileDescriptor)), in: machOFile)
-        let imageWrapper = try ContextWrapper.forContextDescriptorWrapper(.type(.struct(imageDescriptor)), in: machOImage)
-        let imageCtxWrapper = try ContextWrapper.forContextDescriptorWrapper(.type(.struct(imageDescriptor)), in: imageContext)
+        // a single MethodKey. Exercise the ReadingContext overload over both
+        // readers and assert the resulting wrapper's descriptor offset
+        // matches the baseline.
+        let fileWrapper = try ContextWrapper.forContextDescriptorWrapper(.type(.struct(fileDescriptor)), in: fileContext)
+        let imageWrapper = try ContextWrapper.forContextDescriptorWrapper(.type(.struct(imageDescriptor)), in: imageContext)
 
         #expect(fileWrapper.context.descriptor.offset == ContextWrapperBaseline.structTest.descriptorOffset)
         #expect(imageWrapper.context.descriptor.offset == ContextWrapperBaseline.structTest.descriptorOffset)
-        #expect(imageCtxWrapper.context.descriptor.offset == ContextWrapperBaseline.structTest.descriptorOffset)
     }
 
     @Test func parent() async throws {
         let wrappers = try loadStructTestWrappers()
-        let presence = try acrossAllReaders(
-            file: { (try wrappers.file.parent(in: machOFile)) != nil },
-            image: { (try wrappers.image.parent(in: machOImage)) != nil }
+        let presence = try acrossAllContexts(
+            file: { (try wrappers.file.parent(in: fileContext)) != nil },
+            image: { (try wrappers.image.parent(in: imageContext)) != nil }
         )
         #expect(presence == ContextWrapperBaseline.structTest.hasParent)
-
-        // ReadingContext-based overload also exercised.
-        let imageCtxPresence = (try wrappers.image.parent(in: imageContext)) != nil
-        #expect(imageCtxPresence == ContextWrapperBaseline.structTest.hasParent)
     }
 }

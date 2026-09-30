@@ -95,8 +95,8 @@ extension TypeDefinition {
     /// once the members are built.
     func indexedFieldDefinitions(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> [FieldDefinition] {
         let typeContextDescriptor = typeContextDescriptorWrapper.typeContextDescriptor
-        let fieldDescriptor = try typeContextDescriptor.fieldDescriptor(in: machO)
-        let records = try fieldDescriptor.records(in: machO)
+        let fieldDescriptor = try typeContextDescriptor.fieldDescriptor(in: machO.context)
+        let records = try fieldDescriptor.records(in: machO.context)
         // Field type trees intern into the image's shared store
         // (`InternedNodeReferenceCache`), so common subtrees (module
         // references, stdlib types) deduplicate across the whole image —
@@ -107,12 +107,12 @@ extension TypeDefinition {
         // generic, say) is read offline through the same thunk reader the
         // opaque-type path uses; the thunk's arguments are this type's own
         // generic arguments.
-        let accessorThunkOwnerLayout = AccessorThunkOwnerLayout(genericContext: try typeContextDescriptor.genericContext(in: machO))
+        let accessorThunkOwnerLayout = AccessorThunkOwnerLayout(genericContext: try typeContextDescriptor.genericContext(in: machO.context))
         var indexedFields: [FieldDefinition] = []
         for record in records {
             let typeNode = try record.demangledTypeNode(in: machO)
                 .resolvingAccessorFunctionReferences(in: machO, ownerLayout: accessorThunkOwnerLayout)
-            let name = try record.fieldName(in: machO)
+            let name = try record.fieldName(in: machO.context)
             var fieldFlags = FieldFlags()
             if name.hasLazyPrefix {
                 fieldFlags.insert(.isLazy)
@@ -134,7 +134,7 @@ extension TypeDefinition {
             if record.flags.contains(.isArtificial) {
                 fieldFlags.insert(.isArtificial)
             }
-            if try !record.mangledTypeName(in: machO).isEmpty {
+            if try !record.mangledTypeName(in: machO.context).isEmpty {
                 fieldFlags.insert(.hasMangledTypeName)
             }
             indexedFields.append(FieldDefinition(name: name.stripLazyPrefix, typeNode: InternedNodeReferenceCache.shared.reference(interning: typeNode, in: machO), flags: fieldFlags))

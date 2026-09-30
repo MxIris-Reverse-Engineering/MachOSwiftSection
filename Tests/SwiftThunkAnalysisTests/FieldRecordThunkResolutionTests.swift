@@ -28,16 +28,16 @@ final class FieldRecordThunkResolutionTests: MachOSwiftSectionFixtureTests, @unc
         var resolved: [ResolvedField] = []
         for wrapper in try machOFile.swift.typeContextDescriptors {
             let descriptor = wrapper.typeContextDescriptor
-            guard let fieldDescriptor = try? descriptor.fieldDescriptor(in: machOFile) else { continue }
-            let ownerLayout = AccessorThunkOwnerLayout(genericContext: try descriptor.genericContext(in: machOFile))
+            guard let fieldDescriptor = try? descriptor.fieldDescriptor(in: fileContext) else { continue }
+            let ownerLayout = AccessorThunkOwnerLayout(genericContext: try descriptor.genericContext(in: fileContext))
             let ownerName = try SymbolicDemangler.demangleContext(for: wrapper.asContextDescriptorWrapper, in: machOFile).print(using: .default)
-            for record in try fieldDescriptor.records(in: machOFile) {
-                guard let mangledTypeName = try? record.mangledTypeName(in: machOFile),
+            for record in try fieldDescriptor.records(in: fileContext) {
+                guard let mangledTypeName = try? record.mangledTypeName(in: fileContext),
                       let typeNode = try? SymbolicDemangler.demangleType(for: mangledTypeName, in: machOFile),
                       typeNode.contains(Node.Kind.accessorFunctionReference)
                 else { continue }
                 let resolvedNode = typeNode.resolvingAccessorFunctionReferences(in: machOFile, ownerLayout: ownerLayout)
-                resolved.append(ResolvedField(owner: ownerName, name: try record.fieldName(in: machOFile), text: resolvedNode.print(using: .default)))
+                resolved.append(ResolvedField(owner: ownerName, name: try record.fieldName(in: fileContext), text: resolvedNode.print(using: .default)))
             }
         }
         return resolved

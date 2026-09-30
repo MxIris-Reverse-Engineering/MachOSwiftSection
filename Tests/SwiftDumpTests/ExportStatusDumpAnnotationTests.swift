@@ -40,7 +40,7 @@ final class ExportStatusDumpAnnotationTests: MachOFileTests, SnapshotDumpableTes
         for typeContextDescriptor in typeContextDescriptors {
             guard case .class(let classDescriptor) = typeContextDescriptor else { continue }
             guard (try? rootNamespace(of: typeContextDescriptor, in: unsafeMachOFile)) == namespace else { continue }
-            let classType = try Class(descriptor: classDescriptor, in: unsafeMachOFile)
+            let classType = try Class(descriptor: classDescriptor, in: unsafeMachOFile.context)
             results.append(try await classType.dump(using: configuration, in: unsafeMachOFile).string)
         }
         return results.joined(separator: "\n")

@@ -31,16 +31,16 @@ final class FieldDescriptorTests: MachOSwiftSectionFixtureTests, FixtureSuite, @
     private func loadGenericStructFieldDescriptors() throws -> (file: FieldDescriptor, image: FieldDescriptor) {
         let fileDescriptor = try BaselineFixturePicker.struct_GenericStructNonRequirement(in: machOFile)
         let imageDescriptor = try BaselineFixturePicker.struct_GenericStructNonRequirement(in: machOImage)
-        let file = try required(try fileDescriptor.fieldDescriptor(in: machOFile))
-        let image = try required(try imageDescriptor.fieldDescriptor(in: machOImage))
+        let file = try required(try fileDescriptor.fieldDescriptor(in: fileContext))
+        let image = try required(try imageDescriptor.fieldDescriptor(in: imageContext))
         return (file: file, image: image)
     }
 
     private func loadStructTestFieldDescriptors() throws -> (file: FieldDescriptor, image: FieldDescriptor) {
         let fileDescriptor = try BaselineFixturePicker.struct_StructTest(in: machOFile)
         let imageDescriptor = try BaselineFixturePicker.struct_StructTest(in: machOImage)
-        let file = try required(try fileDescriptor.fieldDescriptor(in: machOFile))
-        let image = try required(try imageDescriptor.fieldDescriptor(in: machOImage))
+        let file = try required(try fileDescriptor.fieldDescriptor(in: fileContext))
+        let image = try required(try imageDescriptor.fieldDescriptor(in: imageContext))
         return (file: file, image: image)
     }
 
@@ -93,35 +93,27 @@ final class FieldDescriptorTests: MachOSwiftSectionFixtureTests, FixtureSuite, @
 
     @Test func mangledTypeName() async throws {
         let descriptors = try loadGenericStructFieldDescriptors()
-        let presence = try acrossAllReaders(
-            file: { (try? descriptors.file.mangledTypeName(in: machOFile)) != nil },
-            image: { (try? descriptors.image.mangledTypeName(in: machOImage)) != nil }
+        let presence = try acrossAllContexts(
+            file: { (try? descriptors.file.mangledTypeName(in: fileContext)) != nil },
+            image: { (try? descriptors.image.mangledTypeName(in: imageContext)) != nil }
         )
         #expect(presence == FieldDescriptorBaseline.genericStructNonRequirement.hasMangledTypeName)
-
-        // ReadingContext-based overload also exercised.
-        let imageCtxPresence = (try? descriptors.image.mangledTypeName(in: imageContext)) != nil
-        #expect(imageCtxPresence == FieldDescriptorBaseline.genericStructNonRequirement.hasMangledTypeName)
     }
 
     @Test func records() async throws {
         // Fixture with non-empty records: GenericStructNonRequirement (3 fields).
         let genericDescriptors = try loadGenericStructFieldDescriptors()
-        let genericCount = try acrossAllReaders(
-            file: { try genericDescriptors.file.records(in: machOFile).count },
-            image: { try genericDescriptors.image.records(in: machOImage).count }
+        let genericCount = try acrossAllContexts(
+            file: { try genericDescriptors.file.records(in: fileContext).count },
+            image: { try genericDescriptors.image.records(in: imageContext).count }
         )
         #expect(genericCount == FieldDescriptorBaseline.genericStructNonRequirement.recordsCount)
 
-        // ReadingContext-based overload also exercised.
-        let imageCtxCount = try genericDescriptors.image.records(in: imageContext).count
-        #expect(imageCtxCount == FieldDescriptorBaseline.genericStructNonRequirement.recordsCount)
-
         // Fixture with empty records: StructTest (0 fields, only a computed body).
         let structTestDescriptors = try loadStructTestFieldDescriptors()
-        let structTestCount = try acrossAllReaders(
-            file: { try structTestDescriptors.file.records(in: machOFile).count },
-            image: { try structTestDescriptors.image.records(in: machOImage).count }
+        let structTestCount = try acrossAllContexts(
+            file: { try structTestDescriptors.file.records(in: fileContext).count },
+            image: { try structTestDescriptors.image.records(in: imageContext).count }
         )
         #expect(structTestCount == FieldDescriptorBaseline.structTest.recordsCount)
     }

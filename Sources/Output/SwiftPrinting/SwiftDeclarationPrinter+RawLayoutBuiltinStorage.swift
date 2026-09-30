@@ -47,7 +47,7 @@ extension SwiftDeclarationPrinter {
         var storageByTypeName: [SwiftDeclaration.TypeName: RawLayoutBuiltinStorage] = [:]
         for descriptor in builtinTypeDescriptors {
             guard descriptor.layout.size > 0,
-                  let mangledTypeName = try? descriptor.typeName(in: machO),
+                  let mangledTypeName = try? descriptor.typeName(in: machO.context),
                   let typeNode = try? SymbolicDemangler.demangleType(for: mangledTypeName, in: machO),
                   typeNode.kind == .type,
                   typeNode.firstChild?.kind == .structure

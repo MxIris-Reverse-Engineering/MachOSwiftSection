@@ -87,7 +87,7 @@ public struct SwiftInterfaceBuilderOpaqueTypeProvider<MachO: MachOSwiftSectionRe
             var symbolIndexStore
             guard let opaqueTypeDescriptorSymbol = symbolIndexStore.opaqueTypeDescriptorSymbol(for: node, in: machO) else { return nil }
 
-            let opaqueType = try OpaqueType(descriptor: OpaqueTypeDescriptor.resolve(from: opaqueTypeDescriptorSymbol.offset, in: machO), in: machO)
+            let opaqueType = try OpaqueType(descriptor: OpaqueTypeDescriptor.resolve(at: opaqueTypeDescriptorSymbol.offset, in: machO.context), in: machO.context)
             let requirements = try opaqueType.requirements(in: machO)
             // `Qr` names the first opaque return type and carries no index;
             // `QR<n>` names the one after the n-th
@@ -303,7 +303,7 @@ public struct SwiftInterfaceBuilderOpaqueTypeProvider<MachO: MachOSwiftSectionRe
         guard !constraints.isEmpty else { return [] }
 
         var symbolOrElement: SymbolOrElement<ProtocolDescriptorWithObjCInterop>?
-        if let resolvedContent = try? requirement.resolvedContent(in: machO), case .protocol(let element) = resolvedContent {
+        if let resolvedContent = try? requirement.resolvedContent(in: machO.context), case .protocol(let element) = resolvedContent {
             symbolOrElement = element
         }
         if case .element(.objc) = symbolOrElement {

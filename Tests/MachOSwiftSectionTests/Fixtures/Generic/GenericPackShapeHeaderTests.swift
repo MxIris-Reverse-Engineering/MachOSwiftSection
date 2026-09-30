@@ -20,10 +20,10 @@ final class GenericPackShapeHeaderTests: MachOSwiftSectionFixtureTests, FixtureS
     private func loadHeaders() throws -> (file: GenericPackShapeHeader, image: GenericPackShapeHeader) {
         let fileDescriptor = try BaselineFixturePicker.struct_ParameterPackRequirementTest(in: machOFile)
         let imageDescriptor = try BaselineFixturePicker.struct_ParameterPackRequirementTest(in: machOImage)
-        let fileContext = try required(try fileDescriptor.typeGenericContext(in: machOFile))
-        let imageContext = try required(try imageDescriptor.typeGenericContext(in: machOImage))
-        let fileHeader = try required(fileContext.typePackHeader)
-        let imageHeader = try required(imageContext.typePackHeader)
+        let fileGenericContext = try required(try fileDescriptor.typeGenericContext(in: fileContext))
+        let imageGenericContext = try required(try imageDescriptor.typeGenericContext(in: imageContext))
+        let fileHeader = try required(fileGenericContext.typePackHeader)
+        let imageHeader = try required(imageGenericContext.typePackHeader)
         return (file: fileHeader, image: imageHeader)
     }
 

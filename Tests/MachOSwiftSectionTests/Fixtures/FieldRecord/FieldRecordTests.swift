@@ -29,10 +29,10 @@ final class FieldRecordTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unch
     private func loadRecords() throws -> (file: [FieldRecord], image: [FieldRecord]) {
         let fileDescriptor = try BaselineFixturePicker.struct_GenericStructNonRequirement(in: machOFile)
         let imageDescriptor = try BaselineFixturePicker.struct_GenericStructNonRequirement(in: machOImage)
-        let fileFieldDescriptor = try required(try fileDescriptor.fieldDescriptor(in: machOFile))
-        let imageFieldDescriptor = try required(try imageDescriptor.fieldDescriptor(in: machOImage))
-        let fileRecords = try fileFieldDescriptor.records(in: machOFile)
-        let imageRecords = try imageFieldDescriptor.records(in: machOImage)
+        let fileFieldDescriptor = try required(try fileDescriptor.fieldDescriptor(in: fileContext))
+        let imageFieldDescriptor = try required(try imageDescriptor.fieldDescriptor(in: imageContext))
+        let fileRecords = try fileFieldDescriptor.records(in: fileContext)
+        let imageRecords = try imageFieldDescriptor.records(in: imageContext)
         return (file: fileRecords, image: imageRecords)
     }
 
@@ -71,37 +71,29 @@ final class FieldRecordTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unch
     @Test func fieldName() async throws {
         // First record: field1.
         let firstRecords = try loadFirstRecord()
-        let firstName = try acrossAllReaders(
-            file: { try firstRecords.file.fieldName(in: machOFile) },
-            image: { try firstRecords.image.fieldName(in: machOImage) }
+        let firstName = try acrossAllContexts(
+            file: { try firstRecords.file.fieldName(in: fileContext) },
+            image: { try firstRecords.image.fieldName(in: imageContext) }
         )
         #expect(firstName == FieldRecordBaseline.firstRecord.fieldName)
-
-        // ReadingContext-based overload also exercised.
-        let imageCtxFirstName = try firstRecords.image.fieldName(in: imageContext)
-        #expect(imageCtxFirstName == FieldRecordBaseline.firstRecord.fieldName)
 
         // Second record: field2.
         let allRecords = try loadRecords()
         let fileSecond = try required(allRecords.file.dropFirst().first)
         let imageSecond = try required(allRecords.image.dropFirst().first)
-        let secondName = try acrossAllReaders(
-            file: { try fileSecond.fieldName(in: machOFile) },
-            image: { try imageSecond.fieldName(in: machOImage) }
+        let secondName = try acrossAllContexts(
+            file: { try fileSecond.fieldName(in: fileContext) },
+            image: { try imageSecond.fieldName(in: imageContext) }
         )
         #expect(secondName == FieldRecordBaseline.secondRecord.fieldName)
     }
 
     @Test func mangledTypeName() async throws {
         let records = try loadFirstRecord()
-        let presence = try acrossAllReaders(
-            file: { (try? records.file.mangledTypeName(in: machOFile)) != nil },
-            image: { (try? records.image.mangledTypeName(in: machOImage)) != nil }
+        let presence = try acrossAllContexts(
+            file: { (try? records.file.mangledTypeName(in: fileContext)) != nil },
+            image: { (try? records.image.mangledTypeName(in: imageContext)) != nil }
         )
         #expect(presence == FieldRecordBaseline.firstRecord.hasMangledTypeName)
-
-        // ReadingContext-based overload also exercised.
-        let imageCtxPresence = (try? records.image.mangledTypeName(in: imageContext)) != nil
-        #expect(imageCtxPresence == FieldRecordBaseline.firstRecord.hasMangledTypeName)
     }
 }

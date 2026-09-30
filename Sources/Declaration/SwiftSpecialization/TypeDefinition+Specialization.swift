@@ -409,11 +409,11 @@ extension TypeDefinition {
     private func descriptorOffset(of metadata: MetadataWrapper) throws -> Int {
         switch metadata {
         case .struct(let structMetadata):
-            return try structMetadata.descriptor().contextDescriptor.offset
+            return try structMetadata.descriptor(in: .inProcess).contextDescriptor.offset
         case .class(let classMetadata):
-            return try required(classMetadata.descriptor()).offset
+            return try required(classMetadata.descriptor(in: .inProcess)).offset
         case .enum(let enumMetadata), .optional(let enumMetadata), .errorObject(let enumMetadata):
-            return try enumMetadata.descriptor().contextDescriptor.offset
+            return try enumMetadata.descriptor(in: .inProcess).contextDescriptor.offset
         default:
             // Other metadata kinds don't carry a nominal-type descriptor in
             // the form we compare against here. Treating this as a hard

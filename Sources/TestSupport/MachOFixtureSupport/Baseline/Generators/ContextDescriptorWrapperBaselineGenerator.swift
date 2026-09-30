@@ -127,8 +127,8 @@ package enum ContextDescriptorWrapperBaselineGenerator {
         let hasTypeContextDescriptor = wrapper.typeContextDescriptor != nil
         let hasTypeContextDescriptorWrapper = wrapper.typeContextDescriptorWrapper != nil
         let hasNamedContextDescriptor = wrapper.namedContextDescriptor != nil
-        let hasParent = (try wrapper.parent(in: machO)) != nil
-        let hasGenericContext = (try wrapper.genericContext(in: machO)) != nil
+        let hasParent = (try wrapper.parent(in: machO.context)) != nil
+        let hasGenericContext = (try wrapper.genericContext(in: machO.context)) != nil
 
         let expr: ExprSyntax = """
         Entry(

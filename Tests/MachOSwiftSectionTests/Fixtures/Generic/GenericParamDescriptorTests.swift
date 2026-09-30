@@ -24,20 +24,20 @@ final class GenericParamDescriptorTests: MachOSwiftSectionFixtureTests, FixtureS
     private func loadLayoutRequirementParam0() throws -> (file: GenericParamDescriptor, image: GenericParamDescriptor) {
         let fileDescriptor = try BaselineFixturePicker.struct_GenericStructLayoutRequirement(in: machOFile)
         let imageDescriptor = try BaselineFixturePicker.struct_GenericStructLayoutRequirement(in: machOImage)
-        let fileContext = try required(try fileDescriptor.typeGenericContext(in: machOFile))
-        let imageContext = try required(try imageDescriptor.typeGenericContext(in: machOImage))
-        let fileParam = try required(fileContext.parameters.first)
-        let imageParam = try required(imageContext.parameters.first)
+        let fileGenericContext = try required(try fileDescriptor.typeGenericContext(in: fileContext))
+        let imageGenericContext = try required(try imageDescriptor.typeGenericContext(in: imageContext))
+        let fileParam = try required(fileGenericContext.parameters.first)
+        let imageParam = try required(imageGenericContext.parameters.first)
         return (file: fileParam, image: imageParam)
     }
 
     private func loadParameterPackParam0() throws -> (file: GenericParamDescriptor, image: GenericParamDescriptor) {
         let fileDescriptor = try BaselineFixturePicker.struct_ParameterPackRequirementTest(in: machOFile)
         let imageDescriptor = try BaselineFixturePicker.struct_ParameterPackRequirementTest(in: machOImage)
-        let fileContext = try required(try fileDescriptor.typeGenericContext(in: machOFile))
-        let imageContext = try required(try imageDescriptor.typeGenericContext(in: machOImage))
-        let fileParam = try required(fileContext.parameters.first)
-        let imageParam = try required(imageContext.parameters.first)
+        let fileGenericContext = try required(try fileDescriptor.typeGenericContext(in: fileContext))
+        let imageGenericContext = try required(try imageDescriptor.typeGenericContext(in: imageContext))
+        let fileParam = try required(fileGenericContext.parameters.first)
+        let imageParam = try required(imageGenericContext.parameters.first)
         return (file: fileParam, image: imageParam)
     }
 

@@ -28,9 +28,9 @@ final class StructMetadataTests: MachOSwiftSectionFixtureTests, FixtureSuite, @u
     /// treat as a fixture-build failure).
     private func loadStructTestMetadata() throws -> StructMetadata {
         let descriptor = try BaselineFixturePicker.struct_StructTest(in: machOImage)
-        let accessor = try required(try descriptor.metadataAccessorFunction(in: machOImage))
+        let accessor = try required(try descriptor.metadataAccessorFunction(in: imageContext))
         let response = try accessor(request: .init())
-        let wrapper = try response.value.resolve(in: machOImage)
+        let wrapper = try response.value.resolve(in: imageContext)
         return try required(wrapper.struct)
     }
 
@@ -62,11 +62,11 @@ final class StructMetadataTests: MachOSwiftSectionFixtureTests, FixtureSuite, @u
         let metadata = try loadStructTestMetadata()
         // Cross-reader equality on the descriptor pointer and kind. The
         // descriptor reachable via `descriptor(in:)` should be the same
-        // ValueTypeDescriptorWrapper kind across MachOImage/imageContext/
-        // inProcess paths.
-        let imageDescriptor = try metadata.descriptor(in: machOImage)
+        // ValueTypeDescriptorWrapper kind across the imageContext and
+        // inProcessContext paths.
+        let imageDescriptor = try metadata.descriptor(in: imageContext)
         let imageCtxDescriptor = try metadata.descriptor(in: imageContext)
-        let inProcessDescriptor = try metadata.descriptor()
+        let inProcessDescriptor = try metadata.descriptor(in: inProcessContext)
 
         // ValueTypeDescriptorWrapper isn't Equatable, so compare via the
         // concrete `struct` payload's offset.

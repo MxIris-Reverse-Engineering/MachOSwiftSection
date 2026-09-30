@@ -57,17 +57,13 @@ final class ProtocolDescriptorTests: MachOSwiftSectionFixtureTests, FixtureSuite
     /// `associatedTypes(in:)` is exposed in three overloads (MachO +
     /// in-process + ReadingContext) that all collapse to a single
     /// `MethodKey` under PublicMemberScanner's name-based key. Exercise
-    /// the MachO and ReadingContext overloads here.
+    /// the ReadingContext overload over both readers here.
     @Test func associatedTypes() async throws {
         let (file, image) = try loadProtocolTestDescriptors()
-        let result = try acrossAllReaders(
-            file: { try file.associatedTypes(in: machOFile) },
-            image: { try image.associatedTypes(in: machOImage) }
+        let result = try acrossAllContexts(
+            file: { try file.associatedTypes(in: fileContext) },
+            image: { try image.associatedTypes(in: imageContext) }
         )
         #expect(result == ProtocolDescriptorBaseline.protocolTest.associatedTypes)
-
-        // ReadingContext overload also exercised.
-        let imageContextResult = try image.associatedTypes(in: imageContext)
-        #expect(imageContextResult == ProtocolDescriptorBaseline.protocolTest.associatedTypes)
     }
 }

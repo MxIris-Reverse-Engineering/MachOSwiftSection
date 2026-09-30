@@ -25,7 +25,7 @@ import Demangling
 ///   its Swift metadata — the address points coincide. The flag word and the
 ///   nominal type descriptor pointer are read straight off it. That pointer
 ///   is absolute: a rebase or chained fixup in a file, signed on arm64e, so
-///   it is read through its own field (`Pointer.resolve(from:in:)` resolves
+///   it is read through its own field (`Pointer.resolve(at:in:)` resolves
 ///   the rebase first); `descriptor(in:)` would take the undecoded value a
 ///   cache image stores.
 /// - A non-generic class with a superclass in another resilience domain (the
@@ -141,8 +141,8 @@ package final class SwiftClassObjectIndex: @unchecked Sendable {
             else { continue }
             let descriptor: ClassDescriptor
             do {
-                let descriptorPointer = try Pointer<ClassDescriptor?>.resolve(from: classObject.offset + ClassMetadataObjCInterop.descriptorOffset, in: machO)
-                guard let resolvedDescriptor = try descriptorPointer.resolve(in: machO), resolvedDescriptor.layout.flags.kind == .class else {
+                let descriptorPointer = try Pointer<ClassDescriptor?>.resolve(at: classObject.offset + ClassMetadataObjCInterop.descriptorOffset, in: machO.context)
+                guard let resolvedDescriptor = try descriptorPointer.resolve(in: machO.context), resolvedDescriptor.layout.flags.kind == .class else {
                     #log(.error, "skipped a renamed class object at offset \(classObject.offset, privacy: .public): its metadata names no class descriptor")
                     continue
                 }
@@ -188,11 +188,11 @@ package final class SwiftClassObjectIndex: @unchecked Sendable {
         do {
             // The wrapper walks the trailing objects to the initialization
             // record; transient, like every other materialization.
-            let classWrapper = try Class(descriptor: descriptor, in: machO)
+            let classWrapper = try Class(descriptor: descriptor, in: machO.context)
             guard let singletonMetadataInitialization = classWrapper.singletonMetadataInitialization,
                   let patternOffset = singletonMetadataInitialization.resolvedDirectOffset(from: \.incompleteMetadata)
             else { return nil }
-            let pattern = try ResilientClassMetadataPattern.resolve(from: patternOffset, in: machO)
+            let pattern = try ResilientClassMetadataPattern.resolve(at: patternOffset, in: machO.context)
             let classFlags = pattern.layout.classFlags
             guard classFlags & ClassFlags.hasCustomObjCName.rawValue != 0,
                   let readOnlyDataOffset = pattern.resolvedDirectOffset(from: \.data)

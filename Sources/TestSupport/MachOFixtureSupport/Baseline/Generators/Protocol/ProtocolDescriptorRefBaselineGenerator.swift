@@ -25,7 +25,7 @@ package enum ProtocolDescriptorRefBaselineGenerator {
     ) throws {
         let objcPrefix = try BaselineFixturePicker.objcProtocolPrefix_first(in: machO)
         let objcPrefixOffset = objcPrefix.offset
-        let objcName = try objcPrefix.name(in: machO)
+        let objcName = try objcPrefix.name(in: machO.context)
 
         let swiftEntryExpr = emitSyntheticEntryExpr(storage: 0xDEAD_BEEF_0000, isObjC: false)
         let objcEntryExpr = emitSyntheticEntryExpr(storage: 0xDEAD_BEEF_0001, isObjC: true)

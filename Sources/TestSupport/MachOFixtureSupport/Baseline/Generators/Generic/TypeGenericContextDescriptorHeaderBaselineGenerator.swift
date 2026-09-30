@@ -19,7 +19,7 @@ package enum TypeGenericContextDescriptorHeaderBaselineGenerator {
         outputDirectory: URL
     ) throws {
         let descriptor = try BaselineFixturePicker.struct_GenericStructLayoutRequirement(in: machO)
-        let typeContext = try required(try descriptor.typeGenericContext(in: machO))
+        let typeContext = try required(try descriptor.typeGenericContext(in: machO.context))
         let header = typeContext.header
 
         let entryExpr = emitEntryExpr(for: header)

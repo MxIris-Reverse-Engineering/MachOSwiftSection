@@ -26,24 +26,26 @@ final class MetadataWrapperTests: MachOSwiftSectionFixtureTests, FixtureSuite, @
         MetadataWrapperBaseline.registeredTestMethodNames
     }
 
-    /// Materialise an image-relative wrapper for the MachOImage /
-    /// imageContext code paths.
+    /// Materialise an image-relative wrapper for the imageContext code
+    /// paths.
     private func loadStructTestImageWrapper() throws -> MetadataWrapper {
         let descriptor = try BaselineFixturePicker.struct_StructTest(in: machOImage)
-        let accessor = try required(try descriptor.metadataAccessorFunction(in: machOImage))
+        let accessor = try required(try descriptor.metadataAccessorFunction(in: imageContext))
         let response = try accessor(request: .init())
-        return try response.value.resolve(in: machOImage)
+        return try response.value.resolve(in: imageContext)
     }
 
     /// Materialise an in-process wrapper (offset = runtime pointer bits)
-    /// for the no-arg projection paths (`metadata`, `valueWitnessTable()`).
-    /// The accessor's response `value` is the runtime metadata pointer; the
-    /// no-arg `Pointer.resolve()` interprets `address` as a raw pointer.
+    /// for the in-process projection paths (`metadata`,
+    /// `valueWitnessTable(in: inProcessContext)`). The accessor's response
+    /// `value` is the runtime metadata pointer;
+    /// `Pointer.resolve(in: inProcessContext)` interprets `address` as a raw
+    /// pointer.
     private func loadStructTestInProcessWrapper() throws -> MetadataWrapper {
         let descriptor = try BaselineFixturePicker.struct_StructTest(in: machOImage)
-        let accessor = try required(try descriptor.metadataAccessorFunction(in: machOImage))
+        let accessor = try required(try descriptor.metadataAccessorFunction(in: imageContext))
         let response = try accessor(request: .init())
-        return try response.value.resolve()
+        return try response.value.resolve(in: inProcessContext)
     }
 
     /// `anyMetadata` projects the wrapped metadata as an existential
@@ -59,52 +61,47 @@ final class MetadataWrapperTests: MachOSwiftSectionFixtureTests, FixtureSuite, @
     /// `metadata` re-reads the kind-erased `Metadata` prefix at the
     /// wrapped metadata's offset, interpreting the offset as a runtime
     /// raw pointer. Only the in-process wrapper produces a valid raw
-    /// pointer, so we materialise the wrapper without the `in:` reader.
+    /// pointer, so we materialise the wrapper through `inProcessContext`.
     @Test func metadata() async throws {
         let wrapper = try loadStructTestInProcessWrapper()
-        let metadata = try wrapper.metadata
+        let metadata = try wrapper.anyMetadata.asMetadata(in: inProcessContext)
         #expect(metadata.kind == .struct)
     }
 
-    /// `valueWitnessTable(in:)` (the MachO and ReadingContext overloads)
-    /// resolves the value-witness table through the full-metadata header.
-    /// Cross-reader equality on `typeLayout.size`.
+    /// `valueWitnessTable(in:)` resolves the value-witness table through
+    /// the full-metadata header. Cross-reader equality on
+    /// `typeLayout.size`.
     ///
-    /// The no-arg `valueWitnessTable()` overload requires an in-process
+    /// `valueWitnessTable(in: inProcessContext)` requires an in-process
     /// wrapper (offset = runtime pointer); we exercise it against the
     /// in-process variant and assert its `typeLayout.size` agrees with the
     /// image variant.
     @Test func valueWitnessTable() async throws {
         let imageWrapper = try loadStructTestImageWrapper()
-        let imageVW = try imageWrapper.valueWitnessTable(in: machOImage)
+        let imageVW = try imageWrapper.valueWitnessTable(in: imageContext)
         let imageCtxVW = try imageWrapper.valueWitnessTable(in: imageContext)
         #expect(imageVW.typeLayout.size == imageCtxVW.typeLayout.size)
 
         let inProcessWrapper = try loadStructTestInProcessWrapper()
-        let inProcessVW = try inProcessWrapper.valueWitnessTable()
+        let inProcessVW = try inProcessWrapper.valueWitnessTable(in: inProcessContext)
         #expect(inProcessVW.typeLayout.size == imageVW.typeLayout.size)
     }
 
     /// `resolve(...)` (3 overloads) materialises a wrapper at the given
     /// offset; the dispatch must select the same case as the original
-    /// accessor invocation. We exercise the MachO-based and
-    /// ReadingContext-based overloads (the `from ptr:` overload requires
-    /// a runtime raw pointer and is covered by the no-arg
-    /// `Pointer.resolve()` flow exercised in `metadata()`).
+    /// accessor invocation. We exercise the ReadingContext-based overload
+    /// (an in-process address requires a runtime raw pointer and is
+    /// covered by the `Pointer.resolve(in: inProcessContext)` flow
+    /// exercised in `metadata()`).
     @Test func resolve() async throws {
         let descriptor = try BaselineFixturePicker.struct_StructTest(in: machOImage)
-        let accessor = try required(try descriptor.metadataAccessorFunction(in: machOImage))
+        let accessor = try required(try descriptor.metadataAccessorFunction(in: imageContext))
         let response = try accessor(request: .init())
-        let original = try response.value.resolve(in: machOImage)
+        let original = try response.value.resolve(in: imageContext)
         let originalOffset = try required(original.struct).offset
 
-        // Re-resolve at the same offset via the MachOImage path.
-        let viaImage = try MetadataWrapper.resolve(from: originalOffset, in: machOImage)
+        // Re-resolve at the same offset through the image context.
+        let viaImage = try MetadataWrapper.resolve(at: originalOffset, in: imageContext)
         #expect(viaImage.isStruct)
-
-        // Re-resolve via ReadingContext.
-        let imageAddress = try imageContext.addressFromOffset(originalOffset)
-        let viaImageContext = try MetadataWrapper.resolve(at: imageAddress, in: imageContext)
-        #expect(viaImageContext.isStruct)
     }
 }

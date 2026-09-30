@@ -27,8 +27,8 @@ final class KeyPathComputedPropertyBodyTests: MachOSwiftSectionFixtureTests, Fix
         let fileDescriptors = try KeyPathFixtureDescriptors(in: machOFile)
         let imageDescriptors = try KeyPathFixtureDescriptors(in: machOImage)
         return (
-            file: try required(fileDescriptors.computedSettable.computedPropertyBody(in: machOFile)),
-            image: try required(imageDescriptors.computedSettable.computedPropertyBody(in: machOImage))
+            file: try required(fileDescriptors.computedSettable.computedPropertyBody(in: fileContext)),
+            image: try required(imageDescriptors.computedSettable.computedPropertyBody(in: imageContext))
         )
     }
 

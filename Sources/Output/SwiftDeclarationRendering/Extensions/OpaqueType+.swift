@@ -13,7 +13,7 @@ extension OpaqueType {
             usedRequirements = .init(dependentGenericType.all(of: .dependentGenericSameTypeRequirement, .dependentGenericConformanceRequirement))
         }
 
-        let currentRequirements = genericContext.uniqueCurrentRequirements(in: machO)
+        let currentRequirements = genericContext.uniqueCurrentRequirements(in: machO.context)
         var results: [GenericRequirementDescriptor] = []
         for currentRequirement in currentRequirements {
             if currentRequirement.content.isType {

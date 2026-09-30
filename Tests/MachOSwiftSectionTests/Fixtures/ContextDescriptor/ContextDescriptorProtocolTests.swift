@@ -28,60 +28,44 @@ final class ContextDescriptorProtocolTests: MachOSwiftSectionFixtureTests, Fixtu
         let fileDescriptor = try BaselineFixturePicker.struct_StructTest(in: machOFile)
         let imageDescriptor = try BaselineFixturePicker.struct_StructTest(in: machOImage)
 
-        let presence = try acrossAllReaders(
-            file: { (try fileDescriptor.parent(in: machOFile)) != nil },
-            image: { (try imageDescriptor.parent(in: machOImage)) != nil }
+        let presence = try acrossAllContexts(
+            file: { (try fileDescriptor.parent(in: fileContext)) != nil },
+            image: { (try imageDescriptor.parent(in: imageContext)) != nil }
         )
         #expect(presence == ContextDescriptorProtocolBaseline.structTest.hasParent)
-
-        // ReadingContext-based overload also exercised.
-        let imageCtxPresence = (try imageDescriptor.parent(in: imageContext)) != nil
-        #expect(imageCtxPresence == ContextDescriptorProtocolBaseline.structTest.hasParent)
     }
 
     @Test func genericContext() async throws {
         let fileDescriptor = try BaselineFixturePicker.struct_StructTest(in: machOFile)
         let imageDescriptor = try BaselineFixturePicker.struct_StructTest(in: machOImage)
 
-        let presence = try acrossAllReaders(
-            file: { (try fileDescriptor.genericContext(in: machOFile)) != nil },
-            image: { (try imageDescriptor.genericContext(in: machOImage)) != nil }
+        let presence = try acrossAllContexts(
+            file: { (try fileDescriptor.genericContext(in: fileContext)) != nil },
+            image: { (try imageDescriptor.genericContext(in: imageContext)) != nil }
         )
         #expect(presence == ContextDescriptorProtocolBaseline.structTest.hasGenericContext)
-
-        // ReadingContext-based overload also exercised.
-        let imageCtxPresence = (try imageDescriptor.genericContext(in: imageContext)) != nil
-        #expect(imageCtxPresence == ContextDescriptorProtocolBaseline.structTest.hasGenericContext)
     }
 
     @Test func moduleContextDescriptor() async throws {
         let fileDescriptor = try BaselineFixturePicker.struct_StructTest(in: machOFile)
         let imageDescriptor = try BaselineFixturePicker.struct_StructTest(in: machOImage)
 
-        let presence = try acrossAllReaders(
-            file: { (try fileDescriptor.moduleContextDescriptor(in: machOFile)) != nil },
-            image: { (try imageDescriptor.moduleContextDescriptor(in: machOImage)) != nil }
+        let presence = try acrossAllContexts(
+            file: { (try fileDescriptor.moduleContextDescriptor(in: fileContext)) != nil },
+            image: { (try imageDescriptor.moduleContextDescriptor(in: imageContext)) != nil }
         )
         #expect(presence == ContextDescriptorProtocolBaseline.structTest.hasModuleContextDescriptor)
-
-        // ReadingContext-based overload also exercised.
-        let imageCtxPresence = (try imageDescriptor.moduleContextDescriptor(in: imageContext)) != nil
-        #expect(imageCtxPresence == ContextDescriptorProtocolBaseline.structTest.hasModuleContextDescriptor)
     }
 
     @Test func isCImportedContextDescriptor() async throws {
         let fileDescriptor = try BaselineFixturePicker.struct_StructTest(in: machOFile)
         let imageDescriptor = try BaselineFixturePicker.struct_StructTest(in: machOImage)
 
-        let result = try acrossAllReaders(
-            file: { try fileDescriptor.isCImportedContextDescriptor(in: machOFile) },
-            image: { try imageDescriptor.isCImportedContextDescriptor(in: machOImage) }
+        let result = try acrossAllContexts(
+            file: { try fileDescriptor.isCImportedContextDescriptor(in: fileContext) },
+            image: { try imageDescriptor.isCImportedContextDescriptor(in: imageContext) }
         )
         #expect(result == ContextDescriptorProtocolBaseline.structTest.isCImportedContextDescriptor)
-
-        // ReadingContext-based overload also exercised.
-        let imageCtxResult = try imageDescriptor.isCImportedContextDescriptor(in: imageContext)
-        #expect(imageCtxResult == ContextDescriptorProtocolBaseline.structTest.isCImportedContextDescriptor)
     }
 
     @Test("subscript(dynamicMember:)") func subscriptDynamicMember() async throws {

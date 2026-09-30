@@ -31,8 +31,8 @@ final class CaptureTypeRecordTests: MachOSwiftSectionFixtureTests, FixtureSuite,
         return try zip(fileDescriptors, imageDescriptors).enumerated().map { index, pair in
             Carrier(
                 index: index,
-                file: try pair.0.captureTypeRecords(in: machOFile)[0],
-                image: try pair.1.captureTypeRecords(in: machOImage)[0],
+                file: try pair.0.captureTypeRecords(in: fileContext)[0],
+                image: try pair.1.captureTypeRecords(in: imageContext)[0],
                 expected: CaptureTypeRecordBaseline.firstRecords[index]
             )
         }
@@ -63,18 +63,12 @@ final class CaptureTypeRecordTests: MachOSwiftSectionFixtureTests, FixtureSuite,
 
     @Test func mangledTypeName() async throws {
         for carrier in try allCarriers() {
-            let result = try acrossAllReaders(
-                file: { try carrier.file.mangledTypeName(in: machOFile).rawString },
-                image: { try carrier.image.mangledTypeName(in: machOImage).rawString },
-                inProcess: { try carrier.image.asPointerWrapper(in: self.machOImage).mangledTypeName().rawString }
+            let result = try acrossAllContexts(
+                file: { try carrier.file.mangledTypeName(in: fileContext).rawString },
+                image: { try carrier.image.mangledTypeName(in: imageContext).rawString },
+                inProcess: { try carrier.image.asPointerWrapper(in: self.machOImage).mangledTypeName(in: self.inProcessContext).rawString }
             )
             #expect(!result.isEmpty == carrier.expected.hasMangledTypeName, "record \(carrier.index)")
-
-            let fromContext = try acrossAllContexts(
-                file: { try carrier.file.mangledTypeName(in: fileContext).rawString },
-                image: { try carrier.image.mangledTypeName(in: imageContext).rawString }
-            )
-            #expect(fromContext == result, "record \(carrier.index)")
         }
     }
 }

@@ -38,9 +38,9 @@ final class HeapMetadataHeaderPrefixTests: MachOSwiftSectionFixtureTests, Fixtur
     /// three-word heap-header layout).
     private func loadClassTestHeapHeaderPrefix() throws -> HeapMetadataHeaderPrefix {
         let descriptor = try BaselineFixturePicker.class_ClassTest(in: machOImage)
-        let accessor = try required(try descriptor.metadataAccessorFunction(in: machOImage))
+        let accessor = try required(try descriptor.metadataAccessorFunction(in: imageContext))
         let response = try accessor(request: .init())
-        let interop = try required(try response.value.resolve(in: machOImage).class)
+        let interop = try required(try response.value.resolve(in: imageContext).class)
         let prefixOffset = interop.offset
             - HeapMetadataHeader.layoutSize
             + TypeMetadataLayoutPrefix.layoutSize

@@ -148,8 +148,8 @@ struct OpaqueTypeOrdinalTests {
     @MainActor
     @Test func underlyingTypeArgumentsAreOrderedTypesFirstThenConformances() async throws {
         let machOFile = try loadFixtureMachOFile()
-        let descriptor = try OpaqueTypeDescriptor.resolve(from: opaqueTypeDescriptorOffset(in: machOFile), in: machOFile)
-        let opaqueType = try OpaqueType(descriptor: descriptor, in: machOFile)
+        let descriptor = try OpaqueTypeDescriptor.resolve(at: opaqueTypeDescriptorOffset(in: machOFile), in: machOFile.context)
+        let opaqueType = try OpaqueType(descriptor: descriptor, in: machOFile.context)
 
         #expect(
             descriptor.numUnderlyingTypeArguments == 4,

@@ -25,7 +25,7 @@ package enum ExtensionContextDescriptorProtocolBaselineGenerator {
         outputDirectory: URL
     ) throws {
         let descriptor = try BaselineFixturePicker.extension_first(in: machO)
-        let hasExtendedContext = (try descriptor.extendedContext(in: machO)) != nil
+        let hasExtendedContext = (try descriptor.extendedContext(in: machO.context)) != nil
         let entryExpr = emitEntryExpr(hasExtendedContext: hasExtendedContext)
 
         // Public members declared in protocol extensions on

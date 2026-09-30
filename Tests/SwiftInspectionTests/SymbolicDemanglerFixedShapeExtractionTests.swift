@@ -223,10 +223,10 @@ struct SymbolicDemanglerFixedShapeExtractionTests {
     private func holderFieldMangledTypeName(named fieldName: String, in machOFile: MachOFile) throws -> MangledName {
         for typeContextDescriptor in try machOFile.swift.typeContextDescriptors {
             guard case .struct(let structDescriptor) = typeContextDescriptor else { continue }
-            guard try structDescriptor.name(in: machOFile) == "Holder" else { continue }
-            let fieldDescriptor = try #require(try structDescriptor.fieldDescriptor(in: machOFile))
-            for record in try fieldDescriptor.records(in: machOFile) where try record.fieldName(in: machOFile) == fieldName {
-                return try record.mangledTypeName(in: machOFile)
+            guard try structDescriptor.name(in: machOFile.context) == "Holder" else { continue }
+            let fieldDescriptor = try #require(try structDescriptor.fieldDescriptor(in: machOFile.context))
+            for record in try fieldDescriptor.records(in: machOFile.context) where try record.fieldName(in: machOFile.context) == fieldName {
+                return try record.mangledTypeName(in: machOFile.context)
             }
             throw FixtureCompilationError(diagnostics: "Holder has no field \(fieldName)")
         }

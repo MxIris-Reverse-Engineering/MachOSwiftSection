@@ -119,7 +119,7 @@ package struct ClassDumper<MachO: MachOFieldLayoutRenderable>: TypedDumper {
     package var superclass: SemanticString {
         get async throws {
             let hasInvertedProtocols = dumped.invertibleProtocolSet?.hasInvertedProtocols ?? false
-            if let superclassMangledName = try dumped.descriptor.superclassTypeMangledName(in: machO) {
+            if let superclassMangledName = try dumped.descriptor.superclassTypeMangledName(in: machO.context) {
                 Standard(":")
                 Space()
                 try await demangleResolver.resolve(for: SymbolicDemangler.demangleType(for: superclassMangledName, in: machO))
@@ -173,10 +173,10 @@ package struct ClassDumper<MachO: MachOFieldLayoutRenderable>: TypedDumper {
             let finalRecoveryContextNode = canRecoverFinalFields ? try? SymbolicDemangler.demangleContext(for: .type(.class(dumped.descriptor)), in: machO) : nil
             let vtableAccessorNames = canRecoverFinalFields ? vtableAccessorFieldNames(interfaceNameString: finalRecoveryInterfaceName, contextNode: finalRecoveryContextNode) : []
             let storedAccessorNames = canRecoverFinalFields ? storedAccessorFieldNames(interfaceNameString: finalRecoveryInterfaceName, contextNode: finalRecoveryContextNode) : []
-            for (offset, fieldRecord) in try dumped.descriptor.fieldDescriptor(in: machO).records(in: machO).offsetEnumerated() {
+            for (offset, fieldRecord) in try dumped.descriptor.fieldDescriptor(in: machO.context).records(in: machO.context).offsetEnumerated() {
                 BreakLine()
 
-                let mangledTypeName = try fieldRecord.mangledTypeName(in: machO)
+                let mangledTypeName = try fieldRecord.mangledTypeName(in: machO.context)
 
                 try await fieldLayoutRenderer.storedFieldComments(forFieldAtIndex: offset.index, mangledTypeName: mangledTypeName, fieldOffsets: fieldOffsets)
 
@@ -184,7 +184,7 @@ package struct ClassDumper<MachO: MachOFieldLayoutRenderable>: TypedDumper {
 
                 let demangledTypeNode = try fieldDemangledTypeNode(for: mangledTypeName)
 
-                let fieldName = try fieldRecord.fieldName(in: machO)
+                let fieldName = try fieldRecord.fieldName(in: machO.context)
 
                 let strippedFieldName = fieldName.stripLazyPrefix
                 let isFinalField = canRecoverFinalFields
@@ -316,7 +316,7 @@ package struct ClassDumper<MachO: MachOFieldLayoutRenderable>: TypedDumper {
 
                 Indent(level: 1)
 
-                let methodDescriptor = try descriptor.methodDescriptor(in: machO)
+                let methodDescriptor = try descriptor.methodDescriptor(in: machO.context)
 
                 // An override slot keeps the implementation-address route: its
                 // descriptor has no `Tq` symbol, and the parent's descriptor
@@ -559,7 +559,7 @@ package struct ClassDumper<MachO: MachOFieldLayoutRenderable>: TypedDumper {
         if configuration.displayParentName {
             try await resolver.resolve(for: SymbolicDemangler.demangleContext(for: .type(.class(dumped.descriptor)), in: machO)).replacingTypeNameOrOtherToTypeDeclaration()
         } else {
-            try TypeDeclaration(kind: .class, dumped.descriptor.name(in: machO))
+            try TypeDeclaration(kind: .class, dumped.descriptor.name(in: machO.context))
         }
     }
 

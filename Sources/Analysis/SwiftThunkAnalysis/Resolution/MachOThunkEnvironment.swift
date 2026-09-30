@@ -431,8 +431,8 @@ package final class MachOThunkEnvironment: ThunkEvaluationEnvironment, MachOThun
     /// The accessor's key arguments, in generic-argument-layout order.
     private func accessorArgumentSlots(ofDescriptorAt descriptorOffset: Int, in image: MachOFile) -> [ThunkArgumentSlot]? {
         do {
-            let descriptor: ContextDescriptorWrapper = try ContextDescriptorWrapper.resolve(from: descriptorOffset, in: image)
-            guard let genericContext = try descriptor.genericContext(in: image) else { return [] }
+            let descriptor: ContextDescriptorWrapper = try ContextDescriptorWrapper.resolve(at: descriptorOffset, in: image.context)
+            guard let genericContext = try descriptor.genericContext(in: image.context) else { return [] }
             var slots: [ThunkArgumentSlot] = []
             slots.append(contentsOf: repeatElement(.other, count: genericContext.typePacks.count))
             for parameter in genericContext.parameters where parameter.hasKeyArgument {

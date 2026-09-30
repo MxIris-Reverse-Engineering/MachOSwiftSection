@@ -124,7 +124,7 @@ final class AsyncFunctionPointerTests: MachOSwiftSectionFixtureTests, FixtureSui
     /// "the implementation" is one hop short.
     @Test func vtableMethodDescriptorPointsAtTheRecordNotTheCode() async throws {
         let classDescriptor = try BaselineFixturePicker.class_VTableBaseTest(in: machOFile)
-        let vtableClass = try Class(descriptor: classDescriptor, in: machOFile)
+        let vtableClass = try Class(descriptor: classDescriptor, in: fileContext)
         let record = try AsyncFunctionPointerFixtureRecords(in: machOFile).vtableMethod
 
         let descriptorsPointingAtTheRecord = vtableClass.methodDescriptors.filter {

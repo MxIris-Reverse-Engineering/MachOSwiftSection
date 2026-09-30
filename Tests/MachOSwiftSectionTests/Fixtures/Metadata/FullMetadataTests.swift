@@ -29,10 +29,10 @@ final class FullMetadataTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unc
     /// from a MachOImage metadata accessor.
     private func loadFullStructMetadata() throws -> FullMetadata<StructMetadata> {
         let descriptor = try BaselineFixturePicker.struct_StructTest(in: machOImage)
-        let accessor = try required(try descriptor.metadataAccessorFunction(in: machOImage))
+        let accessor = try required(try descriptor.metadataAccessorFunction(in: imageContext))
         let response = try accessor(request: .init())
-        let structMetadata = try required(try response.value.resolve(in: machOImage).struct)
-        return try structMetadata.asFullMetadata(in: machOImage)
+        let structMetadata = try required(try response.value.resolve(in: imageContext).struct)
+        return try structMetadata.asFullMetadata(in: imageContext)
     }
 
     @Test func offset() async throws {
@@ -52,9 +52,9 @@ final class FullMetadataTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unc
         // ReadingContext path also exercised — the layout values must
         // round-trip through `asFullMetadata(in: imageContext)`.
         let descriptor = try BaselineFixturePicker.struct_StructTest(in: machOImage)
-        let accessor = try required(try descriptor.metadataAccessorFunction(in: machOImage))
+        let accessor = try required(try descriptor.metadataAccessorFunction(in: imageContext))
         let response = try accessor(request: .init())
-        let structMetadata = try required(try response.value.resolve(in: machOImage).struct)
+        let structMetadata = try required(try response.value.resolve(in: imageContext).struct)
         let viaImageContext = try structMetadata.asFullMetadata(in: imageContext)
         #expect(viaImageContext.layout.metadata.kind == full.layout.metadata.kind)
     }

@@ -529,7 +529,7 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
                 Space()
             }
             if let globalActorReference = protocolConformance.globalActorReference,
-               let globalActorTypeName = try? globalActorReference.typeName(in: machO),
+               let globalActorTypeName = try? globalActorReference.typeName(in: machO.context),
                let globalActorNode = try? SymbolicDemangler.demangleType(for: globalActorTypeName, in: machO) {
                 Standard("@")
                 try await printThrowingType(globalActorNode, isProtocol: false, level: level)

@@ -54,7 +54,7 @@ final class TypeReferenceTests: MachOSwiftSectionFixtureTests, FixtureSuite, @un
                 numberOfElements: section.size / recordSize
             )
             for record in records {
-                guard let resolved = try? record.contextDescriptor(in: machO) else { continue }
+                guard let resolved = try? record.contextDescriptor(in: machO.context) else { continue }
                 if resolved.contextDescriptor.offset == target {
                     let fieldOffset = record.offset(of: \.nominalTypeDescriptor)
                     let relativeOffset = record.layout.nominalTypeDescriptor.relativeOffset
@@ -85,7 +85,7 @@ final class TypeReferenceTests: MachOSwiftSectionFixtureTests, FixtureSuite, @un
                 numberOfElements: section.size / recordSize
             )
             for record in records {
-                guard let resolved = try? record.contextDescriptor(in: machO) else { continue }
+                guard let resolved = try? record.contextDescriptor(in: machO.context) else { continue }
                 if resolved.contextDescriptor.offset == target {
                     let fieldOffset = record.offset(of: \.nominalTypeDescriptor)
                     let relativeOffset = record.layout.nominalTypeDescriptor.relativeOffset
@@ -121,8 +121,8 @@ final class TypeReferenceTests: MachOSwiftSectionFixtureTests, FixtureSuite, @un
         let fileRef = TypeReference.forKind(fileData.kind, at: fileData.relativeOffset)
         let imageRef = TypeReference.forKind(imageData.kind, at: imageData.relativeOffset)
 
-        let fileResolved = try fileRef.resolve(at: fileData.recordFieldOffset, in: machOFile)
-        let imageResolved = try imageRef.resolve(at: imageData.recordFieldOffset, in: machOImage)
+        let fileResolved = try fileRef.resolve(at: fileData.recordFieldOffset, in: fileContext)
+        let imageResolved = try imageRef.resolve(at: imageData.recordFieldOffset, in: imageContext)
 
         // The resolved `directTypeDescriptor` arm should round-trip to the
         // same descriptor we picked from the section.

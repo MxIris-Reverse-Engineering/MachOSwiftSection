@@ -83,9 +83,9 @@ final class TypeContextDescriptorWrapperTests: MachOSwiftSectionFixtureTests, Fi
 
     @Test func parent() async throws {
         let wrappers = try loadStructTestWrappers()
-        let presence = try acrossAllReaders(
-            file: { (try wrappers.file.parent(in: machOFile)) != nil },
-            image: { (try wrappers.image.parent(in: machOImage)) != nil }
+        let presence = try acrossAllContexts(
+            file: { (try wrappers.file.parent(in: fileContext)) != nil },
+            image: { (try wrappers.image.parent(in: imageContext)) != nil }
         )
         #expect(presence == TypeContextDescriptorWrapperBaseline.structTest.hasParent)
 
@@ -96,9 +96,9 @@ final class TypeContextDescriptorWrapperTests: MachOSwiftSectionFixtureTests, Fi
 
     @Test func genericContext() async throws {
         let wrappers = try loadStructTestWrappers()
-        let presence = try acrossAllReaders(
-            file: { (try wrappers.file.genericContext(in: machOFile)) != nil },
-            image: { (try wrappers.image.genericContext(in: machOImage)) != nil }
+        let presence = try acrossAllContexts(
+            file: { (try wrappers.file.genericContext(in: fileContext)) != nil },
+            image: { (try wrappers.image.genericContext(in: imageContext)) != nil }
         )
         #expect(presence == TypeContextDescriptorWrapperBaseline.structTest.hasGenericContext)
 
@@ -109,9 +109,9 @@ final class TypeContextDescriptorWrapperTests: MachOSwiftSectionFixtureTests, Fi
 
     @Test func typeGenericContext() async throws {
         let wrappers = try loadStructTestWrappers()
-        let presence = try acrossAllReaders(
-            file: { (try wrappers.file.typeGenericContext(in: machOFile)) != nil },
-            image: { (try wrappers.image.typeGenericContext(in: machOImage)) != nil }
+        let presence = try acrossAllContexts(
+            file: { (try wrappers.file.typeGenericContext(in: fileContext)) != nil },
+            image: { (try wrappers.image.typeGenericContext(in: imageContext)) != nil }
         )
         #expect(presence == TypeContextDescriptorWrapperBaseline.structTest.hasTypeGenericContext)
 
@@ -122,13 +122,13 @@ final class TypeContextDescriptorWrapperTests: MachOSwiftSectionFixtureTests, Fi
 
     @Test func resolve() async throws {
         // Static `resolve(...)` overloads collapse to one MethodKey under
-        // PublicMemberScanner. Exercise the MachO-based overload that
-        // returns `Self`.
+        // PublicMemberScanner. Exercise the ReadingContext-based overload
+        // that returns `Self`.
         let fileDescriptor = try BaselineFixturePicker.struct_StructTest(in: machOFile)
         let imageDescriptor = try BaselineFixturePicker.struct_StructTest(in: machOImage)
 
-        let fileWrapper: TypeContextDescriptorWrapper = try TypeContextDescriptorWrapper.resolve(from: fileDescriptor.offset, in: machOFile)
-        let imageWrapper: TypeContextDescriptorWrapper = try TypeContextDescriptorWrapper.resolve(from: imageDescriptor.offset, in: machOImage)
+        let fileWrapper: TypeContextDescriptorWrapper = try TypeContextDescriptorWrapper.resolve(at: fileDescriptor.offset, in: fileContext)
+        let imageWrapper: TypeContextDescriptorWrapper = try TypeContextDescriptorWrapper.resolve(at: imageDescriptor.offset, in: imageContext)
 
         #expect(fileWrapper.isStruct == true)
         #expect(imageWrapper.isStruct == true)

@@ -20,8 +20,8 @@ struct CustomObjCClassNameDumpTests {
         ObjCAncestorResolverStore.shared.register(ObjCAncestorResolver(root: machOFile, searchPaths: try RenamedObjCClassFixture.dependencySearchPaths()), for: machOFile)
         defer { ObjCAncestorResolverStore.shared.remove(for: machOFile) }
         for typeContextDescriptor in try machOFile.swift.typeContextDescriptors {
-            guard case .class(let classDescriptor) = typeContextDescriptor, try classDescriptor.name(in: machOFile) == name else { continue }
-            let classType = try Class(descriptor: classDescriptor, in: machOFile)
+            guard case .class(let classDescriptor) = typeContextDescriptor, try classDescriptor.name(in: machOFile.context) == name else { continue }
+            let classType = try Class(descriptor: classDescriptor, in: machOFile.context)
             return try await classType.dump(using: .demangleOptions(.test), in: machOFile).string
         }
         Issue.record("fixture is missing the class \(name)")

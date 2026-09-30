@@ -74,40 +74,28 @@ final class AssociatedTypeDescriptorTests: MachOSwiftSectionFixtureTests, Fixtur
 
     @Test func conformingTypeName() async throws {
         let descriptors = try loadDescriptors()
-        let presence = try acrossAllReaders(
-            file: { (try? descriptors.file.conformingTypeName(in: machOFile)) != nil },
-            image: { (try? descriptors.image.conformingTypeName(in: machOImage)) != nil }
+        let presence = try acrossAllContexts(
+            file: { (try? descriptors.file.conformingTypeName(in: fileContext)) != nil },
+            image: { (try? descriptors.image.conformingTypeName(in: imageContext)) != nil }
         )
         #expect(presence == AssociatedTypeDescriptorBaseline.concreteWitnessTest.hasConformingTypeName)
-
-        // ReadingContext-based overload also exercised.
-        let imageCtxPresence = (try? descriptors.image.conformingTypeName(in: imageContext)) != nil
-        #expect(imageCtxPresence == AssociatedTypeDescriptorBaseline.concreteWitnessTest.hasConformingTypeName)
     }
 
     @Test func protocolTypeName() async throws {
         let descriptors = try loadDescriptors()
-        let presence = try acrossAllReaders(
-            file: { (try? descriptors.file.protocolTypeName(in: machOFile)) != nil },
-            image: { (try? descriptors.image.protocolTypeName(in: machOImage)) != nil }
+        let presence = try acrossAllContexts(
+            file: { (try? descriptors.file.protocolTypeName(in: fileContext)) != nil },
+            image: { (try? descriptors.image.protocolTypeName(in: imageContext)) != nil }
         )
         #expect(presence == AssociatedTypeDescriptorBaseline.concreteWitnessTest.hasProtocolTypeName)
-
-        // ReadingContext-based overload also exercised.
-        let imageCtxPresence = (try? descriptors.image.protocolTypeName(in: imageContext)) != nil
-        #expect(imageCtxPresence == AssociatedTypeDescriptorBaseline.concreteWitnessTest.hasProtocolTypeName)
     }
 
     @Test func associatedTypeRecords() async throws {
         let descriptors = try loadDescriptors()
-        let count = try acrossAllReaders(
-            file: { try descriptors.file.associatedTypeRecords(in: machOFile).count },
-            image: { try descriptors.image.associatedTypeRecords(in: machOImage).count }
+        let count = try acrossAllContexts(
+            file: { try descriptors.file.associatedTypeRecords(in: fileContext).count },
+            image: { try descriptors.image.associatedTypeRecords(in: imageContext).count }
         )
         #expect(count == AssociatedTypeDescriptorBaseline.concreteWitnessTest.recordsCount)
-
-        // ReadingContext-based overload also exercised.
-        let imageCtxCount = try descriptors.image.associatedTypeRecords(in: imageContext).count
-        #expect(imageCtxCount == AssociatedTypeDescriptorBaseline.concreteWitnessTest.recordsCount)
     }
 }

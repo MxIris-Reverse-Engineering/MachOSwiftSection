@@ -339,13 +339,13 @@ extension Node {
             if reference.isKind(of: .opaqueTypeDescriptorSymbolicReference), let offset: Int = reference.index?.cast() {
                 if machO is MachOImage, let absolutePointer = UnsafeRawPointer(bitPattern: offset) {
                     let opaqueTypeDescriptor: OpaqueTypeDescriptor = try absolutePointer.readWrapperElement()
-                    return try OpaqueType(descriptor: opaqueTypeDescriptor)
+                    return try OpaqueType(descriptor: opaqueTypeDescriptor, in: .inProcess)
                 }
-                return try OpaqueType(descriptor: OpaqueTypeDescriptor.resolve(from: offset, in: machO), in: machO)
+                return try OpaqueType(descriptor: OpaqueTypeDescriptor.resolve(at: offset, in: machO.context), in: machO.context)
             }
             if reference.isKind(of: .opaqueReturnTypeOf), let memberNode = reference.firstChild,
                let descriptorSymbol = SymbolIndexStore.shared.opaqueTypeDescriptorSymbol(for: memberNode, in: machO) {
-                return try OpaqueType(descriptor: OpaqueTypeDescriptor.resolve(from: descriptorSymbol.offset, in: machO), in: machO)
+                return try OpaqueType(descriptor: OpaqueTypeDescriptor.resolve(at: descriptorSymbol.offset, in: machO.context), in: machO.context)
             }
             return nil
         }
@@ -384,7 +384,7 @@ extension Node {
             guard let descriptorAddress = imageAddressSpace.address(forExportedSymbolOffset: location.exportedSymbolOffset),
                   let descriptorOffset = imageAddressSpace.offset(forAddress: descriptorAddress)
             else { return nil }
-            let opaqueType = try OpaqueType(descriptor: OpaqueTypeDescriptor.resolve(from: descriptorOffset, in: location.image), in: location.image)
+            let opaqueType = try OpaqueType(descriptor: OpaqueTypeDescriptor.resolve(at: descriptorOffset, in: location.image.context), in: location.image.context)
             return (image: location.image, opaqueType: opaqueType)
         }
 

@@ -29,8 +29,8 @@ final class MetadataSourceRecordTests: MachOSwiftSectionFixtureTests, FixtureSui
     }
 
     private func allCarriers() throws -> [Carrier] {
-        let fileRecords = try CaptureFixtureDescriptors(in: machOFile).withMultipleMetadataSources.metadataSourceRecords(in: machOFile)
-        let imageRecords = try CaptureFixtureDescriptors(in: machOImage).withMultipleMetadataSources.metadataSourceRecords(in: machOImage)
+        let fileRecords = try CaptureFixtureDescriptors(in: machOFile).withMultipleMetadataSources.metadataSourceRecords(in: fileContext)
+        let imageRecords = try CaptureFixtureDescriptors(in: machOImage).withMultipleMetadataSources.metadataSourceRecords(in: imageContext)
         return zip(fileRecords, imageRecords).enumerated().map { index, pair in
             Carrier(
                 index: index,
@@ -64,40 +64,28 @@ final class MetadataSourceRecordTests: MachOSwiftSectionFixtureTests, FixtureSui
 
     @Test func mangledTypeName() async throws {
         for carrier in try allCarriers() {
-            let result = try acrossAllReaders(
-                file: { try carrier.file.mangledTypeName(in: machOFile).rawString },
-                image: { try carrier.image.mangledTypeName(in: machOImage).rawString },
-                inProcess: { try carrier.image.asPointerWrapper(in: self.machOImage).mangledTypeName().rawString }
+            let result = try acrossAllContexts(
+                file: { try carrier.file.mangledTypeName(in: fileContext).rawString },
+                image: { try carrier.image.mangledTypeName(in: imageContext).rawString },
+                inProcess: { try carrier.image.asPointerWrapper(in: self.machOImage).mangledTypeName(in: self.inProcessContext).rawString }
             )
             #expect(result == carrier.expected.mangledTypeName, "record \(carrier.index)")
-
-            let fromContext = try acrossAllContexts(
-                file: { try carrier.file.mangledTypeName(in: fileContext).rawString },
-                image: { try carrier.image.mangledTypeName(in: imageContext).rawString }
-            )
-            #expect(fromContext == carrier.expected.mangledTypeName, "record \(carrier.index)")
         }
     }
 
     @Test func mangledMetadataSource() async throws {
         for carrier in try allCarriers() {
-            let result = try acrossAllReaders(
-                file: { try carrier.file.mangledMetadataSource(in: machOFile).rawString },
-                image: { try carrier.image.mangledMetadataSource(in: machOImage).rawString },
-                inProcess: { try carrier.image.asPointerWrapper(in: self.machOImage).mangledMetadataSource().rawString }
+            let result = try acrossAllContexts(
+                file: { try carrier.file.mangledMetadataSource(in: fileContext).rawString },
+                image: { try carrier.image.mangledMetadataSource(in: imageContext).rawString },
+                inProcess: { try carrier.image.asPointerWrapper(in: self.machOImage).mangledMetadataSource(in: self.inProcessContext).rawString }
             )
             #expect(result == carrier.expected.mangledMetadataSource, "record \(carrier.index)")
-
-            let fromContext = try acrossAllContexts(
-                file: { try carrier.file.mangledMetadataSource(in: fileContext).rawString },
-                image: { try carrier.image.mangledMetadataSource(in: imageContext).rawString }
-            )
-            #expect(fromContext == carrier.expected.mangledMetadataSource, "record \(carrier.index)")
         }
 
         // The two entries are distinct bindings; if they collapsed to the
         // same recipe the fixture would no longer show the index varying.
-        let recipes = try allCarriers().map { try $0.file.mangledMetadataSource(in: machOFile).rawString }
+        let recipes = try allCarriers().map { try $0.file.mangledMetadataSource(in: fileContext).rawString }
         #expect(Set(recipes).count == recipes.count)
     }
 }

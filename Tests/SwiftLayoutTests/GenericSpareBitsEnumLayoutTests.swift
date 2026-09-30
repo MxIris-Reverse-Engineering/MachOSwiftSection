@@ -174,10 +174,9 @@ final class GenericSpareBitsEnumLayoutTests: MachOSwiftSectionFixtureTests, @unc
         _ staticLayout: StaticTypeLayout,
         for descriptor: TypeContextDescriptorWrapper
     ) throws {
-        let machO = machOImage
-        guard let accessor = try descriptor.typeContextDescriptor.metadataAccessorFunction(in: machO) else { return }
+        guard let accessor = try descriptor.typeContextDescriptor.metadataAccessorFunction(in: imageContext) else { return }
         let response = try accessor(request: .init())
-        let valueWitnessTable = try response.value.resolve(in: machO).valueWitnessTable(in: machO)
+        let valueWitnessTable = try response.value.resolve(in: imageContext).valueWitnessTable(in: imageContext)
         #expect(Int(valueWitnessTable.layout.size) == staticLayout.size)
         #expect(Int(valueWitnessTable.layout.stride) == staticLayout.stride)
         #expect(Int(valueWitnessTable.layout.flags.alignment) == staticLayout.alignment)
@@ -196,10 +195,10 @@ final class GenericSpareBitsEnumLayoutTests: MachOSwiftSectionFixtureTests, @unc
                 let descriptor = contextDescriptor.typeContextDescriptorWrapper,
                 (try? SymbolicDemangler.demangleContext(for: contextDescriptor, in: machO))
                     .flatMap(NodeTypeNaming.nominalQualifiedName(of:)) == qualifiedTypeName,
-                let accessor = try? descriptor.typeContextDescriptor.metadataAccessorFunction(in: machO),
+                let accessor = try? descriptor.typeContextDescriptor.metadataAccessorFunction(in: machO.context),
                 let response = try? accessor(request: .init()),
-                let metadata = try? response.value.resolve(in: machO),
-                let valueWitnessTable = try? metadata.valueWitnessTable(in: machO)
+                let metadata = try? response.value.resolve(in: machO.context),
+                let valueWitnessTable = try? metadata.valueWitnessTable(in: machO.context)
             else { continue }
             return (
                 size: Int(valueWitnessTable.layout.size),

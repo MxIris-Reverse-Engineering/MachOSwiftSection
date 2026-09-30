@@ -79,9 +79,9 @@ final class ValueTypeDescriptorWrapperTests: MachOSwiftSectionFixtureTests, Fixt
 
     @Test func parent() async throws {
         let wrappers = try loadStructTestWrappers()
-        let presence = try acrossAllReaders(
-            file: { (try wrappers.file.parent(in: machOFile)) != nil },
-            image: { (try wrappers.image.parent(in: machOImage)) != nil }
+        let presence = try acrossAllContexts(
+            file: { (try wrappers.file.parent(in: fileContext)) != nil },
+            image: { (try wrappers.image.parent(in: imageContext)) != nil }
         )
         #expect(presence == ValueTypeDescriptorWrapperBaseline.structTest.hasParent)
 
@@ -92,9 +92,9 @@ final class ValueTypeDescriptorWrapperTests: MachOSwiftSectionFixtureTests, Fixt
 
     @Test func genericContext() async throws {
         let wrappers = try loadStructTestWrappers()
-        let presence = try acrossAllReaders(
-            file: { (try wrappers.file.genericContext(in: machOFile)) != nil },
-            image: { (try wrappers.image.genericContext(in: machOImage)) != nil }
+        let presence = try acrossAllContexts(
+            file: { (try wrappers.file.genericContext(in: fileContext)) != nil },
+            image: { (try wrappers.image.genericContext(in: imageContext)) != nil }
         )
         #expect(presence == ValueTypeDescriptorWrapperBaseline.structTest.hasGenericContext)
 
@@ -108,8 +108,8 @@ final class ValueTypeDescriptorWrapperTests: MachOSwiftSectionFixtureTests, Fixt
         let fileDescriptor = try BaselineFixturePicker.struct_StructTest(in: machOFile)
         let imageDescriptor = try BaselineFixturePicker.struct_StructTest(in: machOImage)
 
-        let fileWrapper: ValueTypeDescriptorWrapper = try ValueTypeDescriptorWrapper.resolve(from: fileDescriptor.offset, in: machOFile)
-        let imageWrapper: ValueTypeDescriptorWrapper = try ValueTypeDescriptorWrapper.resolve(from: imageDescriptor.offset, in: machOImage)
+        let fileWrapper: ValueTypeDescriptorWrapper = try ValueTypeDescriptorWrapper.resolve(at: fileDescriptor.offset, in: fileContext)
+        let imageWrapper: ValueTypeDescriptorWrapper = try ValueTypeDescriptorWrapper.resolve(at: imageDescriptor.offset, in: imageContext)
 
         #expect(fileWrapper.isStruct == true)
         #expect(imageWrapper.isStruct == true)

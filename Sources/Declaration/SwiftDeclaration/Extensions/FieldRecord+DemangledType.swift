@@ -5,7 +5,7 @@ import MachOSwiftSection
 import Semantic
 extension FieldRecord {
     package func demangledTypeNode(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> Node {
-        try SymbolicDemangler.demangleType(for: mangledTypeName(in: machO), in: machO)
+        try SymbolicDemangler.demangleType(for: mangledTypeName(in: machO.context), in: machO)
     }
 
     package func demangledTypeName(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> SemanticString {
@@ -13,7 +13,7 @@ extension FieldRecord {
     }
     
     package func demangledTypeNode() throws -> Node {
-        try SymbolicDemangler.demangleType(for: mangledTypeName())
+        try SymbolicDemangler.demangleType(for: mangledTypeName(in: .inProcess))
     }
 
     package func demangledTypeName() throws -> SemanticString {

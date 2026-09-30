@@ -152,8 +152,8 @@ extension StaticTypeLayoutResolver {
         {
             // Spare-bits strategy: the descriptor carries the common spare-bit
             // mask the compiler computed across all payloads.
-            let spareBytes = try multiPayloadDescriptor.payloadSpareBits(in: image.machO)
-            let spareBytesOffset = Int(try multiPayloadDescriptor.payloadSpareBitMaskByteOffset(in: image.machO))
+            let spareBytes = try multiPayloadDescriptor.payloadSpareBits(in: image.machO.context)
+            let spareBytesOffset = Int(try multiPayloadDescriptor.payloadSpareBitMaskByteOffset(in: image.machO.context))
             result = EnumLayoutCalculator.calculateMultiPayload(
                 payloadSize: payloadSize,
                 spareBytes: spareBytes,
@@ -206,10 +206,10 @@ extension StaticTypeLayoutResolver {
         var isBitwiseTakable = true
         var isBitwiseBorrowable = true
         var isAddressableForDependencies = false
-        let records = try descriptor.fieldDescriptor(in: image.machO).records(in: image.machO)
+        let records = try descriptor.fieldDescriptor(in: image.machO.context).records(in: image.machO.context)
         for record in records {
             let isIndirect = record.layout.flags.contains(.isIndirectCase)
-            let mangledTypeName = try record.mangledTypeName(in: image.machO)
+            let mangledTypeName = try record.mangledTypeName(in: image.machO.context)
             guard isIndirect || !mangledTypeName.isEmpty else { continue } // empty case
             let payloadLayout = isIndirect
                 ? StaticTypeLayout.pointerSized
@@ -235,7 +235,7 @@ extension StaticTypeLayoutResolver {
         guard let descriptors = try? image.machO.swift.multiPayloadEnumDescriptors else { return nil }
         for descriptor in descriptors {
             guard
-                let mangledTypeName = try? descriptor.mangledTypeName(in: image.machO),
+                let mangledTypeName = try? descriptor.mangledTypeName(in: image.machO.context),
                 let node = try? SymbolicDemangler.demangleType(for: mangledTypeName, in: image.machO),
                 NodeTypeNaming.nominalQualifiedName(of: node) == qualifiedTypeName
             else { continue }
@@ -274,13 +274,13 @@ extension StaticTypeLayoutResolver {
         in image: ImageReference<MachO>,
         environment: GenericArgumentEnvironment = .empty
     ) throws -> StaticTypeLayout {
-        let fieldDescriptor = try descriptor.fieldDescriptor(in: image.machO)
-        let records = try fieldDescriptor.records(in: image.machO)
+        let fieldDescriptor = try descriptor.fieldDescriptor(in: image.machO.context)
+        let records = try fieldDescriptor.records(in: image.machO.context)
         for record in records {
             if record.layout.flags.contains(.isIndirectCase) {
                 return .pointerSized
             }
-            let mangledTypeName = try record.mangledTypeName(in: image.machO)
+            let mangledTypeName = try record.mangledTypeName(in: image.machO.context)
             if !mangledTypeName.isEmpty {
                 return try layout(forMangledTypeName: mangledTypeName, in: image, environment: environment)
             }
@@ -335,8 +335,8 @@ extension StaticTypeLayoutResolver {
                 let multiPayloadDescriptor = multiPayloadEnumDescriptor(forQualifiedTypeName: qualifiedTypeName, in: image),
                 multiPayloadDescriptor.usesPayloadSpareBits
             {
-                let spareBytes = try multiPayloadDescriptor.payloadSpareBits(in: image.machO)
-                let spareBytesOffset = Int(try multiPayloadDescriptor.payloadSpareBitMaskByteOffset(in: image.machO))
+                let spareBytes = try multiPayloadDescriptor.payloadSpareBits(in: image.machO.context)
+                let spareBytesOffset = Int(try multiPayloadDescriptor.payloadSpareBitMaskByteOffset(in: image.machO.context))
                 layoutResult = EnumLayoutCalculator.calculateMultiPayload(
                     payloadSize: payloadArea.size,
                     spareBytes: spareBytes,
@@ -354,8 +354,8 @@ extension StaticTypeLayoutResolver {
         }
         // Attach the source-level case names (field records store payload
         // cases first, then empty cases — the projections' tag order).
-        if let records = try? descriptor.fieldDescriptor(in: image.machO).records(in: image.machO),
-           let declaredCaseNames = try? records.map({ try $0.fieldName(in: image.machO) }) {
+        if let records = try? descriptor.fieldDescriptor(in: image.machO.context).records(in: image.machO.context),
+           let declaredCaseNames = try? records.map({ try $0.fieldName(in: image.machO.context) }) {
             return layoutResult.attachingDeclaredCaseNames(declaredCaseNames)
         }
         return layoutResult

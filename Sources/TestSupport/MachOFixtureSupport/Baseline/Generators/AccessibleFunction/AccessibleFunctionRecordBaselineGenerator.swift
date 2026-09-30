@@ -79,12 +79,12 @@ package enum AccessibleFunctionRecordBaselineGenerator {
         let expr: ExprSyntax = """
         Entry(
             offset: \(raw: BaselineEmitter.hex(record.offset)),
-            name: \(literal: try record.name(in: machO)),
+            name: \(literal: try record.name(in: machO.context)),
             functionOffset: \(raw: BaselineEmitter.optionalHex(record.resolvedDirectOffset(from: \.function))),
             genericEnvironmentOffset: \(raw: BaselineEmitter.optionalHex(record.resolvedDirectOffset(from: \.genericEnvironment))),
             flagsRawValue: \(raw: BaselineEmitter.hex(record.flags.rawValue)),
             isDistributed: \(literal: record.isDistributed),
-            hasFunctionType: \(literal: !(try record.functionType(in: machO).isEmpty))
+            hasFunctionType: \(literal: !(try record.functionType(in: machO.context).isEmpty))
         )
         """
         return expr.description

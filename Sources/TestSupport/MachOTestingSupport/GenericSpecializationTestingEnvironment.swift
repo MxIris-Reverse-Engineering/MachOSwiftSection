@@ -96,7 +96,7 @@ extension GenericSpecializationTestingEnvironment {
     package func structDescriptor(named nameContains: String) throws -> StructDescriptor {
         try #require(
             try machO.swift.typeContextDescriptors.first {
-                try $0.struct?.name(in: machO).contains(nameContains) == true
+                try $0.struct?.name(in: machO.context).contains(nameContains) == true
             }?.struct,
             "expected a struct context descriptor whose name contains \"\(nameContains)\""
         )
@@ -116,7 +116,7 @@ extension GenericSpecializationTestingEnvironment {
     package func enumDescriptor(named nameContains: String) throws -> EnumDescriptor {
         try #require(
             try machO.swift.typeContextDescriptors.first {
-                try $0.enum?.name(in: machO).contains(nameContains) == true
+                try $0.enum?.name(in: machO.context).contains(nameContains) == true
             }?.enum,
             "expected an enum context descriptor whose name contains \"\(nameContains)\""
         )
@@ -127,7 +127,7 @@ extension GenericSpecializationTestingEnvironment {
     package func classDescriptor(named nameContains: String) throws -> ClassDescriptor {
         try #require(
             try machO.swift.typeContextDescriptors.first {
-                try $0.class?.name(in: machO).contains(nameContains) == true
+                try $0.class?.name(in: machO.context).contains(nameContains) == true
             }?.class,
             "expected a class context descriptor whose name contains \"\(nameContains)\""
         )
@@ -141,7 +141,7 @@ extension GenericSpecializationTestingEnvironment {
     ) throws -> (descriptor: StructDescriptor, genericContext: GenericContext) {
         let descriptor = try structDescriptor(named: nameContains)
         let genericContext = try #require(
-            try descriptor.genericContext(in: machO),
+            try descriptor.genericContext(in: machO.context),
             "expected genericContext on \(nameContains)"
         )
         return (descriptor, genericContext)

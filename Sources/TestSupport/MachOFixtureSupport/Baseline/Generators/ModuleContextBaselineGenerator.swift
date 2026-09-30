@@ -17,7 +17,7 @@ package enum ModuleContextBaselineGenerator {
         outputDirectory: URL
     ) throws {
         let descriptor = try BaselineFixturePicker.module_SymbolTestsCore(in: machO)
-        let context = try ModuleContext(descriptor: descriptor, in: machO)
+        let context = try ModuleContext(descriptor: descriptor, in: machO.context)
 
         let entryExpr = emitEntryExpr(for: context)
 

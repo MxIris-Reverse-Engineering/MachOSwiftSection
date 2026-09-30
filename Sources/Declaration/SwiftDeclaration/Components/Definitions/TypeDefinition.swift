@@ -211,7 +211,7 @@ public final class TypeDefinition: Definition {
     /// not cached — retaining it on the definition would re-accumulate, in
     /// browse order, the memory the descriptor slimming reclaimed.
     public func materializedTypeContext(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> TypeContextWrapper {
-        try TypeContextWrapper.forTypeContextDescriptorWrapper(typeContextDescriptorWrapper, in: machO)
+        try TypeContextWrapper.forTypeContextDescriptorWrapper(typeContextDescriptorWrapper, in: machO.context)
     }
 
     /// What a type-level attribute prints in parentheses, or `nil` when it

@@ -21,7 +21,7 @@ extension ProtocolDefinition {
             }
             return nil
         }
-        associatedTypes = try protocolDescriptor.associatedTypes(in: machO)
+        associatedTypes = try protocolDescriptor.associatedTypes(in: machO.context)
 
         var requirementMemberSymbolsByKind: OrderedDictionary<SymbolIndexStore.MemberKind, [MemberSymbol]> = [:]
         var defaultImplementationMemberSymbolsByKind: OrderedDictionary<SymbolIndexStore.MemberKind, [MemberSymbol]> = [:]

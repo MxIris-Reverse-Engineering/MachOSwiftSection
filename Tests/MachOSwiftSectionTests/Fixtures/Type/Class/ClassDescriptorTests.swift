@@ -210,9 +210,9 @@ final class ClassDescriptorTests: MachOSwiftSectionFixtureTests, FixtureSuite, @
     /// non-nil mangled name for `SubclassTest`.
     @Test func superclassTypeMangledName() async throws {
         let (classTestFile, classTestImage) = try loadClassTestDescriptors()
-        let classTestPresence = try acrossAllReaders(
-            file: { (try classTestFile.superclassTypeMangledName(in: machOFile)) != nil },
-            image: { (try classTestImage.superclassTypeMangledName(in: machOImage)) != nil }
+        let classTestPresence = try acrossAllContexts(
+            file: { (try classTestFile.superclassTypeMangledName(in: fileContext)) != nil },
+            image: { (try classTestImage.superclassTypeMangledName(in: imageContext)) != nil }
         )
         #expect(classTestPresence == ClassDescriptorBaseline.classTest.hasSuperclassTypeMangledName)
 
@@ -221,9 +221,9 @@ final class ClassDescriptorTests: MachOSwiftSectionFixtureTests, FixtureSuite, @
         #expect(classTestImageCtxPresence == ClassDescriptorBaseline.classTest.hasSuperclassTypeMangledName)
 
         let (subclassFile, subclassImage) = try loadSubclassTestDescriptors()
-        let subclassPresence = try acrossAllReaders(
-            file: { (try subclassFile.superclassTypeMangledName(in: machOFile)) != nil },
-            image: { (try subclassImage.superclassTypeMangledName(in: machOImage)) != nil }
+        let subclassPresence = try acrossAllContexts(
+            file: { (try subclassFile.superclassTypeMangledName(in: fileContext)) != nil },
+            image: { (try subclassImage.superclassTypeMangledName(in: imageContext)) != nil }
         )
         #expect(subclassPresence == ClassDescriptorBaseline.subclassTest.hasSuperclassTypeMangledName)
     }

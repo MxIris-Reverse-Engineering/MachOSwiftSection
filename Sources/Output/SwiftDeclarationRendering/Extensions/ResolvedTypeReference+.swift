@@ -30,7 +30,7 @@ extension ResolvedTypeReference {
             case .symbol(let symbol):
                 return try SymbolicDemangler.demangleType(for: symbol, in: machO)
             case .element(let element):
-                guard let classDescriptor = try element.descriptor.resolve(in: machO) else { return nil }
+                guard let classDescriptor = try element.descriptor.resolve(in: machO.context) else { return nil }
                 return try SymbolicDemangler.demangleContext(for: .type(.class(classDescriptor)), in: machO)
             case nil:
                 return nil
@@ -64,7 +64,7 @@ extension ResolvedTypeReference {
             case .symbol(let symbol):
                 return try SymbolicDemangler.demangleType(for: symbol)
             case .element(let element):
-                guard let classDescriptor = try element.descriptor.resolve() else { return nil }
+                guard let classDescriptor = try element.descriptor.resolve(in: .inProcess) else { return nil }
                 return try SymbolicDemangler.demangleContext(for: .type(.class(classDescriptor)))
             case nil:
                 return nil

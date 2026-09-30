@@ -23,8 +23,8 @@ package enum FieldRecordBaselineGenerator {
         outputDirectory: URL
     ) throws {
         let descriptor = try BaselineFixturePicker.struct_GenericStructNonRequirement(in: machO)
-        let fieldDescriptor = try required(try descriptor.fieldDescriptor(in: machO))
-        let records = try fieldDescriptor.records(in: machO)
+        let fieldDescriptor = try required(try descriptor.fieldDescriptor(in: machO.context))
+        let records = try fieldDescriptor.records(in: machO.context)
 
         let firstRecord = try required(records.first)
         let secondRecord = try required(records.dropFirst().first)
@@ -85,8 +85,8 @@ package enum FieldRecordBaselineGenerator {
     ) throws -> String {
         let offset = record.offset
         let layoutFlagsRawValue = record.layout.flags.rawValue
-        let fieldName = try record.fieldName(in: machO)
-        let hasMangledTypeName = (try? record.mangledTypeName(in: machO)) != nil
+        let fieldName = try record.fieldName(in: machO.context)
+        let hasMangledTypeName = (try? record.mangledTypeName(in: machO.context)) != nil
 
         let expr: ExprSyntax = """
         Entry(

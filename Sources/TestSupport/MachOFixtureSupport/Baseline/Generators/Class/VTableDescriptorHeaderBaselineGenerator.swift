@@ -16,7 +16,7 @@ package enum VTableDescriptorHeaderBaselineGenerator {
         outputDirectory: URL
     ) throws {
         let descriptor = try BaselineFixturePicker.class_ClassTest(in: machO)
-        let classWrapper = try Class(descriptor: descriptor, in: machO)
+        let classWrapper = try Class(descriptor: descriptor, in: machO.context)
         let header = try required(classWrapper.vTableDescriptorHeader)
 
         let entryExpr = emitEntryExpr(for: header)

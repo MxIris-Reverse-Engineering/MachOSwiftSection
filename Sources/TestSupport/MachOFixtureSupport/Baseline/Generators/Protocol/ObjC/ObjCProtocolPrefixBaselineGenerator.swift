@@ -18,7 +18,7 @@ package enum ObjCProtocolPrefixBaselineGenerator {
         outputDirectory: URL
     ) throws {
         let prefix = try BaselineFixturePicker.objcProtocolPrefix_first(in: machO)
-        let name = try prefix.name(in: machO)
+        let name = try prefix.name(in: machO.context)
         let entryExpr = emitEntryExpr(offset: prefix.offset, name: name)
 
         // Public members declared directly in ObjCProtocolPrefix.swift.

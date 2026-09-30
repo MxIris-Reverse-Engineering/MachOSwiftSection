@@ -83,16 +83,16 @@ package struct EnumDumper<MachO: MachOFieldLayoutRenderable>: TypedDumper {
 
             await fieldLayoutRenderer.enumPrefixComments(enumLayout: enumLayout)
 
-            for (offset, fieldRecord) in try dumped.descriptor.fieldDescriptor(in: machO).records(in: machO).offsetEnumerated() {
+            for (offset, fieldRecord) in try dumped.descriptor.fieldDescriptor(in: machO.context).records(in: machO.context).offsetEnumerated() {
                 BreakLine()
 
-                let mangledTypeName = try fieldRecord.mangledTypeName(in: machO)
+                let mangledTypeName = try fieldRecord.mangledTypeName(in: machO.context)
 
                 try await fieldLayoutRenderer.enumCaseComments(forCaseAtIndex: offset.index, mangledTypeName: mangledTypeName, enumLayout: enumLayout)
 
                 Indent(level: configuration.indentation)
 
-                let caseName = try fieldRecord.fieldName(in: machO)
+                let caseName = try fieldRecord.fieldName(in: machO.context)
                 if caseName.isEmpty {
                     // Swift 6.4: an element unavailable at run time keeps its
                     // tag, but the compiler emits neither its name nor its
@@ -216,7 +216,7 @@ package struct EnumDumper<MachO: MachOFieldLayoutRenderable>: TypedDumper {
         if configuration.displayParentName {
             try await resolver.resolve(for: SymbolicDemangler.demangleContext(for: .type(.enum(dumped.descriptor)), in: machO)).replacingTypeNameOrOtherToTypeDeclaration()
         } else {
-            try TypeDeclaration(kind: .enum, dumped.descriptor.name(in: machO))
+            try TypeDeclaration(kind: .enum, dumped.descriptor.name(in: machO.context))
         }
     }
 }

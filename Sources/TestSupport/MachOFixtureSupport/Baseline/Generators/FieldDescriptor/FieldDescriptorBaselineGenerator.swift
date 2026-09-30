@@ -31,10 +31,10 @@ package enum FieldDescriptorBaselineGenerator {
         outputDirectory: URL
     ) throws {
         let genericDescriptor = try BaselineFixturePicker.struct_GenericStructNonRequirement(in: machO)
-        let genericFieldDescriptor = try required(try genericDescriptor.fieldDescriptor(in: machO))
+        let genericFieldDescriptor = try required(try genericDescriptor.fieldDescriptor(in: machO.context))
 
         let structTestDescriptor = try BaselineFixturePicker.struct_StructTest(in: machO)
-        let structTestFieldDescriptor = try required(try structTestDescriptor.fieldDescriptor(in: machO))
+        let structTestFieldDescriptor = try required(try structTestDescriptor.fieldDescriptor(in: machO.context))
 
         let genericExpr = try emitEntryExpr(for: genericFieldDescriptor, in: machO)
         let structTestExpr = try emitEntryExpr(for: structTestFieldDescriptor, in: machO)
@@ -97,9 +97,9 @@ package enum FieldDescriptorBaselineGenerator {
         let kindRawValue = descriptor.layout.kind
         let layoutNumFields = Int(descriptor.layout.numFields)
         let layoutFieldRecordSize = Int(descriptor.layout.fieldRecordSize)
-        let records = try descriptor.records(in: machO)
+        let records = try descriptor.records(in: machO.context)
         let recordsCount = records.count
-        let hasMangledTypeName = (try? descriptor.mangledTypeName(in: machO)) != nil
+        let hasMangledTypeName = (try? descriptor.mangledTypeName(in: machO.context)) != nil
 
         let expr: ExprSyntax = """
         Entry(

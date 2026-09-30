@@ -26,7 +26,7 @@ package enum GenericRequirementContentBaselineGenerator {
         outputDirectory: URL
     ) throws {
         let descriptor = try BaselineFixturePicker.struct_InvertibleProtocolRequirementTest(in: machO)
-        let context = try required(try descriptor.typeGenericContext(in: machO))
+        let context = try required(try descriptor.typeGenericContext(in: machO.context))
         // Look at the conditional invertible protocols requirements first;
         // fall back to scanning the regular requirements for the
         // invertedProtocols kind.

@@ -30,12 +30,12 @@ public struct SpecializationResult: @unchecked Sendable {
 
     /// Get resolved metadata wrapper
     public func resolveMetadata() throws -> MetadataWrapper {
-        try metadataPointer.resolve()
+        try metadataPointer.resolve(in: .inProcess)
     }
 
     /// Get resolved metadata
     public func metadata() throws -> Metadata {
-        try resolveMetadata().metadata
+        try resolveMetadata().anyMetadata.asMetadata(in: .inProcess)
     }
 }
 
@@ -93,6 +93,6 @@ extension SpecializationResult {
     /// would crash with SIGBUS and is intentionally not exposed here.
     public func valueWitnessTable() throws -> ValueWitnessTable {
         let wrapper = try resolveMetadata()
-        return try wrapper.valueWitnessTable()
+        return try wrapper.valueWitnessTable(in: .inProcess)
     }
 }

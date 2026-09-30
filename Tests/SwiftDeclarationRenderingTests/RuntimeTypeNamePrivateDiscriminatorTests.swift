@@ -48,7 +48,7 @@ struct RuntimeTypeNamePrivateDiscriminatorTests {
     private static func classDescriptor(named name: String, in machO: some MachOSwiftSectionRepresentableWithCache) throws -> ClassDescriptor? {
         for typeContextDescriptor in try machO.swift.typeContextDescriptors {
             guard case .class(let classDescriptor) = typeContextDescriptor else { continue }
-            if try classDescriptor.name(in: machO) == name {
+            if try classDescriptor.name(in: machO.context) == name {
                 return classDescriptor
             }
         }

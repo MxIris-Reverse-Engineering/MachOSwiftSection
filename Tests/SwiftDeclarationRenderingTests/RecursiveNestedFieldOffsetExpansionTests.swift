@@ -88,12 +88,12 @@ final class RecursiveNestedFieldOffsetExpansionTests: MachOSwiftSectionFixtureTe
             return []
         }
 
-        let records = try structType.descriptor.fieldDescriptor(in: machOImage).records(in: machOImage)
+        let records = try structType.descriptor.fieldDescriptor(in: imageContext).records(in: imageContext)
         let fieldIndex = try #require(
-            try records.firstIndex { (try? $0.fieldName(in: machOImage)) == targetFieldName },
+            try records.firstIndex { (try? $0.fieldName(in: imageContext)) == targetFieldName },
             "\(structTypeName) has no stored property named \(targetFieldName)"
         )
-        let mangledTypeName = try records[fieldIndex].mangledTypeName(in: machOImage)
+        let mangledTypeName = try records[fieldIndex].mangledTypeName(in: imageContext)
 
         let renderer = FieldLayoutRenderer(type: type, metadata: nil, machO: machOImage, configuration: configuration)
         let rendered = try await renderer.storedFieldComments(
