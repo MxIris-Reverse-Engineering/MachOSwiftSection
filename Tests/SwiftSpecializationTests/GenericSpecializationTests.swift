@@ -490,7 +490,7 @@ struct GenericSpecializationTests {
             var elementRequirementCount = 0
             for req in genericContext.requirements {
                 let mangled = try req.paramMangledName(in: machO.context)
-                let node = try SymbolicDemangler.demangleType(for: mangled, in: machO)
+                let node = try SymbolicDemangler.demangleType(for: mangled, in: machO.context)
                 guard let path = GenericSpecializer<MachOImage>.extractAssociatedPath(of: node),
                       !path.steps.isEmpty,
                       path.baseParamName == "A",
@@ -1215,7 +1215,7 @@ struct GenericSpecializationTests {
             let genericContext = try #require(try descriptor.genericContext(in: machO.context))
 
             let dumped = try await genericContext.dumpGenericParameters(
-                in: machO,
+                in: machO.context,
                 isDumpCurrentLevel: false
             ).string
 

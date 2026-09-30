@@ -113,13 +113,19 @@ public final class ExtensionDefinition: Definition, MutableDefinition {
     /// parsed wrapper is released once the indexer's grouping pass ends. Its
     /// `[ResilientWitness]` goes with it, except for the unresolvable subset
     /// `index(in:)` copies onto `missingSymbolWitnesses`.
-    public init(extensionName: ExtensionName, genericSignature: NodeReference?, protocolConformance: ProtocolConformance?, conformingProtocolName: ProtocolName? = nil, associatedTypes: [AssociatedType] = [], resolvedAssociatedTypeWitnesses: [AssociatedTypeWitnessProjection] = [], in machO: some MachOSwiftSectionRepresentableWithCache) throws {
+    public init(extensionName: ExtensionName, genericSignature: NodeReference?, protocolConformance: ProtocolConformance?, conformingProtocolName: ProtocolName? = nil, associatedTypes: [AssociatedType] = [], resolvedAssociatedTypeWitnesses: [AssociatedTypeWitnessProjection] = []) {
         self.extensionName = extensionName
         self.genericSignature = genericSignature
         self.protocolConformanceDescriptor = protocolConformance?.descriptor
         self.conformingProtocolName = conformingProtocolName
         self.associatedTypes = associatedTypes
         self.resolvedAssociatedTypeWitnesses = resolvedAssociatedTypeWitnesses
+    }
+
+    /// The reader argument was never read.
+    @available(*, deprecated, message: "Drop the reader argument: nothing is read.")
+    public convenience init(extensionName: ExtensionName, genericSignature: NodeReference?, protocolConformance: ProtocolConformance?, conformingProtocolName: ProtocolName? = nil, associatedTypes: [AssociatedType] = [], resolvedAssociatedTypeWitnesses: [AssociatedTypeWitnessProjection] = [], in machO: some MachOSwiftSectionRepresentableWithCache) throws {
+        self.init(extensionName: extensionName, genericSignature: genericSignature, protocolConformance: protocolConformance, conformingProtocolName: conformingProtocolName, associatedTypes: associatedTypes, resolvedAssociatedTypeWitnesses: resolvedAssociatedTypeWitnesses)
     }
 
     /// Mach-O-free initializer for pure-value construction (tests, tooling).
@@ -151,8 +157,13 @@ public final class ExtensionDefinition: Definition, MutableDefinition {
     /// extensions. Materialization discipline (evolution proposal 0002):
     /// call at most once per operation and thread the result through as a
     /// local variable — the result is deliberately not cached.
+    public func materializedProtocolConformance(in context: some ReadingContext) throws -> ProtocolConformance? {
+        try protocolConformanceDescriptor.map { try ProtocolConformance(descriptor: $0, in: context) }
+    }
+
+    @available(*, deprecated, message: "Pass a ReadingContext: materializedProtocolConformance(in: machO.context).")
     public func materializedProtocolConformance(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> ProtocolConformance? {
-        try protocolConformanceDescriptor.map { try ProtocolConformance(descriptor: $0, in: machO.context) }
+        try materializedProtocolConformance(in: machO.context)
     }
 
     /// Folds another definition's associated types (and their frozen witness

@@ -74,7 +74,7 @@ extension SwiftDeclarationPrinter {
             }
             let superclass = try await renderClassSuperclass(dumped, resolver: resolver)
             if boundTypeNode == nil, let genericContext = dumped.genericContext {
-                try await genericContext.dumpGenericSignature(resolver: resolver, in: machO) {
+                try await genericContext.dumpGenericSignature(resolver: resolver, in: machO.context) {
                     superclass
                 }
             } else {
@@ -86,7 +86,7 @@ extension SwiftDeclarationPrinter {
     @SemanticStringBuilder
     private func renderGenericSignatureWithInvertibles(genericContext: TypeGenericContext?, invertibleProtocolSet: InvertibleProtocolSet?, resolver: DemangleResolver) async throws -> SemanticString {
         if let genericContext {
-            try await genericContext.dumpGenericSignature(resolver: resolver, in: machO) {
+            try await genericContext.dumpGenericSignature(resolver: resolver, in: machO.context) {
                 if let invertibleProtocolSet, invertibleProtocolSet.hasInvertedProtocols {
                     invertibleProtocolSet.dumpInvertedProtocolsInheritance
                 }
@@ -99,7 +99,7 @@ extension SwiftDeclarationPrinter {
     @SemanticStringBuilder
     private func renderUnboundTypeName(_ kind: SemanticType.TypeKind, descriptorWrapper: ContextDescriptorWrapper, name: String, displayParentName: Bool, leafNameNode: Node?, resolver: DemangleResolver) async throws -> SemanticString {
         if displayParentName {
-            try await resolver.resolve(for: SymbolicDemangler.demangleContext(for: descriptorWrapper, in: machO)).replacingTypeNameOrOtherToTypeDeclaration()
+            try await resolver.resolve(for: SymbolicDemangler.demangleContext(for: descriptorWrapper, in: machO.context)).replacingTypeNameOrOtherToTypeDeclaration()
         } else {
             renderLeafName(kind: kind, bareName: name, leafNameNode: leafNameNode)
         }
@@ -130,13 +130,13 @@ extension SwiftDeclarationPrinter {
         if let superclassMangledName = try dumped.descriptor.superclassTypeMangledName(in: machO.context) {
             Standard(":")
             Space()
-            try await resolver.resolve(for: SymbolicDemangler.demangleType(for: superclassMangledName, in: machO))
+            try await resolver.resolve(for: SymbolicDemangler.demangleType(for: superclassMangledName, in: machO.context))
             if hasInvertedProtocols {
                 Standard(",")
                 Space()
                 dumped.invertibleProtocolSet!.dumpInvertedProtocolNames
             }
-        } else if let resilientSuperclass = dumped.resilientSuperclass, let kind = dumped.descriptor.resilientSuperclassReferenceKind, let superclass = try await resilientSuperclass.dumpSuperclass(resolver: resolver, for: kind, in: machO) {
+        } else if let resilientSuperclass = dumped.resilientSuperclass, let kind = dumped.descriptor.resilientSuperclassReferenceKind, let superclass = try await resilientSuperclass.dumpSuperclass(resolver: resolver, for: kind, in: machO.context) {
             Standard(":")
             Space()
             superclass
@@ -156,7 +156,7 @@ extension SwiftDeclarationPrinter {
         guard dumped.descriptor.isActor else { return false }
         @Dependency(\.symbolIndexStore) var symbolIndexStore
 
-        guard let currentTypeNode = try? SymbolicDemangler.demangleContext(for: .type(.class(dumped.descriptor)), in: machO) else { return false }
+        guard let currentTypeNode = try? SymbolicDemangler.demangleContext(for: .type(.class(dumped.descriptor)), in: machO.context) else { return false }
         let currentTypeName = currentTypeNode.print(using: .interfaceTypeBuilderOnly)
 
         for thunkSymbol in symbolIndexStore.symbols(of: .distributedThunk, in: machO) {
@@ -181,7 +181,7 @@ extension SwiftDeclarationPrinter {
         Keyword(.protocol)
         Space()
         if displayParentName {
-            try await resolver.resolve(for: SymbolicDemangler.demangleContext(for: .protocol(dumped.descriptor), in: machO)).replacingTypeNameOrOtherToTypeDeclaration()
+            try await resolver.resolve(for: SymbolicDemangler.demangleContext(for: .protocol(dumped.descriptor), in: machO.context)).replacingTypeNameOrOtherToTypeDeclaration()
         } else {
             renderLeafName(kind: .protocol, bareName: try dumped.descriptor.name(in: machO.context), leafNameNode: leafNameNode)
         }
@@ -195,7 +195,7 @@ extension SwiftDeclarationPrinter {
                     Standard(",")
                 }
                 Space()
-                try await requirement.descriptor.dumpContent(resolver: resolver, in: machO)
+                try await requirement.descriptor.dumpContent(resolver: resolver, in: machO.context)
             }
             if !requirementInSignatures.isEmpty {
                 Space()
@@ -203,7 +203,7 @@ extension SwiftDeclarationPrinter {
                 Space()
 
                 for (offset, requirement) in requirementInSignatures.offsetEnumerated() {
-                    try await requirement.descriptor.dumpProtocolRequirement(resolver: resolver, in: machO)
+                    try await requirement.descriptor.dumpProtocolRequirement(resolver: resolver, in: machO.context)
                     if !offset.isEnd {
                         Standard(",")
                         Space()
@@ -246,7 +246,7 @@ extension SwiftDeclarationPrinter {
         let resolver = typeDemangleResolver
         let orderedRecords = collectUniqueAssociatedTypeRecords(of: associatedTypes)
         for (offset, record) in orderedRecords.offsetEnumerated() {
-            let resolution = try SymbolicDemangler.demangleType(for: record.mangledTypeName, in: machO)
+            let resolution = try SymbolicDemangler.demangleType(for: record.mangledTypeName, in: machO.context)
                 .resolveOpaqueTypeCollectingConditionalCandidates(
                     witnessMangledName: record.mangledTypeName,
                     conformingTypeName: record.conformingTypeName,

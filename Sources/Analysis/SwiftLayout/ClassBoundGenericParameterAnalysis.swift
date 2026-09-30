@@ -94,7 +94,7 @@ enum ClassBoundGenericParameterAnalysis {
     ) -> Node? {
         guard
             case .type(let rightHandSideName)? = try? requirement.resolvedContent(in: machO.context),
-            let rightHandSideNode = try? SymbolicDemangler.demangleType(for: rightHandSideName, in: machO)
+            let rightHandSideNode = try? SymbolicDemangler.demangleType(for: rightHandSideName, in: machO.context)
         else { return nil }
         let unwrapped = rightHandSideNode.kind == .type ? (rightHandSideNode.firstChild ?? rightHandSideNode) : rightHandSideNode
         guard !nodeReferencesParameterOrMember(unwrapped) else { return nil }
@@ -118,7 +118,7 @@ enum ClassBoundGenericParameterAnalysis {
     ) -> GenericParameterKey? {
         guard
             let parameterMangledName = try? requirement.paramMangledName(in: machO.context),
-            let parameterNode = try? SymbolicDemangler.demangleType(for: parameterMangledName, in: machO)
+            let parameterNode = try? SymbolicDemangler.demangleType(for: parameterMangledName, in: machO.context)
         else { return nil }
         let unwrapped = parameterNode.kind == .type ? (parameterNode.firstChild ?? parameterNode) : parameterNode
         guard
@@ -174,7 +174,7 @@ enum ClassBoundGenericParameterAnalysis {
             }
         case .symbol(let symbol):
             guard
-                let symbolNode = try? SymbolicDemangler.demangleType(for: symbol, in: image.machO),
+                let symbolNode = try? SymbolicDemangler.demangleType(for: symbol, in: image.machO.context),
                 let protocolNode = symbolNode.kind == .protocol ? symbolNode : symbolNode.first(of: .protocol),
                 let qualifiedProtocolName = NodeTypeNaming.protocolQualifiedName(of: protocolNode)
             else { return false }

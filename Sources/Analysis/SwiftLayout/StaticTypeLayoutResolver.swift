@@ -29,7 +29,7 @@ final class StaticTypeLayoutResolver<MachO: MachOSwiftSectionRepresentableWithCa
     ) throws -> StaticTypeLayout {
         let typeNode: Node
         do {
-            typeNode = try SymbolicDemangler.demangleType(for: mangledTypeName, in: originImage.machO)
+            typeNode = try SymbolicDemangler.demangleType(for: mangledTypeName, in: originImage.machO.context)
         } catch {
             throw LayoutResolutionError.unknown(.demangleFailure)
         }
@@ -589,7 +589,7 @@ final class StaticTypeLayoutResolver<MachO: MachOSwiftSectionRepresentableWithCa
     ) throws -> StaticTypeLayout {
         let typeNode: Node
         do {
-            typeNode = try SymbolicDemangler.demangleType(for: mangledTypeName, in: originImage.machO)
+            typeNode = try SymbolicDemangler.demangleType(for: mangledTypeName, in: originImage.machO.context)
         } catch {
             throw LayoutResolutionError.unknown(.demangleFailure)
         }
@@ -681,7 +681,7 @@ final class StaticTypeLayoutResolver<MachO: MachOSwiftSectionRepresentableWithCa
         guard !descriptor.layout.flags.isGeneric else { return superclassInstanceSize }
         let classListInstanceStart = (try? SymbolicDemangler.demangleContext(
             for: TypeContextDescriptorWrapper.class(descriptor).asContextDescriptorWrapper,
-            in: image.machO
+            in: image.machO.context
         ))
             .flatMap { NodeTypeNaming.nominalQualifiedName(of: $0) }
             .flatMap { image.swiftClassInstanceStartsByQualifiedName[$0] }
@@ -707,7 +707,7 @@ final class StaticTypeLayoutResolver<MachO: MachOSwiftSectionRepresentableWithCa
         }
         let demangledSuperclassNode: Node
         do {
-            demangledSuperclassNode = try SymbolicDemangler.demangleType(for: superclassMangledName, in: image.machO)
+            demangledSuperclassNode = try SymbolicDemangler.demangleType(for: superclassMangledName, in: image.machO.context)
         } catch {
             throw LayoutResolutionError.unknown(.demangleFailure)
         }

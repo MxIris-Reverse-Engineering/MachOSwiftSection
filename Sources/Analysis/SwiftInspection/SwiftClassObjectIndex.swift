@@ -161,7 +161,7 @@ package final class SwiftClassObjectIndex: @unchecked Sendable {
                 customObjCClassName: customObjCClassName(runtimeName: runtimeName, classFlags: classFlags, descriptor: descriptor),
                 instanceStart: Int(readOnlyData.layout.instanceStart)
             )
-            if let contextNode = try? SymbolicDemangler.demangleContext(for: .type(.class(descriptor)), in: machO),
+            if let contextNode = try? SymbolicDemangler.demangleContext(for: .type(.class(descriptor)), in: machO.context),
                let qualifiedName = NodeTypeNaming.nominalQualifiedName(ofDemangledRoot: contextNode) {
                 customRuntimeNamesBySwiftQualifiedName[qualifiedName, default: []].append(runtimeName)
             }

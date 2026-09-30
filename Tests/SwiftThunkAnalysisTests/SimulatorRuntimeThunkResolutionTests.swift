@@ -56,14 +56,14 @@ struct SimulatorStandaloneSwiftUIThunkTests {
         var texts: [String: String] = [:]
         for wrapper in try machOFile.swift.typeContextDescriptors {
             let descriptor = wrapper.typeContextDescriptor
-            guard let name = try? SymbolicDemangler.demangleContext(for: wrapper.asContextDescriptorWrapper, in: machOFile).print(using: .default),
+            guard let name = try? SymbolicDemangler.demangleContext(for: wrapper.asContextDescriptorWrapper, in: machOFile.context).print(using: .default),
                   name == typeName,
                   let fieldDescriptor = try? descriptor.fieldDescriptor(in: machOFile.context)
             else { continue }
             let ownerLayout = AccessorThunkOwnerLayout(genericContext: try descriptor.genericContext(in: machOFile.context))
             for record in try fieldDescriptor.records(in: machOFile.context) {
                 guard let mangledTypeName = try? record.mangledTypeName(in: machOFile.context),
-                      let typeNode = try? SymbolicDemangler.demangleType(for: mangledTypeName, in: machOFile)
+                      let typeNode = try? SymbolicDemangler.demangleType(for: mangledTypeName, in: machOFile.context)
                 else { continue }
                 let resolvedNode = typeNode.resolvingAccessorFunctionReferences(in: machOFile, ownerLayout: ownerLayout)
                 texts[try record.fieldName(in: machOFile.context)] = resolvedNode.print(using: .default)
@@ -84,7 +84,7 @@ struct SimulatorStandaloneSwiftUIThunkTests {
             return
         }
         let typeNames = try library.swift.typeContextDescriptors.compactMap { wrapper in
-            try? SymbolicDemangler.demangleContext(for: wrapper.asContextDescriptorWrapper, in: library).print(using: .default)
+            try? SymbolicDemangler.demangleContext(for: wrapper.asContextDescriptorWrapper, in: library.context).print(using: .default)
         }
         #expect(typeNames.contains("Synchronization.Mutex"), "\(typeNames)")
         #expect(typeNames.count >= 10, "\(typeNames)")
@@ -132,10 +132,10 @@ struct SimulatorStandaloneSwiftUIThunkTests {
         var collectionViewBodyWitness: String?
         var byNameLeftovers: [String] = []
         for associatedType in try machOFile.swift.associatedTypes {
-            let conformingTypeName = await (try SymbolicDemangler.demangleType(for: associatedType.conformingTypeName, in: machOFile)).print(using: DemangleOptions.default)
+            let conformingTypeName = await (try SymbolicDemangler.demangleType(for: associatedType.conformingTypeName, in: machOFile.context)).print(using: DemangleOptions.default)
             for record in associatedType.records {
                 guard let mangledName = try? record.substitutedTypeName(in: machOFile.context),
-                      let node = try? SymbolicDemangler.demangleType(for: mangledName, in: machOFile),
+                      let node = try? SymbolicDemangler.demangleType(for: mangledName, in: machOFile.context),
                       node.contains(Node.Kind.opaqueType)
                 else { continue }
                 let resolved = node.resolveOpaqueTypeCollectingConditionalCandidates(in: machOFile).node
@@ -160,7 +160,7 @@ struct SimulatorStandaloneSwiftUIThunkTests {
             var hasConditionalWitness = false
             for record in associatedType.records {
                 guard let mangledName = try? record.substitutedTypeName(in: machOFile.context),
-                      let node = try? SymbolicDemangler.demangleType(for: mangledName, in: machOFile),
+                      let node = try? SymbolicDemangler.demangleType(for: mangledName, in: machOFile.context),
                       node.contains(Node.Kind.opaqueType)
                 else { continue }
                 let resolution = node.resolveOpaqueTypeCollectingConditionalCandidates(in: machOFile)
@@ -202,7 +202,7 @@ struct SimulatorCacheSwiftUIThunkTests {
         for associatedType in try machO.swift.associatedTypes {
             for record in associatedType.records {
                 guard let mangledName = try? record.substitutedTypeName(in: machO.context),
-                      let node = try? SymbolicDemangler.demangleType(for: mangledName, in: machO),
+                      let node = try? SymbolicDemangler.demangleType(for: mangledName, in: machO.context),
                       node.contains(Node.Kind.opaqueType)
                 else { continue }
                 let resolution = node.resolveOpaqueTypeCollectingConditionalCandidates(in: machO)
@@ -245,14 +245,14 @@ struct ArchivedMacOSCacheSwiftUICoreMergedAccessorTests {
         var texts: [String: String] = [:]
         for wrapper in try machOFile.swift.typeContextDescriptors {
             let descriptor = wrapper.typeContextDescriptor
-            guard let name = try? SymbolicDemangler.demangleContext(for: wrapper.asContextDescriptorWrapper, in: machOFile).print(using: .default),
+            guard let name = try? SymbolicDemangler.demangleContext(for: wrapper.asContextDescriptorWrapper, in: machOFile.context).print(using: .default),
                   name == "SwiftUI.PlatformAccessibilitySettingsDefinition" || name == "SwiftUI.NamedImage.Cache",
                   let fieldDescriptor = try? descriptor.fieldDescriptor(in: machOFile.context)
             else { continue }
             let ownerLayout = AccessorThunkOwnerLayout(genericContext: try descriptor.genericContext(in: machOFile.context))
             for record in try fieldDescriptor.records(in: machOFile.context) {
                 guard let mangledTypeName = try? record.mangledTypeName(in: machOFile.context),
-                      let typeNode = try? SymbolicDemangler.demangleType(for: mangledTypeName, in: machOFile),
+                      let typeNode = try? SymbolicDemangler.demangleType(for: mangledTypeName, in: machOFile.context),
                       typeNode.contains(Node.Kind.accessorFunctionReference)
                 else { continue }
                 texts["\(name).\(try record.fieldName(in: machOFile.context))"] = typeNode.resolvingAccessorFunctionReferences(in: machOFile, ownerLayout: ownerLayout).print(using: .default)

@@ -276,7 +276,7 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
 
         // This print operation's single wrapper materialization (proposal
         // 0002), threaded into the header and field renderers below.
-        let materializedTypeContext = try typeDefinition.materializedTypeContext(in: machO)
+        let materializedTypeContext = try typeDefinition.materializedTypeContext(in: machO.context)
 
         try await DeclarationBlock(level: level) {
             try await renderTypeDeclarationHeader(for: materializedTypeContext, displayParentName: displayParentName, level: level, specializedMetadata: specializedMetadata)
@@ -350,7 +350,7 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
 
         // This print operation's single wrapper materialization (proposal
         // 0002), threaded into the header and associated-type renderers below.
-        let dumpedProtocol = try protocolDefinition.materializedProtocol(in: machO)
+        let dumpedProtocol = try protocolDefinition.materializedProtocol(in: machO.context)
 
         if !protocolDefinition.isIndexed {
             try await protocolDefinition.index(in: machO)
@@ -513,7 +513,7 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
         // conformance clause, `@retroactive`, and global-actor markers
         // silently missing (a `try?` here once conflated that failure with
         // "no conformance at all").
-        let materializedProtocolConformance = try extensionDefinition.materializedProtocolConformance(in: machO)
+        let materializedProtocolConformance = try extensionDefinition.materializedProtocolConformance(in: machO.context)
 
         let conformanceProtocolName = await printConformanceProtocolName(
             of: materializedProtocolConformance,
@@ -530,7 +530,7 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
             }
             if let globalActorReference = protocolConformance.globalActorReference,
                let globalActorTypeName = try? globalActorReference.typeName(in: machO.context),
-               let globalActorNode = try? SymbolicDemangler.demangleType(for: globalActorTypeName, in: machO) {
+               let globalActorNode = try? SymbolicDemangler.demangleType(for: globalActorTypeName, in: machO.context) {
                 Standard("@")
                 try await printThrowingType(globalActorNode, isProtocol: false, level: level)
                 Space()
@@ -579,7 +579,7 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
     private func printConformanceProtocolName(of protocolConformance: ProtocolConformance?, isProtocol: Bool, level: Int) async -> SemanticString? {
         guard let protocolConformance else { return nil }
         do {
-            guard let protocolNode = try protocolConformance.protocolNode(in: machO) else { return SemanticString() }
+            guard let protocolNode = try protocolConformance.protocolNode(in: machO.context) else { return SemanticString() }
             return try await printThrowingType(protocolNode, isProtocol: isProtocol, level: level)
         } catch {
             return nil

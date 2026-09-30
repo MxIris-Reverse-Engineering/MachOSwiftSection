@@ -35,14 +35,14 @@ struct ArchivedIOSCacheThunkTests {
         var texts: [String: String] = [:]
         for wrapper in try machOFile.swift.typeContextDescriptors {
             let descriptor = wrapper.typeContextDescriptor
-            guard let name = try? SymbolicDemangler.demangleContext(for: wrapper.asContextDescriptorWrapper, in: machOFile).print(using: .default),
+            guard let name = try? SymbolicDemangler.demangleContext(for: wrapper.asContextDescriptorWrapper, in: machOFile.context).print(using: .default),
                   name == typeName,
                   let fieldDescriptor = try? descriptor.fieldDescriptor(in: machOFile.context)
             else { continue }
             let ownerLayout = AccessorThunkOwnerLayout(genericContext: try descriptor.genericContext(in: machOFile.context))
             for record in try fieldDescriptor.records(in: machOFile.context) {
                 guard let mangledTypeName = try? record.mangledTypeName(in: machOFile.context),
-                      let typeNode = try? SymbolicDemangler.demangleType(for: mangledTypeName, in: machOFile),
+                      let typeNode = try? SymbolicDemangler.demangleType(for: mangledTypeName, in: machOFile.context),
                       typeNode.contains(Node.Kind.accessorFunctionReference)
                 else { continue }
                 texts[try record.fieldName(in: machOFile.context)] = typeNode.resolvingAccessorFunctionReferences(in: machOFile, ownerLayout: ownerLayout).print(using: .default)
@@ -77,7 +77,7 @@ struct ArchivedIOSCacheThunkTests {
         for associatedType in try swiftUI.swift.associatedTypes {
             for record in associatedType.records {
                 guard let mangledName = try? record.substitutedTypeName(in: swiftUI.context),
-                      let node = try? SymbolicDemangler.demangleType(for: mangledName, in: swiftUI),
+                      let node = try? SymbolicDemangler.demangleType(for: mangledName, in: swiftUI.context),
                       node.contains(Node.Kind.opaqueType)
                 else { continue }
                 let resolution = node.resolveOpaqueTypeCollectingConditionalCandidates(in: swiftUI)

@@ -63,7 +63,7 @@ final class PerImageCacheEvictionTests: MachOFileTests, @unchecked Sendable {
     @discardableResult
     private func populateNonIndexerCaches(for machOFile: MachOFile) throws -> Bool {
         let typeDescriptor = try #require(try machOFile.swift.typeContextDescriptors.first)
-        let typeNode = try SymbolicDemangler.demangleContext(for: .type(typeDescriptor), in: machOFile)
+        let typeNode = try SymbolicDemangler.demangleContext(for: .type(typeDescriptor), in: machOFile.context)
         _ = InternedNodeReferenceCache.shared.reference(interning: typeNode, in: machOFile)
         return true
     }

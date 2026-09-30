@@ -66,4 +66,4 @@
 | [0055](0055-group-sources-by-layer.md) | `Sources/` 按层分组 | Implemented |
 | draft | [静态布局引擎读取 accessor thunk 背后的字段类型](draft-static-layout-through-accessor-thunks.md) | Draft |
 | [0056](0056-visibility-regions.md) | 标记模式：一次打印全量 interface，并标出每段内容受哪个开关控制 | Implemented |
-| draft | [读取接口统一到 ReadingContext：传 machO 与直接用指针的旧接口废弃](draft-reading-context-migration.md) | Accepted |
+| draft | [读取接口统一到 ReadingContext：传 machO 与直接用指针的旧接口废弃](draft-reading-context-migration.md) | In Progress |

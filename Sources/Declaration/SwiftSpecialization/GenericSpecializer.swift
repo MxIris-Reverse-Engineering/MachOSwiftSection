@@ -297,7 +297,7 @@ extension GenericSpecializer {
         for genericRequirement in genericRequirements {
             // Get the mangled param name and demangle it
             let mangledParamName = try genericRequirement.paramMangledName(in: machO.context)
-            let paramNode = try SymbolicDemangler.demangleType(for: mangledParamName, in: machO)
+            let paramNode = try SymbolicDemangler.demangleType(for: mangledParamName, in: machO.context)
 
             // The requirement applies to this parameter only if its LHS is the
             // generic parameter directly (not an associated-type reference like A.Element).
@@ -419,7 +419,7 @@ extension GenericSpecializer {
             let protocolName: ProtocolName
             if let swiftProto = resolved.swift {
                 let proto = try MachOSwiftSection.`Protocol`(descriptor: swiftProto, in: machO.context)
-                protocolName = try proto.protocolName(in: machO)
+                protocolName = try proto.protocolName(in: machO.context)
             } else {
                 return nil
             }
@@ -431,12 +431,12 @@ extension GenericSpecializer {
 
         case .sameType:
             let mangledTypeName = try genericRequirement.type(in: machO.context)
-            let demangledTypeNode = try SymbolicDemangler.demangleType(for: mangledTypeName, in: machO)
+            let demangledTypeNode = try SymbolicDemangler.demangleType(for: mangledTypeName, in: machO.context)
             return .sameType(demangledTypeNode: demangledTypeNode, mangledName: mangledTypeName)
 
         case .baseClass:
             let mangledTypeName = try genericRequirement.type(in: machO.context)
-            let demangledTypeNode = try SymbolicDemangler.demangleType(for: mangledTypeName, in: machO)
+            let demangledTypeNode = try SymbolicDemangler.demangleType(for: mangledTypeName, in: machO.context)
             return .baseClass(demangledTypeNode: demangledTypeNode, mangledName: mangledTypeName)
 
         case .layout:
@@ -485,7 +485,7 @@ extension GenericSpecializer {
 
         for genericRequirement in genericRequirements {
             let mangledParamName = try genericRequirement.paramMangledName(in: machO.context)
-            let paramNode = try SymbolicDemangler.demangleType(for: mangledParamName, in: machO)
+            let paramNode = try SymbolicDemangler.demangleType(for: mangledParamName, in: machO.context)
 
             // Only handle dependent-member chains here; direct GP requirements
             // are collected per parameter in `collectRequirements`.
@@ -1209,7 +1209,7 @@ extension GenericSpecializer where MachO == MachOImage {
     /// placeholder when demangling fails (rare; should never block the
     /// rest of the validation pipeline).
     private func constraintDisplayName(for mangledName: MangledName) -> String {
-        if let node = try? SymbolicDemangler.demangleType(for: mangledName, in: machO) {
+        if let node = try? SymbolicDemangler.demangleType(for: mangledName, in: machO.context) {
             return node.print(using: .interfaceTypeBuilderOnly)
         }
         return "<unprintable>"
@@ -1909,7 +1909,7 @@ extension GenericSpecializer where MachO == MachOImage {
                   let protocolDescriptor = requirementProtocolDescriptor.swift else { continue }
 
             let requirementProtocol = try MachOSwiftSection.`Protocol`(descriptor: protocolDescriptor, in: .inProcess)
-            let paramNode = try SymbolicDemangler.demangleType(for: requirement.paramManagledName)
+            let paramNode = try SymbolicDemangler.demangleType(for: requirement.paramManagledName, in: .inProcess)
 
             guard let pathInfo = Self.extractAssociatedPath(of: paramNode) else {
                 throw AssociatedTypeResolutionError.unknownParamNodeStructure(paramNode: paramNode)
@@ -1937,7 +1937,7 @@ extension GenericSpecializer where MachO == MachOImage {
 
             // The leaf metadata must conform to the requirement protocol; that
             // conformance PWT is the value the runtime expects in the slot.
-            let currentProtocolName = try requirementProtocol.protocolName()
+            let currentProtocolName = try requirementProtocol.protocolName(in: .inProcess)
             guard let associatedTypePWT = try? RuntimeFunctions.conformsToProtocol(
                 metadata: currentMetadata,
                 protocolDescriptor: requirementProtocol.descriptor
@@ -1991,7 +1991,7 @@ extension GenericSpecializer where MachO == MachOImage {
             throw AssociatedTypeResolutionError.failedToCreateAssociatedTypeRefProtocol(underlyingError: error)
         }
 
-        let stepProtocolFullName = try stepProtocol.protocolName()
+        let stepProtocolFullName = try stepProtocol.protocolName(in: .inProcess)
         let availableAssociatedTypes = try stepProtocol.descriptor.associatedTypes(in: .inProcess)
 
         guard let associatedTypeIndex = availableAssociatedTypes.firstIndex(of: step.name) else {

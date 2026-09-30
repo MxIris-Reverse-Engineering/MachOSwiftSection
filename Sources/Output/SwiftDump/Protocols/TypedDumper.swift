@@ -197,7 +197,7 @@ extension TypedDumper {
         if let substituted = substitutedFieldNode(for: mangledTypeName) {
             return substituted
         }
-        let typeNode = try SymbolicDemangler.demangleType(for: mangledTypeName, in: machO)
+        let typeNode = try SymbolicDemangler.demangleType(for: mangledTypeName, in: machO.context)
         guard typeNode.contains(Node.Kind.accessorFunctionReference) else { return typeNode }
         // A kind-9 field type: read the thunk offline (the registered
         // resolver, `MachOFile` only), naming its arguments as this type's

@@ -82,7 +82,7 @@ public final class ProtocolDefinition: Definition, MutableDefinition {
     /// is retained.
     public init(`protocol`: MachOSwiftSection.`Protocol`, in machO: some MachOSwiftSectionRepresentableWithCache) throws {
         self.protocolDescriptor = `protocol`.descriptor
-        let node = try SymbolicDemangler.demangleContext(for: .protocol(`protocol`.descriptor), in: machO)
+        let node = try SymbolicDemangler.demangleContext(for: .protocol(`protocol`.descriptor), in: machO.context)
         let protocolName = ProtocolName(node: InternedNodeReferenceCache.shared.reference(interning: node, in: machO))
         self.protocolName = protocolName
         self.exportStatus = ExportStatus.resolve(
@@ -114,7 +114,12 @@ public final class ProtocolDefinition: Definition, MutableDefinition {
     /// (evolution proposal 0002): call at most once per operation and thread
     /// the result through as a local variable — the result is deliberately
     /// not cached.
+    public func materializedProtocol(in context: some ReadingContext) throws -> MachOSwiftSection.`Protocol` {
+        try MachOSwiftSection.`Protocol`(descriptor: protocolDescriptor, in: context)
+    }
+
+    @available(*, deprecated, message: "Pass a ReadingContext: materializedProtocol(in: machO.context).")
     public func materializedProtocol(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> MachOSwiftSection.`Protocol` {
-        try MachOSwiftSection.`Protocol`(descriptor: protocolDescriptor, in: machO.context)
+        try materializedProtocol(in: machO.context)
     }
 }

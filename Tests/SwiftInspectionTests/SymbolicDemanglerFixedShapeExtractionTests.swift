@@ -258,7 +258,7 @@ struct SymbolicDemanglerFixedShapeExtractionTests {
         let mangledName = try holderFieldMangledTypeName(named: "copyable", in: machOFile)
         try #require(objectiveCProtocolReferenceCount(in: mangledName) == 1, "the fixture must reference NSCopying through a \\x0C symbolic reference for this test to mean anything")
 
-        let node = try SymbolicDemangler.demangleType(for: mangledName, in: machOFile)
+        let node = try SymbolicDemangler.demangleType(for: mangledName, in: machOFile.context)
         #expect(node.print(using: .default) == "__C.NSCopying")
 
         let protocolTypes = try protocolTypes(inExistential: node)
@@ -277,7 +277,7 @@ struct SymbolicDemanglerFixedShapeExtractionTests {
         let mangledName = try holderFieldMangledTypeName(named: "both", in: machOFile)
         try #require(objectiveCProtocolReferenceCount(in: mangledName) == 2, "the fixture must reference both protocols through \\x0C symbolic references for this test to mean anything")
 
-        let node = try SymbolicDemangler.demangleType(for: mangledName, in: machOFile)
+        let node = try SymbolicDemangler.demangleType(for: mangledName, in: machOFile.context)
         // The protocol Swift spells `NSObjectProtocol` is the ObjC protocol
         // `NSObject`; the reference record mangles the ObjC runtime name
         // (`So8NSObject_p`), and the Swift-side rename is APINotes' business

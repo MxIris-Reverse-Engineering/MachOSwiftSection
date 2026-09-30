@@ -32,7 +32,7 @@ struct RuntimeTypeNamePrivateDiscriminatorTests {
         try #require(dlopen(Self.appKitPath, RTLD_LAZY) != nil, "AppKit could not be loaded into the test process")
         let machOImage = try #require(MachOImage(name: "AppKit"))
         let classDescriptor = try #require(try Self.classDescriptor(named: Self.privateClassName, in: machOImage))
-        let descriptorBuiltNode = try SymbolicDemangler.demangleContext(for: .type(.class(classDescriptor)), in: machOImage)
+        let descriptorBuiltNode = try SymbolicDemangler.demangleContext(for: .type(.class(classDescriptor)), in: machOImage.context)
         let descriptorBuiltDiscriminator = try #require(Self.privateDiscriminator(ofNominal: descriptorBuiltNode))
         let objcRuntimeName = try #require(Self.objcRuntimeName(in: machOImage))
         let privateClass: AnyClass = try #require(NSClassFromString(objcRuntimeName))

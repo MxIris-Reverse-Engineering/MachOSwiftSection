@@ -8,7 +8,7 @@ import SwiftStdlibToolbox
 extension ProtocolDefinition {
     package func index(in machO: some MachOSwiftSectionRepresentableWithCache) async throws {
         guard !isIndexed else { return }
-        let dumpedProtocol = try materializedProtocol(in: machO)
+        let dumpedProtocol = try materializedProtocol(in: machO.context)
         let name = protocolName.name
         // Structurally keyed: `demangleSymbolReference` returns references from
         // different stores, and store-identity equality would let the same
@@ -63,7 +63,7 @@ extension ProtocolDefinition {
         // `ProtocolDefinition` (SPI use, no module indexer) still needs the
         // synthesis.
         if defaultImplementationExtensions.isEmpty {
-            let extensionDefinition = try ExtensionDefinition(extensionName: protocolName.extensionName, genericSignature: nil, protocolConformance: nil, in: machO)
+            let extensionDefinition = ExtensionDefinition(extensionName: protocolName.extensionName, genericSignature: nil, protocolConformance: nil)
 
             extensionDefinition.setDefinitions(for: defaultImplementationMemberSymbolsByKind, inExtension: true)
             extensionDefinition.orderedMembers = OrderedMember.offsetOrdered(OrderedMember.allMembers(from: extensionDefinition))

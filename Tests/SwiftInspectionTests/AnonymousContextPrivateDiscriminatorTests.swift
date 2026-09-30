@@ -38,7 +38,7 @@ struct AnonymousContextPrivateDiscriminatorTests {
         let classDescriptor = try #require(try Self.classDescriptor(named: Self.privateClassName, in: machOFile))
         let expectedDiscriminator = try #require(try Self.discriminatorFromObjCRuntimeName(in: machOFile))
 
-        let node = try SymbolicDemangler.demangleContext(for: .type(.class(classDescriptor)), in: machOFile)
+        let node = try SymbolicDemangler.demangleContext(for: .type(.class(classDescriptor)), in: machOFile.context)
 
         #expect(Self.privateDiscriminator(ofNominal: node) == expectedDiscriminator)
     }
@@ -49,7 +49,7 @@ struct AnonymousContextPrivateDiscriminatorTests {
         let classDescriptor = try #require(try Self.classDescriptor(named: Self.privateClassName, in: machOImage))
         let expectedDiscriminator = try #require(try Self.discriminatorFromObjCRuntimeName(in: machOImage))
 
-        let node = try SymbolicDemangler.demangleContext(for: .type(.class(classDescriptor)), in: machOImage)
+        let node = try SymbolicDemangler.demangleContext(for: .type(.class(classDescriptor)), in: machOImage.context)
 
         #expect(Self.privateDiscriminator(ofNominal: node) == expectedDiscriminator)
     }
@@ -63,7 +63,7 @@ struct AnonymousContextPrivateDiscriminatorTests {
         let expectedDiscriminator = try #require(try Self.discriminatorFromObjCRuntimeName(in: machOImage))
         let inProcessDescriptor: ContextDescriptorWrapper = try .resolve(at: machOImage.ptr.advanced(by: classDescriptor.offset), in: .inProcess)
 
-        let node = try SymbolicDemangler.demangleContext(for: inProcessDescriptor)
+        let node = try SymbolicDemangler.demangleContext(for: inProcessDescriptor, in: .inProcess)
 
         #expect(Self.privateDiscriminator(ofNominal: node) == expectedDiscriminator)
     }
@@ -88,7 +88,7 @@ struct AnonymousContextPrivateDiscriminatorTests {
             else { continue }
             let metadata: ClassMetadataObjCInterop = try machOImage.readWrapperElement(offset: classObject.offset)
             let classDescriptor = try #require(try metadata.descriptor(in: machOImage.context), "\(runtimeName) has no class descriptor")
-            let descriptorBuiltName = try Self.qualifiedName(ofNominal: SymbolicDemangler.demangleContext(for: .type(.class(classDescriptor)), in: machOImage))
+            let descriptorBuiltName = try Self.qualifiedName(ofNominal: SymbolicDemangler.demangleContext(for: .type(.class(classDescriptor)), in: machOImage.context))
             let runtimeNameBuiltName = try Self.qualifiedName(ofNominal: demangleAsNodeTransient(runtimeName))
             comparedCount += 1
             if runtimeName.contains("P33_") {

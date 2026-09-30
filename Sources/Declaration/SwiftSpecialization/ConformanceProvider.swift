@@ -215,7 +215,7 @@ extension IndexerConformanceProvider: ConformanceProvider {
             // has no usable parent" case and stays silent.
             var superNode: Node?
             do {
-                superNode = try classWrapper.superclassNode(in: entry.machO)
+                superNode = try classWrapper.superclassNode(in: entry.machO.context)
             } catch {
                 continue
             }

@@ -35,7 +35,7 @@ struct InProcessAccessorFunctionResolutionTests {
         for associatedType in try image.swift.associatedTypes {
             for record in associatedType.records {
                 let witnessMangledName = try record.substitutedTypeName(in: image.context)
-                guard let node = try? SymbolicDemangler.demangleType(for: witnessMangledName, in: image),
+                guard let node = try? SymbolicDemangler.demangleType(for: witnessMangledName, in: image.context),
                       node.contains(Node.Kind.opaqueType),
                       let offlineResolved = try? node.resolveOpaqueType(in: image),
                       offlineResolved.contains(Node.Kind.accessorFunctionReference)
@@ -87,7 +87,7 @@ struct InProcessAccessorFunctionResolutionTests {
         for associatedType in try image.swift.associatedTypes {
             for record in associatedType.records {
                 let witnessMangledName = try record.substitutedTypeName(in: image.context)
-                guard let node = try? SymbolicDemangler.demangleType(for: witnessMangledName, in: image),
+                guard let node = try? SymbolicDemangler.demangleType(for: witnessMangledName, in: image.context),
                       node.contains(Node.Kind.opaqueType),
                       let offlineResolved = try? node.resolveOpaqueType(in: image),
                       offlineResolved.contains(Node.Kind.accessorFunctionReference)

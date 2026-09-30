@@ -166,7 +166,7 @@ struct RawLayoutBuiltinDescriptorFieldOffsetTests {
         var holderDescriptor: TypeContextDescriptorWrapper?
         for contextDescriptor in try machO.swift.contextDescriptors {
             guard let descriptor = contextDescriptor.typeContextDescriptorWrapper,
-                  let name = (try? SymbolicDemangler.demangleContext(for: contextDescriptor, in: machO)).flatMap(NodeTypeNaming.nominalQualifiedName(of:)),
+                  let name = (try? SymbolicDemangler.demangleContext(for: contextDescriptor, in: machO.context)).flatMap(NodeTypeNaming.nominalQualifiedName(of:)),
                   name == qualifiedTypeName
             else { continue }
             holderDescriptor = descriptor

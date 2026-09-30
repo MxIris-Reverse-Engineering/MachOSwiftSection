@@ -30,7 +30,7 @@ struct OpaqueTypeRenderingIntegrationTests {
         var rendered: [String] = []
         for associatedType in try machO.swift.associatedTypes {
             for record in associatedType.records {
-                guard let node = try? SymbolicDemangler.demangleType(for: record.substitutedTypeName(in: machO.context), in: machO),
+                guard let node = try? SymbolicDemangler.demangleType(for: record.substitutedTypeName(in: machO.context), in: machO.context),
                       node.contains(Node.Kind.opaqueType),
                       let resolved = try? node.resolveOpaqueType(in: machO)
                 else { continue }
@@ -119,7 +119,7 @@ struct OpaqueTypeRenderingIntegrationTests {
         for associatedType in try machO.swift.associatedTypes {
             let hasConditionalWitness = associatedType.records.contains { record in
                 guard let mangledName = try? record.substitutedTypeName(in: machO.context),
-                      let node = try? SymbolicDemangler.demangleType(for: mangledName, in: machO),
+                      let node = try? SymbolicDemangler.demangleType(for: mangledName, in: machO.context),
                       node.contains(Node.Kind.opaqueType)
                 else { return false }
                 return node.resolveOpaqueTypeCollectingConditionalCandidates(in: machO).conditionalCandidates.count >= 2
@@ -155,7 +155,7 @@ struct OpaqueTypeRenderingIntegrationTests {
         do {
             for associatedType in (try? machO.swift.associatedTypes) ?? [] {
                 for record in associatedType.records {
-                    guard let node = try? SymbolicDemangler.demangleType(for: record.substitutedTypeName(in: machO.context), in: machO),
+                    guard let node = try? SymbolicDemangler.demangleType(for: record.substitutedTypeName(in: machO.context), in: machO.context),
                           node.contains(Node.Kind.opaqueType)
                     else { continue }
                     let resolution = node.resolveOpaqueTypeCollectingConditionalCandidates(in: machO)

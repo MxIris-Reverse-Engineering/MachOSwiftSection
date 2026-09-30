@@ -110,7 +110,7 @@ extension TypeDefinition {
         let accessorThunkOwnerLayout = AccessorThunkOwnerLayout(genericContext: try typeContextDescriptor.genericContext(in: machO.context))
         var indexedFields: [FieldDefinition] = []
         for record in records {
-            let typeNode = try record.demangledTypeNode(in: machO)
+            let typeNode = try record.demangledTypeNode(in: machO.context)
                 .resolvingAccessorFunctionReferences(in: machO, ownerLayout: accessorThunkOwnerLayout)
             let name = try record.fieldName(in: machO.context)
             var fieldFlags = FieldFlags()

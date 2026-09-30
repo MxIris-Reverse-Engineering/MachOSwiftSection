@@ -328,7 +328,7 @@ struct RuntimeFieldLayoutBackend {
         if let boundType = staticallyBoundMetatype(for: mangledTypeName, parentMetadata: parentMetadata) {
             return boundType
         }
-        guard let node = try? SymbolicDemangler.demangleTypeUncached(for: mangledTypeName),
+        guard let node = try? SymbolicDemangler.demangleTypeUncached(for: mangledTypeName, in: .inProcess),
               !nodeContainsDependentReference(node)
         else { return nil }
         return try? RuntimeFunctions.getTypeByMangledNameInContext(mangledTypeName)
@@ -339,7 +339,7 @@ struct RuntimeFieldLayoutBackend {
         if let substitutedNode = substitutedNestedTypeNode(for: mangledTypeName, parentMetadata: parentMetadata) {
             return substitutedNode.printSemantic(using: .default).string
         }
-        return (try? SymbolicDemangler.demangleTypeUncached(for: mangledTypeName).printSemantic(using: .default).string) ?? ""
+        return (try? SymbolicDemangler.demangleTypeUncached(for: mangledTypeName, in: .inProcess).printSemantic(using: .default).string) ?? ""
     }
 
     // MARK: - Static generic-argument substitution (PAC-fault-avoiding)
@@ -377,13 +377,13 @@ struct RuntimeFieldLayoutBackend {
     }
 
     private func substitutedNestedTypeNode(for mangledTypeName: MangledName, parentMetadata: some ValueMetadataProtocol) -> Node? {
-        guard let node = try? SymbolicDemangler.demangleTypeUncached(for: mangledTypeName) else { return nil }
+        guard let node = try? SymbolicDemangler.demangleTypeUncached(for: mangledTypeName, in: .inProcess) else { return nil }
         guard let layout = topLevelGenericLayout(of: parentMetadata) else { return node }
         return substitutingGenericParameters(in: node, parentMetadata: parentMetadata, layout: layout)
     }
 
     private func staticallyBoundMetatype(for mangledTypeName: MangledName, parentMetadata: some ValueMetadataProtocol) -> Any.Type? {
-        guard let node = try? SymbolicDemangler.demangleTypeUncached(for: mangledTypeName) else { return nil }
+        guard let node = try? SymbolicDemangler.demangleTypeUncached(for: mangledTypeName, in: .inProcess) else { return nil }
         let typeNode = innerTypeNode(of: node)
         guard typeNode.kind == .dependentGenericParamType,
               let (depthValue, indexValue) = genericParameterDepthAndIndex(of: typeNode),
@@ -615,7 +615,7 @@ struct RuntimeFieldLayoutBackend {
         let numberOfEmptyCases = enumValue.numberOfEmptyCases
         var layoutResult: EnumLayoutCalculator.LayoutResult
         if enumValue.isMultiPayload {
-            let node = try SymbolicDemangler.demangleContext(for: .type(.enum(enumValue.descriptor)), in: machOImage)
+            let node = try SymbolicDemangler.demangleContext(for: .type(.enum(enumValue.descriptor)), in: machOImage.context)
             if let multiPayloadEnumDescriptor = MultiPayloadEnumDescriptorCache.shared.multiPayloadEnumDescriptor(for: node, in: machOImage), multiPayloadEnumDescriptor.usesPayloadSpareBits {
                 let spareBytes = try multiPayloadEnumDescriptor.payloadSpareBits(in: machOImage.context)
                 let spareBytesOffset = try multiPayloadEnumDescriptor.payloadSpareBitMaskByteOffset(in: machOImage.context)
@@ -741,7 +741,7 @@ struct RuntimeFieldLayoutBackend {
 
     private func spareBitAnalysis(for enumValue: Enum, in machOImage: MachOImage) -> SpareBitAnalyzer.Analysis? {
         try? {
-            let node = try SymbolicDemangler.demangleContext(for: .type(.enum(enumValue.descriptor)), in: machOImage)
+            let node = try SymbolicDemangler.demangleContext(for: .type(.enum(enumValue.descriptor)), in: machOImage.context)
             guard let multiPayloadEnumDescriptor = MultiPayloadEnumDescriptorCache.shared.multiPayloadEnumDescriptor(for: node, in: machOImage),
                   multiPayloadEnumDescriptor.usesPayloadSpareBits else { return nil }
             let spareBytes = try multiPayloadEnumDescriptor.payloadSpareBits(in: machOImage.context)

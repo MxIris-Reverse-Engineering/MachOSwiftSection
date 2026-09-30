@@ -16,7 +16,7 @@ extension MetadataWrapper {
                 let tupleElementMetadata = try element.type.resolve(in: .inProcess)
                 if let descriptor = try tupleElementMetadata.typeContextDescriptorWrapper(in: .inProcess)?.asContextDescriptorWrapper {
                     configuration.indentString
-                    try await Comment("Type: " + configuration.demangleResolver.resolve(for: SymbolicDemangler.demangleContext(for: descriptor)).string)
+                    try await Comment("Type: " + configuration.demangleResolver.resolve(for: SymbolicDemangler.demangleContext(for: descriptor, in: .inProcess)).string)
                     BreakLine()
                     configuration.indentString
                     let elementLayout = try tupleElementMetadata.asFullMetadata(in: .inProcess).valueWitnesses.resolve(in: .inProcess).typeLayout

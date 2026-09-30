@@ -19,14 +19,14 @@ package struct ParentClassVTableCache {
     /// the parent's vtable).
     package mutating func slotIndex(
         for descriptor: MethodOverrideDescriptor,
-        in machO: some MachOSwiftSectionRepresentableWithCache
+        in context: some ReadingContext
     ) throws -> Int? {
-        guard let methodResult = try descriptor.methodDescriptor(in: machO.context),
+        guard let methodResult = try descriptor.methodDescriptor(in: context),
               case .element(let originalMethod) = methodResult else {
             return nil
         }
 
-        guard let classResult = try descriptor.classDescriptor(in: machO.context),
+        guard let classResult = try descriptor.classDescriptor(in: context),
               case .element(let parentContext) = classResult,
               case .type(.class(let parentClassDescriptor)) = parentContext else {
             return nil
@@ -35,7 +35,7 @@ package struct ParentClassVTableCache {
         let parentOffset = parentClassDescriptor.offset
 
         if entriesByParentOffset[parentOffset] == nil {
-            let parentClass = try Class(descriptor: parentClassDescriptor, in: machO.context)
+            let parentClass = try Class(descriptor: parentClassDescriptor, in: context)
             if let header = parentClass.vTableDescriptorHeader {
                 entriesByParentOffset[parentOffset] = Entry(
                     baseOffset: Int(header.layout.vTableOffset),

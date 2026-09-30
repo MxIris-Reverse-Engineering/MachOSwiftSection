@@ -56,7 +56,7 @@ package struct StructDumper<MachO: MachOFieldLayoutRenderable>: TypedDumper {
             // is orthogonal to substitution.
             let isBound = boundDumpedMetatype() != nil
             if !isBound, let genericContext = dumped.genericContext {
-                try await genericContext.dumpGenericSignature(resolver: demangleResolver, in: machO) {
+                try await genericContext.dumpGenericSignature(resolver: demangleResolver, in: machO.context) {
                     if let invertibleProtocolSet = dumped.invertibleProtocolSet, invertibleProtocolSet.hasInvertedProtocols {
                         invertibleProtocolSet.dumpInvertedProtocolsInheritance
                     }
@@ -142,7 +142,7 @@ package struct StructDumper<MachO: MachOFieldLayoutRenderable>: TypedDumper {
             // bucket; the context node picks this type's own sub-bucket
             // (issue #115). A context that cannot be demangled falls back to
             // the name-only (merged) lookup rather than dropping members.
-            let contextNode = try? SymbolicDemangler.demangleContext(for: .type(.struct(dumped.descriptor)), in: machO)
+            let contextNode = try? SymbolicDemangler.demangleContext(for: .type(.struct(dumped.descriptor)), in: machO.context)
 
             for kind in SymbolIndexStore.MemberKind.allCases {
                 let memberSymbols = if let contextNode {
@@ -209,11 +209,7 @@ package struct StructDumper<MachO: MachOFieldLayoutRenderable>: TypedDumper {
 
     @SemanticStringBuilder
     private func _name(using resolver: DemangleResolver) async throws -> SemanticString {
-        if configuration.displayParentName {
-            try await resolver.resolve(for: SymbolicDemangler.demangleContext(for: .type(.struct(dumped.descriptor)), in: machO)).replacingTypeNameOrOtherToTypeDeclaration()
-        } else {
-            try TypeDeclaration(kind: .struct, dumped.descriptor.name(in: machO.context))
-        }
+        try await dumped.dumpedName(using: resolver, configuration: configuration, in: machO.context)
     }
 }
 

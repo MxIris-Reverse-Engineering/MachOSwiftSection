@@ -1,13 +1,13 @@
 # Draft - 读取接口统一到 ReadingContext：传 machO 与直接用指针的旧接口废弃
 
-- **状态**: Accepted
+- **状态**: In Progress
 - **作者**: JH
 - **创建日期**: 2026-09-30
 - **最后更新**: 2026-09-30
 - **所属愿景**: 无
 - **关联提案**: [0018-self-contained-abi-layer](0018-self-contained-abi-layer.md)（「`ReadingContext` 只管读、不带符号服务」的定位出自这里，本提案延续它）、[0025-key-path-component-and-property-descriptor](0025-key-path-component-and-property-descriptor.md)（记下了「新接口三套都写」的惯例，本提案推翻它）、[0053-shared-cache-composition-and-eviction-registry](0053-shared-cache-composition-and-eviction-registry.md)（按镜像缓存与驱逐的现行规则）
 - **实现分支 / PR**: `refactor/reading-context-migration`（worktree `.worktrees/MachOSwiftSection-ReadingContextMigration`），PR 待定
-- **配套文档**: 待定 —— 计划更新 [ReadingContextAbstraction.md](../Internal/ReadingContextAbstraction.md)（第 4 阶段「废弃」落地、缓存范围、`runtimePointer(at:)` 已是 requirement 的更正）
+- **配套文档**: [ReadingContextAbstraction.md](../Internal/ReadingContextAbstraction.md)「单一实现与废弃」一节（实现说明：旧形式为何原地保留、两个协议保留已废弃的 requirement、约束扩展的 guard 陷阱、修掉的分歧、缓存范围、已知缺口）；术语表登记「cache scope」与「context / Mach-O / pointer form」
 
 ## 摘要
 
@@ -278,3 +278,13 @@ extension ReadingContext {
 | 2026-09-30 | 性能：三条路径都不许变慢，修到持平才合入 | 用户选定；否决「本进程路径允许 10% 开销」「只验正确性」 |
 | 2026-09-30 | 自定：先修 `ReadingContext` 版再切转发；旧 requirement 移出协议；`package` 接口直接改签名；`implementationAddress(in: machO)` 改名；`AsyncResolvable` 废弃；分两个 PR；AGENTS.md 改惯例 | 列在收尾确认清单里，用户确认 |
 | 2026-09-30 | Accepted | 用户确认决策清单：「可以，然后开一个worktree开工」 |
+| 2026-09-30 | In Progress | worktree `.worktrees/MachOSwiftSection-ReadingContextMigration`，分支 `refactor/reading-context-migration` |
+| 2026-09-30 | 旧形式原地保留成转发，不集中到协议扩展 | 集中之后 `Pointer.resolve(from:in:).descriptor()` 这类链式调用在 `-> Self` 与 `-> Self?` 之间二义（实际撞上）；原地保留使重载解析与原来一致 |
+| 2026-09-30 | 不用 `@_disfavoredOverload` 压 `-> Self?` 形式 | `ContextDescriptorWrapper` 等类型的 `-> Self?` 遇非法 kind 返回 nil，一律压成 `-> Self` 会改变旧调用方的结果 |
+| 2026-09-30 | `PointerProtocol` 与 `RelativeIndirectType` 保留已废弃的旧 requirement，其余协议移除 | `Pointer` 同时遵循两者，两个协议扩展各给一份转发会让对 `Pointer` 的调用二义；requirement 与默认实现一起废弃只在调用处报警（Swift 6.3 探针实测） |
+| 2026-09-30 | 约束扩展里的空指针 guard 放进私有 helper | 约束扩展内按名字调用同名 requirement 绑定到无约束 witness（探针实测），直接写成一行转发会跳过 guard |
+| 2026-09-30 | 分歧修复：`Pointer` 查 rebase、`TypeMetadataRecord` 跳过 bind、`SymbolOrElementPointer` 剥 tag 后判空、`MangledName` 偏移统一基准、metadata 地址为 0 时抛错 | 以传 `machO` 版为准补进 `ReadingContext` 版；前三处各带修复前确认红过的回归测试 |
+| 2026-09-30 | `InProcessContext` 的 tag 掩码只算一次、`advanceAddress` 剥 tag；`MachOContext` 去掉多余的预剥并改为不抛错 | 性能：避免每次读取都查当前镜像、遍历 load command；与旧的传 `machO` 版做完全相同的事 |
+| 2026-09-30 | `NamedDumpable` / `ConformedDumpable` 的 requirement 换成收 `ReadingContext` 的形式，取名逻辑从各 Dumper 抽成被 dump 类型上的一份实现 | 取名只读数据；Dumper 自己的 `name` 与 `dumpName` 共用同一份，保持单一实现 |
+| 2026-09-30 | `ProtocolConformance.typeName` 遇只剩 `typeAlias` 的符号时按 struct 处理（原指针版返回 nil） | 以传 `machO` 版（`Node.typeKind`）为准 |
+| 2026-09-30 | 测试去重：改写后与已有 context 断言等价的重复断言删除，保留更强的一条 | 旧形式只是转发，改写后两边走同一路径，对比永远成立 |

@@ -203,7 +203,7 @@ extension TypeDefinition {
         // This specialize operation's single wrapper materialization
         // (proposal 0002): feeds the typeName derivation and the designated
         // init below, released when this function returns.
-        let materializedTypeContext = try materializedTypeContext(in: machO)
+        let materializedTypeContext = try materializedTypeContext(in: machO.context)
 
         // Compute the final typeName up-front so it can flow through the
         // designated init: either the unbound form (`Box<A>`) when no type
@@ -212,7 +212,7 @@ extension TypeDefinition {
         // definition print as `Box<Int>` rather than the placeholder
         // `Box<A>`, and gives it a unique mangled name per specialization
         // (via `mangleAsString(typeName.node)`).
-        let unboundTypeName = try materializedTypeContext.typeName(in: machO)
+        let unboundTypeName = try materializedTypeContext.typeName(in: machO.context)
         let finalTypeName: TypeName
         if let typeArgumentNodes, !typeArgumentNodes.isEmpty {
             finalTypeName = Self.boundGenericTypeName(

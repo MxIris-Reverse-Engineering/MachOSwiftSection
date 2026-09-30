@@ -158,7 +158,7 @@ struct OpaqueTypeOrdinalTests {
 
         var rendered: [String] = []
         for mangledName in opaqueType.underlyingTypeArgumentMangledNames {
-            let node = try SymbolicDemangler.demangleType(for: mangledName, in: machOFile)
+            let node = try SymbolicDemangler.demangleType(for: mangledName, in: machOFile.context)
             rendered.append(await node.print(using: DemangleOptions.default))
         }
 

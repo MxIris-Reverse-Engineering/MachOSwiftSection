@@ -30,10 +30,10 @@ final class FieldRecordThunkResolutionTests: MachOSwiftSectionFixtureTests, @unc
             let descriptor = wrapper.typeContextDescriptor
             guard let fieldDescriptor = try? descriptor.fieldDescriptor(in: fileContext) else { continue }
             let ownerLayout = AccessorThunkOwnerLayout(genericContext: try descriptor.genericContext(in: fileContext))
-            let ownerName = try SymbolicDemangler.demangleContext(for: wrapper.asContextDescriptorWrapper, in: machOFile).print(using: .default)
+            let ownerName = try SymbolicDemangler.demangleContext(for: wrapper.asContextDescriptorWrapper, in: fileContext).print(using: .default)
             for record in try fieldDescriptor.records(in: fileContext) {
                 guard let mangledTypeName = try? record.mangledTypeName(in: fileContext),
-                      let typeNode = try? SymbolicDemangler.demangleType(for: mangledTypeName, in: machOFile),
+                      let typeNode = try? SymbolicDemangler.demangleType(for: mangledTypeName, in: fileContext),
                       typeNode.contains(Node.Kind.accessorFunctionReference)
                 else { continue }
                 let resolvedNode = typeNode.resolvingAccessorFunctionReferences(in: machOFile, ownerLayout: ownerLayout)

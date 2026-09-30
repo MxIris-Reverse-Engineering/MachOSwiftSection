@@ -89,7 +89,7 @@ final class MultiPayloadEnumDescriptorCache: @unchecked Sendable {
             do {
                 let mangledTypeName = try multiPayloadEnumDescriptor.mangledTypeName(in: machO.context)
 
-                let node = try SymbolicDemangler.demangleType(for: mangledTypeName, in: machO)
+                let node = try SymbolicDemangler.demangleType(for: mangledTypeName, in: machO.context)
 
                 multiPayloadEnumDescriptorByNode[node] = multiPayloadEnumDescriptor
             } catch {

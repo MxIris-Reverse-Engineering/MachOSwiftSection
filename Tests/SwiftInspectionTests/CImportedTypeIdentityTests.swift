@@ -310,7 +310,7 @@ struct CImportedTypeIdentityFixtureTests {
         let mangledTypeNames = try holderFieldMangledTypeNames(in: machOFile)
         for expectation in Self.expectations {
             let mangledTypeName = try #require(mangledTypeNames[expectation.fieldName], "Holder has no field \(expectation.fieldName)")
-            let node = try SymbolicDemangler.demangleType(for: mangledTypeName, in: machOFile)
+            let node = try SymbolicDemangler.demangleType(for: mangledTypeName, in: machOFile.context)
             #expect(try typeMangling(of: node) == expectation.mangling, Comment(rawValue: expectation.fieldName))
         }
     }
@@ -320,7 +320,7 @@ struct CImportedTypeIdentityFixtureTests {
         let mangledTypeNames = try holderFieldMangledTypeNames(in: machOFile)
         for expectation in Self.expectations {
             let mangledTypeName = try #require(mangledTypeNames[expectation.fieldName], "Holder has no field \(expectation.fieldName)")
-            let node = try SymbolicDemangler.demangleType(for: mangledTypeName, in: machOFile)
+            let node = try SymbolicDemangler.demangleType(for: mangledTypeName, in: machOFile.context)
             #expect(node.print(using: .default) == expectation.printedName, Comment(rawValue: expectation.fieldName))
         }
     }

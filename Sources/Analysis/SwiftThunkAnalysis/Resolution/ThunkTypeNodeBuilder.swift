@@ -95,7 +95,7 @@ package struct ThunkTypeNodeBuilder: ThunkTypeNodeBuildingLogging {
         guard let origin = environment.accessorOriginsByAddress[accessorAddress] else { return nil }
         do {
             let descriptor: ContextDescriptorWrapper = try ContextDescriptorWrapper.resolve(at: origin.descriptorOffset, in: origin.machO.context)
-            let unboundNode = try SymbolicDemangler.demangleContext(for: descriptor, in: origin.machO)
+            let unboundNode = try SymbolicDemangler.demangleContext(for: descriptor, in: origin.machO.context)
             guard let keyParameterCountsByLevel = try keyParameterCountsByNominalLevel(of: descriptor, in: origin.machO) else { return nil }
             var argumentNodes: [Node] = []
             for typeArgument in typeArguments {
@@ -180,7 +180,7 @@ package struct ThunkTypeNodeBuilder: ThunkTypeNodeBuildingLogging {
             let pointer: RelativeDirectPointer<MangledName> = try machO.readElement(offset: offset)
             guard pointer.isValid else { return nil }
             let mangledName = try pointer.resolve(at: offset, in: machO.context)
-            return try SymbolicDemangler.demangleType(for: mangledName, in: machO)
+            return try SymbolicDemangler.demangleType(for: mangledName, in: machO.context)
         } catch {
             return nil
         }
@@ -251,7 +251,7 @@ package enum MetadataNaming {
             // Annotated because `ContextDescriptorWrapper` vends both a
             // `Self`- and a `Self?`-returning `resolve(at:in:)`.
             let descriptor: ContextDescriptorWrapper = try ContextDescriptorWrapper.resolve(at: Int(descriptorOffset), in: machO.context)
-            return try SymbolicDemangler.demangleContext(for: descriptor, in: machO)
+            return try SymbolicDemangler.demangleContext(for: descriptor, in: machO.context)
         } catch {
             return nil
         }

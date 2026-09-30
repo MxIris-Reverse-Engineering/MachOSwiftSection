@@ -26,7 +26,7 @@ struct AccessorThunkReaderTests {
     private func firstAccessorThunk(in machO: MachOFile) throws -> (offset: Int, ownerLayout: AccessorThunkOwnerLayout)? {
         for associatedType in try machO.swift.associatedTypes {
             for record in associatedType.records {
-                guard let node = try? SymbolicDemangler.demangleType(for: record.substitutedTypeName(in: machO.context), in: machO),
+                guard let node = try? SymbolicDemangler.demangleType(for: record.substitutedTypeName(in: machO.context), in: machO.context),
                       let opaqueTypeNode = node.first(of: Node.Kind.opaqueType),
                       let descriptorReference = opaqueTypeNode.firstChild,
                       descriptorReference.isKind(of: .opaqueTypeDescriptorSymbolicReference),
@@ -39,7 +39,7 @@ struct AccessorThunkReaderTests {
                 guard ordinal < opaqueType.underlyingTypeArgumentMangledNames.count,
                       let underlyingNode = try? SymbolicDemangler.demangleType(
                           for: opaqueType.underlyingTypeArgumentMangledNames[ordinal],
-                          in: machO
+                          in: machO.context
                       ),
                       let accessorReference = underlyingNode.first(of: Node.Kind.accessorFunctionReference),
                       let thunkOffset: Int = accessorReference.index?.cast()

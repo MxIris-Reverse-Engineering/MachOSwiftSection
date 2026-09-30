@@ -134,7 +134,7 @@ public enum AccessorThunkReader: AccessorThunkReadingLogging {
                     #log(.info, "the accessor at offset \(offset, privacy: .public) belongs to a generic type; its arguments were not read, so it is not named")
                     return nil
                 }
-                return try SymbolicDemangler.demangleContext(for: descriptor, in: machO)
+                return try SymbolicDemangler.demangleContext(for: descriptor, in: machO.context)
             } catch {
                 #log(.info, "could not name the accessor at offset \(offset, privacy: .public): \(String(describing: error), privacy: .public)")
                 return nil

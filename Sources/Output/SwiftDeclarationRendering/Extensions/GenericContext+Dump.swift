@@ -33,27 +33,27 @@ package func genericValueName(depth: Int, index: Int) throws -> String {
 
 extension TargetGenericContext {
     @SemanticStringBuilder
-    package func dumpGenericSignature(resolver: DemangleResolver, in machO: some MachOSwiftSectionRepresentableWithCache, isDumpCurrentLevelParams: Bool = true, isDumpCurrentLevelRequirements: Bool = true, @SemanticStringBuilder conformancesBuilder: () async throws -> SemanticString = { "" }) async throws -> SemanticString {
+    package func dumpGenericSignature(resolver: DemangleResolver, in context: some ReadingContext, isDumpCurrentLevelParams: Bool = true, isDumpCurrentLevelRequirements: Bool = true, @SemanticStringBuilder conformancesBuilder: () async throws -> SemanticString = { "" }) async throws -> SemanticString {
         if (isDumpCurrentLevelParams ? currentParameters : parameters).count > 0 {
             Standard("<")
-            try await dumpGenericParameters(in: machO, isDumpCurrentLevel: isDumpCurrentLevelParams)
+            try await dumpGenericParameters(in: context, isDumpCurrentLevel: isDumpCurrentLevelParams)
             Standard(">")
         }
 
         try await conformancesBuilder()
 
-        if (isDumpCurrentLevelRequirements ? uniqueCurrentRequirements(in: machO.context) : requirements).count > 0 {
+        if (isDumpCurrentLevelRequirements ? uniqueCurrentRequirements(in: context) : requirements).count > 0 {
             Space()
             Keyword(.where)
             Space()
-            try await dumpGenericRequirements(resolver: resolver, in: machO, isDumpCurrentLevel: isDumpCurrentLevelRequirements)
+            try await dumpGenericRequirements(resolver: resolver, in: context, isDumpCurrentLevel: isDumpCurrentLevelRequirements)
         }
     }
 }
 
 extension TargetGenericContext {
     @SemanticStringBuilder
-    package func dumpGenericParameters(in machO: some MachOSwiftSectionRepresentableWithCache, isDumpCurrentLevel: Bool = true) async throws -> SemanticString {
+    package func dumpGenericParameters(in context: some ReadingContext, isDumpCurrentLevel: Bool = true) async throws -> SemanticString {
         if isDumpCurrentLevel {
             var currentValueIndex = 0
             for (offset, parameter) in currentParameters.offsetEnumerated() {
@@ -181,24 +181,24 @@ extension TargetGenericContext {
     }
 
     @SemanticStringBuilder
-    package func dumpGenericRequirements(resolver: DemangleResolver, in machO: some MachOSwiftSectionRepresentableWithCache, isDumpCurrentLevel: Bool = true) async throws -> SemanticString {
+    package func dumpGenericRequirements(resolver: DemangleResolver, in context: some ReadingContext, isDumpCurrentLevel: Bool = true) async throws -> SemanticString {
         switch resolver {
         case .options(let demangleOptions):
-            try await dumpGenericRequirements(using: demangleOptions, in: machO, isDumpCurrentLevel: isDumpCurrentLevel)
+            try await dumpGenericRequirements(using: demangleOptions, in: context, isDumpCurrentLevel: isDumpCurrentLevel)
         case .builder(let builder):
-            try await dumpGenericRequirements(in: machO, isDumpCurrentLevel: isDumpCurrentLevel, builder: builder)
+            try await dumpGenericRequirements(in: context, isDumpCurrentLevel: isDumpCurrentLevel, builder: builder)
         }
     }
 
     @SemanticStringBuilder
-    package func dumpGenericRequirements(using options: DemangleOptions, in machO: some MachOSwiftSectionRepresentableWithCache, isDumpCurrentLevel: Bool = true) async throws -> SemanticString {
-        try await dumpGenericRequirements(in: machO, isDumpCurrentLevel: isDumpCurrentLevel) { $0.printSemantic(using: options) }
+    package func dumpGenericRequirements(using options: DemangleOptions, in context: some ReadingContext, isDumpCurrentLevel: Bool = true) async throws -> SemanticString {
+        try await dumpGenericRequirements(in: context, isDumpCurrentLevel: isDumpCurrentLevel) { $0.printSemantic(using: options) }
     }
 
     @SemanticStringBuilder
-    package func dumpGenericRequirements(in machO: some MachOSwiftSectionRepresentableWithCache, isDumpCurrentLevel: Bool = true, @SemanticStringBuilder builder: (Node) async throws -> SemanticString) async throws -> SemanticString {
-        for (offset, requirement) in (isDumpCurrentLevel ? uniqueCurrentRequirements(in: machO.context) : requirements).offsetEnumerated() {
-            try await requirement.dump(in: machO, builder: builder)
+    package func dumpGenericRequirements(in context: some ReadingContext, isDumpCurrentLevel: Bool = true, @SemanticStringBuilder builder: (Node) async throws -> SemanticString) async throws -> SemanticString {
+        for (offset, requirement) in (isDumpCurrentLevel ? uniqueCurrentRequirements(in: context) : requirements).offsetEnumerated() {
+            try await requirement.dump(in: context, builder: builder)
             if !offset.isEnd {
                 Standard(",")
                 Space()
@@ -218,23 +218,23 @@ extension Node {
 
 extension GenericRequirementDescriptor {
     @SemanticStringBuilder
-    package func dump(resolver: DemangleResolver, in machO: some MachOSwiftSectionRepresentableWithCache) async throws -> SemanticString {
+    package func dump(resolver: DemangleResolver, in context: some ReadingContext) async throws -> SemanticString {
         switch resolver {
         case .options(let demangleOptions):
-            try await dump(using: demangleOptions, in: machO)
+            try await dump(using: demangleOptions, in: context)
         case .builder(let builder):
-            try await dump(in: machO, builder: builder)
+            try await dump(in: context, builder: builder)
         }
     }
 
     @SemanticStringBuilder
-    package func dump(using options: DemangleOptions, in machO: some MachOSwiftSectionRepresentableWithCache) async throws -> SemanticString {
-        try await dump(in: machO) { $0.printSemantic(using: options) }
+    package func dump(using options: DemangleOptions, in context: some ReadingContext) async throws -> SemanticString {
+        try await dump(in: context) { $0.printSemantic(using: options) }
     }
 
     @SemanticStringBuilder
-    package func dump(in machO: some MachOSwiftSectionRepresentableWithCache, @SemanticStringBuilder builder: (Node) async throws -> SemanticString) async throws -> SemanticString {
-        try await dumpParameterName(in: machO, builder: builder)
+    package func dump(in context: some ReadingContext, @SemanticStringBuilder builder: (Node) async throws -> SemanticString) async throws -> SemanticString {
+        try await dumpParameterName(in: context, builder: builder)
 
         if layout.flags.kind == .sameType {
             Space()
@@ -245,26 +245,26 @@ extension GenericRequirementDescriptor {
             Space()
         }
 
-        try await dumpContent(in: machO, builder: builder)
+        try await dumpContent(in: context, builder: builder)
     }
 
     @SemanticStringBuilder
-    package func dumpParameterName(using options: DemangleOptions, in machO: some MachOSwiftSectionRepresentableWithCache) async throws -> SemanticString {
-        try await dumpParameterName(in: machO) { $0.printSemantic(using: options) }
+    package func dumpParameterName(using options: DemangleOptions, in context: some ReadingContext) async throws -> SemanticString {
+        try await dumpParameterName(in: context) { $0.printSemantic(using: options) }
     }
 
     @SemanticStringBuilder
-    package func dumpParameterName(resolver: DemangleResolver, in machO: some MachOSwiftSectionRepresentableWithCache) async throws -> SemanticString {
+    package func dumpParameterName(resolver: DemangleResolver, in context: some ReadingContext) async throws -> SemanticString {
         switch resolver {
         case .options(let demangleOptions):
-            try await dumpParameterName(using: demangleOptions, in: machO)
+            try await dumpParameterName(using: demangleOptions, in: context)
         case .builder(let builder):
-            try await dumpParameterName(in: machO, builder: builder)
+            try await dumpParameterName(in: context, builder: builder)
         }
     }
 
     @SemanticStringBuilder
-    package func dumpParameterName(in machO: some MachOSwiftSectionRepresentableWithCache, @SemanticStringBuilder builder: (Node) async throws -> SemanticString) async throws -> SemanticString {
+    package func dumpParameterName(in context: some ReadingContext, @SemanticStringBuilder builder: (Node) async throws -> SemanticString) async throws -> SemanticString {
         if layout.flags.contains(.isPackRequirement) {
             Keyword(.repeat)
             Space()
@@ -272,41 +272,41 @@ extension GenericRequirementDescriptor {
             Space()
         }
 
-        try await builder(dumpParameterName(in: machO))
+        try await builder(dumpParameterName(in: context))
     }
 
-    package func dumpParameterName(in machO: some MachOSwiftSectionRepresentableWithCache) async throws -> Node {
-        try SymbolicDemangler.demangleType(for: paramMangledName(in: machO.context), in: machO)
+    package func dumpParameterName(in context: some ReadingContext) async throws -> Node {
+        try SymbolicDemangler.demangleType(for: paramMangledName(in: context), in: context)
     }
 
     @SemanticStringBuilder
-    package func dumpContent(resolver: DemangleResolver, in machO: some MachOSwiftSectionRepresentableWithCache) async throws -> SemanticString {
+    package func dumpContent(resolver: DemangleResolver, in context: some ReadingContext) async throws -> SemanticString {
         switch resolver {
         case .options(let demangleOptions):
-            try await dumpContent(using: demangleOptions, in: machO)
+            try await dumpContent(using: demangleOptions, in: context)
         case .builder(let builder):
-            try await dumpContent(in: machO, builder: builder)
+            try await dumpContent(in: context, builder: builder)
         }
     }
 
     @SemanticStringBuilder
-    package func dumpContent(using options: DemangleOptions, in machO: some MachOSwiftSectionRepresentableWithCache) async throws -> SemanticString {
-        try await dumpContent(in: machO) { $0.printSemantic(using: options) }
+    package func dumpContent(using options: DemangleOptions, in context: some ReadingContext) async throws -> SemanticString {
+        try await dumpContent(in: context) { $0.printSemantic(using: options) }
     }
 
     @SemanticStringBuilder
-    package func dumpContent(in machO: some MachOSwiftSectionRepresentableWithCache, @SemanticStringBuilder builder: (Node) async throws -> SemanticString) async throws -> SemanticString {
-        switch try resolvedContent(in: machO.context) {
+    package func dumpContent(in context: some ReadingContext, @SemanticStringBuilder builder: (Node) async throws -> SemanticString) async throws -> SemanticString {
+        switch try resolvedContent(in: context) {
         case .type(let mangledName):
-            try await builder(SymbolicDemangler.demangleType(for: mangledName, in: machO))
+            try await builder(SymbolicDemangler.demangleType(for: mangledName, in: context))
         case .protocol(let resolvableElement):
             switch resolvableElement {
             case .symbol(let unsolvedSymbol):
-                try await SymbolicDemangler.demangleType(for: unsolvedSymbol, in: machO).asyncMap { try await builder($0) }
+                try await SymbolicDemangler.demangleType(for: unsolvedSymbol, in: context).asyncMap { try await builder($0) }
             case .element(let element):
                 switch element {
                 case .objc(let objc):
-                    let objcName = try objc.mangledName(in: machO.context).rawString
+                    let objcName = try objc.mangledName(in: context).rawString
                     let node = Node.createTransient(kind: .global, children: [
                         Node.createTransient(kind: .type, children: [
                             Node.createTransient(kind: .protocol, children: [
@@ -317,7 +317,7 @@ extension GenericRequirementDescriptor {
                     ])
                     try await builder(node)
                 case .swift(let protocolDescriptor):
-                    try await builder(SymbolicDemangler.demangleContext(for: .protocol(protocolDescriptor), in: machO))
+                    try await builder(SymbolicDemangler.demangleContext(for: .protocol(protocolDescriptor), in: context))
                 }
             }
         case .layout(let genericRequirementLayoutKind):
@@ -335,23 +335,23 @@ extension GenericRequirementDescriptor {
 
 extension GenericRequirementDescriptor {
     @SemanticStringBuilder
-    package func dumpProtocolRequirement(resolver: DemangleResolver, in machO: some MachOSwiftSectionRepresentableWithCache) async throws -> SemanticString {
+    package func dumpProtocolRequirement(resolver: DemangleResolver, in context: some ReadingContext) async throws -> SemanticString {
         switch resolver {
         case .options(let demangleOptions):
-            try await dumpProtocolRequirement(using: demangleOptions, in: machO)
+            try await dumpProtocolRequirement(using: demangleOptions, in: context)
         case .builder(let builder):
-            try await dumpProtocolRequirement(in: machO, builder: builder)
+            try await dumpProtocolRequirement(in: context, builder: builder)
         }
     }
 
     @SemanticStringBuilder
-    package func dumpProtocolRequirement(using options: DemangleOptions, in machO: some MachOSwiftSectionRepresentableWithCache) async throws -> SemanticString {
-        try await dumpProtocolRequirement(in: machO) { $0.printSemantic(using: options) }
+    package func dumpProtocolRequirement(using options: DemangleOptions, in context: some ReadingContext) async throws -> SemanticString {
+        try await dumpProtocolRequirement(in: context) { $0.printSemantic(using: options) }
     }
 
     @SemanticStringBuilder
-    package func dumpProtocolRequirement(in machO: some MachOSwiftSectionRepresentableWithCache, @SemanticStringBuilder builder: (Node) async throws -> SemanticString) async throws -> SemanticString {
-        try await dumpProtocolParameterName(in: machO, builder: builder)
+    package func dumpProtocolRequirement(in context: some ReadingContext, @SemanticStringBuilder builder: (Node) async throws -> SemanticString) async throws -> SemanticString {
+        try await dumpProtocolParameterName(in: context, builder: builder)
 
         if layout.flags.kind == .sameType {
             Space()
@@ -362,17 +362,17 @@ extension GenericRequirementDescriptor {
             Space()
         }
 
-        try await dumpProtocolContent(in: machO, builder: builder)
+        try await dumpProtocolContent(in: context, builder: builder)
     }
 
     @SemanticStringBuilder
-    package func dumpProtocolParameterName(in machO: some MachOSwiftSectionRepresentableWithCache, @SemanticStringBuilder builder: (Node) async throws -> SemanticString) async throws -> SemanticString {
-        try await dumpProtocolMangledName(paramMangledName(in: machO.context), in: machO, builder: builder)
+    package func dumpProtocolParameterName(in context: some ReadingContext, @SemanticStringBuilder builder: (Node) async throws -> SemanticString) async throws -> SemanticString {
+        try await dumpProtocolMangledName(paramMangledName(in: context), in: context, builder: builder)
     }
 
     @SemanticStringBuilder
-    private func dumpProtocolMangledName(_ mangledName: MangledName, in machO: some MachOSwiftSectionRepresentableWithCache, @SemanticStringBuilder builder: (Node) async throws -> SemanticString) async throws -> SemanticString {
-        let node = try SymbolicDemangler.demangleType(for: mangledName, in: machO)
+    private func dumpProtocolMangledName(_ mangledName: MangledName, in context: some ReadingContext, @SemanticStringBuilder builder: (Node) async throws -> SemanticString) async throws -> SemanticString {
+        let node = try SymbolicDemangler.demangleType(for: mangledName, in: context)
 
         let params = node.filter(of: .dependentAssociatedTypeRef).compactMap { $0.first(of: .identifier)?.text }
 
@@ -397,19 +397,19 @@ extension GenericRequirementDescriptor {
     }
 
     @SemanticStringBuilder
-    package func dumpProtocolContent(in machO: some MachOSwiftSectionRepresentableWithCache, @SemanticStringBuilder builder: (Node) async throws -> SemanticString) async throws -> SemanticString {
-        switch try resolvedContent(in: machO.context) {
+    package func dumpProtocolContent(in context: some ReadingContext, @SemanticStringBuilder builder: (Node) async throws -> SemanticString) async throws -> SemanticString {
+        switch try resolvedContent(in: context) {
         case .type(let mangledName):
-//            try builder(SymbolicDemangler.demangleType(for: mangledName, in: machO))
-            try await dumpProtocolMangledName(mangledName, in: machO, builder: builder)
+//            try builder(SymbolicDemangler.demangleType(for: mangledName, in: context))
+            try await dumpProtocolMangledName(mangledName, in: context, builder: builder)
         case .protocol(let resolvableElement):
             switch resolvableElement {
             case .symbol(let unsolvedSymbol):
-                try await SymbolicDemangler.demangleType(for: unsolvedSymbol, in: machO).asyncMap { try await builder($0) }
+                try await SymbolicDemangler.demangleType(for: unsolvedSymbol, in: context).asyncMap { try await builder($0) }
             case .element(let element):
                 switch element {
                 case .objc(let objc):
-                    let objcName = try objc.mangledName(in: machO.context).rawString
+                    let objcName = try objc.mangledName(in: context).rawString
                     let node = Node.createTransient(kind: .global, children: [
                         Node.createTransient(kind: .type, children: [
                             Node.createTransient(kind: .protocol, children: [
@@ -420,7 +420,7 @@ extension GenericRequirementDescriptor {
                     ])
                     try await builder(node)
                 case .swift(let protocolDescriptor):
-                    try await builder(SymbolicDemangler.demangleContext(for: .protocol(protocolDescriptor), in: machO))
+                    try await builder(SymbolicDemangler.demangleContext(for: .protocol(protocolDescriptor), in: context))
                 }
             }
         case .layout(let genericRequirementLayoutKind):

@@ -29,8 +29,17 @@ public struct ObjCImplementationClass: Sendable {
 }
 
 extension ObjCImplementationClass: NamedDumpable {
-    public func dumpName(using configuration: DumperConfiguration, in machO: some MachOFieldLayoutRenderable) async throws -> SemanticString {
-        try await ObjCImplementationClassDumper(self, using: configuration, in: machO).name
+    /// The class's ObjC runtime name, which the recognized facts already
+    /// carry: nothing is read, so the context goes unused.
+    public func dumpName(using configuration: DumperConfiguration, in context: some ReadingContext) async throws -> SemanticString {
+        dumpedName
+    }
+
+    /// The name a dump declares for this class — behind
+    /// `dumpName(using:in:)` and `ObjCImplementationClassDumper`'s name alike.
+    @SemanticStringBuilder
+    package var dumpedName: SemanticString {
+        TypeDeclaration(kind: .class, facts.className)
     }
 
     public func dump(using configuration: DumperConfiguration, in machO: some MachOFieldLayoutRenderable) async throws -> SemanticString {

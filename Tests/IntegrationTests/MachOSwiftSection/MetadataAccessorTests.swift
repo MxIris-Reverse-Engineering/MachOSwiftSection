@@ -159,15 +159,15 @@ final class MetadataAccessorTests: MachOImageTests, @unchecked Sendable {
             case .enum(let enumDescriptor):
                 guard let genericContext = try enumDescriptor.genericContext(in: machO.context) else { continue }
 //                try mangleAsString(ContextDescriptorWrapper.type(.enum(enumDescriptor)).dumpNameNode(in: machO)).print()
-                try "\(ContextDescriptorWrapper.type(.enum(enumDescriptor)).dumpName(using: .default, in: machO).string)\(await genericContext.dumpGenericSignature(resolver: .using(options: .default), in: machO, isDumpCurrentLevelRequirements: false).string)".print()
+                try "\(ContextDescriptorWrapper.type(.enum(enumDescriptor)).dumpName(using: .default, in: machO.context).string)\(await genericContext.dumpGenericSignature(resolver: .using(options: .default), in: machO.context, isDumpCurrentLevelRequirements: false).string)".print()
             case .struct(let structDescriptor):
                 guard let genericContext = try structDescriptor.genericContext(in: machO.context) else { continue }
 //                try mangleAsString(ContextDescriptorWrapper.type(.struct(structDescriptor)).dumpNameNode(in: machO)).print()
-                try "\(ContextDescriptorWrapper.type(.struct(structDescriptor)).dumpName(using: .default, in: machO).string)\(await genericContext.dumpGenericSignature(resolver: .using(options: .default), in: machO, isDumpCurrentLevelRequirements: false).string)".print()
+                try "\(ContextDescriptorWrapper.type(.struct(structDescriptor)).dumpName(using: .default, in: machO.context).string)\(await genericContext.dumpGenericSignature(resolver: .using(options: .default), in: machO.context, isDumpCurrentLevelRequirements: false).string)".print()
             case .class(let classDescriptor):
                 guard let genericContext = try classDescriptor.genericContext(in: machO.context) else { continue }
 //                try mangleAsString(ContextDescriptorWrapper.type(.class(classDescriptor)).dumpNameNode(in: machO)).print()
-                try "\(ContextDescriptorWrapper.type(.class(classDescriptor)).dumpName(using: .default, in: machO).string)\(await genericContext.dumpGenericSignature(resolver: .using(options: .default), in: machO, isDumpCurrentLevelRequirements: false).string)".print()
+                try "\(ContextDescriptorWrapper.type(.class(classDescriptor)).dumpName(using: .default, in: machO.context).string)\(await genericContext.dumpGenericSignature(resolver: .using(options: .default), in: machO.context, isDumpCurrentLevelRequirements: false).string)".print()
             }
         }
     }

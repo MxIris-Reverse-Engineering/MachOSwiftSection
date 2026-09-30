@@ -25,15 +25,15 @@ extension OpaqueTypeTests {
             let opaqueType = try OpaqueType(descriptor: opaqueTypeDescriptor, in: machO.context)
             print("Current Requirements:")
             for requirement in try opaqueType.requirements(in: machO) {
-                let requirementString = try await requirement.dump(using: .default, in: machO).string
+                let requirementString = try await requirement.dump(using: .default, in: machO.context).string
                 requirementString.print()
-                if let node = try SymbolicDemangler.buildGenericSignature(for: [requirement], in: machO) {
+                if let node = try SymbolicDemangler.buildGenericSignature(for: [requirement], in: machO.context) {
                     node.description.print()
                 }
             }
             print("Underlying Types:")
             for underlyingTypeArgumentMangledName in opaqueType.underlyingTypeArgumentMangledNames {
-                let node = try SymbolicDemangler.demangleType(for: underlyingTypeArgumentMangledName, in: machO)
+                let node = try SymbolicDemangler.demangleType(for: underlyingTypeArgumentMangledName, in: machO.context)
                 node.description.print()
                 await node.print(using: .default).print()
             }

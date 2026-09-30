@@ -415,9 +415,9 @@ extension Node {
             guard let underlyingTypeArgumentMangledName = opaqueType.underlyingTypeArgumentMangledNames[safe: ordinal] else { return nil }
             let underlyingTypeArgumentNode: Node?
             if machO is MachOImage {
-                underlyingTypeArgumentNode = try? SymbolicDemangler.demangleType(for: underlyingTypeArgumentMangledName)
+                underlyingTypeArgumentNode = try? SymbolicDemangler.demangleType(for: underlyingTypeArgumentMangledName, in: .inProcess)
             } else {
-                underlyingTypeArgumentNode = try? SymbolicDemangler.demangleType(for: underlyingTypeArgumentMangledName, in: machO)
+                underlyingTypeArgumentNode = try? SymbolicDemangler.demangleType(for: underlyingTypeArgumentMangledName, in: machO.context)
             }
             // The thunk's argument buffer is the opaque
             // descriptor's generic arguments, so its generic

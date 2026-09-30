@@ -143,7 +143,7 @@ struct SymbolicManglingIndexTests {
                 "the referent of the reference at \(reference.referenceOffset) does not demangle"
             )
             let compilerSpelledName = Self.printedName(of: referentNode)
-            let descriptorBuiltName = try Self.printedName(of: SymbolicDemangler.demangleContext(for: context, in: machOFile))
+            let descriptorBuiltName = try Self.printedName(of: SymbolicDemangler.demangleContext(for: context, in: machOFile.context))
             comparedCount += 1
             if descriptorBuiltName != compilerSpelledName {
                 let mismatch = "descriptor \(descriptorBuiltName), compiler \(compilerSpelledName)"

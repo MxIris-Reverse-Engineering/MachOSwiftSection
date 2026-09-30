@@ -263,7 +263,7 @@ struct StaticFieldLayoutBackend {
 
     private func staticSpareBitAnalysis(for enumValue: Enum) -> SpareBitAnalyzer.Analysis? {
         try? {
-            let node = try SymbolicDemangler.demangleContext(for: .type(.enum(enumValue.descriptor)), in: machO)
+            let node = try SymbolicDemangler.demangleContext(for: .type(.enum(enumValue.descriptor)), in: machO.context)
             guard let multiPayloadEnumDescriptor = try staticMultiPayloadEnumDescriptor(for: node),
                   multiPayloadEnumDescriptor.usesPayloadSpareBits else { return nil }
             let spareBytes = try multiPayloadEnumDescriptor.payloadSpareBits(in: machO.context)
@@ -278,7 +278,7 @@ struct StaticFieldLayoutBackend {
     private func staticMultiPayloadEnumDescriptor(for node: Node) throws -> MultiPayloadEnumDescriptor? {
         for multiPayloadEnumDescriptor in try machO.swift.multiPayloadEnumDescriptors {
             let mangledTypeName = try multiPayloadEnumDescriptor.mangledTypeName(in: machO.context)
-            let descriptorNode = try SymbolicDemangler.demangleType(for: mangledTypeName, in: machO)
+            let descriptorNode = try SymbolicDemangler.demangleType(for: mangledTypeName, in: machO.context)
             if descriptorNode == node {
                 return multiPayloadEnumDescriptor
             }

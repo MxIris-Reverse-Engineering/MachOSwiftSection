@@ -20,7 +20,7 @@ extension ExtensionDefinition {
             isIndexed = true
             return
         }
-        guard let protocolConformance = try materializedProtocolConformance(in: machO), !protocolConformance.resilientWitnesses.isEmpty else {
+        guard let protocolConformance = try materializedProtocolConformance(in: machO.context), !protocolConformance.resilientWitnesses.isEmpty else {
             isIndexed = true
             return
         }

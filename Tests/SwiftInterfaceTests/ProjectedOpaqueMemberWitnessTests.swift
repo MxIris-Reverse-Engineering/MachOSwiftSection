@@ -181,7 +181,7 @@ struct ProjectedOpaqueMemberWitnessTests {
         for associatedType in try machOFile.swift.associatedTypes {
             for record in associatedType.records where try record.name(in: machOFile.context) == "Element" {
                 let witnessMangledName = try record.substitutedTypeName(in: machOFile.context)
-                let node = try SymbolicDemangler.demangleType(for: witnessMangledName, in: machOFile)
+                let node = try SymbolicDemangler.demangleType(for: witnessMangledName, in: machOFile.context)
                 return node.resolveOpaqueTypeCollectingConditionalCandidates(witnessMangledName: witnessMangledName, conformingTypeName: associatedType.conformingTypeName, in: machOFile)
             }
         }

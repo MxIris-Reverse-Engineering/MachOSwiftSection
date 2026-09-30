@@ -43,7 +43,7 @@ package struct ProtocolDumper<MachO: MachOFieldLayoutRenderable>: NamedDumper {
                         Standard(",")
                     }
                     Space()
-                    try await requirement.descriptor.dumpContent(resolver: demangleResolver, in: machO)
+                    try await requirement.descriptor.dumpContent(resolver: demangleResolver, in: machO.context)
                 }
                 if !requirementInSignatures.isEmpty {
                     Space()
@@ -51,7 +51,7 @@ package struct ProtocolDumper<MachO: MachOFieldLayoutRenderable>: NamedDumper {
                     Space()
 
                     for (offset, requirement) in requirementInSignatures.offsetEnumerated() {
-                        try await requirement.descriptor.dumpProtocolRequirement(resolver: demangleResolver, in: machO)
+                        try await requirement.descriptor.dumpProtocolRequirement(resolver: demangleResolver, in: machO.context)
                         if !offset.isEnd {
                             Standard(",")
                             Space()
@@ -139,11 +139,7 @@ package struct ProtocolDumper<MachO: MachOFieldLayoutRenderable>: NamedDumper {
 
     @SemanticStringBuilder
     private func _name(using resolver: DemangleResolver) async throws -> SemanticString {
-        if configuration.displayParentName {
-            try await resolver.resolve(for: SymbolicDemangler.demangleContext(for: .protocol(dumped.descriptor), in: machO)).replacingTypeNameOrOtherToTypeDeclaration()
-        } else {
-            try TypeDeclaration(kind: .protocol, dumped.descriptor.name(in: machO.context))
-        }
+        try await dumped.dumpedName(using: resolver, configuration: configuration, in: machO.context)
     }
 
     /// The first symbol among `symbols` mentioning THIS protocol and not yet

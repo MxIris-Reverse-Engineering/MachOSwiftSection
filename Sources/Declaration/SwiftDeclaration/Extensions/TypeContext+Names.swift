@@ -4,12 +4,8 @@ import MachOSwiftSection
 @_spi(Internals) import SwiftInspection
 
 extension TypeContextWrapper {
-    package func typeName(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> TypeName {
-        try typeContextDescriptorWrapper.typeName(in: machO)
-    }
-    
-    package func typeName() throws -> TypeName {
-        try typeContextDescriptorWrapper.typeName()
+    package func typeName(in context: some ReadingContext) throws -> TypeName {
+        try typeContextDescriptorWrapper.typeName(in: context)
     }
 }
 
@@ -25,11 +21,7 @@ extension TypeContextDescriptorWrapper {
         }
     }
 
-    package func typeName(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> TypeName {
-        return TypeName(node: InternedNodeReferenceCache.shared.reference(interning: try SymbolicDemangler.demangleContext(for: .type(self), in: machO), in: machO), kind: kind)
-    }
-    
-    package func typeName() throws -> TypeName {
-        return TypeName(node: InternedNodeReferenceCache.shared.reference(interning: try SymbolicDemangler.demangleContext(for: .type(self))), kind: kind)
+    package func typeName(in context: some ReadingContext) throws -> TypeName {
+        return TypeName(node: InternedNodeReferenceCache.shared.reference(interning: try SymbolicDemangler.demangleContext(for: .type(self), in: context), in: context), kind: kind)
     }
 }

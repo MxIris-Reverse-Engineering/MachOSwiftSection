@@ -29,10 +29,19 @@ public struct SharedCacheKey: Hashable, CustomStringConvertible, @unchecked Send
 
     /// The key of `machO`'s cache entries.
     public init(_ machO: some MachORepresentableWithCache) {
-        if let identifier = machO.identifier as? MachOTargetIdentifier {
+        self.init(imageIdentifier: AnyHashable(machO.identifier))
+    }
+
+    /// The key of the image whose reader's `identifier` is `imageIdentifier`
+    /// — the identity a `ReadingContext` declares in its cache scope. The
+    /// same image gets the same key through its reader and through a context
+    /// over that reader, so entries filed either way are found and evicted
+    /// together.
+    public init(imageIdentifier: AnyHashable) {
+        if let identifier = imageIdentifier.base as? MachOTargetIdentifier {
             self.init(identifier: identifier)
         } else {
-            self.init(opaque: machO.identifier)
+            self.init(opaque: imageIdentifier)
         }
     }
 

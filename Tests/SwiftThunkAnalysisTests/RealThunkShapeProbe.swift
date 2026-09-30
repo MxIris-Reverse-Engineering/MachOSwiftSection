@@ -29,7 +29,7 @@ struct RealThunkShapeProbe {
                 guard printedThunkOffsets.insert(thunkOffset).inserted else { continue }
 
                 let conformingTypeName = await (try SymbolicDemangler
-                    .demangleType(for: associatedType.conformingTypeName, in: machO))
+                    .demangleType(for: associatedType.conformingTypeName, in: machO.context))
                     .print(using: DemangleOptions.default)
                 var description = "######## \(conformingTypeName).\(try record.name(in: machO.context)) — thunk at file offset \(thunkOffset)"
 
@@ -54,7 +54,7 @@ struct RealThunkShapeProbe {
     /// Walks an associated-type record to the accessor thunk its opaque
     /// underlying type points at, if it has one.
     private func accessorThunkOffset(ofRecord record: AssociatedTypeRecord, in machO: MachOFile) throws -> Int? {
-        let substitutedTypeNode = try SymbolicDemangler.demangleType(for: record.substitutedTypeName(in: machO.context), in: machO)
+        let substitutedTypeNode = try SymbolicDemangler.demangleType(for: record.substitutedTypeName(in: machO.context), in: machO.context)
         guard let opaqueTypeNode = substitutedTypeNode.first(of: Node.Kind.opaqueType),
               let descriptorReference = opaqueTypeNode.firstChild,
               descriptorReference.isKind(of: .opaqueTypeDescriptorSymbolicReference),
@@ -67,7 +67,7 @@ struct RealThunkShapeProbe {
         guard ordinal < opaqueType.underlyingTypeArgumentMangledNames.count else { return nil }
         let underlyingTypeNode = try SymbolicDemangler.demangleType(
             for: opaqueType.underlyingTypeArgumentMangledNames[ordinal],
-            in: machO
+            in: machO.context
         )
         guard let accessorReference = underlyingTypeNode.first(of: Node.Kind.accessorFunctionReference),
               let offset: Int = accessorReference.index?.cast()

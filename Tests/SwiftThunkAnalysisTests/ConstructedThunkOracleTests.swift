@@ -54,11 +54,11 @@ struct ConstructedThunkOracleTests {
         for (fileAssociatedType, imageAssociatedType) in zip(fileAssociatedTypes, imageAssociatedTypes) {
             for (fileRecord, imageRecord) in zip(fileAssociatedType.records, imageAssociatedType.records) {
                 let fileMangledName = try fileRecord.substitutedTypeName(in: machOFile.context)
-                guard let fileNode = try? SymbolicDemangler.demangleType(for: fileMangledName, in: machOFile),
+                guard let fileNode = try? SymbolicDemangler.demangleType(for: fileMangledName, in: machOFile.context),
                       fileNode.contains(Node.Kind.opaqueType)
                 else { continue }
                 let imageMangledName = try imageRecord.substitutedTypeName(in: machOImage.context)
-                guard let imageNode = try? SymbolicDemangler.demangleType(for: imageMangledName, in: machOImage),
+                guard let imageNode = try? SymbolicDemangler.demangleType(for: imageMangledName, in: machOImage.context),
                       let offlineUnresolved = try? imageNode.resolveOpaqueType(in: machOImage),
                       offlineUnresolved.contains(Node.Kind.accessorFunctionReference)
                 else { continue }

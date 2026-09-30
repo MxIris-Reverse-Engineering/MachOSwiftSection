@@ -4,16 +4,16 @@ import MachOSwiftSection
 @_spi(Internals) import SwiftInspection
 
 extension ResolvedTypeReference {
-    package func node(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> Node? {
+    package func node(in context: some ReadingContext) throws -> Node? {
         switch self {
         case .directTypeDescriptor(let descriptor):
-            return try descriptor.map { try SymbolicDemangler.demangleContext(for: $0, in: machO) }
+            return try descriptor.map { try SymbolicDemangler.demangleContext(for: $0, in: context) }
         case .indirectTypeDescriptor(let descriptor):
             switch descriptor {
             case .symbol(let symbol):
-                return try SymbolicDemangler.demangleType(for: symbol, in: machO)
+                return try SymbolicDemangler.demangleType(for: symbol, in: context)
             case .element(let element):
-                return try SymbolicDemangler.demangleContext(for: element, in: machO)
+                return try SymbolicDemangler.demangleContext(for: element, in: context)
             case nil:
                 return nil
             }
@@ -28,44 +28,10 @@ extension ResolvedTypeReference {
         case .indirectObjCClass(let objcClass):
             switch objcClass {
             case .symbol(let symbol):
-                return try SymbolicDemangler.demangleType(for: symbol, in: machO)
+                return try SymbolicDemangler.demangleType(for: symbol, in: context)
             case .element(let element):
-                guard let classDescriptor = try element.descriptor.resolve(in: machO.context) else { return nil }
-                return try SymbolicDemangler.demangleContext(for: .type(.class(classDescriptor)), in: machO)
-            case nil:
-                return nil
-            }
-        }
-    }
-
-    package func node() throws -> Node? {
-        switch self {
-        case .directTypeDescriptor(let descriptor):
-            return try descriptor.map { try SymbolicDemangler.demangleContext(for: $0) }
-        case .indirectTypeDescriptor(let descriptor):
-            switch descriptor {
-            case .symbol(let symbol):
-                return try SymbolicDemangler.demangleType(for: symbol)
-            case .element(let element):
-                return try SymbolicDemangler.demangleContext(for: element)
-            case nil:
-                return nil
-            }
-        case .directObjCClassName(let objcClassName):
-            guard let objcClassName, !objcClassName.isEmpty else { return nil }
-            return Node.createTransient(kind: .type, children: [
-                Node.createTransient(kind: .class, children: [
-                    .createTransient(kind: .module, text: objcModule),
-                    .createTransient(kind: .identifier, text: objcClassName),
-                ])
-            ])
-        case .indirectObjCClass(let objcClass):
-            switch objcClass {
-            case .symbol(let symbol):
-                return try SymbolicDemangler.demangleType(for: symbol)
-            case .element(let element):
-                guard let classDescriptor = try element.descriptor.resolve(in: .inProcess) else { return nil }
-                return try SymbolicDemangler.demangleContext(for: .type(.class(classDescriptor)))
+                guard let classDescriptor = try element.descriptor.resolve(in: context) else { return nil }
+                return try SymbolicDemangler.demangleContext(for: .type(.class(classDescriptor)), in: context)
             case nil:
                 return nil
             }

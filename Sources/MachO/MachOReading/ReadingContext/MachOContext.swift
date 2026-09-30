@@ -94,6 +94,12 @@ public struct MachOContext<MachO: MachORepresentableWithCache & Readable>: Readi
     public var bindRebaseResolver: (any MachOBindRebaseResolving)? {
         machO as? any MachOBindRebaseResolving
     }
+
+    /// Offsets are per image, so memo entries belong to this image: keyed on
+    /// the reader's identifier, the key its other per-image caches use.
+    public var cacheScope: ReadingContextCacheScope {
+        .image(identifier: AnyHashable(machO.identifier))
+    }
 }
 
 // MARK: - Convenience Extensions

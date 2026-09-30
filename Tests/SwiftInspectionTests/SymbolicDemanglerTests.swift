@@ -74,7 +74,7 @@ final class SymbolicDemanglerImageTests: MachOImageTests, @unchecked Sendable {
 
     @Test func buildGenericSignatureReturnsNilForEmptyRequirements() async throws {
         // Empty requirements should return nil
-        let result = try SymbolicDemangler.buildGenericSignature(for: [])
+        let result = try SymbolicDemangler.buildGenericSignature(for: [], in: .inProcess)
         #expect(result == nil)
     }
 }
@@ -91,7 +91,7 @@ final class SymbolicDemanglerFileTests: MachOFileTests, @unchecked Sendable {
     }
 
     @Test func buildGenericSignatureFromFileReturnsNilForEmpty() async throws {
-        let result = try SymbolicDemangler.buildGenericSignature(for: [] as [GenericRequirementDescriptor], in: machOFile)
+        let result = try SymbolicDemangler.buildGenericSignature(for: [] as [GenericRequirementDescriptor], in: machOFile.context)
         #expect(result == nil)
     }
 
@@ -186,7 +186,7 @@ final class SymbolicDemanglerFileTests: MachOFileTests, @unchecked Sendable {
 @Suite
 struct BuildGenericSignatureTests {
     @Test func emptyRequirementsReturnsNil() throws {
-        let result = try SymbolicDemangler.buildGenericSignature(for: [] as [GenericRequirementDescriptor])
+        let result = try SymbolicDemangler.buildGenericSignature(for: [] as [GenericRequirementDescriptor], in: .inProcess)
         #expect(result == nil)
     }
 

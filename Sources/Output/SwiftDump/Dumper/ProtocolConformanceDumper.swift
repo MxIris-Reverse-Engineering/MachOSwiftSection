@@ -49,7 +49,7 @@ package struct ProtocolConformanceDumper<MachO: MachOFieldLayoutRenderable>: Con
             }
 
             for (offset, conditionalRequirement) in dumped.conditionalRequirements.offsetEnumerated() {
-                try await conditionalRequirement.dump(resolver: demangleResolver, in: machO)
+                try await conditionalRequirement.dump(resolver: demangleResolver, in: machO.context)
                 if !offset.isEnd {
                     Standard(",")
                     Space()
@@ -170,13 +170,13 @@ package struct ProtocolConformanceDumper<MachO: MachOFieldLayoutRenderable>: Con
     
     @SemanticStringBuilder
     private func typeName(isFull: Bool) async throws -> SemanticString {
-        try dumped.typeNode(in: machO)?.printSemantic(using: isFull ? demangleResolver.options ?? typeNameOptions : typeNameOptions).replacingTypeNameOrOtherToTypeDeclaration()
+        try await dumped.dumpedTypeName(isFull: isFull, resolver: demangleResolver, in: machO.context)
     }
 
     @SemanticStringBuilder
     package var protocolName: SemanticString {
         get async throws {
-            try await dumped.protocolNode(in: machO).asyncMap { try await demangleResolver.resolve(for: $0) }
+            try await dumped.dumpedProtocolName(using: demangleResolver, in: machO.context)
         }
     }
 

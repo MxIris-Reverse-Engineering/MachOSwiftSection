@@ -65,7 +65,7 @@ public struct StaticLayoutCalculator<MachO: MachOSwiftSectionRepresentableWithCa
     public func fieldLayout(forInstantiationMangledName mangledTypeName: MangledName) throws -> AggregateFieldLayout {
         let typeNode: Node
         do {
-            typeNode = try SymbolicDemangler.demangleType(for: mangledTypeName, in: imageUniverse.rootImage.machO)
+            typeNode = try SymbolicDemangler.demangleType(for: mangledTypeName, in: imageUniverse.rootImage.machO.context)
         } catch {
             throw LayoutResolutionError.unknown(.demangleFailure)
         }
@@ -106,7 +106,7 @@ public struct StaticLayoutCalculator<MachO: MachOSwiftSectionRepresentableWithCa
     /// resolves it (a class yields a single pointer). Used for enum whole-type
     /// sizing in renderers that hold a descriptor rather than a mangled name.
     public func typeLayout(forDescriptor typeDescriptor: TypeContextDescriptorWrapper) throws -> StaticTypeLayout {
-        let node = try SymbolicDemangler.demangleContext(for: typeDescriptor.asContextDescriptorWrapper, in: imageUniverse.rootImage.machO)
+        let node = try SymbolicDemangler.demangleContext(for: typeDescriptor.asContextDescriptorWrapper, in: imageUniverse.rootImage.machO.context)
         return try resolver.layout(forTypeNode: node, in: imageUniverse.rootImage)
     }
 
@@ -280,7 +280,7 @@ public struct StaticLayoutCalculator<MachO: MachOSwiftSectionRepresentableWithCa
         guard
             let node = try? SymbolicDemangler.demangleContext(
                 for: TypeContextDescriptorWrapper.struct(descriptor).asContextDescriptorWrapper,
-                in: image.machO
+                in: image.machO.context
             ),
             let qualifiedTypeName = NodeTypeNaming.nominalQualifiedName(of: node)
         else { return nil }

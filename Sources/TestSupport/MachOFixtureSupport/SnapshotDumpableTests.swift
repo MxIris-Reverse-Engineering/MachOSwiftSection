@@ -414,7 +414,7 @@ extension SnapshotDumpableTests {
         let protocolTypeName = try descriptor.protocolTypeName(in: machO.context)
         let protocolNode: Node
         do {
-            protocolNode = try SymbolicDemangler.demangleType(for: protocolTypeName, in: machO)
+            protocolNode = try SymbolicDemangler.demangleType(for: protocolTypeName, in: machO.context)
         } catch {
             return nil
         }

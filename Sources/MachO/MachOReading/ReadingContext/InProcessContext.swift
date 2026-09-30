@@ -115,6 +115,12 @@ extension InProcessContext {
     public func runtimePointer(at address: UnsafeRawPointer) throws -> UnsafeRawPointer? {
         address
     }
+
+    /// Addresses are absolute in this process, so memo entries are
+    /// process-wide.
+    public var cacheScope: ReadingContextCacheScope {
+        .process
+    }
 }
 
 extension ReadingContext where Self == InProcessContext {
