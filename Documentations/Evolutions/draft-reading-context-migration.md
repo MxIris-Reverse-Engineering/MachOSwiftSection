@@ -6,7 +6,7 @@
 - **最后更新**: 2026-09-30
 - **所属愿景**: 无
 - **关联提案**: [0018-self-contained-abi-layer](0018-self-contained-abi-layer.md)（「`ReadingContext` 只管读、不带符号服务」的定位出自这里，本提案延续它）、[0025-key-path-component-and-property-descriptor](0025-key-path-component-and-property-descriptor.md)（记下了「新接口三套都写」的惯例，本提案推翻它）、[0053-shared-cache-composition-and-eviction-registry](0053-shared-cache-composition-and-eviction-registry.md)（按镜像缓存与驱逐的现行规则）
-- **实现分支 / PR**: `refactor/reading-context-migration`（worktree `.worktrees/MachOSwiftSection-ReadingContextMigration`），PR 待定
+- **实现分支 / PR**: `refactor/reading-context-migration`（worktree `.worktrees/MachOSwiftSection-ReadingContextMigration`），[PR #129](https://github.com/MxIris-Reverse-Engineering/MachOSwiftSection/pull/129)
 - **配套文档**: [ReadingContextAbstraction.md](../Internal/ReadingContextAbstraction.md)「单一实现与废弃」一节（实现说明：旧形式为何原地保留、两个协议保留已废弃的 requirement、约束扩展的 guard 陷阱、修掉的分歧、缓存范围、已知缺口）；术语表登记「cache scope」与「context / Mach-O / pointer form」
 
 ## 摘要
