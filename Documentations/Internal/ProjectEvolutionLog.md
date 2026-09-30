@@ -2091,7 +2091,7 @@
 - **落地模块**：`Sources/Output/SwiftPrinting/`（`SwiftDeclarationPrintConfiguration`、`SwiftDeclarationPrinter` 与 `+Headers` / `+ObjCImplementation`、新增的 `+VisibilityRegions`、`NodePrintables/{NodePrintableDelegate,TypeNodePrintable}`）、`Sources/Output/SwiftDeclarationRendering/`（`DeclarationRenderConfiguration`、两个布局后端、新增的 `SwiftVisibilityOption`）、`Tests/SwiftInterfaceTests/VisibilityRegionProjectionTests.swift`。
 - **验证**：`VisibilityRegionProjectionTests` 对 SymbolTestsCore 的每个顶层类型、协议与扩展断言「标记打印按某配置投影」与「按该配置直接打印」完全相等（文本、span、identifier）：进程内 22 组配置、从文件 10 组。rebase 到 `next` 后，本地依赖下 `USING_LOCAL_DEPENDENCIES=1 swift test --skip IntegrationTests` 原始退出码 0，19 批、2146 个测试、406 个套件全部通过（一个既有的 known issue）；快照测试全过，普通打印的输出不变。
 - **关联文档**：[0056-visibility-regions](../Evolutions/0056-visibility-regions.md)；swift-semantic-string 的 `docs/VisibilityRegions.md`；MachOObjCSection 提案 0011；RuntimeViewer 提案 `draft-find-navigator`。
-- **对应版本**：下一个版本（要求带 `VisibilityRegion` 的 swift-semantic-string，发布后抬 `from:`）。
+- **对应版本**：下一个版本（要求 swift-semantic-string 0.4.0：它带 `VisibilityRegion`，2026-09-30 发布，同日抬了 `from:`）。
 
 ## 维护约定
 
