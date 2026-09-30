@@ -265,48 +265,47 @@ extension ReadingContext {
 
 **收尾判断**（落地时写进决策日志）：是否需要配套实现说明（预期更新 `ReadingContextAbstraction.md` 即可，不另写）；新术语「缓存范围」登记进术语表。
 
-## 当前进度（2026-09-30，交接到另一台机器）
+## 当前进度（2026-09-30）
 
-**一句话**：实现与正确性验收都已完成，只剩性能验收；本机测不准，换一台性能更好的机器接着测。分支 `refactor/reading-context-migration` 基于 `next` @ `32feff36`，尚未推送到远端。
-
-**已完成**（落地步骤 1–5、7–8 全部完成，6 与 9 只差性能）：
+**一句话**：实现、正确性验收与性能验收都已完成（落地步骤 1–9），分支 `refactor/reading-context-migration` 已推送，基于 `next` @ `f7c189b8`；剩下三个待决定的问题，然后开 PR。
 
 | commit | 内容 |
 |---|---|
-| `bd670206` | 本提案 |
-| `8fc797fd` | ABI 层：`ReadingContext` 形式成为唯一实现，传 `machO` 与指针的形式改为废弃转发；五处分歧修复及回归测试 |
-| `fd84aeb1` | `Sources/` 与测试、baseline 生成器的全部调用点改走 context 形式 |
-| `4ea61699` | 删掉迁移后变成「自己比自己」的 fixture 断言 |
-| `4b1c7a8c` | `ReadingContext.cacheScope`；上层 61 个只读接口迁移；AGENTS.md、实现说明、术语表 |
-| `b5ecb66c` | 缓存范围的镜像身份不装箱（`SharedCacheKey` 恢复原样） |
+| `b00fda81` | 本提案 |
+| `a23d52b6` | ABI 层：`ReadingContext` 形式成为唯一实现，传 `machO` 与指针的形式改为废弃转发；五处分歧修复及回归测试 |
+| `9c75c40f` | `Sources/` 与测试、baseline 生成器的全部调用点改走 context 形式 |
+| `9827e1d0` | 删掉迁移后变成「自己比自己」的 fixture 断言 |
+| `17d101e6` | `ReadingContext.cacheScope`；上层 61 个只读接口迁移；AGENTS.md、实现说明、术语表 |
+| `3d84ee05` | 缓存范围的镜像身份不装箱（`SharedCacheKey` 恢复原样） |
+| `1cf72537` 及之后 | 验证数据与本节 |
 
-之后还有一个只改文档的 commit（进度账本的验证数据与本节）。
+这些 commit 是在 JHs-Mac-Studio-Ultra 上按会话记录重建的：原分支（`bd670206` 到 `b7c99dbf`）只存在于公司那台机器上，没有推送。重建时按时间顺序重放记录里的每次编辑，并逐一核对记录中「编辑前的完整文件」；重建后各 commit 的文件清单与行数统计和原 commit 一致（例如 ABI 那次 86 个源文件 +1959 / −2800、测试去重那次 24 个文件 +75 / −206）。
 
-**正确性验收（已完成）**：全量测试 2157 个 / 410 个套件，只有本机既有的两条 `MultiPayloadEnumDescriptorCacheTests` 失败；零新增警告；渲染 A/B 共 90 对逐字节一致。详细数据见 [ProjectEvolutionLog.md](../Internal/ProjectEvolutionLog.md) 本提案那一节。
+**正确性验收**：
+- 全量测试：公司机器（Xcode 26 工具链）2157 个 / 410 个套件，只有那台机器既有的两条 `MultiPayloadEnumDescriptorCacheTests` 失败；Ultra（Swift 6.4，fixture 用 Xcode 26.6 编）同样 2157 个 / 410 个，全部通过，原始退出码 0。零新增警告。
+- 渲染 A/B：公司机器 90 对、Ultra 84 对（CLI 两条腿 60 对，MachOImage 腿 24 对）逐字节一致；Ultra 上计时所用的 26.6 cache 与 iOS 26.5 模拟器 SwiftUI 输出两侧也一致。
 
-**性能验收（待做）**：按第 7 节的要求，三条路径都不能比基线慢。
+**性能验收**（Ultra，release，每组按「基线、候选、候选、基线」运行，SwiftUI）：三条路径都没有变慢。
 
-1. 准备两个检出：基线是 `next` @ `32feff36`（detached worktree），候选是本分支 HEAD。两侧都用远程依赖（不设 `USING_LOCAL_DEPENDENCIES`）。`Package.resolved` 不在版本库里，两个 scratch 各自解析，对比前核对两边 `workspace-state.json` 里每个依赖的版本与 revision 一致。
-2. 两侧各构建 release：`queued-build swift build -c release --product swift-section --package-path <检出> --scratch-path <scratch>`。
-3. 指标用 `/usr/bin/time -l` 报告的 `instructions retired`（退休指令数，基本不受机器负载影响；本机基线两次 cache `dump` 相差不到 0.01%），辅以 user 时间。每组按「基线、候选、候选、基线」各跑两次。三组输入都是 SwiftUI：
-   - cache：`swift-section dump|interface /Volumes/DyldSharedCaches/macOS/26.6.2/dyld_shared_cache_arm64e --dyld-shared-cache -p /System/Library/Frameworks/SwiftUI.framework/Versions/A/SwiftUI -o <输出文件>`
-   - 模拟器文件：`swift-section dump|interface "<iOS 26.5 RuntimeRoot>/System/Library/Frameworks/SwiftUI.framework/SwiftUI" -a arm64 --dependency-search-path "<iOS 26.5 RuntimeRoot>" -o <输出文件>`。这组的内核时间波动大，指令数也跟着抖，以 user 时间为主。
-   - MachOImage 腿（同时覆盖 `MachOImage` 与本进程 `InProcessContext` 路径）：先设 `RV_OUT=<目录>`、`RV_FRAMEWORKS=SwiftUI,SwiftUICore,SwiftData,Combine,ActivityKit,WidgetKit`、`RV_OPTS=fieldOffset,typeLayout,enumLayout,spareBitAnalysis,memberAddress,vtableOffset,pwtOffset`、`MACHO_SWIFT_SECTION_SILENT_TEST=1`，再跑 `queued-build /usr/bin/time -l swift test -c release --skip-build --package-path <检出> --scratch-path <scratch> --filter RenderingVerificationTests`。第一次去掉 `--skip-build`，先把 release 测试包构建出来。
-4. 本机已有的参考结果（跨机器不可比，只看两侧的比例）：cache 路径指令数 `dump` 605.06G → 609.55G、`interface` 757.94G → 748.64G，判为持平；模拟器文件路径 user 时间 −4.6% / +1.1%；MachOImage 腿 CPU 时间候选平均多 2.5%，但基线两次之间就差 3%，未定论。
-5. 如果 MachOImage 腿确实变慢，按可能性排的嫌疑：① 原来走指针版的本进程读取（`RuntimeFieldLayoutBackend`、`RuntimeMetadataTypeBuilder`、`GenericSpecializer`）现在经泛型的 `InProcessContext` 转一层；② `MachOContext<MachOImage>` 的转发层；③ `Pointer.resolve` 与 `SymbolOrElement` 的 bind / rebase 判定从对具体类型的 `as? MachOFile` 改成了协议转型 `bindRebaseResolver`。本机的 `sample` 采样里这三类函数都只有个位数到几百个样本（活跃样本约 30 万），没有成为热点。修法按第 7 节：调用处持有具体 context 类型、热点函数标 `@inlinable`、必要时手动特化。改了代码就重跑全量测试与渲染 A/B。
+| 路径 | 基线 | 候选 | 结论 |
+|---|---|---|---|
+| dyld cache 里的 `MachOFile`（26.6）`dump` | 580.42G 条指令，user 31.82 秒 | 577.63G，31.62 秒 | 指令 −0.48% |
+| 同上 `interface` | 740.22G，40.81 秒 | 738.64G，40.85 秒 | 指令 −0.21% |
+| 磁盘上的 `MachOFile`（iOS 26.5 模拟器）`dump` | user 30.51 秒 | 30.57 秒 | +0.2% |
+| 同上 `interface`（各 4 次） | user 38.75 秒（38.57–38.93） | 38.97 秒（38.62–39.45） | +0.57%，区间重叠 |
+| MachOImage 与本进程（`RenderingVerificationTests`） | user 504.2 秒 | 498.2 秒 | −1.2% |
+
+指标以 `/usr/bin/time -l` 的退休指令数为主（同一侧两次相差 0.03%–0.3%），模拟器路径的内核时间占一半、指令数跟着抖，改看 user 时间；MachOImage 腿的指令数只统计了 `swift test` 驱动进程本身，也只看 user 时间。公司那台机器上测出的 MachOImage 腿「多 2.5%」是噪声（那台机器上基线两次之间就差 3%）。
 
 **换机器时的注意事项**：
-
-- fixture 二进制（`Tests/Projects/SymbolTests/DerivedData/…`）不在版本库里，跑全量测试前要按 AGENTS.md 的命令构建（ad-hoc 签名）。两条 `MultiPayloadEnumDescriptorCacheTests` 失败是本机既有问题，在别的机器上不一定出现。
-- 渲染 A/B 脚本 `Scripts/run-rendering-ab-verification.py` 自己会跑 `swift build -c release` 与 `swift test -c release`，不经 `queued-build`。在限流的 10 核 Mac Studio 上，`queued-build` 给预构建加的 `--jobs 8` 会变成编译器参数 `-num-threads 8`，脚本不带 `--jobs`，结果两侧都被判定需要全量重编，而且是并行、绕过队列的。在不限流的机器上 `queued-build` 不加 `--jobs`，预构建之后脚本里的构建是空操作。
-- 会话的隔离检查不接受把 `/usr/bin/time` 写在 `queued-build` 外面，要写成 `queued-build /usr/bin/time -l …`；zsh 里 `VAR=… time …` 是语法错误，环境变量先 `export`。
+- Xcode 27 的机器上，SymbolTestsCore fixture 要用 Xcode 26.6 编（`DEVELOPER_DIR=…/Xcode-26.6.0.app/Contents/Developer`，ad-hoc 签名），否则 `MachOSwiftSectionTests` 会有约 195 个 offset / layout 与 baseline 不符，那是编译器版本带来的漂移，不是回归。
+- 渲染 A/B 脚本的归档 cache 目录写死为 `26.6.2` 与 `15.5`，缺哪个就静默少一条腿（Ultra 上只有 `15.5`）。脚本自己会跑 `swift build -c release` 与 `swift test -c release`，不经 `queued-build`；在限流的 10 核 Mac Studio 上，`queued-build` 给预构建加的 `--jobs 8` 会变成编译器参数 `-num-threads 8`，脚本的那次构建于是两侧并行、绕过队列地全量重编。
 
 **待用户决定**：
 
 1. 本批发现、未修的既有问题：`FunctionTypeMetadata.extendedFlags(in:)` 与 `EnumMetadataProtocol.payloadSize(descriptor:in:)` 从泛型 `readElement` 直接返回 Optional，按 Optional 的内存形状多读一个字节，`FunctionTypeMetadataTests` 时好时坏就是它（修法是显式按非 Optional 读，带确定性的测试）；`ContextDescriptorWrapper.resolve(at:in:) -> Self?` 出错时用 `print` 写 stdout，违反日志规则，也会弄脏 CLI 的输出。
 2. 渲染 A/B 脚本要不要改成经 `queued-build` 构建，或者加一个传 `--jobs` 的参数。
 3. 按原计划拆成两个 PR，还是合成一个。PR 1 的文档改动是和 PR 2 一起提交的，拆的话要重排 commit。
-4. 推送分支、开 PR。
 
 **合入之后**：落地时分配编号（`draft-` → `NNNN-`，同步两个索引与进度账本的节号），状态改为 Implemented；0.22.0 的 Changelog 写明废弃清单与三处行为变化；给 RuntimeViewer（`next`）、MachOKitUI、swift-decompiler 提迁移 PR；0.23.0 删除全部废弃转发、`DeprecatedReadingFormsTests`，以及覆盖率登记表里 13 个指针版初始化器的键。
 
@@ -336,3 +335,5 @@ extension ReadingContext {
 | 2026-09-30 | 测试去重：改写后与已有 context 断言等价的重复断言删除，保留更强的一条 | 旧形式只是转发，改写后两边走同一路径，对比永远成立 |
 | 2026-09-30 | `.image` 的载荷改为 `MachOTargetIdentifier`（原设计为 `AnyHashable`），`SharedCacheKey` 不加新入口；identifier 不是这个类型的读者经 context 读时不缓存 | 按原设计实现后，`SharedCacheKey(machO)` 被改成先装箱再拆箱，退回了 0053 专门去掉的每次查找一次堆分配（文件的 identifier 放不进 existential 内联缓冲），context 路径每次 memo 查找也要装箱一次。今天所有读者（含 MachOKitUI 的包装类型）都用 `MachOTargetIdentifier`，不缓存只影响假想中的读者，且只慢不错 |
 | 2026-09-30 | 性能验收暂缓，换性能更好的机器再测 | 用户：「差不多先停下来，基准测试在这台电脑上可能不准，得换另一台性能更好的设备才看的出来，这台电脑内存不足和cpu占用过高了」。已有结果：cache 路径按退休指令数与 user 时间持平；模拟器文件路径 user 时间持平；MachOImage 腿 CPU 时间候选平均多 2.5%，而基线两次之间就差 3%，未定论。正确性验收（全量测试、90 对渲染 A/B）已完成，数据见 ProjectEvolutionLog。接手步骤见「当前进度」一节 |
+| 2026-09-30 | 分支在 JHs-Mac-Studio-Ultra 上按会话记录重建并推送 | 原分支没有推送，公司那台机器随后关机。用户：「你在我这台设备重新写吧，自己对着对话记录抄」。重建后各 commit 的文件清单与行数统计与原 commit 一致，全量测试与渲染 A/B 在 Ultra 上重跑通过 |
+| 2026-09-30 | 性能验收完成：三条路径都没有变慢 | 在 Ultra（28 核，负载低）上测：dyld cache 路径退休指令数 −0.48% / −0.21%，模拟器文件路径 user 时间 +0.2% / +0.57%（两侧区间重叠），MachOImage 与本进程路径 user 时间 −1.2%。公司机器上「多 2.5%」的读数判为噪声 |
