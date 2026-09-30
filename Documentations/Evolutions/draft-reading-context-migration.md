@@ -267,7 +267,7 @@ extension ReadingContext {
 
 ## 当前进度（2026-09-30）
 
-**一句话**：实现、正确性验收与性能验收都已完成（落地步骤 1–9），分支 `refactor/reading-context-migration` 已推送，基于 `next` @ `f7c189b8`；剩下三个待决定的问题，然后开 PR。
+**一句话**：实现、正确性验收与性能验收都已完成（落地步骤 1–9），分支 `refactor/reading-context-migration` 已推送，基于 `next` @ `f7c189b8`，以一个 PR 合入 `next`。
 
 | commit | 内容 |
 |---|---|
@@ -301,11 +301,10 @@ extension ReadingContext {
 - Xcode 27 的机器上，SymbolTestsCore fixture 要用 Xcode 26.6 编（`DEVELOPER_DIR=…/Xcode-26.6.0.app/Contents/Developer`，ad-hoc 签名），否则 `MachOSwiftSectionTests` 会有约 195 个 offset / layout 与 baseline 不符，那是编译器版本带来的漂移，不是回归。
 - 渲染 A/B 脚本的归档 cache 目录写死为 `26.6.2` 与 `15.5`，缺哪个就静默少一条腿（Ultra 上只有 `15.5`）。脚本自己会跑 `swift build -c release` 与 `swift test -c release`，不经 `queued-build`；在限流的 10 核 Mac Studio 上，`queued-build` 给预构建加的 `--jobs 8` 会变成编译器参数 `-num-threads 8`，脚本的那次构建于是两侧并行、绕过队列地全量重编。
 
-**待用户决定**：
+**不在本 PR、另开分支处理**（用户已决定）：
 
-1. 本批发现、未修的既有问题：`FunctionTypeMetadata.extendedFlags(in:)` 与 `EnumMetadataProtocol.payloadSize(descriptor:in:)` 从泛型 `readElement` 直接返回 Optional，按 Optional 的内存形状多读一个字节，`FunctionTypeMetadataTests` 时好时坏就是它（修法是显式按非 Optional 读，带确定性的测试）；`ContextDescriptorWrapper.resolve(at:in:) -> Self?` 出错时用 `print` 写 stdout，违反日志规则，也会弄脏 CLI 的输出。
-2. 渲染 A/B 脚本要不要改成经 `queued-build` 构建，或者加一个传 `--jobs` 的参数。
-3. 按原计划拆成两个 PR，还是合成一个。PR 1 的文档改动是和 PR 2 一起提交的，拆的话要重排 commit。
+1. 本批发现的既有问题：`FunctionTypeMetadata.extendedFlags(in:)` 与 `EnumMetadataProtocol.payloadSize(descriptor:in:)` 从泛型 `readElement` 直接返回 Optional，按 Optional 的内存形状多读一个字节，`FunctionTypeMetadataTests` 时好时坏就是它；`ContextDescriptorWrapper.resolve(at:in:) -> Self?` 出错时用 `print` 写 stdout，违反日志规则，也会弄脏 CLI 的输出。
+2. 渲染 A/B 脚本加 `--skip-build`：直接使用预先经 `queued-build` 构建好的产物，脚本自己不再构建。
 
 **合入之后**：落地时分配编号（`draft-` → `NNNN-`，同步两个索引与进度账本的节号），状态改为 Implemented；0.22.0 的 Changelog 写明废弃清单与三处行为变化；给 RuntimeViewer（`next`）、MachOKitUI、swift-decompiler 提迁移 PR；0.23.0 删除全部废弃转发、`DeprecatedReadingFormsTests`，以及覆盖率登记表里 13 个指针版初始化器的键。
 
@@ -337,3 +336,5 @@ extension ReadingContext {
 | 2026-09-30 | 性能验收暂缓，换性能更好的机器再测 | 用户：「差不多先停下来，基准测试在这台电脑上可能不准，得换另一台性能更好的设备才看的出来，这台电脑内存不足和cpu占用过高了」。已有结果：cache 路径按退休指令数与 user 时间持平；模拟器文件路径 user 时间持平；MachOImage 腿 CPU 时间候选平均多 2.5%，而基线两次之间就差 3%，未定论。正确性验收（全量测试、90 对渲染 A/B）已完成，数据见 ProjectEvolutionLog。接手步骤见「当前进度」一节 |
 | 2026-09-30 | 分支在 JHs-Mac-Studio-Ultra 上按会话记录重建并推送 | 原分支没有推送，公司那台机器随后关机。用户：「你在我这台设备重新写吧，自己对着对话记录抄」。重建后各 commit 的文件清单与行数统计与原 commit 一致，全量测试与渲染 A/B 在 Ultra 上重跑通过 |
 | 2026-09-30 | 性能验收完成：三条路径都没有变慢 | 在 Ultra（28 核，负载低）上测：dyld cache 路径退休指令数 −0.48% / −0.21%，模拟器文件路径 user 时间 +0.2% / +0.57%（两侧区间重叠），MachOImage 与本进程路径 user 时间 −1.2%。公司机器上「多 2.5%」的读数判为噪声 |
+| 2026-09-30 | 改为一个 PR 合入（原计划拆成 ABI 层与缓存范围加上层接口两个） | 用户选定。ABI 层的文档改动是和第二部分一起提交的，拆开要重排 commit；现有 commit 已按逻辑分开，评审时可逐个看 |
+| 2026-09-30 | 既有的 Optional 读取陷阱与 `print` 写 stdout 另开分支修，A/B 脚本加 `--skip-build` 也另开分支 | 用户选定；本 PR 只做迁移，保持聚焦 |
