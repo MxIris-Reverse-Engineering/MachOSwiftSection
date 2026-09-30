@@ -189,5 +189,133 @@ class ImagePathInsideCacheTests(unittest.TestCase):
         self.assertIsNone(self.resolve("ActivityKit"))
 
 
+class SkipBuildTests(unittest.TestCase):
+    """`--skip-build` lets every build of a round go through the caller's own
+    build queue. Without it the harness runs `swift build -c release` for both
+    sides itself, concurrently and outside `queued-build`: on the throttled
+    10-core machine that rebuilt both sides in full, because the queue caps a
+    release build at `--jobs 8` (swiftc `-num-threads 8`) and the harness's
+    uncapped command line matched nothing the queue had built.
+
+    `subprocess.run` is the harness's only process boundary, so recording it
+    shows every command a code path would launch; answering success keeps the
+    default path's own bookkeeping intact."""
+
+    def setUp(self) -> None:
+        self.temporary_directory = tempfile.TemporaryDirectory()
+        root = Path(self.temporary_directory.name)
+        self.output_root = root / "output"
+        self.output_root.mkdir()
+        self.baseline_checkout = root / "baseline-checkout"
+        self.candidate_checkout = root / "candidate-checkout"
+        self.baseline_scratch = root / "baseline-scratch"
+        self.candidate_scratch = root / "candidate-scratch"
+        self.launched_commands: list[list[str]] = []
+        self.original_subprocess_run = HARNESS.subprocess.run
+        HARNESS.subprocess.run = self.recordLaunchedCommand
+
+    def tearDown(self) -> None:
+        HARNESS.subprocess.run = self.original_subprocess_run
+        self.temporary_directory.cleanup()
+
+    def recordLaunchedCommand(self, command: list[str], **keyword_arguments) -> SimpleNamespace:
+        self.launched_commands.append(list(command))
+        return SimpleNamespace(returncode=0)
+
+    def makeRun(self, skip_build: bool, skip_image_part: bool = False,
+                scenario_names: frozenset[str] = frozenset()) -> "HARNESS.VerificationRun":
+        return HARNESS.VerificationRun(SimpleNamespace(
+            output_root=self.output_root,
+            skip_build=skip_build,
+            skip_image_part=skip_image_part,
+            scenario_names=set(scenario_names),
+            baseline_checkout=self.baseline_checkout,
+            candidate_checkout=self.candidate_checkout,
+            baseline_scratch=self.baseline_scratch,
+            candidate_scratch=self.candidate_scratch,
+            framework_names=["SwiftUI"],
+        ))
+
+    def writePrebuiltCommandLineInterface(self, scratch: Path) -> Path:
+        product = scratch / "release" / "swift-section"
+        product.parent.mkdir(parents=True)
+        product.write_text("")
+        return product
+
+    def testPrebuiltProductsOnBothSidesAreUsedWithoutLaunchingABuild(self) -> None:
+        baseline_product = self.writePrebuiltCommandLineInterface(self.baseline_scratch)
+        candidate_product = self.writePrebuiltCommandLineInterface(self.candidate_scratch)
+        run = self.makeRun(skip_build=True)
+
+        run.build_both_sides()
+
+        self.assertEqual(self.launched_commands, [])
+        self.assertEqual(run.command_line_interfaces, {"baseline": baseline_product, "candidate": candidate_product})
+
+    def testAMissingPrebuiltProductStopsTheRunAndNamesItsPath(self) -> None:
+        """Checked before anything runs: a missing CLI would otherwise stop the
+        run at its first render with a bare FileNotFoundError traceback, which
+        says neither which side is missing nor how to prebuild it."""
+        self.writePrebuiltCommandLineInterface(self.baseline_scratch)
+        run = self.makeRun(skip_build=True)
+
+        with self.assertRaises(SystemExit) as raised:
+            run.build_both_sides()
+
+        self.assertIn(str(self.candidate_scratch / "release" / "swift-section"), str(raised.exception.code))
+        self.assertEqual(self.launched_commands, [])
+
+    def testEachMissingSideIsGivenTheOnePrebuildThisRunNeeds(self) -> None:
+        """`swift test` builds every product, the CLI included, but turns
+        testability on for the whole build while `swift build -c release`
+        leaves it off, so prebuilding one scratch path with both recompiles
+        the package twice. A run with the MachOImage part needs only the
+        former; a run without it needs only the latter."""
+        cases = [
+            ("the MachOImage part runs", {},
+             "queued-build swift test -c release --filter NoSuchTestForPrebuild"),
+            ("--skip-image-part", {"skip_image_part": True},
+             "queued-build swift build -c release --product swift-section"),
+            ("--scenarios without machoimage-current", {"scenario_names": frozenset({"cache-15.5"})},
+             "queued-build swift build -c release --product swift-section"),
+        ]
+        for label, run_options, expected_prebuild in cases:
+            with self.subTest(label):
+                run = self.makeRun(skip_build=True, **run_options)
+
+                with self.assertRaises(SystemExit) as raised:
+                    run.build_both_sides()
+
+                suggested_commands = [line.strip() for line in str(raised.exception.code).splitlines()
+                                      if line.strip().startswith("queued-build ")]
+                self.assertEqual(suggested_commands, [
+                    f"{expected_prebuild} --package-path {self.baseline_checkout} --scratch-path {self.baseline_scratch}",
+                    f"{expected_prebuild} --package-path {self.candidate_checkout} --scratch-path {self.candidate_scratch}",
+                ])
+
+    def testTheImagePartRunsThePrebuiltTestBundlesWithoutBuilding(self) -> None:
+        run = self.makeRun(skip_build=True)
+
+        run.run_macho_image_side("candidate", self.candidate_checkout, self.candidate_scratch)
+
+        self.assertEqual(len(self.launched_commands), 1)
+        self.assertEqual(self.launched_commands[0][:2], ["swift", "test"])
+        self.assertIn("--skip-build", self.launched_commands[0])
+
+    def testWithoutTheFlagBothSidesAreStillBuilt(self) -> None:
+        run = self.makeRun(skip_build=False)
+
+        run.build_both_sides()
+
+        self.assertEqual([command[:2] for command in self.launched_commands], [["swift", "build"], ["swift", "build"]])
+
+    def testWithoutTheFlagTheImagePartStillBuildsItsTests(self) -> None:
+        run = self.makeRun(skip_build=False)
+
+        run.run_macho_image_side("candidate", self.candidate_checkout, self.candidate_scratch)
+
+        self.assertNotIn("--skip-build", self.launched_commands[0])
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

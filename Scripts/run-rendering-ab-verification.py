@@ -13,7 +13,22 @@ Usage:
     Scripts/run-rendering-ab-verification.py <baseline-checkout> <candidate-checkout>
         [--output-root PATH] [--frameworks A,B,...] [--scenarios cache-15.5,sim-iOS-18.5,...]
         [--baseline-scratch PATH] [--candidate-scratch PATH] [--skip-image-part]
-        [--jobs N] [--baseline-cache PATH | --no-baseline-cache]
+        [--jobs N] [--baseline-cache PATH | --no-baseline-cache] [--skip-build]
+
+Building:
+    - By default the harness builds both sides itself: `swift build -c release
+      --product swift-section` before the renders, then `swift test -c release`
+      for the MachOImage part. Neither goes through a build queue.
+    - --skip-build builds nothing, so the caller can run every build through
+      the machine's queue first. Each side needs ONE prebuild: `swift test -c
+      release --filter NoSuchTestForPrebuild` when the MachOImage part runs (it
+      builds the CLI too; the filter matches no test), `swift build -c release
+      --product swift-section` when it does not. Running both on one scratch
+      path recompiles the package twice: `swift test` turns testability on for
+      the whole build, `swift build -c release` leaves it off.
+    - A missing CLI stops the run before anything renders and names the
+      prebuild. Nothing checks that a product matches its checkout's current
+      sources.
 
 Wall clock:
     - The two release builds run concurrently, and the CLI render pairs run
@@ -50,6 +65,7 @@ import hashlib
 import json
 import os
 import platform
+import shlex
 import shutil
 import subprocess
 import sys
@@ -91,6 +107,9 @@ def parse_arguments() -> argparse.Namespace:
                         help="SwiftPM scratch path for the candidate build (default: <candidate>/.build).")
     parser.add_argument("--skip-image-part", action="store_true",
                         help="Skip the MachOImage (RenderingVerificationTests) part.")
+    parser.add_argument("--skip-build", action="store_true",
+                        help="Build nothing: use each side's prebuilt <scratch>/release/swift-section and, for the "
+                             "MachOImage part, its prebuilt release test bundles.")
     parser.add_argument("--scenarios", default="",
                         help="Comma-separated scenario names to run (cache-15.5, cache-current-system, "
                              "sim-iOS-18.5, machoimage-current, ...); default: every scenario.")
@@ -135,11 +154,19 @@ class VerificationRun:
         selected = getattr(self.arguments, "scenario_names", set())
         return not selected or scenario_name in selected
 
+    def runs_macho_image_part(self) -> bool:
+        return not self.arguments.skip_image_part and self.runs_scenario("machoimage-current")
+
     # --- Building -----------------------------------------------------------
 
     def build_both_sides(self) -> None:
         """The two sides build concurrently: separate checkouts, separate
-        scratch paths, no shared state."""
+        scratch paths, no shared state. With --skip-build nothing is built
+        (see `use_prebuilt_command_line_interfaces`)."""
+        if self.arguments.skip_build:
+            self.use_prebuilt_command_line_interfaces()
+            return
+
         def build(side: str, checkout: Path, scratch: Path) -> tuple[str, int]:
             print(f"Building release swift-section for {checkout} ...")
             log_file = self.output_root / f"build-{side}.log"
@@ -158,8 +185,49 @@ class VerificationRun:
             if return_code != 0:
                 sys.exit(f"error: release build failed for {side} (log: {self.output_root / f'build-{side}.log'})")
         for side, _, scratch in self.sides():
-            self.command_line_interfaces[side] = scratch / "release" / "swift-section"
+            self.command_line_interfaces[side] = self.command_line_interface_path(scratch)
             print(f"Built {side}: {self.command_line_interfaces[side]}")
+
+    def use_prebuilt_command_line_interfaces(self) -> None:
+        """--skip-build: the caller built both sides before the run, through
+        the machine's build queue. The harness's own `swift build -c release`
+        runs outside that queue, and on the throttled machine it rebuilt both
+        sides in full, concurrently: the queue caps a release build at
+        `--jobs 8`, which reaches swiftc as `-num-threads 8`, so a build
+        without the cap reuses nothing. Nothing here checks that a product is
+        current — a checkout edited after its prebuild renders as it was."""
+        missing_sides = [(side, checkout, scratch) for side, checkout, scratch in self.sides()
+                         if not self.command_line_interface_path(scratch).is_file()]
+        if missing_sides:
+            message_lines = ["error: --skip-build found no prebuilt swift-section; prebuild each missing side first:"]
+            for side, checkout, scratch in missing_sides:
+                message_lines.append(f"  {side}: {self.command_line_interface_path(scratch)}")
+                message_lines.append(f"    {self.prebuild_command(checkout, scratch)}")
+            sys.exit("\n".join(message_lines))
+        for side, _, scratch in self.sides():
+            product = self.command_line_interface_path(scratch)
+            self.command_line_interfaces[side] = product
+            # The build time is the one staleness hint on offer: a product
+            # older than the checkout's last edit renders the old sources.
+            built_at = datetime.datetime.fromtimestamp(product.stat().st_mtime)
+            print(f"Using prebuilt {side}: {product} (built {built_at:%Y-%m-%d %H:%M:%S})")
+
+    @staticmethod
+    def command_line_interface_path(scratch: Path) -> Path:
+        """SwiftPM points `<scratch>/release` at the release products under
+        either build system, so the CLI is found at the same place."""
+        return scratch / "release" / "swift-section"
+
+    def prebuild_command(self, checkout: Path, scratch: Path) -> str:
+        """The one prebuild a side needs for this run. `swift test` builds
+        every product, this CLI included, and turns testability on for the
+        whole build while `swift build -c release` leaves it off: running both
+        on one scratch path recompiles the package twice, and the later one
+        replaces the CLI anyway. The filter matches no test, so it only builds."""
+        location = f"--package-path {shlex.quote(str(checkout))} --scratch-path {shlex.quote(str(scratch))}"
+        if self.runs_macho_image_part():
+            return f"queued-build swift test -c release --filter NoSuchTestForPrebuild {location}"
+        return f"queued-build swift build -c release --product swift-section {location}"
 
     def sides(self) -> list[tuple[str, Path, Path]]:
         return [
@@ -380,7 +448,7 @@ class VerificationRun:
         shared cache slide — which is also why this part is never served from
         the baseline cache. The two sides run concurrently (separate scratch
         paths; the renders happen inside each `swift test` process)."""
-        if not self.runs_scenario("machoimage-current"):
+        if not self.runs_macho_image_part():
             return
         with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
             list(pool.map(lambda entry: self.run_macho_image_side(*entry), self.sides()))
@@ -396,13 +464,18 @@ class VerificationRun:
             "MACHO_SWIFT_SECTION_SILENT_TEST": "1",
         })
         log_file = self.output_root / "machoimage-current" / f"{side}.test.log"
+        command = [
+            "swift", "test", "-c", "release",
+            "--package-path", str(checkout),
+            "--scratch-path", str(scratch),
+            "--filter", "RenderingVerificationTests",
+        ]
+        if self.arguments.skip_build:
+            # The release test bundles were prebuilt together with the CLI
+            # (`prebuild_command`); a missing one fails the invocation below.
+            command.append("--skip-build")
         with open(log_file, "w") as log_handle:
-            completed = subprocess.run([
-                "swift", "test", "-c", "release",
-                "--package-path", str(checkout),
-                "--scratch-path", str(scratch),
-                "--filter", "RenderingVerificationTests",
-            ], env=environment, stdout=log_handle, stderr=subprocess.STDOUT)
+            completed = subprocess.run(command, env=environment, stdout=log_handle, stderr=subprocess.STDOUT)
         print(f"[{side}] machoimage-current exit={completed.returncode}")
         if completed.returncode != 0:
             # Unlike the CLI scenarios (which degrade to paired .skip
@@ -480,8 +553,7 @@ def main() -> None:
     run.run_dyld_cache_part()
     run.run_simulator_part()
     run.execute_pending_jobs()
-    if not arguments.skip_image_part:
-        run.run_macho_image_part()
+    run.run_macho_image_part()
 
     difference_count, examined_pair_count = run.compare_all_pairs()
     if run.hard_failure_messages:
