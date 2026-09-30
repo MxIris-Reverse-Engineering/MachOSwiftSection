@@ -33,40 +33,45 @@ public enum SymbolOrElement<Element: Resolvable>: Resolvable {
         }
     }
 
-    public static func resolve(from offset: Int, in machO: some MachORepresentableWithCache & Readable) throws -> Self {
-        if let machOFile = machO as? MachOFile, let symbol = machOFile.resolveBind(fileOffset: offset) {
-            return .symbol(.init(offset: offset, name: symbol))
-        } else {
-            return try .element(.resolve(from: offset, in: machO))
-        }
-    }
-
-    public static func resolve(from offset: Int, in machO: some MachORepresentableWithCache & Readable) throws -> Self? {
-        if let machOFile = machO as? MachOFile, let symbol = machOFile.resolveBind(fileOffset: offset) {
-            return .symbol(.init(offset: offset, name: symbol))
-        } else {
-            return try Element.resolve(from: offset, in: machO).map { .element($0) }
-        }
-    }
-    
-    public static func resolve(from ptr: UnsafeRawPointer) throws -> Self {
-        return try .element(.resolve(from: ptr))
-    }
-    
     public static func resolve<Context: ReadingContext>(at address: Context.Address, in context: Context) throws -> Self {
-        if let machOFileContext = context as? MachOContext<MachOFile>, let offset = try? context.offsetFromAddress(address), let symbol = machOFileContext.machO.resolveBind(fileOffset: offset) {
-            return .symbol(.init(offset: offset, name: symbol))
+        if let symbol = boundSymbol(at: address, in: context) {
+            return .symbol(symbol)
         } else {
             return .element(try Element.resolve(at: address, in: context))
         }
     }
-    
+
     public static func resolve<Context: ReadingContext>(at address: Context.Address, in context: Context) throws -> Self? {
-        if let machOFileContext = context as? MachOContext<MachOFile>, let offset = try? context.offsetFromAddress(address), let symbol = machOFileContext.machO.resolveBind(fileOffset: offset) {
-            return .symbol(.init(offset: offset, name: symbol))
+        if let symbol = boundSymbol(at: address, in: context) {
+            return .symbol(symbol)
         } else {
             return try Element.resolve(at: address, in: context).map { .element($0) }
         }
+    }
+
+    /// The symbol dyld binds at `address`, when the context reads a file whose
+    /// bind table names one there: the element lives in another image, so
+    /// there is nothing at `address` to read.
+    private static func boundSymbol<Context: ReadingContext>(at address: Context.Address, in context: Context) -> Symbol? {
+        guard let resolver = context.bindRebaseResolver, let offset = try? context.offsetFromAddress(address), let name = resolver.resolveBind(fileOffset: offset) else {
+            return nil
+        }
+        return Symbol(offset: offset, name: name)
+    }
+
+    @available(*, deprecated, message: "Pass a ReadingContext: resolve(at: offset, in: machO.context).")
+    public static func resolve(from offset: Int, in machO: some MachORepresentableWithCache & Readable) throws -> Self {
+        try resolve(at: offset, in: machO.context)
+    }
+
+    @available(*, deprecated, message: "Pass a ReadingContext: resolve(at: offset, in: machO.context).")
+    public static func resolve(from offset: Int, in machO: some MachORepresentableWithCache & Readable) throws -> Self? {
+        try resolve(at: offset, in: machO.context)
+    }
+
+    @available(*, deprecated, message: "Pass a ReadingContext: resolve(at: pointer, in: .inProcess).")
+    public static func resolve(from ptr: UnsafeRawPointer) throws -> Self {
+        try resolve(at: ptr, in: InProcessContext.shared)
     }
     
     public func map<T, E: Swift.Error>(_ transform: (Element) throws(E) -> T) throws(E) -> SymbolOrElement<T> {

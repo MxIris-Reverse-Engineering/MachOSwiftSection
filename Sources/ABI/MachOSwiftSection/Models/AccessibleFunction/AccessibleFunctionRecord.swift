@@ -45,50 +45,28 @@ extension AccessibleFunctionRecord {
     public var isDistributed: Bool { layout.flags.contains(.isDistributed) }
 }
 
-// MARK: - MachO Reading
+// MARK: - ReadingContext Support
 
 extension AccessibleFunctionRecord {
     /// The lookup key the runtime matches an incoming call target against.
     /// Not a mangled name in the demangler's sense — it is whatever string
     /// the emitter chose, so it is read as a plain C string.
-    public func name(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> String {
-        try layout.name.resolve(from: offset(of: \.name), in: machO)
+    public func name(in context: some ReadingContext) throws -> String {
+        try layout.name.resolve(at: try context.addressFromOffset(offset(of: \.name)), in: context)
     }
 
     /// The function's Swift type, mangled. This is what tells a caller how to
     /// build the arguments the abstracted entry point expects.
-    public func functionType(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> MangledName {
-        try layout.functionType.resolve(from: offset(of: \.functionType), in: machO)
+    public func functionType(in context: some ReadingContext) throws -> MangledName {
+        try layout.functionType.resolve(at: try context.addressFromOffset(offset(of: \.functionType)), in: context)
     }
 
     /// The generic environment describing the function's generic signature,
     /// or `nil` for a non-generic function — the only nullable pointer in the
     /// record.
-    public func genericEnvironment(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> GenericEnvironment? {
+    public func genericEnvironment(in context: some ReadingContext) throws -> GenericEnvironment? {
         guard let genericEnvironmentOffset = resolvedDirectOffset(from: \.genericEnvironment) else { return nil }
-        return try GenericEnvironment.resolve(from: genericEnvironmentOffset, in: machO)
-    }
-}
-
-extension AccessibleFunctionRecord {
-    public func name() throws -> String {
-        try layout.name.resolve(from: pointer(of: \.name))
-    }
-
-    public func functionType() throws -> MangledName {
-        try layout.functionType.resolve(from: pointer(of: \.functionType))
-    }
-}
-
-// MARK: - ReadingContext Support
-
-extension AccessibleFunctionRecord {
-    public func name(in context: some ReadingContext) throws -> String {
-        try layout.name.resolve(at: try context.addressFromOffset(offset(of: \.name)), in: context)
-    }
-
-    public func functionType(in context: some ReadingContext) throws -> MangledName {
-        try layout.functionType.resolve(at: try context.addressFromOffset(offset(of: \.functionType)), in: context)
+        return try GenericEnvironment.resolve(at: try context.addressFromOffset(genericEnvironmentOffset), in: context)
     }
 
     /// The entry point's location as an address in `context` (a file offset
@@ -97,5 +75,34 @@ extension AccessibleFunctionRecord {
     public func functionAddress<Context: ReadingContext>(in context: Context) throws -> Context.Address? {
         guard let functionOffset = resolvedDirectOffset(from: \.function) else { return nil }
         return try context.addressFromOffset(functionOffset)
+    }
+}
+
+// MARK: - Deprecated Mach-O and pointer forms
+
+extension AccessibleFunctionRecord {
+    @available(*, deprecated, message: "Pass a ReadingContext: name(in: machO.context).")
+    public func name(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> String {
+        try name(in: machO.context)
+    }
+
+    @available(*, deprecated, message: "Pass a ReadingContext: functionType(in: machO.context).")
+    public func functionType(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> MangledName {
+        try functionType(in: machO.context)
+    }
+
+    @available(*, deprecated, message: "Pass a ReadingContext: genericEnvironment(in: machO.context).")
+    public func genericEnvironment(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> GenericEnvironment? {
+        try genericEnvironment(in: machO.context)
+    }
+
+    @available(*, deprecated, message: "Pass a ReadingContext: name(in: .inProcess).")
+    public func name() throws -> String {
+        try name(in: InProcessContext.shared)
+    }
+
+    @available(*, deprecated, message: "Pass a ReadingContext: functionType(in: .inProcess).")
+    public func functionType() throws -> MangledName {
+        try functionType(in: InProcessContext.shared)
     }
 }

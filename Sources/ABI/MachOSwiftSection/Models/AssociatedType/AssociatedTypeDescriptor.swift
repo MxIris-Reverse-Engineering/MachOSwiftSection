@@ -12,34 +12,6 @@ public struct AssociatedTypeDescriptor: ResolvableLocatableLayoutWrapper {
     }
 }
 
-extension AssociatedTypeDescriptor {
-    public func conformingTypeName(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> MangledName {
-        return try layout.conformingTypeName.resolve(from: offset(of: \.conformingTypeName), in: machO)
-    }
-
-    public func protocolTypeName(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> MangledName {
-        return try layout.protocolTypeName.resolve(from: offset(of: \.protocolTypeName), in: machO)
-    }
-
-    public func associatedTypeRecords(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> [AssociatedTypeRecord] {
-        return try machO.readWrapperElements(offset: offset + layoutSize, numberOfElements: layout.numAssociatedTypes.cast())
-    }
-}
-
-extension AssociatedTypeDescriptor {
-    public func conformingTypeName() throws -> MangledName {
-        return try layout.conformingTypeName.resolve(from: pointer(of: \.conformingTypeName))
-    }
-
-    public func protocolTypeName() throws -> MangledName {
-        return try layout.protocolTypeName.resolve(from: pointer(of: \.protocolTypeName))
-    }
-
-    public func associatedTypeRecords() throws -> [AssociatedTypeRecord] {
-        return try asPointer.readWrapperElements(offset: layoutSize, numberOfElements: layout.numAssociatedTypes.cast())
-    }
-}
-
 extension AssociatedTypeDescriptor: TopLevelDescriptor {
     public var actualSize: Int { layoutSize + (layout.numAssociatedTypes * layout.associatedTypeRecordSize).cast() }
 }
@@ -57,5 +29,39 @@ extension AssociatedTypeDescriptor {
 
     public func associatedTypeRecords(in context: some ReadingContext) throws -> [AssociatedTypeRecord] {
         return try context.readWrapperElements(at: try context.addressFromOffset(offset + layoutSize), numberOfElements: layout.numAssociatedTypes.cast())
+    }
+}
+
+// MARK: - Deprecated Mach-O and pointer forms
+
+extension AssociatedTypeDescriptor {
+    @available(*, deprecated, message: "Pass a ReadingContext: conformingTypeName(in: machO.context).")
+    public func conformingTypeName(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> MangledName {
+        try conformingTypeName(in: machO.context)
+    }
+
+    @available(*, deprecated, message: "Pass a ReadingContext: protocolTypeName(in: machO.context).")
+    public func protocolTypeName(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> MangledName {
+        try protocolTypeName(in: machO.context)
+    }
+
+    @available(*, deprecated, message: "Pass a ReadingContext: associatedTypeRecords(in: machO.context).")
+    public func associatedTypeRecords(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> [AssociatedTypeRecord] {
+        try associatedTypeRecords(in: machO.context)
+    }
+
+    @available(*, deprecated, message: "Pass a ReadingContext: conformingTypeName(in: .inProcess).")
+    public func conformingTypeName() throws -> MangledName {
+        try conformingTypeName(in: InProcessContext.shared)
+    }
+
+    @available(*, deprecated, message: "Pass a ReadingContext: protocolTypeName(in: .inProcess).")
+    public func protocolTypeName() throws -> MangledName {
+        try protocolTypeName(in: InProcessContext.shared)
+    }
+
+    @available(*, deprecated, message: "Pass a ReadingContext: associatedTypeRecords(in: .inProcess).")
+    public func associatedTypeRecords() throws -> [AssociatedTypeRecord] {
+        try associatedTypeRecords(in: InProcessContext.shared)
     }
 }

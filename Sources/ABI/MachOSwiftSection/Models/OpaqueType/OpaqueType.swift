@@ -10,71 +10,6 @@ public struct OpaqueType: TopLevelType, ContextProtocol {
     public let underlyingTypeArgumentMangledNames: [MangledName]
 
     public let invertedProtocols: InvertibleProtocolSet?
-
-    public init(descriptor: OpaqueTypeDescriptor, in machO: some MachOSwiftSectionRepresentableWithCache) throws {
-        self.descriptor = descriptor
-        var currentOffset = descriptor.offset + descriptor.layoutSize
-
-        let genericContext = try descriptor.genericContext(in: machO)
-
-        if let genericContext {
-            currentOffset += genericContext.size
-        }
-        self.genericContext = genericContext
-
-        if descriptor.numUnderlyingTypeArguments > 0 {
-            let underlyingTypeArgumentMangledNamePointers: [RelativeDirectPointer<MangledName>] = try machO.readElements(offset: currentOffset, numberOfElements: descriptor.numUnderlyingTypeArguments)
-            var underlyingTypeArgumentMangledNames: [MangledName] = []
-            for underlyingTypeArgumentMangledNamePointer in underlyingTypeArgumentMangledNamePointers {
-                try underlyingTypeArgumentMangledNames.append(underlyingTypeArgumentMangledNamePointer.resolve(from: currentOffset, in: machO))
-                currentOffset += MemoryLayout<RelativeDirectPointer<MangledName>>.size
-            }
-            self.underlyingTypeArgumentMangledNames = underlyingTypeArgumentMangledNames
-        } else {
-            self.underlyingTypeArgumentMangledNames = []
-        }
-
-        if descriptor.flags.contains(.hasInvertibleProtocols) {
-            self.invertedProtocols = try machO.readElement(offset: currentOffset) as InvertibleProtocolSet
-            currentOffset.offset(of: InvertibleProtocolSet.self)
-        } else {
-            self.invertedProtocols = nil
-        }
-    }
-
-    public init(descriptor: OpaqueTypeDescriptor) throws {
-        self.descriptor = descriptor
-
-        var currentOffset = descriptor.layoutSize
-
-        let pointer = try descriptor.asPointer
-
-        let genericContext = try descriptor.genericContext()
-
-        if let genericContext {
-            currentOffset += genericContext.size
-        }
-        self.genericContext = genericContext
-
-        if descriptor.numUnderlyingTypeArguments > 0 {
-            let underlyingTypeArgumentMangledNamePointers: [RelativeDirectPointer<MangledName>] = try pointer.readElements(offset: currentOffset, numberOfElements: descriptor.numUnderlyingTypeArguments)
-            var underlyingTypeArgumentMangledNames: [MangledName] = []
-            for underlyingTypeArgumentMangledNamePointer in underlyingTypeArgumentMangledNamePointers {
-                try underlyingTypeArgumentMangledNames.append(underlyingTypeArgumentMangledNamePointer.resolve(from: pointer.advanced(by: currentOffset)))
-                currentOffset += MemoryLayout<RelativeDirectPointer<MangledName>>.size
-            }
-            self.underlyingTypeArgumentMangledNames = underlyingTypeArgumentMangledNames
-        } else {
-            self.underlyingTypeArgumentMangledNames = []
-        }
-
-        if descriptor.flags.contains(.hasInvertibleProtocols) {
-            self.invertedProtocols = try pointer.readElement(offset: currentOffset) as InvertibleProtocolSet
-            currentOffset.offset(of: InvertibleProtocolSet.self)
-        } else {
-            self.invertedProtocols = nil
-        }
-    }
 }
 
 // MARK: - ReadingContext Support
@@ -109,5 +44,19 @@ extension OpaqueType {
         } else {
             self.invertedProtocols = nil
         }
+    }
+}
+
+// MARK: - Deprecated Mach-O and pointer forms
+
+extension OpaqueType {
+    @available(*, deprecated, message: "Pass a ReadingContext: OpaqueType(descriptor:in: machO.context).")
+    public init(descriptor: OpaqueTypeDescriptor, in machO: some MachOSwiftSectionRepresentableWithCache) throws {
+        try self.init(descriptor: descriptor, in: machO.context)
+    }
+
+    @available(*, deprecated, message: "Pass a ReadingContext: OpaqueType(descriptor:in: .inProcess).")
+    public init(descriptor: OpaqueTypeDescriptor) throws {
+        try self.init(descriptor: descriptor, in: InProcessContext.shared)
     }
 }

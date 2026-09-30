@@ -3,49 +3,6 @@ import MachOBase
 
 public protocol TypeContextDescriptorProtocol: NamedContextDescriptorProtocol where Layout: TypeContextDescriptorLayout {}
 
-extension TypeContextDescriptorProtocol {
-    public func metadataAccessorFunction(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> MetadataAccessorFunction? {
-        guard let machOImage = machO as? MachOImage else { return nil }
-        let offset = layout.accessFunctionPtr.resolveDirectOffset(from: offset + layout.offset(of: .accessFunctionPtr))
-        return .init(ptr: machOImage.ptr + UnsafeRawPointer.Stride(offset))
-    }
-
-    public func fieldDescriptor(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> FieldDescriptor {
-        try layout.fieldDescriptor.resolve(from: offset + layout.offset(of: .fieldDescriptor), in: machO)
-    }
-
-    public func genericContext(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> GenericContext? {
-        guard layout.flags.isGeneric else { return nil }
-        return try typeGenericContext(in: machO)?.asGenericContext()
-    }
-
-    public func typeGenericContext(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> TypeGenericContext? {
-        guard layout.flags.isGeneric else { return nil }
-        return try .init(contextDescriptor: self, in: machO)
-    }
-}
-
-extension TypeContextDescriptorProtocol {
-    public func metadataAccessorFunction() throws -> MetadataAccessorFunction? {
-        let ptr = try layout.pointer(from: asPointer, of: .accessFunctionPtr)
-        return try .init(ptr: layout.accessFunctionPtr.resolveDirectOffset(from: ptr))
-    }
-
-    public func fieldDescriptor() throws -> FieldDescriptor {
-        return try layout.fieldDescriptor.resolve(from: layout.pointer(from: asPointer, of: .fieldDescriptor))
-    }
-
-    public func genericContext() throws -> GenericContext? {
-        guard layout.flags.isGeneric else { return nil }
-        return try typeGenericContext()?.asGenericContext()
-    }
-
-    public func typeGenericContext() throws -> TypeGenericContext? {
-        guard layout.flags.isGeneric else { return nil }
-        return try .init(contextDescriptor: self)
-    }
-}
-
 // MARK: - ReadingContext Support
 
 extension TypeContextDescriptorProtocol {
@@ -64,10 +21,13 @@ extension TypeContextDescriptorProtocol {
         return try layout.fieldDescriptor.resolve(at: address, in: context)
     }
 
+    /// The type's metadata accessor, or `nil` when `context` is not mapped
+    /// into this process (a `MachOContext` over a `MachOFile`). The target is
+    /// computed from the relative offset already in `layout`, so a context
+    /// that cannot vend a runtime pointer answers `nil` without reading.
     public func metadataAccessorFunction(in context: some ReadingContext) throws -> MetadataAccessorFunction? {
         let fieldAddress = try context.addressFromOffset(offset + layout.offset(of: .accessFunctionPtr))
-        let relativeOffset: Int32 = try context.readElement(at: fieldAddress)
-        let targetAddress = context.advanceAddress(fieldAddress, by: Int(relativeOffset))
+        let targetAddress = try layout.accessFunctionPtr.resolveDirectAddress(at: fieldAddress, in: context)
         return try context.runtimePointer(at: targetAddress).map { MetadataAccessorFunction(ptr: $0) }
     }
 }
@@ -107,31 +67,6 @@ extension TypeContextDescriptorProtocol {
 extension TypeContextDescriptorProtocol {
     /// The C-import identity components that follow the descriptor's name,
     /// or `nil` when `hasImportInfo` is not set. See ``TypeImportInfo``.
-    public func typeImportInfo(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> TypeImportInfo? {
-        guard hasImportInfo else { return nil }
-        return try typeImportInfo(in: MachOContext(machO))
-    }
-
-    /// In-process variant of ``typeImportInfo(in:)-swift.method``.
-    public func typeImportInfo() throws -> TypeImportInfo? {
-        guard hasImportInfo else { return nil }
-        let nameFieldPointer = try layout.pointer(from: asPointer, of: .name)
-        var cursor = try layout.name.resolveDirectOffset(from: nameFieldPointer)
-        var components: [String] = []
-        // The first string is the user-facing name the descriptor's `name`
-        // already vends; the components follow it, and an empty string ends
-        // the sequence.
-        var current = String(cString: cursor.assumingMemoryBound(to: CChar.self))
-        while true {
-            cursor = cursor.advanced(by: current.utf8.count + 1)
-            current = String(cString: cursor.assumingMemoryBound(to: CChar.self))
-            if current.isEmpty { break }
-            components.append(current)
-        }
-        return TypeImportInfo(components: components)
-    }
-
-    /// `ReadingContext` variant of ``typeImportInfo(in:)-swift.method``.
     public func typeImportInfo(in context: some ReadingContext) throws -> TypeImportInfo? {
         guard hasImportInfo else { return nil }
         let nameFieldAddress = try context.addressFromOffset(offset + layout.offset(of: .name))
@@ -148,5 +83,64 @@ extension TypeContextDescriptorProtocol {
             components.append(current)
         }
         return TypeImportInfo(components: components)
+    }
+}
+
+// MARK: - Deprecated Mach-O and pointer forms
+
+// `ContextDescriptorProtocol` declares both old `genericContext` forms too.
+// They stay here so a call on a type descriptor binds to the same declaration
+// as before. The forward goes through the `ContextDescriptorProtocol`
+// requirement, whose witness for a type descriptor is this protocol's
+// `genericContext(in:)` — the one that reads the type generic context header.
+extension TypeContextDescriptorProtocol {
+    @available(*, deprecated, message: "Pass a ReadingContext: metadataAccessorFunction(in: machO.context).")
+    public func metadataAccessorFunction(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> MetadataAccessorFunction? {
+        try metadataAccessorFunction(in: machO.context)
+    }
+
+    @available(*, deprecated, message: "Pass a ReadingContext: fieldDescriptor(in: machO.context).")
+    public func fieldDescriptor(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> FieldDescriptor {
+        try fieldDescriptor(in: machO.context)
+    }
+
+    @available(*, deprecated, message: "Pass a ReadingContext: genericContext(in: machO.context).")
+    public func genericContext(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> GenericContext? {
+        try genericContext(in: machO.context)
+    }
+
+    @available(*, deprecated, message: "Pass a ReadingContext: typeGenericContext(in: machO.context).")
+    public func typeGenericContext(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> TypeGenericContext? {
+        try typeGenericContext(in: machO.context)
+    }
+
+    @available(*, deprecated, message: "Pass a ReadingContext: typeImportInfo(in: machO.context).")
+    public func typeImportInfo(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> TypeImportInfo? {
+        try typeImportInfo(in: machO.context)
+    }
+
+    @available(*, deprecated, message: "Pass a ReadingContext: metadataAccessorFunction(in: .inProcess).")
+    public func metadataAccessorFunction() throws -> MetadataAccessorFunction? {
+        try metadataAccessorFunction(in: InProcessContext.shared)
+    }
+
+    @available(*, deprecated, message: "Pass a ReadingContext: fieldDescriptor(in: .inProcess).")
+    public func fieldDescriptor() throws -> FieldDescriptor {
+        try fieldDescriptor(in: InProcessContext.shared)
+    }
+
+    @available(*, deprecated, message: "Pass a ReadingContext: genericContext(in: .inProcess).")
+    public func genericContext() throws -> GenericContext? {
+        try genericContext(in: InProcessContext.shared)
+    }
+
+    @available(*, deprecated, message: "Pass a ReadingContext: typeGenericContext(in: .inProcess).")
+    public func typeGenericContext() throws -> TypeGenericContext? {
+        try typeGenericContext(in: InProcessContext.shared)
+    }
+
+    @available(*, deprecated, message: "Pass a ReadingContext: typeImportInfo(in: .inProcess).")
+    public func typeImportInfo() throws -> TypeImportInfo? {
+        try typeImportInfo(in: InProcessContext.shared)
     }
 }

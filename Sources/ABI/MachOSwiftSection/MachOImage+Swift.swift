@@ -17,31 +17,31 @@ extension MachOImage {
 extension MachOImage.Swift: SwiftSectionRepresentable {
     public var types: [TypeContextWrapper] {
         get throws {
-            try typeContextDescriptors.map { try TypeContextWrapper.forTypeContextDescriptorWrapper($0, in: machO) }
+            try typeContextDescriptors.map { try TypeContextWrapper.forTypeContextDescriptorWrapper($0, in: machO.context) }
         }
     }
 
     public var protocols: [`Protocol`] {
         get throws {
-            try protocolDescriptors.map { try Protocol(descriptor: $0, in: machO) }
+            try protocolDescriptors.map { try Protocol(descriptor: $0, in: machO.context) }
         }
     }
 
     public var protocolConformances: [ProtocolConformance] {
         get throws {
-            try protocolConformanceDescriptors.map { try ProtocolConformance(descriptor: $0, in: machO) }
+            try protocolConformanceDescriptors.map { try ProtocolConformance(descriptor: $0, in: machO.context) }
         }
     }
 
     public var associatedTypes: [AssociatedType] {
         get throws {
-            try associatedTypeDescriptors.map { try AssociatedType(descriptor: $0, in: machO) }
+            try associatedTypeDescriptors.map { try AssociatedType(descriptor: $0, in: machO.context) }
         }
     }
 
     public var builtinTypes: [BuiltinType] {
         get throws {
-            try builtinTypeDescriptors.map { try BuiltinType(descriptor: $0, in: machO) }
+            try builtinTypeDescriptors.map { try BuiltinType(descriptor: $0, in: machO.context) }
         }
     }
 
@@ -136,21 +136,21 @@ extension MachOImage.Swift {
         let (offset, size) = try _sectionOffsetAndSize(of: swiftMachOSection)
         let pointerSize: Int = MemoryLayout<RelativeDirectPointer<Descriptor>>.size
         let data: [AnyLocatableLayoutWrapper<RelativeDirectPointer<Descriptor>>] = try machO.readWrapperElements(offset: offset, numberOfElements: size / pointerSize)
-        return try data.map { try $0.layout.resolve(from: $0.offset, in: machO) }
+        return try data.map { try $0.layout.resolve(at: $0.offset, in: machO.context) }
     }
 
     private func _readTypeMetadataRecords(from swiftMachOSection: MachOSwiftSectionName) throws -> [ContextDescriptorWrapper] {
         let (offset, size) = try _sectionOffsetAndSize(of: swiftMachOSection)
         let recordSize = TypeMetadataRecord.layoutSize
         let records: [TypeMetadataRecord] = try machO.readWrapperElements(offset: offset, numberOfElements: size / recordSize)
-        return try records.compactMap { try $0.contextDescriptor(in: machO) }
+        return try records.compactMap { try $0.contextDescriptor(in: machO.context) }
     }
 
     private func _readProtocolRecords(from swiftMachOSection: MachOSwiftSectionName) throws -> [ProtocolDescriptor] {
         let (offset, size) = try _sectionOffsetAndSize(of: swiftMachOSection)
         let recordSize = ProtocolRecord.layoutSize
         let records: [ProtocolRecord] = try machO.readWrapperElements(offset: offset, numberOfElements: size / recordSize)
-        return try records.compactMap { try $0.protocolDescriptor(in: machO) }
+        return try records.compactMap { try $0.protocolDescriptor(in: machO.context) }
     }
 
     /// Reads a section that is a flat, gapless array of fixed-size records —

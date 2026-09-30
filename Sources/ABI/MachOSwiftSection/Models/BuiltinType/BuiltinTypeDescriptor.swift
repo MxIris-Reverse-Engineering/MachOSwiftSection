@@ -14,14 +14,6 @@ public struct BuiltinTypeDescriptor: ResolvableLocatableLayoutWrapper, TopLevelD
 }
 
 extension BuiltinTypeDescriptor {
-    public func typeName(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> MangledName? {
-        return try layout.typeName.resolve(from: offset(of: \.typeName), in: machO)
-    }
-
-    public func typeName() throws -> MangledName? {
-        return try layout.typeName.resolve(from: pointer(of: \.typeName))
-    }
-    
     public var isBitwiseTakable: Bool {
         return (layout.alignmentAndFlags >> 16) & 0x1 != 0
     }
@@ -40,5 +32,19 @@ extension BuiltinTypeDescriptor {
 extension BuiltinTypeDescriptor {
     public func typeName(in context: some ReadingContext) throws -> MangledName? {
         return try layout.typeName.resolve(at: try context.addressFromOffset(offset(of: \.typeName)), in: context)
+    }
+}
+
+// MARK: - Deprecated Mach-O and pointer forms
+
+extension BuiltinTypeDescriptor {
+    @available(*, deprecated, message: "Pass a ReadingContext: typeName(in: machO.context).")
+    public func typeName(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> MangledName? {
+        try typeName(in: machO.context)
+    }
+
+    @available(*, deprecated, message: "Pass a ReadingContext: typeName(in: .inProcess).")
+    public func typeName() throws -> MangledName? {
+        try typeName(in: InProcessContext.shared)
     }
 }

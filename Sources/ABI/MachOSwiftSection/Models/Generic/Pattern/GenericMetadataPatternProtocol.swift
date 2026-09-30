@@ -56,11 +56,6 @@ extension GenericMetadataPatternProtocol {
             + numberOfTrailingPartialPatterns * MemoryLayout<GenericMetadataPartialPattern.Layout>.size
     }
 
-    public func partialPatterns(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> [GenericMetadataPartialPattern] {
-        guard numberOfTrailingPartialPatterns > 0 else { return [] }
-        return try machO.readWrapperElements(offset: partialPatternsOffset, numberOfElements: numberOfTrailingPartialPatterns)
-    }
-
     public func partialPatterns(in context: some ReadingContext) throws -> [GenericMetadataPartialPattern] {
         guard numberOfTrailingPartialPatterns > 0 else { return [] }
         return try context.readWrapperElements(at: try context.addressFromOffset(partialPatternsOffset), numberOfElements: numberOfTrailingPartialPatterns)
@@ -68,8 +63,22 @@ extension GenericMetadataPatternProtocol {
 
     /// The extra-data partial pattern, or `nil` when the flags say there is
     /// none. Always the first trailing pattern when present.
-    public func extraDataPattern(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> GenericMetadataPartialPattern? {
+    public func extraDataPattern(in context: some ReadingContext) throws -> GenericMetadataPartialPattern? {
         guard hasExtraDataPattern else { return nil }
-        return try partialPatterns(in: machO).first
+        return try partialPatterns(in: context).first
+    }
+}
+
+// MARK: - Deprecated Mach-O form
+
+extension GenericMetadataPatternProtocol {
+    @available(*, deprecated, message: "Pass a ReadingContext: partialPatterns(in: machO.context).")
+    public func partialPatterns(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> [GenericMetadataPartialPattern] {
+        try partialPatterns(in: machO.context)
+    }
+
+    @available(*, deprecated, message: "Pass a ReadingContext: extraDataPattern(in: machO.context).")
+    public func extraDataPattern(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> GenericMetadataPartialPattern? {
+        try extraDataPattern(in: machO.context)
     }
 }

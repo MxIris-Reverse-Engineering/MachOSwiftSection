@@ -11,24 +11,26 @@ public struct ExtendedExistentialTypeShape: ResolvableLocatableLayoutWrapper {
     }
 }
 
-extension ExtendedExistentialTypeShape {
-    public func existentialType(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> MangledName {
-        try layout.existentialType.resolve(from: offset(of: \.existentialType), in: machO)
-    }
-}
-
-extension ExtendedExistentialTypeShape {
-    public func existentialType() throws -> MangledName {
-        try layout.existentialType.resolve(from: pointer(of: \.existentialType))
-    }
-}
-
 // MARK: - ReadingContext Support
 
 extension ExtendedExistentialTypeShape {
     public func existentialType(in context: some ReadingContext) throws -> MangledName {
         let baseAddress = try context.addressFromOffset(offset(of: \.existentialType))
         return try layout.existentialType.resolve(at: baseAddress, in: context)
+    }
+}
+
+// MARK: - Deprecated Mach-O and pointer forms
+
+extension ExtendedExistentialTypeShape {
+    @available(*, deprecated, message: "Pass a ReadingContext: existentialType(in: machO.context).")
+    public func existentialType(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> MangledName {
+        try existentialType(in: machO.context)
+    }
+
+    @available(*, deprecated, message: "Pass a ReadingContext: existentialType(in: .inProcess).")
+    public func existentialType() throws -> MangledName {
+        try existentialType(in: InProcessContext.shared)
     }
 }
 

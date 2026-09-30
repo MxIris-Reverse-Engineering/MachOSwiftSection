@@ -30,42 +30,6 @@ public struct ProtocolDescriptorRef {
     }
 }
 
-extension ProtocolDescriptorRef {
-    public func objcProtocol(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> ObjCProtocolPrefix {
-        try Pointer<ObjCProtocolPrefix>(address: storage & ~Bits.isObjC).resolve(in: machO)
-    }
-
-    public func swiftProtocol(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> ProtocolDescriptor {
-        try Pointer<ProtocolDescriptor>(address: storage).resolve(in: machO)
-    }
-
-    public func name(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> String {
-        if isObjC {
-            return try objcProtocol(in: machO).name(in: machO)
-        } else {
-            return try swiftProtocol(in: machO).name(in: machO)
-        }
-    }
-}
-
-extension ProtocolDescriptorRef {
-    public func objcProtocol() throws -> ObjCProtocolPrefix {
-        try Pointer<ObjCProtocolPrefix>(address: storage & ~Bits.isObjC).resolve()
-    }
-
-    public func swiftProtocol() throws -> ProtocolDescriptor {
-        try Pointer<ProtocolDescriptor>(address: storage).resolve()
-    }
-
-    public func name() throws -> String {
-        if isObjC {
-            return try objcProtocol().name()
-        } else {
-            return try swiftProtocol().name()
-        }
-    }
-}
-
 // MARK: - ReadingContext Support
 
 extension ProtocolDescriptorRef {
@@ -83,5 +47,39 @@ extension ProtocolDescriptorRef {
         } else {
             return try swiftProtocol(in: context).name(in: context)
         }
+    }
+}
+
+// MARK: - Deprecated Mach-O and pointer forms
+
+extension ProtocolDescriptorRef {
+    @available(*, deprecated, message: "Pass a ReadingContext: objcProtocol(in: machO.context).")
+    public func objcProtocol(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> ObjCProtocolPrefix {
+        try objcProtocol(in: machO.context)
+    }
+
+    @available(*, deprecated, message: "Pass a ReadingContext: swiftProtocol(in: machO.context).")
+    public func swiftProtocol(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> ProtocolDescriptor {
+        try swiftProtocol(in: machO.context)
+    }
+
+    @available(*, deprecated, message: "Pass a ReadingContext: name(in: machO.context).")
+    public func name(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> String {
+        try name(in: machO.context)
+    }
+
+    @available(*, deprecated, message: "Pass a ReadingContext: objcProtocol(in: .inProcess).")
+    public func objcProtocol() throws -> ObjCProtocolPrefix {
+        try objcProtocol(in: InProcessContext.shared)
+    }
+
+    @available(*, deprecated, message: "Pass a ReadingContext: swiftProtocol(in: .inProcess).")
+    public func swiftProtocol() throws -> ProtocolDescriptor {
+        try swiftProtocol(in: InProcessContext.shared)
+    }
+
+    @available(*, deprecated, message: "Pass a ReadingContext: name(in: .inProcess).")
+    public func name() throws -> String {
+        try name(in: InProcessContext.shared)
     }
 }

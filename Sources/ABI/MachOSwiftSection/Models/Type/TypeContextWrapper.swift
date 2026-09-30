@@ -27,33 +27,11 @@ public enum TypeContextWrapper: Sendable {
     public func asPointerWrapper(in machO: MachOImage) throws -> Self {
         switch self {
         case .enum(let `enum`):
-            return try .enum(.init(descriptor: `enum`.descriptor.asPointerWrapper(in: machO)))
+            return try .enum(.init(descriptor: `enum`.descriptor.asPointerWrapper(in: machO), in: InProcessContext.shared))
         case .struct(let `struct`):
-            return try .struct(.init(descriptor: `struct`.descriptor.asPointerWrapper(in: machO)))
+            return try .struct(.init(descriptor: `struct`.descriptor.asPointerWrapper(in: machO), in: InProcessContext.shared))
         case .class(let `class`):
-            return try .class(.init(descriptor: `class`.descriptor.asPointerWrapper(in: machO)))
-        }
-    }
-
-    public static func forTypeContextDescriptorWrapper(_ typeContextDescriptorWrapper: TypeContextDescriptorWrapper) throws -> Self {
-        switch typeContextDescriptorWrapper {
-        case .enum(let enumDescriptor):
-            return try .enum(.init(descriptor: enumDescriptor))
-        case .struct(let structDescriptor):
-            return try .struct(.init(descriptor: structDescriptor))
-        case .class(let classDescriptor):
-            return try .class(.init(descriptor: classDescriptor))
-        }
-    }
-
-    public static func forTypeContextDescriptorWrapper(_ typeContextDescriptorWrapper: TypeContextDescriptorWrapper, in machO: some MachOSwiftSectionRepresentableWithCache) throws -> Self {
-        switch typeContextDescriptorWrapper {
-        case .enum(let enumDescriptor):
-            return try .enum(.init(descriptor: enumDescriptor, in: machO))
-        case .struct(let structDescriptor):
-            return try .struct(.init(descriptor: structDescriptor, in: machO))
-        case .class(let classDescriptor):
-            return try .class(.init(descriptor: classDescriptor, in: machO))
+            return try .class(.init(descriptor: `class`.descriptor.asPointerWrapper(in: machO), in: InProcessContext.shared))
         }
     }
 }
@@ -70,5 +48,19 @@ extension TypeContextWrapper {
         case .class(let classDescriptor):
             return try .class(.init(descriptor: classDescriptor, in: context))
         }
+    }
+}
+
+// MARK: - Deprecated Mach-O and pointer forms
+
+extension TypeContextWrapper {
+    @available(*, deprecated, message: "Pass a ReadingContext: forTypeContextDescriptorWrapper(_:in: .inProcess).")
+    public static func forTypeContextDescriptorWrapper(_ typeContextDescriptorWrapper: TypeContextDescriptorWrapper) throws -> Self {
+        try forTypeContextDescriptorWrapper(typeContextDescriptorWrapper, in: InProcessContext.shared)
+    }
+
+    @available(*, deprecated, message: "Pass a ReadingContext: forTypeContextDescriptorWrapper(_:in: machO.context).")
+    public static func forTypeContextDescriptorWrapper(_ typeContextDescriptorWrapper: TypeContextDescriptorWrapper, in machO: some MachOSwiftSectionRepresentableWithCache) throws -> Self {
+        try forTypeContextDescriptorWrapper(typeContextDescriptorWrapper, in: machO.context)
     }
 }

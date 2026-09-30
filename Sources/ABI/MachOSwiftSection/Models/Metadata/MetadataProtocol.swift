@@ -21,24 +21,6 @@ extension MetadataProtocol {
 }
 
 extension MetadataProtocol {
-    public func asMetadataWrapper(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> MetadataWrapper {
-        try .resolve(from: offset, in: machO)
-    }
-
-    public func asMetadataWrapper() throws -> MetadataWrapper {
-        try .resolve(from: .init(bitPattern: offset))
-    }
-    
-    public func asMetadata(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> Metadata {
-        try .resolve(from: offset, in: machO)
-    }
-    
-    public func asMetadata() throws -> Metadata {
-        try .resolve(from: .init(bitPattern: offset))
-    }
-}
-
-extension MetadataProtocol {
     public var kind: MetadataKind {
         .enumeratedMetadataKind(layout.kind)
     }
@@ -52,28 +34,6 @@ extension MetadataProtocol {
 }
 
 extension MetadataProtocol where HeaderType: TypeMetadataHeaderBaseProtocol {
-    public func asFullMetadata(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> FullMetadata<Self> {
-        try FullMetadata<Self>.resolve(from: offset - HeaderType.layoutSize, in: machO)
-    }
-
-    public func valueWitnesses(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> ValueWitnessTable {
-        let fullMetadata = try asFullMetadata(in: machO)
-        return try fullMetadata.layout.header.valueWitnesses.resolve(in: machO)
-    }
-}
-
-extension MetadataProtocol where HeaderType: TypeMetadataHeaderBaseProtocol {
-    public func asFullMetadata() throws -> FullMetadata<Self> {
-        try FullMetadata<Self>.resolve(from: asPointer - HeaderType.layoutSize)
-    }
-
-    public func valueWitnesses() throws -> ValueWitnessTable {
-        let fullMetadata = try asFullMetadata()
-        return try fullMetadata.layout.header.valueWitnesses.resolve()
-    }
-}
-
-extension MetadataProtocol where HeaderType: TypeMetadataHeaderBaseProtocol {
     public var isAnyExistentialType: Bool {
         switch kind {
         case .existentialMetatype,
@@ -81,59 +41,6 @@ extension MetadataProtocol where HeaderType: TypeMetadataHeaderBaseProtocol {
             return true
         default:
             return false
-        }
-    }
-
-    public func typeLayout(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> TypeLayout {
-        try valueWitnesses(in: machO).typeLayout
-    }
-
-    public func typeLayout() throws -> TypeLayout {
-        try valueWitnesses().typeLayout
-    }
-
-    public func typeContextDescriptorWrapper() throws -> TypeContextDescriptorWrapper? {
-        let ptr = try asPointer
-        switch kind {
-        case .class:
-            let cls = try AnyClassMetadataObjCInterop.resolve(from: ptr)
-            if cls.isPureObjC {
-                return nil
-            } else {
-                return try .class(ClassMetadataObjCInterop.resolve(from: ptr).descriptor()!)
-            }
-        case .struct,
-             .enum,
-             .optional:
-            return try ValueMetadata.resolve(from: ptr).descriptor().asTypeContextDescriptorWrapper
-        case .foreignClass:
-            return try .class(ForeignClassMetadata.resolve(from: ptr).classDescriptor())
-        case .foreignReferenceType:
-            return try .class(ForeignReferenceTypeMetadata.resolve(from: ptr).classDescriptor())
-        default:
-            return nil
-        }
-    }
-    
-    public func typeContextDescriptorWrapper(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> TypeContextDescriptorWrapper? {
-        switch kind {
-        case .class:
-            let cls = try AnyClassMetadataObjCInterop.resolve(from: offset, in: machO)
-            if cls.isPureObjC {
-                return nil
-            } else {
-                return try .class(ClassMetadataObjCInterop.resolve(from: offset, in: machO).descriptor(in: machO)!)
-            }
-        case .struct,
-             .enum,
-             .optional:
-            return try ValueMetadata.resolve(from: offset, in: machO).descriptor(in: machO).asTypeContextDescriptorWrapper
-        case .foreignClass:
-            return try .class(ForeignClassMetadata.resolve(from: offset, in: machO).classDescriptor(in: machO))
-        case .foreignReferenceType:
-            return try .class(ForeignReferenceTypeMetadata.resolve(from: offset, in: machO).classDescriptor(in: machO))
-        default:
-            return nil
         }
     }
 }
@@ -152,7 +59,10 @@ extension MetadataProtocol {
 
 extension MetadataProtocol where HeaderType: TypeMetadataHeaderBaseProtocol {
     public func asFullMetadata(in context: some ReadingContext) throws -> FullMetadata<Self> {
-        try FullMetadata<Self>.resolve(at: try context.addressFromOffset(offset - HeaderType.layoutSize), in: context)
+        // The metadata's own address first: in process that conversion is
+        // what rejects a null metadata, and the header sits in front of it.
+        let metadataAddress = try context.addressFromOffset(offset)
+        return try FullMetadata<Self>.resolve(at: context.advanceAddress(metadataAddress, by: -HeaderType.layoutSize), in: context)
     }
 
     public func valueWitnesses(in context: some ReadingContext) throws -> ValueWitnessTable {
@@ -167,24 +77,93 @@ extension MetadataProtocol where HeaderType: TypeMetadataHeaderBaseProtocol {
     }
 
     public func typeContextDescriptorWrapper(in context: some ReadingContext) throws -> TypeContextDescriptorWrapper? {
+        // Converted before the switch, so a null metadata throws in process
+        // whatever its kind.
+        let address = try context.addressFromOffset(offset)
         switch kind {
         case .class:
-            let cls = try AnyClassMetadataObjCInterop.resolve(at: try context.addressFromOffset(offset), in: context)
+            let cls = try AnyClassMetadataObjCInterop.resolve(at: address, in: context)
             if cls.isPureObjC {
                 return nil
             } else {
-                return try .class(ClassMetadataObjCInterop.resolve(at: try context.addressFromOffset(offset), in: context).descriptor(in: context)!)
+                return try .class(ClassMetadataObjCInterop.resolve(at: address, in: context).descriptor(in: context)!)
             }
         case .struct,
              .enum,
              .optional:
-            return try ValueMetadata.resolve(at: try context.addressFromOffset(offset), in: context).descriptor(in: context).asTypeContextDescriptorWrapper
+            return try ValueMetadata.resolve(at: address, in: context).descriptor(in: context).asTypeContextDescriptorWrapper
         case .foreignClass:
-            return try .class(ForeignClassMetadata.resolve(at: try context.addressFromOffset(offset), in: context).classDescriptor(in: context))
+            return try .class(ForeignClassMetadata.resolve(at: address, in: context).classDescriptor(in: context))
         case .foreignReferenceType:
-            return try .class(ForeignReferenceTypeMetadata.resolve(at: try context.addressFromOffset(offset), in: context).classDescriptor(in: context))
+            return try .class(ForeignReferenceTypeMetadata.resolve(at: address, in: context).classDescriptor(in: context))
         default:
             return nil
         }
+    }
+}
+
+// MARK: - Deprecated Mach-O and pointer forms
+
+extension MetadataProtocol {
+    @available(*, deprecated, message: "Pass a ReadingContext: asMetadataWrapper(in: machO.context).")
+    public func asMetadataWrapper(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> MetadataWrapper {
+        try asMetadataWrapper(in: machO.context)
+    }
+
+    @available(*, deprecated, message: "Pass a ReadingContext: asMetadataWrapper(in: .inProcess).")
+    public func asMetadataWrapper() throws -> MetadataWrapper {
+        try asMetadataWrapper(in: InProcessContext.shared)
+    }
+
+    @available(*, deprecated, message: "Pass a ReadingContext: asMetadata(in: machO.context).")
+    public func asMetadata(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> Metadata {
+        try asMetadata(in: machO.context)
+    }
+
+    @available(*, deprecated, message: "Pass a ReadingContext: asMetadata(in: .inProcess).")
+    public func asMetadata() throws -> Metadata {
+        try asMetadata(in: InProcessContext.shared)
+    }
+}
+
+extension MetadataProtocol where HeaderType: TypeMetadataHeaderBaseProtocol {
+    @available(*, deprecated, message: "Pass a ReadingContext: asFullMetadata(in: machO.context).")
+    public func asFullMetadata(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> FullMetadata<Self> {
+        try asFullMetadata(in: machO.context)
+    }
+
+    @available(*, deprecated, message: "Pass a ReadingContext: valueWitnesses(in: machO.context).")
+    public func valueWitnesses(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> ValueWitnessTable {
+        try valueWitnesses(in: machO.context)
+    }
+
+    @available(*, deprecated, message: "Pass a ReadingContext: asFullMetadata(in: .inProcess).")
+    public func asFullMetadata() throws -> FullMetadata<Self> {
+        try asFullMetadata(in: InProcessContext.shared)
+    }
+
+    @available(*, deprecated, message: "Pass a ReadingContext: valueWitnesses(in: .inProcess).")
+    public func valueWitnesses() throws -> ValueWitnessTable {
+        try valueWitnesses(in: InProcessContext.shared)
+    }
+
+    @available(*, deprecated, message: "Pass a ReadingContext: typeLayout(in: machO.context).")
+    public func typeLayout(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> TypeLayout {
+        try typeLayout(in: machO.context)
+    }
+
+    @available(*, deprecated, message: "Pass a ReadingContext: typeLayout(in: .inProcess).")
+    public func typeLayout() throws -> TypeLayout {
+        try typeLayout(in: InProcessContext.shared)
+    }
+
+    @available(*, deprecated, message: "Pass a ReadingContext: typeContextDescriptorWrapper(in: .inProcess).")
+    public func typeContextDescriptorWrapper() throws -> TypeContextDescriptorWrapper? {
+        try typeContextDescriptorWrapper(in: InProcessContext.shared)
+    }
+
+    @available(*, deprecated, message: "Pass a ReadingContext: typeContextDescriptorWrapper(in: machO.context).")
+    public func typeContextDescriptorWrapper(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> TypeContextDescriptorWrapper? {
+        try typeContextDescriptorWrapper(in: machO.context)
     }
 }

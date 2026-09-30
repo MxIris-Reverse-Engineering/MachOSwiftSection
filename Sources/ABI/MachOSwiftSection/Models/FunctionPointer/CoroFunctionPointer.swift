@@ -27,7 +27,7 @@ import MachOBase
 ///
 /// There is no section listing these records — they live in `__TEXT,__const`
 /// and are reached by symbol or by another descriptor's relative pointer, so
-/// the only entry is `CoroFunctionPointer.resolve(from:in:)`.
+/// the only entry is `CoroFunctionPointer.resolve(at:in:)`.
 @LocatableLayoutWrapping
 public struct CoroFunctionPointer: ResolvableLocatableLayoutWrapper {
     public struct Layout: LayoutProtocol {

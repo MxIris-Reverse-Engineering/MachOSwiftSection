@@ -70,15 +70,19 @@ public struct MachOContext<MachO: MachORepresentableWithCache & Readable>: Readi
         address.offseting(of: type)
     }
 
-    public func addressFromOffset(_ offset: Int) throws -> Int {
+    public func addressFromOffset(_ offset: Int) -> Int {
         offset
     }
 
-    public func addressFromVirtualAddress(_ virtualAddress: UInt64) throws -> Int {
-        machO.resolveOffset(at: machO.stripPointerTags(of: virtualAddress)).cast()
+    /// Never throws: every reader resolves any virtual address to some
+    /// offset. The reader strips pointer tags itself — `MachOFile` inside
+    /// `fileOffset(of:)`, `MachOImage` in `resolveOffset(at:)` — so they are
+    /// not stripped a second time here.
+    public func addressFromVirtualAddress(_ virtualAddress: UInt64) -> Int {
+        machO.resolveOffset(at: virtualAddress)
     }
 
-    public func offsetFromAddress(_ address: Int) throws -> Int {
+    public func offsetFromAddress(_ address: Int) -> Int {
         address
     }
 

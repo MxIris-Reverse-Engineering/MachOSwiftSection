@@ -37,24 +37,6 @@ extension TypeMetadataRecord {
     /// list with it — the iOS 26.5 simulator's `libswiftSynchronization`
     /// registers a record for `libswiftCore/_$sSqMn` (`Swift.Optional`) and
     /// used to dump with no types at all.
-    public func contextDescriptor(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> ContextDescriptorWrapper? {
-        let fieldOffset = offset(of: \.nominalTypeDescriptor)
-        let relativeOffset = layout.nominalTypeDescriptor.relativeOffset
-        switch typeKind {
-        case .directTypeDescriptor:
-            let pointer = RelativeDirectPointer<ContextDescriptorWrapper>(relativeOffset: relativeOffset)
-            return try pointer.resolve(from: fieldOffset, in: machO)
-        case .indirectTypeDescriptor:
-            if let machOFile = machO as? MachOFile, machOFile.resolveBind(fileOffset: fieldOffset + Int(relativeOffset)) != nil {
-                return nil
-            }
-            let pointer = RelativeIndirectPointer<ContextDescriptorWrapper, Pointer<ContextDescriptorWrapper>>(relativeOffset: relativeOffset)
-            return try pointer.resolve(from: fieldOffset, in: machO)
-        case .directObjCClassName, .indirectObjCClass:
-            return nil
-        }
-    }
-    
     public func contextDescriptor(in context: some ReadingContext) throws -> ContextDescriptorWrapper? {
         let fieldOffset = offset(of: \.nominalTypeDescriptor)
         let relativeOffset = layout.nominalTypeDescriptor.relativeOffset
@@ -64,9 +46,22 @@ extension TypeMetadataRecord {
             return try pointer.resolve(at: context.addressFromOffset(fieldOffset), in: context)
         case .indirectTypeDescriptor:
             let pointer = RelativeIndirectPointer<ContextDescriptorWrapper, Pointer<ContextDescriptorWrapper>>(relativeOffset: relativeOffset)
-            return try pointer.resolve(at: context.addressFromOffset(fieldOffset), in: context)
+            let fieldAddress = try context.addressFromOffset(fieldOffset)
+            if let resolver = context.bindRebaseResolver, resolver.resolveBind(fileOffset: try context.offsetFromAddress(pointer.resolveDirectAddress(at: fieldAddress, in: context))) != nil {
+                return nil
+            }
+            return try pointer.resolve(at: fieldAddress, in: context)
         case .directObjCClassName, .indirectObjCClass:
             return nil
         }
+    }
+}
+
+// MARK: - Deprecated Mach-O form
+
+extension TypeMetadataRecord {
+    @available(*, deprecated, message: "Pass a ReadingContext: contextDescriptor(in: machO.context).")
+    public func contextDescriptor(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> ContextDescriptorWrapper? {
+        try contextDescriptor(in: machO.context)
     }
 }

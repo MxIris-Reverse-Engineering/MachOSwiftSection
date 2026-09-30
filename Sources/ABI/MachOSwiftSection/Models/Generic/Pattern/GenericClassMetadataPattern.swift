@@ -57,8 +57,17 @@ extension GenericClassMetadataPattern {
     /// The immediate-members partial pattern, or `nil` when the flags say
     /// there is none. It follows the extra-data pattern when both are
     /// present.
-    public func immediateMembersPattern(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> GenericMetadataPartialPattern? {
+    public func immediateMembersPattern(in context: some ReadingContext) throws -> GenericMetadataPartialPattern? {
         guard hasImmediateMembersPattern else { return nil }
-        return try partialPatterns(in: machO).last
+        return try partialPatterns(in: context).last
+    }
+}
+
+// MARK: - Deprecated Mach-O form
+
+extension GenericClassMetadataPattern {
+    @available(*, deprecated, message: "Pass a ReadingContext: immediateMembersPattern(in: machO.context).")
+    public func immediateMembersPattern(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> GenericMetadataPartialPattern? {
+        try immediateMembersPattern(in: machO.context)
     }
 }

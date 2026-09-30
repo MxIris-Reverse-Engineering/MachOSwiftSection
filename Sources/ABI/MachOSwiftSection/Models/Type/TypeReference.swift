@@ -19,32 +19,6 @@ public enum TypeReference: Sendable {
             return .indirectObjCClass(.init(relativeOffset: relativeOffset))
         }
     }
-
-    public func resolve(at offset: Int, in machO: some MachOSwiftSectionRepresentableWithCache) throws -> ResolvedTypeReference {
-        switch self {
-        case .directTypeDescriptor(let relativeDirectPointer):
-            return try .directTypeDescriptor(relativeDirectPointer.resolve(from: offset, in: machO))
-        case .indirectTypeDescriptor(let relativeIndirectPointer):
-            return try .indirectTypeDescriptor(relativeIndirectPointer.resolve(from: offset, in: machO).resolve(in: machO).asOptional)
-        case .directObjCClassName(let relativeDirectPointer):
-            return try .directObjCClassName(relativeDirectPointer.resolve(from: offset, in: machO))
-        case .indirectObjCClass(let relativeIndirectPointer):
-            return try .indirectObjCClass(relativeIndirectPointer.resolve(from: offset, in: machO).resolve(in: machO).asOptional)
-        }
-    }
-
-    public func resolve(from ptr: UnsafeRawPointer) throws -> ResolvedTypeReference {
-        switch self {
-        case .directTypeDescriptor(let relativeDirectPointer):
-            return try .directTypeDescriptor(relativeDirectPointer.resolve(from: ptr))
-        case .indirectTypeDescriptor(let relativeIndirectPointer):
-            return try .indirectTypeDescriptor(relativeIndirectPointer.resolve(from: ptr).resolve().asOptional)
-        case .directObjCClassName(let relativeDirectPointer):
-            return try .directObjCClassName(relativeDirectPointer.resolve(from: ptr))
-        case .indirectObjCClass(let relativeIndirectPointer):
-            return try .indirectObjCClass(relativeIndirectPointer.resolve(from: ptr).resolve().asOptional)
-        }
-    }
 }
 
 public enum ResolvedTypeReference: Sendable {
@@ -68,5 +42,19 @@ extension TypeReference {
         case .indirectObjCClass(let relativeIndirectPointer):
             return try .indirectObjCClass(relativeIndirectPointer.resolve(at: try context.addressFromOffset(offset), in: context).resolve(in: context).asOptional)
         }
+    }
+}
+
+// MARK: - Deprecated Mach-O and pointer forms
+
+extension TypeReference {
+    @available(*, deprecated, message: "Pass a ReadingContext: resolve(at: offset, in: machO.context).")
+    public func resolve(at offset: Int, in machO: some MachOSwiftSectionRepresentableWithCache) throws -> ResolvedTypeReference {
+        try resolve(at: offset, in: machO.context)
+    }
+
+    @available(*, deprecated, message: "Pass a ReadingContext: resolve(at: Int(bitPattern: pointer), in: .inProcess).")
+    public func resolve(from ptr: UnsafeRawPointer) throws -> ResolvedTypeReference {
+        try resolve(at: Int(bitPattern: ptr), in: InProcessContext.shared)
     }
 }
