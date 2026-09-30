@@ -284,7 +284,11 @@ public enum ReadingContextCacheScope: @unchecked Sendable {
     /// The context reads one image by offset: entries belong to that image
     /// and are evicted with it. `identifier` is the reader's own
     /// `identifier`, the same identity per-image caches already key on.
-    case image(identifier: AnyHashable)
+    ///
+    /// Carried unboxed: the scope is asked for on every memo lookup, and
+    /// boxing a file's identifier — a path plus a UUID, too large for an
+    /// existential's inline buffer — would allocate each time.
+    case image(identifier: MachOTargetIdentifier)
 
     /// The context reads this process's memory by absolute address, so two
     /// images can never collide: entries are process-wide.

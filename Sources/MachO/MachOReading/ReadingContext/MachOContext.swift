@@ -97,8 +97,13 @@ public struct MachOContext<MachO: MachORepresentableWithCache & Readable>: Readi
 
     /// Offsets are per image, so memo entries belong to this image: keyed on
     /// the reader's identifier, the key its other per-image caches use.
+    ///
+    /// Every reader identifies its image by a `MachOTargetIdentifier`. One
+    /// that did not would be read unmemoized — slower, never wrong, since an
+    /// identity the scope cannot name must not share another image's entries.
     public var cacheScope: ReadingContextCacheScope {
-        .image(identifier: AnyHashable(machO.identifier))
+        guard let identifier = machO.identifier as? MachOTargetIdentifier else { return .uncached }
+        return .image(identifier: identifier)
     }
 }
 

@@ -86,7 +86,7 @@ public final class InternedNodeReferenceCache: @unchecked Sendable {
     public func reference(interning node: Node, in context: some ReadingContext) -> NodeReference {
         switch context.cacheScope {
         case .image(let identifier):
-            guard let storage = cache.resolve(key: SharedCacheKey(imageIdentifier: identifier), build: { Storage() }) else {
+            guard let storage = cache.resolve(key: SharedCacheKey(identifier: identifier), build: { Storage() }) else {
                 return NodeReference(interning: node)
             }
             return storage.reference(interning: node)

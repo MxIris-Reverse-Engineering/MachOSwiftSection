@@ -32,7 +32,7 @@ final class ReadingContextCacheScopeTests: MachOFileTests, @unchecked Sendable {
             return
         }
         let keyThroughReader = SharedCacheKey(machOFile)
-        let keyThroughContext = SharedCacheKey(imageIdentifier: identifier)
+        let keyThroughContext = SharedCacheKey(identifier: identifier)
         #expect(keyThroughReader == keyThroughContext)
         #expect(keyThroughReader.hashValue == keyThroughContext.hashValue)
     }

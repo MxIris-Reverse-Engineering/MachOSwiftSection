@@ -826,7 +826,7 @@ private final class SymbolicDemanglerCache: @unchecked Sendable {
     private func storage(for context: some ReadingContext) -> Storage? {
         switch context.cacheScope {
         case .image(let identifier):
-            return cache.resolve(key: SharedCacheKey(imageIdentifier: identifier)) { Storage() }
+            return cache.resolve(key: SharedCacheKey(identifier: identifier)) { Storage() }
         case .process:
             return Self.processScopedStorage
         case .uncached:

@@ -351,7 +351,8 @@ Two deliberate decisions worth keeping in mind:
 
 上层有一批接口只读数据，却因为要按镜像缓存而离不开 `machO`：`SymbolicDemangler` 的 `demangleType` / `demangleContext`、SwiftDeclaration 的 `typeName` / `protocolName`、`GenericContext+Dump` 等。`ReadingContext` 原先说不出自己读的是哪个镜像，所以 `SymbolicDemangler` 的 context 入口干脆不走缓存。现在 `ReadingContext` 多了一条带默认值的 requirement `cacheScope`：`MachOContext` 答 `.image(identifier:)`，`InProcessContext` 答 `.process`，其余一律 `.uncached`。反混淆 memo 与节点驻留池按它选层，这批接口因此也收成了只收 context 的一份。
 
-- **同一个镜像只有一个键**：`SharedCacheKey(machO)` 现在就是 `SharedCacheKey(imageIdentifier: AnyHashable(machO.identifier))`，经 reader 和经 context 存进去的条目是同一条，`SymbolicDemangler.removeCache(for:)` 与驱逐注册表照常认领、清理。
+- **同一个镜像只有一个键**：`.image` 带的就是 reader 的 `MachOTargetIdentifier`，两个缓存用现成的 `SharedCacheKey(identifier:)` 建键，与 `SharedCacheKey(machO)` 得到的是同一个键。经 reader 和经 context 存进去的条目是同一条，`SymbolicDemangler.removeCache(for:)` 与驱逐注册表照常认领、清理。
+- **身份不装箱**：每次 memo 查找都要问一次 `cacheScope`。文件的 identifier 是路径加 UUID，放不进 existential 的 24 字节内联缓冲，包成 `AnyHashable` 每次都要堆分配，而 `SharedCacheKey` 当初就是为了去掉这次分配才写成现在的样子（见 [Modules/MachOCaches.md](Modules/MachOCaches.md)「键」一节）。所以 `.image` 的载荷是具体类型 `MachOTargetIdentifier`，不是 `AnyHashable`。代价是 identifier 不是这个类型的读者经 context 读时不缓存（`MachOContext` 答 `.uncached`），只慢不错；今天的读者（`MachOFile`、`MachOImage`、MachOKitUI 的包装类型）全都是这个类型。
 - **默认不缓存是安全边界，不是省事**：全进程那层按偏移做键，只有地址是绝对地址时两个镜像才不会撞。一个以文件偏移为地址的第三方 context 如果落进去，会把 A 镜像的解析结果当成 B 镜像的返回。
 - **只暴露缓存身份，不暴露 Mach-O**：`.image` 带的是 reader 的 `identifier`，不是 reader 本身，调用方拿它做不了符号查询或 `as? MachOFile`，延续提案 0018「`ReadingContext` 只管读」的定位。`SymbolicDemangler` 查符号仍走它私有的 `SymbolLookupContext` 转型。
 

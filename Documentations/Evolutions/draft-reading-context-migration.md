@@ -144,6 +144,7 @@ extension ReadingContext {
 
 - `MachOContext` 返回 `.image(identifier: AnyHashable(machO.identifier))`，`InProcessContext` 返回 `.process`。默认值 `.uncached` 保证第三方 context 永远不会落进全进程那层。
 - `MachOCaches` 的 `SharedCacheKey` 增加从 identifier 构造的入口，与 `SharedCacheKey(machO)` 共用同一段表示逻辑，保证同一个镜像经 `machO` 与经 context 得到同一个键，驱逐注册表（[0053](0053-shared-cache-composition-and-eviction-registry.md)）照常认领与驱逐。
+- （实现时修订，见决策日志 2026-09-30「`.image` 的载荷改为 `MachOTargetIdentifier`」：`.image` 不带 `AnyHashable`，`SharedCacheKey` 也不加新入口，两个缓存用现成的 `SharedCacheKey(identifier:)`。）
 - `SymbolicDemanglerCache` 与 `InternedNodeReferenceCache` 按 `cacheScope` 选层：`.image` 走按镜像的 `SharedCache` 条目，`.process` 走现有的全进程存储，`.uncached` 不查不存。`SymbolicDemangler.isCacheEnabled` 照旧是总开关。
 - `SymbolicDemangler` 查符号用的私有 `SymbolLookupContext` 转型（`SymbolicDemangler.swift:184-231`）不变——那是符号服务，不是缓存身份。
 
@@ -288,3 +289,4 @@ extension ReadingContext {
 | 2026-09-30 | `NamedDumpable` / `ConformedDumpable` 的 requirement 换成收 `ReadingContext` 的形式，取名逻辑从各 Dumper 抽成被 dump 类型上的一份实现 | 取名只读数据；Dumper 自己的 `name` 与 `dumpName` 共用同一份，保持单一实现 |
 | 2026-09-30 | `ProtocolConformance.typeName` 遇只剩 `typeAlias` 的符号时按 struct 处理（原指针版返回 nil） | 以传 `machO` 版（`Node.typeKind`）为准 |
 | 2026-09-30 | 测试去重：改写后与已有 context 断言等价的重复断言删除，保留更强的一条 | 旧形式只是转发，改写后两边走同一路径，对比永远成立 |
+| 2026-09-30 | `.image` 的载荷改为 `MachOTargetIdentifier`（原设计为 `AnyHashable`），`SharedCacheKey` 不加新入口；identifier 不是这个类型的读者经 context 读时不缓存 | 按原设计实现后，`SharedCacheKey(machO)` 被改成先装箱再拆箱，退回了 0053 专门去掉的每次查找一次堆分配（文件的 identifier 放不进 existential 内联缓冲），context 路径每次 memo 查找也要装箱一次。今天所有读者（含 MachOKitUI 的包装类型）都用 `MachOTargetIdentifier`，不缓存只影响假想中的读者，且只慢不错 |
