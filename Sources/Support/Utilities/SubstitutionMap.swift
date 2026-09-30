@@ -1,3 +1,5 @@
+import FoundationToolbox
+
 /// A data structure for managing directed substitutions, forming chains of transformations.
 ///
 /// This map is designed to find the beginning (root original) or the end (final substitution)
@@ -59,7 +61,7 @@ package struct SubstitutionMap<T: Hashable> {
             // Check for a cycle. If we've seen this element before, break.
             guard visited.insert(next).inserted else {
                 // Cycle detected. Return the current element to avoid infinite loop.
-                print("Warning: Cycle detected at \(next). Aborting traversal.")
+                #log(.error, "cycle detected at \(String(describing: next), privacy: .public); traversal aborted")
                 break
             }
             current = next
@@ -83,7 +85,7 @@ package struct SubstitutionMap<T: Hashable> {
             // Check for a cycle.
             guard visited.insert(previous).inserted else {
                 // Cycle detected.
-                print("Warning: Cycle detected at \(previous). Aborting traversal.")
+                #log(.error, "cycle detected at \(String(describing: previous), privacy: .public); traversal aborted")
                 break
             }
             current = previous
@@ -91,3 +93,10 @@ package struct SubstitutionMap<T: Hashable> {
         return current
     }
 }
+
+// Protocol-form `@Loggable`: the type is generic, and the direct form's
+// static stored logger is illegal there.
+@Loggable(.fileprivate, subsystem: "com.machoswiftsection.utilities", category: "SubstitutionMap")
+fileprivate protocol SubstitutionMapLogging {}
+
+extension SubstitutionMap: SubstitutionMapLogging {}

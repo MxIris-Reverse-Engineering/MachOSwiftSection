@@ -170,14 +170,10 @@ final class PrintFailureEventTests: MachOFileTests, @unchecked Sendable {
 
         // Stream writes that predate this rule, in paths evolution 0005 did not
         // touch. Listed rather than ignored: the set may shrink, never grow —
-        // a new offender in any other file fails this test. Paying these down is
-        // its own change (they are debug tracing and error prints in the
-        // descriptor-wrapper and layout-analysis layers, not the degradation
-        // reporting this proposal restructured).
+        // a new offender in any other file fails this test. What is left is
+        // debug output by design: the spare-bit analyzer's table printer and a
+        // fixture-support dump helper.
         let knownBaselineDebt: Set<String> = [
-            "ContextDescriptorWrapper.swift",
-            "TypeContextDescriptorWrapper.swift",
-            "SubstitutionMap.swift",
             "SpareBitAnalyzer.swift",
             "DumpableTests.swift",
         ]
