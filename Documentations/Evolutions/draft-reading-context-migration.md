@@ -283,7 +283,7 @@ extension ReadingContext {
 
 **正确性验收**：
 - 全量测试：公司机器（Xcode 26 工具链）2157 个 / 410 个套件，只有那台机器既有的两条 `MultiPayloadEnumDescriptorCacheTests` 失败；Ultra（Swift 6.4，fixture 用 Xcode 26.6 编）同样 2157 个 / 410 个，全部通过，原始退出码 0。零新增警告。
-- 渲染 A/B：公司机器 90 对、Ultra 84 对（CLI 两条腿 60 对，MachOImage 腿 24 对）逐字节一致；Ultra 上计时所用的 26.6 cache 与 iOS 26.5 模拟器 SwiftUI 输出两侧也一致。
+- 渲染 A/B：公司机器 90 对、Ultra 96 对逐字节一致。Ultra 的 96 对是：脚本跑的 CLI 两条腿 60 对；26.6 归档 cache 手动补跑 12 对（Ultra 上没有脚本写死的 26.6.2 目录，脚本会静默跳过这条腿）；MachOImage 腿 24 对。
 
 **性能验收**（Ultra，release，每组按「基线、候选、候选、基线」运行，SwiftUI）：三条路径都没有变慢。
 
