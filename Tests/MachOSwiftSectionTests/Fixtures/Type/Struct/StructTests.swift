@@ -50,13 +50,9 @@ final class StructTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked
         // a descriptor whose offset matches the baseline.
         let fileStruct = try Struct(descriptor: fileDescriptor, in: fileContext)
         let imageStruct = try Struct(descriptor: imageDescriptor, in: imageContext)
-        let fileCtxStruct = try Struct(descriptor: fileDescriptor, in: fileContext)
-        let imageCtxStruct = try Struct(descriptor: imageDescriptor, in: imageContext)
 
         #expect(fileStruct.descriptor.offset == StructBaseline.structTest.descriptorOffset)
         #expect(imageStruct.descriptor.offset == StructBaseline.structTest.descriptorOffset)
-        #expect(fileCtxStruct.descriptor.offset == StructBaseline.structTest.descriptorOffset)
-        #expect(imageCtxStruct.descriptor.offset == StructBaseline.structTest.descriptorOffset)
     }
 
     @Test("init(descriptor:)") func initializerInProcess() async throws {

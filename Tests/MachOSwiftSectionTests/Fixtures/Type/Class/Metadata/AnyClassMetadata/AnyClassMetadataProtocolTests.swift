@@ -39,14 +39,12 @@ final class AnyClassMetadataProtocolTests: MachOSwiftSectionFixtureTests, Fixtur
 
     /// `asFinalClassMetadata(in:)` re-resolves the metadata at its own
     /// offset as an `AnyClassMetadata`. The slim view's offset must
-    /// agree with the source's offset across reader paths.
+    /// agree with the source's offset.
     @Test func asFinalClassMetadata() async throws {
         let any = try loadAnyClassMetadata()
 
         let imageView: AnyClassMetadata = try any.asFinalClassMetadata(in: imageContext)
-        let imageCtxView: AnyClassMetadata = try any.asFinalClassMetadata(in: imageContext)
 
         #expect(imageView.offset == any.offset)
-        #expect(imageCtxView.offset == any.offset)
     }
 }

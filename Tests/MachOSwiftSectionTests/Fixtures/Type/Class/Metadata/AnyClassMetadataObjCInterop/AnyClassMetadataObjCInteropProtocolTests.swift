@@ -34,10 +34,8 @@ final class AnyClassMetadataObjCInteropProtocolTests: MachOSwiftSectionFixtureTe
         let interop = try loadInteropMetadata()
 
         let imageView: ClassMetadataObjCInterop = try interop.asFinalClassMetadata(in: imageContext)
-        let imageCtxView: ClassMetadataObjCInterop = try interop.asFinalClassMetadata(in: imageContext)
 
         #expect(imageView.offset == interop.offset)
-        #expect(imageCtxView.offset == interop.offset)
     }
 
     /// `superclass(in:)` returns the metaclass / superclass slim view.
@@ -45,12 +43,8 @@ final class AnyClassMetadataObjCInteropProtocolTests: MachOSwiftSectionFixtureTe
     @Test func superclass() async throws {
         let interop = try loadInteropMetadata()
         let imageSuper = try interop.superclass(in: imageContext)
-        let imageCtxSuper = try interop.superclass(in: imageContext)
 
         #expect(imageSuper != nil)
-        #expect(imageCtxSuper != nil)
-        // The two readers should agree on the superclass offset.
-        #expect(imageSuper?.offset == imageCtxSuper?.offset)
     }
 
     /// `isPureObjC` is true when `data & 2 == 0` (i.e. NOT a Swift type).

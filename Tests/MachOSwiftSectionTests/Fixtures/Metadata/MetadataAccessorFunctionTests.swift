@@ -37,9 +37,8 @@ final class MetadataAccessorFunctionTests: MachOSwiftSectionFixtureTests, Fixtur
         let wrapper = try response.value.resolve(in: imageContext)
         #expect(wrapper.isStruct)
 
-        // Same accessor, asserting the in-process variant returns the same
-        // wrapper kind (the response's value pointer is stable across
-        // invocations).
+        // Calling the same accessor a second time must answer the same
+        // wrapper kind again, read through the same image context.
         let response2 = try accessor(request: .init())
         let wrapper2 = try response2.value.resolve(in: imageContext)
         #expect(wrapper2.isStruct)

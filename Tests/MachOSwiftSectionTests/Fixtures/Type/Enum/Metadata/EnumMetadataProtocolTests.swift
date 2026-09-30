@@ -43,12 +43,11 @@ final class EnumMetadataProtocolTests: MachOSwiftSectionFixtureTests, FixtureSui
         let metadata = try loadNoPayloadEnumMetadata()
 
         let imageDescriptor = try metadata.enumDescriptor(in: imageContext)
-        let imageCtxDescriptor = try metadata.enumDescriptor(in: imageContext)
         let inProcessDescriptor = try metadata.enumDescriptor(in: inProcessContext)
 
-        // The two MachO-backed paths agree on the descriptor offset.
+        // The image-context path agrees with the picker on the descriptor
+        // offset.
         #expect(imageDescriptor.offset == pickedDescriptor.offset)
-        #expect(imageCtxDescriptor.offset == pickedDescriptor.offset)
         // The InProcess path returns the same descriptor by name.
         #expect(try inProcessDescriptor.name(in: inProcessContext) == "NoPayloadEnumTest")
     }
@@ -60,12 +59,10 @@ final class EnumMetadataProtocolTests: MachOSwiftSectionFixtureTests, FixtureSui
         let metadata = try loadNoPayloadEnumMetadata()
 
         let imagePayload = try metadata.payloadSize(in: imageContext)
-        let imageCtxPayload = try metadata.payloadSize(in: imageContext)
         let inProcessPayload = try metadata.payloadSize(in: inProcessContext)
 
-        // No payload cases ⇒ no `payloadSizeOffset` ⇒ all nil.
+        // No payload cases ⇒ no `payloadSizeOffset` ⇒ both nil.
         #expect(imagePayload == nil)
-        #expect(imageCtxPayload == nil)
         #expect(inProcessPayload == nil)
     }
 }

@@ -35,12 +35,11 @@ final class StructMetadataProtocolTests: MachOSwiftSectionFixtureTests, FixtureS
         let metadata = try loadStructTestMetadata()
 
         let imageDescriptor = try metadata.structDescriptor(in: imageContext)
-        let imageCtxDescriptor = try metadata.structDescriptor(in: imageContext)
         let inProcessDescriptor = try metadata.structDescriptor(in: inProcessContext)
 
-        // The two MachO-backed paths agree on the descriptor offset.
+        // The image-context path agrees with the picker on the descriptor
+        // offset.
         #expect(imageDescriptor.offset == pickedDescriptor.offset)
-        #expect(imageCtxDescriptor.offset == pickedDescriptor.offset)
         // The InProcess path returns the same descriptor by name.
         #expect(try inProcessDescriptor.name(in: inProcessContext) == "StructTest")
     }
@@ -52,10 +51,8 @@ final class StructMetadataProtocolTests: MachOSwiftSectionFixtureTests, FixtureS
         let metadata = try loadStructTestMetadata()
 
         let imageOffsets = try metadata.fieldOffsets(in: imageContext)
-        let imageCtxOffsets = try metadata.fieldOffsets(in: imageContext)
         let inProcessOffsets = try metadata.fieldOffsets(in: inProcessContext)
 
-        #expect(imageOffsets == imageCtxOffsets)
         #expect(imageOffsets == inProcessOffsets)
         // `Structs.StructTest` has no stored fields (only a computed `body`).
         #expect(imageOffsets.isEmpty)

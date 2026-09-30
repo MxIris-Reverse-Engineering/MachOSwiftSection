@@ -84,10 +84,6 @@ final class ValueTypeDescriptorWrapperTests: MachOSwiftSectionFixtureTests, Fixt
             image: { (try wrappers.image.parent(in: imageContext)) != nil }
         )
         #expect(presence == ValueTypeDescriptorWrapperBaseline.structTest.hasParent)
-
-        // ReadingContext-based overload also exercised.
-        let imageCtxPresence = (try wrappers.image.parent(in: imageContext)) != nil
-        #expect(imageCtxPresence == ValueTypeDescriptorWrapperBaseline.structTest.hasParent)
     }
 
     @Test func genericContext() async throws {
@@ -97,10 +93,6 @@ final class ValueTypeDescriptorWrapperTests: MachOSwiftSectionFixtureTests, Fixt
             image: { (try wrappers.image.genericContext(in: imageContext)) != nil }
         )
         #expect(presence == ValueTypeDescriptorWrapperBaseline.structTest.hasGenericContext)
-
-        // ReadingContext-based overload also exercised.
-        let imageCtxPresence = (try wrappers.image.genericContext(in: imageContext)) != nil
-        #expect(imageCtxPresence == ValueTypeDescriptorWrapperBaseline.structTest.hasGenericContext)
     }
 
     @Test func resolve() async throws {

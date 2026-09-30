@@ -69,10 +69,6 @@ final class TypeContextDescriptorTests: MachOSwiftSectionFixtureTests, FixtureSu
             image: { (try descriptors.image.enumDescriptor(in: imageContext)) != nil }
         )
         #expect(presence == TypeContextDescriptorBaseline.structTest.hasEnumDescriptor)
-
-        // ReadingContext-based overload also exercised.
-        let imageCtxPresence = (try descriptors.image.enumDescriptor(in: imageContext)) != nil
-        #expect(imageCtxPresence == TypeContextDescriptorBaseline.structTest.hasEnumDescriptor)
     }
 
     /// `structDescriptor(in:)` returns the underlying `StructDescriptor`
@@ -84,10 +80,6 @@ final class TypeContextDescriptorTests: MachOSwiftSectionFixtureTests, FixtureSu
             image: { (try descriptors.image.structDescriptor(in: imageContext)) != nil }
         )
         #expect(presence == TypeContextDescriptorBaseline.structTest.hasStructDescriptor)
-
-        // ReadingContext-based overload also exercised.
-        let imageCtxPresence = (try descriptors.image.structDescriptor(in: imageContext)) != nil
-        #expect(imageCtxPresence == TypeContextDescriptorBaseline.structTest.hasStructDescriptor)
     }
 
     /// `classDescriptor(in:)` returns `nil` for our struct fixture (kind
@@ -100,9 +92,5 @@ final class TypeContextDescriptorTests: MachOSwiftSectionFixtureTests, FixtureSu
             image: { (try descriptors.image.classDescriptor(in: imageContext)) != nil }
         )
         #expect(presence == TypeContextDescriptorBaseline.structTest.hasClassDescriptor)
-
-        // ReadingContext-based overload also exercised.
-        let imageCtxPresence = (try descriptors.image.classDescriptor(in: imageContext)) != nil
-        #expect(imageCtxPresence == TypeContextDescriptorBaseline.structTest.hasClassDescriptor)
     }
 }

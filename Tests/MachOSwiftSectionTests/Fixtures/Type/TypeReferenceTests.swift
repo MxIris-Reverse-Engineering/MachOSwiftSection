@@ -136,13 +136,5 @@ final class TypeReferenceTests: MachOSwiftSectionFixtureTests, FixtureSuite, @un
         } else {
             Issue.record("expected resolved .directTypeDescriptor")
         }
-
-        // ReadingContext-based overload also exercised.
-        let imageCtxResolved = try imageRef.resolve(at: imageData.recordFieldOffset, in: imageContext)
-        if case .directTypeDescriptor(let wrapper) = imageCtxResolved {
-            #expect(wrapper?.contextDescriptor.offset == TypeReferenceBaseline.structTestRecord.resolvedDescriptorOffset)
-        } else {
-            Issue.record("expected resolved .directTypeDescriptor")
-        }
     }
 }

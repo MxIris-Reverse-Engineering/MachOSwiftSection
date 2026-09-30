@@ -33,6 +33,17 @@ final class MetadataProtocolTests: MachOSwiftSectionFixtureTests, FixtureSuite, 
         return try required(try response.value.resolve(in: imageContext).struct)
     }
 
+    /// Materialise the same carrier through `inProcessContext` (offset =
+    /// runtime pointer bits) for the in-process legs. The accessor's
+    /// response `value` is the runtime metadata pointer, which the
+    /// in-process context reads as a raw address.
+    private func loadStructTestInProcessStructMetadata() throws -> StructMetadata {
+        let descriptor = try BaselineFixturePicker.struct_StructTest(in: machOImage)
+        let accessor = try required(try descriptor.metadataAccessorFunction(in: imageContext))
+        let response = try accessor(request: .init())
+        return try required(try response.value.resolve(in: inProcessContext).struct)
+    }
+
     /// `createInMachO(_:)` recovers the (MachOImage, metadata) pair from a
     /// runtime metatype. The fixture's `SymbolTestsCore` types aren't
     /// statically linked into this test target, so we use the in-process
@@ -57,9 +68,7 @@ final class MetadataProtocolTests: MachOSwiftSectionFixtureTests, FixtureSuite, 
     @Test func asMetadataWrapper() async throws {
         let carrier = try loadStructTestStructMetadata()
         let imageWrapper = try carrier.asMetadataWrapper(in: imageContext)
-        let imageCtxWrapper = try carrier.asMetadataWrapper(in: imageContext)
         #expect(imageWrapper.isStruct)
-        #expect(imageCtxWrapper.isStruct)
     }
 
     /// `asMetadata()` re-reads the kind-erased one-pointer prefix at the
@@ -67,9 +76,7 @@ final class MetadataProtocolTests: MachOSwiftSectionFixtureTests, FixtureSuite, 
     @Test func asMetadata() async throws {
         let carrier = try loadStructTestStructMetadata()
         let imageMetadata = try carrier.asMetadata(in: imageContext)
-        let imageCtxMetadata = try carrier.asMetadata(in: imageContext)
         #expect(imageMetadata.kind == .struct)
-        #expect(imageCtxMetadata.kind == .struct)
     }
 
     /// `kind` projects the carrier's metadata kind from the `layout.kind`
@@ -91,24 +98,24 @@ final class MetadataProtocolTests: MachOSwiftSectionFixtureTests, FixtureSuite, 
     }
 
     /// `asFullMetadata()` returns the (header + metadata) pair preceded
-    /// by the metadata pointer; the wrapped header must agree across
-    /// readers.
+    /// by the metadata pointer. The metadata sub-layout's `kind` must
+    /// decode to `.struct` for our value-type carrier.
     @Test func asFullMetadata() async throws {
         let carrier = try loadStructTestStructMetadata()
-        let imageFull = try carrier.asFullMetadata(in: imageContext)
-        let imageCtxFull = try carrier.asFullMetadata(in: imageContext)
-        // Both readers must agree on the metadata sub-layout.
-        #expect(imageFull.layout.metadata.kind == imageCtxFull.layout.metadata.kind)
+        let imageFullMetadata = try carrier.asFullMetadata(in: imageContext)
+        #expect(imageFullMetadata.layout.metadata.kind == StoredPointer(MetadataKind.struct.rawValue))
     }
 
     /// `valueWitnesses()` resolves the witness table through the
-    /// full-metadata header.
+    /// full-metadata header. The same carrier read through the in-process
+    /// context must resolve a table whose type layout agrees with the
+    /// image-context one.
     @Test func valueWitnesses() async throws {
-        let carrier = try loadStructTestStructMetadata()
-        let imageVW = try carrier.valueWitnesses(in: imageContext)
-        let imageCtxVW = try carrier.valueWitnesses(in: imageContext)
-        // Type layouts must agree across readers (size/stride/flags).
-        #expect(imageVW.typeLayout.size == imageCtxVW.typeLayout.size)
+        let imageValueWitnesses = try loadStructTestStructMetadata().valueWitnesses(in: imageContext)
+        let inProcessValueWitnesses = try loadStructTestInProcessStructMetadata().valueWitnesses(in: inProcessContext)
+        #expect(inProcessValueWitnesses.typeLayout.size == imageValueWitnesses.typeLayout.size)
+        #expect(inProcessValueWitnesses.typeLayout.stride == imageValueWitnesses.typeLayout.stride)
+        #expect(inProcessValueWitnesses.typeLayout.flags == imageValueWitnesses.typeLayout.flags)
     }
 
     /// `isAnyExistentialType` is `false` for the struct carrier.
@@ -118,24 +125,25 @@ final class MetadataProtocolTests: MachOSwiftSectionFixtureTests, FixtureSuite, 
     }
 
     /// `typeLayout()` resolves the type layout from the value-witnesses
-    /// table; cross-reader equality on `size`.
+    /// table; the in-process reading of the same carrier must agree with
+    /// the image-context one on every field.
     @Test func typeLayout() async throws {
-        let carrier = try loadStructTestStructMetadata()
-        let imageTL = try carrier.typeLayout(in: imageContext)
-        let imageCtxTL = try carrier.typeLayout(in: imageContext)
-        #expect(imageTL.size == imageCtxTL.size)
+        let imageTypeLayout = try loadStructTestStructMetadata().typeLayout(in: imageContext)
+        let inProcessTypeLayout = try loadStructTestInProcessStructMetadata().typeLayout(in: inProcessContext)
+        #expect(inProcessTypeLayout.size == imageTypeLayout.size)
+        #expect(inProcessTypeLayout.stride == imageTypeLayout.stride)
+        #expect(inProcessTypeLayout.flags == imageTypeLayout.flags)
+        #expect(inProcessTypeLayout.extraInhabitantCount == imageTypeLayout.extraInhabitantCount)
     }
 
     /// `typeContextDescriptorWrapper()` recovers the descriptor wrapper
-    /// for the carrier; for our `StructTest` this is the `.struct` arm.
+    /// for the carrier; for our `StructTest` this is the `.struct` arm,
+    /// holding the descriptor we picked from the MachOImage's type list.
     @Test func typeContextDescriptorWrapper() async throws {
+        let pickedDescriptor = try BaselineFixturePicker.struct_StructTest(in: machOImage)
         let carrier = try loadStructTestStructMetadata()
         let imageWrapper = try required(try carrier.typeContextDescriptorWrapper(in: imageContext))
-        let imageCtxWrapper = try required(try carrier.typeContextDescriptorWrapper(in: imageContext))
-        // ValueTypeDescriptorWrapper isn't trivially Equatable; compare
-        // via the `.struct` payload's offset.
-        let imageStructOffset = try required(imageWrapper.struct).offset
-        let imageCtxStructOffset = try required(imageCtxWrapper.struct).offset
-        #expect(imageStructOffset == imageCtxStructOffset)
+        let imageStructDescriptor = try required(imageWrapper.struct)
+        #expect(imageStructDescriptor.offset == pickedDescriptor.offset)
     }
 }

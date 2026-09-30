@@ -39,10 +39,6 @@ final class TypeContextDescriptorProtocolTests: MachOSwiftSectionFixtureTests, F
             image: { (try? imageSubject.fieldDescriptor(in: imageContext)) != nil }
         )
         #expect(presence == TypeContextDescriptorProtocolBaseline.structTest.hasFieldDescriptor)
-
-        // ReadingContext-based overload also exercised.
-        let imageCtxPresence = (try? imageSubject.fieldDescriptor(in: imageContext)) != nil
-        #expect(imageCtxPresence == TypeContextDescriptorProtocolBaseline.structTest.hasFieldDescriptor)
     }
 
     @Test func genericContext() async throws {
@@ -52,10 +48,6 @@ final class TypeContextDescriptorProtocolTests: MachOSwiftSectionFixtureTests, F
             image: { (try imageSubject.genericContext(in: imageContext)) != nil }
         )
         #expect(presence == TypeContextDescriptorProtocolBaseline.structTest.hasGenericContext)
-
-        // ReadingContext-based overload also exercised.
-        let imageCtxPresence = (try imageSubject.genericContext(in: imageContext)) != nil
-        #expect(imageCtxPresence == TypeContextDescriptorProtocolBaseline.structTest.hasGenericContext)
     }
 
     @Test func typeGenericContext() async throws {
@@ -65,10 +57,6 @@ final class TypeContextDescriptorProtocolTests: MachOSwiftSectionFixtureTests, F
             image: { (try imageSubject.typeGenericContext(in: imageContext)) != nil }
         )
         #expect(presence == TypeContextDescriptorProtocolBaseline.structTest.hasTypeGenericContext)
-
-        // ReadingContext-based overload also exercised.
-        let imageCtxPresence = (try imageSubject.typeGenericContext(in: imageContext)) != nil
-        #expect(imageCtxPresence == TypeContextDescriptorProtocolBaseline.structTest.hasTypeGenericContext)
     }
 
     /// `metadataAccessorFunction(in:)` is a `MachOImage`-only path: it uses
@@ -80,13 +68,6 @@ final class TypeContextDescriptorProtocolTests: MachOSwiftSectionFixtureTests, F
         let (_, imageSubject) = try loadStructTestDescriptors()
         let imagePresence = (try imageSubject.metadataAccessorFunction(in: imageContext)) != nil
         #expect(imagePresence)
-
-        // ReadingContext-based overload exercised but not asserted on
-        // value: the underlying runtime-pointer lookup may return nil
-        // depending on the field's relative offset relative to the loaded
-        // image. The call itself completing without throwing is the
-        // contract we verify here.
-        _ = try imageSubject.metadataAccessorFunction(in: imageContext)
     }
 
     // MARK: - Derived booleans (StructTest witnesses; all read false)
@@ -142,13 +123,6 @@ final class TypeContextDescriptorProtocolTests: MachOSwiftSectionFixtureTests, F
         #expect(foreignResult?.relatedEntityName == expected.typeImportInfoRelatedEntityName)
         #expect(foreignResult?.isCTypedef == true)
         #expect(foreignResult?.isRelatedEntity == false)
-
-        // ReadingContext-based overload also exercised. (The pointer-based
-        // in-process overload needs a descriptor whose offset is a live
-        // address, which a `MachOImage`-read descriptor is not — same as
-        // `fieldDescriptor()` above.)
-        let imageContextResult = try foreignImage.typeImportInfo(in: imageContext)
-        #expect(imageContextResult == foreignResult)
     }
 
     @Test func hasCanonicalMetadataPrespecializationsOrSingletonMetadataPointer() async throws {

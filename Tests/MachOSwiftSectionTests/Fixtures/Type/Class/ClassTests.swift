@@ -51,13 +51,9 @@ final class ClassTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked 
 
         let fileClass = try Class(descriptor: fileDescriptor, in: fileContext)
         let imageClass = try Class(descriptor: imageDescriptor, in: imageContext)
-        let fileCtxClass = try Class(descriptor: fileDescriptor, in: fileContext)
-        let imageCtxClass = try Class(descriptor: imageDescriptor, in: imageContext)
 
         #expect(fileClass.descriptor.offset == ClassBaseline.classTest.descriptorOffset)
         #expect(imageClass.descriptor.offset == ClassBaseline.classTest.descriptorOffset)
-        #expect(fileCtxClass.descriptor.offset == ClassBaseline.classTest.descriptorOffset)
-        #expect(imageCtxClass.descriptor.offset == ClassBaseline.classTest.descriptorOffset)
     }
 
     @Test("init(descriptor:)") func initializerInProcess() async throws {

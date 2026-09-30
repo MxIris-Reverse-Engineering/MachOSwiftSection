@@ -69,18 +69,15 @@ final class MetadataWrapperTests: MachOSwiftSectionFixtureTests, FixtureSuite, @
     }
 
     /// `valueWitnessTable(in:)` resolves the value-witness table through
-    /// the full-metadata header. Cross-reader equality on
-    /// `typeLayout.size`.
+    /// the full-metadata header.
     ///
     /// `valueWitnessTable(in: inProcessContext)` requires an in-process
     /// wrapper (offset = runtime pointer); we exercise it against the
     /// in-process variant and assert its `typeLayout.size` agrees with the
-    /// image variant.
+    /// image-context variant.
     @Test func valueWitnessTable() async throws {
         let imageWrapper = try loadStructTestImageWrapper()
         let imageVW = try imageWrapper.valueWitnessTable(in: imageContext)
-        let imageCtxVW = try imageWrapper.valueWitnessTable(in: imageContext)
-        #expect(imageVW.typeLayout.size == imageCtxVW.typeLayout.size)
 
         let inProcessWrapper = try loadStructTestInProcessWrapper()
         let inProcessVW = try inProcessWrapper.valueWitnessTable(in: inProcessContext)

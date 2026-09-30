@@ -41,13 +41,9 @@ final class EnumTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked S
 
         let fileEnum = try Enum(descriptor: fileDescriptor, in: fileContext)
         let imageEnum = try Enum(descriptor: imageDescriptor, in: imageContext)
-        let fileCtxEnum = try Enum(descriptor: fileDescriptor, in: fileContext)
-        let imageCtxEnum = try Enum(descriptor: imageDescriptor, in: imageContext)
 
         #expect(fileEnum.descriptor.offset == EnumBaseline.noPayloadEnumTest.descriptorOffset)
         #expect(imageEnum.descriptor.offset == EnumBaseline.noPayloadEnumTest.descriptorOffset)
-        #expect(fileCtxEnum.descriptor.offset == EnumBaseline.noPayloadEnumTest.descriptorOffset)
-        #expect(imageCtxEnum.descriptor.offset == EnumBaseline.noPayloadEnumTest.descriptorOffset)
     }
 
     @Test("init(descriptor:)") func initializerInProcess() async throws {

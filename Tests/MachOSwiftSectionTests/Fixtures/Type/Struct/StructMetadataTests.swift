@@ -8,11 +8,11 @@ import MachOFixtureSupport
 /// Fixture-based Suite for `StructMetadata`.
 ///
 /// Materializing a `StructMetadata` requires invoking the metadata accessor
-/// function on a *loaded* MachOImage. As a consequence, the cross-reader
-/// equality block here is asymmetric: the metadata instance only originates
-/// from `MachOImage`, but methods on it accept any `MachOContext` /
-/// `InProcessContext` so we still validate the readers agree on the layout
-/// values.
+/// function on a *loaded* MachOImage. As a consequence, the reader
+/// coverage here is asymmetric: the metadata instance only originates from
+/// `MachOImage`, but methods on it accept any `MachOContext` /
+/// `InProcessContext`, so the layout's descriptor is read through both the
+/// image context and the in-process context.
 ///
 /// `init(layout:offset:)` is filtered as memberwise-synthesized.
 @Suite
@@ -59,20 +59,19 @@ final class StructMetadataTests: MachOSwiftSectionFixtureTests, FixtureSuite, @u
     }
 
     @Test func layout() async throws {
+        let pickedDescriptor = try BaselineFixturePicker.struct_StructTest(in: machOImage)
         let metadata = try loadStructTestMetadata()
-        // Cross-reader equality on the descriptor pointer and kind. The
-        // descriptor reachable via `descriptor(in:)` should be the same
+        // The descriptor reachable via `descriptor(in:)` should be the same
         // ValueTypeDescriptorWrapper kind across the imageContext and
         // inProcessContext paths.
         let imageDescriptor = try metadata.descriptor(in: imageContext)
-        let imageCtxDescriptor = try metadata.descriptor(in: imageContext)
         let inProcessDescriptor = try metadata.descriptor(in: inProcessContext)
 
         // ValueTypeDescriptorWrapper isn't Equatable, so compare via the
-        // concrete `struct` payload's offset.
+        // concrete `struct` payload's offset: through the image context it
+        // is the descriptor we picked from the MachOImage's type list.
         let imageStructOffset = try required(imageDescriptor.struct).offset
-        let imageCtxStructOffset = try required(imageCtxDescriptor.struct).offset
-        #expect(imageStructOffset == imageCtxStructOffset)
+        #expect(imageStructOffset == pickedDescriptor.offset)
         // InProcess offset is a pointer bit pattern — it must be non-zero.
         let inProcessStructOffset = try required(inProcessDescriptor.struct).offset
         #expect(inProcessStructOffset != 0)

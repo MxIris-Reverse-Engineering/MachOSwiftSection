@@ -38,16 +38,12 @@ final class ValueMetadataProtocolTests: MachOSwiftSectionFixtureTests, FixtureSu
         let pickedDescriptor = try BaselineFixturePicker.struct_StructTest(in: machOImage)
 
         let imageDescriptor = try metadata.descriptor(in: imageContext)
-        let imageCtxDescriptor = try metadata.descriptor(in: imageContext)
         let inProcessDescriptor = try metadata.descriptor(in: inProcessContext)
 
         // ValueTypeDescriptorWrapper isn't trivially Equatable; compare via
-        // the `.struct` payload's offset. The image and image-context paths
-        // share the same MachO and therefore the same offsets.
+        // the `.struct` payload's offset.
         let imageStructOffset = try required(imageDescriptor.struct).offset
-        let imageCtxStructOffset = try required(imageCtxDescriptor.struct).offset
         #expect(imageStructOffset == pickedDescriptor.offset)
-        #expect(imageCtxStructOffset == pickedDescriptor.offset)
 
         // The InProcess path returns the same descriptor; assert by name.
         let inProcessStruct = try required(inProcessDescriptor.struct)

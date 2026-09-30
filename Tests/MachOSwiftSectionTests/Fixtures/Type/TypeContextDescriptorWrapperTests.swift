@@ -88,10 +88,6 @@ final class TypeContextDescriptorWrapperTests: MachOSwiftSectionFixtureTests, Fi
             image: { (try wrappers.image.parent(in: imageContext)) != nil }
         )
         #expect(presence == TypeContextDescriptorWrapperBaseline.structTest.hasParent)
-
-        // ReadingContext-based overload also exercised.
-        let imageCtxPresence = (try wrappers.image.parent(in: imageContext)) != nil
-        #expect(imageCtxPresence == TypeContextDescriptorWrapperBaseline.structTest.hasParent)
     }
 
     @Test func genericContext() async throws {
@@ -101,10 +97,6 @@ final class TypeContextDescriptorWrapperTests: MachOSwiftSectionFixtureTests, Fi
             image: { (try wrappers.image.genericContext(in: imageContext)) != nil }
         )
         #expect(presence == TypeContextDescriptorWrapperBaseline.structTest.hasGenericContext)
-
-        // ReadingContext-based overload also exercised.
-        let imageCtxPresence = (try wrappers.image.genericContext(in: imageContext)) != nil
-        #expect(imageCtxPresence == TypeContextDescriptorWrapperBaseline.structTest.hasGenericContext)
     }
 
     @Test func typeGenericContext() async throws {
@@ -114,10 +106,6 @@ final class TypeContextDescriptorWrapperTests: MachOSwiftSectionFixtureTests, Fi
             image: { (try wrappers.image.typeGenericContext(in: imageContext)) != nil }
         )
         #expect(presence == TypeContextDescriptorWrapperBaseline.structTest.hasTypeGenericContext)
-
-        // ReadingContext-based overload also exercised.
-        let imageCtxPresence = (try wrappers.image.typeGenericContext(in: imageContext)) != nil
-        #expect(imageCtxPresence == TypeContextDescriptorWrapperBaseline.structTest.hasTypeGenericContext)
     }
 
     @Test func resolve() async throws {

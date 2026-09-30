@@ -60,10 +60,6 @@ final class MethodOverrideDescriptorTests: MachOSwiftSectionFixtureTests, Fixtur
             image: { (try overrides.image.classDescriptor(in: imageContext)) != nil }
         )
         #expect(presence == true)
-
-        // ReadingContext-based overload.
-        let imageCtxPresence = (try overrides.image.classDescriptor(in: imageContext)) != nil
-        #expect(imageCtxPresence == true)
     }
 
     /// `methodDescriptor(in:)` returns the underlying method being overridden.

@@ -63,12 +63,6 @@ final class MultiPayloadEnumDescriptorTests: MachOSwiftSectionFixtureTests, Fixt
             image: { try imageSubject.mangledTypeName(in: imageContext).rawString }
         )
         #expect(rawString == MultiPayloadEnumDescriptorBaseline.multiPayloadEnumTest.mangledTypeNameRawString)
-
-        // ReadingContext-based overload also exercised.
-        let fileCtxRaw = try fileSubject.mangledTypeName(in: fileContext).rawString
-        let imageCtxRaw = try imageSubject.mangledTypeName(in: imageContext).rawString
-        #expect(fileCtxRaw == rawString)
-        #expect(imageCtxRaw == rawString)
     }
 
     @Test func contents() async throws {
@@ -78,12 +72,6 @@ final class MultiPayloadEnumDescriptorTests: MachOSwiftSectionFixtureTests, Fixt
             image: { try imageSubject.contents(in: imageContext).count }
         )
         #expect(count == MultiPayloadEnumDescriptorBaseline.multiPayloadEnumTest.contentsCount)
-
-        // ReadingContext overloads.
-        let fileCtxCount = try fileSubject.contents(in: fileContext).count
-        let imageCtxCount = try imageSubject.contents(in: imageContext).count
-        #expect(fileCtxCount == count)
-        #expect(imageCtxCount == count)
     }
 
     @Test func payloadSpareBits() async throws {

@@ -196,10 +196,11 @@ final class ClassDescriptorTests: MachOSwiftSectionFixtureTests, FixtureSuite, @
     }
 
     /// `resilientMetadataBounds(in:)` only succeeds on classes with a
-    /// resilient superclass. For `ClassTest` we just verify the predicate;
-    /// for resilient cases we'd add a dedicated test once a fixture surfaces
-    /// one. We exercise both the MachO and ReadingContext overloads here on
-    /// the no-resilient case to confirm they raise (or return) consistently.
+    /// resilient superclass. For `ClassTest` we only verify the predicate
+    /// that rules it out (`hasResilientSuperclass == false`); the method
+    /// itself is not called here. The resilient case
+    /// (`ResilientClassFixtures.ResilientChild`) is read through the
+    /// in-process context by `StoredClassMetadataBoundsTests`.
     @Test func resilientMetadataBounds() async throws {
         let (fileSubject, _) = try loadClassTestDescriptors()
         // Predicate: no resilient superclass.
@@ -215,10 +216,6 @@ final class ClassDescriptorTests: MachOSwiftSectionFixtureTests, FixtureSuite, @
             image: { (try classTestImage.superclassTypeMangledName(in: imageContext)) != nil }
         )
         #expect(classTestPresence == ClassDescriptorBaseline.classTest.hasSuperclassTypeMangledName)
-
-        // ReadingContext-based overload also exercised.
-        let classTestImageCtxPresence = (try classTestImage.superclassTypeMangledName(in: imageContext)) != nil
-        #expect(classTestImageCtxPresence == ClassDescriptorBaseline.classTest.hasSuperclassTypeMangledName)
 
         let (subclassFile, subclassImage) = try loadSubclassTestDescriptors()
         let subclassPresence = try acrossAllContexts(

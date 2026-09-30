@@ -130,9 +130,5 @@ final class TypeMetadataRecordTests: MachOSwiftSectionFixtureTests, FixtureSuite
             image: { try required(imageRecord.contextDescriptor(in: imageContext)).contextDescriptor.offset }
         )
         #expect(result == TypeMetadataRecordBaseline.structTestRecord.contextDescriptorOffset)
-
-        // ReadingContext-based overload also exercised.
-        let imageCtxOffset = try required(imageRecord.contextDescriptor(in: imageContext)).contextDescriptor.offset
-        #expect(imageCtxOffset == TypeMetadataRecordBaseline.structTestRecord.contextDescriptorOffset)
     }
 }
