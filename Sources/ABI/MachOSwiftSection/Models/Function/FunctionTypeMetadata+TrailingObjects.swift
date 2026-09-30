@@ -134,7 +134,11 @@ extension FunctionTypeMetadata {
     /// The extended flag word, or `nil` when the record carries none.
     public func extendedFlags(in context: some ReadingContext) throws -> FunctionTypeExtendedFlags? {
         guard let extendedFlagsOffset else { return nil }
-        return try context.readElement(at: try context.addressFromOffset(extendedFlagsOffset))
+        // Annotated: asking for the optional directly would read the
+        // Optional's in-memory shape, one tag byte past the flag word — the
+        // padding the runtime leaves unwritten.
+        let extendedFlags: FunctionTypeExtendedFlags = try context.readElement(at: try context.addressFromOffset(extendedFlagsOffset))
+        return extendedFlags
     }
 
     /// Location of the thrown error type, or `nil` when the function does not

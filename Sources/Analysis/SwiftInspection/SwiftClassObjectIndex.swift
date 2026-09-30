@@ -135,7 +135,9 @@ package final class SwiftClassObjectIndex: @unchecked Sendable {
 
         // Route 1: the class list, where a Swift class object is its metadata.
         for classObject in machO.objcImplementationClassObjects() ?? [] where classObject.isSwift {
-            guard let classFlags: UInt32 = try? machO.readElement(offset: classObject.offset + classFlagsFieldOffset),
+            // `as UInt32`: bound to an optional, the `try?` read would take
+            // the Optional's in-memory shape, one tag byte past the flag word.
+            guard let classFlags = try? machO.readElement(offset: classObject.offset + classFlagsFieldOffset) as UInt32,
                   classFlags & ClassFlags.hasCustomObjCName.rawValue != 0,
                   classFlags & staticSpecializationClassFlags == 0
             else { continue }

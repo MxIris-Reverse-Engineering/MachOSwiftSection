@@ -3,6 +3,7 @@ import Testing
 import MachOKit
 import MachOFoundation
 @testable import MachOSwiftSection
+import MachOObjCSection
 @testable import MachOTestingSupport
 import MachOFixtureSupport
 @_spi(Internals) @testable import SwiftInspection
@@ -65,6 +66,36 @@ struct SwiftClassObjectIndexTests {
         let resilientChildInstanceStart = SwiftClassObjectIndex.shared.renamedClassInstanceStart(forClassDescriptorOffset: resilientChildDescriptor.offset, in: machOFile)
         #expect(drifterInstanceStart == 8)
         #expect(resilientChildInstanceStart == nil)
+    }
+
+    /// The flag word is read at its own width. Read as an Optional, it took
+    /// the byte after it — `instanceAddressPoint`'s low byte — as the
+    /// Optional's tag, and a non-zero one dropped the class. The compiler
+    /// always writes zero there, so a patched copy of the library sets it.
+    @Test func renamedClassSurvivesANonZeroByteAfterTheFlagWord() throws {
+        let original = try RenamedObjCClassFixture.machOFile(.full)
+        let swiftClassObjectOffsets = (original.objcImplementationClassObjects() ?? []).filter(\.isSwift).map(\.offset)
+        try #require(!swiftClassObjectOffsets.isEmpty)
+        let byteAfterFlagWord = try #require(MemoryLayout<ClassMetadataObjCInterop.Layout>.offset(of: \.instanceAddressPoint))
+        let uuidCommand = try #require(original.loadCommands.info(of: LoadCommand.uuid))
+
+        var libraryBytes = try Data(contentsOf: RenamedObjCClassFixture.libraryURL(.full))
+        for classObjectOffset in swiftClassObjectOffsets {
+            libraryBytes[original.headerStartOffset + classObjectOffset + byteAfterFlagWord] = 0x01
+        }
+        // A copy with the original's UUID and install name is the same image
+        // to every per-image cache, which would answer from the original's
+        // index without reading the patched bytes.
+        libraryBytes[original.cmdsStartOffset + uuidCommand.offset + MemoryLayout<load_command>.size] ^= 0xFF
+        let patchedLibraryURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("\(RenamedObjCClassFixture.moduleName)-byteAfterFlagWord-\(UUID().uuidString).dylib")
+        try libraryBytes.write(to: patchedLibraryURL)
+        defer { try? FileManager.default.removeItem(at: patchedLibraryURL) }
+
+        let patched = try MachOFile(url: patchedLibraryURL, headerStartOffset: original.headerStartOffset)
+        try #require(patched.identifier != original.identifier)
+        let renamedWidgetName = try Self.customObjCClassName(ofClassNamed: "RenamedWidget", in: patched)
+        #expect(renamedWidgetName == CustomObjCClassName(name: "RCFRenamedWidget", attribute: .objc))
     }
 }
 
