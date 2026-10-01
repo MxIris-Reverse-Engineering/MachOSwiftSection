@@ -1,12 +1,12 @@
 # Draft - 在父定义的打印结果里标出嵌套子定义的边界
 
-- **状态**: Accepted
+- **状态**: In Progress
 - **创建日期**: 2026-10-01
 - **最后更新**: 2026-10-01
 - **所属愿景**: 无
 - **关联提案**: [0056-visibility-regions](0056-visibility-regions.md)（同一手法：区域编码在原子的 `identifier` 里，冻结后分离成一张表）；RuntimeViewer 的 `draft-find-navigator` §1.1 方案 D（使用方）；swift-semantic-string 的设计记录 `docs/VisibilityRegions.md`
-- **实现分支 / PR**: 待定（起草于 `feature/runtime-viewer/find-navigator`）
-- **配套文档**: 无
+- **实现分支 / PR**: 本库 `feature/runtime-viewer/find-navigator`；swift-semantic-string `feature/definition-regions`
+- **配套文档**: swift-semantic-string 的设计记录 `docs/DefinitionRegions.md`；[Glossary.md](../Glossary.md)「nested-definition region」
 
 ## 摘要
 
@@ -16,7 +16,7 @@ RuntimeViewer 建 Find 语料时，嵌套类型会被打印两遍：父类型的
 
 ### 改动位置
 
-- **swift-semantic-string**（新功能，另一个仓库）：在 `Sources/Semantic/Visibility/VisibilityRegion.swift` 旁边加一个 `DefinitionRegion` 组件，把一个身份字符串编码进内容里每个原子的 `identifier`，用与 `VisibilityTag` 不同的分隔符，两种标记可以叠在同一个原子上；冻结后用一个分离函数（与 `VisibilityRegionTable.swift:59` 的 `separatingVisibilityRegions()` 同形）读回成一张表，记录每个区域的身份、UTF-8 范围和嵌套关系，并还原原子原来的 `identifier`。再加两个通用操作：把冻结字符串连同它的可见性区域表切到某个区域；按行去掉开头 N 级缩进（每级 4 个空格），span 与区域表跟着平移。
+- **swift-semantic-string**（新功能，另一个仓库，落在 `Sources/Semantic/DefinitionRegions/` 与 `Frozen/FrozenSemanticString+Indentation.swift`）：`DefinitionRegion` 组件把一个身份字符串编码进内容里每个原子的 `identifier`，编码放在可见性标记里面一层，两种标记可以叠在同一个原子上，两种嵌套顺序得到的原子相同；`separatingDefinitionRegions()`（与 `separatingVisibilityRegions()` 同形，两者可按任意顺序调用）读回成 `DefinitionRegionTable`，记录每个区域的身份、UTF-8 范围、深度和直接外层区域，并还原原子原来的 `identifier`。两个操作：`content(ofDefinitionRegion:)` 在**带标记的**冻结串上切出一个区域，去掉该区域及外层区域的身份、按首次使用顺序重建 identifier 表，结果再做两种分离就得到子定义自己的文本与两张表；`removingIndentation(levels:)` 按行去掉开头 N 级缩进（每级 4 个空格），进到多行原子内部，有一行缩进不够就返回 `nil`。
 - **MachOSwiftSection**：
   - `SwiftDeclarationPrintConfiguration` 加开关 `marksNestedDefinitions`（默认 `false`）。关着时输出与今天逐字节相同。
   - `SwiftDeclarationPrinter.swift:289` 与 `:303`（类型里的嵌套类型、嵌套协议）、`:436` 与 `:450`（extension 里的类型、协议）：开关打开时，把每个 `NestedDeclaration` 里那次 `printTypeDefinition` / `printProtocolDefinition` 的结果包进 `DefinitionRegion`。身份用名字节点的 mangled name，即 `mangleAsString(child.typeName.node)` 或 `mangleAsString(child.protocolName.node)`——RuntimeViewer 的 `RuntimeObject.name` 正是这个值，拿到就能对上对象，不需要另建映射。
@@ -63,3 +63,8 @@ RuntimeViewer 建 Find 语料时，嵌套类型会被打印两遍：父类型的
 |------|------|------|
 | 2026-10-01 | Created as Draft | RuntimeViewer 的计时探针量出嵌套对象占打印时间约四成（Release，`72913c3d`；Foundation 只打顶层 2.23 s、全打 3.72 s，SwiftUI 31.15 s 对 51.95 s，libswiftCore 15–22%），超过其提案定的 20% 门槛，指向方案 D。用户在 RuntimeViewer 的会话里对「要让 MachOSwiftSection 那边的会话起草这份上游提案吗？」选了「让它起草提案」；只起草，审过置 `Accepted` 之前不写实现。需求三条由 RuntimeViewer 会话转来：子定义原子的边界标记且可嵌套、内联与单独打印除缩进外逐字节相同并用测试钉住（含 enum layout 多行原子、展开字段偏移、transformer 三种情况）、失败由 RuntimeViewer 回退。 |
 | 2026-10-01 | Accepted；四个待定项都按推荐 | 用户在 RuntimeViewer 会话里选定：嵌在 extension 里的协议的默认实现扩展改到顶层 extensions 区块打印；单独开关 `marksNestedDefinitions`；身份用名字节点的 mangled name（RuntimeViewer 核实 `RuntimeSwiftSection.swift:275` 以 `mangleAsString(typeDefinition.typeName.node)` 作 `RuntimeObject.name`，协议在 `:258`、扩展在 `:237`）；切片与去缩进放进 swift-semantic-string。随后在本仓库的会话里直接确认「确认，排在遍历修复之后」：先做 swift-demangling 的节点遍历修复（并行打印的引用计数争用），再实现本提案。 |
+| 2026-10-01 | In Progress；库接口改为「在带标记的串上切，切完再分离」 | 方案原写「把冻结字符串连同它的可见性区域表切到某个区域」。实现时改成在带标记的冻结串上切（`content(ofDefinitionRegion:)`），可见性区域表由切出的串自己分离得到：`separatingVisibilityRegions()` 按 identifier 表的顺序给条件编号，切表就得重新编号、合并相邻区域、处理跨切点的区域，等于把分离逻辑重写一遍；切串时按首次使用顺序重建 identifier 表，再分离出的表与单独打印的逐项相同（swift-semantic-string 的 `DefinitionRegionTests` 钉住）。定义区域的编码放在可见性标记里面一层：容器与可见性分离都只看第一个字符认标记，放在外层会让容器把带条件的成员当成无条件的。 |
+| 2026-10-01 | 「extension 里的协议」只发生在扩展别的模块的类型时；打印器与 interface 生成器各改一处 | 现场编译的 fixture 显示：协议声明在本模块类型的 extension 里时，编译器把它直接挂在类型上（成为该类型的嵌套协议，本来就打印正确）；只有扩展别的模块的类型（`extension Int { protocol Counter }`）才留下 extension 上下文、没有 `parent`。修法按「需要你定的」第 1 条 a：`SwiftDeclarationPrinter` 只给 `parent` 与 `extensionContext` 都为空的协议原地打印默认实现扩展；`SwiftInterfaceBuilder` 原本只把 `parent != nil` 的协议的扩展放进顶层区块，现在也包括 `extensionContext != nil` 的。`ProtocolInExtensionTests` 先红后绿：修复前三条全部失败（interface 里 `extension Swift.Int.Counter {` 开在 `extension Swift.Int {` 的大括号里；单独打印带着扩展；从 extension 里取出的协议去不掉缩进），修复后通过。 |
+| 2026-10-01 | 实现：`marksNestedDefinitions` 与 `SwiftDeclarationPrinter+DefinitionRegions.swift` | 四处嵌套循环都经 `nestedDefinition(named:printing:)`：先打印子定义，开关打开且结果非空时才算 mangled name（`mangleAsString(name.node)`）并包一层区域；名字 remangle 失败或含控制字符（区域身份不能带）就不标，宿主单独打印它。开关关着时代码路径不变。 |
+| 2026-10-01 | 验证：契约测试全部通过 | `NestedDefinitionRegionContractTests`（SwiftInterfaceTests）：SymbolTestsCore 里每个有嵌套定义的根类型与 extension（几乎所有类型都嵌在命名空间 enum 里），进程内与文件两种读取方式，各三种配置——只开 `marksNestedDefinitions`；再开 `marksOptionalContent` 并挂 opaque 解析器；全部打印选项打开并装上 `applyTransformers(_:)` 的全部模板。每个区域取出、去缩进后与单独打印比较文本、span、identifier、可见性区域表与内层定义区域表，并核对区域数等于嵌套定义数（防漏标），每种配置都检查了 100 个以上的区域，首次运行即全部通过；另有一条确认开关打开时分离后的文本与不开时逐字节相同。swift-semantic-string 侧全部 432 个测试通过、watchOS `arm64_32` 编译通过。 |
+| 2026-10-01 | 全量测试与渲染 A/B 通过；Foundation 上只挪动了两个扩展 | 全量 `swift test --skip IntegrationTests`（沙盒副本，本地兄弟依赖，swift-semantic-string 指向 `feature/definition-regions`）2174 个测试全部通过，原始退出码 0。渲染 A/B：基线是本分支 `ed289fb4` 的 git archive，候选是加上本提案改动的副本，两侧依赖相同、只有 swift-semantic-string 指向不同分支；92 对逐字节一致，iOS 15.5 模拟器的 SwiftUI / WidgetKit 两侧同样崩溃（MachOKit `ExportTrie.init`，见并发打印提案）。A/B 的框架里没有协议声明在别的模块类型的 extension 里，另用两侧 CLI 渲染当前系统 Foundation 的 interface 对比：只有 `NSNotificationCenter.AsyncMessage` 与 `NSNotificationCenter.MainActorMessage` 的两个默认实现扩展，从 `extension __C.NSNotificationCenter { … }` 的大括号里（顶格）挪到了顶层的嵌套协议扩展区块，其余四万多行逐字节相同。 |

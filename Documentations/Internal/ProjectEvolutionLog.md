@@ -2155,6 +2155,16 @@
 - **关联文档**：[draft-nested-field-offset-memoization](../Evolutions/draft-nested-field-offset-memoization.md)、[Modules/MachOCaches.md](Modules/MachOCaches.md)「不受驱逐的」、[NestedFieldOffsetCycleGuard.md](NestedFieldOffsetCycleGuard.md)「每层从记录里读」。
 - **对应版本**：未发版。
 
+## 2026-10-01 嵌套定义在父定义的打印里标出边界（方案 D）
+
+- **时间段**：2026-10-01（提案、实现）。
+- **动机**：RuntimeViewer 建 Find 语料时，嵌套类型在父类型的打印里内联一遍，又作为自己的对象单独打印一遍，计时探针量出这部分约占打印时间四成（Foundation 只打顶层 2.23 s、全打 3.72 s；SwiftUI 31.15 s 对 51.95 s）。它的方案 D 是只打印父定义、从结果里把嵌套定义切出来；本库要给出边界，并承诺切出来的与单独打印的一样。
+- **关键决策**：**① 新开关 `marksNestedDefinitions`**（默认关，关着时输出逐字节不变），四处嵌套循环把子定义的打印包进 swift-semantic-string 新增的 `DefinitionRegion`，身份是名字节点的 mangled name；名字 remangle 失败或含控制字符就不标，宿主单独打印。**② 库接口在带标记的串上切**：`content(ofDefinitionRegion:)` 去掉外层身份、按首次使用顺序重建 identifier 表，`removingIndentation(levels:)` 按行去缩进，切出的串再分离出的两张表与单独打印的相同；原方案「连同可见性区域表一起切」改掉，因为条件按 identifier 表顺序编号，切表等于重写分离逻辑。定义区域的编码放在可见性标记里面一层，容器与可见性分离都不受影响。**③ 先修一个既有问题**：协议声明在别的模块类型的 extension 里（`extension Int { protocol Counter }`）时，默认实现扩展被打印在外层 extension 的大括号里、顶格，生成的 Swift 不合法；现在只有顶层协议原地带出扩展，这类协议的扩展与嵌在类型里的协议一样放进 interface 的顶层 extensions 区块。声明在本模块类型的 extension 里的协议被编译器直接挂在类型上，本来就打印正确。
+- **落地模块**：SwiftPrinting（`SwiftDeclarationPrintConfiguration.marksNestedDefinitions`、新文件 `SwiftDeclarationPrinter+DefinitionRegions.swift`、四处嵌套循环、协议默认实现扩展的条件）、SwiftInterface（顶层区块收录 extension 里的协议的扩展）；swift-semantic-string（`DefinitionRegion`、`DefinitionRegionTable`、`separatingDefinitionRegions()`、`content(ofDefinitionRegion:)`、`removingIndentation(levels:)`）。测试新增 `NestedDefinitionRegionContractTests`、`ProtocolInExtensionTests`，两者加进 CI 主过滤列表。
+- **验证**：`ProtocolInExtensionTests` 先红后绿。契约测试对 SymbolTestsCore 每个有嵌套定义的根类型与 extension，在进程内与文件两种读取方式、三种配置（只标定义区域；加标记模式；全部选项加 Transformer 模板）下逐区域比较，全部通过，区域数与嵌套定义数一致。swift-semantic-string 全部 432 个测试通过，watchOS `arm64_32` 编译通过。全量测试与渲染 A/B 见提案决策日志。
+- **关联文档**：[draft-nested-definition-regions](../Evolutions/draft-nested-definition-regions.md)、[Glossary.md](../Glossary.md)「nested-definition region」、swift-semantic-string 的 `docs/DefinitionRegions.md`。
+- **对应版本**：未发版。落地前要先发布带 `DefinitionRegion` 的 swift-semantic-string，并抬高本库对它的版本下限。
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节

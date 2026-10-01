@@ -292,7 +292,9 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
                     context: .init(name: child.typeName.name, kind: .type),
                     {
                         try await NestedDeclaration {
-                            try await printTypeDefinition(child, level: level + 1)
+                            try await nestedDefinition(named: child.typeName.node) {
+                                try await printTypeDefinition(child, level: level + 1)
+                            }
                         }
                     }
                 ) {
@@ -306,7 +308,9 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
                     context: .init(name: child.protocolName.name, kind: .protocol),
                     {
                         try await NestedDeclaration {
-                            try await printProtocolDefinition(child, level: level + 1)
+                            try await nestedDefinition(named: child.protocolName.node) {
+                                try await printProtocolDefinition(child, level: level + 1)
+                            }
                         }
                     }
                 ) {
@@ -445,7 +449,9 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
                     context: .init(name: typeDefinition.typeName.name, kind: .type),
                     {
                         try await NestedDeclaration {
-                            try await printTypeDefinition(typeDefinition, level: level + 1)
+                            try await nestedDefinition(named: typeDefinition.typeName.node) {
+                                try await printTypeDefinition(typeDefinition, level: level + 1)
+                            }
                         }
                     }
                 ) {
@@ -459,7 +465,9 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
                     context: .init(name: protocolDefinition.protocolName.name, kind: .protocol),
                     {
                         try await NestedDeclaration {
-                            try await printProtocolDefinition(protocolDefinition, level: level + 1)
+                            try await nestedDefinition(named: protocolDefinition.protocolName.node) {
+                                try await printProtocolDefinition(protocolDefinition, level: level + 1)
+                            }
                         }
                     }
                 ) {

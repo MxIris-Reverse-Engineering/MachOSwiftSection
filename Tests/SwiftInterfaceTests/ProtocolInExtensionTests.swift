@@ -4,6 +4,7 @@ import MachOKit
 import MachOFoundation
 import MachOSwiftSection
 import Semantic
+import Demangling
 @_spi(Support) @testable import SwiftDeclaration
 @_spi(Support) @testable import SwiftIndexing
 @_spi(Support) @testable import SwiftPrinting
@@ -16,9 +17,9 @@ import Semantic
 /// enclosing extension's braces, at column 0. Swift cannot nest an extension
 /// there (Foundation's interface read `extension __C.NSNotificationCenter {
 /// protocol AsyncMessage {…} extension …AsyncMessage {…} }`), and a host
-/// that takes nested definitions out of their parent's print could not take
-/// this protocol out: those trailing lines were not indented by the nesting.
-/// They now print in the interface's top-level
+/// could not take the protocol out of the extension's print (evolution
+/// proposal `nested-definition-regions`): those trailing lines were not
+/// indented by the nesting. They now print in the interface's top-level
 /// extensions block, like the extensions of a protocol nested in a type.
 @Suite(.serialized)
 struct ProtocolInExtensionTests {
@@ -162,6 +163,31 @@ struct ProtocolInExtensionTests {
         for protocolDefinition in nestedProtocols {
             let printed = try await printer.printProtocolDefinition(protocolDefinition).string
             #expect(!printed.contains("extension"), "\(printed)")
+        }
+    }
+
+    @Test("a protocol declared in an extension, taken out of the extension's print, is its own print")
+    func regionTakenOutOfTheExtensionIsTheProtocolsOwnPrint() async throws {
+        let machOFile = try loadFixture()
+        let indexer = SwiftDeclarationIndexer(in: machOFile)
+        try await indexer.prepare()
+        var configuration = SwiftDeclarationPrintConfiguration()
+        configuration.marksNestedDefinitions = true
+        let printer = SwiftDeclarationPrinter(configuration: configuration, in: machOFile)
+
+        let extensionsDeclaringProtocols = indexer.typeExtensionDefinitions.values.flatMap { $0 }.filter { !$0.protocols.isEmpty }
+        #expect(extensionsDeclaringProtocols.count == 1)
+        for extensionDefinition in extensionsDeclaringProtocols {
+            let printed = try await printer.printExtensionDefinition(extensionDefinition).frozen()
+            let regions = printed.separatingDefinitionRegions().definitions.regions
+            let protocolDefinition = try #require(extensionDefinition.protocols.first)
+            let region = try #require(regions.first, "\(printed.string)")
+            let expectedIdentity = try await mangleAsString(protocolDefinition.protocolName.node)
+            #expect(region.identity == expectedIdentity)
+
+            let takenOut = printed.content(ofDefinitionRegion: region).removingIndentation(levels: region.depth + 1)
+            let ownPrint = try await printer.printProtocolDefinition(protocolDefinition).frozen()
+            #expect(takenOut == ownPrint, "\(printed.string)")
         }
     }
 }
