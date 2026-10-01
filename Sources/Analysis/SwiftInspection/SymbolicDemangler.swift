@@ -91,15 +91,23 @@ private protocol SymbolLookupContext {
     /// image's `_symbolic` symbols record it
     /// (`AnonymousContextPrivateDiscriminatorIndex`).
     func symbolicReferencePrivateDiscriminator(forAnonymousContextAt offset: Int) -> String?
+
+    /// The discriminator of the private type inside the anonymous context at
+    /// `offset`, as the identifier a `privateDeclName` takes. A requirement
+    /// so that a context can memoize it; the default resolves it every time.
+    func privateDiscriminatorIdentifier(forAnonymousContextAt offset: Int) -> Node?
 }
 
 extension SymbolLookupContext {
-    /// The discriminator of the private type inside the anonymous context at
-    /// `offset`, as the identifier a `privateDeclName` takes: from a symbol on
-    /// the anonymous descriptor when the image kept one, otherwise from a
-    /// `_symbolic` symbol naming that type, which an OS framework in the dyld
-    /// shared cache still carries when the other is gone.
     func privateDiscriminatorIdentifier(forAnonymousContextAt offset: Int) -> Node? {
+        resolvedPrivateDiscriminatorIdentifier(forAnonymousContextAt: offset)
+    }
+
+    /// From a symbol on the anonymous descriptor when the image kept one,
+    /// otherwise from a `_symbolic` symbol naming the type inside, which an OS
+    /// framework in the dyld shared cache still carries when the other is
+    /// gone.
+    func resolvedPrivateDiscriminatorIdentifier(forAnonymousContextAt offset: Int) -> Node? {
         if let symbol = lookupSymbol(at: offset), let privateDeclName = try? symbol.demangledNode.first(of: Node.Kind.privateDeclName) {
             return privateDeclName.children.first
         }
@@ -130,6 +138,18 @@ extension InProcessContext: SymbolLookupContext {
     func symbolicReferencePrivateDiscriminator(forAnonymousContextAt offset: Int) -> String? {
         guard let pointer = UnsafeRawPointer(bitPattern: offset), let machOImage = MachOImage.image(for: pointer) else { return nil }
         return AnonymousContextPrivateDiscriminatorIndex.shared.privateDiscriminator(forAnonymousContextAt: offset - machOImage.ptr.bitPattern.int, in: machOImage)
+    }
+
+    /// Memoized per address for the process (evolution proposal
+    /// `nested-field-offset-memoization`). The answer for an anonymous context
+    /// already in memory never changes, and resolving it rebuilds the owning
+    /// image and scans its whole symbol table first — which an image in the
+    /// dyld shared cache has stripped, so that scan almost always comes back
+    /// empty.
+    func privateDiscriminatorIdentifier(forAnonymousContextAt offset: Int) -> Node? {
+        SymbolicDemanglerCache.shared.privateDiscriminatorIdentifier(forAnonymousContextAt: offset) {
+            resolvedPrivateDiscriminatorIdentifier(forAnonymousContextAt: offset)
+        }
     }
 }
 
@@ -821,6 +841,12 @@ private final class SymbolicDemanglerCache: @unchecked Sendable {
         /// answered "no context mangling" once and is never retried.
         @Mutex
         fileprivate var nodeReferenceForSymbolName: [String: NodeReference?] = [:]
+
+        /// The private discriminator of the anonymous context at an in-process
+        /// address; a stored `nil` records that it has none. Only the
+        /// process-scoped storage fills it.
+        @Mutex
+        fileprivate var privateDiscriminatorForAnonymousContextAddress: [Int: String?] = [:]
     }
 
     /// The memo `context` files entries under, as its cache scope declares:
@@ -841,6 +867,26 @@ private final class SymbolicDemanglerCache: @unchecked Sendable {
 
     fileprivate func contains(in machO: some MachORepresentableWithCache) -> Bool {
         cache.contains(in: machO)
+    }
+
+    /// `InProcessContext`'s discriminator lookup, memoized as text. Only an
+    /// `identifier` — what the lookup returns for every discriminator it
+    /// finds — is memoized; a hit rebuilds the same node.
+    fileprivate func privateDiscriminatorIdentifier(forAnonymousContextAt address: Int, resolving resolve: () -> Node?) -> Node? {
+        let storage = Self.processScopedStorage
+        if let memoizedDiscriminator = storage.privateDiscriminatorForAnonymousContextAddress[address] {
+            return memoizedDiscriminator.map { .createTransient(kind: .identifier, text: $0) }
+        }
+        let resolvedIdentifier = resolve()
+        if let resolvedIdentifier {
+            guard resolvedIdentifier.kind == .identifier, let discriminator = resolvedIdentifier.text else {
+                return resolvedIdentifier
+            }
+            storage.privateDiscriminatorForAnonymousContextAddress.updateValue(discriminator, forKey: address)
+        } else {
+            storage.privateDiscriminatorForAnonymousContextAddress.updateValue(nil, forKey: address)
+        }
+        return resolvedIdentifier
     }
 
     fileprivate func remove(for machO: some MachORepresentableWithCache) {

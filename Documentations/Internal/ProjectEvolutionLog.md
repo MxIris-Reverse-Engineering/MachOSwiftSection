@@ -2144,6 +2144,16 @@
 - **关联文档**：[draft-concurrent-definition-printing](../Evolutions/draft-concurrent-definition-printing.md)、[Modules/SwiftDeclaration.md](Modules/SwiftDeclaration.md)「每个定义只索引一次，可以被并发打印」、[LargeStackTaskExecutorAdoption.md](LargeStackTaskExecutorAdoption.md)「版本内并行为什么不做」。
 - **对应版本**：未发版。
 
+## 2026-10-01 进程内嵌套字段偏移展开按 metatype 记一层；匿名上下文判别符按地址记
+
+- **时间段**：2026-09-30（提案）— 2026-10-01（实现）。
+- **动机**：RuntimeViewer 建 Find 语料时打印镜像里的全部类型。Debug 采样里单个类型打印的 61% 落在进程内的嵌套字段偏移展开（同一个字段类型在每个出现处都重新递归、重新 demangle），9% 落在匿名上下文判别符的查找（共享缓存镜像的本地符号已剥离，线性扫符号表基本必落空），两处都没有缓存。Release 下量出来，展开字段偏移约占打印时间一成（Foundation 约 10.5%），收益比 Debug 采样小，按批准的范围照做。
+- **关键决策**：**① 缓存「一层」而不是整棵树**：按 metatype 记下这一层要打印的每行（字段名、类型名、相对偏移、`isLast`）和下一层的 metatype，遍历本身——基址、树的祖先列、深度、路径环守卫、日志——原样留着，所以输出逐字节不变是构造出来的；`isLast` 仍对全部字段记录计数，解析失败、没有行的那项照样占位。**② 进程级存储**：`static` 的 `@Mutex` 字典，键是 `ObjectIdentifier(metatype)`，记录在锁外建、先存者赢；一层记下了「当时哪些类型解析不出」，进程之后加载的镜像可能改变答案，所以给宿主一个 `RuntimeFieldLayoutMemo.removeAll()`，带代数计数防止跨越清除的构建写回。**③ `storedFieldComments` 每个字段最多解析一次 metatype**，且只在有消费方要用时解析。**④ 判别符按地址记忆化**，只在 `InProcessContext` 这条路上，存在 `SymbolicDemanglerCache` 的进程级存储里；查的是已在内存里的匿名上下文，不需要清除入口。
+- **落地模块**：SwiftDeclarationRendering（新文件 `NestedFieldOffsetLevel.swift`：`NestedFieldOffsetLevel`、`NestedFieldOffsetLevelMemo`、公开的 `RuntimeFieldLayoutMemo`；`RuntimeFieldLayoutBackend` 的展开与 `storedFieldComments`）、SwiftInspection（`SymbolicDemangler` 的 `SymbolLookupContext` 与 `SymbolicDemanglerCache`）。测试新增 `NestedFieldOffsetMemoizationTests`，`AnonymousContextPrivateDiscriminatorTests` 加一条冷热两次的判别符对照。
+- **验证**：全量 `swift test --skip IntegrationTests` 2168 个测试全过（原始退出码 0）；release + TSan 跑并发打印与记忆化两个套件 0 条报告。渲染 A/B 对并发打印那份（`9f5ffa92`）92 对逐字节一致；因为 A/B 的进程内腿默认不开展开字段偏移，另用 `RenderingVerificationTests` 打开全部选项对 Combine、SwiftData、WidgetKit、ActivityKit 两侧各跑一遍，16 对逐字节一致（进程内那几份带 17 到约 7800 行展开行）。「改后」计时由 RuntimeViewer 会话补。
+- **关联文档**：[draft-nested-field-offset-memoization](../Evolutions/draft-nested-field-offset-memoization.md)、[Modules/MachOCaches.md](Modules/MachOCaches.md)「不受驱逐的」、[NestedFieldOffsetCycleGuard.md](NestedFieldOffsetCycleGuard.md)「每层从记录里读」。
+- **对应版本**：未发版。
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节
