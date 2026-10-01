@@ -30,10 +30,10 @@ final class GenericRequirementContentTests: MachOSwiftSectionFixtureTests, Fixtu
     private func loadInvertedProtocols() throws -> (file: GenericRequirementContent.InvertedProtocols, image: GenericRequirementContent.InvertedProtocols) {
         let fileDescriptor = try BaselineFixturePicker.struct_InvertibleProtocolRequirementTest(in: machOFile)
         let imageDescriptor = try BaselineFixturePicker.struct_InvertibleProtocolRequirementTest(in: machOImage)
-        let fileContext = try required(try fileDescriptor.typeGenericContext(in: machOFile))
-        let imageContext = try required(try imageDescriptor.typeGenericContext(in: machOImage))
-        let fileValue = try requireInvertedProtocols(in: fileContext)
-        let imageValue = try requireInvertedProtocols(in: imageContext)
+        let fileGenericContext = try required(try fileDescriptor.typeGenericContext(in: fileContext))
+        let imageGenericContext = try required(try imageDescriptor.typeGenericContext(in: imageContext))
+        let fileValue = try requireInvertedProtocols(in: fileGenericContext)
+        let imageValue = try requireInvertedProtocols(in: imageGenericContext)
         return (file: fileValue, image: imageValue)
     }
 

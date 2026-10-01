@@ -14,7 +14,7 @@ import MachOFixtureSupport
 ///
 /// **Reader asymmetry:** the metadata source originates from MachOImage;
 /// the protocol methods accept any `ReadingContext` so we exercise the
-/// MachO + ReadingContext overloads here.
+/// ReadingContext overloads here.
 @Suite
 final class FinalClassMetadataProtocolTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
     static let testedTypeName = "FinalClassMetadataProtocol"
@@ -24,24 +24,21 @@ final class FinalClassMetadataProtocolTests: MachOSwiftSectionFixtureTests, Fixt
 
     private func loadInteropMetadata() throws -> ClassMetadataObjCInterop {
         let descriptor = try BaselineFixturePicker.class_ClassTest(in: machOImage)
-        let accessor = try required(try descriptor.metadataAccessorFunction(in: machOImage))
+        let accessor = try required(try descriptor.metadataAccessorFunction(in: imageContext))
         let response = try accessor(request: .init())
-        let wrapper = try response.value.resolve(in: machOImage)
+        let wrapper = try response.value.resolve(in: imageContext)
         return try required(wrapper.class)
     }
 
     /// `descriptor(in:)` returns the `ClassDescriptor` referenced by the
-    /// metadata's `descriptor` pointer. The result must match the picker
-    /// across reader paths.
+    /// metadata's `descriptor` pointer. The result must match the picker.
     @Test func descriptor() async throws {
         let pickedDescriptor = try BaselineFixturePicker.class_ClassTest(in: machOImage)
         let metadata = try loadInteropMetadata()
 
-        let imageDescriptor = try metadata.descriptor(in: machOImage)
-        let imageCtxDescriptor = try metadata.descriptor(in: imageContext)
+        let imageDescriptor = try metadata.descriptor(in: imageContext)
 
         #expect(imageDescriptor?.offset == pickedDescriptor.offset)
-        #expect(imageCtxDescriptor?.offset == pickedDescriptor.offset)
     }
 
     /// `fieldOffsets(for:in:)` returns the per-field byte-offsets vector
@@ -50,10 +47,8 @@ final class FinalClassMetadataProtocolTests: MachOSwiftSectionFixtureTests, Fixt
     @Test func fieldOffsets() async throws {
         let metadata = try loadInteropMetadata()
 
-        let imageOffsets: [StoredPointer] = try metadata.fieldOffsets(in: machOImage)
-        let imageCtxOffsets: [StoredPointer] = try metadata.fieldOffsets(in: imageContext)
+        let imageOffsets: [StoredPointer] = try metadata.fieldOffsets(in: imageContext)
 
-        #expect(imageOffsets == imageCtxOffsets)
         // ClassTest has no stored properties.
         #expect(imageOffsets.isEmpty)
     }

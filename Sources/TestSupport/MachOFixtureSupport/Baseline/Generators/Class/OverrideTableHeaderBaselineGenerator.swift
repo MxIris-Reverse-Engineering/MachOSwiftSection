@@ -16,7 +16,7 @@ package enum OverrideTableHeaderBaselineGenerator {
         outputDirectory: URL
     ) throws {
         let descriptor = try BaselineFixturePicker.class_SubclassTest(in: machO)
-        let classWrapper = try Class(descriptor: descriptor, in: machO)
+        let classWrapper = try Class(descriptor: descriptor, in: machO.context)
         let header = try required(classWrapper.overrideTableHeader)
 
         let entryExpr = emitEntryExpr(for: header)

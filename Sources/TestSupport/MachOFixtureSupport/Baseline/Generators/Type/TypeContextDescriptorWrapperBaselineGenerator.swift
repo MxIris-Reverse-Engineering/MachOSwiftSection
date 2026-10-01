@@ -76,9 +76,9 @@ package enum TypeContextDescriptorWrapperBaselineGenerator {
         in machO: some MachOSwiftSectionRepresentableWithCache
     ) throws -> String {
         let descriptorOffset = wrapper.contextDescriptor.offset
-        let hasParent = (try wrapper.parent(in: machO)) != nil
-        let hasGenericContext = (try wrapper.genericContext(in: machO)) != nil
-        let hasTypeGenericContext = (try wrapper.typeGenericContext(in: machO)) != nil
+        let hasParent = (try wrapper.parent(in: machO.context)) != nil
+        let hasGenericContext = (try wrapper.genericContext(in: machO.context)) != nil
+        let hasTypeGenericContext = (try wrapper.typeGenericContext(in: machO.context)) != nil
 
         let expr: ExprSyntax = """
         Entry(

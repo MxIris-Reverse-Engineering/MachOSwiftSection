@@ -97,7 +97,7 @@ package enum TypeReferenceBaselineGenerator {
                 numberOfElements: section.size / recordSize
             )
             for record in records {
-                guard let resolved = try? record.contextDescriptor(in: machO) else { continue }
+                guard let resolved = try? record.contextDescriptor(in: machO.context) else { continue }
                 if resolved.contextDescriptor.offset == targetOffset {
                     return record
                 }

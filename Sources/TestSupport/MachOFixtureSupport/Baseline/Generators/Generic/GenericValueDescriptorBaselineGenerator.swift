@@ -20,7 +20,7 @@ package enum GenericValueDescriptorBaselineGenerator {
         outputDirectory: URL
     ) throws {
         let descriptor = try BaselineFixturePicker.struct_FixedSizeArray(in: machO)
-        let context = try required(try descriptor.typeGenericContext(in: machO))
+        let context = try required(try descriptor.typeGenericContext(in: machO.context))
         let value = try required(context.values.first)
 
         let entryExpr = emitEntryExpr(for: value)

@@ -492,7 +492,7 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
         var failedCount = 0
 
         for type in currentStorage.types {
-            if let isCImportedContext = try? type.contextDescriptorWrapper.contextDescriptor.isCImportedContextDescriptor(in: machO), !configuration.showCImportedTypes, isCImportedContext {
+            if let isCImportedContext = try? type.contextDescriptorWrapper.contextDescriptor.isCImportedContextDescriptor(in: machO.context), !configuration.showCImportedTypes, isCImportedContext {
                 cImportedCount += 1
                 eventDispatcher.dispatch(.typeProcessingSkippedCImported)
                 continue
@@ -505,7 +505,7 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
                 eventDispatcher.dispatch(.typeProcessed(context: SwiftIndexEvents.TypeContext(typeName: declaration.typeName.name, kind: declaration.typeName.kind)))
             } catch {
                 failedCount += 1
-                let failedTypeName = try? type.typeName(in: machO)
+                let failedTypeName = try? type.typeName(in: machO.context)
                 eventDispatcher.dispatch(.typeProcessingFailed(typeName: failedTypeName?.name, error: error))
             }
         }
@@ -523,12 +523,12 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
         var unlinkedParentContextsByTypeName: [TypeName: UnlinkedParentContext] = [:]
 
         for type in currentStorage.types {
-            guard let typeName = try? type.typeName(in: machO), let childDefinition = currentModuleTypeDefinitions[typeName] else {
+            guard let typeName = try? type.typeName(in: machO.context), let childDefinition = currentModuleTypeDefinitions[typeName] else {
                 continue
             }
 
             var resolvedParentName: String?
-            var parentContext = try ContextWrapper.type(type).parent(in: machO)
+            var parentContext = try ContextWrapper.type(type).parent(in: machO.context)
 
             parentLoop: while let currentContextOrSymbol = parentContext {
                 switch currentContextOrSymbol {
@@ -536,7 +536,7 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
                     unlinkedParentContextsByTypeName[typeName] = .symbol(symbol)
                     break parentLoop
                 case .element(let currentContext):
-                    if case .type(let typeContext) = currentContext, let parentTypeName = try? typeContext.typeName(in: machO) {
+                    if case .type(let typeContext) = currentContext, let parentTypeName = try? typeContext.typeName(in: machO.context) {
                         if let parentDefinition = currentModuleTypeDefinitions[parentTypeName] {
                             childDefinition.parent = parentDefinition
                             parentDefinition.typeChildren.append(childDefinition)
@@ -552,7 +552,7 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
                         extensionTypeCount += 1
                         break parentLoop
                     }
-                    parentContext = try currentContext.parent(in: machO)
+                    parentContext = try currentContext.parent(in: machO.context)
                 }
             }
 
@@ -568,29 +568,29 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
                 switch parentContext {
                 case .extension(let extensionContext):
                     guard let extendedContextMangledName = extensionContext.extendedContextMangledName else { continue }
-                    guard let extensionTypeNode = try SymbolicDemangler.demangleType(for: extendedContextMangledName, in: machO).first(of: .type) else { continue }
+                    guard let extensionTypeNode = try SymbolicDemangler.demangleType(for: extendedContextMangledName, in: machO.context).first(of: .type) else { continue }
                     guard let extensionTypeKind = try extendedTypeKind(of: extensionTypeNode, extendedContext: extendedContextMangledName) else { continue }
 
                     let extensionTypeName = TypeName(node: InternedNodeReferenceCache.shared.reference(interning: extensionTypeNode, in: machO), kind: extensionTypeKind)
 
                     var genericSignature: NodeReference?
 
-                    if let currentRequirements = extensionContext.genericContext?.uniqueCurrentRequirements(in: machO), !currentRequirements.isEmpty {
-                        genericSignature = try SymbolicDemangler.buildGenericSignature(for: currentRequirements, in: machO).map { InternedNodeReferenceCache.shared.reference(interning: $0, in: machO) }
+                    if let currentRequirements = extensionContext.genericContext?.uniqueCurrentRequirements(in: machO.context), !currentRequirements.isEmpty {
+                        genericSignature = try SymbolicDemangler.buildGenericSignature(for: currentRequirements, in: machO.context).map { InternedNodeReferenceCache.shared.reference(interning: $0, in: machO) }
                     }
 
-                    let extensionDefinition = try ExtensionDefinition(extensionName: extensionTypeName.extensionName, genericSignature: genericSignature, protocolConformance: nil, in: machO)
+                    let extensionDefinition = ExtensionDefinition(extensionName: extensionTypeName.extensionName, genericSignature: genericSignature, protocolConformance: nil)
                     extensionDefinition.types = [typeDefinition]
                     currentStorage.typeExtensionDefinitions[extensionDefinition.extensionName, default: []].append(extensionDefinition)
                 case .type(let parentType):
-                    let parentTypeName = try parentType.typeName(in: machO)
-                    let extensionDefinition = try ExtensionDefinition(extensionName: parentTypeName.extensionName, genericSignature: nil, protocolConformance: nil, in: machO)
+                    let parentTypeName = try parentType.typeName(in: machO.context)
+                    let extensionDefinition = ExtensionDefinition(extensionName: parentTypeName.extensionName, genericSignature: nil, protocolConformance: nil)
                     extensionDefinition.types = [typeDefinition]
                     currentStorage.typeExtensionDefinitions[extensionDefinition.extensionName, default: []].append(extensionDefinition)
                 case .symbol(let symbol):
-                    guard let type = try SymbolicDemangler.demangleType(for: symbol, in: machO)?.first(of: .type), let kind = type.typeKind else { continue }
+                    guard let type = try SymbolicDemangler.demangleType(for: symbol, in: machO.context)?.first(of: .type), let kind = type.typeKind else { continue }
                     let parentTypeName = TypeName(node: InternedNodeReferenceCache.shared.reference(interning: type, in: machO), kind: kind)
-                    let extensionDefinition = try ExtensionDefinition(extensionName: parentTypeName.extensionName, genericSignature: nil, protocolConformance: nil, in: machO)
+                    let extensionDefinition = ExtensionDefinition(extensionName: parentTypeName.extensionName, genericSignature: nil, protocolConformance: nil)
                     extensionDefinition.types = [typeDefinition]
                     currentStorage.typeExtensionDefinitions[extensionDefinition.extensionName, default: []].append(extensionDefinition)
                 }
@@ -618,7 +618,7 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
     /// fallback stands. Pinned by `CImportedExtensionKindTests`.
     private func extendedTypeKind(of node: Node, extendedContext mangledName: MangledName) throws -> TypeKind? {
         if node.children.first?.kind == .typeAlias,
-           let descriptor = try SymbolicDemangler.extendedTypeContextDescriptor(forExtendedContext: mangledName, in: machO) {
+           let descriptor = try SymbolicDemangler.extendedTypeContextDescriptor(forExtendedContext: mangledName, in: machO.context) {
             return descriptor.kind
         }
         return node.typeKind
@@ -635,12 +635,12 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
             var protocolName: ProtocolName?
             do {
                 let protocolDefinition = try ProtocolDefinition(protocol: proto, in: machO)
-                protocolName = try proto.protocolName(in: machO)
+                protocolName = try proto.protocolName(in: machO.context)
                 if let protocolName {
-                    var parentContext = try ContextWrapper.protocol(proto).parent(in: machO)?.resolved
+                    var parentContext = try ContextWrapper.protocol(proto).parent(in: machO.context)?.resolved
                     var isRoot = true
                     while let currentContext = parentContext {
-                        if case .type(let typeContext) = currentContext, let parentTypeName = try? typeContext.typeName(in: machO) {
+                        if case .type(let typeContext) = currentContext, let parentTypeName = try? typeContext.typeName(in: machO.context) {
                             if let parentDefinition = currentStorage.allTypeDefinitions[parentTypeName] {
                                 protocolDefinition.parent = parentDefinition
                                 parentDefinition.protocolChildren.append(protocolDefinition)
@@ -652,20 +652,20 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
                             isRoot = false
                             break
                         }
-                        parentContext = try currentContext.parent(in: machO)?.resolved
+                        parentContext = try currentContext.parent(in: machO.context)?.resolved
                     }
                     allProtocolDefinitions[protocolName] = protocolDefinition
                     if isRoot {
                         rootProtocolDefinitions[protocolName] = protocolDefinition
                     } else if let extensionContext = protocolDefinition.extensionContext, let extendedContextMangledName = extensionContext.extendedContextMangledName {
-                        guard let typeNode = try SymbolicDemangler.demangleType(for: extendedContextMangledName, in: machO).first(of: .type) else { continue }
+                        guard let typeNode = try SymbolicDemangler.demangleType(for: extendedContextMangledName, in: machO.context).first(of: .type) else { continue }
                         guard let typeKind = try extendedTypeKind(of: typeNode, extendedContext: extendedContextMangledName) else { continue }
                         let typeName = TypeName(node: InternedNodeReferenceCache.shared.reference(interning: typeNode, in: machO), kind: typeKind)
                         var genericSignature: NodeReference?
-                        if let currentRequirements = extensionContext.genericContext?.uniqueCurrentRequirements(in: machO), !currentRequirements.isEmpty {
-                            genericSignature = try SymbolicDemangler.buildGenericSignature(for: currentRequirements, in: machO).map { InternedNodeReferenceCache.shared.reference(interning: $0, in: machO) }
+                        if let currentRequirements = extensionContext.genericContext?.uniqueCurrentRequirements(in: machO.context), !currentRequirements.isEmpty {
+                            genericSignature = try SymbolicDemangler.buildGenericSignature(for: currentRequirements, in: machO.context).map { InternedNodeReferenceCache.shared.reference(interning: $0, in: machO) }
                         }
-                        let extensionDefinition = try ExtensionDefinition(extensionName: typeName.extensionName, genericSignature: genericSignature, protocolConformance: nil, in: machO)
+                        let extensionDefinition = ExtensionDefinition(extensionName: typeName.extensionName, genericSignature: genericSignature, protocolConformance: nil)
                         extensionDefinition.protocols = [protocolDefinition]
                         currentStorage.typeExtensionDefinitions[extensionDefinition.extensionName, default: []].append(extensionDefinition)
                     }
@@ -696,8 +696,8 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
             var typeName: TypeName?
             var protocolName: ProtocolName?
             do {
-                typeName = try conformance.typeName(in: machO)
-                protocolName = try conformance.protocolName(in: machO)
+                typeName = try conformance.typeName(in: machO.context)
+                protocolName = try conformance.protocolName(in: machO.context)
                 if let typeName, let protocolName {
                     protocolConformancesByTypeName[typeName, default: [:]][protocolName] = conformance
                     currentStorage.conformingProtocolNamesByTypeName[typeName, default: []].append(protocolName)
@@ -721,8 +721,8 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
             var typeName: TypeName?
             var protocolName: ProtocolName?
             do {
-                typeName = try associatedType.typeName(in: machO)
-                protocolName = try associatedType.protocolName(in: machO)
+                typeName = try associatedType.typeName(in: machO.context)
+                protocolName = try associatedType.protocolName(in: machO.context)
 
                 if let typeName, let protocolName {
                     associatedTypesByTypeName[typeName, default: [:]][protocolName] = associatedType
@@ -755,7 +755,7 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
                     }
 
                     let conformanceAssociatedTypes = associatedType.map { [$0] } ?? []
-                    let extensionDefinition = try ExtensionDefinition(extensionName: typeName.extensionName, genericSignature: SymbolicDemangler.buildGenericSignature(for: protocolConformance.conditionalRequirements, in: machO).map { InternedNodeReferenceCache.shared.reference(interning: $0, in: machO) }, protocolConformance: protocolConformance, conformingProtocolName: protocolName, associatedTypes: conformanceAssociatedTypes, resolvedAssociatedTypeWitnesses: resolvedWitnessProjections(of: conformanceAssociatedTypes), in: machO)
+                    let extensionDefinition = try ExtensionDefinition(extensionName: typeName.extensionName, genericSignature: SymbolicDemangler.buildGenericSignature(for: protocolConformance.conditionalRequirements, in: machO.context).map { InternedNodeReferenceCache.shared.reference(interning: $0, in: machO) }, protocolConformance: protocolConformance, conformingProtocolName: protocolName, associatedTypes: conformanceAssociatedTypes, resolvedAssociatedTypeWitnesses: resolvedWitnessProjections(of: conformanceAssociatedTypes))
                     extensionDefinition.isRetroactive = protocolConformance.flags.isRetroactive
                     conformanceExtensionDefinitions[extensionDefinition.extensionName, default: []].append(extensionDefinition)
                     extensionCount += 1
@@ -769,7 +769,7 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
         }
         for (remainingTypeName, remainingAssociatedTypeByProtocolName) in associatedTypesByTypeNameCopy {
             for (_, remainingAssociatedType) in remainingAssociatedTypeByProtocolName {
-                let extensionDefinition = try ExtensionDefinition(extensionName: remainingTypeName.extensionName, genericSignature: nil, protocolConformance: nil, associatedTypes: [remainingAssociatedType], resolvedAssociatedTypeWitnesses: resolvedWitnessProjections(of: [remainingAssociatedType]), in: machO)
+                let extensionDefinition = ExtensionDefinition(extensionName: remainingTypeName.extensionName, genericSignature: nil, protocolConformance: nil, associatedTypes: [remainingAssociatedType], resolvedAssociatedTypeWitnesses: resolvedWitnessProjections(of: [remainingAssociatedType]))
                 conformanceExtensionDefinitions[extensionDefinition.extensionName, default: []].append(extensionDefinition)
             }
         }
@@ -835,9 +835,9 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
         var projections: [AssociatedTypeWitnessProjection] = []
         for associatedType in associatedTypes {
             for record in associatedType.records {
-                guard let recordName = try? record.name(in: machO),
-                      let mangledTypeName = try? record.substitutedTypeName(in: machO),
-                      let typeNode = try? SymbolicDemangler.demangleType(for: mangledTypeName, in: machO)
+                guard let recordName = try? record.name(in: machO.context),
+                      let mangledTypeName = try? record.substitutedTypeName(in: machO.context),
+                      let typeNode = try? SymbolicDemangler.demangleType(for: mangledTypeName, in: machO.context)
                 else { continue }
                 guard seenNames.insert(recordName).inserted else { continue }
                 let resolution = typeNode.resolveOpaqueTypeCollectingConditionalCandidates(
@@ -905,7 +905,7 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
             }
 
             func extensionDefinition(of kind: ExtensionKind, for memberSymbolsByKind: OrderedDictionary<SymbolIndexStore.MemberKind, [DemangledSymbol]>, genericSignature: NodeReference?) throws -> ExtensionDefinition {
-                let extensionDefinition = try ExtensionDefinition(extensionName: .init(node: node, kind: kind), genericSignature: genericSignature, protocolConformance: nil, in: machO)
+                let extensionDefinition = ExtensionDefinition(extensionName: .init(node: node, kind: kind), genericSignature: genericSignature, protocolConformance: nil)
                 var memberCount = 0
 
                 for (kind, memberSymbols) in memberSymbolsByKind {
@@ -1063,16 +1063,11 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
             let typeNode = InternedNodeReferenceCache.shared.reference(interning: Node.createTransient(kind: .type, child: classNode), in: machO)
             let extensionName = ExtensionName(node: typeNode, kind: .type(.class))
             guard typeExtensionDefinitions[extensionName] == nil else { continue }
-            do {
-                let extensionDefinition = try ExtensionDefinition(extensionName: extensionName, genericSignature: nil, protocolConformance: nil, in: machO)
-                extensionDefinition.attachObjCImplementation(facts)
-                typeExtensionDefinitions[extensionName] = [extensionDefinition]
-                typeExtensionCount += 1
-                eventDispatcher.dispatch(.objcImplementationClassRecognized(context: SwiftIndexEvents.ObjCImplementationClassContext(className: facts.className, evidence: facts.evidence.description, isInferred: facts.evidence.isInferred, instanceVariableCount: facts.instanceVariables.count, memberCount: 0)))
-            } catch {
-                eventDispatcher.dispatch(.extensionCreationFailed(targetName: facts.className, error: error))
-                failedExtensions += 1
-            }
+            let extensionDefinition = ExtensionDefinition(extensionName: extensionName, genericSignature: nil, protocolConformance: nil)
+            extensionDefinition.attachObjCImplementation(facts)
+            typeExtensionDefinitions[extensionName] = [extensionDefinition]
+            typeExtensionCount += 1
+            eventDispatcher.dispatch(.objcImplementationClassRecognized(context: SwiftIndexEvents.ObjCImplementationClassContext(className: facts.className, evidence: facts.evidence.description, isInferred: facts.evidence.isInferred, instanceVariableCount: facts.instanceVariables.count, memberCount: 0)))
         }
 
         for (extensionName, typeExtensionDefinition) in typeExtensionDefinitions {

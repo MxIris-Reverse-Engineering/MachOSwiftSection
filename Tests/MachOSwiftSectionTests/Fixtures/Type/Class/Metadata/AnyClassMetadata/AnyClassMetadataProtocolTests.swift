@@ -30,23 +30,21 @@ final class AnyClassMetadataProtocolTests: MachOSwiftSectionFixtureTests, Fixtur
     /// re-resolve at the same offset as a slim `AnyClassMetadata`.
     private func loadAnyClassMetadata() throws -> AnyClassMetadata {
         let descriptor = try BaselineFixturePicker.class_ClassTest(in: machOImage)
-        let accessor = try required(try descriptor.metadataAccessorFunction(in: machOImage))
+        let accessor = try required(try descriptor.metadataAccessorFunction(in: imageContext))
         let response = try accessor(request: .init())
-        let wrapper = try response.value.resolve(in: machOImage)
+        let wrapper = try response.value.resolve(in: imageContext)
         let interop = try required(wrapper.class)
-        return try AnyClassMetadata.resolve(from: interop.offset, in: machOImage)
+        return try AnyClassMetadata.resolve(at: interop.offset, in: imageContext)
     }
 
     /// `asFinalClassMetadata(in:)` re-resolves the metadata at its own
     /// offset as an `AnyClassMetadata`. The slim view's offset must
-    /// agree with the source's offset across reader paths.
+    /// agree with the source's offset.
     @Test func asFinalClassMetadata() async throws {
         let any = try loadAnyClassMetadata()
 
-        let imageView: AnyClassMetadata = try any.asFinalClassMetadata(in: machOImage)
-        let imageCtxView: AnyClassMetadata = try any.asFinalClassMetadata(in: imageContext)
+        let imageView: AnyClassMetadata = try any.asFinalClassMetadata(in: imageContext)
 
         #expect(imageView.offset == any.offset)
-        #expect(imageCtxView.offset == any.offset)
     }
 }

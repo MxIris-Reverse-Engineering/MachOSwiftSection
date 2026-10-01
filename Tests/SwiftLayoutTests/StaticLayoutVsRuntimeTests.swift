@@ -50,23 +50,23 @@ final class StaticLayoutVsRuntimeTests: MachOSwiftSectionFixtureTests, @unchecke
             // C bitfield layout is not reflected in Swift field records) are out
             // of scope until the dependency-closure phase.
             guard
-                let qualifiedTypeName = (try? SymbolicDemangler.demangleContext(for: contextDescriptor, in: machO))
+                let qualifiedTypeName = (try? SymbolicDemangler.demangleContext(for: contextDescriptor, in: imageContext))
                     .flatMap(NodeTypeNaming.nominalQualifiedName(of:)),
                 qualifiedTypeName.hasPrefix("SymbolTests")
             else { continue }
 
             // Ground truth: the runtime field-offset vector via the metadata
             // accessor.
-            guard let accessor = try descriptor.typeContextDescriptor.metadataAccessorFunction(in: machO) else { continue }
+            guard let accessor = try descriptor.typeContextDescriptor.metadataAccessorFunction(in: imageContext) else { continue }
             let runtimeOffsets: [Int]
             do {
                 let response = try accessor(request: .init())
-                let metadata = try response.value.resolve(in: machO)
+                let metadata = try response.value.resolve(in: imageContext)
                 switch metadata {
                 case .struct(let structMetadata):
-                    runtimeOffsets = try structMetadata.fieldOffsets(in: machO).map { Int($0) }
+                    runtimeOffsets = try structMetadata.fieldOffsets(in: imageContext).map { Int($0) }
                 case .class(let classMetadata):
-                    runtimeOffsets = try classMetadata.fieldOffsets(in: machO).map { Int($0) }
+                    runtimeOffsets = try classMetadata.fieldOffsets(in: imageContext).map { Int($0) }
                 default:
                     continue
                 }
@@ -92,7 +92,7 @@ final class StaticLayoutVsRuntimeTests: MachOSwiftSectionFixtureTests, @unchecke
             // The computed prefix must always equal the runtime prefix.
             let runtimePrefix = Array(runtimeOffsets.prefix(staticOffsets.count))
             if staticOffsets != runtimePrefix {
-                let typeName = (try? descriptor.typeContextDescriptor.name(in: machO)) ?? qualifiedTypeName
+                let typeName = (try? descriptor.typeContextDescriptor.name(in: imageContext)) ?? qualifiedTypeName
                 mismatches.append(Mismatch(
                     typeName: typeName,
                     runtimeOffsets: runtimeOffsets,

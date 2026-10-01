@@ -119,71 +119,21 @@ public struct MangledName: Sendable, Hashable {
 }
 
 extension MangledName: Resolvable {
-    public static func resolve(from offset: Int, in machO: some MachORepresentableWithCache & Readable) throws -> Self {
-        try resolve(from: offset, for: machO)
-    }
-
-    public static func resolve(from ptr: UnsafeRawPointer) throws -> Self {
-        var mangledName = try resolve(from: 0, for: ptr)
-        mangledName.startOffset = ptr.bitPattern.int
-        mangledName.endOffset = ptr.bitPattern.int + mangledName.endOffset
-        mangledName.elements = mangledName.elements.map { element in
-            switch element {
-            case .string:
-                return element
-            case .lookup(let lookup):
-                return .lookup(.init(offset: ptr.advanced(by: lookup.offset).bitPattern.int, reference: lookup.reference))
-            }
-        }
-        return mangledName
-    }
-
-    private static func resolve(from offset: Int, for reader: some Readable) throws -> MangledName {
-        var elements: [MangledName.Element] = []
-        var currentOffset = offset
-        var currentString = ""
-        while true {
-            let value: UInt8 = try reader.readElement(offset: currentOffset)
-            if value == 0xFF {}
-            else if value == 0 {
-                if currentString.count > 0 {
-                    elements.append(.string(currentString))
-                    currentString = ""
-                }
-                currentOffset.offset(of: UInt8.self)
-                break
-            } else if value >= 0x01, value <= 0x17 {
-                if currentString.count > 0 {
-                    elements.append(.string(currentString))
-                    currentString = ""
-                }
-                let reference: Int32 = try reader.readElement(offset: currentOffset + 1)
-                let offset = Int(offset + (currentOffset - offset))
-                elements.append(.lookup(.init(offset: offset, reference: .relative(.init(kind: value, relativeOffset: reference + 1)))))
-                currentOffset.offset(of: Int32.self)
-            } else if value >= 0x18, value <= 0x1F {
-                if currentString.count > 0 {
-                    elements.append(.string(currentString))
-                    currentString = ""
-                }
-                let reference: UInt64 = try reader.readElement(offset: currentOffset + 1)
-                let offset = Int(offset + (currentOffset - offset))
-                elements.append(.lookup(.init(offset: offset, reference: .absolute(.init(kind: value, reference: reference)))))
-                currentOffset.offset(of: UInt64.self)
-            } else {
-                currentString.append(String(format: "%c", value))
-            }
-            currentOffset.offset(of: UInt8.self)
-        }
-
-        return .init(elements: elements, startOffset: offset, endOffset: currentOffset)
-    }
-    
+    /// Parses the mangled name that starts at `address`.
+    ///
+    /// Every offset in the result — the start, the end and each lookup
+    /// element's — is `offsetFromAddress(address)` plus a distance from the
+    /// start: a file offset in a `MachOContext`, an absolute pointer bit
+    /// pattern in `InProcessContext`, which `RuntimeFunctions` hands to the
+    /// runtime as the name's start. A context that strips tag bits when it
+    /// reads therefore never mixes a tagged start with untagged offsets.
     public static func resolve<Context: ReadingContext>(at address: Context.Address, in context: Context) throws -> MangledName {
+        let startOffset = try context.offsetFromAddress(address)
         var elements: [MangledName.Element] = []
-        var currentAddress = address
+        var distanceFromStart = 0
         var currentString = ""
         while true {
+            let currentAddress = context.advanceAddress(address, by: distanceFromStart)
             let value: UInt8 = try context.readElement(at: currentAddress)
             if value == 0xFF {}
             else if value == 0 {
@@ -191,7 +141,7 @@ extension MangledName: Resolvable {
                     elements.append(.string(currentString))
                     currentString = ""
                 }
-                currentAddress = context.advanceAddress(currentAddress, of: UInt8.self)
+                distanceFromStart.offset(of: UInt8.self)
                 break
             } else if value >= 0x01, value <= 0x17 {
                 if currentString.count > 0 {
@@ -199,25 +149,37 @@ extension MangledName: Resolvable {
                     currentString = ""
                 }
                 let reference: Int32 = try context.readElement(at: context.advanceAddress(currentAddress, by: 1))
-                let offset = try context.offsetFromAddress(currentAddress)
-                elements.append(.lookup(.init(offset: offset, reference: .relative(.init(kind: value, relativeOffset: reference + 1)))))
-                currentAddress = context.advanceAddress(currentAddress, of: Int32.self)
+                elements.append(.lookup(.init(offset: startOffset + distanceFromStart, reference: .relative(.init(kind: value, relativeOffset: reference + 1)))))
+                distanceFromStart.offset(of: Int32.self)
             } else if value >= 0x18, value <= 0x1F {
                 if currentString.count > 0 {
                     elements.append(.string(currentString))
                     currentString = ""
                 }
                 let reference: UInt64 = try context.readElement(at: context.advanceAddress(currentAddress, by: 1))
-                let offset = try context.offsetFromAddress(currentAddress)
-                elements.append(.lookup(.init(offset: offset, reference: .absolute(.init(kind: value, reference: reference)))))
-                currentAddress = context.advanceAddress(currentAddress, of: UInt64.self)
+                elements.append(.lookup(.init(offset: startOffset + distanceFromStart, reference: .absolute(.init(kind: value, reference: reference)))))
+                distanceFromStart.offset(of: UInt64.self)
             } else {
                 currentString.append(String(format: "%c", value))
             }
-            currentAddress = context.advanceAddress(currentAddress, of: UInt8.self)
+            distanceFromStart.offset(of: UInt8.self)
         }
 
-        return .init(elements: elements, startOffset: try context.offsetFromAddress(address), endOffset: try context.offsetFromAddress(currentAddress))
+        return .init(elements: elements, startOffset: startOffset, endOffset: startOffset + distanceFromStart)
+    }
+}
+
+// MARK: - Deprecated Mach-O and pointer forms
+
+extension MangledName {
+    @available(*, deprecated, message: "Pass a ReadingContext: resolve(at: offset, in: machO.context).")
+    public static func resolve(from offset: Int, in machO: some MachORepresentableWithCache & Readable) throws -> Self {
+        try resolve(at: offset, in: machO.context)
+    }
+
+    @available(*, deprecated, message: "Pass a ReadingContext: resolve(at: pointer, in: .inProcess).")
+    public static func resolve(from ptr: UnsafeRawPointer) throws -> Self {
+        try resolve(at: ptr, in: InProcessContext.shared)
     }
 }
 

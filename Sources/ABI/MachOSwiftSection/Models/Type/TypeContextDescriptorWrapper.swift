@@ -42,30 +42,6 @@ public enum TypeContextDescriptorWrapper {
         }
     }
 
-    public func parent(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> SymbolOrElement<ContextDescriptorWrapper>? {
-        return try contextDescriptor.parent(in: machO)
-    }
-
-    public func genericContext(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> GenericContext? {
-        return try contextDescriptor.genericContext(in: machO)
-    }
-
-    public func typeGenericContext(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> TypeGenericContext? {
-        return try typeContextDescriptor.typeGenericContext(in: machO)
-    }
-    
-    public func parent() throws -> SymbolOrElement<ContextDescriptorWrapper>? {
-        return try contextDescriptor.parent()
-    }
-
-    public func genericContext() throws -> GenericContext? {
-        return try contextDescriptor.genericContext()
-    }
-
-    public func typeGenericContext() throws -> TypeGenericContext? {
-        return try typeContextDescriptor.typeGenericContext()
-    }
-
     // MARK: - ReadingContext Support
 
     public func parent(in context: some ReadingContext) throws -> SymbolOrElement<ContextDescriptorWrapper>? {
@@ -99,52 +75,6 @@ public enum TypeContextDescriptorWrapper {
 extension TypeContextDescriptorWrapper: Resolvable {
     public enum ResolutionError: Error {
         case invalidTypeContextDescriptor
-    }
-
-    public static func resolve(from offset: Int, in machO: some MachORepresentableWithCache & Readable) throws -> Self {
-        let contextDescriptor: ContextDescriptor = try machO.readWrapperElement(offset: offset)
-        switch contextDescriptor.flags.kind {
-        case .class:
-            return try .class(machO.readWrapperElement(offset: offset))
-        case .enum:
-            return try .enum(machO.readWrapperElement(offset: offset))
-        case .struct:
-            return try .struct(machO.readWrapperElement(offset: offset))
-        default:
-            throw ResolutionError.invalidTypeContextDescriptor
-        }
-    }
-
-    public static func resolve(from offset: Int, in machO: some MachORepresentableWithCache & Readable) throws -> Self? {
-        do {
-            return try resolve(from: offset, in: machO) as Self
-        } catch {
-            print("Error resolving ContextDescriptorWrapper: \(error)")
-            return nil
-        }
-    }
-
-    public static func resolve(from ptr: UnsafeRawPointer) throws -> Self {
-        let contextDescriptor = try ContextDescriptor.resolve(from: ptr)
-        switch contextDescriptor.flags.kind {
-        case .class:
-            return try .class(.resolve(from: ptr))
-        case .enum:
-            return try .enum(.resolve(from: ptr))
-        case .struct:
-            return try .struct(.resolve(from: ptr))
-        default:
-            throw ResolutionError.invalidTypeContextDescriptor
-        }
-    }
-
-    public static func resolve(from ptr: UnsafeRawPointer) throws -> Self? {
-        do {
-            return try resolve(from: ptr) as Self
-        } catch {
-            print("Error resolving ContextDescriptorWrapper: \(error)")
-            return nil
-        }
     }
 
     // MARK: - ReadingContext Support
@@ -206,22 +136,6 @@ public enum ValueTypeDescriptorWrapper {
         }
     }
 
-    public func parent(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> SymbolOrElement<ContextDescriptorWrapper>? {
-        return try contextDescriptor.parent(in: machO)
-    }
-
-    public func genericContext(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> GenericContext? {
-        return try contextDescriptor.genericContext(in: machO)
-    }
-
-    public func parent() throws -> SymbolOrElement<ContextDescriptorWrapper>? {
-        return try contextDescriptor.parent()
-    }
-
-    public func genericContext() throws -> GenericContext? {
-        return try contextDescriptor.genericContext()
-    }
-
     // MARK: - ReadingContext Support
 
     public func parent(in context: some ReadingContext) throws -> SymbolOrElement<ContextDescriptorWrapper>? {
@@ -251,48 +165,6 @@ extension ValueTypeDescriptorWrapper: Resolvable {
         case invalidTypeContextDescriptor
     }
 
-    public static func resolve(from offset: Int, in machO: some MachORepresentableWithCache & Readable) throws -> Self {
-        let contextDescriptor: ContextDescriptor = try machO.readWrapperElement(offset: offset)
-        switch contextDescriptor.flags.kind {
-        case .enum:
-            return try .enum(machO.readWrapperElement(offset: offset))
-        case .struct:
-            return try .struct(machO.readWrapperElement(offset: offset))
-        default:
-            throw ResolutionError.invalidTypeContextDescriptor
-        }
-    }
-
-    public static func resolve(from offset: Int, in machO: some MachORepresentableWithCache & Readable) throws -> Self? {
-        do {
-            return try resolve(from: offset, in: machO) as Self
-        } catch {
-            print("Error resolving ContextDescriptorWrapper: \(error)")
-            return nil
-        }
-    }
-
-    public static func resolve(from ptr: UnsafeRawPointer) throws -> Self {
-        let contextDescriptor = try ContextDescriptor.resolve(from: ptr)
-        switch contextDescriptor.flags.kind {
-        case .enum:
-            return try .enum(.resolve(from: ptr))
-        case .struct:
-            return try .struct(.resolve(from: ptr))
-        default:
-            throw ResolutionError.invalidTypeContextDescriptor
-        }
-    }
-
-    public static func resolve(from ptr: UnsafeRawPointer) throws -> Self? {
-        do {
-            return try resolve(from: ptr) as Self
-        } catch {
-            print("Error resolving ContextDescriptorWrapper: \(error)")
-            return nil
-        }
-    }
-    
     public static func resolve<Context: ReadingContext>(at address: Context.Address, in context: Context) throws -> Self {
         let contextDescriptor: ContextDescriptor = try context.readWrapperElement(at: address)
         switch contextDescriptor.flags.kind {
@@ -312,5 +184,101 @@ extension ValueTypeDescriptorWrapper: Resolvable {
             print("Error resolving ContextDescriptorWrapper: \(error)")
             return nil
         }
+    }
+}
+
+// MARK: - Deprecated Mach-O and pointer forms
+
+extension TypeContextDescriptorWrapper {
+    @available(*, deprecated, message: "Pass a ReadingContext: parent(in: machO.context).")
+    public func parent(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> SymbolOrElement<ContextDescriptorWrapper>? {
+        try parent(in: machO.context)
+    }
+
+    @available(*, deprecated, message: "Pass a ReadingContext: genericContext(in: machO.context).")
+    public func genericContext(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> GenericContext? {
+        try genericContext(in: machO.context)
+    }
+
+    @available(*, deprecated, message: "Pass a ReadingContext: typeGenericContext(in: machO.context).")
+    public func typeGenericContext(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> TypeGenericContext? {
+        try typeGenericContext(in: machO.context)
+    }
+
+    @available(*, deprecated, message: "Pass a ReadingContext: parent(in: .inProcess).")
+    public func parent() throws -> SymbolOrElement<ContextDescriptorWrapper>? {
+        try parent(in: InProcessContext.shared)
+    }
+
+    @available(*, deprecated, message: "Pass a ReadingContext: genericContext(in: .inProcess).")
+    public func genericContext() throws -> GenericContext? {
+        try genericContext(in: InProcessContext.shared)
+    }
+
+    @available(*, deprecated, message: "Pass a ReadingContext: typeGenericContext(in: .inProcess).")
+    public func typeGenericContext() throws -> TypeGenericContext? {
+        try typeGenericContext(in: InProcessContext.shared)
+    }
+
+    @available(*, deprecated, message: "Pass a ReadingContext: resolve(at: offset, in: machO.context).")
+    public static func resolve(from offset: Int, in machO: some MachORepresentableWithCache & Readable) throws -> Self {
+        try resolve(at: offset, in: machO.context)
+    }
+
+    @available(*, deprecated, message: "Pass a ReadingContext: resolve(at: offset, in: machO.context).")
+    public static func resolve(from offset: Int, in machO: some MachORepresentableWithCache & Readable) throws -> Self? {
+        try resolve(at: offset, in: machO.context)
+    }
+
+    @available(*, deprecated, message: "Pass a ReadingContext: resolve(at: pointer, in: .inProcess).")
+    public static func resolve(from ptr: UnsafeRawPointer) throws -> Self {
+        try resolve(at: ptr, in: InProcessContext.shared)
+    }
+
+    @available(*, deprecated, message: "Pass a ReadingContext: resolve(at: pointer, in: .inProcess).")
+    public static func resolve(from ptr: UnsafeRawPointer) throws -> Self? {
+        try resolve(at: ptr, in: InProcessContext.shared)
+    }
+}
+
+extension ValueTypeDescriptorWrapper {
+    @available(*, deprecated, message: "Pass a ReadingContext: parent(in: machO.context).")
+    public func parent(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> SymbolOrElement<ContextDescriptorWrapper>? {
+        try parent(in: machO.context)
+    }
+
+    @available(*, deprecated, message: "Pass a ReadingContext: genericContext(in: machO.context).")
+    public func genericContext(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> GenericContext? {
+        try genericContext(in: machO.context)
+    }
+
+    @available(*, deprecated, message: "Pass a ReadingContext: parent(in: .inProcess).")
+    public func parent() throws -> SymbolOrElement<ContextDescriptorWrapper>? {
+        try parent(in: InProcessContext.shared)
+    }
+
+    @available(*, deprecated, message: "Pass a ReadingContext: genericContext(in: .inProcess).")
+    public func genericContext() throws -> GenericContext? {
+        try genericContext(in: InProcessContext.shared)
+    }
+
+    @available(*, deprecated, message: "Pass a ReadingContext: resolve(at: offset, in: machO.context).")
+    public static func resolve(from offset: Int, in machO: some MachORepresentableWithCache & Readable) throws -> Self {
+        try resolve(at: offset, in: machO.context)
+    }
+
+    @available(*, deprecated, message: "Pass a ReadingContext: resolve(at: offset, in: machO.context).")
+    public static func resolve(from offset: Int, in machO: some MachORepresentableWithCache & Readable) throws -> Self? {
+        try resolve(at: offset, in: machO.context)
+    }
+
+    @available(*, deprecated, message: "Pass a ReadingContext: resolve(at: pointer, in: .inProcess).")
+    public static func resolve(from ptr: UnsafeRawPointer) throws -> Self {
+        try resolve(at: ptr, in: InProcessContext.shared)
+    }
+
+    @available(*, deprecated, message: "Pass a ReadingContext: resolve(at: pointer, in: .inProcess).")
+    public static func resolve(from ptr: UnsafeRawPointer) throws -> Self? {
+        try resolve(at: ptr, in: InProcessContext.shared)
     }
 }

@@ -16,7 +16,7 @@ extension TypeContextWrapper {
             } else if type.descriptor.isGeneric {
                 metadataContext = nil
             } else {
-                metadataContext = try? type.descriptor.metadataAccessorFunction(in: machO)?(request: .init()).value.resolve(in: machO).enum.map { .init(metadata: $0, readingContext: MachOContext(machO)) }
+                metadataContext = try? type.descriptor.metadataAccessorFunction(in: machO.context)?(request: .init()).value.resolve(in: machO.context).enum.map { .init(metadata: $0, readingContext: MachOContext(machO)) }
             }
             return EnumDumper(type, metadataContext: metadataContext, using: configuration, in: machO)
         case .struct(let type):
@@ -26,7 +26,7 @@ extension TypeContextWrapper {
             } else if type.descriptor.isGeneric {
                 metadataContext = nil
             } else {
-                metadataContext = try? type.descriptor.metadataAccessorFunction(in: machO)?(request: .init()).value.resolve(in: machO).struct.map { .init(metadata: $0, readingContext: MachOContext(machO)) }
+                metadataContext = try? type.descriptor.metadataAccessorFunction(in: machO.context)?(request: .init()).value.resolve(in: machO.context).struct.map { .init(metadata: $0, readingContext: MachOContext(machO)) }
             }
             return StructDumper(type, metadataContext: metadataContext, using: configuration, in: machO)
         case .class(let type):
@@ -36,7 +36,7 @@ extension TypeContextWrapper {
             } else if type.descriptor.isGeneric {
                 metadataContext = nil
             } else {
-                metadataContext = try? type.descriptor.metadataAccessorFunction(in: machO)?(request: .init()).value.resolve(in: machO).class.map { .init(metadata: $0, readingContext: MachOContext(machO)) }
+                metadataContext = try? type.descriptor.metadataAccessorFunction(in: machO.context)?(request: .init()).value.resolve(in: machO.context).class.map { .init(metadata: $0, readingContext: MachOContext(machO)) }
             }
             return ClassDumper(type, metadataContext: metadataContext, using: configuration, in: machO)
         }

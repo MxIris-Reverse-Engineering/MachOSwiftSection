@@ -57,7 +57,7 @@ package struct ObjCImplementationClassDumper<MachO: MachOFieldLayoutRenderable>:
 
     package var name: SemanticString {
         get async throws {
-            TypeDeclaration(kind: .class, facts.className)
+            dumped.dumpedName
         }
     }
 

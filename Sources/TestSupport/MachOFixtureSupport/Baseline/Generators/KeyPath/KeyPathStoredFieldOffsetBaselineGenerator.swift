@@ -17,8 +17,8 @@ package enum KeyPathStoredFieldOffsetBaselineGenerator {
         outputDirectory: URL
     ) throws {
         let descriptors = try KeyPathFixtureDescriptors(in: machO)
-        let inlineOffset = try required(descriptors.inlineStoredOffset.storedFieldOffset(in: machO))
-        let unresolvedOffset = try required(descriptors.unresolvedFieldOffset.storedFieldOffset(in: machO))
+        let inlineOffset = try required(descriptors.inlineStoredOffset.storedFieldOffset(in: machO.context))
+        let unresolvedOffset = try required(descriptors.unresolvedFieldOffset.storedFieldOffset(in: machO.context))
 
         let registered = ["kind", "rawValue", "staticFieldOffset"]
 

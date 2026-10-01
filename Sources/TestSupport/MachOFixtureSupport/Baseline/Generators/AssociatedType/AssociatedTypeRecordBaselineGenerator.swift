@@ -23,7 +23,7 @@ package enum AssociatedTypeRecordBaselineGenerator {
         outputDirectory: URL
     ) throws {
         let descriptor = try BaselineFixturePicker.associatedTypeDescriptor_ConcreteWitnessTest(in: machO)
-        let records = try descriptor.associatedTypeRecords(in: machO)
+        let records = try descriptor.associatedTypeRecords(in: machO.context)
         let firstRecord = try required(records.first)
 
         let entryExpr = try emitEntryExpr(for: firstRecord, in: machO)
@@ -77,8 +77,8 @@ package enum AssociatedTypeRecordBaselineGenerator {
         in machO: some MachOSwiftSectionRepresentableWithCache
     ) throws -> String {
         let offset = record.offset
-        let name = try record.name(in: machO)
-        let hasSubstitutedTypeName = (try? record.substitutedTypeName(in: machO)) != nil
+        let name = try record.name(in: machO.context)
+        let hasSubstitutedTypeName = (try? record.substitutedTypeName(in: machO.context)) != nil
 
         let expr: ExprSyntax = """
         Entry(

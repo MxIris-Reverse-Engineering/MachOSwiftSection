@@ -28,7 +28,7 @@ package enum SingletonMetadataInitializationBaselineGenerator {
         outputDirectory: URL
     ) throws {
         let descriptor = try BaselineFixturePicker.class_singletonMetadataInitFirst(in: machO)
-        let classObject = try Class(descriptor: descriptor, in: machO)
+        let classObject = try Class(descriptor: descriptor, in: machO.context)
         let initialization = try required(classObject.singletonMetadataInitialization)
 
         let entryExpr = emitEntryExpr(for: initialization, descriptorOffset: descriptor.offset)

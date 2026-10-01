@@ -32,8 +32,8 @@ final class MultiPayloadEnumDescriptorCacheTests: MachOSwiftSectionFixtureTests,
         try #require(!multiPayloadEnumDescriptors.isEmpty, "fixture must carry multi-payload enum descriptors for this test to be meaningful")
 
         for multiPayloadEnumDescriptor in multiPayloadEnumDescriptors {
-            let mangledTypeName = try multiPayloadEnumDescriptor.mangledTypeName(in: machOImage)
-            let node = try SymbolicDemangler.demangleType(for: mangledTypeName, in: machOImage)
+            let mangledTypeName = try multiPayloadEnumDescriptor.mangledTypeName(in: imageContext)
+            let node = try SymbolicDemangler.demangleType(for: mangledTypeName, in: imageContext)
             let cached = MultiPayloadEnumDescriptorCache.shared.multiPayloadEnumDescriptor(for: node, in: machOImage)
             #expect(cached != nil, "cache missed a descriptor the build sweep should have indexed")
         }
@@ -60,8 +60,8 @@ final class MultiPayloadEnumDescriptorCacheTests: MachOSwiftSectionFixtureTests,
         let indexedDescriptorByNode = MultiPayloadEnumDescriptorCache.indexDescriptors(splicedDescriptors, in: machOFile)
 
         for realDescriptor in realDescriptors {
-            let mangledTypeName = try realDescriptor.mangledTypeName(in: machOFile)
-            let node = try SymbolicDemangler.demangleType(for: mangledTypeName, in: machOFile)
+            let mangledTypeName = try realDescriptor.mangledTypeName(in: fileContext)
+            let node = try SymbolicDemangler.demangleType(for: mangledTypeName, in: fileContext)
             #expect(
                 indexedDescriptorByNode[node] != nil,
                 "a descriptor after the unreadable one was dropped — the catch is truncating the map instead of skipping one entry"
@@ -124,7 +124,7 @@ final class MultiPayloadEnumDescriptorCacheTests: MachOSwiftSectionFixtureTests,
 
         let noncopyableEnumType = try #require(try machOImage.swift.types.first { type in
             guard case .enum(let enumType) = type else { return false }
-            return try enumType.descriptor.name(in: machOImage) == "NoncopyablePayloadEnumTest"
+            return try enumType.descriptor.name(in: imageContext) == "NoncopyablePayloadEnumTest"
         }, "fixture must contain AccessorFunctionReferences.NoncopyablePayloadEnumTest")
         let renderer = FieldLayoutRenderer(type: noncopyableEnumType, metadata: nil, machO: machOImage, configuration: configuration)
         let enumLayout = try #require(await renderer.enumLayout)

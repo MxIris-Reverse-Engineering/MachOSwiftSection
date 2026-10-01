@@ -98,7 +98,7 @@ package enum MultiPayloadEnumDescriptorBaselineGenerator {
     ) throws -> String {
         let offset = descriptor.offset
         let layoutSizeFlags = descriptor.layout.sizeFlags
-        let mangledTypeName = try descriptor.mangledTypeName(in: machO)
+        let mangledTypeName = try descriptor.mangledTypeName(in: machO.context)
         let mangledTypeNameRawString = mangledTypeName.rawString
         let contentsSizeInWord = descriptor.contentsSizeInWord
         let flags = descriptor.flags
@@ -107,10 +107,10 @@ package enum MultiPayloadEnumDescriptorBaselineGenerator {
         let payloadSpareBitMaskByteCountIndex = descriptor.payloadSpareBitMaskByteCountIndex
         let payloadSpareBitsIndex = descriptor.payloadSpareBitsIndex
         let actualSize = descriptor.actualSize
-        let contentsCount = try descriptor.contents(in: machO).count
-        let payloadSpareBitsCount = try descriptor.payloadSpareBits(in: machO).count
-        let payloadSpareBitMaskByteOffset = try descriptor.payloadSpareBitMaskByteOffset(in: machO)
-        let payloadSpareBitMaskByteCount = try descriptor.payloadSpareBitMaskByteCount(in: machO)
+        let contentsCount = try descriptor.contents(in: machO.context).count
+        let payloadSpareBitsCount = try descriptor.payloadSpareBits(in: machO.context).count
+        let payloadSpareBitMaskByteOffset = try descriptor.payloadSpareBitMaskByteOffset(in: machO.context)
+        let payloadSpareBitMaskByteCount = try descriptor.payloadSpareBitMaskByteCount(in: machO.context)
 
         let expr: ExprSyntax = """
         Entry(

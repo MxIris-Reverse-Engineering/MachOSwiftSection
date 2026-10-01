@@ -14,7 +14,7 @@ package enum GenericMetadataPartialPatternBaselineGenerator {
         outputDirectory: URL
     ) throws {
         let classPattern = try GenericMetadataPatternFixtures(in: machO).classPattern
-        let partialPattern = try required(try classPattern.partialPatterns(in: machO).first)
+        let partialPattern = try required(try classPattern.partialPatterns(in: machO.context).first)
 
         let registered = ["layout", "offset"]
 

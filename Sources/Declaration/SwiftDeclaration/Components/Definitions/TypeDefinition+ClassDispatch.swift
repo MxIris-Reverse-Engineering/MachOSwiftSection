@@ -16,9 +16,9 @@ extension TypeDefinition {
     func classDispatchLookups(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> ClassDispatchLookups {
         var lookups = ClassDispatchLookups()
         guard case .class(let classDescriptor) = typeContextDescriptorWrapper else { return lookups }
-        let classWrapper = try Class(descriptor: classDescriptor, in: machO)
+        let classWrapper = try Class(descriptor: classDescriptor, in: machO.context)
         var visitedNodes: OrderedSet<StructuralNodeReferenceKey> = []
-        let typeNode = try SymbolicDemangler.demangleContext(for: .type(.class(classWrapper.descriptor)), in: machO)
+        let typeNode = try SymbolicDemangler.demangleContext(for: .type(.class(classWrapper.descriptor)), in: machO.context)
         let vtableBaseOffset = classWrapper.vTableDescriptorHeader.map { Int($0.layout.vTableOffset) }
         lookups.canRecoverFinalMembers = classWrapper.vTableDescriptorHeader != nil && !classDescriptor.isActor
 
@@ -75,7 +75,7 @@ extension TypeDefinition {
                 continue
             }
             visitedNodes.append(StructuralNodeReferenceKey(node))
-            let joinKey = memberJoinKey(for: node, in: machO)
+            let joinKey = memberJoinKey(for: node, in: machO.context)
             lookups.methodDescriptorLookup[joinKey] = .method(descriptor)
             if let vtableBaseOffset {
                 lookups.vtableOffsetLookup[joinKey] = vtableBaseOffset + index
@@ -93,10 +93,10 @@ extension TypeDefinition {
             guard let overrideSymbol = demangledOverrideSymbol(for: symbols, typeNode: typeNode, visitedNodes: visitedNodes, in: machO) else { continue }
             let node = overrideSymbol.demangledNode
             visitedNodes.append(StructuralNodeReferenceKey(node))
-            let joinKey = memberJoinKey(for: node, in: machO)
+            let joinKey = memberJoinKey(for: node, in: machO.context)
             lookups.methodDescriptorLookup[joinKey] = .methodOverride(descriptor)
 
-            if let vtableSlot = try? parentVTableCache.slotIndex(for: descriptor, in: machO) {
+            if let vtableSlot = try? parentVTableCache.slotIndex(for: descriptor, in: machO.context) {
                 lookups.vtableOffsetLookup[joinKey] = vtableSlot
             }
         }
@@ -110,7 +110,7 @@ extension TypeDefinition {
             guard let overrideSymbol = demangledOverrideSymbol(for: symbols, typeNode: typeNode, visitedNodes: visitedNodes, in: machO) else { continue }
             let node = overrideSymbol.demangledNode
             visitedNodes.append(StructuralNodeReferenceKey(node))
-            lookups.methodDescriptorLookup[memberJoinKey(for: node, in: machO)] = .methodDefaultOverride(descriptor)
+            lookups.methodDescriptorLookup[memberJoinKey(for: node, in: machO.context)] = .methodDefaultOverride(descriptor)
         }
         return lookups
     }
@@ -158,7 +158,7 @@ extension TypeDefinition {
     private func asyncFunctionEntryOffset(ofAsyncFunctionPointerAt offset: Int, in machO: some MachOSwiftSectionRepresentableWithCache) -> Int? {
         do {
             // Annotated: the optional-returning overload reads another shape.
-            let asyncFunctionPointer: AsyncFunctionPointer = try AsyncFunctionPointer.resolve(from: offset, in: machO)
+            let asyncFunctionPointer: AsyncFunctionPointer = try AsyncFunctionPointer.resolve(at: offset, in: machO.context)
             return asyncFunctionPointer.resolvedDirectOffset(from: \.function)
         } catch {
             return nil

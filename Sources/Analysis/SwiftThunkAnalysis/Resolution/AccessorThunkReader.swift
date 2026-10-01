@@ -123,18 +123,18 @@ public enum AccessorThunkReader: AccessorThunkReadingLogging {
                   let descriptorOffset = MetadataAccessorIndex.index(for: machO).descriptorOffset(forAccessorOffset: offset)
             else { return nil }
             do {
-                let descriptor: ContextDescriptorWrapper = try ContextDescriptorWrapper.resolve(from: descriptorOffset, in: machO)
+                let descriptor: ContextDescriptorWrapper = try ContextDescriptorWrapper.resolve(at: descriptorOffset, in: machO.context)
                 // This reading names the accessor alone, without the
                 // arguments it was called with, so it is only right for a
                 // type that takes none. A generic descriptor's unbound tree
                 // would print as `_TaskValueModifier2A` once the owner's
                 // parameters are substituted into it — a real-looking, wrong
                 // type (measured on iOS 26.5 simulator SwiftUI).
-                if let genericContext = try descriptor.genericContext(in: machO), !genericContext.parameters.isEmpty {
+                if let genericContext = try descriptor.genericContext(in: machO.context), !genericContext.parameters.isEmpty {
                     #log(.info, "the accessor at offset \(offset, privacy: .public) belongs to a generic type; its arguments were not read, so it is not named")
                     return nil
                 }
-                return try SymbolicDemangler.demangleContext(for: descriptor, in: machO)
+                return try SymbolicDemangler.demangleContext(for: descriptor, in: machO.context)
             } catch {
                 #log(.info, "could not name the accessor at offset \(offset, privacy: .public): \(String(describing: error), privacy: .public)")
                 return nil

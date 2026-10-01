@@ -14,8 +14,8 @@ import MachOFixtureSupport
 /// no MachOFile path materialises one.
 ///
 /// **Reader asymmetry:** `MachOImage` is the only reader that surfaces a
-/// live carrier. The Suite asserts the structural members agree across
-/// the (image, imageContext, inProcess) reader axes.
+/// live carrier, so the Suite reads every member through the image
+/// context.
 ///
 /// `init(layout:offset:)` is filtered as memberwise-synthesized.
 @Suite
@@ -29,10 +29,10 @@ final class FullMetadataTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unc
     /// from a MachOImage metadata accessor.
     private func loadFullStructMetadata() throws -> FullMetadata<StructMetadata> {
         let descriptor = try BaselineFixturePicker.struct_StructTest(in: machOImage)
-        let accessor = try required(try descriptor.metadataAccessorFunction(in: machOImage))
+        let accessor = try required(try descriptor.metadataAccessorFunction(in: imageContext))
         let response = try accessor(request: .init())
-        let structMetadata = try required(try response.value.resolve(in: machOImage).struct)
-        return try structMetadata.asFullMetadata(in: machOImage)
+        let structMetadata = try required(try response.value.resolve(in: imageContext).struct)
+        return try structMetadata.asFullMetadata(in: imageContext)
     }
 
     @Test func offset() async throws {
@@ -48,14 +48,5 @@ final class FullMetadataTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unc
         // value-type carrier; the header sub-layout's `valueWitnesses`
         // pointer must be non-nil (the reflexive lookup succeeded).
         #expect(full.layout.metadata.kind == StoredPointer(MetadataKind.struct.rawValue))
-
-        // ReadingContext path also exercised — the layout values must
-        // round-trip through `asFullMetadata(in: imageContext)`.
-        let descriptor = try BaselineFixturePicker.struct_StructTest(in: machOImage)
-        let accessor = try required(try descriptor.metadataAccessorFunction(in: machOImage))
-        let response = try accessor(request: .init())
-        let structMetadata = try required(try response.value.resolve(in: machOImage).struct)
-        let viaImageContext = try structMetadata.asFullMetadata(in: imageContext)
-        #expect(viaImageContext.layout.metadata.kind == full.layout.metadata.kind)
     }
 }

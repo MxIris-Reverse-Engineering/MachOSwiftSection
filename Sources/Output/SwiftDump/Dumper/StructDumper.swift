@@ -56,7 +56,7 @@ package struct StructDumper<MachO: MachOFieldLayoutRenderable>: TypedDumper {
             // is orthogonal to substitution.
             let isBound = boundDumpedMetatype() != nil
             if !isBound, let genericContext = dumped.genericContext {
-                try await genericContext.dumpGenericSignature(resolver: demangleResolver, in: machO) {
+                try await genericContext.dumpGenericSignature(resolver: demangleResolver, in: machO.context) {
                     if let invertibleProtocolSet = dumped.invertibleProtocolSet, invertibleProtocolSet.hasInvertedProtocols {
                         invertibleProtocolSet.dumpInvertedProtocolsInheritance
                     }
@@ -82,17 +82,17 @@ package struct StructDumper<MachO: MachOFieldLayoutRenderable>: TypedDumper {
                 autoResolveAccessorMetadata: false
             )
             let fieldOffsets = fieldLayoutRenderer.fieldOffsets
-            for (offset, fieldRecord) in try dumped.descriptor.fieldDescriptor(in: machO).records(in: machO).offsetEnumerated() {
+            for (offset, fieldRecord) in try dumped.descriptor.fieldDescriptor(in: machO.context).records(in: machO.context).offsetEnumerated() {
                 BreakLine()
 
-                let mangledTypeName = try fieldRecord.mangledTypeName(in: machO)
+                let mangledTypeName = try fieldRecord.mangledTypeName(in: machO.context)
 
                 try await fieldLayoutRenderer.storedFieldComments(forFieldAtIndex: offset.index, mangledTypeName: mangledTypeName, fieldOffsets: fieldOffsets)
 
                 // dump shows what the record says, so a `@_rawLayout(like:)`
                 // struct's artificial `_rawLayout` record (Swift 6.4) still
                 // renders — behind a comment saying it is not a stored property.
-                if FieldRecordRendering.isRawLayoutStorageRecord(name: try fieldRecord.fieldName(in: machO), isArtificial: fieldRecord.flags.contains(.isArtificial)) {
+                if FieldRecordRendering.isRawLayoutStorageRecord(name: try fieldRecord.fieldName(in: machO.context), isArtificial: fieldRecord.flags.contains(.isArtificial)) {
                     Indent(level: configuration.indentation)
                     Comment(FieldRecordRendering.artificialRawLayoutRecordComment)
                     BreakLine()
@@ -102,7 +102,7 @@ package struct StructDumper<MachO: MachOFieldLayoutRenderable>: TypedDumper {
 
                 let demangledTypeNode = try fieldDemangledTypeNode(for: mangledTypeName)
 
-                let fieldName = try fieldRecord.fieldName(in: machO)
+                let fieldName = try fieldRecord.fieldName(in: machO.context)
 
                 fieldDeclarationKeywords(for: fieldRecord, typeNode: demangledTypeNode, fieldName: fieldName)
 
@@ -142,7 +142,7 @@ package struct StructDumper<MachO: MachOFieldLayoutRenderable>: TypedDumper {
             // bucket; the context node picks this type's own sub-bucket
             // (issue #115). A context that cannot be demangled falls back to
             // the name-only (merged) lookup rather than dropping members.
-            let contextNode = try? SymbolicDemangler.demangleContext(for: .type(.struct(dumped.descriptor)), in: machO)
+            let contextNode = try? SymbolicDemangler.demangleContext(for: .type(.struct(dumped.descriptor)), in: machO.context)
 
             for kind in SymbolIndexStore.MemberKind.allCases {
                 let memberSymbols = if let contextNode {
@@ -209,11 +209,7 @@ package struct StructDumper<MachO: MachOFieldLayoutRenderable>: TypedDumper {
 
     @SemanticStringBuilder
     private func _name(using resolver: DemangleResolver) async throws -> SemanticString {
-        if configuration.displayParentName {
-            try await resolver.resolve(for: SymbolicDemangler.demangleContext(for: .type(.struct(dumped.descriptor)), in: machO)).replacingTypeNameOrOtherToTypeDeclaration()
-        } else {
-            try TypeDeclaration(kind: .struct, dumped.descriptor.name(in: machO))
-        }
+        try await dumped.dumpedName(using: resolver, configuration: configuration, in: machO.context)
     }
 }
 

@@ -193,7 +193,7 @@ public final class TypeDefinition: Definition {
     }
 
     public convenience init(type: TypeContextWrapper, in machO: some MachOSwiftSectionRepresentableWithCache) async throws {
-        let typeName = try type.typeName(in: machO)
+        let typeName = try type.typeName(in: machO.context)
         let exportStatus = ExportStatus.resolve(
             forNominalTypeDescriptorAt: type.typeContextDescriptorWrapper.typeContextDescriptor.offset,
             typeNameNode: typeName.node,
@@ -210,8 +210,13 @@ public final class TypeDefinition: Definition {
     /// the result through as a local variable. The result is deliberately
     /// not cached — retaining it on the definition would re-accumulate, in
     /// browse order, the memory the descriptor slimming reclaimed.
+    public func materializedTypeContext(in context: some ReadingContext) throws -> TypeContextWrapper {
+        try TypeContextWrapper.forTypeContextDescriptorWrapper(typeContextDescriptorWrapper, in: context)
+    }
+
+    @available(*, deprecated, message: "Pass a ReadingContext: materializedTypeContext(in: machO.context).")
     public func materializedTypeContext(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> TypeContextWrapper {
-        try TypeContextWrapper.forTypeContextDescriptorWrapper(typeContextDescriptorWrapper, in: machO)
+        try materializedTypeContext(in: machO.context)
     }
 
     /// What a type-level attribute prints in parentheses, or `nil` when it

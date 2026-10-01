@@ -56,7 +56,7 @@ package enum GenericMetadataPatternProtocolBaselineGenerator {
             hasTrailingFlags: fixtures.valuePattern.hasTrailingFlags,
             partialPatternsOffset: fixtures.valuePattern.partialPatternsOffset,
             size: fixtures.valuePattern.size,
-            partialPatternCount: try fixtures.valuePattern.partialPatterns(in: machO).count
+            partialPatternCount: try fixtures.valuePattern.partialPatterns(in: machO.context).count
         )
         let classEntry = emitEntry(
             offset: fixtures.classPattern.offset,
@@ -65,7 +65,7 @@ package enum GenericMetadataPatternProtocolBaselineGenerator {
             hasTrailingFlags: fixtures.classPattern.hasTrailingFlags,
             partialPatternsOffset: fixtures.classPattern.partialPatternsOffset,
             size: fixtures.classPattern.size,
-            partialPatternCount: try fixtures.classPattern.partialPatterns(in: machO).count
+            partialPatternCount: try fixtures.classPattern.partialPatterns(in: machO.context).count
         )
 
         let file: SourceFileSyntax = """

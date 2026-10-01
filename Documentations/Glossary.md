@@ -66,6 +66,20 @@
 - **主要出现在**：`Sources/MachO/MachOSymbols/SymbolIndexStore.swift`、`Sources/MachO/MachOSymbols/SymbolRowBucket.swift`
 - **延伸阅读**：[提案 0003](Evolutions/0003-symbol-row-bucket-flattening.md)
 
+### cache scope（缓存范围，`ReadingContextCacheScope`）
+
+一个 `ReadingContext` 声明的「按它读出来的东西，memo 缓存该存到哪一层」：`.image(identifier:)` 按镜像存（键就是 reader 的 `identifier`，与其它按镜像缓存同一个键，随镜像一起驱逐），`.process` 存进全进程共享的一层（地址是绝对地址，两个镜像不会撞），`.uncached` 不缓存。`MachOContext` 声明 `.image`，`InProcessContext` 声明 `.process`，其余实现默认 `.uncached`——以文件偏移为地址的第三方 context 如果落进全进程那层，两个镜像的偏移会互相串结果。反混淆 memo（`SymbolicDemanglerCache`）与节点驻留池（`InternedNodeReferenceCache`）按它选层。
+
+- **主要出现在**：`Sources/MachO/MachOReading/ReadingContext/ReadingContext.swift`、`Sources/Analysis/SwiftInspection/SymbolicDemangler.swift`、`Sources/MachO/MachOSymbols/InternedNodeReferenceCache.swift`
+- **延伸阅读**：[提案 0057](Evolutions/0057-reading-context-migration.md)、[ReadingContextAbstraction.md](Internal/ReadingContextAbstraction.md)
+
+### context form / Mach-O form / pointer form（读取接口的三种形式）
+
+同一个读取接口曾经最多有三份手写实现：context form 收 `some ReadingContext`（`name(in: context)`、静态 `resolve(at:in:)`），Mach-O form 收一个 Mach-O reader、按偏移读（`name(in: machO)`、`resolve(from:in:)`），pointer form 不收读取器、直接用裸指针读本进程内存（`name()`、`resolve(from: pointer)`）。2026-09-30 起 context form 是唯一实现，另外两种是 0.22.0 废弃、0.23.0 删除的一行转发（`machO.context` / `.inProcess`）。
+
+- **主要出现在**：`Sources/ABI/MachOSwiftSection/Models/`、`Sources/MachO/MachOPointers/`、`Sources/MachO/MachOResolving/Resolvable.swift`
+- **延伸阅读**：[提案 0057](Evolutions/0057-reading-context-migration.md)、[ReadingContextAbstraction.md](Internal/ReadingContextAbstraction.md)
+
 ### dependency closure（依赖闭包）
 
 一个 root 二进制经 `LC_LOAD_DYLIB` 家族 load command 解析出的依赖镜像集合（`MachODependencies.DependencyClosure`）。本项目里的「闭包」默认指**传递**闭包：BFS 递归、按裸镜像名去重、root 排除、解析顺序是契约的一部分（`SwiftLayout.ImageUniverse` 按此顺序惰性索引、命中即停）。同一类型也承载 `.direct` 遍历（只取 root 自己的一层），`SwiftInterfaceBuilderDependencies` 用的是这一种——名字里的「闭包」在那里只是复用同一个结果类型。定位不到的依赖记入 `unresolvedLoadNames`，不算失败。

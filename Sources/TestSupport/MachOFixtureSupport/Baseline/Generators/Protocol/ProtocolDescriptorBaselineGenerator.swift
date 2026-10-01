@@ -71,7 +71,7 @@ package enum ProtocolDescriptorBaselineGenerator {
         let layoutNumRequirementsInSignature = descriptor.layout.numRequirementsInSignature
         let layoutNumRequirements = descriptor.layout.numRequirements
         let layoutFlagsRawValue = descriptor.layout.flags.rawValue
-        let associatedTypes = try descriptor.associatedTypes(in: machO)
+        let associatedTypes = try descriptor.associatedTypes(in: machO.context)
 
         let expr: ExprSyntax = """
         Entry(

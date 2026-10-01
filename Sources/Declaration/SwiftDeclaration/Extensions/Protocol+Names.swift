@@ -4,21 +4,13 @@ import MachOSwiftSection
 @_spi(Internals) import SwiftInspection
 
 extension MachOSwiftSection.`Protocol` {
-    package func protocolName(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> ProtocolName {
-        try descriptor.protocolName(in: machO)
-    }
-    
-    package func protocolName() throws -> ProtocolName {
-        try descriptor.protocolName()
+    package func protocolName(in context: some ReadingContext) throws -> ProtocolName {
+        try descriptor.protocolName(in: context)
     }
 }
 
 extension ProtocolDescriptor {
-    package func protocolName(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> ProtocolName {
-        ProtocolName(node: InternedNodeReferenceCache.shared.reference(interning: try SymbolicDemangler.demangleContext(for: .protocol(self), in: machO), in: machO))
-    }
-    
-    package func protocolName() throws -> ProtocolName {
-        ProtocolName(node: InternedNodeReferenceCache.shared.reference(interning: try SymbolicDemangler.demangleContext(for: .protocol(self))))
+    package func protocolName(in context: some ReadingContext) throws -> ProtocolName {
+        ProtocolName(node: InternedNodeReferenceCache.shared.reference(interning: try SymbolicDemangler.demangleContext(for: .protocol(self), in: context), in: context))
     }
 }

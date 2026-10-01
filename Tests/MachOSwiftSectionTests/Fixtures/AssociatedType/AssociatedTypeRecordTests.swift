@@ -28,8 +28,8 @@ final class AssociatedTypeRecordTests: MachOSwiftSectionFixtureTests, FixtureSui
     private func loadFirstRecord() throws -> (file: AssociatedTypeRecord, image: AssociatedTypeRecord) {
         let fileDescriptor = try BaselineFixturePicker.associatedTypeDescriptor_ConcreteWitnessTest(in: machOFile)
         let imageDescriptor = try BaselineFixturePicker.associatedTypeDescriptor_ConcreteWitnessTest(in: machOImage)
-        let fileRecords = try fileDescriptor.associatedTypeRecords(in: machOFile)
-        let imageRecords = try imageDescriptor.associatedTypeRecords(in: machOImage)
+        let fileRecords = try fileDescriptor.associatedTypeRecords(in: fileContext)
+        let imageRecords = try imageDescriptor.associatedTypeRecords(in: imageContext)
         let file = try required(fileRecords.first)
         let image = try required(imageRecords.first)
         return (file: file, image: image)
@@ -53,9 +53,9 @@ final class AssociatedTypeRecordTests: MachOSwiftSectionFixtureTests, FixtureSui
         // structural-presence anchor — it just verifies the layout
         // accessor is available and consistent across readers.
         let records = try loadFirstRecord()
-        let nameStringMatches = try acrossAllReaders(
-            file: { try records.file.name(in: machOFile) },
-            image: { try records.image.name(in: machOImage) }
+        let nameStringMatches = try acrossAllContexts(
+            file: { try records.file.name(in: fileContext) },
+            image: { try records.image.name(in: imageContext) }
         )
         #expect(nameStringMatches == AssociatedTypeRecordBaseline.firstRecord.name)
     }
@@ -64,27 +64,19 @@ final class AssociatedTypeRecordTests: MachOSwiftSectionFixtureTests, FixtureSui
 
     @Test func name() async throws {
         let records = try loadFirstRecord()
-        let result = try acrossAllReaders(
-            file: { try records.file.name(in: machOFile) },
-            image: { try records.image.name(in: machOImage) }
+        let result = try acrossAllContexts(
+            file: { try records.file.name(in: fileContext) },
+            image: { try records.image.name(in: imageContext) }
         )
         #expect(result == AssociatedTypeRecordBaseline.firstRecord.name)
-
-        // ReadingContext-based overload also exercised.
-        let imageCtxResult = try records.image.name(in: imageContext)
-        #expect(imageCtxResult == AssociatedTypeRecordBaseline.firstRecord.name)
     }
 
     @Test func substitutedTypeName() async throws {
         let records = try loadFirstRecord()
-        let presence = try acrossAllReaders(
-            file: { (try? records.file.substitutedTypeName(in: machOFile)) != nil },
-            image: { (try? records.image.substitutedTypeName(in: machOImage)) != nil }
+        let presence = try acrossAllContexts(
+            file: { (try? records.file.substitutedTypeName(in: fileContext)) != nil },
+            image: { (try? records.image.substitutedTypeName(in: imageContext)) != nil }
         )
         #expect(presence == AssociatedTypeRecordBaseline.firstRecord.hasSubstitutedTypeName)
-
-        // ReadingContext-based overload also exercised.
-        let imageCtxPresence = (try? records.image.substitutedTypeName(in: imageContext)) != nil
-        #expect(imageCtxPresence == AssociatedTypeRecordBaseline.firstRecord.hasSubstitutedTypeName)
     }
 }

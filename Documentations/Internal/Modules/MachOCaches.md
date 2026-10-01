@@ -68,6 +68,8 @@ package final class ObjCClassMethodIndex: @unchecked Sendable {
 
 没有直接把协议的 `associatedtype Identifier` 收窄成具体类型，因为协议在 sibling 仓库 `MachOKitExtensions` 里，且要给每个泛型签名加 `where MachO.Identifier == MachOTargetIdentifier`；这里用一次 `as?` 得到同样效果。
 
+手里只有 `ReadingContext`、没有读者的 memo（`SymbolicDemangler` 的反混淆缓存、`InternedNodeReferenceCache`）从 context 的缓存范围（`cacheScope`）拿身份：`MachOContext` 答 `.image(identifier:)`，带的就是读者的 `MachOTargetIdentifier`，memo 用 `SharedCacheKey(identifier:)` 建键，与 `SharedCacheKey(machO)` 是同一个键，所以经读者和经 context 存进去的条目是同一条，驱逐也一起走。这个载荷故意是具体类型而不是 `AnyHashable`，理由同上：每次 memo 查找都要问一次范围。详见 [ReadingContextAbstraction.md](../ReadingContextAbstraction.md)「缓存范围」一节。
+
 ## 3. 驱逐（`SharedCacheRegistry` / `SharedCacheEvictionGroup`）
 
 每个 `SharedCache` 在创建时声明自己的 eviction group，并向进程级 `SharedCacheRegistry.shared` 登记（弱引用）。**`MachOCaches` 自己不定义任何 group**：`SharedCacheEvictionGroup` 是一个只有名字的结构体，各模块在自己的扩展文件（`SharedCacheEvictionGroup+<模块>.swift`）里声明自己的常量，注册表处理的是「登记过的 group 的集合」，加一个 cache 不需要回来改这个模块。持有别的 group 存储引用的 cache 在创建时用 `follows:` 说明它跟谁走（`SharedCache(evictionGroup: .symbolicMangling, follows: [.symbolStore])`），注册表据此反向建表，同一 group 下多个 cache 的声明取并集。今天的对照：

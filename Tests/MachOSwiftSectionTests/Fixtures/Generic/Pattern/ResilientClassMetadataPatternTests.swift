@@ -37,7 +37,7 @@ final class ResilientClassMetadataPatternTests: MachOSwiftSectionFixtureTests, F
         // The pattern is reached through the singleton record's union field,
         // which is the whole point of this carrier.
         let descriptor = try BaselineFixturePicker.class_ResilientChild(in: machOFile)
-        let resilientChild = try Class(descriptor: descriptor, in: machOFile)
+        let resilientChild = try Class(descriptor: descriptor, in: fileContext)
         let initialization = try required(resilientChild.singletonMetadataInitialization)
         #expect(initialization.resolvedDirectOffset(from: \.incompleteMetadata) == result)
         #expect(descriptor.hasResilientSuperclass, "the union field only holds a pattern for a resilient-superclass class")

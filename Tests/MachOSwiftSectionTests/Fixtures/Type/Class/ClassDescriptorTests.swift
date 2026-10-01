@@ -196,10 +196,11 @@ final class ClassDescriptorTests: MachOSwiftSectionFixtureTests, FixtureSuite, @
     }
 
     /// `resilientMetadataBounds(in:)` only succeeds on classes with a
-    /// resilient superclass. For `ClassTest` we just verify the predicate;
-    /// for resilient cases we'd add a dedicated test once a fixture surfaces
-    /// one. We exercise both the MachO and ReadingContext overloads here on
-    /// the no-resilient case to confirm they raise (or return) consistently.
+    /// resilient superclass. For `ClassTest` we only verify the predicate
+    /// that rules it out (`hasResilientSuperclass == false`); the method
+    /// itself is not called here. The resilient case
+    /// (`ResilientClassFixtures.ResilientChild`) is read through the
+    /// in-process context by `StoredClassMetadataBoundsTests`.
     @Test func resilientMetadataBounds() async throws {
         let (fileSubject, _) = try loadClassTestDescriptors()
         // Predicate: no resilient superclass.
@@ -210,20 +211,16 @@ final class ClassDescriptorTests: MachOSwiftSectionFixtureTests, FixtureSuite, @
     /// non-nil mangled name for `SubclassTest`.
     @Test func superclassTypeMangledName() async throws {
         let (classTestFile, classTestImage) = try loadClassTestDescriptors()
-        let classTestPresence = try acrossAllReaders(
-            file: { (try classTestFile.superclassTypeMangledName(in: machOFile)) != nil },
-            image: { (try classTestImage.superclassTypeMangledName(in: machOImage)) != nil }
+        let classTestPresence = try acrossAllContexts(
+            file: { (try classTestFile.superclassTypeMangledName(in: fileContext)) != nil },
+            image: { (try classTestImage.superclassTypeMangledName(in: imageContext)) != nil }
         )
         #expect(classTestPresence == ClassDescriptorBaseline.classTest.hasSuperclassTypeMangledName)
 
-        // ReadingContext-based overload also exercised.
-        let classTestImageCtxPresence = (try classTestImage.superclassTypeMangledName(in: imageContext)) != nil
-        #expect(classTestImageCtxPresence == ClassDescriptorBaseline.classTest.hasSuperclassTypeMangledName)
-
         let (subclassFile, subclassImage) = try loadSubclassTestDescriptors()
-        let subclassPresence = try acrossAllReaders(
-            file: { (try subclassFile.superclassTypeMangledName(in: machOFile)) != nil },
-            image: { (try subclassImage.superclassTypeMangledName(in: machOImage)) != nil }
+        let subclassPresence = try acrossAllContexts(
+            file: { (try subclassFile.superclassTypeMangledName(in: fileContext)) != nil },
+            image: { (try subclassImage.superclassTypeMangledName(in: imageContext)) != nil }
         )
         #expect(subclassPresence == ClassDescriptorBaseline.subclassTest.hasSuperclassTypeMangledName)
     }

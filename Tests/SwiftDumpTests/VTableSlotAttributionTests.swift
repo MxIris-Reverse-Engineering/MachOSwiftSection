@@ -111,7 +111,7 @@ struct VTableSlotAttributionTests {
     private func classDescriptor(named name: String, in machOFile: MachOFile) throws -> ClassDescriptor {
         for typeContextDescriptor in try machOFile.swift.typeContextDescriptors {
             guard case .class(let classDescriptor) = typeContextDescriptor else { continue }
-            guard try classDescriptor.name(in: machOFile) == name else { continue }
+            guard try classDescriptor.name(in: machOFile.context) == name else { continue }
             return classDescriptor
         }
         Issue.record("fixture is missing the class \(name)")
@@ -123,7 +123,7 @@ struct VTableSlotAttributionTests {
     private func vtableSlots(inDumpOf classDescriptor: ClassDescriptor, in machOFile: MachOFile) async throws -> [(slot: Int, declaration: String)] {
         var configuration = DumperConfiguration.demangleOptions(.test)
         configuration.printVTableOffset = true
-        let classType = try Class(descriptor: classDescriptor, in: machOFile)
+        let classType = try Class(descriptor: classDescriptor, in: machOFile.context)
         let output = try await classType.dump(using: configuration, in: machOFile).string
 
         var slots: [(slot: Int, declaration: String)] = []
@@ -151,7 +151,7 @@ struct VTableSlotAttributionTests {
     /// — the premise the whole suite rests on.
     private func foldedImplementationAddress(in machOFile: MachOFile) throws -> Int {
         let hostDescriptor = try classDescriptor(named: "Host", in: machOFile)
-        let hostClass = try Class(descriptor: hostDescriptor, in: machOFile)
+        let hostClass = try Class(descriptor: hostDescriptor, in: machOFile.context)
         let methodImplementationOffsets = hostClass.methodDescriptors
             .filter { $0.flags.kind == .method }
             .compactMap(\.implementationOffset)
@@ -300,10 +300,10 @@ struct GraphHostVTableAttributionTests {
 
         for typeContextDescriptor in try machOFile.swift.typeContextDescriptors {
             guard case .class(let classDescriptor) = typeContextDescriptor,
-                  try classDescriptor.name(in: machOFile) == "GraphHost" else { continue }
+                  try classDescriptor.name(in: machOFile.context) == "GraphHost" else { continue }
             var configuration = DumperConfiguration.demangleOptions(.test)
             configuration.printVTableOffset = true
-            let classType = try Class(descriptor: classDescriptor, in: machOFile)
+            let classType = try Class(descriptor: classDescriptor, in: machOFile.context)
             return try await classType.dump(using: configuration, in: machOFile).string
         }
         Issue.record("SwiftUICore does not contain a GraphHost class")

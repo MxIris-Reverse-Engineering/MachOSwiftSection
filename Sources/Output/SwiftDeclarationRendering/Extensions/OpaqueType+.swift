@@ -13,11 +13,11 @@ extension OpaqueType {
             usedRequirements = .init(dependentGenericType.all(of: .dependentGenericSameTypeRequirement, .dependentGenericConformanceRequirement))
         }
 
-        let currentRequirements = genericContext.uniqueCurrentRequirements(in: machO)
+        let currentRequirements = genericContext.uniqueCurrentRequirements(in: machO.context)
         var results: [GenericRequirementDescriptor] = []
         for currentRequirement in currentRequirements {
             if currentRequirement.content.isType {
-                guard let node = try SymbolicDemangler.buildGenericSignature(for: currentRequirement, in: machO) else { continue }
+                guard let node = try SymbolicDemangler.buildGenericSignature(for: currentRequirement, in: machO.context) else { continue }
                 if let sameTypeRequirementNode = node.first(of: .dependentGenericSameTypeRequirement) {
                     let sameTypeRequirementCopy: Node
                     if let associatedTypeRefNode = sameTypeRequirementNode.first(of: .dependentAssociatedTypeRef) {
@@ -40,7 +40,7 @@ extension OpaqueType {
                     results.append(currentRequirement)
                 }
             } else if currentRequirement.content.isProtocol {
-                if let node = try SymbolicDemangler.buildGenericSignature(for: currentRequirement, in: machO), let conformanceRequirementNode = node.first(of: .dependentGenericConformanceRequirement), !usedRequirements.contains(conformanceRequirementNode) {
+                if let node = try SymbolicDemangler.buildGenericSignature(for: currentRequirement, in: machO.context), let conformanceRequirementNode = node.first(of: .dependentGenericConformanceRequirement), !usedRequirements.contains(conformanceRequirementNode) {
                     results.append(currentRequirement)
                 }
             }

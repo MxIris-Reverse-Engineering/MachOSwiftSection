@@ -14,8 +14,8 @@ import MachOFixtureSupport
 /// descriptors) because the heavy types (`TypeGenericContext`,
 /// `SingletonMetadataPointer`, etc.) don't satisfy `Equatable` cheaply.
 ///
-/// `init(descriptor:in:)` (MachO + ReadingContext overloads) and
-/// `init(descriptor:)` (in-process) are exercised by dedicated tests.
+/// `init(descriptor:in:)` is exercised by dedicated tests over the file
+/// and image contexts and over the in-process context.
 @Suite
 final class EnumTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
     static let testedTypeName = "Enum"
@@ -24,12 +24,12 @@ final class EnumTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked S
     }
 
     /// Helper: instantiate the `Enum` wrapper for `Enums.NoPayloadEnumTest`
-    /// against both readers using the MachO-direct initializer.
+    /// against both readers through their reading contexts.
     private func loadNoPayloadEnums() throws -> (file: Enum, image: Enum) {
         let fileDescriptor = try BaselineFixturePicker.enum_NoPayloadEnumTest(in: machOFile)
         let imageDescriptor = try BaselineFixturePicker.enum_NoPayloadEnumTest(in: machOImage)
-        let file = try Enum(descriptor: fileDescriptor, in: machOFile)
-        let image = try Enum(descriptor: imageDescriptor, in: machOImage)
+        let file = try Enum(descriptor: fileDescriptor, in: fileContext)
+        let image = try Enum(descriptor: imageDescriptor, in: imageContext)
         return (file: file, image: image)
     }
 
@@ -39,21 +39,17 @@ final class EnumTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked S
         let fileDescriptor = try BaselineFixturePicker.enum_NoPayloadEnumTest(in: machOFile)
         let imageDescriptor = try BaselineFixturePicker.enum_NoPayloadEnumTest(in: machOImage)
 
-        let fileEnum = try Enum(descriptor: fileDescriptor, in: machOFile)
-        let imageEnum = try Enum(descriptor: imageDescriptor, in: machOImage)
-        let fileCtxEnum = try Enum(descriptor: fileDescriptor, in: fileContext)
-        let imageCtxEnum = try Enum(descriptor: imageDescriptor, in: imageContext)
+        let fileEnum = try Enum(descriptor: fileDescriptor, in: fileContext)
+        let imageEnum = try Enum(descriptor: imageDescriptor, in: imageContext)
 
         #expect(fileEnum.descriptor.offset == EnumBaseline.noPayloadEnumTest.descriptorOffset)
         #expect(imageEnum.descriptor.offset == EnumBaseline.noPayloadEnumTest.descriptorOffset)
-        #expect(fileCtxEnum.descriptor.offset == EnumBaseline.noPayloadEnumTest.descriptorOffset)
-        #expect(imageCtxEnum.descriptor.offset == EnumBaseline.noPayloadEnumTest.descriptorOffset)
     }
 
     @Test("init(descriptor:)") func initializerInProcess() async throws {
         let imageDescriptor = try BaselineFixturePicker.enum_NoPayloadEnumTest(in: machOImage)
         let pointerDescriptor = imageDescriptor.asPointerWrapper(in: machOImage)
-        let inProcessEnum = try Enum(descriptor: pointerDescriptor)
+        let inProcessEnum = try Enum(descriptor: pointerDescriptor, in: inProcessContext)
 
         // The in-process `descriptor.offset` is a pointer bit pattern.
         #expect(inProcessEnum.descriptor.offset != 0)

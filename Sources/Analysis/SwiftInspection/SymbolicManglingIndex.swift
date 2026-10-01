@@ -306,7 +306,7 @@ package final class SymbolicManglingIndex: @unchecked Sendable {
         referentCount: Int,
         in machO: some MachOSwiftSectionRepresentableWithCache
     ) -> [SymbolicManglingReference]? {
-        guard offset >= 0, let mangledName = try? MangledName.resolve(from: offset, in: machO) else { return nil }
+        guard offset >= 0, let mangledName = try? MangledName.resolve(at: offset, in: machO.context) else { return nil }
         let lookups = mangledName.lookupElements
         guard lookups.count == referentCount, referentCount <= Int(UInt16.max) else { return nil }
         var references: [SymbolicManglingReference] = []

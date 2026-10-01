@@ -49,23 +49,18 @@ final class ObjCProtocolPrefixTests: MachOSwiftSectionFixtureTests, FixtureSuite
 
     @Test func name() async throws {
         let (file, image) = try loadFirstPrefixes()
-        let result = try acrossAllReaders(
-            file: { try file.name(in: machOFile) },
-            image: { try image.name(in: machOImage) }
+        let result = try acrossAllContexts(
+            file: { try file.name(in: fileContext) },
+            image: { try image.name(in: imageContext) }
         )
         #expect(result == ObjCProtocolPrefixBaseline.firstPrefix.name)
-
-        // ReadingContext overload also exercised.
-        let imageContextResult = try image.name(in: imageContext)
-        #expect(imageContextResult == ObjCProtocolPrefixBaseline.firstPrefix.name)
     }
 
     @Test func mangledName() async throws {
         // `mangledName(in:)` returns a MangledName payload; we exercise
         // its accessibility and ensure it resolves without error.
         let (file, image) = try loadFirstPrefixes()
-        _ = try file.mangledName(in: machOFile)
-        _ = try image.mangledName(in: machOImage)
+        _ = try file.mangledName(in: fileContext)
         _ = try image.mangledName(in: imageContext)
     }
 }

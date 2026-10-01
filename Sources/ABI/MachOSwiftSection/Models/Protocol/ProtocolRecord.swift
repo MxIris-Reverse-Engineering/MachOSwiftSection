@@ -20,16 +20,19 @@ public struct ProtocolRecord: ResolvableLocatableLayoutWrapper {
     }
 }
 
-extension ProtocolRecord {
-    public func protocolDescriptor(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> ProtocolDescriptor? {
-        try layout.protocol.resolve(from: offset(of: \.protocol), in: machO)
-    }
-}
-
 // MARK: - ReadingContext Support
 
 extension ProtocolRecord {
     public func protocolDescriptor(in context: some ReadingContext) throws -> ProtocolDescriptor? {
         try layout.protocol.resolve(at: try context.addressFromOffset(offset(of: \.protocol)), in: context)
+    }
+}
+
+// MARK: - Deprecated Mach-O form
+
+extension ProtocolRecord {
+    @available(*, deprecated, message: "Pass a ReadingContext: protocolDescriptor(in: machO.context).")
+    public func protocolDescriptor(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> ProtocolDescriptor? {
+        try protocolDescriptor(in: machO.context)
     }
 }

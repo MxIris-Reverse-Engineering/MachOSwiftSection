@@ -23,10 +23,10 @@ package enum ContextDescriptorProtocolBaselineGenerator {
         outputDirectory: URL
     ) throws {
         let descriptor = try BaselineFixturePicker.struct_StructTest(in: machO)
-        let hasParent = (try descriptor.parent(in: machO)) != nil
-        let hasGenericContext = try descriptor.genericContext(in: machO) != nil
-        let hasModuleContextDescriptor = try descriptor.moduleContextDescriptor(in: machO) != nil
-        let isCImported = try descriptor.isCImportedContextDescriptor(in: machO)
+        let hasParent = (try descriptor.parent(in: machO.context)) != nil
+        let hasGenericContext = try descriptor.genericContext(in: machO.context) != nil
+        let hasModuleContextDescriptor = try descriptor.moduleContextDescriptor(in: machO.context) != nil
+        let isCImported = try descriptor.isCImportedContextDescriptor(in: machO.context)
         // The dynamic-member subscript routes to `layout.flags`; pick a stable
         // scalar (`kind.rawValue`) to assert against.
         let subscriptKindRawValue = descriptor.kind.rawValue

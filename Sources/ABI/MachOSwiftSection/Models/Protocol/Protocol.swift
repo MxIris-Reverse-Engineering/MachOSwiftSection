@@ -32,57 +32,6 @@ public struct `Protocol`: TopLevelType, ContextProtocol {
     public var numberOfRequirementsInSignature: Int {
         descriptor.numRequirementsInSignature.cast()
     }
-
-    public init(descriptor: ProtocolDescriptor, in machO: some MachOSwiftSectionRepresentableWithCache) throws {
-        guard let protocolFlags = descriptor.flags.kindSpecificFlags?.protocolFlags else {
-            throw Error.invalidProtocolDescriptor
-        }
-        self.descriptor = descriptor
-        self.protocolFlags = protocolFlags
-        self.name = try descriptor.name(in: machO)
-        var currentOffset = descriptor.offset + descriptor.layoutSize
-        if descriptor.numRequirementsInSignature > 0 {
-            let requirementInSignatures = try machO.readWrapperElements(offset: currentOffset, numberOfElements: descriptor.numRequirementsInSignature.cast()) as [GenericRequirementDescriptor]
-            self.requirementInSignatures = try requirementInSignatures.map { try .init(descriptor: $0, in: machO) }
-            currentOffset.offset(of: GenericRequirementDescriptor.self, numbersOfElements: descriptor.numRequirementsInSignature.cast())
-            currentOffset.align(to: 4)
-        } else {
-            self.requirementInSignatures = []
-        }
-        try initialize(descriptor: descriptor, currentOffset: &currentOffset, in: machO)
-    }
-
-    public init(descriptor: ProtocolDescriptor) throws {
-        guard let protocolFlags = descriptor.flags.kindSpecificFlags?.protocolFlags else {
-            throw Error.invalidProtocolDescriptor
-        }
-        self.descriptor = descriptor
-        self.protocolFlags = protocolFlags
-        self.name = try descriptor.name()
-        var currentOffset = descriptor.layoutSize
-        let pointer = try descriptor.asPointer
-        if descriptor.numRequirementsInSignature > 0 {
-            let requirementInSignatures = try pointer.readWrapperElements(offset: currentOffset, numberOfElements: descriptor.numRequirementsInSignature.cast()) as [GenericRequirementDescriptor]
-            self.requirementInSignatures = try requirementInSignatures.map { try .init(descriptor: $0) }
-            currentOffset.offset(of: GenericRequirementDescriptor.self, numbersOfElements: descriptor.numRequirementsInSignature.cast())
-            currentOffset.align(to: 4)
-        } else {
-            self.requirementInSignatures = []
-        }
-        try initialize(descriptor: descriptor, currentOffset: &currentOffset, in: pointer)
-    }
-
-    private mutating func initialize(descriptor: ProtocolDescriptor, currentOffset: inout Int, in reader: some Readable) throws {
-        if descriptor.numRequirements > 0 {
-            let baseRequirementOffset = currentOffset - ProtocolRequirement.layoutSize
-            baseRequirement = try reader.readWrapperElement(offset: baseRequirementOffset) as ProtocolBaseRequirement
-            requirements = try reader.readWrapperElements(offset: currentOffset, numberOfElements: descriptor.numRequirements.cast()) as [ProtocolRequirement]
-            currentOffset.offset(of: ProtocolRequirement.self, numbersOfElements: descriptor.numRequirements.cast())
-        } else {
-            baseRequirement = nil
-            requirements = []
-        }
-    }
 }
 
 // MARK: - ReadingContext Support
@@ -117,5 +66,19 @@ extension `Protocol` {
             baseRequirement = nil
             requirements = []
         }
+    }
+}
+
+// MARK: - Deprecated Mach-O and pointer forms
+
+extension `Protocol` {
+    @available(*, deprecated, message: "Pass a ReadingContext: Protocol(descriptor:in: machO.context).")
+    public init(descriptor: ProtocolDescriptor, in machO: some MachOSwiftSectionRepresentableWithCache) throws {
+        try self.init(descriptor: descriptor, in: machO.context)
+    }
+
+    @available(*, deprecated, message: "Pass a ReadingContext: Protocol(descriptor:in: .inProcess).")
+    public init(descriptor: ProtocolDescriptor) throws {
+        try self.init(descriptor: descriptor, in: InProcessContext.shared)
     }
 }

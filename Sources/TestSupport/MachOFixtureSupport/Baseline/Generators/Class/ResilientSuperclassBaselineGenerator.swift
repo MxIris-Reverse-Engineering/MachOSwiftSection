@@ -27,7 +27,7 @@ package enum ResilientSuperclassBaselineGenerator {
         ]
 
         let descriptor = try BaselineFixturePicker.class_ResilientChild(in: machO)
-        let classWrapper = try Class(descriptor: descriptor, in: machO)
+        let classWrapper = try Class(descriptor: descriptor, in: machO.context)
         let resilientSuperclass = try required(classWrapper.resilientSuperclass)
 
         let header = """

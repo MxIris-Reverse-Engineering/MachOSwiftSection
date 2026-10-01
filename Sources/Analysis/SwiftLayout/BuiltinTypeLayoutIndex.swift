@@ -44,8 +44,8 @@ public struct BuiltinTypeLayoutIndex: Sendable {
             builtinTypeDescriptors = []
         }
         for descriptor in builtinTypeDescriptors {
-            guard let mangledTypeName = try descriptor.typeName(in: machO) else { continue }
-            let demangledNode = try? SymbolicDemangler.demangleType(for: mangledTypeName, in: machO)
+            guard let mangledTypeName = try descriptor.typeName(in: machO.context) else { continue }
+            let demangledNode = try? SymbolicDemangler.demangleType(for: mangledTypeName, in: machO.context)
             // A record whose type reference is a *concrete* bound-generic
             // instantiation (`Foo<Int>`) describes only that instantiation;
             // under the generic-argument-free key it would be misattributed to

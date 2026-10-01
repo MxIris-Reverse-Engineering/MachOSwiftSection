@@ -200,7 +200,7 @@ extension IndexerConformanceProvider: ConformanceProvider {
             // a specialization search by a candidate that silently went missing.
             let classWrapper: Class
             do {
-                classWrapper = try Class(descriptor: classDescriptor, in: entry.machO)
+                classWrapper = try Class(descriptor: classDescriptor, in: entry.machO.context)
             } catch {
                 indexer.eventDispatcher.dispatch(
                     .renderingDegraded(
@@ -215,7 +215,7 @@ extension IndexerConformanceProvider: ConformanceProvider {
             // has no usable parent" case and stays silent.
             var superNode: Node?
             do {
-                superNode = try classWrapper.superclassNode(in: entry.machO)
+                superNode = try classWrapper.superclassNode(in: entry.machO.context)
             } catch {
                 continue
             }

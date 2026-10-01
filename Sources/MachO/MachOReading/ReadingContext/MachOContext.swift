@@ -70,15 +70,19 @@ public struct MachOContext<MachO: MachORepresentableWithCache & Readable>: Readi
         address.offseting(of: type)
     }
 
-    public func addressFromOffset(_ offset: Int) throws -> Int {
+    public func addressFromOffset(_ offset: Int) -> Int {
         offset
     }
 
-    public func addressFromVirtualAddress(_ virtualAddress: UInt64) throws -> Int {
-        machO.resolveOffset(at: machO.stripPointerTags(of: virtualAddress)).cast()
+    /// Never throws: every reader resolves any virtual address to some
+    /// offset. The reader strips pointer tags itself — `MachOFile` inside
+    /// `fileOffset(of:)`, `MachOImage` in `resolveOffset(at:)` — so they are
+    /// not stripped a second time here.
+    public func addressFromVirtualAddress(_ virtualAddress: UInt64) -> Int {
+        machO.resolveOffset(at: virtualAddress)
     }
 
-    public func offsetFromAddress(_ address: Int) throws -> Int {
+    public func offsetFromAddress(_ address: Int) -> Int {
         address
     }
 
@@ -89,6 +93,17 @@ public struct MachOContext<MachO: MachORepresentableWithCache & Readable>: Readi
     /// declaring conformance themselves without changing this site.
     public var bindRebaseResolver: (any MachOBindRebaseResolving)? {
         machO as? any MachOBindRebaseResolving
+    }
+
+    /// Offsets are per image, so memo entries belong to this image: keyed on
+    /// the reader's identifier, the key its other per-image caches use.
+    ///
+    /// Every reader identifies its image by a `MachOTargetIdentifier`. One
+    /// that did not would be read unmemoized — slower, never wrong, since an
+    /// identity the scope cannot name must not share another image's entries.
+    public var cacheScope: ReadingContextCacheScope {
+        guard let identifier = machO.identifier as? MachOTargetIdentifier else { return .uncached }
+        return .image(identifier: identifier)
     }
 }
 

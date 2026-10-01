@@ -180,26 +180,26 @@ final class ProtocolConformanceTests: MachOSwiftSectionFixtureTests, FixtureSuit
     /// Exercise both reader paths here.
     @Test("init(descriptor:in:)") func initializerWithDescriptorAndMachO() async throws {
         let descriptor = try BaselineFixturePicker.protocolConformance_StructTestProtocolTest(in: machOFile).descriptor
-        let conformance = try ProtocolConformance(descriptor: descriptor, in: machOFile)
+        let conformance = try ProtocolConformance(descriptor: descriptor, in: fileContext)
         #expect(conformance.descriptor.offset == ProtocolConformanceBaseline.structTestProtocolTest.descriptorOffset)
         #expect(conformance.flags.rawValue == ProtocolConformanceBaseline.structTestProtocolTest.flagsRawValue)
 
-        // ReadingContext overload also exercised (collapsed to the same
-        // MethodKey in the scanner).
+        // The same initializer over the image reader's context.
         let imageDescriptor = try BaselineFixturePicker.protocolConformance_StructTestProtocolTest(in: machOImage).descriptor
         let imageConformance = try ProtocolConformance(descriptor: imageDescriptor, in: imageContext)
         #expect(imageConformance.descriptor.offset == ProtocolConformanceBaseline.structTestProtocolTest.descriptorOffset)
     }
 
-    /// `init(descriptor:)` reads via `descriptor.asPointer` (in-process
-    /// pointer dereference). It requires the descriptor's `offset` to be
-    /// a valid raw pointer bit-pattern — true only if the descriptor
-    /// was loaded via `asPointerWrapper(in: machOImage)`, NOT via the
-    /// section walk (which carries offsets relative to the image base).
+    /// `init(descriptor:in:)` over the in-process context reads through
+    /// in-process pointer dereference. It requires the descriptor's
+    /// `offset` to be a valid raw pointer bit-pattern — true only if the
+    /// descriptor was loaded via `asPointerWrapper(in: machOImage)`, NOT
+    /// via the section walk (which carries offsets relative to the image
+    /// base).
     @Test("init(descriptor:)") func initializerWithDescriptor() async throws {
         let imageDescriptor = try BaselineFixturePicker.protocolConformance_StructTestProtocolTest(in: machOImage).descriptor
         let pointerDescriptor = imageDescriptor.asPointerWrapper(in: machOImage)
-        let conformance = try ProtocolConformance(descriptor: pointerDescriptor)
+        let conformance = try ProtocolConformance(descriptor: pointerDescriptor, in: inProcessContext)
         #expect(conformance.flags.rawValue == ProtocolConformanceBaseline.structTestProtocolTest.flagsRawValue)
         #expect(conformance.protocol != nil)
     }

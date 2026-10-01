@@ -79,8 +79,8 @@ package enum PropertyDescriptorBaselineGenerator {
         for descriptor: PropertyDescriptor,
         in machO: some MachOSwiftSectionRepresentableWithCache
     ) throws -> String {
-        let storedFieldOffset = try descriptor.storedFieldOffset(in: machO)
-        let computedBody = try descriptor.computedPropertyBody(in: machO)
+        let storedFieldOffset = try descriptor.storedFieldOffset(in: machO.context)
+        let computedBody = try descriptor.computedPropertyBody(in: machO.context)
 
         let expr: ExprSyntax = """
         Entry(

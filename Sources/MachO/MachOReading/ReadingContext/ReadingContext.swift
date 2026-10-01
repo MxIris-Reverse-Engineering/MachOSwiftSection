@@ -263,12 +263,48 @@ public protocol ReadingContext<Runtime, Address>: Sendable {
     /// dynamic-dispatch to the concrete context's override. The default keeps
     /// adding new conformers non-breaking.
     func runtimePointer(at address: Address) throws -> UnsafeRawPointer?
+
+    /// Where a memo cache built on top of reading — demangling, node
+    /// interning — may file what it computes from this context.
+    ///
+    /// A cache keys its entries by address, so the scope says which
+    /// addresses cannot collide: the offsets of one image, or the absolute
+    /// addresses of this process. The default is ``ReadingContextCacheScope/uncached``,
+    /// so a context that declares nothing is never memoized at all rather
+    /// than sharing entries with another image's offsets.
+    var cacheScope: ReadingContextCacheScope { get }
+}
+
+/// The scope a memo cache files its entries under for a ``ReadingContext``.
+///
+/// `@unchecked Sendable` for the same reason `SharedCacheKey` is: an image
+/// identifier can hold the image's base address, an `UnsafeRawPointer` that
+/// is only ever hashed and compared, never dereferenced.
+public enum ReadingContextCacheScope: @unchecked Sendable {
+    /// The context reads one image by offset: entries belong to that image
+    /// and are evicted with it. `identifier` is the reader's own
+    /// `identifier`, the same identity per-image caches already key on.
+    ///
+    /// Carried unboxed: the scope is asked for on every memo lookup, and
+    /// boxing a file's identifier — a path plus a UUID, too large for an
+    /// existential's inline buffer — would allocate each time.
+    case image(identifier: MachOTargetIdentifier)
+
+    /// The context reads this process's memory by absolute address, so two
+    /// images can never collide: entries are process-wide.
+    case process
+
+    /// The context gives no identity; nothing computed from it is memoized.
+    case uncached
 }
 
 extension ReadingContext {
     /// Default: no bind/rebase support. Concrete contexts override when they
     /// can vend a resolver (see `MachOContext`'s implementation).
     public var bindRebaseResolver: (any MachOBindRebaseResolving)? { nil }
+
+    /// Default: no identity, so nothing is memoized.
+    public var cacheScope: ReadingContextCacheScope { .uncached }
 }
 
 extension ReadingContext {

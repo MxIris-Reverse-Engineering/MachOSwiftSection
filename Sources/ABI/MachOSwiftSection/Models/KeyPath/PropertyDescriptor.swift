@@ -22,7 +22,7 @@ import MachOBase
 /// There is no section listing property descriptors: they live in
 /// `__TEXT,__const` (or `__DATA_CONST,__const` once they carry relative
 /// pointers) and are reached only by symbol or by a pattern's relative
-/// pointer. Get an offset first, then `PropertyDescriptor.resolve(from:in:)`.
+/// pointer. Get an offset first, then `PropertyDescriptor.resolve(at:in:)`.
 @LocatableLayoutWrapping
 public struct PropertyDescriptor: ResolvableLocatableLayoutWrapper {
     public struct Layout: LayoutProtocol {
@@ -95,60 +95,20 @@ extension PropertyDescriptor {
     }
 }
 
+// MARK: - ReadingContext Support
+
 extension PropertyDescriptor {
     /// The stored property's field offset, reading the body word when the
     /// header only carried a sentinel. `nil` when the descriptor is trivial
     /// or its component is not a stored one.
-    public func storedFieldOffset(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> KeyPathStoredFieldOffset? {
-        guard !isTrivial, let kind = header.storedFieldOffsetKind else { return nil }
-        return try storedFieldOffset(kind: kind, bodyWord: try UInt32.resolve(from: bodyOffset, in: machO))
-    }
-
-    /// The computed component's identifier, getter and setter. `nil` when the
-    /// descriptor is trivial or its component is not a computed one.
-    public func computedPropertyBody(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> KeyPathComputedPropertyBody? {
-        guard !isTrivial, header.kind == .computed else { return nil }
-        let rawIdentifier: RelativeOffset = try RelativeOffset.resolve(from: bodyOffset, in: machO)
-        let getter: RelativeOffset = try RelativeOffset.resolve(from: bodyOffset + getterFieldRelativeOffset, in: machO)
-        var setter: RelativeOffset?
-        if header.isComputedSettable {
-            setter = try RelativeOffset.resolve(from: bodyOffset + settableSetterFieldRelativeOffset, in: machO)
-        }
-        return computedPropertyBody(rawIdentifier: rawIdentifier, getter: getter, setter: setter)
-    }
-}
-
-// MARK: - In-Process Support
-
-extension PropertyDescriptor {
-    public func storedFieldOffset() throws -> KeyPathStoredFieldOffset? {
-        guard !isTrivial, let kind = header.storedFieldOffsetKind else { return nil }
-        let bodyPointer = try asPointer.advanced(by: MemoryLayout<Layout>.size)
-        return try storedFieldOffset(kind: kind, bodyWord: try UInt32.resolve(from: bodyPointer))
-    }
-
-    public func computedPropertyBody() throws -> KeyPathComputedPropertyBody? {
-        guard !isTrivial, header.kind == .computed else { return nil }
-        let bodyPointer = try asPointer.advanced(by: MemoryLayout<Layout>.size)
-        let rawIdentifier: RelativeOffset = try RelativeOffset.resolve(from: bodyPointer)
-        let getter: RelativeOffset = try RelativeOffset.resolve(from: bodyPointer.advanced(by: getterFieldRelativeOffset))
-        var setter: RelativeOffset?
-        if header.isComputedSettable {
-            setter = try RelativeOffset.resolve(from: bodyPointer.advanced(by: settableSetterFieldRelativeOffset))
-        }
-        return computedPropertyBody(rawIdentifier: rawIdentifier, getter: getter, setter: setter)
-    }
-}
-
-// MARK: - ReadingContext Support
-
-extension PropertyDescriptor {
     public func storedFieldOffset(in context: some ReadingContext) throws -> KeyPathStoredFieldOffset? {
         guard !isTrivial, let kind = header.storedFieldOffsetKind else { return nil }
         let bodyAddress = try context.addressFromOffset(bodyOffset)
         return try storedFieldOffset(kind: kind, bodyWord: try UInt32.resolve(at: bodyAddress, in: context))
     }
 
+    /// The computed component's identifier, getter and setter. `nil` when the
+    /// descriptor is trivial or its component is not a computed one.
     public func computedPropertyBody(in context: some ReadingContext) throws -> KeyPathComputedPropertyBody? {
         guard !isTrivial, header.kind == .computed else { return nil }
         let bodyAddress = try context.addressFromOffset(bodyOffset)
@@ -161,5 +121,29 @@ extension PropertyDescriptor {
             setter = try RelativeOffset.resolve(at: setterAddress, in: context)
         }
         return computedPropertyBody(rawIdentifier: rawIdentifier, getter: getter, setter: setter)
+    }
+}
+
+// MARK: - Deprecated Mach-O and pointer forms
+
+extension PropertyDescriptor {
+    @available(*, deprecated, message: "Pass a ReadingContext: storedFieldOffset(in: machO.context).")
+    public func storedFieldOffset(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> KeyPathStoredFieldOffset? {
+        try storedFieldOffset(in: machO.context)
+    }
+
+    @available(*, deprecated, message: "Pass a ReadingContext: computedPropertyBody(in: machO.context).")
+    public func computedPropertyBody(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> KeyPathComputedPropertyBody? {
+        try computedPropertyBody(in: machO.context)
+    }
+
+    @available(*, deprecated, message: "Pass a ReadingContext: storedFieldOffset(in: .inProcess).")
+    public func storedFieldOffset() throws -> KeyPathStoredFieldOffset? {
+        try storedFieldOffset(in: InProcessContext.shared)
+    }
+
+    @available(*, deprecated, message: "Pass a ReadingContext: computedPropertyBody(in: .inProcess).")
+    public func computedPropertyBody() throws -> KeyPathComputedPropertyBody? {
+        try computedPropertyBody(in: InProcessContext.shared)
     }
 }

@@ -8,18 +8,6 @@ public struct GenericRequirement: Sendable, TopLevelType {
     public let paramManagledName: MangledName
 
     public let content: ResolvedGenericRequirementContent
-
-    public init(descriptor: GenericRequirementDescriptor, in machO: some MachOSwiftSectionRepresentableWithCache) throws {
-        self.descriptor = descriptor
-        self.paramManagledName = try descriptor.paramMangledName(in: machO)
-        self.content = try descriptor.resolvedContent(in: machO)
-    }
-    
-    public init(descriptor: GenericRequirementDescriptor) throws {
-        self.descriptor = descriptor
-        self.paramManagledName = try descriptor.paramMangledName()
-        self.content = try descriptor.resolvedContent()
-    }
 }
 
 // MARK: - ReadingContext Support
@@ -29,5 +17,19 @@ extension GenericRequirement {
         self.descriptor = descriptor
         self.paramManagledName = try descriptor.paramMangledName(in: context)
         self.content = try descriptor.resolvedContent(in: context)
+    }
+}
+
+// MARK: - Deprecated Mach-O and pointer forms
+
+extension GenericRequirement {
+    @available(*, deprecated, message: "Pass a ReadingContext: GenericRequirement(descriptor:in: machO.context).")
+    public init(descriptor: GenericRequirementDescriptor, in machO: some MachOSwiftSectionRepresentableWithCache) throws {
+        try self.init(descriptor: descriptor, in: machO.context)
+    }
+
+    @available(*, deprecated, message: "Pass a ReadingContext: GenericRequirement(descriptor:in: .inProcess).")
+    public init(descriptor: GenericRequirementDescriptor) throws {
+        try self.init(descriptor: descriptor, in: InProcessContext.shared)
     }
 }

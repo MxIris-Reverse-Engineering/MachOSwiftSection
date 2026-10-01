@@ -112,7 +112,7 @@ package enum ClassDescriptorBaselineGenerator {
         let hasResilientSuperclass = descriptor.hasResilientSuperclass
         let areImmediateMembersNegative = descriptor.areImmediateMembersNegative
         let hasObjCResilientClassStub = descriptor.hasObjCResilientClassStub
-        let hasSuperclassTypeMangledName = (try descriptor.superclassTypeMangledName(in: machO)) != nil
+        let hasSuperclassTypeMangledName = (try descriptor.superclassTypeMangledName(in: machO.context)) != nil
         let immediateMemberSize = UInt(descriptor.immediateMemberSize)
         let nonResilientImmediateMembersOffset = descriptor.nonResilientImmediateMembersOffset
 

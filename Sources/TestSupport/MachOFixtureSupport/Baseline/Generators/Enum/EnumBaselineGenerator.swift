@@ -25,7 +25,7 @@ package enum EnumBaselineGenerator {
     ) throws {
         let noPayloadDescriptor = try BaselineFixturePicker.enum_NoPayloadEnumTest(in: machO)
 
-        let noPayloadEnum = try Enum(descriptor: noPayloadDescriptor, in: machO)
+        let noPayloadEnum = try Enum(descriptor: noPayloadDescriptor, in: machO.context)
 
         let noPayloadExpr = emitEntryExpr(for: noPayloadEnum)
 

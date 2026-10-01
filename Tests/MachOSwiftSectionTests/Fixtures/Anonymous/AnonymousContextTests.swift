@@ -12,10 +12,10 @@ import MachOFixtureSupport
 /// scopes and other unnamed contexts; they're discovered via the parent
 /// chain of generic types, not via top-level `__swift5_types` records.
 ///
-/// `init(descriptor:in:)` (MachO + ReadingContext overloads) and
-/// `init(descriptor:)` (in-process) are covered by dedicated tests; the
-/// other ivars use the established presence-flag pattern (`MangledName`
-/// and `GenericContext` aren't cheaply Equatable).
+/// `init(descriptor:in:)` is covered by dedicated tests over the file and
+/// image contexts and over the in-process context; the other ivars use the
+/// established presence-flag pattern (`MangledName` and `GenericContext`
+/// aren't cheaply Equatable).
 @Suite
 final class AnonymousContextTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
     static let testedTypeName = "AnonymousContext"
@@ -23,13 +23,13 @@ final class AnonymousContextTests: MachOSwiftSectionFixtureTests, FixtureSuite, 
         AnonymousContextBaseline.registeredTestMethodNames
     }
 
-    /// Helper: instantiate the `AnonymousContext` wrapper using the
-    /// MachO-direct initializer for both readers.
+    /// Helper: instantiate the `AnonymousContext` wrapper against both
+    /// readers through their reading contexts.
     private func loadFirstAnonymousContexts() throws -> (file: AnonymousContext, image: AnonymousContext) {
         let fileDescriptor = try BaselineFixturePicker.anonymous_first(in: machOFile)
         let imageDescriptor = try BaselineFixturePicker.anonymous_first(in: machOImage)
-        let file = try AnonymousContext(descriptor: fileDescriptor, in: machOFile)
-        let image = try AnonymousContext(descriptor: imageDescriptor, in: machOImage)
+        let file = try AnonymousContext(descriptor: fileDescriptor, in: fileContext)
+        let image = try AnonymousContext(descriptor: imageDescriptor, in: imageContext)
         return (file: file, image: image)
     }
 
@@ -39,26 +39,22 @@ final class AnonymousContextTests: MachOSwiftSectionFixtureTests, FixtureSuite, 
         let fileDescriptor = try BaselineFixturePicker.anonymous_first(in: machOFile)
         let imageDescriptor = try BaselineFixturePicker.anonymous_first(in: machOImage)
 
-        // Both file/image MachO-based initializers must succeed and produce
-        // a descriptor whose offset matches the baseline. The
-        // ReadingContext-based overload also exists.
-        let fileContext_ = try AnonymousContext(descriptor: fileDescriptor, in: machOFile)
-        let imageContext_ = try AnonymousContext(descriptor: imageDescriptor, in: machOImage)
-        let fileCtxContext = try AnonymousContext(descriptor: fileDescriptor, in: fileContext)
-        let imageCtxContext = try AnonymousContext(descriptor: imageDescriptor, in: imageContext)
+        // Both the file-context and the image-context initializers must
+        // succeed and produce a descriptor whose offset matches the baseline.
+        let fileContext_ = try AnonymousContext(descriptor: fileDescriptor, in: fileContext)
+        let imageContext_ = try AnonymousContext(descriptor: imageDescriptor, in: imageContext)
 
         #expect(fileContext_.descriptor.offset == AnonymousContextBaseline.firstAnonymous.descriptorOffset)
         #expect(imageContext_.descriptor.offset == AnonymousContextBaseline.firstAnonymous.descriptorOffset)
-        #expect(fileCtxContext.descriptor.offset == AnonymousContextBaseline.firstAnonymous.descriptorOffset)
-        #expect(imageCtxContext.descriptor.offset == AnonymousContextBaseline.firstAnonymous.descriptorOffset)
     }
 
     @Test("init(descriptor:)") func initializerInProcess() async throws {
-        // The InProcess `init(descriptor:)` requires a pointer-form
-        // descriptor resolved against MachOImage; reproduce that here.
+        // `init(descriptor:in:)` over the in-process context requires a
+        // pointer-form descriptor resolved against MachOImage; reproduce
+        // that here.
         let imageDescriptor = try BaselineFixturePicker.anonymous_first(in: machOImage)
         let pointerDescriptor = imageDescriptor.asPointerWrapper(in: machOImage)
-        let inProcessContext_ = try AnonymousContext(descriptor: pointerDescriptor)
+        let inProcessContext_ = try AnonymousContext(descriptor: pointerDescriptor, in: inProcessContext)
 
         // The in-process `descriptor.offset` is a pointer bit pattern, not
         // a file offset — we just assert it resolved.

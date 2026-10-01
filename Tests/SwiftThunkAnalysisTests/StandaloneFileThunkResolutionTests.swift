@@ -126,19 +126,19 @@ struct StandaloneFileThunkResolutionTests {
         var resolved: [ResolvedField] = []
         for wrapper in try machOFile.swift.typeContextDescriptors {
             let descriptor = wrapper.typeContextDescriptor
-            guard let fieldDescriptor = try? descriptor.fieldDescriptor(in: machOFile) else { continue }
-            let ownerLayout = AccessorThunkOwnerLayout(genericContext: try descriptor.genericContext(in: machOFile))
-            let ownerName = try SymbolicDemangler.demangleContext(for: wrapper.asContextDescriptorWrapper, in: machOFile).print(using: .default)
-            for record in try fieldDescriptor.records(in: machOFile) {
-                guard let mangledTypeName = try? record.mangledTypeName(in: machOFile),
-                      let typeNode = try? SymbolicDemangler.demangleType(for: mangledTypeName, in: machOFile),
+            guard let fieldDescriptor = try? descriptor.fieldDescriptor(in: machOFile.context) else { continue }
+            let ownerLayout = AccessorThunkOwnerLayout(genericContext: try descriptor.genericContext(in: machOFile.context))
+            let ownerName = try SymbolicDemangler.demangleContext(for: wrapper.asContextDescriptorWrapper, in: machOFile.context).print(using: .default)
+            for record in try fieldDescriptor.records(in: machOFile.context) {
+                guard let mangledTypeName = try? record.mangledTypeName(in: machOFile.context),
+                      let typeNode = try? SymbolicDemangler.demangleType(for: mangledTypeName, in: machOFile.context),
                       let reference = typeNode.first(of: Node.Kind.accessorFunctionReference),
                       let thunkOffset = reference.index
                 else { continue }
                 let resolvedNode = typeNode.resolvingAccessorFunctionReferences(in: machOFile, ownerLayout: ownerLayout)
                 resolved.append(ResolvedField(
                     owner: ownerName,
-                    name: try record.fieldName(in: machOFile),
+                    name: try record.fieldName(in: machOFile.context),
                     text: resolvedNode.print(using: .default),
                     thunkOffset: Int(thunkOffset),
                     ownerLayout: ownerLayout

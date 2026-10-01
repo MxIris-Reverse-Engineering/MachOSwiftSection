@@ -33,7 +33,7 @@ package enum ObjCResilientClassStubInfoBaselineGenerator {
         ]
 
         let descriptor = try BaselineFixturePicker.class_ResilientObjCStubChild(in: machO)
-        let classWrapper = try Class(descriptor: descriptor, in: machO)
+        let classWrapper = try Class(descriptor: descriptor, in: machO.context)
         let stubInfo = try required(classWrapper.objcResilientClassStubInfo)
 
         let header = """

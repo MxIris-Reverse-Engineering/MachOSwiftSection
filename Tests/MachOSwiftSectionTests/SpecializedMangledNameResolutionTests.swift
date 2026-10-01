@@ -29,7 +29,7 @@ struct SpecializedMangledNameResolutionTests {
     private func structDescriptor(named nameContains: String) throws -> StructDescriptor {
         try #require(
             try machO.swift.typeContextDescriptors.first {
-                try $0.struct?.name(in: machO).contains(nameContains) == true
+                try $0.struct?.name(in: machO.context).contains(nameContains) == true
             }?.struct,
             "expected a struct descriptor whose name contains \"\(nameContains)\""
         )
@@ -39,7 +39,7 @@ struct SpecializedMangledNameResolutionTests {
     private func enumDescriptor(named nameContains: String) throws -> EnumDescriptor {
         try #require(
             try machO.swift.typeContextDescriptors.first {
-                try $0.enum?.name(in: machO).contains(nameContains) == true
+                try $0.enum?.name(in: machO.context).contains(nameContains) == true
             }?.enum,
             "expected an enum descriptor whose name contains \"\(nameContains)\""
         )
@@ -49,7 +49,7 @@ struct SpecializedMangledNameResolutionTests {
     private func classDescriptor(named nameContains: String) throws -> ClassDescriptor {
         try #require(
             try machO.swift.typeContextDescriptors.first {
-                try $0.class?.name(in: machO).contains(nameContains) == true
+                try $0.class?.name(in: machO.context).contains(nameContains) == true
             }?.class,
             "expected a class descriptor whose name contains \"\(nameContains)\""
         )
@@ -63,13 +63,13 @@ struct SpecializedMangledNameResolutionTests {
         of descriptor: some TypeContextDescriptorProtocol,
         atFieldIndex fieldIndex: Int
     ) throws -> MangledName {
-        let fieldDescriptor = try descriptor.fieldDescriptor(in: machO)
-        let records = try fieldDescriptor.records(in: machO)
+        let fieldDescriptor = try descriptor.fieldDescriptor(in: machO.context)
+        let records = try fieldDescriptor.records(in: machO.context)
         try #require(
             fieldIndex < records.count,
             "expected at least \(fieldIndex + 1) field record(s); fixture had \(records.count)"
         )
-        return try records[fieldIndex].mangledTypeName(in: machO)
+        return try records[fieldIndex].mangledTypeName(in: machO.context)
     }
 
     // MARK: - Single generic parameter

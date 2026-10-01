@@ -118,9 +118,9 @@ package final class AnonymousContextPrivateDiscriminatorIndex: @unchecked Sendab
     }
 
     private static func anonymousContextMember(at offset: Int, in machO: some MachOSwiftSectionRepresentableWithCache) -> AnonymousContextMember? {
-        guard let referencedContext = try? ContextDescriptorWrapper.resolve(from: offset, in: machO),
-              case .element(.anonymous(let anonymousContext))? = try? referencedContext.parent(in: machO),
-              let name = try? referencedContext.namedContextDescriptor?.name(in: machO)
+        guard let referencedContext = try? ContextDescriptorWrapper.resolve(at: offset, in: machO.context),
+              case .element(.anonymous(let anonymousContext))? = try? referencedContext.parent(in: machO.context),
+              let name = try? referencedContext.namedContextDescriptor?.name(in: machO.context)
         else { return nil }
         return AnonymousContextMember(anonymousContextOffset: anonymousContext.offset, name: name)
     }

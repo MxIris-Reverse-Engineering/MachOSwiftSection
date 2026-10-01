@@ -47,12 +47,12 @@ package struct AssociatedTypeDumper<MachO: MachOFieldLayoutRenderable>: Conforme
     package var records: SemanticString {
         get async throws {
             for (offset, record) in dumped.records.offsetEnumerated() {
-                let recordName = try record.name(in: machO)
-                let witnessMangledName = try record.substitutedTypeName(in: machO)
+                let recordName = try record.name(in: machO.context)
+                let witnessMangledName = try record.substitutedTypeName(in: machO.context)
                 // The dump's spelling of a reference that could not be
                 // expanded names the owner declaration in a trailing comment;
                 // the interface's, the indexer's default, does not.
-                let resolution = try SymbolicDemangler.demangleType(for: witnessMangledName, in: machO)
+                let resolution = try SymbolicDemangler.demangleType(for: witnessMangledName, in: machO.context)
                     .resolveOpaqueTypeCollectingConditionalCandidates(witnessMangledName: witnessMangledName, conformingTypeName: dumped.conformingTypeName, in: machO, spelling: .annotated)
 
                 // Every branch of an availability-conditional witness, above
@@ -109,13 +109,13 @@ package struct AssociatedTypeDumper<MachO: MachOFieldLayoutRenderable>: Conforme
 
     package var typeName: SemanticString {
         get async throws {
-            try await demangleResolver.resolve(for: SymbolicDemangler.demangleType(for: dumped.conformingTypeName, in: machO)).replacingTypeNameOrOtherToTypeDeclaration()
+            try await dumped.dumpedTypeName(using: demangleResolver, in: machO.context)
         }
     }
 
     package var protocolName: SemanticString {
         get async throws {
-            try await demangleResolver.resolve(for: SymbolicDemangler.demangleType(for: dumped.protocolTypeName, in: machO))
+            try await dumped.dumpedProtocolName(using: demangleResolver, in: machO.context)
         }
     }
 }

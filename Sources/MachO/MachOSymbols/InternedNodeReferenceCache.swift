@@ -2,6 +2,7 @@ import Foundation
 @_spi(Internals) import Demangling
 import MachOKit
 import MachOKitExtensions
+import MachOReading
 @_spi(Internals) import MachOCaches
 import SwiftStdlibToolbox
 
@@ -77,6 +78,23 @@ public final class InternedNodeReferenceCache: @unchecked Sendable {
     /// for call sites without a Mach-O handle (in-process reading contexts).
     public func reference(interning node: Node) -> NodeReference {
         Self.processScopedStorage.reference(interning: node)
+    }
+
+    /// The shared reference for `node` in the scope `context` declares: the
+    /// image's store, the process-wide store, or — for a context with no
+    /// identity — a store of its own, as when an image store cannot be built.
+    public func reference(interning node: Node, in context: some ReadingContext) -> NodeReference {
+        switch context.cacheScope {
+        case .image(let identifier):
+            guard let storage = cache.resolve(key: SharedCacheKey(identifier: identifier), build: { Storage() }) else {
+                return NodeReference(interning: node)
+            }
+            return storage.reference(interning: node)
+        case .process:
+            return reference(interning: node)
+        case .uncached:
+            return NodeReference(interning: node)
+        }
     }
 
     public func contains(in machO: some MachORepresentableWithCache) -> Bool {

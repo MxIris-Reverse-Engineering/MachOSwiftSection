@@ -79,9 +79,9 @@ package enum TypeContextDescriptorBaselineGenerator {
     ) throws -> String {
         let offset = descriptor.offset
         let flagsRaw = descriptor.layout.flags.rawValue
-        let hasEnumDescriptor = (try descriptor.enumDescriptor(in: machO)) != nil
-        let hasStructDescriptor = (try descriptor.structDescriptor(in: machO)) != nil
-        let hasClassDescriptor = (try descriptor.classDescriptor(in: machO)) != nil
+        let hasEnumDescriptor = (try descriptor.enumDescriptor(in: machO.context)) != nil
+        let hasStructDescriptor = (try descriptor.structDescriptor(in: machO.context)) != nil
+        let hasClassDescriptor = (try descriptor.classDescriptor(in: machO.context)) != nil
 
         let expr: ExprSyntax = """
         Entry(

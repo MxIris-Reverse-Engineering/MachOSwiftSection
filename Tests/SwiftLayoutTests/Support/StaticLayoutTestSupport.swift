@@ -25,7 +25,7 @@ func fieldLayout<MachO: MachOSwiftSectionRepresentableWithCache>(
         guard let descriptor = contextDescriptor.typeContextDescriptorWrapper else { continue }
         guard descriptor.isStruct || descriptor.isClass else { continue }
         guard
-            let name = (try? SymbolicDemangler.demangleContext(for: contextDescriptor, in: machO))
+            let name = (try? SymbolicDemangler.demangleContext(for: contextDescriptor, in: machO.context))
                 .flatMap(NodeTypeNaming.nominalQualifiedName(of:)),
             name == qualifiedTypeName
         else { continue }
@@ -50,7 +50,7 @@ func fieldLayout<MachO: MachOSwiftSectionRepresentableWithCache>(
         guard let descriptor = contextDescriptor.typeContextDescriptorWrapper else { continue }
         guard descriptor.isStruct || descriptor.isClass else { continue }
         guard
-            let name = (try? SymbolicDemangler.demangleContext(for: contextDescriptor, in: machO))
+            let name = (try? SymbolicDemangler.demangleContext(for: contextDescriptor, in: machO.context))
                 .flatMap(NodeTypeNaming.nominalQualifiedName(of:)),
             name == qualifiedTypeName
         else { continue }
@@ -74,18 +74,18 @@ func runtimeFieldOffsets(
     for contextDescriptor in try machO.swift.contextDescriptors {
         guard let descriptor = contextDescriptor.typeContextDescriptorWrapper else { continue }
         guard
-            let name = (try? SymbolicDemangler.demangleContext(for: contextDescriptor, in: machO))
+            let name = (try? SymbolicDemangler.demangleContext(for: contextDescriptor, in: machO.context))
                 .flatMap(NodeTypeNaming.nominalQualifiedName(of:)),
             name == qualifiedTypeName,
-            let accessor = try descriptor.typeContextDescriptor.metadataAccessorFunction(in: machO)
+            let accessor = try descriptor.typeContextDescriptor.metadataAccessorFunction(in: machO.context)
         else { continue }
         let response = try accessor(request: .init(), metatypes: argumentMetatype)
-        let metadata = try response.value.resolve(in: machO)
+        let metadata = try response.value.resolve(in: machO.context)
         switch metadata {
         case .struct(let structMetadata):
-            return try structMetadata.fieldOffsets(in: machO).map { Int($0) }
+            return try structMetadata.fieldOffsets(in: machO.context).map { Int($0) }
         case .class(let classMetadata):
-            return try classMetadata.fieldOffsets(in: machO).map { Int($0) }
+            return try classMetadata.fieldOffsets(in: machO.context).map { Int($0) }
         default:
             return nil
         }
@@ -100,18 +100,18 @@ func runtimeFieldOffsets(ofQualifiedTypeName qualifiedTypeName: String, in machO
     for contextDescriptor in try machO.swift.contextDescriptors {
         guard let descriptor = contextDescriptor.typeContextDescriptorWrapper else { continue }
         guard
-            let name = (try? SymbolicDemangler.demangleContext(for: contextDescriptor, in: machO))
+            let name = (try? SymbolicDemangler.demangleContext(for: contextDescriptor, in: machO.context))
                 .flatMap(NodeTypeNaming.nominalQualifiedName(of:)),
             name == qualifiedTypeName,
-            let accessor = try descriptor.typeContextDescriptor.metadataAccessorFunction(in: machO)
+            let accessor = try descriptor.typeContextDescriptor.metadataAccessorFunction(in: machO.context)
         else { continue }
         let response = try accessor(request: .init())
-        let metadata = try response.value.resolve(in: machO)
+        let metadata = try response.value.resolve(in: machO.context)
         switch metadata {
         case .struct(let structMetadata):
-            return try structMetadata.fieldOffsets(in: machO).map { Int($0) }
+            return try structMetadata.fieldOffsets(in: machO.context).map { Int($0) }
         case .class(let classMetadata):
-            return try classMetadata.fieldOffsets(in: machO).map { Int($0) }
+            return try classMetadata.fieldOffsets(in: machO.context).map { Int($0) }
         default:
             return nil
         }
@@ -131,14 +131,14 @@ func runtimeValueWitnessLayout(
     for contextDescriptor in try machO.swift.contextDescriptors {
         guard let descriptor = contextDescriptor.typeContextDescriptorWrapper else { continue }
         guard
-            let name = (try? SymbolicDemangler.demangleContext(for: contextDescriptor, in: machO))
+            let name = (try? SymbolicDemangler.demangleContext(for: contextDescriptor, in: machO.context))
                 .flatMap(NodeTypeNaming.nominalQualifiedName(of:)),
             name == qualifiedTypeName,
-            let accessor = try descriptor.typeContextDescriptor.metadataAccessorFunction(in: machO)
+            let accessor = try descriptor.typeContextDescriptor.metadataAccessorFunction(in: machO.context)
         else { continue }
         let response = try accessor(request: .init())
-        let metadata = try response.value.resolve(in: machO)
-        let valueWitnessTable = try metadata.valueWitnessTable(in: machO)
+        let metadata = try response.value.resolve(in: machO.context)
+        let valueWitnessTable = try metadata.valueWitnessTable(in: machO.context)
         return (
             Int(valueWitnessTable.layout.size),
             Int(valueWitnessTable.layout.stride),
@@ -156,10 +156,10 @@ func runtimeMetatype(ofQualifiedTypeName qualifiedTypeName: String, in machO: Ma
     for contextDescriptor in try machO.swift.contextDescriptors {
         guard let descriptor = contextDescriptor.typeContextDescriptorWrapper else { continue }
         guard
-            let name = (try? SymbolicDemangler.demangleContext(for: contextDescriptor, in: machO))
+            let name = (try? SymbolicDemangler.demangleContext(for: contextDescriptor, in: machO.context))
                 .flatMap(NodeTypeNaming.nominalQualifiedName(of:)),
             name == qualifiedTypeName,
-            let accessor = try descriptor.typeContextDescriptor.metadataAccessorFunction(in: machO)
+            let accessor = try descriptor.typeContextDescriptor.metadataAccessorFunction(in: machO.context)
         else { continue }
         let response = try accessor(request: .init())
         return unsafeBitCast(UInt(response.value.address), to: Any.Type.self)

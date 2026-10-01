@@ -24,7 +24,7 @@ extension SnapshotDumpableTests {
             case .enum(let enumDescriptor):
                 guard options.contains(.enum) else { continue }
                 do {
-                    let enumType = try Enum(descriptor: enumDescriptor, in: machO)
+                    let enumType = try Enum(descriptor: enumDescriptor, in: machO.context)
                     let output = try await enumType.dump(using: configuration ?? .demangleOptions(.test), in: machO).string
                     results.append(output)
                 } catch {
@@ -33,7 +33,7 @@ extension SnapshotDumpableTests {
             case .struct(let structDescriptor):
                 guard options.contains(.struct) else { continue }
                 do {
-                    let structType = try Struct(descriptor: structDescriptor, in: machO)
+                    let structType = try Struct(descriptor: structDescriptor, in: machO.context)
                     let output = try await structType.dump(using: configuration ?? .demangleOptions(.test), in: machO).string
                     results.append(output)
                 } catch {
@@ -42,7 +42,7 @@ extension SnapshotDumpableTests {
             case .class(let classDescriptor):
                 guard options.contains(.class) else { continue }
                 do {
-                    let classType = try Class(descriptor: classDescriptor, in: machO)
+                    let classType = try Class(descriptor: classDescriptor, in: machO.context)
                     let output = try await classType.dump(using: configuration ?? .demangleOptions(.test), in: machO).string
                     results.append(output)
                 } catch {
@@ -60,7 +60,7 @@ extension SnapshotDumpableTests {
         var results: [String] = []
         for protocolDescriptor in protocolDescriptors {
             do {
-                let output = try await Protocol(descriptor: protocolDescriptor, in: machO)
+                let output = try await Protocol(descriptor: protocolDescriptor, in: machO.context)
                     .dump(using: .demangleOptions(.test), in: machO).string
                 results.append(output)
             } catch {
@@ -77,7 +77,7 @@ extension SnapshotDumpableTests {
         var results: [String] = []
         for protocolConformanceDescriptor in protocolConformanceDescriptors {
             do {
-                let output = try await ProtocolConformance(descriptor: protocolConformanceDescriptor, in: machO)
+                let output = try await ProtocolConformance(descriptor: protocolConformanceDescriptor, in: machO.context)
                     .dump(using: .demangleOptions(.test), in: machO).string
                 results.append(output)
             } catch {
@@ -94,7 +94,7 @@ extension SnapshotDumpableTests {
         var results: [String] = []
         for associatedTypeDescriptor in associatedTypeDescriptors {
             do {
-                let output = try await AssociatedType(descriptor: associatedTypeDescriptor, in: machO)
+                let output = try await AssociatedType(descriptor: associatedTypeDescriptor, in: machO.context)
                     .dump(using: .demangleOptions(.test), in: machO).string
                 results.append(output)
             } catch {
@@ -121,10 +121,10 @@ extension SnapshotDumpableTests {
         of descriptor: TypeContextDescriptorWrapper,
         in machO: some MachOFieldLayoutRenderable
     ) throws -> String? {
-        let selfName = try descriptor.namedContextDescriptor.name(in: machO)
+        let selfName = try descriptor.namedContextDescriptor.name(in: machO.context)
         return try walkRootNamespace(
             initialName: selfName,
-            startingParent: try descriptor.parent(in: machO),
+            startingParent: try descriptor.parent(in: machO.context),
             in: machO
         )
     }
@@ -136,10 +136,10 @@ extension SnapshotDumpableTests {
         of descriptor: ProtocolDescriptor,
         in machO: some MachOFieldLayoutRenderable
     ) throws -> String? {
-        let selfName = try descriptor.name(in: machO)
+        let selfName = try descriptor.name(in: machO.context)
         return try walkRootNamespace(
             initialName: selfName,
-            startingParent: try descriptor.parent(in: machO),
+            startingParent: try descriptor.parent(in: machO.context),
             in: machO
         )
     }
@@ -165,9 +165,9 @@ extension SnapshotDumpableTests {
                 break
             }
             if let namedDescriptor = parentWrapper.namedContextDescriptor {
-                lastNamedName = try namedDescriptor.name(in: machO)
+                lastNamedName = try namedDescriptor.name(in: machO.context)
             }
-            currentParent = try parentWrapper.parent(in: machO)
+            currentParent = try parentWrapper.parent(in: machO.context)
         }
 
         return lastNamedName
@@ -189,7 +189,7 @@ extension SnapshotDumpableTests {
             case .enum(let enumDescriptor):
                 guard options.contains(.enum) else { continue }
                 do {
-                    let enumType = try Enum(descriptor: enumDescriptor, in: machO)
+                    let enumType = try Enum(descriptor: enumDescriptor, in: machO.context)
                     let output = try await enumType.dump(using: .demangleOptions(.test), in: machO).string
                     results.append(output)
                 } catch {
@@ -198,7 +198,7 @@ extension SnapshotDumpableTests {
             case .struct(let structDescriptor):
                 guard options.contains(.struct) else { continue }
                 do {
-                    let structType = try Struct(descriptor: structDescriptor, in: machO)
+                    let structType = try Struct(descriptor: structDescriptor, in: machO.context)
                     let output = try await structType.dump(using: .demangleOptions(.test), in: machO).string
                     results.append(output)
                 } catch {
@@ -207,7 +207,7 @@ extension SnapshotDumpableTests {
             case .class(let classDescriptor):
                 guard options.contains(.class) else { continue }
                 do {
-                    let classType = try Class(descriptor: classDescriptor, in: machO)
+                    let classType = try Class(descriptor: classDescriptor, in: machO.context)
                     let output = try await classType.dump(using: .demangleOptions(.test), in: machO).string
                     results.append(output)
                 } catch {
@@ -228,7 +228,7 @@ extension SnapshotDumpableTests {
         for protocolDescriptor in protocolDescriptors {
             guard (try? rootNamespace(of: protocolDescriptor, in: machO)) == category else { continue }
             do {
-                let output = try await Protocol(descriptor: protocolDescriptor, in: machO)
+                let output = try await Protocol(descriptor: protocolDescriptor, in: machO.context)
                     .dump(using: .demangleOptions(.test), in: machO).string
                 results.append(output)
             } catch {
@@ -264,7 +264,7 @@ extension SnapshotDumpableTests {
                 in: machO
             ) else { continue }
             do {
-                let output = try await ProtocolConformance(descriptor: protocolConformanceDescriptor, in: machO)
+                let output = try await ProtocolConformance(descriptor: protocolConformanceDescriptor, in: machO.context)
                     .dump(using: .demangleOptions(.test), in: machO).string
                 results.append(output)
             } catch {
@@ -279,7 +279,7 @@ extension SnapshotDumpableTests {
         category: String,
         in machO: some MachOFieldLayoutRenderable
     ) throws -> Bool {
-        let resolvedTypeReference = try descriptor.resolvedTypeReference(in: machO)
+        let resolvedTypeReference = try descriptor.resolvedTypeReference(in: machO.context)
         let defaultRuleNamespace = try conformingTypeRootNamespace(
             resolvedTypeReference: resolvedTypeReference,
             in: machO
@@ -374,7 +374,7 @@ extension SnapshotDumpableTests {
             )
             guard owningNamespace == category else { continue }
             do {
-                let output = try await AssociatedType(descriptor: associatedTypeDescriptor, in: machO)
+                let output = try await AssociatedType(descriptor: associatedTypeDescriptor, in: machO.context)
                     .dump(using: .demangleOptions(.test), in: machO).string
                 results.append(output)
             } catch {
@@ -392,11 +392,11 @@ extension SnapshotDumpableTests {
         for protocolDescriptor in protocolDescriptors {
             let name: String
             do {
-                name = try protocolDescriptor.name(in: machO)
+                name = try protocolDescriptor.name(in: machO.context)
             } catch {
                 continue
             }
-            let moduleName = (try? protocolDescriptor.moduleContextDescriptor(in: machO)?.name(in: machO)) ?? ""
+            let moduleName = (try? protocolDescriptor.moduleContextDescriptor(in: machO.context)?.name(in: machO.context)) ?? ""
             let key = "\(moduleName).\(name)"
             // First writer wins; this produces stable behavior if duplicates exist.
             if lookup[key] == nil {
@@ -411,10 +411,10 @@ extension SnapshotDumpableTests {
         protocolIndex: [String: ProtocolDescriptor],
         in machO: some MachOFieldLayoutRenderable
     ) throws -> String? {
-        let protocolTypeName = try descriptor.protocolTypeName(in: machO)
+        let protocolTypeName = try descriptor.protocolTypeName(in: machO.context)
         let protocolNode: Node
         do {
-            protocolNode = try SymbolicDemangler.demangleType(for: protocolTypeName, in: machO)
+            protocolNode = try SymbolicDemangler.demangleType(for: protocolTypeName, in: machO.context)
         } catch {
             return nil
         }

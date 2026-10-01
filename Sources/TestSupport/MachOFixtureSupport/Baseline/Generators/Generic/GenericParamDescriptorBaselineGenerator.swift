@@ -23,11 +23,11 @@ package enum GenericParamDescriptorBaselineGenerator {
         outputDirectory: URL
     ) throws {
         let layoutDescriptor = try BaselineFixturePicker.struct_GenericStructLayoutRequirement(in: machO)
-        let layoutContext = try required(try layoutDescriptor.typeGenericContext(in: machO))
+        let layoutContext = try required(try layoutDescriptor.typeGenericContext(in: machO.context))
         let layoutParam = try required(layoutContext.parameters.first)
 
         let packDescriptor = try BaselineFixturePicker.struct_ParameterPackRequirementTest(in: machO)
-        let packContext = try required(try packDescriptor.typeGenericContext(in: machO))
+        let packContext = try required(try packDescriptor.typeGenericContext(in: machO.context))
         let packParam = try required(packContext.parameters.first)
 
         let layoutExpr = emitEntryExpr(for: layoutParam)

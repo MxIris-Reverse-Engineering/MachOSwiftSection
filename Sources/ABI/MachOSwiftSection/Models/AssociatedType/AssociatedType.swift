@@ -10,20 +10,6 @@ public struct AssociatedType: TopLevelType {
     public let protocolTypeName: MangledName
 
     public let records: [AssociatedTypeRecord]
-
-    public init(descriptor: AssociatedTypeDescriptor, in machO: some MachOSwiftSectionRepresentableWithCache) throws {
-        self.descriptor = descriptor
-        self.conformingTypeName = try descriptor.conformingTypeName(in: machO)
-        self.protocolTypeName = try descriptor.protocolTypeName(in: machO)
-        self.records = try descriptor.associatedTypeRecords(in: machO)
-    }
-    
-    public init(descriptor: AssociatedTypeDescriptor) throws {
-        self.descriptor = descriptor
-        self.conformingTypeName = try descriptor.conformingTypeName()
-        self.protocolTypeName = try descriptor.protocolTypeName()
-        self.records = try descriptor.associatedTypeRecords()
-    }
 }
 
 // MARK: - ReadingContext Support
@@ -34,5 +20,19 @@ extension AssociatedType {
         self.conformingTypeName = try descriptor.conformingTypeName(in: context)
         self.protocolTypeName = try descriptor.protocolTypeName(in: context)
         self.records = try descriptor.associatedTypeRecords(in: context)
+    }
+}
+
+// MARK: - Deprecated Mach-O and pointer forms
+
+extension AssociatedType {
+    @available(*, deprecated, message: "Pass a ReadingContext: AssociatedType(descriptor:in: machO.context).")
+    public init(descriptor: AssociatedTypeDescriptor, in machO: some MachOSwiftSectionRepresentableWithCache) throws {
+        try self.init(descriptor: descriptor, in: machO.context)
+    }
+
+    @available(*, deprecated, message: "Pass a ReadingContext: AssociatedType(descriptor:in: .inProcess).")
+    public init(descriptor: AssociatedTypeDescriptor) throws {
+        try self.init(descriptor: descriptor, in: InProcessContext.shared)
     }
 }

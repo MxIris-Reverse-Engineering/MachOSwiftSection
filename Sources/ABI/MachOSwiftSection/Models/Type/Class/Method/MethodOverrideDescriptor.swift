@@ -12,18 +12,6 @@ public struct MethodOverrideDescriptor: ResolvableLocatableLayoutWrapper {
 }
 
 extension MethodOverrideDescriptor {
-    public func classDescriptor(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> SymbolOrElement<ContextDescriptorWrapper>? {
-        return try layout.`class`.resolve(from: offset(of: \.`class`), in: machO).asOptional
-    }
-
-    public func methodDescriptor(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> SymbolOrElement<MethodDescriptor>? {
-        return try layout.method.resolve(from: offset(of: \.method), in: machO).asOptional
-    }
-
-    public func methodDescriptor() throws -> SymbolOrElement<MethodDescriptor>? {
-        return try layout.method.resolve(from: pointer(of: \.method)).asOptional
-    }
-
     /// File offset of the overriding implementation, or `nil` for a null
     /// pointer. See `MethodDescriptor.implementationOffset`.
     public var implementationOffset: Int? {
@@ -47,5 +35,24 @@ extension MethodOverrideDescriptor {
     public func implementationAddress<Context: ReadingContext>(in context: Context) throws -> Context.Address? {
         guard let implementationOffset else { return nil }
         return try context.addressFromOffset(implementationOffset)
+    }
+}
+
+// MARK: - Deprecated Mach-O and pointer forms
+
+extension MethodOverrideDescriptor {
+    @available(*, deprecated, message: "Pass a ReadingContext: classDescriptor(in: machO.context).")
+    public func classDescriptor(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> SymbolOrElement<ContextDescriptorWrapper>? {
+        try classDescriptor(in: machO.context)
+    }
+
+    @available(*, deprecated, message: "Pass a ReadingContext: methodDescriptor(in: machO.context).")
+    public func methodDescriptor(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> SymbolOrElement<MethodDescriptor>? {
+        try methodDescriptor(in: machO.context)
+    }
+
+    @available(*, deprecated, message: "Pass a ReadingContext: methodDescriptor(in: .inProcess).")
+    public func methodDescriptor() throws -> SymbolOrElement<MethodDescriptor>? {
+        try methodDescriptor(in: InProcessContext.shared)
     }
 }

@@ -38,70 +38,6 @@ extension GenericRequirementDescriptor {
     }
 }
 
-extension GenericRequirementDescriptor {
-    public func isContentEqual(to other: GenericRequirementDescriptor, in machO: some MachOSwiftSectionRepresentableWithCache) -> Bool {
-        guard let lhsResolvedParam = try? paramMangledName(in: machO), let rhsResolvedParam = try? other.paramMangledName(in: machO) else { return false }
-        guard let lhsResolvedContent = try? resolvedContent(in: machO), let rhsResolvedContent = try? other.resolvedContent(in: machO) else { return false }
-        return layout.flags == other.flags && lhsResolvedParam == rhsResolvedParam && lhsResolvedContent == rhsResolvedContent
-    }
-
-    public func paramMangledName(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> MangledName {
-        return try layout.param.resolve(from: offset(of: \.param), in: machO)
-    }
-
-    public func type(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> MangledName {
-        return try RelativeDirectPointer<MangledName>(relativeOffset: layout.content).resolve(from: offset(of: \.content), in: machO)
-    }
-
-    public func resolvedContent(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> ResolvedGenericRequirementContent {
-        let offset = offset(of: \.content)
-        switch content {
-        case .type(let relativeDirectPointer):
-            return try .type(relativeDirectPointer.resolve(from: offset, in: machO))
-        case .protocol(let relativeProtocolDescriptorPointer):
-            return try .protocol(relativeProtocolDescriptorPointer.resolve(from: offset, in: machO))
-        case .layout(let genericRequirementLayoutKind):
-            return .layout(genericRequirementLayoutKind)
-        case .conformance(let relativeIndirectablePointer):
-            return try .conformance(relativeIndirectablePointer.resolve(from: offset, in: machO))
-        case .invertedProtocols(let invertedProtocols):
-            return .invertedProtocols(invertedProtocols)
-        }
-    }
-}
-
-extension GenericRequirementDescriptor {
-    public func isContentEqual(to other: GenericRequirementDescriptor) -> Bool {
-        guard let lhsResolvedParam = try? paramMangledName(), let rhsResolvedParam = try? other.paramMangledName() else { return false }
-        guard let lhsResolvedContent = try? resolvedContent(), let rhsResolvedContent = try? other.resolvedContent() else { return false }
-        return layout.flags == other.flags && lhsResolvedParam == rhsResolvedParam && lhsResolvedContent == rhsResolvedContent
-    }
-
-    public func paramMangledName() throws -> MangledName {
-        return try layout.param.resolve(from: pointer(of: \.param))
-    }
-
-    public func type() throws -> MangledName {
-        return try RelativeDirectPointer<MangledName>(relativeOffset: layout.content).resolve(from: pointer(of: \.content))
-    }
-
-    public func resolvedContent() throws -> ResolvedGenericRequirementContent {
-        let pointer = try pointer(of: \.content)
-        switch content {
-        case .type(let relativeDirectPointer):
-            return try .type(relativeDirectPointer.resolve(from: pointer))
-        case .protocol(let relativeProtocolDescriptorPointer):
-            return try .protocol(relativeProtocolDescriptorPointer.resolve(from: pointer))
-        case .layout(let genericRequirementLayoutKind):
-            return .layout(genericRequirementLayoutKind)
-        case .conformance(let relativeIndirectablePointer):
-            return try .conformance(relativeIndirectablePointer.resolve(from: pointer))
-        case .invertedProtocols(let invertedProtocols):
-            return .invertedProtocols(invertedProtocols)
-        }
-    }
-}
-
 // MARK: - ReadingContext Support
 
 extension GenericRequirementDescriptor {
@@ -136,5 +72,49 @@ extension GenericRequirementDescriptor {
         case .invertedProtocols(let invertedProtocols):
             return .invertedProtocols(invertedProtocols)
         }
+    }
+}
+
+// MARK: - Deprecated Mach-O and pointer forms
+
+extension GenericRequirementDescriptor {
+    @available(*, deprecated, message: "Pass a ReadingContext: isContentEqual(to:in: machO.context).")
+    public func isContentEqual(to other: GenericRequirementDescriptor, in machO: some MachOSwiftSectionRepresentableWithCache) -> Bool {
+        isContentEqual(to: other, in: machO.context)
+    }
+
+    @available(*, deprecated, message: "Pass a ReadingContext: paramMangledName(in: machO.context).")
+    public func paramMangledName(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> MangledName {
+        try paramMangledName(in: machO.context)
+    }
+
+    @available(*, deprecated, message: "Pass a ReadingContext: type(in: machO.context).")
+    public func type(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> MangledName {
+        try type(in: machO.context)
+    }
+
+    @available(*, deprecated, message: "Pass a ReadingContext: resolvedContent(in: machO.context).")
+    public func resolvedContent(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> ResolvedGenericRequirementContent {
+        try resolvedContent(in: machO.context)
+    }
+
+    @available(*, deprecated, message: "Pass a ReadingContext: isContentEqual(to:in: .inProcess).")
+    public func isContentEqual(to other: GenericRequirementDescriptor) -> Bool {
+        isContentEqual(to: other, in: InProcessContext.shared)
+    }
+
+    @available(*, deprecated, message: "Pass a ReadingContext: paramMangledName(in: .inProcess).")
+    public func paramMangledName() throws -> MangledName {
+        try paramMangledName(in: InProcessContext.shared)
+    }
+
+    @available(*, deprecated, message: "Pass a ReadingContext: type(in: .inProcess).")
+    public func type() throws -> MangledName {
+        try type(in: InProcessContext.shared)
+    }
+
+    @available(*, deprecated, message: "Pass a ReadingContext: resolvedContent(in: .inProcess).")
+    public func resolvedContent() throws -> ResolvedGenericRequirementContent {
+        try resolvedContent(in: InProcessContext.shared)
     }
 }

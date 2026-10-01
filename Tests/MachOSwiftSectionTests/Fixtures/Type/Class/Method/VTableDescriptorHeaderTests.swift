@@ -19,8 +19,8 @@ final class VTableDescriptorHeaderTests: MachOSwiftSectionFixtureTests, FixtureS
     private func loadClassTestVTableHeaders() throws -> (file: VTableDescriptorHeader, image: VTableDescriptorHeader) {
         let fileDescriptor = try BaselineFixturePicker.class_ClassTest(in: machOFile)
         let imageDescriptor = try BaselineFixturePicker.class_ClassTest(in: machOImage)
-        let fileClass = try Class(descriptor: fileDescriptor, in: machOFile)
-        let imageClass = try Class(descriptor: imageDescriptor, in: machOImage)
+        let fileClass = try Class(descriptor: fileDescriptor, in: fileContext)
+        let imageClass = try Class(descriptor: imageDescriptor, in: imageContext)
         let fileHeader = try required(fileClass.vTableDescriptorHeader)
         let imageHeader = try required(imageClass.vTableDescriptorHeader)
         return (file: fileHeader, image: imageHeader)

@@ -16,10 +16,10 @@ import MachOFixtureSupport
 /// Presence + cardinality is the meaningful invariant: it fails if a reader
 /// disagrees about whether a field exists, which is what we care about.
 ///
-/// `init(descriptor:in:)` (MachO + ReadingContext overloads) and
-/// `init(descriptor:)` (in-process) are exercised by the same tests that
-/// instantiate the `Struct`; we surface explicit `@Test func init...` entries
-/// for coverage purposes.
+/// `init(descriptor:in:)` (over the file and image contexts and the
+/// in-process context) is exercised by the same tests that instantiate the
+/// `Struct`; we surface explicit `@Test func init...` entries for coverage
+/// purposes.
 @Suite
 final class StructTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
     static let testedTypeName = "Struct"
@@ -28,15 +28,15 @@ final class StructTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked
     }
 
     /// Helper: instantiate the `Struct` wrapper for `Structs.StructTest` against
-    /// both the file and image readers using the MachO-direct initializer.
-    /// Used by every ivar test — the in-process and ReadingContext-based
+    /// both the file and image readers through their reading contexts.
+    /// Used by every ivar test — the file/image-context and in-process
     /// initializer paths are exercised separately by `initializerWithMachO()`
     /// / `initializerInProcess()`.
     private func loadStructTestStructs() throws -> (file: Struct, image: Struct) {
         let fileDescriptor = try BaselineFixturePicker.struct_StructTest(in: machOFile)
         let imageDescriptor = try BaselineFixturePicker.struct_StructTest(in: machOImage)
-        let file = try Struct(descriptor: fileDescriptor, in: machOFile)
-        let image = try Struct(descriptor: imageDescriptor, in: machOImage)
+        let file = try Struct(descriptor: fileDescriptor, in: fileContext)
+        let image = try Struct(descriptor: imageDescriptor, in: imageContext)
         return (file: file, image: image)
     }
 
@@ -46,25 +46,21 @@ final class StructTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked
         let fileDescriptor = try BaselineFixturePicker.struct_StructTest(in: machOFile)
         let imageDescriptor = try BaselineFixturePicker.struct_StructTest(in: machOImage)
 
-        // Both file/image MachO-based initializers must succeed and produce a
-        // descriptor whose offset matches the baseline.
-        let fileStruct = try Struct(descriptor: fileDescriptor, in: machOFile)
-        let imageStruct = try Struct(descriptor: imageDescriptor, in: machOImage)
-        let fileCtxStruct = try Struct(descriptor: fileDescriptor, in: fileContext)
-        let imageCtxStruct = try Struct(descriptor: imageDescriptor, in: imageContext)
+        // Both file/image context-based initializers must succeed and produce
+        // a descriptor whose offset matches the baseline.
+        let fileStruct = try Struct(descriptor: fileDescriptor, in: fileContext)
+        let imageStruct = try Struct(descriptor: imageDescriptor, in: imageContext)
 
         #expect(fileStruct.descriptor.offset == StructBaseline.structTest.descriptorOffset)
         #expect(imageStruct.descriptor.offset == StructBaseline.structTest.descriptorOffset)
-        #expect(fileCtxStruct.descriptor.offset == StructBaseline.structTest.descriptorOffset)
-        #expect(imageCtxStruct.descriptor.offset == StructBaseline.structTest.descriptorOffset)
     }
 
     @Test("init(descriptor:)") func initializerInProcess() async throws {
-        // The InProcess `init(descriptor:)` requires a pointer-form descriptor
-        // resolved against MachOImage; reproduce that here.
+        // Initializing through `inProcessContext` requires a pointer-form
+        // descriptor resolved against MachOImage; reproduce that here.
         let imageDescriptor = try BaselineFixturePicker.struct_StructTest(in: machOImage)
         let pointerDescriptor = imageDescriptor.asPointerWrapper(in: machOImage)
-        let inProcessStruct = try Struct(descriptor: pointerDescriptor)
+        let inProcessStruct = try Struct(descriptor: pointerDescriptor, in: inProcessContext)
 
         // The in-process `descriptor.offset` is a pointer bit pattern, not a
         // file offset — we just assert a non-zero offset (i.e. resolution
@@ -96,11 +92,11 @@ final class StructTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked
         // Generic struct (`GenericStructNonRequirement<A>`): has a generic context.
         let genericFile = try Struct(
             descriptor: try BaselineFixturePicker.struct_GenericStructNonRequirement(in: machOFile),
-            in: machOFile
+            in: fileContext
         )
         let genericImage = try Struct(
             descriptor: try BaselineFixturePicker.struct_GenericStructNonRequirement(in: machOImage),
-            in: machOImage
+            in: imageContext
         )
         let genericPresence = try acrossAllReaders(
             file: { genericFile.genericContext != nil },

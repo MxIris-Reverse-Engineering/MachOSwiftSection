@@ -35,8 +35,8 @@ package enum StructBaselineGenerator {
         let structTestDescriptor = try BaselineFixturePicker.struct_StructTest(in: machO)
         let genericStructDescriptor = try BaselineFixturePicker.struct_GenericStructNonRequirement(in: machO)
 
-        let structTestStruct = try Struct(descriptor: structTestDescriptor, in: machO)
-        let genericStructStruct = try Struct(descriptor: genericStructDescriptor, in: machO)
+        let structTestStruct = try Struct(descriptor: structTestDescriptor, in: machO.context)
+        let genericStructStruct = try Struct(descriptor: genericStructDescriptor, in: machO.context)
 
         let structTestExpr = emitEntryExpr(for: structTestStruct)
         let genericStructExpr = emitEntryExpr(for: genericStructStruct)

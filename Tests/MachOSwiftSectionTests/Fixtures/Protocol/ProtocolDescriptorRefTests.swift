@@ -69,8 +69,8 @@ final class ProtocolDescriptorRefTests: MachOSwiftSectionFixtureTests, FixtureSu
     @Test func objcProtocol() async throws {
         let prefixFromFile = try BaselineFixturePicker.objcProtocolPrefix_first(in: machOFile)
         let prefixFromImage = try BaselineFixturePicker.objcProtocolPrefix_first(in: machOImage)
-        let nameFromFile = try prefixFromFile.name(in: machOFile)
-        let nameFromImage = try prefixFromImage.name(in: machOImage)
+        let nameFromFile = try prefixFromFile.name(in: fileContext)
+        let nameFromImage = try prefixFromImage.name(in: imageContext)
         #expect(nameFromFile == ProtocolDescriptorRefBaseline.liveObjc.name)
         #expect(nameFromImage == ProtocolDescriptorRefBaseline.liveObjc.name)
     }

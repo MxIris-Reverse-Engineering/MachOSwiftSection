@@ -32,13 +32,13 @@ package enum ProtocolRequirementBaselineGenerator {
         outputDirectory: URL
     ) throws {
         let descriptor = try BaselineFixturePicker.protocol_ProtocolWitnessTableTest(in: machO)
-        let protocolType = try `Protocol`(descriptor: descriptor, in: machO)
+        let protocolType = try `Protocol`(descriptor: descriptor, in: machO.context)
         let firstRequirement = try required(protocolType.requirements.first)
 
         let firstRequirementExpr = try emitRequirementEntryExpr(for: firstRequirement, in: machO)
 
         let defaultedDescriptor = try BaselineFixturePicker.protocol_BasicDefaultProtocol(in: machO)
-        let defaultedProtocol = try `Protocol`(descriptor: defaultedDescriptor, in: machO)
+        let defaultedProtocol = try `Protocol`(descriptor: defaultedDescriptor, in: machO.context)
         let firstDefaultedRequirement = try required(defaultedProtocol.requirements.first { $0.layout.defaultImplementation.isValid })
         let firstDefaultedRequirementExpr = try emitRequirementEntryExpr(for: firstDefaultedRequirement, in: machO)
 

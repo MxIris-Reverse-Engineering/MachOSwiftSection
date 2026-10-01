@@ -89,28 +89,6 @@ public struct TargetGenericContext<Header: GenericContextDescriptorHeaderProtoco
         currentValues.isEmpty ? parentValues : parentValues.appending(currentValues)
     }
 
-    public func uniqueCurrentRequirements(in machO: some MachOSwiftSectionRepresentableWithCache) -> [GenericRequirementDescriptor] {
-        let parentRequirements = parentRequirements.flatMap { $0 }
-        var currentRequirements: [GenericRequirementDescriptor] = []
-        for requirement in requirements {
-            if !parentRequirements.contains(where: { $0.isContentEqual(to: requirement, in: machO) }) {
-                currentRequirements.append(requirement)
-            }
-        }
-        return currentRequirements
-    }
-
-    public func uniqueCurrentRequirementsInProcess() -> [GenericRequirementDescriptor] {
-        let parentRequirements = parentRequirements.flatMap { $0 }
-        var currentRequirements: [GenericRequirementDescriptor] = []
-        for requirement in requirements {
-            if !parentRequirements.contains(where: { $0.isContentEqual(to: requirement) }) {
-                currentRequirements.append(requirement)
-            }
-        }
-        return currentRequirements
-    }
-
     public func asGenericContext() -> GenericContext {
         .init(
             offset: offset,
@@ -141,14 +119,6 @@ public struct TargetGenericContext<Header: GenericContextDescriptorHeaderProtoco
         )
     }
 
-    public init(contextDescriptor: some ContextDescriptorProtocol, in machO: some MachOSwiftSectionRepresentableWithCache) throws {
-        try self.init(contextDescriptor: contextDescriptor, in: machO.context)
-    }
-
-    public init(contextDescriptor: some ContextDescriptorProtocol) throws {
-        try self.init(contextDescriptor: contextDescriptor, in: InProcessContext.shared)
-    }
-    
     public init(contextDescriptor: some ContextDescriptorProtocol, in context: some ReadingContext) throws {
         var currentOffset = contextDescriptor.offset + contextDescriptor.layoutSize
         let genericContextOffset = currentOffset
@@ -302,5 +272,29 @@ extension TargetGenericContext {
             }
         }
         return currentRequirements
+    }
+}
+
+// MARK: - Deprecated Mach-O and pointer forms
+
+extension TargetGenericContext {
+    @available(*, deprecated, message: "Pass a ReadingContext: TargetGenericContext(contextDescriptor:in: machO.context).")
+    public init(contextDescriptor: some ContextDescriptorProtocol, in machO: some MachOSwiftSectionRepresentableWithCache) throws {
+        try self.init(contextDescriptor: contextDescriptor, in: machO.context)
+    }
+
+    @available(*, deprecated, message: "Pass a ReadingContext: TargetGenericContext(contextDescriptor:in: .inProcess).")
+    public init(contextDescriptor: some ContextDescriptorProtocol) throws {
+        try self.init(contextDescriptor: contextDescriptor, in: InProcessContext.shared)
+    }
+
+    @available(*, deprecated, message: "Pass a ReadingContext: uniqueCurrentRequirements(in: machO.context).")
+    public func uniqueCurrentRequirements(in machO: some MachOSwiftSectionRepresentableWithCache) -> [GenericRequirementDescriptor] {
+        uniqueCurrentRequirements(in: machO.context)
+    }
+
+    @available(*, deprecated, message: "Pass a ReadingContext: uniqueCurrentRequirements(in: .inProcess).")
+    public func uniqueCurrentRequirementsInProcess() -> [GenericRequirementDescriptor] {
+        uniqueCurrentRequirements(in: InProcessContext.shared)
     }
 }

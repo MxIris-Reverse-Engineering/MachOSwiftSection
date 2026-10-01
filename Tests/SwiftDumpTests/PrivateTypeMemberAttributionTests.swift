@@ -23,9 +23,9 @@ final class PrivateTypeMemberAttributionTests: MachOFileTests, @unchecked Sendab
         for typeContextDescriptor in try machOFile.swift.typeContextDescriptors {
             guard
                 case .struct(let structDescriptor) = typeContextDescriptor,
-                try structDescriptor.name(in: machOFile) == "PrivateDoppelganger"
+                try structDescriptor.name(in: machOFile.context) == "PrivateDoppelganger"
             else { continue }
-            let structType = try Struct(descriptor: structDescriptor, in: machOFile)
+            let structType = try Struct(descriptor: structDescriptor, in: machOFile.context)
             let output = try await structType.dump(using: .demangleOptions(.test), in: machOFile).string
             if output.contains("alphaStorage") {
                 dumpsByFieldMarker["alpha"] = output

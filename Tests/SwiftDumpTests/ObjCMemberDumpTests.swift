@@ -23,7 +23,7 @@ struct ObjCMemberDumpTests {
     private func classDescriptor(named name: String, in machOFile: MachOFile) throws -> ClassDescriptor {
         for typeContextDescriptor in try machOFile.swift.typeContextDescriptors {
             guard case .class(let classDescriptor) = typeContextDescriptor else { continue }
-            guard try classDescriptor.name(in: machOFile) == name else { continue }
+            guard try classDescriptor.name(in: machOFile.context) == name else { continue }
             return classDescriptor
         }
         Issue.record("fixture is missing the class \(name)")
@@ -41,7 +41,7 @@ struct ObjCMemberDumpTests {
     @Test func swiftClassDumpNamesTheAncestorChainAndTheOverriddenSelectors() async throws {
         let machOFile = try ObjCImplementationFixture.machOFile(.full)
         try await withFixtureWorld(for: machOFile) {
-        let classType = try Class(descriptor: try classDescriptor(named: "SwiftDerivedWidget", in: machOFile), in: machOFile)
+        let classType = try Class(descriptor: try classDescriptor(named: "SwiftDerivedWidget", in: machOFile), in: machOFile.context)
         let output = try await classType.dump(using: .demangleOptions(.test), in: machOFile).string
         let moduleName = ObjCImplementationFixture.moduleName
         // The chain — on its own line right under the header — runs through
@@ -73,7 +73,7 @@ struct ObjCMemberDumpTests {
 
     @Test func swiftAncestorsPrintByTheirQualifiedName() async throws {
         let machOFile = try ObjCImplementationFixture.machOFile(.full)
-        let classType = try Class(descriptor: try classDescriptor(named: "SwiftGrandchildWidget", in: machOFile), in: machOFile)
+        let classType = try Class(descriptor: try classDescriptor(named: "SwiftGrandchildWidget", in: machOFile), in: machOFile.context)
         let output = try await classType.dump(using: .demangleOptions(.test), in: machOFile).string
         let moduleName = ObjCImplementationFixture.moduleName
         // The Swift ancestor's `class_ro_t` name is its mangled runtime name;
@@ -90,7 +90,7 @@ struct ObjCMemberDumpTests {
         let machOFile = try ObjCImplementationFixture.machOFile(.full)
         ObjCAncestorResolverStore.shared.register(.empty, for: machOFile)
         defer { ObjCAncestorResolverStore.shared.remove(for: machOFile) }
-        let classType = try Class(descriptor: try classDescriptor(named: "SwiftGrandchildWidget", in: machOFile), in: machOFile)
+        let classType = try Class(descriptor: try classDescriptor(named: "SwiftGrandchildWidget", in: machOFile), in: machOFile.context)
         let output = try await classType.dump(using: .demangleOptions(.test), in: machOFile).string
         let moduleName = ObjCImplementationFixture.moduleName
         #expect(output.contains("// ObjC ancestor chain: \(moduleName).SwiftDerivedWidget → ClangWidget → NSObject (bound; chain not resolvable offline)"))
@@ -125,10 +125,10 @@ struct ObjCMemberDumpTests {
         let machOImage = try #require(MachOImage(name: libraryURL.deletingPathExtension().lastPathComponent), "the fixture dylib did not load in-process")
         var descriptor: ClassDescriptor?
         for typeContextDescriptor in try machOImage.swift.typeContextDescriptors {
-            guard case .class(let classDescriptor) = typeContextDescriptor, try classDescriptor.name(in: machOImage) == "SwiftDerivedWidget" else { continue }
+            guard case .class(let classDescriptor) = typeContextDescriptor, try classDescriptor.name(in: machOImage.context) == "SwiftDerivedWidget" else { continue }
             descriptor = classDescriptor
         }
-        let classType = try Class(descriptor: try #require(descriptor), in: machOImage)
+        let classType = try Class(descriptor: try #require(descriptor), in: machOImage.context)
         let output = try await classType.dump(using: .demangleOptions(.test), in: machOImage).string
         let moduleName = ObjCImplementationFixture.moduleName
         #expect(output.contains("// ObjC ancestor chain: ClangWidget → NSObject\n"))
@@ -147,7 +147,7 @@ struct ObjCMemberDumpTests {
         let machOFile = try ObjCImplementationFixture.machOFile(.optimizedStripped)
         let moduleName = ObjCImplementationFixture.moduleName
         try await withFixtureWorld(for: machOFile) {
-            let classType = try Class(descriptor: try classDescriptor(named: "SwiftDerivedWidget", in: machOFile), in: machOFile)
+            let classType = try Class(descriptor: try classDescriptor(named: "SwiftDerivedWidget", in: machOFile), in: machOFile.context)
             let implementationClass = try #require(ObjCImplementationClass.all(in: machOFile).first { $0.facts.className == "DerivedImplementationWidget" })
 
             let inferred = try await classType.dump(using: .demangleOptions(.test), in: machOFile).string
@@ -173,7 +173,7 @@ struct ObjCMemberDumpTests {
     /// Stripped thunks — the OS-framework shape — tie through the thunk's code.
     @Test func strippedThunksStillNameTheSelector() async throws {
         let machOFile = try ObjCImplementationFixture.machOFile(.strippedLocals)
-        let classType = try Class(descriptor: try classDescriptor(named: "SwiftDerivedWidget", in: machOFile), in: machOFile)
+        let classType = try Class(descriptor: try classDescriptor(named: "SwiftDerivedWidget", in: machOFile), in: machOFile.context)
         let output = try await classType.dump(using: .demangleOptions(.test), in: machOFile).string
         let moduleName = ObjCImplementationFixture.moduleName
         #expect(output.contains("notAnOverride() -> () // @objc -[\(moduleName).SwiftDerivedWidget notAnOverride] (the IMP's code references the implementation)"))

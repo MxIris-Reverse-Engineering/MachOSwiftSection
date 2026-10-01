@@ -26,7 +26,7 @@ package enum ProtocolRequirementFlagsBaselineGenerator {
         outputDirectory: URL
     ) throws {
         let descriptor = try BaselineFixturePicker.protocol_ProtocolWitnessTableTest(in: machO)
-        let protocolType = try `Protocol`(descriptor: descriptor, in: machO)
+        let protocolType = try `Protocol`(descriptor: descriptor, in: machO.context)
         let firstRequirement = try required(protocolType.requirements.first)
         let liveFlags = firstRequirement.layout.flags
 

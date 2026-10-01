@@ -15,39 +15,12 @@ public enum SymbolOrElementPointer<Element: Resolvable>: RelativeIndirectType {
     case symbol(Symbol)
     case address(UInt64)
 
-    public func resolve() throws -> Resolved {
-        switch self {
-        case .symbol:
-            fatalError()
-        case .address(let address):
-            return try .element(Element.resolve(from: .init(bitPattern: stripPointerTags(of: address).uint)))
-        }
-    }
-
-    public func resolve(in machO: some MachORepresentableWithCache & Readable) throws -> Resolved {
-        switch self {
-        case .symbol(let unsolvedSymbol):
-            return .symbol(unsolvedSymbol)
-        case .address:
-            return try .element(Element.resolve(from: resolveOffset(in: machO), in: machO))
-        }
-    }
-
     public func resolve(in context: some ReadingContext) throws -> Resolved {
         switch self {
         case .symbol(let unsolvedSymbol):
             return .symbol(unsolvedSymbol)
         case .address:
             return try .element(Element.resolve(at: resolveAddress(in: context), in: context))
-        }
-    }
-
-    public func resolveOffset(in machO: some MachORepresentableWithCache & Readable) -> Int {
-        switch self {
-        case .symbol(let unsolvedSymbol):
-            return unsolvedSymbol.offset
-        case .address(let address):
-            return numericCast(machO.resolveOffset(at: machO.stripPointerTags(of: address)))
         }
     }
 
@@ -60,34 +33,13 @@ public enum SymbolOrElementPointer<Element: Resolvable>: RelativeIndirectType {
         }
     }
 
-    public func resolveAny<T>() throws -> T where T: Resolvable {
-        fatalError()
-    }
-
-    public func resolveAny<T: Resolvable>(in machO: some MachORepresentableWithCache & Readable) throws -> T {
-        fatalError()
-    }
-
     public func resolveAny<T: Resolvable>(in context: some ReadingContext) throws -> T {
         fatalError("resolveAny is not supported for SymbolOrElementPointer with ReadingContext")
     }
 
-    public static func resolve(from offset: Int, in machO: some MachORepresentableWithCache & Readable) throws -> Self {
-        if let resolver = machO as? any MachOBindRebaseResolving {
-            if let symbol = resolver.resolveBind(fileOffset: offset) {
-                return .symbol(.init(offset: offset, name: symbol))
-            }
-            if let rebase = resolver.resolveRebase(fileOffset: offset) {
-                return .address(rebase)
-            }
-        }
-        return try .address(machO.readElement(offset: offset))
-    }
-
-    public static func resolve(from ptr: UnsafeRawPointer) throws -> Self {
-        return try .address(ptr.stripPointerTags().assumingMemoryBound(to: UInt64.self).pointee)
-    }
-
+    /// Reads the pointer stored at `address`: the symbol dyld binds there when
+    /// the element lives in another image, otherwise the rebased target or
+    /// the stored address.
     public static func resolve<Context: ReadingContext>(at address: Context.Address, in context: Context) throws -> Self {
         if let resolver = context.bindRebaseResolver {
             let offset = try context.offsetFromAddress(address)
@@ -102,34 +54,59 @@ public enum SymbolOrElementPointer<Element: Resolvable>: RelativeIndirectType {
     }
 }
 
-extension SymbolOrElementPointer where Element: OptionalProtocol {
+// MARK: - Deprecated Mach-O and pointer forms
+
+extension SymbolOrElementPointer {
+    @available(*, deprecated, message: "Pass a ReadingContext: resolve(in: .inProcess).")
     public func resolve() throws -> Resolved {
-        switch self {
-        case .symbol:
-            fatalError()
-        case .address(let address) where stripPointerTags(of: address).uint == 0:
-            return .element(.none)
-        case .address(let address):
-            return try .element(Element.resolve(from: .init(bitPattern: stripPointerTags(of: address).uint)))
-        }
+        try resolve(in: InProcessContext.shared)
     }
 
+    @available(*, deprecated, message: "Pass a ReadingContext: resolve(in: machO.context).")
     public func resolve(in machO: some MachORepresentableWithCache & Readable) throws -> Resolved {
-        switch self {
-        case .symbol(let unsolvedSymbol):
-            return .symbol(unsolvedSymbol)
-        case .address(let address) where machO.stripPointerTags(of: address) == 0:
-            return .element(.none)
-        case .address:
-            return try .element(Element.resolve(from: resolveOffset(in: machO), in: machO))
-        }
+        try resolve(in: machO.context)
     }
 
+    @available(*, deprecated, message: "Pass a ReadingContext: resolveAddress(in: machO.context).")
+    public func resolveOffset(in machO: some MachORepresentableWithCache & Readable) -> Int {
+        // `MachOContext` converts addresses without failing; the requirement
+        // is declared `throws` only for the contexts that can.
+        try! resolveAddress(in: machO.context)
+    }
+
+    @available(*, deprecated, message: "Pass a ReadingContext: resolveAny(in: .inProcess).")
+    public func resolveAny<T>() throws -> T where T: Resolvable {
+        try resolveAny(in: InProcessContext.shared)
+    }
+
+    @available(*, deprecated, message: "Pass a ReadingContext: resolveAny(in: machO.context).")
+    public func resolveAny<T: Resolvable>(in machO: some MachORepresentableWithCache & Readable) throws -> T {
+        try resolveAny(in: machO.context)
+    }
+}
+
+extension SymbolOrElementPointer where Element: OptionalProtocol {
     public func resolve(in context: some ReadingContext) throws -> Resolved {
+        try resolveUnlessNull(in: context)
+    }
+
+    @available(*, deprecated, message: "Pass a ReadingContext: resolve(in: .inProcess).")
+    public func resolve() throws -> Resolved {
+        try resolveUnlessNull(in: InProcessContext.shared)
+    }
+
+    @available(*, deprecated, message: "Pass a ReadingContext: resolve(in: machO.context).")
+    public func resolve(in machO: some MachORepresentableWithCache & Readable) throws -> Resolved {
+        try resolveUnlessNull(in: machO.context)
+    }
+
+    /// A stored address that is null once its tag bits are stripped
+    /// resolves to a `nil` element.
+    private func resolveUnlessNull(in context: some ReadingContext) throws -> Resolved {
         switch self {
         case .symbol(let unsolvedSymbol):
             return .symbol(unsolvedSymbol)
-        case .address(let address) where address == 0:
+        case .address(let address) where stripPointerTags(of: address) == 0:
             return .element(.none)
         case .address:
             return try .element(Element.resolve(at: resolveAddress(in: context), in: context))

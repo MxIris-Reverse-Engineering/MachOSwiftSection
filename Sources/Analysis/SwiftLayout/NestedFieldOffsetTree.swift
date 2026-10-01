@@ -50,7 +50,7 @@ extension StaticLayoutCalculator {
         baseOffset: Int,
         depthLimit: Int
     ) -> [NestedFieldOffset] {
-        guard let node = try? SymbolicDemangler.demangleType(for: mangledTypeName, in: imageUniverse.rootImage.machO) else {
+        guard let node = try? SymbolicDemangler.demangleType(for: mangledTypeName, in: imageUniverse.rootImage.machO.context) else {
             return []
         }
         return nestedChildren(
@@ -141,7 +141,7 @@ extension StaticLayoutCalculator {
         let environment = GenericArgumentEnvironment.make(forInstantiatedTypeNode: node)
         guard
             let aggregate = try? fieldLayout(ofStruct: structDescriptor, in: resolved.image, environment: environment),
-            let records = try? structDescriptor.fieldDescriptor(in: resolved.image.machO).records(in: resolved.image.machO)
+            let records = try? structDescriptor.fieldDescriptor(in: resolved.image.machO.context).records(in: resolved.image.machO.context)
         else { return [] }
 
         var children: [NestedFieldOffset] = []
@@ -181,14 +181,14 @@ extension StaticLayoutCalculator {
             let resolved = imageUniverse.resolveType(byQualifiedTypeName: qualifiedTypeName),
             let enumDescriptor = resolved.descriptor.enum,
             enumDescriptor.hasPayloadCases,
-            let records = try? enumDescriptor.fieldDescriptor(in: resolved.image.machO).records(in: resolved.image.machO)
+            let records = try? enumDescriptor.fieldDescriptor(in: resolved.image.machO.context).records(in: resolved.image.machO.context)
         else { return [] }
         let environment = GenericArgumentEnvironment.make(forInstantiatedTypeNode: node)
         let payloadRecords = records.prefix(enumDescriptor.numberOfPayloadCases)
 
         var children: [NestedFieldOffset] = []
         for record in payloadRecords {
-            guard let mangledTypeName = try? record.mangledTypeName(in: resolved.image.machO), !mangledTypeName.isEmpty else { continue }
+            guard let mangledTypeName = try? record.mangledTypeName(in: resolved.image.machO.context), !mangledTypeName.isEmpty else { continue }
             // A payload occupies the enum's payload area, which begins at the
             // enum's own offset — every payload starts at `baseOffset`.
             children.append(makeNode(
@@ -230,9 +230,9 @@ extension StaticLayoutCalculator {
         descendsIntoFieldType: Bool,
         byteWidth: Int?
     ) -> NestedFieldOffset {
-        let fieldName = ((try? record.fieldName(in: image.machO)).flatMap { $0.isEmpty ? nil : $0 }) ?? fallbackFieldName
-        let fieldTypeNode: Node? = (try? record.mangledTypeName(in: image.machO)).flatMap { mangledTypeName in
-            (try? SymbolicDemangler.demangleType(for: mangledTypeName, in: image.machO)).map { environment.substituting(in: $0) }
+        let fieldName = ((try? record.fieldName(in: image.machO.context)).flatMap { $0.isEmpty ? nil : $0 }) ?? fallbackFieldName
+        let fieldTypeNode: Node? = (try? record.mangledTypeName(in: image.machO.context)).flatMap { mangledTypeName in
+            (try? SymbolicDemangler.demangleType(for: mangledTypeName, in: image.machO.context)).map { environment.substituting(in: $0) }
         }
         let typeName = fieldTypeNode?.print(using: .default) ?? ""
         let children = descendsIntoFieldType ? (fieldTypeNode.map {

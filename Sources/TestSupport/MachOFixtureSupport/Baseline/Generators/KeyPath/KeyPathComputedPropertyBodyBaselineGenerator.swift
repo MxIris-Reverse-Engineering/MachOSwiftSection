@@ -15,7 +15,7 @@ package enum KeyPathComputedPropertyBodyBaselineGenerator {
         outputDirectory: URL
     ) throws {
         let descriptors = try KeyPathFixtureDescriptors(in: machO)
-        let body = try required(descriptors.computedSettable.computedPropertyBody(in: machO))
+        let body = try required(descriptors.computedSettable.computedPropertyBody(in: machO.context))
 
         let registered = [
             "getter",

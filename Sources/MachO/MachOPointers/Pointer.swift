@@ -12,20 +12,24 @@ public struct Pointer<Pointee: Resolvable>: RelativeIndirectType, PointerProtoco
         self.address = address
     }
 
-    public static func resolve(from offset: Int, in machO: some MachORepresentableWithCache & Readable) throws -> Self {
-        if let machOFile = machO as? MachOFile, let rebase = machOFile.resolveRebase(fileOffset: offset.cast()) {
-            return .init(address: rebase)
-        } else {
-            return try machO.readElement(offset: offset)
-        }
-    }
-
-    public static func resolve(from ptr: UnsafeRawPointer) throws -> Self {
-        .init(address: ptr.assumingMemoryBound(to: UInt64.self).pointee)
-    }
-
+    /// Reads the pointer stored at `address`. In a file the stored bytes of a
+    /// rebased slot are a chained-fixup encoding, not an address; the rebase
+    /// table says what dyld writes there at load time.
     public static func resolve<Context>(at address: Context.Address, in context: Context) throws -> Pointer<Pointee> where Context : ReadingContext {
+        if let resolver = context.bindRebaseResolver, let rebase = resolver.resolveRebase(fileOffset: try context.offsetFromAddress(address)) {
+            return .init(address: rebase)
+        }
         return try context.readElement(at: address)
+    }
+
+    @available(*, deprecated, message: "Pass a ReadingContext: resolve(at: offset, in: machO.context).")
+    public static func resolve(from offset: Int, in machO: some MachORepresentableWithCache & Readable) throws -> Self {
+        try resolve(at: offset, in: machO.context)
+    }
+
+    @available(*, deprecated, message: "Pass a ReadingContext: resolve(at: pointer, in: .inProcess).")
+    public static func resolve(from ptr: UnsafeRawPointer) throws -> Self {
+        try resolve(at: ptr, in: InProcessContext.shared)
     }
 }
 

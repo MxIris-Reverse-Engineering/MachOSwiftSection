@@ -73,10 +73,10 @@ extension Node {
         var contextNode: Node?
         if machO is MachOImage, let absolutePointer = UnsafeRawPointer(bitPattern: offset) {
             if let descriptor: OpaqueTypeDescriptor = try? absolutePointer.readWrapperElement() {
-                contextNode = try? SymbolicDemangler.demangleContext(for: .opaqueType(descriptor))
+                contextNode = try? SymbolicDemangler.demangleContext(for: .opaqueType(descriptor), in: .inProcess)
             }
-        } else if let descriptor = try? OpaqueTypeDescriptor.resolve(from: offset, in: machO) {
-            contextNode = try? SymbolicDemangler.demangleContext(for: .opaqueType(descriptor), in: machO)
+        } else if let descriptor = try? OpaqueTypeDescriptor.resolve(at: offset, in: machO.context) {
+            contextNode = try? SymbolicDemangler.demangleContext(for: .opaqueType(descriptor), in: machO.context)
             if contextNode == nil, let symbol = try? Symbol.resolve(from: offset, in: machO) {
                 contextNode = try? symbol.demangledNode
             }

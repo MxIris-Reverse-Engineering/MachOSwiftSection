@@ -41,95 +41,6 @@ public struct ProtocolConformance: TopLevelType {
     public private(set) var genericWitnessTable: GenericWitnessTable?
 
     public private(set) var globalActorReference: GlobalActorReference?
-
-    public init(descriptor: ProtocolConformanceDescriptor, in machO: some MachOSwiftSectionRepresentableWithCache) throws {
-        self.descriptor = descriptor
-
-        self.protocol = try descriptor.protocolDescriptor(in: machO)
-
-        self.typeReference = try descriptor.resolvedTypeReference(in: machO)
-
-        self.witnessTablePattern = try descriptor.witnessTablePattern(in: machO)
-
-        var currentOffset = descriptor.offset + descriptor.layoutSize
-
-        if descriptor.flags.isRetroactive {
-            let retroactiveContextPointer: RelativeContextPointer = try machO.readElement(offset: currentOffset)
-            self.retroactiveContextDescriptor = try retroactiveContextPointer.resolve(from: currentOffset, in: machO).asOptional
-            currentOffset.offset(of: RelativeIndirectablePointer<ContextDescriptorWrapper?, Pointer<ContextDescriptorWrapper?>>.self)
-        } else {
-            self.retroactiveContextDescriptor = nil
-        }
-
-        try initialize(descriptor: descriptor, currentOffset: &currentOffset, in: machO)
-    }
-
-    public init(descriptor: ProtocolConformanceDescriptor) throws {
-        self.descriptor = descriptor
-
-        self.protocol = try descriptor.protocolDescriptor()
-
-        self.typeReference = try descriptor.resolvedTypeReference()
-
-        self.witnessTablePattern = try descriptor.witnessTablePattern()
-
-        var currentOffset = descriptor.layoutSize
-
-        let pointer = try descriptor.asPointer
-
-        if descriptor.flags.isRetroactive {
-            let retroactiveContextPointer: RelativeContextPointer = try pointer.readElement(offset: currentOffset)
-            self.retroactiveContextDescriptor = try retroactiveContextPointer.resolve(from: pointer.advanced(by: currentOffset)).asOptional
-            currentOffset.offset(of: RelativeIndirectablePointer<ContextDescriptorWrapper?, Pointer<ContextDescriptorWrapper?>>.self)
-        } else {
-            self.retroactiveContextDescriptor = nil
-        }
-
-        try initialize(descriptor: descriptor, currentOffset: &currentOffset, in: pointer)
-    }
-
-    private mutating func initialize(descriptor: ProtocolConformanceDescriptor, currentOffset: inout Int, in reader: some Readable) throws {
-        if descriptor.flags.numConditionalRequirements > 0 {
-            conditionalRequirements = try reader.readWrapperElements(offset: currentOffset, numberOfElements: descriptor.flags.numConditionalRequirements.cast()) as [GenericRequirementDescriptor]
-            currentOffset.offset(of: GenericRequirementDescriptor.self, numbersOfElements: descriptor.flags.numConditionalRequirements.cast())
-        } else {
-            conditionalRequirements = []
-        }
-
-        if descriptor.flags.numConditionalPackShapeDescriptors > 0 {
-            conditionalPackShapeDescriptors = try reader.readWrapperElements(offset: currentOffset, numberOfElements: descriptor.flags.numConditionalPackShapeDescriptors.cast()) as [GenericPackShapeDescriptor]
-            currentOffset.offset(of: GenericPackShapeDescriptor.self, numbersOfElements: descriptor.flags.numConditionalPackShapeDescriptors.cast())
-        } else {
-            conditionalPackShapeDescriptors = []
-        }
-
-        if descriptor.flags.hasResilientWitnesses {
-            let header: ResilientWitnessesHeader = try reader.readWrapperElement(offset: currentOffset)
-            resilientWitnessesHeader = header
-            currentOffset.offset(of: ResilientWitnessesHeader.self)
-            resilientWitnesses = try reader.readWrapperElements(offset: currentOffset, numberOfElements: header.numWitnesses.cast()) as [ResilientWitness]
-            currentOffset.offset(of: ResilientWitness.self, numbersOfElements: header.numWitnesses.cast())
-        } else {
-            resilientWitnessesHeader = nil
-            resilientWitnesses = []
-        }
-
-        if descriptor.flags.hasGenericWitnessTable {
-            let genericWitnessTable: GenericWitnessTable = try reader.readWrapperElement(offset: currentOffset)
-            self.genericWitnessTable = genericWitnessTable
-            currentOffset.offset(of: GenericWitnessTable.self)
-        } else {
-            genericWitnessTable = nil
-        }
-
-        if descriptor.flags.hasGlobalActorIsolation {
-            let globalActorReference: GlobalActorReference = try reader.readWrapperElement(offset: currentOffset)
-            self.globalActorReference = globalActorReference
-            currentOffset.offset(of: GlobalActorReference.self)
-        } else {
-            globalActorReference = nil
-        }
-    }
 }
 
 // MARK: - ReadingContext Support
@@ -198,5 +109,19 @@ extension ProtocolConformance {
         } else {
             globalActorReference = nil
         }
+    }
+}
+
+// MARK: - Deprecated Mach-O and pointer forms
+
+extension ProtocolConformance {
+    @available(*, deprecated, message: "Pass a ReadingContext: ProtocolConformance(descriptor:in: machO.context).")
+    public init(descriptor: ProtocolConformanceDescriptor, in machO: some MachOSwiftSectionRepresentableWithCache) throws {
+        try self.init(descriptor: descriptor, in: machO.context)
+    }
+
+    @available(*, deprecated, message: "Pass a ReadingContext: ProtocolConformance(descriptor:in: .inProcess).")
+    public init(descriptor: ProtocolConformanceDescriptor) throws {
+        try self.init(descriptor: descriptor, in: InProcessContext.shared)
     }
 }

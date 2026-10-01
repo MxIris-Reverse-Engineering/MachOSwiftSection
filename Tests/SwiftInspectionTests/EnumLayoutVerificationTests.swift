@@ -83,12 +83,12 @@ private func findMultiPayloadDescriptor(
 ) throws -> (spareBytes: [UInt8], spareBytesOffset: Int, usesSpare: Bool)? {
     for descriptor in try machO.swift.multiPayloadEnumDescriptors {
         let inProcess = descriptor.asPointerWrapper(in: machO)
-        let mangledName = try inProcess.mangledTypeName()
-        let name = try SymbolicDemangler.demangleType(for: mangledName).print(using: .default)
+        let mangledName = try inProcess.mangledTypeName(in: .inProcess)
+        let name = try SymbolicDemangler.demangleType(for: mangledName, in: .inProcess).print(using: .default)
         if name.contains(needle) {
             if inProcess.usesPayloadSpareBits {
-                let spareBytes = try inProcess.payloadSpareBits()
-                let offset = Int(try inProcess.payloadSpareBitMaskByteOffset())
+                let spareBytes = try inProcess.payloadSpareBits(in: .inProcess)
+                let offset = Int(try inProcess.payloadSpareBitMaskByteOffset(in: .inProcess))
                 return (spareBytes, offset, true)
             }
             return ([], 0, false)
@@ -252,7 +252,7 @@ struct EnumLayoutVerificationTests {
     func singlePayload_U8_1E() throws {
         let enumSize = MemoryLayout<SP_U8_1E>.size
         let payloadSize = MemoryLayout<UInt8>.size
-        let xi = try Int(Metadata.createInProcess(SP_U8_1E.self).typeLayout().extraInhabitantCount)
+        let xi = try Int(Metadata.createInProcess(SP_U8_1E.self).typeLayout(in: .inProcess).extraInhabitantCount)
 
         let result = Calculator.calculateSinglePayload(
             payloadSize: payloadSize, numEmptyCases: 1, numExtraInhabitants: xi
@@ -266,7 +266,7 @@ struct EnumLayoutVerificationTests {
     func singlePayload_U8_3E() throws {
         let enumSize = MemoryLayout<SP_U8_3E>.size
         let payloadSize = MemoryLayout<UInt8>.size
-        let xi = try Int(Metadata.createInProcess(SP_U8_3E.self).typeLayout().extraInhabitantCount)
+        let xi = try Int(Metadata.createInProcess(SP_U8_3E.self).typeLayout(in: .inProcess).extraInhabitantCount)
 
         let result = Calculator.calculateSinglePayload(
             payloadSize: payloadSize, numEmptyCases: 3, numExtraInhabitants: xi
@@ -282,7 +282,7 @@ struct EnumLayoutVerificationTests {
     func singlePayload_U16_1E() throws {
         let enumSize = MemoryLayout<SP_U16_1E>.size
         let payloadSize = MemoryLayout<UInt16>.size
-        let xi = try Int(Metadata.createInProcess(SP_U16_1E.self).typeLayout().extraInhabitantCount)
+        let xi = try Int(Metadata.createInProcess(SP_U16_1E.self).typeLayout(in: .inProcess).extraInhabitantCount)
 
         let result = Calculator.calculateSinglePayload(
             payloadSize: payloadSize, numEmptyCases: 1, numExtraInhabitants: xi
@@ -296,7 +296,7 @@ struct EnumLayoutVerificationTests {
     func singlePayload_U16_3E() throws {
         let enumSize = MemoryLayout<SP_U16_3E>.size
         let payloadSize = MemoryLayout<UInt16>.size
-        let xi = try Int(Metadata.createInProcess(SP_U16_3E.self).typeLayout().extraInhabitantCount)
+        let xi = try Int(Metadata.createInProcess(SP_U16_3E.self).typeLayout(in: .inProcess).extraInhabitantCount)
 
         let result = Calculator.calculateSinglePayload(
             payloadSize: payloadSize, numEmptyCases: 3, numExtraInhabitants: xi
@@ -312,7 +312,7 @@ struct EnumLayoutVerificationTests {
     func singlePayload_U32_1E() throws {
         let enumSize = MemoryLayout<SP_U32_1E>.size
         let payloadSize = MemoryLayout<UInt32>.size
-        let xi = try Int(Metadata.createInProcess(SP_U32_1E.self).typeLayout().extraInhabitantCount)
+        let xi = try Int(Metadata.createInProcess(SP_U32_1E.self).typeLayout(in: .inProcess).extraInhabitantCount)
 
         let result = Calculator.calculateSinglePayload(
             payloadSize: payloadSize, numEmptyCases: 1, numExtraInhabitants: xi
@@ -326,7 +326,7 @@ struct EnumLayoutVerificationTests {
     func singlePayload_U32_5E() throws {
         let enumSize = MemoryLayout<SP_U32_5E>.size
         let payloadSize = MemoryLayout<UInt32>.size
-        let xi = try Int(Metadata.createInProcess(SP_U32_5E.self).typeLayout().extraInhabitantCount)
+        let xi = try Int(Metadata.createInProcess(SP_U32_5E.self).typeLayout(in: .inProcess).extraInhabitantCount)
 
         let result = Calculator.calculateSinglePayload(
             payloadSize: payloadSize, numEmptyCases: 5, numExtraInhabitants: xi
@@ -342,7 +342,7 @@ struct EnumLayoutVerificationTests {
     func singlePayload_U64_1E() throws {
         let enumSize = MemoryLayout<SP_U64_1E>.size
         let payloadSize = MemoryLayout<UInt64>.size
-        let xi = try Int(Metadata.createInProcess(SP_U64_1E.self).typeLayout().extraInhabitantCount)
+        let xi = try Int(Metadata.createInProcess(SP_U64_1E.self).typeLayout(in: .inProcess).extraInhabitantCount)
 
         let result = Calculator.calculateSinglePayload(
             payloadSize: payloadSize, numEmptyCases: 1, numExtraInhabitants: xi
@@ -356,7 +356,7 @@ struct EnumLayoutVerificationTests {
     func singlePayload_U64_3E() throws {
         let enumSize = MemoryLayout<SP_U64_3E>.size
         let payloadSize = MemoryLayout<UInt64>.size
-        let xi = try Int(Metadata.createInProcess(SP_U64_3E.self).typeLayout().extraInhabitantCount)
+        let xi = try Int(Metadata.createInProcess(SP_U64_3E.self).typeLayout(in: .inProcess).extraInhabitantCount)
 
         let result = Calculator.calculateSinglePayload(
             payloadSize: payloadSize, numEmptyCases: 3, numExtraInhabitants: xi
@@ -379,7 +379,7 @@ struct EnumLayoutVerificationTests {
     func singlePayload_Bool_1E() throws {
         let enumSize = MemoryLayout<SP_Bool_1E>.size
         let payloadSize = MemoryLayout<Bool>.size
-        let xi = try Int(Metadata.createInProcess(SP_Bool_1E.self).typeLayout().extraInhabitantCount)
+        let xi = try Int(Metadata.createInProcess(SP_Bool_1E.self).typeLayout(in: .inProcess).extraInhabitantCount)
 
         // Bool has 254 XI; 1 empty case fits entirely within XI
         #expect(xi + 1 >= 1, "Bool should have enough XI for 1 empty case")
@@ -402,7 +402,7 @@ struct EnumLayoutVerificationTests {
     func singlePayload_Bool_3E() throws {
         let enumSize = MemoryLayout<SP_Bool_3E>.size
         let payloadSize = MemoryLayout<Bool>.size
-        let xi = try Int(Metadata.createInProcess(SP_Bool_3E.self).typeLayout().extraInhabitantCount)
+        let xi = try Int(Metadata.createInProcess(SP_Bool_3E.self).typeLayout(in: .inProcess).extraInhabitantCount)
 
         #expect(xi + 1 >= 3, "Bool should have enough XI for 3 empty cases")
         #expect(enumSize == payloadSize, "No extra tag bytes needed when XI suffice")
@@ -427,7 +427,7 @@ struct EnumLayoutVerificationTests {
     func singlePayload_OptU8_1E() throws {
         let enumSize = MemoryLayout<SP_OptU8_1E>.size
         let payloadSize = MemoryLayout<UInt8?>.size // 2
-        let payloadXI = try Int(Metadata.createInProcess(UInt8?.self).typeLayout().extraInhabitantCount)
+        let payloadXI = try Int(Metadata.createInProcess(UInt8?.self).typeLayout(in: .inProcess).extraInhabitantCount)
 
         #expect(payloadXI == 0, "Optional<UInt8> should have 0 XI")
         #expect(enumSize > payloadSize, "Overflow requires extra tag bytes")
@@ -446,7 +446,7 @@ struct EnumLayoutVerificationTests {
     func singlePayload_OptU8_3E() throws {
         let enumSize = MemoryLayout<SP_OptU8_3E>.size
         let payloadSize = MemoryLayout<UInt8?>.size // 2
-        let payloadXI = try Int(Metadata.createInProcess(UInt8?.self).typeLayout().extraInhabitantCount)
+        let payloadXI = try Int(Metadata.createInProcess(UInt8?.self).typeLayout(in: .inProcess).extraInhabitantCount)
 
         #expect(payloadXI == 0, "Optional<UInt8> should have 0 XI")
 
@@ -465,7 +465,7 @@ struct EnumLayoutVerificationTests {
     func singlePayload_Ref_2E() throws {
         let enumSize = MemoryLayout<SP_Ref_2E>.size
         let payloadSize = MemoryLayout<VerificationRef1>.size
-        let xi = try Int(Metadata.createInProcess(SP_Ref_2E.self).typeLayout().extraInhabitantCount)
+        let xi = try Int(Metadata.createInProcess(SP_Ref_2E.self).typeLayout(in: .inProcess).extraInhabitantCount)
 
         // Class references have many XI (null pointer + aligned invalid pointers)
         #expect(xi >= 2, "Class reference should have XI for 2 empty cases")
@@ -727,7 +727,7 @@ struct EnumLayoutVerificationTests {
             .impliedTotalSize(payloadAreaSize: 8) == MemoryLayout<TMP_U64_2P_3E>.size)
 
         // Single payload: overflow appends tag bytes, XI stays payload-sized.
-        let overflowXI = try Int(Metadata.createInProcess(SP_U8_3E.self).typeLayout().extraInhabitantCount)
+        let overflowXI = try Int(Metadata.createInProcess(SP_U8_3E.self).typeLayout(in: .inProcess).extraInhabitantCount)
         #expect(Calculator.calculateSinglePayload(payloadSize: 1, numEmptyCases: 3, numExtraInhabitants: overflowXI)
             .impliedTotalSize(payloadAreaSize: 1) == MemoryLayout<SP_U8_3E>.size)
         #expect(Calculator.calculateSinglePayload(payloadSize: 1, numEmptyCases: 3, numExtraInhabitants: 254)

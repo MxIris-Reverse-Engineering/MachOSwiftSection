@@ -203,7 +203,7 @@ extension TypeDefinition {
         // This specialize operation's single wrapper materialization
         // (proposal 0002): feeds the typeName derivation and the designated
         // init below, released when this function returns.
-        let materializedTypeContext = try materializedTypeContext(in: machO)
+        let materializedTypeContext = try materializedTypeContext(in: machO.context)
 
         // Compute the final typeName up-front so it can flow through the
         // designated init: either the unbound form (`Box<A>`) when no type
@@ -212,7 +212,7 @@ extension TypeDefinition {
         // definition print as `Box<Int>` rather than the placeholder
         // `Box<A>`, and gives it a unique mangled name per specialization
         // (via `mangleAsString(typeName.node)`).
-        let unboundTypeName = try materializedTypeContext.typeName(in: machO)
+        let unboundTypeName = try materializedTypeContext.typeName(in: machO.context)
         let finalTypeName: TypeName
         if let typeArgumentNodes, !typeArgumentNodes.isEmpty {
             finalTypeName = Self.boundGenericTypeName(
@@ -409,11 +409,11 @@ extension TypeDefinition {
     private func descriptorOffset(of metadata: MetadataWrapper) throws -> Int {
         switch metadata {
         case .struct(let structMetadata):
-            return try structMetadata.descriptor().contextDescriptor.offset
+            return try structMetadata.descriptor(in: .inProcess).contextDescriptor.offset
         case .class(let classMetadata):
-            return try required(classMetadata.descriptor()).offset
+            return try required(classMetadata.descriptor(in: .inProcess)).offset
         case .enum(let enumMetadata), .optional(let enumMetadata), .errorObject(let enumMetadata):
-            return try enumMetadata.descriptor().contextDescriptor.offset
+            return try enumMetadata.descriptor(in: .inProcess).contextDescriptor.offset
         default:
             // Other metadata kinds don't carry a nominal-type descriptor in
             // the form we compare against here. Treating this as a hard

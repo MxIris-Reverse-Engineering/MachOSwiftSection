@@ -77,8 +77,8 @@ package enum CaptureDescriptorBaselineGenerator {
         for descriptor: CaptureDescriptor,
         in machO: some MachOSwiftSectionRepresentableWithCache
     ) throws -> String {
-        let mangledMetadataSources = try descriptor.metadataSourceRecords(in: machO).map {
-            try $0.mangledMetadataSource(in: machO).rawString
+        let mangledMetadataSources = try descriptor.metadataSourceRecords(in: machO.context).map {
+            try $0.mangledMetadataSource(in: machO.context).rawString
         }
         let expr: ExprSyntax = """
         Entry(

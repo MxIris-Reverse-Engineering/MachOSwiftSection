@@ -94,8 +94,8 @@ package struct ThunkTypeNodeBuilder: ThunkTypeNodeBuildingLogging {
     private func boundTypeNode(accessorAddress: UInt64, typeArguments: [ThunkTypeExpression]) -> Node? {
         guard let origin = environment.accessorOriginsByAddress[accessorAddress] else { return nil }
         do {
-            let descriptor: ContextDescriptorWrapper = try ContextDescriptorWrapper.resolve(from: origin.descriptorOffset, in: origin.machO)
-            let unboundNode = try SymbolicDemangler.demangleContext(for: descriptor, in: origin.machO)
+            let descriptor: ContextDescriptorWrapper = try ContextDescriptorWrapper.resolve(at: origin.descriptorOffset, in: origin.machO.context)
+            let unboundNode = try SymbolicDemangler.demangleContext(for: descriptor, in: origin.machO.context)
             guard let keyParameterCountsByLevel = try keyParameterCountsByNominalLevel(of: descriptor, in: origin.machO) else { return nil }
             var argumentNodes: [Node] = []
             for typeArgument in typeArguments {
@@ -130,12 +130,12 @@ package struct ThunkTypeNodeBuilder: ThunkTypeNodeBuildingLogging {
         var current: ContextDescriptorWrapper? = descriptor
         while let context = current {
             if case .type = context {
-                let genericContext = try context.genericContext(in: image)
+                let genericContext = try context.genericContext(in: image.context)
                 let ownParameters = genericContext?.currentParameters ?? []
                 guard ownParameters.allSatisfy(\.hasKeyArgument) else { return nil }
                 countsInnermostFirst.append(ownParameters.count)
             }
-            current = try context.parent(in: image)?.resolved
+            current = try context.parent(in: image.context)?.resolved
         }
         return countsInnermostFirst.reversed()
     }
@@ -179,8 +179,8 @@ package struct ThunkTypeNodeBuilder: ThunkTypeNodeBuildingLogging {
         do {
             let pointer: RelativeDirectPointer<MangledName> = try machO.readElement(offset: offset)
             guard pointer.isValid else { return nil }
-            let mangledName = try pointer.resolve(from: offset, in: machO)
-            return try SymbolicDemangler.demangleType(for: mangledName, in: machO)
+            let mangledName = try pointer.resolve(at: offset, in: machO.context)
+            return try SymbolicDemangler.demangleType(for: mangledName, in: machO.context)
         } catch {
             return nil
         }
@@ -249,9 +249,9 @@ package enum MetadataNaming {
             let descriptorFieldOffset = offset + StructMetadata.descriptorOffset
             guard let descriptorOffset = machO.resolveRebase(fileOffset: descriptorFieldOffset) else { return nil }
             // Annotated because `ContextDescriptorWrapper` vends both a
-            // `Self`- and a `Self?`-returning `resolve(from:in:)`.
-            let descriptor: ContextDescriptorWrapper = try ContextDescriptorWrapper.resolve(from: Int(descriptorOffset), in: machO)
-            return try SymbolicDemangler.demangleContext(for: descriptor, in: machO)
+            // `Self`- and a `Self?`-returning `resolve(at:in:)`.
+            let descriptor: ContextDescriptorWrapper = try ContextDescriptorWrapper.resolve(at: Int(descriptorOffset), in: machO.context)
+            return try SymbolicDemangler.demangleContext(for: descriptor, in: machO.context)
         } catch {
             return nil
         }

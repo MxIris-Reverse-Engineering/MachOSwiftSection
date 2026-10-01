@@ -46,7 +46,7 @@ final class TypeMetadataRecordTests: MachOSwiftSectionFixtureTests, FixtureSuite
                 numberOfElements: section.size / recordSize
             )
             for record in records {
-                guard let resolved = try? record.contextDescriptor(in: machO) else { continue }
+                guard let resolved = try? record.contextDescriptor(in: machO.context) else { continue }
                 if resolved.contextDescriptor.offset == targetOffset {
                     return record
                 }
@@ -75,7 +75,7 @@ final class TypeMetadataRecordTests: MachOSwiftSectionFixtureTests, FixtureSuite
                 numberOfElements: section.size / recordSize
             )
             for record in records {
-                guard let resolved = try? record.contextDescriptor(in: machO) else { continue }
+                guard let resolved = try? record.contextDescriptor(in: machO.context) else { continue }
                 if resolved.contextDescriptor.offset == targetOffset {
                     return record
                 }
@@ -125,14 +125,10 @@ final class TypeMetadataRecordTests: MachOSwiftSectionFixtureTests, FixtureSuite
         let (fileRecord, imageRecord) = try loadStructTestRecords()
         // `contextDescriptor(in:)` resolves to the wrapped descriptor; cross-
         // reader equality on the resolved descriptor's offset.
-        let result = try acrossAllReaders(
-            file: { try required(fileRecord.contextDescriptor(in: machOFile)).contextDescriptor.offset },
-            image: { try required(imageRecord.contextDescriptor(in: machOImage)).contextDescriptor.offset }
+        let result = try acrossAllContexts(
+            file: { try required(fileRecord.contextDescriptor(in: fileContext)).contextDescriptor.offset },
+            image: { try required(imageRecord.contextDescriptor(in: imageContext)).contextDescriptor.offset }
         )
         #expect(result == TypeMetadataRecordBaseline.structTestRecord.contextDescriptorOffset)
-
-        // ReadingContext-based overload also exercised.
-        let imageCtxOffset = try required(imageRecord.contextDescriptor(in: imageContext)).contextDescriptor.offset
-        #expect(imageCtxOffset == TypeMetadataRecordBaseline.structTestRecord.contextDescriptorOffset)
     }
 }

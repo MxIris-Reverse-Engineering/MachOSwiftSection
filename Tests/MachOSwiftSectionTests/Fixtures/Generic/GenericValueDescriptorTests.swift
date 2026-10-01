@@ -26,10 +26,10 @@ final class GenericValueDescriptorTests: MachOSwiftSectionFixtureTests, FixtureS
     private func loadFirstValue() throws -> (file: GenericValueDescriptor, image: GenericValueDescriptor) {
         let fileDescriptor = try BaselineFixturePicker.struct_FixedSizeArray(in: machOFile)
         let imageDescriptor = try BaselineFixturePicker.struct_FixedSizeArray(in: machOImage)
-        let fileContext = try required(try fileDescriptor.typeGenericContext(in: machOFile))
-        let imageContext = try required(try imageDescriptor.typeGenericContext(in: machOImage))
-        let fileValue = try required(fileContext.values.first)
-        let imageValue = try required(imageContext.values.first)
+        let fileGenericContext = try required(try fileDescriptor.typeGenericContext(in: fileContext))
+        let imageGenericContext = try required(try imageDescriptor.typeGenericContext(in: imageContext))
+        let fileValue = try required(fileGenericContext.values.first)
+        let imageValue = try required(imageGenericContext.values.first)
         return (file: fileValue, image: imageValue)
     }
 

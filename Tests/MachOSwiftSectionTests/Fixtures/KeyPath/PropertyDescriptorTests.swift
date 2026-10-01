@@ -151,18 +151,12 @@ final class PropertyDescriptorTests: MachOSwiftSectionFixtureTests, FixtureSuite
     /// file offset and must agree on the value.
     @Test func storedFieldOffset() async throws {
         for shape in try allShapes() {
-            let result = try acrossAllReaders(
-                file: { try shape.file.storedFieldOffset(in: machOFile)?.rawValue },
-                image: { try shape.image.storedFieldOffset(in: machOImage)?.rawValue },
-                inProcess: { try shape.image.asPointerWrapper(in: self.machOImage).storedFieldOffset()?.rawValue }
+            let result = try acrossAllContexts(
+                file: { try shape.file.storedFieldOffset(in: fileContext)?.rawValue },
+                image: { try shape.image.storedFieldOffset(in: imageContext)?.rawValue },
+                inProcess: { try shape.image.asPointerWrapper(in: self.machOImage).storedFieldOffset(in: self.inProcessContext)?.rawValue }
             )
             #expect(result == shape.expected.storedFieldOffsetRawValue, "\(shape.label)")
-
-            let fromContext = try acrossAllContexts(
-                file: { try shape.file.storedFieldOffset(in: fileContext)?.rawValue },
-                image: { try shape.image.storedFieldOffset(in: imageContext)?.rawValue }
-            )
-            #expect(fromContext == shape.expected.storedFieldOffsetRawValue, "\(shape.label)")
         }
     }
 
@@ -170,22 +164,16 @@ final class PropertyDescriptorTests: MachOSwiftSectionFixtureTests, FixtureSuite
     /// so it is identical across readers and pinned as a literal.
     @Test func computedPropertyBody() async throws {
         for shape in try allShapes() {
-            let result = try acrossAllReaders(
-                file: { try shape.file.computedPropertyBody(in: machOFile)?.getterOffset },
-                image: { try shape.image.computedPropertyBody(in: machOImage)?.getterOffset }
-            )
-            #expect(result == shape.expected.computedGetterOffset, "\(shape.label)")
-
-            let fromContext = try acrossAllContexts(
+            let result = try acrossAllContexts(
                 file: { try shape.file.computedPropertyBody(in: fileContext)?.getterOffset },
                 image: { try shape.image.computedPropertyBody(in: imageContext)?.getterOffset }
             )
-            #expect(fromContext == shape.expected.computedGetterOffset, "\(shape.label)")
+            #expect(result == shape.expected.computedGetterOffset, "\(shape.label)")
 
             // The in-process leg reads through a pointer, so its offsets are
             // pointers too; only the relative words can be compared directly.
-            let inProcessBody = try shape.image.asPointerWrapper(in: machOImage).computedPropertyBody()
-            #expect(inProcessBody?.getter.relativeOffset == (try shape.file.computedPropertyBody(in: machOFile))?.getter.relativeOffset, "\(shape.label)")
+            let inProcessBody = try shape.image.asPointerWrapper(in: machOImage).computedPropertyBody(in: inProcessContext)
+            #expect(inProcessBody?.getter.relativeOffset == (try shape.file.computedPropertyBody(in: fileContext))?.getter.relativeOffset, "\(shape.label)")
         }
     }
 }

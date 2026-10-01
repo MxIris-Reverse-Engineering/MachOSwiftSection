@@ -18,35 +18,6 @@ extension ProtocolConformanceDescriptor {
     }
 }
 
-extension ProtocolConformanceDescriptor {
-    public func protocolDescriptor(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> SymbolOrElement<ProtocolDescriptor>? {
-        try layout.protocolDescriptor.resolve(from: offset(of: \.protocolDescriptor), in: machO).asOptional
-    }
-
-    public func resolvedTypeReference(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> ResolvedTypeReference {
-        let offset = offset(of: \.typeReference)
-        return try typeReference.resolve(at: offset, in: machO)
-    }
-
-    public func witnessTablePattern(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> ProtocolWitnessTable? {
-        try layout.witnessTablePattern.resolve(from: offset(of: \.witnessTablePattern), in: machO)
-    }
-}
-
-extension ProtocolConformanceDescriptor {
-    public func protocolDescriptor() throws -> SymbolOrElement<ProtocolDescriptor>? {
-        try layout.protocolDescriptor.resolve(from: pointer(of: \.protocolDescriptor)).asOptional
-    }
-
-    public func resolvedTypeReference() throws -> ResolvedTypeReference {
-        return try typeReference.resolve(from: pointer(of: \.typeReference))
-    }
-
-    public func witnessTablePattern() throws -> ProtocolWitnessTable? {
-        try layout.witnessTablePattern.resolve(from: pointer(of: \.witnessTablePattern))
-    }
-}
-
 // MARK: - ReadingContext Support
 
 extension ProtocolConformanceDescriptor {
@@ -60,5 +31,39 @@ extension ProtocolConformanceDescriptor {
 
     public func witnessTablePattern(in context: some ReadingContext) throws -> ProtocolWitnessTable? {
         try layout.witnessTablePattern.resolve(at: try context.addressFromOffset(offset(of: \.witnessTablePattern)), in: context)
+    }
+}
+
+// MARK: - Deprecated Mach-O and pointer forms
+
+extension ProtocolConformanceDescriptor {
+    @available(*, deprecated, message: "Pass a ReadingContext: protocolDescriptor(in: machO.context).")
+    public func protocolDescriptor(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> SymbolOrElement<ProtocolDescriptor>? {
+        try protocolDescriptor(in: machO.context)
+    }
+
+    @available(*, deprecated, message: "Pass a ReadingContext: resolvedTypeReference(in: machO.context).")
+    public func resolvedTypeReference(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> ResolvedTypeReference {
+        try resolvedTypeReference(in: machO.context)
+    }
+
+    @available(*, deprecated, message: "Pass a ReadingContext: witnessTablePattern(in: machO.context).")
+    public func witnessTablePattern(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> ProtocolWitnessTable? {
+        try witnessTablePattern(in: machO.context)
+    }
+
+    @available(*, deprecated, message: "Pass a ReadingContext: protocolDescriptor(in: .inProcess).")
+    public func protocolDescriptor() throws -> SymbolOrElement<ProtocolDescriptor>? {
+        try protocolDescriptor(in: InProcessContext.shared)
+    }
+
+    @available(*, deprecated, message: "Pass a ReadingContext: resolvedTypeReference(in: .inProcess).")
+    public func resolvedTypeReference() throws -> ResolvedTypeReference {
+        try resolvedTypeReference(in: InProcessContext.shared)
+    }
+
+    @available(*, deprecated, message: "Pass a ReadingContext: witnessTablePattern(in: .inProcess).")
+    public func witnessTablePattern() throws -> ProtocolWitnessTable? {
+        try witnessTablePattern(in: InProcessContext.shared)
     }
 }

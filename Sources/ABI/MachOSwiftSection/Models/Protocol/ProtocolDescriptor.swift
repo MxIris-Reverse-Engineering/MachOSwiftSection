@@ -23,23 +23,25 @@ public struct ProtocolDescriptor: ProtocolDescriptorProtocol {
     }
 }
 
-extension ProtocolDescriptor {
-    public func associatedTypes(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> [String] {
-        guard layout.associatedTypes.isValid else { return [] }
-        return try layout.associatedTypes.resolve(from: offset(of: \.associatedTypes), in: machO).components(separatedBy: " ")
-    }
-    
-    public func associatedTypes() throws -> [String] {
-        guard layout.associatedTypes.isValid else { return [] }
-        return try layout.associatedTypes.resolve(from: pointer(of: \.associatedTypes)).components(separatedBy: " ")
-    }
-}
-
 // MARK: - ReadingContext Support
 
 extension ProtocolDescriptor {
     public func associatedTypes(in context: some ReadingContext) throws -> [String] {
         guard layout.associatedTypes.isValid else { return [] }
         return try layout.associatedTypes.resolve(at: try context.addressFromOffset(offset(of: \.associatedTypes)), in: context).components(separatedBy: " ")
+    }
+}
+
+// MARK: - Deprecated Mach-O and pointer forms
+
+extension ProtocolDescriptor {
+    @available(*, deprecated, message: "Pass a ReadingContext: associatedTypes(in: machO.context).")
+    public func associatedTypes(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> [String] {
+        try associatedTypes(in: machO.context)
+    }
+
+    @available(*, deprecated, message: "Pass a ReadingContext: associatedTypes(in: .inProcess).")
+    public func associatedTypes() throws -> [String] {
+        try associatedTypes(in: InProcessContext.shared)
     }
 }

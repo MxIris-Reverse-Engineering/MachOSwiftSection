@@ -117,7 +117,7 @@ extension TypedDumper {
 extension TypedDumper {
     package var typeLayout: TypeLayout? {
         get throws {
-            try dumped.descriptor.metadataAccessorFunction(in: machO)?(request: .init()).value.resolve(in: machO).valueWitnessTable(in: machO).typeLayout
+            try dumped.descriptor.metadataAccessorFunction(in: machO.context)?(request: .init()).value.resolve(in: machO.context).valueWitnessTable(in: machO.context).typeLayout
         }
     }
 }
@@ -197,12 +197,12 @@ extension TypedDumper {
         if let substituted = substitutedFieldNode(for: mangledTypeName) {
             return substituted
         }
-        let typeNode = try SymbolicDemangler.demangleType(for: mangledTypeName, in: machO)
+        let typeNode = try SymbolicDemangler.demangleType(for: mangledTypeName, in: machO.context)
         guard typeNode.contains(Node.Kind.accessorFunctionReference) else { return typeNode }
         // A kind-9 field type: read the thunk offline (the registered
         // resolver, `MachOFile` only), naming its arguments as this type's
         // generic parameters — the same leg `TypeDefinition.index` takes.
-        let ownerLayout = AccessorThunkOwnerLayout(genericContext: try dumped.descriptor.genericContext(in: machO))
+        let ownerLayout = AccessorThunkOwnerLayout(genericContext: try dumped.descriptor.genericContext(in: machO.context))
         return typeNode.resolvingAccessorFunctionReferences(in: machO, ownerLayout: ownerLayout)
     }
 

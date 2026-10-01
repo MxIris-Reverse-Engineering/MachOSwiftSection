@@ -10,26 +10,6 @@ public struct AssociatedTypeRecord: ResolvableLocatableLayoutWrapper {
     }
 }
 
-extension AssociatedTypeRecord {
-    public func name(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> String {
-        return try layout.name.resolve(from: offset(of: \.name), in: machO)
-    }
-
-    public func substitutedTypeName(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> MangledName {
-        return try layout.substitutedTypeName.resolve(from: offset(of: \.substitutedTypeName), in: machO)
-    }
-}
-
-extension AssociatedTypeRecord {
-    public func name() throws -> String {
-        return try layout.name.resolve(from: pointer(of: \.name))
-    }
-
-    public func substitutedTypeName() throws -> MangledName {
-        return try layout.substitutedTypeName.resolve(from: pointer(of: \.substitutedTypeName))
-    }
-}
-
 // MARK: - ReadingContext Support
 
 extension AssociatedTypeRecord {
@@ -39,5 +19,29 @@ extension AssociatedTypeRecord {
 
     public func substitutedTypeName(in context: some ReadingContext) throws -> MangledName {
         return try layout.substitutedTypeName.resolve(at: try context.addressFromOffset(offset(of: \.substitutedTypeName)), in: context)
+    }
+}
+
+// MARK: - Deprecated Mach-O and pointer forms
+
+extension AssociatedTypeRecord {
+    @available(*, deprecated, message: "Pass a ReadingContext: name(in: machO.context).")
+    public func name(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> String {
+        try name(in: machO.context)
+    }
+
+    @available(*, deprecated, message: "Pass a ReadingContext: substitutedTypeName(in: machO.context).")
+    public func substitutedTypeName(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> MangledName {
+        try substitutedTypeName(in: machO.context)
+    }
+
+    @available(*, deprecated, message: "Pass a ReadingContext: name(in: .inProcess).")
+    public func name() throws -> String {
+        try name(in: InProcessContext.shared)
+    }
+
+    @available(*, deprecated, message: "Pass a ReadingContext: substitutedTypeName(in: .inProcess).")
+    public func substitutedTypeName() throws -> MangledName {
+        try substitutedTypeName(in: InProcessContext.shared)
     }
 }

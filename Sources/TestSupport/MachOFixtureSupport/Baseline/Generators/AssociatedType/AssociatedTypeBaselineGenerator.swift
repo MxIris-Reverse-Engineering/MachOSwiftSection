@@ -25,7 +25,7 @@ package enum AssociatedTypeBaselineGenerator {
         outputDirectory: URL
     ) throws {
         let descriptor = try BaselineFixturePicker.associatedTypeDescriptor_ConcreteWitnessTest(in: machO)
-        let associatedType = try AssociatedType(descriptor: descriptor, in: machO)
+        let associatedType = try AssociatedType(descriptor: descriptor, in: machO.context)
 
         let entryExpr = emitEntryExpr(for: associatedType)
 

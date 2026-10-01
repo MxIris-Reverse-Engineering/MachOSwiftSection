@@ -106,18 +106,12 @@ final class AccessibleFunctionRecordTests: MachOSwiftSectionFixtureTests, Fixtur
     /// `swift_findAccessibleFunction` matches against.
     @Test func name() async throws {
         for carrier in try allCarriers() {
-            let result = try acrossAllReaders(
-                file: { try carrier.file.name(in: machOFile) },
-                image: { try carrier.image.name(in: machOImage) },
-                inProcess: { try carrier.image.asPointerWrapper(in: self.machOImage).name() }
+            let result = try acrossAllContexts(
+                file: { try carrier.file.name(in: fileContext) },
+                image: { try carrier.image.name(in: imageContext) },
+                inProcess: { try carrier.image.asPointerWrapper(in: self.machOImage).name(in: self.inProcessContext) }
             )
             #expect(result == carrier.expected.name, "\(carrier.label)")
-
-            let fromContext = try acrossAllContexts(
-                file: { try carrier.file.name(in: fileContext) },
-                image: { try carrier.image.name(in: imageContext) }
-            )
-            #expect(fromContext == carrier.expected.name, "\(carrier.label)")
         }
     }
 
@@ -127,26 +121,20 @@ final class AccessibleFunctionRecordTests: MachOSwiftSectionFixtureTests, Fixtur
     /// agreement.
     @Test func functionType() async throws {
         for carrier in try allCarriers() {
-            let result = try acrossAllReaders(
-                file: { try carrier.file.functionType(in: machOFile).rawString },
-                image: { try carrier.image.functionType(in: machOImage).rawString },
-                inProcess: { try carrier.image.asPointerWrapper(in: self.machOImage).functionType().rawString }
+            let result = try acrossAllContexts(
+                file: { try carrier.file.functionType(in: fileContext).rawString },
+                image: { try carrier.image.functionType(in: imageContext).rawString },
+                inProcess: { try carrier.image.asPointerWrapper(in: self.machOImage).functionType(in: self.inProcessContext).rawString }
             )
             #expect(!result.isEmpty == carrier.expected.hasFunctionType, "\(carrier.label)")
-
-            let fromContext = try acrossAllContexts(
-                file: { try carrier.file.functionType(in: fileContext).rawString },
-                image: { try carrier.image.functionType(in: imageContext).rawString }
-            )
-            #expect(fromContext == result, "\(carrier.label)")
         }
     }
 
     @Test func genericEnvironment() async throws {
         for carrier in try allCarriers() {
-            let resolvedOffset = try acrossAllReaders(
-                file: { try carrier.file.genericEnvironment(in: machOFile)?.offset },
-                image: { try carrier.image.genericEnvironment(in: machOImage)?.offset }
+            let resolvedOffset = try acrossAllContexts(
+                file: { try carrier.file.genericEnvironment(in: fileContext)?.offset },
+                image: { try carrier.image.genericEnvironment(in: imageContext)?.offset }
             )
             #expect(resolvedOffset == carrier.expected.genericEnvironmentOffset, "\(carrier.label)")
         }
@@ -169,7 +157,7 @@ final class AccessibleFunctionRecordTests: MachOSwiftSectionFixtureTests, Fixtur
     @Test func functionPointsAtAnAsyncRecordNotAtCode() async throws {
         for carrier in try allCarriers() {
             let functionOffset = try #require(carrier.file.resolvedDirectOffset(from: \.function), "\(carrier.label)")
-            let asyncRecord = try AsyncFunctionPointer.resolve(from: functionOffset, in: machOFile)
+            let asyncRecord = try AsyncFunctionPointer.resolve(at: functionOffset, in: fileContext)
             let entryPoint = try #require(asyncRecord.resolvedDirectOffset(from: \.function), "\(carrier.label)")
             #expect(entryPoint != functionOffset, "\(carrier.label)")
             #expect(asyncRecord.expectedContextSize > 0, "\(carrier.label)")

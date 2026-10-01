@@ -25,8 +25,8 @@ final class MethodDescriptorTests: MachOSwiftSectionFixtureTests, FixtureSuite, 
     private func loadFirstMethods() throws -> (file: MethodDescriptor, image: MethodDescriptor) {
         let fileDescriptor = try BaselineFixturePicker.class_ClassTest(in: machOFile)
         let imageDescriptor = try BaselineFixturePicker.class_ClassTest(in: machOImage)
-        let fileClass = try Class(descriptor: fileDescriptor, in: machOFile)
-        let imageClass = try Class(descriptor: imageDescriptor, in: machOImage)
+        let fileClass = try Class(descriptor: fileDescriptor, in: fileContext)
+        let imageClass = try Class(descriptor: imageDescriptor, in: imageContext)
         let fileMethod = try required(fileClass.methodDescriptors.first)
         let imageMethod = try required(imageClass.methodDescriptors.first)
         return (file: fileMethod, image: imageMethod)

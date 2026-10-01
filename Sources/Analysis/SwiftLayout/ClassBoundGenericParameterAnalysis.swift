@@ -50,7 +50,7 @@ enum ClassBoundGenericParameterAnalysis {
         in image: ImageReference<MachO>,
         imageUniverse: ImageUniverse<MachO>
     ) -> RequirementSignatureLayoutFacts {
-        guard let genericContext = try? descriptor.genericContext(in: image.machO) else { return .empty }
+        guard let genericContext = try? descriptor.genericContext(in: image.machO.context) else { return .empty }
         var classBoundParameterKeys: Set<GenericParameterKey> = []
         var concreteSameTypeSubstitutions: [GenericParameterKey: Node] = [:]
         for requirement in genericContext.requirements {
@@ -93,8 +93,8 @@ enum ClassBoundGenericParameterAnalysis {
         in machO: some MachOSwiftSectionRepresentableWithCache
     ) -> Node? {
         guard
-            case .type(let rightHandSideName)? = try? requirement.resolvedContent(in: machO),
-            let rightHandSideNode = try? SymbolicDemangler.demangleType(for: rightHandSideName, in: machO)
+            case .type(let rightHandSideName)? = try? requirement.resolvedContent(in: machO.context),
+            let rightHandSideNode = try? SymbolicDemangler.demangleType(for: rightHandSideName, in: machO.context)
         else { return nil }
         let unwrapped = rightHandSideNode.kind == .type ? (rightHandSideNode.firstChild ?? rightHandSideNode) : rightHandSideNode
         guard !nodeReferencesParameterOrMember(unwrapped) else { return nil }
@@ -117,8 +117,8 @@ enum ClassBoundGenericParameterAnalysis {
         in machO: some MachOSwiftSectionRepresentableWithCache
     ) -> GenericParameterKey? {
         guard
-            let parameterMangledName = try? requirement.paramMangledName(in: machO),
-            let parameterNode = try? SymbolicDemangler.demangleType(for: parameterMangledName, in: machO)
+            let parameterMangledName = try? requirement.paramMangledName(in: machO.context),
+            let parameterNode = try? SymbolicDemangler.demangleType(for: parameterMangledName, in: machO.context)
         else { return nil }
         let unwrapped = parameterNode.kind == .type ? (parameterNode.firstChild ?? parameterNode) : parameterNode
         guard
@@ -139,12 +139,12 @@ enum ClassBoundGenericParameterAnalysis {
     ) -> Bool {
         switch requirement.layout.flags.kind {
         case .layout:
-            guard case .layout(.class)? = try? requirement.resolvedContent(in: image.machO) else { return false }
+            guard case .layout(.class)? = try? requirement.resolvedContent(in: image.machO.context) else { return false }
             return true
         case .baseClass:
             return true
         case .protocol:
-            guard case .protocol(let protocolReference)? = try? requirement.resolvedContent(in: image.machO) else { return false }
+            guard case .protocol(let protocolReference)? = try? requirement.resolvedContent(in: image.machO.context) else { return false }
             return isClassBoundProtocolReference(protocolReference, in: image, imageUniverse: imageUniverse)
         default:
             // `sameType` to a concrete class is a genuine specialization, not a
@@ -174,7 +174,7 @@ enum ClassBoundGenericParameterAnalysis {
             }
         case .symbol(let symbol):
             guard
-                let symbolNode = try? SymbolicDemangler.demangleType(for: symbol, in: image.machO),
+                let symbolNode = try? SymbolicDemangler.demangleType(for: symbol, in: image.machO.context),
                 let protocolNode = symbolNode.kind == .protocol ? symbolNode : symbolNode.first(of: .protocol),
                 let qualifiedProtocolName = NodeTypeNaming.protocolQualifiedName(of: protocolNode)
             else { return false }

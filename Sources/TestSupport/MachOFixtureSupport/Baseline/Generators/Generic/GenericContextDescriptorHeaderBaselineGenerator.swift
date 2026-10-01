@@ -72,15 +72,15 @@ package enum GenericContextDescriptorHeaderBaselineGenerator {
         in machO: some MachOSwiftSectionRepresentableWithCache
     ) throws -> GenericContextDescriptorHeader {
         for typeDescriptor in try machO.swift.contextDescriptors {
-            var current: SymbolOrElement<ContextDescriptorWrapper>? = try typeDescriptor.parent(in: machO)
+            var current: SymbolOrElement<ContextDescriptorWrapper>? = try typeDescriptor.parent(in: machO.context)
             while let cursor = current {
                 if let resolved = cursor.resolved {
                     if let ext = resolved.extensionContextDescriptor,
                        ext.flags.isGeneric,
-                       let context = try ext.genericContext(in: machO) {
+                       let context = try ext.genericContext(in: machO.context) {
                         return context.header
                     }
-                    current = try resolved.parent(in: machO)
+                    current = try resolved.parent(in: machO.context)
                 } else {
                     current = nil
                 }

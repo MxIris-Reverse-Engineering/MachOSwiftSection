@@ -90,7 +90,7 @@ package enum TypeMetadataRecordBaselineGenerator {
                 numberOfElements: section.size / recordSize
             )
             for record in records {
-                guard let resolved = try? record.contextDescriptor(in: machO) else { continue }
+                guard let resolved = try? record.contextDescriptor(in: machO.context) else { continue }
                 if resolved.contextDescriptor.offset == targetOffset {
                     return record
                 }
@@ -110,7 +110,7 @@ package enum TypeMetadataRecordBaselineGenerator {
         // directly; hex-as-zero-extended-UInt64 wouldn't compile.
         let layoutRelativeOffset = record.layout.nominalTypeDescriptor.relativeOffset
         let typeKindRawValue = record.typeKind.rawValue
-        let contextDescriptorOffset = try required(record.contextDescriptor(in: machO)).contextDescriptor.offset
+        let contextDescriptorOffset = try required(record.contextDescriptor(in: machO.context)).contextDescriptor.offset
 
         let expr: ExprSyntax = """
         Entry(

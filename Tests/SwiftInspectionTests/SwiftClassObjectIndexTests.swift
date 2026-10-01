@@ -15,7 +15,7 @@ import MachOFixtureSupport
 struct SwiftClassObjectIndexTests {
     private static func classDescriptor(named name: String, in machO: some MachOSwiftSectionRepresentableWithCache) throws -> ClassDescriptor {
         for typeContextDescriptor in try machO.swift.typeContextDescriptors {
-            guard case .class(let classDescriptor) = typeContextDescriptor, try classDescriptor.name(in: machO) == name else { continue }
+            guard case .class(let classDescriptor) = typeContextDescriptor, try classDescriptor.name(in: machO.context) == name else { continue }
             return classDescriptor
         }
         Issue.record("no class named \(name)")
@@ -75,7 +75,7 @@ final class SwiftClassObjectIndexFixtureTests: MachOSwiftSectionFixtureTests, @u
         var namesByClassName: [String: CustomObjCClassName?] = [:]
         for typeContextDescriptor in try machO.swift.typeContextDescriptors {
             guard case .class(let classDescriptor) = typeContextDescriptor else { continue }
-            let name = try classDescriptor.name(in: machO)
+            let name = try classDescriptor.name(in: machO.context)
             guard ["ObjCBridge", "ObjCBridgeWithProto", "ObjCAttributeClass"].contains(name) else { continue }
             namesByClassName[name] = SwiftClassObjectIndex.shared.customObjCClassName(forClassDescriptorOffset: classDescriptor.offset, in: machO)
         }

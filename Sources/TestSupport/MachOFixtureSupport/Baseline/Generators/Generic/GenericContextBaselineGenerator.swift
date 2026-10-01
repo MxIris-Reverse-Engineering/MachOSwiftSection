@@ -159,7 +159,7 @@ package enum GenericContextBaselineGenerator {
         for descriptor: StructDescriptor,
         in machO: some MachOSwiftSectionRepresentableWithCache
     ) throws -> TypeGenericContext {
-        try required(try descriptor.typeGenericContext(in: machO))
+        try required(try descriptor.typeGenericContext(in: machO.context))
     }
 
     private static func emitEntryExpr<H: GenericContextDescriptorHeaderProtocol>(

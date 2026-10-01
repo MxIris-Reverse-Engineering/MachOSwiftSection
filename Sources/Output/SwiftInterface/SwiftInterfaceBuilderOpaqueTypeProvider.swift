@@ -87,7 +87,7 @@ public struct SwiftInterfaceBuilderOpaqueTypeProvider<MachO: MachOSwiftSectionRe
             var symbolIndexStore
             guard let opaqueTypeDescriptorSymbol = symbolIndexStore.opaqueTypeDescriptorSymbol(for: node, in: machO) else { return nil }
 
-            let opaqueType = try OpaqueType(descriptor: OpaqueTypeDescriptor.resolve(from: opaqueTypeDescriptorSymbol.offset, in: machO), in: machO)
+            let opaqueType = try OpaqueType(descriptor: OpaqueTypeDescriptor.resolve(at: opaqueTypeDescriptorSymbol.offset, in: machO.context), in: machO.context)
             let requirements = try opaqueType.requirements(in: machO)
             // `Qr` names the first opaque return type and carries no index;
             // `QR<n>` names the one after the n-th
@@ -98,7 +98,7 @@ public struct SwiftInterfaceBuilderOpaqueTypeProvider<MachO: MachOSwiftSectionRe
             }
             let protocolRequirements = parameterConstraints.protocols
             let typeRequirements = requirements.filter(\.content.isType)
-            let typeRequirementNodes = try typeRequirements.compactMap { try SymbolicDemangler.buildGenericSignature(for: $0, in: machO) }
+            let typeRequirementNodes = try typeRequirements.compactMap { try SymbolicDemangler.buildGenericSignature(for: $0, in: machO.context) }
             var substitutionMap: SubstitutionMap<Node> = .init()
             var constraintsByParamType: [String: [OpaqueSameTypeConstraint]] = [:]
             for typeRequirementNode in typeRequirementNodes {
@@ -127,18 +127,18 @@ public struct SwiftInterfaceBuilderOpaqueTypeProvider<MachO: MachOSwiftSectionRe
             let factsResolver = ProtocolFactsResolver(machO: machO)
             var compositionProtocolNames: Set<String> = []
             for protocolRequirement in protocolRequirements {
-                try await compositionProtocolNames.insert(protocolRequirement.dumpContent(resolver: .using(options: .opaqueTypeBuilderOnly), in: machO).string)
+                try await compositionProtocolNames.insert(protocolRequirement.dumpContent(resolver: .using(options: .opaqueTypeBuilderOnly), in: machO.context).string)
             }
             var results: [String] = []
             if let superclassRequirement = parameterConstraints.superclass {
                 // The class leads the composition, as the compiler's own
                 // interface printer spells it (`some Base & P`).
-                try await results.append(superclassRequirement.dumpContent(resolver: .using(options: Self.typeSpellingOptions), in: machO).string)
+                try await results.append(superclassRequirement.dumpContent(resolver: .using(options: Self.typeSpellingOptions), in: machO.context).string)
             }
             for protocolRequirement in protocolRequirements {
                 var result = ""
-                let parameterName = try await protocolRequirement.dumpParameterName(resolver: .using(options: .opaqueTypeBuilderOnly), in: machO).string
-                let protocolName = try await protocolRequirement.dumpContent(resolver: .using(options: .opaqueTypeBuilderOnly), in: machO).string
+                let parameterName = try await protocolRequirement.dumpParameterName(resolver: .using(options: .opaqueTypeBuilderOnly), in: machO.context).string
+                let protocolName = try await protocolRequirement.dumpContent(resolver: .using(options: .opaqueTypeBuilderOnly), in: machO.context).string
                 result.write(protocolName)
 
                 let constraints = constraintsByParamType[parameterName] ?? []
@@ -246,7 +246,7 @@ public struct SwiftInterfaceBuilderOpaqueTypeProvider<MachO: MachOSwiftSectionRe
             default:
                 continue
             }
-            guard let coordinate = GenericParameterCoordinate(subjectNode: try await requirement.dumpParameterName(in: machO)) else { continue }
+            guard let coordinate = GenericParameterCoordinate(subjectNode: try await requirement.dumpParameterName(in: machO.context)) else { continue }
             guard coordinate.depth <= opaqueParameterDepth else {
                 let declaration = await node.print(using: .default)
                 #log(.fault, "opaque type descriptor of \(declaration, privacy: .public) constrains parameter τ_\(coordinate.depth, privacy: .public)_\(coordinate.index, privacy: .public), beyond the opaque parameters' depth \(opaqueParameterDepth, privacy: .public)")
@@ -303,7 +303,7 @@ public struct SwiftInterfaceBuilderOpaqueTypeProvider<MachO: MachOSwiftSectionRe
         guard !constraints.isEmpty else { return [] }
 
         var symbolOrElement: SymbolOrElement<ProtocolDescriptorWithObjCInterop>?
-        if let resolvedContent = try? requirement.resolvedContent(in: machO), case .protocol(let element) = resolvedContent {
+        if let resolvedContent = try? requirement.resolvedContent(in: machO.context), case .protocol(let element) = resolvedContent {
             symbolOrElement = element
         }
         if case .element(.objc) = symbolOrElement {

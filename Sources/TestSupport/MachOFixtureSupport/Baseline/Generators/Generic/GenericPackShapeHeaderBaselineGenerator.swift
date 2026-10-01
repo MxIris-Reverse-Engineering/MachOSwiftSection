@@ -19,7 +19,7 @@ package enum GenericPackShapeHeaderBaselineGenerator {
         outputDirectory: URL
     ) throws {
         let descriptor = try BaselineFixturePicker.struct_ParameterPackRequirementTest(in: machO)
-        let context = try required(try descriptor.typeGenericContext(in: machO))
+        let context = try required(try descriptor.typeGenericContext(in: machO.context))
         let header = try required(context.typePackHeader)
 
         let entryExpr = emitEntryExpr(for: header)

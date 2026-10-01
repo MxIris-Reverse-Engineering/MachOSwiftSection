@@ -106,9 +106,9 @@ package enum TypeContextDescriptorProtocolBaselineGenerator {
         for descriptor: StructDescriptor,
         in machO: some MachOSwiftSectionRepresentableWithCache
     ) throws -> String {
-        let hasFieldDescriptor = (try? descriptor.fieldDescriptor(in: machO)) != nil
-        let hasGenericContext = (try descriptor.genericContext(in: machO)) != nil
-        let hasTypeGenericContext = (try descriptor.typeGenericContext(in: machO)) != nil
+        let hasFieldDescriptor = (try? descriptor.fieldDescriptor(in: machO.context)) != nil
+        let hasGenericContext = (try descriptor.genericContext(in: machO.context)) != nil
+        let hasTypeGenericContext = (try descriptor.typeGenericContext(in: machO.context)) != nil
         let hasSingletonMetadataInitialization = descriptor.hasSingletonMetadataInitialization
         let hasForeignMetadataInitialization = descriptor.hasForeignMetadataInitialization
         let hasImportInfo = descriptor.hasImportInfo
@@ -116,7 +116,7 @@ package enum TypeContextDescriptorProtocolBaselineGenerator {
         let hasLayoutString = descriptor.hasLayoutString
         let hasCanonicalMetadataPrespecializations = descriptor.hasCanonicalMetadataPrespecializations
         let hasSingletonMetadataPointer = descriptor.hasSingletonMetadataPointer
-        let typeImportInfo = try descriptor.typeImportInfo(in: machO)
+        let typeImportInfo = try descriptor.typeImportInfo(in: machO.context)
 
         let expr: ExprSyntax = """
         Entry(

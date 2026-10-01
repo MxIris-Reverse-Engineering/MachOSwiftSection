@@ -32,37 +32,41 @@ public struct MetadataSourceRecord: ResolvableLocatableLayoutWrapper {
     }
 }
 
-extension MetadataSourceRecord {
-    /// The type this entry supplies metadata for — a real mangled type name.
-    public func mangledTypeName(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> MangledName {
-        try layout.mangledTypeName.resolve(from: offset(of: \.mangledTypeName), in: machO)
-    }
-
-    /// The recipe for recovering that metadata, unparsed. See the type's
-    /// documentation for why.
-    public func mangledMetadataSource(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> MangledName {
-        try layout.mangledMetadataSource.resolve(from: offset(of: \.mangledMetadataSource), in: machO)
-    }
-}
-
-extension MetadataSourceRecord {
-    public func mangledTypeName() throws -> MangledName {
-        try layout.mangledTypeName.resolve(from: pointer(of: \.mangledTypeName))
-    }
-
-    public func mangledMetadataSource() throws -> MangledName {
-        try layout.mangledMetadataSource.resolve(from: pointer(of: \.mangledMetadataSource))
-    }
-}
-
 // MARK: - ReadingContext Support
 
 extension MetadataSourceRecord {
+    /// The type this entry supplies metadata for — a real mangled type name.
     public func mangledTypeName(in context: some ReadingContext) throws -> MangledName {
         try layout.mangledTypeName.resolve(at: try context.addressFromOffset(offset(of: \.mangledTypeName)), in: context)
     }
 
+    /// The recipe for recovering that metadata, unparsed. See the type's
+    /// documentation for why.
     public func mangledMetadataSource(in context: some ReadingContext) throws -> MangledName {
         try layout.mangledMetadataSource.resolve(at: try context.addressFromOffset(offset(of: \.mangledMetadataSource)), in: context)
+    }
+}
+
+// MARK: - Deprecated Mach-O and pointer forms
+
+extension MetadataSourceRecord {
+    @available(*, deprecated, message: "Pass a ReadingContext: mangledTypeName(in: machO.context).")
+    public func mangledTypeName(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> MangledName {
+        try mangledTypeName(in: machO.context)
+    }
+
+    @available(*, deprecated, message: "Pass a ReadingContext: mangledMetadataSource(in: machO.context).")
+    public func mangledMetadataSource(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> MangledName {
+        try mangledMetadataSource(in: machO.context)
+    }
+
+    @available(*, deprecated, message: "Pass a ReadingContext: mangledTypeName(in: .inProcess).")
+    public func mangledTypeName() throws -> MangledName {
+        try mangledTypeName(in: InProcessContext.shared)
+    }
+
+    @available(*, deprecated, message: "Pass a ReadingContext: mangledMetadataSource(in: .inProcess).")
+    public func mangledMetadataSource() throws -> MangledName {
+        try mangledMetadataSource(in: InProcessContext.shared)
     }
 }

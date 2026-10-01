@@ -13,8 +13,8 @@ final class ProtocolGenericContextTests: MachOFileTests, @unchecked Sendable {
         let protocols = try machO.swift.protocols
 
         for `protocol` in protocols {
-            if let genericContext = try `protocol`.descriptor.genericContext(in: machO) {
-                try await genericContext.dumpGenericSignature(resolver: .using(options: .default), in: machO).string.print()
+            if let genericContext = try `protocol`.descriptor.genericContext(in: machO.context) {
+                try await genericContext.dumpGenericSignature(resolver: .using(options: .default), in: machO.context).string.print()
             }
         }
     }

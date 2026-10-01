@@ -87,9 +87,9 @@ final class MultiPayloadEnumDescriptorCache: @unchecked Sendable {
             // and memoized for the image's lifetime by the enclosing
             // `SharedCache`.
             do {
-                let mangledTypeName = try multiPayloadEnumDescriptor.mangledTypeName(in: machO)
+                let mangledTypeName = try multiPayloadEnumDescriptor.mangledTypeName(in: machO.context)
 
-                let node = try SymbolicDemangler.demangleType(for: mangledTypeName, in: machO)
+                let node = try SymbolicDemangler.demangleType(for: mangledTypeName, in: machO.context)
 
                 multiPayloadEnumDescriptorByNode[node] = multiPayloadEnumDescriptor
             } catch {

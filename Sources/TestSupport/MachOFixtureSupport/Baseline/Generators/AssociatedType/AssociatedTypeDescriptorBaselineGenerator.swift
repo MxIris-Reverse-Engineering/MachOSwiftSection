@@ -85,10 +85,10 @@ package enum AssociatedTypeDescriptorBaselineGenerator {
         let layoutNumAssociatedTypes = descriptor.layout.numAssociatedTypes
         let layoutAssociatedTypeRecordSize = descriptor.layout.associatedTypeRecordSize
         let actualSize = descriptor.actualSize
-        let records = try descriptor.associatedTypeRecords(in: machO)
+        let records = try descriptor.associatedTypeRecords(in: machO.context)
         let recordsCount = records.count
-        let hasConformingTypeName = (try? descriptor.conformingTypeName(in: machO)) != nil
-        let hasProtocolTypeName = (try? descriptor.protocolTypeName(in: machO)) != nil
+        let hasConformingTypeName = (try? descriptor.conformingTypeName(in: machO.context)) != nil
+        let hasProtocolTypeName = (try? descriptor.protocolTypeName(in: machO.context)) != nil
 
         let expr: ExprSyntax = """
         Entry(

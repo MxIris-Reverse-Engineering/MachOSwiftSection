@@ -110,7 +110,7 @@ extension GenericSpecializer {
 
     /// Get generic context for a type descriptor
     private func genericContext(for type: TypeContextDescriptorWrapper) throws -> GenericContext {
-        guard let genericContext = try type.genericContext(in: machO) else {
+        guard let genericContext = try type.genericContext(in: machO.context) else {
             throw SpecializerError.notGenericType(type: type)
         }
         return genericContext
@@ -296,8 +296,8 @@ extension GenericSpecializer {
 
         for genericRequirement in genericRequirements {
             // Get the mangled param name and demangle it
-            let mangledParamName = try genericRequirement.paramMangledName(in: machO)
-            let paramNode = try SymbolicDemangler.demangleType(for: mangledParamName, in: machO)
+            let mangledParamName = try genericRequirement.paramMangledName(in: machO.context)
+            let paramNode = try SymbolicDemangler.demangleType(for: mangledParamName, in: machO.context)
 
             // The requirement applies to this parameter only if its LHS is the
             // generic parameter directly (not an associated-type reference like A.Element).
@@ -409,7 +409,7 @@ extension GenericSpecializer {
 
         switch flags.kind {
         case .protocol:
-            let resolvedContent = try genericRequirement.resolvedContent(in: machO)
+            let resolvedContent = try genericRequirement.resolvedContent(in: machO.context)
             guard case .protocol(let protocolRef) = resolvedContent,
                   let resolved = protocolRef.resolved else {
                 return nil
@@ -418,8 +418,8 @@ extension GenericSpecializer {
             // Try to get protocol name
             let protocolName: ProtocolName
             if let swiftProto = resolved.swift {
-                let proto = try MachOSwiftSection.`Protocol`(descriptor: swiftProto, in: machO)
-                protocolName = try proto.protocolName(in: machO)
+                let proto = try MachOSwiftSection.`Protocol`(descriptor: swiftProto, in: machO.context)
+                protocolName = try proto.protocolName(in: machO.context)
             } else {
                 return nil
             }
@@ -430,17 +430,17 @@ extension GenericSpecializer {
             ))
 
         case .sameType:
-            let mangledTypeName = try genericRequirement.type(in: machO)
-            let demangledTypeNode = try SymbolicDemangler.demangleType(for: mangledTypeName, in: machO)
+            let mangledTypeName = try genericRequirement.type(in: machO.context)
+            let demangledTypeNode = try SymbolicDemangler.demangleType(for: mangledTypeName, in: machO.context)
             return .sameType(demangledTypeNode: demangledTypeNode, mangledName: mangledTypeName)
 
         case .baseClass:
-            let mangledTypeName = try genericRequirement.type(in: machO)
-            let demangledTypeNode = try SymbolicDemangler.demangleType(for: mangledTypeName, in: machO)
+            let mangledTypeName = try genericRequirement.type(in: machO.context)
+            let demangledTypeNode = try SymbolicDemangler.demangleType(for: mangledTypeName, in: machO.context)
             return .baseClass(demangledTypeNode: demangledTypeNode, mangledName: mangledTypeName)
 
         case .layout:
-            let resolvedContent = try genericRequirement.resolvedContent(in: machO)
+            let resolvedContent = try genericRequirement.resolvedContent(in: machO.context)
             guard case .layout(let layoutKind) = resolvedContent else {
                 return nil
             }
@@ -484,8 +484,8 @@ extension GenericSpecializer {
         let genericRequirements = Self.mergedRequirements(from: genericContext)
 
         for genericRequirement in genericRequirements {
-            let mangledParamName = try genericRequirement.paramMangledName(in: machO)
-            let paramNode = try SymbolicDemangler.demangleType(for: mangledParamName, in: machO)
+            let mangledParamName = try genericRequirement.paramMangledName(in: machO.context)
+            let paramNode = try SymbolicDemangler.demangleType(for: mangledParamName, in: machO.context)
 
             // Only handle dependent-member chains here; direct GP requirements
             // are collected per parameter in `collectRequirements`.
@@ -950,7 +950,8 @@ extension GenericSpecializer where MachO == MachOImage {
                     let descriptor: MachOSwiftSection.`Protocol`
                     do {
                         descriptor = try MachOSwiftSection.`Protocol`(
-                            descriptor: protocolDef.value.protocolDescriptor.asPointerWrapper(in: protocolDef.machO)
+                            descriptor: protocolDef.value.protocolDescriptor.asPointerWrapper(in: protocolDef.machO),
+                            in: .inProcess
                         )
                     } catch {
                         // Indexer found the entry but materializing the
@@ -1089,7 +1090,7 @@ extension GenericSpecializer where MachO == MachOImage {
             return
         }
 
-        guard let genericContext = (try? request.typeDescriptor.genericContext(in: machO)) ?? nil else {
+        guard let genericContext = (try? request.typeDescriptor.genericContext(in: machO.context)) ?? nil else {
             return
         }
 
@@ -1128,8 +1129,8 @@ extension GenericSpecializer where MachO == MachOImage {
         let lhsMangled: MangledName
         let rhsMangled: MangledName
         do {
-            lhsMangled = try descriptor.paramMangledName(in: machO)
-            rhsMangled = try descriptor.type(in: machO)
+            lhsMangled = try descriptor.paramMangledName(in: machO.context)
+            rhsMangled = try descriptor.type(in: machO.context)
         } catch {
             return
         }
@@ -1208,7 +1209,7 @@ extension GenericSpecializer where MachO == MachOImage {
     /// placeholder when demangling fails (rare; should never block the
     /// rest of the validation pipeline).
     private func constraintDisplayName(for mangledName: MangledName) -> String {
-        if let node = try? SymbolicDemangler.demangleType(for: mangledName, in: machO) {
+        if let node = try? SymbolicDemangler.demangleType(for: mangledName, in: machO.context) {
             return node.print(using: .interfaceTypeBuilderOnly)
         }
         return "<unprintable>"
@@ -1276,7 +1277,7 @@ extension GenericSpecializer where MachO == MachOImage {
     /// Subclass-or-self test mirroring Swift runtime's `isSubclass`
     /// (`swift/stdlib/public/runtime/ProtocolConformance.cpp:1702`):
     /// pointer-equality short-circuit, then walk the superclass chain via
-    /// the universal `AnyClassMetadataObjCInterop.superclass()` accessor
+    /// the universal `AnyClassMetadataObjCInterop.superclass(in:)` accessor
     /// (works for pure Swift classes, ObjC class wrappers, and foreign
     /// classes alike).
     private func isClassDescendantOrSelf(
@@ -1300,8 +1301,8 @@ extension GenericSpecializer where MachO == MachOImage {
         guard isClassLike else { return false }
 
         do {
-            var current = try AnyClassMetadataObjCInterop.resolve(from: selectedPointer)
-            while let parent = try current.superclass() {
+            var current = try AnyClassMetadataObjCInterop.resolve(at: selectedPointer, in: .inProcess)
+            while let parent = try current.superclass(in: .inProcess) {
                 let parentPointer = try parent.asPointer
                 if parentPointer == expectedPointer { return true }
                 current = parent
@@ -1492,7 +1493,7 @@ extension GenericSpecializer where MachO == MachOImage {
         let buffer = try buildKeyArgumentsBuffer(for: request, with: selection, depth: depth)
 
         // Get metadata accessor function
-        let accessorFunction = try typeDescriptor.typeContextDescriptor.metadataAccessorFunction()
+        let accessorFunction = try typeDescriptor.typeContextDescriptor.metadataAccessorFunction(in: .inProcess)
         guard let accessorFunction else {
             throw SpecializerError.metadataCreationFailed(
                 typeName: "unknown",
@@ -1791,7 +1792,7 @@ extension GenericSpecializer where MachO == MachOImage {
         // Generic candidates need nested specialization; surface a typed error
         // rather than letting the no-argument accessor call below fail with
         // a generic message.
-        if let genericContext = try typeContext.genericContext(in: machO) {
+        if let genericContext = try typeContext.genericContext(in: machO.context) {
             throw SpecializerError.candidateRequiresNestedSpecialization(
                 candidate: candidate,
                 parameterCount: Int(genericContext.header.numParams)
@@ -1799,7 +1800,7 @@ extension GenericSpecializer where MachO == MachOImage {
         }
 
         // Get accessor function from type definition's type context
-        let accessorFunction = try typeContext.metadataAccessorFunction(in: machO)
+        let accessorFunction = try typeContext.metadataAccessorFunction(in: machO.context)
         guard let accessorFunction else {
             throw SpecializerError.candidateResolutionFailed(
                 candidate: candidate,
@@ -1809,8 +1810,8 @@ extension GenericSpecializer where MachO == MachOImage {
 
         // Non-generic: call accessor with no arguments
         let response = try accessorFunction(request: .completeAndBlocking)
-        let wrapper = try response.value.resolve()
-        return try wrapper.metadata
+        let wrapper = try response.value.resolve(in: .inProcess)
+        return try wrapper.anyMetadata.asMetadata(in: .inProcess)
     }
 
     /// Resolve witness table for a type conforming to a protocol using runtime conformance check
@@ -1836,7 +1837,8 @@ extension GenericSpecializer where MachO == MachOImage {
 
         // Create in-process protocol descriptor and use runtime conformance check
         let protocolDescriptor = try MachOSwiftSection.`Protocol`(
-            descriptor: protocolDef.value.protocolDescriptor.asPointerWrapper(in: protocolDef.machO)
+            descriptor: protocolDef.value.protocolDescriptor.asPointerWrapper(in: protocolDef.machO),
+            in: .inProcess
         )
 
         guard let witnessTable = try RuntimeFunctions.conformsToProtocol(
@@ -1886,7 +1888,7 @@ extension GenericSpecializer where MachO == MachOImage {
 
         var results: [ProtocolWitnessTable] = []
 
-        guard let genericContextInProcess = try type.genericContext() else {
+        guard let genericContextInProcess = try type.genericContext(in: .inProcess) else {
             throw AssociatedTypeResolutionError.missingGenericContext(typeDescriptor: type)
         }
 
@@ -1895,7 +1897,7 @@ extension GenericSpecializer where MachO == MachOImage {
         }
 
         let requirements = try Self.mergedRequirements(from: genericContextInProcess)
-            .map { try GenericRequirement(descriptor: $0) }
+            .map { try GenericRequirement(descriptor: $0, in: .inProcess) }
         let allProtocolDefinitions = indexer.allAllProtocolDefinitions
 
         for requirement in requirements {
@@ -1906,8 +1908,8 @@ extension GenericSpecializer where MachO == MachOImage {
                   let requirementProtocolDescriptor = requirement.content.protocol?.resolved,
                   let protocolDescriptor = requirementProtocolDescriptor.swift else { continue }
 
-            let requirementProtocol = try MachOSwiftSection.`Protocol`(descriptor: protocolDescriptor)
-            let paramNode = try SymbolicDemangler.demangleType(for: requirement.paramManagledName)
+            let requirementProtocol = try MachOSwiftSection.`Protocol`(descriptor: protocolDescriptor, in: .inProcess)
+            let paramNode = try SymbolicDemangler.demangleType(for: requirement.paramManagledName, in: .inProcess)
 
             guard let pathInfo = Self.extractAssociatedPath(of: paramNode) else {
                 throw AssociatedTypeResolutionError.unknownParamNodeStructure(paramNode: paramNode)
@@ -1935,7 +1937,7 @@ extension GenericSpecializer where MachO == MachOImage {
 
             // The leaf metadata must conform to the requirement protocol; that
             // conformance PWT is the value the runtime expects in the slot.
-            let currentProtocolName = try requirementProtocol.protocolName()
+            let currentProtocolName = try requirementProtocol.protocolName(in: .inProcess)
             guard let associatedTypePWT = try? RuntimeFunctions.conformsToProtocol(
                 metadata: currentMetadata,
                 protocolDescriptor: requirementProtocol.descriptor
@@ -1982,14 +1984,15 @@ extension GenericSpecializer where MachO == MachOImage {
         let stepProtocol: MachOSwiftSection.`Protocol`
         do {
             stepProtocol = try MachOSwiftSection.`Protocol`(
-                descriptor: entry.value.protocolDescriptor.asPointerWrapper(in: entry.machO)
+                descriptor: entry.value.protocolDescriptor.asPointerWrapper(in: entry.machO),
+                in: .inProcess
             )
         } catch {
             throw AssociatedTypeResolutionError.failedToCreateAssociatedTypeRefProtocol(underlyingError: error)
         }
 
-        let stepProtocolFullName = try stepProtocol.protocolName()
-        let availableAssociatedTypes = try stepProtocol.descriptor.associatedTypes()
+        let stepProtocolFullName = try stepProtocol.protocolName(in: .inProcess)
+        let availableAssociatedTypes = try stepProtocol.descriptor.associatedTypes(in: .inProcess)
 
         guard let associatedTypeIndex = availableAssociatedTypes.firstIndex(of: step.name) else {
             throw AssociatedTypeResolutionError.missingAssociatedTypeIndex(
@@ -2031,7 +2034,7 @@ extension GenericSpecializer where MachO == MachOImage {
             conformingTypeMetadata: currentMetadata,
             baseRequirement: baseRequirement,
             associatedTypeRequirement: accessFunctionRequirement
-        ).value.resolve().metadata else {
+        ).value.resolve(in: .inProcess).anyMetadata.asMetadata(in: .inProcess) else {
             throw AssociatedTypeResolutionError.failedToGetAssociatedTypeWitness(
                 conformingType: currentMetadata,
                 protocolName: stepProtocolFullName,

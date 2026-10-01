@@ -166,11 +166,11 @@ package struct FieldLayoutRenderer<MachO: MachOFieldLayoutRenderable> {
     private static func resolveAccessorMetadata(for type: TypeContextWrapper, in machO: MachO) throws -> MetadataWrapper? {
         switch type {
         case .struct(let structType):
-            return try structType.descriptor.metadataAccessorFunction(in: machO)?(request: .init()).value.resolve(in: machO)
+            return try structType.descriptor.metadataAccessorFunction(in: machO.context)?(request: .init()).value.resolve(in: machO.context)
         case .enum(let enumType):
-            return try enumType.descriptor.metadataAccessorFunction(in: machO)?(request: .init()).value.resolve(in: machO)
+            return try enumType.descriptor.metadataAccessorFunction(in: machO.context)?(request: .init()).value.resolve(in: machO.context)
         case .class(let classType):
-            return try classType.descriptor.metadataAccessorFunction(in: machO)?(request: .init()).value.resolve(in: machO)
+            return try classType.descriptor.metadataAccessorFunction(in: machO.context)?(request: .init()).value.resolve(in: machO.context)
         }
     }
 

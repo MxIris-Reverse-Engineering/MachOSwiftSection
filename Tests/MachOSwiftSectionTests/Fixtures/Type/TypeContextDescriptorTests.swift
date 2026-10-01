@@ -64,30 +64,22 @@ final class TypeContextDescriptorTests: MachOSwiftSectionFixtureTests, FixtureSu
     /// is exercised end-to-end via the Type/Enum Suites.
     @Test func enumDescriptor() async throws {
         let descriptors = try loadStructTestDescriptors()
-        let presence = try acrossAllReaders(
-            file: { (try descriptors.file.enumDescriptor(in: machOFile)) != nil },
-            image: { (try descriptors.image.enumDescriptor(in: machOImage)) != nil }
+        let presence = try acrossAllContexts(
+            file: { (try descriptors.file.enumDescriptor(in: fileContext)) != nil },
+            image: { (try descriptors.image.enumDescriptor(in: imageContext)) != nil }
         )
         #expect(presence == TypeContextDescriptorBaseline.structTest.hasEnumDescriptor)
-
-        // ReadingContext-based overload also exercised.
-        let imageCtxPresence = (try descriptors.image.enumDescriptor(in: imageContext)) != nil
-        #expect(imageCtxPresence == TypeContextDescriptorBaseline.structTest.hasEnumDescriptor)
     }
 
     /// `structDescriptor(in:)` returns the underlying `StructDescriptor`
     /// for our struct fixture. Witnesses the true branch.
     @Test func structDescriptor() async throws {
         let descriptors = try loadStructTestDescriptors()
-        let presence = try acrossAllReaders(
-            file: { (try descriptors.file.structDescriptor(in: machOFile)) != nil },
-            image: { (try descriptors.image.structDescriptor(in: machOImage)) != nil }
+        let presence = try acrossAllContexts(
+            file: { (try descriptors.file.structDescriptor(in: fileContext)) != nil },
+            image: { (try descriptors.image.structDescriptor(in: imageContext)) != nil }
         )
         #expect(presence == TypeContextDescriptorBaseline.structTest.hasStructDescriptor)
-
-        // ReadingContext-based overload also exercised.
-        let imageCtxPresence = (try descriptors.image.structDescriptor(in: imageContext)) != nil
-        #expect(imageCtxPresence == TypeContextDescriptorBaseline.structTest.hasStructDescriptor)
     }
 
     /// `classDescriptor(in:)` returns `nil` for our struct fixture (kind
@@ -95,14 +87,10 @@ final class TypeContextDescriptorTests: MachOSwiftSectionFixtureTests, FixtureSu
     /// is exercised end-to-end via the Type/Class Suites.
     @Test func classDescriptor() async throws {
         let descriptors = try loadStructTestDescriptors()
-        let presence = try acrossAllReaders(
-            file: { (try descriptors.file.classDescriptor(in: machOFile)) != nil },
-            image: { (try descriptors.image.classDescriptor(in: machOImage)) != nil }
+        let presence = try acrossAllContexts(
+            file: { (try descriptors.file.classDescriptor(in: fileContext)) != nil },
+            image: { (try descriptors.image.classDescriptor(in: imageContext)) != nil }
         )
         #expect(presence == TypeContextDescriptorBaseline.structTest.hasClassDescriptor)
-
-        // ReadingContext-based overload also exercised.
-        let imageCtxPresence = (try descriptors.image.classDescriptor(in: imageContext)) != nil
-        #expect(imageCtxPresence == TypeContextDescriptorBaseline.structTest.hasClassDescriptor)
     }
 }

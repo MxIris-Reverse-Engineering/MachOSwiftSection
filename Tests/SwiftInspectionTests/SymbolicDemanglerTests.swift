@@ -74,7 +74,7 @@ final class SymbolicDemanglerImageTests: MachOImageTests, @unchecked Sendable {
 
     @Test func buildGenericSignatureReturnsNilForEmptyRequirements() async throws {
         // Empty requirements should return nil
-        let result = try SymbolicDemangler.buildGenericSignature(for: [])
+        let result = try SymbolicDemangler.buildGenericSignature(for: [], in: .inProcess)
         #expect(result == nil)
     }
 }
@@ -91,7 +91,7 @@ final class SymbolicDemanglerFileTests: MachOFileTests, @unchecked Sendable {
     }
 
     @Test func buildGenericSignatureFromFileReturnsNilForEmpty() async throws {
-        let result = try SymbolicDemangler.buildGenericSignature(for: [] as [GenericRequirementDescriptor], in: machOFile)
+        let result = try SymbolicDemangler.buildGenericSignature(for: [] as [GenericRequirementDescriptor], in: machOFile.context)
         #expect(result == nil)
     }
 
@@ -105,15 +105,15 @@ final class SymbolicDemanglerFileTests: MachOFileTests, @unchecked Sendable {
             processedCount += 1
             do {
                 if let structDescriptor = descriptor.struct {
-                    let name = try structDescriptor.name(in: machOFile)
+                    let name = try structDescriptor.name(in: machOFile.context)
                     #expect(!name.isEmpty)
                     successCount += 1
                 } else if let classDescriptor = descriptor.class {
-                    let name = try classDescriptor.name(in: machOFile)
+                    let name = try classDescriptor.name(in: machOFile.context)
                     #expect(!name.isEmpty)
                     successCount += 1
                 } else if let enumDescriptor = descriptor.enum {
-                    let name = try enumDescriptor.name(in: machOFile)
+                    let name = try enumDescriptor.name(in: machOFile.context)
                     #expect(!name.isEmpty)
                     successCount += 1
                 }
@@ -134,7 +134,7 @@ final class SymbolicDemanglerFileTests: MachOFileTests, @unchecked Sendable {
         var successCount = 0
         for descriptor in descriptors.prefix(20) {
             do {
-                let name = try descriptor.name(in: machOFile)
+                let name = try descriptor.name(in: machOFile.context)
                 #expect(!name.isEmpty)
                 successCount += 1
             } catch {
@@ -168,7 +168,7 @@ final class SymbolicDemanglerFileTests: MachOFileTests, @unchecked Sendable {
         for associatedType in associatedTypes.prefix(20) {
             for record in associatedType.records.prefix(5) {
                 do {
-                    let typeName = try record.substitutedTypeName(in: machOFile)
+                    let typeName = try record.substitutedTypeName(in: machOFile.context)
                     #expect(!typeName.isEmpty)
                     successCount += 1
                 } catch {
@@ -186,7 +186,7 @@ final class SymbolicDemanglerFileTests: MachOFileTests, @unchecked Sendable {
 @Suite
 struct BuildGenericSignatureTests {
     @Test func emptyRequirementsReturnsNil() throws {
-        let result = try SymbolicDemangler.buildGenericSignature(for: [] as [GenericRequirementDescriptor])
+        let result = try SymbolicDemangler.buildGenericSignature(for: [] as [GenericRequirementDescriptor], in: .inProcess)
         #expect(result == nil)
     }
 

@@ -36,11 +36,11 @@ import OrderedCollections
 /// member form; every other tree keys as-is.
 package func memberJoinKey(
     for node: NodeReference,
-    in machO: some MachOSwiftSectionRepresentableWithCache
+    in context: some ReadingContext
 ) -> StructuralNodeReferenceKey {
     if node.children.first?.kind == .asyncFunctionPointer, let entityNode = node.children.second {
         let strippedTree = Node.create(kind: .global, child: entityNode.materialize())
-        return StructuralNodeReferenceKey(InternedNodeReferenceCache.shared.reference(interning: strippedTree, in: machO))
+        return StructuralNodeReferenceKey(InternedNodeReferenceCache.shared.reference(interning: strippedTree, in: context))
     }
     return StructuralNodeReferenceKey(node)
 }

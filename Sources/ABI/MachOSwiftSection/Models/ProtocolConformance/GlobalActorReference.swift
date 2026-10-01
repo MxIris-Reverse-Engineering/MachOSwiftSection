@@ -21,20 +21,24 @@ public struct GlobalActorReference: LocatableLayoutWrapper {
     }
 }
 
-extension GlobalActorReference {
-    public func typeName(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> MangledName {
-        try layout.type.resolve(from: offset(of: \.type), in: machO)
-    }
-
-    public func typeName() throws -> MangledName {
-        try layout.type.resolve(from: pointer(of: \.type))
-    }
-}
-
 // MARK: - ReadingContext Support
 
 extension GlobalActorReference {
     public func typeName(in context: some ReadingContext) throws -> MangledName {
         try layout.type.resolve(at: try context.addressFromOffset(offset(of: \.type)), in: context)
+    }
+}
+
+// MARK: - Deprecated Mach-O and pointer forms
+
+extension GlobalActorReference {
+    @available(*, deprecated, message: "Pass a ReadingContext: typeName(in: machO.context).")
+    public func typeName(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> MangledName {
+        try typeName(in: machO.context)
+    }
+
+    @available(*, deprecated, message: "Pass a ReadingContext: typeName(in: .inProcess).")
+    public func typeName() throws -> MangledName {
+        try typeName(in: InProcessContext.shared)
     }
 }

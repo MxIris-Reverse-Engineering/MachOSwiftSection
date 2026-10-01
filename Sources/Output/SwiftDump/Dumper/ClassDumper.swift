@@ -45,7 +45,7 @@ package struct ClassDumper<MachO: MachOFieldLayoutRenderable>: TypedDumper {
     /// the member sections annotate from, looked up once more here because the
     /// header prints before the member loop computes its context node.
     private var objcAncestorChainHierarchy: ObjCClassHierarchy? {
-        guard let contextNode = try? SymbolicDemangler.demangleContext(for: .type(.class(dumped.descriptor)), in: machO),
+        guard let contextNode = try? SymbolicDemangler.demangleContext(for: .type(.class(dumped.descriptor)), in: machO.context),
               let qualifiedName = NodeTypeNaming.nominalQualifiedName(ofDemangledRoot: contextNode)
         else { return nil }
         return ObjCMembers.table(forSwiftClassQualifiedName: qualifiedName, in: machO)?.hierarchy
@@ -73,7 +73,7 @@ package struct ClassDumper<MachO: MachOFieldLayoutRenderable>: TypedDumper {
             // segment directly in that case.
             let isBound = boundDumpedMetatype() != nil
             if !isBound, let genericContext = dumped.genericContext {
-                try await genericContext.dumpGenericSignature(resolver: demangleResolver, in: machO) {
+                try await genericContext.dumpGenericSignature(resolver: demangleResolver, in: machO.context) {
                     superclass
                 }
             } else {
@@ -89,7 +89,7 @@ package struct ClassDumper<MachO: MachOFieldLayoutRenderable>: TypedDumper {
         get throws {
             guard dumped.descriptor.isActor else { return [] }
 
-            let currentTypeNode = try SymbolicDemangler.demangleContext(for: .type(.class(dumped.descriptor)), in: machO)
+            let currentTypeNode = try SymbolicDemangler.demangleContext(for: .type(.class(dumped.descriptor)), in: machO.context)
             let currentTypeName = currentTypeNode.print(using: .interfaceTypeBuilderOnly)
 
             var nodes: Set<StructuralNodeReferenceKey> = []
@@ -119,16 +119,16 @@ package struct ClassDumper<MachO: MachOFieldLayoutRenderable>: TypedDumper {
     package var superclass: SemanticString {
         get async throws {
             let hasInvertedProtocols = dumped.invertibleProtocolSet?.hasInvertedProtocols ?? false
-            if let superclassMangledName = try dumped.descriptor.superclassTypeMangledName(in: machO) {
+            if let superclassMangledName = try dumped.descriptor.superclassTypeMangledName(in: machO.context) {
                 Standard(":")
                 Space()
-                try await demangleResolver.resolve(for: SymbolicDemangler.demangleType(for: superclassMangledName, in: machO))
+                try await demangleResolver.resolve(for: SymbolicDemangler.demangleType(for: superclassMangledName, in: machO.context))
                 if hasInvertedProtocols {
                     Standard(",")
                     Space()
                     dumped.invertibleProtocolSet!.dumpInvertedProtocolNames
                 }
-            } else if let resilientSuperclass = dumped.resilientSuperclass, let kind = dumped.descriptor.resilientSuperclassReferenceKind, let superclass = try await resilientSuperclass.dumpSuperclass(resolver: demangleResolver, for: kind, in: machO) {
+            } else if let resilientSuperclass = dumped.resilientSuperclass, let kind = dumped.descriptor.resilientSuperclassReferenceKind, let superclass = try await resilientSuperclass.dumpSuperclass(resolver: demangleResolver, for: kind, in: machO.context) {
                 Standard(":")
                 Space()
                 superclass
@@ -170,13 +170,13 @@ package struct ClassDumper<MachO: MachOFieldLayoutRenderable>: TypedDumper {
             // be node-matched exactly like the member loops in `members`
             // (issue #115). A context that cannot be demangled falls back to
             // the name-only (merged) lookup rather than dropping evidence.
-            let finalRecoveryContextNode = canRecoverFinalFields ? try? SymbolicDemangler.demangleContext(for: .type(.class(dumped.descriptor)), in: machO) : nil
+            let finalRecoveryContextNode = canRecoverFinalFields ? try? SymbolicDemangler.demangleContext(for: .type(.class(dumped.descriptor)), in: machO.context) : nil
             let vtableAccessorNames = canRecoverFinalFields ? vtableAccessorFieldNames(interfaceNameString: finalRecoveryInterfaceName, contextNode: finalRecoveryContextNode) : []
             let storedAccessorNames = canRecoverFinalFields ? storedAccessorFieldNames(interfaceNameString: finalRecoveryInterfaceName, contextNode: finalRecoveryContextNode) : []
-            for (offset, fieldRecord) in try dumped.descriptor.fieldDescriptor(in: machO).records(in: machO).offsetEnumerated() {
+            for (offset, fieldRecord) in try dumped.descriptor.fieldDescriptor(in: machO.context).records(in: machO.context).offsetEnumerated() {
                 BreakLine()
 
-                let mangledTypeName = try fieldRecord.mangledTypeName(in: machO)
+                let mangledTypeName = try fieldRecord.mangledTypeName(in: machO.context)
 
                 try await fieldLayoutRenderer.storedFieldComments(forFieldAtIndex: offset.index, mangledTypeName: mangledTypeName, fieldOffsets: fieldOffsets)
 
@@ -184,7 +184,7 @@ package struct ClassDumper<MachO: MachOFieldLayoutRenderable>: TypedDumper {
 
                 let demangledTypeNode = try fieldDemangledTypeNode(for: mangledTypeName)
 
-                let fieldName = try fieldRecord.fieldName(in: machO)
+                let fieldName = try fieldRecord.fieldName(in: machO.context)
 
                 let strippedFieldName = fieldName.stripLazyPrefix
                 let isFinalField = canRecoverFinalFields
@@ -305,7 +305,7 @@ package struct ClassDumper<MachO: MachOFieldLayoutRenderable>: TypedDumper {
                 BreakLine()
 
                 if configuration.printVTableOffset {
-                    if let vtableSlot = try? parentVTableCache.slotIndex(for: descriptor, in: machO) {
+                    if let vtableSlot = try? parentVTableCache.slotIndex(for: descriptor, in: machO.context) {
                         configuration.vtableOffsetComment(slotOffset: vtableSlot)
                     }
                 }
@@ -316,7 +316,7 @@ package struct ClassDumper<MachO: MachOFieldLayoutRenderable>: TypedDumper {
 
                 Indent(level: 1)
 
-                let methodDescriptor = try descriptor.methodDescriptor(in: machO)
+                let methodDescriptor = try descriptor.methodDescriptor(in: machO.context)
 
                 // An override slot keeps the implementation-address route: its
                 // descriptor has no `Tq` symbol, and the parent's descriptor
@@ -401,7 +401,7 @@ package struct ClassDumper<MachO: MachOFieldLayoutRenderable>: TypedDumper {
             // context node picks this type's own sub-bucket (issue #115).
             // A context that cannot be demangled falls back to the name-only
             // (merged) lookup rather than dropping members.
-            let contextNode = try? SymbolicDemangler.demangleContext(for: .type(.class(dumped.descriptor)), in: machO)
+            let contextNode = try? SymbolicDemangler.demangleContext(for: .type(.class(dumped.descriptor)), in: machO.context)
 
             // `override` of ObjC-inherited members (evolution proposal
             // `objc-ancestor-override-recovery`): the class's own ObjC method
@@ -556,11 +556,7 @@ package struct ClassDumper<MachO: MachOFieldLayoutRenderable>: TypedDumper {
 
     @SemanticStringBuilder
     private func _name(using resolver: DemangleResolver) async throws -> SemanticString {
-        if configuration.displayParentName {
-            try await resolver.resolve(for: SymbolicDemangler.demangleContext(for: .type(.class(dumped.descriptor)), in: machO)).replacingTypeNameOrOtherToTypeDeclaration()
-        } else {
-            try TypeDeclaration(kind: .class, dumped.descriptor.name(in: machO))
-        }
+        try await dumped.dumpedName(using: resolver, configuration: configuration, in: machO.context)
     }
 
     @SemanticStringBuilder

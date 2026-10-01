@@ -140,8 +140,8 @@ struct OpaqueWitnessDumpAnnotationTests {
     private func dumpedConformances(in machOFile: MachOFile) async throws -> [String: String] {
         var dumps: [String: String] = [:]
         for associatedType in try machOFile.swift.associatedTypes {
-            let conformer = await (try SymbolicDemangler.demangleType(for: associatedType.conformingTypeName, in: machOFile)).print(using: DemangleOptions.default)
-            let protocolName = await (try SymbolicDemangler.demangleType(for: associatedType.protocolTypeName, in: machOFile)).print(using: DemangleOptions.default)
+            let conformer = await (try SymbolicDemangler.demangleType(for: associatedType.conformingTypeName, in: machOFile.context)).print(using: DemangleOptions.default)
+            let protocolName = await (try SymbolicDemangler.demangleType(for: associatedType.protocolTypeName, in: machOFile.context)).print(using: DemangleOptions.default)
             dumps["\(conformer): \(protocolName)"] = try await associatedType.dump(using: .demangleOptions(.default), in: machOFile).string
         }
         return dumps

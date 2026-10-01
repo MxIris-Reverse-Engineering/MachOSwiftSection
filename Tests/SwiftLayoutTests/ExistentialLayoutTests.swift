@@ -50,7 +50,7 @@ final class ExistentialLayoutTests: MachOSwiftSectionFixtureTests, @unchecked Se
             guard let descriptor = contextDescriptor.typeContextDescriptorWrapper else { continue }
             guard descriptor.isStruct || descriptor.isClass else { continue }
             guard
-                let qualifiedTypeName = (try? SymbolicDemangler.demangleContext(for: contextDescriptor, in: machO))
+                let qualifiedTypeName = (try? SymbolicDemangler.demangleContext(for: contextDescriptor, in: imageContext))
                     .flatMap(NodeTypeNaming.nominalQualifiedName(of:)),
                 let expectedOffsets = Self.expectedFieldOffsets[qualifiedTypeName]
             else { continue }

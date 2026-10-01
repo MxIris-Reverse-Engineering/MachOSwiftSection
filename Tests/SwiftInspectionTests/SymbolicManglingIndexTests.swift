@@ -131,7 +131,7 @@ struct SymbolicManglingIndexTests {
         var localTypeMismatches: [String] = []
         for reference in SymbolicManglingIndex.shared.references(in: machOFile) where reference.kind == .directContextDescriptor {
             guard visitedReferencedOffsets.insert(reference.referencedOffset).inserted else { continue }
-            let context: ContextDescriptorWrapper = try .resolve(from: reference.referencedOffset, in: machOFile)
+            let context: ContextDescriptorWrapper = try .resolve(at: reference.referencedOffset, in: machOFile.context)
             switch context {
             case .type, .protocol:
                 break
@@ -143,7 +143,7 @@ struct SymbolicManglingIndexTests {
                 "the referent of the reference at \(reference.referenceOffset) does not demangle"
             )
             let compilerSpelledName = Self.printedName(of: referentNode)
-            let descriptorBuiltName = try Self.printedName(of: SymbolicDemangler.demangleContext(for: context, in: machOFile))
+            let descriptorBuiltName = try Self.printedName(of: SymbolicDemangler.demangleContext(for: context, in: machOFile.context))
             comparedCount += 1
             if descriptorBuiltName != compilerSpelledName {
                 let mismatch = "descriptor \(descriptorBuiltName), compiler \(compilerSpelledName)"
@@ -238,7 +238,7 @@ struct SymbolicManglingIndexTests {
     private static func classDescriptor(named name: String, in machO: some MachOSwiftSectionRepresentableWithCache) throws -> ClassDescriptor? {
         for typeContextDescriptor in try machO.swift.typeContextDescriptors {
             guard case .class(let classDescriptor) = typeContextDescriptor else { continue }
-            if try classDescriptor.name(in: machO) == name {
+            if try classDescriptor.name(in: machO.context) == name {
                 return classDescriptor
             }
         }

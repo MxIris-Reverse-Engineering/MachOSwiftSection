@@ -49,7 +49,7 @@ package extension SwiftDeclarationPrinter {
         // This header-print operation's single wrapper materialization
         // (proposal 0002).
         try await renderTypeDeclarationHeader(
-            for: typeDefinition.materializedTypeContext(in: machO),
+            for: typeDefinition.materializedTypeContext(in: machO.context),
             displayParentName: displayParentName,
             level: level,
             leafNameNode: leafNameNode(of: typeDefinition.typeName.node.materialize()),
@@ -69,7 +69,7 @@ package extension SwiftDeclarationPrinter {
         // This header-print operation's single wrapper materialization
         // (proposal 0002).
         try await renderProtocolDeclarationHeader(
-            for: protocolDefinition.materializedProtocol(in: machO),
+            for: protocolDefinition.materializedProtocol(in: machO.context),
             displayParentName: displayParentName,
             leafNameNode: leafNameNode(of: protocolDefinition.protocolName.node.materialize())
         )

@@ -74,7 +74,7 @@ public enum RuntimeFunctions {
     /// Returns `nil` if the metadata's descriptor pointer is null (pure ObjC
     /// class instance — no Swift descriptor to substitute against).
     public static func getTypeByMangledNameInContext(_ mangledTypeName: MangledName, specializedFrom metadata: ClassMetadataObjCInterop, in machOImage: MachOImage) throws -> Any.Type? {
-        guard let descriptor = try metadata.descriptor() else { return nil }
+        guard let descriptor = try metadata.descriptor(in: InProcessContext.shared) else { return nil }
         let metadataPointer = try metadata.asPointer
         let descriptorPointer = try UnsafeRawPointer(bitPattern: UInt(metadata.layout.descriptor.address))
         let genericArgumentOffsetWords: Int
@@ -82,7 +82,7 @@ public enum RuntimeFunctions {
             // The runtime fills `immediateMembersOffset` (bytes) when the
             // class metadata is realized; by the time we hold the in-process
             // metadata pointer here, it is current.
-            let bounds = try descriptor.resilientMetadataBounds()
+            let bounds = try descriptor.resilientMetadataBounds(in: InProcessContext.shared)
             genericArgumentOffsetWords = Int(bounds.layout.immediateMembersOffset) / MemoryLayout<StoredPointer>.size
         } else {
             genericArgumentOffsetWords = Int(descriptor.nonResilientImmediateMembersOffset)
@@ -95,12 +95,12 @@ public enum RuntimeFunctions {
     /// `getTypeByMangledNameInContext(_:specializedFrom:in:)`. See the
     /// value-type sibling above for the rationale.
     public static func getTypeByMangledNameInContext(_ mangledTypeName: MangledName, specializedFrom metadata: ClassMetadataObjCInterop) throws -> Any.Type? {
-        guard let descriptor = try metadata.descriptor() else { return nil }
+        guard let descriptor = try metadata.descriptor(in: InProcessContext.shared) else { return nil }
         let metadataPointer = try metadata.asPointer
         let descriptorPointer = try UnsafeRawPointer(bitPattern: UInt(metadata.layout.descriptor.address))
         let genericArgumentOffsetWords: Int
         if descriptor.hasResilientSuperclass {
-            let bounds = try descriptor.resilientMetadataBounds()
+            let bounds = try descriptor.resilientMetadataBounds(in: InProcessContext.shared)
             genericArgumentOffsetWords = Int(bounds.layout.immediateMembersOffset) / MemoryLayout<StoredPointer>.size
         } else {
             genericArgumentOffsetWords = Int(descriptor.nonResilientImmediateMembersOffset)
@@ -111,18 +111,18 @@ public enum RuntimeFunctions {
 
     public static func conformsToProtocol(metatype: Any.Type, protocolType: Any.Type) throws -> ProtocolWitnessTable? {
         let existentialTypeMetadataInProcess = try ExistentialTypeMetadata.createInProcess(protocolType)
-        let protocols = try existentialTypeMetadataInProcess.protocols()
+        let protocols = try existentialTypeMetadataInProcess.protocols(in: InProcessContext.shared)
         guard let protocolRef = protocols.first else { return nil }
         guard !protocolRef.isObjC else { return nil }
         let metadataInProcess = try Metadata.createInProcess(metatype)
-        let protocolDescriptor = try protocolRef.swiftProtocol()
+        let protocolDescriptor = try protocolRef.swiftProtocol(in: InProcessContext.shared)
         return try conformsToProtocol(metadata: metadataInProcess, protocolDescriptor: protocolDescriptor)
     }
     
     public static func conformsToProtocol(metadata: Metadata, protocolDescriptor: ProtocolDescriptor, in machOImage: MachOImage) throws -> ProtocolWitnessTable? {
         guard let witnessTablePointer = MachOSwiftSectionC.swift_conformsToProtocol(metadata.pointer(in: machOImage), protocolDescriptor.pointer(in: machOImage)) else { return nil }
         let offset = witnessTablePointer.bitPattern.uint - machOImage.ptr.bitPattern.uint
-        return try .resolve(from: .init(offset), in: machOImage)
+        return try .resolve(at: Int(offset), in: machOImage.context)
     }
     
     public static func conformsToProtocol(metadata: Metadata, protocolDescriptor: ProtocolDescriptor) throws -> ProtocolWitnessTable? {

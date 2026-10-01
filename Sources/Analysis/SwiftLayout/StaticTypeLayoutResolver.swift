@@ -29,7 +29,7 @@ final class StaticTypeLayoutResolver<MachO: MachOSwiftSectionRepresentableWithCa
     ) throws -> StaticTypeLayout {
         let typeNode: Node
         do {
-            typeNode = try SymbolicDemangler.demangleType(for: mangledTypeName, in: originImage.machO)
+            typeNode = try SymbolicDemangler.demangleType(for: mangledTypeName, in: originImage.machO.context)
         } catch {
             throw LayoutResolutionError.unknown(.demangleFailure)
         }
@@ -589,7 +589,7 @@ final class StaticTypeLayoutResolver<MachO: MachOSwiftSectionRepresentableWithCa
     ) throws -> StaticTypeLayout {
         let typeNode: Node
         do {
-            typeNode = try SymbolicDemangler.demangleType(for: mangledTypeName, in: originImage.machO)
+            typeNode = try SymbolicDemangler.demangleType(for: mangledTypeName, in: originImage.machO.context)
         } catch {
             throw LayoutResolutionError.unknown(.demangleFailure)
         }
@@ -681,7 +681,7 @@ final class StaticTypeLayoutResolver<MachO: MachOSwiftSectionRepresentableWithCa
         guard !descriptor.layout.flags.isGeneric else { return superclassInstanceSize }
         let classListInstanceStart = (try? SymbolicDemangler.demangleContext(
             for: TypeContextDescriptorWrapper.class(descriptor).asContextDescriptorWrapper,
-            in: image.machO
+            in: image.machO.context
         ))
             .flatMap { NodeTypeNaming.nominalQualifiedName(of: $0) }
             .flatMap { image.swiftClassInstanceStartsByQualifiedName[$0] }
@@ -699,7 +699,7 @@ final class StaticTypeLayoutResolver<MachO: MachOSwiftSectionRepresentableWithCa
         environment: GenericArgumentEnvironment = .empty
     ) throws -> (instanceSize: Int, alignmentMask: Int) {
         guard
-            let superclassMangledName = try descriptor.superclassTypeMangledName(in: image.machO),
+            let superclassMangledName = try descriptor.superclassTypeMangledName(in: image.machO.context),
             !superclassMangledName.isEmpty
         else {
             // Root class: sizeof(HeapObject) == isa + refcount == 16, 8-aligned.
@@ -707,7 +707,7 @@ final class StaticTypeLayoutResolver<MachO: MachOSwiftSectionRepresentableWithCa
         }
         let demangledSuperclassNode: Node
         do {
-            demangledSuperclassNode = try SymbolicDemangler.demangleType(for: superclassMangledName, in: image.machO)
+            demangledSuperclassNode = try SymbolicDemangler.demangleType(for: superclassMangledName, in: image.machO.context)
         } catch {
             throw LayoutResolutionError.unknown(.demangleFailure)
         }
@@ -776,12 +776,12 @@ final class StaticTypeLayoutResolver<MachO: MachOSwiftSectionRepresentableWithCa
         in image: ImageReference<MachO>,
         environment: GenericArgumentEnvironment = .empty
     ) throws -> [StaticTypeLayout] {
-        let fieldDescriptor = try descriptor.fieldDescriptor(in: image.machO)
-        let records = try fieldDescriptor.records(in: image.machO)
+        let fieldDescriptor = try descriptor.fieldDescriptor(in: image.machO.context)
+        let records = try fieldDescriptor.records(in: image.machO.context)
         var fieldLayouts: [StaticTypeLayout] = []
         fieldLayouts.reserveCapacity(records.count)
         for record in records {
-            let mangledTypeName = try record.mangledTypeName(in: image.machO)
+            let mangledTypeName = try record.mangledTypeName(in: image.machO.context)
             let fieldLayout = try layout(forMangledTypeName: mangledTypeName, in: image, environment: environment)
             fieldLayouts.append(try Self.isRawLayoutStorageRecord(record, in: image) ? Self.rawLayoutStorage(likeTypeLayout: fieldLayout) : fieldLayout)
         }
@@ -808,7 +808,7 @@ final class StaticTypeLayoutResolver<MachO: MachOSwiftSectionRepresentableWithCa
 
     static func isRawLayoutStorageRecord(_ record: FieldRecord, in image: ImageReference<MachO>) throws -> Bool {
         guard record.flags.contains(.isArtificial) else { return false }
-        return try record.fieldName(in: image.machO) == rawLayoutStorageFieldName
+        return try record.fieldName(in: image.machO.context) == rawLayoutStorageFieldName
     }
 
     static func rawLayoutStorage(likeTypeLayout: StaticTypeLayout) -> StaticTypeLayout {

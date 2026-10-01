@@ -22,7 +22,7 @@ import MachOBase
 /// Layout mirrors `swift::AsyncFunctionPointer` (`swift/ABI/Executor.h`).
 /// There is no section listing these records — they live in `__TEXT,__const`
 /// and are reached by symbol or by another descriptor's relative pointer, so
-/// the only entry is `AsyncFunctionPointer.resolve(from:in:)` with an offset
+/// the only entry is `AsyncFunctionPointer.resolve(at:in:)` with an address
 /// the caller already has. See also ``CoroFunctionPointer``, the same idea for
 /// callee-allocated coroutines.
 @LocatableLayoutWrapping

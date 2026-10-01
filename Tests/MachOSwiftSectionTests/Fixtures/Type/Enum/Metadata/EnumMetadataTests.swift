@@ -8,11 +8,11 @@ import MachOFixtureSupport
 /// Fixture-based Suite for `EnumMetadata`.
 ///
 /// Materializing an `EnumMetadata` requires invoking the metadata accessor
-/// function on a *loaded* MachOImage. As a consequence, the cross-reader
-/// equality block here is asymmetric: the metadata instance only originates
-/// from `MachOImage`, but methods on it accept any `MachOContext` /
-/// `InProcessContext` so we still validate the readers agree on the layout
-/// values.
+/// function on a *loaded* MachOImage. As a consequence, the reader
+/// coverage here is asymmetric: the metadata instance only originates from
+/// `MachOImage`, but methods on it accept any `MachOContext` /
+/// `InProcessContext`, so the layout's descriptor is read through both the
+/// image context and the in-process context.
 ///
 /// `init(layout:offset:)` is filtered as memberwise-synthesized.
 @Suite
@@ -27,9 +27,9 @@ final class EnumMetadataTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unc
     /// response's value-type wrapper.
     private func loadNoPayloadEnumMetadata() throws -> EnumMetadata {
         let descriptor = try BaselineFixturePicker.enum_NoPayloadEnumTest(in: machOImage)
-        let accessor = try required(try descriptor.metadataAccessorFunction(in: machOImage))
+        let accessor = try required(try descriptor.metadataAccessorFunction(in: imageContext))
         let response = try accessor(request: .init())
-        let wrapper = try response.value.resolve(in: machOImage)
+        let wrapper = try response.value.resolve(in: imageContext)
         return try required(wrapper.enum)
     }
 
@@ -43,20 +43,19 @@ final class EnumMetadataTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unc
     }
 
     @Test func layout() async throws {
+        let pickedDescriptor = try BaselineFixturePicker.enum_NoPayloadEnumTest(in: machOImage)
         let metadata = try loadNoPayloadEnumMetadata()
-        // Cross-reader equality on the descriptor pointer and kind. The
-        // descriptor reachable via `descriptor(in:)` should be the same
-        // ValueTypeDescriptorWrapper kind across MachOImage/imageContext/
-        // inProcess paths.
-        let imageDescriptor = try metadata.descriptor(in: machOImage)
-        let imageCtxDescriptor = try metadata.descriptor(in: imageContext)
-        let inProcessDescriptor = try metadata.descriptor()
+        // The descriptor reachable via `descriptor(in:)` should be the same
+        // ValueTypeDescriptorWrapper kind across the imageContext and
+        // inProcessContext paths.
+        let imageDescriptor = try metadata.descriptor(in: imageContext)
+        let inProcessDescriptor = try metadata.descriptor(in: inProcessContext)
 
         // ValueTypeDescriptorWrapper isn't Equatable, so compare via the
-        // concrete `enum` payload's offset.
+        // concrete `enum` payload's offset: through the image context it is
+        // the descriptor we picked from the MachOImage's type list.
         let imageEnumOffset = try required(imageDescriptor.enum).offset
-        let imageCtxEnumOffset = try required(imageCtxDescriptor.enum).offset
-        #expect(imageEnumOffset == imageCtxEnumOffset)
+        #expect(imageEnumOffset == pickedDescriptor.offset)
         // InProcess offset is a pointer bit pattern — it must be non-zero.
         let inProcessEnumOffset = try required(inProcessDescriptor.enum).offset
         #expect(inProcessEnumOffset != 0)

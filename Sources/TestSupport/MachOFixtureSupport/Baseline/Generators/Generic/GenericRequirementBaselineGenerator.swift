@@ -96,9 +96,9 @@ package enum GenericRequirementBaselineGenerator {
         for descriptor: StructDescriptor,
         in machO: some MachOSwiftSectionRepresentableWithCache
     ) throws -> GenericRequirement {
-        let context = try required(try descriptor.typeGenericContext(in: machO))
+        let context = try required(try descriptor.typeGenericContext(in: machO.context))
         let firstRequirement = try required(context.currentRequirements.first)
-        return try GenericRequirement(descriptor: firstRequirement, in: machO)
+        return try GenericRequirement(descriptor: firstRequirement, in: machO.context)
     }
 
     private static func emitEntryExpr(for requirement: GenericRequirement) -> String {

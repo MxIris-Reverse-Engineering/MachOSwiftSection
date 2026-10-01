@@ -165,7 +165,7 @@ public struct RuntimeMetadataTypeBuilder: TypeBuilder {
             ))
         ) else { return nil }
         guard let existentialMetadata = try? ExistentialTypeMetadata.createInProcess(existentialType),
-              let reference = try? existentialMetadata.protocols().first else {
+              let reference = try? existentialMetadata.protocols(in: .inProcess).first else {
             return nil
         }
         return reference
@@ -269,7 +269,7 @@ public struct RuntimeMetadataTypeBuilder: TypeBuilder {
     ) -> BuiltType {
         let contextWrapper: ContextDescriptorWrapper
         do {
-            contextWrapper = try ContextDescriptorWrapper.resolve(from: descriptorPointer)
+            contextWrapper = try ContextDescriptorWrapper.resolve(at: descriptorPointer, in: .inProcess)
         } catch {
             return .failure(TypeLookupError("cannot read context descriptor: \(error)"))
         }
@@ -291,7 +291,7 @@ public struct RuntimeMetadataTypeBuilder: TypeBuilder {
 
         let genericContext: GenericContext?
         do {
-            genericContext = try typeWrapper.genericContext()
+            genericContext = try typeWrapper.genericContext(in: .inProcess)
         } catch {
             return .failure(TypeLookupError("cannot read generic context: \(error)"))
         }
@@ -312,7 +312,7 @@ public struct RuntimeMetadataTypeBuilder: TypeBuilder {
         }
 
         do {
-            guard let accessorFunction = try typeWrapper.typeContextDescriptor.metadataAccessorFunction() else {
+            guard let accessorFunction = try typeWrapper.typeContextDescriptor.metadataAccessorFunction(in: .inProcess) else {
                 return .failure(TypeLookupError("type context descriptor at \(descriptorPointer) has no metadata accessor"))
             }
             let keyMetadatas = try keyMetadataTypes.map { try Metadata.createInProcess($0) }
@@ -321,8 +321,8 @@ public struct RuntimeMetadataTypeBuilder: TypeBuilder {
                 metadatas: keyMetadatas,
                 witnessTables: witnessTables
             )
-            let responseMetadata = try response.value.resolve()
-            return .success(Self.anyType(fromMetadataPointer: try responseMetadata.metadata.asPointer))
+            let responseMetadata = try response.value.resolve(in: .inProcess)
+            return .success(Self.anyType(fromMetadataPointer: try responseMetadata.anyMetadata.asMetadata(in: .inProcess).asPointer))
         } catch {
             return .failure(TypeLookupError("metadata accessor invocation failed: \(error)"))
         }
@@ -395,7 +395,7 @@ public struct RuntimeMetadataTypeBuilder: TypeBuilder {
 
             let requirement: GenericRequirement
             do {
-                requirement = try GenericRequirement(descriptor: requirementDescriptor)
+                requirement = try GenericRequirement(descriptor: requirementDescriptor, in: .inProcess)
             } catch {
                 return .failure(TypeLookupError("cannot read generic requirement: \(error)"))
             }
@@ -407,7 +407,7 @@ public struct RuntimeMetadataTypeBuilder: TypeBuilder {
 
             let subjectNode: Node
             do {
-                subjectNode = try SymbolicDemangler.demangleType(for: requirement.paramManagledName)
+                subjectNode = try SymbolicDemangler.demangleType(for: requirement.paramManagledName, in: .inProcess)
             } catch {
                 return .failure(TypeLookupError("cannot demangle requirement subject: \(error)"))
             }
@@ -481,10 +481,10 @@ public struct RuntimeMetadataTypeBuilder: TypeBuilder {
         guard let parentType else { return .success([]) }
         do {
             let parentMetadata = try Metadata.createInProcess(parentType)
-            guard let parentWrapper = try parentMetadata.typeContextDescriptorWrapper() else {
+            guard let parentWrapper = try parentMetadata.typeContextDescriptorWrapper(in: .inProcess) else {
                 return .success([])
             }
-            guard let parentGenericContext = try parentWrapper.genericContext() else {
+            guard let parentGenericContext = try parentWrapper.genericContext(in: .inProcess) else {
                 return .success([])
             }
             // Reconstructing written arguments for non-key parameters (ones a
@@ -515,13 +515,13 @@ public struct RuntimeMetadataTypeBuilder: TypeBuilder {
         case .struct, .enum, .optional:
             return metadataPointer.advanced(by: MemoryLayout<ValueMetadata.Layout>.size)
         case .class:
-            let classMetadata = try ClassMetadataObjCInterop.resolve(from: metadataPointer)
-            guard let classDescriptor = try classMetadata.descriptor() else {
+            let classMetadata = try ClassMetadataObjCInterop.resolve(at: metadataPointer, in: .inProcess)
+            guard let classDescriptor = try classMetadata.descriptor(in: .inProcess) else {
                 throw TypeLookupError("parent class metadata has no Swift descriptor")
             }
             let immediateMembersOffsetInWords: Int
             if classDescriptor.hasResilientSuperclass {
-                let bounds = try classDescriptor.resilientMetadataBounds()
+                let bounds = try classDescriptor.resilientMetadataBounds(in: .inProcess)
                 immediateMembersOffsetInWords = Int(bounds.layout.immediateMembersOffset) / MemoryLayout<StoredPointer>.size
             } else {
                 immediateMembersOffsetInWords = Int(classDescriptor.nonResilientImmediateMembersOffset)
@@ -555,9 +555,9 @@ public struct RuntimeMetadataTypeBuilder: TypeBuilder {
             return .failure(TypeLookupError("associated type '\(member)' of an Objective-C protocol cannot be resolved"))
         }
         do {
-            let protocolDescriptor = try protocolDecl.swiftProtocol()
-            let declaredProtocol = try MachOSwiftSection.Protocol(descriptor: protocolDescriptor)
-            let associatedTypeNames = try protocolDescriptor.associatedTypes()
+            let protocolDescriptor = try protocolDecl.swiftProtocol(in: .inProcess)
+            let declaredProtocol = try MachOSwiftSection.Protocol(descriptor: protocolDescriptor, in: .inProcess)
+            let associatedTypeNames = try protocolDescriptor.associatedTypes(in: .inProcess)
             guard let associatedTypeIndex = associatedTypeNames.firstIndex(of: member) else {
                 return .failure(TypeLookupError("protocol declares no associated type named '\(member)'"))
             }
@@ -584,7 +584,7 @@ public struct RuntimeMetadataTypeBuilder: TypeBuilder {
                 baseRequirement: baseRequirement,
                 associatedTypeRequirement: accessFunctionRequirements[associatedTypeIndex]
             )
-            let witnessMetadata = try response.value.resolve().metadata
+            let witnessMetadata = try response.value.resolve(in: .inProcess).anyMetadata.asMetadata(in: .inProcess)
             return .success(Self.anyType(fromMetadataPointer: try witnessMetadata.asPointer))
         } catch {
             return .failure(TypeLookupError("associated type witness resolution failed: \(error)"))
@@ -648,7 +648,7 @@ public struct RuntimeMetadataTypeBuilder: TypeBuilder {
             for reference in protocolReferences where classConstraint == .any {
                 if reference.isObjC {
                     classConstraint = .class
-                } else if let descriptor = try? reference.swiftProtocol(),
+                } else if let descriptor = try? reference.swiftProtocol(in: .inProcess),
                           descriptor.flags.kindSpecificFlags?.protocolFlags?.classConstraint == .class {
                     classConstraint = .class
                 }
@@ -941,7 +941,7 @@ public struct RuntimeMetadataTypeBuilder: TypeBuilder {
     private func boundGenericStandardLibraryType(of instantiation: Any.Type, arguments: [BuiltType]) -> BuiltType {
         let descriptorPointer: UnsafeRawPointer
         do {
-            guard let wrapper = try Metadata.createInProcess(instantiation).typeContextDescriptorWrapper() else {
+            guard let wrapper = try Metadata.createInProcess(instantiation).typeContextDescriptorWrapper(in: .inProcess) else {
                 return .failure(TypeLookupError("cannot locate the standard library descriptor via \(instantiation)"))
             }
             descriptorPointer = try wrapper.typeContextDescriptor.asPointer
@@ -1132,7 +1132,7 @@ public struct RuntimeMetadataTypeBuilder: TypeBuilder {
         ]
         var descriptorPointers: [String: UnsafeRawPointer] = [:]
         for (qualifiedName, instantiation) in knownInstantiations {
-            guard let wrapper = try? Metadata.createInProcess(instantiation).typeContextDescriptorWrapper(),
+            guard let wrapper = try? Metadata.createInProcess(instantiation).typeContextDescriptorWrapper(in: .inProcess),
                   let descriptorPointer = try? wrapper.typeContextDescriptor.asPointer else { continue }
             descriptorPointers[qualifiedName] = descriptorPointer
         }

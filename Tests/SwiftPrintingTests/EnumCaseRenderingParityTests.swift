@@ -79,8 +79,8 @@ struct EnumCaseRenderingParityTests: GenericSpecializationTestingEnvironment {
         var dumpOutput: String? = nil
         for typeContextDescriptor in try machO.swift.typeContextDescriptors {
             guard case .enum(let enumDescriptor) = typeContextDescriptor,
-                  try enumDescriptor.name(in: machO) == "VoidPayloadRenderingFixtureEnum" else { continue }
-            let enumType = try Enum(descriptor: enumDescriptor, in: machO)
+                  try enumDescriptor.name(in: machO.context) == "VoidPayloadRenderingFixtureEnum" else { continue }
+            let enumType = try Enum(descriptor: enumDescriptor, in: machO.context)
             dumpOutput = try await enumType.dump(using: .demangleOptions(.interface), in: machO).string
             break
         }

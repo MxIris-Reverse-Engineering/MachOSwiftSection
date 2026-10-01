@@ -26,10 +26,10 @@ final class GenericValueHeaderTests: MachOSwiftSectionFixtureTests, FixtureSuite
     private func loadValueHeaders() throws -> (file: GenericValueHeader, image: GenericValueHeader) {
         let fileDescriptor = try BaselineFixturePicker.struct_FixedSizeArray(in: machOFile)
         let imageDescriptor = try BaselineFixturePicker.struct_FixedSizeArray(in: machOImage)
-        let fileContext = try required(try fileDescriptor.typeGenericContext(in: machOFile))
-        let imageContext = try required(try imageDescriptor.typeGenericContext(in: machOImage))
-        let fileHeader = try required(fileContext.valueHeader)
-        let imageHeader = try required(imageContext.valueHeader)
+        let fileGenericContext = try required(try fileDescriptor.typeGenericContext(in: fileContext))
+        let imageGenericContext = try required(try imageDescriptor.typeGenericContext(in: imageContext))
+        let fileHeader = try required(fileGenericContext.valueHeader)
+        let imageHeader = try required(imageGenericContext.valueHeader)
         return (file: fileHeader, image: imageHeader)
     }
 
