@@ -241,8 +241,11 @@ public final class SwiftInterfaceBuilder<MachO: MachOFieldLayoutRenderable>: Sen
             // the top level instead. This loop was dead before evolution
             // proposal 0007 — it filtered ROOT protocols on `parent != nil`,
             // which no root ever satisfies, so nested protocols' blocks never
-            // printed at all.
-            for protocolDefinition in indexer.allProtocolDefinitions.values where protocolDefinition.parent != nil {
+            // printed at all. A protocol declared in an extension of another
+            // module's type is nested too, with an extension context instead
+            // of a parent; its blocks used to print inside that extension's
+            // braces (evolution proposal `nested-definition-regions`).
+            for protocolDefinition in indexer.allProtocolDefinitions.values where protocolDefinition.parent != nil || protocolDefinition.extensionContext != nil {
                 for extensionDefinition in protocolDefinition.defaultImplementationExtensions {
                     await printCatchedThrowing(
                         dispatchingTo: eventDispatcher,
