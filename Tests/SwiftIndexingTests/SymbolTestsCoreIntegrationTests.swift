@@ -34,16 +34,12 @@ final class STCoreTests: MachOFileTests, @unchecked Sendable {
         indexer.allProtocolDefinitions.values.first { $0.protocolName.name.hasSuffix(".\(protocolName)") }
     }
 
-    private func indexTypeDefinition(_ typeDefinition: TypeDefinition) async throws {
-        nonisolated(unsafe) let unsafeTypeDefinition = typeDefinition
-        let unsafeMachOFile = machOFile
-        try await unsafeTypeDefinition.index(in: unsafeMachOFile)
+    private func indexTypeDefinition(_ typeDefinition: TypeDefinition) throws {
+        try typeDefinition.index(in: machOFile)
     }
 
-    private func indexProtocolDefinition(_ protocolDefinition: ProtocolDefinition) async throws {
-        nonisolated(unsafe) let unsafeProtocolDefinition = protocolDefinition
-        let unsafeMachOFile = machOFile
-        try await unsafeProtocolDefinition.index(in: unsafeMachOFile)
+    private func indexProtocolDefinition(_ protocolDefinition: ProtocolDefinition) throws {
+        try protocolDefinition.index(in: machOFile)
     }
 }
 
@@ -100,7 +96,7 @@ extension STCoreTests {
     @Test func storedPropertyFields() async throws {
         let indexer = try await preparedIndexer()
         let typeDefinition = try #require(findTypeDefinition(named: "GenericStructNonRequirement", in: indexer))
-        try await indexTypeDefinition(typeDefinition)
+        try indexTypeDefinition(typeDefinition)
 
         let fieldNames = typeDefinition.fields.map(\.name)
         #expect(fieldNames == ["field1", "field2", "field3"])
@@ -148,7 +144,7 @@ extension STCoreTests {
     @Test func classTestNoOverride() async throws {
         let indexer = try await preparedIndexer()
         let classTest = try #require(findTypeDefinition(named: "ClassTest", in: indexer))
-        try await indexTypeDefinition(classTest)
+        try indexTypeDefinition(classTest)
 
         for function in classTest.functions {
             #expect(!function.isOverride, "ClassTest.\(function.name) should not be override")
@@ -158,7 +154,7 @@ extension STCoreTests {
     @Test func subclassOverride() async throws {
         let indexer = try await preparedIndexer()
         let subclassTest = try #require(findTypeDefinition(named: "SubclassTest", in: indexer))
-        try await indexTypeDefinition(subclassTest)
+        try indexTypeDefinition(subclassTest)
 
         let instanceMethod = subclassTest.functions.first { $0.name == "instanceMethod" }
         #expect(instanceMethod?.isOverride == true)
@@ -167,7 +163,7 @@ extension STCoreTests {
     @Test func finalClassOverride() async throws {
         let indexer = try await preparedIndexer()
         let finalClassTest = try #require(findTypeDefinition(named: "FinalClassTest", in: indexer))
-        try await indexTypeDefinition(finalClassTest)
+        try indexTypeDefinition(finalClassTest)
 
         let instanceMethod = finalClassTest.functions.first { $0.name == "instanceMethod" }
         #expect(instanceMethod?.isOverride == true)
@@ -243,7 +239,7 @@ extension STCoreTests {
     @Test func protocolAssociatedType() async throws {
         let indexer = try await preparedIndexer()
         let protocolTest = try #require(findProtocolDefinition(named: "ProtocolTest", in: indexer))
-        try await indexProtocolDefinition(protocolTest)
+        try indexProtocolDefinition(protocolTest)
 
         #expect(protocolTest.associatedTypes.contains("Body"))
     }
@@ -251,7 +247,7 @@ extension STCoreTests {
     @Test func offsetSortedProtocolDefaultImplementationExtensionsRetainMembers() async throws {
         let indexer = try await preparedIndexer()
         let protocolDefinition = try #require(findProtocolDefinition(named: "ProtocolTest", in: indexer))
-        try await indexProtocolDefinition(protocolDefinition)
+        try indexProtocolDefinition(protocolDefinition)
 
         let matchingExtensions = protocolDefinition.defaultImplementationExtensions.filter { extensionDefinition in
             extensionDefinition.extensionName.name.hasSuffix(".Protocols.ProtocolTest")
@@ -284,7 +280,7 @@ extension STCoreTests {
     @Test func propertyWrapperAttr() async throws {
         let indexer = try await preparedIndexer()
         let typeDefinition = try #require(findTypeDefinition(named: "PropertyWrapperStruct", in: indexer))
-        try await indexTypeDefinition(typeDefinition)
+        try indexTypeDefinition(typeDefinition)
 
         let inferrer = TypeAttributeInferrer()
         let attributes = inferrer.infer(for: typeDefinition)
@@ -295,7 +291,7 @@ extension STCoreTests {
     @Test func resultBuilderAttr() async throws {
         let indexer = try await preparedIndexer()
         let typeDefinition = try #require(findTypeDefinition(named: "ResultBuilderStruct", in: indexer))
-        try await indexTypeDefinition(typeDefinition)
+        try indexTypeDefinition(typeDefinition)
 
         let inferrer = TypeAttributeInferrer()
         let attributes = inferrer.infer(for: typeDefinition)
@@ -306,7 +302,7 @@ extension STCoreTests {
     @Test func dynamicMemberLookupAttr() async throws {
         let indexer = try await preparedIndexer()
         let typeDefinition = try #require(findTypeDefinition(named: "DynamicMemberLookupStruct", in: indexer))
-        try await indexTypeDefinition(typeDefinition)
+        try indexTypeDefinition(typeDefinition)
 
         let inferrer = TypeAttributeInferrer()
         let attributes = inferrer.infer(for: typeDefinition)
@@ -317,7 +313,7 @@ extension STCoreTests {
     @Test func dynamicCallableAttr() async throws {
         let indexer = try await preparedIndexer()
         let typeDefinition = try #require(findTypeDefinition(named: "DynamicCallableStruct", in: indexer))
-        try await indexTypeDefinition(typeDefinition)
+        try indexTypeDefinition(typeDefinition)
 
         let inferrer = TypeAttributeInferrer()
         let attributes = inferrer.infer(for: typeDefinition)
@@ -328,7 +324,7 @@ extension STCoreTests {
     @Test func structTestNoTypeAttr() async throws {
         let indexer = try await preparedIndexer()
         let typeDefinition = try #require(findTypeDefinition(named: "StructTest", in: indexer))
-        try await indexTypeDefinition(typeDefinition)
+        try indexTypeDefinition(typeDefinition)
 
         let inferrer = TypeAttributeInferrer()
         let attributes = inferrer.infer(for: typeDefinition)
@@ -346,7 +342,7 @@ extension STCoreTests {
     @Test func dynamicMemberAttr() async throws {
         let indexer = try await preparedIndexer()
         let classTest = try #require(findTypeDefinition(named: "ClassTest", in: indexer))
-        try await indexTypeDefinition(classTest)
+        try indexTypeDefinition(classTest)
 
         // Verify dynamic members exist
         let dynamicMethod = classTest.functions.first { $0.name == "dynamicMethod" }
@@ -357,7 +353,7 @@ extension STCoreTests {
 
         // Check the @objc dynamic case in ObjCAttributeClass where isDynamic IS set
         let objcClass = try #require(findTypeDefinition(named: "ObjCAttributeClass", in: indexer))
-        try await indexTypeDefinition(objcClass)
+        try indexTypeDefinition(objcClass)
 
         let objcDynamicMethod = objcClass.functions.first { $0.name == "objcDynamicMethod" }
         #expect(objcDynamicMethod != nil, "objcDynamicMethod should exist")
@@ -370,7 +366,7 @@ extension STCoreTests {
     @Test func objcClassMemberAttr() async throws {
         let indexer = try await preparedIndexer()
         let objcClass = try #require(findTypeDefinition(named: "ObjCAttributeClass", in: indexer))
-        try await indexTypeDefinition(objcClass)
+        try indexTypeDefinition(objcClass)
 
         // @objc is detected via thunk symbols in applyThunkAttributes
         let objcMethod = objcClass.functions.first { $0.name == "objcMethod" }
@@ -388,7 +384,7 @@ extension STCoreTests {
     @Test func vtableOrdering() async throws {
         let indexer = try await preparedIndexer()
         let classTest = try #require(findTypeDefinition(named: "ClassTest", in: indexer))
-        try await indexTypeDefinition(classTest)
+        try indexTypeDefinition(classTest)
 
         let orderedMembers = OrderedMember.classOrdered(OrderedMember.allMembers(from: classTest))
         let vtableOffsets = orderedMembers.compactMap(\.minVTableOffset)
@@ -410,7 +406,7 @@ extension STCoreTests {
     @Test func overrideMethodsDetected() async throws {
         let indexer = try await preparedIndexer()
         let subclassTest = try #require(findTypeDefinition(named: "SubclassTest", in: indexer))
-        try await indexTypeDefinition(subclassTest)
+        try indexTypeDefinition(subclassTest)
 
         // Override methods should be detected as overrides
         let overrideMethods = subclassTest.functions.filter { $0.isOverride }
@@ -428,7 +424,7 @@ extension STCoreTests {
     @Test func pwtOrdering() async throws {
         let indexer = try await preparedIndexer()
         let protocolDefinition = try #require(findProtocolDefinition(named: "ProtocolWitnessTableTest", in: indexer))
-        try await indexProtocolDefinition(protocolDefinition)
+        try indexProtocolDefinition(protocolDefinition)
 
         let pwtOffsets = protocolDefinition.orderedMembers.compactMap(\.pwtOffset)
 
@@ -487,10 +483,8 @@ extension STCoreTests {
             extensionName: donorExtensionDefinition.extensionName,
             genericSignature: nil
         )
-        nonisolated(unsafe) let unsafeExtensionDefinition = descriptorLessExtensionDefinition
-        let unsafeMachOFile = machOFile
-        try await unsafeExtensionDefinition.index(in: unsafeMachOFile)
-        #expect(unsafeExtensionDefinition.isIndexed)
+        try descriptorLessExtensionDefinition.index(in: machOFile)
+        #expect(descriptorLessExtensionDefinition.isIndexed)
     }
 
     /// Sweep shape: after one `index(in:)` pass over every extension bucket
@@ -499,7 +493,6 @@ extension STCoreTests {
     /// (no conformance descriptor / conformance without resilient witnesses).
     @Test func everyIndexedExtensionIsMarkedIndexed() async throws {
         let indexer = try await preparedIndexer()
-        let unsafeMachOFile = machOFile
         for bucket in [
             indexer.typeExtensionDefinitions,
             indexer.protocolExtensionDefinitions,
@@ -507,10 +500,9 @@ extension STCoreTests {
             indexer.conformanceExtensionDefinitions,
         ] {
             for extensionDefinition in bucket.values.flatMap({ $0 }) {
-                nonisolated(unsafe) let unsafeExtensionDefinition = extensionDefinition
-                try await unsafeExtensionDefinition.index(in: unsafeMachOFile)
+                try extensionDefinition.index(in: machOFile)
                 #expect(
-                    unsafeExtensionDefinition.isIndexed,
+                    extensionDefinition.isIndexed,
                     "\(extensionDefinition.extensionName.name) completed index(in:) without being marked indexed"
                 )
             }
@@ -546,10 +538,9 @@ extension STCoreTests {
             protocolConformanceDescriptor: unreadableDescriptor
         )
 
-        nonisolated(unsafe) let unsafeExtensionDefinition = unreadableExtensionDefinition
-        nonisolated(unsafe) let unsafePrinter = SwiftDeclarationPrinter(in: machOFile)
+        let printer = SwiftDeclarationPrinter(in: machOFile)
         await #expect(throws: (any Error).self) {
-            _ = try await unsafePrinter.printExtensionHeader(unsafeExtensionDefinition, level: 1)
+            _ = try await printer.printExtensionHeader(unreadableExtensionDefinition, level: 1)
         }
     }
 }
@@ -583,9 +574,8 @@ extension STCoreTests {
         )
         parentDefinition.typeChildren.append(corruptChildDefinition)
 
-        nonisolated(unsafe) let unsafeParentDefinition = parentDefinition
-        nonisolated(unsafe) let unsafePrinter = SwiftDeclarationPrinter(in: machOFile)
-        let renderedParent = try await unsafePrinter.printTypeDefinition(unsafeParentDefinition).string
+        let printer = SwiftDeclarationPrinter(in: machOFile)
+        let renderedParent = try await printer.printTypeDefinition(parentDefinition).string
 
         #expect(renderedParent.contains("StructTest"), "the enclosing type must keep printing")
         #expect(!renderedParent.contains("FinalClassTest"), "the corrupt child must be dropped, not rendered")
@@ -598,7 +588,7 @@ extension STCoreTests {
     @Test func opaqueReturnTypeTestHasExpectedMembers() async throws {
         let indexer = try await preparedIndexer()
         let typeDefinition = try #require(findTypeDefinition(named: "OpaqueReturnTypeTest", in: indexer))
-        try await indexTypeDefinition(typeDefinition)
+        try indexTypeDefinition(typeDefinition)
 
         // Should have the expected variables and functions
         #expect(typeDefinition.variables.contains { $0.name == "variable" })
@@ -621,7 +611,7 @@ extension STCoreTests {
     @Test func opaquePrimaryAssocTypeReturnTestExists() async throws {
         let indexer = try await preparedIndexer()
         let typeDefinition = try #require(findTypeDefinition(named: "OpaquePrimaryAssociatedTypeReturnTypeTest", in: indexer))
-        try await indexTypeDefinition(typeDefinition)
+        try indexTypeDefinition(typeDefinition)
 
         #expect(typeDefinition.variables.contains { $0.name == "body" })
     }
@@ -629,7 +619,7 @@ extension STCoreTests {
     @Test func swiftUILikePatternStructTestHasBody() async throws {
         let indexer = try await preparedIndexer()
         let typeDefinition = try #require(findTypeDefinition(named: "StructTest", in: indexer))
-        try await indexTypeDefinition(typeDefinition)
+        try indexTypeDefinition(typeDefinition)
 
         // StructTest has both instance and static body properties (SwiftUI-like pattern)
         let instanceBody = typeDefinition.variables.first { $0.name == "body" }
@@ -642,7 +632,7 @@ extension STCoreTests {
     @Test func protocolTestHasBodyRequirement() async throws {
         let indexer = try await preparedIndexer()
         let protocolDefinition = try #require(findProtocolDefinition(named: "ProtocolTest", in: indexer))
-        try await indexProtocolDefinition(protocolDefinition)
+        try indexProtocolDefinition(protocolDefinition)
 
         // ProtocolTest has associatedtype Body: ProtocolTest
         #expect(protocolDefinition.associatedTypes.contains("Body"))

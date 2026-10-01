@@ -1,8 +1,8 @@
 # Draft - 定义对象的并发打印安全：索引前置，打印期不再写定义
 
-- **状态**: Draft
+- **状态**: In Progress
 - **创建日期**: 2026-09-30
-- **最后更新**: 2026-09-30
+- **最后更新**: 2026-10-01
 - **所属愿景**: 无
 - **关联提案**: [0019-large-stack-executor-and-cross-version-parallelism](0019-large-stack-executor-and-cross-version-parallelism.md)（跨版本并行；
   同版本内并行当时明确不做）、[0002-declaration-model-descriptor-slimming](0002-declaration-model-descriptor-slimming.md)（定义对象的惰性索引形态与物化纪律）
@@ -65,3 +65,10 @@
 | 2026-09-30 | 只解除 `MachOImage` 读者的限制 | `MachOFile` 的不安全来自共享 `FileHandle` 的 seek + read，是另一类问题；语料只在进程内构建。 |
 | 2026-09-30 | 第一轮审查：「等待同一个 Task」改为首个调用者原地索引 + promise 等待，补抛错回退；补上 diff 渲染那处写入 | 非结构化 `Task {}` 不继承大栈执行器偏好、索引体本来没有 `await`；`SwiftDeclarationPrinter+DiffRendering.swift` 同样写 `attributes`。 |
 | 2026-09-30 | 第二轮审查：`attributes` 改局部变量而非计算属性；等待形态定为同步阻塞并把 `index(in:)` 改成同步函数；锁改进程级一把 + in-flight 表；撤掉 `isCacheEnabled` 加锁；动机补上「竞争今天已在发生」、测试先红后绿；定义类标 `@unchecked Sendable` | 计算属性违反 AGENTS.md 物化纪律且依赖方向不通（inferrer 所在模块依赖 `SwiftDeclaration`）；`SharedCacheBuildPromise` 是同步阻塞且无错误通道，两种等待形态要二选一并写出不变量；每定义一把 `Mutex` 是每定义一次堆分配；`isCacheEnabled` 无写入点，加锁只添争用；RuntimeViewer 的显示路径与语料路径今天已在 actor 外并行打印同一批定义。 |
+| 2026-10-01 | Accepted | 用户在 RuntimeViewer 的 Find navigator 会话里说「开始实现提案，MachOSwiftSection的更改可以和 MachOSwiftSection-FindNavigator 这个agent说」，并在本仓库的会话里直接确认「两份都开工」。 |
+| 2026-10-01 | In Progress；开工前定下的实现细节 | 两份里先做本提案：RuntimeViewer 的显示路径与语料路径今天已在并发打印同一批定义。带错误通道的 promise 直接复用 `SharedCacheBuildPromise`（载荷是 `Result`），不另写一个同形的类；`isIndexed` 保持公开只读；`attributes` 直接删除、不留转发扩展——RuntimeViewer、REAgent、swift-decompiler 三个下游都不读它（2026-10-01 逐仓 grep），删除记入 changelog。 |
+| 2026-10-01 | 实现：`DefinitionIndexing`（`Components/Definitions/DefinitionIndexing.swift`）；认领时检查「当前线程是否正在跑某个索引体」 | 一把 `@Mutex` 守着 in-flight 表与各定义的 `hasCompletedIndexing`；三个定义的旧函数体原样挪进私有的 `runIndexingPass(in:)`，`ExtensionDefinition` 的两处提前返回不再自己置标志。同线程重入与「索引体去索引别的定义」用同一条 `precondition` 拦下：认领或等待时，in-flight 表里只要有一个 promise 的构建线程是当前线程就 trap，不需要另设 task-local。所有 `SharedCache` 都在 `SwiftDeclaration` 下层的模块里，构建闭包按依赖方向够不到定义，「索引体不索引定义」由结构保证。 |
+| 2026-10-01 | 压力测试 `ConcurrentDefinitionPrintingTests`（`SwiftPrintingTests`）不声明 `ExclusiveImageAccess` | 它只比较同一进程里两个 indexer 的串行与并发输出，不对进程级状态下断言，不属于 AGENTS.md 要求声明的那类套件；单边声明也排除不了别人。套件加进 CI 的主过滤列表，并因为有意阻塞等待而加进单线程协作池那一步。 |
+| 2026-10-01 | TSan 用 release 配置跑 | debug 下 `--sanitize=thread` 在加载 fixture 时就 trap：MachOKit `FileHandle+.swift:194` 用 `load(as:)` 读 `Data` 的内联字节，TSan 改了栈布局，地址落到奇数，标准库的 `_debugPrecondition` 对齐检查触发。这是 MachOKit 的既有问题（应改用 `loadUnaligned`），不在本仓库；release 下该检查被编译掉，TSan 照样检测竞争。 |
+| 2026-10-01 | 验证：先红后绿 | 改动前：不开 TSan 跑压力测试，进程直接崩在 `SwiftDeclarationPrinter.swift:237`（`for attribute in typeDefinition.attributes`，另一个任务刚给 `attributes` 重新赋值，旧数组被释放后又被读）；release + TSan 报出 28 条数据竞争，全部落在 `TypeDefinition.index` 内部（成员构建、thunk 属性、wrapped property）、打印器写 `attributes` 那段，以及读写成员数组（含 `detachedFromSharedTable()` 新建的 `SymbolTable` 被另一个任务无同步地读），`swift test` 退出码 1。改动后：debug 三个用例全过（约 9 秒）；release + TSan 三个用例全过、0 条报告、退出码 0；`LIBDISPATCH_COOPERATIVE_POOL_STRICT=1` 下通过（7.5 秒），再关掉大栈执行器（`MACHO_SWIFT_SECTION_LARGE_STACK_EXECUTOR=0`）也通过（18 秒），说明阻塞等待不需要额外的池线程。 |
+| 2026-10-01 | 全量测试与渲染 A/B | 全量 `swift test --skip IntegrationTests`（JHs-Mac-Studio-Ultra，Swift 6.4）：改动前 2160 个、改动后 2163 个测试全部通过，原始退出码都是 0，唯一的 known issue（`SymbolicManglingIndexTests`）两边相同。渲染 A/B：基线是改动前的 `4fd4049b`，两侧共用一份 `Package.resolved`，35 个依赖完全一致（其中 5 个是本地兄弟依赖），**92 对逐字节一致**——归档 cache 26.6 与 15.5 各 12 对、iOS 15.5–26.5 模拟器 44 对、MachOImage 腿 24 对。脚本写死的 `26.6.2` 归档目录在这台机器上叫 `26.6`，本轮用只改了这个常量的脚本副本跑。iOS 15.5 模拟器的 SwiftUI / WidgetKit 4 对两侧同样以 SIGTRAP 失败，记为 SKIPPED：本地兄弟依赖 MachOKit `next` 合入上游 0.53.0 后（上游 `7adae68` 开始校验 LINKEDIT 范围），导出信息为空（offset 0、size 0）的镜像让 `ExportTrie.init` 的强制解包崩溃，由 `ObjCAncestorResolver` 沿依赖闭包查导出表触发；仓库远程 pin 的 `0.52.103 ..< 0.53.0` 不含这个改动，与本提案无关。 |

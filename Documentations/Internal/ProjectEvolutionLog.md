@@ -2134,6 +2134,16 @@
 - **关联文档**：[Modules/MachOSymbols.md](Modules/MachOSymbols.md)「规范化偏移的口径」与 STABS 两段、[AGENTS.md](../../AGENTS.md) 符号索引那一节新增的一条、[SystemFrameworkRenderingVerification.md](SystemFrameworkRenderingVerification.md)「跑之前先确认归档目录真的存在」。
 - **对应版本**：0.22.0（未发版）。
 
+## 2026-10-01 定义对象可以并发打印：索引只跑一次，打印期不写定义
+
+- **时间段**：2026-09-30（提案）— 2026-10-01（实现）。
+- **动机**：RuntimeViewer 的 Find 语料要并行打印一个镜像的全部定义，而定义对象在打印时才惰性索引，守卫是无锁的「检查再赋值」，打印器每次还要写 `TypeDefinition.attributes`。这个竞争在 RuntimeViewer 里已经在发生：`RuntimeSwiftSection` 是 actor，显示路径和语料路径都 `await` 到打印器的 nonisolated 入口，打印期间 actor 被释放，两条打印真并行地碰同一批定义。
+- **关键决策**：**① 索引改成同步函数，经 `DefinitionIndexing` 只跑一次**：进程级一把 `@Mutex` 守着 in-flight 表和每个定义的 `hasCompletedIndexing`；首个调用者认领后在自己线程上跑完，其余在 promise 上阻塞等待并共享结果（复用 `SharedCacheBuildPromise`，载荷是 `Result`），抛错则回到未索引、下次重试。**② 不死锁靠两条前提**：索引体没有 `await`（编译器保证），索引体不索引别的定义（所有 `SharedCache` 都在下层模块，结构上够不到定义；认领或等待时若当前线程正在跑某个索引体就 `precondition` trap）。**③ 打印期不写定义**：类型级 attribute 改成打印时的局部变量，删掉 `TypeDefinition.attributes`（三个下游都不读它）；`TypeAttributeInferrer` 里三处读 `TypeDefinition.extensions` 的死代码删掉，并写明被它掩盖的缺口：声明在扩展里的 `buildBlock` / `subscript(dynamicMember:)` / `dynamicallyCall` 识别不到。**④ 三个定义类标 `@unchecked Sendable`**，理由写在类型上；`SymbolicDemangler.isCacheEnabled` 改成 `static let`。**⑤ 约定**：AGENTS.md 那条「同版本内不能并行」改成「`MachOImage` 读者下打印可以并行，`MachOFile` 读者仍不行，`specialize(...)` 不在承诺内」。
+- **落地模块**：SwiftDeclaration（`DefinitionIndexing`、三个定义类及其 `+Indexing`、`MutableDefinition` 的 requirement）、SwiftAttributeInference（`TypeAttributeInferrer`）、SwiftPrinting / SwiftInterface（打印器与 diff 渲染的两处 attribute、各处 `index(in:)` 调用）、SwiftInspection（`isCacheEnabled`）、MachOCaches（`SharedCacheBuildPromise` 的注释）。测试新增 `ConcurrentDefinitionPrintingTests`（CI 主过滤与单线程协作池两步都加了），其余测试去掉为定义不 `Sendable` 写的 `nonisolated(unsafe)` 绕法。
+- **验证**：改动前压力测试不开 TSan 直接崩（`attributes` 数组被另一个任务重新赋值后又被读），release + TSan 报 28 条数据竞争；改动后 debug、release + TSan（0 条报告）、单线程协作池、单线程协作池且关掉大栈执行器都通过。debug 下用 TSan 会在 MachOKit 读 fixture 时被对齐检查拦下（MachOKit 的既有问题），所以 TSan 一律用 release。全量 `swift test --skip IntegrationTests`（JHs-Mac-Studio-Ultra，Swift 6.4）改动前 2160 个、改动后 2163 个测试全部通过，原始退出码都是 0，唯一的 known issue（`SymbolicManglingIndexTests`）两边相同。渲染 A/B 对改动前的 `4fd4049b` 共 92 对逐字节一致（归档 cache 26.6 / 15.5、iOS 15.5–26.5 模拟器、MachOImage 腿）；iOS 15.5 模拟器 SwiftUI / WidgetKit 的 4 对两侧同样崩溃，原因是本地兄弟依赖 MachOKit `next` 合入上游 0.53.0 后 `ExportTrie.init` 对空导出信息强制解包，与本批无关，细节见提案决策日志。
+- **关联文档**：[draft-concurrent-definition-printing](../Evolutions/draft-concurrent-definition-printing.md)、[Modules/SwiftDeclaration.md](Modules/SwiftDeclaration.md)「每个定义只索引一次，可以被并发打印」、[LargeStackTaskExecutorAdoption.md](LargeStackTaskExecutorAdoption.md)「版本内并行为什么不做」。
+- **对应版本**：未发版。
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节

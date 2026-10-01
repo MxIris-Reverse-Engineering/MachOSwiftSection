@@ -1,8 +1,8 @@
 # Draft - 进程内嵌套字段偏移展开的记忆化与匿名上下文判别符缓存
 
-- **状态**: Draft
+- **状态**: Accepted
 - **创建日期**: 2026-09-30
-- **最后更新**: 2026-09-30
+- **最后更新**: 2026-10-01
 - **所属愿景**: 无
 - **关联提案**: [0056-visibility-regions](0056-visibility-regions.md)（RuntimeViewer 的语料按标记模式打印，所以每个类型都要付
   `printExpandedFieldOffsets` 的全价）、[0053-shared-cache-composition-and-eviction-registry](0053-shared-cache-composition-and-eviction-registry.md)（进程作用域存储的形态）
@@ -85,3 +85,4 @@ RuntimeViewer 给一个镜像的全部类型建搜索语料时，对正在打印
 | 2026-09-30 | 符号查找不做排序索引，改为记忆化判别符结果 | 进程内查找先逐个重建 dyld 镜像再线性扫 `LC_SYMTAB`，共享缓存镜像的本地符号已剥离，必落空；MachOKit 上游文件按 fork 政策不改。 |
 | 2026-09-30 | 第一轮审查：剪枝改为「保留行、剪子树」；缓存形态改按 0053；写明 enum payload 的 nil 不对称；修 TaskReports 链接 | 原稿把「剪掉节点」写成了字面意思，且引用 0053 的缓存形态与 0053 的决定相反。 |
 | 2026-09-30 | 第二轮审查：放弃「结构树 + 渲染期剪枝」，改为按 metatype 缓存单层展开记录、遍历原样不动；缓存形态改成 0053 采纳的 `private static let` + `@Mutex` 字典（第一轮改正时仍写成了 0053 否掉的常量键 `SharedCache`）；记录记 `isLast`；展开入口保留 `?? getTypeByMangledNameInContext` 回退；`removeAll()` 带代数；补文档同步清单 | 审查指出树方案漏记 `isLast` 会在「末 payload 解析失败」时改掉 `├──` / `└──` 与祖先列，且子树是否跨根共享没定、两条路各有陷阱；单层记录方案把字节一致变成构造性的，也没有 in-flight 与剪枝问题。 |
+| 2026-10-01 | Accepted | 与 [draft-concurrent-definition-printing](draft-concurrent-definition-printing.md) 同一次批准：用户在 RuntimeViewer 会话里批准开工，并在本仓库的会话里直接确认「两份都开工」。实现排在并发打印之后。 |

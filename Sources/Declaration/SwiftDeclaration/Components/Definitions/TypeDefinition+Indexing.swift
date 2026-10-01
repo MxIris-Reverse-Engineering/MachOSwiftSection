@@ -7,11 +7,21 @@ import SwiftThunkAnalysis
 @_spi(Internals) import MachOSymbols
 @_spi(Internals) import SwiftInspection
 
-extension TypeDefinition {
+extension TypeDefinition: OnceIndexedDefinition {
     /// Fills the definition from the image: fields, members, the facts that
     /// are only recoverable by cross-referencing several symbol kinds, and
     /// the member order. Idempotent — a second call on an indexed definition
-    /// returns immediately.
+    /// returns immediately — and safe to call from several tasks at once:
+    /// the first runs the pass, the others wait for it (`DefinitionIndexing`).
+    package func index(in machO: some MachOSwiftSectionRepresentableWithCache) throws {
+        try DefinitionIndexing.index(self) {
+            try runIndexingPass(in: machO)
+        }
+    }
+
+    /// The pass `index(in:)` runs once. Synchronous on purpose, and it must
+    /// never index another definition: `DefinitionIndexing` blocks the
+    /// callers that arrive while it runs.
     ///
     /// The step order below is load-bearing and each step documents what it
     /// depends on; the two that are easiest to break are `final` recovery
@@ -19,9 +29,7 @@ extension TypeDefinition {
     /// precede `orderedMembers`, which copies the member values) and
     /// wrapped-property recovery (needs both the folded fields and the member
     /// variables).
-    package func index(in machO: some MachOSwiftSectionRepresentableWithCache) async throws {
-        guard !isIndexed else { return }
-
+    private func runIndexingPass(in machO: some MachOSwiftSectionRepresentableWithCache) throws {
         @Dependency(\.symbolIndexStore)
         var symbolIndexStore
 
@@ -86,8 +94,6 @@ extension TypeDefinition {
         // Needs the fields and the member variables above: which `_x` is a
         // wrapper's storage, and whether `x` still has accessors of its own.
         recoverWrappedProperties(in: machO)
-
-        isIndexed = true
     }
 
     /// The type's stored fields, read from its field descriptor. Carries no

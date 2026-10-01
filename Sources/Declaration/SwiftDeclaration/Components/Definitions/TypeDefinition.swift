@@ -2,7 +2,17 @@ import MachOSwiftSection
 import SwiftInspection
 @_spi(Internals) import MachOSymbols
 
-public final class TypeDefinition: Definition {
+/// A nominal type of an image, as the declaration model holds it.
+///
+/// `@unchecked Sendable`: apart from its indexing state, a definition is
+/// written only while the indexer builds the model and while `index(in:)`
+/// runs, and `index(in:)` runs at most once, behind a lock that also
+/// publishes what it wrote (`DefinitionIndexing`, evolution proposal
+/// `concurrent-definition-printing`). Printing writes nothing to it, so one
+/// definition may be printed from several tasks at once. The one write
+/// outside that promise is `specialize(...)` appending to a generic
+/// definition's `specializedChildren`.
+public final class TypeDefinition: Definition, @unchecked Sendable {
     /// The type's context descriptor reference (evolution proposal 0002).
     /// This is the only Mach-O parse product the definition retains: the
     /// full `TypeContextWrapper` (trailing objects included) is rebuilt on
@@ -125,8 +135,6 @@ public final class TypeDefinition: Definition {
 
     public package(set) var conformingProtocolNames: Set<String> = []
 
-    public package(set) var attributes: [SwiftAttribute] = []
-
     /// The Objective-C runtime name the class's source chose —
     /// `@objc(NSColorModel)` or `@_objcRuntimeName(Name)` — read off the class
     /// metadata by `index(in:)` (evolution proposal `objc-custom-class-name`).
@@ -134,12 +142,15 @@ public final class TypeDefinition: Definition {
     /// knows by its `_TtC…` mangling.
     public package(set) var customObjCClassName: CustomObjCClassName? = nil
 
-    /// Whether `index(in:)` has completed a pass over this definition.
-    ///
-    /// The setter is `internal`, not `private`, only because the indexing
-    /// pass lives in `TypeDefinition+Indexing.swift`: nothing outside this
-    /// target may flip it, and inside it only that pass's tail does.
-    public internal(set) var isIndexed: Bool = false
+    /// Whether `index(in:)` has completed a pass over this definition. Safe
+    /// to read from any thread.
+    public var isIndexed: Bool {
+        DefinitionIndexing.isIndexed(self)
+    }
+
+    /// The flag behind `isIndexed`; `DefinitionIndexing` alone reads and
+    /// writes it, under its lock.
+    var hasCompletedIndexing = false
 
     /// Specialized metadata bound to this definition.
     ///

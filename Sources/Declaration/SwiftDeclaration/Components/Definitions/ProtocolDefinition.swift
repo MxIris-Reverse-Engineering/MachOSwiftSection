@@ -8,7 +8,12 @@ import SwiftStdlibToolbox
 @_spi(Internals) import MachOSymbols
 @_spi(Internals) import SwiftInspection
 
-public final class ProtocolDefinition: Definition, MutableDefinition {
+/// A protocol of an image, as the declaration model holds it.
+///
+/// `@unchecked Sendable` for the reason `TypeDefinition` gives: written only
+/// while the model is built and while `index(in:)` runs once behind
+/// `DefinitionIndexing`'s lock; printing writes nothing to it.
+public final class ProtocolDefinition: Definition, MutableDefinition, @unchecked Sendable {
     /// The protocol's descriptor reference (evolution proposal 0002). The
     /// full `MachOSwiftSection.Protocol` — requirement arrays included — is
     /// rebuilt on demand via `materializedProtocol(in:)` instead of living
@@ -57,12 +62,15 @@ public final class ProtocolDefinition: Definition, MutableDefinition {
 
     public package(set) var orderedMembers: [OrderedMember] = []
 
-    /// Whether `index(in:)` has completed a pass over this definition.
-    ///
-    /// The setter is `internal`, not `private`, only because the indexing
-    /// pass lives in `ProtocolDefinition+Indexing.swift`: nothing outside this
-    /// target may flip it, and inside it only that pass does.
-    public internal(set) var isIndexed: Bool = false
+    /// Whether `index(in:)` has completed a pass over this definition. Safe
+    /// to read from any thread.
+    public var isIndexed: Bool {
+        DefinitionIndexing.isIndexed(self)
+    }
+
+    /// The flag behind `isIndexed`; `DefinitionIndexing` alone reads and
+    /// writes it, under its lock.
+    var hasCompletedIndexing = false
 
     /// Whether this protocol's descriptor is in the image's export trie,
     /// resolved once at construction (see ``ExportStatus``). Available the

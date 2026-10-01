@@ -25,16 +25,15 @@ package extension SwiftDeclarationPrinter {
     /// see `renderLeafName` in `SwiftPrinting` for why.
     @SemanticStringBuilder
     func printTypeHeader(_ typeDefinition: TypeDefinition, level: Int, displayParentName: Bool = false) async throws -> SemanticString {
-        if !typeDefinition.isIndexed {
-            try await typeDefinition.index(in: machO)
-        }
+        try typeDefinition.index(in: machO)
 
-        let typeAttributeInferrer = TypeAttributeInferrer()
-        typeDefinition.attributes = typeAttributeInferrer.infer(for: typeDefinition)
+        // Inferred for this print and kept local, as `printTypeDefinition`
+        // does: printing writes nothing to a definition.
+        let attributes = TypeAttributeInferrer().infer(for: typeDefinition)
 
         // Attributes each on their own line; the diff renderer adds indentation
         // when it marks the lines, so none is emitted here.
-        for attribute in typeDefinition.attributes {
+        for attribute in attributes {
             Keyword(attribute.keyword)
             if let argument = typeDefinition.attributeArgument(for: attribute) {
                 Standard("(\(argument))")
@@ -62,9 +61,7 @@ package extension SwiftDeclarationPrinter {
     /// `printProtocolDefinition`; keep in sync.
     @SemanticStringBuilder
     func printProtocolHeader(_ protocolDefinition: ProtocolDefinition, level: Int, displayParentName: Bool = false) async throws -> SemanticString {
-        if !protocolDefinition.isIndexed {
-            try await protocolDefinition.index(in: machO)
-        }
+        try protocolDefinition.index(in: machO)
 
         // This header-print operation's single wrapper materialization
         // (proposal 0002).

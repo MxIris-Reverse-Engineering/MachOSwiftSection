@@ -37,7 +37,12 @@ public enum SymbolicDemangler {}
 public typealias MetadataReader = SymbolicDemangler
 
 extension SymbolicDemangler {
-    public nonisolated(unsafe) static var isCacheEnabled: Bool = true
+    /// Whether the demangle memo is consulted. A constant: printing runs
+    /// from several tasks at once (evolution proposal
+    /// `concurrent-definition-printing`), and this is read on its hottest
+    /// entry — a settable flag would need a lock there, and nothing ever set
+    /// it.
+    public static let isCacheEnabled: Bool = true
 
     public static func demangleSymbol(for symbol: Symbol, in machO: some MachOSwiftSectionRepresentableWithCache) throws -> Node? {
         return SymbolIndexStore.shared.demangledNode(for: symbol, in: machO)

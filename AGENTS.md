@@ -267,7 +267,7 @@ Library entry points run their body on the demangler's large-stack task executor
 
 **Never start an unstructured `Task {}` inside a wrapped entry point**: SE-0417 means it does not inherit the preference (child tasks and default actors do). Nesting is a no-op, and below macOS 15 / iOS 18 the body runs unchanged. [LargeStackTaskExecutorAdoption.md](Documentations/Internal/LargeStackTaskExecutorAdoption.md).
 
-Cross-version work is parallel because versions are different files; **intra-version parallelism is not safe** — MachOKit's `MachOFile` reads share one `FileHandle` (seek + read) and `index(in:)`'s guard is a plain check-then-set.
+Cross-version work is parallel because versions are different files. **Within one version, only printing on the in-process `MachOImage` reader may run in parallel**: one printer instance may serve any number of tasks at once, including two printing the same definition, or a type and its nested types. That holds because `index(in:)` is synchronous and runs once behind `DefinitionIndexing`'s lock, and printing writes nothing to a definition — **keep both true**: no `await` inside an index pass, no index pass indexing another definition (it traps), no printer state stored on a definition. The `MachOFile` reader is still not safe — MachOKit's `MachOFile` reads share one `FileHandle` (seek + read) — and `specialize(...)` appends to the generic definition unlocked. [draft-concurrent-definition-printing](Documentations/Evolutions/draft-concurrent-definition-printing.md).
 
 </important>
 

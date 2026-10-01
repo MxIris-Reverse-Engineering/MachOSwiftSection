@@ -113,13 +113,12 @@ final class PrintFailureEventTests: MachOFileTests, @unchecked Sendable {
         let protocolDefinition = try #require(indexer.allProtocolDefinitions.values.first)
 
         let collector = EventCollector()
-        nonisolated(unsafe) let unsafeDefinition = protocolDefinition
-        nonisolated(unsafe) let unsafePrinter = SwiftDeclarationPrinter(
+        let printer = SwiftDeclarationPrinter(
             eventHandlers: [collector],
             in: machOFile
         )
 
-        _ = try await unsafePrinter.printProtocolDefinition(unsafeDefinition).string
+        _ = try await printer.printProtocolDefinition(protocolDefinition).string
 
         #expect(
             collector.printStartedNames.contains(protocolDefinition.protocolName.name),
@@ -135,13 +134,12 @@ final class PrintFailureEventTests: MachOFileTests, @unchecked Sendable {
         hostDefinition.typeChildren.append(unprintableDefinition)
 
         let collector = EventCollector()
-        nonisolated(unsafe) let unsafeHostDefinition = hostDefinition
-        nonisolated(unsafe) let unsafePrinter = SwiftDeclarationPrinter(
+        let printer = SwiftDeclarationPrinter(
             eventHandlers: [collector],
             in: machOFile
         )
 
-        _ = try await unsafePrinter.printTypeDefinition(unsafeHostDefinition).string
+        _ = try await printer.printTypeDefinition(hostDefinition).string
 
         #expect(
             collector.printFailureNames.contains(donorDefinition.typeName.name),

@@ -54,10 +54,10 @@ public final class SwiftDiffableInterfaceBuilder<MachO: MachOFieldLayoutRenderab
         try await indexer.prepare()
 
         for typeDefinition in indexer.allTypeDefinitions.values {
-            try await typeDefinition.index(in: machO)
+            try typeDefinition.index(in: machO)
         }
         for protocolDefinition in indexer.allProtocolDefinitions.values {
-            try await protocolDefinition.index(in: machO)
+            try protocolDefinition.index(in: machO)
         }
         for bucket in [
             indexer.typeExtensionDefinitions,
@@ -67,7 +67,7 @@ public final class SwiftDiffableInterfaceBuilder<MachO: MachOFieldLayoutRenderab
         ] {
             for extensionDefinitions in bucket.values {
                 for extensionDefinition in extensionDefinitions {
-                    try await extensionDefinition.index(in: machO)
+                    try extensionDefinition.index(in: machO)
                 }
             }
         }

@@ -225,16 +225,16 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
         let printingContext = SwiftIndexEvents.PrintingContext(name: typeDefinition.typeName.name, kind: .type)
         eventDispatcher.dispatch(.definitionPrintStarted(context: printingContext))
 
-        if !typeDefinition.isIndexed {
-            try await typeDefinition.index(in: machO)
-        }
+        try typeDefinition.index(in: machO)
 
-        // Infer type-level attributes
-        let typeAttributeInferrer = TypeAttributeInferrer()
-        typeDefinition.attributes = typeAttributeInferrer.infer(for: typeDefinition)
+        // Type-level attributes, inferred for this print and kept local:
+        // printing writes nothing to a definition, which is what lets several
+        // tasks print one at once (evolution proposal
+        // `concurrent-definition-printing`).
+        let attributes = TypeAttributeInferrer().infer(for: typeDefinition)
 
         // Emit type-level attributes, each on its own line before the declaration
-        for attribute in typeDefinition.attributes {
+        for attribute in attributes {
             Indent(level: level - 1)
             Keyword(attribute.keyword)
             // `@objc(NSColorModel)`: the runtime name a renamed class carries
@@ -352,9 +352,7 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
         // 0002), threaded into the header and associated-type renderers below.
         let dumpedProtocol = try protocolDefinition.materializedProtocol(in: machO.context)
 
-        if !protocolDefinition.isIndexed {
-            try await protocolDefinition.index(in: machO)
-        }
+        try protocolDefinition.index(in: machO)
 
         try await DeclarationBlock(level: level) {
             try await renderProtocolDeclarationHeader(for: dumpedProtocol, displayParentName: displayParentName)
@@ -414,9 +412,7 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
         let printingContext = SwiftIndexEvents.PrintingContext(name: extensionDefinition.extensionName.name, kind: .extension)
         eventDispatcher.dispatch(.definitionPrintStarted(context: printingContext))
 
-        if !extensionDefinition.isIndexed {
-            try await extensionDefinition.index(in: machO)
-        }
+        try extensionDefinition.index(in: machO)
 
         let rendered: SemanticString
         if isEmptiedByExportFilter(extensionDefinition) {
@@ -594,8 +590,8 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
 
     @SemanticStringBuilder
     private func printDefinitionContents(_ definition: some Definition, level: Int) async throws -> SemanticString {
-        if let mutableDefinition = definition as? MutableDefinition, !mutableDefinition.isIndexed {
-            try await mutableDefinition.index(in: machO)
+        if let mutableDefinition = definition as? MutableDefinition {
+            try mutableDefinition.index(in: machO)
         }
 
         let isProtocol = definition is ProtocolDefinition
