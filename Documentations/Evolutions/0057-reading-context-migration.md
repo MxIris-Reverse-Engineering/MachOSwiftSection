@@ -1,9 +1,9 @@
-# Draft - 读取接口统一到 ReadingContext：传 machO 与直接用指针的旧接口废弃
+# 0057 - 读取接口统一到 ReadingContext：传 machO 与直接用指针的旧接口废弃
 
-- **状态**: In Progress
+- **状态**: Implemented
 - **作者**: JH
 - **创建日期**: 2026-09-30
-- **最后更新**: 2026-09-30
+- **最后更新**: 2026-10-01
 - **所属愿景**: 无
 - **关联提案**: [0018-self-contained-abi-layer](0018-self-contained-abi-layer.md)（「`ReadingContext` 只管读、不带符号服务」的定位出自这里，本提案延续它）、[0025-key-path-component-and-property-descriptor](0025-key-path-component-and-property-descriptor.md)（记下了「新接口三套都写」的惯例，本提案推翻它）、[0053-shared-cache-composition-and-eviction-registry](0053-shared-cache-composition-and-eviction-registry.md)（按镜像缓存与驱逐的现行规则）
 - **实现分支 / PR**: `refactor/reading-context-migration`（worktree `.worktrees/MachOSwiftSection-ReadingContextMigration`），[PR #129](https://github.com/MxIris-Reverse-Engineering/MachOSwiftSection/pull/129)
@@ -283,7 +283,7 @@ extension ReadingContext {
 
 **正确性验收**：
 - 全量测试：公司机器（Xcode 26 工具链）2157 个 / 410 个套件，只有那台机器既有的两条 `MultiPayloadEnumDescriptorCacheTests` 失败；Ultra（Swift 6.4，fixture 用 Xcode 26.6 编）同样 2157 个 / 410 个，全部通过，原始退出码 0。零新增警告。
-- 渲染 A/B：公司机器 90 对、Ultra 84 对（CLI 两条腿 60 对，MachOImage 腿 24 对）逐字节一致；Ultra 上计时所用的 26.6 cache 与 iOS 26.5 模拟器 SwiftUI 输出两侧也一致。
+- 渲染 A/B：公司机器 90 对、Ultra 96 对逐字节一致。Ultra 的 96 对是：脚本跑的 CLI 两条腿 60 对；26.6 归档 cache 手动补跑 12 对（Ultra 上没有脚本写死的 26.6.2 目录，脚本会静默跳过这条腿）；MachOImage 腿 24 对。
 
 **性能验收**（Ultra，release，每组按「基线、候选、候选、基线」运行，SwiftUI）：三条路径都没有变慢。
 
@@ -306,7 +306,7 @@ extension ReadingContext {
 1. 本批发现的既有问题：`FunctionTypeMetadata.extendedFlags(in:)` 与 `EnumMetadataProtocol.payloadSize(descriptor:in:)` 从泛型 `readElement` 直接返回 Optional，按 Optional 的内存形状多读一个字节，`FunctionTypeMetadataTests` 时好时坏就是它；`ContextDescriptorWrapper.resolve(at:in:) -> Self?` 出错时用 `print` 写 stdout，违反日志规则，也会弄脏 CLI 的输出。**已修复**：分支 `fix/optional-read-and-stdout-print`，[PR #130](https://github.com/MxIris-Reverse-Engineering/MachOSwiftSection/pull/130)（叠在本 PR 上）；另查出并修了 `SwiftClassObjectIndex` 读 class flags 的一处同类写法，同批清掉的还有 `SubstitutionMap` 的 `print`。
 2. 渲染 A/B 脚本加 `--skip-build`：直接使用预先经 `queued-build` 构建好的产物，脚本自己不再构建。
 
-**合入之后**：落地时分配编号（`draft-` → `NNNN-`，同步两个索引与进度账本的节号），状态改为 Implemented；0.22.0 的 Changelog 写明废弃清单与三处行为变化；给 RuntimeViewer（`next`）、MachOKitUI、swift-decompiler 提迁移 PR；0.23.0 删除全部废弃转发、`DeprecatedReadingFormsTests`，以及覆盖率登记表里 13 个指针版初始化器的键。
+**合入之后**（编号与状态已在合入时完成）：0.22.0 的 Changelog 写明废弃清单与三处行为变化；给 RuntimeViewer（`next`）、MachOKitUI、swift-decompiler 提迁移 PR；0.23.0 删除全部废弃转发、`DeprecatedReadingFormsTests`，以及覆盖率登记表里 13 个指针版初始化器的键。
 
 ## 决策日志
 
@@ -338,3 +338,5 @@ extension ReadingContext {
 | 2026-09-30 | 性能验收完成：三条路径都没有变慢 | 在 Ultra（28 核，负载低）上测：dyld cache 路径退休指令数 −0.48% / −0.21%，模拟器文件路径 user 时间 +0.2% / +0.57%（两侧区间重叠），MachOImage 与本进程路径 user 时间 −1.2%。公司机器上「多 2.5%」的读数判为噪声 |
 | 2026-09-30 | 改为一个 PR 合入（原计划拆成 ABI 层与缓存范围加上层接口两个） | 用户选定。ABI 层的文档改动是和第二部分一起提交的，拆开要重排 commit；现有 commit 已按逻辑分开，评审时可逐个看 |
 | 2026-09-30 | 既有的 Optional 读取陷阱与 `print` 写 stdout 另开分支修，A/B 脚本加 `--skip-build` 也另开分支 | 用户选定；本 PR 只做迁移，保持聚焦 |
+| 2026-10-01 | In Progress → Implemented，编号 0057，经 [PR #129](https://github.com/MxIris-Reverse-Engineering/MachOSwiftSection/pull/129) 合入 `next` | 用户：「继续合并吧」。各共享分支上的最大编号是 0056（`next`）。分支基于 `next` @ `f7c189b8`，此后 `next` 没有新提交，合入无冲突。最后一次代码改动之后只有文档 commit，验收数据沿用「当前进度」一节：全量测试 2157 个 / 410 个套件原始退出码 0，渲染 A/B 96 对逐字节一致，三条路径性能持平 |
+| 2026-10-01 | 收尾判断：不另写使用指南，实现说明是 `ReadingContextAbstraction.md`「单一实现与废弃」一节；术语表的「cache scope」与「context form / Mach-O form / pointer form」已在实现批次登记；账本记第 73 节 | 迁移写法只有三种替换（`x(in: machO)` → `x(in: machO.context)`，`x()` → `x(in: .inProcess)`，`resolve(from:in:)` → `resolve(at:in:)`），废弃消息本身就给出了替代写法，0.22.0 的 Changelog 再列一遍 |

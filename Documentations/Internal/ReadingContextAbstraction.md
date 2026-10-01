@@ -317,7 +317,7 @@ Two deliberate decisions worth keeping in mind:
 
 ## 单一实现与废弃（2026-09-30，第 4 阶段）
 
-提案：[reading-context-migration](../Evolutions/draft-reading-context-migration.md)。
+提案：[0057-reading-context-migration](../Evolutions/0057-reading-context-migration.md)。
 
 每个读取接口原先最多有三份手写实现：按偏移读 Mach-O 的、用裸指针读本进程的、经 `ReadingContext` 读的。现在只剩 `ReadingContext` 那一份；另外两份是一行转发（`machO.context` / `InProcessContext.shared`），标 `@available(*, deprecated)`，0.23.0 删除。下面是代码里看不出来、下次维护会踩的几点。
 
