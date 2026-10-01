@@ -303,7 +303,7 @@ extension ReadingContext {
 
 **不在本 PR、另开分支处理**（用户已决定）：
 
-1. 本批发现的既有问题：`FunctionTypeMetadata.extendedFlags(in:)` 与 `EnumMetadataProtocol.payloadSize(descriptor:in:)` 从泛型 `readElement` 直接返回 Optional，按 Optional 的内存形状多读一个字节，`FunctionTypeMetadataTests` 时好时坏就是它；`ContextDescriptorWrapper.resolve(at:in:) -> Self?` 出错时用 `print` 写 stdout，违反日志规则，也会弄脏 CLI 的输出。
+1. 本批发现的既有问题：`FunctionTypeMetadata.extendedFlags(in:)` 与 `EnumMetadataProtocol.payloadSize(descriptor:in:)` 从泛型 `readElement` 直接返回 Optional，按 Optional 的内存形状多读一个字节，`FunctionTypeMetadataTests` 时好时坏就是它；`ContextDescriptorWrapper.resolve(at:in:) -> Self?` 出错时用 `print` 写 stdout，违反日志规则，也会弄脏 CLI 的输出。**已修复**：分支 `fix/optional-read-and-stdout-print`，[PR #130](https://github.com/MxIris-Reverse-Engineering/MachOSwiftSection/pull/130)（本 PR 合入后直接对 `next`）；另查出并修了 `SwiftClassObjectIndex` 读 class flags 的一处同类写法，同批清掉的还有 `SubstitutionMap` 的 `print`。
 2. 渲染 A/B 脚本加 `--skip-build`：直接使用预先经 `queued-build` 构建好的产物，脚本自己不再构建。
 
 **合入之后**（编号与状态已在合入时完成）：0.22.0 的 Changelog 写明废弃清单与三处行为变化；给 RuntimeViewer（`next`）、MachOKitUI、swift-decompiler 提迁移 PR；0.23.0 删除全部废弃转发、`DeprecatedReadingFormsTests`，以及覆盖率登记表里 13 个指针版初始化器的键。

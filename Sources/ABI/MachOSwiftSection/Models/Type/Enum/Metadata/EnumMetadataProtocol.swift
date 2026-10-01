@@ -16,7 +16,10 @@ extension EnumMetadataProtocol {
             return nil
         }
         let offset = offset.offseting(of: StoredSize.self, numbersOfElements: descriptor.payloadSizeOffset)
-        return try context.readElement(at: try context.addressFromOffset(offset))
+        // Annotated: asking for the optional directly would read the
+        // Optional's in-memory shape, one tag byte past the size word.
+        let payloadSize: StoredSize = try context.readElement(at: try context.addressFromOffset(offset))
+        return payloadSize
     }
 }
 

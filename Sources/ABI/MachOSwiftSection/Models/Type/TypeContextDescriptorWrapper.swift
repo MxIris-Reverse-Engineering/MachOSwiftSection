@@ -1,9 +1,11 @@
 import MachOKit
 import MachOBase
 import SwiftStdlibToolbox
+import FoundationToolbox
 
 @CaseCheckable(.public)
 @AssociatedValue(.public)
+@Loggable(.private, subsystem: "com.machoswiftsection.macho-swift-section", category: "TypeContextDescriptorWrapper")
 public enum TypeContextDescriptorWrapper {
     case `enum`(EnumDescriptor)
     case `struct`(StructDescriptor)
@@ -97,7 +99,7 @@ extension TypeContextDescriptorWrapper: Resolvable {
         do {
             return try resolve(at: address, in: context) as Self
         } catch {
-            print("Error resolving TypeContextDescriptorWrapper: \(error)")
+            #log(.error, "type context descriptor at \(String(describing: address), privacy: .public) unresolvable, read as absent: \(String(describing: error), privacy: .public)")
             return nil
         }
     }
@@ -105,6 +107,7 @@ extension TypeContextDescriptorWrapper: Resolvable {
 
 @CaseCheckable(.public)
 @AssociatedValue(.public)
+@Loggable(.private, subsystem: "com.machoswiftsection.macho-swift-section", category: "ValueTypeDescriptorWrapper")
 public enum ValueTypeDescriptorWrapper {
     case `enum`(EnumDescriptor)
     case `struct`(StructDescriptor)
@@ -181,7 +184,7 @@ extension ValueTypeDescriptorWrapper: Resolvable {
         do {
             return try resolve(at: address, in: context) as Self
         } catch {
-            print("Error resolving ContextDescriptorWrapper: \(error)")
+            #log(.error, "value type descriptor at \(String(describing: address), privacy: .public) unresolvable, read as absent: \(String(describing: error), privacy: .public)")
             return nil
         }
     }

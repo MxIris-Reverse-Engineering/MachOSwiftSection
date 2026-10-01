@@ -359,7 +359,7 @@ Two deliberate decisions worth keeping in mind:
 ### 这次没动的已知缺口
 
 - `ValueMetadataProtocol.descriptor(in:)` 等经绝对指针读取的字段，对 dyld shared cache 里的镜像，偏移口径不对：`fileOffset(of:)` 给的是 cache 文件内的偏移，读取却按 `unslidVirtualAddress - sharedRegionStart` 来理解。三种形式本来就一样，这次既没修好也没弄坏。
-- `EnumMetadataProtocol.payloadSize` 的返回类型是 `StoredSize?`，泛型读取可能按 9 字节的 `Optional<UInt64>` 去读，和 AGENTS.md 里 `Optional<Pointer<…>>` 那个陷阱同类。尚未验证。
+- `EnumMetadataProtocol.payloadSize` 的返回类型是 `StoredSize?`，泛型读取按 9 字节的 `Optional<UInt64>` 去读，和 AGENTS.md 里的 Optional 读取陷阱同类。迁移之后已单独修复并验证，同时修了 `FunctionTypeMetadata.extendedFlags` 与 `SwiftClassObjectIndex` 读 class flags 的两处同类写法，见 [ProjectEvolutionLog.md](ProjectEvolutionLog.md)「Optional 读取多读一个 tag byte」一节。
 
 ## Future Considerations
 

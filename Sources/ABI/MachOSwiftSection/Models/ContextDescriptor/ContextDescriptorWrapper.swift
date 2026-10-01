@@ -1,7 +1,9 @@
 import MachOKit
 import MachOBase
 import SwiftStdlibToolbox
+import FoundationToolbox
 
+@Loggable(.private, subsystem: "com.machoswiftsection.macho-swift-section", category: "ContextDescriptorWrapper")
 public enum ContextDescriptorWrapper {
     case type(TypeContextDescriptorWrapper)
     case `protocol`(ProtocolDescriptor)
@@ -225,7 +227,7 @@ extension ContextDescriptorWrapper: Resolvable {
         do {
             return try resolve(at: address, in: context) as Self
         } catch {
-            print("Error resolving ContextDescriptorWrapper: \(error)")
+            #log(.error, "context descriptor at \(String(describing: address), privacy: .public) unresolvable, read as absent: \(String(describing: error), privacy: .public)")
             return nil
         }
     }
