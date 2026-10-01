@@ -1,6 +1,6 @@
 # Draft - 在父定义的打印结果里标出嵌套子定义的边界
 
-- **状态**: Draft
+- **状态**: Accepted
 - **创建日期**: 2026-10-01
 - **最后更新**: 2026-10-01
 - **所属愿景**: 无
@@ -62,3 +62,4 @@ RuntimeViewer 建 Find 语料时，嵌套类型会被打印两遍：父类型的
 | 日期 | 决定 | 理由 |
 |------|------|------|
 | 2026-10-01 | Created as Draft | RuntimeViewer 的计时探针量出嵌套对象占打印时间约四成（Release，`72913c3d`；Foundation 只打顶层 2.23 s、全打 3.72 s，SwiftUI 31.15 s 对 51.95 s，libswiftCore 15–22%），超过其提案定的 20% 门槛，指向方案 D。用户在 RuntimeViewer 的会话里对「要让 MachOSwiftSection 那边的会话起草这份上游提案吗？」选了「让它起草提案」；只起草，审过置 `Accepted` 之前不写实现。需求三条由 RuntimeViewer 会话转来：子定义原子的边界标记且可嵌套、内联与单独打印除缩进外逐字节相同并用测试钉住（含 enum layout 多行原子、展开字段偏移、transformer 三种情况）、失败由 RuntimeViewer 回退。 |
+| 2026-10-01 | Accepted；四个待定项都按推荐 | 用户在 RuntimeViewer 会话里选定：嵌在 extension 里的协议的默认实现扩展改到顶层 extensions 区块打印；单独开关 `marksNestedDefinitions`；身份用名字节点的 mangled name（RuntimeViewer 核实 `RuntimeSwiftSection.swift:275` 以 `mangleAsString(typeDefinition.typeName.node)` 作 `RuntimeObject.name`，协议在 `:258`、扩展在 `:237`）；切片与去缩进放进 swift-semantic-string。随后在本仓库的会话里直接确认「确认，排在遍历修复之后」：先做 swift-demangling 的节点遍历修复（并行打印的引用计数争用），再实现本提案。 |

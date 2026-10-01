@@ -67,6 +67,6 @@
 | draft | [静态布局引擎读取 accessor thunk 背后的字段类型](draft-static-layout-through-accessor-thunks.md) | Draft |
 | draft | [进程内嵌套字段偏移展开的记忆化与匿名上下文判别符缓存](draft-nested-field-offset-memoization.md) | In Progress |
 | draft | [定义对象的并发打印安全：索引前置，打印期不再写定义](draft-concurrent-definition-printing.md) | In Progress |
-| draft | [在父定义的打印结果里标出嵌套子定义的边界](draft-nested-definition-regions.md) | Draft |
+| draft | [在父定义的打印结果里标出嵌套子定义的边界](draft-nested-definition-regions.md) | Accepted |
 | [0056](0056-visibility-regions.md) | 标记模式：一次打印全量 interface，并标出每段内容受哪个开关控制 | Implemented |
 | [0057](0057-reading-context-migration.md) | 读取接口统一到 ReadingContext：传 machO 与直接用指针的旧接口废弃 | Implemented |
