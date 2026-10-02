@@ -80,6 +80,13 @@
 - **主要出现在**：`Sources/ABI/MachOSwiftSection/Models/`、`Sources/MachO/MachOPointers/`、`Sources/MachO/MachOResolving/Resolvable.swift`
 - **延伸阅读**：[提案 0057](Evolutions/0057-reading-context-migration.md)、[ReadingContextAbstraction.md](Internal/ReadingContextAbstraction.md)
 
+### depth（泛型参数层号，`GenericParameterDepthLayout`）
+
+泛型参数 `(depth, index)` 坐标的前一半，mangling 里的 `τ_1_0`、打印出的 `A1`。**层号只数声明了参数的上下文**：本身不声明参数、只因嵌在泛型类型里才算泛型的类型（`Outer<A>.Middle`）不开新层；一个 extension 上下文可能跨好几层（`extension Outer.SecondMiddle where …` 同时覆盖 `Outer` 与 `SecondMiddle` 的层）。generic context descriptor 只记录累计的参数列表，不记录层的边界，从父链数祖先会数错；层号一律从 `GenericParameterDepthLayout` 取。`TargetGenericContext.depth` 是泛型祖先的个数，不是层号。
+
+- **主要出现在**：`SwiftInspection.GenericParameterDepthLayout`、`GenericSpecializer` 的参数命名、dump / interface 的泛型参数子句
+- **延伸阅读**：[OfflineGenericSpecialization.md](Internal/OfflineGenericSpecialization.md)「参数的层号只数声明了参数的上下文」
+
 ### dependency closure（依赖闭包）
 
 一个 root 二进制经 `LC_LOAD_DYLIB` 家族 load command 解析出的依赖镜像集合（`MachODependencies.DependencyClosure`）。本项目里的「闭包」默认指**传递**闭包：BFS 递归、按裸镜像名去重、root 排除、解析顺序是契约的一部分（`SwiftLayout.ImageUniverse` 按此顺序惰性索引、命中即停）。同一类型也承载 `.direct` 遍历（只取 root 自己的一层），`SwiftInterfaceBuilderDependencies` 用的是这一种——名字里的「闭包」在那里只是复用同一个结果类型。定位不到的依赖记入 `unresolvedLoadNames`，不算失败。
@@ -152,6 +159,13 @@ linker 把字节相同的函数体合并到同一地址的优化。后果是「�
 
 - **主要出现在**：`Descriptor+MethodDescriptorSymbols.swift`、`ClassDumper`、`TypeDefinition.index`、`FinalKeywordICFRegressionTests`、`VTableSlotAttributionTests`
 - **延伸阅读**：[提案 vtable-slot-attribution](Evolutions/0020-vtable-slot-attribution-via-method-descriptor-symbols.md)、[提案 0006](Evolutions/0006-final-keyword-and-lazy-accessor-type-recovery.md)
+
+### instantiated type name（实例化类型名）
+
+一个泛型类型某个实例化的名字，实参挂在声明对应参数的那一层：`Outer<Swift.Int>.Inner<Swift.String>`、`Outer<Swift.Int>.Middle`。这是运行时 `_buildDemanglingForContext` 给实例化起名的形状；`SymbolicDemangler.instantiatedTypeNode(for:binding:in:)` 移植它，离线特化的结果与在线特化的 `TypeDefinition.typeName` 都用它。不要与把全部实参放进最内层的旧形状（`Outer.Inner<Int, String>`）混淆。
+
+- **主要出现在**：`SymbolicDemangler.instantiatedTypeNode`、`GenericInstantiation`、`StaticSpecializationResult.typeName`
+- **延伸阅读**：[OfflineGenericSpecialization.md](Internal/OfflineGenericSpecialization.md)「实例化类型名」
 
 ### large-stack executor（大栈执行器，`LargeStackTaskExecution`）
 
@@ -247,6 +261,13 @@ opaque 尖括号参数归属的第三条规则：协议无任何 anchor 命中�
 
 - **主要出现在**：`SwiftInspection/ObjCAncestorResolver.swift`、`SwiftInspection/ObjCClassMethodIndex.swift`、`MachODependencies/DependencyPlatforms.swift`
 - **延伸阅读**：[提案 0049-objc-ancestor-dependency-closure](Evolutions/0049-objc-ancestor-dependency-closure.md)、[ObjCMemberRecovery.md](Internal/ObjCMemberRecovery.md)
+
+### offline specialization（离线特化）
+
+不经 runtime 特化一个从文件读出的泛型类型：`GenericSpecializer<MachOFile>.specialize(_:with:)` 把每个实参变成类型节点，得到实例化类型名与按层分组的实参（`GenericArgumentBinding`），打印器与静态布局引擎据此出绑定头部、代换后的字段类型和布局注释。相对的「运行时特化」（在线）调用镜像里的 metadata accessor，只能用于加载在当前进程里的 `MachOImage`。特化后的定义里，离线的带 `staticSpecialization`，在线的带 `metadata`。
+
+- **主要出现在**：`GenericSpecializer+StaticSpecialization.swift`、`StaticSpecializationResult`、`TypeDefinition.staticSpecialization`
+- **延伸阅读**：[OfflineGenericSpecialization.md](Internal/OfflineGenericSpecialization.md)
 
 ### permutation 二分（permutation binary search）
 

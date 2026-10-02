@@ -15,7 +15,7 @@ extension MachOImage: FieldLayoutRenderable {
         nil
     }
 
-    public static func precomputedStaticAggregateFieldLayout(for type: TypeContextWrapper, machO: MachOImage, configuration: DeclarationRenderConfiguration) -> AggregateFieldLayout? {
+    public static func precomputedStaticAggregateFieldLayout(for type: TypeContextWrapper, genericArgumentBinding: GenericArgumentBinding?, machO: MachOImage, configuration: DeclarationRenderConfiguration) -> AggregateFieldLayout? {
         // The runtime path reads offsets from materialized metadata, not from a
         // statically-precomputed aggregate.
         nil
@@ -637,22 +637,38 @@ struct RuntimeFieldLayoutBackend {
 
     // MARK: - Enum layout (runtime)
 
-    /// The enum's own value-witness type layout. Resolved with the `machO`
-    /// context (matching the former `EnumDumper.typeLayout`): the enum metadata
-    /// came from `…resolve(in: machO.context)`, so its value-witness table must be read
-    /// back through the same reader — the in-process `valueWitnessTable(in: .inProcess)`
-    /// misinterprets that offset and segfaults. Used by single-payload layout.
+    /// The enum's own value-witness type layout. A non-generic enum's metadata
+    /// came from `…resolve(in: machO.context)` (matching the former
+    /// `EnumDumper.typeLayout`), so its value-witness table must be read back
+    /// through the same reader — the in-process `valueWitnessTable(in: .inProcess)`
+    /// misinterprets that offset and segfaults. A specialization's metadata
+    /// is an in-process address, read through `readingContext` the same way
+    /// `fieldOffsets` reads it. Used by single-payload layout.
     private var enumTypeLayout: TypeLayout? {
-        try? metadata?.valueWitnessTable(in: machO.context).typeLayout
+        try? metadata?.valueWitnessTable(in: readingContext).typeLayout
     }
 
+    /// A generic enum lays out per instantiation, so only a specialization —
+    /// a definition that carries the instantiation's metadata — has a
+    /// layout to show; the payload types then resolve through that metadata
+    /// (evolution proposal `offline-generic-specialization`, which gives the
+    /// offline path the same comments).
     var enumLayout: EnumLayoutCalculator.LayoutResult? {
         get async {
             guard configuration.producesContent(for: .printEnumLayout),
                   let enumValue,
-                  !enumValue.descriptor.isGeneric else { return nil }
+                  !enumValue.descriptor.isGeneric || metadata != nil else { return nil }
             return try? await computeEnumLayout(enumValue, in: machO)
         }
+    }
+
+    /// A payload case's type: substituted through the specialization's
+    /// metadata for a generic enum, the bare name otherwise.
+    private func payloadMetatype(for mangledTypeName: MangledName, in machOImage: MachOImage) throws -> Any.Type? {
+        if isGeneric {
+            return resolveFieldMetatype(for: mangledTypeName, in: machOImage)
+        }
+        return try RuntimeFunctions.getTypeByMangledNameInContext(mangledTypeName, genericContext: nil, genericArguments: nil, in: machOImage)
     }
 
     private func computeEnumLayout(_ enumValue: Enum, in machOImage: MachOImage) async throws -> EnumLayoutCalculator.LayoutResult? {
@@ -809,7 +825,7 @@ struct RuntimeFieldLayoutBackend {
             }
             let mangledTypeName = try record.mangledTypeName(in: machOImage.context)
             guard !mangledTypeName.isEmpty else { continue }
-            guard let metatype = try RuntimeFunctions.getTypeByMangledNameInContext(mangledTypeName, genericContext: nil, genericArguments: nil, in: machOImage) else { continue }
+            guard let metatype = try payloadMetatype(for: mangledTypeName, in: machOImage) else { continue }
             let typeLayout = try StructMetadata.createInProcess(metatype).asMetadataWrapper(in: .inProcess).valueWitnessTable(in: .inProcess).typeLayout
             payloadSize = max(payloadSize, typeLayout.size.cast())
         }
@@ -831,7 +847,7 @@ struct RuntimeFieldLayoutBackend {
             }
             let mangledTypeName = try record.mangledTypeName(in: machOImage.context)
             guard !mangledTypeName.isEmpty else { continue }
-            guard let metatype = try RuntimeFunctions.getTypeByMangledNameInContext(mangledTypeName, genericContext: nil, genericArguments: nil, in: machOImage) else { continue }
+            guard let metatype = try payloadMetatype(for: mangledTypeName, in: machOImage) else { continue }
             let typeLayout = try StructMetadata.createInProcess(metatype).asMetadataWrapper(in: .inProcess).valueWitnessTable(in: .inProcess).typeLayout
             return typeLayout.extraInhabitantCount.cast()
         }

@@ -52,7 +52,7 @@ package extension SwiftDeclarationPrinter {
             displayParentName: displayParentName,
             level: level,
             leafNameNode: leafNameNode(of: typeDefinition.typeName.node.materialize()),
-            specializedMetadata: typeDefinition.isSpecialized ? typeDefinition.metadata : nil
+            boundTypeNode: boundTypeNode(of: typeDefinition)
         )
     }
 

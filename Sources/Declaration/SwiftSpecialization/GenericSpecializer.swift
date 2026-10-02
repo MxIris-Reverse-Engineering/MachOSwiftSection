@@ -147,31 +147,11 @@ extension GenericSpecializer {
     /// `flags.contains(.hasKeyArgument)` guard in
     /// `resolveAssociatedTypeWitnesses`), so merging conditional records here
     /// is free of side effects on PWT counts.
-    private static func mergedRequirements(
+    static func mergedRequirements(
         from genericContext: GenericContext
     ) -> [GenericRequirementDescriptor] {
         genericContext.requirements
             + genericContext.conditionalInvertibleProtocolsRequirements
-    }
-
-    /// Per-level "newly introduced" parameter counts.
-    ///
-    /// `parentParameters[i]` stores the *cumulative* count visible at depth
-    /// `i` (Swift emits the full canonical parameter list at every nested
-    /// scope). Differencing successive entries yields the count of
-    /// parameters added at each depth; `currentParameters` already contains
-    /// only the new entries at the innermost scope.
-    private static func perLevelNewParameterCounts(
-        of genericContext: GenericContext
-    ) -> [Int] {
-        var counts: [Int] = []
-        var previous = 0
-        for parentCumulative in genericContext.parentParameters {
-            counts.append(parentCumulative.count - previous)
-            previous = parentCumulative.count
-        }
-        counts.append(genericContext.currentParameters.count)
-        return counts
     }
 
     /// Pick out the `~Copyable` / `~Escapable` declaration for the generic
@@ -207,10 +187,11 @@ extension GenericSpecializer {
 
     /// Build parameter list from generic context.
     ///
-    /// Walks the cumulative `parameters` array level by level using the
-    /// per-depth "newly introduced" counts, so each parameter receives the
-    /// `(depth, indexInLevel)` pair that matches the demangler's canonical
-    /// names (`A`, `B`, `A1`, `B1`, `A2`, …). The flat ordinal of each
+    /// Walks the cumulative `parameters` array, placing each parameter at the
+    /// `(depth, index)` its `GenericParameterDepthLayout` gives — the
+    /// coordinates the demangler names it by (`A`, `B`, `A1`, `B1`, `A2`, …)
+    /// in the requirements and field records, so the requirements collected
+    /// by name below are this parameter's. The flat ordinal of each
     /// parameter — the value Swift writes into `InvertedProtocols.genericParamIndex`
     /// — equals the offset into the cumulative array.
     private func buildParameters(
@@ -221,67 +202,61 @@ extension GenericSpecializer {
         var parameters: [SpecializationRequest.Parameter] = []
 
         let cumulativeParameters = genericContext.parameters
-        let perLevelNewCounts = Self.perLevelNewParameterCounts(of: genericContext)
+        let depthLayout = GenericParameterDepthLayout.make(for: genericContext, ownedBy: .type(type), in: machO.context)
         let mergedRequirements = Self.mergedRequirements(from: genericContext)
 
-        var paramOffset = 0
-        for (depth, newCount) in perLevelNewCounts.enumerated() {
-            for indexInLevel in 0..<newCount {
-                let flatIndex = paramOffset + indexInLevel
-                let param = cumulativeParameters[flatIndex]
+        for (flatIndex, param) in cumulativeParameters.enumerated() {
+            // Skip non-key parameters (type packs, values, etc.)
+            guard param.hasKeyArgument, param.kind == .type else { continue }
+            guard let position = depthLayout.position(ofParameterAt: flatIndex) else { continue }
 
-                // Skip non-key parameters (type packs, values, etc.)
-                guard param.hasKeyArgument, param.kind == .type else { continue }
+            // Get parameter name based on depth and per-level index
+            // (e.g., A, B, A1, B1, A2...).
+            let paramName = genericParameterName(depth: position.depth.cast(), index: position.index.cast())
 
-                // Get parameter name based on depth and per-level index
-                // (e.g., A, B, A1, B1, A2...).
-                let paramName = genericParameterName(depth: depth.cast(), index: indexInLevel.cast())
+            // Collect requirements for this parameter (ordered for PWT passing)
+            let requirements = try collectRequirements(
+                for: paramName,
+                from: mergedRequirements
+            )
 
-                // Collect requirements for this parameter (ordered for PWT passing)
-                let requirements = try collectRequirements(
-                    for: paramName,
-                    from: mergedRequirements
-                )
-
-                // Find candidate types that satisfy all protocol requirements
-                let protocolRequirements = requirements.compactMap { requirement -> ProtocolName? in
-                    if case .protocol(let info) = requirement {
-                        return info.protocolName
-                    }
-                    return nil
+            // Find candidate types that satisfy all protocol requirements
+            let protocolRequirements = requirements.compactMap { requirement -> ProtocolName? in
+                if case .protocol(let info) = requirement {
+                    return info.protocolName
                 }
-
-                // Pull the baseClass requirement (at most one per GP — Swift
-                // does not allow more than one inheritance constraint) and
-                // turn its demangled RHS into a `TypeName` so the provider
-                // can return base-class + subclass list. sameType is
-                // intentionally *not* converted into a candidate filter:
-                // its candidate set is genuinely user-determined and can
-                // span any type, the validate / preflight pass enforces
-                // consistency.
-                let baseClassConstraint = Self.baseClassConstraintTypeName(in: requirements)
-
-                let candidates = findCandidates(
-                    satisfying: protocolRequirements,
-                    boundedBy: baseClassConstraint,
-                    options: candidateOptions
-                )
-
-                let invertibleProtocols = Self.collectInvertibleProtocols(
-                    flatIndex: flatIndex,
-                    in: genericContext
-                )
-
-                parameters.append(SpecializationRequest.Parameter(
-                    name: paramName,
-                    index: indexInLevel,
-                    depth: depth,
-                    requirements: requirements,
-                    candidates: candidates,
-                    invertibleProtocols: invertibleProtocols
-                ))
+                return nil
             }
-            paramOffset += newCount
+
+            // Pull the baseClass requirement (at most one per GP — Swift
+            // does not allow more than one inheritance constraint) and
+            // turn its demangled RHS into a `TypeName` so the provider
+            // can return base-class + subclass list. sameType is
+            // intentionally *not* converted into a candidate filter:
+            // its candidate set is genuinely user-determined and can
+            // span any type, the validate / preflight pass enforces
+            // consistency.
+            let baseClassConstraint = Self.baseClassConstraintTypeName(in: requirements)
+
+            let candidates = findCandidates(
+                satisfying: protocolRequirements,
+                boundedBy: baseClassConstraint,
+                options: candidateOptions
+            )
+
+            let invertibleProtocols = Self.collectInvertibleProtocols(
+                flatIndex: flatIndex,
+                in: genericContext
+            )
+
+            parameters.append(SpecializationRequest.Parameter(
+                name: paramName,
+                index: position.index,
+                depth: position.depth,
+                requirements: requirements,
+                candidates: candidates,
+                invertibleProtocols: invertibleProtocols
+            ))
         }
 
         return parameters
@@ -404,24 +379,34 @@ extension GenericSpecializer {
     }
 
     /// Build a requirement from a requirement descriptor
-    private func buildRequirement(from genericRequirement: GenericRequirementDescriptor) throws -> SpecializationRequest.Requirement? {
+    func buildRequirement(from genericRequirement: GenericRequirementDescriptor) throws -> SpecializationRequest.Requirement? {
         let flags = genericRequirement.layout.flags
 
         switch flags.kind {
         case .protocol:
             let resolvedContent = try genericRequirement.resolvedContent(in: machO.context)
-            guard case .protocol(let protocolRef) = resolvedContent,
-                  let resolved = protocolRef.resolved else {
+            guard case .protocol(let protocolRef) = resolvedContent else {
                 return nil
             }
 
             // Try to get protocol name
             let protocolName: ProtocolName
-            if let swiftProto = resolved.swift {
+            switch protocolRef {
+            case .element(let resolved):
+                guard let swiftProto = resolved.swift else { return nil }
                 let proto = try MachOSwiftSection.`Protocol`(descriptor: swiftProto, in: machO.context)
                 protocolName = try proto.protocolName(in: machO.context)
-            } else {
-                return nil
+            case .symbol(let symbol):
+                // A protocol another image declares, read from a file: the
+                // reference lands on the bind that the loader would resolve
+                // (`$sSHMp` for `Hashable`), which names the protocol. Dropping
+                // it left an offline request with no requirement at all — every
+                // type a candidate, no witness table slot accounted for.
+                guard let protocolNode = try SymbolicDemangler.demangleType(for: symbol, in: machO.context),
+                      protocolNode.kind == .type,
+                      protocolNode.firstChild?.kind == .protocol
+                else { return nil }
+                protocolName = ProtocolName(node: InternedNodeReferenceCache.shared.reference(interning: protocolNode, in: machO.context))
             }
 
             return .protocol(SpecializationRequest.ProtocolRequirementInfo(

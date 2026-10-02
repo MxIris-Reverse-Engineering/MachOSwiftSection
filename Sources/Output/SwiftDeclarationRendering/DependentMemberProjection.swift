@@ -6,7 +6,7 @@ import MachODependencies
 import SwiftLayout
 import SwiftThunkAnalysis
 @_spi(Internals) import MachOCaches
-import Demangling
+@_spi(Internals) import Demangling
 
 /// The image universes the opaque rewriter projects members through
 /// (evolution proposal `opaque-reference-spelling-and-member-projection`),
@@ -116,5 +116,28 @@ package enum DependentMemberProjection {
             conformingQualifiedName: projection.conformingQualifiedName,
             protocolQualifiedName: projection.protocolQualifiedName
         )
+    }
+}
+
+// MARK: - Projecting every concrete member of a type
+
+extension DependentMemberProjection {
+    /// `node` with every dependent member whose base is concrete replaced by
+    /// the type its conformance's witness record names, through the universe
+    /// of `machO`'s dependency closure — see
+    /// ``ImageUniverse/projectingConcreteMembers(in:)``. `node` unchanged when
+    /// the reader is neither a file nor an in-process image, or the universe
+    /// cannot be built.
+    package static func projectingConcreteMembers<MachO: MachOSwiftSectionRepresentableWithCache>(in node: Node, in machO: MachO) -> Node {
+        if let machOFile = machO as? MachOFile {
+            let registry = fileRegistries.storage(in: machOFile) { FileRegistry(root: $0) } ?? FileRegistry(root: machOFile)
+            guard let entry = registry.entry(for: searchPaths(for: machOFile)) else { return node }
+            return entry.withUniverse { $0.projectingConcreteMembers(in: node) }
+        }
+        if let machOImage = machO as? MachOImage {
+            guard let entry = imageEntries.storage(in: machOImage, buildUsing: { (try? ImageUniverse.dependencyClosure(root: $0)).map { Entry(universe: $0) } }) else { return node }
+            return entry.withUniverse { $0.projectingConcreteMembers(in: node) }
+        }
+        return node
     }
 }

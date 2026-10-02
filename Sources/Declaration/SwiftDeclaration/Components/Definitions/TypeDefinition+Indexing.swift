@@ -113,7 +113,11 @@ extension TypeDefinition: OnceIndexedDefinition {
         // generic, say) is read offline through the same thunk reader the
         // opaque-type path uses; the thunk's arguments are this type's own
         // generic arguments.
-        let accessorThunkOwnerLayout = AccessorThunkOwnerLayout(genericContext: try typeContextDescriptor.genericContext(in: machO.context))
+        let ownerGenericContext = try typeContextDescriptor.genericContext(in: machO.context)
+        let accessorThunkOwnerLayout = AccessorThunkOwnerLayout(
+            genericContext: ownerGenericContext,
+            depthLayout: ownerGenericContext.map { GenericParameterDepthLayout.make(for: $0, ownedBy: typeContextDescriptor, in: machO.context) } ?? GenericParameterDepthLayout(parameterCountsByDepth: [])
+        )
         var indexedFields: [FieldDefinition] = []
         for record in records {
             let typeNode = try record.demangledTypeNode(in: machO.context)

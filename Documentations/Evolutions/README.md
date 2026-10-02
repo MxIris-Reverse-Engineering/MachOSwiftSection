@@ -70,4 +70,4 @@
 | draft | [在父定义的打印结果里标出嵌套子定义的边界](draft-nested-definition-regions.md) | In Progress |
 | [0056](0056-visibility-regions.md) | 标记模式：一次打印全量 interface，并标出每段内容受哪个开关控制 | Implemented |
 | [0057](0057-reading-context-migration.md) | 读取接口统一到 ReadingContext：传 machO 与直接用指针的旧接口废弃 | Implemented |
-| draft | [离线泛型特化：不经 runtime 特化泛型类型并完整打印](draft-offline-generic-specialization.md) | Draft |
+| draft | [离线泛型特化：不经 runtime 特化泛型类型并完整打印](draft-offline-generic-specialization.md) | In Progress |

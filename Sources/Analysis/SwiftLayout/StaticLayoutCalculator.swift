@@ -144,6 +144,51 @@ public struct StaticLayoutCalculator<MachO: MachOSwiftSectionRepresentableWithCa
         return try? resolver.enumCaseLayoutResult(of: enumDescriptor, in: imageUniverse.rootImage)
     }
 
+    // MARK: - Instantiations bound by a binding (evolution proposal `offline-generic-specialization`)
+
+    /// The per-field layout of the instantiation `binding` makes of
+    /// `typeDescriptor` — every depth of its generic signature bound, so a
+    /// nested type of a specialized parent (`Outer<Int>.Inner<String>`)
+    /// lays out too, which the depth-0 `genericArguments:` form cannot. An
+    /// enum reports no fields.
+    public func fieldLayout(
+        of typeDescriptor: TypeContextDescriptorWrapper,
+        genericArgumentBinding binding: GenericArgumentBinding
+    ) throws -> AggregateFieldLayout {
+        try fieldLayout(of: typeDescriptor, in: imageUniverse.rootImage, environment: .make(forBinding: binding))
+    }
+
+    /// The whole-type layout of a field or payload type, lowered in the
+    /// context of `contextDescriptor` instantiated by `binding`: the
+    /// binding's arguments first, then the requirement signature's facts for
+    /// any parameter it leaves open.
+    public func typeLayout(
+        forMangledTypeName mangledTypeName: MangledName,
+        inContextOfDescriptor contextDescriptor: TypeContextDescriptorWrapper,
+        genericArgumentBinding binding: GenericArgumentBinding
+    ) throws -> StaticTypeLayout {
+        let image = imageUniverse.rootImage
+        let environment = GenericArgumentEnvironment.make(forBinding: binding).augmented(
+            withRequirementFacts: ClassBoundGenericParameterAnalysis.layoutFacts(
+                of: contextDescriptor.typeContextDescriptor,
+                in: image,
+                imageUniverse: imageUniverse
+            )
+        )
+        return try resolver.layout(forMangledTypeName: mangledTypeName, in: image, environment: environment)
+    }
+
+    /// The per-case projection layout of the instantiation `binding` makes
+    /// of an enum descriptor: payloads that depend on the arguments resolve
+    /// through them. `nil` as for the unbound form.
+    public func enumCaseLayoutResult(
+        forDescriptor typeDescriptor: TypeContextDescriptorWrapper,
+        genericArgumentBinding binding: GenericArgumentBinding
+    ) -> EnumLayoutCalculator.LayoutResult? {
+        guard let enumDescriptor = typeDescriptor.enum else { return nil }
+        return try? resolver.enumCaseLayoutResult(of: enumDescriptor, in: imageUniverse.rootImage, environment: .make(forBinding: binding))
+    }
+
     // MARK: - Descriptor dispatch
 
     private func fieldLayout(

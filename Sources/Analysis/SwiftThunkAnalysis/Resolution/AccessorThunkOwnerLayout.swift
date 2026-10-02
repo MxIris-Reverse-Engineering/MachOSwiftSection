@@ -1,4 +1,5 @@
 import MachOSwiftSection
+@_spi(Internals) import SwiftInspection
 
 /// The generic parameters of the declaration an accessor thunk belongs to —
 /// an opaque type descriptor, or the type whose field record the thunk
@@ -21,8 +22,24 @@ public struct AccessorThunkOwnerLayout: Sendable, Hashable {
     /// No knowledge of the owner: every argument read is unnameable.
     public static let unknown = AccessorThunkOwnerLayout(genericParameterKeyFlagsByDepth: [])
 
-    /// The layout a descriptor's generic context describes; `nil` — a
-    /// non-generic owner — yields an empty layout.
+    /// The layout of an owner's generic context split into depths by
+    /// `depthLayout` (`GenericParameterDepthLayout.make(for:ownedBy:in:)`);
+    /// `nil` — a non-generic owner — yields an empty layout.
+    public init<Header>(genericContext: TargetGenericContext<Header>?, depthLayout: GenericParameterDepthLayout) {
+        guard let genericContext, let flagsByDepth = depthLayout.grouped(genericContext.parameters.map(\.hasKeyArgument)) else {
+            self.init(genericContext: genericContext)
+            return
+        }
+        self.init(genericParameterKeyFlagsByDepth: flagsByDepth)
+    }
+
+    /// The layout a descriptor's generic context describes, read from the
+    /// context alone; `nil` — a non-generic owner — yields an empty layout.
+    ///
+    /// Without the owner's descriptor the depths come from the parent chain,
+    /// which gets one shape wrong: an extension ancestor that spans several
+    /// depths (`extension Outer.SecondMiddle where …`) counts as one. Prefer
+    /// `init(genericContext:depthLayout:)`.
     public init<Header>(genericContext: TargetGenericContext<Header>?) {
         guard let genericContext else {
             self.init(genericParameterKeyFlagsByDepth: [])
@@ -30,10 +47,12 @@ public struct AccessorThunkOwnerLayout: Sendable, Hashable {
         }
         // `parentParameters` is cumulative per generic ancestor, so each
         // depth's own parameters are the tail past the previous depth's
-        // count; the innermost depth is `currentParameters`.
+        // count; the innermost depth is `currentParameters`. An ancestor
+        // that adds nothing — a type that is generic only because it is
+        // nested in one — opens no depth.
         var flagsByDepth: [[Bool]] = []
         var previousCount = 0
-        for parentParameters in genericContext.parentParameters {
+        for parentParameters in genericContext.parentParameters where parentParameters.count > previousCount {
             flagsByDepth.append(parentParameters.dropFirst(previousCount).map(\.hasKeyArgument))
             previousCount = parentParameters.count
         }

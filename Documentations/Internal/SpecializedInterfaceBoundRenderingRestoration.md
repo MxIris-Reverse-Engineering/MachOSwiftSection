@@ -149,3 +149,14 @@ interface 打印器不打鉴别符，interface 输出不变；`dump` 与布局�
 
 - **第一批，RuntimeViewer 会话**（进程内 RuntimeViewerCore 探针，只换 MachOSwiftSection 的版本）：报告的例子变为 `struct AppKit.WindowPortal<AppKit.ButtonContent> {`。AppKit 102 个能特化的泛型类型的头部里，开头带点的从 20 处降到 0，16 个 anonymous context 的例子都补全了限定名（如 `enum AppKit.InProcessAnimation<AppKit.NSAnimatableColor>.Bridged.Phase {`），4 个 extension context 的例子只去掉了点。打开字段偏移、展开字段偏移、type / enum layout、成员地址全部选项生成的完整 interface 里，含 `(unknown context at $…)` 的文件从 32 个降到 0；74 个文件共 233 行变化，全是一对一替换、没有增删行，其中 226 行只差名字（补限定名、去掉 `(unknown context at $…)`、去掉开头的点），另外 7 行是私有嵌套类型补回父链；偏移、布局数值和地址一个都没变。
 - **第二批，本地差分**（基线 `a35daff9` 与候选各编一个 release CLI，共用同一份 `Package.resolved`；输入是当前系统 macOS 26.7 的 dyld shared cache）：AppKit 的 `dump` 逐字节相同（dump 不经过这个打印器）。AppKit / SwiftUI / SwiftUICore 的 `interface` 分别变化 255 / 163 / 734 行，行数不变；逐行检查全部是纯插入——每一行都只是在某个名字前面插入了被扩展的类型，没有删改任何别的字符。插入最多的前缀：AppKit 是 `__C.NSEvent.`（83）、`__C.NSView.`（63）、`__C.NSWorkspace.`（40）、`Foundation.AttributeScopes.`（29）；SwiftUI 是 `SwiftUI.DisplayList.`（32）、`SwiftUI.AccessibilityAttachment.`（31）、`Foundation.AttributedString.`（22）；SwiftUICore 是 `SwiftUI.Material.`（176）、`SwiftUI.Color.`（153）、`SwiftUI.Edge.`（84）。例子：`where B == Invalidations.Tuple<A1, B1>` → `where B == __C.NSView.Invalidations.Tuple<A1, B1>`，`[_Shadow]` → `[__C.CALayer._Shadow]`，`Layer.SDFLayer` → `SwiftUI.Material.Layer.SDFLayer`。被扩展的类型是泛型时按语法糖打印（SwiftUICore 的 `[A].PublicEncoding`），这种写法编译器接受（`typealias Y = [Int].Foo` 能通过类型检查）。没有用 `Scripts/run-rendering-ab-verification.py`：它写死的归档 cache 目录 `macOS/26.6` 已经不存在（卷上现在是 `26.6.2` 与 `26.7`），脚本会静默地只跑 `15.5` 那一条腿，而且它的框架清单里没有 AppKit。
+
+## 离线特化（2026-10-01）
+
+离线泛型特化（[OfflineGenericSpecialization.md](OfflineGenericSpecialization.md)）的定义带 `staticSpecialization`（按层分组的实参）而不是 `metadata`，打印器的三处都在两者之间二选一：
+
+- `renderTypeDeclarationHeader` 的参数从 `specializedMetadata:` 改成 `boundTypeNode:`，由 `boundTypeNode(of:)` 统一给出：运行时特化仍取 metadata 的运行时名字（`SpecializedMetadataNodeSubstitution.boundTypeNode(for:)`），离线特化取定义自己的实例化类型名，两者形状相同。diff 渲染的头部入口同步改。
+- `renderModelFields` 的字段代换：离线时对 `FieldDefinition.typeNode` 做 binding 代换并投影关联类型（`StaticSpecializationNodeSubstitution`），否则照旧走 runtime。
+- 布局注释：`FieldLayoutRenderer` 收到 binding，静态后端按它计算。
+
+同一批里运行时特化的 `typeName` 也改成按层挂实参的实例化类型名（此前 `Outer.Inner<Int, String>`），不影响这里的头部——头部一直用 metadata 的名字。
+

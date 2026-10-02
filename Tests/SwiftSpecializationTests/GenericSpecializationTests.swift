@@ -1215,6 +1215,7 @@ struct GenericSpecializationTests {
             let genericContext = try #require(try descriptor.genericContext(in: machO.context))
 
             let dumped = try await genericContext.dumpGenericParameters(
+                depthLayout: GenericParameterDepthLayout.make(for: genericContext, ownedBy: descriptor, in: machO.context),
                 in: machO.context,
                 isDumpCurrentLevel: false
             ).string

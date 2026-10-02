@@ -63,6 +63,46 @@ public protocol StaticFieldLayoutProvider: Sendable {
     /// The expanded nested-field-offset tree for a field type placed at
     /// `baseOffset`, descending up to `depthLimit` levels.
     func nestedFieldOffsetTree(forMangledTypeName mangledTypeName: MangledName, baseOffset: Int, depthLimit: Int) -> [NestedFieldOffset]
+
+    // The same four queries for an instantiation a `GenericArgumentBinding`
+    // describes — an offline specialization's (evolution proposal
+    // `offline-generic-specialization`). Each has a default that answers
+    // nothing, so a provider written before them keeps compiling and
+    // degrades to no comment rather than to an unspecialized one.
+
+    /// The per-field layout of the instantiation `binding` makes of a
+    /// struct/class descriptor.
+    func aggregateFieldLayout(forDescriptor descriptor: TypeContextDescriptorWrapper, genericArgumentBinding binding: GenericArgumentBinding) -> AggregateFieldLayout?
+
+    /// The whole-type layout of a payload type, lowered in the context of the
+    /// instantiation `binding` makes of `contextDescriptor`.
+    func typeLayout(forMangledTypeName mangledTypeName: MangledName, inContextOfDescriptor contextDescriptor: TypeContextDescriptorWrapper, genericArgumentBinding binding: GenericArgumentBinding) -> StaticTypeLayout?
+
+    /// The per-case projection layout of the instantiation `binding` makes of
+    /// an enum descriptor.
+    func enumCaseLayoutResult(forDescriptor descriptor: TypeContextDescriptorWrapper, genericArgumentBinding binding: GenericArgumentBinding) -> EnumLayoutCalculator.LayoutResult?
+
+    /// The expanded nested-field-offset tree for a field type of the
+    /// instantiation `binding` describes.
+    func nestedFieldOffsetTree(forMangledTypeName mangledTypeName: MangledName, baseOffset: Int, depthLimit: Int, genericArgumentBinding binding: GenericArgumentBinding) -> [NestedFieldOffset]
+}
+
+extension StaticFieldLayoutProvider {
+    public func aggregateFieldLayout(forDescriptor descriptor: TypeContextDescriptorWrapper, genericArgumentBinding binding: GenericArgumentBinding) -> AggregateFieldLayout? {
+        nil
+    }
+
+    public func typeLayout(forMangledTypeName mangledTypeName: MangledName, inContextOfDescriptor contextDescriptor: TypeContextDescriptorWrapper, genericArgumentBinding binding: GenericArgumentBinding) -> StaticTypeLayout? {
+        nil
+    }
+
+    public func enumCaseLayoutResult(forDescriptor descriptor: TypeContextDescriptorWrapper, genericArgumentBinding binding: GenericArgumentBinding) -> EnumLayoutCalculator.LayoutResult? {
+        nil
+    }
+
+    public func nestedFieldOffsetTree(forMangledTypeName mangledTypeName: MangledName, baseOffset: Int, depthLimit: Int, genericArgumentBinding binding: GenericArgumentBinding) -> [NestedFieldOffset] {
+        []
+    }
 }
 
 /// The MachOFile-backed provider, wrapping a `StaticLayoutCalculator<MachOFile>`.
@@ -125,5 +165,29 @@ public final class MachOFileStaticFieldLayoutProvider: StaticFieldLayoutProvider
         lock.lock()
         defer { lock.unlock() }
         return calculator.nestedFieldOffsetTree(forMangledTypeName: mangledTypeName, baseOffset: baseOffset, depthLimit: depthLimit)
+    }
+
+    public func aggregateFieldLayout(forDescriptor descriptor: TypeContextDescriptorWrapper, genericArgumentBinding binding: GenericArgumentBinding) -> AggregateFieldLayout? {
+        lock.lock()
+        defer { lock.unlock() }
+        return try? calculator.fieldLayout(of: descriptor, genericArgumentBinding: binding)
+    }
+
+    public func typeLayout(forMangledTypeName mangledTypeName: MangledName, inContextOfDescriptor contextDescriptor: TypeContextDescriptorWrapper, genericArgumentBinding binding: GenericArgumentBinding) -> StaticTypeLayout? {
+        lock.lock()
+        defer { lock.unlock() }
+        return try? calculator.typeLayout(forMangledTypeName: mangledTypeName, inContextOfDescriptor: contextDescriptor, genericArgumentBinding: binding)
+    }
+
+    public func enumCaseLayoutResult(forDescriptor descriptor: TypeContextDescriptorWrapper, genericArgumentBinding binding: GenericArgumentBinding) -> EnumLayoutCalculator.LayoutResult? {
+        lock.lock()
+        defer { lock.unlock() }
+        return calculator.enumCaseLayoutResult(forDescriptor: descriptor, genericArgumentBinding: binding)
+    }
+
+    public func nestedFieldOffsetTree(forMangledTypeName mangledTypeName: MangledName, baseOffset: Int, depthLimit: Int, genericArgumentBinding binding: GenericArgumentBinding) -> [NestedFieldOffset] {
+        lock.lock()
+        defer { lock.unlock() }
+        return calculator.nestedFieldOffsetTree(forMangledTypeName: mangledTypeName, baseOffset: baseOffset, depthLimit: depthLimit, genericArgumentBinding: binding)
     }
 }

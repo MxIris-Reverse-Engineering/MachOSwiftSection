@@ -14,7 +14,7 @@ extension MachOFile: FieldLayoutRenderable {
         MachOFileStaticFieldLayoutProvider(machOFile: machO, resolution: resolution)
     }
 
-    public static func precomputedStaticAggregateFieldLayout(for type: TypeContextWrapper, machO: MachOFile, configuration: DeclarationRenderConfiguration) -> AggregateFieldLayout? {
+    public static func precomputedStaticAggregateFieldLayout(for type: TypeContextWrapper, genericArgumentBinding: GenericArgumentBinding?, machO: MachOFile, configuration: DeclarationRenderConfiguration) -> AggregateFieldLayout? {
         // Only when a layout-bearing flag is on and a provider was injected;
         // enums (no field-offset vector) compute their layout lazily instead.
         guard configuration.producesContent(for: .printFieldOffset) || configuration.producesContent(for: .printTypeLayout) || configuration.producesContent(for: .printExpandedFieldOffsets),
@@ -29,6 +29,9 @@ extension MachOFile: FieldLayoutRenderable {
             descriptorWrapper = .class(classType.descriptor)
         case .enum:
             return nil
+        }
+        if let genericArgumentBinding {
+            return provider.aggregateFieldLayout(forDescriptor: descriptorWrapper, genericArgumentBinding: genericArgumentBinding)
         }
         return provider.aggregateFieldLayout(forDescriptor: descriptorWrapper)
     }
@@ -75,6 +78,7 @@ struct StaticFieldLayoutBackend {
     private var configuration: DeclarationRenderConfiguration { state.configuration }
     private var enumValue: Enum? { state.enumValue }
     private var staticAggregateFieldLayout: AggregateFieldLayout? { state.staticAggregateFieldLayout }
+    private var genericArgumentBinding: GenericArgumentBinding? { state.genericArgumentBinding }
 
     // MARK: - Field offsets (struct / class)
 
@@ -163,11 +167,20 @@ struct StaticFieldLayoutBackend {
     @SemanticStringBuilder
     private func expandedFieldOffsets(for mangledTypeName: MangledName, baseOffset: Int) -> SemanticString {
         if let provider = configuration.staticFieldLayoutProvider {
-            let tree = provider.nestedFieldOffsetTree(
-                forMangledTypeName: mangledTypeName,
-                baseOffset: baseOffset,
-                depthLimit: nestedFieldOffsetExpansionDepthLimit
-            )
+            let tree = if let genericArgumentBinding {
+                provider.nestedFieldOffsetTree(
+                    forMangledTypeName: mangledTypeName,
+                    baseOffset: baseOffset,
+                    depthLimit: nestedFieldOffsetExpansionDepthLimit,
+                    genericArgumentBinding: genericArgumentBinding
+                )
+            } else {
+                provider.nestedFieldOffsetTree(
+                    forMangledTypeName: mangledTypeName,
+                    baseOffset: baseOffset,
+                    depthLimit: nestedFieldOffsetExpansionDepthLimit
+                )
+            }
             renderNestedFieldOffsetTree(tree, ancestors: [])
         }
     }
@@ -230,6 +243,9 @@ struct StaticFieldLayoutBackend {
             guard configuration.producesContent(for: .printEnumLayout),
                   let enumValue,
                   let provider = configuration.staticFieldLayoutProvider else { return nil }
+            if let genericArgumentBinding {
+                return provider.enumCaseLayoutResult(forDescriptor: .enum(enumValue.descriptor), genericArgumentBinding: genericArgumentBinding)
+            }
             return provider.enumCaseLayoutResult(forDescriptor: .enum(enumValue.descriptor))
         }
     }
@@ -238,6 +254,9 @@ struct StaticFieldLayoutBackend {
     /// context so a generic enum's parameter-typed payloads (`Element` under a
     /// class-bound constraint) still resolve.
     private func payloadTypeLayout(for mangledTypeName: MangledName, provider: any StaticFieldLayoutProvider) -> StaticTypeLayout? {
+        if let enumValue, let genericArgumentBinding {
+            return provider.typeLayout(forMangledTypeName: mangledTypeName, inContextOfDescriptor: .enum(enumValue.descriptor), genericArgumentBinding: genericArgumentBinding)
+        }
         if let enumValue {
             return provider.typeLayout(forMangledTypeName: mangledTypeName, inContextOfDescriptor: .enum(enumValue.descriptor))
         }

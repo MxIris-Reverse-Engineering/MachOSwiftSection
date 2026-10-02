@@ -65,6 +65,32 @@ extension StaticLayoutCalculator {
         )
     }
 
+    /// The expanded tree of a field of the instantiation `binding` makes of
+    /// the type declaring it: the field's type with the binding's arguments
+    /// substituted, so `let inner: Inner<A>` expands as `Inner<Swift.Int>`
+    /// does (evolution proposal `offline-generic-specialization`).
+    public func nestedFieldOffsetTree(
+        forMangledTypeName mangledTypeName: MangledName,
+        baseOffset: Int,
+        depthLimit: Int,
+        genericArgumentBinding binding: GenericArgumentBinding
+    ) -> [NestedFieldOffset] {
+        guard let node = try? SymbolicDemangler.demangleType(for: mangledTypeName, in: imageUniverse.rootImage.machO.context) else {
+            return []
+        }
+        let substitutedNode = imageUniverse.projectingConcreteMembers(in: GenericArgumentEnvironment.make(forBinding: binding).substituting(in: node))
+        return nestedChildren(
+            forTypeNode: substitutedNode,
+            typeDisplayName: substitutedNode.print(using: .default),
+            in: imageUniverse.rootImage,
+            baseOffset: baseOffset,
+            depth: 0,
+            depthLimit: depthLimit,
+            enclosingTypeNames: [],
+            hasUnconditionalStorage: true
+        )
+    }
+
     /// Recurses into a (possibly `.type`-wrapped, possibly bound-generic) type
     /// node, returning its sub-fields. `image` is the image the node's mangled
     /// names are read against; recursion switches it to a nested type's defining
@@ -231,8 +257,12 @@ extension StaticLayoutCalculator {
         byteWidth: Int?
     ) -> NestedFieldOffset {
         let fieldName = ((try? record.fieldName(in: image.machO.context)).flatMap { $0.isEmpty ? nil : $0 }) ?? fallbackFieldName
+        // A member of a concrete type the substitution leaves behind
+        // (`[Swift.Int].Element` in an instantiation over `[Swift.Int]`) is
+        // named — and expanded — as the type its witness record names, the
+        // way the runtime's walk names it.
         let fieldTypeNode: Node? = (try? record.mangledTypeName(in: image.machO.context)).flatMap { mangledTypeName in
-            (try? SymbolicDemangler.demangleType(for: mangledTypeName, in: image.machO.context)).map { environment.substituting(in: $0) }
+            (try? SymbolicDemangler.demangleType(for: mangledTypeName, in: image.machO.context)).map { imageUniverse.projectingConcreteMembers(in: environment.substituting(in: $0)) }
         }
         let typeName = fieldTypeNode?.print(using: .default) ?? ""
         let children = descendsIntoFieldType ? (fieldTypeNode.map {

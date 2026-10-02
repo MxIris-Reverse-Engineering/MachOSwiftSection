@@ -268,18 +268,19 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
             BreakLine()
         }
 
-        // Specialized definitions carry the runtime-resolved metadata; the
-        // header renderer uses it to print the bound generic name
-        // (`Box<Int>`, not `Box<A> where …`) — the same substitution the
-        // dump path performs via `TypedDumper.boundDumpedTypeNode()`.
-        let specializedMetadata: MetadataWrapper? = typeDefinition.isSpecialized ? typeDefinition.metadata : nil
+        // Specialized definitions print their bound generic name (`Box<Int>`,
+        // not `Box<A> where …`): from the runtime-resolved metadata — the
+        // substitution the dump path performs via
+        // `TypedDumper.boundDumpedTypeNode()` — or, specialized offline, the
+        // instantiation's name.
+        let boundTypeNode = boundTypeNode(of: typeDefinition)
 
         // This print operation's single wrapper materialization (proposal
         // 0002), threaded into the header and field renderers below.
         let materializedTypeContext = try typeDefinition.materializedTypeContext(in: machO.context)
 
         try await DeclarationBlock(level: level) {
-            try await renderTypeDeclarationHeader(for: materializedTypeContext, displayParentName: displayParentName, level: level, specializedMetadata: specializedMetadata)
+            try await renderTypeDeclarationHeader(for: materializedTypeContext, displayParentName: displayParentName, level: level, boundTypeNode: boundTypeNode)
         } body: {
             // Per-CHILD catch: one nested child whose printing throws drops
             // only itself — the same per-definition contract `printRoot`

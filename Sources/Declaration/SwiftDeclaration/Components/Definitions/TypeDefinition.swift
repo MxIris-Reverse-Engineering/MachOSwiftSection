@@ -28,11 +28,12 @@ public final class TypeDefinition: Definition, @unchecked Sendable {
     public let typeName: TypeName
 
     /// `true` when this definition was produced via `specialize(with:in:)` —
-    /// i.e. it carries a runtime-resolved `metadata` and a bound-generic
-    /// `typeName`. `false` for the canonical, unspecialized definitions
-    /// produced from a MachO image's section data. Always known at
-    /// construction time, so callers can branch on the type kind without
-    /// inspecting the optional `metadata` field.
+    /// i.e. it carries a bound-generic `typeName` and either a
+    /// runtime-resolved `metadata` or, specialized offline, a
+    /// `staticSpecialization`. `false` for the canonical, unspecialized
+    /// definitions produced from a MachO image's section data. Always known
+    /// at construction time, so callers can branch on the type kind without
+    /// inspecting the optional fields.
     public let isSpecialized: Bool
 
     /// Whether this type's nominal type descriptor is in the image's export
@@ -161,6 +162,18 @@ public final class TypeDefinition: Definition, @unchecked Sendable {
     /// type/enum layout, and value witness queries instead of trying to
     /// call the descriptor's metadata accessor.
     public package(set) var metadata: MetadataWrapper? = nil
+
+    /// The arguments an offline specialization bound this definition's
+    /// generic parameters to, by depth (evolution proposal
+    /// `offline-generic-specialization`).
+    ///
+    /// The offline counterpart of `metadata`: a specialization made from a
+    /// file has no runtime metadata, so it carries the arguments the
+    /// metadata would have been instantiated from, and the printer renders
+    /// the bound header, the substituted field types and the layout comments
+    /// from them. `nil` for the canonical definition and for a runtime
+    /// specialization; at most one of the two is ever set.
+    public package(set) var staticSpecialization: GenericArgumentBinding? = nil
 
     public var hasMembers: Bool {
         !fields.isEmpty || !variables.isEmpty || !functions.isEmpty ||

@@ -1,4 +1,4 @@
-import Demangling
+@_spi(Internals) import Demangling
 import MachOSwiftSection
 @_spi(Internals) import SwiftInspection
 
@@ -71,5 +71,66 @@ extension ImageUniverse {
             conformingQualifiedName: conformingQualifiedName,
             protocolQualifiedName: protocolQualifiedName
         )
+    }
+}
+
+// MARK: - Projecting every concrete member of a type
+
+extension ImageUniverse {
+    /// `node` with every dependent member whose base is concrete replaced by
+    /// the type its conformance's witness record names — `[Swift.Int].Element`
+    /// becomes `Swift.Int` (evolution proposal `offline-generic-specialization`).
+    ///
+    /// What a substitution leaves behind: a field typed `Elements.Element`
+    /// reads `[Swift.Int].Element` once `Elements` is `[Swift.Int]`, a member
+    /// of a concrete type the runtime would have resolved through the
+    /// conformance. A member whose base still holds a generic parameter, or
+    /// whose record no image in the universe carries, stays as it is. A
+    /// witness may itself name a member of the base's arguments
+    /// (`IndexingIterator`'s `Element` is `Elements.Element`), so a projection
+    /// is projected again, a bounded number of hops deep.
+    public func projectingConcreteMembers(in node: Node) -> Node {
+        var rewrittenNodes: [ObjectIdentifier: Node] = [:]
+        return projectingConcreteMembers(in: node, remainingHops: Self.maximumProjectionHops, rewrittenNodes: &rewrittenNodes)
+    }
+
+    /// How many witness records one member may be projected through. A real
+    /// chain is a handful deep; the bound only keeps a malformed record from
+    /// looping.
+    private static var maximumProjectionHops: Int { 8 }
+
+    private func projectingConcreteMembers(in node: Node, remainingHops: Int, rewrittenNodes: inout [ObjectIdentifier: Node]) -> Node {
+        if let rewrittenNode = rewrittenNodes[ObjectIdentifier(node)] {
+            return rewrittenNode
+        }
+        var rewrittenChildren: [Node] = []
+        rewrittenChildren.reserveCapacity(node.children.count)
+        var hasRewrittenChild = false
+        for child in node.children {
+            let rewrittenChild = projectingConcreteMembers(in: child, remainingHops: remainingHops, rewrittenNodes: &rewrittenNodes)
+            hasRewrittenChild = hasRewrittenChild || rewrittenChild !== child
+            rewrittenChildren.append(rewrittenChild)
+        }
+        // A node's children and contents are mutually exclusive, so a node
+        // rebuilt from its children alone loses nothing.
+        var rewrittenNode = hasRewrittenChild ? Node.createTransient(kind: node.kind, children: rewrittenChildren) : node
+        if rewrittenNode.kind == .dependentMemberType,
+           remainingHops > 0,
+           let baseTypeNode = rewrittenNode.children.first,
+           let associatedTypeReference = rewrittenNode.children.at(1),
+           !Self.containsGenericParameter(baseTypeNode),
+           let projection = projectedAssociatedTypeWitness(base: baseTypeNode, associatedTypeReference: associatedTypeReference) {
+            var nestedRewrittenNodes: [ObjectIdentifier: Node] = [:]
+            let projectedWitness = projectingConcreteMembers(in: projection.witnessNode, remainingHops: remainingHops - 1, rewrittenNodes: &nestedRewrittenNodes)
+            // The member sits inside a `.type` wrapper already; the witness's
+            // own wrapper is dropped to leave exactly one.
+            rewrittenNode = projectedWitness.kind == .type ? (projectedWitness.firstChild ?? projectedWitness) : projectedWitness
+        }
+        rewrittenNodes[ObjectIdentifier(node)] = rewrittenNode
+        return rewrittenNode
+    }
+
+    private static func containsGenericParameter(_ node: Node) -> Bool {
+        node.kind == .dependentGenericParamType || node.children.contains(where: containsGenericParameter)
     }
 }
