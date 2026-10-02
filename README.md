@@ -171,7 +171,7 @@ You can get the swift-section CLI tool in three ways:
 
 - **GitHub Releases**: Download from [GitHub releases](https://github.com/MxIris-Reverse-Engineering/MachOSwiftSection/releases)
 - **Homebrew**: Install via `brew install swift-section`
-- **Build from Source**: Build with `./build-executable-product.sh` (requires Xcode 26.0 / Swift 6.2+ toolchain)
+- **Build from Source**: Build with `./build-executable-product.sh` (requires Xcode 26.0 / Swift 6.2+ toolchain), or build and install in one step with `./install.sh [install-directory]` (defaults to `/usr/local/bin`, using `sudo` only when that directory is not writable)
 
 ### Usage
 
