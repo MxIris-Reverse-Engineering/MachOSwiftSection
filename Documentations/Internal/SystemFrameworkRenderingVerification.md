@@ -21,13 +21,13 @@ SwiftUI、SwiftUICore、SwiftData、Combine、ActivityKit、WidgetKit——**输
 
 | 部分 | 首选输入 | 目标不存在时的回退 |
 | --- | --- | --- |
-| **DyldCache**（cache 内 MachOFile） | 归档 cache：`/Volumes/DyldSharedCaches/macOS/26.6.2` 与 `15.5` 的 `dyld_shared_cache_arm64e` | **当前系统的 dyld shared cache**（`--uses-system-dyld-shared-cache -p <镜像路径>`，不传文件参数） |
+| **DyldCache**（cache 内 MachOFile） | 归档 cache：`/Volumes/DyldSharedCaches/macOS/26.6.2`（没有就用 `26.6`）与 `15.5` 的 `dyld_shared_cache_arm64e` | **当前系统的 dyld shared cache**（`--uses-system-dyld-shared-cache -p <镜像路径>`，不传文件参数） |
 | **MachOFile**（磁盘上的普通 Mach-O） | iOS 15.5 / 18.5 / 26.5 模拟器 runtime 的框架二进制 | **当前环境已安装的全部 iOS 模拟器 runtime**（脚本自动发现 `/Library/Developer/CoreSimulator/Profiles/Runtimes` 与 `/Library/Developer/CoreSimulator/Volumes/*/…/Runtimes` 下的 `*.simruntime`） |
 | **MachOImage**（进程内） | 当前系统（dlopen + `MachOImage(name:)`），经 `RenderingVerificationTests` harness | 无回退（永远是当前系统） |
 
 ## 关键调用细节（踩过的坑）
 
-- **跑之前先确认归档目录真的存在**：`ARCHIVED_CACHE_DIRECTORIES` 是写死的两条路径，对不上时脚本**不报错**，只打印一行 `No archived cache found - falling back to the current system's dyld shared cache.` 就降级成只跑当前系统 cache——跨版本语料整段消失，而最终报告照样是「全部一致」。2026-09-17 撞上一次：归档卷把带 build 号的 `26.5.2_25F84` / `15.5_24F74` 改成了纯版本号，且 `26.5.2` 目录下已不再放 cache（换成 `26.6.2`）。常量随之改为 `26.6.2` 与 `15.5`。2026-09-18 再撞一次：`26.6.2` 目录已改名为 `26.6`（旁边新增 `27.0`），常量改为 `26.6`。2026-09-28 第三次：目录又改回 `26.6.2`（旁边有 `26.7`），常量随之改回 `26.6.2`。跑之前 `ls /Volumes/DyldSharedCaches/macOS/` 对一眼，比事后从报告里发现少了一条腿便宜。
+- **跑之前先确认归档目录真的存在**：`ARCHIVED_CACHE_DIRECTORY_CANDIDATES` 是写死的路径，每个槽位一组候选，取第一个有 `dyld_shared_cache_arm64e` 的；一组都没有时打印一行 `[skip] no archived cache in any of: …`，这条腿就不跑了，而最终报告照样是「全部一致」。所有槽位都落空时，还会再打印 `No archived cache found - falling back to the current system's dyld shared cache.`，降级成只跑当前系统 cache。2026-09-17 撞上一次：归档卷把带 build 号的 `26.5.2_25F84` / `15.5_24F74` 改成了纯版本号，且 `26.5.2` 目录下已不再放 cache（换成 `26.6.2`）。之后常量在 `26.6.2` 与 `26.6` 之间来回改了两次（2026-09-18 改成 `26.6`，09-28 改回 `26.6.2`），10-02 又撞上一次——原因是两台工作机的归档卷一台是 `26.6.2`、一台是 `26.6`，按一台改完，另一台就少一条腿。2026-10-02 起 26.x 槽位同时列出这两个目录，哪个有就用哪个，场景名随之是 `cache-26.6.2` 或 `cache-26.6`。跑之前 `ls /Volumes/DyldSharedCaches/macOS/` 对一眼，比事后从报告里发现少了一条腿便宜。
 - **`--frameworks` 只认 `Versions/A` 的框架**：cache 腿按 `/System/Library/Frameworks/<名字>.framework/Versions/A/<名字>` 找镜像，AppKit、Foundation 在 `Versions/C` 下，传进去只会得到一行 `[skip] … not in cache`，这一对就不存在了（2026-09-28 撞上）。需要它们时用两侧构建好的 release CLI 手动渲染，`-p` 传 `Versions/C` 路径，输出按 `<场景>/<侧>/<框架>.<子命令>.txt` 放，照样能逐对比较。
 - **cache 镜像用 `-p` 全路径而非 `-n` 名字**：SwiftUI / WidgetKit / ActivityKit 在 macOS cache 里有 `/System/iOSSupport/` 下的 Catalyst 副本，按名字查有歧义。
 - **模拟器二进制要显式 `-a arm64`**：iOS 15.5 / 18.5 的模拟器框架是 fat（x86_64 + arm64），CLI 遇 fat 文件不指定架构会直接报错退出；26.5 起是 thin arm64，加该参数也无害，所以脚本一律加。
