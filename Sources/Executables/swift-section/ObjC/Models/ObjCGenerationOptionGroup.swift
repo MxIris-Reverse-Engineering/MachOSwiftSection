@@ -8,7 +8,7 @@ import ObjCDeclarationRendering
 /// nothing annotated. That matches the library's ``ObjCGenerationOptions``
 /// default and keeps "what the binary says" the baseline you opt away from.
 struct ObjCGenerationOptionGroup: ParsableArguments, Sendable {
-    @Flag(help: "Drop the <Protocol, …> conformance list, and the members those protocols already declare.")
+    @Flag(help: "Drop every property and method the adopted protocols declare, required and optional, along the whole protocol chain — as a hand-written header leaves them out. The <Protocol, …> list stays.")
     var stripProtocolConformance: Bool = false
 
     @Flag(help: "Drop members that merely override a superclass member. In file mode the superclass chain can be shorter, so this strips less — see the CLI guide.")
