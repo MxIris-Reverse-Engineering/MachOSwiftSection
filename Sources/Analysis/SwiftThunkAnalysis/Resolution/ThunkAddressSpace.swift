@@ -91,8 +91,8 @@ package struct ThunkAddressSpace: Sendable {
     ///
     /// The export trie stores each symbol as an offset **from the mach
     /// header**, and `MachOKit` hands that number over unchanged for a cache
-    /// image — so it is NOT a file offset there, and running it through
-    /// ``address(forFileOffset:)`` lands inside `__LINKEDIT` (measured:
+    /// image — so it is NOT a file offset there, and mapping it through the
+    /// segments' file ranges lands inside `__LINKEDIT` (measured:
     /// `libswiftCore`'s `_$sShMa`, header offset 4598948, "found" at
     /// 0x1FFD3E9A4 — a computable, plausible, wrong address 1.8 GB past the
     /// real one). The header is the first byte of `__TEXT`, so the address
@@ -112,17 +112,20 @@ package struct ThunkAddressSpace: Sendable {
         return nil
     }
 
-    /// A *file* offset (a symbol table entry's, a segment's) → address,
-    /// through the segment that contains it. Independent of the cache
-    /// convention on purpose: `Symbol.offset` is a file offset even inside a
-    /// shared cache, where ``offset(forAddress:)``'s accounting is not. An
-    /// export trie's offset is NOT one — see
-    /// ``address(forExportedSymbolOffset:)``.
-    package func address(forFileOffset fileOffset: Int) -> UInt64? {
-        for segment in segments where fileOffset >= segment.fileOffset && fileOffset < segment.fileOffset + segment.fileSize {
-            return segment.virtualMemoryAddress &+ UInt64(fileOffset - segment.fileOffset)
-        }
-        return nil
+    /// A `MachOFile` symbol table entry's value (`Symbol.offset`) → address,
+    /// when it lies in one of this image's segments.
+    ///
+    /// `MachOKit` hands over the raw `n_value`, which already IS the unslid
+    /// address — in a standalone file and inside a shared cache alike. It
+    /// used to be run through the segment table as a file offset: right by
+    /// coincidence for a dylib, whose `__TEXT` sits at 0, and nothing found
+    /// for a main executable, whose `__TEXT` sits at 0x100000000 — so an
+    /// executable's own runtime helpers went unrecognized. An export trie's
+    /// offset is neither — see ``address(forExportedSymbolOffset:)``.
+    package func address(forSymbolValue symbolValue: Int) -> UInt64? {
+        guard symbolValue >= 0 else { return nil }
+        let address = UInt64(symbolValue)
+        return containsAddress(address) ? address : nil
     }
 
     package func offset(forAddress address: UInt64) -> Int? {
