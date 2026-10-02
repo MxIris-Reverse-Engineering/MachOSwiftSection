@@ -585,11 +585,21 @@ public final class SymbolIndexStore: @unchecked Sendable {
         /// that pointer; a `String` is materialized only for the symbols
         /// that pass it, and only as the build-time dedup key. An image's
         /// offsets need no cache adjustment (that path is `MachOFile`-only),
-        /// so canonical == raw here.
+        /// so canonical == raw here. A debug-map entry only reserves its
+        /// name's row (see `SymbolTableBuilder.reserveRow`), on both legs.
         func collectMappedSymbolRows(_ mappedSymbols: some Sequence<MachOImage.Symbol>, stringBase: UnsafeRawPointer) {
             for symbol in mappedSymbols {
                 if nameBytesHaveSwiftManglingPrefix(symbol.nameC) {
                     guard !symbol.nlist.isExternal else { continue }
+                    if symbol.nlist.isDebuggingEntry {
+                        tableBuilder.reserveRow(
+                            forName: String(cString: symbol.nameC),
+                            mappedNameByteOffset: UnsafeRawPointer(symbol.nameC) - stringBase,
+                            nameByteLength: strlen(symbol.nameC),
+                            canonicalOffset: symbol.offset
+                        )
+                        continue
+                    }
                     // A `nil` row means the name's binary-supplied geometry
                     // exceeds the packed budgets (malformed/hostile string
                     // table) — skip the symbol instead of trapping (M3).
@@ -602,6 +612,15 @@ public final class SymbolIndexStore: @unchecked Sendable {
                     ) else { continue }
                     registerRow(row, rawOffset: symbol.offset, canonicalOffset: symbol.offset, isNewRow: isNewRow)
                 } else if nameBytesHaveSymbolicManglingSymbolPrefix(symbol.nameC), !symbol.nlist.isExternal {
+                    if symbol.nlist.isDebuggingEntry {
+                        symbolicManglingTableBuilder.reserveRow(
+                            forName: String(cString: symbol.nameC),
+                            mappedNameByteOffset: UnsafeRawPointer(symbol.nameC) - stringBase,
+                            nameByteLength: strlen(symbol.nameC),
+                            canonicalOffset: symbol.offset
+                        )
+                        continue
+                    }
                     // Same refusal rule for a name whose geometry cannot pack.
                     _ = symbolicManglingTableBuilder.canonicalRow(
                         forName: String(cString: symbol.nameC),
@@ -619,14 +638,20 @@ public final class SymbolIndexStore: @unchecked Sendable {
         } else if let mappedSymbols32, let mappedStringTableBase {
             collectMappedSymbolRows(mappedSymbols32, stringBase: mappedStringTableBase)
         } else {
+            let symbolValueOffsetConverter = SymbolValueOffsetConverter(for: machO)
             for symbol in machO.symbols where !symbol.nlist.isExternal {
                 let name = symbol.name
                 let isSwiftSymbol = name.isSwiftSymbol
                 guard isSwiftSymbol || SymbolicManglingSymbolName.hasPrefix(name) else { continue }
                 let rawOffset = symbol.offset
-                var canonicalOffset = rawOffset
-                if let cache = machO.cache, rawOffset >= 0, machO is MachOFile {
-                    canonicalOffset = rawOffset - cache.mainCacheHeader.sharedRegionStart.cast()
+                let canonicalOffset = symbolValueOffsetConverter.offset(forSymbolValue: rawOffset)
+                if symbol.nlist.isDebuggingEntry {
+                    if isSwiftSymbol {
+                        tableBuilder.reserveRow(forName: name, canonicalOffset: canonicalOffset)
+                    } else {
+                        symbolicManglingTableBuilder.reserveRow(forName: name, canonicalOffset: canonicalOffset)
+                    }
+                    continue
                 }
                 if isSwiftSymbol {
                     guard let (row, isNewRow) = tableBuilder.canonicalRow(forName: name, canonicalOffset: canonicalOffset, isExternal: symbol.nlist.isExternal) else { continue }
@@ -1417,5 +1442,15 @@ extension NlistProtocol {
     package var isExternal: Bool {
         guard let flags = flags, let type = flags.type else { return false }
         return flags.contains(.ext) && type == .undf
+    }
+
+    /// A debug-map (STABS) entry: it describes a symbol for the debugger and
+    /// is not one. An `N_GSYM` entry carries the value 0 under the very name
+    /// of the symbol it describes; indexed like a symbol, it was filed at the
+    /// mach header and, listed after a local symbol, overwrote that symbol's
+    /// offset with 0. The index lets one only reserve a row
+    /// (`SymbolTableBuilder.reserveRow`).
+    package var isDebuggingEntry: Bool {
+        flags?.stab != nil
     }
 }

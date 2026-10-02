@@ -12,7 +12,13 @@ extension MachORepresentableWithCache {
 }
 
 extension MachORepresentable {
+    /// The image's Swift symbols, each at the offset the symbol index files
+    /// it under (see `SymbolValueOffsetConverter`). Debug-map entries are
+    /// left out.
     public var swiftSymbols: [MachOResolving.Symbol] {
-        symbols.filter { $0.name.isSwiftSymbol }.map { .init(offset: $0.offset, name: $0.name) }
+        let symbolValueOffsetConverter = (self as? MachOFile).map { SymbolValueOffsetConverter(for: $0) }
+        return symbols.filter { $0.name.isSwiftSymbol && !$0.nlist.isDebuggingEntry }.map {
+            .init(offset: symbolValueOffsetConverter?.offset(forSymbolValue: $0.offset) ?? $0.offset, name: $0.name)
+        }
     }
 }
