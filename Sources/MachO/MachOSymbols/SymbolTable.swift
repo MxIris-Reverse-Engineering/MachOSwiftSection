@@ -290,6 +290,25 @@ struct SymbolTableBuilder {
         return appendRow(forName: name, nameReference: nameReference, canonicalOffset: canonicalOffset)
     }
 
+    /// Opens the row of a debug-map (STABS) entry's name, and never touches
+    /// an existing one. The entry may fix where the name sits in the table —
+    /// rows then keep the debug map's order, which is the source's, and the
+    /// printers list members in row order — but its value never becomes the
+    /// row's offset: the symbol it describes overwrites it when listed after
+    /// the entry, and is left alone when listed before it. An `N_GSYM`
+    /// entry's value is 0.
+    mutating func reserveRow(forName name: String, canonicalOffset: Int) {
+        guard tableRowByName[name] == nil else { return }
+        _ = canonicalRow(forName: name, canonicalOffset: canonicalOffset, isExternal: false)
+    }
+
+    /// ``reserveRow(forName:canonicalOffset:)`` for a name that lives in the
+    /// mapped string table.
+    mutating func reserveRow(forName name: String, mappedNameByteOffset: Int, nameByteLength: Int, canonicalOffset: Int) {
+        guard tableRowByName[name] == nil else { return }
+        _ = canonicalRow(forName: name, mappedNameByteOffset: mappedNameByteOffset, nameByteLength: nameByteLength, canonicalOffset: canonicalOffset, isExternal: false)
+    }
+
     private mutating func canonicalRow(forName name: String, nameReference: PackedNameReference, canonicalOffset: Int) -> (row: UInt32, isNewRow: Bool) {
         if let existingRow = tableRowByName[name] {
             updateRowInPlace(existingRow, canonicalOffset: canonicalOffset, isExternal: nameReference.isExternal)

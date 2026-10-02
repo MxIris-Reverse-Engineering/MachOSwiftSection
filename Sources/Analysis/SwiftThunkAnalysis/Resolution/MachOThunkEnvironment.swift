@@ -127,15 +127,15 @@ package final class MachOThunkEnvironment: ThunkEvaluationEnvironment, MachOThun
     private lazy var ownRuntimeSymbolNamesByAddress: [UInt64: String] = {
         var namesByAddress: [UInt64: String] = [:]
         let wanted = Set(Self.namedRuntimeSymbols)
-        // `Symbol.offset` is a file offset; the segment table turns it into
-        // the address the thunk's instructions name.
+        // A symbol table entry's value is already the address the thunk's
+        // instructions name. Debug-map entries share the names and are skipped.
         if let symbols = machO.symbols64 {
-            for symbol in symbols where wanted.contains(symbol.name) {
-                if let address = addressSpace.address(forFileOffset: symbol.offset) { namesByAddress[address] = symbol.name }
+            for symbol in symbols where wanted.contains(symbol.name) && !symbol.nlist.isDebuggingEntry {
+                if let address = addressSpace.address(forSymbolValue: symbol.offset) { namesByAddress[address] = symbol.name }
             }
         } else if let symbols = machO.symbols32 {
-            for symbol in symbols where wanted.contains(symbol.name) {
-                if let address = addressSpace.address(forFileOffset: symbol.offset) { namesByAddress[address] = symbol.name }
+            for symbol in symbols where wanted.contains(symbol.name) && !symbol.nlist.isDebuggingEntry {
+                if let address = addressSpace.address(forSymbolValue: symbol.offset) { namesByAddress[address] = symbol.name }
             }
         }
         return namesByAddress

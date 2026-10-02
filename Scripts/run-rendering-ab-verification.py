@@ -74,12 +74,14 @@ from pathlib import Path
 
 DEFAULT_FRAMEWORK_NAMES = ["SwiftUI", "SwiftUICore", "SwiftData", "Combine", "ActivityKit", "WidgetKit"]
 
-# The archive names its directories by plain OS version. Both entries are
-# checked for an arm64e cache and silently skipped when absent, so a machine
-# carrying only one of them still runs that leg.
-ARCHIVED_CACHE_DIRECTORIES = [
-    Path("/Volumes/DyldSharedCaches/macOS/26.6.2"),
-    Path("/Volumes/DyldSharedCaches/macOS/15.5"),
+# The archive names its directories by plain OS version, and the machines this
+# runs on archive the 26.x cache under different patch versions. Each slot
+# takes the first candidate carrying an arm64e cache; a slot with none is
+# reported and skipped, so a machine carrying only some of them still runs
+# those legs.
+ARCHIVED_CACHE_DIRECTORY_CANDIDATES = [
+    [Path("/Volumes/DyldSharedCaches/macOS/26.6.2"), Path("/Volumes/DyldSharedCaches/macOS/26.6")],
+    [Path("/Volumes/DyldSharedCaches/macOS/15.5")],
 ]
 
 SIMULATOR_RUNTIME_SEARCH_DIRECTORIES = [
@@ -380,8 +382,14 @@ class VerificationRun:
         return None
 
     def run_dyld_cache_part(self) -> None:
-        available_cache_directories = [directory for directory in ARCHIVED_CACHE_DIRECTORIES
-                                       if (directory / "dyld_shared_cache_arm64e").is_file()]
+        available_cache_directories = []
+        for candidate_directories in ARCHIVED_CACHE_DIRECTORY_CANDIDATES:
+            cache_directory = next((directory for directory in candidate_directories
+                                    if (directory / "dyld_shared_cache_arm64e").is_file()), None)
+            if cache_directory is None:
+                print(f"[skip] no archived cache in any of: {', '.join(str(directory) for directory in candidate_directories)}")
+            else:
+                available_cache_directories.append(cache_directory)
         if not available_cache_directories:
             print("No archived cache found - falling back to the current system's dyld shared cache.")
             for framework_name in self.arguments.framework_names:
