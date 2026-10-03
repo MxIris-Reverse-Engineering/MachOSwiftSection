@@ -150,9 +150,10 @@ extension Package.Dependency {
         ),
         remote: .package(
             url: "https://github.com/MxIris-Reverse-Engineering/MachOObjCSection.git",
-            // 0.8.106 is the first release with ObjCDiffing, which the `objc`
-            // subcommands (snapshot / diff / evolution) are built on.
-            "0.8.106" ..< "0.9.0",
+            // 0.8.108 decodes the pointer slots of a dyld cache's method lists:
+            // earlier releases trapped on every image of the macOS 14.4-15.3.2
+            // caches and lost protocol method names on older ones.
+            "0.8.108" ..< "0.9.0",
         ),
     )
 }

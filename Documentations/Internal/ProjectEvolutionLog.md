@@ -2134,6 +2134,15 @@
 - **关联文档**：[Modules/MachOSymbols.md](Modules/MachOSymbols.md)「规范化偏移的口径」与 STABS 两段、[AGENTS.md](../../AGENTS.md) 符号索引那一节新增的一条、[SystemFrameworkRenderingVerification.md](SystemFrameworkRenderingVerification.md)「跑之前先确认归档目录真的存在」。
 - **对应版本**：0.22.0（未发版）。
 
+## 76. MachOObjCSection 下限抬到 0.8.108：`objc` 在 macOS 14.4–15.3.2 的 cache 上 SIGTRAP
+
+- **时间段**：2026-10-03。
+- **动机**：另一个会话报告 `swift-section objc interface` 在 macOS 14.4–15.3.2 的归档 cache 上没有任何输出就退出（rc=133，即 SIGTRAP），换哪个镜像都一样。根因在 MachOObjCSection：这些 cache 用指针格式的方法列表存协议方法，列表里的槽位存的是 slide info 编码而不是地址，读取时却直接拿原值当地址。14.4 起是 slide info v5，原值是「相对 cache 起点的偏移」，每页 fixup 链最后一个槽位减 `sharedRegionStart` 时下溢陷阱；更早的 v3 不崩，但协议方法全部丢名。修复、测试与逐版本数据都在 MachOObjCSection 0.8.108 及其实现说明里。
+- **对本库的影响**：本库代码不动，只把 `Package.swift` 里 MachOObjCSection 的远程下限从 `0.8.106` 抬到 `0.8.108`。可见的变化有三处。一是 `objc` 子命令在旧 cache 上不再崩，协议方法也有了名字。二是 `--strip-protocol-conformance` 能剔掉 CoreFoundation 的 `NSCopying` 这类协议声明的成员：15.4 之后仍有少数协议是指针格式，以前读出来是空名。三是 15.8.1 及更早 cache 上的 `dump` / `interface` 多出 explicit selector 判定：`RawObjCProtocolSelectors` 把空 selector 记为「没读全」，这个判定此前一直被压住；修复后 15.0 上 AppKit 的 NSGradient 与 26.0 的输出一致。0.8.108 同时带出了 0.8.107 之后攒下的两项：标记渲染，以及 `stripProtocolConformance` 改为剔掉整条协议链的成员。
+- **验证**：同一个 `next` 分别链接修复前、后的 MachOObjCSection 做对照。53 个归档 macOS 版本（11.0.1–27.0）上 `objc interface NSCoding` 全部正确；26.0 / 27.0 cache 上四个镜像和五个独立文件的 `objc dump` 修复前后逐字节一致；带修复的兄弟依赖下，`swift test --filter ObjC --skip IntegrationTests` 的 152 个测试全部通过。抬下限后，用 `git archive` 导出的干净副本、只用远程依赖构建，依赖解析到 MachOObjCSection 0.8.108，14.3.1 / 15.0 / 15.3.2 上的复现命令都正确返回 0。
+- **关联文档**：MachOObjCSection 的实现说明 [DyldCachePointerSlotDecoding.md](https://github.com/MxIris-Reverse-Engineering/MachOObjCSection/blob/0.8.108/Documentations/Internal/DyldCachePointerSlotDecoding.md) 与 [0.8.108 changelog](https://github.com/MxIris-Reverse-Engineering/MachOObjCSection/blob/0.8.108/Changelogs/0.8.108.md)。
+- **对应版本**：0.22.0（未发版）。
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节
