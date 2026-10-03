@@ -69,24 +69,18 @@ struct ObjCTransformerOptionGroup: ParsableArguments, Sendable {
         }
     }
 
-    /// The ivar-offset comment builder, or `nil` to keep the renderer's
-    /// built-in wording.
-    func buildIvarOffsetCommentBuilder() -> (@Sendable (Int) -> String)? {
+    /// The ivar-offset comment module, or `nil` to keep the renderer's
+    /// built-in wording. A module also switches ivar offset comments on — a
+    /// template option on its own would otherwise be silently inert.
+    func buildIvarOffsetComment() -> Transformer.ObjCIvarOffset? {
         // Hexadecimal is the module's own default, so asking for decimal is a
         // customization even without a template.
         guard ivarOffsetTemplate != nil || ivarOffsetDecimal else { return nil }
-        let module = Transformer.ObjCIvarOffset(
+        return Transformer.ObjCIvarOffset(
             isEnabled: true,
             template: ivarOffsetTemplate ?? Transformer.ObjCIvarOffset.Templates.standard,
             useHexadecimal: !ivarOffsetDecimal
         )
-        return { offset in module.transform(.init(offset: offset)) }
-    }
-
-    /// Whether a template option was given that only has an effect once ivar
-    /// offset comments are switched on.
-    var impliesIvarOffsetComments: Bool {
-        ivarOffsetTemplate != nil || ivarOffsetDecimal
     }
 }
 

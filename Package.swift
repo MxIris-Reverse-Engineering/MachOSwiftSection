@@ -719,21 +719,34 @@ extension Target {
         path: "Sources/Declaration/TypeIndexing",
     )
 
-    static let swift_section = Target.executableTarget(
-        name: "swift-section",
+    // MARK: - Commands
+
+    /// Everything `swift-section` does, as a library (evolution proposal
+    /// `swift-section-kit`): one request type per subcommand, its product and
+    /// diagnostics delivered to a host-supplied `SwiftSectionOutput`. The
+    /// executable is a wrapper around it — flag parsing, error wording,
+    /// stream routing and exit codes.
+    static let SwiftSectionKit = Target.target(
+        name: "SwiftSectionKit",
         dependencies: [
             .target(.MachOFoundation),
+            .target(.MachOSwiftSection),
             .target(.SwiftDump),
             .target(.SwiftInspection),
             .target(.SwiftOutputTransformer),
             .target(.SwiftDeclaration),
+            .target(.SwiftDeclarationRendering),
             .target(.SwiftIndexing),
             .target(.SwiftPrinting),
             .target(.SwiftDiffing),
             .target(.SwiftInterface),
             .target(.TypeIndexing),
-            // The `objc` subcommand group (formerly the `objc-section`
-            // executable of MachOObjCSection).
+            .target(.Utilities),
+            .product(.MachOKit),
+            .product(.MachOKitExtensions),
+            .product(.Semantic),
+            .product(.Demangling),
+            .product(.OutputTransformer),
             .product(name: "ObjCDeclarationRendering", package: "MachOObjCSection"),
             .product(name: "ObjCDiffing", package: "MachOObjCSection"),
             .product(name: "ObjCIndexing", package: "MachOObjCSection"),
@@ -743,6 +756,27 @@ extension Target {
             // Swift 6.4 warns when a file uses a conformance from a module it
             // does not import.
             .product(name: "ObjCMetadataSource", package: "MachOObjCSection"),
+            .product(name: "ObjCOutputTransformer", package: "MachOObjCSection"),
+        ],
+        path: "Sources/Commands/SwiftSectionKit",
+    )
+
+    static let swift_section = Target.executableTarget(
+        name: "swift-section",
+        dependencies: [
+            .target(.SwiftSectionKit),
+            // What the wrapper names itself while mapping its flags onto the
+            // library's requests: `DependencySearchPath`, `DemangleOptions`,
+            // `Transformer.SwiftConfiguration`, `ConsoleEventHandler`, the
+            // ObjC generation options and C type presets.
+            .target(.MachOFoundation),
+            .target(.SwiftDump),
+            .target(.SwiftOutputTransformer),
+            .target(.SwiftDeclaration),
+            .target(.SwiftIndexing),
+            .product(.Semantic),
+            .product(.OutputTransformer),
+            .product(name: "ObjCDeclarationRendering", package: "MachOObjCSection"),
             .product(name: "ObjCOutputTransformer", package: "MachOObjCSection"),
             .product(name: "Rainbow", package: "Rainbow"),
             .product(name: "ArgumentParser", package: "swift-argument-parser"),
@@ -1055,6 +1089,8 @@ extension Target {
         name: "SwiftSectionCommandTests",
         dependencies: [
             .target(.swift_section),
+            .target(.SwiftSectionKit),
+            .target(.MachOFoundation),
             .target(.SwiftOutputTransformer),
             .target(.SwiftDeclarationRendering),
             .target(.SwiftPrinting),
@@ -1062,6 +1098,23 @@ extension Target {
             .product(name: "ObjCDeclarationRendering", package: "MachOObjCSection"),
             .product(name: "ObjCOutputTransformer", package: "MachOObjCSection"),
             .product(name: "ArgumentParser", package: "swift-argument-parser"),
+            .product(name: "Rainbow", package: "Rainbow"),
+        ],
+        swiftSettings: testSettings,
+    )
+
+    static let SwiftSectionKitTests = Target.testTarget(
+        name: "SwiftSectionKitTests",
+        dependencies: [
+            .target(.SwiftSectionKit),
+            .target(.MachOFoundation),
+            .target(.SwiftDeclaration),
+            .target(.SwiftDiffing),
+            .target(.SwiftOutputTransformer),
+            .product(.Semantic),
+            .product(.OutputTransformer),
+            .product(name: "ObjCDiffing", package: "MachOObjCSection"),
+            .product(name: "ObjCOutputTransformer", package: "MachOObjCSection"),
         ],
         swiftSettings: testSettings,
     )
@@ -1167,6 +1220,7 @@ let package = Package(
         .library(.SwiftSpecialization),
         .library(.SwiftInterface),
         .library(.TypeIndexing),
+        .library(.SwiftSectionKit),
         .executable(.swift_section),
     ],
     dependencies: dependencies,
@@ -1197,6 +1251,7 @@ let package = Package(
         .SwiftSpecialization,
         .SwiftInterface,
         .TypeIndexing,
+        .SwiftSectionKit,
         .MachOMacros,
         .MachOFixtureSupport,
         .MachOTestingSupport,
@@ -1225,6 +1280,7 @@ let package = Package(
         .SwiftAttributeInferenceTests,
         .SwiftDiffingTests,
         .SwiftSectionCommandTests,
+        .SwiftSectionKitTests,
         .SwiftIndexingTests,
         .SwiftSpecializationTests,
         .SwiftInterfaceTests,

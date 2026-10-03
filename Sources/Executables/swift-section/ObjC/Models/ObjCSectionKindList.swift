@@ -1,7 +1,8 @@
 import ArgumentParser
 import Foundation
+import SwiftSectionKit
 
-/// A comma-separated list of ``ObjCSectionKind``, as in `--sections classes,protocols`.
+/// A comma-separated list of ``ObjCDeclarationKind``, as in `--sections classes,protocols`.
 ///
 /// Deliberately a single value rather than an array option. `dump` also takes
 /// the binary as a positional argument, and an array option — `.upToNextOption`
@@ -12,7 +13,7 @@ import Foundation
 /// The comma form also matches `evolution --labels 17.0,18.0,26.0`, the CLI's
 /// other multi-value option.
 struct ObjCSectionKindList: ExpressibleByArgument, Equatable, Sendable {
-    let kinds: [ObjCSectionKind]
+    let kinds: [ObjCDeclarationKind]
 
     init?(argument: String) {
         // Empty subsequences are kept so that a stray comma (`classes,`) fails
@@ -21,9 +22,9 @@ struct ObjCSectionKindList: ExpressibleByArgument, Equatable, Sendable {
             .split(separator: ",", omittingEmptySubsequences: false)
             .map { $0.trimmingCharacters(in: .whitespaces) }
 
-        var resolvedKinds: [ObjCSectionKind] = []
+        var resolvedKinds: [ObjCDeclarationKind] = []
         for spelledKind in spelledKinds {
-            guard let kind = ObjCSectionKind(rawValue: spelledKind) else { return nil }
+            guard let kind = ObjCDeclarationKind(rawValue: spelledKind) else { return nil }
             // A repeated kind would dump the same declarations twice.
             if !resolvedKinds.contains(kind) {
                 resolvedKinds.append(kind)
@@ -37,6 +38,6 @@ struct ObjCSectionKindList: ExpressibleByArgument, Equatable, Sendable {
     /// the parse error. A single kind is itself a valid value, so listing the
     /// kinds is accurate as far as it goes.
     static var allValueStrings: [String] {
-        ObjCSectionKind.allCases.map(\.rawValue)
+        ObjCDeclarationKind.allCases.map(\.rawValue)
     }
 }

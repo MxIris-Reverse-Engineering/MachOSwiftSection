@@ -1,11 +1,6 @@
-import SwiftInterface
-import SwiftIndexing
-import SwiftDiffing
 import Foundation
-import MachOKit
-import MachOFoundation
 import ArgumentParser
-import Rainbow
+import SwiftSectionKit
 
 /// The output format for the annotated interface (`--interface`).
 enum DiffOutputFormat: String, CaseIterable, ExpressibleByArgument {
@@ -16,6 +11,17 @@ enum DiffOutputFormat: String, CaseIterable, ExpressibleByArgument {
     case unified
     /// The inline body wrapped in a Markdown ```` ```diff ```` fence.
     case markdown
+
+    var annotatedDiffFormat: AnnotatedDiffFormat {
+        switch self {
+        case .inline:
+            .inline
+        case .unified:
+            .unified
+        case .markdown:
+            .markdownFenced
+        }
+    }
 }
 
 struct DiffCommand: AsyncParsableCommand {
@@ -63,85 +69,49 @@ struct DiffCommand: AsyncParsableCommand {
     @Option(name: .long, help: "How many inputs to index at once (default: the processor count). Pass 1 to index the old side, then the new side.")
     var jobs: Int?
 
-    /// The concurrency window for indexing the two sides (evolution proposal
-    /// `large-stack-executor-and-cross-version-parallelism`): both inputs are
-    /// independent files, so by default they index in parallel.
-    private var maximumConcurrentPreparations: Int {
-        jobs ?? ProcessInfo.processInfo.activeProcessorCount
+    /// The library request these flags describe.
+    func makeRequest() -> ABIDiffRequest {
+        let report: ABIDiffRequest.Report
+        if interface {
+            report = .annotatedInterface(
+                format: (format ?? .inline).annotatedDiffFormat,
+                // Only the `--fail-on-breaking` CI gate needs the change-list
+                // diff on the annotated-interface path.
+                includesBreakingChangeVerdict: failOnBreaking
+            )
+        } else if json {
+            report = .json
+        } else if summaryOnly {
+            report = .summary
+        } else {
+            report = .changeList
+        }
+        // validate() has already required exactly one of -n / -p with
+        // --dyld-shared-cache.
+        let cacheImage: DyldSharedCacheImage? = cacheImageName.map { .name($0) } ?? cacheImagePath.map { .path($0) }
+        return ABIDiffRequest(
+            old: .path(oldPath),
+            new: .path(newPath),
+            binaryLoading: BinaryLoadingOptions(
+                architecture: architecture,
+                dyldSharedCacheImage: isDyldSharedCache ? cacheImage : nil
+            ),
+            report: report,
+            destination: outputPath.map { .file(path: $0) } ?? .output,
+            maximumConcurrentPreparations: jobs
+        )
     }
 
     func run() async throws {
-        let abiDiff: ABIDiff?
-        if interface {
-            // The annotated interface renders from the live models, so both
-            // sides must be binaries — a persisted snapshot carries no
-            // renderable interface.
-            if try ABISnapshotInputLoader.isSnapshotDocument(atPath: oldPath)
-                || ABISnapshotInputLoader.isSnapshotDocument(atPath: newPath) {
-                throw ValidationError("--interface needs two binaries; snapshot JSON inputs only support the change-list report.")
-            }
-
-            let oldMachO = try loadMachO(at: oldPath)
-            let newMachO = try loadMachO(at: newPath)
-
-            // A sink on both sides: the renderer hands each builder's dispatcher
-            // to its printers, so this is what puts a dropped declaration on
-            // stderr instead of leaving it to `Dispatcher`'s os_log floor, which
-            // a CLI operator never sees.
-            let oldBuilder = SwiftDiffableInterfaceBuilder(eventHandlers: [ConsoleEventHandler(label: "old")], in: oldMachO)
-            let newBuilder = SwiftDiffableInterfaceBuilder(eventHandlers: [ConsoleEventHandler(label: "new")], in: newMachO)
-            // Old side first in the window, so `--jobs 1` is the historical
-            // order; with a wider window the two index side by side and their
-            // diagnostics interleave on stderr.
-            log(maximumConcurrentPreparations > 1 ? "Indexing old and new binaries…" : "Indexing old binary, then new binary…")
-            _ = try await [oldBuilder, newBuilder].concurrentMap(maximumConcurrency: maximumConcurrentPreparations) { builder in
-                try await builder.prepare()
-            }
-
-            // Only the `--fail-on-breaking` CI gate needs the ABI diff on the
-            // annotated-interface path.
-            abiDiff = failOnBreaking
-                ? ABIDiffer().diff(old: oldBuilder.abiModule(), new: newBuilder.abiModule())
-                : nil
-
-            log("Rendering annotated interface…")
-            let renderer = SwiftDiffableInterfaceRenderer(old: oldBuilder, new: newBuilder)
-            let diffFormat: DiffFormat
-            switch format ?? .inline {
-            case .inline:
-                diffFormat = .inline
-            case .unified:
-                diffFormat = .unified(oldLabel: oldPath, newLabel: newPath)
-            case .markdown:
-                diffFormat = .markdownFenced
-            }
-            let annotated = await renderer.printAnnotatedInterface(format: diffFormat)
-            try emit(annotated.string)
-        } else {
-            // The change-list path is snapshot-based either way, so each side
-            // may be a binary (indexed and frozen here) or a persisted
-            // baseline (decoded, with its format version validated).
-            let documents = try await [(path: oldPath, side: "old"), (path: newPath, side: "new")].concurrentMap(maximumConcurrency: maximumConcurrentPreparations) { input in
-                try await loadDocument(at: input.path, consoleLabel: input.side)
-            }
-            let (oldDocument, newDocument) = (documents[0], documents[1])
-
-            log("Diffing…")
-            let diff = ABIDiffer().diff(old: oldDocument, new: newDocument)
-            abiDiff = diff
-
-            let verdict = "ABI-breaking: \(diff.hasBreakingChange) · backward-compatible: \(diff.isBackwardCompatible)"
-            if json {
-                let encoded = String(decoding: try ABIJSON.encoder().encode(diff), as: UTF8.self)
-                try emitPlain(encoded)
-            } else if summaryOnly {
-                print(verdict)
-            } else {
-                try emitPlain(ABIDiffReporter().report(diff) + "\n\n" + verdict)
-            }
+        let outcome: ABIDiffOutcome
+        do {
+            outcome = try await makeRequest().run(output: StandardStreamOutput(), environment: .commandLine)
+        } catch {
+            throw CommandLineErrorTranslation.translated(error, annotatedInterfaceRequiresBinaries: { _ in
+                "--interface needs two binaries; snapshot JSON inputs only support the change-list report."
+            })
         }
-
-        if failOnBreaking, let abiDiff, abiDiff.hasBreakingChange {
+        if failOnBreaking, outcome.hasBreakingChange == true {
             throw ExitCode.failure
         }
     }
@@ -173,88 +143,5 @@ struct DiffCommand: AsyncParsableCommand {
         if isDyldSharedCache, cacheImageName == nil, cacheImagePath == nil {
             throw ValidationError("--dyld-shared-cache requires --cache-image-name or --cache-image-path.")
         }
-    }
-
-    /// Loads a Mach-O for diffing: either an image extracted from a dyld shared
-    /// cache (so cross-image references into Foundation/libswiftCore resolve), or
-    /// a thin/fat file on disk. Both sides go through the shared
-    /// `MachOFile.load(...)` so the fat-binary affordance and cache-image
-    /// disambiguation match the rest of the CLI. `--dyld-shared-cache` here means
-    /// "treat each path as a cache and pull the same image from both", so the
-    /// system-cache path is never taken.
-    private func loadMachO(at path: String) throws -> MachOFile {
-        try MachOFile.load(
-            filePath: path,
-            isDyldSharedCache: isDyldSharedCache,
-            usesSystemDyldSharedCache: false,
-            cacheImageName: cacheImageName,
-            cacheImagePath: cacheImagePath,
-            architecture: architecture
-        )
-    }
-
-    /// Loads one change-list-path input: a snapshot JSON is decoded, a binary
-    /// is indexed and frozen (with provenance stamped).
-    private func loadDocument(at path: String, consoleLabel: String) async throws -> ABISnapshotDocument {
-        try await ABISnapshotInputLoader.loadDocument(
-            path: path,
-            architecture: architecture,
-            isDyldSharedCache: isDyldSharedCache,
-            cacheImageName: cacheImageName,
-            cacheImagePath: cacheImagePath,
-            label: nil,
-            consoleLabel: consoleLabel,
-            log: log
-        )
-    }
-
-    /// Writes an uncolorized report to `--output` or stdout.
-    private func emitPlain(_ text: String) throws {
-        if let outputPath {
-            try text.write(to: URL(fileURLWithPath: outputPath), atomically: true, encoding: .utf8)
-            log("Report written to \(outputPath)")
-        } else {
-            print(text)
-        }
-    }
-
-    /// Writes the annotated interface: plain text to `--output`, or per-line
-    /// colorized (added green, removed red) to the terminal.
-    private func emit(_ text: String) throws {
-        if let outputPath {
-            try text.write(to: URL(fileURLWithPath: outputPath), atomically: true, encoding: .utf8)
-            log("Annotated interface written to \(outputPath)")
-            return
-        }
-        var output = ""
-        let lines = text.split(separator: "\n", omittingEmptySubsequences: false)
-        for (index, line) in lines.enumerated() {
-            let lineText = String(line)
-            // In a unified diff the first two lines are the `--- old` / `+++ new`
-            // file headers and `@@ … @@` lines are hunk headers; colorize those by
-            // position / prefix so an added/removed content line that happens to
-            // begin with `++` or `--` is never mistaken for a file header.
-            if format == .unified, index < 2 {
-                output += lineText.cyan
-            } else if format == .unified, lineText.hasPrefix("@@") {
-                output += lineText.cyan
-            } else if lineText.hasPrefix("+") {
-                output += lineText.green
-            } else if lineText.hasPrefix("-") {
-                output += lineText.red
-            } else {
-                output += lineText
-            }
-            output += "\n"
-        }
-        print(output, terminator: "")
-    }
-
-    private func log(_ message: String) {
-        // `fputs`, not `FileHandle.standardError.write(_:)`: that overload is the
-        // Objective-C bridge and raises `NSFileHandleOperationException` on a
-        // closed or broken stderr, which Swift cannot catch — a diagnostic would
-        // abort the command instead of being printed.
-        fputs(message + "\n", stderr)
     }
 }

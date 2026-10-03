@@ -1,6 +1,6 @@
 import ArgumentParser
 import Foundation
-import ObjCDiffing
+import SwiftSectionKit
 
 struct ObjCSnapshotCommand: AsyncParsableCommand {
     static let configuration: CommandConfiguration = .init(
@@ -16,26 +16,30 @@ struct ObjCSnapshotCommand: AsyncParsableCommand {
     @Option(name: .shortAndLong, help: "Write the snapshot JSON to this path instead of stdout.", completion: .file())
     var outputPath: String?
 
-    func run() async throws {
+    /// The library request these flags describe.
+    func makeRequest() throws -> ObjCAPISnapshotRequest {
         guard let filePath = machOOptions.filePath else {
             throw ValidationError("A Mach-O file path is required.")
         }
-        let document = try await ObjCSnapshotInputLoader.loadDocument(
-            path: filePath,
-            architecture: machOOptions.architecture,
-            isDyldSharedCache: machOOptions.isDyldSharedCache,
-            cacheImageName: machOOptions.cacheImageName,
-            cacheImagePath: machOOptions.cacheImagePath,
+        return ObjCAPISnapshotRequest(
+            source: .path(filePath),
+            binaryLoading: try makeBinaryLoadingOptions(
+                isDyldSharedCache: machOOptions.isDyldSharedCache,
+                cacheImageName: machOOptions.cacheImageName,
+                cacheImagePath: machOOptions.cacheImagePath,
+                architecture: machOOptions.architecture
+            ),
             label: label,
-            log: log
+            destination: outputPath.map { .file(path: $0) } ?? .output
         )
-        let encoded = try document.encoded()
-        if let outputPath {
-            try encoded.write(to: URL(fileURLWithPath: outputPath), options: .atomic)
-            log("Snapshot written to \(outputPath)")
-        } else {
-            FileHandle.standardOutput.write(encoded)
-            FileHandle.standardOutput.write(Data("\n".utf8))
+    }
+
+    func run() async throws {
+        let request = try makeRequest()
+        do {
+            try await request.run(output: StandardStreamOutput(), environment: .commandLine)
+        } catch {
+            throw CommandLineErrorTranslation.translated(error)
         }
     }
 
@@ -45,9 +49,5 @@ struct ObjCSnapshotCommand: AsyncParsableCommand {
             // path to record; require an explicit cache file for baselines.
             throw ValidationError("snapshot requires an explicit file path; --uses-system-dyld-shared-cache is not supported here.")
         }
-    }
-
-    private func log(_ message: String) {
-        writeStandardErrorLine(message)
     }
 }

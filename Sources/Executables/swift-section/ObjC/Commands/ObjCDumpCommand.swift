@@ -1,7 +1,6 @@
 import ArgumentParser
 import Foundation
-import MachOKit
-import Semantic
+import SwiftSectionKit
 
 struct ObjCDumpCommand: AsyncParsableCommand, Sendable {
     static let configuration: CommandConfiguration = .init(
@@ -39,47 +38,27 @@ struct ObjCDumpCommand: AsyncParsableCommand, Sendable {
     @Flag(name: .shortAndLong, help: "Report indexing progress on stderr.")
     var verbose: Bool = false
 
-    func run() async throws {
-        let session = try await ObjCInterfaceSession.make(
-            machOOptions: machOOptions,
-            generationOptions: generationOptions,
-            transformerOptions: transformerOptions,
-            isVerbose: verbose
-        )
-
-        let requestedKinds = sections?.kinds
-        let kinds = requestedKinds ?? ObjCSectionKind.allCases
-        var nameCountByKind: [ObjCSectionKind: Int] = [:]
-        var emittedCount = 0
-        var dumpedString = ""
-
-        for kind in kinds {
-            let names = session.names(of: kind)
-            nameCountByKind[kind] = names.count
-            for name in names where matchesFilter(name) {
-                guard let interface = session.interface(of: kind, named: name) else { continue }
-                emit(interface, into: &dumpedString)
-                emittedCount += 1
-            }
-        }
-
-        if let outputPath {
-            try dumpedString.write(to: URL(fileURLWithPath: outputPath), atomically: true, encoding: .utf8)
-        }
-
-        // `session.isEmpty` walks every kind, so it is only consulted once the
-        // requested ones have already come back empty.
-        let isEntireIndexEmpty = nameCountByKind.values.allSatisfy { $0 == 0 } && session.isEmpty
-        let outcome = Outcome(
+    /// The library request these flags describe.
+    func makeRequest() throws -> ObjCDumpRequest {
+        ObjCDumpRequest(
+            source: try machOOptions.machOSource(),
+            kinds: sections?.kinds,
+            nameFilter: filter,
+            generation: generationOptions.build(),
+            cTypeReplacements: try transformerOptions.buildCTypeReplacements(),
+            ivarOffsetComment: transformerOptions.buildIvarOffsetComment(),
+            reportsIndexingProgress: verbose,
             imageDescription: machOOptions.imageDescription,
-            explicitKinds: requestedKinds,
-            nameCountByKind: nameCountByKind,
-            isEntireIndexEmpty: isEntireIndexEmpty,
-            filter: filter,
-            emittedCount: emittedCount
+            destination: outputPath.map { .file(path: $0) } ?? .output
         )
-        for note in Self.diagnosticNotes(for: outcome) {
-            writeStandardErrorLine(note)
+    }
+
+    func run() async throws {
+        let request = try makeRequest()
+        do {
+            try await request.run(output: StandardStreamOutput(colorScheme: colorScheme))
+        } catch {
+            throw CommandLineErrorTranslation.translated(error)
         }
     }
 
@@ -94,7 +73,7 @@ struct ObjCDumpCommand: AsyncParsableCommand, Sendable {
     func validate() throws {
         guard let sections,
               let filePath = machOOptions.filePath,
-              ObjCSectionKind(rawValue: filePath) != nil
+              ObjCDeclarationKind(rawValue: filePath) != nil
         else { return }
 
         let combinedKinds = (sections.kinds.map(\.rawValue) + [filePath]).joined(separator: ",")
@@ -105,62 +84,5 @@ struct ObjCDumpCommand: AsyncParsableCommand, Sendable {
             and put the input path after it.
             """
         )
-    }
-
-    /// What one run actually found, as far as the diagnostics care.
-    struct Outcome {
-        var imageDescription: String
-        /// The kinds the caller named with `--sections`, or `nil` when every
-        /// kind was dumped by default. Only named kinds are reported as empty:
-        /// otherwise every dump of a pure-Swift binary would nag about the four
-        /// kinds the caller never asked for.
-        var explicitKinds: [ObjCSectionKind]?
-        var nameCountByKind: [ObjCSectionKind: Int]
-        var isEntireIndexEmpty: Bool
-        var filter: String?
-        var emittedCount: Int
-    }
-
-    /// Why a dump produced nothing, in the caller's terms.
-    ///
-    /// Without these, three unrelated situations are byte-for-byte identical —
-    /// empty stdout, empty stderr, exit code 0 — and there is no way to tell a
-    /// binary that carries no Objective-C from one whose metadata failed to
-    /// read. Pure so the wording can be tested without capturing a process's
-    /// stderr; the exit code deliberately stays 0 in every case, so no existing
-    /// script turns red over a diagnostic.
-    static func diagnosticNotes(for outcome: Outcome) -> [String] {
-        // Subsumes the per-kind notes: reporting each requested kind as empty
-        // would just be five ways of saying the same thing.
-        if outcome.isEntireIndexEmpty {
-            return ["no Objective-C metadata found in \(outcome.imageDescription)"]
-        }
-
-        var notes: [String] = []
-        for kind in outcome.explicitKinds ?? [] where outcome.nameCountByKind[kind, default: 0] == 0 {
-            notes.append("no \(kind.rawValue) found in \(outcome.imageDescription)")
-        }
-
-        let totalNameCount = outcome.nameCountByKind.values.reduce(0, +)
-        if let filter = outcome.filter, !filter.isEmpty, outcome.emittedCount == 0, totalNameCount > 0 {
-            let declarationNoun = totalNameCount == 1 ? "declaration" : "declarations"
-            notes.append("--filter '\(filter)' matched none of the \(totalNameCount) \(declarationNoun) in \(outcome.imageDescription)")
-        }
-        return notes
-    }
-
-    private func matchesFilter(_ name: String) -> Bool {
-        guard let filter, !filter.isEmpty else { return true }
-        return name.range(of: filter, options: .caseInsensitive) != nil
-    }
-
-    private func emit(_ semanticString: SemanticString, into dumpedString: inout String) {
-        if outputPath != nil {
-            dumpedString.append(semanticString.string)
-            dumpedString.append("\n\n")
-        } else {
-            semanticString.printColorfully(using: colorScheme)
-            print("")
-        }
     }
 }

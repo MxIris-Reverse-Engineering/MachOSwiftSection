@@ -1,16 +1,6 @@
-import SwiftDeclaration
-import SwiftIndexing
-import SwiftPrinting
 import Foundation
-import MachOKit
-import MachOFoundation
-import MachOSwiftSection
-import SwiftInterface
-import SwiftDeclarationRendering
 import ArgumentParser
-#if os(macOS)
-import TypeIndexing
-#endif
+import SwiftSectionKit
 
 struct InterfaceCommand: AsyncParsableCommand {
     static let configuration: CommandConfiguration = .init(
@@ -75,138 +65,41 @@ struct InterfaceCommand: AsyncParsableCommand {
     @Option(name: .shortAndLong, help: "The color scheme for the output.")
     var colorScheme: SemanticColorScheme = .none
 
-    func run() async throws {
-        try await AccessorThunkResolution.withResolver(from: machOOptions) {
-            try await buildInterface()
-        }
+    /// The library request these flags describe.
+    func makeRequest() throws -> InterfaceRequest {
+        InterfaceRequest(
+            source: try machOOptions.machOSource(),
+            dependencySearchPaths: machOOptions.dependencySearchPathValues,
+            showsCImportedTypes: showCImportedTypes,
+            parsesOpaqueReturnTypes: parseOpaqueReturnType,
+            cModuleNameResolution: resolveCModuleNames ? .enabled(supplementaryAPINotesPaths: supplementaryAPINotesPaths) : .disabled,
+            fieldOffsetComments: emitExpandedFieldOffsets ? .expanded : (emitOffsetComments ? .flat : .none),
+            emitsMemberAddresses: emitMemberAddresses,
+            emitsVTableOffsets: emitVtableOffsets,
+            emitsTypeLayout: emitTypeLayout,
+            emitsEnumLayout: emitEnumLayout,
+            emitsExportStatus: emitExportStatus,
+            printsExportedDeclarationsOnly: exportedOnly,
+            memberSortOrder: sortMembersByOffset ? .byOffset : .byCategory,
+            infersObjCOverridesFromSelectorNames: objcMemberOptions.infersOverridesFromSelectorNames,
+            emitsHeader: emitHeader,
+            commentTransformers: try transformerOptions.buildTransformerConfiguration(),
+            destination: outputPath.map { .file(path: $0) } ?? .output
+        )
     }
 
-    private func buildInterface() async throws {
-        let machOFile = try MachOFile.load(options: machOOptions)
-
-        let effectiveEmitOffsetComments = emitOffsetComments || emitExpandedFieldOffsets
-
-        var printConfiguration = SwiftDeclarationPrintConfiguration(
-            printStrippedSymbolicItem: true,
-            printFieldOffset: effectiveEmitOffsetComments,
-            printExpandedFieldOffsets: emitExpandedFieldOffsets,
-            printMemberAddress: emitMemberAddresses,
-            printVTableOffset: emitVtableOffsets,
-            printExportStatus: emitExportStatus,
-            printExportedDeclarationsOnly: exportedOnly,
-            memberSortOrder: sortMembersByOffset ? .byOffset : .byCategory,
-            printTypeLayout: emitTypeLayout,
-            printEnumLayout: emitEnumLayout
-        )
-
-        // Without any template option the slots stay empty, keeping the
-        // built-in rendering byte-for-byte identical.
-        if let transformers = try transformerOptions.buildTransformerConfiguration() {
-            printConfiguration.applyTransformersEnablingCommentKinds(transformers)
+    func run() async throws {
+        let request = try makeRequest()
+        // Progress lines have always gone to stdout here, mixed into the
+        // product unless `-o` is given.
+        let output = StandardStreamOutput(colorScheme: colorScheme, standardOutputSeverities: [.progress])
+        if !resolveCModuleNames, !supplementaryAPINotesPaths.isEmpty {
+            output.report(SwiftSectionDiagnostic(severity: .warning, message: "warning: --supplementary-apinotes has no effect without --resolve-c-module-names"))
         }
-        printConfiguration.staticLayoutDependencyResolution = machOOptions.staticLayoutDependencyResolution
-        // The index records the name-only ObjC tie either way; this decides
-        // whether it prints as `@objc override`.
-        printConfiguration.infersObjCOverridesFromSelectorNames = objcMemberOptions.infersOverridesFromSelectorNames
-
-        var configuration = SwiftInterfaceBuilderConfiguration(
-            indexConfiguration: .init(
-                showCImportedTypes: showCImportedTypes,
-                dependencySearchPaths: machOOptions.indexDependencySearchPaths
-            ),
-            printConfiguration: printConfiguration
-        )
-
-        if emitHeader {
-            // The factory's dispatch-thunk count triggers the symbol-index
-            // build (which `prepare()` below then reuses), so announce
-            // progress BEFORE it — otherwise the tool sits silent for the
-            // whole index build.
-            print("Preparing to build Swift interface...")
-            configuration.interfaceHeaderInfo = InterfaceHeaderInfo(
-                machO: machOFile,
-                generatorName: "swift-section",
-                generatorVersion: BundledVersion.value
-            )
-        }
-
-        let builder = try SwiftInterfaceBuilder(configuration: configuration, eventHandlers: [ConsoleEventHandler()], in: machOFile)
-
-        if parseOpaqueReturnType {
-            builder.addExtraDataProvider(SwiftInterfaceBuilderOpaqueTypeProvider(machO: machOFile))
-        }
-
-        if resolveCModuleNames {
-            #if os(macOS)
-            if #available(macOS 13.0, *) {
-                let providerDependencies = SwiftInterfaceBuilderDependencies(
-                    machO: machOFile,
-                    searchPaths: [.systemDyldSharedCache],
-                    eventHandlers: [ConsoleEventHandler()]
-                )
-                // Dependency resolution against the HOST dyld cache matches
-                // install names exactly, then bare names; a non-macOS binary's
-                // paths mostly miss both, which silently guts the SDK-interface
-                // source. Say so — and name the misses — instead of degrading
-                // quietly.
-                if providerDependencies.dependencies.isEmpty {
-                    fputs("warning: --resolve-c-module-names resolved no dependency images against this host (non-macOS binary?); attribution will be limited to SDK APINotes and supplementary files\n", stderr)
-                } else if !providerDependencies.unresolvedLoadNames.isEmpty {
-                    fputs("warning: --resolve-c-module-names could not resolve \(providerDependencies.unresolvedLoadNames.count) dependency image(s) against this host; their types will not be attributed: \(providerDependencies.unresolvedLoadNames.joined(separator: ", "))\n", stderr)
-                }
-                // Bad supplementary paths are otherwise only os_log'd by the
-                // library floor; a CLI user who mistyped a path or handed a
-                // broken YAML deserves the same stderr warning the other
-                // degradations get. (Files inside a directory argument stay
-                // on the library's skip-and-log contract.)
-                for supplementaryAPINotesPath in supplementaryAPINotesPaths {
-                    var pathIsDirectory: ObjCBool = false
-                    guard FileManager.default.fileExists(atPath: supplementaryAPINotesPath, isDirectory: &pathIsDirectory) else {
-                        fputs("warning: --supplementary-apinotes path does not exist: \(supplementaryAPINotesPath)\n", stderr)
-                        continue
-                    }
-                    if !pathIsDirectory.boolValue {
-                        do {
-                            _ = try APINotesFile(path: supplementaryAPINotesPath)
-                        } catch {
-                            fputs("warning: --supplementary-apinotes file failed to parse and will be skipped: \(supplementaryAPINotesPath): \(error)\n", stderr)
-                        }
-                    }
-                }
-                let supplementaryAPINotesURLs = supplementaryAPINotesPaths.map { URL(fileURLWithPath: $0) }
-                if let typeNameProvider = SwiftInterfaceBuilderTypeNameProvider(machO: machOFile, dependencies: providerDependencies, supplementaryAPINotesURLs: supplementaryAPINotesURLs) {
-                    builder.addExtraDataProvider(typeNameProvider)
-                } else {
-                    fputs("warning: --resolve-c-module-names ignored: the binary carries no build-version command mapping to a known SDK platform\n", stderr)
-                }
-            } else {
-                fputs("warning: --resolve-c-module-names requires macOS 13 or later\n", stderr)
-            }
-            #else
-            fputs("warning: --resolve-c-module-names is only available on macOS\n", stderr)
-            #endif
-        } else if !supplementaryAPINotesPaths.isEmpty {
-            fputs("warning: --supplementary-apinotes has no effect without --resolve-c-module-names\n", stderr)
-        }
-
-        if !emitHeader {
-            print("Preparing to build Swift interface...")
-        }
-
-        try await builder.prepare()
-
-        print("Building Swift interface...")
-
-        let interfaceString = try await builder.printRoot()
-
-        print("Swift interface built successfully.")
-
-        if let outputPath {
-            print("Writing Swift interface to \(outputPath)...")
-            let outputURL = URL(fileURLWithPath: outputPath)
-            try interfaceString.string.write(to: outputURL, atomically: true, encoding: .utf8)
-        } else {
-            interfaceString.printColorfully(using: colorScheme)
+        do {
+            try await request.run(output: output, environment: .commandLine)
+        } catch {
+            throw CommandLineErrorTranslation.translated(error)
         }
     }
 }

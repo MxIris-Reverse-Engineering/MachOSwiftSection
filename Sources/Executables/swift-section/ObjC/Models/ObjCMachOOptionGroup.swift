@@ -1,5 +1,5 @@
 import ArgumentParser
-import MachOKit
+import SwiftSectionKit
 
 /// How the `objc` subcommands get at the binary: a path on disk, or an image
 /// inside a dyld shared cache (the running system's, or a cache file given by
@@ -36,17 +36,16 @@ struct ObjCMachOOptionGroup: ParsableArguments, Sendable {
     var imageDescription: String {
         cacheImageName ?? cacheImagePath ?? filePath ?? "the system dyld shared cache"
     }
-}
 
-extension MachOFile {
-    static func load(options: ObjCMachOOptionGroup) throws -> MachOFile {
-        try load(
-            filePath: options.filePath,
-            isDyldSharedCache: options.isDyldSharedCache,
-            usesSystemDyldSharedCache: options.usesSystemDyldSharedCache,
-            cacheImageName: options.cacheImageName,
-            cacheImagePath: options.cacheImagePath,
-            architecture: options.architecture
+    /// The image these options name.
+    func machOSource() throws -> MachOSource {
+        try makeMachOSource(
+            filePath: filePath,
+            isDyldSharedCache: isDyldSharedCache,
+            usesSystemDyldSharedCache: usesSystemDyldSharedCache,
+            cacheImageName: cacheImageName,
+            cacheImagePath: cacheImagePath,
+            architecture: architecture
         )
     }
 }

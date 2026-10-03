@@ -1,5 +1,6 @@
 import Testing
 import ArgumentParser
+import SwiftSectionKit
 @testable import swift_section
 
 /// `dump --sections` accepts the `objcImplementationClasses` section
@@ -9,6 +10,6 @@ struct DumpSectionsOptionTests {
     @Test func objcImplementationClassesIsASection() throws {
         let command = try DumpCommand.parse(["/tmp/example", "--sections", "types", "objcImplementationClasses"])
         #expect(command.sections == [.types, .objcImplementationClasses])
-        #expect(SwiftSection.allCases.contains(.objcImplementationClasses))
+        #expect(DumpSection.allCases.contains(.objcImplementationClasses))
     }
 }
