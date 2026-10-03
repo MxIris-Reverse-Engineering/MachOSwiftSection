@@ -14,7 +14,8 @@
 | 模块 | 文档 | 说明 |
 |---|---|---|
 | SwiftInterface | [SwiftInterface.md](SwiftInterface.md) | ✅ 已写 |
-| swift-section (CLI) | — | 待写 |
+| SwiftSectionKit | [SwiftSectionKit.md](SwiftSectionKit.md) | ✅ 已写（调用方指南：[SwiftSectionKit.md](../../SwiftSectionKit.md)） |
+| swift-section (CLI) | [SwiftSectionKit.md](SwiftSectionKit.md) | ✅ 已写（与 SwiftSectionKit 同篇：包装层只剩 flag 映射、错误翻译、流路由与退出码） |
 | SwiftIndexing | — | 待写 |
 | SwiftPrinting | — | 待写 |
 | SwiftSpecialization | — | 待写 |

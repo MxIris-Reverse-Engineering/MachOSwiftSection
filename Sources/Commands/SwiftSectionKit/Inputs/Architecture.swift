@@ -1,12 +1,12 @@
-import ArgumentParser
 import MachOKit
 
-enum Architecture: String, ExpressibleByArgument, CaseIterable {
+/// A slice of a fat (universal) binary.
+public enum Architecture: String, CaseIterable, Sendable, Hashable {
     case x86_64
     case arm64
     case arm64e
 
-    var cpu: CPUSubType {
+    var cpuSubtype: CPUSubType {
         switch self {
         case .x86_64:
             return .x86(.x86_64_all)
@@ -18,8 +18,8 @@ enum Architecture: String, ExpressibleByArgument, CaseIterable {
     }
 
     init?(cpu: CPU) {
-        guard let cpuType = cpu.type, let cpuSubType = cpu.subtype else { return nil }
-        switch (cpuType, cpuSubType) {
+        guard let cpuType = cpu.type, let cpuSubtype = cpu.subtype else { return nil }
+        switch (cpuType, cpuSubtype) {
         case (.x86_64, .x86(.x86_all)), (.x86_64, .x86(.x86_64_all)):
             self = .x86_64
         case (.arm64, .arm64(.arm64_all)):

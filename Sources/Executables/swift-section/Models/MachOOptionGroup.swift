@@ -1,7 +1,7 @@
 import ArgumentParser
 import Foundation
 import MachOFoundation
-import SwiftDeclarationRendering
+import SwiftSectionKit
 
 struct MachOOptionGroup: ParsableArguments, Sendable {
     @Argument(help: "The path to the Mach-O file or dyld shared cache to dump.", completion: .file())
@@ -34,40 +34,21 @@ struct MachOOptionGroup: ParsableArguments, Sendable {
         }
     }
 
-    /// The resolver the accessor-thunk rewrites should use when the user
-    /// named search paths, else `nil` for the inferring default.
-    var accessorThunkResolver: DisassemblingAccessorThunkResolver? {
-        guard !dependencySearchPaths.isEmpty else { return nil }
-        return DisassemblingAccessorThunkResolver(searchPaths: dependencySearchPaths.map { DependencySearchPath(classifyingPath: $0) })
+    /// The image these options name.
+    func machOSource() throws -> MachOSource {
+        try makeMachOSource(
+            filePath: filePath,
+            isDyldSharedCache: isDyldSharedCache,
+            usesSystemDyldSharedCache: usesSystemDyldSharedCache,
+            cacheImageName: cacheImageName,
+            cacheImagePath: cacheImagePath,
+            architecture: architecture
+        )
     }
 
-    /// How the static (offline) layout engine resolves cross-module types:
-    /// the user-named search paths first, the running system's shared cache
-    /// as the fallback — so a binary can be laid out against the OS version
-    /// whose cache was named rather than the host's. Without any path this is
-    /// the library default.
-    var staticLayoutDependencyResolution: StaticLayoutDependencyResolution {
-        guard !dependencySearchPaths.isEmpty else { return .default }
-        return .dependencyClosure(searchPaths: dependencySearchPaths.map { DependencySearchPath(classifyingPath: $0) } + [.systemDyldSharedCache])
-    }
-
-    /// The same paths for the indexer's cross-image facts (a stored field
-    /// whose type is a property wrapper defined in another image; a class's
-    /// ObjC ancestors behind a bind): the user-named ones first, the running
-    /// system's cache as the fallback. `dump` hands the same list to the
-    /// ObjC ancestor resolver it registers itself.
-    var indexDependencySearchPaths: [DependencySearchPath] {
-        dependencySearchPaths.map { DependencySearchPath(classifyingPath: $0) } + [.systemDyldSharedCache]
-    }
-}
-
-extension AccessorThunkResolution {
-    /// Runs `operation` with the user-named search paths in force for every
-    /// kind-9 accessor-thunk rewrite it performs, or unchanged when none
-    /// were named. The task-local is the one injection point the rendering
-    /// layer offers; the CLI is a host like any other.
-    nonisolated(nonsending) static func withResolver<Result>(from options: MachOOptionGroup, _ operation: nonisolated(nonsending) () async throws -> Result) async rethrows -> Result {
-        guard let resolver = options.accessorThunkResolver else { return try await operation() }
-        return try await $taskResolver.withValue(resolver, operation: operation)
+    /// `--dependency-search-path`, each path classified as a Mach-O file, a
+    /// dyld shared cache or a system root.
+    var dependencySearchPathValues: [DependencySearchPath] {
+        dependencySearchPaths.map { DependencySearchPath(classifyingPath: $0) }
     }
 }

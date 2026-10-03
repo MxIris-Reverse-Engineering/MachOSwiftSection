@@ -1,5 +1,8 @@
 import Foundation
 
+/// The loading failures as the command line has always worded them. The first
+/// three are combinations of options a `MachOSource` cannot express; the rest
+/// translate `MachOSourceError` (see `CommandLineErrorTranslation`).
 enum SwiftSectionCommandError: LocalizedError {
     case missingFilePath
     case ambiguousCacheImageNameAndCacheImagePath
@@ -7,7 +10,6 @@ enum SwiftSectionCommandError: LocalizedError {
     case imageNotFound
     case invalidArchitecture
     case fatBinaryRequiresArchitecture(availableArchitectures: [String])
-    case failedFetchFromSystemDyldSharedCache
     case unsupportedSystemVersionForDyldSharedCache
 
     var errorDescription: String? {
@@ -24,8 +26,6 @@ enum SwiftSectionCommandError: LocalizedError {
             "The specified architecture is not found or supported."
         case .fatBinaryRequiresArchitecture(let availableArchitectures):
             "The file is a fat (universal) binary. You must specify an architecture using --architecture (-a). Available architectures: \(availableArchitectures.joined(separator: ", "))"
-        case .failedFetchFromSystemDyldSharedCache:
-            "Failed to fetch the Mach-O file from the current system dyld shared cache. Please ensure the cache is accessible."
         case .unsupportedSystemVersionForDyldSharedCache:
             "The minimum system version that supports the --uses-system-dyld-shared-cache flag is macOS 11.0. Current system version: \(ProcessInfo.processInfo.operatingSystemVersionString)."
         }

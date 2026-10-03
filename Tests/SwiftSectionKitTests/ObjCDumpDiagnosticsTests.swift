@@ -1,5 +1,5 @@
 import Testing
-@testable import swift_section
+import SwiftSectionKit
 
 /// `dump` used to answer three unrelated situations with the same silence:
 /// empty stdout, empty stderr, exit code 0. A binary carrying no Objective-C at
@@ -9,19 +9,19 @@ import Testing
 ///
 /// The note wording is pinned here rather than by capturing a process's stderr:
 /// `diagnosticNotes` is pure precisely so these cases can be enumerated cheaply.
-@Suite("swift-section objc dump diagnostics")
+@Suite("objc dump diagnostics")
 struct ObjCDumpDiagnosticsTests {
     private static let imageDescription = "/tmp/Sample"
 
     private func notes(
-        nameCountByKind: [ObjCSectionKind: Int],
+        nameCountByKind: [ObjCDeclarationKind: Int],
         emittedCount: Int,
-        explicitKinds: [ObjCSectionKind]? = nil,
+        explicitKinds: [ObjCDeclarationKind]? = nil,
         isEntireIndexEmpty: Bool = false,
         filter: String? = nil
     ) -> [String] {
-        ObjCDumpCommand.diagnosticNotes(
-            for: ObjCDumpCommand.Outcome(
+        ObjCDumpRequest.diagnosticNotes(
+            for: ObjCDumpRequest.Outcome(
                 imageDescription: Self.imageDescription,
                 explicitKinds: explicitKinds,
                 nameCountByKind: nameCountByKind,
@@ -35,7 +35,7 @@ struct ObjCDumpDiagnosticsTests {
     @Test("A binary with no Objective-C at all says so")
     func reportsAnIndexWithNothingInIt() {
         let reported = notes(
-            nameCountByKind: Dictionary(uniqueKeysWithValues: ObjCSectionKind.allCases.map { ($0, 0) }),
+            nameCountByKind: Dictionary(uniqueKeysWithValues: ObjCDeclarationKind.allCases.map { ($0, 0) }),
             emittedCount: 0,
             isEntireIndexEmpty: true
         )

@@ -1,6 +1,6 @@
 import ArgumentParser
 import Foundation
-import ObjCDiffing
+import SwiftSectionKit
 
 struct ObjCEvolutionCommand: AsyncParsableCommand {
     static let configuration: CommandConfiguration = .init(
@@ -43,48 +43,38 @@ struct ObjCEvolutionCommand: AsyncParsableCommand {
     @Option(name: .shortAndLong, help: "Write the report to this path instead of stdout.", completion: .file())
     var outputPath: String?
 
-    func run() async throws {
-        let explicitLabels = try ObjCSnapshotInputLoader.parseLabels(labels, inputCount: inputPaths.count)
-
-        var documents: [ObjCAPISnapshotDocument] = []
-        for (index, inputPath) in inputPaths.enumerated() {
-            let document = try await ObjCSnapshotInputLoader.loadDocument(
-                path: inputPath,
-                architecture: architecture,
-                isDyldSharedCache: isDyldSharedCache,
-                cacheImageName: cacheImageName,
-                cacheImagePath: cacheImagePath,
-                label: explicitLabels[index],
-                log: log
-            )
-            documents.append(document)
-        }
-
-        // Snapshot inputs may already carry a provenance label; binaries fall
-        // back to their file name so the axis is always readable.
-        let resolvedLabels = documents.enumerated().map { index, document in
-            document.provenance?.label ?? ObjCSnapshotInputLoader.defaultLabel(forPath: inputPaths[index])
-        }
-
-        log("Tracking evolution…")
-        let evolution = try ObjCAPIEvolutionBuilder().evolution(of: documents, labels: resolvedLabels)
-
-        let output: String
-        if json {
-            output = String(decoding: try ObjCAPIJSON.encoder().encode(evolution), as: UTF8.self)
+    /// The library request these flags describe.
+    func makeRequest() -> ObjCAPIEvolutionRequest {
+        let report: ObjCAPIEvolutionRequest.Report = if json {
+            .json
         } else if summaryOnly {
-            output = ObjCAPIEvolutionReporter().summary(evolution)
+            .summary
         } else {
-            output = ObjCAPIEvolutionReporter().report(evolution)
+            .lineage
         }
-        if let outputPath {
-            try (output + "\n").write(to: URL(fileURLWithPath: outputPath), atomically: true, encoding: .utf8)
-            log("Report written to \(outputPath)")
-        } else {
-            print(output)
-        }
+        // validate() has already required exactly one of -n / -p with
+        // --dyld-shared-cache.
+        let cacheImage: DyldSharedCacheImage? = cacheImageName.map { .name($0) } ?? cacheImagePath.map { .path($0) }
+        return ObjCAPIEvolutionRequest(
+            inputs: inputPaths.map { .path($0) },
+            labels: labels.map(EvolutionCommand.splitLabels),
+            binaryLoading: BinaryLoadingOptions(
+                architecture: architecture,
+                dyldSharedCacheImage: isDyldSharedCache ? cacheImage : nil
+            ),
+            report: report,
+            destination: outputPath.map { .file(path: $0) } ?? .output
+        )
+    }
 
-        if failOnBreaking, evolution.hasBreakingChange {
+    func run() async throws {
+        let outcome: ObjCAPIEvolutionOutcome
+        do {
+            outcome = try await makeRequest().run(output: StandardStreamOutput(), environment: .commandLine)
+        } catch {
+            throw CommandLineErrorTranslation.translated(error)
+        }
+        if failOnBreaking, outcome.hasBreakingChange {
             throw ExitCode.failure
         }
     }
@@ -107,9 +97,5 @@ struct ObjCEvolutionCommand: AsyncParsableCommand {
         if isDyldSharedCache, cacheImageName == nil, cacheImagePath == nil {
             throw ValidationError("--dyld-shared-cache requires --cache-image-name or --cache-image-path.")
         }
-    }
-
-    private func log(_ message: String) {
-        writeStandardErrorLine(message)
     }
 }

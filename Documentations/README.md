@@ -38,6 +38,8 @@ Public, reference-style documentation. Bilingual (English + 中文).
   records of pure-Swift classes, the baseline `formatVersion` contract, and `dump`'s
   stderr-only empty-result notes.
   - 中文版：**[Objective-C 命令行 —— `swift-section objc`](ObjCCommandLine_zh.md)**
+- **[SwiftSectionKit — everything `swift-section` does, as a library](SwiftSectionKit.md)** — the guide for the `SwiftSectionKit` product (evolution proposal `swift-section-kit`): one request type per subcommand, and the output contract the protocol's signature does not show — concurrent calls, three separate channels, a newline after every product piece, file destinations bypassing the output, diagnostics worded as the command line prints them.
+  - 中文版：**[SwiftSectionKit —— `swift-section` 的全部功能，以库的形式提供](SwiftSectionKit_zh.md)**
 
 Everything under [`Internal/`](Internal/) is maintainer-facing.
 
@@ -67,6 +69,7 @@ selects names using each access's offset and width.
 | Doc | What it covers |
 |---|---|
 | [Modules/](Internal/Modules/README.md) | **按模块组织的参考文档系列**：每个库模块一篇权威入口（定位 / 子系统分工 / 跨文件契约 / 细节文档指路）；该目录 README 是覆盖状态表。 |
+| [Modules/SwiftSectionKit.md](Internal/Modules/SwiftSectionKit.md) | SwiftSectionKit 模块参考（兼 `swift-section` 包装层）：一个子命令一个请求类型、输出端三路与换行语义、诊断 = 级别 + 命令行原文、环境注入、`MachOSource` 唯一加载器；包装层只剩 flag 映射 / 错误翻译 / 流路由 / 退出码；与拆分前的两类有意偏差；测试锚点与「加一个 flag」的步骤。 |
 | [Modules/MachODependencies.md](Internal/Modules/MachODependencies.md) | MachODependencies 模块参考：所有功能共用的依赖解析——搜索路径、load name 归一（与 `MachOImage(name:)` 的契约）、两种定位器（进程内 / 文件：install path 精确优先、bare name 排序兜底、cache 一次性索引）、direct / transitive 遍历与顺序契约、未解析清单；SwiftLayout 与 SwiftInterface 两处薄包装的语义边界与测试锚点。 |
 | [Modules/MachOCaches.md](Internal/Modules/MachOCaches.md) | MachOCaches 模块参考：不是 dyld cache 的支持层，是按镜像缓存的原语——`SharedCache` 的 get-or-build 三段式与「构建闭包在调用点」、`SharedCacheKey` 只哈希 UUID、`SharedCacheRegistry` 的认领与最后持有者驱逐、eviction group 与 follows 对照表、宿主接内存压力的入口、新加一个 cache 的三步。 |
 | [Modules/SwiftInterface.md](Internal/Modules/SwiftInterface.md) | SwiftInterface 模块参考：编排层定位与三种输出产品（单版本 interface / 两侧 diff / N 路 evolution），五个子系统（核心 builder、opaque 解析、共享 union 走查、diff 渲染、evolution 渲染）的分工、契约与测试锚点，消费入口速查。 |
@@ -155,6 +158,7 @@ selects names using each access's offset and width.
 | [Evolutions/0054-interface-descriptor-only-vtable-members.md](Evolutions/0054-interface-descriptor-only-vtable-members.md) | **提案 0054（Implemented）**：interface 按 vtable 槽位顺序打印类成员，并补上 descriptor-only member——剥掉 local 符号的镜像（系统 dyld cache 里的 AppKit）里，class 的 public 方法实现没有符号、只剩 `Tj` / `Tq`，interface 过去只从实现符号建成员，于是 AppKit 的 `NSTableViewDiffableDataSource` / `NSCollectionViewDiffableDataSource` 只剩 `init` 和 `deinit`（整个 AppKit 少 53 个成员）。改为从 vtable 槽出发、用 `Tq` 建成员，vtable 成员按槽位顺序打印，没有名字的槽跳过；顺带修掉闭包参数返回 Optional 时 `init` 被误打成 `init?`。ABI snapshot `formatVersion` 5 → 6。 |
 | [Evolutions/0055-group-sources-by-layer.md](Evolutions/0055-group-sources-by-layer.md) | **提案 0055（Implemented）**：`Sources/` 按层分组——31 个平铺的 target 分进 `Support/`、`MachO/`、`ABI/`、`Analysis/`、`Declaration/`、`Output/`、`Executables/`、`TestSupport/` 八个目录，`Package.swift` 逐个声明 `path:`；target / product / 模块名不变，下游无感。连带修正靠 `#filePath` 深度找 fixture 与扫描源码的几处代码，以及 CI 里写死的 `Version.swift` 路径。 |
 | [Evolutions/0057-reading-context-migration.md](Evolutions/0057-reading-context-migration.md) | **提案 0057（Implemented）**：读取接口统一到 `ReadingContext`——ABI 层每个读取接口有传 `machO`、直接用指针、传 `ReadingContext` 三份各自手写的实现，已经漂移（`ReadingContext` 版在 `MachOFile` 上漏了 rebase / bind，指针版遇到坏指针直接崩）。收成一份：`ReadingContext` 版补齐正确行为后成为唯一实现，旧接口一行转发、0.22.0 废弃、0.23.0 删除；范围含上层 61 个纯读取接口，为此 `ReadingContext` 新增缓存范围声明。 |
+| [Evolutions/0058-swift-section-kit.md](Evolutions/0058-swift-section-kit.md) | **提案 0058（Implemented）**：把 swift-section 的功能抽成对外 product `SwiftSectionKit`——每个子命令一个按用途建模的请求类型（`DumpRequest`、`ABIDiffRequest`……），输出交给调用方注入的输出端，测试换成内存记录器即可断言；CLI 只剩 flag 声明与校验、flag → 请求映射、库错误翻译回历史文案、诊断的流路由和退出码。输出逐字节保持，只有两处有意偏差（写流统一走 `fputs` / `fwrite`；参数层面的错误先于打开二进制报出）。 |
 | [Glossary.md](Glossary.md) | **项目术语表**：sweep、腿（reader-split leg）、名字来源、detach、物化、permutation 二分、store-identity vs 结构相等、wrapper vs descriptor、桶、trailing objects、SymbolicDemangler（旧名 MetadataReader）、`_symbolic` 符号与被引用者、TypeImportInfo、缓存范围（cache scope）、读取接口的三种形式（context / Mach-O / pointer form）等本项目自造词与特定用法；跨项目通用术语在全局表（iCloud Global），不重复登记。提案与专题文档引入新术语时同批登记。 |
 | [SymbolIndexStoreMemoryOptimization.md](Internal/SymbolIndexStoreMemoryOptimization.md) | **`SymbolIndexStore` 内存优化专题——读这批内存文档先读这篇**：三波优化各自解决什么、今天的存储模型长什么样、付出了哪些约束、实测收益全曲线（RuntimeViewer 五镜像稳态 842 → 262 MB）。 |
 | [SymbolicManglingSymbols.md](Internal/SymbolicManglingSymbols.md) | **`_symbolic` 符号**（提案 0050-symbolic-mangling-symbol-index 的实现说明）：编译器为每条带 symbolic reference 的 mangled name 生成的去重符号，名字里按引用顺序写出每个被引用者的完整 mangling（含 private 鉴别符）；`SymbolIndexStore` 在已有扫描里收进一张独立的表，`SwiftInspection.SymbolicManglingIndex` 按顺序配对、按被引用位置建索引。被引用者会借用前面的 substitution，只能一起 demangle；私有鉴别符还原与 `SymbolicDemangler` 的对照测试是两个消费者；附 AppKit / SwiftUICore / SwiftUI 的数量与内存实测。 |
