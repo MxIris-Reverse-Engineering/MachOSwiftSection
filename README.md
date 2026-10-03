@@ -85,6 +85,12 @@ Declare every product whose module you import. In particular, `MachOSwiftSection
 | `SwiftDeclarationRendering` | The comment rendering shared by dump and interface (field layouts, opaque types, specialized metadata). |
 | `SwiftOutputTransformer` | Token templates for the layout comments, shared with RuntimeViewer's settings UI. |
 
+**The command-line tool as a library**
+
+| Product | Purpose |
+| --- | --- |
+| `SwiftSectionKit` | Everything `swift-section` does, one request type per subcommand (`DumpRequest`, `InterfaceRequest`, `ABIDiffRequest`, `ObjCDumpRequest`, …), with the product and diagnostics delivered to an output you supply. The `swift-section` executable is a thin wrapper around it. |
+
 ### Usage
 
 #### Basic
@@ -162,6 +168,36 @@ Generated interfaces reflect a wide range of Swift language features:
 - `EnumLayoutCalculator` — compute the on-disk layout of Swift enums, including single-payload and multi-payload (tagged and untagged) cases. Mirrors the ABI rules in `swift/ABI/Enum.h`.
 - `ClassHierarchyDumper` — walk a class's inheritance chain across Swift/ObjC boundaries (requires `@_spi(Internals) import SwiftInspection`, `MachOImage` only).
 - `SymbolicDemangler` — demangle types, symbols, context descriptors, and build generic signatures against a Mach-O (requires `@_spi(Internals) import SwiftInspection`). Named `MetadataReader` before 0.20.0; the old name remains as a deprecated alias for one release.
+
+#### Run a swift-section Command from Code
+
+`SwiftSectionKit` runs any `swift-section` subcommand in process and hands its output to you, piece by piece. A request produces what the matching command line prints.
+
+```swift
+import SwiftSectionKit
+
+struct PrintingOutput: SwiftSectionOutput {
+    func write(_ product: SwiftSectionProduct) {
+        if case .text(let line) = product {
+            print(line)
+        }
+    }
+
+    func report(_ diagnostic: SwiftSectionDiagnostic) {}
+}
+
+let outcome = try await ABIDiffRequest(
+    old: .path("Old.framework/Old"),
+    new: .path("New.framework/New"),
+    report: .summary
+).run(
+    output: PrintingOutput(),
+    environment: SwiftSectionEnvironment(generator: GeneratorIdentity(name: "MyTool", version: "1.0"))
+)
+// outcome.hasBreakingChange tells a CI gate whether the ABI broke.
+```
+
+The output contract — concurrent calls, three separate channels, a newline after every product piece — is described in [SwiftSectionKit.md](Documentations/SwiftSectionKit.md).
 
 ## swift-section CLI Tool
 

@@ -11,19 +11,20 @@ Requires Swift 6.2+ / Xcode 26.0+.
 ## Module dependency hierarchy
 
 ```
-swift-section (CLI; its `objc` subcommands also use MachOObjCSection's ObjC* products directly)
-    └── SwiftInterface (orchestrator)
-            └── SwiftIndexing, SwiftPrinting, SwiftSpecialization, SwiftAttributeInference
-                    └── SwiftDeclaration (shared declaration model)
-                            ├── SwiftDeclarationRendering
-                            │       └── SwiftThunkAnalysis (Capstone; the kind-9 accessor-thunk reader)
-                            └── SwiftDump
-                                    └── SwiftInspection
-                                            └── MachOSwiftSection (ABI model — depends on MachOBase ONLY)
-                                                    └── MachOBase (umbrella: reading / resolving / pointers)
-                                                            └── MachOPointers
-                                                                    └── MachOReading, MachOResolving
-                                                                            └── MachOKitExtensions (external), MachOKit (external)
+swift-section (CLI — a wrapper: flags, error wording, stream routing, exit codes)
+    └── SwiftSectionKit (every subcommand as a request; its `objc` requests also use MachOObjCSection's ObjC* products)
+            └── SwiftInterface (orchestrator)
+                    └── SwiftIndexing, SwiftPrinting, SwiftSpecialization, SwiftAttributeInference
+                            └── SwiftDeclaration (shared declaration model)
+                                    ├── SwiftDeclarationRendering
+                                    │       └── SwiftThunkAnalysis (Capstone; the kind-9 accessor-thunk reader)
+                                    └── SwiftDump
+                                            └── SwiftInspection
+                                                    └── MachOSwiftSection (ABI model — depends on MachOBase ONLY)
+                                                            └── MachOBase (umbrella: reading / resolving / pointers)
+                                                                    └── MachOPointers
+                                                                            └── MachOReading, MachOResolving
+                                                                                    └── MachOKitExtensions (external), MachOKit (external)
 
 SwiftInspection and everything above it also import
     MachOFoundation (umbrella = MachOBase + MachOSymbols + MachODependencies)
@@ -33,7 +34,7 @@ SwiftInspection and everything above it also import
 
 `SwiftLayout` is a peer of that spine: it depends on `SwiftInspection` + `MachOSwiftSection` (+ `MachOObjCSection` for ObjC-ancestor instance sizes) and is consumed by `SwiftDeclarationRendering`. `TypeIndexing`, `SwiftDiffing` and `OutputTransformer` hang off the same level as the modules that use them.
 
-**`Sources/` is grouped by layer, not flat**: `Support/`, `MachO/`, `ABI/`, `Analysis/`, `Declaration/`, `Output/`, `Executables/`, `TestSupport/`, each holding the targets of that layer. SwiftPM's default `Sources/<Target>` therefore never applies — a new target goes into a group directory and declares `path: "Sources/<Group>/<Target>"` in `Package.swift`. Code that locates a source file from `#filePath` assumes this depth: the fixture paths in `MachOFileName` / `MachOImageName` climb three levels to the package root, and the source scans in the tests take the module name from two levels below `Sources`. [0055-group-sources-by-layer](Documentations/Evolutions/0055-group-sources-by-layer.md).
+**`Sources/` is grouped by layer, not flat**: `Support/`, `MachO/`, `ABI/`, `Analysis/`, `Declaration/`, `Output/`, `Commands/`, `Executables/`, `TestSupport/`, each holding the targets of that layer. SwiftPM's default `Sources/<Target>` therefore never applies — a new target goes into a group directory and declares `path: "Sources/<Group>/<Target>"` in `Package.swift`. Code that locates a source file from `#filePath` assumes this depth: the fixture paths in `MachOFileName` / `MachOImageName` climb three levels to the package root, and the source scans in the tests take the module name from two levels below `Sources`. [0055-group-sources-by-layer](Documentations/Evolutions/0055-group-sources-by-layer.md).
 
 ## What each module does
 
@@ -51,6 +52,7 @@ One or two lines each; the linked document is the authority.
 - **SwiftAttributeInference** — infers source-level attributes (`@propertyWrapper`, `@resultBuilder`, `@dynamicMemberLookup`, `@objc`, …).
 - **SwiftPrinting** — renders the model as Swift source: keywords the mangling does not carry (`class` vs `static`, `final`), bound rendering of specialized definitions, export-status annotation and `--exported-only` filtering.
 - **SwiftSpecialization** — runtime generic specialization (`GenericSpecializer`, `ConformanceProvider`); grafts `specialize(...)` onto `TypeDefinition`.
+- **SwiftSectionKit** — everything `swift-section` does, as a library: one request type per subcommand (`DumpRequest`, `ABIDiffRequest`, `ObjCDumpRequest`, …), run against a host-supplied `SwiftSectionOutput` that receives the product, the diagnostics and the indexing-event handlers on three separate channels; `MachOSource` is the one Mach-O loader every request shares. A public product. [Modules/SwiftSectionKit.md](Documentations/Internal/Modules/SwiftSectionKit.md), caller guide [SwiftSectionKit.md](Documentations/SwiftSectionKit.md).
 - **SwiftInterface** — the orchestrator: single-version, two-version diff, and N-version evolution interfaces, all three over one shared structure walk. [Modules/SwiftInterface.md](Documentations/Internal/Modules/SwiftInterface.md).
 - **SwiftDiffing** — Mach-O-free ABI comparison over the indexed model: `ABIDiffer` (two-sided), `ABIEvolution` (N versions), `ABISnapshot` (the persisted baseline). [ABIDiffDesignAndLimitations.md](Documentations/Internal/ABIDiffDesignAndLimitations.md), [ABIEvolutionDesign.md](Documentations/Internal/ABIEvolutionDesign.md).
 - **SwiftLayout** — the static field-offset / type-layout engine: computes offline what the runtime computes, and degrades honestly when the binary does not carry the fact. [Modules/SwiftLayout.md](Documentations/Internal/Modules/SwiftLayout.md).
@@ -87,6 +89,7 @@ swift test --filter MachOSwiftSectionTests
 swift test --filter SwiftDumpTests
 swift test --filter SwiftInterfaceTests
 swift test --filter SwiftSectionCommandTests
+swift test --filter SwiftSectionKitTests
 
 # Run the CLI tool — the subcommands, in full
 swift run swift-section dump <binary>                 # types / protocols / conformances
@@ -287,6 +290,8 @@ Keeping this file's module list and `Documentations/README.md`'s index in sync w
 </important>
 
 <important if="you are changing the swift-section CLI — a subcommand, a flag, its output or exit codes — or releasing a version">
+
+**The executable is a wrapper; a subcommand's logic lives in its `SwiftSectionKit` request.** `Sources/Executables/swift-section/` only declares flags (they ARE the `--help` text), rejects flag combinations in `validate()`, interprets command-line spellings (template names, comma lists, `a=b` replacements), maps the flags onto the request in `makeRequest()`, translates library errors back into the historical wording (`CommandLineErrorTranslation` — a usage mistake must stay a `ValidationError`, exit code 64), routes diagnostics to stdout or stderr (`StandardStreamOutput`) and decides the exit code. Anything else added there is untestable without spawning the binary. A new flag is a request field (with a default), a flag, a `makeRequest()` line, and a test on each side. All CLI output goes through `StandardStreamOutput` — `CommandLineStreamWriteScanTests` fails on a `print` / `fputs` / `FileHandle.standard*` anywhere else, and `PrintFailureEventTests` scans the library itself. [Modules/SwiftSectionKit.md](Documentations/Internal/Modules/SwiftSectionKit.md).
 
 `AgentPlugins/swift-section/` is the agent plugin users install into Claude Code and Codex to learn this CLI; its skill (`skills/swift-section-cli/SKILL.md`, `references/objc.md`) is the only copy anywhere, so nobody else will fix it.
 
