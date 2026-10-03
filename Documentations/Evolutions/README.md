@@ -67,4 +67,4 @@
 | draft | [静态布局引擎读取 accessor thunk 背后的字段类型](draft-static-layout-through-accessor-thunks.md) | Draft |
 | [0056](0056-visibility-regions.md) | 标记模式：一次打印全量 interface，并标出每段内容受哪个开关控制 | Implemented |
 | [0057](0057-reading-context-migration.md) | 读取接口统一到 ReadingContext：传 machO 与直接用指针的旧接口废弃 | Implemented |
-| draft | [把 swift-section 的功能抽成 SwiftSectionKit 库，CLI 只剩一层包装](draft-swift-section-kit.md) | In Progress |
+| [0058](0058-swift-section-kit.md) | 把 swift-section 的功能抽成 SwiftSectionKit 库，CLI 只剩一层包装 | Implemented |

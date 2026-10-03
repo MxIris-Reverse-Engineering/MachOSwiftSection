@@ -1,12 +1,12 @@
-# Draft - 把 swift-section 的功能抽成 SwiftSectionKit 库，CLI 只剩一层包装
+# 0058 - 把 swift-section 的功能抽成 SwiftSectionKit 库，CLI 只剩一层包装
 
-- **状态**: In Progress
+- **状态**: Implemented
 - **作者**: JH
 - **创建日期**: 2026-10-03
 - **最后更新**: 2026-10-03
 - **所属愿景**: 无
 - **关联提案**: [0036](0036-objc-subcommands.md)（`objc` 子命令组并入 swift-section；本提案把它一起抽进库）、[0055](0055-group-sources-by-layer.md)（`Sources/` 按层分组；本提案新增 `Commands/` 一组）
-- **实现分支 / PR**: `refactor/swift-section-kit`（worktree `.worktrees/MachOSwiftSection-SwiftSectionKit`，基于 `next`）
+- **实现分支 / PR**: `refactor/swift-section-kit`（worktree `.worktrees/MachOSwiftSection-SwiftSectionKit`，基于 `next`），按本仓库惯例在本地合并进 `next`
 - **配套文档**: 使用指南 [SwiftSectionKit.md](../SwiftSectionKit.md) / [SwiftSectionKit_zh.md](../SwiftSectionKit_zh.md)；模块文档 [Modules/SwiftSectionKit.md](../Internal/Modules/SwiftSectionKit.md)
 
 ## 摘要
@@ -667,3 +667,6 @@ struct StandardStreamOutput: SwiftSectionOutput {
 | 2026-10-03 | 验收 4：各平台编译 | `SwiftSectionKit` 能为 iOS 15.0、tvOS 15.0、watchOS 9.0（原生构建系统交叉编译）与 visionOS 2.0（Swift Build）编译，新模块零警告。Xcode 27 的 Swift Build 拒绝包声明的 iOS 13.0 下限（只支持 15.0 起），原生构建系统又不认 xros triple，所以平台版本按工具链能接受的取——这是整个包的部署下限问题，与本改动无关，未在此处理 |
 | 2026-10-03 | 验收 5：插件 skill 的 flag | skill 与 `references/` 里点名的每个 flag 都出现在新二进制的 `--help` 里；CLI 行为不变，skill 不需要改 |
 | 2026-10-03 | 验收 3：新旧二进制逐字节对比 | 用户批准后跑一次性脚本（仓库外，不提交），93 条命令行（覆盖全部子命令的主要 flag、`-o`、各种报告、`objc` 五个子命令、错误路径与每个子命令的 `--help`），比较 stdout、stderr、退出码与 `-o` 写出的文件，抹掉时间戳与 `createdAt`。83 条一致；7 条只差 stderr 上 `[old]` / `[new]` 事件行的先后与「symbol index」计数落在哪一侧——旧二进制自己连跑四次也各不相同（两侧并发索引，谁先建好共享的符号索引不定），加 `--jobs 1` 让两侧按顺序索引后 7 条全部一致；剩下 3 条都属偏差 2：`dump-two-mistakes`（故意写错两处，退出码 1 → 64，先报模板名）、`dump-missing-image-name` 与 `snapshot-cache-without-image`（对不是 cache 的文件加 `--dyld-shared-cache` 又不给镜像名：旧版先打开文件报 `invalidMagic`，新版先报缺镜像名，`snapshot` 也不再先打出「Indexing …」） |
+| 2026-10-03 | rebase 到 `next` 9eb05245 | 开工后 `next` 多了一个提交（MachOObjCSection 下限抬到 0.8.108），改的是依赖声明与演进账本，与本改动不重叠，rebase 无冲突 |
+| 2026-10-03 | 收尾判断：配套文档与术语 | 使用指南已写（`SwiftSectionKit.md` / `_zh`，输出端契约从协议签名上看不出来，符合写指南的判据），模块文档已写，均登记在头部；实现上的决策都记在本日志与模块文档里，不另写实现说明。没有引入需要登记的新术语：「请求」「输出端」是普通说法，`SwiftSectionKit` 是模块名 |
+| 2026-10-03 | In Progress → Implemented，落地编号 0058 | 取 `origin/next`（0057）与 `origin/main`（0054）的最大号加一；同批写演进账本第 77 节，合进 `next` |

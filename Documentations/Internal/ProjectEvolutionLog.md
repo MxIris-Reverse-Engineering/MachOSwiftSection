@@ -2143,6 +2143,16 @@
 - **关联文档**：MachOObjCSection 的实现说明 [DyldCachePointerSlotDecoding.md](https://github.com/MxIris-Reverse-Engineering/MachOObjCSection/blob/0.8.108/Documentations/Internal/DyldCachePointerSlotDecoding.md) 与 [0.8.108 changelog](https://github.com/MxIris-Reverse-Engineering/MachOObjCSection/blob/0.8.108/Changelogs/0.8.108.md)。
 - **对应版本**：0.22.0（未发版）。
 
+## 77. SwiftSectionKit：swift-section 的功能抽成对外 product，CLI 只剩一层包装
+
+- **时间段**：2026-10-03（单日）。
+- **动机**：用户要「把 swift-section CLI 的功能抽出来，方便进行测试，CLI 层只是一层包装」。拆分前 `Tests/SwiftSectionCommandTests` 的 79 个测试没有一个调用过任何命令的 `run()`：逻辑直接写 stdout / stderr 和文件，中途抛 ArgumentParser 的 `ValidationError` / `ExitCode`，还把 `Date()` 与 `BundledVersion` 盖进输出，测不了。两套命令也已经各写各的：Swift 侧的 `snapshot` 早把 `FileHandle.standardOutput.write` 换成了 `fwrite`，0036 搬进来的 `objc` 子命令还在用它。
+- **关键决策**（完整档提案，三轮澄清提问后定稿）：**① 对外发布的 product**（推荐的是仅包内可见、用 `package` 访问级别，用户选了对外），模块名 `SwiftSectionKit`，放新分组 `Sources/Commands/`。**② 范围是全部子命令**，含 `objc` 五个。**③ 输出逐字节保持**，只有两处有意偏差：写流统一走 `fwrite`；命令行拼写（模板名、JSON 配置文件、逗号列表、C type 替换串）在调用库之前解释，所以「参数错误先于打开二进制报出」。**④ 输出走注入的输出端** `SwiftSectionOutput`，产物、诊断、索引事件 handler 三路分开；`dump` 照旧边算边输出。**⑤ 公开 API 按用途建模**：互斥选项是 enum（`ABIDiffRequest.Report` 只能是 change list / summary / JSON / annotated interface 之一），flag 组合校验与原报错留在 CLI 的 `validate()`。**⑥ 诊断 = 级别 + 命令行原文**；哪一级写哪个流由 CLI 决定，`interface` 进度行与 `dump` 错误行写 stdout 这两个历史怪癖只留在包装层，修起来只改一处。**⑦ 库的错误不提 flag 名**，CLI 翻译回历史文案与退出码；退出码由 CLI 按库返回的结论决定；生成器名、版本与时间经 `SwiftSectionEnvironment` 注入，`Version.swift` 留在可执行文件里，CI 写死的路径不变。**⑧ MCP server 不在本次范围**，列为后续。实现中的细化：目的地携带路径字符串而不是 `URL`（诊断要逐字复述调用方的拼写，`URL` 会规整 `dir/`、展开 `~`）；偏差 2 实际多出三个边角，都是误用或两处写错的情形，记在提案里。
+- **落地模块**：新增 `SwiftSectionKit`（`Output/`、`Environment/`、`Inputs/`、`Swift/`、`ObjC/`），`swift-section` 改为包装层（各命令只剩 flag、`validate()`、`makeRequest()` 与三五行 `run()`，新增 `Models/CommandLineSupport`、`Output/StandardStreamOutput`；删掉 `Utilities/` 下的加载器、配色与 `IgnoreCoding`，以及 `objc` 的 session、加载器与 `writeStandardErrorLine`）。新增测试目标 `SwiftSectionKitTests`，`SwiftSectionCommandTests` 加四个套件，全部进 CI 白名单。
+- **验证**：新增与改动的测试 151 个通过；全量 `swift test --skip IntegrationTests`（JHs-Mac-Studio-Ultra，Swift 6.4，`USING_LOCAL_DEPENDENCIES=1`）2240 个测试 / 422 个套件全部通过，原始退出码 0。渲染 A/B（两侧都是源码编出的 release 二进制，`--skip-build --skip-image-part`）：归档 cache 15.5 / 26.6 与 iOS 15.5 / 16.4 / 17.5 / 18.5 / 26.5 模拟器共 68 对逐字节一致，iOS 15.5 的 SwiftUI / WidgetKit 两侧同样以信号 5 退出，是既有现象。新旧二进制逐字节对比 93 条命令行：83 条一致，7 条只差并发索引带来的 stderr 行序（旧二进制自己连跑也不同，`--jobs 1` 后一致），3 条属偏差 2。偏差 1 实测：旧二进制 `objc dump --sections unions <fixture> 2>&-` 退出码 134，新的是 0。`SwiftSectionKit` 能为 iOS / tvOS / watchOS / visionOS 编译；顺带发现 Xcode 27 的 Swift Build 不接受包声明的 iOS 13.0 下限，是整个包的问题，未在此处理。
+- **关联文档**：[0058-swift-section-kit](../Evolutions/0058-swift-section-kit.md)、[Modules/SwiftSectionKit.md](Modules/SwiftSectionKit.md)、调用方指南 [SwiftSectionKit.md](../SwiftSectionKit.md) / [SwiftSectionKit_zh.md](../SwiftSectionKit_zh.md)、[AGENTS.md](../../AGENTS.md) 里改 CLI 那一节新增的「可执行文件是包装层」。
+- **对应版本**：0.22.0（未发版）。发版说明要写新 product `SwiftSectionKit` 与两处行为偏差。
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节

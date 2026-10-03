@@ -1,7 +1,7 @@
 # SwiftSectionKit 模块（及 swift-section 可执行文件）
 
 > 模块参考文档（module reference），随代码维护。读者：维护者。
-> 提案：[draft-swift-section-kit](../../Evolutions/draft-swift-section-kit.md)。调用方指南：[SwiftSectionKit.md](../../SwiftSectionKit.md)。
+> 提案：[0058-swift-section-kit](../../Evolutions/0058-swift-section-kit.md)。调用方指南：[SwiftSectionKit.md](../../SwiftSectionKit.md)。
 
 ## 模块定位
 
