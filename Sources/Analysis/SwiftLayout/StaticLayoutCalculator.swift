@@ -187,7 +187,7 @@ public struct StaticLayoutCalculator<MachO: MachOSwiftSectionRepresentableWithCa
         // `__swift5_builtin` whole-type record — the same record the
         // field-type resolution path consults before ever accumulating. On
         // contradiction the builtin wins and every field degrades: a confident
-        // wrong offset (`__C.Decimal._mantissa` at 0, really 4; `__C.PathData`
+        // wrong offset (`__C.NSDecimal._mantissa` at 0, really 4; `__C.PathData`
         // as a size-0 aggregate) is worse than an honest unknown. Without a
         // builtin record there is nothing to check against and the structural
         // result stands.

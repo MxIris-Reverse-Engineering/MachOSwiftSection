@@ -1426,6 +1426,7 @@
   也证实 0023 没有丢类型：SwiftUICore 顶层对象 3202 → 3138，少的 64 个全是嵌套在 enum 命名空间下的
   struct/class 的重复 conformance 顶层条目（旧版 kind 推错才没并进类型），其余是 `__C` 改名。见
   [TaskReports/2026-09-10-c-imported-extension-kind-from-descriptor.md](TaskReports/2026-09-10-c-imported-extension-kind-from-descriptor.md)。
+- **后续清理（2026-10-03）**：在 macOS 27 的五个框架上对比 0023 前后两版 CLI，共 244 组 C 导入类型改名。旧名只是 Swift 名的最后一截，20 个短名各指多个类型，曾让 `interface` 吞掉同名声明、把别的类型的 witness 挂进 conformance、让 `--resolve-c-module-names` 认错模块。用户定先保持 ABI name，从二进制推断 Swift 名留到以后，并要求改掉依赖旧短名的测试。MachOSwiftSection 与 RuntimeViewer 的测试断言都不依赖旧短名；唯一相关的 `SupplementaryAPINotesTests` 把描述符直出的 `__C.Graph` 当作一种 mangling 形态，说明已改。它测的 `TypeDatabase` 把 SwiftName spelling 登进归属表那一步，试删后 AppKit 的 `--resolve-c-module-names` 输出把 `ObjectiveC.NSObject` 变成 `Foundation.NSObject`：Foundation 与 AppKit 的 APINotes 也列了 `NSObject`，靠 ObjectiveC 条目里 `NSObject` 改名为自身才归位。于是保留，改注释并补 `renamingEntryKeepsItsModuleAgainstLaterListings` 钉住；公开指引、术语表、TypeIndexing 管线说明、A15 裁决、`StaticLayoutEngine.md` 与一处源码注释里的旧名同步更新。见 [TaskReports/2026-10-03-c-imported-names-after-type-import-info.md](TaskReports/2026-10-03-c-imported-names-after-type-import-info.md)。
 
 ## 2026-09-10 property descriptor 的 ABI 模型（提案 0025 key-path-component-and-property-descriptor）
 

@@ -194,6 +194,7 @@
 - **复现 / 是否误报**：机制上可构造，但无真实实例——SDK 全部 80 个 apinotes 的 6145 个条目中**零个**以 `Ref` 结尾（review 会话实证），swift-api-digester dump 的 CoreFoundation 同样没有。
 - **这是不是刻意设计**：是。commit `97d9f39a` 记录了 CG/CV/CM 实测：同一类型两种 mangling 形态并存（签名 `__C.CGContextRef`、字段元数据 `__C.CGContext`），「剥后名存在于索引」正是有意选的判据。反向风险真实：interface 提取会收进 obsoleted 的 typealias stub（`CFStringRef` 在 Swift 里是编译器认识的重命名 stub），加守卫可能把 CF 剥除整体关掉。
 - **复审条件**：出现「以 `Ref` 结尾、且剥后名恰好是另一个真实类型」的实例。
+- **2026-10-03 补记**：提案 0023 之后字段元数据也按 import info 里的 ABI name 拼成 `__C.CGContextRef`，上面说的「剥后名」形态不再出现，CF class 只剩 `…Ref` 一种拼写，全靠剥除规则还原。不加守卫的理由（反向风险）不变，裁决维持。
 
 ---
 
