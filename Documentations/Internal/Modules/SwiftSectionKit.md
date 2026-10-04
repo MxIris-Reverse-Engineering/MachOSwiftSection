@@ -1,7 +1,7 @@
 # SwiftSectionKit 模块（及 swift-section 可执行文件）
 
 > 模块参考文档（module reference），随代码维护。读者：维护者。
-> 提案：[0058-swift-section-kit](../../Evolutions/0058-swift-section-kit.md)。调用方指南：[SwiftSectionKit.md](../../SwiftSectionKit.md)。
+> 提案：[0058-swift-section-kit](../../Evolutions/0058-swift-section-kit.md)、[0059-dump-declaration-identity](../../Evolutions/0059-dump-declaration-identity.md)。调用方指南：[SwiftSectionKit.md](../../SwiftSectionKit.md)。
 
 ## 模块定位
 
@@ -34,7 +34,7 @@ SwiftSectionKit 是 `swift-section` 每个子命令的库版本：一个子命�
 
 **并发**：`diff` / `evolution` 并行索引多个输入，会从多个任务同时调用输出端，所以协议要求 `Sendable` 且实现必须线程安全。`StandardStreamOutput` 的每次写入是一次 `fwrite`（stdio 自带流锁）；测试的 `RecordingOutput` 用锁。
 
-**每块声明是什么**（提案 `dump-declaration-identity`）：`dump` 与 `objc dump` 交出顶层声明时走 `write(_:declaring:)`，附一个 `DumpedDeclaration`——Swift 侧是来自哪个 `DumpSection` 加名字，ObjC 侧是 `ObjCDeclarationKind` 加名字。它是协议要求，扩展里的默认实现转给 `write(_:)`，所以 `StandardStreamOutput` 和 `RecordingOutput` 都不实现它，输出与以前逐字节相同；宿主要按声明拆文件时才实现。几条从签名看不出来的事：
+**每块声明是什么**（提案 [0059-dump-declaration-identity](../../Evolutions/0059-dump-declaration-identity.md)）：`dump` 与 `objc dump` 交出顶层声明时走 `write(_:declaring:)`，附一个 `DumpedDeclaration`——Swift 侧是来自哪个 `DumpSection` 加名字，ObjC 侧是 `ObjCDeclarationKind` 加名字。它是协议要求，扩展里的默认实现转给 `write(_:)`，所以 `StandardStreamOutput` 和 `RecordingOutput` 都不实现它，输出与以前逐字节相同；宿主要按声明拆文件时才实现。几条从签名看不出来的事：
 
 - **名字只在 `.output` 目的地才算**，而且在声明本身 dump 成功之后：写文件时产物根本不经过输出端，算了也没人要。算名字失败只置 `name: nil`，不报诊断，否则命令行的 stdout 会多出错误行。
 - **conformance 的名字用 `extension` 那一行的完整拼法**（`ProtocolConformance.dumpedTypeName(isFull: true, …)`，`package` 级），不用公开的 `dumpTypeName`。后者按 interface-type 选项打印，会去掉文件级 private 类型的判别符，而类型自己的名字带着它：fixture 里 `AlphaProtocolWitness` 的类型名是 `SymbolTestsCore.(AlphaProtocolWitness in _82F1…)`，用 `dumpTypeName` 拿到的却是 `SymbolTestsCore.AlphaProtocolWitness`，宿主就会把它和它的 conformance 分进两个文件。`filePrivateTypeAndConformanceShareName` 钉住这一点（换成 `dumpTypeName` 的单点变异实测变红）。associated type 用公开的 `dumpTypeName`，它和 `AssociatedTypeDumper` 的 `extension` 行本来就是同一个函数。

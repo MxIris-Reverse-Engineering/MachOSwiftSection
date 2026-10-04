@@ -2153,6 +2153,16 @@
 - **关联文档**：[0058-swift-section-kit](../Evolutions/0058-swift-section-kit.md)、[Modules/SwiftSectionKit.md](Modules/SwiftSectionKit.md)、调用方指南 [SwiftSectionKit.md](../SwiftSectionKit.md) / [SwiftSectionKit_zh.md](../SwiftSectionKit_zh.md)、[AGENTS.md](../../AGENTS.md) 里改 CLI 那一节新增的「可执行文件是包装层」。
 - **对应版本**：0.22.0（未发版）。发版说明要写新 product `SwiftSectionKit` 与两处行为偏差。
 
+## 78. SwiftSectionKit：dump 与 objc dump 交出每个声明时附上种类与名字
+
+- **时间段**：2026-10-04（单日）。
+- **动机**：ReverseEngineeringToolbox 的 dump 服务改用 SwiftSectionKit，用户要求「不要自己重写 dump 逻辑」。它默认每个类型写一个文件（`NSView.h`、`NSView+Animation.h`，Swift 类型连同它的 conformance），可 `DumpRequest` / `ObjCDumpRequest` 交出的每个声明只是一块不带名字的 `.declarations`，宿主要按声明拆文件只能自己再建一遍索引。
+- **关键决策**（轻量档提案，问过一轮）：**① 新增协议要求 `SwiftSectionOutput.write(_:declaring:)`**，扩展里的默认实现转给 `write(_:)`；不给 `SwiftSectionProduct` 加 case，那会让每个穷举 `switch` 它的宿主编不过。**② `DumpedDeclaration`**：`.swift(DumpSection, name: String?)` 或 `.objc(ObjCDeclarationKind, name: String)`，复用已有的两个 enum。**③ 名字只在 `.output` 目的地、声明 dump 成功之后才算**，算不出来置 `nil`、不报诊断，命令行一个字节都不多。**④ conformance 的名字取 `extension` 行的完整拼法**（`dumpedTypeName(isFull: true, …)`），不用公开的 `dumpTypeName`：后者按 interface-type 选项打印，会去掉文件级 private 类型的判别符，fixture 的 `AlphaProtocolWitness` 就会和它的 conformance 名字对不上（单点变异实测）。**⑤ 名字一律算、不加开关**：release 版 dump macOS 27 的 SwiftUICore 中位数慢 2.8%，不值得多一个必须与新方法配对打开的开关。
+- **落地模块**：`SwiftSectionKit`（新增 `Output/DumpedDeclaration.swift`；`SwiftSectionOutput`、`DumpRequest`、`ObjCDumpRequest`）；`SwiftSectionKitTests` 新增 `DeclarationRecordingOutput` 与 8 个用例。
+- **验证**：`SwiftSectionKitTests` 60 个、`SwiftSectionCommandTests` 99 个及三个源码扫描套件通过，原始退出码 0；新用例先红后绿。`git archive` 导出的 `next` 与本分支各编一个 release 版对照：`dump` libswiftObservation、SwiftUICore（8.5 MB，交替各三次），`objc dump` AppKit（5.9 MB），stdout 与 stderr 逐字节一致。没有跑全量 `swift test`。
+- **关联文档**：[0059-dump-declaration-identity](../Evolutions/0059-dump-declaration-identity.md)、[Modules/SwiftSectionKit.md](Modules/SwiftSectionKit.md)「1. 输出端」、调用方指南 [SwiftSectionKit.md](../SwiftSectionKit.md) / [SwiftSectionKit_zh.md](../SwiftSectionKit_zh.md)。
+- **对应版本**：0.22.0（未发版）。发版说明要写：`dump` / `objc dump` 交出每个声明时附上种类与名字。
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节

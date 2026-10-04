@@ -1,10 +1,11 @@
-# Draft - SwiftSectionKit：dump 把每个声明的种类与名字一并交给输出端
+# 0059 - SwiftSectionKit：dump 把每个声明的种类与名字一并交给输出端
 
-- **状态**: In Progress
+- **状态**: Implemented
 - **创建日期**: 2026-10-04
 - **最后更新**: 2026-10-04
 - **关联提案**: [0058](0058-swift-section-kit.md)（SwiftSectionKit 本身；本提案只给它的输出端加一条通道）
 - **实现分支 / PR**: `feature/dump-declaration-identity`（worktree `.worktrees/MachOSwiftSection-DumpDeclarationIdentity`，基于 `next`），按本仓库惯例在本地合并进 `next`
+- **配套文档**: 使用指南 [SwiftSectionKit.md](../SwiftSectionKit.md) / [SwiftSectionKit_zh.md](../SwiftSectionKit_zh.md) 的「输出端契约」；模块文档 [Modules/SwiftSectionKit.md](../Internal/Modules/SwiftSectionKit.md) 的「1. 输出端」
 
 ## 摘要
 
@@ -74,3 +75,5 @@ func write(_ product: SwiftSectionProduct, declaring declaration: DumpedDeclarat
 | 2026-10-04 | conformance 的名字取 `extension` 行的完整拼法，不用公开的 `dumpTypeName` | 实测：文件级 private 类型 `AlphaProtocolWitness` 的类型名是 `SymbolTestsCore.(AlphaProtocolWitness in _82F1…)`，`dumpTypeName` 按 interface-type 选项打印、去掉了判别符，得到 `SymbolTestsCore.AlphaProtocolWitness`，宿主会把类型和它的 conformance 分进两个文件。`filePrivateTypeAndConformanceShareName` 钉住；换回 `dumpTypeName` 的单点变异实测变红 |
 | 2026-10-04 | 名字一律算，不加开关 | 实测（release，JHs-Mac-Studio-Ultra，macOS 27.0 宿主 cache 的 SwiftUICore，输出 8.5 MB，两侧交替各跑三次）：改动前 53.02 / 53.43 / 52.83 秒，改动后 55.48 / 53.49 / 54.50 秒，中位数慢 2.8%（约 1.5 秒）。为这点差别再加一个必须和 `write(_:declaring:)` 配对打开的开关不值得；三次的 stdout 两侧逐字节相同 |
 | 2026-10-04 | 验证 | `SwiftSectionKitTests` 60 个（新增 8 个）、`SwiftSectionCommandTests` 99 个、`PrintFailureEventTests` / `ContinuousIntegrationTestFilterTests` / `CommandLineStreamWriteScanTests` 全部通过，原始退出码 0。新增的 Swift 测试先在只加了类型与默认实现时运行，7 个全红、原有测试全绿，实现后转绿；ObjC 那条同样先红后绿。命令行逐字节对照（`git archive` 导出的 `next` 与本分支，各自 release 编译）：`dump` libswiftObservation、SwiftUICore，`objc dump` AppKit（5.9 MB），stdout 与 stderr 全部一致 |
+| 2026-10-04 | In Progress → Implemented，编号 0059 | 按共享分支编号（origin/next 最大为 0058，origin/main 为 0054），合入 `next`；演进账本第 78 节 |
+| 2026-10-04 | 收尾判断：不另写专题文档；无新术语 | 调用方要遵守的约定（默认实现、只在 `.output` 时给名字、conformance 的拼法）已写进使用指南的「输出端契约」与模块文档，没有再值得单列的实现决策；`DumpedDeclaration` 是标识符，不是自造词，术语表不登记 |
