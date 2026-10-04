@@ -16,6 +16,15 @@ public protocol SwiftSectionOutput: Sendable {
     /// a newline.
     func write(_ product: SwiftSectionProduct)
 
+    /// One top-level declaration of a `dump` or `objc dump`, with what it
+    /// declares; it takes that piece's place in the order of ``write(_:)``.
+    /// A request writing to a file hands no piece over, so this is not called
+    /// then either.
+    ///
+    /// The default hands `product` to ``write(_:)`` and drops `declaration`,
+    /// so an output that only prints is unaffected.
+    func write(_ product: SwiftSectionProduct, declaring declaration: DumpedDeclaration)
+
     /// A progress line, warning, note or per-declaration error.
     func report(_ diagnostic: SwiftSectionDiagnostic)
 
@@ -26,6 +35,11 @@ public protocol SwiftSectionOutput: Sendable {
 }
 
 extension SwiftSectionOutput {
+    /// The piece alone, as any other.
+    public func write(_ product: SwiftSectionProduct, declaring declaration: DumpedDeclaration) {
+        write(product)
+    }
+
     /// No handler: indexing degradations fall to `SwiftIndexEvents.Dispatcher`'s
     /// os_log floor.
     public func indexEventHandlers(forInputLabeled label: String?) -> [any SwiftIndexEvents.Handler] {

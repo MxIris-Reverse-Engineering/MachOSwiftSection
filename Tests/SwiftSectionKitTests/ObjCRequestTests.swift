@@ -24,6 +24,21 @@ struct ObjCRequestTests {
         #expect(output.diagnostics.isEmpty)
     }
 
+    /// What lets a host write each declaration into a file of its own; the
+    /// empty line after the piece is no declaration.
+    @Test("A dump hands each declaration over with its kind and name")
+    func dumpNamesEachDeclaration() async throws {
+        let output = DeclarationRecordingOutput()
+        try await ObjCDumpRequest(source: Self.fixture, kinds: [.classes], nameFilter: Self.bridgeClassName)
+            .run(output: output)
+
+        let declarationPieces = output.declarationPieces
+        #expect(declarationPieces.map(\.declaration) == [.objc(.classes, name: Self.bridgeClassName)])
+        #expect(declarationPieces.first?.declarationText?.hasPrefix("@interface SymbolTestsCoreObjCBridgeClass : NSObject {\n") == true)
+        #expect(output.pieces.count == 2)
+        #expect(output.pieces.last?.declaration == nil)
+    }
+
     @Test("A kind asked for by name that is empty is noted, under the image description given")
     func emptyRequestedKindIsNoted() async throws {
         let derived = RecordingOutput()
