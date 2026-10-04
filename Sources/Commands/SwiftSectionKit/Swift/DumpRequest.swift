@@ -345,6 +345,74 @@ private enum DumpTopLevelContext {
             return protocolConformance.offset
         }
     }
+
+    var section: DumpSection {
+        switch self {
+        case .type:
+            .types
+        case .protocol:
+            .protocols
+        case .protocolConformance:
+            .protocolConformances
+        case .associatedType:
+            .associatedTypes
+        case .objcImplementationClass:
+            .objcImplementationClasses
+        }
+    }
+
+    func dump(using configuration: DumperConfiguration, in machOFile: MachOFile) async throws -> SemanticString {
+        switch self {
+        case .type(.enum(let `enum`)):
+            try await `enum`.dump(using: configuration, in: machOFile)
+        case .type(.struct(let `struct`)):
+            try await `struct`.dump(using: configuration, in: machOFile)
+        case .type(.class(let `class`)):
+            try await `class`.dump(using: configuration, in: machOFile)
+        case .protocol(let `protocol`):
+            try await `protocol`.dump(using: configuration, in: machOFile)
+        case .protocolConformance(let protocolConformance):
+            try await protocolConformance.dump(using: configuration, in: machOFile)
+        case .associatedType(let associatedType):
+            try await associatedType.dump(using: configuration, in: machOFile)
+        case .objcImplementationClass(let objcImplementationClass):
+            try await objcImplementationClass.dump(using: configuration, in: machOFile)
+        }
+    }
+
+    /// The name the dump prints for this declaration: a conformance's and an
+    /// associated type's is the extended type's, as their `extension` line
+    /// spells it, which for a type of this image is that type's own name.
+    /// `nil` when it cannot be rendered.
+    ///
+    /// A conformance's line spells the type in full. The public `dumpTypeName`
+    /// prints with the interface-type options instead, which drop a private
+    /// type's discriminator that the type's own name keeps.
+    func declaredName(using configuration: DumperConfiguration, in machOFile: MachOFile) async -> String? {
+        let context = machOFile.context
+        do {
+            let name: SemanticString
+            switch self {
+            case .type(.enum(let `enum`)):
+                name = try await `enum`.dumpName(using: configuration, in: context)
+            case .type(.struct(let `struct`)):
+                name = try await `struct`.dumpName(using: configuration, in: context)
+            case .type(.class(let `class`)):
+                name = try await `class`.dumpName(using: configuration, in: context)
+            case .protocol(let `protocol`):
+                name = try await `protocol`.dumpName(using: configuration, in: context)
+            case .protocolConformance(let protocolConformance):
+                name = try await protocolConformance.dumpedTypeName(isFull: true, resolver: configuration.demangleResolver, in: context)
+            case .associatedType(let associatedType):
+                name = try await associatedType.dumpTypeName(using: configuration, in: context)
+            case .objcImplementationClass(let objcImplementationClass):
+                name = try await objcImplementationClass.dumpName(using: configuration, in: context)
+            }
+            return name.string
+        } catch {
+            return nil
+        }
+    }
 }
 
 /// One dump in progress: where its pieces go, and — for a file destination —
@@ -359,24 +427,25 @@ private final class DumpSession<Output: SwiftSectionOutput> {
         self.destination = destination
     }
 
-    /// Dumps one top-level declaration. Its failure is reported in its place;
-    /// what throws out of here is only a failure to deliver.
+    /// Dumps one top-level declaration and hands it to the output with what it
+    /// declares. Its failure is reported in its place; what throws out of here
+    /// is only a failure to deliver.
     func dump(_ topLevelContext: DumpTopLevelContext, using configuration: DumperConfiguration, in machOFile: MachOFile) async throws {
-        switch topLevelContext {
-        case .type(.enum(let `enum`)):
-            await perform { try await `enum`.dump(using: configuration, in: machOFile) }
-        case .type(.struct(let `struct`)):
-            await perform { try await `struct`.dump(using: configuration, in: machOFile) }
-        case .type(.class(let `class`)):
-            await perform { try await `class`.dump(using: configuration, in: machOFile) }
-        case .protocol(let `protocol`):
-            await perform { try await `protocol`.dump(using: configuration, in: machOFile) }
-        case .protocolConformance(let protocolConformance):
-            await perform { try await protocolConformance.dump(using: configuration, in: machOFile) }
-        case .associatedType(let associatedType):
-            await perform { try await associatedType.dump(using: configuration, in: machOFile) }
-        case .objcImplementationClass(let objcImplementationClass):
-            await perform { try await objcImplementationClass.dump(using: configuration, in: machOFile) }
+        let dumpedDeclaration: SemanticString
+        do {
+            dumpedDeclaration = try await topLevelContext.dump(using: configuration, in: machOFile)
+        } catch {
+            reportError(error)
+            return
+        }
+        switch destination {
+        case .output:
+            // Named only once the declaration itself rendered, and only here:
+            // a file destination never hands a piece over.
+            let name = await topLevelContext.declaredName(using: configuration, in: machOFile)
+            output.write(.declarations(dumpedDeclaration), declaring: .swift(topLevelContext.section, name: name))
+        case .file:
+            write(dumpedDeclaration)
         }
     }
 

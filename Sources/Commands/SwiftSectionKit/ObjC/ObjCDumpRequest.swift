@@ -71,7 +71,7 @@ public struct ObjCDumpRequest: Sendable, Equatable {
                 guard let interface = session.interface(of: kind, named: name) else { continue }
                 switch destination {
                 case .output:
-                    output.write(.declarations(interface))
+                    output.write(.declarations(interface), declaring: .objc(kind, name: name))
                     output.write(.text(""))
                 case .file:
                     dumpedText.append(interface.string)

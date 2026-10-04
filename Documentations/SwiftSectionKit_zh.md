@@ -73,6 +73,7 @@ if outcome.hasBreakingChange == true {
 - **每块产物打印时后面跟一个换行。** 要逐字节复现 `swift-section` 的 stdout，就把每个 `.declarations(_:)`（取 `.string`，或按语义类型着色）、`.text(_:)`、`.annotatedInterface(_:style:)`、`.data(_:)` 后面各补一个 `"\n"` 打印出来。
 - **文件目的地不经过输出端。** `destination: .file(path:)` 时由请求自己写文件，写法和命令行的 `-o` 一样，输出端只收诊断。唯一例外：`.summary` 报告的结论行即使在这种情况下也写给输出端，命令行一直如此。
 - **`.annotatedInterface` 自带着色规则。** `InterfaceAnnotationStyle.lineKinds(of:)` 把每一行归为 added、removed、modified、header、plain 之一，`swift-section` 就按这个着色。
+- **`dump` 和 `objc dump` 会说明每个声明是什么。** 它们交出的每个顶层声明都经 `write(_:declaring:)` 到达，附一个 `DumpedDeclaration`：来自哪个 Swift section 或哪种 Objective-C 声明，以及名字。conformance 和 associated type 以它们所扩展的类型命名，拼法与那个类型自己的名字相同，所以同一个类型的几块可以归到一起；解析不出名字的 Swift 声明，名字为 `nil`。默认实现转给 `write(_:)`，只管打印的输出端什么都不用加。其余的产物——header、每个 Objective-C 声明后面的空行、`interface` 的那一整块——照旧经 `write(_:)` 到达。
 
 ## 诊断
 
@@ -92,4 +93,4 @@ if outcome.hasBreakingChange == true {
 
 ## 源码兼容性
 
-`SwiftSectionKit` 和包里其他模块一样以源码分发。请求的新字段一律带默认值，已有的调用照常编译。调用方构造的 enum——`ABIDiffRequest.Report`、`DumpSection`、`ObjCDeclarationKind` 之类——以后的版本可能加 case；可以构造它们，但不要依赖对它们做穷举 `switch`。
+`SwiftSectionKit` 和包里其他模块一样以源码分发。请求的新字段一律带默认值，已有的调用照常编译。调用方构造的 enum——`ABIDiffRequest.Report`、`DumpSection`、`ObjCDeclarationKind` 之类——以后的版本可能加 case；可以构造它们，但不要依赖对它们做穷举 `switch`。宿主只接收不构造的 `DumpedDeclaration` 也一样。

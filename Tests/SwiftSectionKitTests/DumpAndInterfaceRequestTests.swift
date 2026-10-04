@@ -99,6 +99,116 @@ struct DumpAndInterfaceRequestTests {
         if case .declarations(let semanticString) = product { semanticString.string } else { nil }
     }
 
+    // MARK: - dump: what each piece declares
+
+    @Test("Every declaration a dump prints comes with what it declares, and the pieces are those a plain output gets")
+    func everyDeclarationIsNamed() async throws {
+        let plain = RecordingOutput()
+        try await DumpRequest(source: Self.fixture).run(output: plain, environment: .testing)
+        let named = DeclarationRecordingOutput()
+        try await DumpRequest(source: Self.fixture).run(output: named, environment: .testing)
+
+        let namedPieces = named.declarationPieces
+        #expect(!namedPieces.isEmpty)
+        #expect(namedPieces.allSatisfy { $0.declaration != nil })
+        #expect(namedPieces.map(\.declarationText) == plain.products.compactMap(Self.declarationText))
+    }
+
+    struct TypeAndConformance: Sendable, CustomTestStringConvertible {
+        let typeName: String
+        let typeLinePrefix: String
+        let conformanceLinePrefix: String
+
+        var testDescription: String { typeName }
+    }
+
+    /// What a host files one type's pieces together by.
+    @Test("A type and its conformances share one name", arguments: [
+        TypeAndConformance(
+            typeName: "SymbolTestsCore.Enums.NoPayloadEnumTest",
+            typeLinePrefix: "enum SymbolTestsCore.Enums.NoPayloadEnumTest {",
+            conformanceLinePrefix: "extension SymbolTestsCore.Enums.NoPayloadEnumTest: Swift.Equatable"
+        ),
+        TypeAndConformance(
+            typeName: "SymbolTestsCore.Generics.GenericRequirementTest",
+            typeLinePrefix: "struct SymbolTestsCore.Generics.GenericRequirementTest<",
+            conformanceLinePrefix: "extension SymbolTestsCore.Generics.GenericRequirementTest: Swift.Equatable"
+        ),
+    ])
+    func typeAndConformancesShareName(_ typeAndConformance: TypeAndConformance) async throws {
+        let output = DeclarationRecordingOutput()
+        try await DumpRequest(source: Self.fixture, sections: .only([.types, .protocolConformances])).run(output: output, environment: .testing)
+
+        #expect(output.declaration(ofPieceStartingWith: typeAndConformance.typeLinePrefix) == .swift(.types, name: typeAndConformance.typeName))
+        #expect(output.declaration(ofPieceStartingWith: typeAndConformance.conformanceLinePrefix) == .swift(.protocolConformances, name: typeAndConformance.typeName))
+    }
+
+    /// A file-scope private type's name carries the file's discriminator;
+    /// its conformance has to be named with it, or a host files the two apart.
+    @Test("A file-private type and its conformance share one name")
+    func filePrivateTypeAndConformanceShareName() async throws {
+        let output = DeclarationRecordingOutput()
+        try await DumpRequest(source: Self.fixture, sections: .only([.types, .protocolConformances])).run(output: output, environment: .testing)
+
+        let typeNames = output.declarationPieces.compactMap { piece -> String? in
+            guard case .swift(.types, let name)? = piece.declaration, name?.contains("AlphaProtocolWitness") == true else { return nil }
+            return name
+        }
+        let conformanceNames = output.declarationPieces.compactMap { piece -> String? in
+            guard case .swift(.protocolConformances, let name)? = piece.declaration,
+                  piece.declarationText?.contains("PrivateDoppelgangerProtocol") == true,
+                  name?.contains("AlphaProtocolWitness") == true
+            else { return nil }
+            return name
+        }
+        #expect(typeNames.count == 1)
+        #expect(conformanceNames.count == 1)
+        #expect(conformanceNames == typeNames)
+    }
+
+    @Test("A protocol is named as declared")
+    func protocolIsNamed() async throws {
+        let output = DeclarationRecordingOutput()
+        try await DumpRequest(source: Self.fixture, sections: .only([.protocols])).run(output: output, environment: .testing)
+
+        #expect(output.declaration(ofPieceStartingWith: "protocol SymbolTestsCore.Protocols.ProtocolTest ") == .swift(.protocols, name: "SymbolTestsCore.Protocols.ProtocolTest"))
+    }
+
+    @Test("An associated type is named after the type that witnesses it")
+    func associatedTypeIsNamedAfterItsType() async throws {
+        let output = DeclarationRecordingOutput()
+        try await DumpRequest(source: Self.fixture, sections: .only([.associatedTypes])).run(output: output, environment: .testing)
+
+        #expect(
+            output.declaration(ofPieceStartingWith: "extension SymbolTestsCore.Generics.GenericRequirementTest: SymbolTestsCore.Protocols.ProtocolTest")
+                == .swift(.associatedTypes, name: "SymbolTestsCore.Generics.GenericRequirementTest")
+        )
+    }
+
+    @Test("Binary order names the same declarations")
+    func binaryOrderNamesTheSameDeclarations() async throws {
+        let bySection = DeclarationRecordingOutput()
+        try await DumpRequest(source: Self.fixture, sections: .only([.types, .protocols])).run(output: bySection, environment: .testing)
+        let inBinaryOrder = DeclarationRecordingOutput()
+        try await DumpRequest(source: Self.fixture, sections: .only([.types, .protocols]), ordering: .binaryOrder).run(output: inBinaryOrder, environment: .testing)
+
+        let bySectionDeclarations = Set(bySection.declarationPieces.compactMap(\.declaration))
+        #expect(!bySectionDeclarations.isEmpty)
+        #expect(Set(inBinaryOrder.declarationPieces.compactMap(\.declaration)) == bySectionDeclarations)
+        #expect(inBinaryOrder.declarationPieces.allSatisfy { $0.declaration != nil })
+    }
+
+    @Test("The header is no declaration")
+    func headerIsNoDeclaration() async throws {
+        let output = DeclarationRecordingOutput()
+        try await DumpRequest(source: Self.fixture, sections: .only([.protocols]), emitsHeader: true).run(output: output, environment: .testing)
+
+        let firstPiece = try #require(output.declarationPieces.first)
+        #expect(firstPiece.declarationText?.hasPrefix("// Generated by swift-section-kit-tests 9.9.9\n") == true)
+        #expect(firstPiece.declaration == nil)
+        #expect(output.declarationPieces.dropFirst().allSatisfy { $0.declaration != nil })
+    }
+
     // MARK: - interface
 
     @Test("Interface progress is three steps, and the interface is one piece")
