@@ -73,6 +73,7 @@ These are the rules an implementation of `SwiftSectionOutput` must honour. None 
 - **Every product piece is followed by a newline when printed.** To reproduce `swift-section`'s stdout byte for byte, print each `.declarations(_:)` (its `.string`, or colored by its semantic types), `.text(_:)`, `.annotatedInterface(_:style:)` and `.data(_:)` followed by `"\n"`.
 - **A file destination bypasses the output.** With `destination: .file(path:)`, the request writes the file itself, the way the command line writes `-o`, and the output receives diagnostics only. One exception: the verdict line of a `.summary` diff report goes to the output even then, as it always has on the command line.
 - **`.annotatedInterface` lines carry their own coloring rule.** `InterfaceAnnotationStyle.lineKinds(of:)` classifies each line as added, removed, modified, header or plain — the rule `swift-section` colors by.
+- **`dump` and `objc dump` say what each declaration is.** Every top-level declaration they hand over arrives through `write(_:declaring:)` with a `DumpedDeclaration`: the Swift section or the Objective-C kind it comes from, and its name. A conformance and an associated type are named after the type they extend, spelled as that type's own name is, so the pieces of one type can be filed together; a Swift name that could not be rendered is `nil`. The default implementation forwards to `write(_:)`, so an output that only prints needs nothing more. Everything else — a header, the empty line after each Objective-C declaration, the single piece of an `interface` — comes through `write(_:)`.
 
 ## Diagnostics
 
@@ -92,4 +93,4 @@ Thrown errors are worded without naming command-line options: `MachOSourceError`
 
 ## Source compatibility
 
-`SwiftSectionKit` is distributed as source, like the rest of the package. New request fields arrive with default values, so existing calls keep compiling. The enums a caller constructs — `ABIDiffRequest.Report`, `DumpSection`, `ObjCDeclarationKind` and the like — may gain cases in a later release; build them, but do not rely on switching over them exhaustively.
+`SwiftSectionKit` is distributed as source, like the rest of the package. New request fields arrive with default values, so existing calls keep compiling. The enums a caller constructs — `ABIDiffRequest.Report`, `DumpSection`, `ObjCDeclarationKind` and the like — may gain cases in a later release; build them, but do not rely on switching over them exhaustively. So may `DumpedDeclaration`, which a host only receives.

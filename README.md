@@ -197,7 +197,7 @@ let outcome = try await ABIDiffRequest(
 // outcome.hasBreakingChange tells a CI gate whether the ABI broke.
 ```
 
-The output contract — concurrent calls, three separate channels, a newline after every product piece — is described in [SwiftSectionKit.md](Documentations/SwiftSectionKit.md).
+The output contract — concurrent calls, three separate channels, a newline after every product piece, and the kind and name `dump` and `objc dump` attach to each declaration they hand over — is described in [SwiftSectionKit.md](Documentations/SwiftSectionKit.md).
 
 ## swift-section CLI Tool
 

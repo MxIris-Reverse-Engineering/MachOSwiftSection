@@ -15,7 +15,7 @@ SwiftSectionKit 是 `swift-section` 每个子命令的库版本：一个子命�
 
 | 子系统 | 文件 |
 |---|---|
-| 1. 输出端 | `Output/SwiftSectionOutput`、`SwiftSectionProduct`（含 `InterfaceAnnotationStyle` / `AnnotatedLineKind`）、`SwiftSectionDiagnostic`、`ProductDestination` |
+| 1. 输出端 | `Output/SwiftSectionOutput`、`SwiftSectionProduct`（含 `InterfaceAnnotationStyle` / `AnnotatedLineKind`）、`DumpedDeclaration`、`SwiftSectionDiagnostic`、`ProductDestination` |
 | 2. 环境 | `Environment/SwiftSectionEnvironment`（含 `GeneratorIdentity`） |
 | 3. 输入 | `Inputs/Architecture`、`MachOSource`（含 `DyldSharedCacheImage` / `MachOSourceError`）、`SnapshotSource`（含 `SnapshotSourceError` / `BinaryLoadingOptions`） |
 | 4. Swift 侧请求 | `Swift/DumpRequest`（含 `DumpSection` / `FieldOffsetComments`）、`InterfaceRequest`、`ABISnapshotRequest`、`ABIDiffRequest`、`ABIEvolutionRequest`、`TransformerRequests`；共用的 `ABISnapshotLoading`、`DependencySearchPathUsage`、`CommentTransformerApplication` |
@@ -33,6 +33,13 @@ SwiftSectionKit 是 `swift-section` 每个子命令的库版本：一个子命�
 **诊断 = 级别 + 原文**。原文就是命令行打出来的那句话，有些带 flag 名（"warning: --resolve-c-module-names …"）——这是「输出逐字节保持」的代价。级别决定命令行把它写到哪个流，这张路由表只存在于包装层：`interface` 的 `.progress` 和 `dump` 的 `.error` 写 stdout（历史怪癖，插件 skill 第 3 节专门警告过不要重定向 `interface` 的 stdout），其余写 stderr。以后修这两个怪癖只改两个命令的 `standardOutputSeverities`，库不用动。
 
 **并发**：`diff` / `evolution` 并行索引多个输入，会从多个任务同时调用输出端，所以协议要求 `Sendable` 且实现必须线程安全。`StandardStreamOutput` 的每次写入是一次 `fwrite`（stdio 自带流锁）；测试的 `RecordingOutput` 用锁。
+
+**每块声明是什么**（提案 `dump-declaration-identity`）：`dump` 与 `objc dump` 交出顶层声明时走 `write(_:declaring:)`，附一个 `DumpedDeclaration`——Swift 侧是来自哪个 `DumpSection` 加名字，ObjC 侧是 `ObjCDeclarationKind` 加名字。它是协议要求，扩展里的默认实现转给 `write(_:)`，所以 `StandardStreamOutput` 和 `RecordingOutput` 都不实现它，输出与以前逐字节相同；宿主要按声明拆文件时才实现。几条从签名看不出来的事：
+
+- **名字只在 `.output` 目的地才算**，而且在声明本身 dump 成功之后：写文件时产物根本不经过输出端，算了也没人要。算名字失败只置 `name: nil`，不报诊断，否则命令行的 stdout 会多出错误行。
+- **conformance 的名字用 `extension` 那一行的完整拼法**（`ProtocolConformance.dumpedTypeName(isFull: true, …)`，`package` 级），不用公开的 `dumpTypeName`。后者按 interface-type 选项打印，会去掉文件级 private 类型的判别符，而类型自己的名字带着它：fixture 里 `AlphaProtocolWitness` 的类型名是 `SymbolTestsCore.(AlphaProtocolWitness in _82F1…)`，用 `dumpTypeName` 拿到的却是 `SymbolTestsCore.AlphaProtocolWitness`，宿主就会把它和它的 conformance 分进两个文件。`filePrivateTypeAndConformanceShareName` 钉住这一点（换成 `dumpTypeName` 的单点变异实测变红）。associated type 用公开的 `dumpTypeName`，它和 `AssociatedTypeDumper` 的 `extension` 行本来就是同一个函数。
+- header 和「No @objc @implementation classes recognized」那行注释不是声明，照旧走 `write(_:)`；`objc dump` 每个声明后面那个 `.text("")` 空行也是。
+- 代价是每个 Swift 声明多解析一次名字，命令行用不上也要付；落地前用 release 版对大镜像实测了耗时，见提案的决策日志。
 
 ## 2. 环境
 
@@ -62,7 +69,7 @@ stdout、stderr、退出码、每个子命令的 `--help` 都与拆分前逐字�
 
 ## 6. 测试锚点
 
-- `Tests/SwiftSectionKitTests/`：每个请求对 SymbolTestsCore fixture 端到端跑（`ABIRequestTests`、`DumpAndInterfaceRequestTests`、`ObjCRequestTests`、`TransformerRequestTests`），加纯逻辑（`MachOSourceTests` 里的胖二进制是测试现场拼的单切片胖文件，不依赖宿主；`InterfaceAnnotationStyleTests`；从 CLI 搬来的 `ObjCDumpDiagnosticsTests`）。`ABIRequestTests` 整个套件共用一份 fixture 的 snapshot 文档（静态 `Task`），只索引一次。
+- `Tests/SwiftSectionKitTests/`：每个请求对 SymbolTestsCore fixture 端到端跑（`ABIRequestTests`、`DumpAndInterfaceRequestTests`、`ObjCRequestTests`、`TransformerRequestTests`），加纯逻辑（`MachOSourceTests` 里的胖二进制是测试现场拼的单切片胖文件，不依赖宿主；`InterfaceAnnotationStyleTests`；从 CLI 搬来的 `ObjCDumpDiagnosticsTests`）。`ABIRequestTests` 整个套件共用一份 fixture 的 snapshot 文档（静态 `Task`），只索引一次。`RecordingOutput` 只实现 `write(_:)`，所以用它的用例同时在测 `write(_:declaring:)` 的默认实现；要看每块声明是什么，用 `DeclarationRecordingOutput`（两个方法都实现，按顺序记下每块产物和它带的声明）。
 - `Tests/SwiftSectionCommandTests/`：原有的解析测试；`CommandRequestMappingTests`（flag → 请求）、`CommandLineErrorTranslationTests`（库错误 → 历史文案与退出码）、`StandardStreamOutputTests`（内存流读回字节；`Rainbow.enabled` 与 `outputTarget` 是进程全局量，套件 `.serialized` 并在测试内钉住、用完还原）、`CommandLineStreamWriteScanTests`。
 - `PrintFailureEventTests.libraryModulesWriteToNoProcessStream` 的豁免名单只有 `swift-section` 和 `MachOTestingSupport`，`SwiftSectionKit` 自动被扫描：库里出现任何 `print` / `fputs` / `FileHandle.standard*` 都会变红。
 

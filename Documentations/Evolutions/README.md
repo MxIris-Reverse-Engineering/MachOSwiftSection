@@ -68,3 +68,4 @@
 | [0056](0056-visibility-regions.md) | 标记模式：一次打印全量 interface，并标出每段内容受哪个开关控制 | Implemented |
 | [0057](0057-reading-context-migration.md) | 读取接口统一到 ReadingContext：传 machO 与直接用指针的旧接口废弃 | Implemented |
 | [0058](0058-swift-section-kit.md) | 把 swift-section 的功能抽成 SwiftSectionKit 库，CLI 只剩一层包装 | Implemented |
+| draft | [SwiftSectionKit：dump 把每个声明的种类与名字一并交给输出端](draft-dump-declaration-identity.md) | In Progress |
