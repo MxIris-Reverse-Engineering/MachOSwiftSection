@@ -1,7 +1,7 @@
 # SwiftSectionKit 模块（及 swift-section 可执行文件）
 
 > 模块参考文档（module reference），随代码维护。读者：维护者。
-> 提案：[0058-swift-section-kit](../../Evolutions/0058-swift-section-kit.md)、[0059-dump-declaration-identity](../../Evolutions/0059-dump-declaration-identity.md)。调用方指南：[SwiftSectionKit.md](../../SwiftSectionKit.md)。
+> 提案：[0058-swift-section-kit](../../Evolutions/0058-swift-section-kit.md)、[0059-dump-declaration-identity](../../Evolutions/0059-dump-declaration-identity.md)、[0060-evolution-interface-available-annotations](../../Evolutions/0060-evolution-interface-available-annotations.md)（只涉及 `ABIEvolutionRequest`）。调用方指南：[SwiftSectionKit.md](../../SwiftSectionKit.md)。
 
 ## 模块定位
 
@@ -18,7 +18,7 @@ SwiftSectionKit 是 `swift-section` 每个子命令的库版本：一个子命�
 | 1. 输出端 | `Output/SwiftSectionOutput`、`SwiftSectionProduct`（含 `InterfaceAnnotationStyle` / `AnnotatedLineKind`）、`DumpedDeclaration`、`SwiftSectionDiagnostic`、`ProductDestination` |
 | 2. 环境 | `Environment/SwiftSectionEnvironment`（含 `GeneratorIdentity`） |
 | 3. 输入 | `Inputs/Architecture`、`MachOSource`（含 `DyldSharedCacheImage` / `MachOSourceError`）、`SnapshotSource`（含 `SnapshotSourceError` / `BinaryLoadingOptions`） |
-| 4. Swift 侧请求 | `Swift/DumpRequest`（含 `DumpSection` / `FieldOffsetComments`）、`InterfaceRequest`、`ABISnapshotRequest`、`ABIDiffRequest`、`ABIEvolutionRequest`、`TransformerRequests`；共用的 `ABISnapshotLoading`、`DependencySearchPathUsage`、`CommentTransformerApplication` |
+| 4. Swift 侧请求 | `Swift/DumpRequest`（含 `DumpSection` / `FieldOffsetComments`）、`InterfaceRequest`、`ABISnapshotRequest`、`ABIDiffRequest`、`ABIEvolutionRequest`（含 `AvailabilityAttributes` / `AvailabilityPlatformInferenceError`）、`TransformerRequests`；共用的 `ABISnapshotLoading`、`DependencySearchPathUsage`、`CommentTransformerApplication` |
 | 5. ObjC 侧请求 | `ObjC/ObjCInterfaceSession`（含 `ObjCDeclarationKind`）、`ObjCDumpRequest`、`ObjCInterfaceRequest`（含 `ObjCDeclarationLookupError`）、`ObjCAPIRequests`（snapshot / diff / evolution 与 `ObjCAPISnapshotLoading`） |
 | CLI 包装层 | `Sources/Executables/swift-section/`：各命令的 `makeRequest()` + `run()`、`Models/CommandLineSupport`（flag → `MachOSource`、错误翻译、`ExpressibleByArgument`）、`Output/StandardStreamOutput` |
 
@@ -55,7 +55,7 @@ SwiftSectionKit 是 `swift-section` 每个子命令的库版本：一个子命�
 
 ## 4. 请求的设计约定
 
-- **按用途建模**：互斥的选项用 enum 表达，非法组合在类型上写不出来——`ABIDiffRequest.Report` 只能是 change list / summary / JSON / annotated interface 之一，`FieldOffsetComments` 把「expanded 隐含 flat」做成了 `.none / .flat / .expanded`。命令行的 flag 组合校验（`--json and --interface are mutually exclusive`）留在包装层的 `validate()`，原文不动。
+- **按用途建模**：互斥的选项用 enum 表达，非法组合在类型上写不出来——`ABIDiffRequest.Report` 只能是 change list / summary / JSON / annotated interface 之一，`FieldOffsetComments` 把「expanded 隐含 flat」做成了 `.none / .flat / .expanded`。只对某一种报告有意义的选项做成那个 case 的关联值：diff 的 `annotatedInterface(format:includesBreakingChangeVerdict:)`，evolution 的 `annotatedInterface(availabilityAttributes:)`（`@available` 属性只有 annotated interface 才有；`.none` / `.inferredPlatform` / `.platform(_:)` 对应命令行的「不给 `--emit-available`」「只给 `--emit-available`」「再加 `--platform`」）。命令行的 flag 组合校验（`--json and --interface are mutually exclusive`）留在包装层的 `validate()`，原文不动。
 - **请求是 `Equatable` 的值**，`run` 的依赖（输出端、环境）是参数而不是字段。包装层的测试靠这一点：解析 flag → `makeRequest()` → 与期望请求比较（`CommandRequestMappingTests`）。
 - **库只报告，不退出**：`ABIDiffOutcome.hasBreakingChange` 等结论由包装层对照 `--fail-on-breaking` 决定是否 `throw ExitCode.failure`。`diff --interface` 只在 `includesBreakingChangeVerdict` 时才额外算一遍 change-list diff，和原来「只有 CI 闸门需要它」的取舍一致。
 - **命令行拼写留在包装层**：模板名还是字面模板（`TransformerTemplateResolver`）、`--transformer-config` 的 JSON 文件、逗号分隔的 `--labels` / `--sections`、`--c-type-replacement` 的 `a=b`、demangle 的二十多个覆盖开关，都由包装层解释成库的值类型（`Transformer.SwiftConfiguration`、`[ObjCPrimitiveTypePattern: String]`、`DemangleOptions`…）再交给请求。代价见下一节的偏差 2。
@@ -69,7 +69,7 @@ stdout、stderr、退出码、每个子命令的 `--help` 都与拆分前逐字�
 
 ## 6. 测试锚点
 
-- `Tests/SwiftSectionKitTests/`：每个请求对 SymbolTestsCore fixture 端到端跑（`ABIRequestTests`、`DumpAndInterfaceRequestTests`、`ObjCRequestTests`、`TransformerRequestTests`），加纯逻辑（`MachOSourceTests` 里的胖二进制是测试现场拼的单切片胖文件，不依赖宿主；`InterfaceAnnotationStyleTests`；从 CLI 搬来的 `ObjCDumpDiagnosticsTests`）。`ABIRequestTests` 整个套件共用一份 fixture 的 snapshot 文档（静态 `Task`），只索引一次。`RecordingOutput` 只实现 `write(_:)`，所以用它的用例同时在测 `write(_:declaring:)` 的默认实现；要看每块声明是什么，用 `DeclarationRecordingOutput`（两个方法都实现，按顺序记下每块产物和它带的声明）。
+- `Tests/SwiftSectionKitTests/`：每个请求对 SymbolTestsCore fixture 端到端跑（`ABIRequestTests`、`DumpAndInterfaceRequestTests`、`ObjCRequestTests`、`TransformerRequestTests`），加纯逻辑（`MachOSourceTests` 里的胖二进制是测试现场拼的单切片胖文件，不依赖宿主；`InterfaceAnnotationStyleTests`；从 CLI 搬来的 `ObjCDumpDiagnosticsTests`）。`ABIRequestTests` 整个套件共用一份 fixture 的 snapshot 文档（静态 `Task`），只索引一次。它测 `@available` 平台推断失败时，平台不同的输入是现场改写了 `LC_BUILD_VERSION` 的 fixture 副本（`FixtureFiles.makeCopy(of:buildPlatform:in:)`）；副本的 UUID 与原件相同，每个按镜像的缓存都会把它当成原件，所以只能交给在索引之前就结束的用例。`RecordingOutput` 只实现 `write(_:)`，所以用它的用例同时在测 `write(_:declaring:)` 的默认实现；要看每块声明是什么，用 `DeclarationRecordingOutput`（两个方法都实现，按顺序记下每块产物和它带的声明）。
 - `Tests/SwiftSectionCommandTests/`：原有的解析测试；`CommandRequestMappingTests`（flag → 请求）、`CommandLineErrorTranslationTests`（库错误 → 历史文案与退出码）、`StandardStreamOutputTests`（内存流读回字节；`Rainbow.enabled` 与 `outputTarget` 是进程全局量，套件 `.serialized` 并在测试内钉住、用完还原）、`CommandLineStreamWriteScanTests`。
 - `PrintFailureEventTests.libraryModulesWriteToNoProcessStream` 的豁免名单只有 `swift-section` 和 `MachOTestingSupport`，`SwiftSectionKit` 自动被扫描：库里出现任何 `print` / `fputs` / `FileHandle.standard*` 都会变红。
 

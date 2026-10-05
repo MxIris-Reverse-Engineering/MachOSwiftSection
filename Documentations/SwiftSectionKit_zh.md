@@ -83,7 +83,7 @@ if outcome.hasBreakingChange == true {
 
 ## 错误
 
-抛出的错误不提命令行选项：`MachOSourceError`（胖二进制没给架构、没有那个切片、cache 里没有那个镜像）、`SnapshotSourceError.binaryRequired(path:)`（把 snapshot 文档交给了 annotated interface）、`ObjCDeclarationLookupError`。来自下层的错误原样透传——文件不存在、snapshot 文档格式版本不支持、`ABIEvolutionError.labelCountMismatch`。
+抛出的错误不提命令行选项：`MachOSourceError`（胖二进制没给架构、没有那个切片、cache 里没有那个镜像）、`SnapshotSourceError.binaryRequired(path:)`（把 snapshot 文档交给了 annotated interface）、`AvailabilityPlatformInferenceError`（让 annotated evolution 从输入推断 `@available` 平台，可某个输入的平台在 `@available` 里没有名字，或者输入之间平台不一致）、`ObjCDeclarationLookupError`。来自下层的错误原样透传——文件不存在、snapshot 文档格式版本不支持、`ABIEvolutionError.labelCountMismatch`。
 
 `swift-section` 把第一类错误翻译回它一直打印的文案，并把用法错误报成 validation error（退出码 64）。宿主想用自己的措辞，也照这样做。
 
