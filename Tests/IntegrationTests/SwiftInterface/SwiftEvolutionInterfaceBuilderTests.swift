@@ -38,12 +38,14 @@ extension SwiftEvolutionInterfaceDumpTests {
     /// binaries is the real cost; the lineage join and rendering afterwards
     /// are cheap by comparison.
     private func preparedBuilder(
-        versions: [(label: String, machO: some MachOFieldLayoutRenderable)]
+        versions: [(label: String, machO: some MachOFieldLayoutRenderable)],
+        availabilityAnnotationPlatform: String?
     ) async throws -> AnySwiftEvolutionInterfaceBuilder {
         let builder = try AnySwiftEvolutionInterfaceBuilder(
             configuration: indexConfiguration,
             versions: versions.map(\.machO),
-            labels: versions.map(\.label)
+            labels: versions.map(\.label),
+            availabilityAnnotationPlatform: availabilityAnnotationPlatform
         )
         try await measuringPreparation {
             try await builder.prepare()
@@ -62,17 +64,25 @@ extension SwiftEvolutionInterfaceDumpTests {
     }
 
     /// Console analogue of `evolutionString`: prepares every version, then
-    /// prints the annotated union interface.
-    func evolutionInterfaceString(versions: [(label: String, machO: some MachOFieldLayoutRenderable)]) async throws {
-        let builder = try await preparedBuilder(versions: versions)
+    /// prints the annotated union interface. A platform adds the genuine
+    /// `@available` lines, as `evolution --interface --emit-available
+    /// --platform` does.
+    func evolutionInterfaceString(
+        versions: [(label: String, machO: some MachOFieldLayoutRenderable)],
+        availabilityAnnotationPlatform: String? = nil
+    ) async throws {
+        let builder = try await preparedBuilder(versions: versions, availabilityAnnotationPlatform: availabilityAnnotationPlatform)
         printResult(try await annotatedInterfaceReport(of: builder))
     }
 
     /// File analogue of `evolutionFile`: writes the annotated union interface
     /// (`-EvolutionInterface.swiftinterface`) next to the lineage-report and
     /// diff dumps, named after the *newest* version.
-    func evolutionInterfaceFile(versions: [(label: String, machO: some MachOFieldLayoutRenderable)]) async throws {
-        let builder = try await preparedBuilder(versions: versions)
+    func evolutionInterfaceFile(
+        versions: [(label: String, machO: some MachOFieldLayoutRenderable)],
+        availabilityAnnotationPlatform: String? = nil
+    ) async throws {
+        let builder = try await preparedBuilder(versions: versions, availabilityAnnotationPlatform: availabilityAnnotationPlatform)
         guard let newestVersion = versions.last else { return }
         try await write(annotatedInterfaceReport(of: builder), for: newestVersion.machO, suffix: "EvolutionInterface")
     }
@@ -128,6 +138,28 @@ enum SwiftEvolutionInterfaceBuilderTestSuite {
         @available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *)
         @Test func evolutionInterfaceString() async throws {
             try await evolutionInterfaceString(versions: versions)
+        }
+    }
+
+    /// The same image across archived macOS caches, picked by version: point
+    /// `cacheVersions` at directories under `/Volumes/DyldSharedCaches/macOS`
+    /// that hold a cache, oldest first. The versions are the axis labels too,
+    /// so every label is a version number and the union interface also spells
+    /// each lifecycle one attribute can express as `@available(macOS, …)`.
+    final class ArchivedDyldCacheTests: ABIEvolutionTestSuite.MultiVersionDyldCacheImageTests, SwiftEvolutionInterfaceDumpTests, @unchecked Sendable {
+        class var cacheVersions: [String] { ["15.8.1", "26.6", "27.0"] }
+        override class var cachePaths: [DyldSharedCachePath] { cacheVersions.map(DyldSharedCachePath.macOS) }
+        override class var cacheLabels: [String] { cacheVersions }
+        override class var cacheImageName: MachOImageName { .AppKit }
+
+        @available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *)
+        @Test func evolutionInterfaceFile() async throws {
+            try await evolutionInterfaceFile(versions: versions, availabilityAnnotationPlatform: "macOS")
+        }
+
+        @available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *)
+        @Test func evolutionInterfaceString() async throws {
+            try await evolutionInterfaceString(versions: versions, availabilityAnnotationPlatform: "macOS")
         }
     }
 }

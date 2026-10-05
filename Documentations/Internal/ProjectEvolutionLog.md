@@ -2174,6 +2174,16 @@
 - **关联文档**：[0060-evolution-interface-available-annotations](../Evolutions/0060-evolution-interface-available-annotations.md)（轻量档提案）、[TaskReports/2026-08-31-evolution-interface-available-annotations.md](TaskReports/2026-08-31-evolution-interface-available-annotations.md)、[Modules/SwiftInterface.md](Modules/SwiftInterface.md)「子系统 5」、[Modules/SwiftSectionKit.md](Modules/SwiftSectionKit.md)、使用指南 [SwiftSectionKit.md](../SwiftSectionKit.md) / [SwiftSectionKit_zh.md](../SwiftSectionKit_zh.md) 的「Errors / 错误」、插件 skill 第 7 节、README 的 evolution 一节。
 - **对应版本**：0.22.0（未发版）。发版说明要写：`evolution --interface --emit-available [--platform <名字>]`。
 
+## 80. 测试用的 dyld shared cache 路径按版本取
+
+- **时间段**：2026-10-05（单日）。
+- **动机**：用户要「DyldSharedCachePath改成String Type Enum结构体，支持传递版本返回路径」，并「再加一个SwiftInterfaceBuilderTests加上Diff和Evolution版本」。原来每用一个归档 cache 都得给 enum 加一个 case、手写完整路径，evolution 的 IntegrationTests 还要另写一份与路径一一对应的版本标签数组。
+- **关键决策**（轻量档提案，问过一轮）：**① 以 `String` 为原始值的结构体**，写法同 `SymbolicManglingReference.Kind`；原有 8 个 case 变成同名 `static let`，调用点不改。**② 版本函数只有 `macOS(_:)` / `iOS(_:)`**，按 `/Volumes/DyldSharedCaches/<平台>/<版本>/dyld_shared_cache_arm64e` 拼，不检查文件在不在；模拟器 runtime 的 cache 路径带 build 号，版本推不出，继续写死。**③ 三个 IntegrationTests 套件各加一个 `ArchivedDyldCacheTests`**，只填版本号；evolution 那个拿版本号当轴标签，并打开 `@available(macOS, …)` 输出。**④ 顺带发现的两处不改**（用户选「都先不动」）：`macOS_26_5_1` 指向的目录是空的，diff 套件里两处一跑就失败；`iOS_18_5` / `iOS_26_1` 指向没挂载的 `/Volumes/Generic`，全仓没有调用。
+- **落地模块**：`MachOFixtureSupport`（`DyldSharedCachePath`）；`MachOTestingSupportTests` 新增 `DyldSharedCachePathTests`；`IntegrationTests` 的三个 `ArchivedDyldCacheTests` 与 `SwiftEvolutionInterfaceDumpTests` 两个辅助函数的 `availabilityAnnotationPlatform` 参数。
+- **验证**：全量 `swift test --skip IntegrationTests`（JHs-Mac-Studio-Ultra，Swift 6.4，远端依赖）2270 个测试 / 423 个套件全部通过，原始退出码 0，只有早已登记的 `SymbolicManglingIndexTests` known issue。IntegrationTests 只编译、不运行：新类编译通过、没有新警告，三个默认版本在卷上都有 cache 文件。
+- **关联文档**：[0061-dyld-shared-cache-path-versions](../Evolutions/0061-dyld-shared-cache-path-versions.md)（轻量档提案）。
+- **对应版本**：不进发布产物，只改测试支撑代码与测试。
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节
