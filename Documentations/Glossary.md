@@ -174,10 +174,10 @@ sweep 覆盖范围之外的名字走的旁路：demangle 后 intern 进 `Storage
 
 ### lifecycle annotation（生命周期注解）
 
-演进并集接口里每条「变过的」声明行尾的注释：`// [●●○] removed in 26.0` —— 存在位图（每版本一位，文件头图例映射位置到版本标签）+ 按 ` · ` 连接的事件短语（added / removed / modified in 版本；modified 带 `旧签名 → 新签名`，两侧文本相同时省略箭头段）。**没有注解本身就是信息**：全程存在且从未变化。注解事实唯一来源是 `ABIEvolution` 的 lineage 查表，渲染器不自行推导。
+演进并集接口里每条「变过的」声明行尾的注释：`// [●●○] removed in 26.0` —— 存在位图（每版本一位，文件头图例映射位置到版本标签）+ 按 ` · ` 连接的事件短语（added / removed / modified in 版本；modified 带 `旧签名 → 新签名`，两侧文本相同时省略箭头段）。**没有注解本身就是信息**：全程存在且从未变化。注解事实唯一来源是 `ABIEvolution` 的 lineage 查表，渲染器不自行推导。打开 `--emit-available` 时，生命周期能完整写成一条 `@available` 的声明上方还会多一行真属性，它由同一份事实派生，是补充不是替代，注解照旧都在。
 
 - **主要出现在**：`Sources/Output/SwiftInterface/EvolutionMarking.swift`、`EvolutionAnnotationIndex.swift`
-- **延伸阅读**：[提案 0013](Evolutions/0013-swift-evolution-interface-builder.md)
+- **延伸阅读**：[提案 0013](Evolutions/0013-swift-evolution-interface-builder.md)、[提案 0060](Evolutions/0060-evolution-interface-available-annotations.md)（`@available` 属性）
 
 ### marking mode（标记模式，`marksOptionalContent`）
 

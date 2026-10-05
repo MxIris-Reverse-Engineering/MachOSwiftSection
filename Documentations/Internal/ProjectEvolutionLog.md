@@ -2164,6 +2164,16 @@
 - **关联文档**：[0059-dump-declaration-identity](../Evolutions/0059-dump-declaration-identity.md)、[Modules/SwiftSectionKit.md](Modules/SwiftSectionKit.md)「1. 输出端」、调用方指南 [SwiftSectionKit.md](../SwiftSectionKit.md) / [SwiftSectionKit_zh.md](../SwiftSectionKit_zh.md)。
 - **对应版本**：0.22.0（未发版）。发版说明要写：`dump` / `objc dump` 交出每个声明时附上种类与名字。
 
+## 79. evolution 联合接口的 `@available` 生命周期标注：真属性作补充，位图注释保留
+
+- **时间段**：2026-08-31 写成；2026-10-01 rebase 到 `next`；2026-10-05 落地。
+- **动机**：用户希望在既有 ABI 演进事实的基础上，让 `evolution --interface` 直接产出编译器语法的 `@available` 标注，而不只有位图注释。
+- **关键决策**：真属性作**补充**不作替换（前案否决的是「伪 @available 替代注解载体」，本案只在生命周期完整可表达时发语法合法真属性，位图注释继续承载 modified 与不可表达形状——两条否决理由均不复现）；不可表达即整条不发、注释兜底（宁缺勿假）；平台名从各输入 `LC_BUILD_VERSION` 推断，可以直接指定，推断失败响亮报错；默认配置输出逐字节不变。**落地时的实施偏差**：分支写在 SwiftSectionKit 之前，命令行那一半（平台推断与报错）原本写在 `EvolutionCommand` 里；落地时按 0058 的约定搬进库，`ABIEvolutionRequest.Report.annotatedInterface` 带上关联值 `availabilityAttributes`（`.none` / `.inferredPlatform` / `.platform(_:)`），推断失败抛 `AvailabilityPlatformInferenceError`，CLI 的 `--emit-available` / `--platform` 只做映射与错误译文。
+- **落地模块**：`SwiftInterface`（`EvolutionMarking` 属性生成纯函数 + 图例第三行、`SwiftEvolutionInterfaceRenderer` 前插属性行、两个 builder 的 `availabilityAnnotationPlatform` 配置）、`SwiftSectionKit`（`ABIEvolutionRequest` 的 `AvailabilityAttributes`、平台推断、`AvailabilityPlatformInferenceError`）、`swift-section`（`EvolutionCommand` 的两个 flag 与组合校验，`CommandLineErrorTranslation` 的两条译文）。测试：`EvolutionMarkingTests`、`SwiftEvolutionInterfaceBuilderTests`、`ABIRequestTests`（不同平台的输入是现场改写了 `LC_BUILD_VERSION` 的 fixture 副本，测试辅助 `FixtureFiles.makeCopy(of:buildPlatform:in:)`）、`InterfaceAnnotationStyleTests`、`EvolutionCommandValidationTests`、`CommandRequestMappingTests`、`CommandLineErrorTranslationTests`。
+- **验证**：定向套件全部通过（`SwiftSectionKitTests` 64 个、`SwiftSectionCommandTests` 103 个、evolution 渲染相关 49 个，原始退出码 0）；新用例经变异检验，三处故意改坏正好让对应的 3 个用例变红。全量 `swift test --skip IntegrationTests`（JHs-Mac-Studio-Ultra，Swift 6.4，远端依赖）2268 个测试 / 422 个套件全部通过，原始退出码 0，只有早已登记的 `SymbolicManglingIndexTests` known issue。CLI 冒烟：现编三版 dylib，推断出 macOS、`introduced:` / `obsoleted:` 各落在对的声明上、`--platform` 覆盖生效、默认输出没有 `@available`；平台冲突与推不出平台都以退出码 64 报错。没有跑渲染 A/B：改动全在开关后面，默认输出由现有快照测试兜底。
+- **关联文档**：[0060-evolution-interface-available-annotations](../Evolutions/0060-evolution-interface-available-annotations.md)（轻量档提案）、[TaskReports/2026-08-31-evolution-interface-available-annotations.md](TaskReports/2026-08-31-evolution-interface-available-annotations.md)、[Modules/SwiftInterface.md](Modules/SwiftInterface.md)「子系统 5」、[Modules/SwiftSectionKit.md](Modules/SwiftSectionKit.md)、使用指南 [SwiftSectionKit.md](../SwiftSectionKit.md) / [SwiftSectionKit_zh.md](../SwiftSectionKit_zh.md) 的「Errors / 错误」、插件 skill 第 7 节、README 的 evolution 一节。
+- **对应版本**：0.22.0（未发版）。发版说明要写：`evolution --interface --emit-available [--platform <名字>]`。
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节

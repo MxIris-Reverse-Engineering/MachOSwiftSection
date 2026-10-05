@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+import MachO
 import SwiftDiffing
 import SwiftSectionKit
 
@@ -228,8 +229,80 @@ struct ABIRequestTests {
         let documentPath = try await writeFixtureSnapshot(named: "baseline.json", label: nil, in: directoryURL)
 
         await #expect(throws: SnapshotSourceError.binaryRequired(path: documentPath)) {
-            _ = try await ABIEvolutionRequest(inputs: [Self.fixture, .path(documentPath)], report: .annotatedInterface)
-                .run(output: RecordingOutput(), environment: .testing)
+            _ = try await ABIEvolutionRequest(
+                inputs: [Self.fixture, .path(documentPath)],
+                report: .annotatedInterface(availabilityAttributes: .none)
+            ).run(output: RecordingOutput(), environment: .testing)
         }
+    }
+
+    /// Two copies of one binary add and remove nothing, so no declaration
+    /// gets an attribute; what tells the platform is the legend line that
+    /// explains the attributes, present exactly when they are on.
+    @Test("An annotated evolution spells @available for the platform it is given, or the one its inputs name", arguments: [
+        (ABIEvolutionRequest.AvailabilityAttributes.none, nil),
+        (.inferredPlatform, "macOS"),
+        (.platform("visionOS"), "visionOS"),
+    ] as [(ABIEvolutionRequest.AvailabilityAttributes, String?)])
+    func annotatedEvolutionAvailabilityPlatform(availabilityAttributes: ABIEvolutionRequest.AvailabilityAttributes, expectedPlatform: String?) async throws {
+        let output = RecordingOutput()
+        _ = try await ABIEvolutionRequest(
+            inputs: [Self.fixture, Self.fixture],
+            labels: ["1.0", "2.0"],
+            report: .annotatedInterface(availabilityAttributes: availabilityAttributes)
+        ).run(output: output, environment: .testing)
+
+        guard case .annotatedInterface(let text, let style)? = output.products.first, output.products.count == 1 else {
+            Issue.record("expected one annotated interface, got \(output.products)")
+            return
+        }
+        #expect(style == .evolution)
+        let availabilityLegendLines = text.split(separator: "\n").filter { $0.hasPrefix("// @available(") }
+        if let expectedPlatform {
+            #expect(availabilityLegendLines.count == 1)
+            #expect(availabilityLegendLines.first?.hasPrefix("// @available(\(expectedPlatform), …)") == true)
+        } else {
+            #expect(availabilityLegendLines.isEmpty)
+        }
+    }
+
+    /// The copy names another platform than the fixture's macOS; a simulator
+    /// counts as its device. Thrown after loading and before any indexing.
+    @Test("Inputs naming different platforms leave nothing to infer", arguments: [
+        (PLATFORM_IOSSIMULATOR, ["iOS", "macOS"]),
+        (PLATFORM_TVOS, ["macOS", "tvOS"]),
+        (PLATFORM_WATCHOSSIMULATOR, ["macOS", "watchOS"]),
+        (PLATFORM_VISIONOSSIMULATOR, ["macOS", "visionOS"]),
+        (PLATFORM_MACCATALYST, ["macCatalyst", "macOS"]),
+    ])
+    func annotatedEvolutionRefusesConflictingPlatforms(buildPlatform: Int32, expectedPlatforms: [String]) async throws {
+        let directoryURL = try FixtureFiles.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directoryURL) }
+        let copyPath = try FixtureFiles.makeCopy(of: FixtureFiles.symbolTestsCore, buildPlatform: buildPlatform, in: directoryURL)
+
+        let output = RecordingOutput()
+        await #expect(throws: AvailabilityPlatformInferenceError.conflictingPlatforms(expectedPlatforms)) {
+            _ = try await ABIEvolutionRequest(
+                inputs: [Self.fixture, .path(copyPath)],
+                report: .annotatedInterface(availabilityAttributes: .inferredPlatform)
+            ).run(output: output, environment: .testing)
+        }
+        #expect(!output.messages(of: .progress).contains { $0.hasPrefix("Indexing") })
+    }
+
+    @Test("An input naming a platform @available cannot spell leaves nothing to infer")
+    func annotatedEvolutionRefusesAnUnspellablePlatform() async throws {
+        let directoryURL = try FixtureFiles.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directoryURL) }
+        let copyPath = try FixtureFiles.makeCopy(of: FixtureFiles.symbolTestsCore, buildPlatform: PLATFORM_DRIVERKIT, in: directoryURL)
+
+        let output = RecordingOutput()
+        await #expect(throws: AvailabilityPlatformInferenceError.noPlatform(path: copyPath)) {
+            _ = try await ABIEvolutionRequest(
+                inputs: [Self.fixture, .path(copyPath)],
+                report: .annotatedInterface(availabilityAttributes: .inferredPlatform)
+            ).run(output: output, environment: .testing)
+        }
+        #expect(!output.messages(of: .progress).contains { $0.hasPrefix("Indexing") })
     }
 }

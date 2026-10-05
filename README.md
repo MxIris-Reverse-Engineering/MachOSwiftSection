@@ -542,6 +542,14 @@ swift-section evolution --interface v17/Foo.dylib v18/Foo.dylib v26/Foo.dylib --
 swift-section evolution --interface --dyld-shared-cache -n SwiftUICore cache-17 cache-18 cache-26 --fail-on-breaking -o SwiftUICore-evolution.swift
 ```
 
+Add `--emit-available` to also spell a lifecycle as a genuine attribute: a declaration whose whole lifecycle one `@available` can express gets `@available(iOS, introduced: 18.0, obsoleted: 26.0)` on the line above it and keeps its comment. That takes one unbroken run of versions carrying the declaration, numeric version labels (`--labels 17.0,18.0,26.0`; file names do not count), and an addition or removal inside the axis; anything else, and every `modified` event, stays in the comment alone. `introduced:` names the first version on the axis that carries the declaration and `obsoleted:` the first one that no longer does — not necessarily the releases that really introduced or removed it, as a legend line says. The platform comes from every input's `LC_BUILD_VERSION`, a simulator counting as its device; an input whose platform `@available` has no name for (DriverKit), or inputs of different platforms, are an error. `--platform` names it instead.
+
+```bash
+# @available attributes for the platform the inputs name, or the one given
+swift-section evolution --interface --emit-available v17/Foo.dylib v18/Foo.dylib v26/Foo.dylib --labels 17.0,18.0,26.0
+swift-section evolution --interface --emit-available --platform macCatalyst v17/Foo v18/Foo v26/Foo --labels 17.0,18.0,26.0
+```
+
 #### transformer - Customize Comment Formats
 
 The memory-layout comments `dump` and `interface` emit are rendered from token

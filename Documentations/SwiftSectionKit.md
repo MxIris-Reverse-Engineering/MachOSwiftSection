@@ -83,7 +83,7 @@ Where the command line prints a diagnostic is the command line's business: it wr
 
 ## Errors
 
-Thrown errors are worded without naming command-line options: `MachOSourceError` (a fat binary without an architecture, a missing slice, a cache image that is not there), `SnapshotSourceError.binaryRequired(path:)` (a snapshot document handed to an annotated interface), `ObjCDeclarationLookupError`. Errors from the layers below — a missing file, a snapshot document of an unsupported format version, `ABIEvolutionError.labelCountMismatch` — pass through unchanged.
+Thrown errors are worded without naming command-line options: `MachOSourceError` (a fat binary without an architecture, a missing slice, a cache image that is not there), `SnapshotSourceError.binaryRequired(path:)` (a snapshot document handed to an annotated interface), `AvailabilityPlatformInferenceError` (an annotated evolution asked to infer its `@available` platform, when an input's platform has no `@available` name or the inputs' platforms differ), `ObjCDeclarationLookupError`. Errors from the layers below — a missing file, a snapshot document of an unsupported format version, `ABIEvolutionError.labelCountMismatch` — pass through unchanged.
 
 `swift-section` translates the first group back into the wording it has always printed, and reports a usage mistake as a validation error (exit code 64). A host that wants its own wording does the same.
 

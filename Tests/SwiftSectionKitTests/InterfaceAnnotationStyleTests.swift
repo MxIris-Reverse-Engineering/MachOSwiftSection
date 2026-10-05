@@ -48,6 +48,21 @@ struct InterfaceAnnotationStyleTests {
         #expect(InterfaceAnnotationStyle.evolution.lineKinds(of: text) == [.header, .removed, .modified, .added, .plain])
     }
 
+    /// `ABIEvolutionRequest.AvailabilityAttributes`: the legend gains a line,
+    /// and an attribute line above a declaration carries no annotation of its
+    /// own, so the declaration line below it is the one colored.
+    @Test("@available attribute lines stay plain; their legend line is a header")
+    func evolutionAvailabilityAttributes() {
+        let text = """
+        // @available(iOS, …) attributes are axis-resolution facts: …
+        @available(iOS, introduced: 18.0)
+        public struct Added {} // [○●] added in 18.0
+            @available(iOS, introduced: 17.0, obsoleted: 18.0)
+            public var removed: Int // [●○] removed in 18.0
+        """
+        #expect(InterfaceAnnotationStyle.evolution.lineKinds(of: text) == [.header, .plain, .added, .plain, .removed])
+    }
+
     @Test("A declaration whose name mentions a lifecycle word stays plain")
     func evolutionClassifiesByAnnotationOnly() {
         #expect(InterfaceAnnotationStyle.evolution.lineKinds(of: "public func removedInLegacyMode()") == [.plain])

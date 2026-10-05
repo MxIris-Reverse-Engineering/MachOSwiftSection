@@ -69,3 +69,4 @@
 | [0057](0057-reading-context-migration.md) | 读取接口统一到 ReadingContext：传 machO 与直接用指针的旧接口废弃 | Implemented |
 | [0058](0058-swift-section-kit.md) | 把 swift-section 的功能抽成 SwiftSectionKit 库，CLI 只剩一层包装 | Implemented |
 | [0059](0059-dump-declaration-identity.md) | SwiftSectionKit：dump 把每个声明的种类与名字一并交给输出端 | Implemented |
+| [0060](0060-evolution-interface-available-annotations.md) | evolution 联合接口的 @available 生命周期标注（真属性 + 位图注释保留） | Implemented |

@@ -38,6 +38,20 @@ struct CommandLineErrorTranslationTests {
         #expect(translated as? SnapshotSourceError == .binaryRequired(path: "old.json"))
     }
 
+    @Test("A platform --emit-available cannot infer is a usage error that points at --platform", arguments: [
+        (
+            AvailabilityPlatformInferenceError.noPlatform(path: "driver.dylib"),
+            "--emit-available could not infer an @available platform from driver.dylib (no LC_BUILD_VERSION, or a platform with no @available spelling); pass --platform explicitly."
+        ),
+        (
+            .conflictingPlatforms(["iOS", "macOS"]),
+            "--emit-available found conflicting platforms across the inputs (iOS, macOS); pass --platform explicitly."
+        ),
+    ])
+    func availabilityPlatformInference(error: AvailabilityPlatformInferenceError, expectedMessage: String) {
+        #expect((CommandLineErrorTranslation.translated(error) as? ValidationError)?.message == expectedMessage)
+    }
+
     @Test("Errors the command line never reworded pass through unchanged")
     func unrelatedErrorsPassThrough() {
         let translated = CommandLineErrorTranslation.translated(ObjCDeclarationLookupError.declarationNotFound("NSString"))
