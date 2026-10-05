@@ -40,6 +40,12 @@ struct EvolutionCommand: AsyncParsableCommand {
     @Flag(help: "Emit the union Swift interface annotated with per-declaration lifecycle comments instead of the lineage report. Every input must be a binary (or dyld shared cache); snapshot JSON inputs are rejected.")
     var interface: Bool = false
 
+    @Flag(name: .customLong("emit-available"), help: "With --interface: prefix each declaration whose lifecycle is fully expressible as one @available attribute (introduced:/obsoleted: resolved from the version axis) with that genuine attribute. Inexpressible lifecycles (disappeared-and-returned, non-version labels, modified-only) keep only the bitmap comment. The platform is inferred from every input's LC_BUILD_VERSION unless --platform overrides it.")
+    var emitAvailable: Bool = false
+
+    @Option(name: .long, help: "The @available platform spelling (e.g. iOS, macOS, macCatalyst) for --emit-available, overriding LC_BUILD_VERSION inference.")
+    var platform: String?
+
     @Flag(help: "Exit with a nonzero status when any transition contains an ABI-breaking change, for CI gating.")
     var failOnBreaking: Bool = false
 
@@ -52,7 +58,7 @@ struct EvolutionCommand: AsyncParsableCommand {
     /// The library request these flags describe.
     func makeRequest() -> ABIEvolutionRequest {
         let report: ABIEvolutionRequest.Report = if interface {
-            .annotatedInterface
+            .annotatedInterface(availabilityAttributes: availabilityAttributes)
         } else if json {
             .json
         } else if summaryOnly {
@@ -74,6 +80,19 @@ struct EvolutionCommand: AsyncParsableCommand {
             destination: outputPath.map { .file(path: $0) } ?? .output,
             maximumConcurrentPreparations: jobs
         )
+    }
+
+    /// `--emit-available`, with `--platform` naming the platform instead of
+    /// leaving it to inference. validate() has already required
+    /// `--emit-available` for `--platform`.
+    private var availabilityAttributes: ABIEvolutionRequest.AvailabilityAttributes {
+        if !emitAvailable {
+            .none
+        } else if let platform {
+            .platform(platform)
+        } else {
+            .inferredPlatform
+        }
     }
 
     /// `--labels a,b,c`, each label trimmed. Empty labels are kept, so that a
@@ -107,6 +126,12 @@ struct EvolutionCommand: AsyncParsableCommand {
         }
         if interface, summaryOnly {
             throw ValidationError("--interface and --summary-only are mutually exclusive.")
+        }
+        if emitAvailable, !interface {
+            throw ValidationError("--emit-available requires --interface.")
+        }
+        if platform != nil, !emitAvailable {
+            throw ValidationError("--platform requires --emit-available.")
         }
         if inputPaths.count < 2 {
             throw ValidationError("evolution needs at least 2 inputs in version order (oldest first).")

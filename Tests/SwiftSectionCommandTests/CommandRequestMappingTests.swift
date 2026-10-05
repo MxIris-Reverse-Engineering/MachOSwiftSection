@@ -174,6 +174,18 @@ struct CommandRequestMappingTests {
         #expect(request.report == .lineage)
     }
 
+    @Test("evolution's output flags become one report", arguments: [
+        ([String](), ABIEvolutionRequest.Report.lineage),
+        (["--summary-only"], .summary),
+        (["--json"], .json),
+        (["--interface"], .annotatedInterface(availabilityAttributes: .none)),
+        (["--interface", "--emit-available"], .annotatedInterface(availabilityAttributes: .inferredPlatform)),
+        (["--interface", "--emit-available", "--platform", "iOS"], .annotatedInterface(availabilityAttributes: .platform("iOS"))),
+    ])
+    func evolutionReport(flags: [String], expectedReport: ABIEvolutionRequest.Report) throws {
+        #expect(try EvolutionCommand.parse(flags + ["old.dylib", "new.dylib"]).makeRequest().report == expectedReport)
+    }
+
     // MARK: - objc
 
     @Test("objc dump passes the image description the caller typed")

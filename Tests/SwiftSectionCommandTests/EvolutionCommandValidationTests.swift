@@ -65,4 +65,20 @@ struct EvolutionCommandValidationTests {
         #expect(command.failOnBreaking)
         #expect(command.inputPaths == ["old.dylib", "new.dylib"])
     }
+
+    // MARK: - Availability attributes (--emit-available / --platform)
+
+    @Test func emitAvailableRequiresInterface() {
+        expectValidationFailure(
+            ["--emit-available", "old.dylib", "new.dylib"],
+            messagePart: "--emit-available requires --interface"
+        )
+    }
+
+    @Test func platformRequiresEmitAvailable() {
+        expectValidationFailure(
+            ["--interface", "--platform", "iOS", "old.dylib", "new.dylib"],
+            messagePart: "--platform requires --emit-available"
+        )
+    }
 }

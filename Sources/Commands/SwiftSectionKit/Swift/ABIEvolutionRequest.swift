@@ -17,8 +17,30 @@ public struct ABIEvolutionRequest: Sendable, Equatable {
         /// The evolution as JSON.
         case json
         /// The union interface annotated with per-declaration lifecycle
-        /// comments. Every input must be a binary.
-        case annotatedInterface
+        /// comments. Every input must be a binary. `availabilityAttributes`
+        /// says whether a lifecycle one attribute can express is also spelled
+        /// as that genuine `@available` attribute.
+        case annotatedInterface(availabilityAttributes: AvailabilityAttributes)
+    }
+
+    /// Whether the annotated interface also spells lifecycles as genuine
+    /// `@available` attributes, and for which platform.
+    ///
+    /// A declaration gets the attribute line only when one attribute
+    /// expresses its whole lifecycle: one unbroken run of versions carrying
+    /// it, every label involved a numeric version (`26.0`), and an addition or
+    /// a removal inside the axis. Its lifecycle comment stays either way.
+    public enum AvailabilityAttributes: Sendable, Hashable {
+        /// The lifecycle comments alone.
+        case none
+        /// For the platform every input's `LC_BUILD_VERSION` names, a
+        /// simulator counting as its device. Inputs that name no platform
+        /// `@available` can spell, or different ones, throw
+        /// ``AvailabilityPlatformInferenceError``.
+        case inferredPlatform
+        /// For this platform, spelled the way `@available` spells it: `iOS`,
+        /// `macOS`, `macCatalyst`.
+        case platform(String)
     }
 
     /// The inputs in version order, oldest first.
@@ -54,8 +76,12 @@ public struct ABIEvolutionRequest: Sendable, Equatable {
     public func run(output: some SwiftSectionOutput, environment: SwiftSectionEnvironment) async throws -> ABIEvolutionOutcome {
         try ABISnapshotLoading.validateLabels(labels, inputCount: inputs.count)
         let concurrencyWindow = maximumConcurrentPreparations ?? ProcessInfo.processInfo.activeProcessorCount
-        if report == .annotatedInterface {
-            return try await runAnnotatedInterface(concurrencyWindow: concurrencyWindow, output: output)
+        if case .annotatedInterface(let availabilityAttributes) = report {
+            return try await runAnnotatedInterface(
+                availabilityAttributes: availabilityAttributes,
+                concurrencyWindow: concurrencyWindow,
+                output: output
+            )
         }
 
         let explicitLabels = labels
@@ -99,7 +125,11 @@ public struct ABIEvolutionRequest: Sendable, Equatable {
     /// The union interface with lifecycle annotations, rendered from the live
     /// models of every version — which is why snapshot inputs are rejected
     /// (the same constraint as `diff`'s annotated interface).
-    private func runAnnotatedInterface(concurrencyWindow: Int, output: some SwiftSectionOutput) async throws -> ABIEvolutionOutcome {
+    private func runAnnotatedInterface(
+        availabilityAttributes: AvailabilityAttributes,
+        concurrencyWindow: Int,
+        output: some SwiftSectionOutput
+    ) async throws -> ABIEvolutionOutcome {
         try SnapshotSource.requireBinaries(inputs)
 
         var machOFiles: [MachOFile] = []
@@ -110,6 +140,12 @@ public struct ABIEvolutionRequest: Sendable, Equatable {
         let resolvedLabels = inputs.enumerated().map { inputIndex, input in
             labels?[inputIndex] ?? input.defaultLabel
         }
+        // Before indexing, so that a platform that cannot be inferred costs
+        // only the loading.
+        let availabilityAnnotationPlatform = try availabilityAttributes.platform(
+            forInputsAt: inputs.map(\.path),
+            loadedAs: machOFiles
+        )
 
         // The erased builder, because the version count is a runtime value
         // here; the pack-generic `SwiftEvolutionInterfaceBuilder`'s arity is
@@ -118,7 +154,8 @@ public struct ABIEvolutionRequest: Sendable, Equatable {
         let builder = try AnySwiftEvolutionInterfaceBuilder(
             eventHandlersPerVersion: { _, label in output.indexEventHandlers(forInputLabeled: label) },
             versions: machOFiles,
-            labels: resolvedLabels
+            labels: resolvedLabels,
+            availabilityAnnotationPlatform: availabilityAnnotationPlatform
         )
         output.reportProgress("Indexing \(machOFiles.count) versions (\(min(concurrencyWindow, machOFiles.count)) at a time)…")
         try await builder.prepare(maximumConcurrentPreparations: concurrencyWindow)
@@ -133,6 +170,76 @@ public struct ABIEvolutionRequest: Sendable, Equatable {
             output.reportProgress("Annotated interface written to \(path)")
         }
         return ABIEvolutionOutcome(evolution: builder.evolution)
+    }
+}
+
+/// Why ``ABIEvolutionRequest/AvailabilityAttributes/inferredPlatform`` found
+/// no one platform to spell the attributes for. Naming the platform with
+/// ``ABIEvolutionRequest/AvailabilityAttributes/platform(_:)`` avoids both.
+public enum AvailabilityPlatformInferenceError: Error, LocalizedError, Sendable, Equatable {
+    /// The binary at `path` has no `LC_BUILD_VERSION`, or names a platform
+    /// `@available` has no spelling for, such as DriverKit.
+    case noPlatform(path: String)
+    /// The inputs name different platforms, spelled the `@available` way and
+    /// sorted.
+    case conflictingPlatforms([String])
+
+    public var errorDescription: String? {
+        switch self {
+        case .noPlatform(let path):
+            "No @available platform can be inferred from '\(path)': it has no LC_BUILD_VERSION, or names a platform @available has no spelling for."
+        case .conflictingPlatforms(let platforms):
+            "The inputs name different @available platforms (\(platforms.joined(separator: ", ")))."
+        }
+    }
+}
+
+extension ABIEvolutionRequest.AvailabilityAttributes {
+    /// The platform the attributes are spelled for, `nil` for none.
+    /// `paths[index]` names `machOFiles[index]` in an error.
+    func platform(forInputsAt paths: [String], loadedAs machOFiles: [MachOFile]) throws -> String? {
+        switch self {
+        case .none:
+            return nil
+        case .platform(let platform):
+            return platform
+        case .inferredPlatform:
+            var platforms: Set<String> = []
+            for (path, machOFile) in zip(paths, machOFiles) {
+                guard let buildPlatform = machOFile.loadCommands.buildVersionCommand?.platform,
+                      let platform = Self.availabilitySpelling(of: buildPlatform) else {
+                    throw AvailabilityPlatformInferenceError.noPlatform(path: path)
+                }
+                platforms.insert(platform)
+            }
+            if platforms.count > 1 {
+                throw AvailabilityPlatformInferenceError.conflictingPlatforms(platforms.sorted())
+            }
+            // No inputs at all is left to the builder, which needs two.
+            return platforms.first
+        }
+    }
+
+    /// How `@available` spells a Mach-O build platform, `nil` for one it has
+    /// no name for (DriverKit, bridgeOS, …). A simulator shares its device's
+    /// availability domain.
+    static func availabilitySpelling(of buildPlatform: MachOKit.Platform) -> String? {
+        switch buildPlatform {
+        case .macOS:
+            "macOS"
+        case .iOS, .iOSSimulator:
+            "iOS"
+        case .tvOS, .tvOSSimulator:
+            "tvOS"
+        case .watchOS, .watchOSSimulator:
+            "watchOS"
+        case .visionOS, .visionOSSimulator:
+            "visionOS"
+        case .macCatalyst:
+            "macCatalyst"
+        default:
+            nil
+        }
     }
 }
 

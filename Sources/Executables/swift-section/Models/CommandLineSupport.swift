@@ -101,6 +101,10 @@ enum CommandLineErrorTranslation {
         case SnapshotSourceError.binaryRequired(let snapshotPath):
             guard let annotatedInterfaceRequiresBinaries else { return error }
             return ValidationError(annotatedInterfaceRequiresBinaries(snapshotPath))
+        case AvailabilityPlatformInferenceError.noPlatform(let path):
+            return ValidationError("--emit-available could not infer an @available platform from \(path) (no LC_BUILD_VERSION, or a platform with no @available spelling); pass --platform explicitly.")
+        case AvailabilityPlatformInferenceError.conflictingPlatforms(let platforms):
+            return ValidationError("--emit-available found conflicting platforms across the inputs (\(platforms.joined(separator: ", "))); pass --platform explicitly.")
         default:
             return error
         }
