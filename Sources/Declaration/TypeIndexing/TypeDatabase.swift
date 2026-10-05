@@ -136,10 +136,16 @@ package actor TypeDatabase<MachO: ObjCMetadataSource & Sendable> {
         for (cName, moduleName) in attributionIndex.moduleNamesByCName {
             moduleNamesByTypeName[cName] = moduleName
         }
-        // The renamed Swift spelling reaches manglings too: a foreign
-        // descriptor the consuming binary emits records the *imported* name
-        // (`__C.Graph` for an `AG_SWIFT_NAME(Graph)` type), so it needs
-        // attribution alongside the C spellings. Nested renames
+        // Swift spellings too, after the C spellings. A printed `__C` name no
+        // longer carries one: a foreign descriptor records the imported
+        // spelling (`Graph` for an `AG_SWIFT_NAME(Graph)` type), but the
+        // demangler names it by the ABI name in its import info (evolution
+        // proposal `type-import-info-identity`). What this pass still decides
+        // is a C name several modules' APINotes list. Foundation's and
+        // AppKit's list `NSObject` only to annotate category methods, and the
+        // pass above lets whichever file came last win; ObjectiveC's entry
+        // renames `NSObject` to itself, so registering that spelling last
+        // gives the class back to ObjectiveC. Nested renames
         // (`ProcessInfo.ActivityOptions`) never appear as one identifier and
         // are skipped.
         for (swiftName, originalCName) in attributionIndex.cNamesBySwiftName where !swiftName.contains(".") {

@@ -3,9 +3,11 @@
 `swift-section interface --resolve-c-module-names` resolves `__C.NSString` to
 `Foundation.NSString` by indexing the SDK. Private frameworks such as
 **AttributeGraph** have no SDK module at all — no headers, no `.swiftmodule`,
-no `.apinotes` — so nothing can be indexed, and their `swift_name` renames
-(`AG_SWIFT_NAME(Graph)`) exist *only* in headers: no tool can recover
-`AttributeGraph.Graph` from a binary. That knowledge has to come from outside.
+no `.apinotes` — so nothing can be indexed. A binary keeps little of their
+`swift_name` renames (`AG_SWIFT_NAME(Graph)`): a type descriptor records the
+last component, `Graph`, but neither the module nor an enclosing type, so no
+tool can recover `AttributeGraph.Graph` from a binary. That knowledge has to
+come from outside.
 
 Supplementary type mappings are that outside channel: user-provided
 [APINotes](https://clang.llvm.org/docs/APINotes.html) files loaded on top of
@@ -51,11 +53,13 @@ A CF-bridged type (`CF_BRIDGED_TYPE` / `objc_bridge` typedefs like
 
 | Spelling | Where it appears | Section |
 |---|---|---|
-| Typedef name (`AGGraphRef`) | symbol signatures | `Typedefs` |
+| Typedef name (`AGGraphRef`) | symbol signatures and field metadata | `Typedefs` |
 | Storage/tag name (`AGGraphStorage`) | field-metadata foreign descriptors | `Tags` |
 
-(A third shape — the imported Swift name itself, `__C.Graph` — is derived
-from `SwiftName` automatically; no extra entry is needed.)
+The imported Swift name itself, `__C.Graph`, is not a shape to register:
+since 0.20.0 swift-section spells a type descriptor by the C name its import
+info records, the way the compiler mangles it, not by the Swift name it
+also records.
 
 ### Choosing the section
 

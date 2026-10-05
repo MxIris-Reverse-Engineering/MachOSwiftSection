@@ -11,11 +11,24 @@ import Testing
 @Suite
 struct TypeDatabaseMergePriorityTests {
     private static func makeAPINotesIndex(yaml apiNotesYAML: String) throws -> APINotesIndex {
-        let temporaryFileURL = FileManager.default.temporaryDirectory
-            .appending(component: "TypeDatabaseMergePriorityTests-\(UUID().uuidString).apinotes")
-        try apiNotesYAML.write(to: temporaryFileURL, atomically: true, encoding: .utf8)
-        defer { try? FileManager.default.removeItem(at: temporaryFileURL) }
-        return try APINotesIndex(files: [APINotesFile(path: temporaryFileURL.path(percentEncoded: false))])
+        try makeAPINotesIndex(yamls: [apiNotesYAML])
+    }
+
+    /// One index over several files, registered in the order given.
+    private static func makeAPINotesIndex(yamls apiNotesYAMLs: [String]) throws -> APINotesIndex {
+        var temporaryFileURLs: [URL] = []
+        defer {
+            for temporaryFileURL in temporaryFileURLs {
+                try? FileManager.default.removeItem(at: temporaryFileURL)
+            }
+        }
+        for apiNotesYAML in apiNotesYAMLs {
+            let temporaryFileURL = FileManager.default.temporaryDirectory
+                .appending(component: "TypeDatabaseMergePriorityTests-\(UUID().uuidString).apinotes")
+            try apiNotesYAML.write(to: temporaryFileURL, atomically: true, encoding: .utf8)
+            temporaryFileURLs.append(temporaryFileURL)
+        }
+        return try APINotesIndex(files: temporaryFileURLs.map { try APINotesFile(path: $0.path(percentEncoded: false)) })
     }
 
     @Test
@@ -47,6 +60,33 @@ struct TypeDatabaseMergePriorityTests {
         """)
         await typeDatabase.register(apiNotesIndex: apiNotesIndex)
         #expect(await typeDatabase.moduleName(forTypeName: "TSTThing") == "RightModule")
+    }
+
+    /// A C name several modules' APINotes list keeps the module whose entry
+    /// renames it. Foundation's and AppKit's APINotes list `NSObject` only to
+    /// annotate category methods, and among C-name entries the last file
+    /// wins; ObjectiveC's entry renames `NSObject` to itself, and that
+    /// spelling, registered after the C names, keeps the class in
+    /// ObjectiveC. Without it AppKit's resolved interface printed
+    /// `Foundation.NSObject`.
+    @Test
+    func renamingEntryKeepsItsModuleAgainstLaterListings() async throws {
+        let typeDatabase = TypeDatabase<MachOFile>(platform: .macOS)
+        let apiNotesIndex = try Self.makeAPINotesIndex(yamls: [
+            """
+            Name: DeclaringModule
+            Classes:
+            - Name: TSTBase
+              SwiftName: TSTBase
+            """,
+            """
+            Name: AnnotatingModule
+            Classes:
+            - Name: TSTBase
+            """,
+        ])
+        await typeDatabase.register(apiNotesIndex: apiNotesIndex)
+        #expect(await typeDatabase.moduleName(forTypeName: "TSTBase") == "DeclaringModule")
     }
 
     @Test
