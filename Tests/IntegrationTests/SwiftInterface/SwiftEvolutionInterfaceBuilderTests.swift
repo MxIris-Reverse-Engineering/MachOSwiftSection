@@ -142,14 +142,13 @@ enum SwiftEvolutionInterfaceBuilderTestSuite {
     }
 
     /// The same image across archived macOS caches, picked by version: point
-    /// `cacheVersions` at directories under `/Volumes/DyldSharedCaches/macOS`
-    /// that hold a cache, oldest first. The versions are the axis labels too,
-    /// so every label is a version number and the union interface also spells
-    /// each lifecycle one attribute can express as `@available(macOS, …)`.
+    /// `cachePaths` at directories under `/Volumes/DyldSharedCaches/macOS`
+    /// that hold a cache, oldest first. A cache named by its version is
+    /// labeled with it, so every label is a version number and the union
+    /// interface also spells each lifecycle one attribute can express as
+    /// `@available(macOS, …)`.
     final class ArchivedDyldCacheTests: ABIEvolutionTestSuite.MultiVersionDyldCacheImageTests, SwiftEvolutionInterfaceDumpTests, @unchecked Sendable {
-        class var cacheVersions: [String] { ["15.8.1", "26.6", "27.0"] }
-        override class var cachePaths: [DyldSharedCachePath] { cacheVersions.map(DyldSharedCachePath.macOS) }
-        override class var cacheLabels: [String] { cacheVersions }
+        override class var cachePaths: [DyldSharedCachePath] { [.macOS("15.8.1"), .macOS("26.6"), .macOS("27.0")] }
         override class var cacheImageName: MachOImageName { .AppKit }
 
         @available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *)

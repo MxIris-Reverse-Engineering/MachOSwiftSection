@@ -6,14 +6,15 @@
 
 ## 摘要
 
-测试支撑代码里的 `DyldSharedCachePath`（`Sources/TestSupport/MachOFixtureSupport/DyldSharedCachePath.swift`）原是一个以 `String` 为原始值的 enum，每用一个归档 cache 就得手写一个 case 和它的完整路径。本次把它改成以 `String` 为原始值的结构体（与 `SymbolicManglingReference.Kind` 同一种写法），新增按版本号拼出路径的 `macOS(_:)` / `iOS(_:)`；并在 IntegrationTests 的单版本、diff、evolution 三个套件里各加一个只需填版本号的 `ArchivedDyldCacheTests`。
+测试支撑代码里的 `DyldSharedCachePath`（`Sources/TestSupport/MachOFixtureSupport/DyldSharedCachePath.swift`）原是一个以 `String` 为原始值的 enum，每用一个归档 cache 就得手写一个 case 和它的完整路径。本次把它改成用静态成员充当 case 的结构体，带路径（`rawValue`）和版本标签（`versionLabel`）两个字段，新增按版本号拼出路径、并拿这个版本当标签的 `macOS(_:)` / `iOS(_:)`；evolution 的 IntegrationTests 因此直接用每个 cache 的标签当轴标签，不必再另写一份标签数组。另在 IntegrationTests 的单版本、diff、evolution 三个套件里各加一个只需填版本号的 `ArchivedDyldCacheTests`。
 
 ## 方案
 
-- **类型**：`DyldSharedCachePath: RawRepresentable, Hashable, Sendable`，`rawValue` 就是路径。`macOS("26.6")` 得到 `/Volumes/DyldSharedCaches/macOS/26.6/dyld_shared_cache_arm64e`，`iOS("27.0")` 得到 `/Volumes/DyldSharedCaches/iOS/27.0/dyld_shared_cache_arm64e`。版本就是卷上的目录名，原样拼进路径（`14.0(Internal)` 也行）；不检查文件在不在，和以前一样由调用方判断——卷上有的目录只放导出的头文件，没有 cache（例如 26.4.1、26.5.1）。
-- **原有常量**：8 个 case 变成同名的 `static let`，调用点一处不改。四个 macOS 常量改由 `macOS(_:)` 生成，`MachOTestingSupportTests` 的 `DyldSharedCachePathTests` 钉住它们与原来写死的路径完全相同——这些常量只在不会自动运行的 IntegrationTests 里用，拼错了平时没人发现。
+- **类型**：`DyldSharedCachePath: Hashable, Sendable`，`rawValue` 是路径，`versionLabel` 是它在版本轴上的标签，两者都在构造时给出。`macOS("26.6")` 得到 `/Volumes/DyldSharedCaches/macOS/26.6/dyld_shared_cache_arm64e`、标签 `26.6`，`iOS("27.0")` 同理。版本就是卷上的目录名，原样拼进路径、原样当标签（`14.0(Internal)` 也行）；不检查文件在不在，和以前一样由调用方判断——卷上有的目录只放导出的头文件，没有 cache（例如 26.4.1、26.5.1）。不再遵循 `RawRepresentable`：它要求只凭路径就能构造出值，而每个值都必须带标签。
+- **原有常量**：8 个 case 变成同名的 `static let`，调用点一处不改。四个 macOS 常量改由 `macOS(_:)` 生成；其余四个直接写明标签：`current` 标为 `current`（标签不一定是系统版本），`iOS_18_5`、`iOS_26_1`、`iOS_27_0_Simulator` 分别标为 `18.5`、`26.1`、`27.0`。`MachOTestingSupportTests` 的 `DyldSharedCachePathTests` 钉住四个 macOS 常量的路径与原来写死的完全相同、标签与 evolution 测试原来手写的相同——这些常量只在不会自动运行的 IntegrationTests 里用，拼错了平时没人发现。
+- **版本标签**：evolution 的 `MultiVersionDyldCacheImageTests` 只列 `cachePaths`，轴标签取每个 cache 的 `versionLabel`，原来与路径一一对应的 `cacheLabels` 数组删掉；默认三个 cache 给出的标签仍是 `15.5`、`26.5.2`、`27.0`，现有 evolution 输出不变。标签手动给，不从 cache 文件里解析：cache 头的 `osVersion` 只记主、次版本号，补丁号总是 0（26.5.2 的头里是 26.5.0，15.8.1 是 15.8.0），macOS 11 的 cache 干脆是 0.0.0，解析出来会让两个补丁版本撞成同一个标签。
 - **只给 macOS 与 iOS 出版本函数**：卷上的 `iOS-Simulator/` 目录里只有导出的头文件，没有 cache；模拟器 runtime 的 cache 在 CoreSimulator 卷里，卷名带 build 号（`iOS_24A434`），从版本号推不出路径，所以 `iOS_27_0_Simulator` 仍然写死。
-- **IntegrationTests**：`SwiftInterfaceBuilderTestSuite`、`SwiftDiffableInterfaceBuilderTestSuite`、`SwiftEvolutionInterfaceBuilderTestSuite` 各加一个 `ArchivedDyldCacheTests`，分别只填 `cacheVersion`、`oldCacheVersion` / `newCacheVersion`、`cacheVersions`，镜像默认 AppKit，各自沿用所在套件现有的基类。evolution 那个直接拿版本号当轴标签，标签全是数字，于是打开 `@available(macOS, …)` 输出（提案 [0060](0060-evolution-interface-available-annotations.md)）；为此 `SwiftEvolutionInterfaceDumpTests` 的两个辅助函数加了一个默认 `nil` 的 `availabilityAnnotationPlatform` 参数，现有调用不受影响。默认版本 15.8.1、26.6、27.0 在卷上都有 cache。
+- **IntegrationTests**：`SwiftInterfaceBuilderTestSuite`、`SwiftDiffableInterfaceBuilderTestSuite`、`SwiftEvolutionInterfaceBuilderTestSuite` 各加一个 `ArchivedDyldCacheTests`，分别只填 `cacheVersion`、`oldCacheVersion` / `newCacheVersion`、`cachePaths`（`[.macOS("15.8.1"), .macOS("26.6"), .macOS("27.0")]`），镜像默认 AppKit，各自沿用所在套件现有的基类。evolution 那个的标签就是这些版本号，全是数字，于是打开 `@available(macOS, …)` 输出（提案 [0060](0060-evolution-interface-available-annotations.md)）；为此 `SwiftEvolutionInterfaceDumpTests` 的两个辅助函数加了一个默认 `nil` 的 `availabilityAnnotationPlatform` 参数，现有调用不受影响。默认版本 15.8.1、26.6、27.0 在卷上都有 cache。
 
 ## 决策日志
 
@@ -24,3 +25,5 @@
 | 2026-10-05 | 顺带发现的两处先不改 | `macOS_26_5_1` 指向的目录是空的，diff 套件里两处拿它当旧版本，一跑就失败；`iOS_18_5` / `iOS_26_1` 指向没挂载的 `/Volumes/Generic`，全仓没有调用。用户选「都先不动」 |
 | 2026-10-05 | 验证 | 全量 `swift test --skip IntegrationTests`（JHs-Mac-Studio-Ultra，Swift 6.4，远端依赖）2270 个测试 / 423 个套件全部通过，原始退出码 0，比改动前多出的正是新加的 1 个套件、2 个测试；只有早已登记的 `SymbolicManglingIndexTests` known issue。IntegrationTests 按项目规矩只编译、不运行：三个新类与改过的辅助函数编译通过，没有新警告。默认的 15.8.1、26.6、27.0 在卷上都有 cache 文件 |
 | 2026-10-05 | Implemented，编号 0061 | 按共享分支编号（`next` 最大为 0060），合入 `next`；演进账本第 80 节。不另写专题文档，无新术语 |
+| 2026-10-05 | 后续：加 `versionLabel`，evolution 测试不再另写标签 | 用户：「DyldSharedCachePath这里再嵌入或者解析dyld cache的系统版本，evolution那边就不用再写一次label了」。查到 cache 头的 `osVersion` 不带补丁号、macOS 11 没有这个值，解析会丢信息；用户随后定为「手动传吧，静态常量直接写上，调方法的就拿那个作为版本label，这个不是一定得是系统版本，应该叫versionLabel」。`RawRepresentable` 因此去掉，`cacheLabels` 删掉 |
+| 2026-10-05 | 后续的验证 | 按用户「不用全部跑一遍，编译过了就行」，只编译：全部测试目标（含 IntegrationTests）编译通过，改动的文件没有新警告；没有运行测试，`DyldSharedCachePathTests` 新加的标签断言也没有跑过 |
