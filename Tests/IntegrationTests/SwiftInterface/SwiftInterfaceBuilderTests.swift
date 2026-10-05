@@ -84,6 +84,33 @@ enum SwiftInterfaceBuilderTestSuite {
         }
     }
 
+    /// The same image from an archived macOS cache, picked by version: point
+    /// `cacheVersion` at any directory under `/Volumes/DyldSharedCaches/macOS`
+    /// that holds a cache.
+    class ArchivedDyldCacheTests: MachOTestingSupport.DyldCacheTests, SwiftInterfaceBuilderTests, @unchecked Sendable {
+        class var cacheVersion: String {
+            "26.6"
+        }
+
+        override class var cachePath: DyldSharedCachePath {
+            .macOS(cacheVersion)
+        }
+
+        override class var cacheImageName: MachOImageName {
+            .AppKit
+        }
+
+        @available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *)
+        @Test func buildFile() async throws {
+            try await buildFile(in: machOFileInCache)
+        }
+
+        @available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *)
+        @Test func buildString() async throws {
+            try await buildString(in: machOFileInCache)
+        }
+    }
+
     class MachOFileTests: MachOTestingSupport.MachOFileTests, SwiftInterfaceBuilderTests, @unchecked Sendable {
         override class var fileName: MachOFileName {
             .SymbolTestsCore
