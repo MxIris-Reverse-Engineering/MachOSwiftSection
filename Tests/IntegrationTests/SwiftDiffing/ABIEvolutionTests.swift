@@ -100,17 +100,17 @@ enum ABIEvolutionTestSuite {
         let caches: [DyldCache]
         let versions: [(label: String, machO: MachOFile)]
 
+        /// Oldest first; each cache's `versionLabel` labels it on the axis.
         class var cachePaths: [DyldSharedCachePath] { [.macOS_15_5, .macOS_26_5_2, .macOS_27_0] }
-        class var cacheLabels: [String] { ["15.5", "26.5.2", "27.0"] }
         class var cacheImageName: MachOImageName { .SwiftUI }
 
         init() async throws {
             var caches: [DyldCache] = []
             var versions: [(label: String, machO: MachOFile)] = []
-            for (cachePath, cacheLabel) in zip(Self.cachePaths, Self.cacheLabels) {
+            for cachePath in Self.cachePaths {
                 let cache = try DyldCache(path: cachePath)
                 caches.append(cache)
-                versions.append((cacheLabel, try #require(cache.machOFile(named: Self.cacheImageName))))
+                versions.append((cachePath.versionLabel, try #require(cache.machOFile(named: Self.cacheImageName))))
             }
             self.caches = caches
             self.versions = versions
