@@ -2186,6 +2186,18 @@
 - **关联文档**：[0061-dyld-shared-cache-path-versions](../Evolutions/0061-dyld-shared-cache-path-versions.md)（轻量档提案）。
 - **对应版本**：不进发布产物，只改测试支撑代码与测试。
 
+## 81. 同一次构建出现在两个 dyld cache 里：按镜像的缓存不再串用
+
+- **时间段**：2026-10-06（单日）。
+- **动机**：用户把 `SwiftEvolutionInterfaceBuilderTestSuite.ArchivedDyldCacheTests` 换成 SwiftUI、铺满卷上 macOS 11.0.1 → 27.0 的 51 个归档 cache，测内存时测试进程第 140 秒 SIGTRAP，CLI 的 `evolution --interface` 同样会崩。崩溃点在 MachOKit `DyldChainedFixupPointer._rebaseTargetRuntimeOffset` 的 `unpacked -= preferedLoadAddress`，调用链是给成员补 ObjC 信息时读 Swift 类的 ObjC RO 数据（`ObjCMembers.table` → `ObjCClassMethodIndex.hierarchy` → MachOObjCSection `ObjCClass64.classROData` → `DyldCache.resolveOptionalRebase`）。
+- **根因**：macOS 13.5 和 13.6 的 cache 里是同一个 SwiftUI 构建，`LC_UUID` 都是 `3694A102-…`，而 cache 里镜像的标识是 `uuidFile(install name, LC_UUID)`，两份成了同一个 `SharedCacheKey`，共用一切按镜像的缓存。先建好的那份类对象偏移（13.6 的 `JoinedViews` 在 `0x5bbea7e0`，13.5 的在 `0x5bbe27e0`）被拿到另一个 cache 里读，读到的位置（13.5 主 cache 文件 `0x59BEA800`）存的是整数 `0xa9`，slide info 按指针解出一个低于 shared region 起点的目标，无检查的减法下溢。复现回路：先对 13.6、再对 13.5 调 `ObjCClassMethodIndex.hierarchy`，0.25 秒、退出码 133，栈与原始崩溃逐帧相同。
+- **以前修过吗**：这类撞键 2026-06-20 修过两次——`c4bc9c4a` 把裸路径改成路径加 `LC_BUILD_VERSION`（两个 cache 里的 SwiftUI 撞了），`32733775` 改为优先 `LC_UUID`（相邻系统版本 platform 与 SDK 相同）。两次都假设不同系统版本的二进制一定不同；这次是同一个二进制原样进了两个 cache。cache 镜像真正的身份是「哪个 cache 里的哪个镜像」。
+- **关键决策**（问过一轮）：**① 修在身份的源头**：MachOKitExtensions 给 `MachOTargetIdentifier` 加 `.dyldCacheImage(path:uuid:cacheUUID:)`，`MachOFile.identifier` 对 cache 里的镜像带上主 cache 头部的 UUID——用主 cache 的，同一镜像无论只开主文件还是连子 cache 一起开都是同一个身份（13.5、27.0 实测）。`SharedCacheKey`、`ReadingContext` 的缓存范围、demangler 的记忆、node 驻留缓存都直接用这个身份，一处改全覆盖，本库除了 `SharedCacheKey` 给新 case 补一条只哈希两个 UUID 的快路径，不用动。公开枚举加 case 严格说会让穷举 `switch` 编不过，已知下游（MachOKitUI 只用 typealias、RuntimeViewer 没用到）都不受影响，用户定为发 1.1.0，MachOObjCSection 的 `from: "1.0.0"` 能接住，不用跟着发。**② MachOKit 不再 trap**：解 rebase 时对文件读出的值做的无检查运算一律改成算不出来就返回 nil——`_rebaseTargetRuntimeOffset` 的 arm64e、`._64`、`._32`、`._32_firmware` 四处减法，`arm64e_segmented` 的段下标与偏移算术，以及 `_resolveRebase` 里 v1 的减法与最后的加法。本库远程依赖固定在 MachOKit 0.52 线，所以从 0.52.103 拉分支发 0.52.104，再合进 fork 的 `next`。光改 MachOKit 不够：MachOObjCSection 拿到 nil 会退回槽里的原始值，原始值可能恰好高于 region 起点，变成一个错的偏移——所以根因必须在身份上修。
+- **横向排查**：本库所有按镜像的缓存都经 `identifier`（`SharedCacheKey`、`MachOContext` 的范围、`DependencyClosure` 的去重）；唯一按路径做键的 `CacheImageResolver.entryPointAddressesByImagePath` 是每个 cache 一个实例，不会跨 cache。MachOObjCSection 没有全局的按镜像缓存。MachOKit 里同类的无检查运算只在这两个函数里（`DyldCacheLoaded` 那处读的是进程自己的 cache 头）。
+- **落地模块**：MachOKitExtensions（`MachOTargetIdentifier.dyldCacheImage`、`DyldCacheImageIdentifierTests`）；MachOKit fork（`DyldChainedFixupPointer`、`_DyldCacheFileRepresentable`、`DyldChainedFixupPointerRebaseTargetTests`）；本库 `MachOCaches`（`SharedCacheKey` 快路径与 `SharedCacheKeyTests` 两条）、`SwiftInspectionTests/DyldCacheTwinImageTests`（归档 cache 不在时跳过）。
+- **验证**：三个仓库都先红后绿——MachOKitExtensions 的身份测试在 1.0.0 上断言失败；MachOKit 的 6 条合成数据测试中 5 条在 0.52.103 上 SIGTRAP 或数组越界（另一条是对照）；本库两条在发版依赖（MachOKitExtensions 1.0.0、MachOKit 0.52.103）上一条记录偏移不对后崩溃、一条 SIGTRAP，用 `swift package edit` 换成两个修复分支后全绿。原始场景：修复后的 CLI 跑 SwiftUI 11.0.1 → 14.3 的 28 个版本，459 秒跑完、峰值 2.43 GB、日志 0 条 error（修复前同一批版本第 123 秒崩溃）。全量 `swift test --skip IntegrationTests`（JHs-Mac-Studio-Ultra，远端依赖加两个 `package edit`）2275 个测试 / 424 个套件全部通过，原始退出码 0，只有早已登记的 `SymbolicManglingIndexTests` known issue；MachOKitExtensions 全套 11 个测试通过。
+- **对应版本**：0.22.0（未发版）。发版前要先发 MachOKitExtensions 1.1.0 与 MachOKit 0.52.104，再把本库的下限抬到这两个版本。
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节
