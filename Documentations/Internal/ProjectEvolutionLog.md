@@ -2196,7 +2196,7 @@
 - **横向排查**：本库所有按镜像的缓存都经 `identifier`（`SharedCacheKey`、`MachOContext` 的范围、`DependencyClosure` 的去重）；唯一按路径做键的 `CacheImageResolver.entryPointAddressesByImagePath` 是每个 cache 一个实例，不会跨 cache。MachOObjCSection 没有全局的按镜像缓存。MachOKit 里同类的无检查运算只在这两个函数里（`DyldCacheLoaded` 那处读的是进程自己的 cache 头）。
 - **落地模块**：MachOKitExtensions（`MachOTargetIdentifier.dyldCacheImage`、`DyldCacheImageIdentifierTests`）；MachOKit fork（`DyldChainedFixupPointer`、`_DyldCacheFileRepresentable`、`DyldChainedFixupPointerRebaseTargetTests`）；本库 `MachOCaches`（`SharedCacheKey` 快路径与 `SharedCacheKeyTests` 两条）、`SwiftInspectionTests/DyldCacheTwinImageTests`（归档 cache 不在时跳过）。
 - **验证**：三个仓库都先红后绿——MachOKitExtensions 的身份测试在 1.0.0 上断言失败；MachOKit 的 6 条合成数据测试中 5 条在 0.52.103 上 SIGTRAP 或数组越界（另一条是对照）；本库两条在发版依赖（MachOKitExtensions 1.0.0、MachOKit 0.52.103）上一条记录偏移不对后崩溃、一条 SIGTRAP，用 `swift package edit` 换成两个修复分支后全绿。原始场景：修复后的 CLI 跑 SwiftUI 11.0.1 → 14.3 的 28 个版本，459 秒跑完、峰值 2.43 GB、日志 0 条 error（修复前同一批版本第 123 秒崩溃）。全量 `swift test --skip IntegrationTests`（JHs-Mac-Studio-Ultra，远端依赖加两个 `package edit`）2275 个测试 / 424 个套件全部通过，原始退出码 0，只有早已登记的 `SymbolicManglingIndexTests` known issue；MachOKitExtensions 全套 11 个测试通过。
-- **对应版本**：0.22.0（未发版）。发版前要先发 MachOKitExtensions 1.1.0 与 MachOKit 0.52.104，再把本库的下限抬到这两个版本。
+- **对应版本**：0.22.0（未发版）。依赖下限已抬到 MachOKitExtensions 1.1.0 与 MachOKit 0.52.104（两者 2026-10-06 已发：1.1.0 快进推到 MachOKitExtensions 的 `main`；0.52.104 打在从 0.52.103 拉出的修复分支上，修复同时合进 fork 的 `next`，`main` 没动）。发版说明要写：同一次构建出现在两个 dyld cache 里时，按镜像的缓存不再串用（不再崩溃）。
 
 ## 维护约定
 

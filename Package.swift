@@ -124,8 +124,10 @@ extension Package.Dependency {
         remote: .package(
             url: "https://github.com/MxIris-Reverse-Engineering/MachOKit.git",
             // 0.52.103 stops reading chained-fixup starts for a segment that has
-            // none, which crashed on a dylib with no `__DATA` segment.
-            "0.52.103" ..< "0.53.0",
+            // none, which crashed on a dylib with no `__DATA` segment; 0.52.104
+            // answers no rebase target for a slot holding no pointer instead of
+            // trapping on it.
+            "0.52.104" ..< "0.53.0",
         ),
     )
 
@@ -138,8 +140,9 @@ extension Package.Dependency {
             url: "https://github.com/MxIris-Reverse-Engineering/MachOKitExtensions",
             // 1.0.0 no longer exports the throwing `init(bitPattern:)`, which
             // Utilities now declares; an earlier release would make every
-            // call ambiguous.
-            from: "1.0.0",
+            // call ambiguous. 1.1.0 keys an image read from a dyld cache by
+            // its cache too (`dyldCacheImage`), which `SharedCacheKey` hashes.
+            from: "1.1.0",
         ),
     )
 
