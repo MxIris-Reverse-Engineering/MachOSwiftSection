@@ -95,6 +95,13 @@ enum ABIEvolutionTestSuite {
     /// `SwiftDiffableInterfaceBuilderTestSuite.CrossVersionDyldCacheImageTests`.
     /// The caches are retained because the extracted `MachOFile`s resolve
     /// cross-image references through them while indexing.
+    ///
+    /// A version whose cache lacks the image, or whose image has no
+    /// `__swift5_*` section, is left off the axis: there is nothing to index,
+    /// and indexing it anyway logs four extraction failures. AppKit kept its
+    /// Swift API in `libswiftAppKit.dylib` until macOS 14, so an AppKit axis
+    /// reaching further back starts at 14.0. A cache that cannot be opened
+    /// still throws.
     @TestActor
     class MultiVersionDyldCacheImageTests: Sendable {
         let caches: [DyldCache]
@@ -109,8 +116,12 @@ enum ABIEvolutionTestSuite {
             var versions: [(label: String, machO: MachOFile)] = []
             for cachePath in Self.cachePaths {
                 let cache = try DyldCache(path: cachePath)
+                guard let machOFile = cache.machOFile(named: Self.cacheImageName),
+                      machOFile.sections.contains(where: { $0.sectionName.hasPrefix("__swift5_") }) else {
+                    continue
+                }
                 caches.append(cache)
-                versions.append((cachePath.versionLabel, try #require(cache.machOFile(named: Self.cacheImageName))))
+                versions.append((cachePath.versionLabel, machOFile))
             }
             self.caches = caches
             self.versions = versions

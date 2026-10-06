@@ -21,11 +21,11 @@ import SwiftDiffing
 /// dumps produce for the same axis — the two views must tell one story
 /// (annotation facts are the same lineages).
 ///
-/// Every axis here is N == 3, on `MultiVersionDyldCacheImageTests`: an
-/// evolution over fewer than three images is what `diff --interface` already
-/// covers, and the stories this view exists for — introduced mid-axis,
-/// removed mid-axis, modified twice, gone-and-back bitmaps — only appear
-/// from three versions up.
+/// Every axis here has three versions or more, on
+/// `MultiVersionDyldCacheImageTests`: an evolution over fewer than three
+/// images is what `diff --interface` already covers, and the stories this
+/// view exists for — introduced mid-axis, removed mid-axis, modified twice,
+/// gone-and-back bitmaps — only appear from three versions up.
 protocol SwiftEvolutionInterfaceDumpTests: SwiftInterfaceDumpTests {}
 
 @available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *)
@@ -141,15 +141,73 @@ enum SwiftEvolutionInterfaceBuilderTestSuite {
         }
     }
 
-    /// The same image across archived macOS caches, picked by version: point
-    /// `cachePaths` at directories under `/Volumes/DyldSharedCaches/macOS`
-    /// that hold a cache, oldest first. A cache named by its version is
-    /// labeled with it, so every label is a version number and the union
-    /// interface also spells each lifecycle one attribute can express as
-    /// `@available(macOS, …)`.
+    /// The same image across archived macOS caches, picked by version: list
+    /// in `cacheVersions` the directories under
+    /// `/Volumes/DyldSharedCaches/macOS` that hold a cache, oldest first. A
+    /// cache named by its version is labeled with it, so every label is a
+    /// version number and the union interface also spells each lifecycle one
+    /// attribute can express as `@available(macOS, …)`. A version whose image
+    /// carries no Swift metadata drops off the axis (see
+    /// `MultiVersionDyldCacheImageTests`).
     final class ArchivedDyldCacheTests: ABIEvolutionTestSuite.MultiVersionDyldCacheImageTests, SwiftEvolutionInterfaceDumpTests, @unchecked Sendable {
-        override class var cachePaths: [DyldSharedCachePath] { [.macOS("15.8.1"), .macOS("26.6"), .macOS("27.0")] }
-        override class var cacheImageName: MachOImageName { .AppKit }
+        
+        class var cacheVersions: [String] { [
+            "11.0.1",
+            "11.1",
+            "11.2",
+            "11.3",
+            "11.4",
+            "11.5",
+            "11.6",
+            "11.7",
+            "12.0.1",
+            "12.1",
+            "12.2",
+            "12.3",
+            "12.4",
+            "12.5",
+            "12.6",
+            "12.7",
+            "13.0",
+            "13.1",
+            "13.2",
+            "13.3",
+            "13.4",
+            "13.5",
+            "13.6",
+            "13.7",
+            "14.0",
+            "14.1",
+            "14.2",
+            "14.3",
+            "14.4",
+            "14.5",
+            "14.6",
+            "14.7",
+            "14.8",
+            "15.0",
+            "15.1",
+            "15.2",
+            "15.3",
+            "15.4",
+            "15.5",
+            "15.6",
+            "15.7",
+            "15.8",
+            "26.0",
+            "26.1",
+            "26.2",
+            "26.3",
+            "26.4",
+            "26.5",
+            "26.6",
+            "26.7",
+            "27.0",
+        ] }
+        
+        override class var cachePaths: [DyldSharedCachePath] { cacheVersions.map { .macOS($0) } }
+        
+        override class var cacheImageName: MachOImageName { .SwiftUI }
 
         @available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *)
         @Test func evolutionInterfaceFile() async throws {
