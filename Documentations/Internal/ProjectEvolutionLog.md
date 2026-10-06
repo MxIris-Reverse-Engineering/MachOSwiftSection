@@ -2219,8 +2219,8 @@
   - **③ 表挂在 `MachOFile` 上，不挂在 cache 上**：子 cache 实例强引用它的 `FullDyldCache`，只开主文件时还强引用主 cache，挂在 cache 上会形成循环引用。
   - **④ 同类**：
     - 按名字找镜像（MachOKitExtensions 的 `DyldCache.machOFile(by:)`）是同一种逐条目循环，改为一次拿齐。
-    - MachOObjCSection 的读取有自己的查找，不受影响。
-    - `FullDyldCache.host` 每访问一次重开 82 个文件（第 80 节）仍未处理：51 个版本时同时开着 4,182 个本机 cache 文件。
+    - MachOObjCSection 的读取有自己的查找。经 FullDyldCache 打开时不受影响；只开主文件时是同一类问题，当时漏判了，见本节「后续」。
+    - `FullDyldCache.host` 每访问一次重开 82 个文件（第 80 节）：51 个版本时同时开着 4,182 个本机 cache 文件。「后续」里改为进程内只开一次。
 - **落地模块**：MachOKitExtensions（`DyldCacheSubCacheTable`、`MachOCached.subCacheTable`、`DyldCache.subCacheFiles`、`DyldCacheSubCacheLookupTests`）。本库只抬依赖下限。
 - **验证**：
   - **新测试先红后绿**：MachOKitExtensions 加了两条测试，各在两种打开方式下跑。「同一地址查两次拿到同一个实例」在 1.1.0 上两种方式都失败，修复后通过；「查到的文件与偏移等于 `FullDyldCache` 自己的映射结果」是对照，修复前后都通过。全套 13 个测试通过。
@@ -2235,7 +2235,26 @@
     - 渲染阶段回落到 4.31–4.41 GB。
   - **全量测试**：`swift test --skip IntegrationTests`（JHs-Mac-Studio-Ultra，远端依赖，MachOKitExtensions 用 `swift package edit` 指向修复分支）：20 个测试产物共 2,274 个测试、424 个套件全部通过，原始退出码 0，只有早已登记的 `SymbolicManglingIndexTests` known issue。测试名单与第 81 节那次逐条相同。第 81 节写的 2,275 是当时数法不同。
 - **还剩什么**：51 个版本离 5 GB 只剩约 250 MB。结构性的上限是 evolution 的渲染要求所有版本的索引一直留到最后，这部分随版本数线性增长。要真正留出余量，需要把渲染改成从新到旧逐版本合并、渲染完就释放，属于架构改动，要走提案，待用户决定。
-- **对应版本**：0.22.0（未发版）。依赖下限抬到 MachOKitExtensions 1.1.1。
+- **后续（同日）：集成测试本身仍超 5 GB，再修四处**
+  - **现象**：用户要求跑 `SwiftEvolutionInterfaceBuilderTestSuite.ArchivedDyldCacheTests.evolutionInterfaceFile`（51 个 SwiftUI 版本，当时用只开主文件的 `DyldCache(path:)` 打开）。第 8 分钟 5,138 MB，被看门狗杀掉，比同样 51 个版本的 CLI 高。
+  - **诊断**：4.0 GB 那一刻的构成：
+    - malloc 3.5 GB；
+    - 页表 445 MB，4.5 GB 时已到 847 MB；
+    - 映射文件 4,453 段：本机 cache 2,706 段（33 份 × 82 个文件），14.4 的 `.01` 一个文件 250 段，14.5、14.6 各 247 段。
+  - **原因**：
+    - MachOObjCSection 的读取有自己的一份 `cacheAndFileOffset`。只开主文件时，每次跨文件读都现开一次子 cache，再按新实例另映射一份文件。
+    - 它的 `FileHandleHolder` 和 MachOKit 的 `FileHandleIdentityStore` 都是弱键强值的 `NSMapTable`，键释放后值要等表扩容才清，于是这些映射一直留着。
+    - 原先以为是 autorelease 让文件开着，复现测试证明 MachOKit 自己的句柄会立即关闭，留下来的是标识对象和以它为键的映射。
+  - **看门狗失效一次**：进程映射膨胀后，`footprint` 自己卡了 9 分钟，看门狗没能杀掉进程，是手动杀的。当时 RSS 显示 149 GB，大部分是重复映射重复计数，系统没有用到 swap。之后改用 `top` 读数。
+  - **修复**（用户选了全部四项，都先红后绿）：
+    1. **MachOObjCSection 0.8.109**：删掉自己的三个查找函数，改用 MachOKitExtensions 1.1.1 的；`FileHandleHolder` 在有 ObjC 运行时的平台上改为关联对象。`DyldCacheSubCacheReadTests` 两条。
+    2. **MachOKit 0.52.105**：fork 从 0.52.104 拉修复分支，已合进 fork 的 `next`。标识对象改为挂在文件句柄上的关联对象。`FileHandleIdentityLifetimeTests` 一条红绿、一条对照；同一修复已在上游 `main` 上验证红绿，PR 待用户确认后再提。
+    3. **MachOKitExtensions 1.1.2**：加 `FullDyldCache.cachedHost`，进程内只打开一次。本库 `FileDependencyLocator` 与 `MachOSource` 改用它。`FileDependencyLocatorTests.locatorsShareOneOpeningOfTheSystemCache` 一条。
+    4. **测试支撑**：`MultiVersionDyldCacheImageTests` 改用 `FullDyldCache` 打开，和 CLI 一致。
+  - **验证**：
+    - 集成测试 `evolutionInterfaceFile` 通过，用时 2,416 秒，峰值 4,456 MB，出现在快照加 lineage 矩阵阶段；渲染阶段 3.8–4.0 GB；打开的文件不超过 718 个。输出与上面 CLI 跑 51 个版本的结果逐字节相同，只多了测试自己追加的那行 `ABI-breaking` 结论。
+    - 全量 `swift test --skip IntegrationTests`：2,275 个测试、424 个套件，只有一条失败：`Arm64eSignedVWTPointerTests` 的探针子进程报 `slotCarriesTagBits=0`。它单独重跑三次都通过，探针也不依赖这次改动的代码，判为偶发。另有早已登记的 `SymbolicManglingIndexTests` known issue。
+- **对应版本**：0.22.0（未发版）。依赖下限：MachOKit 0.52.105、MachOKitExtensions 1.1.2、MachOObjCSection 0.8.109。
 
 ## 维护约定
 

@@ -146,7 +146,7 @@ extension DependencySearchPath {
 public enum DependencySearchPathError: Error, Sendable, Equatable {
     /// The file loaded but yielded no Mach-O slice.
     case noMachOSlice(path: String)
-    /// `FullDyldCache.host` returned `nil` — the platform exposes no shared
+    /// `FullDyldCache.cachedHost` returned `nil` — the platform exposes no shared
     /// cache file to this process.
     case systemDyldSharedCacheUnavailable
     /// A ``DependencySearchPath/systemRoot(path:)`` that is not a directory.

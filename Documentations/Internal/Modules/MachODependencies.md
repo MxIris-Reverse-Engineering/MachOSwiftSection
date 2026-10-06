@@ -28,6 +28,8 @@ MachODependencies 回答一个问题：**一个二进制链接了哪些镜像，
 
 打不开的搜索路径**不抛错**，记进 `DependencySearchPathLoadFailure`（附原始 error；系统 cache 不可用时是 `systemDyldSharedCacheUnavailable`）。理由有二：一条坏路径不该让整个解析失败；本模块在事件层（`SwiftIndexEvents`）之下，无法派发事件，只能把失败当数据回传，由上层决定落点——`SwiftInterfaceBuilderDependencies` 把它们派发为 `renderingDegraded(.dependencyLoad)` 事件，CLI 经 `ConsoleEventHandler` 落到 stderr。
 
+`.systemDyldSharedCache` 取 MachOKitExtensions 的 `FullDyldCache.cachedHost`：本机 cache 在进程内只打开一次，所有定位器共用。不要直接读 `FullDyldCache.host`：它每读一次就重新打开、映射本机 cache 的全部文件（macOS 27 是 82 个），而定位器是按根构建的，51 个版本的 evolution 因此曾同时开着 4,182 个文件（[ProjectEvolutionLog](../ProjectEvolutionLog.md) 第 82 节）。`FileDependencyLocatorTests.locatorsShareOneOpeningOfTheSystemCache` 钉住了共用。
+
 ## 2. load name 归一（`DependencyLoadName.bareImageName(of:)`）
 
 load name → bare image name：取末段路径、去**第一个**扩展名（`libobjc.A.dylib` → `libobjc`，`libc++.1.dylib` → `libc++`）。这条规则是**与 MachOKit 的契约**：`MachOImage(name:)` 对进程内每个镜像的路径做同样的归约再比较。把未归一的 load name（dyld 报告的都是绝对路径）直接喂给它永远匹配不到——`SwiftInterfaceBuilderDependencies` 的 `MachOImage` 版初始化器就是这么写的，从诞生起解析结果一直为空，仓库内无人调用所以没被发现（`DependencyLoadNameTests.bareImageNameIsWhatMachOImageLookupMatches` 与 `SwiftInterfaceBuilderDependenciesTests.imageInitializerResolvesTheMappedDirectDependencies` 锁定）。
