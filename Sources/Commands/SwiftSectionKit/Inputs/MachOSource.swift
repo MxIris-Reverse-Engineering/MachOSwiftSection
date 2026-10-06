@@ -80,7 +80,7 @@ extension MachOSource {
             let dyldCache = try FullDyldCache(url: URL(fileURLWithPath: cachePath))
             return try image.machOFile(in: dyldCache)
         case .systemDyldSharedCache(let image):
-            guard let dyldCache = FullDyldCache.host else {
+            guard let dyldCache = FullDyldCache.cachedHost else {
                 throw MachOSourceError.systemDyldSharedCacheUnavailable
             }
             return try image.machOFile(in: dyldCache)

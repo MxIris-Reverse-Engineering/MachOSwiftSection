@@ -1,5 +1,5 @@
 import Foundation
-import MachOKit
+@_spi(Support) import MachOKit
 import MachOKitExtensions
 import Testing
 @testable import MachODependencies
@@ -17,7 +17,7 @@ struct FileDependencyLocatorTests {
     private static let catalystSwiftUIPath = "/System/iOSSupport/System/Library/Frameworks/SwiftUI.framework/Versions/A/SwiftUI"
 
     private func hostLocator() -> FileDependencyLocator? {
-        guard FullDyldCache.host != nil else {
+        guard FullDyldCache.cachedHost != nil else {
             print("skipped: no host dyld shared cache")
             return nil
         }
@@ -80,7 +80,7 @@ struct FileDependencyLocatorTests {
     /// tables and instance sizes. Without the guard the bare-name fallback
     /// handed it back, since no native build exists to outrank it.
     @Test func cacheImagesOfAnotherPlatformAreNotCandidates() throws {
-        guard FullDyldCache.host != nil else {
+        guard FullDyldCache.cachedHost != nil else {
             print("skipped: no host dyld shared cache")
             return
         }
@@ -104,6 +104,20 @@ struct FileDependencyLocatorTests {
         #expect(macOSRoot.locate(loadName: uiKitLoadName) == nil)
         let zipperedRoot = FileDependencyLocator(searchPaths: [.systemDyldSharedCache], platforms: [.macOS, .macCatalyst])
         #expect(zipperedRoot.locate(loadName: uiKitLoadName)?.imagePath == catalystUIKit.imagePath)
+    }
+
+    /// `FullDyldCache.host` opens and maps every file of the system's cache —
+    /// 82 on macOS 27 — each time it is read, and a locator is built for every
+    /// root: an evolution over 51 archived caches held 51 copies open at once.
+    @Test func locatorsShareOneOpeningOfTheSystemCache() throws {
+        guard let firstLocator = hostLocator(), let secondLocator = hostLocator() else { return }
+        let foundationPath = "/System/Library/Frameworks/Foundation.framework/Versions/C/Foundation"
+        let firstFoundation = try #require(firstLocator.locate(loadName: foundationPath))
+        let secondFoundation = try #require(secondLocator.locate(loadName: foundationPath))
+        let firstSystemCache = try #require(firstFoundation.cache?._cachedFullCache)
+        let secondSystemCache = try #require(secondFoundation.cache?._cachedFullCache)
+
+        #expect(firstSystemCache === secondSystemCache)
     }
 
     @Test func unknownNameResolvesToNil() {

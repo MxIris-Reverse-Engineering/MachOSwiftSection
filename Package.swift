@@ -126,8 +126,9 @@ extension Package.Dependency {
             // 0.52.103 stops reading chained-fixup starts for a segment that has
             // none, which crashed on a dylib with no `__DATA` segment; 0.52.104
             // answers no rebase target for a slot holding no pointer instead of
-            // trapping on it.
-            "0.52.104" ..< "0.53.0",
+            // trapping on it; 0.52.105 releases a file handle's identity with
+            // the handle, which MachOObjCSection keys its mapping on.
+            "0.52.105" ..< "0.53.0",
         ),
     )
 
@@ -145,7 +146,9 @@ extension Package.Dependency {
             // 1.1.1 builds each dyld sub-cache once instead of on every read
             // that crosses into another cache file, and hands back the same
             // instance each time, which `DyldCache.fileIO` keys its mapping on.
-            from: "1.1.1",
+            // 1.1.2 adds `FullDyldCache.cachedHost`, the system cache opened
+            // once per process rather than once per dependency locator.
+            from: "1.1.2",
         ),
     )
 
@@ -158,8 +161,10 @@ extension Package.Dependency {
             url: "https://github.com/MxIris-Reverse-Engineering/MachOObjCSection.git",
             // 0.8.108 decodes the pointer slots of a dyld cache's method lists:
             // earlier releases trapped on every image of the macOS 14.4-15.3.2
-            // caches and lost protocol method names on older ones.
-            "0.8.108" ..< "0.9.0",
+            // caches and lost protocol method names on older ones. 0.8.109
+            // stops remapping a sub-cache file on every read of a cache opened
+            // from its main file alone.
+            "0.8.109" ..< "0.9.0",
         ),
     )
 }
