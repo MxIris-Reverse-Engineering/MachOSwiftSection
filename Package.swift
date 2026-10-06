@@ -142,7 +142,10 @@ extension Package.Dependency {
             // Utilities now declares; an earlier release would make every
             // call ambiguous. 1.1.0 keys an image read from a dyld cache by
             // its cache too (`dyldCacheImage`), which `SharedCacheKey` hashes.
-            from: "1.1.0",
+            // 1.1.1 builds each dyld sub-cache once instead of on every read
+            // that crosses into another cache file, and hands back the same
+            // instance each time, which `DyldCache.fileIO` keys its mapping on.
+            from: "1.1.1",
         ),
     )
 

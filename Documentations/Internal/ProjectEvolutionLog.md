@@ -2182,7 +2182,7 @@
 - **落地模块**：`MachOFixtureSupport`（`DyldSharedCachePath`）；`MachOTestingSupportTests` 新增 `DyldSharedCachePathTests`；`IntegrationTests` 的三个 `ArchivedDyldCacheTests` 与 `SwiftEvolutionInterfaceDumpTests` 两个辅助函数的 `availabilityAnnotationPlatform` 参数。
 - **验证**：全量 `swift test --skip IntegrationTests`（JHs-Mac-Studio-Ultra，Swift 6.4，远端依赖）2270 个测试 / 423 个套件全部通过，原始退出码 0，只有早已登记的 `SymbolicManglingIndexTests` known issue。IntegrationTests 只编译、不运行：新类编译通过、没有新警告，三个默认版本在卷上都有 cache 文件。
 - **后续（同日）：`versionLabel`**：用户要 evolution 那边不再另写标签。`DyldSharedCachePath` 加 `versionLabel`，和路径一起在构造时给出：`macOS(_:)` / `iOS(_:)` 拿传入的版本当标签，其余常量直接写明（`current` 标为 `current`，标签不一定是系统版本，这是用户定的）；因此不再遵循 `RawRepresentable`。`MultiVersionDyldCacheImageTests` 删掉 `cacheLabels`，轴标签取 `versionLabel`，默认三个 cache 的标签与原来手写的相同。没有从 cache 文件解析版本：cache 头的 `osVersion` 不带补丁号（26.5.2 读出 26.5.0），macOS 11 的 cache 里是 0.0.0。验证：按用户要求只编译，全部测试目标（含 IntegrationTests）编译通过、没有新警告，没有运行测试。
-- **后续（2026-10-06）：evolution 的归档套件铺满 macOS 11–27，没有 Swift 的版本跳过**：`SwiftEvolutionInterfaceBuilderTestSuite.ArchivedDyldCacheTests` 改列 `cacheVersions`（卷上 macOS 11.0.1 → 27.0 每个次版本一个 cache，共 51 个；11.0、12.0 只有 `11.0.1`、`12.0.1`），`cachePaths` 由它生成，镜像换成 SwiftUI（这两处是用户改的）。`MultiVersionDyldCacheImageTests` 跳过 cache 里没有该镜像、或镜像没有 `__swift5_*` 节的版本，不再报错：AppKit 在 macOS 14 之前把 Swift API 放在 `libswiftAppKit.dylib`，本体在 11.0.1–13.7 没有 Swift 节，不跳过时每个这样的版本都会以 error 级别写进四条提取失败。规模参考（`next` 的 debug 版 CLI 走同一条 `--interface` 路径，AppKit 51 个版本、28 路并行）：178 s，峰值内存 0.78 GB；同时打开的文件峰值 2749 个，其中 2214 个是本机 cache——MachOKit 的 `FullDyldCache.host` 每访问一次就重新打开、映射一遍本机 cache，而库里默认的依赖搜索路径每个版本都会访问它（未处理）。SwiftUI 51 个版本目前跑不完：测试第 140 秒在 13.5 上崩溃（崩溃前峰值 2.2 GB），读 Swift 类的 ObjC RO 数据时，MachOKit `DyldChainedFixupPointer._rebaseTargetRuntimeOffset` 里的 `UInt64` 减法下溢；CLI 路径同样会崩，崩在另一个旧版本上。根因是同一个 SwiftUI 构建出现在 13.5 和 13.6 两个 cache 里、按镜像的缓存撞 key，修复见第 81 节。只跑 14.4 → 27.0 的 23 个版本能跑完：CLI 用时 26 分钟，峰值 4.64 GB，出现在成员索引阶段，渲染阶段约 2.6–2.9 GB；照此推算 51 个版本的峰值在 6–8 GB。验证：只编译，全部测试目标（含 IntegrationTests）编译通过、没有新警告；按用户要求运行过一次 `evolutionInterfaceFile`（如上，崩溃），其余测试没有运行。
+- **后续（2026-10-06）：evolution 的归档套件铺满 macOS 11–27，没有 Swift 的版本跳过**：`SwiftEvolutionInterfaceBuilderTestSuite.ArchivedDyldCacheTests` 改列 `cacheVersions`（卷上 macOS 11.0.1 → 27.0 每个次版本一个 cache，共 51 个；11.0、12.0 只有 `11.0.1`、`12.0.1`），`cachePaths` 由它生成，镜像换成 SwiftUI（这两处是用户改的）。`MultiVersionDyldCacheImageTests` 跳过 cache 里没有该镜像、或镜像没有 `__swift5_*` 节的版本，不再报错：AppKit 在 macOS 14 之前把 Swift API 放在 `libswiftAppKit.dylib`，本体在 11.0.1–13.7 没有 Swift 节，不跳过时每个这样的版本都会以 error 级别写进四条提取失败。规模参考（`next` 的 debug 版 CLI 走同一条 `--interface` 路径，AppKit 51 个版本、28 路并行）：178 s，峰值内存 0.78 GB；同时打开的文件峰值 2749 个，其中 2214 个是本机 cache——MachOKit 的 `FullDyldCache.host` 每访问一次就重新打开、映射一遍本机 cache，而库里默认的依赖搜索路径每个版本都会访问它（未处理）。SwiftUI 51 个版本目前跑不完：测试第 140 秒在 13.5 上崩溃（崩溃前峰值 2.2 GB），读 Swift 类的 ObjC RO 数据时，MachOKit `DyldChainedFixupPointer._rebaseTargetRuntimeOffset` 里的 `UInt64` 减法下溢；CLI 路径同样会崩，崩在另一个旧版本上。根因是同一个 SwiftUI 构建出现在 13.5 和 13.6 两个 cache 里、按镜像的缓存撞 key，修复见第 81 节。只跑 14.4 → 27.0 的 23 个版本能跑完：CLI 用时 26 分钟，峰值 4.64 GB，出现在成员索引阶段，渲染阶段约 2.6–2.9 GB；照此推算 51 个版本的峰值在 6–8 GB。（成员索引阶段的峰值其实主要是读子 cache 时堆积的 autorelease 池，修掉之后 51 个版本以 4.86 GB 的峰值跑完，见第 82 节。）验证：只编译，全部测试目标（含 IntegrationTests）编译通过、没有新警告；按用户要求运行过一次 `evolutionInterfaceFile`（如上，崩溃），其余测试没有运行。
 - **关联文档**：[0061-dyld-shared-cache-path-versions](../Evolutions/0061-dyld-shared-cache-path-versions.md)（轻量档提案）。
 - **对应版本**：不进发布产物，只改测试支撑代码与测试。
 
@@ -2197,6 +2197,45 @@
 - **落地模块**：MachOKitExtensions（`MachOTargetIdentifier.dyldCacheImage`、`DyldCacheImageIdentifierTests`）；MachOKit fork（`DyldChainedFixupPointer`、`_DyldCacheFileRepresentable`、`DyldChainedFixupPointerRebaseTargetTests`）；本库 `MachOCaches`（`SharedCacheKey` 快路径与 `SharedCacheKeyTests` 两条）、`SwiftInspectionTests/DyldCacheTwinImageTests`（归档 cache 不在时跳过）。
 - **验证**：三个仓库都先红后绿——MachOKitExtensions 的身份测试在 1.0.0 上断言失败；MachOKit 的 6 条合成数据测试中 5 条在 0.52.103 上 SIGTRAP 或数组越界（另一条是对照）；本库两条在发版依赖（MachOKitExtensions 1.0.0、MachOKit 0.52.103）上一条记录偏移不对后崩溃、一条 SIGTRAP，用 `swift package edit` 换成两个修复分支后全绿。原始场景：修复后的 CLI 跑 SwiftUI 11.0.1 → 14.3 的 28 个版本，459 秒跑完、峰值 2.43 GB、日志 0 条 error（修复前同一批版本第 123 秒崩溃）。全量 `swift test --skip IntegrationTests`（JHs-Mac-Studio-Ultra，远端依赖加两个 `package edit`）2275 个测试 / 424 个套件全部通过，原始退出码 0，只有早已登记的 `SymbolicManglingIndexTests` known issue；MachOKitExtensions 全套 11 个测试通过。
 - **对应版本**：0.22.0（未发版）。依赖下限已抬到 MachOKitExtensions 1.1.0 与 MachOKit 0.52.104（两者 2026-10-06 已发：1.1.0 快进推到 MachOKitExtensions 的 `main`；0.52.104 打在从 0.52.103 拉出的修复分支上，修复同时合进 fork 的 `next`，`main` 没动）。发版说明要写：同一次构建出现在两个 dyld cache 里时，按镜像的缓存不再串用（不再崩溃）。
+
+## 82. 读 dyld cache 时子 cache 只建一次：evolution 的内存峰值与一半耗时
+
+- **时间段**：2026-10-06（单日）。
+- **动机**：第 81 节修掉崩溃后，SwiftUI 51 个版本的 `evolution --interface` 仍推算要 6–8 GB，超过用户定的 5 GB 上限（macOS 超内存不杀进程，只会吃满内存再走 swap）。用户要求先查怎么解决爆内存。
+- **根因**：拆账用 SwiftUI 26.7 + 27.0 两个版本，在索引中途和渲染开始时各用 `heap` 抓一次。
+  - 峰值 3.2 GB，索引中途堆里 1.18 GB 是 `@autoreleasepool content`。索引完 footprint 回落到 0.47 GB，其中 malloc 217 MB，即每个版本约 108 MB 常驻。
+  - autorelease 来自读取。本库 `MachOFile+Readable.swift` 的每次读取都经过 MachOKitExtensions 的 `cacheAndFileOffset(for:)`。地址既不在镜像自己的文件、也不在主文件时（比如 `SymbolicDemangler` 读别的镜像的上下文描述符），它逐个子 cache 条目调用 MachOKit 的 `DyldSubCacheEntry.subcache(for:)`：
+    - 经 `FullDyldCache` 打开的，这个调用每次都通过计算属性 `FullDyldCache.subCaches` 把全部子 cache 新建一遍，再挑出一个；
+    - 只开了主文件的，每次都重新打开那个子文件。
+  - 每个新 `DyldCache` 初始化时查一次 `FileHandleIdentityStore`（`NSMapTable` 弱表，`objectForKey:` 会 autorelease 一次）。本库按实例缓存的 `fileIO` 也因为实例是新的，每次都要 open 加 mmap。
+  - 大栈执行器每个 job 外面包一个 autoreleasepool，而一个版本的整个索引是一个不挂起的 job，所以池要攒到索引结束才清。
+  - 代价与子文件数的平方成正比。归档里 13.5 有 1 个子文件、15.5 有 2 个、26.7 有 12 个、27.0 约 80 个，所以几乎是 macOS 27 才有的问题。27.0 单版本索引中途就到 3.4 GB；成员索引阶段抽样 15 秒，63% 的 CPU 在 `cacheAndFileOffset` 里。
+- **以前修过吗**：没有。逐条目的循环是本库 2025 年写的，2026-08 随抽包移进 MachOKitExtensions。上游 MachOKit 2025-11 让 `subcache(for:)` 改走 `FullDyldCache.subCaches`，省掉了重开文件，代价是每次重建全部子 cache；2026-07-25（21463c0）起每个 `DyldCache` 初始化都要做一次弱表查询。macOS 27 的 cache 拆成约 80 个文件后，问题才大到能看见。
+- **关键决策**：
+  - **① 修在 MachOKitExtensions，按它的提案 0001 做成 cached 视图**，性能改动不进 fork 的上游文件。`MachOFile` 的 cached 存储里放一张各子 cache 映射区间的表：查找是一次二分，落到的子 cache 每次都返回同一个实例。也考虑过直接调用 `FullDyldCache.cacheAndFileOffset(for:)`（MachOObjCSection 的读取就是这么做的），但它每次返回新实例，本库按实例缓存的文件映射照样每次重开。用户选了原方案。
+  - **② 两种打开方式分开处理**：
+    - 经 `FullDyldCache` 打开的，用 `_cachedFullCache` SPI 一次拿齐全部子 cache，共享 FullDyldCache 已经打开的文件。MachOKitExtensions 依赖的 MachOKit 下限因此抬到 0.52.0。
+    - 只开主文件的，为读映射表把每个子文件打开一次再关掉，只留下查找真正落到的那些。否则 macOS 27 的 cache 每读一个镜像就要常驻 80 个文件。
+  - **③ 表挂在 `MachOFile` 上，不挂在 cache 上**：子 cache 实例强引用它的 `FullDyldCache`，只开主文件时还强引用主 cache，挂在 cache 上会形成循环引用。
+  - **④ 同类**：
+    - 按名字找镜像（MachOKitExtensions 的 `DyldCache.machOFile(by:)`）是同一种逐条目循环，改为一次拿齐。
+    - MachOObjCSection 的读取有自己的查找，不受影响。
+    - `FullDyldCache.host` 每访问一次重开 82 个文件（第 80 节）仍未处理：51 个版本时同时开着 4,182 个本机 cache 文件。
+- **落地模块**：MachOKitExtensions（`DyldCacheSubCacheTable`、`MachOCached.subCacheTable`、`DyldCache.subCacheFiles`、`DyldCacheSubCacheLookupTests`）。本库只抬依赖下限。
+- **验证**：
+  - **新测试先红后绿**：MachOKitExtensions 加了两条测试，各在两种打开方式下跑。「同一地址查两次拿到同一个实例」在 1.1.0 上两种方式都失败，修复后通过；「查到的文件与偏移等于 `FullDyldCache` 自己的映射结果」是对照，修复前后都通过。全套 13 个测试通过。
+  - **两个版本**：同一个 debug 版 CLI（`next` 同源，MachOKit 0.52.104），SwiftUI 26.7 + 27.0。
+    - 耗时 376 s → 198 s，峰值 3.2 GB → 427 MB。
+    - 渲染时 malloc 217 MB → 219 MB，常驻不变；autorelease 池 1.18 GB → 20 KB。
+    - 输出 118,970 行，逐字节相同。
+    - 同一阶段打开的文件：27.0 从 198 个到 212 个，26.7 从 33 个到 35 个。
+  - **51 个版本**（11.0.1 → 27.0，`--interface --emit-available`，默认 28 路并行）：39 分钟跑完，峰值 4.86 GB，日志 0 条 error，输出 29.9 万行。
+    - 成员索引结束时约 4.32 GB，平均每个版本约 84 MB 常驻。
+    - 峰值出现在之后的快照加 lineage 矩阵阶段，51 份快照与 51 个索引同时在内存里，约多出 0.55 GB。
+    - 渲染阶段回落到 4.31–4.41 GB。
+  - **全量测试**：`swift test --skip IntegrationTests`（JHs-Mac-Studio-Ultra，远端依赖，MachOKitExtensions 用 `swift package edit` 指向修复分支）：20 个测试产物共 2,274 个测试、424 个套件全部通过，原始退出码 0，只有早已登记的 `SymbolicManglingIndexTests` known issue。测试名单与第 81 节那次逐条相同。第 81 节写的 2,275 是当时数法不同。
+- **还剩什么**：51 个版本离 5 GB 只剩约 250 MB。结构性的上限是 evolution 的渲染要求所有版本的索引一直留到最后，这部分随版本数线性增长。要真正留出余量，需要把渲染改成从新到旧逐版本合并、渲染完就释放，属于架构改动，要走提案，待用户决定。
+- **对应版本**：0.22.0（未发版）。依赖下限抬到 MachOKitExtensions 1.1.1。
 
 ## 维护约定
 
