@@ -11,10 +11,12 @@ import MachOKitExtensions
 /// plus a UUID, does not fit an existential's inline buffer — and hashed the
 /// whole install path, on lookups that happen once per symbol and once per
 /// mangled name. Here the `uuidFile` case hashes only its UUID (unique per
-/// link, so it separates images by itself) and the `image` case only its
-/// base address; the path takes part in equality, never in the hash. The
-/// two cases without a UUID, `file` and `versionedFile`, still hash the
-/// path — they only occur for a binary that carries no `LC_UUID`.
+/// link, so it separates images by itself), the `dyldCacheImage` case only
+/// its two UUIDs (the image's and its cache's — one build can sit in two
+/// caches) and the `image` case only its base address; the path takes part
+/// in equality, never in the hash. The two cases without a UUID, `file` and
+/// `versionedFile`, still hash the path — they only occur for a binary that
+/// carries no `LC_UUID`.
 ///
 /// An identifier of any other type is boxed the way it used to be, so a
 /// future conformer keeps working, just without the cheaper hash.
@@ -53,6 +55,10 @@ public struct SharedCacheKey: Hashable, CustomStringConvertible, @unchecked Send
         case .target(.uuidFile(_, let uuid)):
             hasher.combine(0 as UInt8)
             hasher.combine(uuid)
+        case .target(.dyldCacheImage(_, let uuid, let cacheUUID)):
+            hasher.combine(4 as UInt8)
+            hasher.combine(uuid)
+            hasher.combine(cacheUUID)
         case .target(.image(let baseAddress)):
             hasher.combine(1 as UInt8)
             hasher.combine(baseAddress)
