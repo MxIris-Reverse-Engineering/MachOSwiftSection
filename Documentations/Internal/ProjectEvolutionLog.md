@@ -2248,7 +2248,7 @@
   - **看门狗失效一次**：进程映射膨胀后，`footprint` 自己卡了 9 分钟，看门狗没能杀掉进程，是手动杀的。当时 RSS 显示 149 GB，大部分是重复映射重复计数，系统没有用到 swap。之后改用 `top` 读数。
   - **修复**（用户选了全部四项，都先红后绿）：
     1. **MachOObjCSection 0.8.109**：删掉自己的三个查找函数，改用 MachOKitExtensions 1.1.1 的；`FileHandleHolder` 在有 ObjC 运行时的平台上改为关联对象。`DyldCacheSubCacheReadTests` 两条。
-    2. **MachOKit 0.52.105**：fork 从 0.52.104 拉修复分支，已合进 fork 的 `next`。标识对象改为挂在文件句柄上的关联对象。`FileHandleIdentityLifetimeTests` 一条红绿、一条对照；同一修复已在上游 `main` 上验证红绿，PR 待用户确认后再提。
+    2. **MachOKit 0.52.105**：fork 从 0.52.104 拉修复分支，已合进 fork 的 `next`。标识对象改为挂在文件句柄上的关联对象。`FileHandleIdentityLifetimeTests` 一条红绿、一条对照。这处修复主要服务本库与 MachOObjCSection 的需求，只留在 fork 里，不提给上游。
     3. **MachOKitExtensions 1.1.2**：加 `FullDyldCache.cachedHost`，进程内只打开一次。本库 `FileDependencyLocator` 与 `MachOSource` 改用它。`FileDependencyLocatorTests.locatorsShareOneOpeningOfTheSystemCache` 一条。
     4. **测试支撑**：`MultiVersionDyldCacheImageTests` 改用 `FullDyldCache` 打开，和 CLI 一致。
   - **验证**：
