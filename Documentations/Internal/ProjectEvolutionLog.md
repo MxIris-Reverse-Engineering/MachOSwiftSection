@@ -2256,6 +2256,25 @@
     - 全量 `swift test --skip IntegrationTests`：2,275 个测试、424 个套件，只有一条失败：`Arm64eSignedVWTPointerTests` 的探针子进程报 `slotCarriesTagBits=0`。它单独重跑三次都通过，探针也不依赖这次改动的代码，判为偶发。另有早已登记的 `SymbolicManglingIndexTests` known issue。
 - **对应版本**：0.22.0（未发版）。依赖下限：MachOKit 0.52.105、MachOKitExtensions 1.1.2、MachOObjCSection 0.8.109。
 
+## 83. MachOKit 依赖统一为 `from: "0.54.101"`
+
+- **时间段**：2026-10-07（单日）。
+- **动机**：用户先要 MachOKit fork 合并上游 0.54.0 并发 0.54.100，随后要求「MachOKit依赖全部改成 from: "0.54.100"」。范围定为本库这条依赖链上的三个库：本库、MachOObjCSection、MachOKitExtensions。只推送、不单独发版；下游的 App 与工具（RuntimeViewer、MachOKitUI、swift-decompiler 等）仍按 0.22.0 发版后的迁移计划处理。本库原来写的是 `"0.52.105" ..< "0.53.0"`，上限是 `8e3a49aa` 为防 fork 在次版本里删公开 API 而设；按用户要求改成只有下限的 `from:` 之后，fork 的次版本升级不再被这里挡住，删 API 的风险由升级时的全量测试与渲染 A/B 兜住。
+- **fork 这边**：上游 0.54.0 合进 fork 的 `next`，没有冲突。上游这一版收下了 fork 之前提的三个修复（p-x9/MachOKit#330–#332），合并后 fork 相对上游只剩 swift-crypto / swift-asn1 的版本范围、0.52.104 与 0.52.105 两个修复，以及 Xcode scheme。0.52.105 那处（文件句柄的标识随句柄释放）主要服务本库与 MachOObjCSection，按用户决定只留在 fork，不提上游。
+- **A/B 查出的回归**：第一轮 A/B 的基线是 `next` @ `91b6c206`（MachOKit 0.52.105），候选只把 MachOKit 换成 0.54.100，两侧共用同一份 `Package.resolved`。96 对里 92 对一致，剩下 4 对是候选侧 SIGTRAP：iOS 15.5 模拟器的 SwiftUI、WidgetKit，dump 与 interface 各一对。
+  - 崩在 MachOKit `MachOFile.ExportTrie.init` 对 `_readLinkEditData(...)` 结果的强制解包。调用方是 `ObjCAncestorResolver.classObject(named:)`：沿 ObjC 父类链找类时，它会读依赖闭包里每个镜像的导出表。
+  - 根因是上游 0.53.0 的 `7adae68` 给 link-edit 读取加了一条检查：读取起点不能早于 `__LINKEDIT`。iOS 15.5 模拟器的 `UIKit` 是只转发 `UIKitCore` 的外壳，`LC_DYLD_INFO_ONLY` 的 `export_off` 与 `export_size` 都是 0；起点 0 过不了检查，读取返回 nil，强制解包就 trap。0.52.105 在这里返回的是一张空表。
+  - 凡是用 `LC_DYLD_INFO` 又没有导出符号的镜像都会触发，与具体框架无关。本库读导出表的 4 处（`ObjCAncestorResolver`、`DependencyImageResolver`、`MachOThunkEnvironment`、`PropertyWrapperTypeCatalog`）都是 `exportTrie?.…` 的写法，MachOKit 改成返回 nil 后会自然退回别的查法。
+  - 本库全量测试没有抓到它：fixture 与测试用的镜像都没有这种形状，只有 A/B 的旧模拟器 runtime 那条腿覆盖到了。
+- **修法**（用户选）：上游已在 `17ff04e`（p-x9/MachOKit#337，2026-10-03 合入上游 `main`，尚未进上游正式版）把导出表、函数起始表与符号表这几处读取改成读不到就返回 nil。把它单独挑进 fork，配一条回归测试 `ExportTrieWithoutExportsTests`：照 `UIKit` 的形状合成一个镜像，没有这个修复时 trap。然后发 fork 0.54.101，三个库的下限都改成 `from: "0.54.101"`；MachOKitExtensions 与 MachOObjCSection 先按 0.54.100 推送过一次，随后各追加一个提交。横向排查：挑入后 fork 里不再有对 link-edit 读取结果的强制解包。
+- **0.53 起 fork 不再在 `MachOFile` 里缓存 chained fixups**（`7426642`，这部分缓存搬进了 MachOKitExtensions 的 cached view）。本库的 rebase / bind 查询都经 `context.bindRebaseResolver`，走的是 MachOKitExtensions 的缓存版本，所以不受影响，A/B 的耗时也印证了这一点（见下）。
+- **落地**：本库 `Package.swift`；MachOKitExtensions `main`（`795fd47` 改为 0.54.100，`156f54a` 改为 0.54.101）；MachOObjCSection `next`（`81972ff`、`a35e763`，连同 `Package.resolved`）；MachOKit fork 的 `next` 与 `main`（`a8723af` 合并上游 0.54.0，`ecae5d1` 挑入上游修复与回归测试），tag 0.54.100、0.54.101。
+- **验证**：
+  - fork：MachOKit 全部 192 个测试，失败的仍是合并前就有的 5 个环境问题（3 个 `ArchiveFileTests`、2 个 `testDylibsPreBuildLoaderSet`；`AotCachePrintTests` 在本机会崩，照旧跳过）。新测试先红（signal 5，与 A/B 的崩溃同一行）后绿。两次推送 `main` 的 CI 都通过。
+  - MachOKitExtensions 15 个测试、MachOObjCSection 161 个测试（`--skip MachOObjCSectionTests`）在远端 0.54.101 上全部通过。
+  - 本库：全量 `swift test --skip IntegrationTests`（JHs-Mac-Studio-Ultra，远端依赖）在 0.54.100 与 0.54.101 上各跑一次，都是 2,275 个测试、424 个套件全部通过，原始退出码 0，只有早已登记的 `SymbolicManglingIndexTests` known issue。第二轮 A/B（候选换成 0.54.101）96 对全部逐字节一致。耗时：第一轮两侧同时现跑，68 个两侧都成功的渲染合计基线 1,512 秒、候选 1,503 秒，没有变慢。
+- **对应版本**：0.22.0（未发版）。发版说明要写：MachOKit 依赖从 `"0.52.105" ..< "0.53.0"` 改为 `from: "0.54.101"`，随之带上上游 0.53.0 与 0.54.0 的全部改动。
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节

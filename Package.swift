@@ -123,12 +123,18 @@ extension Package.Dependency {
         ),
         remote: .package(
             url: "https://github.com/MxIris-Reverse-Engineering/MachOKit.git",
-            // 0.52.103 stops reading chained-fixup starts for a segment that has
-            // none, which crashed on a dylib with no `__DATA` segment; 0.52.104
-            // answers no rebase target for a slot holding no pointer instead of
-            // trapping on it; 0.52.105 releases a file handle's identity with
-            // the handle, which MachOObjCSection keys its mapping on.
-            "0.52.105" ..< "0.53.0",
+            // 0.54.101 is the fork's release over upstream 0.54.0. It keeps the
+            // fixes the 0.52 line needed: no chained-fixup starts read for a
+            // segment that has none, which crashed on a dylib with no `__DATA`
+            // segment; no rebase target for a slot holding no pointer instead
+            // of a trap; and a file handle's identity released with the
+            // handle, which MachOObjCSection keys its mapping on. It also
+            // reads an image without an export trie as exporting nothing:
+            // 0.53.0 through 0.54.100 trapped there, and the ObjC ancestor
+            // lookup reads the exports of every image it walks, the iOS 15.5
+            // simulator's UIKit among them. MachOObjCSection and
+            // MachOKitExtensions require it as well.
+            from: "0.54.101",
         ),
     )
 
