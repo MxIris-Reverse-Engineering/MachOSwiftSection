@@ -2,8 +2,6 @@ import ArgumentParser
 import Foundation
 import OutputTransformer
 import SwiftOutputTransformer
-import SwiftDeclarationRendering
-import SwiftPrinting
 
 extension Transformer.SwiftEnumLayout.Preset: ExpressibleByArgument {}
 
@@ -20,8 +18,8 @@ extension Transformer.SwiftEnumLayout.Preset: ExpressibleByArgument {}
 /// 2. `--enum-layout-style` — a whole-module preset for the enum-layout module.
 /// 3. The per-module template / formatting options — one field each.
 ///
-/// A module that ends up enabled also turns on the comment kind it renders (see
-/// ``commentFlagsForEnabledModules(of:)``), so passing a template is enough to
+/// A module that ends up enabled also turns on the comment kind it renders (the
+/// requests in `SwiftSectionKit` do that), so passing a template is enough to
 /// see its output — no separate `--emit-…` flag to remember.
 struct TransformerOptionGroup: ParsableArguments, Sendable {
     private static let templateValueHelp = "Pass a built-in template name (list them with `swift-section transformer templates`) or a literal template containing ${token} placeholders (list them with `swift-section transformer tokens`)."
@@ -258,57 +256,5 @@ enum TransformerTemplateResolver {
 
     private static func normalize(_ name: String) -> String {
         name.lowercased().filter { !$0.isWhitespace && $0 != "-" && $0 != "_" }
-    }
-}
-
-// MARK: - Comment Flags
-
-extension Transformer.SwiftConfiguration {
-    /// The comment kinds the enabled modules render. A module is only reached
-    /// once its comment kind is emitted, so enabling one implies emitting it.
-    struct CommentFlags {
-        var printFieldOffset = false
-        var printVTableOffset = false
-        var printMemberAddress = false
-        var printTypeLayout = false
-        var printEnumLayout = false
-    }
-
-    var commentFlagsForEnabledModules: CommentFlags {
-        .init(
-            printFieldOffset: swiftFieldOffset.isEnabled,
-            printVTableOffset: swiftVTableOffset.isEnabled,
-            printMemberAddress: swiftMemberAddress.isEnabled,
-            printTypeLayout: swiftTypeLayout.isEnabled,
-            printEnumLayout: swiftEnumLayout.isEnabled
-        )
-    }
-}
-
-extension DeclarationRenderConfiguration {
-    /// Applies `transformers` and turns on the comment kinds its enabled
-    /// modules render, leaving every already-requested comment kind on.
-    mutating func applyTransformersEnablingCommentKinds(_ transformers: Transformer.SwiftConfiguration) {
-        let commentFlags = transformers.commentFlagsForEnabledModules
-        printFieldOffset = printFieldOffset || commentFlags.printFieldOffset
-        printVTableOffset = printVTableOffset || commentFlags.printVTableOffset
-        printMemberAddress = printMemberAddress || commentFlags.printMemberAddress
-        printTypeLayout = printTypeLayout || commentFlags.printTypeLayout
-        printEnumLayout = printEnumLayout || commentFlags.printEnumLayout
-        applyTransformers(transformers)
-    }
-}
-
-extension SwiftDeclarationPrintConfiguration {
-    /// Applies `transformers` and turns on the comment kinds its enabled
-    /// modules render, leaving every already-requested comment kind on.
-    mutating func applyTransformersEnablingCommentKinds(_ transformers: Transformer.SwiftConfiguration) {
-        let commentFlags = transformers.commentFlagsForEnabledModules
-        printFieldOffset = printFieldOffset || commentFlags.printFieldOffset
-        printVTableOffset = printVTableOffset || commentFlags.printVTableOffset
-        printMemberAddress = printMemberAddress || commentFlags.printMemberAddress
-        printTypeLayout = printTypeLayout || commentFlags.printTypeLayout
-        printEnumLayout = printEnumLayout || commentFlags.printEnumLayout
-        applyTransformers(transformers)
     }
 }

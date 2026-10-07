@@ -1,6 +1,6 @@
 import ArgumentParser
 import Foundation
-import ObjCDiffing
+import SwiftSectionKit
 
 struct ObjCDiffCommand: AsyncParsableCommand {
     static let configuration: CommandConfiguration = .init(
@@ -38,24 +38,38 @@ struct ObjCDiffCommand: AsyncParsableCommand {
     @Option(name: .shortAndLong, help: "Write the report to this path instead of stdout.", completion: .file())
     var outputPath: String?
 
-    func run() async throws {
-        let oldDocument = try await loadDocument(at: oldPath)
-        let newDocument = try await loadDocument(at: newPath)
-
-        log("Diffing…")
-        let diff = ObjCAPIDiffer().diff(old: oldDocument, new: newDocument)
-
-        let verdict = "API-breaking: \(diff.hasBreakingChange) · backward-compatible: \(diff.isBackwardCompatible)"
-        if json {
-            let encoded = String(decoding: try ObjCAPIJSON.encoder().encode(diff), as: UTF8.self)
-            try emit(encoded)
+    /// The library request these flags describe.
+    func makeRequest() -> ObjCAPIDiffRequest {
+        let report: ObjCAPIDiffRequest.Report = if json {
+            .json
         } else if summaryOnly {
-            print(verdict)
+            .summary
         } else {
-            try emit(ObjCAPIDiffReporter().report(diff) + "\n\n" + verdict)
+            .changeList
         }
+        // validate() has already required exactly one of -n / -p with
+        // --dyld-shared-cache.
+        let cacheImage: DyldSharedCacheImage? = cacheImageName.map { .name($0) } ?? cacheImagePath.map { .path($0) }
+        return ObjCAPIDiffRequest(
+            old: .path(oldPath),
+            new: .path(newPath),
+            binaryLoading: BinaryLoadingOptions(
+                architecture: architecture,
+                dyldSharedCacheImage: isDyldSharedCache ? cacheImage : nil
+            ),
+            report: report,
+            destination: outputPath.map { .file(path: $0) } ?? .output
+        )
+    }
 
-        if failOnBreaking, diff.hasBreakingChange {
+    func run() async throws {
+        let outcome: ObjCAPIDiffOutcome
+        do {
+            outcome = try await makeRequest().run(output: StandardStreamOutput(), environment: .commandLine)
+        } catch {
+            throw CommandLineErrorTranslation.translated(error)
+        }
+        if failOnBreaking, outcome.hasBreakingChange {
             throw ExitCode.failure
         }
     }
@@ -75,33 +89,5 @@ struct ObjCDiffCommand: AsyncParsableCommand {
         if isDyldSharedCache, cacheImageName == nil, cacheImagePath == nil {
             throw ValidationError("--dyld-shared-cache requires --cache-image-name or --cache-image-path.")
         }
-    }
-
-    /// Loads one input: a snapshot JSON is decoded, a binary is indexed and
-    /// frozen (with provenance stamped).
-    private func loadDocument(at path: String) async throws -> ObjCAPISnapshotDocument {
-        try await ObjCSnapshotInputLoader.loadDocument(
-            path: path,
-            architecture: architecture,
-            isDyldSharedCache: isDyldSharedCache,
-            cacheImageName: cacheImageName,
-            cacheImagePath: cacheImagePath,
-            label: nil,
-            log: log
-        )
-    }
-
-    /// Writes a report to `--output` or stdout.
-    private func emit(_ text: String) throws {
-        if let outputPath {
-            try text.write(to: URL(fileURLWithPath: outputPath), atomically: true, encoding: .utf8)
-            log("Report written to \(outputPath)")
-        } else {
-            print(text)
-        }
-    }
-
-    private func log(_ message: String) {
-        writeStandardErrorLine(message)
     }
 }

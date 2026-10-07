@@ -41,8 +41,9 @@ swift-section interface --help | grep -- --exported-only    # empty ⇒ this bui
 
 Flags added comparatively late, and therefore worth checking: `--emit-header`,
 `--emit-export-status`, `--exported-only`, `--jobs`, `evolution --interface`,
-`--supplementary-apinotes`, and from 0.20.0 `--dependency-search-path`,
-`--infer-objc-overrides` and the whole `objc` subcommand group. When one is missing, say so
+`--supplementary-apinotes`, from 0.20.0 `--dependency-search-path`,
+`--infer-objc-overrides` and the whole `objc` subcommand group, and from 0.22.0
+`evolution --emit-available` / `--platform`. When one is missing, say so
 rather than silently producing a weaker answer — the alternative is usually "upgrade
 (`brew upgrade swift-section`), or do without that annotation".
 
@@ -228,6 +229,7 @@ swift-section evolution 17.0.json 18.0.json /path/Foo --labels 17.0,18.0,26.0
   snapshot JSON is rejected there, though it is fine for the change-list / lineage reports.
 - `evolution` needs ≥ 2 inputs **in version order, oldest first**; `--labels` is comma-separated
   and must have exactly one label per input.
+- `evolution --interface --emit-available` adds a genuine `@available(<platform>, introduced: …, obsoleted: …)` line above each declaration whose whole lifecycle one attribute can express. **No attribute is not "no lifecycle"**: a declaration that disappeared and came back, one that was only `modified`, or any involved label that is not a numeric version (the file-name fallback!) gets none — pass numeric `--labels` and read the `// [●○●]` comment, which is always there. The versions are axis points, not exact release versions. The platform is inferred from every input's `LC_BUILD_VERSION` (a simulator counts as its device); an input whose platform `@available` has no name for (DriverKit), or inputs of different platforms, fail with exit code 64 — name it with `--platform` (only valid with `--emit-available`, which is only valid with `--interface`).
 - `--fail-on-breaking` makes a breaking change a nonzero exit — that, not the report text, is
   the CI signal.
 - Compare binaries in **similar strip states**. A symbol-rich build against a stripped one

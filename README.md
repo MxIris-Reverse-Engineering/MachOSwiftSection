@@ -85,6 +85,12 @@ Declare every product whose module you import. In particular, `MachOSwiftSection
 | `SwiftDeclarationRendering` | The comment rendering shared by dump and interface (field layouts, opaque types, specialized metadata). |
 | `SwiftOutputTransformer` | Token templates for the layout comments, shared with RuntimeViewer's settings UI. |
 
+**The command-line tool as a library**
+
+| Product | Purpose |
+| --- | --- |
+| `SwiftSectionKit` | Everything `swift-section` does, one request type per subcommand (`DumpRequest`, `InterfaceRequest`, `ABIDiffRequest`, `ObjCDumpRequest`, …), with the product and diagnostics delivered to an output you supply. The `swift-section` executable is a thin wrapper around it. |
+
 ### Usage
 
 #### Basic
@@ -163,6 +169,36 @@ Generated interfaces reflect a wide range of Swift language features:
 - `ClassHierarchyDumper` — walk a class's inheritance chain across Swift/ObjC boundaries (requires `@_spi(Internals) import SwiftInspection`, `MachOImage` only).
 - `SymbolicDemangler` — demangle types, symbols, context descriptors, and build generic signatures against a Mach-O (requires `@_spi(Internals) import SwiftInspection`). Named `MetadataReader` before 0.20.0; the old name remains as a deprecated alias for one release.
 
+#### Run a swift-section Command from Code
+
+`SwiftSectionKit` runs any `swift-section` subcommand in process and hands its output to you, piece by piece. A request produces what the matching command line prints.
+
+```swift
+import SwiftSectionKit
+
+struct PrintingOutput: SwiftSectionOutput {
+    func write(_ product: SwiftSectionProduct) {
+        if case .text(let line) = product {
+            print(line)
+        }
+    }
+
+    func report(_ diagnostic: SwiftSectionDiagnostic) {}
+}
+
+let outcome = try await ABIDiffRequest(
+    old: .path("Old.framework/Old"),
+    new: .path("New.framework/New"),
+    report: .summary
+).run(
+    output: PrintingOutput(),
+    environment: SwiftSectionEnvironment(generator: GeneratorIdentity(name: "MyTool", version: "1.0"))
+)
+// outcome.hasBreakingChange tells a CI gate whether the ABI broke.
+```
+
+The output contract — concurrent calls, three separate channels, a newline after every product piece, and the kind and name `dump` and `objc dump` attach to each declaration they hand over — is described in [SwiftSectionKit.md](Documentations/SwiftSectionKit.md).
+
 ## swift-section CLI Tool
 
 ### Installation
@@ -171,7 +207,7 @@ You can get the swift-section CLI tool in three ways:
 
 - **GitHub Releases**: Download from [GitHub releases](https://github.com/MxIris-Reverse-Engineering/MachOSwiftSection/releases)
 - **Homebrew**: Install via `brew install swift-section`
-- **Build from Source**: Build with `./build-executable-product.sh` (requires Xcode 26.0 / Swift 6.2+ toolchain)
+- **Build from Source**: Build with `./build-executable-product.sh` (requires Xcode 26.0 / Swift 6.2+ toolchain), or build and install in one step with `./install.sh [install-directory]` (defaults to `/usr/local/bin`, using `sudo` only when that directory is not writable)
 
 ### Usage
 
@@ -504,6 +540,14 @@ swift-section evolution --interface v17/Foo.dylib v18/Foo.dylib v26/Foo.dylib --
 
 # Across dyld shared caches, written to a file, gating CI on breaking changes
 swift-section evolution --interface --dyld-shared-cache -n SwiftUICore cache-17 cache-18 cache-26 --fail-on-breaking -o SwiftUICore-evolution.swift
+```
+
+Add `--emit-available` to also spell a lifecycle as a genuine attribute: a declaration whose whole lifecycle one `@available` can express gets `@available(iOS, introduced: 18.0, obsoleted: 26.0)` on the line above it and keeps its comment. That takes one unbroken run of versions carrying the declaration, numeric version labels (`--labels 17.0,18.0,26.0`; file names do not count), and an addition or removal inside the axis; anything else, and every `modified` event, stays in the comment alone. `introduced:` names the first version on the axis that carries the declaration and `obsoleted:` the first one that no longer does — not necessarily the releases that really introduced or removed it, as a legend line says. The platform comes from every input's `LC_BUILD_VERSION`, a simulator counting as its device; an input whose platform `@available` has no name for (DriverKit), or inputs of different platforms, are an error. `--platform` names it instead.
+
+```bash
+# @available attributes for the platform the inputs name, or the one given
+swift-section evolution --interface --emit-available v17/Foo.dylib v18/Foo.dylib v26/Foo.dylib --labels 17.0,18.0,26.0
+swift-section evolution --interface --emit-available --platform macCatalyst v17/Foo v18/Foo v26/Foo --labels 17.0,18.0,26.0
 ```
 
 #### transformer - Customize Comment Formats

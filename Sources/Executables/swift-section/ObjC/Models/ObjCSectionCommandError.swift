@@ -1,13 +1,12 @@
 import Foundation
 
-/// The failures only the `objc` subcommands can hit. Loading the binary is
-/// shared with the Swift commands, so its failures are
-/// ``SwiftSectionCommandError`` cases — with the same wording `objc-section`
-/// printed before it moved here.
+/// The command-line spellings only the `objc` subcommands parse. Loading the
+/// binary is shared with the Swift commands, so its failures are
+/// ``SwiftSectionCommandError`` cases; a declaration that is not found is the
+/// library's `ObjCDeclarationLookupError`.
 enum ObjCSectionCommandError: LocalizedError {
     case malformedCTypeReplacement(String)
     case unknownCType(String)
-    case declarationNotFound(String)
 
     var errorDescription: String? {
         switch self {
@@ -15,8 +14,6 @@ enum ObjCSectionCommandError: LocalizedError {
             "Malformed --c-type-replacement '\(argument)'. Expected <c-type>=<replacement>, e.g. double=CGFloat."
         case .unknownCType(let name):
             "Unknown C type '\(name)'. Supported: \(CTypeName.allSpellings.joined(separator: ", "))."
-        case .declarationNotFound(let name):
-            "No class, protocol, category, struct or union named '\(name)' in this binary."
         }
     }
 }

@@ -1,7 +1,6 @@
 import ArgumentParser
 import Foundation
-import MachOKit
-import Semantic
+import SwiftSectionKit
 
 struct ObjCInterfaceCommand: AsyncParsableCommand, Sendable {
     static let configuration: CommandConfiguration = .init(
@@ -15,7 +14,7 @@ struct ObjCInterfaceCommand: AsyncParsableCommand, Sendable {
     )
 
     // Fully qualified: `Semantic` exports an `Argument` of its own, so the
-    // bare spelling is ambiguous here.
+    // bare spelling is ambiguous wherever both are imported.
     @ArgumentParser.Argument(help: "The name of the declaration to print.")
     var declarationName: String
 
@@ -29,7 +28,7 @@ struct ObjCInterfaceCommand: AsyncParsableCommand, Sendable {
     var transformerOptions: ObjCTransformerOptionGroup
 
     @Option(help: "Only look for the name among declarations of this kind. If not specified, every kind is searched.")
-    var kind: ObjCSectionKind?
+    var kind: ObjCDeclarationKind?
 
     @Option(name: .shortAndLong, help: "The output path. If not specified, the output is printed to stdout.", completion: .file())
     var outputPath: String?
@@ -40,30 +39,26 @@ struct ObjCInterfaceCommand: AsyncParsableCommand, Sendable {
     @Flag(name: .shortAndLong, help: "Report indexing progress on stderr.")
     var verbose: Bool = false
 
-    func run() async throws {
-        let session = try await ObjCInterfaceSession.make(
-            machOOptions: machOOptions,
-            generationOptions: generationOptions,
-            transformerOptions: transformerOptions,
-            isVerbose: verbose
+    /// The library request these flags describe.
+    func makeRequest() throws -> ObjCInterfaceRequest {
+        ObjCInterfaceRequest(
+            declarationName: declarationName,
+            kind: kind,
+            source: try machOOptions.machOSource(),
+            generation: generationOptions.build(),
+            cTypeReplacements: try transformerOptions.buildCTypeReplacements(),
+            ivarOffsetComment: transformerOptions.buildIvarOffsetComment(),
+            reportsIndexingProgress: verbose,
+            destination: outputPath.map { .file(path: $0) } ?? .output
         )
+    }
 
-        // Searched in declaration-kind order rather than by guessing from the
-        // spelling: `Foo(Bar)` is unambiguous, but a bare name could be a
-        // class, a protocol or a struct, and binaries do reuse a name across
-        // those. `--kind` is how a caller settles it.
-        let kinds = kind.map { [$0] } ?? ObjCSectionKind.allCases
-
-        for candidateKind in kinds {
-            guard let interface = session.interface(of: candidateKind, named: declarationName) else { continue }
-            if let outputPath {
-                try interface.string.write(to: URL(fileURLWithPath: outputPath), atomically: true, encoding: .utf8)
-            } else {
-                interface.printColorfully(using: colorScheme)
-            }
-            return
+    func run() async throws {
+        let request = try makeRequest()
+        do {
+            try await request.run(output: StandardStreamOutput(colorScheme: colorScheme))
+        } catch {
+            throw CommandLineErrorTranslation.translated(error)
         }
-
-        throw ObjCSectionCommandError.declarationNotFound(declarationName)
     }
 }

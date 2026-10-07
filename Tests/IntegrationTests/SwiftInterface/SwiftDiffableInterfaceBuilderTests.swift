@@ -221,6 +221,27 @@ enum SwiftDiffableInterfaceBuilderTestSuite {
         }
     }
 
+    /// The same image from two archived macOS caches, picked by version: point
+    /// the two versions at any directories under `/Volumes/DyldSharedCaches/macOS`
+    /// that hold a cache.
+    final class ArchivedDyldCacheTests: CrossVersionDyldCacheImageTests, SwiftDiffableInterfaceBuilderTests, @unchecked Sendable {
+        class var oldCacheVersion: String { "26.6" }
+        class var newCacheVersion: String { "27.0" }
+        override class var oldCachePath: DyldSharedCachePath { .macOS(oldCacheVersion) }
+        override class var newCachePath: DyldSharedCachePath { .macOS(newCacheVersion) }
+        override class var cacheImageName: MachOImageName { .AppKit }
+
+        @available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *)
+        @Test func diffFile() async throws {
+            try await diffFile(old: oldMachOFileInCache, new: newMachOFileInCache)
+        }
+
+        @available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *)
+        @Test func diffString() async throws {
+            try await diffString(old: oldMachOFileInCache, new: newMachOFileInCache)
+        }
+    }
+
     /// The DVTProductsUI shared framework across two installed Xcode versions
     /// (26.3 → 26.4) — mirrors the framework the interface builder tests use,
     /// loaded by path so the diff can compare two Xcodes.

@@ -41,12 +41,17 @@ struct SupplementaryAPINotesTests {
     """
 
     /// The end-to-end data flow for a user-supplied AttributeGraph mapping,
-    /// in all three mangling shapes a CF-bridged type reaches Swift metadata
-    /// as: the typedef name (`AGGraphRef`, a typealias node → `.other`), the
+    /// in both mangling shapes a CF-bridged type reaches Swift metadata as:
+    /// the typedef name (`AGGraphRef`, a typealias node → `.other`) and the
     /// storage/tag name (`AGGraphStorage`, a foreign *class* descriptor the
-    /// consuming binary emits → `.objcClass`), and the imported Swift name
-    /// itself (`__C.Graph`, a foreign descriptor recording the post-rename
-    /// spelling — attribution-only, no rewrite needed or possible).
+    /// consuming binary emits → `.objcClass`).
+    ///
+    /// The imported Swift spelling (`Graph`) is attributed as well, though
+    /// no printed name carries it any more: a foreign descriptor records it,
+    /// but the demangler names the descriptor by the ABI name in its import
+    /// info (evolution proposal `type-import-info-identity`). Why the
+    /// spellings are still registered:
+    /// `TypeDatabaseMergePriorityTests.renamingEntryKeepsItsModuleAgainstLaterListings`.
     @Test
     func userSuppliedMappingsResolveInAllManglingShapes() async throws {
         let directoryURL = try Self.makeTemporaryDirectory()

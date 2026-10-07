@@ -1,7 +1,6 @@
 import ArgumentParser
 import Foundation
-import SwiftDeclarationRendering
-import SwiftDiffing
+import SwiftSectionKit
 
 struct SnapshotCommand: AsyncParsableCommand {
     static let configuration: CommandConfiguration = .init(
@@ -17,36 +16,31 @@ struct SnapshotCommand: AsyncParsableCommand {
     @Option(name: .shortAndLong, help: "Write the snapshot JSON to this path instead of stdout.", completion: .file())
     var outputPath: String?
 
-    func run() async throws {
+    /// The library request these flags describe.
+    func makeRequest() throws -> ABISnapshotRequest {
         guard let filePath = machOOptions.filePath else {
             throw ValidationError("A Mach-O file path is required.")
         }
-        let document = try await AccessorThunkResolution.withResolver(from: machOOptions) {
-            try await ABISnapshotInputLoader.loadDocument(
-                path: filePath,
-                architecture: machOOptions.architecture,
+        return ABISnapshotRequest(
+            source: .path(filePath),
+            binaryLoading: try makeBinaryLoadingOptions(
                 isDyldSharedCache: machOOptions.isDyldSharedCache,
                 cacheImageName: machOOptions.cacheImageName,
                 cacheImagePath: machOOptions.cacheImagePath,
-                label: label,
-                log: log
-            )
-        }
-        let encoded = try document.encoded()
-        if let outputPath {
-            try encoded.write(to: URL(fileURLWithPath: outputPath), options: .atomic)
-            log("Snapshot written to \(outputPath)")
-        } else {
-            // `fwrite`, not `FileHandle.standardOutput.write(_:)`. This is the
-            // command's product output, not a diagnostic, but it took the same
-            // raising Objective-C overload — so `swift-section snapshot … | head`
-            // aborted the process rather than stopping cleanly.
-            // `write(contentsOf:)` would be the throwing Swift spelling, but it
-            // needs macOS 10.15.4 and this package deploys to 10.15.
-            encoded.withUnsafeBytes { buffer in
-                _ = fwrite(buffer.baseAddress, 1, buffer.count, stdout)
-            }
-            fputs("\n", stdout)
+                architecture: machOOptions.architecture
+            ),
+            dependencySearchPaths: machOOptions.dependencySearchPathValues,
+            label: label,
+            destination: outputPath.map { .file(path: $0) } ?? .output
+        )
+    }
+
+    func run() async throws {
+        let request = try makeRequest()
+        do {
+            try await request.run(output: StandardStreamOutput(), environment: .commandLine)
+        } catch {
+            throw CommandLineErrorTranslation.translated(error)
         }
     }
 
@@ -56,11 +50,5 @@ struct SnapshotCommand: AsyncParsableCommand {
             // path to record; require an explicit cache file for baselines.
             throw ValidationError("snapshot requires an explicit file path; --uses-system-dyld-shared-cache is not supported here.")
         }
-    }
-
-    private func log(_ message: String) {
-        // See `DiffCommand.log`: the raising `FileHandle` overload aborts the
-        // process on a closed or broken stderr.
-        fputs(message + "\n", stderr)
     }
 }

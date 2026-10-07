@@ -3,11 +3,12 @@ import Testing
 import MachOKitExtensions
 @_spi(Internals) import MachOCaches
 
-/// `SharedCacheKey` hashes a `uuidFile` identifier on its UUID alone and an
-/// `image` identifier on its base address alone; the path still decides
-/// equality. These pin both halves, since a key that hashed differently for
-/// equal identifiers would miss its own entry, and one that compared equal
-/// across paths would hand one binary another binary's index.
+/// `SharedCacheKey` hashes a `uuidFile` identifier on its UUID alone, a
+/// `dyldCacheImage` identifier on its two UUIDs and an `image` identifier on
+/// its base address alone; the path still decides equality. These pin both
+/// halves, since a key that hashed differently for equal identifiers would
+/// miss its own entry, and one that compared equal across paths — or across
+/// caches — would hand one binary another binary's index.
 @Suite("SharedCacheKey")
 struct SharedCacheKeyTests {
     private let uuid = UUID()
@@ -35,6 +36,27 @@ struct SharedCacheKeyTests {
         let second = SharedCacheKey(identifier: .uuidFile(path: path, uuid: UUID()))
 
         #expect(first != second, "the same install path from two builds must not share an entry")
+    }
+
+    @Test func dyldCacheImageKeysHashOnTheTwoUUIDs() {
+        let cacheUUID = UUID()
+        let first = SharedCacheKey(identifier: .dyldCacheImage(path: "/System/Library/Frameworks/SwiftUI.framework/Versions/A/SwiftUI", uuid: uuid, cacheUUID: cacheUUID))
+        let second = SharedCacheKey(identifier: .dyldCacheImage(path: "/System/iOSSupport/System/Library/Frameworks/SwiftUI.framework/Versions/A/SwiftUI", uuid: uuid, cacheUUID: cacheUUID))
+
+        #expect(first.hashValue == second.hashValue, "the path is not part of the hash")
+        #expect(first != second, "the path still takes part in equality")
+    }
+
+    /// The macOS 13.5 and 13.6 caches carry the same SwiftUI build, `LC_UUID`
+    /// included, at different addresses. Sharing an entry between the two
+    /// copies sent the one read second to the first one's class objects.
+    @Test func oneBuildInTwoCachesMakesDifferentKeys() {
+        let path = "/System/Library/Frameworks/SwiftUI.framework/Versions/A/SwiftUI"
+        let first = SharedCacheKey(identifier: .dyldCacheImage(path: path, uuid: uuid, cacheUUID: UUID()))
+        let second = SharedCacheKey(identifier: .dyldCacheImage(path: path, uuid: uuid, cacheUUID: UUID()))
+
+        #expect(first != second)
+        #expect(SharedCacheKey(identifier: .dyldCacheImage(path: path, uuid: uuid, cacheUUID: UUID())) != SharedCacheKey(identifier: .uuidFile(path: path, uuid: uuid)), "an image read from a cache is never the extracted file of the same build")
     }
 
     @Test func imageKeysFollowTheBaseAddress() {

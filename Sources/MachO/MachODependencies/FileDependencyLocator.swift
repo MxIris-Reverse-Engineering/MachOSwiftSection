@@ -109,7 +109,10 @@ public final class FileDependencyLocator: DependencyLocating, @unchecked Sendabl
                     loadFailures.append(.init(searchPath: searchPath, error: error))
                 }
             case .systemDyldSharedCache:
-                if let hostCache = FullDyldCache.host {
+                // Opened once per process: `host` opens and maps every file of
+                // the system's cache each time it is read, and a locator is
+                // built for every root.
+                if let hostCache = FullDyldCache.cachedHost {
                     caches.append(hostCache)
                 } else {
                     loadFailures.append(.init(searchPath: searchPath, error: DependencySearchPathError.systemDyldSharedCacheUnavailable))

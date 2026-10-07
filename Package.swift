@@ -123,9 +123,18 @@ extension Package.Dependency {
         ),
         remote: .package(
             url: "https://github.com/MxIris-Reverse-Engineering/MachOKit.git",
-            // 0.52.103 stops reading chained-fixup starts for a segment that has
-            // none, which crashed on a dylib with no `__DATA` segment.
-            "0.52.103" ..< "0.53.0",
+            // 0.54.101 is the fork's release over upstream 0.54.0. It keeps the
+            // fixes the 0.52 line needed: no chained-fixup starts read for a
+            // segment that has none, which crashed on a dylib with no `__DATA`
+            // segment; no rebase target for a slot holding no pointer instead
+            // of a trap; and a file handle's identity released with the
+            // handle, which MachOObjCSection keys its mapping on. It also
+            // reads an image without an export trie as exporting nothing:
+            // 0.53.0 through 0.54.100 trapped there, and the ObjC ancestor
+            // lookup reads the exports of every image it walks, the iOS 15.5
+            // simulator's UIKit among them. MachOObjCSection and
+            // MachOKitExtensions require it as well.
+            from: "0.54.101",
         ),
     )
 
@@ -138,8 +147,14 @@ extension Package.Dependency {
             url: "https://github.com/MxIris-Reverse-Engineering/MachOKitExtensions",
             // 1.0.0 no longer exports the throwing `init(bitPattern:)`, which
             // Utilities now declares; an earlier release would make every
-            // call ambiguous.
-            from: "1.0.0",
+            // call ambiguous. 1.1.0 keys an image read from a dyld cache by
+            // its cache too (`dyldCacheImage`), which `SharedCacheKey` hashes.
+            // 1.1.1 builds each dyld sub-cache once instead of on every read
+            // that crosses into another cache file, and hands back the same
+            // instance each time, which `DyldCache.fileIO` keys its mapping on.
+            // 1.1.2 adds `FullDyldCache.cachedHost`, the system cache opened
+            // once per process rather than once per dependency locator.
+            from: "1.1.2",
         ),
     )
 
@@ -150,9 +165,12 @@ extension Package.Dependency {
         ),
         remote: .package(
             url: "https://github.com/MxIris-Reverse-Engineering/MachOObjCSection.git",
-            // 0.8.106 is the first release with ObjCDiffing, which the `objc`
-            // subcommands (snapshot / diff / evolution) are built on.
-            "0.8.106" ..< "0.9.0",
+            // 0.8.108 decodes the pointer slots of a dyld cache's method lists:
+            // earlier releases trapped on every image of the macOS 14.4-15.3.2
+            // caches and lost protocol method names on older ones. 0.8.109
+            // stops remapping a sub-cache file on every read of a cache opened
+            // from its main file alone.
+            "0.8.109" ..< "0.9.0",
         ),
     )
 }
@@ -721,21 +739,34 @@ extension Target {
         path: "Sources/Declaration/TypeIndexing",
     )
 
-    static let swift_section = Target.executableTarget(
-        name: "swift-section",
+    // MARK: - Commands
+
+    /// Everything `swift-section` does, as a library (evolution proposal
+    /// `swift-section-kit`): one request type per subcommand, its product and
+    /// diagnostics delivered to a host-supplied `SwiftSectionOutput`. The
+    /// executable is a wrapper around it — flag parsing, error wording,
+    /// stream routing and exit codes.
+    static let SwiftSectionKit = Target.target(
+        name: "SwiftSectionKit",
         dependencies: [
             .target(.MachOFoundation),
+            .target(.MachOSwiftSection),
             .target(.SwiftDump),
             .target(.SwiftInspection),
             .target(.SwiftOutputTransformer),
             .target(.SwiftDeclaration),
+            .target(.SwiftDeclarationRendering),
             .target(.SwiftIndexing),
             .target(.SwiftPrinting),
             .target(.SwiftDiffing),
             .target(.SwiftInterface),
             .target(.TypeIndexing),
-            // The `objc` subcommand group (formerly the `objc-section`
-            // executable of MachOObjCSection).
+            .target(.Utilities),
+            .product(.MachOKit),
+            .product(.MachOKitExtensions),
+            .product(.Semantic),
+            .product(.Demangling),
+            .product(.OutputTransformer),
             .product(name: "ObjCDeclarationRendering", package: "MachOObjCSection"),
             .product(name: "ObjCDiffing", package: "MachOObjCSection"),
             .product(name: "ObjCIndexing", package: "MachOObjCSection"),
@@ -745,6 +776,27 @@ extension Target {
             // Swift 6.4 warns when a file uses a conformance from a module it
             // does not import.
             .product(name: "ObjCMetadataSource", package: "MachOObjCSection"),
+            .product(name: "ObjCOutputTransformer", package: "MachOObjCSection"),
+        ],
+        path: "Sources/Commands/SwiftSectionKit",
+    )
+
+    static let swift_section = Target.executableTarget(
+        name: "swift-section",
+        dependencies: [
+            .target(.SwiftSectionKit),
+            // What the wrapper names itself while mapping its flags onto the
+            // library's requests: `DependencySearchPath`, `DemangleOptions`,
+            // `Transformer.SwiftConfiguration`, `ConsoleEventHandler`, the
+            // ObjC generation options and C type presets.
+            .target(.MachOFoundation),
+            .target(.SwiftDump),
+            .target(.SwiftOutputTransformer),
+            .target(.SwiftDeclaration),
+            .target(.SwiftIndexing),
+            .product(.Semantic),
+            .product(.OutputTransformer),
+            .product(name: "ObjCDeclarationRendering", package: "MachOObjCSection"),
             .product(name: "ObjCOutputTransformer", package: "MachOObjCSection"),
             .product(name: "Rainbow", package: "Rainbow"),
             .product(name: "ArgumentParser", package: "swift-argument-parser"),
@@ -1057,6 +1109,8 @@ extension Target {
         name: "SwiftSectionCommandTests",
         dependencies: [
             .target(.swift_section),
+            .target(.SwiftSectionKit),
+            .target(.MachOFoundation),
             .target(.SwiftOutputTransformer),
             .target(.SwiftDeclarationRendering),
             .target(.SwiftPrinting),
@@ -1064,6 +1118,23 @@ extension Target {
             .product(name: "ObjCDeclarationRendering", package: "MachOObjCSection"),
             .product(name: "ObjCOutputTransformer", package: "MachOObjCSection"),
             .product(name: "ArgumentParser", package: "swift-argument-parser"),
+            .product(name: "Rainbow", package: "Rainbow"),
+        ],
+        swiftSettings: testSettings,
+    )
+
+    static let SwiftSectionKitTests = Target.testTarget(
+        name: "SwiftSectionKitTests",
+        dependencies: [
+            .target(.SwiftSectionKit),
+            .target(.MachOFoundation),
+            .target(.SwiftDeclaration),
+            .target(.SwiftDiffing),
+            .target(.SwiftOutputTransformer),
+            .product(.Semantic),
+            .product(.OutputTransformer),
+            .product(name: "ObjCDiffing", package: "MachOObjCSection"),
+            .product(name: "ObjCOutputTransformer", package: "MachOObjCSection"),
         ],
         swiftSettings: testSettings,
     )
@@ -1169,6 +1240,7 @@ let package = Package(
         .library(.SwiftSpecialization),
         .library(.SwiftInterface),
         .library(.TypeIndexing),
+        .library(.SwiftSectionKit),
         .executable(.swift_section),
     ],
     dependencies: dependencies,
@@ -1199,6 +1271,7 @@ let package = Package(
         .SwiftSpecialization,
         .SwiftInterface,
         .TypeIndexing,
+        .SwiftSectionKit,
         .MachOMacros,
         .MachOFixtureSupport,
         .MachOTestingSupport,
@@ -1227,6 +1300,7 @@ let package = Package(
         .SwiftAttributeInferenceTests,
         .SwiftDiffingTests,
         .SwiftSectionCommandTests,
+        .SwiftSectionKitTests,
         .SwiftIndexingTests,
         .SwiftSpecializationTests,
         .SwiftInterfaceTests,
