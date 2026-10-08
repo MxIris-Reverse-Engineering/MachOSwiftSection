@@ -431,8 +431,11 @@ extension MachOFile: ObjCImplementationClassReading {
     }
 
     /// On a file the reader follows a rebase into another image of the same
-    /// dyld cache; a bind (a standalone file's dependency) resolves to
-    /// nothing, and is told apart from a root class by the bound name.
+    /// dyld cache, and a bind the file satisfies from its own exports (what
+    /// `-interposable` links a simulator runtime's frameworks with). A bind
+    /// into another image (a standalone file's dependency) resolves to
+    /// nothing, and is told apart from a root class by the bound name, which
+    /// the reader gives for chained fixups and `LC_DYLD_INFO` opcodes alike.
     func superclassLocation(of classObject: ObjCClass64) -> ObjCSuperclassLocation {
         // Explicitly typed: `superClass(in:)` also has a deprecated overload
         // returning a bare `Self?`.
@@ -443,15 +446,6 @@ extension MachOFile: ObjCImplementationClassReading {
         if let superclassName = classObject.superClassName(in: self), !superclassName.isEmpty {
             return .unresolvable(superclassName)
         }
-        // A zero slot is a root class only when it is not a bind. The ObjC
-        // reader names a chained-fixup bind but reads a legacy `LC_DYLD_INFO`
-        // bind (pre-iOS 16 / macOS 12 deployment targets — the iOS 15.5
-        // simulator runtime's frameworks) as an empty slot, which once made
-        // every such chain look complete and every UIKit override an
-        // `@objc(name)`; MachOKitExtensions resolves both formats.
-        if !isLoadedFromDyldCache, let bindSymbolName = resolveBind(fileOffset: classObject.offset + Self.superclassFieldOffset) {
-            return .unresolvable(bindSymbolName.replacingOccurrences(of: "_OBJC_CLASS_$_", with: ""))
-        }
         // A Swift class is never an ObjC root class (its ObjC superclass is
         // `_SwiftObject` at the very least), so a superclass the reader can
         // neither follow nor name is unresolvable, not absent.
@@ -460,8 +454,6 @@ extension MachOFile: ObjCImplementationClassReading {
         }
         return .root
     }
-
-    private static let superclassFieldOffset = MemoryLayout<ObjCClass64.Layout>.offset(of: \.superclass) ?? MemoryLayout<UInt64>.size
 
     func metaClass(of classObject: ObjCClass64) -> ObjCClass64? {
         classObject.metaClass(in: self)?.1
@@ -519,22 +511,16 @@ extension MachOFile: ObjCImplementationClassReading {
         objc.categories64
     }
 
-    /// The ObjC reader names a chained-fixup bind but reads a legacy
-    /// `LC_DYLD_INFO` bind (pre-macOS 12 / iOS 16 deployment targets) as an
-    /// empty slot — the same gap `superclassLocation(of:)` closes for the
-    /// superclass — so the bind stream is consulted for the name.
+    /// The reader names a class bound in from another image for chained
+    /// fixups and `LC_DYLD_INFO` opcodes alike.
     func targetClassName(of category: ObjCCategory64) -> String? {
-        if let name = category.className(in: self), !name.isEmpty {
-            return name
-        }
-        guard !isLoadedFromDyldCache, let bindSymbolName = resolveBind(fileOffset: category.offset + Self.categoryClassFieldOffset) else { return nil }
-        return bindSymbolName.replacingOccurrences(of: "_OBJC_CLASS_$_", with: "")
+        guard let name = category.className(in: self), !name.isEmpty else { return nil }
+        return name
     }
 
-    private static let categoryClassFieldOffset = MemoryLayout<ObjCCategory64.Layout>.offset(of: \.cls) ?? MemoryLayout<UInt64>.size
-
-    /// A rebase into another image of the same cache resolves; a standalone
-    /// file's bind does not.
+    /// A rebase into another image of the same cache resolves, and so does a
+    /// bind the file satisfies from its own exports; a bind into another image
+    /// does not.
     func targetClass(of category: ObjCCategory64) -> (any ObjCImplementationClassReading, ObjCClass64)? {
         let resolved: (MachOFile, ObjCClass64)? = category.class(in: self)
         guard let (classMachO, classObject) = resolved else { return nil }
