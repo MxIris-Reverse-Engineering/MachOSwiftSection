@@ -4,5 +4,5 @@
 // release with the same string.
 // Verified by .github/workflows/version-check.yml (PR) and .github/workflows/release.yml (tag).
 enum BundledVersion {
-    static let value = "0.21.0"
+    static let value = "0.22.0"
 }
