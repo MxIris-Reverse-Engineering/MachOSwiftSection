@@ -2316,6 +2316,27 @@
 - **关联文档**：[draft-offline-generic-specialization](../Evolutions/draft-offline-generic-specialization.md)、[OfflineGenericSpecialization.md](OfflineGenericSpecialization.md)、[StaticLayoutEngine.md](StaticLayoutEngine.md)「后续工作」、[FieldLayoutRendererReaderSpecialization.md](FieldLayoutRendererReaderSpecialization.md)、[SpecializedInterfaceBoundRenderingRestoration.md](SpecializedInterfaceBoundRenderingRestoration.md)、[Glossary.md](../Glossary.md)「depth」「instantiated type name」「offline specialization」。
 - **对应版本**：0.22.0（未发版）。叠在 find-navigator 的三份提案之上，须在它们之后合入，也同样要等带 `DefinitionRegion` 的 swift-semantic-string 发版。
 
+## 2026-10-08 PR #131 review 的修复：13 条修掉，第 9、12 条登记不修（节号落地时分配）
+
+- **时间段**：2026-10-07（review、复现测试）— 2026-10-08（修复落地）。
+- **动机**：`/code-review max` 对 PR #131（find-navigator 配套的三份提案加离线泛型特化）给出 15 条发现，逐条按四问裁决、写好复现测试与修法，记在 [Roadmaps/2026-10-08-pr131-review-findings.md](../../Roadmaps/2026-10-08-pr131-review-findings.md)。用户审完后说「把发现的问题修一下吧」。
+- **关键决策**：
+  - 有修法的 13 条全部落地，包括原本建议「离线模式接入前再修」的第 5、11 条（修法已写好、已验证）。每条修复连同它的复现测试一个 commit。
+  - 第 1、8、13 条与 PR 已整类修掉的「泛型参数层号数错」同属一类，这次补齐：opaque 引用的实参表按位置当层号、opaque provider 按父链数层、thunk 类型构造器只数类型层。按全库扫描，除这八处外没有别的地方用父链或位置数层号。
+  - 第 13 条保留旧逻辑作为第二条路：整个替换的第一版让 same-type 约束 extension 里的类型退化成 `accessor function at …`，加守护测试钉住那个形状。
+  - 第 7 条（`specializedChildren` 无锁追加）的横向排查查出 MachOReading 里 `MachOFile` / `DyldCache` 懒创建文件映射和句柄的四个 getter 是同一类写法。`FullDyldCache` 把同一批子 cache 实例交给所有镜像、`cachedHost` 又是进程级单例，`diff` / `evolution` 并行准备输入时会同时第一次读同一个子 cache，所以按「同类一并修」改为持锁创建、只存一次（review 记录原把它列为「另开一项」）。
+  - 登记不修：第 9 条（等待索引时不借出优先级）、第 12 条（嵌套偏移缓存记住解析失败，转 RuntimeViewer）、第 10 条里有意的名字差异、review 被条数上限砍掉的三个顺带项，以及核验时驳回的四条候选，见 [ReviewAdjudications.md](ReviewAdjudications.md) A53–A59。
+  - 顺带：PR 重写过的几行缩写改成完整名称；`ProtocolInExtensionTests` 编 fixture 补 `-swift-version 5`；CI 主过滤列表补上离线特化、层号与这批新加的套件（依赖本机 cache 的 `OfflineProjectionDependencyResolutionTests` 除外），单线程协作池那一步之后另加一步，关掉大栈执行器再跑并发打印测试——原来那一步测不出它要防的问题，因为打印跑在 swift-demangling 自己的线程上，严格池缩不到它们。
+- **公开 API 与行为变化**（写进 0.22.0 发版说明）：新增 `ConformanceProvider.superclassLink(of:)`、`ConformanceProvider.isConditionalConformance(of:to:)`（都有默认实现）与公开枚举 `SuperclassLink`，`StaticFieldLayoutProvider.projectingConcreteMembers(in:)`（有默认实现），`StaticLayoutCalculator.projectingConcreteMembers(in:)`。行为：opaque 类型的实参按描述符的层结构分组；离线父类检查遇到 ObjC 中间类只给警告；带条件的协议遵循给警告；extension 里协议兜底补出的默认实现重新打印出来；静态展开偏移不再把 opaque 实际类型印成占位符。
+- **落地模块**：SwiftDeclarationRendering（`Node+OpaqueType`、`DependentMemberProjection`、`StaticFieldLayoutProvider`、`StaticSpecializationNodeSubstitution`）、SwiftInterface（`SwiftInterfaceBuilder`、`SwiftInterfaceBuilderOpaqueTypeProvider`）、SwiftPrinting（`SwiftDeclarationPrinter+Headers`）、SwiftThunkAnalysis（`ThunkTypeNodeBuilder`）、SwiftSpecialization（`ConformanceProvider`、`GenericInstantiation`、`GenericSpecializer`、`GenericSpecializer+StaticSpecialization`、`TypeDefinition+Specialization`）、SwiftDeclaration（`TypeDefinition` 的说明）、SwiftLayout（`ImageUniverse+AssociatedTypeWitnessProjection`、`StaticLayoutCalculator`）、MachOReading（`MachOFile+`、`DyldCache+`）；测试支持 `GenericSpecializationFixture` 加 `TiedParameterPair`；CI。
+- **验证**：
+  - JHs-Mac-Studio-Ultra（Swift 6.4）上 review 时验证过修法：复现测试在 PR 头上全红、修后全绿，全量 2354 个测试全部通过。
+  - 落地时在 JHs-Mac-Studio 上重新验证，用的是 CI 的工具链（Xcode 26.6、Swift 6.3.3），依赖钉到与 Ultra 相同的版本（MachOKit 0.54.101、MachOKitExtensions 1.1.2、MachOObjCSection 0.8.109、swift-demangling 0.7.1，只有 swift-semantic-string 链本地的 `next`）。11 个复现套件（含新的 `ConcurrentFileMappingTests`）在 PR 头的源码上全部失败、修后全部通过。`OfflineProjectionDependencyResolutionTests` 写死的归档 cache 本机没有，在沙盒副本里临时改指本机装的 iOS 27.0 模拟器 runtime 里的 cache，同样是 PR 头上失败、修后通过。
+  - 全量 `swift test --skip IntegrationTests`：2358 个测试、448 个套件（Ultra 上的 2354 / 447 加上新的 `ConcurrentFileMappingTests`），原始退出码 1。失败的只有 `MultiPayloadEnumDescriptorCacheTests` 的两条（`everyFixtureMultiPayloadEnumRendersALayout`、`noncopyableMultiPayloadEnumLaysOutFromItsResolvedPayloads`）：换回 PR 头的源码，在同一环境里同样两条、同样位置失败，是这台机器上早就有的环境问题（进程内 enum 布局，这批改动不碰；`next` 上也是这样）。另有早已登记的 known issue（`SymbolicManglingIndexTests`）。
+  - 渲染 A/B（基线 `beae202d`，候选是这批代码提交的末尾 `f108d5e6`；两侧 release，共用同一份 `Package.resolved`，经构建队列预构建后带 `--skip-build` 跑）：**90 对全部逐字节一致**——归档 cache 15.5 与 26.6.2 各 12 对，iOS 15.5 / 18.5 / 18.6 / 26.5 模拟器 42 对，MachOImage 腿 24 对；iOS 27.0 模拟器的框架在 cache 里、不是文件，那条腿按设计跳过。会改变输出的几条在这些框架与选项组合里都没有触发：第 1 条要外层有一层不声明参数的 opaque 引用，系统框架的 witness 记录里多半已被编译器代换成具体类型；第 6 条只在打开展开字段偏移时出现，A/B 的 CLI 腿不出布局注释、MachOImage 腿不开展开偏移。第 1 条在真实 app 上的效果另用两侧 CLI 对本机的 `/Applications/Xcodes.app` 复核：11599 行的 interface 只有两行不同，都是 `typealias Body` 里的 `TupleToolbarContent<A>` 补上了实参；补出来的类型里露出 5 处本来就解不出的 kind-9 占位符，修前藏在 `A` 后面。
+- **关联文档**：review 记录；[ReviewAdjudications.md](ReviewAdjudications.md) A53–A59；四份提案的决策日志（[并发打印](../Evolutions/draft-concurrent-definition-printing.md)、[离线特化](../Evolutions/draft-offline-generic-specialization.md)、[嵌套定义区域](../Evolutions/draft-nested-definition-regions.md)、[嵌套偏移记忆化](../Evolutions/draft-nested-field-offset-memoization.md)）；[OfflineGenericSpecialization.md](OfflineGenericSpecialization.md)、[OpaqueReturnTypeResolution.md](OpaqueReturnTypeResolution.md)、[Modules/SwiftThunkAnalysis.md](Modules/SwiftThunkAnalysis.md)、[Modules/MachODependencies.md](Modules/MachODependencies.md)。
+- **对应版本**：0.22.0（未发版），随 PR #131 合入。
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节

@@ -68,12 +68,12 @@ let interface = try await printer.printTypeDefinition(specializedDefinition)   /
 
 - **报错并拒绝**：结构上确定违反的约束。
   - `AnyObject` 参数给了 struct / enum / tuple；宿主类型按 metadata 的 kind 判断。
-  - 父类约束：索引认识、但不在父类子树里的类；宿主类沿它自己完整的父类链按名字比较。
+  - 父类约束：沿索引记录的父类链往上走（类名去掉实参再比较），走到根类也没碰到基类；宿主类沿它自己完整的父类链按名字比较。
   - 关联类型的 same-type 约束：两侧都解析成具体类型且不相等。被钉死成具体类型的 key 参数不存在（编译器会把它变成非 key），所以实际只有关联类型这一种。
 - **只给警告、照样特化**：离线证明不了的约束。
-  - 协议遵循：索引记录里查不到（可能是条件遵循、别的模块补上的、运行时合成的），或实参类型不在任何被索引的镜像里。
+  - 协议遵循：索引记录里查不到（可能是别的模块补上的、运行时合成的），或实参类型不在任何被索引的镜像里；记录在案、但遵循带条件（`Array: Hashable where Element: Hashable`）时同样只警告，条件不逐条检查。
   - 关联类型投影不出来。
-  - 索引没有该父类的类层级信息，或实参类不在任何被索引的镜像里。
+  - 父类链走出了被索引的镜像（中间隔着一个 ObjC 类，比如 `FixtureOperation → NSOperation → NSObject` 的 `NSOperation`），或实参类不在任何被索引的镜像里。
 
 错误与警告沿用 `SpecializationValidation` 现有的 case，`SpecializerError` 也不加 case：RuntimeViewer 对这几个枚举做了穷尽 `switch`。关联类型的需求按访问路径命名（`A.Element`），与 request 的 `AssociatedTypeRequirement.fullPath` 一致。
 
@@ -93,7 +93,7 @@ let interface = try await printer.printTypeDefinition(specializedDefinition)   /
 
 ### 顺带修的问题
 
-1. **运行时特化的类型名被拍平**：`TypeDefinition.makeSpecializedDefinition` 改用 `GenericInstantiation`，`Outer<Int>.Inner<String>` 不再写成 `Outer.Inner<Int, String>`，派生的 `NestedHost<Int>.Plain` 不再写成 `NestedHost.Plain<Int>`。实参个数与 key 参数对不上时退回旧形状；`typeArgumentNodes` 传 `nil` 时仍保持未绑定的名字。
+1. **运行时特化的类型名被拍平**：`TypeDefinition.makeSpecializedDefinition` 改用 `GenericInstantiation`，`Outer<Int>.Inner<String>` 不再写成 `Outer.Inner<Int, String>`，派生的 `NestedHost<Int>.Plain` 不再写成 `NestedHost.Plain<Int>`。实参个数与 key 参数对不上时退回旧形状，并记一条错误日志（这个名字不对应任何实例化，类型头又印着运行时的名字，两者会不一致）；`typeArgumentNodes` 传 `nil` 时仍保持未绑定的名字。
 2. **离线 request 丢掉跨镜像协议需求**（实现时发现）：读文件时 `B: Hashable` 的协议引用解析成 bind 的符号（`$sSHMp`），`buildRequirement` 只认已解析的 descriptor，整条需求被丢掉——候选不过滤，witness table 不计数。现在按符号名还原协议名；在线路径不受影响。
 3. **静态展开偏移树不投影具体类型的关联类型**（实现时发现）：`ElementsHolder<[Int]>.first` 原先显示为 `Swift.Optional<Swift.Array<Swift.Int>.Element>` 并在那里停下，运行时的遍历显示 `Swift.Optional<Swift.Int>` 并继续展开。现在先投影再命名和展开，未特化类型里出现的实例化字段同样受益。
 
@@ -152,3 +152,9 @@ let interface = try await printer.printTypeDefinition(specializedDefinition)   /
 | 2026-10-01 | 静态展开偏移树先投影具体类型的关联类型 | 实现时发现：对照测试里 `first` 字段静态显示 `Array<Int>.Element` 并停止展开，运行时显示 `Int` 并继续展开；这也改变未特化类型里实例化字段的展开，修复前确认测试失败 |
 | 2026-10-01 | 不加 `typeLayout(forDescriptor:genericArgumentBinding:)` | 未询问自定：渲染路径没有调用方 |
 | 2026-10-02 | 分支 rebase 到 `feature/runtime-viewer/find-navigator`（`86f65341`）之上，须在它之后合入 | 用户：「rebase一下find-navigator，然后提交」。两边都改过的 11 个文件里，代码文件全部自动合并，文档索引与演进账本两处冲突两边内容都保留。find-navigator 的最后一个提交要用 swift-semantic-string 尚未发版的 `DefinitionRegion`，所以本分支现在要用本地兄弟依赖构建，也要等那个版本发布、本库抬高版本下限之后才能落地 |
+| 2026-10-08 | PR #131 review 第 2 条：离线父类检查沿父类链往上走，链走出被索引的镜像只给警告；`ConformanceProvider` 加带默认实现的 `superclassLink(of:)` 与公开枚举 `SuperclassLink` | 原写法拿 `subclasses(of:)` 的子树当证据，而那张类层级图只连得起被索引的 Swift 类：`FixtureOperation: Operation` 配 `<Subject: NSObject>` 时链断在 `NSOperation`，`FixtureOperation` 又「已被索引」，就被判成确定违反，`specialize` 抛错，运行时却接受同样的选择——违背本提案「证明不了只警告」的原则。`subclasses(of:)` 的结果总以基类自己开头，「索引里没有类层级」那条警告分支一直走不到，随之删掉。复现测试 `OfflineObjectiveCBaseClassTests` 先红后绿。仍有的局限：比的是去掉实参的类名（`<S: BaseBox<Int>>` 选 `DerivedBox<String>` 会放行），候选列表同样被那张图缩小、不列出 ObjC 父类下的 Swift 类，两者在线路径也一样，留作以后 |
+| 2026-10-08 | PR #131 review 第 3 条：same-type 约束两边都是参数（`First == Second`）时，右边的参数抄左边的实参 | 编译器把仍带 key argument 的参数写在左边，`fillFixedParameters` 只按左边记约束，`Second` 永远补不上：离线特化抛 `unresolvedFixedParameter`，在线特化静默退回扁平名 `<Swift.Int>`。这是运行时 `_gatherWrittenGenericParameters` 里的另一个分支，移植时漏了。这种写法放在类型声明上，Swift 6 模式报错、Swift 5 只警告；放在 extension 上一直合法。共享 fixture 加了 `TiedParameterPair`，复现测试 `TiedParameterInstantiationTests` 离线、在线各一条，先红后绿，在线名与运行时名结构相等 |
+| 2026-10-08 | PR #131 review 第 5 条：记录在案、但带条件的协议遵循只给警告；`ConformanceProvider` 加带默认实现的 `isConditionalConformance(of:to:)` | 索引器按未绑定的类型名记遵循，条件被丢掉：`Inner<InnerElement: Hashable>` 的 `A1` 选「元素是 `FixtureUnmarked` 的 `Array`」时一个警告都没有，`specialize` 拼出一个不可能存在的实例化，运行时会拒绝同样的选择。条件个数从遵循描述符的 flags（`numConditionalRequirements`）读，不加新存储。用 binding 逐条检查条件留作以后。复现测试 `OfflineConditionalConformanceTests` 先红后绿 |
+| 2026-10-08 | PR #131 review 第 10 条：在线特化算实例化名字失败、退回扁平名时记一条错误日志 | 原来是 `try?`，没有日志也没有事件，类型头印着运行时的名字，同一个定义就有两个名字。修完第 3 条后基本走不到。另一处名字不一致（嵌套泛型类型的约束 extension 里，`typeName` 按层绑定而类型头是运行时的名字）是本提案 2026-10-01 定下的有意差异，登记为 [ReviewAdjudications.md](../Internal/ReviewAdjudications.md) A55 |
+| 2026-10-08 | PR #131 review 第 11 条：打印离线特化定义的字段时，关联类型投影走打印配置建好的依赖闭包；`StaticFieldLayoutProvider` 加带默认实现的 `projectingConcreteMembers(in:)`，`StaticLayoutCalculator` 开同名的公开方法 | 投影原先用的搜索路径来自 thunk 解析器或「文件所在位置推断 + 宿主 cache」，不看打印配置的 `staticLayoutDependencyResolution`，宿主的 macOS 镜像对 iOS 二进制又从来不是候选：iOS 模拟器二进制配 iOS 模拟器 cache 打印时，布局注释按 `Int?` 算（`size: 9`），字段类型却还是 `[Int].Element?`。现在字段类型与旁边的布局注释读同一批镜像。没打开布局注释（没有 provider）时退回原路径；`staticPreflight` 没有打印配置，仍走默认路径，写进实现说明。复现测试 `OfflineProjectionDependencyResolutionTests` 只在有 `/Volumes/DyldSharedCaches/iOS-Simulator/27.0` 的机器上跑 |
+| 2026-10-08 | 本轮修复的验证 | 修后全量与复现测试见演进账本「PR #131 review 的修复」一节；改动连同各自的复现测试分条提交 |

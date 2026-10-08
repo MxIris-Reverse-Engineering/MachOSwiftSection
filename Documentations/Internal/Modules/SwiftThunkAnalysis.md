@@ -68,6 +68,15 @@ v6 不再提供通用 `writeBack` 属性：后索引用 `isPostIndex`，前索�
 
 可用性检查自身的调用**永远不跟进**——它的结果必须保持未知，后面那个 `cbz` 才会被两支都跑。
 
+### accessor 带着实参时，类型名的两条拼法
+
+`ThunkTypeNodeBuilder.boundTypeNode` 把「调用了某个类型的 accessor、传了这些实参」拼回类型名，按 accessor 收的实参分两条路：
+
+- **类型的整个泛型上下文里每个参数都带 key argument**：thunk 传进来的实参正好一个参数一个。按 `GenericParameterDepthLayout` 分层，再交给 `SymbolicDemangler.instantiatedTypeNode` 照运行时的规则拼名字，extension 上下文和被扩展的类型都能处理。`extension Outer where A: Hashable { struct Inner<B>: ~Copyable }` 的 accessor 收 `A` 和 `B` 两个实参，走这条路，得到 `Outer<A>.Inner<B>`。
+- **否则**（有参数被 same-type 约束固定，运行时自己推出来而不是接收）：沿类型上下文逐层绑定各层自己的 key 参数。extension 的参数不算这条遍历的一层，所以 `extension Outer where A == Int { struct Inner<B> }` 只收 `B` 的实参也对得上，拼出 `Outer< where A == Swift.Int>.Inner<A>`。
+
+只有第二条的时候，第一种形状对不上个数（遍历只数到 `Inner` 的 1 个参数），整个放弃，字段印成 `accessor function at …`（PR #131 review 第 13 条，回归测试 `AccessorThunkTypeInGenericExtensionTests`）。第一版修法把第二条整个换掉，复现测试和全量都是绿的，却让 same-type 约束 extension 里的类型也退化成 `accessor function at …`——那是第二条本来能处理、第一条会放弃的输入；同一个测试文件里的守护测试钉着这个形状。替换一段旧逻辑时，要专门拿旧逻辑能处理的输入去比，不能只看测试。「extension 固定了一部分参数、另一部分仍要接收」的混合形状两条路都对不上，照旧放弃。
+
 ### 偏移口径：一个混用就静默出错的地方
 
 对 dyld shared cache 里的镜像，`MachOSwiftSection` 全线使用的偏移是 `unslidVirtualAddress - sharedRegionStart`，**不是文件偏移**。同一个镜像上还并存着另外三套记账，彼此差值固定但都不等价：

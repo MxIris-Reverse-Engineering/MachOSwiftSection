@@ -52,9 +52,9 @@ let interface = try await printer.printTypeDefinition(specializedDefinition)
 
 extension 上下文有一处有意与运行时不同。运行时只给被扩展类型的最外一层（`selfType` 的第一个 `TypeList`）换实参：被扩展类型本身是嵌套泛型时，它把全部实参塞进 `SecondMiddle` 的列表、`Outer<A>` 保持未绑定，拼出的名字不对应任何实例化。离线把 binding 代换进被扩展类型，每层都绑定。和运行时一样，绑定后的 extension 节点不带泛型签名。
 
-被 same-type 约束钉死的参数不接受 key argument（`extension Outer where A == Int { struct Inner<B> }` 里的 `A`），request 也不提供它，但它的层照样要绑定、名字里也要写出来。`GenericInstantiation`（SwiftSpecialization）从固定它的约束补上：取约束右侧，代换已知实参，再把具体类型的关联类型投影掉；右侧引用另一个被固定的参数时反复代换直到不再有进展。运行时用 `_gatherWrittenGenericParameters` 做同一件事。
+被 same-type 约束钉死的参数不接受 key argument（`extension Outer where A == Int { struct Inner<B> }` 里的 `A`），request 也不提供它，但它的层照样要绑定、名字里也要写出来。`GenericInstantiation`（SwiftSpecialization）从固定它的约束补上：取约束右侧，代换已知实参，再把具体类型的关联类型投影掉；右侧引用另一个被固定的参数时反复代换直到不再有进展。约束两边都是参数时（`struct TiedParameterPair<First, Second> where First == Second`）反过来读：编译器把仍带 key argument 的参数写在左边，所以是右边的 `Second` 抄左边 `First` 的实参。运行时用 `_gatherWrittenGenericParameters` 做同一件事，两个方向都有；只按左边记约束时 `Second` 永远补不上，离线特化抛错、在线退回扁平名（PR #131 review 第 3 条）。
 
-运行时特化的类型名也改用这套构造（`TypeDefinition.makeSpecializedDefinition`）。此前 `boundGenericTypeName` 把所有实参放进最内层：`Outer<Int>.Inner<String>` 被写成 `Outer.Inner<Int, String>`，派生出的 `NestedHost<Int>.Plain` 被写成 `NestedHost.Plain<Int>`。打印出来的头部不受影响（它用 metadata 的运行时名字），但 `typeName` 是 RuntimeViewer 侧边栏的显示名和标识。实参个数与 key 参数对不上时仍退回旧形状。
+运行时特化的类型名也改用这套构造（`TypeDefinition.makeSpecializedDefinition`）。此前 `boundGenericTypeName` 把所有实参放进最内层：`Outer<Int>.Inner<String>` 被写成 `Outer.Inner<Int, String>`，派生出的 `NestedHost<Int>.Plain` 被写成 `NestedHost.Plain<Int>`。打印出来的头部不受影响（它用 metadata 的运行时名字），但 `typeName` 是 RuntimeViewer 侧边栏的显示名和标识。实参个数与 key 参数对不上时仍退回旧形状，并经 `NestedSpecializationLogging` 记一条错误日志：这个名字不对应任何实例化，类型头又印着运行时的名字，两者不一致。
 
 ## 离线执行与约束检查
 
@@ -64,8 +64,12 @@ extension 上下文有一处有意与运行时不同。运行时只给被扩展�
 
 | 结果 | 情形 |
 |---|---|
-| 错误 | `AnyObject` 参数给了 struct / enum / tuple（宿主类型按 metadata 的 kind 判断）；索引认识、但不在父类子树里的类（宿主类沿它自己完整的父类链按名字比较）；关联类型的 same-type 约束两侧都解析成具体类型且不相等 |
-| 警告 | 索引记录里查不到的协议遵循（可能是条件遵循、别的模块补上的、运行时合成的）；关联类型投影不出来；索引没有该父类的类层级信息；实参类型不在任何被索引的镜像里 |
+| 错误 | `AnyObject` 参数给了 struct / enum / tuple（宿主类型按 metadata 的 kind 判断）；沿索引记录的父类链往上走到根类也没碰到基类（宿主类沿它自己完整的父类链按名字比较）；关联类型的 same-type 约束两侧都解析成具体类型且不相等 |
+| 警告 | 索引记录里查不到的协议遵循（可能是别的模块补上的、运行时合成的）；记录在案、但带条件的协议遵循；关联类型投影不出来；父类链走出了被索引的镜像；实参类型不在任何被索引的镜像里 |
+
+父类检查沿 `ConformanceProvider.superclassLink(of:)` 一步一步往上走，类名去掉实参后比较（否则 `BaseBox<A>` 和 `BaseBox` 对不上）：走到基类就通过；走到根类（`.root`）还没碰到才报错；某一步的类没有任何被索引的镜像描述（`.unknown`）就只给警告。这一步通常是 ObjC 类——`FixtureOperation → NSOperation → NSObject` 里的 `NSOperation`——索引器的类层级只连得起 Swift 类。曾经拿 `subclasses(of:)` 的子树当证据，把每个 Cocoa 类下面的 Swift 类都判成违反，运行时却接受（PR #131 review 第 2 条）。
+
+协议遵循的记录按未绑定的类型名存，遵循的条件被丢掉了：`Array: Hashable` 的记录对 `[FixtureUnmarked]` 什么也证明不了。所以记录在案的遵循若带条件（遵循描述符 flags 里的 `numConditionalRequirements` 不为 0，经 `ConformanceProvider.isConditionalConformance(of:to:)` 查），检查给警告，不逐条核对条件（PR #131 review 第 5 条）。
 
 错误与警告沿用 `SpecializationValidation` 现有的 case（RuntimeViewer 对它们做了穷尽 `switch`）。`specialize` 与在线路径一样：静态校验或约束检查有错误时抛 `specializationFailed`，泛型 `.candidate` 抛 `candidateRequiresNestedSpecialization`。关联类型的需求用访问路径命名（`A.Element`），与 request 的 `AssociatedTypeRequirement.fullPath` 一致。
 
@@ -76,7 +80,7 @@ extension 上下文有一处有意与运行时不同。运行时只给被扩展�
 `TypeDefinition.staticSpecialization`（SwiftDeclaration）存离线特化的 binding，与运行时特化的 `metadata` 互斥。打印器的三处都在两者之间二选一：
 
 - **头部**：`boundTypeNode(of:)` 给出绑定后的名字——运行时特化取 metadata 的运行时名字，离线特化取定义自己的实例化类型名，两者形状相同，都交给 `BoundDumpedTypeNameRenderer`。
-- **字段与 enum payload 的类型**：离线时对字段节点做 binding 代换，再用 `DependentMemberProjection.projectingConcreteMembers` 把具体类型的关联类型投影掉（`Elements.Element?` 在 `Elements == String` 时打成 `Swift.Character?`）；投影走被特化类型所在镜像的依赖闭包，投影不了的保留原样。
+- **字段与 enum payload 的类型**：离线时对字段节点做 binding 代换，再把具体类型的关联类型投影掉（`Elements.Element?` 在 `Elements == String` 时打成 `Swift.Character?`），投影不了的保留原样。打印配置带着 `staticFieldLayoutProvider`（打开了布局注释）时，投影经 `StaticFieldLayoutProvider.projectingConcreteMembers(in:)` 走它按打印配置（`staticLayoutDependencyResolution`）建好的依赖闭包，字段类型和旁边的布局注释读的是同一批镜像；没有 provider 时退回 `DependentMemberProjection.projectingConcreteMembers`，它的搜索路径来自 thunk 解析器或「文件所在位置推断 + 宿主 cache」。曾经一律走后者：iOS 模拟器二进制配 iOS 模拟器 cache 打印时，布局按 `Int?` 算，字段却还是 `[Int].Element?`，因为宿主的 macOS 镜像对 iOS 二进制从来不是候选（PR #131 review 第 11 条）。`staticPreflight` 没有打印配置，约束检查里的投影仍走默认路径。
 - **布局注释**：`FieldLayoutRenderState.genericArgumentBinding` 把 binding 交给 `StaticFieldLayoutBackend`，后者调用 `StaticFieldLayoutProvider` 新增的四个带 binding 的方法（字段布局、payload 布局、逐 case 的 enum 布局、展开的嵌套偏移树）。这四个方法有返回空的默认实现，库外的 provider 不受影响，只是不出注释。
 
 为了让两条路径对同一个实例化给出相同的注释，顺带改了两处既有行为：
@@ -106,6 +110,8 @@ extension 上下文有一处有意与运行时不同。运行时只给被扩展�
 
 - **实参所在镜像要在依赖闭包里**。离线布局与关联类型投影都走被特化类型所在镜像的依赖闭包；RuntimeViewer 让用户从别的、互不依赖的镜像里挑候选时，相关字段降级为 unknown、关联类型保持未投影。这是如实降级。
 - **宿主类型的协议遵循查不到**。`.metatype` 给的宿主类型不在任何被索引的镜像里，它的协议遵循只能报警告。
+- **父类检查比的是去掉实参的类名**：`<S: BaseBox<Int>>` 选 `DerivedBox<String>` 会放行；要比到实参，得沿父类链做实参代换。候选列表也由只连得起 Swift 类的类层级缩小，ObjC 父类下面的 Swift 类不在列表里（RuntimeViewer 的 UI 选不到它），在线路径一样。
+- **带条件的协议遵循不逐条核对**：只给警告。用 binding 检查每个条件留作以后。
 - **class 头部的父类不代换**：`class Sub<Swift.Int>: Base<A>`，在线路径也是这样。
 - **特化后的定义不打印成员**：成员按绑定后的名字查符号查不到，两条路径一致。调用方不传 `typeArgumentNodes` 时，在线路径的定义保持未绑定的名字，会查到并打印未代换的成员（`init(first: A, …)`），这是既有行为。
 - **未修的旧问题**：引用「嵌套泛型类型的约束 extension 里声明的类型」的字段（`Outer<Int>.SecondMiddle<Bool>.DeepConstrainedInner<String>`）demangle 失败（`unexpected(at: 11)`），引用它的整个类型从 interface 里消失；引用约束 extension 里类型的类型，其 memberwise `init` 后面会多出一个 `where A == Swift.Int`。两者都与本提案无关，记录在提案里。
