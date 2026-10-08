@@ -20,9 +20,28 @@ import AssociatedObject
 /// instance properties to a type it does not own.
 extension TypeDefinition {
     /// Associated-object backing for `specializedChildren`. Mutated only
-    /// within this file (the `specialize(...)` family appends to it).
+    /// within this file (the `specialize(...)` family appends to it), and
+    /// read and written only under `specializedChildrenAccess`.
     @AssociatedObject(.retain(.nonatomic))
     private var _specializedChildren: [TypeDefinition] = []
+
+    /// The lock every read and write of `_specializedChildren` holds — one
+    /// for all definitions, as a specialization is rare and its append quick.
+    /// A host reads the list while it specializes from another task:
+    /// RuntimeViewer's section actor awaits `specialize(...)`, a nonisolated
+    /// async method that runs off the actor while the actor goes on reading.
+    /// Unlocked, two appends at once lost one of them, and a read overlapping
+    /// a write could retain the array the write had just released (the
+    /// associated object is retained non-atomically, and its getter even
+    /// writes on a first read).
+    @Mutex
+    private static var specializedChildrenAccess: Void = ()
+
+    private func appendSpecializedChild(_ specialized: TypeDefinition) {
+        Self._specializedChildrenAccess.withLockUnchecked { _ in
+            _specializedChildren.append(specialized)
+        }
+    }
 
     /// Specialized children produced by **directly** calling
     /// `specialize(with:in:)` (or the `derivingNestedSpecializationsWith`
@@ -67,7 +86,9 @@ extension TypeDefinition {
     /// independent subtrees in `outerSpecialized.typeChildren`). Equality
     /// of `metadata` does not imply identity of the wrapping
     /// `TypeDefinition`.
-    public var specializedChildren: [TypeDefinition] { _specializedChildren }
+    public var specializedChildren: [TypeDefinition] {
+        Self._specializedChildrenAccess.withLockUnchecked { _ in _specializedChildren }
+    }
 
     /// Maximum recursion depth that `deriveNestedSpecializedTypeChildren`
     /// will descend before bailing out. Swift's source-level nesting rarely
@@ -127,7 +148,7 @@ extension TypeDefinition {
             typeArgumentNodes: typeArgumentNodes,
             in: machO
         )
-        _specializedChildren.append(specialized)
+        appendSpecializedChild(specialized)
         return specialized
     }
 
@@ -187,7 +208,7 @@ extension TypeDefinition {
         for child in specialized.typeChildren {
             child.parent = specialized
         }
-        _specializedChildren.append(specialized)
+        appendSpecializedChild(specialized)
         return specialized
     }
 
@@ -465,7 +486,7 @@ extension TypeDefinition {
         in machO: MachOFile
     ) async throws -> TypeDefinition {
         let specialized = try makeStaticallySpecializedDefinition(with: specializationResult, in: machO)
-        _specializedChildren.append(specialized)
+        appendSpecializedChild(specialized)
         return specialized
     }
 
@@ -495,7 +516,7 @@ extension TypeDefinition {
         for child in specialized.typeChildren {
             child.parent = specialized
         }
-        _specializedChildren.append(specialized)
+        appendSpecializedChild(specialized)
         return specialized
     }
 

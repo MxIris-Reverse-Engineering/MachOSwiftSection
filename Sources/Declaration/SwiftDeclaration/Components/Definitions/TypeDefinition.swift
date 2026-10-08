@@ -10,8 +10,9 @@ import SwiftInspection
 /// publishes what it wrote (`DefinitionIndexing`, evolution proposal
 /// `concurrent-definition-printing`). Printing writes nothing to it, so one
 /// definition may be printed from several tasks at once. The one write
-/// outside that promise is `specialize(...)` appending to a generic
-/// definition's `specializedChildren`.
+/// outside that promise, `specialize(...)` appending to a generic
+/// definition's `specializedChildren`, holds a lock of its own
+/// (`SwiftSpecialization`).
 public final class TypeDefinition: Definition, @unchecked Sendable {
     /// The type's context descriptor reference (evolution proposal 0002).
     /// This is the only Mach-O parse product the definition retains: the
