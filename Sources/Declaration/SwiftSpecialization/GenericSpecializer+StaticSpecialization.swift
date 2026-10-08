@@ -411,11 +411,22 @@ extension GenericSpecializer where MachO == MachOFile {
             ))
             return
         }
-        guard !conformanceProvider.doesType(typeName, conformTo: protocolName) else { return }
+        guard conformanceProvider.doesType(typeName, conformTo: protocolName) else {
+            builder.addWarning(.conformanceCheckFailed(
+                parameterName: subject.path,
+                protocolName: protocolName.name,
+                reason: "offline: the indexed images record no conformance of \(subject.display) to \(protocolName.name); a conformance in an image the indexer does not hold, a conditional one, or one the runtime synthesizes cannot be checked without the runtime"
+            ))
+            return
+        }
+        // The record is kept under the type's unbound name, so a conditional
+        // one says nothing about this instantiation: `[FixtureUnmarked]`
+        // passed `Hashable` on `Array`'s record, conditions and all.
+        guard conformanceProvider.isConditionalConformance(of: typeName, to: protocolName) else { return }
         builder.addWarning(.conformanceCheckFailed(
             parameterName: subject.path,
             protocolName: protocolName.name,
-            reason: "offline: the indexed images record no conformance of \(subject.display) to \(protocolName.name); a conformance in an image the indexer does not hold, a conditional one, or one the runtime synthesizes cannot be checked without the runtime"
+            reason: "offline: \(typeName.name) conforms to \(protocolName.name) only under conditions, which \(subject.display) may not meet; they cannot be checked without the runtime"
         ))
     }
 

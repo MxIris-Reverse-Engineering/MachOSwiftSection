@@ -55,6 +55,15 @@ public protocol ConformanceProvider: Sendable {
     /// proposal `offline-generic-specialization`). Default `.unknown`: a
     /// provider without class-hierarchy knowledge proves nothing either way.
     func superclassLink(of className: TypeName) -> SuperclassLink
+
+    /// Whether the conformance of `typeName` to `protocolName` that the
+    /// provider records holds only under conditions — `Array: Hashable where
+    /// Element: Hashable`. Such a record, kept under the type's unbound name,
+    /// proves nothing for one instantiation, so the offline check does not
+    /// take it for proof (evolution proposal `offline-generic-specialization`).
+    /// Default `false`: the record stands for the conformance, as
+    /// `doesType(_:conformTo:)` has always read it.
+    func isConditionalConformance(of typeName: TypeName, to protocolName: ProtocolName) -> Bool
 }
 
 /// A class's direct superclass, as a `ConformanceProvider` knows it.
@@ -98,6 +107,10 @@ extension ConformanceProvider {
 
     public func superclassLink(of className: TypeName) -> SuperclassLink {
         .unknown
+    }
+
+    public func isConditionalConformance(of typeName: TypeName, to protocolName: ProtocolName) -> Bool {
+        false
     }
 }
 
@@ -200,6 +213,16 @@ extension IndexerConformanceProvider: ConformanceProvider {
     public func superclassLink(of className: TypeName) -> SuperclassLink {
         guard className.kind == .class else { return .unknown }
         return classHierarchy().superclassLinkByClassName[className.name] ?? .unknown
+    }
+
+    /// Read off the conformance's own descriptor, which the conformance
+    /// extension the indexer built for it keeps: its conditional requirements
+    /// are counted in the flags.
+    public func isConditionalConformance(of typeName: TypeName, to protocolName: ProtocolName) -> Bool {
+        (indexer.allConformanceExtensionDefinitions[typeName.extensionName] ?? []).contains { entry in
+            entry.value.conformingProtocolName == protocolName
+                && (entry.value.protocolConformanceDescriptor?.flags.numConditionalRequirements ?? 0) > 0
+        }
     }
 
     /// Build (or fetch from cache) the parent-name → direct-subclasses
@@ -381,6 +404,10 @@ public struct CompositeConformanceProvider: ConformanceProvider {
             if link != .unknown { return link }
         }
         return .unknown
+    }
+
+    public func isConditionalConformance(of typeName: TypeName, to protocolName: ProtocolName) -> Bool {
+        providers.contains { $0.isConditionalConformance(of: typeName, to: protocolName) }
     }
 }
 
