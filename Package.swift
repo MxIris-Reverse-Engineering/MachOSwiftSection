@@ -169,8 +169,11 @@ extension Package.Dependency {
             // earlier releases trapped on every image of the macOS 14.4-15.3.2
             // caches and lost protocol method names on older ones. 0.8.109
             // stops remapping a sub-cache file on every read of a cache opened
-            // from its main file alone.
-            "0.8.109" ..< "0.9.0",
+            // from its main file alone. 0.8.110 reads the classes a simulator
+            // runtime's frameworks bind to their own exports (`-interposable`),
+            // which the static layout engine and the ObjC ancestor chain need,
+            // and names a legacy LC_DYLD_INFO file's bound superclass itself.
+            "0.8.110" ..< "0.9.0",
         ),
     )
 }
