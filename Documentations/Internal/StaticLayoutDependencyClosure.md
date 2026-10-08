@@ -97,7 +97,7 @@ extension ImageUniverse {
 1. **`ImageReference` 索引可复用化**：把「从一个 machO 建 type/protocol 索引」抽成可被多镜像聚合调用的形式（当前 `init` 已是单镜像版，加一个把多个 `ImageReference` 合并的入口）。
 2. **`ImageUniverse` 多镜像化**：`rootImage` + `dependencyImages`，全局表合并，`resolveType` / `resolveProtocolClassConstraint` 改查全局表（root 优先）。加 `dependencyClosure(root:dependencyImages:)` 底层工厂。单测：手工塞两个镜像，验证跨镜像解析。
 3. **`MachOImage` 便利工厂**：`dependencyClosure(root: MachOImage)` 经 `MachOImage(name:)` 递归 + 防环。用 fixture（`machOImage`）验证 `DistributedActorTest` 经 vector 完全解析、`ResilientChild` 字段偏移可算。
-4. **`MachOFile` 便利工厂**：`dependencyClosure(root: MachOFile, searchPaths:)` 经 `FullDyldCache.cachedHost` + 显式路径。
+4. **`MachOFile` 便利工厂**：`dependencyClosure(root: MachOFile, searchPaths:)` 经 `FullDyldCache.cachedHost` + 显式路径。2026-10-08 起，从 dyld cache 里读出来的 root 先在自己所在的 cache 里找依赖，再查这些路径（[Modules/MachODependencies.md](Modules/MachODependencies.md) §3）。
 5. **resilient 验证扩展**（见下）。
 6. **文档**：更新 `StaticLayoutEngine.md`（移除阶段 3 残留项）、本文「实测」回填、`Documentations/README.md`。
 

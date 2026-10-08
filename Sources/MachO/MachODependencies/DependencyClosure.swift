@@ -1,4 +1,5 @@
-import MachOKit
+import Foundation
+@_spi(Support) import MachOKit
 import MachOKitExtensions
 
 /// How far a `DependencyClosure` follows the load commands.
@@ -101,8 +102,45 @@ extension DependencyClosure where MachO == MachOFile {
     /// (`FileDependencyLocator`). Fat explicit files contribute the slice
     /// matching the root's architecture; cache images built for none of the
     /// root's platforms are not candidates (`DependencyPlatforms`).
+    ///
+    /// A root read out of a dyld shared cache resolves in that cache before
+    /// any search path, as dyld resolves it. The search paths' default, the
+    /// running system's cache, would otherwise lay an image of an archived
+    /// cache out against the host's frameworks: macOS 15.5's `URL` is 24 bytes,
+    /// the host's 16 from macOS 26 on.
     public init(root: MachOFile, searchPaths: [DependencySearchPath] = [.systemDyldSharedCache], traversal: DependencyTraversal = .transitive) {
-        let locator = FileDependencyLocator(searchPaths: searchPaths, preferredCPU: root.header.cpu, platforms: DependencyPlatforms.platforms(of: root))
+        // The cache instance the root was read from, when it came through a
+        // `FullDyldCache`, is searched as is; a root read from one cache file
+        // names that cache's main file instead. Never `root.fullCache`: it
+        // opens the cache on first use and stores it on the root, unguarded,
+        // and closures over one root are built from several threads.
+        let rootDyldCache = root._cachedFullCache
+        var rootCacheSearchPaths: [DependencySearchPath] = []
+        if rootDyldCache == nil, root.isLoadedFromDyldCache, let mainCacheFileURL = Self.mainCacheFileURL(ofCacheFileAt: root.url) {
+            rootCacheSearchPaths.append(.dyldSharedCache(path: mainCacheFileURL.path))
+        }
+        let locator = FileDependencyLocator(
+            searchPaths: rootCacheSearchPaths + searchPaths,
+            preferredCPU: root.header.cpu,
+            platforms: DependencyPlatforms.platforms(of: root),
+            rootDyldCache: rootDyldCache
+        )
         self.init(root: root, traversal: traversal, locator: locator, searchPathLoadFailures: locator.loadFailures)
+    }
+
+    /// The main file of the cache a cache file belongs to: every other file
+    /// of a cache (`dyld_shared_cache_arm64e.01`, `.25.dylddata`,
+    /// `.26.dyldreadonly`, `.81.dyldlinkedit`) is named by it plus one or two
+    /// extensions, which is how MachOKit's `fullCache` derives it too.
+    static func mainCacheFileURL(ofCacheFileAt url: URL) -> URL? {
+        var candidate = url
+        for _ in 0 ... 2 {
+            if DependencySearchPath.isMainCacheFileName(candidate.lastPathComponent, architectureName: nil) {
+                return candidate
+            }
+            guard !candidate.pathExtension.isEmpty else { return nil }
+            candidate = candidate.deletingPathExtension()
+        }
+        return nil
     }
 }
