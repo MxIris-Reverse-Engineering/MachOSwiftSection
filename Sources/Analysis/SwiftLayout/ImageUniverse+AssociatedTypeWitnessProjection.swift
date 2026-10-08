@@ -90,6 +90,9 @@ extension ImageUniverse {
     /// (`IndexingIterator`'s `Element` is `Elements.Element`), so a projection
     /// is projected again, a bounded number of hops deep.
     public func projectingConcreteMembers(in node: Node) -> Node {
+        // Most nodes name no member at all; they come back as they are,
+        // without a rebuilt copy of every node on the way.
+        guard node.contains(.dependentMemberType) else { return node }
         var rewrittenNodes: [ObjectIdentifier: Node] = [:]
         return projectingConcreteMembers(in: node, remainingHops: Self.maximumProjectionHops, rewrittenNodes: &rewrittenNodes)
     }

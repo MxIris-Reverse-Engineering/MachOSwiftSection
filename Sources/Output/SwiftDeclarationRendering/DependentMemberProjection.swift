@@ -129,6 +129,10 @@ extension DependentMemberProjection {
     /// the reader is neither a file nor an in-process image, or the universe
     /// cannot be built.
     package static func projectingConcreteMembers<MachO: MachOSwiftSectionRepresentableWithCache>(in node: Node, in machO: MachO) -> Node {
+        // Nothing to project, so nothing to look up: no search-path inference
+        // (it lists directories), no lock, no dependency closure built — the
+        // first call used to build one even for a plain `Swift.Int`.
+        guard node.contains(.dependentMemberType) else { return node }
         if let machOFile = machO as? MachOFile {
             let registry = fileRegistries.storage(in: machOFile) { FileRegistry(root: $0) } ?? FileRegistry(root: machOFile)
             guard let entry = registry.entry(for: searchPaths(for: machOFile)) else { return node }
