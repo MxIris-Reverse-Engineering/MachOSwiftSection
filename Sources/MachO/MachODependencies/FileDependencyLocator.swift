@@ -20,6 +20,10 @@ import MachOKitExtensions
 ///    binary, then plain dylib, then bundle; support-root builds demoted)
 ///    instead of taking whichever image the cache enumerates first.
 ///
+/// The cache a root was read from, when it was, is searched before every
+/// search path (`rootDyldCache`): dyld resolves a cache image's dependencies
+/// in its own cache.
+///
 /// A system root (``DependencySearchPath/systemRoot(path:)``) sits between the
 /// two: an absolute load name is joined onto the root and opened if a file is
 /// there — the tree's own layout is the index, so nothing is scanned up front
@@ -66,11 +70,15 @@ public final class FileDependencyLocator: DependencyLocating, @unchecked Sendabl
     ///   - platforms: The root binary's platforms (`DependencyPlatforms.platforms(of:)`);
     ///     a cache image built for none of them is not a candidate. Empty
     ///     accepts every image.
-    public init(searchPaths: [DependencySearchPath], preferredCPU: CPU? = nil, platforms: Set<Platform> = []) {
+    ///   - rootDyldCache: The dyld shared cache the root was read from, when
+    ///     it was: searched before every search path, as the instance the root
+    ///     came from. A search path naming the same cache does not open it a
+    ///     second time.
+    public init(searchPaths: [DependencySearchPath], preferredCPU: CPU? = nil, platforms: Set<Platform> = [], rootDyldCache: FullDyldCache? = nil) {
         var explicitFilesByInstallPath: [String: MachOFile] = [:]
         var explicitFilesByBareName: [String: MachOFile] = [:]
         var systemRoots: [String] = []
-        var caches: [FullDyldCache] = []
+        var caches: [FullDyldCache] = rootDyldCache.map { [$0] } ?? []
         var loadFailures: [DependencySearchPathLoadFailure] = []
 
         for searchPath in searchPaths {
@@ -103,6 +111,9 @@ public final class FileDependencyLocator: DependencyLocating, @unchecked Sendabl
                     loadFailures.append(.init(searchPath: searchPath, error: error))
                 }
             case .dyldSharedCache(let path):
+                if let rootDyldCache, Self.isSameFile(rootDyldCache.url, URL(fileURLWithPath: path)) {
+                    continue
+                }
                 do {
                     caches.append(try FullDyldCache(url: URL(fileURLWithPath: path)))
                 } catch {
@@ -113,7 +124,9 @@ public final class FileDependencyLocator: DependencyLocating, @unchecked Sendabl
                 // the system's cache each time it is read, and a locator is
                 // built for every root.
                 if let hostCache = FullDyldCache.cachedHost {
-                    caches.append(hostCache)
+                    if hostCache !== rootDyldCache {
+                        caches.append(hostCache)
+                    }
                 } else {
                     loadFailures.append(.init(searchPath: searchPath, error: DependencySearchPathError.systemDyldSharedCacheUnavailable))
                 }
@@ -165,6 +178,12 @@ public final class FileDependencyLocator: DependencyLocating, @unchecked Sendabl
             return sameTypeSlice
         }
         return slices.first
+    }
+
+    /// Whether two file URLs name one file, through symbolic links and
+    /// `..` components alike.
+    private static func isSameFile(_ firstURL: URL, _ secondURL: URL) -> Bool {
+        firstURL.standardizedFileURL.resolvingSymlinksInPath().path == secondURL.standardizedFileURL.resolvingSymlinksInPath().path
     }
 
     // MARK: - System roots

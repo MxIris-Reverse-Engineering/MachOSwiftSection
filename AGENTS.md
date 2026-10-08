@@ -109,7 +109,8 @@ swift run swift-section objc dump <binary>            # the Objective-C side: du
 # or a directory used as a system root. Without it, the thunk reader infers paths from
 # where the binary sits and everything falls back to the running system's cache, whose
 # images of another platform are never candidates: an iOS binary on a macOS host needs
-# its runtime root named here.
+# its runtime root named here. An image read out of a dyld cache resolves in that same
+# cache first and needs no path named.
 
 # Build release executable
 ./build-executable-product.sh

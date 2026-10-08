@@ -104,8 +104,10 @@ swift-section dump --dyld-shared-cache --cache-image-path /System/Library/.../Sw
   macOS host needs `--dependency-search-path` (`dump`, `interface`, `snapshot`; repeatable)
   naming its runtime: a Mach-O file, a cache file (`dyld_shared_cache_*` /
   `dyld_sim_shared_cache_*`), or a directory used as a system root such as a simulator
-  runtime's `RuntimeRoot`. Named paths are consulted before the running system's cache. When
-  those facts are missing from an iOS binary's output, suspect this flag before the binary.
+  runtime's `RuntimeRoot`. Named paths are consulted before the running system's cache. An
+  image read out of a cache (`--dyld-shared-cache`) needs none: it resolves in that same cache
+  first, so an archived macOS 15 cache is laid out against its own Foundation, not the host's.
+  When those facts are missing from an iOS binary's output, suspect this flag before the binary.
 
 ## 3. Never redirect `interface`'s stdout — pass `-o`
 

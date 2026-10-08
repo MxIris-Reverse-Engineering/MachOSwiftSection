@@ -15,7 +15,8 @@ public enum StaticLayoutDependencyResolution: Sendable, Equatable, Hashable {
     case singleImage
     /// Resolve across the binary's transitive dependency closure, located
     /// through the given search paths (the system dyld shared cache covers the
-    /// stdlib / Foundation / the rest of the OS). Cross-module field /
+    /// stdlib / Foundation / the rest of the OS); a binary read out of a dyld
+    /// cache resolves in that cache first. Cross-module field /
     /// superclass / protocol types resolve, and resilient classes are laid out
     /// against their dependencies' actual binaries ("this specific deployment").
     case dependencyClosure(searchPaths: [DependencySearchPath])

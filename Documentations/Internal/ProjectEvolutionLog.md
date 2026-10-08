@@ -2275,6 +2275,15 @@
   - 本库：全量 `swift test --skip IntegrationTests`（JHs-Mac-Studio-Ultra，远端依赖）在 0.54.100 与 0.54.101 上各跑一次，都是 2,275 个测试、424 个套件全部通过，原始退出码 0，只有早已登记的 `SymbolicManglingIndexTests` known issue。第二轮 A/B（候选换成 0.54.101）96 对全部逐字节一致。耗时：第一轮两侧同时现跑，68 个两侧都成功的渲染合计基线 1,512 秒、候选 1,503 秒，没有变慢。
 - **对应版本**：0.22.0（未发版）。发版说明要写：MachOKit 依赖从 `"0.52.105" ..< "0.53.0"` 改为 `from: "0.54.101"`，随之带上上游 0.53.0 与 0.54.0 的全部改动。
 
+## 84. 从 dyld cache 读出的镜像在自己的 cache 里找依赖
+
+- **时间段**：2026-10-07 至 10-08。
+- **动机**：用户对比新旧两版 SwiftUICore 的 dump，看到 `LinkDestination.Configuration.url` 的大小从 16 变成 24，以为 24 不对（REPL 里 `MemoryLayout<URL>.size` 是 16）。查下来 24 才是对的：iOS 18.5 / macOS 15.5 的 Foundation 里 `URL` 有 `_url: NSURL`、`_parseInfo`、`_baseParseInfo` 三个字段，共 24 字节；REPL 量的是本机 macOS 27 的 Foundation，`URL` 从 macOS 26 起改成了一个 `any _URLProtocol & AnyObject`，16 字节。旧 dump 是 0.19.0 或更早的版本生成的，那时 `dump` 做布局时不理会 `--dependency-search-path`，一律用宿主 cache。但顺带查出一个真问题：用 `--dyld-shared-cache` 读归档的 macOS 15.5 cache 里的 SwiftUICore、又不给搜索路径时，依赖仍然去宿主 cache 找，`URL` 被算成 16（0.21.0 与 `next` 都如此）。
+- **修法**：`DependencyClosure(root: MachOFile, …)` 是全库唯一构建 `FileDependencyLocator` 的地方（静态布局、ObjC 祖先、thunk 读取器、property wrapper 目录、interface 依赖、索引器都经过它），在这里让 root 所在的 cache 排在所有搜索路径前面，与 dyld 的行为一致。root 经 `FullDyldCache` 打开时直接交出那个实例（`FileDependencyLocator(rootDyldCache:)`），不重新打开；搜索路径里再点名同一个 cache 文件、或 root 本就来自 `FullDyldCache.cachedHost` 时不重复加入。root 只经单个 cache 文件打开时，把主 cache 文件当第一条 `.dyldSharedCache` 路径。不用 `root.fullCache`：它第一次被读时才打开并写回 `MachOFile`，无锁，而同一个 root 的闭包会在多个线程上构建。判为 bug 修复而非新功能：`DependencySearchPathUsage` 的注释早已写明意图是「按点名的 cache 的系统布局，而不是宿主的」，没给路径时违背了它。
+- **落地**：`Sources/MachO/MachODependencies/`（`DependencyClosure.swift`、`FileDependencyLocator.swift`）；CLI `--dependency-search-path` 的帮助文字、`AgentPlugins` 的 skill、AGENTS.md 同步说明 cache 里的镜像不需要搜索路径；[Modules/MachODependencies.md](Modules/MachODependencies.md) §3 记规则与线程安全的理由，[StaticLayoutDependencyClosure.md](StaticLayoutDependencyClosure.md) 加指针。
+- **验证**：`CacheRootDependencyClosureTests`（按 `LC_UUID` 认出闭包找到的是 15.5 的 Foundation，两种打开方式各一例；点名同一个 cache 时用的是 root 来自的实例）与 `CacheRootDependencyLayoutTests`（`Foundation.URL` 是 24 字节），修复前 3 例全红、修复后全绿，没有归档 15.5 cache 时跳过。全量 `swift test --skip IntegrationTests`（JHs-Mac-Studio-Ultra，远端依赖）2,279 个测试通过，原始退出码 0，只有早已登记的 `SymbolicManglingIndexTests` known issue。CLI 端到端：15.5 cache 的 SwiftUICore 不带搜索路径，`url` 为 24、`isSensitive` 在 `0x18`。渲染 A/B（基线 `next` @ `433f1421`，候选为本节的修复加上同期的「模拟器框架里绑定到自己的 ObjC 类」修复（第 85 节），两侧共用一份 `Package.resolved`）：cache 两条腿 24 对里只有两对 interface 不同，都是 property wrapper 的识别——候选按镜像自己 cache 里的 SwiftUICore 判断。15.5 腿上基线把 `IdentityLink` 当成 wrapper（宿主 macOS 27 的同名类型才是，15.5 的 `IdentityLink` 在 SwiftUI 里，只有一个 `_value` 字段），又没认出 15.5 SwiftUICore 里确为 `@propertyWrapper` 的 `AtomicBox`；26.6 腿上候选多认出 4 处 `AtomicBox`。都是候选对。dump 不带布局注释，所以 `URL` 的变化不在 A/B 里，由上面的测试与 CLI 端到端覆盖。
+- **对应版本**：0.22.0（未发版）。发版说明要写：从 dyld cache 读出的镜像改为先在自己的 cache 里找依赖，归档 cache 的布局注释会随之改变（按那个系统自己的框架计算）。
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节
