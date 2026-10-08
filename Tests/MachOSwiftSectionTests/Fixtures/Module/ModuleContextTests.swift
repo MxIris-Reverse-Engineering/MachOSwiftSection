@@ -22,8 +22,8 @@ final class ModuleContextTests: MachOSwiftSectionFixtureTests, FixtureSuite, @un
     private func loadSymbolTestsCoreContexts() throws -> (file: ModuleContext, image: ModuleContext) {
         let fileDescriptor = try BaselineFixturePicker.module_SymbolTestsCore(in: machOFile)
         let imageDescriptor = try BaselineFixturePicker.module_SymbolTestsCore(in: machOImage)
-        let file = try ModuleContext(descriptor: fileDescriptor, in: machOFile)
-        let image = try ModuleContext(descriptor: imageDescriptor, in: machOImage)
+        let file = try ModuleContext(descriptor: fileDescriptor, in: fileContext)
+        let image = try ModuleContext(descriptor: imageDescriptor, in: imageContext)
         return (file: file, image: image)
     }
 
@@ -33,22 +33,18 @@ final class ModuleContextTests: MachOSwiftSectionFixtureTests, FixtureSuite, @un
         let fileDescriptor = try BaselineFixturePicker.module_SymbolTestsCore(in: machOFile)
         let imageDescriptor = try BaselineFixturePicker.module_SymbolTestsCore(in: machOImage)
 
-        let fileContext_ = try ModuleContext(descriptor: fileDescriptor, in: machOFile)
-        let imageContext_ = try ModuleContext(descriptor: imageDescriptor, in: machOImage)
-        let fileCtxContext = try ModuleContext(descriptor: fileDescriptor, in: fileContext)
-        let imageCtxContext = try ModuleContext(descriptor: imageDescriptor, in: imageContext)
+        let fileContext_ = try ModuleContext(descriptor: fileDescriptor, in: fileContext)
+        let imageContext_ = try ModuleContext(descriptor: imageDescriptor, in: imageContext)
 
         #expect(fileContext_.descriptor.offset == ModuleContextBaseline.symbolTestsCore.descriptorOffset)
         #expect(imageContext_.descriptor.offset == ModuleContextBaseline.symbolTestsCore.descriptorOffset)
-        #expect(fileCtxContext.descriptor.offset == ModuleContextBaseline.symbolTestsCore.descriptorOffset)
-        #expect(imageCtxContext.descriptor.offset == ModuleContextBaseline.symbolTestsCore.descriptorOffset)
         #expect(fileContext_.name == ModuleContextBaseline.symbolTestsCore.name)
     }
 
     @Test("init(descriptor:)") func initializerInProcess() async throws {
         let imageDescriptor = try BaselineFixturePicker.module_SymbolTestsCore(in: machOImage)
         let pointerDescriptor = imageDescriptor.asPointerWrapper(in: machOImage)
-        let inProcessContext_ = try ModuleContext(descriptor: pointerDescriptor)
+        let inProcessContext_ = try ModuleContext(descriptor: pointerDescriptor, in: inProcessContext)
 
         #expect(inProcessContext_.descriptor.offset != 0)
         #expect(inProcessContext_.name == ModuleContextBaseline.symbolTestsCore.name)

@@ -74,11 +74,11 @@ struct NestedFieldExtentTests {
         let calculator = try StaticLayoutCalculator(machO: machOFile)
         for typeContext in try machOFile.swift.types {
             guard case .struct(let structType) = typeContext,
-                  try structType.descriptor.name(in: machOFile) == structName else { continue }
-            let records = try structType.descriptor.fieldDescriptor(in: machOFile).records(in: machOFile)
-            let record = try #require(records.first { (try? $0.fieldName(in: machOFile)) == fieldName })
+                  try structType.descriptor.name(in: machOFile.context) == structName else { continue }
+            let records = try structType.descriptor.fieldDescriptor(in: machOFile.context).records(in: machOFile.context)
+            let record = try #require(records.first { (try? $0.fieldName(in: machOFile.context)) == fieldName })
             return calculator.nestedFieldOffsetTree(
-                forMangledTypeName: try record.mangledTypeName(in: machOFile),
+                forMangledTypeName: try record.mangledTypeName(in: machOFile.context),
                 baseOffset: 32, depthLimit: 8
             )
         }
@@ -176,11 +176,11 @@ struct NestedFieldExtentTests {
         let rootFile = try MachOFile(url: directory.appendingPathComponent("libExtentRoot.dylib"))
         let rootType = try #require(try rootFile.swift.types.first { typeContext in
             guard case .struct(let structType) = typeContext else { return false }
-            return (try? structType.descriptor.name(in: rootFile)) == "Envelope"
+            return (try? structType.descriptor.name(in: rootFile.context)) == "Envelope"
         })
         guard case .struct(let envelope) = rootType else { return }
-        let record = try #require(try envelope.descriptor.fieldDescriptor(in: rootFile).records(in: rootFile).first)
-        let typeName = try record.mangledTypeName(in: rootFile)
+        let record = try #require(try envelope.descriptor.fieldDescriptor(in: rootFile.context).records(in: rootFile.context).first)
+        let typeName = try record.mangledTypeName(in: rootFile.context)
         let unavailableUniverse = try ImageUniverse.dependencyClosure(root: rootFile, searchPaths: [])
         #expect(StaticLayoutCalculator(imageUniverse: unavailableUniverse).nestedFieldOffsetTree(
             forMangledTypeName: typeName, baseOffset: 32, depthLimit: 4

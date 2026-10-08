@@ -1,0 +1,112 @@
+import Foundation
+import MachOKit
+import MachOBase
+
+@LocatableLayoutWrapping
+public struct ClassDescriptor: TypeContextDescriptorProtocol {
+    public struct Layout: ClassDescriptorLayout {
+        public let flags: ContextDescriptorFlags
+        public let parent: RelativeContextPointer
+        public let name: RelativeDirectPointer<String>
+        public let accessFunctionPtr: RelativeDirectPointer<MetadataAccessorFunction>
+        public let fieldDescriptor: RelativeDirectPointer<FieldDescriptor>
+        public let superclassType: RelativeDirectPointer<MangledName?>
+        public let metadataNegativeSizeInWordsOrResilientMetadataBounds: UInt32
+        public let metadataPositiveSizeInWordsOrExtraClassFlags: UInt32
+        public let numImmediateMembers: UInt32
+        public let numFields: UInt32
+        public let fieldOffsetVectorOffset: UInt32
+    }
+}
+
+extension ClassDescriptor {
+    public var resilientSuperclassReferenceKind: TypeReferenceKind? {
+        guard let resilientSuperclassReferenceKind = layout.flags.kindSpecificFlags?.typeFlags?.classResilientSuperclassReferenceKind else {
+            return nil
+        }
+        return resilientSuperclassReferenceKind
+    }
+}
+
+extension ClassDescriptor {
+    public var hasFieldOffsetVector: Bool {
+        return layout.fieldOffsetVectorOffset != 0
+    }
+
+    public var hasDefaultOverrideTable: Bool {
+        return layout.flags.kindSpecificFlags?.typeFlags?.classHasDefaultOverrideTable ?? false
+    }
+
+    public var isActor: Bool {
+        return layout.flags.kindSpecificFlags?.typeFlags?.classIsActor ?? false
+    }
+
+    public var isDefaultActor: Bool {
+        return layout.flags.kindSpecificFlags?.typeFlags?.classIsDefaultActor ?? false
+    }
+
+    public var hasVTable: Bool {
+        return layout.flags.kindSpecificFlags?.typeFlags?.classHasVTable ?? false
+    }
+
+    public var hasOverrideTable: Bool {
+        return layout.flags.kindSpecificFlags?.typeFlags?.classHasOverrideTable ?? false
+    }
+
+    public var hasResilientSuperclass: Bool {
+        return layout.flags.kindSpecificFlags?.typeFlags?.classHasResilientSuperclass ?? false
+    }
+
+    public var areImmediateMembersNegative: Bool {
+        return layout.flags.kindSpecificFlags?.typeFlags?.classAreImmdiateMembersNegative ?? false
+    }
+
+    public var immediateMemberSize: StoredSize {
+        return StoredSize(layout.numImmediateMembers) * MemoryLayout<StoredPointer>.size.cast()
+    }
+
+    public var nonResilientImmediateMembersOffset: Int32 {
+        areImmediateMembersNegative ? -Int32(layout.metadataNegativeSizeInWordsOrResilientMetadataBounds) : Int32(layout.metadataPositiveSizeInWordsOrExtraClassFlags) - Int32(layout.numImmediateMembers)
+    }
+
+    public var hasObjCResilientClassStub: Bool {
+        guard hasResilientSuperclass else { return false }
+        return ExtraClassDescriptorFlags(rawValue: layout.metadataPositiveSizeInWordsOrExtraClassFlags).hasObjCResilientClassStub
+    }
+}
+
+// MARK: - ReadingContext Support
+
+extension ClassDescriptor {
+    public func resilientMetadataBounds(in context: some ReadingContext) throws -> StoredClassMetadataBounds {
+        return try RelativeDirectPointer<StoredClassMetadataBounds>(relativeOffset: Int32(bitPattern: layout.metadataNegativeSizeInWordsOrResilientMetadataBounds)).resolve(at: try context.addressFromOffset(offset(of: \.metadataNegativeSizeInWordsOrResilientMetadataBounds)), in: context)
+    }
+
+    public func superclassTypeMangledName(in context: some ReadingContext) throws -> MangledName? {
+        try layout.superclassType.resolve(at: try context.addressFromOffset(offset(of: \.superclassType)), in: context)
+    }
+}
+
+// MARK: - Deprecated Mach-O and pointer forms
+
+extension ClassDescriptor {
+    @available(*, deprecated, message: "Pass a ReadingContext: resilientMetadataBounds(in: machO.context).")
+    public func resilientMetadataBounds(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> StoredClassMetadataBounds {
+        try resilientMetadataBounds(in: machO.context)
+    }
+
+    @available(*, deprecated, message: "Pass a ReadingContext: superclassTypeMangledName(in: machO.context).")
+    public func superclassTypeMangledName(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> MangledName? {
+        try superclassTypeMangledName(in: machO.context)
+    }
+
+    @available(*, deprecated, message: "Pass a ReadingContext: resilientMetadataBounds(in: .inProcess).")
+    public func resilientMetadataBounds() throws -> StoredClassMetadataBounds {
+        try resilientMetadataBounds(in: InProcessContext.shared)
+    }
+
+    @available(*, deprecated, message: "Pass a ReadingContext: superclassTypeMangledName(in: .inProcess).")
+    public func superclassTypeMangledName() throws -> MangledName? {
+        try superclassTypeMangledName(in: InProcessContext.shared)
+    }
+}

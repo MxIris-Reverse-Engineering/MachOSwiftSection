@@ -12,7 +12,7 @@ final class ProtocolRequirementSignatureTests: MachOFileTests, @unchecked Sendab
         let machO = machOFile
         let protocolDescriptors = try machO.swift.protocolDescriptors
         for protocolDescriptor in protocolDescriptors {
-            let proto = try Protocol(descriptor: protocolDescriptor, in: machO)
+            let proto = try Protocol(descriptor: protocolDescriptor, in: machO.context)
             for requirement in proto.requirements {
                 print(requirement.flags.kind)
             }

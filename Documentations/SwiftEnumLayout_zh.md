@@ -876,14 +876,14 @@ SizeFlags           （高 16 位：内容大小，单位是 32 位字；最低�
 
 用在枚举 metadata 已经加载进本进程的场合（`MachOImage`）。流水线在 `RuntimeFieldLayoutBackend` + `SwiftInspection` 里：
 
-1. **公式先行。** `EnumLayoutCalculator`（`Sources/SwiftInspection/EnumLayoutCalculator.swift`）是第二部分那些算法的逐行审计移植——`calculateSinglePayload`、`calculateMultiPayload`（spare bits，掩码来自 `__swift5_mpenum`）、`calculateTaggedMultiPayload`。它产出每个 case 的投影，包括按字节的**固定位掩码**（3.3）和按策略算出的 XI 数量（2.6.6、2.7.4）。
+1. **公式先行。** `EnumLayoutCalculator`（`Sources/Analysis/SwiftInspection/EnumLayoutCalculator.swift`）是第二部分那些算法的逐行审计移植——`calculateSinglePayload`、`calculateMultiPayload`（spare bits，掩码来自 `__swift5_mpenum`）、`calculateTaggedMultiPayload`。它产出每个 case 的投影，包括按字节的**固定位掩码**（3.3）和按策略算出的 XI 数量（2.6.6、2.7.4）。
 2. **Payload 的 XI 取自真实 VWT。** payload 的 XI 数量从它活的 value witness table 里读。`indirect` payload 特判为堆对象的数量 `0x7FFF_FFFF`（2.5.2）。payload 类型解析不出来时，从枚举自己的 VWT *反推*：payload-sized 布局下，`payloadXI = enumXI + emptyCases` 就是运行时那步减法的精确逆运算（2.5.1）；溢出布局反推不出来，那就宁可放弃这个布局也不去猜。
-3. **精确模式来自 witness 本体。** `RuntimeEnumCaseProjector`（`Sources/SwiftInspection/RuntimeEnumCaseProjector.swift`）靠*运行*枚举自己的 `destructiveInjectEnumTag` witness 来解析 XI 模式（3.4）：每个 case 注入两次——一次注进全 `0x00` 的缓冲区、一次注进全 `0xFF` 的——两次结果一致的字节就是被确定性写入的字节。empty case 还必须经 `getEnumTag` 往返校验，否则整个投影被拒绝。（双基线这一招之所以成立，正是因为 single-payload 的注入是*覆盖写*；spare-bits 的注入是 OR，所以那个策略的模式改从掩码取得。）
+3. **精确模式来自 witness 本体。** `RuntimeEnumCaseProjector`（`Sources/Analysis/SwiftInspection/RuntimeEnumCaseProjector.swift`）靠*运行*枚举自己的 `destructiveInjectEnumTag` witness 来解析 XI 模式（3.4）：每个 case 注入两次——一次注进全 `0x00` 的缓冲区、一次注进全 `0xFF` 的——两次结果一致的字节就是被确定性写入的字节。empty case 还必须经 `getEnumTag` 往返校验，否则整个投影被拒绝。（双基线这一招之所以成立，正是因为 single-payload 的注入是*覆盖写*；spare-bits 的注入是 OR，所以那个策略的模式改从掩码取得。）
 4. **对照 ground truth 交叉校验。** 组装出的布局，它推算出的总大小必须等于枚举 VWT 的 size，否则整个布局作废——派生输入（payload 大小、spare mask）可能出错，而一个自信的错误答案比没有答案更糟。
 
 #### 静态路径——离线，对自己的极限诚实
 
-用在 `MachOFile`（没有进程）。`EnumLayoutBridge`（`Sources/SwiftLayout/EnumLayoutBridge.swift`）按下面的顺序解析：
+用在 `MachOFile`（没有进程）。`EnumLayoutBridge`（`Sources/Analysis/SwiftLayout/EnumLayoutBridge.swift`）按下面的顺序解析：
 
 1. **优先拿编译器自己的答案**：`__swift5_builtin` 整型布局描述符（IRGen 算出的 size/stride/alignment/XI 原样照录）——和 RemoteInspection 信任的是同一来源。
 2. **没有就结构化计算**：payload 类型经镜像依赖闭包递归解析，`__swift5_mpenum` 的掩码喂给 `calculateMultiPayload`，而且——比官方离线实现更进一步——**spare-bits 的 XI 数量也结构化推导**（`TypeLowering.cpp` 从来不这么做；没有 builtin 描述符时它直接退回 tagged 的 XI）。
@@ -925,10 +925,10 @@ SizeFlags           （高 16 位：内容大小，单位是 32 位字；最低�
 
 | 文件 | 角色 |
 |---|---|
-| `Sources/SwiftInspection/EnumLayoutCalculator.swift` | 公式移植（三大策略、逐 case 投影、固定位掩码） |
-| `Sources/SwiftInspection/RuntimeEnumCaseProjector.swift` | witness 驱动的精确模式投影 |
-| `Sources/SwiftDeclarationRendering/RuntimeFieldLayoutBackend.swift` | 运行时路径组装：VWT 读取、XI 反推、大小交叉校验 |
-| `Sources/SwiftLayout/EnumLayoutBridge.swift` | 静态路径组装：builtin 描述符、`__swift5_mpenum`、结构化回退 |
+| `Sources/Analysis/SwiftInspection/EnumLayoutCalculator.swift` | 公式移植（三大策略、逐 case 投影、固定位掩码） |
+| `Sources/Analysis/SwiftInspection/RuntimeEnumCaseProjector.swift` | witness 驱动的精确模式投影 |
+| `Sources/Output/SwiftDeclarationRendering/RuntimeFieldLayoutBackend.swift` | 运行时路径组装：VWT 读取、XI 反推、大小交叉校验 |
+| `Sources/Analysis/SwiftLayout/EnumLayoutBridge.swift` | 静态路径组装：builtin 描述符、`__swift5_mpenum`、结构化回退 |
 | `Tests/SwiftInspectionTests/EnumLayoutVerificationTests.swift` | 本文每一条公式对照活内存的验证 |
 
 ---

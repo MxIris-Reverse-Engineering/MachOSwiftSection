@@ -266,11 +266,11 @@ struct CImportedTypeIdentityFixtureTests {
     private func holderFieldMangledTypeNames(in machOFile: MachOFile) throws -> [String: MangledName] {
         for typeContextDescriptor in try machOFile.swift.typeContextDescriptors {
             guard case .struct(let structDescriptor) = typeContextDescriptor else { continue }
-            guard try structDescriptor.name(in: machOFile) == "Holder" else { continue }
-            let fieldDescriptor = try #require(try structDescriptor.fieldDescriptor(in: machOFile))
+            guard try structDescriptor.name(in: machOFile.context) == "Holder" else { continue }
+            let fieldDescriptor = try #require(try structDescriptor.fieldDescriptor(in: machOFile.context))
             var mangledTypeNamesByFieldName: [String: MangledName] = [:]
-            for record in try fieldDescriptor.records(in: machOFile) {
-                mangledTypeNamesByFieldName[try record.fieldName(in: machOFile)] = try record.mangledTypeName(in: machOFile)
+            for record in try fieldDescriptor.records(in: machOFile.context) {
+                mangledTypeNamesByFieldName[try record.fieldName(in: machOFile.context)] = try record.mangledTypeName(in: machOFile.context)
             }
             return mangledTypeNamesByFieldName
         }
@@ -310,7 +310,7 @@ struct CImportedTypeIdentityFixtureTests {
         let mangledTypeNames = try holderFieldMangledTypeNames(in: machOFile)
         for expectation in Self.expectations {
             let mangledTypeName = try #require(mangledTypeNames[expectation.fieldName], "Holder has no field \(expectation.fieldName)")
-            let node = try SymbolicDemangler.demangleType(for: mangledTypeName, in: machOFile)
+            let node = try SymbolicDemangler.demangleType(for: mangledTypeName, in: machOFile.context)
             #expect(try typeMangling(of: node) == expectation.mangling, Comment(rawValue: expectation.fieldName))
         }
     }
@@ -320,7 +320,7 @@ struct CImportedTypeIdentityFixtureTests {
         let mangledTypeNames = try holderFieldMangledTypeNames(in: machOFile)
         for expectation in Self.expectations {
             let mangledTypeName = try #require(mangledTypeNames[expectation.fieldName], "Holder has no field \(expectation.fieldName)")
-            let node = try SymbolicDemangler.demangleType(for: mangledTypeName, in: machOFile)
+            let node = try SymbolicDemangler.demangleType(for: mangledTypeName, in: machOFile.context)
             #expect(node.print(using: .default) == expectation.printedName, Comment(rawValue: expectation.fieldName))
         }
     }
@@ -332,9 +332,9 @@ struct CImportedTypeIdentityFixtureTests {
         var importInfosByUserFacingName: [String: TypeImportInfo?] = [:]
         for typeContextDescriptor in try machOFile.swift.typeContextDescriptors {
             let descriptor = typeContextDescriptor.contextDescriptor
-            guard try descriptor.isCImportedContextDescriptor(in: machOFile) else { continue }
+            guard try descriptor.isCImportedContextDescriptor(in: machOFile.context) else { continue }
             let typeDescriptor = try #require(typeContextDescriptor.contextDescriptor as? any TypeContextDescriptorProtocol)
-            importInfosByUserFacingName[try typeDescriptor.name(in: machOFile)] = try typeDescriptor.typeImportInfo(in: machOFile)
+            importInfosByUserFacingName[try typeDescriptor.name(in: machOFile.context)] = try typeDescriptor.typeImportInfo(in: machOFile.context)
         }
         #expect(importInfosByUserFacingName["ProbeMode"] == .some(nil))
         #expect(importInfosByUserFacingName["ProbePoint"] == TypeImportInfo(abiName: "ProbeOriginalPoint", symbolNamespace: nil, relatedEntityName: nil))

@@ -122,41 +122,29 @@ final class CaptureDescriptorTests: MachOSwiftSectionFixtureTests, FixtureSuite,
 
     @Test func captureTypeRecords() async throws {
         for carrier in try allCarriers() {
-            let offsets = try acrossAllReaders(
-                file: { try carrier.file.captureTypeRecords(in: machOFile).map(\.offset) },
-                image: { try carrier.image.captureTypeRecords(in: machOImage).map(\.offset) }
+            let offsets = try acrossAllContexts(
+                file: { try carrier.file.captureTypeRecords(in: fileContext).map(\.offset) },
+                image: { try carrier.image.captureTypeRecords(in: imageContext).map(\.offset) }
             )
             #expect(offsets.count == carrier.expected.numberOfCaptureTypes, "\(carrier.label)")
             #expect(offsets.first == carrier.expected.captureTypeRecordsOffset, "\(carrier.label)")
 
-            let fromContext = try acrossAllContexts(
-                file: { try carrier.file.captureTypeRecords(in: fileContext).map(\.offset) },
-                image: { try carrier.image.captureTypeRecords(in: imageContext).map(\.offset) }
-            )
-            #expect(fromContext == offsets, "\(carrier.label)")
-
             // The in-process leg reads through a pointer, so its offsets are
             // pointers; only the count is comparable directly.
-            let inProcess = try carrier.image.asPointerWrapper(in: machOImage).captureTypeRecords()
+            let inProcess = try carrier.image.asPointerWrapper(in: machOImage).captureTypeRecords(in: inProcessContext)
             #expect(inProcess.count == carrier.expected.numberOfCaptureTypes, "\(carrier.label)")
         }
     }
 
     @Test func metadataSourceRecords() async throws {
         for carrier in try allCarriers() {
-            let sources = try acrossAllReaders(
-                file: { try carrier.file.metadataSourceRecords(in: machOFile).map { try $0.mangledMetadataSource(in: machOFile).rawString } },
-                image: { try carrier.image.metadataSourceRecords(in: machOImage).map { try $0.mangledMetadataSource(in: machOImage).rawString } }
-            )
-            #expect(sources == carrier.expected.mangledMetadataSources, "\(carrier.label)")
-
-            let fromContext = try acrossAllContexts(
+            let sources = try acrossAllContexts(
                 file: { try carrier.file.metadataSourceRecords(in: fileContext).map { try $0.mangledMetadataSource(in: fileContext).rawString } },
                 image: { try carrier.image.metadataSourceRecords(in: imageContext).map { try $0.mangledMetadataSource(in: imageContext).rawString } }
             )
-            #expect(fromContext == carrier.expected.mangledMetadataSources, "\(carrier.label)")
+            #expect(sources == carrier.expected.mangledMetadataSources, "\(carrier.label)")
 
-            let inProcess = try carrier.image.asPointerWrapper(in: machOImage).metadataSourceRecords()
+            let inProcess = try carrier.image.asPointerWrapper(in: machOImage).metadataSourceRecords(in: inProcessContext)
             #expect(inProcess.count == carrier.expected.numberOfMetadataSources, "\(carrier.label)")
         }
     }

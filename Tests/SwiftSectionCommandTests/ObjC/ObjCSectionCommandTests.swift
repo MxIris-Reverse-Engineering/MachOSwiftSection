@@ -201,31 +201,33 @@ struct ObjCSectionCommandTests {
     // MARK: - Ivar Offset Template
 
     @Test("No template option leaves the renderer's own wording in place")
-    func noTemplateMeansNoBuilder() throws {
+    func noTemplateMeansNoModule() throws {
         let command = try ObjCDumpCommand.parse(["/tmp/Sample"])
-        #expect(command.transformerOptions.buildIvarOffsetCommentBuilder() == nil)
-        #expect(command.transformerOptions.impliesIvarOffsetComments == false)
+        #expect(command.transformerOptions.buildIvarOffsetComment() == nil)
+        #expect(try command.makeRequest().ivarOffsetComment == nil)
     }
 
-    @Test("A template is applied, and switches ivar offset comments on")
-    func templateIsAppliedAndImpliesComments() throws {
+    /// A module in the request is what switches ivar offset comments on in
+    /// the library, so a template on its own is not inert.
+    @Test("A template is applied, and reaches the request")
+    func templateIsAppliedAndReachesTheRequest() throws {
         let command = try ObjCDumpCommand.parse([
             "/tmp/Sample",
             "--ivar-offset-template", "ivar @ ${offset}",
         ])
-        let builder = try #require(command.transformerOptions.buildIvarOffsetCommentBuilder())
+        let module = try #require(command.transformerOptions.buildIvarOffsetComment())
 
-        #expect(builder(16) == "ivar @ 0x10")
-        #expect(command.transformerOptions.impliesIvarOffsetComments)
+        #expect(module.transform(.init(offset: 16)) == "ivar @ 0x10")
+        #expect(try command.makeRequest().ivarOffsetComment == module)
     }
 
     @Test("Decimal formatting is a customization on its own")
-    func decimalFlagAloneBuildsABuilder() throws {
+    func decimalFlagAloneBuildsAModule() throws {
         let command = try ObjCDumpCommand.parse(["/tmp/Sample", "--ivar-offset-decimal"])
-        let builder = try #require(command.transformerOptions.buildIvarOffsetCommentBuilder())
+        let module = try #require(command.transformerOptions.buildIvarOffsetComment())
 
-        #expect(builder(16) == "offset: 16")
-        #expect(command.transformerOptions.impliesIvarOffsetComments)
+        #expect(module.transform(.init(offset: 16)) == "offset: 16")
+        #expect(try command.makeRequest().ivarOffsetComment == module)
     }
 
     // MARK: - Interface Subcommand

@@ -1,0 +1,81 @@
+import Foundation
+@_spi(Internals) import Demangling
+import MachOKit
+import MachOKitExtensions
+import MachOFoundation
+import MachOSwiftSection
+@_spi(Core) import MachOObjCSection
+
+@_spi(Internals)
+public struct ClassHierarchyDumper {
+    public let machO: MachOImage
+
+    public init(machO: MachOImage) {
+        self.machO = machO
+    }
+
+    public static func dump(for classDescriptor: ClassDescriptor, in machO: MachOImage) throws -> [String] {
+        try ClassHierarchyDumper(machO: machO).dump(for: classDescriptor)
+    }
+
+    public func dump(for classDescriptor: ClassDescriptor) throws -> [String] {
+        var classes: [String] = []
+        if let metadataAccessor = try `classDescriptor`.metadataAccessorFunction(in: machO.context), !`classDescriptor`.flags.isGeneric {
+            let metadata = try metadataAccessor(request: .init()).value.resolve(in: machO.context)
+            switch metadata {
+            case .class(let classMetadataObjCInterop):
+                try perform(classMetadata: classMetadataObjCInterop, classDescriptor: `classDescriptor`, classes: &classes)
+            default:
+                break
+            }
+        }
+        return classes
+    }
+
+    private func perform(objcClass: ObjCClass64, classes: inout [String]) throws {
+        if let name = objcClass.info(in: machO)?.name {
+            classes.append(name.demangledString)
+        }
+        if let superclass = objcClass.superClass(in: machO)?.1 {
+            try perform(objcClass: superclass, classes: &classes)
+        }
+    }
+
+    private func perform(classMetadata: ClassMetadataObjCInterop, classDescriptor: ClassDescriptor, classes: inout [String]) throws {
+        try classes.append(classDescriptor.name(in: machO.context))
+        if let superclassMetadata = try classMetadata.superclass(in: machO.context) {
+            if superclassMetadata.isPureObjC {
+                let objcClass = try ObjCClass64.resolve(at: superclassMetadata.offset, in: machO.context)
+                try perform(objcClass: objcClass, classes: &classes)
+            } else if let superclassDescriptor = try superclassMetadata.asFinalClassMetadata(in: machO.context).descriptor(in: machO.context) {
+                try perform(classMetadata: superclassMetadata.asFinalClassMetadata(in: machO.context), classDescriptor: superclassDescriptor, classes: &classes)
+            }
+        }
+    }
+}
+
+extension ObjCClass64: @retroactive Equatable {
+    public static func == (lhs: ObjCClass64, rhs: ObjCClass64) -> Bool {
+        lhs.offset == rhs.offset && lhs.layout == rhs.layout
+    }
+}
+
+extension ObjCClass64: @retroactive LocatableLayoutWrapper, Resolvable, @unchecked @retroactive Sendable {}
+
+extension ObjCClass64.Layout: @retroactive Equatable {
+    public static func == (lhs: ObjCClass64.Layout, rhs: ObjCClass64.Layout) -> Bool {
+        lhs.isa == rhs.isa &&
+            lhs.superclass == rhs.superclass &&
+            lhs.methodCacheBuckets == rhs.methodCacheBuckets &&
+            lhs.methodCacheProperties == rhs.methodCacheProperties &&
+            lhs.swiftClassFlags == rhs.swiftClassFlags
+    }
+}
+
+extension ObjCClass64.Layout: @retroactive LayoutProtocol, @unchecked @retroactive Sendable {}
+
+extension String {
+    fileprivate var demangledString: String {
+        (try? demangleAsNodeTransient(self))?.print(using: .interfaceType) ?? self
+    }
+}

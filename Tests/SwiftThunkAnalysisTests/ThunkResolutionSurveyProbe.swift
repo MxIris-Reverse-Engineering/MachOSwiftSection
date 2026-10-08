@@ -29,17 +29,17 @@ struct ThunkResolutionSurveyProbe {
 
         for associatedType in try machO.swift.associatedTypes {
             for record in associatedType.records {
-                guard let node = try? SymbolicDemangler.demangleType(for: record.substitutedTypeName(in: machO), in: machO),
+                guard let node = try? SymbolicDemangler.demangleType(for: record.substitutedTypeName(in: machO.context), in: machO.context),
                       let opaqueTypeNode = node.first(of: Node.Kind.opaqueType),
                       let descriptorReference = opaqueTypeNode.firstChild,
                       descriptorReference.isKind(of: .opaqueTypeDescriptorSymbolicReference),
                       let descriptorOffset: Int = descriptorReference.index?.cast(),
-                      let descriptor = try? OpaqueTypeDescriptor.resolve(from: descriptorOffset, in: machO),
-                      let opaqueType = try? OpaqueType(descriptor: descriptor, in: machO)
+                      let descriptor = try? OpaqueTypeDescriptor.resolve(at: descriptorOffset, in: machO.context),
+                      let opaqueType = try? OpaqueType(descriptor: descriptor, in: machO.context)
                 else { continue }
                 let ordinal: Int = opaqueTypeNode[safeChild: 1]?.index?.cast() ?? 0
                 guard ordinal < opaqueType.underlyingTypeArgumentMangledNames.count,
-                      let underlyingNode = try? SymbolicDemangler.demangleType(for: opaqueType.underlyingTypeArgumentMangledNames[ordinal], in: machO),
+                      let underlyingNode = try? SymbolicDemangler.demangleType(for: opaqueType.underlyingTypeArgumentMangledNames[ordinal], in: machO.context),
                       let accessorReference = underlyingNode.first(of: Node.Kind.accessorFunctionReference),
                       let thunkOffset: Int = accessorReference.index?.cast()
                 else { continue }
@@ -47,10 +47,10 @@ struct ThunkResolutionSurveyProbe {
                 recordCount += 1
                 guard seenThunkOffsets.insert(thunkOffset).inserted else { continue }
 
-                let conformingTypeName = await (try SymbolicDemangler.demangleType(for: associatedType.conformingTypeName, in: machO))
+                let conformingTypeName = await (try SymbolicDemangler.demangleType(for: associatedType.conformingTypeName, in: machO.context))
                     .print(using: DemangleOptions.default)
                 let resolved = try AccessorThunkReader.read(thunkAtOffset: thunkOffset, in: machO)
-                print("######## \(conformingTypeName).\(try record.name(in: machO))")
+                print("######## \(conformingTypeName).\(try record.name(in: machO.context))")
                 if let check = resolved.availabilityCheck {
                     print("  if #available(platform \(check.platform), \(check.major).\(check.minor).\(check.patch))")
                 }

@@ -201,42 +201,34 @@ final class ContextDescriptorWrapperTests: MachOSwiftSectionFixtureTests, Fixtur
 
     @Test func parent() async throws {
         let wrappers = try loadStructTestWrappers()
-        let presence = try acrossAllReaders(
-            file: { (try wrappers.file.parent(in: machOFile)) != nil },
-            image: { (try wrappers.image.parent(in: machOImage)) != nil }
+        let presence = try acrossAllContexts(
+            file: { (try wrappers.file.parent(in: fileContext)) != nil },
+            image: { (try wrappers.image.parent(in: imageContext)) != nil }
         )
         #expect(presence == ContextDescriptorWrapperBaseline.structTest.hasParent)
-
-        // ReadingContext-based overload also exercised.
-        let imageCtxPresence = (try wrappers.image.parent(in: imageContext)) != nil
-        #expect(imageCtxPresence == ContextDescriptorWrapperBaseline.structTest.hasParent)
     }
 
     @Test func genericContext() async throws {
         let wrappers = try loadStructTestWrappers()
-        let presence = try acrossAllReaders(
-            file: { (try wrappers.file.genericContext(in: machOFile)) != nil },
-            image: { (try wrappers.image.genericContext(in: machOImage)) != nil }
+        let presence = try acrossAllContexts(
+            file: { (try wrappers.file.genericContext(in: fileContext)) != nil },
+            image: { (try wrappers.image.genericContext(in: imageContext)) != nil }
         )
         #expect(presence == ContextDescriptorWrapperBaseline.structTest.hasGenericContext)
-
-        // ReadingContext-based overload also exercised.
-        let imageCtxPresence = (try wrappers.image.genericContext(in: imageContext)) != nil
-        #expect(imageCtxPresence == ContextDescriptorWrapperBaseline.structTest.hasGenericContext)
     }
 
     @Test func resolve() async throws {
         // `resolve` is a static func with multiple overloads; all collapse to
-        // one MethodKey. Exercise the MachO-based overload that returns
-        // `Self` (the path used by `ContextDescriptorWrapper.resolve(from:in:)`
+        // one MethodKey. Exercise the ReadingContext-based overload that
+        // returns `Self` (the path used by `ContextDescriptorWrapper.resolve(at:in:)`
         // when reading wrapper records out of a section). Type the result
         // explicitly as `ContextDescriptorWrapper` to disambiguate from the
         // `Self?`-returning sibling overload.
         let fileDescriptor = try BaselineFixturePicker.struct_StructTest(in: machOFile)
         let imageDescriptor = try BaselineFixturePicker.struct_StructTest(in: machOImage)
 
-        let fileWrapper: ContextDescriptorWrapper = try ContextDescriptorWrapper.resolve(from: fileDescriptor.offset, in: machOFile)
-        let imageWrapper: ContextDescriptorWrapper = try ContextDescriptorWrapper.resolve(from: imageDescriptor.offset, in: machOImage)
+        let fileWrapper: ContextDescriptorWrapper = try ContextDescriptorWrapper.resolve(at: fileDescriptor.offset, in: fileContext)
+        let imageWrapper: ContextDescriptorWrapper = try ContextDescriptorWrapper.resolve(at: imageDescriptor.offset, in: imageContext)
 
         #expect(fileWrapper.isStruct == true)
         #expect(imageWrapper.isStruct == true)

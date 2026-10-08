@@ -19,8 +19,8 @@ final class OverrideTableHeaderTests: MachOSwiftSectionFixtureTests, FixtureSuit
     private func loadSubclassOverrideHeaders() throws -> (file: OverrideTableHeader, image: OverrideTableHeader) {
         let fileDescriptor = try BaselineFixturePicker.class_SubclassTest(in: machOFile)
         let imageDescriptor = try BaselineFixturePicker.class_SubclassTest(in: machOImage)
-        let fileClass = try Class(descriptor: fileDescriptor, in: machOFile)
-        let imageClass = try Class(descriptor: imageDescriptor, in: machOImage)
+        let fileClass = try Class(descriptor: fileDescriptor, in: fileContext)
+        let imageClass = try Class(descriptor: imageDescriptor, in: imageContext)
         let fileHeader = try required(fileClass.overrideTableHeader)
         let imageHeader = try required(imageClass.overrideTableHeader)
         return (file: fileHeader, image: imageHeader)

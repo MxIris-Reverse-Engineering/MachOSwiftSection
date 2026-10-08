@@ -58,57 +58,45 @@ final class MultiPayloadEnumDescriptorTests: MachOSwiftSectionFixtureTests, Fixt
 
     @Test func mangledTypeName() async throws {
         let (fileSubject, imageSubject) = try loadDescriptors()
-        let rawString = try acrossAllReaders(
-            file: { try fileSubject.mangledTypeName(in: machOFile).rawString },
-            image: { try imageSubject.mangledTypeName(in: machOImage).rawString }
+        let rawString = try acrossAllContexts(
+            file: { try fileSubject.mangledTypeName(in: fileContext).rawString },
+            image: { try imageSubject.mangledTypeName(in: imageContext).rawString }
         )
         #expect(rawString == MultiPayloadEnumDescriptorBaseline.multiPayloadEnumTest.mangledTypeNameRawString)
-
-        // ReadingContext-based overload also exercised.
-        let fileCtxRaw = try fileSubject.mangledTypeName(in: fileContext).rawString
-        let imageCtxRaw = try imageSubject.mangledTypeName(in: imageContext).rawString
-        #expect(fileCtxRaw == rawString)
-        #expect(imageCtxRaw == rawString)
     }
 
     @Test func contents() async throws {
         let (fileSubject, imageSubject) = try loadDescriptors()
-        let count = try acrossAllReaders(
-            file: { try fileSubject.contents(in: machOFile).count },
-            image: { try imageSubject.contents(in: machOImage).count }
+        let count = try acrossAllContexts(
+            file: { try fileSubject.contents(in: fileContext).count },
+            image: { try imageSubject.contents(in: imageContext).count }
         )
         #expect(count == MultiPayloadEnumDescriptorBaseline.multiPayloadEnumTest.contentsCount)
-
-        // ReadingContext overloads.
-        let fileCtxCount = try fileSubject.contents(in: fileContext).count
-        let imageCtxCount = try imageSubject.contents(in: imageContext).count
-        #expect(fileCtxCount == count)
-        #expect(imageCtxCount == count)
     }
 
     @Test func payloadSpareBits() async throws {
         let (fileSubject, imageSubject) = try loadDescriptors()
-        let count = try acrossAllReaders(
-            file: { try fileSubject.payloadSpareBits(in: machOFile).count },
-            image: { try imageSubject.payloadSpareBits(in: machOImage).count }
+        let count = try acrossAllContexts(
+            file: { try fileSubject.payloadSpareBits(in: fileContext).count },
+            image: { try imageSubject.payloadSpareBits(in: imageContext).count }
         )
         #expect(count == MultiPayloadEnumDescriptorBaseline.multiPayloadEnumTest.payloadSpareBitsCount)
     }
 
     @Test func payloadSpareBitMaskByteOffset() async throws {
         let (fileSubject, imageSubject) = try loadDescriptors()
-        let result = try acrossAllReaders(
-            file: { try fileSubject.payloadSpareBitMaskByteOffset(in: machOFile) },
-            image: { try imageSubject.payloadSpareBitMaskByteOffset(in: machOImage) }
+        let result = try acrossAllContexts(
+            file: { try fileSubject.payloadSpareBitMaskByteOffset(in: fileContext) },
+            image: { try imageSubject.payloadSpareBitMaskByteOffset(in: imageContext) }
         )
         #expect(result == MultiPayloadEnumDescriptorBaseline.multiPayloadEnumTest.payloadSpareBitMaskByteOffset)
     }
 
     @Test func payloadSpareBitMaskByteCount() async throws {
         let (fileSubject, imageSubject) = try loadDescriptors()
-        let result = try acrossAllReaders(
-            file: { try fileSubject.payloadSpareBitMaskByteCount(in: machOFile) },
-            image: { try imageSubject.payloadSpareBitMaskByteCount(in: machOImage) }
+        let result = try acrossAllContexts(
+            file: { try fileSubject.payloadSpareBitMaskByteCount(in: fileContext) },
+            image: { try imageSubject.payloadSpareBitMaskByteCount(in: imageContext) }
         )
         #expect(result == MultiPayloadEnumDescriptorBaseline.multiPayloadEnumTest.payloadSpareBitMaskByteCount)
     }

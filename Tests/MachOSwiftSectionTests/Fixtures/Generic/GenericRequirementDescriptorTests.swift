@@ -31,8 +31,8 @@ final class GenericRequirementDescriptorTests: MachOSwiftSectionFixtureTests, Fi
     ) throws -> (file: GenericRequirementDescriptor, image: GenericRequirementDescriptor) {
         let fileDescriptor = try filePicker(machOFile)
         let imageDescriptor = try imagePicker(machOImage)
-        let fileGenericCtx = try required(try fileDescriptor.typeGenericContext(in: machOFile))
-        let imageGenericCtx = try required(try imageDescriptor.typeGenericContext(in: machOImage))
+        let fileGenericCtx = try required(try fileDescriptor.typeGenericContext(in: fileContext))
+        let imageGenericCtx = try required(try imageDescriptor.typeGenericContext(in: imageContext))
         let fileReq = try required(fileGenericCtx.currentRequirements.first)
         let imageReq = try required(imageGenericCtx.currentRequirements.first)
         return (file: fileReq, image: imageReq)
@@ -155,14 +155,10 @@ final class GenericRequirementDescriptorTests: MachOSwiftSectionFixtureTests, Fi
         // as a literal; cross-reader equality is meaningful on the parsed
         // result. MangledName is Hashable/Equatable so direct equality works.
         let layout = try layoutRequirements()
-        let fileName = try layout.file.paramMangledName(in: machOFile)
-        let imageName = try layout.image.paramMangledName(in: machOImage)
-        let fileCtxName = try layout.file.paramMangledName(in: fileContext)
-        let imageCtxName = try layout.image.paramMangledName(in: imageContext)
+        let fileName = try layout.file.paramMangledName(in: fileContext)
+        let imageName = try layout.image.paramMangledName(in: imageContext)
 
         #expect(fileName == imageName)
-        #expect(fileName == fileCtxName)
-        #expect(fileName == imageCtxName)
     }
 
     @Test func type() async throws {
@@ -170,22 +166,18 @@ final class GenericRequirementDescriptorTests: MachOSwiftSectionFixtureTests, Fi
         // baseClass / sameShape. The sameType requirement provides a clean
         // carrier.
         let sameType = try sameTypeRequirements()
-        let fileType = try sameType.file.type(in: machOFile)
-        let imageType = try sameType.image.type(in: machOImage)
-        let fileCtxType = try sameType.file.type(in: fileContext)
+        let fileType = try sameType.file.type(in: fileContext)
+        let imageType = try sameType.image.type(in: imageContext)
 
         #expect(fileType == imageType)
-        #expect(fileType == fileCtxType)
     }
 
     @Test func resolvedContent() async throws {
         let layout = try layoutRequirements()
-        let fileResolved = try layout.file.resolvedContent(in: machOFile)
-        let imageResolved = try layout.image.resolvedContent(in: machOImage)
-        let fileCtxResolved = try layout.file.resolvedContent(in: fileContext)
+        let fileResolved = try layout.file.resolvedContent(in: fileContext)
+        let imageResolved = try layout.image.resolvedContent(in: imageContext)
 
         #expect(fileResolved == imageResolved)
-        #expect(fileResolved == fileCtxResolved)
         #expect(describeResolvedKind(fileResolved) == GenericRequirementDescriptorBaseline.layoutRequirement.contentKindCase)
     }
 
@@ -193,19 +185,17 @@ final class GenericRequirementDescriptorTests: MachOSwiftSectionFixtureTests, Fi
         // The descriptor offsets differ between MachOFile and MachOImage
         // readers; `isContentEqual(to:in:)` requires both descriptors to
         // be reachable through the supplied reader. We therefore exercise
-        // each overload with same-reader inputs (a descriptor is content-
+        // each context with same-reader inputs (a descriptor is content-
         // equal to itself).
         let layout = try layoutRequirements()
-        #expect(layout.file.isContentEqual(to: layout.file, in: machOFile))
-        #expect(layout.image.isContentEqual(to: layout.image, in: machOImage))
         #expect(layout.file.isContentEqual(to: layout.file, in: fileContext))
         #expect(layout.image.isContentEqual(to: layout.image, in: imageContext))
-        // The InProcess overload reads via the descriptor's resolved
+        // The in-process context reads via the descriptor's resolved
         // pointer — only the image-side descriptor carries a pointer-form
         // ivar set, so we exercise it from there.
         let imagePointerLeft = layout.image.asPointerWrapper(in: machOImage)
         let imagePointerRight = layout.image.asPointerWrapper(in: machOImage)
-        #expect(imagePointerLeft.isContentEqual(to: imagePointerRight))
+        #expect(imagePointerLeft.isContentEqual(to: imagePointerRight, in: inProcessContext))
     }
 
     // MARK: - Private helpers

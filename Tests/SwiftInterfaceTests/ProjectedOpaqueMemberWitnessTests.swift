@@ -179,9 +179,9 @@ struct ProjectedOpaqueMemberWitnessTests {
     /// indexer both obtain it.
     private func elementResolution(in machOFile: MachOFile) throws -> Node.OpaqueTypeResolution? {
         for associatedType in try machOFile.swift.associatedTypes {
-            for record in associatedType.records where try record.name(in: machOFile) == "Element" {
-                let witnessMangledName = try record.substitutedTypeName(in: machOFile)
-                let node = try SymbolicDemangler.demangleType(for: witnessMangledName, in: machOFile)
+            for record in associatedType.records where try record.name(in: machOFile.context) == "Element" {
+                let witnessMangledName = try record.substitutedTypeName(in: machOFile.context)
+                let node = try SymbolicDemangler.demangleType(for: witnessMangledName, in: machOFile.context)
                 return node.resolveOpaqueTypeCollectingConditionalCandidates(witnessMangledName: witnessMangledName, conformingTypeName: associatedType.conformingTypeName, in: machOFile)
             }
         }

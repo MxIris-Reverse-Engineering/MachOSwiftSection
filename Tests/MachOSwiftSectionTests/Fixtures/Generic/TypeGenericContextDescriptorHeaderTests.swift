@@ -27,9 +27,9 @@ final class TypeGenericContextDescriptorHeaderTests: MachOSwiftSectionFixtureTes
     private func loadGenericStructLayoutRequirementHeaders() throws -> (file: TypeGenericContextDescriptorHeader, image: TypeGenericContextDescriptorHeader) {
         let fileDescriptor = try BaselineFixturePicker.struct_GenericStructLayoutRequirement(in: machOFile)
         let imageDescriptor = try BaselineFixturePicker.struct_GenericStructLayoutRequirement(in: machOImage)
-        let fileContext = try required(try fileDescriptor.typeGenericContext(in: machOFile))
-        let imageContext = try required(try imageDescriptor.typeGenericContext(in: machOImage))
-        return (file: fileContext.header, image: imageContext.header)
+        let fileGenericContext = try required(try fileDescriptor.typeGenericContext(in: fileContext))
+        let imageGenericContext = try required(try imageDescriptor.typeGenericContext(in: imageContext))
+        return (file: fileGenericContext.header, image: imageGenericContext.header)
     }
 
     @Test func offset() async throws {
@@ -85,7 +85,7 @@ final class TypeGenericContextDescriptorHeaderTests: MachOSwiftSectionFixtureTes
 
         // Resolving what it points at must produce a struct pattern, since
         // the carrier is a struct.
-        let pattern = try GenericValueMetadataPattern.resolve(from: try required(patternOffset), in: machOFile)
+        let pattern = try GenericValueMetadataPattern.resolve(at: try required(patternOffset), in: fileContext)
         #expect(pattern.metadataKind == .struct)
     }
 

@@ -49,8 +49,8 @@ struct 持有 `Optional<GeneratedIconPrimitiveValueSpec<String>>`，而这个 en
 
 | 文件 | 引擎 |
 |---|---|
-| `Sources/SwiftDeclarationRendering/RuntimeFieldLayoutBackend.swift` | 运行时（`MachOImage`，进程内 metadata） |
-| `Sources/SwiftLayout/NestedFieldOffsetTree.swift` | 静态（`MachOFile`，离线描述符） |
+| `Sources/Output/SwiftDeclarationRendering/RuntimeFieldLayoutBackend.swift` | 运行时（`MachOImage`，进程内 metadata） |
+| `Sources/Analysis/SwiftLayout/NestedFieldOffsetTree.swift` | 静态（`MachOFile`，离线描述符） |
 
 两者不共享代码，因此各自需要自己的守卫与回归测试。
 

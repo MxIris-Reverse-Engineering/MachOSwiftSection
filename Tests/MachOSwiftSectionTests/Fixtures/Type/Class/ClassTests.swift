@@ -14,8 +14,8 @@ import MachOFixtureSupport
 /// descriptors) because the heavy types (`TypeGenericContext`,
 /// `MethodDescriptor`, etc.) don't satisfy `Equatable` cheaply.
 ///
-/// `init(descriptor:in:)` (MachO + ReadingContext overloads) and
-/// `init(descriptor:)` (in-process) are exercised by dedicated tests.
+/// `init(descriptor:in:)` is exercised by dedicated tests over the file
+/// and image contexts and over the in-process context.
 @Suite
 final class ClassTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
     static let testedTypeName = "Class"
@@ -24,22 +24,22 @@ final class ClassTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked 
     }
 
     /// Helper: instantiate the `Class` wrapper for `Classes.ClassTest`
-    /// against both readers using the MachO-direct initializer.
+    /// against both readers through their reading contexts.
     private func loadClassTestClasses() throws -> (file: Class, image: Class) {
         let fileDescriptor = try BaselineFixturePicker.class_ClassTest(in: machOFile)
         let imageDescriptor = try BaselineFixturePicker.class_ClassTest(in: machOImage)
-        let file = try Class(descriptor: fileDescriptor, in: machOFile)
-        let image = try Class(descriptor: imageDescriptor, in: machOImage)
+        let file = try Class(descriptor: fileDescriptor, in: fileContext)
+        let image = try Class(descriptor: imageDescriptor, in: imageContext)
         return (file: file, image: image)
     }
 
     /// Helper: instantiate the `Class` wrapper for `Classes.SubclassTest`
-    /// against both readers using the MachO-direct initializer.
+    /// against both readers through their reading contexts.
     private func loadSubclassTestClasses() throws -> (file: Class, image: Class) {
         let fileDescriptor = try BaselineFixturePicker.class_SubclassTest(in: machOFile)
         let imageDescriptor = try BaselineFixturePicker.class_SubclassTest(in: machOImage)
-        let file = try Class(descriptor: fileDescriptor, in: machOFile)
-        let image = try Class(descriptor: imageDescriptor, in: machOImage)
+        let file = try Class(descriptor: fileDescriptor, in: fileContext)
+        let image = try Class(descriptor: imageDescriptor, in: imageContext)
         return (file: file, image: image)
     }
 
@@ -49,21 +49,17 @@ final class ClassTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked 
         let fileDescriptor = try BaselineFixturePicker.class_ClassTest(in: machOFile)
         let imageDescriptor = try BaselineFixturePicker.class_ClassTest(in: machOImage)
 
-        let fileClass = try Class(descriptor: fileDescriptor, in: machOFile)
-        let imageClass = try Class(descriptor: imageDescriptor, in: machOImage)
-        let fileCtxClass = try Class(descriptor: fileDescriptor, in: fileContext)
-        let imageCtxClass = try Class(descriptor: imageDescriptor, in: imageContext)
+        let fileClass = try Class(descriptor: fileDescriptor, in: fileContext)
+        let imageClass = try Class(descriptor: imageDescriptor, in: imageContext)
 
         #expect(fileClass.descriptor.offset == ClassBaseline.classTest.descriptorOffset)
         #expect(imageClass.descriptor.offset == ClassBaseline.classTest.descriptorOffset)
-        #expect(fileCtxClass.descriptor.offset == ClassBaseline.classTest.descriptorOffset)
-        #expect(imageCtxClass.descriptor.offset == ClassBaseline.classTest.descriptorOffset)
     }
 
     @Test("init(descriptor:)") func initializerInProcess() async throws {
         let imageDescriptor = try BaselineFixturePicker.class_ClassTest(in: machOImage)
         let pointerDescriptor = imageDescriptor.asPointerWrapper(in: machOImage)
-        let inProcessClass = try Class(descriptor: pointerDescriptor)
+        let inProcessClass = try Class(descriptor: pointerDescriptor, in: inProcessContext)
 
         // The in-process `descriptor.offset` is a pointer bit pattern.
         #expect(inProcessClass.descriptor.offset != 0)

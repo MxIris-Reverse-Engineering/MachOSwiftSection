@@ -1,0 +1,44 @@
+import Foundation
+import MachOKit
+import MachOBase
+
+/// Trailing object of `TargetProtocolConformanceDescriptor` carrying the global
+/// actor that isolates a conformance (e.g. `extension X: @MainActor P`).
+///
+/// Present iff `ProtocolConformanceFlags.hasGlobalActorIsolation` is set. Mirrors
+/// `TargetGlobalActorReference` in the Swift 6.2+ ABI: a relative pointer to the
+/// mangled actor type name followed by a relative pointer to the actor's
+/// `GlobalActor` conformance descriptor. Only the type-name pointer is used when
+/// rendering the attribute; the conformance pointer exists for runtime dispatch.
+@LocatableLayoutWrapping
+public struct GlobalActorReference: LocatableLayoutWrapper {
+    public struct Layout: LayoutProtocol {
+        public let type: RelativeDirectPointer<MangledName>
+        /// Relative pointer to the conformance descriptor that witnesses the actor's
+        /// `GlobalActor` conformance. Stored as a raw offset because the dumper only
+        /// needs the actor type name for attribute rendering.
+        public let conformance: RelativeOffset
+    }
+}
+
+// MARK: - ReadingContext Support
+
+extension GlobalActorReference {
+    public func typeName(in context: some ReadingContext) throws -> MangledName {
+        try layout.type.resolve(at: try context.addressFromOffset(offset(of: \.type)), in: context)
+    }
+}
+
+// MARK: - Deprecated Mach-O and pointer forms
+
+extension GlobalActorReference {
+    @available(*, deprecated, message: "Pass a ReadingContext: typeName(in: machO.context).")
+    public func typeName(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> MangledName {
+        try typeName(in: machO.context)
+    }
+
+    @available(*, deprecated, message: "Pass a ReadingContext: typeName(in: .inProcess).")
+    public func typeName() throws -> MangledName {
+        try typeName(in: InProcessContext.shared)
+    }
+}

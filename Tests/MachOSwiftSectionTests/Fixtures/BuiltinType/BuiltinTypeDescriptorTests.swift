@@ -94,16 +94,11 @@ final class BuiltinTypeDescriptorTests: MachOSwiftSectionFixtureTests, FixtureSu
         // baseline records whether the mangled-name pointer is non-null
         // (`hasMangledName`); the resolved name itself isn't byte-stable
         // across builds, so we only assert non-nil presence.
-        let viaFile = try descriptors.file.typeName(in: machOFile)
-        let viaImage = try descriptors.image.typeName(in: machOImage)
+        let viaFile = try descriptors.file.typeName(in: fileContext)
+        let viaImage = try descriptors.image.typeName(in: imageContext)
         if BuiltinTypeDescriptorBaseline.firstBuiltin.hasMangledName {
             #expect(viaFile != nil)
             #expect(viaImage != nil)
-        }
-        // ReadingContext path also exercised.
-        let viaContext = try descriptors.image.typeName(in: imageContext)
-        if BuiltinTypeDescriptorBaseline.firstBuiltin.hasMangledName {
-            #expect(viaContext != nil)
         }
     }
 }

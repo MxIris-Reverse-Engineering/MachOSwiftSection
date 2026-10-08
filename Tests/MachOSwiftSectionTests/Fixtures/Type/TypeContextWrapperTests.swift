@@ -27,8 +27,8 @@ final class TypeContextWrapperTests: MachOSwiftSectionFixtureTests, FixtureSuite
         let imageDescriptor = try BaselineFixturePicker.struct_StructTest(in: machOImage)
         let fileWrapperDescriptor = TypeContextDescriptorWrapper.struct(fileDescriptor)
         let imageWrapperDescriptor = TypeContextDescriptorWrapper.struct(imageDescriptor)
-        let file = try TypeContextWrapper.forTypeContextDescriptorWrapper(fileWrapperDescriptor, in: machOFile)
-        let image = try TypeContextWrapper.forTypeContextDescriptorWrapper(imageWrapperDescriptor, in: machOImage)
+        let file = try TypeContextWrapper.forTypeContextDescriptorWrapper(fileWrapperDescriptor, in: fileContext)
+        let image = try TypeContextWrapper.forTypeContextDescriptorWrapper(imageWrapperDescriptor, in: imageContext)
         return (file: file, image: image)
     }
 
@@ -59,9 +59,9 @@ final class TypeContextWrapperTests: MachOSwiftSectionFixtureTests, FixtureSuite
     }
 
     /// `forTypeContextDescriptorWrapper(_:in:)` overloads (MachO + InProcess
-    /// + ReadingContext) collapse to one MethodKey. Exercise the MachO-based
-    /// overloads via the helper above; the additional ReadingContext
-    /// variant is exercised here.
+    /// + ReadingContext) collapse to one MethodKey. The helper above
+    /// exercises the ReadingContext overload over the file and image
+    /// contexts; the image-context variant is exercised here as well.
     @Test func forTypeContextDescriptorWrapper() async throws {
         let imageDescriptor = try BaselineFixturePicker.struct_StructTest(in: machOImage)
         let imageWrapperDescriptor = TypeContextDescriptorWrapper.struct(imageDescriptor)

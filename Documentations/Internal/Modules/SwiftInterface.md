@@ -84,7 +84,8 @@ N ≥ 2 版本渲染成**一份**并集接口，声明尾注生命周期注解�
 - **渲染文本来自活模型**：每个声明由最后携带它的版本的 printer 渲染（modified 成员只显示最新一代，旧形态进注解短语 `modified in 26.0: old → new`；箭头两侧相同则塌回裸短语）。header 解析是「最新可渲染」：从新到旧找第一个渲染成功的版本，每次失败都在其版本自己的 dispatcher 上派发，全部失败才整体丢弃（diff 的 drop-whole 规则推广到 N 侧）。
 - **公开面是两个类型**：`AnySwiftEvolutionInterfaceBuilder` 是类型擦除的 runtime-N 主力（同构数组 init + 异构 pack init 都全平台可用——pack 在*函数*位不需要可用性门槛），CLI 与宿主的用户选版场景都走它；`SwiftEvolutionInterfaceBuilder<each MachO>` 是 pack 泛型 façade（类型位的 pack 需要 Swift 5.9 运行时，故 `@available(macOS 14…)`；构造即擦除，行为逐字节一致，由 `packGenericFacadeMatchesTheErasedBuilder` 钉住）。工具链尚不支持 `repeat each MachO == M` 的同元素约束，所以数组 init 上不了 pack 类型——这是两个类型并存的直接原因。
 - **格式层 `EvolutionMarking`**（+ `EvolutionContainerAssembler`）：legend 头两行（轴 + bitmap 位置对照）、注解列按块对齐、上限 72 列（超限换行缩一级）、锚点规则（成员注解锚**首行**——attribute 内联，computed property 的注解不能沉到 accessor 块闭括号；容器 header 锚**末行**——带 `{` 的那行）、镜像 `ABIEvolutionReporter` 措辞的 warnings 尾巴。与 `DiffMarking` 故意不合并：marker 按行、注解按 unit 锚定，是真不同语义。
-- **结构化流**：`@_spi(Support) annotatedBlocks()` → `[[EvolutionLine]]`（`EvolutionAnnotation` 是纯数据——presence bitmap + `LineageEvent`s），宿主可自行着色/折叠。
+- **真 `@available` 属性**（提案 [0060-evolution-interface-available-annotations](../../Evolutions/0060-evolution-interface-available-annotations.md)）：两个 builder 都有 `availabilityAnnotationPlatform: String?`，默认 `nil` 表示关闭，输出与没有这项功能时逐字节相同。设了平台名之后，生命周期能**完整**写成一个属性的声明，上方会多一行 `@available(<平台>, introduced: …, obsoleted: …)`：成员按自己的缩进放在声明行上方，容器放在 header 上方。「能完整写成」要三条同时成立：presence bitmap 只有一段连续的在场区间（`○ᵃ●ᵇ○ᶜ`；消失后又回来的 `●○●` 不行）；涉及的版本标签都能解析成 1–3 段的数字版本；至少有一个边界落在轴内（从第一个版本起就在场的声明没有「引入」这个事实）。modified 事件在 `@available` 里没有对应的写法，不进属性。有一条不满足就不发属性，位图注释无论如何都承载完整事实；设了平台时 legend 多出第三行，说明 `introduced:` 指轴上第一个带有该声明的版本，不一定是真正引入它的系统版本。属性有意做成**补充**而不是替代：提案 0013 否决的是用伪 `@available` **取代**注解格式。
+- **结构化流**：`@_spi(Support) annotatedBlocks()` → `[[EvolutionLine]]`（`EvolutionAnnotation` 是纯数据——presence bitmap + `LineageEvent`s；设了平台时也包含 `@available` 属性行），宿主可自行着色/折叠。
 
 限制：输入必须全是 binary（snapshot 没有可渲染接口）；协议的 `pwtslot:` 记录不渲染（没有对应声明，与 `diff --interface` 一致，变化仍见于 lineage 报告与 JSON）。
 
@@ -94,7 +95,7 @@ N ≥ 2 版本渲染成**一份**并集接口，声明尾注生命周期注解�
 |---|---|
 | `swift-section interface` | `SwiftInterfaceBuilder`（+ `--resolve-c-module-names` 挂 TypeIndexing provider，opaque provider 只在 `--parse-opaque-return-type` 下挂，默认关） |
 | `swift-section diff --interface` | `SwiftDiffableInterfaceBuilder` ×2 + `SwiftDiffableInterfaceRenderer` |
-| `swift-section evolution --interface` | `AnySwiftEvolutionInterfaceBuilder`（与 `--json`/`--summary-only` 互斥） |
+| `swift-section evolution --interface` | `AnySwiftEvolutionInterfaceBuilder`，经 SwiftSectionKit 的 `ABIEvolutionRequest`（与 `--json`/`--summary-only` 互斥；`--emit-available` 打开 `@available` 属性，即 `Report.annotatedInterface(availabilityAttributes:)`：平台名从每个输入的 `LC_BUILD_VERSION` 推断，模拟器变体按对应的设备平台算，`--platform` 可以覆盖；推断不出或输入之间互相冲突时抛 `AvailabilityPlatformInferenceError`，命令行译成 usage 错误，不会悄悄地不发属性） |
 | `swift-section diff` / `snapshot` / `evolution`（数据路径） | `SwiftDiffableInterfaceBuilder.abiModule()/snapshot()` → SwiftDiffing |
 | RuntimeViewer 等宿主 | `@_spi(Support)`：indexer/printer 直达、`annotatedDiffBlocks()`、`annotatedBlocks()`；`InterfaceHeaderBlock` 是独立组件（per-type 导出不走 `printRoot`） |
 

@@ -27,9 +27,9 @@ final class MetadataTests: MachOSwiftSectionFixtureTests, FixtureSuite, @uncheck
     /// Materialize a kind-erased `Metadata` for `Structs.StructTest`.
     private func loadStructTestMetadata() throws -> Metadata {
         let descriptor = try BaselineFixturePicker.struct_StructTest(in: machOImage)
-        let accessor = try required(try descriptor.metadataAccessorFunction(in: machOImage))
+        let accessor = try required(try descriptor.metadataAccessorFunction(in: imageContext))
         let response = try accessor(request: .init())
-        let structMetadata = try required(try response.value.resolve(in: machOImage).struct)
+        let structMetadata = try required(try response.value.resolve(in: imageContext).struct)
         // Re-read the kind-erased prefix at the same offset.
         return try machOImage.readWrapperElement(offset: structMetadata.offset)
     }

@@ -216,7 +216,7 @@ The cache key can use the mangledName's elements, which are context-independent.
 
 ## Files to Modify
 
-1. `Sources/MachOReading/Reading/ReadingContext.swift` - Add `addressFromOffset`
-2. `Sources/MachOReading/Reading/MachOContext.swift` - Implement `addressFromOffset`
-3. `Sources/MachOReading/Reading/InProcessContext.swift` - Implement `addressFromOffset`
-4. `Sources/SwiftInspection/MetadataReader.swift` - Refactor to use generic context
+1. `Sources/MachO/MachOReading/Reading/ReadingContext.swift` - Add `addressFromOffset`
+2. `Sources/MachO/MachOReading/Reading/MachOContext.swift` - Implement `addressFromOffset`
+3. `Sources/MachO/MachOReading/Reading/InProcessContext.swift` - Implement `addressFromOffset`
+4. `Sources/Analysis/SwiftInspection/MetadataReader.swift` - Refactor to use generic context

@@ -81,7 +81,7 @@ removed and nothing annotated.
 
 | Switch | Effect |
 |---|---|
-| `--strip-protocol-conformance` | Drop the `<Protocol, …>` list, and the members those protocols already declare |
+| `--strip-protocol-conformance` | Drop every property and method the adopted protocols declare — required and optional, along the whole protocol chain — as a hand-written header leaves them out; the `<Protocol, …>` list stays |
 | `--strip-overrides` | Drop members that merely override a superclass member (**strips less on files — see below**) |
 | `--strip-synthesized-ivars` | Drop ivars synthesized by `@property` |
 | `--strip-synthesized-methods` | Drop getters and setters synthesized by `@property` |

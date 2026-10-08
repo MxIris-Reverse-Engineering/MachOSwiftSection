@@ -212,7 +212,8 @@ swift-section evolution <path>... \
   `--summary-only`（仅 Transitions 段 + 结论行）。
 - `--fail-on-breaking`：任一转换 breaking 时以非零码退出。
 - 加载 + 索引 + 冻结的逐输入流程与 diff 共享 `ABISnapshotInputLoader`
-  （swift-section Utilities），避免两个命令漂移。
+  （swift-section Utilities），避免两个命令漂移。提案 `swift-section-kit` 之后它是
+  `SwiftSectionKit` 的 `ABISnapshotLoading`，`evolution` 本身是 `ABIEvolutionRequest`。
 
 ## 测试计划（`Tests/SwiftDiffingTests/`）
 

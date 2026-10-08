@@ -200,7 +200,7 @@ thunk 之外还有一种「引用」不是指针：独立文件里的 witness �
 ## 代码地图
 
 ```
-Sources/SwiftThunkAnalysis/
+Sources/Analysis/SwiftThunkAnalysis/
 ├── SwiftThunkAnalysis.swift                    # 模块说明
 ├── Instructions/
 │   ├── ThunkInstruction.swift                  # 我们自己的指令词汇表（寄存器、操作、条件码）
@@ -220,11 +220,11 @@ Sources/SwiftThunkAnalysis/
     ├── ThunkTypeNodeBuilder.swift              # 第四步：表达式 → 类型名节点
     └── AccessorThunkOwnerLayout.swift          # thunk 主人的泛型参数布局（argument(k) 对应哪个参数）
 
-Sources/MachODependencies/
+Sources/MachO/MachODependencies/
 ├── DependencySearchPath.swift                  # 搜索路径的四种（含 system root）、从文件位置推断、按形状归类
 └── FileDependencyLocator.swift                 # 按 load name 找依赖文件：显式文件 → system root → cache
 
-Sources/SwiftDeclarationRendering/
+Sources/Output/SwiftDeclarationRendering/
 ├── AccessorThunkResolution.swift               # 渲染层用的 resolver（默认就是反汇编读取器，可带搜索路径）与宿主 / 测试注入点
 ├── ConditionalWitnessComment.swift             # `typealias` 上方那几行分支注释
 ├── InProcessAccessorFunctionResolution.swift   # 进程内那条路

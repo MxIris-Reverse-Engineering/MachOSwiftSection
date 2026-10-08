@@ -119,14 +119,14 @@ final class GenericClassMetadataPatternTests: MachOSwiftSectionFixtureTests, Fix
 
     @Test func immediateMembersPattern() async throws {
         let patterns = try loadPatterns()
-        let result = try acrossAllReaders(
-            file: { try patterns.file.immediateMembersPattern(in: machOFile)?.offset },
-            image: { try patterns.image.immediateMembersPattern(in: machOImage)?.offset }
+        let result = try acrossAllContexts(
+            file: { try patterns.file.immediateMembersPattern(in: fileContext)?.offset },
+            image: { try patterns.image.immediateMembersPattern(in: imageContext)?.offset }
         )
         // This carrier has no immediate-members pattern; the accessor must
         // answer nil rather than hand back the extra-data one.
         #expect(result == nil)
         #expect(GenericClassMetadataPatternBaseline.hasImmediateMembersPattern == false)
-        #expect(try patterns.file.partialPatterns(in: machOFile).count == 1)
+        #expect(try patterns.file.partialPatterns(in: fileContext).count == 1)
     }
 }

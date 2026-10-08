@@ -14,14 +14,14 @@ final class DyldCacheAssociatedTypeTests: DyldCacheTests, @unchecked Sendable {
         let machO = machOFileInMainCache
 
         for associatedType in try machO.swift.associatedTypes {
-            let conformingTypeName = try SymbolicDemangler.demangleType(for: associatedType.conformingTypeName, in: machO).print(using: .interfaceType)
-            let protocolTypeName = try SymbolicDemangler.demangleType(for: associatedType.protocolTypeName, in: machO).print(using: .interfaceType)
+            let conformingTypeName = try SymbolicDemangler.demangleType(for: associatedType.conformingTypeName, in: machO.context).print(using: .interfaceType)
+            let protocolTypeName = try SymbolicDemangler.demangleType(for: associatedType.protocolTypeName, in: machO.context).print(using: .interfaceType)
 //            if conformingTypeName == "SwiftUI.LeadingTrailingLabeledContentStyle", protocolTypeName == "SwiftUI.LabeledContentStyle" {
             conformingTypeName.print()
             protocolTypeName.print()
             for record in associatedType.records {
-                let substitutedTypeName = try record.substitutedTypeName(in: machO)
-                try SymbolicDemangler.demangleType(for: substitutedTypeName, in: machO).print().print()
+                let substitutedTypeName = try record.substitutedTypeName(in: machO.context)
+                try SymbolicDemangler.demangleType(for: substitutedTypeName, in: machO.context).print().print()
 //                    substitutedTypeName.startOffset.print()
             }
             "----------------".print()
@@ -35,7 +35,7 @@ final class DyldCacheAssociatedTypeTests: DyldCacheTests, @unchecked Sendable {
         let machO = machOFileInCache
 
         for context in try machO.swift.typeContextDescriptors {
-            try context.typeName(in: machO).node.print(using: [.showPrivateDiscriminators]).print()
+            try context.typeName(in: machO.context).node.print(using: [.showPrivateDiscriminators]).print()
         }
     }
 }

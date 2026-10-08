@@ -1,0 +1,184 @@
+import Foundation
+import MachOKit
+import MachOBase
+
+// template <typename Runtime>
+// class swift_ptrauth_struct_context_descriptor(ClassDescriptor)
+//    TargetClassDescriptor final
+//    : public TargetTypeContextDescriptor<Runtime>,
+//      public TrailingGenericContextObjects<TargetClassDescriptor<Runtime>,
+//                              TargetTypeGenericContextDescriptorHeader,
+//                              additional trailing objects:
+//                              TargetResilientSuperclass<Runtime>,
+//                              TargetForeignMetadataInitialization<Runtime>,
+//                              TargetSingletonMetadataInitialization<Runtime>,
+//                              TargetVTableDescriptorHeader<Runtime>,
+//                              TargetMethodDescriptor<Runtime>,
+//                              TargetOverrideTableHeader<Runtime>,
+//                              TargetMethodOverrideDescriptor<Runtime>,
+//                              TargetObjCResilientClassStubInfo<Runtime>,
+//                              TargetCanonicalSpecializedMetadatasListCount<Runtime>,
+//                              TargetCanonicalSpecializedMetadatasListEntry<Runtime>,
+//                              TargetCanonicalSpecializedMetadataAccessorsListEntry<Runtime>,
+//                              TargetCanonicalSpecializedMetadatasCachingOnceToken<Runtime>,
+//                              InvertibleProtocolSet,
+//                              TargetSingletonMetadataPointer<Runtime>,
+//                              TargetMethodDefaultOverrideTableHeader<Runtime>,
+//                              TargetMethodDefaultOverrideDescriptor<Runtime>>
+
+public struct Class: TopLevelType, ContextProtocol {
+    public let descriptor: ClassDescriptor
+    public private(set) var genericContext: TypeGenericContext?
+    public private(set) var resilientSuperclass: ResilientSuperclass?
+    public private(set) var foreignMetadataInitialization: ForeignMetadataInitialization?
+    public private(set) var singletonMetadataInitialization: SingletonMetadataInitialization?
+    public private(set) var vTableDescriptorHeader: VTableDescriptorHeader?
+    public private(set) var methodDescriptors: [MethodDescriptor] = []
+    public private(set) var overrideTableHeader: OverrideTableHeader?
+    public private(set) var methodOverrideDescriptors: [MethodOverrideDescriptor] = []
+    public private(set) var objcResilientClassStubInfo: ObjCResilientClassStubInfo?
+    public private(set) var canonicalSpecializedMetadatasListCount: CanonicalSpecializedMetadatasListCount?
+    public private(set) var canonicalSpecializedMetadatas: [CanonicalSpecializedMetadatasListEntry] = []
+    public private(set) var canonicalSpecializedMetadataAccessors: [CanonicalSpecializedMetadataAccessorsListEntry] = []
+    public private(set) var canonicalSpecializedMetadatasCachingOnceToken: CanonicalSpecializedMetadatasCachingOnceToken?
+    public private(set) var invertibleProtocolSet: InvertibleProtocolSet?
+    public private(set) var singletonMetadataPointer: SingletonMetadataPointer?
+    public private(set) var methodDefaultOverrideTableHeader: MethodDefaultOverrideTableHeader?
+    public private(set) var methodDefaultOverrideDescriptors: [MethodDefaultOverrideDescriptor] = []
+}
+
+// MARK: - ReadingContext Support
+
+extension Class {
+    public init(descriptor: ClassDescriptor, in context: some ReadingContext) throws {
+        self.descriptor = descriptor
+        let genericContext = try descriptor.typeGenericContext(in: context)
+        self.genericContext = genericContext
+        var currentOffset = descriptor.offset + descriptor.layoutSize
+        if let genericContext {
+            currentOffset += genericContext.size
+        }
+        try initialize(descriptor: descriptor, currentOffset: &currentOffset, in: context)
+    }
+
+    private mutating func initialize(descriptor: ClassDescriptor, currentOffset: inout Int, in context: some ReadingContext) throws {
+        if descriptor.hasResilientSuperclass {
+            let resilientSuperclass: ResilientSuperclass = try context.readWrapperElement(at: try context.addressFromOffset(currentOffset))
+            self.resilientSuperclass = resilientSuperclass
+            currentOffset.offset(of: ResilientSuperclass.self)
+        } else {
+            self.resilientSuperclass = nil
+        }
+
+        if descriptor.hasForeignMetadataInitialization {
+            let foreignMetadataInitialization: ForeignMetadataInitialization = try context.readWrapperElement(at: try context.addressFromOffset(currentOffset))
+            self.foreignMetadataInitialization = foreignMetadataInitialization
+            currentOffset.offset(of: ForeignMetadataInitialization.self)
+        } else {
+            self.foreignMetadataInitialization = nil
+        }
+
+        if descriptor.hasSingletonMetadataInitialization {
+            let singletonMetadataInitialization: SingletonMetadataInitialization = try context.readWrapperElement(at: try context.addressFromOffset(currentOffset))
+            self.singletonMetadataInitialization = singletonMetadataInitialization
+            currentOffset.offset(of: SingletonMetadataInitialization.self)
+        } else {
+            self.singletonMetadataInitialization = nil
+        }
+
+        if descriptor.hasVTable {
+            let vTableDescriptorHeader: VTableDescriptorHeader = try context.readWrapperElement(at: try context.addressFromOffset(currentOffset))
+            self.vTableDescriptorHeader = vTableDescriptorHeader
+            currentOffset.offset(of: VTableDescriptorHeader.self)
+            let methodDescriptors: [MethodDescriptor] = try context.readWrapperElements(at: try context.addressFromOffset(currentOffset), numberOfElements: vTableDescriptorHeader.vTableSize.cast())
+            self.methodDescriptors = methodDescriptors
+            currentOffset.offset(of: MethodDescriptor.self, numbersOfElements: vTableDescriptorHeader.vTableSize.cast())
+        } else {
+            self.vTableDescriptorHeader = nil
+            self.methodDescriptors = []
+        }
+
+        if descriptor.hasOverrideTable {
+            let overrideTableHeader: OverrideTableHeader = try context.readWrapperElement(at: try context.addressFromOffset(currentOffset))
+            self.overrideTableHeader = overrideTableHeader
+            currentOffset.offset(of: OverrideTableHeader.self)
+            let methodOverrideDescriptors: [MethodOverrideDescriptor] = try context.readWrapperElements(at: try context.addressFromOffset(currentOffset), numberOfElements: overrideTableHeader.numEntries.cast())
+            self.methodOverrideDescriptors = methodOverrideDescriptors
+            currentOffset.offset(of: MethodOverrideDescriptor.self, numbersOfElements: overrideTableHeader.numEntries.cast())
+        } else {
+            self.overrideTableHeader = nil
+            self.methodOverrideDescriptors = []
+        }
+
+        if descriptor.hasObjCResilientClassStub {
+            let objcResilientClassStubInfo: ObjCResilientClassStubInfo = try context.readWrapperElement(at: try context.addressFromOffset(currentOffset))
+            self.objcResilientClassStubInfo = objcResilientClassStubInfo
+            currentOffset.offset(of: ObjCResilientClassStubInfo.self)
+        } else {
+            self.objcResilientClassStubInfo = nil
+        }
+
+        if descriptor.hasCanonicalMetadataPrespecializations {
+            let count: CanonicalSpecializedMetadatasListCount = try context.readElement(at: try context.addressFromOffset(currentOffset))
+            self.canonicalSpecializedMetadatasListCount = count
+            currentOffset.offset(of: CanonicalSpecializedMetadatasListCount.self)
+            let countValue = count.rawValue
+            let canonicalSpecializedMetadatas: [CanonicalSpecializedMetadatasListEntry] = try context.readWrapperElements(at: try context.addressFromOffset(currentOffset), numberOfElements: countValue.cast())
+            self.canonicalSpecializedMetadatas = canonicalSpecializedMetadatas
+            currentOffset.offset(of: CanonicalSpecializedMetadatasListEntry.self, numbersOfElements: countValue.cast())
+            let canonicalSpecializedMetadataAccessors: [CanonicalSpecializedMetadataAccessorsListEntry] = try context.readWrapperElements(at: try context.addressFromOffset(currentOffset), numberOfElements: countValue.cast())
+            self.canonicalSpecializedMetadataAccessors = canonicalSpecializedMetadataAccessors
+            currentOffset.offset(of: CanonicalSpecializedMetadataAccessorsListEntry.self, numbersOfElements: countValue.cast())
+            let canonicalSpecializedMetadatasCachingOnceToken: CanonicalSpecializedMetadatasCachingOnceToken = try context.readWrapperElement(at: try context.addressFromOffset(currentOffset))
+            self.canonicalSpecializedMetadatasCachingOnceToken = canonicalSpecializedMetadatasCachingOnceToken
+            currentOffset.offset(of: CanonicalSpecializedMetadatasCachingOnceToken.self)
+        } else {
+            self.canonicalSpecializedMetadatasListCount = nil
+            self.canonicalSpecializedMetadatas = []
+            self.canonicalSpecializedMetadataAccessors = []
+            self.canonicalSpecializedMetadatasCachingOnceToken = nil
+        }
+
+        if descriptor.flags.contains(.hasInvertibleProtocols) {
+            let invertibleProtocolSet: InvertibleProtocolSet = try context.readElement(at: try context.addressFromOffset(currentOffset))
+            self.invertibleProtocolSet = invertibleProtocolSet
+            currentOffset.offset(of: InvertibleProtocolSet.self)
+        } else {
+            self.invertibleProtocolSet = nil
+        }
+
+        if descriptor.hasSingletonMetadataPointer {
+            let singletonMetadataPointer: SingletonMetadataPointer = try context.readWrapperElement(at: try context.addressFromOffset(currentOffset))
+            self.singletonMetadataPointer = singletonMetadataPointer
+            currentOffset.offset(of: SingletonMetadataPointer.self)
+        } else {
+            self.singletonMetadataPointer = nil
+        }
+
+        if descriptor.hasDefaultOverrideTable {
+            let methodDefaultOverrideTableHeader: MethodDefaultOverrideTableHeader = try context.readWrapperElement(at: try context.addressFromOffset(currentOffset))
+            self.methodDefaultOverrideTableHeader = methodDefaultOverrideTableHeader
+            currentOffset.offset(of: MethodDefaultOverrideTableHeader.self)
+            let methodDefaultOverrideDescriptors: [MethodDefaultOverrideDescriptor] = try context.readWrapperElements(at: try context.addressFromOffset(currentOffset), numberOfElements: methodDefaultOverrideTableHeader.numEntries.cast())
+            self.methodDefaultOverrideDescriptors = methodDefaultOverrideDescriptors
+            currentOffset.offset(of: MethodDefaultOverrideDescriptor.self, numbersOfElements: methodDefaultOverrideTableHeader.numEntries.cast())
+        } else {
+            self.methodDefaultOverrideTableHeader = nil
+            self.methodDefaultOverrideDescriptors = []
+        }
+    }
+}
+
+// MARK: - Deprecated Mach-O and pointer forms
+
+extension Class {
+    @available(*, deprecated, message: "Pass a ReadingContext: Class(descriptor:in: machO.context).")
+    public init(descriptor: ClassDescriptor, in machO: some MachOSwiftSectionRepresentableWithCache) throws {
+        try self.init(descriptor: descriptor, in: machO.context)
+    }
+
+    @available(*, deprecated, message: "Pass a ReadingContext: Class(descriptor:in: .inProcess).")
+    public init(descriptor: ClassDescriptor) throws {
+        try self.init(descriptor: descriptor, in: InProcessContext.shared)
+    }
+}

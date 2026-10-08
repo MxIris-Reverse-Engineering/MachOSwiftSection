@@ -24,8 +24,8 @@ final class ExtensionContextTests: MachOSwiftSectionFixtureTests, FixtureSuite, 
     private func loadFirstExtensionContexts() throws -> (file: ExtensionContext, image: ExtensionContext) {
         let fileDescriptor = try BaselineFixturePicker.extension_first(in: machOFile)
         let imageDescriptor = try BaselineFixturePicker.extension_first(in: machOImage)
-        let file = try ExtensionContext(descriptor: fileDescriptor, in: machOFile)
-        let image = try ExtensionContext(descriptor: imageDescriptor, in: machOImage)
+        let file = try ExtensionContext(descriptor: fileDescriptor, in: fileContext)
+        let image = try ExtensionContext(descriptor: imageDescriptor, in: imageContext)
         return (file: file, image: image)
     }
 
@@ -35,21 +35,17 @@ final class ExtensionContextTests: MachOSwiftSectionFixtureTests, FixtureSuite, 
         let fileDescriptor = try BaselineFixturePicker.extension_first(in: machOFile)
         let imageDescriptor = try BaselineFixturePicker.extension_first(in: machOImage)
 
-        let fileContext_ = try ExtensionContext(descriptor: fileDescriptor, in: machOFile)
-        let imageContext_ = try ExtensionContext(descriptor: imageDescriptor, in: machOImage)
-        let fileCtxContext = try ExtensionContext(descriptor: fileDescriptor, in: fileContext)
-        let imageCtxContext = try ExtensionContext(descriptor: imageDescriptor, in: imageContext)
+        let fileContext_ = try ExtensionContext(descriptor: fileDescriptor, in: fileContext)
+        let imageContext_ = try ExtensionContext(descriptor: imageDescriptor, in: imageContext)
 
         #expect(fileContext_.descriptor.offset == ExtensionContextBaseline.firstExtension.descriptorOffset)
         #expect(imageContext_.descriptor.offset == ExtensionContextBaseline.firstExtension.descriptorOffset)
-        #expect(fileCtxContext.descriptor.offset == ExtensionContextBaseline.firstExtension.descriptorOffset)
-        #expect(imageCtxContext.descriptor.offset == ExtensionContextBaseline.firstExtension.descriptorOffset)
     }
 
     @Test("init(descriptor:)") func initializerInProcess() async throws {
         let imageDescriptor = try BaselineFixturePicker.extension_first(in: machOImage)
         let pointerDescriptor = imageDescriptor.asPointerWrapper(in: machOImage)
-        let inProcessContext_ = try ExtensionContext(descriptor: pointerDescriptor)
+        let inProcessContext_ = try ExtensionContext(descriptor: pointerDescriptor, in: inProcessContext)
 
         #expect(inProcessContext_.descriptor.offset != 0)
     }

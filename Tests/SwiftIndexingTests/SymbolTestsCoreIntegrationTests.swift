@@ -52,7 +52,7 @@ final class STCoreTests: MachOFileTests, @unchecked Sendable {
 extension STCoreTests {
     @Test func parsedTypeNames() async throws {
         let indexer = try await preparedIndexer()
-        let typeNames = Set(indexer.allTypeDefinitions.values.map { $0.typeName.currentName })
+        let typeNames = Set(indexer.allTypeDefinitions.values.map { $0.typeName.declaredNameForTesting })
 
         #expect(typeNames.contains("StructTest"))
         #expect(typeNames.contains("ClassTest"))
@@ -85,7 +85,7 @@ extension STCoreTests {
 
     @Test func parsedProtocolNames() async throws {
         let indexer = try await preparedIndexer()
-        let protocolNames = Set(indexer.allProtocolDefinitions.values.map { $0.protocolName.currentName })
+        let protocolNames = Set(indexer.allProtocolDefinitions.values.map { $0.protocolName.declaredNameForTesting })
 
         #expect(protocolNames.contains("ProtocolTest"))
         #expect(protocolNames.contains("ProtocolWitnessTableTest"))
@@ -192,7 +192,7 @@ extension STCoreTests {
         // RawRepresentableNestedStruct is defined inside a conditional extension, so its typeChildren
         // contain NestedStruct (which is defined in a direct extension of RawRepresentableNestedStruct).
         let rawRepresentableNested = try #require(findTypeDefinition(named: "RawRepresentableNestedStruct", in: indexer))
-        let nestedChildren = rawRepresentableNested.typeChildren.map { $0.typeName.currentName }
+        let nestedChildren = rawRepresentableNested.typeChildren.map { $0.typeName.declaredNameForTesting }
         #expect(nestedChildren.contains("NestedStruct"))
     }
 
@@ -614,7 +614,7 @@ extension STCoreTests {
         let opaqueReturnType = try #require(findTypeDefinition(named: "OpaqueReturnTypeTest", in: indexer))
 
         // OpaqueReturnTypeTest has a nested type AnyProtocolTest
-        let childNames = opaqueReturnType.typeChildren.map { $0.typeName.currentName }
+        let childNames = opaqueReturnType.typeChildren.map { $0.typeName.declaredNameForTesting }
         #expect(childNames.contains("AnyProtocolTest"))
     }
 

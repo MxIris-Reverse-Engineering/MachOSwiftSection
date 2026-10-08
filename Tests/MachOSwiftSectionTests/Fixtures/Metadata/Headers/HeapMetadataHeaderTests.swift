@@ -28,9 +28,9 @@ final class HeapMetadataHeaderTests: MachOSwiftSectionFixtureTests, FixtureSuite
     /// `interop.offset - HeapMetadataHeader.layoutSize`.
     private func loadClassTestHeapHeader() throws -> HeapMetadataHeader {
         let descriptor = try BaselineFixturePicker.class_ClassTest(in: machOImage)
-        let accessor = try required(try descriptor.metadataAccessorFunction(in: machOImage))
+        let accessor = try required(try descriptor.metadataAccessorFunction(in: imageContext))
         let response = try accessor(request: .init())
-        let interop = try required(try response.value.resolve(in: machOImage).class)
+        let interop = try required(try response.value.resolve(in: imageContext).class)
         return try machOImage.readWrapperElement(offset: interop.offset - HeapMetadataHeader.layoutSize)
     }
 

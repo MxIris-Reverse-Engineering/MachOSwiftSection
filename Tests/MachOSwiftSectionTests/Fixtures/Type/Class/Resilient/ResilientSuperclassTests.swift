@@ -29,7 +29,7 @@ final class ResilientSuperclassTests: MachOSwiftSectionFixtureTests, FixtureSuit
         in machO: some MachOSwiftSectionRepresentableWithCache
     ) throws -> ResilientSuperclass {
         let descriptor = try BaselineFixturePicker.class_ResilientChild(in: machO)
-        let classWrapper = try Class(descriptor: descriptor, in: machO)
+        let classWrapper = try Class(descriptor: descriptor, in: machO.context)
         return try required(classWrapper.resilientSuperclass)
     }
 

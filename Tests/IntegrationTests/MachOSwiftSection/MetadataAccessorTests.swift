@@ -56,19 +56,19 @@ final class MetadataAccessorTests: MachOImageTests, @unchecked Sendable {
         let machO = machOImage
         for typeContextDescriptorWrapper in try machO.swift.typeContextDescriptors {
             guard !typeContextDescriptorWrapper.typeContextDescriptor.layout.flags.isGeneric else { continue }
-            if let metadataAccessor = try typeContextDescriptorWrapper.typeContextDescriptor.metadataAccessorFunction(in: machO) {
+            if let metadataAccessor = try typeContextDescriptorWrapper.typeContextDescriptor.metadataAccessorFunction(in: machO.context) {
                 let metadataResponse = try metadataAccessor(request: .init())
                 print(metadataResponse.state)
-                let metadata = try metadataResponse.value.resolve(in: machO)
+                let metadata = try metadataResponse.value.resolve(in: machO.context)
                 switch metadata {
                 case .class(let classMetadata):
-                    try print(classMetadata.fieldOffsets(in: machO))
+                    try print(classMetadata.fieldOffsets(in: machO.context))
                 case .struct(let structMetadata):
-                    try print(structMetadata.fieldOffsets(in: machO))
+                    try print(structMetadata.fieldOffsets(in: machO.context))
                 case .enum(let enumMetadata):
-                    try print(enumMetadata.payloadSize(in: machO) ?? 0)
+                    try print(enumMetadata.payloadSize(in: machO.context) ?? 0)
                 case .optional(let enumMetadata):
-                    try print(enumMetadata.payloadSize(in: machO) ?? 0)
+                    try print(enumMetadata.payloadSize(in: machO.context) ?? 0)
                 default:
                     continue
                 }
@@ -82,24 +82,24 @@ final class MetadataAccessorTests: MachOImageTests, @unchecked Sendable {
         for contextDescriptor in try machO.swift.contextDescriptors {
             guard let typeContextDescriptor = contextDescriptor.typeContextDescriptor else { continue }
             guard !typeContextDescriptor.layout.flags.isGeneric else { continue }
-            if let metadataAccessor = try typeContextDescriptor.metadataAccessorFunction(in: machO) {
+            if let metadataAccessor = try typeContextDescriptor.metadataAccessorFunction(in: machO.context) {
                 let metadataResponse = try metadataAccessor(request: .init(state: .complete, isBlocking: true))
-                let metadata = try metadataResponse.value.resolve(in: machO)
+                let metadata = try metadataResponse.value.resolve(in: machO.context)
                 switch metadata {
 //                case .class(let classMetadata):
-//                    try print(classMetadata.fieldOffsets(in: machO))
+//                    try print(classMetadata.fieldOffsets(in: machO.context))
 //                case .struct(let structMetadata):
-//                    try print(structMetadata.fieldOffsets(in: machO))
+//                    try print(structMetadata.fieldOffsets(in: machO.context))
                 case .enum(let enumMetadata):
-//                    guard try enumMetadata.descriptor.resolve(in: machO).name(in: machO) == "MultiPayloadEnumTests" else { continue }
-                    let descriptor = try enumMetadata.enumDescriptor(in: machO)
-                    try await Enum(descriptor: descriptor, in: machO).dump(using: .demangleOptions(.default), in: machO).string.print()
-                    let typeLayout = try enumMetadata.valueWitnesses(in: machO).typeLayout
+//                    guard try enumMetadata.descriptor.resolve(in: machO.context).name(in: machO.context) == "MultiPayloadEnumTests" else { continue }
+                    let descriptor = try enumMetadata.enumDescriptor(in: machO.context)
+                    try await Enum(descriptor: descriptor, in: machO.context).dump(using: .demangleOptions(.default), in: machO).string.print()
+                    let typeLayout = try enumMetadata.valueWitnesses(in: machO.context).typeLayout
                     print(typeLayout)
-                    try print("PayloadSize", enumMetadata.payloadSize(in: machO) ?? 0)
+                    try print("PayloadSize", enumMetadata.payloadSize(in: machO.context) ?? 0)
                     print(getEnumTagCounts(payloadSize: typeLayout.size, emptyCases: descriptor.numEmptyCases.cast(), payloadCases: descriptor.numberOfPayloadCases.cast()))
 //                case .optional(let enumMetadata):
-//                    try print(enumMetadata.payloadSize(in: machO) ?? 0)
+//                    try print(enumMetadata.payloadSize(in: machO.context) ?? 0)
                 default:
                     continue
                 }
@@ -126,24 +126,24 @@ final class MetadataAccessorTests: MachOImageTests, @unchecked Sendable {
                 continue
             case .struct(let `struct`):
                 let inProcessStruct = `struct`.asPointerWrapper(in: machO)
-                let name = try inProcessStruct.name()
+                let name = try inProcessStruct.name(in: .inProcess)
                 if name == "GenericStructSwiftProtocolRequirement" {
                     try print(
-                        #require(try inProcessStruct.metadataAccessorFunction()).callAsFunction(
+                        #require(try inProcessStruct.metadataAccessorFunction(in: .inProcess)).callAsFunction(
                             request: .init(),
                             eachMetadatas: Metadata.createInProcess([Int].self),
                             witnessTables: RuntimeFunctions.conformsToProtocol(metatype: [Int].self, protocolType: (any Equatable).self),
                             RuntimeFunctions.conformsToProtocol(metatype: [Int].self, protocolType: (any Collection).self),
                             RuntimeFunctions.conformsToProtocol(metatype: [Int].self, protocolType: (any Decodable).self),
                             RuntimeFunctions.conformsToProtocol(metatype: [Int].self, protocolType: (any Encodable).self)
-                        ).value.resolve()
+                        ).value.resolve(in: .inProcess)
                     )
                 } else if name == "GenericStructObjCProtocolRequirement" {
-                    let metadata = try #require(try inProcessStruct.metadataAccessorFunction()).callAsFunction(
+                    let metadata = try #require(try inProcessStruct.metadataAccessorFunction(in: .inProcess)).callAsFunction(
                         request: .init(),
                         eachMetadatas: Metadata.createInProcess(NSObject.self)
-                    ).value.resolve()
-                    try print(#require(metadata.struct).fieldOffsets())
+                    ).value.resolve(in: .inProcess)
+                    try print(#require(metadata.struct).fieldOffsets(in: .inProcess))
                 }
             case .class:
                 continue
@@ -157,17 +157,17 @@ final class MetadataAccessorTests: MachOImageTests, @unchecked Sendable {
         for type in try machO.swift.typeContextDescriptors {
             switch type {
             case .enum(let enumDescriptor):
-                guard let genericContext = try enumDescriptor.genericContext(in: machO) else { continue }
+                guard let genericContext = try enumDescriptor.genericContext(in: machO.context) else { continue }
 //                try mangleAsString(ContextDescriptorWrapper.type(.enum(enumDescriptor)).dumpNameNode(in: machO)).print()
-                try "\(ContextDescriptorWrapper.type(.enum(enumDescriptor)).dumpName(using: .default, in: machO).string)\(await genericContext.dumpGenericSignature(resolver: .using(options: .default), in: machO, isDumpCurrentLevelRequirements: false).string)".print()
+                try "\(ContextDescriptorWrapper.type(.enum(enumDescriptor)).dumpName(using: .default, in: machO.context).string)\(await genericContext.dumpGenericSignature(resolver: .using(options: .default), in: machO.context, isDumpCurrentLevelRequirements: false).string)".print()
             case .struct(let structDescriptor):
-                guard let genericContext = try structDescriptor.genericContext(in: machO) else { continue }
+                guard let genericContext = try structDescriptor.genericContext(in: machO.context) else { continue }
 //                try mangleAsString(ContextDescriptorWrapper.type(.struct(structDescriptor)).dumpNameNode(in: machO)).print()
-                try "\(ContextDescriptorWrapper.type(.struct(structDescriptor)).dumpName(using: .default, in: machO).string)\(await genericContext.dumpGenericSignature(resolver: .using(options: .default), in: machO, isDumpCurrentLevelRequirements: false).string)".print()
+                try "\(ContextDescriptorWrapper.type(.struct(structDescriptor)).dumpName(using: .default, in: machO.context).string)\(await genericContext.dumpGenericSignature(resolver: .using(options: .default), in: machO.context, isDumpCurrentLevelRequirements: false).string)".print()
             case .class(let classDescriptor):
-                guard let genericContext = try classDescriptor.genericContext(in: machO) else { continue }
+                guard let genericContext = try classDescriptor.genericContext(in: machO.context) else { continue }
 //                try mangleAsString(ContextDescriptorWrapper.type(.class(classDescriptor)).dumpNameNode(in: machO)).print()
-                try "\(ContextDescriptorWrapper.type(.class(classDescriptor)).dumpName(using: .default, in: machO).string)\(await genericContext.dumpGenericSignature(resolver: .using(options: .default), in: machO, isDumpCurrentLevelRequirements: false).string)".print()
+                try "\(ContextDescriptorWrapper.type(.class(classDescriptor)).dumpName(using: .default, in: machO.context).string)\(await genericContext.dumpGenericSignature(resolver: .using(options: .default), in: machO.context, isDumpCurrentLevelRequirements: false).string)".print()
             }
         }
     }

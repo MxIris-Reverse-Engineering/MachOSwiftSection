@@ -1,0 +1,132 @@
+import Foundation
+import MachOKit
+import MachOFoundation
+import MachOSwiftSection
+import SwiftDump
+import SwiftDeclarationRendering
+import Dependencies
+@_spi(Internals) import MachOSymbols
+@_spi(Internals) import SwiftInspection
+
+@MainActor
+package protocol DumpableTests {
+    var isEnabledSearchMetadata: Bool { get }
+}
+
+package struct DumpableTypeOptions: OptionSet, Sendable {
+    package let rawValue: Int
+
+    package init(rawValue: Int) {
+        self.rawValue = rawValue
+    }
+
+    package static let `enum` = DumpableTypeOptions(rawValue: 1 << 0)
+    package static let `struct` = DumpableTypeOptions(rawValue: 1 << 1)
+    package static let `class` = DumpableTypeOptions(rawValue: 1 << 2)
+}
+
+extension DumperConfiguration {
+    static let test = Self(
+        demangleResolver: .options(.test),
+        displayParentName: true,
+        printFieldOffset: true,
+        printTypeLayout: true,
+        printEnumLayout: true,
+        printSpareBitAnalysis: true,
+        printMemberAddress: true,
+        printVTableOffset: true,
+        printExpandedFieldOffsets: true,
+        printConformancePWTAddress: true
+    )
+}
+
+extension DumpableTests {
+    package var isEnabledSearchMetadata: Bool { false }
+
+    package func dumpProtocols(for machO: some MachOFieldLayoutRenderable) async throws {
+        let protocolDescriptors = try machO.swift.protocolDescriptors
+        for protocolDescriptor in protocolDescriptors {
+            try await Protocol(descriptor: protocolDescriptor, in: machO.context).dump(using: .test, in: machO).string.print()
+        }
+    }
+    
+    package func dumpProtocolConformances(for machO: some MachOFieldLayoutRenderable) async throws {
+        let protocolConformanceDescriptors = try machO.swift.protocolConformanceDescriptors
+
+        for protocolConformanceDescriptor in protocolConformanceDescriptors {
+            try await ProtocolConformance(descriptor: protocolConformanceDescriptor, in: machO.context).dump(using: .test, in: machO).string.print()
+        }
+    }
+
+    package func dumpTypes(for machO: some MachOFieldLayoutRenderable, isDetail: Bool = true, options: DumpableTypeOptions = [.enum, .struct, .class], using configuration: DumperConfiguration? = nil) async throws {
+        let typeContextDescriptors = try machO.swift.typeContextDescriptors
+        for typeContextDescriptor in typeContextDescriptors {
+            switch typeContextDescriptor {
+            case .enum(let enumDescriptor):
+                guard options.contains(.enum) else { continue }
+                do {
+                    if isDetail {
+                        let enumType = try Enum(descriptor: enumDescriptor, in: machO.context)
+                        try await enumType.dump(using: configuration ?? .test, in: machO).string.print()
+                    } else {
+                        print(enumDescriptor)
+                    }
+                } catch {
+                    error.print()
+                }
+            case .struct(let structDescriptor):
+                guard options.contains(.struct) else { continue }
+                do {
+                    if isDetail {
+                        let structType = try Struct(descriptor: structDescriptor, in: machO.context)
+                        try await structType.dump(using: configuration ?? .test, in: machO).string.print()
+                    } else {
+                        print(structDescriptor)
+                    }
+                } catch {
+                    error.print()
+                }
+            case .class(let classDescriptor):
+                guard options.contains(.class) else { continue }
+                do {
+                    if isDetail {
+                        let classType = try Class(descriptor: classDescriptor, in: machO.context)
+                        try await classType.dump(using: configuration ?? .test, in: machO).string.print()
+                    } else {
+                        print(classDescriptor)
+                    }
+                } catch {
+                    error.print()
+                }
+            }
+        }
+    }
+
+    package func dumpOpaqueTypes(for machO: some MachOFieldLayoutRenderable) async throws {
+        @Dependency(\.symbolIndexStore)
+        var symbolIndexStore
+        let symbols = symbolIndexStore.symbols(of: .opaqueTypeDescriptor, in: machO)
+        for symbol in symbols where symbol.offset != 0 {
+            let opaqueTypeDescriptor = try machO.readWrapperElement(offset: symbol.offset) as OpaqueTypeDescriptor
+            let opaqueType = try OpaqueType(descriptor: opaqueTypeDescriptor, in: machO.context)
+            for underlyingTypeArgumentMangledName in opaqueType.underlyingTypeArgumentMangledNames {
+                try await SymbolicDemangler.demangleType(for: underlyingTypeArgumentMangledName, in: machO.context).print(using: .interface).print()
+            }
+            "-----".print()
+        }
+    }
+
+    package func dumpAssociatedTypes(for machO: some MachOFieldLayoutRenderable) async throws {
+        let associatedTypeDescriptors = try machO.swift.associatedTypeDescriptors
+        for associatedTypeDescriptor in associatedTypeDescriptors {
+            try await AssociatedType(descriptor: associatedTypeDescriptor, in: machO.context).dump(using: .test, in: machO).string.print()
+        }
+    }
+
+    package func dumpBuiltinTypes(for machO: some MachOFieldLayoutRenderable) async throws {
+        let descriptors = try machO.swift.builtinTypeDescriptors
+        for descriptor in descriptors {
+            try print(BuiltinType(descriptor: descriptor, in: machO.context))
+        }
+    }
+}

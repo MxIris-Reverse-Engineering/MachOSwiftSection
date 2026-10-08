@@ -161,9 +161,9 @@ struct CrossImageOpaqueReferenceTests {
     private func resolvedWitnessTexts(in machOFile: MachOFile, spelling: OpaqueReferenceSpelling = .textualInterface) async throws -> [String: String] {
         var texts: [String: String] = [:]
         for associatedType in try machOFile.swift.associatedTypes {
-            let conformer = await (try SymbolicDemangler.demangleType(for: associatedType.conformingTypeName, in: machOFile)).print(using: DemangleOptions.default)
-            for record in associatedType.records where try record.name(in: machOFile) == "B" {
-                let node = try SymbolicDemangler.demangleType(for: record.substitutedTypeName(in: machOFile), in: machOFile)
+            let conformer = await (try SymbolicDemangler.demangleType(for: associatedType.conformingTypeName, in: machOFile.context)).print(using: DemangleOptions.default)
+            for record in associatedType.records where try record.name(in: machOFile.context) == "B" {
+                let node = try SymbolicDemangler.demangleType(for: record.substitutedTypeName(in: machOFile.context), in: machOFile.context)
                 texts[conformer] = await node.resolveOpaqueTypeCollectingConditionalCandidates(in: machOFile, spelling: spelling).node.print(using: DemangleOptions.default)
             }
         }

@@ -291,7 +291,7 @@ struct GenericTypeNameSubstitutionEndToEndTests: GenericSpecializationTestingEnv
         // `mangleAsString` produces a *type-mangled* body with no global
         // symbol prefix (`$s…` / `_T…`). Pass `isType: true` so the demangler
         // skips the symbol-prefix check and parses the body directly as a
-        // type — mirrors what `SymbolicDemangler.demangleType(for:)` does
+        // type — mirrors what `SymbolicDemangler.demangleType(for:in:)` does
         // internally when handed a `MangledName`.
         let reconstructed = try await demangleAsNode(mangled, isType: true)
         let reconstructedBound = try #require(reconstructed.first(of: .boundGenericStructure))
@@ -391,7 +391,7 @@ struct GenericTypeNameSubstitutionEndToEndTests: GenericSpecializationTestingEnv
         let resolvedIndexer = try await indexer
         let baseDefinition = try #require(
             resolvedIndexer.allTypeDefinitions.first(where: { entry in
-                entry.value.typeName.currentName == "NestedGenericInheritedOnlyOuter"
+                entry.value.typeName.declaredNameForTesting == "NestedGenericInheritedOnlyOuter"
             })?.value,
             "expected indexer to have the root outer fixture definition"
         )
@@ -472,7 +472,7 @@ struct GenericTypeNameSubstitutionEndToEndTests: GenericSpecializationTestingEnv
         let resolvedIndexer = try await indexer
         let baseDefinition = try #require(
             resolvedIndexer.allTypeDefinitions.first(where: { entry in
-                entry.value.typeName.currentName == "NestedGenericInheritedOnlyOuter"
+                entry.value.typeName.declaredNameForTesting == "NestedGenericInheritedOnlyOuter"
             })?.value,
             "expected indexer to surface the root outer fixture definition"
         )

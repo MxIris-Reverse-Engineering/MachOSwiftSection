@@ -373,7 +373,7 @@ struct GenericSpecializationTests {
             // the metadata accessor should succeed.
             let result = try specializer.specialize(request, with: ["A": .metatype(Int.self)])
             let structMetadata = try #require(result.resolveMetadata().struct)
-            #expect(try structMetadata.fieldOffsets() == [0])
+            #expect(try structMetadata.fieldOffsets(in: .inProcess) == [0])
         }
 
         @Test func invertedEscapableExposed() async throws {
@@ -482,15 +482,15 @@ struct GenericSpecializationTests {
         // genuinely describe constraints on the same dependent member type.
         @Test func dualProtocolSameNamedAssociatedTypeIsCanonicalized() throws {
             let descriptor = try structDescriptor(named: "DualElementStruct")
-            let genericContext = try #require(try descriptor.genericContext(in: machO))
+            let genericContext = try #require(try descriptor.genericContext(in: machO.context))
 
             // Walk every requirement's LHS, collecting the declaring protocol
             // identity for any `A.Element`-rooted dependent member type.
             var protocolIdentities: Set<String> = []
             var elementRequirementCount = 0
             for req in genericContext.requirements {
-                let mangled = try req.paramMangledName(in: machO)
-                let node = try SymbolicDemangler.demangleType(for: mangled, in: machO)
+                let mangled = try req.paramMangledName(in: machO.context)
+                let node = try SymbolicDemangler.demangleType(for: mangled, in: machO.context)
                 guard let path = GenericSpecializer<MachOImage>.extractAssociatedPath(of: node),
                       !path.steps.isEmpty,
                       path.baseParamName == "A",
@@ -572,7 +572,7 @@ struct GenericSpecializationTests {
         @Test func manualAccessorMatchesSpecializerWitnessOrder() async throws {
             let descriptor = try inProcessStructDescriptor(named: "TestGenericStruct")
 
-            let genericContext = try #require(try descriptor.genericContext())
+            let genericContext = try #require(try descriptor.genericContext(in: .inProcess))
 
             #expect(genericContext.header.numKeyArguments == 9)
 
@@ -597,7 +597,7 @@ struct GenericSpecializationTests {
                 "C": CMetadata,
             ])
 
-            let metadataAccessorFunction = try #require(try descriptor.metadataAccessorFunction())
+            let metadataAccessorFunction = try #require(try descriptor.metadataAccessorFunction(in: .inProcess))
             let metadata = try metadataAccessorFunction(
                 request: .completeAndBlocking, metadatas: [
                     AMetadata,
@@ -609,7 +609,7 @@ struct GenericSpecializationTests {
                     #require(try RuntimeFunctions.conformsToProtocol(metatype: CMetatype, protocolType: CProtocol)),
                 ] + associatedTypeWitnesses
             )
-            try #expect(#require(metadata.value.resolve().struct).fieldOffsets() == [0, 8, 16])
+            try #expect(#require(metadata.value.resolve(in: .inProcess).struct).fieldOffsets(in: .inProcess) == [0, 8, 16])
         }
 
         @Test func threeParameter() async throws {
@@ -642,7 +642,7 @@ struct GenericSpecializationTests {
             // Verify we can resolve metadata
             let metadata = try result.resolveMetadata()
             let structMetadata = try #require(metadata.struct)
-            let fieldOffsets = try structMetadata.fieldOffsets()
+            let fieldOffsets = try structMetadata.fieldOffsets(in: .inProcess)
             #expect(fieldOffsets == [0, 8, 16])
         }
 
@@ -666,7 +666,7 @@ struct GenericSpecializationTests {
 
             let metadata = try result.resolveMetadata()
             let structMetadata = try #require(metadata.struct)
-            #expect(try structMetadata.fieldOffsets() == [0])
+            #expect(try structMetadata.fieldOffsets(in: .inProcess) == [0])
         }
 
         @Test func singleProtocolParameter() async throws {
@@ -689,7 +689,7 @@ struct GenericSpecializationTests {
 
             let metadata = try result.resolveMetadata()
             let structMetadata = try #require(metadata.struct)
-            #expect(try structMetadata.fieldOffsets() == [0])
+            #expect(try structMetadata.fieldOffsets(in: .inProcess) == [0])
         }
 
         @Test func multiProtocolParameter() async throws {
@@ -710,7 +710,7 @@ struct GenericSpecializationTests {
 
             let metadata = try result.resolveMetadata()
             let structMetadata = try #require(metadata.struct)
-            #expect(try structMetadata.fieldOffsets() == [0])
+            #expect(try structMetadata.fieldOffsets(in: .inProcess) == [0])
         }
 
         @Test func classConstraint() async throws {
@@ -736,7 +736,7 @@ struct GenericSpecializationTests {
 
             let metadata = try result.resolveMetadata()
             let structMetadata = try #require(metadata.struct)
-            #expect(try structMetadata.fieldOffsets() == [0])
+            #expect(try structMetadata.fieldOffsets(in: .inProcess) == [0])
         }
 
         @Test func nestedAssociatedType() async throws {
@@ -752,7 +752,7 @@ struct GenericSpecializationTests {
             let metadata = try result.resolveMetadata()
             let structMetadata = try #require(metadata.struct)
             // Single field of type [[Int]] occupies one pointer slot
-            #expect(try structMetadata.fieldOffsets() == [0])
+            #expect(try structMetadata.fieldOffsets(in: .inProcess) == [0])
         }
 
         @Test func dualAssociated() async throws {
@@ -786,7 +786,7 @@ struct GenericSpecializationTests {
             let metadata = try result.resolveMetadata()
             let structMetadata = try #require(metadata.struct)
             // [Int] occupies 8 bytes, [String] occupies 8 bytes (Array storage pointer)
-            #expect(try structMetadata.fieldOffsets() == [0, 8])
+            #expect(try structMetadata.fieldOffsets(in: .inProcess) == [0, 8])
         }
 
         @Test func mixedConstraints() async throws {
@@ -818,7 +818,7 @@ struct GenericSpecializationTests {
             let structMetadata = try #require(metadata.struct)
             // [Int] is one pointer (8 bytes), String is 16 bytes
             // a at offset 0, b at offset 8
-            #expect(try structMetadata.fieldOffsets() == [0, 8])
+            #expect(try structMetadata.fieldOffsets(in: .inProcess) == [0, 8])
         }
 
         @Test func configurableMetadataRequest() async throws {
@@ -835,7 +835,7 @@ struct GenericSpecializationTests {
 
             // Default request (existing behaviour)
             let defaultResult = try specializer.specialize(request, with: selection)
-            let defaultOffsets = try #require(defaultResult.resolveMetadata().struct).fieldOffsets()
+            let defaultOffsets = try #require(defaultResult.resolveMetadata().struct).fieldOffsets(in: .inProcess)
 
             // Explicit non-blocking complete request
             let nonBlocking = MetadataRequest(state: .complete, isBlocking: false)
@@ -844,7 +844,7 @@ struct GenericSpecializationTests {
                 with: selection,
                 metadataRequest: nonBlocking
             )
-            let explicitOffsets = try #require(explicitResult.resolveMetadata().struct).fieldOffsets()
+            let explicitOffsets = try #require(explicitResult.resolveMetadata().struct).fieldOffsets(in: .inProcess)
 
             #expect(defaultOffsets == [0, 8, 16])
             #expect(explicitOffsets == defaultOffsets)
@@ -925,17 +925,21 @@ struct GenericSpecializationTests {
 
             // Use `.excludeGenerics` so the parameter's candidate list only
             // surfaces directly-specializable types. Pin the candidate to
-            // `Swift.Int` (matched via `currentName`) so the assertion below
-            // can compare against the equivalent `.metatype(Int.self)` path —
-            // an order-dependent `first { !$0.isGeneric }` would silently
-            // degrade if the indexer's iteration shifted.
+            // `Swift.Int` by its full name so the assertion below can compare
+            // against the equivalent `.metatype(Int.self)` path — an
+            // order-dependent `first { !$0.isGeneric }` would silently degrade
+            // if the indexer's iteration shifted. Matching the short name
+            // `Int` did exactly that: a `Hashable` enum declared in a function
+            // returning `Int` has `Int` as its `currentName`, and the candidate
+            // order decided which of the two the test specialized
+            // (ReviewAdjudications A52).
             let request = try specializer.makeRequest(
                 for: TypeContextDescriptorWrapper.struct(descriptor),
                 candidateOptions: .excludeGenerics
             )
             let intCandidate = try #require(
                 request.parameters[0].candidates.first {
-                    $0.typeName.currentName == "Int" && !$0.isGeneric
+                    $0.typeName.name == "Swift.Int" && !$0.isGeneric
                 },
                 "expected Swift.Int candidate after .excludeGenerics"
             )
@@ -948,21 +952,15 @@ struct GenericSpecializationTests {
             // accessor that `.metatype` already exercises.
             let candidateMetadata = try viaCandidate.metadata()
             let metatypeMetadata = try viaMetatype.metadata()
-            // In some processes the two paths come back with two different
-            // `TestSingleProtocolStruct<Int>` metadata instances; the cause is
-            // not yet known. Tracked as ReviewAdjudications A52 — remove this
-            // wrapper once it is fixed.
-            withKnownIssue("the candidate path sometimes reaches a second metadata instance for the same type", isIntermittent: true) {
-                #expect(
-                    candidateMetadata == metatypeMetadata,
-                    "Argument.candidate path must reach the same metadata pointer as Argument.metatype for the same concrete type"
-                )
-            }
+            #expect(
+                candidateMetadata == metatypeMetadata,
+                "Argument.candidate path must reach the same metadata pointer as Argument.metatype for the same concrete type"
+            )
 
             #expect(viaCandidate.resolvedArguments.count == 1)
             #expect(viaCandidate.resolvedArguments[0].hasWitnessTables)
             let structMetadata = try #require(viaCandidate.resolveMetadata().struct)
-            #expect(try structMetadata.fieldOffsets() == [0])
+            #expect(try structMetadata.fieldOffsets(in: .inProcess) == [0])
         }
 
         @Test func argumentSpecializedPathFeedsNestedSpecialization() async throws {
@@ -991,7 +989,7 @@ struct GenericSpecializationTests {
             // (8 bytes), so the outer field is at offset 0 and occupies one
             // pointer-sized slot.
             let structMetadata = try #require(outer.resolveMetadata().struct)
-            #expect(try structMetadata.fieldOffsets() == [0])
+            #expect(try structMetadata.fieldOffsets(in: .inProcess) == [0])
         }
 
         @Test func genericCandidateFailFast() async throws {
@@ -1004,13 +1002,13 @@ struct GenericSpecializationTests {
             // the fail-fast logic (test body) or a fixture shift (#require message),
             // rather than the generic "no isGeneric candidate" mode the original
             // first-matching-any-candidate form would silently degrade into.
-            // `currentName` strips the module prefix (e.g. "Swift.Int" → "Int").
+            // Matched by full name: see `argumentCandidatePathSpecializesNonGenericCandidate`.
             let genericCandidate = try #require(
-                request.parameters[0].candidates.first { $0.typeName.currentName == "Array" && $0.isGeneric },
+                request.parameters[0].candidates.first { $0.typeName.name == "Swift.Array" && $0.isGeneric },
                 "expected Swift.Array candidate flagged isGeneric"
             )
             let nonGenericCandidate = try #require(
-                request.parameters[0].candidates.first { $0.typeName.currentName == "Int" && !$0.isGeneric },
+                request.parameters[0].candidates.first { $0.typeName.name == "Swift.Int" && !$0.isGeneric },
                 "expected Swift.Int candidate flagged non-generic"
             )
 
@@ -1041,7 +1039,7 @@ struct GenericSpecializationTests {
             let request = try specializer.makeRequest(for: TypeContextDescriptorWrapper.struct(descriptor))
 
             let genericCandidate = try #require(
-                request.parameters[0].candidates.first { $0.typeName.currentName == "Array" && $0.isGeneric },
+                request.parameters[0].candidates.first { $0.typeName.name == "Swift.Array" && $0.isGeneric },
                 "expected Swift.Array candidate flagged isGeneric"
             )
 
@@ -1076,7 +1074,7 @@ struct GenericSpecializationTests {
     struct NestedGenerics: GenericSpecializationTestingEnvironment {
         @Test func twoLevelBaseline() throws {
             let descriptor = try structDescriptor(named: "NestedGenericTwoLevelInner")
-            let genericContext = try #require(try descriptor.genericContext(in: machO))
+            let genericContext = try #require(try descriptor.genericContext(in: machO.context))
 
             // Inner sees both A (inherited from Outer) and B (its own), stored
             // cumulatively.
@@ -1103,7 +1101,7 @@ struct GenericSpecializationTests {
 
         @Test func threeLevelCurrentRequirementsKeepsInnerRequirement() throws {
             let descriptor = try structDescriptor(named: "NestedGenericThreeLevelInner")
-            let genericContext = try #require(try descriptor.genericContext(in: machO))
+            let genericContext = try #require(try descriptor.genericContext(in: machO.context))
 
             // Sanity — the binary stores parameters and requirements cumulatively.
             #expect(genericContext.parameters.count == 3)     // [A, B, C]
@@ -1195,7 +1193,7 @@ struct GenericSpecializationTests {
             #expect(result.resolvedArguments.allSatisfy { $0.witnessTables.count == 1 })
 
             let structMetadata = try #require(result.resolveMetadata().struct)
-            let fieldOffsets = try structMetadata.fieldOffsets()
+            let fieldOffsets = try structMetadata.fieldOffsets(in: .inProcess)
             // Layout: a(Int) at 0, b(Double) at 8, c(String) at 16. String
             // occupies 16 bytes but the field offset is the start address.
             #expect(fieldOffsets == [0, 8, 16])
@@ -1214,10 +1212,10 @@ struct GenericSpecializationTests {
         // `<A, A1, A2>` to match the demangler's canonical naming.
         @Test func threeLevelDumpAllLevelsHasNoDuplicates() async throws {
             let descriptor = try structDescriptor(named: "NestedGenericThreeLevelInner")
-            let genericContext = try #require(try descriptor.genericContext(in: machO))
+            let genericContext = try #require(try descriptor.genericContext(in: machO.context))
 
             let dumped = try await genericContext.dumpGenericParameters(
-                in: machO,
+                in: machO.context,
                 isDumpCurrentLevel: false
             ).string
 
@@ -1323,7 +1321,7 @@ struct GenericSpecializationTests {
             // Layout matches the non-inverted three-level fixture:
             // a(Int) at 0, b(Double) at 8, c(String) at 16.
             let structMetadata = try #require(result.resolveMetadata().struct)
-            #expect(try structMetadata.fieldOffsets() == [0, 8, 16])
+            #expect(try structMetadata.fieldOffsets(in: .inProcess) == [0, 8, 16])
         }
     }
 
@@ -1791,7 +1789,7 @@ struct GenericSpecializationTests {
                 "subclasses(of: \(baseClassTypeName.name)) returned empty — narrowing falls back to 'do not narrow'"
             )
 
-            let candidateNames = Set(parameter.candidates.map { $0.typeName.currentName })
+            let candidateNames = Set(parameter.candidates.map { $0.typeName.declaredNameForTesting })
 
             // Must include the base class itself plus the two known
             // subclasses (the BFS over the parent → child map walks
@@ -2077,8 +2075,8 @@ struct GenericSpecializationTests {
             // witness routing is wrong).
             //
             // Note: `makeRequest` resolves the descriptor via the *file-context*
-            // `genericContext(in: machO)` overload, while
-            // `metadataAccessorFunction()` (no-arg) reads in-process — so we
+            // `genericContext(in: machO.context)` overload, while
+            // `metadataAccessorFunction(in: .inProcess)` reads in-process — so we
             // need a file-form descriptor for `makeRequest` and an
             // in-process pointer wrapper for the manual accessor call.
             let descriptor = try structDescriptor(named: "TestTriAssociatedSameLeafStruct")
@@ -2120,7 +2118,7 @@ struct GenericSpecializationTests {
             // Associated block: A.Element:Hashable, B.Element:Hashable,
             // C.Element:Hashable.
             let accessor = try #require(
-                try inProcessDescriptor.metadataAccessorFunction(),
+                try inProcessDescriptor.metadataAccessorFunction(in: .inProcess),
                 "TestTriAssociatedSameLeafStruct must have a metadata accessor function"
             )
             let manualResponse = try accessor(
@@ -2135,7 +2133,7 @@ struct GenericSpecializationTests {
                     intHashablePWT,   // C.Element
                 ]
             )
-            let manualMetadata = try manualResponse.value.resolve().metadata
+            let manualMetadata = try manualResponse.value.resolve(in: .inProcess).anyMetadata.asMetadata(in: .inProcess)
 
             // API call.
             let apiResult = try specializer.specialize(request, with: [
@@ -2280,7 +2278,7 @@ struct GenericSpecializationTests {
             )
             let intCandidate = try #require(
                 request.parameters[0].candidates.first {
-                    $0.typeName.currentName == "Int" && !$0.isGeneric
+                    $0.typeName.name == "Swift.Int" && !$0.isGeneric
                 },
                 "expected Swift.Int candidate after .excludeGenerics"
             )
@@ -2364,7 +2362,7 @@ struct GenericSpecializationTests {
             )
             let candidate = try #require(
                 request.parameters[0].candidates.first {
-                    $0.typeName.currentName == "Int" && !$0.isGeneric
+                    $0.typeName.name == "Swift.Int" && !$0.isGeneric
                 },
                 "expected Swift.Int candidate after .excludeGenerics"
             )
@@ -2628,7 +2626,7 @@ struct GenericSpecializationTests {
             )
             let arrayCandidate = try #require(
                 request.parameters[0].candidates.first {
-                    $0.typeName.currentName == "Array" && $0.isGeneric
+                    $0.typeName.name == "Swift.Array" && $0.isGeneric
                 },
                 "expected Swift.Array candidate flagged isGeneric in TestSingleProtocolStruct's candidate list"
             )
@@ -2683,13 +2681,13 @@ struct GenericSpecializationTests {
             )
             let dictionaryCandidate = try #require(
                 request.parameters[0].candidates.first {
-                    $0.typeName.currentName == "Dictionary" && $0.isGeneric
+                    $0.typeName.name == "Swift.Dictionary" && $0.isGeneric
                 },
                 "expected Swift.Dictionary candidate flagged isGeneric"
             )
             let arrayCandidate = try #require(
                 request.parameters[0].candidates.first {
-                    $0.typeName.currentName == "Array" && $0.isGeneric
+                    $0.typeName.name == "Swift.Array" && $0.isGeneric
                 },
                 "expected Swift.Array candidate flagged isGeneric"
             )
@@ -2801,7 +2799,7 @@ struct GenericSpecializationTests {
             )
             let arrayCandidate = try #require(
                 request.parameters[0].candidates.first {
-                    $0.typeName.currentName == "Array" && $0.isGeneric
+                    $0.typeName.name == "Swift.Array" && $0.isGeneric
                 },
                 "expected Swift.Array candidate flagged isGeneric on A's candidate list"
             )
@@ -2870,7 +2868,7 @@ struct GenericSpecializationTests {
             // typed cause.
             let intCandidate = try #require(
                 request.parameters[0].candidates.first {
-                    $0.typeName.currentName == "Int" && !$0.isGeneric
+                    $0.typeName.name == "Swift.Int" && !$0.isGeneric
                 },
                 "expected Swift.Int non-generic candidate"
             )
@@ -2943,7 +2941,7 @@ struct GenericSpecializationTests {
             // request, so the tree terminates here.
             let intCandidate = try #require(
                 request.parameters[0].candidates.first {
-                    $0.typeName.currentName == "Int" && !$0.isGeneric
+                    $0.typeName.name == "Swift.Int" && !$0.isGeneric
                 }
             )
             let candidateResult = try specializer.specialize(request, with: [
@@ -3008,12 +3006,12 @@ struct GenericSpecializationTests {
             )
             let dictionaryCandidate = try #require(
                 request.parameters[0].candidates.first {
-                    $0.typeName.currentName == "Dictionary" && $0.isGeneric
+                    $0.typeName.name == "Swift.Dictionary" && $0.isGeneric
                 }
             )
             let arrayCandidate = try #require(
                 request.parameters[0].candidates.first {
-                    $0.typeName.currentName == "Array" && $0.isGeneric
+                    $0.typeName.name == "Swift.Array" && $0.isGeneric
                 }
             )
 

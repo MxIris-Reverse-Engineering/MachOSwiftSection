@@ -66,7 +66,7 @@ final class PrintFailureEventTests: MachOFileTests, @unchecked Sendable {
     }
 
     private func findTypeDefinition(named name: String, in indexer: SwiftDeclarationIndexer<MachOFile>) -> TypeDefinition? {
-        indexer.allTypeDefinitions.values.first { $0.typeName.currentName == name }
+        indexer.allTypeDefinitions.values.first { $0.typeName.declaredNameForTesting == name }
     }
 
     /// A real struct descriptor re-wrapped at an offset far past the fixture's
@@ -170,14 +170,10 @@ final class PrintFailureEventTests: MachOFileTests, @unchecked Sendable {
 
         // Stream writes that predate this rule, in paths evolution 0005 did not
         // touch. Listed rather than ignored: the set may shrink, never grow —
-        // a new offender in any other file fails this test. Paying these down is
-        // its own change (they are debug tracing and error prints in the
-        // descriptor-wrapper and layout-analysis layers, not the degradation
-        // reporting this proposal restructured).
+        // a new offender in any other file fails this test. What is left is
+        // debug output by design: the spare-bit analyzer's table printer and a
+        // fixture-support dump helper.
         let knownBaselineDebt: Set<String> = [
-            "ContextDescriptorWrapper.swift",
-            "TypeContextDescriptorWrapper.swift",
-            "SubstitutionMap.swift",
             "SpareBitAnalyzer.swift",
             "DumpableTests.swift",
         ]
@@ -272,9 +268,10 @@ final class PrintFailureEventTests: MachOFileTests, @unchecked Sendable {
         let enumerator = try #require(FileManager.default.enumerator(at: sourcesDirectory, includingPropertiesForKeys: nil))
         var files: [URL] = []
         for case let fileURL as URL in enumerator where fileURL.pathExtension == "swift" {
+            // `Sources/<Group>/<Module>/…`: the module is two levels below `Sources`.
             let moduleName = fileURL.pathComponents
                 .drop(while: { $0 != "Sources" })
-                .dropFirst()
+                .dropFirst(2)
                 .first
             if let moduleName, hostModules.contains(moduleName) { continue }
             files.append(fileURL)

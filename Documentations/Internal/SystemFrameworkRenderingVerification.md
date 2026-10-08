@@ -6,11 +6,12 @@
 
 ```bash
 Scripts/run-rendering-ab-verification.py <基线检出> <重构检出> \
-    [--output-root 目录] [--frameworks A,B,...] \
-    [--baseline-scratch 目录] [--candidate-scratch 目录] [--skip-image-part]
+    [--output-root 目录] [--frameworks A,B,...] [--scenarios cache-15.5,sim-iOS-18.5,...] \
+    [--baseline-scratch 目录] [--candidate-scratch 目录] [--skip-image-part] \
+    [--jobs N] [--baseline-cache 目录 | --no-baseline-cache] [--skip-build]
 ```
 
-脚本自动构建两侧 release CLI、跑完三部分、输出逐对 IDENTICAL/DIFFERS 表格；有任何差异以非零码退出。
+脚本默认自己构建两侧的 release CLI（带 `--skip-build` 时什么都不构建，只用预先构建好的产物，见「关键调用细节」），跑完三部分、输出逐对 IDENTICAL/DIFFERS 表格；有任何差异以非零码退出。
 
 ## 框架清单
 
@@ -20,13 +21,13 @@ SwiftUI、SwiftUICore、SwiftData、Combine、ActivityKit、WidgetKit——**输
 
 | 部分 | 首选输入 | 目标不存在时的回退 |
 | --- | --- | --- |
-| **DyldCache**（cache 内 MachOFile） | 归档 cache：`/Volumes/DyldSharedCaches/macOS/26.6.2` 与 `15.5` 的 `dyld_shared_cache_arm64e` | **当前系统的 dyld shared cache**（`--uses-system-dyld-shared-cache -p <镜像路径>`，不传文件参数） |
+| **DyldCache**（cache 内 MachOFile） | 归档 cache：`/Volumes/DyldSharedCaches/macOS/26.6.2`（没有就用 `26.6`）与 `15.5` 的 `dyld_shared_cache_arm64e` | **当前系统的 dyld shared cache**（`--uses-system-dyld-shared-cache -p <镜像路径>`，不传文件参数） |
 | **MachOFile**（磁盘上的普通 Mach-O） | iOS 15.5 / 18.5 / 26.5 模拟器 runtime 的框架二进制 | **当前环境已安装的全部 iOS 模拟器 runtime**（脚本自动发现 `/Library/Developer/CoreSimulator/Profiles/Runtimes` 与 `/Library/Developer/CoreSimulator/Volumes/*/…/Runtimes` 下的 `*.simruntime`） |
 | **MachOImage**（进程内） | 当前系统（dlopen + `MachOImage(name:)`），经 `RenderingVerificationTests` harness | 无回退（永远是当前系统） |
 
 ## 关键调用细节（踩过的坑）
 
-- **跑之前先确认归档目录真的存在**：`ARCHIVED_CACHE_DIRECTORIES` 是写死的两条路径，对不上时脚本**不报错**，只打印一行 `No archived cache found - falling back to the current system's dyld shared cache.` 就降级成只跑当前系统 cache——跨版本语料整段消失，而最终报告照样是「全部一致」。2026-09-17 撞上一次：归档卷把带 build 号的 `26.5.2_25F84` / `15.5_24F74` 改成了纯版本号，且 `26.5.2` 目录下已不再放 cache（换成 `26.6.2`）。常量随之改为 `26.6.2` 与 `15.5`。2026-09-18 再撞一次：`26.6.2` 目录已改名为 `26.6`（旁边新增 `27.0`），常量改为 `26.6`。2026-09-28 第三次：目录又改回 `26.6.2`（旁边有 `26.7`），常量随之改回 `26.6.2`。跑之前 `ls /Volumes/DyldSharedCaches/macOS/` 对一眼，比事后从报告里发现少了一条腿便宜。
+- **跑之前先确认归档目录真的存在**：`ARCHIVED_CACHE_DIRECTORY_CANDIDATES` 是写死的路径，每个槽位一组候选，取第一个有 `dyld_shared_cache_arm64e` 的；一组都没有时打印一行 `[skip] no archived cache in any of: …`，这条腿就不跑了，而最终报告照样是「全部一致」。所有槽位都落空时，还会再打印 `No archived cache found - falling back to the current system's dyld shared cache.`，降级成只跑当前系统 cache。2026-09-17 撞上一次：归档卷把带 build 号的 `26.5.2_25F84` / `15.5_24F74` 改成了纯版本号，且 `26.5.2` 目录下已不再放 cache（换成 `26.6.2`）。之后常量在 `26.6.2` 与 `26.6` 之间来回改了两次（2026-09-18 改成 `26.6`，09-28 改回 `26.6.2`），10-02 又撞上一次——原因是两台工作机的归档卷一台是 `26.6.2`、一台是 `26.6`，按一台改完，另一台就少一条腿。2026-10-02 起 26.x 槽位同时列出这两个目录，哪个有就用哪个，场景名随之是 `cache-26.6.2` 或 `cache-26.6`。跑之前 `ls /Volumes/DyldSharedCaches/macOS/` 对一眼，比事后从报告里发现少了一条腿便宜。
 - **`--frameworks` 只认 `Versions/A` 的框架**：cache 腿按 `/System/Library/Frameworks/<名字>.framework/Versions/A/<名字>` 找镜像，AppKit、Foundation 在 `Versions/C` 下，传进去只会得到一行 `[skip] … not in cache`，这一对就不存在了（2026-09-28 撞上）。需要它们时用两侧构建好的 release CLI 手动渲染，`-p` 传 `Versions/C` 路径，输出按 `<场景>/<侧>/<框架>.<子命令>.txt` 放，照样能逐对比较。
 - **cache 镜像用 `-p` 全路径而非 `-n` 名字**：SwiftUI / WidgetKit / ActivityKit 在 macOS cache 里有 `/System/iOSSupport/` 下的 Catalyst 副本，按名字查有歧义。
 - **模拟器二进制要显式 `-a arm64`**：iOS 15.5 / 18.5 的模拟器框架是 fat（x86_64 + arm64），CLI 遇 fat 文件不指定架构会直接报错退出；26.5 起是 thin arm64，加该参数也无害，所以脚本一律加。
@@ -35,6 +36,11 @@ SwiftUI、SwiftUICore、SwiftData、Combine、ActivityKit、WidgetKit——**输
 - **`RV_OPTS` 不含 `expandedFieldOffsets`**：harness 注释记录了它在 SwiftUI 级深嵌套泛型的 MachOImage 路径上会触发既有的栈溢出。
 - **MachOImage 两侧必须在同一次开机会话内运行**：`memberAddress` 注释里的地址来自 dyld shared cache 的 per-boot slide，跨重启比对必然全线假差异。
 - **两个检出绝不共用 SwiftPM scratch**（AGENTS.md 环境漂移检查的血泪教训：混入另一分支的陈旧目标文件会制造链接错误或假输出）；agent 会话另按全局规约使用独立 scratch 路径。
+- **要让构建走机器的构建队列，就先预构建、再带 `--skip-build` 跑**（2026-10-01 起）：脚本默认自己跑两侧的 `swift build -c release`（两侧并行），MachOImage 部分再跑 `swift test -c release`，都不经 `queued-build`。在限流的 10 核 Mac Studio（`JHs-Mac-Studio`）上，`queued-build` 会给构建加 `--jobs 8`，release build 里它传给 swiftc 变成 `-num-threads 8`；脚本自己的命令不带 `--jobs`，命令行对不上，已经编好的东西一样都复用不了。2026-09-30 就因此出现过两侧并行、绕过队列的两次全量 release build。带 `--skip-build` 时脚本什么都不构建：CLI 直接用每侧的 `<scratch>/release/swift-section`，哪侧缺了就在任何渲染开始之前退出，并列出该侧要跑的预构建命令；MachOImage 部分的 `swift test` 追加 `--skip-build`，直接跑现成的 release test bundle。
+  - 每侧只需预构建**一条**命令。要跑 MachOImage 部分就用 `queued-build swift test -c release --filter NoSuchTestForPrebuild --package-path <检出> --scratch-path <scratch>`：`swift test` 会构建全部产物，CLI 也在其中，这个 `--filter` 又匹配不到任何测试，所以只构建、不运行。不跑 MachOImage 部分（带 `--skip-image-part`，或 `--scenarios` 里没有 `machoimage-current`）就用 `queued-build swift build -c release --product swift-section --package-path <检出> --scratch-path <scratch>`。缺产物时脚本列出的也是按这条规则选出的命令。
+  - 两条命令**不要在同一个 scratch path 上先后跑**：`swift test` 默认给整个构建打开 testability（release 也开，见 SwiftPM 的 `Sources/Commands/Utilities/TestingSupport.swift`），`swift build -c release` 不开。编译参数不同，后跑的那条会把整个包重编一遍，还会覆盖前一条编出的 CLI。不带 `--skip-build` 的默认跑法也因为这个原因，每侧实际要整包编两遍。
+  - 脚本**不检查**现成产物是否对应检出当前的代码：预构建之后又改了代码，比的就是旧产物，这由调用方负责。`Using prebuilt` 那行打印的构建时间是唯一的线索。
+  - 缺 test bundle 时 `swift test --skip-build` 以非零码退出（报 `<bundle>.xctest doesn't exist in file system`），按 HARD-FAILURE 判整轮失败，但要等 CLI 渲染全部跑完才会报出来。
 - **兄弟依赖对齐**：跑之前确认两个检出各自解析到预期的 sibling 内容（例如基线 main pin 了 `exact: "0.4.5"`，则 `/Volumes/Code/Personal/swift-demangling` 需在 0.4.5 tag 上：`git -C ../swift-demangling tag --points-at HEAD`）。sibling 内容错位会把 A/B 变成「比较两个不同的依赖版本」。
 - **脚本的进度行经 Python 的 stdout，重定向进文件时会被整块缓冲**：跑完之前日志里只有子进程（`swift build`）的输出，看不到任何一对的进度，盯日志会误以为卡住。后台跑要 `python3 -u`，或者直接看 `--output-root` 下 `<场景>/<侧>/*.txt` 的落盘情况（每一对两侧都落盘后就可以先 `cmp`，不必等收尾）。2026-09-18 撞上一次。
 - **interface 输出一律走 `-o` 落盘**：进度日志（带墙钟时间戳）走 stdout，不会混进被比对的文件。

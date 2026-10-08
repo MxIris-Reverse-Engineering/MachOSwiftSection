@@ -27,8 +27,8 @@ final class ProtocolRequirementTests: MachOSwiftSectionFixtureTests, FixtureSuit
     private func loadFirstRequirements() throws -> (file: ProtocolRequirement, image: ProtocolRequirement) {
         let fileDescriptor = try BaselineFixturePicker.protocol_ProtocolWitnessTableTest(in: machOFile)
         let imageDescriptor = try BaselineFixturePicker.protocol_ProtocolWitnessTableTest(in: machOImage)
-        let fileProtocol = try MachOSwiftSection.`Protocol`(descriptor: fileDescriptor, in: machOFile)
-        let imageProtocol = try MachOSwiftSection.`Protocol`(descriptor: imageDescriptor, in: machOImage)
+        let fileProtocol = try MachOSwiftSection.`Protocol`(descriptor: fileDescriptor, in: fileContext)
+        let imageProtocol = try MachOSwiftSection.`Protocol`(descriptor: imageDescriptor, in: imageContext)
         let file = try required(fileProtocol.requirements.first)
         let image = try required(imageProtocol.requirements.first)
         return (file: file, image: image)
@@ -37,8 +37,8 @@ final class ProtocolRequirementTests: MachOSwiftSectionFixtureTests, FixtureSuit
     private func loadFirstDefaultedRequirements() throws -> (file: ProtocolRequirement, image: ProtocolRequirement) {
         let fileDescriptor = try BaselineFixturePicker.protocol_BasicDefaultProtocol(in: machOFile)
         let imageDescriptor = try BaselineFixturePicker.protocol_BasicDefaultProtocol(in: machOImage)
-        let fileProtocol = try MachOSwiftSection.`Protocol`(descriptor: fileDescriptor, in: machOFile)
-        let imageProtocol = try MachOSwiftSection.`Protocol`(descriptor: imageDescriptor, in: machOImage)
+        let fileProtocol = try MachOSwiftSection.`Protocol`(descriptor: fileDescriptor, in: fileContext)
+        let imageProtocol = try MachOSwiftSection.`Protocol`(descriptor: imageDescriptor, in: imageContext)
         let file = try required(fileProtocol.requirements.first { $0.layout.defaultImplementation.isValid })
         let image = try required(imageProtocol.requirements.first { $0.layout.defaultImplementation.isValid })
         return (file: file, image: image)

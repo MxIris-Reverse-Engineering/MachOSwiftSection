@@ -26,15 +26,11 @@ final class NamedContextDescriptorProtocolTests: MachOSwiftSectionFixtureTests, 
         let fileDescriptor = try BaselineFixturePicker.struct_StructTest(in: machOFile)
         let imageDescriptor = try BaselineFixturePicker.struct_StructTest(in: machOImage)
 
-        let result = try acrossAllReaders(
-            file: { try fileDescriptor.name(in: machOFile) },
-            image: { try imageDescriptor.name(in: machOImage) }
+        let result = try acrossAllContexts(
+            file: { try fileDescriptor.name(in: fileContext) },
+            image: { try imageDescriptor.name(in: imageContext) }
         )
         #expect(result == NamedContextDescriptorProtocolBaseline.structTest.name)
-
-        // ReadingContext-based overload also exercised.
-        let imageCtxName = try imageDescriptor.name(in: imageContext)
-        #expect(imageCtxName == NamedContextDescriptorProtocolBaseline.structTest.name)
     }
 
     @Test func mangledName() async throws {
@@ -43,12 +39,10 @@ final class NamedContextDescriptorProtocolTests: MachOSwiftSectionFixtureTests, 
 
         // MangledName isn't trivially Equatable for our needs; assert
         // presence at runtime against the baseline flag.
-        let filePresence = (try? fileDescriptor.mangledName(in: machOFile)) != nil
-        let imagePresence = (try? imageDescriptor.mangledName(in: machOImage)) != nil
-        let imageCtxPresence = (try? imageDescriptor.mangledName(in: imageContext)) != nil
+        let filePresence = (try? fileDescriptor.mangledName(in: fileContext)) != nil
+        let imagePresence = (try? imageDescriptor.mangledName(in: imageContext)) != nil
 
         #expect(filePresence == imagePresence)
-        #expect(filePresence == imageCtxPresence)
         #expect(filePresence == NamedContextDescriptorProtocolBaseline.structTest.hasMangledName)
     }
 }

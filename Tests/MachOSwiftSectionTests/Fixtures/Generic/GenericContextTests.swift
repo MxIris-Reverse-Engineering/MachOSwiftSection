@@ -39,14 +39,14 @@ final class GenericContextTests: MachOSwiftSectionFixtureTests, FixtureSuite, @u
         for picker: (MachOFile) throws -> StructDescriptor
     ) throws -> TypeGenericContext {
         let fileDescriptor = try picker(machOFile)
-        return try required(try fileDescriptor.typeGenericContext(in: machOFile))
+        return try required(try fileDescriptor.typeGenericContext(in: fileContext))
     }
 
     private func loadContextsFromImage(
         for picker: (MachOImage) throws -> StructDescriptor
     ) throws -> TypeGenericContext {
         let imageDescriptor = try picker(machOImage)
-        return try required(try imageDescriptor.typeGenericContext(in: machOImage))
+        return try required(try imageDescriptor.typeGenericContext(in: imageContext))
     }
 
     private func nonRequirementContexts() throws -> (file: TypeGenericContext, image: TypeGenericContext) {
@@ -85,13 +85,9 @@ final class GenericContextTests: MachOSwiftSectionFixtureTests, FixtureSuite, @u
         let fileDescriptor = try BaselineFixturePicker.struct_GenericStructLayoutRequirement(in: machOFile)
         let imageDescriptor = try BaselineFixturePicker.struct_GenericStructLayoutRequirement(in: machOImage)
 
-        let fileMachO = try TypeGenericContext(contextDescriptor: fileDescriptor, in: machOFile)
-        let imageMachO = try TypeGenericContext(contextDescriptor: imageDescriptor, in: machOImage)
         let fileCtx = try TypeGenericContext(contextDescriptor: fileDescriptor, in: fileContext)
         let imageCtx = try TypeGenericContext(contextDescriptor: imageDescriptor, in: imageContext)
 
-        #expect(fileMachO.offset == GenericContextBaseline.layoutRequirement.offset)
-        #expect(imageMachO.offset == GenericContextBaseline.layoutRequirement.offset)
         #expect(fileCtx.offset == GenericContextBaseline.layoutRequirement.offset)
         #expect(imageCtx.offset == GenericContextBaseline.layoutRequirement.offset)
     }
@@ -99,10 +95,10 @@ final class GenericContextTests: MachOSwiftSectionFixtureTests, FixtureSuite, @u
     @Test("init(contextDescriptor:)") func initializerInProcess() async throws {
         let imageDescriptor = try BaselineFixturePicker.struct_GenericStructLayoutRequirement(in: machOImage)
         let pointerWrapper = imageDescriptor.asPointerWrapper(in: machOImage)
-        // The InProcess init walks the descriptor via raw pointer arithmetic;
-        // we just assert it succeeds and produces a non-zero offset (the
-        // absolute pointer is per-process).
-        let inProcess = try TypeGenericContext(contextDescriptor: pointerWrapper)
+        // The init over the in-process context walks the descriptor via raw
+        // pointer arithmetic; we just assert it succeeds and produces a
+        // non-zero offset (the absolute pointer is per-process).
+        let inProcess = try TypeGenericContext(contextDescriptor: pointerWrapper, in: inProcessContext)
         #expect(inProcess.offset != 0)
     }
 
@@ -367,9 +363,9 @@ final class GenericContextTests: MachOSwiftSectionFixtureTests, FixtureSuite, @u
         // Top-level type with no parent generic context: every requirement
         // is unique. Cross-reader equality on the count.
         let contexts = try layoutRequirementContexts()
-        let count = try acrossAllReaders(
-            file: { contexts.file.uniqueCurrentRequirements(in: machOFile).count },
-            image: { contexts.image.uniqueCurrentRequirements(in: machOImage).count }
+        let count = try acrossAllContexts(
+            file: { contexts.file.uniqueCurrentRequirements(in: fileContext).count },
+            image: { contexts.image.uniqueCurrentRequirements(in: imageContext).count }
         )
         #expect(count == GenericContextBaseline.layoutRequirement.requirementsCount)
     }
@@ -377,8 +373,8 @@ final class GenericContextTests: MachOSwiftSectionFixtureTests, FixtureSuite, @u
     @Test func uniqueCurrentRequirementsInProcess() async throws {
         let contexts = try layoutRequirementContexts()
         let count = try acrossAllReaders(
-            file: { contexts.file.uniqueCurrentRequirementsInProcess().count },
-            image: { contexts.image.uniqueCurrentRequirementsInProcess().count }
+            file: { contexts.file.uniqueCurrentRequirements(in: inProcessContext).count },
+            image: { contexts.image.uniqueCurrentRequirements(in: inProcessContext).count }
         )
         #expect(count == GenericContextBaseline.layoutRequirement.requirementsCount)
     }
@@ -511,9 +507,9 @@ final class GenericContextTests: MachOSwiftSectionFixtureTests, FixtureSuite, @u
     @Test("uniqueCurrentRequirements deduplicates by content even when parents are cumulative")
     func nestedThreeLevelUniqueCurrentRequirements() async throws {
         let contexts = try nestedThreeLevelContexts()
-        let count = try acrossAllReaders(
-            file: { contexts.file.uniqueCurrentRequirements(in: machOFile).count },
-            image: { contexts.image.uniqueCurrentRequirements(in: machOImage).count }
+        let count = try acrossAllContexts(
+            file: { contexts.file.uniqueCurrentRequirements(in: fileContext).count },
+            image: { contexts.image.uniqueCurrentRequirements(in: imageContext).count }
         )
         // InnerMost adds one requirement. uniqueCurrentRequirements walks
         // `parentRequirements.flatMap { $0 }` and uses `isContentEqual` to

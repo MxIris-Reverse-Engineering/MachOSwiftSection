@@ -36,11 +36,11 @@ final class AnyClassMetadataTests: MachOSwiftSectionFixtureTests, FixtureSuite, 
     /// superclass), so the slim re-resolution succeeds.
     private func loadAnyClassMetadata() throws -> AnyClassMetadata {
         let descriptor = try BaselineFixturePicker.class_ClassTest(in: machOImage)
-        let accessor = try required(try descriptor.metadataAccessorFunction(in: machOImage))
+        let accessor = try required(try descriptor.metadataAccessorFunction(in: imageContext))
         let response = try accessor(request: .init())
-        let wrapper = try response.value.resolve(in: machOImage)
+        let wrapper = try response.value.resolve(in: imageContext)
         let interop = try required(wrapper.class)
-        return try AnyClassMetadata.resolve(from: interop.offset, in: machOImage)
+        return try AnyClassMetadata.resolve(at: interop.offset, in: imageContext)
     }
 
     @Test func offset() async throws {

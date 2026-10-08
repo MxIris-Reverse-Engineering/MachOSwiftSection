@@ -42,12 +42,10 @@ final class AnonymousContextDescriptorProtocolTests: MachOSwiftSectionFixtureTes
         // MangledName: Hashable, but we use presence-only here for parity
         // with the wrapper Suite and because the picker's first anonymous
         // context happens to have no mangled name in this fixture.)
-        let filePresence = (try fileDescriptor.mangledName(in: machOFile)) != nil
-        let imagePresence = (try imageDescriptor.mangledName(in: machOImage)) != nil
-        let imageCtxPresence = (try imageDescriptor.mangledName(in: imageContext)) != nil
+        let filePresence = (try fileDescriptor.mangledName(in: fileContext)) != nil
+        let imagePresence = (try imageDescriptor.mangledName(in: imageContext)) != nil
 
         #expect(filePresence == imagePresence)
-        #expect(filePresence == imageCtxPresence)
         #expect(filePresence == AnonymousContextDescriptorProtocolBaseline.firstAnonymous.hasMangledName)
     }
 }

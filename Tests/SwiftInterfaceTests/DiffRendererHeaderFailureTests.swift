@@ -44,7 +44,7 @@ final class DiffRendererHeaderFailureTests: MachOFileTests, @unchecked Sendable 
         named name: String,
         in builder: SwiftDiffableInterfaceBuilder<MachOFile>
     ) -> TypeDefinition? {
-        builder.indexer.allTypeDefinitions.values.first { $0.typeName.currentName == name }
+        builder.indexer.allTypeDefinitions.values.first { $0.typeName.declaredNameForTesting == name }
     }
 
     /// Injecting a type whose header cannot be rendered must not add a single
@@ -121,7 +121,7 @@ final class DiffRendererHeaderFailureTests: MachOFileTests, @unchecked Sendable 
         // renderer sees on the side carrying the collector.
         let hostDefinition = try #require(findTypeDefinition(named: "Classes", in: newBuilder))
         let replacedIndex = try #require(
-            hostDefinition.typeChildren.firstIndex { $0.typeName.currentName == "FinalClassTest" },
+            hostDefinition.typeChildren.firstIndex { $0.typeName.declaredNameForTesting == "FinalClassTest" },
             "fixture must nest FinalClassTest inside Classes for this injection to land on the matched entry"
         )
         hostDefinition.typeChildren[replacedIndex] = try makeUnrenderableDefinition(borrowingNameFrom: "FinalClassTest", in: newBuilder)
@@ -162,7 +162,7 @@ final class DiffRendererHeaderFailureTests: MachOFileTests, @unchecked Sendable 
         // intact copy untouched.
         let oldHost = try #require(findTypeDefinition(named: "Classes", in: oldBuilder))
         let replacedIndex = try #require(
-            oldHost.typeChildren.firstIndex { $0.typeName.currentName == "FinalClassTest" },
+            oldHost.typeChildren.firstIndex { $0.typeName.declaredNameForTesting == "FinalClassTest" },
             "fixture must nest FinalClassTest inside Classes for this test to exercise the two-sided path"
         )
         oldHost.typeChildren[replacedIndex] = try makeUnrenderableDefinition(borrowingNameFrom: "FinalClassTest", in: oldBuilder)
@@ -216,7 +216,7 @@ final class DiffRendererHeaderFailureTests: MachOFileTests, @unchecked Sendable 
     /// Assert the premise rather than trust the fixture to hold still.
     private func requireAbsentFromHost(_ name: String, host: TypeDefinition) throws {
         try #require(
-            !host.typeChildren.contains { $0.typeName.currentName == name },
+            !host.typeChildren.contains { $0.typeName.declaredNameForTesting == name },
             "\(name) must not already be nested under the host, or this test silently stops covering the `.added` path"
         )
     }

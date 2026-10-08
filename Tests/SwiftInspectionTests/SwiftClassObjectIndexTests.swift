@@ -3,6 +3,7 @@ import Testing
 import MachOKit
 import MachOFoundation
 @testable import MachOSwiftSection
+import MachOObjCSection
 @testable import MachOTestingSupport
 import MachOFixtureSupport
 @_spi(Internals) @testable import SwiftInspection
@@ -15,7 +16,7 @@ import MachOFixtureSupport
 struct SwiftClassObjectIndexTests {
     private static func classDescriptor(named name: String, in machO: some MachOSwiftSectionRepresentableWithCache) throws -> ClassDescriptor {
         for typeContextDescriptor in try machO.swift.typeContextDescriptors {
-            guard case .class(let classDescriptor) = typeContextDescriptor, try classDescriptor.name(in: machO) == name else { continue }
+            guard case .class(let classDescriptor) = typeContextDescriptor, try classDescriptor.name(in: machO.context) == name else { continue }
             return classDescriptor
         }
         Issue.record("no class named \(name)")
@@ -66,6 +67,36 @@ struct SwiftClassObjectIndexTests {
         #expect(drifterInstanceStart == 8)
         #expect(resilientChildInstanceStart == nil)
     }
+
+    /// The flag word is read at its own width. Read as an Optional, it took
+    /// the byte after it — `instanceAddressPoint`'s low byte — as the
+    /// Optional's tag, and a non-zero one dropped the class. The compiler
+    /// always writes zero there, so a patched copy of the library sets it.
+    @Test func renamedClassSurvivesANonZeroByteAfterTheFlagWord() throws {
+        let original = try RenamedObjCClassFixture.machOFile(.full)
+        let swiftClassObjectOffsets = (original.objcImplementationClassObjects() ?? []).filter(\.isSwift).map(\.offset)
+        try #require(!swiftClassObjectOffsets.isEmpty)
+        let byteAfterFlagWord = try #require(MemoryLayout<ClassMetadataObjCInterop.Layout>.offset(of: \.instanceAddressPoint))
+        let uuidCommand = try #require(original.loadCommands.info(of: LoadCommand.uuid))
+
+        var libraryBytes = try Data(contentsOf: RenamedObjCClassFixture.libraryURL(.full))
+        for classObjectOffset in swiftClassObjectOffsets {
+            libraryBytes[original.headerStartOffset + classObjectOffset + byteAfterFlagWord] = 0x01
+        }
+        // A copy with the original's UUID and install name is the same image
+        // to every per-image cache, which would answer from the original's
+        // index without reading the patched bytes.
+        libraryBytes[original.cmdsStartOffset + uuidCommand.offset + MemoryLayout<load_command>.size] ^= 0xFF
+        let patchedLibraryURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("\(RenamedObjCClassFixture.moduleName)-byteAfterFlagWord-\(UUID().uuidString).dylib")
+        try libraryBytes.write(to: patchedLibraryURL)
+        defer { try? FileManager.default.removeItem(at: patchedLibraryURL) }
+
+        let patched = try MachOFile(url: patchedLibraryURL, headerStartOffset: original.headerStartOffset)
+        try #require(patched.identifier != original.identifier)
+        let renamedWidgetName = try Self.customObjCClassName(ofClassNamed: "RenamedWidget", in: patched)
+        #expect(renamedWidgetName == CustomObjCClassName(name: "RCFRenamedWidget", attribute: .objc))
+    }
 }
 
 /// The shared fixture's two `@objc(Name)` classes, through every reader.
@@ -75,7 +106,7 @@ final class SwiftClassObjectIndexFixtureTests: MachOSwiftSectionFixtureTests, @u
         var namesByClassName: [String: CustomObjCClassName?] = [:]
         for typeContextDescriptor in try machO.swift.typeContextDescriptors {
             guard case .class(let classDescriptor) = typeContextDescriptor else { continue }
-            let name = try classDescriptor.name(in: machO)
+            let name = try classDescriptor.name(in: machO.context)
             guard ["ObjCBridge", "ObjCBridgeWithProto", "ObjCAttributeClass"].contains(name) else { continue }
             namesByClassName[name] = SwiftClassObjectIndex.shared.customObjCClassName(forClassDescriptorOffset: classDescriptor.offset, in: machO)
         }

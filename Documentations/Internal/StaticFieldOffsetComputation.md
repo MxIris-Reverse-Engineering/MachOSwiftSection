@@ -40,13 +40,13 @@
 
 ### 静态分流信号：`MetadataInitialization` kind
 
-不需要重做编译器判定——类型描述符里有现成的静态信号。`TypeContextDescriptorFlags`（`Sources/MachOSwiftSection/Models/Type/TypeContextDescriptorFlags.swift`，2 位宽字段）区分：
+不需要重做编译器判定——类型描述符里有现成的静态信号。`TypeContextDescriptorFlags`（`Sources/ABI/MachOSwiftSection/Models/Type/TypeContextDescriptorFlags.swift`，2 位宽字段）区分：
 
 - `none` → metadata 完整、编译期静态化 → **vector 是真值，直接读**；
 - `singleton` → 需运行时 `swift_initStructMetadata` / `initClassFieldOffsetVector` 完成 → **vector 是占位，要算**；
 - `foreign` → C/ObjC 互操作，另算。
 
-本项目已暴露 `SingletonMetadataInitialization` / `ForeignMetadataInitialization` 模型（`Sources/MachOSwiftSection/Models/Metadata/MetadataInitialization/`）及 `Struct.singletonMetadataInitialization` / `.foreignMetadataInitialization`。
+本项目已暴露 `SingletonMetadataInitialization` / `ForeignMetadataInitialization` 模型（`Sources/ABI/MachOSwiftSection/Models/Metadata/MetadataInitialization/`）及 `Struct.singletonMetadataInitialization` / `.foreignMetadataInitialization`。
 
 > **第 0 步必须实测验证**：`MetadataInitialization == none` 的 fixed 类型，在 MachOFile（非 InProcess）上下文下读出来的 vector 是否 == 运行期值。两份子调研在此有分歧（一份认为 fixed struct vector 编译期写死、可静态读；另一份认为静态镜像里是 0 或 relocation）。本项目 `StructMetadata.fieldOffsets(for:in:)` 已有 MachOFile overload，用现有 fixture 二进制 + `otool` 即可确认。**这条结论是整个方案 (A) 类捷径的地基。**
 
@@ -83,11 +83,11 @@ stride = max(1, roundUpToAlignMask(size, alignMask))  // 尾部 padding 只进 s
 离线要把「mangled name → (size, alignment, stride, extraInhabitants)」做成递归求解器，数据源分层：
 
 1. **硬编码固定布局表（主力）**：`Int/UInt/Int64/Double/裸指针/任意 class 引用 = 8B@8`；`Int32/Float = 4B`；`Bool/Int8 = 1B`；`Int128 = 16B`；`String = 16B`。这些 ABI 永久冻结，照抄 runtime 的 known-layout 表。
-2. **`__swift5_builtin` 的 `BuiltinTypeDescriptor`**：已确认静态内嵌 `size` / `alignmentAndFlags` / `stride` / `numExtraInhabitants`（`Sources/MachOSwiftSection/Models/BuiltinType/BuiltinTypeDescriptor.swift:6-12`，`alignment = alignmentAndFlags & 0xFFFF`，`isBitwiseTakable = (alignmentAndFlags >> 16) & 0x1`）。仅覆盖编译器实际发射的 builtin 原语，不能当唯一来源。
+2. **`__swift5_builtin` 的 `BuiltinTypeDescriptor`**：已确认静态内嵌 `size` / `alignmentAndFlags` / `stride` / `numExtraInhabitants`（`Sources/ABI/MachOSwiftSection/Models/BuiltinType/BuiltinTypeDescriptor.swift:6-12`，`alignment = alignmentAndFlags & 0xFFFF`，`isBitwiseTakable = (alignmentAndFlags >> 16) & 0x1`）。仅覆盖编译器实际发射的 builtin 原语，不能当唯一来源。
 3. **嵌套 struct / enum** → 递归到目标 descriptor 重新跑 §2 算法。enum 复用 `EnumLayoutCalculator`，但要把它的 payload-size / XI 输入从「InProcess VWT」改接到本求解器。
 4. **resilient / 跨模块字段** → 见 §4（遍历依赖闭包递归到定义镜像）。
 
-> 现有唯一的「mangled name → 具体类型 size」路径是 `RuntimeFunctions.getTypeByMangledNameInContext`（`Sources/MachOSwiftSection/Runtime/RuntimeFunctions.swift`），是 **InProcess-only** runtime 函数。`PrimitiveTypeMapping` 只给类型名映射、**不给数值**。所以静态侧的数值化求解器是从零新建。
+> 现有唯一的「mangled name → 具体类型 size」路径是 `RuntimeFunctions.getTypeByMangledNameInContext`（`Sources/ABI/MachOSwiftSection/Runtime/RuntimeFunctions.swift`），是 **InProcess-only** runtime 函数。`PrimitiveTypeMapping` 只给类型名映射、**不给数值**。所以静态侧的数值化求解器是从零新建。
 
 ---
 
@@ -104,7 +104,7 @@ resilient 的本质是「编译当前二进制时不知道字段布局，但运�
 ### 已有基础设施
 
 - **按依赖名解析镜像**：上游包 `MachOKitExtensions` 的 `DyldCache+.swift` 的 `machOFile(by mode:)` —— 按 install name / image name 从 dyld shared cache 捞 `MachOFile`。系统 Swift 库、Foundation、SwiftUI 等都在 cache 里，这条路已通。
-- **符号索引**：`Sources/MachOSymbols/SymbolIndexStore.swift` —— 按 name/offset 建索引。
+- **符号索引**：`Sources/MachO/MachOSymbols/SymbolIndexStore.swift` —— 按 name/offset 建索引。
 - **ReadingContext 抽象**：`MachOContext` 已把「从哪个镜像读」参数化，扩展成多镜像顺理成章。
 
 ### 需新建三块
@@ -138,8 +138,8 @@ resilient 的本质是「编译当前二进制时不知道字段布局，但运�
 **可直接复用：**
 
 - 字段记录读取：`FieldDescriptor` / `FieldRecord`（三 overload 全静态可读，给字段类型名 + 顺序 + flags）。
-- 数据模型：`ValueWitnessTable` / `TypeLayout` / `ValueWitnessFlags`（`Sources/MachOSwiftSection/Models/ValueWitnessTable/`）、`BuiltinTypeDescriptor`（带数值）。
-- enum 算法骨架：`EnumLayoutCalculator` + `BitMask` + `SpareBitAnalyzer`（`Sources/SwiftInspection/`）。
+- 数据模型：`ValueWitnessTable` / `TypeLayout` / `ValueWitnessFlags`（`Sources/ABI/MachOSwiftSection/Models/ValueWitnessTable/`）、`BuiltinTypeDescriptor`（带数值）。
+- enum 算法骨架：`EnumLayoutCalculator` + `BitMask` + `SpareBitAnalyzer`（`Sources/Analysis/SwiftInspection/`）。
 - 名字解析：`MetadataReader` + `ReadingContext` 抽象（静态/运行期通吃）。
 - 静态分流信号：`MetadataInitialization` kind、`singleton/foreignMetadataInitialization` 模型。
 - 现成 vector 读取：`StructMetadata.fieldOffsets(...)` / `FinalClassMetadata.fieldOffsets(...)`（含 MachOFile overload）。
@@ -231,14 +231,14 @@ fixed-layout 非泛型（单镜像）         直接读 vector，几乎零成本
 
 | 主题 | 位置 |
 |---|---|
-| 字段记录静态读取 | `Sources/MachOSwiftSection/Models/FieldDescriptor/FieldDescriptor.swift`、`Models/FieldRecord/FieldRecord.swift` |
+| 字段记录静态读取 | `Sources/ABI/MachOSwiftSection/Models/FieldDescriptor/FieldDescriptor.swift`、`Models/FieldRecord/FieldRecord.swift` |
 | field-offset vector 读取（含 MachOFile overload） | `Models/Type/Struct/StructMetadataProtocol.swift:16-29`、`Models/Type/Class/Metadata/FinalClassMetadataProtocol.swift` |
 | value witness / type layout 模型 | `Models/ValueWitnessTable/{ValueWitnessTable,TypeLayout,ValueWitnessFlags}.swift` |
 | builtin 静态数值 | `Models/BuiltinType/BuiltinTypeDescriptor.swift:6-12` |
 | MetadataInitialization 分流信号 | `Models/Type/TypeContextDescriptorFlags.swift`、`Models/Metadata/MetadataInitialization/` |
-| enum 静态布局算法 | `Sources/SwiftInspection/EnumLayoutCalculator.swift`、`SpareBitAnalyzer.swift`、`BitMask.swift` |
-| 现有 field rendering（runtime 依赖点） | `Sources/SwiftDeclarationRendering/FieldLayoutRenderer.swift`（`:98-110` fieldOffsets、`:189-203` substitution、`:388-420` 节点替换骨架、`:497` deref runtime metadata vector）、`FieldLayoutRenderer+Enum.swift:113-148`（payloadSize/XI 全靠 runtime VWT） |
-| dyld cache 取镜像 / 符号索引 | 上游包 `MachOKitExtensions` 的 `DyldCache+.swift`（`machOFile(by:)`）、`Sources/MachOSymbols/SymbolIndexStore.swift` |
-| InProcess-only runtime 桥 | `Sources/MachOSwiftSection/Runtime/RuntimeFunctions.swift` |
-| 泛型 specialization（runtime 编排，可作 ground truth/fallback） | `Sources/SwiftSpecialization/GenericSpecializer.swift`、`ConformanceProvider.swift`（已静态、可复用） |
-| ObjC ivar / class_ro_t | MachOObjCSection `ObjCIvarListProtocol`、`ClassROData`；本项目用例 `Sources/SwiftInspection/ClassHierarchyDumper.swift`、`Sources/TypeIndexing/ObjCInterfaceIndexer.swift` |
+| enum 静态布局算法 | `Sources/Analysis/SwiftInspection/EnumLayoutCalculator.swift`、`SpareBitAnalyzer.swift`、`BitMask.swift` |
+| 现有 field rendering（runtime 依赖点） | `Sources/Output/SwiftDeclarationRendering/FieldLayoutRenderer.swift`（`:98-110` fieldOffsets、`:189-203` substitution、`:388-420` 节点替换骨架、`:497` deref runtime metadata vector）、`FieldLayoutRenderer+Enum.swift:113-148`（payloadSize/XI 全靠 runtime VWT） |
+| dyld cache 取镜像 / 符号索引 | 上游包 `MachOKitExtensions` 的 `DyldCache+.swift`（`machOFile(by:)`）、`Sources/MachO/MachOSymbols/SymbolIndexStore.swift` |
+| InProcess-only runtime 桥 | `Sources/ABI/MachOSwiftSection/Runtime/RuntimeFunctions.swift` |
+| 泛型 specialization（runtime 编排，可作 ground truth/fallback） | `Sources/Declaration/SwiftSpecialization/GenericSpecializer.swift`、`ConformanceProvider.swift`（已静态、可复用） |
+| ObjC ivar / class_ro_t | MachOObjCSection `ObjCIvarListProtocol`、`ClassROData`；本项目用例 `Sources/Analysis/SwiftInspection/ClassHierarchyDumper.swift`、`Sources/Declaration/TypeIndexing/ObjCInterfaceIndexer.swift` |

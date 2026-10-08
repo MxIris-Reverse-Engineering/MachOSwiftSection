@@ -27,10 +27,10 @@ final class ValueWitnessTableTests: MachOSwiftSectionFixtureTests, FixtureSuite,
 
     private func loadStructTestValueWitnesses() throws -> ValueWitnessTable {
         let descriptor = try BaselineFixturePicker.struct_StructTest(in: machOImage)
-        let accessor = try required(try descriptor.metadataAccessorFunction(in: machOImage))
+        let accessor = try required(try descriptor.metadataAccessorFunction(in: imageContext))
         let response = try accessor(request: .init())
-        let structMetadata = try required(try response.value.resolve(in: machOImage).struct)
-        return try structMetadata.valueWitnesses(in: machOImage)
+        let structMetadata = try required(try response.value.resolve(in: imageContext).struct)
+        return try structMetadata.valueWitnesses(in: imageContext)
     }
 
     @Test func offset() async throws {

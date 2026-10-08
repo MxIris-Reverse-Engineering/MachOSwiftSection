@@ -29,7 +29,7 @@ final class ObjCResilientClassStubInfoTests: MachOSwiftSectionFixtureTests, Fixt
         in machO: some MachOSwiftSectionRepresentableWithCache
     ) throws -> ObjCResilientClassStubInfo {
         let descriptor = try BaselineFixturePicker.class_ResilientObjCStubChild(in: machO)
-        let classWrapper = try Class(descriptor: descriptor, in: machO)
+        let classWrapper = try Class(descriptor: descriptor, in: machO.context)
         return try required(classWrapper.objcResilientClassStubInfo)
     }
 

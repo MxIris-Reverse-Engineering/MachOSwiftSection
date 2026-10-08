@@ -50,7 +50,7 @@
 `ImageReference<MachO>` / `ImageUniverse<MachO>` 是单态的：所有镜像须同一具体 `MachO` 类型（`ImageReference.swift:12`）。直觉上闭包要混 `MachOFile`（磁盘依赖）与 dyld cache 镜像（不同具体类型），似乎要类型擦除。
 
 **结论：不需要类型擦除——按 root 类型保持同构即可。**
-- `MachOFile` root → 依赖也解析为 `MachOFile`：`FullDyldCache.host?.machOFile(by:)` 返回 `MachOFile`（`DyldCache+.swift:19`），磁盘依赖经 `File.loadFromFile`。
+- `MachOFile` root → 依赖也解析为 `MachOFile`：`FullDyldCache.cachedHost?.machOFile(by:)` 返回 `MachOFile`（`DyldCache+.swift:19`），磁盘依赖经 `File.loadFromFile`。
 - `MachOImage`（在进程）root → 依赖经 `MachOImage(name:)` 返回 `MachOImage`。
 
 两条路各自同构，`ImageReference<MachO>` / `ImageUniverse<MachO>` 泛型签名不变。这复用了 `SwiftInterfaceBuilderDependencies`（`SwiftInterfaceBuilderDependencies.swift:19/60` 两条平行路径）的现成模式。
@@ -67,7 +67,7 @@ extension ImageUniverse {
 ```
 
 加两个**便利工厂**承担实际定位（解析策略与索引构建解耦）：
-- `MachOFile` 版：`dependencyClosure(root: MachOFile, searchPaths: [DependencyPath])` —— 复用 `FullDyldCache.host` + 显式路径（`DependencyPath` 枚举，`DependencyPath.swift`），递归遍历 `machO.dependencies.map(\.dylib.name)`。
+- `MachOFile` 版：`dependencyClosure(root: MachOFile, searchPaths: [DependencyPath])` —— 复用 `FullDyldCache.cachedHost`（进程内只打开一次）+ 显式路径（`DependencyPath` 枚举，`DependencyPath.swift`），递归遍历 `machO.dependencies.map(\.dylib.name)`。
 - `MachOImage` 版：`dependencyClosure(root: MachOImage)` —— 经 `MachOImage(name:)` 用活动 dyld 解析（系统框架天然走 dyld cache）。
 
 ### 3. 全局索引聚合
@@ -97,7 +97,7 @@ extension ImageUniverse {
 1. **`ImageReference` 索引可复用化**：把「从一个 machO 建 type/protocol 索引」抽成可被多镜像聚合调用的形式（当前 `init` 已是单镜像版，加一个把多个 `ImageReference` 合并的入口）。
 2. **`ImageUniverse` 多镜像化**：`rootImage` + `dependencyImages`，全局表合并，`resolveType` / `resolveProtocolClassConstraint` 改查全局表（root 优先）。加 `dependencyClosure(root:dependencyImages:)` 底层工厂。单测：手工塞两个镜像，验证跨镜像解析。
 3. **`MachOImage` 便利工厂**：`dependencyClosure(root: MachOImage)` 经 `MachOImage(name:)` 递归 + 防环。用 fixture（`machOImage`）验证 `DistributedActorTest` 经 vector 完全解析、`ResilientChild` 字段偏移可算。
-4. **`MachOFile` 便利工厂**：`dependencyClosure(root: MachOFile, searchPaths:)` 经 `FullDyldCache.host` + 显式路径。
+4. **`MachOFile` 便利工厂**：`dependencyClosure(root: MachOFile, searchPaths:)` 经 `FullDyldCache.cachedHost` + 显式路径。2026-10-08 起，从 dyld cache 里读出来的 root 先在自己所在的 cache 里找依赖，再查这些路径（[Modules/MachODependencies.md](Modules/MachODependencies.md) §3）。
 5. **resilient 验证扩展**（见下）。
 6. **文档**：更新 `StaticLayoutEngine.md`（移除阶段 3 残留项）、本文「实测」回填、`Documentations/README.md`。
 
@@ -128,9 +128,9 @@ ObjC 祖先（`ObjCMembersTest` / `ObjCBridge`）：接 MachOObjCSection 读 `cl
 
 ## 关键文件
 
-- 复用：`Sources/SwiftInterface/SwiftInterfaceBuilderDependencies.swift`（依赖解析两条路径）、`Sources/SwiftInterface/DependencyPath.swift`
+- 复用：`Sources/Output/SwiftInterface/SwiftInterfaceBuilderDependencies.swift`（依赖解析两条路径）、`Sources/Output/SwiftInterface/DependencyPath.swift`
 - 复用：上游包 `MachOKitExtensions` 的 `DyldCache+.swift`（`machOFile(by:)`、bare-name 匹配）、`MachORepresentableWithCache.swift`（`imagePath` / `cache`）
-- 改动：`Sources/SwiftLayout/ImageUniverse.swift`、`Sources/SwiftLayout/ImageReference.swift`（**仅这两个** + 新增便利工厂文件）
+- 改动：`Sources/Analysis/SwiftLayout/ImageUniverse.swift`、`Sources/Analysis/SwiftLayout/ImageReference.swift`（**仅这两个** + 新增便利工厂文件）
 - 不动：`StaticTypeLayoutResolver.swift`、`BasicLayout.swift`、`ExistentialLayoutBridge.swift`、`EnumLayoutBridge.swift`
 - runtime 参照：`/Volumes/SwiftProjects/swift-project/swift/stdlib/public/runtime/Metadata.cpp:3767-3830`（class 字段布局 + Swift/ObjC 父类分派）
 

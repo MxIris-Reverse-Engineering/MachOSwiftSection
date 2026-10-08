@@ -1,0 +1,326 @@
+import Foundation
+import MachOKit
+import MachOSwiftSection
+import Semantic
+import Utilities
+import MemberwiseInit
+import Demangling
+import SwiftLayout
+@_spi(Internals) import SwiftInspection
+
+// MARK: - Identifiable Closure
+
+/// A wrapper that pairs a closure with a stable identity for equatable comparison.
+public struct IdentifiableClosure<Input, Output>: Sendable {
+    public let id: UUID
+    public let closure: @Sendable (Input) -> Output
+
+    public init(id: UUID = UUID(), _ closure: @escaping @Sendable (Input) -> Output) {
+        self.id = id
+        self.closure = closure
+    }
+
+    public func callAsFunction(_ input: Input) -> Output {
+        closure(input)
+    }
+}
+
+extension IdentifiableClosure: Equatable {
+    public static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.id == rhs.id
+    }
+}
+
+// MARK: - Transformer Closure Type Aliases
+
+public typealias FieldOffsetTransformer = IdentifiableClosure<(startOffset: Int, endOffset: Int?), SemanticString>
+public typealias TypeLayoutTransformer = IdentifiableClosure<TypeLayout, SemanticString>
+public typealias EnumLayoutTransformer = IdentifiableClosure<EnumLayoutCalculator.LayoutResult, SemanticString>
+public typealias EnumLayoutCaseTransformer = IdentifiableClosure<(caseProjection: EnumLayoutCalculator.EnumCaseProjection, indentation: Int), SemanticString>
+public typealias MemberAddressTransformer = IdentifiableClosure<Int, SemanticString>
+public typealias VTableOffsetTransformer = IdentifiableClosure<(slotOffset: Int, label: String?), SemanticString>
+public typealias ExpandedFieldOffsetTransformer = IdentifiableClosure<(fieldName: String, typeName: String, offset: Int, treePrefix: String), SemanticString>
+public typealias SpareBitAnalysisTransformer = IdentifiableClosure<(analysis: SpareBitAnalyzer.Analysis, indentation: Int), SemanticString>
+
+// MARK: - Declaration Render Configuration
+
+/// Source-compatibility alias for the former `DumperConfiguration` name. The
+/// configuration was lifted out of `SwiftDump` into `SwiftDeclarationRendering`
+/// so both the raw-descriptor dump path and the model-driven interface path can
+/// share it; existing call sites keep compiling through this alias.
+public typealias DumperConfiguration = DeclarationRenderConfiguration
+
+@MemberwiseInit(.public)
+public struct DeclarationRenderConfiguration: Sendable {
+    public var demangleResolver: DemangleResolver
+    public var indentation: Int = 1
+    public var displayParentName: Bool = true
+    public var printFieldOffset: Bool = false
+    public var printTypeLayout: Bool = false
+    public var printEnumLayout: Bool = false
+    public var printSpareBitAnalysis: Bool = false
+    public var printMemberAddress: Bool = false
+    public var printVTableOffset: Bool = false
+    public var printExpandedFieldOffsets: Bool = false
+    public var printConformancePWTAddress: Bool = false
+
+    /// Emit a `// not exported` comment on member-symbol lines whose symbol
+    /// has no export-trie entry (evolution proposal 0008). A symbol-table
+    /// FACT, not an access-level guess; nothing is emitted when the image
+    /// carries no export information.
+    public var printExportStatus: Bool = false
+    public var memberAddressTransformer: MemberAddressTransformer? = nil
+    public var vtableOffsetTransformer: VTableOffsetTransformer? = nil
+    public var fieldOffsetTransformer: FieldOffsetTransformer? = nil
+    public var expandedFieldOffsetTransformer: ExpandedFieldOffsetTransformer? = nil
+    public var typeLayoutTransformer: TypeLayoutTransformer? = nil
+    public var enumLayoutTransformer: EnumLayoutTransformer? = nil
+    public var enumLayoutCaseTransformer: EnumLayoutCaseTransformer? = nil
+    public var spareBitAnalysisTransformer: SpareBitAnalysisTransformer? = nil
+
+    /// Injected once per session: the static (offline) field-layout source the
+    /// `MachOFile` rendering path uses to compute field offsets / type layouts /
+    /// the expanded tree without loading the process. `nil` ⇒ either the
+    /// runtime / `MachOImage` path, or graceful degradation when no provider
+    /// could be built. See ``MachOFileStaticFieldLayoutProvider``.
+    public var staticFieldLayoutProvider: (any StaticFieldLayoutProvider)? = nil
+
+    /// How the static `MachOFile` path resolves cross-module field / superclass
+    /// / protocol types when a provider is built. Defaults to the full
+    /// transitive dependency closure over the system dyld shared cache.
+    public var staticLayoutDependencyResolution: StaticLayoutDependencyResolution = .default
+
+    /// Set by a printer that marks optional content
+    /// (`SwiftDeclarationPrintConfiguration.marksOptionalContent`): every
+    /// layout comment is worked out and printed, each conditioned on its
+    /// option with a `VisibilityRegion`, whatever the `print…` flags say.
+    public var marksOptionalContent: Bool = false
+
+    public static func demangleOptions(_ demangleOptions: DemangleOptions) -> Self {
+        .init(demangleResolver: .options(demangleOptions))
+    }
+}
+
+extension DeclarationRenderConfiguration {
+    package var indentString: Indent {
+        .init(level: indentation)
+    }
+
+    /// Whether the flag for `option` is on. Options this configuration does
+    /// not carry read as off.
+    package func isEnabled(_ option: SwiftVisibilityOption) -> Bool {
+        switch option {
+        case .printFieldOffset: printFieldOffset
+        case .printExpandedFieldOffsets: printExpandedFieldOffsets
+        case .printMemberAddress: printMemberAddress
+        case .printVTableOffset: printVTableOffset
+        case .printTypeLayout: printTypeLayout
+        case .printEnumLayout: printEnumLayout
+        case .printStrippedSymbolicItem, .printPWTOffset, .infersObjCOverridesFromSelectorNames, .opaqueTypeResolution: false
+        }
+    }
+
+    /// Whether the content `option` controls is worked out at all: when its
+    /// flag is on, and always when marking.
+    package func producesContent(for option: SwiftVisibilityOption) -> Bool {
+        marksOptionalContent || isEnabled(option)
+    }
+
+    /// `content` when `option`'s flag is on; when marking, always, in a
+    /// region conditioned on `option`.
+    @SemanticStringBuilder
+    package func optionalContent(_ option: SwiftVisibilityOption, @SemanticStringBuilder content: () -> SemanticString) -> SemanticString {
+        if marksOptionalContent {
+            VisibilityRegion(.enabled(option.rawValue), content: content())
+        } else if isEnabled(option) {
+            content()
+        }
+    }
+
+    /// The async form of `optionalContent(_:content:)`.
+    @SemanticStringBuilder
+    package func optionalContent(_ option: SwiftVisibilityOption, @SemanticStringBuilder content: () async throws -> SemanticString) async rethrows -> SemanticString {
+        if marksOptionalContent {
+            try await VisibilityRegion(.enabled(option.rawValue), content: content)
+        } else if isEnabled(option) {
+            try await content()
+        }
+    }
+
+    /// Builds a member address comment line for the given symbol offset.
+    ///
+    /// The returned ``SemanticString`` includes indentation and a trailing line break.
+    @SemanticStringBuilder
+    package func memberAddressComment(offset: Int, addressString: String, label: String? = nil) -> SemanticString {
+        indentString
+        if let memberAddressTransformer {
+            memberAddressTransformer(offset)
+        } else if let label {
+            Comment("Address (\(label)): 0x\(addressString)")
+        } else {
+            Comment("Address: 0x\(addressString)")
+        }
+        BreakLine()
+    }
+
+    /// Builds a `not exported` comment line (evolution proposal 0008),
+    /// emitted by the dumpers next to a member-symbol line whose symbol
+    /// provably has no export-trie entry.
+    ///
+    /// The returned ``SemanticString`` includes indentation and a trailing line break.
+    @SemanticStringBuilder
+    package func exportStatusComment() -> SemanticString {
+        indentString
+        Comment("not exported")
+        BreakLine()
+    }
+
+    /// Builds a field offset comment line for the given start and end offsets.
+    ///
+    /// The returned ``SemanticString`` includes indentation and a trailing line break.
+    @SemanticStringBuilder
+    package func fieldOffsetComment(startOffset: Int, endOffset: Int?) -> SemanticString {
+        indentString
+        if let fieldOffsetTransformer {
+            fieldOffsetTransformer((startOffset, endOffset))
+        } else {
+            Comment("Field offset: 0x\(String(startOffset, radix: 16))")
+        }
+        BreakLine()
+    }
+
+    /// Builds the comment line for a field whose offset could not be computed
+    /// statically, naming the degradation reason — so a reader can tell "the
+    /// engine cannot know this" apart from "the flag is off".
+    ///
+    /// The returned ``SemanticString`` includes indentation and a trailing line break.
+    @SemanticStringBuilder
+    package func unknownFieldOffsetComment(reasonDescription: String) -> SemanticString {
+        indentString
+        Comment("Field offset: unknown (\(reasonDescription))")
+        BreakLine()
+    }
+
+    /// Builds an expanded field offset comment line for a nested struct sub-field.
+    ///
+    /// The returned ``SemanticString`` includes indentation and a trailing line break.
+    @SemanticStringBuilder
+    package func expandedFieldOffsetComment(fieldName: String, typeName: String, offset: Int, baseIndentation: Int, ancestors: [Bool], isLast: Bool) -> SemanticString {
+        let treePrefix = Self.buildTreePrefix(ancestors: ancestors, isLast: isLast)
+        Indent(level: baseIndentation)
+        if let expandedFieldOffsetTransformer {
+            expandedFieldOffsetTransformer((fieldName, typeName, offset, treePrefix))
+        } else if typeName.isEmpty {
+            Comment("\(treePrefix)\(fieldName): 0x\(String(offset, radix: 16))")
+        } else {
+            Comment("\(treePrefix)\(fieldName) (\(typeName)): 0x\(String(offset, radix: 16))")
+        }
+        BreakLine()
+    }
+
+    /// Builds a tree-style prefix string from ancestor continuation info.
+    private static func buildTreePrefix(ancestors: [Bool], isLast: Bool) -> String {
+        var prefix = ""
+        for ancestorIsLast in ancestors {
+            prefix += ancestorIsLast ? "    " : "│   "
+        }
+        prefix += isLast ? "└── " : "├── "
+        return prefix
+    }
+
+    /// Builds a vtable offset comment line for the given vtable slot offset.
+    ///
+    /// The returned ``SemanticString`` includes indentation and a trailing line break.
+    @SemanticStringBuilder
+    package func vtableOffsetComment(slotOffset: Int, label: String? = nil) -> SemanticString {
+        indentString
+        if let vtableOffsetTransformer {
+            vtableOffsetTransformer((slotOffset, label))
+        } else if let label {
+            Comment("VTable offset (\(label)): \(slotOffset)")
+        } else {
+            Comment("VTable offset: \(slotOffset)")
+        }
+        BreakLine()
+    }
+
+    /// Builds the comment marking a vtable slot whose implementation pointer is
+    /// null.
+    ///
+    /// The member was deleted while the slot stayed behind for ABI stability;
+    /// the class metadata binds such a slot to `swift_deletedMethodError`, so
+    /// calling it traps. The declaration that follows (recovered from the
+    /// descriptor's `Tq` symbol, when the image has one) names what USED to be
+    /// here — without this line it would read as an ordinary member.
+    @SemanticStringBuilder
+    package func deletedMethodSlotComment() -> SemanticString {
+        indentString
+        Comment("No implementation in this image (deleted method — slot retained for ABI)")
+        BreakLine()
+    }
+
+    /// Builds the comment marking a vtable slot whose member could not be
+    /// proven.
+    ///
+    /// The descriptor carries no `Tq` symbol and its implementation address is
+    /// shared by identical-code-folded siblings, so the name that follows is
+    /// the best available candidate rather than an established fact.
+    @SemanticStringBuilder
+    package func ambiguousAttributionComment(foldedSymbolCount: Int) -> SemanticString {
+        indentString
+        Comment("Attribution: ambiguous — \(foldedSymbolCount) symbols folded at this address")
+        BreakLine()
+    }
+
+    /// Builds an enum layout per-case comment block for the given case projection.
+    @SemanticStringBuilder
+    package func enumLayoutCaseComment(caseProjection: EnumLayoutCalculator.EnumCaseProjection) -> SemanticString {
+        if let enumLayoutCaseTransformer {
+            enumLayoutCaseTransformer((caseProjection: caseProjection, indentation: indentation))
+        } else {
+            AtomicComponent(string: caseProjection.description(indent: indentation, prefix: "//"), type: .comment)
+        }
+    }
+
+    /// Builds a spare bit analysis comment block for the given analysis result.
+    @SemanticStringBuilder
+    package func spareBitAnalysisComment(analysis: SpareBitAnalyzer.Analysis) -> SemanticString {
+        indentString
+        if let spareBitAnalysisTransformer {
+            spareBitAnalysisTransformer((analysis: analysis, indentation: indentation))
+        } else {
+            InlineComment("Spare Bits: \(analysis.totalSpareBits) total")
+        }
+        BreakLine()
+    }
+
+    /// Builds an enum layout strategy comment line for the given layout result.
+    ///
+    /// The returned ``SemanticString`` includes indentation and a trailing line break.
+    @SemanticStringBuilder
+    package func enumLayoutComment(layoutResult: EnumLayoutCalculator.LayoutResult) -> SemanticString {
+        indentString
+        if let enumLayoutTransformer {
+            enumLayoutTransformer(layoutResult)
+        } else {
+            InlineComment(layoutResult.summaryDescription)
+        }
+        BreakLine()
+    }
+
+    /// Builds the `// Type Layout:` comment for a statically-computed field type
+    /// layout (the `MachOFile` path), mirroring the default format of
+    /// `MetadataWrapper.dumpTypeLayout` (the runtime path).
+    ///
+    /// This intentionally does not route through `typeLayoutTransformer`: that
+    /// transformer is typed on the runtime `TypeLayout`, which cannot be
+    /// synthesized from the static `StaticTypeLayout` outside `MachOSwiftSection`.
+    /// A custom transformer therefore applies to the runtime / `MachOImage` path
+    /// only; the static path always emits the default format.
+    @SemanticStringBuilder
+    package func staticTypeLayoutComment(_ staticTypeLayout: StaticTypeLayout) -> SemanticString {
+        indentString
+        Comment("Type Layout: (size: \(staticTypeLayout.size), stride: \(staticTypeLayout.stride), alignment: \(staticTypeLayout.alignment), extraInhabitantCount: \(staticTypeLayout.extraInhabitantCount))")
+        BreakLine()
+    }
+}

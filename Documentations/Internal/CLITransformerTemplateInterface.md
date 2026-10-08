@@ -12,8 +12,10 @@
 
 新增：
 
-- `Sources/swift-section/Models/TransformerOptionGroup.swift` —— `dump` 与 `interface` 共享的参数组
-- `Sources/swift-section/Commands/TransformerCommand.swift` —— `swift-section transformer` 发现性子命令（`tokens` / `templates` / `config`）
+- `Sources/Executables/swift-section/Models/TransformerOptionGroup.swift` —— `dump` 与 `interface` 共享的参数组
+- `Sources/Executables/swift-section/Commands/TransformerCommand.swift` —— `swift-section transformer` 发现性子命令（`tokens` / `templates` / `config`）
+
+> 提案 `swift-section-kit` 之后：三个子命令的输出搬进 `SwiftSectionKit` 的 `TransformerTokensRequest` / `TransformerTemplatesRequest` / `TransformerConfigurationRequest`（模块清单 `TransformerModule` 也在那里），「启用的模块打开对应注释开关」的 `applyTransformersEnablingCommentKinds` 也随 `dump` / `interface` 的逻辑进了库；参数组与模板名解析仍在 CLI。
 
 修改：
 

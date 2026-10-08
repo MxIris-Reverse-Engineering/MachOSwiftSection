@@ -28,6 +28,8 @@ MachODependencies 回答一个问题：**一个二进制链接了哪些镜像，
 
 打不开的搜索路径**不抛错**，记进 `DependencySearchPathLoadFailure`（附原始 error；系统 cache 不可用时是 `systemDyldSharedCacheUnavailable`）。理由有二：一条坏路径不该让整个解析失败；本模块在事件层（`SwiftIndexEvents`）之下，无法派发事件，只能把失败当数据回传，由上层决定落点——`SwiftInterfaceBuilderDependencies` 把它们派发为 `renderingDegraded(.dependencyLoad)` 事件，CLI 经 `ConsoleEventHandler` 落到 stderr。
 
+`.systemDyldSharedCache` 取 MachOKitExtensions 的 `FullDyldCache.cachedHost`：本机 cache 在进程内只打开一次，所有定位器共用。不要直接读 `FullDyldCache.host`：它每读一次就重新打开、映射本机 cache 的全部文件（macOS 27 是 82 个），而定位器是按根构建的，51 个版本的 evolution 因此曾同时开着 4,182 个文件（[ProjectEvolutionLog](../ProjectEvolutionLog.md) 第 82 节）。`FileDependencyLocatorTests.locatorsShareOneOpeningOfTheSystemCache` 钉住了共用。
+
 ## 2. load name 归一（`DependencyLoadName.bareImageName(of:)`）
 
 load name → bare image name：取末段路径、去**第一个**扩展名（`libobjc.A.dylib` → `libobjc`，`libc++.1.dylib` → `libc++`）。这条规则是**与 MachOKit 的契约**：`MachOImage(name:)` 对进程内每个镜像的路径做同样的归约再比较。把未归一的 load name（dyld 报告的都是绝对路径）直接喂给它永远匹配不到——`SwiftInterfaceBuilderDependencies` 的 `MachOImage` 版初始化器就是这么写的，从诞生起解析结果一直为空，仓库内无人调用所以没被发现（`DependencyLoadNameTests.bareImageNameIsWhatMachOImageLookupMatches` 与 `SwiftInterfaceBuilderDependenciesTests.imageInitializerResolvesTheMappedDirectDependencies` 锁定）。
@@ -46,6 +48,8 @@ bare name 同时是所有依赖集合的**去重键**：同一个库会被不同
   cache 索引**首次查询时一次性建成**（一遍 `machOFiles()`，同时建 install path 表与 bare name 最优表），之后 O(1)。逐次 `machOFile(by:)` 是 `O(依赖数 × cache 大小)` 的全扫描，阶段 3 实测 551 镜像闭包要 21 秒。`NSLock` 保护惰性索引，定位器可跨任务共享。
 
   **平台守卫**（2026-09-21，提案 `objc-ancestor-dependency-closure`）：宿主的 macOS cache 是每个 root 的默认搜索路径，而它在 `/System/iOSSupport` 下带着 Catalyst 版的 UIKit / SwiftUI——iOS root 链的 `/System/Library/Frameworks/UIKit.framework/UIKit` 没有精确匹配，裸名兜底又没有原生版可以压过它，于是拿到的是同名类、不同平台的镜像（ObjC 祖先的 selector 集合、instance size 都是另一个平台的）。定位器构造时接收 root 的平台集合（`DependencyPlatforms.platforms(of:)`：全部 `LC_BUILD_VERSION` 的平台，zippered 镜像两个；没有则按 `LC_VERSION_MIN_*` 推；空集合放行），一次性建 cache 索引时把集合不相交的镜像直接跳过——精确路径与裸名两步一起受约束（`/usr/lib/libobjc.A.dylib` 这种两边都精确匹配的也拒）。显式文件与 system root 是调用方自己给的，不过滤。被拒的 load name 落进闭包的 `unresolvedLoadNames`，没有另起通道。`DependencyClosure(root: MachOFile, …)` 自动传 root 的平台（`FileDependencyLocatorTests.cacheImagesOfAnotherPlatformAreNotCandidates` 锁定）。副作用：iOS 二进制在 macOS 宿主上不带搜索路径时，布局引擎与 `__C` 归属也不再拿到 Catalyst 镜像——诚实降级，给 `--dependency-search-path <RuntimeRoot>` 即恢复。
+
+  **root 自己的 cache 排在所有搜索路径之前**（2026-10-08）：从 dyld cache 里读出来的 root，dyld 只会在同一个 cache 里给它找依赖，所以 `DependencyClosure(root: MachOFile, …)` 把 root 所在的 cache 放在最前面查，调用方给的搜索路径排在后面。修复前，没给搜索路径时默认只有宿主 cache：用 `--dyld-shared-cache` 读归档的 macOS 15.5 cache 里的 SwiftUICore，`URL` 就按宿主（macOS 26 起）的 Foundation 算成了 16 字节，而 15.5 的 `URL` 有 `_url`、`_parseInfo`、`_baseParseInfo` 三个字段，是 24 字节。root 经 `FullDyldCache` 打开时（CLI 就是这样），直接把那个实例交给定位器（`rootDyldCache`），不重新打开；搜索路径里再点名同一个 cache 文件、或 root 本来就来自 `FullDyldCache.cachedHost` 时，都不会重复加入。root 只经单个 cache 文件打开时（`DyldCache`），改为把它的主 cache 文件当成第一条 `.dyldSharedCache` 路径，由定位器自己打开。**不能用 `root.fullCache`**：它第一次被读时才打开 cache 并写回 `MachOFile`，没有锁，而同一个 root 的闭包会在多个线程上各自构建；`_cachedFullCache` 只读不写。
 
   fat 显式文件取与 root 同架构的 slice（`preferredCPU`：先比 `cpu.type` + 掩掉 capability 位后的 `cpu.subtype`，能分开 arm64 / arm64e；再只比 type；最后 `.first`——旧两处实现都无条件取 `.first`）。注意 MachOKit 的 `CPU ==` 比的是原始值，versioned-ABI 的 arm64e 切片会和普通 arm64e 判不等，所以不能直接比 `header.cpu`。
 
@@ -84,6 +88,8 @@ providerDependencies.unresolvedLoadNames // 精确报告解析不到的依赖
 - `Tests/MachODependenciesTests/DependencyLoadNameTests.swift` — 归一规则表 + 与 `MachOImage(name:)` 的契约。
 - `Tests/MachODependenciesTests/DependencyClosureTests.swift` — direct / transitive 语义、BFS 前缀、去重、未解析报告、坏搜索路径不抛、自定义定位器收到原始 load name。
 - `Tests/MachODependenciesTests/FileDependencyLocatorTests.swift` — 宿主 cache 上的精确路径优先与 Catalyst 降级（无宿主 cache 时跳过）；平台守卫（`LC_BUILD_VERSION` 读取、`areCompatible` 规则、iOSSimulator root 在宿主 cache 上一无所获、zippered root 可取 Catalyst 镜像）。
+- `Tests/MachODependenciesTests/CacheRootDependencyClosureTests.swift` — cache 里的 root 在自己的 cache 里找依赖（按 `LC_UUID` 认出找到的是 15.5 的 Foundation，前提是宿主的 Foundation 是另一个构建），两种打开方式各一例；点名同一个 cache 时用的仍是 root 来自的那个实例。没有归档的 15.5 cache 时跳过。
+- `Tests/SwiftLayoutTests/CacheRootDependencyLayoutTests.swift` — 端到端：15.5 cache 里 SwiftUICore 的闭包把 `Foundation.URL` 算成 24 字节。
 - `Tests/SwiftInterfaceTests/ObjCMemberRecoveryTests.swift` — 端到端：独立文件的 ObjC 祖先链经闭包走到 libobjc 的 `NSObject`。
 - `Tests/SwiftInterfaceTests/SwiftInterfaceBuilderDependenciesTests.swift` — 薄包装的 direct 语义、image 版非空回归、`init(closure:)` 保留调用方遍历。
 - `Tests/SwiftLayoutTests/DependencyClosureLayoutTests.swift` — 端到端：闭包驱动的跨模块字段偏移（未改动）。

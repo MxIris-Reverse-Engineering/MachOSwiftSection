@@ -102,6 +102,60 @@ struct StandaloneFileThunkResolutionTests {
     }
     """
 
+    /// The same source linked into a main executable, whose `__TEXT` sits at
+    /// 0x100000000. Its kind-9 thunks call the image's own copy of
+    /// `__swift_instantiateConcreteTypeFromMangledNameV2`, found by its local
+    /// symbol — whose value is an address, which a dylib's `__TEXT` at 0 had
+    /// let pass for a file offset.
+    private static let executableCompilationResult: Result<URL, Error> = {
+        Result {
+            let workingDirectory = FileManager.default.temporaryDirectory
+                .appendingPathComponent("ThunkProbeExecutableFixture-\(UUID().uuidString)")
+            try FileManager.default.createDirectory(at: workingDirectory, withIntermediateDirectories: true)
+            _ = FixtureWorkingDirectoryCleanup.registration
+            FixtureWorkingDirectoryCleanup.directories.append(workingDirectory)
+
+            let sourceURL = workingDirectory.appendingPathComponent("ThunkProbe.swift")
+            let mainSourceURL = workingDirectory.appendingPathComponent("main.swift")
+            let executableURL = workingDirectory.appendingPathComponent("ThunkProbe")
+            try fixtureSource.write(to: sourceURL, atomically: true, encoding: .utf8)
+            try executableMainSource.write(to: mainSourceURL, atomically: true, encoding: .utf8)
+
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: "/usr/bin/xcrun")
+            process.arguments = [
+                "swiftc", "-O", "-module-name", "ThunkProbe",
+                "-target", "arm64-apple-macosx15.0",
+                sourceURL.path, mainSourceURL.path, "-o", executableURL.path,
+            ]
+            let standardErrorPipe = Pipe()
+            process.standardError = standardErrorPipe
+            try process.run()
+            // Drain before waiting, or a long diagnostic deadlocks both sides.
+            let diagnosticsData = standardErrorPipe.fileHandleForReading.readDataToEndOfFile()
+            process.waitUntilExit()
+            guard process.terminationStatus == 0 else {
+                throw FixtureCompilationError(diagnostics: String(decoding: diagnosticsData, as: UTF8.self))
+            }
+            return executableURL
+        }
+    }()
+
+    private static let executableMainSource = """
+    let holder = ProbeHolder()
+    print(holder.counter.withLock { $0 })
+    """
+
+    private func loadExecutableFixture() throws -> MachOFile {
+        let executableURL = try Self.executableCompilationResult.get()
+        switch try File.loadFromFile(url: executableURL) {
+        case .machO(let machOFile):
+            return machOFile
+        case .fat(let fatFile):
+            return try #require(try fatFile.machOFiles().first { $0.header.cpuType == .arm64 })
+        }
+    }
+
     private func loadFixture() throws -> MachOFile {
         let libraryURL = try Self.fixtureCompilationResult.get()
         switch try File.loadFromFile(url: libraryURL) {
@@ -126,19 +180,19 @@ struct StandaloneFileThunkResolutionTests {
         var resolved: [ResolvedField] = []
         for wrapper in try machOFile.swift.typeContextDescriptors {
             let descriptor = wrapper.typeContextDescriptor
-            guard let fieldDescriptor = try? descriptor.fieldDescriptor(in: machOFile) else { continue }
-            let ownerLayout = AccessorThunkOwnerLayout(genericContext: try descriptor.genericContext(in: machOFile))
-            let ownerName = try SymbolicDemangler.demangleContext(for: wrapper.asContextDescriptorWrapper, in: machOFile).print(using: .default)
-            for record in try fieldDescriptor.records(in: machOFile) {
-                guard let mangledTypeName = try? record.mangledTypeName(in: machOFile),
-                      let typeNode = try? SymbolicDemangler.demangleType(for: mangledTypeName, in: machOFile),
+            guard let fieldDescriptor = try? descriptor.fieldDescriptor(in: machOFile.context) else { continue }
+            let ownerLayout = AccessorThunkOwnerLayout(genericContext: try descriptor.genericContext(in: machOFile.context))
+            let ownerName = try SymbolicDemangler.demangleContext(for: wrapper.asContextDescriptorWrapper, in: machOFile.context).print(using: .default)
+            for record in try fieldDescriptor.records(in: machOFile.context) {
+                guard let mangledTypeName = try? record.mangledTypeName(in: machOFile.context),
+                      let typeNode = try? SymbolicDemangler.demangleType(for: mangledTypeName, in: machOFile.context),
                       let reference = typeNode.first(of: Node.Kind.accessorFunctionReference),
                       let thunkOffset = reference.index
                 else { continue }
                 let resolvedNode = typeNode.resolvingAccessorFunctionReferences(in: machOFile, ownerLayout: ownerLayout)
                 resolved.append(ResolvedField(
                     owner: ownerName,
-                    name: try record.fieldName(in: machOFile),
+                    name: try record.fieldName(in: machOFile.context),
                     text: resolvedNode.print(using: .default),
                     thunkOffset: Int(thunkOffset),
                     ownerLayout: ownerLayout
@@ -161,6 +215,20 @@ struct StandaloneFileThunkResolutionTests {
         // and still.
         #expect(text(of: "observed") == "Synchronization.Mutex<Swift.Set<Swift.String>>")
         #expect(text(of: "counter") == "Synchronization.Mutex<Swift.Int>")
+    }
+
+    /// In a main executable the concrete fields' thunks reach the image's own
+    /// runtime helper, named by a local symbol whose value is its address.
+    /// Before the fix that value was read as a file offset, so the helper
+    /// went unrecognized and both fields printed as `accessor function at …`.
+    @Test func theImageLocalRuntimeHelperResolvesInAnExecutable() throws {
+        let machOFile = try loadExecutableFixture()
+        // The premise: the helper is the image's own, under a local symbol.
+        try #require(machOFile.symbols.contains { $0.name == "___swift_instantiateConcreteTypeFromMangledNameV2" && $0.nlist.sectionNumber != nil })
+        let fields = try resolvedAccessorFields(in: machOFile)
+        func text(of name: String) -> String? { fields.first { $0.name == name }?.text }
+        #expect(text(of: "observed") == "Synchronization.Mutex<Swift.Set<Swift.String>>", "\(fields.map(\.text))")
+        #expect(text(of: "counter") == "Synchronization.Mutex<Swift.Int>", "\(fields.map(\.text))")
     }
 
     /// Without any search path the binds have nowhere to resolve, and the

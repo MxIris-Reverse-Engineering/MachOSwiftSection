@@ -5,6 +5,7 @@ import OutputTransformer
 import SwiftOutputTransformer
 import SwiftDeclarationRendering
 import SwiftPrinting
+import SwiftSectionKit
 @testable import swift_section
 
 /// Unit tests for the `swift-section` comment-template command-line surface:

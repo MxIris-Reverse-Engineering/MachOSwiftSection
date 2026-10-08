@@ -36,25 +36,21 @@ final class ProtocolRecordTests: MachOSwiftSectionFixtureTests, FixtureSuite, @u
         let (file, image) = try loadFirstRecords()
         // The layout's `protocol` is a relative-pointer pair; we exercise
         // its presence by resolving and comparing the descriptor offset.
-        let resolvedFile = try required(file.protocolDescriptor(in: machOFile))
-        let resolvedImage = try required(image.protocolDescriptor(in: machOImage))
+        let resolvedFile = try required(file.protocolDescriptor(in: fileContext))
+        let resolvedImage = try required(image.protocolDescriptor(in: imageContext))
         #expect(resolvedFile.offset == ProtocolRecordBaseline.firstRecord.resolvedDescriptorOffset)
         #expect(resolvedImage.offset == ProtocolRecordBaseline.firstRecord.resolvedDescriptorOffset)
     }
 
     @Test func protocolDescriptor() async throws {
         let (file, image) = try loadFirstRecords()
-        let fileResolved = try required(file.protocolDescriptor(in: machOFile))
-        let imageResolved = try required(image.protocolDescriptor(in: machOImage))
+        let fileResolved = try required(file.protocolDescriptor(in: fileContext))
+        let imageResolved = try required(image.protocolDescriptor(in: imageContext))
         #expect(fileResolved.offset == ProtocolRecordBaseline.firstRecord.resolvedDescriptorOffset)
         #expect(imageResolved.offset == ProtocolRecordBaseline.firstRecord.resolvedDescriptorOffset)
 
-        // ReadingContext overload also exercised.
-        let imageContextResolved = try required(image.protocolDescriptor(in: imageContext))
-        #expect(imageContextResolved.offset == ProtocolRecordBaseline.firstRecord.resolvedDescriptorOffset)
-
         // Verify the resolved name is the deterministic baseline string.
-        let resolvedName = try fileResolved.name(in: machOFile)
+        let resolvedName = try fileResolved.name(in: fileContext)
         #expect(resolvedName == ProtocolRecordBaseline.firstRecord.resolvedDescriptorName)
     }
 }

@@ -21,8 +21,8 @@ final class ProtocolBaseRequirementTests: MachOSwiftSectionFixtureTests, Fixture
     private func loadBaseRequirements() throws -> (file: ProtocolBaseRequirement, image: ProtocolBaseRequirement) {
         let fileDescriptor = try BaselineFixturePicker.protocol_ProtocolWitnessTableTest(in: machOFile)
         let imageDescriptor = try BaselineFixturePicker.protocol_ProtocolWitnessTableTest(in: machOImage)
-        let fileProtocol = try MachOSwiftSection.`Protocol`(descriptor: fileDescriptor, in: machOFile)
-        let imageProtocol = try MachOSwiftSection.`Protocol`(descriptor: imageDescriptor, in: machOImage)
+        let fileProtocol = try MachOSwiftSection.`Protocol`(descriptor: fileDescriptor, in: fileContext)
+        let imageProtocol = try MachOSwiftSection.`Protocol`(descriptor: imageDescriptor, in: imageContext)
         let file = try required(fileProtocol.baseRequirement)
         let image = try required(imageProtocol.baseRequirement)
         return (file: file, image: image)

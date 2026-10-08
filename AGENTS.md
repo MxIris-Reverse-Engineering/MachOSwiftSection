@@ -11,19 +11,20 @@ Requires Swift 6.2+ / Xcode 26.0+.
 ## Module dependency hierarchy
 
 ```
-swift-section (CLI; its `objc` subcommands also use MachOObjCSection's ObjC* products directly)
-    └── SwiftInterface (orchestrator)
-            └── SwiftIndexing, SwiftPrinting, SwiftSpecialization, SwiftAttributeInference
-                    └── SwiftDeclaration (shared declaration model)
-                            ├── SwiftDeclarationRendering
-                            │       └── SwiftThunkAnalysis (Capstone; the kind-9 accessor-thunk reader)
-                            └── SwiftDump
-                                    └── SwiftInspection
-                                            └── MachOSwiftSection (ABI model — depends on MachOBase ONLY)
-                                                    └── MachOBase (umbrella: reading / resolving / pointers)
-                                                            └── MachOPointers
-                                                                    └── MachOReading, MachOResolving
-                                                                            └── MachOKitExtensions (external), MachOKit (external)
+swift-section (CLI — a wrapper: flags, error wording, stream routing, exit codes)
+    └── SwiftSectionKit (every subcommand as a request; its `objc` requests also use MachOObjCSection's ObjC* products)
+            └── SwiftInterface (orchestrator)
+                    └── SwiftIndexing, SwiftPrinting, SwiftSpecialization, SwiftAttributeInference
+                            └── SwiftDeclaration (shared declaration model)
+                                    ├── SwiftDeclarationRendering
+                                    │       └── SwiftThunkAnalysis (Capstone; the kind-9 accessor-thunk reader)
+                                    └── SwiftDump
+                                            └── SwiftInspection
+                                                    └── MachOSwiftSection (ABI model — depends on MachOBase ONLY)
+                                                            └── MachOBase (umbrella: reading / resolving / pointers)
+                                                                    └── MachOPointers
+                                                                            └── MachOReading, MachOResolving
+                                                                                    └── MachOKitExtensions (external), MachOKit (external)
 
 SwiftInspection and everything above it also import
     MachOFoundation (umbrella = MachOBase + MachOSymbols + MachODependencies)
@@ -32,6 +33,8 @@ SwiftInspection and everything above it also import
 ```
 
 `SwiftLayout` is a peer of that spine: it depends on `SwiftInspection` + `MachOSwiftSection` (+ `MachOObjCSection` for ObjC-ancestor instance sizes) and is consumed by `SwiftDeclarationRendering`. `TypeIndexing`, `SwiftDiffing` and `OutputTransformer` hang off the same level as the modules that use them.
+
+**`Sources/` is grouped by layer, not flat**: `Support/`, `MachO/`, `ABI/`, `Analysis/`, `Declaration/`, `Output/`, `Commands/`, `Executables/`, `TestSupport/`, each holding the targets of that layer. SwiftPM's default `Sources/<Target>` therefore never applies — a new target goes into a group directory and declares `path: "Sources/<Group>/<Target>"` in `Package.swift`. Code that locates a source file from `#filePath` assumes this depth: the fixture paths in `MachOFileName` / `MachOImageName` climb three levels to the package root, and the source scans in the tests take the module name from two levels below `Sources`. [0055-group-sources-by-layer](Documentations/Evolutions/0055-group-sources-by-layer.md).
 
 ## What each module does
 
@@ -49,6 +52,7 @@ One or two lines each; the linked document is the authority.
 - **SwiftAttributeInference** — infers source-level attributes (`@propertyWrapper`, `@resultBuilder`, `@dynamicMemberLookup`, `@objc`, …).
 - **SwiftPrinting** — renders the model as Swift source: keywords the mangling does not carry (`class` vs `static`, `final`), bound rendering of specialized definitions, export-status annotation and `--exported-only` filtering.
 - **SwiftSpecialization** — runtime generic specialization (`GenericSpecializer`, `ConformanceProvider`); grafts `specialize(...)` onto `TypeDefinition`.
+- **SwiftSectionKit** — everything `swift-section` does, as a library: one request type per subcommand (`DumpRequest`, `ABIDiffRequest`, `ObjCDumpRequest`, …), run against a host-supplied `SwiftSectionOutput` that receives the product, the diagnostics and the indexing-event handlers on three separate channels; `MachOSource` is the one Mach-O loader every request shares. A public product. [Modules/SwiftSectionKit.md](Documentations/Internal/Modules/SwiftSectionKit.md), caller guide [SwiftSectionKit.md](Documentations/SwiftSectionKit.md).
 - **SwiftInterface** — the orchestrator: single-version, two-version diff, and N-version evolution interfaces, all three over one shared structure walk. [Modules/SwiftInterface.md](Documentations/Internal/Modules/SwiftInterface.md).
 - **SwiftDiffing** — Mach-O-free ABI comparison over the indexed model: `ABIDiffer` (two-sided), `ABIEvolution` (N versions), `ABISnapshot` (the persisted baseline). [ABIDiffDesignAndLimitations.md](Documentations/Internal/ABIDiffDesignAndLimitations.md), [ABIEvolutionDesign.md](Documentations/Internal/ABIEvolutionDesign.md).
 - **SwiftLayout** — the static field-offset / type-layout engine: computes offline what the runtime computes, and degrades honestly when the binary does not carry the fact. [Modules/SwiftLayout.md](Documentations/Internal/Modules/SwiftLayout.md).
@@ -64,9 +68,9 @@ One or two lines each; the linked document is the authority.
 - **MachOReading / MachOResolving** — reading abstractions; address/offset resolution. `MachOResolving` also holds the symbol *value* types (`Symbol`, `Symbols`, `SymbolOrElement`), which carry no lookup behavior — "the symbols at this offset" is a query, not a read.
 - **MachOPointers** — relative and indirect pointer types, plus `SymbolOrElementPointer`.
 - **MachOSymbols** — the symbol *index*: table parsing, demangling, the per-image node stores, and `LargeStackTaskExecution`; also collects the image's `_symbolic` symbols into a table of their own that no offset or name query sees (`symbolicManglingSymbols(in:)`). [Modules/MachOSymbols.md](Documentations/Internal/Modules/MachOSymbols.md).
-- **MachOCaches** — the per-image cache primitive, NOT dyld shared cache support (that is `MachOKitExtensions` and `MachODependencies`): `SharedCache` (get-or-build per image, one build shared by concurrent callers, the build closure supplied at the call site), `SharedCacheKey` (hashes a file on its UUID alone) and `SharedCacheRegistry` + `SharedCacheEvictionGroup` (which caches an indexer claims for an image and what its last live instance evicts). [Modules/MachOCaches.md](Documentations/Internal/Modules/MachOCaches.md).
-- **MachODependencies** — the one dependency-resolution implementation every feature shares (`DependencyClosure`, the in-process and file locators, `DependencySearchPath`, `SharedDependencyClosure` for consumers of one root that resolve lazily). The file locator filters dyld-cache candidates by platform (`DependencyPlatforms`, from `LC_BUILD_VERSION`): the host's macOS cache is every root's default search path and carries Mac Catalyst UIKit / SwiftUI under `/System/iOSSupport`, which an iOS root used to resolve to by bare name. [Modules/MachODependencies.md](Documentations/Internal/Modules/MachODependencies.md).
-- **MachOKitExtensions** (external sibling, `../MachOKitExtensions`) — MachOKit extensions. Three behaviors this repo's tests still pin live there: legacy `LC_DYLD_INFO` bind resolution (`LegacyDyldInfoBindTests`), ranked dyld-cache image name lookup (`DyldCacheImageSearchTests`), and whether an in-process image is in the shared cache — read from its header flag, never from its load address (`MachOImageCacheMembershipTests`). It cannot move back in-repo — `MachOObjCSection` depends on it, which would make a package-level cycle.
+- **MachOCaches** — the per-image cache primitive, NOT dyld shared cache support (that is `MachOKitExtensions` and `MachODependencies`): `SharedCache` (get-or-build per image, one build shared by concurrent callers, the build closure supplied at the call site), `SharedCacheKey` (hashes a file on its UUID alone, an image read from a dyld cache on its own and its cache's) and `SharedCacheRegistry` + `SharedCacheEvictionGroup` (which caches an indexer claims for an image and what its last live instance evicts). [Modules/MachOCaches.md](Documentations/Internal/Modules/MachOCaches.md).
+- **MachODependencies** — the one dependency-resolution implementation every feature shares (`DependencyClosure`, the in-process and file locators, `DependencySearchPath`, `SharedDependencyClosure` for consumers of one root that resolve lazily). The file locator filters dyld-cache candidates by platform (`DependencyPlatforms`, from `LC_BUILD_VERSION`): the host's macOS cache is every root's default search path and carries Mac Catalyst UIKit / SwiftUI under `/System/iOSSupport`, which an iOS root used to resolve to by bare name. Reach the host's cache through `FullDyldCache.cachedHost` (MachOKitExtensions), never `FullDyldCache.host`: `host` opens and maps all 82 files of a macOS 27 cache on every read, and a locator is built per root — an evolution over 51 archived caches held 51 copies open (`FileDependencyLocatorTests` pins the sharing). [Modules/MachODependencies.md](Documentations/Internal/Modules/MachODependencies.md).
+- **MachOKitExtensions** (external sibling, `../MachOKitExtensions`) — MachOKit extensions. Four behaviors this repo's tests still pin live there: legacy `LC_DYLD_INFO` bind resolution (`LegacyDyldInfoBindTests`), ranked dyld-cache image name lookup (`DyldCacheImageSearchTests`), whether an in-process image is in the shared cache — read from its header flag, never from its load address (`MachOImageCacheMembershipTests`) — and an image's identity carrying the dyld cache it was read from (`DyldCacheTwinImageTests`): one build can sit in two caches at different addresses — SwiftUI in macOS 13.5 and 13.6, `LC_UUID` included — so nothing per image may key on `LC_UUID` alone. It cannot move back in-repo — `MachOObjCSection` depends on it, which would make a package-level cycle.
 
 Printing and indexing are peers; neither depends on the other.
 
@@ -85,6 +89,7 @@ swift test --filter MachOSwiftSectionTests
 swift test --filter SwiftDumpTests
 swift test --filter SwiftInterfaceTests
 swift test --filter SwiftSectionCommandTests
+swift test --filter SwiftSectionKitTests
 
 # Run the CLI tool — the subcommands, in full
 swift run swift-section dump <binary>                 # types / protocols / conformances
@@ -104,7 +109,8 @@ swift run swift-section objc dump <binary>            # the Objective-C side: du
 # or a directory used as a system root. Without it, the thunk reader infers paths from
 # where the binary sits and everything falls back to the running system's cache, whose
 # images of another platform are never candidates: an iOS binary on a macOS host needs
-# its runtime root named here.
+# its runtime root named here. An image read out of a dyld cache resolves in that same
+# cache first and needs no path named.
 
 # Build release executable
 ./build-executable-product.sh
@@ -134,6 +140,7 @@ python3 Scripts/test-run-rendering-ab-verification.py
 
 - Swift Testing runs test bodies on **512 KB cooperative threads**. A test calling a library entry point gets the large-stack executor from that entry's own `LargeStackTaskExecution.run`; a test driving the demangler or printer *directly* in deep recursion does not — wrap such a body in `LargeStackTaskExecution.run` when the hop cost or the 8 MB pool depth is what is being measured. "The suite passed" is not evidence the executor was used.
 - **Never block a cooperative thread with an untimed wait on work that itself needs a pool thread** — a `DispatchQueue.global()` block, a `Task`. The CI runner has 3 cores, so the pool is 3 threads wide: on 2026-09-29 three such tests froze the whole test process there, while a 10-core machine never lines three up. Give the counterpart a `Thread { … }.start()` of its own, or run the blocking side on one. CI re-runs the `SharedCache` suites on a one-thread pool (`LIBDISPATCH_COOPERATIVE_POOL_STRICT=1`) to catch this; a new suite that blocks on purpose belongs in that step. [FixtureTestingAndContinuousIntegration.md](Documentations/Internal/FixtureTestingAndContinuousIntegration.md).
+- **Look a definition up by its full `name` or by `declaredNameForTesting` (MachOTestingSupport), never by `currentName`.** `currentName` is the display name dump and interface print in a declaration header — the printed name's last dot-separated component — and a function-local type's is the tail of its enclosing function's signature. A test indexing the test binary sees the library's local types: a `Hashable` enum declared in a function returning `Int` read as a second `Int` candidate, and a specialization test passed or failed on `Set` order ([ReviewAdjudications A52](Documentations/Internal/ReviewAdjudications.md)).
 - **A suite asserting on whole-process state derived from an image must declare `ExclusiveImageAccess(.TheFixture)` — and so must every other suite touching that image.** A one-sided declaration excludes nothing. `.serialized` does not work (it orders within one container only, and `swift test` links everything into one process) and neither does a global actor (these tests are `async`, and `await` yields the actor). Do not assert exclusivity in a doc comment: `grep ExclusiveImageAccess` finds every declared user, grepping a fixture name does not.
 - **A `swift test` process never enforces pointer authentication, even built and reported as arm64e** — auth fixups are strip-applied there, so signed slots read back bare. Any "verified because the suite passed as arm64e" claim is a placebo; verify by spawning a real arm64e child process, as `Arm64eSignedVWTPointerTests` does.
 - **`SymbolTestsCore` must not enable the CoroutineAccessors feature** — it would move every implementation offset the ABI baselines pin. A suite needing a `…Twc` compiles its own fixture and asserts structurally.
@@ -155,7 +162,7 @@ Rule out all three environment drifts **before** attributing red tests to a code
 
 </important>
 
-<important if="you are adding a public method under Sources/MachOSwiftSection/Models/">
+<important if="you are adding a public method under Sources/ABI/MachOSwiftSection/Models/">
 
 That directory is exhaustively covered by `Tests/MachOSwiftSectionTests/Fixtures/`, and `MachOSwiftSectionCoverageInvariantTests` enforces it in both directions (every public method registered; every registered name real; sentinel-tagged suites actually sentinel; sentinel-behavior suites actually tagged). The procedure:
 
@@ -183,6 +190,7 @@ Each of these fails **silently**, and several produce a real, fully-qualified, *
 - **A `_symbolic` symbol's referents are one mangling, not several.** The compiler appends them with one mangler, so a later referent reuses substitutions and words of the earlier ones (`7SwiftUI19_ConditionalContentV AA08ModifiedD0V`); demangled alone it fails or names something else. Take referents from `SymbolicManglingIndex.referentNode(of:in:)`, which demangles them together — and for the same reason never splice referents into the mangled name as text.
 - **Resolving one type's members/info/attributes must use the node-taking overloads** (`memberSymbols(of:for:node:in:)` and friends). The name-only forms flatten every sub-bucket on purpose: the name key is printed with `.interfaceTypeBuilderOnly`, which strips private discriminators, so same-named private types share a bucket (issue #115).
 - **Do not hold a lock across a demangle** — the large-stack hop can block.
+- **A `MachOFile` symbol's `offset` is its raw `n_value` — an address, not the file offset MachOKit's doc comment claims.** Into the index it goes through `SymbolValueOffsetConverter`; as an address it is used as is (`ThunkAddressSpace.address(forSymbolValue:)`). A dylib's `__TEXT` at 0 makes the two look interchangeable; a main executable's at 0x100000000 does not. **A STABS entry (`nlist.isDebuggingEntry`) never supplies an offset or an address**: an `N_GSYM` carries the value 0 under the very name of the symbol it describes. The index lets one only reserve its name's row (`SymbolTableBuilder.reserveRow`), which keeps members in source order — dropping the entries outright reorders 42 SymbolTestsCore snapshots. `ExecutableImageSymbolOffsetTests` pins the offsets.
 - **Changing a struct layout in `MachOSymbols` needs `swift package clean`.** Incremental builds have been observed linking stale downstream objects (runtime SIGSEGV in `outlined destroy`). Moving a public type across modules or flipping a dependency edge does the same. Clean first, diagnose second.
 
 Detail: [Modules/MachOSymbols.md](Documentations/Internal/Modules/MachOSymbols.md), [NodeStoreMigrationPlan.md](Documentations/Internal/NodeStoreMigrationPlan.md), [SharedNodeStoreMigration.md](Documentations/Internal/SharedNodeStoreMigration.md).
@@ -194,7 +202,9 @@ Detail: [Modules/MachOSymbols.md](Documentations/Internal/Modules/MachOSymbols.m
 - **`@LocatableLayoutWrapping` generates the three storage-level requirements** (`var layout`, `let offset`, `init(layout:offset:)`). Write only the nested `Layout` struct — and **keep the conformance on the declaration**, the macro deliberately does not add it. A member the host declares itself is left alone, with a warning.
 - **`LayoutWrapper` is `@dynamicMemberLookup` over `Layout`**, so every layout field already reads as `record.field`. Do NOT re-declare a property that only forwards to `layout`, nor one that only widens a field to `Int` (the house style casts at the use site). A same-named property of a different type shadows the dynamic member and reads as a trap. The lookup does not reach through an existential — code iterating erased conformers needs a genuine protocol member.
 - **`resolvedDirectOffset(from:)` needs a key path to a *stored* property of the CONCRETE `Layout`.** One formed in a generic context against a layout *protocol* addresses a witness instead; the lookup answers nil and the force-unwrap behind it traps at runtime — so a shared implementation over a layout protocol cannot use it, each conformer calls it itself. It always answers the DIRECT reading, so a relative-*indirectable* field rules out `isIndirect` first. A descriptor already exposing a named `…Offset` property is what a consumer calls; re-deriving it at the use site is what that property exists to prevent.
-- **Trap:** `context.readElement(at:)` inferred at `Optional<Pointer<…>>` reads a different in-memory shape and silently answers nil — annotate the non-optional read and return it.
+- **Trap:** a generic read (`context.readElement(at:)`, `machO.readElement(offset:)`) whose result lands in an Optional is inferred AT the Optional and reads the Optional's in-memory shape — the field plus one tag byte — so it answers nil whenever the byte after the field is non-zero. Returning it from an optional-returning function, assigning it to an optional, `guard let x: T = try? …` and a `flatMap` closure all do this; read into an annotated non-optional local (or `… as T`) and wrap that. The byte is often padding the runtime never writes, so the symptom comes and goes with the allocator.
+- **A reading API is written once, against `some ReadingContext`** (`x(in context:)`, static `resolve(at:in:)`). The Mach-O (`in machO:`) and pointer (no-argument) forms still in the tree are deprecated one-line forwarders kept for one release and removed in 0.23.0 ([0057-reading-context-migration](Documentations/Evolutions/0057-reading-context-migration.md)): never add a new one, never put logic in one, never call one — pass `machO.context` or `.inProcess`. A bind or rebase check goes through `context.bindRebaseResolver`, never `as? MachOFile`.
+- **Inside a constrained extension (`where Pointee: OptionalProtocol`), calling a method that is also a protocol requirement binds to the requirement — the unconstrained witness — not to the constrained overload beside it.** A guard that must run on every path lives in a private helper that the context form and the forwarders both call (`RelativeDirectPointerProtocol`); a forwarder that calls the context form by name skips it.
 
 </important>
 
@@ -282,6 +292,8 @@ Keeping this file's module list and `Documentations/README.md`'s index in sync w
 
 <important if="you are changing the swift-section CLI — a subcommand, a flag, its output or exit codes — or releasing a version">
 
+**The executable is a wrapper; a subcommand's logic lives in its `SwiftSectionKit` request.** `Sources/Executables/swift-section/` only declares flags (they ARE the `--help` text), rejects flag combinations in `validate()`, interprets command-line spellings (template names, comma lists, `a=b` replacements), maps the flags onto the request in `makeRequest()`, translates library errors back into the historical wording (`CommandLineErrorTranslation` — a usage mistake must stay a `ValidationError`, exit code 64), routes diagnostics to stdout or stderr (`StandardStreamOutput`) and decides the exit code. Anything else added there is untestable without spawning the binary. A new flag is a request field (with a default), a flag, a `makeRequest()` line, and a test on each side. All CLI output goes through `StandardStreamOutput` — `CommandLineStreamWriteScanTests` fails on a `print` / `fputs` / `FileHandle.standard*` anywhere else, and `PrintFailureEventTests` scans the library itself. [Modules/SwiftSectionKit.md](Documentations/Internal/Modules/SwiftSectionKit.md).
+
 `AgentPlugins/swift-section/` is the agent plugin users install into Claude Code and Codex to learn this CLI; its skill (`skills/swift-section-cli/SKILL.md`, `references/objc.md`) is the only copy anywhere, so nobody else will fix it.
 
 - **A CLI change updates the skill in the same batch** — a new or renamed flag, a changed default, a new trap in the output. Check every flag it names still exists: `grep -ohE -- '--[a-z][a-z0-9-]+'` over the skill against the subcommands' `--help`.
@@ -293,4 +305,4 @@ Keeping this file's module list and `Documentations/README.md`'s index in sync w
 
 ## Work in progress
 
-**GenericSpecializer** (`Sources/SwiftSpecialization/`) — interactive runtime specialization of generic types. Core implementation complete with tests. Two-step API: `makeRequest()` returns parameters and candidates, `specialize()` executes with the user's selections. Only protocol requirements need witness tables, passed in requirement order; `baseClass` / `layout` / `sameType` need validation only. Generic parameter names are derived from depth/index (A, B, A1, …) because the binary does not preserve them.
+**GenericSpecializer** (`Sources/Declaration/SwiftSpecialization/`) — interactive runtime specialization of generic types. Core implementation complete with tests. Two-step API: `makeRequest()` returns parameters and candidates, `specialize()` executes with the user's selections. Only protocol requirements need witness tables, passed in requirement order; `baseClass` / `layout` / `sameType` need validation only. Generic parameter names are derived from depth/index (A, B, A1, …) because the binary does not preserve them.

@@ -27,6 +27,10 @@ MachOSymbols 是**符号索引**层：把一个镜像的符号表和 export trie
 
 存储形态是每个唯一符号名一行 16 字节的 `SymbolRow`（规范化偏移 + 名字字节的打包引用）。名字有两个来源：`MachOImage` 的行直接指进镜像 mmap 的 LINKEDIT 字符串表（零拷贝、干净页，代价是这张表要求镜像保持加载）；`MachOFile` 的行和 export trie 解出来的名字进表内部的私有连续缓冲区。名字反查是在 `rowsSortedByName` 排列上做字节级二分。
 
+**规范化偏移的口径**就是上层按偏移查询用的那一套：独立文件是文件偏移，cache 内的镜像是 `未滑动地址 - sharedRegionStart`，`MachOImage` 是距 mach header 的偏移。`MachOKit` 给 `MachOFile` 符号的 `offset` 却是原始 `n_value`，也就是虚拟地址（它的文档注释写的是「file offset」，不对）。换算统一走 `SymbolValueOffsetConverter`。dylib 的 `__TEXT` 链接在 0，地址和文件偏移恰好相等，所以独立文件这一支长期没有换算，直到主可执行文件（`__TEXT` 在 0x100000000）暴露出来：每个符号都被归到高出 0x100000000 的位置，成员地址打印成两倍基址，vtable 槽也对不上名字。
+
+**STABS 调试条目不决定任何偏移**（`NlistProtocol.isDebuggingEntry`）。带调试映射的镜像里，`N_GSYM` 条目和它描述的符号同名、值为 0。以前它被当成符号收进索引：一来被登记在 mach header 上；二来同名行是「后写覆盖」，排在它前面的本地符号（链接器先写本地符号、后写调试映射）偏移就被改成了 0，`internal` / `private` 的静态存储属性因此打印成 `Address: 0x0`。现在两条 symtab 采集腿对它只调 `SymbolTableBuilder.reserveRow`：名字还没有行时建一行占位，此后不改、也不登记到任何偏移，偏移由真符号决定，不管真符号排在前面还是后面。保留占位建行，是因为调试映射按编译顺序排列，行序跟着它就是源码顺序，打印器按行序列成员；直接丢掉调试条目，成员会改按符号表顺序（导出符号按名字排序）排列，SymbolTestsCore 的 42 个快照随之变化。
+
 **成员 / typeInfo / thunk 属性这几个索引的 key 不是单射的**：第一层是打印出来的类型名，用 `.interfaceTypeBuilderOnly` 打印，会剥掉 private discriminator，于是不同文件里同名的 private 类型共用一个名字桶（issue #115：dump 路径按名字查，把两个类型的成员混进了同一个声明）。所以——
 
 > 解析**某一个**类型的成员 / 信息 / 属性，必须用带 node 的重载（`memberSymbols(of:for:node:in:)`、`methodDescriptorMemberSymbols(of:for:node:in:)`、`typeInfo(for:node:in:)`、`thunkAttributeMembers(of:for:node:in:)`）。只带名字的那几个重载会故意把所有子桶摊平，只用于「所有打印成这个名字的类型」这种聚合查询。

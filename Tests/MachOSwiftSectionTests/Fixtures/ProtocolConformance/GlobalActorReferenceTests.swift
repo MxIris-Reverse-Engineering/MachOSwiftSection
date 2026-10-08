@@ -53,18 +53,14 @@ final class GlobalActorReferenceTests: MachOSwiftSectionFixtureTests, FixtureSui
 
     /// `typeName(in:)` is exposed in three overloads (MachO + in-process
     /// + ReadingContext) that all collapse to a single `MethodKey` under
-    /// PublicMemberScanner's name-based key. Exercise the MachO and
-    /// ReadingContext overloads here.
+    /// PublicMemberScanner's name-based key. Exercise the ReadingContext
+    /// overload over both readers here.
     @Test func typeName() async throws {
         let (file, image) = try loadFirstReferences()
-        let result = try acrossAllReaders(
-            file: { try file.typeName(in: machOFile).symbolString },
-            image: { try image.typeName(in: machOImage).symbolString }
+        let result = try acrossAllContexts(
+            file: { try file.typeName(in: fileContext).symbolString },
+            image: { try image.typeName(in: imageContext).symbolString }
         )
         #expect(result == GlobalActorReferenceBaseline.firstReference.typeNameSymbolString)
-
-        // ReadingContext overload also exercised.
-        let imageContextResult = try image.typeName(in: imageContext).symbolString
-        #expect(imageContextResult == GlobalActorReferenceBaseline.firstReference.typeNameSymbolString)
     }
 }

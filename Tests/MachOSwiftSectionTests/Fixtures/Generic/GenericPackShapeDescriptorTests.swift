@@ -20,10 +20,10 @@ final class GenericPackShapeDescriptorTests: MachOSwiftSectionFixtureTests, Fixt
     private func loadFirstPack() throws -> (file: GenericPackShapeDescriptor, image: GenericPackShapeDescriptor) {
         let fileDescriptor = try BaselineFixturePicker.struct_ParameterPackRequirementTest(in: machOFile)
         let imageDescriptor = try BaselineFixturePicker.struct_ParameterPackRequirementTest(in: machOImage)
-        let fileContext = try required(try fileDescriptor.typeGenericContext(in: machOFile))
-        let imageContext = try required(try imageDescriptor.typeGenericContext(in: machOImage))
-        let filePack = try required(fileContext.typePacks.first)
-        let imagePack = try required(imageContext.typePacks.first)
+        let fileGenericContext = try required(try fileDescriptor.typeGenericContext(in: fileContext))
+        let imageGenericContext = try required(try imageDescriptor.typeGenericContext(in: imageContext))
+        let filePack = try required(fileGenericContext.typePacks.first)
+        let imagePack = try required(imageGenericContext.typePacks.first)
         return (file: filePack, image: imagePack)
     }
 

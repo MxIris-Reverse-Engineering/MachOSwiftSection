@@ -21,8 +21,8 @@ final class BuiltinTypeTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unch
     private func loadBuiltins() throws -> (file: BuiltinType, image: BuiltinType) {
         let fileDescriptor = try BaselineFixturePicker.builtinTypeDescriptor_first(in: machOFile)
         let imageDescriptor = try BaselineFixturePicker.builtinTypeDescriptor_first(in: machOImage)
-        let file = try BuiltinType(descriptor: fileDescriptor, in: machOFile)
-        let image = try BuiltinType(descriptor: imageDescriptor, in: machOImage)
+        let file = try BuiltinType(descriptor: fileDescriptor, in: fileContext)
+        let image = try BuiltinType(descriptor: imageDescriptor, in: imageContext)
         return (file: file, image: image)
     }
 
@@ -30,24 +30,21 @@ final class BuiltinTypeTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unch
         let fileDescriptor = try BaselineFixturePicker.builtinTypeDescriptor_first(in: machOFile)
         let imageDescriptor = try BaselineFixturePicker.builtinTypeDescriptor_first(in: machOImage)
 
-        let fileBuiltin = try BuiltinType(descriptor: fileDescriptor, in: machOFile)
-        let imageBuiltin = try BuiltinType(descriptor: imageDescriptor, in: machOImage)
-        let fileCtxBuiltin = try BuiltinType(descriptor: fileDescriptor, in: fileContext)
-        let imageCtxBuiltin = try BuiltinType(descriptor: imageDescriptor, in: imageContext)
+        let fileBuiltin = try BuiltinType(descriptor: fileDescriptor, in: fileContext)
+        let imageBuiltin = try BuiltinType(descriptor: imageDescriptor, in: imageContext)
 
         #expect(fileBuiltin.descriptor.offset == BuiltinTypeBaseline.firstBuiltin.descriptorOffset)
         #expect(imageBuiltin.descriptor.offset == BuiltinTypeBaseline.firstBuiltin.descriptorOffset)
-        #expect(fileCtxBuiltin.descriptor.offset == BuiltinTypeBaseline.firstBuiltin.descriptorOffset)
-        #expect(imageCtxBuiltin.descriptor.offset == BuiltinTypeBaseline.firstBuiltin.descriptorOffset)
     }
 
     @Test("init(descriptor:)") func initializerInProcess() async throws {
-        // The InProcess `init(descriptor:)` walks the descriptor via raw
-        // pointer. We assert it succeeds and the descriptor offset is
-        // non-zero (the absolute pointer is per-process).
+        // `init(descriptor:in:)` over the in-process context walks the
+        // descriptor via raw pointer. We assert it succeeds and the
+        // descriptor offset is non-zero (the absolute pointer is
+        // per-process).
         let imageDescriptor = try BaselineFixturePicker.builtinTypeDescriptor_first(in: machOImage)
         let pointerWrapper = imageDescriptor.asPointerWrapper(in: machOImage)
-        let inProcess = try BuiltinType(descriptor: pointerWrapper)
+        let inProcess = try BuiltinType(descriptor: pointerWrapper, in: inProcessContext)
         #expect(inProcess.descriptor.offset != 0)
     }
 

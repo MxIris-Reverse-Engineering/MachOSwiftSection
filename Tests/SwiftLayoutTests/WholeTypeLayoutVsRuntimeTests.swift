@@ -86,18 +86,18 @@ final class WholeTypeLayoutVsRuntimeTests: MachOSwiftSectionFixtureTests, @unche
             // its instance layout is validated field-by-field by the offset suite.
             guard descriptor.isStruct || descriptor.isEnum else { continue }
             guard
-                let qualifiedTypeName = (try? SymbolicDemangler.demangleContext(for: contextDescriptor, in: machO))
+                let qualifiedTypeName = (try? SymbolicDemangler.demangleContext(for: contextDescriptor, in: imageContext))
                     .flatMap(NodeTypeNaming.nominalQualifiedName(of:)),
                 qualifiedTypeName.hasPrefix("SymbolTests")
             else { continue }
 
             // Ground truth: the runtime value-witness table.
-            guard let accessor = try descriptor.typeContextDescriptor.metadataAccessorFunction(in: machO) else { continue }
+            guard let accessor = try descriptor.typeContextDescriptor.metadataAccessorFunction(in: imageContext) else { continue }
             let runtime: WitnessedLayout
             do {
                 let response = try accessor(request: .init())
-                let metadata = try response.value.resolve(in: machO)
-                let valueWitnessTable = try metadata.valueWitnessTable(in: machO)
+                let metadata = try response.value.resolve(in: imageContext)
+                let valueWitnessTable = try metadata.valueWitnessTable(in: imageContext)
                 runtime = WitnessedLayout(
                     size: Int(valueWitnessTable.layout.size),
                     stride: Int(valueWitnessTable.layout.stride),
@@ -119,7 +119,7 @@ final class WholeTypeLayoutVsRuntimeTests: MachOSwiftSectionFixtureTests, @unche
 
             let witnessed = Self.witnessedLayout(of: staticLayout)
             if witnessed != runtime {
-                let typeName = (try? descriptor.typeContextDescriptor.name(in: machO)) ?? qualifiedTypeName
+                let typeName = (try? descriptor.typeContextDescriptor.name(in: imageContext)) ?? qualifiedTypeName
                 mismatches.append(Mismatch(typeName: typeName, runtime: runtime, staticLayout: witnessed))
             }
         }
@@ -145,7 +145,7 @@ final class WholeTypeLayoutVsRuntimeTests: MachOSwiftSectionFixtureTests, @unche
         for contextDescriptor in try machO.swift.contextDescriptors {
             guard let descriptor = contextDescriptor.typeContextDescriptorWrapper else { continue }
             guard
-                (try? SymbolicDemangler.demangleContext(for: contextDescriptor, in: machO))
+                (try? SymbolicDemangler.demangleContext(for: contextDescriptor, in: imageContext))
                     .flatMap(NodeTypeNaming.nominalQualifiedName(of:)) == qualifiedTypeName
             else { continue }
             return descriptor
@@ -161,10 +161,9 @@ final class WholeTypeLayoutVsRuntimeTests: MachOSwiftSectionFixtureTests, @unche
         _ staticLayout: StaticTypeLayout,
         for descriptor: TypeContextDescriptorWrapper
     ) throws {
-        let machO = machOImage
-        guard let accessor = try descriptor.typeContextDescriptor.metadataAccessorFunction(in: machO) else { return }
+        guard let accessor = try descriptor.typeContextDescriptor.metadataAccessorFunction(in: imageContext) else { return }
         let response = try accessor(request: .init())
-        let valueWitnessTable = try response.value.resolve(in: machO).valueWitnessTable(in: machO)
+        let valueWitnessTable = try response.value.resolve(in: imageContext).valueWitnessTable(in: imageContext)
         #expect(Int(valueWitnessTable.layout.size) == staticLayout.size)
         #expect(Int(valueWitnessTable.layout.stride) == staticLayout.stride)
         #expect(Int(valueWitnessTable.layout.flags.alignment) == staticLayout.alignment)

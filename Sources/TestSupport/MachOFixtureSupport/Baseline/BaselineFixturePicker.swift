@@ -1,0 +1,1092 @@
+import Foundation
+import MachOFoundation
+import MachOKit
+@testable import MachOSwiftSection
+
+/// Centralizes the "pick (main + variants) fixture entities for each descriptor type"
+/// logic, ensuring Suites and their corresponding BaselineGenerators look at the
+/// same set of entities.
+///
+/// Both target descriptors have unique `name(in:)` values within the
+/// `SymbolTestsCore` fixture, so a parent-chain disambiguator is unnecessary.
+package enum BaselineFixturePicker {
+    /// Picks the concrete (non-generic) struct `Structs.StructTest` from the
+    /// `SymbolTestsCore` fixture.
+    package static func struct_StructTest(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> StructDescriptor {
+        try required(
+            try machO.swift.typeContextDescriptors.compactMap(\.struct).first(where: { descriptor in
+                try descriptor.name(in: machO.context) == "StructTest"
+            })
+        )
+    }
+
+    /// Picks the foreign (C-imported) struct `__C.NSDecimal` — the descriptor
+    /// the fixture emits for Foundation's `Decimal`, whose user-facing name
+    /// is `Decimal` and whose import info carries the `NSDecimal` ABI name
+    /// and the C-typedef symbol namespace. Exercises the import-info paths.
+    package static func struct_ForeignDecimal(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> StructDescriptor {
+        try required(
+            try machO.swift.typeContextDescriptors.compactMap(\.struct).first(where: { descriptor in
+                try descriptor.name(in: machO.context) == "Decimal" && descriptor.isCImportedContextDescriptor(in: machO.context)
+            })
+        )
+    }
+
+    /// Picks the generic struct
+    /// `GenericFieldLayout.GenericStructNonRequirement<A>` from the
+    /// `SymbolTestsCore` fixture. Exercises generic context paths.
+    package static func struct_GenericStructNonRequirement(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> StructDescriptor {
+        try required(
+            try machO.swift.typeContextDescriptors.compactMap(\.struct).first(where: { descriptor in
+                try descriptor.name(in: machO.context) == "GenericStructNonRequirement"
+            })
+        )
+    }
+
+    /// Picks the generic struct
+    /// `GenericFieldLayout.GenericStructLayoutRequirement<A: AnyObject>` from
+    /// the `SymbolTestsCore` fixture. Exercises a layout-class generic
+    /// requirement (`A: AnyObject`) — surfaces a single
+    /// `GenericRequirementDescriptor` whose flags carry
+    /// `GenericRequirementKind.layout` with payload `class`.
+    package static func struct_GenericStructLayoutRequirement(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> StructDescriptor {
+        try required(
+            try machO.swift.typeContextDescriptors.compactMap(\.struct).first(where: { descriptor in
+                try descriptor.name(in: machO.context) == "GenericStructLayoutRequirement"
+            })
+        )
+    }
+
+    /// Picks the generic struct
+    /// `GenericFieldLayout.GenericStructSwiftProtocolRequirement<A: Equatable>`
+    /// from the `SymbolTestsCore` fixture. Exercises a Swift-protocol
+    /// generic requirement (`A: Equatable`) — surfaces
+    /// `GenericRequirementDescriptor` with kind `.protocol`, content carrying a
+    /// Swift `RelativeProtocolDescriptorPointer`.
+    package static func struct_GenericStructSwiftProtocolRequirement(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> StructDescriptor {
+        try required(
+            try machO.swift.typeContextDescriptors.compactMap(\.struct).first(where: { descriptor in
+                try descriptor.name(in: machO.context) == "GenericStructSwiftProtocolRequirement"
+            })
+        )
+    }
+
+    /// Picks the generic struct
+    /// `GenericFieldLayout.GenericStructObjCProtocolRequirement<A: NSCopying>`
+    /// from the `SymbolTestsCore` fixture. Exercises an ObjC-protocol
+    /// generic requirement (`A: NSCopying`) — surfaces a
+    /// `GenericRequirementDescriptor` with kind `.protocol`, content carrying
+    /// an ObjC `RelativeProtocolDescriptorPointer`.
+    package static func struct_GenericStructObjCProtocolRequirement(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> StructDescriptor {
+        try required(
+            try machO.swift.typeContextDescriptors.compactMap(\.struct).first(where: { descriptor in
+                try descriptor.name(in: machO.context) == "GenericStructObjCProtocolRequirement"
+            })
+        )
+    }
+
+    /// Picks the generic struct
+    /// `GenericRequirementVariants.SameTypeRequirementTest<First, Second>`
+    /// (`where First == Second`) from the `SymbolTestsCore` fixture.
+    /// Exercises a `sameType` generic requirement — surfaces a
+    /// `GenericRequirementDescriptor` with kind `.sameType`, content carrying
+    /// a `RelativeDirectPointer<MangledName>`.
+    package static func struct_SameTypeRequirementTest(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> StructDescriptor {
+        try required(
+            try machO.swift.typeContextDescriptors.compactMap(\.struct).first(where: { descriptor in
+                try descriptor.name(in: machO.context) == "SameTypeRequirementTest"
+            })
+        )
+    }
+
+    /// Picks the generic struct
+    /// `GenericRequirementVariants.ParameterPackRequirementTest<each Element>`
+    /// from the `SymbolTestsCore` fixture. Exercises a parameter-pack
+    /// generic context — the type's generic context surfaces a non-nil
+    /// `typePackHeader` and at least one `GenericPackShapeDescriptor`.
+    package static func struct_ParameterPackRequirementTest(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> StructDescriptor {
+        try required(
+            try machO.swift.typeContextDescriptors.compactMap(\.struct).first(where: { descriptor in
+                try descriptor.name(in: machO.context) == "ParameterPackRequirementTest"
+            })
+        )
+    }
+
+    /// Picks the generic struct
+    /// `GenericRequirementVariants.InvertibleProtocolRequirementTest<Element: ~Copyable>: ~Copyable`
+    /// from the `SymbolTestsCore` fixture. Exercises a generic context
+    /// carrying conditional invertible-protocol requirements (the `~Copyable`
+    /// bit is encoded inline on the type's generic signature) — surfaces a
+    /// non-nil `conditionalInvertibleProtocolSet` /
+    /// `conditionalInvertibleProtocolsRequirementsCount` on the
+    /// `TargetGenericContext`.
+    package static func struct_InvertibleProtocolRequirementTest(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> StructDescriptor {
+        try required(
+            try machO.swift.typeContextDescriptors.compactMap(\.struct).first(where: { descriptor in
+                try descriptor.name(in: machO.context) == "InvertibleProtocolRequirementTest"
+            })
+        )
+    }
+
+    /// Picks the generic struct
+    /// `GenericRequirementVariants.BaseClassRequirementTest<Element: GenericBaseClassForRequirementTest>`
+    /// from the `SymbolTestsCore` fixture. Exercises a `baseClass` generic
+    /// requirement — surfaces a `GenericRequirementDescriptor` with kind
+    /// `.baseClass`, content carrying a `RelativeDirectPointer<MangledName>`
+    /// to the base-class mangled name.
+    package static func struct_BaseClassRequirementTest(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> StructDescriptor {
+        try required(
+            try machO.swift.typeContextDescriptors.compactMap(\.struct).first(where: { descriptor in
+                try descriptor.name(in: machO.context) == "BaseClassRequirementTest"
+            })
+        )
+    }
+
+    /// Picks an `AnonymousContextDescriptor` from the `SymbolTestsCore`
+    /// fixture. Anonymous contexts arise from generic parameter scopes,
+    /// closures, and other unnamed contexts; they don't appear directly in
+    /// `__swift5_types`/`__swift5_types2` records, so we discover them by
+    /// walking the parent chain of every type descriptor and returning the
+    /// first anonymous one encountered.
+    package static func anonymous_first(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> AnonymousContextDescriptor {
+        for typeDescriptor in try machO.swift.contextDescriptors {
+            var current: SymbolOrElement<ContextDescriptorWrapper>? = try typeDescriptor.parent(in: machO.context)
+            while let cursor = current {
+                if let resolved = cursor.resolved {
+                    if let anonymous = resolved.anonymousContextDescriptor {
+                        return anonymous
+                    }
+                    current = try resolved.parent(in: machO.context)
+                } else {
+                    current = nil
+                }
+            }
+        }
+        throw RequiredError.requiredNonOptional
+    }
+
+    /// Picks the `SymbolTestsCore` module's `ModuleContextDescriptor` —
+    /// every type in the fixture chains up to it. Module contexts don't
+    /// appear directly in `__swift5_types`/`__swift5_types2` records, so we
+    /// discover them by walking the parent chain of every type descriptor
+    /// and selecting the module whose `name(in:)` is `"SymbolTestsCore"`.
+    package static func module_SymbolTestsCore(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> ModuleContextDescriptor {
+        for typeDescriptor in try machO.swift.contextDescriptors {
+            var current: SymbolOrElement<ContextDescriptorWrapper>? = try typeDescriptor.parent(in: machO.context)
+            while let cursor = current {
+                if let resolved = cursor.resolved {
+                    if let module = resolved.moduleContextDescriptor,
+                       try module.name(in: machO.context) == "SymbolTestsCore" {
+                        return module
+                    }
+                    current = try resolved.parent(in: machO.context)
+                } else {
+                    current = nil
+                }
+            }
+        }
+        throw RequiredError.requiredNonOptional
+    }
+
+    /// Picks an `ExtensionContextDescriptor` from the `SymbolTestsCore`
+    /// fixture. Extensions don't appear directly in
+    /// `__swift5_types`/`__swift5_types2` records (only the types declared
+    /// inside an extension do), so we discover them by walking the parent
+    /// chain of every type descriptor and returning the first extension
+    /// context encountered. The fixture declares several extensions (e.g.
+    /// `Structs.StructTest: Protocols.ProtocolWitnessTableTest`).
+    package static func extension_first(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> ExtensionContextDescriptor {
+        for typeDescriptor in try machO.swift.contextDescriptors {
+            var current: SymbolOrElement<ContextDescriptorWrapper>? = try typeDescriptor.parent(in: machO.context)
+            while let cursor = current {
+                if let resolved = cursor.resolved {
+                    if let ext = resolved.extensionContextDescriptor {
+                        return ext
+                    }
+                    current = try resolved.parent(in: machO.context)
+                } else {
+                    current = nil
+                }
+            }
+        }
+        throw RequiredError.requiredNonOptional
+    }
+
+    /// Picks the concrete plain Swift class `Classes.ClassTest` from the
+    /// `SymbolTestsCore` fixture. Used as the primary class fixture: it has
+    /// instance/dynamic vars and methods (so a non-empty vtable), no
+    /// resilient superclass, no ObjC interop, and is not a generic class.
+    package static func class_ClassTest(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> ClassDescriptor {
+        try required(
+            try machO.swift.typeContextDescriptors.compactMap(\.class).first(where: { descriptor in
+                try descriptor.name(in: machO.context) == "ClassTest"
+            })
+        )
+    }
+
+    /// Picks `VTableEntryVariants.VTableBaseTest` from the `SymbolTestsCore`
+    /// fixture. Its vtable carries one slot per calling convention worth
+    /// distinguishing — plain, `throws`, `async`, `async throws` — which is
+    /// what makes it the carrier for "an async slot's implementation pointer
+    /// lands on the async function pointer RECORD".
+    package static func class_VTableBaseTest(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> ClassDescriptor {
+        try required(
+            try machO.swift.typeContextDescriptors.compactMap(\.class).first(where: { descriptor in
+                try descriptor.name(in: machO.context) == "VTableBaseTest"
+            })
+        )
+    }
+
+    /// Picks `Classes.SubclassTest: ClassTest` from the `SymbolTestsCore`
+    /// fixture. Used to exercise inheritance/superclass paths in the
+    /// `ClassDescriptor` API surface (e.g. `superclassTypeMangledName`).
+    package static func class_SubclassTest(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> ClassDescriptor {
+        try required(
+            try machO.swift.typeContextDescriptors.compactMap(\.class).first(where: { descriptor in
+                try descriptor.name(in: machO.context) == "SubclassTest"
+            })
+        )
+    }
+
+    /// Picks the no-payload enum `Enums.NoPayloadEnumTest` (4 cases:
+    /// north/south/east/west) from the `SymbolTestsCore` fixture. Used as
+    /// the primary enum fixture: zero payload cases means `isMultiPayload`
+    /// is false and `payloadSizeOffset` is zero.
+    package static func enum_NoPayloadEnumTest(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> EnumDescriptor {
+        try required(
+            try machO.swift.typeContextDescriptors.compactMap(\.enum).first(where: { descriptor in
+                try descriptor.name(in: machO.context) == "NoPayloadEnumTest"
+            })
+        )
+    }
+
+    /// Picks the single-payload enum `Enums.SinglePayloadEnumTest`
+    /// (`case value(String)`, `case none`, `case error`) from the
+    /// `SymbolTestsCore` fixture. Used to exercise the `isSinglePayload`
+    /// branch of the predicate accessors on `EnumDescriptor`.
+    package static func enum_SinglePayloadEnumTest(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> EnumDescriptor {
+        try required(
+            try machO.swift.typeContextDescriptors.compactMap(\.enum).first(where: { descriptor in
+                try descriptor.name(in: machO.context) == "SinglePayloadEnumTest"
+            })
+        )
+    }
+
+    /// Picks the multi-payload enum `Enums.MultiPayloadEnumTests`
+    /// (closure / NSObject / tuple / empty) from the `SymbolTestsCore`
+    /// fixture. Used as the primary multi-payload fixture: it surfaces a
+    /// `MultiPayloadEnumDescriptor` in `__swift5_mpenum` and exercises the
+    /// `isMultiPayload` branch on `EnumDescriptor`.
+    package static func enum_MultiPayloadEnumTest(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> EnumDescriptor {
+        try required(
+            try machO.swift.typeContextDescriptors.compactMap(\.enum).first(where: { descriptor in
+                try descriptor.name(in: machO.context) == "MultiPayloadEnumTests"
+            })
+        )
+    }
+
+    /// Picks the `MultiPayloadEnumDescriptor` for `Enums.MultiPayloadEnumTests`
+    /// from the `SymbolTestsCore` fixture's `__swift5_mpenum` section. The
+    /// section emits one descriptor per multi-payload enum found.
+    ///
+    /// The mangled-name string applies Swift's identifier substitution rules
+    /// (repeat tokens become `O[A-Z]` byte references), so the literal
+    /// `MultiPayloadEnumTests` may not appear textually. Instead we resolve
+    /// the matching `EnumDescriptor` (which uses its own `name(in:)` ivar)
+    /// and pick the multi-payload descriptor whose mangled-name lookup
+    /// targets it.
+    package static func multiPayloadEnumDescriptor_MultiPayloadEnumTest(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> MultiPayloadEnumDescriptor {
+        let enumDescriptor = try enum_MultiPayloadEnumTest(in: machO)
+        let targetOffset = enumDescriptor.offset
+        return try required(
+            try machO.swift.multiPayloadEnumDescriptors.first(where: { descriptor in
+                let mangledName = try descriptor.mangledTypeName(in: machO.context)
+                for lookup in mangledName.lookupElements {
+                    guard case .relative(let relative) = lookup.reference else { continue }
+                    let resolvedOffset = lookup.offset + Int(relative.relativeOffset)
+                    if resolvedOffset == targetOffset {
+                        return true
+                    }
+                }
+                return false
+            })
+        )
+    }
+
+    /// Picks the associated-type protocol `Protocols.ProtocolTest` from the
+    /// `SymbolTestsCore` fixture. Used as the primary protocol fixture: it
+    /// declares an associated type (`Body`) and the `body` requirement, and
+    /// has a default implementation extension that surfaces a non-empty
+    /// `associatedTypes(in:)` payload.
+    package static func protocol_ProtocolTest(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> ProtocolDescriptor {
+        try required(
+            try machO.swift.protocolDescriptors.first(where: { descriptor in
+                try descriptor.name(in: machO.context) == "ProtocolTest"
+            })
+        )
+    }
+
+    /// Picks `Protocols.ProtocolWitnessTableTest` from the `SymbolTestsCore`
+    /// fixture. Used to exercise non-trivial witness-table layout: the
+    /// protocol declares five method requirements (`a`/`b`/`c`/`d`/`e`),
+    /// so `numRequirements` is non-zero and the trailing
+    /// `ProtocolRequirement` array is fully populated.
+    package static func protocol_ProtocolWitnessTableTest(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> ProtocolDescriptor {
+        try required(
+            try machO.swift.protocolDescriptors.first(where: { descriptor in
+                try descriptor.name(in: machO.context) == "ProtocolWitnessTableTest"
+            })
+        )
+    }
+
+    /// Picks `DefaultImplementationVariants.BasicDefaultProtocol` from the
+    /// `SymbolTestsCore` fixture: `required()` has no default implementation,
+    /// `withDefault()` and `withDefaultAndGeneric(_:)` have one — the shape
+    /// that exercises both states of `ProtocolRequirement`'s
+    /// `defaultImplementation` pointer.
+    package static func protocol_BasicDefaultProtocol(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> ProtocolDescriptor {
+        try required(
+            try machO.swift.protocolDescriptors.first(where: { descriptor in
+                try descriptor.name(in: machO.context) == "BasicDefaultProtocol"
+            })
+        )
+    }
+
+    /// Picks `Protocols.BaseProtocolTest` from the `SymbolTestsCore`
+    /// fixture. Used as the base side of the inheritance fixture pair
+    /// (`BaseProtocolTest` / `DerivedProtocolTest`). Has a single
+    /// `baseMethod()` requirement.
+    package static func protocol_BaseProtocolTest(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> ProtocolDescriptor {
+        try required(
+            try machO.swift.protocolDescriptors.first(where: { descriptor in
+                try descriptor.name(in: machO.context) == "BaseProtocolTest"
+            })
+        )
+    }
+
+    /// Picks the first `ProtocolRecord` from the `SymbolTestsCore` fixture's
+    /// `__swift5_protos` section. Each record is a one-pointer entry that
+    /// resolves to a `ProtocolDescriptor`; we pick the first record so a
+    /// stable, deterministic offset is always available.
+    ///
+    /// The section walk requires the concrete `MachOFile` API
+    /// (`section(for:)`), so the helper is `MachOFile`-only. The companion
+    /// `MachOImage` lookup is performed by re-reading the same section
+    /// offset from the in-memory image.
+    package static func protocolRecord_first(in machO: MachOFile) throws -> ProtocolRecord {
+        let section = try machO.section(for: .__swift5_protos)
+        let sectionOffset: Int
+        if let cache = machO.cache {
+            sectionOffset = section.address - cache.mainCacheHeader.sharedRegionStart.cast()
+        } else {
+            sectionOffset = section.offset
+        }
+        let recordSize = ProtocolRecord.layoutSize
+        let count = section.size / recordSize
+        guard count > 0 else { throw RequiredError.requiredNonOptional }
+        let records: [ProtocolRecord] = try machO.readWrapperElements(
+            offset: sectionOffset,
+            numberOfElements: count
+        )
+        return try required(records.first)
+    }
+
+    /// Image-side companion to `protocolRecord_first(in:)`. Resolves the
+    /// `__swift5_protos` section from the in-memory MachOImage layout so
+    /// the Suite can compare records read via two different code paths.
+    package static func protocolRecord_first(in machO: MachOImage) throws -> ProtocolRecord {
+        let section = try machO.section(for: .__swift5_protos)
+        let sectionOffset: Int
+        if let cache = machO.cache {
+            sectionOffset = section.address - cache.mainCacheHeader.sharedRegionStart.cast()
+        } else {
+            sectionOffset = section.offset
+        }
+        let recordSize = ProtocolRecord.layoutSize
+        let count = section.size / recordSize
+        guard count > 0 else { throw RequiredError.requiredNonOptional }
+        let records: [ProtocolRecord] = try machO.readWrapperElements(
+            offset: sectionOffset,
+            numberOfElements: count
+        )
+        return try required(records.first)
+    }
+
+    /// Picks the first `ProtocolConformance` from the `SymbolTestsCore`
+    /// fixture that declares resilient witnesses. Used to surface a
+    /// non-empty `ResilientWitnessesHeader` and at least one
+    /// `ResilientWitness`. Falls back to a `RequiredError` if no
+    /// resilient-witness conformance exists.
+    package static func protocolConformance_resilientWitnessFirst(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> ProtocolConformance {
+        try required(
+            try machO.swift.protocolConformances.first(where: { conformance in
+                conformance.descriptor.flags.hasResilientWitnesses
+                    && !conformance.resilientWitnesses.isEmpty
+            })
+        )
+    }
+
+    /// Picks the `Structs.StructTest: Protocols.ProtocolTest` conformance
+    /// from the `SymbolTestsCore` fixture. Used as the primary
+    /// `ProtocolConformance` fixture: the conforming type is a concrete
+    /// struct, the protocol is the plain associated-type-bearing
+    /// `ProtocolTest`, and the conformance is non-retroactive with no
+    /// global-actor isolation, so the trailing-objects layout exercises
+    /// the simplest path.
+    ///
+    /// Identification scheme: walk the conformance list and match the
+    /// pair (conforming-type-descriptor name, protocol-descriptor name).
+    /// Both names are resolved via `NamedContextDescriptorProtocol.name(in:)`
+    /// and are unique within the fixture, so no parent-chain disambiguator
+    /// is needed.
+    package static func protocolConformance_StructTestProtocolTest(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> ProtocolConformance {
+        try required(
+            try machO.swift.protocolConformances.first(where: { conformance in
+                guard try conformanceProtocolName(of: conformance, in: machO) == "ProtocolTest" else {
+                    return false
+                }
+                return try conformanceTypeName(of: conformance, in: machO) == "StructTest"
+            })
+        )
+    }
+
+    /// Picks the first conditional `ProtocolConformance` from the
+    /// `SymbolTestsCore` fixture — i.e. a conformance whose
+    /// `ProtocolConformanceFlags.numConditionalRequirements > 0`. Used to
+    /// exercise the trailing `conditionalRequirements` array on
+    /// `ProtocolConformance` and the `numConditionalRequirements` accessor
+    /// on `ProtocolConformanceFlags`. The fixture's
+    /// `ConditionalConformanceVariants.ConditionalContainerTest` extensions
+    /// (e.g. `: Equatable where Element: Equatable`) emit several
+    /// such conformances.
+    package static func protocolConformance_conditionalFirst(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> ProtocolConformance {
+        try required(
+            try machO.swift.protocolConformances.first(where: { conformance in
+                conformance.descriptor.flags.numConditionalRequirements > 0
+                    && !conformance.conditionalRequirements.isEmpty
+            })
+        )
+    }
+
+    /// Picks the first `ProtocolConformance` from the `SymbolTestsCore`
+    /// fixture that has the `hasGlobalActorIsolation` bit set. The fixture
+    /// declares two such conformances under `Actors`:
+    ///   - `Actors.GlobalActorIsolatedConformanceTest: @MainActor Actors.GlobalActorIsolatedProtocolTest`
+    ///   - `Actors.GlobalActorIsolatedConformanceTest: @CustomGlobalActor Actors.CustomGlobalActorIsolatedProtocolTest`
+    /// Used to surface a non-nil `globalActorReference` so the
+    /// `GlobalActorReference` Suite has a live carrier.
+    package static func protocolConformance_globalActorFirst(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> ProtocolConformance {
+        try required(
+            try machO.swift.protocolConformances.first(where: { conformance in
+                conformance.descriptor.flags.hasGlobalActorIsolation
+                    && conformance.globalActorReference != nil
+            })
+        )
+    }
+
+    /// Helper: extract the protocol-descriptor name from a conformance,
+    /// returning `nil` when the protocol pointer is unresolved (a
+    /// cross-image symbol bind) or absent.
+    private static func conformanceProtocolName(
+        of conformance: ProtocolConformance,
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> String? {
+        guard let protocolReference = conformance.protocol else { return nil }
+        guard case .element(let descriptor) = protocolReference else { return nil }
+        return try descriptor.name(in: machO.context)
+    }
+
+    /// Helper: extract the conforming-type-descriptor name from a
+    /// conformance, returning `nil` for indirect / ObjC type references
+    /// (which don't carry a Swift name we can match against).
+    private static func conformanceTypeName(
+        of conformance: ProtocolConformance,
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> String? {
+        switch conformance.typeReference {
+        case .directTypeDescriptor(let wrapper):
+            guard let wrapper else { return nil }
+            return try wrapper.namedContextDescriptor?.name(in: machO.context)
+        case .indirectTypeDescriptor:
+            return nil
+        case .directObjCClassName:
+            return nil
+        case .indirectObjCClass:
+            return nil
+        }
+    }
+
+    /// Picks the first ObjC protocol prefix referenced anywhere in the
+    /// `SymbolTestsCore` fixture. The fixture's `ObjCInheritingProtocolTest`
+    /// inherits from `NSObjectProtocol`, so at least one ObjC reference is
+    /// materialized via the protocol's requirementInSignatures.
+    ///
+    /// We materialize a `Protocol` for `ObjCInheritingProtocolTest`, then
+    /// walk its requirementInSignatures looking for a `.protocol(ObjC(...))`
+    /// case, returning the resolved `ObjCProtocolPrefix`.
+    package static func objcProtocolPrefix_first(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> ObjCProtocolPrefix {
+        let inheritingProtoDescriptor = try required(
+            try machO.swift.protocolDescriptors.first(where: { descriptor in
+                try descriptor.name(in: machO.context) == "ObjCInheritingProtocolTest"
+            })
+        )
+        let protocolType = try `Protocol`(descriptor: inheritingProtoDescriptor, in: machO.context)
+        for requirementInSignature in protocolType.requirementInSignatures {
+            if case .protocol(let symbolOrElement) = requirementInSignature.content,
+               case .element(let descriptorWithObjCInterop) = symbolOrElement,
+               case .objc(let objcPrefix) = descriptorWithObjCInterop {
+                return objcPrefix
+            }
+        }
+        throw RequiredError.requiredNonOptional
+    }
+
+    /// Picks the first `ClassDescriptor` from the `SymbolTestsCore` fixture
+    /// that carries the `hasSingletonMetadataInitialization` bit. Used as
+    /// the live carrier for `SingletonMetadataInitialization`. The bit
+    /// fires for resilient-superclass scenarios and certain generic-class
+    /// shapes (e.g. `Classes.ExternalSwiftSubclassTest`).
+    package static func class_singletonMetadataInitFirst(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> ClassDescriptor {
+        try required(
+            try machO.swift.typeContextDescriptors.compactMap(\.class).first(where: { descriptor in
+                descriptor.hasSingletonMetadataInitialization
+            })
+        )
+    }
+
+    /// Picks the SymbolTestsCore class
+    /// `ResilientClassFixtures.ResilientChild` — a subclass of the
+    /// cross-module `SymbolTestsHelper.ResilientBase` (library-evolution
+    /// build mode), which causes the descriptor to carry a
+    /// `ResilientSuperclass` tail record (tail-objects layout) and forces
+    /// metadata bounds to be resolved at runtime via
+    /// `StoredClassMetadataBounds`.
+    package static func class_ResilientChild(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> ClassDescriptor {
+        try required(
+            try machO.swift.typeContextDescriptors.compactMap(\.class).first(where: { descriptor in
+                try descriptor.name(in: machO.context) == "ResilientChild"
+            })
+        )
+    }
+
+    /// Picks the SymbolTestsCore class
+    /// `ObjCClassWrapperFixtures.ObjCBridge` — an NSObject-derived Swift
+    /// class. The class's metadata accessor returns
+    /// `ClassMetadataObjCInterop`, and its superclass chain reaches
+    /// NSObject's `ObjCClassWrapperMetadata` (kind 0x305). Phase B3
+    /// introduced the fixture to give the ObjC-interop metadata Suites a
+    /// fixture-owned, deterministic carrier (rather than relying on a
+    /// plain Swift class that happens to use the ObjC-interop metadata
+    /// shape on Apple platforms).
+    package static func class_ObjCBridge(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> ClassDescriptor {
+        try required(
+            try machO.swift.typeContextDescriptors.compactMap(\.class).first(where: { descriptor in
+                try descriptor.name(in: machO.context) == "ObjCBridge"
+            })
+        )
+    }
+
+    /// Picks the SymbolTestsCore class
+    /// `ObjCClassWrapperFixtures.ObjCBridgeWithProto` — an NSObject-derived
+    /// Swift class conforming to the `@objc protocol ObjCProto`. Phase B3
+    /// reserves the picker for completeness; `@objc protocol` does not
+    /// emit a Swift-side conformance descriptor, so the conformance is
+    /// not reachable through `swift.protocolConformances`.
+    package static func class_ObjCBridgeWithProto(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> ClassDescriptor {
+        try required(
+            try machO.swift.typeContextDescriptors.compactMap(\.class).first(where: { descriptor in
+                try descriptor.name(in: machO.context) == "ObjCBridgeWithProto"
+            })
+        )
+    }
+
+    /// Picks the SymbolTestsCore class
+    /// `ObjCResilientStubFixtures.ResilientObjCStubChild` — a non-generic
+    /// Swift class subclassing the cross-module
+    /// `SymbolTestsHelper.Object`, which forces the resilient metadata
+    /// strategy. Combined with ObjC interop being on, the Swift compiler
+    /// emits an `ObjCResilientClassStubInfo` trailing record on the
+    /// class descriptor (and a corresponding `<mangled>CMt` "full ObjC
+    /// resilient class stub" symbol). Phase B4 added the fixture to give
+    /// the `ObjCResilientClassStubInfo` Suite a stably-named,
+    /// deterministic carrier independent of any other fixture's
+    /// vTable/method shape.
+    package static func class_ResilientObjCStubChild(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> ClassDescriptor {
+        try required(
+            try machO.swift.typeContextDescriptors.compactMap(\.class).first(where: { descriptor in
+                try descriptor.name(in: machO.context) == "ResilientObjCStubChild"
+            })
+        )
+    }
+
+    /// Picks the `AssociatedTypeDescriptor` whose conforming type is
+    /// `AssociatedTypeWitnessPatterns.ConcreteWitnessTest` and whose protocol
+    /// is `AssociatedTypeWitnessPatterns.AssociatedPatternProtocol`. The
+    /// fixture declares this conformance with five concrete witnesses
+    /// (`First = Int`, `Second = [String]`, `Third = Double`, `Fourth = Bool`,
+    /// `Fifth = Character`), so the descriptor surfaces five
+    /// `AssociatedTypeRecord`s — non-trivial test data for both
+    /// `AssociatedTypeDescriptor` (the raw payload) and `AssociatedType`
+    /// (the high-level wrapper).
+    ///
+    /// Identification scheme: `AssociatedTypeDescriptor` does not carry a
+    /// direct name. Instead its `conformingTypeName(in:)` resolves to a
+    /// `MangledName` whose lookup elements point back to the
+    /// `TypeContextDescriptor` for the conforming type. We resolve the
+    /// `StructDescriptor` for `ConcreteWitnessTest` first, then walk the
+    /// `__swift5_assocty` records and pick the one whose conformingTypeName
+    /// targets that descriptor's offset. (Mirrors
+    /// `multiPayloadEnumDescriptor_MultiPayloadEnumTest`'s strategy.)
+    package static func associatedTypeDescriptor_ConcreteWitnessTest(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> AssociatedTypeDescriptor {
+        let conformingDescriptor = try required(
+            try machO.swift.typeContextDescriptors.compactMap(\.struct).first(where: { descriptor in
+                try descriptor.name(in: machO.context) == "ConcreteWitnessTest"
+            })
+        )
+        let targetOffset = conformingDescriptor.offset
+        return try required(
+            try machO.swift.associatedTypeDescriptors.first(where: { descriptor in
+                let mangledName = try descriptor.conformingTypeName(in: machO.context)
+                for lookup in mangledName.lookupElements {
+                    guard case .relative(let relative) = lookup.reference else { continue }
+                    let resolvedOffset = lookup.offset + Int(relative.relativeOffset)
+                    if resolvedOffset == targetOffset {
+                        return true
+                    }
+                }
+                return false
+            })
+        )
+    }
+
+    /// Picks the first `BuiltinTypeDescriptor` from the `SymbolTestsCore`
+    /// fixture's `__swift5_builtin` section. The fixture's
+    /// `BuiltinTypeFields` namespace declares structs with `Int`/`Float`/
+    /// `Bool`/`Character`/`String` fields, which causes the Swift compiler
+    /// to emit one `BuiltinTypeDescriptor` per primitive backing type used
+    /// in fields. We pick the first descriptor for stability — the order
+    /// is deterministic across builds with the same toolchain.
+    package static func builtinTypeDescriptor_first(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> BuiltinTypeDescriptor {
+        try required(try machO.swift.builtinTypeDescriptors.first)
+    }
+
+    // Note: an `opaqueTypeDescriptor_first` picker was attempted but
+    // SymbolTestsCore's opaque-type descriptors don't surface via
+    // `swift.contextDescriptors` (the `__swift5_types2` records on the
+    // current toolchain index struct/enum extras, not opaque types) nor
+    // via any context's parent chain. The OpaqueType, OpaqueTypeDescriptor,
+    // and OpaqueTypeDescriptorProtocol Suites therefore exercise their
+    // public surface against synthetic memberwise instances. Adding a
+    // fixture variant that emits an opaque type via a discoverable
+    // channel (e.g. a top-level typealias whose underlying-type
+    // relationship can be walked back) would let those Suites use a
+    // live carrier.
+
+    /// Picks the SymbolTestsCore struct
+    /// `NestedGenerics.NestedGenericThreeLevelConstraintTest.MiddleConstrainedTest.InnerMostConstrainedTest<InnerMost: Comparable>`
+    /// — the deepest layer of a three-level nested generic context where each
+    /// outer scope adds its own protocol constraint. This is the canonical
+    /// counter-example for the cumulative-parent-vs-newly-introduced
+    /// distinction in `TargetGenericContext`: at depth ≥ 2,
+    /// `parentParameters.flatMap.count` and `parentParameters.last?.count`
+    /// diverge, exposing the bug where `currentRequirements` would otherwise
+    /// over-drop entries inherited from cumulative parent levels.
+    package static func struct_NestedThreeLevelInnerMostConstrainedTest(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> StructDescriptor {
+        try required(
+            try machO.swift.typeContextDescriptors.compactMap(\.struct).first(where: { descriptor in
+                try descriptor.name(in: machO.context) == "InnerMostConstrainedTest"
+            })
+        )
+    }
+
+    /// Picks the SymbolTestsCore struct
+    /// `GenericValueFixtures.FixedSizeArray<let N: Int, T>` — a generic
+    /// type that declares one integer-value parameter (`N`) and one
+    /// type parameter (`T`). The Swift compiler emits an extra
+    /// `GenericValueHeader` followed by one `GenericValueDescriptor`
+    /// (with `GenericValueType.int`) on the struct's generic context
+    /// (the `GenericContextDescriptorFlags.hasValues` bit is set).
+    /// Phase B7 added the fixture so that the
+    /// `GenericValueDescriptor` and `GenericValueHeader` Suites have
+    /// live carriers for cross-reader equality assertions.
+    package static func struct_FixedSizeArray(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> StructDescriptor {
+        try required(
+            try machO.swift.typeContextDescriptors.compactMap(\.struct).first(where: { descriptor in
+                try descriptor.name(in: machO.context) == "FixedSizeArray"
+            })
+        )
+    }
+
+}
+
+// MARK: - Property Descriptors
+
+/// The `…vpMV` symbols the property-descriptor fixtures are pinned to.
+///
+/// Property descriptors sit in no `__swift5_*` section, so unlike every other
+/// picker here they cannot be found by walking a section — a symbol is the
+/// only way in. Each constant below was chosen for the descriptor SHAPE it
+/// carries, so that the four forms a property descriptor can take are all
+/// covered:
+///
+/// | symbol | header | form |
+/// | --- | --- | --- |
+/// | `staticMemberStoredConstant` | `0x00000000` | trivial (shared, aliased) |
+/// | `markerConformingStructValue` | `0x01800000` | struct, offset inline |
+/// | `propertyWrapperWrappedValue` | `0x01fffffe` | struct, offset in metadata |
+/// | `codableClassIdentifier` | `0x02400000` | computed, settable |
+package enum PropertyDescriptorFixtureSymbol {
+    /// `StaticMembers.StaticMemberStructTest.storedConstant` — a `static let`
+    /// whose descriptor is the module's shared trivial one.
+    package static let staticMemberStoredConstant =
+        "$s15SymbolTestsCore13StaticMembersO0D16MemberStructTestV14storedConstantSivpZMV"
+
+    /// `MarkerProtocols.MarkerConformingStructTest.value` — a stored property
+    /// of a non-generic struct, so its offset is a constant in the header.
+    package static let markerConformingStructValue =
+        "$s15SymbolTestsCore15MarkerProtocolsO0D20ConformingStructTestV5valueSivpMV"
+
+    /// `Attributes.PropertyWrapperStruct.wrappedValue` — a stored property of
+    /// a GENERIC struct, so the header carries the `unresolvedFieldOffset`
+    /// sentinel and the body carries the offset of the field-offset word.
+    package static let propertyWrapperWrappedValue =
+        "$s15SymbolTestsCore10AttributesO21PropertyWrapperStructV12wrappedValuexvpMV"
+
+    /// `CodableTests.CodableClassTest.identifier` — a settable property of a
+    /// resilient class, which is dispatched through accessors, so the
+    /// descriptor is a computed component with identifier, getter and setter.
+    package static let codableClassIdentifier =
+        "$s15SymbolTestsCore07CodableB0O0D9ClassTestC10identifierSivpMV"
+}
+
+extension BaselineFixturePicker {
+    /// The offset a mangled symbol name resolves to, for the records that sit
+    /// in no `__swift5_*` section and can only be reached by symbol.
+    ///
+    /// Two things make this less direct than it looks. The symbol table spells
+    /// C-level names with a leading underscore, so the mangled name has to be
+    /// matched in both spellings. And a Release build carries debug (stab)
+    /// entries under the SAME names whose `n_value` is zero — matching one of
+    /// those silently reads the Mach-O header instead of the record, so stab
+    /// entries must be skipped explicitly.
+    package static func offset(
+        forSymbolNamed symbolName: String,
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> Int {
+        let underscoredSymbolName = "_" + symbolName
+        let matched = try required(
+            machO.symbols.first(where: { symbol in
+                symbol.nlist.flags?.stab == nil
+                    && (symbol.name == symbolName || symbol.name == underscoredSymbolName)
+            })
+        )
+        return matched.offset
+    }
+}
+
+extension BaselineFixturePicker {
+    /// Resolves the property descriptor a `…vpMV` symbol names.
+    ///
+    /// The symbol table is the only entry point: nothing in the Swift
+    /// metadata sections references a property descriptor, and the runtime
+    /// only ever reaches one through a key path pattern's relative pointer.
+    package static func propertyDescriptor(
+        forSymbolNamed symbolName: String,
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> PropertyDescriptor {
+        try PropertyDescriptor.resolve(at: offset(forSymbolNamed: symbolName, in: machO), in: machO.context)
+    }
+
+    /// The module's shared trivial descriptor — header word zero, no body.
+    package static func propertyDescriptor_trivial(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> PropertyDescriptor {
+        try propertyDescriptor(forSymbolNamed: PropertyDescriptorFixtureSymbol.staticMemberStoredConstant, in: machO)
+    }
+
+    /// A stored property whose offset is inline in the header.
+    package static func propertyDescriptor_inlineStoredOffset(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> PropertyDescriptor {
+        try propertyDescriptor(forSymbolNamed: PropertyDescriptorFixtureSymbol.markerConformingStructValue, in: machO)
+    }
+
+    /// A stored property of a generic type: the header holds the
+    /// `unresolvedFieldOffset` sentinel and the body holds the offset of the
+    /// metadata word carrying the real field offset.
+    package static func propertyDescriptor_unresolvedFieldOffset(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> PropertyDescriptor {
+        try propertyDescriptor(forSymbolNamed: PropertyDescriptorFixtureSymbol.propertyWrapperWrappedValue, in: machO)
+    }
+
+    /// A settable computed component: identifier, getter and setter.
+    package static func propertyDescriptor_computedSettable(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> PropertyDescriptor {
+        try propertyDescriptor(forSymbolNamed: PropertyDescriptorFixtureSymbol.codableClassIdentifier, in: machO)
+    }
+}
+
+/// The `…Tu` symbols the async-function-pointer fixtures are picked by, one
+/// per shape worth distinguishing: a plain global `async` function, an
+/// `async` method that a vtable slot points at (the case that proves a
+/// method descriptor's implementation pointer lands on the RECORD, not on the
+/// code), and a distributed thunk, whose async context is an order of
+/// magnitude larger.
+package enum AsyncFunctionPointerFixtureSymbol {
+    /// `globalAsyncFunction()` — a top-level `async` function.
+    package static let globalAsyncFunction =
+        "$s15SymbolTestsCore19globalAsyncFunctionSiyYaFTu"
+
+    /// `VTableEntryVariants.VTableBaseTest.asyncMethod()` — an `async`
+    /// class method, so the class's vtable slot and method descriptor both
+    /// carry the address of its record rather than of its body.
+    package static let vtableBaseAsyncMethod =
+        "$s15SymbolTestsCore19VTableEntryVariantsO0D8BaseTestC11asyncMethodSiyYaFTu"
+
+    /// `DistributedActors.DistributedActorTest.parameterizedMethod(label:count:)`'s
+    /// distributed thunk — the largest async context in the fixture.
+    package static let distributedParameterizedMethodThunk =
+        "$s15SymbolTestsCore17DistributedActorsO0D9ActorTestC19parameterizedMethod5label5countS2S_SitYaKFTETu"
+}
+
+extension BaselineFixturePicker {
+    /// Resolves the async function pointer record a `…Tu` symbol names.
+    ///
+    /// Like a property descriptor, the record sits in no `__swift5_*` section
+    /// — it lives in `__TEXT,__const` and is reached by symbol or by another
+    /// descriptor's relative pointer.
+    package static func asyncFunctionPointer(
+        forSymbolNamed symbolName: String,
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> AsyncFunctionPointer {
+        try AsyncFunctionPointer.resolve(at: offset(forSymbolNamed: symbolName, in: machO), in: machO.context)
+    }
+
+    /// A top-level `async` function's record.
+    package static func asyncFunctionPointer_globalFunction(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> AsyncFunctionPointer {
+        try asyncFunctionPointer(forSymbolNamed: AsyncFunctionPointerFixtureSymbol.globalAsyncFunction, in: machO)
+    }
+
+    /// The record a vtable slot / method descriptor points at for an `async`
+    /// class method.
+    package static func asyncFunctionPointer_vtableMethod(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> AsyncFunctionPointer {
+        try asyncFunctionPointer(forSymbolNamed: AsyncFunctionPointerFixtureSymbol.vtableBaseAsyncMethod, in: machO)
+    }
+
+    /// A distributed thunk's record — a much larger async context.
+    package static func asyncFunctionPointer_distributedThunk(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> AsyncFunctionPointer {
+        try asyncFunctionPointer(forSymbolNamed: AsyncFunctionPointerFixtureSymbol.distributedParameterizedMethodThunk, in: machO)
+    }
+}
+
+extension BaselineFixturePicker {
+    /// Every `__swift5_acfuncs` record in the fixture. All four come from
+    /// `DistributedActors`, which is the only feature that emits them today.
+    package static func accessibleFunctionRecords(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> [AccessibleFunctionRecord] {
+        try machO.swift.accessibleFunctionRecords
+    }
+
+    /// `DistributedActors.DistributedActorTest.remoteMethod(value:)`'s record
+    /// — a non-generic distributed target, so its generic environment pointer
+    /// is null.
+    package static func accessibleFunctionRecord_nonGeneric(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> AccessibleFunctionRecord {
+        try required(
+            try accessibleFunctionRecords(in: machO).first(where: { record in
+                try record.name(in: machO.context).contains("remoteMethod") && record.resolvedDirectOffset(from: \.genericEnvironment) == nil
+            })
+        )
+    }
+
+    /// `DistributedActors.GenericDistributedActorTest.process(element:)`'s
+    /// record — the one distributed target with a generic signature, so it is
+    /// the only record whose generic environment pointer is non-null.
+    package static func accessibleFunctionRecord_generic(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> AccessibleFunctionRecord {
+        try required(
+            try accessibleFunctionRecords(in: machO).first(where: { record in
+                record.resolvedDirectOffset(from: \.genericEnvironment) != nil
+            })
+        )
+    }
+}
+
+extension BaselineFixturePicker {
+    /// The `__swift5_capture` descriptors, in section order.
+    package static func captureDescriptors(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> [CaptureDescriptor] {
+        try machO.swift.captureDescriptors
+    }
+
+    /// A non-generic closure's context: captured values only, no metadata
+    /// source map and no bindings.
+    package static func captureDescriptor_withoutMetadataSources(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> CaptureDescriptor {
+        try required(
+            try captureDescriptors(in: machO).first(where: { $0.numberOfMetadataSources == 0 && $0.numberOfCaptureTypes > 0 })
+        )
+    }
+
+    /// A closure inside a one-parameter generic function: one binding at the
+    /// head of the context, so one metadata source entry.
+    package static func captureDescriptor_withSingleMetadataSource(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> CaptureDescriptor {
+        try required(
+            try captureDescriptors(in: machO).first(where: { $0.numberOfMetadataSources == 1 })
+        )
+    }
+
+    /// A closure inside a two-parameter generic function — the carrier that
+    /// keeps the metadata source array from being testable at length one
+    /// only.
+    package static func captureDescriptor_withMultipleMetadataSources(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> CaptureDescriptor {
+        try required(
+            try captureDescriptors(in: machO).first(where: { $0.numberOfMetadataSources > 1 })
+        )
+    }
+}
+
+extension BaselineFixturePicker {
+    /// Picks the generic class `GenericFieldLayout.GenericClassNonRequirement<A>`
+    /// — a plain generic class with no generic requirements, so its
+    /// instantiation pattern is the simplest a class can have.
+    package static func class_GenericClassNonRequirement(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> ClassDescriptor {
+        try required(
+            try machO.swift.typeContextDescriptors.compactMap(\.class).first(where: { descriptor in
+                try descriptor.name(in: machO.context) == "GenericClassNonRequirement"
+            })
+        )
+    }
+
+    /// The value metadata pattern of `GenericStructNonRequirement<A>`,
+    /// reached the way the runtime reaches it: through the type's generic
+    /// context header.
+    package static func genericValueMetadataPattern_structNonRequirement(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> GenericValueMetadataPattern {
+        let descriptor = try struct_GenericStructNonRequirement(in: machO)
+        let genericContext = try required(try descriptor.typeGenericContext(in: machO.context))
+        let patternOffset = try required(genericContext.header.resolvedDirectOffset(from: \.defaultInstantiationPattern))
+        return try GenericValueMetadataPattern.resolve(at: patternOffset, in: machO.context)
+    }
+
+    /// The class metadata pattern of `GenericClassNonRequirement<A>`, reached
+    /// through the type's generic context header.
+    package static func genericClassMetadataPattern_classNonRequirement(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> GenericClassMetadataPattern {
+        let descriptor = try class_GenericClassNonRequirement(in: machO)
+        let genericContext = try required(try descriptor.typeGenericContext(in: machO.context))
+        let patternOffset = try required(genericContext.header.resolvedDirectOffset(from: \.defaultInstantiationPattern))
+        return try GenericClassMetadataPattern.resolve(at: patternOffset, in: machO.context)
+    }
+
+    /// The resilient class pattern of `ResilientClassFixtures.ResilientChild`
+    /// — a NON-generic class whose superclass lives in another resilience
+    /// domain, so its pattern hangs off the singleton metadata
+    /// initialization record rather than off a generic context.
+    package static func resilientClassMetadataPattern_resilientChild(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> ResilientClassMetadataPattern {
+        let descriptor = try class_ResilientChild(in: machO)
+        let resilientChild = try Class(descriptor: descriptor, in: machO.context)
+        let initialization = try required(resilientChild.singletonMetadataInitialization)
+        let patternOffset = try required(initialization.resolvedDirectOffset(from: \.incompleteMetadata))
+        return try ResilientClassMetadataPattern.resolve(at: patternOffset, in: machO.context)
+    }
+}

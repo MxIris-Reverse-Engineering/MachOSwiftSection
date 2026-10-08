@@ -114,10 +114,10 @@ enum NodeKindParitySurvey {
 
         for wrapper in try machOFile.swift.typeContextDescriptors {
             let descriptor = wrapper.typeContextDescriptor
-            guard let fieldDescriptor = try? descriptor.fieldDescriptor(in: machOFile) else { continue }
-            for record in try fieldDescriptor.records(in: machOFile) {
-                guard let mangledTypeName = try? record.mangledTypeName(in: machOFile),
-                      let typeNode = try? SymbolicDemangler.demangleType(for: mangledTypeName, in: machOFile)
+            guard let fieldDescriptor = try? descriptor.fieldDescriptor(in: machOFile.context) else { continue }
+            for record in try fieldDescriptor.records(in: machOFile.context) {
+                guard let mangledTypeName = try? record.mangledTypeName(in: machOFile.context),
+                      let typeNode = try? SymbolicDemangler.demangleType(for: mangledTypeName, in: machOFile.context)
                 else { continue }
                 trees.append(typeNode)
             }
@@ -125,8 +125,8 @@ enum NodeKindParitySurvey {
 
         for associatedType in try machOFile.swift.associatedTypes {
             for record in associatedType.records {
-                guard let substituted = try? record.substitutedTypeName(in: machOFile),
-                      let typeNode = try? SymbolicDemangler.demangleType(for: substituted, in: machOFile)
+                guard let substituted = try? record.substitutedTypeName(in: machOFile.context),
+                      let typeNode = try? SymbolicDemangler.demangleType(for: substituted, in: machOFile.context)
                 else { continue }
                 trees.append(typeNode)
             }

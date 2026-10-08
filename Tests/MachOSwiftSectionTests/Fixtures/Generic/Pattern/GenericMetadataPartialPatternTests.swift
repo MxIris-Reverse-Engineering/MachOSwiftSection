@@ -21,8 +21,8 @@ final class GenericMetadataPartialPatternTests: MachOSwiftSectionFixtureTests, F
         let filePattern = try BaselineFixturePicker.genericClassMetadataPattern_classNonRequirement(in: machOFile)
         let imagePattern = try BaselineFixturePicker.genericClassMetadataPattern_classNonRequirement(in: machOImage)
         return (
-            file: try required(try filePattern.partialPatterns(in: machOFile).first),
-            image: try required(try imagePattern.partialPatterns(in: machOImage).first)
+            file: try required(try filePattern.partialPatterns(in: fileContext).first),
+            image: try required(try imagePattern.partialPatterns(in: imageContext).first)
         )
     }
 

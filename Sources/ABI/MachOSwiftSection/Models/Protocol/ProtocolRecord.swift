@@ -1,0 +1,38 @@
+import Foundation
+import MachOKit
+import MachOBase
+
+/// Mirrors `TargetProtocolRecord` from
+/// `swift/include/swift/ABI/Metadata.h:2766`. One entry per 4-byte slot of
+/// `__swift5_protos`.
+///
+/// The C++ declaration stores a single
+/// `RelativeContextPointerIntPair<Runtime, bool, TargetProtocolDescriptor>`
+/// (`MetadataRef.h:109` — a `RelativeIndirectablePointerIntPair` with
+/// `nullable=true`). The low bit is the indirect flag handled by the pointer
+/// itself; the next bit ("reserved for future use", see
+/// `Metadata.h:2769`) is exposed via `Bit` and currently ignored by the
+/// runtime (`MetadataLookup.cpp:821` only calls `getPointer()`).
+@LocatableLayoutWrapping
+public struct ProtocolRecord: ResolvableLocatableLayoutWrapper {
+    public struct Layout: LayoutProtocol {
+        public let `protocol`: RelativeIndirectablePointerIntPair<ProtocolDescriptor?, Bit, Pointer<ProtocolDescriptor?>>
+    }
+}
+
+// MARK: - ReadingContext Support
+
+extension ProtocolRecord {
+    public func protocolDescriptor(in context: some ReadingContext) throws -> ProtocolDescriptor? {
+        try layout.protocol.resolve(at: try context.addressFromOffset(offset(of: \.protocol)), in: context)
+    }
+}
+
+// MARK: - Deprecated Mach-O form
+
+extension ProtocolRecord {
+    @available(*, deprecated, message: "Pass a ReadingContext: protocolDescriptor(in: machO.context).")
+    public func protocolDescriptor(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> ProtocolDescriptor? {
+        try protocolDescriptor(in: machO.context)
+    }
+}

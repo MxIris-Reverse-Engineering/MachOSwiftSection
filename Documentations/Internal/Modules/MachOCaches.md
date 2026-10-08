@@ -10,7 +10,7 @@
 它回答一个问题：**一个镜像的某种一次性建好的索引放在哪、谁建、谁清。** 符号表（`SymbolIndexStore`）、interned 名字池（`InternedNodeReferenceCache`）、ObjC 方法表（`ObjCClassMethodIndex`）、`_symbolic` 符号索引（`SymbolicManglingIndex`）……每一种都是「按镜像算一次、之后人人共享」的东西，它们的持有者各在自己的模块里，共用的机制在这里：
 
 - `SharedCache<Storage>`：按镜像的 get-or-build。同一镜像的并发首次访问只建一次，构建在锁外跑。
-- `SharedCacheKey`：镜像的键，只哈希 UUID 或基址。
+- `SharedCacheKey`：镜像的键，只哈希 UUID（从 dyld cache 读出的镜像再加上所在 cache 的 UUID）或基址。
 - `SharedCacheRegistry` + `SharedCacheEvictionGroup`：谁认领了哪个镜像的哪些缓存、最后一个持有者走了清什么、宿主想在内存压力下清什么。
 - `SharedCacheBuildPromise`：在途构建的会合点，等待者在 `NSCondition` 上睡。
 
@@ -62,11 +62,13 @@ package final class ObjCClassMethodIndex: @unchecked Sendable {
 
 ## 2. 键（`SharedCacheKey`）
 
-`MachORepresentableWithCache` 的两个 conformer（`MachOFile`、`MachOImage`）的 identifier 都是 `MachOTargetIdentifier`：文件按 `LC_UUID` 加路径（`.uuidFile`），没有 UUID 的文件按 `LC_BUILD_VERSION` 或裸路径，进程内镜像按基址（`.image`）。以前键是 `AnyHashable(machO.identifier)`：`.uuidFile` 的载荷超过 existential 的 24 字节内联缓冲，每次查找一次堆分配，再把整条路径喂给 SipHash——而查找发生在按符号、按 mangled name 的循环里。
+`MachORepresentableWithCache` 的两个 conformer（`MachOFile`、`MachOImage`）的 identifier 都是 `MachOTargetIdentifier`：从 dyld cache 读出的镜像按路径、`LC_UUID` 加所在主 cache 的 UUID（`.dyldCacheImage`），其余文件按 `LC_UUID` 加路径（`.uuidFile`），没有 UUID 的文件按 `LC_BUILD_VERSION` 或裸路径，进程内镜像按基址（`.image`）。cache 镜像必须带上 cache：同一次构建可以原样出现在两个 cache 里——macOS 13.5 和 13.6 的 SwiftUI 连 `LC_UUID` 都一样——但两个 cache 把它放在不同地址，经它读出的每个偏移都属于读它的那个 cache。只按 `.uuidFile` 时两份共用一切按镜像的缓存，后读的那份拿着前一份的类对象偏移去读自己的 cache，读到的不是指针，MachOKit 解 rebase 时 trap（MachOKitExtensions 1.1.0 修，`DyldCacheTwinImageTests` 钉住）。用主 cache 的 UUID，同一个镜像无论 cache 是只开主文件还是连子 cache 一起开，都是同一个身份。以前键是 `AnyHashable(machO.identifier)`：`.uuidFile` 的载荷超过 existential 的 24 字节内联缓冲，每次查找一次堆分配，再把整条路径喂给 SipHash——而查找发生在按符号、按 mangled name 的循环里。
 
-`SharedCacheKey` 包住 identifier：`.uuidFile` 只哈希 UUID（链接器按构建唯一分配，单独就能区分镜像），`.image` 只哈希指针，`.file` / `.versionedFile` 才哈希路径；**等值比较仍比完整值**，路径不同的两个键相等测试不通过，只是哈希相同。identifier 不是 `MachOTargetIdentifier` 的读者（今天没有）走 `.opaque(AnyHashable)` 兜底。`SharedCacheKey(opaque:)` 同时是测试造键的入口。
+`SharedCacheKey` 包住 identifier：`.uuidFile` 只哈希 UUID（链接器按构建唯一分配，单独就能区分镜像），`.dyldCacheImage` 只哈希镜像与 cache 的两个 UUID，`.image` 只哈希指针，`.file` / `.versionedFile` 才哈希路径；**等值比较仍比完整值**，路径不同的两个键相等测试不通过，只是哈希相同。identifier 不是 `MachOTargetIdentifier` 的读者（今天没有）走 `.opaque(AnyHashable)` 兜底。`SharedCacheKey(opaque:)` 同时是测试造键的入口。
 
 没有直接把协议的 `associatedtype Identifier` 收窄成具体类型，因为协议在 sibling 仓库 `MachOKitExtensions` 里，且要给每个泛型签名加 `where MachO.Identifier == MachOTargetIdentifier`；这里用一次 `as?` 得到同样效果。
+
+手里只有 `ReadingContext`、没有读者的 memo（`SymbolicDemangler` 的反混淆缓存、`InternedNodeReferenceCache`）从 context 的缓存范围（`cacheScope`）拿身份：`MachOContext` 答 `.image(identifier:)`，带的就是读者的 `MachOTargetIdentifier`，memo 用 `SharedCacheKey(identifier:)` 建键，与 `SharedCacheKey(machO)` 是同一个键，所以经读者和经 context 存进去的条目是同一条，驱逐也一起走。这个载荷故意是具体类型而不是 `AnyHashable`，理由同上：每次 memo 查找都要问一次范围。详见 [ReadingContextAbstraction.md](../ReadingContextAbstraction.md)「缓存范围」一节。
 
 ## 3. 驱逐（`SharedCacheRegistry` / `SharedCacheEvictionGroup`）
 

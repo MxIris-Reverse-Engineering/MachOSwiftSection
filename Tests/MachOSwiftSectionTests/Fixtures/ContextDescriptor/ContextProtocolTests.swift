@@ -24,17 +24,13 @@ final class ContextProtocolTests: MachOSwiftSectionFixtureTests, FixtureSuite, @
     @Test func parent() async throws {
         let fileDescriptor = try BaselineFixturePicker.struct_StructTest(in: machOFile)
         let imageDescriptor = try BaselineFixturePicker.struct_StructTest(in: machOImage)
-        let fileContextWrapper = try Struct(descriptor: fileDescriptor, in: machOFile)
-        let imageContextWrapper = try Struct(descriptor: imageDescriptor, in: machOImage)
+        let fileContextWrapper = try Struct(descriptor: fileDescriptor, in: fileContext)
+        let imageContextWrapper = try Struct(descriptor: imageDescriptor, in: imageContext)
 
-        let presence = try acrossAllReaders(
-            file: { (try fileContextWrapper.parent(in: machOFile)) != nil },
-            image: { (try imageContextWrapper.parent(in: machOImage)) != nil }
+        let presence = try acrossAllContexts(
+            file: { (try fileContextWrapper.parent(in: fileContext)) != nil },
+            image: { (try imageContextWrapper.parent(in: imageContext)) != nil }
         )
         #expect(presence == ContextProtocolBaseline.structTest.hasParent)
-
-        // ReadingContext-based overload also exercised.
-        let imageCtxPresence = (try imageContextWrapper.parent(in: imageContext)) != nil
-        #expect(imageCtxPresence == ContextProtocolBaseline.structTest.hasParent)
     }
 }

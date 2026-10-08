@@ -16,8 +16,8 @@
 
 RuntimeViewer 索引五个系统镜像（Foundation + libswiftCore + AppKit + SwiftUI + SwiftUICore）后抓 memory graph，归因过程由两条独立线索相互印证：本仓库 `DeclarationModelMemoryFootprint.md` 第五节第 3 条的分析，和对面会话（swift-demangling 侧）的独立全量持有点扫描。归因结果分三条：
 
-- **持有主体是 `MetadataReaderCache.Storage`**（`Sources/SwiftInspection/MetadataReader.swift:649-660`）的三张字典，value 都是整棵 class `Node` 树：`nodeForMangledNameBox`（mangled name → 树）、`nodeForContextOffset`（descriptor offset → 树）、`nodeForSymbolName`（symbol 名 → 树，或一个表示「demangler 拒绝过这个名字」的 `nil` 裁决）。
-- **只进不出**。这个类是 `private` 单例。按镜像清除的能力其实存在——`SharedCache.remove(for:)` 就在那里（`Sources/MachOCaches/SharedCache.swift:121`）——但没有任何公开 seam 能调到它。`SwiftDeclarationIndexer.deinit` 按镜像清理了 symbol store 和 `InternedNodeReferenceCache`（`SwiftDeclarationIndexer.swift:156-160`），偏偏清不到这里。唯一的出口是内存压力触发的全局 `removeAll`。
+- **持有主体是 `MetadataReaderCache.Storage`**（`Sources/Analysis/SwiftInspection/MetadataReader.swift:649-660`）的三张字典，value 都是整棵 class `Node` 树：`nodeForMangledNameBox`（mangled name → 树）、`nodeForContextOffset`（descriptor offset → 树）、`nodeForSymbolName`（symbol 名 → 树，或一个表示「demangler 拒绝过这个名字」的 `nil` 裁决）。
+- **只进不出**。这个类是 `private` 单例。按镜像清除的能力其实存在——`SharedCache.remove(for:)` 就在那里（`Sources/MachO/MachOCaches/SharedCache.swift:121`）——但没有任何公开 seam 能调到它。`SwiftDeclarationIndexer.deinit` 按镜像清理了 symbol store 和 `InternedNodeReferenceCache`（`SwiftDeclarationIndexer.swift:156-160`），偏偏清不到这里。唯一的出口是内存压力触发的全局 `removeAll`。
 - **零跨树共享**。早前的 Stage 5c 把树的**构造**改成了 transient（不再向全局 `NodeCache` 灌节点），但没有改**持有**形态：每棵被缓存的树都自带私有的 `.module("Swift")`、`.identifier("Int")` 这类叶子副本。几万棵树里大量重复的子树，hash-consing 去重率为零。
 
 用户裁决（2026-08-08，经 swift-demangling 会话转达）：这套旧式简单缓存机制去掉，方案与审批按本仓库规矩走。
@@ -26,16 +26,16 @@ RuntimeViewer 索引五个系统镜像（Foundation + libswiftCore + AppKit + Sw
 
 | 位置 | 改什么 |
 |---|---|
-| `Sources/SwiftInspection/MetadataReader.swift:649-660`（`MetadataReaderCache.Storage`） | 三张字典的 value 从 `Node` / `Node?` 换成 `NodeReference` / `NodeReference?`。键不动（`MangledNameBox` / `Int` offset / `String` symbol 名）。为什么键不用动：键做的是对「demangle 这件工作」的去重，store 做的是对「树这份数据」的去重，两层各管各的——与 `lateDemangledNode` 已落地的模式完全同构。 |
+| `Sources/Analysis/SwiftInspection/MetadataReader.swift:649-660`（`MetadataReaderCache.Storage`） | 三张字典的 value 从 `Node` / `Node?` 换成 `NodeReference` / `NodeReference?`。键不动（`MangledNameBox` / `Int` offset / `String` symbol 名）。为什么键不用动：键做的是对「demangle 这件工作」的去重，store 做的是对「树这份数据」的去重，两层各管各的——与 `lateDemangledNode` 已落地的模式完全同构。 |
 | 同文件的六个缓存方法（`demangleType` ×2、`demangleContext` ×2、`buildContextManglingForSymbol` ×2） | miss 路径：现有的 `_demangle…` 构造瞬时树（不变）→ 经 `InternedNodeReferenceCache.shared.reference(interning:in:)`（镜像作用域）或 `reference(interning:)`（进程作用域）intern 进 store → 字典存引用 → 把刚 demangle 出的树直接返回给调用方。hit 路径：`reference.materialize()` 重建一棵独立树返回；`nil` 拒绝裁决直接返回 `nil`。`@_spi(Internals) import MachOSymbols` 本来就在（`MetadataReader.swift:8`），无新依赖。 |
-| `Sources/SwiftInspection/MetadataReader.swift`（新增） | 补上缺失的清理 seam：`MetadataReader.removeCache(for:)`（`@_spi(Internals) public`），实现就是一句 `MetadataReaderCache.shared.remove(for: machO)`。 |
-| `Sources/SwiftIndexing/SwiftDeclarationIndexer.swift:156-160`（`deinit`） | 在既有的两个按镜像 remove 旁边追加 `MetadataReader.removeCache(for: machO)`，让这份缓存与 symbol store / interned-name 桶按同一节奏回收。 |
+| `Sources/Analysis/SwiftInspection/MetadataReader.swift`（新增） | 补上缺失的清理 seam：`MetadataReader.removeCache(for:)`（`@_spi(Internals) public`），实现就是一句 `MetadataReaderCache.shared.remove(for: machO)`。 |
+| `Sources/Declaration/SwiftIndexing/SwiftDeclarationIndexer.swift:156-160`（`deinit`） | 在既有的两个按镜像 remove 旁边追加 `MetadataReader.removeCache(for: machO)`，让这份缓存与 symbol store / interned-name 桶按同一节奏回收。 |
 | AGENTS.md「Symbol indexing」段 | 同步措辞：`MetadataReader` 的 demangle memo 载荷已是 `NodeReference`（汇入 `InternedNodeReferenceCache` 作用域 store），且随 indexer 的按镜像清理一起释放。 |
 
 ## 明确不动的部分
 
 - **公开 API 与 103 处调用点**。`MetadataReader.demangleType` / `demangleContext` 仍返回 `Node`。Sources 内 36 个文件共 103 处调用点一行不改（对面会话报 112 处，差值是测试代码的口径差）。
-- **`MultiPayloadEnumDescriptorCache` 的 `[Node: MultiPayloadEnumDescriptor]` 键**（`Sources/SwiftDeclarationRendering/MultiPayloadEnumDescriptorCache.swift:32`）。对面会话判断「主缓存动了，它必须同批改键」，核实后**不成立**：class `Node` 的 `==` / `hash` 是**结构语义**（上游 `Node+Hashable.swift`——全子树结构摘要加 DAG 记忆化，实例身份只是快路径），所以换了缓存后端之后，build 时的键和查询时的键即使是不同实例也照常命中。这个缓存人口极小——每镜像的 multi-payload enum 数量级是百，树是短名字树——保留原样；它残留的少量 class `Node` 在预期残余 ≲2.3 万之内。
+- **`MultiPayloadEnumDescriptorCache` 的 `[Node: MultiPayloadEnumDescriptor]` 键**（`Sources/Output/SwiftDeclarationRendering/MultiPayloadEnumDescriptorCache.swift:32`）。对面会话判断「主缓存动了，它必须同批改键」，核实后**不成立**：class `Node` 的 `==` / `hash` 是**结构语义**（上游 `Node+Hashable.swift`——全子树结构摘要加 DAG 记忆化，实例身份只是快路径），所以换了缓存后端之后，build 时的键和查询时的键即使是不同实例也照常命中。这个缓存人口极小——每镜像的 multi-payload enum 数量级是百，树是短名字树——保留原样；它残留的少量 class `Node` 在预期残余 ≲2.3 万之内。
 - **`isCacheEnabled` 开关与 `demangleTypeUncached`**。语义不变。后者存在的理由——在 `SharedCache` 的 build 闭包内再进 `storage()` 会 trap，所以要有一条免重入路径——在新形态下依旧成立。
 - **`GenericArgumentEnvironment.swift:250` 往 `NodeCache.shared` 叶子表灌节点**。对面会话留档的次要项，属于剩余约 11% 的一部分，不在本次范围。
 

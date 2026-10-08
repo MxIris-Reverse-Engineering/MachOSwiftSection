@@ -95,22 +95,39 @@ enum ABIEvolutionTestSuite {
     /// `SwiftDiffableInterfaceBuilderTestSuite.CrossVersionDyldCacheImageTests`.
     /// The caches are retained because the extracted `MachOFile`s resolve
     /// cross-image references through them while indexing.
+    ///
+    /// A version whose cache lacks the image, or whose image has no
+    /// `__swift5_*` section, is left off the axis: there is nothing to index,
+    /// and indexing it anyway logs four extraction failures. AppKit kept its
+    /// Swift API in `libswiftAppKit.dylib` until macOS 14, so an AppKit axis
+    /// reaching further back starts at 14.0. A cache that cannot be opened
+    /// still throws.
+    ///
+    /// Each cache is opened whole, the way `swift-section --dyld-shared-cache`
+    /// opens it, so the dumps match what the command line prints. Opened from
+    /// its main file alone, every read into another sub-cache file mapped that
+    /// file once more until MachOObjCSection 0.8.109, and an evolution over
+    /// every archived macOS minor ran past 5 GB.
     @TestActor
     class MultiVersionDyldCacheImageTests: Sendable {
-        let caches: [DyldCache]
+        let caches: [FullDyldCache]
         let versions: [(label: String, machO: MachOFile)]
 
+        /// Oldest first; each cache's `versionLabel` labels it on the axis.
         class var cachePaths: [DyldSharedCachePath] { [.macOS_15_5, .macOS_26_5_2, .macOS_27_0] }
-        class var cacheLabels: [String] { ["15.5", "26.5.2", "27.0"] }
         class var cacheImageName: MachOImageName { .SwiftUI }
 
         init() async throws {
-            var caches: [DyldCache] = []
+            var caches: [FullDyldCache] = []
             var versions: [(label: String, machO: MachOFile)] = []
-            for (cachePath, cacheLabel) in zip(Self.cachePaths, Self.cacheLabels) {
-                let cache = try DyldCache(path: cachePath)
+            for cachePath in Self.cachePaths {
+                let cache = try FullDyldCache(path: cachePath)
+                guard let machOFile = cache.machOFile(named: Self.cacheImageName),
+                      machOFile.sections.contains(where: { $0.sectionName.hasPrefix("__swift5_") }) else {
+                    continue
+                }
                 caches.append(cache)
-                versions.append((cacheLabel, try #require(cache.machOFile(named: Self.cacheImageName))))
+                versions.append((cachePath.versionLabel, machOFile))
             }
             self.caches = caches
             self.versions = versions

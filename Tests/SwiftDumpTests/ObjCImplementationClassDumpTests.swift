@@ -27,13 +27,19 @@ struct ObjCImplementationClassDumpTests {
     @Test func fullFixtureDumpsBothSides() async throws {
         let output = try await dump(.full)
         #expect(output.contains("@objc @implementation extension Widget {"))
-        #expect(output.contains("// ObjC class Widget: NSObject, class_ro_t flags 0x184, instanceStart 8, instanceSize 40"))
-        #expect(output.contains("// Evidence: metadata accessor _$sSo6WidgetCMa, 3 field-offset globals, Swift symbols at 9 method implementations"))
+        #expect(output.contains("// ObjC class Widget: NSObject, class_ro_t flags 0x184, instanceStart 8, instanceSize 64"))
+        #expect(output.contains("// Evidence: metadata accessor _$sSo6WidgetCMa, 5 field-offset globals, Swift symbols at 9 method implementations"))
         #expect(output.contains("// Implemented in Swift module \(ObjCImplementationFixture.moduleName)"))
         #expect(output.contains("/* Stored properties (ObjC ivars) */"))
         #expect(output.contains("var title: Swift.String // offset 0x8, size 16, alignment 8, encoding \"?\", "))
         // `.test` demangle options print sugared types.
         #expect(output.contains("var swiftOnlyCache: [Swift.Int] // offset 0x20, size 8, alignment 8, encoding \"\", "))
+        // Field-offset symbols naming the variable through a `privateDeclName`:
+        // a `private` property, and a `lazy var`'s storage, which prints under
+        // the property's name with its storage type, as a Swift type's own
+        // lazy field does.
+        #expect(output.contains("var hiddenTally: Swift.Int // offset 0x28, size 8, alignment 8, encoding \"\", "))
+        #expect(output.contains("lazy var summary: Swift.String? // offset 0x30, size 16, alignment 8, encoding \"\", "))
         #expect(output.contains("not exposed to ObjC"))
         #expect(output.contains("/* ObjC instance methods */"))
         #expect(output.contains("-[Widget initWithTitle:] // types \"@24@0:8@16\", imp 0x"))
@@ -58,8 +64,8 @@ struct ObjCImplementationClassDumpTests {
 
     @Test func fullyStrippedDumpIsHonestAboutWhatIsMissing() async throws {
         let output = try await dump(.strippedEverything)
-        #expect(output.hasPrefix("@objc @implementation /* inferred from ObjC class data: 2 ivars carry Swift-style type encodings */ extension Widget {"))
-        #expect(output.contains("// Evidence: inferred from ObjC class data: 2 ivars carry Swift-style type encodings"))
+        #expect(output.hasPrefix("@objc @implementation /* inferred from ObjC class data: 4 ivars carry Swift-style type encodings */ extension Widget {"))
+        #expect(output.contains("// Evidence: inferred from ObjC class data: 4 ivars carry Swift-style type encodings"))
         #expect(output.contains("title // offset 0x8, size 16, alignment 8, encoding \"?\", Swift type not recoverable"))
         // IMPs with no symbol print as addresses only.
         #expect(output.contains("-[Widget refresh] // types \"v16@0:8\", imp 0x"))

@@ -33,14 +33,14 @@ final class KeyPathStoredFieldOffsetTests: MachOSwiftSectionFixtureTests, Fixtur
         return [
             Shape(
                 label: "inlineStoredOffset",
-                file: try required(fileDescriptors.inlineStoredOffset.storedFieldOffset(in: machOFile)),
-                image: try required(imageDescriptors.inlineStoredOffset.storedFieldOffset(in: machOImage)),
+                file: try required(fileDescriptors.inlineStoredOffset.storedFieldOffset(in: fileContext)),
+                image: try required(imageDescriptors.inlineStoredOffset.storedFieldOffset(in: imageContext)),
                 expected: KeyPathStoredFieldOffsetBaseline.inlineStoredOffset
             ),
             Shape(
                 label: "unresolvedFieldOffset",
-                file: try required(fileDescriptors.unresolvedFieldOffset.storedFieldOffset(in: machOFile)),
-                image: try required(imageDescriptors.unresolvedFieldOffset.storedFieldOffset(in: machOImage)),
+                file: try required(fileDescriptors.unresolvedFieldOffset.storedFieldOffset(in: fileContext)),
+                image: try required(imageDescriptors.unresolvedFieldOffset.storedFieldOffset(in: imageContext)),
                 expected: KeyPathStoredFieldOffsetBaseline.unresolvedFieldOffset
             ),
         ]
