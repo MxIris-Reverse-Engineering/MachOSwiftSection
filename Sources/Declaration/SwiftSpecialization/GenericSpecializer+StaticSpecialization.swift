@@ -463,17 +463,33 @@ extension GenericSpecializer where MachO == MachOFile {
             builder.addError(.baseClassRequirementNotSatisfied(parameterName: subject.path, expectedBaseClass: expectedDisplay, actualType: subject.display))
             return
         }
-        let subtree = conformanceProvider.subclasses(of: expectedClassName)
-        guard !subtree.isEmpty else {
-            builder.addWarning(.baseClassRequirementResolutionFailed(parameterName: subject.path, reason: "offline: the indexed images describe no class hierarchy under \(expectedDisplay)"))
-            return
+        // Up the superclass chain the indexed images describe, class names
+        // compared unbound. Reaching the base proves the requirement; a root
+        // class reached without it proves the violation. A link no indexed
+        // image describes proves nothing either way: an Objective-C class —
+        // `NSOperation` between a Swift class and an `NSObject` bound — or a
+        // class of an image the indexer does not hold. Taking that for a
+        // violation rejected every Swift class below a Cocoa class, which the
+        // runtime accepts.
+        var currentClassName = actualTypeName
+        var visitedClassNames: Set<String> = []
+        while visitedClassNames.insert(currentClassName.name).inserted {
+            if currentClassName.name == expectedClassName.name { return }
+            switch conformanceProvider.superclassLink(of: currentClassName) {
+            case .inherits(let superclassName):
+                currentClassName = unboundNominalTypeName(of: superclassName.node.materialize(), kind: .class) ?? superclassName
+            case .root:
+                builder.addError(.baseClassRequirementNotSatisfied(parameterName: subject.path, expectedBaseClass: expectedDisplay, actualType: subject.display))
+                return
+            case .unknown:
+                let reason = currentClassName.name == actualTypeName.name
+                    ? "offline: \(subject.display) is in no indexed image, so its superclass chain cannot be read"
+                    : "offline: the superclass chain of \(subject.display) leaves the indexed images at \(currentClassName.name), so whether it reaches \(expectedDisplay) cannot be read"
+                builder.addWarning(.baseClassRequirementResolutionFailed(parameterName: subject.path, reason: reason))
+                return
+            }
         }
-        if subtree.contains(where: { $0.name == actualTypeName.name }) { return }
-        if conformanceProvider.typeDefinition(for: actualTypeName) != nil {
-            builder.addError(.baseClassRequirementNotSatisfied(parameterName: subject.path, expectedBaseClass: expectedDisplay, actualType: subject.display))
-        } else {
-            builder.addWarning(.baseClassRequirementResolutionFailed(parameterName: subject.path, reason: "offline: \(subject.display) is in no indexed image, so its superclass chain cannot be read"))
-        }
+        builder.addWarning(.baseClassRequirementResolutionFailed(parameterName: subject.path, reason: "offline: the superclass chain of \(subject.display) loops back on itself"))
     }
 
     private func checkSameType(of subject: StaticRequirementSubject, requirement: GenericRequirementDescriptor, binding: GenericArgumentBinding, into builder: SpecializationValidation.Builder) {

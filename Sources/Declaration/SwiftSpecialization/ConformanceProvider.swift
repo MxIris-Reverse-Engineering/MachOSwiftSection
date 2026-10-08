@@ -49,6 +49,23 @@ public protocol ConformanceProvider: Sendable {
     /// no class-hierarchy knowledge degrade to "show every candidate"
     /// without breaking the contract.
     func subclasses(of baseClassName: TypeName) -> [TypeName]
+
+    /// What the provider knows of the class `className` inherits from
+    /// directly — the link the offline base-class check walks up (evolution
+    /// proposal `offline-generic-specialization`). Default `.unknown`: a
+    /// provider without class-hierarchy knowledge proves nothing either way.
+    func superclassLink(of className: TypeName) -> SuperclassLink
+}
+
+/// A class's direct superclass, as a `ConformanceProvider` knows it.
+public enum SuperclassLink: Sendable, Equatable {
+    /// The provider describes the class, and it inherits from this class.
+    case inherits(from: TypeName)
+    /// The provider describes the class, and it has no superclass.
+    case root
+    /// The provider holds no description of the class: an Objective-C
+    /// class, or a class of an image it does not index.
+    case unknown
 }
 
 // MARK: - Default Implementations
@@ -77,6 +94,10 @@ extension ConformanceProvider {
     /// "show every candidate" behaviour for non-indexer providers.
     public func subclasses(of baseClassName: TypeName) -> [TypeName] {
         []
+    }
+
+    public func superclassLink(of className: TypeName) -> SuperclassLink {
+        .unknown
     }
 }
 
@@ -111,6 +132,9 @@ public final class IndexerConformanceProvider<MachO: MachOSwiftSectionRepresenta
     /// (`TypeName.name`, "Module.Type") is stable across both paths.
     private final class SubclassCache: @unchecked Sendable {
         var directChildrenByParentName: [String: [TypeName]]?
+        /// Every indexed class's direct superclass by the class's name: the
+        /// same links, read the other way, built in the same walk.
+        var superclassLinkByClassName: [String: SuperclassLink]?
         let lock = NSLock()
     }
 
@@ -152,7 +176,7 @@ extension IndexerConformanceProvider: ConformanceProvider {
         // return empty so callers can fall back to "do not narrow".
         guard baseClassName.kind == .class else { return [] }
 
-        let directChildren = directChildrenMap()
+        let directChildren = classHierarchy().directChildrenByParentName
 
         // BFS over the parent → direct-subclasses graph, keyed by
         // canonical name string. Result list still uses `TypeName`s
@@ -173,16 +197,25 @@ extension IndexerConformanceProvider: ConformanceProvider {
         return result
     }
 
+    public func superclassLink(of className: TypeName) -> SuperclassLink {
+        guard className.kind == .class else { return .unknown }
+        return classHierarchy().superclassLinkByClassName[className.name] ?? .unknown
+    }
+
     /// Build (or fetch from cache) the parent-name → direct-subclasses
-    /// map by walking every indexed `.class` definition's
+    /// map, and the class-name → superclass map that reads the same links
+    /// the other way, by walking every indexed `.class` definition's
     /// `superclassType` link. Lock-protected so concurrent first-callers
     /// don't both pay the O(n) build cost.
-    private func directChildrenMap() -> [String: [TypeName]] {
+    private func classHierarchy() -> (directChildrenByParentName: [String: [TypeName]], superclassLinkByClassName: [String: SuperclassLink]) {
         subclassCache.lock.lock()
         defer { subclassCache.lock.unlock() }
-        if let cached = subclassCache.directChildrenByParentName { return cached }
+        if let cachedChildren = subclassCache.directChildrenByParentName, let cachedLinks = subclassCache.superclassLinkByClassName {
+            return (cachedChildren, cachedLinks)
+        }
 
         var map: [String: [TypeName]] = [:]
+        var links: [String: SuperclassLink] = [:]
         for (childTypeName, entry) in indexer.allAllTypeDefinitions {
             guard childTypeName.kind == .class else { continue }
             guard case .class(let classDescriptor) = entry.value.typeContextDescriptorWrapper else { continue }
@@ -212,14 +245,18 @@ extension IndexerConformanceProvider: ConformanceProvider {
             }
 
             // A missing / unreadable superclass link is the ordinary "this class
-            // has no usable parent" case and stays silent.
+            // has no usable parent" case and stays silent. Missing is a root
+            // class; unreadable stays unknown, proving nothing.
             var superNode: Node?
             do {
                 superNode = try classWrapper.superclassNode(in: entry.machO.context)
             } catch {
                 continue
             }
-            guard let superNode else { continue }
+            guard let superNode else {
+                links[childTypeName.name] = .root
+                continue
+            }
 
             // `SymbolicDemangler.demangleType` may wrap the result in a
             // `.type` node or return a deeper tree depending on the
@@ -240,10 +277,12 @@ extension IndexerConformanceProvider: ConformanceProvider {
             }
             let superTypeName = TypeName(node: InternedNodeReferenceCache.shared.reference(interning: superNode, in: entry.machO), kind: .class)
             map[superTypeName.name, default: []].append(childTypeName)
+            links[childTypeName.name] = .inherits(from: superTypeName)
         }
 
         subclassCache.directChildrenByParentName = map
-        return map
+        subclassCache.superclassLinkByClassName = links
+        return (map, links)
     }
 }
 
@@ -332,6 +371,16 @@ public struct CompositeConformanceProvider: ConformanceProvider {
             }
         }
         return result
+    }
+
+    /// The first provider that describes the class answers: a class lives in
+    /// one image, so at most one sub-indexer knows its superclass link.
+    public func superclassLink(of className: TypeName) -> SuperclassLink {
+        for provider in providers {
+            let link = provider.superclassLink(of: className)
+            if link != .unknown { return link }
+        }
+        return .unknown
     }
 }
 
