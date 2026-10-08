@@ -238,14 +238,17 @@ public final class SwiftInterfaceBuilder<MachO: MachOFieldLayoutRenderable>: Sen
             // blocks: the per-protocol printer emits them trailing TOP-LEVEL
             // protocol declarations only (extension blocks cannot nest inside
             // a parent's body), so nested protocols' blocks surface here at
-            // the top level instead. This loop was dead before evolution
+            // the top level instead. The loop takes exactly the protocols
+            // `printsDefaultImplementationExtensionsAfterDeclaration` rules
+            // out — the printer reads the same property — so each block
+            // prints once. This loop was dead before evolution
             // proposal 0007 — it filtered ROOT protocols on `parent != nil`,
             // which no root ever satisfies, so nested protocols' blocks never
             // printed at all. A protocol declared in an extension of another
             // module's type is nested too, with an extension context instead
             // of a parent; its blocks used to print inside that extension's
             // braces (evolution proposal `nested-definition-regions`).
-            for protocolDefinition in indexer.allProtocolDefinitions.values where protocolDefinition.parent != nil || protocolDefinition.extensionContext != nil {
+            for protocolDefinition in indexer.allProtocolDefinitions.values where !protocolDefinition.printsDefaultImplementationExtensionsAfterDeclaration {
                 for extensionDefinition in indexedDefaultImplementationExtensions(of: protocolDefinition) {
                     await printCatchedThrowing(
                         dispatchingTo: eventDispatcher,

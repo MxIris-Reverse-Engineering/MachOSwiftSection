@@ -380,13 +380,11 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
             }
         }
 
-        // Only a top-level protocol trails its default-implementation
-        // extensions. One nested in a type, or declared in an extension of
-        // another module's type (which leaves it an extension context and no
-        // parent), prints inside that declaration's braces, where an
-        // extension cannot go — the interface prints its extensions in the
-        // top-level extensions block instead (`SwiftInterfaceBuilder`).
-        if protocolDefinition.parent == nil, protocolDefinition.extensionContext == nil {
+        // Which protocols trail their default-implementation extensions is
+        // `printsDefaultImplementationExtensionsAfterDeclaration`'s to say: a
+        // top-level one only. The interface prints the others' extensions in
+        // its top-level block for nested protocols (`SwiftInterfaceBuilder`).
+        if protocolDefinition.printsDefaultImplementationExtensionsAfterDeclaration {
             // Per-extension catch: a default-implementation extension whose
             // printing throws drops only itself, not the protocol it trails.
             await BlockList {

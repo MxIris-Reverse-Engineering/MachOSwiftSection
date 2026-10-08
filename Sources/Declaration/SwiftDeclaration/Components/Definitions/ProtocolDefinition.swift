@@ -29,6 +29,26 @@ public final class ProtocolDefinition: Definition, MutableDefinition, @unchecked
 
     public package(set) var defaultImplementationExtensions: [ExtensionDefinition] = []
 
+    /// Whether `SwiftDeclarationPrinter.printProtocolDefinition` prints
+    /// ``defaultImplementationExtensions`` right after the protocol's
+    /// declaration: true only for a protocol declared at the top level.
+    ///
+    /// A protocol nested in a type, or declared in an extension of another
+    /// module's type (which leaves it an ``extensionContext`` and no
+    /// ``parent``), prints inside that declaration's braces, where Swift
+    /// cannot put an extension. Its default-implementation extensions belong
+    /// at the top level instead: the interface prints them in its block for
+    /// nested protocols, and a host that prints such a protocol by itself
+    /// appends them after it. A protocol declared in an extension of its own
+    /// module's type is the nested kind: the compiler parents it on the type.
+    ///
+    /// The printer, the interface builder (`SwiftInterfaceBuilder`) and hosts
+    /// all read this one rule rather than restating it, so they cannot
+    /// disagree on where those extensions print.
+    public var printsDefaultImplementationExtensionsAfterDeclaration: Bool {
+        parent == nil && extensionContext == nil
+    }
+
     public package(set) var associatedTypes: [String] = []
 
     public package(set) var allocators: [FunctionDefinition] = []

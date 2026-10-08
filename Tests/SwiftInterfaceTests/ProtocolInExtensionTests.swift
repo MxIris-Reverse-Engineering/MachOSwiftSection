@@ -76,12 +76,24 @@ struct ProtocolInExtensionTests {
     /// `FixtureAnchor` is ballast: a fixture dylib with no class has no
     /// `__DATA` segment, which older MachOKit releases mis-walked.
     ///
-    /// Only `Int.Counter` has an extension context. The compiler parents a
-    /// protocol declared in an extension of this module's own type on the
-    /// type itself, so `Host.Delegate` is a nested protocol of `Host` — the
-    /// case that already printed right, kept here as the contrast.
+    /// A protocol in each place one can be declared: `Greeter` at the top
+    /// level, `Host.Delegate` in a type, `Int.Counter` in an extension of
+    /// another module's type. Only `Int.Counter` has an extension context.
+    /// The compiler parents a protocol declared in an extension of this
+    /// module's own type on the type itself, so `Host.Delegate` is a nested
+    /// protocol of `Host` — the case that already printed right, kept here as
+    /// the contrast.
     private static let source = """
     public final class FixtureAnchor {}
+
+    public protocol Greeter {
+        func greet()
+    }
+
+    extension Greeter {
+        public func greet() {}
+        public func greeterHelper() -> Int { 2 }
+    }
 
     public struct Host {
         public init() {}
@@ -164,6 +176,25 @@ struct ProtocolInExtensionTests {
             let printed = try await printer.printProtocolDefinition(protocolDefinition).string
             #expect(!printed.contains("extension"), "\(printed)")
         }
+    }
+
+    /// `printsDefaultImplementationExtensionsAfterDeclaration` is the one
+    /// statement of the rule the printer, the interface builder and hosts
+    /// read: a host appends a protocol's default-implementation extensions
+    /// itself exactly when it is false.
+    @Test("only a protocol declared at the top level is printed with its default implementations after it")
+    func onlyATopLevelProtocolTrailsItsDefaultImplementations() async throws {
+        let indexer = SwiftDeclarationIndexer(in: try loadFixture())
+        try await indexer.prepare()
+
+        let verdictByProtocolName = Dictionary(uniqueKeysWithValues: indexer.allProtocolDefinitions.values.map {
+            ($0.protocolName.name, $0.printsDefaultImplementationExtensionsAfterDeclaration)
+        })
+        #expect(verdictByProtocolName == [
+            "ProbeProtocolInExtension.Greeter": true,
+            "ProbeProtocolInExtension.Host.Delegate": false,
+            "Swift.Int.Counter": false,
+        ])
     }
 
     @Test("a protocol declared in an extension, taken out of the extension's print, is its own print")
