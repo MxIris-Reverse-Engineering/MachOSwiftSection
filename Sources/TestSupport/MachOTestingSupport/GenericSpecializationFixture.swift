@@ -69,6 +69,15 @@ package enum GenericSpecializationFixture {
         }
     }
 
+    // `Second` is tied to `First`, so it takes no key argument: the compiler
+    // writes the requirement as `First == Second`, the parameter that keeps
+    // its key argument on the left, and the instantiation binds `Second` to
+    // `First`'s argument. A warning in the fixture's Swift 5 mode.
+    public struct TiedParameterPair<First, Second> where First == Second {
+        public var first: First
+        public var second: Second
+    }
+
     // The extension's parameters span two depths, `DepthOuter`'s and
     // `SecondMiddle`'s, so `InnerElement` is at depth 2.
     extension DepthOuter.SecondMiddle where OuterElement == Int {

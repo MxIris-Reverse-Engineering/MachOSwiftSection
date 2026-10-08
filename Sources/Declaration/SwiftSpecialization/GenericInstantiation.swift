@@ -79,6 +79,11 @@ package struct GenericInstantiation {
     /// requirement that fixes it. A right-hand side can name another fixed
     /// parameter (`C == B`, `B == Int`), so the requirements are applied until
     /// no further one resolves.
+    ///
+    /// A requirement between two parameters (`First == Second`) is read both
+    /// ways, as the runtime's `_gatherWrittenGenericParameters` reads it: the
+    /// compiler writes the parameter that keeps its key argument on the LEFT,
+    /// so it is the right-hand parameter that takes the left one's argument.
     private static func fillFixedParameters<MachO: MachOSwiftSectionRepresentableWithCache>(
         _ argumentsByFlatIndex: inout [Node?],
         depthLayout: GenericParameterDepthLayout,
@@ -89,16 +94,26 @@ package struct GenericInstantiation {
         guard !unresolvedFlatIndices.isEmpty else { return }
 
         // The same-type requirements whose subject is a parameter itself, by
-        // that parameter's position in the cumulative list.
+        // that parameter's position in the cumulative list; and, for those
+        // whose right-hand side is a parameter too, the left-hand parameter
+        // by the right-hand one's position.
         var fixingRequirementByFlatIndex: [Int: MangledName] = [:]
+        var leftHandFlatIndexByRightHandFlatIndex: [Int: Int] = [:]
         for requirement in requirements where requirement.layout.flags.kind == .sameType {
             guard let subjectNode = try? SymbolicDemangler.demangleType(for: requirement.paramMangledName(in: machO.context), in: machO.context),
                   let position = genericParameterPosition(of: subjectNode),
                   let flatIndex = depthLayout.flatIndex(depth: position.depth, index: position.index),
-                  fixingRequirementByFlatIndex[flatIndex] == nil,
                   let rightHandSide = try? requirement.type(in: machO.context)
             else { continue }
-            fixingRequirementByFlatIndex[flatIndex] = rightHandSide
+            if fixingRequirementByFlatIndex[flatIndex] == nil {
+                fixingRequirementByFlatIndex[flatIndex] = rightHandSide
+            }
+            if let rightHandSideNode = try? SymbolicDemangler.demangleType(for: rightHandSide, in: machO.context),
+               let rightHandPosition = genericParameterPosition(of: rightHandSideNode),
+               let rightHandFlatIndex = depthLayout.flatIndex(depth: rightHandPosition.depth, index: rightHandPosition.index),
+               leftHandFlatIndexByRightHandFlatIndex[rightHandFlatIndex] == nil {
+                leftHandFlatIndexByRightHandFlatIndex[rightHandFlatIndex] = flatIndex
+            }
         }
 
         var didResolveParameter = true
@@ -106,13 +121,20 @@ package struct GenericInstantiation {
             didResolveParameter = false
             let partialBinding = Self.partialBinding(argumentsByFlatIndex, depthLayout: depthLayout)
             for flatIndex in unresolvedFlatIndices {
-                guard let rightHandSide = fixingRequirementByFlatIndex[flatIndex],
-                      let rightHandSideNode = try? SymbolicDemangler.demangleType(for: rightHandSide, in: machO.context)
-                else { continue }
-                let argument = DependentMemberProjection.projectingConcreteMembers(in: partialBinding.substituting(in: rightHandSideNode), in: machO)
-                guard !containsGenericParameter(argument) else { continue }
-                argumentsByFlatIndex[flatIndex] = typeWrapped(argument)
-                didResolveParameter = true
+                if let rightHandSide = fixingRequirementByFlatIndex[flatIndex],
+                   let rightHandSideNode = try? SymbolicDemangler.demangleType(for: rightHandSide, in: machO.context) {
+                    let argument = DependentMemberProjection.projectingConcreteMembers(in: partialBinding.substituting(in: rightHandSideNode), in: machO)
+                    if !containsGenericParameter(argument) {
+                        argumentsByFlatIndex[flatIndex] = typeWrapped(argument)
+                        didResolveParameter = true
+                        continue
+                    }
+                }
+                if let leftHandFlatIndex = leftHandFlatIndexByRightHandFlatIndex[flatIndex],
+                   let leftHandArgument = argumentsByFlatIndex[leftHandFlatIndex] {
+                    argumentsByFlatIndex[flatIndex] = leftHandArgument
+                    didResolveParameter = true
+                }
             }
             unresolvedFlatIndices.removeAll { argumentsByFlatIndex[$0] != nil }
         }

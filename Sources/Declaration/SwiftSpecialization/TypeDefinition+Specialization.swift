@@ -222,12 +222,18 @@ extension TypeDefinition {
         let unboundTypeName = try materializedTypeContext.typeName(in: machO.context)
         let finalTypeName: TypeName
         if let typeArgumentNodes, !typeArgumentNodes.isEmpty {
-            if let instantiation = try? GenericInstantiation(of: typeContextDescriptorWrapper, keyArguments: typeArgumentNodes, in: machO) {
+            do {
+                let instantiation = try GenericInstantiation(of: typeContextDescriptorWrapper, keyArguments: typeArgumentNodes, in: machO)
                 finalTypeName = TypeName(
                     node: InternedNodeReferenceCache.shared.reference(interning: instantiation.typeNode, in: machO),
                     kind: unboundTypeName.kind
                 )
-            } else {
+            } catch {
+                // The flat name is the name of no instantiation, so falling
+                // back to it is a degradation worth a trace: the header still
+                // prints the runtime's name, and the two now disagree.
+                let reason = (error as? LocalizedError)?.errorDescription ?? "\(error)"
+                #log(.error, "could not name the instantiation of \(unboundTypeName.name, privacy: .public) (\(reason, privacy: .public)); naming it with every argument on its innermost level")
                 finalTypeName = Self.boundGenericTypeName(
                     unboundTypeName: unboundTypeName,
                     typeArgumentNodes: typeArgumentNodes
