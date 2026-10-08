@@ -50,7 +50,7 @@ struct ProtocolInExtensionTests {
             try source.write(to: sourceURL, atomically: true, encoding: .utf8)
             let libraryURL = workingDirectory.appendingPathComponent("libProbeProtocolInExtension.dylib")
             try run(swiftcArguments: [
-                "-O", "-emit-library", "-module-name", "ProbeProtocolInExtension",
+                "-swift-version", "5", "-O", "-emit-library", "-module-name", "ProbeProtocolInExtension",
                 "-target", "arm64-apple-macosx15.0",
                 sourceURL.path, "-o", libraryURL.path,
             ])

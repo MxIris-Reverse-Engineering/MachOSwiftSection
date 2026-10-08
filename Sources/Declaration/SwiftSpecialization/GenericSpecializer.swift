@@ -205,25 +205,25 @@ extension GenericSpecializer {
         let depthLayout = GenericParameterDepthLayout.make(for: genericContext, ownedBy: .type(type), in: machO.context)
         let mergedRequirements = Self.mergedRequirements(from: genericContext)
 
-        for (flatIndex, param) in cumulativeParameters.enumerated() {
+        for (flatIndex, parameter) in cumulativeParameters.enumerated() {
             // Skip non-key parameters (type packs, values, etc.)
-            guard param.hasKeyArgument, param.kind == .type else { continue }
+            guard parameter.hasKeyArgument, parameter.kind == .type else { continue }
             guard let position = depthLayout.position(ofParameterAt: flatIndex) else { continue }
 
             // Get parameter name based on depth and per-level index
             // (e.g., A, B, A1, B1, A2...).
-            let paramName = genericParameterName(depth: position.depth.cast(), index: position.index.cast())
+            let parameterName = genericParameterName(depth: position.depth.cast(), index: position.index.cast())
 
             // Collect requirements for this parameter (ordered for PWT passing)
             let requirements = try collectRequirements(
-                for: paramName,
+                for: parameterName,
                 from: mergedRequirements
             )
 
             // Find candidate types that satisfy all protocol requirements
             let protocolRequirements = requirements.compactMap { requirement -> ProtocolName? in
-                if case .protocol(let info) = requirement {
-                    return info.protocolName
+                if case .protocol(let protocolRequirement) = requirement {
+                    return protocolRequirement.protocolName
                 }
                 return nil
             }
@@ -250,7 +250,7 @@ extension GenericSpecializer {
             )
 
             parameters.append(SpecializationRequest.Parameter(
-                name: paramName,
+                name: parameterName,
                 index: position.index,
                 depth: position.depth,
                 requirements: requirements,
@@ -385,17 +385,17 @@ extension GenericSpecializer {
         switch flags.kind {
         case .protocol:
             let resolvedContent = try genericRequirement.resolvedContent(in: machO.context)
-            guard case .protocol(let protocolRef) = resolvedContent else {
+            guard case .protocol(let protocolReference) = resolvedContent else {
                 return nil
             }
 
             // Try to get protocol name
             let protocolName: ProtocolName
-            switch protocolRef {
+            switch protocolReference {
             case .element(let resolved):
-                guard let swiftProto = resolved.swift else { return nil }
-                let proto = try MachOSwiftSection.`Protocol`(descriptor: swiftProto, in: machO.context)
-                protocolName = try proto.protocolName(in: machO.context)
+                guard let swiftProtocolDescriptor = resolved.swift else { return nil }
+                let protocolWrapper = try MachOSwiftSection.`Protocol`(descriptor: swiftProtocolDescriptor, in: machO.context)
+                protocolName = try protocolWrapper.protocolName(in: machO.context)
             case .symbol(let symbol):
                 // A protocol another image declares, read from a file: the
                 // reference lands on the bind that the loader would resolve

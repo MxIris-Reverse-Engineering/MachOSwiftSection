@@ -401,8 +401,8 @@ extension GenericSpecializer where MachO == MachOFile {
     }
 
     private func checkConformance(of subject: StaticRequirementSubject, to requirement: GenericRequirementDescriptor, into builder: SpecializationValidation.Builder) {
-        guard let builtRequirement = try? buildRequirement(from: requirement), case .protocol(let info) = builtRequirement else { return }
-        let protocolName = info.protocolName
+        guard let builtRequirement = try? buildRequirement(from: requirement), case .protocol(let protocolRequirement) = builtRequirement else { return }
+        let protocolName = protocolRequirement.protocolName
         guard subject.isResolved, let typeName = subject.nominalTypeName ?? unboundNominalTypeName(of: subject.type) else {
             builder.addWarning(.conformanceCheckFailed(
                 parameterName: subject.path,
