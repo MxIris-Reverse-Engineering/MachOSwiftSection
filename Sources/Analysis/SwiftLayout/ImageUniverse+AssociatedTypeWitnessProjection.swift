@@ -119,7 +119,8 @@ extension ImageUniverse {
            let baseTypeNode = rewrittenNode.children.first,
            let associatedTypeReference = rewrittenNode.children.at(1),
            !Self.containsGenericParameter(baseTypeNode),
-           let projection = projectedAssociatedTypeWitness(base: baseTypeNode, associatedTypeReference: associatedTypeReference) {
+           let projection = projectedAssociatedTypeWitness(base: baseTypeNode, associatedTypeReference: associatedTypeReference),
+           !Self.containsUnspellableReference(projection.witnessNode) {
             var nestedRewrittenNodes: [ObjectIdentifier: Node] = [:]
             let projectedWitness = projectingConcreteMembers(in: projection.witnessNode, remainingHops: remainingHops - 1, rewrittenNodes: &nestedRewrittenNodes)
             // The member sits inside a `.type` wrapper already; the witness's
@@ -132,5 +133,21 @@ extension ImageUniverse {
 
     private static func containsGenericParameter(_ node: Node) -> Bool {
         node.kind == .dependentGenericParamType || node.children.contains(where: containsGenericParameter)
+    }
+
+    /// Whether `node` holds a reference that prints as a placeholder rather
+    /// than a type: an opaque type — the record keeps one for the result of a
+    /// `dynamic` declaration, an availability-conditional `some` (SE-0360) and
+    /// a non-inlinable `some` of another resilient module, whose underlying
+    /// type it cannot fix — or a kind-9 accessor function. Spliced into a
+    /// field's type it read `opaque type symbolic reference 0x….0`; the member
+    /// it would replace, `Concrete.Body`, names the type better.
+    private static func containsUnspellableReference(_ node: Node) -> Bool {
+        switch node.kind {
+        case .opaqueType, .opaqueReturnType, .opaqueReturnTypeOf, .opaqueTypeDescriptorSymbolicReference, .accessorFunctionReference:
+            return true
+        default:
+            return node.children.contains(where: containsUnspellableReference)
+        }
     }
 }
