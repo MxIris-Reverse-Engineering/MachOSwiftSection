@@ -146,6 +146,14 @@ public struct StaticLayoutCalculator<MachO: MachOSwiftSectionRepresentableWithCa
 
     // MARK: - Instantiations bound by a binding (evolution proposal `offline-generic-specialization`)
 
+    /// `node` with every member of a concrete type projected through the
+    /// witness records of this calculator's images — the images its layouts
+    /// are computed over, so a field type projected here and the layout
+    /// printed beside it read the same records.
+    public func projectingConcreteMembers(in node: Node) -> Node {
+        imageUniverse.projectingConcreteMembers(in: node)
+    }
+
     /// The per-field layout of the instantiation `binding` makes of
     /// `typeDescriptor` — every depth of its generic signature bound, so a
     /// nested type of a specialized parent (`Outer<Int>.Inner<String>`)

@@ -4,6 +4,7 @@ import MachODependencies
 import MachOSwiftSection
 import MachOFoundation
 import SwiftLayout
+import Demangling
 @_spi(Internals) import SwiftInspection
 
 /// How the static (MachOFile) field-layout path resolves field / superclass /
@@ -85,9 +86,21 @@ public protocol StaticFieldLayoutProvider: Sendable {
     /// The expanded nested-field-offset tree for a field type of the
     /// instantiation `binding` describes.
     func nestedFieldOffsetTree(forMangledTypeName mangledTypeName: MangledName, baseOffset: Int, depthLimit: Int, genericArgumentBinding binding: GenericArgumentBinding) -> [NestedFieldOffset]
+
+    /// `node` with every member of a concrete type projected through the
+    /// witness records of the images the layouts above are computed over —
+    /// `[Swift.Int].Element` read as `Swift.Int` — so a field's printed type
+    /// and the layout printed beside it come from the same images. `nil`
+    /// when the provider has no images of its own: the caller projects
+    /// through its own.
+    func projectingConcreteMembers(in node: Node) -> Node?
 }
 
 extension StaticFieldLayoutProvider {
+    public func projectingConcreteMembers(in node: Node) -> Node? {
+        nil
+    }
+
     public func aggregateFieldLayout(forDescriptor descriptor: TypeContextDescriptorWrapper, genericArgumentBinding binding: GenericArgumentBinding) -> AggregateFieldLayout? {
         nil
     }
@@ -189,5 +202,11 @@ public final class MachOFileStaticFieldLayoutProvider: StaticFieldLayoutProvider
         lock.lock()
         defer { lock.unlock() }
         return calculator.nestedFieldOffsetTree(forMangledTypeName: mangledTypeName, baseOffset: baseOffset, depthLimit: depthLimit, genericArgumentBinding: binding)
+    }
+
+    public func projectingConcreteMembers(in node: Node) -> Node? {
+        lock.lock()
+        defer { lock.unlock() }
+        return calculator.projectingConcreteMembers(in: node)
     }
 }

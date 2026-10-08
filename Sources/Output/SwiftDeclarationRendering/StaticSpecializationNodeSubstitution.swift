@@ -14,12 +14,23 @@ import MachOSwiftSection
 /// from. A member no record answers keeps its spelling.
 package enum StaticSpecializationNodeSubstitution {
     /// `typeNode` — a field's or an enum payload's declared type — with
-    /// `binding`'s arguments substituted and concrete members projected.
+    /// `binding`'s arguments substituted and concrete members projected:
+    /// through the images `staticFieldLayoutProvider` computes the layout
+    /// comments over, when the print has one, so the type and its layout agree
+    /// — an iOS binary printed against an iOS cache used to have its layout
+    /// computed while its field kept `[Swift.Int].Element?`, the host's macOS
+    /// images being no candidates for an iOS root. Without a provider (no
+    /// layout comment printed) through the images the opaque rewriter uses.
     package static func substitutedTypeNode<MachO: MachOSwiftSectionRepresentableWithCache>(
         of typeNode: Node,
         binding: GenericArgumentBinding,
+        staticFieldLayoutProvider: (any StaticFieldLayoutProvider)?,
         in machO: MachO
     ) -> Node {
-        DependentMemberProjection.projectingConcreteMembers(in: binding.substituting(in: typeNode), in: machO)
+        let substitutedNode = binding.substituting(in: typeNode)
+        if let projectedNode = staticFieldLayoutProvider?.projectingConcreteMembers(in: substitutedNode) {
+            return projectedNode
+        }
+        return DependentMemberProjection.projectingConcreteMembers(in: substitutedNode, in: machO)
     }
 }

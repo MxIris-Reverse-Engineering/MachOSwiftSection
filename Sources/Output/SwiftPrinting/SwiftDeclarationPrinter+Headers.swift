@@ -456,7 +456,12 @@ extension SwiftDeclarationPrinter {
             }
             let substitutedTypeNode: Node? = {
                 if let staticSpecialization {
-                    return StaticSpecializationNodeSubstitution.substitutedTypeNode(of: field.typeNode.materialize(), binding: staticSpecialization, in: machO)
+                    return StaticSpecializationNodeSubstitution.substitutedTypeNode(
+                        of: field.typeNode.materialize(),
+                        binding: staticSpecialization,
+                        staticFieldLayoutProvider: renderConfiguration.staticFieldLayoutProvider,
+                        in: machO
+                    )
                 }
                 guard let specializedMetadata, let specializedMachOImage, let mangledTypeName else { return nil }
                 return SpecializedMetadataNodeSubstitution.substitutedFieldTypeNode(for: mangledTypeName, metadata: specializedMetadata, in: specializedMachOImage)
