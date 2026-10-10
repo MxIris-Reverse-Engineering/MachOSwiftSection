@@ -40,9 +40,10 @@ package enum DefinitionBuilder {
         var variables: [VariableDefinition] = []
         var accessorsByName: [String: [Accessor]] = [:]
         for memberSymbol in memberSymbols {
-            guard let variableNode = memberSymbol.demangledNode.first(of: .variable) else { continue }
+            let memberSubtree = memberSymbol.demangledNode.memberSubtree
+            guard let variableNode = memberSubtree.first(of: .variable) else { continue }
             guard let name = variableNode.identifier else { continue }
-            let kind = memberSymbol.accessorKind
+            let kind = memberSubtree.accessorKind
             let node = memberSymbol.demangledNode
             let symbolOffset = memberSymbol.offset
             let (descriptor, vtableOffset) = dispatchLookups.dispatch(forMemberNode: node, implementationOffset: symbolOffset)
@@ -56,7 +57,7 @@ package enum DefinitionBuilder {
                 continue
             }
             let nodes = accessors.map(\.symbol.demangledNode)
-            guard let node = nodes.first(where: { $0.contains(.getter) || !$0.hasAccessor }) else { continue }
+            guard let node = nodes.first(where: { $0.memberSubtree.contains(.getter) || !$0.memberSubtree.hasAccessor }) else { continue }
             var variableDefinition = VariableDefinition(node: node, name: name, accessors: accessors, isGlobalOrStatic: isGlobalOrStatic)
             if accessors.contains(where: { $0.methodDescriptor?.method?.layout.flags.isDynamic ?? false }) {
                 variableDefinition.attributes.append(.dynamic)
@@ -87,8 +88,9 @@ package enum DefinitionBuilder {
         // the `contains(.getter)` test below and the accessor disappears.
         var accessorsByNode: OrderedDictionary<StructuralNodeReferenceKey, [Accessor]> = [:]
         for memberSymbol in memberSymbols {
-            guard let subscriptNode = memberSymbol.demangledNode.first(of: .subscript).map(StructuralNodeReferenceKey.init) else { continue }
-            let kind = memberSymbol.accessorKind
+            let memberSubtree = memberSymbol.demangledNode.memberSubtree
+            guard let subscriptNode = memberSubtree.first(of: .subscript).map(StructuralNodeReferenceKey.init) else { continue }
+            let kind = memberSubtree.accessorKind
             let node = memberSymbol.demangledNode
             let symbolOffset = memberSymbol.offset
             let (descriptor, vtableOffset) = dispatchLookups.dispatch(forMemberNode: node, implementationOffset: symbolOffset)
@@ -97,7 +99,7 @@ package enum DefinitionBuilder {
 
         for (_, accessors) in accessorsByNode {
             let nodes = accessors.map(\.symbol.demangledNode)
-            guard let node = nodes.first(where: { $0.contains(.getter) }) else { continue }
+            guard let node = nodes.first(where: { $0.memberSubtree.contains(.getter) }) else { continue }
             var subscriptDefinition = SubscriptDefinition(node: node, accessors: accessors, isStatic: isStatic)
             if accessors.contains(where: { $0.methodDescriptor?.method?.layout.flags.isDynamic ?? false }) {
                 subscriptDefinition.attributes.append(.dynamic)
@@ -122,7 +124,7 @@ package enum DefinitionBuilder {
         var pendingMergedByAllocatorNode: OrderedDictionary<StructuralNodeReferenceKey, MemberSymbol> = [:]
         var allocators: [FunctionDefinition] = []
         for memberSymbol in memberSymbols {
-            guard let allocatorNode = memberSymbol.demangledNode.first(of: .allocator).map(StructuralNodeReferenceKey.init) else { continue }
+            guard let allocatorNode = memberSymbol.demangledNode.memberSubtree.first(of: .allocator).map(StructuralNodeReferenceKey.init) else { continue }
             let isMergedThunk = memberSymbol.demangledNode.children.first?.kind == .mergedFunction
             if isMergedThunk {
                 if canonicalIndexByAllocatorNode[allocatorNode] == nil, pendingMergedByAllocatorNode[allocatorNode] == nil {
@@ -172,7 +174,7 @@ package enum DefinitionBuilder {
         var pendingMergedByFunctionNode: OrderedDictionary<StructuralNodeReferenceKey, MemberSymbol> = [:]
         var functions: [FunctionDefinition] = []
         for memberSymbol in memberSymbols {
-            guard let functionNode = memberSymbol.demangledNode.first(of: .function).map(StructuralNodeReferenceKey.init), let name = functionNode.reference.identifier else { continue }
+            guard let functionNode = memberSymbol.demangledNode.memberSubtree.first(of: .function).map(StructuralNodeReferenceKey.init), let name = functionNode.reference.identifier else { continue }
             let isMergedThunk = memberSymbol.demangledNode.children.first?.kind == .mergedFunction
             if isMergedThunk {
                 if canonicalIndexByFunctionNode[functionNode] == nil, pendingMergedByFunctionNode[functionNode] == nil {

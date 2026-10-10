@@ -1,5 +1,6 @@
 import SwiftDeclaration
 import SwiftDeclarationRendering
+import SwiftInspection
 import Demangling
 import Semantic
 
@@ -155,8 +156,16 @@ extension TypeNodePrintable {
         }
         guard let contextNode = name.children.first else { return }
 
+        // A type declared in a function or closure body: nothing outside the
+        // body can spell it, so a reference prints its declared name alone —
+        // the name its declaration prints under, a comment above which names
+        // the function (evolution proposal `local-type-context-names`). This
+        // printer spells no function, closure or local name, and printed
+        // such a reference as nothing at all (`__derived_struct_equals(_: , _: )`).
+        let isLocalType = name.localTypeNaming != nil
+
         var resolvedCImportedModule = false
-        if shouldPrintContext() {
+        if shouldPrintContext(), !isLocalType {
             let writtenUnitCountBeforeContext = target.writtenUnitCount
             if contextNode.kind == .module {
                 let siblingIdentifier = name.children.at(1)?.text
@@ -183,7 +192,14 @@ extension TypeNodePrintable {
         }
 
         if let declarationName = name.children.at(1) {
-            if declarationName.kind != .privateDeclName {
+            if declarationName.kind == .localDeclName {
+                // `Visitor #1`'s identifier: the ordinal tells same-named
+                // types of one body apart, which the comment above each
+                // declaration does here.
+                if let identifier = declarationName.children.at(1) {
+                    await printIdentifier(identifier, parentKind: name.kind)
+                }
+            } else if declarationName.kind != .privateDeclName {
                 if declarationName.kind == .identifier {
                     // A resolved C-imported module may pair with an identifier
                     // whose C spelling differs from its Swift one — `__C`'s

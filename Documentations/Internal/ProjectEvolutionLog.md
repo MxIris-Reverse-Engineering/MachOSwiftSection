@@ -2370,6 +2370,31 @@
 - **关联文档**：review 记录；[ReviewAdjudications.md](ReviewAdjudications.md) A53–A59；四份提案的决策日志（[并发打印](../Evolutions/draft-concurrent-definition-printing.md)、[离线特化](../Evolutions/draft-offline-generic-specialization.md)、[嵌套定义区域](../Evolutions/draft-nested-definition-regions.md)、[嵌套偏移记忆化](../Evolutions/draft-nested-field-offset-memoization.md)）；[OfflineGenericSpecialization.md](OfflineGenericSpecialization.md)、[OpaqueReturnTypeResolution.md](OpaqueReturnTypeResolution.md)、[Modules/SwiftThunkAnalysis.md](Modules/SwiftThunkAnalysis.md)、[Modules/MachODependencies.md](Modules/MachODependencies.md)。
 - **对应版本**：0.22.0（未发版），随 PR #131 合入。
 
+## 87. 局部类型的名字：找回函数与闭包上下文
+
+- **时间段**：2026-10-10 — 2026-10-11。
+- **动机**：RuntimeViewer 会话在 macOS 27.2 的 SwiftUI 侧边栏里看到一行孤立的 Ex（`IndexWrappingVisitor in IndexingWrappingGenerator #1 in closure #1 … in AccessibilityRotorInfo.readEntryList(…)`），追下去是函数、闭包里声明的局部类型名字全错：`TableDataSource` 的 7 个 `Visitor` 在 interface 里只剩 1 个、重复 6 遍；private 函数里的局部类型被伪造成 private 类型；成员符号用真名记录，对不上错的名字，成员静默丢失。会话把调查结果转交过来，用户让这边接手修。这个问题 2026-09-24 已经记在 roadmap `2026-09-24-local-type-context-names` 里，当时只登记、没修。
+- **关键决策**：
+  - 匿名上下文的名字有三个来源，依次试：描述符自带的名字（只有 debug 构建写）、匿名描述符的 `$s<上下文>MXX` 符号（没剥本地符号的镜像，例如 cache 里的 SwiftUI）、`_symbolic` 符号（剥了本地符号的 AppKit 也还留着）。局部类型取到名字后，名字里的函数、闭包整体代替那串匿名上下文。
+  - private discriminator 只从被包着的类型自己的名字取，不再用 `first(of: .privateDeclName)` 从外围函数借。
+  - 三处都没有时，照 runtime 和 Remote Mirror 的做法用匿名上下文的地址起名：`Holder.(Visitor in $1a2b3c)`（用户选择）。地址口径与 dump 的成员地址相同，所以文件和进程内读出同一个名字。
+  - 局部类型照旧挂在外层类型下（用户选择）。interface 里声明前加一行注释写出所在函数，参数、字段这些类型位置印短名，conformance 的 extension 头印编译器全名（用户选择）。
+  - debug 构建也修了：`be2f186e`（2025-05）把匿名上下文改成直接丢掉之后，采用名字只在外围函数恰好是 private 时才接得上函数。`.opaqueType` 分支是同一个原因，一起改成按描述符判断。
+  - 横向排查：`NodeTypeNaming` 的限定名（静态布局引擎、ObjC 那边按它建索引）对局部类型退化成光秃秃的短名，光改解名器的话 `Holder` 里十个局部类型的键全是 `"Holder"`，比修复前还糟，一起改成带上声明它的函数和 `#序号`。
+  - ABI snapshot `formatVersion` 6 → 7：snapshot 记录全部类型、按名字的 mangling 作键，旧基线会把每个局部类型报成删掉再加上，删掉类型算破坏性变更。
+  - 名字对上之后暴露出五处整树搜索，一起修掉：成员节点的第一个子节点是上下文，witness 还把 conformance 排在 requirement 前面，前序搜索先碰到局部类型的外层声明。A/B 的 iOS 26.5 模拟器腿里，SwiftUICore 的局部类型 conformance 少了 `_rawHashValue`、`_updateDefault`、`CodingKeys` 的初始化器：基线名字对不上，witness 符号匹配不到，反而退回按 requirement 打印出了全部成员。conformance 成员改按 witness 的 requirement（`memberSubtree`）分类、去重；主体里合成成员的去重、`@dynamicMemberLookup` 推断、匿名参数的 `_` 标签、访问器种类（getter 里的局部类型，`static` 存储属性被印成计算属性）改读成员自己的节点。`final` 恢复的 `Tq` 兜底、上游 `DemanglingNode.identifier`、变量的代表节点是同类但不修，登记 [ReviewAdjudications A60](ReviewAdjudications.md)。
+- **公开 API 与行为变化**（写进下个版本的发版说明）：新增 `LocalTypeNaming` 与 `Node.localTypeNaming` / `NodeReference.localTypeNaming`。行为：局部类型的名字从 `Holder.Visitor` 变成 `Visitor #1 in Holder.countValues()`，没有来源时是 `Holder.(Visitor in $1a2b3c)`；dump、interface、`TypeName` 都跟着变；同一类型里同名的局部类型不再合并；它们的成员挂回来了；ABI snapshot 格式升到 7，旧基线要重新生成。
+- **落地模块**：SwiftInspection（`SymbolicDemangler`、`AnonymousContextNameIndex`（原 `AnonymousContextPrivateDiscriminatorIndex`）、`LocalTypeNaming`、`NodeTypeNaming`）、SwiftDeclaration（`DemanglingNode+MemberSubtree`、`DemanglingNode+AccessorKind`、`MemberSymbolBucketing`、`DefinitionBuilder`、`TypeDefinition+SynthesizedMembers`）、SwiftAttributeInference（`TypeAttributeInferrer`）、SwiftDeclarationRendering（`RuntimeTypeNameDemangling`）、SwiftPrinting（`TypeNodePrintable`、`FunctionTypeNodePrintable`、`SwiftDeclarationPrinter`、`SwiftDeclarationPrinter+Headers`）、SwiftDiffing（`ABISnapshotDocument`）、TestSupport（`LocalTypeFixture`）。
+- **验证**：
+  - 新增 `LocalTypeFixture`：测试里现场编译一份局部类型源码，五个变体各留一个名字来源（只有描述符名字、只有 `MXX`、只有 `_symbolic`、全不剥、全剥光）。四个新套件（`LocalTypeContextNameTests`、`LocalTypeInterfaceTests`、`LocalTypeDumpTests`、`RuntimeTypeNameLocalTypeTests`）先在未修改的代码上确认失败，修后全绿；`NodeTypeNaming` 的那条单独做了一次红绿。`SymbolicManglingIndexTests.descriptorBuiltNamesAgreeWithTheCompilersSpelling` 去掉 `withKnownIssue` 后在 macOS 27.2 的 AppKit 上通过（`DeferralState` 只能靠 `_symbolic` 找回）。四个新套件加进了 CI 的过滤清单。
+  - 成员的对照测试：fixture 加了声明在 getter、`static` 方法、`throws` 方法、带标签的方法里的局部类型，各配一个声明在函数体之外的孪生类型，断言 conformance 成员（interface 文本与模型里的数组）、主体成员和 `@dynamicMemberLookup` 与孪生类型相同。五处整树搜索的修复各自先红后绿：修复前分别读出以 getter / 外层函数命名的成员、错进 `static` 桶、主体里多一份 `hash(into:)`、缺属性、`combine(_: Int, _: Int, Int)`、`static var shared: Int { get set }`。
+  - SymbolTestsCore 的 dump 与 interface 快照只变了 `LocalClass` 一处：名字换成编译器全名，interface 加注释，以前丢掉的 `deinit` / deallocator 挂回来了。
+  - 全量 `swift test --skip IntegrationTests`（JHs-Mac-Studio-Ultra，Swift 6.4，五个兄弟依赖都链本地）：2383 个测试、455 个套件全部通过，原始退出码 0。
+  - 系统框架 A/B（`Scripts/run-rendering-ab-verification.py`；基线是 next cd248de9 的 `git archive` 沙盒，两侧 release 预构建，共用同一份 `Package.resolved`）：96 对里 30 对有差异，全部在 SwiftUI / SwiftUICore，逐对核对都来自局部类型——名字换成编译器全名，interface 加注释、conformance 的 extension 头印全名，以前丢掉的成员、字段和布局注释挂回来（`TableDataSource` 的 7 个 `Visitor` 各有自己的字段，基线是一份 `var result: SwiftUI.DeleteInteraction?` 印 6 遍）。按典型 witness 成员（`_rawHashValue`、`hash(into:)`、`_updateDefault`、`CodingKeys` 的初始化器等）计数，没有一对比基线少；缓存镜像的 SwiftUICore 还多出基线印成 `{}` 的 conformance 成员。第一轮 A/B 里 iOS 26.5 模拟器腿的成员丢失就是上面的整树搜索问题，修后第二轮消失；两轮的 96 份基线渲染逐字节相同。
+  - macOS 27.2 当前系统 cache 的 AppKit（剥光本地符号，只靠 `_symbolic`）手工对比 dump 与 interface：只有 3 个局部类型变化（`NSWMDeferrableWMWindowTransaction.deferCompletionUntil()` 里的 `DeferralState`、`_NSLocalizedIndexedCollation.sortedArray(from:collationStringSelector:)` 里的 `ObjectWrapper`、`NSView._HitTestMap.differencePairs(to:differences:)` 里的 `Pair`）。
+- **关联文档**：[0062-local-type-context-names](../Evolutions/0062-local-type-context-names.md)、[Roadmaps/2026-09-24-local-type-context-names.md](../../Roadmaps/2026-09-24-local-type-context-names.md)、[SymbolicManglingSymbols.md](SymbolicManglingSymbols.md)「边界」、[Glossary.md](../Glossary.md)「position-based name」、`swift-section` agent skill 第 9 节。
+- **对应版本**：下一个版本（未发版）。
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节

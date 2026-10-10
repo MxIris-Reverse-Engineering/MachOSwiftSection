@@ -241,7 +241,10 @@ swift-section evolution 17.0.json 18.0.json /path/Foo --labels 17.0,18.0,26.0
   version is rejected with a typed error, and the fix is to regenerate the baseline with the
   current tool. Format 6 (0.21.0 and later) rejects every format-5 baseline: in an image stripped
   of its local symbols the newer tool also records the class members that only their method
-  descriptor names (see §9), which an old baseline would report as added wholesale.
+  descriptor names (see §9), which an old baseline would report as added wholesale. Format 7
+  rejects every format-6 baseline: a type declared in a function or closure body is recorded
+  under its own full name now (see §9), and an old baseline would report each one as removed —
+  a breaking change — and added again.
 
 ## 8. `--resolve-c-module-names` (interface, macOS only)
 
@@ -284,6 +287,15 @@ Attribution against a non-macOS binary is limited (it warns and degrades rather 
   and `-[Class selector]` comments use. **`@_objcRuntimeName(Name)`** is the same fact on a
   class with no Objective-C ancestor, where `@objc` would not be legal Swift (mostly the
   standard library) — not a typo.
+- **A declaration under a comment like `// Visitor #1 in Holder.countValues()`** is a type
+  declared in a function or closure body. `interface` keeps it nested in the enclosing type
+  and prints its bare name wherever it is referenced (nothing outside the body can spell it),
+  so two methods' `Visitor`s are two declarations that only the comment tells apart; their
+  conformance extensions carry the compiler's full name
+  (`extension Visitor #1 in M.Holder.countValues() -> Any: P`), and `dump` declares the type
+  under that full name. **`(Visitor in $1a2b3c)`** is such a type in a binary stripped of every
+  record of its function: the `$` number is the address of the anonymous context descriptor
+  that wraps it — the runtime's own spelling — not a private discriminator.
 
 ## 10. Where the details live
 

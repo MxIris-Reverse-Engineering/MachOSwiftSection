@@ -16,6 +16,14 @@ public struct ABISnapshotDocument: Sendable, Codable, Equatable {
     /// `ABIDiffer.extensionBucketKey(for:)`).
     ///
     /// History:
+    /// - 7: a type declared in a function or closure body is keyed by the
+    ///   compiler's name for it (`Visitor #1 in Holder.countValues()`), or by
+    ///   the address of its anonymous context when the image records no name
+    ///   (evolution proposal `local-type-context-names`) — no longer as a
+    ///   member of the enclosing type, under which two methods' same-named
+    ///   types shared one key. Key scheme unchanged; an older baseline would
+    ///   misreport every local type, its members and its conformances as
+    ///   removed and added, and a removed type is a breaking change.
     /// - 6: a class container of a stripped image carries the vtable members
     ///   whose only symbol is their method descriptor's `Tq` (evolution
     ///   proposal `interface-descriptor-only-vtable-members`) — the public
@@ -41,7 +49,7 @@ public struct ABISnapshotDocument: Sendable, Codable, Equatable {
     ///   (`tag:N|indirect|…`), so a version-1 baseline would silently miss
     ///   that transition.
     /// - 1: initial versioned format.
-    public static let currentFormatVersion = 6
+    public static let currentFormatVersion = 7
 
     public let formatVersion: Int
     public var provenance: ABIProvenance?

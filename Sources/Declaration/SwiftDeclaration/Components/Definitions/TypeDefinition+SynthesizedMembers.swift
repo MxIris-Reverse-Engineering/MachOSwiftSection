@@ -35,12 +35,21 @@ extension TypeDefinition {
 
         // Returns the argument label list of a member as an array of strings,
         // with "_" for unnamed parameters. Works on function / constructor /
-        // allocator / getter nodes; returns an empty array if no labelList
-        // node exists (which means the function either takes no parameters
-        // or takes exclusively unnamed parameters — the demangler does not
-        // always emit an explicit labelList for the all-unnamed case).
+        // allocator nodes; returns an empty array if no labelList node exists
+        // (which means the function either takes no parameters or takes
+        // exclusively unnamed parameters — the demangler does not always emit
+        // an explicit labelList for the all-unnamed case).
+        //
+        // The member's OWN label list, a child of its declaration: the
+        // declaration's first child is its context, which a whole-tree search
+        // reached first. A local type's context is the function declaring it,
+        // so `encode(to:)`'s labels stood in for its `Key`'s `hash(into:)`,
+        // and the synthesized member stayed in the body (evolution proposal
+        // `local-type-context-names`).
         func labels(of node: NodeReference) -> [String] {
-            guard let list = node.first(of: .labelList) else { return [] }
+            guard let declarationNode = node.first(of: .function, .allocator, .constructor),
+                  let list = declarationNode.children.first(of: .labelList)
+            else { return [] }
             return list.children.map { child in
                 if child.kind == .firstElementMarker { return "_" }
                 return child.text ?? "_"

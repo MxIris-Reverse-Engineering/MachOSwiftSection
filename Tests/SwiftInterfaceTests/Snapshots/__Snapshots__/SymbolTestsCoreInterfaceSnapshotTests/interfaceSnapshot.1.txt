@@ -2264,10 +2264,13 @@ enum MetatypeUsage {
 }
 enum NestedFunctions {
     struct NestedFunctionHolderTest {
+        // LocalClass #1 in NestedFunctions.NestedFunctionHolderTest.outerWithLocalClass()
         class LocalClass {
             // Field offset: 0x10
             // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 2147483647)
             var label: Swift.String
+
+            deinit
         }
         func outerWithLocalClass() -> Swift.String
     }

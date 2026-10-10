@@ -82,7 +82,7 @@ package final class ObjCClassMethodIndex: @unchecked Sendable {
 | `objcImplementationClasses`（SwiftInspection） | `ObjCImplementationClassIndex`（持有指向符号表 arena 的 `NodeReference`） | `symbolStore` |
 | `objcHierarchy`（SwiftInspection） | `ObjCClassMethodIndex`、`SwiftClassObjectIndex`、`ObjCClassHierarchyProviderStore`（宿主的弱引用注册，手工遵循 `SharedCacheEvicting`） | `symbolStore` |
 | `objcAncestorResolver`（SwiftInspection） | `ObjCAncestorResolverStore` | `symbolStore` |
-| `demangleMemo`（SwiftInspection） | `SymbolicDemanglerCache`、`AnonymousContextPrivateDiscriminatorIndex` | `internedNames` |
+| `demangleMemo`（SwiftInspection） | `SymbolicDemanglerCache`、`AnonymousContextNameIndex` | `internedNames` |
 | `propertyWrapperCatalog`（SwiftDeclarationRendering） | `PropertyWrapperTypeCatalogStore` | — |
 | `multiPayloadEnumDescriptors`（SwiftDeclarationRendering） | `MultiPayloadEnumDescriptorCache` | — |
 | `dependentMemberProjection`（SwiftDeclarationRendering） | `DependentMemberProjection` 的两个实例 | — |

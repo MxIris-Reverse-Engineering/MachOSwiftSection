@@ -114,21 +114,17 @@ struct SymbolicManglingIndexTests {
     /// Every `_symbolic` symbol is an answer the compiler wrote down in
     /// advance: the referent of a direct reference to a type or protocol
     /// descriptor is that descriptor's full name. `SymbolicDemangler` builds
-    /// the same name from the descriptors themselves, so the two must agree.
-    ///
-    /// Except, for now, for a type declared inside a function body: it sits in
-    /// an anonymous context standing for that function, which the compiler
-    /// spells (`DeferralState #1 in …deferCompletionUntil() -> () -> ()`) and
-    /// `SymbolicDemangler` drops, as it dropped a private type's discriminator
-    /// before the symbolic-mangling index. Recorded in the proposal's decision
-    /// log as a known difference, not fixed there.
+    /// the same name from the descriptors themselves, so the two must agree —
+    /// a type declared in a function body too (`DeferralState #1 in
+    /// …deferCompletionUntil()`), whose function the descriptors spell only as
+    /// an anonymous context (evolution proposal `local-type-context-names`).
     @Test(.enabled(if: runsOnMacOS26OrLater, "the anchor symbols ship with macOS 26's AppKit"))
     func descriptorBuiltNamesAgreeWithTheCompilersSpelling() throws {
         let machOFile = try Self.appKitFileInSystemCache()
         var visitedReferencedOffsets: Set<Int> = []
         var comparedCount = 0
+        var localTypeCount = 0
         var mismatches: [String] = []
-        var localTypeMismatches: [String] = []
         for reference in SymbolicManglingIndex.shared.references(in: machOFile) where reference.kind == .directContextDescriptor {
             guard visitedReferencedOffsets.insert(reference.referencedOffset).inserted else { continue }
             let context: ContextDescriptorWrapper = try .resolve(at: reference.referencedOffset, in: machOFile.context)
@@ -145,20 +141,16 @@ struct SymbolicManglingIndexTests {
             let compilerSpelledName = Self.printedName(of: referentNode)
             let descriptorBuiltName = try Self.printedName(of: SymbolicDemangler.demangleContext(for: context, in: machOFile.context))
             comparedCount += 1
+            if referentNode.first(of: .localDeclName) != nil {
+                localTypeCount += 1
+            }
             if descriptorBuiltName != compilerSpelledName {
-                let mismatch = "descriptor \(descriptorBuiltName), compiler \(compilerSpelledName)"
-                if referentNode.first(of: .localDeclName) != nil {
-                    localTypeMismatches.append(mismatch)
-                } else {
-                    mismatches.append(mismatch)
-                }
+                mismatches.append("descriptor \(descriptorBuiltName), compiler \(compilerSpelledName)")
             }
         }
         #expect(comparedCount > 500, "AppKit on macOS 26 references hundreds of its own types and protocols directly")
+        #expect(localTypeCount > 0, "AppKit references a local type directly (DeferralState); without one the local leg is unproven")
         #expect(mismatches.isEmpty, "\(mismatches.count) of \(comparedCount) differ:\n\(mismatches.prefix(40).joined(separator: "\n"))")
-        withKnownIssue("SymbolicDemangler drops the function context of a type declared in a function body") {
-            #expect(localTypeMismatches.isEmpty, "\(localTypeMismatches.count) local types differ:\n\(localTypeMismatches.joined(separator: "\n"))")
-        }
     }
 
     // MARK: - Anchor symbols

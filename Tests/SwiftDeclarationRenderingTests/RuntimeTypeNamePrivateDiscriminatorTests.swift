@@ -11,7 +11,7 @@ import MachOKit
 /// type's anonymous context by the descriptor's address. It has to come out
 /// carrying the discriminator the name built from the descriptors carries —
 /// which, for an OS framework in the dyld shared cache, only a `_symbolic`
-/// symbol records (`AnonymousContextPrivateDiscriminatorIndex`). Dropping the
+/// symbol records (`AnonymousContextNameIndex`). Dropping the
 /// anonymous context instead, as `RuntimeTypeNameDemangling` used to, left the
 /// two names disagreeing about the same type.
 ///

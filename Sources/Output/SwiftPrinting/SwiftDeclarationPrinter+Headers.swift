@@ -488,4 +488,78 @@ extension SwiftDeclarationPrinter {
             }
         }
     }
+
+    // MARK: - Local types (evolution proposal `local-type-context-names`)
+
+    /// The comment above the declaration of a type declared in a function or
+    /// closure body: the compiler's name for it, modules left out
+    /// (`Visitor #1 in Holder.countValues()`), or — when no source the image
+    /// keeps names the function or closure — a sentence saying so. `nil` for
+    /// any other type.
+    package func localTypeDeclarationComment(for typeName: SwiftDeclaration.TypeName) -> String? {
+        switch typeName.node.localTypeNaming {
+        case .compilerSpelled:
+            typeName.name(using: .localTypeDeclarationComment)
+        case .positionBased:
+            "Local type in a function or closure the binary does not name"
+        case nil:
+            nil
+        }
+    }
+
+    /// An extension header's extended type. A local type whose function no
+    /// source names — or a type nested in one — keeps its position-based name
+    /// in full, `Holder.(Visitor in $1a2b3c)`: printed like any other name it
+    /// would read `Holder.Visitor`, a member type the source never declared,
+    /// and alike for every unnamed `Visitor` of `Holder`.
+    @SemanticStringBuilder
+    package func renderExtendedTypeName(_ extensionName: ExtensionName) -> SemanticString {
+        if spellsPositionNamedLocalType(extensionName.node) {
+            TypeDeclaration(kind: extensionName.kind.semanticTypeKind, extensionName.name(using: DemangleOptions.interfaceTypeBuilderOnly.union(.showPrivateDiscriminators)))
+        } else {
+            extensionName.print()
+        }
+    }
+
+    /// Whether `name` or a type it is nested in is a position-based local
+    /// type.
+    private func spellsPositionNamedLocalType(_ name: NodeReference) -> Bool {
+        var current = name
+        while true {
+            if current.localTypeNaming == .positionBased {
+                return true
+            }
+            while [.type, .boundGenericStructure, .boundGenericClass, .boundGenericEnum, .boundGenericOtherNominalType].contains(current.kind), let wrapped = current.children.first {
+                current = wrapped
+            }
+            guard current.kind.isAnyGeneric, let context = current.children.first else {
+                return false
+            }
+            current = context
+        }
+    }
+}
+
+extension DemangleOptions {
+    /// A local type's compiler-spelled name the way a reader would say it:
+    /// no modules, no parameter types, the `#1` ordinal kept.
+    fileprivate static let localTypeDeclarationComment = DemangleOptions.simplified.union(.displayLocalNameContexts)
+}
+
+extension ExtensionKind {
+    /// The kind `ExtensionName.print()` declares the extended type as.
+    fileprivate var semanticTypeKind: SemanticType.TypeKind {
+        switch self {
+        case .type(.enum):
+            .enum
+        case .type(.struct):
+            .struct
+        case .type(.class):
+            .class
+        case .protocol:
+            .protocol
+        case .typeAlias:
+            .other
+        }
+    }
 }

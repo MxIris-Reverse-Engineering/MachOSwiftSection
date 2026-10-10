@@ -227,6 +227,16 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
 
         try typeDefinition.index(in: machO)
 
+        // A local type's declaration says which function or closure declares
+        // it: the name the declaration prints under is the bare declared one,
+        // which two methods' local types can share (evolution proposal
+        // `local-type-context-names`).
+        if let localTypeComment = localTypeDeclarationComment(for: typeDefinition.typeName) {
+            Indent(level: level - 1)
+            Comment(localTypeComment)
+            BreakLine()
+        }
+
         // Type-level attributes, inferred for this print and kept local:
         // printing writes nothing to a definition, which is what lets several
         // tasks print one at once (evolution proposal
@@ -510,7 +520,7 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
         }
         Keyword(.extension)
         Space()
-        extensionDefinition.extensionName.print()
+        renderExtendedTypeName(extensionDefinition.extensionName)
 
         // This print operation's single conformance materialization
         // (proposal 0002). Propagates on failure: a public entry must not
