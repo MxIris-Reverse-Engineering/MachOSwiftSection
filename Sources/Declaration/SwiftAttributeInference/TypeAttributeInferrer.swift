@@ -66,16 +66,19 @@ public struct TypeAttributeInferrer: Sendable {
     /// Checks whether the type has a `subscript(dynamicMember:)`,
     /// which is the characteristic subscript of a `@dynamicMemberLookup` type.
     ///
-    /// Detection performs a recursive preorder search of the subscript's demangled node tree
-    /// for a `.labelList` node whose first child has `.text == "dynamicMember"`.
-    /// The node tree is `global → getter → subscript → [context, labelList, type]`,
-    /// so a recursive search is needed since `.labelList` is not a direct child of the root.
+    /// Detection looks for a subscript whose own `.labelList` has a first child with
+    /// `.text == "dynamicMember"`. The node tree is
+    /// `global → getter → subscript → [context, labelList, type]`: a preorder search finds
+    /// the subscript node ahead of its context, and the label list is its direct child.
+    /// Searching the whole tree for the label list reached the context first — a local
+    /// type's context is the function declaring it, whose labels then stood in for the
+    /// subscript's (evolution proposal `local-type-context-names`).
     static func hasDynamicMemberSubscript(subscripts: [SubscriptDefinition], staticSubscripts: [SubscriptDefinition]) -> Bool {
         let allSubscripts = subscripts + staticSubscripts
         return allSubscripts.contains { subscriptDefinition in
-            // Use Node's preorder traversal (recursive) instead of .children (direct only)
             subscriptDefinition.node
-                .first(of: .labelList)?
+                .first(of: .subscript)?
+                .children.first(of: .labelList)?
                 .children.first?.text == "dynamicMember"
         }
     }

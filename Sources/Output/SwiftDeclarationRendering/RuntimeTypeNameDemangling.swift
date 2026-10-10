@@ -10,9 +10,11 @@
 /// `AnonymousContext("$<address>", <parent>, TypeList())`, "an unstable
 /// mangling ... by its pointer identity" (`stdlib/public/runtime/Demangle.cpp`,
 /// `_buildDemanglingForContext`). The compiler parents every outermost
-/// `private` / `fileprivate` type on such a context, so every private type
-/// reaches us that way: as the specialized definition itself, as one of its
-/// type arguments, or anywhere inside a field's type.
+/// `private` / `fileprivate` type on such a context, and every type declared
+/// in a function or closure body on a chain of them (the type's own, one per
+/// closure, the function's), so every private and local type reaches us that
+/// way: as the specialized definition itself, as one of its type arguments,
+/// or anywhere inside a field's type.
 ///
 /// That address names nothing a reader can use. The interface printer has no
 /// spelling for it and printed nothing — the separator after it dangled in
@@ -20,12 +22,15 @@
 /// private type lost its module and every enclosing type — while the stock
 /// printer rendered it as `(unknown context at $…)`. So each anonymous context
 /// is rewritten into what the name built from the descriptors carries
-/// (`SymbolicDemangler.buildContextDescriptorMangling`): the private type
-/// inside gets a `privateDeclName` when the image records the discriminator —
-/// a symbol on the anonymous descriptor, or a `_symbolic` symbol naming the
-/// type, which is what survives in the dyld shared cache
-/// (`AnonymousContextPrivateDiscriminatorIndex`) — and the context is replaced
-/// by its parent when it records nothing.
+/// (`SymbolicDemangler.buildContextDescriptorMangling`), from the same sources
+/// (evolution proposal `local-type-context-names`): the compiler's own name
+/// for the type inside, which carries a local type's function and closure and
+/// a private type's discriminator; a discriminator alone, which is all an OS
+/// framework in the dyld shared cache records for a private type
+/// (`AnonymousContextNameIndex`); and, for a local type nothing names, the
+/// position-based name `(Name in $<address>)`. A private type the image
+/// records nothing for loses the context, and demangles as if it were
+/// internal.
 package enum RuntimeTypeNameDemangling {
     /// The runtime's name for `metatype`, with every anonymous context
     /// rewritten as described on the type. `nil` on runtimes that predate
@@ -56,8 +61,8 @@ package enum RuntimeTypeNameDemangling {
         // `AnonymousContext` children: the address identifier, the parent
         // context, and an always-empty generic argument list — the runtime
         // gives an anonymous context no arguments of its own.
-        if let privateTypeNode = privateTypeNode(renaming: node, rewrittenNodes: &rewrittenNodes) {
-            rewrittenNode = privateTypeNode
+        if let namedTypeNode = typeNode(renaming: node, rewrittenNodes: &rewrittenNodes) {
+            rewrittenNode = namedTypeNode
         } else if node.kind == .anonymousContext, let parent = node.children.at(1) {
             rewrittenNode = rewritingAnonymousContexts(in: parent, rewrittenNodes: &rewrittenNodes)
         } else {
@@ -79,11 +84,18 @@ package enum RuntimeTypeNameDemangling {
     }
 
     /// `Type(AnonymousContext("$<address>", parent, …), Identifier(name), …)`
-    /// → `Type(parent, PrivateDeclName(Identifier(discriminator), Identifier(name)), …)`
-    /// when this process's image records the discriminator of the anonymous
-    /// context at that address; `nil` otherwise, leaving the node to the
-    /// parent-only rewrite.
-    private static func privateTypeNode(renaming node: Node, rewrittenNodes: inout [ObjectIdentifier: Node]) -> Node? {
+    /// renamed the way the descriptors name the type, or `nil` when nothing
+    /// names it, leaving the node to the parent-only rewrite:
+    ///
+    /// - the compiler's name for the type: a local type's
+    ///   (`Visitor #1 in Holder.countValues()`), whose function or closure
+    ///   stands in for every anonymous context above, or a private type's, put
+    ///   under the runtime's own parent, which carries the arguments of a bound
+    ///   enclosing type;
+    /// - a private discriminator alone;
+    /// - for a local type — an anonymous context whose parent is one too —
+    ///   `(name in $<address>)` under the nearest context the runtime names.
+    private static func typeNode(renaming node: Node, rewrittenNodes: inout [ObjectIdentifier: Node]) -> Node? {
         guard node.children.count >= 2,
               let anonymousContext = node.children.first,
               anonymousContext.kind == .anonymousContext,
@@ -93,13 +105,34 @@ package enum RuntimeTypeNameDemangling {
               let address = UInt(addressText.dropFirst(), radix: 16),
               let anonymousContextAddress = UnsafeRawPointer(bitPattern: address),
               node.children[1].kind == .identifier,
-              let privateDiscriminator = SymbolicDemangler.privateDiscriminator(forAnonymousContextAt: anonymousContextAddress)
+              let name = node.children[1].text
         else { return nil }
-        let privateDeclName = Node.createTransient(kind: .privateDeclName, children: [
-            .createTransient(kind: .identifier, text: privateDiscriminator),
-            node.children[1],
-        ])
-        var rewrittenChildren = [rewritingAnonymousContexts(in: parent, rewrittenNodes: &rewrittenNodes), privateDeclName]
+
+        let context: Node
+        let declarationName: Node
+        if let compilerSpelledName = SymbolicDemangler.anonymousContextName(forAnonymousContextAt: anonymousContextAddress),
+           let compilerSpelledContext = compilerSpelledName.children.first,
+           let compilerSpelledDeclarationName = compilerSpelledName.children.at(1),
+           compilerSpelledDeclarationName.kind == .localDeclName || compilerSpelledDeclarationName.kind == .privateDeclName,
+           compilerSpelledDeclarationName.children.at(1)?.text == name {
+            context = compilerSpelledDeclarationName.kind == .localDeclName ? compilerSpelledContext : rewritingAnonymousContexts(in: parent, rewrittenNodes: &rewrittenNodes)
+            declarationName = compilerSpelledDeclarationName
+        } else if let privateDiscriminator = SymbolicDemangler.privateDiscriminator(forAnonymousContextAt: anonymousContextAddress) {
+            context = rewritingAnonymousContexts(in: parent, rewrittenNodes: &rewrittenNodes)
+            declarationName = Node.createTransient(kind: .privateDeclName, children: [
+                .createTransient(kind: .identifier, text: privateDiscriminator),
+                node.children[1],
+            ])
+        } else if parent.kind == .anonymousContext, let positionName = SymbolicDemangler.positionName(forAnonymousContextAt: anonymousContextAddress) {
+            context = rewritingAnonymousContexts(in: parent, rewrittenNodes: &rewrittenNodes)
+            declarationName = Node.createTransient(kind: .privateDeclName, children: [
+                .createTransient(kind: .identifier, text: positionName),
+                node.children[1],
+            ])
+        } else {
+            return nil
+        }
+        var rewrittenChildren = [context, declarationName]
         for remainingChild in node.children.dropFirst(2) {
             rewrittenChildren.append(rewritingAnonymousContexts(in: remainingChild, rewrittenNodes: &rewrittenNodes))
         }

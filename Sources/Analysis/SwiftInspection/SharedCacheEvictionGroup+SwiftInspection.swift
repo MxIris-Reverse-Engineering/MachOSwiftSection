@@ -21,7 +21,7 @@ extension SharedCacheEvictionGroup {
     /// it has resolved them; same lifetime, follows `symbolStore`.
     package static let objcAncestorResolver = SharedCacheEvictionGroup("objcAncestorResolver")
 
-    /// `SymbolicDemanglerCache` and `AnonymousContextPrivateDiscriminatorIndex`:
+    /// `SymbolicDemanglerCache` and `AnonymousContextNameIndex`:
     /// the memo's values are references into the interned arena, so the
     /// group follows `internedNames`.
     package static let demangleMemo = SharedCacheEvictionGroup("demangleMemo")

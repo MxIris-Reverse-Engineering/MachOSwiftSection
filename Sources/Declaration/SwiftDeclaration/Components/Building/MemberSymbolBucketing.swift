@@ -3,7 +3,7 @@ import OrderedCollections
 
 extension Definition {
     func addSymbol(_ symbol: MemberSymbol, memberSymbolsByKind: inout OrderedDictionary<SymbolIndexStore.MemberKind, [MemberSymbol]>, inExtension: Bool) {
-        let node = symbol.demangledNode
+        let node = symbol.demangledNode.memberSubtree
         if node.contains(.variable) {
             if node.contains(.static) {
                 if node.isStoredVariable {
