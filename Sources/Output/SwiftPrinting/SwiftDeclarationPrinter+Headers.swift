@@ -105,11 +105,11 @@ extension SwiftDeclarationPrinter {
             let depthLayout = GenericParameterDepthLayout.make(for: genericContext, ownedBy: descriptorWrapper, in: machO.context)
             try await genericContext.dumpGenericSignature(resolver: resolver, depthLayout: depthLayout, in: machO.context) {
                 if let invertibleProtocolSet, invertibleProtocolSet.hasInvertedProtocols {
-                    invertibleProtocolSet.dumpInvertedProtocolsInheritance
+                    try await invertibleProtocolSet.dumpInvertedProtocolsInheritance(resolver: resolver)
                 }
             }
         } else if let invertibleProtocolSet, invertibleProtocolSet.hasInvertedProtocols {
-            invertibleProtocolSet.dumpInvertedProtocolsInheritance
+            try await invertibleProtocolSet.dumpInvertedProtocolsInheritance(resolver: resolver)
         }
     }
 
@@ -151,7 +151,7 @@ extension SwiftDeclarationPrinter {
             if hasInvertedProtocols {
                 Standard(",")
                 Space()
-                dumped.invertibleProtocolSet!.dumpInvertedProtocolNames
+                try await dumped.invertibleProtocolSet!.dumpInvertedProtocolNames(resolver: resolver)
             }
         } else if let resilientSuperclass = dumped.resilientSuperclass, let kind = dumped.descriptor.resilientSuperclassReferenceKind, let superclass = try await resilientSuperclass.dumpSuperclass(resolver: resolver, for: kind, in: machO.context) {
             Standard(":")
@@ -160,10 +160,10 @@ extension SwiftDeclarationPrinter {
             if hasInvertedProtocols {
                 Standard(",")
                 Space()
-                dumped.invertibleProtocolSet!.dumpInvertedProtocolNames
+                try await dumped.invertibleProtocolSet!.dumpInvertedProtocolNames(resolver: resolver)
             }
         } else if hasInvertedProtocols {
-            dumped.invertibleProtocolSet!.dumpInvertedProtocolsInheritance
+            try await dumped.invertibleProtocolSet!.dumpInvertedProtocolsInheritance(resolver: resolver)
         }
     }
 
@@ -511,13 +511,15 @@ extension SwiftDeclarationPrinter {
     /// source names — or a type nested in one — keeps its position-based name
     /// in full, `Holder.(Visitor in $1a2b3c)`: printed like any other name it
     /// would read `Holder.Visitor`, a member type the source never declared,
-    /// and alike for every unnamed `Visitor` of `Holder`.
+    /// and alike for every unnamed `Visitor` of `Holder`. Both spellings carry
+    /// module selectors when the configuration asks for them.
     @SemanticStringBuilder
     package func renderExtendedTypeName(_ extensionName: ExtensionName) -> SemanticString {
         if spellsPositionNamedLocalType(extensionName.node) {
-            TypeDeclaration(kind: extensionName.kind.semanticTypeKind, extensionName.name(using: DemangleOptions.interfaceTypeBuilderOnly.union(.showPrivateDiscriminators)))
+            let positionBasedNameOptions = DemangleOptions.interfaceTypeBuilderOnly.union(.showPrivateDiscriminators)
+            TypeDeclaration(kind: extensionName.kind.semanticTypeKind, extensionName.name(using: configuration.usesModuleSelectors ? positionBasedNameOptions.union(.useModuleSelectors) : positionBasedNameOptions))
         } else {
-            extensionName.print()
+            extensionName.print(usesModuleSelectors: configuration.usesModuleSelectors)
         }
     }
 

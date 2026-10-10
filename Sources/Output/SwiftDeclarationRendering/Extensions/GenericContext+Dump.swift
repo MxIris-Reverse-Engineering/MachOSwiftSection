@@ -259,7 +259,7 @@ extension GenericRequirementDescriptor {
         case .conformance /* (let protocolConformanceDescriptor) */:
             Error("SwiftDumpConformance")
         case .invertedProtocols(let invertedProtocols):
-            invertedProtocols.protocols.dumpInvertedProtocolNames
+            try await invertedProtocols.protocols.dumpInvertedProtocolNames(builder: builder)
         }
     }
 }
@@ -362,7 +362,7 @@ extension GenericRequirementDescriptor {
         case .conformance /* (let protocolConformanceDescriptor) */:
             Standard("SwiftDumpConformance")
         case .invertedProtocols(let invertedProtocols):
-            invertedProtocols.protocols.dumpInvertedProtocolNames
+            try await invertedProtocols.protocols.dumpInvertedProtocolNames(builder: builder)
         }
     }
 }
@@ -381,30 +381,55 @@ extension InvertibleProtocolSet {
         hasCopyable || hasEscapable
     }
 
-    /// Dump the inverted protocol names (e.g., `~Swift.Copyable`, `~Swift.Escapable`).
+    /// `Swift.Copyable` and `Swift.Escapable` as the type nodes a suppressed
+    /// conformance names. They print through the caller's resolver like any
+    /// other protocol reference, so they are spelled the way the names around
+    /// them are — `Swift::Copyable` under module selectors (evolution proposal
+    /// `module-selectors`) — rather than as text fixed here.
+    ///
+    /// One long-lived instance each: the interface printer memoizes a printed
+    /// fragment by node identity, and a node freed after one print would hand
+    /// its fragment to whatever is allocated at its address next.
+    package static let copyableProtocolTypeNode = invertibleProtocolTypeNode(named: "Copyable")
+    package static let escapableProtocolTypeNode = invertibleProtocolTypeNode(named: "Escapable")
+
+    private static func invertibleProtocolTypeNode(named name: String) -> Node {
+        Node.create(kind: .type, child: Node.create(kind: .protocol, children: [
+            Node.create(kind: .module, text: stdlibName),
+            Node.create(kind: .identifier, text: name),
+        ]))
+    }
+
+    /// Dump the inverted protocol names (e.g., `~Swift.Copyable`, `~Swift.Escapable`),
+    /// each protocol spelled by `builder`.
     @SemanticStringBuilder
-    package var dumpInvertedProtocolNames: SemanticString {
+    package func dumpInvertedProtocolNames(@SemanticStringBuilder builder: (Node) async throws -> SemanticString) async throws -> SemanticString {
         if hasCopyable && hasEscapable {
             Standard("~")
-            TypeName(kind: .other, "Swift.Copyable")
+            try await builder(Self.copyableProtocolTypeNode)
             Standard(" & ~")
-            TypeName(kind: .other, "Swift.Escapable")
+            try await builder(Self.escapableProtocolTypeNode)
         } else if hasCopyable {
             Standard("~")
-            TypeName(kind: .other, "Swift.Copyable")
+            try await builder(Self.copyableProtocolTypeNode)
         } else if hasEscapable {
             Standard("~")
-            TypeName(kind: .other, "Swift.Escapable")
+            try await builder(Self.escapableProtocolTypeNode)
         }
+    }
+
+    /// Dump the inverted protocol names, each protocol spelled by `resolver`.
+    package func dumpInvertedProtocolNames(resolver: DemangleResolver) async throws -> SemanticString {
+        try await dumpInvertedProtocolNames { try await resolver.resolve(for: $0) }
     }
 
     /// Dump the inverted protocols as an inheritance clause with colon prefix (e.g., `: ~Swift.Copyable`).
     @SemanticStringBuilder
-    package var dumpInvertedProtocolsInheritance: SemanticString {
+    package func dumpInvertedProtocolsInheritance(resolver: DemangleResolver) async throws -> SemanticString {
         if hasInvertedProtocols {
             Standard(":")
             Space()
-            dumpInvertedProtocolNames
+            try await dumpInvertedProtocolNames(resolver: resolver)
         }
     }
 }

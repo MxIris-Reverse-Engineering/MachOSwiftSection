@@ -66,6 +66,8 @@ struct DemangleOptionGroup: ParsableArguments, Sendable {
     var showClosureSignature: Bool?
     @Flag(inversion: .prefixedEnableDisable)
     var showModuleInDependentMemberType: Bool?
+    @Flag(inversion: .prefixedEnableDisable, help: "Qualify names with SE-0491 module selectors (Swift::Int instead of Swift.Int); every type level carries the module that declared it.")
+    var moduleSelectors: Bool?
 
     func buildSwiftDumpDemangleOptions() -> SwiftDump.DemangleOptions {
         var options = demangleOptions.options
@@ -134,6 +136,9 @@ struct DemangleOptionGroup: ParsableArguments, Sendable {
         }
         if let showModuleInDependentMemberType {
             options = options.update(.showModuleInDependentMemberType, enabled: showModuleInDependentMemberType)
+        }
+        if let moduleSelectors {
+            options = options.update(.useModuleSelectors, enabled: moduleSelectors)
         }
         return options
     }

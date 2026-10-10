@@ -62,6 +62,9 @@ struct InterfaceCommand: AsyncParsableCommand {
     @Flag(name: .customLong("exported-only"), help: "Print only the declarations the image exports: types and protocols whose descriptor symbol has an export-trie entry, extensions targeting them, and members with at least one exported symbol (dispatch-thunk and other derived forms included). `override` / `@objc` members and anything without export evidence are kept.")
     var exportedOnly: Bool = false
 
+    @Flag(name: .customLong("module-selectors"), help: "Qualify names with SE-0491 module selectors (Swift::Int instead of Swift.Int), the way the Swift 6.4 compiler writes a .swiftinterface. Every type level carries the module that declared it (Swift::Duration.Foundation::TimeFormatStyle).")
+    var moduleSelectors: Bool = false
+
     @Option(name: .shortAndLong, help: "The color scheme for the output.")
     var colorScheme: SemanticColorScheme = .none
 
@@ -82,6 +85,7 @@ struct InterfaceCommand: AsyncParsableCommand {
             printsExportedDeclarationsOnly: exportedOnly,
             memberSortOrder: sortMembersByOffset ? .byOffset : .byCategory,
             infersObjCOverridesFromSelectorNames: objcMemberOptions.infersOverridesFromSelectorNames,
+            usesModuleSelectors: moduleSelectors,
             emitsHeader: emitHeader,
             commentTransformers: try transformerOptions.buildTransformerConfiguration(),
             destination: outputPath.map { .file(path: $0) } ?? .output

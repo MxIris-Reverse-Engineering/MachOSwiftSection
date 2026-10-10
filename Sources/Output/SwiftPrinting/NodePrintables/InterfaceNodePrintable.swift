@@ -40,6 +40,8 @@ protocol InterfaceNodePrintable: NodePrintable, BoundGenericNodePrintable, TypeN
 struct InterfaceNodePrinterContext<Target: NodePrinterTarget>: InterfaceNodePrintableContext, MemberDeclarationNodePrintableContext {
     var dependentMemberTypeDepth = 0
 
+    var usesModuleSelectors = false
+
     /// How many `repeat` patterns enclose the node being printed. `each` is
     /// only ever written inside one.
     var packExpansionDepth = 0
