@@ -1,11 +1,12 @@
-# Draft - 局部类型的名字：找回函数与闭包上下文
+# 0062 - 局部类型的名字：找回函数与闭包上下文
 
-- **状态**: In Progress
+- **状态**: Implemented
 - **创建日期**: 2026-10-10
 - **最后更新**: 2026-10-11
 - **所属愿景**: 无
 - **关联提案**: [0050-symbolic-mangling-symbol-index](0050-symbolic-mangling-symbol-index.md)（对照测试发现并登记了这个问题，`_symbolic` 符号是这里的来源之一）
-- **实现分支 / PR**: `feature/local-type-context-names`
+- **实现分支 / PR**: `feature/local-type-context-names`（worktree `.worktrees/MachOSwiftSection-LocalTypeContextNames`，基于 `next`），按本仓库惯例在本地合并进 `next`
+- **配套文档**: 名字的三个来源与找不回函数的情况见 [SymbolicManglingSymbols.md](../Internal/SymbolicManglingSymbols.md)「边界」；CLI 用户在 dump / interface 里看到的写法见 `swift-section` agent skill 第 9 节（`AgentPlugins/swift-section/skills/swift-section-cli/SKILL.md`）；同类但不修的三处见 [ReviewAdjudications A60](../Internal/ReviewAdjudications.md)
 - **起因**: RuntimeViewer 会话在 macOS 27.2 的 SwiftUI 上复现并查清根因后转交；早先的记录在 [Roadmaps/2026-09-24-local-type-context-names.md](../../Roadmaps/2026-09-24-local-type-context-names.md)
 
 ## 摘要
@@ -121,3 +122,5 @@ struct TableDataSource {
 | 2026-10-11 | 成员分类、去重、三处标签读取和访问器种类改为只看成员自己的节点 | 系统框架 A/B 里 iOS 26.5 模拟器那条腿的 SwiftUICore 少了 conformance 成员（`_rawHashValue`、`_updateDefault`、`CodingKeys` 的初始化器）。基线里名字对不上，witness 符号匹配不到，退回按 requirement 打印，反而完整；名字对上以后拿到真正的 witness 符号，整树搜索就先碰到了外层声明。横向排查又找到四处同类，都用 fixture 复现、先红后绿。 |
 | 2026-10-11 | `final` 恢复的 `Tq` 兜底、上游 `DemanglingNode.identifier`、变量的代表节点不修，登记 ReviewAdjudications A60 | 第一处被按节点的 descriptor 连接挡在前面，第三处因为符号表里 getter 总在最前，都造不出会变红的测试；第二处在上游包里，要局部类型声明在运算符函数里才触发。 |
 | 2026-10-11 | 测试里 `__derived_struct_equals(Visitor, Visitor)` 的期望改为 `(_: Visitor, _: Visitor)` | 当时把无标签的输出当成打印器的既有写法；其实是 `printLabelList` 按外层函数 `countValues()` 的空参数元组算标签，与孪生类型对照后确认是错的。 |
+| 2026-10-11 | In Progress → Implemented，编号 0062 | 用户确认合入。按共享分支编号（origin/next 与 origin/main 最大都是 0061），开工后 `next` 没有新提交，不用 rebase；本地合并进 `next`；演进账本第 87 节 |
+| 2026-10-11 | 收尾判断：不另写专题文档；新术语已登记 | 名字的三个来源与找不回的情况写在 SymbolicManglingSymbols.md「边界」，CLI 用户看到的写法写在 agent skill 第 9 节，整树搜索的陷阱写进 AGENTS.md，不修的三处在 A60，都已登记在头部；其余实现决策都在本提案与演进账本里，没有再值得单列的。「position-based name」（按位置起的名字）是本提案新造的说法，已登记术语表；`LocalTypeNaming` 是标识符，不登记 |

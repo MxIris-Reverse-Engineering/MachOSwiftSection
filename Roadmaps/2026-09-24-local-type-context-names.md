@@ -3,7 +3,7 @@
 提案 [0050-symbolic-mangling-symbol-index](../Documentations/Evolutions/0050-symbolic-mangling-symbol-index.md) 的对照测试发现的问题：
 `SymbolicDemangler` 从描述符还原函数体里声明的类型时，丢掉了函数那一层。
 
-**当前状态（2026-10-11）：已修，见提案 [local-type-context-names](../Documentations/Evolutions/draft-local-type-context-names.md)。** 下面是 2026-09-24 的原始记录，保持原貌；它的推断有几处被后来的调查更正，列在文末「更正（2026-10-10）」。
+**当前状态（2026-10-11）：已修，见提案 [0062-local-type-context-names](../Documentations/Evolutions/0062-local-type-context-names.md)。** 下面是 2026-09-24 的原始记录，保持原貌；它的推断有几处被后来的调查更正，列在文末「更正（2026-10-10）」。
 
 ## 现象
 

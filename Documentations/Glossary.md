@@ -281,7 +281,7 @@ opaque 尖括号参数归属的第三条规则：协议无任何 anchor 命中�
 函数或闭包里声明的局部类型，在二进制里找不回所在函数时用的名字：`Holder.(Visitor in $1a2b3c)`。局部类型的函数名有三个来源——描述符自带的名字（只有 debug 构建写）、匿名描述符的 `$s<上下文>MXX` 符号、`_symbolic` 符号——三处都没有（典型是 strip 过的 App）时，`SymbolicDemangler` 照运行时和 Remote Mirror 的做法，用包着该类型的那个匿名上下文的地址起名，挂在最近一个能叫出名字的上下文下面。地址的口径与 dump 的成员地址注释相同，所以同一个镜像从文件读和在进程内读得到同一个名字。它借用 `privateDeclName` 的形状，但类型不是 private，`$` 开头的部分也不是鉴别符；判断用 `LocalTypeNaming.positionBased`，不要按字符串猜。
 
 - **主要出现在**：`Sources/Analysis/SwiftInspection/SymbolicDemangler.swift`（`positionNameOfUnnamedLocalType`）、`Sources/Analysis/SwiftInspection/LocalTypeNaming.swift`、`Sources/Output/SwiftDeclarationRendering/RuntimeTypeNameDemangling.swift`
-- **延伸阅读**：[提案 local-type-context-names](Evolutions/draft-local-type-context-names.md)
+- **延伸阅读**：[提案 0062](Evolutions/0062-local-type-context-names.md)
 
 ### renamed class（改名类，`@objc(Name)` / `@_objcRuntimeName(Name)`）
 

@@ -693,7 +693,7 @@
 ## A60 — 局部类型的上下文让三处整树搜索可能读错成员：`final` 恢复的 `Tq` 兜底、上游 `identifier`、变量的代表节点（局部类型名字提案横向排查发现）
 
 - **裁决**：三处都不修（2026-10-11）。
-- **背景**：局部类型的名字里带着声明它的函数、闭包或访问器（提案 [draft-local-type-context-names](../Evolutions/draft-local-type-context-names.md)）。成员符号的节点以上下文为第一个子节点，前序遍历的整树搜索因此会先进入上下文，拿到外层声明的节点。同一批里能变红的五处已经修掉（conformance 成员的分类与去重、主体里合成成员的去重、`@dynamicMemberLookup` 推断、匿名参数的标签、`static` 存储属性的存储符号被读成 getter），下面三处判为不修。
+- **背景**：局部类型的名字里带着声明它的函数、闭包或访问器（提案 [0062-local-type-context-names](../Evolutions/0062-local-type-context-names.md)）。成员符号的节点以上下文为第一个子节点，前序遍历的整树搜索因此会先进入上下文，拿到外层声明的节点。同一批里能变红的五处已经修掉（conformance 成员的分类与去重、主体里合成成员的去重、`@dynamicMemberLookup` 推断、匿名参数的标签、`static` 存储属性的存储符号被读成 getter），下面三处判为不修。
 - **一、`final` 恢复的第四道门**：`TypeDefinition.recoverFinalMembers`（`TypeDefinition+FinalRecovery.swift`，`Tq` 符号那段）把每个 method descriptor 符号读成成员名时，先对整棵树做 `first(of: .function)`，找不到才找 `.variable`、`.subscript`。局部 class 的属性访问器 descriptor（`method descriptor for sides.getter … in Shape #1 in Holder.shape(_:)`）会被读成外层函数名 `shape`，而不是 `sides`。
   - **复现 / 是否误报**：机制属实。`-Onone` 编出的局部 class 带着 `Tq` 局部符号，`nm` 可见。但输出层面复现不出来：这道门只在成员与 descriptor 连不上时起作用，而局部 class 的成员靠同一批 `Tq` 符号按节点连接（`ClassDispatchLookups.methodDescriptorLookup`），不受 ICF 影响，总是先连上；`-O` 构建会把局部 class 的属性去虚化，连 `Tq` 符号都不生成。
   - **与 main 基线对比**：代码是基线既有的。基线里局部 class 的名字是错的，descriptor 按节点匹配不到，这处走不到；本分支让名字对上之后才可达，但仍被节点连接挡在前面。

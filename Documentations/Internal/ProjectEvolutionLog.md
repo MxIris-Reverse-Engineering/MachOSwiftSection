@@ -2370,7 +2370,7 @@
 - **关联文档**：review 记录；[ReviewAdjudications.md](ReviewAdjudications.md) A53–A59；四份提案的决策日志（[并发打印](../Evolutions/draft-concurrent-definition-printing.md)、[离线特化](../Evolutions/draft-offline-generic-specialization.md)、[嵌套定义区域](../Evolutions/draft-nested-definition-regions.md)、[嵌套偏移记忆化](../Evolutions/draft-nested-field-offset-memoization.md)）；[OfflineGenericSpecialization.md](OfflineGenericSpecialization.md)、[OpaqueReturnTypeResolution.md](OpaqueReturnTypeResolution.md)、[Modules/SwiftThunkAnalysis.md](Modules/SwiftThunkAnalysis.md)、[Modules/MachODependencies.md](Modules/MachODependencies.md)。
 - **对应版本**：0.22.0（未发版），随 PR #131 合入。
 
-## 2026-10-10 局部类型的名字：找回函数与闭包上下文（节号落地时分配）
+## 87. 局部类型的名字：找回函数与闭包上下文
 
 - **时间段**：2026-10-10 — 2026-10-11。
 - **动机**：RuntimeViewer 会话在 macOS 27.2 的 SwiftUI 侧边栏里看到一行孤立的 Ex（`IndexWrappingVisitor in IndexingWrappingGenerator #1 in closure #1 … in AccessibilityRotorInfo.readEntryList(…)`），追下去是函数、闭包里声明的局部类型名字全错：`TableDataSource` 的 7 个 `Visitor` 在 interface 里只剩 1 个、重复 6 遍；private 函数里的局部类型被伪造成 private 类型；成员符号用真名记录，对不上错的名字，成员静默丢失。会话把调查结果转交过来，用户让这边接手修。这个问题 2026-09-24 已经记在 roadmap `2026-09-24-local-type-context-names` 里，当时只登记、没修。
@@ -2392,7 +2392,7 @@
   - 全量 `swift test --skip IntegrationTests`（JHs-Mac-Studio-Ultra，Swift 6.4，五个兄弟依赖都链本地）：2383 个测试、455 个套件全部通过，原始退出码 0。
   - 系统框架 A/B（`Scripts/run-rendering-ab-verification.py`；基线是 next cd248de9 的 `git archive` 沙盒，两侧 release 预构建，共用同一份 `Package.resolved`）：96 对里 30 对有差异，全部在 SwiftUI / SwiftUICore，逐对核对都来自局部类型——名字换成编译器全名，interface 加注释、conformance 的 extension 头印全名，以前丢掉的成员、字段和布局注释挂回来（`TableDataSource` 的 7 个 `Visitor` 各有自己的字段，基线是一份 `var result: SwiftUI.DeleteInteraction?` 印 6 遍）。按典型 witness 成员（`_rawHashValue`、`hash(into:)`、`_updateDefault`、`CodingKeys` 的初始化器等）计数，没有一对比基线少；缓存镜像的 SwiftUICore 还多出基线印成 `{}` 的 conformance 成员。第一轮 A/B 里 iOS 26.5 模拟器腿的成员丢失就是上面的整树搜索问题，修后第二轮消失；两轮的 96 份基线渲染逐字节相同。
   - macOS 27.2 当前系统 cache 的 AppKit（剥光本地符号，只靠 `_symbolic`）手工对比 dump 与 interface：只有 3 个局部类型变化（`NSWMDeferrableWMWindowTransaction.deferCompletionUntil()` 里的 `DeferralState`、`_NSLocalizedIndexedCollation.sortedArray(from:collationStringSelector:)` 里的 `ObjectWrapper`、`NSView._HitTestMap.differencePairs(to:differences:)` 里的 `Pair`）。
-- **关联文档**：[draft-local-type-context-names](../Evolutions/draft-local-type-context-names.md)、[Roadmaps/2026-09-24-local-type-context-names.md](../../Roadmaps/2026-09-24-local-type-context-names.md)、[SymbolicManglingSymbols.md](SymbolicManglingSymbols.md)「边界」、[Glossary.md](../Glossary.md)「position-based name」、`swift-section` agent skill 第 9 节。
+- **关联文档**：[0062-local-type-context-names](../Evolutions/0062-local-type-context-names.md)、[Roadmaps/2026-09-24-local-type-context-names.md](../../Roadmaps/2026-09-24-local-type-context-names.md)、[SymbolicManglingSymbols.md](SymbolicManglingSymbols.md)「边界」、[Glossary.md](../Glossary.md)「position-based name」、`swift-section` agent skill 第 9 节。
 - **对应版本**：下一个版本（未发版）。
 
 ## 维护约定

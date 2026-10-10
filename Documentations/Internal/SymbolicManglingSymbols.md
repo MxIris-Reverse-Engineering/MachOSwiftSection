@@ -51,7 +51,7 @@ name」这种东西：typeref 本体里的 substitution 把 symbolic reference �
 | MachOSymbols | `SymbolicManglingSymbols.swift` | `SymbolicManglingSymbols`：按行、零拷贝的集合（`MachOImage` 的名字留在映射的字符串表里）；`SymbolicManglingSymbolName`：拆出角色、带占位的 mangled name、被引用者；字节级前缀判断 `nameBytesHaveSymbolicManglingSymbolPrefix` |
 | MachOSymbols | `SymbolIndexStore.swift` | 两条采集腿各多一个前缀分支，收进 `Storage.symbolicManglingSymbolTable`（沿用 `SymbolTable`）；查询 `symbolicManglingSymbols(in:)` |
 | SwiftInspection | `SymbolicManglingIndex.swift` | `SymbolicManglingReference`（种类、引用位置、被引用位置、符号位置、第几个被引用者，24 字节）；按镜像的 `SharedCache`：读每个符号标的 mangled name、按顺序配对、按被引用位置排一份下标；查询 `references(in:)` / `references(to:in:)` / `referentNode(of:in:)` / `referentNode(forContextDescriptorAt:in:)` / `referentNodes(ofSymbolAt:in:)` / `unpairedSymbolCount(in:)` |
-| SwiftInspection | `AnonymousContextNameIndex.swift` | 不再自己扫符号表：遍历 `0x01` 引用，每个描述符只读一次父级，父级是匿名上下文就从解好的被引用者节点里取名字——private 类型取鉴别符，局部类型（名字是 `localDeclName`）把整个名字存成 type mangling，用时再解；某个引用解不出来就接着试下一个指向同一描述符的引用。原名 `AnonymousContextPrivateDiscriminatorIndex`，提案 [local-type-context-names](../Evolutions/draft-local-type-context-names.md) 改名 |
+| SwiftInspection | `AnonymousContextNameIndex.swift` | 不再自己扫符号表：遍历 `0x01` 引用，每个描述符只读一次父级，父级是匿名上下文就从解好的被引用者节点里取名字——private 类型取鉴别符，局部类型（名字是 `localDeclName`）把整个名字存成 type mangling，用时再解；某个引用解不出来就接着试下一个指向同一描述符的引用。原名 `AnonymousContextPrivateDiscriminatorIndex`，提案 [0062-local-type-context-names](../Evolutions/0062-local-type-context-names.md) 改名 |
 | SwiftIndexing | `SwiftDeclarationIndexer.deinit` | 符号库那一支（`claims.symbolStore`）一起驱逐 `SymbolicManglingIndex` |
 
 ## 为什么这样落
@@ -75,7 +75,7 @@ name」这种东西：typeref 本体里的 substitution 把 symbolic reference �
   SwiftUICore 实测为 0。没有被引用者的符号（如 `_symbolic Si`）不读字节。
 - 间接引用（`0x02`）只给出指针槽的位置，不解它指向哪个镜像的哪个描述符。
 - 不提供被引用者的原始文本：单独拿去 demangle 就会踩上面那个坑。
-- 函数体里声明的局部类型：编译器写 `DeferralState #1 in AppKit.NSWMDeferrableWMWindowTransaction.deferCompletionUntil() -> () -> ()`，`SymbolicDemangler` 从描述符还原时曾丢掉函数那一层——和私有鉴别符是同一类问题（匿名上下文没有名字）。本提案当时把它登记为已知问题（`withKnownIssue`）；提案 [local-type-context-names](../Evolutions/draft-local-type-context-names.md) 修掉了它，`_symbolic` 符号是局部类型名字的三个来源之一（另两个是描述符自带的名字和匿名描述符的 `MXX` 符号），对照测试的已知问题随之去掉。只有字段描述符的类型才有这个符号，所以一个被剥光本地符号、又没有字段描述符的局部类型仍然找不回函数，按位置起名。
+- 函数体里声明的局部类型：编译器写 `DeferralState #1 in AppKit.NSWMDeferrableWMWindowTransaction.deferCompletionUntil() -> () -> ()`，`SymbolicDemangler` 从描述符还原时曾丢掉函数那一层——和私有鉴别符是同一类问题（匿名上下文没有名字）。本提案当时把它登记为已知问题（`withKnownIssue`）；提案 [0062-local-type-context-names](../Evolutions/0062-local-type-context-names.md) 修掉了它，`_symbolic` 符号是局部类型名字的三个来源之一（另两个是描述符自带的名字和匿名描述符的 `MXX` 符号），对照测试的已知问题随之去掉。只有字段描述符的类型才有这个符号，所以一个被剥光本地符号、又没有字段描述符的局部类型仍然找不回函数，按位置起名。
 
 ## 实测（macOS 26.7 系统 dyld shared cache）
 
