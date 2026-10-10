@@ -20,9 +20,28 @@ import AssociatedObject
 /// instance properties to a type it does not own.
 extension TypeDefinition {
     /// Associated-object backing for `specializedChildren`. Mutated only
-    /// within this file (the `specialize(...)` family appends to it).
+    /// within this file (the `specialize(...)` family appends to it), and
+    /// read and written only under `specializedChildrenAccess`.
     @AssociatedObject(.retain(.nonatomic))
     private var _specializedChildren: [TypeDefinition] = []
+
+    /// The lock every read and write of `_specializedChildren` holds — one
+    /// for all definitions, as a specialization is rare and its append quick.
+    /// A host reads the list while it specializes from another task:
+    /// RuntimeViewer's section actor awaits `specialize(...)`, a nonisolated
+    /// async method that runs off the actor while the actor goes on reading.
+    /// Unlocked, two appends at once lost one of them, and a read overlapping
+    /// a write could retain the array the write had just released (the
+    /// associated object is retained non-atomically, and its getter even
+    /// writes on a first read).
+    @Mutex
+    private static var specializedChildrenAccess: Void = ()
+
+    private func appendSpecializedChild(_ specialized: TypeDefinition) {
+        Self._specializedChildrenAccess.withLockUnchecked { _ in
+            _specializedChildren.append(specialized)
+        }
+    }
 
     /// Specialized children produced by **directly** calling
     /// `specialize(with:in:)` (or the `derivingNestedSpecializationsWith`
@@ -67,7 +86,9 @@ extension TypeDefinition {
     /// independent subtrees in `outerSpecialized.typeChildren`). Equality
     /// of `metadata` does not imply identity of the wrapping
     /// `TypeDefinition`.
-    public var specializedChildren: [TypeDefinition] { _specializedChildren }
+    public var specializedChildren: [TypeDefinition] {
+        Self._specializedChildrenAccess.withLockUnchecked { _ in _specializedChildren }
+    }
 
     /// Maximum recursion depth that `deriveNestedSpecializedTypeChildren`
     /// will descend before bailing out. Swift's source-level nesting rarely
@@ -127,7 +148,7 @@ extension TypeDefinition {
             typeArgumentNodes: typeArgumentNodes,
             in: machO
         )
-        _specializedChildren.append(specialized)
+        appendSpecializedChild(specialized)
         return specialized
     }
 
@@ -187,7 +208,7 @@ extension TypeDefinition {
         for child in specialized.typeChildren {
             child.parent = specialized
         }
-        _specializedChildren.append(specialized)
+        appendSpecializedChild(specialized)
         return specialized
     }
 
@@ -207,18 +228,38 @@ extension TypeDefinition {
 
         // Compute the final typeName up-front so it can flow through the
         // designated init: either the unbound form (`Box<A>`) when no type
-        // arguments are supplied, or the bound form (`Box<Int>`) produced by
-        // `boundGenericTypeName(...)`. The latter makes the specialized
-        // definition print as `Box<Int>` rather than the placeholder
-        // `Box<A>`, and gives it a unique mangled name per specialization
-        // (via `mangleAsString(typeName.node)`).
+        // arguments are supplied, or the instantiation's name (`Box<Int>`).
+        // The latter makes the specialized definition print as `Box<Int>`
+        // rather than the placeholder `Box<A>`, and gives it a unique mangled
+        // name per specialization (via `mangleAsString(typeName.node)`).
+        //
+        // The instantiation's name hangs each argument on the level that
+        // declares its parameter — `Outer<Int>.Inner<String>`, the runtime's
+        // shape and the one an offline specialization of the same type gets.
+        // `boundGenericTypeName` put every argument on the innermost level
+        // (`Outer.Inner<Int, String>`, and `Outer.Middle<Int>` for a nested
+        // type that declares none); it remains the fallback for arguments
+        // that do not match the type's key parameters.
         let unboundTypeName = try materializedTypeContext.typeName(in: machO.context)
         let finalTypeName: TypeName
         if let typeArgumentNodes, !typeArgumentNodes.isEmpty {
-            finalTypeName = Self.boundGenericTypeName(
-                unboundTypeName: unboundTypeName,
-                typeArgumentNodes: typeArgumentNodes
-            )
+            do {
+                let instantiation = try GenericInstantiation(of: typeContextDescriptorWrapper, keyArguments: typeArgumentNodes, in: machO)
+                finalTypeName = TypeName(
+                    node: InternedNodeReferenceCache.shared.reference(interning: instantiation.typeNode, in: machO),
+                    kind: unboundTypeName.kind
+                )
+            } catch {
+                // The flat name is the name of no instantiation, so falling
+                // back to it is a degradation worth a trace: the header still
+                // prints the runtime's name, and the two now disagree.
+                let reason = (error as? LocalizedError)?.errorDescription ?? "\(error)"
+                #log(.error, "could not name the instantiation of \(unboundTypeName.name, privacy: .public) (\(reason, privacy: .public)); naming it with every argument on its innermost level")
+                finalTypeName = Self.boundGenericTypeName(
+                    unboundTypeName: unboundTypeName,
+                    typeArgumentNodes: typeArgumentNodes
+                )
+            }
         } else {
             finalTypeName = unboundTypeName
         }
@@ -422,6 +463,146 @@ extension TypeDefinition {
             // switch.
             throw SpecializationError.unsupportedMetadataKind(metadata: metadata)
         }
+    }
+
+    // MARK: - Offline specialization (evolution proposal `offline-generic-specialization`)
+
+    /// Append a new specialized `TypeDefinition` for an offline
+    /// specialization of this definition — the `MachOFile` counterpart of
+    /// `specialize(with:typeArgumentNodes:in:)`.
+    ///
+    /// The result carries no metadata. The new definition takes the
+    /// instantiation's name from it, and its `staticSpecialization` — the
+    /// argument of every parameter — is what the printer renders the bound
+    /// header, the substituted field types and the layout comments from.
+    ///
+    /// Throws `SpecializationError.notGenericType` for a non-generic receiver
+    /// and `.descriptorMismatch` for a result made for another type. Like the
+    /// runtime overload, this specializes only the receiver; the deriving
+    /// overload below also derives its nested types.
+    @discardableResult
+    public func specialize(
+        with specializationResult: StaticSpecializationResult,
+        in machO: MachOFile
+    ) async throws -> TypeDefinition {
+        let specialized = try makeStaticallySpecializedDefinition(with: specializationResult, in: machO)
+        appendSpecializedChild(specialized)
+        return specialized
+    }
+
+    /// Specialize the receiver offline **and** derive specialized nested
+    /// children for every member of `typeChildren` the result's selection can
+    /// bind — the offline counterpart of
+    /// `specialize(with:typeArgumentNodes:derivingNestedSpecializationsWith:selection:typeArgumentNodesByParameter:in:)`,
+    /// with the same contract: derived children land in the returned
+    /// definition's `typeChildren` only, a child that declares parameters of
+    /// its own or fails to specialize is dropped, and the recursion stops at
+    /// `nestedSpecializationDepthLimit`. The selection travels in the result,
+    /// and every name comes from the instantiation, so neither is passed.
+    @_spi(Support)
+    @discardableResult
+    public func specialize(
+        with specializationResult: StaticSpecializationResult,
+        derivingNestedSpecializationsWith specializer: GenericSpecializer<MachOFile>,
+        in machO: MachOFile
+    ) async throws -> TypeDefinition {
+        let specialized = try makeStaticallySpecializedDefinition(with: specializationResult, in: machO)
+        specialized.typeChildren = await deriveNestedStaticallySpecializedTypeChildren(
+            using: specializer,
+            selection: specializationResult.selection,
+            in: machO,
+            depth: 0
+        )
+        for child in specialized.typeChildren {
+            child.parent = specialized
+        }
+        appendSpecializedChild(specialized)
+        return specialized
+    }
+
+    private func makeStaticallySpecializedDefinition(
+        with specializationResult: StaticSpecializationResult,
+        in machO: MachOFile
+    ) throws -> TypeDefinition {
+        guard typeContextDescriptorWrapper.typeContextDescriptor.layout.flags.isGeneric else {
+            throw SpecializationError.notGenericType(typeName: typeName.name)
+        }
+        // Both descriptors were read from the same file, so their offsets are
+        // directly comparable.
+        let expectedDescriptorOffset = typeContextDescriptorWrapper.typeContextDescriptor.offset
+        let actualDescriptorOffset = specializationResult.typeDescriptor.typeContextDescriptor.offset
+        guard expectedDescriptorOffset == actualDescriptorOffset else {
+            throw SpecializationError.descriptorMismatch(
+                typeName: typeName.name,
+                expectedOffset: expectedDescriptorOffset,
+                actualOffset: actualDescriptorOffset
+            )
+        }
+
+        // This specialize operation's single wrapper materialization
+        // (proposal 0002), released when this function returns.
+        let materializedTypeContext = try materializedTypeContext(in: machO.context)
+        let specialized = TypeDefinition(
+            type: materializedTypeContext,
+            typeName: specializationResult.typeName,
+            isSpecialized: true,
+            exportStatus: exportStatus
+        )
+        specialized.staticSpecialization = specializationResult.binding
+        return specialized
+    }
+
+    private func deriveNestedStaticallySpecializedTypeChildren(
+        using specializer: GenericSpecializer<MachOFile>,
+        selection: SpecializationSelection,
+        in machO: MachOFile,
+        depth: Int
+    ) async -> [TypeDefinition] {
+        guard depth < Self.nestedSpecializationDepthLimit else {
+            #log(.info, "deriveNestedStaticallySpecializedTypeChildren reached nested specialization depth limit \(Self.nestedSpecializationDepthLimit, privacy: .public) — truncating subtree at \(self.typeName.name, privacy: .public)")
+            return []
+        }
+
+        var derivedChildren: [TypeDefinition] = []
+        for child in typeChildren {
+            guard child.typeContextDescriptorWrapper.typeContextDescriptor.layout.flags.isGeneric else {
+                continue
+            }
+            // Best-effort, as on the runtime path: a child that fails to
+            // specialize is dropped and its siblings still arrive.
+            do {
+                let request = try specializer.makeRequest(for: child.typeContextDescriptorWrapper)
+                var childArguments: [String: SpecializationSelection.Argument] = [:]
+                var hasCompleteBinding = true
+                for parameter in request.parameters {
+                    guard let argument = selection.arguments[parameter.name] else {
+                        hasCompleteBinding = false
+                        break
+                    }
+                    childArguments[parameter.name] = argument
+                }
+                guard hasCompleteBinding else {
+                    continue
+                }
+
+                let childSelection = SpecializationSelection(arguments: childArguments)
+                let childResult = try specializer.specialize(request, with: childSelection)
+                let childSpecialized = try child.makeStaticallySpecializedDefinition(with: childResult, in: machO)
+                childSpecialized.typeChildren = await child.deriveNestedStaticallySpecializedTypeChildren(
+                    using: specializer,
+                    selection: childSelection,
+                    in: machO,
+                    depth: depth + 1
+                )
+                for grandchild in childSpecialized.typeChildren {
+                    grandchild.parent = childSpecialized
+                }
+                derivedChildren.append(childSpecialized)
+            } catch {
+                continue
+            }
+        }
+        return derivedChildren
     }
 
     /// Errors raised by `specialize(with:typeArgumentNodes:in:)` when the

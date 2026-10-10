@@ -4,24 +4,32 @@ import OrderedCollections
 @_spi(Internals) import MachOSymbols
 @_spi(Internals) import SwiftInspection
 
-extension ExtensionDefinition {
-    package func index(in machO: some MachOSwiftSectionRepresentableWithCache) async throws {
-        guard !isIndexed else { return }
+extension ExtensionDefinition: OnceIndexedDefinition {
+    /// Resolves a conformance's resilient witnesses to members. Idempotent,
+    /// and safe to call from several tasks at once: the first runs the pass,
+    /// the others wait for it (`DefinitionIndexing`).
+    package func index(in machO: some MachOSwiftSectionRepresentableWithCache) throws {
+        try DefinitionIndexing.index(self) {
+            try runIndexingPass(in: machO)
+        }
+    }
 
+    /// The pass `index(in:)` runs once. Synchronous on purpose, and it must
+    /// never index another definition: `DefinitionIndexing` blocks the
+    /// callers that arrive while it runs.
+    private func runIndexingPass(in machO: some MachOSwiftSectionRepresentableWithCache) throws {
         // Cheap pre-check on the retained descriptor keeps the typealias-only
         // majority from materializing at all; the one materialization below
         // is this operation's single allowed one (proposal 0002). Both early
-        // returns are COMPLETED indexings ("nothing to index"), so they must
-        // set `isIndexed` — otherwise every later consumer (the printer's
-        // three probes plus the diffable builder) re-enters the whole
-        // materialization per print. A thrown materialization deliberately
-        // leaves the flag unset so a failed read can be retried.
+        // returns are COMPLETED passes ("nothing to index"): returning marks
+        // the definition indexed, so no later consumer (the printer's three
+        // probes plus the diffable builder) re-enters the materialization per
+        // print. A thrown materialization leaves it unindexed, so a failed
+        // read can be retried.
         guard protocolConformanceDescriptor != nil else {
-            isIndexed = true
             return
         }
         guard let protocolConformance = try materializedProtocolConformance(in: machO.context), !protocolConformance.resilientWitnesses.isEmpty else {
-            isIndexed = true
             return
         }
 
@@ -85,8 +93,6 @@ extension ExtensionDefinition {
         }
 
         orderedMembers = OrderedMember.offsetOrdered(OrderedMember.allMembers(from: self))
-
-        isIndexed = true
     }
 
     /// Marks the members whose witness resolved through a protocol

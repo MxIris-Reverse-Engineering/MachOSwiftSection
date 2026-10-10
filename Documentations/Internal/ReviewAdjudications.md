@@ -602,3 +602,88 @@
   - dump/interface 打印的声明里如果出现函数局部类型，`currentName` 会把它显示成外层函数签名的尾巴。库代码里目前没有调用它，影响待查。
   - 上游 swift-demangling 的 `Node.identifier` 同样不认 `.localDeclName`。
   - `MemberKey` 这个候选的镜像路径是空字符串，原因没查。
+
+---
+
+## A53 — 等另一个线程跑完某个定义的索引时，不把自己的优先级借给它（PR #131 review 发现 9）
+
+- **裁决**：不修（2026-10-08）。
+- **发现**：`DefinitionIndexing`（`Sources/Declaration/SwiftDeclaration/Components/Definitions/DefinitionIndexing.swift`）让第二个要索引同一个定义的调用者在 `SharedCacheBuildPromise.wait()` 上阻塞，底层是 `NSCondition`，不会把等待者的 QoS 借给正在跑索引的线程。RuntimeViewer 在 `.utility` 上建 Find 语料，用户恰好点开语料正在索引的那个类型时，前台的打印要等后台线程跑完。
+- **复现 / 是否误报**：机制属实，读码确认。没有实测延迟；单个定义的索引通常是毫秒级。
+- **与 main 基线对比**：PR 新引入。改前每个调用者各自索引同一个定义，那是数据竞争，也正是 PR 要修的问题。`SharedCache` 的并发构建用的是同一个 promise，一直是同样的取舍。
+- **为什么不修**：代价没观察到，修法却不小：要在 promise 里记下构建线程，等待前用 `pthread_override_qos_class_start_np` 借出优先级、等完调 `_end_np`，还要处理构建线程在等待开始前已经退出（`pthread_t` 失效）的情况。
+- **既往修复**：无。
+- **复审条件**：RuntimeViewer 出现能感觉到的「点开一个类型要等」。到时在 `SharedCacheBuildPromise` 里做，`SharedCache` 一起受益。
+
+---
+
+## A54 — 嵌套字段偏移的进程级缓存会记住「这个字段类型解析不出」（PR #131 review 发现 12，**有意设计**）
+
+- **裁决**：本库不修（2026-10-08），转 RuntimeViewer。
+- **发现**：`NestedFieldOffsetLevelMemo`（`Sources/Output/SwiftDeclarationRendering/NestedFieldOffsetLevel.swift`）按 metatype 记下展开树的每一层，「当时哪些字段类型解析不出」也一起记住。宿主之后加载了定义那个类型的镜像，缓存仍说解析不出，展开树在那里停下。
+- **复现 / 是否误报**：属实，是设计本身的取舍，提案 [draft-nested-field-offset-memoization](../Evolutions/draft-nested-field-offset-memoization.md) 已写明，并判断为近乎理论。review 没有在 AppKit、SwiftUI、WebKit、Xcode IDE 框架里找到实例。
+- **与 main 基线对比**：PR 新引入（记忆化本身是这个 PR 的一部分）。
+- **为什么不修**：库不知道宿主进程什么时候加载了新镜像（库不注册 dyld 回调），所以清除入口 `RuntimeFieldLayoutMemo.removeAll()` 交给宿主，在加载镜像之后调用。
+- **转 RuntimeViewer**：它的 find-navigator 分支只在自己 `dlopen` 之后（`DyldUtilities.loadImage(at:)`）调用 `removeAll()`，被检查的进程自己加载的镜像不会触发。`DyldUtilities.observeDyldRegisterEvents()` 写了 dyld 加载镜像的回调，但从没被调用；那边要注册这个回调，在回调里调用 `removeAll()`。
+- **既往修复**：无。
+- **复审条件**：真实框架里出现「宿主后加载的镜像让一棵展开树变短」的实例，或者 RuntimeViewer 注册回调之后仍有残留。
+
+---
+
+## A55 — 嵌套泛型类型的约束 extension 里的类型，在线特化的 `typeName` 与类型头不是同一个名字（PR #131 review 发现 10 的一部分，**有意设计**）
+
+- **裁决**：不修（2026-10-08）。发现 10 的另一部分（算类型名失败时静默退回扁平名）已修，见 [Roadmaps/2026-10-08-pr131-review-findings.md](../../Roadmaps/2026-10-08-pr131-review-findings.md) 第 10 条。
+- **发现**：`extension Outer.SecondMiddle where … { struct DeepConstrainedInner<C> }` 这类类型在线特化之后，`typeName` 按层绑定实参，类型头印的却是运行时 metadata 的名字。运行时只给被扩展类型最内层的列表换实参，把全部实参塞进 `SecondMiddle` 的列表、`Outer<A>` 保持未绑定。
+- **复现 / 是否误报**：属实；提案 [draft-offline-generic-specialization](../Evolutions/draft-offline-generic-specialization.md) 的决策日志（2026-10-01「嵌套泛型的约束 extension 里的类型，实例化名字按层绑定，不照搬运行时」）写明这是有意的差异，[OfflineGenericSpecialization.md](OfflineGenericSpecialization.md)「实例化类型名」一节也有说明。
+- **与 main 基线对比**：PR 新引入（在线特化的 `typeName` 是这个 PR 改成按层绑定的）。
+- **为什么不修**：运行时拼出的名字不对应任何实例化。`typeName` 是 RuntimeViewer 侧边栏的显示名和标识，按层绑定的才是对的；类型头取 metadata 的名字是两条路径共有的做法，离线路径的类型头因此与在线逐字节相同。
+- **既往修复**：无。
+- **复审条件**：RuntimeViewer 需要两者一致，比如拿类型头的文字去匹配 `typeName`。
+
+---
+
+## A56 — 嵌套 `.boundGeneric` 实参链的请求构建次数随深度平方增长（PR #131 review 顺带项）
+
+- **裁决**：不修（2026-10-08）。
+- **发现**：离线特化每遇到一层 `.boundGeneric` 实参，`staticBoundGenericOutcome`（`GenericSpecializer+StaticSpecialization.swift`）为这一层建一次内层请求（`makeInnerContext` + `makeRequest`），再让内层 specializer 的 `internalValidate` 校验，而 `internalValidate` 又把更深各层的请求重建一遍。深度为 d 的实参链因此要建约 d(d+3)/2 次请求（review 的计数）。`staticBoundGenericOutcome` 注释里的「随深度线性增长」说的是实参解析，不含校验。
+- **复现 / 是否误报**：属实，读码确认。
+- **与 main 基线对比**：离线路径是 PR 新增的；在线路径的 `internalValidate` 递归建请求是既有写法。
+- **为什么不修**：实际的嵌套很浅（RuntimeViewer 的 UI 里用户一层一层手选，`[[Int]]` 这种已经少见），`maxBindingDepth` 也给了上限。要省掉重复，得让校验与解析共用同一份内层请求，改动两条路径的结构。
+- **既往修复**：无。
+- **复审条件**：出现需要深层嵌套实参的调用方，或者 profiling 显示特化耗时主要花在重建请求上。
+
+---
+
+## A57 — 测试支持里共享的 fixture 索引器在并行套件下会被重复构建（`GenericSpecializationFixtureIndexers`，PR #131 review 顺带项）
+
+- **裁决**：不修（2026-10-08）。
+- **发现**：`GenericSpecializationFixtureIndexers`（`Sources/TestSupport/MachOTestingSupport/`）是一个 actor，`runtime()` / `offline()` 先查缓存，没有就新建索引器、`await indexer.prepare()`，之后才存进属性。actor 在 `await` 处可重入，几个套件同时第一次调用时各建一份。
+- **复现 / 是否误报**：属实，读码确认（actor reentrancy）。
+- **与 main 基线对比**：PR 新增的测试支持代码。
+- **为什么不修**：只多花测试时间和内存，每一份都是完整的索引，结果正确，不影响任何断言。
+- **既往修复**：无。
+- **复审条件**：测试变慢或内存占用成为问题时，改成存一个 `Task`，让后到的调用者等它。
+
+---
+
+## A58 — 离线 `specialize(with:in:)` 只按描述符偏移核对特化结果属于哪个类型（PR #131 review 顺带项）
+
+- **裁决**：不修（2026-10-08）。
+- **发现**：`TypeDefinition` 的离线 `specialize(with:in:)` 经 `makeStaticallySpecializedDefinition`（`Sources/Declaration/SwiftSpecialization/TypeDefinition+Specialization.swift`）只比较定义自己的描述符偏移和 `StaticSpecializationResult.typeDescriptor` 的偏移，注释假定两者来自同一个文件。把另一个文件里偏移恰好相同的类型的特化结果传进来，也会被接受，特化出的定义带着别的类型的名字和 binding。
+- **复现 / 是否误报**：属实，读码确认；只有把一个文件的特化结果交给另一个文件的定义，也就是误用 API，才会碰到。
+- **与 main 基线对比**：PR 新增。在线路径按 metadata 的描述符核对，metadata 来自本进程，没有跨文件的问题。
+- **为什么不修**：正确的用法（同一个 specializer、同一个文件）不会触发。要彻底防住误用，得让结果带上镜像身份（文件 URL 加 UUID，或 `SharedCacheKey`），改的是公开的结果类型。
+- **既往修复**：无。
+- **复审条件**：RuntimeViewer 的离线模式里出现多个文件的特化结果混用的路径，或者以后给 `StaticSpecializationResult` 加镜像身份时一起做。
+
+---
+
+## A59 — PR #131 review 中被核验驳回的四条候选（**误报**）
+
+- **裁决**：误报（2026-10-08，review 时各有一个核验 agent 读码与编译器源码后驳回）。登记在这里，下次 review 对照跳过。
+- **一、打印器改了「extension 里的协议」的默认实现扩展的打印位置，会让 RuntimeViewer 或库内的使用方丢掉这些扩展**：不成立。`SwiftDeclarationPrinter.swift` 只在 `parent` 与 `extensionContext` 都为空时把默认实现扩展接在协议后面，这是提案 [draft-nested-definition-regions](../Evolutions/draft-nested-definition-regions.md) 有意改的契约；库里唯一调用 `printProtocolDefinition` 的 `SwiftInterfaceBuilder` 在顶层区块按同一条件补上（diff / evolution 只打印协议头，扩展整桶另印，从不依赖打印器接在后面；dump 不走这个打印器）。RuntimeViewer 那边被点名的分支在跳过之后紧接着又把同一桶扩展无条件追加了一次，所以不丢；与本 PR 配套的是它的 `feature/find-navigator`，用的条件与这里相同。（本轮另修的第 4 条是另一回事：协议在第五块才被索引，第四块读到的列表是空的。）
+- **二、离线特化把 `.metadata` 实参当指针用，文件里读出的 `Metadata` 会成野指针**：不成立。离线 `specialize` 的文档（`GenericSpecializer+StaticSpecialization.swift` 开头）与 [OfflineGenericSpecialization.md](OfflineGenericSpecialization.md) 都写明 `.metatype` / `.metadata` / `.specialized` 是宿主进程自己的类型；`.specialized` 的 `metadata()` 先从内存读 kind，只可能是已经解引用过的进程内地址。在线路径对 `.metadata` 一直有同样的前提，误用时同样会崩，不是本 PR 引入的新风险。
+- **三、特化后的泛型 enum 跳过解析不出的 payload，会算出错误的 Enum Layout**：不成立。`RuntimeFieldLayoutBackend` 在打印布局前用 value witness table 的 size 交叉校验（`impliedTotalSize` 与 `typeLayout.size` 不等就不出注释），这条校验是 `12232bee` 专门为这类缺口加的，对特化的泛型 enum 同样生效；跳过 payload 只会让注释消失，不会印出错的布局。非泛型 enum 在基线上就这样跳过。
+- **四、`GenericParameterDepthLayout` 跳过匿名上下文，让泛型方法的 opaque 描述符层号算错、thunk 名字跟着错**：不成立。层结构确实把方法的参数与 opaque 参数并成一层，但 kind-9 thunk 的实参缓冲只按命名声明的签名绑定（编译器 `AbstractMetadataAccessor::emit` 取 `O->getGenericSignature()`），不含 opaque 参数；两种层结构只在第三个字及以后不同，那里放的是 witness table，从不被命名。基线用 `AccessorThunkOwnerLayout(genericContext:)` 算出的是同一个结构，PR 只是把计算挪了位置。
+- **既往修复**：无。
+- **复审条件**：上面任何一条的前提被改动——打印器或 RuntimeViewer 改了追加扩展的条件；离线特化开始接受文件里读出的 `Metadata`；enum 布局的 size 交叉校验被拿掉；thunk 的实参缓冲开始带 opaque 参数。

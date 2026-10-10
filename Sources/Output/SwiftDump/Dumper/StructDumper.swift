@@ -56,7 +56,8 @@ package struct StructDumper<MachO: MachOFieldLayoutRenderable>: TypedDumper {
             // is orthogonal to substitution.
             let isBound = boundDumpedMetatype() != nil
             if !isBound, let genericContext = dumped.genericContext {
-                try await genericContext.dumpGenericSignature(resolver: demangleResolver, in: machO.context) {
+                let depthLayout = GenericParameterDepthLayout.make(for: genericContext, ownedBy: .type(.struct(dumped.descriptor)), in: machO.context)
+                try await genericContext.dumpGenericSignature(resolver: demangleResolver, depthLayout: depthLayout, in: machO.context) {
                     if let invertibleProtocolSet = dumped.invertibleProtocolSet, invertibleProtocolSet.hasInvertedProtocols {
                         invertibleProtocolSet.dumpInvertedProtocolsInheritance
                     }

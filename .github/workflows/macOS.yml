@@ -120,7 +120,7 @@ jobs:
             -c ${{ matrix.configuration }} \
             --enable-experimental-prebuilts \
             --build-path .build-test-${{ matrix.configuration }} \
-            --filter '\.(SymbolTestsCoreDumpSnapshotTests|SymbolTestsCoreInterfaceSnapshotTests|SymbolTestsCoreCoverageInvariantTests|STCoreE2ETests|STCoreTests|GenericSpecializationTests|MultiPayloadEnumTests|SymbolicDemanglerDemanglingTests|MalformedSymbolValueTests|ContinuousIntegrationTestFilterTests|MachOImageCacheMembershipTests|SharedCacheResolveTests|SharedCacheResolveSwiftConcurrencyTests|SharedCacheKeyTests|SharedCacheRegistryTests|DependencyLoadNameTests|DependencyClosureTests|FileDependencyLocatorTests|SwiftInterfaceBuilderDependenciesTests|ManglingPrefixTests|MethodDescriptorTests|MethodOverrideDescriptorTests|MethodDefaultOverrideDescriptorTests|ProtocolRequirementTests|ResilientWitnessTests|LargeStackTaskExecutionTests|BoundedConcurrentMapTests|SwiftEvolutionInterfaceBuilderTests|EvolutionCommandValidationTests|DiffCommandValidationTests|ObjCSectionCommandTests|ObjCAPICommandParsingTests|ObjCDumpDiagnosticsTests|MachOSourceTests|InterfaceAnnotationStyleTests|TransformerRequestTests|ABIRequestTests|DumpAndInterfaceRequestTests|ObjCRequestTests|CommandRequestMappingTests|CommandLineErrorTranslationTests|StandardStreamOutputTests|CommandLineStreamWriteScanTests)(/|$)'
+            --filter '\.(SymbolTestsCoreDumpSnapshotTests|SymbolTestsCoreInterfaceSnapshotTests|SymbolTestsCoreCoverageInvariantTests|STCoreE2ETests|STCoreTests|GenericSpecializationTests|MultiPayloadEnumTests|SymbolicDemanglerDemanglingTests|MalformedSymbolValueTests|ContinuousIntegrationTestFilterTests|MachOImageCacheMembershipTests|SharedCacheResolveTests|SharedCacheResolveSwiftConcurrencyTests|SharedCacheKeyTests|SharedCacheRegistryTests|DependencyLoadNameTests|DependencyClosureTests|FileDependencyLocatorTests|SwiftInterfaceBuilderDependenciesTests|ManglingPrefixTests|MethodDescriptorTests|MethodOverrideDescriptorTests|MethodDefaultOverrideDescriptorTests|ProtocolRequirementTests|ResilientWitnessTests|LargeStackTaskExecutionTests|BoundedConcurrentMapTests|SwiftEvolutionInterfaceBuilderTests|EvolutionCommandValidationTests|DiffCommandValidationTests|ObjCSectionCommandTests|ObjCAPICommandParsingTests|ObjCDumpDiagnosticsTests|MachOSourceTests|InterfaceAnnotationStyleTests|TransformerRequestTests|ABIRequestTests|DumpAndInterfaceRequestTests|ObjCRequestTests|CommandRequestMappingTests|CommandLineErrorTranslationTests|StandardStreamOutputTests|CommandLineStreamWriteScanTests|ConcurrentDefinitionPrintingTests|NestedFieldOffsetMemoizationTests|NestedDefinitionRegionContractTests|ProtocolInExtensionTests|OfflineSpecializationTests|OfflineSpecializationParityTests|InstantiatedTypeNameTests|CanonicalParameterDepthTests|GenericParameterDepthNamingTests|GenericParameterDepthDumpTests|BoundInstantiationLayoutTests|ExtensionContextInstantiationLayoutTests|AccessorThunkOwnerLayoutDepthTests|OpaqueTypeArgumentDepthTests|OfflineObjectiveCBaseClassTests|TiedParameterInstantiationTests|ProtocolInExtensionDefaultWitnessTests|OfflineConditionalConformanceTests|NestedFieldOffsetOpaqueWitnessTests|ConcurrentSpecializationTests|OpaqueParameterInMultiDepthExtensionTests|AccessorThunkTypeInGenericExtensionTests|ConcurrentFileMappingTests)(/|$)'
 
       - name: Run the SharedCache suites on a one-thread cooperative pool (${{ matrix.configuration }})
         # The runner has 3 cores, so the Swift Concurrency cooperative pool is
@@ -132,6 +132,10 @@ jobs:
         # step timeout turns the hang into a failure. The two
         # `differentKeysParallelVia…` tests are skipped: they prove overlap,
         # which needs two pool threads by design.
+        # `ConcurrentDefinitionPrintingTests` is here because a definition's
+        # first print blocks every other print of it until its one indexing
+        # pass ends (`DefinitionIndexing`); that pass must never need a pool
+        # thread to finish.
         timeout-minutes: 5
         env:
           LIBDISPATCH_COOPERATIVE_POOL_STRICT: 1
@@ -141,5 +145,24 @@ jobs:
             --skip-build \
             --enable-experimental-prebuilts \
             --build-path .build-test-${{ matrix.configuration }} \
-            --filter '\.(SharedCacheResolveTests|SharedCacheResolveSwiftConcurrencyTests)/' \
+            --filter '\.(SharedCacheResolveTests|SharedCacheResolveSwiftConcurrencyTests|ConcurrentDefinitionPrintingTests)/' \
             --skip 'differentKeysParallelVia'
+
+      - name: Run the concurrent printing suite on a one-thread pool without the large-stack executor (${{ matrix.configuration }})
+        # The step above cannot catch an indexing pass that needs a pool
+        # thread: on this runner every print runs inside
+        # `LargeStackTaskExecution.run`, on the demangler's own threads, which
+        # the strict pool does not shrink. With the executor off, prints run
+        # on the cooperative pool itself — as they do below macOS 15 / iOS 18
+        # — and a pass that waited on pool work would hang here.
+        timeout-minutes: 5
+        env:
+          LIBDISPATCH_COOPERATIVE_POOL_STRICT: 1
+          MACHO_SWIFT_SECTION_LARGE_STACK_EXECUTOR: 0
+        run: |
+          swift test \
+            -c ${{ matrix.configuration }} \
+            --skip-build \
+            --enable-experimental-prebuilts \
+            --build-path .build-test-${{ matrix.configuration }} \
+            --filter '\.ConcurrentDefinitionPrintingTests/'

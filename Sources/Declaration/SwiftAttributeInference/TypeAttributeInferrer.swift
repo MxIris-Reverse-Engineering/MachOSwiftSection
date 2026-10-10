@@ -6,12 +6,23 @@ import Demangling
 ///
 /// Detectable attributes:
 /// - `@propertyWrapper`: type has a `wrappedValue` stored field or computed variable
-/// - `@resultBuilder`: type has a `static buildBlock` method (also checks extensions)
+/// - `@resultBuilder`: type has a `static buildBlock` method
 /// - `@dynamicMemberLookup`: type has `subscript(dynamicMember:)`
 /// - `@dynamicCallable`: type has a `dynamicallyCall` method
 /// - `@objc(Name)` / `@_objcRuntimeName(Name)`: class the source renamed for
 ///   the ObjC runtime, as `index(in:)` read it off the class metadata
 /// - `@globalActor`: type conforms to `GlobalActor` protocol
+///
+/// The member-based checks read the type's own members only. A `buildBlock`,
+/// `subscript(dynamicMember:)` or `dynamicallyCall` declared in an extension
+/// is not seen — the indexer keeps extensions in its own buckets, not on the
+/// definition — so such a type prints without the attribute. (Earlier
+/// versions also walked `TypeDefinition.extensions`, which nothing ever
+/// fills; evolution proposal `concurrent-definition-printing` removed
+/// those reads.)
+///
+/// The printer calls `infer(for:)` once per print and keeps the result
+/// local; it is never stored on the definition.
 public struct TypeAttributeInferrer: Sendable {
     public init() {}
 
@@ -99,42 +110,18 @@ public struct TypeAttributeInferrer: Sendable {
     private func inferResultBuilder(typeDefinition: TypeDefinition, into attributes: inout [SwiftAttribute]) {
         if Self.hasBuildBlockMethod(staticFunctions: typeDefinition.staticFunctions) {
             attributes.append(.resultBuilder)
-            return
-        }
-        // Also check extensions for this type
-        for extensionDefinition in typeDefinition.extensions {
-            if Self.hasBuildBlockMethod(staticFunctions: extensionDefinition.staticFunctions) {
-                attributes.append(.resultBuilder)
-                return
-            }
         }
     }
 
     private func inferDynamicMemberLookup(typeDefinition: TypeDefinition, into attributes: inout [SwiftAttribute]) {
         if Self.hasDynamicMemberSubscript(subscripts: typeDefinition.subscripts, staticSubscripts: typeDefinition.staticSubscripts) {
             attributes.append(.dynamicMemberLookup)
-            return
-        }
-        // Also check extensions for this type
-        for extensionDefinition in typeDefinition.extensions {
-            if Self.hasDynamicMemberSubscript(subscripts: extensionDefinition.subscripts, staticSubscripts: extensionDefinition.staticSubscripts) {
-                attributes.append(.dynamicMemberLookup)
-                return
-            }
         }
     }
 
     private func inferDynamicCallable(typeDefinition: TypeDefinition, into attributes: inout [SwiftAttribute]) {
         if Self.hasDynamicallyCallMethod(functions: typeDefinition.functions, staticFunctions: typeDefinition.staticFunctions) {
             attributes.append(.dynamicCallable)
-            return
-        }
-        // Also check extensions for this type
-        for extensionDefinition in typeDefinition.extensions {
-            if Self.hasDynamicallyCallMethod(functions: extensionDefinition.functions, staticFunctions: extensionDefinition.staticFunctions) {
-                attributes.append(.dynamicCallable)
-                return
-            }
         }
     }
 

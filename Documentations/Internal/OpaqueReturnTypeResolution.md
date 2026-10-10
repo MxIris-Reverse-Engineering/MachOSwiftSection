@@ -106,7 +106,7 @@ descriptor（或其 GOT 槽）。本模块协议（ProtocolTest）走 `\x02<ref>
 
 `some Sendable` 在 descriptor 里只剩下参数本身：marker protocol（Sendable、Copyable、Escapable、BitwiseCopyable）从不进 generic requirements（`swift/lib/IRGen/GenMeta.cpp` 里 "Marker protocols do not record generic requirements at all"），`some Any` 本来就没有约束，`some AnyObject` 只有一条 layout 约束（kind `0x1F`），`SwiftInterfaceBuilderOpaqueTypeProvider` 不读 layout。这三种形状里 `numRequirements` 与父级相同，全部是继承来的。
 
-因此 provider 定位参数**只能按坐标，不能按位置**：opaque 自己的参数全在同一深度，下标就是它在声明里的序号（`Qr` 是 0，`QR<n>` 是 n + 1，见 `ASTMangler::appendOpaqueTypeArchetype`）。深度从 descriptor 算：父级每让参数总数增长一次算一层（非泛型嵌套类型不占层，与运行时 `_gatherGenericParameterCounts` 一致），声明自己泛型再加一层（type 节点套着 `dependentGenericType`）。**不要**从声明的 mangled 签名数层——`swift-demangle -expand` 看 `Outer<Element>.generic<Argument>() -> some Equatable` 的 `QOMQ` 符号，签名里只有一个 `DependentGenericParamCount`，外层类型那一层被 `appendGenericSignatureParts` 省掉了；也不要用 `GenericContext.depth`，它对每个带泛型上下文的父级都加一。
+因此 provider 定位参数**只能按坐标，不能按位置**：opaque 自己的参数全在同一深度，下标就是它在声明里的序号（`Qr` 是 0，`QR<n>` 是 n + 1，见 `ASTMangler::appendOpaqueTypeArchetype`）。深度从 descriptor 算：沿父链找到最近的类型或 extension，取它的 `GenericParameterDepthLayout` 层数（非泛型嵌套类型不占层；extension 按被扩展的类型拆层，一个 extension 可以带来好几层，与运行时 `_gatherGenericParameterCounts` 换成被扩展类型来数一致），声明自己泛型再加一层（type 节点套着 `dependentGenericType`）。中间的匿名上下文是泛型声明自己签名所在的地方，它那一层由「声明自己泛型」那一项算，所以跳过；直接拿 descriptor 的父上下文来算，会把 `Outer<Element>.generic<Argument>() -> some Equatable` 的方法那层数两次。曾经按「父级每让参数总数增长一次算一层」来数：`extension Outer.SecondMiddle where A: Hashable` 一次带来 `Outer` 的 `A` 和 `SecondMiddle` 的 `C` 两层，被数成一层，约束落在 `τ_2_0` 上、超出算出的层号，debug 构建在 provider 里 trap，release 打出裸 `some`（PR #131 review 第 8 条，回归测试 `OpaqueParameterInMultiDepthExtensionTests`）。**不要**从声明的 mangled 签名数层——`swift-demangle -expand` 看 `Outer<Element>.generic<Argument>() -> some Equatable` 的 `QOMQ` 符号，签名里只有一个 `DependentGenericParamCount`，外层类型那一层被 `appendGenericSignatureParts` 省掉了；也不要用 `GenericContext.depth`，它对每个带泛型上下文的父级都加一。
 
 查不到就返回 nil，printer 打出裸 `some`。这是有意的：`some Any` 会把 `some Sendable` 写成一个不对的类型，裸 `some` 至少不撒谎，而且与 `swift-section interface` 不带 `--parse-opaque-return-type`（默认）时的输出形态一致。回归测试是 `Tests/SwiftInterfaceTests/OpaqueParameterWithoutProtocolRequirementTests.swift`（2026-09-18，RuntimeViewer 批量导出 PhotosUIFoundation 在 `PhotosGroupingItemListManager.GroupItem.value` 上崩溃的复现）。
 
@@ -123,6 +123,14 @@ witness 或签名里引用**别的声明**的 opaque 类型（`Qo` 节点：owne
 实现在 `SwiftDeclarationRendering/OpaqueReferenceSpelling.swift`：`resolveOpaqueType*` 出口处把残留的 `opaqueType` 节点改写成一片 `.identifier` 叶子，两套打印器（上游 `NodePrinter`、`SwiftPrinting`）对 `.type(.identifier)` 都原样打字，所以 indexer 冻结的 witness 文本、dump 的宿主 resolver、interface 三条路一致。mangling 由名字节点重新 mangle 得到（`_$s` 去掉前导下划线），指针形式先读描述符、走 `demangleContext` 建名字，再不行取描述符自己的符号；实参按 depth 顺序拍平；引用是 dependent member 的 base 时加括号 `(@_opaqueReturnTypeOf(…) __<X>).Element`，与编译器一致。开关 `OpaqueReferenceSpelling`：`.textualInterface`（interface、indexer 默认）只写 attribute；`.annotated`（`AssociatedTypeDumper`）在后面附 `/* owner 的 demangle 文本 */`。签名里按名字引用的（符号 demangle 出来的永远是名字形式）在 `SwiftPrinting.printOpaqueType` 里同样拼成 attribute。
 
 一个容易误判的点：编译器自己的 `.swiftinterface` 写的不一定是同一个引用。fixture 里 `Outer.body: some Equatable { helper() }` 的 witness `B`，编译器写 `@_opaqueReturnTypeOf("$s11ProbeClient5OuterV4bodyQrvp", 0) __`——`body` 自己声明的 opaque；二进制的 witness 记录已经被 IRGen 代入一层（同模块可见），指向 `helper()` 的。拼法相同，层级差一。`CrossImageOpaqueReferenceTests` 因此用显式期望串，`ProjectedOpaqueMemberWitnessTests` 的 client 自己没有 opaque，才能和编译器的 interface 逐字比。
+
+### 1.6 引用带的实参表：每层外围声明一张，空层也有一张
+
+`Qo` 节点带着命名声明的泛型实参，每层外围声明一张表，从外到内。编译器给**每一层**都写一张（`ASTMangler::appendBoundGenericArgs`），不声明参数的层写空表，所以表的位置不是层号。运行时 `resolveOpaqueType` 先把所有表拍平，再按描述符自己的层结构重新分组（`_gatherGenericParameters`），从不把位置当层号。`Node.opaqueTypeGenericArgumentsByDepth`（`Node+OpaqueType.swift`）照做：重写器把 opaque 描述符的 `GenericParameterDepthLayout`（`ReadOpaqueType` 里算好的那份）传进来，拍平后重新分组；不传时仍按位置分组，只用来拍平的 `OpaqueReferenceSpelling` 不受影响。
+
+曾经直接按位置当层号（PR #131 review 第 1 条，回归测试 `OpaqueTypeArgumentDepthTests`）。外围只要有一层不声明参数，它后面的每张表都被当成外一层的：非泛型类型里的泛型函数，实参去空表里找，留下裸 `A`——Xcodes 的 `MainToolbarModifier.Body` 印出 `SwiftUI.TupleToolbarContent<A>`；再往里的层拿到外一层的实参，印出真实但错误的类型（`ProbeNamespace.Box<Boxed>.makePair<Extra>` 的 `Extra` 拿到了 `Boxed` 的实参）。
+
+命名声明本身是泛型时，描述符的自有层会把它的参数和 opaque 参数并成一层，看起来层数不对；但实参表只覆盖命名声明的签名，opaque 参数总在最后、不在表里，所以按扁平下标取位置仍然正确：`Box<Boxed>.makePair<Extra>` 的 `[Boxed, Extra]` 落到 `(0,0)`、`(1,0)`。
 
 ---
 

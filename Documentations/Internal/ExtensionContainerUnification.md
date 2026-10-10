@@ -19,7 +19,7 @@
 
 **`updateConfiguration` 的 re-prepare 原为静默 no-op。** `prepare()` 的 `isPrepared` 门从无人复位，配置变更后的重建从未发生过。顺带修复（复位后重跑），它同时成为桶重置（`index()` 入口清空四桶）的确定性验证入口——修复前 re-run 会把所有 append 产线的块成倍复制。
 
-**嵌套协议的扩展块经由原死循环的修复版打印。** `printRoot` 里那个循环原来在 root 协议上过滤 `parent != nil`（恒空）；修复为遍历 `allProtocolDefinitions` 的嵌套协议。fixture 的协议全部嵌套在 enum 命名空间里，所以快照中四个协议扩展块整体从 extensions 区迁到 protocols 区之后——纯迁移，零内容变化。顶层协议走 `printThrowingProtocol` 的尾随路径（`parent == nil` 门）。
+**嵌套协议的扩展块经由原死循环的修复版打印。** `printRoot` 里那个循环原来在 root 协议上过滤 `parent != nil`（恒空）；修复为遍历 `allProtocolDefinitions` 的嵌套协议。fixture 的协议全部嵌套在 enum 命名空间里，所以快照中四个协议扩展块整体从 extensions 区迁到 protocols 区之后——纯迁移，零内容变化。顶层协议走 `printProtocolDefinition` 的尾随路径。哪些协议尾随由 `ProtocolDefinition.printsDefaultImplementationExtensionsAfterDeclaration` 一处回答（既没有 `parent` 也没有 `extensionContext`），这个循环取它的反面，所以声明在别的模块类型的 extension 里的协议也走这个循环（见 [draft-nested-definition-regions](../Evolutions/draft-nested-definition-regions.md)）；宿主自己补印默认实现扩展时读的也是这个属性。
 
 **`protocol-extension default` 标注落在 conformance 兜底分支。** `ExtensionDefinition.index()` 经 `element.defaultImplementationSymbols` 解析成功的 witness，其成员打 `isProtocolExtensionDefault`，interface（`renderMember`）与 dump（`ProtocolConformanceDumper`）在 `printMemberAddress` 开启时渲染标注。**SourceEditor 上未触发**：折叠地址上 `resilientWitness.implementationSymbols` 的首选分支总能命中（protocol witness 符号在场），兜底分支需要「witness 实现符号缺失而默认实现符号可解析」的组合——已落地待真实触发场景（fixture 非 resilient，`resilientWitnesses` 为空，同样够不到）。issue 点名的 `SourceEditorView.elide` 三兄弟经 `nm` 证实是**真类成员**被 ICF 折叠（提案 0006 的 `Tq` 门处理），并非误归属的协议默认实现。
 

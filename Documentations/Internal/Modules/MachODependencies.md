@@ -28,7 +28,7 @@ MachODependencies 回答一个问题：**一个二进制链接了哪些镜像，
 
 打不开的搜索路径**不抛错**，记进 `DependencySearchPathLoadFailure`（附原始 error；系统 cache 不可用时是 `systemDyldSharedCacheUnavailable`）。理由有二：一条坏路径不该让整个解析失败；本模块在事件层（`SwiftIndexEvents`）之下，无法派发事件，只能把失败当数据回传，由上层决定落点——`SwiftInterfaceBuilderDependencies` 把它们派发为 `renderingDegraded(.dependencyLoad)` 事件，CLI 经 `ConsoleEventHandler` 落到 stderr。
 
-`.systemDyldSharedCache` 取 MachOKitExtensions 的 `FullDyldCache.cachedHost`：本机 cache 在进程内只打开一次，所有定位器共用。不要直接读 `FullDyldCache.host`：它每读一次就重新打开、映射本机 cache 的全部文件（macOS 27 是 82 个），而定位器是按根构建的，51 个版本的 evolution 因此曾同时开着 4,182 个文件（[ProjectEvolutionLog](../ProjectEvolutionLog.md) 第 82 节）。`FileDependencyLocatorTests.locatorsShareOneOpeningOfTheSystemCache` 钉住了共用。
+`.systemDyldSharedCache` 取 MachOKitExtensions 的 `FullDyldCache.cachedHost`：本机 cache 在进程内只打开一次，所有定位器共用。不要直接读 `FullDyldCache.host`：它每读一次就重新打开、映射本机 cache 的全部文件（macOS 27 是 82 个），而定位器是按根构建的，51 个版本的 evolution 因此曾同时开着 4,182 个文件（[ProjectEvolutionLog](../ProjectEvolutionLog.md) 第 82 节）。`FileDependencyLocatorTests.locatorsShareOneOpeningOfTheSystemCache` 钉住了共用。共用的后果是几个根会同时第一次读同一个子 cache（`diff` 与 `evolution` 并行准备各个输入）：`DyldCache` 与 `MachOFile` 的文件映射和句柄由 MachOReading 懒创建，创建时持锁、只存一次，之后的读取不拿锁；曾经无锁创建，每个抢到的读者各映射一次、互相覆盖（`ConcurrentFileMappingTests`，PR #131 review 第 7 条的横向排查）。
 
 ## 2. load name 归一（`DependencyLoadName.bareImageName(of:)`）
 

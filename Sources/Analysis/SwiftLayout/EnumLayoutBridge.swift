@@ -304,11 +304,16 @@ extension StaticTypeLayoutResolver {
     /// every instantiation, while an argument-dependent one (no record)
     /// projects the runtime's tagged strategy. Either way an unspecialized
     /// projection matches every instantiation.
+    ///
+    /// `environment` binds an instantiation's arguments — an offline
+    /// specialization's (evolution proposal `offline-generic-specialization`)
+    /// — so an enum whose payload depends on them projects too.
     func enumCaseLayoutResult(
         of descriptor: EnumDescriptor,
-        in image: ImageReference<MachO>
+        in image: ImageReference<MachO>,
+        environment: GenericArgumentEnvironment = .empty
     ) throws -> EnumLayoutCalculator.LayoutResult? {
-        let environment = GenericArgumentEnvironment.empty.augmented(
+        let environment = environment.augmented(
             withRequirementFacts: ClassBoundGenericParameterAnalysis.layoutFacts(of: descriptor, in: image, imageUniverse: imageUniverse)
         )
         let payloadCaseCount = descriptor.numberOfPayloadCases

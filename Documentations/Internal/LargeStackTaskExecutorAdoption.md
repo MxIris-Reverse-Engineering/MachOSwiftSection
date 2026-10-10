@@ -57,6 +57,8 @@ SE-0417：非结构化 `Task {}` 不继承执行器偏好。核对 `Sources/` �
 
 MachOKit 自己的读取有上百处 `fileHandle.seek` + `read` 共用一个句柄（`MachOFile.swift`、`DyldCache.swift` 等），两个线程交错就读错位置；`index(in:)` 的 `guard !isIndexed` 是非原子的检查加赋值。前者不在本仓库，需要 MachOKit 改 mmap 读或每个分片独立 `MachOFile` 实例，另起提案。
 
+后者已由提案 [draft-concurrent-definition-printing](../Evolutions/draft-concurrent-definition-printing.md) 解决：`index(in:)` 改成同步函数，经进程级一把锁只跑一次，打印期不再写定义。所以 `MachOImage` 读者下同一版本内的**打印**可以并发（RuntimeViewer 建语料就这么做）；`MachOFile` 读者仍受前者限制，版本内的 `prepare` 并行也仍然不做。
+
 ### `concurrentMap(maximumConcurrency:)` 的错误语义
 
 窗口化 `withThrowingTaskGroup`：先提交 `window` 个，每完成一个再提交一个，结果按源序落位。首个错误经 `group.next()` 抛出，task group 在作用域退出时取消并等待在飞的子任务（`prepare` 不检查取消，所以在飞的会跑完，结果丢弃），**尚未启动的元素永远不启动**（`theFirstFailureIsRethrownAndPendingElementsNeverStart`）。哪个错误先到是调度决定的——串行时固定是最旧版本的错误，并行时不一定；只影响错误报文，不影响成功路径。

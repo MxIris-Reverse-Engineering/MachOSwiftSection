@@ -23,9 +23,9 @@ extension SwiftDeclarationPrinter {
     /// mirroring the matching `StructDumper`/`ClassDumper`/`EnumDumper`
     /// `declaration` getter.
     ///
-    /// With a `specializedMetadata` (a user-driven specialization's
-    /// runtime-resolved metadata), the header renders the *bound* generic
-    /// form instead: the name prints with its concrete type arguments
+    /// With a `boundTypeNode` (a user-driven specialization's bound name,
+    /// `boundTypeNode(of:)`), the header renders the *bound* generic form
+    /// instead: the name prints with its concrete type arguments
     /// (`Box<Int>`) via `BoundDumpedTypeNameRenderer`, and the
     /// generic-signature clause is skipped — emitting it again would produce
     /// `Box<Int><A: Hashable>` — while the invertible-protocol marker (and,
@@ -34,9 +34,8 @@ extension SwiftDeclarationPrinter {
     /// getters. Without it (the default), the clean unbound interface form
     /// renders straight from the descriptor as before.
     @SemanticStringBuilder
-    package func renderTypeDeclarationHeader(for type: TypeContextWrapper, displayParentName: Bool, level: Int, leafNameNode: Node? = nil, specializedMetadata: MetadataWrapper? = nil) async throws -> SemanticString {
+    package func renderTypeDeclarationHeader(for type: TypeContextWrapper, displayParentName: Bool, level: Int, leafNameNode: Node? = nil, boundTypeNode: Node? = nil) async throws -> SemanticString {
         let resolver = typeDemangleResolver
-        let boundTypeNode: Node? = specializedMetadata.flatMap { SpecializedMetadataNodeSubstitution.boundTypeNode(for: $0) }
         switch type {
         case .struct(let dumped):
             Keyword(.struct)
@@ -46,7 +45,7 @@ extension SwiftDeclarationPrinter {
             } else {
                 try await renderUnboundTypeName(.struct, descriptorWrapper: .type(.struct(dumped.descriptor)), name: dumped.descriptor.name(in: machO.context), displayParentName: displayParentName, leafNameNode: leafNameNode, resolver: resolver)
             }
-            try await renderGenericSignatureWithInvertibles(genericContext: boundTypeNode == nil ? dumped.genericContext : nil, invertibleProtocolSet: dumped.invertibleProtocolSet, resolver: resolver)
+            try await renderGenericSignatureWithInvertibles(genericContext: boundTypeNode == nil ? dumped.genericContext : nil, ownedBy: .type(.struct(dumped.descriptor)), invertibleProtocolSet: dumped.invertibleProtocolSet, resolver: resolver)
         case .enum(let dumped):
             Keyword(.enum)
             Space()
@@ -55,7 +54,7 @@ extension SwiftDeclarationPrinter {
             } else {
                 try await renderUnboundTypeName(.enum, descriptorWrapper: .type(.enum(dumped.descriptor)), name: dumped.descriptor.name(in: machO.context), displayParentName: displayParentName, leafNameNode: leafNameNode, resolver: resolver)
             }
-            try await renderGenericSignatureWithInvertibles(genericContext: boundTypeNode == nil ? dumped.genericContext : nil, invertibleProtocolSet: dumped.invertibleProtocolSet, resolver: resolver)
+            try await renderGenericSignatureWithInvertibles(genericContext: boundTypeNode == nil ? dumped.genericContext : nil, ownedBy: .type(.enum(dumped.descriptor)), invertibleProtocolSet: dumped.invertibleProtocolSet, resolver: resolver)
         case .class(let dumped):
             if dumped.descriptor.isActor {
                 if isDistributedActor(dumped) {
@@ -74,7 +73,8 @@ extension SwiftDeclarationPrinter {
             }
             let superclass = try await renderClassSuperclass(dumped, resolver: resolver)
             if boundTypeNode == nil, let genericContext = dumped.genericContext {
-                try await genericContext.dumpGenericSignature(resolver: resolver, in: machO.context) {
+                let depthLayout = GenericParameterDepthLayout.make(for: genericContext, ownedBy: .type(.class(dumped.descriptor)), in: machO.context)
+                try await genericContext.dumpGenericSignature(resolver: resolver, depthLayout: depthLayout, in: machO.context) {
                     superclass
                 }
             } else {
@@ -83,10 +83,27 @@ extension SwiftDeclarationPrinter {
         }
     }
 
+    /// The bound name a specialized definition's header prints —
+    /// `Box<Swift.Int>` — or `nil` for an unspecialized one. A runtime
+    /// specialization's comes from its metadata, as the runtime names it; an
+    /// offline one's is the instantiation's name it was built with (evolution
+    /// proposal `offline-generic-specialization`), which has the same shape.
+    package func boundTypeNode(of typeDefinition: TypeDefinition) -> Node? {
+        guard typeDefinition.isSpecialized else { return nil }
+        if let metadata = typeDefinition.metadata {
+            return SpecializedMetadataNodeSubstitution.boundTypeNode(for: metadata)
+        }
+        if typeDefinition.staticSpecialization != nil {
+            return typeDefinition.typeName.node.materialize()
+        }
+        return nil
+    }
+
     @SemanticStringBuilder
-    private func renderGenericSignatureWithInvertibles(genericContext: TypeGenericContext?, invertibleProtocolSet: InvertibleProtocolSet?, resolver: DemangleResolver) async throws -> SemanticString {
+    private func renderGenericSignatureWithInvertibles(genericContext: TypeGenericContext?, ownedBy descriptorWrapper: ContextDescriptorWrapper, invertibleProtocolSet: InvertibleProtocolSet?, resolver: DemangleResolver) async throws -> SemanticString {
         if let genericContext {
-            try await genericContext.dumpGenericSignature(resolver: resolver, in: machO.context) {
+            let depthLayout = GenericParameterDepthLayout.make(for: genericContext, ownedBy: descriptorWrapper, in: machO.context)
+            try await genericContext.dumpGenericSignature(resolver: resolver, depthLayout: depthLayout, in: machO.context) {
                 if let invertibleProtocolSet, invertibleProtocolSet.hasInvertedProtocols {
                     invertibleProtocolSet.dumpInvertedProtocolsInheritance
                 }
@@ -347,7 +364,12 @@ extension SwiftDeclarationPrinter {
             staticLayoutDependencyResolution: configuration.staticLayoutDependencyResolution,
             marksOptionalContent: configuration.marksOptionalContent
         )
-        let fieldLayoutRenderer = FieldLayoutRenderer(type: typeContext, metadata: typeDefinition.metadata, machO: machO, configuration: renderConfiguration)
+        // An offline specialization carries its arguments instead of
+        // metadata (evolution proposal `offline-generic-specialization`): the
+        // static layout path computes the comments for them, and the fields
+        // substitute them below.
+        let staticSpecialization: GenericArgumentBinding? = typeDefinition.isSpecialized ? typeDefinition.staticSpecialization : nil
+        let fieldLayoutRenderer = FieldLayoutRenderer(type: typeContext, metadata: typeDefinition.metadata, genericArgumentBinding: staticSpecialization, machO: machO, configuration: renderConfiguration)
         let fieldRecords = try typeDefinition.typeContextDescriptorWrapper.typeContextDescriptor.fieldDescriptor(in: machO.context).records(in: machO.context)
         let fieldOffsets = isEnum ? nil : fieldLayoutRenderer.fieldOffsets
 
@@ -433,6 +455,14 @@ extension SwiftDeclarationPrinter {
                 }
             }
             let substitutedTypeNode: Node? = {
+                if let staticSpecialization {
+                    return StaticSpecializationNodeSubstitution.substitutedTypeNode(
+                        of: field.typeNode.materialize(),
+                        binding: staticSpecialization,
+                        staticFieldLayoutProvider: renderConfiguration.staticFieldLayoutProvider,
+                        in: machO
+                    )
+                }
                 guard let specializedMetadata, let specializedMachOImage, let mangledTypeName else { return nil }
                 return SpecializedMetadataNodeSubstitution.substitutedFieldTypeNode(for: mangledTypeName, metadata: specializedMetadata, in: specializedMachOImage)
             }()

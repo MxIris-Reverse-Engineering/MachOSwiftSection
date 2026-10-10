@@ -688,6 +688,9 @@ extension Target {
             .target(.MachOSymbols),
             .target(.MachOSwiftSection),
             .target(.SwiftInspection),
+            // The host's runtime names for `.metatype` arguments and the
+            // member projection the offline specialization substitutes with.
+            .target(.SwiftDeclarationRendering),
             .target(.SwiftDeclaration),
             .target(.SwiftIndexing),
         ],

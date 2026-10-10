@@ -43,7 +43,16 @@ SwiftDeclaration 是**共享声明模型**：`SwiftIndexing` 往里填，`SwiftP
 
 **主干里的顺序是有约束的，不能随手调**：`final` 恢复要在 `applyThunkAttributes` 之后（它要 `@objc` 证据）且在 `orderedMembers` 之前（那一步会把成员值复制走）；wrapped property 恢复要在字段回折与成员构建都完成之后。每个步骤方法的 doc comment 各自写明了自己依赖什么。
 
-三个 Definition 的 `isIndexed` setter 是 `internal` 而非 `private`，**只因为索引扩展在另一个文件里**：包内其它 target 仍然改不动它。
+### 每个定义只索引一次，可以被并发打印
+
+三个 Definition 的 `index(in:)` 是**同步**函数，都经 `DefinitionIndexing.swift` 执行（提案 [draft-concurrent-definition-printing](../../Evolutions/draft-concurrent-definition-printing.md)）。进程级一把锁守着两样东西：一张「正在索引」的表（按 `ObjectIdentifier(定义)`），和每个定义自己的 `hasCompletedIndexing`。首个调用者认领后在自己的线程上跑完索引体；同时到来的调用者在认领者的 promise（复用 `SharedCacheBuildPromise`，载荷是 `Result`）上阻塞等待，拿到同一个结果。索引体抛错时定义回到未索引、错误交给全部等待者，下次调用重试。`isIndexed` 是只读的计算属性，读的就是锁下的那个标志。
+
+阻塞等待不会死锁，靠两条前提，改索引时要守住：
+
+- **索引体里没有 `await`**。函数签名是同步的，由编译器保证：认领者在认领与交付结果之间不会被挂起。
+- **索引体不去索引别的定义**。它只经 `SharedCache` 一族读镜像，而这些缓存都在 `SwiftDeclaration` 之下的模块里，构建闭包按依赖方向根本够不到定义。认领或等待时如果当前线程正在跑某个索引体，`precondition` 直接 trap，免得等待成环。
+
+打印期也不写定义：类型级 attribute 由打印器每次推断成局部变量，不存回 `TypeDefinition`。所以 `MachOImage` 读者下，同一个 printer 实例可以被多个任务同时调用，包括同时打印同一个定义、父类型与它的嵌套子类型（`ConcurrentDefinitionPrintingTests`）。`MachOFile` 读者仍然不行：MachOKit 的文件读取共用一个 `FileHandle`。`specialize(...)` 往泛型定义的 `specializedChildren` 追加时不加锁，也不在这个承诺里。
 
 ## 关键契约
 

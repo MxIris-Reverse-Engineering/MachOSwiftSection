@@ -138,3 +138,8 @@ configuration/isGeneric/staticAggregateFieldLayout，不含 `Self`）传递 rend
 
 相关：[StaticLayoutEngine.md](StaticLayoutEngine.md)、[StaticLayoutDependencyClosure.md](StaticLayoutDependencyClosure.md)、
 [FieldMetadataRenderingMigration.md](FieldMetadataRenderingMigration.md)。
+
+## 离线特化的实参（2026-10-01）
+
+离线泛型特化（[OfflineGenericSpecialization.md](OfflineGenericSpecialization.md)）的定义没有 metadata，只有一份按层分组的实参（`GenericArgumentBinding`）。它沿同一条 reader 特化的路径传下去：`FieldLayoutRenderer` 的 `init` 多一个 `genericArgumentBinding:`，存进 `FieldLayoutRenderState.genericArgumentBinding`；`FieldLayoutRenderable.precomputedStaticAggregateFieldLayout` 多一个同名参数，`MachOFile` 的实现据此向 provider 要这个实例化的字段布局，`MachOImage` 的实现照旧返回 `nil`。`StaticFieldLayoutBackend` 在 binding 非空时调用 `StaticFieldLayoutProvider` 新增的四个带 binding 的方法（字段布局、payload 布局、逐 case 的 enum 布局、展开偏移树），这四个方法的默认实现返回空，库外 provider 不受影响。运行时后端不看 binding：它的实参在 metadata 里。
+

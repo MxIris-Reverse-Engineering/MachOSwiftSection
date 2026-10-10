@@ -32,11 +32,15 @@ package func genericValueName(depth: Int, index: Int) throws -> String {
 }
 
 extension TargetGenericContext {
+    /// - Parameter depthLayout: How this context's parameters split into
+    ///   depths (`GenericParameterDepthLayout.make(for:ownedBy:in:)`), which
+    ///   decides the depth each printed name carries — the one its fields and
+    ///   requirements name it by.
     @SemanticStringBuilder
-    package func dumpGenericSignature(resolver: DemangleResolver, in context: some ReadingContext, isDumpCurrentLevelParams: Bool = true, isDumpCurrentLevelRequirements: Bool = true, @SemanticStringBuilder conformancesBuilder: () async throws -> SemanticString = { "" }) async throws -> SemanticString {
+    package func dumpGenericSignature(resolver: DemangleResolver, depthLayout: GenericParameterDepthLayout, in context: some ReadingContext, isDumpCurrentLevelParams: Bool = true, isDumpCurrentLevelRequirements: Bool = true, @SemanticStringBuilder conformancesBuilder: () async throws -> SemanticString = { "" }) async throws -> SemanticString {
         if (isDumpCurrentLevelParams ? currentParameters : parameters).count > 0 {
             Standard("<")
-            try await dumpGenericParameters(in: context, isDumpCurrentLevel: isDumpCurrentLevelParams)
+            try await dumpGenericParameters(depthLayout: depthLayout, in: context, isDumpCurrentLevel: isDumpCurrentLevelParams)
             Standard(">")
         }
 
@@ -52,132 +56,59 @@ extension TargetGenericContext {
 }
 
 extension TargetGenericContext {
+    /// Prints the parameter names, `A, B, A1, …`: the context's own
+    /// parameters, or with `isDumpCurrentLevel` off every parameter in scope.
+    ///
+    /// A name spells its parameter's `(depth, index)`, and only
+    /// `depthLayout` knows the depth. The parent chain does not: a type that
+    /// declares no parameter is still a generic ancestor, and an extension
+    /// ancestor can span several depths — counting ancestors printed
+    /// `struct Inner<A2>` over a field the record names `A1`.
     @SemanticStringBuilder
-    package func dumpGenericParameters(in context: some ReadingContext, isDumpCurrentLevel: Bool = true) async throws -> SemanticString {
-        if isDumpCurrentLevel {
-            var currentValueIndex = 0
-            for (offset, parameter) in currentParameters.offsetEnumerated() {
-                if parameter.kind == .typePack {
-                    Keyword(.each)
-                    Space()
-                } else if parameter.kind == .value {
-                    Keyword(.let)
-                    Space()
-                }
+    package func dumpGenericParameters(depthLayout: GenericParameterDepthLayout, in context: some ReadingContext, isDumpCurrentLevel: Bool = true) async throws -> SemanticString {
+        // The context's own parameters are the tail of the cumulative list,
+        // so the positions below are offsets into `parameters` either way.
+        let firstPrintedOffset = isDumpCurrentLevel ? parameters.count - currentParameters.count : 0
+        let printedParameters = parameters[firstPrintedOffset...]
+        // `values` holds one descriptor per value parameter, in parameter
+        // order; the printed ones start after those of the skipped parameters.
+        var valueIndex = parameters[..<firstPrintedOffset].filter { $0.kind == .value }.count
+        for (offset, parameter) in printedParameters.enumerated() {
+            let flatIndex = firstPrintedOffset + offset
+            // A layout that does not cover the parameter (an unreadable
+            // ancestor) names it by its position among the printed ones.
+            let position = depthLayout.position(ofParameterAt: flatIndex) ?? (depth: depthLayout.depthCount, index: offset)
 
-                switch parameter.kind {
-                case .type,
-                     .typePack:
-                    try Standard(genericParameterName(depth: depth, index: offset.index))
-                case .value:
-                    try Standard(genericValueName(depth: depth, index: offset.index))
-                    Standard(": ")
-                    switch currentValues[currentValueIndex].type {
+            if parameter.kind == .typePack {
+                Keyword(.each)
+                Space()
+            } else if parameter.kind == .value {
+                Keyword(.let)
+                Space()
+            }
+
+            switch parameter.kind {
+            case .type,
+                 .typePack:
+                try Standard(genericParameterName(depth: position.depth, index: position.index))
+            case .value:
+                try Standard(genericValueName(depth: position.depth, index: position.index))
+                Standard(": ")
+                if let value = values[safe: valueIndex] {
+                    switch value.type {
                     case .int:
                         TypeName(kind: .other, "Int")
                     }
-                    currentValueIndex += 1
-                default:
-                    Standard("")
                 }
-
-                if !offset.isEnd {
-                    Standard(", ")
-                }
+                valueIndex += 1
+            default:
+                Standard("")
             }
-        } else {
-            // `parameters` is cumulative — every nested generic context stores
-            // the full canonical parameter list. Naively iterating
-            // `allParameters` would re-emit each inherited level, producing
-            // duplicates at depth ≥ 2 (e.g. `<A, A1, B1, A2>` with `A`
-            // duplicated). Walk per-level "newly introduced" slices instead,
-            // mirroring the depth-aware visit order Swift's
-            // `forEachParam` produces.
-            let perLevelCounts = Self.dumpPerLevelNewParameterCounts(
-                parentParameters: parentParameters,
-                currentCount: currentParameters.count
-            )
-            let perLevelValueCounts = Self.dumpPerLevelNewValueCounts(
-                parentValues: parentValues,
-                currentCount: currentValues.count
-            )
-            var paramOffset = 0
-            var valueOffset = 0
-            var totalEmitted = 0
-            let totalParameters = parameters.count
-            for (depthIndex, newCount) in perLevelCounts.enumerated() {
-                let valuesAtThisLevel = perLevelValueCounts[safe: depthIndex] ?? 0
-                var currentValueIndexInLevel = 0
-                for indexInLevel in 0..<newCount {
-                    let parameter = parameters[paramOffset + indexInLevel]
 
-                    if parameter.kind == .typePack {
-                        Keyword(.each)
-                        Space()
-                    } else if parameter.kind == .value {
-                        Keyword(.let)
-                        Space()
-                    }
-
-                    switch parameter.kind {
-                    case .type,
-                         .typePack:
-                        try Standard(genericParameterName(depth: depthIndex, index: indexInLevel))
-                    case .value:
-                        try Standard(genericValueName(depth: depthIndex, index: indexInLevel))
-                        Standard(": ")
-                        if valueOffset + currentValueIndexInLevel < values.count {
-                            switch values[valueOffset + currentValueIndexInLevel].type {
-                            case .int:
-                                TypeName(kind: .other, "Int")
-                            }
-                        }
-                        currentValueIndexInLevel += 1
-                    default:
-                        Standard("")
-                    }
-
-                    totalEmitted += 1
-                    if totalEmitted < totalParameters {
-                        Standard(", ")
-                    }
-                }
-                paramOffset += newCount
-                valueOffset += valuesAtThisLevel
+            if offset < printedParameters.count - 1 {
+                Standard(", ")
             }
         }
-    }
-
-    /// Per-level "newly introduced" parameter counts derived from the
-    /// cumulative `parentParameters` slices plus the current level's new
-    /// count. Mirrors `GenericSpecializer.perLevelNewParameterCounts`.
-    fileprivate static func dumpPerLevelNewParameterCounts(
-        parentParameters: [[GenericParamDescriptor]],
-        currentCount: Int
-    ) -> [Int] {
-        var counts: [Int] = []
-        var previous = 0
-        for parentCumulative in parentParameters {
-            counts.append(parentCumulative.count - previous)
-            previous = parentCumulative.count
-        }
-        counts.append(currentCount)
-        return counts
-    }
-
-    /// Same idea for value generics.
-    fileprivate static func dumpPerLevelNewValueCounts(
-        parentValues: [[GenericValueDescriptor]],
-        currentCount: Int
-    ) -> [Int] {
-        var counts: [Int] = []
-        var previous = 0
-        for parentCumulative in parentValues {
-            counts.append(parentCumulative.count - previous)
-            previous = parentCumulative.count
-        }
-        counts.append(currentCount)
-        return counts
     }
 
     @SemanticStringBuilder

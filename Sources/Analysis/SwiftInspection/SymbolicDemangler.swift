@@ -37,7 +37,12 @@ public enum SymbolicDemangler {}
 public typealias MetadataReader = SymbolicDemangler
 
 extension SymbolicDemangler {
-    public nonisolated(unsafe) static var isCacheEnabled: Bool = true
+    /// Whether the demangle memo is consulted. A constant: printing runs
+    /// from several tasks at once (evolution proposal
+    /// `concurrent-definition-printing`), and this is read on its hottest
+    /// entry — a settable flag would need a lock there, and nothing ever set
+    /// it.
+    public static let isCacheEnabled: Bool = true
 
     public static func demangleSymbol(for symbol: Symbol, in machO: some MachOSwiftSectionRepresentableWithCache) throws -> Node? {
         return SymbolIndexStore.shared.demangledNode(for: symbol, in: machO)
@@ -86,15 +91,23 @@ private protocol SymbolLookupContext {
     /// image's `_symbolic` symbols record it
     /// (`AnonymousContextPrivateDiscriminatorIndex`).
     func symbolicReferencePrivateDiscriminator(forAnonymousContextAt offset: Int) -> String?
+
+    /// The discriminator of the private type inside the anonymous context at
+    /// `offset`, as the identifier a `privateDeclName` takes. A requirement
+    /// so that a context can memoize it; the default resolves it every time.
+    func privateDiscriminatorIdentifier(forAnonymousContextAt offset: Int) -> Node?
 }
 
 extension SymbolLookupContext {
-    /// The discriminator of the private type inside the anonymous context at
-    /// `offset`, as the identifier a `privateDeclName` takes: from a symbol on
-    /// the anonymous descriptor when the image kept one, otherwise from a
-    /// `_symbolic` symbol naming that type, which an OS framework in the dyld
-    /// shared cache still carries when the other is gone.
     func privateDiscriminatorIdentifier(forAnonymousContextAt offset: Int) -> Node? {
+        resolvedPrivateDiscriminatorIdentifier(forAnonymousContextAt: offset)
+    }
+
+    /// From a symbol on the anonymous descriptor when the image kept one,
+    /// otherwise from a `_symbolic` symbol naming the type inside, which an OS
+    /// framework in the dyld shared cache still carries when the other is
+    /// gone.
+    func resolvedPrivateDiscriminatorIdentifier(forAnonymousContextAt offset: Int) -> Node? {
         if let symbol = lookupSymbol(at: offset), let privateDeclName = try? symbol.demangledNode.first(of: Node.Kind.privateDeclName) {
             return privateDeclName.children.first
         }
@@ -125,6 +138,18 @@ extension InProcessContext: SymbolLookupContext {
     func symbolicReferencePrivateDiscriminator(forAnonymousContextAt offset: Int) -> String? {
         guard let pointer = UnsafeRawPointer(bitPattern: offset), let machOImage = MachOImage.image(for: pointer) else { return nil }
         return AnonymousContextPrivateDiscriminatorIndex.shared.privateDiscriminator(forAnonymousContextAt: offset - machOImage.ptr.bitPattern.int, in: machOImage)
+    }
+
+    /// Memoized per address for the process (evolution proposal
+    /// `nested-field-offset-memoization`). The answer for an anonymous context
+    /// already in memory never changes, and resolving it rebuilds the owning
+    /// image and scans its whole symbol table first — which an image in the
+    /// dyld shared cache has stripped, so that scan almost always comes back
+    /// empty.
+    func privateDiscriminatorIdentifier(forAnonymousContextAt offset: Int) -> Node? {
+        SymbolicDemanglerCache.shared.privateDiscriminatorIdentifier(forAnonymousContextAt: offset) {
+            resolvedPrivateDiscriminatorIdentifier(forAnonymousContextAt: offset)
+        }
     }
 }
 
@@ -384,13 +409,13 @@ extension SymbolicDemangler {
         return top
     }
 
-    private static func buildContextDescriptorMangling(context: SymbolOrElement<ContextDescriptorWrapper>, recursionLimit: Int, in readingContext: some ReadingContext) throws -> Node? {
+    private static func buildContextDescriptorMangling(context: SymbolOrElement<ContextDescriptorWrapper>, recursionLimit: Int, instantiation: ContextInstantiation? = nil, in readingContext: some ReadingContext) throws -> Node? {
         guard recursionLimit > 0 else { return nil }
         switch context {
         case .symbol(let symbol):
             return try _buildContextManglingForSymbol(symbol, in: readingContext)
         case .element(let contextDescriptor):
-            var demangleSymbol = try buildContextDescriptorMangling(context: contextDescriptor, recursionLimit: recursionLimit, in: readingContext)
+            var demangleSymbol = try buildContextDescriptorMangling(context: contextDescriptor, recursionLimit: recursionLimit, instantiation: instantiation, in: readingContext)
 
             if demangleSymbol?.kind == .type {
                 demangleSymbol = demangleSymbol?.children.first
@@ -399,7 +424,7 @@ extension SymbolicDemangler {
         }
     }
 
-    private static func buildContextDescriptorMangling(context: ContextDescriptorWrapper, recursionLimit: Int, in readingContext: some ReadingContext) throws -> Node? {
+    private static func buildContextDescriptorMangling(context: ContextDescriptorWrapper, recursionLimit: Int, instantiation: ContextInstantiation? = nil, in readingContext: some ReadingContext) throws -> Node? {
         guard recursionLimit > 0 else { return nil }
         var parentDescriptorResult = try context.parent(in: readingContext)
         var demangledParentNode: Node?
@@ -407,7 +432,7 @@ extension SymbolicDemangler {
         var parentDemangling: Node?
 
         if let parentDescriptor = parentDescriptorResult {
-            parentDemangling = try buildContextDescriptorMangling(context: parentDescriptor, recursionLimit: recursionLimit - 1, in: readingContext)
+            parentDemangling = try buildContextDescriptorMangling(context: parentDescriptor, recursionLimit: recursionLimit - 1, instantiation: instantiation, in: readingContext)
             if parentDemangling == nil, demangledParentNode == nil {
                 return nil
             }
@@ -453,6 +478,9 @@ extension SymbolicDemangler {
             guard let parentDemangling else { return nil }
             guard let extensionContext = context.extensionContextDescriptor else { return nil }
             guard let extendedContext = try extensionContext.extendedContext(in: readingContext) else { return nil }
+            if let instantiation, let instantiatedExtension = try instantiation.instantiatedExtension(extensionContext, extendedContext: extendedContext, parentDemangling: parentDemangling, in: readingContext) {
+                return instantiatedExtension
+            }
             guard let demangledExtendedContext = try extendedNominalNode(fromExtendedContext: demangle(for: extendedContext, kind: .type, in: readingContext)) else { return nil }
             if let requirements = try extensionContext.genericContext(in: readingContext)?.requirements, let signatureNode = try buildGenericSignature(for: requirements, in: readingContext) {
                 return Node.createTransient(kind: .extension, children: [parentDemangling, demangledExtendedContext, signatureNode])
@@ -507,6 +535,9 @@ extension SymbolicDemangler {
         }
         let demangling = Node.createTransient(kind: kind, children: [parentDemangling, nameNode])
 
+        if let instantiation, let typeContextDescriptor = context.typeContextDescriptorWrapper {
+            return try instantiation.instantiatedTypeContext(demangling, of: typeContextDescriptor, in: readingContext)
+        }
         return demangling
     }
 
@@ -636,6 +667,96 @@ extension SymbolicDemangler {
             contextWrapper = element
         }
         return contextWrapper?.typeContextDescriptorWrapper
+    }
+}
+
+// MARK: - Instantiated type names (evolution proposal `offline-generic-specialization`)
+
+extension SymbolicDemangler {
+    /// The name of one instantiation of `descriptor`: its context demangling
+    /// with the arguments of `binding` hung on the levels that declare them —
+    /// `Outer<Swift.Int>.Inner<Swift.String>`, `Outer<Swift.Int>.Middle`.
+    ///
+    /// A port of the runtime's `_buildDemanglingForContext`
+    /// (`stdlib/public/runtime/Demangle.cpp`), so an offline specialization's
+    /// name has the shape the runtime gives the same instantiation: walking
+    /// the context path outermost first, a type context whose cumulative
+    /// parameter count exceeds what the levels above it used takes the
+    /// arguments in between as its own `boundGeneric*` level, and a type that
+    /// declares none stays a plain nominal under its bound parent. Every other
+    /// part of the name — private discriminators, C-imported identities, the
+    /// anonymous and extension contexts — is this demangler's, exactly as for
+    /// the unbound name.
+    ///
+    /// One deliberate difference: an extension context takes its arguments
+    /// by substituting them into its extended type, which the runtime does
+    /// only for the outermost level of that type. For a constrained
+    /// extension of a nested generic type (`extension Outer.SecondMiddle where …`)
+    /// the runtime puts every argument into `SecondMiddle`'s list and leaves
+    /// `Outer<A>` unbound, a name of no instantiation; this one binds each
+    /// level. Like the runtime's, the extension node carries no generic
+    /// signature: the arguments it constrained are spelled out.
+    ///
+    /// - Parameter binding: The arguments of every parameter of the
+    ///   descriptor's generic context, non-key ones (fixed by a same-type
+    ///   requirement) included, grouped by depth.
+    public static func instantiatedTypeNode(for descriptor: TypeContextDescriptorWrapper, binding: GenericArgumentBinding, in context: some ReadingContext) throws -> Node {
+        let instantiation = ContextInstantiation(binding: binding)
+        let demangling = try required(buildContextDescriptorMangling(context: descriptor.asContextDescriptorWrapper, recursionLimit: 50, instantiation: instantiation, in: context))
+        return .createTransient(kind: .type, children: [demangling])
+    }
+
+    /// The arguments still to be hung on a context path being demangled
+    /// outermost first, and how many of them the levels above used —
+    /// `_buildDemanglingForContext`'s `usedDemangledGenerics`.
+    final class ContextInstantiation {
+        let binding: GenericArgumentBinding
+        private let flattenedArguments: [Node]
+        private var usedArgumentCount = 0
+
+        init(binding: GenericArgumentBinding) {
+            self.binding = binding
+            self.flattenedArguments = binding.flattenedArguments
+        }
+
+        /// `demangling` — a type context's nominal node — wrapped in a
+        /// `boundGeneric*` level holding the arguments this context declares,
+        /// or returned as it is when it declares none.
+        func instantiatedTypeContext(_ demangling: Node, of descriptor: TypeContextDescriptorWrapper, in readingContext: some ReadingContext) throws -> Node {
+            guard let parameterCount = try descriptor.genericContext(in: readingContext)?.parameters.count,
+                  parameterCount > usedArgumentCount,
+                  parameterCount <= flattenedArguments.count
+            else { return demangling }
+            let arguments = Array(flattenedArguments[usedArgumentCount ..< parameterCount])
+            usedArgumentCount = parameterCount
+            let boundKind: Node.Kind = switch demangling.kind {
+            case .class: .boundGenericClass
+            case .structure: .boundGenericStructure
+            case .enum: .boundGenericEnum
+            default: .boundGenericOtherNominalType
+            }
+            return .createTransient(kind: boundKind, children: [
+                .createTransient(kind: .type, children: [demangling]),
+                .createTransient(kind: .typeList, children: arguments),
+            ])
+        }
+
+        /// The extension context with this instantiation's arguments
+        /// substituted into its extended type — `Extension(<module>,
+        /// Outer<Swift.Int>)` — or `nil` when the extension declares no
+        /// arguments the levels above have not used, leaving the unbound form.
+        func instantiatedExtension(_ extensionContext: ExtensionContextDescriptor, extendedContext: MangledName, parentDemangling: Node, in readingContext: some ReadingContext) throws -> Node? {
+            guard let parameterCount = try extensionContext.genericContext(in: readingContext)?.parameters.count,
+                  parameterCount > usedArgumentCount
+            else { return nil }
+            // IRGen spells the extended type in the extension's own
+            // parameters (`Outer<A>.SecondMiddle<A1>`), so substituting the binding
+            // binds every level of it.
+            let extendedType = binding.substituting(in: try SymbolicDemangler.demangle(for: extendedContext, kind: .type, in: readingContext))
+            usedArgumentCount = parameterCount
+            let selfType = extendedType.kind == .type ? (extendedType.firstChild ?? extendedType) : extendedType
+            return .createTransient(kind: .extension, children: [parentDemangling, selfType])
+        }
     }
 }
 
@@ -816,6 +937,12 @@ private final class SymbolicDemanglerCache: @unchecked Sendable {
         /// answered "no context mangling" once and is never retried.
         @Mutex
         fileprivate var nodeReferenceForSymbolName: [String: NodeReference?] = [:]
+
+        /// The private discriminator of the anonymous context at an in-process
+        /// address; a stored `nil` records that it has none. Only the
+        /// process-scoped storage fills it.
+        @Mutex
+        fileprivate var privateDiscriminatorForAnonymousContextAddress: [Int: String?] = [:]
     }
 
     /// The memo `context` files entries under, as its cache scope declares:
@@ -836,6 +963,26 @@ private final class SymbolicDemanglerCache: @unchecked Sendable {
 
     fileprivate func contains(in machO: some MachORepresentableWithCache) -> Bool {
         cache.contains(in: machO)
+    }
+
+    /// `InProcessContext`'s discriminator lookup, memoized as text. Only an
+    /// `identifier` — what the lookup returns for every discriminator it
+    /// finds — is memoized; a hit rebuilds the same node.
+    fileprivate func privateDiscriminatorIdentifier(forAnonymousContextAt address: Int, resolving resolve: () -> Node?) -> Node? {
+        let storage = Self.processScopedStorage
+        if let memoizedDiscriminator = storage.privateDiscriminatorForAnonymousContextAddress[address] {
+            return memoizedDiscriminator.map { .createTransient(kind: .identifier, text: $0) }
+        }
+        let resolvedIdentifier = resolve()
+        if let resolvedIdentifier {
+            guard resolvedIdentifier.kind == .identifier, let discriminator = resolvedIdentifier.text else {
+                return resolvedIdentifier
+            }
+            storage.privateDiscriminatorForAnonymousContextAddress.updateValue(discriminator, forKey: address)
+        } else {
+            storage.privateDiscriminatorForAnonymousContextAddress.updateValue(nil, forKey: address)
+        }
+        return resolvedIdentifier
     }
 
     fileprivate func remove(for machO: some MachORepresentableWithCache) {
