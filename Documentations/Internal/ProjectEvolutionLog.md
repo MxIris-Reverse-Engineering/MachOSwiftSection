@@ -2385,7 +2385,7 @@
   - swift-demangling：新测试在只加选项声明时 26 处失败、实现后全过；全量 624 个测试通过，原始退出码 0（含逐字节对照官方 demangler 的语料测试）。
   - 本库：新增 `ModuleSelectorInterfaceTests`、`ModuleSelectorDumpTests` 与两条 CLI 映射测试，27 个测试全过；interface 的扫漏测试在修 extension 头之前失败。全量 `swift test --skip IntegrationTests`（JHs-Mac-Studio，依赖为远端发布版，只有 swift-demangling 指本分支、swift-semantic-string 指本地 `next`）：2370 个测试 / 453 个套件，原始退出码 1，失败的只有本机早已存在的两条 `MultiPayloadEnumDescriptorCacheTests`，另有登记过的 known issue。
   - 真实系统库（macOS 27，当前系统 cache）：libswiftCore、libswiftObservation、libswiftSynchronization 的 interface 与 dump 打开开关后扫漏，interface 零残留；dump 只剩注释里的 ObjC 运行时类名。libswiftCore 与 SDK `Swift.swiftinterface` 共有的 107 条嵌套类型路径，逐层模块全部一致。
-  - 渲染 A/B：见下方补记。
+  - 渲染 A/B（基线 next `cd248de9` + swift-demangling `next` `e17ae7f`，候选 `52fb45f9` + swift-demangling `8419460`；两侧 swift-semantic-string 都是本地 `next`，共用同一份 `Package.resolved`，经构建队列各预构建一次 release 后带 `--skip-build` 跑）：**90 对全部逐字节一致**——归档 cache 26.6.2 与 15.5 各 12 对，iOS 15.5 / 18.5 / 18.6 / 26.5 模拟器 42 对，MachOImage 腿 24 对；iOS 15.5 模拟器缺的三个框架与 iOS 27.0 模拟器（框架在 cache 里）按设计跳过。开关关闭时输出不变。
 - **关联文档**：[draft-module-selectors](../Evolutions/draft-module-selectors.md)、swift-demangling 提案 `draft-module-selectors`、[Modules/SwiftInterface.md](Modules/SwiftInterface.md)「子系统 2」、swift-section 插件 skill §0 / §4、`AGENTS.md`「printer path」一节新增的规则。
 - **对应版本**：0.22.0 之后（未发版）；依赖 swift-demangling 发版（新选项）。
 
