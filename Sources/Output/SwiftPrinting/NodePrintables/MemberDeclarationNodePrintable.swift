@@ -58,6 +58,24 @@ extension MemberDeclarationNodePrintable {
         ]
     }
 
+    /// Wrappers whose first child is the entity: a method descriptor, and the
+    /// accessor a member symbol names — SE-0507's `borrow` / `mutate` alike,
+    /// since a property declaring them has no getter symbol to print from.
+    /// A `switch`, not a `Set` literal: the walk asks once per wrapper of
+    /// every printed member, and a computed `Set` would be rebuilt each time.
+    static func isSkippedAccessorWrapper(_ kind: Node.Kind) -> Bool {
+        switch kind {
+        case .methodDescriptor,
+             .getter,
+             .setter,
+             .borrowAccessor,
+             .mutateAccessor:
+            true
+        default:
+            false
+        }
+    }
+
     mutating func printRoot(_ node: Node) async throws -> Target {
         if isFinal {
             target.write("final", context: .context(state: .printKeyword))
@@ -88,7 +106,7 @@ extension MemberDeclarationNodePrintable {
             target.write(isClassMember ? "class" : "static", context: .context(state: .printKeyword))
             target.writeSpace()
             try await unwrapAndPrintDeclaration(first, isStatic: true)
-        } else if node.kind == .methodDescriptor || node.kind == .getter || node.kind == .setter, let first = node.children.first {
+        } else if Self.isSkippedAccessorWrapper(node.kind), let first = node.children.first {
             try await unwrapAndPrintDeclaration(first, isStatic: isStatic)
         } else if node.kind == .protocolWitness, let second = node.children.second {
             try await unwrapAndPrintDeclaration(second, isStatic: isStatic)
@@ -144,16 +162,17 @@ extension MemberDeclarationNodePrintable {
     }
 
     /// The `{ get }` / `{ get set }` block of a computed variable or a
-    /// subscript, indented one level deeper than the declaration.
-    mutating func printAccessorBlock(hasSetter: Bool, indentation: Int) {
+    /// subscript — `{ borrow }` / `{ borrow mutate }` for SE-0507 accessors —
+    /// indented one level deeper than the declaration.
+    mutating func printAccessorBlock(_ keywords: AccessorBlockKeywords, indentation: Int) {
         target.write(" {")
         target.write("\n")
         target.write(String(repeating: " ", count: (indentation + 1) * 4))
-        target.write("get", context: .context(state: .printKeyword))
-        if hasSetter {
+        target.write(keywords.read, context: .context(state: .printKeyword))
+        if let write = keywords.write {
             target.write("\n")
             target.write(String(repeating: " ", count: (indentation + 1) * 4))
-            target.write("set", context: .context(state: .printKeyword))
+            target.write(write, context: .context(state: .printKeyword))
         }
         target.write("\n")
         target.write(String(repeating: " ", count: indentation * 4))

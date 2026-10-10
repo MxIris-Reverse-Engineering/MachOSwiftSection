@@ -62,18 +62,26 @@ package struct ProtocolDumper<MachO: MachOFieldLayoutRenderable>: NamedDumper {
         }
     }
 
+    /// The `associatedtype` lines. `: ~Swift.Copyable` follows a name the
+    /// image's extensions of the protocol prove suppressible (SE-0503) — the
+    /// binary records the declaration nowhere else, so a name without such
+    /// an extension prints bare even when it is suppressible.
     @SemanticStringBuilder
     package var associatedTypes: SemanticString {
         get async throws {
             let associatedTypes = try dumped.descriptor.associatedTypes(in: machO.context)
 
             if !associatedTypes.isEmpty {
+                let suppressedInvertibleProtocolsByAssociatedTypeName = SuppressedAssociatedTypeInference.suppressedInvertibleProtocolsByAssociatedTypeName(of: dumped.descriptor, in: machO)
                 for (offset, associatedType) in associatedTypes.offsetEnumerated() {
                     BreakLine()
                     Indent(level: configuration.indentation)
                     Keyword(.associatedtype)
                     Space()
                     TypeDeclaration(kind: .other, associatedType)
+                    if let suppressedInvertibleProtocols = suppressedInvertibleProtocolsByAssociatedTypeName[associatedType] {
+                        try await suppressedInvertibleProtocols.dumpInvertedProtocolsInheritance(resolver: demangleResolver)
+                    }
                     if offset.isEnd {
                         BreakLine()
                     }

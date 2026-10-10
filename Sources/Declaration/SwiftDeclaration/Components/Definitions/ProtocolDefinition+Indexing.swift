@@ -37,6 +37,11 @@ extension ProtocolDefinition: OnceIndexedDefinition {
             return nil
         }
         associatedTypes = try protocolDescriptor.associatedTypes(in: machO.context)
+        suppressedInvertibleProtocolsByAssociatedTypeName = SuppressedAssociatedTypeInference.suppressedInvertibleProtocolsByAssociatedTypeName(
+            ofAssociatedTypesNamed: Set(associatedTypes),
+            protocolNode: protocolName.node.materialize(),
+            in: machO
+        )
 
         var requirementMemberSymbolsByKind: OrderedDictionary<SymbolIndexStore.MemberKind, [MemberSymbol]> = [:]
         var defaultImplementationMemberSymbolsByKind: OrderedDictionary<SymbolIndexStore.MemberKind, [MemberSymbol]> = [:]
