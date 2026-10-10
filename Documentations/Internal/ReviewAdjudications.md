@@ -687,3 +687,24 @@
 - **四、`GenericParameterDepthLayout` 跳过匿名上下文，让泛型方法的 opaque 描述符层号算错、thunk 名字跟着错**：不成立。层结构确实把方法的参数与 opaque 参数并成一层，但 kind-9 thunk 的实参缓冲只按命名声明的签名绑定（编译器 `AbstractMetadataAccessor::emit` 取 `O->getGenericSignature()`），不含 opaque 参数；两种层结构只在第三个字及以后不同，那里放的是 witness table，从不被命名。基线用 `AccessorThunkOwnerLayout(genericContext:)` 算出的是同一个结构，PR 只是把计算挪了位置。
 - **既往修复**：无。
 - **复审条件**：上面任何一条的前提被改动——打印器或 RuntimeViewer 改了追加扩展的条件；离线特化开始接受文件里读出的 `Metadata`；enum 布局的 size 交叉校验被拿掉；thunk 的实参缓冲开始带 opaque 参数。
+
+---
+
+## A60 — 局部类型的上下文让三处整树搜索可能读错成员：`final` 恢复的 `Tq` 兜底、上游 `identifier`、变量的代表节点（局部类型名字提案横向排查发现）
+
+- **裁决**：三处都不修（2026-10-11）。
+- **背景**：局部类型的名字里带着声明它的函数、闭包或访问器（提案 [draft-local-type-context-names](../Evolutions/draft-local-type-context-names.md)）。成员符号的节点以上下文为第一个子节点，前序遍历的整树搜索因此会先进入上下文，拿到外层声明的节点。同一批里能变红的五处已经修掉（conformance 成员的分类与去重、主体里合成成员的去重、`@dynamicMemberLookup` 推断、匿名参数的标签、`static` 存储属性的存储符号被读成 getter），下面三处判为不修。
+- **一、`final` 恢复的第四道门**：`TypeDefinition.recoverFinalMembers`（`TypeDefinition+FinalRecovery.swift`，`Tq` 符号那段）把每个 method descriptor 符号读成成员名时，先对整棵树做 `first(of: .function)`，找不到才找 `.variable`、`.subscript`。局部 class 的属性访问器 descriptor（`method descriptor for sides.getter … in Shape #1 in Holder.shape(_:)`）会被读成外层函数名 `shape`，而不是 `sides`。
+  - **复现 / 是否误报**：机制属实。`-Onone` 编出的局部 class 带着 `Tq` 局部符号，`nm` 可见。但输出层面复现不出来：这道门只在成员与 descriptor 连不上时起作用，而局部 class 的成员靠同一批 `Tq` 符号按节点连接（`ClassDispatchLookups.methodDescriptorLookup`），不受 ICF 影响，总是先连上；`-O` 构建会把局部 class 的属性去虚化，连 `Tq` 符号都不生成。
+  - **与 main 基线对比**：代码是基线既有的。基线里局部 class 的名字是错的，descriptor 按节点匹配不到，这处走不到；本分支让名字对上之后才可达，但仍被节点连接挡在前面。
+  - **为什么不修**：造不出修复前会失败的测试。修法是现成的：按查询的成员种类分别取 `.function` / `.variable` / `.subscript`，对普通 class 结果不变。
+  - **既往修复**：无。第四道门来自提案 0006 的 ICF 回归（issue #106，`FinalKeywordICFRegressionTests`），当时只考虑了普通 class。
+- **二、上游 swift-demangling 的 `DemanglingNode.identifier`**：第二个子节点不是标识符时（运算符函数、下标），它在整棵树里找，任意位置的运算符优先。局部类型声明在一个运算符函数里时，类型自己的运算符成员会读成外层运算符的名字。
+  - **复现 / 是否误报**：读码确认，没有构造样本。外层声明只要不是运算符函数就不会触发：外层是普通函数时，标识符的优先级低于运算符，仍然返回成员自己的运算符。
+  - **与 main 基线对比**：基线既有；同样是局部类型名字对上之后才可达。
+  - **为什么不修**：根在上游包，触发条件极少见，本仓库所有调用点都按名字比较，读错只影响这一种写法。
+- **三、`DefinitionBuilder.variablesProduct` 挑变量的代表节点**：从一个属性的访问器符号里挑「是 getter、或不是访问器」的第一个，判断仍用整树的 `contains(.getter)`。局部类型声明在 getter 里时，每个访问器都含上下文的 getter，于是挑的是第一个符号，不论它是什么。
+  - **复现 / 是否误报**：机制属实，输出层面复现不出来。符号表里 getter 总排在 setter、modify 和存储符号前面，挑出来的就是 getter；代表节点只用来打印声明，getter、setter、存储符号打出来的声明也一样。
+  - **与 main 基线对比**：代码是基线既有的，同样是局部类型名字对上之后才可达。
+  - **为什么不修**：造不出会变红的测试。同一处的访问器种类（`accessorKind`）已经修掉，那个读错会把 `static` 存储属性印成计算属性。
+- **复审条件**：节点连接不再先于第四道门（`methodDescriptorLookup` 的建键方式改了）；出现了局部 class 被误标 `final`、运算符函数里的局部类型成员名字读错的实例；或者局部类型的属性以 setter 之类的节点出现在声明、ABI 键里。

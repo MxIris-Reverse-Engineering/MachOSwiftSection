@@ -276,6 +276,13 @@ opaque 尖括号参数归属的第三条规则：协议无任何 anchor 命中�
 - **主要出现在**：`Sources/MachO/MachOSymbols/SymbolTable.swift`（`row(forName:)`）
 - **延伸阅读**：[提案 0001](Evolutions/0001-symbol-name-offsetization.md)
 
+### position-based name（按位置起的名字）
+
+函数或闭包里声明的局部类型，在二进制里找不回所在函数时用的名字：`Holder.(Visitor in $1a2b3c)`。局部类型的函数名有三个来源——描述符自带的名字（只有 debug 构建写）、匿名描述符的 `$s<上下文>MXX` 符号、`_symbolic` 符号——三处都没有（典型是 strip 过的 App）时，`SymbolicDemangler` 照运行时和 Remote Mirror 的做法，用包着该类型的那个匿名上下文的地址起名，挂在最近一个能叫出名字的上下文下面。地址的口径与 dump 的成员地址注释相同，所以同一个镜像从文件读和在进程内读得到同一个名字。它借用 `privateDeclName` 的形状，但类型不是 private，`$` 开头的部分也不是鉴别符；判断用 `LocalTypeNaming.positionBased`，不要按字符串猜。
+
+- **主要出现在**：`Sources/Analysis/SwiftInspection/SymbolicDemangler.swift`（`positionNameOfUnnamedLocalType`）、`Sources/Analysis/SwiftInspection/LocalTypeNaming.swift`、`Sources/Output/SwiftDeclarationRendering/RuntimeTypeNameDemangling.swift`
+- **延伸阅读**：[提案 local-type-context-names](Evolutions/draft-local-type-context-names.md)
+
 ### renamed class（改名类，`@objc(Name)` / `@_objcRuntimeName(Name)`）
 
 源码给 ObjC 运行时另起了名字的 Swift 类：类对象的 `class_ro_t` 名是源码写的名字（`NSScrollPocket`），而不是 `_TtC6AppKit14NSScrollPocket` 这样的 mangling。二进制里只剩类元数据 flag 字里的 `HasCustomObjCName` 与名字本身，`SwiftClassObjectIndex` 顺着类元数据自带的描述符指针把它们配到 Swift 类上（父类在另一个 resilience domain、不进 classlist 的类读 metadata pattern）。本仓库凡是「demangle 运行时名找 Swift 类」的地方都要为它回退，否则一律配不上——成员恢复与布局引擎以前就是这样漏掉它们的。interface 与 dump 打印 `@objc(Name)`，原生 Swift 对象模型的类打印 `@_objcRuntimeName(Name)`。
