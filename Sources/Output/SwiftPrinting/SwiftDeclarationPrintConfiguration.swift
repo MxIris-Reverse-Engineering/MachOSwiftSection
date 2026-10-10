@@ -56,6 +56,18 @@ public struct SwiftDeclarationPrintConfiguration: Equatable, Sendable {
     /// ever supplies an override — a method no ancestor implements is left
     /// alone, so this can never invent an `@objc(name)`.
     public var infersObjCOverridesFromSelectorNames: Bool = false
+
+    /// Qualify names with SE-0491 module selectors — `Swift::Int` instead of
+    /// `Swift.Int` — as the Swift 6.4 compiler does when it writes a
+    /// `.swiftinterface` (evolution proposal `module-selectors`). Every type
+    /// level carries the module that declared it, so a type another module
+    /// adds in an extension says where it comes from
+    /// (`Swift::Duration.Foundation::TimeFormatStyle`); a local type and the
+    /// associated type of a type parameter (`A.Element`) carry none.
+    ///
+    /// Off by default, and off the output is unchanged byte for byte.
+    public var usesModuleSelectors: Bool = false
+
     public var memberSortOrder: SwiftDeclarationMemberSortOrder = .byCategory
     public var printTypeLayout: Bool = false
     public var printEnumLayout: Bool = false

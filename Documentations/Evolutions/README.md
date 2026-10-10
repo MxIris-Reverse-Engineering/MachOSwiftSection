@@ -75,3 +75,4 @@
 | [0060](0060-evolution-interface-available-annotations.md) | evolution 联合接口的 @available 生命周期标注（真属性 + 位图注释保留） | Implemented |
 | [0061](0061-dyld-shared-cache-path-versions.md) | 测试用的 dyld shared cache 路径按版本取 | Implemented |
 | draft | [离线泛型特化：不经 runtime 特化泛型类型并完整打印](draft-offline-generic-specialization.md) | In Progress |
+| draft | [适配 SE-0491：interface 与 dump 可用模块选择器（`Module::Name`）写限定名](draft-module-selectors.md) | In Progress |

@@ -85,6 +85,15 @@ struct CommandRequestMappingTests {
         #expect(request.destination == .file(path: "out.txt"))
     }
 
+    @Test("--enable-module-selectors reaches the demangle options, off by default")
+    func dumpModuleSelectors() throws {
+        var expectedOptions = try DumpCommand.parse(["/tmp/Sample"]).makeRequest().demangleOptions
+        #expect(expectedOptions.contains(.useModuleSelectors) == false)
+        expectedOptions.insert(.useModuleSelectors)
+        let request = try DumpCommand.parse(["/tmp/Sample", "--enable-module-selectors"]).makeRequest()
+        #expect(request.demangleOptions == expectedOptions)
+    }
+
     @Test("--emit-field-offsets alone is the flat form")
     func dumpFlatFieldOffsets() throws {
         #expect(try DumpCommand.parse(["/tmp/Sample", "--emit-field-offsets"]).makeRequest().fieldOffsetComments == .flat)
@@ -106,7 +115,7 @@ struct CommandRequestMappingTests {
             "--show-c-imported-types", "--parse-opaque-return-type",
             "--resolve-c-module-names", "--supplementary-apinotes", "/tmp/Extra.apinotes",
             "--emit-offset-comments", "--sort-members-by-offset", "--exported-only",
-            "--infer-objc-overrides", "--emit-header",
+            "--infer-objc-overrides", "--module-selectors", "--emit-header",
         ]).makeRequest()
         #expect(request.showsCImportedTypes)
         #expect(request.parsesOpaqueReturnTypes)
@@ -115,7 +124,13 @@ struct CommandRequestMappingTests {
         #expect(request.memberSortOrder == .byOffset)
         #expect(request.printsExportedDeclarationsOnly)
         #expect(request.infersObjCOverridesFromSelectorNames)
+        #expect(request.usesModuleSelectors)
         #expect(request.emitsHeader)
+    }
+
+    @Test("interface prints without module selectors unless asked")
+    func interfaceModuleSelectorsDefaultOff() throws {
+        #expect(try InterfaceCommand.parse(["/tmp/Sample"]).makeRequest().usesModuleSelectors == false)
     }
 
     @Test("--emit-expanded-field-offsets implies the offset comments")

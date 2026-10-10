@@ -47,5 +47,8 @@ public protocol CImportedNameResolving: TypeNameResolving {
 /// Expands an opaque return type (`some P`) from its descriptor's generic
 /// requirements.
 public protocol OpaqueTypeResolving: TypeNameResolving {
-    func opaqueType(forNode node: Node, index: Int?) async -> String?
+    /// The constraint text after `some`, its names qualified with SE-0491
+    /// module selectors (`Swift::Collection<Swift::Int>`) when
+    /// `usesModuleSelectors` is set, as the rest of the print is.
+    func opaqueType(forNode node: Node, index: Int?, usesModuleSelectors: Bool) async -> String?
 }

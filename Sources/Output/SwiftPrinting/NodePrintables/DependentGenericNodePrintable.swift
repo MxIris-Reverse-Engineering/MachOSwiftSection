@@ -1,4 +1,6 @@
 import SwiftDeclaration
+import SwiftDeclarationRendering
+import MachOSwiftSection
 import Demangling
 
 /// The slice of printer state the dependent-generic layer reads and writes.
@@ -320,10 +322,13 @@ extension DependentGenericNodePrintable {
 
     mutating func printDependentGenericInverseConformanceRequirement(_ name: Node) async {
         await printFirstChild(name, suffix: ": ~")
+        // Printed as protocol references, so they take this printer's
+        // qualification like any other name (`~Swift::Copyable` under module
+        // selectors) and reach a rich target as the protocols they are.
         switch name.children.at(1)?.index {
-        case 0: target.write("Swift.Copyable", context: .context(state: .printType))
-        case 1: target.write("Swift.Escapable", context: .context(state: .printType))
-        default: target.write("Swift.<bit \(name.children.at(1)?.index ?? 0)>")
+        case 0: await printName(InvertibleProtocolSet.copyableProtocolTypeNode)
+        case 1: await printName(InvertibleProtocolSet.escapableProtocolTypeNode)
+        default: target.write("Swift\(context.usesModuleSelectors ? "::" : ".")<bit \(name.children.at(1)?.index ?? 0)>")
         }
     }
 }

@@ -39,6 +39,7 @@ struct SubscriptNodePrinter<Target: NodePrinterTarget>: MemberDeclarationNodePri
         self.hasSetter = hasSetter
         self.indentation = indentation
         self.delegate = delegate
+        context.usesModuleSelectors = delegate?.usesModuleSelectors ?? false
     }
 
     mutating func printDeclaration(_ node: Node) async throws {

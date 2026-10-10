@@ -33,6 +33,7 @@ struct FunctionNodePrinter<Target: NodePrinterTarget>: MemberDeclarationNodePrin
         self.isClassMember = isClassMember
         self.isFinal = isFinal
         self.delegate = delegate
+        context.usesModuleSelectors = delegate?.usesModuleSelectors ?? false
     }
 
     mutating func printDeclaration(_ node: Node) async throws {

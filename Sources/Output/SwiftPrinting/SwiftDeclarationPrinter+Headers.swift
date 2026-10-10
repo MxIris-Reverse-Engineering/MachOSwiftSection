@@ -105,11 +105,11 @@ extension SwiftDeclarationPrinter {
             let depthLayout = GenericParameterDepthLayout.make(for: genericContext, ownedBy: descriptorWrapper, in: machO.context)
             try await genericContext.dumpGenericSignature(resolver: resolver, depthLayout: depthLayout, in: machO.context) {
                 if let invertibleProtocolSet, invertibleProtocolSet.hasInvertedProtocols {
-                    invertibleProtocolSet.dumpInvertedProtocolsInheritance
+                    try await invertibleProtocolSet.dumpInvertedProtocolsInheritance(resolver: resolver)
                 }
             }
         } else if let invertibleProtocolSet, invertibleProtocolSet.hasInvertedProtocols {
-            invertibleProtocolSet.dumpInvertedProtocolsInheritance
+            try await invertibleProtocolSet.dumpInvertedProtocolsInheritance(resolver: resolver)
         }
     }
 
@@ -151,7 +151,7 @@ extension SwiftDeclarationPrinter {
             if hasInvertedProtocols {
                 Standard(",")
                 Space()
-                dumped.invertibleProtocolSet!.dumpInvertedProtocolNames
+                try await dumped.invertibleProtocolSet!.dumpInvertedProtocolNames(resolver: resolver)
             }
         } else if let resilientSuperclass = dumped.resilientSuperclass, let kind = dumped.descriptor.resilientSuperclassReferenceKind, let superclass = try await resilientSuperclass.dumpSuperclass(resolver: resolver, for: kind, in: machO.context) {
             Standard(":")
@@ -160,10 +160,10 @@ extension SwiftDeclarationPrinter {
             if hasInvertedProtocols {
                 Standard(",")
                 Space()
-                dumped.invertibleProtocolSet!.dumpInvertedProtocolNames
+                try await dumped.invertibleProtocolSet!.dumpInvertedProtocolNames(resolver: resolver)
             }
         } else if hasInvertedProtocols {
-            dumped.invertibleProtocolSet!.dumpInvertedProtocolsInheritance
+            try await dumped.invertibleProtocolSet!.dumpInvertedProtocolsInheritance(resolver: resolver)
         }
     }
 

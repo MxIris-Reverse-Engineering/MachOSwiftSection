@@ -42,8 +42,9 @@ swift-section interface --help | grep -- --exported-only    # empty ⇒ this bui
 Flags added comparatively late, and therefore worth checking: `--emit-header`,
 `--emit-export-status`, `--exported-only`, `--jobs`, `evolution --interface`,
 `--supplementary-apinotes`, from 0.20.0 `--dependency-search-path`,
-`--infer-objc-overrides` and the whole `objc` subcommand group, and from 0.22.0
-`evolution --emit-available` / `--platform`. When one is missing, say so
+`--infer-objc-overrides` and the whole `objc` subcommand group, from 0.22.0
+`evolution --emit-available` / `--platform`, and after 0.22.0 `interface --module-selectors`
+/ `dump --enable-module-selectors`. When one is missing, say so
 rather than silently producing a weaker answer — the alternative is usually "upgrade
 (`brew upgrade swift-section`), or do without that annotation".
 
@@ -143,6 +144,12 @@ Spelled the same on both: `--emit-type-layout`, `--emit-enum-layout`, `--emit-me
 `--emit-vtable-offsets`, `--emit-expanded-field-offsets` (implies the field-offset flag),
 `--emit-header`, `--emit-export-status`, `--color-scheme`, `--output-path`,
 `--dependency-search-path` (§2).
+
+SE-0491 module selectors — `Swift::Int` instead of `Swift.Int`, the spelling a Swift 6.4
+`.swiftinterface` uses, with every nested level naming the module that declared it
+(`Swift::Duration.Foundation::TimeFormatStyle`) — are off by default and spelled differently
+too: `interface --module-selectors`, `dump --enable-module-selectors` (one of the demangler
+switches below).
 
 Only `dump` has: `--sections`, `--preferred-binary-order`, and the demangler option group
 (`--demangle-options default|simplified|interface` plus ~22 `--enable-…` / `--disable-…`

@@ -20,6 +20,11 @@ protocol NodePrintableContext {
     /// context (`A.Element`, not `A.Swift.Sequence.Element`); see
     /// `shouldPrintContext()`.
     var dependentMemberTypeDepth: Int { get }
+
+    /// Qualify names with SE-0491 module selectors (`Swift::Int`). Fixed for
+    /// a printer's lifetime — it is read from the delegate when the printer
+    /// is created — so a memoized fragment never mixes the two spellings.
+    var usesModuleSelectors: Bool { get }
 }
 
 /// Per-call hints for one `printName`.
@@ -159,17 +164,23 @@ extension NodePrintable {
     /// the sibling identifier may be rewritten to its Swift spelling too.
     @discardableResult
     mutating func printModule(_ node: Node, siblingIdentifier: String? = nil) async -> Bool {
-        var moduleName = node.text ?? ""
-        var resolvedCImportedModule = false
+        let moduleName = await resolvedModuleName(of: node, siblingIdentifier: siblingIdentifier)
+        target.write(moduleName.text, context: .context(for: node, state: .printModule))
+        return moduleName.isResolvedCImportedModule
+    }
+
+    /// The module a `module` node names, with a C-imported module spelling
+    /// (`__C` / `__ObjC`) resolved to its real module through the delegate
+    /// when the sibling identifier finds one.
+    func resolvedModuleName(of node: Node, siblingIdentifier: String?) async -> (text: String, isResolvedCImportedModule: Bool) {
+        let moduleName = node.text ?? ""
         if moduleName == objcModule || moduleName == cModule,
            let identifier = siblingIdentifier,
            let delegate,
            let updatedModuleName = await or(await delegate.moduleName(forTypeName: identifier), await delegate.moduleName(forTypeName: identifier.strippedRefSuffix)) {
-            moduleName = updatedModuleName
-            resolvedCImportedModule = true
+            return (updatedModuleName, true)
         }
-        target.write(moduleName, context: .context(for: node, state: .printModule))
-        return resolvedCImportedModule
+        return (moduleName, false)
     }
 
     mutating func printIdentifier(_ node: Node, parentKind: Node.Kind? = nil) async {

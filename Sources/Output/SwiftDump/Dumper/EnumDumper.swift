@@ -57,11 +57,11 @@ package struct EnumDumper<MachO: MachOFieldLayoutRenderable>: TypedDumper {
                 let depthLayout = GenericParameterDepthLayout.make(for: genericContext, ownedBy: .type(.enum(dumped.descriptor)), in: machO.context)
                 try await genericContext.dumpGenericSignature(resolver: demangleResolver, depthLayout: depthLayout, in: machO.context) {
                     if let invertibleProtocolSet = dumped.invertibleProtocolSet, invertibleProtocolSet.hasInvertedProtocols {
-                        invertibleProtocolSet.dumpInvertedProtocolsInheritance
+                        try await invertibleProtocolSet.dumpInvertedProtocolsInheritance(resolver: demangleResolver)
                     }
                 }
             } else if let invertibleProtocolSet = dumped.invertibleProtocolSet, invertibleProtocolSet.hasInvertedProtocols {
-                invertibleProtocolSet.dumpInvertedProtocolsInheritance
+                try await invertibleProtocolSet.dumpInvertedProtocolsInheritance(resolver: demangleResolver)
             }
         }
     }
