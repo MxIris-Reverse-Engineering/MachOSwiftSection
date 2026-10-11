@@ -708,3 +708,25 @@
   - **与 main 基线对比**：代码是基线既有的，同样是局部类型名字对上之后才可达。
   - **为什么不修**：造不出会变红的测试。同一处的访问器种类（`accessorKind`）已经修掉，那个读错会把 `static` 存储属性印成计算属性。
 - **复审条件**：节点连接不再先于第四道门（`methodDescriptorLookup` 的建键方式改了）；出现了局部 class 被误标 `final`、运算符函数里的局部类型成员名字读错的实例；或者局部类型的属性以 setter 之类的节点出现在声明、ABI 键里。
+
+---
+
+## A61 — 持锁时 demangle 的五处：打印器的一次性建表、静态布局 provider、关联类型成员投影、property wrapper 目录、ObjC 祖先解析（「持锁时 demangle」横向排查）
+
+- **裁决**：五处的锁都不改（2026-10-11）。排查中发现的入口漏包已修，见第三处。
+- **背景**：审查提案 [0063-private-declarations](../Evolutions/0063-private-declarations.md) 时，它的 index 持锁读名字，违反 AGENTS.md 当时的「Do not hold a lock across a demangle」。这条规则来自 [NodeStoreMigrationOpenIssues 第 9 条](NodeStoreMigrationOpenIssues.md)：在 512 KB 栈的线程上，每次 demangle、打印都要切到大栈线程、用信号量等结果；持锁时这样一等，所有等这把锁的线程都排在后面。危害要两个条件同时成立：调用方在小栈上，并且有别的线程在等同一把锁。横向排查找到下面五处同样的写法，外加 `IndexerConformanceProvider.classHierarchy()` 一处。后者 RuntimeViewer 从 actor 里同步调用，已修：缓存没命中时先切一次大栈，再在大栈上取锁建表（`ClassHierarchyBuildStackTests`）。规则因此改写成「持锁时 demangle 不许切线程」：要么已经在大栈上（`LargeStackTaskExecution.run` 包过的入口里，或者取锁前先 `StackSafeExecutor.withLargeStack`），要么锁外 demangle、锁内 insert-if-absent。下面五处靠的是入口的执行器：库内和 RuntimeViewer 的调用都经包过执行器的 async 入口进来，macOS 15 起在 16 MB 栈上执行，持锁期间不切线程。
+- **一、`SwiftDeclarationPrinter` 的两次建表**（`SwiftDeclarationPrinter.swift:93` 的 `@_rawLayout` 存储表、`:118` 的静态布局 provider）：都是 printer 实例上的 `@Mutex`，第一次用到时在锁内建表，命中也拿同一把锁。`:93` 对每个 `__swift5_builtin` 描述符做一次 `demangleType`；`:118` 对 `MachOFile` 建依赖闭包，要把根镜像的全部描述符 demangle 一遍（`MachOImage` 直接返回 nil）。唯一入口 `printTypeDefinition` 已包执行器。
+- **二、`MachOFileStaticFieldLayoutProvider`**（`StaticFieldLayoutProvider.swift:129` 的锁，11 个查询方法每次都拿）：底层计算器的 memo 不是线程安全的（`:124-126` 的注释），所以每次查询都在锁内算；懒加载依赖镜像时，会在锁内把整个依赖镜像 demangle 一遍。只服务 `MachOFile`。异步入口（打印、dump）已包执行器。同步的 public 入口有 provider 自己的方法、`MachOFile.precomputedStaticAggregateFieldLayout` 和 `MachOFile.renderFieldOffsets`，库内和 RuntimeViewer 都没有从小栈调用。
+- **三、`DependentMemberProjection`**（`:44` 每个镜像一份 entry 的锁，`:61` 按文件登记的锁）：每次关联类型成员投影都拿 entry 锁，锁内做 `demangleType`，懒加载依赖镜像时要把整个镜像 demangle 一遍；文件那把锁在没命中时建依赖闭包。异步入口有 opaque 类型改写（经 `printTypeDefinition`）、`AssociatedType.dump` 和 `SwiftDeclarationIndexer.prepare()`，都已包执行器。
+  - **排查中发现的入口漏包（已修）**：`TypeDefinition.specialize(...)` 的四个 async 重载（运行时两个、离线两个）没有包执行器。RuntimeViewer 在 actor 里调用其中一个（`RuntimeSwiftSection.swift:935`）。当某个 fixed 参数的 same-type 右侧代换后带 `dependentMemberType` 时，这条路会经 `GenericInstantiation` 在 512 KB 栈上拿这把锁，并逐次切线程。本批把四个重载都包上了 `LargeStackTaskExecution.run`（`SpecializationEntryPointExecutorTests`），和其它 async 入口一致。
+  - 同步的 `GenericSpecializer<MachOFile>.specialize(_:with:)` / `staticPreflight` 也会走到这里，只服务 `MachOFile`。
+- **四、`PropertyWrapperTypeCatalog`**（`:140`，每个镜像一个 catalog）：每次查询都拿锁。没命中时在锁内 demangle 导出符号名（`:173`），第一次没命中还要建依赖闭包。入口是 `TypeDefinition.index(in:)`，调用方都在已包的入口里，包括打印、索引，以及 diff 和 evolution 渲染。同步 public 入口 `evidence(forWrapperCandidate:)` 没有人从小栈调用。
+- **五、`ObjCAncestorResolver`**（`:92`、`:133`，每个镜像一个 resolver）：原先列为疑似，核实属实，但有条件。依赖镜像的 `ObjCClassMethodIndex` 存储（进程级、按镜像共享）第一次建的时候，会在锁内给每个 Swift 类 demangle 一次限定名（`ObjCClassMethodIndex.swift:444` → `NodeTypeNaming`）。入口经 `index(in:)`、`prepare()` 和 `Class.dump`，都已包执行器。同步 public 入口是 `ObjCMembers.table(forSwiftClassQualifiedName:in:)`。
+- **复现 / 是否误报**：五处的机制都属实。输出层面复现不出：结果不会错，只会在「小栈调用 + 有人等锁」时多等。第三处的漏包修掉之后，库内和 RuntimeViewer 的调用路径都不满足第一个条件。
+- **与 main 基线对比**：五处的锁在 main（0.22.0）上都有。第二处按 binding 查询的四个方法和 `projectingConcreteMembers` 来自离线特化（`b72638f8`、`5308fa1a`），main 上没有。第三处的漏包入口里，运行时的两个重载 main 上就有；从它们走到这把锁的那一步（`GenericInstantiation`，`6c35e8c4`，2026-10-08）main 上没有。
+- **为什么不修**：
+  1. 第一个条件不成立：调用都经包了执行器的入口进来，macOS 15 起持锁期间不切线程。macOS 15 以下没有执行器，这些路径上每次 demangle 不管有没有锁都要切线程，锁不是额外的代价。
+  2. 第二、三处的同步入口只服务 `MachOFile`。同一个 `MachOFile` 本来就不支持并发读（MachOKit 的读取共享一个 `FileHandle`），所以没有并发等锁的线程。
+  3. 第二、三处的锁保护的是不线程安全的计算器 memo。要把 demangle 挪出锁，得把计算器改成线程安全的，代价大，而收益只在上面两个条件同时成立时才有。
+- **既往修复**：无。规则来自第 9 条（`lateDemangledNode`，2026-08-03 修）。第一处 `:118` 的锁（`7ebed7d3`，2026-06-24）是专门为防止并发重复建表加的；第二处的锁随读取器特化引入（`1af4ea24`，2026-06-22）。其余几处（`268159bd`、`72b5c5f6`、`01fe2f82`、`758314ff`）都写在规则进 AGENTS.md（2026-09-14）之后，从写法看，当时把规则理解成了「所有查询都要拿的锁」。
+- **复审条件**：有宿主在协作线程或 libdispatch 线程上并发调用上面列出的同步入口；又出现没包执行器、能走到这几把锁的 async 入口（像这次的 `TypeDefinition.specialize`）；`MachOFile` 改成支持并发读；或者有宿主在 macOS 15 以下的实测里卡在这些锁上。

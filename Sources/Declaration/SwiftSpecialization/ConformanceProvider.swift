@@ -3,7 +3,7 @@ import SwiftDeclaration
 import Foundation
 import MachOSwiftSection
 import OrderedCollections
-import Demangling
+@_spi(Internals) import Demangling
 @_spi(Internals) import MachOSymbols
 @_spi(Internals) import SwiftInspection
 
@@ -148,8 +148,22 @@ public final class IndexerConformanceProvider<MachO: MachOSwiftSectionRepresenta
         /// Every indexed class's direct superclass by the class's name: the
         /// same links, read the other way, built in the same walk.
         var superclassLinkByClassName: [String: SuperclassLink]?
-        let lock = NSLock()
+        private let lock = NSLock()
+
+        /// Both maps, once a build has stored them.
+        var builtHierarchy: ClassHierarchy? {
+            guard let directChildrenByParentName, let superclassLinkByClassName else { return nil }
+            return (directChildrenByParentName, superclassLinkByClassName)
+        }
+
+        func withLock<Value>(_ body: (SubclassCache) -> Value) -> Value {
+            lock.lock()
+            defer { lock.unlock() }
+            return body(self)
+        }
     }
+
+    private typealias ClassHierarchy = (directChildrenByParentName: [String: [TypeName]], superclassLinkByClassName: [String: SuperclassLink])
 
     private let subclassCache = SubclassCache()
 
@@ -230,13 +244,33 @@ extension IndexerConformanceProvider: ConformanceProvider {
     /// the other way, by walking every indexed `.class` definition's
     /// `superclassType` link. Lock-protected so concurrent first-callers
     /// don't both pay the O(n) build cost.
-    private func classHierarchy() -> (directChildrenByParentName: [String: [TypeName]], superclassLinkByClassName: [String: SuperclassLink]) {
-        subclassCache.lock.lock()
-        defer { subclassCache.lock.unlock() }
-        if let cachedChildren = subclassCache.directChildrenByParentName, let cachedLinks = subclassCache.superclassLinkByClassName {
-            return (cachedChildren, cachedLinks)
+    ///
+    /// The walk demangles every class's superclass and prints two names per
+    /// class, and a host calls the specializer synchronously — RuntimeViewer
+    /// from an actor, on a 512 KB cooperative thread, where each of those calls
+    /// would hop to a large-stack worker on its own with the lock held. So a
+    /// miss moves to a large stack first, in one hop, and takes the lock
+    /// there: the walk runs inline under it and nothing hops while it is held.
+    /// A hit takes the lock briefly and never hops.
+    private func classHierarchy() -> ClassHierarchy {
+        if let cachedHierarchy = subclassCache.withLock({ $0.builtHierarchy }) {
+            return cachedHierarchy
         }
+        return StackSafeExecutor.withLargeStack {
+            self.subclassCache.withLock { cache in
+                if let builtHierarchy = cache.builtHierarchy {
+                    return builtHierarchy
+                }
+                let builtHierarchy = self.buildClassHierarchy()
+                cache.directChildrenByParentName = builtHierarchy.directChildrenByParentName
+                cache.superclassLinkByClassName = builtHierarchy.superclassLinkByClassName
+                return builtHierarchy
+            }
+        }
+    }
 
+    /// One walk over the indexed classes, building both maps.
+    private func buildClassHierarchy() -> ClassHierarchy {
         var map: [String: [TypeName]] = [:]
         var links: [String: SuperclassLink] = [:]
         for (childTypeName, entry) in indexer.allAllTypeDefinitions {
@@ -302,9 +336,6 @@ extension IndexerConformanceProvider: ConformanceProvider {
             map[superTypeName.name, default: []].append(childTypeName)
             links[childTypeName.name] = .inherits(from: superTypeName)
         }
-
-        subclassCache.directChildrenByParentName = map
-        subclassCache.superclassLinkByClassName = links
         return (map, links)
     }
 }

@@ -137,19 +137,25 @@ extension TypeDefinition {
     /// `specialize(with:typeArgumentNodes:derivingNestedSpecializationsWith:selection:typeArgumentNodesByParameter:in:)`,
     /// which auto-derives nested specialized children from the same outer
     /// binding.
+    ///
+    /// Like the library's other async entry points, the body runs on the
+    /// large-stack task executor (`LargeStackTaskExecution.run`), so a caller
+    /// on a 512 KB cooperative thread does not hop per demangle.
     @discardableResult
     public func specialize(
         with specializationResult: SpecializationResult,
         typeArgumentNodes: [Node]? = nil,
         in machO: MachOImage,
     ) async throws -> TypeDefinition {
-        let specialized = try makeSpecializedDefinition(
-            with: specializationResult,
-            typeArgumentNodes: typeArgumentNodes,
-            in: machO
-        )
-        appendSpecializedChild(specialized)
-        return specialized
+        try await LargeStackTaskExecution.run {
+            let specialized = try makeSpecializedDefinition(
+                with: specializationResult,
+                typeArgumentNodes: typeArgumentNodes,
+                in: machO
+            )
+            appendSpecializedChild(specialized)
+            return specialized
+        }
     }
 
     /// Specialize the receiver **and** derive specialized nested children
@@ -182,6 +188,12 @@ extension TypeDefinition {
     /// `nestedSpecializationDepthLimit`; hitting it logs an `os_log`
     /// warning under the `com.machoswiftsection.swift-interface` subsystem
     /// and truncates the subtree.
+    ///
+    /// The body runs on the large-stack task executor
+    /// (`LargeStackTaskExecution.run`). RuntimeViewer calls this overload
+    /// from an actor; without the executor its body ran on a 512 KB
+    /// cooperative thread and hopped per demangle, some of them under
+    /// `DependentMemberProjection`'s per-image lock.
     @_spi(Support)
     @discardableResult
     public func specialize(
@@ -192,24 +204,26 @@ extension TypeDefinition {
         typeArgumentNodesByParameter: [String: Node],
         in machO: MachOImage
     ) async throws -> TypeDefinition {
-        let specialized = try makeSpecializedDefinition(
-            with: specializationResult,
-            typeArgumentNodes: typeArgumentNodes,
-            in: machO
-        )
-        specialized.typeChildren = await deriveNestedSpecializedTypeChildren(
-            using: specializer,
-            selection: selection,
-            typeArgumentNodesByParameter: typeArgumentNodesByParameter,
-            inheritedTypeArgumentNodes: typeArgumentNodes ?? [],
-            in: machO,
-            depth: 0
-        )
-        for child in specialized.typeChildren {
-            child.parent = specialized
+        try await LargeStackTaskExecution.run {
+            let specialized = try makeSpecializedDefinition(
+                with: specializationResult,
+                typeArgumentNodes: typeArgumentNodes,
+                in: machO
+            )
+            specialized.typeChildren = await deriveNestedSpecializedTypeChildren(
+                using: specializer,
+                selection: selection,
+                typeArgumentNodesByParameter: typeArgumentNodesByParameter,
+                inheritedTypeArgumentNodes: typeArgumentNodes ?? [],
+                in: machO,
+                depth: 0
+            )
+            for child in specialized.typeChildren {
+                child.parent = specialized
+            }
+            appendSpecializedChild(specialized)
+            return specialized
         }
-        appendSpecializedChild(specialized)
-        return specialized
     }
 
     private func makeSpecializedDefinition(
@@ -479,15 +493,18 @@ extension TypeDefinition {
     /// Throws `SpecializationError.notGenericType` for a non-generic receiver
     /// and `.descriptorMismatch` for a result made for another type. Like the
     /// runtime overload, this specializes only the receiver; the deriving
-    /// overload below also derives its nested types.
+    /// overload below also derives its nested types. Both run their body on
+    /// the large-stack task executor, as the runtime overloads do.
     @discardableResult
     public func specialize(
         with specializationResult: StaticSpecializationResult,
         in machO: MachOFile
     ) async throws -> TypeDefinition {
-        let specialized = try makeStaticallySpecializedDefinition(with: specializationResult, in: machO)
-        appendSpecializedChild(specialized)
-        return specialized
+        try await LargeStackTaskExecution.run {
+            let specialized = try makeStaticallySpecializedDefinition(with: specializationResult, in: machO)
+            appendSpecializedChild(specialized)
+            return specialized
+        }
     }
 
     /// Specialize the receiver offline **and** derive specialized nested
@@ -506,18 +523,20 @@ extension TypeDefinition {
         derivingNestedSpecializationsWith specializer: GenericSpecializer<MachOFile>,
         in machO: MachOFile
     ) async throws -> TypeDefinition {
-        let specialized = try makeStaticallySpecializedDefinition(with: specializationResult, in: machO)
-        specialized.typeChildren = await deriveNestedStaticallySpecializedTypeChildren(
-            using: specializer,
-            selection: specializationResult.selection,
-            in: machO,
-            depth: 0
-        )
-        for child in specialized.typeChildren {
-            child.parent = specialized
+        try await LargeStackTaskExecution.run {
+            let specialized = try makeStaticallySpecializedDefinition(with: specializationResult, in: machO)
+            specialized.typeChildren = await deriveNestedStaticallySpecializedTypeChildren(
+                using: specializer,
+                selection: specializationResult.selection,
+                in: machO,
+                depth: 0
+            )
+            for child in specialized.typeChildren {
+                child.parent = specialized
+            }
+            appendSpecializedChild(specialized)
+            return specialized
         }
-        appendSpecializedChild(specialized)
-        return specialized
     }
 
     private func makeStaticallySpecializedDefinition(

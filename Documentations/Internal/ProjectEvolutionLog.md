@@ -2418,6 +2418,29 @@
 - **关联文档**：[0063-private-declarations](../Evolutions/0063-private-declarations.md)、[Modules/SwiftPrivateDiscriminators.md](Modules/SwiftPrivateDiscriminators.md)、[Glossary.md](../Glossary.md)「private declaration」；展示一侧是 RuntimeViewer 的 `draft-private-discriminator-tag`。
 - **对应版本**：下一个版本（未发版）。
 
+## 89. 持锁时 demangle 不切线程：类继承表改在大栈上建，`TypeDefinition.specialize` 补上执行器
+
+- **时间段**：2026-10-11。
+- **动机**：审查第 88 节的分支时，它的 index 持锁读名字，违反 AGENTS.md 的「Do not hold a lock across a demangle」。按规矩在全库横向排查同一写法，又找到六处老代码。其中 RuntimeViewer 真会从 512 KB 栈的线程走进来的有两处：
+  - 在 actor 里同步调用 `GenericSpecializer.makeRequest`。带父类约束的参数第一次找候选时，`IndexerConformanceProvider.classHierarchy()` 在锁内给每个类 demangle 一次父类、打印两次名字，每次都单独切一趟线程。
+  - 在 actor 里调用 `TypeDefinition.specialize(...)` 的 deriving 重载。它没有包执行器，条件满足时会在 `DependentMemberProjection` 的锁内逐次切线程。
+- **关键决策**（用户选择：只修真会从小栈调进来的，其余登记不修，并把规则写准确）：
+  - `classHierarchy()`：缓存没命中时先一次切到大栈（`StackSafeExecutor.withLargeStack`），再在大栈上取锁、复查、建表，持锁期间不再切线程；命中缓存的调用不切线程。没有改成「锁外建表、锁内插入」：并发的首次调用本来就要等这张表，锁外建会让它们各建一遍。两张表（父类 → 子类、子类 → 父类）仍在同一次遍历里建出、在同一把锁下一起存，`subclasses(of:)` 和离线父类检查用的 `superclassLink(of:)` 读到的是同一份。
+  - `TypeDefinition.specialize(...)` 的四个 async 重载包上 `LargeStackTaskExecution.run`，和库里其它 async 入口一致。执行器接入时（`4c6bdd4d`，2026-09-03）漏了它们。
+  - 其余五处的锁不改，登记 [ReviewAdjudications A61](ReviewAdjudications.md)：调用都经包过执行器的入口进来，macOS 15 起持锁期间不切线程。
+  - AGENTS.md 的规则改写成「Never let a demangle or print hop while you hold a lock」：要么已经在大栈上（执行器包过的入口里，或者取锁前先 `withLargeStack`），要么锁外 demangle、锁内 insert-if-absent；同步 API 跑在宿主调用它的线程上。
+  - 测试的观察点：库外看不到这些代码跑在哪个线程上。用户同意为此加一个只给测试用的钩子，动手时找到了现成的观察点，就没有加。两边都在回调里记下当前线程的栈大小：
+    - `classHierarchy()`：沿用 `SubclassMapMaterializationFailureTests` 的办法，注入一个读不出来的类描述符。建表时发出的降级事件，在建表线程上同步交给处理器。
+    - `specialize`：用一个转发型的 `ConformanceProvider`。派生嵌套类型时，特化器会在 `specialize` 的函数体里问它要候选。
+  - RuntimeViewer 那边每次请求都新建 provider，section 那份表建好后也不再刷新。这两个问题转给 RuntimeViewer 会话修。
+- **落地模块**：SwiftSpecialization（`ConformanceProvider.swift`、`TypeDefinition+Specialization.swift`）。
+- **验证**：
+  - `ClassHierarchyBuildStackTests`：在 512 KB 栈的线程上调用 `subclasses(of:)`。修复前建表跑在调用方 536,576 字节的栈上，测试失败；修复后跑在 8 MB 的栈上，测试通过。
+  - `SpecializationEntryPointExecutorTests`：运行时、离线两个 deriving 重载各一条。修复前 provider 在 536,576 字节的栈上被调用，测试失败；修复后在执行器的大栈线程上，测试通过。两个新套件加进了 CI 的过滤清单。
+  - 全量 `swift test --skip IntegrationTests`（JHs-Mac-Studio-Ultra，带 `USING_LOCAL_DEPENDENCIES=1`）在 `classHierarchy()` 修好之后跑过一次：2427 个测试、462 个套件全部通过，原始退出码 0。`specialize` 包上执行器之后，重跑了它在库内唯一的调用方 `SwiftSpecializationTests`（154 个测试、27 个套件），以及 `ContinuousIntegrationTestFilterTests`，全部通过，原始退出码 0。
+- **关联文档**：AGENTS.md「Never let a demangle or print hop while you hold a lock」、[ReviewAdjudications A61](ReviewAdjudications.md)、[LargeStackTaskExecutorAdoption.md](LargeStackTaskExecutorAdoption.md)「包了哪些入口」、[NodeStoreMigrationOpenIssues 第 9 条](NodeStoreMigrationOpenIssues.md)（规则的来历）。
+- **对应版本**：下一个版本（未发版）。
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节
