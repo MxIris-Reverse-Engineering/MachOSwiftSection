@@ -32,6 +32,7 @@
 | `SwiftInterface` | `SwiftInterfaceBuilder.prepare()` / `printRoot()`；`SwiftDiffableInterfaceBuilder.prepare()`；`AnySwiftEvolutionInterfaceBuilder.prepare(maximumConcurrentPreparations:)` / `printAnnotatedInterface()` / `annotatedBlocks()`（pack façade 委托）；`SwiftDiffableInterfaceRenderer.printAnnotatedInterface(format:)` / `annotatedDiffBlocks()` |
 | `SwiftPrinting` | `SwiftDeclarationPrinter.printTypeDefinition` / `printProtocolDefinition` / `printExtensionDefinition` / `printDefinition`（RuntimeViewer 逐类型导出绕过 `printRoot` 的路径） |
 | `SwiftDump` | 六个 `Dumpable.dump(using:in:)` 遵循者（`Struct` / `Class` / `Enum` / `Protocol` / `ProtocolConformance` / `AssociatedType`） |
+| `SwiftSpecialization` | `TypeDefinition.specialize(...)` 的四个 async 重载（运行时两个、离线两个）。2026-10-11 才补上，此前漏包，见 [ReviewAdjudications A61](ReviewAdjudications.md) 第三处。`GenericSpecializer` 的入口是同步的，跑在宿主调用它的线程上；其中类继承表的建表由 `IndexerConformanceProvider` 自己先切一次大栈再做 |
 
 **嵌套免费**：`printRoot` 里再进 `printTypeDefinition`、父类型的嵌套子类型循环再进 `printTypeDefinition`，都是「已在执行器上再包一层」。SE-0417 的 `withTaskExecutorPreference` 在当前执行器就是目标执行器时不切换，`nestedRunsStayOnTheSameThread` 钉住线程不变。CLI 的 `dump` 循环按类型逐个调 `dump`，每个类型进出执行器各一跳，SwiftUICore 五千余类型约一万跳、总计零点几秒，远小于原来每个符号一跳，故 CLI 侧没有再包一层。
 
