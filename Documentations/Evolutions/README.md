@@ -76,4 +76,4 @@
 | [0061](0061-dyld-shared-cache-path-versions.md) | 测试用的 dyld shared cache 路径按版本取 | Implemented |
 | draft | [离线泛型特化：不经 runtime 特化泛型类型并完整打印](draft-offline-generic-specialization.md) | In Progress |
 | [0062](0062-local-type-context-names.md) | 局部类型的名字：找回函数与闭包上下文 | Implemented |
-| draft | [私有声明：从名字取 discriminator，按镜像反推源文件](draft-private-declarations.md) | In Progress |
+| [0063](0063-private-declarations.md) | 私有声明：从名字取 discriminator，按镜像反推源文件 | Implemented |

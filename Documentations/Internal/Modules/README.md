@@ -17,7 +17,7 @@
 | SwiftSectionKit | [SwiftSectionKit.md](SwiftSectionKit.md) | ✅ 已写（调用方指南：[SwiftSectionKit.md](../../SwiftSectionKit.md)） |
 | swift-section (CLI) | [SwiftSectionKit.md](SwiftSectionKit.md) | ✅ 已写（与 SwiftSectionKit 同篇：包装层只剩 flag 映射、错误翻译、流路由与退出码） |
 | SwiftIndexing | — | 待写 |
-| SwiftPrivateDiscriminators | [SwiftPrivateDiscriminators.md](SwiftPrivateDiscriminators.md) | ✅ 已写（提案 [draft-private-declarations](../../Evolutions/draft-private-declarations.md)） |
+| SwiftPrivateDiscriminators | [SwiftPrivateDiscriminators.md](SwiftPrivateDiscriminators.md) | ✅ 已写（提案 [0063-private-declarations](../../Evolutions/0063-private-declarations.md)） |
 | SwiftPrinting | — | 待写 |
 | SwiftSpecialization | — | 待写 |
 | SwiftThunkAnalysis | [SwiftThunkAnalysis.md](SwiftThunkAnalysis.md) | ✅ 已写（入门：[AccessorThunkResolutionExplained.md](../AccessorThunkResolutionExplained.md)） |

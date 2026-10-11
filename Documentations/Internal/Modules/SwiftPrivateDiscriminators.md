@@ -1,7 +1,7 @@
 # SwiftPrivateDiscriminators 模块
 
 > 模块参考文档（module reference），随代码维护。读者：维护者。
-> 来历与取舍见提案 [draft-private-declarations](../../Evolutions/draft-private-declarations.md)；本文负责全貌与分工。
+> 来历与取舍见提案 [0063-private-declarations](../../Evolutions/0063-private-declarations.md)；本文负责全貌与分工。
 
 ## 模块定位
 
@@ -55,5 +55,5 @@ private discriminator 是编译器给 private / fileprivate 声明的名字加�
 
 ## 相关文档
 
-- 提案：[draft-private-declarations](../../Evolutions/draft-private-declarations.md)
+- 提案：[0063-private-declarations](../../Evolutions/0063-private-declarations.md)
 - 局部类型与占位名：[0062-local-type-context-names](../../Evolutions/0062-local-type-context-names.md)

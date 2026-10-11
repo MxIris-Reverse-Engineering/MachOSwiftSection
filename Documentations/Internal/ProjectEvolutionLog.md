@@ -2395,6 +2395,29 @@
 - **关联文档**：[0062-local-type-context-names](../Evolutions/0062-local-type-context-names.md)、[Roadmaps/2026-09-24-local-type-context-names.md](../../Roadmaps/2026-09-24-local-type-context-names.md)、[SymbolicManglingSymbols.md](SymbolicManglingSymbols.md)「边界」、[Glossary.md](../Glossary.md)「position-based name」、`swift-section` agent skill 第 9 节。
 - **对应版本**：下一个版本（未发版）。
 
+## 88. 私有声明：从名字取 discriminator，按镜像反推源文件
+
+- **时间段**：2026-10-11。
+- **动机**：RuntimeViewer 的侧栏给私有类型挂一个 `Private` 标签，点开列出 private discriminator 和它来自哪个源文件。这两件计算原来都在 RuntimeViewer 里做，用户要求下沉到本库，RuntimeViewer 只管展示。0062 之后，RuntimeViewer 原来的整树搜索多了两处错：把 position-based name 里 `$` 开头的地址当成 discriminator，把局部类型所在函数签名里的 private 类型也收了进来。实现由 RuntimeViewer 会话在本仓库的 `feature/private-declarations` 分支上完成，本会话审查。
+- **关键决策**：
+  - 私有声明的取法：整树前序搜索 `privateDeclName`，只跳过函数、闭包这类上下文的签名部分和 position-based name 的 `$` 段；`Private` 标签与源文件反推共用这一份。原定的「沿上下文链每层取第一个子节点」没有采用：`.extension` 和 `.anonymousContext` 的父级在第二个子节点，只取第一个会漏掉被扩展的类型；RuntimeViewer 现有的语义也有意收进泛型实参里的 private 类型。
+  - 局部类型所在函数是 private 时，函数的 discriminator 也算（用户选择）。private 构造器、下标的私有名字里只有 discriminator，`name` 取 `init` / `subscript`。
+  - 局部类型给读者看的名字不带模块名和参数类型（用户选择），interface 里局部类型声明前那行注释改用同一个实现。
+  - 源文件反推单开一个 target `SwiftPrivateDiscriminators`（公开 product），算法、2007 个已知文件名和生成脚本从 RuntimeViewer 原样搬来。RuntimeViewer 在引擎进程里调用，新增一条引擎命令；候选由本库从镜像取，结果按镜像记住（用户选择）。模块名候选取镜像文件名（`SwiftUICore`），不是 ABI 名（`SwiftUI`）。
+  - 按镜像的 index：名字在锁外读，整批放在大栈上；搜索在锁内，同一镜像只搜一次；名字读完就放掉索引器。这几条有两条是审查后改的：原来持锁读名字，违反 AGENTS.md 的「Do not hold a lock across a demangle」，而且在 512 KB 栈的协作线程上逐个打印名字要逐个切线程；原来 index 一直握着索引器，镜像的缓存要等 index 释放才回收。
+  - 还原率没有重新量（用户选择）。这里的候选与 RuntimeViewer 侧栏对象表互有多少，RuntimeViewer 提案里的数字是在 macOS 26.7 上用旧候选量的。
+- **审查**：本会话列出六条，用户要求全部修、不留「不修」项。除了上面线程安全的两条，还有：提案「测试」一节有三处没兑现（与另写的整树搜索逐个对照、还原不出的不再重搜、SwiftUICore 的模块名）；文档索引写的还是旧取法；`PrivateDeclarationsTests` 漏了 `ExclusiveImageAccess`；术语混写、「候选与侧栏是同一批」说错、没记 `next` 已推送、CI 没加新套件。审查顺带在全库排查了「持锁时 demangle」，找到的五处老代码和一处疑似另行处理。
+- **公开 API 与行为变化**（写进下个版本的发版说明）：新增 `PrivateDeclaration` 与 `Node.privateDeclarations` / `NodeReference.privateDeclarations`（SwiftInspection）、`DefinitionName.localTypeDisplayName`（SwiftDeclaration），以及新 product `SwiftPrivateDiscriminators`（`PrivateDiscriminatorSourceFiles`、`PrivateDiscriminatorSourceFileIndex`；用索引器建 index 的两个初始化方法是 `@_spi(Support)`，与 `SwiftDeclarationIndexer` 一致）。dump 与 interface 的输出不变。
+- **落地模块**：SwiftInspection（`PrivateDeclarations`、`LocalTypeNaming`）、SwiftDeclaration（`DefinitionName+LocalTypeDisplayName`）、SwiftPrinting（`SwiftDeclarationPrinter+Headers`）、新 target SwiftPrivateDiscriminators（`PrivateDiscriminatorSourceFiles`、`PrivateDiscriminatorSourceFiles+KnownFileNames`、`PrivateDiscriminatorSourceFileIndex`）、`Scripts/GenerateKnownSwiftSourceFileNames.sh`。
+- **验证**：
+  - 先红后绿：取法临时改回 RuntimeViewer 的整树读取（读签名、收 `$`），`PrivateDeclarationsTests` 里针对这两点的 4 个用例变红。审查后补的测试各自在修复前变红：读名字时的栈是 536,576 字节；两个并发的首次请求只有一个读到名字；只剩 index 握着索引器时索引器不释放；删掉记录「还原不出」的几行后，同一个 discriminator 被重复搜索；扩展只读第一个子节点时，受约束扩展的样本变红；struct 自己的 private 名字不读时，SymbolTestsCore 有 6 个名字变红。
+  - 新套件 `PrivateDeclarationsTests`、`PrivateDeclarationsWholeTreeTests`、`LocalTypeDisplayNameTests`、`PrivateDiscriminatorSourceFilesTests`、`PrivateDiscriminatorSourceFileIndexTests` 加进了 CI 的过滤清单。`PrivateDiscriminatorSourceFileSystemImageTests`（Foundation 的 `JSONEncoder.swift`、SwiftUICore 的 `Enabled.swift`）不进 CI：它的 discriminator 是在 macOS 27.2 上取的。
+  - 全量 `swift test --skip IntegrationTests`（JHs-Mac-Studio-Ultra，带 `USING_LOCAL_DEPENDENCIES=1`，RuntimeViewer 会话跑）：2426 个测试、461 个套件全部通过，原始退出码 0。复审时本会话在同一 worktree 跑相关的 13 组 129 个测试，原始退出码 0，新增和改动的文件没有编译警告。
+  - RuntimeViewer Core 用 SwiftPM 的 edit 模式指向本分支编译，私有声明相关的 3 个套件、14 个测试通过，其中包括经引擎命令反推出 `JSONEncoder.swift` 的那个。
+  - 没跑系统框架 A/B：打印只是把局部类型注释的写法挪进 `DefinitionName`，打印选项没变，SymbolTestsCore 的 interface 快照照旧通过。
+- **关联文档**：[0063-private-declarations](../Evolutions/0063-private-declarations.md)、[Modules/SwiftPrivateDiscriminators.md](Modules/SwiftPrivateDiscriminators.md)、[Glossary.md](../Glossary.md)「private declaration」；展示一侧是 RuntimeViewer 的 `draft-private-discriminator-tag`。
+- **对应版本**：下一个版本（未发版）。
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节

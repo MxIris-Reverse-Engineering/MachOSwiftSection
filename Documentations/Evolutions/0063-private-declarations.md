@@ -1,10 +1,11 @@
-# Draft - 私有声明：从名字取 discriminator，按镜像反推源文件
+# 0063 - 私有声明：从名字取 discriminator，按镜像反推源文件
 
-- **状态**: In Progress
+- **状态**: Implemented
 - **创建日期**: 2026-10-11
 - **最后更新**: 2026-10-11
 - **关联提案**: [0062-local-type-context-names](0062-local-type-context-names.md)（占位名与 `LocalTypeNaming`）；展示一侧是 RuntimeViewer 的 [draft-private-discriminator-tag](https://github.com/MxIris-Reverse-Engineering/RuntimeViewer/blob/feature/private-discriminator-tag/Documentations/Evolutions/draft-private-discriminator-tag.md)
-- **实现分支**: `feature/private-declarations`（worktree `.worktrees/MachOSwiftSection-PrivateDeclarations`），基于本地 `next` 100da85c，要用 0062 的 `LocalTypeNaming`
+- **实现分支**: `feature/private-declarations`（worktree `.worktrees/MachOSwiftSection-PrivateDeclarations`），基于本地 `next` 100da85c，要用 0062 的 `LocalTypeNaming`；按本仓库惯例在本地合并进 `next`
+- **配套文档**: 模块全貌、三个子系统、候选与 RuntimeViewer 侧栏对象表的差别见 [Modules/SwiftPrivateDiscriminators.md](../Internal/Modules/SwiftPrivateDiscriminators.md)；术语见 [Glossary.md](../Glossary.md)「private declaration」
 
 ## 摘要
 
@@ -150,3 +151,6 @@ RuntimeViewer 的侧栏给私有类型挂一个 `Private` 标签，点开列出 
 | 2026-10-11 | 术语统一写 private discriminator / discriminator，标题一并改；用户原话照录 | 仓库其余文档和术语表写「鉴别符」，0062 写英文。按文档风格要求，术语保留英文，不用中文自造词 |
 | 2026-10-11 | 更正「候选与 RuntimeViewer 侧栏对象表是同一批，还原率不变」 | 两边不是同一批：本库多收了侧栏并进类型的扩展名字，少了侧栏列出的 C struct / union 名、ObjC 分类名和 `_Tt…` 名。还原率是 RuntimeViewer 在 macOS 26.7 上用旧候选量的，本 index 没有重新量。搜索本身没有上限，候选多出来只会让还原出的变多，少掉的那几类能不能还原出东西没有量过 |
 | 2026-10-11 | 更正：`next` 已推到 origin（100da85c） | 「实现分支基于本地 `next`（100da85c，未推送）」那一行写的时候是这样，之后已经推送 |
+| 2026-10-11 | 还原率不重新量 | 用户选择。文档里已注明那组还原率是 RuntimeViewer 在 macOS 26.7 上用旧候选量的 |
+| 2026-10-11 | In Progress → Implemented，编号 0063 | 用户确认合入。MSS 会话复审了六条修复，在本 worktree 跑相关的 13 组 129 个测试，原始退出码 0。按共享分支编号（origin/next 最大 0062，origin/main 最大 0061）；开工后 `next` 没有新提交，不用 rebase；本地合并进 `next`；演进账本第 88 节 |
+| 2026-10-11 | 收尾判断：不另写实现说明；登记术语「private declaration」 | 模块全貌、三个子系统和候选的来源写在 [Modules/SwiftPrivateDiscriminators.md](../Internal/Modules/SwiftPrivateDiscriminators.md)，已登记在头部；取法与线程安全的决策都在本提案和演进账本里，没有再值得单列的。「private declaration」（私有声明）在本库有特定含义：显示名读得到的私有声明，不含函数签名里的，也不含按位置起名的 `$` 段，已登记术语表。`PrivateDeclaration`、`localTypeDisplayName` 是标识符，不登记；private discriminator 是编译器的说法，不是本项目造的，也不登记 |
