@@ -617,6 +617,24 @@ extension Target {
         path: "Sources/Declaration/SwiftIndexing",
     )
 
+    /// Recovers the source files private discriminators were derived from:
+    /// MD5 over candidate file names, drawn from an indexed image's names and
+    /// a generated list of known file names (evolution proposal
+    /// `private-declarations`).
+    static let SwiftPrivateDiscriminators = Target.target(
+        name: "SwiftPrivateDiscriminators",
+        dependencies: [
+            .product(.MachOKit),
+            .product(.MachOObjCSection),
+            .product(.Demangling),
+            .target(.MachOSwiftSection),
+            .target(.SwiftInspection),
+            .target(.SwiftDeclaration),
+            .target(.SwiftIndexing),
+        ],
+        path: "Sources/Declaration/SwiftPrivateDiscriminators",
+    )
+
     /// Infers source-level Swift attributes (`@propertyWrapper`,
     /// `@resultBuilder`, `@dynamicMemberLookup`, `@objc`, …) from the
     /// `SwiftDeclaration` model. A low-level peer over the model so the
@@ -1142,6 +1160,19 @@ extension Target {
         swiftSettings: testSettings,
     )
 
+    static let SwiftPrivateDiscriminatorsTests = Target.testTarget(
+        name: "SwiftPrivateDiscriminatorsTests",
+        dependencies: [
+            .target(.SwiftPrivateDiscriminators),
+            .target(.SwiftInspection),
+            .target(.SwiftDeclaration),
+            .target(.SwiftIndexing),
+            .target(.MachOFixtureSupport),
+            .target(.MachOTestingSupport),
+        ],
+        swiftSettings: testSettings,
+    )
+
     static let SwiftIndexingTests = Target.testTarget(
         name: "SwiftIndexingTests",
         dependencies: [
@@ -1239,6 +1270,7 @@ let package = Package(
         .library(.SwiftAttributeInference),
         .library(.SwiftDiffing),
         .library(.SwiftIndexing),
+        .library(.SwiftPrivateDiscriminators),
         .library(.SwiftPrinting),
         .library(.SwiftSpecialization),
         .library(.SwiftInterface),
@@ -1270,6 +1302,7 @@ let package = Package(
         .SwiftAttributeInference,
         .SwiftDiffing,
         .SwiftIndexing,
+        .SwiftPrivateDiscriminators,
         .SwiftPrinting,
         .SwiftSpecialization,
         .SwiftInterface,
@@ -1305,6 +1338,7 @@ let package = Package(
         .SwiftSectionCommandTests,
         .SwiftSectionKitTests,
         .SwiftIndexingTests,
+        .SwiftPrivateDiscriminatorsTests,
         .SwiftSpecializationTests,
         .SwiftInterfaceTests,
         .MachOTestingSupportTests,

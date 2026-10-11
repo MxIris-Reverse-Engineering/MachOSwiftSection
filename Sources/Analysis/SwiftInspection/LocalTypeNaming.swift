@@ -37,7 +37,7 @@ extension Node {
         case .localDeclName:
             return .compilerSpelled
         case .privateDeclName:
-            return declarationName.children.first?.text?.hasPrefix("$") == true ? .positionBased : nil
+            return declarationName.isPositionBasedPrivateName ? .positionBased : nil
         default:
             return nil
         }
@@ -58,7 +58,7 @@ extension NodeReference {
         case .localDeclName:
             return .compilerSpelled
         case .privateDeclName:
-            return declarationName.children.first?.text?.hasPrefix("$") == true ? .positionBased : nil
+            return declarationName.isPositionBasedPrivateName ? .positionBased : nil
         default:
             return nil
         }
