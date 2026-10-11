@@ -492,14 +492,14 @@ extension SwiftDeclarationPrinter {
     // MARK: - Local types (evolution proposal `local-type-context-names`)
 
     /// The comment above the declaration of a type declared in a function or
-    /// closure body: the compiler's name for it, modules left out
-    /// (`Visitor #1 in Holder.countValues()`), or — when no source the image
-    /// keeps names the function or closure — a sentence saying so. `nil` for
-    /// any other type.
+    /// closure body: the name a reader is shown of it
+    /// (`DefinitionName.localTypeDisplayName`, `Visitor #1 in
+    /// Holder.countValues()`), or — when no source the image keeps names the
+    /// function or closure — a sentence saying so. `nil` for any other type.
     package func localTypeDeclarationComment(for typeName: SwiftDeclaration.TypeName) -> String? {
         switch typeName.node.localTypeNaming {
         case .compilerSpelled:
-            typeName.name(using: .localTypeDeclarationComment)
+            typeName.localTypeDisplayName
         case .positionBased:
             "Local type in a function or closure the binary does not name"
         case nil:
@@ -538,12 +538,6 @@ extension SwiftDeclarationPrinter {
             current = context
         }
     }
-}
-
-extension DemangleOptions {
-    /// A local type's compiler-spelled name the way a reader would say it:
-    /// no modules, no parameter types, the `#1` ordinal kept.
-    fileprivate static let localTypeDeclarationComment = DemangleOptions.simplified.union(.displayLocalNameContexts)
 }
 
 extension ExtensionKind {

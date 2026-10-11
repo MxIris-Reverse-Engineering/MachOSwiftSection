@@ -283,6 +283,13 @@ opaque 尖括号参数归属的第三条规则：协议无任何 anchor 命中�
 - **主要出现在**：`Sources/Analysis/SwiftInspection/SymbolicDemangler.swift`（`positionNameOfUnnamedLocalType`）、`Sources/Analysis/SwiftInspection/LocalTypeNaming.swift`、`Sources/Output/SwiftDeclarationRendering/RuntimeTypeNameDemangling.swift`
 - **延伸阅读**：[提案 0062](Evolutions/0062-local-type-context-names.md)
 
+### private declaration（私有声明，`privateDeclarations`）
+
+一个名字的显示名里读得到的 `private` / `fileprivate` 声明，每个连同它的 private discriminator：`Node.privateDeclarations` / `NodeReference.privateDeclarations` 返回的 `[PrivateDeclaration]`，按阅读顺序排列、去重。取法是整树搜索 `privateDeclName`，有两处不算：函数、闭包这类上下文的签名部分（参数和返回值里的 private 类型），以及 position-based name 里 `$` 开头的那一段（那是地址，不是 discriminator）。特化类型的泛型实参、受约束扩展里被扩展的类型都算；局部类型所在的函数是 private 时，函数也算，`name` 是函数名。RuntimeViewer 的 `Private` 标签和源文件反推（`SwiftPrivateDiscriminators`）读的都是这一份。
+
+- **主要出现在**：`Sources/Analysis/SwiftInspection/PrivateDeclarations.swift`、`Sources/Declaration/SwiftPrivateDiscriminators/PrivateDiscriminatorSourceFileIndex.swift`
+- **延伸阅读**：[提案 0063](Evolutions/0063-private-declarations.md)、[Modules/SwiftPrivateDiscriminators.md](Internal/Modules/SwiftPrivateDiscriminators.md)
+
 ### renamed class（改名类，`@objc(Name)` / `@_objcRuntimeName(Name)`）
 
 源码给 ObjC 运行时另起了名字的 Swift 类：类对象的 `class_ro_t` 名是源码写的名字（`NSScrollPocket`），而不是 `_TtC6AppKit14NSScrollPocket` 这样的 mangling。二进制里只剩类元数据 flag 字里的 `HasCustomObjCName` 与名字本身，`SwiftClassObjectIndex` 顺着类元数据自带的描述符指针把它们配到 Swift 类上（父类在另一个 resilience domain、不进 classlist 的类读 metadata pattern）。本仓库凡是「demangle 运行时名找 Swift 类」的地方都要为它回退，否则一律配不上——成员恢复与布局引擎以前就是这样漏掉它们的。interface 与 dump 打印 `@objc(Name)`，原生 Swift 对象模型的类打印 `@_objcRuntimeName(Name)`。
