@@ -1,9 +1,9 @@
-# Draft - 适配 SE-0491：interface 与 dump 可用模块选择器（`Module::Name`）写限定名
+# 0064 - 适配 SE-0491：interface 与 dump 可用模块选择器（`Module::Name`）写限定名
 
-- **状态**: In Progress
+- **状态**: Implemented
 - **创建日期**: 2026-10-10
-- **最后更新**: 2026-10-10
-- **关联提案**: swift-demangling 提案 `draft-module-selectors`（`DemangleOptions.useModuleSelectors`，本提案的 dump 一侧与 interface 的委托打印都建在它上面）
+- **最后更新**: 2026-10-12
+- **关联提案**: swift-demangling 提案 `0017-module-selectors`（`DemangleOptions.useModuleSelectors`，本提案的 dump 一侧与 interface 的委托打印都建在它上面）
 
 ## 摘要
 
@@ -41,3 +41,4 @@ Swift 6.4 编译器生成 `.swiftinterface` 时默认就用这种写法：Xcode 
 | 2026-10-10 | `~Swift.Copyable` 改由类型打印器 / resolver 印协议节点，不在原处按开关二选一 | 拼写从此只有一个来源。代价：开关关闭时，凡显示标准库模块的选项组合文字不变；不显示的（如 `--demangle-options simplified`）从 `~Swift.Copyable` 变成 `~Copyable`，与它对其余标准库名字的写法一致；富文本里它从一个「其他类型名」变成模块 + 协议两段 |
 | 2026-10-10 | `OpaqueTypeResolving.opaqueType` 加 `usesModuleSelectors` 参数，不给默认实现 | 解析器角色协议按约定不带默认实现，签名漂移要在编译期暴露；已知实现方只有本库的 provider（RuntimeViewer 只构造它）。若改成让 provider 在构造时自带开关，配置与 provider 会各说各话 |
 | 2026-10-10 | 验证 | 新测试 27 个全过，interface 扫漏测试在修 extension 头之前失败；全量 2370 个测试 / 453 个套件只剩本机早已存在的两条 `MultiPayloadEnumDescriptorCacheTests`；macOS 27 的 libswiftCore / Observation / Synchronization 打开开关后 interface 零残留，dump 只剩注释里的 ObjC 运行时类名；libswiftCore 与 SDK 接口共有的 107 条嵌套类型路径逐层模块一致。渲染 A/B（基线 next `cd248de9` + swift-demangling `next` `e17ae7f`，候选 `52fb45f9` + swift-demangling `8419460`；两侧 swift-semantic-string 都是本地 `next`，共用同一份 `Package.resolved`，经构建队列各预构建一次 release 后带 `--skip-build` 跑）：**90 对全部逐字节一致**——归档 cache 26.6.2 与 15.5 各 12 对，iOS 15.5 / 18.5 / 18.6 / 26.5 模拟器 42 对，MachOImage 腿 24 对；iOS 15.5 模拟器缺的三个框架与 iOS 27.0 模拟器（框架在 cache 里）按设计跳过。开关关闭时输出不变 |
+| 2026-10-12 | In Progress → Implemented，编号 0064 | 用户要求合并。分支 rebase 到 `next` `b8db48bf`，与其间合入的 0062（局部类型的名字）在两处冲突，两边都保留：`TypeNodePrintable.printType` 里局部类型照旧不印上下文，C 导入模块名照旧记下；extension 头改走 0062 的 `renderExtendedTypeName`，它的两种写法（普通名字，以及按位置命名的局部类型 `Holder.(Visitor in $…)`）都随开关带模块选择器——后者留成点号，就是开关打开的 interface 里唯一一处旧写法。新增 `LocalTypeInterfaceTests.strippedInterfaceSpellsPositionBasedExtensionsWithModuleSelectors` 钉住这个组合：extension 头不带选择器时它的 3 条断言全部失败（印成 `LocalTypeFixtureStripped.Holder.(Key in $5e3c): Swift::Equatable`，一行里混着两种写法），带上后与相关的 7 个套件共 60 个测试一起通过，原始退出码 0。rebase 后全量 `swift test --skip IntegrationTests`（JHs-Mac-Studio，依赖为远端发布版，swift-demangling 指本分支、swift-semantic-string 指本地 `next`）：2436 个测试 / 465 个套件，原始退出码 1，失败的只有本机早已存在的两条 `MultiPayloadEnumDescriptorCacheTests`。冲突只在两处小的合并点，没有重跑渲染 A/B。按共享分支编号（origin/next 最大 0063，origin/main 最大 0061）；本地合并进 `next`；演进账本第 90 节；swift-demangling 一侧编号 0017，快进合入它的 `next` |
