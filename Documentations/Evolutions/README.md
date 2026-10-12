@@ -77,3 +77,4 @@
 | draft | [离线泛型特化：不经 runtime 特化泛型类型并完整打印](draft-offline-generic-specialization.md) | In Progress |
 | [0062](0062-local-type-context-names.md) | 局部类型的名字：找回函数与闭包上下文 | Implemented |
 | [0063](0063-private-declarations.md) | 私有声明：从名字取 discriminator，按镜像反推源文件 | Implemented |
+| [0064](0064-module-selectors.md) | 适配 SE-0491：interface 与 dump 可用模块选择器（`Module::Name`）写限定名 | Implemented |

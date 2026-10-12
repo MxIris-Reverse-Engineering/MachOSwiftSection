@@ -5,6 +5,7 @@ import MachOFoundation
 import MachOSwiftSection
 import SwiftDeclaration
 @_spi(Support) import SwiftIndexing
+import SwiftPrinting
 @_spi(Support) import SwiftInterface
 @testable import MachOTestingSupport
 
@@ -271,5 +272,23 @@ struct LocalTypeInterfaceTests {
         #expect(interface.contains("\nextension \(moduleName).Holder.(Visitor in $"), "\(interface)")
         #expect(interface.contains("\nextension \(moduleName).Holder.(WrappingGenerator in $"), "\(interface)")
         #expect(!interface.contains("\nextension \(moduleName).Holder.WrappingGenerator."), "\(interface)")
+    }
+
+    /// With module selectors on (evolution proposal `module-selectors`), a
+    /// position-based extension header carries them like every other name
+    /// and keeps its position-based level: a header left dotted would be the
+    /// one old-style qualification in an interface spelled `Module::Name`.
+    @Test func strippedInterfaceSpellsPositionBasedExtensionsWithModuleSelectors() async throws {
+        var printConfiguration = SwiftDeclarationPrintConfiguration()
+        printConfiguration.usesModuleSelectors = true
+        let builder = try SwiftInterfaceBuilder(configuration: .init(printConfiguration: printConfiguration), eventHandlers: [], in: try LocalTypeFixture.machOFile(.stripped))
+        try await builder.prepare()
+        let interface = try await builder.printRoot().string
+
+        let moduleName = LocalTypeFixture.Variant.stripped.moduleName
+        let holderExtensionHeaders = interface.split(separator: "\n").filter { $0.hasPrefix("extension \(moduleName)::Holder.") }
+        #expect(holderExtensionHeaders.contains { $0.contains("Visitor in $") }, "\(interface)")
+        #expect(holderExtensionHeaders.contains { $0.contains("WrappingGenerator in $") }, "\(interface)")
+        #expect(!interface.contains("\nextension \(moduleName).Holder."), "\(interface)")
     }
 }

@@ -57,6 +57,9 @@ public struct InterfaceRequest: Sendable, Equatable {
     /// alone (no symbol behind it) prints as `override`. The tie is recorded
     /// either way.
     public var infersObjCOverridesFromSelectorNames: Bool
+    /// Names qualified with SE-0491 module selectors (`Swift::Int`), as a
+    /// Swift 6.4 `.swiftinterface` spells them.
+    public var usesModuleSelectors: Bool
     /// A leading header comment: generator, image path, UUID, architecture,
     /// library-evolution detection, unrecoverable-facts notes.
     public var emitsHeader: Bool
@@ -78,6 +81,7 @@ public struct InterfaceRequest: Sendable, Equatable {
         printsExportedDeclarationsOnly: Bool = false,
         memberSortOrder: SwiftDeclarationMemberSortOrder = .byCategory,
         infersObjCOverridesFromSelectorNames: Bool = false,
+        usesModuleSelectors: Bool = false,
         emitsHeader: Bool = false,
         commentTransformers: Transformer.SwiftConfiguration? = nil,
         destination: ProductDestination = .output
@@ -96,6 +100,7 @@ public struct InterfaceRequest: Sendable, Equatable {
         self.printsExportedDeclarationsOnly = printsExportedDeclarationsOnly
         self.memberSortOrder = memberSortOrder
         self.infersObjCOverridesFromSelectorNames = infersObjCOverridesFromSelectorNames
+        self.usesModuleSelectors = usesModuleSelectors
         self.emitsHeader = emitsHeader
         self.commentTransformers = commentTransformers
         self.destination = destination
@@ -131,6 +136,7 @@ public struct InterfaceRequest: Sendable, Equatable {
         // The index records the name-only ObjC tie either way; this decides
         // whether it prints as `@objc override`.
         printConfiguration.infersObjCOverridesFromSelectorNames = infersObjCOverridesFromSelectorNames
+        printConfiguration.usesModuleSelectors = usesModuleSelectors
 
         var configuration = SwiftInterfaceBuilderConfiguration(
             indexConfiguration: .init(

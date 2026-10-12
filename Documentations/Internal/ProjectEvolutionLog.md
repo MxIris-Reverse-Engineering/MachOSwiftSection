@@ -2441,6 +2441,26 @@
 - **关联文档**：AGENTS.md「Never let a demangle or print hop while you hold a lock」、[ReviewAdjudications A61](ReviewAdjudications.md)、[LargeStackTaskExecutorAdoption.md](LargeStackTaskExecutorAdoption.md)「包了哪些入口」、[NodeStoreMigrationOpenIssues 第 9 条](NodeStoreMigrationOpenIssues.md)（规则的来历）。
 - **对应版本**：下一个版本（未发版）。
 
+## 90. 适配 SE-0491：模块选择器写法
+
+- **时间段**：2026-10-10。
+- **动机**：SE-0491（Swift 6.3）加了 `Module::Name` 写法；Swift 6.4 编译器写 `.swiftinterface` 默认就用它，Xcode 27 SDK 里 Swift、Foundation、AppKit、_Concurrency 的接口全是 `Swift::Int`、`Foundation::Date.Foundation::FormatStyle`。二进制里没有新东西，影响只在名字怎么写。用户：「适配一下这个提案，顺便改一下 swift-demangling，加一个 options 使用 module-selector」。
+- **关键决策**：
+  - 两边各加一个默认关闭的开关：swift-demangling 的 `DemangleOptions.useModuleSelectors`（不进任何预设），本库 interface 的 `SwiftDeclarationPrintConfiguration.usesModuleSelectors`；CLI `interface --module-selectors`、`dump --enable-module-selectors`。
+  - 规则照编译器：嵌套类型每一层都带声明它的模块（最近的 extension 的模块，否则上下文链根上的模块），局部类型与 `A.Element` 不加；用户选了「每层都带」而不是「只在最外层」。由 C 导入成成员的类型同样逐层带解析出的模块。
+  - `~Swift.Copyable` / `~Swift.Escapable` 改由类型打印器 / resolver 印常驻的协议节点，不再写死文字。开关关闭时，显示标准库模块的选项组合文字不变；`simplified` 这类不显示的变成 `~Copyable`。
+  - `OpaqueTypeResolving.opaqueType` 加 `usesModuleSelectors` 参数（不给默认实现，按角色协议的约定）；provider 匹配协议事实的名字仍是点号写法。
+  - 扫漏测试在实现中途抓出 extension 声明头直接显示查找 key（`ExtensionName.name`）；`ExtensionName.print` 加参数修掉。dump 注释里 ObjC 运行时给 Swift 类起的名字（`-[Swift.__StringStorage …]`）是运行时字符串，原样保留。
+- **落地模块**：swift-demangling（`DemangleOptions`、`NodePrinter`）；SwiftPrinting（配置、委托、四个节点打印器的上下文、`TypeNodePrintable`、`DependentGenericNodePrintable`、extension 头）；SwiftDeclarationRendering（`InvertibleProtocolSet` 的协议节点与 resolver 版本的打印）；SwiftDeclaration（`ExtensionName.print`）；SwiftDump（三个 dumper 的调用点）；SwiftInterface（opaque provider）；SwiftSectionKit（`InterfaceRequest.usesModuleSelectors`）；swift-section（两个开关）。测试支持新增 `ModuleSelectorFixture`（现场编译，任何 Swift 6.2+ 工具链都能编，CI 不跳过）。
+- **验证**：
+  - swift-demangling：新测试在只加选项声明时 26 处失败、实现后全过；全量 624 个测试通过，原始退出码 0（含逐字节对照官方 demangler 的语料测试）。
+  - 本库：新增 `ModuleSelectorInterfaceTests`、`ModuleSelectorDumpTests` 与两条 CLI 映射测试，27 个测试全过；interface 的扫漏测试在修 extension 头之前失败。全量 `swift test --skip IntegrationTests`（JHs-Mac-Studio，依赖为远端发布版，只有 swift-demangling 指本分支、swift-semantic-string 指本地 `next`）：2370 个测试 / 453 个套件，原始退出码 1，失败的只有本机早已存在的两条 `MultiPayloadEnumDescriptorCacheTests`，另有登记过的 known issue。
+  - 真实系统库（macOS 27，当前系统 cache）：libswiftCore、libswiftObservation、libswiftSynchronization 的 interface 与 dump 打开开关后扫漏，interface 零残留；dump 只剩注释里的 ObjC 运行时类名。libswiftCore 与 SDK `Swift.swiftinterface` 共有的 107 条嵌套类型路径，逐层模块全部一致。
+  - 渲染 A/B（基线 next `cd248de9` + swift-demangling `next` `e17ae7f`，候选 `52fb45f9` + swift-demangling `8419460`；两侧 swift-semantic-string 都是本地 `next`，共用同一份 `Package.resolved`，经构建队列各预构建一次 release 后带 `--skip-build` 跑）：**90 对全部逐字节一致**——归档 cache 26.6.2 与 15.5 各 12 对，iOS 15.5 / 18.5 / 18.6 / 26.5 模拟器 42 对，MachOImage 腿 24 对；iOS 15.5 模拟器缺的三个框架与 iOS 27.0 模拟器（框架在 cache 里）按设计跳过。开关关闭时输出不变。
+  - 落地（2026-10-12）：rebase 到 `next` `b8db48bf`，与 0062（局部类型的名字）在 `TypeNodePrintable.printType` 和 extension 头上冲突，两边都保留；extension 头走 0062 的 `renderExtendedTypeName`，按位置命名的局部类型（`Holder.(Visitor in $…)`）也随开关带模块选择器，由新测试 `LocalTypeInterfaceTests.strippedInterfaceSpellsPositionBasedExtensionsWithModuleSelectors` 钉住：extension 头不带选择器时它的 3 条断言全部失败（印成 `LocalTypeFixtureStripped.Holder.(Key in $5e3c): Swift::Equatable`，一行里混着两种写法），带上后与相关的 7 个套件共 60 个测试一起通过，原始退出码 0。全量 `swift test --skip IntegrationTests`（同上的依赖配置）：2436 个测试 / 465 个套件，原始退出码 1，失败的仍只有那两条 `MultiPayloadEnumDescriptorCacheTests`。冲突点小，没有重跑渲染 A/B。
+- **关联文档**：[0064-module-selectors](../Evolutions/0064-module-selectors.md)、swift-demangling 提案 `0017-module-selectors`、[Modules/SwiftInterface.md](Modules/SwiftInterface.md)「子系统 2」、swift-section 插件 skill §0 / §4、`AGENTS.md`「printer path」一节新增的规则。
+- **对应版本**：下一个版本（未发版）；发版前 swift-demangling 要先发版（新选项 `useModuleSelectors`），再抬本库的版本范围。
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节

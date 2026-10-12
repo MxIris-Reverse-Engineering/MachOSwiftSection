@@ -127,7 +127,7 @@ package struct ClassDumper<MachO: MachOFieldLayoutRenderable>: TypedDumper {
                 if hasInvertedProtocols {
                     Standard(",")
                     Space()
-                    dumped.invertibleProtocolSet!.dumpInvertedProtocolNames
+                    try await dumped.invertibleProtocolSet!.dumpInvertedProtocolNames(resolver: demangleResolver)
                 }
             } else if let resilientSuperclass = dumped.resilientSuperclass, let kind = dumped.descriptor.resilientSuperclassReferenceKind, let superclass = try await resilientSuperclass.dumpSuperclass(resolver: demangleResolver, for: kind, in: machO.context) {
                 Standard(":")
@@ -136,10 +136,10 @@ package struct ClassDumper<MachO: MachOFieldLayoutRenderable>: TypedDumper {
                 if hasInvertedProtocols {
                     Standard(",")
                     Space()
-                    dumped.invertibleProtocolSet!.dumpInvertedProtocolNames
+                    try await dumped.invertibleProtocolSet!.dumpInvertedProtocolNames(resolver: demangleResolver)
                 }
             } else if hasInvertedProtocols {
-                dumped.invertibleProtocolSet!.dumpInvertedProtocolsInheritance
+                try await dumped.invertibleProtocolSet!.dumpInvertedProtocolsInheritance(resolver: demangleResolver)
             }
         }
     }

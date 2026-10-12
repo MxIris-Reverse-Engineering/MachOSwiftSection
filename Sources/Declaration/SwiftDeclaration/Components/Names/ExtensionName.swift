@@ -8,19 +8,23 @@ public struct ExtensionName: DefinitionName, Hashable, Sendable {
 
     public let kind: ExtensionKind
 
+    /// The extended type's name as an extension header spells it — with
+    /// SE-0491 module selectors (`Swift::Duration`) when `usesModuleSelectors`
+    /// is set. `name` itself stays dotted: it is also a lookup key.
     @SemanticStringBuilder
-    public func print() -> SemanticString {
+    public func print(usesModuleSelectors: Bool = false) -> SemanticString {
+        let printedName = usesModuleSelectors ? name(using: DemangleOptions.interfaceTypeBuilderOnly.union(.useModuleSelectors)) : name
         switch kind {
         case .type(.enum):
-            TypeDeclaration(kind: .enum, name)
+            TypeDeclaration(kind: .enum, printedName)
         case .type(.struct):
-            TypeDeclaration(kind: .struct, name)
+            TypeDeclaration(kind: .struct, printedName)
         case .type(.class):
-            TypeDeclaration(kind: .class, name)
+            TypeDeclaration(kind: .class, printedName)
         case .protocol:
-            TypeDeclaration(kind: .protocol, name)
+            TypeDeclaration(kind: .protocol, printedName)
         case .typeAlias:
-            TypeDeclaration(kind: .other, name)
+            TypeDeclaration(kind: .other, printedName)
         }
     }
 }

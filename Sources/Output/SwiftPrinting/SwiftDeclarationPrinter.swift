@@ -1020,10 +1020,18 @@ extension SwiftDeclarationPrinter: NodePrintableDelegate {
     }
 
     public func opaqueType(forNode node: Node, index: Int?) async -> String? {
-        await typeNameResolverRegistry.opaqueTypeResolvers.asyncFirstNonNil { await $0.opaqueType(forNode: node, index: index) }
+        await opaqueType(forNode: node, index: index, usesModuleSelectors: configuration.usesModuleSelectors)
+    }
+
+    public func opaqueType(forNode node: Node, index: Int?, usesModuleSelectors: Bool) async -> String? {
+        await typeNameResolverRegistry.opaqueTypeResolvers.asyncFirstNonNil { await $0.opaqueType(forNode: node, index: index, usesModuleSelectors: usesModuleSelectors) }
     }
 
     var marksOptionalContent: Bool {
         configuration.marksOptionalContent
+    }
+
+    var usesModuleSelectors: Bool {
+        configuration.usesModuleSelectors
     }
 }
