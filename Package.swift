@@ -173,7 +173,11 @@ extension Package.Dependency {
             // runtime's frameworks bind to their own exports (`-interposable`),
             // which the static layout engine and the ObjC ancestor chain need,
             // and names a legacy LC_DYLD_INFO file's bound superclass itself.
-            "0.8.110" ..< "0.9.0",
+            // 0.8.111 reads the property and protocol lists a macOS 26.4+ cache
+            // keeps in another file than the image's header: `objc` lost every
+            // instance property and adopted protocol of a class other images
+            // extend, such as NSView.
+            "0.8.111" ..< "0.9.0",
         ),
     )
 }
