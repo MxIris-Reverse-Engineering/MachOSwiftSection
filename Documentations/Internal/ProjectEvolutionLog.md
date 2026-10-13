@@ -2461,6 +2461,25 @@
 - **关联文档**：[0064-module-selectors](../Evolutions/0064-module-selectors.md)、swift-demangling 提案 `0017-module-selectors`、[Modules/SwiftInterface.md](Modules/SwiftInterface.md)「子系统 2」、swift-section 插件 skill §0 / §4、`AGENTS.md`「printer path」一节新增的规则。
 - **对应版本**：下一个版本（未发版）；发版前 swift-demangling 要先发版（新选项 `useModuleSelectors`），再抬本库的版本范围。
 
+## 91. 并行打印下的惰性索引提速
+
+- **时间段**：2026-10-13。
+- **动机**：RuntimeViewer 用户报「Find 构建可搜索的语料还是太慢」。RuntimeViewer 的计时探针在 M1 Max 上测 AppKit、SwiftUI、SwiftUICore、libswiftCore、Foundation 的语料：Release 约 20 s，用户日常用的 Debug 约 104 s。整轮采样显示时间不在 RuntimeViewer，而在本库打印时触发的惰性索引：给 resilient witness 找实现符号占 50–53%，Release 下 `SharedCache` 的锁慢路径 25%，属性包装器目录持锁搜导出表 8%。
+- **关键决策**：
+  - 根因是 identical code folding 下的平方级认领：SwiftUI 一个 `_destroySelf` 或值 witness 的实现地址挂着上千个名字，每个 conformance 都把这串名字逐个 demangle、整树搜索、打印比较（15,047 次调用、365 万次检查，只涉及 17,852 个不同名字）。改为 `SymbolIndexStore.symbols(for:ownedBy:ownerKind:printedWith:in:)`：每个「地址 + 归属规则 + 打印预设」第一次被问到时在 `Storage` 上分组一次，之后查表。规则（第一个 `protocolConformance` 的第一个子节点 / 第一个 `protocol` 节点）、预设、候选顺序、查询偏移都与原实现相同。
+  - 同一写法的四处一起改：`ExtensionDefinition` 与 `ProtocolDefinition` 的索引、`ProtocolConformanceDumper` 与 `ProtocolDumper`。按声明上下文结构相等认领的 `ClassDumper.validNode`、`OverrideSymbolMatcher` 规则不同、开销可忽略，不改。AGENTS.md 加了一条：在别名里找归属走这个查询，不再写逐个比较的循环。
+  - `PropertyWrapperTypeCatalog` 锁内只读写结论缓存，搜索与 demangle 在锁外；依赖闭包用另一把锁只建一次。ReviewAdjudications A61 第四处据此改判。锁去掉后剩下的开销是建依赖闭包：`InProcessDependencyLocator` 改为构造时遍历一遍已映射镜像建表，代替每个依赖一次的 `MachOImage(name:)` 全量扫描，选择结果逐个一致。
+  - `SharedCache` 不改：第 1 条修完后锁慢路径只剩语料时间的 1.7% 以下，`resolve` 在语料打印内部只占 2%。
+  - 用户定 Debug 构建下未优化泛型的固有开销（约 28%，Swift 运行时的泛型元数据查找）这次不处理。
+- **落地模块**：MachOSymbols（`SymbolIndexStore.SymbolOwnerKind`、`Storage` 上的分组表、新查询）、MachODependencies（`InProcessDependencyLocator`）、SwiftDeclaration（`ExtensionDefinition` / `ProtocolDefinition` 索引）、SwiftDeclarationRendering（`PropertyWrapperTypeCatalog`）、SwiftDump（两个协议 dumper）。
+- **验证**：
+  - 新测试：`SymbolOwnerGroupingSwiftUITests`（进程内 SwiftUI 每个多名字地址、两种规则 × 两种预设，与测试里保留的逐个比较参照实现逐项相同；8 个任务同时首次查询结果一致）、`PropertyWrapperTypeCatalogLockTests`（旧写法 10 秒超时失败、新写法通过）、`InProcessDependencyLocatorTests`（与 `MachOImage(name:)` 逐个一致）。
+  - RuntimeViewer 探针（同一份 RuntimeViewerCore 与锁文件，只把本库用 SwiftPM edit 模式换成本分支，基线与候选交替两轮，负载 6–13）：Release 20.3 s → 8.4 s、CPU 64.5 s → 30 s；Debug 103.7 s → 52.6 s。
+  - 全量 `swift test --skip IntegrationTests`（JHs-Mac-Studio，`USING_LOCAL_DEPENDENCIES=1`）：2442 个测试 / 468 个套件，原始退出码 1，失败的只有本机早已存在的两条 `MultiPayloadEnumDescriptorCacheTests`（基线 next `5dca3331` 上同样失败）。
+  - 渲染 A/B（基线 next `5dca3331` 的 detached worktree，两侧共用本地兄弟依赖与同一份 `Package.resolved`，经构建队列各预构建一次 release 后带 `--skip-build`）：**90 对全部逐字节一致**——归档 cache 15.5 与 26.6.2 各 12 对，iOS 15.5 / 18.5 / 18.6 / 26.5 模拟器 42 对，MachOImage 腿 24 对。
+- **关联文档**：[0065-faster-lazy-definition-indexing](../Evolutions/0065-faster-lazy-definition-indexing.md)、[Modules/MachOSymbols.md](Modules/MachOSymbols.md)「同一地址上的符号按归属分组」、[Modules/MachODependencies.md](Modules/MachODependencies.md)「定位器」、[ReviewAdjudications A61](ReviewAdjudications.md)。
+- **对应版本**：下一个版本（未发版）。
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节

@@ -33,13 +33,20 @@ extension ExtensionDefinition: OnceIndexedDefinition {
             return
         }
 
-        // Structurally keyed: `demangleSymbolReference` returns references from
-        // different stores, and store-identity equality would let the same
-        // implementation symbol be claimed by two witnesses.
+        // The first of `symbols` whose conformance names this extension's
+        // type and that no earlier witness claimed. The index answers the
+        // first half from a grouping it builds once per address (evolution
+        // proposal `faster-lazy-definition-indexing`): identical code folding
+        // leaves a thousand names on one address, and checking them one by
+        // one for every conformance was quadratic. `symbols` is what the index
+        // listed at its offset, so the offset stands for it. Structurally
+        // keyed: references can come from different stores, and
+        // store-identity equality would let the same implementation symbol be
+        // claimed by two witnesses.
         func _symbol(for symbols: Symbols, typeName: String, visitedNodes: borrowing OrderedSet<StructuralNodeReferenceKey> = []) throws -> DemangledSymbol? {
-            for symbol in symbols {
-                if let node = SymbolicDemangler.demangleSymbolReference(for: symbol, in: machO), let protocolConformanceNode = node.first(of: .protocolConformance), let symbolTypeName = protocolConformanceNode.children.first?.print(using: .interfaceTypeBuilderOnly), symbolTypeName == typeName, !visitedNodes.contains(StructuralNodeReferenceKey(node)) {
-                    return .init(symbol: symbol, demangledNode: node)
+            for candidate in SymbolIndexStore.shared.symbols(for: symbols.offset, ownedBy: typeName, ownerKind: .conformingType, printedWith: .interfaceTypeBuilderOnly, in: machO) {
+                if !visitedNodes.contains(StructuralNodeReferenceKey(candidate.demangledNode)) {
+                    return candidate
                 }
             }
             return nil
