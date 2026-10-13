@@ -2461,7 +2461,7 @@
 - **关联文档**：[0064-module-selectors](../Evolutions/0064-module-selectors.md)、swift-demangling 提案 `0017-module-selectors`、[Modules/SwiftInterface.md](Modules/SwiftInterface.md)「子系统 2」、swift-section 插件 skill §0 / §4、`AGENTS.md`「printer path」一节新增的规则。
 - **对应版本**：下一个版本（未发版）；发版前 swift-demangling 要先发版（新选项 `useModuleSelectors`），再抬本库的版本范围。
 
-## 2026-10-13 并行打印下的惰性索引提速（节号落地时分配）
+## 91. 并行打印下的惰性索引提速
 
 - **时间段**：2026-10-13。
 - **动机**：RuntimeViewer 用户报「Find 构建可搜索的语料还是太慢」。RuntimeViewer 的计时探针在 M1 Max 上测 AppKit、SwiftUI、SwiftUICore、libswiftCore、Foundation 的语料：Release 约 20 s，用户日常用的 Debug 约 104 s。整轮采样显示时间不在 RuntimeViewer，而在本库打印时触发的惰性索引：给 resilient witness 找实现符号占 50–53%，Release 下 `SharedCache` 的锁慢路径 25%，属性包装器目录持锁搜导出表 8%。
@@ -2477,7 +2477,7 @@
   - RuntimeViewer 探针（同一份 RuntimeViewerCore 与锁文件，只把本库用 SwiftPM edit 模式换成本分支，基线与候选交替两轮，负载 6–13）：Release 20.3 s → 8.4 s、CPU 64.5 s → 30 s；Debug 103.7 s → 52.6 s。
   - 全量 `swift test --skip IntegrationTests`（JHs-Mac-Studio，`USING_LOCAL_DEPENDENCIES=1`）：2442 个测试 / 468 个套件，原始退出码 1，失败的只有本机早已存在的两条 `MultiPayloadEnumDescriptorCacheTests`（基线 next `5dca3331` 上同样失败）。
   - 渲染 A/B（基线 next `5dca3331` 的 detached worktree，两侧共用本地兄弟依赖与同一份 `Package.resolved`，经构建队列各预构建一次 release 后带 `--skip-build`）：**90 对全部逐字节一致**——归档 cache 15.5 与 26.6.2 各 12 对，iOS 15.5 / 18.5 / 18.6 / 26.5 模拟器 42 对，MachOImage 腿 24 对。
-- **关联文档**：[draft-faster-lazy-definition-indexing](../Evolutions/draft-faster-lazy-definition-indexing.md)、[Modules/MachOSymbols.md](Modules/MachOSymbols.md)「同一地址上的符号按归属分组」、[Modules/MachODependencies.md](Modules/MachODependencies.md)「定位器」、[ReviewAdjudications A61](ReviewAdjudications.md)。
+- **关联文档**：[0065-faster-lazy-definition-indexing](../Evolutions/0065-faster-lazy-definition-indexing.md)、[Modules/MachOSymbols.md](Modules/MachOSymbols.md)「同一地址上的符号按归属分组」、[Modules/MachODependencies.md](Modules/MachODependencies.md)「定位器」、[ReviewAdjudications A61](ReviewAdjudications.md)。
 - **对应版本**：下一个版本（未发版）。
 
 ## 维护约定

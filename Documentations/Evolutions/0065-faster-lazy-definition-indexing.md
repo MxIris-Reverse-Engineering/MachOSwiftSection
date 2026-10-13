@@ -1,6 +1,6 @@
-# Draft - 并行打印下的惰性索引提速：同一地址的符号按归属查表、属性包装器目录锁外查找
+# 0065 - 并行打印下的惰性索引提速：同一地址的符号按归属查表、属性包装器目录锁外查找
 
-- **状态**: In Progress
+- **状态**: Implemented
 - **创建日期**: 2026-10-13
 - **最后更新**: 2026-10-13
 - **关联提案**: [draft-concurrent-definition-printing](draft-concurrent-definition-printing.md)（同版本内并行打印的前提）、[0053-shared-cache-composition-and-eviction-registry](0053-shared-cache-composition-and-eviction-registry.md)（`SharedCache` 的现行形态）
@@ -57,3 +57,4 @@ RuntimeViewer 的 Find 语料要把一个镜像的全部定义打印一遍（进
 | 2026-10-13 | ReviewAdjudications A61 第四处（`PropertyWrapperTypeCatalog`）改判为修 | A61 只考虑了「小栈调用方持锁切线程」，没考虑长临界区本身：并行打印的调用方都在大栈上、不切线程，照样排在别人的导出表搜索后面。 |
 | 2026-10-13 | 验证通过 | 全量 `swift test --skip IntegrationTests`（JHs-Mac-Studio，`USING_LOCAL_DEPENDENCIES=1`）：2442 个测试 / 468 个套件，原始退出码 1，失败的只有两条 `MultiPayloadEnumDescriptorCacheTests`，在基线 next `5dca3331` 的 release 测试包上同样两条、同样失败点。渲染 A/B（基线为钉在 `5dca3331` 的 detached worktree，两侧共用本地兄弟依赖与同一份 `Package.resolved`，经构建队列各预构建一次 release 后带 `--skip-build`）：**90 对全部逐字节一致**——归档 cache 15.5 与 26.6.2 各 12 对，iOS 15.5 / 18.5 / 18.6 / 26.5 模拟器 42 对，MachOImage 腿 24 对；iOS 15.5 缺的三个框架与 iOS 27.0 / 27.1 模拟器（框架在 cache 里）按设计跳过。 |
 | 2026-10-13 | 实测（RuntimeViewer 探针，进程内，每镜像 4 路，M1 Max，基线与候选交替两轮，负载 6–13）：Release 合计 20.3 s → 8.4 s（SwiftUI 8.8 → 2.7，SwiftUICore 6.0 → 1.9，AppKit 2.9 → 2.4，Foundation 1.4 → 1.0，libswiftCore 1.2 → 0.4），CPU 64.5 s → 30 s；Debug 合计 103.7 s → 52.6 s（SwiftUI 47.0 → 18.1，SwiftUICore 32.2 → 12.3） | 同一份 RuntimeViewerCore（next `4fc214ad`）与锁文件，只把 MachOSwiftSection 用 SwiftPM edit 模式换成本分支。修后采样：`ExtensionDefinition` 索引从 53% 降到 7%，锁慢路径合计 1.7%；剩下的大头是 ObjC 打印（约四分之一）、`TypeDefinition` 索引（约五分之一）和字段布局（约 8%）。 |
+| 2026-10-13 | 落地为 0065，Implemented：合入 next | 配套文档不另写：实现说明落在 [Modules/MachOSymbols.md](../Internal/Modules/MachOSymbols.md)「同一地址上的符号按归属分组」与 [Modules/MachODependencies.md](../Internal/Modules/MachODependencies.md)「定位器」，规则进了 AGENTS.md；术语表无新增（`SymbolOwnerKind` 是 API 名，不是新概念）。演进账本第 91 节。 |
