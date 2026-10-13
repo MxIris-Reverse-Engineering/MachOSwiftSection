@@ -2480,6 +2480,20 @@
 - **关联文档**：[0065-faster-lazy-definition-indexing](../Evolutions/0065-faster-lazy-definition-indexing.md)、[Modules/MachOSymbols.md](Modules/MachOSymbols.md)「同一地址上的符号按归属分组」、[Modules/MachODependencies.md](Modules/MachODependencies.md)「定位器」、[ReviewAdjudications A61](ReviewAdjudications.md)。
 - **对应版本**：下一个版本（未发版）。
 
+## 92. MachOObjCSection 下限抬到 0.8.111：离线读 macOS 26.4 起的 cache 不再丢属性与协议
+
+- **时间段**：2026-10-13。
+- **动机**：用户发现 `swift-section objc`（0.22.0）离线读 macOS 26.4 起的 dyld cache 时，被别的镜像加过 category 的类读不出一个实例属性，也没有协议列表：NSView 的 355 个属性一个都没有，NSWindow、NSString、NSBundle 等同样；方法不受影响。根因在 MachOObjCSection：这类类的属性表、协议表经 relative list of lists 找到，读取器只在镜像 header 所在的 cache 文件里找列表，而 26.4 起 cache 把每组镜像的数据单独放进 `.dylddata` 文件。MachOObjCSection 移植上游 p-x9 的 `10b3dd5` 修复，发了 0.8.111。
+- **关键决策**：
+  - 本库只抬下限，不改代码：`objc` 子命令经 SwiftSectionKit 调 MachOObjCSection，修复全在那边。
+  - 用户定这次**不发** swift-section：`next` 在 0.22.0 之后已有 51 个未发布提交，[0057](../Evolutions/0057-reading-context-migration.md) 又定在 0.23.0 删除弃用接口、下游尚未迁移，所以 `next` 现在不适合发；也不从 0.22.0 单独切补丁版。修复随下一次正常发版带出，在那之前 Homebrew 上的 0.22.0 仍有这个问题。
+- **落地**：`Package.swift`（MachOObjCSection `"0.8.111" ..< "0.9.0"`）。MachOObjCSection 的 `next` / `main` 为 `8e4cc08`，tag 0.8.111，GitHub Release 已发；问题与修复的记录在它的[实现说明](https://github.com/MxIris-Reverse-Engineering/MachOObjCSection/blob/0.8.111/Documentations/Internal/RelativeListsAcrossSubCacheFiles.md)。
+- **验证**：
+  - 远端依赖、新鲜 scratch：解析到 MachOObjCSection 0.8.111。但 `next` 目前用远端依赖编不过：`DemangleOptions.useModuleSelectors` 只在 swift-demangling 的 `next` 上（第 90 节），与本次无关。
+  - 本地兄弟依赖（`USING_LOCAL_DEPENDENCIES=1`，`workspace-state.json` 里五个兄弟依赖都是 `fileSystem`，MachOObjCSection 为 `next` @ `8e4cc08`）：全量 `swift test --skip IntegrationTests`（JHs-Mac-Studio）2442 个测试 / 468 个套件，原始退出码 1，失败的仍只有本机早已存在的两条 `MultiPayloadEnumDescriptorCacheTests`，与第 91 节相同。
+  - 端到端（macOS 26.7）：本分支编出的 `swift-section objc interface NSView --uses-system-dyld-shared-cache -n AppKit` 读出 355 个实例属性、9 个类属性和协议列表；Homebrew 的 0.22.0 是 0 个、没有协议列表。
+- **对应版本**：下一个版本（未发版）。依赖下限：MachOObjCSection 0.8.111。发版说明要写：`objc` 读 macOS 26.4 起的 dyld shared cache 时，不再丢失部分类的属性与协议列表。
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节
