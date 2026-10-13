@@ -76,9 +76,22 @@ public final class PropertyWrapperTypeCatalog: @unchecked Sendable {
 
     private let rootLookup: ExportedSymbolNamesLookup?
     private let makeDependencyLookups: @Sendable () -> [ExportedSymbolNamesLookup]
-    private let lock = NSLock()
-    private var dependencyLookups: [ExportedSymbolNamesLookup]?
+
+    /// Guards `memoizedEvidenceByPrefix` only, and is held only to read or
+    /// insert a verdict: the export-trie searches and the demangling of their
+    /// hits run outside it, so a verdict already known is never kept waiting
+    /// behind someone else's search (evolution proposal
+    /// `faster-lazy-definition-indexing` — printing an image four ways at
+    /// once spent 8% of its time queued here).
+    private let memoizedEvidenceLock = NSLock()
     private var memoizedEvidenceByPrefix: [String: PropertyWrapperEvidence?] = [:]
+
+    /// Guards the one-time resolution of the dependency closure. Held across
+    /// it on purpose: a caller that needs the dependency lookups has nothing
+    /// to do until they exist, and resolving the closure twice would load
+    /// every dependency twice.
+    private let dependencyLookupsLock = NSLock()
+    private var dependencyLookups: [ExportedSymbolNamesLookup]?
 
     public init(rootLookup: ExportedSymbolNamesLookup?, dependencyLookups: @escaping @Sendable () -> [ExportedSymbolNamesLookup]) {
         self.rootLookup = rootLookup
@@ -135,11 +148,15 @@ public final class PropertyWrapperTypeCatalog: @unchecked Sendable {
     /// root image's exports first, then the dependency closure's in
     /// resolution order, stopping at the first image exporting a
     /// `wrappedValue` accessor of the type. `nil` when none does.
+    ///
+    /// A prefix asked for twice at once is searched twice; the first verdict
+    /// stored is the one every later caller gets. Both searches read the
+    /// same export tries, so both reach the same verdict. Concurrent callers
+    /// only ever come from parallel printing, which is supported on
+    /// in-process images alone, whose export tries are read from memory.
     public func evidence(forWrapperCandidate nominalTypeNode: Node) -> PropertyWrapperEvidence? {
         guard let prefix = Self.wrappedValueSymbolPrefix(of: nominalTypeNode) else { return nil }
-        lock.lock()
-        defer { lock.unlock() }
-        if let memoized = memoizedEvidenceByPrefix[prefix] {
+        if let memoized = memoizedEvidenceLock.withLock({ memoizedEvidenceByPrefix[prefix] }) {
             return memoized
         }
         var evidence: PropertyWrapperEvidence?
@@ -147,18 +164,40 @@ public final class PropertyWrapperTypeCatalog: @unchecked Sendable {
             evidence = Self.evidence(fromExportedSymbolNames: rootLookup(prefix))
         }
         if evidence == nil {
-            if dependencyLookups == nil {
-                dependencyLookups = makeDependencyLookups()
-            }
-            for dependencyLookup in dependencyLookups ?? [] {
+            for dependencyLookup in resolvedDependencyLookups() {
                 if let found = Self.evidence(fromExportedSymbolNames: dependencyLookup(prefix)) {
                     evidence = found
                     break
                 }
             }
         }
-        memoizedEvidenceByPrefix[prefix] = evidence
-        return evidence
+        return memoizedEvidenceLock.withLock {
+            if let winner = memoizedEvidenceByPrefix[prefix] {
+                return winner
+            }
+            // `updateValue` stores a `nil` verdict unambiguously, as
+            // `SymbolIndexStore`'s late-demangle cache does.
+            memoizedEvidenceByPrefix.updateValue(evidence, forKey: prefix)
+            return evidence
+        }
+    }
+
+    /// The dependency closure's lookups, resolved on first use.
+    private func resolvedDependencyLookups() -> [ExportedSymbolNamesLookup] {
+        dependencyLookupsLock.withLock {
+            if let dependencyLookups {
+                return dependencyLookups
+            }
+            let resolvedLookups = makeDependencyLookups()
+            dependencyLookups = resolvedLookups
+            return resolvedLookups
+        }
+    }
+
+    /// Whether `prefix` has a verdict yet, and which. Test seam: `.none`
+    /// until a search for the prefix has stored one.
+    package func memoizedEvidenceForTesting(prefix: String) -> PropertyWrapperEvidence?? {
+        memoizedEvidenceLock.withLock { memoizedEvidenceByPrefix[prefix] }
     }
 
     /// Folds the accessor symbols found under one prefix into evidence:
