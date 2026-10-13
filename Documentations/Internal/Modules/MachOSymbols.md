@@ -35,6 +35,8 @@ MachOSymbols 是**符号索引**层：把一个镜像的符号表和 export trie
 
 > 解析**某一个**类型的成员 / 信息 / 属性，必须用带 node 的重载（`memberSymbols(of:for:node:in:)`、`methodDescriptorMemberSymbols(of:for:node:in:)`、`typeInfo(for:node:in:)`、`thunkAttributeMembers(of:for:node:in:)`）。只带名字的那几个重载会故意把所有子桶摊平，只用于「所有打印成这个名字的类型」这种聚合查询。
 
+**同一地址上的符号按归属分组**（演进提案 `faster-lazy-definition-indexing`）。identical code folding 会把许多 conformance 内容相同的 witness 实现合并到一个地址上——SwiftUI 里一个 `_destroySelf` 或值 witness 的实现挂着上千个名字。要在这样的地址上找「属于某个 conformance 的那个」或「属于某个协议的那个」，用 `symbols(for:ownedBy:ownerKind:printedWith:in:)`：`SymbolOwnerKind.conformingType` 是符号树里第一个 `protocolConformance` 的第一个子节点，`.protocol` 是第一个 `protocol` 节点，按调用方给的打印预设打印后比较；结果按 `symbols(for:in:)` 的顺序排列，带查询偏移。每个「地址 + 规则 + 预设」第一次被问到时在 `Storage` 上分组一次（锁外计算、锁内先到者胜），之后每次是两次字典查找。以前 `ExtensionDefinition`、`ProtocolDefinition`、`ProtocolConformanceDumper`、`ProtocolDumper` 都是把这个地址的名字逐个 demangle、搜索、打印再比较，每个 conformance 来一次，对别名组大小是平方级：SwiftUI 一个镜像检查 365 万次、只涉及 17,852 个不同的名字。**新的「在别名里找归属」的代码走这个查询，不要再逐个比较。**`ClassDumper.validNode` 与 `OverrideSymbolMatcher` 按声明上下文结构相等来认领，规则不同、实测开销可以忽略，没有改。
+
 `Storage` 同时带着镜像的**导出事实**：两条 symtab 采集腿都过滤掉 external 符号，导出符号的行只可能来自 export trie 那条腿，而那条腿的行是有条件产出的，所以 trie 归属在同一趟里单独记（逐行位图加一个给无偏移 re-export 用的名字集合），撑起三态的 `isExported(name:in:)`（`nil` = 这个镜像没有导出信息，**此时绝不标注**）。
 
 ## 子系统 2：查询出口与 detach
