@@ -34,7 +34,7 @@ struct SymbolValueOffsetConverter {
     private let accounting: Accounting
 
     init(for machO: some MachORepresentableWithCache) {
-        guard let machOFile = machO as? MachOFile else {
+        guard let machOFile = machO.asMachOFile else {
             accounting = .unchanged
             return
         }

@@ -2494,6 +2494,24 @@
   - 端到端（macOS 26.7）：本分支编出的 `swift-section objc interface NSView --uses-system-dyld-shared-cache -n AppKit` 读出 355 个实例属性、9 个类属性和协议列表；Homebrew 的 0.22.0 是 0 个、没有协议列表。
 - **对应版本**：下一个版本（未发版）。依赖下限：MachOObjCSection 0.8.111。发版说明要写：`objc` 读 macOS 26.4 起的 dyld shared cache 时，不再丢失部分类的属性与协议列表。
 
+## 2026-10-13 包装类型读取器的识别（节号落地时分配）
+
+- **时间段**：2026-10-13 至 2026-10-14。
+- **动机**：MachOKitUI 把 `MachOImage` / `MachOFile` 包成 `MachOImageSource` / `MachOFileSource` 交给本库，在 MachOViewer 里查看已加载镜像的 Swift section 时进程崩溃：`Fatal error: Negative value is not representable`（`SymbolicDemangler`，0.22.0 第 320 行）。本库判断读取器种类时写死了具体类型（next 上 16 个文件共 38 处，加上 MachOKitExtensions 的 `asMachOImage`），包装类型一处都走不进对应的路径。崩溃的那处把落在更低地址镜像里的 opaque type descriptor 存成负偏移再转 `UInt64`；其余各处不崩，结果却悄悄变差：符号按原值入索引、成员地址从 shared region 起点算、三个 ObjC 索引为空，不转发 bind / rebase 的文件包装还会让 interface 读到未解析的 chained fixup 原值而段错误。
+- **关键决策**：
+  - 接口放 MachOKitExtensions 1.3.0：泛型协议 `MachOReaderWrapper`（`associatedtype Base`、`var base`）加三个取法：`underlyingReader`、`asMachOImage`（放宽为看穿包装）、`asMachOFile`（新增）。先后否决两种设计：按具体类型各开一个协议（`MachOImageBacked` / `MachOFileBacked`），以及 `MachORepresentableWithCache` 上的封闭枚举 `MachOReaderKind`。两者都把库认识的读取器写进了扩展点，用户自定义一个读取器类型就得改库，违反开闭原则。
+  - 38 处写死的判断改走三个取法。另外三处同样认不出包装：`objcImplementationClassReader` / `swiftSectionReader` 改为退到 `underlyingReader`；`FieldLayoutRenderable` 对包装类型给默认实现（七个静态 witness 转给 `Base`），包装写一个空遵循即可进打印器；`DependentMemberProjection` 去掉会丢掉包装结果的 `as? MachO` 回转。`bindRebaseResolver` 先问读取器自己，再问 `underlyingReader`。
+  - `SymbolicDemangler` 的 opaque 节点值由 `context.runtimePointer(at:)` 决定：能给出本进程指针就存绝对地址，否则存偏移；读节点值的两处用同一个判据。偏移转不成 `UInt64` 时这个引用当作解析不了，不再 trap。
+  - 按类型静态约束的 API（`GenericSpecializer`、`DependencyClosure`、`ImageUniverse+DependencyClosure`）不动，持有包装类型的宿主自己传 `base`。
+  - `AGENTS.md` 加一条规则：判断读取器种类只用三个取法、不写类型转换；`ReaderKindCastScanTests` 扫描 `Sources/`（`TestSupport` 除外）防止写死的转换回来。
+- **落地模块**：MachOReading（`MachOContext`）、MachOSymbols（`SymbolIndexStore`、`SymbolValueOffsetConverter`、`MachO+Symbol`）、SwiftInspection、SwiftLayout（`ImageReference`）、SwiftThunkAnalysis（`ObjCMethodThunkReferences`）、SwiftIndexing、SwiftDeclarationRendering、SwiftPrinting（`InterfaceHeader`）、MachOTestingSupport（`ForwardingMachOReader`）；MachOKitExtensions（`MachOReaderWrapper.swift`）。
+- **验证**：
+  - 新测试，修复前都确认是红的：`WrappedReaderDemanglingTests`（子进程 SIGTRAP → 通过）、`WrappedReaderInterfaceTests`（测试进程 SIGSEGV → 包装与裸读取器的 interface 逐字节相同）、`WrappedReaderSymbolTests`（272 + 1 + 3 处失败 → 通过）、`ReaderKindCastScanTests`（列出 38 处 → 通过）。MachOKitExtensions 自己的 23 个测试全过。
+  - 全量 `swift test --skip IntegrationTests`（JHs-Mac-Studio-Ultra，Xcode 27 默认工具链，`USING_LOCAL_DEPENDENCIES=1`；本机 swift-demangling 与 MachOObjCSection 的 `next` 落后远端，沙盒里用各自远端 `next` 的导出副本）：2400 余个测试，原始退出码 0，但 `Arm64eSignedVWTPointer` 的 strip 探针红了一条；同一构建单独重跑 3/3 通过、基线也通过，与本次改动无交集，按偶发处理。
+  - 渲染 A/B（基线为 next `956b4e09` 加 MachOKitExtensions 1.2.0）：**96 对全部逐字节一致**——归档 cache 15.5 与 26.6 各 12 对，iOS 15.5 / 16.4 / 17.5 / 18.5 / 26.5 模拟器 48 对，MachOImage 腿 24 对。
+- **关联文档**：[draft-wrapped-reader-recognition](../Evolutions/draft-wrapped-reader-recognition.md)、[ReadingContextAbstraction.md](ReadingContextAbstraction.md)「包装类型读取器」一节、术语表 [reader wrapper](../Glossary.md)、`AGENTS.md` 新增的读取器种类规则。
+- **对应版本**：下一个版本（0.23.0，未发版）。依赖下限：MachOKitExtensions 1.3.0，必须先于本分支落地发版。下游：MachOKitUI 升级后给两个包装类型各加一行 `MachOReaderWrapper` 遵循，并删掉 `demangleTypeNode` 里的特判。
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节

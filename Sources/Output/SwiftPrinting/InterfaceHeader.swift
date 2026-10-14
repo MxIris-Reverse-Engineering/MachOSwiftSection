@@ -95,10 +95,12 @@ extension InterfaceHeaderInfo {
         @Dependency(\.symbolIndexStore)
         var symbolIndexStore
 
-        let imagePath: String? = switch machO {
-        case let machOFile as MachOFile: machOFile.imagePath
-        case let machOImage as MachOImage: machOImage.path
-        default: nil
+        let imagePath: String? = if let machOFile = machO.asMachOFile {
+            machOFile.imagePath
+        } else if let machOImage = machO.asMachOImage {
+            machOImage.path
+        } else {
+            nil
         }
 
         var uuid: UUID?

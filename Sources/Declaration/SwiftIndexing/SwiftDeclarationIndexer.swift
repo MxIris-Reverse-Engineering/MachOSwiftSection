@@ -385,12 +385,12 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
     /// first resolved; an in-process image resolves through the loaded
     /// images and needs no resolver.
     private func registerDependencyClosureConsumers() {
-        guard let machOFile = machO as? MachOFile else {
+        guard let machOFile = machO.asMachOFile else {
             PropertyWrapperTypeCatalogStore.shared.register(
                 PropertyWrapperTypeCatalog.make(root: machO, searchPaths: configuration.dependencySearchPaths),
                 for: machO
             )
-            if let machOImage = machO as? MachOImage {
+            if let machOImage = machO.asMachOImage {
                 ObjCAncestorResolverStore.shared.register(ObjCAncestorResolver(inProcessRoot: machOImage), for: machO)
             }
             return

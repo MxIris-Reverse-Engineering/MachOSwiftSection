@@ -290,6 +290,13 @@ opaque 尖括号参数归属的第三条规则：协议无任何 anchor 命中�
 - **主要出现在**：`Sources/Analysis/SwiftInspection/PrivateDeclarations.swift`、`Sources/Declaration/SwiftPrivateDiscriminators/PrivateDiscriminatorSourceFileIndex.swift`
 - **延伸阅读**：[提案 0063](Evolutions/0063-private-declarations.md)、[Modules/SwiftPrivateDiscriminators.md](Internal/Modules/SwiftPrivateDiscriminators.md)
 
+### reader wrapper（包装读取器，`MachOReaderWrapper`）
+
+宿主自己的读取器类型：手里拿着一个 `MachOFile` 或 `MachOImage`，把读取协议的每个要求原样转发给它（MachOKitUI 的 `MachOFileSource` / `MachOImageSource`）。声明 MachOKitExtensions 的 `MachOReaderWrapper` 之后，库里每个「这是哪种读取器」的问题——`asMachOImage`、`asMachOFile`、`underlyingReader`——都问到它底下的读取器；不声明，库就把它当成两种都不是，读得出，但进程内路径、符号偏移换算、ObjC 与依赖闭包这些按读取器种类做的事都做不了。契约是在每个偏移读到的内容与底下的读取器相同，`identifier` 也相同（两者共用按镜像的缓存）。
+
+- **主要出现在**：MachOKitExtensions `MachOReaderWrapper.swift`、`Sources/MachO/MachOReading/ReadingContext/MachOContext.swift`、`Sources/Output/SwiftDeclarationRendering/FieldLayoutRenderable+MachOReaderWrapper.swift`、`Tests/SwiftInterfaceTests/ReaderKindCastScanTests.swift`
+- **延伸阅读**：[提案 draft-wrapped-reader-recognition](Evolutions/draft-wrapped-reader-recognition.md)、[ReadingContextAbstraction.md](Internal/ReadingContextAbstraction.md)
+
 ### renamed class（改名类，`@objc(Name)` / `@_objcRuntimeName(Name)`）
 
 源码给 ObjC 运行时另起了名字的 Swift 类：类对象的 `class_ro_t` 名是源码写的名字（`NSScrollPocket`），而不是 `_TtC6AppKit14NSScrollPocket` 这样的 mangling。二进制里只剩类元数据 flag 字里的 `HasCustomObjCName` 与名字本身，`SwiftClassObjectIndex` 顺着类元数据自带的描述符指针把它们配到 Swift 类上（父类在另一个 resilience domain、不进 classlist 的类读 metadata pattern）。本仓库凡是「demangle 运行时名找 Swift 类」的地方都要为它回退，否则一律配不上——成员恢复与布局引擎以前就是这样漏掉它们的。interface 与 dump 打印 `@objc(Name)`，原生 Swift 对象模型的类打印 `@_objcRuntimeName(Name)`。

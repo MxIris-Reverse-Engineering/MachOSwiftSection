@@ -100,15 +100,16 @@ public final class PropertyWrapperTypeCatalog: @unchecked Sendable {
 
     /// A catalog over `root`'s export trie and, on demand, its dependency
     /// closure — resolved through `searchPaths` for a file, through the
-    /// loaded images for an in-process image. The reader kinds are a closed
-    /// set of two; any other reader gets a catalog that answers nothing.
+    /// loaded images for an in-process image — whichever of the two `root`
+    /// reads through, wrappers included. Any other reader gets a catalog that
+    /// answers nothing.
     public static func make(root: some MachORepresentableWithCache, searchPaths: [DependencySearchPath]) -> PropertyWrapperTypeCatalog {
-        if let machOFile = root as? MachOFile {
+        if let machOFile = root.asMachOFile {
             return PropertyWrapperTypeCatalog(rootLookup: lookup(for: machOFile)) {
                 DependencyClosure(root: machOFile, searchPaths: searchPaths).images.map(lookup(for:))
             }
         }
-        if let machOImage = root as? MachOImage {
+        if let machOImage = root.asMachOImage {
             return PropertyWrapperTypeCatalog(rootLookup: lookup(for: machOImage)) {
                 DependencyClosure(root: machOImage).images.map(lookup(for:))
             }

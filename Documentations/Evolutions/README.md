@@ -79,3 +79,4 @@
 | [0063](0063-private-declarations.md) | 私有声明：从名字取 discriminator，按镜像反推源文件 | Implemented |
 | [0064](0064-module-selectors.md) | 适配 SE-0491：interface 与 dump 可用模块选择器（`Module::Name`）写限定名 | Implemented |
 | [0065](0065-faster-lazy-definition-indexing.md) | 并行打印下的惰性索引提速：同一地址的符号按归属查表、属性包装器目录锁外查找 | Implemented |
+| draft | [包装类型读取器的识别：库看穿宿主的包装，按底下的读取器回答](draft-wrapped-reader-recognition.md) | In Progress |

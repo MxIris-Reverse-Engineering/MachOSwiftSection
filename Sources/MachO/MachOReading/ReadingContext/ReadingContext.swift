@@ -255,7 +255,9 @@ public protocol ReadingContext<Runtime, Address>: Sendable {
     /// when this context is mapped into the current process.
     ///
     /// - `InProcessContext`: returns the address itself (already a pointer).
-    /// - `MachOContext<MachOImage>`: returns `machO.ptr + address`.
+    /// - `MachOContext` over a reader whose `asMachOImage` answers — a
+    ///   `MachOImage`, or a `MachOReaderWrapper` of one: returns
+    ///   `image.ptr + address`.
     /// - `MachOContext<MachOFile>` / other readers: returns `nil`.
     ///
     /// Declared as a protocol requirement (with a default `nil` implementation

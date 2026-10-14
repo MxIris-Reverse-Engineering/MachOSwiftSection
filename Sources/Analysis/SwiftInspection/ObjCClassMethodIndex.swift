@@ -158,9 +158,9 @@ package final class ObjCClassMethodIndex: @unchecked Sendable {
     /// it — or `nil` when there is neither, or no ObjC method of its own
     /// (nothing to attribute — the ancestor walk is skipped).
     package func hierarchy(forRuntimeName runtimeName: String, in machO: some MachORepresentableWithCache) -> ObjCClassHierarchy? {
-        if let machOFile = machO as? MachOFile {
+        if let machOFile = machO.asMachOFile {
             return hierarchy(forRuntimeName: runtimeName, reader: machOFile)
-        } else if let machOImage = machO as? MachOImage {
+        } else if let machOImage = machO.asMachOImage {
             return hierarchy(forRuntimeName: runtimeName, reader: machOImage)
         }
         return nil
@@ -393,10 +393,10 @@ package final class ObjCClassMethodIndex: @unchecked Sendable {
     }
 
     private func folding(for machO: some MachORepresentableWithCache, resolver: ObjCAncestorResolver?) -> AncestorCategoryFolding? {
-        if let machOFile = machO as? MachOFile, let storage = storage(in: machOFile) {
+        if let machOFile = machO.asMachOFile, let storage = storage(in: machOFile) {
             return AncestorCategoryFolding(rootReader: machOFile, rootStorage: storage, resolver: resolver)
         }
-        if let machOImage = machO as? MachOImage, let storage = storage(in: machOImage) {
+        if let machOImage = machO.asMachOImage, let storage = storage(in: machOImage) {
             return AncestorCategoryFolding(rootReader: machOImage, rootStorage: storage, resolver: resolver)
         }
         return nil

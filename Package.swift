@@ -154,7 +154,10 @@ extension Package.Dependency {
             // instance each time, which `DyldCache.fileIO` keys its mapping on.
             // 1.1.2 adds `FullDyldCache.cachedHost`, the system cache opened
             // once per process rather than once per dependency locator.
-            from: "1.1.2",
+            // 1.3.0 adds `MachOReaderWrapper`, through which every reader-kind
+            // question (`asMachOImage`, `asMachOFile`, `underlyingReader`)
+            // sees through a host's wrapper type.
+            from: "1.3.0",
         ),
     )
 

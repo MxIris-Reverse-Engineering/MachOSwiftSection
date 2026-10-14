@@ -79,43 +79,50 @@ package enum DependentMemberProjection {
         return searchPaths + [.systemDyldSharedCache]
     }
 
+    /// A projection made in the universe of the reader `machO` reads through.
+    ///
+    /// `image` is that universe's reader — a `MachOFile` or a `MachOImage` —
+    /// and not necessarily the caller's reader type: the record can sit in
+    /// another image of the closure, and a wrapper's universe is built from the
+    /// reader beneath it.
+    package struct Projection {
+        /// The witness type with the base's generic arguments substituted;
+        /// demangled in `image`.
+        package let witnessNode: Node
+        /// The image whose `__swift5_assocty` record answered.
+        package let image: any MachOSwiftSectionRepresentableWithCache
+        package let conformingQualifiedName: String
+        package let protocolQualifiedName: String
+
+        init<Image>(_ projection: ImageUniverse<Image>.ProjectedAssociatedTypeWitness) {
+            self.witnessNode = projection.witnessNode
+            self.image = projection.image
+            self.conformingQualifiedName = projection.conformingQualifiedName
+            self.protocolQualifiedName = projection.protocolQualifiedName
+        }
+    }
+
     /// Projects `base.Name` through the conformance records reachable from
-    /// `machO`, or answers `nil` when the reader is neither a file nor an
-    /// in-process image, the universe cannot be built, or the record is not
-    /// there. See ``ImageUniverse/projectedAssociatedTypeWitness(base:associatedTypeReference:)``.
-    package static func project<MachO: MachOSwiftSectionRepresentableWithCache>(
+    /// `machO`, or answers `nil` when the reader reads through neither a file
+    /// nor an in-process image, the universe cannot be built, or the record is
+    /// not there. See ``ImageUniverse/projectedAssociatedTypeWitness(base:associatedTypeReference:)``.
+    package static func project(
         base baseTypeNode: Node,
         associatedTypeReference: Node,
-        in machO: MachO
-    ) -> ImageUniverse<MachO>.ProjectedAssociatedTypeWitness? {
-        if let machOFile = machO as? MachOFile {
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) -> Projection? {
+        if let machOFile = machO.asMachOFile {
             let registry = fileRegistries.storage(in: machOFile) { FileRegistry(root: $0) } ?? FileRegistry(root: machOFile)
             guard let entry = registry.entry(for: searchPaths(for: machOFile)) else { return nil }
             let projection = entry.withUniverse { $0.projectedAssociatedTypeWitness(base: baseTypeNode, associatedTypeReference: associatedTypeReference) }
-            return projection.flatMap { Self.cast($0) }
+            return projection.map(Projection.init)
         }
-        if let machOImage = machO as? MachOImage {
+        if let machOImage = machO.asMachOImage {
             guard let entry = imageEntries.storage(in: machOImage, buildUsing: { (try? ImageUniverse.dependencyClosure(root: $0)).map { Entry(universe: $0) } }) else { return nil }
             let projection = entry.withUniverse { $0.projectedAssociatedTypeWitness(base: baseTypeNode, associatedTypeReference: associatedTypeReference) }
-            return projection.flatMap { Self.cast($0) }
+            return projection.map(Projection.init)
         }
         return nil
-    }
-
-    /// The generic-parameter cast the `as?` dispatch above cannot express
-    /// directly: a projection made in a `MachOFile` universe is a projection
-    /// for `MachO` exactly when `MachO` is `MachOFile`, which the dispatch
-    /// established.
-    private static func cast<Source: MachOSwiftSectionRepresentableWithCache, MachO: MachOSwiftSectionRepresentableWithCache>(
-        _ projection: ImageUniverse<Source>.ProjectedAssociatedTypeWitness
-    ) -> ImageUniverse<MachO>.ProjectedAssociatedTypeWitness? {
-        guard let image = projection.image as? MachO else { return nil }
-        return ImageUniverse<MachO>.ProjectedAssociatedTypeWitness(
-            witnessNode: projection.witnessNode,
-            image: image,
-            conformingQualifiedName: projection.conformingQualifiedName,
-            protocolQualifiedName: projection.protocolQualifiedName
-        )
     }
 }
 
@@ -126,19 +133,19 @@ extension DependentMemberProjection {
     /// the type its conformance's witness record names, through the universe
     /// of `machO`'s dependency closure — see
     /// ``ImageUniverse/projectingConcreteMembers(in:)``. `node` unchanged when
-    /// the reader is neither a file nor an in-process image, or the universe
-    /// cannot be built.
+    /// the reader reads through neither a file nor an in-process image, or the
+    /// universe cannot be built.
     package static func projectingConcreteMembers<MachO: MachOSwiftSectionRepresentableWithCache>(in node: Node, in machO: MachO) -> Node {
         // Nothing to project, so nothing to look up: no search-path inference
         // (it lists directories), no lock, no dependency closure built — the
         // first call used to build one even for a plain `Swift.Int`.
         guard node.contains(.dependentMemberType) else { return node }
-        if let machOFile = machO as? MachOFile {
+        if let machOFile = machO.asMachOFile {
             let registry = fileRegistries.storage(in: machOFile) { FileRegistry(root: $0) } ?? FileRegistry(root: machOFile)
             guard let entry = registry.entry(for: searchPaths(for: machOFile)) else { return node }
             return entry.withUniverse { $0.projectingConcreteMembers(in: node) }
         }
-        if let machOImage = machO as? MachOImage {
+        if let machOImage = machO.asMachOImage {
             guard let entry = imageEntries.storage(in: machOImage, buildUsing: { (try? ImageUniverse.dependencyClosure(root: $0)).map { Entry(universe: $0) } }) else { return node }
             return entry.withUniverse { $0.projectingConcreteMembers(in: node) }
         }
