@@ -43,7 +43,7 @@ Flags added comparatively late, and therefore worth checking: `--emit-header`,
 `--emit-export-status`, `--exported-only`, `--jobs`, `evolution --interface`,
 `--supplementary-apinotes`, from 0.20.0 `--dependency-search-path`,
 `--infer-objc-overrides` and the whole `objc` subcommand group, from 0.22.0
-`evolution --emit-available` / `--platform`, and after 0.22.0 `interface --module-selectors`
+`evolution --emit-available` / `--platform`, and from 0.23.0 `interface --module-selectors`
 / `dump --enable-module-selectors`. When one is missing, say so
 rather than silently producing a weaker answer — the alternative is usually "upgrade
 (`brew upgrade swift-section`), or do without that annotation".
@@ -248,8 +248,8 @@ swift-section evolution 17.0.json 18.0.json /path/Foo --labels 17.0,18.0,26.0
   version is rejected with a typed error, and the fix is to regenerate the baseline with the
   current tool. Format 6 (0.21.0 and later) rejects every format-5 baseline: in an image stripped
   of its local symbols the newer tool also records the class members that only their method
-  descriptor names (see §9), which an old baseline would report as added wholesale. Format 7
-  rejects every format-6 baseline: a type declared in a function or closure body is recorded
+  descriptor names (see §9), which an old baseline would report as added wholesale. Format 7 (0.23.0
+  and later) rejects every format-6 baseline: a type declared in a function or closure body is recorded
   under its own full name now (see §9), and an old baseline would report each one as removed —
   a breaking change — and added again.
 

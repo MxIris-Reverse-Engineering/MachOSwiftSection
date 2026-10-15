@@ -2494,6 +2494,24 @@
 - **关联文档**：review 记录；[ReviewAdjudications.md](ReviewAdjudications.md) A53–A59；四份提案的决策日志（[并发打印](../Evolutions/0066-concurrent-definition-printing.md)、[离线特化](../Evolutions/0069-offline-generic-specialization.md)、[嵌套定义区域](../Evolutions/0068-nested-definition-regions.md)、[嵌套偏移记忆化](../Evolutions/0067-nested-field-offset-memoization.md)）；[OfflineGenericSpecialization.md](OfflineGenericSpecialization.md)、[OpaqueReturnTypeResolution.md](OpaqueReturnTypeResolution.md)、[Modules/SwiftThunkAnalysis.md](Modules/SwiftThunkAnalysis.md)、[Modules/MachODependencies.md](Modules/MachODependencies.md)。
 - **对应版本**：0.23.0，随 PR #131 合入。
 
+## 98. 0.23.0 发版
+
+- **时间段**：2026-10-15（单日）。
+- **动机**：用户指示「next 合并到 main 发新版本」。自 0.22.0 以来 `next` 多了 53 个提交，即第 87–97 节的工作。`next` 已经在用两个上游未发版的接口（swift-demangling 的 `DemangleOptions.useModuleSelectors`、swift-semantic-string 的 `DefinitionRegion`），按远端依赖编不过，所以先给两个上游发版。用户还问起 MachOObjCSection 那个 sub-cache 的修复是不是合了上游：查下来 0.8.111 只手工移植了上游 `10b3dd5`，上游 8 月就发了的 0.8.2（PR #37）没合，同 PR 的 `ff936fa`（同一镜像挂的多张列表全部读入）也没带上。用户定合上游并发 0.8.200。
+- **关键决策**：
+  - **① 三个上游先发版。** swift-demangling 0.7.2：0.7.1 之后只新增了接口（`useModuleSelectors`、两个 `firstNodeInDedupedPreorder`），照惯例以 `Merge branch 'next'` 合进 `main`，打空消息的注释 tag。swift-semantic-string 0.5.0：这个库以往每加一个功能升 minor；README 早已写好 Definition Regions，只把安装示例指向 0.5.0，以 `Merge: …` 合进 `main`，打带摘要的注释 tag。MachOObjCSection 0.8.200：合入上游 tag 0.8.2，`MachOFile+.swift` 整个保留 0.8.111 的移植版（fork 的 `_machO(at:)` 返回 `LocatedValue`，不是上游的元组，自动合入的上游写法编不过），依赖保留 MachOKit 0.54.101；新回归测试 `SameImageRelativeListsTests` 合并前两条都失败（`_UTCoreType` 只读出第一张表的 3 个方法），合并后通过。0.8.200 不符合它原来的 `0.8.1NN` 版本号形状，`release.yml` 的 tag 过滤与 `version-check.yml` 同步放宽为百位跟随合入的上游补丁号，见它的提案 0009 决策日志。
+  - **② 废弃的读取接口推迟到 0.24.0 再删**（用户选择）。RuntimeViewer 的 `next` 已经迁完，MachOKitUI（`from: "0.19.0"`，会自动解析到 0.23.0）与 swift-decompiler（跟本库 `next`）还没迁。AGENTS.md、术语表、`ReadingContextAbstraction.md` 与文档索引改成 0.24.0，0057 的决策日志补记，Changelog 的 Breaking 写明新期限。
+  - **③ 提案与本账本取号。** 随 PR #131 合入的四份提案取号 0066–0069、置为 Implemented；它们在本账本的五节补编为第 93–97 节，移到第 92 节之后；第 87–97 节的「对应版本」改为 0.23.0。
+  - **④ Changelog 2,788 字符**，按 `write-release-notes` 一句话一条，超出普通版本 1,500 的预算：这一版有六条破坏性变化（局部类型改名、snapshot 格式 7、删 `TypeDefinition.attributes`、`SymbolicDemangler.isCacheEnabled` 改为常量、`OpaqueTypeResolving` 的新参数、废弃期限顺延）、离线特化与模块选择器等一批新接口，以及三个依赖下限变化。
+  - **⑤ 不做发版审查与渲染 A/B**，沿用 0.22.0 的做法：各批合入时都跑过全量测试，涉及渲染的批次跑过 A/B；这次只在只含远端依赖的干净副本上重新验证。
+  - **⑥ 版本号。** `Version.swift`、两个 `plugin.json` 改为 0.23.0，README 的安装示例同步；插件 skill 把 `interface --module-selectors`、`dump --enable-module-selectors` 与 snapshot 格式 7 标为 0.23.0 起。
+- **落地模块**：`Package.swift`（三个依赖下限）、`Sources/Executables/swift-section/Version.swift`、`AgentPlugins/swift-section/`（两个 `plugin.json`、skill）、`Changelogs/0.23.0.md`、`README.md`、四份提案与两个索引、本账本（第 93–97 节编号、第 87–97 节的对应版本、本节），以及 AGENTS.md、术语表、`ReadingContextAbstraction.md` 与 0057（废弃期限）。
+- **验证**：
+  - 本库：发版提交经 `git archive` 导出到外置卷上的干净副本，旁边没有兄弟依赖，新鲜 scratch，依赖全部从远端解析（MachOKit 0.54.101、MachOKitExtensions 1.2.0、MachOObjCSection 0.8.200、swift-demangling 0.7.2、swift-semantic-string 0.5.0、swift-capstone 6.0.1、swift-objc-dump 0.8.101），工具链 Xcode 26.6，fixture 用 Xcode 26.6 按 CI 的方式 ad-hoc 签名现编。全量 `swift test --skip IntegrationTests` 共 2442 个测试 / 468 个套件，原始退出码 1，失败的只有本机早已存在的两条 `MultiPayloadEnumDescriptorCacheTests`（`:101` 与 `:130` 的 `enumLayout → nil`，与第 90–92 节相同）。照 `release.yml` 分架构做的 release 构建（`swift-section`）x86_64 与 arm64 都是 0 warning，两个二进制都能运行、`--version` 输出 0.23.0；skill 写到的 55 个 flag 在各子命令的 `--help` 里都找得到。`claude plugin validate`（marketplace 加 `--strict`）通过。
+  - 上游：swift-demangling `next` 624 个测试 / 43 个套件、swift-semantic-string `next` 432 个测试 / 60 个套件，原始退出码都是 0。MachOObjCSection 合并后按 CI 的方式（`--skip MachOObjCSectionTests`）173 个测试 / 24 个套件通过，推上 `main` 后 CI 与 Version Check 通过，0.8.200 的 Release 流程按放宽后的 tag 过滤触发并发布了 `objc-section-macos-universal.zip`。上游 PR 自带的 XCTest 在 `MachOObjCSectionTests` 里，它的 `setUp` 读本机不存在的 `~/Downloads/iOS18.5-SwiftUI`，在这台机器上跑不起来（CI 也跳过这个目标），同一行为由 `SameImageRelativeListsTests` 覆盖。
+- **关联文档**：[Changelogs/0.23.0.md](../../Changelogs/0.23.0.md)；MachOObjCSection 的[实现说明](https://github.com/MxIris-Reverse-Engineering/MachOObjCSection/blob/0.8.200/Documentations/Internal/RelativeListsAcrossSubCacheFiles.md)。
+- **对应版本**：0.23.0。
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节
