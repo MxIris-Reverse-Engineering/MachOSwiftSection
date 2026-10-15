@@ -176,8 +176,10 @@ extension Package.Dependency {
             // 0.8.111 reads the property and protocol lists a macOS 26.4+ cache
             // keeps in another file than the image's header: `objc` lost every
             // instance property and adopted protocol of a class other images
-            // extend, such as NSView.
-            "0.8.111" ..< "0.9.0",
+            // extend, such as NSView. 0.8.200 merges upstream 0.8.2 and reads
+            // every list an image attaches to a class, not just its first:
+            // `_UTCoreType` lost the methods of its second list.
+            "0.8.200" ..< "0.9.0",
         ),
     )
 }
@@ -192,7 +194,11 @@ extension Package.Dependency {
             url: "https://github.com/MxIris-Reverse-Engineering/swift-demangling",
             // 0.7.1 gives a private / local entity name its kind and scope when
             // printed, which `dump`'s semantic output of such names relies on.
-            "0.7.1" ..< "0.8.0",
+            // 0.7.2 adds `DemangleOptions.useModuleSelectors`, which
+            // `--module-selectors` prints with, and answers kind queries on a
+            // `NodeReference` without retaining its store, which parallel
+            // printing contended on.
+            "0.7.2" ..< "0.8.0",
         ),
     )
 
@@ -203,7 +209,9 @@ extension Package.Dependency {
         ),
         remote: .package(
             url: "https://github.com/MxIris-Reverse-Engineering/swift-semantic-string",
-            from: "0.4.0",
+            // 0.5.0 adds definition regions, which `marksNestedDefinitions`
+            // wraps each nested definition in.
+            from: "0.5.0",
         ),
     )
 
