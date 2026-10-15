@@ -300,7 +300,8 @@ public struct RuntimeMetadataTypeBuilder: TypeBuilder {
         var witnessTables: [ProtocolWitnessTable] = []
 
         if let genericContext {
-            switch keyArguments(of: genericContext, ownArguments: ownArguments, parentType: parentType) {
+            let depthLayout = GenericParameterDepthLayout.make(for: genericContext, ownedBy: .type(typeWrapper), in: .inProcess)
+            switch keyArguments(of: genericContext, depthLayout: depthLayout, ownArguments: ownArguments, parentType: parentType) {
             case .success(let gathered):
                 keyMetadataTypes = gathered.metadataTypes
                 witnessTables = gathered.witnessTables
@@ -340,6 +341,7 @@ public struct RuntimeMetadataTypeBuilder: TypeBuilder {
 
     private func keyArguments(
         of genericContext: GenericContext,
+        depthLayout: GenericParameterDepthLayout,
         ownArguments: [Any.Type],
         parentType: Any.Type?
     ) -> TypeLookupErrorOr<GatheredKeyArguments> {
@@ -385,7 +387,7 @@ public struct RuntimeMetadataTypeBuilder: TypeBuilder {
         // whose bindings are the written arguments.
         var subjectBuilder = self
         subjectBuilder.genericParameterMetadataTypes = Self.bindings(
-            of: genericContext,
+            of: depthLayout,
             writtenArguments: writtenArguments
         )
 
@@ -448,28 +450,19 @@ public struct RuntimeMetadataTypeBuilder: TypeBuilder {
     }
 
     /// Maps every cumulative generic parameter position to its written
-    /// argument, using the per-level "newly introduced" counts so `(depth,
-    /// index)` matches the demangler's coordinates.
+    /// argument at the `(depth, index)` the demangler names it by — the depth
+    /// `depthLayout` gives, which counts only the contexts that declare
+    /// parameters. Counting every generic ancestor bound `Second` in
+    /// `Outer<First>.NonDeclaringLevel.ConstrainedPair<Second>` at depth 2,
+    /// and its requirement `A1: Hashable` found no argument.
     private static func bindings(
-        of genericContext: GenericContext,
+        of depthLayout: GenericParameterDepthLayout,
         writtenArguments: [Any.Type]
     ) -> [GenericParameterPosition: Any.Type] {
-        var perLevelCounts: [Int] = []
-        var previousCumulativeCount = 0
-        for parentLevel in genericContext.parentParameters {
-            perLevelCounts.append(parentLevel.count - previousCumulativeCount)
-            previousCumulativeCount = parentLevel.count
-        }
-        perLevelCounts.append(genericContext.currentParameters.count)
-
         var result: [GenericParameterPosition: Any.Type] = [:]
-        var flatIndex = 0
-        for (depth, count) in perLevelCounts.enumerated() {
-            for indexInLevel in 0 ..< count {
-                guard flatIndex < writtenArguments.count else { return result }
-                result[GenericParameterPosition(depth: depth, index: indexInLevel)] = writtenArguments[flatIndex]
-                flatIndex += 1
-            }
+        for (flatIndex, writtenArgument) in writtenArguments.enumerated() {
+            guard let position = depthLayout.position(ofParameterAt: flatIndex) else { break }
+            result[GenericParameterPosition(depth: position.depth, index: position.index)] = writtenArgument
         }
         return result
     }

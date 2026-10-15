@@ -159,8 +159,10 @@ allowlist 并填 reason」，实施时被偷换成永远通过的 sentinel 测�
 | 远端依赖 pin 版本缺新 API | 升 `Package.swift` pin |
 | runner 上 fixture 产物路径与本地布局不同 | "Normalize SymbolTestsCore fixture path" 符号链接步骤 |
 
-- **无自动重录 workflow**：快照漂移永远由开发者本地 `SNAPSHOT_TESTING_RECORD=all` 重录、
-  人工 review 后与触发变更同 PR 提交。CI 的 `xcode-version` 永远显式 pin，不用 `latest-stable`——
+- **无自动重录 workflow**：快照漂移永远由开发者本地重录、人工 review 后与触发变更同 PR 提交。
+  重录要删掉旧的快照文件再跑，让 `record: .missing` 补写：两个快照套件都带 suite trait
+  `.snapshots(record: .missing)`，它盖过 `SNAPSHOT_TESTING_RECORD=all` 环境变量，设了也不重录
+  （[TaskReports/2026-08-22](TaskReports/2026-08-22-final-keyword-and-lazy-accessor-recovery.md) 的勘误）。CI 的 `xcode-version` 永远显式 pin，不用 `latest-stable`——
   任何 bump 都应是有意的、可 review 的变更（工具链升级可能合法地改变发出的元数据与 section 顺序，
   后者由 linker 决定，同工具链内稳定）。
 

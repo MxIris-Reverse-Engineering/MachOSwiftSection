@@ -6,12 +6,23 @@ import Demangling
 ///
 /// Detectable attributes:
 /// - `@propertyWrapper`: type has a `wrappedValue` stored field or computed variable
-/// - `@resultBuilder`: type has a `static buildBlock` method (also checks extensions)
+/// - `@resultBuilder`: type has a `static buildBlock` method
 /// - `@dynamicMemberLookup`: type has `subscript(dynamicMember:)`
 /// - `@dynamicCallable`: type has a `dynamicallyCall` method
 /// - `@objc(Name)` / `@_objcRuntimeName(Name)`: class the source renamed for
 ///   the ObjC runtime, as `index(in:)` read it off the class metadata
 /// - `@globalActor`: type conforms to `GlobalActor` protocol
+///
+/// The member-based checks read the type's own members only. A `buildBlock`,
+/// `subscript(dynamicMember:)` or `dynamicallyCall` declared in an extension
+/// is not seen — the indexer keeps extensions in its own buckets, not on the
+/// definition — so such a type prints without the attribute. (Earlier
+/// versions also walked `TypeDefinition.extensions`, which nothing ever
+/// fills; evolution proposal `concurrent-definition-printing` removed
+/// those reads.)
+///
+/// The printer calls `infer(for:)` once per print and keeps the result
+/// local; it is never stored on the definition.
 public struct TypeAttributeInferrer: Sendable {
     public init() {}
 
@@ -55,16 +66,19 @@ public struct TypeAttributeInferrer: Sendable {
     /// Checks whether the type has a `subscript(dynamicMember:)`,
     /// which is the characteristic subscript of a `@dynamicMemberLookup` type.
     ///
-    /// Detection performs a recursive preorder search of the subscript's demangled node tree
-    /// for a `.labelList` node whose first child has `.text == "dynamicMember"`.
-    /// The node tree is `global → getter → subscript → [context, labelList, type]`,
-    /// so a recursive search is needed since `.labelList` is not a direct child of the root.
+    /// Detection looks for a subscript whose own `.labelList` has a first child with
+    /// `.text == "dynamicMember"`. The node tree is
+    /// `global → getter → subscript → [context, labelList, type]`: a preorder search finds
+    /// the subscript node ahead of its context, and the label list is its direct child.
+    /// Searching the whole tree for the label list reached the context first — a local
+    /// type's context is the function declaring it, whose labels then stood in for the
+    /// subscript's (evolution proposal `local-type-context-names`).
     static func hasDynamicMemberSubscript(subscripts: [SubscriptDefinition], staticSubscripts: [SubscriptDefinition]) -> Bool {
         let allSubscripts = subscripts + staticSubscripts
         return allSubscripts.contains { subscriptDefinition in
-            // Use Node's preorder traversal (recursive) instead of .children (direct only)
             subscriptDefinition.node
-                .first(of: .labelList)?
+                .first(of: .subscript)?
+                .children.first(of: .labelList)?
                 .children.first?.text == "dynamicMember"
         }
     }
@@ -99,42 +113,18 @@ public struct TypeAttributeInferrer: Sendable {
     private func inferResultBuilder(typeDefinition: TypeDefinition, into attributes: inout [SwiftAttribute]) {
         if Self.hasBuildBlockMethod(staticFunctions: typeDefinition.staticFunctions) {
             attributes.append(.resultBuilder)
-            return
-        }
-        // Also check extensions for this type
-        for extensionDefinition in typeDefinition.extensions {
-            if Self.hasBuildBlockMethod(staticFunctions: extensionDefinition.staticFunctions) {
-                attributes.append(.resultBuilder)
-                return
-            }
         }
     }
 
     private func inferDynamicMemberLookup(typeDefinition: TypeDefinition, into attributes: inout [SwiftAttribute]) {
         if Self.hasDynamicMemberSubscript(subscripts: typeDefinition.subscripts, staticSubscripts: typeDefinition.staticSubscripts) {
             attributes.append(.dynamicMemberLookup)
-            return
-        }
-        // Also check extensions for this type
-        for extensionDefinition in typeDefinition.extensions {
-            if Self.hasDynamicMemberSubscript(subscripts: extensionDefinition.subscripts, staticSubscripts: extensionDefinition.staticSubscripts) {
-                attributes.append(.dynamicMemberLookup)
-                return
-            }
         }
     }
 
     private func inferDynamicCallable(typeDefinition: TypeDefinition, into attributes: inout [SwiftAttribute]) {
         if Self.hasDynamicallyCallMethod(functions: typeDefinition.functions, staticFunctions: typeDefinition.staticFunctions) {
             attributes.append(.dynamicCallable)
-            return
-        }
-        // Also check extensions for this type
-        for extensionDefinition in typeDefinition.extensions {
-            if Self.hasDynamicallyCallMethod(functions: extensionDefinition.functions, staticFunctions: extensionDefinition.staticFunctions) {
-                attributes.append(.dynamicCallable)
-                return
-            }
         }
     }
 

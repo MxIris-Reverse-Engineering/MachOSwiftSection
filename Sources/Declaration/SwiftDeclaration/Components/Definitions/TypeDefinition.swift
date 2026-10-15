@@ -2,7 +2,18 @@ import MachOSwiftSection
 import SwiftInspection
 @_spi(Internals) import MachOSymbols
 
-public final class TypeDefinition: Definition {
+/// A nominal type of an image, as the declaration model holds it.
+///
+/// `@unchecked Sendable`: apart from its indexing state, a definition is
+/// written only while the indexer builds the model and while `index(in:)`
+/// runs, and `index(in:)` runs at most once, behind a lock that also
+/// publishes what it wrote (`DefinitionIndexing`, evolution proposal
+/// `concurrent-definition-printing`). Printing writes nothing to it, so one
+/// definition may be printed from several tasks at once. The one write
+/// outside that promise, `specialize(...)` appending to a generic
+/// definition's `specializedChildren`, holds a lock of its own
+/// (`SwiftSpecialization`).
+public final class TypeDefinition: Definition, @unchecked Sendable {
     /// The type's context descriptor reference (evolution proposal 0002).
     /// This is the only Mach-O parse product the definition retains: the
     /// full `TypeContextWrapper` (trailing objects included) is rebuilt on
@@ -18,11 +29,12 @@ public final class TypeDefinition: Definition {
     public let typeName: TypeName
 
     /// `true` when this definition was produced via `specialize(with:in:)` —
-    /// i.e. it carries a runtime-resolved `metadata` and a bound-generic
-    /// `typeName`. `false` for the canonical, unspecialized definitions
-    /// produced from a MachO image's section data. Always known at
-    /// construction time, so callers can branch on the type kind without
-    /// inspecting the optional `metadata` field.
+    /// i.e. it carries a bound-generic `typeName` and either a
+    /// runtime-resolved `metadata` or, specialized offline, a
+    /// `staticSpecialization`. `false` for the canonical, unspecialized
+    /// definitions produced from a MachO image's section data. Always known
+    /// at construction time, so callers can branch on the type kind without
+    /// inspecting the optional fields.
     public let isSpecialized: Bool
 
     /// Whether this type's nominal type descriptor is in the image's export
@@ -125,8 +137,6 @@ public final class TypeDefinition: Definition {
 
     public package(set) var conformingProtocolNames: Set<String> = []
 
-    public package(set) var attributes: [SwiftAttribute] = []
-
     /// The Objective-C runtime name the class's source chose —
     /// `@objc(NSColorModel)` or `@_objcRuntimeName(Name)` — read off the class
     /// metadata by `index(in:)` (evolution proposal `objc-custom-class-name`).
@@ -134,12 +144,15 @@ public final class TypeDefinition: Definition {
     /// knows by its `_TtC…` mangling.
     public package(set) var customObjCClassName: CustomObjCClassName? = nil
 
-    /// Whether `index(in:)` has completed a pass over this definition.
-    ///
-    /// The setter is `internal`, not `private`, only because the indexing
-    /// pass lives in `TypeDefinition+Indexing.swift`: nothing outside this
-    /// target may flip it, and inside it only that pass's tail does.
-    public internal(set) var isIndexed: Bool = false
+    /// Whether `index(in:)` has completed a pass over this definition. Safe
+    /// to read from any thread.
+    public var isIndexed: Bool {
+        DefinitionIndexing.isIndexed(self)
+    }
+
+    /// The flag behind `isIndexed`; `DefinitionIndexing` alone reads and
+    /// writes it, under its lock.
+    var hasCompletedIndexing = false
 
     /// Specialized metadata bound to this definition.
     ///
@@ -150,6 +163,18 @@ public final class TypeDefinition: Definition {
     /// type/enum layout, and value witness queries instead of trying to
     /// call the descriptor's metadata accessor.
     public package(set) var metadata: MetadataWrapper? = nil
+
+    /// The arguments an offline specialization bound this definition's
+    /// generic parameters to, by depth (evolution proposal
+    /// `offline-generic-specialization`).
+    ///
+    /// The offline counterpart of `metadata`: a specialization made from a
+    /// file has no runtime metadata, so it carries the arguments the
+    /// metadata would have been instantiated from, and the printer renders
+    /// the bound header, the substituted field types and the layout comments
+    /// from them. `nil` for the canonical definition and for a runtime
+    /// specialization; at most one of the two is ever set.
+    public package(set) var staticSpecialization: GenericArgumentBinding? = nil
 
     public var hasMembers: Bool {
         !fields.isEmpty || !variables.isEmpty || !functions.isEmpty ||

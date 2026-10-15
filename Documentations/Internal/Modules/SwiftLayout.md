@@ -28,7 +28,7 @@ SwiftLayout 是**静态聚合布局引擎**：不加载进程、不调用 metada
 
 ### 1 / 2：入口与累加
 
-`StaticLayoutCalculator` 是唯一入口，三个层次的请求共用一条按字段推进的路径（`accumulateFieldLayout`，环境默认 `.empty`）：非泛型描述符（`fieldLayout(of:)`）、给定实参的泛型实例化（`fieldLayout(of:genericArguments:)`）、二进制里的 bound generic mangled 引用（`fieldLayout(forInstantiationMangledName:)`）。每个字段独立降级，一个字段解不出来不会毁掉整个类型。
+`StaticLayoutCalculator` 是唯一入口，四个层次的请求共用一条按字段推进的路径（`accumulateFieldLayout`，环境默认 `.empty`）：非泛型描述符（`fieldLayout(of:)`）、给定 depth-0 实参的泛型实例化（`fieldLayout(of:genericArguments:)`）、二进制里的 bound generic mangled 引用（`fieldLayout(forInstantiationMangledName:)`），以及按 `GenericArgumentBinding` 绑定了全部层的实例化（`fieldLayout(of:genericArgumentBinding:)`，离线泛型特化用）。最后这一种另有 `typeLayout(forMangledTypeName:inContextOfDescriptor:genericArgumentBinding:)`、`enumCaseLayoutResult(forDescriptor:genericArgumentBinding:)`、`nestedFieldOffsetTree(…genericArgumentBinding:)` 三个配套入口，渲染层据此给特化后的定义出全部布局注释（[OfflineGenericSpecialization.md](../OfflineGenericSpecialization.md)）。每个字段独立降级，一个字段解不出来不会毁掉整个类型。
 
 `StaticTypeLayoutResolver` 是「mangled name → `StaticTypeLayout`」的递归求解器，按 `Node.Kind` 分派、带记忆化和环路保护；类引用到一个指针为止，不再往下展开。
 
@@ -56,7 +56,7 @@ SwiftLayout 是**静态聚合布局引擎**：不加载进程、不调用 metada
 
 ### 5：没有实参也能算的那部分
 
-`GenericArgumentEnvironment` 做具体 bound generic 的字段代换，**实参按 nominal parent 链逐层收集**，所以特化父类型的嵌套类型（`Environment<Bool>.Content` 这种自身没有实参列表的节点）也能绑上父层的实参。代换是手写的自顶向下递归，不是 `Node.Rewriter` 的自底向上——pack expansion 是上下文相关的。
+`GenericArgumentEnvironment` 做具体 bound generic 的字段代换，**实参按 nominal parent 链逐层收集**，所以特化父类型的嵌套类型（`Environment<Bool>.Content` 这种自身没有实参列表的节点）也能绑上父层的实参。遇到 extension 上下文会走进它的被扩展类型继续收集（约束 extension 里声明的类型，外层实参挂在那里），遍历与 SwiftInspection 的 `GenericArgumentBinding.argumentListsByLevel(ofInstantiatedTypeNode:)` 共用；`make(forBinding:)` 直接从按层分组的实参建环境。代换是手写的自顶向下递归，不是 `Node.Rewriter` 的自底向上——pack expansion 是上下文相关的。
 
 `ClassBoundGenericParameterAnalysis` 是另一条前线：**完全不给实参**时，从 requirement signature 里挖出签名本身就钉死的事实——类约束参数（必是一个对象引用）与具体 same-type 约束（`Value == Date`，来自受约束的 extension）。加上「参数的 metatype 字段恒为 thick」这条，泛型类型在无特化的情况下也能解出可观比例的字段。
 
@@ -64,7 +64,7 @@ SwiftLayout 是**静态聚合布局引擎**：不加载进程、不调用 metada
 
 `ObjCClassIndex` 读 `class_ro_t.instanceSize`（Swift 子类第一个字段的起点），并索引每个静态发出的 Swift 类自己的 `instanceStart`——实际祖先变大时这个值会被 ObjC runtime 滑移（objc4 的 `moveIvars`），dyld cache 里的镜像带的已是滑移后的终值。是否在 classlist 里决定走哪套规则。
 
-`ImageUniverse` 是五个解析 seam 的统一查找面（类型、协议类约束、ObjC 类实例尺寸、assocty witness、ObjC 协议声明），可以是单镜像，也可以是**依赖闭包**——根镜像急切索引，依赖按解析顺序**惰性**折进来，所以几百个镜像的系统闭包不会被急切 demangle 一遍。闭包本身由 `MachODependencies` 提供，本模块只是薄封装。assocty witness 这个 seam 有一个返回**节点**而非布局的公开入口 `projectedAssociatedTypeWitness(base:associatedTypeReference:)`（2026-09-18，提案 0045-opaque-reference-spelling-and-member-projection）：`SwiftDeclarationRendering` 用它把展开后的 opaque archetype 的成员（`IndexingIterator<[Int]>.Element`）投影成 witness 类型，逻辑与 `DependentMemberTypeBridge` 一致，只是不往下算布局。
+`ImageUniverse` 是五个解析 seam 的统一查找面（类型、协议类约束、ObjC 类实例尺寸、assocty witness、ObjC 协议声明），可以是单镜像，也可以是**依赖闭包**——根镜像急切索引，依赖按解析顺序**惰性**折进来，所以几百个镜像的系统闭包不会被急切 demangle 一遍。闭包本身由 `MachODependencies` 提供，本模块只是薄封装。assocty witness 这个 seam 有一个返回**节点**而非布局的公开入口 `projectedAssociatedTypeWitness(base:associatedTypeReference:)`（2026-09-18，提案 0045-opaque-reference-spelling-and-member-projection）：`SwiftDeclarationRendering` 用它把展开后的 opaque archetype 的成员（`IndexingIterator<[Int]>.Element`）投影成 witness 类型，逻辑与 `DependentMemberTypeBridge` 一致，只是不往下算布局。`projectingConcreteMembers(in:)`（2026-10-01）在它之上把整棵节点里所有 base 已具体的成员投影掉、投影结果再投影（有跳数上限）：展开偏移树用它命名和展开字段（`[Swift.Int].Element` 显示为 `Swift.Int` 并继续展开，与运行时的遍历一致），离线泛型特化用它代换字段类型与约束检查的两侧。
 
 ## 关键契约
 

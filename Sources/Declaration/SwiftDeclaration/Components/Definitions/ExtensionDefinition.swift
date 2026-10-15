@@ -8,7 +8,13 @@ import SwiftStdlibToolbox
 @_spi(Internals) import MachOSymbols
 @_spi(Internals) import SwiftInspection
 
-public final class ExtensionDefinition: Definition, MutableDefinition {
+/// An extension block of an image — a conformance, a member extension or a
+/// typealias-only block — as the declaration model holds it.
+///
+/// `@unchecked Sendable` for the reason `TypeDefinition` gives: written only
+/// while the model is built and while `index(in:)` runs once behind
+/// `DefinitionIndexing`'s lock; printing writes nothing to it.
+public final class ExtensionDefinition: Definition, MutableDefinition, @unchecked Sendable {
     public let extensionName: ExtensionName
 
     public let genericSignature: NodeReference?
@@ -96,12 +102,15 @@ public final class ExtensionDefinition: Definition, MutableDefinition {
     /// from a clang implementation to Swift is not a Swift ABI change.
     public package(set) var objcImplementation: ObjCImplementationClassFacts? = nil
 
-    /// Whether `index(in:)` has completed a pass over this definition.
-    ///
-    /// The setter is `internal`, not `private`, only because the indexing
-    /// pass lives in `ExtensionDefinition+Indexing.swift`: nothing outside this
-    /// target may flip it, and inside it only that pass does.
-    public internal(set) var isIndexed: Bool = false
+    /// Whether `index(in:)` has completed a pass over this definition. Safe
+    /// to read from any thread.
+    public var isIndexed: Bool {
+        DefinitionIndexing.isIndexed(self)
+    }
+
+    /// The flag behind `isIndexed`; `DefinitionIndexing` alone reads and
+    /// writes it, under its lock.
+    var hasCompletedIndexing = false
 
     public var hasMembers: Bool {
         !variables.isEmpty || !functions.isEmpty || !staticVariables.isEmpty || !staticFunctions.isEmpty || !allocators.isEmpty || !constructors.isEmpty || !staticSubscripts.isEmpty || !subscripts.isEmpty

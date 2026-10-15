@@ -142,6 +142,14 @@ package enum NodeTypeNaming {
     private static func qualifiedName(ofNominal node: Node) -> String? {
         guard let identifier = declaredName(of: node) else { return nil }
         guard let context = node.firstChild else { return identifier }
+        if node.children.at(1)?.kind == .localDeclName {
+            // A type declared in a function or closure body, keyed under that
+            // function or closure as the compiler spells it — nothing else
+            // shares it. Under its bare name, which is all the context rules
+            // below make of it, two methods' same-named types shared one key
+            // (evolution proposal `local-type-context-names`).
+            return context.print(using: .interfaceTypeBuilderOnly) + "." + identifier
+        }
         if let contextName = contextQualifiedName(of: context) {
             return contextName + "." + identifier
         }
@@ -158,6 +166,19 @@ package enum NodeTypeNaming {
         if let nameNode = node.children.at(1), nameNode.kind == .relatedEntityDeclName {
             guard let entityTag = nameNode.children.first?.text, let entityName = nameNode.children.at(1)?.text else { return nil }
             return "related decl '\(entityTag)' for \(entityName)"
+        }
+        if let nameNode = node.children.at(1), nameNode.kind == .localDeclName {
+            // `Visitor #1`: two same-named types of one body differ by the
+            // ordinal alone.
+            guard let localName = nameNode.children.at(1)?.text, let ordinal = nameNode.children.first?.index else { return nil }
+            return "\(localName) #\(ordinal + 1)"
+        }
+        if let nameNode = node.children.at(1), nameNode.kind == .privateDeclName,
+           let discriminator = nameNode.children.first?.text, discriminator.hasPrefix("$"),
+           let localName = nameNode.children.at(1)?.text {
+            // A local type no source names (`LocalTypeNaming.positionBased`):
+            // its address is what keeps it apart from the others of its name.
+            return "(\(localName) in \(discriminator))"
         }
         return node.identifier
     }

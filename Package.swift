@@ -173,7 +173,13 @@ extension Package.Dependency {
             // runtime's frameworks bind to their own exports (`-interposable`),
             // which the static layout engine and the ObjC ancestor chain need,
             // and names a legacy LC_DYLD_INFO file's bound superclass itself.
-            "0.8.110" ..< "0.9.0",
+            // 0.8.111 reads the property and protocol lists a macOS 26.4+ cache
+            // keeps in another file than the image's header: `objc` lost every
+            // instance property and adopted protocol of a class other images
+            // extend, such as NSView. 0.8.200 merges upstream 0.8.2 and reads
+            // every list an image attaches to a class, not just its first:
+            // `_UTCoreType` lost the methods of its second list.
+            "0.8.200" ..< "0.9.0",
         ),
     )
 }
@@ -188,7 +194,11 @@ extension Package.Dependency {
             url: "https://github.com/MxIris-Reverse-Engineering/swift-demangling",
             // 0.7.1 gives a private / local entity name its kind and scope when
             // printed, which `dump`'s semantic output of such names relies on.
-            "0.7.1" ..< "0.8.0",
+            // 0.7.2 adds `DemangleOptions.useModuleSelectors`, which
+            // `--module-selectors` prints with, and answers kind queries on a
+            // `NodeReference` without retaining its store, which parallel
+            // printing contended on.
+            "0.7.2" ..< "0.8.0",
         ),
     )
 
@@ -199,7 +209,9 @@ extension Package.Dependency {
         ),
         remote: .package(
             url: "https://github.com/MxIris-Reverse-Engineering/swift-semantic-string",
-            from: "0.4.0",
+            // 0.5.0 adds definition regions, which `marksNestedDefinitions`
+            // wraps each nested definition in.
+            from: "0.5.0",
         ),
     )
 
@@ -617,6 +629,24 @@ extension Target {
         path: "Sources/Declaration/SwiftIndexing",
     )
 
+    /// Recovers the source files private discriminators were derived from:
+    /// MD5 over candidate file names, drawn from an indexed image's names and
+    /// a generated list of known file names (evolution proposal
+    /// `private-declarations`).
+    static let SwiftPrivateDiscriminators = Target.target(
+        name: "SwiftPrivateDiscriminators",
+        dependencies: [
+            .product(.MachOKit),
+            .product(.MachOObjCSection),
+            .product(.Demangling),
+            .target(.MachOSwiftSection),
+            .target(.SwiftInspection),
+            .target(.SwiftDeclaration),
+            .target(.SwiftIndexing),
+        ],
+        path: "Sources/Declaration/SwiftPrivateDiscriminators",
+    )
+
     /// Infers source-level Swift attributes (`@propertyWrapper`,
     /// `@resultBuilder`, `@dynamicMemberLookup`, `@objc`, …) from the
     /// `SwiftDeclaration` model. A low-level peer over the model so the
@@ -688,6 +718,9 @@ extension Target {
             .target(.MachOSymbols),
             .target(.MachOSwiftSection),
             .target(.SwiftInspection),
+            // The host's runtime names for `.metatype` arguments and the
+            // member projection the offline specialization substitutes with.
+            .target(.SwiftDeclarationRendering),
             .target(.SwiftDeclaration),
             .target(.SwiftIndexing),
         ],
@@ -1139,6 +1172,19 @@ extension Target {
         swiftSettings: testSettings,
     )
 
+    static let SwiftPrivateDiscriminatorsTests = Target.testTarget(
+        name: "SwiftPrivateDiscriminatorsTests",
+        dependencies: [
+            .target(.SwiftPrivateDiscriminators),
+            .target(.SwiftInspection),
+            .target(.SwiftDeclaration),
+            .target(.SwiftIndexing),
+            .target(.MachOFixtureSupport),
+            .target(.MachOTestingSupport),
+        ],
+        swiftSettings: testSettings,
+    )
+
     static let SwiftIndexingTests = Target.testTarget(
         name: "SwiftIndexingTests",
         dependencies: [
@@ -1236,6 +1282,7 @@ let package = Package(
         .library(.SwiftAttributeInference),
         .library(.SwiftDiffing),
         .library(.SwiftIndexing),
+        .library(.SwiftPrivateDiscriminators),
         .library(.SwiftPrinting),
         .library(.SwiftSpecialization),
         .library(.SwiftInterface),
@@ -1267,6 +1314,7 @@ let package = Package(
         .SwiftAttributeInference,
         .SwiftDiffing,
         .SwiftIndexing,
+        .SwiftPrivateDiscriminators,
         .SwiftPrinting,
         .SwiftSpecialization,
         .SwiftInterface,
@@ -1302,6 +1350,7 @@ let package = Package(
         .SwiftSectionCommandTests,
         .SwiftSectionKitTests,
         .SwiftIndexingTests,
+        .SwiftPrivateDiscriminatorsTests,
         .SwiftSpecializationTests,
         .SwiftInterfaceTests,
         .MachOTestingSupportTests,

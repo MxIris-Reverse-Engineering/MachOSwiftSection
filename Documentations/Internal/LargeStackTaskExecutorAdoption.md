@@ -32,6 +32,7 @@
 | `SwiftInterface` | `SwiftInterfaceBuilder.prepare()` / `printRoot()`；`SwiftDiffableInterfaceBuilder.prepare()`；`AnySwiftEvolutionInterfaceBuilder.prepare(maximumConcurrentPreparations:)` / `printAnnotatedInterface()` / `annotatedBlocks()`（pack façade 委托）；`SwiftDiffableInterfaceRenderer.printAnnotatedInterface(format:)` / `annotatedDiffBlocks()` |
 | `SwiftPrinting` | `SwiftDeclarationPrinter.printTypeDefinition` / `printProtocolDefinition` / `printExtensionDefinition` / `printDefinition`（RuntimeViewer 逐类型导出绕过 `printRoot` 的路径） |
 | `SwiftDump` | 六个 `Dumpable.dump(using:in:)` 遵循者（`Struct` / `Class` / `Enum` / `Protocol` / `ProtocolConformance` / `AssociatedType`） |
+| `SwiftSpecialization` | `TypeDefinition.specialize(...)` 的四个 async 重载（运行时两个、离线两个）。2026-10-11 才补上，此前漏包，见 [ReviewAdjudications A61](ReviewAdjudications.md) 第三处。`GenericSpecializer` 的入口是同步的，跑在宿主调用它的线程上；其中类继承表的建表由 `IndexerConformanceProvider` 自己先切一次大栈再做 |
 
 **嵌套免费**：`printRoot` 里再进 `printTypeDefinition`、父类型的嵌套子类型循环再进 `printTypeDefinition`，都是「已在执行器上再包一层」。SE-0417 的 `withTaskExecutorPreference` 在当前执行器就是目标执行器时不切换，`nestedRunsStayOnTheSameThread` 钉住线程不变。CLI 的 `dump` 循环按类型逐个调 `dump`，每个类型进出执行器各一跳，SwiftUICore 五千余类型约一万跳、总计零点几秒，远小于原来每个符号一跳，故 CLI 侧没有再包一层。
 
@@ -56,6 +57,8 @@ SE-0417：非结构化 `Task {}` 不继承执行器偏好。核对 `Sources/` �
 ### 版本内并行为什么不做
 
 MachOKit 自己的读取有上百处 `fileHandle.seek` + `read` 共用一个句柄（`MachOFile.swift`、`DyldCache.swift` 等），两个线程交错就读错位置；`index(in:)` 的 `guard !isIndexed` 是非原子的检查加赋值。前者不在本仓库，需要 MachOKit 改 mmap 读或每个分片独立 `MachOFile` 实例，另起提案。
+
+后者已由提案 [0066-concurrent-definition-printing](../Evolutions/0066-concurrent-definition-printing.md) 解决：`index(in:)` 改成同步函数，经进程级一把锁只跑一次，打印期不再写定义。所以 `MachOImage` 读者下同一版本内的**打印**可以并发（RuntimeViewer 建语料就这么做）；`MachOFile` 读者仍受前者限制，版本内的 `prepare` 并行也仍然不做。
 
 ### `concurrentMap(maximumConcurrency:)` 的错误语义
 

@@ -153,11 +153,15 @@ package struct ProtocolDumper<MachO: MachOFieldLayoutRenderable>: NamedDumper {
     /// degraded to `[Stripped Symbol]`). Protocol-side attribution needs its
     /// own evidence model and is out of scope for the vtable-attribution
     /// proposal — the folding ambiguity documented there applies here too.
+    ///
+    /// Answered from the index's grouping of the address by protocol, built
+    /// once per address (evolution proposal `faster-lazy-definition-indexing`);
+    /// `symbols` is what the index listed at its offset.
     private func validNode(for symbols: Symbols, visitedNode: borrowing OrderedSet<StructuralNodeReferenceKey> = []) async throws -> NodeReference? {
         let currentInterfaceName = try await _name(using: .options(.interfaceType)).string
-        for symbol in symbols {
-            if let node = SymbolicDemangler.demangleSymbolReference(for: symbol, in: machO), let protocolNode = node.first(of: .protocol), await protocolNode.print(using: .interfaceType) == currentInterfaceName, !visitedNode.contains(StructuralNodeReferenceKey(node)) {
-                return node
+        for candidate in SymbolIndexStore.shared.symbols(for: symbols.offset, ownedBy: currentInterfaceName, ownerKind: .protocol, printedWith: .interfaceType, in: machO) {
+            if !visitedNode.contains(StructuralNodeReferenceKey(candidate.demangledNode)) {
+                return candidate.demangledNode
             }
         }
         return nil

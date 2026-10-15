@@ -394,7 +394,14 @@ extension FunctionTypeNodePrintable where Self: DependentGenericNodePrintable {
     mutating func printLabelList(name: Node, type: Node, genericFunctionTypeList: Node?) async {
         var labelList = name.children.first(of: .labelList)
 
-        if let argumentTuple = name.first(of: .argumentTuple), let tuple = argumentTuple.first(of: .tuple) {
+        // The declaration's OWN argument tuple, from its own function type.
+        // `name`'s first child is its context, which a whole-tree search
+        // reached first: a local type's context is the function declaring
+        // it, whose parameter count then decided how many unnamed labels a
+        // member of the type printed (evolution proposal
+        // `local-type-context-names`).
+        let ownFunctionType = type.kind == .dependentGenericType ? type.children.at(1)?.children.first : type
+        if let argumentTuple = ownFunctionType?.children.first(of: .argumentTuple), let tuple = argumentTuple.first(of: .tuple) {
             if !tuple.children.isEmpty, labelList == nil || labelList!.children.isEmpty {
                 labelList = Node.create(kind: .labelList, children: (0 ..< tuple.children.count).map { _ in NodeFactory.firstElementMarker })
             }

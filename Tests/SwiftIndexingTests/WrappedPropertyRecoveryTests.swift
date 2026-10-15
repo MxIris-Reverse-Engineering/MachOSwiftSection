@@ -160,7 +160,7 @@ enum WrappedPropertyFixture {
         let indexer = SwiftDeclarationIndexer(configuration: .init(showCImportedTypes: false, dependencySearchPaths: dependencySearchPaths), eventHandlers: [], in: machO)
         try await indexer.prepare()
         let definition = try #require(indexer.allTypeDefinitions.values.first { $0.typeName.name.hasSuffix(".\(typeName)") }, "no type named \(typeName)")
-        try await definition.index(in: machO)
+        try definition.index(in: machO)
         return definition
     }
 }

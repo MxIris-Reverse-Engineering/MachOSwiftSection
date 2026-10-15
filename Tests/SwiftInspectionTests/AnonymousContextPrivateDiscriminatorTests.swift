@@ -103,6 +103,38 @@ struct AnonymousContextPrivateDiscriminatorTests {
         #expect(mismatches.isEmpty, "\(mismatches.count) of \(comparedCount) differ:\n\(mismatches.joined(separator: "\n"))")
     }
 
+    /// The in-process lookup keeps each anonymous context's discriminator by
+    /// address (evolution proposal `nested-field-offset-memoization`). For
+    /// every private Swift class AppKit defines directly in an anonymous
+    /// context, the first answer and the memoized second one must both be the
+    /// discriminator its Objective-C runtime name spells.
+    @Test(.enabled(if: runsOnMacOS26OrLater, "the anchor class ships with macOS 26's AppKit"))
+    func inProcessDiscriminatorsMatchTheObjCRuntimeNameBeforeAndAfterMemoization() throws {
+        let machOImage = try Self.loadedAppKitImage()
+        var comparedCount = 0
+        var mismatches: [String] = []
+        for classObject in machOImage.objcImplementationClassObjects() ?? [] where classObject.isSwiftStable {
+            guard let readOnlyData = machOImage.instanceReadOnlyData(of: classObject),
+                  let runtimeName = machOImage.className(of: readOnlyData),
+                  runtimeName.hasPrefix("_Tt"),
+                  let expectedDiscriminator = try demangleAsNodeTransient(runtimeName).first(of: .privateDeclName)?.children.first?.text
+            else { continue }
+            let metadata: ClassMetadataObjCInterop = try machOImage.readWrapperElement(offset: classObject.offset)
+            let classDescriptor = try #require(try metadata.descriptor(in: machOImage.context), "\(runtimeName) has no class descriptor")
+            guard let anonymousContextDescriptor = try classDescriptor.parent(in: machOImage.context)?.resolved?.anonymousContextDescriptor else { continue }
+            let anonymousContextAddress = machOImage.ptr.advanced(by: anonymousContextDescriptor.offset)
+
+            let firstDiscriminator = SymbolicDemangler.privateDiscriminator(forAnonymousContextAt: anonymousContextAddress)
+            let memoizedDiscriminator = SymbolicDemangler.privateDiscriminator(forAnonymousContextAt: anonymousContextAddress)
+            comparedCount += 1
+            if firstDiscriminator != expectedDiscriminator || memoizedDiscriminator != expectedDiscriminator {
+                mismatches.append("\(runtimeName): expected \(expectedDiscriminator), first \(firstDiscriminator ?? "nil"), memoized \(memoizedDiscriminator ?? "nil")")
+            }
+        }
+        #expect(comparedCount > 50, "AppKit on macOS 26 defines dozens of private Swift classes at file scope")
+        #expect(mismatches.isEmpty, "\(mismatches.count) of \(comparedCount) differ:\n\(mismatches.joined(separator: "\n"))")
+    }
+
     // MARK: - Helpers
 
     /// The nominal's fully qualified name, private discriminators spelled out.

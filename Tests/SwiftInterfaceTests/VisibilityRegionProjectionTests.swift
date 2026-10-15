@@ -85,22 +85,17 @@ final class VisibilityRegionProjectionTests: MachOSwiftSectionFixtureTests, @unc
 
         typealias Printing = (SwiftDeclarationPrinter<MachO>) async throws -> SemanticString
         var printings: [(label: String, print: Printing)] = []
-        // Definitions are classes the printers index in place; the printings
-        // run one after another, as the fixture tests always do.
         for (name, definition) in indexer.rootTypeDefinitions {
-            nonisolated(unsafe) let unsafeDefinition = definition
-            printings.append(("type \(name)", { try await $0.printTypeDefinition(unsafeDefinition) }))
+            printings.append(("type \(name)", { try await $0.printTypeDefinition(definition) }))
         }
         for (name, definition) in indexer.rootProtocolDefinitions {
-            nonisolated(unsafe) let unsafeDefinition = definition
-            printings.append(("protocol \(name)", { try await $0.printProtocolDefinition(unsafeDefinition) }))
+            printings.append(("protocol \(name)", { try await $0.printProtocolDefinition(definition) }))
         }
         let extensionGroups = [indexer.typeExtensionDefinitions, indexer.protocolExtensionDefinitions, indexer.typeAliasExtensionDefinitions, indexer.conformanceExtensionDefinitions]
         for extensionGroup in extensionGroups {
             for (name, definitions) in extensionGroup {
                 for definition in definitions {
-                    nonisolated(unsafe) let unsafeDefinition = definition
-                    printings.append(("extension \(name)", { try await $0.printExtensionDefinition(unsafeDefinition) }))
+                    printings.append(("extension \(name)", { try await $0.printExtensionDefinition(definition) }))
                 }
             }
         }

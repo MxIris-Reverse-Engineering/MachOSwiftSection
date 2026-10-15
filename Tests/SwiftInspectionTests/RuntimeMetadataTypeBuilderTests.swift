@@ -28,6 +28,15 @@ final class OuterGenericFixture<First> {
         var first: First?
         var second: Second?
     }
+
+    /// Declares no parameter of its own, so it opens no depth: `Second`
+    /// below is at depth 1, and its requirement names it `A1`.
+    struct NonDeclaringLevel {
+        struct ConstrainedPair<Second: Hashable> {
+            var first: First?
+            var second: Second
+        }
+    }
 }
 
 // MARK: - Tests
@@ -119,6 +128,8 @@ struct RuntimeMetadataTypeBuilderTests {
             "OuterGenericFixture": OuterGenericFixture<Int>.self,
             "Inner": OuterGenericFixture<Int>.Inner.self,
             "InnerPair": OuterGenericFixture<Int>.InnerPair<Int>.self,
+            "NonDeclaringLevel": OuterGenericFixture<Int>.NonDeclaringLevel.self,
+            "ConstrainedPair": OuterGenericFixture<Int>.NonDeclaringLevel.ConstrainedPair<Int>.self,
         ]
         var declarationName: String?
         for child in declarationNode.children.reversed() where child.kind == .identifier {
@@ -152,6 +163,15 @@ struct RuntimeMetadataTypeBuilderTests {
 
     @Test func nestedGenericCombinesParentAndOwnArguments() throws {
         try expectRoundTrip(OuterGenericFixture<Int8>.InnerPair<Int64>.self, builder: fixtureBuilder)
+    }
+
+    /// The requirement subject `A1` must bind to `Second`. The written
+    /// arguments used to be bound by counting every generic ancestor as a
+    /// depth, which put `Second` at depth 2 because `NonDeclaringLevel` is
+    /// generic without declaring anything, so `A1: Hashable` found no
+    /// argument and the instantiation failed.
+    @Test func nestedGenericBehindNonDeclaringLevelResolvesItsRequirement() throws {
+        try expectRoundTrip(OuterGenericFixture<Int8>.NonDeclaringLevel.ConstrainedPair<String>.self, builder: fixtureBuilder)
     }
 
     @Test func genericArgumentsComposeStructurally() throws {

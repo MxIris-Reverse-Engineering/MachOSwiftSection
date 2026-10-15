@@ -3,7 +3,7 @@ import SwiftDeclaration
 import Foundation
 import MachOSwiftSection
 import OrderedCollections
-import Demangling
+@_spi(Internals) import Demangling
 @_spi(Internals) import MachOSymbols
 @_spi(Internals) import SwiftInspection
 
@@ -49,6 +49,32 @@ public protocol ConformanceProvider: Sendable {
     /// no class-hierarchy knowledge degrade to "show every candidate"
     /// without breaking the contract.
     func subclasses(of baseClassName: TypeName) -> [TypeName]
+
+    /// What the provider knows of the class `className` inherits from
+    /// directly — the link the offline base-class check walks up (evolution
+    /// proposal `offline-generic-specialization`). Default `.unknown`: a
+    /// provider without class-hierarchy knowledge proves nothing either way.
+    func superclassLink(of className: TypeName) -> SuperclassLink
+
+    /// Whether the conformance of `typeName` to `protocolName` that the
+    /// provider records holds only under conditions — `Array: Hashable where
+    /// Element: Hashable`. Such a record, kept under the type's unbound name,
+    /// proves nothing for one instantiation, so the offline check does not
+    /// take it for proof (evolution proposal `offline-generic-specialization`).
+    /// Default `false`: the record stands for the conformance, as
+    /// `doesType(_:conformTo:)` has always read it.
+    func isConditionalConformance(of typeName: TypeName, to protocolName: ProtocolName) -> Bool
+}
+
+/// A class's direct superclass, as a `ConformanceProvider` knows it.
+public enum SuperclassLink: Sendable, Equatable {
+    /// The provider describes the class, and it inherits from this class.
+    case inherits(from: TypeName)
+    /// The provider describes the class, and it has no superclass.
+    case root
+    /// The provider holds no description of the class: an Objective-C
+    /// class, or a class of an image it does not index.
+    case unknown
 }
 
 // MARK: - Default Implementations
@@ -77,6 +103,14 @@ extension ConformanceProvider {
     /// "show every candidate" behaviour for non-indexer providers.
     public func subclasses(of baseClassName: TypeName) -> [TypeName] {
         []
+    }
+
+    public func superclassLink(of className: TypeName) -> SuperclassLink {
+        .unknown
+    }
+
+    public func isConditionalConformance(of typeName: TypeName, to protocolName: ProtocolName) -> Bool {
+        false
     }
 }
 
@@ -111,8 +145,25 @@ public final class IndexerConformanceProvider<MachO: MachOSwiftSectionRepresenta
     /// (`TypeName.name`, "Module.Type") is stable across both paths.
     private final class SubclassCache: @unchecked Sendable {
         var directChildrenByParentName: [String: [TypeName]]?
-        let lock = NSLock()
+        /// Every indexed class's direct superclass by the class's name: the
+        /// same links, read the other way, built in the same walk.
+        var superclassLinkByClassName: [String: SuperclassLink]?
+        private let lock = NSLock()
+
+        /// Both maps, once a build has stored them.
+        var builtHierarchy: ClassHierarchy? {
+            guard let directChildrenByParentName, let superclassLinkByClassName else { return nil }
+            return (directChildrenByParentName, superclassLinkByClassName)
+        }
+
+        func withLock<Value>(_ body: (SubclassCache) -> Value) -> Value {
+            lock.lock()
+            defer { lock.unlock() }
+            return body(self)
+        }
     }
+
+    private typealias ClassHierarchy = (directChildrenByParentName: [String: [TypeName]], superclassLinkByClassName: [String: SuperclassLink])
 
     private let subclassCache = SubclassCache()
 
@@ -152,7 +203,7 @@ extension IndexerConformanceProvider: ConformanceProvider {
         // return empty so callers can fall back to "do not narrow".
         guard baseClassName.kind == .class else { return [] }
 
-        let directChildren = directChildrenMap()
+        let directChildren = classHierarchy().directChildrenByParentName
 
         // BFS over the parent → direct-subclasses graph, keyed by
         // canonical name string. Result list still uses `TypeName`s
@@ -173,16 +224,55 @@ extension IndexerConformanceProvider: ConformanceProvider {
         return result
     }
 
+    public func superclassLink(of className: TypeName) -> SuperclassLink {
+        guard className.kind == .class else { return .unknown }
+        return classHierarchy().superclassLinkByClassName[className.name] ?? .unknown
+    }
+
+    /// Read off the conformance's own descriptor, which the conformance
+    /// extension the indexer built for it keeps: its conditional requirements
+    /// are counted in the flags.
+    public func isConditionalConformance(of typeName: TypeName, to protocolName: ProtocolName) -> Bool {
+        (indexer.allConformanceExtensionDefinitions[typeName.extensionName] ?? []).contains { entry in
+            entry.value.conformingProtocolName == protocolName
+                && (entry.value.protocolConformanceDescriptor?.flags.numConditionalRequirements ?? 0) > 0
+        }
+    }
+
     /// Build (or fetch from cache) the parent-name → direct-subclasses
-    /// map by walking every indexed `.class` definition's
+    /// map, and the class-name → superclass map that reads the same links
+    /// the other way, by walking every indexed `.class` definition's
     /// `superclassType` link. Lock-protected so concurrent first-callers
     /// don't both pay the O(n) build cost.
-    private func directChildrenMap() -> [String: [TypeName]] {
-        subclassCache.lock.lock()
-        defer { subclassCache.lock.unlock() }
-        if let cached = subclassCache.directChildrenByParentName { return cached }
+    ///
+    /// The walk demangles every class's superclass and prints two names per
+    /// class, and a host calls the specializer synchronously — RuntimeViewer
+    /// from an actor, on a 512 KB cooperative thread, where each of those calls
+    /// would hop to a large-stack worker on its own with the lock held. So a
+    /// miss moves to a large stack first, in one hop, and takes the lock
+    /// there: the walk runs inline under it and nothing hops while it is held.
+    /// A hit takes the lock briefly and never hops.
+    private func classHierarchy() -> ClassHierarchy {
+        if let cachedHierarchy = subclassCache.withLock({ $0.builtHierarchy }) {
+            return cachedHierarchy
+        }
+        return StackSafeExecutor.withLargeStack {
+            self.subclassCache.withLock { cache in
+                if let builtHierarchy = cache.builtHierarchy {
+                    return builtHierarchy
+                }
+                let builtHierarchy = self.buildClassHierarchy()
+                cache.directChildrenByParentName = builtHierarchy.directChildrenByParentName
+                cache.superclassLinkByClassName = builtHierarchy.superclassLinkByClassName
+                return builtHierarchy
+            }
+        }
+    }
 
+    /// One walk over the indexed classes, building both maps.
+    private func buildClassHierarchy() -> ClassHierarchy {
         var map: [String: [TypeName]] = [:]
+        var links: [String: SuperclassLink] = [:]
         for (childTypeName, entry) in indexer.allAllTypeDefinitions {
             guard childTypeName.kind == .class else { continue }
             guard case .class(let classDescriptor) = entry.value.typeContextDescriptorWrapper else { continue }
@@ -212,14 +302,18 @@ extension IndexerConformanceProvider: ConformanceProvider {
             }
 
             // A missing / unreadable superclass link is the ordinary "this class
-            // has no usable parent" case and stays silent.
+            // has no usable parent" case and stays silent. Missing is a root
+            // class; unreadable stays unknown, proving nothing.
             var superNode: Node?
             do {
                 superNode = try classWrapper.superclassNode(in: entry.machO.context)
             } catch {
                 continue
             }
-            guard let superNode else { continue }
+            guard let superNode else {
+                links[childTypeName.name] = .root
+                continue
+            }
 
             // `SymbolicDemangler.demangleType` may wrap the result in a
             // `.type` node or return a deeper tree depending on the
@@ -240,10 +334,9 @@ extension IndexerConformanceProvider: ConformanceProvider {
             }
             let superTypeName = TypeName(node: InternedNodeReferenceCache.shared.reference(interning: superNode, in: entry.machO), kind: .class)
             map[superTypeName.name, default: []].append(childTypeName)
+            links[childTypeName.name] = .inherits(from: superTypeName)
         }
-
-        subclassCache.directChildrenByParentName = map
-        return map
+        return (map, links)
     }
 }
 
@@ -332,6 +425,20 @@ public struct CompositeConformanceProvider: ConformanceProvider {
             }
         }
         return result
+    }
+
+    /// The first provider that describes the class answers: a class lives in
+    /// one image, so at most one sub-indexer knows its superclass link.
+    public func superclassLink(of className: TypeName) -> SuperclassLink {
+        for provider in providers {
+            let link = provider.superclassLink(of: className)
+            if link != .unknown { return link }
+        }
+        return .unknown
+    }
+
+    public func isConditionalConformance(of typeName: TypeName, to protocolName: ProtocolName) -> Bool {
+        providers.contains { $0.isConditionalConformance(of: typeName, to: protocolName) }
     }
 }
 

@@ -56,6 +56,18 @@ public struct SwiftDeclarationPrintConfiguration: Equatable, Sendable {
     /// ever supplies an override — a method no ancestor implements is left
     /// alone, so this can never invent an `@objc(name)`.
     public var infersObjCOverridesFromSelectorNames: Bool = false
+
+    /// Qualify names with SE-0491 module selectors — `Swift::Int` instead of
+    /// `Swift.Int` — as the Swift 6.4 compiler does when it writes a
+    /// `.swiftinterface` (evolution proposal `module-selectors`). Every type
+    /// level carries the module that declared it, so a type another module
+    /// adds in an extension says where it comes from
+    /// (`Swift::Duration.Foundation::TimeFormatStyle`); a local type and the
+    /// associated type of a type parameter (`A.Element`) carry none.
+    ///
+    /// Off by default, and off the output is unchanged byte for byte.
+    public var usesModuleSelectors: Bool = false
+
     public var memberSortOrder: SwiftDeclarationMemberSortOrder = .byCategory
     public var printTypeLayout: Bool = false
     public var printEnumLayout: Bool = false
@@ -72,6 +84,34 @@ public struct SwiftDeclarationPrintConfiguration: Equatable, Sendable {
     /// For the opaque type constraints to be there to mark, register the
     /// opaque type resolver as for a normal print.
     public var marksOptionalContent: Bool = false
+
+    /// Wrap every nested type and protocol printed inside its parent — a
+    /// type's nested definitions and an extension's — in a
+    /// `DefinitionRegion` named after the definition (evolution proposal
+    /// `nested-definition-regions`). The identity is the mangled name of the
+    /// definition's name node: `mangleAsString(typeName.node)`, or
+    /// `mangleAsString(protocolName.node)` for a protocol.
+    ///
+    /// The contract: in the frozen print of a parent printed at the default
+    /// `level` 1, a region at depth `d`, taken out with
+    /// `content(ofDefinitionRegion:)` and then
+    /// `removingIndentation(levels: d + 1)`, equals the frozen print of that
+    /// definition on its own with the same printer — text, spans,
+    /// identifiers, and with `marksOptionalContent` the regions its
+    /// visibility separation finds. So a host that needs every nested
+    /// definition on its own prints the parent once instead of printing each
+    /// child again.
+    ///
+    /// A child whose print throws is dropped from its parent, as without
+    /// marking, and leaves no region; a name that does not remangle, or
+    /// remangles to text a region identity cannot carry, prints unmarked.
+    /// The host prints such a child on its own. The contract holds for the
+    /// built-in rendering and for transformers installed by
+    /// `applyTransformers(_:)`; a hand-written transformer closure must start
+    /// each line it emits with the indentation it is given.
+    ///
+    /// Off by default, and off the output is unchanged byte for byte.
+    public var marksNestedDefinitions: Bool = false
 
     /// How the static (`MachOFile`) field-layout path resolves cross-module
     /// types when a layout-bearing flag is on. Defaults to the full transitive

@@ -38,7 +38,7 @@ package typealias OpaqueTypeDegradationReporter = @Sendable (any Error) -> Void
 
 extension Node {
     /// The generic arguments an `opaqueType` node carries, keyed by the depth
-    /// each level substitutes.
+    /// of the parameter each one binds.
     ///
     /// Internal rather than private for the same reason the rewriter below is:
     /// reaching this through `resolveOpaqueType(in:)` needs a binary that
@@ -47,10 +47,26 @@ extension Node {
     /// leaves a parameter unsubstituted (printing `A` / `A1`) or substitutes a
     /// type belonging to a different parameter, and neither raises.
     ///
-    /// The walk mirrors `TypeDecoder.decodeMangledType`'s over the same child,
-    /// including its stop at the first level that is not a `typeList`.
-    static func opaqueTypeGenericArgumentsByDepth(of opaqueTypeNode: Node) -> OrderedDictionary<Int, [Node]> {
+    /// The node spells one argument list per declaration around the opaque
+    /// result, outermost first, and the mangler writes a list for EVERY such
+    /// declaration — an empty one for a level that declares no parameter
+    /// (`ASTMangler::appendBoundGenericArgs`). A list's position is therefore
+    /// not its depth: the runtime flattens the lists and regroups them by the
+    /// descriptor's own depths (`resolveOpaqueType` →
+    /// `_gatherGenericParameters`), and so does this, given the opaque type
+    /// descriptor's `depthLayout`. Keyed by position instead, the argument of
+    /// a generic function in a non-generic type was looked up in the type's
+    /// empty list and never substituted (Xcodes' `MainToolbarModifier.Body`
+    /// printed `SwiftUI.TupleToolbarContent<A>`). Without a layout the lists
+    /// stay keyed by position, which is right whenever no level around the
+    /// result is non-generic.
+    ///
+    /// The walk over the lists mirrors `TypeDecoder.decodeMangledType`'s over
+    /// the same child, including its stop at the first level that is not a
+    /// `typeList`.
+    static func opaqueTypeGenericArgumentsByDepth(of opaqueTypeNode: Node, depthLayout: GenericParameterDepthLayout? = nil) -> OrderedDictionary<Int, [Node]> {
         var argumentsByDepth: OrderedDictionary<Int, [Node]> = [:]
+        var flattenedArguments: [Node] = []
         guard let rootTypeListNode = opaqueTypeNode[safeChild: 2] else { return argumentsByDepth }
         for (depth, typeListNode) in rootTypeListNode.children.enumerated() {
             guard typeListNode.isKind(of: .typeList) else { break }
@@ -63,8 +79,17 @@ extension Node {
             // parameter read whatever preorder left at its index: the element
             // to its left, or a fragment of that element's subtree.
             argumentsByDepth[depth] = Array(typeListNode.children)
+            flattenedArguments.append(contentsOf: typeListNode.children)
         }
-        return argumentsByDepth
+        guard let depthLayout else { return argumentsByDepth }
+        var argumentsByParameterDepth: OrderedDictionary<Int, [Node]> = [:]
+        for (flatIndex, argument) in flattenedArguments.enumerated() {
+            // More arguments than the descriptor has parameters: a list this
+            // walk misread, so the positional reading is the one left.
+            guard let position = depthLayout.position(ofParameterAt: flatIndex) else { return argumentsByDepth }
+            argumentsByParameterDepth[position.depth, default: []].append(argument)
+        }
+        return argumentsByParameterDepth
     }
 
     /// Substitutes an opaque type's generic parameters with the concrete
@@ -335,17 +360,17 @@ extension Node {
         /// the declaration it belongs to (the interface printer's `some`
         /// expansion uses the same lookup), so a name this image does carry
         /// resolves here; one it does not is ``foreignOpaqueType(referencedBy:)``'s.
-        private func opaqueType(referencedBy reference: Node) throws -> OpaqueType? {
+        private func opaqueType(referencedBy reference: Node) throws -> ReadOpaqueType? {
             if reference.isKind(of: .opaqueTypeDescriptorSymbolicReference), let offset: Int = reference.index?.cast() {
                 if machO is MachOImage, let absolutePointer = UnsafeRawPointer(bitPattern: offset) {
                     let opaqueTypeDescriptor: OpaqueTypeDescriptor = try absolutePointer.readWrapperElement()
-                    return try OpaqueType(descriptor: opaqueTypeDescriptor, in: .inProcess)
+                    return try ReadOpaqueType(OpaqueType(descriptor: opaqueTypeDescriptor, in: .inProcess), in: .inProcess)
                 }
-                return try OpaqueType(descriptor: OpaqueTypeDescriptor.resolve(at: offset, in: machO.context), in: machO.context)
+                return try ReadOpaqueType(OpaqueType(descriptor: OpaqueTypeDescriptor.resolve(at: offset, in: machO.context), in: machO.context), in: machO.context)
             }
             if reference.isKind(of: .opaqueReturnTypeOf), let memberNode = reference.firstChild,
                let descriptorSymbol = SymbolIndexStore.shared.opaqueTypeDescriptorSymbol(for: memberNode, in: machO) {
-                return try OpaqueType(descriptor: OpaqueTypeDescriptor.resolve(at: descriptorSymbol.offset, in: machO.context), in: machO.context)
+                return try ReadOpaqueType(OpaqueType(descriptor: OpaqueTypeDescriptor.resolve(at: descriptorSymbol.offset, in: machO.context), in: machO.context), in: machO.context)
             }
             return nil
         }
@@ -370,7 +395,7 @@ extension Node {
         /// interface, whose `printOpaqueType` prints only the node's argument
         /// list, printed the conformer itself as the witness (`typealias Body
         /// = SidebarListBody.CollectionViewBody`), a real, wrong type.
-        private func foreignOpaqueType(referencedBy reference: Node) throws -> (image: MachOFile, opaqueType: OpaqueType)? {
+        private func foreignOpaqueType(referencedBy reference: Node) throws -> (image: MachOFile, opaqueType: ReadOpaqueType)? {
             guard reference.isKind(of: .opaqueReturnTypeOf), let machOFile = machO as? MachOFile else { return nil }
             let descriptorSymbolNode = Node.create(kind: .global, children: [Node.create(kind: .opaqueTypeDescriptor, children: [reference.copy()])])
             let descriptorSymbolName = try mangleAsString(descriptorSymbolNode)
@@ -385,7 +410,7 @@ extension Node {
                   let descriptorOffset = imageAddressSpace.offset(forAddress: descriptorAddress)
             else { return nil }
             let opaqueType = try OpaqueType(descriptor: OpaqueTypeDescriptor.resolve(at: descriptorOffset, in: location.image.context), in: location.image.context)
-            return (image: location.image, opaqueType: opaqueType)
+            return (image: location.image, opaqueType: ReadOpaqueType(opaqueType, in: location.image.context))
         }
 
         /// What `node` — an `opaqueType` reference — expands to given the
@@ -394,7 +419,8 @@ extension Node {
         /// the node's generic arguments substituted, nested opaque types
         /// expanded in turn. `nil` when the underlying type has no shape this
         /// rewriter substitutes.
-        fileprivate func expansion(of opaqueType: OpaqueType, forNode node: Node) -> Node? {
+        fileprivate func expansion(of readOpaqueType: ReadOpaqueType, forNode node: Node) -> Node? {
+            let opaqueType = readOpaqueType.opaqueType
             // The ordinal — the opaque type's own position among the
             // `some` results of the declaration that produced it — is
             // what indexes the underlying-type array. Measured on a
@@ -411,7 +437,7 @@ extension Node {
             // carries ordinal 0, so this is correctness for a shape
             // those two do not have and a client binary may.
             let ordinal: Int = node[safeChild: 1]?.index?.cast() ?? 0
-            let allTypeList = Node.opaqueTypeGenericArgumentsByDepth(of: node)
+            let allTypeList = Node.opaqueTypeGenericArgumentsByDepth(of: node, depthLayout: readOpaqueType.depthLayout)
             guard let underlyingTypeArgumentMangledName = opaqueType.underlyingTypeArgumentMangledNames[safe: ordinal] else { return nil }
             let underlyingTypeArgumentNode: Node?
             if machO is MachOImage {
@@ -422,7 +448,7 @@ extension Node {
             // The thunk's argument buffer is the opaque
             // descriptor's generic arguments, so its generic
             // context is what names an argument the thunk reads.
-            let ownerLayout = AccessorThunkOwnerLayout(genericContext: opaqueType.genericContext)
+            let ownerLayout = readOpaqueType.ownerLayout
             guard let underlyingTypeArgumentNode,
                   let resolvedNode = underlyingTypeContent(of: underlyingTypeArgumentNode, ownerLayout: ownerLayout)
             else { return nil }
@@ -675,5 +701,32 @@ extension Node {
             }
         }
         return OpaqueTypeResolution(node: node, conditionalCandidates: conditionalCandidates, projectedMembers: projectionLedger.projections)
+    }
+}
+
+/// An opaque type descriptor read in some context, with the layout
+/// of its generic arguments as an accessor thunk inside it reads
+/// them. The layout's depths come from the descriptor's parent chain,
+/// which must be walked in the context the descriptor was read in —
+/// an in-process absolute address and an image offset are not
+/// interchangeable — so it is computed where the descriptor is read.
+fileprivate struct ReadOpaqueType {
+    let opaqueType: OpaqueType
+    let ownerLayout: AccessorThunkOwnerLayout
+    /// How the descriptor's parameters split into depths: what regroups the
+    /// argument lists of a reference to it (`opaqueTypeGenericArgumentsByDepth`).
+    /// `nil` for a descriptor with no generic context.
+    let depthLayout: GenericParameterDepthLayout?
+
+    init(_ opaqueType: OpaqueType, in context: some ReadingContext) {
+        self.opaqueType = opaqueType
+        if let genericContext = opaqueType.genericContext {
+            let depthLayout = GenericParameterDepthLayout.make(for: genericContext, ownedBy: .opaqueType(opaqueType.descriptor), in: context)
+            self.ownerLayout = AccessorThunkOwnerLayout(genericContext: genericContext, depthLayout: depthLayout)
+            self.depthLayout = depthLayout
+        } else {
+            self.ownerLayout = AccessorThunkOwnerLayout(genericContext: nil as GenericContext?)
+            self.depthLayout = nil
+        }
     }
 }

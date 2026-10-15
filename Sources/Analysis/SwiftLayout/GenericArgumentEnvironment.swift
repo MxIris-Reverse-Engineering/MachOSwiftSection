@@ -1,4 +1,5 @@
 import Demangling
+@_spi(Internals) import SwiftInspection
 
 /// A generic parameter's position in a generic signature: its declaration
 /// `depth` (0 = the type's own parameters, 1+ = an enclosing generic context)
@@ -87,12 +88,23 @@ struct GenericArgumentEnvironment {
 
     /// Derives the substitution map from an instantiated type node: the node's
     /// own `boundGeneric*` argument list (if any) plus the argument lists of
-    /// every bound-generic level along its nominal context chain, bound at
-    /// their generic-signature depths (outermost level = depth 0). Returns
-    /// `.empty` for a node with no instantiated level, or one whose arguments
-    /// cannot all be modelled.
+    /// every bound-generic level along its context chain — through an
+    /// extension context into the type it extends — bound at their
+    /// generic-signature depths (outermost level = depth 0; see
+    /// `GenericArgumentBinding.argumentListsByLevel(ofInstantiatedTypeNode:)`).
+    /// Returns `.empty` for a node with no instantiated level, or one whose
+    /// arguments cannot all be modelled.
     static func make(forInstantiatedTypeNode node: Node) -> GenericArgumentEnvironment {
-        let argumentListsByDepth = instantiatedLevelArgumentLists(endingAt: node)
+        make(forArgumentListsByDepth: GenericArgumentBinding.argumentListsByLevel(ofInstantiatedTypeNode: node))
+    }
+
+    /// The substitution map of an instantiation's argument lists, one per
+    /// depth, outermost first — the shape `GenericArgumentBinding` carries.
+    static func make(forBinding binding: GenericArgumentBinding) -> GenericArgumentEnvironment {
+        make(forArgumentListsByDepth: binding.argumentsByDepth)
+    }
+
+    private static func make(forArgumentListsByDepth argumentListsByDepth: [[Node]]) -> GenericArgumentEnvironment {
         guard !argumentListsByDepth.isEmpty else { return .empty }
         var substitutions: [GenericParameterKey: Node] = [:]
         for (depth, arguments) in argumentListsByDepth.enumerated() {
@@ -105,36 +117,6 @@ struct GenericArgumentEnvironment {
             }
         }
         return GenericArgumentEnvironment(substitutions: substitutions)
-    }
-
-    /// Collects one argument list per instantiated level along the nominal
-    /// context chain of `node`, ordered outermost-first (the generic-signature
-    /// depth order). Walks from the node outward through `.type` wrappers,
-    /// `boundGeneric*` shells (collecting each non-empty direct `.typeList`),
-    /// and nominal contexts; any other context kind (a module, an extension, a
-    /// function) ends the walk — an instantiated level cannot appear beyond it.
-    private static func instantiatedLevelArgumentLists(endingAt node: Node) -> [[Node]] {
-        var argumentListsInnermostFirst: [[Node]] = []
-        var currentNode: Node? = node
-        while let cursor = currentNode {
-            // Tolerate a leading `.type` wrapper at every step: a freshly
-            // demangled node is `.type`-wrapped, and so is the underlying
-            // nominal inside each `boundGeneric*` shell.
-            let unwrapped = (cursor.kind == .type ? cursor.firstChild : cursor) ?? cursor
-            if isBoundGenericKind(unwrapped.kind) {
-                if let typeList = directTypeList(of: unwrapped), !typeList.children.isEmpty {
-                    argumentListsInnermostFirst.append(Array(typeList.children))
-                }
-                currentNode = unwrapped.firstChild
-            } else if unwrapped.kind == .structure || unwrapped.kind == .enum || unwrapped.kind == .class {
-                // A nominal's first child is its declaration context — the next
-                // link outward in the chain.
-                currentNode = unwrapped.firstChild
-            } else {
-                currentNode = nil
-            }
-        }
-        return argumentListsInnermostFirst.reversed()
     }
 
     /// Builds the depth-0 substitution map directly from a list of concrete
@@ -375,23 +357,6 @@ struct GenericArgumentEnvironment {
     }
 
     // MARK: - Node shape helpers
-
-    private static func isBoundGenericKind(_ kind: Node.Kind) -> Bool {
-        switch kind {
-        case .boundGenericStructure, .boundGenericEnum, .boundGenericClass,
-             .boundGenericOtherNominalType, .boundGenericTypeAlias, .boundGenericProtocol:
-            return true
-        default:
-            return false
-        }
-    }
-
-    /// The direct `.typeList` child of a bound-generic node (its argument list),
-    /// `nil` if absent. Scans direct children rather than a deep search so a
-    /// nested generic argument's own `.typeList` is never picked up.
-    private static func directTypeList(of node: Node) -> Node? {
-        node.children.first(where: { $0.kind == .typeList })
-    }
 
     /// The unwrapped inner node of a `.type`-wrapped argument, or `nil` if the
     /// argument cannot serve as a positional substitution value. Plain types,

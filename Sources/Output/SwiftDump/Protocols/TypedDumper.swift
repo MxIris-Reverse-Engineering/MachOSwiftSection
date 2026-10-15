@@ -202,7 +202,11 @@ extension TypedDumper {
         // A kind-9 field type: read the thunk offline (the registered
         // resolver, `MachOFile` only), naming its arguments as this type's
         // generic parameters — the same leg `TypeDefinition.index` takes.
-        let ownerLayout = AccessorThunkOwnerLayout(genericContext: try dumped.descriptor.genericContext(in: machO.context))
+        let genericContext = try dumped.descriptor.genericContext(in: machO.context)
+        let ownerLayout = AccessorThunkOwnerLayout(
+            genericContext: genericContext,
+            depthLayout: genericContext.map { GenericParameterDepthLayout.make(for: $0, ownedBy: dumped.descriptor, in: machO.context) } ?? GenericParameterDepthLayout(parameterCountsByDepth: [])
+        )
         return typeNode.resolvingAccessorFunctionReferences(in: machO, ownerLayout: ownerLayout)
     }
 

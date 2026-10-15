@@ -225,16 +225,26 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
         let printingContext = SwiftIndexEvents.PrintingContext(name: typeDefinition.typeName.name, kind: .type)
         eventDispatcher.dispatch(.definitionPrintStarted(context: printingContext))
 
-        if !typeDefinition.isIndexed {
-            try await typeDefinition.index(in: machO)
+        try typeDefinition.index(in: machO)
+
+        // A local type's declaration says which function or closure declares
+        // it: the name the declaration prints under is the bare declared one,
+        // which two methods' local types can share (evolution proposal
+        // `local-type-context-names`).
+        if let localTypeComment = localTypeDeclarationComment(for: typeDefinition.typeName) {
+            Indent(level: level - 1)
+            Comment(localTypeComment)
+            BreakLine()
         }
 
-        // Infer type-level attributes
-        let typeAttributeInferrer = TypeAttributeInferrer()
-        typeDefinition.attributes = typeAttributeInferrer.infer(for: typeDefinition)
+        // Type-level attributes, inferred for this print and kept local:
+        // printing writes nothing to a definition, which is what lets several
+        // tasks print one at once (evolution proposal
+        // `concurrent-definition-printing`).
+        let attributes = TypeAttributeInferrer().infer(for: typeDefinition)
 
         // Emit type-level attributes, each on its own line before the declaration
-        for attribute in typeDefinition.attributes {
+        for attribute in attributes {
             Indent(level: level - 1)
             Keyword(attribute.keyword)
             // `@objc(NSColorModel)`: the runtime name a renamed class carries
@@ -268,18 +278,19 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
             BreakLine()
         }
 
-        // Specialized definitions carry the runtime-resolved metadata; the
-        // header renderer uses it to print the bound generic name
-        // (`Box<Int>`, not `Box<A> where …`) — the same substitution the
-        // dump path performs via `TypedDumper.boundDumpedTypeNode()`.
-        let specializedMetadata: MetadataWrapper? = typeDefinition.isSpecialized ? typeDefinition.metadata : nil
+        // Specialized definitions print their bound generic name (`Box<Int>`,
+        // not `Box<A> where …`): from the runtime-resolved metadata — the
+        // substitution the dump path performs via
+        // `TypedDumper.boundDumpedTypeNode()` — or, specialized offline, the
+        // instantiation's name.
+        let boundTypeNode = boundTypeNode(of: typeDefinition)
 
         // This print operation's single wrapper materialization (proposal
         // 0002), threaded into the header and field renderers below.
         let materializedTypeContext = try typeDefinition.materializedTypeContext(in: machO.context)
 
         try await DeclarationBlock(level: level) {
-            try await renderTypeDeclarationHeader(for: materializedTypeContext, displayParentName: displayParentName, level: level, specializedMetadata: specializedMetadata)
+            try await renderTypeDeclarationHeader(for: materializedTypeContext, displayParentName: displayParentName, level: level, boundTypeNode: boundTypeNode)
         } body: {
             // Per-CHILD catch: one nested child whose printing throws drops
             // only itself — the same per-definition contract `printRoot`
@@ -292,7 +303,9 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
                     context: .init(name: child.typeName.name, kind: .type),
                     {
                         try await NestedDeclaration {
-                            try await printTypeDefinition(child, level: level + 1)
+                            try await nestedDefinition(named: child.typeName.node) {
+                                try await printTypeDefinition(child, level: level + 1)
+                            }
                         }
                     }
                 ) {
@@ -306,7 +319,9 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
                     context: .init(name: child.protocolName.name, kind: .protocol),
                     {
                         try await NestedDeclaration {
-                            try await printProtocolDefinition(child, level: level + 1)
+                            try await nestedDefinition(named: child.protocolName.node) {
+                                try await printProtocolDefinition(child, level: level + 1)
+                            }
                         }
                     }
                 ) {
@@ -352,9 +367,7 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
         // 0002), threaded into the header and associated-type renderers below.
         let dumpedProtocol = try protocolDefinition.materializedProtocol(in: machO.context)
 
-        if !protocolDefinition.isIndexed {
-            try await protocolDefinition.index(in: machO)
-        }
+        try protocolDefinition.index(in: machO)
 
         try await DeclarationBlock(level: level) {
             try await renderProtocolDeclarationHeader(for: dumpedProtocol, displayParentName: displayParentName)
@@ -377,7 +390,11 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
             }
         }
 
-        if protocolDefinition.parent == nil {
+        // Which protocols trail their default-implementation extensions is
+        // `printsDefaultImplementationExtensionsAfterDeclaration`'s to say: a
+        // top-level one only. The interface prints the others' extensions in
+        // its top-level block for nested protocols (`SwiftInterfaceBuilder`).
+        if protocolDefinition.printsDefaultImplementationExtensionsAfterDeclaration {
             // Per-extension catch: a default-implementation extension whose
             // printing throws drops only itself, not the protocol it trails.
             await BlockList {
@@ -414,9 +431,7 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
         let printingContext = SwiftIndexEvents.PrintingContext(name: extensionDefinition.extensionName.name, kind: .extension)
         eventDispatcher.dispatch(.definitionPrintStarted(context: printingContext))
 
-        if !extensionDefinition.isIndexed {
-            try await extensionDefinition.index(in: machO)
-        }
+        try extensionDefinition.index(in: machO)
 
         let rendered: SemanticString
         if isEmptiedByExportFilter(extensionDefinition) {
@@ -443,7 +458,9 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
                     context: .init(name: typeDefinition.typeName.name, kind: .type),
                     {
                         try await NestedDeclaration {
-                            try await printTypeDefinition(typeDefinition, level: level + 1)
+                            try await nestedDefinition(named: typeDefinition.typeName.node) {
+                                try await printTypeDefinition(typeDefinition, level: level + 1)
+                            }
                         }
                     }
                 ) {
@@ -457,7 +474,9 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
                     context: .init(name: protocolDefinition.protocolName.name, kind: .protocol),
                     {
                         try await NestedDeclaration {
-                            try await printProtocolDefinition(protocolDefinition, level: level + 1)
+                            try await nestedDefinition(named: protocolDefinition.protocolName.node) {
+                                try await printProtocolDefinition(protocolDefinition, level: level + 1)
+                            }
                         }
                     }
                 ) {
@@ -501,7 +520,7 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
         }
         Keyword(.extension)
         Space()
-        extensionDefinition.extensionName.print()
+        renderExtendedTypeName(extensionDefinition.extensionName)
 
         // This print operation's single conformance materialization
         // (proposal 0002). Propagates on failure: a public entry must not
@@ -594,8 +613,8 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
 
     @SemanticStringBuilder
     private func printDefinitionContents(_ definition: some Definition, level: Int) async throws -> SemanticString {
-        if let mutableDefinition = definition as? MutableDefinition, !mutableDefinition.isIndexed {
-            try await mutableDefinition.index(in: machO)
+        if let mutableDefinition = definition as? MutableDefinition {
+            try mutableDefinition.index(in: machO)
         }
 
         let isProtocol = definition is ProtocolDefinition
@@ -1001,10 +1020,18 @@ extension SwiftDeclarationPrinter: NodePrintableDelegate {
     }
 
     public func opaqueType(forNode node: Node, index: Int?) async -> String? {
-        await typeNameResolverRegistry.opaqueTypeResolvers.asyncFirstNonNil { await $0.opaqueType(forNode: node, index: index) }
+        await opaqueType(forNode: node, index: index, usesModuleSelectors: configuration.usesModuleSelectors)
+    }
+
+    public func opaqueType(forNode node: Node, index: Int?, usesModuleSelectors: Bool) async -> String? {
+        await typeNameResolverRegistry.opaqueTypeResolvers.asyncFirstNonNil { await $0.opaqueType(forNode: node, index: index, usesModuleSelectors: usesModuleSelectors) }
     }
 
     var marksOptionalContent: Bool {
         configuration.marksOptionalContent
+    }
+
+    var usesModuleSelectors: Bool {
+        configuration.usesModuleSelectors
     }
 }

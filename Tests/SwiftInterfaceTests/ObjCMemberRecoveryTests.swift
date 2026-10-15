@@ -271,10 +271,9 @@ struct ObjCMemberRecoveryTests {
         )
         try await indexer.prepare()
         let derived = try #require(indexer.allTypeDefinitions.values.first { $0.typeName.name.hasSuffix(".SwiftDerivedWidget") })
-        nonisolated(unsafe) let unsafeDerived = derived
-        try await unsafeDerived.index(in: machOFile)
+        try derived.index(in: machOFile)
 
-        let ping = try #require(unsafeDerived.functions.first { $0.name == "ping" })
+        let ping = try #require(derived.functions.first { $0.name == "ping" })
         let member = try #require(ping.objcMember, "the index records the name-only tie with nobody asking for it")
         #expect(member.evidence == .selectorName)
         #expect(member.isInferredFromSelectorName)

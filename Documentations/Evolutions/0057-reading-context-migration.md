@@ -261,7 +261,7 @@ extension ReadingContext {
 
 10. 0.22.0 发布（Changelog 写明废弃清单与三处行为变化）。
 11. RuntimeViewer、MachOKitUI、swift-decompiler 各提迁移 PR。
-12. 0.23.0：删除全部废弃转发与转发套件，更新覆盖率登记表（13 个指针版初始化器键），本提案决策日志补一行。
+12. 0.24.0（原定 0.23.0，2026-10-15 推迟，见决策日志）：删除全部废弃转发与转发套件，更新覆盖率登记表（13 个指针版初始化器键），本提案决策日志补一行。
 
 **收尾判断**（落地时写进决策日志）：是否需要配套实现说明（预期更新 `ReadingContextAbstraction.md` 即可，不另写）；新术语「缓存范围」登记进术语表。
 
@@ -306,7 +306,7 @@ extension ReadingContext {
 1. 本批发现的既有问题：`FunctionTypeMetadata.extendedFlags(in:)` 与 `EnumMetadataProtocol.payloadSize(descriptor:in:)` 从泛型 `readElement` 直接返回 Optional，按 Optional 的内存形状多读一个字节，`FunctionTypeMetadataTests` 时好时坏就是它；`ContextDescriptorWrapper.resolve(at:in:) -> Self?` 出错时用 `print` 写 stdout，违反日志规则，也会弄脏 CLI 的输出。**已修复**：分支 `fix/optional-read-and-stdout-print`，[PR #130](https://github.com/MxIris-Reverse-Engineering/MachOSwiftSection/pull/130)（本 PR 合入后直接对 `next`）；另查出并修了 `SwiftClassObjectIndex` 读 class flags 的一处同类写法，同批清掉的还有 `SubstitutionMap` 的 `print`。
 2. 渲染 A/B 脚本加 `--skip-build`：直接使用预先经 `queued-build` 构建好的产物，脚本自己不再构建。**已合入**：分支 `chore/rendering-harness-skip-build`，合并提交 `01b57f74`（2026-10-01 直接合入 `next`，没有开 PR）；用法见 [SystemFrameworkRenderingVerification.md](../Internal/SystemFrameworkRenderingVerification.md)「关键调用细节」。
 
-**合入之后**（编号与状态已在合入时完成）：0.22.0 的 Changelog 写明废弃清单与三处行为变化；给 RuntimeViewer（`next`）、MachOKitUI、swift-decompiler 提迁移 PR；0.23.0 删除全部废弃转发、`DeprecatedReadingFormsTests`，以及覆盖率登记表里 13 个指针版初始化器的键。
+**合入之后**（编号与状态已在合入时完成）：0.22.0 的 Changelog 写明废弃清单与三处行为变化；给 RuntimeViewer（`next`）、MachOKitUI、swift-decompiler 提迁移 PR；0.24.0（原定 0.23.0，2026-10-15 推迟，见决策日志）删除全部废弃转发、`DeprecatedReadingFormsTests`，以及覆盖率登记表里 13 个指针版初始化器的键。
 
 ## 决策日志
 
@@ -340,3 +340,4 @@ extension ReadingContext {
 | 2026-09-30 | 既有的 Optional 读取陷阱与 `print` 写 stdout 另开分支修，A/B 脚本加 `--skip-build` 也另开分支 | 用户选定；本 PR 只做迁移，保持聚焦 |
 | 2026-10-01 | In Progress → Implemented，编号 0057，经 [PR #129](https://github.com/MxIris-Reverse-Engineering/MachOSwiftSection/pull/129) 合入 `next` | 用户：「继续合并吧」。各共享分支上的最大编号是 0056（`next`）。分支基于 `next` @ `f7c189b8`，此后 `next` 没有新提交，合入无冲突。最后一次代码改动之后只有文档 commit，验收数据沿用「当前进度」一节：全量测试 2157 个 / 410 个套件原始退出码 0，渲染 A/B 96 对逐字节一致，三条路径性能持平 |
 | 2026-10-01 | 收尾判断：不另写使用指南，实现说明是 `ReadingContextAbstraction.md`「单一实现与废弃」一节；术语表的「cache scope」与「context form / Mach-O form / pointer form」已在实现批次登记；账本记第 73 节 | 迁移写法只有三种替换（`x(in: machO)` → `x(in: machO.context)`，`x()` → `x(in: .inProcess)`，`resolve(from:in:)` → `resolve(at:in:)`），废弃消息本身就给出了替代写法，0.22.0 的 Changelog 再列一遍 |
+| 2026-10-15 | 删除推迟到 0.24.0 | 用户决定：发 0.23.0 时 RuntimeViewer 的 `next` 已迁完（`44607ba6`），MachOKitUI（`from: "0.19.0"`，会自动解析到 0.23.0）与 swift-decompiler（跟本库 `next`）都还没迁，0.23.0 删除会让它们下次解析时编不过。0.23.0 的 Changelog 写明新期限；两个下游迁完后再删。 |

@@ -5,18 +5,33 @@ import SwiftStdlibToolbox
 @_spi(Internals) import MachOSymbols
 @_spi(Internals) import SwiftInspection
 
-extension ProtocolDefinition {
-    package func index(in machO: some MachOSwiftSectionRepresentableWithCache) async throws {
-        guard !isIndexed else { return }
+extension ProtocolDefinition: OnceIndexedDefinition {
+    /// Resolves the requirements and their default implementations to
+    /// members. Idempotent, and safe to call from several tasks at once: the
+    /// first runs the pass, the others wait for it (`DefinitionIndexing`).
+    package func index(in machO: some MachOSwiftSectionRepresentableWithCache) throws {
+        try DefinitionIndexing.index(self) {
+            try runIndexingPass(in: machO)
+        }
+    }
+
+    /// The pass `index(in:)` runs once. Synchronous on purpose, and it must
+    /// never index another definition: `DefinitionIndexing` blocks the
+    /// callers that arrive while it runs.
+    private func runIndexingPass(in machO: some MachOSwiftSectionRepresentableWithCache) throws {
         let dumpedProtocol = try materializedProtocol(in: machO.context)
         let name = protocolName.name
-        // Structurally keyed: `demangleSymbolReference` returns references from
+        // The first of `symbols` whose first protocol is this one and that no
+        // earlier requirement claimed — answered from the index's grouping of
+        // the address by protocol, built once per address (evolution proposal
+        // `faster-lazy-definition-indexing`); `symbols` is what the index
+        // listed at its offset. Structurally keyed: references can come from
         // different stores, and store-identity equality would let the same
         // implementation symbol be claimed by two requirements.
         func _symbol(for symbols: Symbols, visitedNodes: borrowing OrderedSet<StructuralNodeReferenceKey> = []) throws -> DemangledSymbol? {
-            for symbol in symbols {
-                if let node = SymbolicDemangler.demangleSymbolReference(for: symbol, in: machO), let protocolNode = node.first(of: .protocol), protocolNode.print(using: .interfaceTypeBuilderOnly) == name, !visitedNodes.contains(StructuralNodeReferenceKey(node)) {
-                    return .init(symbol: symbol, demangledNode: node)
+            for candidate in SymbolIndexStore.shared.symbols(for: symbols.offset, ownedBy: name, ownerKind: .protocol, printedWith: .interfaceTypeBuilderOnly, in: machO) {
+                if !visitedNodes.contains(StructuralNodeReferenceKey(candidate.demangledNode)) {
+                    return candidate
                 }
             }
             return nil
@@ -72,7 +87,5 @@ extension ProtocolDefinition {
                 defaultImplementationExtensions = [extensionDefinition]
             }
         }
-
-        isIndexed = true
     }
 }

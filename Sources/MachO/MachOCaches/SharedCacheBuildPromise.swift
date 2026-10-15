@@ -11,6 +11,10 @@ import Foundation
 /// `broadcast()` wakes every waiter at once, and `wait()` returns the same
 /// value to all of them.
 ///
+/// `SwiftDeclaration`'s `DefinitionIndexing` uses it the same way for a
+/// definition's one indexing pass, with a `Result` as the value so that
+/// waiters share the pass's error too.
+///
 /// `final class` because the same instance must be referenced from the cache
 /// dictionary and from every waiter; `NSCondition` also requires a stable
 /// memory address. `@unchecked Sendable` because the synchronization is

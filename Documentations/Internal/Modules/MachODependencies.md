@@ -28,7 +28,7 @@ MachODependencies 回答一个问题：**一个二进制链接了哪些镜像，
 
 打不开的搜索路径**不抛错**，记进 `DependencySearchPathLoadFailure`（附原始 error；系统 cache 不可用时是 `systemDyldSharedCacheUnavailable`）。理由有二：一条坏路径不该让整个解析失败；本模块在事件层（`SwiftIndexEvents`）之下，无法派发事件，只能把失败当数据回传，由上层决定落点——`SwiftInterfaceBuilderDependencies` 把它们派发为 `renderingDegraded(.dependencyLoad)` 事件，CLI 经 `ConsoleEventHandler` 落到 stderr。
 
-`.systemDyldSharedCache` 取 MachOKitExtensions 的 `FullDyldCache.cachedHost`：本机 cache 在进程内只打开一次，所有定位器共用。不要直接读 `FullDyldCache.host`：它每读一次就重新打开、映射本机 cache 的全部文件（macOS 27 是 82 个），而定位器是按根构建的，51 个版本的 evolution 因此曾同时开着 4,182 个文件（[ProjectEvolutionLog](../ProjectEvolutionLog.md) 第 82 节）。`FileDependencyLocatorTests.locatorsShareOneOpeningOfTheSystemCache` 钉住了共用。
+`.systemDyldSharedCache` 取 MachOKitExtensions 的 `FullDyldCache.cachedHost`：本机 cache 在进程内只打开一次，所有定位器共用。不要直接读 `FullDyldCache.host`：它每读一次就重新打开、映射本机 cache 的全部文件（macOS 27 是 82 个），而定位器是按根构建的，51 个版本的 evolution 因此曾同时开着 4,182 个文件（[ProjectEvolutionLog](../ProjectEvolutionLog.md) 第 82 节）。`FileDependencyLocatorTests.locatorsShareOneOpeningOfTheSystemCache` 钉住了共用。共用的后果是几个根会同时第一次读同一个子 cache（`diff` 与 `evolution` 并行准备各个输入）：`DyldCache` 与 `MachOFile` 的文件映射和句柄由 MachOReading 懒创建，创建时持锁、只存一次，之后的读取不拿锁；曾经无锁创建，每个抢到的读者各映射一次、互相覆盖（`ConcurrentFileMappingTests`，PR #131 review 第 7 条的横向排查）。
 
 ## 2. load name 归一（`DependencyLoadName.bareImageName(of:)`）
 
@@ -40,7 +40,7 @@ bare name 同时是所有依赖集合的**去重键**：同一个库会被不同
 
 `DependencyLocating<MachO>` 只有一个方法 `locate(loadName:)`，收到的是 load command 里的**原始拼写**，归一由实现自己做。这让遍历与「镜像从哪来」解耦：进程内、磁盘搜索路径、测试里手搭的表，都是一个实现。
 
-- **`InProcessDependencyLocator`**：归一后走 `MachOImage(name:)`。系统框架天然从 cache 解析；`@rpath` 依赖只要已映射进进程也能解析；弱链接但未映射的（如 `libswiftCoreAudio`）解析不到，进 `unresolvedLoadNames`。
+- **`InProcessDependencyLocator`**：归一后查一张「bare name → 镜像」表。系统框架天然从 cache 解析；`@rpath` 依赖只要已映射进进程也能解析；弱链接但未映射的（如 `libswiftCoreAudio`）解析不到，进 `unresolvedLoadNames`。表在定位器构造时建：遍历一遍 dyld 已映射的镜像，同名只留第一个——与 `MachOImage(name:)` 的选择逐个一致（同一条归一规则、同样「第一个匹配，没有 header 就是 nil」），只是不再每次查询都把所有镜像的路径重新拆一遍。改前一个几百个依赖的闭包、在映射了上千个镜像的进程里要拆几十万次路径，RuntimeViewer 并行打印时其余线程都排在第一个建闭包的 catalog 后面（2026-10-13，提案 `faster-lazy-definition-indexing`）。代价：定位器构造之后才映射的镜像它看不到，新建一个定位器就能看到；`DependencyClosure(root: MachOImage)` 每次都新建。
 - **`FileDependencyLocator`**：两步查找，顺序固定：
   1. **install path 精确匹配**——系统框架的 load name 就是 cache 镜像的 `imagePath`，命中即是编译器自己的答案。显式文件同时以「传入的磁盘路径」和「文件的 install name（`LC_ID_DYLIB`，通常 `@rpath/…`）」两种拼写登记，因为 `MachOFile.imagePath` 是 install name 而非磁盘路径。
   2. **bare name 排序兜底**——`@rpath/…` 或 cache 不认识的路径拼写落到这里。cache 里 leaf name 不唯一：macOS cache 在 `/System/iOSSupport` 下带着 Mac Catalyst 版 SwiftUI，iOS cache 有同名 `.axbundle`。候选按 MachOKitExtensions 的 `DyldCacheImageSearchMode.matchRank` 排序（canonical framework > 普通 dylib > bundle，support root 降级），取最优。**旧的 SwiftLayout 定位器是「枚举顺序首写者胜」**，在 macOS cache 上可能选中 Catalyst 构建——这是合并时消除的潜在错配（`FileDependencyLocatorTests.bareNameFallbackPrefersTheNativeCanonicalFramework` 锁定）。`matchRank` 对多点 leaf（`libc++.1.dylib`）返回 `nil`，此时记为最差 rank 但仍可解析。
@@ -86,6 +86,7 @@ providerDependencies.unresolvedLoadNames // 精确报告解析不到的依赖
 ## 测试锚点
 
 - `Tests/MachODependenciesTests/DependencyLoadNameTests.swift` — 归一规则表 + 与 `MachOImage(name:)` 的契约。
+- `Tests/MachODependenciesTests/InProcessDependencyLocatorTests.swift` — 进程里每个已映射镜像的路径（加上几个不存在的拼写），定位器的答案与 `MachOImage(name:)` 指向同一个镜像。
 - `Tests/MachODependenciesTests/DependencyClosureTests.swift` — direct / transitive 语义、BFS 前缀、去重、未解析报告、坏搜索路径不抛、自定义定位器收到原始 load name。
 - `Tests/MachODependenciesTests/FileDependencyLocatorTests.swift` — 宿主 cache 上的精确路径优先与 Catalyst 降级（无宿主 cache 时跳过）；平台守卫（`LC_BUILD_VERSION` 读取、`areCompatible` 规则、iOSSimulator root 在宿主 cache 上一无所获、zippered root 可取 Catalyst 镜像）。
 - `Tests/MachODependenciesTests/CacheRootDependencyClosureTests.swift` — cache 里的 root 在自己的 cache 里找依赖（按 `LC_UUID` 认出找到的是 15.5 的 Foundation，前提是宿主的 Foundation 是另一个构建），两种打开方式各一例；点名同一个 cache 时用的仍是 root 来自的那个实例。没有归档的 15.5 cache 时跳过。

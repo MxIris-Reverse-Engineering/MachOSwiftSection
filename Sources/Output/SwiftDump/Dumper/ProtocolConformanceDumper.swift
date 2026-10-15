@@ -190,10 +190,15 @@ package struct ProtocolConformanceDumper<MachO: MachOFieldLayoutRenderable>: Con
         return nil
     }
     
+    /// The first of `symbols` whose conformance names `typeName` and that no
+    /// earlier witness claimed, answered from the index's grouping of the
+    /// address by conforming type (evolution proposal
+    /// `faster-lazy-definition-indexing`). `symbols` is what the index
+    /// listed at its offset.
     package static func demangledSymbol(for symbols: Symbols, typeName: String, visitedNodes: borrowing OrderedSet<StructuralNodeReferenceKey> = [], in machO: MachO) -> DemangledSymbol? {
-        for symbol in symbols {
-            if let node = SymbolicDemangler.demangleSymbolReference(for: symbol, in: machO), let targetNode = node.first(of: .protocolConformance), let symbolTypeName = targetNode.children.at(0)?.print(using: .interfaceType), symbolTypeName == typeName, !visitedNodes.contains(StructuralNodeReferenceKey(node)) {
-                return .init(symbol: symbol, demangledNode: node)
+        for candidate in SymbolIndexStore.shared.symbols(for: symbols.offset, ownedBy: typeName, ownerKind: .conformingType, printedWith: .interfaceType, in: machO) {
+            if !visitedNodes.contains(StructuralNodeReferenceKey(candidate.demangledNode)) {
+                return candidate
             }
         }
         return nil

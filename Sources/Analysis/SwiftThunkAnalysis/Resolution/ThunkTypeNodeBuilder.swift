@@ -19,9 +19,12 @@ fileprivate protocol ThunkTypeNodeBuildingLogging {}
 /// the existing substitution rewrites it into the concrete argument. A
 /// mangled name is demangled. A specialized accessor's symbol is demangled
 /// and the type it is the accessor *for* taken. And an accessor applied to
-/// arguments becomes the accessor's nominal type with a `boundGeneric*`
-/// wrapper per generic level of its declaration chain, the way the demangler
-/// itself spells `Outer<Int>.Inner<String>`.
+/// arguments becomes the accessor's type bound to them: named the way the
+/// runtime names the instantiation when they are one per parameter of the
+/// type's whole context — `Outer<Int>.Inner<String>`, an extension context
+/// and the type it extends included — and otherwise wrapped in a
+/// `boundGeneric*` node per generic level of its declaration chain, the way
+/// the demangler itself spells it.
 package struct ThunkTypeNodeBuilder: ThunkTypeNodeBuildingLogging {
     package let machO: MachOFile
     package let environment: MachOThunkEnvironment
@@ -91,17 +94,44 @@ package struct ThunkTypeNodeBuilder: ThunkTypeNodeBuildingLogging {
         }
     }
 
+    /// The accessor's type bound to the arguments the thunk passed it.
+    ///
+    /// When every parameter of the type's whole generic context takes a key
+    /// argument, the arguments are one per parameter: grouped by
+    /// `GenericParameterDepthLayout`, they name the instantiation the way the
+    /// runtime does (`SymbolicDemangler.instantiatedTypeNode`). Both count
+    /// what the walk of the type contexts below misses — the parameters an
+    /// extension context brings (`extension Outer where A: Hashable { struct
+    /// Inner<B> }` takes `A` and `B`), which left such a type unnamed, its
+    /// field `accessor function at …`.
+    ///
+    /// Otherwise the walk of the type contexts binds each level's own key
+    /// parameters. It is what names a type in a same-type-constrained
+    /// extension — `extension Outer where A == Int { struct Inner<B> }`
+    /// receives the argument of `B` alone and reads
+    /// `Outer< where A == Swift.Int>.Inner<…>` — since an extension's
+    /// parameters are no type level of the walk.
     private func boundTypeNode(accessorAddress: UInt64, typeArguments: [ThunkTypeExpression]) -> Node? {
         guard let origin = environment.accessorOriginsByAddress[accessorAddress] else { return nil }
         do {
             let descriptor: ContextDescriptorWrapper = try ContextDescriptorWrapper.resolve(at: origin.descriptorOffset, in: origin.machO.context)
-            let unboundNode = try SymbolicDemangler.demangleContext(for: descriptor, in: origin.machO.context)
-            guard let keyParameterCountsByLevel = try keyParameterCountsByNominalLevel(of: descriptor, in: origin.machO) else { return nil }
             var argumentNodes: [Node] = []
             for typeArgument in typeArguments {
                 guard let argumentNode = typeNode(for: typeArgument) else { return nil }
                 argumentNodes.append(argumentNode)
             }
+            if let typeDescriptor = descriptor.typeContextDescriptorWrapper,
+               let genericContext = try typeDescriptor.genericContext(in: origin.machO.context),
+               genericContext.parameters.allSatisfy(\.hasKeyArgument) {
+                let depthLayout = GenericParameterDepthLayout.make(for: genericContext, ownedBy: descriptor, in: origin.machO.context)
+                guard let argumentsByDepth = depthLayout.grouped(argumentNodes) else {
+                    #log(.info, "accessor at 0x\(String(accessorAddress, radix: 16), privacy: .public) takes \(depthLayout.parameterCount, privacy: .public) type arguments, \(argumentNodes.count, privacy: .public) were named")
+                    return nil
+                }
+                return enveloped(try SymbolicDemangler.instantiatedTypeNode(for: typeDescriptor, binding: GenericArgumentBinding(argumentsByDepth: argumentsByDepth), in: origin.machO.context))
+            }
+            let unboundNode = try SymbolicDemangler.demangleContext(for: descriptor, in: origin.machO.context)
+            guard let keyParameterCountsByLevel = try keyParameterCountsByNominalLevel(of: descriptor, in: origin.machO) else { return nil }
             guard keyParameterCountsByLevel.reduce(0, +) == argumentNodes.count else {
                 #log(.info, "accessor at 0x\(String(accessorAddress, radix: 16), privacy: .public) takes \(keyParameterCountsByLevel.reduce(0, +), privacy: .public) type arguments, \(argumentNodes.count, privacy: .public) were named")
                 return nil

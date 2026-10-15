@@ -75,10 +75,17 @@
 
 ### context form / Mach-O form / pointer form（读取接口的三种形式）
 
-同一个读取接口曾经最多有三份手写实现：context form 收 `some ReadingContext`（`name(in: context)`、静态 `resolve(at:in:)`），Mach-O form 收一个 Mach-O reader、按偏移读（`name(in: machO)`、`resolve(from:in:)`），pointer form 不收读取器、直接用裸指针读本进程内存（`name()`、`resolve(from: pointer)`）。2026-09-30 起 context form 是唯一实现，另外两种是 0.22.0 废弃、0.23.0 删除的一行转发（`machO.context` / `.inProcess`）。
+同一个读取接口曾经最多有三份手写实现：context form 收 `some ReadingContext`（`name(in: context)`、静态 `resolve(at:in:)`），Mach-O form 收一个 Mach-O reader、按偏移读（`name(in: machO)`、`resolve(from:in:)`），pointer form 不收读取器、直接用裸指针读本进程内存（`name()`、`resolve(from: pointer)`）。2026-09-30 起 context form 是唯一实现，另外两种是 0.22.0 废弃、0.24.0 删除的一行转发（`machO.context` / `.inProcess`）。
 
 - **主要出现在**：`Sources/ABI/MachOSwiftSection/Models/`、`Sources/MachO/MachOPointers/`、`Sources/MachO/MachOResolving/Resolvable.swift`
 - **延伸阅读**：[提案 0057](Evolutions/0057-reading-context-migration.md)、[ReadingContextAbstraction.md](Internal/ReadingContextAbstraction.md)
+
+### depth（泛型参数层号，`GenericParameterDepthLayout`）
+
+泛型参数 `(depth, index)` 坐标的前一半，mangling 里的 `τ_1_0`、打印出的 `A1`。**层号只数声明了参数的上下文**：本身不声明参数、只因嵌在泛型类型里才算泛型的类型（`Outer<A>.Middle`）不开新层；一个 extension 上下文可能跨好几层（`extension Outer.SecondMiddle where …` 同时覆盖 `Outer` 与 `SecondMiddle` 的层）。generic context descriptor 只记录累计的参数列表，不记录层的边界，从父链数祖先会数错；层号一律从 `GenericParameterDepthLayout` 取。`TargetGenericContext.depth` 是泛型祖先的个数，不是层号。
+
+- **主要出现在**：`SwiftInspection.GenericParameterDepthLayout`、`GenericSpecializer` 的参数命名、dump / interface 的泛型参数子句
+- **延伸阅读**：[OfflineGenericSpecialization.md](Internal/OfflineGenericSpecialization.md)「参数的层号只数声明了参数的上下文」
 
 ### dependency closure（依赖闭包）
 
@@ -153,6 +160,13 @@ linker 把字节相同的函数体合并到同一地址的优化。后果是「�
 - **主要出现在**：`Descriptor+MethodDescriptorSymbols.swift`、`ClassDumper`、`TypeDefinition.index`、`FinalKeywordICFRegressionTests`、`VTableSlotAttributionTests`
 - **延伸阅读**：[提案 vtable-slot-attribution](Evolutions/0020-vtable-slot-attribution-via-method-descriptor-symbols.md)、[提案 0006](Evolutions/0006-final-keyword-and-lazy-accessor-type-recovery.md)
 
+### instantiated type name（实例化类型名）
+
+一个泛型类型某个实例化的名字，实参挂在声明对应参数的那一层：`Outer<Swift.Int>.Inner<Swift.String>`、`Outer<Swift.Int>.Middle`。这是运行时 `_buildDemanglingForContext` 给实例化起名的形状；`SymbolicDemangler.instantiatedTypeNode(for:binding:in:)` 移植它，离线特化的结果与在线特化的 `TypeDefinition.typeName` 都用它。不要与把全部实参放进最内层的旧形状（`Outer.Inner<Int, String>`）混淆。
+
+- **主要出现在**：`SymbolicDemangler.instantiatedTypeNode`、`GenericInstantiation`、`StaticSpecializationResult.typeName`
+- **延伸阅读**：[OfflineGenericSpecialization.md](Internal/OfflineGenericSpecialization.md)「实例化类型名」
+
 ### large-stack executor（大栈执行器，`LargeStackTaskExecution`）
 
 swift-demangling 0.6.3 起提供的 `TaskExecutor`（`StackSafeExecutor.taskExecutor`，线程栈 16 MB，`@_spi(Internals)`）。demangler 每次 demangle / print / remangle 都按**调用线程的剩余栈**决定要不要跳到它的 8 MB 线程池——协作线程只有 512 KB，探针永远不过，async 打印循环因此每打印一个符号付一次线程往返；task 跑在大栈执行器的线程上时探针每个入口都通过，全程原地执行、零跳转。本库通过 `MachOSymbols.LargeStackTaskExecution.run` 在库入口（索引器 prepare、interface builder、printer 逐定义入口、diff / evolution、dump）自装偏好，宿主零改动；macOS 15 / iOS 18 以下静默回退为原样执行。与「跳转池」（demangler 自己的 8 MB `LargeStackThreadPool`，同步 `withLargeStack` 批次用）是两个池：执行器的 job 是整段 task，会占线程上百秒，不能挤占同步跳转的额度。
@@ -206,6 +220,13 @@ opaque 尖括号参数归属的第三条规则：协议无任何 anchor 命中�
 - **主要出现在**：`Sources/MachO/MachOSymbols/SymbolTable.swift`
 - **延伸阅读**：[提案 0001](Evolutions/0001-symbol-name-offsetization.md)
 
+### nested-definition region（定义区域，`marksNestedDefinitions`）
+
+`SwiftDeclarationPrintConfiguration.marksNestedDefinitions` 为 `true` 时，父定义打印结果里每个内联打印的嵌套类型或协议被包进 swift-semantic-string 的 `DefinitionRegion`，身份是名字节点的 mangled name，与 RuntimeViewer 的对象名相同。冻结后用 `separatingDefinitionRegions()` 拆出区域表；对深度为 d 的区域，`content(ofDefinitionRegion:)` 再加 `removingIndentation(levels: d + 1)` 得到的值，与该定义单独打印的结果逐项相同（文本、span、identifier，以及两种分离得到的表）。宿主因此只需打印父定义，不必再单独打印每个嵌套定义。与标记模式同时打开时，定义区域的编码放在可见性标记的内层，两者互不影响。
+
+- **主要出现在**：`Sources/Output/SwiftPrinting/SwiftDeclarationPrinter+DefinitionRegions.swift`、`SwiftDeclarationPrintConfiguration.swift`
+- **延伸阅读**：[提案 0068-nested-definition-regions](Evolutions/0068-nested-definition-regions.md)；swift-semantic-string 的 `docs/DefinitionRegions.md`
+
 ### NodeStore / NodeReference
 
 上游 swift-demangling 的 arena 存储：demangle 结果不再是 class `Node` 树，而是扁平缓冲里的节点（12 字节/节点）加一个 `(store, index)` 引用。本仓库的符号索引、声明模型、各级缓存全部换持 `NodeReference`。注意它的 `Hashable` 是 store 身份语义——见「store-identity vs 结构相等」。
@@ -241,12 +262,33 @@ opaque 尖括号参数归属的第三条规则：协议无任何 anchor 命中�
 - **主要出现在**：`SwiftInspection/ObjCAncestorResolver.swift`、`SwiftInspection/ObjCClassMethodIndex.swift`、`MachODependencies/DependencyPlatforms.swift`
 - **延伸阅读**：[提案 0049-objc-ancestor-dependency-closure](Evolutions/0049-objc-ancestor-dependency-closure.md)、[ObjCMemberRecovery.md](Internal/ObjCMemberRecovery.md)
 
+### offline specialization（离线特化）
+
+不经 runtime 特化一个从文件读出的泛型类型：`GenericSpecializer<MachOFile>.specialize(_:with:)` 把每个实参变成类型节点，得到实例化类型名与按层分组的实参（`GenericArgumentBinding`），打印器与静态布局引擎据此出绑定头部、代换后的字段类型和布局注释。相对的「运行时特化」（在线）调用镜像里的 metadata accessor，只能用于加载在当前进程里的 `MachOImage`。特化后的定义里，离线的带 `staticSpecialization`，在线的带 `metadata`。
+
+- **主要出现在**：`GenericSpecializer+StaticSpecialization.swift`、`StaticSpecializationResult`、`TypeDefinition.staticSpecialization`
+- **延伸阅读**：[OfflineGenericSpecialization.md](Internal/OfflineGenericSpecialization.md)
+
 ### permutation 二分（permutation binary search）
 
 不给数据本体排序，而是另存一条「按某序排列的下标数组」（permutation），查询时在这条下标序列上二分。`SymbolTable.rowsSortedByName` 即名字序 permutation：行本体保持插入序不动，名字查找二分这条 `[UInt32]`。替代了被退役的名字键字典 `tableRowByName`。
 
 - **主要出现在**：`Sources/MachO/MachOSymbols/SymbolTable.swift`（`row(forName:)`）
 - **延伸阅读**：[提案 0001](Evolutions/0001-symbol-name-offsetization.md)
+
+### position-based name（按位置起的名字）
+
+函数或闭包里声明的局部类型，在二进制里找不回所在函数时用的名字：`Holder.(Visitor in $1a2b3c)`。局部类型的函数名有三个来源——描述符自带的名字（只有 debug 构建写）、匿名描述符的 `$s<上下文>MXX` 符号、`_symbolic` 符号——三处都没有（典型是 strip 过的 App）时，`SymbolicDemangler` 照运行时和 Remote Mirror 的做法，用包着该类型的那个匿名上下文的地址起名，挂在最近一个能叫出名字的上下文下面。地址的口径与 dump 的成员地址注释相同，所以同一个镜像从文件读和在进程内读得到同一个名字。它借用 `privateDeclName` 的形状，但类型不是 private，`$` 开头的部分也不是鉴别符；判断用 `LocalTypeNaming.positionBased`，不要按字符串猜。
+
+- **主要出现在**：`Sources/Analysis/SwiftInspection/SymbolicDemangler.swift`（`positionNameOfUnnamedLocalType`）、`Sources/Analysis/SwiftInspection/LocalTypeNaming.swift`、`Sources/Output/SwiftDeclarationRendering/RuntimeTypeNameDemangling.swift`
+- **延伸阅读**：[提案 0062](Evolutions/0062-local-type-context-names.md)
+
+### private declaration（私有声明，`privateDeclarations`）
+
+一个名字的显示名里读得到的 `private` / `fileprivate` 声明，每个连同它的 private discriminator：`Node.privateDeclarations` / `NodeReference.privateDeclarations` 返回的 `[PrivateDeclaration]`，按阅读顺序排列、去重。取法是整树搜索 `privateDeclName`，有两处不算：函数、闭包这类上下文的签名部分（参数和返回值里的 private 类型），以及 position-based name 里 `$` 开头的那一段（那是地址，不是 discriminator）。特化类型的泛型实参、受约束扩展里被扩展的类型都算；局部类型所在的函数是 private 时，函数也算，`name` 是函数名。RuntimeViewer 的 `Private` 标签和源文件反推（`SwiftPrivateDiscriminators`）读的都是这一份。
+
+- **主要出现在**：`Sources/Analysis/SwiftInspection/PrivateDeclarations.swift`、`Sources/Declaration/SwiftPrivateDiscriminators/PrivateDiscriminatorSourceFileIndex.swift`
+- **延伸阅读**：[提案 0063](Evolutions/0063-private-declarations.md)、[Modules/SwiftPrivateDiscriminators.md](Internal/Modules/SwiftPrivateDiscriminators.md)
 
 ### renamed class（改名类，`@objc(Name)` / `@_objcRuntimeName(Name)`）
 

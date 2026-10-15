@@ -130,6 +130,18 @@ public final class SymbolIndexStore: @unchecked Sendable {
         }
     }
 
+    /// What a symbol at an address it shares with others belongs to — how
+    /// the one a caller is after is told apart from the names identical
+    /// code folding put beside it.
+    public enum SymbolOwnerKind: Hashable, Sendable {
+        /// The type its first protocol conformance names: a protocol
+        /// witness's conforming type.
+        case conformingType
+        /// Its first protocol: a protocol requirement's, or a default
+        /// implementation's.
+        case `protocol`
+    }
+
     public final class Storage: @unchecked Sendable {
         typealias MemberSymbolRows = OrderedDictionary<String, OrderedDictionary<NodeStore.NodeIndex, SymbolRowBucket>>
 
@@ -360,6 +372,88 @@ public final class SymbolIndexStore: @unchecked Sendable {
         /// `lateDemangledNode(forName:)`.
         func lateDemangleVerdictForTesting(forName name: String) -> NodeReference?? {
             _lateDemangledNodeByName.withLockUnchecked { $0[name] }
+        }
+
+        // MARK: Symbols grouped by owner
+
+        /// One grouping of an offset's rows: the offset, the rule naming each
+        /// row's owner, and the options the owner is printed with.
+        struct OwnerGroupingKey: Hashable {
+            let offset: Int
+            let ownerKind: SymbolOwnerKind
+            let printOptionsRawValue: Int
+        }
+
+        /// Per queried offset, owner rule and print options, the rows there
+        /// grouped by the name of their owner, each group in the offset's row
+        /// order — built the first time the offset is asked about that way
+        /// (evolution proposal `faster-lazy-definition-indexing`).
+        ///
+        /// Identical code folding piles the witnesses of many conformances
+        /// onto one address: in SwiftUI a single `_destroySelf` or value
+        /// witness implementation carries well over a thousand names. Every
+        /// conformance asks the address for its own witness, and answering
+        /// that by demangling, searching and printing each name in turn was
+        /// quadratic in the group's size — 3.65 million checks over 17,852
+        /// distinct names for SwiftUI alone. Grouping once makes each later
+        /// question two dictionary probes.
+        @Mutex
+        private var rowsByOwnerNameByGroupingKey: [OwnerGroupingKey: [String: [UInt32]]] = [:]
+
+        /// The rows at `offset` whose owner, named by `ownerKind` and printed
+        /// with `options`, prints as `ownerName`, in the order
+        /// `symbolRowsByOffset` lists them.
+        ///
+        /// The grouping runs outside the lock — it demangles nothing, but it
+        /// walks and prints trees, which may hop to a large-stack thread —
+        /// and two threads grouping the same offset at once both do the work;
+        /// the first to finish is kept, and both answer from the same rows,
+        /// since the grouping is a pure function of the frozen table.
+        func rows(at offset: Int, ownedBy ownerName: String, ownerKind: SymbolOwnerKind, options: DemangleOptions) -> [UInt32] {
+            let groupingKey = OwnerGroupingKey(offset: offset, ownerKind: ownerKind, printOptionsRawValue: options.rawValue)
+            if let rowsByOwnerName = _rowsByOwnerNameByGroupingKey.withLockUnchecked({ $0[groupingKey] }) {
+                return rowsByOwnerName[ownerName] ?? []
+            }
+            let rowsByOwnerName = groupRowsByOwnerName(at: offset, ownerKind: ownerKind, options: options)
+            return _rowsByOwnerNameByGroupingKey.withLockUnchecked { groupings in
+                if let winner = groupings[groupingKey] {
+                    return winner[ownerName] ?? []
+                }
+                groupings[groupingKey] = rowsByOwnerName
+                return rowsByOwnerName[ownerName] ?? []
+            }
+        }
+
+        /// The grouping itself, by the rules the attributing code matched
+        /// one symbol at a time before: the conformance is the first
+        /// `protocolConformance` node of the symbol's tree in deduped
+        /// preorder and its owner the conformance's first child; a protocol
+        /// owner is the first `protocol` node. A row the demangler rejected,
+        /// or whose tree has no owner, joins no group — it matched nothing
+        /// before either.
+        private func groupRowsByOwnerName(at offset: Int, ownerKind: SymbolOwnerKind, options: DemangleOptions) -> [String: [UInt32]] {
+            guard let rows = symbolRowsByOffset[offset] else { return [:] }
+            var rowsByOwnerName: [String: [UInt32]] = [:]
+            for row in rows {
+                guard let rootNodeIndex = rootNodeIndexByTableRow[Int(row)] else { continue }
+                let rootNode = nodeStore.reference(at: rootNodeIndex)
+                let ownerNode: NodeReference? = switch ownerKind {
+                case .conformingType:
+                    rootNode.first(of: .protocolConformance)?.children.first
+                case .protocol:
+                    rootNode.first(of: .protocol)
+                }
+                guard let ownerNode else { continue }
+                rowsByOwnerName[ownerNode.print(using: options), default: []].append(row)
+            }
+            return rowsByOwnerName
+        }
+
+        /// Test-only visibility into a grouping: `nil` until the offset has
+        /// been asked about with that owner rule and those options.
+        func rowsByOwnerNameForTesting(at offset: Int, ownerKind: SymbolOwnerKind, options: DemangleOptions) -> [String: [UInt32]]? {
+            let groupingKey = OwnerGroupingKey(offset: offset, ownerKind: ownerKind, printOptionsRawValue: options.rawValue)
+            return _rowsByOwnerNameByGroupingKey.withLockUnchecked { $0[groupingKey] }
         }
 
         // MARK: Row materialization
@@ -1287,6 +1381,26 @@ public final class SymbolIndexStore: @unchecked Sendable {
     package func symbols(for offset: Int, in machO: some MachORepresentableWithCache) -> Symbols? {
         guard let storage = storage(in: machO), let rows = storage.symbolRowsByOffset[offset], !rows.isEmpty else { return nil }
         return .init(offset: offset, symbols: rows.map { storage.symbol(atRow: $0, offset: offset) })
+    }
+
+    /// Of the symbols `symbols(for:in:)` lists at `offset`, the ones whose
+    /// owner — named by `ownerKind`, printed with `options` — prints as
+    /// `ownerName`, in that query's order, each paired with its demangled
+    /// tree: what a conformance asks an implementation address for when it
+    /// attributes a witness, and a protocol a requirement's or default
+    /// implementation's address. Each value is standalone and stamped with
+    /// the queried offset, as a value built from that query's `Symbol`
+    /// would be.
+    ///
+    /// One grouping per offset, owner rule and options, kept with the
+    /// image's index, answers every later question about it; see
+    /// `Storage.rows(at:ownedBy:ownerKind:options:)`.
+    package func symbols(for offset: Int, ownedBy ownerName: String, ownerKind: SymbolOwnerKind, printedWith options: DemangleOptions, in machO: some MachORepresentableWithCache) -> [DemangledSymbol] {
+        guard let storage = storage(in: machO) else { return [] }
+        return storage.rows(at: offset, ownedBy: ownerName, ownerKind: ownerKind, options: options).compactMap { row in
+            guard let rootNodeIndex = storage.rootNodeIndexByTableRow[Int(row)] else { return nil }
+            return DemangledSymbol(symbol: storage.symbol(atRow: row, offset: offset), demangledNode: storage.nodeStore.reference(at: rootNodeIndex))
+        }
     }
 
     /// The image's symbolic-mangling symbols — `_symbolic ` and

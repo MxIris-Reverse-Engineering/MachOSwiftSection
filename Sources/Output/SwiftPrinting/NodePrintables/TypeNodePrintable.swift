@@ -1,5 +1,6 @@
 import SwiftDeclaration
 import SwiftDeclarationRendering
+import SwiftInspection
 import Demangling
 import Semantic
 
@@ -24,9 +25,9 @@ extension TypeNodePrintable {
              .unmanaged:
             await printFirstChild(name)
         case .builtinTypeName:
-            target.write(name.text ?? "", context: .context(for: name, state: .printType))
+            target.write(builtinTypeNameSpelling(name.text ?? ""), context: .context(for: name, state: .printType))
         case .builtinTupleType:
-            target.write("Builtin.TheTupleType", context: .context(for: name, state: .printType))
+            target.write(builtinTypeNameSpelling("Builtin.TheTupleType"), context: .context(for: name, state: .printType))
         case .enum,
              .structure,
              .class,
@@ -77,7 +78,7 @@ extension TypeNodePrintable {
             // a type printer does not handle — so delegate whole, exactly as
             // `printOpaqueType` does, instead of printing children into an
             // empty `<<opaque return type of >>`.
-            target.write(await name.print(using: .default), context: .context(for: name, state: .printType))
+            target.write(await name.print(using: delegatedPrintOptions), context: .context(for: name, state: .printType))
         case .opaqueType:
             await printOpaqueType(name)
         case .symbolicExtendedExistentialType:
@@ -90,7 +91,7 @@ extension TypeNodePrintable {
 
     mutating func printOpaqueReturnType(_ node: Node) async {
         target.write("some", context: .context(for: node, state: .printKeyword))
-        if let targetNode = context.targetNode, let opaqueType = await delegate?.opaqueType(forNode: targetNode, index: node.first(of: .opaqueReturnTypeIndex)?.index?.int) {
+        if let targetNode = context.targetNode, let opaqueType = await delegate?.opaqueType(forNode: targetNode, index: node.first(of: .opaqueReturnTypeIndex)?.index?.int, usesModuleSelectors: context.usesModuleSelectors) {
             let constraintStart = target.writtenUnitCount
             target.writeSpace()
             target.write(opaqueType)
@@ -145,7 +146,23 @@ extension TypeNodePrintable {
             target.write(text, context: .context(for: name, state: .printType))
             return
         }
-        target.write(await name.print(using: .default), context: .context(for: name, state: .printType))
+        target.write(await name.print(using: delegatedPrintOptions), context: .context(for: name, state: .printType))
+    }
+
+    /// The options a node handed whole to the upstream `NodePrinter` prints
+    /// with — `.default`, plus module selectors when this printer uses them.
+    var delegatedPrintOptions: DemangleOptions {
+        context.usesModuleSelectors ? DemangleOptions.default.union(.useModuleSelectors) : .default
+    }
+
+    /// A builtin type's name, which the demangler builds whole
+    /// (`Builtin.RawPointer`), with its qualifier spelled as a module selector
+    /// (`Builtin::RawPointer`) when this printer uses them — the compiler's
+    /// own spelling in a `.swiftinterface`.
+    func builtinTypeNameSpelling(_ text: String) -> String {
+        let dottedQualifier = "Builtin."
+        guard context.usesModuleSelectors, text.hasPrefix(dottedQualifier) else { return text }
+        return "Builtin::" + text.dropFirst(dottedQualifier.count)
     }
 
     mutating func printType(_ name: Node) async {
@@ -155,17 +172,31 @@ extension TypeNodePrintable {
         }
         guard let contextNode = name.children.first else { return }
 
+        // A type declared in a function or closure body: nothing outside the
+        // body can spell it, so a reference prints its declared name alone —
+        // the name its declaration prints under, a comment above which names
+        // the function (evolution proposal `local-type-context-names`). This
+        // printer spells no function, closure or local name, and printed
+        // such a reference as nothing at all (`__derived_struct_equals(_: , _: )`).
+        let isLocalType = name.localTypeNaming != nil
+
         var resolvedCImportedModule = false
-        if shouldPrintContext() {
+        var resolvedCImportedModuleName: String?
+        if shouldPrintContext(), !isLocalType {
             let writtenUnitCountBeforeContext = target.writtenUnitCount
             if contextNode.kind == .module {
                 let siblingIdentifier = name.children.at(1)?.text
-                resolvedCImportedModule = await printModule(contextNode, siblingIdentifier: siblingIdentifier)
-                // The module→type dot stays inside this leaf's scope so a
-                // fully-qualified top-level name (`AppKit.MenuItem`) selects
-                // as one span.
+                let moduleName = await resolvedModuleName(of: contextNode, siblingIdentifier: siblingIdentifier)
+                resolvedCImportedModule = moduleName.isResolvedCImportedModule
+                if resolvedCImportedModule {
+                    resolvedCImportedModuleName = moduleName.text
+                }
+                target.write(moduleName.text, context: .context(for: contextNode, state: .printModule))
+                // The module→type separator stays inside this leaf's scope so
+                // a fully-qualified top-level name (`AppKit.MenuItem`)
+                // selects as one span.
                 if target.writtenUnitCount != writtenUnitCountBeforeContext {
-                    target.write(".")
+                    target.write(context.usesModuleSelectors ? "::" : ".")
                 }
             } else {
                 await printName(contextNode, options: NodePrintOptions(asPrefixContext: true))
@@ -178,12 +209,20 @@ extension TypeNodePrintable {
                     target.pushTypeReferenceScope(nil)
                     target.write(".")
                     target.popTypeReferenceScope()
+                    await printModuleSelector(ofNestedType: name)
                 }
             }
         }
 
         if let declarationName = name.children.at(1) {
-            if declarationName.kind != .privateDeclName {
+            if declarationName.kind == .localDeclName {
+                // `Visitor #1`'s identifier: the ordinal tells same-named
+                // types of one body apart, which the comment above each
+                // declaration does here.
+                if let identifier = declarationName.children.at(1) {
+                    await printIdentifier(identifier, parentKind: name.kind)
+                }
+            } else if declarationName.kind != .privateDeclName {
                 if declarationName.kind == .identifier {
                     // A resolved C-imported module may pair with an identifier
                     // whose C spelling differs from its Swift one — `__C`'s
@@ -197,7 +236,22 @@ extension TypeNodePrintable {
                        let identifierText = declarationName.text,
                        let delegate,
                        let swiftSpelling = await delegate.swiftName(forCName: identifierText, category: CImportedTypeNameCategory(nodeKind: name.kind)) {
-                        target.write(swiftSpelling, context: .context(for: declarationName, parentKind: name.kind, state: .printIdentifier))
+                        if context.usesModuleSelectors, let resolvedCImportedModuleName, swiftSpelling.contains(".") {
+                            // Imported as a member (`NSAttributedString.Key`):
+                            // every level carries the module, as the compiler
+                            // writes it (`Foundation::NSAttributedString.Foundation::Key`).
+                            let components = swiftSpelling.split(separator: ".", omittingEmptySubsequences: false)
+                            for (componentIndex, component) in components.enumerated() {
+                                if componentIndex > 0 {
+                                    target.write(".")
+                                    target.write(resolvedCImportedModuleName, context: .context(for: contextNode, state: .printModule))
+                                    target.write("::")
+                                }
+                                target.write(String(component), context: .context(for: declarationName, parentKind: name.kind, state: .printIdentifier))
+                            }
+                        } else {
+                            target.write(swiftSpelling, context: .context(for: declarationName, parentKind: name.kind, state: .printIdentifier))
+                        }
                     } else {
                         await printIdentifier(declarationName, parentKind: name.kind)
                     }
@@ -209,6 +263,27 @@ extension TypeNodePrintable {
                 await printPrivateDeclName(privateDeclName, parentKind: name.kind)
             }
         }
+    }
+
+    /// Writes the module selector a nested type's own name carries — the
+    /// `Foundation::` of `Swift::Duration.Foundation::TimeFormatStyle` — when
+    /// this printer uses module selectors. The compiler writes one on every
+    /// type it qualifies, parent printed or not
+    /// (`TypePrinter::printQualifiedType`), since an extension in another
+    /// module can declare a nested type its parent's module knows nothing
+    /// about.
+    ///
+    /// Written inside the nested type's own reference scope, after the
+    /// separator dot, the way a top-level type's module is. Nothing is written
+    /// for a type inside a function or closure (a module selector skips local
+    /// scopes, so the compiler writes none either), nor for a C-imported
+    /// module spelling that does not resolve to a real module.
+    mutating func printModuleSelector(ofNestedType name: Node) async {
+        guard context.usesModuleSelectors, let module = name.declaringModuleForModuleSelector else { return }
+        let moduleName = await resolvedModuleName(of: module, siblingIdentifier: name.children.at(1)?.text)
+        guard !moduleName.text.isEmpty, moduleName.text != objcModule, moduleName.text != cModule else { return }
+        target.write(moduleName.text, context: .context(for: module, state: .printModule))
+        target.write("::")
     }
 
     mutating func printTypeList(_ name: Node) async {
@@ -299,7 +374,7 @@ extension TypeNodePrintable {
             await printChildren(protocolsTypeList, suffix: " & ", separator: " & ")
         }
         target.write("Swift", context: .context(for: name, state: .printModule))
-        target.write(".")
+        target.write(context.usesModuleSelectors ? "::" : ".")
         target.write("AnyObject", context: .context(for: name, parentKind: .protocol, state: .printIdentifier))
     }
 
@@ -334,5 +409,45 @@ extension TypeNodePrintable {
             target.write(", ")
             await printName(third)
         }
+    }
+}
+
+extension Node {
+    /// The `module` node naming the module that declared this nested type
+    /// declaration: the module of the nearest enclosing extension, else the
+    /// module at the root of its context chain — `nil` once the chain leaves
+    /// types and extensions (a function, closure or anonymous context), and
+    /// for anything but a type declaration, which carries no module selector
+    /// of its own. The same rule as the `useModuleSelectors` option of
+    /// swift-demangling's `NodePrinter`.
+    ///
+    /// Iterative: the chain is as long as the nesting, and this walk sits
+    /// outside the depth-checked `printName` recursion.
+    fileprivate var declaringModuleForModuleSelector: Node? {
+        switch kind {
+        case .class, .structure, .enum, .protocol, .otherNominalType, .typeAlias:
+            break
+        default:
+            return nil
+        }
+        var context = children.first
+        while let current = context {
+            switch current.kind {
+            case .module:
+                return current
+            case .extension:
+                guard let extensionModule = current.children.first, extensionModule.kind == .module else { return nil }
+                return extensionModule
+            case .type,
+                 .class, .structure, .enum, .protocol, .otherNominalType, .typeAlias,
+                 .boundGenericClass, .boundGenericStructure, .boundGenericEnum, .boundGenericProtocol, .boundGenericOtherNominalType, .boundGenericTypeAlias:
+                // A type's first child is the type it wraps; a nominal's is its
+                // own context; a bound generic's is its unbound type.
+                context = current.children.first
+            default:
+                return nil
+            }
+        }
+        return nil
     }
 }

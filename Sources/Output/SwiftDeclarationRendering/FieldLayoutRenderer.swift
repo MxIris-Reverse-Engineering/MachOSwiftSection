@@ -41,6 +41,10 @@ public struct FieldLayoutRenderState {
     public let configuration: DeclarationRenderConfiguration
     public let isGeneric: Bool
     public let staticAggregateFieldLayout: AggregateFieldLayout?
+    /// The arguments of an offline specialization (evolution proposal
+    /// `offline-generic-specialization`): the static path computes the
+    /// comments for this instantiation instead of the unbound type.
+    public let genericArgumentBinding: GenericArgumentBinding?
 
     /// The dumped type as an `Enum`, or `nil` for struct/class.
     public var enumValue: Enum? {
@@ -76,9 +80,10 @@ public protocol FieldLayoutRenderable {
     static func makeStaticFieldLayoutProvider(machO: Self, resolution: StaticLayoutDependencyResolution) -> (any StaticFieldLayoutProvider)?
 
     /// Precompute (once per type, at renderer init) the static aggregate layout
-    /// the offline path reads field offsets / type layouts from. `nil` for the
-    /// runtime path or when no static provider was injected.
-    static func precomputedStaticAggregateFieldLayout(for type: TypeContextWrapper, machO: Self, configuration: DeclarationRenderConfiguration) -> AggregateFieldLayout?
+    /// the offline path reads field offsets / type layouts from — of the
+    /// instantiation `genericArgumentBinding` makes, when one is given. `nil`
+    /// for the runtime path or when no static provider was injected.
+    static func precomputedStaticAggregateFieldLayout(for type: TypeContextWrapper, genericArgumentBinding: GenericArgumentBinding?, machO: Self, configuration: DeclarationRenderConfiguration) -> AggregateFieldLayout?
 
     static func renderFieldOffsets(_ state: FieldLayoutRenderState, machO: Self) -> [Int]?
 
@@ -126,6 +131,10 @@ package struct FieldLayoutRenderer<MachO: MachOFieldLayoutRenderable> {
     /// when no static provider was injected.
     package let staticAggregateFieldLayout: AggregateFieldLayout?
 
+    /// An offline specialization's arguments; see
+    /// `FieldLayoutRenderState.genericArgumentBinding`.
+    package let genericArgumentBinding: GenericArgumentBinding?
+
     /// - Parameters:
     ///   - providedMetadata: a caller-supplied (typically specialized) metadata
     ///     to read field offsets / drive substitution from.
@@ -136,10 +145,13 @@ package struct FieldLayoutRenderer<MachO: MachOFieldLayoutRenderable> {
     ///     the model-driven printer wants. When `false` (the raw-descriptor dump
     ///     path), a `nil` metadata stays `nil` so the bare dumper keeps its "no
     ///     metadata context ⇒ no offsets" contract.
-    package init(type: TypeContextWrapper, metadata providedMetadata: MetadataWrapper?, machO: MachO, configuration: DeclarationRenderConfiguration, autoResolveAccessorMetadata: Bool = true) {
+    ///   - genericArgumentBinding: an offline specialization's arguments, which
+    ///     the static path computes the comments for.
+    package init(type: TypeContextWrapper, metadata providedMetadata: MetadataWrapper?, genericArgumentBinding: GenericArgumentBinding? = nil, machO: MachO, configuration: DeclarationRenderConfiguration, autoResolveAccessorMetadata: Bool = true) {
         self.type = type
         self.machO = machO
         self.configuration = configuration
+        self.genericArgumentBinding = genericArgumentBinding
 
         let isGeneric: Bool
         switch type {
@@ -160,7 +172,7 @@ package struct FieldLayoutRenderer<MachO: MachOFieldLayoutRenderable> {
             self.metadata = try? FieldLayoutRenderer.resolveAccessorMetadata(for: type, in: machO)
         }
 
-        self.staticAggregateFieldLayout = MachO.precomputedStaticAggregateFieldLayout(for: type, machO: machO, configuration: configuration)
+        self.staticAggregateFieldLayout = MachO.precomputedStaticAggregateFieldLayout(for: type, genericArgumentBinding: genericArgumentBinding, machO: machO, configuration: configuration)
     }
 
     private static func resolveAccessorMetadata(for type: TypeContextWrapper, in machO: MachO) throws -> MetadataWrapper? {
@@ -182,7 +194,7 @@ package struct FieldLayoutRenderer<MachO: MachOFieldLayoutRenderable> {
 
     /// The reader-independent state handed to the rendering witnesses.
     private var renderState: FieldLayoutRenderState {
-        FieldLayoutRenderState(type: type, metadata: metadata, configuration: configuration, isGeneric: isGeneric, staticAggregateFieldLayout: staticAggregateFieldLayout)
+        FieldLayoutRenderState(type: type, metadata: metadata, configuration: configuration, isGeneric: isGeneric, staticAggregateFieldLayout: staticAggregateFieldLayout, genericArgumentBinding: genericArgumentBinding)
     }
 
     // MARK: - Compile-time-dispatched entry points (forward to the reader's backend)

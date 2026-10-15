@@ -602,3 +602,132 @@
   - dump/interface 打印的声明里如果出现函数局部类型，`currentName` 会把它显示成外层函数签名的尾巴。库代码里目前没有调用它，影响待查。
   - 上游 swift-demangling 的 `Node.identifier` 同样不认 `.localDeclName`。
   - `MemberKey` 这个候选的镜像路径是空字符串，原因没查。
+
+---
+
+## A53 — 等另一个线程跑完某个定义的索引时，不把自己的优先级借给它（PR #131 review 发现 9）
+
+- **裁决**：不修（2026-10-08）。
+- **发现**：`DefinitionIndexing`（`Sources/Declaration/SwiftDeclaration/Components/Definitions/DefinitionIndexing.swift`）让第二个要索引同一个定义的调用者在 `SharedCacheBuildPromise.wait()` 上阻塞，底层是 `NSCondition`，不会把等待者的 QoS 借给正在跑索引的线程。RuntimeViewer 在 `.utility` 上建 Find 语料，用户恰好点开语料正在索引的那个类型时，前台的打印要等后台线程跑完。
+- **复现 / 是否误报**：机制属实，读码确认。没有实测延迟；单个定义的索引通常是毫秒级。
+- **与 main 基线对比**：PR 新引入。改前每个调用者各自索引同一个定义，那是数据竞争，也正是 PR 要修的问题。`SharedCache` 的并发构建用的是同一个 promise，一直是同样的取舍。
+- **为什么不修**：代价没观察到，修法却不小：要在 promise 里记下构建线程，等待前用 `pthread_override_qos_class_start_np` 借出优先级、等完调 `_end_np`，还要处理构建线程在等待开始前已经退出（`pthread_t` 失效）的情况。
+- **既往修复**：无。
+- **复审条件**：RuntimeViewer 出现能感觉到的「点开一个类型要等」。到时在 `SharedCacheBuildPromise` 里做，`SharedCache` 一起受益。
+
+---
+
+## A54 — 嵌套字段偏移的进程级缓存会记住「这个字段类型解析不出」（PR #131 review 发现 12，**有意设计**）
+
+- **裁决**：本库不修（2026-10-08），转 RuntimeViewer。
+- **发现**：`NestedFieldOffsetLevelMemo`（`Sources/Output/SwiftDeclarationRendering/NestedFieldOffsetLevel.swift`）按 metatype 记下展开树的每一层，「当时哪些字段类型解析不出」也一起记住。宿主之后加载了定义那个类型的镜像，缓存仍说解析不出，展开树在那里停下。
+- **复现 / 是否误报**：属实，是设计本身的取舍，提案 [0067-nested-field-offset-memoization](../Evolutions/0067-nested-field-offset-memoization.md) 已写明，并判断为近乎理论。review 没有在 AppKit、SwiftUI、WebKit、Xcode IDE 框架里找到实例。
+- **与 main 基线对比**：PR 新引入（记忆化本身是这个 PR 的一部分）。
+- **为什么不修**：库不知道宿主进程什么时候加载了新镜像（库不注册 dyld 回调），所以清除入口 `RuntimeFieldLayoutMemo.removeAll()` 交给宿主，在加载镜像之后调用。
+- **转 RuntimeViewer**：它的 find-navigator 分支只在自己 `dlopen` 之后（`DyldUtilities.loadImage(at:)`）调用 `removeAll()`，被检查的进程自己加载的镜像不会触发。`DyldUtilities.observeDyldRegisterEvents()` 写了 dyld 加载镜像的回调，但从没被调用；那边要注册这个回调，在回调里调用 `removeAll()`。
+- **既往修复**：无。
+- **复审条件**：真实框架里出现「宿主后加载的镜像让一棵展开树变短」的实例，或者 RuntimeViewer 注册回调之后仍有残留。
+
+---
+
+## A55 — 嵌套泛型类型的约束 extension 里的类型，在线特化的 `typeName` 与类型头不是同一个名字（PR #131 review 发现 10 的一部分，**有意设计**）
+
+- **裁决**：不修（2026-10-08）。发现 10 的另一部分（算类型名失败时静默退回扁平名）已修，见 [Roadmaps/2026-10-08-pr131-review-findings.md](../../Roadmaps/2026-10-08-pr131-review-findings.md) 第 10 条。
+- **发现**：`extension Outer.SecondMiddle where … { struct DeepConstrainedInner<C> }` 这类类型在线特化之后，`typeName` 按层绑定实参，类型头印的却是运行时 metadata 的名字。运行时只给被扩展类型最内层的列表换实参，把全部实参塞进 `SecondMiddle` 的列表、`Outer<A>` 保持未绑定。
+- **复现 / 是否误报**：属实；提案 [0069-offline-generic-specialization](../Evolutions/0069-offline-generic-specialization.md) 的决策日志（2026-10-01「嵌套泛型的约束 extension 里的类型，实例化名字按层绑定，不照搬运行时」）写明这是有意的差异，[OfflineGenericSpecialization.md](OfflineGenericSpecialization.md)「实例化类型名」一节也有说明。
+- **与 main 基线对比**：PR 新引入（在线特化的 `typeName` 是这个 PR 改成按层绑定的）。
+- **为什么不修**：运行时拼出的名字不对应任何实例化。`typeName` 是 RuntimeViewer 侧边栏的显示名和标识，按层绑定的才是对的；类型头取 metadata 的名字是两条路径共有的做法，离线路径的类型头因此与在线逐字节相同。
+- **既往修复**：无。
+- **复审条件**：RuntimeViewer 需要两者一致，比如拿类型头的文字去匹配 `typeName`。
+
+---
+
+## A56 — 嵌套 `.boundGeneric` 实参链的请求构建次数随深度平方增长（PR #131 review 顺带项）
+
+- **裁决**：不修（2026-10-08）。
+- **发现**：离线特化每遇到一层 `.boundGeneric` 实参，`staticBoundGenericOutcome`（`GenericSpecializer+StaticSpecialization.swift`）为这一层建一次内层请求（`makeInnerContext` + `makeRequest`），再让内层 specializer 的 `internalValidate` 校验，而 `internalValidate` 又把更深各层的请求重建一遍。深度为 d 的实参链因此要建约 d(d+3)/2 次请求（review 的计数）。`staticBoundGenericOutcome` 注释里的「随深度线性增长」说的是实参解析，不含校验。
+- **复现 / 是否误报**：属实，读码确认。
+- **与 main 基线对比**：离线路径是 PR 新增的；在线路径的 `internalValidate` 递归建请求是既有写法。
+- **为什么不修**：实际的嵌套很浅（RuntimeViewer 的 UI 里用户一层一层手选，`[[Int]]` 这种已经少见），`maxBindingDepth` 也给了上限。要省掉重复，得让校验与解析共用同一份内层请求，改动两条路径的结构。
+- **既往修复**：无。
+- **复审条件**：出现需要深层嵌套实参的调用方，或者 profiling 显示特化耗时主要花在重建请求上。
+
+---
+
+## A57 — 测试支持里共享的 fixture 索引器在并行套件下会被重复构建（`GenericSpecializationFixtureIndexers`，PR #131 review 顺带项）
+
+- **裁决**：不修（2026-10-08）。
+- **发现**：`GenericSpecializationFixtureIndexers`（`Sources/TestSupport/MachOTestingSupport/`）是一个 actor，`runtime()` / `offline()` 先查缓存，没有就新建索引器、`await indexer.prepare()`，之后才存进属性。actor 在 `await` 处可重入，几个套件同时第一次调用时各建一份。
+- **复现 / 是否误报**：属实，读码确认（actor reentrancy）。
+- **与 main 基线对比**：PR 新增的测试支持代码。
+- **为什么不修**：只多花测试时间和内存，每一份都是完整的索引，结果正确，不影响任何断言。
+- **既往修复**：无。
+- **复审条件**：测试变慢或内存占用成为问题时，改成存一个 `Task`，让后到的调用者等它。
+
+---
+
+## A58 — 离线 `specialize(with:in:)` 只按描述符偏移核对特化结果属于哪个类型（PR #131 review 顺带项）
+
+- **裁决**：不修（2026-10-08）。
+- **发现**：`TypeDefinition` 的离线 `specialize(with:in:)` 经 `makeStaticallySpecializedDefinition`（`Sources/Declaration/SwiftSpecialization/TypeDefinition+Specialization.swift`）只比较定义自己的描述符偏移和 `StaticSpecializationResult.typeDescriptor` 的偏移，注释假定两者来自同一个文件。把另一个文件里偏移恰好相同的类型的特化结果传进来，也会被接受，特化出的定义带着别的类型的名字和 binding。
+- **复现 / 是否误报**：属实，读码确认；只有把一个文件的特化结果交给另一个文件的定义，也就是误用 API，才会碰到。
+- **与 main 基线对比**：PR 新增。在线路径按 metadata 的描述符核对，metadata 来自本进程，没有跨文件的问题。
+- **为什么不修**：正确的用法（同一个 specializer、同一个文件）不会触发。要彻底防住误用，得让结果带上镜像身份（文件 URL 加 UUID，或 `SharedCacheKey`），改的是公开的结果类型。
+- **既往修复**：无。
+- **复审条件**：RuntimeViewer 的离线模式里出现多个文件的特化结果混用的路径，或者以后给 `StaticSpecializationResult` 加镜像身份时一起做。
+
+---
+
+## A59 — PR #131 review 中被核验驳回的四条候选（**误报**）
+
+- **裁决**：误报（2026-10-08，review 时各有一个核验 agent 读码与编译器源码后驳回）。登记在这里，下次 review 对照跳过。
+- **一、打印器改了「extension 里的协议」的默认实现扩展的打印位置，会让 RuntimeViewer 或库内的使用方丢掉这些扩展**：不成立。`SwiftDeclarationPrinter.swift` 只在 `parent` 与 `extensionContext` 都为空时把默认实现扩展接在协议后面，这是提案 [0068-nested-definition-regions](../Evolutions/0068-nested-definition-regions.md) 有意改的契约；库里唯一调用 `printProtocolDefinition` 的 `SwiftInterfaceBuilder` 在顶层区块按同一条件补上（diff / evolution 只打印协议头，扩展整桶另印，从不依赖打印器接在后面；dump 不走这个打印器）。RuntimeViewer 那边被点名的分支在跳过之后紧接着又把同一桶扩展无条件追加了一次，所以不丢；与本 PR 配套的是它的 `feature/find-navigator`，用的条件与这里相同。（本轮另修的第 4 条是另一回事：协议在第五块才被索引，第四块读到的列表是空的。）
+- **二、离线特化把 `.metadata` 实参当指针用，文件里读出的 `Metadata` 会成野指针**：不成立。离线 `specialize` 的文档（`GenericSpecializer+StaticSpecialization.swift` 开头）与 [OfflineGenericSpecialization.md](OfflineGenericSpecialization.md) 都写明 `.metatype` / `.metadata` / `.specialized` 是宿主进程自己的类型；`.specialized` 的 `metadata()` 先从内存读 kind，只可能是已经解引用过的进程内地址。在线路径对 `.metadata` 一直有同样的前提，误用时同样会崩，不是本 PR 引入的新风险。
+- **三、特化后的泛型 enum 跳过解析不出的 payload，会算出错误的 Enum Layout**：不成立。`RuntimeFieldLayoutBackend` 在打印布局前用 value witness table 的 size 交叉校验（`impliedTotalSize` 与 `typeLayout.size` 不等就不出注释），这条校验是 `12232bee` 专门为这类缺口加的，对特化的泛型 enum 同样生效；跳过 payload 只会让注释消失，不会印出错的布局。非泛型 enum 在基线上就这样跳过。
+- **四、`GenericParameterDepthLayout` 跳过匿名上下文，让泛型方法的 opaque 描述符层号算错、thunk 名字跟着错**：不成立。层结构确实把方法的参数与 opaque 参数并成一层，但 kind-9 thunk 的实参缓冲只按命名声明的签名绑定（编译器 `AbstractMetadataAccessor::emit` 取 `O->getGenericSignature()`），不含 opaque 参数；两种层结构只在第三个字及以后不同，那里放的是 witness table，从不被命名。基线用 `AccessorThunkOwnerLayout(genericContext:)` 算出的是同一个结构，PR 只是把计算挪了位置。
+- **既往修复**：无。
+- **复审条件**：上面任何一条的前提被改动——打印器或 RuntimeViewer 改了追加扩展的条件；离线特化开始接受文件里读出的 `Metadata`；enum 布局的 size 交叉校验被拿掉；thunk 的实参缓冲开始带 opaque 参数。
+
+---
+
+## A60 — 局部类型的上下文让三处整树搜索可能读错成员：`final` 恢复的 `Tq` 兜底、上游 `identifier`、变量的代表节点（局部类型名字提案横向排查发现）
+
+- **裁决**：三处都不修（2026-10-11）。
+- **背景**：局部类型的名字里带着声明它的函数、闭包或访问器（提案 [0062-local-type-context-names](../Evolutions/0062-local-type-context-names.md)）。成员符号的节点以上下文为第一个子节点，前序遍历的整树搜索因此会先进入上下文，拿到外层声明的节点。同一批里能变红的五处已经修掉（conformance 成员的分类与去重、主体里合成成员的去重、`@dynamicMemberLookup` 推断、匿名参数的标签、`static` 存储属性的存储符号被读成 getter），下面三处判为不修。
+- **一、`final` 恢复的第四道门**：`TypeDefinition.recoverFinalMembers`（`TypeDefinition+FinalRecovery.swift`，`Tq` 符号那段）把每个 method descriptor 符号读成成员名时，先对整棵树做 `first(of: .function)`，找不到才找 `.variable`、`.subscript`。局部 class 的属性访问器 descriptor（`method descriptor for sides.getter … in Shape #1 in Holder.shape(_:)`）会被读成外层函数名 `shape`，而不是 `sides`。
+  - **复现 / 是否误报**：机制属实。`-Onone` 编出的局部 class 带着 `Tq` 局部符号，`nm` 可见。但输出层面复现不出来：这道门只在成员与 descriptor 连不上时起作用，而局部 class 的成员靠同一批 `Tq` 符号按节点连接（`ClassDispatchLookups.methodDescriptorLookup`），不受 ICF 影响，总是先连上；`-O` 构建会把局部 class 的属性去虚化，连 `Tq` 符号都不生成。
+  - **与 main 基线对比**：代码是基线既有的。基线里局部 class 的名字是错的，descriptor 按节点匹配不到，这处走不到；本分支让名字对上之后才可达，但仍被节点连接挡在前面。
+  - **为什么不修**：造不出修复前会失败的测试。修法是现成的：按查询的成员种类分别取 `.function` / `.variable` / `.subscript`，对普通 class 结果不变。
+  - **既往修复**：无。第四道门来自提案 0006 的 ICF 回归（issue #106，`FinalKeywordICFRegressionTests`），当时只考虑了普通 class。
+- **二、上游 swift-demangling 的 `DemanglingNode.identifier`**：第二个子节点不是标识符时（运算符函数、下标），它在整棵树里找，任意位置的运算符优先。局部类型声明在一个运算符函数里时，类型自己的运算符成员会读成外层运算符的名字。
+  - **复现 / 是否误报**：读码确认，没有构造样本。外层声明只要不是运算符函数就不会触发：外层是普通函数时，标识符的优先级低于运算符，仍然返回成员自己的运算符。
+  - **与 main 基线对比**：基线既有；同样是局部类型名字对上之后才可达。
+  - **为什么不修**：根在上游包，触发条件极少见，本仓库所有调用点都按名字比较，读错只影响这一种写法。
+- **三、`DefinitionBuilder.variablesProduct` 挑变量的代表节点**：从一个属性的访问器符号里挑「是 getter、或不是访问器」的第一个，判断仍用整树的 `contains(.getter)`。局部类型声明在 getter 里时，每个访问器都含上下文的 getter，于是挑的是第一个符号，不论它是什么。
+  - **复现 / 是否误报**：机制属实，输出层面复现不出来。符号表里 getter 总排在 setter、modify 和存储符号前面，挑出来的就是 getter；代表节点只用来打印声明，getter、setter、存储符号打出来的声明也一样。
+  - **与 main 基线对比**：代码是基线既有的，同样是局部类型名字对上之后才可达。
+  - **为什么不修**：造不出会变红的测试。同一处的访问器种类（`accessorKind`）已经修掉，那个读错会把 `static` 存储属性印成计算属性。
+- **复审条件**：节点连接不再先于第四道门（`methodDescriptorLookup` 的建键方式改了）；出现了局部 class 被误标 `final`、运算符函数里的局部类型成员名字读错的实例；或者局部类型的属性以 setter 之类的节点出现在声明、ABI 键里。
+
+---
+
+## A61 — 持锁时 demangle 的五处：打印器的一次性建表、静态布局 provider、关联类型成员投影、property wrapper 目录、ObjC 祖先解析（「持锁时 demangle」横向排查）
+
+- **裁决**：五处的锁都不改（2026-10-11）。排查中发现的入口漏包已修，见第三处。第四处 2026-10-13 因并行打印下的实测排队改判为修，见第四处。
+- **背景**：审查提案 [0063-private-declarations](../Evolutions/0063-private-declarations.md) 时，它的 index 持锁读名字，违反 AGENTS.md 当时的「Do not hold a lock across a demangle」。这条规则来自 [NodeStoreMigrationOpenIssues 第 9 条](NodeStoreMigrationOpenIssues.md)：在 512 KB 栈的线程上，每次 demangle、打印都要切到大栈线程、用信号量等结果；持锁时这样一等，所有等这把锁的线程都排在后面。危害要两个条件同时成立：调用方在小栈上，并且有别的线程在等同一把锁。横向排查找到下面五处同样的写法，外加 `IndexerConformanceProvider.classHierarchy()` 一处。后者 RuntimeViewer 从 actor 里同步调用，已修：缓存没命中时先切一次大栈，再在大栈上取锁建表（`ClassHierarchyBuildStackTests`）。规则因此改写成「持锁时 demangle 不许切线程」：要么已经在大栈上（`LargeStackTaskExecution.run` 包过的入口里，或者取锁前先 `StackSafeExecutor.withLargeStack`），要么锁外 demangle、锁内 insert-if-absent。下面五处靠的是入口的执行器：库内和 RuntimeViewer 的调用都经包过执行器的 async 入口进来，macOS 15 起在 16 MB 栈上执行，持锁期间不切线程。
+- **一、`SwiftDeclarationPrinter` 的两次建表**（`SwiftDeclarationPrinter.swift:93` 的 `@_rawLayout` 存储表、`:118` 的静态布局 provider）：都是 printer 实例上的 `@Mutex`，第一次用到时在锁内建表，命中也拿同一把锁。`:93` 对每个 `__swift5_builtin` 描述符做一次 `demangleType`；`:118` 对 `MachOFile` 建依赖闭包，要把根镜像的全部描述符 demangle 一遍（`MachOImage` 直接返回 nil）。唯一入口 `printTypeDefinition` 已包执行器。
+- **二、`MachOFileStaticFieldLayoutProvider`**（`StaticFieldLayoutProvider.swift:129` 的锁，11 个查询方法每次都拿）：底层计算器的 memo 不是线程安全的（`:124-126` 的注释），所以每次查询都在锁内算；懒加载依赖镜像时，会在锁内把整个依赖镜像 demangle 一遍。只服务 `MachOFile`。异步入口（打印、dump）已包执行器。同步的 public 入口有 provider 自己的方法、`MachOFile.precomputedStaticAggregateFieldLayout` 和 `MachOFile.renderFieldOffsets`，库内和 RuntimeViewer 都没有从小栈调用。
+- **三、`DependentMemberProjection`**（`:44` 每个镜像一份 entry 的锁，`:61` 按文件登记的锁）：每次关联类型成员投影都拿 entry 锁，锁内做 `demangleType`，懒加载依赖镜像时要把整个镜像 demangle 一遍；文件那把锁在没命中时建依赖闭包。异步入口有 opaque 类型改写（经 `printTypeDefinition`）、`AssociatedType.dump` 和 `SwiftDeclarationIndexer.prepare()`，都已包执行器。
+  - **排查中发现的入口漏包（已修）**：`TypeDefinition.specialize(...)` 的四个 async 重载（运行时两个、离线两个）没有包执行器。RuntimeViewer 在 actor 里调用其中一个（`RuntimeSwiftSection.swift:935`）。当某个 fixed 参数的 same-type 右侧代换后带 `dependentMemberType` 时，这条路会经 `GenericInstantiation` 在 512 KB 栈上拿这把锁，并逐次切线程。本批把四个重载都包上了 `LargeStackTaskExecution.run`（`SpecializationEntryPointExecutorTests`），和其它 async 入口一致。
+  - 同步的 `GenericSpecializer<MachOFile>.specialize(_:with:)` / `staticPreflight` 也会走到这里，只服务 `MachOFile`。
+- **四、`PropertyWrapperTypeCatalog`**（`:140`，每个镜像一个 catalog）：每次查询都拿锁。没命中时在锁内 demangle 导出符号名（`:173`），第一次没命中还要建依赖闭包。入口是 `TypeDefinition.index(in:)`，调用方都在已包的入口里，包括打印、索引，以及 diff 和 evolution 渲染。同步 public 入口 `evidence(forWrapperCandidate:)` 没有人从小栈调用。
+  - **改判为修（2026-10-13，提案 [0065-faster-lazy-definition-indexing](../Evolutions/0065-faster-lazy-definition-indexing.md)）**：本条只考虑了「切线程时排队」，没有考虑长临界区本身。RuntimeViewer 的 Find 语料在一个镜像上 4 路并行打印，调用方都在大栈上、一次也不切线程，但锁里做的是根镜像加整个依赖闭包的导出表搜索，别的线程连已有结论的前缀都要排队：Release 采样里这把锁的等待占语料时间约 8%。锁现在只包结论缓存的读与写，搜索与 demangle 在锁外，并发的首次查询各算各的、先写入者胜；依赖闭包用另一把锁只建一次。`PropertyWrapperTypeCatalogLockTests` 在旧写法下 10 秒超时失败、新写法通过。其余四处的裁决不变，第五处 `ObjCAncestorResolver` 同样是「持锁建闭包」，进程内场景下它的类别扫描跳过 cache 内的全部镜像，开销主要是第一次建闭包，已随 `InProcessDependencyLocator` 改为查表而变小，先不改锁。
+- **五、`ObjCAncestorResolver`**（`:92`、`:133`，每个镜像一个 resolver）：原先列为疑似，核实属实，但有条件。依赖镜像的 `ObjCClassMethodIndex` 存储（进程级、按镜像共享）第一次建的时候，会在锁内给每个 Swift 类 demangle 一次限定名（`ObjCClassMethodIndex.swift:444` → `NodeTypeNaming`）。入口经 `index(in:)`、`prepare()` 和 `Class.dump`，都已包执行器。同步 public 入口是 `ObjCMembers.table(forSwiftClassQualifiedName:in:)`。
+- **复现 / 是否误报**：五处的机制都属实。输出层面复现不出：结果不会错，只会在「小栈调用 + 有人等锁」时多等。第三处的漏包修掉之后，库内和 RuntimeViewer 的调用路径都不满足第一个条件。
+- **与 main 基线对比**：五处的锁在 main（0.22.0）上都有。第二处按 binding 查询的四个方法和 `projectingConcreteMembers` 来自离线特化（`b72638f8`、`5308fa1a`），main 上没有。第三处的漏包入口里，运行时的两个重载 main 上就有；从它们走到这把锁的那一步（`GenericInstantiation`，`6c35e8c4`，2026-10-08）main 上没有。
+- **为什么不修**：
+  1. 第一个条件不成立：调用都经包了执行器的入口进来，macOS 15 起持锁期间不切线程。macOS 15 以下没有执行器，这些路径上每次 demangle 不管有没有锁都要切线程，锁不是额外的代价。
+  2. 第二、三处的同步入口只服务 `MachOFile`。同一个 `MachOFile` 本来就不支持并发读（MachOKit 的读取共享一个 `FileHandle`），所以没有并发等锁的线程。
+  3. 第二、三处的锁保护的是不线程安全的计算器 memo。要把 demangle 挪出锁，得把计算器改成线程安全的，代价大，而收益只在上面两个条件同时成立时才有。
+- **既往修复**：无。规则来自第 9 条（`lateDemangledNode`，2026-08-03 修）。第一处 `:118` 的锁（`7ebed7d3`，2026-06-24）是专门为防止并发重复建表加的；第二处的锁随读取器特化引入（`1af4ea24`，2026-06-22）。其余几处（`268159bd`、`72b5c5f6`、`01fe2f82`、`758314ff`）都写在规则进 AGENTS.md（2026-09-14）之后，从写法看，当时把规则理解成了「所有查询都要拿的锁」。
+- **复审条件**：有宿主在协作线程或 libdispatch 线程上并发调用上面列出的同步入口；又出现没包执行器、能走到这几把锁的 async 入口（像这次的 `TypeDefinition.specialize`）；`MachOFile` 改成支持并发读；或者有宿主在 macOS 15 以下的实测里卡在这些锁上。

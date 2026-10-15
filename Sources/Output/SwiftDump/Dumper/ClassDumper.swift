@@ -73,7 +73,8 @@ package struct ClassDumper<MachO: MachOFieldLayoutRenderable>: TypedDumper {
             // segment directly in that case.
             let isBound = boundDumpedMetatype() != nil
             if !isBound, let genericContext = dumped.genericContext {
-                try await genericContext.dumpGenericSignature(resolver: demangleResolver, in: machO.context) {
+                let depthLayout = GenericParameterDepthLayout.make(for: genericContext, ownedBy: .type(.class(dumped.descriptor)), in: machO.context)
+                try await genericContext.dumpGenericSignature(resolver: demangleResolver, depthLayout: depthLayout, in: machO.context) {
                     superclass
                 }
             } else {
@@ -126,7 +127,7 @@ package struct ClassDumper<MachO: MachOFieldLayoutRenderable>: TypedDumper {
                 if hasInvertedProtocols {
                     Standard(",")
                     Space()
-                    dumped.invertibleProtocolSet!.dumpInvertedProtocolNames
+                    try await dumped.invertibleProtocolSet!.dumpInvertedProtocolNames(resolver: demangleResolver)
                 }
             } else if let resilientSuperclass = dumped.resilientSuperclass, let kind = dumped.descriptor.resilientSuperclassReferenceKind, let superclass = try await resilientSuperclass.dumpSuperclass(resolver: demangleResolver, for: kind, in: machO.context) {
                 Standard(":")
@@ -135,10 +136,10 @@ package struct ClassDumper<MachO: MachOFieldLayoutRenderable>: TypedDumper {
                 if hasInvertedProtocols {
                     Standard(",")
                     Space()
-                    dumped.invertibleProtocolSet!.dumpInvertedProtocolNames
+                    try await dumped.invertibleProtocolSet!.dumpInvertedProtocolNames(resolver: demangleResolver)
                 }
             } else if hasInvertedProtocols {
-                dumped.invertibleProtocolSet!.dumpInvertedProtocolsInheritance
+                try await dumped.invertibleProtocolSet!.dumpInvertedProtocolsInheritance(resolver: demangleResolver)
             }
         }
     }

@@ -77,11 +77,18 @@ public struct SwiftInterfaceBuilderOpaqueTypeProvider<MachO: MachOSwiftSectionRe
         return options
     }
 
+    /// `options` for text this provider hands back, as opposed to the names
+    /// it matches protocols by: those stay in the `opaqueTypeBuilderOnly`
+    /// spelling the protocol facts are keyed with, whatever the output uses.
+    private static func outputOptions(_ options: DemangleOptions, usesModuleSelectors: Bool) -> DemangleOptions {
+        usesModuleSelectors ? options.union(.useModuleSelectors) : options
+    }
+
     public init(machO: MachO) {
         self.machO = machO
     }
 
-    public func opaqueType(forNode node: Node, index: Int?) async -> String? {
+    public func opaqueType(forNode node: Node, index: Int?, usesModuleSelectors: Bool) async -> String? {
         do {
             @Dependency(\.symbolIndexStore)
             var symbolIndexStore
@@ -133,13 +140,17 @@ public struct SwiftInterfaceBuilderOpaqueTypeProvider<MachO: MachOSwiftSectionRe
             if let superclassRequirement = parameterConstraints.superclass {
                 // The class leads the composition, as the compiler's own
                 // interface printer spells it (`some Base & P`).
-                try await results.append(superclassRequirement.dumpContent(resolver: .using(options: Self.typeSpellingOptions), in: machO.context).string)
+                try await results.append(superclassRequirement.dumpContent(resolver: .using(options: Self.outputOptions(Self.typeSpellingOptions, usesModuleSelectors: usesModuleSelectors)), in: machO.context).string)
             }
             for protocolRequirement in protocolRequirements {
                 var result = ""
                 let parameterName = try await protocolRequirement.dumpParameterName(resolver: .using(options: .opaqueTypeBuilderOnly), in: machO.context).string
                 let protocolName = try await protocolRequirement.dumpContent(resolver: .using(options: .opaqueTypeBuilderOnly), in: machO.context).string
-                result.write(protocolName)
+                if usesModuleSelectors {
+                    try await result.write(protocolRequirement.dumpContent(resolver: .using(options: Self.outputOptions(.opaqueTypeBuilderOnly, usesModuleSelectors: true)), in: machO.context).string)
+                } else {
+                    result.write(protocolName)
+                }
 
                 let constraints = constraintsByParamType[parameterName] ?? []
                 let attachedConstraints = await attributedConstraints(
@@ -155,14 +166,14 @@ public struct SwiftInterfaceBuilderOpaqueTypeProvider<MachO: MachOSwiftSectionRe
                     for attachedConstraint in attachedConstraints {
                         switch attachedConstraint.argumentSource {
                         case .node(let argumentNode):
-                            await primaryAssociatedTypes.append(argumentNode.strippingAssociatedTypeProtocolQualifiers().print(using: Self.typeSpellingOptions))
+                            await primaryAssociatedTypes.append(argumentNode.strippingAssociatedTypeProtocolQualifiers().print(using: Self.outputOptions(Self.typeSpellingOptions, usesModuleSelectors: usesModuleSelectors)))
                         case .substitutionRoot(let substitutionNode):
                             // An outer dependent member (`some Sequence<T.A.A>`,
                             // the generics book's own example) is what lands
                             // here; its mangling qualifies every step with its
                             // declaring protocol, and the upstream printer
                             // would spell that out as `A.Probe.N.A.Probe.N.A`.
-                            await primaryAssociatedTypes.append(substitutionMap.rootOriginal(for: substitutionNode).strippingAssociatedTypeProtocolQualifiers().print(using: Self.typeSpellingOptions))
+                            await primaryAssociatedTypes.append(substitutionMap.rootOriginal(for: substitutionNode).strippingAssociatedTypeProtocolQualifiers().print(using: Self.outputOptions(Self.typeSpellingOptions, usesModuleSelectors: usesModuleSelectors)))
                         }
                     }
                     result.write("<")
@@ -208,12 +219,17 @@ public struct SwiftInterfaceBuilderOpaqueTypeProvider<MachO: MachOSwiftSectionRe
     /// The depth comes from the descriptor, not from the declaration's mangled
     /// signature: a member's signature spells only the depths it adds
     /// (`ASTMangler::appendGenericSignatureParts` skips the context's). It is
-    /// the number of enclosing depths — one per parent level that grows the
-    /// parameter count, as the runtime's `_gatherGenericParameterCounts`
-    /// counts them, so a non-generic nested type adds none — plus one when the
-    /// declaration is generic itself, which its type node says (a
-    /// `dependentGenericType` wrapper; a constrained extension's signature
-    /// sits in the context and does not count).
+    /// the number of enclosing depths — the depths of the context the
+    /// declaration sits in, the descriptor's parent, as
+    /// `GenericParameterDepthLayout` counts them: a non-generic nested type
+    /// adds none, and an extension of a nested generic type adds every level
+    /// of the type it extends, which the runtime's
+    /// `_gatherGenericParameterCounts` reaches by switching to the extended
+    /// type — plus one when the declaration is generic itself, which its type
+    /// node says (a `dependentGenericType` wrapper; a constrained extension's
+    /// signature sits in the context and does not count). Counting the parent
+    /// chain's growing levels instead took `extension Outer.SecondMiddle
+    /// where A: Hashable` for one depth and trapped below on its `τ_2_0`.
     ///
     /// A requirement on a parameter beyond that depth cannot exist for a
     /// well-formed image: that is reported as a fault and asserted in debug
@@ -227,13 +243,7 @@ public struct SwiftInterfaceBuilderOpaqueTypeProvider<MachO: MachOSwiftSectionRe
             return nil
         }
 
-        var enclosingDepthCount = 0
-        var inheritedParameterCount = 0
-        for parameters in genericContext.parentParameters where parameters.count > inheritedParameterCount {
-            enclosingDepthCount += 1
-            inheritedParameterCount = parameters.count
-        }
-        let opaqueParameterDepth = enclosingDepthCount + (Self.declaresOwnGenericParameters(node) ? 1 : 0)
+        let opaqueParameterDepth = enclosingDepthCount(of: opaqueType) + (Self.declaresOwnGenericParameters(node) ? 1 : 0)
 
         var constraintsByParameter: [GenericParameterCoordinate: OpaqueParameterConstraints] = [:]
         for requirement in requirements {
@@ -267,6 +277,26 @@ public struct SwiftInterfaceBuilderOpaqueTypeProvider<MachO: MachOSwiftSectionRe
             return nil
         }
         return parameterConstraints
+    }
+
+    /// The depths of the type or extension the declaration naming `opaqueType`
+    /// sits in, as `GenericParameterDepthLayout` counts them — the nearest one
+    /// up the descriptor's parent chain. An anonymous context in between is
+    /// where a generic declaration's own signature lives; its depth is the one
+    /// `declaresOwnGenericParameters` adds, so it is passed over here, as the
+    /// parent chain's own `parentParameters` passes over it. No type or
+    /// extension above (a top-level declaration) is no enclosing depth.
+    private func enclosingDepthCount(of opaqueType: OpaqueType) -> Int {
+        var parent = (try? opaqueType.descriptor.parent(in: machO.context))?.flatMap(\.resolved)
+        while let currentParent = parent {
+            switch currentParent {
+            case .type, .extension:
+                return (try? GenericParameterDepthLayout.make(for: currentParent, in: machO.context))?.depthCount ?? 0
+            default:
+                parent = (try? currentParent.parent(in: machO.context))?.flatMap(\.resolved)
+            }
+        }
+        return 0
     }
 
     /// Whether the declaration introduces generic parameters of its own: its

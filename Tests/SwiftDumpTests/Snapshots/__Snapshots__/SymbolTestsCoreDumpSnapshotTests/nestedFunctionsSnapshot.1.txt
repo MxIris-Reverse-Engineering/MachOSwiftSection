@@ -5,7 +5,7 @@ struct SymbolTestsCore.NestedFunctions.NestedFunctionHolderTest {
     /* Function */
     SymbolTestsCore.NestedFunctions.NestedFunctionHolderTest.outerWithLocalClass() -> Swift.String
 }
-class SymbolTestsCore.NestedFunctions.NestedFunctionHolderTest.LocalClass {
+class LocalClass #1 in SymbolTestsCore.NestedFunctions.NestedFunctionHolderTest.outerWithLocalClass() -> Swift.String {
     var label: Swift.String
 
     // No implementation in this image (deleted method — slot retained for ABI)
@@ -16,4 +16,7 @@ class SymbolTestsCore.NestedFunctions.NestedFunctionHolderTest.LocalClass {
     /* [Modify] */ <unnamed vtable slot>
     // No implementation in this image (deleted method — slot retained for ABI)
     /* [ Init ] */ <unnamed vtable slot>
+
+    /* Deallocator */
+    __deallocating_deinit in LocalClass #1 in SymbolTestsCore.NestedFunctions.NestedFunctionHolderTest.outerWithLocalClass() -> Swift.String
 }

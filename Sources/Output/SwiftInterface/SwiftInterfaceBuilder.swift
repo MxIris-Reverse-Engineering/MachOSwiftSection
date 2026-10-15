@@ -238,12 +238,18 @@ public final class SwiftInterfaceBuilder<MachO: MachOFieldLayoutRenderable>: Sen
             // blocks: the per-protocol printer emits them trailing TOP-LEVEL
             // protocol declarations only (extension blocks cannot nest inside
             // a parent's body), so nested protocols' blocks surface here at
-            // the top level instead. This loop was dead before evolution
+            // the top level instead. The loop takes exactly the protocols
+            // `printsDefaultImplementationExtensionsAfterDeclaration` rules
+            // out — the printer reads the same property — so each block
+            // prints once. This loop was dead before evolution
             // proposal 0007 — it filtered ROOT protocols on `parent != nil`,
             // which no root ever satisfies, so nested protocols' blocks never
-            // printed at all.
-            for protocolDefinition in indexer.allProtocolDefinitions.values where protocolDefinition.parent != nil {
-                for extensionDefinition in protocolDefinition.defaultImplementationExtensions {
+            // printed at all. A protocol declared in an extension of another
+            // module's type is nested too, with an extension context instead
+            // of a parent; its blocks used to print inside that extension's
+            // braces (evolution proposal `nested-definition-regions`).
+            for protocolDefinition in indexer.allProtocolDefinitions.values where !protocolDefinition.printsDefaultImplementationExtensionsAfterDeclaration {
+                for extensionDefinition in indexedDefaultImplementationExtensions(of: protocolDefinition) {
                     await printCatchedThrowing(
                         dispatchingTo: eventDispatcher,
                         context: .init(name: extensionDefinition.extensionName.name, kind: .extension)
@@ -264,6 +270,20 @@ public final class SwiftInterfaceBuilder<MachO: MachOFieldLayoutRenderable>: Sen
                 }
             }
         }
+    }
+
+    /// `protocolDefinition`'s default-implementation extensions, read once
+    /// it is indexed. The list is complete only then: the protocol's own pass
+    /// synthesizes the extension of a default the module indexer's symbol scan
+    /// misses — under library evolution, a default witness named after the
+    /// requirement itself. A protocol nested in a type is indexed by the time
+    /// the nested protocols' block prints, its type printed before it; one
+    /// declared in an extension prints, and indexes, only in the extensions
+    /// block after it, so its synthesized extension printed nowhere. A pass
+    /// that fails is reported when the protocol prints.
+    private func indexedDefaultImplementationExtensions(of protocolDefinition: ProtocolDefinition) -> [ExtensionDefinition] {
+        try? protocolDefinition.index(in: machO)
+        return protocolDefinition.defaultImplementationExtensions
     }
 
     private func collectModules() async throws {

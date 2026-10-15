@@ -15,7 +15,7 @@ extension MachOImage: FieldLayoutRenderable {
         nil
     }
 
-    public static func precomputedStaticAggregateFieldLayout(for type: TypeContextWrapper, machO: MachOImage, configuration: DeclarationRenderConfiguration) -> AggregateFieldLayout? {
+    public static func precomputedStaticAggregateFieldLayout(for type: TypeContextWrapper, genericArgumentBinding: GenericArgumentBinding?, machO: MachOImage, configuration: DeclarationRenderConfiguration) -> AggregateFieldLayout? {
         // The runtime path reads offsets from materialized metadata, not from a
         // statically-precomputed aggregate.
         nil
@@ -102,12 +102,21 @@ struct RuntimeFieldLayoutBackend {
         mangledTypeName: MangledName,
         fieldOffsets: [Int]?
     ) async throws -> SemanticString {
-        if let fieldOffsets, let startOffset = fieldOffsets[safe: index] {
+        let startOffset = fieldOffsets?[safe: index]
+        let nextFieldOffset = fieldOffsets?[safe: index + 1]
+        let expandsFieldOffsets = configuration.producesContent(for: .printFieldOffset) && configuration.producesContent(for: .printExpandedFieldOffsets)
+        // Three consumers below may need the field's metatype — the last
+        // field's end offset, the expansion and the type layout. Resolved once,
+        // and only when one of them is going to run.
+        let needsFieldMetatype = (startOffset != nil && (nextFieldOffset == nil || expandsFieldOffsets)) || configuration.producesContent(for: .printTypeLayout)
+        let fieldMetatype = needsFieldMetatype ? resolveFieldMetatype(for: mangledTypeName, in: machO) : nil
+
+        if let startOffset {
             let endOffset: Int?
-            if let nextFieldOffset = fieldOffsets[safe: index + 1] {
+            if let nextFieldOffset {
                 endOffset = nextFieldOffset
-            } else if let metatype = resolveFieldMetatype(for: mangledTypeName, in: machO),
-                      let typeLayout = try? StructMetadata.createInProcess(metatype).asMetadataWrapper(in: .inProcess).valueWitnessTable(in: .inProcess).typeLayout {
+            } else if let fieldMetatype,
+                      let typeLayout = try? StructMetadata.createInProcess(fieldMetatype).asMetadataWrapper(in: .inProcess).valueWitnessTable(in: .inProcess).typeLayout {
                 endOffset = startOffset + Int(typeLayout.size)
             } else {
                 endOffset = nil
@@ -115,16 +124,23 @@ struct RuntimeFieldLayoutBackend {
             configuration.optionalContent(.printFieldOffset) {
                 configuration.fieldOffsetComment(startOffset: startOffset, endOffset: endOffset)
                 // Expanded offsets hang off the field offset: printed only
-                // when both are on.
+                // when both are on. A field whose specialized resolution
+                // failed may still resolve by its bare name, so the expansion
+                // keeps that second try.
                 configuration.optionalContent(.printExpandedFieldOffsets) {
-                    expandedFieldOffsets(for: mangledTypeName, baseOffset: startOffset, baseIndentation: configuration.indentation, ancestors: [], in: machO)
+                    expandedFieldOffsets(
+                        of: fieldMetatype ?? (try? RuntimeFunctions.getTypeByMangledNameInContext(mangledTypeName, in: machO)),
+                        baseOffset: startOffset,
+                        baseIndentation: configuration.indentation,
+                        ancestors: []
+                    )
                 }
             }
         }
 
         if configuration.producesContent(for: .printTypeLayout),
-           let resolvedMetatype = resolveFieldMetatype(for: mangledTypeName, in: machO),
-           let resolvedMetadata = try? StructMetadata.createInProcess(resolvedMetatype) {
+           let fieldMetatype,
+           let resolvedMetadata = try? StructMetadata.createInProcess(fieldMetatype) {
             try await configuration.optionalContent(.printTypeLayout) {
                 try await resolvedMetadata.asMetadataWrapper(in: .inProcess).dumpTypeLayout(using: configuration)
             }
@@ -192,22 +208,17 @@ struct RuntimeFieldLayoutBackend {
 
     // MARK: - Expanded nested field offsets
     //
-    // Lifted verbatim from `SwiftDump.TypedDumper`; behaviour-preserving. The
-    // only changes: `Metadata.createInProcess` → `StructMetadata.createInProcess`
-    // (the static metadata type is incidental — `asMetadataWrapper(in: .inProcess)` re-dispatches
-    // on the actual kind), and the top-hop substitution goes through this type's
-    // `resolveFieldMetatype`. See the original for the extensive rationale on the
-    // PAC-fault-avoiding static substitution.
+    // Lifted from `SwiftDump.TypedDumper`. The only changes:
+    // `Metadata.createInProcess` → `StructMetadata.createInProcess` (the
+    // static metadata type is incidental — `asMetadataWrapper(in: .inProcess)`
+    // re-dispatches on the actual kind), the top hop goes through this type's
+    // `resolveFieldMetatype`, and what each level reads about its metatype is
+    // memoized (`NestedFieldOffsetLevel`, evolution proposal
+    // `nested-field-offset-memoization`). See the original for the extensive
+    // rationale on the PAC-fault-avoiding static substitution.
 
     @SemanticStringBuilder
-    func expandedFieldOffsets(for mangledTypeName: MangledName, baseOffset: Int, baseIndentation: Int, ancestors: [Bool], in machO: MachOImage?) -> SemanticString {
-        let topMetatype: Any.Type?
-        if let machO {
-            topMetatype = resolveFieldMetatype(for: mangledTypeName, in: machO)
-                ?? (try? RuntimeFunctions.getTypeByMangledNameInContext(mangledTypeName, in: machO))
-        } else {
-            topMetatype = try? RuntimeFunctions.getTypeByMangledNameInContext(mangledTypeName)
-        }
+    func expandedFieldOffsets(of topMetatype: Any.Type?, baseOffset: Int, baseIndentation: Int, ancestors: [Bool]) -> SemanticString {
         if let topMetatype {
             walkNestedExpandedFieldOffsets(of: topMetatype, baseOffset: baseOffset, baseIndentation: baseIndentation, ancestors: ancestors, enclosingMetatypes: [])
         }
@@ -230,21 +241,36 @@ struct RuntimeFieldLayoutBackend {
     /// The depth limit stays as the backstop for the acyclic-but-deep case; it
     /// cannot bound a cycle on its own, because a cycle makes the number of
     /// paths — not the depth — the thing that explodes.
+    ///
+    /// What one level reads about its metatype comes from
+    /// `nestedFieldOffsetLevel(of:)`, built once per metatype; the walk itself
+    /// — the rows, their offsets and tree prefixes, the cycle and depth guards
+    /// and their log lines — is the same either way.
     @SemanticStringBuilder
     private func walkNestedExpandedFieldOffsets(of metatype: Any.Type, baseOffset: Int, baseIndentation: Int, ancestors: [Bool], depth: Int = 0, enclosingMetatypes: Set<ObjectIdentifier>) -> SemanticString {
         if enclosingMetatypes.contains(ObjectIdentifier(metatype)) {
             emitNestedFieldOffsetCycleWarning(for: metatype)
         } else if depth >= nestedFieldOffsetExpansionDepthLimit {
             emitNestedFieldOffsetDepthLimitWarning(for: metatype)
-        } else if let wrapper = try? StructMetadata.createInProcess(metatype).asMetadataWrapper(in: .inProcess) {
+        } else {
             let nestedEnclosingMetatypes = enclosingMetatypes.union([ObjectIdentifier(metatype)])
-            switch wrapper {
-            case .struct(let metadata):
-                walkNestedStructFieldOffsets(of: metadata, baseOffset: baseOffset, baseIndentation: baseIndentation, ancestors: ancestors, depth: depth, enclosingMetatypes: nestedEnclosingMetatypes)
-            case .enum(let metadata),
-                 .optional(let metadata):
-                walkNestedEnumPayloadFieldOffsets(of: metadata, baseOffset: baseOffset, baseIndentation: baseIndentation, ancestors: ancestors, depth: depth, enclosingMetatypes: nestedEnclosingMetatypes)
-            default:
+            switch nestedFieldOffsetLevel(of: metatype) {
+            case .structFields(let fields):
+                for field in fields {
+                    let absoluteOffset = baseOffset + field.relativeOffset
+                    configuration.expandedFieldOffsetComment(fieldName: field.fieldName, typeName: field.typeName, offset: absoluteOffset, baseIndentation: baseIndentation, ancestors: ancestors, isLast: field.isLast)
+                    if let childMetatype = field.childMetatype {
+                        walkNestedExpandedFieldOffsets(of: childMetatype, baseOffset: absoluteOffset, baseIndentation: baseIndentation, ancestors: ancestors + [field.isLast], depth: depth + 1, enclosingMetatypes: nestedEnclosingMetatypes)
+                    }
+                }
+            case .enumPayloads(let payloads):
+                for payload in payloads {
+                    configuration.expandedFieldOffsetComment(fieldName: payload.caseName, typeName: payload.typeName, offset: baseOffset, baseIndentation: baseIndentation, ancestors: ancestors, isLast: payload.isLast)
+                    if payload.descends {
+                        walkNestedExpandedFieldOffsets(of: payload.payloadMetatype, baseOffset: baseOffset, baseIndentation: baseIndentation, ancestors: ancestors + [payload.isLast], depth: depth + 1, enclosingMetatypes: nestedEnclosingMetatypes)
+                    }
+                }
+            case .notExpanded:
                 SemanticString()
             }
         }
@@ -267,61 +293,81 @@ struct RuntimeFieldLayoutBackend {
         #log(.info, "walkNestedExpandedFieldOffsets found \(metatype, privacy: .public) already open on the current path — cutting the cycle")
     }
 
-    @SemanticStringBuilder
-    private func walkNestedStructFieldOffsets(of metadata: StructMetadata, baseOffset: Int, baseIndentation: Int, ancestors: [Bool], depth: Int, enclosingMetatypes: Set<ObjectIdentifier>) -> SemanticString {
-        if let descriptor = try? metadata.structDescriptor(in: .inProcess),
-           let nestedFieldOffsets = try? metadata.fieldOffsets(for: descriptor, in: .inProcess),
-           let nestedFieldRecords = try? descriptor.fieldDescriptor(in: .inProcess).records(in: .inProcess) {
-            let fieldEntries = Array(zip(nestedFieldRecords, nestedFieldOffsets))
-            for (fieldIndex, (nestedFieldRecord, nestedRelativeOffset)) in fieldEntries.enumerated() {
-                if let fieldName = try? nestedFieldRecord.fieldName(in: .inProcess) {
-                    let absoluteOffset = baseOffset + Int(nestedRelativeOffset)
-                    let isLastField = fieldIndex == fieldEntries.count - 1
-                    let nestedMangledTypeName = try? nestedFieldRecord.mangledTypeName(in: .inProcess)
-                    let typeName = nestedTypeName(for: nestedMangledTypeName, parentMetadata: metadata)
-                    configuration.expandedFieldOffsetComment(fieldName: fieldName, typeName: typeName, offset: absoluteOffset, baseIndentation: baseIndentation, ancestors: ancestors, isLast: isLastField)
-
-                    if let nestedMangledTypeName,
-                       let resolvedMetatype = resolveNestedMetatype(for: nestedMangledTypeName, parentMetadata: metadata) {
-                        walkNestedExpandedFieldOffsets(of: resolvedMetatype, baseOffset: absoluteOffset, baseIndentation: baseIndentation, ancestors: ancestors + [isLastField], depth: depth + 1, enclosingMetatypes: enclosingMetatypes)
-                    }
-                }
+    /// One level of the walk for `metatype`, built on first use and memoized
+    /// for the process. Building reads only the metatype's own metadata — the
+    /// helpers it calls touch no state of this backend — which is what makes
+    /// the level shareable across every type, image and printer.
+    private func nestedFieldOffsetLevel(of metatype: Any.Type) -> NestedFieldOffsetLevel {
+        NestedFieldOffsetLevelMemo.level(for: metatype) {
+            guard let wrapper = try? StructMetadata.createInProcess(metatype).asMetadataWrapper(in: .inProcess) else {
+                return .notExpanded
+            }
+            switch wrapper {
+            case .struct(let metadata):
+                return .structFields(nestedStructFields(of: metadata))
+            case .enum(let metadata),
+                 .optional(let metadata):
+                return .enumPayloads(nestedEnumPayloads(of: metadata))
+            default:
+                return .notExpanded
             }
         }
     }
 
-    @SemanticStringBuilder
-    private func walkNestedEnumPayloadFieldOffsets(of metadata: EnumMetadata, baseOffset: Int, baseIndentation: Int, ancestors: [Bool], depth: Int, enclosingMetatypes: Set<ObjectIdentifier>) -> SemanticString {
-        if let descriptor = try? metadata.enumDescriptor(in: .inProcess),
-           descriptor.hasPayloadCases,
-           let records = try? descriptor.fieldDescriptor(in: .inProcess).records(in: .inProcess) {
-            let payloadRecords = Array(records.prefix(descriptor.numberOfPayloadCases))
-            for (payloadIndex, payloadRecord) in payloadRecords.enumerated() {
-                if let mangledTypeName = try? payloadRecord.mangledTypeName(in: .inProcess),
-                   !mangledTypeName.isEmpty,
-                   let resolvedMetatype = resolveNestedMetatype(for: mangledTypeName, parentMetadata: metadata) {
-                    let fieldName = (try? payloadRecord.fieldName(in: .inProcess)) ?? "payload"
-                    let typeName = nestedTypeName(for: mangledTypeName, parentMetadata: metadata)
-                    let isLastPayload = payloadIndex == payloadRecords.count - 1
-                    configuration.expandedFieldOffsetComment(fieldName: fieldName, typeName: typeName, offset: baseOffset, baseIndentation: baseIndentation, ancestors: ancestors, isLast: isLastPayload)
-                    // An indirect case stores a `Builtin.NativeObject` box
-                    // reference, not the declared payload laid out inline — so
-                    // the payload's own fields are not at these offsets and
-                    // descending into them would report memory that is not
-                    // there. It is also the only way a value-type field graph
-                    // can be cyclic at all (an inline self-reference would be
-                    // infinitely sized and would not compile), which is what
-                    // made `DVTIconKit`'s icon-spec tree explode here.
-                    // `enumPayloadSize` / `enumPayloadExtraInhabitantCount`
-                    // already treat the flag this way; this walk was the
-                    // outlier. Same call as a class reference: print the case,
-                    // stop at the pointer.
-                    if !payloadRecord.flags.contains(.isIndirectCase) {
-                        walkNestedExpandedFieldOffsets(of: resolvedMetatype, baseOffset: baseOffset, baseIndentation: baseIndentation, ancestors: ancestors + [isLastPayload], depth: depth + 1, enclosingMetatypes: enclosingMetatypes)
-                    }
-                }
-            }
+    private func nestedStructFields(of metadata: StructMetadata) -> [NestedFieldOffsetLevel.StructField] {
+        guard let descriptor = try? metadata.structDescriptor(in: .inProcess),
+              let nestedFieldOffsets = try? metadata.fieldOffsets(for: descriptor, in: .inProcess),
+              let nestedFieldRecords = try? descriptor.fieldDescriptor(in: .inProcess).records(in: .inProcess)
+        else { return [] }
+        let fieldEntries = Array(zip(nestedFieldRecords, nestedFieldOffsets))
+        var fields: [NestedFieldOffsetLevel.StructField] = []
+        for (fieldIndex, (nestedFieldRecord, nestedRelativeOffset)) in fieldEntries.enumerated() {
+            guard let fieldName = try? nestedFieldRecord.fieldName(in: .inProcess) else { continue }
+            let nestedMangledTypeName = try? nestedFieldRecord.mangledTypeName(in: .inProcess)
+            fields.append(NestedFieldOffsetLevel.StructField(
+                fieldName: fieldName,
+                typeName: nestedTypeName(for: nestedMangledTypeName, parentMetadata: metadata),
+                relativeOffset: Int(nestedRelativeOffset),
+                childMetatype: nestedMangledTypeName.flatMap { resolveNestedMetatype(for: $0, parentMetadata: metadata) },
+                isLast: fieldIndex == fieldEntries.count - 1
+            ))
         }
+        return fields
+    }
+
+    private func nestedEnumPayloads(of metadata: EnumMetadata) -> [NestedFieldOffsetLevel.EnumPayload] {
+        guard let descriptor = try? metadata.enumDescriptor(in: .inProcess),
+              descriptor.hasPayloadCases,
+              let records = try? descriptor.fieldDescriptor(in: .inProcess).records(in: .inProcess)
+        else { return [] }
+        let payloadRecords = Array(records.prefix(descriptor.numberOfPayloadCases))
+        var payloads: [NestedFieldOffsetLevel.EnumPayload] = []
+        for (payloadIndex, payloadRecord) in payloadRecords.enumerated() {
+            guard let mangledTypeName = try? payloadRecord.mangledTypeName(in: .inProcess),
+                  !mangledTypeName.isEmpty,
+                  let payloadMetatype = resolveNestedMetatype(for: mangledTypeName, parentMetadata: metadata)
+            else { continue }
+            payloads.append(NestedFieldOffsetLevel.EnumPayload(
+                caseName: (try? payloadRecord.fieldName(in: .inProcess)) ?? "payload",
+                typeName: nestedTypeName(for: mangledTypeName, parentMetadata: metadata),
+                payloadMetatype: payloadMetatype,
+                isLast: payloadIndex == payloadRecords.count - 1,
+                // An indirect case stores a `Builtin.NativeObject` box
+                // reference, not the declared payload laid out inline — so
+                // the payload's own fields are not at these offsets and
+                // descending into them would report memory that is not
+                // there. It is also the only way a value-type field graph
+                // can be cyclic at all (an inline self-reference would be
+                // infinitely sized and would not compile), which is what
+                // made `DVTIconKit`'s icon-spec tree explode here.
+                // `enumPayloadSize` / `enumPayloadExtraInhabitantCount`
+                // already treat the flag this way; this walk was the
+                // outlier. Same call as a class reference: print the case,
+                // stop at the pointer.
+                descends: !payloadRecord.flags.contains(.isIndirectCase)
+            ))
+        }
+        return payloads
     }
 
     private func resolveNestedMetatype(for mangledTypeName: MangledName, parentMetadata: some ValueMetadataProtocol) -> Any.Type? {
@@ -591,22 +637,38 @@ struct RuntimeFieldLayoutBackend {
 
     // MARK: - Enum layout (runtime)
 
-    /// The enum's own value-witness type layout. Resolved with the `machO`
-    /// context (matching the former `EnumDumper.typeLayout`): the enum metadata
-    /// came from `…resolve(in: machO.context)`, so its value-witness table must be read
-    /// back through the same reader — the in-process `valueWitnessTable(in: .inProcess)`
-    /// misinterprets that offset and segfaults. Used by single-payload layout.
+    /// The enum's own value-witness type layout. A non-generic enum's metadata
+    /// came from `…resolve(in: machO.context)` (matching the former
+    /// `EnumDumper.typeLayout`), so its value-witness table must be read back
+    /// through the same reader — the in-process `valueWitnessTable(in: .inProcess)`
+    /// misinterprets that offset and segfaults. A specialization's metadata
+    /// is an in-process address, read through `readingContext` the same way
+    /// `fieldOffsets` reads it. Used by single-payload layout.
     private var enumTypeLayout: TypeLayout? {
-        try? metadata?.valueWitnessTable(in: machO.context).typeLayout
+        try? metadata?.valueWitnessTable(in: readingContext).typeLayout
     }
 
+    /// A generic enum lays out per instantiation, so only a specialization —
+    /// a definition that carries the instantiation's metadata — has a
+    /// layout to show; the payload types then resolve through that metadata
+    /// (evolution proposal `offline-generic-specialization`, which gives the
+    /// offline path the same comments).
     var enumLayout: EnumLayoutCalculator.LayoutResult? {
         get async {
             guard configuration.producesContent(for: .printEnumLayout),
                   let enumValue,
-                  !enumValue.descriptor.isGeneric else { return nil }
+                  !enumValue.descriptor.isGeneric || metadata != nil else { return nil }
             return try? await computeEnumLayout(enumValue, in: machO)
         }
+    }
+
+    /// A payload case's type: substituted through the specialization's
+    /// metadata for a generic enum, the bare name otherwise.
+    private func payloadMetatype(for mangledTypeName: MangledName, in machOImage: MachOImage) throws -> Any.Type? {
+        if isGeneric {
+            return resolveFieldMetatype(for: mangledTypeName, in: machOImage)
+        }
+        return try RuntimeFunctions.getTypeByMangledNameInContext(mangledTypeName, genericContext: nil, genericArguments: nil, in: machOImage)
     }
 
     private func computeEnumLayout(_ enumValue: Enum, in machOImage: MachOImage) async throws -> EnumLayoutCalculator.LayoutResult? {
@@ -763,7 +825,7 @@ struct RuntimeFieldLayoutBackend {
             }
             let mangledTypeName = try record.mangledTypeName(in: machOImage.context)
             guard !mangledTypeName.isEmpty else { continue }
-            guard let metatype = try RuntimeFunctions.getTypeByMangledNameInContext(mangledTypeName, genericContext: nil, genericArguments: nil, in: machOImage) else { continue }
+            guard let metatype = try payloadMetatype(for: mangledTypeName, in: machOImage) else { continue }
             let typeLayout = try StructMetadata.createInProcess(metatype).asMetadataWrapper(in: .inProcess).valueWitnessTable(in: .inProcess).typeLayout
             payloadSize = max(payloadSize, typeLayout.size.cast())
         }
@@ -785,7 +847,7 @@ struct RuntimeFieldLayoutBackend {
             }
             let mangledTypeName = try record.mangledTypeName(in: machOImage.context)
             guard !mangledTypeName.isEmpty else { continue }
-            guard let metatype = try RuntimeFunctions.getTypeByMangledNameInContext(mangledTypeName, genericContext: nil, genericArguments: nil, in: machOImage) else { continue }
+            guard let metatype = try payloadMetatype(for: mangledTypeName, in: machOImage) else { continue }
             let typeLayout = try StructMetadata.createInProcess(metatype).asMetadataWrapper(in: .inProcess).valueWitnessTable(in: .inProcess).typeLayout
             return typeLayout.extraInhabitantCount.cast()
         }
