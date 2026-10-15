@@ -45,7 +45,7 @@ SwiftDeclaration 是**共享声明模型**：`SwiftIndexing` 往里填，`SwiftP
 
 ### 每个定义只索引一次，可以被并发打印
 
-三个 Definition 的 `index(in:)` 是**同步**函数，都经 `DefinitionIndexing.swift` 执行（提案 [draft-concurrent-definition-printing](../../Evolutions/draft-concurrent-definition-printing.md)）。进程级一把锁守着两样东西：一张「正在索引」的表（按 `ObjectIdentifier(定义)`），和每个定义自己的 `hasCompletedIndexing`。首个调用者认领后在自己的线程上跑完索引体；同时到来的调用者在认领者的 promise（复用 `SharedCacheBuildPromise`，载荷是 `Result`）上阻塞等待，拿到同一个结果。索引体抛错时定义回到未索引、错误交给全部等待者，下次调用重试。`isIndexed` 是只读的计算属性，读的就是锁下的那个标志。
+三个 Definition 的 `index(in:)` 是**同步**函数，都经 `DefinitionIndexing.swift` 执行（提案 [0066-concurrent-definition-printing](../../Evolutions/0066-concurrent-definition-printing.md)）。进程级一把锁守着两样东西：一张「正在索引」的表（按 `ObjectIdentifier(定义)`），和每个定义自己的 `hasCompletedIndexing`。首个调用者认领后在自己的线程上跑完索引体；同时到来的调用者在认领者的 promise（复用 `SharedCacheBuildPromise`，载荷是 `Result`）上阻塞等待，拿到同一个结果。索引体抛错时定义回到未索引、错误交给全部等待者，下次调用重试。`isIndexed` 是只读的计算属性，读的就是锁下的那个标志。
 
 阻塞等待不会死锁，靠两条前提，改索引时要守住：
 

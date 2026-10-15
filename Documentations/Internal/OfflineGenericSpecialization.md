@@ -1,6 +1,6 @@
 # 离线泛型特化
 
-提案 [offline-generic-specialization](../Evolutions/draft-offline-generic-specialization.md) 的实现说明：不经 runtime 特化一个从文件读出的泛型类型，并像在线模式一样打印出绑定后的头部、代换后的字段类型和按实参计算的布局注释。给 RuntimeViewer 的离线模式用，本库没有 CLI 入口。
+提案 [offline-generic-specialization](../Evolutions/0069-offline-generic-specialization.md) 的实现说明：不经 runtime 特化一个从文件读出的泛型类型，并像在线模式一样打印出绑定后的头部、代换后的字段类型和按实参计算的布局注释。给 RuntimeViewer 的离线模式用，本库没有 CLI 入口。
 
 ## 一句话
 

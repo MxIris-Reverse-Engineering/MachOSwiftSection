@@ -3,7 +3,7 @@
 - **状态**: Implemented
 - **创建日期**: 2026-10-13
 - **最后更新**: 2026-10-13
-- **关联提案**: [draft-concurrent-definition-printing](draft-concurrent-definition-printing.md)（同版本内并行打印的前提）、[0053-shared-cache-composition-and-eviction-registry](0053-shared-cache-composition-and-eviction-registry.md)（`SharedCache` 的现行形态）
+- **关联提案**: [0066-concurrent-definition-printing](0066-concurrent-definition-printing.md)（同版本内并行打印的前提）、[0053-shared-cache-composition-and-eviction-registry](0053-shared-cache-composition-and-eviction-registry.md)（`SharedCache` 的现行形态）
 - **实现分支**: `feature/faster-lazy-definition-indexing`
 
 ## 摘要

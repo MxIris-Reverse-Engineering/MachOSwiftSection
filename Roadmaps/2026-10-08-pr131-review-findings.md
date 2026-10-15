@@ -893,15 +893,15 @@ try await withThrowingTaskGroup(of: Void.self) { group in
 --- a/AGENTS.md
 +++ b/AGENTS.md
 @@ -271,7 +271,7 @@
--… The `MachOFile` reader is still not safe — MachOKit's `MachOFile` reads share one `FileHandle` (seek + read) — and `specialize(...)` appends to the generic definition unlocked. [draft-concurrent-definition-printing](…).
-+… The `MachOFile` reader is still not safe — MachOKit's `MachOFile` reads share one `FileHandle` (seek + read). `specialize(...)` may run beside reads of the same definition's `specializedChildren`: the list is held under a lock of its own. [draft-concurrent-definition-printing](…).
+-… The `MachOFile` reader is still not safe — MachOKit's `MachOFile` reads share one `FileHandle` (seek + read) — and `specialize(...)` appends to the generic definition unlocked. [0066-concurrent-definition-printing](…).
++… The `MachOFile` reader is still not safe — MachOKit's `MachOFile` reads share one `FileHandle` (seek + read). `specialize(...)` may run beside reads of the same definition's `specializedChildren`: the list is held under a lock of its own. [0066-concurrent-definition-printing](…).
 ```
 
 **修后**：测试通过（512 个全部留下）。
 
 **横向排查**：库里另有四处同样「懒创建、无锁、nonatomic」的关联对象：`MachOFile` 与 `DyldCache` 的 `_fileHandle`、`_fileIO`（`Sources/MachO/MachOReading/Extensions/MachOFile+.swift`、`DyldCache+.swift`）。`MachOFile` 本来就声明不支持同一版本内并发；但宿主的 dyld cache 对象会被多个版本共享（`FullDyldCache.cachedHost`），跨版本并行时这四处会不会真被并发首次访问，还没查。它们不在本 PR 范围内，建议另开一项。
 
-**落地时**：`draft-concurrent-definition-printing` 的决策日志补一条（前提更正 + 加锁）。
+**落地时**：`0066-concurrent-definition-printing` 的决策日志补一条（前提更正 + 加锁）。
 
 ### 8. opaque provider 少数一层（低到中，基线就有）
 
@@ -1707,9 +1707,9 @@ struct SimulatorProjectionFixture.ElementsHolder<[Swift.Int]> {
 2. **渲染 A/B 必跑**（AGENTS.md 对动到打印和索引的改动的要求）。会改变既有输出的是第 1 条（普通 SwiftUI app 的 opaque 类型实参）、第 4 条（extension 里协议的默认实现块）、第 6 条（静态展开偏移里 opaque 实际类型那一行）、第 8 条（带 provider 的 interface）、第 13 条（kind-9 字段名）。PR 本身在 rebase 和合并 `next` 后也还没重跑 A/B。
 3. **文档同批**：
    - 演进账本补一节。
-   - `draft-concurrent-definition-printing` 决策日志：第 7 条（前提更正、加锁）、第 9 条（登记）。
-   - `draft-offline-generic-specialization` 决策日志与 `Internal/OfflineGenericSpecialization.md`：第 2、3、5、10、11 条。
-   - `draft-nested-definition-regions` 决策日志：第 4 条。
+   - `0066-concurrent-definition-printing` 决策日志：第 7 条（前提更正、加锁）、第 9 条（登记）。
+   - `0069-offline-generic-specialization` 决策日志与 `Internal/OfflineGenericSpecialization.md`：第 2、3、5、10、11 条。
+   - `0068-nested-definition-regions` 决策日志：第 4 条。
    - `Internal/OpaqueReturnTypeResolution.md`：第 1、8 条。
    - `Internal/Modules/SwiftThunkAnalysis.md`：第 13 条。
    - AGENTS.md 的 `specialize(...)` 那句（diff 见第 7 条）。
