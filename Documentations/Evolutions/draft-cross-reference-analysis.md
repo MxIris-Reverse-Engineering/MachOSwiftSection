@@ -59,6 +59,7 @@ public final class CrossReferenceAnalyzer: @unchecked Sendable {
 - **懒绑定**：曾以为懒绑定的老式二进制在函数第一次调用前槽位指向 `__stub_helper`，加了退回导入名的防护和测试；测试在去掉防护后照样通过。用探针看：macOS 27.2 的 dyld 以 `RTLD_LAZY` 加载时就绑好了槽。防护是死代码，撤掉；测试改成哨兵 `LazyBindingTests`，断言调用直接解析到 `puts`。
 - **验证**（JHs-Mac-Studio-Ultra，macOS 27.2，Xcode 27.2，依赖全部走远端发布版本）：`CrossReferenceAnalysisTests` 20 个测试通过，其中 `callSitesMatchCapstone` 抽样 AppKit 的 400 个函数，Capstone 找到的每一处调用与跳出函数的跳转，扫描都找到了；`SwiftThunkAnalysisTests` 82 个测试通过，包括经 stub island 解析的两个离线 iOS 缓存测试；全量 `swift test --skip IntegrationTests` 见演进账本本批一节。
 - **第一次测试的教训**：Capstone 不开 detail 模式就不给操作数，按位置取操作数会越界；比对「跳出函数的跳转」那半边因此一度什么都没比。测试现在断言这半边比对过不止一处。
+- **第一批之后的修补**（RuntimeViewer 第 3 步接入时发现）：①缓存里的传统 `objc_msgSend` 发送，`x1` 不是从 selector 引用读来，而是缓存构建器改写出的字符串地址（`adrp x8; add x1, x8; b _objc_msgSend`，libobjc 的 `-[NSObject debugDescription]` 就是），第一批把它们当成对 `objc_msgSend` 的普通调用，发送整个看不见。修法是 `x1` 是 `adrp` / `add` 算出的地址时，确认它可读、到结尾是可打印字符，就当作 selector；回归测试 `classicSendsInsideTheCacheNameTheirSelector` 改前红、改后绿。②补上预筛的正确性测试：此前只断言预筛「留下了 AppKit、筛得够狠」，没断言「丢掉的镜像里真没有引用」。现在 3 个 selector 与 2 个导出函数各在被丢掉的镜像里每 16 个抽 1 个扫描，一处引用也没有。③新增 `functions(containing:)`：给一批结果起名，用完不留函数表。
 - **留给后续批次**：过滤扫描按键提前跳过（现在先建好每条引用再丢）；`CodeReference` 的紧凑存储。
 
 ## 决策日志
@@ -71,3 +72,4 @@ public final class CrossReferenceAnalyzer: @unchecked Sendable {
 | 2026-10-16 | API 改为宿主持有的 `CrossReferenceAnalyzer`，位置用 `CodeLocation` | 跨镜像解析目标要整张进程镜像表；缓存外两个镜像的未滑动地址可能重合 |
 | 2026-10-16 | 整镜像扫描不记函数表；新增只留命中引用的 `references(to:inImageAt:)` | 实测：记表时扫完全缓存常驻 1.5 GB；整表并发扫描的峰值让分配器留下 1.2 GB；过滤扫描后约 170 MB |
 | 2026-10-16 | 不做懒绑定退回，留哨兵测试 | 探针实测 dyld 加载时就绑好懒绑定槽，防护是死代码 |
+| 2026-10-16 | 补认缓存内传统发送的 selector 字符串地址；补预筛正确性测试 | RuntimeViewer 第 3 步查 `-[NSObject description]` 的调用者一条都没有，追到第一批漏认了这种形态；同时发现预筛从未被断言过「不漏」 |

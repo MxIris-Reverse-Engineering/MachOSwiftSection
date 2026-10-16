@@ -186,6 +186,12 @@ final class RegisterFile {
         register != 31 && states[register] == State.methodReceiver.rawValue
     }
 
+    /// The address a register holds, when `adrp` / `adr` / `add` built it.
+    func builtAddress(of register: Int) -> UInt64? {
+        guard register != 31, states[register] == State.address.rawValue else { return nil }
+        return values[register]
+    }
+
     /// The slot a register's value was loaded from, when that is known.
     func slotAddress(of register: Int) -> UInt64? {
         guard register != 31, states[register] == State.loadedFromSlot.rawValue else { return nil }

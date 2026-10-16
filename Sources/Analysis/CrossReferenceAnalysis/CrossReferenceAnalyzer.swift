@@ -299,4 +299,11 @@ public final class CrossReferenceAnalyzer: @unchecked Sendable {
         guard !overflow else { return false }
         return mappedRanges.contains { $0.lowerBound <= address && end <= $0.upperBound }
     }
+
+    /// How many bytes from the runtime `address` on may be read: up to the
+    /// end of the mapping that holds it, or none.
+    func mappedLength(fromRuntimeAddress address: UInt) -> UInt {
+        guard let range = mappedRanges.first(where: { $0.contains(address) }) else { return 0 }
+        return range.upperBound - address
+    }
 }

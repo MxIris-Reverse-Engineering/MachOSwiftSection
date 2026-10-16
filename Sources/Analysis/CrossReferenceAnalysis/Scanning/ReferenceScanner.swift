@@ -151,14 +151,46 @@ struct ReferenceScanner {
         isObjectiveCMethod && registers.holdsMethodReceiver(0) ? .methodReceiver : .unknown
     }
 
-    /// The selector `x1` was loaded with, when it came from this image's
-    /// selector references.
+    /// The selector a classic send passes in `x1`: loaded from this image's
+    /// selector references, or the selector string's own address.
+    ///
+    /// The second is what a classic send looks like inside the shared cache.
+    /// The cache builder rewrites the `adrp` / `ldr` of a selector reference
+    /// into an `adrp` / `add` of the string it points at, so the instructions
+    /// carry only the string's address — macOS 27.2 compiles
+    /// `-[NSObject debugDescription]` to `adrp x8; add x1, x8; b _objc_msgSend`.
     private mutating func selectorInSelectorRegister() -> String? {
-        guard let slotAddress = registers.slotAddress(of: 1),
-              let range = table.selectorReferenceRange, range.contains(slotAddress),
-              let selector = ImageFunctionTable.selectorString(inSlotAt: slotAddress, slide: table.slide)
-        else { return nil }
-        return selectorName(selector)
+        if let slotAddress = registers.slotAddress(of: 1) {
+            guard let range = table.selectorReferenceRange, range.contains(slotAddress),
+                  let selector = ImageFunctionTable.selectorString(inSlotAt: slotAddress, slide: table.slide)
+            else { return nil }
+            return selectorName(selector)
+        }
+        if let stringAddress = registers.builtAddress(of: 1),
+           let selector = selectorString(atRuntimeAddress: runtimeAddress(ofUnslid: stringAddress, slide: table.slide)) {
+            return selectorName(selector)
+        }
+        return nil
+    }
+
+    /// The longest selector read; longer ones are taken for something else.
+    private static let maximumSelectorLength = 1024
+
+    /// A selector string at `address`: mapped, and printable up to its
+    /// terminator. Checked rather than assumed — `x1` holds the selector by
+    /// convention only, and a string runs to wherever its terminator is.
+    private func selectorString(atRuntimeAddress address: UInt) -> UnsafePointer<CChar>? {
+        let readableLength = min(analyzer.mappedLength(fromRuntimeAddress: address), UInt(Self.maximumSelectorLength))
+        guard readableLength > 0, let bytes = UnsafePointer<UInt8>(bitPattern: address) else { return nil }
+        for index in 0 ..< Int(readableLength) {
+            let byte = bytes[index]
+            if byte == 0 {
+                return index > 0 ? UnsafeRawPointer(bytes).assumingMemoryBound(to: CChar.self) : nil
+            }
+            // Selectors are identifiers and colons: printable, never a space.
+            guard byte > 0x20, byte < 0x7F else { return nil }
+        }
+        return nil
     }
 
     private mutating func selectorName(_ pointer: UnsafePointer<CChar>) -> String {

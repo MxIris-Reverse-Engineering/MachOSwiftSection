@@ -48,6 +48,22 @@ struct CrossReferenceAnalyzerTests {
         #expect(sends.map(\.2) == [.call, .call, .tailCall])
     }
 
+    /// A classic `objc_msgSend` inside the shared cache passes the selector
+    /// string's own address: the cache builder rewrote the load of the
+    /// selector reference into `adrp` / `add` of the string.
+    /// `-[NSObject debugDescription]` is `return [self description];`, which
+    /// macOS 27.2 compiles to `adrp x8; add x1, x8; b _objc_msgSend`.
+    @Test func classicSendsInsideTheCacheNameTheirSelector() throws {
+        let libobjc = try imageIndex(endingWith: "/usr/lib/libobjc.A.dylib")
+        let method = try function(named: "-[NSObject debugDescription]", inImageAt: libobjc)
+        let sends = analyzer.references(madeBy: method).compactMap { reference -> (String, ReceiverClassHint)? in
+            guard case .messageSend(let selector, let receiver) = reference.target else { return nil }
+            return (selector, receiver)
+        }
+        #expect(sends.map(\.0) == ["description"])
+        #expect(sends.first?.1 == .methodReceiver)
+    }
+
     /// A Swift image's calls into the Swift runtime go through a GOT stub
     /// — the image's own `__auth_stubs` up to macOS 26, a stub the cache
     /// shares from macOS 27 — and must land on the runtime's function.
@@ -133,6 +149,65 @@ struct CrossReferenceAnalyzerTests {
         #expect(analyzer.imageIndices(importing: "_noSuchFunctionForCrossReferenceTests", among: everyImage).isEmpty)
     }
 
+    /// A prefilter may drop only images that cannot reference the subject.
+    /// Every image it keeps that a scan finds sending the selector is a
+    /// sender; every image it drops must be one the scan finds nothing in.
+    /// From macOS 27 the sends go through stubs the cache shares, or pass the
+    /// selector string's own address — the image's selector reference is what
+    /// the prefilter reads, so it has to outlive both rewrites.
+    ///
+    /// The dropped images are sampled, every sixteenth: a Debug build scans
+    /// the whole cache in minutes, not seconds.
+    @Test(arguments: ["orderWindow:relativeTo:", "description", "count"])
+    func selectorPrefilterKeepsEverySender(selector: String) throws {
+        let everyImage = Array(analyzer.images.indices)
+        let kept = analyzer.imageIndices(referencingSelector: selector, among: everyImage)
+        let keys: Set<CodeReferenceTable.Key> = [.selector(selector)]
+        #expect(!imagesReferencing(keys, among: Array(kept.prefix(64))).isEmpty)
+        let droppedSample = Self.sample(of: Set(everyImage).subtracting(kept))
+        let missed = imagesReferencing(keys, among: droppedSample)
+        #expect(missed.isEmpty, "prefilter dropped senders: \(missed.sorted().prefix(5).map { analyzer.imagePaths[$0] })")
+    }
+
+    /// The same for an exported function: an image that calls it is its own
+    /// or imports one of its names — even where the cache builder bound the
+    /// call straight to the function.
+    @Test(arguments: zip(
+        ["/CoreFoundation.framework/Versions/A/CoreFoundation", "/usr/lib/system/libdispatch.dylib"],
+        ["_CFRelease", "_dispatch_async"]
+    ))
+    func importPrefilterKeepsEveryCaller(imageSuffix: String, symbol: String) throws {
+        let owner = try imageIndex(endingWith: imageSuffix)
+        let function = try function(named: symbol, inImageAt: owner)
+        let everyImage = Array(analyzer.images.indices)
+        var kept: Set<Int> = [owner]
+        for name in [symbol] + function.foldedSymbolNames {
+            kept.formUnion(analyzer.imageIndices(importing: name, among: everyImage))
+        }
+        let keys: Set<CodeReferenceTable.Key> = [.function(function.location), .importedSymbol(symbol)]
+        let importers = kept.subtracting([owner]).sorted()
+        #expect(!imagesReferencing(keys, among: Array(importers.prefix(64))).isEmpty)
+        let droppedSample = Self.sample(of: Set(everyImage).subtracting(kept))
+        let missed = imagesReferencing(keys, among: droppedSample)
+        #expect(missed.isEmpty, "prefilter dropped callers: \(missed.sorted().prefix(5).map { analyzer.imagePaths[$0] })")
+    }
+
+    /// Every sixteenth of `imageIndices`, in order.
+    private static func sample(of imageIndices: Set<Int>) -> [Int] {
+        imageIndices.sorted().enumerated().filter { $0.offset % 16 == 0 }.map(\.element)
+    }
+
+    /// The images among `imageIndices` with any reference to `keys`.
+    private func imagesReferencing(_ keys: Set<CodeReferenceTable.Key>, among imageIndices: [Int]) -> Set<Int> {
+        let found = ImageIndexCollector()
+        let analyzer = analyzer
+        DispatchQueue.concurrentPerform(iterations: imageIndices.count) { position in
+            let imageIndex = imageIndices[position]
+            if !analyzer.references(to: keys, inImageAt: imageIndex).isEmpty { found.insert(imageIndex) }
+        }
+        return found.indices
+    }
+
     /// Capstone decodes the same functions independently: every call and
     /// every branch out of a function it finds, the scanner found at the
     /// same address — and nothing more.
@@ -180,5 +255,23 @@ struct CrossReferenceAnalyzerTests {
         #expect(comparedFunctionCount > 100)
         // Without detail mode Capstone gives no operands, and this half of the comparison silently compares nothing.
         #expect(comparedBranchOutCount > 0)
+    }
+}
+
+/// Image indices gathered from concurrent scans.
+private final class ImageIndexCollector: @unchecked Sendable {
+    private let lock = NSLock()
+    private var collected = Set<Int>()
+
+    func insert(_ imageIndex: Int) {
+        lock.lock()
+        defer { lock.unlock() }
+        collected.insert(imageIndex)
+    }
+
+    var indices: Set<Int> {
+        lock.lock()
+        defer { lock.unlock() }
+        return collected
     }
 }
