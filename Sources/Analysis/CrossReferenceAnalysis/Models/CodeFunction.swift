@@ -5,16 +5,21 @@
 /// macOS 27.2 dyld shared cache carry no symbol, and the calls they make are
 /// half of all calls.
 public struct CodeFunction: Hashable, Sendable {
-    /// Where a function's name came from.
+    /// Where a function's name came from, in the order they are tried.
     public enum Name: Hashable, Sendable {
-        /// From the symbol table: a mangled Swift name, a C name, or
-        /// `-[Class selector]`.
+        /// From the symbol table or the export trie, as they spell it: a
+        /// mangled Swift name, a C name, or `-[Class selector]`.
         case symbol(String)
-        /// From an Objective-C method list, when the symbol was stripped.
+        /// From an Objective-C method list, when no symbol names the
+        /// function. The method lists do not record categories, so a
+        /// category method reads as `-[NSTextView draggingUpdated:]` where
+        /// the symbol would say `-[NSTextView(NSDragging) draggingUpdated:]`.
         case objectiveCMethod(className: String, selector: String, isClassMethod: Bool)
-        /// From a Swift method descriptor or witness, when the symbol was
-        /// stripped.
-        case swiftMethod(descriptorAddress: UInt64)
+        /// A Swift mangled name rebuilt from metadata, when no symbol names
+        /// the function: a type's metadata accessor (`…Ma`) or singleton
+        /// completion function (`…Mr`), or a method whose descriptor's
+        /// `…Tq` symbol spells it. Demangles like a symbol.
+        case swiftMetadata(mangledName: String)
     }
 
     /// The first instruction.

@@ -574,7 +574,14 @@ extension Target {
         name: "CrossReferenceAnalysis",
         dependencies: [
             .product(.MachOKit),
+            .product(.MachOObjCSection),
+            .product(.Demangling),
             .target(.ARM64InstructionDecoding),
+            .target(.MachOFoundation),
+            .target(.MachOSwiftSection),
+            // `SymbolicDemangler`: a type's name from its descriptor when no
+            // symbol spells it.
+            .target(.SwiftInspection),
         ],
         path: "Sources/Analysis/CrossReferenceAnalysis",
     )
@@ -1142,6 +1149,8 @@ extension Target {
             .target(.ARM64InstructionDecoding),
             .product(.MachOKit),
             .product(.Capstone),
+            .product(.Demangling),
+            .target(.MachOSwiftSection),
         ],
         swiftSettings: testSettings,
     )

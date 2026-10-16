@@ -37,6 +37,11 @@ final class ImageFunctionTable: @unchecked Sendable {
     let symbolStubs: [UInt64: SymbolStub]
     let selectorReferenceRange: Range<UInt64>?
     let dataInCodeRanges: [Range<UInt64>]
+    /// The unslid address of the Mach header — `__TEXT`'s vmaddr.
+    let headerAddress: UInt64
+
+    private let fallbackNamesLock = NSLock()
+    private var fallbackNamesStorage: ImageFallbackNames?
 
     init(imageIndex: Int, image: MachOImage) {
         self.imageIndex = imageIndex
@@ -44,6 +49,7 @@ final class ImageFunctionTable: @unchecked Sendable {
         let slide = image.vmaddrSlide ?? 0
         self.slide = slide
         let headerAddress = image.segments64.first { $0.segmentName == "__TEXT" }.map { UInt64($0.layout.vmaddr) } ?? 0
+        self.headerAddress = headerAddress
 
         var textStart: UInt64 = 0
         var textEnd: UInt64 = 0
@@ -224,12 +230,29 @@ final class ImageFunctionTable: @unchecked Sendable {
 
     func codeFunction(at index: Int) -> CodeFunction {
         let start = starts[index]
+        var name: CodeFunction.Name? = primaryName(ofFunctionAt: index).map { .symbol(String(cString: $0)) }
+        var foldedSymbolNames = foldedNames[start]?.map { String(cString: $0) } ?? []
+        if name == nil, let fallback = fallbackNames.name(at: start) {
+            name = fallback.name
+            foldedSymbolNames = fallback.foldedSymbolNames
+        }
         return CodeFunction(
             location: CodeLocation(imageIndex: imageIndex, address: start),
             size: Int(end(ofFunctionAt: index) - start),
-            name: primaryName(ofFunctionAt: index).map { .symbol(String(cString: $0)) },
-            foldedSymbolNames: foldedNames[start]?.map { String(cString: $0) } ?? [],
+            name: name,
+            foldedSymbolNames: foldedSymbolNames,
             isRuntimeHelper: runtimeHelperStarts.contains(start)
         )
+    }
+
+    /// The names the symbol table does not give, read on first use: naming a
+    /// function needs them, scanning never does.
+    var fallbackNames: ImageFallbackNames {
+        fallbackNamesLock.lock()
+        defer { fallbackNamesLock.unlock() }
+        if let fallbackNamesStorage { return fallbackNamesStorage }
+        let fallbackNames = ImageFallbackNames(image: image, headerAddress: headerAddress, slide: slide, textRange: textStart ..< textEnd)
+        fallbackNamesStorage = fallbackNames
+        return fallbackNames
     }
 }

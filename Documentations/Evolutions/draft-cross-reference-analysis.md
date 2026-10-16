@@ -62,6 +62,58 @@ public final class CrossReferenceAnalyzer: @unchecked Sendable {
 - **第一批之后的修补**（RuntimeViewer 第 3 步接入时发现）：①缓存里的传统 `objc_msgSend` 发送，`x1` 不是从 selector 引用读来，而是缓存构建器改写出的字符串地址（`adrp x8; add x1, x8; b _objc_msgSend`，libobjc 的 `-[NSObject debugDescription]` 就是），第一批把它们当成对 `objc_msgSend` 的普通调用，发送整个看不见。修法是 `x1` 是 `adrp` / `add` 算出的地址时，确认它可读、到结尾是可打印字符，就当作 selector；回归测试 `classicSendsInsideTheCacheNameTheirSelector` 改前红、改后绿。②补上预筛的正确性测试：此前只断言预筛「留下了 AppKit、筛得够狠」，没断言「丢掉的镜像里真没有引用」。现在 3 个 selector 与 2 个导出函数各在被丢掉的镜像里每 16 个抽 1 个扫描，一处引用也没有。③新增 `functions(containing:)`：给一批结果起名，用完不留函数表。
 - **留给后续批次**：过滤扫描按键提前跳过（现在先建好每条引用再丢）；`CodeReference` 的紧凑存储。
 
+## 第二批的设计（2026-10-17，实测之后）
+
+方案一节对第二批只有一句「ObjC 方法表与 Swift 元数据命名、类型引用」。动手前用两个只读探针在 macOS 27.2 的缓存上实测（代码在 agent 临时目录 `Probes/CrossReferences/BatchTwo-ObjC`、`BatchTwo-Swift`，不在仓库里），有几条事实改变了做法，按它们定下第二批：
+
+### 起名：三个来源，都在起名时按镜像按需读
+
+| 来源 | 能给多少无名起点起名（全缓存，无名共 822 万） | 代价 |
+|---|---|---|
+| 导出表（export trie）——第一批没读 | 140 万；iOS 真机上也在 | 每个镜像不到 1 毫秒 |
+| ObjC 方法表（类、元类、分类） | 40 万（Matter 53,000 个无名里 30,863 个） | AppKit 42–86 ms；全缓存单线程 14 s，`MachOObjCSection` 内部串行，并发不变快 |
+| Swift 元数据 | 146 万处被元数据指到，其中 132 万导出表也没名字 | 全缓存单线程 8.2 s，28 线程 3.3 s |
+
+- 每个方法实现都是 `LC_FUNCTION_STARTS` 里的函数起点。一个镜像只读自己的类列表（列表的列表里属于别的镜像的条目跳过：它们一定也在那个镜像自己的分类列表里）和自己的分类列表。元数据里没有分类名，`-[NSTextView(NSDragging) draggingUpdated:]` 读出来是 `-[NSTextView draggingUpdated:]`；有符号的照用符号（Swift 的 `@objc` 桥接函数 `…To` 与方法表名字不同，符号是对的）。
+- Swift 元数据里，名字一定能还原的：类型元数据访问器（`…Ma`）与 singleton 完成函数（`…Mr`），类型名取自描述符的上下文。虚表实现要靠方法描述符导出的 `…Tq`（去掉 `Tq` 就是方法本身的 mangled 名字），16 万处里 8.4 万有。协议见证可以由 conformance 加 requirement 重新 mangle 出 `…TW`，留到下一步。虚表里有大量空实现；指向 `__swift5_typeref` 的见证是关联类型，不是代码；async 函数指向 `{rel32 函数, u32 大小}` 记录，要再跟一步。
+- 扫描时用不到这些名字（判断一个函数是不是 ObjC 方法除外，见下），所以不在建函数表时读，只在给函数起名时（`functions(inImageAt:)`、`function(containing:)`、`functions(containing:)`）按镜像读一次、记在函数表上。
+- `CodeFunction.Name` 变成三种：`.symbol`（符号表与导出表）、`.objectiveCMethod`、`.swiftMetadata(mangledName:)`（从元数据重建的完整 mangled 名字，可以直接 demangle）。第一批占位的 `.swiftMethod(descriptorAddress:)` 去掉。
+
+### ObjC：类字面量接收者、super 的类、类引用
+
+- 27.2 的缓存里几乎没有 `__objc_classrefs` 了（全缓存只剩 53 个镜像、1,023 个槽）。类经 GOT 载入：镜像自己的 `__got`，或全缓存共用的 GOT 池（落在所有镜像的段之外）；或 `adrp`+`add` 直接取类对象地址；super 发送仍经 `__objc_superrefs`。AppKit 里 34,256 处来自共用池、17,450 处来自自己的 `__got`、3,311 处直接取址。
+- 槽里的值是不是类对象，用目标镜像按需建的类索引判断（`__objc_classlist` 的类与元类，名字取自 `class_ro_t`）；其他槽（`__cfstring` 的 isa 之类）一律不算。类对象不能只按所在段认：9.2 万个 Swift 类与元类在 `__data` 里。
+- 发送的接收者来自类引用时记为 `classLiteral`（AppKit 11% 的发送）。`objc_opt_self`、`objc_opt_class`、`swift_getInitializedObjCClass` 视为原样返回实参（SwiftUI 的类接收者几乎都经 `objc_opt_self`）。
+- super 发送的类取发送方法自己的类（名字 `-[C sel]` 里的 `C`，或方法表给的类）。用栈槽跟踪能还原 88%，与方法自己的类对照，7,106 处一致、2 处不同，所以不做栈槽跟踪。
+- 扫描时判断一个函数是不是 ObjC 方法（`x0` 是不是接收者）仍只看名字。把无名的方法实现也算上能让 AppKit 的 self 发送从 67,848 处升到 77,696 处，但要在每次扫描时读方法表，代价与扫描本身相当；iOS 真机上符号全被抹掉，这一项影响更大，留到有更快的方法表读法时再做。
+
+### 类型引用
+
+- **键**：名义类型的 mangling，不带 `$s`，不带后缀：`7SwiftUI4TextV`、`Sa`、`So8NSWindowC`。泛型实例里出现的每个名义类型各算一处引用（`Array<Text>` 引用 `Sa` 和 `7SwiftUI4TextV`）。ObjC 类写成 `So<长度><名字>C`；有 ObjC 元数据的 Swift 类经元数据 +0x40 的描述符得到它自己的 mangling。不用描述符地址作键：导入的 `So…` 类型在每个用到它的镜像里各有一份描述符，标准库类型在 mangled 名字里写成文本。键一律经重新 mangle 得到——直接从 `…Mn` 符号截取，与重新 mangle 的结果在受约束扩展里的嵌套类型上不一致（SwiftUICore 4,778 个里 36 个）。
+- **来源**（括号里是 SwiftUICore 的数量）：
+  1. 元数据访问器调用（本镜像 15,042，跨镜像 5,649）：目标属于访问器集合（各镜像 `__swift5_types` 描述符的 `accessFunction`，全缓存 34 万个，并发 0.13 s 建完）。泛型实例、存在类型、导入类型的访问器（`$sSNy10Foundation4DateVGMa`、`…_pMa`、`$sSo…Ma`）没有描述符，只能按符号名认。
+  2. 取址：`adrp`+`add` 或 GOT 载入得到访问器地址（8,060 / 6,332）、值类型元数据地址（27,057 / 4,106）或类元数据（266）。SwiftUICore 里取址比访问器调用还多。
+  3. 按 mangled 名字实例化：调用本镜像的 `__swift_instantiateConcreteTypeFromMangledName*` helper（全缓存 1,771 个 Swift 镜像有，147 万处调用，一律调本镜像的那份；没有符号时按形态认：不超过 0x90 字节、调用 `swift_getTypeByMangledNameInContext*`）。27.2 上几乎都是 V2：名字不在 `x0` 的缓存变量里，而在 `x1` 指向的 `{int32 到 __swift5_typeref 的偏移, int32 长度}` 记录里。名字里的 `\x01` / `\x02` 符号引用指向描述符，用 `SymbolicDemangler` 解开（每个约 60 µs，平均含 2.5 个名义类型）。SwiftUI 与 SwiftUICore 不用这个 helper。
+  4. ObjC 类引用，见上一节。
+- **查询**：「哪些函数引用了类型 T」不能只按键等值过滤：mangled 名字要解开才知道引用了谁，全缓存 147 万处逐个解开太慢。扫描先拿 T 的全部身份（访问器位置、元数据与类对象地址、描述符地址、mangling 文本）做结构比对——符号引用比地址、文本比子串——命中了才解开确认。
+- **预筛**：定义 T 的镜像，加上导入了 T 的 `…Mn`、`…Ma`、`…N`、`_OBJC_CLASS_$_…` 的镜像；标准库与导入的 C 类型只以文本出现在 mangled 名字里，按各镜像 `__swift5_typeref` 的字节预筛。
+
+### 寄存器跟踪在汇合点的问题（第一批的缺陷，待核实）
+
+扫描按指令顺序跟踪寄存器，没有处理汇合：无条件跳转之后的代码只能从别处跳进来，寄存器的值却还带着跳转之前的；条件跳转的目标处也只沿用了顺序走下来的那一条路径。`x1`（selector、实例化记录）和 `x0`（类字面量）因此可能取到陈旧的值。第二批里先量出它影响多少处引用，再定修法（汇合点合并状态，或在无条件跳转后作废调用方保存的寄存器）。
+
+### 第二批 ①：起名的实现与验证（2026-10-17）
+
+- **落地**：新文件 `Scanning/ImageFallbackNames.swift`（三个来源各自按需读、记在函数表上）；`ImageFunctionTable.codeFunction(at:)` 在符号表没有名字时问它；`CodeFunction.Name.swiftMethod(descriptorAddress:)` 换成 `.swiftMetadata(mangledName:)`；分析器找运行时函数时也读运行时库的导出表。target 依赖加了 `MachOObjCSection`、`MachOFoundation`、`MachOSwiftSection`、`SwiftInspection`、`Demangling`（只用于起名）。
+- **这一步没做的**：协议见证（全缓存 78 万处，最大的一类）、override 实现、witness table pattern 条目的名字；扫描时用方法表判断无名的 ObjC 方法。
+- **实测**（release，28 核）：给全部函数起名，AppKit 0.24 s（方法表补 3,961、元数据补 1,147，仍无名 15,884），SwiftUICore 0.06 s（不需要补），SiriAppIntents 1.5 s（导出表 76,318、元数据 2,820），Matter 0.04 s（方法表 30,863）。每个镜像起 32 个名字、走遍整个缓存 6.9 s（4 线程 6.1 s，并发几乎不变快：耗在 Swift 运行时的泛型元数据缓存）。
+- **验证**：`FallbackNamingTests` 5 个测试（各来源与真实符号互相印证，见模块参考）；`CrossReferenceAnalysisTests` 共 29 个、`SwiftThunkAnalysisTests` 82 个通过。
+- **第一次跑测试的教训**：导出表与实现的偏移可以是负的（缓存里落在本镜像头部之下），`UInt64(offset)` 当场崩溃；全部改成带环绕的加法。
+
+### 落地顺序
+
+①起名（导出表、ObjC 方法表、Swift 元数据）；②ObjC 的类字面量、super 的类与类引用，以及汇合点的核实与修正；③Swift 类型引用、类型查询与预筛。每一步单独测试、单独提交。
+
 ## 决策日志
 
 | 日期 | 决定 | 理由 |
@@ -73,3 +125,4 @@ public final class CrossReferenceAnalyzer: @unchecked Sendable {
 | 2026-10-16 | 整镜像扫描不记函数表；新增只留命中引用的 `references(to:inImageAt:)` | 实测：记表时扫完全缓存常驻 1.5 GB；整表并发扫描的峰值让分配器留下 1.2 GB；过滤扫描后约 170 MB |
 | 2026-10-16 | 不做懒绑定退回，留哨兵测试 | 探针实测 dyld 加载时就绑好懒绑定槽，防护是死代码 |
 | 2026-10-16 | 补认缓存内传统发送的 selector 字符串地址；补预筛正确性测试 | RuntimeViewer 第 3 步查 `-[NSObject description]` 的调用者一条都没有，追到第一批漏认了这种形态；同时发现预筛从未被断言过「不漏」 |
+| 2026-10-17 | 第二批按实测重定：加导出表起名；名字在起名时按镜像按需读；类型键用名义类型的 mangling；类型查询先结构比对再解开 | 两个只读探针实测：导出表能给 140 万个无名起点起名而第一批没读；方法表与元数据每次扫描都读，代价与扫描本身相当；27.2 上实例化的名字在 `x1` 的记录里、类引用几乎不经 `__objc_classrefs`。用户要求「继续第二批」 |

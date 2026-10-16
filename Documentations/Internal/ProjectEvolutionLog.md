@@ -2529,6 +2529,15 @@
 - **关联文档**：[draft-cross-reference-analysis](../Evolutions/draft-cross-reference-analysis.md)、[Modules/CrossReferenceAnalysis.md](Modules/CrossReferenceAnalysis.md)、[Glossary.md](../Glossary.md)「cache-shared stub」、RuntimeViewer 的 [draft-cross-references](https://github.com/MxIris-Reverse-Engineering/RuntimeViewer/blob/feature/cross-references/Documentations/Evolutions/draft-cross-references.md)。
 - **对应版本**：未发版。
 
+## （落地时编号）2026-10-17 交叉引用分析，第二批（进行中）
+
+- **时间段**：2026-10-17 起。
+- **动机**：第一批只认符号表里的名字，而 macOS 27.2 缓存里一半函数起点没有符号；类型引用也还没有。动手前两个只读探针实测了起名来源、类引用与按 mangled 名字实例化在 27.2 上的真实形态，第二批据此重定（见提案「第二批的设计」）。
+- **① 起名（已落地）**：符号表之后依次取导出表、ObjC 方法表、Swift 元数据（访问器、singleton 完成函数、带 `Tq` 的虚表实现），起名时按镜像按需读，扫描不读。导出表一项就给全缓存 140 万个无名起点起了名。`CodeFunction.Name.swiftMethod` 换成 `.swiftMetadata(mangledName:)`。
+- **② ObjC 类引用与 ③ Swift 类型引用**：待做。
+- **关联文档**：[draft-cross-reference-analysis](../Evolutions/draft-cross-reference-analysis.md)、[Modules/CrossReferenceAnalysis.md](Modules/CrossReferenceAnalysis.md)。
+- **对应版本**：未发版。
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节

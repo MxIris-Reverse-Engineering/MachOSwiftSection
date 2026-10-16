@@ -114,12 +114,7 @@ public final class CrossReferenceAnalyzer: @unchecked Sendable {
         var superMessageSendLocations = Set<CodeLocation>()
         var runtimeHelperLocations = Set<CodeLocation>()
         for (imageIndex, path) in imagePaths.enumerated() where Self.isRuntimeLibrary(path) {
-            guard let symbols = images[imageIndex].symbols64 else { continue }
-            for symbolIndex in 0 ..< symbols.numberOfSymbols {
-                let entry = symbols.symbols[symbolIndex]
-                guard entry.n_type & 0xE0 == 0, entry.n_type & 0x0E == 0x0E else { continue }
-                let name = symbols.stringBase.advanced(by: Int(entry.n_un.n_strx))
-                let location = CodeLocation(imageIndex: imageIndex, address: entry.n_value)
+            func classify(_ name: UnsafePointer<CChar>, at location: CodeLocation) {
                 if strcmp(name, "_objc_msgSend") == 0 {
                     messageSendLocations.insert(location)
                 } else if strcmp(name, "_objc_msgSendSuper2") == 0 {
@@ -127,6 +122,20 @@ public final class CrossReferenceAnalyzer: @unchecked Sendable {
                 } else if RuntimeHelperNames.isRuntimeHelper(name) {
                     runtimeHelperLocations.insert(location)
                 }
+            }
+            if let symbols = images[imageIndex].symbols64 {
+                for symbolIndex in 0 ..< symbols.numberOfSymbols {
+                    let entry = symbols.symbols[symbolIndex]
+                    guard entry.n_type & 0xE0 == 0, entry.n_type & 0x0E == 0x0E else { continue }
+                    classify(symbols.stringBase.advanced(by: Int(entry.n_un.n_strx)), at: CodeLocation(imageIndex: imageIndex, address: entry.n_value))
+                }
+            }
+            // A cache image's symbol table need not hold its exported
+            // symbols; the export trie always does.
+            guard let headerAddress = images[imageIndex].segments64.first(where: { $0.segmentName == "__TEXT" }).map({ UInt64($0.layout.vmaddr) }) else { continue }
+            for symbol in images[imageIndex].exportedSymbols {
+                guard let offset = symbol.offset else { continue }
+                symbol.name.withCString { classify($0, at: CodeLocation(imageIndex: imageIndex, address: UInt64(bitPattern: Int64(bitPattern: headerAddress) &+ Int64(offset)))) }
             }
         }
         self.messageSendLocations = messageSendLocations
