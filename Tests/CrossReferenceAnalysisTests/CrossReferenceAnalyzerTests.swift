@@ -1,0 +1,168 @@
+import Foundation
+import Testing
+import Capstone
+import MachOKit
+@testable import CrossReferenceAnalysis
+
+/// One analyzer for the whole suite: building it reads every image of the
+/// shared cache.
+enum SharedAnalyzer {
+    static let analyzer = CrossReferenceAnalyzer()
+}
+
+/// Reads the shared cache mapped into the test process. AppKit and
+/// SwiftUICore are read whether or not anything loaded them — the whole
+/// cache is mapped into every process.
+@Suite(.enabled(if: SharedAnalyzer.analyzer != nil, "needs an arm64 process with a dyld shared cache"))
+struct CrossReferenceAnalyzerTests {
+    private var analyzer: CrossReferenceAnalyzer { SharedAnalyzer.analyzer! }
+
+    private func imageIndex(endingWith suffix: String) throws -> Int {
+        try #require(analyzer.imagePaths.firstIndex { $0.hasSuffix(suffix) }, "no image ending with \(suffix)")
+    }
+
+    private func function(named name: String, inImageAt imageIndex: Int) throws -> CodeFunction {
+        try #require(analyzer.functions(inImageAt: imageIndex).first { $0.name == .symbol(name) }, "no function \(name)")
+    }
+
+    @Test func knowsEveryImageOfTheSharedCache() {
+        #expect(analyzer.images.count > 1000)
+        #expect(analyzer.imagePaths.contains { $0.hasSuffix("/libobjc.A.dylib") })
+        #expect(!analyzer.messageSendLocations.isEmpty)
+        #expect(!analyzer.runtimeHelperLocations.isEmpty)
+    }
+
+    /// The three messages this method sends — through the image's own
+    /// `__objc_stubs` up to macOS 26, through the stubs the cache shares
+    /// from macOS 27 — each to the method's own receiver.
+    @Test func objectiveCMethodSendsItsMessages() throws {
+        let appKit = try imageIndex(endingWith: "/AppKit.framework/Versions/C/AppKit")
+        let method = try function(named: "-[NSWindow makeKeyAndOrderFront:]", inImageAt: appKit)
+        let sends = analyzer.references(madeBy: method).compactMap { reference -> (String, ReceiverClassHint, CodeReference.Kind)? in
+            guard case .messageSend(let selector, let receiver) = reference.target else { return nil }
+            return (selector, receiver, reference.kind)
+        }
+        #expect(sends.map(\.0) == ["_makeKeyRegardlessOfVisibility", "orderWindow:relativeTo:", "_enableEnablingKeyEquivalentForDefaultButtonCell"])
+        let everySendGoesToTheReceiver = sends.allSatisfy { $0.1 == .methodReceiver }
+        #expect(everySendGoesToTheReceiver)
+        #expect(sends.map(\.2) == [.call, .call, .tailCall])
+    }
+
+    /// A Swift image's calls into the Swift runtime go through a GOT stub
+    /// — the image's own `__auth_stubs` up to macOS 26, a stub the cache
+    /// shares from macOS 27 — and must land on the runtime's function.
+    @Test func callsThroughStubsReachTheRuntime() throws {
+        let swiftUICore = try imageIndex(endingWith: "/SwiftUICore.framework/Versions/A/SwiftUICore")
+        let swiftCore = try imageIndex(endingWith: "/libswiftCore.dylib")
+        let table = analyzer.referenceTable(ofImageAt: swiftUICore)
+        let beginAccessCalls = table.references.filter { reference in
+            guard case .function(let location) = reference.target, location.imageIndex == swiftCore else { return false }
+            return analyzer.symbolName(at: location) == "_swift_beginAccess"
+        }
+        #expect(beginAccessCalls.count > 100)
+        let everyCallIsMarkedAsAHelper = beginAccessCalls.allSatisfy { $0.isRuntimeHelperCall }
+        #expect(everyCallIsMarkedAsAHelper)
+
+        let unrecognized = table.references.filter { if case .unrecognized = $0.target { true } else { false } }
+        #expect(unrecognized.count * 1000 < table.references.count, "unrecognized targets: \(unrecognized.count) of \(table.references.count)")
+    }
+
+    @Test func tableGroupsReferencesByWhatTheyReference() throws {
+        let appKit = try imageIndex(endingWith: "/AppKit.framework/Versions/C/AppKit")
+        let table = analyzer.referenceTable(ofImageAt: appKit)
+        let senders = table.references(to: .selector("orderWindow:relativeTo:"))
+        let method = try function(named: "-[NSWindow makeKeyAndOrderFront:]", inImageAt: appKit)
+        #expect(senders.contains { $0.function == method.location })
+        #expect(table.approximateByteCount > table.references.count)
+    }
+
+    /// A query for some keys answers exactly what the whole table files under
+    /// them, in the same order.
+    @Test func filteredQueryMatchesTheTable() throws {
+        let appKit = try imageIndex(endingWith: "/AppKit.framework/Versions/C/AppKit")
+        let swiftCore = try imageIndex(endingWith: "/libswiftCore.dylib")
+        let table = analyzer.referenceTable(ofImageAt: appKit)
+        let beginAccess = try #require(table.keys.first { key in
+            if case .function(let location) = key { location.imageIndex == swiftCore } else { false }
+        })
+        let keys: Set<CodeReferenceTable.Key> = [.selector("orderWindow:relativeTo:"), beginAccess]
+        let filtered = analyzer.references(to: keys, inImageAt: appKit)
+        let expected = table.references.filter { $0.target.tableKey.map(keys.contains) ?? false }
+        #expect(!filtered.isEmpty)
+        #expect(filtered == expected)
+    }
+
+    /// A cross-image query scans thousands of images; keeping the function
+    /// table of each one held 1.5 GB after scanning a macOS 27.2 cache.
+    @Test func wholeImageScansKeepNoFunctionTable() throws {
+        let freshAnalyzer = try #require(CrossReferenceAnalyzer())
+        let foundation = try #require(freshAnalyzer.imagePaths.firstIndex { $0.hasSuffix("/Foundation.framework/Versions/C/Foundation") })
+        let table = freshAnalyzer.referenceTable(ofImageAt: foundation)
+        #expect(!table.references.isEmpty)
+        #expect(freshAnalyzer.existingFunctionTable(ofImageAt: foundation) == nil)
+        // Naming functions is what keeps one.
+        _ = freshAnalyzer.functions(inImageAt: foundation)
+        #expect(freshAnalyzer.existingFunctionTable(ofImageAt: foundation) != nil)
+    }
+
+    @Test func prefiltersImagesBySelectorAndImport() throws {
+        let appKit = try imageIndex(endingWith: "/AppKit.framework/Versions/C/AppKit")
+        let everyImage = Array(analyzer.images.indices)
+        let senders = analyzer.imageIndices(referencingSelector: "orderWindow:relativeTo:", among: everyImage)
+        #expect(senders.contains(appKit))
+        #expect(senders.count < everyImage.count / 10)
+        #expect(analyzer.imageIndices(referencingSelector: "noSuchSelectorAnywhere:forCrossReferenceTests:", among: everyImage).isEmpty)
+
+        #expect(analyzer.imageIndices(importing: "_objc_release", among: [appKit]) == [appKit])
+        #expect(analyzer.imageIndices(importing: "_noSuchFunctionForCrossReferenceTests", among: everyImage).isEmpty)
+    }
+
+    /// Capstone decodes the same functions independently: every call and
+    /// every branch out of a function it finds, the scanner found at the
+    /// same address — and nothing more.
+    @Test func callSitesMatchCapstone() throws {
+        let appKit = try imageIndex(endingWith: "/AppKit.framework/Versions/C/AppKit")
+        let functions = analyzer.functions(inImageAt: appKit)
+        let capstone = try Capstone(arch: .aarch64, mode: [Mode.endian.little])
+        try capstone.set(option: .detail(value: true))
+        let image = analyzer.images[appKit]
+        let slide = try #require(image.vmaddrSlide)
+        var comparedFunctionCount = 0
+        var comparedBranchOutCount = 0
+
+        for function in stride(from: 0, to: functions.count, by: max(1, functions.count / 400)).map({ functions[$0] }) where function.size >= 4 {
+            let pointer = try #require(UnsafeRawPointer(bitPattern: Int(bitPattern: UInt(function.location.address)) &+ slide))
+            let code = Data(bytes: pointer, count: function.size)
+            let instructions: [AArch64Instruction] = try capstone.disassemble(code: code, address: function.location.address)
+            // Capstone stops at a word it cannot decode; compare only what it read whole.
+            guard instructions.count * 4 == function.size else { continue }
+            comparedFunctionCount += 1
+
+            let start = function.location.address
+            let end = start + UInt64(function.size)
+            var expected = Set<UInt64>()
+            for instruction in instructions {
+                switch instruction.instruction {
+                case .bl, .blr, .blraa, .blraaz, .blrab, .blrabz, .braa, .braaz, .brab, .brabz:
+                    expected.insert(instruction.address)
+                case .b, .cbz, .cbnz, .tbz, .tbnz, .bc:
+                    let operandIndex = instruction.instruction == .tbz || instruction.instruction == .tbnz ? 2 : (instruction.instruction == .cbz || instruction.instruction == .cbnz ? 1 : 0)
+                    if operandIndex < instruction.operands.count,
+                       let target = instruction.operands[operandIndex].immediateValue.map({ UInt64(bitPattern: $0) }), target < start || target >= end {
+                        expected.insert(instruction.address)
+                        comparedBranchOutCount += 1
+                    }
+                default:
+                    break
+                }
+            }
+            let found = Set(analyzer.references(madeBy: function).map(\.instructionAddress))
+            // `br` through a loaded pointer is a tail call the scanner reports and this list leaves out.
+            let missing = expected.subtracting(found)
+            #expect(missing.isEmpty, "\(function.name.map { "\($0)" } ?? "unnamed") at 0x\(String(start, radix: 16)): missing \(missing.sorted().map { String($0, radix: 16) })")
+        }
+        #expect(comparedFunctionCount > 100)
+        // Without detail mode Capstone gives no operands, and this half of the comparison silently compares nothing.
+        #expect(comparedBranchOutCount > 0)
+    }
+}

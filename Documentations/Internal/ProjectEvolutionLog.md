@@ -2512,6 +2512,22 @@
 - **关联文档**：[Changelogs/0.23.0.md](../../Changelogs/0.23.0.md)；MachOObjCSection 的[实现说明](https://github.com/MxIris-Reverse-Engineering/MachOObjCSection/blob/0.8.200/Documentations/Internal/RelativeListsAcrossSubCacheFiles.md)。
 - **对应版本**：0.23.0。
 
+## （落地时编号）2026-10-16 交叉引用分析，第一批
+
+- **时间段**：2026-10-16（单日）。
+- **动机**：RuntimeViewer 要做交叉引用（调用者、被调、类型引用），它的提案 draft-cross-references 把分析逻辑定在本库。那份提案的落地第一步先实测了前提：进程内能读没加载的缓存镜像；手写解码扫完整个 macOS 27.2 缓存只要 1–4 秒，比 Capstone 快 25–50 倍；macOS 27 / iOS 27 的缓存把镜像自带的桩收成了全缓存共用的一份。用户批准本库的精简提案（「可以，开始第一批」）后动手。
+- **关键决策**：
+  - ① 新 target `CrossReferenceAnalysis`：只读进程内的 `MachOImage`，只认 arm64 / arm64e，手写解码、不用 Capstone。
+  - ② API 由宿主持有的 `CrossReferenceAnalyzer` 提供，它是进程镜像的快照（整个共享缓存加缓存外已加载的镜像）；位置一律用 `CodeLocation`（镜像序号加未滑动地址），因为缓存外两个镜像的未滑动地址可能重合。提案草图原是一组接收 `MachOImage` 的静态函数，跨镜像解析目标要整张镜像表，所以改了。
+  - ③ 跳板形状（GOT 桩、stub island、全缓存共用的 selector 桩）抽成新 target `ARM64InstructionDecoding` 的 `ARM64Trampoline`，SwiftThunkAnalysis 的 `MachOThunkEnvironment` 改用它，行为不变（用户选择共用，否了另写一份）。
+  - ④ 没名字的函数照样扫描：缓存里一半函数没有符号，它们发出的调用约占一半。
+  - ⑤ 不加全局的按镜像缓存：分析器在自己的生命周期内记住函数表，引用表是值，宿主按 `approximateByteCount` 自己管。
+- **落地模块**：`ARM64InstructionDecoding`（新，Support 层）、`CrossReferenceAnalysis`（新，Analysis 层，public product）、`SwiftThunkAnalysis`（`MachOThunkEnvironment` 的两个跳板读取）、`Package.swift`。测试：新 `CrossReferenceAnalysisTests`。
+- **实现中的两处修正**：整镜像扫描起初也记住函数表，扫完一遍 macOS 27.2 缓存常驻 1.5 GB，改为临时建表；整表并发扫描的峰值又让分配器留下 1.2 GB 脏页（活对象只有一两 MB），新增只留命中引用的 `references(to:inImageAt:)`，同样扫完全缓存后约 170 MB。另曾为懒绑定加过一处退回导入名的防护，探针实测 dyld 加载时就绑好槽，防护是死代码，撤掉后留哨兵测试。
+- **验证**：JHs-Mac-Studio-Ultra（macOS 27.2、Xcode 27.2、Swift 6.4.2），新 scratch，依赖全部从远端解析，fixture 链主检出现编的那份（`Tests/Projects` 无改动）。`CrossReferenceAnalysisTests` 20 个测试通过，其中 `callSitesMatchCapstone` 抽样 400 个 AppKit 函数与 Capstone 逐条对照调用与跳出函数的跳转，`wholeImageScansKeepNoFunctionTable` 改前红、改后绿。`SwiftThunkAnalysisTests` 82 个通过，含经 stub island 解析的离线 iOS 缓存测试。全量 `swift test --skip IntegrationTests` 跑了两次：改跳板识别后 2,458 个测试 / 471 个套件，最终代码 2,462 个 / 473 个，原始退出码都是 0，跳过的只有 3 个默认关闭的研究探针。release 基准：建分析器 0.02 秒，每个镜像都建整表 28 核 1.6–1.8 秒、4 线程 5.9 秒，`init` 的调用者（预筛出 2,759 个镜像）28 核 1.5 秒。渲染 A/B 未跑：这批不碰 demangle、打印、索引与读取栈，只换了 thunk 分析认跳板的实现，由它的测试覆盖。
+- **关联文档**：[draft-cross-reference-analysis](../Evolutions/draft-cross-reference-analysis.md)、[Modules/CrossReferenceAnalysis.md](Modules/CrossReferenceAnalysis.md)、[Glossary.md](../Glossary.md)「cache-shared stub」、RuntimeViewer 的 [draft-cross-references](https://github.com/MxIris-Reverse-Engineering/RuntimeViewer/blob/feature/cross-references/Documentations/Evolutions/draft-cross-references.md)。
+- **对应版本**：未发版。
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节

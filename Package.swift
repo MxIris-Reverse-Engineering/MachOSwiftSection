@@ -328,6 +328,14 @@ extension Target {
         path: "Sources/Support/Utilities",
     )
 
+    /// Hand decoding of the few A64 encodings the analyses read, and the
+    /// trampoline shapes the linker and the dyld cache builder emit. Shared
+    /// by `SwiftThunkAnalysis` and `CrossReferenceAnalysis`.
+    static let ARM64InstructionDecoding = Target.target(
+        name: "ARM64InstructionDecoding",
+        path: "Sources/Support/ARM64InstructionDecoding",
+    )
+
     static let MachOCaches = Target.target(
         name: "MachOCaches",
         dependencies: [
@@ -551,12 +559,24 @@ extension Target {
             .product(.Capstone),
             .product(name: "FoundationToolbox", package: "FrameworkToolbox"),
             .target(.Utilities),
+            .target(.ARM64InstructionDecoding),
             .target(.MachOCaches),
             .target(.MachOFoundation),
             .target(.MachOSwiftSection),
             .target(.SwiftInspection),
         ],
         path: "Sources/Analysis/SwiftThunkAnalysis",
+    )
+
+    /// What each function of an image references, read from its arm64
+    /// machine code in process (evolution proposal `cross-reference-analysis`).
+    static let CrossReferenceAnalysis = Target.target(
+        name: "CrossReferenceAnalysis",
+        dependencies: [
+            .product(.MachOKit),
+            .target(.ARM64InstructionDecoding),
+        ],
+        path: "Sources/Analysis/CrossReferenceAnalysis",
     )
 
     static let SwiftDump = Target.target(
@@ -1115,6 +1135,17 @@ extension Target {
         swiftSettings: testSettings,
     )
 
+    static let CrossReferenceAnalysisTests = Target.testTarget(
+        name: "CrossReferenceAnalysisTests",
+        dependencies: [
+            .target(.CrossReferenceAnalysis),
+            .target(.ARM64InstructionDecoding),
+            .product(.MachOKit),
+            .product(.Capstone),
+        ],
+        swiftSettings: testSettings,
+    )
+
     static let SwiftAttributeInferenceTests = Target.testTarget(
         name: "SwiftAttributeInferenceTests",
         dependencies: [
@@ -1277,6 +1308,7 @@ let package = Package(
         .library(.SwiftLayout),
         .library(.SwiftDeclarationRendering),
         .library(.SwiftThunkAnalysis),
+        .library(.CrossReferenceAnalysis),
         .library(.SwiftDump),
         .library(.SwiftDeclaration),
         .library(.SwiftAttributeInference),
@@ -1294,6 +1326,7 @@ let package = Package(
     targets: [
         // Library
         .Utilities,
+        .ARM64InstructionDecoding,
         .SwiftOutputTransformer,
         .MachOCaches,
         .MachODependencies,
@@ -1309,6 +1342,7 @@ let package = Package(
         .SwiftLayout,
         .SwiftDeclarationRendering,
         .SwiftThunkAnalysis,
+        .CrossReferenceAnalysis,
         .SwiftDump,
         .SwiftDeclaration,
         .SwiftAttributeInference,
@@ -1345,6 +1379,7 @@ let package = Package(
         .SwiftPrintingTests,
         .SwiftDeclarationRenderingTests,
         .SwiftThunkAnalysisTests,
+        .CrossReferenceAnalysisTests,
         .SwiftAttributeInferenceTests,
         .SwiftDiffingTests,
         .SwiftSectionCommandTests,
