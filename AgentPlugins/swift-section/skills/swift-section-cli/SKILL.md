@@ -286,6 +286,11 @@ Attribution against a non-macOS binary is limited (it warns and degrades rather 
   `@objc` / ObjC-override facts are joined through the implementation's symbol and are
   missing. A vtable slot nothing names (an internal member in a stripped image) is
   left out; `dump` lists it as `sub_…` or `<unnamed vtable slot>`.
+- **`associatedtype Element` without `: ~Copyable` / `: ~Escapable`** does not prove the
+  associated type is Copyable. The binary does not record that suppression (SE-0503); it is
+  printed only when an extension of the protocol in the same image proves it
+  (`extension P where Element: ~Copyable`), which only a primary associated type
+  (`protocol P<Element>`) can.
 - **Enum-layout patterns marked "not resolved offline"** mean only the extra-inhabitant *index*
   is derivable statically; the concrete bytes need the live metadata.
 - **`@objc(Name)` above a class** is the name the Objective-C runtime knows it by, and matters

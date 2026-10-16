@@ -231,9 +231,11 @@ extension SwiftDeclarationPrinter {
     }
 
     /// Renders a protocol's `associatedtype` requirement lines, mirroring
-    /// `ProtocolDumper.associatedTypes`.
+    /// `ProtocolDumper.associatedTypes`: `: ~Swift.Copyable` follows a name the
+    /// image's protocol extensions prove suppressible (SE-0503), which is the
+    /// only way the declaration is known.
     @SemanticStringBuilder
-    func renderProtocolAssociatedTypes(for dumped: MachOSwiftSection.`Protocol`, level: Int) async throws -> SemanticString {
+    func renderProtocolAssociatedTypes(for dumped: MachOSwiftSection.`Protocol`, suppressedInvertibleProtocolsByAssociatedTypeName: [String: InvertibleProtocolSet], level: Int) async throws -> SemanticString {
         let associatedTypes = try dumped.descriptor.associatedTypes(in: machO.context)
         if !associatedTypes.isEmpty {
             for (offset, associatedType) in associatedTypes.offsetEnumerated() {
@@ -242,6 +244,9 @@ extension SwiftDeclarationPrinter {
                 Keyword(.associatedtype)
                 Space()
                 TypeDeclaration(kind: .other, associatedType)
+                if let suppressedInvertibleProtocols = suppressedInvertibleProtocolsByAssociatedTypeName[associatedType] {
+                    try await suppressedInvertibleProtocols.dumpInvertedProtocolsInheritance(resolver: typeDemangleResolver)
+                }
                 if offset.isEnd {
                     BreakLine()
                 }

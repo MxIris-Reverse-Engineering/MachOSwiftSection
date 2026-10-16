@@ -372,7 +372,7 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
         try await DeclarationBlock(level: level) {
             try await renderProtocolDeclarationHeader(for: dumpedProtocol, displayParentName: displayParentName)
         } body: {
-            try await renderProtocolAssociatedTypes(for: dumpedProtocol, level: level)
+            try await renderProtocolAssociatedTypes(for: dumpedProtocol, suppressedInvertibleProtocolsByAssociatedTypeName: protocolDefinition.suppressedInvertibleProtocolsByAssociatedTypeName, level: level)
 
             try await printDefinition(protocolDefinition, level: level)
 
@@ -913,7 +913,7 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
         }
         try await printUnderObjCVerdicts(of: variable.resolvedObjCMemberFacts(trustingSelectorNameEvidence:)) { objcFacts in
             objcAttributes(objcFacts)
-            var printer = SemanticVariableNodePrinter(isStored: variable.isStored, isOverride: objcFacts.isOverride, isClassMember: objcFacts.isClassMember, isFinal: objcFacts.isFinal, hasSetter: variable.hasSetter, indentation: level, delegate: self)
+            var printer = SemanticVariableNodePrinter(isStored: variable.isStored, isOverride: objcFacts.isOverride, isClassMember: objcFacts.isClassMember, isFinal: objcFacts.isFinal, accessorKeywords: AccessorBlockKeywords(of: variable), indentation: level, delegate: self)
             try await printer.printRoot(variable.node.materialize())
         }
     }
@@ -931,7 +931,7 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
     public func printThrowingSubscript(_ `subscript`: SubscriptDefinition, level: Int) async throws -> SemanticString {
         try await printUnderObjCVerdicts(of: `subscript`.resolvedObjCMemberFacts(trustingSelectorNameEvidence:)) { objcFacts in
             objcAttributes(objcFacts)
-            var printer = SemanticSubscriptNodePrinter(isOverride: objcFacts.isOverride, isClassMember: objcFacts.isClassMember, isFinal: objcFacts.isFinal, hasSetter: `subscript`.hasSetter, indentation: level, delegate: self)
+            var printer = SemanticSubscriptNodePrinter(isOverride: objcFacts.isOverride, isClassMember: objcFacts.isClassMember, isFinal: objcFacts.isFinal, accessorKeywords: AccessorBlockKeywords(of: `subscript`), indentation: level, delegate: self)
             try await printer.printRoot(`subscript`.node.materialize())
         }
     }

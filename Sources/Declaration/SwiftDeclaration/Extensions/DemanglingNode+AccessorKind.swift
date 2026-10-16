@@ -11,12 +11,14 @@ extension DemanglingNode where Self: Sequence<Self> {
     /// storage symbol, and the property printed as a computed one (evolution
     /// proposal `local-type-context-names`).
     package var accessorKind: AccessorKind {
-        guard let node = first(of: .getter, .setter, .modifyAccessor, .readAccessor, .variable, .subscript) else { return .none }
+        guard let node = first(of: .getter, .setter, .modifyAccessor, .readAccessor, .borrowAccessor, .mutateAccessor, .variable, .subscript) else { return .none }
         switch node.kind {
         case .getter: return .getter
         case .setter: return .setter
         case .modifyAccessor: return .modifyAccessor
         case .readAccessor: return .readAccessor
+        case .borrowAccessor: return .borrowAccessor
+        case .mutateAccessor: return .mutateAccessor
         default: return .none
         }
     }
