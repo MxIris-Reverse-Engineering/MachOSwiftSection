@@ -35,6 +35,8 @@ public final class CrossReferenceAnalyzer: @unchecked Sendable {
     public func location(ofRuntimeAddress address: UInt) -> CodeLocation?
     public func functions(inImageAt imageIndex: Int) -> [CodeFunction]
     public func function(containing location: CodeLocation) -> CodeFunction?
+    /// Names many results at once without keeping the images' tables.
+    public func functions(containing locations: some Sequence<CodeLocation>) -> [CodeLocation: CodeFunction]
     public func symbolName(at location: CodeLocation) -> String?
     public func references(madeBy function: CodeFunction) -> [CodeReference]
     /// Every function's references in one image, grouped by what they reference.

@@ -176,6 +176,23 @@ public final class CrossReferenceAnalyzer: @unchecked Sendable {
         return table.codeFunction(at: index)
     }
 
+    /// The functions holding each of `locations`, keyed by the location
+    /// asked about — for naming the results of a query that touched many
+    /// images. Each image's table is built for the lookup and dropped,
+    /// unless the analyzer already holds it; a location in no function is
+    /// left out.
+    public func functions(containing locations: some Sequence<CodeLocation>) -> [CodeLocation: CodeFunction] {
+        var functions: [CodeLocation: CodeFunction] = [:]
+        for (imageIndex, imageLocations) in Dictionary(grouping: locations, by: \.imageIndex) {
+            let table = existingFunctionTable(ofImageAt: imageIndex) ?? ImageFunctionTable(imageIndex: imageIndex, image: images[imageIndex])
+            for location in imageLocations {
+                guard let index = table.functionIndex(containing: location.address) else { continue }
+                functions[location] = table.codeFunction(at: index)
+            }
+        }
+        return functions
+    }
+
     /// The symbol at exactly `location`, when one is there.
     public func symbolName(at location: CodeLocation) -> String? {
         guard let function = function(containing: location), function.location == location,

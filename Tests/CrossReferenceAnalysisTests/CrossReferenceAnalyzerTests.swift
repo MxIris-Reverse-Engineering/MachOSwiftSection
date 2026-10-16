@@ -105,6 +105,22 @@ struct CrossReferenceAnalyzerTests {
         #expect(freshAnalyzer.existingFunctionTable(ofImageAt: foundation) != nil)
     }
 
+    /// Naming a query's results across many images keeps no function table
+    /// either, and names exactly what the image's own listing names.
+    @Test func namingResultsKeepsNoFunctionTable() throws {
+        let freshAnalyzer = try #require(CrossReferenceAnalyzer())
+        let appKit = try #require(freshAnalyzer.imagePaths.firstIndex { $0.hasSuffix("/AppKit.framework/Versions/C/AppKit") })
+        let senders = freshAnalyzer.references(to: [.selector("orderWindow:relativeTo:")], inImageAt: appKit)
+        let named = freshAnalyzer.functions(containing: senders.map(\.function))
+        #expect(freshAnalyzer.existingFunctionTable(ofImageAt: appKit) == nil)
+        #expect(named.count == Set(senders.map(\.function)).count)
+        let listed = Dictionary(uniqueKeysWithValues: analyzer.functions(inImageAt: appKit).map { ($0.location, $0) })
+        let namesMatchTheListing = named.allSatisfy { listed[$0.key] == $0.value }
+        let namesTheSender = named.values.contains { $0.name == .symbol("-[NSWindow makeKeyAndOrderFront:]") }
+        #expect(namesMatchTheListing)
+        #expect(namesTheSender)
+    }
+
     @Test func prefiltersImagesBySelectorAndImport() throws {
         let appKit = try imageIndex(endingWith: "/AppKit.framework/Versions/C/AppKit")
         let everyImage = Array(analyzer.images.indices)

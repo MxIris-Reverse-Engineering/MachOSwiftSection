@@ -57,7 +57,7 @@ macOS 27 / iOS 27 起的那种见术语表 [cache-shared stub（全缓存共用�
 
 ### 缓存、内存与生命周期
 
-库里没有全局的按镜像缓存（因此不需要 `SharedCache`）。`CrossReferenceAnalyzer` 只记住宿主让它起过名的镜像的函数表（`functions(inImageAt:)`、`function(containing:)`、`references(madeBy:)`）；整镜像扫描（`referenceTable(ofImageAt:)`、`references(to:inImageAt:)`）临时建表、用完即丢——早先扫描也记表，扫完一遍 macOS 27.2 缓存后常驻 1.5 GB（`wholeImageScansKeepNoFunctionTable` 钉住）。
+库里没有全局的按镜像缓存（因此不需要 `SharedCache`）。`CrossReferenceAnalyzer` 只记住宿主让它起过名的镜像的函数表（`functions(inImageAt:)`、`function(containing:)`、`references(madeBy:)`）；整镜像扫描（`referenceTable(ofImageAt:)`、`references(to:inImageAt:)`）临时建表、用完即丢；给一批结果起名用 `functions(containing:)`，同样临时建表——查 `init` 的调用者会碰到 2,759 个镜像，逐个记住又是上 GB——早先扫描也记表，扫完一遍 macOS 27.2 缓存后常驻 1.5 GB（`wholeImageScansKeepNoFunctionTable` 钉住）。
 
 `CodeReferenceTable` 是值，宿主想留多久就留多久，按 `approximateByteCount` 计预算。大镜像的整表很大（GeoServices 约 121 MiB，全缓存合计约 9 GB），28 个线程同时建整表时峰值约 1.5 GB，分配器之后还留着 1.2 GB 脏页不还。**查调用者用 `references(to:inImageAt:)`**：扫描时只留命中的引用，同样扫完全缓存后常驻约 170 MB（4 线程约 106 MB）。
 
@@ -78,6 +78,6 @@ macOS 27 / iOS 27 起的那种见术语表 [cache-shared stub（全缓存共用�
 ## 测试锚点
 
 - `ARM64InstructionWordTests` / `ARM64TrampolineTests`：手写编码器造指令字；`capstoneAgreesWithTheEncoders` 让 Capstone 反汇编同一批字，编码器写错也藏不住。
-- `CrossReferenceAnalyzerTests`（只在 arm64 进程里跑）：`-[NSWindow makeKeyAndOrderFront:]` 发出的三条消息及接收者；SwiftUICore 经桩调用 `swift_beginAccess` 落到 libswiftCore；按键过滤与整表一致；整镜像扫描不留函数表；预筛；`callSitesMatchCapstone` 抽样 400 个 AppKit 函数，Capstone 找到的每一处调用与跳出函数的跳转，扫描都找到了（Capstone 不开 detail 模式就不给操作数，那半边比对曾因此什么都没比，测试现在断言比对过）。
+- `CrossReferenceAnalyzerTests`（只在 arm64 进程里跑）：`-[NSWindow makeKeyAndOrderFront:]` 发出的三条消息及接收者；SwiftUICore 经桩调用 `swift_beginAccess` 落到 libswiftCore；按键过滤与整表一致；整镜像扫描不留函数表；给一批结果起名也不留；预筛；`callSitesMatchCapstone` 抽样 400 个 AppKit 函数，Capstone 找到的每一处调用与跳出函数的跳转，扫描都找到了（Capstone 不开 detail 模式就不给操作数，那半边比对曾因此什么都没比，测试现在断言比对过）。
 - `StandaloneImageTests`：SymbolTestsCore fixture 经自己的桩调用 libswiftCore，没有一条停在只有名字的导入上。
 - `LazyBindingTests`：现编一个懒绑定的 dylib，见上文「缓存外镜像的 GOT 槽」。
