@@ -18,7 +18,25 @@ struct ReferenceScanner {
     private let table: ImageFunctionTable
     /// When set, only references filed under one of these keys are kept.
     private let keptKeys: Set<CodeReferenceTable.Key>?
+    /// Whether register state follows the branches inside a function: a
+    /// forward branch carries what the registers hold to its target, an
+    /// instruction after an unconditional transfer starts from what the
+    /// branches to it carried, and a loop header forgets the caller-saved
+    /// registers. Off, the scan reads straight down, as the first batch did —
+    /// only to measure what following them changes.
+    let followsBranches: Bool
     private let registers = RegisterFile()
+    /// The current function's forward branch targets not yet reached,
+    /// ascending from `pendingCursor`, and the state the branches to each
+    /// carried, met over every branch to the same target. Sorted lists with a
+    /// cursor rather than hash tables: the scan only moves forward, so each
+    /// instruction compares against one entry.
+    private var pendingTargets: [UInt64] = []
+    private var pendingSnapshots: [RegisterFile.Snapshot] = []
+    private var pendingCursor = 0
+    /// The targets of the current function's backward branches, ascending.
+    private var loopHeaders: [UInt64] = []
+    private var loopHeaderCursor = 0
     private var resolvedTargets: [UInt64: ResolvedTarget] = [:]
     private var selectorNames: [UInt: String] = [:]
     private var importedNames: [UInt: String] = [:]
@@ -27,10 +45,11 @@ struct ReferenceScanner {
     /// up; a hop per subcache crossed is the worst case described.
     private static let maximumTrampolineHops = 8
 
-    init(analyzer: CrossReferenceAnalyzer, table: ImageFunctionTable, keeping keptKeys: Set<CodeReferenceTable.Key>? = nil) {
+    init(analyzer: CrossReferenceAnalyzer, table: ImageFunctionTable, keeping keptKeys: Set<CodeReferenceTable.Key>? = nil, followsBranches: Bool = true) {
         self.analyzer = analyzer
         self.table = table
         self.keptKeys = keptKeys
+        self.followsBranches = followsBranches
     }
 
     private static func keep(_ reference: CodeReference, ifFiledUnder keptKeys: Set<CodeReferenceTable.Key>?, in references: inout [CodeReference]) {
@@ -54,17 +73,30 @@ struct ReferenceScanner {
         registers.reset()
         if isObjectiveCMethod { registers.setMethodReceiver(0) }
 
+        pendingTargets.removeAll(keepingCapacity: true)
+        pendingSnapshots.removeAll(keepingCapacity: true)
+        pendingCursor = 0
+        loopHeaders.removeAll(keepingCapacity: true)
+        loopHeaderCursor = 0
+        if followsBranches { findLoopHeaders(start: start, end: end, words: words, instructionCount: instructionCount) }
+
+        var previousInstructionTransfers = false
         for instructionIndex in 0 ..< instructionCount {
             let pc = start &+ UInt64(instructionIndex * 4)
             if table.isInDataInCode(pc) { continue }
             let word = UInt32(littleEndian: words[instructionIndex])
+            if followsBranches { enter(pc, afterTransfer: previousInstructionTransfers) }
+            previousInstructionTransfers = false
 
             if let target = ARM64InstructionWord.callTarget(word, at: pc) {
                 Self.keep(reference(to: target, at: pc, in: function, kind: .call, isObjectiveCMethod: isObjectiveCMethod), ifFiledUnder: keptKeys, in: &references)
                 registers.clobberCallerSavedRegisters()
             } else if let target = ARM64InstructionWord.branchTarget(word, at: pc) {
+                previousInstructionTransfers = true
                 if target < start || target >= end {
                     Self.keep(reference(to: target, at: pc, in: function, kind: .tailCall, isObjectiveCMethod: isObjectiveCMethod), ifFiledUnder: keptKeys, in: &references)
+                } else if target > pc {
+                    carry(to: target)
                 }
             } else if let materialization = ARM64InstructionWord.addressMaterialization(word, at: pc) {
                 registers.setAddress(materialization.address, of: materialization.destination)
@@ -80,18 +112,83 @@ struct ReferenceScanner {
                 if branch.isCall {
                     Self.keep(indirectReference(through: branch, at: pc, in: function, kind: .call), ifFiledUnder: keptKeys, in: &references)
                     registers.clobberCallerSavedRegisters()
-                } else if branch.isAuthenticated || registers.wasLoadedFromMemory(branch.target) {
+                } else {
+                    previousInstructionTransfers = true
                     // A computed `br` is a jump table; a pointer loaded from
                     // memory, or an authenticated one, is a tail call.
-                    Self.keep(indirectReference(through: branch, at: pc, in: function, kind: .tailCall), ifFiledUnder: keptKeys, in: &references)
+                    if branch.isAuthenticated || registers.wasLoadedFromMemory(branch.target) {
+                        Self.keep(indirectReference(through: branch, at: pc, in: function, kind: .tailCall), ifFiledUnder: keptKeys, in: &references)
+                    }
                 }
             } else if let target = ARM64InstructionWord.conditionalBranchTarget(word, at: pc) {
                 if target < start || target >= end {
                     Self.keep(reference(to: target, at: pc, in: function, kind: .tailCall, isObjectiveCMethod: isObjectiveCMethod), ifFiledUnder: keptKeys, in: &references)
+                } else if target > pc {
+                    carry(to: target)
                 }
+            } else if ARM64InstructionWord.isReturn(word) {
+                previousInstructionTransfers = true
             } else {
                 registers.forgetRegistersWritten(by: word)
             }
+        }
+    }
+
+    // MARK: - Branches
+
+    /// The targets of the function's backward branches: what reaches them
+    /// from below is not known when the scan gets there.
+    private mutating func findLoopHeaders(start: UInt64, end: UInt64, words: UnsafePointer<UInt32>, instructionCount: Int) {
+        for instructionIndex in 0 ..< instructionCount {
+            let pc = start &+ UInt64(instructionIndex * 4)
+            let word = UInt32(littleEndian: words[instructionIndex])
+            guard let target = ARM64InstructionWord.branchTarget(word, at: pc) ?? ARM64InstructionWord.conditionalBranchTarget(word, at: pc),
+                  target >= start, target <= pc
+            else { continue }
+            loopHeaders.append(target)
+        }
+        loopHeaders.sort()
+    }
+
+    /// Carries what the registers hold to a forward branch's target.
+    private mutating func carry(to target: UInt64) {
+        let snapshot = registers.snapshot()
+        var lower = pendingCursor
+        var upper = pendingTargets.count
+        while lower < upper {
+            let middle = (lower + upper) / 2
+            if pendingTargets[middle] < target { lower = middle + 1 } else { upper = middle }
+        }
+        if lower < pendingTargets.count, pendingTargets[lower] == target {
+            pendingSnapshots[lower].meet(snapshot)
+        } else {
+            pendingTargets.insert(target, at: lower)
+            pendingSnapshots.insert(snapshot, at: lower)
+        }
+    }
+
+    /// Sets the registers up for the instruction at `pc` from the paths that
+    /// reach it: the branches that carried state here, falling through unless
+    /// the instruction before was an unconditional transfer, and nothing
+    /// known about a loop's back edge. An instruction after a transfer that
+    /// no branch here targets is reached some way the scan does not see — a
+    /// jump table — so the caller-saved registers are unknown there.
+    private mutating func enter(_ pc: UInt64, afterTransfer: Bool) {
+        // Targets the scan stepped over (data in code) are dropped.
+        while pendingCursor < pendingTargets.count, pendingTargets[pendingCursor] < pc { pendingCursor += 1 }
+        if pendingCursor < pendingTargets.count, pendingTargets[pendingCursor] == pc {
+            if afterTransfer {
+                registers.restore(pendingSnapshots[pendingCursor])
+            } else {
+                registers.meet(pendingSnapshots[pendingCursor])
+            }
+            pendingCursor += 1
+        } else if afterTransfer {
+            registers.clobberCallerSavedRegisters()
+        }
+        while loopHeaderCursor < loopHeaders.count, loopHeaders[loopHeaderCursor] < pc { loopHeaderCursor += 1 }
+        if loopHeaderCursor < loopHeaders.count, loopHeaders[loopHeaderCursor] == pc {
+            registers.clobberCallerSavedRegisters()
         }
     }
 

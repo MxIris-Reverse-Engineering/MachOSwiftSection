@@ -18,43 +18,56 @@ final class RegisterFile {
 
     private static let registerCount = 32
 
-    private let states: UnsafeMutablePointer<UInt8>
-    private let values: UnsafeMutablePointer<UInt64>
-    private let loadDisplacements: UnsafeMutablePointer<Int64>
-    private let constants: UnsafeMutablePointer<UInt16>
-    /// Registers holding a value loaded from memory, by bit.
-    private var loadedMask: UInt32 = 0
-    /// Registers holding a pointer-authentication constant, by bit.
-    private var constantMask: UInt32 = 0
-    /// Of those, the ones whose constant was blended into an address.
-    private var blendedMask: UInt32 = 0
-
     /// `x0`–`x18` and the link register: what a call may change.
     private static let callerSavedMask: UInt32 = 0x0007_FFFF | (1 << 30)
 
-    init() {
-        states = .allocate(capacity: Self.registerCount)
-        values = .allocate(capacity: Self.registerCount)
-        loadDisplacements = .allocate(capacity: Self.registerCount)
-        constants = .allocate(capacity: Self.registerCount)
-        states.initialize(repeating: 0, count: Self.registerCount)
-        values.initialize(repeating: 0, count: Self.registerCount)
-        loadDisplacements.initialize(repeating: 0, count: Self.registerCount)
-        constants.initialize(repeating: 0, count: Self.registerCount)
+    /// Everything the file knows at one instruction. A value of fixed size,
+    /// so a forward branch carries it to its target as a plain copy — the
+    /// scan takes one at every forward branch, and arrays would allocate.
+    struct Snapshot {
+        fileprivate var states = SIMD32<UInt8>(repeating: 0)
+        fileprivate var values = SIMD32<UInt64>(repeating: 0)
+        fileprivate var loadDisplacements = SIMD32<Int64>(repeating: 0)
+        fileprivate var constants = SIMD32<UInt16>(repeating: 0)
+        /// Registers holding a value loaded from memory, by bit.
+        fileprivate var loadedMask: UInt32 = 0
+        /// Registers holding a pointer-authentication constant, by bit.
+        fileprivate var constantMask: UInt32 = 0
+        /// Of those, the ones whose constant was blended into an address.
+        fileprivate var blendedMask: UInt32 = 0
+
+        /// Keeps only what `other` agrees on: two paths that reach one
+        /// instruction leave a register known there only when both put the
+        /// same thing in it.
+        mutating func meet(_ other: Snapshot) {
+            for register in 0 ..< RegisterFile.registerCount where !agrees(with: other, on: register) {
+                let bit: UInt32 = 1 << UInt32(register)
+                states[register] = State.unknown.rawValue
+                loadedMask &= ~bit
+                constantMask &= ~bit
+                blendedMask &= ~bit
+            }
+        }
+
+        private func agrees(with other: Snapshot, on register: Int) -> Bool {
+            let bit: UInt32 = 1 << UInt32(register)
+            return states[register] == other.states[register]
+                && (states[register] == State.unknown.rawValue || values[register] == other.values[register])
+                && loadedMask & bit == other.loadedMask & bit
+                && (loadedMask & bit == 0 || loadDisplacements[register] == other.loadDisplacements[register])
+                && constantMask & bit == other.constantMask & bit
+                && blendedMask & bit == other.blendedMask & bit
+                && (constantMask & bit == 0 || constants[register] == other.constants[register])
+        }
     }
 
-    deinit {
-        states.deallocate()
-        values.deallocate()
-        loadDisplacements.deallocate()
-        constants.deallocate()
-    }
+    private var contents = Snapshot()
 
     func reset() {
-        states.update(repeating: 0, count: Self.registerCount)
-        loadedMask = 0
-        constantMask = 0
-        blendedMask = 0
+        contents.states = SIMD32(repeating: 0)
+        contents.loadedMask = 0
+        contents.constantMask = 0
+        contents.blendedMask = 0
     }
 
     // MARK: - Writes
@@ -69,21 +82,21 @@ final class RegisterFile {
 
     func add(_ addend: Int64, to source: Int, into destination: Int) {
         guard destination != 31 else { return }
-        if source != 31, states[source] == State.address.rawValue {
-            overwrite(destination, state: .address, value: UInt64(bitPattern: Int64(bitPattern: values[source]) &+ addend))
+        if source != 31, contents.states[source] == State.address.rawValue {
+            overwrite(destination, state: .address, value: UInt64(bitPattern: Int64(bitPattern: contents.values[source]) &+ addend))
         } else {
             overwrite(destination, state: .unknown, value: 0)
         }
     }
 
     func load(into destination: Int, base: Int, displacement: Int64, writesBack: Bool) {
-        let slotIsKnown = base != 31 && states[base] == State.address.rawValue
-        let slotAddress = UInt64(bitPattern: Int64(bitPattern: values[base]) &+ displacement)
+        let slotIsKnown = base != 31 && contents.states[base] == State.address.rawValue
+        let slotAddress = UInt64(bitPattern: Int64(bitPattern: contents.values[base & 31]) &+ displacement)
         if writesBack, base != 31 { overwrite(base, state: .unknown, value: 0) }
         guard destination != 31 else { return }
         overwrite(destination, state: slotIsKnown ? .loadedFromSlot : .unknown, value: slotIsKnown ? slotAddress : 0)
-        loadedMask |= 1 << UInt32(destination)
-        loadDisplacements[destination] = displacement
+        contents.loadedMask |= 1 << UInt32(destination)
+        contents.loadDisplacements[destination] = displacement
     }
 
     func copy(_ source: Int, to destination: Int) {
@@ -92,13 +105,13 @@ final class RegisterFile {
             overwrite(destination, state: .unknown, value: 0)
             return
         }
-        states[destination] = states[source]
-        values[destination] = values[source]
-        loadDisplacements[destination] = loadDisplacements[source]
-        constants[destination] = constants[source]
-        copyBit(from: source, to: destination, in: &loadedMask)
-        copyBit(from: source, to: destination, in: &constantMask)
-        copyBit(from: source, to: destination, in: &blendedMask)
+        contents.states[destination] = contents.states[source]
+        contents.values[destination] = contents.values[source]
+        contents.loadDisplacements[destination] = contents.loadDisplacements[source]
+        contents.constants[destination] = contents.constants[source]
+        copyBit(from: source, to: destination, in: &contents.loadedMask)
+        copyBit(from: source, to: destination, in: &contents.constantMask)
+        copyBit(from: source, to: destination, in: &contents.blendedMask)
     }
 
     /// `movz` / `movk`: a pointer-authentication constant is `movk xN, #imm,
@@ -108,17 +121,17 @@ final class RegisterFile {
         let isConstant = keepsOtherBits ? shift == 48 : shift == 0
         overwrite(destination, state: .unknown, value: 0)
         guard isConstant else { return }
-        constants[destination] = immediate
-        constantMask |= 1 << UInt32(destination)
-        if keepsOtherBits { blendedMask |= 1 << UInt32(destination) }
+        contents.constants[destination] = immediate
+        contents.constantMask |= 1 << UInt32(destination)
+        if keepsOtherBits { contents.blendedMask |= 1 << UInt32(destination) }
     }
 
     func clobberCallerSavedRegisters() {
-        for register in 0 ... 18 { states[register] = State.unknown.rawValue }
-        states[30] = State.unknown.rawValue
-        loadedMask &= ~Self.callerSavedMask
-        constantMask &= ~Self.callerSavedMask
-        blendedMask &= ~Self.callerSavedMask
+        for register in 0 ... 18 { contents.states[register] = State.unknown.rawValue }
+        contents.states[30] = State.unknown.rawValue
+        contents.loadedMask &= ~Self.callerSavedMask
+        contents.constantMask &= ~Self.callerSavedMask
+        contents.blendedMask &= ~Self.callerSavedMask
     }
 
     /// Forgets the registers an instruction the scanner does not model
@@ -167,47 +180,65 @@ final class RegisterFile {
         }
     }
 
+    // MARK: - Branches
+
+    func snapshot() -> Snapshot {
+        contents
+    }
+
+    /// Becomes `snapshot`: the instruction is reached only by the branches
+    /// it was taken at.
+    func restore(_ snapshot: Snapshot) {
+        contents = snapshot
+    }
+
+    /// Keeps only what `snapshot` agrees on: the instruction is reached both
+    /// by falling through and by the branches `snapshot` was taken at.
+    func meet(_ snapshot: Snapshot) {
+        contents.meet(snapshot)
+    }
+
     // MARK: - Reads
 
     func wasLoadedFromMemory(_ register: Int) -> Bool {
-        register != 31 && loadedMask & (1 << UInt32(register)) != 0
+        register != 31 && contents.loadedMask & (1 << UInt32(register)) != 0
     }
 
     func loadDisplacement(of register: Int) -> Int64? {
-        wasLoadedFromMemory(register) ? loadDisplacements[register] : nil
+        wasLoadedFromMemory(register) ? contents.loadDisplacements[register] : nil
     }
 
     func constant(of register: Int) -> (value: UInt16, isBlended: Bool)? {
-        guard register != 31, constantMask & (1 << UInt32(register)) != 0 else { return nil }
-        return (constants[register], blendedMask & (1 << UInt32(register)) != 0)
+        guard register != 31, contents.constantMask & (1 << UInt32(register)) != 0 else { return nil }
+        return (contents.constants[register], contents.blendedMask & (1 << UInt32(register)) != 0)
     }
 
     func holdsMethodReceiver(_ register: Int) -> Bool {
-        register != 31 && states[register] == State.methodReceiver.rawValue
+        register != 31 && contents.states[register] == State.methodReceiver.rawValue
     }
 
     /// The address a register holds, when `adrp` / `adr` / `add` built it.
     func builtAddress(of register: Int) -> UInt64? {
-        guard register != 31, states[register] == State.address.rawValue else { return nil }
-        return values[register]
+        guard register != 31, contents.states[register] == State.address.rawValue else { return nil }
+        return contents.values[register]
     }
 
     /// The slot a register's value was loaded from, when that is known.
     func slotAddress(of register: Int) -> UInt64? {
-        guard register != 31, states[register] == State.loadedFromSlot.rawValue else { return nil }
-        return values[register]
+        guard register != 31, contents.states[register] == State.loadedFromSlot.rawValue else { return nil }
+        return contents.values[register]
     }
 
     // MARK: - Helpers
 
     private func overwrite(_ register: Int, state: State, value: UInt64) {
         guard register != 31 else { return }
-        states[register] = state.rawValue
-        values[register] = value
+        contents.states[register] = state.rawValue
+        contents.values[register] = value
         let bit: UInt32 = 1 << UInt32(register)
-        loadedMask &= ~bit
-        constantMask &= ~bit
-        blendedMask &= ~bit
+        contents.loadedMask &= ~bit
+        contents.constantMask &= ~bit
+        contents.blendedMask &= ~bit
     }
 
     private func forget(_ register: Int) {

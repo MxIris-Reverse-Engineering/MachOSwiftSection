@@ -101,6 +101,12 @@ package enum ARM64InstructionWord {
         return nil
     }
 
+    /// `ret`, `retaa`, `retab`.
+    @inlinable
+    package static func isReturn(_ word: UInt32) -> Bool {
+        word & 0xFFFF_FC1F == 0xD65F_0000 || word == 0xD65F_0BFF || word == 0xD65F_0FFF
+    }
+
     /// A branch or a call through a register.
     package struct RegisterBranch: Equatable, Sendable {
         /// The register holding the destination.

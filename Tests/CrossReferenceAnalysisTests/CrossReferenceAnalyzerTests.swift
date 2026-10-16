@@ -64,6 +64,38 @@ struct CrossReferenceAnalyzerTests {
         #expect(sends.first?.1 == .methodReceiver)
     }
 
+    /// A forward branch carries what the registers hold to its target.
+    /// `+[NSObject instanceMethodForSelector:]` is `cbz x2, L; …; b <tail
+    /// call>; L: …; bl <send doesNotRecognizeSelector:>`: `L` is reached
+    /// only from the entry, where `x0` is still the receiver. Forgetting the
+    /// registers after the tail call — a shortcut tried on the way — lost
+    /// that.
+    @Test func branchesCarryTheirStateToTheirTargets() throws {
+        let libobjc = try imageIndex(endingWith: "/usr/lib/libobjc.A.dylib")
+        let method = try function(named: "+[NSObject instanceMethodForSelector:]", inImageAt: libobjc)
+        let receivers = analyzer.references(madeBy: method).compactMap { reference -> ReceiverClassHint? in
+            guard case .messageSend("doesNotRecognizeSelector:", let receiver) = reference.target else { return nil }
+            return receiver
+        }
+        #expect(receivers == [.methodReceiver])
+    }
+
+    /// Two paths that reach one instruction leave a register known only
+    /// when both put the same thing in it. In
+    /// `-[NSString stringByAppendingString:]` one block puts the argument in
+    /// `x0`, the next puts `self`, and both jump to one `copyWithZone:` send;
+    /// reading straight down, as the first batch did, called its receiver
+    /// `self`.
+    @Test func pathsThatDisagreeLeaveTheRegisterUnknown() throws {
+        let foundation = try imageIndex(endingWith: "/Foundation.framework/Versions/C/Foundation")
+        let method = try function(named: "-[NSString stringByAppendingString:]", inImageAt: foundation)
+        let receivers = analyzer.references(madeBy: method).compactMap { reference -> ReceiverClassHint? in
+            guard case .messageSend("copyWithZone:", let receiver) = reference.target else { return nil }
+            return receiver
+        }
+        #expect(receivers == [.unknown])
+    }
+
     /// A Swift image's calls into the Swift runtime go through a GOT stub
     /// — the image's own `__auth_stubs` up to macOS 26, a stub the cache
     /// shares from macOS 27 — and must land on the runtime's function.
