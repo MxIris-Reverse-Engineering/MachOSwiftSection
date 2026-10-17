@@ -180,8 +180,8 @@ struct SwiftTypeReferenceTests {
     }
 
     /// A type prefilter may drop only images that cannot reference the type.
-    /// The cache keeps no Swift symbol among its images' undefined symbols,
-    /// so the images that can bind to the defining image are what is kept:
+    /// Few cache images keep a Swift symbol among their undefined symbols, so
+    /// the images that can bind to the defining image are what is kept:
     /// SharedWithYou imports nothing for `URL` and calls its metadata
     /// accessor all the same, through a GOT stub the cache builder bound.
     ///

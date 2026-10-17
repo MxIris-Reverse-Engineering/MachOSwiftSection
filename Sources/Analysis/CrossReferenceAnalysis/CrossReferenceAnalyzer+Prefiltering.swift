@@ -8,10 +8,10 @@ extension CrossReferenceAnalyzer {
     /// image keeps those undefined symbols even where the cache builder bound
     /// the calls directly.
     ///
-    /// Not for a Swift symbol. The macOS 27.2 cache keeps none of those among
-    /// its images' undefined symbols, so this finds no importer of one; use
-    /// `imageIndices(callingFunctionAt:symbolNames:among:)`, which goes by the
-    /// linkage for those.
+    /// Not for a Swift symbol. Only 245 of the macOS 27.2 cache's 4,113 images
+    /// keep any among their undefined symbols, so this finds a few of the
+    /// images that use one; use `imageIndices(callingFunctionAt:symbolNames:among:)`,
+    /// which goes by the linkage for those.
     public func imageIndices(importing symbolName: String, among candidates: some Sequence<Int>) -> [Int] {
         imageIndices(importingAnyOf: [symbolName], among: candidates)
     }
@@ -113,7 +113,7 @@ extension CrossReferenceAnalyzer {
         var result = Set(imageIndices(importingAnyOf: names.sorted(), among: candidates))
         if candidates.contains(definer) { result.insert(definer) }
         // Swift code reaches a Swift class through its metadata symbols, which
-        // no cache image keeps among its undefined symbols.
+        // few cache images keep among their undefined symbols.
         if objectiveCClassIndex(ofImageAt: definer).isSwiftClass(at: classLocation) {
             result.formUnion(imageIndices(linkingImageAt: definer, among: candidates))
         }

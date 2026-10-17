@@ -2537,7 +2537,7 @@
 - **寄存器跟踪的汇合点（已修）**：第一批按指令顺序读，汇合处沿用最后一条路径的值（`-[NSString stringByAppendingString:]` 的 `copyWithZone:` 接收者被说成 `self`）。改为状态沿着分支走：快照随前向分支带到目标处，汇合处取交集，循环头忘掉调用方保存的寄存器。快照是 `SIMD32` 定长值，release 下整表扫描开销约 10–20%。
 - **② ObjC 类引用（已落地）**：一个值是不是类对象，看它所在的镜像列没列它（直接读 `__objc_classlist` 与 `isa`）；取类地址的指令记为 `.reference` 种类的引用，目标带类对象的位置（全缓存 1.9 万个类名不止一个镜像定义，多是 Mac Catalyst 变体）。类字面量接收者经 `objc_opt_self` 也认得；super 发送的类取同一函数里 `__objc_superrefs` 的载入，分类方法、无符号的方法都对，Swift 的不记。类预筛认定义镜像在类与元类地址上的全部符号：4% 的跨镜像引用走 `__NSConcreteStackBlock` 这类别名。类索引起初经 `MachOImage.objc.classes64` 建，让整表扫描慢了一倍，改为直接读；最终整表扫描 +17%。
 - **③ Swift 类型引用（已落地）**：三种来源——调用元数据访问器、取访问器或值类型元数据的地址、按 mangled 名字实例化（27.2 上是 V2：名字在 `x1` 指向的 `{偏移, 长度}` 记录里）。表按描述符位置归档；类型查询比描述符位置与名字里的符号引用，只有标准库与导入的类型才解开名字——其他类型在名字里一定是符号引用，四个镜像逐个核对过。key 取自 `…Mn` 符号，描述符上下文拼出的 key 在受约束扩展与扩展里的 private 类型上会偏。性能：整表 2.1 → 3.0 秒；途中参数里修改扫描器的写法让 Swift 每次复制整个扫描器，一度 95 秒。协议的类型引用不在这一批。
-- **预筛的 Swift 缺陷（已修）**：缓存镜像不留任何 Swift 未定义符号，第一批按导入符号的函数预筛对 Swift 函数会丢掉全部跨库调用者（只用 C 函数测过）。Swift 符号改按链接关系（直接链接或经再导出）预筛，新增 `imageIndices(linkingImageAt:among:)`、`imageIndices(callingFunctionAt:symbolNames:among:)`；RuntimeViewer 查调用者要改用后者。
+- **预筛的 Swift 缺陷（已修）**：缓存 4,113 个镜像只有 245 个留着 Swift 未定义符号，第一批按导入符号的函数预筛对 Swift 函数会丢掉其余镜像里的跨库调用者（只用 C 函数测过）。Swift 符号改按链接关系（直接链接或经再导出）预筛，新增 `imageIndices(linkingImageAt:among:)`、`imageIndices(callingFunctionAt:symbolNames:among:)`；RuntimeViewer 查调用者要改用后者。
 - **关联文档**：[draft-cross-reference-analysis](../Evolutions/draft-cross-reference-analysis.md)、[Modules/CrossReferenceAnalysis.md](Modules/CrossReferenceAnalysis.md)。
 - **对应版本**：未发版。
 

@@ -63,8 +63,8 @@ extension CrossReferenceAnalyzer {
     }
 
     /// The images among `candidates` that can reference the type: the images
-    /// that can bind to the image defining it — no cache image keeps a Swift
-    /// symbol among its undefined ones, so the linkage is what tells
+    /// that can bind to the image defining it — few cache images keep a Swift
+    /// symbol among their undefined ones, so the linkage is what tells
     /// (`imageIndices(linkingImageAt:among:)`); for a class, the ones its
     /// class prefilter keeps; and, for a type every image may name on its own
     /// — the standard library's and the imported ones — every Swift image.

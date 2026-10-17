@@ -4,12 +4,14 @@ import MachOKit
 /// Which images link which: what tells the images that can bind to another
 /// image's Swift symbols.
 ///
-/// The macOS 27.2 shared cache keeps no Swift symbol among its images'
-/// undefined symbols — SharedWithYou keeps 314 undefined symbols, all C
+/// Only 245 of the macOS 27.2 shared cache's 4,113 images keep any Swift
+/// symbol among their undefined symbols. The rest bind Swift symbols with
+/// nothing left to show: SharedWithYou keeps 314 undefined symbols, all C
 /// functions and Objective-C classes, yet calls `URL`'s metadata accessor
-/// through a GOT stub the cache builder bound. A Swift symbol another image
-/// uses is told by the linkage instead: an image binds only to the images it
-/// links and the ones those re-export.
+/// through a GOT stub the cache builder bound; 44 images import `URL.path`
+/// by name, and many more call it. A Swift symbol another image uses is told
+/// by the linkage instead: an image binds only to the images it links and
+/// the ones those re-export.
 struct Linkage {
     /// The images that link each image.
     let dependents: [Int: [Int]]
@@ -40,7 +42,7 @@ extension CrossReferenceAnalyzer {
     /// The images among `candidates` that can call the function at
     /// `location`, which its image names `symbolNames`: its own image; for a
     /// C or Objective-C name, the images importing it; for a Swift name,
-    /// which no cache image keeps among its undefined symbols, every image
+    /// which few cache images keep among their undefined symbols, every image
     /// that can bind to the function's image.
     public func imageIndices(callingFunctionAt location: CodeLocation, symbolNames: [String], among candidates: some Sequence<Int>) -> [Int] {
         let candidates = Array(candidates)

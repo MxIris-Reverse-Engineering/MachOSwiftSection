@@ -224,11 +224,11 @@ struct CrossReferenceAnalyzerTests {
         #expect(missed.isEmpty, "prefilter dropped callers: \(missed.sorted().prefix(5).map { analyzer.imagePaths[$0] })")
     }
 
-    /// The same for a Swift function, which no cache image imports by name:
-    /// the macOS 27.2 cache keeps no Swift symbol among its images' undefined
-    /// symbols, so a prefilter by imports kept Foundation alone and dropped
-    /// every caller elsewhere. The images that can bind to Foundation are
-    /// what is kept now.
+    /// The same for a Swift function, which few cache images import by name:
+    /// only 245 of the macOS 27.2 cache's 4,113 images keep any Swift symbol
+    /// among their undefined symbols, so a prefilter by imports kept the 44
+    /// images importing `URL.path` and dropped every other caller. The images
+    /// that can bind to Foundation are what is kept now.
     @Test func swiftFunctionPrefilterKeepsEveryCaller() throws {
         let foundation = try imageIndex(endingWith: "/Foundation.framework/Versions/C/Foundation")
         let symbol = "_$s10Foundation3URLV4pathSSvg"
