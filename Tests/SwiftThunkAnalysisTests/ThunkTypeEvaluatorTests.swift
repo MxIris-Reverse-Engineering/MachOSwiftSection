@@ -547,6 +547,30 @@ struct ThunkTypeEvaluatorTests {
         #expect(stackForgotten == nil)
     }
 
+    /// A pair that writes back moves its base, a general register as much
+    /// as the stack pointer: after `ldp x2, x3, [x0], #16` or
+    /// `stp x2, x3, [x0, #-16]!`, `x0` no longer points at the first
+    /// argument.
+    @Test func aWriteBackPairMovesItsBase() {
+        let movedByLoading = evaluated(sequence([
+            .loadPairFromMemory(first: register(2), second: register(3), base: register(0), displacement: 0, adjustsBase: true),
+            .loadFromMemory(destination: register(1), base: register(0), displacement: 0),
+            .moveImmediate(destination: register(0), value: 0),
+            .call(target: Self.mutexAccessor),
+            .returnFromFunction,
+        ]))
+        #expect(movedByLoading == nil)
+
+        let movedByStoring = evaluated(sequence([
+            .storePairToMemory(first: register(2), second: register(3), base: register(0), displacement: -16, adjustsBase: true),
+            .loadFromMemory(destination: register(1), base: register(0), displacement: 0),
+            .moveImmediate(destination: register(0), value: 0),
+            .call(target: Self.mutexAccessor),
+            .returnFromFunction,
+        ]))
+        #expect(movedByStoring == nil)
+    }
+
     /// A type argument that could not be named makes the bound type
     /// unnameable rather than partially named.
     @Test func anUnnameableTypeArgumentYieldsNoType() {

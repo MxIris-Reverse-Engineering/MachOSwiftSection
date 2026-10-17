@@ -278,7 +278,10 @@ public struct ThunkTypeEvaluator {
             assign(loaded(from: base, displacement: displacement), to: destination)
         case .loadPairFromMemory(let first, let second, let base, let displacement, let adjustsBase):
             if adjustsBase {
+                // A write-back moves the base past the pair, a general
+                // register as much as the stack pointer.
                 forgetStack()
+                forget(base)
                 forget(first)
                 forget(second)
             } else {
@@ -290,6 +293,7 @@ public struct ThunkTypeEvaluator {
         case .storePairToMemory(let first, let second, let base, let displacement, let adjustsBase):
             if adjustsBase {
                 forgetStack()
+                forget(base)
             } else {
                 store(valuesByRegister[first], to: base, displacement: displacement)
                 store(valuesByRegister[second], to: base, displacement: displacement + 8)
