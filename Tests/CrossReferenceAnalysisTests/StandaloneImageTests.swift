@@ -44,4 +44,40 @@ struct StandaloneImageTests {
         let someCallIsAHelper = table.references.contains { $0.isRuntimeHelperCall }
         #expect(someCallIsAHelper)
     }
+
+    /// An image outside the cache goes by where dyld loaded it: a framework's
+    /// install name is `@rpath/…`, which names no file, and a host that knows
+    /// the image by its path has to find it by that path.
+    @Test func aFrameworkOutsideTheCacheGoesByItsLoadedPath() throws {
+        _ = try #require(dlopen(Self.fixturePath, RTLD_NOW), "cannot load the SymbolTestsCore fixture at \(Self.fixturePath)")
+        let analyzer = try #require(CrossReferenceAnalyzer())
+        let fixture = try #require(analyzer.imagePaths.firstIndex { $0.hasSuffix("SymbolTestsCore.framework/Versions/A/SymbolTestsCore") })
+        let path = analyzer.imagePaths[fixture]
+        #expect(path.hasPrefix("/"), "\(path)")
+        #expect(URL(fileURLWithPath: path).resolvingSymlinksInPath() == URL(fileURLWithPath: Self.fixturePath).resolvingSymlinksInPath())
+        #expect(analyzer.imageIndex(forPath: path) == fixture)
+        // The install name still finds it: load commands link by it.
+        #expect(analyzer.imageIndex(forPath: "@rpath/SymbolTestsCore.framework/Versions/A/SymbolTestsCore") == fixture)
+    }
+
+    /// The bundle the tests run in has no install name at all.
+    @Test func aBundleGoesByItsLoadedPath() throws {
+        let analyzer = try #require(CrossReferenceAnalyzer())
+        let testBundle = try #require(analyzer.images.firstIndex { $0.ptr == #dsohandle }, "the test bundle is not among the images")
+        #expect(analyzer.images[testBundle].header.fileType == .bundle)
+        var information = Dl_info()
+        #expect(dladdr(#dsohandle, &information) != 0)
+        let loadedPath = String(cString: try #require(information.dli_fname))
+        #expect(analyzer.imagePaths[testBundle] == loadedPath)
+        #expect(analyzer.imageIndex(forPath: loadedPath) == testBundle)
+    }
+
+    /// A bundle linked with `-bundle_loader` binds to the main executable
+    /// through no load command, so every bundle counts as linking it.
+    @Test func aBundleCountsAsLinkingTheMainExecutable() throws {
+        let analyzer = try #require(CrossReferenceAnalyzer())
+        let executable = try #require(analyzer.images.firstIndex { $0.header.fileType == .execute })
+        let testBundle = try #require(analyzer.images.firstIndex { $0.ptr == #dsohandle })
+        #expect(analyzer.imageIndices(linkingImageAt: executable, among: analyzer.images.indices).contains(testBundle))
+    }
 }

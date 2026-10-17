@@ -21,7 +21,12 @@ import MachOKit
 public final class CrossReferenceAnalyzer: @unchecked Sendable {
     /// Every image the analyzer knows, shared cache first.
     public let images: [MachOImage]
-    /// Each image's path, by position in ``images``.
+    /// Each image's path, by position in ``images``: where dyld loaded it —
+    /// for a shared cache image, its install name.
+    ///
+    /// Not the install name for an image outside the cache: an app's main
+    /// executable and its bundles have none, and its frameworks have an
+    /// `@rpath/…` one, which names no file.
     public let imagePaths: [String]
 
     struct ImageAddressRange {
@@ -57,6 +62,10 @@ public final class CrossReferenceAnalyzer: @unchecked Sendable {
     let typeByMangledNameEntries: [CodeLocation: Int]
 
     private let indicesByPath: [String: Int]
+    /// Every image an install name names: the name load commands link an
+    /// image by. Two copies of one framework, loaded from two places, share
+    /// one.
+    private let indicesByInstallName: [String: [Int]]
     private let lock = NSLock()
     private var functionTables: [Int: ImageFunctionTable] = [:]
     private var classIndexes: [Int: ObjectiveCClassIndex] = [:]
@@ -88,21 +97,32 @@ public final class CrossReferenceAnalyzer: @unchecked Sendable {
                 }
             }
         }
+        // Where dyld loaded each image outside the cache, read off the header
+        // itself so that an image loaded or unloaded meanwhile cannot shift
+        // it onto another.
+        var loadedPaths: [Int: String] = [:]
         for imageIndex in 0 ..< _dyld_image_count() {
             guard let header = _dyld_get_image_header(imageIndex) else { continue }
             let image = MachOImage(ptr: header)
             guard !image.header.isInDyldCache else { continue }
+            var information = Dl_info()
+            if dladdr(UnsafeRawPointer(header), &information) != 0, let fileName = information.dli_fname {
+                loadedPaths[images.count] = String(cString: fileName)
+            }
             images.append(image)
         }
 
         var imagePaths: [String] = []
         var indicesByPath: [String: Int] = [:]
+        var indicesByInstallName: [String: [Int]] = [:]
         var textRanges: [ImageAddressRange] = []
         var dataRanges: [ImageAddressRange] = []
         for (imageIndex, image) in images.enumerated() {
-            let path = image.path ?? ""
+            let installName = image.path
+            let path = loadedPaths[imageIndex] ?? installName ?? ""
             imagePaths.append(path)
             if indicesByPath[path] == nil { indicesByPath[path] = imageIndex }
+            if let installName { indicesByInstallName[installName, default: []].append(imageIndex) }
             guard let slide = image.vmaddrSlide, let text = image.segments64.first(where: { $0.segmentName == "__TEXT" }) else { continue }
             let start = UInt(bitPattern: Int(bitPattern: UInt(text.layout.vmaddr)) &+ slide)
             textRanges.append(ImageAddressRange(start: start, end: start + UInt(text.layout.vmsize), imageIndex: imageIndex))
@@ -124,6 +144,7 @@ public final class CrossReferenceAnalyzer: @unchecked Sendable {
         self.images = images
         self.imagePaths = imagePaths
         self.indicesByPath = indicesByPath
+        self.indicesByInstallName = indicesByInstallName
         self.textRanges = textRanges
         self.dataRanges = dataRanges
         self.executableRanges = executableRanges
@@ -185,10 +206,11 @@ public final class CrossReferenceAnalyzer: @unchecked Sendable {
 
     // MARK: - Images and functions
 
-    /// The position in ``images`` of the image at `path` — its install name
-    /// for a shared cache image.
+    /// The position in ``images`` of the image at `path`: where dyld loaded
+    /// it, which for a shared cache image is its install name. An install
+    /// name finds an image outside the cache too.
     public func imageIndex(forPath path: String) -> Int? {
-        indicesByPath[path]
+        indicesByPath[path] ?? indicesByInstallName[path]?.first
     }
 
     /// The image whose `__TEXT` segment holds the runtime address `address`,
@@ -373,23 +395,25 @@ public final class CrossReferenceAnalyzer: @unchecked Sendable {
         lock.unlock()
         var dependents: [Int: [Int]] = [:]
         var reexporters: [Int: [Int]] = [:]
+        var executables: [Int] = []
+        var bundles: [Int] = []
         for (imageIndex, image) in images.enumerated() {
-            for command in image.loadCommands {
-                let dylibCommand: DylibCommand
-                var isReexport = false
-                switch command {
-                case .loadDylib(let command), .loadWeakDylib(let command), .loadUpwardDylib(let command), .lazyLoadDylib(let command):
-                    dylibCommand = command
-                case .reexportDylib(let command):
-                    dylibCommand = command
-                    isReexport = true
-                default:
-                    continue
-                }
-                guard let dependency = self.imageIndex(forPath: dylibCommand.dylib(cmdsStart: image.cmdsStartPtr).name), dependency != imageIndex else { continue }
-                dependents[dependency, default: []].append(imageIndex)
-                if isReexport { reexporters[dependency, default: []].append(imageIndex) }
+            switch image.header.fileType {
+            case .execute?: executables.append(imageIndex)
+            case .bundle?: bundles.append(imageIndex)
+            default: break
             }
+            for (command, isReexport) in dylibCommands(ofImageAt: imageIndex) {
+                for dependency in imageIndices(linkedAs: command.dylib(cmdsStart: image.cmdsStartPtr).name) where dependency != imageIndex {
+                    dependents[dependency, default: []].append(imageIndex)
+                    if isReexport { reexporters[dependency, default: []].append(imageIndex) }
+                }
+            }
+        }
+        // A bundle linked with `-bundle_loader` binds to the main executable,
+        // which no load command names; every bundle counts as linking it.
+        for executable in executables {
+            dependents[executable, default: []].append(contentsOf: bundles)
         }
         let linkage = Linkage(dependents: dependents, reexporters: reexporters)
         lock.lock()
@@ -397,6 +421,28 @@ public final class CrossReferenceAnalyzer: @unchecked Sendable {
         if let linkageStorage { return linkageStorage }
         linkageStorage = linkage
         return linkage
+    }
+
+    /// The image's dylib load commands, in order — the order a bind's or a
+    /// re-export's library ordinal counts, from 1 — and whether each
+    /// re-exports the dylib.
+    private func dylibCommands(ofImageAt imageIndex: Int) -> [(command: DylibCommand, isReexport: Bool)] {
+        images[imageIndex].loadCommands.compactMap { command in
+            switch command {
+            case .loadDylib(let command), .loadWeakDylib(let command), .loadUpwardDylib(let command), .lazyLoadDylib(let command):
+                return (command, false)
+            case .reexportDylib(let command):
+                return (command, true)
+            default:
+                return nil
+            }
+        }
+    }
+
+    /// The images a load command's dylib name stands for: every image with
+    /// that install name, or the image loaded from that path.
+    private func imageIndices(linkedAs name: String) -> [Int] {
+        indicesByInstallName[name] ?? indicesByPath[name].map { [$0] } ?? []
     }
 
     /// The image's Swift type index, built on first use and then kept for the
