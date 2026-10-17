@@ -97,7 +97,7 @@ macOS 27 / iOS 27 起的那种见术语表 [cache-shared stub（全缓存共用�
 
 宿主的用法：类型对象 → 描述符位置（或经 `swiftTypeDescriptorLocations(withKey:inImageAt:)`，先找 `…Mn` 符号）→ `swiftTypeIdentity(ofDescriptorAt:)` → 预筛 → 每个候选镜像 `references(toSwiftType:inImageAt:)`。`swiftTypeKeys(in:)` 解开一个 `SwiftTypeName`，供显示用。
 
-**预筛**（`imageIndices(referencingSwiftType:among:)`）：能绑定到定义镜像符号的镜像（按链接关系，见下一节）；类再并上类预筛；名字可能拼出来的类型——标准库的、导入的，每个镜像都可能自己命名——凡是 Swift 镜像都算。
+**预筛**（`imageIndices(referencingSwiftType:among:)`）：定义镜像本身；定义镜像导出了这个类型的符号时（描述符 `…Mn`、元数据访问器 `…Ma`、元数据 `…N` 任何一个），再加上能绑定到它的镜像（按链接关系，见下一节），类再并上类预筛；名字可能拼出来的类型——标准库的、导入的，每个镜像都可能自己命名——凡是 Swift 镜像都算。**一个符号都没导出的类型（内部类型）只可能被定义镜像引用**：别的镜像要引用它，只能经这几个符号绑定，或者在名字里拼出它，而内部类型在别的模块里拼不出来。2026-10-17 之前没有这条，AppKit 的内部结构体 `NSSmartNamingSuggestion` 一次类型引用查询要扫所有链接 AppKit 的镜像——几乎整个缓存，Debug 构建下要好几分钟（用户实测，CPU 占满）；现在只扫 AppKit 一个（测试 `typesNoImageExportsAreLookedForInTheirOwnImage`，并对链接 AppKit 的镜像每 64 个抽 1 个确认确实没有引用）。导出表按镜像在第一次需要时读成集合留着（`exportedSymbolNames(ofImageAt:)`）。Swift 函数不需要同样处理：缓存里没导出的函数在进程内看不到本地符号，没有 `.symbol` 名字，本来就不会按链接关系去扩大候选。
 
 **代价**（release，28 核，与只有分支跟踪的那次提交交替跑）：全缓存整表 2.1 → 3.0 秒（引用 1.16 亿 → 1.26 亿条），查 `init` 的调用者 1.6 → 1.8 秒——只查 selector 或函数时不找类与类型引用，发送处的类字面量接收者照认。踩过两个坑。一是 `keep(reference(to: …))` 这种写法：参数里修改扫描器，外层又在同一个扫描器上调非 mutating 方法，Swift 只好每次把整个扫描器连同它的备忘字典复制一份，整表扫描一度要 95 秒——第一批的 `keep` 是静态方法，没有这个问题。二是类型索引若每次都去分析器的锁里取，等锁占掉大半时间；现在扫描器自己留一份（`ScanIndexes`，引用类型，解析调用目标的非 mutating 路径也用得上）。
 

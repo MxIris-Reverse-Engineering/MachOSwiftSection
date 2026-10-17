@@ -207,6 +207,23 @@ struct SwiftTypeReferenceTests {
         #expect(missed.isEmpty, "prefilter dropped referencing images: \(missed.sorted().prefix(5).map { analyzer.imagePaths[$0] })")
     }
 
+    /// A type its image exports no symbol for — no descriptor, no metadata, no
+    /// metadata accessor — can be referenced from that image alone. AppKit's
+    /// `NSSmartNamingSuggestion` is internal, and the prefilter kept every image
+    /// linking AppKit for it: a Type References query on it scanned most of
+    /// the cache, minutes in a Debug build.
+    @Test func typesNoImageExportsAreLookedForInTheirOwnImage() throws {
+        let identity = try identity(ofTypeWithKey: "6AppKit23NSSmartNamingSuggestionV", inImageEndingWith: "/AppKit.framework/Versions/C/AppKit")
+        let appKit = identity.descriptorLocation.imageIndex
+        let everyImage = Array(analyzer.images.indices)
+
+        #expect(analyzer.imageIndices(referencingSwiftType: identity, among: everyImage) == [appKit])
+        // The images linking AppKit do not reference it: every sixty-fourth of them, scanned.
+        let linkingImages = Set(analyzer.imageIndices(linkingImageAt: appKit, among: everyImage)).subtracting([appKit])
+        let sample = linkingImages.sorted().enumerated().filter { $0.offset % 64 == 0 }.map(\.element)
+        #expect(imagesReferencing(identity, among: sample).isEmpty)
+    }
+
     private func imagesReferencing(_ identity: SwiftTypeIdentity, among imageIndices: [Int]) -> Set<Int> {
         let found = ImageIndexCollector()
         let analyzer = analyzer

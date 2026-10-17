@@ -72,6 +72,7 @@ public final class CrossReferenceAnalyzer: @unchecked Sendable {
     private var swiftTypeIndexes: [Int: SwiftTypeIndex] = [:]
     private var linkageStorage: Linkage?
     private var renamedReexportStorage: RenamedReexportIndex?
+    private var exportedSymbolNameSets: [Int: Set<String>] = [:]
 
     /// The analyzer for the current process, or `nil` when it does not run
     /// arm64 code.
@@ -383,6 +384,24 @@ public final class CrossReferenceAnalyzer: @unchecked Sendable {
         if let stored = classIndexes[imageIndex] { return stored }
         classIndexes[imageIndex] = index
         return index
+    }
+
+    /// The names the image's export trie lists, as it spells them (`_$s…`,
+    /// `_CFRelease`): all another image can bind to. Built on first use and
+    /// kept; read for the images whose functions and types are asked about.
+    func exportedSymbolNames(ofImageAt imageIndex: Int) -> Set<String> {
+        lock.lock()
+        if let names = exportedSymbolNameSets[imageIndex] {
+            lock.unlock()
+            return names
+        }
+        lock.unlock()
+        let names = Set(images[imageIndex].exportedSymbols.map(\.name))
+        lock.lock()
+        defer { lock.unlock() }
+        if let stored = exportedSymbolNameSets[imageIndex] { return stored }
+        exportedSymbolNameSets[imageIndex] = names
+        return names
     }
 
     /// Built on first use and kept: reading every image's load commands takes

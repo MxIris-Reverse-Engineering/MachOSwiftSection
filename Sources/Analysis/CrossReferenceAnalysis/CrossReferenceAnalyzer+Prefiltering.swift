@@ -90,6 +90,13 @@ extension CrossReferenceAnalyzer {
     /// symbols as well, which the cache drops from its images' undefined
     /// symbols, so every image that can bind to its image counts too.
     public func imageIndices(referencingObjectiveCClassAt classLocation: CodeLocation, among candidates: some Sequence<Int>) -> [Int] {
+        imageIndices(referencingObjectiveCClassAt: classLocation, among: candidates, includingSwiftLinkage: true)
+    }
+
+    /// `includingSwiftLinkage` false leaves out the images linking a Swift
+    /// class's image, for a class known to export no Swift symbol — see
+    /// `imageIndices(referencingSwiftType:among:)`.
+    func imageIndices(referencingObjectiveCClassAt classLocation: CodeLocation, among candidates: some Sequence<Int>, includingSwiftLinkage: Bool) -> [Int] {
         let definer = classLocation.imageIndex
         let image = images[definer]
         let objectAddresses = Set(objectiveCClassIndex(ofImageAt: definer).objectAddresses(ofClassAt: classLocation))
@@ -118,7 +125,7 @@ extension CrossReferenceAnalyzer {
         if candidates.contains(definer) { result.insert(definer) }
         // Swift code reaches a Swift class through its metadata symbols, which
         // few cache images keep among their undefined symbols.
-        if objectiveCClassIndex(ofImageAt: definer).isSwiftClass(at: classLocation) {
+        if includingSwiftLinkage, objectiveCClassIndex(ofImageAt: definer).isSwiftClass(at: classLocation) {
             result.formUnion(imageIndices(linkingImageAt: definer, among: candidates))
         }
         return result.sorted()

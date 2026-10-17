@@ -64,24 +64,46 @@ extension CrossReferenceAnalyzer {
         return references
     }
 
-    /// The images among `candidates` that can reference the type: the images
-    /// that can bind to the image defining it — few cache images keep a Swift
-    /// symbol among their undefined ones, so the linkage is what tells
-    /// (`imageIndices(linkingImageAt:among:)`); for a class, the ones its
-    /// class prefilter keeps; and, for a type every image may name on its own
-    /// — the standard library's and the imported ones — every Swift image.
+    /// The images among `candidates` that can reference the type: its own
+    /// image; when that image exports the type, the images that can bind to
+    /// it — few cache images keep a Swift symbol among their undefined ones,
+    /// so the linkage is what tells (`imageIndices(linkingImageAt:among:)`);
+    /// for a class, the ones its class prefilter keeps; and, for a type every
+    /// image may name on its own — the standard library's and the imported
+    /// ones — every Swift image.
+    ///
+    /// Another image reaches a type through a symbol of it — its descriptor
+    /// (`…Mn`), its metadata accessor (`…Ma`), its metadata (`…N`) — so a type
+    /// its image exports none of, an internal one, is referenced from that
+    /// image alone. Most of a framework's types are internal, and the images
+    /// linking AppKit are most of the cache.
     public func imageIndices(referencingSwiftType identity: SwiftTypeIdentity, among candidates: some Sequence<Int>) -> [Int] {
         let candidates = Array(candidates)
-        var result = Set(imageIndices(linkingImageAt: identity.descriptorLocation.imageIndex, among: candidates))
+        let definer = identity.descriptorLocation.imageIndex
+        let isExported = isSwiftTypeExported(withKey: identity.key, fromImageAt: definer)
+        var result = Set<Int>()
+        if candidates.contains(definer) {
+            result.insert(definer)
+        }
+        if isExported {
+            result.formUnion(imageIndices(linkingImageAt: definer, among: candidates))
+        }
         if SwiftTypeQuery.mayBeSpelledOut(identity.key) {
             result.formUnion(candidates.filter { imageIndex in
                 images[imageIndex].sections64.contains { $0.sectionName.hasPrefix("__swift5_") && $0.size > 0 }
             })
         }
         if let classLocation = identity.objectiveCClassLocation {
-            result.formUnion(imageIndices(referencingObjectiveCClassAt: classLocation, among: candidates))
+            result.formUnion(imageIndices(referencingObjectiveCClassAt: classLocation, among: candidates, includingSwiftLinkage: isExported))
         }
         return result.sorted()
+    }
+
+    /// Whether the image exports a symbol of the type with this key: what
+    /// another image needs to reach it.
+    func isSwiftTypeExported(withKey key: String, fromImageAt imageIndex: Int) -> Bool {
+        let exportedNames = exportedSymbolNames(ofImageAt: imageIndex)
+        return ["Mn", "Ma", "N"].contains { exportedNames.contains("_$s" + key + $0) }
     }
 
     /// The types a Swift type name names, by key, in the order the name
