@@ -1,4 +1,5 @@
 import Foundation
+import ARM64InstructionDecoding
 
 /// What the scanner knows about each general-purpose register — only what
 /// is certain.
@@ -154,46 +155,121 @@ final class RegisterFile {
     /// writes. Erring toward forgetting only loses facts; never forgetting a
     /// write would keep a stale one.
     func forgetRegistersWritten(by word: UInt32) {
-        let destination = Int(word & 0x1F)
-        // Loads and stores.
+        forget(mask: Self.registersWritten(by: word))
+    }
+
+    /// The general-purpose registers `word` writes, by bit: every one it may
+    /// write, never one it does not — except a pointer signed or
+    /// authenticated in place, which keeps what it means. A call writes the
+    /// caller-saved registers.
+    static func registersWritten(by word: UInt32) -> UInt32 {
+        let destination = word & 0x1F
+        let base = (word >> 5) & 0x1F
+        // Calls: `bl`, and `blr` and its authenticating forms.
+        if word & 0xFC00_0000 == 0x9400_0000 || ARM64InstructionWord.registerBranch(word)?.isCall == true {
+            return callerSavedMask
+        }
+        // Loads and stores. A write-back moves the base whether the
+        // register transferred is a general one or a vector one.
         if word & 0x0A00_0000 == 0x0800_0000 {
-            // A SIMD or floating-point register is no general-purpose one.
-            guard word & 0x0400_0000 == 0 else { return }
-            if word & 0x3800_0000 == 0x2800_0000 {
-                // Register pair: bit 22 tells a load from a store.
-                if word & 0x0040_0000 != 0 {
-                    forget(destination)
-                    forget(Int((word >> 10) & 0x1F))
-                }
-            } else if word & 0x3800_0000 == 0x3800_0000 {
-                // Single register: opc 00 is a store, everything else loads.
-                if (word >> 22) & 0x3 != 0 { forget(destination) }
-            } else if word & 0x3B00_0000 == 0x1800_0000 {
-                // Load literal.
-                forget(destination)
-            } else {
-                // Exclusives and atomics write their transfer or status register.
-                forget(destination)
-                forget(Int((word >> 16) & 0x1F))
-            }
-            return
+            return registersWritten(byLoadOrStore: word, destination: destination, base: base)
         }
         // Data processing, immediate or register.
         if word & 0x1C00_0000 == 0x1000_0000 || word & 0x0E00_0000 == 0x0A00_0000 {
-            // PAC, AUT and XPAC sign or strip the register in place.
-            if word & 0xFFFF_C000 == 0xDAC1_0000 { return }
-            forget(destination)
-            return
+            // PAC and AUT sign or authenticate the register in place, which
+            // keeps what it holds; XPAC, which strips it, is forgotten.
+            if word & 0xFFFF_C000 == 0xDAC1_0000 { return 0 }
+            return bit(destination)
         }
-        // Moves and conversions from floating point to a general register.
-        if word & 0x5F20_FC00 == 0x1E20_0000 {
-            forget(destination)
-            return
+        // Floating point to a general register: moves and conversions, to an
+        // integer or to fixed point.
+        if word & 0x5F20_FC00 == 0x1E20_0000 || word & 0x5F20_0000 == 0x1E00_0000 {
+            return bit(destination)
         }
-        // System register reads.
-        if word & 0xFFF0_0000 == 0xD530_0000 {
-            forget(destination)
+        // `umov` / `smov`: a vector element to a general register.
+        if word & 0xBFE0_EC00 == 0x0E00_2C00 {
+            return bit(destination)
         }
+        // SVE and SME: the few that yield a general register (`cntd`,
+        // `addvl`, `rdsvl` …) write it here.
+        if word & 0x1E00_0000 == 0x0400_0000 || word & 0x9E00_0000 == 0x8000_0000 {
+            return bit(destination)
+        }
+        // System register reads, and `sysl`.
+        if word & 0xFFE0_0000 == 0xD520_0000 {
+            return bit(destination)
+        }
+        // `svc`: a system call returns in `x0` and `x1`.
+        if word & 0xFFE0_001F == 0xD400_0001 {
+            return 0b11
+        }
+        return 0
+    }
+
+    private static func registersWritten(byLoadOrStore word: UInt32, destination: UInt32, base: UInt32) -> UInt32 {
+        let isVector = word & 0x0400_0000 != 0
+        let secondRegister = (word >> 10) & 0x1F
+        let statusRegister = (word >> 16) & 0x1F
+        var written: UInt32 = 0
+        switch (word >> 28) & 0x3 {
+        case 0b11:
+            // Single register. Bit 24 clear and bit 21 clear: bit 10 marks
+            // the pre- and post-indexed forms. Bit 21 set: bits 11–10 are 00
+            // for an atomic, x1 for a pointer-authenticated load, whose bit
+            // 11 writes back.
+            if word & 0x0100_0000 == 0, word & 0x0020_0000 == 0 {
+                if word & 0x0400 != 0 { written |= bit(base) }
+            } else if word & 0x0100_0000 == 0, word & 0x0400 != 0 {
+                if word & 0x0800 != 0 { written |= bit(base) }
+                return written | bit(destination)
+            } else if word & 0x0100_0000 == 0, word & 0x0C00 == 0 {
+                // An atomic returns the old value whatever its ordering,
+                // which takes the bits a load's opc would.
+                return isVector ? written : written | bit(destination)
+            }
+            // opc 00 is a store; everything else loads.
+            if !isVector, (word >> 22) & 0x3 != 0 { written |= bit(destination) }
+        case 0b10:
+            // Register pair: bit 23 marks the pre- and post-indexed forms,
+            // bit 22 a load.
+            if word & 0x0080_0000 != 0 { written |= bit(base) }
+            if !isVector, word & 0x0040_0000 != 0 { written |= bit(destination) | bit(secondRegister) }
+        case 0b01:
+            if word & 0x0100_0000 == 0 {
+                // Load literal.
+                if !isVector { written |= bit(destination) }
+            } else if word & 0x0020_0C00 == 0 {
+                // Load-acquire and store-release, unscaled: opc 00 stores.
+                if !isVector, (word >> 22) & 0x3 != 0 { written |= bit(destination) }
+            } else {
+                // Memory copy and set, which move all three of their
+                // registers along, memory tags, and the write-back forms of
+                // load-acquire and store-release.
+                written |= bit(destination) | bit(base) | bit(statusRegister)
+            }
+        default:
+            if isVector {
+                // Structure loads and stores: bit 23 marks the
+                // post-indexed forms.
+                if word & 0x0080_0000 != 0 { written |= bit(base) }
+                return written
+            }
+            // Exclusives, ordered accesses, compare and swap: the register
+            // transferred, the status or compared one, and with bit 23 clear
+            // and bit 21 set a pair — a pair's second register, or for
+            // `casp` (bit 31 clear) the register after the compared one.
+            written |= bit(destination) | bit(statusRegister)
+            if word & 0x00A0_0000 == 0x0020_0000 {
+                written |= bit(secondRegister)
+                if word & 0x8000_0000 == 0, statusRegister != 31 { written |= bit(statusRegister + 1) }
+            }
+        }
+        return written
+    }
+
+    /// Register `register`'s bit; none for register 31, which is not tracked.
+    private static func bit(_ register: UInt32) -> UInt32 {
+        register == 31 ? 0 : 1 << register
     }
 
     // MARK: - Branches
@@ -259,6 +335,16 @@ final class RegisterFile {
 
     private func forget(_ register: Int) {
         overwrite(register, state: .unknown, value: 0)
+    }
+
+    /// Forgets every register `mask` has a bit for.
+    func forget(mask: UInt32) {
+        var remaining = mask & 0x7FFF_FFFF
+        while remaining != 0 {
+            let register = remaining.trailingZeroBitCount
+            forget(register)
+            remaining &= remaining - 1
+        }
     }
 
     private func copyBit(from source: Int, to destination: Int, in mask: inout UInt32) {
