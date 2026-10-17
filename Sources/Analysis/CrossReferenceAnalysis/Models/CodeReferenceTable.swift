@@ -40,12 +40,16 @@ public struct CodeReferenceTable: Sendable {
         referenceIndicesByKey[key]?.map { references[Int($0)] } ?? []
     }
 
-    /// Every key some reference in the table has.
-    public var keys: Dictionary<Key, [Int32]>.Keys {
+    /// Every key some reference in the table has, in no particular order.
+    public var keys: some Collection<Key> {
         referenceIndicesByKey.keys
     }
 
-    /// A rough measure of the memory the table holds.
+    /// A rough measure of the memory the table holds: the references, their
+    /// keys and the index — not the heap storage of the strings they carry.
+    /// A selector, class or imported name longer than 15 bytes holds a
+    /// buffer of its own, which every reference to that name from one scan
+    /// shares.
     public var approximateByteCount: Int {
         references.count * MemoryLayout<CodeReference>.stride
             + referenceIndicesByKey.count * (MemoryLayout<Key>.stride + 48)

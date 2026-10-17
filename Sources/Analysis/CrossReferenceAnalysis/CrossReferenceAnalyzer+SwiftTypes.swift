@@ -28,9 +28,11 @@ extension CrossReferenceAnalyzer {
         return SwiftTypeIdentity(key: key, descriptorLocation: location, objectiveCClassName: classObject?.name, objectiveCClassLocation: classObject?.location)
     }
 
-    /// Where the image at `imageIndex` defines a type whose key is `key`: one
-    /// location, or none. The type's `…Mn` symbol is looked for first; every
-    /// type's key is built only when no symbol names it.
+    /// Where the image at `imageIndex` defines a type whose key is `key`. The
+    /// type's `…Mn` symbol is looked for first, and settles it: one location.
+    /// Only when no symbol names the type is every type's key built, and
+    /// every descriptor with that key returned, in no particular order — one
+    /// in the images seen so far.
     public func swiftTypeDescriptorLocations(withKey key: String, inImageAt imageIndex: Int) -> [CodeLocation] {
         let image = images[imageIndex]
         guard let slide = image.vmaddrSlide else { return [] }
