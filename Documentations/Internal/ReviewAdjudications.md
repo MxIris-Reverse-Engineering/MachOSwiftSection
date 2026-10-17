@@ -731,3 +731,77 @@
   3. 第二、三处的锁保护的是不线程安全的计算器 memo。要把 demangle 挪出锁，得把计算器改成线程安全的，代价大，而收益只在上面两个条件同时成立时才有。
 - **既往修复**：无。规则来自第 9 条（`lateDemangledNode`，2026-08-03 修）。第一处 `:118` 的锁（`7ebed7d3`，2026-06-24）是专门为防止并发重复建表加的；第二处的锁随读取器特化引入（`1af4ea24`，2026-06-22）。其余几处（`268159bd`、`72b5c5f6`、`01fe2f82`、`758314ff`）都写在规则进 AGENTS.md（2026-09-14）之后，从写法看，当时把规则理解成了「所有查询都要拿的锁」。
 - **复审条件**：有宿主在协作线程或 libdispatch 线程上并发调用上面列出的同步入口；又出现没包执行器、能走到这几把锁的 async 入口（像这次的 `TypeDefinition.specialize`）；`MachOFile` 改成支持并发读；或者有宿主在 macOS 15 以下的实测里卡在这些锁上。
+
+---
+
+## A62 — `CrossReferenceAnalysis` 的按镜像缓存用手写锁加字典，不用 `SharedCache`（交叉引用审查 B7，**有意设计**）
+
+- **裁决**：不修（2026-10-17）。
+- **发现**：AGENTS.md 要求按镜像的缓存一律用 `SharedCache`，不写「手写锁加 `[键: 值]` 字典」。`CrossReferenceAnalyzer` 的函数表、类索引、类型索引、链接关系与改名再导出表，`ObjectiveCClassIndex` 的类名、`SwiftTypeIndex` 的 key、`ImageFunctionTable` 的补充名字，都是 `NSLock` 加字典。
+- **复现 / 是否误报**：写法属实。不是缺陷：结果对、无竞态（都在锁外建、锁内先到先得）。
+- **与 main 基线对比**：模块是 `feature/cross-reference-analysis` 新写的，main 上没有。
+- **为什么不修**：这些缓存都属于一个 `CrossReferenceAnalyzer` 实例，随实例释放；宿主想放掉内存就丢掉分析器（RuntimeViewer 的会话在镜像变化或起名过的镜像超过 64 个时换新的）。`SharedCache` 管的是进程级、按镜像键、要靠注册表统一淘汰的缓存，套在实例级的缓存上反而让它们比分析器活得久。
+- **既往修复**：无。模块文档「缓存、内存与生命周期」从第一批起就这样写。
+- **代码锚点**：`CrossReferenceAnalyzer.swift` 的存储属性注释；模块文档 [CrossReferenceAnalysis.md](Modules/CrossReferenceAnalysis.md)。
+- **复审条件**：分析器改成进程级单例，或这些缓存改由别的长寿对象持有。
+
+---
+
+## A63 — 分析器存活期间缓存外镜像被卸载（交叉引用审查 B5）
+
+- **裁决**：不修，文档写明（2026-10-17）。
+- **发现**：分析器在创建时记下缓存外镜像的 `MachOImage` 与映射区间。之后若有镜像被 `dlclose` 真正卸载，再读它会读到已释放的内存，`isMapped` 仍说可读。
+- **复现 / 是否误报**：机制属实，没有构造复现：要恰好在一次查询进行中卸载一个缓存外镜像。
+- **与 main 基线对比**：模块新写，main 上没有。
+- **为什么不修**：每次读之前查一遍 dyld 的镜像表，代价落在扫描的热路径上；而触发要求一次查询（一到几秒）里恰好有镜像被卸载，macOS 上 `dlclose` 真正卸载的情形本来就少（带 ObjC 或 Swift 元数据的镜像不会被卸载）。RuntimeViewer 的会话在缓存外的镜像列表变化时换新的分析器。
+- **既往修复**：无。
+- **代码锚点**：`CrossReferenceAnalyzer` 的类型文档注释。
+- **复审条件**：出现了查询中途卸载导致的崩溃报告；或宿主开始频繁加载、卸载插件（例如逐个分析一批 bundle）。
+
+---
+
+## A64 — 缓存构建器优化过的直接跳转型桩不跟；槽位指向镜像之外时不退回导入名（交叉引用审查 A7，**暂缓**）
+
+- **裁决**：暂缓（2026-10-17）：真实存在，但本机造不出修复前会失败的测试。
+- **发现**：`ImageFunctionTable` 只收 MachOKit 读成 `.viaSlot` 的桩。缓存构建器优化过的桩（单条 `b target`，或 `adrp x16; add x16; br x16`）MachOKit 读成 `.direct(target)`，槽位为空，调用于是退回桩的导入名（`.importedSymbol`），拿不到目标函数。另外槽位里的指针落在所有镜像之外时，解析返回 `.unrecognized`，挡住了退回导入名。
+- **复现 / 是否误报**：macOS 27.2 的缓存镜像已经没有桩（AppKit、libswiftCore、libsystem_c、Foundation、libobjc 的 `__auth_stubs` / `__stubs` 都是 0 字节），缓存外镜像的桩都经槽位；所以本机复现不了。`.direct` 桩存在于 macOS / iOS 26 及更早的缓存里，引擎在被查看的进程里扫，用户在这些系统上用时会遇到：调用按导入名报——按名字查调用者仍能找到，按位置的不行，改名再导出的别名（交叉引用审查 B1）也对不上。
+- **与 main 基线对比**：模块新写，main 上没有。
+- **为什么暂缓**：修法简单（`.direct` 的目标按运行时地址解析；槽位解析为 `.unrecognized` 时退回名字），但仓库规则要求修复带修复前失败的测试，本机没有 26.x 的进程可扫。
+- **既往修复**：无。第一批（`0c0ebce3`）在 macOS 27.2 上写成，那时缓存已无桩。
+- **复审条件**：有 macOS 26 或 iOS 26 的环境可跑测试（另一台机器、或用户批准的 Simulator）——那时先写测试再修，同时让 RuntimeViewer 的调用者键带上改名再导出的别名（只有按名字报的调用需要它）。
+
+---
+
+## A65 — `bc.cond` 不解码；共用 selector 桩读字符串前不检查（交叉引用审查 A8）
+
+- **裁决**：不修 / 疑似误报（2026-10-17）。同一条里的第三处——`svc` 不作废 `x0`、`x1`——属实，已随 A1 修（`RegisterFileTests`）。
+- **发现**：一、`bc.cond`（FEAT_HBC，位 4 置位）不被当成条件跳转。二、`ReferenceScanner` 认出全缓存共用的 selector 桩后，只确认 selector 地址的第一个字节可读就当字符串用，没有 `selectorString(atRuntimeAddress:)` 那样的可打印与终止符检查。
+- **复现 / 是否误报**：一、Apple 的核心没有实现 FEAT_HBC，编译器不生成 `bc.cond`。二、只有严格匹配 `adrp x1; add x1; b <objc_msgSend 副本>` 的跳板才被认作 selector 桩，`x1` 只指向缓存的 selector 字符串区；造不出会读坏的输入。
+- **与 main 基线对比**：模块新写，main 上没有。
+- **为什么不修**：两处都没有可触发的输入；规则要求修复带会变红的测试。
+- **既往修复**：无。
+- **复审条件**：Apple 的核心加入 FEAT_HBC；共用 selector 桩换了形态，或别的跳板形态也能落进同一分支。
+
+---
+
+## A66 — 向前目标的排序插入、夹在代码里的数据线性查找（交叉引用审查 A6，性能）
+
+- **裁决**：不修（2026-10-17，数据裁决）。
+- **发现**：`ReferenceScanner.carry(to:)` 把向前分支的目标连同约 640 字节的寄存器快照插进按地址排序的数组，近处的分支插在一长串远处目标前面时整体搬动；`ImageFunctionTable.isInDataInCode` 对每条指令线性查找。
+- **复现 / 是否误报**：属实，量过（release，临时测量测试，记录在 [2026-10-17 审查记录](../../Roadmaps/2026-10-17-cross-reference-analysis-review-findings.md) A6）：向前目标最多的几个巨型函数每条指令慢 5–9 倍（JavaScriptCore 的 `FTL::LowerDFGToB3::compileNode` 61 ms，WebCore 的 `FormatConverter::convert` 25 ms），占各自镜像扫描时间的 8%–13%；数据区间在抽样的 257 个缓存镜像里一条都没有。
+- **与 main 基线对比**：模块新写，main 上没有。
+- **为什么不修**：慢只在少数巨型函数上，每个几十毫秒；跨库查询是 27 个线程并发扫几千个镜像，这几个函数不在关键路径上。
+- **既往修复**：无。排序数组加游标是 `00c5a040` 有意的选择（扫描只往前走，每条指令只比一个元素），当时没考虑快照的大小。
+- **复审条件**：采用循环的精确做法（含循环的函数要扫两遍，见审查记录 A5）；或有用户在具体镜像上感到慢。修法现成：排序数组只存 16 字节的「目标、快照序号」，快照另放一个只追加的数组。
+
+---
+
+## A67 — 交叉引用测试钉着 macOS 27.2 的代码形态，却没有按系统版本门控（交叉引用审查 D6、D7）
+
+- **裁决**：不修，只改注释（2026-10-17）。
+- **发现**：`CrossReferenceAnalysisTests` 的一些断言钉着 macOS 27.2 编出来的具体代码（`-[NSWindow makeKeyAndOrderFront:]` 发出的三条消息、SiriAppIntents 与 Matter 剥掉了哪些符号、Mac Catalyst 的 SwiftUI 路径），套件只按「arm64 且有共享缓存」启用，在别的系统版本上会失败而不是跳过；`FallbackNamingTests` 的注释还说「换系统版本也成立」。`knowsEveryImageOfTheSharedCache` 只查数量大于 1,000。
+- **复现 / 是否误报**：属实。
+- **与 main 基线对比**：模块新写，main 上没有。
+- **为什么不修**：CI（macOS 26 的 runner）不跑这些套件；本地开发机都在 macOS 27.2 上。按系统版本门控会让它们在别的版本上悄悄不跑，不如失败时显眼——升级系统后要更新的是这些期望值。注释已改为如实说明（`FallbackNamingTests` 与 RuntimeViewer 的 `CrossReferenceQueryTests`）。
+- **既往修复**：无。
+- **复审条件**：CI 开始跑这些套件，或开发机分布到多个系统版本。

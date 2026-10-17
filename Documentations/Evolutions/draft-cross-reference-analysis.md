@@ -16,10 +16,10 @@
 - **解码**：手写，只认调用、尾调用、间接调用、`adrp` / `add` / `ldr` 取地址、`movk` / `mov` 鉴别常量、`autda` / `ldraa` 这几类，其余指令只作废它写的寄存器。实测比 Capstone 快 25–50 倍，Capstone 只在测试里作对照。`__text` 里夹着数据，读任何跳转目标之前先确认它落在缓存的可执行映射或本镜像里。
 - **调用目标**：镜像自带的 `__objc_stubs` / `__stubs` / `__auth_stubs`（macOS 26、iOS 26 及更早，以及 Simulator）；macOS 27 / iOS 27 全缓存共用的 selector 桩（`x1` 就是 selector 字符串，以字符串地址为键）与 GOT 桩（进程内读出槽位里已绑定的指针）；stub island。GOT 桩与 island 的形状识别和 `MachOThunkEnvironment` 共用一份：把它的 `stubSlotAddress` / `stubIslandTarget` 抽成两边都能调用的 package 级纯函数。
 - **间接调用**：按 `autda` 的常量分出虚表（isa，0x6ae1）、value witness table（0x2e3f）与协议见证表；value witness 调用标为运行时辅助调用。虚表与见证表调用按（鉴别常量、表内偏移）反查本镜像的根声明：常量是带 `$s` 前缀的 `SILDeclRef` mangling 经 `getPointerAuthStableSipHash` 再取 `% 0xFFFF + 1`。闭包调用只给签名形态。
-- **类型引用**：`$s…Ma` 元数据访问器、`__swift_instantiateConcreteTypeFromMangledName*` / `swift_getTypeByMangledName*`（名字取自 `x0` 指向的缓存变量）、ObjC 类引用。
+- **类型引用**：`$s…Ma` 元数据访问器、`__swift_instantiateConcreteTypeFromMangledName*` / `swift_getTypeByMangledName*`（名字取自 `x0` 指向的缓存变量）、ObjC 类引用。（第二批已修订：V2 的名字取自 `x1` 指向的记录，见「第二批 ③」。）
 - **运行时辅助调用**：名单由本库维护，结果里只打标记，过滤交给宿主。
-- **预筛**：按符号表的未定义符号与 `__objc_selrefs`，筛出可能引用某个符号或 selector 的镜像。
-- **不缓存**：每次调用都重新读；整镜像扫描返回一个值，留多久由宿主决定（RuntimeViewer 按字节预算做 LRU），所以不新增 `SharedCache`。
+- **预筛**：按符号表的未定义符号与 `__objc_selrefs`，筛出可能引用某个符号或 selector 的镜像。（已修订：Swift 符号按链接关系筛，见「第二批 ③」；C 与 ObjC 名字还要算上别的镜像改名再导出的名字，见「审查与修复」。）
+- **不缓存**：每次调用都重新读；整镜像扫描返回一个值，留多久由宿主决定（RuntimeViewer 按字节预算做 LRU），所以不新增 `SharedCache`。（已修订：分析器在自己的生命期里记住起过名的函数表、类索引、类型索引、链接关系与改名再导出的名字，见模块参考「缓存、内存与生命周期」；仍不新增 `SharedCache`，理由见 [ReviewAdjudications](../Internal/ReviewAdjudications.md) A62。）
 - **分三批落地**，每批单独可用：① 函数表（符号表与函数起点）、解码、两种桩布局、selector、辅助调用标记、单函数与整镜像 API、预筛，发一个版本后 RuntimeViewer 就能开始它的第 3 步；② ObjC 方法表与 Swift 元数据命名、类型引用；③ 间接调用的表来源、鉴别常量反查与候选。
 - **测试**：解码器用合成的指令字单测；SymbolTestsCore fixture（arm64）测函数表与直接调用；arm64e 才有的形状用自编的 arm64e 目标文件和进程内的系统缓存测，并以 Capstone 的反汇编作对照。
 
@@ -81,7 +81,7 @@ public final class CrossReferenceAnalyzer: @unchecked Sendable {
 
 ### ObjC：类字面量接收者、super 的类、类引用
 
-- 27.2 的缓存里几乎没有 `__objc_classrefs` 了（全缓存只剩 53 个镜像、1,023 个槽）。类经 GOT 载入：镜像自己的 `__got`，或全缓存共用的 GOT 池（落在所有镜像的段之外）；或 `adrp`+`add` 直接取类对象地址；super 发送仍经 `__objc_superrefs`。AppKit 里 34,256 处来自共用池、17,450 处来自自己的 `__got`、3,311 处直接取址。
+- 27.2 的缓存里几乎没有 `__objc_classrefs` 了（全缓存只剩 53 个镜像、1,023 个槽）。类经 GOT 载入：镜像自己的 `__got`，或全缓存共用的 GOT 池（落在所有镜像的段之外）；或 `adrp`+`add` 直接取类对象地址；super 发送仍经 `__objc_superrefs`。AppKit 里 34,256 处来自共用池、17,450 处来自自己的 `__got`、3,311 处直接取址（设计阶段那一轮探针；实现阶段重跑探针得到 3,318 / 52,668，两次的口径差别没有记下来，见「类型引用」前的实测）。
 - 槽里的值是不是类对象，用目标镜像按需建的类索引判断（`__objc_classlist` 的类与元类，名字取自 `class_ro_t`）；其他槽（`__cfstring` 的 isa 之类）一律不算。类对象不能只按所在段认：9.2 万个 Swift 类与元类在 `__data` 里。
 - 发送的接收者来自类引用时记为 `classLiteral`（AppKit 11% 的发送）。`objc_opt_self`、`objc_opt_class`、`swift_getInitializedObjCClass` 视为原样返回实参（SwiftUI 的类接收者几乎都经 `objc_opt_self`）。
 - super 发送的类取发送方法自己的类（名字 `-[C sel]` 里的 `C`，或方法表给的类）。用栈槽跟踪能还原 88%，与方法自己的类对照，7,106 处一致、2 处不同，所以不做栈槽跟踪。
@@ -117,7 +117,7 @@ public final class CrossReferenceAnalyzer: @unchecked Sendable {
   - super 的类不取方法名或方法表，取同一函数里从 `__objc_superrefs` 载入的类，没见到时才退回方法符号。槽里就是编译器给的类，分类方法、类方法（槽里是元类）、没有符号的方法都对，扫描也不必读方法表。这一载入本身不报成类引用。Swift 代码的 super 发送不经这个槽（类来自 `self` 的运行时类或元数据访问器），类记为空：Foundation 1,803 处里 374 处、AppKit 8,336 处里 1,133 处，其余全有类。
   - 引用目标除了类名还带类对象的位置：全缓存 203,621 个类名里 18,906 个不止一个镜像定义，多是 `/System/iOSSupport` 下的 Mac Catalyst 变体。表键仍是类名。
   - 类预筛不只认 `_OBJC_CLASS_$_<名字>`：抽样里别的镜像引用某个类，6,921 对中 251 对走别名（Block 的 `isa` 是 `__NSConcreteStackBlock`，XPC 类型是 `__xpc_type_dictionary`）。预筛取定义镜像的符号表与导出表里落在类或元类地址上的全部名字。
-- **实测**：AppKit 取本镜像类的地址 3,319 处、载入类 53,026 处（与探针的 3,318 / 52,668 一致），类字面量接收者 35,175 处（发送的 11%）；SwiftUI 665 处类字面量接收者里 478 处经 `objc_opt_self`。`adr` 与字面量 `ldr` 两种形态在缓存与几个缓存外的系统 App 里都没有，不解码。
+- **实测**：AppKit 取本镜像类的地址 3,319 处、载入类 53,026 处（与实现阶段重跑探针的 3,318 / 52,668 相差不到 1%），类字面量接收者 35,175 处（发送的 11%）；SwiftUI 665 处类字面量接收者里 478 处经 `objc_opt_self`。`adr` 与字面量 `ldr` 两种形态在缓存与几个缓存外的系统 App 里都没有，不解码。
 - **性能**：类索引起初经 `MachOImage.objc.classes64` 建——它对每个类都重新查一遍 load command，撞上 Swift 运行时的泛型元数据锁——加上扫描每次查类都抢分析器的锁，全缓存整表扫描从 2.0 秒变成 4.9 秒。改为直接读 `__objc_classlist` 与 `isa`、扫描器自己缓存索引、本镜像 `__TEXT` 与非类槽在查表前排除之后，与只有分支跟踪的那次提交交替跑三轮取最好：整表 2.03 → 2.40 秒（引用多 326 万条，+17%），查 `init` 的调用者 1.54 → 1.70 秒。
 - **验证**：`ObjectiveCClassReferenceTests` 7 个测试（11 个用例），其中经 `objc_opt_self` 保留 `x0`、读 `__objc_superrefs`、预筛认别名三项在去掉做法时变红过；`CrossReferenceAnalysisTests` 共 38 个、`SwiftThunkAnalysisTests` 82 个通过。
 - **没做的**：按字符串取类（`objc_getClass("…")`，AppKit 183 处）；扫描时用方法表判断无名的 ObjC 方法（见设计）；Swift 的 super 发送的类。
@@ -128,7 +128,7 @@ public final class CrossReferenceAnalyzer: @unchecked Sendable {
 - **与设计不同之处**：
   - 表按描述符位置归档，不按 key（设计里说「不用描述符地址作键」）。扫描时算 key 要为每个被引用的描述符 demangle，而 key 的拼法随 demangle 的路径变：受约束扩展里的嵌套类型、其他模块类型的扩展里的 private 类型都会拼偏。位置精确、不花时间，也天然分开 Mac Catalyst 变体。设计里不用位置的两条理由由查询解决：导入的类型每个镜像一份描述符，查询按 key 比；标准库类型在名字里拼出来，查询解开名字。key 改为取自描述符的 `…Mn` 符号。
   - 查询不做文本子串比对（设计里「文本比子串」）：mangling 会把同一名字里重复出现的单词换成替身，子串会漏。只有名字可能拼出来的类型才解开名字，其余只比符号引用。这条前提逐个解开 Foundation、SwiftData、libswift_Concurrency、SwiftUI 的全部名字核对过，没有例外。
-  - 预筛对名字可能拼出来的类型，不按 `__swift5_typeref` 的字节筛（同一原因），凡有这一节的镜像都算。
+  - 预筛对名字可能拼出来的类型，不按 `__swift5_typeref` 的字节筛（同一原因），凡有非空 `__swift5_*` 节的镜像都算。
 - **实测**（扫一遍）：SwiftUICore 调用描述符可知的访问器 15,432 处、取元数据或访问器地址 35,140 处、经 GOT 载入 10,438 处、调用只有符号的访问器 5,259 处，不用按名字实例化；Foundation 按名字实例化 6,280 处、934 个不同名字；SwiftUI 访问器调用 63,487 处。访问器调用报出的类型与访问器符号全部一致。
 - **性能**：全缓存整表 2.1 → 3.0 秒（引用 1.16 亿 → 1.26 亿条），查 `init` 的调用者 1.6 → 1.8 秒（只查 selector 或函数时不找类与类型引用）。途中两次退化：`keep(reference(to: …))` 这种参数里修改扫描器的写法让 Swift 每次复制整个扫描器，整表一度 95 秒；类型索引每次去分析器的锁里取，等锁占掉大半时间。两处的修法见模块参考。
 - **第一批的预筛缺陷（已修）**：写类型预筛的正确性测试时发现，macOS 27.2 的缓存里 4,113 个镜像只有 245 个留着 Swift 的未定义符号（SharedWithYou 照样调用 `URL` 的访问器，却没有任何导入记录）。第一批的函数预筛按导入符号筛，只拿 C 函数测过，对 Swift 函数一直会丢掉不留导入记录的镜像里的调用者——`URL.path` 只有 44 个镜像按名字导入——RuntimeViewer 第 3 步查 Swift 方法的跨库调用者受影响。Swift 符号改按链接关系筛（直接链接，或经再导出链接到定义镜像），新增 `imageIndices(linkingImageAt:among:)` 与 `imageIndices(callingFunctionAt:symbolNames:among:)`；Swift 类的类预筛同样补上链接关系。回归测试 `swiftFunctionPrefilterKeepsEveryCaller` 在旧做法下变红。
@@ -137,6 +137,19 @@ public final class CrossReferenceAnalyzer: @unchecked Sendable {
 ### 落地顺序
 
 ①起名（导出表、ObjC 方法表、Swift 元数据）；②ObjC 的类字面量、super 的类与类引用，以及汇合点的核实与修正；③Swift 类型引用、类型查询与预筛。每一步单独测试、单独提交。
+
+### 审查与修复（2026-10-17）
+
+第二批落地后对两批的全部提交做了一轮审查。记录在 [2026-10-17 审查记录](../../Roadmaps/2026-10-17-cross-reference-analysis-review-findings.md)，判为不修或暂缓的登记在 [ReviewAdjudications](../Internal/ReviewAdjudications.md) A62–A67。修了的（每条都先写了修复前失败的测试）：
+
+- **寄存器跟踪漏作废的写入**：前 / 后变址读写的基址、不带内存序的原子指令、`ldxp` / `casp` 的第二个寄存器、`umov` / `smov`、浮点转定点、SVE / SME 里写通用寄存器的指令、`sysl`、`svc`。判断改写成纯函数 `RegisterFile.registersWritten(by:)`。SwiftThunkAnalysis 的两个跟踪器对成对回写的基址同样不作废，同一轮修。
+- **改名再导出**：C 函数与类的预筛连同别的镜像改名再导出的名字一起比。缓存里 12 个镜像共 1,438 条，CoreGraphics 从 SkyLight 再导出的 1,112 条占大头，AppKit 按 CoreGraphics 的名字导入了其中 273 个。新增公开接口 `reexportedNames(ofSymbolsNamed:inImageAt:)`。
+- **缓存外镜像的路径**：取 dyld 的加载路径，不再取安装名（主程序与 bundle 没有安装名，框架的是 `@rpath/…`）；安装名另建一张表给链接关系用，同名拷贝都算；插件 bundle 算主程序的依赖方。
+- **类型查询的 demangle 不再驻留**：不进全局 `NodeCache`，也不进进程级 demangle 记忆。
+- **公开接口**：`CodeReferenceTable.keys` 改为 `some Collection<Key>`；`swiftTypeDescriptorLocations(withKey:inImageAt:)` 的文档如实说明退回路径。
+- **测试**：与 Capstone 的对照改成双向；super 的类补上只有读槽位才能通过的测试。
+
+循环头与跳转表落点保留 `x19`–`x28`（审查 A5）量过数据：现行做法错 0.02%–0.04% 的引用，精确修法多花 35%–60% 的扫描时间，修不修待定。
 
 ## 决策日志
 
@@ -159,3 +172,6 @@ public final class CrossReferenceAnalyzer: @unchecked Sendable {
 | 2026-10-17 | 类型查询只比符号引用；名字可能拼出来的类型（标准库、`_Concurrency`、导入）才解开名字；不做文本子串比对 | 逐个解开四个镜像的全部名字核对：其他类型在名字里都是符号引用；mangling 的单词替身会让子串比对漏 |
 | 2026-10-17 | 扫描器先把引用算进局部变量再保留；类与类型索引由扫描器持有的引用类型缓存；只查 selector 或函数时不找类与类型引用 | 实测：参数里修改扫描器让整表扫描一度 95 秒；等分析器的锁占掉大半时间；selector 查询本来用不到它们 |
 | 2026-10-17 | 跨镜像的 Swift 符号按链接关系预筛，不按导入符号；`imageIndices(importing:)` 只对 C 与 ObjC 符号 | 实测缓存 4,113 个镜像只有 245 个留着 Swift 未定义符号；第一批的函数预筛因此对 Swift 函数会丢掉其余镜像里的跨库调用者（只用 C 函数测过）。链接关系在缓存里完整，粗但不漏 |
+| 2026-10-17 | 审查后修复：寄存器写入、改名再导出、缓存外镜像的路径与链接、类型查询的瞬时 demangle、`keys` 的类型；A7 暂缓，A6、A8 的其余两处、B5、B7 不修 | 用户批准「先按你推荐的路径修」；逐条见审查记录与 ReviewAdjudications A62–A67 |
+| 2026-10-17 | 改名再导出表在第一次需要时并发走一遍所有镜像的导出表，之后随分析器留着 | 这种再导出只在 12 个镜像里，但不走一遍不知道在哪；只记改名的条目，名字只在命中时拼出 |
+| 2026-10-17 | 缓存外镜像的路径取 `dladdr` 按镜像头读到的加载路径，安装名另建一张表 | 宿主拿到的是加载路径；加载命令按安装名链接；按头读不按序号，中途有镜像加载或卸载也不会错位 |
