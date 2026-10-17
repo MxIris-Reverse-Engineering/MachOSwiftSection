@@ -149,7 +149,7 @@ public final class CrossReferenceAnalyzer: @unchecked Sendable {
 - **公开接口**：`CodeReferenceTable.keys` 改为 `some Collection<Key>`；`swiftTypeDescriptorLocations(withKey:inImageAt:)` 的文档如实说明退回路径。
 - **测试**：与 Capstone 的对照改成双向；super 的类补上只有读槽位才能通过的测试。
 
-循环头与跳转表落点保留 `x19`–`x28`（审查 A5）量过数据：现行做法错 0.02%–0.04% 的引用，精确修法多花 35%–60% 的扫描时间，修不修待定。
+循环头与跳转表落点保留 `x19`–`x28`（审查 A5）量过数据：现行做法错 0.02%–0.04% 的引用，精确修法多花 35%–60% 的扫描时间；用户看过数据后定为保持现状，作为已知局限（ReviewAdjudications A68）。
 
 ## 决策日志
 
@@ -175,3 +175,4 @@ public final class CrossReferenceAnalyzer: @unchecked Sendable {
 | 2026-10-17 | 审查后修复：寄存器写入、改名再导出、缓存外镜像的路径与链接、类型查询的瞬时 demangle、`keys` 的类型；A7 暂缓，A6、A8 的其余两处、B5、B7 不修 | 用户批准「先按你推荐的路径修」；逐条见审查记录与 ReviewAdjudications A62–A67 |
 | 2026-10-17 | 改名再导出表在第一次需要时并发走一遍所有镜像的导出表，之后随分析器留着 | 这种再导出只在 12 个镜像里，但不走一遍不知道在哪；只记改名的条目，名字只在命中时拼出 |
 | 2026-10-17 | 缓存外镜像的路径取 `dladdr` 按镜像头读到的加载路径，安装名另建一张表 | 宿主拿到的是加载路径；加载命令按安装名链接；按头读不按序号，中途有镜像加载或卸载也不会错位 |
+| 2026-10-17 | 循环头与跳转表落点保留 `x19`–`x28`（审查 A5）不修，作为已知局限 | 精确做法多花 35%–60% 的扫描时间，换 0.02%–0.04% 的引用；循环头全部作废会丢约 3.9 万条正确的事实。用户看过数据后选定，登记 ReviewAdjudications A68 |
