@@ -1151,6 +1151,8 @@ extension Target {
             .product(.Capstone),
             .product(.Demangling),
             .target(.MachOSwiftSection),
+            .target(.MachOReading),
+            .target(.SwiftInspection),
         ],
         swiftSettings: testSettings,
     )

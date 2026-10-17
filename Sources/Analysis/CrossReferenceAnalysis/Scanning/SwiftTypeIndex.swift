@@ -86,7 +86,9 @@ final class SwiftTypeIndex: @unchecked Sendable {
         }
         lock.unlock()
         var key: String?
-        if let symbol = descriptorSymbols()[address], let node = try? demangleAsNode(symbol) {
+        // Demangled for the key alone: the shared `NodeCache` would keep
+        // every type's tree for the life of the process.
+        if let symbol = descriptorSymbols()[address], let node = try? demangleAsNodeTransient(symbol) {
             key = CrossReferenceAnalyzer.nominalKeys(in: node).first
         }
         if key == nil, let contextNode = try? SymbolicDemangler.demangleContext(for: wrapper.asContextDescriptorWrapper, in: image.context) {

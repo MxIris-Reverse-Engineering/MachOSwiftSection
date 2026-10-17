@@ -84,16 +84,20 @@ extension CrossReferenceAnalyzer {
 
     /// The types a Swift type name names, by key, in the order the name
     /// mentions them; demangles the name.
+    ///
+    /// The tree is demangled for this call alone — not interned in the
+    /// shared `NodeCache`, not memoized for the process — since nothing
+    /// bounds the names a query meets and neither cache is ever evicted.
     public func swiftTypeKeys(in name: SwiftTypeName) -> [String] {
         switch name {
         case .accessorSymbol(let symbol):
-            guard let node = try? demangleAsNode(symbol) else { return [] }
+            guard let node = try? demangleAsNodeTransient(symbol) else { return [] }
             return Self.nominalKeys(in: node)
         case .mangledName(let location, _):
             guard let slide = images[location.imageIndex].vmaddrSlide,
                   let pointer = UnsafeRawPointer(bitPattern: Int(bitPattern: UInt(location.address)) &+ slide),
                   let mangledName = try? MangledName.resolve(at: pointer, in: InProcessContext.shared),
-                  let node = try? SymbolicDemangler.demangleType(for: mangledName, in: InProcessContext.shared)
+                  let node = try? SymbolicDemangler.demangleTypeUncached(for: mangledName, in: InProcessContext.shared)
             else { return [] }
             return Self.nominalKeys(in: node)
         }
