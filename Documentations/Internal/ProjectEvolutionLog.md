@@ -2528,6 +2528,29 @@
 - **关联文档**：[0070-borrow-accessors-and-suppressed-associated-types](../Evolutions/0070-borrow-accessors-and-suppressed-associated-types.md)、[Modules/SwiftDeclaration.md](Modules/SwiftDeclaration.md)「访问器种类与关联类型的抑制」、[Modules/MachOSymbols.md](Modules/MachOSymbols.md)、`AgentPlugins/swift-section` 的 skill（新增一条读输出的提示）。
 - **对应版本**：未发版（`next`）。`AccessorKind` 新增 case 会让下游的穷举 `switch` 编不过，发版说明要写进 Breaking。
 
+## 100. 迁到 swift-capstone 7.0
+
+- **时间段**：2026-10-17，分支 `feature/swift-capstone-7`，swift-capstone 7.0.0 发布后当天合入 `next`。
+- **动机**：swift-capstone 7.0 用按架构泛型的不可复制引擎 `Disassembler<AArch64>` 取代 6.x 的类 API，旧 API
+  直接删除；它的重写提案约定本库与 swift-decompiler 同批迁移。用户批准该提案：「可以，按你说的开工」。
+- **关键决策**：① 只改 `CapstoneThunkDecoder.swift`，`decode` / `decodeFunction` 的签名与 `Data` 入参不变；
+  ② 每条指令在 `forEachInstruction` 的闭包里直接转成 `ThunkInstruction`；③ 别名改看 `alias`，写回改看
+  `writesBackBaseRegister`，不再靠「编号 + mnemonic」配对与匹配 `]!`；④ 依赖下限从 6.0.1 改成 7.0.0，
+  等 swift-capstone 7.0.0 发布才合入。
+- **落地模块**：SwiftThunkAnalysis（`Instructions/CapstoneThunkDecoder.swift`）。
+- **验证**（细节见提案决策日志）：
+  - 发布前对着本地 swift-capstone，以 `swift package edit` 只在 agent 的构建目录里覆盖依赖、不动共享的
+    `.worktrees/` 链接。Swift 6.4.2：`SwiftThunkAnalysisTests` 82 个测试，加上间接用到解码器的 5 个套件
+    52 个测试；全量 `swift test --skip IntegrationTests` 共 2450 个测试 / 470 个套件全部通过。
+  - 发布后在新鲜构建目录里重跑全量，swift-capstone 从远端解析到 7.0.0、capstone 到 6.0.101，其余依赖仍链
+    兄弟仓库：2450 个测试 / 470 个套件全部通过。原始退出码都是 0。
+  - 坑：`swift package edit` 留下的 manifest 求值缓存会把指向本地 capstone 的路径依赖套到远端 7.0.0 上，
+    解析失败；`swift package resolve --manifest-cache none` 一次即可。
+- **关联文档**：[0071-swift-capstone-7](../Evolutions/0071-swift-capstone-7.md)、
+  [Modules/SwiftThunkAnalysis.md](Modules/SwiftThunkAnalysis.md)「Capstone v6 的解码边界」。
+- **对应版本**：未发版（`next`）。对外 API 不变，但依赖图里的 swift-capstone 从 6.x 换成 7.x：同时直接依赖
+  swift-capstone 6 的下游会解析失败，发版说明要写进 Breaking。
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节

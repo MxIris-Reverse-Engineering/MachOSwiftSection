@@ -80,3 +80,4 @@
 | [0068](0068-nested-definition-regions.md) | 在父定义的打印结果里标出嵌套子定义的边界 | Implemented |
 | [0069](0069-offline-generic-specialization.md) | 离线泛型特化：不经 runtime 特化泛型类型并完整打印 | Implemented |
 | [0070](0070-borrow-accessors-and-suppressed-associated-types.md) | Swift 6.4 的 `borrow` / `mutate` 访问器与关联类型上的 `~Copyable` | Implemented |
+| [0071](0071-swift-capstone-7.md) | 迁到 swift-capstone 7.0：解码器改用 `Disassembler<AArch64>` | Implemented |
