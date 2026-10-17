@@ -7,8 +7,9 @@ import Demangling
 
 /// The names a function gets when the symbol table has none: the export
 /// trie, the Objective-C method lists, the Swift metadata. Each source is
-/// checked against the symbols where both exist, so the tests hold whatever
-/// an OS update moves.
+/// checked against the symbols where both exist. The images are picked for
+/// what macOS 27.2 strips from them — SiriAppIntents' symbol table, Matter's
+/// method symbols — so an update that strips them differently moves them.
 @Suite(.enabled(if: SharedAnalyzer.analyzer != nil, "needs an arm64 process with a dyld shared cache"))
 struct FallbackNamingTests {
     private var analyzer: CrossReferenceAnalyzer { SharedAnalyzer.analyzer! }

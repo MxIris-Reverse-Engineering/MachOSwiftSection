@@ -76,7 +76,10 @@ struct ObjectiveCClassReferenceTests {
 
     /// A super send starts above the class its `__objc_superrefs` slot
     /// holds: the method's own class, a category's class included, and a
-    /// class method's metaclass reported as its class.
+    /// class method's metaclass reported as its class. The method's symbol
+    /// names the same class, which the scanner falls back on, so this does
+    /// not tell the slot apart; `superSendsInBlocksNameTheClassOfTheirMethod`
+    /// does.
     @Test(arguments: zip(
         ["-[NSDictionary(NSKeyValueCoding) valueForKey:]", "+[NSURL(NSURL) allocWithZone:]"],
         ["valueForKey:", "allocWithZone:"]
@@ -95,6 +98,29 @@ struct ObjectiveCClassReferenceTests {
             if case .objectiveCClass = $0.target { return true }
             return false
         })
+    }
+
+    /// A block that sends to `super` has no method symbol to take the class
+    /// from: only the `__objc_superrefs` slot names it — the class of the
+    /// method the block is written in, `NSWindow` for
+    /// `___37-[NSWindow foo:]_block_invoke`.
+    @Test func superSendsInBlocksNameTheClassOfTheirMethod() throws {
+        let appKit = try imageIndex(endingWith: "/AppKit.framework/Versions/C/AppKit")
+        var compared = 0
+        for function in analyzer.functions(inImageAt: appKit) {
+            guard case .symbol(let symbol)? = function.name, symbol.contains("_block_invoke"),
+                  let bracket = symbol.firstIndex(of: "["), bracket > symbol.startIndex,
+                  ["-", "+"].contains(symbol[symbol.index(before: bracket)])
+            else { continue }
+            let className = String(symbol[symbol.index(after: bracket)...].prefix { $0 != " " && $0 != "(" })
+            for reference in analyzer.references(madeBy: function) {
+                guard case .superMessageSend(_, let sendClassName) = reference.target else { continue }
+                compared += 1
+                #expect(sendClassName == className, "\(symbol)")
+            }
+            if compared >= 50 { break }
+        }
+        #expect(compared >= 5)
     }
 
     /// Where no symbol names the sending method, the superrefs slot still

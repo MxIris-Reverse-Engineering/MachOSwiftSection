@@ -261,7 +261,10 @@ struct CrossReferenceAnalyzerTests {
 
     /// Capstone decodes the same functions independently: every call and
     /// every branch out of a function it finds, the scanner found at the
-    /// same address — and nothing more.
+    /// same address; and every call or branch out the scanner reports is one
+    /// of those, or a `br` — which Capstone cannot tell from a jump-table
+    /// jump, and the scanner reports when the register was loaded from
+    /// memory.
     @Test func callSitesMatchCapstone() throws {
         let appKit = try imageIndex(endingWith: "/AppKit.framework/Versions/C/AppKit")
         let functions = analyzer.functions(inImageAt: appKit)
@@ -283,10 +286,13 @@ struct CrossReferenceAnalyzerTests {
             let start = function.location.address
             let end = start + UInt64(function.size)
             var expected = Set<UInt64>()
+            var registerBranches = Set<UInt64>()
             for instruction in instructions {
                 switch instruction.instruction {
                 case .bl, .blr, .blraa, .blraaz, .blrab, .blrabz, .braa, .braaz, .brab, .brabz:
                     expected.insert(instruction.address)
+                case .br:
+                    registerBranches.insert(instruction.address)
                 case .b, .cbz, .cbnz, .tbz, .tbnz, .bc:
                     let operandIndex = instruction.instruction == .tbz || instruction.instruction == .tbnz ? 2 : (instruction.instruction == .cbz || instruction.instruction == .cbnz ? 1 : 0)
                     if operandIndex < instruction.operands.count,
@@ -298,14 +304,17 @@ struct CrossReferenceAnalyzerTests {
                     break
                 }
             }
-            let found = Set(analyzer.references(madeBy: function).map(\.instructionAddress))
-            // `br` through a loaded pointer is a tail call the scanner reports and this list leaves out.
+            // Type references sit on `adrp`, `add` and `ldr`; only calls and
+            // branches out are compared.
+            let found = Set(analyzer.references(madeBy: function).filter { $0.kind != .reference }.map(\.instructionAddress))
             let missing = expected.subtracting(found)
             #expect(missing.isEmpty, "\(function.name.map { "\($0)" } ?? "unnamed") at 0x\(String(start, radix: 16)): missing \(missing.sorted().map { String($0, radix: 16) })")
+            let extra = found.subtracting(expected).subtracting(registerBranches)
+            #expect(extra.isEmpty, "\(function.name.map { "\($0)" } ?? "unnamed") at 0x\(String(start, radix: 16)): no call at \(extra.sorted().map { String($0, radix: 16) })")
         }
         #expect(comparedFunctionCount > 100)
         // Without detail mode Capstone gives no operands, and this half of the comparison silently compares nothing.
-        #expect(comparedBranchOutCount > 0)
+        #expect(comparedBranchOutCount > 1)
     }
 }
 

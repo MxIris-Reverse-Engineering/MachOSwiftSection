@@ -118,6 +118,10 @@ struct SwiftTypeReferenceTests {
     /// image: for each type its names mention, the query keeps exactly the
     /// names whose demangled form mentions the type — no name mentions an
     /// ordinary type without a symbolic reference to it.
+    ///
+    /// For the four standard library types the query falls back on the same
+    /// demangling this compares against, so they guard only against a
+    /// symbolic reference leading to the wrong descriptor.
     @Test(arguments: ["/Foundation.framework/Versions/C/Foundation", "/SwiftData.framework/Versions/A/SwiftData"])
     func queriesKeepExactlyTheNamesThatMentionTheType(imageSuffix: String) throws {
         let imageIndex = try imageIndex(endingWith: imageSuffix)
