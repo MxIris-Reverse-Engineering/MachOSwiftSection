@@ -71,6 +71,7 @@ public final class CrossReferenceAnalyzer: @unchecked Sendable {
     private var classIndexes: [Int: ObjectiveCClassIndex] = [:]
     private var swiftTypeIndexes: [Int: SwiftTypeIndex] = [:]
     private var linkageStorage: Linkage?
+    private var renamedReexportStorage: RenamedReexportIndex?
 
     /// The analyzer for the current process, or `nil` when it does not run
     /// arm64 code.
@@ -443,6 +444,30 @@ public final class CrossReferenceAnalyzer: @unchecked Sendable {
     /// that install name, or the image loaded from that path.
     private func imageIndices(linkedAs name: String) -> [Int] {
         indicesByInstallName[name] ?? indicesByPath[name].map { [$0] } ?? []
+    }
+
+    /// The images the image at `imageIndex` links, by library ordinal: the
+    /// first element for ordinal 1. An element is empty when no image the
+    /// analyzer knows is that dylib.
+    func dependencyImageIndices(ofImageAt imageIndex: Int) -> [[Int]] {
+        dylibCommands(ofImageAt: imageIndex).map { imageIndices(linkedAs: $0.command.dylib(cmdsStart: images[imageIndex].cmdsStartPtr).name) }
+    }
+
+    /// Built on first use and kept: every image's export trie is walked once,
+    /// and what is kept is small.
+    func renamedReexports() -> RenamedReexportIndex {
+        lock.lock()
+        if let renamedReexportStorage {
+            lock.unlock()
+            return renamedReexportStorage
+        }
+        lock.unlock()
+        let index = RenamedReexportIndex(analyzer: self)
+        lock.lock()
+        defer { lock.unlock() }
+        if let renamedReexportStorage { return renamedReexportStorage }
+        renamedReexportStorage = index
+        return index
     }
 
     /// The image's Swift type index, built on first use and then kept for the

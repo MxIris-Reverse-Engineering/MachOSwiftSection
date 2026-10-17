@@ -3,15 +3,16 @@ import MachOKit
 
 extension CrossReferenceAnalyzer {
     /// The images among `candidates` whose symbol table imports
-    /// `symbolName` — for a C function or an Objective-C class, the only
-    /// ones that can reach it from outside its own image: a shared cache
-    /// image keeps those undefined symbols even where the cache builder bound
-    /// the calls directly.
+    /// `symbolName` — for a C function or an Objective-C class, the ones that
+    /// reach it by that name: a shared cache image keeps those undefined
+    /// symbols even where the cache builder bound the calls directly.
     ///
-    /// Not for a Swift symbol. Only 245 of the macOS 27.2 cache's 4,113 images
-    /// keep any among their undefined symbols, so this finds a few of the
-    /// images that use one; use `imageIndices(callingFunctionAt:symbolNames:among:)`,
-    /// which goes by the linkage for those.
+    /// Not every image that can reach it. Another image may re-export it
+    /// under a name of its own, which its callers import instead
+    /// (`reexportedNames(ofSymbolsNamed:inImageAt:)`). And not for a Swift
+    /// symbol: only 245 of the macOS 27.2 cache's 4,113 images keep any among
+    /// their undefined symbols, so this finds a few of the images that use
+    /// one. `imageIndices(callingFunctionAt:symbolNames:among:)` covers both.
     public func imageIndices(importing symbolName: String, among candidates: some Sequence<Int>) -> [Int] {
         imageIndices(importingAnyOf: [symbolName], among: candidates)
     }
@@ -110,7 +111,10 @@ extension CrossReferenceAnalyzer {
             }
         }
         let candidates = Array(candidates)
-        var result = Set(imageIndices(importingAnyOf: names.sorted(), among: candidates))
+        // A class re-exported under another name is imported by that name:
+        // UIFoundation's `NSEmojiImageAsset` is CoreText's `CTEmojiImageAsset`.
+        let importedNames = names.sorted() + reexportedNames(ofSymbolsNamed: names.sorted(), inImageAt: definer)
+        var result = Set(imageIndices(importingAnyOf: importedNames, among: candidates))
         if candidates.contains(definer) { result.insert(definer) }
         // Swift code reaches a Swift class through its metadata symbols, which
         // few cache images keep among their undefined symbols.
