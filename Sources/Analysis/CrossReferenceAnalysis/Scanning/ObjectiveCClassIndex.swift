@@ -82,6 +82,29 @@ final class ObjectiveCClassIndex: @unchecked Sendable {
         }
     }
 
+    /// Whether the class at `classLocation` is a Swift class: one of the two
+    /// low bits of its data word (+0x20) is set.
+    func isSwiftClass(at classLocation: CodeLocation) -> Bool {
+        let classAddress = UInt(bitPattern: Int(bitPattern: UInt(classLocation.address)) &+ slide)
+        guard entriesByRuntimeAddress[classAddress] != nil, let classObject = UnsafeRawPointer(bitPattern: classAddress) else { return false }
+        return classObject.loadUnaligned(fromByteOffset: 0x20, as: UInt64.self) & 0x3 != 0
+    }
+
+    /// The Swift class whose type context descriptor lies at the runtime
+    /// `descriptor`: a Swift class object holds its descriptor at +0x40, and
+    /// sets one of the two low bits of its data word (+0x20).
+    func swiftClassObject(describedBy descriptor: UInt) -> ObjectiveCClassObject? {
+        for (address, entry) in entriesByRuntimeAddress where !entry.isMetaclass {
+            guard let classObject = UnsafeRawPointer(bitPattern: address),
+                  classObject.loadUnaligned(fromByteOffset: 0x20, as: UInt64.self) & 0x3 != 0,
+                  UInt(classObject.loadUnaligned(fromByteOffset: 0x40, as: UInt64.self) & Self.addressMask) == descriptor,
+                  let name = name(ofClassAt: address)
+            else { continue }
+            return ObjectiveCClassObject(name: name, location: location(ofRuntimeAddress: address))
+        }
+        return nil
+    }
+
     private func location(ofRuntimeAddress address: UInt) -> CodeLocation {
         CodeLocation(imageIndex: imageIndex, address: UInt64(bitPattern: Int64(bitPattern: UInt64(address)) &- Int64(slide)))
     }

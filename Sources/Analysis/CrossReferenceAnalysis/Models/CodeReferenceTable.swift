@@ -13,6 +13,10 @@ public struct CodeReferenceTable: Sendable {
         case importedSymbol(String)
         /// Every reference to the class, by its runtime name.
         case objectiveCClass(String)
+        /// Every reference to the Swift type whose context descriptor lies
+        /// there. Names a mangled name holds are not filed: telling them takes
+        /// demangling (`CrossReferenceAnalyzer.references(toSwiftType:inImageAt:)`).
+        case swiftTypeDescriptor(CodeLocation)
     }
 
     public let imageIndex: Int
@@ -51,7 +55,7 @@ public struct CodeReferenceTable: Sendable {
 
 extension CodeReferenceTarget {
     /// The key a ``CodeReferenceTable`` files this target under; `nil` for an
-    /// indirect call or an unrecognized target.
+    /// indirect call, an unrecognized target or a Swift type name.
     public var tableKey: CodeReferenceTable.Key? {
         switch self {
         case .function(let location):
@@ -62,7 +66,9 @@ extension CodeReferenceTarget {
             return .importedSymbol(name)
         case .objectiveCClass(let name, _):
             return .objectiveCClass(name)
-        case .typeMetadataAccessor, .mangledTypeName, .indirect, .unrecognized:
+        case .swiftType(let descriptor):
+            return .swiftTypeDescriptor(descriptor)
+        case .swiftTypeName, .indirect, .unrecognized:
             return nil
         }
     }

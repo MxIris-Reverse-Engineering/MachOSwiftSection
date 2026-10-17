@@ -53,10 +53,13 @@ public enum CodeReferenceTarget: Hashable, Sendable {
     /// code, which builds its `objc_super` from a class known only at run
     /// time.
     case superMessageSend(selector: String, className: String?)
-    /// A call to a Swift type metadata accessor (`$s…Ma`).
-    case typeMetadataAccessor(symbolName: String)
-    /// A type instantiated from its mangled name.
-    case mangledTypeName(String)
+    /// A Swift type, by where its context descriptor lies: a call to its
+    /// metadata accessor, or the address of the accessor or of the type's
+    /// metadata. A Swift class is also reached as an Objective-C class.
+    case swiftType(descriptor: CodeLocation)
+    /// Swift types named by a mangled name, which the scan does not take
+    /// apart: see ``SwiftTypeName``.
+    case swiftTypeName(SwiftTypeName)
     /// An Objective-C class reference: the class's runtime name (`NSWindow`,
     /// `_TtC7SwiftUI20FilePresenterWrapper`) and where the class object lies.
     /// A name alone can be ambiguous — a shared cache carries the macOS and the
@@ -75,9 +78,11 @@ public struct CodeReference: Hashable, Sendable {
         case call
         /// A branch out of the function that does not return to it.
         case tailCall
-        /// An instruction that takes a class's address without branching: a
-        /// load from a GOT slot or class reference, or `adrp` / `add` of the
-        /// class object itself.
+        /// A reference to a type: an instruction that takes the address of a
+        /// class object, a type's metadata or its metadata accessor — a load
+        /// from a GOT slot or class reference, or `adrp` / `add` of the object
+        /// itself — or a call to a metadata accessor or a mangled-name
+        /// instantiation, which is reported as the call it is as well.
         case reference
     }
 
@@ -100,4 +105,19 @@ public struct CodeReference: Hashable, Sendable {
         self.target = target
         self.isRuntimeHelperCall = isRuntimeHelperCall
     }
+}
+
+/// A mangled name that names Swift types. Which types it names takes
+/// demangling to tell, so a scan records where the name is and leaves that
+/// to whoever asks (`CrossReferenceAnalyzer.swiftTypeKeys(in:)`).
+public enum SwiftTypeName: Hashable, Sendable {
+    /// The name a call to `__swift_instantiateConcreteTypeFromMangledName`
+    /// (or the runtime's `swift_getTypeByMangledNameInContext`) instantiates:
+    /// where its bytes start and how many there are. It may hold symbolic
+    /// references to context descriptors.
+    case mangledName(location: CodeLocation, length: Int)
+    /// The symbol of a metadata accessor no type context descriptor stands
+    /// for — a generic instance (`$sSNy10Foundation4DateVGMa`) or an
+    /// existential — without the leading underscore.
+    case accessorSymbol(String)
 }

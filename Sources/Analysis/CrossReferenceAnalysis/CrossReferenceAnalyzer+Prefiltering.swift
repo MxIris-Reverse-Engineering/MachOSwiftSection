@@ -3,9 +3,15 @@ import MachOKit
 
 extension CrossReferenceAnalyzer {
     /// The images among `candidates` whose symbol table imports
-    /// `symbolName` — the only ones that can call an exported function from
-    /// outside its own image. A shared cache image keeps its undefined
-    /// symbols even where the cache builder bound the calls directly.
+    /// `symbolName` — for a C function or an Objective-C class, the only
+    /// ones that can reach it from outside its own image: a shared cache
+    /// image keeps those undefined symbols even where the cache builder bound
+    /// the calls directly.
+    ///
+    /// Not for a Swift symbol. The macOS 27.2 cache keeps none of those among
+    /// its images' undefined symbols, so this finds no importer of one; use
+    /// `imageIndices(callingFunctionAt:symbolNames:among:)`, which goes by the
+    /// linkage for those.
     public func imageIndices(importing symbolName: String, among candidates: some Sequence<Int>) -> [Int] {
         imageIndices(importingAnyOf: [symbolName], among: candidates)
     }
@@ -79,7 +85,9 @@ extension CrossReferenceAnalyzer {
     /// Most images reach another image's class as `_OBJC_CLASS_$_<name>`, but
     /// not all: a block literal's `isa` is `__NSConcreteStackBlock`, an XPC
     /// type is `__xpc_type_dictionary`. So every symbol the defining image
-    /// has at either address counts.
+    /// has at either address counts. A Swift class is reached through Swift
+    /// symbols as well, which the cache drops from its images' undefined
+    /// symbols, so every image that can bind to its image counts too.
     public func imageIndices(referencingObjectiveCClassAt classLocation: CodeLocation, among candidates: some Sequence<Int>) -> [Int] {
         let definer = classLocation.imageIndex
         let image = images[definer]
@@ -104,6 +112,11 @@ extension CrossReferenceAnalyzer {
         let candidates = Array(candidates)
         var result = Set(imageIndices(importingAnyOf: names.sorted(), among: candidates))
         if candidates.contains(definer) { result.insert(definer) }
+        // Swift code reaches a Swift class through its metadata symbols, which
+        // no cache image keeps among its undefined symbols.
+        if objectiveCClassIndex(ofImageAt: definer).isSwiftClass(at: classLocation) {
+            result.formUnion(imageIndices(linkingImageAt: definer, among: candidates))
+        }
         return result.sorted()
     }
 }

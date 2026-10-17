@@ -51,11 +51,17 @@ public final class CrossReferenceAnalyzer: @unchecked Sendable {
     /// `objc_opt_self`, `objc_opt_class` and `swift_getInitializedObjCClass`:
     /// each returns the class it was handed, so `x0` keeps naming it.
     let classReturningFunctionLocations: Set<CodeLocation>
+    /// The runtime's entry points that instantiate a type from its mangled
+    /// name, and the register each takes the name in: `x0`, or `x1` for the
+    /// `…InMetadataState` forms, whose first argument is the state.
+    let typeByMangledNameEntries: [CodeLocation: Int]
 
     private let indicesByPath: [String: Int]
     private let lock = NSLock()
     private var functionTables: [Int: ImageFunctionTable] = [:]
     private var classIndexes: [Int: ObjectiveCClassIndex] = [:]
+    private var swiftTypeIndexes: [Int: SwiftTypeIndex] = [:]
+    private var linkageStorage: Linkage?
 
     /// The analyzer for the current process, or `nil` when it does not run
     /// arm64 code.
@@ -128,6 +134,7 @@ public final class CrossReferenceAnalyzer: @unchecked Sendable {
         var superMessageSendLocations = Set<CodeLocation>()
         var runtimeHelperLocations = Set<CodeLocation>()
         var classReturningFunctionLocations = Set<CodeLocation>()
+        var typeByMangledNameEntries: [CodeLocation: Int] = [:]
         for (imageIndex, path) in imagePaths.enumerated() where Self.isRuntimeLibrary(path) {
             func classify(_ name: UnsafePointer<CChar>, at location: CodeLocation) {
                 if strcmp(name, "_objc_msgSend") == 0 {
@@ -136,6 +143,8 @@ public final class CrossReferenceAnalyzer: @unchecked Sendable {
                     superMessageSendLocations.insert(location)
                 } else if strcmp(name, "_objc_opt_self") == 0 || strcmp(name, "_objc_opt_class") == 0 || strcmp(name, "_swift_getInitializedObjCClass") == 0 {
                     classReturningFunctionLocations.insert(location)
+                } else if strncmp(name, "_swift_getTypeByMangledNameIn", 29) == 0 {
+                    typeByMangledNameEntries[location] = strstr(name, "InMetadataState") == nil ? 0 : 1
                 } else if RuntimeHelperNames.isRuntimeHelper(name) {
                     runtimeHelperLocations.insert(location)
                 }
@@ -159,6 +168,7 @@ public final class CrossReferenceAnalyzer: @unchecked Sendable {
         self.superMessageSendLocations = superMessageSendLocations
         self.runtimeHelperLocations = runtimeHelperLocations
         self.classReturningFunctionLocations = classReturningFunctionLocations
+        self.typeByMangledNameEntries = typeByMangledNameEntries
         #else
         return nil
         #endif
@@ -349,6 +359,60 @@ public final class CrossReferenceAnalyzer: @unchecked Sendable {
         defer { lock.unlock() }
         if let stored = classIndexes[imageIndex] { return stored }
         classIndexes[imageIndex] = index
+        return index
+    }
+
+    /// Built on first use and kept: reading every image's load commands takes
+    /// a few tens of milliseconds.
+    func linkage() -> Linkage {
+        lock.lock()
+        if let linkageStorage {
+            lock.unlock()
+            return linkageStorage
+        }
+        lock.unlock()
+        var dependents: [Int: [Int]] = [:]
+        var reexporters: [Int: [Int]] = [:]
+        for (imageIndex, image) in images.enumerated() {
+            for command in image.loadCommands {
+                let dylibCommand: DylibCommand
+                var isReexport = false
+                switch command {
+                case .loadDylib(let command), .loadWeakDylib(let command), .loadUpwardDylib(let command), .lazyLoadDylib(let command):
+                    dylibCommand = command
+                case .reexportDylib(let command):
+                    dylibCommand = command
+                    isReexport = true
+                default:
+                    continue
+                }
+                guard let dependency = self.imageIndex(forPath: dylibCommand.dylib(cmdsStart: image.cmdsStartPtr).name), dependency != imageIndex else { continue }
+                dependents[dependency, default: []].append(imageIndex)
+                if isReexport { reexporters[dependency, default: []].append(imageIndex) }
+            }
+        }
+        let linkage = Linkage(dependents: dependents, reexporters: reexporters)
+        lock.lock()
+        defer { lock.unlock() }
+        if let linkageStorage { return linkageStorage }
+        linkageStorage = linkage
+        return linkage
+    }
+
+    /// The image's Swift type index, built on first use and then kept for the
+    /// analyzer's lifetime, like the class index.
+    func swiftTypeIndex(ofImageAt imageIndex: Int) -> SwiftTypeIndex {
+        lock.lock()
+        if let index = swiftTypeIndexes[imageIndex] {
+            lock.unlock()
+            return index
+        }
+        lock.unlock()
+        let index = SwiftTypeIndex(image: images[imageIndex], imageIndex: imageIndex)
+        lock.lock()
+        defer { lock.unlock() }
+        if let stored = swiftTypeIndexes[imageIndex] { return stored }
+        swiftTypeIndexes[imageIndex] = index
         return index
     }
 

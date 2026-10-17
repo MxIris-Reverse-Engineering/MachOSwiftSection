@@ -36,10 +36,10 @@ final class ImageFunctionTable: @unchecked Sendable {
     let symbolStubRanges: [Range<UInt64>]
     let symbolStubs: [UInt64: SymbolStub]
     let selectorReferenceRange: Range<UInt64>?
-    /// The sections whose slots may hold a class reference: `__got`,
-    /// `__auth_got`, `__objc_classrefs`. Other slots that point at a class — a
-    /// constant string's `isa` — are no reference to it.
-    let classReferenceSlotRanges: [Range<UInt64>]
+    /// The sections whose slots may hold a reference to a class or a Swift
+    /// type: `__got`, `__auth_got`, `__objc_classrefs`. Other slots that point
+    /// at a class — a constant string's `isa` — are no reference to it.
+    let referenceSlotRanges: [Range<UInt64>]
     /// `__objc_superrefs`: the class a super send in one of its methods starts
     /// above.
     let superclassReferenceRange: Range<UInt64>?
@@ -71,7 +71,7 @@ final class ImageFunctionTable: @unchecked Sendable {
         var symbolStubRanges: [Range<UInt64>] = []
         var symbolStubs: [UInt64: SymbolStub] = [:]
         var selectorReferenceRange: Range<UInt64>?
-        var classReferenceSlotRanges: [Range<UInt64>] = []
+        var referenceSlotRanges: [Range<UInt64>] = []
         var superclassReferenceRange: Range<UInt64>?
         let symbols = image.symbols64
         let indirectSymbols = image.indirectSymbols.map { Array($0) } ?? []
@@ -112,7 +112,7 @@ final class ImageFunctionTable: @unchecked Sendable {
             } else if sectionName == "__objc_superrefs", !sectionRange.isEmpty {
                 superclassReferenceRange = sectionRange
             } else if !sectionRange.isEmpty, ["__got", "__auth_got", "__objc_classrefs"].contains(sectionName) {
-                classReferenceSlotRanges.append(sectionRange)
+                referenceSlotRanges.append(sectionRange)
             }
         }
         self.textStart = textStart
@@ -122,7 +122,7 @@ final class ImageFunctionTable: @unchecked Sendable {
         self.symbolStubRanges = symbolStubRanges
         self.symbolStubs = symbolStubs
         self.selectorReferenceRange = selectorReferenceRange
-        self.classReferenceSlotRanges = classReferenceSlotRanges
+        self.referenceSlotRanges = referenceSlotRanges
         self.superclassReferenceRange = superclassReferenceRange
         var dataSegmentRanges: [Range<UInt64>] = []
         var segmentRanges: [Range<UInt64>] = []

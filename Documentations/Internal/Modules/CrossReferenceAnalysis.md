@@ -1,6 +1,6 @@
 # CrossReferenceAnalysis
 
-从 arm64 机器码里读出一个镜像的函数表，以及每个函数引用了什么：直接调用与尾调用、ObjC 消息发送、`super` 发送、经桩的跨库调用、间接调用、ObjC 类引用。只在进程内读 `MachOImage`，只支持 arm64 / arm64e。RuntimeViewer 的交叉引用功能（调用者、被调、类型引用）建在它上面。
+从 arm64 机器码里读出一个镜像的函数表，以及每个函数引用了什么：直接调用与尾调用、ObjC 消息发送、`super` 发送、经桩的跨库调用、间接调用、ObjC 类引用、Swift 类型引用。只在进程内读 `MachOImage`，只支持 arm64 / arm64e。RuntimeViewer 的交叉引用功能（调用者、被调、类型引用）建在它上面。
 
 - 提案：[draft-cross-reference-analysis](../../Evolutions/draft-cross-reference-analysis.md)（本库这一层）；整体设计、实测数据在 RuntimeViewer 的 [draft-cross-references](https://github.com/MxIris-Reverse-Engineering/RuntimeViewer/blob/feature/cross-references/Documentations/Evolutions/draft-cross-references.md)。
 - 依赖：MachOKit、`ARM64InstructionDecoding`；第二批起还有 `MachOObjCSection`（方法表）、`MachOSwiftSection` 与 `SwiftInspection`（Swift 元数据与 `SymbolicDemangler`）、`Demangling`——只用来给符号表没有名字的函数起名，扫描本身仍然只读机器码与符号表。不依赖 Capstone。
@@ -14,9 +14,11 @@
 | 3. 函数表 | `Scanning/ImageFunctionTable` | 函数起点（`LC_FUNCTION_STARTS` 与 `__text` 里的符号取并集）、主名与代码合并留下的别名、辅助函数、镜像自带的 `__objc_stubs` / `__stubs` / `__auth_stubs`、`__objc_selrefs`、放类引用的槽（`__got`、`__auth_got`、`__objc_classrefs`）与 `__objc_superrefs`、各段的地址区间 |
 | 3a. 补充名字 | `Scanning/ImageFallbackNames` | 符号表没有名字的函数，依次从导出表、ObjC 方法表、Swift 元数据起名；起名时按镜像按需读，扫描不读 |
 | 3b. 类索引 | `Scanning/ObjectiveCClassIndex` | 一个镜像定义的类与元类，按地址；直接读 `__objc_classlist` 与各类的 `isa`。扫描时按需建、分析器记住；类名只在报出引用时读 |
+| 3c. 类型索引 | `Scanning/SwiftTypeIndex` | 一个镜像 `__swift5_types` 列出的描述符与各自的元数据访问器；类型的 key 按需算，优先取 `…Mn` 符号 |
 | 4. 扫描 | `Scanning/ReferenceScanner`、`Scanning/RegisterFile`、`Scanning/RuntimeHelperNames` | 逐条解码、跟踪寄存器、解析调用目标 |
 | 5. 结果 | `Models/*` | `CodeLocation`、`CodeFunction`、`CodeReference`、`CodeReferenceTarget`、按目标分组的 `CodeReferenceTable` |
-| 6. 预筛与过滤 | `CrossReferenceAnalyzer+Prefiltering`、`references(to:inImageAt:)` | 按未定义符号、`__objc_selrefs`、类对象上的符号筛出可能引用某个符号、selector 或类的镜像；扫描时只留命中的引用 |
+| 6. 预筛与过滤 | `CrossReferenceAnalyzer+Prefiltering`、`CrossReferenceAnalyzer+Linkage`、`references(to:inImageAt:)` | 按未定义符号（只对 C 与 ObjC 符号）、链接关系（Swift 符号）、`__objc_selrefs`、类对象上的符号筛出可能引用某个符号、selector 或类的镜像；扫描时只留命中的引用 |
+| 7. 类型查询 | `CrossReferenceAnalyzer+SwiftTypes` | Swift 类型的身份、预筛与按类型的扫描；`SwiftTypeQuery` 比对描述符位置与名字里的符号引用 |
 
 ## 关键契约
 
@@ -75,6 +77,30 @@ macOS 27 / iOS 27 起的那种见术语表 [cache-shared stub（全缓存共用�
 
 **代价**（release，28 核，与只有分支跟踪的那次提交交替跑三轮取最好）：全缓存整表 2.03 → 2.40 秒（引用多了 326 万条，+17%），查 `init` 的调用者 1.54 → 1.70 秒，`makeKeyAndOrderFront:` 0.29 → 0.33 秒。扫描器自己缓存类索引，查类不抢分析器的锁；地址落在本镜像 `__TEXT`、或载入的槽是本镜像的非类槽时，在任何查表之前就排除。
 
+### Swift 类型引用（第二批）
+
+一处 Swift 类型引用有三种来源，都报成 `.reference` 种类：
+
+1. **调用类型的元数据访问器。** 调用照常报一条，另加一条目标为 `.swiftType(descriptor:)` 的引用。访问器靠各镜像 `__swift5_types` 列出的描述符认（描述符 +12 处是访问器的相对指针），`Scanning/SwiftTypeIndex` 按需给每个镜像建一份。
+2. **取访问器或元数据的地址。** `adrp` / `add` 出、或从 GOT 槽载入访问器地址，或结构体、枚举、`Optional`、导入类型的元数据——元数据首字是种类（0x200–0x204），次字是描述符。Swift 类的元数据就是它的 ObjC 类对象，按类引用报（见上一节）。
+3. **按 mangled 名字实例化。** 调用本镜像的 `__swift_instantiateConcreteTypeFromMangledName…` 辅助函数，或运行时的 `swift_getTypeByMangledName…`。macOS 27.2 上几乎都是 V2：`x1` 指向 `{到名字的 int32 偏移, int32 长度}` 记录；旧形态的名字在 `x0` 的缓存变量里，类型一经实例化缓存里就只剩元数据，名字读不到，不报。没有符号的辅助函数按形态认：不超过 0x90 字节、调用运行时那几个入口；读 `[x1]` 的是 V2。目标是 `.swiftTypeName(.mangledName(location:length:))`：名字里可能夹着符号引用，解开一个要几十微秒，扫描不解开，表也不按类型归档它。没有描述符的访问器——泛型实例（`$sSay7SwiftUI4TextVGMa`）、存在类型、导入类型——按符号名认，报 `.swiftTypeName(.accessorSymbol(…))`。
+
+**表按描述符位置归档**（`CodeReferenceTable.Key.swiftTypeDescriptor`），不按类型的 key。key 是名义类型的 mangling（`7SwiftUI4TextV`、`Sa`），取自描述符的 `…Mn` 符号（demangle 再 mangle，与名字、符号里的拼法一致）；没有符号时才 demangle 描述符的上下文，而那样拼出的 key 会偏：受约束扩展里的嵌套类型带上扩展的要求（SwiftUICore 有 58 处访问器调用拼法不同），其他模块类型的扩展里的 private 类型干脆丢了自己（Foundation 的 `Mutex<…>.LockResult` 成了 `15Synchronization5MutexV`）。位置没有这些问题，扫描时也不必解开任何东西。从名字取 key 时，泛型实参各算一个类型，嵌套在泛型类型（或它的受约束扩展）里的类型去掉父类型的实参：`Regex<AnyRegexOutput>.Match` 是 `17_StringProcessing5RegexV5MatchV` 加上 `AnyRegexOutput`。
+
+**查询**（`references(toSwiftType:inImageAt:)`）带一个比对器：访问器与元数据的引用比描述符位置；名字逐字节走，符号引用（`\x01` 直接、`\x02` 经指针）指向的描述符就是这个类型，就算提到了它。只有名字可能直接拼出来的类型——标准库、`_Concurrency`、从 C / ObjC 导入的，key 以 `s` 或 `S` 开头——才解开名字确认；文本子串比对不可靠，mangling 会把同一名字里重复出现的单词换成替身。前提是其他类型在名字里一定以符号引用出现：在 Foundation、SwiftData、libswift_Concurrency、SwiftUI 里逐个解开全部名字核对过，没有例外（AppIntentsServices 有 56 处 key 对不上，原始字节全是符号引用，是那个镜像没有 `…Mn` 符号造成的拼法差别）。导入的类型每个用到它的镜像各有一份描述符，比的是 key。Swift 类同时比它的 ObjC 类对象的位置。macOS 与 Mac Catalyst 变体里的同一个类型按位置分开。协议没有类型描述符，不在这一批。
+
+宿主的用法：类型对象 → 描述符位置（或经 `swiftTypeDescriptorLocations(withKey:inImageAt:)`，先找 `…Mn` 符号）→ `swiftTypeIdentity(ofDescriptorAt:)` → 预筛 → 每个候选镜像 `references(toSwiftType:inImageAt:)`。`swiftTypeKeys(in:)` 解开一个 `SwiftTypeName`，供显示用。
+
+**预筛**（`imageIndices(referencingSwiftType:among:)`）：能绑定到定义镜像符号的镜像（按链接关系，见下一节）；类再并上类预筛；名字可能拼出来的类型——标准库的、导入的，每个镜像都可能自己命名——凡是 Swift 镜像都算。
+
+**代价**（release，28 核，与只有分支跟踪的那次提交交替跑）：全缓存整表 2.1 → 3.0 秒（引用 1.16 亿 → 1.26 亿条），查 `init` 的调用者 1.6 → 1.8 秒——只查 selector 或函数时不找类与类型引用，发送处的类字面量接收者照认。踩过两个坑。一是 `keep(reference(to: …))` 这种写法：参数里修改扫描器，外层又在同一个扫描器上调非 mutating 方法，Swift 只好每次把整个扫描器连同它的备忘字典复制一份，整表扫描一度要 95 秒——第一批的 `keep` 是静态方法，没有这个问题。二是类型索引若每次都去分析器的锁里取，等锁占掉大半时间；现在扫描器自己留一份（`ScanIndexes`，引用类型，解析调用目标的非 mutating 路径也用得上）。
+
+### 预筛：缓存不留 Swift 的未定义符号
+
+macOS 27.2 的缓存镜像，符号表里一个 Swift 的未定义符号都不留：SharedWithYou 留了 314 个未定义符号，全是 C 函数与 ObjC 类，可它照样经全缓存共用的 GOT 桩调用 `URL` 的元数据访问器；AppKit 的 5,085 个里也没有一个 `$s…`。所以「导入了某个符号的镜像」只对 C 与 ObjC 符号成立。第一批的函数预筛只拿 C 函数（`CFRelease`、`dispatch_async`）测过，对 Swift 函数一直是错的：查 `URL.path` 的调用者时只留下 Foundation 自己，其他镜像里的调用者全被丢掉（`swiftFunctionPrefilterKeepsEveryCaller` 在旧做法下变红）。
+
+Swift 符号改按链接关系预筛（`imageIndices(linkingImageAt:among:)`，`CrossReferenceAnalyzer+Linkage`）：一个镜像只能绑定到它链接的镜像，以及这些镜像（层层）再导出的镜像的符号，这些加载命令在缓存里完整保留——SwiftUI 再导出 SwiftUICore，链接 SwiftUI 的镜像就算能绑定 SwiftUICore。比按导入粗得多（链接 Foundation 的镜像数以千计），但不漏。宿主查函数的调用者用 `imageIndices(callingFunctionAt:symbolNames:among:)`：C 与 ObjC 名字按导入，Swift 名字按链接。Swift 类的类预筛、Swift 类型的类型预筛同理。链接关系第一次用到时读一遍所有镜像的加载命令，之后留着。
+
 ### 名字从哪来（第二批）
 
 `CodeFunction.name` 依次取：符号表（`<redacted>` 当没有）；导出表（一个缓存镜像的符号表不一定带导出的符号——SiriAppIntents 的只有两条，导出表却给它的 76,318 个函数起了名；iOS 真机的缓存抹掉本地符号，导出表还在）；ObjC 方法表（类、元类、本镜像的分类；列表的列表里属于别的镜像的条目跳过，它们一定也在那个镜像自己的 `__objc_catlist` 里；元数据不记分类名，读出来是 `-[NSTextView draggingUpdated:]`）；Swift 元数据（类型的元数据访问器 `…Ma` 与 singleton 完成函数 `…Mr`，名字取描述符的 `…Mn` 符号，没有就经 `SymbolicDemangler` 从描述符重建；虚表实现取方法描述符的 `…Tq` 符号，没有就不起；async 实现先跟一步 `{rel32 函数, u32 大小}` 记录）。Swift 元数据给的名字是不带 C 前缀下划线的完整 mangled 名字（`.swiftMetadata(mangledName:)`），可以直接 demangle。
@@ -102,20 +128,20 @@ macOS 27 / iOS 27 起的那种见术语表 [cache-shared stub（全缓存共用�
 | 操作 | 现在（28 核） | 第一批：28 核 / 8 线程 / 4 线程 |
 |---|---|---|
 | 建分析器（4,114 个镜像） | 0.06 秒 | 0.02 秒 |
-| 每个镜像都建整表 | 2.4 秒（1.19 亿条引用） | 1.6–1.8 / 3.5 / 5.9 秒（1.16 亿条） |
-| `init` 的调用者：预筛出 2,759 个镜像再过滤扫描 | 0.05 + 1.7 秒 | 0.05 + 1.5 秒 / — / 6.1 秒 |
+| 每个镜像都建整表 | 3.0 秒（1.26 亿条引用） | 1.6–1.8 / 3.5 / 5.9 秒（1.16 亿条） |
+| `init` 的调用者：预筛出 2,759 个镜像再过滤扫描 | 0.05 + 1.8 秒 | 0.05 + 1.5 秒 / — / 6.1 秒 |
 | `makeKeyAndOrderFront:` 的调用者：105 个镜像 | 0.06 + 0.33 秒 | 0.06 + 0.26 秒 |
-| 过滤着扫完每个镜像 | 2.0 秒 | 1.7 / — / 6.3 秒 |
 
-比第一批多出来的是寄存器状态沿着分支走（约 +10–20%）与类引用（约 +17%）。「现在」一列是在别的会话同时编译、负载较高的机器上交替跑多轮取的最好值。
+比第一批多出来的是寄存器状态沿着分支走（约 +10–20%）、类引用与 Swift 类型引用（整表约 +45%，只查 selector 或函数时约 +10%）。「现在」一列是在别的会话同时编译、负载较高的机器上交替跑多轮取的最好值。
 
 单线程解码 AppKit 约 187 MiB/s，比 Capstone 快 25–50 倍（RuntimeViewer 提案落地第一步的探针）。库比探针慢一些（4 线程扫完整个缓存，探针 4.1 秒，库 5.9–6.3 秒），多出来的是起名、建 `CodeReference` 与 selector 字符串；过滤扫描也是先建好每条引用再丢弃，按键提前跳过是能做的优化。
 
 ## 测试锚点
 
 - `ARM64InstructionWordTests` / `ARM64TrampolineTests`：手写编码器造指令字；`capstoneAgreesWithTheEncoders` 让 Capstone 反汇编同一批字，编码器写错也藏不住。
-- `CrossReferenceAnalyzerTests`（只在 arm64 进程里跑）：`-[NSWindow makeKeyAndOrderFront:]` 发出的三条消息及接收者；SwiftUICore 经桩调用 `swift_beginAccess` 落到 libswiftCore；按键过滤与整表一致；整镜像扫描不留函数表；给一批结果起名也不留；预筛；`branchesCarryTheirStateToTheirTargets` 与 `pathsThatDisagreeLeaveTheRegisterUnknown`：寄存器状态沿着分支走（见上文），后者在第一批的顺序读法下失败；`classicSendsInsideTheCacheNameTheirSelector`：libobjc 的 `-[NSObject debugDescription]` 认出发给 `self` 的 `description`（上文「两种桩布局」末段的第三种形态）；`selectorPrefilterKeepsEverySender` / `importPrefilterKeepsEveryCaller`：预筛只丢掉引用不到主体的镜像——在它丢掉的镜像里每 16 个抽 1 个扫描，一处引用也不许有（Debug 构建扫完整个缓存要几分钟，所以抽样）；`callSitesMatchCapstone` 抽样 400 个 AppKit 函数，Capstone 找到的每一处调用与跳出函数的跳转，扫描都找到了（Capstone 不开 detail 模式就不给操作数，那半边比对曾因此什么都没比，测试现在断言比对过）。
+- `CrossReferenceAnalyzerTests`（只在 arm64 进程里跑）：`-[NSWindow makeKeyAndOrderFront:]` 发出的三条消息及接收者；SwiftUICore 经桩调用 `swift_beginAccess` 落到 libswiftCore；按键过滤与整表一致；整镜像扫描不留函数表；给一批结果起名也不留；预筛；`branchesCarryTheirStateToTheirTargets` 与 `pathsThatDisagreeLeaveTheRegisterUnknown`：寄存器状态沿着分支走（见上文），后者在第一批的顺序读法下失败；`classicSendsInsideTheCacheNameTheirSelector`：libobjc 的 `-[NSObject debugDescription]` 认出发给 `self` 的 `description`（上文「两种桩布局」末段的第三种形态）；`selectorPrefilterKeepsEverySender` / `importPrefilterKeepsEveryCaller` / `swiftFunctionPrefilterKeepsEveryCaller`：预筛只丢掉引用不到主体的镜像（最后一个是 Swift 函数，见上文「预筛：缓存不留 Swift 的未定义符号」）——在它丢掉的镜像里每 16 个抽 1 个扫描，一处引用也不许有（Debug 构建扫完整个缓存要几分钟，所以抽样）；`callSitesMatchCapstone` 抽样 400 个 AppKit 函数，Capstone 找到的每一处调用与跳出函数的跳转，扫描都找到了（Capstone 不开 detail 模式就不给操作数，那半边比对曾因此什么都没比，测试现在断言比对过）。
 - `ObjectiveCClassReferenceTests`：AppKit 里三种取法都有（取本镜像类的地址、载入本镜像的类、载入别的镜像的类，`NSString` 在其中）；`+[NSThread currentThread]` 发给类字面量 `NSNotificationCenter`；`_BenchmarkHost._started(test:)` 经 `objc_opt_self` 发给 `NSApplication`；分类方法与类方法的 super 类；Matter 里没有符号的方法，super 类与方法表一致；两个 SwiftUI 的同名类各自指向自己；类预筛（`NSWindow`、`NSUUID`、`__NSStackBlock__`、`OS_xpc_dictionary`）丢掉的镜像里抽样一处引用也没有。其中三个在去掉对应做法时变红过：经 `objc_opt_self` 不保留 `x0`、不读 `__objc_superrefs`、预筛只认 `_OBJC_CLASS_$_`。
+- `SwiftTypeReferenceTests`：SwiftUICore 里访问器调用报出的类型与访问器符号全部一致（一万处以上）；紧邻的 `adrp` / `add` 取出的地址上若有符号，报出的类型与符号一致；Foundation 的名字取自 `x1` 的记录、落在 `__swift5_typeref`、能解开；Foundation 与 SwiftData 里，查询保留的名字恰是解开后提到该类型的名字（40 个最常被符号引用的类型加四个标准库类型）；两个 SwiftUI 的同名类型按位置分开；类型预筛（Foundation 的 `URL` 与 `JSONEncoder`、SwiftUICore 的 `Text`）丢掉的镜像里抽样一处引用也没有——按导入符号预筛时三者都漏。
 - `FallbackNamingTests`：导出表给的名字落在导出的地址上（SiriAppIntents）；AppKit 里方法表给的名字与 `-[C sel]` 符号一致（去掉分类名后 99.9% 以上）；SwiftUICore 里从元数据重建的名字与真实的 `…Ma`、`…Mr`、方法符号一致（99% 以上）；Matter 的方法在没有符号时由方法表起名；SiriAppIntents 几乎每个类型的访问器都有名字，重建的名字 demangle 出来是元数据访问器。
 - `StandaloneImageTests`：SymbolTestsCore fixture 经自己的桩调用 libswiftCore，没有一条停在只有名字的导入上。
 - `LazyBindingTests`：现编一个懒绑定的 dylib，见上文「缓存外镜像的 GOT 槽」。

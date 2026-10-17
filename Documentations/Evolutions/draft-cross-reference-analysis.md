@@ -122,6 +122,18 @@ public final class CrossReferenceAnalyzer: @unchecked Sendable {
 - **验证**：`ObjectiveCClassReferenceTests` 7 个测试（11 个用例），其中经 `objc_opt_self` 保留 `x0`、读 `__objc_superrefs`、预筛认别名三项在去掉做法时变红过；`CrossReferenceAnalysisTests` 共 38 个、`SwiftThunkAnalysisTests` 82 个通过。
 - **没做的**：按字符串取类（`objc_getClass("…")`，AppKit 183 处）；扫描时用方法表判断无名的 ObjC 方法（见设计）；Swift 的 super 发送的类。
 
+### 第二批 ③：Swift 类型引用的实现与验证（2026-10-17）
+
+- **落地**：`Scanning/SwiftTypeIndex.swift`（每个镜像按需建：`__swift5_types` 的描述符、各自的访问器、按需算的 key）；`CrossReferenceAnalyzer+SwiftTypes.swift`（`SwiftTypeIdentity`、`swiftTypeIdentity(ofDescriptorAt:)`、`swiftTypeDescriptorLocations(withKey:inImageAt:)`、`references(toSwiftType:inImageAt:)`、`imageIndices(referencingSwiftType:among:)`、`swiftTypeKeys(in:)`，以及比对器 `SwiftTypeQuery`）；目标 `.swiftType(descriptor:)` 与 `.swiftTypeName(SwiftTypeName)` 换掉第一批声明了、没人产出的 `.typeMetadataAccessor` 与 `.mangledTypeName`；表键 `.swiftTypeDescriptor(CodeLocation)`；分析器认出运行时的 `swift_getTypeByMangledName…` 入口。
+- **与设计不同之处**：
+  - 表按描述符位置归档，不按 key（设计里说「不用描述符地址作键」）。扫描时算 key 要为每个被引用的描述符 demangle，而 key 的拼法随 demangle 的路径变：受约束扩展里的嵌套类型、其他模块类型的扩展里的 private 类型都会拼偏。位置精确、不花时间，也天然分开 Mac Catalyst 变体。设计里不用位置的两条理由由查询解决：导入的类型每个镜像一份描述符，查询按 key 比；标准库类型在名字里拼出来，查询解开名字。key 改为取自描述符的 `…Mn` 符号。
+  - 查询不做文本子串比对（设计里「文本比子串」）：mangling 会把同一名字里重复出现的单词换成替身，子串会漏。只有名字可能拼出来的类型才解开名字，其余只比符号引用。这条前提逐个解开 Foundation、SwiftData、libswift_Concurrency、SwiftUI 的全部名字核对过，没有例外。
+  - 预筛对名字可能拼出来的类型，不按 `__swift5_typeref` 的字节筛（同一原因），凡有这一节的镜像都算。
+- **实测**（扫一遍）：SwiftUICore 调用描述符可知的访问器 15,432 处、取元数据或访问器地址 35,140 处、经 GOT 载入 10,438 处、调用只有符号的访问器 5,259 处，不用按名字实例化；Foundation 按名字实例化 6,280 处、934 个不同名字；SwiftUI 访问器调用 63,487 处。访问器调用报出的类型与访问器符号全部一致。
+- **性能**：全缓存整表 2.1 → 3.0 秒（引用 1.16 亿 → 1.26 亿条），查 `init` 的调用者 1.6 → 1.8 秒（只查 selector 或函数时不找类与类型引用）。途中两次退化：`keep(reference(to: …))` 这种参数里修改扫描器的写法让 Swift 每次复制整个扫描器，整表一度 95 秒；类型索引每次去分析器的锁里取，等锁占掉大半时间。两处的修法见模块参考。
+- **第一批的预筛缺陷（已修）**：写类型预筛的正确性测试时发现，macOS 27.2 的缓存镜像一个 Swift 的未定义符号都不留（SharedWithYou 照样调用 `URL` 的访问器，却没有任何导入记录）。第一批的函数预筛按导入符号筛，只拿 C 函数测过，对 Swift 函数一直会丢掉其他镜像里的全部调用者——RuntimeViewer 第 3 步查 Swift 方法的跨库调用者受影响。Swift 符号改按链接关系筛（直接链接，或经再导出链接到定义镜像），新增 `imageIndices(linkingImageAt:among:)` 与 `imageIndices(callingFunctionAt:symbolNames:among:)`；Swift 类的类预筛同样补上链接关系。回归测试 `swiftFunctionPrefilterKeepsEveryCaller` 在旧做法下变红。
+- **没做的**：协议的类型引用（协议描述符、存在类型、泛型约束都要另算）；旧形态（V1）已经实例化的缓存变量；直接调用 `swift_getTypeByMangledName…` 时只认 `adrp` / `add` 出的名字地址。
+
 ### 落地顺序
 
 ①起名（导出表、ObjC 方法表、Swift 元数据）；②ObjC 的类字面量、super 的类与类引用，以及汇合点的核实与修正；③Swift 类型引用、类型查询与预筛。每一步单独测试、单独提交。
@@ -143,3 +155,7 @@ public final class CrossReferenceAnalyzer: @unchecked Sendable {
 | 2026-10-17 | super 的类取 `__objc_superrefs` 的载入，退回方法符号；Swift 的不记 | 槽里就是编译器给的类，分类方法、无符号的方法都对，不必在扫描时读方法表；Swift 的类到运行时才知道 |
 | 2026-10-17 | 类预筛认定义镜像在类与元类地址上的全部符号 | 抽样 4% 的跨镜像类引用走别名（`__NSConcreteStackBlock`、`__xpc_type_dictionary`），只认 `_OBJC_CLASS_$_` 会漏 |
 | 2026-10-17 | 类索引直接读 `__objc_classlist` 与 `isa`，不经 `MachOImage.objc.classes64` | 后者让全缓存整表扫描从 2.0 秒变成 4.9 秒；直接读之后为 2.4 秒 |
+| 2026-10-17 | Swift 类型引用的表按描述符位置归档，key 取自描述符的 `…Mn` 符号 | 扫描时算 key 要 demangle，且 key 的拼法随 demangle 路径变（受约束扩展、扩展里的 private 类型）；位置精确、不花时间、分得开 Catalyst 变体 |
+| 2026-10-17 | 类型查询只比符号引用；名字可能拼出来的类型（标准库、`_Concurrency`、导入）才解开名字；不做文本子串比对 | 逐个解开四个镜像的全部名字核对：其他类型在名字里都是符号引用；mangling 的单词替身会让子串比对漏 |
+| 2026-10-17 | 扫描器先把引用算进局部变量再保留；类与类型索引由扫描器持有的引用类型缓存；只查 selector 或函数时不找类与类型引用 | 实测：参数里修改扫描器让整表扫描一度 95 秒；等分析器的锁占掉大半时间；selector 查询本来用不到它们 |
+| 2026-10-17 | 跨镜像的 Swift 符号按链接关系预筛，不按导入符号；`imageIndices(importing:)` 只对 C 与 ObjC 符号 | 实测缓存镜像不留任何 Swift 未定义符号；第一批的函数预筛因此对 Swift 函数会丢掉全部跨库调用者（只用 C 函数测过）。链接关系在缓存里完整，粗但不漏 |

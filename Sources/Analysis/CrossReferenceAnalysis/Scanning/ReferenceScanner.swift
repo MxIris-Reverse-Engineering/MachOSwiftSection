@@ -47,28 +47,57 @@ struct ReferenceScanner {
     /// `__objc_superrefs` yielded: a super send in it starts above that class.
     private var currentFunctionIndex = 0
     private var superclassReferenceClassName: String?
-    /// Which slots and addresses hold a class, remembered: an image loads the
-    /// same few hundred classes again and again.
-    private var classObjectsBySlot: [UInt64: ObjectiveCClassObject?] = [:]
-    private var classObjectsByAddress: [UInt64: ObjectiveCClassObject?] = [:]
-    /// The class indexes this scan asked for, kept here so that a lookup does
-    /// not contend for the analyzer's lock.
-    private var classIndexes: [Int: ObjectiveCClassIndex] = [:]
+    /// What the call being decoded stands for besides the call itself: a
+    /// metadata accessor, a mangled-name instantiation.
+    private var calledTypeFunction: TypeFunction?
+    /// What each slot and address holds, remembered: an image loads the same
+    /// few hundred classes and types again and again.
+    private var slotReferences: [UInt64: AddressReference?] = [:]
+    private var addressReferences: [UInt64: AddressReference?] = [:]
+    /// The class and type indexes this scan asked for, kept here so that a
+    /// lookup does not contend for the analyzer's lock — a whole-cache scan
+    /// spent most of its time waiting on it. A reference, so that resolving
+    /// a call target, which does not mutate the scanner, uses it too.
+    private let indexes: ScanIndexes
+    /// When set, the references to one Swift type are kept besides the
+    /// ones `keptKeys` names.
+    private let swiftTypeQuery: SwiftTypeQuery?
+    /// Whether the scan looks for class and type references at all. A query
+    /// for the callers of a selector or a function keeps none, and skipping
+    /// them keeps it as fast as before they existed; a send's class-literal
+    /// receiver is still told, at the send.
+    private let findsTypeReferences: Bool
 
     /// How many stubs and islands are followed from one call before giving
     /// up; a hop per subcache crossed is the worst case described.
     private static let maximumTrampolineHops = 8
 
-    init(analyzer: CrossReferenceAnalyzer, table: ImageFunctionTable, keeping keptKeys: Set<CodeReferenceTable.Key>? = nil, followsBranches: Bool = true) {
+    init(analyzer: CrossReferenceAnalyzer, table: ImageFunctionTable, keeping keptKeys: Set<CodeReferenceTable.Key>? = nil, matching swiftTypeQuery: SwiftTypeQuery? = nil, followsBranches: Bool = true) {
         self.analyzer = analyzer
         self.table = table
-        self.keptKeys = keptKeys
+        self.keptKeys = keptKeys ?? (swiftTypeQuery == nil ? nil : [])
+        self.swiftTypeQuery = swiftTypeQuery
         self.followsBranches = followsBranches
+        self.indexes = ScanIndexes(analyzer: analyzer)
+        self.findsTypeReferences = swiftTypeQuery != nil || keptKeys.map { keys in
+            keys.contains { key in
+                switch key {
+                case .objectiveCClass, .swiftTypeDescriptor: return true
+                case .function, .selector, .importedSymbol: return false
+                }
+            }
+        } ?? true
     }
 
-    private static func keep(_ reference: CodeReference, ifFiledUnder keptKeys: Set<CodeReferenceTable.Key>?, in references: inout [CodeReference]) {
+    /// Takes the reference ready-made: a reference built in the call's
+    /// argument list would mutate the scanner while this non-mutating call
+    /// holds it, and Swift copies the whole scanner — its memo dictionaries
+    /// included — to keep the two apart, which made a scan of the cache
+    /// forty times slower.
+    private func keep(_ reference: CodeReference, in references: inout [CodeReference]) {
         if let keptKeys {
-            guard let key = reference.target.tableKey, keptKeys.contains(key) else { return }
+            let isFiled = reference.target.tableKey.map(keptKeys.contains) ?? false
+            guard isFiled || swiftTypeQuery?.matches(reference.target) == true else { return }
         }
         references.append(reference)
     }
@@ -106,7 +135,9 @@ struct ReferenceScanner {
 
             if let target = ARM64InstructionWord.callTarget(word, at: pc) {
                 callReturnsArgument = false
-                Self.keep(reference(to: target, at: pc, in: function, kind: .call, isObjectiveCMethod: isObjectiveCMethod), ifFiledUnder: keptKeys, in: &references)
+                let callReference = reference(to: target, at: pc, in: function, kind: .call, isObjectiveCMethod: isObjectiveCMethod)
+                keep(callReference, in: &references)
+                if let typeReference = typeReferenceOfCalledFunction(at: pc, in: function) { keep(typeReference, in: &references) }
                 if callReturnsArgument {
                     registers.clobberCallerSavedRegisters(keeping: 0)
                 } else {
@@ -115,7 +146,9 @@ struct ReferenceScanner {
             } else if let target = ARM64InstructionWord.branchTarget(word, at: pc) {
                 previousInstructionTransfers = true
                 if target < start || target >= end {
-                    Self.keep(reference(to: target, at: pc, in: function, kind: .tailCall, isObjectiveCMethod: isObjectiveCMethod), ifFiledUnder: keptKeys, in: &references)
+                    let tailCallReference = reference(to: target, at: pc, in: function, kind: .tailCall, isObjectiveCMethod: isObjectiveCMethod)
+                    keep(tailCallReference, in: &references)
+                    if let typeReference = typeReferenceOfCalledFunction(at: pc, in: function) { keep(typeReference, in: &references) }
                 } else if target > pc {
                     carry(to: target)
                 }
@@ -123,8 +156,9 @@ struct ReferenceScanner {
                 registers.setAddress(materialization.address, of: materialization.destination)
             } else if let arithmetic = ARM64InstructionWord.addImmediate(word) {
                 registers.add(arithmetic.addend, to: arithmetic.source, into: arithmetic.destination)
-                if let address = registers.builtAddress(of: arithmetic.destination), let classObject = classObject(atAddress: address) {
-                    Self.keep(classReference(to: classObject, at: pc, in: function), ifFiledUnder: keptKeys, in: &references)
+                if findsTypeReferences, let address = registers.builtAddress(of: arithmetic.destination), let addressReference = addressReference(atAddress: address) {
+                    let typeReference = reference(to: addressReference, at: pc, in: function)
+                    keep(typeReference, in: &references)
                 }
             } else if let load = ARM64InstructionWord.load(word) {
                 let slot = registers.builtAddress(of: load.base).map { ARM64InstructionWord.adding(load.displacement, to: $0) }
@@ -132,8 +166,9 @@ struct ReferenceScanner {
                 if load.destination != 31, let slot {
                     if let range = table.superclassReferenceRange, range.contains(slot) {
                         superclassReferenceClassName = classObject(storedAt: runtimeAddress(ofUnslid: slot, slide: table.slide))?.name
-                    } else if let classObject = classObjectLoaded(fromSlot: slot) {
-                        Self.keep(classReference(to: classObject, at: pc, in: function), ifFiledUnder: keptKeys, in: &references)
+                    } else if findsTypeReferences, let slotReference = slotReference(fromSlot: slot) {
+                        let typeReference = reference(to: slotReference, at: pc, in: function)
+                        keep(typeReference, in: &references)
                     }
                 }
             } else if let move = ARM64InstructionWord.moveRegister(word) {
@@ -142,19 +177,23 @@ struct ReferenceScanner {
                 registers.moveWide(into: wide.destination, immediate: wide.immediate, shift: wide.shift, keepsOtherBits: wide.keepsOtherBits)
             } else if let branch = ARM64InstructionWord.registerBranch(word) {
                 if branch.isCall {
-                    Self.keep(indirectReference(through: branch, at: pc, in: function, kind: .call), ifFiledUnder: keptKeys, in: &references)
+                    let indirectCall = indirectReference(through: branch, at: pc, in: function, kind: .call)
+                    keep(indirectCall, in: &references)
                     registers.clobberCallerSavedRegisters()
                 } else {
                     previousInstructionTransfers = true
                     // A computed `br` is a jump table; a pointer loaded from
                     // memory, or an authenticated one, is a tail call.
                     if branch.isAuthenticated || registers.wasLoadedFromMemory(branch.target) {
-                        Self.keep(indirectReference(through: branch, at: pc, in: function, kind: .tailCall), ifFiledUnder: keptKeys, in: &references)
+                        let indirectTailCall = indirectReference(through: branch, at: pc, in: function, kind: .tailCall)
+                        keep(indirectTailCall, in: &references)
                     }
                 }
             } else if let target = ARM64InstructionWord.conditionalBranchTarget(word, at: pc) {
                 if target < start || target >= end {
-                    Self.keep(reference(to: target, at: pc, in: function, kind: .tailCall, isObjectiveCMethod: isObjectiveCMethod), ifFiledUnder: keptKeys, in: &references)
+                    let tailCallReference = reference(to: target, at: pc, in: function, kind: .tailCall, isObjectiveCMethod: isObjectiveCMethod)
+                    keep(tailCallReference, in: &references)
+                    if let typeReference = typeReferenceOfCalledFunction(at: pc, in: function) { keep(typeReference, in: &references) }
                 } else if target > pc {
                     carry(to: target)
                 }
@@ -229,33 +268,36 @@ struct ReferenceScanner {
     private mutating func reference(to target: UInt64, at pc: UInt64, in function: CodeLocation, kind: CodeReference.Kind, isObjectiveCMethod: Bool) -> CodeReference {
         let referenceTarget: CodeReferenceTarget
         var isRuntimeHelperCall = false
+        calledTypeFunction = nil
         switch resolve(target) {
         case .selector(let selector):
             referenceTarget = .messageSend(selector: selectorName(selector), receiver: receiverHint(isObjectiveCMethod: isObjectiveCMethod))
-        case .function(let location, let isRuntimeHelper, let messageSendKind, let returnsItsClassArgument):
-            switch messageSendKind {
+        case .function(let functionTarget):
+            switch functionTarget.messageSendKind {
             case .classic?:
                 if let selector = selectorInSelectorRegister() {
                     referenceTarget = .messageSend(selector: selector, receiver: receiverHint(isObjectiveCMethod: isObjectiveCMethod))
                 } else {
-                    referenceTarget = .function(location)
+                    referenceTarget = .function(functionTarget.location)
                 }
             case .superclass?:
                 if let selector = selectorInSelectorRegister() {
                     referenceTarget = .superMessageSend(selector: selector, className: superclassSendClassName())
                 } else {
-                    referenceTarget = .function(location)
+                    referenceTarget = .function(functionTarget.location)
                 }
             case nil:
-                referenceTarget = .function(location)
-                isRuntimeHelperCall = isRuntimeHelper
-                callReturnsArgument = returnsItsClassArgument
+                referenceTarget = .function(functionTarget.location)
+                isRuntimeHelperCall = functionTarget.isRuntimeHelper
+                callReturnsArgument = functionTarget.returnsItsClassArgument
+                calledTypeFunction = functionTarget.typeFunction
             }
         case .importedSymbol(let name):
             let importedName = importedSymbolName(name)
             referenceTarget = .importedSymbol(name: importedName)
             isRuntimeHelperCall = RuntimeHelperNames.isRuntimeHelper(name)
             callReturnsArgument = Self.returnsItsClassArgument(name)
+            if let accessorSymbol = Self.accessorSymbol(name) { calledTypeFunction = .accessorSymbol(accessorSymbol) }
         case .unrecognized:
             referenceTarget = .unrecognized(address: target)
         }
@@ -280,69 +322,202 @@ struct ReferenceScanner {
 
     private mutating func receiverHint(isObjectiveCMethod: Bool) -> ReceiverClassHint {
         if isObjectiveCMethod, registers.holdsMethodReceiver(0) { return .methodReceiver }
-        if let classObject = classObject(inRegister: 0) { return .classLiteral(classObject.name) }
+        if case .objectiveCClass(let classObject)? = reference(inRegister: 0) { return .classLiteral(classObject.name) }
         return .unknown
     }
 
-    // MARK: - Classes
+    // MARK: - Classes and types
 
-    private func classReference(to classObject: ObjectiveCClassObject, at pc: UInt64, in function: CodeLocation) -> CodeReference {
-        CodeReference(function: function, instructionAddress: pc, kind: .reference, target: .objectiveCClass(name: classObject.name, location: classObject.location), isRuntimeHelperCall: false)
+    /// A class or a Swift type an address or a slot leads to.
+    private enum AddressReference {
+        case objectiveCClass(ObjectiveCClassObject)
+        /// The type's context descriptor.
+        case swiftType(CodeLocation)
     }
 
-    /// The class a register holds: an `adrp` / `add` of the class object, or
-    /// a load from a slot holding it.
-    private mutating func classObject(inRegister register: Int) -> ObjectiveCClassObject? {
-        if let address = registers.builtAddress(of: register) { return classObject(atAddress: address) }
-        if let slot = registers.slotAddress(of: register) { return classObjectLoaded(fromSlot: slot) }
+    private func reference(to addressReference: AddressReference, at pc: UInt64, in function: CodeLocation) -> CodeReference {
+        let target: CodeReferenceTarget
+        switch addressReference {
+        case .objectiveCClass(let classObject):
+            target = .objectiveCClass(name: classObject.name, location: classObject.location)
+        case .swiftType(let descriptor):
+            target = .swiftType(descriptor: descriptor)
+        }
+        return CodeReference(function: function, instructionAddress: pc, kind: .reference, target: target, isRuntimeHelperCall: false)
+    }
+
+    /// What a register holds: an `adrp` / `add` of a class object or type
+    /// metadata, or a load from a slot holding one.
+    private mutating func reference(inRegister register: Int) -> AddressReference? {
+        if let address = registers.builtAddress(of: register) { return addressReference(atAddress: address) }
+        if let slot = registers.slotAddress(of: register) { return slotReference(fromSlot: slot) }
         return nil
     }
 
-    /// The class object at the unslid `address`, when an image lists one
-    /// there. Most addresses code builds lie in its own image outside the
-    /// class objects' segments — strings, selectors, constants — and are
-    /// turned away before any lookup.
-    private mutating func classObject(atAddress address: UInt64) -> ObjectiveCClassObject? {
-        if !table.dataSegmentRanges.contains(where: { $0.contains(address) }), table.segmentRanges.contains(where: { $0.contains(address) }) { return nil }
-        if let known = classObjectsByAddress[address] { return known }
-        let classObject = self.classObject(atRuntimeAddress: runtimeAddress(ofUnslid: address, slide: table.slide))
-        classObjectsByAddress[address] = classObject
-        return classObject
+    /// The class object, type metadata or metadata accessor at the unslid
+    /// `address`. Most addresses code builds lie in its own image outside
+    /// these — strings, selectors, constants — and are turned away before any
+    /// lookup.
+    private mutating func addressReference(atAddress address: UInt64) -> AddressReference? {
+        let isCode = address >= table.textStart && address < table.textEnd
+        if !isCode, !table.dataSegmentRanges.contains(where: { $0.contains(address) }), table.segmentRanges.contains(where: { $0.contains(address) }) { return nil }
+        if let known = addressReferences[address] { return known }
+        let runtimeAddress = runtimeAddress(ofUnslid: address, slide: table.slide)
+        let addressReference = isCode ? accessorReference(atRuntimeAddress: runtimeAddress) : self.addressReference(atRuntimeAddress: runtimeAddress)
+        addressReferences[address] = addressReference
+        return addressReference
     }
 
-    /// The class a load from the slot at the unslid `slot` yields. Only a
-    /// slot of this image's GOT or class references counts, or one of the GOT
-    /// pool the shared cache keeps outside every image: a constant string's
-    /// `isa` also points at a class, and is no reference to it.
-    private mutating func classObjectLoaded(fromSlot slot: UInt64) -> ObjectiveCClassObject? {
-        let isOwnClassSlot = table.classReferenceSlotRanges.contains { $0.contains(slot) }
-        // Any other slot of the image's own is no class reference.
-        if !isOwnClassSlot, table.segmentRanges.contains(where: { $0.contains(slot) }) { return nil }
-        if let known = classObjectsBySlot[slot] { return known }
-        var classObject: ObjectiveCClassObject?
+    /// What a load from the slot at the unslid `slot` yields. Only a slot of
+    /// this image's GOT or class references counts, or one of the GOT pool the
+    /// shared cache keeps outside every image: a constant string's `isa` also
+    /// points at a class, and is no reference to it.
+    private mutating func slotReference(fromSlot slot: UInt64) -> AddressReference? {
+        let isOwnReferenceSlot = table.referenceSlotRanges.contains { $0.contains(slot) }
+        // Any other slot of the image's own holds no reference.
+        if !isOwnReferenceSlot, table.segmentRanges.contains(where: { $0.contains(slot) }) { return nil }
+        if let known = slotReferences[slot] { return known }
+        var slotReference: AddressReference?
         let runtimeSlot = runtimeAddress(ofUnslid: slot, slide: table.slide)
-        let isClassSlot = isOwnClassSlot
+        let isReferenceSlot = isOwnReferenceSlot
             || (analyzer.imageIndex(containingDataAddress: runtimeSlot) == nil
                 && analyzer.imageIndex(containingRuntimeAddress: runtimeSlot) == nil
                 && analyzer.isMapped(runtimeAddress: runtimeSlot, length: 8))
-        if isClassSlot { classObject = self.classObject(storedAt: runtimeSlot) }
-        classObjectsBySlot[slot] = classObject
-        return classObject
+        if isReferenceSlot, let pointer = UnsafeRawPointer(bitPattern: runtimeSlot) {
+            // Strip the pointer-authentication bits; user addresses fit in 47.
+            let value = UInt(pointer.loadUnaligned(as: UInt64.self) & SwiftTypeIndex.addressMask)
+            slotReference = addressReference(atRuntimeAddress: value) ?? accessorReference(atRuntimeAddress: value)
+        }
+        slotReferences[slot] = slotReference
+        return slotReference
+    }
+
+    /// A class object, or the metadata of a struct, an enum or an imported
+    /// type, at the runtime `address`. A Swift class's metadata is its
+    /// Objective-C class object.
+    private mutating func addressReference(atRuntimeAddress address: UInt) -> AddressReference? {
+        if let classObject = classObject(atRuntimeAddress: address) { return .objectiveCClass(classObject) }
+        if let descriptor = valueMetadataDescriptor(atRuntimeAddress: address) { return .swiftType(descriptor) }
+        return nil
     }
 
     /// The class a slot at the runtime `slot` points at.
     private mutating func classObject(storedAt runtimeSlot: UInt) -> ObjectiveCClassObject? {
         guard let pointer = UnsafeRawPointer(bitPattern: runtimeSlot) else { return nil }
         // Strip the pointer-authentication bits; user addresses fit in 47.
-        return classObject(atRuntimeAddress: UInt(pointer.loadUnaligned(as: UInt64.self) & 0x0000_7FFF_FFFF_FFFF))
+        return classObject(atRuntimeAddress: UInt(pointer.loadUnaligned(as: UInt64.self) & SwiftTypeIndex.addressMask))
     }
 
-    private mutating func classObject(atRuntimeAddress address: UInt) -> ObjectiveCClassObject? {
+    private func classObject(atRuntimeAddress address: UInt) -> ObjectiveCClassObject? {
         guard let imageIndex = analyzer.imageIndex(containingDataAddress: address) else { return nil }
-        if let index = classIndexes[imageIndex] { return index.classObject(atRuntimeAddress: address) }
-        let index = analyzer.objectiveCClassIndex(ofImageAt: imageIndex)
-        classIndexes[imageIndex] = index
-        return index.classObject(atRuntimeAddress: address)
+        return indexes.classIndex(ofImageAt: imageIndex).classObject(atRuntimeAddress: address)
+    }
+
+    /// The type whose metadata accessor starts at the runtime `address`.
+    private mutating func accessorReference(atRuntimeAddress address: UInt) -> AddressReference? {
+        guard let imageIndex = analyzer.imageIndex(containingRuntimeAddress: address) else { return nil }
+        return swiftTypeIndex(ofImageAt: imageIndex).descriptorLocation(ofAccessorAt: address).map { .swiftType($0) }
+    }
+
+    /// The descriptor of the type whose metadata lies at the runtime
+    /// `address`: a struct, an enum, an optional or an imported type, whose
+    /// metadata holds its kind first and its descriptor next.
+    private mutating func valueMetadataDescriptor(atRuntimeAddress address: UInt) -> CodeLocation? {
+        guard analyzer.isMapped(runtimeAddress: address, length: 16), let metadata = UnsafeRawPointer(bitPattern: address) else { return nil }
+        // MetadataKind: struct 0x200, enum 0x201, optional 0x202, foreign
+        // class 0x203, foreign reference type 0x204.
+        let kind = metadata.loadUnaligned(as: UInt64.self)
+        guard kind >= 0x200, kind <= 0x204 else { return nil }
+        let descriptor = UInt(metadata.loadUnaligned(fromByteOffset: 8, as: UInt64.self) & SwiftTypeIndex.addressMask)
+        guard let imageIndex = analyzer.imageIndex(containingRuntimeAddress: descriptor) else { return nil }
+        let index = swiftTypeIndex(ofImageAt: imageIndex)
+        return index.describesType(descriptorAt: descriptor) ? index.location(ofRuntimeAddress: descriptor) : nil
+    }
+
+    private func swiftTypeIndex(ofImageAt imageIndex: Int) -> SwiftTypeIndex {
+        indexes.swiftTypeIndex(ofImageAt: imageIndex)
+    }
+
+    /// The type reference a call makes besides the call itself: to the type
+    /// whose metadata accessor it calls, or to the types the mangled name it
+    /// instantiates names.
+    private mutating func typeReferenceOfCalledFunction(at pc: UInt64, in function: CodeLocation) -> CodeReference? {
+        guard let typeFunction = calledTypeFunction else { return nil }
+        let target: CodeReferenceTarget
+        switch typeFunction {
+        case .accessor(let descriptor):
+            target = .swiftType(descriptor: descriptor)
+        case .accessorSymbol(let symbol):
+            target = .swiftTypeName(.accessorSymbol(symbol))
+        case .instantiationHelper(let takesRecord):
+            guard let name = takesRecord ? mangledNameInRecord(inRegister: 1) : mangledNameInCacheVariable(inRegister: 0) else { return nil }
+            target = .swiftTypeName(name)
+        case .runtimeEntry(let nameRegister):
+            guard let name = mangledName(inRegister: nameRegister) else { return nil }
+            target = .swiftTypeName(name)
+        }
+        return CodeReference(function: function, instructionAddress: pc, kind: .reference, target: target, isRuntimeHelperCall: false)
+    }
+
+    /// The longest mangled name read; a longer one is taken for something
+    /// else.
+    private static let maximumMangledNameLength = 4096
+
+    /// `__swift_instantiateConcreteTypeFromMangledNameV2`'s second argument:
+    /// `{ int32 offset from the record to the name, int32 length }`.
+    private func mangledNameInRecord(inRegister register: Int) -> SwiftTypeName? {
+        guard let record = registers.builtAddress(of: register) else { return nil }
+        let runtimeRecord = runtimeAddress(ofUnslid: record, slide: table.slide)
+        guard analyzer.isMapped(runtimeAddress: runtimeRecord, length: 8), let pointer = UnsafeRawPointer(bitPattern: runtimeRecord) else { return nil }
+        let offset = pointer.loadUnaligned(as: Int32.self)
+        let length = Int(pointer.loadUnaligned(fromByteOffset: 4, as: Int32.self))
+        return mangledName(at: ARM64InstructionWord.adding(Int64(offset), to: record), length: length)
+    }
+
+    /// The first argument of the older helper: a cache variable that holds
+    /// `{ int32 offset from the variable to the name, int32 negated length }`
+    /// until the type is instantiated, and its metadata afterwards — then the
+    /// name is gone, and nothing is reported.
+    private func mangledNameInCacheVariable(inRegister register: Int) -> SwiftTypeName? {
+        guard let cache = registers.builtAddress(of: register) else { return nil }
+        let runtimeCache = runtimeAddress(ofUnslid: cache, slide: table.slide)
+        guard analyzer.isMapped(runtimeAddress: runtimeCache, length: 8), let pointer = UnsafeRawPointer(bitPattern: runtimeCache) else { return nil }
+        let value = pointer.loadUnaligned(as: Int64.self)
+        guard value < 0 else { return nil }
+        return mangledName(at: ARM64InstructionWord.adding(Int64(Int32(truncatingIfNeeded: value)), to: cache), length: -Int(Int32(truncatingIfNeeded: value >> 32)))
+    }
+
+    /// The name a runtime entry point is handed, which runs to its
+    /// terminator: a symbolic reference's payload is skipped, since it may
+    /// hold zero bytes.
+    private func mangledName(inRegister register: Int) -> SwiftTypeName? {
+        guard let name = registers.builtAddress(of: register) else { return nil }
+        let runtimeName = runtimeAddress(ofUnslid: name, slide: table.slide)
+        let readableLength = Int(min(analyzer.mappedLength(fromRuntimeAddress: runtimeName), UInt(Self.maximumMangledNameLength)))
+        guard readableLength > 0, let bytes = UnsafePointer<UInt8>(bitPattern: runtimeName) else { return nil }
+        var length = 0
+        while length < readableLength {
+            let byte = bytes[length]
+            if byte == 0 { return mangledName(at: name, length: length) }
+            length += byte >= 0x01 && byte <= 0x17 ? 5 : (byte >= 0x18 && byte <= 0x1F ? 9 : 1)
+        }
+        return nil
+    }
+
+    private func mangledName(at name: UInt64, length: Int) -> SwiftTypeName? {
+        guard length > 0, length <= Self.maximumMangledNameLength,
+              analyzer.isMapped(runtimeAddress: runtimeAddress(ofUnslid: name, slide: table.slide), length: UInt(length))
+        else { return nil }
+        return .mangledName(location: CodeLocation(imageIndex: table.imageIndex, address: name), length: length)
+    }
+
+    /// `_$s…Ma` without its leading underscore, for a metadata accessor's
+    /// symbol.
+    private static func accessorSymbol(_ name: UnsafePointer<CChar>) -> String? {
+        guard name[0] == 0x5F, name[1] == 0x24, name[2] == 0x73 else { return nil }
+        let length = strlen(name)
+        guard length > 5, name[length - 2] == 0x4D, name[length - 1] == 0x61 else { return nil }
+        return String(cString: name + 1)
     }
 
     /// The class a super send in the current function starts above: the one
@@ -432,10 +607,32 @@ struct ReferenceScanner {
         case superclass
     }
 
+    /// What calling a function stands for besides the call.
+    private enum TypeFunction {
+        /// A type's metadata accessor: the type's descriptor.
+        case accessor(descriptor: CodeLocation)
+        /// A metadata accessor no descriptor stands for: its symbol, without
+        /// the leading underscore.
+        case accessorSymbol(String)
+        /// `__swift_instantiateConcreteTypeFromMangledName…`: the V2 helpers
+        /// take the name's `{ offset, length }` record in `x1`, the older ones
+        /// a cache variable in `x0`.
+        case instantiationHelper(takesRecord: Bool)
+        /// `swift_getTypeByMangledName…`: the name in this register.
+        case runtimeEntry(nameRegister: Int)
+    }
+
+    private struct FunctionTarget {
+        let location: CodeLocation
+        var isRuntimeHelper = false
+        var messageSendKind: MessageSendKind?
+        /// `objc_opt_self`, `objc_opt_class`, `swift_getInitializedObjCClass`.
+        var returnsItsClassArgument = false
+        var typeFunction: TypeFunction?
+    }
+
     private enum ResolvedTarget {
-        /// `returnsItsClassArgument`: `objc_opt_self`, `objc_opt_class`,
-        /// `swift_getInitializedObjCClass`.
-        case function(CodeLocation, isRuntimeHelper: Bool, messageSendKind: MessageSendKind?, returnsItsClassArgument: Bool)
+        case function(FunctionTarget)
         /// A stub that names its selector.
         case selector(UnsafePointer<CChar>)
         case importedSymbol(UnsafePointer<CChar>)
@@ -450,7 +647,10 @@ struct ReferenceScanner {
         return resolved
     }
 
-    private func computeResolution(of target: UInt64) -> ResolvedTarget {
+    /// `detectsTypeFunctions`: whether to tell metadata accessors and
+    /// mangled-name helpers apart, which looks into the helper candidates'
+    /// own calls — not while looking into one.
+    private func computeResolution(of target: UInt64, detectsTypeFunctions: Bool = true) -> ResolvedTarget {
         if let range = table.objectiveCStubRange, range.contains(target) {
             guard let selector = table.objectiveCStubSelectors[target] else { return .unrecognized }
             return .selector(selector)
@@ -460,21 +660,21 @@ struct ReferenceScanner {
             // included (macOS 27.2, `LazyBindingTests`), so the slot is read
             // as it stands.
             if let slotAddress = stub.slotAddress,
-               let resolved = resolveSlot(atRuntimeAddress: runtimeAddress(ofUnslid: slotAddress, slide: table.slide), hops: 0) {
+               let resolved = resolveSlot(atRuntimeAddress: runtimeAddress(ofUnslid: slotAddress, slide: table.slide), hops: 0, detectsTypeFunctions: detectsTypeFunctions) {
                 return resolved
             }
             if let name = stub.name { return .importedSymbol(name) }
             return .unrecognized
         }
         if target >= table.textStart, target < table.textEnd {
-            return functionTarget(CodeLocation(imageIndex: table.imageIndex, address: target))
+            return functionTarget(CodeLocation(imageIndex: table.imageIndex, address: target), detectsTypeFunctions: detectsTypeFunctions)
         }
-        return resolve(runtimeAddress: runtimeAddress(ofUnslid: target, slide: table.slide), hops: 0)
+        return resolve(runtimeAddress: runtimeAddress(ofUnslid: target, slide: table.slide), hops: 0, detectsTypeFunctions: detectsTypeFunctions)
     }
 
-    private func resolve(runtimeAddress address: UInt, hops: Int) -> ResolvedTarget {
+    private func resolve(runtimeAddress address: UInt, hops: Int, detectsTypeFunctions: Bool) -> ResolvedTarget {
         if let location = analyzer.location(ofRuntimeAddress: address) {
-            return functionTarget(location)
+            return functionTarget(location, detectsTypeFunctions: detectsTypeFunctions)
         }
         // Between images: a stub or island the cache builder put there.
         guard hops < Self.maximumTrampolineHops,
@@ -489,37 +689,120 @@ struct ReferenceScanner {
             else { return .unrecognized }
             return .selector(selector)
         case .slotLoad(let slotAddress):
-            return resolveSlot(atRuntimeAddress: UInt(slotAddress), hops: hops + 1) ?? .unrecognized
+            return resolveSlot(atRuntimeAddress: UInt(slotAddress), hops: hops + 1, detectsTypeFunctions: detectsTypeFunctions) ?? .unrecognized
         case .computed(let computedTarget):
-            return resolve(runtimeAddress: UInt(computedTarget), hops: hops + 1)
+            return resolve(runtimeAddress: UInt(computedTarget), hops: hops + 1, detectsTypeFunctions: detectsTypeFunctions)
         }
     }
 
     /// Follows the pointer a GOT slot holds — dyld or the cache builder bound
     /// it already.
-    private func resolveSlot(atRuntimeAddress slotAddress: UInt, hops: Int) -> ResolvedTarget? {
+    private func resolveSlot(atRuntimeAddress slotAddress: UInt, hops: Int, detectsTypeFunctions: Bool) -> ResolvedTarget? {
         guard analyzer.isMapped(runtimeAddress: slotAddress, length: 8),
               let slot = UnsafeRawPointer(bitPattern: slotAddress)
         else { return nil }
         // Strip the pointer-authentication bits; user addresses fit in 47.
         let target = UInt(slot.loadUnaligned(as: UInt64.self) & 0x0000_7FFF_FFFF_FFFF)
         guard target != 0 else { return nil }
-        return resolve(runtimeAddress: target, hops: hops)
+        return resolve(runtimeAddress: target, hops: hops, detectsTypeFunctions: detectsTypeFunctions)
     }
 
-    private func functionTarget(_ location: CodeLocation) -> ResolvedTarget {
+    private func functionTarget(_ location: CodeLocation, detectsTypeFunctions: Bool) -> ResolvedTarget {
+        var functionTarget = FunctionTarget(location: location)
         if analyzer.messageSendLocations.contains(location) {
-            return .function(location, isRuntimeHelper: false, messageSendKind: .classic, returnsItsClassArgument: false)
+            functionTarget.messageSendKind = .classic
+            return .function(functionTarget)
         }
         if analyzer.superMessageSendLocations.contains(location) {
-            return .function(location, isRuntimeHelper: false, messageSendKind: .superclass, returnsItsClassArgument: false)
+            functionTarget.messageSendKind = .superclass
+            return .function(functionTarget)
         }
-        let isRuntimeHelper = analyzer.runtimeHelperLocations.contains(location)
+        functionTarget.isRuntimeHelper = analyzer.runtimeHelperLocations.contains(location)
             || (location.imageIndex == table.imageIndex && table.runtimeHelperStarts.contains(location.address))
-        return .function(location, isRuntimeHelper: isRuntimeHelper, messageSendKind: nil, returnsItsClassArgument: analyzer.classReturningFunctionLocations.contains(location))
+        functionTarget.returnsItsClassArgument = analyzer.classReturningFunctionLocations.contains(location)
+        if detectsTypeFunctions { functionTarget.typeFunction = typeFunction(at: location) }
+        return .function(functionTarget)
+    }
+
+    /// What a function stands for besides a call: a type's metadata
+    /// accessor — by its descriptor, or by its symbol when no descriptor
+    /// stands for it — a mangled-name instantiation helper, or one of the
+    /// runtime's entry points that instantiate a type from its mangled name.
+    private func typeFunction(at location: CodeLocation) -> TypeFunction? {
+        guard findsTypeReferences else { return nil }
+        if let nameRegister = analyzer.typeByMangledNameEntries[location] { return .runtimeEntry(nameRegister: nameRegister) }
+        if let slide = analyzer.images[location.imageIndex].vmaddrSlide,
+           let descriptor = swiftTypeIndex(ofImageAt: location.imageIndex).descriptorLocation(ofAccessorAt: runtimeAddress(ofUnslid: location.address, slide: slide)) {
+            return .accessor(descriptor: descriptor)
+        }
+        // Accessors of generic instances and mangled-name helpers are emitted
+        // into each image that uses them.
+        guard location.imageIndex == table.imageIndex,
+              let functionIndex = table.functionIndex(containing: location.address),
+              table.starts[functionIndex] == location.address
+        else { return nil }
+        if let name = table.primaryName(ofFunctionAt: functionIndex) {
+            if let accessorSymbol = Self.accessorSymbol(name) { return .accessorSymbol(accessorSymbol) }
+            guard strstr(name, "instantiateConcreteTypeFromMangledName") != nil else { return nil }
+            let length = strlen(name)
+            return .instantiationHelper(takesRecord: length > 2 && name[length - 2] == 0x56 && name[length - 1] == 0x32)
+        }
+        return instantiationHelperByShape(ofFunctionAt: functionIndex)
+    }
+
+    /// A mangled-name helper without a symbol, told by what it does: a short
+    /// function that calls the runtime's `swift_getTypeByMangledName…`. The V2
+    /// helpers read their record through `x1` (`ldr x9, [x1]`); the older
+    /// ones take nothing in `x1`.
+    private func instantiationHelperByShape(ofFunctionAt functionIndex: Int) -> TypeFunction? {
+        let start = table.starts[functionIndex]
+        let end = table.end(ofFunctionAt: functionIndex)
+        guard end > start, end - start <= 0x90 else { return nil }
+        let words = table.instructionPointer(at: start)
+        var readsRecord = false
+        var callsRuntime = false
+        for instructionIndex in 0 ..< Int((end - start) / 4) {
+            let pc = start &+ UInt64(instructionIndex * 4)
+            let word = UInt32(littleEndian: words[instructionIndex])
+            if let load = ARM64InstructionWord.load(word), load.base == 1, load.displacement == 0 {
+                readsRecord = true
+            } else if let callee = ARM64InstructionWord.callTarget(word, at: pc) ?? ARM64InstructionWord.branchTarget(word, at: pc),
+                      callee < start || callee >= end,
+                      case .function(let calleeTarget) = computeResolution(of: callee, detectsTypeFunctions: false),
+                      analyzer.typeByMangledNameEntries[calleeTarget.location] != nil {
+                callsRuntime = true
+            }
+        }
+        return callsRuntime ? .instantiationHelper(takesRecord: readsRecord) : nil
     }
 
     private func runtimeAddress(ofUnslid address: UInt64, slide: Int) -> UInt {
         UInt(bitPattern: Int(bitPattern: UInt(address)) &+ slide)
+    }
+}
+
+/// The class and Swift type indexes one scan has asked the analyzer for.
+/// A scan runs on one thread, so the dictionaries need no lock.
+private final class ScanIndexes {
+    private let analyzer: CrossReferenceAnalyzer
+    private var classIndexes: [Int: ObjectiveCClassIndex] = [:]
+    private var swiftTypeIndexes: [Int: SwiftTypeIndex] = [:]
+
+    init(analyzer: CrossReferenceAnalyzer) {
+        self.analyzer = analyzer
+    }
+
+    func classIndex(ofImageAt imageIndex: Int) -> ObjectiveCClassIndex {
+        if let index = classIndexes[imageIndex] { return index }
+        let index = analyzer.objectiveCClassIndex(ofImageAt: imageIndex)
+        classIndexes[imageIndex] = index
+        return index
+    }
+
+    func swiftTypeIndex(ofImageAt imageIndex: Int) -> SwiftTypeIndex {
+        if let index = swiftTypeIndexes[imageIndex] { return index }
+        let index = analyzer.swiftTypeIndex(ofImageAt: imageIndex)
+        swiftTypeIndexes[imageIndex] = index
+        return index
     }
 }

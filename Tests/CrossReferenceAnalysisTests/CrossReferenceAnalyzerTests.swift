@@ -224,6 +224,25 @@ struct CrossReferenceAnalyzerTests {
         #expect(missed.isEmpty, "prefilter dropped callers: \(missed.sorted().prefix(5).map { analyzer.imagePaths[$0] })")
     }
 
+    /// The same for a Swift function, which no cache image imports by name:
+    /// the macOS 27.2 cache keeps no Swift symbol among its images' undefined
+    /// symbols, so a prefilter by imports kept Foundation alone and dropped
+    /// every caller elsewhere. The images that can bind to Foundation are
+    /// what is kept now.
+    @Test func swiftFunctionPrefilterKeepsEveryCaller() throws {
+        let foundation = try imageIndex(endingWith: "/Foundation.framework/Versions/C/Foundation")
+        let symbol = "_$s10Foundation3URLV4pathSSvg"
+        let function = try function(named: symbol, inImageAt: foundation)
+        let everyImage = Array(analyzer.images.indices)
+        let kept = Set(analyzer.imageIndices(callingFunctionAt: function.location, symbolNames: [symbol] + function.foldedSymbolNames, among: everyImage))
+        let keys: Set<CodeReferenceTable.Key> = [.function(function.location), .importedSymbol(symbol)]
+        let callers = kept.subtracting([foundation]).sorted()
+        #expect(!imagesReferencing(keys, among: Array(callers.prefix(64))).isEmpty)
+        let droppedSample = Self.sample(of: Set(everyImage).subtracting(kept))
+        let missed = imagesReferencing(keys, among: droppedSample)
+        #expect(missed.isEmpty, "prefilter dropped callers: \(missed.sorted().prefix(5).map { analyzer.imagePaths[$0] })")
+    }
+
     /// Every sixteenth of `imageIndices`, in order.
     private static func sample(of imageIndices: Set<Int>) -> [Int] {
         imageIndices.sorted().enumerated().filter { $0.offset % 16 == 0 }.map(\.element)
