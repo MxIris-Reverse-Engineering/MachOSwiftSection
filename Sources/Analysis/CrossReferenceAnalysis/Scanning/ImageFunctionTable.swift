@@ -36,6 +36,18 @@ final class ImageFunctionTable: @unchecked Sendable {
     let symbolStubRanges: [Range<UInt64>]
     let symbolStubs: [UInt64: SymbolStub]
     let selectorReferenceRange: Range<UInt64>?
+    /// The sections whose slots may hold a class reference: `__got`,
+    /// `__auth_got`, `__objc_classrefs`. Other slots that point at a class — a
+    /// constant string's `isa` — are no reference to it.
+    let classReferenceSlotRanges: [Range<UInt64>]
+    /// `__objc_superrefs`: the class a super send in one of its methods starts
+    /// above.
+    let superclassReferenceRange: Range<UInt64>?
+    /// The image's segments other than `__TEXT` and `__LINKEDIT`, unslid: where
+    /// its own class objects lie.
+    let dataSegmentRanges: [Range<UInt64>]
+    /// Every segment of the image, unslid.
+    let segmentRanges: [Range<UInt64>]
     let dataInCodeRanges: [Range<UInt64>]
     /// The unslid address of the Mach header — `__TEXT`'s vmaddr.
     let headerAddress: UInt64
@@ -59,6 +71,8 @@ final class ImageFunctionTable: @unchecked Sendable {
         var symbolStubRanges: [Range<UInt64>] = []
         var symbolStubs: [UInt64: SymbolStub] = [:]
         var selectorReferenceRange: Range<UInt64>?
+        var classReferenceSlotRanges: [Range<UInt64>] = []
+        var superclassReferenceRange: Range<UInt64>?
         let symbols = image.symbols64
         let indirectSymbols = image.indirectSymbols.map { Array($0) } ?? []
 
@@ -95,6 +109,10 @@ final class ImageFunctionTable: @unchecked Sendable {
                 }
             } else if sectionName == "__objc_selrefs", !sectionRange.isEmpty {
                 selectorReferenceRange = sectionRange
+            } else if sectionName == "__objc_superrefs", !sectionRange.isEmpty {
+                superclassReferenceRange = sectionRange
+            } else if !sectionRange.isEmpty, ["__got", "__auth_got", "__objc_classrefs"].contains(sectionName) {
+                classReferenceSlotRanges.append(sectionRange)
             }
         }
         self.textStart = textStart
@@ -104,6 +122,17 @@ final class ImageFunctionTable: @unchecked Sendable {
         self.symbolStubRanges = symbolStubRanges
         self.symbolStubs = symbolStubs
         self.selectorReferenceRange = selectorReferenceRange
+        self.classReferenceSlotRanges = classReferenceSlotRanges
+        self.superclassReferenceRange = superclassReferenceRange
+        var dataSegmentRanges: [Range<UInt64>] = []
+        var segmentRanges: [Range<UInt64>] = []
+        for segment in image.segments64 where segment.layout.vmsize > 0 && segment.segmentName != "__PAGEZERO" {
+            let range = UInt64(segment.layout.vmaddr) ..< UInt64(segment.layout.vmaddr) + UInt64(segment.layout.vmsize)
+            segmentRanges.append(range)
+            if segment.segmentName != "__TEXT", segment.segmentName != "__LINKEDIT" { dataSegmentRanges.append(range) }
+        }
+        self.dataSegmentRanges = dataSegmentRanges
+        self.segmentRanges = segmentRanges
 
         // Symbols in __text, external ones first at each address.
         var namedAddresses: [(address: UInt64, isExternal: Bool, name: UnsafePointer<CChar>?)] = []

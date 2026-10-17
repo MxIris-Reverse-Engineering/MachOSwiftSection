@@ -11,6 +11,8 @@ public struct CodeReferenceTable: Sendable {
         /// Every send of the selector, `super` sends included.
         case selector(String)
         case importedSymbol(String)
+        /// Every reference to the class, by its runtime name.
+        case objectiveCClass(String)
     }
 
     public let imageIndex: Int
@@ -54,11 +56,13 @@ extension CodeReferenceTarget {
         switch self {
         case .function(let location):
             return .function(location)
-        case .messageSend(let selector, _), .superMessageSend(let selector):
+        case .messageSend(let selector, _), .superMessageSend(let selector, _):
             return .selector(selector)
         case .importedSymbol(let name):
             return .importedSymbol(name)
-        case .typeMetadataAccessor, .mangledTypeName, .objectiveCClass, .indirect, .unrecognized:
+        case .objectiveCClass(let name, _):
+            return .objectiveCClass(name)
+        case .typeMetadataAccessor, .mangledTypeName, .indirect, .unrecognized:
             return nil
         }
     }

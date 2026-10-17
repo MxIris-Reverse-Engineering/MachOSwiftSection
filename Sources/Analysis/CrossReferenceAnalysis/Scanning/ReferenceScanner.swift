@@ -40,6 +40,20 @@ struct ReferenceScanner {
     private var resolvedTargets: [UInt64: ResolvedTarget] = [:]
     private var selectorNames: [UInt: String] = [:]
     private var importedNames: [UInt: String] = [:]
+    /// Whether the call being decoded is to a function that returns the class
+    /// it was handed (`objc_opt_self` …), so `x0` survives it.
+    private var callReturnsArgument = false
+    /// The function being scanned, and the class its last load from
+    /// `__objc_superrefs` yielded: a super send in it starts above that class.
+    private var currentFunctionIndex = 0
+    private var superclassReferenceClassName: String?
+    /// Which slots and addresses hold a class, remembered: an image loads the
+    /// same few hundred classes again and again.
+    private var classObjectsBySlot: [UInt64: ObjectiveCClassObject?] = [:]
+    private var classObjectsByAddress: [UInt64: ObjectiveCClassObject?] = [:]
+    /// The class indexes this scan asked for, kept here so that a lookup does
+    /// not contend for the analyzer's lock.
+    private var classIndexes: [Int: ObjectiveCClassIndex] = [:]
 
     /// How many stubs and islands are followed from one call before giving
     /// up; a hop per subcache crossed is the worst case described.
@@ -72,6 +86,8 @@ struct ReferenceScanner {
 
         registers.reset()
         if isObjectiveCMethod { registers.setMethodReceiver(0) }
+        currentFunctionIndex = index
+        superclassReferenceClassName = nil
 
         pendingTargets.removeAll(keepingCapacity: true)
         pendingSnapshots.removeAll(keepingCapacity: true)
@@ -89,8 +105,13 @@ struct ReferenceScanner {
             previousInstructionTransfers = false
 
             if let target = ARM64InstructionWord.callTarget(word, at: pc) {
+                callReturnsArgument = false
                 Self.keep(reference(to: target, at: pc, in: function, kind: .call, isObjectiveCMethod: isObjectiveCMethod), ifFiledUnder: keptKeys, in: &references)
-                registers.clobberCallerSavedRegisters()
+                if callReturnsArgument {
+                    registers.clobberCallerSavedRegisters(keeping: 0)
+                } else {
+                    registers.clobberCallerSavedRegisters()
+                }
             } else if let target = ARM64InstructionWord.branchTarget(word, at: pc) {
                 previousInstructionTransfers = true
                 if target < start || target >= end {
@@ -102,8 +123,19 @@ struct ReferenceScanner {
                 registers.setAddress(materialization.address, of: materialization.destination)
             } else if let arithmetic = ARM64InstructionWord.addImmediate(word) {
                 registers.add(arithmetic.addend, to: arithmetic.source, into: arithmetic.destination)
+                if let address = registers.builtAddress(of: arithmetic.destination), let classObject = classObject(atAddress: address) {
+                    Self.keep(classReference(to: classObject, at: pc, in: function), ifFiledUnder: keptKeys, in: &references)
+                }
             } else if let load = ARM64InstructionWord.load(word) {
+                let slot = registers.builtAddress(of: load.base).map { ARM64InstructionWord.adding(load.displacement, to: $0) }
                 registers.load(into: load.destination, base: load.base, displacement: load.displacement, writesBack: load.writesBack)
+                if load.destination != 31, let slot {
+                    if let range = table.superclassReferenceRange, range.contains(slot) {
+                        superclassReferenceClassName = classObject(storedAt: runtimeAddress(ofUnslid: slot, slide: table.slide))?.name
+                    } else if let classObject = classObjectLoaded(fromSlot: slot) {
+                        Self.keep(classReference(to: classObject, at: pc, in: function), ifFiledUnder: keptKeys, in: &references)
+                    }
+                }
             } else if let move = ARM64InstructionWord.moveRegister(word) {
                 registers.copy(move.source, to: move.destination)
             } else if let wide = ARM64InstructionWord.moveWide(word) {
@@ -200,7 +232,7 @@ struct ReferenceScanner {
         switch resolve(target) {
         case .selector(let selector):
             referenceTarget = .messageSend(selector: selectorName(selector), receiver: receiverHint(isObjectiveCMethod: isObjectiveCMethod))
-        case .function(let location, let isRuntimeHelper, let messageSendKind):
+        case .function(let location, let isRuntimeHelper, let messageSendKind, let returnsItsClassArgument):
             switch messageSendKind {
             case .classic?:
                 if let selector = selectorInSelectorRegister() {
@@ -210,18 +242,20 @@ struct ReferenceScanner {
                 }
             case .superclass?:
                 if let selector = selectorInSelectorRegister() {
-                    referenceTarget = .superMessageSend(selector: selector)
+                    referenceTarget = .superMessageSend(selector: selector, className: superclassSendClassName())
                 } else {
                     referenceTarget = .function(location)
                 }
             case nil:
                 referenceTarget = .function(location)
                 isRuntimeHelperCall = isRuntimeHelper
+                callReturnsArgument = returnsItsClassArgument
             }
         case .importedSymbol(let name):
             let importedName = importedSymbolName(name)
             referenceTarget = .importedSymbol(name: importedName)
             isRuntimeHelperCall = RuntimeHelperNames.isRuntimeHelper(name)
+            callReturnsArgument = Self.returnsItsClassArgument(name)
         case .unrecognized:
             referenceTarget = .unrecognized(address: target)
         }
@@ -244,8 +278,93 @@ struct ReferenceScanner {
         return CodeReference(function: function, instructionAddress: pc, kind: kind, target: .indirect(evidence), isRuntimeHelperCall: false)
     }
 
-    private func receiverHint(isObjectiveCMethod: Bool) -> ReceiverClassHint {
-        isObjectiveCMethod && registers.holdsMethodReceiver(0) ? .methodReceiver : .unknown
+    private mutating func receiverHint(isObjectiveCMethod: Bool) -> ReceiverClassHint {
+        if isObjectiveCMethod, registers.holdsMethodReceiver(0) { return .methodReceiver }
+        if let classObject = classObject(inRegister: 0) { return .classLiteral(classObject.name) }
+        return .unknown
+    }
+
+    // MARK: - Classes
+
+    private func classReference(to classObject: ObjectiveCClassObject, at pc: UInt64, in function: CodeLocation) -> CodeReference {
+        CodeReference(function: function, instructionAddress: pc, kind: .reference, target: .objectiveCClass(name: classObject.name, location: classObject.location), isRuntimeHelperCall: false)
+    }
+
+    /// The class a register holds: an `adrp` / `add` of the class object, or
+    /// a load from a slot holding it.
+    private mutating func classObject(inRegister register: Int) -> ObjectiveCClassObject? {
+        if let address = registers.builtAddress(of: register) { return classObject(atAddress: address) }
+        if let slot = registers.slotAddress(of: register) { return classObjectLoaded(fromSlot: slot) }
+        return nil
+    }
+
+    /// The class object at the unslid `address`, when an image lists one
+    /// there. Most addresses code builds lie in its own image outside the
+    /// class objects' segments — strings, selectors, constants — and are
+    /// turned away before any lookup.
+    private mutating func classObject(atAddress address: UInt64) -> ObjectiveCClassObject? {
+        if !table.dataSegmentRanges.contains(where: { $0.contains(address) }), table.segmentRanges.contains(where: { $0.contains(address) }) { return nil }
+        if let known = classObjectsByAddress[address] { return known }
+        let classObject = self.classObject(atRuntimeAddress: runtimeAddress(ofUnslid: address, slide: table.slide))
+        classObjectsByAddress[address] = classObject
+        return classObject
+    }
+
+    /// The class a load from the slot at the unslid `slot` yields. Only a
+    /// slot of this image's GOT or class references counts, or one of the GOT
+    /// pool the shared cache keeps outside every image: a constant string's
+    /// `isa` also points at a class, and is no reference to it.
+    private mutating func classObjectLoaded(fromSlot slot: UInt64) -> ObjectiveCClassObject? {
+        let isOwnClassSlot = table.classReferenceSlotRanges.contains { $0.contains(slot) }
+        // Any other slot of the image's own is no class reference.
+        if !isOwnClassSlot, table.segmentRanges.contains(where: { $0.contains(slot) }) { return nil }
+        if let known = classObjectsBySlot[slot] { return known }
+        var classObject: ObjectiveCClassObject?
+        let runtimeSlot = runtimeAddress(ofUnslid: slot, slide: table.slide)
+        let isClassSlot = isOwnClassSlot
+            || (analyzer.imageIndex(containingDataAddress: runtimeSlot) == nil
+                && analyzer.imageIndex(containingRuntimeAddress: runtimeSlot) == nil
+                && analyzer.isMapped(runtimeAddress: runtimeSlot, length: 8))
+        if isClassSlot { classObject = self.classObject(storedAt: runtimeSlot) }
+        classObjectsBySlot[slot] = classObject
+        return classObject
+    }
+
+    /// The class a slot at the runtime `slot` points at.
+    private mutating func classObject(storedAt runtimeSlot: UInt) -> ObjectiveCClassObject? {
+        guard let pointer = UnsafeRawPointer(bitPattern: runtimeSlot) else { return nil }
+        // Strip the pointer-authentication bits; user addresses fit in 47.
+        return classObject(atRuntimeAddress: UInt(pointer.loadUnaligned(as: UInt64.self) & 0x0000_7FFF_FFFF_FFFF))
+    }
+
+    private mutating func classObject(atRuntimeAddress address: UInt) -> ObjectiveCClassObject? {
+        guard let imageIndex = analyzer.imageIndex(containingDataAddress: address) else { return nil }
+        if let index = classIndexes[imageIndex] { return index.classObject(atRuntimeAddress: address) }
+        let index = analyzer.objectiveCClassIndex(ofImageAt: imageIndex)
+        classIndexes[imageIndex] = index
+        return index.classObject(atRuntimeAddress: address)
+    }
+
+    /// The class a super send in the current function starts above: the one
+    /// its `__objc_superrefs` slot holds — a category method's class too —
+    /// or, when no such load was seen, the class its symbol names.
+    private func superclassSendClassName() -> String? {
+        superclassReferenceClassName ?? table.primaryName(ofFunctionAt: currentFunctionIndex).flatMap(Self.className(ofMethodSymbol:))
+    }
+
+    /// `objc_opt_self`, `objc_opt_class`, `swift_getInitializedObjCClass`:
+    /// the class they are handed is what they return.
+    private static func returnsItsClassArgument(_ name: UnsafePointer<CChar>) -> Bool {
+        strcmp(name, "_objc_opt_self") == 0 || strcmp(name, "_objc_opt_class") == 0 || strcmp(name, "_swift_getInitializedObjCClass") == 0
+    }
+
+    /// `-[NSView(NSLayout) frame]` → `NSView`.
+    private static func className(ofMethodSymbol symbol: UnsafePointer<CChar>) -> String? {
+        guard symbol[0] == 0x2D || symbol[0] == 0x2B, symbol[1] == 0x5B else { return nil }
+        var length = 0
+        while symbol[2 + length] != 0, symbol[2 + length] != 0x20, symbol[2 + length] != 0x28 { length += 1 }
+        guard length > 0 else { return nil }
+        return String(decoding: UnsafeRawBufferPointer(start: symbol + 2, count: length), as: UTF8.self)
     }
 
     /// The selector a classic send passes in `x1`: loaded from this image's
@@ -314,7 +433,9 @@ struct ReferenceScanner {
     }
 
     private enum ResolvedTarget {
-        case function(CodeLocation, isRuntimeHelper: Bool, messageSendKind: MessageSendKind?)
+        /// `returnsItsClassArgument`: `objc_opt_self`, `objc_opt_class`,
+        /// `swift_getInitializedObjCClass`.
+        case function(CodeLocation, isRuntimeHelper: Bool, messageSendKind: MessageSendKind?, returnsItsClassArgument: Bool)
         /// A stub that names its selector.
         case selector(UnsafePointer<CChar>)
         case importedSymbol(UnsafePointer<CChar>)
@@ -388,14 +509,14 @@ struct ReferenceScanner {
 
     private func functionTarget(_ location: CodeLocation) -> ResolvedTarget {
         if analyzer.messageSendLocations.contains(location) {
-            return .function(location, isRuntimeHelper: false, messageSendKind: .classic)
+            return .function(location, isRuntimeHelper: false, messageSendKind: .classic, returnsItsClassArgument: false)
         }
         if analyzer.superMessageSendLocations.contains(location) {
-            return .function(location, isRuntimeHelper: false, messageSendKind: .superclass)
+            return .function(location, isRuntimeHelper: false, messageSendKind: .superclass, returnsItsClassArgument: false)
         }
         let isRuntimeHelper = analyzer.runtimeHelperLocations.contains(location)
             || (location.imageIndex == table.imageIndex && table.runtimeHelperStarts.contains(location.address))
-        return .function(location, isRuntimeHelper: isRuntimeHelper, messageSendKind: nil)
+        return .function(location, isRuntimeHelper: isRuntimeHelper, messageSendKind: nil, returnsItsClassArgument: analyzer.classReturningFunctionLocations.contains(location))
     }
 
     private func runtimeAddress(ofUnslid address: UInt64, slide: Int) -> UInt {

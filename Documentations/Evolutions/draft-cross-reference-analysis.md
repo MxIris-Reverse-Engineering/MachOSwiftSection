@@ -2,7 +2,7 @@
 
 - **状态**: In Progress
 - **创建日期**: 2026-10-16
-- **最后更新**: 2026-10-16
+- **最后更新**: 2026-10-17
 - **关联**: RuntimeViewer 的 [draft-cross-references](https://github.com/MxIris-Reverse-Engineering/RuntimeViewer/blob/feature/cross-references/Documentations/Evolutions/draft-cross-references.md)。交叉引用的整体设计、前期调研与实测数据都在那里，本提案只定本库这一层。
 
 ## 摘要
@@ -110,6 +110,18 @@ public final class CrossReferenceAnalyzer: @unchecked Sendable {
 - **验证**：`FallbackNamingTests` 5 个测试（各来源与真实符号互相印证，见模块参考）；`CrossReferenceAnalysisTests` 共 29 个、`SwiftThunkAnalysisTests` 82 个通过。
 - **第一次跑测试的教训**：导出表与实现的偏移可以是负的（缓存里落在本镜像头部之下），`UInt64(offset)` 当场崩溃；全部改成带环绕的加法。
 
+### 第二批 ②：ObjC 类的实现与验证（2026-10-17）
+
+- **落地**：新文件 `Scanning/ObjectiveCClassIndex.swift`（每个镜像按需建的类索引）；新的引用种类 `CodeReference.Kind.reference`（取类地址但不跳转的指令）；目标 `.objectiveCClass(name:location:)`；`superMessageSend` 多了 `className`；`ReceiverClassHint.classLiteral` 有了来源；表键 `CodeReferenceTable.Key.objectiveCClass`；公开 API `objectiveCClassLocations(named:inImageAt:)`、`imageIndices(referencingObjectiveCClassAt:among:)`、`imageIndices(importingAnyOf:among:)`。
+- **与设计不同之处**：
+  - super 的类不取方法名或方法表，取同一函数里从 `__objc_superrefs` 载入的类，没见到时才退回方法符号。槽里就是编译器给的类，分类方法、类方法（槽里是元类）、没有符号的方法都对，扫描也不必读方法表。这一载入本身不报成类引用。Swift 代码的 super 发送不经这个槽（类来自 `self` 的运行时类或元数据访问器），类记为空：Foundation 1,803 处里 374 处、AppKit 8,336 处里 1,133 处，其余全有类。
+  - 引用目标除了类名还带类对象的位置：全缓存 203,621 个类名里 18,906 个不止一个镜像定义，多是 `/System/iOSSupport` 下的 Mac Catalyst 变体。表键仍是类名。
+  - 类预筛不只认 `_OBJC_CLASS_$_<名字>`：抽样里别的镜像引用某个类，6,921 对中 251 对走别名（Block 的 `isa` 是 `__NSConcreteStackBlock`，XPC 类型是 `__xpc_type_dictionary`）。预筛取定义镜像的符号表与导出表里落在类或元类地址上的全部名字。
+- **实测**：AppKit 取本镜像类的地址 3,319 处、载入类 53,026 处（与探针的 3,318 / 52,668 一致），类字面量接收者 35,175 处（发送的 11%）；SwiftUI 665 处类字面量接收者里 478 处经 `objc_opt_self`。`adr` 与字面量 `ldr` 两种形态在缓存与几个缓存外的系统 App 里都没有，不解码。
+- **性能**：类索引起初经 `MachOImage.objc.classes64` 建——它对每个类都重新查一遍 load command，撞上 Swift 运行时的泛型元数据锁——加上扫描每次查类都抢分析器的锁，全缓存整表扫描从 2.0 秒变成 4.9 秒。改为直接读 `__objc_classlist` 与 `isa`、扫描器自己缓存索引、本镜像 `__TEXT` 与非类槽在查表前排除之后，与只有分支跟踪的那次提交交替跑三轮取最好：整表 2.03 → 2.40 秒（引用多 326 万条，+17%），查 `init` 的调用者 1.54 → 1.70 秒。
+- **验证**：`ObjectiveCClassReferenceTests` 7 个测试（11 个用例），其中经 `objc_opt_self` 保留 `x0`、读 `__objc_superrefs`、预筛认别名三项在去掉做法时变红过；`CrossReferenceAnalysisTests` 共 38 个、`SwiftThunkAnalysisTests` 82 个通过。
+- **没做的**：按字符串取类（`objc_getClass("…")`，AppKit 183 处）；扫描时用方法表判断无名的 ObjC 方法（见设计）；Swift 的 super 发送的类。
+
 ### 落地顺序
 
 ①起名（导出表、ObjC 方法表、Swift 元数据）；②ObjC 的类字面量、super 的类与类引用，以及汇合点的核实与修正；③Swift 类型引用、类型查询与预筛。每一步单独测试、单独提交。
@@ -127,3 +139,7 @@ public final class CrossReferenceAnalyzer: @unchecked Sendable {
 | 2026-10-16 | 补认缓存内传统发送的 selector 字符串地址；补预筛正确性测试 | RuntimeViewer 第 3 步查 `-[NSObject description]` 的调用者一条都没有，追到第一批漏认了这种形态；同时发现预筛从未被断言过「不漏」 |
 | 2026-10-17 | 第二批按实测重定：加导出表起名；名字在起名时按镜像按需读；类型键用名义类型的 mangling；类型查询先结构比对再解开 | 两个只读探针实测：导出表能给 140 万个无名起点起名而第一批没读；方法表与元数据每次扫描都读，代价与扫描本身相当；27.2 上实例化的名字在 `x1` 的记录里、类引用几乎不经 `__objc_classrefs`。用户要求「继续第二批」 |
 | 2026-10-17 | 寄存器状态沿着分支走（快照随前向分支到目标处，汇合取交集），不用「转移后一律忘掉」 | 核实了第一批的汇合点缺陷：`-[NSString stringByAppendingString:]` 的 `copyWithZone:` 接收者被错说成 `self`；简化版会丢掉早退之后正确的 `self`；完整版 release 开销约 10–20% |
+| 2026-10-17 | 类引用的目标带类对象的位置，表键仍是类名 | 全缓存 18,906 个类名不止一个镜像定义（多是 Mac Catalyst 变体），只按名字会把两个 SwiftUI 的同名类混在一起 |
+| 2026-10-17 | super 的类取 `__objc_superrefs` 的载入，退回方法符号；Swift 的不记 | 槽里就是编译器给的类，分类方法、无符号的方法都对，不必在扫描时读方法表；Swift 的类到运行时才知道 |
+| 2026-10-17 | 类预筛认定义镜像在类与元类地址上的全部符号 | 抽样 4% 的跨镜像类引用走别名（`__NSConcreteStackBlock`、`__xpc_type_dictionary`），只认 `_OBJC_CLASS_$_` 会漏 |
+| 2026-10-17 | 类索引直接读 `__objc_classlist` 与 `isa`，不经 `MachOImage.objc.classes64` | 后者让全缓存整表扫描从 2.0 秒变成 4.9 秒；直接读之后为 2.4 秒 |

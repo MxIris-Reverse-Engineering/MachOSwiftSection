@@ -2535,7 +2535,8 @@
 - **动机**：第一批只认符号表里的名字，而 macOS 27.2 缓存里一半函数起点没有符号；类型引用也还没有。动手前两个只读探针实测了起名来源、类引用与按 mangled 名字实例化在 27.2 上的真实形态，第二批据此重定（见提案「第二批的设计」）。
 - **① 起名（已落地）**：符号表之后依次取导出表、ObjC 方法表、Swift 元数据（访问器、singleton 完成函数、带 `Tq` 的虚表实现），起名时按镜像按需读，扫描不读。导出表一项就给全缓存 140 万个无名起点起了名。`CodeFunction.Name.swiftMethod` 换成 `.swiftMetadata(mangledName:)`。
 - **寄存器跟踪的汇合点（已修）**：第一批按指令顺序读，汇合处沿用最后一条路径的值（`-[NSString stringByAppendingString:]` 的 `copyWithZone:` 接收者被说成 `self`）。改为状态沿着分支走：快照随前向分支带到目标处，汇合处取交集，循环头忘掉调用方保存的寄存器。快照是 `SIMD32` 定长值，release 下整表扫描开销约 10–20%。
-- **② ObjC 类引用与 ③ Swift 类型引用**：待做。
+- **② ObjC 类引用（已落地）**：一个值是不是类对象，看它所在的镜像列没列它（直接读 `__objc_classlist` 与 `isa`）；取类地址的指令记为 `.reference` 种类的引用，目标带类对象的位置（全缓存 1.9 万个类名不止一个镜像定义，多是 Mac Catalyst 变体）。类字面量接收者经 `objc_opt_self` 也认得；super 发送的类取同一函数里 `__objc_superrefs` 的载入，分类方法、无符号的方法都对，Swift 的不记。类预筛认定义镜像在类与元类地址上的全部符号：4% 的跨镜像引用走 `__NSConcreteStackBlock` 这类别名。类索引起初经 `MachOImage.objc.classes64` 建，让整表扫描慢了一倍，改为直接读；最终整表扫描 +17%。
+- **③ Swift 类型引用**：待做。
 - **关联文档**：[draft-cross-reference-analysis](../Evolutions/draft-cross-reference-analysis.md)、[Modules/CrossReferenceAnalysis.md](Modules/CrossReferenceAnalysis.md)。
 - **对应版本**：未发版。
 

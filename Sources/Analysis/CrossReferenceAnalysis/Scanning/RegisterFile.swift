@@ -134,6 +134,22 @@ final class RegisterFile {
         contents.blendedMask &= ~Self.callerSavedMask
     }
 
+    /// What a call to a function that returns its argument leaves: the
+    /// caller-saved registers forgotten except `kept`, which still holds what
+    /// it was handed.
+    func clobberCallerSavedRegisters(keeping kept: Int) {
+        let keptContents = contents
+        clobberCallerSavedRegisters()
+        let bit: UInt32 = 1 << UInt32(kept)
+        contents.states[kept] = keptContents.states[kept]
+        contents.values[kept] = keptContents.values[kept]
+        contents.loadDisplacements[kept] = keptContents.loadDisplacements[kept]
+        contents.constants[kept] = keptContents.constants[kept]
+        contents.loadedMask = (contents.loadedMask & ~bit) | (keptContents.loadedMask & bit)
+        contents.constantMask = (contents.constantMask & ~bit) | (keptContents.constantMask & bit)
+        contents.blendedMask = (contents.blendedMask & ~bit) | (keptContents.blendedMask & bit)
+    }
+
     /// Forgets the registers an instruction the scanner does not model
     /// writes. Erring toward forgetting only loses facts; never forgetting a
     /// write would keep a stale one.

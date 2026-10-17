@@ -7,23 +7,31 @@ extension CrossReferenceAnalyzer {
     /// outside its own image. A shared cache image keeps its undefined
     /// symbols even where the cache builder bound the calls directly.
     public func imageIndices(importing symbolName: String, among candidates: some Sequence<Int>) -> [Int] {
-        symbolName.withCString { wantedName in
-            candidates.filter { imageIndex in
-                guard let symbols = images[imageIndex].symbols64 else { return false }
-                var range = 0 ..< symbols.numberOfSymbols
-                if let dynamicSymbols = images[imageIndex].loadCommands.info(of: LoadCommand.dysymtab) {
-                    let first = Int(dynamicSymbols.iundefsym)
-                    let count = Int(dynamicSymbols.nundefsym)
-                    if first + count <= symbols.numberOfSymbols { range = first ..< first + count }
-                }
-                for symbolIndex in range {
-                    let entry = symbols.symbols[symbolIndex]
-                    // An external, undefined symbol.
-                    guard entry.n_type & 0xE0 == 0, entry.n_type & 0x0E == 0, entry.n_type & 0x01 != 0 else { continue }
-                    if strcmp(symbols.stringBase.advanced(by: Int(entry.n_un.n_strx)), wantedName) == 0 { return true }
-                }
-                return false
+        imageIndices(importingAnyOf: [symbolName], among: candidates)
+    }
+
+    /// The images among `candidates` whose symbol table imports any of
+    /// `symbolNames`.
+    public func imageIndices(importingAnyOf symbolNames: [String], among candidates: some Sequence<Int>) -> [Int] {
+        guard !symbolNames.isEmpty else { return [] }
+        let wantedNames = symbolNames.map { strdup($0)! }
+        defer { wantedNames.forEach { free($0) } }
+        return candidates.filter { imageIndex in
+            guard let symbols = images[imageIndex].symbols64 else { return false }
+            var range = 0 ..< symbols.numberOfSymbols
+            if let dynamicSymbols = images[imageIndex].loadCommands.info(of: LoadCommand.dysymtab) {
+                let first = Int(dynamicSymbols.iundefsym)
+                let count = Int(dynamicSymbols.nundefsym)
+                if first + count <= symbols.numberOfSymbols { range = first ..< first + count }
             }
+            for symbolIndex in range {
+                let entry = symbols.symbols[symbolIndex]
+                // An external, undefined symbol.
+                guard entry.n_type & 0xE0 == 0, entry.n_type & 0x0E == 0, entry.n_type & 0x01 != 0 else { continue }
+                let name = symbols.stringBase.advanced(by: Int(entry.n_un.n_strx))
+                for wantedName in wantedNames where strcmp(name, wantedName) == 0 { return true }
+            }
+            return false
         }
     }
 
@@ -53,5 +61,49 @@ extension CrossReferenceAnalyzer {
                 return false
             }
         }
+    }
+}
+
+extension CrossReferenceAnalyzer {
+    /// Where the image at `imageIndex` defines a class named `name`: one
+    /// location, or none. The first query on an image reads the names of all
+    /// its classes.
+    public func objectiveCClassLocations(named name: String, inImageAt imageIndex: Int) -> [CodeLocation] {
+        objectiveCClassIndex(ofImageAt: imageIndex).classLocations(named: name)
+    }
+
+    /// The images among `candidates` that can reference the Objective-C class
+    /// at `classLocation`: the image defining it, and the images importing a
+    /// symbol that names the class or its metaclass.
+    ///
+    /// Most images reach another image's class as `_OBJC_CLASS_$_<name>`, but
+    /// not all: a block literal's `isa` is `__NSConcreteStackBlock`, an XPC
+    /// type is `__xpc_type_dictionary`. So every symbol the defining image
+    /// has at either address counts.
+    public func imageIndices(referencingObjectiveCClassAt classLocation: CodeLocation, among candidates: some Sequence<Int>) -> [Int] {
+        let definer = classLocation.imageIndex
+        let image = images[definer]
+        let objectAddresses = Set(objectiveCClassIndex(ofImageAt: definer).objectAddresses(ofClassAt: classLocation))
+        var names = Set<String>()
+        if let symbols = image.symbols64 {
+            for symbolIndex in 0 ..< symbols.numberOfSymbols {
+                let entry = symbols.symbols[symbolIndex]
+                // A symbol defined in a section of this image.
+                guard entry.n_type & 0xE0 == 0, entry.n_type & 0x0E == 0x0E, objectAddresses.contains(entry.n_value) else { continue }
+                names.insert(String(cString: symbols.stringBase.advanced(by: Int(entry.n_un.n_strx))))
+            }
+        }
+        if let headerAddress = image.segments64.first(where: { $0.segmentName == "__TEXT" }).map({ UInt64($0.layout.vmaddr) }) {
+            for symbol in image.exportedSymbols {
+                guard let offset = symbol.offset,
+                      objectAddresses.contains(UInt64(bitPattern: Int64(bitPattern: headerAddress) &+ Int64(offset)))
+                else { continue }
+                names.insert(symbol.name)
+            }
+        }
+        let candidates = Array(candidates)
+        var result = Set(imageIndices(importingAnyOf: names.sorted(), among: candidates))
+        if candidates.contains(definer) { result.insert(definer) }
+        return result.sorted()
     }
 }

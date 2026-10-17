@@ -47,14 +47,22 @@ public enum CodeReferenceTarget: Hashable, Sendable {
     case importedSymbol(name: String)
     /// An Objective-C message send whose selector is known.
     case messageSend(selector: String, receiver: ReceiverClassHint)
-    /// A send through `objc_msgSendSuper2` whose selector is known.
-    case superMessageSend(selector: String)
+    /// A send through `objc_msgSendSuper2` whose selector is known, and the
+    /// class the lookup starts above: the one the sending method loads from
+    /// `__objc_superrefs`, or the class its symbol names. `nil` for Swift
+    /// code, which builds its `objc_super` from a class known only at run
+    /// time.
+    case superMessageSend(selector: String, className: String?)
     /// A call to a Swift type metadata accessor (`$s…Ma`).
     case typeMetadataAccessor(symbolName: String)
     /// A type instantiated from its mangled name.
     case mangledTypeName(String)
-    /// An Objective-C class reference.
-    case objectiveCClass(name: String)
+    /// An Objective-C class reference: the class's runtime name (`NSWindow`,
+    /// `_TtC7SwiftUI20FilePresenterWrapper`) and where the class object lies.
+    /// A name alone can be ambiguous — a shared cache carries the macOS and the
+    /// Mac Catalyst variant of a framework, and both define its classes. A
+    /// reference to a metaclass is reported as one to its class.
+    case objectiveCClass(name: String, location: CodeLocation)
     case indirect(IndirectCallEvidence)
     /// Code that lies in no image and in no recognized trampoline — or data
     /// in `__text` that decoded as a branch.
@@ -67,6 +75,10 @@ public struct CodeReference: Hashable, Sendable {
         case call
         /// A branch out of the function that does not return to it.
         case tailCall
+        /// An instruction that takes a class's address without branching: a
+        /// load from a GOT slot or class reference, or `adrp` / `add` of the
+        /// class object itself.
+        case reference
     }
 
     /// The first instruction of the function the referencing instruction

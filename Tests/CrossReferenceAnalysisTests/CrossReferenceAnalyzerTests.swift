@@ -291,7 +291,7 @@ struct CrossReferenceAnalyzerTests {
 }
 
 /// Image indices gathered from concurrent scans.
-private final class ImageIndexCollector: @unchecked Sendable {
+final class ImageIndexCollector: @unchecked Sendable {
     private let lock = NSLock()
     private var collected = Set<Int>()
 

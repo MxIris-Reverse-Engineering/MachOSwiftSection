@@ -115,14 +115,14 @@ final class ImageFallbackNames: @unchecked Sendable {
         }
 
         for classObject in image.objc.classes64 ?? [] {
-            guard let readOnlyData = Self.readOnlyData(of: classObject, in: image),
+            guard let readOnlyData = ObjectiveCClassIndex.readOnlyData(of: classObject, in: image),
                   let className = readOnlyData.name(in: image)
             else { continue }
             for (listImage, methodList) in ownLists(of: readOnlyData, in: image) {
                 record(methodList, in: listImage, className: className, isClassMethod: false)
             }
             if let (metaImage, metaClass) = classObject.metaClass(in: image),
-               let metaReadOnlyData = Self.readOnlyData(of: metaClass, in: metaImage) {
+               let metaReadOnlyData = ObjectiveCClassIndex.readOnlyData(of: metaClass, in: metaImage) {
                 for (listImage, methodList) in ownLists(of: metaReadOnlyData, in: metaImage) {
                     record(methodList, in: listImage, className: className, isClassMethod: true)
                 }
@@ -139,16 +139,6 @@ final class ImageFallbackNames: @unchecked Sendable {
         }
         objectiveCMethodsStorage = methods
         return methods
-    }
-
-    /// A class's read-only data, through its read-write data once the runtime
-    /// has realized it — as for every class an image loaded in this process
-    /// has used.
-    private static func readOnlyData(of classObject: ObjCClass64, in image: MachOImage) -> ObjCClassROData64? {
-        if let readOnlyData = classObject.classROData(in: image) { return readOnlyData }
-        guard let readWriteData = classObject.classRWData(in: image) else { return nil }
-        if let readOnlyData = readWriteData.classROData(in: image) { return readOnlyData }
-        return readWriteData.ext(in: image)?.classROData(in: image)
     }
 
     // MARK: - Swift

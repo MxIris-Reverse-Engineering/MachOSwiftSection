@@ -24,14 +24,17 @@ public final class CrossReferenceAnalyzer: @unchecked Sendable {
     /// Each image's path, by position in ``images``.
     public let imagePaths: [String]
 
-    struct TextRange {
+    struct ImageAddressRange {
         let start: UInt
         let end: UInt
         let imageIndex: Int
     }
 
     /// Each image's `__TEXT` segment in memory, sorted by start.
-    let textRanges: [TextRange]
+    let textRanges: [ImageAddressRange]
+    /// Each image's other segments in memory but `__LINKEDIT`, sorted by start:
+    /// where its class objects and its GOT slots lie.
+    let dataRanges: [ImageAddressRange]
     /// The memory the shared cache maps executable — its images' code, and
     /// the stubs and islands the cache builder put between them.
     let executableRanges: [Range<UInt>]
@@ -45,10 +48,14 @@ public final class CrossReferenceAnalyzer: @unchecked Sendable {
     /// The runtime libraries' helper functions; helpers the compiler emits
     /// into each image are in that image's function table.
     let runtimeHelperLocations: Set<CodeLocation>
+    /// `objc_opt_self`, `objc_opt_class` and `swift_getInitializedObjCClass`:
+    /// each returns the class it was handed, so `x0` keeps naming it.
+    let classReturningFunctionLocations: Set<CodeLocation>
 
     private let indicesByPath: [String: Int]
     private let lock = NSLock()
     private var functionTables: [Int: ImageFunctionTable] = [:]
+    private var classIndexes: [Int: ObjectiveCClassIndex] = [:]
 
     /// The analyzer for the current process, or `nil` when it does not run
     /// arm64 code.
@@ -84,14 +91,19 @@ public final class CrossReferenceAnalyzer: @unchecked Sendable {
 
         var imagePaths: [String] = []
         var indicesByPath: [String: Int] = [:]
-        var textRanges: [TextRange] = []
+        var textRanges: [ImageAddressRange] = []
+        var dataRanges: [ImageAddressRange] = []
         for (imageIndex, image) in images.enumerated() {
             let path = image.path ?? ""
             imagePaths.append(path)
             if indicesByPath[path] == nil { indicesByPath[path] = imageIndex }
             guard let slide = image.vmaddrSlide, let text = image.segments64.first(where: { $0.segmentName == "__TEXT" }) else { continue }
             let start = UInt(bitPattern: Int(bitPattern: UInt(text.layout.vmaddr)) &+ slide)
-            textRanges.append(TextRange(start: start, end: start + UInt(text.layout.vmsize), imageIndex: imageIndex))
+            textRanges.append(ImageAddressRange(start: start, end: start + UInt(text.layout.vmsize), imageIndex: imageIndex))
+            for segment in image.segments64 where segment.layout.vmsize > 0 && !["__TEXT", "__LINKEDIT", "__PAGEZERO"].contains(segment.segmentName) {
+                let segmentStart = UInt(bitPattern: Int(bitPattern: UInt(segment.layout.vmaddr)) &+ slide)
+                dataRanges.append(ImageAddressRange(start: segmentStart, end: segmentStart + UInt(segment.layout.vmsize), imageIndex: imageIndex))
+            }
             if !image.header.isInDyldCache {
                 executableRanges.append(start ..< start + UInt(text.layout.vmsize))
                 for segment in image.segments64 where segment.layout.vmsize > 0 && segment.segmentName != "__PAGEZERO" {
@@ -101,11 +113,13 @@ public final class CrossReferenceAnalyzer: @unchecked Sendable {
             }
         }
         textRanges.sort { $0.start < $1.start }
+        dataRanges.sort { $0.start < $1.start }
 
         self.images = images
         self.imagePaths = imagePaths
         self.indicesByPath = indicesByPath
         self.textRanges = textRanges
+        self.dataRanges = dataRanges
         self.executableRanges = executableRanges
         self.mappedRanges = mappedRanges
 
@@ -113,12 +127,15 @@ public final class CrossReferenceAnalyzer: @unchecked Sendable {
         var messageSendLocations = Set<CodeLocation>()
         var superMessageSendLocations = Set<CodeLocation>()
         var runtimeHelperLocations = Set<CodeLocation>()
+        var classReturningFunctionLocations = Set<CodeLocation>()
         for (imageIndex, path) in imagePaths.enumerated() where Self.isRuntimeLibrary(path) {
             func classify(_ name: UnsafePointer<CChar>, at location: CodeLocation) {
                 if strcmp(name, "_objc_msgSend") == 0 {
                     messageSendLocations.insert(location)
                 } else if strcmp(name, "_objc_msgSendSuper2") == 0 {
                     superMessageSendLocations.insert(location)
+                } else if strcmp(name, "_objc_opt_self") == 0 || strcmp(name, "_objc_opt_class") == 0 || strcmp(name, "_swift_getInitializedObjCClass") == 0 {
+                    classReturningFunctionLocations.insert(location)
                 } else if RuntimeHelperNames.isRuntimeHelper(name) {
                     runtimeHelperLocations.insert(location)
                 }
@@ -141,6 +158,7 @@ public final class CrossReferenceAnalyzer: @unchecked Sendable {
         self.messageSendLocations = messageSendLocations
         self.superMessageSendLocations = superMessageSendLocations
         self.runtimeHelperLocations = runtimeHelperLocations
+        self.classReturningFunctionLocations = classReturningFunctionLocations
         #else
         return nil
         #endif
@@ -293,6 +311,45 @@ public final class CrossReferenceAnalyzer: @unchecked Sendable {
         guard lower > 0 else { return nil }
         let candidate = textRanges[lower - 1]
         return address < candidate.end ? candidate.imageIndex : nil
+    }
+
+    /// The image whose segments other than `__TEXT` hold the runtime
+    /// `address`.
+    func imageIndex(containingDataAddress address: UInt) -> Int? {
+        var lower = 0
+        var upper = dataRanges.count
+        while lower < upper {
+            let middle = (lower + upper) / 2
+            if dataRanges[middle].start <= address { lower = middle + 1 } else { upper = middle }
+        }
+        guard lower > 0 else { return nil }
+        let candidate = dataRanges[lower - 1]
+        return address < candidate.end ? candidate.imageIndex : nil
+    }
+
+    /// The class object at the runtime `address`, when an image lists one
+    /// there; a metaclass is reported as its class.
+    func objectiveCClass(atRuntimeAddress address: UInt) -> ObjectiveCClassObject? {
+        guard let imageIndex = imageIndex(containingDataAddress: address) else { return nil }
+        return objectiveCClassIndex(ofImageAt: imageIndex).classObject(atRuntimeAddress: address)
+    }
+
+    /// The image's class index, built on first use and then kept for the
+    /// analyzer's lifetime: a scan meets the same few hundred classes again
+    /// and again.
+    func objectiveCClassIndex(ofImageAt imageIndex: Int) -> ObjectiveCClassIndex {
+        lock.lock()
+        if let index = classIndexes[imageIndex] {
+            lock.unlock()
+            return index
+        }
+        lock.unlock()
+        let index = ObjectiveCClassIndex(image: images[imageIndex], imageIndex: imageIndex)
+        lock.lock()
+        defer { lock.unlock() }
+        if let stored = classIndexes[imageIndex] { return stored }
+        classIndexes[imageIndex] = index
+        return index
     }
 
     /// Whether `length` bytes at the runtime `address` are mapped executable.
