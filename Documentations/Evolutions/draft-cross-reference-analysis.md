@@ -2,7 +2,7 @@
 
 - **状态**: In Progress
 - **创建日期**: 2026-10-16
-- **最后更新**: 2026-10-17
+- **最后更新**: 2026-10-18
 - **关联**: RuntimeViewer 的 [draft-cross-references](https://github.com/MxIris-Reverse-Engineering/RuntimeViewer/blob/feature/cross-references/Documentations/Evolutions/draft-cross-references.md)。交叉引用的整体设计、前期调研与实测数据都在那里，本提案只定本库这一层。
 
 ## 摘要
@@ -177,3 +177,4 @@ public final class CrossReferenceAnalyzer: @unchecked Sendable {
 | 2026-10-17 | 缓存外镜像的路径取 `dladdr` 按镜像头读到的加载路径，安装名另建一张表 | 宿主拿到的是加载路径；加载命令按安装名链接；按头读不按序号，中途有镜像加载或卸载也不会错位 |
 | 2026-10-17 | 循环头与跳转表落点保留 `x19`–`x28`（审查 A5）不修，作为已知局限 | 精确做法多花 35%–60% 的扫描时间，换 0.02%–0.04% 的引用；循环头全部作废会丢约 3.9 万条正确的事实。用户看过数据后选定，登记 ReviewAdjudications A68 |
 | 2026-10-17 | Swift 类型的预筛先看定义镜像导不导出它的符号（`…Mn` / `…Ma` / `…N`），一个都不导出就只扫定义镜像 | 用户在 RuntimeViewer 里查 AppKit 内部结构体的类型引用，扫了几乎整个缓存、CPU 占满；内部类型别的镜像绑定不到、也拼不出名字。公开类型三个符号都导出（`URL`、`SwiftUI.Text`、`JSONEncoder` 已核对），原有「不漏引用」的测试照样通过 |
+| 2026-10-18 | 新增 `CodeReferenceIndex`（`referenceIndex(ofImageAt:)`、`references(toSwiftType:in:)`、`keepFunctionTable(ofImageAt:)`）：按目标分组、名字只存一份、偏移存 32 位，只留查调用者与类型引用会读的引用 | RuntimeViewer 要为已索引的镜像预先建好引用表常驻内存（用户选「紧凑表」「只放内存」）。整表一条引用约 80 字节，AppKit 67 MiB；索引 21 MiB。回答与过滤扫描逐条相同（`CodeReferenceIndexTests`）。建索引留住函数表，因为宿主会反复给结果起名；这与「整镜像扫描不留函数表」不冲突——索引只为宿主要留的少数镜像建 |

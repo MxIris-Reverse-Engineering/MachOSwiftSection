@@ -64,6 +64,15 @@ extension CrossReferenceAnalyzer {
         return references
     }
 
+    /// What ``references(toSwiftType:inImageAt:)`` finds, read from the
+    /// image's index instead of scanned: the type's descriptor, metadata and
+    /// class object are compared as the scan compares them, and the names
+    /// the index keeps are taken apart only as far as the scan would.
+    public func references(toSwiftType identity: SwiftTypeIdentity, in index: CodeReferenceIndex) -> [CodeReference] {
+        let query = SwiftTypeQuery(identity: identity, analyzer: self)
+        return index.references(toTypesMatching: { query.matches($0) }, objectiveCClassName: identity.objectiveCClassName)
+    }
+
     /// The images among `candidates` that can reference the type: its own
     /// image; when that image exports the type, the images that can bind to
     /// it — few cache images keep a Swift symbol among their undefined ones,

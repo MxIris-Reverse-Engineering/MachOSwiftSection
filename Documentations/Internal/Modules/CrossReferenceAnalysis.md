@@ -16,7 +16,7 @@
 | 3b. 类索引 | `Scanning/ObjectiveCClassIndex` | 一个镜像定义的类与元类，按地址；直接读 `__objc_classlist` 与各类的 `isa`。扫描时按需建、分析器记住；类名只在报出引用时读 |
 | 3c. 类型索引 | `Scanning/SwiftTypeIndex` | 一个镜像 `__swift5_types` 列出的描述符与各自的元数据访问器；类型的 key 按需算，优先取 `…Mn` 符号 |
 | 4. 扫描 | `Scanning/ReferenceScanner`、`Scanning/RegisterFile`、`Scanning/RuntimeHelperNames` | 逐条解码、跟踪寄存器、解析调用目标 |
-| 5. 结果 | `Models/*` | `CodeLocation`、`CodeFunction`、`CodeReference`、`CodeReferenceTarget`、按目标分组的 `CodeReferenceTable` |
+| 5. 结果 | `Models/*` | `CodeLocation`、`CodeFunction`、`CodeReference`、`CodeReferenceTarget`、按目标分组的 `CodeReferenceTable`，以及给宿主常驻用的紧凑版 `CodeReferenceIndex` |
 | 6. 预筛与过滤 | `CrossReferenceAnalyzer+Prefiltering`、`CrossReferenceAnalyzer+Linkage`、`Scanning/RenamedReexportIndex`、`references(to:inImageAt:)` | 按未定义符号（只对 C 与 ObjC 符号，连同别的镜像改名再导出的名字）、链接关系（Swift 符号）、`__objc_selrefs`、类对象上的符号筛出可能引用某个符号、selector 或类的镜像；扫描时只留命中的引用 |
 | 7. 类型查询 | `CrossReferenceAnalyzer+SwiftTypes` | Swift 类型的身份、预筛与按类型的扫描；`SwiftTypeQuery` 比对描述符位置与名字里的符号引用 |
 
@@ -133,6 +133,8 @@ Swift 符号改按链接关系预筛（`imageIndices(linkingImageAt:among:)`，`
 
 `CodeReferenceTable` 是值，宿主想留多久就留多久，按 `approximateByteCount` 计预算（不含字符串的堆存储；同一次扫描里重复的名字共用一份）。大镜像的整表很大（GeoServices 约 121 MiB，全缓存合计约 9 GB），28 个线程同时建整表时峰值约 1.5 GB，分配器之后还留着 1.2 GB 脏页不还。**查调用者用 `references(to:inImageAt:)`**：扫描时只留命中的引用，同样扫完全缓存后常驻约 170 MB（4 线程约 106 MB）。
 
+**要为少数几个镜像常驻、反复查，用 `CodeReferenceIndex`**（`referenceIndex(ofImageAt:)`，2026-10-18 为 RuntimeViewer 的预先准备新增）。它按目标分组存放：选择子、导入名、类名每个只存一份，引用所在的函数与指令存成相对 `__text` 起点的 32 位偏移（一条 16 字节），只留查调用者与查类型引用会读的引用，间接调用与落在镜像外的跳转不留。macOS 27.2 实测（`approximateByteCount`，含名字的堆存储）：AppKit 21 MiB（整表 67 MiB，87.5 万条引用里留 85.6 万条），Foundation 9 MiB（34），SwiftUICore 9 MiB（35），libswiftCore 1 MiB（7）。`index.references(to:)` 与 `references(toSwiftType:in:)` 回答的和过滤扫描完全相同，顺序也相同（按指令地址，同一条指令的调用排在它顺带的类型引用前面）。建索引会**留住**镜像的函数表——给结果起名要用；分析器被换掉后，索引照样能读（它不持有分析器），宿主用 `keepFunctionTable(ofImageAt:)` 让新分析器重新留住。`referenceIndex(ofImageAt:reportingProgress:)` 每扫 2,048 个函数报一次进度，回答「停」就不建了。Debug 构建建 AppKit 的索引约 6 秒。
+
 分析器是一个快照：之后才加载的镜像需要新的分析器。
 
 ## 吞吐（macOS 27.2，28 核的 Mac Studio）
@@ -160,3 +162,4 @@ Swift 符号改按链接关系预筛（`imageIndices(linkingImageAt:among:)`，`
 - `RenamedReexportTests`：AppKit 按 `_strlen`、`_CGSMainConnectionID` 调用 `__platform_strlen`、`_SLSMainConnectionID`，CharacterPicker 按 `NSEmojiImageAsset` 引用 CoreText 的类，三者的预筛都留住了它们；别名经伞形框架的那一种（`_xkMDConfigErase`）。
 - `TypeNameRetentionTests`：类型查询解开的访问器符号、mangled 名字与描述符符号都不留在全局 `NodeCache` 与进程级 demangle 记忆里（用每次随机的名字，与并行跑的测试互不干扰）。
 - `LazyBindingTests`：现编一个懒绑定的 dylib，见上文「缓存外镜像的 GOT 槽」。
+- `CodeReferenceIndexTests`：Foundation 整表的每一个键，索引给出的引用与整表逐条相同、顺序相同，条数等于整表里有键的加上 Swift 类型名；AppKit 里一次查几个键（selector、libswiftCore 的函数、`NSWindow`）与过滤扫描逐条相同；Foundation 里 `URL`、`JSONEncoder`（类，经类对象）与标准库的 `Sa`（名字里拼出来，要解开）从索引查与按类型扫描逐条相同；索引不到整表的一半大；建索引留住函数表；进度从 0 报到函数总数，回答「停」就不建。

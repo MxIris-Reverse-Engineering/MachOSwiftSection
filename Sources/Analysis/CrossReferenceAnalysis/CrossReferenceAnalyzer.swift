@@ -291,6 +291,62 @@ public final class CrossReferenceAnalyzer: @unchecked Sendable {
         return CodeReferenceTable(imageIndex: imageIndex, references: references)
     }
 
+    /// Scans every function of the image once and files what a query for
+    /// callers or for a type's references reads in a ``CodeReferenceIndex``:
+    /// a quarter to a third of the memory of a ``CodeReferenceTable`` —
+    /// AppKit's is 21 MiB against 67 MiB on macOS 27.2 — so a host can keep
+    /// one for each image it has open and answer later queries without
+    /// scanning again.
+    ///
+    /// Keeps the image's function table, which naming what the index answers
+    /// needs: build indexes for the images a host means to keep, not for
+    /// every image a cross-image query touches.
+    public func referenceIndex(ofImageAt imageIndex: Int) -> CodeReferenceIndex {
+        // Never stopped: the progress closure is absent.
+        referenceIndex(ofImageAt: imageIndex, reportingProgress: nil)!
+    }
+
+    /// ``referenceIndex(ofImageAt:)``, telling `reportProgress` how many of
+    /// the image's functions are scanned every so often, the last time when
+    /// all are; it returns whether to go on, and the index is `nil` when it
+    /// said not to.
+    public func referenceIndex(
+        ofImageAt imageIndex: Int,
+        reportingProgress reportProgress: ((_ scannedFunctionCount: Int, _ functionCount: Int) -> Bool)?
+    ) -> CodeReferenceIndex? {
+        let table = functionTable(ofImageAt: imageIndex)
+        var scanner = ReferenceScanner(analyzer: self, table: table)
+        var builder = CodeReferenceIndex.Builder(imageIndex: imageIndex, codeStart: table.textStart)
+        var functionReferences: [CodeReference] = []
+        let functionCount = table.starts.count
+        for index in table.starts.indices {
+            if let reportProgress, index % Self.referenceIndexProgressStride == 0, !reportProgress(index, functionCount) {
+                return nil
+            }
+            functionReferences.removeAll(keepingCapacity: true)
+            scanner.scanFunction(at: index, into: &functionReferences)
+            for reference in functionReferences {
+                builder.add(reference)
+            }
+        }
+        if let reportProgress, !reportProgress(functionCount, functionCount) {
+            return nil
+        }
+        return builder.index()
+    }
+
+    /// How many functions an index's scan gets through between progress
+    /// reports: a few dozen reports for a large image.
+    static let referenceIndexProgressStride = 2048
+
+    /// Builds the image's function table now, unless the analyzer holds it,
+    /// and keeps it for the analyzer's lifetime — for a host about to name the
+    /// functions a ``CodeReferenceIndex`` answers with, again and again, with
+    /// an analyzer other than the one that built the index.
+    public func keepFunctionTable(ofImageAt imageIndex: Int) {
+        _ = functionTable(ofImageAt: imageIndex)
+    }
+
     /// The references the image's functions make to any of `keys`, in table
     /// order — what a query for callers needs, without the image's whole
     /// table.
