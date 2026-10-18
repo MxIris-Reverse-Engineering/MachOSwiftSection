@@ -130,15 +130,103 @@ final class SwiftTypeIndex: @unchecked Sendable {
         return symbols
     }
 
-    /// Where the types whose key is `key` lie; builds every type's key once.
+    /// Where the types whose key is `key` lie. Only the types whose
+    /// descriptors give them the name the key ends in — `Text` for
+    /// `7SwiftUI4TextV` — have their keys built and compared: building every
+    /// type's key, a demangle each, took AppKit's first lookup 0.7 s in a
+    /// debug build. A key whose name cannot be read is compared with every
+    /// type's.
     func descriptorLocations(withKey key: String) -> [CodeLocation] {
-        descriptorsByRuntimeAddress.keys.compactMap { address in
+        var candidates = Array(descriptorsByRuntimeAddress.keys)
+        if let typeName = Self.typeName(inKey: key) {
+            candidates = typeName.withCString { wantedName in
+                candidates.filter { Self.descriptor(at: $0, isNamed: wantedName) }
+            }
+        }
+        return candidates.compactMap { address in
             self.key(ofDescriptorAt: address) == key ? location(ofRuntimeAddress: address) : nil
         }
     }
 
-    /// The name a descriptor gives its type, `Text` — the last component of
-    /// the key, read without demangling.
+    /// Whether the descriptor at the runtime `address` gives its type the
+    /// name `wantedName`: the name it is declared with, or — for a type
+    /// imported from C or Objective-C under another Swift name — the name it
+    /// has there, which a key spells and the descriptor's import info keeps
+    /// after the name: `ResponseDisposition`, then
+    /// `NNSURLSessionResponseDisposition`.
+    static func descriptor(at address: UInt, isNamed wantedName: UnsafePointer<CChar>) -> Bool {
+        guard let name = name(ofDescriptorAt: address) else { return false }
+        if strcmp(name, wantedName) == 0 { return true }
+        guard hasImportInfo(descriptorAt: address) else { return false }
+        // Null-terminated strings, each starting with a tag, until an empty one.
+        var component = name + strlen(name) + 1
+        while component[0] != 0 {
+            if component[0] == 0x4E /* N: the ABI name */, strcmp(component + 1, wantedName) == 0 { return true }
+            component += strlen(component) + 1
+        }
+        return false
+    }
+
+    /// `TypeContextDescriptorFlags::HasImportInfo`: the third of the
+    /// kind-specific flags, the upper half of the descriptor's first word.
+    private static func hasImportInfo(descriptorAt address: UInt) -> Bool {
+        guard let descriptor = UnsafeRawPointer(bitPattern: address) else { return false }
+        return descriptor.loadUnaligned(as: UInt32.self) & (1 << 18) != 0
+    }
+
+    /// The name the key's type is declared with — `Text` for
+    /// `7SwiftUI4TextV`, `Storage` for a private or a local `Storage` — which
+    /// is the name its descriptor gives it. Demangled for this call alone.
+    static func typeName(inKey key: String) -> String? {
+        // Global › TypeMetadata › Type › the nominal type: context, name.
+        guard let node = try? demangleAsNodeTransient("$s" + key + "N"),
+              let nominal = node.children.first?.children.first?.children.first,
+              nominal.children.count >= 2
+        else { return nil }
+        let nameNode = nominal.children[1]
+        switch nameNode.kind {
+        case .identifier:
+            return nameNode.text
+        case .privateDeclName, .localDeclName:
+            return nameNode.children.last?.text
+        default:
+            return nil
+        }
+    }
+
+    /// Reads the descriptors' symbols now, which the first key built would.
+    func readDescriptorSymbols() {
+        _ = descriptorSymbols()
+    }
+
+    /// Where every type's descriptor lies; for tests.
+    var descriptorAddresses: [UInt] {
+        Array(descriptorsByRuntimeAddress.keys)
+    }
+
+    /// Whether the descriptors' symbols have been read, and how many keys
+    /// are built; for tests.
+    var builtState: (hasReadDescriptorSymbols: Bool, keyCount: Int, typeCount: Int) {
+        lock.lock()
+        defer { lock.unlock() }
+        return (descriptorSymbolsStorage != nil, keysByDescriptor.count, descriptorsByRuntimeAddress.count)
+    }
+
+    /// The memory the index takes, with the symbols read and the keys built;
+    /// see `ApproximateSize`.
+    var approximateByteCount: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        var byteCount = ApproximateSize.of(descriptorsByRuntimeAddress) + ApproximateSize.of(descriptorsByAccessor) + ApproximateSize.of(keysByDescriptor)
+        byteCount = keysByDescriptor.values.reduce(byteCount) { $0 + ($1.map(ApproximateSize.of) ?? 0) }
+        if let descriptorSymbolsStorage {
+            byteCount = descriptorSymbolsStorage.values.reduce(byteCount + ApproximateSize.of(descriptorSymbolsStorage)) { $0 + ApproximateSize.of($1) }
+        }
+        return byteCount
+    }
+
+    /// The name a descriptor gives its type, `Text` — for a type declared in
+    /// Swift, the last component of its key — read without demangling.
     static func name(ofDescriptorAt address: UInt) -> UnsafePointer<CChar>? {
         guard let field = UnsafeRawPointer(bitPattern: address &+ 8) else { return nil }
         let relative = field.loadUnaligned(as: Int32.self)

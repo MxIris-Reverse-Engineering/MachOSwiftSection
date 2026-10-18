@@ -151,6 +151,24 @@ public final class CrossReferenceAnalyzer: @unchecked Sendable {
 
 循环头与跳转表落点保留 `x19`–`x28`（审查 A5）量过数据：现行做法错 0.02%–0.04% 的引用，精确修法多花 35%–60% 的扫描时间；用户看过数据后定为保持现状，作为已知局限（ReviewAdjudications A68）。
 
+### 为宿主预读第一次查询要读的东西（2026-10-18）
+
+RuntimeViewer 在后台为已索引的镜像建好 `CodeReferenceIndex` 之后，用户发现第一次显示还要等一下，之后才秒出。量下来，第一次查询还要现读几样只读一次的东西（Debug 构建，28 核）：
+
+| 现读的 | 何时 | 用时 | 留下的 |
+|---|---|---|---|
+| 补充名字的三个来源 | 第一次给某镜像的函数起名 | AppKit 0.29 s | 12 MiB |
+| 每个类型的 key | 第一次按 key 找某镜像里没有符号的类型 | AppKit 0.69 s、SwiftUICore 0.44 s | 3.3 MiB |
+| 整个导出表的名字集合 | 第一次判断某镜像导出了某类型没有 | SwiftUICore 0.09 s | 6 MiB |
+| 改名再导出表 | 第一次跨全部已索引镜像预筛 | 3.4 s，占满 28 核 | 1 MiB |
+| 链接关系 | 同上 | 0.06 s | 1 MiB |
+
+做法分两类：
+- **能不读的不读**：按 key 找类型只给描述符名字相同的类型算 key（约 1 毫秒；从 C / ObjC 导入、在 Swift 里改了名的类型，C 名在描述符的导入信息里，也要比）；判断导出与否在导出表里按名字查三个符号，不再读整张表、也不留集合。两处都对 Foundation 与 AppKit 的全部类型核对过结果不变。
+- **必须读的让宿主提前读**：`prepareNames(inImageAt:)` 读好一个镜像的三个来源、类名与类型符号；`preparePrefilters()` 读好链接关系与改名再导出表，只用调用线程（单线程 3.9 秒，并行 3.4 秒，并行几乎不快，后台不该占满所有核），读的时候来了要用它的查询等它读完而不是再读一遍。宿主拿 `approximateByteCount(ofImageDataAt:)` 把留下的计入自己的预算，用 `releaseImageData(exceptForImagesAt:)` 放掉别的镜像的、留住预读过的——换分析器会把预读的一起扔掉。
+
+验证：`PreparedImageDataTests` 5 个，`SwiftTypeReferenceTests` 新增 4 个（两个测试各跑 Foundation 与 AppKit）。
+
 ## 决策日志
 
 | 日期 | 决定 | 理由 |
@@ -178,3 +196,4 @@ public final class CrossReferenceAnalyzer: @unchecked Sendable {
 | 2026-10-17 | 循环头与跳转表落点保留 `x19`–`x28`（审查 A5）不修，作为已知局限 | 精确做法多花 35%–60% 的扫描时间，换 0.02%–0.04% 的引用；循环头全部作废会丢约 3.9 万条正确的事实。用户看过数据后选定，登记 ReviewAdjudications A68 |
 | 2026-10-17 | Swift 类型的预筛先看定义镜像导不导出它的符号（`…Mn` / `…Ma` / `…N`），一个都不导出就只扫定义镜像 | 用户在 RuntimeViewer 里查 AppKit 内部结构体的类型引用，扫了几乎整个缓存、CPU 占满；内部类型别的镜像绑定不到、也拼不出名字。公开类型三个符号都导出（`URL`、`SwiftUI.Text`、`JSONEncoder` 已核对），原有「不漏引用」的测试照样通过 |
 | 2026-10-18 | 新增 `CodeReferenceIndex`（`referenceIndex(ofImageAt:)`、`references(toSwiftType:in:)`、`keepFunctionTable(ofImageAt:)`）：按目标分组、名字只存一份、偏移存 32 位，只留查调用者与类型引用会读的引用 | RuntimeViewer 要为已索引的镜像预先建好引用表常驻内存（用户选「紧凑表」「只放内存」）。整表一条引用约 80 字节，AppKit 67 MiB；索引 21 MiB。回答与过滤扫描逐条相同（`CodeReferenceIndexTests`）。建索引留住函数表，因为宿主会反复给结果起名；这与「整镜像扫描不留函数表」不冲突——索引只为宿主要留的少数镜像建 |
+| 2026-10-18 | 新增 `prepareNames(inImageAt:)`、`preparePrefilters()`、`approximateByteCount(ofImageDataAt:)`、`releaseImageData(exceptForImagesAt:)`；按 key 找类型只算同名类型的 key；判断类型导出与否改为在导出表里按名字查 | 用户在 RuntimeViewer 里发现预先建好引用表之后第一次显示仍要等，批准把起名数据与预筛表挪进后台（刚启动、表还没建完时要等，用户认为本该如此）。实测第一次查询现读的几样里，能免的（全部类型的 key、整个导出表）改成不读，免不了的（补充名字、预筛表）交给宿主提前读；预筛表并行读几乎不快，所以预读只用调用线程，以免后台占满所有核。预读的东西计入宿主预算，宿主放掉别的镜像而不是换分析器，否则预读白做 |

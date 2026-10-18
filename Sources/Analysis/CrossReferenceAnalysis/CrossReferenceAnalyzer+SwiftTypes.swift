@@ -30,9 +30,9 @@ extension CrossReferenceAnalyzer {
 
     /// Where the image at `imageIndex` defines a type whose key is `key`. The
     /// type's `…Mn` symbol is looked for first, and settles it: one location.
-    /// Only when no symbol names the type is every type's key built, and
-    /// every descriptor with that key returned, in no particular order — one
-    /// in the images seen so far.
+    /// Only when no symbol names the type are the keys of the types its
+    /// descriptors name alike built, and every descriptor with that key
+    /// returned, in no particular order — one in the images seen so far.
     public func swiftTypeDescriptorLocations(withKey key: String, inImageAt imageIndex: Int) -> [CodeLocation] {
         let image = images[imageIndex]
         guard let slide = image.vmaddrSlide else { return [] }
@@ -111,8 +111,15 @@ extension CrossReferenceAnalyzer {
     /// Whether the image exports a symbol of the type with this key: what
     /// another image needs to reach it.
     func isSwiftTypeExported(withKey key: String, fromImageAt imageIndex: Int) -> Bool {
-        let exportedNames = exportedSymbolNames(ofImageAt: imageIndex)
-        return ["Mn", "Ma", "N"].contains { exportedNames.contains("_$s" + key + $0) }
+        ["Mn", "Ma", "N"].contains { exportsSymbol(named: "_$s" + key + $0, fromImageAt: imageIndex) }
+    }
+
+    /// Whether the image's export trie lists `name`, spelled as the trie
+    /// spells it (`_$s…`, `_CFRelease`). Looked up in the trie: reading all of
+    /// it to look up three names took SwiftUICore's first type query 0.1 s in
+    /// a debug build, and keeping what was read 6 MiB.
+    func exportsSymbol(named name: String, fromImageAt imageIndex: Int) -> Bool {
+        images[imageIndex].exportTrie?.search(by: name) != nil
     }
 
     /// The types a Swift type name names, by key, in the order the name
@@ -211,11 +218,9 @@ extension CrossReferenceAnalyzer {
                 addresses.append(entry.n_value)
             }
         }
-        if let headerAddress = image.segments64.first(where: { $0.segmentName == "__TEXT" }).map({ UInt64($0.layout.vmaddr) }) {
-            for symbol in image.exportedSymbols where symbol.name == name {
-                guard let offset = symbol.offset else { continue }
-                addresses.append(UInt64(bitPattern: Int64(bitPattern: headerAddress) &+ Int64(offset)))
-            }
+        if let headerAddress = image.segments64.first(where: { $0.segmentName == "__TEXT" }).map({ UInt64($0.layout.vmaddr) }),
+           let offset = image.exportTrie?.search(by: name)?.offset {
+            addresses.append(UInt64(bitPattern: Int64(bitPattern: headerAddress) &+ Int64(offset)))
         }
         return addresses
     }

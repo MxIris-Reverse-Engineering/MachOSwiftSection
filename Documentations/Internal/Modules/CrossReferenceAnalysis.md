@@ -10,14 +10,14 @@
 | 子系统 | 文件 | 分工 |
 |---|---|---|
 | 1. 指令字与跳板 | `ARM64InstructionDecoding` 模块的 `ARM64InstructionWord`、`ARM64Trampoline` | 手写读取少数几类 A64 编码；按形状认 GOT 桩、stub island 与全缓存共用的 selector 桩。与 SwiftThunkAnalysis 共用 |
-| 2. 地址空间 | `CrossReferenceAnalyzer` | 进程里全部镜像（整个共享缓存加缓存外已加载的镜像）、各镜像的路径与安装名、`__TEXT` 的内存区间、缓存的可执行与可读映射、`objc_msgSend` 与运行时辅助函数的位置；给函数起名要用的函数表按需建一次并记住 |
+| 2. 地址空间 | `CrossReferenceAnalyzer` | 进程里全部镜像（整个共享缓存加缓存外已加载的镜像）、各镜像的路径与安装名、`__TEXT` 的内存区间、缓存的可执行与可读映射、`objc_msgSend` 与运行时辅助函数的位置；给函数起名要用的函数表按需建一次并记住。宿主可以预先读好一个镜像起名、查类、查类型要用的一切（`prepareNames(inImageAt:)`），放掉其余镜像的（`releaseImageData(exceptForImagesAt:)`），并估算一个镜像留着多少（`approximateByteCount(ofImageDataAt:)`，`Scanning/ApproximateSize`） |
 | 3. 函数表 | `Scanning/ImageFunctionTable` | 函数起点（`LC_FUNCTION_STARTS` 与 `__text` 里的符号取并集）、主名与代码合并留下的别名、辅助函数、镜像自带的 `__objc_stubs` / `__stubs` / `__auth_stubs`、`__objc_selrefs`、放类引用的槽（`__got`、`__auth_got`、`__objc_classrefs`）与 `__objc_superrefs`、各段的地址区间 |
 | 3a. 补充名字 | `Scanning/ImageFallbackNames` | 符号表没有名字的函数，依次从导出表、ObjC 方法表、Swift 元数据起名；起名时按镜像按需读，扫描不读 |
 | 3b. 类索引 | `Scanning/ObjectiveCClassIndex` | 一个镜像定义的类与元类，按地址；直接读 `__objc_classlist` 与各类的 `isa`。扫描时按需建、分析器记住；类名只在报出引用时读 |
-| 3c. 类型索引 | `Scanning/SwiftTypeIndex` | 一个镜像 `__swift5_types` 列出的描述符与各自的元数据访问器；类型的 key 按需算，优先取 `…Mn` 符号 |
+| 3c. 类型索引 | `Scanning/SwiftTypeIndex` | 一个镜像 `__swift5_types` 列出的描述符与各自的元数据访问器；类型的 key 按需算，优先取 `…Mn` 符号；按 key 找类型时只算描述符名字相同的那几个 |
 | 4. 扫描 | `Scanning/ReferenceScanner`、`Scanning/RegisterFile`、`Scanning/RuntimeHelperNames` | 逐条解码、跟踪寄存器、解析调用目标 |
 | 5. 结果 | `Models/*` | `CodeLocation`、`CodeFunction`、`CodeReference`、`CodeReferenceTarget`、按目标分组的 `CodeReferenceTable`，以及给宿主常驻用的紧凑版 `CodeReferenceIndex` |
-| 6. 预筛与过滤 | `CrossReferenceAnalyzer+Prefiltering`、`CrossReferenceAnalyzer+Linkage`、`Scanning/RenamedReexportIndex`、`references(to:inImageAt:)` | 按未定义符号（只对 C 与 ObjC 符号，连同别的镜像改名再导出的名字）、链接关系（Swift 符号）、`__objc_selrefs`、类对象上的符号筛出可能引用某个符号、selector 或类的镜像；扫描时只留命中的引用 |
+| 6. 预筛与过滤 | `CrossReferenceAnalyzer+Prefiltering`、`CrossReferenceAnalyzer+Linkage`、`Scanning/RenamedReexportIndex`、`references(to:inImageAt:)` | 按未定义符号（只对 C 与 ObjC 符号，连同别的镜像改名再导出的名字）、链接关系（Swift 符号）、`__objc_selrefs`、类对象上的符号筛出可能引用某个符号、selector 或类的镜像；扫描时只留命中的引用；`preparePrefilters()` 让宿主在后台单线程预先读好链接关系与改名再导出表 |
 | 7. 类型查询 | `CrossReferenceAnalyzer+SwiftTypes` | Swift 类型的身份、预筛与按类型的扫描；`SwiftTypeQuery` 比对描述符位置与名字里的符号引用 |
 
 ## 关键契约
@@ -97,7 +97,9 @@ macOS 27 / iOS 27 起的那种见术语表 [cache-shared stub（全缓存共用�
 
 宿主的用法：类型对象 → 描述符位置（或经 `swiftTypeDescriptorLocations(withKey:inImageAt:)`，先找 `…Mn` 符号）→ `swiftTypeIdentity(ofDescriptorAt:)` → 预筛 → 每个候选镜像 `references(toSwiftType:inImageAt:)`。`swiftTypeKeys(in:)` 解开一个 `SwiftTypeName`，供显示用。
 
-**预筛**（`imageIndices(referencingSwiftType:among:)`）：定义镜像本身；定义镜像导出了这个类型的符号时（描述符 `…Mn`、元数据访问器 `…Ma`、元数据 `…N` 任何一个），再加上能绑定到它的镜像（按链接关系，见下一节），类再并上类预筛；名字可能拼出来的类型——标准库的、导入的，每个镜像都可能自己命名——凡是 Swift 镜像都算。**一个符号都没导出的类型（内部类型）只可能被定义镜像引用**：别的镜像要引用它，只能经这几个符号绑定，或者在名字里拼出它，而内部类型在别的模块里拼不出来。2026-10-17 之前没有这条，AppKit 的内部结构体 `NSSmartNamingSuggestion` 一次类型引用查询要扫所有链接 AppKit 的镜像——几乎整个缓存，Debug 构建下要好几分钟（用户实测，CPU 占满）；现在只扫 AppKit 一个（测试 `typesNoImageExportsAreLookedForInTheirOwnImage`，并对链接 AppKit 的镜像每 64 个抽 1 个确认确实没有引用）。导出表按镜像在第一次需要时读成集合留着（`exportedSymbolNames(ofImageAt:)`）。Swift 函数不需要同样处理：缓存里没导出的函数在进程内看不到本地符号，没有 `.symbol` 名字，本来就不会按链接关系去扩大候选。
+按 key 找类型，`…Mn` 符号在符号表里逐条比、在导出表里按名字查（不读整个导出表）。找不到符号时——缓存里的内部类型都是这样——只给描述符名字（`+8` 处的 `Name`）与 key 末段相同的类型算 key 再比：key 解开一次取出末段的名字（private 与局部类型取声明名），读不出名字的才退回给每个类型都算。从 C / ObjC 导入、在 Swift 里改了名的类型（`URLSession.ResponseDisposition`、`RunLoop.Mode`、`CFURL`），描述符的名字是 Swift 名，key 拼的却是 C 名（`So31NSURLSessionResponseDispositionV`、`So13NSRunLoopModea`、`So8CFURLRefa`）；C 名记在名字后面的导入信息里——描述符标志位 `HasImportInfo`（第一个字的第 18 位）为真时，名字后面跟着若干以 NUL 结尾、首字母是标签的串，空串结束，`N` 开头的那段是 C 名——两个都比。头一版只比 Swift 名，Foundation 与 AppKit 有 115 个导入类型因此找不到，核对全部类型的测试当场抓到。2026-10-18 之前每个类型都算一遍，一次 demangle 一个，AppKit 的第一次查找在 Debug 构建下要 0.7 秒、SwiftUICore 0.4 秒；现在约 1 毫秒。`typeLookupsCompareSameNamedTypesOnly` 对 Foundation 与 AppKit 的全部类型核对两种查法结果相同，且读不出名字的 key 不到 1%。
+
+**预筛**（`imageIndices(referencingSwiftType:among:)`）：定义镜像本身；定义镜像导出了这个类型的符号时（描述符 `…Mn`、元数据访问器 `…Ma`、元数据 `…N` 任何一个），再加上能绑定到它的镜像（按链接关系，见下一节），类再并上类预筛；名字可能拼出来的类型——标准库的、导入的，每个镜像都可能自己命名——凡是 Swift 镜像都算。**一个符号都没导出的类型（内部类型）只可能被定义镜像引用**：别的镜像要引用它，只能经这几个符号绑定，或者在名字里拼出它，而内部类型在别的模块里拼不出来。2026-10-17 之前没有这条，AppKit 的内部结构体 `NSSmartNamingSuggestion` 一次类型引用查询要扫所有链接 AppKit 的镜像——几乎整个缓存，Debug 构建下要好几分钟（用户实测，CPU 占满）；现在只扫 AppKit 一个（测试 `typesNoImageExportsAreLookedForInTheirOwnImage`，并对链接 AppKit 的镜像每 64 个抽 1 个确认确实没有引用）。导出了没有，在导出表里按名字查这三个符号（`exportsSymbol(named:fromImageAt:)`）；2026-10-18 之前把整个导出表读成集合留着，SwiftUICore 第一次要 0.1 秒（Debug）、留下 6 MiB（`exportLookupsAgreeWithTheWholeTrie` 对 Foundation 与 AppKit 的全部类型核对两种查法结果相同）。Swift 函数不需要同样处理：缓存里没导出的函数在进程内看不到本地符号，没有 `.symbol` 名字，本来就不会按链接关系去扩大候选。
 
 **代价**（release，28 核，与只有分支跟踪的那次提交交替跑）：全缓存整表 2.1 → 3.0 秒（引用 1.16 亿 → 1.26 亿条），查 `init` 的调用者 1.6 → 1.8 秒——只查 selector 或函数时不找类与类型引用，发送处的类字面量接收者照认。踩过两个坑。一是 `keep(reference(to: …))` 这种写法：参数里修改扫描器，外层又在同一个扫描器上调非 mutating 方法，Swift 只好每次把整个扫描器连同它的备忘字典复制一份，整表扫描一度要 95 秒——第一批的 `keep` 是静态方法，没有这个问题。二是类型索引若每次都去分析器的锁里取，等锁占掉大半时间；现在扫描器自己留一份（`ScanIndexes`，引用类型，解析调用目标的非 mutating 路径也用得上）。
 
@@ -107,6 +109,8 @@ macOS 27.2 的缓存里，4,113 个镜像只有 245 个在符号表里留着 Swi
 
 **改名再导出。** 一个镜像可以把别的镜像的符号换个名字导出：libsystem_c 把 libsystem_platform 的 `__platform_strlen` 导出成 `_strlen`，CoreGraphics 把 SkyLight 的 1,112 个 `_SL…` 函数导出成 `_CG…`，UIFoundation 把 CoreText 的 `CTEmojiImageAsset` 类导出成 `NSEmojiImageAsset`。调用方导入的是新名字——AppKit 按 CoreGraphics 的名字导入了 273 个 SkyLight 函数——所以按导入预筛时这些名字也要比。macOS 27.2 的缓存里 12 个镜像共 1,438 条这样的再导出。`RenamedReexportIndex` 在第一次需要时并发走一遍所有镜像的导出表，只记改名的再导出（名字只在命中时拼出），按「被再导出的镜像与名字」归档，之后留着；`reexportedNames(ofSymbolsNamed:inImageAt:)` 顺着改名再改名、以及经伞形框架整体再导出的情形找全别名（acfsSupport 从 CoreServices 再导出 Metadata 的 `_kMDConfigErase`）。函数预筛与类预筛都把别名一并比对。2026-10-17 之前没有这一步，查 `__platform_strlen`、`_SLSMainConnectionID` 的跨库调用者会漏掉 AppKit（`RenamedReexportTests`）。
 
+这张表与链接关系是跨全部已索引镜像查询的第一次必读的，宿主可以用 `preparePrefilters()` 在后台预先读好。它只用调用线程：Debug 构建单线程读完 macOS 27.2 缓存 144 MiB 的导出表要 3.9 秒，28 核并行也要 3.4 秒——并行几乎不快，后台工作不该为此占满所有核（`serialAndConcurrentReadsAgree` 核对两种读法结果相同）。表只建一次：建的时候来了要用它的查询，会等它建完，而不是再读一遍（`prefiltersAreBuiltOnce`）。链接关系 Debug 下约 60 毫秒。
+
 Swift 符号改按链接关系预筛（`imageIndices(linkingImageAt:among:)`，`CrossReferenceAnalyzer+Linkage`）：一个镜像只能绑定到它链接的镜像，以及这些镜像（层层）再导出的镜像的符号，这些加载命令在缓存里完整保留——SwiftUI 再导出 SwiftUICore，链接 SwiftUI 的镜像就算能绑定 SwiftUICore。比按导入粗得多（链接 Foundation 的镜像数以千计），但不漏。宿主查函数的调用者用 `imageIndices(callingFunctionAt:symbolNames:among:)`：C 与 ObjC 名字按导入，Swift 名字按链接。Swift 类的类预筛、Swift 类型的类型预筛同理。链接关系第一次用到时读一遍所有镜像的加载命令，之后留着。
 
 ### 名字从哪来（第二批）
@@ -114,6 +118,17 @@ Swift 符号改按链接关系预筛（`imageIndices(linkingImageAt:among:)`，`
 `CodeFunction.name` 依次取：符号表（`<redacted>` 当没有）；导出表（一个缓存镜像的符号表不一定带导出的符号——SiriAppIntents 的只有两条，导出表却给它的 76,318 个函数起了名；iOS 真机的缓存抹掉本地符号，导出表还在）；ObjC 方法表（类、元类、本镜像的分类；列表的列表里属于别的镜像的条目跳过，它们一定也在那个镜像自己的 `__objc_catlist` 里；元数据不记分类名，读出来是 `-[NSTextView draggingUpdated:]`）；Swift 元数据（类型的元数据访问器 `…Ma` 与 singleton 完成函数 `…Mr`，名字取描述符的 `…Mn` 符号，没有就经 `SymbolicDemangler` 从描述符重建；虚表实现取方法描述符的 `…Tq` 符号，没有就不起；async 实现先跟一步 `{rel32 函数, u32 大小}` 记录）。Swift 元数据给的名字是不带 C 前缀下划线的完整 mangled 名字（`.swiftMetadata(mangledName:)`），可以直接 demangle。
 
 这些名字只在起名时（`codeFunction(at:)`，即 `functions(inImageAt:)`、`function(containing:)`、`functions(containing:)`、`symbolName(at:)`）按镜像读一次、记在函数表上；三个来源各自按需读，前面的来源已经起了名，后面的就不读。扫描不读它们：扫描只需要知道一个函数是不是 ObjC 方法（决定 `x0` 是不是接收者），这一点仍只看符号名。
+
+宿主要第一次查询也不等，用 `prepareNames(inImageAt:)` 预先读好（2026-10-18，RuntimeViewer 的预先准备）：三个来源全读、类索引里的类名全读、类型索引的 `…Mn` 符号读好，函数表留住。每个函数的 Swift 名字仍在第一次给它起名时重建并记住。Debug 构建实测：
+
+| 镜像 | 用时 | 留下的（连同函数表，`approximateByteCount(ofImageDataAt:)` 估算） | 引用索引 |
+|---|---|---|---|
+| AppKit | 0.33 s | 13.9 MiB | 21.1 MiB |
+| SwiftUICore | 0.28 s | 12.5 MiB | 10.0 MiB |
+| Foundation | 0.16 s | 7.1 MiB | 9.7 MiB |
+| libswiftCore | 0.08 s | 3.1 MiB | 1.7 MiB |
+
+估算按集合的容量与元素步长、字符串的堆存储算，不计分配器的取整；同一次运行里 malloc 的实测增量比它多一成左右。
 
 代价（release，28 核）：给一个镜像的全部函数起名，AppKit 0.24 s（方法表补了 3,961 个、Swift 元数据补了 1,147 个），SiriAppIntents 1.5 s，Matter 0.04 s（方法表补了 30,863 个）。每个镜像起 32 个函数的名字、走遍整个缓存要 6.9 s，4 线程 6.1 s——并发几乎不变快：时间耗在 Swift 运行时的泛型元数据缓存（查找与锁等待）和加载命令的动态转换上，来自 `MachOObjCSection` 与元数据读取代码的泛型实现。宿主给大批结果起名时应只给要保留的那些起。
 
@@ -127,13 +142,13 @@ Swift 符号改按链接关系预筛（`imageIndices(linkingImageAt:among:)`，`
 
 库里没有全局的按镜像缓存（因此不需要 `SharedCache`，理由见 [ReviewAdjudications](../ReviewAdjudications.md) A62）。`CrossReferenceAnalyzer` 记住宿主让它起过名的镜像的函数表（`functions(inImageAt:)`、`function(containing:)`、`references(madeBy:)`）；整镜像扫描（`referenceTable(ofImageAt:)`、`references(to:inImageAt:)`）临时建表、用完即丢；给一批结果起名用 `functions(containing:)`，同样临时建表——查 `init` 的调用者会碰到 2,759 个镜像，逐个记住又是上 GB——早先扫描也记表，扫完一遍 macOS 27.2 缓存后常驻 1.5 GB（`wholeImageScansKeepNoFunctionTable` 钉住）。
 
-第二批起分析器还在自己的生命期里留着：扫描碰到的每个镜像的类索引（类与元类按地址，类名读过的记住）与类型索引（描述符与访问器，key 算过的记住），链接关系，以及改名再导出表。它们以缓存里的类与类型的总数为上限（macOS 27.2 有 203,621 个类名），没有单独测过占用；下面那个约 170 MB 的数字是第二批之前测的。宿主想放掉就换一个分析器（RuntimeViewer 的会话在缓存外的镜像变化、或起过名的镜像超过 64 个时换）。
+第二批起分析器还在自己的生命期里留着：扫描碰到的每个镜像的类索引（类与元类按地址，类名读过的记住）与类型索引（描述符与访问器，key 算过的记住），链接关系，以及改名再导出表。它们以缓存里的类与类型的总数为上限（macOS 27.2 有 203,621 个类名），没有单独测过占用；下面那个约 170 MB 的数字是第二批之前测的。宿主想放掉，用 `releaseImageData(exceptForImagesAt:)` 放掉指定镜像以外按镜像留着的一切——函数表连同读过的名字、类索引、类型索引；链接关系与改名再导出表不按镜像，留着——或者换一个分析器。RuntimeViewer 的会话在缓存外的镜像变化时换分析器；起过名的镜像（预先准备的除外）超过 64 个时，只放掉预先准备之外的。2026-10-18 之前后一种情况也是换分析器，预先读好的名字跟着丢了，下一次查询又得重读。
 
 分析器存活期间若有缓存外的镜像被卸载，再读它会读到已释放的内存；极少见，没有防（A63）。名字的解开一律是瞬时的：类型查询碰到的访问器符号与 mangled 名字不进全局的 `NodeCache`，也不进进程级的 demangle 记忆（交叉引用审查 B2，`TypeNameRetentionTests`），按镜像的 `demangleContext` 记忆随镜像淘汰。
 
 `CodeReferenceTable` 是值，宿主想留多久就留多久，按 `approximateByteCount` 计预算（不含字符串的堆存储；同一次扫描里重复的名字共用一份）。大镜像的整表很大（GeoServices 约 121 MiB，全缓存合计约 9 GB），28 个线程同时建整表时峰值约 1.5 GB，分配器之后还留着 1.2 GB 脏页不还。**查调用者用 `references(to:inImageAt:)`**：扫描时只留命中的引用，同样扫完全缓存后常驻约 170 MB（4 线程约 106 MB）。
 
-**要为少数几个镜像常驻、反复查，用 `CodeReferenceIndex`**（`referenceIndex(ofImageAt:)`，2026-10-18 为 RuntimeViewer 的预先准备新增）。它按目标分组存放：选择子、导入名、类名每个只存一份，引用所在的函数与指令存成相对 `__text` 起点的 32 位偏移（一条 16 字节），只留查调用者与查类型引用会读的引用，间接调用与落在镜像外的跳转不留。macOS 27.2 实测（`approximateByteCount`，含名字的堆存储）：AppKit 21 MiB（整表 67 MiB，87.5 万条引用里留 85.6 万条），Foundation 9 MiB（34），SwiftUICore 9 MiB（35），libswiftCore 1 MiB（7）。`index.references(to:)` 与 `references(toSwiftType:in:)` 回答的和过滤扫描完全相同，顺序也相同（按指令地址，同一条指令的调用排在它顺带的类型引用前面）。建索引会**留住**镜像的函数表——给结果起名要用；分析器被换掉后，索引照样能读（它不持有分析器），宿主用 `keepFunctionTable(ofImageAt:)` 让新分析器重新留住。`referenceIndex(ofImageAt:reportingProgress:)` 每扫 2,048 个函数报一次进度，回答「停」就不建了。Debug 构建建 AppKit 的索引约 6 秒。
+**要为少数几个镜像常驻、反复查，用 `CodeReferenceIndex`**（`referenceIndex(ofImageAt:)`，2026-10-18 为 RuntimeViewer 的预先准备新增）。它按目标分组存放：选择子、导入名、类名每个只存一份，引用所在的函数与指令存成相对 `__text` 起点的 32 位偏移（一条 16 字节），只留查调用者与查类型引用会读的引用，间接调用与落在镜像外的跳转不留。macOS 27.2 实测（`approximateByteCount`，含名字的堆存储）：AppKit 21 MiB（整表 67 MiB，87.5 万条引用里留 85.6 万条），Foundation 9 MiB（34），SwiftUICore 9 MiB（35），libswiftCore 1 MiB（7）。`index.references(to:)` 与 `references(toSwiftType:in:)` 回答的和过滤扫描完全相同，顺序也相同（按指令地址，同一条指令的调用排在它顺带的类型引用前面）。建索引会**留住**镜像的函数表——给结果起名要用；名字本身还要第一次起名时读，宿主要连这一步也提前，再调 `prepareNames(inImageAt:)`（见上文「名字从哪来」）。分析器被换掉后，索引照样能读（它不持有分析器），宿主用 `keepFunctionTable(ofImageAt:)` 让新分析器重新留住。`referenceIndex(ofImageAt:reportingProgress:)` 每扫 2,048 个函数报一次进度，回答「停」就不建了。Debug 构建建 AppKit 的索引约 6 秒。
 
 分析器是一个快照：之后才加载的镜像需要新的分析器。
 
@@ -155,11 +170,12 @@ Swift 符号改按链接关系预筛（`imageIndices(linkingImageAt:among:)`，`
 - `ARM64InstructionWordTests` / `ARM64TrampolineTests`：手写编码器造指令字；`capstoneAgreesWithTheEncoders` 让 Capstone 反汇编同一批字，编码器写错也藏不住。
 - `CrossReferenceAnalyzerTests`（只在 arm64 进程里跑）：`-[NSWindow makeKeyAndOrderFront:]` 发出的三条消息及接收者；SwiftUICore 经桩调用 `swift_beginAccess` 落到 libswiftCore；按键过滤与整表一致；整镜像扫描不留函数表；给一批结果起名也不留；预筛；`branchesCarryTheirStateToTheirTargets` 与 `pathsThatDisagreeLeaveTheRegisterUnknown`：寄存器状态沿着分支走（见上文），后者在第一批的顺序读法下失败；`classicSendsInsideTheCacheNameTheirSelector`：libobjc 的 `-[NSObject debugDescription]` 认出发给 `self` 的 `description`（上文「两种桩布局」末段的第三种形态）；`selectorPrefilterKeepsEverySender` / `importPrefilterKeepsEveryCaller` / `swiftFunctionPrefilterKeepsEveryCaller`：预筛只丢掉引用不到主体的镜像（最后一个是 Swift 函数，见上文「预筛：缓存几乎不留 Swift 的未定义符号」）——在它丢掉的镜像里每 16 个抽 1 个扫描，一处引用也不许有（Debug 构建扫完整个缓存要几分钟，所以抽样）；`callSitesMatchCapstone` 抽样 400 个 AppKit 函数，双向比对：Capstone 找到的每一处调用与跳出函数的跳转，扫描都找到了；扫描报的每一处也都是 Capstone 眼里的调用或跳转（`br` 除外，Capstone 分不出跳转表与尾调用）。Capstone 不开 detail 模式就不给操作数，那半边比对曾因此什么都没比，测试断言比对过不止一处。
 - `ObjectiveCClassReferenceTests`：AppKit 里三种取法都有（取本镜像类的地址、载入本镜像的类、载入别的镜像的类，`NSString` 在其中）；`+[NSThread currentThread]` 发给类字面量 `NSNotificationCenter`；`_BenchmarkHost._started(test:)` 经 `objc_opt_self` 发给 `NSApplication`；分类方法与类方法的 super 类；Block 里的 super 发送按 `__objc_superrefs` 得到所在方法的类（Block 的符号不是方法名，只有槽位能给出类；分类方法那个测试里槽位与符号给出的类相同，分辨不出）；Matter 里没有符号的方法，super 类与方法表一致；两个 SwiftUI 的同名类各自指向自己；类预筛（`NSWindow`、`NSUUID`、`__NSStackBlock__`、`OS_xpc_dictionary`）丢掉的镜像里抽样一处引用也没有。其中三个在去掉对应做法时变红过：经 `objc_opt_self` 不保留 `x0`、不读 `__objc_superrefs`、预筛只认 `_OBJC_CLASS_$_`。
-- `SwiftTypeReferenceTests`：SwiftUICore 里访问器调用报出的类型与访问器符号全部一致（一万处以上）；紧邻的 `adrp` / `add` 取出的地址上若有符号，报出的类型与符号一致；Foundation 的名字取自 `x1` 的记录、落在 `__swift5_typeref`、能解开；Foundation 与 SwiftData 里，查询保留的名字恰是解开后提到该类型的名字（40 个最常被符号引用的类型；另四个标准库类型，查询退回的正是同一套解开，所以它们只守着符号引用不指错描述符）；两个 SwiftUI 的同名类型按位置分开；类型预筛（Foundation 的 `URL` 与 `JSONEncoder`、SwiftUICore 的 `Text`）丢掉的镜像里抽样一处引用也没有——按导入符号预筛时三者都漏。
+- `SwiftTypeReferenceTests`：SwiftUICore 里访问器调用报出的类型与访问器符号全部一致（一万处以上）；紧邻的 `adrp` / `add` 取出的地址上若有符号，报出的类型与符号一致；Foundation 的名字取自 `x1` 的记录、落在 `__swift5_typeref`、能解开；Foundation 与 SwiftData 里，查询保留的名字恰是解开后提到该类型的名字（40 个最常被符号引用的类型；另四个标准库类型，查询退回的正是同一套解开，所以它们只守着符号引用不指错描述符）；两个 SwiftUI 的同名类型按位置分开；类型预筛（Foundation 的 `URL` 与 `JSONEncoder`、SwiftUICore 的 `Text`）丢掉的镜像里抽样一处引用也没有——按导入符号预筛时三者都漏；Foundation 与 AppKit 的每一个类型，按名字先筛再比 key 的查找与比每个类型的 key 结果相同（`typeLookupsCompareSameNamedTypesOnly`），按名字查导出表与读整个导出表判断导出与否相同（`exportLookupsAgreeWithTheWholeTrie`）。
 - `FallbackNamingTests`：导出表给的名字落在导出的地址上（SiriAppIntents）；AppKit 里方法表给的名字与 `-[C sel]` 符号一致（去掉分类名后 99.9% 以上）；SwiftUICore 里从元数据重建的名字与真实的 `…Ma`、`…Mr`、方法符号一致（99% 以上）；Matter 的方法在没有符号时由方法表起名；SiriAppIntents 几乎每个类型的访问器都有名字，重建的名字 demangle 出来是元数据访问器。
 - `StandaloneImageTests`：SymbolTestsCore fixture 经自己的桩调用 libswiftCore，没有一条停在只有名字的导入上；它的路径是加载路径而不是 `@rpath/…`，安装名也能查回它；测试包（`MH_BUNDLE`，没有安装名）的路径等于 `dladdr` 给的；测试包算作主程序的依赖方。
 - `RegisterFileTests`：48 条汇编器编出的指令，每条写的寄存器都被作废，Capstone 的寄存器访问表独立核对这张表；普通读写只作废目标寄存器。
 - `RenamedReexportTests`：AppKit 按 `_strlen`、`_CGSMainConnectionID` 调用 `__platform_strlen`、`_SLSMainConnectionID`，CharacterPicker 按 `NSEmojiImageAsset` 引用 CoreText 的类，三者的预筛都留住了它们；别名经伞形框架的那一种（`_xkMDConfigErase`）。
 - `TypeNameRetentionTests`：类型查询解开的访问器符号、mangled 名字与描述符符号都不留在全局 `NodeCache` 与进程级 demangle 记忆里（用每次随机的名字，与并行跑的测试互不干扰）。
 - `LazyBindingTests`：现编一个懒绑定的 dylib，见上文「缓存外镜像的 GOT 槽」。
+- `PreparedImageDataTests`（每个测试用自己的分析器）：`prepareNames(inImageAt:)` 之后三个来源、类名、类型符号都已读好，给 Foundation 全部函数起的名字与不预读时相同；估算随留着的东西增减，放掉后为零；`releaseImageData(exceptForImagesAt:)` 只留指定镜像（连同读过的名字），其余放掉、之后照样能起名；一个线程预读预筛表、另一个线程同时要用，表只建一次；单线程读与并行读导出表结果相同。
 - `CodeReferenceIndexTests`：Foundation 整表的每一个键，索引给出的引用与整表逐条相同、顺序相同，条数等于整表里有键的加上 Swift 类型名；AppKit 里一次查几个键（selector、libswiftCore 的函数、`NSWindow`）与过滤扫描逐条相同；Foundation 里 `URL`、`JSONEncoder`（类，经类对象）与标准库的 `Sa`（名字里拼出来，要解开）从索引查与按类型扫描逐条相同；索引不到整表的一半大；建索引留住函数表；进度从 0 报到函数总数，回答「停」就不建。

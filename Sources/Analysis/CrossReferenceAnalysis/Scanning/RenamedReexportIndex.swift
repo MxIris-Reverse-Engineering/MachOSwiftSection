@@ -25,7 +25,10 @@ struct RenamedReexportIndex {
     /// By the image re-exported from, then by the symbol's name there.
     let reexportsByProvider: [Int: [String: [RenamedReexport]]]
 
-    init(analyzer: CrossReferenceAnalyzer) {
+    /// `concurrently` reads the tries on every core; otherwise on the calling
+    /// thread alone, which a debug build finishes about as soon (3.9 s against
+    /// 3.4 on 28 cores for the macOS 27.2 cache's 144 MiB of tries).
+    init(analyzer: CrossReferenceAnalyzer, concurrently: Bool = true) {
         let images = analyzer.images
         let entriesByImage = UnsafeMutableBufferPointer<[TrieEntry]>.allocate(capacity: images.count)
         entriesByImage.initialize(repeating: [])
@@ -34,9 +37,14 @@ struct RenamedReexportIndex {
             entriesByImage.deallocate()
         }
         nonisolated(unsafe) let entries = entriesByImage.baseAddress!
-        DispatchQueue.concurrentPerform(iterations: images.count) { imageIndex in
+        let readTrie: @Sendable (Int) -> Void = { imageIndex in
             guard let trie = images[imageIndex].exportTrie, trie.exportSize > 0 else { return }
             (entries + imageIndex).pointee = Self.renamedReexports(inTrieAt: trie.basePointer.assumingMemoryBound(to: UInt8.self), size: trie.exportSize)
+        }
+        if concurrently {
+            DispatchQueue.concurrentPerform(iterations: images.count, execute: readTrie)
+        } else {
+            images.indices.forEach(readTrie)
         }
         var reexportsByProvider: [Int: [String: [RenamedReexport]]] = [:]
         for imageIndex in images.indices where !entriesByImage[imageIndex].isEmpty {

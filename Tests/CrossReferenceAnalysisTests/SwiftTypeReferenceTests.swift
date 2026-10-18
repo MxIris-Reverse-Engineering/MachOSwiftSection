@@ -224,6 +224,46 @@ struct SwiftTypeReferenceTests {
         #expect(imagesReferencing(identity, among: sample).isEmpty)
     }
 
+    /// Looking a type up by its key builds the keys of the types its
+    /// descriptor names alike only, and finds what comparing every type's key
+    /// finds — for every type of these images. Few keys are left whose name
+    /// cannot be read, which are compared with every type's.
+    @Test(arguments: ["/Foundation.framework/Versions/C/Foundation", "/AppKit.framework/Versions/C/AppKit"])
+    func typeLookupsCompareSameNamedTypesOnly(imageSuffix: String) throws {
+        let imageIndex = try imageIndex(endingWith: imageSuffix)
+        let typeIndex = SwiftTypeIndex(image: analyzer.images[imageIndex], imageIndex: imageIndex)
+        var locationsByKey: [String: Set<CodeLocation>] = [:]
+        for address in typeIndex.descriptorAddresses {
+            guard let key = typeIndex.key(ofDescriptorAt: address) else { continue }
+            locationsByKey[key, default: []].insert(typeIndex.location(ofRuntimeAddress: address))
+        }
+        #expect(locationsByKey.count > 500)
+        var unreadableNameCount = 0
+        for (key, locations) in locationsByKey {
+            if SwiftTypeIndex.typeName(inKey: key) == nil { unreadableNameCount += 1 }
+            #expect(Set(typeIndex.descriptorLocations(withKey: key)) == locations, "\(key)")
+        }
+        #expect(unreadableNameCount * 100 < locationsByKey.count, "\(unreadableNameCount) of \(locationsByKey.count) keys")
+    }
+
+    /// Whether an image exports a type's symbols is looked up in its export
+    /// trie, and agrees with reading the whole trie — for every type of these
+    /// images.
+    @Test(arguments: ["/Foundation.framework/Versions/C/Foundation", "/AppKit.framework/Versions/C/AppKit"])
+    func exportLookupsAgreeWithTheWholeTrie(imageSuffix: String) throws {
+        let imageIndex = try imageIndex(endingWith: imageSuffix)
+        let exportedNames = Set(analyzer.images[imageIndex].exportedSymbols.map(\.name))
+        let typeIndex = SwiftTypeIndex(image: analyzer.images[imageIndex], imageIndex: imageIndex)
+        var exportedTypeCount = 0
+        for address in typeIndex.descriptorAddresses {
+            guard let key = typeIndex.key(ofDescriptorAt: address) else { continue }
+            let isExported = ["Mn", "Ma", "N"].contains { exportedNames.contains("_$s" + key + $0) }
+            #expect(analyzer.isSwiftTypeExported(withKey: key, fromImageAt: imageIndex) == isExported, "\(key)")
+            if isExported { exportedTypeCount += 1 }
+        }
+        #expect(exportedTypeCount > 100)
+    }
+
     private func imagesReferencing(_ identity: SwiftTypeIdentity, among imageIndices: [Int]) -> Set<Int> {
         let found = ImageIndexCollector()
         let analyzer = analyzer

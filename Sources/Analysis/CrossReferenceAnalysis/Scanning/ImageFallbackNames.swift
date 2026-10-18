@@ -43,6 +43,8 @@ final class ImageFallbackNames: @unchecked Sendable {
     /// The `Mn` / `Tq` symbol at each descriptor the Swift sources name.
     private var descriptorSymbolsStorage: [UInt64: String]?
     private var swiftNames: [UInt64: String?] = [:]
+    /// What the sources read so far take, counted as each is read.
+    private var sourceByteCount = 0
 
     init(image: MachOImage, headerAddress: UInt64, slide: Int, textRange: Range<UInt64>) {
         self.image = image
@@ -66,6 +68,30 @@ final class ImageFallbackNames: @unchecked Sendable {
         return nil
     }
 
+    /// Reads every source now — for a host that will name functions of the
+    /// image and wants none of it read while it waits. Each function's Swift
+    /// name is still rebuilt the first time it is asked for.
+    func readEverySource() {
+        _ = objectiveCMethods()
+        // Reads the export trie and the Swift metadata on its way.
+        _ = descriptorSymbols()
+    }
+
+    /// Whether every source has been read; for tests.
+    var hasReadEverySource: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return exportedNamesStorage != nil && objectiveCMethodsStorage != nil && swiftSourcesStorage != nil && descriptorSymbolsStorage != nil
+    }
+
+    /// The memory the sources read so far and the Swift names rebuilt take;
+    /// see `ApproximateSize`.
+    var approximateByteCount: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return swiftNames.values.reduce(sourceByteCount + ApproximateSize.of(swiftNames)) { $0 + ($1.map(ApproximateSize.of) ?? 0) }
+    }
+
     // MARK: - Export trie
 
     /// What the export trie names, by address: functions in `__text`, and the
@@ -79,11 +105,14 @@ final class ImageFallbackNames: @unchecked Sendable {
         defer { lock.unlock() }
         if let exportedNamesStorage { return exportedNamesStorage }
         var names: [UInt64: [String]] = [:]
+        var byteCount = 0
         for symbol in image.exportedSymbols {
             guard let offset = symbol.offset else { continue }
             names[address(atOffset: offset), default: []].append(symbol.name)
+            byteCount += ApproximateSize.of(symbol.name)
         }
         exportedNamesStorage = names
+        sourceByteCount += names.values.reduce(byteCount + ApproximateSize.of(names)) { $0 + ApproximateSize.of($1) }
         return names
     }
 
@@ -98,6 +127,8 @@ final class ImageFallbackNames: @unchecked Sendable {
         defer { lock.unlock() }
         if let objectiveCMethodsStorage { return objectiveCMethodsStorage }
         var methods: [UInt64: ObjectiveCMethod] = [:]
+        // A class's methods share its name's storage.
+        var stringByteCount = 0
 
         func record(_ methodList: ObjCMethodList, in listImage: MachOImage, className: String, isClassMethod: Bool) {
             guard !methodList.isListOfLists else { return }
@@ -105,6 +136,7 @@ final class ImageFallbackNames: @unchecked Sendable {
                 let address = unslidAddress(ofRuntime: method.imp)
                 guard textRange.contains(address), methods[address] == nil else { continue }
                 methods[address] = ObjectiveCMethod(className: className, selector: method.name, isClassMethod: isClassMethod)
+                stringByteCount += ApproximateSize.of(method.name)
             }
         }
 
@@ -118,6 +150,7 @@ final class ImageFallbackNames: @unchecked Sendable {
             guard let readOnlyData = ObjectiveCClassIndex.readOnlyData(of: classObject, in: image),
                   let className = readOnlyData.name(in: image)
             else { continue }
+            stringByteCount += ApproximateSize.of(className)
             for (listImage, methodList) in ownLists(of: readOnlyData, in: image) {
                 record(methodList, in: listImage, className: className, isClassMethod: false)
             }
@@ -130,6 +163,7 @@ final class ImageFallbackNames: @unchecked Sendable {
         }
         for category in (image.objc.categories64 ?? []) + (image.objc.categories2_64 ?? []) {
             guard let className = category.className(in: image), !className.isEmpty else { continue }
+            stringByteCount += ApproximateSize.of(className)
             if let methodList = category.instanceMethodList(in: image) {
                 record(methodList, in: image, className: className, isClassMethod: false)
             }
@@ -138,6 +172,7 @@ final class ImageFallbackNames: @unchecked Sendable {
             }
         }
         objectiveCMethodsStorage = methods
+        sourceByteCount += stringByteCount + ApproximateSize.of(methods)
         return methods
     }
 
@@ -235,6 +270,7 @@ final class ImageFallbackNames: @unchecked Sendable {
             }
         }
         swiftSourcesStorage = sources
+        sourceByteCount += ApproximateSize.of(sources)
         return sources
     }
 
@@ -275,22 +311,27 @@ final class ImageFallbackNames: @unchecked Sendable {
             }
         }
         var symbols: [UInt64: String] = [:]
-        func consider(_ name: String, at address: UInt64) {
-            guard symbols[address] == nil, name.hasSuffix("Mn") || name.hasSuffix("Tq") else { return }
+        // The names the export trie gives share their storage with it.
+        var stringByteCount = 0
+        func consider(_ name: String, at address: UInt64) -> Bool {
+            guard symbols[address] == nil, name.hasSuffix("Mn") || name.hasSuffix("Tq") else { return false }
             symbols[address] = name
+            return true
         }
         if let symbolTable = image.symbols64 {
             for symbolIndex in 0 ..< symbolTable.numberOfSymbols {
                 let entry = symbolTable.symbols[symbolIndex]
                 // Defined in a section, not a debugging entry.
                 guard entry.n_type & 0xE0 == 0, entry.n_type & 0x0E == 0x0E, wanted.contains(entry.n_value) else { continue }
-                consider(String(cString: symbolTable.stringBase.advanced(by: Int(entry.n_un.n_strx))), at: entry.n_value)
+                let name = String(cString: symbolTable.stringBase.advanced(by: Int(entry.n_un.n_strx)))
+                if consider(name, at: entry.n_value) { stringByteCount += ApproximateSize.of(name) }
             }
         }
         for address in wanted {
-            for name in exportedNames[address] ?? [] { consider(name, at: address) }
+            for name in exportedNames[address] ?? [] { _ = consider(name, at: address) }
         }
         descriptorSymbolsStorage = symbols
+        sourceByteCount += stringByteCount + ApproximateSize.of(symbols)
         return symbols
     }
 

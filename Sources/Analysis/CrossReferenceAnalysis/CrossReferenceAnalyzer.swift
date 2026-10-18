@@ -72,7 +72,9 @@ public final class CrossReferenceAnalyzer: @unchecked Sendable {
     private var swiftTypeIndexes: [Int: SwiftTypeIndex] = [:]
     private var linkageStorage: Linkage?
     private var renamedReexportStorage: RenamedReexportIndex?
-    private var exportedSymbolNameSets: [Int: Set<String>] = [:]
+    /// Held while the renamed re-exports are built, so they are built once.
+    private let renamedReexportBuildLock = NSLock()
+    private var renamedReexportBuildCountStorage = 0
 
     /// The analyzer for the current process, or `nil` when it does not run
     /// arm64 code.
@@ -347,6 +349,68 @@ public final class CrossReferenceAnalyzer: @unchecked Sendable {
         _ = functionTable(ofImageAt: imageIndex)
     }
 
+    /// Reads now every name a query reads the first time it names a function
+    /// of the image or looks up a class or a Swift type it defines, and keeps
+    /// them for the analyzer's lifetime: the function table, with the names
+    /// its symbol table does not give — from the export trie, the Objective-C
+    /// method lists and the Swift metadata — the names of the image's
+    /// classes, and the symbols of its Swift types.
+    ///
+    /// For a host keeping a ``CodeReferenceIndex`` of the image, so that the
+    /// first query about it is answered as fast as the next: AppKit's take
+    /// 0.3 s in a debug build, and hold about 14 MiB with the function table
+    /// (``approximateByteCount(ofImageDataAt:)``).
+    public func prepareNames(inImageAt imageIndex: Int) {
+        functionTable(ofImageAt: imageIndex).fallbackNames.readEverySource()
+        objectiveCClassIndex(ofImageAt: imageIndex).readEveryName()
+        swiftTypeIndex(ofImageAt: imageIndex).readDescriptorSymbols()
+    }
+
+    /// The memory of what the analyzer keeps for the image now — its function
+    /// table with the names read for it, its class and Swift type indexes —
+    /// estimated from the collections' capacities: for a host counting a
+    /// prepared image against a budget along with its ``CodeReferenceIndex``.
+    public func approximateByteCount(ofImageDataAt imageIndex: Int) -> Int {
+        lock.lock()
+        let kept = (functionTables[imageIndex], classIndexes[imageIndex], swiftTypeIndexes[imageIndex])
+        lock.unlock()
+        return (kept.0?.approximateByteCount ?? 0) + (kept.1?.approximateByteCount ?? 0) + (kept.2?.approximateByteCount ?? 0)
+    }
+
+    /// Reads now what filtering the images that can reference a function or
+    /// a type reads across every image the first time, and keeps it for the
+    /// analyzer's lifetime: which images link which — every image's load
+    /// commands — and the symbols images re-export under other names — every
+    /// image's export trie, 3.9 s in a debug build.
+    ///
+    /// On the calling thread alone, for work in the background: reading the
+    /// export tries on every core, as a query that needs them first does, is
+    /// barely faster in a debug build (3.4 s on 28). A query that needs them
+    /// meanwhile waits for this to finish instead of reading them again.
+    public func preparePrefilters() {
+        _ = linkage()
+        _ = renamedReexports(concurrently: false)
+    }
+
+    /// Drops what the analyzer keeps for every image but `keptImageIndices`:
+    /// function tables with the names read for them, class and Swift type
+    /// indexes. A later query reads them again. What the analyzer keeps
+    /// across all images — the linkage and the renamed re-exports — stays.
+    ///
+    /// What replacing the analyzer releases, for a host that keeps a few
+    /// images prepared (``prepareNames(inImageAt:)``) and would otherwise
+    /// read them all again.
+    public func releaseImageData(exceptForImagesAt keptImageIndices: Set<Int>) {
+        lock.lock()
+        let released = (functionTables, classIndexes, swiftTypeIndexes)
+        functionTables = functionTables.filter { keptImageIndices.contains($0.key) }
+        classIndexes = classIndexes.filter { keptImageIndices.contains($0.key) }
+        swiftTypeIndexes = swiftTypeIndexes.filter { keptImageIndices.contains($0.key) }
+        lock.unlock()
+        // What goes is freed here, outside the lock.
+        withExtendedLifetime(released) {}
+    }
+
     /// The references the image's functions make to any of `keys`, in table
     /// order — what a query for callers needs, without the image's whole
     /// table.
@@ -370,6 +434,21 @@ public final class CrossReferenceAnalyzer: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         return functionTables[imageIndex]
+    }
+
+    /// The class and Swift type indexes the analyzer keeps for the image now,
+    /// without building either; for tests.
+    func existingIndexes(ofImageAt imageIndex: Int) -> (classIndex: ObjectiveCClassIndex?, swiftTypeIndex: SwiftTypeIndex?) {
+        lock.lock()
+        defer { lock.unlock() }
+        return (classIndexes[imageIndex], swiftTypeIndexes[imageIndex])
+    }
+
+    /// Whether the linkage and the renamed re-exports are read; for tests.
+    var hasPreparedPrefilters: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return linkageStorage != nil && renamedReexportStorage != nil
     }
 
     /// The image's function table, built on first use and then kept for the
@@ -442,24 +521,6 @@ public final class CrossReferenceAnalyzer: @unchecked Sendable {
         return index
     }
 
-    /// The names the image's export trie lists, as it spells them (`_$s…`,
-    /// `_CFRelease`): all another image can bind to. Built on first use and
-    /// kept; read for the images whose functions and types are asked about.
-    func exportedSymbolNames(ofImageAt imageIndex: Int) -> Set<String> {
-        lock.lock()
-        if let names = exportedSymbolNameSets[imageIndex] {
-            lock.unlock()
-            return names
-        }
-        lock.unlock()
-        let names = Set(images[imageIndex].exportedSymbols.map(\.name))
-        lock.lock()
-        defer { lock.unlock() }
-        if let stored = exportedSymbolNameSets[imageIndex] { return stored }
-        exportedSymbolNameSets[imageIndex] = names
-        return names
-    }
-
     /// Built on first use and kept: reading every image's load commands takes
     /// a few tens of milliseconds.
     func linkage() -> Linkage {
@@ -529,20 +590,36 @@ public final class CrossReferenceAnalyzer: @unchecked Sendable {
     }
 
     /// Built on first use and kept: every image's export trie is walked once,
-    /// and what is kept is small.
-    func renamedReexports() -> RenamedReexportIndex {
+    /// and what is kept is small. Built once: a caller that asks while it is
+    /// being built waits for it.
+    func renamedReexports(concurrently: Bool = true) -> RenamedReexportIndex {
         lock.lock()
         if let renamedReexportStorage {
             lock.unlock()
             return renamedReexportStorage
         }
         lock.unlock()
-        let index = RenamedReexportIndex(analyzer: self)
+        renamedReexportBuildLock.lock()
+        defer { renamedReexportBuildLock.unlock() }
+        lock.lock()
+        if let renamedReexportStorage {
+            lock.unlock()
+            return renamedReexportStorage
+        }
+        lock.unlock()
+        let index = RenamedReexportIndex(analyzer: self, concurrently: concurrently)
+        lock.lock()
+        renamedReexportStorage = index
+        renamedReexportBuildCountStorage += 1
+        lock.unlock()
+        return index
+    }
+
+    /// How many times the renamed re-exports were built; for tests.
+    var renamedReexportBuildCount: Int {
         lock.lock()
         defer { lock.unlock() }
-        if let renamedReexportStorage { return renamedReexportStorage }
-        renamedReexportStorage = index
-        return index
+        return renamedReexportBuildCountStorage
     }
 
     /// The image's Swift type index, built on first use and then kept for the

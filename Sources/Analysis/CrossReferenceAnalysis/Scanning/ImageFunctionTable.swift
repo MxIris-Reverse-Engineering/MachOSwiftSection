@@ -284,4 +284,22 @@ final class ImageFunctionTable: @unchecked Sendable {
         fallbackNamesStorage = fallbackNames
         return fallbackNames
     }
+
+    /// The fallback names, when something has asked for them.
+    var existingFallbackNames: ImageFallbackNames? {
+        fallbackNamesLock.lock()
+        defer { fallbackNamesLock.unlock() }
+        return fallbackNamesStorage
+    }
+
+    /// The memory the table takes, with the fallback names read for it; see
+    /// `ApproximateSize`. The names it points at belong to the image.
+    var approximateByteCount: Int {
+        var byteCount = ApproximateSize.of(starts) + ApproximateSize.of(primaryNameIndices) + ApproximateSize.of(primaryNames)
+        byteCount += foldedNames.values.reduce(ApproximateSize.of(foldedNames)) { $0 + ApproximateSize.of($1) }
+        byteCount += ApproximateSize.of(runtimeHelperStarts) + ApproximateSize.of(objectiveCStubSelectors) + ApproximateSize.of(symbolStubs)
+        byteCount += ApproximateSize.of(symbolStubRanges) + ApproximateSize.of(referenceSlotRanges) + ApproximateSize.of(dataSegmentRanges)
+        byteCount += ApproximateSize.of(segmentRanges) + ApproximateSize.of(dataInCodeRanges)
+        return byteCount + (existingFallbackNames?.approximateByteCount ?? 0)
+    }
 }

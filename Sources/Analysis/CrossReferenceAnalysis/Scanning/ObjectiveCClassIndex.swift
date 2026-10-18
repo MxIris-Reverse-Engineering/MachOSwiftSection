@@ -73,6 +73,29 @@ final class ObjectiveCClassIndex: @unchecked Sendable {
         }
     }
 
+    /// Reads every class's name now, which the first ``classLocations(named:)``
+    /// would.
+    func readEveryName() {
+        for (address, entry) in entriesByRuntimeAddress where !entry.isMetaclass {
+            _ = name(ofClassAt: address)
+        }
+    }
+
+    /// Whether every class's name has been read; for tests.
+    var hasReadEveryName: Bool {
+        let classCount = entriesByRuntimeAddress.values.count { !$0.isMetaclass }
+        lock.lock()
+        defer { lock.unlock() }
+        return namesByClassAddress.count >= classCount
+    }
+
+    /// The memory the index takes, with the names read; see `ApproximateSize`.
+    var approximateByteCount: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return namesByClassAddress.values.reduce(ApproximateSize.of(entriesByRuntimeAddress) + ApproximateSize.of(namesByClassAddress)) { $0 + ($1.map(ApproximateSize.of) ?? 0) }
+    }
+
     /// The unslid addresses of the class at `classLocation` and of its
     /// metaclass.
     func objectAddresses(ofClassAt classLocation: CodeLocation) -> [UInt64] {
