@@ -57,7 +57,9 @@ package enum DefinitionBuilder {
                 continue
             }
             let nodes = accessors.map(\.symbol.demangledNode)
-            guard let node = nodes.first(where: { $0.memberSubtree.contains(.getter) || !$0.memberSubtree.hasAccessor }) else { continue }
+            // The declaration prints from a read accessor's node: a getter, or
+            // the SE-0507 `borrow` that a property declaring it has instead.
+            guard let node = nodes.first(where: { $0.memberSubtree.contains(.getter) || $0.memberSubtree.contains(.borrowAccessor) || !$0.memberSubtree.hasAccessor }) else { continue }
             var variableDefinition = VariableDefinition(node: node, name: name, accessors: accessors, isGlobalOrStatic: isGlobalOrStatic)
             if accessors.contains(where: { $0.methodDescriptor?.method?.layout.flags.isDynamic ?? false }) {
                 variableDefinition.attributes.append(.dynamic)
@@ -99,7 +101,7 @@ package enum DefinitionBuilder {
 
         for (_, accessors) in accessorsByNode {
             let nodes = accessors.map(\.symbol.demangledNode)
-            guard let node = nodes.first(where: { $0.memberSubtree.contains(.getter) }) else { continue }
+            guard let node = nodes.first(where: { $0.memberSubtree.contains(.getter) || $0.memberSubtree.contains(.borrowAccessor) }) else { continue }
             var subscriptDefinition = SubscriptDefinition(node: node, accessors: accessors, isStatic: isStatic)
             if accessors.contains(where: { $0.methodDescriptor?.method?.layout.flags.isDynamic ?? false }) {
                 subscriptDefinition.attributes.append(.dynamic)

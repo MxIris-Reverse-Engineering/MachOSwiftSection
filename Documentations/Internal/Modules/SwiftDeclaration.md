@@ -108,6 +108,12 @@ SE-0436 的类在 `__swift5_*` 里没有身影，模型里它就是那个 `__C.X
 
 `FunctionDefinition` / `VariableDefinition` / `SubscriptDefinition` 各有一个 `objcMember: ObjCMember?`——这个成员实现的 ObjC 方法：selector、是否类方法、覆写的祖先（可空）、证据档位、selector 是否为源码里 `@objc(name)` 写出的。`isOverride` 与 `isClassMember` 都 OR 上 `objcMember?.isOverride`（覆写的类方法必须打 `class`）；联结上的成员缺 `.objc` 属性就补上（OS 框架 strip 掉了 `To` thunk 符号，方法表是 `@objc` 的唯一证据）；printer 在 `hasExplicitSelector` 时打 `@objc(selector)`。表联结不上的覆写方法**始终**按名字归属一次（第三档），结果照样写进 `objcMember`（`evidence == .selectorName`）——但**不写 `attributes`**，因为紧跟其后的 `final` 还原会把 `@objc` 读成 `@objc dynamic` 的证据，那是消费者还没下的裁决。用不用这一档由消费者决定：`resolvedObjCMemberFacts(trustingSelectorNameEvidence:)`（`ResolvedObjCMemberFacts.swift`）按裁决一次性给出 `attributes` / `isOverride` / `isClassMember` / `isFinal`，printer 传 `SwiftDeclarationPrintConfiguration.infersObjCOverridesFromSelectorNames`。定义自己的 `isOverride` / `isClassMember` 只认前两档（`ObjCMember.isJoinedOverride`）。它由 `Building/ObjCMemberApplication` 在 `TypeDefinition.index(in:)`（`applyThunkAttributes` 之后、`recoverFinalMembers` 之前——`final` 还原用 `@objc` 排除 `@objc dynamic`）和 `SwiftDeclarationIndexer.indexExtensions()`（`__C` 类的 extension 与本镜像 Swift 类的 extension）里从 `SwiftThunkAnalysis.ObjCMembers` 的表 join 上来：函数按自己的符号名，属性 / 下标先按 getter 再按任一 accessor 符号，`init` 按 allocator 符号换 initializer 后缀。第三档「只按名字」的覆写推断也在这里做。这个事实**不进** ABI 快照。详见 [ObjCMemberRecovery.md](../ObjCMemberRecovery.md)。
 
+### 访问器种类与关联类型的抑制（Swift 6.4）
+
+`AccessorKind` 除 get / set / read / modify 外还有 SE-0507 的 `borrowAccessor` / `mutateAccessor`（符号后缀 `vb` / `vz`）。只声明了这两种访问器的属性、下标与协议要求没有 getter 符号，`DefinitionBuilder` 因此把 getter 与 `borrow` 都当作「读访问器」来选声明节点；打印出的访问器块由 `hasBorrowAccessor` / `hasMutateAccessor` 决定（`{ borrow mutate }`），旁边编译器为满足协议合成的 getter / setter 不盖掉它们。`yielding borrow` / `yielding mutate`（SE-0474）还没有接。
+
+`ProtocolDefinition.suppressedInvertibleProtocolsByAssociatedTypeName` 记 `associatedtype Element: ~Copyable`（SE-0503）。二进制本身不记录这个声明，这里只装 `SwiftInspection.SuppressedAssociatedTypeInference` 从本镜像里该协议的 extension 签名证明出来的部分，而且只有主关联类型留得下证据；没有条目不代表关联类型是 Copyable。这个事实**不进** ABI 快照：证据有无随版本里写没写 extension 变化。详见提案 [0070-borrow-accessors-and-suppressed-associated-types](../../Evolutions/0070-borrow-accessors-and-suppressed-associated-types.md)。
+
 ## 相关文档
 
 - [DeclarationModelMemoryFootprint.md](../DeclarationModelMemoryFootprint.md)——模型内存占用与瘦身。

@@ -957,8 +957,13 @@ public final class SymbolIndexStore: @unchecked Sendable {
             if let first {
                 return processMemberSymbol(symbolTableRow, node: first, memberKind: .variable(inExtension: traits.contains(.inExtension), isStatic: traits.contains(.isStatic), isStorage: traits.contains(.isStorage)), builder: &builder)
             }
+        // A SE-0507 `borrow` / `mutate` accessor is the property's read /
+        // write accessor when it declares one: such a property has no getter
+        // or setter symbol of its own, so skipping them dropped it whole.
         case .getter,
-             .setter:
+             .setter,
+             .borrowAccessor,
+             .mutateAccessor:
             if let variableNode = node.children.first, variableNode.kind == .variable, var first = variableNode.children.first {
                 if first.kind == .extension, let type = first.children.at(1) {
                     traits.insert(.inExtension)
@@ -1071,7 +1076,9 @@ public final class SymbolIndexStore: @unchecked Sendable {
             // this is a stored variable declaration
             return .init(kind: .variable(isStorage: true), symbolTableRow: symbolTableRow)
         case .getter,
-             .setter:
+             .setter,
+             .borrowAccessor,
+             .mutateAccessor:
             if let variableNode = node.children.first, variableNode.kind == .variable {
                 return processGlobalSymbol(symbolTableRow, node: variableNode)
             }
@@ -1489,6 +1496,8 @@ extension Node.Kind {
              .function,
              .getter,
              .setter,
+             .borrowAccessor,
+             .mutateAccessor,
              .methodDescriptor,
              .protocolWitness,
              .variable:
@@ -1533,8 +1542,8 @@ extension DependencyValues {
 extension DemanglingNode {
     package var isGlobal: Bool {
         guard let first = children.first else { return false }
-        guard first.isKind(of: .getter, .setter, .function, .variable) else { return false }
-        if first.isKind(of: .getter, .setter), let variable = first.children.first, variable.isKind(of: .variable) {
+        guard first.isKind(of: .getter, .setter, .borrowAccessor, .mutateAccessor, .function, .variable) else { return false }
+        if first.isKind(of: .getter, .setter, .borrowAccessor, .mutateAccessor), let variable = first.children.first, variable.isKind(of: .variable) {
             return variable.children.first?.isKind(of: .module) ?? false
         } else {
             return first.children.first?.isKind(of: .module) ?? false
@@ -1542,7 +1551,7 @@ extension DemanglingNode {
     }
 
     package var isAccessor: Bool {
-        return isKind(of: .getter, .setter, .modifyAccessor, .readAccessor)
+        return isKind(of: .getter, .setter, .modifyAccessor, .readAccessor, .borrowAccessor, .mutateAccessor)
     }
 }
 

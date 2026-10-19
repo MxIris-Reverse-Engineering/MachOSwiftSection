@@ -112,17 +112,17 @@ public enum CapstoneThunkDecoder {
         startAddress: UInt64,
         maximumInstructionCount: Int = defaultMaximumInstructionCount
     ) throws -> [ThunkInstruction] {
-        let capstone = try Capstone(arch: .aarch64, mode: [Mode.endian.little])
-        try capstone.set(option: .detail(value: true))
-        let decodedInstructions: [AArch64Instruction] = try capstone.disassemble(
-            code: machineCode,
-            address: startAddress,
-            count: maximumInstructionCount
-        )
-        return decodedInstructions.map(thunkInstruction(from:))
+        // Each instruction is converted while the disassembler lends it, so
+        // nothing of Capstone's outlives this call.
+        let disassembler = try Disassembler<AArch64>()
+        var thunkInstructions: [ThunkInstruction] = []
+        disassembler.forEachInstruction(in: machineCode, address: startAddress, limit: maximumInstructionCount) { instruction in
+            thunkInstructions.append(thunkInstruction(from: instruction))
+        }
+        return thunkInstructions
     }
 
-    private static func thunkInstruction(from instruction: AArch64Instruction) -> ThunkInstruction {
+    private static func thunkInstruction(from instruction: borrowing InstructionView<AArch64>) -> ThunkInstruction {
         ThunkInstruction(
             address: instruction.address,
             operation: operation(from: instruction),
@@ -130,7 +130,7 @@ public enum CapstoneThunkDecoder {
         )
     }
 
-    private static func operation(from instruction: AArch64Instruction) -> ThunkOperation {
+    private static func operation(from instruction: borrowing InstructionView<AArch64>) -> ThunkOperation {
         let operation = modelledOperation(from: instruction)
         if case .unmodelled = operation {
             return .unmodelled(writtenRegisters: writtenRegisters(of: instruction))
@@ -140,16 +140,16 @@ public enum CapstoneThunkDecoder {
 
     /// The general-purpose registers an instruction writes, per the
     /// disassembler's register-access list (explicit and implicit).
-    private static func writtenRegisters(of instruction: AArch64Instruction) -> [ThunkRegister] {
+    private static func writtenRegisters(of instruction: borrowing InstructionView<AArch64>) -> [ThunkRegister] {
         var registers: [ThunkRegister] = []
-        for register in instruction.registersAccessed.written + instruction.registersAccessedImplicitly.written {
+        for register in instruction.registersAccessed().written + instruction.implicitRegistersWritten {
             guard let thunkRegister = thunkRegister(from: register), !registers.contains(thunkRegister) else { continue }
             registers.append(thunkRegister)
         }
         return registers
     }
 
-    private static func modelledOperation(from instruction: AArch64Instruction) -> ThunkOperation {
+    private static func modelledOperation(from instruction: borrowing InstructionView<AArch64>) -> ThunkOperation {
         let operands = instruction.operands
         switch semanticInstruction(of: instruction) {
         case .adrp:
@@ -297,25 +297,26 @@ public enum CapstoneThunkDecoder {
         }
     }
 
-    private static func semanticInstruction(of instruction: AArch64Instruction) -> AArch64Ins? {
-        // v6 combines an underlying opcode with the displayed alias's operands.
-        // Match both before interpreting a shortened move or comparison list.
-        switch (instruction.instruction, instruction.mnemonic) {
-        case (.orr, "mov"), (.add, "mov"), (.movz, "mov"), (.movn, "mov"):
+    private static func semanticInstruction(of instruction: borrowing InstructionView<AArch64>) -> AArch64Ins? {
+        // v6 reports an alias's real opcode with the displayed alias's operands:
+        // `mov x0, x1` is `orr` with two operands. The alias decides how those
+        // operands read, for the moves and comparisons this analysis models.
+        switch instruction.alias {
+        case .aliasMov:
             return .mov
-        case (.subs, "cmp"):
+        case .aliasCmp:
             return .aliasCmp
         default:
-            return instruction.instruction
+            return instruction.identifier
         }
     }
 
-    private static func writesBack(_ instruction: AArch64Instruction) -> Bool {
-        // v6 exposes post-indexing but no general write-back flag. Pre-indexed
-        // memory operands retain the `!` marker in Capstone's printed syntax.
-        // A written base register alone is insufficient: `ldr x0, [x0]` also
-        // writes its base, through the load destination rather than write-back.
-        instruction.isPostIndex == true || instruction.operandsString.contains("]!")
+    private static func writesBack(_ instruction: borrowing InstructionView<AArch64>) -> Bool {
+        // Capstone's own write-back flag is set for any tied operand (`movk`,
+        // `cas`); this property is set only when the base register is updated.
+        // A written base register alone would not do either: `ldr x0, [x0]`
+        // writes its base through the load destination, not by write-back.
+        instruction.writesBackBaseRegister
     }
 
     private static func condition(from conditionCode: AArch64CondCode?) -> ThunkCondition {
@@ -326,12 +327,12 @@ public enum CapstoneThunkDecoder {
         }
     }
 
-    private static func register(at index: Int, of operands: [AArch64Instruction.Operand]) -> ThunkRegister? {
+    private static func register(at index: Int, of operands: [AArch64.Operand]) -> ThunkRegister? {
         guard index < operands.count, let register = operands[index].register else { return nil }
         return thunkRegister(from: register)
     }
 
-    private static func immediateValue(at index: Int, of operands: [AArch64Instruction.Operand]) -> Int64? {
+    private static func immediateValue(at index: Int, of operands: [AArch64.Operand]) -> Int64? {
         guard index < operands.count, let value = operands[index].immediateValue else { return nil }
         guard let shift = operands[index].shift else { return value }
         guard shift.type == .lsl, shift.value < 64 else { return nil }
@@ -340,7 +341,7 @@ public enum CapstoneThunkDecoder {
 
     private static func memoryOperand(
         at index: Int,
-        of instruction: AArch64Instruction
+        of instruction: borrowing InstructionView<AArch64>
     ) -> (base: ThunkRegister, displacement: Int64)? {
         let operands = instruction.operands
         guard index < operands.count, let memory = operands[index].memory else { return nil }
@@ -349,7 +350,7 @@ public enum CapstoneThunkDecoder {
         guard memory.index == nil, let base = thunkRegister(from: memory.base) else { return nil }
         // v6 places the post-index update in mem.disp; the access itself still
         // reads the old base. The evaluator separately refuses write-back.
-        return (base: base, displacement: instruction.isPostIndex == true ? 0 : memory.displacement)
+        return (base: base, displacement: instruction.isPostIndex ? 0 : memory.displacement)
     }
 
     /// Folds Capstone's separate 32-bit and 64-bit register spellings onto one

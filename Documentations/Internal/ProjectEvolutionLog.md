@@ -2512,6 +2512,45 @@
 - **关联文档**：[Changelogs/0.23.0.md](../../Changelogs/0.23.0.md)；MachOObjCSection 的[实现说明](https://github.com/MxIris-Reverse-Engineering/MachOObjCSection/blob/0.8.200/Documentations/Internal/RelativeListsAcrossSubCacheFiles.md)。
 - **对应版本**：0.23.0。
 
+## 99. Swift 6.4 的 borrow / mutate 访问器与关联类型上的 `~Copyable`
+
+- **时间段**：2026-10-10 写成，2026-10-16 找回并合入 `next`。
+- **动机**：抓 Swift 论坛近期帖子评估影响时，顺着 2026-08-31 的「6.4 实现状态汇总」实测出两个缺口：只声明 SE-0507 `borrow` / `mutate` 访问器的属性、下标与协议要求在 interface 与 dump 里整个消失；SE-0503 的 `associatedtype Element: ~Copyable` 印成 `associatedtype Element`。用户：「修一下」。
+- **关键决策**：**① borrow / mutate 全链认**：符号索引把 `vb` / `vz` 当作成员与全局变量的访问器符号，`AccessorKind` 加两个 case，`DefinitionBuilder` 把 `borrow` 当读访问器选声明节点，访问器块按 `hasBorrowAccessor` / `hasMutateAccessor` 印 `{ borrow mutate }`。**② 关联类型的抑制只能推断**：查编译器源码确认二进制不记录这个声明（IRGen 只给泛型参数发反向要求），改由本镜像里该协议 extension 签名上的 `Self.X: ~Copyable` 证明；实测只有主关联类型留得下这种证据，用户在「推断」与「不修、只记成限制」之间选了推断。结论不进 ABI 快照。**③ `yielding borrow` / `yielding mutate` 不做**，等 SE-0474 落地。**④ 测试现场用 Swift 6.4 编 fixture**：CI 的 Swift 6.3 编不出 `borrow`，`SymbolTestsCore` 也不能动；找不到 6.4 工具链就跳过。**⑤ 找回再合入**：10-10 的改动一直只暂存、没有提交，工作树在 10-12 到 10-15 之间被删。分支一次都没提交过，`merge-base --is-ancestor` 把它判成「已合并」。10-16 从对象库里一个不可达的临时提交加当天对话记录里的三处文档修改恢复，rebase 到 0.23.0 之后的 `next`：`DefinitionBuilder` 改用 `memberSubtree`，关联类型行改用带 `resolver:` 的 `dumpInvertedProtocolsInheritance`。经过见提案决策日志。
+- **公开 API 与行为变化**：`AccessorKind` 新增 `.borrowAccessor` / `.mutateAccessor`（**源码不兼容**：RuntimeViewer 的 `RuntimeSwiftSection.swift` 对它穷举 `switch`，合入时同批补上）；`AccessorRepresentable.hasBorrowAccessor` / `hasMutateAccessor`；`ProtocolDefinition.suppressedInvertibleProtocolsByAssociatedTypeName`。
+- **落地模块**：MachOSymbols（`SymbolIndexStore` 的成员 / 全局 / 访问器判断）、SwiftDeclaration（`AccessorKind`、`Accessor`、`DefinitionBuilder`、`WrappedPropertyRecovery`、`ProtocolDefinition`）、SwiftInspection（新增 `SuppressedAssociatedTypeInference`）、SwiftPrinting（`AccessorBlockKeywords`、成员打印器、关联类型行）、SwiftDump（`ProtocolDumper`）、SwiftDeclarationRendering（`WrappedValueAccessorSymbol`）、SwiftDiffing（访问器 token）；测试支持新增 `Swift64DeclarationShapesFixture`。
+- **验证**（细节见提案决策日志）：
+  - 10-10 在 `next` @ `cd248de9` 上：新测试在修复前有 15 处断言失败，修复后全部通过。
+  - 10-16 rebase 之后，在 JHs-Mac-Studio 上用 Xcode 26.6 跑，依赖链本地兄弟仓库，内容与已发布版本一致：
+    - 全量 `swift test --skip IntegrationTests` 共 2450 个测试 / 470 个套件，失败的只有本机既有的两条 `MultiPayloadEnumDescriptorCacheTests`。
+    - 渲染 A/B 以 `b7be58ec` 为基线，90 对全部逐字节一致：两份归档 cache、四个 iOS 模拟器 runtime，加上 MachOImage 腿。
+    - macOS 27.0 的 libswiftCore，interface 与 dump 都只多出两处 `: ~Swift.Copyable`。
+- **关联文档**：[0070-borrow-accessors-and-suppressed-associated-types](../Evolutions/0070-borrow-accessors-and-suppressed-associated-types.md)、[Modules/SwiftDeclaration.md](Modules/SwiftDeclaration.md)「访问器种类与关联类型的抑制」、[Modules/MachOSymbols.md](Modules/MachOSymbols.md)、`AgentPlugins/swift-section` 的 skill（新增一条读输出的提示）。
+- **对应版本**：未发版（`next`）。`AccessorKind` 新增 case 会让下游的穷举 `switch` 编不过，发版说明要写进 Breaking。
+
+## 100. 迁到 swift-capstone 7.0
+
+- **时间段**：2026-10-17，分支 `feature/swift-capstone-7`，swift-capstone 7.0.0 发布后当天合入 `next`。
+- **动机**：swift-capstone 7.0 用按架构泛型的不可复制引擎 `Disassembler<AArch64>` 取代 6.x 的类 API，旧 API
+  直接删除；它的重写提案约定本库与 swift-decompiler 同批迁移。用户批准该提案：「可以，按你说的开工」。
+- **关键决策**：① 只改 `CapstoneThunkDecoder.swift`，`decode` / `decodeFunction` 的签名与 `Data` 入参不变；
+  ② 每条指令在 `forEachInstruction` 的闭包里直接转成 `ThunkInstruction`；③ 别名改看 `alias`，写回改看
+  `writesBackBaseRegister`，不再靠「编号 + mnemonic」配对与匹配 `]!`；④ 依赖下限从 6.0.1 改成 7.0.0，
+  等 swift-capstone 7.0.0 发布才合入。
+- **落地模块**：SwiftThunkAnalysis（`Instructions/CapstoneThunkDecoder.swift`）。
+- **验证**（细节见提案决策日志）：
+  - 发布前对着本地 swift-capstone，以 `swift package edit` 只在 agent 的构建目录里覆盖依赖、不动共享的
+    `.worktrees/` 链接。Swift 6.4.2：`SwiftThunkAnalysisTests` 82 个测试，加上间接用到解码器的 5 个套件
+    52 个测试；全量 `swift test --skip IntegrationTests` 共 2450 个测试 / 470 个套件全部通过。
+  - 发布后在新鲜构建目录里重跑全量，swift-capstone 从远端解析到 7.0.0、capstone 到 6.0.101，其余依赖仍链
+    兄弟仓库：2450 个测试 / 470 个套件全部通过。原始退出码都是 0。
+  - 坑：`swift package edit` 留下的 manifest 求值缓存会把指向本地 capstone 的路径依赖套到远端 7.0.0 上，
+    解析失败；`swift package resolve --manifest-cache none` 一次即可。
+- **关联文档**：[0071-swift-capstone-7](../Evolutions/0071-swift-capstone-7.md)、
+  [Modules/SwiftThunkAnalysis.md](Modules/SwiftThunkAnalysis.md)「Capstone v6 的解码边界」。
+- **对应版本**：未发版（`next`）。对外 API 不变，但依赖图里的 swift-capstone 从 6.x 换成 7.x：同时直接依赖
+  swift-capstone 6 的下游会解析失败，发版说明要写进 Breaking。
+
 ## 101. 交叉引用分析，第一批
 
 - **时间段**：2026-10-16（单日）。
