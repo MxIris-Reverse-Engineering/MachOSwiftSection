@@ -21,7 +21,7 @@
 | SwiftPrinting | — | 待写 |
 | SwiftSpecialization | — | 待写 |
 | SwiftThunkAnalysis | [SwiftThunkAnalysis.md](SwiftThunkAnalysis.md) | ✅ 已写（入门：[AccessorThunkResolutionExplained.md](../AccessorThunkResolutionExplained.md)） |
-| CrossReferenceAnalysis | [CrossReferenceAnalysis.md](CrossReferenceAnalysis.md) | ✅ 已写（提案 [draft-cross-reference-analysis](../../Evolutions/draft-cross-reference-analysis.md)） |
+| CrossReferenceAnalysis | [CrossReferenceAnalysis.md](CrossReferenceAnalysis.md) | ✅ 已写（提案 [0072-cross-reference-analysis](../../Evolutions/0072-cross-reference-analysis.md)） |
 | ARM64InstructionDecoding | [CrossReferenceAnalysis.md](CrossReferenceAnalysis.md) | ✅ 已写（与 CrossReferenceAnalysis 同篇：手写的指令字读取与跳板形状，SwiftThunkAnalysis 也用） |
 | SwiftAttributeInference | — | 待写 |
 | SwiftDeclaration | [SwiftDeclaration.md](SwiftDeclaration.md) | ✅ 已写 |

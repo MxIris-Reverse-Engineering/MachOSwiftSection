@@ -79,4 +79,4 @@
 | [0067](0067-nested-field-offset-memoization.md) | 进程内嵌套字段偏移展开的记忆化与匿名上下文判别符缓存 | Implemented |
 | [0068](0068-nested-definition-regions.md) | 在父定义的打印结果里标出嵌套子定义的边界 | Implemented |
 | [0069](0069-offline-generic-specialization.md) | 离线泛型特化：不经 runtime 特化泛型类型并完整打印 | Implemented |
-| draft | [交叉引用分析：从机器码读出每个函数引用了什么](draft-cross-reference-analysis.md) | In Progress |
+| [0072](0072-cross-reference-analysis.md) | 交叉引用分析：从机器码读出每个函数引用了什么 | Implemented |

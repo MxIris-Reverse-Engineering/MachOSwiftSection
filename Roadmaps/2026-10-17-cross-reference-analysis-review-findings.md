@@ -1,6 +1,6 @@
 # 交叉引用分析审查记录（`feature/cross-reference-analysis`，2026-10-17）
 
-审查对象：`feature/cross-reference-analysis` 相对 `0.23.0`（`b7be58ec`）的全部提交（`0c0ebce3` … `c2cefa9c`），即提案 [draft-cross-reference-analysis](../Documentations/Evolutions/draft-cross-reference-analysis.md) 的第一、二批。同一轮也审了 RuntimeViewer 的 `feature/cross-references`，那边的条目（编号 C 开头的大部分、D1、D4、D10–D13）记在 RuntimeViewer 的 `Documentations/KnownIssues/2026-10-17-cross-references-review-findings.md`。
+审查对象：`feature/cross-reference-analysis` 相对 `0.23.0`（`b7be58ec`）的全部提交（`0c0ebce3` … `c2cefa9c`），即提案 [0072-cross-reference-analysis](../Documentations/Evolutions/0072-cross-reference-analysis.md) 的第一、二批。同一轮也审了 RuntimeViewer 的 `feature/cross-references`，那边的条目（编号 C 开头的大部分、D1、D4、D10–D13）记在 RuntimeViewer 的 `Documentations/KnownIssues/2026-10-17-cross-references-review-findings.md`。
 
 **方式**：四个子代理按模块并行通读（只读），交回 47 条候选，去掉重复 43 条（两个仓库合计）；每条都由本人回到代码复核，能造出复现的造复现。编号沿用审查时的分组：A 扫描与寄存器跟踪，B 分析器与预筛，C RuntimeViewer 引擎侧，D 测试与文档，N 公开接口的小毛病。
 

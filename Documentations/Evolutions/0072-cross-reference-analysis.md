@@ -1,9 +1,9 @@
-# Draft - 交叉引用分析：从机器码读出每个函数引用了什么
+# 0072 - 交叉引用分析：从机器码读出每个函数引用了什么
 
-- **状态**: In Progress
+- **状态**: Implemented
 - **创建日期**: 2026-10-16
-- **最后更新**: 2026-10-18
-- **关联**: RuntimeViewer 的 [draft-cross-references](https://github.com/MxIris-Reverse-Engineering/RuntimeViewer/blob/feature/cross-references/Documentations/Evolutions/draft-cross-references.md)。交叉引用的整体设计、前期调研与实测数据都在那里，本提案只定本库这一层。
+- **最后更新**: 2026-10-19
+- **关联**: RuntimeViewer 的 [0056-cross-references](https://github.com/MxIris-Reverse-Engineering/RuntimeViewer/blob/next/Documentations/Evolutions/0056-cross-references.md)。交叉引用的整体设计、前期调研与实测数据都在那里，本提案只定本库这一层。
 
 ## 摘要
 
@@ -169,6 +169,15 @@ RuntimeViewer 在后台为已索引的镜像建好 `CodeReferenceIndex` 之后�
 
 验证：`PreparedImageDataTests` 5 个，`SwiftTypeReferenceTests` 新增 4 个（两个测试各跑 Foundation 与 AppKit）。
 
+## 后续
+
+各批记下「没做的」，落地时收在这里：
+
+- **起名还缺的来源**：协议见证（全缓存 78 万处，最大的一类）、override 实现、witness table pattern 条目的名字；扫描时用方法表判断无名的 ObjC 方法。RuntimeViewer 0056 在 macOS 26.7 上实测：缓存里 37.8% 的函数起点没有符号，Charts、SwiftData、WidgetKit 这类 Swift 框架七到九成；名字齐全的 Swift 镜像里协议见证占全部函数的 11–18%、值见证占 4–13%，这两类都能从见证表确定名字，是补名字最值得做的两项。
+- **ObjC**：按字符串取类（`objc_getClass("…")`，AppKit 183 处）；Swift 的 super 发送的类。
+- **类型引用**：协议的类型引用（协议描述符、存在类型、泛型约束）；旧形态（V1）已经实例化的缓存变量；`swift_getTypeByMangledName…` 的名字地址只认 `adrp` / `add` 出的。
+- **扫描**：过滤扫描按键提前跳过（现在先建好每条引用再丢）。
+
 ## 决策日志
 
 | 日期 | 决定 | 理由 |
@@ -197,3 +206,4 @@ RuntimeViewer 在后台为已索引的镜像建好 `CodeReferenceIndex` 之后�
 | 2026-10-17 | Swift 类型的预筛先看定义镜像导不导出它的符号（`…Mn` / `…Ma` / `…N`），一个都不导出就只扫定义镜像 | 用户在 RuntimeViewer 里查 AppKit 内部结构体的类型引用，扫了几乎整个缓存、CPU 占满；内部类型别的镜像绑定不到、也拼不出名字。公开类型三个符号都导出（`URL`、`SwiftUI.Text`、`JSONEncoder` 已核对），原有「不漏引用」的测试照样通过 |
 | 2026-10-18 | 新增 `CodeReferenceIndex`（`referenceIndex(ofImageAt:)`、`references(toSwiftType:in:)`、`keepFunctionTable(ofImageAt:)`）：按目标分组、名字只存一份、偏移存 32 位，只留查调用者与类型引用会读的引用 | RuntimeViewer 要为已索引的镜像预先建好引用表常驻内存（用户选「紧凑表」「只放内存」）。整表一条引用约 80 字节，AppKit 67 MiB；索引 21 MiB。回答与过滤扫描逐条相同（`CodeReferenceIndexTests`）。建索引留住函数表，因为宿主会反复给结果起名；这与「整镜像扫描不留函数表」不冲突——索引只为宿主要留的少数镜像建 |
 | 2026-10-18 | 新增 `prepareNames(inImageAt:)`、`preparePrefilters()`、`approximateByteCount(ofImageDataAt:)`、`releaseImageData(exceptForImagesAt:)`；按 key 找类型只算同名类型的 key；判断类型导出与否改为在导出表里按名字查 | 用户在 RuntimeViewer 里发现预先建好引用表之后第一次显示仍要等，批准把起名数据与预筛表挪进后台（刚启动、表还没建完时要等，用户认为本该如此）。实测第一次查询现读的几样里，能免的（全部类型的 key、整个导出表）改成不读，免不了的（补充名字、预筛表）交给宿主提前读；预筛表并行读几乎不快，所以预读只用调用线程，以免后台占满所有核。预读的东西计入宿主预算，宿主放掉别的镜像而不是换分析器，否则预读白做 |
+| 2026-10-19 | 实现完成，合入 next，编号 0072；状态 → Implemented | RuntimeViewer 0056 的引擎与界面要用的能力都在本层，0056 的引擎与 GUI 同日合入 RuntimeViewer 的 next（它的 CLI 与 MCP 还没做，不需要本库再改）。各批「没做的」收进「后续」。配套文档已有：模块说明 `Internal/Modules/CrossReferenceAnalysis.md` 就是实现说明，使用方只有 RuntimeViewer、接口契约写在模块说明里，不另写使用指南；术语已在各批登记进 `Glossary.md` |

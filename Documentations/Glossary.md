@@ -78,7 +78,7 @@
 macOS 27 与 iOS 27 的 dyld shared cache 不再给每个镜像留自己的 `__objc_stubs` / `__auth_stubs`（这两个段在镜像里大小为 0），而是把桩收成整个缓存共用的一份，放在不属于任何镜像的区域：ObjC 消息走 selector 桩（`adrp x1; add x1; b <objc_msgSend 副本>`，`x1` 就是 selector 字符串），跨库调用走 GOT 桩（`adrp x17; add x17; ldr x16, [x17]; braa x16, x17`）。同一个 selector 在不同子缓存里各有一份桩，所以认 selector 要以字符串地址为键。与 stub island 的区别：island 自己算出目标、不读槽位。macOS 26、iOS 26 及更早，以及 Simulator 的缓存仍是镜像自带的桩。
 
 - **主要出现在**：`Sources/Support/ARM64InstructionDecoding/ARM64Trampoline.swift`、`Sources/Analysis/CrossReferenceAnalysis/Scanning/ReferenceScanner.swift`
-- **延伸阅读**：[Modules/CrossReferenceAnalysis.md](Internal/Modules/CrossReferenceAnalysis.md)、[draft-cross-reference-analysis](Evolutions/draft-cross-reference-analysis.md)
+- **延伸阅读**：[Modules/CrossReferenceAnalysis.md](Internal/Modules/CrossReferenceAnalysis.md)、[0072-cross-reference-analysis](Evolutions/0072-cross-reference-analysis.md)
 
 ### context form / Mach-O form / pointer form（读取接口的三种形式）
 
