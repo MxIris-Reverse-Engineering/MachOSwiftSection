@@ -32,7 +32,7 @@ SwiftThunkAnalysis 干一件事：**不执行 thunk，把它算出来**。
 
 | 输入 | 状态 |
 |---|---|
-| dyld shared cache 里的镜像（macOS 14.7 – 26.6、iOS 设备 cache、iOS 27 模拟器 cache） | 完整解析。跨镜像调用是 rebase 地址或镜像间跳板（读槽的 stub / 算地址的 stub island），都跟得下去 |
+| dyld shared cache 里的镜像（macOS 14.7 – 26.6、iOS 设备 cache、iOS 27 模拟器 cache） | 完整解析。跨镜像调用是 rebase 地址或镜像间跳板（读槽的 stub / 算地址的 stub island），都跟得下去；跳板的形状由 `ARM64InstructionDecoding` 的 `ARM64Trampoline` 认，与 CrossReferenceAnalysis 共用一份（此前用 Capstone 加寄存器跟踪认，行为相同） |
 | 独立文件（第三方 app、iOS 26 及更早的模拟器运行时、即时编译的 fixture） | 完整解析，前提是给得出依赖搜索路径。跨镜像调用全是 GOT bind（只有名字），靠依赖镜像的 export trie + accessor 索引解名 |
 | 编译器合并的 `…MaTm` accessor | 跟进函数体求值（真正的 accessor 从 `x3` 传入，函数体只查缓存再 `blr x3`） |
 | 按名字引用的、属于**别的镜像**的 opaque 类型 | 重新 mangle 出描述符符号名、定位镜像、在那个镜像里展开 |

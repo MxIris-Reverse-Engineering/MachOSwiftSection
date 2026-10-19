@@ -2551,6 +2551,37 @@
 - **对应版本**：未发版（`next`）。对外 API 不变，但依赖图里的 swift-capstone 从 6.x 换成 7.x：同时直接依赖
   swift-capstone 6 的下游会解析失败，发版说明要写进 Breaking。
 
+## 101. 交叉引用分析，第一批
+
+- **时间段**：2026-10-16（单日）。
+- **动机**：RuntimeViewer 要做交叉引用（调用者、被调、类型引用），它的提案 0056-cross-references 把分析逻辑定在本库。那份提案的落地第一步先实测了前提：进程内能读没加载的缓存镜像；手写解码扫完整个 macOS 27.2 缓存只要 1–4 秒，比 Capstone 快 25–50 倍；macOS 27 / iOS 27 的缓存把镜像自带的桩收成了全缓存共用的一份。用户批准本库的精简提案（「可以，开始第一批」）后动手。
+- **关键决策**：
+  - ① 新 target `CrossReferenceAnalysis`：只读进程内的 `MachOImage`，只认 arm64 / arm64e，手写解码、不用 Capstone。
+  - ② API 由宿主持有的 `CrossReferenceAnalyzer` 提供，它是进程镜像的快照（整个共享缓存加缓存外已加载的镜像）；位置一律用 `CodeLocation`（镜像序号加未滑动地址），因为缓存外两个镜像的未滑动地址可能重合。提案草图原是一组接收 `MachOImage` 的静态函数，跨镜像解析目标要整张镜像表，所以改了。
+  - ③ 跳板形状（GOT 桩、stub island、全缓存共用的 selector 桩）抽成新 target `ARM64InstructionDecoding` 的 `ARM64Trampoline`，SwiftThunkAnalysis 的 `MachOThunkEnvironment` 改用它，行为不变（用户选择共用，否了另写一份）。
+  - ④ 没名字的函数照样扫描：缓存里一半函数没有符号，它们发出的调用约占一半。
+  - ⑤ 不加全局的按镜像缓存：分析器在自己的生命周期内记住函数表，引用表是值，宿主按 `approximateByteCount` 自己管。
+- **落地模块**：`ARM64InstructionDecoding`（新，Support 层）、`CrossReferenceAnalysis`（新，Analysis 层，public product）、`SwiftThunkAnalysis`（`MachOThunkEnvironment` 的两个跳板读取）、`Package.swift`。测试：新 `CrossReferenceAnalysisTests`。
+- **实现中的两处修正**：整镜像扫描起初也记住函数表，扫完一遍 macOS 27.2 缓存常驻 1.5 GB，改为临时建表；整表并发扫描的峰值又让分配器留下 1.2 GB 脏页（活对象只有一两 MB），新增只留命中引用的 `references(to:inImageAt:)`，同样扫完全缓存后约 170 MB。另曾为懒绑定加过一处退回导入名的防护，探针实测 dyld 加载时就绑好槽，防护是死代码，撤掉后留哨兵测试。
+- **验证**：JHs-Mac-Studio-Ultra（macOS 27.2、Xcode 27.2、Swift 6.4.2），新 scratch，依赖全部从远端解析，fixture 链主检出现编的那份（`Tests/Projects` 无改动）。`CrossReferenceAnalysisTests` 20 个测试通过，其中 `callSitesMatchCapstone` 抽样 400 个 AppKit 函数与 Capstone 逐条对照调用与跳出函数的跳转，`wholeImageScansKeepNoFunctionTable` 改前红、改后绿。`SwiftThunkAnalysisTests` 82 个通过，含经 stub island 解析的离线 iOS 缓存测试。全量 `swift test --skip IntegrationTests` 跑了两次：改跳板识别后 2,458 个测试 / 471 个套件，最终代码 2,462 个 / 473 个，原始退出码都是 0，跳过的只有 3 个默认关闭的研究探针。release 基准：建分析器 0.02 秒，每个镜像都建整表 28 核 1.6–1.8 秒、4 线程 5.9 秒，`init` 的调用者（预筛出 2,759 个镜像）28 核 1.5 秒。渲染 A/B 未跑：这批不碰 demangle、打印、索引与读取栈，只换了 thunk 分析认跳板的实现，由它的测试覆盖。
+- **接入时的修补**：RuntimeViewer 第 3 步查 `-[NSObject description]` 的调用者一条都没有，追到缓存里的传统 `objc_msgSend` 发送——缓存构建器把读 selector 引用改写成了 `adrp` / `add` 出字符串地址，第一批没认，这些发送全被当成对 `objc_msgSend` 的普通调用。补认这种形态（回归测试改前红、改后绿），并补上预筛「不漏」的抽样测试（此前只测了「筛得够狠」）。另加 `functions(containing:)`，给一批结果起名不留函数表。
+- **关联文档**：[0072-cross-reference-analysis](../Evolutions/0072-cross-reference-analysis.md)、[Modules/CrossReferenceAnalysis.md](Modules/CrossReferenceAnalysis.md)、[Glossary.md](../Glossary.md)「cache-shared stub」、RuntimeViewer 的 [0056-cross-references](https://github.com/MxIris-Reverse-Engineering/RuntimeViewer/blob/next/Documentations/Evolutions/0056-cross-references.md)。
+- **对应版本**：未发版。
+
+## 102. 交叉引用分析，第二批：起名、类引用、Swift 类型引用与宿主预读
+
+- **时间段**：2026-10-17 – 2026-10-18；2026-10-19 合入 next，提案编号 0072。
+- **动机**：第一批只认符号表里的名字，而 macOS 27.2 缓存里一半函数起点没有符号；类型引用也还没有。动手前两个只读探针实测了起名来源、类引用与按 mangled 名字实例化在 27.2 上的真实形态，第二批据此重定（见提案「第二批的设计」）。
+- **① 起名（已落地）**：符号表之后依次取导出表、ObjC 方法表、Swift 元数据（访问器、singleton 完成函数、带 `Tq` 的虚表实现），起名时按镜像按需读，扫描不读。导出表一项就给全缓存 140 万个无名起点起了名。`CodeFunction.Name.swiftMethod` 换成 `.swiftMetadata(mangledName:)`。
+- **寄存器跟踪的汇合点（已修）**：第一批按指令顺序读，汇合处沿用最后一条路径的值（`-[NSString stringByAppendingString:]` 的 `copyWithZone:` 接收者被说成 `self`）。改为状态沿着分支走：快照随前向分支带到目标处，汇合处取交集，循环头忘掉调用方保存的寄存器。快照是 `SIMD32` 定长值，release 下整表扫描开销约 10–20%。
+- **② ObjC 类引用（已落地）**：一个值是不是类对象，看它所在的镜像列没列它（直接读 `__objc_classlist` 与 `isa`）；取类地址的指令记为 `.reference` 种类的引用，目标带类对象的位置（全缓存 1.9 万个类名不止一个镜像定义，多是 Mac Catalyst 变体）。类字面量接收者经 `objc_opt_self` 也认得；super 发送的类取同一函数里 `__objc_superrefs` 的载入，分类方法、无符号的方法都对，Swift 的不记。类预筛认定义镜像在类与元类地址上的全部符号：4% 的跨镜像引用走 `__NSConcreteStackBlock` 这类别名。类索引起初经 `MachOImage.objc.classes64` 建，让整表扫描慢了一倍，改为直接读；最终整表扫描 +17%。
+- **③ Swift 类型引用（已落地）**：三种来源——调用元数据访问器、取访问器或值类型元数据的地址、按 mangled 名字实例化（27.2 上是 V2：名字在 `x1` 指向的 `{偏移, 长度}` 记录里）。表按描述符位置归档；类型查询比描述符位置与名字里的符号引用，只有标准库与导入的类型才解开名字——其他类型在名字里一定是符号引用，四个镜像逐个核对过。key 取自 `…Mn` 符号，描述符上下文拼出的 key 在受约束扩展与扩展里的 private 类型上会偏。性能：整表 2.1 → 3.0 秒；途中参数里修改扫描器的写法让 Swift 每次复制整个扫描器，一度 95 秒。协议的类型引用不在这一批。
+- **预筛的 Swift 缺陷（已修）**：缓存 4,113 个镜像只有 245 个留着 Swift 未定义符号，第一批按导入符号的函数预筛对 Swift 函数会丢掉其余镜像里的跨库调用者（只用 C 函数测过）。Swift 符号改按链接关系（直接链接或经再导出）预筛，新增 `imageIndices(linkingImageAt:among:)`、`imageIndices(callingFunctionAt:symbolNames:among:)`；RuntimeViewer 查调用者要改用后者。
+- **审查与修复（10-17）**：两批全部提交审一轮（[审查记录](../../Roadmaps/2026-10-17-cross-reference-analysis-review-findings.md)，不修或暂缓的登记在 [ReviewAdjudications](ReviewAdjudications.md) A62–A68）。修了：寄存器跟踪漏作废的写入（变址读写的基址、原子指令、成对寄存器、SVE / SME 里写通用寄存器的指令等，判断改成纯函数 `RegisterFile.registersWritten(by:)`，SwiftThunkAnalysis 的两个跟踪器同修）；预筛连同别的镜像改名再导出的名字一起比（缓存 12 个镜像 1,438 条，新增 `reexportedNames(ofSymbolsNamed:inImageAt:)`）；缓存外镜像取 dyld 的加载路径，安装名另建一张表；类型查询的 demangle 不再驻留。循环头与跳转表落点保留 `x19`–`x28`（A5）量过：错 0.02%–0.04% 的引用，精确做法多花 35%–60% 的扫描时间，用户定为已知局限（A68）。
+- **④ 宿主预先准备（10-18）**：`CodeReferenceIndex`（`referenceIndex(ofImageAt:)`）按目标分组、名字只存一份、偏移存 32 位，只留查调用者与类型引用会读的引用，AppKit 21 MiB 对整表 67 MiB，回答与过滤扫描逐条相同。第一次查询还要现读的几样也交给宿主提前读：`prepareNames(inImageAt:)`（AppKit 0.29 秒的三个起名来源、类名与类型符号）、`preparePrefilters()`（链接关系与改名再导出表，只用调用线程），`approximateByteCount(ofImageDataAt:)` 计入宿主的预算，`releaseImageData(exceptForImagesAt:)` 只放掉别的镜像的。能不读的不读：按 key 找类型只算同名类型的 key，判断导出与否在导出表里按名字查。验证：`CodeReferenceIndexTests` 6 个、`PreparedImageDataTests` 5 个、`SwiftTypeReferenceTests` 新增 4 个。
+- **关联文档**：[0072-cross-reference-analysis](../Evolutions/0072-cross-reference-analysis.md)、[Modules/CrossReferenceAnalysis.md](Modules/CrossReferenceAnalysis.md)、RuntimeViewer 的 [0056-cross-references](https://github.com/MxIris-Reverse-Engineering/RuntimeViewer/blob/next/Documentations/Evolutions/0056-cross-references.md)。
+- **对应版本**：未发版。
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节

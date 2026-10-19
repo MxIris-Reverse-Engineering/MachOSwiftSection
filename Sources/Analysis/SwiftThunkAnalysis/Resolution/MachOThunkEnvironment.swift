@@ -4,6 +4,7 @@ import MachOKit
 import MachOFoundation
 import MachOSwiftSection
 import Demangling
+import ARM64InstructionDecoding
 @_spi(Internals) import SwiftInspection
 
 @Loggable(.fileprivate, subsystem: "com.machoswiftsection.swift-thunk-analysis", category: "MachOThunkEnvironment")
@@ -299,43 +300,28 @@ package final class MachOThunkEnvironment: ThunkEvaluationEnvironment, MachOThun
     /// has an island's shape: the target computed into a register by
     /// `adrp` / `add` alone — no load, no call — and a register jump.
     private func stubIslandTarget(at address: UInt64) -> UInt64? {
-        guard let offset = addressSpace.offset(forAddress: address),
-              let bytes: [UInt8] = try? machO.readElements(offset: offset, numberOfElements: 16),
-              let instructions = try? CapstoneThunkDecoder.decode(machineCode: Data(bytes), startAddress: address, maximumInstructionCount: 4)
-        else { return nil }
-        var tracker = ThunkRegisterTracker()
-        for instruction in instructions {
-            switch instruction.operation {
-            case .materializePageAddress, .addImmediate:
-                tracker.apply(instruction.operation)
-            case .indirectBranch(let register):
-                return tracker.address(of: register)
-            default:
-                return nil
-            }
-        }
-        return nil
+        guard case .computed(let target)? = trampoline(at: address) else { return nil }
+        return target
     }
 
     /// The GOT slot a stub at `address` loads its target from.
     private func stubSlotAddress(at address: UInt64) -> UInt64? {
+        guard case .slotLoad(let slotAddress)? = trampoline(at: address) else { return nil }
+        return slotAddress
+    }
+
+    /// The trampoline at `address`, read from the file. The shapes are
+    /// recognized by `ARM64Trampoline`, which `CrossReferenceAnalysis`
+    /// shares (evolution proposal `cross-reference-analysis`).
+    private func trampoline(at address: UInt64) -> ARM64Trampoline? {
+        let byteCount = ARM64Trampoline.maximumInstructionCount * 4
         guard let offset = addressSpace.offset(forAddress: address),
-              let bytes: [UInt8] = try? machO.readElements(offset: offset, numberOfElements: 16),
-              let instructions = try? CapstoneThunkDecoder.decode(machineCode: Data(bytes), startAddress: address, maximumInstructionCount: 4)
+              let bytes: [UInt8] = try? machO.readElements(offset: offset, numberOfElements: byteCount),
+              bytes.count == byteCount
         else { return nil }
-        var tracker = ThunkRegisterTracker()
-        for instruction in instructions {
-            switch instruction.operation {
-            case .loadFromMemory(_, let base, let displacement):
-                guard let baseAddress = tracker.address(of: base) else { return nil }
-                return baseAddress &+ UInt64(bitPattern: displacement)
-            case .indirectBranch, .returnFromFunction, .call, .branch:
-                return nil
-            default:
-                tracker.apply(instruction.operation)
-            }
+        return bytes.withUnsafeBytes { buffer in
+            ARM64Trampoline(readingAt: buffer.baseAddress!, address: address)
         }
-        return nil
     }
 
     /// The symbol at `offset` when it is a lazily specialized metadata
