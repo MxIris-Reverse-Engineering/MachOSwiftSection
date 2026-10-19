@@ -268,8 +268,7 @@ struct CrossReferenceAnalyzerTests {
     @Test func callSitesMatchCapstone() throws {
         let appKit = try imageIndex(endingWith: "/AppKit.framework/Versions/C/AppKit")
         let functions = analyzer.functions(inImageAt: appKit)
-        let capstone = try Capstone(arch: .aarch64, mode: [Mode.endian.little])
-        try capstone.set(option: .detail(value: true))
+        let disassembler = try Disassembler<AArch64>()
         let image = analyzer.images[appKit]
         let slide = try #require(image.vmaddrSlide)
         var comparedFunctionCount = 0
@@ -278,7 +277,7 @@ struct CrossReferenceAnalyzerTests {
         for function in stride(from: 0, to: functions.count, by: max(1, functions.count / 400)).map({ functions[$0] }) where function.size >= 4 {
             let pointer = try #require(UnsafeRawPointer(bitPattern: Int(bitPattern: UInt(function.location.address)) &+ slide))
             let code = Data(bytes: pointer, count: function.size)
-            let instructions: [AArch64Instruction] = try capstone.disassemble(code: code, address: function.location.address)
+            let instructions = disassembler.decode(code, address: function.location.address)
             // Capstone stops at a word it cannot decode; compare only what it read whole.
             guard instructions.count * 4 == function.size else { continue }
             comparedFunctionCount += 1
@@ -288,13 +287,13 @@ struct CrossReferenceAnalyzerTests {
             var expected = Set<UInt64>()
             var registerBranches = Set<UInt64>()
             for instruction in instructions {
-                switch instruction.instruction {
+                switch instruction.identifier {
                 case .bl, .blr, .blraa, .blraaz, .blrab, .blrabz, .braa, .braaz, .brab, .brabz:
                     expected.insert(instruction.address)
                 case .br:
                     registerBranches.insert(instruction.address)
                 case .b, .cbz, .cbnz, .tbz, .tbnz, .bc:
-                    let operandIndex = instruction.instruction == .tbz || instruction.instruction == .tbnz ? 2 : (instruction.instruction == .cbz || instruction.instruction == .cbnz ? 1 : 0)
+                    let operandIndex = instruction.identifier == .tbz || instruction.identifier == .tbnz ? 2 : (instruction.identifier == .cbz || instruction.identifier == .cbnz ? 1 : 0)
                     if operandIndex < instruction.operands.count,
                        let target = instruction.operands[operandIndex].immediateValue.map({ UInt64(bitPattern: $0) }), target < start || target >= end {
                         expected.insert(instruction.address)
@@ -313,7 +312,7 @@ struct CrossReferenceAnalyzerTests {
             #expect(extra.isEmpty, "\(function.name.map { "\($0)" } ?? "unnamed") at 0x\(String(start, radix: 16)): no call at \(extra.sorted().map { String($0, radix: 16) })")
         }
         #expect(comparedFunctionCount > 100)
-        // Without detail mode Capstone gives no operands, and this half of the comparison silently compares nothing.
+        // Without operands this half of the comparison would silently compare nothing.
         #expect(comparedBranchOutCount > 1)
     }
 }

@@ -139,12 +139,11 @@ struct RegisterFileTests {
     /// Capstone, a decoder written independently of the tables above,
     /// names no general-purpose register they leave out.
     @Test func capstoneNamesNoOtherWrittenRegister() throws {
-        let capstone = try Capstone(arch: .aarch64, mode: [Mode.endian.little])
-        try capstone.set(option: .detail(value: true))
+        let disassembler = try Disassembler<AArch64>()
         for instruction in Self.writingInstructions + Self.plainAccesses {
-            let decoded: [AArch64Instruction] = try capstone.disassemble(code: InstructionEncoding.bytes(of: [instruction.word]), address: 0x1_0000)
+            let decoded = disassembler.decode(InstructionEncoding.bytes(of: [instruction.word]), address: 0x1_0000)
             let decodedInstruction = try #require(decoded.first, "Capstone cannot decode \(instruction.assembly)")
-            let written = Set((decodedInstruction.registersAccessed.written + decodedInstruction.registersAccessedImplicitly.written).compactMap(Self.generalPurposeRegisterNumber))
+            let written = Set((decodedInstruction.registersWritten + decodedInstruction.implicitRegistersWritten).compactMap(Self.generalPurposeRegisterNumber))
                 .subtracting(Self.capstoneOverstatements[instruction.word] ?? [])
             #expect(written.isSubset(of: instruction.written), "\(instruction.assembly): Capstone also writes \(written.subtracting(instruction.written).sorted())")
         }

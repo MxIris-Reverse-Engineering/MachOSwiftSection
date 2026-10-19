@@ -73,9 +73,7 @@ struct ARM64InstructionWordTests {
             InstructionEncoding.callRegisterAuthenticated(9, modifier: 16),
             InstructionEncoding.branchWithLink(at: address + 28, to: address - 0x1_0000),
         ]
-        let capstone = try Capstone(arch: .aarch64, mode: [Mode.endian.little])
-        try capstone.set(option: .detail(value: true))
-        let instructions: [AArch64Instruction] = try capstone.disassemble(code: InstructionEncoding.bytes(of: words), address: address)
+        let instructions = try Disassembler<AArch64>().decode(InstructionEncoding.bytes(of: words), address: address)
         #expect(instructions.map(\.mnemonic) == ["adrp", "add", "ldr", "braa", "ldr", "movk", "blraa", "bl"])
         #expect(instructions[0].operands[1].immediateValue == 0x1_E20F_A000)
         #expect(instructions[7].operands[0].immediateValue == Int64(address - 0x1_0000))
