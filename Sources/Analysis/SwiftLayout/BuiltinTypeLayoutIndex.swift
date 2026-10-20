@@ -4,8 +4,9 @@ import Demangling
 
 /// A per-image index of the `__swift5_builtin` section's `BuiltinTypeDescriptor`
 /// records, keyed by the type's fully-qualified name (e.g. `"__C.CGRect"`,
-/// `"SymbolTestsCore.Enums.MultiPayloadEnumTests"`), each carrying the statically
-/// embedded `(size, stride, alignment, extra inhabitants)`.
+/// `"SymbolTestsCore.Enums.MultiPayloadEnumTests"`) — or, for a builtin leaf
+/// type, by the builtin's own name (`"Builtin.Int1"`) — each carrying the
+/// statically embedded `(size, stride, alignment, extra inhabitants)`.
 ///
 /// The compiler emits a builtin descriptor for a type whose layout the
 /// reflection reader cannot derive structurally — imported C value types and
@@ -16,6 +17,14 @@ import Demangling
 /// whole-type layout for those types, which the resolver consults before its
 /// structural paths.
 ///
+/// libswiftCore additionally records the compiler's builtin leaf types
+/// (`Builtin.Int1`, `Builtin.BridgeObject`, `Builtin.FPIEEE16`, …), the
+/// layouts every standard library type bottoms out in: IRGen collects the
+/// builtin types a field mentions only while compiling the standard library
+/// (`GenReflection.cpp`, `addBuiltinTypeRefs`). Every other image declaring
+/// builtin-typed fields (`_Concurrency`) carries none of them; the resolver
+/// answers those from its own fallback.
+///
 /// A **generic** multi-payload enum gets a record exactly when its layout is
 /// argument-independent (statically fixed — every payload's layout resolves
 /// without an argument), in which case the record's quintuple holds for the
@@ -24,12 +33,14 @@ import Demangling
 /// fixed-vs-runtime-tagged verdict, and the generic-argument-free key below is
 /// safe for instantiated lookups.
 ///
-/// The descriptor's `typeName` is a **symbolic reference** (a relative pointer
-/// to the type's context descriptor), so its raw string is empty; the name is
-/// recovered by demangling, then keyed with the same `nominalQualifiedName`
-/// formatting the resolver looks types up by.
+/// A nominal type's descriptor `typeName` is a **symbolic reference** (a
+/// relative pointer to the type's context descriptor), so its raw string is
+/// empty; the name is recovered by demangling, then keyed with the same
+/// `nominalQualifiedName` formatting the resolver looks types up by. A builtin
+/// leaf's is a plain mangling (`Bi1_`), keyed by the name it demangles to —
+/// the spelling the resolver looks a `.builtinTypeName` node up by.
 public struct BuiltinTypeLayoutIndex: Sendable {
-    private let layoutsByQualifiedName: [String: StaticTypeLayout]
+    private let layoutsByTypeName: [String: StaticTypeLayout]
 
     public init(machO: some MachOSwiftSectionRepresentableWithCache) throws {
         var index: [String: StaticTypeLayout] = [:]
@@ -55,14 +66,16 @@ public struct BuiltinTypeLayoutIndex: Sendable {
             // plain nominal references and enter the map under the
             // generic-argument-free name the resolver looks types up by.
             if let demangledNode, Self.isConcreteBoundGenericReference(demangledNode) { continue }
-            let qualifiedName: String
+            let typeName: String
             if let demangledNode, let nominalQualifiedName = NodeTypeNaming.nominalQualifiedName(of: demangledNode) {
-                qualifiedName = nominalQualifiedName
+                typeName = nominalQualifiedName
+            } else if let demangledNode, let builtinTypeName = Self.builtinTypeName(of: demangledNode) {
+                typeName = builtinTypeName
             } else {
                 // Fall back to the raw string for any plain-named entry.
                 let rawName = mangledTypeName.typeString
                 guard !rawName.isEmpty else { continue }
-                qualifiedName = rawName
+                typeName = rawName
             }
             let layout = StaticTypeLayout(
                 size: Int(descriptor.layout.size),
@@ -73,11 +86,19 @@ public struct BuiltinTypeLayoutIndex: Sendable {
             )
             // First writer wins: qualified names are unique per declaration
             // (instantiation-specific records are skipped above).
-            if index[qualifiedName] == nil {
-                index[qualifiedName] = layout
+            if index[typeName] == nil {
+                index[typeName] = layout
             }
         }
-        self.layoutsByQualifiedName = index
+        self.layoutsByTypeName = index
+    }
+
+    /// The name of a builtin type reference (`Builtin.Int1` for `Bi1_`), or
+    /// `nil` for any other type.
+    private static func builtinTypeName(of node: Node) -> String? {
+        let typeNode = node.kind == .type ? node.firstChild : node
+        guard let typeNode, typeNode.kind == .builtinTypeName else { return nil }
+        return typeNode.text
     }
 
     /// Whether a demangled type reference is a concrete bound-generic
@@ -95,9 +116,10 @@ public struct BuiltinTypeLayoutIndex: Sendable {
         return node.first(where: { $0.kind == .dependentGenericParamType }) == nil
     }
 
-    /// Returns the embedded whole-type layout for a fully-qualified type name, or
-    /// `nil` if this image emits no builtin descriptor for it.
+    /// Returns the embedded whole-type layout for a fully-qualified type name or
+    /// a builtin type name (`"Builtin.Int1"`), or `nil` if this image emits no
+    /// builtin descriptor for it.
     public func layout(forTypeName qualifiedTypeName: String) -> StaticTypeLayout? {
-        layoutsByQualifiedName[qualifiedTypeName]
+        layoutsByTypeName[qualifiedTypeName]
     }
 }
