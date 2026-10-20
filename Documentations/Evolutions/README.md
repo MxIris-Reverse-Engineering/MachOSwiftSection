@@ -82,3 +82,4 @@
 | [0070](0070-borrow-accessors-and-suppressed-associated-types.md) | Swift 6.4 的 `borrow` / `mutate` 访问器与关联类型上的 `~Copyable` | Implemented |
 | [0071](0071-swift-capstone-7.md) | 迁到 swift-capstone 7.0：解码器改用 `Disassembler<AArch64>` | Implemented |
 | [0072](0072-cross-reference-analysis.md) | 交叉引用分析：从机器码读出每个函数引用了什么 | Implemented |
+| draft | [协议约束可选写在各自的关联类型上](draft-protocol-requirement-placement.md) | Accepted |
