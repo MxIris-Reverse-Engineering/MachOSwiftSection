@@ -15,6 +15,12 @@
 /// none. Exactness matters beyond display — a single-payload enum's size
 /// depends on whether its empty cases fit the payload's extra inhabitants, so
 /// an under- or over-estimate here moves real field offsets.
+///
+/// The table is a fast path, not a second source of truth: every entry is what
+/// libswiftCore's own metadata computes — its field records laid out down to
+/// its builtin leaf records — and `StandardLibraryLeafLayoutTests` requires
+/// exactly that. It stays in front of the structural path because it answers
+/// without reaching libswiftCore, which a single-image scope cannot do.
 public enum KnownLayoutTable {
     /// Returns the frozen layout for a fully-qualified type name such as
     /// `"Swift.Int"`, or `nil` if the type is not a known fixed-layout

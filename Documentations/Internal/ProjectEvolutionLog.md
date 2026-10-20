@@ -2582,6 +2582,24 @@
 - **关联文档**：[0072-cross-reference-analysis](../Evolutions/0072-cross-reference-analysis.md)、[Modules/CrossReferenceAnalysis.md](Modules/CrossReferenceAnalysis.md)、RuntimeViewer 的 [0056-cross-references](https://github.com/MxIris-Reverse-Engineering/RuntimeViewer/blob/next/Documentations/Evolutions/0056-cross-references.md)。
 - **对应版本**：未发版。
 
+## 103. builtin 叶子布局以二进制为准
+
+- **时间段**：2026-10-20（单日），分支 `fix/builtin-leaf-layouts`，当天合入 `next`。
+- **动机**：核对 `KnownLayoutTable` 的数值在 libswiftCore 的 `__swift5_builtin` 段里有没有。实读 macOS 26.7 的 libswiftCore：段里没有 `Swift.Int` 这类条目，只有 58 条 `Builtin.*` 叶子记录和少数不透明类型；冻结表的每个值都能沿 libswiftCore 的字段记录推到这些叶子，数值一致。核对时发现引擎从来没用上这些叶子记录，兜底表还有错值和缺项。
+- **关键决策**：
+  - ① 不在运行时改成「能访问依赖闭包就优先用计算结果」。表里的类型都是 `@frozen`，64 位 Apple 平台上算出来只会和表一样；改了不会更准，反而要先修叶子问题（否则 `Bool` 立刻变成 XI 0）、每个镜像都要把排在 libswiftCore 前面的依赖全部索引一遍，回退条件也得改成「算不出就回退」。用户批准改为：冻结表照旧先查，把「表与二进制一致」写成测试，同时修叶子记录与兜底表。
+  - ② `BuiltinTypeLayoutIndex` 给 `Builtin.*` 记录按 builtin 名（`Builtin.Int1`）建 key。6 月那次修复按 demangle 出的限定名建 key，只照顾了 nominal 记录，叶子记录落回裸 mangling（`Bi1_`），求解器按 `Builtin.Int1` 查，从第一版起就没命中过。
+  - ③ 兜底表对齐二进制与 IRGen：`Builtin.Int1` 的 XI 从 0 改为 254；`Builtin.RawUnsafeContinuation` 从 XI 1 改为饱和（IRGen 把它当成不为 null、避开低 4 GiB 的 aligned pointer）；补上 `FPIEEE16`、`Job`（同上一类）、`Executor`（两个字，16 字节）、`NonDefaultDistributedActorStorage`（与 default actor 一样 12 个字）。只补字段里真会出现、又没有记录的叶子：`IntLiteral`、`Vec*`、`UnsafeValueBuffer` 只出现在 libswiftCore 的字段里，由记录回答；`ImplicitActor` 不会是存储属性的类型。
+- **落地模块**：SwiftLayout（`BuiltinTypeLayoutIndex`、`StaticTypeLayoutResolver` 的 `builtinPrimitiveLayout`、`KnownLayoutTable` 的文档注释）；测试新增 `StandardLibraryLeafLayoutTests`，并加进 CI 的套件过滤列表。
+- **输出变化**：离线 dump / interface 的布局注释里，`Float16`、`StaticBigInt` 字段与 SIMD 存储类型的 `Builtin.Vec*` 字段不再是 unknown；`_Concurrency` 的 `UnownedJob`、`UnownedSerialExecutor` 能算出来；以 `UnsafeContinuation` 为 payload、带两个以上 empty case 的 enum 不再多一个 tag byte；带自定义 executor 的 distributed actor 的字段偏移能算出来；dump libswiftCore 本身时 `Builtin.Int1` 字段的 XI 从 0 变成 254。冻结表的数值没有变。
+- **验证**：
+  - 新套件在修复前 25 处断言失败（原始退出码 1），修复后 6 个测试、25 个用例全部通过（退出码 0）。冻结表的一致性检查在修复前只有 `Swift.Bool` 一项对不上（XI 0 对 254），其余各项本来就与 libswiftCore 的元数据一致。
+  - 全量 `swift test --skip IntegrationTests`（JHs-Mac-Studio，macOS 26.7，依赖全部从远端解析）：2532 个测试 / 485 个套件，7 处失败，都与本批无关——本机既有的两条 `MultiPayloadEnumDescriptorCacheTests`；`FallbackNamingTests` 与 `SwiftTypeReferenceTests` 共 4 处，它们按 macOS 27.2 缓存挑的镜像在 26.7 上不存在，且 CrossReferenceAnalysis 不依赖 SwiftLayout；`SharedCacheResolveSwiftConcurrencyTests` 的计时断言 1 处，单独重跑通过。
+  - 用 0.23.0 的 CLI 与本分支的 CLI dump 宿主缓存里的 libswiftCore 与 libswift_Concurrency（`--emit-type-layout`），逐条比对布局注释：变化全部落在 builtin 叶子字段上——libswiftCore 多出 80 条注释、libswift_Concurrency 多出 6 条，数值改变的只有 `Bool._value`、`UnsafeContinuation.context` 与包着它的 `AsyncThrowingStream._Storage.State.continuation`。
+  - 渲染 A/B 未跑：这批只改 SwiftLayout 的叶子布局，不碰 demangle、打印、索引与读取栈。
+- **关联文档**：[StaticLayoutEngine.md](StaticLayoutEngine.md)「叶子 XI 精确建模」与 builtin 记录的两条实测发现、[Modules/SwiftLayout.md](Modules/SwiftLayout.md)「已知布局表与 builtin 段」。
+- **对应版本**：未发版（`next`）。
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节
