@@ -65,6 +65,9 @@ struct InterfaceCommand: AsyncParsableCommand {
     @Flag(name: .customLong("module-selectors"), help: "Qualify names with SE-0491 module selectors (Swift::Int instead of Swift.Int), the way the Swift 6.4 compiler writes a .swiftinterface. Every type level carries the module that declared it (Swift::Duration.Foundation::TimeFormatStyle).")
     var moduleSelectors: Bool = false
 
+    @Flag(name: .customLong("requirements-on-associated-types"), help: "Print each protocol requirement about one of the protocol's own associated types on that associatedtype (associatedtype Element: Hashable, associatedtype Nested: Sequence where Self.Nested.Element: Hashable) instead of in the protocol's where clause, the way the compiler writes a .swiftinterface. The requirements are the same either way: the binary records the canonical requirement signature, not where the source wrote each one.")
+    var requirementsOnAssociatedTypes: Bool = false
+
     @Option(name: .shortAndLong, help: "The color scheme for the output.")
     var colorScheme: SemanticColorScheme = .none
 
@@ -86,6 +89,7 @@ struct InterfaceCommand: AsyncParsableCommand {
             memberSortOrder: sortMembersByOffset ? .byOffset : .byCategory,
             infersObjCOverridesFromSelectorNames: objcMemberOptions.infersOverridesFromSelectorNames,
             usesModuleSelectors: moduleSelectors,
+            protocolRequirementPlacement: requirementsOnAssociatedTypes ? .associatedTypes : .protocolWhereClause,
             emitsHeader: emitHeader,
             commentTransformers: try transformerOptions.buildTransformerConfiguration(),
             destination: outputPath.map { .file(path: $0) } ?? .output

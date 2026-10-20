@@ -43,8 +43,9 @@ Flags added comparatively late, and therefore worth checking: `--emit-header`,
 `--emit-export-status`, `--exported-only`, `--jobs`, `evolution --interface`,
 `--supplementary-apinotes`, from 0.20.0 `--dependency-search-path`,
 `--infer-objc-overrides` and the whole `objc` subcommand group, from 0.22.0
-`evolution --emit-available` / `--platform`, and from 0.23.0 `interface --module-selectors`
-/ `dump --enable-module-selectors`. When one is missing, say so
+`evolution --emit-available` / `--platform`, from 0.23.0 `interface --module-selectors`
+/ `dump --enable-module-selectors`, and after 0.23.0
+`interface --requirements-on-associated-types`. When one is missing, say so
 rather than silently producing a weaker answer — the alternative is usually "upgrade
 (`brew upgrade swift-section`), or do without that annotation".
 
@@ -157,7 +158,14 @@ switches).
 
 Only `interface` has: `--exported-only`, `--sort-members-by-offset`,
 `--parse-opaque-return-type`, `--show-c-imported-types`, `--resolve-c-module-names`,
-`--supplementary-apinotes`, `--infer-objc-overrides`.
+`--supplementary-apinotes`, `--infer-objc-overrides`, `--requirements-on-associated-types`.
+
+`--requirements-on-associated-types` changes where a protocol's requirements print, never which:
+`associatedtype Body: SwiftUI.View` instead of `protocol View where Self.Body: SwiftUI.View`,
+the way the compiler writes a `.swiftinterface`. The binary keeps only the canonical
+requirement signature, so neither form says where the source wrote a requirement. One about
+an associated type of a refined protocol (`Self.Element` of a `Sequence` refinement) stays in
+the protocol's `where` clause either way, and `diff` / `evolution` always print that form.
 
 `--infer-objc-overrides` is off by default for a reason. An override whose body the optimizer
 inlined into its thunk (`viewDidHide`, `encodeWithCoder:` in an OS framework) ties to no Swift
