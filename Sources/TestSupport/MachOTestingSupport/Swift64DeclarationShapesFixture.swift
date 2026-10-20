@@ -19,6 +19,10 @@ import Testing
 ///   primary: its extension's `where Strategy: ~Copyable` mangles to nothing)
 ///   and `UnprovenElementContainer.Element` (no extension at all) cannot be
 ///   told apart from a Copyable one. `Index` is the Copyable control.
+///   `ConstrainedSuppressedElementContainer.Element` is both suppressed and
+///   constrained, so with requirements printed on the associated types
+///   (evolution proposal `protocol-requirement-placement`) the suppression
+///   joins an inheritance clause that is already there.
 ///
 /// Only a Swift 6.4 compiler builds this: 6.3 rejects the accessors as an
 /// experimental feature it cannot enable in a production compiler. CI builds
@@ -97,6 +101,16 @@ package enum Swift64DeclarationShapesFixture {
 
     public protocol UnprovenElementContainer {
         associatedtype Element: ~Copyable
+    }
+
+    public protocol SuppressibleMarker: ~Copyable {}
+
+    public protocol ConstrainedSuppressedElementContainer<Element> {
+        associatedtype Element: SuppressibleMarker & ~Copyable
+    }
+
+    extension ConstrainedSuppressedElementContainer where Element: ~Copyable {
+        public func elementDescription() -> String { "" }
     }
     """
 

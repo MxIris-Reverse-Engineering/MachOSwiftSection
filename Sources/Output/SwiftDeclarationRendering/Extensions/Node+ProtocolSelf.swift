@@ -37,6 +37,25 @@ extension Node {
         }
     }
 
+    /// The root of the first member chain in this type, in preorder, whose
+    /// root is one of `associatedTypeNames`: `Second` for `Self.Second.Leaf`,
+    /// for `[Self.Second]`, and for `(Self.Element, Self.Second)` when
+    /// `Element` is not one of them. A chain's own subtree is not searched
+    /// again: every inner chain has the same root.
+    package func firstProtocolSelfMemberRoot(among associatedTypeNames: Set<String>) -> String? {
+        var pendingNodes: [Node] = [self]
+        while let node = pendingNodes.popLast() {
+            if let memberNames = node.protocolSelfMemberNames {
+                if let rootName = memberNames.first, associatedTypeNames.contains(rootName) {
+                    return rootName
+                }
+                continue
+            }
+            pendingNodes.append(contentsOf: node.children.reversed())
+        }
+        return nil
+    }
+
     /// The same tree printable as Swift source inside the protocol: the
     /// protocol's generic parameter spelled `Self` rather than by its position
     /// (`A`), and every member's protocol qualifier dropped

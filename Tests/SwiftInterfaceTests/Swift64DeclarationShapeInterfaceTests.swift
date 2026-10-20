@@ -3,6 +3,7 @@ import Testing
 import MachOKit
 import MachOFoundation
 import MachOSwiftSection
+import SwiftPrinting
 import SwiftInterface
 @testable import MachOTestingSupport
 
@@ -13,8 +14,8 @@ import SwiftInterface
 @Suite(.enabled(if: Swift64DeclarationShapesFixture.isAvailable, "needs a Swift 6.4 or newer toolchain"))
 struct Swift64DeclarationShapeInterfaceTests {
     /// The fixture is a handful of declarations, so each test builds its own.
-    private func printedInterface() async throws -> String {
-        let builder = try SwiftInterfaceBuilder(configuration: SwiftInterfaceBuilderConfiguration(), eventHandlers: [], in: try Swift64DeclarationShapesFixture.machOFile())
+    private func printedInterface(printConfiguration: SwiftDeclarationPrintConfiguration = .init()) async throws -> String {
+        let builder = try SwiftInterfaceBuilder(configuration: SwiftInterfaceBuilderConfiguration(printConfiguration: printConfiguration), eventHandlers: [], in: try Swift64DeclarationShapesFixture.machOFile())
         try await builder.prepare()
         return try await builder.printRoot().string
     }
@@ -91,5 +92,22 @@ struct Swift64DeclarationShapeInterfaceTests {
         let interface = try await printedInterface()
         let protocolLines = try #require(blockLines(startingWith: "protocol UnprovenElementContainer", in: interface), "\(interface)")
         #expect(protocolLines.contains("associatedtype Element"), "\(protocolLines)")
+    }
+
+    /// With requirements printed on the associated types (evolution proposal
+    /// `protocol-requirement-placement`), a proven suppression joins the
+    /// inheritance clause after the requirements, as the compiler writes
+    /// `associatedtype Element: P, ~Copyable`. In the protocol's `where`
+    /// clause the requirement leaves the suppression alone on the line.
+    @Test(arguments: [
+        (ProtocolRequirementPlacement.protocolWhereClause, "associatedtype Element: ~Swift.Copyable"),
+        (ProtocolRequirementPlacement.associatedTypes, "associatedtype Element: Swift64DeclarationShapesFixture.SuppressibleMarker, ~Swift.Copyable"),
+    ])
+    func suppressionJoinsTheInheritanceClauseOfItsAssociatedType(placement: ProtocolRequirementPlacement, expectedLine: String) async throws {
+        var printConfiguration = SwiftDeclarationPrintConfiguration()
+        printConfiguration.protocolRequirementPlacement = placement
+        let interface = try await printedInterface(printConfiguration: printConfiguration)
+        let protocolLines = try #require(blockLines(startingWith: "protocol ConstrainedSuppressedElementContainer", in: interface), "\(interface)")
+        #expect(protocolLines.contains(expectedLine), "\(protocolLines)")
     }
 }

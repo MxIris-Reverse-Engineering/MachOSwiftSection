@@ -316,6 +316,18 @@ extension GenericRequirementDescriptor {
         }
     }
 
+    /// The right-hand side alone — what an `associatedtype` inheritance clause
+    /// spells for its requirement (`associatedtype Body: SwiftUI.View`).
+    @SemanticStringBuilder
+    package func dumpProtocolContent(resolver: DemangleResolver, in context: some ReadingContext) async throws -> SemanticString {
+        switch resolver {
+        case .options(let demangleOptions):
+            try await dumpProtocolContent(in: context) { $0.printSemantic(using: demangleOptions) }
+        case .builder(let builder):
+            try await dumpProtocolContent(in: context, builder: builder)
+        }
+    }
+
     @SemanticStringBuilder
     package func dumpProtocolContent(in context: some ReadingContext, @SemanticStringBuilder builder: (Node) async throws -> SemanticString) async throws -> SemanticString {
         switch try resolvedContent(in: context) {

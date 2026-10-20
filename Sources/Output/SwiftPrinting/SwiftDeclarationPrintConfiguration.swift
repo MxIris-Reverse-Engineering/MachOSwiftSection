@@ -13,6 +13,42 @@ public enum SwiftDeclarationMemberSortOrder: Hashable, Codable, Sendable, CaseIt
     case byOffset
 }
 
+/// Where the interface writes a protocol requirement about one of the
+/// protocol's own associated types (evolution proposal
+/// `protocol-requirement-placement`).
+///
+/// The binary records only the canonical requirement signature, never where
+/// the source wrote a requirement, and the two placements state exactly the
+/// same requirements: each one once, in the same words, only somewhere else.
+/// A requirement on `Self` itself — a refined protocol, `AnyObject`, a
+/// superclass — stays in the protocol's inheritance clause under both.
+public enum ProtocolRequirementPlacement: Hashable, Codable, Sendable, CaseIterable {
+    /// Every requirement in the protocol's `where` clause:
+    ///
+    /// ```swift
+    /// protocol Menu where Self.Item: Swift.Sequence, Self.Item.Element: Swift.Hashable {
+    ///     associatedtype Item
+    /// }
+    /// ```
+    case protocolWhereClause
+
+    /// Each requirement on the associated type it is about, the way the
+    /// compiler writes a `.swiftinterface`:
+    ///
+    /// ```swift
+    /// protocol Menu {
+    ///     associatedtype Item: Swift.Sequence where Self.Item.Element: Swift.Hashable
+    /// }
+    /// ```
+    ///
+    /// A conformance, superclass or layout requirement on exactly
+    /// `Self.Item` goes into the inheritance clause; any other requirement
+    /// mentioning `Self.Item` goes into its `where` clause, as written in the
+    /// protocol's. A requirement mentioning only the associated types of a
+    /// refined protocol stays in the protocol's `where` clause.
+    case associatedTypes
+}
+
 @MemberwiseInit(.public)
 public struct SwiftDeclarationPrintConfiguration: Equatable, Sendable {
     public var printStrippedSymbolicItem: Bool = true
@@ -67,6 +103,17 @@ public struct SwiftDeclarationPrintConfiguration: Equatable, Sendable {
     ///
     /// Off by default, and off the output is unchanged byte for byte.
     public var usesModuleSelectors: Bool = false
+
+    /// Where a requirement about one of a protocol's own associated types
+    /// prints: in the protocol's `where` clause (the default, unchanged byte
+    /// for byte), or on that `associatedtype` (evolution proposal
+    /// `protocol-requirement-placement`). The requirements are the same
+    /// either way.
+    ///
+    /// The diff and evolution interfaces always print `.protocolWhereClause`:
+    /// they compare a protocol's `associatedtype` lines by name alone and
+    /// print no requirement on them.
+    public var protocolRequirementPlacement: ProtocolRequirementPlacement = .protocolWhereClause
 
     public var memberSortOrder: SwiftDeclarationMemberSortOrder = .byCategory
     public var printTypeLayout: Bool = false
