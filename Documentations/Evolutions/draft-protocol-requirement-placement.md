@@ -65,10 +65,10 @@ protocol MenuBase: AppKit.XPCCodable, Swift.Identifiable {
 
 **落地步骤**（每步单独构建通过、测试通过后提交）：
 
-1. 附带修复：先用现场编译的 fixture 写出复合类型右侧的复现测试（dump 与 interface 各一处，修复前红），再改 `dumpProtocolMangledName`。
-2. 划分与 interface 接线：`ProtocolRequirementPlacement` 与划分逻辑、`SwiftDeclarationPrintConfiguration` 的新字段、协议头与关联类型行按划分打印、diff / evolution 固定集中写法；测试覆盖两种写法的期望文本、语义往返、diff 不丢约束。
-3. SwiftSectionKit 与 CLI：`InterfaceRequest` 的新字段、`interface --requirements-on-associated-types`、两侧的映射测试、agent 插件的 skill、CI 的套件过滤名单。
-4. 文档与全量验证：`ProjectEvolutionLog`、SwiftSectionKit 的调用方指南与模块文档；全量测试（`IntegrationTests` 除外）。
+1. 【已完成，`6b758d0e`】附带修复：先用现场编译的 fixture 写出复合类型右侧的复现测试（dump 与 interface 各一处，修复前红），再改 `dumpProtocolMangledName`。
+2. 【已完成，`d618de54`】划分与 interface 接线：`ProtocolRequirementPlacement` 与划分逻辑、`SwiftDeclarationPrintConfiguration` 的新字段、协议头与关联类型行按划分打印、diff / evolution 固定集中写法；测试覆盖两种写法的期望文本、语义往返、diff 不丢约束。
+3. 【已完成，`0aa75f70`】SwiftSectionKit 与 CLI：`InterfaceRequest` 的新字段、`interface --requirements-on-associated-types`、两侧的映射测试、agent 插件的 skill、CI 的套件过滤名单。
+4. 【已完成，本提交】文档与全量验证：`ProjectEvolutionLog`；SwiftSectionKit 的调用方指南与模块文档不逐个列请求字段，不需要改。全量测试（`IntegrationTests` 除外）的结果记在演进账本这一节。
 
 ## 决策日志
 
@@ -83,3 +83,4 @@ protocol MenuBase: AppKit.XPCCodable, Swift.Identifiable {
 | 2026-10-20 | 往返测试的比对基准用通用 requirement dump，不经被测的协议打印 | 基准若依赖被测代码，两边一起错也会通过 |
 | 2026-10-20 | `~Copyable` 合并的用例放进 Swift 6.4 fixture | SE-0503 的 `~Copyable` 关联类型只有 Swift 6.4 编得出来；`ProtocolRequirementPlacementFixture` 要在 CI 的旧工具链上编 |
 | 2026-10-20 | diff / evolution 的协议头显式传 `.protocolWhereClause` | 它们的打印器现在只用默认配置，显式传值防止日后接上配置时约束无处可印 |
+| 2026-10-20 | 实现完成，待合并 | 验证结果记在 ProjectEvolutionLog 本节；文档判断：SwiftSectionKit 的调用方指南与模块文档不逐个列请求字段，无需改动；没有引入需要登记术语表的新词 |
