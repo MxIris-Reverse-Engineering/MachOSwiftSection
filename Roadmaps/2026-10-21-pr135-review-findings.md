@@ -1,6 +1,6 @@
 # PR #135 review findings（协议约束可选写在各自的关联类型上，2026-10-21）
 
-`/code-review high` 对 PR #135（`feature/protocol-requirement-placement` → `next`，PR 头 `07016c07`，基线 `7d181357`）给出 8 条发现。这份记录逐条按四问（能否复现 / 基线有没有 / 值不值得修 / 以前修过没有）裁决。
+`/code-review high` 对 PR #135（`feature/protocol-requirement-placement` → `next`，PR 头 `07016c07`，基线 `7d181357`；提案 [0073-protocol-requirement-placement](../Documentations/Evolutions/0073-protocol-requirement-placement.md)）给出 8 条发现。这份记录逐条按四问（能否复现 / 基线有没有 / 值不值得修 / 以前修过没有）裁决。
 
 **结论**：没有会把输出印错的问题。只有第 1 条要改，而且只改文档措辞，另往 fixture 加了一个协议，用测试把文档说的规则固定下来；第 2–8 条是误报、有意设计或成本可以忽略，登记在 [ReviewAdjudications.md](../Documentations/Internal/ReviewAdjudications.md) A69–A75。已裁决清单 A1–A68 里没有覆盖这 8 条的条目，第 4、5、6 条各有同类先例（A26、A3、A45）。
 

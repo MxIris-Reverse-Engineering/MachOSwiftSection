@@ -1,8 +1,8 @@
-# Draft - 协议约束可选写在各自的关联类型上
+# 0073 - 协议约束可选写在各自的关联类型上
 
-- **状态**: In Progress
+- **状态**: Implemented
 - **创建日期**: 2026-10-20
-- **最后更新**: 2026-10-20
+- **最后更新**: 2026-10-21
 - **实现分支**: `feature/protocol-requirement-placement`
 
 ## 摘要
@@ -55,7 +55,7 @@ protocol MenuBase: AppKit.XPCCodable, Swift.Identifiable {
 
 **验证**：
 
-- 新的现场编译 fixture `ProtocolRequirementPlacementFixture`，覆盖：单个与多个协议、superclass、`AnyObject`、父类加协议、嵌套主语 `Self.X.Y`、same-type 到具体类型、两个关联类型之间、`Self == Self.X.Y`、继承来的关联类型、递归协议、复合类型右侧（含带协议限定的成员）。
+- 新的现场编译 fixture `ProtocolRequirementPlacementFixture`，覆盖：单个与多个协议、superclass、`AnyObject`、父类加协议、嵌套主语 `Self.X.Y`、same-type 到具体类型、两个关联类型之间、`Self == Self.X.Y`、继承来的关联类型、递归协议、复合类型右侧（含带协议限定的成员）、主语是继承来的关联类型而父类提到本协议关联类型（`Element: GenericBase<First>`，只看主语，留在协议上）。
 - 两种写法的期望文本逐字断言（interface），复合类型右侧在 dump 与 interface 各断言一次。
 - 语义往返：把两种写法印出的协议各自用同一模块名重新编译，读回 requirement signature，用通用的 requirement dump（demangler 的默认打印，不经被测的协议打印）逐条比较，必须与原二进制完全相同。这就是「规范化之后 ABI 一样」本身。
 - diff 的协议头在 `.associatedTypes` 配置下仍与默认写法的协议头相同。
@@ -68,7 +68,7 @@ protocol MenuBase: AppKit.XPCCodable, Swift.Identifiable {
 1. 【已完成，`6b758d0e`】附带修复：先用现场编译的 fixture 写出复合类型右侧的复现测试（dump 与 interface 各一处，修复前红），再改 `dumpProtocolMangledName`。
 2. 【已完成，`d618de54`】划分与 interface 接线：`ProtocolRequirementPlacement` 与划分逻辑、`SwiftDeclarationPrintConfiguration` 的新字段、协议头与关联类型行按划分打印、diff / evolution 固定集中写法；测试覆盖两种写法的期望文本、语义往返、diff 不丢约束。
 3. 【已完成，`0aa75f70`】SwiftSectionKit 与 CLI：`InterfaceRequest` 的新字段、`interface --requirements-on-associated-types`、两侧的映射测试、agent 插件的 skill、CI 的套件过滤名单。
-4. 【已完成，本提交】文档与全量验证：`ProjectEvolutionLog`；SwiftSectionKit 的调用方指南与模块文档不逐个列请求字段，不需要改。全量测试（`IntegrationTests` 除外）的结果记在演进账本这一节。
+4. 【已完成，`07016c07`】文档与全量验证：`ProjectEvolutionLog`；SwiftSectionKit 的调用方指南与模块文档不逐个列请求字段，不需要改。全量测试（`IntegrationTests` 除外）的结果记在演进账本这一节。
 
 ## 决策日志
 
@@ -84,3 +84,5 @@ protocol MenuBase: AppKit.XPCCodable, Swift.Identifiable {
 | 2026-10-20 | `~Copyable` 合并的用例放进 Swift 6.4 fixture | SE-0503 的 `~Copyable` 关联类型只有 Swift 6.4 编得出来；`ProtocolRequirementPlacementFixture` 要在 CI 的旧工具链上编 |
 | 2026-10-20 | diff / evolution 的协议头显式传 `.protocolWhereClause` | 它们的打印器现在只用默认配置，显式传值防止日后接上配置时约束无处可印 |
 | 2026-10-20 | 实现完成，待合并 | 验证结果记在 ProjectEvolutionLog 本节；文档判断：SwiftSectionKit 的调用方指南与模块文档不逐个列请求字段，无需改动；没有引入需要登记术语表的新词 |
+| 2026-10-21 | code review（`/code-review high`）8 条：只修第 1 条，改写公开文档、演进账本与 PR 描述里说宽了的规则，fixture 加 `SubjectOnlyRequirements`，用测试钉住「conformance / superclass / layout 约束只看主语」；第 2–8 条不修 | 规则本身与本提案、编译器一致，只是 `ProtocolRequirementPlacement.associatedTypes` 的文档注释说成提到 `Self.X` 的约束都挪过去。第 2 条（两个新套件没在 CI 的工具链上跑过）用 Xcode 26.6 实跑排除。裁决登记在 ReviewAdjudications A69–A75，原始发现见 [2026-10-21 审查记录](../../Roadmaps/2026-10-21-pr135-review-findings.md) |
+| 2026-10-21 | 实现完成，合入 next，编号 0073；状态 → Implemented | 用户批准按审查结论修完后直接合并。文档判断：CLI 的 `--help` 与 agent 插件的 skill 已写这个开关，不另写使用指南；实现说明就是本提案与 `ProtocolRequirementPartition` 的文档注释；没有需要登记术语表的新词 |

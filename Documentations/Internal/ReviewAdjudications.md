@@ -898,6 +898,6 @@
 - **发现**：`SwiftDeclarationPrinter+DiffRendering.swift:76` 的 `printProtocolHeader` 手工构造 `ProtocolRequirementPartition`（`associatedTypeNames: []`、`.protocolWhereClause`），不读打印配置。审查担心以后有人改成按配置走，约束会悄悄丢掉。
 - **复现 / 是否误报**：不会悄悄发生：`ProtocolRequirementPlacementInterfaceTests.diffHeaderKeepsEveryRequirement` 在 `.associatedTypes` 配置下打印 diff 的协议头，再与默认写法的协议头比较，改成按配置走就会变红。
 - **与 main 基线对比**：新代码。
-- **为什么不修**：diff / evolution 的 `associatedtype` 行按名字逐行比较、不带约束，约束挪过去就丢了。显式传值正是为了防这件事，提案 [protocol-requirement-placement](../Evolutions/draft-protocol-requirement-placement.md) 的决策日志记了这个选择。
+- **为什么不修**：diff / evolution 的 `associatedtype` 行按名字逐行比较、不带约束，约束挪过去就丢了。显式传值正是为了防这件事，提案 [0073-protocol-requirement-placement](../Evolutions/0073-protocol-requirement-placement.md) 的决策日志记了这个选择。
 - **既往修复**：无。
 - **复审条件**：diff 开始比较每个关联类型的约束（那时 `associatedtype` 行要带上约束，协议头才能按配置走）。
