@@ -2600,6 +2600,27 @@
 - **关联文档**：[StaticLayoutEngine.md](StaticLayoutEngine.md)「叶子 XI 精确建模」与 builtin 记录的两条实测发现、[Modules/SwiftLayout.md](Modules/SwiftLayout.md)「已知布局表与 builtin 段」。
 - **对应版本**：未发版（`next`）。
 
+## 104. 协议约束可选写在各自的关联类型上
+
+- **时间段**：2026-10-20 至 2026-10-21，分支 `feature/protocol-requirement-placement`（PR #135），2026-10-21 合入 `next`。
+- **动机**：二进制只记录协议规范化之后的 requirement signature，看不出源码把一条约束写在协议的 `where` 子句还是 `associatedtype` 上，两种写法编译出来完全一样。interface 一直把约束全部集中在协议头的 `where` 子句里，编译器写 `.swiftinterface` 时则挂在各自的关联类型上（`associatedtype Failure: Swift.Error`）。用户要求能在两种写法之间选，前提是两种写法语义完全相同。
+- **关键决策**：
+  - ① 继承子句只收主语恰好是 `Self.X` 的 conformance / superclass / layout 约束。这三类约束只看主语：主语是从 `X` 起头的成员链（`Self.X.Y`）时，原样写进 `associatedtype X` 的 `where` 子句；主语与本协议的关联类型无关时留在协议的 `where` 子句，即使父类的泛型实参提到了本协议的关联类型（`Sequence` 的细化协议里 `Self.Element: GenericBase<Self.First>` 不挪到 `First`）。same-type 约束两边都看，优先取恰好是 `Self.X` 的一边，其次左边成员链的根，再次右边类型里第一条从本协议关联类型起头的链。只涉及继承来的关联类型的约束，以及 inverse、same-shape 约束，留在协议的 `where` 子句。不照抄编译器：用 Swift 6.3.3 的 `-emit-module-interface` 实测，它把递归协议的 `Self.Child.Leaf: Hashable` 印成 `associatedtype Leaf : Swift.Hashable`，约束变成了更强的 `Self.Leaf: Hashable`。
+  - ② 默认保持集中写法，只接 interface（`SwiftDeclarationPrintConfiguration.protocolRequirementPlacement`、`InterfaceRequest.protocolRequirementPlacement`、`interface --requirements-on-associated-types`）。dump 不接；diff / evolution 的协议头固定集中写法，因为它们的 `associatedtype` 行不带约束。
+  - ③ 调研时发现，现有输出把约束右侧的复合类型压扁成另一条约束（`Self.Second == [Self.First]` 印成 `Self.Second == Self.First`，`[Self]` 印成 `[A]`），dump 与 interface 都受影响，自 2025-08-21 写下就是这样。单独一个提交修掉：类型参数照旧拼写，其余类型整个交给 resolver，打印前把泛型参数换成两个打印器都拼作 `Self` 的 `.constrainedExistentialSelf`，并去掉成员的协议限定。
+  - ④ 语义由往返测试保证：两种写法印出的协议各自重新编译，读回 requirement signature 与原二进制逐条比对；比对基准用通用的 requirement dump，不经被测的协议打印。
+- **落地模块**：SwiftDeclarationRendering（`Node+ProtocolSelf.swift`、`dumpProtocolMangledName`、`dumpProtocolContent(resolver:in:)`）、SwiftPrinting（`ProtocolRequirementPlacement`、`ProtocolRequirementPartition`、协议头与关联类型行）、SwiftInterface（diff 的协议头）、SwiftSectionKit、swift-section、agent 插件的 CLI skill。测试新增现场编译的 `ProtocolRequirementPlacementFixture`、`ProtocolRequirementPlacementInterfaceTests`、`ProtocolRequirementRightHandSideDumpTests`（两个套件加进 CI 的过滤名单），Swift 6.4 fixture 新增 `ConstrainedSuppressedElementContainer`。
+- **输出变化**：默认写法下只有右侧是复合类型的协议约束变了，从错的变成对的。用改动前的 CLI（10/19 的 next）与本分支的 CLI 生成宿主缓存里五个镜像的 interface 逐字节对比：libswiftCore、Combine、libswift_Concurrency、Foundation 完全相同；SwiftUICore 只有一行不同，正是这个 bug 的真实命中——`AccessibilityOptionalPropertiesKey` 的 `Self.PropertyValue == Self.NonOptionalPropertyValue?` 原先漏了 `?`，读成两个类型相同。新写法只在开关打开时出现，与编译器的写法一致；唯一不同是成员链里套着本协议关联类型的约束挂在链的根上：`Collection` 的 `Self.Indices.Index == Self.SubSequence.Index` 挂在 `Indices` 上，编译器挂在 `Index` 上，两者语义相同。
+- **验证**：
+  - 新套件全部通过。两次临时变异检查都按预期变红（退出码 1）：退回旧的压扁写法后，复合类型的 12 处断言（dump、interface 各 6 处）、`CompositeRequirements` 的期望文本和两种写法的往返测试全部失败，印出的协议根本编译不过；照抄编译器、把 `Self.Child.Leaf: Hashable` 放进 `Leaf` 的继承子句后，能编译通过，但 `.associatedTypes` 写法的往返测试因读回的约束集合不同而失败。
+  - 三个实现提交各自检出后都构建通过，对应套件通过。
+  - 全量 `swift test --skip IntegrationTests`（JHs-Mac-Studio，macOS 26.7，Xcode 27.0 / Swift 6.4）：2348 个测试 / 452 个套件跑完，6 处失败都是本机已知的红——两条 `MultiPayloadEnumDescriptorCacheTests`；`FallbackNamingTests` 与 `SwiftTypeReferenceTests` 共 4 处（按 macOS 27.2 缓存挑的镜像在 26.7 上不存在）。另有 `SwiftPrintingTests`、`SwiftSpecializationTests` 两个 bundle 以 SIGSEGV 退出：崩在 `GenericSpecializationTestingEnvironment` 对进程内 SymbolTestsCore 镜像做 `SwiftDeclarationIndexer.prepare()` 时（`ProtocolConformance.init` 经间接指针读到空地址），基线 `7d181357` 在同一工具链下同样崩溃，与本批无关；排除用到这个环境的 6 个套件后，两个 bundle 其余 93 个测试通过。
+  - 构建与测试是离线做的：当天 github.com 连不上，新 scratch 解析不了依赖，于是拷用本机另一个 scratch 已下载的依赖仓库和同一份 `Package.resolved`（35 个包，全部是远端发布版）。这份解析只在 Swift 6.4 下一致，所以当时没有在 CI 的 Xcode 26.6 上跑，review 时补跑了，见下面最后一条。
+  - 渲染 A/B 没有按完整流程跑（这批不是大重构），改为上面五个宿主镜像的 interface 逐字节对比。
+  - code review（2026-10-21，`/code-review high`，8 条发现）：只有第 1 条要改。`ProtocolRequirementPlacement.associatedTypes` 的文档注释和本节的关键决策 ① 把规则说宽了，实现本身与提案、编译器一致。两处改了措辞（PR 描述同改），fixture 加 `SubjectOnlyRequirements`，用测试钉住「conformance / superclass / layout 约束只看主语」：Swift 6.3.3 的 `-emit-module-interface` 对同一源码也把这条约束留在协议头上；在沙盒里临时让 superclass 约束也看右侧（旧措辞的说法），只有这条新用例变红，往返测试照样通过。其余 7 条登记在 [ReviewAdjudications.md](ReviewAdjudications.md) A69–A75。用 CI 的工具链（Xcode 26.6 / Swift 6.3.3，依赖从远端重新解析）在 PR 头和修正后各跑一次两个新套件与 `DumpAndInterfaceRequestTests`、`CommandRequestMappingTests`：都是 45 个测试全部通过，退出码 0，只跑了 debug。修正只动了测试和一段文档注释，全量测试没有重跑。
+- **关联文档**：提案 [0073-protocol-requirement-placement](../Evolutions/0073-protocol-requirement-placement.md)；review 记录 [2026-10-21-pr135-review-findings](../../Roadmaps/2026-10-21-pr135-review-findings.md)。
+- **对应版本**：未发版（`next`）。
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节

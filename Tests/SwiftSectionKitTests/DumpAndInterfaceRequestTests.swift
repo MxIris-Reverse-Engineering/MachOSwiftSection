@@ -225,6 +225,20 @@ struct DumpAndInterfaceRequestTests {
         #expect(output.indexingLabels == [nil])
     }
 
+    /// The placement reaches the printer: the fixture's class-bound protocol
+    /// keeps `AnyObject` on itself either way, and its `Self.Item: AnyObject`
+    /// moves from the protocol's `where` clause onto `Item`.
+    @Test("A protocol requirement on an associated type prints there when asked")
+    func interfaceRequirementsOnAssociatedTypes() async throws {
+        let inWhereClause = RecordingOutput()
+        try await InterfaceRequest(source: Self.fixture).run(output: inWhereClause, environment: .testing)
+        let onAssociatedTypes = RecordingOutput()
+        try await InterfaceRequest(source: Self.fixture, protocolRequirementPlacement: .associatedTypes).run(output: onAssociatedTypes, environment: .testing)
+
+        #expect(inWhereClause.printedProduct.contains("protocol ClassBoundGenericProtocol: AnyObject where Self.Item: AnyObject {\n        associatedtype Item\n"))
+        #expect(onAssociatedTypes.printedProduct.contains("protocol ClassBoundGenericProtocol: AnyObject {\n        associatedtype Item: AnyObject\n"))
+    }
+
     /// With a header, "Preparing…" is announced before the header's symbol
     /// index build rather than after it, so nothing is heard for the whole
     /// build otherwise.

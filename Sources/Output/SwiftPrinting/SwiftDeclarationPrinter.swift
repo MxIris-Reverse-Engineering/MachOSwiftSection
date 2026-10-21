@@ -369,10 +369,20 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
 
         try protocolDefinition.index(in: machO)
 
+        // Where each requirement prints, decided once for the header and the
+        // `associatedtype` lines alike (evolution proposal
+        // `protocol-requirement-placement`).
+        let requirementPartition = try ProtocolRequirementPartition(
+            requirements: dumpedProtocol.requirementInSignatures,
+            associatedTypeNames: dumpedProtocol.descriptor.associatedTypes(in: machO.context),
+            placement: configuration.protocolRequirementPlacement,
+            in: machO.context
+        )
+
         try await DeclarationBlock(level: level) {
-            try await renderProtocolDeclarationHeader(for: dumpedProtocol, displayParentName: displayParentName)
+            try await renderProtocolDeclarationHeader(for: dumpedProtocol, requirementPartition: requirementPartition, displayParentName: displayParentName)
         } body: {
-            try await renderProtocolAssociatedTypes(for: dumpedProtocol, suppressedInvertibleProtocolsByAssociatedTypeName: protocolDefinition.suppressedInvertibleProtocolsByAssociatedTypeName, level: level)
+            try await renderProtocolAssociatedTypes(for: dumpedProtocol, requirementPartition: requirementPartition, suppressedInvertibleProtocolsByAssociatedTypeName: protocolDefinition.suppressedInvertibleProtocolsByAssociatedTypeName, level: level)
 
             try await printDefinition(protocolDefinition, level: level)
 

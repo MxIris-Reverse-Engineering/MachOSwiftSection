@@ -138,15 +138,6 @@ extension TargetGenericContext {
     }
 }
 
-extension Node {
-    fileprivate static let firstGenericParamType: Node = .create(kind: .type) {
-        Node.create(kind: .dependentGenericParamType) {
-            Node.create(kind: .index, index: 0)
-            Node.create(kind: .index, index: 0)
-        }
-    }
-}
-
 extension GenericRequirementDescriptor {
     @SemanticStringBuilder
     package func dump(resolver: DemangleResolver, in context: some ReadingContext) async throws -> SemanticString {
@@ -301,29 +292,39 @@ extension GenericRequirementDescriptor {
         try await dumpProtocolMangledName(paramMangledName(in: context), in: context, builder: builder)
     }
 
+    /// A type of the protocol's requirement signature. A type parameter —
+    /// `Self` or a chain of its members, `Self.Second.Leaf` — is spelled here,
+    /// without the protocol qualifiers its mangling may carry. Any other type
+    /// prints as itself through `builder`, with the protocol's generic
+    /// parameter spelled `Self`: the right-hand side of a same-type or
+    /// superclass requirement can be any type (`[Self.First]`,
+    /// `(Self.First, [Self.First])`, `GenericBase<Self.First>`), and reading
+    /// only the member names out of it printed a different requirement
+    /// (`Self.Second == Self.First`).
     @SemanticStringBuilder
     private func dumpProtocolMangledName(_ mangledName: MangledName, in context: some ReadingContext, @SemanticStringBuilder builder: (Node) async throws -> SemanticString) async throws -> SemanticString {
         let node = try SymbolicDemangler.demangleType(for: mangledName, in: context)
 
-        let params = node.filter(of: .dependentAssociatedTypeRef).compactMap { $0.first(of: .identifier)?.text }
-
-        if params.isEmpty {
-            if node == .firstGenericParamType {
-                Keyword(.Self)
-            } else {
-                try await builder(node)
+        if let memberNames = node.protocolSelfMemberNames {
+            Keyword(.Self)
+            for memberName in memberNames {
+                Standard(".")
+                Standard(memberName)
             }
         } else {
-            for (offset, param) in params.offsetEnumerated() {
-                if offset.isStart {
-                    Keyword(.Self)
-                    Standard(".")
-                }
-                Standard(param)
-                if !offset.isEnd {
-                    Standard(".")
-                }
-            }
+            try await builder(node.spellingProtocolSelfParameter())
+        }
+    }
+
+    /// The right-hand side alone — what an `associatedtype` inheritance clause
+    /// spells for its requirement (`associatedtype Body: SwiftUI.View`).
+    @SemanticStringBuilder
+    package func dumpProtocolContent(resolver: DemangleResolver, in context: some ReadingContext) async throws -> SemanticString {
+        switch resolver {
+        case .options(let demangleOptions):
+            try await dumpProtocolContent(in: context) { $0.printSemantic(using: demangleOptions) }
+        case .builder(let builder):
+            try await dumpProtocolContent(in: context, builder: builder)
         }
     }
 

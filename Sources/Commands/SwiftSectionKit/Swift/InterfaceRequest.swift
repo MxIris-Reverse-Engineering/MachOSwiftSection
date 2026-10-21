@@ -60,6 +60,11 @@ public struct InterfaceRequest: Sendable, Equatable {
     /// Names qualified with SE-0491 module selectors (`Swift::Int`), as a
     /// Swift 6.4 `.swiftinterface` spells them.
     public var usesModuleSelectors: Bool
+    /// Where a requirement about one of a protocol's own associated types
+    /// prints: in the protocol's `where` clause, or on that `associatedtype`
+    /// (`associatedtype Body: SwiftUI.View`). The requirements are the same
+    /// either way; the binary does not record where the source wrote them.
+    public var protocolRequirementPlacement: ProtocolRequirementPlacement
     /// A leading header comment: generator, image path, UUID, architecture,
     /// library-evolution detection, unrecoverable-facts notes.
     public var emitsHeader: Bool
@@ -82,6 +87,7 @@ public struct InterfaceRequest: Sendable, Equatable {
         memberSortOrder: SwiftDeclarationMemberSortOrder = .byCategory,
         infersObjCOverridesFromSelectorNames: Bool = false,
         usesModuleSelectors: Bool = false,
+        protocolRequirementPlacement: ProtocolRequirementPlacement = .protocolWhereClause,
         emitsHeader: Bool = false,
         commentTransformers: Transformer.SwiftConfiguration? = nil,
         destination: ProductDestination = .output
@@ -101,6 +107,7 @@ public struct InterfaceRequest: Sendable, Equatable {
         self.memberSortOrder = memberSortOrder
         self.infersObjCOverridesFromSelectorNames = infersObjCOverridesFromSelectorNames
         self.usesModuleSelectors = usesModuleSelectors
+        self.protocolRequirementPlacement = protocolRequirementPlacement
         self.emitsHeader = emitsHeader
         self.commentTransformers = commentTransformers
         self.destination = destination
@@ -137,6 +144,7 @@ public struct InterfaceRequest: Sendable, Equatable {
         // whether it prints as `@objc override`.
         printConfiguration.infersObjCOverridesFromSelectorNames = infersObjCOverridesFromSelectorNames
         printConfiguration.usesModuleSelectors = usesModuleSelectors
+        printConfiguration.protocolRequirementPlacement = protocolRequirementPlacement
 
         var configuration = SwiftInterfaceBuilderConfiguration(
             indexConfiguration: .init(
