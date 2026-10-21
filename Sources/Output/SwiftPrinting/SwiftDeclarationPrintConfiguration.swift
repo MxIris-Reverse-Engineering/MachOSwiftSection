@@ -41,11 +41,17 @@ public enum ProtocolRequirementPlacement: Hashable, Codable, Sendable, CaseItera
     /// }
     /// ```
     ///
-    /// A conformance, superclass or layout requirement on exactly
-    /// `Self.Item` goes into the inheritance clause; any other requirement
-    /// mentioning `Self.Item` goes into its `where` clause, as written in the
-    /// protocol's. A requirement mentioning only the associated types of a
-    /// refined protocol stays in the protocol's `where` clause.
+    /// A conformance, superclass or layout requirement goes by its subject
+    /// alone: on exactly `Self.Item` into `Item`'s inheritance clause, on a
+    /// member chain starting from `Item` (`Self.Item.Element`) into `Item`'s
+    /// `where` clause, as written in the protocol's. One whose subject is not
+    /// about the protocol's own associated types stays in the protocol's
+    /// `where` clause, even when its superclass names one
+    /// (`Self.Element: Base<Self.Item>` on a `Sequence` refinement). A
+    /// same-type requirement goes into the `where` clause of an associated
+    /// type either side is about, a side that is exactly `Self.Item` first.
+    /// Inverse and same-shape requirements stay in the protocol's `where`
+    /// clause.
     case associatedTypes
 }
 

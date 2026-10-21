@@ -152,6 +152,14 @@ struct ProtocolRequirementPlacementInterfaceTests {
             """
         ),
         PlacementCase(
+            protocolName: "SubjectOnlyRequirements",
+            blockWithRequirementsOnAssociatedTypes: """
+            protocol SubjectOnlyRequirements: Swift.Sequence where Self.Element: ProtocolRequirementPlacementFixture.GenericBase<Self.First> {
+                associatedtype First
+            }
+            """
+        ),
+        PlacementCase(
             protocolName: "ClassBoundRequirements",
             blockWithRequirementsOnAssociatedTypes: """
             protocol ClassBoundRequirements: AnyObject {

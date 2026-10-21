@@ -27,6 +27,11 @@ import Testing
 /// - `RefinedRequirements` and `InheritedOnlyRequirements`: requirements on a
 ///   refined protocol's associated type (`Element`), which no
 ///   `associatedtype` of the protocol itself declares.
+/// - `SubjectOnlyRequirements`: a superclass requirement on the refined
+///   `Element` whose superclass names the protocol's own `First`
+///   (`Element: GenericBase<First>`). A conformance, superclass or layout
+///   requirement goes by its subject alone, as in the compiler's own
+///   printer, so this one stays on the protocol.
 /// - `ClassBoundRequirements` and `MenuRequirements`: requirements on `Self`
 ///   (`AnyObject`, a refined protocol) beside one on an associated type.
 ///
@@ -63,6 +68,7 @@ package enum ProtocolRequirementPlacementFixture {
         "RecursiveRequirements",
         "RefinedRequirements",
         "InheritedOnlyRequirements",
+        "SubjectOnlyRequirements",
         "ClassBoundRequirements",
         "MenuRequirements",
     ]
@@ -104,6 +110,10 @@ package enum ProtocolRequirementPlacementFixture {
     }
 
     public protocol InheritedOnlyRequirements: Sequence where Element: Hashable {}
+
+    public protocol SubjectOnlyRequirements: Sequence where Element: GenericBase<First> {
+        associatedtype First
+    }
 
     public protocol ClassBoundRequirements: AnyObject {
         associatedtype Item: AnyObject
