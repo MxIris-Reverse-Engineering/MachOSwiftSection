@@ -224,9 +224,10 @@ public final class SymbolIndexStore: @unchecked Sendable {
         /// Export-trie facts for the image (evolution proposal 0008), the
         /// backing for `isExported(name:)`. Collected explicitly during the
         /// build sweep because no existing structure records them: both
-        /// symtab collection legs filter on `!nlist.isExternal` (local
-        /// symbols only), so an exported symbol's row is minted by the
-        /// export-trie leg — but that leg's row-minting is *conditional*
+        /// symtab collection legs filter on `!nlist.isExternal`, which skips
+        /// imports only — an exported symbol the symbol table lists gets its
+        /// row there, one it does not list from the export-trie leg — and
+        /// that leg's row-minting is *conditional*
         /// (only names the symtab missed, only entries carrying an offset),
         /// so "row came from the trie leg" is not recoverable after the
         /// fact and offset-less re-export entries never mint a row at all.
@@ -249,6 +250,15 @@ public final class SymbolIndexStore: @unchecked Sendable {
         }
 
         let exportFacts: ExportFacts
+
+        /// Whether the symbol table holds any local Swift symbol — one whose
+        /// `N_EXT` bit is clear (evolution proposal
+        /// `evolution-unobservable-presence`). `false` for an image stripped
+        /// of its local symbols — SwiftUI in the macOS 13.0–14.8 dyld shared
+        /// caches — which keeps only its exported Swift names. A debug-map
+        /// entry only reserves a row and does not count; a name refused by
+        /// the packed-reference budget still does, since the symbol is there.
+        let hasLocalSwiftSymbols: Bool
 
         /// The image's symbolic-mangling symbols (`_symbolic ` /
         /// `_default assoc type `), collected by the same symtab pass into a
@@ -299,6 +309,7 @@ public final class SymbolIndexStore: @unchecked Sendable {
             rootNodeIndexByTableRow: [NodeStore.NodeIndex?],
             symbolRowsByOffset: [Int: SymbolRowBucket],
             exportFacts: ExportFacts,
+            hasLocalSwiftSymbols: Bool,
             symbolicManglingSymbolTable: SymbolTable,
             rowIndexes: consuming RowIndexes
         ) {
@@ -307,6 +318,7 @@ public final class SymbolIndexStore: @unchecked Sendable {
             self.rootNodeIndexByTableRow = rootNodeIndexByTableRow
             self.symbolRowsByOffset = symbolRowsByOffset
             self.exportFacts = exportFacts
+            self.hasLocalSwiftSymbols = hasLocalSwiftSymbols
             self.symbolicManglingSymbolTable = symbolicManglingSymbolTable
             self.typeInfoByName = rowIndexes.typeInfoByName
             self.globalSymbolRowsByKind = rowIndexes.globalSymbolRowsByKind
@@ -673,6 +685,12 @@ public final class SymbolIndexStore: @unchecked Sendable {
             }
         }
 
+        // Set by either symtab leg on the first Swift symbol it collects whose
+        // `N_EXT` bit is clear (see `Storage.hasLocalSwiftSymbols`). The legs
+        // collect every defined symbol, exported ones included — they skip
+        // only imports (`isExternal`) — so the bit has to be read here.
+        var hasLocalSwiftSymbols = false
+
         /// Mapped-name collection leg: iterates the image's own symbol
         /// sequence so each entry exposes `nameC` (a pointer into the
         /// mapped string table). The Swift-symbol test runs byte-level on
@@ -693,6 +711,9 @@ public final class SymbolIndexStore: @unchecked Sendable {
                             canonicalOffset: symbol.offset
                         )
                         continue
+                    }
+                    if symbol.nlist.isLocal {
+                        hasLocalSwiftSymbols = true
                     }
                     // A `nil` row means the name's binary-supplied geometry
                     // exceeds the packed budgets (malformed/hostile string
@@ -748,6 +769,9 @@ public final class SymbolIndexStore: @unchecked Sendable {
                     continue
                 }
                 if isSwiftSymbol {
+                    if symbol.nlist.isLocal {
+                        hasLocalSwiftSymbols = true
+                    }
                     guard let (row, isNewRow) = tableBuilder.canonicalRow(forName: name, canonicalOffset: canonicalOffset, isExternal: symbol.nlist.isExternal) else { continue }
                     registerRow(row, rawOffset: rawOffset, canonicalOffset: canonicalOffset, isNewRow: isNewRow)
                 } else {
@@ -893,6 +917,7 @@ public final class SymbolIndexStore: @unchecked Sendable {
             rootNodeIndexByTableRow: rootNodeIndexByTableRow,
             symbolRowsByOffset: symbolRowsByOffset,
             exportFacts: exportFacts,
+            hasLocalSwiftSymbols: hasLocalSwiftSymbols,
             symbolicManglingSymbolTable: symbolicManglingSymbolTable,
             rowIndexes: rowIndexes
         )
@@ -1176,6 +1201,36 @@ public final class SymbolIndexStore: @unchecked Sendable {
             return true
         }
         return false
+    }
+
+    /// The export verdict of a member whose entry points are `names` — a
+    /// function's one symbol, a property's or subscript's accessors: `true`
+    /// as soon as one of them is exported in its own or a derived form
+    /// (``isExportedIncludingDerivedSymbols(name:in:)``), `false` only when
+    /// none is, `nil` when `names` is empty or the image carries no export
+    /// information. The interface's `// not exported` annotation and the ABI
+    /// snapshot's per-member verdict both ask this, so the two cannot
+    /// disagree.
+    public func isExportedIncludingDerivedSymbols(names: [String], in machO: some MachORepresentableWithCache) -> Bool? {
+        guard !names.isEmpty else { return nil }
+        for name in names {
+            guard let isExported = isExportedIncludingDerivedSymbols(name: name, in: machO) else { return nil }
+            if isExported {
+                return true
+            }
+        }
+        return false
+    }
+
+    /// Whether `machO`'s symbol table carries at least one local
+    /// (non-external) Swift symbol (evolution proposal
+    /// `evolution-unobservable-presence`). `false` for an image stripped of
+    /// its local symbols — SwiftUI in the macOS 13.0–14.8 dyld shared caches
+    /// — where a non-exported declaration has no name the index could find,
+    /// so its absence there says nothing about whether it exists. `nil` when
+    /// the store is unavailable.
+    public func hasLocalSwiftSymbols(in machO: some MachORepresentableWithCache) -> Bool? {
+        storage(in: machO)?.hasLocalSwiftSymbols
     }
 
     /// Returns the pre-extracted thunk-attribute members whose parent type
@@ -1565,6 +1620,17 @@ extension NlistProtocol {
     package var isExternal: Bool {
         guard let flags = flags, let type = flags.type else { return false }
         return flags.contains(.ext) && type == .undf
+    }
+
+    /// A symbol private to its image: the `N_EXT` bit clear, so neither an
+    /// export nor an import. Not the negation of ``isExternal``, which names
+    /// an undefined import only. A linker turns a private external
+    /// (`N_PEXT`) into one of these, which is how a Swift declaration below
+    /// `public` reaches a linked image's symbol table, and what a strip of
+    /// the local symbols removes.
+    package var isLocal: Bool {
+        guard let flags else { return false }
+        return !flags.contains(.ext)
     }
 
     /// A debug-map (STABS) entry: it describes a symbol for the debugger and

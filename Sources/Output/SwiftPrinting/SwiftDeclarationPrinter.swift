@@ -860,15 +860,8 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
     /// annotation never fires on a guess. Internal (not private): the
     /// stored-field leg lives in `SwiftDeclarationPrinter+Headers.swift`.
     func exportVerdict(forSymbolNames symbolNames: [String]) -> Bool? {
-        guard !symbolNames.isEmpty else { return nil }
         @Dependency(\.symbolIndexStore) var symbolIndexStore
-        for symbolName in symbolNames {
-            guard let isExported = symbolIndexStore.isExportedIncludingDerivedSymbols(name: symbolName, in: machO) else { return nil }
-            if isExported {
-                return true
-            }
-        }
-        return false
+        return symbolIndexStore.isExportedIncludingDerivedSymbols(names: symbolNames, in: machO)
     }
 
     /// - Parameter propertyWrapperAttributeTypeNode: The wrapper type to print

@@ -37,12 +37,35 @@ public struct MemberRecord: Sendable, Codable, Equatable {
     /// them regardless of any default.
     public let hasDefaultImplementation: Bool?
 
-    public init(identityKey: ABIKey, payloadKey: ABIKey, kind: MemberKind, signature: String, hasDefaultImplementation: Bool? = nil) {
+    /// Whether the member's symbol — for a property or subscript, any of its
+    /// accessors — is exported in its own or a derived form (`Tj`, `Tq`,
+    /// `Tu`): the verdict the interface's `// not exported` annotation
+    /// prints. Visibility metadata only, never part of the keys. A
+    /// comparison reads it to tell, in a version whose image carries no
+    /// local Swift symbols, a member that cannot be seen there from one that
+    /// is gone (evolution proposal `evolution-unobservable-presence`): a
+    /// non-exported member has no name left in such an image.
+    ///
+    /// `nil` for a record no symbol backs (a stored field, an enum case, an
+    /// associated type or witness, a stripped requirement slot), when the
+    /// image carries no export information, and on a record built without a
+    /// verdict.
+    public let isExported: Bool?
+
+    public init(
+        identityKey: ABIKey,
+        payloadKey: ABIKey,
+        kind: MemberKind,
+        signature: String,
+        hasDefaultImplementation: Bool? = nil,
+        isExported: Bool? = nil
+    ) {
         self.identityKey = identityKey
         self.payloadKey = payloadKey
         self.kind = kind
         self.signature = signature
         self.hasDefaultImplementation = hasDefaultImplementation
+        self.isExported = isExported
     }
 
     /// A copy with the default-implementation fact attached — used by the
@@ -53,8 +76,36 @@ public struct MemberRecord: Sendable, Codable, Equatable {
             payloadKey: payloadKey,
             kind: kind,
             signature: signature,
-            hasDefaultImplementation: hasDefaultImplementation
+            hasDefaultImplementation: hasDefaultImplementation,
+            isExported: isExported
         )
+    }
+
+    /// A copy with the export verdict attached — used by the freeze, which
+    /// asks the module's verdict for every symbol-backed member.
+    func withIsExported(_ isExported: Bool?) -> MemberRecord {
+        MemberRecord(
+            identityKey: identityKey,
+            payloadKey: payloadKey,
+            kind: kind,
+            signature: signature,
+            hasDefaultImplementation: hasDefaultImplementation,
+            isExported: isExported
+        )
+    }
+
+    /// Whether only a symbol shows this member: a function, property,
+    /// subscript, initializer or `deinit`. The other kinds — stored fields,
+    /// enum cases, associated types and their witnesses, stripped
+    /// requirement slots — are read from the image's metadata, which a strip
+    /// leaves intact.
+    var isSymbolBacked: Bool {
+        switch kind {
+        case .function, .allocator, .constructor, .variable, .subscript, .deinit:
+            return true
+        case .enumCase, .field, .associatedType, .associatedTypeWitness, .protocolRequirement:
+            return false
+        }
     }
 }
 

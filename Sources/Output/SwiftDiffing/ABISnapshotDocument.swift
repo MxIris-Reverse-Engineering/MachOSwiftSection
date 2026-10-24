@@ -16,6 +16,16 @@ public struct ABISnapshotDocument: Sendable, Codable, Equatable {
     /// `ABIDiffer.extensionBucketKey(for:)`).
     ///
     /// History:
+    /// - 8: a snapshot records whether its image carries any local Swift
+    ///   symbol (`ABISnapshot.hasLocalSwiftSymbols`), and each symbol-backed
+    ///   member record whether the member is exported
+    ///   (`MemberRecord.isExported`) — what an evolution or a diff needs to
+    ///   tell a member an image stripped of its local symbols cannot show
+    ///   from one that is gone (evolution proposal
+    ///   `evolution-unobservable-presence`). Key scheme unchanged; an older
+    ///   baseline would read as an image with local symbols and no export
+    ///   verdicts, so every non-exported member of a stripped version would
+    ///   report as removed again.
     /// - 7: a type declared in a function or closure body is keyed by the
     ///   compiler's name for it (`Visitor #1 in Holder.countValues()`), or by
     ///   the address of its anonymous context when the image records no name
@@ -49,7 +59,7 @@ public struct ABISnapshotDocument: Sendable, Codable, Equatable {
     ///   (`tag:N|indirect|…`), so a version-1 baseline would silently miss
     ///   that transition.
     /// - 1: initial versioned format.
-    public static let currentFormatVersion = 7
+    public static let currentFormatVersion = 8
 
     public let formatVersion: Int
     public var provenance: ABIProvenance?

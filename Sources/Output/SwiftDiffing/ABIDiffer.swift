@@ -71,27 +71,29 @@ public struct ABIDiffer: Sendable {
     /// projecting every declaration into its diff records. All of the model
     /// knowledge lives here; the diff above is then pure data over the result.
     public func snapshot(of module: ABIModule) -> ABISnapshot {
-        ABISnapshot(
+        let exportVerdicts = MemberExportVerdicts(module.memberExportVerdict)
+        return ABISnapshot(
             types: containerSnapshots(
                 Array(module.allTypeDefinitions.values),
                 containerKind: .type,
                 key: { ABIKey.makeUnwrappingType(for: $0.typeName.node) },
                 name: { $0.typeName.name(using: .default) },
-                members: { self.memberRecords(of: $0) }
+                members: { self.memberRecords(of: $0, exportVerdicts: exportVerdicts) }
             ),
             protocols: containerSnapshots(
                 Array(module.allProtocolDefinitions.values),
                 containerKind: .protocol,
                 key: { ABIKey.makeUnwrappingType(for: $0.protocolName.node) },
                 name: { $0.protocolName.name(using: .default) },
-                members: { self.memberRecords(of: $0) }
+                members: { self.memberRecords(of: $0, exportVerdicts: exportVerdicts) }
             ),
-            typeExtensions: extensionContainerSnapshots(module.typeExtensionDefinitions, .typeExtension),
-            protocolExtensions: extensionContainerSnapshots(module.protocolExtensionDefinitions, .protocolExtension),
-            typeAliasExtensions: extensionContainerSnapshots(module.typeAliasExtensionDefinitions, .typeAliasExtension),
-            conformanceExtensions: extensionContainerSnapshots(module.conformanceExtensionDefinitions, .conformanceExtension),
-            globalVariables: module.globalVariableDefinitions.map(MemberRecord.make),
-            globalFunctions: module.globalFunctionDefinitions.map(MemberRecord.make)
+            typeExtensions: extensionContainerSnapshots(module.typeExtensionDefinitions, .typeExtension, exportVerdicts),
+            protocolExtensions: extensionContainerSnapshots(module.protocolExtensionDefinitions, .protocolExtension, exportVerdicts),
+            typeAliasExtensions: extensionContainerSnapshots(module.typeAliasExtensionDefinitions, .typeAliasExtension, exportVerdicts),
+            conformanceExtensions: extensionContainerSnapshots(module.conformanceExtensionDefinitions, .conformanceExtension, exportVerdicts),
+            globalVariables: module.globalVariableDefinitions.map { MemberRecord.make($0).withIsExported(exportVerdicts.isExported($0)) },
+            globalFunctions: module.globalFunctionDefinitions.map { MemberRecord.make($0).withIsExported(exportVerdicts.isExported($0)) },
+            hasLocalSwiftSymbols: module.hasLocalSwiftSymbols
         )
     }
 
@@ -119,7 +121,8 @@ public struct ABIDiffer: Sendable {
     /// structurally (the diagnostics channel stays as a backstop).
     private func extensionContainerSnapshots(
         _ buckets: OrderedDictionary<ExtensionName, [ExtensionDefinition]>,
-        _ containerKind: ContainerKind
+        _ containerKind: ContainerKind,
+        _ exportVerdicts: MemberExportVerdicts
     ) -> [ContainerSnapshot] {
         buckets.flatMap { name, definitions -> [ContainerSnapshot] in
             var groupedDefinitions: OrderedDictionary<ABIKey, [ExtensionDefinition]> = [:]
@@ -142,7 +145,7 @@ public struct ABIDiffer: Sendable {
                     kind: containerKind,
                     conformedProtocolName: protocolText,
                     whereClauseText: whereText,
-                    members: groupDefinitions.flatMap { self.memberRecords(of: $0) }
+                    members: groupDefinitions.flatMap { self.memberRecords(of: $0, exportVerdicts: exportVerdicts) }
                 )
             }
         }
@@ -228,23 +231,23 @@ public struct ABIDiffer: Sendable {
     /// protocols, and extensions all expose them). The kind-specific extras —
     /// stored fields / enum cases / `deinit` for types, associated types for
     /// protocols — are layered on by the concrete overloads below.
-    func sharedMemberRecords(of definition: some Definition) -> [MemberRecord] {
+    func sharedMemberRecords(of definition: some Definition, exportVerdicts: MemberExportVerdicts = MemberExportVerdicts(nil)) -> [MemberRecord] {
         var records: [MemberRecord] = []
-        records.append(contentsOf: definition.variables.map(MemberRecord.make))
-        records.append(contentsOf: definition.staticVariables.map(MemberRecord.make))
-        records.append(contentsOf: definition.functions.map(MemberRecord.make))
-        records.append(contentsOf: definition.staticFunctions.map(MemberRecord.make))
-        records.append(contentsOf: definition.subscripts.map(MemberRecord.make))
-        records.append(contentsOf: definition.staticSubscripts.map(MemberRecord.make))
-        records.append(contentsOf: definition.allocators.map(MemberRecord.make))
-        records.append(contentsOf: definition.constructors.map(MemberRecord.make))
+        records.append(contentsOf: definition.variables.map { MemberRecord.make($0).withIsExported(exportVerdicts.isExported($0)) })
+        records.append(contentsOf: definition.staticVariables.map { MemberRecord.make($0).withIsExported(exportVerdicts.isExported($0)) })
+        records.append(contentsOf: definition.functions.map { MemberRecord.make($0).withIsExported(exportVerdicts.isExported($0)) })
+        records.append(contentsOf: definition.staticFunctions.map { MemberRecord.make($0).withIsExported(exportVerdicts.isExported($0)) })
+        records.append(contentsOf: definition.subscripts.map { MemberRecord.make($0).withIsExported(exportVerdicts.isExported($0)) })
+        records.append(contentsOf: definition.staticSubscripts.map { MemberRecord.make($0).withIsExported(exportVerdicts.isExported($0)) })
+        records.append(contentsOf: definition.allocators.map { MemberRecord.make($0).withIsExported(exportVerdicts.isExported($0)) })
+        records.append(contentsOf: definition.constructors.map { MemberRecord.make($0).withIsExported(exportVerdicts.isExported($0)) })
         return records
     }
 
     /// A type adds stored fields (or order-sensitive enum cases) and `deinit`
     /// on top of the shared members.
-    func memberRecords(of definition: TypeDefinition) -> [MemberRecord] {
-        var records = sharedMemberRecords(of: definition)
+    func memberRecords(of definition: TypeDefinition, exportVerdicts: MemberExportVerdicts = MemberExportVerdicts(nil)) -> [MemberRecord] {
+        var records = sharedMemberRecords(of: definition, exportVerdicts: exportVerdicts)
         if case .enum = definition.typeContextDescriptorWrapper {
             for (tag, field) in definition.fields.enumerated() {
                 records.append(.makeCase(field, tag: tag))
@@ -258,7 +261,7 @@ public struct ABIDiffer: Sendable {
             records.append(contentsOf: definition.fields.filter { !$0.isRawLayoutStorage }.map(MemberRecord.make))
         }
         if definition.hasDeallocator {
-            records.append(.makeDeinit())
+            records.append(MemberRecord.makeDeinit().withIsExported(exportVerdicts.isExported(deallocatorOf: definition)))
         }
         return records
     }
@@ -279,20 +282,20 @@ public struct ABIDiffer: Sendable {
     /// degrades to the status rule). Deliberately built per-collection rather
     /// than via `sharedMemberRecords`, which serves types/extensions where the
     /// fact does not apply.
-    func memberRecords(of definition: ProtocolDefinition) -> [MemberRecord] {
+    func memberRecords(of definition: ProtocolDefinition, exportVerdicts: MemberExportVerdicts = MemberExportVerdicts(nil)) -> [MemberRecord] {
         let defaultedOffsets = definition.defaultedRequirementPWTOffsets
         func flag(_ slotOffsets: [Int?]) -> Bool? {
             Self.requirementDefaultImplementationFlag(slotOffsets: slotOffsets, defaultedOffsets: defaultedOffsets)
         }
         var records: [MemberRecord] = []
-        records.append(contentsOf: definition.variables.map { MemberRecord.make($0).withHasDefaultImplementation(flag($0.accessors.map(\.offset))) })
-        records.append(contentsOf: definition.staticVariables.map { MemberRecord.make($0).withHasDefaultImplementation(flag($0.accessors.map(\.offset))) })
-        records.append(contentsOf: definition.functions.map { MemberRecord.make($0).withHasDefaultImplementation(flag([$0.offset])) })
-        records.append(contentsOf: definition.staticFunctions.map { MemberRecord.make($0).withHasDefaultImplementation(flag([$0.offset])) })
-        records.append(contentsOf: definition.subscripts.map { MemberRecord.make($0).withHasDefaultImplementation(flag($0.accessors.map(\.offset))) })
-        records.append(contentsOf: definition.staticSubscripts.map { MemberRecord.make($0).withHasDefaultImplementation(flag($0.accessors.map(\.offset))) })
-        records.append(contentsOf: definition.allocators.map { MemberRecord.make($0).withHasDefaultImplementation(flag([$0.offset])) })
-        records.append(contentsOf: definition.constructors.map { MemberRecord.make($0).withHasDefaultImplementation(flag([$0.offset])) })
+        records.append(contentsOf: definition.variables.map { MemberRecord.make($0).withHasDefaultImplementation(flag($0.accessors.map(\.offset))).withIsExported(exportVerdicts.isExported($0)) })
+        records.append(contentsOf: definition.staticVariables.map { MemberRecord.make($0).withHasDefaultImplementation(flag($0.accessors.map(\.offset))).withIsExported(exportVerdicts.isExported($0)) })
+        records.append(contentsOf: definition.functions.map { MemberRecord.make($0).withHasDefaultImplementation(flag([$0.offset])).withIsExported(exportVerdicts.isExported($0)) })
+        records.append(contentsOf: definition.staticFunctions.map { MemberRecord.make($0).withHasDefaultImplementation(flag([$0.offset])).withIsExported(exportVerdicts.isExported($0)) })
+        records.append(contentsOf: definition.subscripts.map { MemberRecord.make($0).withHasDefaultImplementation(flag($0.accessors.map(\.offset))).withIsExported(exportVerdicts.isExported($0)) })
+        records.append(contentsOf: definition.staticSubscripts.map { MemberRecord.make($0).withHasDefaultImplementation(flag($0.accessors.map(\.offset))).withIsExported(exportVerdicts.isExported($0)) })
+        records.append(contentsOf: definition.allocators.map { MemberRecord.make($0).withHasDefaultImplementation(flag([$0.offset])).withIsExported(exportVerdicts.isExported($0)) })
+        records.append(contentsOf: definition.constructors.map { MemberRecord.make($0).withHasDefaultImplementation(flag([$0.offset])).withIsExported(exportVerdicts.isExported($0)) })
         records.append(contentsOf: definition.associatedTypes.map(MemberRecord.makeAssociatedType))
         records.append(contentsOf: definition.strippedSymbolicRequirements.map {
             MemberRecord.makeProtocolRequirement(
@@ -320,8 +323,8 @@ public struct ABIDiffer: Sendable {
     /// **witnesses** — frozen into `AssociatedTypeWitnessProjection` at index
     /// time precisely because the raw `AssociatedType` records' name accessors
     /// are Mach-O-bound and cannot be resolved here.
-    func memberRecords(of definition: ExtensionDefinition) -> [MemberRecord] {
-        var records = sharedMemberRecords(of: definition)
+    func memberRecords(of definition: ExtensionDefinition, exportVerdicts: MemberExportVerdicts = MemberExportVerdicts(nil)) -> [MemberRecord] {
+        var records = sharedMemberRecords(of: definition, exportVerdicts: exportVerdicts)
         records.append(contentsOf: definition.resolvedAssociatedTypeWitnesses.map {
             MemberRecord.makeAssociatedTypeWitness(name: $0.name, substitutedTypeText: $0.substitutedTypeText)
         })
@@ -387,5 +390,39 @@ public struct ABIDiffer: Sendable {
         changes.sorted { lhs, rhs in
             (key(lhs).sortKey, status(lhs).sortRank) < (key(rhs).sortKey, status(rhs).sortRank)
         }
+    }
+}
+
+/// The module's member export verdict as the freeze asks it: once per
+/// symbol-backed record, with the symbol names its definition carries (see
+/// ``ABIModule/memberExportVerdict``). Without a verdict every answer is
+/// `nil`.
+struct MemberExportVerdicts {
+    private let verdict: ((_ symbolNames: [String]) -> Bool?)?
+
+    init(_ verdict: ((_ symbolNames: [String]) -> Bool?)?) {
+        self.verdict = verdict
+    }
+
+    func isExported(_ function: FunctionDefinition) -> Bool? {
+        answer([function.symbol.name])
+    }
+
+    func isExported(_ variable: VariableDefinition) -> Bool? {
+        answer(variable.accessors.map(\.symbol.name))
+    }
+
+    func isExported(_ subscriptDefinition: SubscriptDefinition) -> Bool? {
+        answer(subscriptDefinition.accessors.map(\.symbol.name))
+    }
+
+    func isExported(deallocatorOf typeDefinition: TypeDefinition) -> Bool? {
+        guard let deallocatorSymbol = typeDefinition.deallocatorSymbol else { return nil }
+        return answer([deallocatorSymbol.name])
+    }
+
+    private func answer(_ symbolNames: [String]) -> Bool? {
+        guard let verdict else { return nil }
+        return verdict(symbolNames)
     }
 }

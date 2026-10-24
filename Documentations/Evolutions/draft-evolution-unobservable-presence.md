@@ -1,6 +1,6 @@
 # Draft - evolution 与 diff 区分「不存在」和「看不见」
 
-- **状态**: Accepted
+- **状态**: In Progress
 - **创建日期**: 2026-10-24
 - **最后更新**: 2026-10-24
 - **所属愿景**: 无
@@ -57,7 +57,7 @@ evolution 和 diff 把每个声明在每个版本里只记成「在」或「不�
 
 **落地步骤**（每一步单独构建通过、相关测试通过后提交）：
 
-1. 快照记下两件事，格式版本升到 8：`SymbolIndexStore` 的判据与查询，`MemberRecord` 的导出判定与 `ABISnapshot` 的镜像级标记，`SwiftDiffableInterfaceBuilder` 冻结时填好。测试判据（fixture 的被剥变体）、冻结结果与编解码。
+1. （已完成）快照记下两件事，格式版本升到 8：`SymbolIndexStore` 的判据与查询，`MemberRecord` 的导出判定与 `ABISnapshot` 的镜像级标记，`SwiftDiffableInterfaceBuilder` 冻结时填好。测试判据（fixture 的被剥变体）、冻结结果与编解码。
 2. SwiftDiffing 里的看不见规则与按两侧推断：lineage 的状态数组、区间事件、收录规则；diff 的判定层（看不见的成员单列、不算 breaking）；两个文本报告与 JSON。测试方案里列出的手工快照用例。
 3. evolution 联合接口：`EvolutionAnnotation` 带上状态与区间，`EvolutionMarking` 的新符号、短语、图例和 `@available` 规则。测试 `EvolutionMarkingTests` 与 `SwiftEvolutionInterfaceBuilderTests`。
 4. 文档与 skill 同步；用 CLI 重跑 macOS 27.0 SwiftUI 的 51 版 evolution 做实数据核对，结果写进本提案。
@@ -75,3 +75,7 @@ evolution 和 diff 把每个声明在每个版本里只记成「在」或「不�
 | 2026-10-24 | 模型只增不改，`presence: [Bool]` 保留 | 未提问自定。它是 `evolution --json` 的现有输出，脚本可能依赖；本机的下游仓库（RuntimeViewer、MachOKitUI、swift-decompiler）都不读 lineage 模型 |
 | 2026-10-24 | 落地拆成四步 | 精简提案原本没有落地步骤；按「快照事实 → 判定规则 → 接口呈现 → 文档与实数据」拆开，每一步都能单独构建和测试 |
 | 2026-10-24 | 用户批准（Draft → Accepted），开始实现 | 方案与全部假设照单通过 |
+| 2026-10-24 | 判据读符号表条目的 `N_EXT` 位（新增 `NlistProtocol.isLocal`），不沿用 `isExternal` | 实现中发现本库的 `isExternal` 只指未定义的导入，符号表那两条收集路径收的是全部已定义符号、导出的也在内；照字面用它，被剥的版本也会因为导出符号而被判成「有 local Swift 符号」，fixture 的测试当场抓到。`ExportFacts` 注释里「只收 local 符号」的旧说法顺带更正 |
+| 2026-10-24 | 成员导出判定的组合规则收进 `SymbolIndexStore.isExportedIncludingDerivedSymbols(names:in:)` | 快照要的判定和 interface 的 `// not exported` 注释是同一条规则（任一入口导出即为导出、查不到就不下结论）；printer 原来自己写了一份，现在两边都调这一处，不会走样 |
+| 2026-10-24 | 测试改用专门的三版本 fixture（`UnobservablePresenceFixture`，中间一版 `strip -x`），在快照这一层验证判据 | 方案原想用 `ObjCImplementationFixture` 的被剥变体单测 `SymbolIndexStore`；改在冻结结果上测能同时覆盖判据与导出判定，而且第 3 步的端到端测试要的正是这样三个版本，一个 fixture 两用 |
+| 2026-10-24 | 第 1 步完成（In Progress） | 定向测试通过：`UnobservablePresenceTests` 3 个、`ABISnapshotDocumentTests` 与 `ABIDifferAlgorithmTests` 共 14 个、`ExportedSymbolFactsTests` 5 个，以及受 printer 改动影响的导出注释与 `--exported-only` 套件，原始退出码 0。真实数据核对：此前导出的 nlist 里，12.7 与 15.0 的 SwiftUI 各有 149,409 与 167,325 个 local `_$s` 符号，13.0 与 14.8 一个都没有 |
