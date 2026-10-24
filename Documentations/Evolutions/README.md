@@ -83,3 +83,4 @@
 | [0071](0071-swift-capstone-7.md) | 迁到 swift-capstone 7.0：解码器改用 `Disassembler<AArch64>` | Implemented |
 | [0072](0072-cross-reference-analysis.md) | 交叉引用分析：从机器码读出每个函数引用了什么 | Implemented |
 | [0073](0073-protocol-requirement-placement.md) | 协议约束可选写在各自的关联类型上 | Implemented |
+| draft | [evolution 与 diff 区分「不存在」和「看不见」](draft-evolution-unobservable-presence.md) | Accepted |
