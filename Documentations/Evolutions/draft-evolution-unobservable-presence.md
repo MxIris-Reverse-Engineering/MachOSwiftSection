@@ -59,7 +59,7 @@ evolution 和 diff 把每个声明在每个版本里只记成「在」或「不�
 
 1. （已完成）快照记下两件事，格式版本升到 8：`SymbolIndexStore` 的判据与查询，`MemberRecord` 的导出判定与 `ABISnapshot` 的镜像级标记，`SwiftDiffableInterfaceBuilder` 冻结时填好。测试判据（fixture 的被剥变体）、冻结结果与编解码。
 2. （已完成）SwiftDiffing 里的看不见规则与按两侧推断：lineage 的状态数组、区间事件、收录规则；diff 的判定层（看不见的成员单列、不算 breaking）；两个文本报告与 JSON。测试方案里列出的手工快照用例。
-3. evolution 联合接口：`EvolutionAnnotation` 带上状态与区间，`EvolutionMarking` 的新符号、短语、图例和 `@available` 规则。测试 `EvolutionMarkingTests` 与 `SwiftEvolutionInterfaceBuilderTests`。
+3. （已完成）evolution 联合接口：`EvolutionAnnotation` 带上状态与区间，`EvolutionMarking` 的新符号、短语、图例和 `@available` 规则。测试 `EvolutionMarkingTests` 与 `SwiftEvolutionInterfaceBuilderTests`。
 4. 文档与 skill 同步；用 CLI 重跑 macOS 27.0 SwiftUI 的 51 版 evolution 做实数据核对，结果写进本提案。
 
 ## 决策日志
@@ -84,3 +84,6 @@ evolution 和 diff 把每个声明在每个版本里只记成「在」或「不�
 | 2026-10-24 | diff 把看不见的东西放进 `ABIDiff.unobservableDeclarations`；看不见的容器连同它的成员一起列出 | 两版本的 evolution 会给容器和每个成员各留一条「看不见」的 lineage，diff 列出同样的集合，一致性测试据此比对。列表为空时同样不编码 |
 | 2026-10-24 | 报告的 Transitions 段把区间事件计入首次观测到它的那一步，下面另起一行注明其中几条发生在哪两个版本之间 | 与兼容性判定的归属一致，又不让人误以为变化就发生在那一步 |
 | 2026-10-24 | 第 2 步完成 | SwiftDiffing 108 个测试全过（新增 19 个），原始退出码 0；变异检验：去掉「两侧都在则推断存在」、让导出成员也算看不见，新测试有 7 个变红（退出码 1），还原后转绿。SwiftSectionKitTests 65 个、SwiftSectionCommandTests 106 个、SwiftInterfaceTests 317 个全过 |
+| 2026-10-24 | `@available` 遇到任何一个「看不见」的版本就不发，推断存在照常算存在 | 方案只写了区间事件；实现时发现挨着轴端的看不见版本同样会让边界不成立（`[●◌]` 会被读成 `obsoleted:`），按同一原则一并排除 |
+| 2026-10-24 | 着色规则 `InterfaceAnnotationStyle.lineKinds` 认 `… between` 短语，只标看不见版本的注释算 plain | 方案没写到。原规则把不含 `removed in` / `modified in` 的注释一律当新增，`removed between` 会被染成新增 |
+| 2026-10-24 | 第 3 步完成 | 定向测试 `UnobservablePresenceTests`（新增 5 个端到端用例）、`EvolutionMarkingTests`（新增 7 个）、`InterfaceAnnotationStyleTests`（新增 1 个）全过；SwiftInterfaceTests 329 个、SwiftSectionKitTests 66 个、SwiftSectionCommandTests 106 个、SwiftDiffingTests 108 个全过，原始退出码 0。变异检验：去掉 `@available` 的边界判断、把着色默认值改回新增，3 个测试变红，还原后转绿。CLI 冒烟：对现编的三版 dylib（第二版 `strip -x`）跑 `evolution --interface --emit-available`、文本报告与 `diff`，输出与设计一致 |

@@ -67,33 +67,72 @@ enum EvolutionMarking {
         "[" + presence.map { $0 ? "●" : "○" }.joined() + "]"
     }
 
-    /// One event phrased against the version axis. A modified event whose old
-    /// and new signatures render identically (an ABI payload change with no
+    /// The bitmap of an annotation: `●` / `○` where the version showed or
+    /// would have shown the declaration, and where it could not (evolution
+    /// proposal `evolution-unobservable-presence`) `◍` when the versions
+    /// around it both have the declaration, `◌` otherwise.
+    static func bitmap(for annotation: EvolutionAnnotation) -> String {
+        guard let presenceStates = annotation.presenceStates else {
+            return bitmap(annotation.presence)
+        }
+        return "[" + presenceStates.map { state in
+            switch state {
+            case .present: "●"
+            case .absent: "○"
+            case .inferredPresent: "◍"
+            case .unobservable: "◌"
+            }
+        }.joined() + "]"
+    }
+
+    /// One event phrased against the version axis: `removed in 26.0`, or —
+    /// for a change across versions that could not show the declaration —
+    /// `removed between 12.7 and 15.0`. A modified event whose old and new
+    /// signatures render identically (an ABI payload change with no
     /// signature-visible difference — accessor set, symbolic identity) keeps
     /// the bare phrase: an identical `A → A` arrow is pure noise, the same
     /// reasoning as the two-sided renderer's identical-rendering collapse.
     static func phrase(for event: LineageEvent, versions: [ABIVersionDescriptor]) -> String {
-        let label = versions.indices.contains(event.versionIndex)
-            ? versions[event.versionIndex].label
-            : "v\(event.versionIndex + 1)"
+        let placement = event.placement(on: versions)
         switch event.status {
         case .added:
-            return "added in \(label)"
+            return "added \(placement)"
         case .removed:
-            return "removed in \(label)"
+            return "removed \(placement)"
         case .modified:
             guard let oldSignature = event.oldSignature, let newSignature = event.newSignature, oldSignature != newSignature else {
-                return "modified in \(label)"
+                return "modified \(placement)"
             }
-            return "modified in \(label): \(oldSignature) → \(newSignature)"
+            return "modified \(placement): \(oldSignature) → \(newSignature)"
         }
     }
 
-    /// The full trailing comment: `// [●●○] removed in 26.0`, multiple events
-    /// joined by ` · `.
+    /// The full trailing comment: `// [●●○] removed in 26.0`, multiple
+    /// phrases joined by ` · ` in axis order. The versions that could not
+    /// show the declaration add their own phrase — `inferred present in
+    /// 13.0–14.8`, or `not observable in 13.0` where no event spans them.
     static func annotationText(for annotation: EvolutionAnnotation, versions: [ABIVersionDescriptor]) -> String {
-        var text = "// " + bitmap(annotation.presence)
-        let phrases = annotation.events.map { phrase(for: $0, versions: versions) }
+        var placedPhrases: [(versionIndex: Int, phrase: String)] = annotation.events.map { event in
+            (event.earliestVersionIndex ?? event.versionIndex, phrase(for: event, versions: versions))
+        }
+        if let presenceStates = annotation.presenceStates {
+            let spannedFirstIndices = Set(annotation.events.compactMap(\.earliestVersionIndex))
+            for span in presenceStates.unobservedSpans {
+                let labels = versions.labels(spanning: span.versionIndices)
+                switch span.state {
+                case .inferredPresent:
+                    placedPhrases.append((span.versionIndices.lowerBound, "inferred present in \(labels)"))
+                case .unobservable where !spannedFirstIndices.contains(span.versionIndices.lowerBound):
+                    placedPhrases.append((span.versionIndices.lowerBound, "not observable in \(labels)"))
+                default:
+                    break
+                }
+            }
+        }
+        var text = "// " + bitmap(for: annotation)
+        let phrases = placedPhrases.enumerated()
+            .sorted { ($0.element.versionIndex, $0.offset) < ($1.element.versionIndex, $1.offset) }
+            .map(\.element.phrase)
         if !phrases.isEmpty {
             text += " " + phrases.joined(separator: " · ")
         }
@@ -119,6 +158,11 @@ enum EvolutionMarking {
     ///   version literal.
     /// - Modified events never participate: `@available` has no vocabulary
     ///   for them, so a modified-throughout lifecycle yields `nil`.
+    /// - A version that could not show the declaration and was not inferred
+    ///   present (evolution proposal `evolution-unobservable-presence`)
+    ///   leaves its bound unknown — an event spanning it, or an end of the
+    ///   axis it reaches — so the lifecycle yields `nil`. Inferred presence
+    ///   counts as presence.
     ///
     /// The facts are axis-resolution: `introduced:` names the first axis
     /// point carrying the declaration, not necessarily the OS release that
@@ -129,6 +173,7 @@ enum EvolutionMarking {
         platform: String
     ) -> String? {
         guard annotation.presence.count == versions.count else { return nil }
+        guard annotation.presenceStates?.contains(.unobservable) != true else { return nil }
         guard let interval = singlePresenceInterval(annotation.presence) else { return nil }
         var clauses: [String] = []
         if interval.firstPresentIndex > 0 {
@@ -213,9 +258,12 @@ enum EvolutionMarking {
     }
 
     /// Two comment lines naming the axis and mapping bitmap positions to
-    /// version labels — the key to reading every `[●●○]` in the body. With
-    /// availability attributes enabled, a third line states their semantic
-    /// resolution once, so no attribute in the body overclaims.
+    /// version labels — the key to reading every `[●●○]` in the body. When
+    /// some version carries no local Swift symbols, a line names those
+    /// versions and the two glyphs their positions read (evolution proposal
+    /// `evolution-unobservable-presence`). With availability attributes
+    /// enabled, a last line states their semantic resolution once, so no
+    /// attribute in the body overclaims.
     static func legendLines(for evolution: ABIEvolution, availabilityAnnotationPlatform: String? = nil) -> SemanticString {
         let labels = evolution.versions.map(\.label)
         var result = SemanticString()
@@ -228,6 +276,15 @@ enum EvolutionMarking {
             "// Bitmap positions: " + labels.enumerated().map { "[\($0 + 1)] \($1)" }.joined(separator: "  "),
             type: .comment
         )
+        if let versionIndicesWithoutLocalSwiftSymbols = evolution.versionIndicesWithoutLocalSwiftSymbols {
+            let labels = evolution.versions.labels(ofVersionsAt: versionIndicesWithoutLocalSwiftSymbols)
+            let isSingleVersion = versionIndicesWithoutLocalSwiftSymbols.count == 1
+            result.append("\n", type: .standard)
+            result.append(
+                "// \(labels) \(isSingleVersion ? "carries" : "carry") no local Swift symbols, so \(isSingleVersion ? "its" : "their") non-exported declarations cannot be seen: ◌ not observable, ◍ not observable but present in the versions on both sides (inferred).",
+                type: .comment
+            )
+        }
         if let availabilityAnnotationPlatform {
             result.append("\n", type: .standard)
             result.append(
