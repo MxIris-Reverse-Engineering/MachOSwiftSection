@@ -58,7 +58,7 @@ evolution 和 diff 把每个声明在每个版本里只记成「在」或「不�
 **落地步骤**（每一步单独构建通过、相关测试通过后提交）：
 
 1. （已完成）快照记下两件事，格式版本升到 8：`SymbolIndexStore` 的判据与查询，`MemberRecord` 的导出判定与 `ABISnapshot` 的镜像级标记，`SwiftDiffableInterfaceBuilder` 冻结时填好。测试判据（fixture 的被剥变体）、冻结结果与编解码。
-2. SwiftDiffing 里的看不见规则与按两侧推断：lineage 的状态数组、区间事件、收录规则；diff 的判定层（看不见的成员单列、不算 breaking）；两个文本报告与 JSON。测试方案里列出的手工快照用例。
+2. （已完成）SwiftDiffing 里的看不见规则与按两侧推断：lineage 的状态数组、区间事件、收录规则；diff 的判定层（看不见的成员单列、不算 breaking）；两个文本报告与 JSON。测试方案里列出的手工快照用例。
 3. evolution 联合接口：`EvolutionAnnotation` 带上状态与区间，`EvolutionMarking` 的新符号、短语、图例和 `@available` 规则。测试 `EvolutionMarkingTests` 与 `SwiftEvolutionInterfaceBuilderTests`。
 4. 文档与 skill 同步；用 CLI 重跑 macOS 27.0 SwiftUI 的 51 版 evolution 做实数据核对，结果写进本提案。
 
@@ -79,3 +79,8 @@ evolution 和 diff 把每个声明在每个版本里只记成「在」或「不�
 | 2026-10-24 | 成员导出判定的组合规则收进 `SymbolIndexStore.isExportedIncludingDerivedSymbols(names:in:)` | 快照要的判定和 interface 的 `// not exported` 注释是同一条规则（任一入口导出即为导出、查不到就不下结论）；printer 原来自己写了一份，现在两边都调这一处，不会走样 |
 | 2026-10-24 | 测试改用专门的三版本 fixture（`UnobservablePresenceFixture`，中间一版 `strip -x`），在快照这一层验证判据 | 方案原想用 `ObjCImplementationFixture` 的被剥变体单测 `SymbolIndexStore`；改在冻结结果上测能同时覆盖判据与导出判定，而且第 3 步的端到端测试要的正是这样三个版本，一个 fixture 两用 |
 | 2026-10-24 | 第 1 步完成（In Progress） | 定向测试通过：`UnobservablePresenceTests` 3 个、`ABISnapshotDocumentTests` 与 `ABIDifferAlgorithmTests` 共 14 个、`ExportedSymbolFactsTests` 5 个，以及受 printer 改动影响的导出注释与 `--exported-only` 套件，原始退出码 0。真实数据核对：此前导出的 nlist 里，12.7 与 15.0 的 SwiftUI 各有 149,409 与 167,325 个 local `_$s` 符号，13.0 与 14.8 一个都没有 |
+| 2026-10-24 | 规则集中在 `UnobservablePresence.swift`，evolution 与 diff 共用 | 「看不见」的判定（`MemberRecord` / `ContainerSnapshot.needsLocalSymbolsToBeSeen`）、逐版本观测与按两侧推断（`PresenceObservation`、`PresenceResolution`）只写一份，两版本时两条路径不可能给出不同结论 |
+| 2026-10-24 | 模型另加两个可选字段 `ABIEvolution.versionIndicesWithoutLocalSwiftSymbols` 与 `MemberLineage.latestSignature`，以及报告共用的 `UnobservedSpan` 和版本区间的标签函数 | 方案没写到。图例与报告要知道哪些版本没有 local Swift 符号；只为看不见的版本才收录、没有事件的 lineage 没有地方带签名，报告只能印出 mangled key。新字段都是可选的，值为空时不编码，所以没有被剥版本的轴，`evolution --json` 输出逐字节不变（测试钉住） |
+| 2026-10-24 | diff 把看不见的东西放进 `ABIDiff.unobservableDeclarations`；看不见的容器连同它的成员一起列出 | 两版本的 evolution 会给容器和每个成员各留一条「看不见」的 lineage，diff 列出同样的集合，一致性测试据此比对。列表为空时同样不编码 |
+| 2026-10-24 | 报告的 Transitions 段把区间事件计入首次观测到它的那一步，下面另起一行注明其中几条发生在哪两个版本之间 | 与兼容性判定的归属一致，又不让人误以为变化就发生在那一步 |
+| 2026-10-24 | 第 2 步完成 | SwiftDiffing 108 个测试全过（新增 19 个），原始退出码 0；变异检验：去掉「两侧都在则推断存在」、让导出成员也算看不见，新测试有 7 个变红（退出码 1），还原后转绿。SwiftSectionKitTests 65 个、SwiftSectionCommandTests 106 个、SwiftInterfaceTests 317 个全过 |

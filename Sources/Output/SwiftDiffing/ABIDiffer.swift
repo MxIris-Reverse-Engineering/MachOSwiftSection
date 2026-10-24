@@ -50,18 +50,37 @@ public struct ABIDiffer: Sendable {
             newSideRemangleFallbacks: new.remangleFallbacks()
         )
         let diagnostics = candidateDiagnostics.isEmpty ? nil : candidateDiagnostics
+        let visibility = DiffVisibility(
+            oldHidesNonExportedMembers: !old.hasLocalSwiftSymbols,
+            newHidesNonExportedMembers: !new.hasLocalSwiftSymbols
+        )
+        var unobservableDeclarations: [UnobservableDeclaration] = []
+        let types = diffContainerSnapshots(old.types, new.types, visibility, &unobservableDeclarations)
+        let protocols = diffContainerSnapshots(old.protocols, new.protocols, visibility, &unobservableDeclarations)
+        let typeExtensions = diffContainerSnapshots(old.typeExtensions, new.typeExtensions, visibility, &unobservableDeclarations)
+        let protocolExtensions = diffContainerSnapshots(old.protocolExtensions, new.protocolExtensions, visibility, &unobservableDeclarations)
+        let typeAliasExtensions = diffContainerSnapshots(old.typeAliasExtensions, new.typeAliasExtensions, visibility, &unobservableDeclarations)
+        let conformanceExtensions = diffContainerSnapshots(old.conformanceExtensions, new.conformanceExtensions, visibility, &unobservableDeclarations)
+        let globalVariables = diffMembers(old: old.globalVariables, new: new.globalVariables, visibility, container: nil, &unobservableDeclarations)
+        let globalFunctions = diffMembers(old: old.globalFunctions, new: new.globalFunctions, visibility, container: nil, &unobservableDeclarations)
+        // Grouped by container, the container itself ahead of its members.
+        unobservableDeclarations.sort { lhs, rhs in
+            (lhs.containerName ?? "", lhs.memberKind == nil ? 0 : 1, lhs.key.sortKey, lhs.side.rawValue)
+                < (rhs.containerName ?? "", rhs.memberKind == nil ? 0 : 1, rhs.key.sortKey, rhs.side.rawValue)
+        }
         return ABIDiff(
-            types: diffContainerSnapshots(old.types, new.types),
-            protocols: diffContainerSnapshots(old.protocols, new.protocols),
-            typeExtensions: diffContainerSnapshots(old.typeExtensions, new.typeExtensions),
-            protocolExtensions: diffContainerSnapshots(old.protocolExtensions, new.protocolExtensions),
-            typeAliasExtensions: diffContainerSnapshots(old.typeAliasExtensions, new.typeAliasExtensions),
-            conformanceExtensions: diffContainerSnapshots(old.conformanceExtensions, new.conformanceExtensions),
-            globalVariables: diffMembers(old: old.globalVariables, new: new.globalVariables),
-            globalFunctions: diffMembers(old: old.globalFunctions, new: new.globalFunctions),
+            types: types,
+            protocols: protocols,
+            typeExtensions: typeExtensions,
+            protocolExtensions: protocolExtensions,
+            typeAliasExtensions: typeAliasExtensions,
+            conformanceExtensions: conformanceExtensions,
+            globalVariables: globalVariables,
+            globalFunctions: globalFunctions,
             oldProvenance: oldProvenance,
             newProvenance: newProvenance,
-            diagnostics: diagnostics
+            diagnostics: diagnostics,
+            unobservableDeclarations: unobservableDeclarations.isEmpty ? nil : unobservableDeclarations
         )
     }
 
@@ -156,18 +175,36 @@ public struct ABIDiffer: Sendable {
     /// Match container snapshots by key, then diff each matched pair's members.
     /// One helper serves every axis — types, protocols, and all four extension
     /// buckets — since they are all `[ContainerSnapshot]` once frozen.
-    private func diffContainerSnapshots(_ old: [ContainerSnapshot], _ new: [ContainerSnapshot]) -> [ContainerChange] {
+    ///
+    /// A container one side has and the other side's image could not show
+    /// (see `UnobservablePresence.swift`) is neither removed nor added: it and
+    /// its members go to `unobservableDeclarations`, exactly the lineages a
+    /// two-version evolution leaves unobservable.
+    private func diffContainerSnapshots(
+        _ old: [ContainerSnapshot],
+        _ new: [ContainerSnapshot],
+        _ visibility: DiffVisibility,
+        _ unobservableDeclarations: inout [UnobservableDeclaration]
+    ) -> [ContainerChange] {
         let matched = threeWayMatch(old: old, new: new) { $0.key }
 
         var changes: [ContainerChange] = []
-        changes.append(contentsOf: matched.removed.map {
-            ContainerChange(key: $0.key, name: $0.name, containerKind: $0.kind, status: .removed, memberChanges: [])
-        })
-        changes.append(contentsOf: matched.added.map {
-            ContainerChange(key: $0.key, name: $0.name, containerKind: $0.kind, status: .added, memberChanges: [])
-        })
+        for container in matched.removed {
+            if visibility.newHidesNonExportedMembers, container.needsLocalSymbolsToBeSeen {
+                unobservableDeclarations.append(contentsOf: Self.unobservableDeclarations(of: container, side: .new))
+            } else {
+                changes.append(ContainerChange(key: container.key, name: container.name, containerKind: container.kind, status: .removed, memberChanges: []))
+            }
+        }
+        for container in matched.added {
+            if visibility.oldHidesNonExportedMembers, container.needsLocalSymbolsToBeSeen {
+                unobservableDeclarations.append(contentsOf: Self.unobservableDeclarations(of: container, side: .old))
+            } else {
+                changes.append(ContainerChange(key: container.key, name: container.name, containerKind: container.kind, status: .added, memberChanges: []))
+            }
+        }
         for (oldContainer, newContainer) in matched.common {
-            let memberChanges = diffMembers(old: oldContainer.members, new: newContainer.members)
+            let memberChanges = diffMembers(old: oldContainer.members, new: newContainer.members, visibility, container: newContainer, &unobservableDeclarations)
             if !memberChanges.isEmpty {
                 changes.append(ContainerChange(
                     key: newContainer.key,
@@ -335,17 +372,40 @@ public struct ABIDiffer: Sendable {
 
     /// Three-way set difference over member records, keyed by `identityKey`.
     /// Public so it can be unit-tested without constructing a `Definition`
-    /// (whose initializers need a Mach-O).
+    /// (whose initializers need a Mach-O). Both sides are taken as able to
+    /// show every member.
     public func diffMembers(old: [MemberRecord], new: [MemberRecord]) -> [MemberChange] {
+        var unobservableDeclarations: [UnobservableDeclaration] = []
+        return diffMembers(old: old, new: new, .everySideObservable, container: nil, &unobservableDeclarations)
+    }
+
+    /// ``diffMembers(old:new:)`` with the sides' visibility: a member one
+    /// side has and the other side's image could not show goes to
+    /// `unobservableDeclarations` instead of being removed or added.
+    func diffMembers(
+        old: [MemberRecord],
+        new: [MemberRecord],
+        _ visibility: DiffVisibility,
+        container: ContainerSnapshot?,
+        _ unobservableDeclarations: inout [UnobservableDeclaration]
+    ) -> [MemberChange] {
         let matched = threeWayMatch(old: old, new: new) { $0.identityKey }
 
         var changes: [MemberChange] = []
-        changes.append(contentsOf: matched.removed.map {
-            MemberChange(key: $0.identityKey, kind: $0.kind, status: .removed, oldSignature: $0.signature, newSignature: nil, compatibilityOverride: MemberRecord.compatibilityOverride(old: $0, new: nil))
-        })
-        changes.append(contentsOf: matched.added.map {
-            MemberChange(key: $0.identityKey, kind: $0.kind, status: .added, oldSignature: nil, newSignature: $0.signature, compatibilityOverride: MemberRecord.compatibilityOverride(old: nil, new: $0))
-        })
+        for record in matched.removed {
+            if visibility.newHidesNonExportedMembers, record.needsLocalSymbolsToBeSeen {
+                unobservableDeclarations.append(Self.unobservableDeclaration(of: record, in: container, side: .new))
+            } else {
+                changes.append(MemberChange(key: record.identityKey, kind: record.kind, status: .removed, oldSignature: record.signature, newSignature: nil, compatibilityOverride: MemberRecord.compatibilityOverride(old: record, new: nil)))
+            }
+        }
+        for record in matched.added {
+            if visibility.oldHidesNonExportedMembers, record.needsLocalSymbolsToBeSeen {
+                unobservableDeclarations.append(Self.unobservableDeclaration(of: record, in: container, side: .old))
+            } else {
+                changes.append(MemberChange(key: record.identityKey, kind: record.kind, status: .added, oldSignature: nil, newSignature: record.signature, compatibilityOverride: MemberRecord.compatibilityOverride(old: nil, new: record)))
+            }
+        }
         for (oldRecord, newRecord) in matched.common where oldRecord.payloadKey != newRecord.payloadKey {
             changes.append(MemberChange(key: newRecord.identityKey, kind: newRecord.kind, status: .modified, oldSignature: oldRecord.signature, newSignature: newRecord.signature, compatibilityOverride: MemberRecord.compatibilityOverride(old: oldRecord, new: newRecord)))
         }
@@ -390,6 +450,30 @@ public struct ABIDiffer: Sendable {
         changes.sorted { lhs, rhs in
             (key(lhs).sortKey, status(lhs).sortRank) < (key(rhs).sortKey, status(rhs).sortRank)
         }
+    }
+}
+
+/// Which sides of a two-sided diff carry no local Swift symbols, and so
+/// cannot show a member only a non-exported symbol evidences (see
+/// `UnobservablePresence.swift`).
+struct DiffVisibility {
+    let oldHidesNonExportedMembers: Bool
+    let newHidesNonExportedMembers: Bool
+
+    static let everySideObservable = DiffVisibility(oldHidesNonExportedMembers: false, newHidesNonExportedMembers: false)
+}
+
+extension ABIDiffer {
+    /// A container `side` cannot show, and every member it holds.
+    static func unobservableDeclarations(of container: ContainerSnapshot, side: UnobservableDeclaration.Side) -> [UnobservableDeclaration] {
+        [UnobservableDeclaration(side: side, key: container.key, containerName: container.name, containerKind: container.kind, memberKind: nil, signature: container.name)]
+            + container.members.map { unobservableDeclaration(of: $0, in: container, side: side) }
+    }
+
+    /// A member `side` cannot show, filed under its container (`nil` for a
+    /// global).
+    static func unobservableDeclaration(of record: MemberRecord, in container: ContainerSnapshot?, side: UnobservableDeclaration.Side) -> UnobservableDeclaration {
+        UnobservableDeclaration(side: side, key: record.identityKey, containerName: container?.name, containerKind: container?.kind, memberKind: record.kind, signature: record.signature)
     }
 }
 
