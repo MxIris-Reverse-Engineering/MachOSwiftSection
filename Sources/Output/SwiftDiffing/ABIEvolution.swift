@@ -87,8 +87,11 @@ public enum LineagePresenceState: String, Sendable, Codable, Equatable {
 ///
 /// Only lineages with at least one event are materialized — an API that never
 /// changes never appears, mirroring `ABIDiff`'s "changes only" contract — and
-/// lineages some version cannot show, so a reader learns which versions said
-/// nothing about it.
+/// lineages of members some version cannot show while it shows their
+/// container, when that span says something (inferred present, or a bound
+/// left unknown), so a reader learns which versions said nothing about them.
+/// A member unseen only where its container is unseen is the container's
+/// story, as the members of an added or removed container are.
 public struct MemberLineage: Sendable, Codable, Equatable {
     public let key: ABIKey
     public let kind: MemberKind

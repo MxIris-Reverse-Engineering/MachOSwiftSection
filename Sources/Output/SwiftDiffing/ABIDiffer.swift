@@ -177,9 +177,10 @@ public struct ABIDiffer: Sendable {
     /// buckets — since they are all `[ContainerSnapshot]` once frozen.
     ///
     /// A container one side has and the other side's image could not show
-    /// (see `UnobservablePresence.swift`) is neither removed nor added: it and
-    /// its members go to `unobservableDeclarations`, exactly the lineages a
-    /// two-version evolution leaves unobservable.
+    /// (see `UnobservablePresence.swift`) is neither removed nor added: it
+    /// goes to `unobservableDeclarations`, its members unlisted like an added
+    /// or removed container's — exactly the lineages a two-version evolution
+    /// leaves unobservable.
     private func diffContainerSnapshots(
         _ old: [ContainerSnapshot],
         _ new: [ContainerSnapshot],
@@ -464,10 +465,10 @@ struct DiffVisibility {
 }
 
 extension ABIDiffer {
-    /// A container `side` cannot show, and every member it holds.
+    /// A container `side` cannot show. Its members are not listed, as an
+    /// added or removed container's are not: the container is the entry.
     static func unobservableDeclarations(of container: ContainerSnapshot, side: UnobservableDeclaration.Side) -> [UnobservableDeclaration] {
         [UnobservableDeclaration(side: side, key: container.key, containerName: container.name, containerKind: container.kind, memberKind: nil, signature: container.name)]
-            + container.members.map { unobservableDeclaration(of: $0, in: container, side: side) }
     }
 
     /// A member `side` cannot show, filed under its container (`nil` for a

@@ -101,10 +101,12 @@ struct UnobservablePresenceTests {
         #expect(lines[retiredIndex - 1].contains("@available(macOS, obsoleted: 2.0)"))
     }
 
-    @Test("an extension of internal members alone is inferred present with them")
+    @Test("an extension of internal members alone is inferred present, its members with it")
     func internalExtensionIsInferredPresent() async throws {
         let lines = try await interfaceLines()
         #expect(lines[try lineIndex(containing: "extension Swift.Int", in: lines)].contains("// [●◍●] inferred present in 2.0"))
-        #expect(lines[try lineIndex(containing: "func panelScale()", in: lines)].contains("// [●◍●] inferred present in 2.0"))
+        // The container's annotation tells the member's story, as it does for
+        // the members of an added or removed container.
+        #expect(!lines[try lineIndex(containing: "func panelScale()", in: lines)].contains("// ["))
     }
 }

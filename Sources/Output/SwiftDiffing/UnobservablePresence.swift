@@ -178,14 +178,41 @@ struct PresenceResolution {
 
 /// A maximal run of versions in which a lineage was not observed, all in one
 /// state: ``LineagePresenceState/inferredPresent`` or
-/// ``LineagePresenceState/unobservable``.
+/// ``LineagePresenceState/unobservable``, with the observations on either
+/// side of it.
 public struct UnobservedSpan: Sendable, Equatable {
     public let versionIndices: ClosedRange<Int>
     public let state: LineagePresenceState
+    /// The observed state just before the span; `nil` when the axis starts
+    /// inside it.
+    public let stateBefore: LineagePresenceState?
+    /// The observed state just after the span; `nil` when the axis ends
+    /// inside it.
+    public let stateAfter: LineagePresenceState?
 
-    public init(versionIndices: ClosedRange<Int>, state: LineagePresenceState) {
+    public init(versionIndices: ClosedRange<Int>, state: LineagePresenceState, stateBefore: LineagePresenceState?, stateAfter: LineagePresenceState?) {
         self.versionIndices = versionIndices
         self.state = state
+        self.stateBefore = stateBefore
+        self.stateAfter = stateAfter
+    }
+
+    /// Whether both sides were observed and agree, so the span leaves the
+    /// lifecycle's bounds where the observations put them: two presences
+    /// (inferred present) or two absences (inferred absent, which nothing
+    /// is said about). A span reaching an end of the axis, or between
+    /// different observations, leaves a bound unknown.
+    public var leavesTheBoundsKnown: Bool {
+        stateBefore != nil && stateBefore == stateAfter
+    }
+
+    /// Whether the report should say the versions could not show the
+    /// declaration: an unobservable span that does leave a bound unknown and
+    /// that no event already spans (`spannedFirstIndices` are the events'
+    /// `earliestVersionIndex`es). A span between two absences says nothing
+    /// the bitmap does not.
+    public func isPhrasedAsNotObservable(spannedFirstIndices: Set<Int>) -> Bool {
+        state == .unobservable && !leavesTheBoundsKnown && !spannedFirstIndices.contains(versionIndices.lowerBound)
     }
 }
 
@@ -206,7 +233,12 @@ extension Array where Element == LineagePresenceState {
             while versionIndex < count, self[versionIndex] == state {
                 versionIndex += 1
             }
-            spans.append(UnobservedSpan(versionIndices: firstIndex ... versionIndex - 1, state: state))
+            spans.append(UnobservedSpan(
+                versionIndices: firstIndex ... versionIndex - 1,
+                state: state,
+                stateBefore: firstIndex > 0 ? self[firstIndex - 1] : nil,
+                stateAfter: versionIndex < count ? self[versionIndex] : nil
+            ))
         }
         return spans
     }

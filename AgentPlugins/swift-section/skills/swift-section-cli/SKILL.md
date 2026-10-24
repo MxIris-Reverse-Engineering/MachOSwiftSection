@@ -249,9 +249,23 @@ swift-section evolution 17.0.json 18.0.json /path/Foo --labels 17.0,18.0,26.0
 - `evolution --interface --emit-available` adds a genuine `@available(<platform>, introduced: …, obsoleted: …)` line above each declaration whose whole lifecycle one attribute can express. **No attribute is not "no lifecycle"**: a declaration that disappeared and came back, one that was only `modified`, or any involved label that is not a numeric version (the file-name fallback!) gets none — pass numeric `--labels` and read the `// [●○●]` comment, which is always there. The versions are axis points, not exact release versions. The platform is inferred from every input's `LC_BUILD_VERSION` (a simulator counts as its device); an input whose platform `@available` has no name for (DriverKit), or inputs of different platforms, fail with exit code 64 — name it with `--platform` (only valid with `--emit-available`, which is only valid with `--interface`).
 - `--fail-on-breaking` makes a breaking change a nonzero exit — that, not the report text, is
   the CI signal.
-- Compare binaries in **similar strip states**. A symbol-rich build against a stripped one
-  reports the same protocol requirement as a member swap, because a stripped protocol diffs by
-  witness-table slot rather than by symbol.
+- **A version whose image carries no local Swift symbols cannot show non-exported members**
+  (SwiftUI in the macOS 13.0–14.8 caches is the case to know). It is detected per input, and
+  such a member's absence there is never read as a removal: in `evolution` its bitmap position
+  reads `◍` (not observable, but present in the versions on both sides — inferred) or `◌` (not
+  observable, nothing claimed), a change across such versions is phrased `removed between 12.7
+  and 15.0` / `added between …` (first observed at the later version, which is where it counts
+  for the verdict), the interface legend names those versions, and a lifecycle whose `◌` span
+  reaches an axis end or sits between different observations gets no `@available` (between two
+  absences it keeps it). A member unseen only because its container is unseen carries no
+  annotation of its own (read the container's); neither does one unseen only between two
+  absences, which says nothing. `diff` lists what one side cannot show in a
+  `Not observable on the old/new side` section (`unobservableDeclarations` in `--json`), never
+  as removed or added and never breaking. Types, conformances, stored fields, enum cases and exported members stay
+  observable, so their absence is still a real removal. `diff --interface` does not apply this.
+- Even so, compare binaries in **similar strip states** where you can. A symbol-rich build
+  against a stripped one reports the same protocol requirement as a member swap, because a
+  stripped protocol diffs by witness-table slot rather than by symbol.
 - **A snapshot does not cross format versions.** The JSON carries a `formatVersion`; any other
   version is rejected with a typed error, and the fix is to regenerate the baseline with the
   current tool. Format 6 (0.21.0 and later) rejects every format-5 baseline: in an image stripped
@@ -259,7 +273,9 @@ swift-section evolution 17.0.json 18.0.json /path/Foo --labels 17.0,18.0,26.0
   descriptor names (see §9), which an old baseline would report as added wholesale. Format 7 (0.23.0
   and later) rejects every format-6 baseline: a type declared in a function or closure body is recorded
   under its own full name now (see §9), and an old baseline would report each one as removed —
-  a breaking change — and added again.
+  a breaking change — and added again. Format 8 (the release after 0.23.0) rejects every format-7
+  baseline: a snapshot now records whether its image keeps local Swift symbols and whether each
+  member is exported, which the not-observable rule above needs.
 
 ## 8. `--resolve-c-module-names` (interface, macOS only)
 

@@ -39,7 +39,9 @@ MachOSymbols 是**符号索引**层：把一个镜像的符号表和 export trie
 
 **同一地址上的符号按归属分组**（演进提案 `faster-lazy-definition-indexing`）。identical code folding 会把许多 conformance 内容相同的 witness 实现合并到一个地址上——SwiftUI 里一个 `_destroySelf` 或值 witness 的实现挂着上千个名字。要在这样的地址上找「属于某个 conformance 的那个」或「属于某个协议的那个」，用 `symbols(for:ownedBy:ownerKind:printedWith:in:)`：`SymbolOwnerKind.conformingType` 是符号树里第一个 `protocolConformance` 的第一个子节点，`.protocol` 是第一个 `protocol` 节点，按调用方给的打印预设打印后比较；结果按 `symbols(for:in:)` 的顺序排列，带查询偏移。每个「地址 + 规则 + 预设」第一次被问到时在 `Storage` 上分组一次（锁外计算、锁内先到者胜），之后每次是两次字典查找。以前 `ExtensionDefinition`、`ProtocolDefinition`、`ProtocolConformanceDumper`、`ProtocolDumper` 都是把这个地址的名字逐个 demangle、搜索、打印再比较，每个 conformance 来一次，对别名组大小是平方级：SwiftUI 一个镜像检查 365 万次、只涉及 17,852 个不同的名字。**新的「在别名里找归属」的代码走这个查询，不要再逐个比较。**`ClassDumper.validNode` 与 `OverrideSymbolMatcher` 按声明上下文结构相等来认领，规则不同、实测开销可以忽略，没有改。
 
-`Storage` 同时带着镜像的**导出事实**：两条 symtab 采集腿都过滤掉 external 符号，导出符号的行只可能来自 export trie 那条腿，而那条腿的行是有条件产出的，所以 trie 归属在同一趟里单独记（逐行位图加一个给无偏移 re-export 用的名字集合），撑起三态的 `isExported(name:in:)`（`nil` = 这个镜像没有导出信息，**此时绝不标注**）。
+`Storage` 同时带着镜像的**导出事实**：两条 symtab 采集腿用 `!nlist.isExternal` 过滤，而本库的 `isExternal` 只指**未定义的导入**（`N_EXT` 加 `N_UNDF`），所以两条腿收的是全部已定义符号，导出的也在内；符号表没列出的导出符号由 export trie 那条腿补行，而那条腿的行是有条件产出的，所以 trie 归属在同一趟里单独记（逐行位图加一个给无偏移 re-export 用的名字集合），撑起三态的 `isExported(name:in:)`（`nil` = 这个镜像没有导出信息，**此时绝不标注**）。成员级的判定走 `isExportedIncludingDerivedSymbols(names:in:)`：成员任一入口（自身或 `Tj` / `Tq` / `Tu` 派生形式）导出即为导出，interface 的 `// not exported` 注释和 ABI 快照的 `MemberRecord.isExported` 都问这一处。
+
+同一趟还记下镜像**有没有 local Swift 符号**（`hasLocalSwiftSymbols(in:)`，演进提案 `evolution-unobservable-presence`）：两条腿收到的 Swift 符号里，只要有一个 `N_EXT` 位为 0（`NlistProtocol.isLocal`，调试用的 STABS 条目不算）就是 `true`。被剥掉 local 符号的镜像——macOS 13.0–14.8 dyld shared cache 里的 SwiftUI——只剩导出的 Swift 名字，非导出的声明在这里根本没有名字，evolution 与 diff 据此把它们记为看不见而不是删除。判据不能用 `!isExternal`：导出符号同样过得了那道过滤。
 
 ## 子系统 2：查询出口与 detach
 

@@ -110,7 +110,9 @@ enum EvolutionMarking {
     /// The full trailing comment: `// [●●○] removed in 26.0`, multiple
     /// phrases joined by ` · ` in axis order. The versions that could not
     /// show the declaration add their own phrase — `inferred present in
-    /// 13.0–14.8`, or `not observable in 13.0` where no event spans them.
+    /// 13.0–14.8`, or `not observable in 13.0` where they leave a bound
+    /// unknown and no event spans them; between two absences the `◌`s say
+    /// enough.
     static func annotationText(for annotation: EvolutionAnnotation, versions: [ABIVersionDescriptor]) -> String {
         var placedPhrases: [(versionIndex: Int, phrase: String)] = annotation.events.map { event in
             (event.earliestVersionIndex ?? event.versionIndex, phrase(for: event, versions: versions))
@@ -119,13 +121,10 @@ enum EvolutionMarking {
             let spannedFirstIndices = Set(annotation.events.compactMap(\.earliestVersionIndex))
             for span in presenceStates.unobservedSpans {
                 let labels = versions.labels(spanning: span.versionIndices)
-                switch span.state {
-                case .inferredPresent:
+                if span.state == .inferredPresent {
                     placedPhrases.append((span.versionIndices.lowerBound, "inferred present in \(labels)"))
-                case .unobservable where !spannedFirstIndices.contains(span.versionIndices.lowerBound):
+                } else if span.isPhrasedAsNotObservable(spannedFirstIndices: spannedFirstIndices) {
                     placedPhrases.append((span.versionIndices.lowerBound, "not observable in \(labels)"))
-                default:
-                    break
                 }
             }
         }
@@ -158,11 +157,12 @@ enum EvolutionMarking {
     ///   version literal.
     /// - Modified events never participate: `@available` has no vocabulary
     ///   for them, so a modified-throughout lifecycle yields `nil`.
-    /// - A version that could not show the declaration and was not inferred
-    ///   present (evolution proposal `evolution-unobservable-presence`)
-    ///   leaves its bound unknown — an event spanning it, or an end of the
-    ///   axis it reaches — so the lifecycle yields `nil`. Inferred presence
-    ///   counts as presence.
+    /// - Versions that could not show the declaration (evolution proposal
+    ///   `evolution-unobservable-presence`) between different observations,
+    ///   or reaching an end of the axis, leave a bound unknown, so the
+    ///   lifecycle yields `nil`. Between two presences they count as
+    ///   presence (inferred), between two absences as absence: the bounds
+    ///   stay where the observations put them.
     ///
     /// The facts are axis-resolution: `introduced:` names the first axis
     /// point carrying the declaration, not necessarily the OS release that
@@ -173,7 +173,7 @@ enum EvolutionMarking {
         platform: String
     ) -> String? {
         guard annotation.presence.count == versions.count else { return nil }
-        guard annotation.presenceStates?.contains(.unobservable) != true else { return nil }
+        guard annotation.presenceStates?.unobservedSpans.allSatisfy(\.leavesTheBoundsKnown) != false else { return nil }
         guard let interval = singlePresenceInterval(annotation.presence) else { return nil }
         var clauses: [String] = []
         if interval.firstPresentIndex > 0 {

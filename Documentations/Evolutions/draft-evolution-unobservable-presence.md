@@ -35,13 +35,13 @@ evolution 和 diff 把每个声明在每个版本里只记成「在」或「不�
 **模型只增不改**，`evolution --json` 现有的字段原样保留：
 
 - `MemberLineage` / `ContainerLineage` 保留 `presence: [Bool]`，含义改为「观测到或推断为存在」；另加一个逐版本的状态数组，区分观测到存在、观测到不存在、看不见但推断存在、看不见。
-- 有看不见的版本的 lineage 即使没有事件也要收录，否则接口标不出推断；`EvolutionAnnotationIndex`「查不到就是全程都在、从未变化」的约定因此仍然成立。
+- 有看不见的版本的 lineage 即使没有事件也要收录，否则接口标不出推断；`EvolutionAnnotationIndex`「查不到就是全程都在、从未变化」的约定因此仍然成立。成员只在它自己看不见、而容器在那个版本观测在场，并且那段区段有话可说（推断存在，或让边界变得不确定）时才因此收录；只因容器看不见而看不见的成员由容器的 lineage 交代，与增删容器的成员一样，diff 里也只列容器。
 - `LineageEvent` 加一个「最早可能发生在哪一版」，只有区间事件才有；`versionIndex` 仍是第一次观测到新状态的那一版，兼容性判定把区间事件算在这一步。
 
 **显示**：
 
 - evolution 联合接口和 lineage 报告的位图多两个符号：`◌` 看不见，`◍` 看不见、推断存在；图例说明这两个符号，并列出哪些版本没有 local Swift 符号。只有推断、没有事件的声明，注释写 `inferred present in 13.0–14.8`；区间事件写 `removed between 12.7 and 15.0`、`added between 12.7 and 15.0`。
-- `@available`：涉及区间事件的不发，沿用 0060 的可表达性规则；推断存在的位置按存在算。
+- `@available`：涉及区间事件的不发，沿用 0060 的可表达性规则；推断存在的位置按存在算。看不见的区段挨着轴端时同样不发；两侧都不在的区段按不在算，边界照旧是观测到的，属性照发。两侧都不在的区段只画 `◌`，不写短语。
 - diff 的文本报告和 `--json` 多一节，列出看不见的成员。`diff --interface` 的 `-` / `+` 这次不动，写进 `ABIDiffDesignAndLimitations.md` 第 6 节。
 - 单版本的 `dump` / `interface` 不受影响。
 
@@ -51,7 +51,7 @@ evolution 和 diff 把每个声明在每个版本里只记成「在」或「不�
 - 用元数据直接观测被剥版本里的成员（witness table、vtable 槽位、协议描述符、ObjC 方法表），另开提案。
 - 被剥前后身份变了的声明：协议要求在被剥的版本里变成 `pwtslot:` 记录、私有类型丢了 discriminator、同一个全局变量在两种状态下由不同的符号撑起。那 1,447 条 `added in 13.0 · removed in 15.0` 里有一部分属于这类。
 
-**测试**：SwiftDiffingTests 用手工构造的快照覆盖两侧都在、两侧都不在、三种区间事件（added、removed、modified）、挨着轴端、导出成员与元数据记录的真缺席、普通 extension 整体看不见、一侧被剥时 N == 2 的 diff 与 evolution 一致、v8 编解码；`SymbolIndexStore` 的判据用 `ObjCImplementationFixture` 的 `.strippedLocals` 变体和普通变体各测一次；`EvolutionMarkingTests` 覆盖新符号、新短语、图例和区间事件不发 `@available`。实数据用 CLI 重跑 macOS 27.0 SwiftUI 的 51 版 evolution，核对那 5,189 条都变成推断存在，并统计区间事件的数量。
+**测试**：SwiftDiffingTests 用手工构造的快照覆盖两侧都在、两侧都不在、三种区间事件（added、removed、modified）、挨着轴端、导出成员与元数据记录的真缺席、普通 extension 整体看不见、只因容器看不见或只在两侧都不在时看不见的成员不收录、一侧被剥时 N == 2 的 diff 与 evolution 一致、轴上没有被剥版本时 JSON 不出现新字段、v8 编解码，以及两个文本报告。`UnobservablePresenceFixture` 现编三版 dylib、中间一版 `strip -x`，在快照这一层验证判据与导出判定，并端到端验证联合接口的每一种注解。`EvolutionMarkingTests` 覆盖新符号、新短语、短语顺序、图例与 `@available` 的边界规则，`InterfaceAnnotationStyleTests` 覆盖着色。实数据用 CLI 重跑 macOS 27.0 SwiftUI 的 51 版 evolution，与同一命令在 `next` 上的输出逐行对比。
 
 **文档**：同批更新 `ABIEvolutionDesign.md`、`ABIDiffDesignAndLimitations.md` 第 6 节、`Modules/SwiftInterface.md`，在术语表登记 unobservable，并更新 `AgentPlugins/swift-section` 的 skill（evolution 输出多了两个符号和两种短语）。
 
@@ -60,7 +60,7 @@ evolution 和 diff 把每个声明在每个版本里只记成「在」或「不�
 1. （已完成）快照记下两件事，格式版本升到 8：`SymbolIndexStore` 的判据与查询，`MemberRecord` 的导出判定与 `ABISnapshot` 的镜像级标记，`SwiftDiffableInterfaceBuilder` 冻结时填好。测试判据（fixture 的被剥变体）、冻结结果与编解码。
 2. （已完成）SwiftDiffing 里的看不见规则与按两侧推断：lineage 的状态数组、区间事件、收录规则；diff 的判定层（看不见的成员单列、不算 breaking）；两个文本报告与 JSON。测试方案里列出的手工快照用例。
 3. （已完成）evolution 联合接口：`EvolutionAnnotation` 带上状态与区间，`EvolutionMarking` 的新符号、短语、图例和 `@available` 规则。测试 `EvolutionMarkingTests` 与 `SwiftEvolutionInterfaceBuilderTests`。
-4. 文档与 skill 同步；用 CLI 重跑 macOS 27.0 SwiftUI 的 51 版 evolution 做实数据核对，结果写进本提案。
+4. （已完成）文档与 skill 同步；用 CLI 重跑 macOS 27.0 SwiftUI 的 51 版 evolution 做实数据核对，结果写进本提案。
 
 ## 决策日志
 
@@ -87,3 +87,6 @@ evolution 和 diff 把每个声明在每个版本里只记成「在」或「不�
 | 2026-10-24 | `@available` 遇到任何一个「看不见」的版本就不发，推断存在照常算存在 | 方案只写了区间事件；实现时发现挨着轴端的看不见版本同样会让边界不成立（`[●◌]` 会被读成 `obsoleted:`），按同一原则一并排除 |
 | 2026-10-24 | 着色规则 `InterfaceAnnotationStyle.lineKinds` 认 `… between` 短语，只标看不见版本的注释算 plain | 方案没写到。原规则把不含 `removed in` / `modified in` 的注释一律当新增，`removed between` 会被染成新增 |
 | 2026-10-24 | 第 3 步完成 | 定向测试 `UnobservablePresenceTests`（新增 5 个端到端用例）、`EvolutionMarkingTests`（新增 7 个）、`InterfaceAnnotationStyleTests`（新增 1 个）全过；SwiftInterfaceTests 329 个、SwiftSectionKitTests 66 个、SwiftSectionCommandTests 106 个、SwiftDiffingTests 108 个全过，原始退出码 0。变异检验：去掉 `@available` 的边界判断、把着色默认值改回新增，3 个测试变红，还原后转绿。CLI 冒烟：对现编的三版 dylib（第二版 `strip -x`）跑 `evolution --interface --emit-available`、文本报告与 `diff`，输出与设计一致 |
+| 2026-10-25 | 实数据核对后收紧两处：只因容器看不见、或只在两侧都不在的区段看不见的成员，不再因此收录，diff 里看不见的容器也只列容器本身；两侧都不在的区段不写短语，也不拦 `@available` | 第一次重跑 51 版 SwiftUI 时，新输出多了 21,805 条 `not observable in …`、`@available` 少了约 2.2 万行，抽样发现两类：容器自己已有注解（类型在 13.0 出现、15.0 迁去 SwiftUICore，或 extension 整体看不见），它的成员却跟着各标一次，与增删容器的成员一贯不标注的规则不一致；以及 12.4 就删掉的成员在 13.0–14.8 两侧都不在，什么都说不出，却写了短语、丢了本来成立的 `obsoleted:`。收紧后另有 169 条只剩位图、没有短语的成员注解随之消失 |
+| 2026-10-25 | 第 4 步完成，实数据结果 | 同一命令（release 版 CLI，`--dyld-shared-cache -p …/SwiftUI --interface --emit-available`，51 份归档 cache）在 `next` 与本分支上各跑一次。`next` 的输出与 0073 之前生成的那份只差 0073 修好的 20 行。本分支对 `next`：208,706 行代码逐行相同；42,517 条注解不变，30,229 条只有 13.0–14.8 那几位变了，没有一条观测到的位置被改，也没有注解丢失；新增 151 条注解，全部是此前被容器的假缺口挡住的跨段增删。两端都在、中间缺席的 5,189 条里 5,097 条（98.2%）整段变成推断存在；`removed in 13.0 · added in 15.0` 从 5,089 条降到 24 条（类型的真实删除、丢了 discriminator 的私有类型，以及几条公开 `static let` 在被剥前后由不同的访问器撑起，属方案列出的范围外情形）；`removed in 13.0` 从 18,293 降到 1,700、`added in 15.0` 从 19,596 降到 4,472，其余换成 2,084 / 2,065 / 17 条 `removed` / `added` / `modified between 12.7 and 15.0` 与 17,684 条 `not observable in …`（多是容器在 13.0 出现或 15.0 搬走、成员自己说不清何时增删的情形）。`@available` 行从 66,711 降到 48,214，去掉的都是边界不确定的。峰值内存 12.8 GB 对 12.8 GB（`next`），这台 28 核机器上用时 216 秒 |
+| 2026-10-25 | 实现完成，待合并 | 全量 `swift test --skip IntegrationTests`（收紧前的第 3 步代码）2,578 个测试全过，原始退出码 0；收紧后重跑受影响的 SwiftDiffingTests 110 个、SwiftInterfaceTests 330 个、SwiftSectionKitTests 66 个、SwiftSectionCommandTests 106 个，全过。每次收紧都做了变异检验（改回原规则，对应的新测试变红，还原后转绿）。没有跑渲染 A/B：单版本的 `dump` / `interface` 只动了 printer 里导出判定的一处等价改写，相关的导出注释与 `--exported-only` 套件都过了。不另写使用指南或实现说明：规则与取舍写在 `ABIEvolutionDesign.md` 第六批与本提案；新术语 unobservable 已登记 |

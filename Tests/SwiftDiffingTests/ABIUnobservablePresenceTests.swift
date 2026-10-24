@@ -162,6 +162,22 @@ struct ABIUnobservablePresenceTests {
         #expect(lineage.events == [LineageEvent(versionIndex: 1, status: .removed, oldSignature: "gone")])
     }
 
+    /// The container comes and goes around the stripped version, so the
+    /// member has no event of its own, and the span it cannot be seen in
+    /// lies between two absences: nothing to tell, so no lineage.
+    @Test("a member unseen only between two absences carries no lineage of its own")
+    func spanBetweenAbsencesKeepsNoLineage() throws {
+        let result = try evolution([
+            symbolRich(),
+            stripped([container("Foo")]),
+            symbolRich(),
+            symbolRich([container("Foo", members: [record("late")])]),
+        ])
+        let lineage = try #require(result.types.first)
+        #expect(lineage.events.map(\.status) == [.added, .removed, .added])
+        #expect(lineage.memberLineages.isEmpty)
+    }
+
     @Test("an extension made up only of non-exported members cannot be seen where they cannot")
     func extensionOfHiddenMembersIsHidden() throws {
         let result = try evolution([
@@ -172,8 +188,19 @@ struct ABIUnobservablePresenceTests {
         let lineage = try #require(result.typeExtensions.first)
         #expect(lineage.presenceStates == [.present, .inferredPresent, .present])
         #expect(lineage.events.isEmpty)
-        let memberLineage = try memberLineage("scale", in: result, container: "Swift.Int")
-        #expect(memberLineage.presenceStates == [.present, .inferredPresent, .present])
+    }
+
+    /// The members of an added or removed container carry no lineage of
+    /// their own; neither do the members of a container a version cannot
+    /// show, unseen only because it is.
+    @Test("a member unseen only where its container is unseen is left to the container's lineage")
+    func memberOfAnUnseenContainerHasNoLineage() throws {
+        let result = try evolution([
+            symbolRich(typeExtensions: [container("Swift.Int", kind: .typeExtension, members: [record("scale")])]),
+            stripped(),
+            symbolRich(typeExtensions: [container("Swift.Int", kind: .typeExtension, members: [record("scale")])]),
+        ])
+        #expect(result.typeExtensions.first?.memberLineages.isEmpty == true)
     }
 
     @Test("a conformance stays observable without local Swift symbols")
@@ -237,14 +264,14 @@ struct ABIDifferUnobservablePresenceTests {
         #expect(diff.unobservableDeclarations?.map(\.side) == [.old])
     }
 
-    @Test("an extension the new side cannot show is listed apart with its members")
+    @Test("an extension the new side cannot show is listed apart, its members with it")
     func hiddenExtension() {
         let diff = ABIDiffer().diff(
             old: symbolRich(typeExtensions: [container("Swift.Int", kind: .typeExtension, members: [record("scale")])]),
             new: stripped()
         )
         #expect(diff.isEmpty)
-        #expect(diff.unobservableDeclarations?.map(\.key) == [.printed("Swift.Int"), .mangled("scale")])
+        #expect(diff.unobservableDeclarations?.map(\.key) == [.printed("Swift.Int")])
         #expect(!diff.hasBreakingChange)
     }
 

@@ -230,19 +230,19 @@ public struct ABIEvolutionReporter: Sendable {
         }
     }
 
-    /// The spans of versions that could not show the declaration, other than
-    /// those an event already spans.
+    /// The spans of versions that could not show the declaration and that
+    /// say something: inferred present, or leaving a bound unknown without an
+    /// event spanning them (``UnobservedSpan/isPhrasedAsNotObservable(spannedFirstIndices:)``).
     private func unobservedSpanLines(_ presenceStates: [LineagePresenceState]?, events: [LineageEvent], _ evolution: ABIEvolution) -> [String] {
         guard let presenceStates else { return [] }
         let spannedFirstIndices = Set(events.compactMap(\.earliestVersionIndex))
         return presenceStates.unobservedSpans.compactMap { span in
             let labels = evolution.versions.labels(spanning: span.versionIndices)
-            switch span.state {
-            case .inferredPresent:
+            if span.state == .inferredPresent {
                 return "◍ inferred present in \(labels)"
-            case .unobservable where !spannedFirstIndices.contains(span.versionIndices.lowerBound):
+            } else if span.isPhrasedAsNotObservable(spannedFirstIndices: spannedFirstIndices) {
                 return "◌ not observable in \(labels)"
-            default:
+            } else {
                 return nil
             }
         }

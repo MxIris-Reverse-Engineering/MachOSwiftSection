@@ -119,6 +119,19 @@ struct EvolutionMarkingTests {
         #expect(EvolutionMarking.annotationText(for: spanned, versions: versionAxis) == "// [●◌○] removed between 1.0 and 3.0")
     }
 
+    /// Between two absences the versions only infer absence: the `◌`s say
+    /// enough, and the bounds stay observed.
+    @Test func unobservableVersionsBetweenTwoAbsencesAddNoPhraseAndKeepTheAttribute() {
+        let fourVersionAxis = versionAxis + [ABIVersionDescriptor(label: "4.0")]
+        let removedEarlier = EvolutionAnnotation(
+            presence: [true, false, false, false],
+            events: [LineageEvent(versionIndex: 1, status: .removed)],
+            presenceStates: [.present, .absent, .unobservable, .absent]
+        )
+        #expect(EvolutionMarking.annotationText(for: removedEarlier, versions: fourVersionAxis) == "// [●○◌○] removed in 2.0")
+        #expect(EvolutionMarking.availabilityAttributeText(for: removedEarlier, versions: fourVersionAxis, platform: "macOS") == "@available(macOS, obsoleted: 2.0)")
+    }
+
     @Test func phrasesFollowAxisOrder() {
         let fourVersionAxis = versionAxis + [ABIVersionDescriptor(label: "4.0")]
         let annotation = EvolutionAnnotation(

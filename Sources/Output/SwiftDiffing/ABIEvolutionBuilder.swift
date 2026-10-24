@@ -159,8 +159,18 @@ public struct ABIEvolutionBuilder: Sendable {
             }
             events.sort { $0.versionIndex < $1.versionIndex }
 
+            // Kept for its unobservable versions only where the member itself
+            // went unseen and that says something: present on both sides, or
+            // a bound left unknown. Where its container is unseen too, the
+            // container's lineage tells that story, as an added or removed
+            // container's does for its members; between two absences there
+            // is nothing to tell.
+            let hasTellingSpanOfItsOwn = resolution.states.unobservedSpans.contains { span in
+                (span.state == .inferredPresent || !span.leavesTheBoundsKnown)
+                    && span.versionIndices.contains { containerObservations[$0] == .present }
+            }
+            guard !events.isEmpty || hasTellingSpanOfItsOwn else { continue }
             let presenceStates = resolution.presenceStatesIfAnyUnobserved
-            guard !events.isEmpty || presenceStates != nil else { continue }
             // The record exists somewhere on the axis for the key to be in the
             // union, so the latest appearance always resolves a kind.
             let latestRecord = perVersion.reversed().compactMap { $0 }.first!

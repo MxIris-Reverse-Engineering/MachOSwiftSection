@@ -250,6 +250,19 @@ diff 的 verdict 交叉核对行。
 - ~~注释接口的时间线版（每行标注 introduced-in）~~ —— 已由第五批落地
   （`SwiftEvolutionInterfaceBuilder` 的并集注解接口，见下）。
 
+## 首轮落地后的增量（第六批）—— 看不见的版本
+
+提案：`Evolutions/draft-evolution-unobservable-presence.md`（落地时编号）。镜像没有 local Swift 符号的版本——macOS 13.0–14.8 dyld shared cache 里的 SwiftUI——看不到只靠非导出符号才出现的成员。原来的 `presence: [Bool]` 分不出「不在」和「看不见」，macOS 27.0 SwiftUI 的 51 版 evolution 因此有 5,189 条两端都在、中间缺席的假缺口。维护时会踩的决策：
+
+- **事实从快照来，格式版本 8**：`ABISnapshot.hasLocalSwiftSymbols`（`SymbolIndexStore.hasLocalSwiftSymbols(in:)`，读符号表条目的 `N_EXT` 位——本库的 `isExternal` 只指未定义的导入，不能拿来判断）与 `MemberRecord.isExported`（`isExportedIncludingDerivedSymbols(names:in:)`，与 interface 的 `// not exported` 注释同一条规则）。两者都只是判定用的元数据，不进 key。冻结时由 `SwiftDiffableInterfaceBuilder` 经 `ABIModule` 交进来，`ABIDiffer` 仍不碰 Mach-O。
+- **谁会看不见**（`UnobservablePresence.swift`，evolution 与 diff 共用）：`MemberRecord.needsLocalSymbolsToBeSeen` 是「只靠符号出现（函数、计算属性和下标、初始化器、`deinit`、全局）且没有判定说它导出」；`ContainerSnapshot.needsLocalSymbolsToBeSeen` 是「不是 conformance 的 extension，成员全是上面这种」。类型、协议、conformance 靠元数据，永远看得见。某个没有 local Swift 符号的版本里缺席时，取它前后最近一次出现的记录，**任一侧**需要 local 符号才看得见，这次缺席就记为 hidden——一侧的 hidden 不说假话，错判成 absent 才会。
+- **推断**（`PresenceResolution`）：一段连续 hidden 两侧观测相同——都在记 `inferredPresent`，都不在记 `unobservable`、什么都不断言；两侧不同记一个跨段事件，`versionIndex` 是段后第一个观测到新状态的版本，`earliestVersionIndex` 是段首。挨着轴端的段保持 `unobservable`。容器看不见的地方成员跟着看不见；成员的跨段事件只在段两侧容器都观测在场时产生，沿用「容器缺席的转换不枚举成员」。推断的依据：都带符号的年份里，两端都在、中间某版真缺的声明只占 0.15%–0.6%（上限，见提案）。
+- **收录规则改了**：lineage 有事件，**或者**有版本没观测到它，就收录；后一种没有事件可带签名，另带 `latestSignature`。成员只在**它自己**看不见、而容器在那个版本观测在场，并且那段看不见的区段有话可说（推断存在，或让边界变得不确定）时才因此收录：只因容器看不见而看不见的成员归容器的 lineage 交代，与增删容器的成员一样不单独收录；两侧都不在的区段没什么可说，位图之外不会多一个字（两条都是实数据核对时发现的，否则 SwiftUI 那条轴上会平白多出数千条成员注解，其中 169 条只有位图、没有一个短语）。接口侧「查不到 = 全程在场、从未变化」的裁决因此仍然成立。`presence` 的含义扩成「观测到或推断为存在」。
+- **兼容性**：跨段事件计入 `versionIndex` 那一步；报告的 Transitions 段在那一步下面注明其中几条只知道发生在哪两个版本之间。
+- **N == 2 一致性保住了**：diff 用同一套规则，一侧看不见的成员和容器（看不见的容器只列容器本身，成员不展开）进 `ABIDiff.unobservableDeclarations`，不进变更、不算 breaking。`ABIUnobservablePresenceTests` 钉住「diff 的看不见清单 = 两版本 evolution 里带 `unobservable` 状态的 lineage」。
+- **JSON**：新字段全部可选，为空时不编码，所以轴上没有被剥版本时 `evolution --json` 与 `diff --json` 逐字节不变（测试钉住）。
+- **局限**：`diff --interface` 按两侧结构渲染，不走这套规则；被剥前后身份变了的声明——协议要求在被剥的版本里变成 `pwtslot:` 记录、私有类型丢了 discriminator——仍是一删一增；「有没有 local Swift 符号」是整个镜像一个布尔值，只剥了一部分 local 符号的镜像会被当成完整的，它的缺席照常算观测。
+
 ## 首轮落地后的增量（第五批）—— 并集注解接口（`evolution --interface`）
 
 提案：`Evolutions/0013-swift-evolution-interface-builder.md`。把 N 版本演进渲染成
