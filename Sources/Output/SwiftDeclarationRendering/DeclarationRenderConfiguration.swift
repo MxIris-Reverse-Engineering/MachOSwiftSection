@@ -171,7 +171,7 @@ extension DeclarationRenderConfiguration {
     }
 
     /// The comment lines naming the source files of the private declarations
-    /// `nodes` read that `enclosingNode` does not (evolution proposal
+    /// `nodes` read that `enclosingNodes` do not (evolution proposal
     /// `private-declaration-source-files`; see
     /// `PrivateDeclarationSourceFileComments`). Nothing without a
     /// `privateDeclarationSourceFileProvider`, and the nodes are only worked
@@ -182,11 +182,11 @@ extension DeclarationRenderConfiguration {
     @SemanticStringBuilder
     package func privateDeclarationSourceFileComments(
         for nodes: @autoclosure () -> [any DemanglingNode],
-        enclosedBy enclosingNode: @autoclosure () -> (any DemanglingNode)? = nil,
+        enclosedBy enclosingNodes: @autoclosure () -> [any DemanglingNode] = [],
         indentationLevel: Int
     ) -> SemanticString {
         if let privateDeclarationSourceFileProvider {
-            for line in PrivateDeclarationSourceFileComments.lines(for: nodes(), enclosedBy: enclosingNode(), provider: privateDeclarationSourceFileProvider) {
+            for line in PrivateDeclarationSourceFileComments.lines(for: nodes(), enclosedBy: enclosingNodes(), provider: privateDeclarationSourceFileProvider) {
                 Indent(level: indentationLevel)
                 Comment(line)
                 BreakLine()

@@ -40,8 +40,8 @@ struct PrivateDeclarationSourceFileCommentsTests {
 
     private static func lines(for mangledNames: [String], enclosedBy enclosingMangledName: String? = nil) throws -> [String] {
         let nodes: [any DemanglingNode] = try mangledNames.map { try demangleAsNodeTransient($0) }
-        let enclosingNode = try enclosingMangledName.map { try demangleAsNodeTransient($0) }
-        return PrivateDeclarationSourceFileComments.lines(for: nodes, enclosedBy: enclosingNode, provider: recoveredSourceFiles)
+        let enclosingNodes: [any DemanglingNode] = try enclosingMangledName.map { [try demangleAsNodeTransient($0)] } ?? []
+        return PrivateDeclarationSourceFileComments.lines(for: nodes, enclosedBy: enclosingNodes, provider: recoveredSourceFiles)
     }
 
     // MARK: - Wording

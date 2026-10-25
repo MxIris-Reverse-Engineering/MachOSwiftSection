@@ -9,6 +9,7 @@ import OutputTransformer
 import SwiftOutputTransformer
 import SwiftDeclarationRendering
 import SwiftPrinting
+@_spi(Support) import SwiftIndexing
 import Semantic
 
 /// A part of a binary's Swift metadata that `dump` can print.
@@ -75,6 +76,14 @@ public struct DumpRequest: Sendable, Equatable {
     /// A `not exported` comment on member lines whose symbol has no
     /// export-trie entry.
     public var emitsExportStatus: Bool
+    /// A comment above every declaration whose name brings a private
+    /// discriminator the declaration it is printed inside does not carry,
+    /// naming the source file the discriminator was derived from — or saying
+    /// it could not be recovered (evolution proposal
+    /// `private-declaration-source-files`). Indexes the image and searches
+    /// every discriminator it declares once, before the first declaration
+    /// prints: seconds to minutes for a framework the size of SwiftUI.
+    public var emitsPrivateDeclarationSourceFiles: Bool
     /// A leading header comment: generator, image path, UUID, architecture,
     /// library-evolution detection, unrecoverable-facts notes.
     public var emitsHeader: Bool
@@ -96,6 +105,7 @@ public struct DumpRequest: Sendable, Equatable {
         emitsTypeLayout: Bool = false,
         emitsEnumLayout: Bool = false,
         emitsExportStatus: Bool = false,
+        emitsPrivateDeclarationSourceFiles: Bool = false,
         emitsHeader: Bool = false,
         commentTransformers: Transformer.SwiftConfiguration? = nil,
         destination: ProductDestination = .output
@@ -112,6 +122,7 @@ public struct DumpRequest: Sendable, Equatable {
         self.emitsTypeLayout = emitsTypeLayout
         self.emitsEnumLayout = emitsEnumLayout
         self.emitsExportStatus = emitsExportStatus
+        self.emitsPrivateDeclarationSourceFiles = emitsPrivateDeclarationSourceFiles
         self.emitsHeader = emitsHeader
         self.commentTransformers = commentTransformers
         self.destination = destination
@@ -164,6 +175,24 @@ public struct DumpRequest: Sendable, Equatable {
                 resolution: configuration.staticLayoutDependencyResolution
             )
         }
+
+        // The index reads its candidates from an indexer, which `dump` does
+        // without otherwise. It has to live until the dump is done: its last
+        // release evicts the caches its `prepare()` built, the symbol index
+        // every member line is read from among them.
+        var privateDeclarationIndexer: SwiftDeclarationIndexer<MachOFile>?
+        if emitsPrivateDeclarationSourceFiles {
+            session.output.reportProgress(PrivateDeclarationSourceFileRecovery.progressMessage)
+            let indexer = SwiftDeclarationIndexer(
+                configuration: .init(dependencySearchPaths: dependencySearchPaths.indexingSearchPaths),
+                eventHandlers: session.output.indexEventHandlers(forInputLabeled: nil),
+                in: machOFile
+            )
+            try await indexer.prepare()
+            configuration.privateDeclarationSourceFileProvider = PrivateDeclarationSourceFileRecovery.index(searchingEveryDeclarationOf: indexer)
+            privateDeclarationIndexer = indexer
+        }
+        defer { withExtendedLifetime(privateDeclarationIndexer) {} }
 
         if emitsHeader {
             let headerInfo = InterfaceHeaderInfo(

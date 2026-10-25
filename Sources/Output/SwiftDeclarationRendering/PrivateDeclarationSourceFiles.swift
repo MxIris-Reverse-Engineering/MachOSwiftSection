@@ -43,8 +43,9 @@ public protocol PrivateDeclarationSourceFileProviding: Sendable {
 /// lines.
 package enum PrivateDeclarationSourceFileComments {
     /// One line for each discriminator the names in `nodes` read that
-    /// `enclosingNode` — the name of the declaration they are printed inside —
-    /// does not, in the order the names read them.
+    /// `enclosingNodes` — the names of the declaration they are printed inside,
+    /// a conformance's type and protocol — do not, in the order the names read
+    /// them.
     ///
     /// A type nested in a private type, or a member of one, is necessarily
     /// declared in that type's file, so it repeats nothing; a private member of
@@ -52,10 +53,10 @@ package enum PrivateDeclarationSourceFileComments {
     /// with its discriminator: the private type `B` in `(A in _X).(B in _X)`.
     package static func lines(
         for nodes: [any DemanglingNode],
-        enclosedBy enclosingNode: (any DemanglingNode)?,
+        enclosedBy enclosingNodes: [any DemanglingNode],
         provider: any PrivateDeclarationSourceFileProviding
     ) -> [String] {
-        let enclosingDiscriminators = Set(enclosingNode?.privateDeclarations.map(\.discriminator) ?? [])
+        let enclosingDiscriminators = Set(enclosingNodes.flatMap { $0.privateDeclarations.map(\.discriminator) })
         var discriminators: [String] = []
         var lastDeclarationByDiscriminator: [String: (declaration: PrivateDeclaration, moduleName: String?)] = [:]
         for node in nodes {

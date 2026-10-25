@@ -1207,6 +1207,9 @@ extension Target {
         dependencies: [
             .target(.SwiftSectionKit),
             .target(.MachOFoundation),
+            // `LocalTypeFixture` and `ExclusiveImageAccess`, for the source
+            // files of a public type's private members.
+            .target(.MachOTestingSupport),
             .target(.SwiftDeclaration),
             .target(.SwiftDiffing),
             .target(.SwiftOutputTransformer),

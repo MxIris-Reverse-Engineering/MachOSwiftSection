@@ -96,7 +96,7 @@ struct PrivateDoppelganger {
 **落地步骤**（每一步单独构建、相关测试通过后提交）：
 
 1. ✅ 接缝：`SwiftDeclarationRendering` 里的协议、结果类型与注释 helper；index 遵循协议、加批量入口（`@_spi(Support)` 的 `recoverSourceFiles(ofEveryDeclarationIn:)`）。测 helper 和批量入口。
-2. dump：各 dumper 打注释；`DumpRequest` 的字段、索引器与 index；`dump` 的 flag。测 dump 一侧。
+2. ✅ dump：各 dumper 打注释；`DumpRequest` 的字段、索引器与 index；`dump` 的 flag。测 dump 一侧。
 3. interface：打印器的登记方法与各打印点；`InterfaceRequest` 的字段；`interface` 的 flag。测 interface 一侧。
 4. 文档、skill、实数据量测与 A/B 验证。
 
@@ -114,3 +114,6 @@ struct PrivateDoppelganger {
 | 2026-10-25 | 用户批准（Draft → Accepted），开始实现 | 方案与全部假设照单通过 |
 | 2026-10-25 | 结果类型另起一个，`SourceFile` 不下沉 | 实现时发现：RuntimeViewerCore 开了 `MemberImportVisibility`，按 SE-0444 它读 `fileName` 这些成员要 import 声明它们的模块，下沉后留 typealias 也可能逼它多加一行 import；在接缝处换一下类型只多几行 |
 | 2026-10-25 | 批量入口取一个索引器，`@_spi(Support)` | 成员符号要从索引器的镜像查，全局声明要读它的定义；index 按索引器建的两个初始化方法本来就是这个 SPI |
+| 2026-10-26 | dump 另建的索引器活到 dump 结束 | 实现时发现：索引器最后一次释放会回收它 `prepare()` 建的缓存，其中就有 dump 读成员的符号索引；index 读完名字就放掉索引器，不留住的话 dump 后半段要把符号索引重建一遍 |
+| 2026-10-26 | dump 的成员行只标 struct / enum / class 的成员与 vtable 方法、协议的默认实现 | conformance 的 witness 行与 class 的 override 行不标：witness 至少和 conformance 一样可见，私有的只会出现在私有类型或私有协议的 conformance 里，声明头那行已经写了文件；override 私有方法罕见，而且它的节点在注释之后才解析出来 |
+| 2026-10-26 | 打开开关时报一条进度、索引事件交给输出 | 整镜像反推在大框架上要等一阵才出第一个声明；interface 本来就这样报，两条输出一致 |

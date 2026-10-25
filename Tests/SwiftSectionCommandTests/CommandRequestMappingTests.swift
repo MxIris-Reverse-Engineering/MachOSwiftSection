@@ -70,6 +70,7 @@ struct CommandRequestMappingTests {
             "--emit-expanded-field-offsets",
             "--emit-member-addresses", "--emit-vtable-offsets", "--emit-pwt-addresses",
             "--emit-type-layout", "--emit-enum-layout", "--emit-export-status", "--emit-header",
+            "--emit-private-source-files",
             "--output-path", "out.txt",
         ]).makeRequest()
         #expect(request.sections == .only([.protocols, .types]))
@@ -81,6 +82,7 @@ struct CommandRequestMappingTests {
         #expect(request.emitsTypeLayout)
         #expect(request.emitsEnumLayout)
         #expect(request.emitsExportStatus)
+        #expect(request.emitsPrivateDeclarationSourceFiles)
         #expect(request.emitsHeader)
         #expect(request.destination == .file(path: "out.txt"))
     }
