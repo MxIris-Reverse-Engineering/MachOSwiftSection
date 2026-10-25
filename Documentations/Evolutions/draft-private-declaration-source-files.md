@@ -1,6 +1,6 @@
 # Draft - dump 与 interface 标出私有声明来自哪个源文件
 
-- **状态**: Accepted
+- **状态**: In Progress
 - **创建日期**: 2026-10-25
 - **最后更新**: 2026-10-25
 - **所属愿景**: 无
@@ -57,7 +57,7 @@ struct PrivateDoppelganger {
 
 **接法**：
 
-- 协议和结果类型放在 `SwiftDeclarationRendering`。dump（`SwiftDump`）和 interface（`SwiftPrinting`）都依赖它；`SwiftPrivateDiscriminators` 依赖 `SwiftIndexing`，而 `SwiftDump` 在 `SwiftDeclaration` 之下、`SwiftPrinting` 与 `SwiftIndexing` 平级，两边都不能直接依赖它。`PrivateDiscriminatorSourceFiles.SourceFile` 下沉成这个结果类型，原处留一个 typealias，RuntimeViewer 的源码不用改。
+- 协议和结果类型放在 `SwiftDeclarationRendering`。dump（`SwiftDump`）和 interface（`SwiftPrinting`）都依赖它；`SwiftPrivateDiscriminators` 依赖 `SwiftIndexing`，而 `SwiftDump` 在 `SwiftDeclaration` 之下、`SwiftPrinting` 与 `SwiftIndexing` 平级，两边都不能直接依赖它。结果类型是新的 `PrivateDeclarationSourceFile`；`PrivateDiscriminatorSourceFiles.SourceFile` 原样不动，index 遵循协议时把一个换成另一个，RuntimeViewer 的源码不用改。
 - dump：provider 装在 `DeclarationRenderConfiguration` 上，和 `staticFieldLayoutProvider` 一样由 `DumpRequest` 装；为空就不打印，不另设开关。
 - interface：`SwiftDeclarationPrintConfiguration` 不动（它是 `Equatable`，放不进 provider），provider 登记到打印器上。`SwiftInterfaceBuilder` 也不动：`InterfaceRequest` 在 `prepare()` 之后用 `builder.indexer` 建 index，登记到 `builder.printer`。
 - dump 没有索引器。开关打开时 `DumpRequest` 另建一个 `SwiftDeclarationIndexer` 并 `prepare()`，只为给 index 读名字；读完 index 就放掉它，这是 0063 已有的行为。不直接从描述符读名字：那样会少掉 extension 的名字这批候选，同一个镜像 dump 和 interface 还原出来的就会不一样。
@@ -95,7 +95,7 @@ struct PrivateDoppelganger {
 
 **落地步骤**（每一步单独构建、相关测试通过后提交）：
 
-1. 接缝：`SwiftDeclarationRendering` 里的协议、结果类型与注释 helper；`SourceFile` 下沉并留 typealias；index 遵循协议、加批量入口。测 helper 和批量入口。
+1. ✅ 接缝：`SwiftDeclarationRendering` 里的协议、结果类型与注释 helper；index 遵循协议、加批量入口（`@_spi(Support)` 的 `recoverSourceFiles(ofEveryDeclarationIn:)`）。测 helper 和批量入口。
 2. dump：各 dumper 打注释；`DumpRequest` 的字段、索引器与 index；`dump` 的 flag。测 dump 一侧。
 3. interface：打印器的登记方法与各打印点；`InterfaceRequest` 的字段；`interface` 的 flag。测 interface 一侧。
 4. 文档、skill、实数据量测与 A/B 验证。
@@ -112,3 +112,5 @@ struct PrivateDoppelganger {
 | 2026-10-25 | dump 打开开关时另建索引器读名字 | 未提问自定。直接从描述符读会少掉 extension 的名字这批候选，同一镜像 dump 与 interface 的还原结果会不一样 |
 | 2026-10-25 | 打印前一次批量反推 | 未提问自定。逐个声明问，每个还原不出的都要把五步重算一遍 |
 | 2026-10-25 | 用户批准（Draft → Accepted），开始实现 | 方案与全部假设照单通过 |
+| 2026-10-25 | 结果类型另起一个，`SourceFile` 不下沉 | 实现时发现：RuntimeViewerCore 开了 `MemberImportVisibility`，按 SE-0444 它读 `fileName` 这些成员要 import 声明它们的模块，下沉后留 typealias 也可能逼它多加一行 import；在接缝处换一下类型只多几行 |
+| 2026-10-25 | 批量入口取一个索引器，`@_spi(Support)` | 成员符号要从索引器的镜像查，全局声明要读它的定义；index 按索引器建的两个初始化方法本来就是这个 SPI |

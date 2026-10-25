@@ -659,16 +659,19 @@ extension Target {
     /// Recovers the source files private discriminators were derived from:
     /// MD5 over candidate file names, drawn from an indexed image's names and
     /// a generated list of known file names (evolution proposal
-    /// `private-declarations`).
+    /// `private-declarations`). Its index is what tells dump and interface
+    /// those files (`private-declaration-source-files`).
     static let SwiftPrivateDiscriminators = Target.target(
         name: "SwiftPrivateDiscriminators",
         dependencies: [
             .product(.MachOKit),
             .product(.MachOObjCSection),
             .product(.Demangling),
+            .target(.MachOFoundation),
             .target(.MachOSwiftSection),
             .target(.SwiftInspection),
             .target(.SwiftDeclaration),
+            .target(.SwiftDeclarationRendering),
             .target(.SwiftIndexing),
         ],
         path: "Sources/Declaration/SwiftPrivateDiscriminators",
@@ -820,6 +823,7 @@ extension Target {
             .target(.SwiftPrinting),
             .target(.SwiftDiffing),
             .target(.SwiftInterface),
+            .target(.SwiftPrivateDiscriminators),
             .target(.TypeIndexing),
             .target(.Utilities),
             .product(.MachOKit),
@@ -1220,6 +1224,7 @@ extension Target {
             .target(.SwiftPrivateDiscriminators),
             .target(.SwiftInspection),
             .target(.SwiftDeclaration),
+            .target(.SwiftDeclarationRendering),
             .target(.SwiftIndexing),
             .target(.MachOFixtureSupport),
             .target(.MachOTestingSupport),
