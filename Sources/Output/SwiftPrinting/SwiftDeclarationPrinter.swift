@@ -280,11 +280,13 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
         }
 
         // The files its private declarations come from (evolution proposal
-        // `private-declaration-source-files`), leaving out the parent's it
-        // is printed inside: a type nested in a private type is declared in
-        // that type's file. The parent, not the name's own context — a local
-        // type's is the function declaring it, which prints nowhere above.
-        for line in privateDeclarationSourceFileLines(for: [typeDefinition.typeName.node], enclosedBy: level > 1 ? typeDefinition.parent.map { [$0.typeName.node] } ?? [] : []) {
+        // `private-declaration-source-files`), leaving out its parent's: a
+        // type nested in a private type is declared in that type's file. The
+        // parent, not the name's own context — a local type's is the function
+        // declaring it, which prints nowhere above it. And the parent at any
+        // level: a nested definition printed on its own must read as the one
+        // taken out of its parent's print (`marksNestedDefinitions`).
+        for line in privateDeclarationSourceFileLines(for: [typeDefinition.typeName.node], enclosedBy: typeDefinition.parent.map { [$0.typeName.node] } ?? []) {
             Indent(level: level - 1)
             Comment(line)
             BreakLine()
@@ -433,7 +435,7 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
         )
 
         // As a type's (evolution proposal `private-declaration-source-files`).
-        for line in privateDeclarationSourceFileLines(for: [protocolDefinition.protocolName.node], enclosedBy: level > 1 ? protocolDefinition.parent.map { [$0.typeName.node] } ?? [] : []) {
+        for line in privateDeclarationSourceFileLines(for: [protocolDefinition.protocolName.node], enclosedBy: protocolDefinition.parent.map { [$0.typeName.node] } ?? []) {
             Indent(level: level - 1)
             Comment(line)
             BreakLine()

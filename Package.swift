@@ -1091,6 +1091,8 @@ extension Target {
             .target(.SwiftPrinting),
             .target(.SwiftSpecialization),
             .target(.SwiftInterface),
+            // The nested-definition contract with source-file comments on.
+            .target(.SwiftPrivateDiscriminators),
             .product(.MachOKitExtensions),
             .target(.MachOTestingSupport),
             .target(.MachOFixtureSupport),
