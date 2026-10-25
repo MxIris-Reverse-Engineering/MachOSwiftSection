@@ -97,7 +97,7 @@ struct PrivateDoppelganger {
 
 1. ✅ 接缝：`SwiftDeclarationRendering` 里的协议、结果类型与注释 helper；index 遵循协议、加批量入口（`@_spi(Support)` 的 `recoverSourceFiles(ofEveryDeclarationIn:)`）。测 helper 和批量入口。
 2. ✅ dump：各 dumper 打注释；`DumpRequest` 的字段、索引器与 index；`dump` 的 flag。测 dump 一侧。
-3. interface：打印器的登记方法与各打印点；`InterfaceRequest` 的字段；`interface` 的 flag。测 interface 一侧。
+3. ✅ interface：打印器的登记方法与各打印点；`InterfaceRequest` 的字段；`interface` 的 flag。测 interface 一侧。
 4. 文档、skill、实数据量测与 A/B 验证。
 
 ## 决策日志
@@ -117,3 +117,5 @@ struct PrivateDoppelganger {
 | 2026-10-26 | dump 另建的索引器活到 dump 结束 | 实现时发现：索引器最后一次释放会回收它 `prepare()` 建的缓存，其中就有 dump 读成员的符号索引；index 读完名字就放掉索引器，不留住的话 dump 后半段要把符号索引重建一遍 |
 | 2026-10-26 | dump 的成员行只标 struct / enum / class 的成员与 vtable 方法、协议的默认实现 | conformance 的 witness 行与 class 的 override 行不标：witness 至少和 conformance 一样可见，私有的只会出现在私有类型或私有协议的 conformance 里，声明头那行已经写了文件；override 私有方法罕见，而且它的节点在注释之后才解析出来 |
 | 2026-10-26 | 打开开关时报一条进度、索引事件交给输出 | 整镜像反推在大框架上要等一阵才出第一个声明；interface 本来就这样报，两条输出一致 |
+| 2026-10-26 | interface 里嵌套的类型和协议，外层取打印时包住它的父类型，不取名字里的上下文 | 实现时发现：局部类型名字的上下文是声明它的函数，函数在 interface 里不打印在它上方；按名字的上下文算，`private func hiddenValues()` 里的 `Hidden` 就会漏标 |
+| 2026-10-26 | interface 的进度行照旧走 stdout | `interface` 的 CLI 一直把进度行打到 stdout（「Preparing to build Swift interface...」也在那里），新提示跟着走；`dump` 的进度在 stderr，也是它的老规矩 |

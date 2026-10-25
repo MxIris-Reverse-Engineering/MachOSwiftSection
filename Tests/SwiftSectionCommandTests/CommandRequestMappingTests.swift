@@ -118,6 +118,7 @@ struct CommandRequestMappingTests {
             "--resolve-c-module-names", "--supplementary-apinotes", "/tmp/Extra.apinotes",
             "--emit-offset-comments", "--sort-members-by-offset", "--exported-only",
             "--infer-objc-overrides", "--module-selectors", "--requirements-on-associated-types", "--emit-header",
+            "--emit-private-source-files",
         ]).makeRequest()
         #expect(request.showsCImportedTypes)
         #expect(request.parsesOpaqueReturnTypes)
@@ -129,6 +130,7 @@ struct CommandRequestMappingTests {
         #expect(request.usesModuleSelectors)
         #expect(request.protocolRequirementPlacement == .associatedTypes)
         #expect(request.emitsHeader)
+        #expect(request.emitsPrivateDeclarationSourceFiles)
     }
 
     @Test("interface prints without module selectors unless asked")

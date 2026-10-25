@@ -74,6 +74,11 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
         case computed((any StaticFieldLayoutProvider)?)
     }
 
+    /// What names the source files of private declarations; see
+    /// `setPrivateDeclarationSourceFileProvider(_:)`.
+    @Mutex
+    private var privateDeclarationSourceFileProvider: (any PrivateDeclarationSourceFileProviding)? = nil
+
     /// Memoized `__swift5_builtin` lookup behind `rawLayoutBuiltinStorage(of:)`
     /// (`SwiftDeclarationPrinter+RawLayoutBuiltinStorage.swift`), built once
     /// on first use with the same double-checked pattern as the layout
@@ -198,6 +203,43 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
         typeNameResolverRegistry = .init()
     }
 
+    /// Prints every declaration whose name reads a private discriminator the
+    /// declaration it is printed inside does not under a comment naming the
+    /// source file `provider` recovers for the discriminator, or saying it
+    /// could not be recovered (evolution proposal
+    /// `private-declaration-source-files`); `nil` stops it.
+    ///
+    /// The provider is asked once for every private declaration printed:
+    /// search the whole image before the first print.
+    public func setPrivateDeclarationSourceFileProvider(_ provider: (any PrivateDeclarationSourceFileProviding)?) {
+        privateDeclarationSourceFileProvider = provider
+    }
+
+    /// The source-file comment lines of a declaration named `nodes`, printed
+    /// inside the declaration named `enclosingNodes` (evolution proposal
+    /// `private-declaration-source-files`); each call site lays them out. None
+    /// without a provider, and the nodes are only worked out with one.
+    package func privateDeclarationSourceFileLines(for nodes: @autoclosure () -> [any DemanglingNode], enclosedBy enclosingNodes: @autoclosure () -> [any DemanglingNode] = []) -> [String] {
+        guard let privateDeclarationSourceFileProvider else { return [] }
+        return PrivateDeclarationSourceFileComments.lines(for: nodes(), enclosedBy: enclosingNodes(), provider: privateDeclarationSourceFileProvider)
+    }
+
+    /// The names a definition prints in its header: a conformance
+    /// extension's protocol as well as the extended type. What its members'
+    /// source-file comments leave out.
+    private func headerNameNodes(of definition: some Definition) -> [any DemanglingNode] {
+        switch definition {
+        case let typeDefinition as TypeDefinition:
+            [typeDefinition.typeName.node]
+        case let protocolDefinition as ProtocolDefinition:
+            [protocolDefinition.protocolName.node]
+        case let extensionDefinition as ExtensionDefinition:
+            [extensionDefinition.extensionName.node] + (extensionDefinition.conformingProtocolName.map { [$0.node] } ?? [])
+        default:
+            []
+        }
+    }
+
     /// Exported-only gate (evolution proposal `exported-only-interface`):
     /// a type whose descriptor provably is not exported renders as NOTHING —
     /// an empty result every enclosing `BlockList` / `NestedDeclaration`
@@ -234,6 +276,17 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
         if let localTypeComment = localTypeDeclarationComment(for: typeDefinition.typeName) {
             Indent(level: level - 1)
             Comment(localTypeComment)
+            BreakLine()
+        }
+
+        // The files its private declarations come from (evolution proposal
+        // `private-declaration-source-files`), leaving out the parent's it
+        // is printed inside: a type nested in a private type is declared in
+        // that type's file. The parent, not the name's own context — a local
+        // type's is the function declaring it, which prints nowhere above.
+        for line in privateDeclarationSourceFileLines(for: [typeDefinition.typeName.node], enclosedBy: level > 1 ? typeDefinition.parent.map { [$0.typeName.node] } ?? [] : []) {
+            Indent(level: level - 1)
+            Comment(line)
             BreakLine()
         }
 
@@ -379,6 +432,13 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
             in: machO.context
         )
 
+        // As a type's (evolution proposal `private-declaration-source-files`).
+        for line in privateDeclarationSourceFileLines(for: [protocolDefinition.protocolName.node], enclosedBy: level > 1 ? protocolDefinition.parent.map { [$0.typeName.node] } ?? [] : []) {
+            Indent(level: level - 1)
+            Comment(line)
+            BreakLine()
+        }
+
         try await DeclarationBlock(level: level) {
             try await renderProtocolDeclarationHeader(for: dumpedProtocol, requirementPartition: requirementPartition, displayParentName: displayParentName)
         } body: {
@@ -456,6 +516,15 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
 
     @SemanticStringBuilder
     private func printIncludedExtensionDefinition(_ extensionDefinition: ExtensionDefinition, level: Int) async throws -> SemanticString {
+        // An extension of a private type, or a conformance to a private
+        // protocol, is declared in that type's or protocol's file (evolution
+        // proposal `private-declaration-source-files`).
+        for line in privateDeclarationSourceFileLines(for: headerNameNodes(of: extensionDefinition)) {
+            Indent(level: level - 1)
+            Comment(line)
+            BreakLine()
+        }
+
         try await DeclarationBlock(level: level) {
             try await printExtensionHeader(extensionDefinition, level: level)
         } body: {
@@ -645,9 +714,10 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
         let vtableTransformerClosure = vtableOffsetTransformerClosure
 
         let synthesizedPropertyWrapperMembers = synthesizedPropertyWrapperMembers(of: definition)
+        let enclosingNodes = headerNameNodes(of: definition)
         await MemberList(level: level) {
             for member in definition.orderedMembers where !isExcludedByExportFilter(member) && !synthesizedPropertyWrapperMembers.contains(member) {
-                await renderMember(member, level: level, offsetCommentPrefix: offsetCommentPrefix, offsetCommentOption: offsetCommentOption, printExportStatus: printExportStatus, vtableTransformerClosure: vtableTransformerClosure, synthesizedPropertyWrapperMembers: synthesizedPropertyWrapperMembers)
+                await renderMember(member, level: level, offsetCommentPrefix: offsetCommentPrefix, offsetCommentOption: offsetCommentOption, printExportStatus: printExportStatus, vtableTransformerClosure: vtableTransformerClosure, synthesizedPropertyWrapperMembers: synthesizedPropertyWrapperMembers, enclosingNodes: enclosingNodes)
             }
 
             // Terminal step: emit `deinit` for classes and noncopyable
@@ -680,6 +750,7 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
         let vtableTransformerClosure = vtableOffsetTransformerClosure
 
         let synthesizedPropertyWrapperMembers = synthesizedPropertyWrapperMembers(of: definition)
+        let enclosingNodes = headerNameNodes(of: definition)
         // A class's vtable members come first, in slot order — the order the
         // class metadata lays its vtable out in, and for the class's own
         // slots the source's declaration order — the way the dump walks them
@@ -689,13 +760,13 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
         // exactly as before.
         await MemberList(level: level) {
             for member in OrderedMember.vtableOrdered(OrderedMember.allMembers(from: definition)) where !isExcludedByExportFilter(member) && !synthesizedPropertyWrapperMembers.contains(member) {
-                await renderMember(member, level: level, offsetCommentPrefix: offsetCommentPrefix, offsetCommentOption: offsetCommentOption, printExportStatus: printExportStatus, vtableTransformerClosure: vtableTransformerClosure, synthesizedPropertyWrapperMembers: synthesizedPropertyWrapperMembers)
+                await renderMember(member, level: level, offsetCommentPrefix: offsetCommentPrefix, offsetCommentOption: offsetCommentOption, printExportStatus: printExportStatus, vtableTransformerClosure: vtableTransformerClosure, synthesizedPropertyWrapperMembers: synthesizedPropertyWrapperMembers, enclosingNodes: enclosingNodes)
             }
         }
         for category in MemberCategory.allCases {
             await MemberList(level: level) {
                 for member in definition.members(in: category) where member.minVTableOffset == nil && !isExcludedByExportFilter(member) && !synthesizedPropertyWrapperMembers.contains(member) {
-                    await renderMember(member, level: level, offsetCommentPrefix: offsetCommentPrefix, offsetCommentOption: offsetCommentOption, printExportStatus: printExportStatus, vtableTransformerClosure: vtableTransformerClosure, synthesizedPropertyWrapperMembers: synthesizedPropertyWrapperMembers)
+                    await renderMember(member, level: level, offsetCommentPrefix: offsetCommentPrefix, offsetCommentOption: offsetCommentOption, printExportStatus: printExportStatus, vtableTransformerClosure: vtableTransformerClosure, synthesizedPropertyWrapperMembers: synthesizedPropertyWrapperMembers, enclosingNodes: enclosingNodes)
                 }
             }
         }
@@ -727,6 +798,11 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
     /// `MemberList`'s indent level. Returning a plain `SemanticString` without
     /// `Rows` would fuse them into one row and drop the `BreakLine + Indent`
     /// separators.
+    ///
+    /// `enclosingNodes` are the names of the definition the member is printed
+    /// in, whose private declarations its source-file comments leave out
+    /// (evolution proposal `private-declaration-source-files`): a member of a
+    /// private type is declared in that type's file.
     @SemanticStringBuilder
     private func renderMember(
         _ member: OrderedMember,
@@ -735,11 +811,15 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
         offsetCommentOption: SwiftVisibilityOption,
         printExportStatus: Bool,
         vtableTransformerClosure: (@Sendable (Int, String?) -> SemanticString)?,
-        synthesizedPropertyWrapperMembers: SynthesizedPropertyWrapperMembers
+        synthesizedPropertyWrapperMembers: SynthesizedPropertyWrapperMembers,
+        enclosingNodes: [any DemanglingNode]
     ) async -> SemanticString {
         await Rows(level: level) {
             switch member {
             case .allocator(let function), .function(let function):
+                for line in privateDeclarationSourceFileLines(for: [function.node], enclosedBy: enclosingNodes) {
+                    Comment(line)
+                }
                 optionalContent(offsetCommentOption) {
                     OffsetComment(prefix: offsetCommentPrefix, offset: function.offset, emit: true)
                 }
@@ -773,6 +853,9 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
                 await printFunction(function, level: level)
 
             case .variable(let variable):
+                for line in privateDeclarationSourceFileLines(for: [variable.node], enclosedBy: enclosingNodes) {
+                    Comment(line)
+                }
                 // A stored property of an `@objc @implementation` carries its
                 // REAL field offset (from the ObjC ivar list), so the generic
                 // symbol-offset comment gives way to the field-offset one.
@@ -809,6 +892,9 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
                 }
 
             case .subscript(let `subscript`):
+                for line in privateDeclarationSourceFileLines(for: [`subscript`.node], enclosedBy: enclosingNodes) {
+                    Comment(line)
+                }
                 optionalContent(offsetCommentOption) {
                     OffsetComment(prefix: offsetCommentPrefix, offset: `subscript`.offset, emit: true)
                 }

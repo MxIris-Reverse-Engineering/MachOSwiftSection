@@ -173,6 +173,11 @@ public final class SwiftInterfaceBuilder<MachO: MachOFieldLayoutRenderable>: Sen
         await printCatchedThrowing(dispatchingTo: eventDispatcher, degradationSource: .definitionBlock) {
             await BlockList {
                 for variable in indexer.globalVariableDefinitions where !printer.isExcludedByExportFilter(globalSymbolNames: variable.accessors.map(\.symbol.name)) {
+                    // One item per line: the list breaks before each
+                    // (evolution proposal `private-declaration-source-files`).
+                    for line in printer.privateDeclarationSourceFileLines(for: [variable.node]) {
+                        Comment(line)
+                    }
                     printer.globalExportStatusComment(forSymbolNames: variable.accessors.map(\.symbol.name))
                     await printer.printVariable(variable, level: 0)
                 }
@@ -182,6 +187,9 @@ public final class SwiftInterfaceBuilder<MachO: MachOFieldLayoutRenderable>: Sen
         await printCatchedThrowing(dispatchingTo: eventDispatcher, degradationSource: .definitionBlock) {
             await BlockList {
                 for function in indexer.globalFunctionDefinitions where !printer.isExcludedByExportFilter(globalSymbolNames: [function.symbol.name]) {
+                    for line in printer.privateDeclarationSourceFileLines(for: [function.node]) {
+                        Comment(line)
+                    }
                     printer.globalExportStatusComment(forSymbolNames: [function.symbol.name])
                     await printer.printFunction(function, level: 0)
                 }

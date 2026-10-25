@@ -28,12 +28,26 @@ struct PrivateDeclarationSourceFileRequestTests {
         return output.printedProduct
     }
 
+    /// One interface of the fixture with the option, shared like the dump.
+    private static let symbolTestsCoreInterface = Task { try await interface(symbolTestsCore) }
+
+    private static func interface(_ source: MachOSource, emitsPrivateDeclarationSourceFiles: Bool = true) async throws -> String {
+        let output = RecordingOutput()
+        try await InterfaceRequest(source: source, emitsPrivateDeclarationSourceFiles: emitsPrivateDeclarationSourceFiles).run(output: output, environment: .testing)
+        return output.printedProduct
+    }
+
     /// The line right above the first one that, its indentation left out,
     /// starts with `prefix`; also without its indentation.
     private static func line(above prefix: String, in product: String) -> String? {
+        lines(above: prefix, in: product).first
+    }
+
+    /// The lines right above every one that, its indentation left out,
+    /// starts with `prefix`; also without their indentation.
+    private static func lines(above prefix: String, in product: String) -> [String] {
         let lines = product.components(separatedBy: "\n").map { $0.trimmingCharacters(in: .whitespaces) }
-        guard let index = lines.firstIndex(where: { $0.hasPrefix(prefix) }), index > 0 else { return nil }
-        return lines[index - 1]
+        return lines.indices.dropFirst().filter { lines[$0].hasPrefix(prefix) }.map { lines[$0 - 1] }
     }
 
     // MARK: - dump
@@ -88,5 +102,52 @@ struct PrivateDeclarationSourceFileRequestTests {
         #expect(Self.line(above: "LocalTypeFixtureUnstripped.Holder.(hiddenValues in _2EA5A000E301E8E89BE43D5FB26A4D0E)() -> Any", in: product) == "// hiddenValues is declared in Fixture.swift")
         let hiddenTypeLine = try #require(product.components(separatedBy: "\n").first { $0.hasPrefix("struct ") && $0.contains("Hidden #1") })
         #expect(Self.line(above: hiddenTypeLine, in: product) == "// hiddenValues is declared in Fixture.swift")
+    }
+
+    // MARK: - interface
+
+    /// The interface prints no discriminator anywhere, so these two headers
+    /// read the same but for the comment above them.
+    @Test("interface tells same-named private types apart, and says when a file could not be recovered")
+    func interfaceTellsSameNamedPrivateTypesApart() async throws {
+        let product = try await Self.symbolTestsCoreInterface.value
+        #expect(Self.lines(above: "struct PrivateDoppelganger {", in: product) == [
+            "// PrivateDoppelganger is declared in PrivateDoppelgangers.swift",
+            "// PrivateDoppelganger is declared in a source file whose name could not be recovered (private discriminator _1282F137F8790A6AF4B7E2738A640142)",
+        ])
+    }
+
+    @Test("interface names the file above a private type nested in a public one, and above an extension of a private type")
+    func interfaceNamesTheFileOfNestedTypesAndExtensions() async throws {
+        let product = try await Self.symbolTestsCoreInterface.value
+        #expect(Self.line(above: "enum PrivateProtocolTest {", in: product) == "// PrivateProtocolTest is declared in Structs.swift")
+        #expect(Self.line(above: "extension SymbolTestsCore.Structs.PrivateProtocolTest: Swift.Hashable {", in: product) == "// PrivateProtocolTest is declared in Structs.swift")
+    }
+
+    @Test("interface does not repeat a private type's file on its members")
+    func interfaceDoesNotRepeatTheFileOnMembersOfAPrivateType() async throws {
+        let product = try await Self.symbolTestsCoreInterface.value
+        let membersOfPrivateTypes = product.components(separatedBy: "\n").map { $0.trimmingCharacters(in: .whitespaces) }
+        let hashableExtension = try #require(membersOfPrivateTypes.firstIndex(of: "extension SymbolTestsCore.Structs.PrivateProtocolTest: Swift.Hashable {"))
+        #expect(membersOfPrivateTypes[hashableExtension + 1] == "var hashValue: Swift.Int {")
+    }
+
+    @Test("interface only adds comment lines, and adds none without the option")
+    func interfaceOnlyAddsCommentLines() async throws {
+        let withSourceFiles = try await Self.symbolTestsCoreInterface.value
+        let withoutSourceFiles = try await Self.interface(Self.symbolTestsCore, emitsPrivateDeclarationSourceFiles: false)
+        #expect(withSourceFiles.contains(" is declared in "))
+        #expect(!withoutSourceFiles.contains(" is declared in "))
+        #expect(withSourceFiles.components(separatedBy: "\n").filter { !$0.contains(" is declared in ") } == withoutSourceFiles.components(separatedBy: "\n"))
+    }
+
+    /// The local type `Hidden` prints inside `Holder`, under the comment
+    /// naming the method that declares it; the source-file one follows.
+    @Test("interface names the file of a public type's private member", ExclusiveImageAccess(LocalTypeFixture.exclusiveAccessName))
+    func interfaceNamesTheFileOfAPrivateMember() async throws {
+        let source = MachOSource.file(path: try LocalTypeFixture.libraryURL(.unstripped).path, architecture: nil)
+        let product = try await Self.interface(source)
+        #expect(Self.line(above: "func hiddenValues() -> Any", in: product) == "// hiddenValues is declared in Fixture.swift")
+        #expect(Self.line(above: "struct Hidden {", in: product) == "// hiddenValues is declared in Fixture.swift")
     }
 }
