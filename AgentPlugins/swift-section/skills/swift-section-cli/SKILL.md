@@ -45,9 +45,9 @@ Flags added comparatively late, and therefore worth checking: `--emit-header`,
 `--infer-objc-overrides` and the whole `objc` subcommand group, from 0.22.0
 `evolution --emit-available` / `--platform`, from 0.23.0 `interface --module-selectors`
 / `dump --enable-module-selectors`, and after 0.23.0
-`interface --requirements-on-associated-types`. When one is missing, say so
-rather than silently producing a weaker answer — the alternative is usually "upgrade
-(`brew upgrade swift-section`), or do without that annotation".
+`interface --requirements-on-associated-types` and `--emit-private-source-files`. When one is
+missing, say so rather than silently producing a weaker answer — the alternative is usually
+"upgrade (`brew upgrade swift-section`), or do without that annotation".
 
 ## 1. Pick the subcommand
 
@@ -143,8 +143,18 @@ The single most common mistake. Same underlying comment, different name:
 
 Spelled the same on both: `--emit-type-layout`, `--emit-enum-layout`, `--emit-member-addresses`,
 `--emit-vtable-offsets`, `--emit-expanded-field-offsets` (implies the field-offset flag),
-`--emit-header`, `--emit-export-status`, `--color-scheme`, `--output-path`,
-`--dependency-search-path` (§2).
+`--emit-header`, `--emit-export-status`, `--emit-private-source-files`, `--color-scheme`,
+`--output-path`, `--dependency-search-path` (§2).
+
+`--emit-private-source-files` puts a comment above each declaration whose name carries a
+private discriminator, naming the source file the discriminator was derived from:
+`// CodingKeys is declared in Codable.swift` above `enum Outer.(CodingKeys in _B89E…)`. The file
+is recovered by hashing candidate file names, so a named file is certain, but not every one is
+found; the rest read `… could not be recovered (private discriminator _…)`. `interface` prints
+no discriminator anywhere else, so there this comment is what tells two same-named private types
+from different files apart. A member or nested type of a private type repeats nothing, since it
+is declared in that type's file. A private member of a public type names its own file, usually
+the file of the extension that declares it.
 
 SE-0491 module selectors — `Swift::Int` instead of `Swift.Int`, the spelling a Swift 6.4
 `.swiftinterface` uses, with every nested level naming the module that declared it
@@ -207,6 +217,10 @@ resident memory. Budget for it:
   `--jobs N` bounds how many index at once (default: processor count); each in-flight input
   holds its indexed image in memory, so lower it when memory is the constraint, not `1` for
   speed's sake.
+- `--emit-private-source-files` searches every discriminator of the image once before the
+  first declaration prints, and on `dump` it first indexes the image too, which `dump` otherwise
+  never does. Measured on macOS 27.2 with a release build: SwiftUI's `dump` goes from 12 s to
+  58 s and its `interface` from 20 s to 61 s; Foundation's `interface` barely moves.
 - Anything long-running belongs in a background run written to a file with `-o`, not in a
   foreground command that will be waited on.
 
@@ -272,6 +286,10 @@ Attribution against a non-macOS binary is limited (it warns and degrades rather 
 
 - **`// not exported`** is an export-trie fact, not an access-level claim. A missing entry
   means "not statically callable from outside this image", which is not the same as `internal`.
+- **`… is declared in Enabled.swift of module SwiftUICore`** above a SwiftUI declaration is not a
+  wrong module: the discriminator was hashed with the framework's own name, while its
+  declarations print under their ABI module name (`SwiftUI`). **`could not be recovered`** means
+  no candidate file name produced the digest; it says nothing about the declaration.
 - **A type member printed `static`** may have been `class` in the source: the four
   descriptor-less `class` spellings are ABI-identical to `static`, so the printer picks the
   spelling that is always legal.

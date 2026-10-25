@@ -2622,6 +2622,36 @@
 - **关联文档**：提案 [0073-protocol-requirement-placement](../Evolutions/0073-protocol-requirement-placement.md)；review 记录 [2026-10-21-pr135-review-findings](../../Roadmaps/2026-10-21-pr135-review-findings.md)。
 - **对应版本**：未发版（`next`）。
 
+## （2026-10-26，节号落地时取）dump 与 interface 标出私有声明来自哪个源文件
+
+- **时间段**：2026-10-25 至 2026-10-26，分支 `feature/private-declaration-source-files`，尚未合入 `next`。
+- **动机**：0063 把「反推 private discriminator 来自哪个源文件」搬进了本库（`SwiftPrivateDiscriminators`），但只有 RuntimeViewer 的 `Private` 标签在用。`swift-section dump` 只印 discriminator 原文，interface 连它也不印：SymbolTestsCore 里两个文件各声明的 `private struct PrivateDoppelganger`，在 interface 里印出来一模一样。
+- **关键决策**：
+  - ① 新开关 `--emit-private-source-files`，两个子命令同名，请求字段 `emitsPrivateDeclarationSourceFiles`，默认关闭。
+  - ② 声明上方加一行注释（`// CodingKeys is declared in Codable.swift`），两条输出用同一套写法（`SwiftDeclarationRendering` 的 `PrivateDeclarationSourceFileComments`）；哈希用的模块与声明打印的模块不同时写出模块，还原不出的附上 discriminator。只标外层没有的 discriminator：私有类型的成员和嵌套类型不重复，公开类型的私有成员标出自己的文件。interface 里嵌套定义的外层是它的父定义，与打印层级无关，因为 `marksNestedDefinitions` 要求单独打印与从父定义里摘出来的逐字相同。
+  - ③ 打印前对整个镜像批量反推一次（`recoverSourceFiles(ofEveryDeclarationIn:)`），名字、成员符号、全局声明里的 discriminator 一起搜；逐个声明去问的话，每个还原不出的都要把五步候选全部算一遍。候选不变。
+  - ④ 接缝放在 `SwiftDeclarationRendering`（`PrivateDeclarationSourceFileProviding` 与新的结果类型 `PrivateDeclarationSourceFile`），index 遵循它。搜索的结果类型没有挪下来，因为 RuntimeViewerCore 开了 `MemberImportVisibility`。
+  - ⑤ dump 本来没有索引器，打开开关时另建一个只为读名字，并留到 dump 结束：它最后一次释放会回收自己建的缓存，其中有 dump 读成员的符号索引。
+- **落地模块**：SwiftDeclarationRendering、SwiftPrivateDiscriminators、SwiftDump（各 dumper）、SwiftPrinting（打印器）、SwiftInterface（全局块）、SwiftSectionKit、swift-section、README 与 agent 插件的 CLI skill。
+- **输出变化**：关闭时逐字节不变。打开后只多注释行，interface 另多一条进度提示，照它的老规矩走 stdout。本机 macOS 27.2 的 cache、release CLI：
+
+  | 镜像 | dump 关 → 开 | interface 关 → 开 | 名字里的 discriminator | 还原不出 |
+  |---|---|---|---|---|
+  | Foundation | 3.9 → 8.6 秒 | 9.1 → 9.7 秒 | 142 | 20 |
+  | SwiftUICore | 8.2 → 25.5 秒 | 12.6 → 27.7 秒 | 553 | 58 |
+  | SwiftUI | 11.8 → 58.1 秒 | 19.9 → 61.0 秒 | 840 | 167 |
+
+  多出的时间几乎全在搜还原不出的那些：第 3、5 步按 discriminator 各算一遍。
+- **验证**：
+  - 新套件全部通过：`PrivateDeclarationSourceFileCommentsTests`（写法与该标哪些）、`PrivateDeclarationSourceFileRequestTests`（两条输出端到端，SymbolTestsCore 加 `LocalTypeFixture`）、`PrivateDiscriminatorSourceFileIndexTests` 新增的两条（批量入口、provider），`NestedDefinitionRegionContractTests` 新增打开注释的变体（两种读取路径），`CommandRequestMappingTests` 的两个 flag。两个新套件加进了 CI 的过滤名单。
+  - 每个实现提交各自构建通过、对应套件通过；`SwiftDumpTests`（105）、`SwiftInterfaceTests` 与 `SwiftPrintingTests`（357）的快照基线一个都没改。
+  - 全量 `swift test --skip IntegrationTests`（JHs-Mac-Studio-Ultra，macOS 27.2，默认的 Xcode 27 / Swift 6.4，远端依赖，fixture 链主检出那份 Xcode 26.x 编的）：22 个测试包、2565 个测试全部通过，原始退出码 0。
+  - 渲染 A/B（开关关闭）：基线是 `next@122cfd2f` 的 `git archive` 沙盒，两侧共用一份 `Package.resolved`、各编一个 release CLI；存档 cache 26.6、15.5 与 iOS 15.5 / 18.5 / 26.5 模拟器 runtime，54 对 dump / interface 全部逐字节一致。进程内（MachOImage）那条腿没跑，理由在提案的决策日志里。
+  - 插件：`claude-isolated plugin validate` 对插件目录与 marketplace（`--strict`）都通过；skill 里提到的每个 flag 都能在各子命令的 `--help` 里找到。Codex 的 `validate_plugin.py` 本机没有，没跑；插件清单没改，只改了 skill 正文。
+  - 开发中自查出一处：interface 起先只在嵌套打印时排除父定义的 discriminator，违反 `marksNestedDefinitions` 的契约，已改为任何层级都比父定义（见提案决策日志）。
+- **关联文档**：提案 [private-declaration-source-files](../Evolutions/draft-private-declaration-source-files.md)；[Modules/SwiftPrivateDiscriminators.md](Modules/SwiftPrivateDiscriminators.md)。
+- **对应版本**：未发版。
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节

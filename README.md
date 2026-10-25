@@ -284,6 +284,20 @@ swift-section dump --emit-header /path/to/binary
 swift-section dump --emit-export-status /path/to/binary
 ```
 
+**Source files of private declarations:**
+```bash
+# Comment each declaration whose name carries a private discriminator
+# (`(CodingKeys in _B89E…)`) with the source file the discriminator was derived
+# from: `// CodingKeys is declared in Codable.swift`. The file is recovered by
+# hashing candidate file names, so a named file is certain; one no candidate
+# produces reads `could not be recovered`, with its discriminator. A member of
+# a private type repeats nothing; a public type's private member names its own
+# file. The image is indexed and every discriminator searched once before the
+# first declaration prints, which takes a while for a framework the size of
+# SwiftUI.
+swift-section dump --emit-private-source-files /path/to/binary
+```
+
 **Addresses and ordering:**
 ```bash
 # The address of each member's symbol
@@ -457,9 +471,15 @@ swift-section interface --emit-export-status /path/to/binary
 # anything without export evidence (and every `override` / `@objc` member) is
 # kept, so an `-enable-testing` build keeps its `internal` declarations.
 swift-section interface --exported-only /path/to/binary
+
+# The source file each private declaration comes from, as `dump` prints it.
+# The interface prints no private discriminator anywhere else, so this is what
+# tells two same-named private types from different files apart; an
+# unrecovered file is named by its discriminator.
+swift-section interface --emit-private-source-files /path/to/binary
 ```
 
-All three flags default to off, keeping default output byte-identical.
+All four flags default to off, keeping default output byte-identical.
 
 **Working with dyld shared cache:**
 
