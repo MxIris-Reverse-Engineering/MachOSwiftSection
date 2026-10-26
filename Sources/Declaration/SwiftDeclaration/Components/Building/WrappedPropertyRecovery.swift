@@ -57,7 +57,7 @@ package enum WrappedPropertyRecovery {
                 let skipsFirst = first.kind == .asyncFunctionPointer || first.kind == .asyncSuspendResumePartialFunction || first.kind == .mergedFunction
                 guard let next = skipsFirst ? node.children.dropFirst().first : first else { return nil }
                 node = next
-            case .static, .getter, .setter, .modifyAccessor, .methodDescriptor:
+            case .static, .getter, .setter, .modifyAccessor, .borrowAccessor, .mutateAccessor, .methodDescriptor:
                 guard let next = node.firstChild else { return nil }
                 node = next
             case .protocolWitness:

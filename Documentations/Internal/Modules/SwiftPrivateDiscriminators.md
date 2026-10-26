@@ -1,7 +1,7 @@
 # SwiftPrivateDiscriminators 模块
 
 > 模块参考文档（module reference），随代码维护。读者：维护者。
-> 来历与取舍见提案 [0063-private-declarations](../../Evolutions/0063-private-declarations.md)；本文负责全貌与分工。
+> 来历与取舍见提案 [0063-private-declarations](../../Evolutions/0063-private-declarations.md)；接进 dump 与 interface 见提案 [0074-private-declaration-source-files](../../Evolutions/0074-private-declaration-source-files.md)。本文负责全貌与分工。
 
 ## 模块定位
 
@@ -9,7 +9,10 @@ private discriminator 是编译器给 private / fileprivate 声明的名字加�
 
 它只管反推。名字里读得到哪些私有声明，由 `SwiftInspection` 的 `DemanglingNode.privateDeclarations` 回答，那是所有名字都要用的轻量接口；本模块带着 2007 个已知文件名的清单，只有要反推的宿主才依赖它。
 
-宿主目前是 RuntimeViewer：侧栏的 `Private` 标签弹窗里显示 discriminator 与反推出的文件名，引擎进程按镜像持有一个 `PrivateDiscriminatorSourceFileIndex`。
+宿主有两个：
+
+- RuntimeViewer：侧栏的 `Private` 标签弹窗里显示 discriminator 与反推出的文件名，引擎进程按镜像持有一个 `PrivateDiscriminatorSourceFileIndex`，每次只问弹窗那一行的。
+- `swift-section dump` / `interface` 的 `--emit-private-source-files`（`SwiftSectionKit` 的 `emitsPrivateDeclarationSourceFiles`）：打印前用 `recoverSourceFiles(ofEveryDeclarationIn:)` 把整个镜像一次求完，再经 `SwiftDeclarationRendering` 的 `PrivateDeclarationSourceFileProviding` 交给 dumper 和打印器，每个声明问一次、都是查表。注释的写法和「只标外层没有的 discriminator」的规则在 `PrivateDeclarationSourceFileComments`，两条输出共用。
 
 ## 文件 → 子系统对照
 
@@ -17,7 +20,7 @@ private discriminator 是编译器给 private / fileprivate 声明的名字加�
 |---|---|
 | 1. 搜索本身（纯函数） | `PrivateDiscriminatorSourceFiles.swift`：五步候选、`Search`（摘要比对、合成文件、一段字节两种读法）、`Candidates`（从名字里读出的模块名与标识符）、`Digest128` |
 | 2. 已知文件名 | `PrivateDiscriminatorSourceFiles+KnownFileNames.swift`，由 `Scripts/GenerateKnownSwiftSourceFileNames.sh` 生成，不手改 |
-| 3. 按镜像取候选、记答案 | `PrivateDiscriminatorSourceFileIndex.swift` |
+| 3. 按镜像取候选、记答案；整镜像批量求；给 dump / interface 的 provider | `PrivateDiscriminatorSourceFileIndex.swift` |
 
 ## 关键契约
 
@@ -30,6 +33,8 @@ private discriminator 是编译器给 private / fileprivate 声明的名字加�
   - RuntimeViewer 提案里的还原率是 macOS 26.7 上用侧栏那批候选量的，本 index 没有重新量。搜索本身没有上限，所以候选多出来只会让还原出的变多。
   - 不扩大到符号表的全部标识符：RuntimeViewer 当时量过，只多三个百分点，候选却多一个数量级。
 - **名字在第一次请求时才读，每个答案都记住**，还原不出也记。宿主按镜像持有，随镜像释放。
+- **要打印整个镜像的宿主先批量求一次**：`recoverSourceFiles(ofEveryDeclarationIn:)`（`@_spi(Support)`，取一个索引器）把名字里的 discriminator 和符号索引里成员符号、索引器全局声明的 discriminator 一起交给一次搜索。逐个声明去问的话，每个还原不出的都要把五步候选全部算一遍；一起问时第 1、2、4 步只算一次。候选不变，只是要求的 discriminator 多了：一个只写了 `extension View { private func … }` 的文件，名字里看不到它的 discriminator。Release 构建下一次求完整个镜像，SwiftUICore 约 15 秒、SwiftUI 约 41 秒（macOS 27.2，interface 开关前后之差，数据见提案的「实测」），几乎全花在还原不出的那些上；第 5 步按 discriminator 各自独立，要提速可以从这里并行。
+- **结果类型有两个**：搜索本身返回 `PrivateDiscriminatorSourceFiles.SourceFile`，给 dump / interface 的是 `SwiftDeclarationRendering` 的 `PrivateDeclarationSourceFile`，index 遵循 `PrivateDeclarationSourceFileProviding` 时换一下。没有把前者挪下去留 typealias：RuntimeViewerCore 开了 `MemberImportVisibility`，读挪走的类型的成员可能要多 import 一个模块。
 - **名字在锁外读，搜索在锁内。** `PrivateDiscriminatorSourceFileIndex` 的状态全在一把 `NSLock` 下。
   - 读名字要打印镜像里的每个名字，而 AGENTS.md 规定不能持锁 demangle。
   - 请求可能来自 512 KB 栈的协作线程，所以整批名字放进 `StackSafeExecutor.withLargeStack` 里读，一批只切一次线程；栈够大的线程就地读。
@@ -45,7 +50,10 @@ private discriminator 是编译器给 private / fileprivate 声明的名字加�
   - 名字只读一次，还原不出的不再搜（`searchCount`）；
   - 名字在大栈上读；
   - 两个并发的首次请求都读名字、只搜一次；
-  - 名字读完放掉索引器。
+  - 名字读完放掉索引器；
+  - 整镜像批量求只搜一次，之后每个都是查表；provider 答的就是搜到的，还原不出的答 `nil`、不再搜。
+- 注释的写法与该标哪些：`Tests/SwiftDeclarationRenderingTests/PrivateDeclarationSourceFileCommentsTests.swift`（模块名不同、合成文件、还原不出、没有名字的私有声明、一个名字两个 discriminator、外层已有的不标）。
+- 两条输出端到端：`Tests/SwiftSectionKitTests/PrivateDeclarationSourceFileRequestTests.swift`，SymbolTestsCore 上两个同名 `PrivateDoppelganger`（第二个文件 `PrivateDoppelgangersSecondFile.swift` 拼不出，正好测还原不出的写法），加 `LocalTypeFixture` 里公开类型 `Holder` 的私有方法 `hiddenValues()`。
 - `Tests/SwiftPrivateDiscriminatorsTests/PrivateDiscriminatorSourceFileSystemImageTests.swift`，读运行中系统的 dyld shared cache，不进 CI，因为它的 discriminator 是 macOS 27.2 上取的：
   - Foundation 的 `__JSONEncoder` → `JSONEncoder.swift`；
   - SwiftUICore 的 `EnabledKey` → SwiftUICore 的 `Enabled.swift`，钉住模块名取镜像文件名。
@@ -55,5 +63,5 @@ private discriminator 是编译器给 private / fileprivate 声明的名字加�
 
 ## 相关文档
 
-- 提案：[0063-private-declarations](../../Evolutions/0063-private-declarations.md)
+- 提案：[0063-private-declarations](../../Evolutions/0063-private-declarations.md)、[0074-private-declaration-source-files](../../Evolutions/0074-private-declaration-source-files.md)（接进 dump 与 interface）
 - 局部类型与占位名：[0062-local-type-context-names](../../Evolutions/0062-local-type-context-names.md)

@@ -51,6 +51,13 @@ public final class ProtocolDefinition: Definition, MutableDefinition, @unchecked
 
     public package(set) var associatedTypes: [String] = []
 
+    /// The invertible protocols each associated type is declared to suppress
+    /// (`associatedtype Element: ~Copyable`, SE-0503), by name. The binary
+    /// does not record the declaration, so this holds only what the image's
+    /// extensions of the protocol prove (`SuppressedAssociatedTypeInference`):
+    /// an associated type without an entry may still be suppressible.
+    public package(set) var suppressedInvertibleProtocolsByAssociatedTypeName: [String: InvertibleProtocolSet] = [:]
+
     public package(set) var allocators: [FunctionDefinition] = []
 
     public package(set) var constructors: [FunctionDefinition] = []

@@ -73,9 +73,16 @@
 - **主要出现在**：`Sources/MachO/MachOReading/ReadingContext/ReadingContext.swift`、`Sources/Analysis/SwiftInspection/SymbolicDemangler.swift`、`Sources/MachO/MachOSymbols/InternedNodeReferenceCache.swift`
 - **延伸阅读**：[提案 0057](Evolutions/0057-reading-context-migration.md)、[ReadingContextAbstraction.md](Internal/ReadingContextAbstraction.md)
 
+### cache-shared stub（全缓存共用桩）
+
+macOS 27 与 iOS 27 的 dyld shared cache 不再给每个镜像留自己的 `__objc_stubs` / `__auth_stubs`（这两个段在镜像里大小为 0），而是把桩收成整个缓存共用的一份，放在不属于任何镜像的区域：ObjC 消息走 selector 桩（`adrp x1; add x1; b <objc_msgSend 副本>`，`x1` 就是 selector 字符串），跨库调用走 GOT 桩（`adrp x17; add x17; ldr x16, [x17]; braa x16, x17`）。同一个 selector 在不同子缓存里各有一份桩，所以认 selector 要以字符串地址为键。与 stub island 的区别：island 自己算出目标、不读槽位。macOS 26、iOS 26 及更早，以及 Simulator 的缓存仍是镜像自带的桩。
+
+- **主要出现在**：`Sources/Support/ARM64InstructionDecoding/ARM64Trampoline.swift`、`Sources/Analysis/CrossReferenceAnalysis/Scanning/ReferenceScanner.swift`
+- **延伸阅读**：[Modules/CrossReferenceAnalysis.md](Internal/Modules/CrossReferenceAnalysis.md)、[0072-cross-reference-analysis](Evolutions/0072-cross-reference-analysis.md)
+
 ### context form / Mach-O form / pointer form（读取接口的三种形式）
 
-同一个读取接口曾经最多有三份手写实现：context form 收 `some ReadingContext`（`name(in: context)`、静态 `resolve(at:in:)`），Mach-O form 收一个 Mach-O reader、按偏移读（`name(in: machO)`、`resolve(from:in:)`），pointer form 不收读取器、直接用裸指针读本进程内存（`name()`、`resolve(from: pointer)`）。2026-09-30 起 context form 是唯一实现，另外两种是 0.22.0 废弃、0.23.0 删除的一行转发（`machO.context` / `.inProcess`）。
+同一个读取接口曾经最多有三份手写实现：context form 收 `some ReadingContext`（`name(in: context)`、静态 `resolve(at:in:)`），Mach-O form 收一个 Mach-O reader、按偏移读（`name(in: machO)`、`resolve(from:in:)`），pointer form 不收读取器、直接用裸指针读本进程内存（`name()`、`resolve(from: pointer)`）。2026-09-30 起 context form 是唯一实现，另外两种是 0.22.0 废弃、0.24.0 删除的一行转发（`machO.context` / `.inProcess`）。
 
 - **主要出现在**：`Sources/ABI/MachOSwiftSection/Models/`、`Sources/MachO/MachOPointers/`、`Sources/MachO/MachOResolving/Resolvable.swift`
 - **延伸阅读**：[提案 0057](Evolutions/0057-reading-context-migration.md)、[ReadingContextAbstraction.md](Internal/ReadingContextAbstraction.md)
@@ -225,7 +232,7 @@ opaque 尖括号参数归属的第三条规则：协议无任何 anchor 命中�
 `SwiftDeclarationPrintConfiguration.marksNestedDefinitions` 为 `true` 时，父定义打印结果里每个内联打印的嵌套类型或协议被包进 swift-semantic-string 的 `DefinitionRegion`，身份是名字节点的 mangled name，与 RuntimeViewer 的对象名相同。冻结后用 `separatingDefinitionRegions()` 拆出区域表；对深度为 d 的区域，`content(ofDefinitionRegion:)` 再加 `removingIndentation(levels: d + 1)` 得到的值，与该定义单独打印的结果逐项相同（文本、span、identifier，以及两种分离得到的表）。宿主因此只需打印父定义，不必再单独打印每个嵌套定义。与标记模式同时打开时，定义区域的编码放在可见性标记的内层，两者互不影响。
 
 - **主要出现在**：`Sources/Output/SwiftPrinting/SwiftDeclarationPrinter+DefinitionRegions.swift`、`SwiftDeclarationPrintConfiguration.swift`
-- **延伸阅读**：[提案 draft-nested-definition-regions](Evolutions/draft-nested-definition-regions.md)；swift-semantic-string 的 `docs/DefinitionRegions.md`
+- **延伸阅读**：[提案 0068-nested-definition-regions](Evolutions/0068-nested-definition-regions.md)；swift-semantic-string 的 `docs/DefinitionRegions.md`
 
 ### NodeStore / NodeReference
 

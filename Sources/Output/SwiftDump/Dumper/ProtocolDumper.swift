@@ -62,18 +62,26 @@ package struct ProtocolDumper<MachO: MachOFieldLayoutRenderable>: NamedDumper {
         }
     }
 
+    /// The `associatedtype` lines. `: ~Swift.Copyable` follows a name the
+    /// image's extensions of the protocol prove suppressible (SE-0503) — the
+    /// binary records the declaration nowhere else, so a name without such
+    /// an extension prints bare even when it is suppressible.
     @SemanticStringBuilder
     package var associatedTypes: SemanticString {
         get async throws {
             let associatedTypes = try dumped.descriptor.associatedTypes(in: machO.context)
 
             if !associatedTypes.isEmpty {
+                let suppressedInvertibleProtocolsByAssociatedTypeName = SuppressedAssociatedTypeInference.suppressedInvertibleProtocolsByAssociatedTypeName(of: dumped.descriptor, in: machO)
                 for (offset, associatedType) in associatedTypes.offsetEnumerated() {
                     BreakLine()
                     Indent(level: configuration.indentation)
                     Keyword(.associatedtype)
                     Space()
                     TypeDeclaration(kind: .other, associatedType)
+                    if let suppressedInvertibleProtocols = suppressedInvertibleProtocolsByAssociatedTypeName[associatedType] {
+                        try await suppressedInvertibleProtocols.dumpInvertedProtocolsInheritance(resolver: demangleResolver)
+                    }
                     if offset.isEnd {
                         BreakLine()
                     }
@@ -84,6 +92,13 @@ package struct ProtocolDumper<MachO: MachOFieldLayoutRenderable>: NamedDumper {
 
     package var body: SemanticString {
         get async throws {
+            // The name whose private declarations the protocol's source-file
+            // comment names, and its default implementations' leave out
+            // (evolution proposal `private-declaration-source-files`).
+            let contextNodes: [Node] = (try? SymbolicDemangler.demangleContext(for: .protocol(dumped.descriptor), in: machO.context)).map { [$0] } ?? []
+
+            configuration.privateDeclarationSourceFileComments(for: contextNodes, indentationLevel: 0)
+
             try await declaration
 
             Space()
@@ -120,6 +135,7 @@ package struct ProtocolDumper<MachO: MachOFieldLayoutRenderable>: NamedDumper {
                 }
 
                 BreakLine()
+                configuration.privateDeclarationSourceFileComments(for: [defaultImplementation.reference], enclosedBy: contextNodes, indentationLevel: configuration.indentation)
                 Indent(level: configuration.indentation)
                 try await demangleResolver.resolve(for: defaultImplementation.reference)
 

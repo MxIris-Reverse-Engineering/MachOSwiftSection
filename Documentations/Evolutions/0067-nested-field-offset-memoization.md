@@ -1,8 +1,8 @@
-# Draft - 进程内嵌套字段偏移展开的记忆化与匿名上下文判别符缓存
+# 0067 - 进程内嵌套字段偏移展开的记忆化与匿名上下文判别符缓存
 
-- **状态**: In Progress
+- **状态**: Implemented
 - **创建日期**: 2026-09-30
-- **最后更新**: 2026-10-01
+- **最后更新**: 2026-10-15
 - **所属愿景**: 无
 - **关联提案**: [0056-visibility-regions](0056-visibility-regions.md)（RuntimeViewer 的语料按标记模式打印，所以每个类型都要付
   `printExpandedFieldOffsets` 的全价）、[0053-shared-cache-composition-and-eviction-registry](0053-shared-cache-composition-and-eviction-registry.md)（进程作用域存储的形态）
@@ -85,7 +85,7 @@ RuntimeViewer 给一个镜像的全部类型建搜索语料时，对正在打印
 | 2026-09-30 | 符号查找不做排序索引，改为记忆化判别符结果 | 进程内查找先逐个重建 dyld 镜像再线性扫 `LC_SYMTAB`，共享缓存镜像的本地符号已剥离，必落空；MachOKit 上游文件按 fork 政策不改。 |
 | 2026-09-30 | 第一轮审查：剪枝改为「保留行、剪子树」；缓存形态改按 0053；写明 enum payload 的 nil 不对称；修 TaskReports 链接 | 原稿把「剪掉节点」写成了字面意思，且引用 0053 的缓存形态与 0053 的决定相反。 |
 | 2026-09-30 | 第二轮审查：放弃「结构树 + 渲染期剪枝」，改为按 metatype 缓存单层展开记录、遍历原样不动；缓存形态改成 0053 采纳的 `private static let` + `@Mutex` 字典（第一轮改正时仍写成了 0053 否掉的常量键 `SharedCache`）；记录记 `isLast`；展开入口保留 `?? getTypeByMangledNameInContext` 回退；`removeAll()` 带代数；补文档同步清单 | 审查指出树方案漏记 `isLast` 会在「末 payload 解析失败」时改掉 `├──` / `└──` 与祖先列，且子树是否跨根共享没定、两条路各有陷阱；单层记录方案把字节一致变成构造性的，也没有 in-flight 与剪枝问题。 |
-| 2026-10-01 | Accepted | 与 [draft-concurrent-definition-printing](draft-concurrent-definition-printing.md) 同一次批准：用户在 RuntimeViewer 会话里批准开工，并在本仓库的会话里直接确认「两份都开工」。实现排在并发打印之后。 |
+| 2026-10-01 | Accepted | 与 [0066-concurrent-definition-printing](0066-concurrent-definition-printing.md) 同一次批准：用户在 RuntimeViewer 会话里批准开工，并在本仓库的会话里直接确认「两份都开工」。实现排在并发打印之后。 |
 | 2026-10-01 | In Progress；修正配套文档链接 | 并发打印那份已提交（`9f5ffa92`），本提案接着做。配套文档写成了不存在的 `Internal/MachOCaches.md`，实际在 `Internal/Modules/MachOCaches.md`。 |
 | 2026-10-01 | 记下 Release 下的「改前」计时：展开字段偏移约占打印时间一成，不是 Debug 采样的 61% | RuntimeViewer 会话用 `CorpusBuildTimingProbe` 在 JHs-Mac-Studio-Ultra 上量（RuntimeViewer `72913c3d`，Release，MachOSwiftSection `next` 514bb4bd，每个预设一个进程；机器上同时有其他会话，负载 16–55，绝对值偏噪）：Foundation（2559 个对象）`mcp` 3.72 s、`mcp-no-expanded-field-offset` 3.33 s，差 0.39 s，约 10.5%；SwiftUI（7378 个）51.95 s 对 47.0 s（两组负载不同，约 10%）；libswiftCore（660 个）各预设都在 0.82–0.86 s，差别在噪声内。收益因此比提案动机写的小，但仍按批准的范围实现；「改后」数字等提交后由 RuntimeViewer 会话用同样的预设再量。 |
 | 2026-10-01 | 实现：`NestedFieldOffsetLevel` 与 `NestedFieldOffsetLevelMemo`（`SwiftDeclarationRendering/NestedFieldOffsetLevel.swift`）；宿主入口是 `RuntimeFieldLayoutMemo.removeAll()` | 记录分 `structFields` / `enumPayloads` / `notExpanded` 三种，构建逻辑从原来的两个遍历函数原样搬出；遍历里只剩基址、祖先列、深度、路径环守卫和日志。memo 是一把 `@Mutex` 守着字典与代数计数，记录在锁外建、先存者赢。宿主入口做成 `public`（不加 SPI）：`SwiftDeclarationRendering` 里给宿主的接口都是纯 `public`，RuntimeViewer 已经 import 这个模块。 |
@@ -95,3 +95,4 @@ RuntimeViewer 给一个镜像的全部类型建搜索语料时，对正在打印
 | 2026-10-01 | 验证 | 新测试与相关既有套件（嵌套展开、深度上限、特化字段类型、可见性区域投影、两个判别符套件、并发打印）全过。全量 `swift test --skip IntegrationTests` 2168 个测试全过，原始退出码 0，known issue 仍是 `SymbolicManglingIndexTests` 那一条。release + TSan 跑 `ConcurrentDefinitionPrintingTests`（标记模式打印含展开字段偏移，多线程同时查 memo）与 `NestedFieldOffsetMemoizationTests`：0 条报告，退出码 0。渲染 A/B 对 `9f5ffa92`（并发打印那份）：92 对逐字节一致，SKIPPED 的仍是 iOS 15.5 模拟器 SwiftUI / WidgetKit 那 4 对（本地 MachOKit `next` 的既有问题）。A/B 的 MachOImage 腿默认不开展开字段偏移，所以另用 `RenderingVerificationTests` 打开全部选项（含 `expandedFieldOffsets`）对 Combine、SwiftData、WidgetKit、ActivityKit 两侧各跑一遍：16 对逐字节一致，进程内那几份带 17 到约 7800 行展开行。SwiftUI / SwiftUICore 没放进这一轮：该工具记着它们在开展开字段偏移时有既有的栈溢出。`NestedFieldOffsetMemoizationTests` 加进 CI 的主过滤列表。 |
 | 2026-10-01 | 「改后」计时：省 4–10% | 宽度 1（RuntimeViewer 会话的 `CorpusBuildTimingProbe` corpus 模式，Release，每次新进程，三档交替各两轮，负载 5–9；A = `next` 514bb4bd，B = `9f5ffa92`，C = `937172ef`，RuntimeViewer Core 同为 `8bbb46cf`、打印宽度 1，其余依赖逐项一致；原始数据在 `/Volumes/DerivedData/Agents.noindex/claude/ProbeRuns/20261001-163445-concurrent-printing/`；用 `nm` 确认只有 C 带 `RuntimeFieldLayoutMemo`）：libswiftCore B 1.03/1.02 s → C 0.98/0.99 s（−4%）；Foundation B 4.19/4.15 s → C 3.80/3.98 s（CPU 3.80/3.81，约 −9%）；SwiftUI B 38.75/45.59 s → C 36.71/37.94 s（CPU 35.85/37.86，约 −7% 到 −10%）。与「展开字段偏移约占打印时间一成」的分项一致。 |
 | 2026-10-08 | PR #131 review 第 12 条（缓存会记住「这个字段类型解析不出」）本库不修，登记为 [ReviewAdjudications.md](../Internal/ReviewAdjudications.md) A54；转 RuntimeViewer | 这是方案里写明的取舍，清除入口 `RuntimeFieldLayoutMemo.removeAll()` 交给宿主在加载镜像后调用。review 查到 RuntimeViewer 的 find-navigator 分支只在它自己 `dlopen` 之后调用，被检查的进程自己加载的镜像不会触发；`DyldUtilities.observeDyldRegisterEvents()` 写好了 dyld 加载镜像的回调但从没被调用，那边要注册它并在回调里调用 `removeAll()`。 |
+| 2026-10-15 | 取号 0067，In Progress → Implemented | 随 PR #131 合入 `next`（`cd248de9`），0.23.0 发版时取号（演进账本第 94 节）。配套文档已有：[NestedFieldOffsetCycleGuard.md](../Internal/NestedFieldOffsetCycleGuard.md)「每层从记录里读」、[Modules/MachOCaches.md](../Internal/Modules/MachOCaches.md)；没有新术语。宿主在 dyld 加载镜像后调用 `RuntimeFieldLayoutMemo.removeAll()` 的接线归 RuntimeViewer（A54）。 |

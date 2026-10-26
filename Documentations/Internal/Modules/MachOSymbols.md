@@ -25,6 +25,8 @@ MachOSymbols 是**符号索引**层：把一个镜像的符号表和 export trie
 
 `SymbolIndexStore.Storage` 里**不驻留 `Node` 类树，也不驻留符号名 `String`**。建索引时每个符号 demangle 到一棵临时树上，分类完就 intern 进这个镜像的 `NodeStoreBuilder`；全局 `NodeCache` 全程不参与，`Storage` 一放，整个镜像的内存占用就跟着走。
 
+成员与全局变量按入口节点归类：getter、setter，以及 SE-0507 的 `borrow` / `mutate` 访问器（`vb` / `vz`）都算属性或下标的成员符号——只声明后两者的属性没有 getter 符号，漏了它们整个成员就不见了。`_read` / `_modify` 及其新 ABI 版本不收进成员桶。
+
 存储形态是每个唯一符号名一行 16 字节的 `SymbolRow`（规范化偏移 + 名字字节的打包引用）。名字有两个来源：`MachOImage` 的行直接指进镜像 mmap 的 LINKEDIT 字符串表（零拷贝、干净页，代价是这张表要求镜像保持加载）；`MachOFile` 的行和 export trie 解出来的名字进表内部的私有连续缓冲区。名字反查是在 `rowsSortedByName` 排列上做字节级二分。
 
 **规范化偏移的口径**就是上层按偏移查询用的那一套：独立文件是文件偏移，cache 内的镜像是 `未滑动地址 - sharedRegionStart`，`MachOImage` 是距 mach header 的偏移。`MachOKit` 给 `MachOFile` 符号的 `offset` 却是原始 `n_value`，也就是虚拟地址（它的文档注释写的是「file offset」，不对）。换算统一走 `SymbolValueOffsetConverter`。dylib 的 `__TEXT` 链接在 0，地址和文件偏移恰好相等，所以独立文件这一支长期没有换算，直到主可执行文件（`__TEXT` 在 0x100000000）暴露出来：每个符号都被归到高出 0x100000000 的位置，成员地址打印成两倍基址，vtable 槽也对不上名字。

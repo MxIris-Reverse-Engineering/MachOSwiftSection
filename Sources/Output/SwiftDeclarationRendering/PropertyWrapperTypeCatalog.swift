@@ -22,7 +22,8 @@ public struct PropertyWrapperEvidence: Sendable {
 }
 
 /// The accessor forms a `wrappedValue` symbol takes, read off its demangled
-/// tree (`global → getter | setter | modifyAccessor → variable → type`).
+/// tree (`global → getter | setter | modifyAccessor → variable → type`;
+/// SE-0507's `borrow` reads like a getter, its `mutate` writes like a setter).
 public enum WrappedValueAccessorSymbol {
     public struct Shape: Sendable {
         public let isSetter: Bool
@@ -39,10 +40,10 @@ public enum WrappedValueAccessorSymbol {
             case .global:
                 guard let next = node.firstChild else { return nil }
                 node = next
-            case .getter, .static:
+            case .getter, .borrowAccessor, .static:
                 guard let next = node.firstChild else { return nil }
                 node = next
-            case .setter, .modifyAccessor:
+            case .setter, .modifyAccessor, .mutateAccessor:
                 isSetter = true
                 guard let next = node.firstChild else { return nil }
                 node = next

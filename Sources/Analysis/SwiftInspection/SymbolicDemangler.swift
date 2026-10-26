@@ -74,6 +74,14 @@ extension SymbolicDemangler {
     package static func cacheExists(for machO: some MachOSwiftSectionRepresentableWithCache) -> Bool {
         SymbolicDemanglerCache.shared.contains(in: machO)
     }
+
+    /// Non-creating membership probe for the process-wide memo that
+    /// `demangleType(for:in:)` fills for an in-process context, which is
+    /// never evicted — test-support surface for the callers that must not
+    /// leave a tree in it (`CrossReferenceAnalyzer.swiftTypeKeys(in:)`).
+    package static func processScopedMemoHoldsType(for mangledName: MangledName) -> Bool {
+        SymbolicDemanglerCache.shared.processScopedMemoHoldsType(for: mangledName)
+    }
 }
 
 extension SymbolicDemangler {
@@ -1152,6 +1160,10 @@ private final class SymbolicDemanglerCache: @unchecked Sendable {
 
     fileprivate func contains(in machO: some MachORepresentableWithCache) -> Bool {
         cache.contains(in: machO)
+    }
+
+    fileprivate func processScopedMemoHoldsType(for mangledName: MangledName) -> Bool {
+        Self.processScopedStorage.nodeReferenceForMangledNameBox[MangledNameBox(mangledName)] != nil
     }
 
     /// `InProcessContext`'s discriminator lookup, memoized as text. Only an

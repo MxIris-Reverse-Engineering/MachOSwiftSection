@@ -96,7 +96,7 @@ struct 持有 `Optional<GeneratedIconPrimitiveValueSpec<String>>`，而这个 en
 
 ### 每层从记录里读（2026-10-01 起，运行时路径）
 
-运行时路径每一层要读的东西——描述符、字段偏移、字段记录、每行的类型名、下一层的 metatype——按 metatype 记成一份 `NestedFieldOffsetLevel`，进程内只建一次（提案 [draft-nested-field-offset-memoization](../Evolutions/draft-nested-field-offset-memoization.md)）。遍历本身没动：基址偏移、树的祖先列、深度、路径环守卫和两条日志都还在 `walkNestedExpandedFieldOffsets` 里，所以两道守卫的行为与输出逐字节不变。记录里的 `isLast` 仍按全部字段记录、全部 payload case 计数：解析失败、没有行的那一项照样占位，前一行因此仍画 `├──`（`ValueSpec<String>` 的最后一个 case `pair` 解析不出，`reference` 那行就是这样，`NestedFieldOffsetMemoizationTests` 钉住）。
+运行时路径每一层要读的东西——描述符、字段偏移、字段记录、每行的类型名、下一层的 metatype——按 metatype 记成一份 `NestedFieldOffsetLevel`，进程内只建一次（提案 [0067-nested-field-offset-memoization](../Evolutions/0067-nested-field-offset-memoization.md)）。遍历本身没动：基址偏移、树的祖先列、深度、路径环守卫和两条日志都还在 `walkNestedExpandedFieldOffsets` 里，所以两道守卫的行为与输出逐字节不变。记录里的 `isLast` 仍按全部字段记录、全部 payload case 计数：解析失败、没有行的那一项照样占位，前一行因此仍画 `├──`（`ValueSpec<String>` 的最后一个 case `pair` 解析不出，`reference` 那行就是这样，`NestedFieldOffsetMemoizationTests` 钉住）。
 
 ## 影响面
 

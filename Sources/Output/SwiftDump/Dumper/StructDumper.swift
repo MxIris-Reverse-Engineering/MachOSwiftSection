@@ -128,6 +128,19 @@ package struct StructDumper<MachO: MachOFieldLayoutRenderable>: TypedDumper {
 
     package var body: SemanticString {
         get async throws {
+            // The interface-printed name strips private discriminators, so
+            // same-named private types from different files share one name
+            // bucket; the context node picks this type's own sub-bucket
+            // (issue #115). A context that cannot be demangled falls back to
+            // the name-only (merged) lookup rather than dropping members. It
+            // is also the name whose private declarations the type's
+            // source-file comment names, and its members' leave out
+            // (evolution proposal `private-declaration-source-files`).
+            let contextNode = try? SymbolicDemangler.demangleContext(for: .type(.struct(dumped.descriptor)), in: machO.context)
+            let contextNodes: [Node] = contextNode.map { [$0] } ?? []
+
+            configuration.privateDeclarationSourceFileComments(for: contextNodes, indentationLevel: 0)
+
             try await declaration
 
             Space()
@@ -137,13 +150,6 @@ package struct StructDumper<MachO: MachOFieldLayoutRenderable>: TypedDumper {
             try await fields
 
             let interfaceNameString = try await interfaceName.string
-
-            // The interface-printed name strips private discriminators, so
-            // same-named private types from different files share one name
-            // bucket; the context node picks this type's own sub-bucket
-            // (issue #115). A context that cannot be demangled falls back to
-            // the name-only (merged) lookup rather than dropping members.
-            let contextNode = try? SymbolicDemangler.demangleContext(for: .type(.struct(dumped.descriptor)), in: machO.context)
 
             for kind in SymbolIndexStore.MemberKind.allCases {
                 let memberSymbols = if let contextNode {
@@ -161,6 +167,8 @@ package struct StructDumper<MachO: MachOFieldLayoutRenderable>: TypedDumper {
                     }
 
                     BreakLine()
+
+                    configuration.privateDeclarationSourceFileComments(for: [symbol.demangledNode], enclosedBy: contextNodes, indentationLevel: configuration.indentation)
 
                     if configuration.printMemberAddress {
                         configuration.memberAddressComment(offset: symbol.offset, addressString: machO.addressString(forOffset: symbol.offset))

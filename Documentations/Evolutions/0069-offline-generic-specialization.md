@@ -1,8 +1,8 @@
-# Draft - 离线泛型特化：不经 runtime 特化泛型类型并完整打印
+# 0069 - 离线泛型特化：不经 runtime 特化泛型类型并完整打印
 
-- **状态**: In Progress
+- **状态**: Implemented
 - **创建日期**: 2026-09-30
-- **最后更新**: 2026-10-02
+- **最后更新**: 2026-10-15
 - **所属愿景**: 无
 - **关联文档**: [StaticLayoutEngine.md](../Internal/StaticLayoutEngine.md)「后续工作」里的「用户手动特化前端」一条；[SpecializedInterfaceBoundRenderingRestoration.md](../Internal/SpecializedInterfaceBoundRenderingRestoration.md)（运行时特化的打印机制）；RuntimeViewer 的 [0003-generic-type-specialization](https://github.com/MxIris-Reverse-Engineering/RuntimeViewer/blob/main/Documentations/Evolutions/0003-generic-type-specialization.md)（消费方的 UI 流程）
 - **实现分支 / PR**: `feature/offline-generic-specialization`，叠在 `feature/runtime-viewer/find-navigator` 之上，须在它之后合入（见决策日志 2026-10-02）
@@ -158,3 +158,4 @@ let interface = try await printer.printTypeDefinition(specializedDefinition)   /
 | 2026-10-08 | PR #131 review 第 10 条：在线特化算实例化名字失败、退回扁平名时记一条错误日志 | 原来是 `try?`，没有日志也没有事件，类型头印着运行时的名字，同一个定义就有两个名字。修完第 3 条后基本走不到。另一处名字不一致（嵌套泛型类型的约束 extension 里，`typeName` 按层绑定而类型头是运行时的名字）是本提案 2026-10-01 定下的有意差异，登记为 [ReviewAdjudications.md](../Internal/ReviewAdjudications.md) A55 |
 | 2026-10-08 | PR #131 review 第 11 条：打印离线特化定义的字段时，关联类型投影走打印配置建好的依赖闭包；`StaticFieldLayoutProvider` 加带默认实现的 `projectingConcreteMembers(in:)`，`StaticLayoutCalculator` 开同名的公开方法 | 投影原先用的搜索路径来自 thunk 解析器或「文件所在位置推断 + 宿主 cache」，不看打印配置的 `staticLayoutDependencyResolution`，宿主的 macOS 镜像对 iOS 二进制又从来不是候选：iOS 模拟器二进制配 iOS 模拟器 cache 打印时，布局注释按 `Int?` 算（`size: 9`），字段类型却还是 `[Int].Element?`。现在字段类型与旁边的布局注释读同一批镜像。没打开布局注释（没有 provider）时退回原路径；`staticPreflight` 没有打印配置，仍走默认路径，写进实现说明。复现测试 `OfflineProjectionDependencyResolutionTests` 只在有 `/Volumes/DyldSharedCaches/iOS-Simulator/27.0` 的机器上跑 |
 | 2026-10-08 | 本轮修复的验证 | 修后全量与复现测试见演进账本「PR #131 review 的修复」一节；改动连同各自的复现测试分条提交 |
+| 2026-10-15 | 取号 0069，In Progress → Implemented | 随 PR #131 合入 `next`（`cd248de9`），0.23.0 发版时取号（演进账本第 96 节，review 修复在第 97 节）。配套文档 [OfflineGenericSpecialization.md](../Internal/OfflineGenericSpecialization.md) 已有；术语「depth」「instantiated type name」「offline specialization」已登记。 |

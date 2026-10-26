@@ -28,6 +28,11 @@ extension AccessorRepresentable {
     }
     public var hasSetter: Bool { accessors.contains { $0.kind == .setter } }
     public var hasModifyAccessor: Bool { accessors.contains { $0.kind == .modifyAccessor } }
+    /// SE-0507. A `borrow` accessor excludes a declared `get` and a `mutate`
+    /// requires a `borrow`, so the two decide the accessor block on their
+    /// own; a getter or setter beside them is one the compiler synthesized.
+    public var hasBorrowAccessor: Bool { accessors.contains { $0.kind == .borrowAccessor } }
+    public var hasMutateAccessor: Bool { accessors.contains { $0.kind == .mutateAccessor } }
     public var hasVTableAccessor: Bool { accessors.contains { $0.methodDescriptor != nil } }
 }
 

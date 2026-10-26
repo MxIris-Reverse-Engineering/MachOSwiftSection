@@ -58,7 +58,7 @@ SE-0417：非结构化 `Task {}` 不继承执行器偏好。核对 `Sources/` �
 
 MachOKit 自己的读取有上百处 `fileHandle.seek` + `read` 共用一个句柄（`MachOFile.swift`、`DyldCache.swift` 等），两个线程交错就读错位置；`index(in:)` 的 `guard !isIndexed` 是非原子的检查加赋值。前者不在本仓库，需要 MachOKit 改 mmap 读或每个分片独立 `MachOFile` 实例，另起提案。
 
-后者已由提案 [draft-concurrent-definition-printing](../Evolutions/draft-concurrent-definition-printing.md) 解决：`index(in:)` 改成同步函数，经进程级一把锁只跑一次，打印期不再写定义。所以 `MachOImage` 读者下同一版本内的**打印**可以并发（RuntimeViewer 建语料就这么做）；`MachOFile` 读者仍受前者限制，版本内的 `prepare` 并行也仍然不做。
+后者已由提案 [0066-concurrent-definition-printing](../Evolutions/0066-concurrent-definition-printing.md) 解决：`index(in:)` 改成同步函数，经进程级一把锁只跑一次，打印期不再写定义。所以 `MachOImage` 读者下同一版本内的**打印**可以并发（RuntimeViewer 建语料就这么做）；`MachOFile` 读者仍受前者限制，版本内的 `prepare` 并行也仍然不做。
 
 ### `concurrentMap(maximumConcurrency:)` 的错误语义
 

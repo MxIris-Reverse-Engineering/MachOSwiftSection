@@ -44,9 +44,13 @@ SwiftLayout 是**静态聚合布局引擎**：不加载进程、不调用 metada
 
 `KnownLayoutTable` 是标准库类型的冻结布局，`BuiltinTypeLayoutIndex` 读镜像的 `__swift5_builtin` 段——编译器为「反射推不出结构的类型」内嵌的整体布局，也就是**导入的 C 值类型**和**多 payload 枚举**。解析器在走自己的结构化 struct / enum 路径之前先查它。
 
+libswiftCore 的 builtin 段还多一类记录：编译器 builtin 叶子类型（`Builtin.Int1`、`Builtin.BridgeObject`、`Builtin.FPIEEE16`……）的布局，也就是每个标准库类型最终落到的那一层。编译器只在编译标准库时收集它们，所以只有 libswiftCore 有；索引按 builtin 名建 key，libswiftCore 里的字段直接用这些记录。其它镜像里的 builtin 字段（`_Concurrency` 的 `Builtin.Job` / `Builtin.Executor`、actor 的人造存储字段）没有记录，由解析器的兜底表回答。
+
+两张写死的表——`KnownLayoutTable` 和兜底表——都以二进制为准：`StandardLibraryLeafLayoutTests` 用 libswiftCore 自己的字段记录与叶子记录把冻结表的每一项重算一遍，兜底表里 libswiftCore 也有记录的叶子逐个对记录，没有记录的叶子对活的 value witness table，任何一项对不上测试就红。运行时仍然先查冻结表：它不需要找到 libswiftCore，单镜像场景也能回答，而这些 `@frozen` 类型在 64 位 Apple 平台上算出来本来就和表一样。
+
 顶层入口还会拿 foreign（C 导入）struct 描述符跟 builtin 记录**交叉校验**：Swift 的 field record 看不见 C 的位域和填充，一旦两边不一致，以 builtin 的整体事实为准，并把每个字段降级为 `.unknown(.foreignTypeFieldOffsetsUnavailable)`——宁可说不知道，也不报一串自信的错偏移。有一种不一致形态已被证明安全（issue #116）：当每个结构化字段都正好落在前序字段尺寸之和、且该和等于 builtin 的整体尺寸时，两种布局都没有藏填充的余地，逐字段偏移可信。
 
-**精度这件事上，leaf 的 extra inhabitant 数是最容易出错、后果最隐蔽的一环**：托管指针族饱和到 `0x7FFF_FFFF`，unsafe pointer 族只保留 null（XI 1），`weak` 引用字 XI 0 且非 bitwise-takable，`unowned`（safe）引用字恰好 XI 1。这些值都逐条对着活的 value witness table 和 IRGen / runtime 源码核过，`WholeTypeLayoutVsRuntimeTests` 对每个 fixture 类型断言完整的五元组。数值本身与推导见 [StaticLayoutEngine.md](../StaticLayoutEngine.md)。
+**精度这件事上，leaf 的 extra inhabitant 数是最容易出错、后果最隐蔽的一环**：托管指针族（以及 task / job 指针 `Builtin.RawUnsafeContinuation`、`Builtin.Job`）饱和到 `0x7FFF_FFFF`，unsafe pointer 族只保留 null（XI 1），`weak` 引用字 XI 0 且非 bitwise-takable，`unowned`（safe）引用字恰好 XI 1。这些值都逐条对着活的 value witness table 和 IRGen / runtime 源码核过，`WholeTypeLayoutVsRuntimeTests` 对每个 fixture 类型断言完整的五元组。数值本身与推导见 [StaticLayoutEngine.md](../StaticLayoutEngine.md)。
 
 ### 4：三个桥接
 

@@ -65,18 +65,24 @@
 | [0054](0054-interface-descriptor-only-vtable-members.md) | interface 按 vtable 槽位顺序打印类成员，补上只剩 method descriptor 符号的成员 | Implemented |
 | [0055](0055-group-sources-by-layer.md) | `Sources/` 按层分组 | Implemented |
 | draft | [静态布局引擎读取 accessor thunk 背后的字段类型](draft-static-layout-through-accessor-thunks.md) | Draft |
-| draft | [进程内嵌套字段偏移展开的记忆化与匿名上下文判别符缓存](draft-nested-field-offset-memoization.md) | In Progress |
-| draft | [定义对象的并发打印安全：索引前置，打印期不再写定义](draft-concurrent-definition-printing.md) | In Progress |
-| draft | [在父定义的打印结果里标出嵌套子定义的边界](draft-nested-definition-regions.md) | In Progress |
 | [0056](0056-visibility-regions.md) | 标记模式：一次打印全量 interface，并标出每段内容受哪个开关控制 | Implemented |
 | [0057](0057-reading-context-migration.md) | 读取接口统一到 ReadingContext：传 machO 与直接用指针的旧接口废弃 | Implemented |
 | [0058](0058-swift-section-kit.md) | 把 swift-section 的功能抽成 SwiftSectionKit 库，CLI 只剩一层包装 | Implemented |
 | [0059](0059-dump-declaration-identity.md) | SwiftSectionKit：dump 把每个声明的种类与名字一并交给输出端 | Implemented |
 | [0060](0060-evolution-interface-available-annotations.md) | evolution 联合接口的 @available 生命周期标注（真属性 + 位图注释保留） | Implemented |
 | [0061](0061-dyld-shared-cache-path-versions.md) | 测试用的 dyld shared cache 路径按版本取 | Implemented |
-| draft | [离线泛型特化：不经 runtime 特化泛型类型并完整打印](draft-offline-generic-specialization.md) | In Progress |
 | [0062](0062-local-type-context-names.md) | 局部类型的名字：找回函数与闭包上下文 | Implemented |
 | [0063](0063-private-declarations.md) | 私有声明：从名字取 discriminator，按镜像反推源文件 | Implemented |
 | [0064](0064-module-selectors.md) | 适配 SE-0491：interface 与 dump 可用模块选择器（`Module::Name`）写限定名 | Implemented |
 | [0065](0065-faster-lazy-definition-indexing.md) | 并行打印下的惰性索引提速：同一地址的符号按归属查表、属性包装器目录锁外查找 | Implemented |
+| [0066](0066-concurrent-definition-printing.md) | 定义对象的并发打印安全：索引前置，打印期不再写定义 | Implemented |
+| [0067](0067-nested-field-offset-memoization.md) | 进程内嵌套字段偏移展开的记忆化与匿名上下文判别符缓存 | Implemented |
+| [0068](0068-nested-definition-regions.md) | 在父定义的打印结果里标出嵌套子定义的边界 | Implemented |
+| [0069](0069-offline-generic-specialization.md) | 离线泛型特化：不经 runtime 特化泛型类型并完整打印 | Implemented |
+| [0070](0070-borrow-accessors-and-suppressed-associated-types.md) | Swift 6.4 的 `borrow` / `mutate` 访问器与关联类型上的 `~Copyable` | Implemented |
+| [0071](0071-swift-capstone-7.md) | 迁到 swift-capstone 7.0：解码器改用 `Disassembler<AArch64>` | Implemented |
+| [0072](0072-cross-reference-analysis.md) | 交叉引用分析：从机器码读出每个函数引用了什么 | Implemented |
+| [0073](0073-protocol-requirement-placement.md) | 协议约束可选写在各自的关联类型上 | Implemented |
+| draft | [evolution 与 diff 区分「不存在」和「看不见」](draft-evolution-unobservable-presence.md) | Accepted |
+| [0074](0074-private-declaration-source-files.md) | dump 与 interface 标出私有声明来自哪个源文件 | Implemented |
 | draft | [包装类型读取器的识别：库看穿宿主的包装，按底下的读取器回答](draft-wrapped-reader-recognition.md) | In Progress |

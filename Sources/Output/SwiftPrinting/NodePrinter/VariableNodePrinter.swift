@@ -28,21 +28,25 @@ struct VariableNodePrinter<Target: NodePrinterTarget>: MemberDeclarationNodePrin
 
     private let isStored: Bool
 
-    private let hasSetter: Bool
+    private let accessorKeywords: AccessorBlockKeywords
 
     private let indentation: Int
 
     static var declarationNodeKinds: Set<Node.Kind> { variableDeclarationNodeKinds }
 
-    init(isStored: Bool, isOverride: Bool, isClassMember: Bool = false, isFinal: Bool = false, hasSetter: Bool, indentation: Int, delegate: (any NodePrintableDelegate)? = nil) {
+    init(isStored: Bool, isOverride: Bool, isClassMember: Bool = false, isFinal: Bool = false, accessorKeywords: AccessorBlockKeywords, indentation: Int, delegate: (any NodePrintableDelegate)? = nil) {
         self.isStored = isStored
         self.isOverride = isOverride
         self.isClassMember = isClassMember
         self.isFinal = isFinal
-        self.hasSetter = hasSetter
+        self.accessorKeywords = accessorKeywords
         self.indentation = indentation
         self.delegate = delegate
         context.usesModuleSelectors = delegate?.usesModuleSelectors ?? false
+    }
+
+    init(isStored: Bool, isOverride: Bool, isClassMember: Bool = false, isFinal: Bool = false, hasSetter: Bool, indentation: Int, delegate: (any NodePrintableDelegate)? = nil) {
+        self.init(isStored: isStored, isOverride: isOverride, isClassMember: isClassMember, isFinal: isFinal, accessorKeywords: .getter(hasSetter: hasSetter), indentation: indentation, delegate: delegate)
     }
 
     mutating func printDeclaration(_ node: Node) async throws {
@@ -57,7 +61,7 @@ struct VariableNodePrinter<Target: NodePrinterTarget>: MemberDeclarationNodePrin
             throw MemberDeclarationPrintError.missingIdentifier(node)
         }
 
-        target.write(isStored && !hasSetter ? "let" : "var", context: .context(state: .printKeyword))
+        target.write(isStored && !accessorKeywords.hasWriteAccessor ? "let" : "var", context: .context(state: .printKeyword))
         target.writeSpace()
         target.write(identifier.text ?? "", context: .context(for: identifier, parentKind: .variable, state: .printIdentifier))
         target.write(": ")
@@ -68,6 +72,6 @@ struct VariableNodePrinter<Target: NodePrinterTarget>: MemberDeclarationNodePrin
 
         guard !isStored else { return }
 
-        printAccessorBlock(hasSetter: hasSetter, indentation: indentation)
+        printAccessorBlock(accessorKeywords, indentation: indentation)
     }
 }

@@ -2,7 +2,7 @@
 
 - **状态**: Implemented
 - **创建日期**: 2026-10-05
-- **最后更新**: 2026-10-06
+- **最后更新**: 2026-10-21
 
 ## 摘要
 
@@ -31,3 +31,5 @@
 | 2026-10-06 | 后续：evolution 的归档套件改列 51 个版本 | 用户：「SwiftEvolutionInterfaceBuilderTestSuite.ArchivedDyldCacheTests.cacheVersions，把这个属性填完……只写x.y版本，忽略x.y.z版本」。每个次版本取 x.y 目录；11.0、12.0 在卷上只有 x.0.1 目录，照用户写下的第一项 `11.0.1`，12.0 取 `12.0.1`；`14.0(Internal)` 不收。`cachePaths` 改由 `cacheVersions` 生成、镜像换成 SwiftUI，这两处是用户自己改的 |
 | 2026-10-06 | 后续：没有 Swift 的版本跳过，不报错 | 用户：「没有swift信息不报错，跳过」。用 `ipsw dyld macho … --loads` 核对过：AppKit 本体在 11.0.1、12.0.1、13.7 没有 `__swift5_*` 节，14.0 起才有；同期 `libswiftAppKit.dylib` 里有 7 个（11.0.1）到 43 个（13.7）类型，14.0 起为 0。判断放在基类，看节名前缀；cache 里没有这个镜像也算没有 Swift，一并跳过 |
 | 2026-10-06 | 后续的验证 | 全部测试目标（含 IntegrationTests）编译通过，没有新警告。按用户「测试一下SwiftUI会不会爆内存」运行过一次 `evolutionInterfaceFile`，第 140 秒在 13.5 上因 MachOKit 的整数下溢崩溃，内存没到 5 GB 的上限；其余测试没有运行。实测数字见演进账本第 80 节，崩溃的根因与修复见第 81 节 |
+| 2026-10-21 | 后续：macOS 11、12 在 evolution 轴上标为 `11.0`、`12.0` | AppleDB 上下载不到 macOS 11.0、12.0 的镜像，只有 11.0.1、12.0.1，卷上这两个大版本因此只有 x.0.1 目录，轴标签原先照抄目录名，12.0.1 上首次出现的声明会写成 `@available(macOS, introduced: 12.0.1)`。改为按大版本标，与 SDK 的 `@available` 用的版本一致：`cacheVersions` 仍列目录名，`ArchivedDyldCacheTests` 新加 `versionLabelsByCacheVersion` 给这两个目录另配标签，`cachePaths` 生成路径时用它；`DyldSharedCachePath` 与其他套件不动 |
+| 2026-10-21 | 后续的验证 | 只编译（JHs-Mac-Studio-Ultra，Swift 6.4.2，远端依赖）：全部测试目标（含 IntegrationTests）编译通过，改动的文件没有新警告；没有运行测试 |

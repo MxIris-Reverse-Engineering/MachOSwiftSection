@@ -56,6 +56,9 @@ struct DumpCommand: AsyncParsableCommand, Sendable {
     @Flag(help: "Annotate member-symbol lines whose symbol has no export-trie entry with a `not exported` comment")
     var emitExportStatus: Bool = false
 
+    @Flag(help: "Comment each declaration whose name carries a private discriminator with the source file the discriminator was derived from (recovered by hashing candidate file names), or say it could not be recovered. Indexes the image and searches every discriminator once before the first declaration prints, which takes a while for a framework the size of SwiftUI")
+    var emitPrivateSourceFiles: Bool = false
+
     /// The library request these flags describe.
     func makeRequest() throws -> DumpRequest {
         DumpRequest(
@@ -71,6 +74,7 @@ struct DumpCommand: AsyncParsableCommand, Sendable {
             emitsTypeLayout: emitTypeLayout,
             emitsEnumLayout: emitEnumLayout,
             emitsExportStatus: emitExportStatus,
+            emitsPrivateDeclarationSourceFiles: emitPrivateSourceFiles,
             emitsHeader: emitHeader,
             commentTransformers: try transformerOptions.buildTransformerConfiguration(),
             destination: outputPath.map { .file(path: $0) } ?? .output

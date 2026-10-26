@@ -101,7 +101,7 @@ package final class ObjCClassMethodIndex: @unchecked Sendable {
 
 **不受驱逐的**：进程作用域的 memo 都是 `static` 存储，不经过按镜像的字典，也不受注册表管：
 
-- `InternedNodeReferenceCache` 与 `SymbolicDemanglerCache` 给没有 Mach-O 句柄的进程内读取路径用的那两份，大小由进程实际碰到的唯一名字数决定。`SymbolicDemanglerCache` 的这一份里还有一张按地址记的匿名上下文判别符表，`InProcessContext` 查判别符时用（提案 [draft-nested-field-offset-memoization](../../Evolutions/draft-nested-field-offset-memoization.md)）：已经在内存里的匿名上下文，答案不会变。
+- `InternedNodeReferenceCache` 与 `SymbolicDemanglerCache` 给没有 Mach-O 句柄的进程内读取路径用的那两份，大小由进程实际碰到的唯一名字数决定。`SymbolicDemanglerCache` 的这一份里还有一张按地址记的匿名上下文判别符表，`InProcessContext` 查判别符时用（提案 [0067-nested-field-offset-memoization](../../Evolutions/0067-nested-field-offset-memoization.md)）：已经在内存里的匿名上下文，答案不会变。
 - `SwiftDeclarationRendering` 的 `NestedFieldOffsetLevelMemo`：进程内嵌套字段偏移展开按 metatype 记下的「一层」（同一提案），大小由进程展开过的唯一 metatype 数决定。它记下了「当时哪些字段类型解析不出」，进程之后加载的镜像可能让它们变得可解析，所以它有清除入口 `RuntimeFieldLayoutMemo.removeAll()`：宿主在进程里加载镜像之后调一次。其余几份没有这个问题，也没有清除入口。
 
 ## 4. 契约与坑

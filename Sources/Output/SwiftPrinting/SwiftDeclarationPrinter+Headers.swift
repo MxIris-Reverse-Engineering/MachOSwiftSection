@@ -191,9 +191,11 @@ extension SwiftDeclarationPrinter {
     // MARK: - Protocol header
 
     /// Renders a protocol's declaration header (`protocol Foo : Bar where …`),
-    /// mirroring `ProtocolDumper.declaration`.
+    /// mirroring `ProtocolDumper.declaration`. The header carries the
+    /// requirements `requirementPartition` leaves on the protocol; the rest
+    /// print on the `associatedtype` lines (`renderProtocolAssociatedTypes`).
     @SemanticStringBuilder
-    package func renderProtocolDeclarationHeader(for dumped: MachOSwiftSection.`Protocol`, displayParentName: Bool, leafNameNode: Node? = nil) async throws -> SemanticString {
+    package func renderProtocolDeclarationHeader(for dumped: MachOSwiftSection.`Protocol`, requirementPartition: ProtocolRequirementPartition, displayParentName: Bool, leafNameNode: Node? = nil) async throws -> SemanticString {
         let resolver = typeDemangleResolver
         Keyword(.protocol)
         Space()
@@ -203,37 +205,28 @@ extension SwiftDeclarationPrinter {
             renderLeafName(kind: .protocol, bareName: try dumped.descriptor.name(in: machO.context), leafNameNode: leafNameNode)
         }
 
-        if dumped.numberOfRequirementsInSignature > 0 {
-            var requirementInSignatures = dumped.requirementInSignatures
-            for (offset, requirement) in requirementInSignatures.extract(where: \.isProtocolInherited).offsetEnumerated() {
-                if offset.isStart {
-                    Standard(":")
-                } else {
-                    Standard(",")
-                }
-                Space()
-                try await requirement.descriptor.dumpContent(resolver: resolver, in: machO.context)
+        for (offset, requirement) in requirementPartition.protocolInheritanceClause.offsetEnumerated() {
+            if offset.isStart {
+                Standard(":")
+            } else {
+                Standard(",")
             }
-            if !requirementInSignatures.isEmpty {
-                Space()
-                Keyword(.where)
-                Space()
-
-                for (offset, requirement) in requirementInSignatures.offsetEnumerated() {
-                    try await requirement.descriptor.dumpProtocolRequirement(resolver: resolver, in: machO.context)
-                    if !offset.isEnd {
-                        Standard(",")
-                        Space()
-                    }
-                }
-            }
+            Space()
+            try await requirement.descriptor.dumpContent(resolver: resolver, in: machO.context)
         }
+        try await renderRequirementWhereClause(requirementPartition.protocolWhereClause, resolver: resolver)
     }
 
     /// Renders a protocol's `associatedtype` requirement lines, mirroring
-    /// `ProtocolDumper.associatedTypes`.
+    /// `ProtocolDumper.associatedTypes`, each with the requirements
+    /// `requirementPartition` attaches to it: an inheritance clause
+    /// (`associatedtype Nested: Swift.Sequence`) and a `where` clause.
+    /// `~Swift.Copyable` joins the inheritance clause for a name the image's
+    /// protocol extensions prove suppressible (SE-0503), which is the only
+    /// way the declaration is known.
     @SemanticStringBuilder
-    func renderProtocolAssociatedTypes(for dumped: MachOSwiftSection.`Protocol`, level: Int) async throws -> SemanticString {
+    func renderProtocolAssociatedTypes(for dumped: MachOSwiftSection.`Protocol`, requirementPartition: ProtocolRequirementPartition, suppressedInvertibleProtocolsByAssociatedTypeName: [String: InvertibleProtocolSet], level: Int) async throws -> SemanticString {
+        let resolver = typeDemangleResolver
         let associatedTypes = try dumped.descriptor.associatedTypes(in: machO.context)
         if !associatedTypes.isEmpty {
             for (offset, associatedType) in associatedTypes.offsetEnumerated() {
@@ -242,8 +235,45 @@ extension SwiftDeclarationPrinter {
                 Keyword(.associatedtype)
                 Space()
                 TypeDeclaration(kind: .other, associatedType)
+                let inheritanceClause = requirementPartition.associatedTypeInheritanceClauses[associatedType] ?? []
+                for (inheritanceOffset, requirement) in inheritanceClause.offsetEnumerated() {
+                    if inheritanceOffset.isStart {
+                        Standard(":")
+                    } else {
+                        Standard(",")
+                    }
+                    Space()
+                    try await requirement.descriptor.dumpProtocolContent(resolver: resolver, in: machO.context)
+                }
+                if let suppressedInvertibleProtocols = suppressedInvertibleProtocolsByAssociatedTypeName[associatedType] {
+                    if inheritanceClause.isEmpty {
+                        try await suppressedInvertibleProtocols.dumpInvertedProtocolsInheritance(resolver: resolver)
+                    } else if suppressedInvertibleProtocols.hasInvertedProtocols {
+                        Standard(",")
+                        Space()
+                        try await suppressedInvertibleProtocols.dumpInvertedProtocolNames(resolver: resolver)
+                    }
+                }
+                try await renderRequirementWhereClause(requirementPartition.associatedTypeWhereClauses[associatedType] ?? [], resolver: resolver)
                 if offset.isEnd {
                     BreakLine()
+                }
+            }
+        }
+    }
+
+    /// ` where A, B` — or nothing for no requirements.
+    @SemanticStringBuilder
+    private func renderRequirementWhereClause(_ requirements: [GenericRequirement], resolver: DemangleResolver) async throws -> SemanticString {
+        if !requirements.isEmpty {
+            Space()
+            Keyword(.where)
+            Space()
+            for (offset, requirement) in requirements.offsetEnumerated() {
+                try await requirement.descriptor.dumpProtocolRequirement(resolver: resolver, in: machO.context)
+                if !offset.isEnd {
+                    Standard(",")
+                    Space()
                 }
             }
         }

@@ -144,7 +144,8 @@ enum SwiftEvolutionInterfaceBuilderTestSuite {
     /// The same image across archived macOS caches, picked by version: list
     /// in `cacheVersions` the directories under
     /// `/Volumes/DyldSharedCaches/macOS` that hold a cache, oldest first. A
-    /// cache named by its version is labeled with it, so every label is a
+    /// cache is labeled with its version, or with the major release
+    /// `versionLabelsByCacheVersion` names for it, so every label is a
     /// version number and the union interface also spells each lifecycle one
     /// attribute can express as `@available(macOS, …)`. A version whose image
     /// carries no Swift metadata drops off the axis (see
@@ -205,7 +206,19 @@ enum SwiftEvolutionInterfaceBuilderTestSuite {
             "27.0",
         ] }
         
-        override class var cachePaths: [DyldSharedCachePath] { cacheVersions.map { .macOS($0) } }
+        /// AppleDB offers no macOS 11.0 or 12.0 image, only 11.0.1 and
+        /// 12.0.1, so those are the directories the volume has; the axis
+        /// still labels them 11.0 and 12.0, the versions an SDK's
+        /// `@available` attributes name.
+        class var versionLabelsByCacheVersion: [String: String] { ["11.0.1": "11.0", "12.0.1": "12.0"] }
+
+        override class var cachePaths: [DyldSharedCachePath] {
+            cacheVersions.map { cacheVersion in
+                let cachePath = DyldSharedCachePath.macOS(cacheVersion)
+                guard let versionLabel = versionLabelsByCacheVersion[cacheVersion] else { return cachePath }
+                return DyldSharedCachePath(rawValue: cachePath.rawValue, versionLabel: versionLabel)
+            }
+        }
         
         override class var cacheImageName: MachOImageName { .SwiftUI }
 
