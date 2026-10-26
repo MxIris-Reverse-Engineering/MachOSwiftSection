@@ -2622,9 +2622,9 @@
 - **关联文档**：提案 [0073-protocol-requirement-placement](../Evolutions/0073-protocol-requirement-placement.md)；review 记录 [2026-10-21-pr135-review-findings](../../Roadmaps/2026-10-21-pr135-review-findings.md)。
 - **对应版本**：未发版（`next`）。
 
-## （2026-10-26，节号落地时取）dump 与 interface 标出私有声明来自哪个源文件
+## 105. dump 与 interface 标出私有声明来自哪个源文件
 
-- **时间段**：2026-10-25 至 2026-10-26，分支 `feature/private-declaration-source-files`，尚未合入 `next`。
+- **时间段**：2026-10-25 至 2026-10-26，分支 `feature/private-declaration-source-files`，2026-10-26 直接合入 `next`（没有开 PR）。
 - **动机**：0063 把「反推 private discriminator 来自哪个源文件」搬进了本库（`SwiftPrivateDiscriminators`），但只有 RuntimeViewer 的 `Private` 标签在用。`swift-section dump` 只印 discriminator 原文，interface 连它也不印：SymbolTestsCore 里两个文件各声明的 `private struct PrivateDoppelganger`，在 interface 里印出来一模一样。
 - **关键决策**：
   - ① 新开关 `--emit-private-source-files`，两个子命令同名，请求字段 `emitsPrivateDeclarationSourceFiles`，默认关闭。
@@ -2649,8 +2649,8 @@
   - 渲染 A/B（开关关闭）：基线是 `next@122cfd2f` 的 `git archive` 沙盒，两侧共用一份 `Package.resolved`、各编一个 release CLI；存档 cache 26.6、15.5 与 iOS 15.5 / 18.5 / 26.5 模拟器 runtime，54 对 dump / interface 全部逐字节一致。进程内（MachOImage）那条腿没跑，理由在提案的决策日志里。
   - 插件：`claude-isolated plugin validate` 对插件目录与 marketplace（`--strict`）都通过；skill 里提到的每个 flag 都能在各子命令的 `--help` 里找到。Codex 的 `validate_plugin.py` 本机没有，没跑；插件清单没改，只改了 skill 正文。
   - 开发中自查出一处：interface 起先只在嵌套打印时排除父定义的 discriminator，违反 `marksNestedDefinitions` 的契约，已改为任何层级都比父定义（见提案决策日志）。
-- **关联文档**：提案 [private-declaration-source-files](../Evolutions/draft-private-declaration-source-files.md)；[Modules/SwiftPrivateDiscriminators.md](Modules/SwiftPrivateDiscriminators.md)。
-- **对应版本**：未发版。
+- **关联文档**：提案 [0074-private-declaration-source-files](../Evolutions/0074-private-declaration-source-files.md)；[Modules/SwiftPrivateDiscriminators.md](Modules/SwiftPrivateDiscriminators.md)。
+- **对应版本**：未发版（`next`）。
 
 ## 维护约定
 

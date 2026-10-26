@@ -1,11 +1,11 @@
-# Draft - dump 与 interface 标出私有声明来自哪个源文件
+# 0074 - dump 与 interface 标出私有声明来自哪个源文件
 
-- **状态**: In Progress
+- **状态**: Implemented
 - **创建日期**: 2026-10-25
-- **最后更新**: 2026-10-25
+- **最后更新**: 2026-10-26
 - **所属愿景**: 无
 - **关联提案**: [0063](0063-private-declarations.md)（名字经过的私有声明与按镜像反推源文件；当时明确不接 `swift-section`）、[0062](0062-local-type-context-names.md)（局部类型声明上方那行注释，本案的注释与它并排）
-- **实现分支 / PR**: `feature/private-declaration-source-files`（worktree `.worktrees/MachOSwiftSection-PrivateDeclarationSourceFiles`，基于 `next`）
+- **实现分支 / PR**: `feature/private-declaration-source-files`（直接合入 `next`，没有开 PR）
 - **配套文档**: [Modules/SwiftPrivateDiscriminators.md](../Internal/Modules/SwiftPrivateDiscriminators.md)
 
 ## 摘要
@@ -78,7 +78,7 @@ struct PrivateDoppelganger {
 - snapshot、diff、evolution 和 `objc` 子命令都不动；diff 的声明头本来就带 discriminator。
 - demangle 预设不动，interface header 也不加还原统计。
 
-**不在这次范围内**：提高还原率；第 5 步按 discriminator 分开搜索、本可并行，release 量完再决定要不要做；RuntimeViewer 在它的接口视图里接这行注释。
+**不在这次范围内**：提高还原率；第 5 步按 discriminator 分开搜索、本可并行，release 量完后决定留作后续（见「实测」与决策日志）；RuntimeViewer 在它的接口视图里接这行注释。
 
 **测试**：
 
@@ -137,3 +137,4 @@ struct PrivateDoppelganger {
 | 2026-10-26 | A/B 跑缓存与模拟器两条腿，不跑进程内那条 | 开关关闭时三种读取路径走的是同一段打印代码，新增的只是一处「没有 provider 就返回」的判断；进程内那条要两侧各编一次 release 测试包、各跑十几分钟。缓存与模拟器两条腿覆盖 dump 与 interface 的全部打印路径 |
 | 2026-10-26 | interface 的进度行照旧走 stdout | `interface` 的 CLI 一直把进度行打到 stdout（「Preparing to build Swift interface...」也在那里），新提示跟着走；`dump` 的进度在 stderr，也是它的老规矩 |
 | 2026-10-26 | 实现完成，待合并 | 四个落地步骤都已提交推送。全量 `swift test --skip IntegrationTests` 2565 个测试通过、退出码 0；开关关闭时的渲染 A/B 54 对全部逐字节一致；量测见「实测」。文档：三份模块参考、README、AGENTS.md 的模块说明、插件 skill 与演进账本已同步；不另写使用指南或实现说明（没有签名里看不出的调用契约，实现取舍都在模块参考里），术语表没有新词 |
+| 2026-10-26 | 合入 `next`，编号 0074；状态 → Implemented | 用户看过后批准直接合并、不开 PR。开工以来 `next` 没有新提交，合并后的 tree 就是验证过的那棵，沿用上一行的全量测试与 A/B 结果，没有重跑。没做的两项留作后续：第 5 步并行化，RuntimeViewer 在接口视图里接这行注释。文档判断同上一行：不另写使用指南或实现说明，术语表没有新词 |
