@@ -617,7 +617,7 @@ public final class SymbolIndexStore: @unchecked Sendable {
         // whose names are decoded per entry from the file) collects through
         // the generic leg below, whose Swift names are appended once into
         // the table's private byte buffer.
-        let machOImage = machO as? MachOImage
+        let machOImage = machO.asMachOImage
         let mappedSymbols64 = machOImage?.symbols64
         let mappedSymbols32 = machOImage?.symbols32
         let mappedStringTableBase = mappedSymbols64.map { UnsafeRawPointer($0.stringBase) } ?? mappedSymbols32.map { UnsafeRawPointer($0.stringBase) }
@@ -773,6 +773,10 @@ public final class SymbolIndexStore: @unchecked Sendable {
             }
             exportFacts.exportedRowBitmap[wordIndex] |= 1 << UInt64(Int(row) & 63)
         }
+        // A trie offset counts from the image's header; a file's index offsets
+        // count from its start offset (a dyld cache image's, from the shared
+        // region). Asked once — the reader is the same for every entry.
+        let exportedSymbolOffsetBase = machO.asMachOFile == nil ? 0 : machO.startOffset
         for exportedSymbol in machO.exportedSymbols {
             sawAnyExportedSymbol = true
             let name = exportedSymbol.name
@@ -780,10 +784,7 @@ public final class SymbolIndexStore: @unchecked Sendable {
             if let existingRow = tableBuilder.existingRow(forName: name) {
                 recordExportedRow(existingRow)
             } else if let rawOffset = exportedSymbol.offset {
-                var canonicalOffset = rawOffset
-                if machO is MachOFile {
-                    canonicalOffset += machO.startOffset
-                }
+                let canonicalOffset = rawOffset + exportedSymbolOffsetBase
                 // The `existingRow` guard above means this name has no row
                 // yet, so `canonicalRow` always mints one and the duplicate
                 // check is never needed here. Export-trie names are decoded

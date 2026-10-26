@@ -213,6 +213,13 @@ Detail: [Modules/MachOSymbols.md](Documentations/Internal/Modules/MachOSymbols.m
 
 </important>
 
+<important if="you need to know whether a reader is a MachOImage or a MachOFile">
+
+- **Ask `asMachOImage` / `asMachOFile` / `underlyingReader` (MachOKitExtensions); never cast to `MachOImage` / `MachOFile` or `MachOContext<MachOImage>`.** A host's wrapper type (MachOKitUI's `MachOImageSource`) declares `MachOReaderWrapper` and answers for the reader beneath it; a cast cannot see through it. The cast on the in-process opaque path trapped (`Negative value is not representable`); the other 37 silently treated a wrapper as neither reader. `ReaderKindCastScanTests` fails on one.
+- A capability protocol is asked of the reader first and of `underlyingReader` second (`bindRebaseResolver`). A protocol that picks a strategy by type at compile time gives `MachOReaderWrapper` a default that forwards to `Base` (`FieldLayoutRenderable`), so a wrapper conforms with an empty body. [ReadingContextAbstraction.md](Documentations/Internal/ReadingContextAbstraction.md).
+
+</important>
+
 <important if="you are adding a per-image cache, evicting one, or handling memory pressure">
 
 - **Every per-image cache is a `SharedCache` with a `SharedCacheEvictionGroup`, held by composition** — never a hand-written lock plus `[key: value]` dictionary, never a subclass. The build closure goes at the call site; re-type the reader once through `swiftSectionReader` / `objcImplementationClassReader` (SwiftInspection) instead of an `as? MachOFile` / `as? MachOImage` split.

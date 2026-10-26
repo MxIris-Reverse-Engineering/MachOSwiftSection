@@ -361,6 +361,21 @@ Two deliberate decisions worth keeping in mind:
 - `ValueMetadataProtocol.descriptor(in:)` 等经绝对指针读取的字段，对 dyld shared cache 里的镜像，偏移口径不对：`fileOffset(of:)` 给的是 cache 文件内的偏移，读取却按 `unslidVirtualAddress - sharedRegionStart` 来理解。三种形式本来就一样，这次既没修好也没弄坏。
 - `EnumMetadataProtocol.payloadSize` 的返回类型是 `StoredSize?`，泛型读取按 9 字节的 `Optional<UInt64>` 去读，和 AGENTS.md 里的 Optional 读取陷阱同类。迁移之后已单独修复并验证，同时修了 `FunctionTypeMetadata.extendedFlags` 与 `SwiftClassObjectIndex` 读 class flags 的两处同类写法，见 [ProjectEvolutionLog.md](ProjectEvolutionLog.md)「Optional 读取多读一个 tag byte」一节。
 
+## 包装类型读取器（2026-10，提案 0075-wrapped-reader-recognition）
+
+宿主常把 `MachOFile` / `MachOImage` 包进自己的类型，再把读取协议的每个要求原样转发过去（MachOKitUI 的 `MachOFileSource` / `MachOImageSource`）。读本身没问题，问题出在「这是哪种读取器」：库里 38 处写的是 `as? MachOImage` / `as? MachOFile`，包装类型一处都进不去。崩的那处是 opaque 引用：经包装读进程内镜像时，描述符位置按偏移存进节点，落在地址更低的另一个镜像里就是负数，转 `UInt64` 时 trap。其余各处悄悄降级：符号按 `n_value` 原值入索引、成员地址从 shared region 起点算、ObjC 祖先链与依赖闭包不建，文件包装不转发 `MachOBindRebaseResolving` 时整份 interface 还会读到未解析的 chained fixup 原值而段错误。
+
+现在的规则：
+
+- **读取器种类只问三个取法**（MachOKitExtensions）：`asMachOImage`、`asMachOFile`、`underlyingReader`。宿主的类型声明 `MachOReaderWrapper`（`associatedtype Base`，`var base: Base`）之后，三者都问到它底下的读取器，包装可以套包装，`Base` 也可以是宿主自己的读取器类型。库里不再对 `MachOImage` / `MachOFile` 做类型转换，`ReaderKindCastScanTests` 扫 `Sources/`（`TestSupport` 除外）强制这一点。
+- **能力协议先问自己、再问底下的读取器**：`MachOContext.bindRebaseResolver` 先看包装类型自己是否遵循 `MachOBindRebaseResolving`，没有就用 `underlyingReader` 的；建 ObjC 索引用的 `objcImplementationClassReader` 直接取 `underlyingReader`，因为 `ObjCImplementationClassReading` 是 SwiftInspection 的内部协议，外面的包装类型遵循不了。
+- **按类型在编译期选策略的协议给包装类型默认实现**：`FieldLayoutRenderable` 对 `MachOReaderWrapper` 的每个静态 witness 都转给 `Base`，包装类型写一个空的遵循就能进打印器，按底下读取器的后端渲染。
+- **opaque 引用的生产方与消费方用同一个判据**：`SymbolicDemangler` 存进 `Node.index` 的值由 `context.runtimePointer(at:)` 决定，能给出本进程指针就存绝对地址，否则存偏移，偏移为负就当这个引用解析不了；读回来的 `Node+OpaqueType` 与 `OpaqueReferenceSpelling` 问读取器的 `asMachOImage`，而 `MachOContext.runtimePointer(at:)` 正是建在它上面。两边改其中一边，另一边就会把绝对地址当偏移读（或反过来）。
+- **契约**：包装类型在每个偏移读到的内容与底下的读取器相同，`identifier` 也相同。按镜像的缓存（符号索引、ObjC 索引、反混淆 memo）以 `identifier` 为键，包装类型和底下的读取器共用一份；没声明 `MachOReaderWrapper` 的包装类型会和底下的读取器共用缓存，却在按种类分支的地方算出不同的结果，所以 MachOKitUI 的绕过修复要求同一个镜像的 demangle 全部走裸 `MachOImage`。
+- **投影结果的读取器类型**：`DependentMemberProjection.project` 拆包后在 `MachOFile` / `MachOImage` 的 universe 里投影，结果的 `image` 是那个 universe 的读取器，不是调用方的类型，所以返回值把它抹成 `any MachOSwiftSectionRepresentableWithCache`，重写器经一个泛型辅助函数打开它。
+
+没动的：按类型静态约束的 API（`GenericSpecializer where MachO == MachOImage`、`ImageUniverse.dependencyClosure(root:)`、`DependencyClosure` 的两个约束扩展）不是运行时判断，持有包装类型的宿主自己传 `base`。
+
 ## Future Considerations
 
 1. **Async Support**: Add `AsyncReadingContext` for async reading operations

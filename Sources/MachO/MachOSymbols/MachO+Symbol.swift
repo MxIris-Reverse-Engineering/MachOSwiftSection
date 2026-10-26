@@ -16,7 +16,7 @@ extension MachORepresentable {
     /// it under (see `SymbolValueOffsetConverter`). Debug-map entries are
     /// left out.
     public var swiftSymbols: [MachOResolving.Symbol] {
-        let symbolValueOffsetConverter = (self as? MachOFile).map { SymbolValueOffsetConverter(for: $0) }
+        let symbolValueOffsetConverter = asMachOFile.map { SymbolValueOffsetConverter(for: $0) }
         return symbols.filter { $0.name.isSwiftSymbol && !$0.nlist.isDebuggingEntry }.map {
             .init(offset: symbolValueOffsetConverter?.offset(forSymbolValue: $0.offset) ?? $0.offset, name: $0.name)
         }
