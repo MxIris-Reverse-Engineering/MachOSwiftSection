@@ -2527,7 +2527,7 @@
     - 渲染 A/B 以 `b7be58ec` 为基线，90 对全部逐字节一致：两份归档 cache、四个 iOS 模拟器 runtime，加上 MachOImage 腿。
     - macOS 27.0 的 libswiftCore，interface 与 dump 都只多出两处 `: ~Swift.Copyable`。
 - **关联文档**：[0070-borrow-accessors-and-suppressed-associated-types](../Evolutions/0070-borrow-accessors-and-suppressed-associated-types.md)、[Modules/SwiftDeclaration.md](Modules/SwiftDeclaration.md)「访问器种类与关联类型的抑制」、[Modules/MachOSymbols.md](Modules/MachOSymbols.md)、`AgentPlugins/swift-section` 的 skill（新增一条读输出的提示）。
-- **对应版本**：未发版（`next`）。`AccessorKind` 新增 case 会让下游的穷举 `switch` 编不过，发版说明要写进 Breaking。
+- **对应版本**：0.24.0。`AccessorKind` 新增 case 会让下游的穷举 `switch` 编不过，写进了 0.24.0 Changelog 的 Breaking。
 
 ## 100. 迁到 swift-capstone 7.0
 
@@ -2549,8 +2549,8 @@
     解析失败；`swift package resolve --manifest-cache none` 一次即可。
 - **关联文档**：[0071-swift-capstone-7](../Evolutions/0071-swift-capstone-7.md)、
   [Modules/SwiftThunkAnalysis.md](Modules/SwiftThunkAnalysis.md)「Capstone v6 的解码边界」。
-- **对应版本**：未发版（`next`）。对外 API 不变，但依赖图里的 swift-capstone 从 6.x 换成 7.x：同时直接依赖
-  swift-capstone 6 的下游会解析失败，发版说明要写进 Breaking。
+- **对应版本**：0.24.0。对外 API 不变，但依赖图里的 swift-capstone 从 6.x 换成 7.x：同时直接依赖
+  swift-capstone 6 的下游会解析失败，写进了 0.24.0 Changelog 的 Breaking。
 
 ## 101. 交叉引用分析，第一批
 
@@ -2567,7 +2567,7 @@
 - **验证**：JHs-Mac-Studio-Ultra（macOS 27.2、Xcode 27.2、Swift 6.4.2），新 scratch，依赖全部从远端解析，fixture 链主检出现编的那份（`Tests/Projects` 无改动）。`CrossReferenceAnalysisTests` 20 个测试通过，其中 `callSitesMatchCapstone` 抽样 400 个 AppKit 函数与 Capstone 逐条对照调用与跳出函数的跳转，`wholeImageScansKeepNoFunctionTable` 改前红、改后绿。`SwiftThunkAnalysisTests` 82 个通过，含经 stub island 解析的离线 iOS 缓存测试。全量 `swift test --skip IntegrationTests` 跑了两次：改跳板识别后 2,458 个测试 / 471 个套件，最终代码 2,462 个 / 473 个，原始退出码都是 0，跳过的只有 3 个默认关闭的研究探针。release 基准：建分析器 0.02 秒，每个镜像都建整表 28 核 1.6–1.8 秒、4 线程 5.9 秒，`init` 的调用者（预筛出 2,759 个镜像）28 核 1.5 秒。渲染 A/B 未跑：这批不碰 demangle、打印、索引与读取栈，只换了 thunk 分析认跳板的实现，由它的测试覆盖。
 - **接入时的修补**：RuntimeViewer 第 3 步查 `-[NSObject description]` 的调用者一条都没有，追到缓存里的传统 `objc_msgSend` 发送——缓存构建器把读 selector 引用改写成了 `adrp` / `add` 出字符串地址，第一批没认，这些发送全被当成对 `objc_msgSend` 的普通调用。补认这种形态（回归测试改前红、改后绿），并补上预筛「不漏」的抽样测试（此前只测了「筛得够狠」）。另加 `functions(containing:)`，给一批结果起名不留函数表。
 - **关联文档**：[0072-cross-reference-analysis](../Evolutions/0072-cross-reference-analysis.md)、[Modules/CrossReferenceAnalysis.md](Modules/CrossReferenceAnalysis.md)、[Glossary.md](../Glossary.md)「cache-shared stub」、RuntimeViewer 的 [0056-cross-references](https://github.com/MxIris-Reverse-Engineering/RuntimeViewer/blob/next/Documentations/Evolutions/0056-cross-references.md)。
-- **对应版本**：未发版。
+- **对应版本**：0.24.0。
 
 ## 102. 交叉引用分析，第二批：起名、类引用、Swift 类型引用与宿主预读
 
@@ -2581,7 +2581,7 @@
 - **审查与修复（10-17）**：两批全部提交审一轮（[审查记录](../../Roadmaps/2026-10-17-cross-reference-analysis-review-findings.md)，不修或暂缓的登记在 [ReviewAdjudications](ReviewAdjudications.md) A62–A68）。修了：寄存器跟踪漏作废的写入（变址读写的基址、原子指令、成对寄存器、SVE / SME 里写通用寄存器的指令等，判断改成纯函数 `RegisterFile.registersWritten(by:)`，SwiftThunkAnalysis 的两个跟踪器同修）；预筛连同别的镜像改名再导出的名字一起比（缓存 12 个镜像 1,438 条，新增 `reexportedNames(ofSymbolsNamed:inImageAt:)`）；缓存外镜像取 dyld 的加载路径，安装名另建一张表；类型查询的 demangle 不再驻留。循环头与跳转表落点保留 `x19`–`x28`（A5）量过：错 0.02%–0.04% 的引用，精确做法多花 35%–60% 的扫描时间，用户定为已知局限（A68）。
 - **④ 宿主预先准备（10-18）**：`CodeReferenceIndex`（`referenceIndex(ofImageAt:)`）按目标分组、名字只存一份、偏移存 32 位，只留查调用者与类型引用会读的引用，AppKit 21 MiB 对整表 67 MiB，回答与过滤扫描逐条相同。第一次查询还要现读的几样也交给宿主提前读：`prepareNames(inImageAt:)`（AppKit 0.29 秒的三个起名来源、类名与类型符号）、`preparePrefilters()`（链接关系与改名再导出表，只用调用线程），`approximateByteCount(ofImageDataAt:)` 计入宿主的预算，`releaseImageData(exceptForImagesAt:)` 只放掉别的镜像的。能不读的不读：按 key 找类型只算同名类型的 key，判断导出与否在导出表里按名字查。验证：`CodeReferenceIndexTests` 6 个、`PreparedImageDataTests` 5 个、`SwiftTypeReferenceTests` 新增 4 个。
 - **关联文档**：[0072-cross-reference-analysis](../Evolutions/0072-cross-reference-analysis.md)、[Modules/CrossReferenceAnalysis.md](Modules/CrossReferenceAnalysis.md)、RuntimeViewer 的 [0056-cross-references](https://github.com/MxIris-Reverse-Engineering/RuntimeViewer/blob/next/Documentations/Evolutions/0056-cross-references.md)。
-- **对应版本**：未发版。
+- **对应版本**：0.24.0。
 
 ## 103. builtin 叶子布局以二进制为准
 
@@ -2599,7 +2599,7 @@
   - 用 0.23.0 的 CLI 与本分支的 CLI dump 宿主缓存里的 libswiftCore 与 libswift_Concurrency（`--emit-type-layout`），逐条比对布局注释：变化全部落在 builtin 叶子字段上——libswiftCore 多出 80 条注释、libswift_Concurrency 多出 6 条，数值改变的只有 `Bool._value`、`UnsafeContinuation.context` 与包着它的 `AsyncThrowingStream._Storage.State.continuation`。
   - 渲染 A/B 未跑：这批只改 SwiftLayout 的叶子布局，不碰 demangle、打印、索引与读取栈。
 - **关联文档**：[StaticLayoutEngine.md](StaticLayoutEngine.md)「叶子 XI 精确建模」与 builtin 记录的两条实测发现、[Modules/SwiftLayout.md](Modules/SwiftLayout.md)「已知布局表与 builtin 段」。
-- **对应版本**：未发版（`next`）。
+- **对应版本**：0.24.0。
 
 ## 104. 协议约束可选写在各自的关联类型上
 
@@ -2620,7 +2620,7 @@
   - 渲染 A/B 没有按完整流程跑（这批不是大重构），改为上面五个宿主镜像的 interface 逐字节对比。
   - code review（2026-10-21，`/code-review high`，8 条发现）：只有第 1 条要改。`ProtocolRequirementPlacement.associatedTypes` 的文档注释和本节的关键决策 ① 把规则说宽了，实现本身与提案、编译器一致。两处改了措辞（PR 描述同改），fixture 加 `SubjectOnlyRequirements`，用测试钉住「conformance / superclass / layout 约束只看主语」：Swift 6.3.3 的 `-emit-module-interface` 对同一源码也把这条约束留在协议头上；在沙盒里临时让 superclass 约束也看右侧（旧措辞的说法），只有这条新用例变红，往返测试照样通过。其余 7 条登记在 [ReviewAdjudications.md](ReviewAdjudications.md) A69–A75。用 CI 的工具链（Xcode 26.6 / Swift 6.3.3，依赖从远端重新解析）在 PR 头和修正后各跑一次两个新套件与 `DumpAndInterfaceRequestTests`、`CommandRequestMappingTests`：都是 45 个测试全部通过，退出码 0，只跑了 debug。修正只动了测试和一段文档注释，全量测试没有重跑。
 - **关联文档**：提案 [0073-protocol-requirement-placement](../Evolutions/0073-protocol-requirement-placement.md)；review 记录 [2026-10-21-pr135-review-findings](../../Roadmaps/2026-10-21-pr135-review-findings.md)。
-- **对应版本**：未发版（`next`）。
+- **对应版本**：0.24.0。
 
 ## 105. dump 与 interface 标出私有声明来自哪个源文件
 
@@ -2650,7 +2650,7 @@
   - 插件：`claude-isolated plugin validate` 对插件目录与 marketplace（`--strict`）都通过；skill 里提到的每个 flag 都能在各子命令的 `--help` 里找到。Codex 的 `validate_plugin.py` 本机没有，没跑；插件清单没改，只改了 skill 正文。
   - 开发中自查出一处：interface 起先只在嵌套打印时排除父定义的 discriminator，违反 `marksNestedDefinitions` 的契约，已改为任何层级都比父定义（见提案决策日志）。
 - **关联文档**：提案 [0074-private-declaration-source-files](../Evolutions/0074-private-declaration-source-files.md)；[Modules/SwiftPrivateDiscriminators.md](Modules/SwiftPrivateDiscriminators.md)。
-- **对应版本**：未发版（`next`）。
+- **对应版本**：0.24.0。
 
 ## 106. 包装类型读取器的识别
 
@@ -2670,7 +2670,27 @@
   - 渲染 A/B（基线为 next `956b4e09` 加 MachOKitExtensions 1.2.0）：**96 对全部逐字节一致**——归档 cache 15.5 与 26.6 各 12 对，iOS 15.5 / 16.4 / 17.5 / 18.5 / 26.5 模拟器 48 对，MachOImage 腿 24 对。
   - 落地验证，在把 `next@7adbe83c` 合进功能分支后的最终 tree 上跑（JHs-Mac-Studio-Ultra，macOS 27.2，Xcode 26.6，只走远端依赖、MachOKitExtensions 1.3.0，fixture 按 CI 的方式 ad-hoc 签名）：全量 `swift test --skip IntegrationTests` 2574 个测试 / 493 个套件全部通过，原始退出码 0，`WrappedReaderDemanglingTests` 的两条都跑了。渲染 A/B 的基线是 `next@7adbe83c`，两侧依赖只有 MachOKitExtensions 不同（1.2.0 对 1.3.0）：**96 对全部逐字节一致**，各腿对数同上，MachOImage 腿是 macOS 27.2 的进程内镜像。
 - **关联文档**：提案 [0075-wrapped-reader-recognition](../Evolutions/0075-wrapped-reader-recognition.md)、[ReadingContextAbstraction.md](ReadingContextAbstraction.md)「包装类型读取器」一节、术语表 [reader wrapper](../Glossary.md)、`AGENTS.md` 新增的读取器种类规则。
-- **对应版本**：未发版（`next`）。0.23.0 发版时它还在等 MachOKitExtensions 1.3.0，没有跟上。依赖下限：MachOKitExtensions 1.3.0（2026-10-26 已发版）。下游：MachOKitUI 升级后给两个包装类型各加一行 `MachOReaderWrapper` 遵循，并删掉 `demangleTypeNode` 里的特判。
+- **对应版本**：0.24.0。0.23.0 发版时它还在等 MachOKitExtensions 1.3.0，没有跟上。依赖下限：MachOKitExtensions 1.3.0（2026-10-26 已发版）。下游：MachOKitUI 升级后给两个包装类型各加一行 `MachOReaderWrapper` 遵循，并删掉 `demangleTypeNode` 里的特判。
+
+## 107. 0.24.0 发版
+
+- **时间段**：2026-10-25 至 2026-10-26。
+- **动机**：用户要求审核 `next` 是否适合发版，看过审核结论后批准按建议发 0.24.0。自 0.23.0 以来 `next` 多了第 99–106 节的工作：borrow / mutate 访问器与关联类型上的 `~Copyable`、swift-capstone 7、交叉引用分析、builtin 叶子布局、协议约束的写法、私有声明的源文件注释，以及包装类型读取器的识别。审核期间 `next` 又合入第 105、106 节，验证随之补到最终代码上。
+- **关键决策**：
+  - **① 废弃的读取接口再推迟到 0.25.0**（用户按建议批准）。MachOKitUI 的 `main`（`from: "0.19.0"`，会自动解析到 0.24.0）与 swift-decompiler 的 `main`（跟本库 `next`）都还在调用，这一版删除会让它们下次解析时编不过。AGENTS.md、术语表、`ReadingContextAbstraction.md` 与文档索引改成 0.25.0，0057 的决策日志补记，Changelog 的 Breaking 写明新期限。
+  - **② evolution「看不见的版本」不进这一版**（用户按建议批准）。提案在 `next` 上是 Accepted，实现留在 `feature/evolution-unobservable-presence`；合进来会带来快照格式 8，要在合并结果上重新验证。
+  - **③ 包装类型读取器的修复赶上了这一版**：MachOKitExtensions 1.3.0 在审核期间发版，第 106 节随之合入，依赖下限抬到 1.3.0。
+  - **④ Changelog 1,563 字符**，一句话一条，比普通版本 1,500 的预算多 63 个：三条破坏性变化（`AccessorKind` 的两个新 case、废弃期限顺延、swift-capstone 7.0.0 与 MachOKitExtensions 1.3.0 的下限）和五项新接口。
+  - **⑤ 更正 README 与 AGENTS.md 的工具链要求**：`swift-tools-version` 自 0.22.0 起就是 6.3（`26c9012f`），两处一直写 Swift 6.2 / Xcode 26.0，改为 Swift 6.3 / Xcode 26.4。README 说 `MetadataReader` 别名只保留一个版本，四个版本后它还在，去掉了这个期限。
+  - **⑥ 版本号**：`Version.swift`、两个 `plugin.json` 改为 0.24.0，README 的安装示例同步，product 表补上 `CrossReferenceAnalysis` 和 0.23.0 起就漏掉的 `SwiftPrivateDiscriminators`；插件 skill 把 `interface --requirements-on-associated-types` 与 `--emit-private-source-files` 标为 0.24.0 起。
+- **落地模块**：`Sources/Executables/swift-section/Version.swift`、`AgentPlugins/swift-section/`（两个 `plugin.json`、skill）、`Changelogs/0.24.0.md`、`README.md`、`AGENTS.md`、本账本（第 99–106 节的对应版本、本节），以及术语表、`ReadingContextAbstraction.md`、文档索引与 0057（废弃期限）。
+- **验证**：都在 JHs-Mac-Studio-Ultra 上做，Xcode 26.6，只走远端依赖，源码是 `git archive` 导出的干净副本，scratch 是新的。
+  - 审核起点 `24c39555`：全量 `swift test --skip IntegrationTests` 2541 个测试 / 487 个套件，原始退出码 0，fixture 按 CI 的方式 ad-hoc 签名现编；照 `release.yml` 的 x86_64 与 arm64 release 构建都是 0 warning。渲染 A/B 以 0.23.0 为基线（`--skip-image-part`）：72 对里 18 对不同，外加手动比的 macOS 27.2 SwiftUI / SwiftUICore 4 对，差异全部是第 104 节修掉的三个协议头（`AccessibilityOptionalPropertiesKey` 与 `AccessibilityOptionalPropertyKey` 的 `?`、`PlatformViewRepresentable` 的 `<Self>`、`SliderTickContent` 的 `SliderTick<Self.Value>`）。
+  - 最终代码 `ecd7a521`：第 106 节落地时在同一 tree 上跑过全量，2574 个测试 / 493 个套件通过，A/B `7adbe83c` → `ecd7a521` 96 对一致（含 MachOImage 腿）。本节补跑了照 `release.yml` 的双架构 release 构建，编译 warning 为 0，两个二进制都能运行；又跑了 A/B `24c39555` → `ecd7a521`，72 对全部逐字节一致。依赖解析到 MachOKit 0.54.101、MachOKitExtensions 1.3.0、MachOObjCSection 0.8.200、swift-demangling 0.7.2、swift-semantic-string 0.5.0、swift-capstone 7.0.0、capstone 6.0.101、swift-objc-dump 0.8.101。
+  - 发版提交：arm64 release 构建的 `--version` 输出 0.24.0；skill 写到的每个 flag 都在各子命令的 `--help` 里；`claude-isolated plugin validate` 对插件目录与 marketplace（`--strict`）都通过。
+  - 本机没有 `release.yml` 用的 Xcode 26.4，以 26.6 代替。
+- **关联文档**：[Changelogs/0.24.0.md](../../Changelogs/0.24.0.md)。
+- **对应版本**：0.24.0。
 
 ## 维护约定
 

@@ -33,7 +33,7 @@ Add the package to your `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/MxIris-Reverse-Engineering/MachOSwiftSection", from: "0.23.0"),
+    .package(url: "https://github.com/MxIris-Reverse-Engineering/MachOSwiftSection", from: "0.24.0"),
 ],
 targets: [
     .target(
@@ -68,6 +68,7 @@ Declare every product whose module you import. In particular, `MachOSwiftSection
 | `SwiftInspection` | Symbol attribution and runtime metadata analysis — `SymbolicDemangler` (formerly `MetadataReader`), `EnumLayoutCalculator`, `ClassHierarchyDumper`. |
 | `SwiftLayout` | The static layout engine: field offsets, type layouts and enum layouts computed offline, the way the runtime computes them at load time. |
 | `SwiftThunkAnalysis` | Reads a type stored behind a metadata accessor thunk (availability-conditional opaque types, noncopyable fields) by evaluating its ARM64 code instead of running it, and ties a class's ObjC method table to its Swift members. |
+| `CrossReferenceAnalysis` | What each function of a loaded arm64 image calls and references — functions, Objective-C classes, Swift types — read from its machine code. `MachOImage` only. |
 | `SwiftSpecialization` | Runtime specialization of generic types (`GenericSpecializer`). |
 | `TypeIndexing` | Attributes `__C` types to their real module (`__C.NSString` → `Foundation.NSString`) through SDK module interfaces and APINotes. macOS only. |
 
@@ -80,6 +81,7 @@ Declare every product whose module you import. In particular, `MachOSwiftSection
 | `SwiftDiffing` | ABI comparison over the indexed model, with no Mach-O needed: `ABIDiffer`, `ABIEvolution`, `ABISnapshot`. |
 | `SwiftDeclaration` | The declaration model shared by indexing, printing and diffing. |
 | `SwiftIndexing` | Builds the declaration model from an image. |
+| `SwiftPrivateDiscriminators` | Recovers the source file a private discriminator was derived from, by hashing candidate file names. |
 | `SwiftPrinting` | Renders the declaration model as Swift source. |
 | `SwiftAttributeInference` | Infers source-level attributes (`@propertyWrapper`, `@resultBuilder`, `@dynamicMemberLookup`, `@objc`, …). |
 | `SwiftDeclarationRendering` | The comment rendering shared by dump and interface (field layouts, opaque types, specialized metadata). |

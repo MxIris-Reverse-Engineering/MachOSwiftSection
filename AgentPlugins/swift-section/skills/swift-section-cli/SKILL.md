@@ -44,7 +44,7 @@ Flags added comparatively late, and therefore worth checking: `--emit-header`,
 `--supplementary-apinotes`, from 0.20.0 `--dependency-search-path`,
 `--infer-objc-overrides` and the whole `objc` subcommand group, from 0.22.0
 `evolution --emit-available` / `--platform`, from 0.23.0 `interface --module-selectors`
-/ `dump --enable-module-selectors`, and after 0.23.0
+/ `dump --enable-module-selectors`, and from 0.24.0
 `interface --requirements-on-associated-types` and `--emit-private-source-files`. When one is
 missing, say so rather than silently producing a weaker answer — the alternative is usually
 "upgrade (`brew upgrade swift-section`), or do without that annotation".
