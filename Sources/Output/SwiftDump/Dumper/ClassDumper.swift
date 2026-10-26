@@ -219,6 +219,18 @@ package struct ClassDumper<MachO: MachOFieldLayoutRenderable>: TypedDumper {
 
     package var body: SemanticString {
         get async throws {
+            // Same-named private types share the stripped name bucket; the
+            // context node picks this type's own sub-bucket (issue #115).
+            // A context that cannot be demangled falls back to the name-only
+            // (merged) lookup rather than dropping members. It is also the
+            // name whose private declarations the class's source-file comment
+            // names, and its members' leave out (evolution proposal
+            // `private-declaration-source-files`).
+            let contextNode = try? SymbolicDemangler.demangleContext(for: .type(.class(dumped.descriptor)), in: machO.context)
+            let contextNodes: [Node] = contextNode.map { [$0] } ?? []
+
+            configuration.privateDeclarationSourceFileComments(for: contextNodes, indentationLevel: 0)
+
             // The ObjC runtime name the source chose (evolution proposal
             // `objc-custom-class-name`), as the attribute the interface prints.
             if let customObjCClassName = SwiftClassObjectIndex.shared.customObjCClassName(forClassDescriptorOffset: dumped.descriptor.offset, in: machO) {
@@ -252,26 +264,29 @@ package struct ClassDumper<MachO: MachOFieldLayoutRenderable>: TypedDumper {
             for (offset, descriptor) in dumped.methodDescriptors.offsetEnumerated() {
                 BreakLine()
 
-                if configuration.printVTableOffset, let vtableBaseOffset {
-                    configuration.vtableOffsetComment(slotOffset: vtableBaseOffset + offset.index)
-                }
-
-                if configuration.printMemberAddress, let implementationOffset = descriptor.implementationOffset {
-                    configuration.memberAddressComment(offset: implementationOffset, addressString: machO.addressString(forOffset: implementationOffset))
-                }
-
                 // Attribution, in order of evidence: the descriptor's own `Tq`
                 // symbol (one per member, at the descriptor's own address, so
                 // identical code folding cannot reach it), then the symbols at
                 // the implementation address (not invertible under folding —
                 // the fallback, not the source of truth). Pre-resolved before
                 // any keyword is emitted because the distributed check reads
-                // the node.
+                // the node, and before the comments because the source-file
+                // one leads them.
                 let implementationSymbols = descriptor.implementationSymbols(in: machO)
                 let attributedMethodNode = descriptor.attributedMemberNode(in: machO)
                 var resolvedMethodNode = attributedMethodNode
                 if resolvedMethodNode == nil, let implementationSymbols {
                     resolvedMethodNode = try? await validNode(for: implementationSymbols, visitedNodes: methodVisitedNodes)
+                }
+
+                configuration.privateDeclarationSourceFileComments(for: resolvedMethodNode.map { [$0] } ?? [], enclosedBy: contextNodes, indentationLevel: configuration.indentation)
+
+                if configuration.printVTableOffset, let vtableBaseOffset {
+                    configuration.vtableOffsetComment(slotOffset: vtableBaseOffset + offset.index)
+                }
+
+                if configuration.printMemberAddress, let implementationOffset = descriptor.implementationOffset {
+                    configuration.memberAddressComment(offset: implementationOffset, addressString: machO.addressString(forOffset: implementationOffset))
                 }
 
                 if descriptor.implementation.isNull {
@@ -398,12 +413,6 @@ package struct ClassDumper<MachO: MachOFieldLayoutRenderable>: TypedDumper {
             // which identifies it without demangling.
             let overrideImplementationSymbolNames = configuration.printExportStatus ? collectOverrideImplementationSymbolNames() : []
 
-            // Same-named private types share the stripped name bucket; the
-            // context node picks this type's own sub-bucket (issue #115).
-            // A context that cannot be demangled falls back to the name-only
-            // (merged) lookup rather than dropping members.
-            let contextNode = try? SymbolicDemangler.demangleContext(for: .type(.class(dumped.descriptor)), in: machO.context)
-
             // `override` of ObjC-inherited members (evolution proposal
             // `objc-ancestor-override-recovery`): the class's own ObjC method
             // table against its ancestors'. Nil for a class with no static
@@ -436,6 +445,8 @@ package struct ClassDumper<MachO: MachOFieldLayoutRenderable>: TypedDumper {
                     }
 
                     BreakLine()
+
+                    configuration.privateDeclarationSourceFileComments(for: [symbol.demangledNode], enclosedBy: contextNodes, indentationLevel: configuration.indentation)
 
                     if configuration.printMemberAddress {
                         configuration.memberAddressComment(offset: symbol.offset, addressString: machO.addressString(forOffset: symbol.offset))
@@ -482,6 +493,8 @@ package struct ClassDumper<MachO: MachOFieldLayoutRenderable>: TypedDumper {
                     }
 
                     BreakLine()
+
+                    configuration.privateDeclarationSourceFileComments(for: [symbol.demangledNode], enclosedBy: contextNodes, indentationLevel: configuration.indentation)
 
                     if configuration.printMemberAddress {
                         configuration.memberAddressComment(offset: symbol.offset, addressString: machO.addressString(forOffset: symbol.offset))

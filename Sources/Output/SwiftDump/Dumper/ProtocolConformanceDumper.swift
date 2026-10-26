@@ -60,6 +60,17 @@ package struct ProtocolConformanceDumper<MachO: MachOFieldLayoutRenderable>: Con
 
     package var body: SemanticString {
         get async throws {
+            // A conformance of a private type, or to a private protocol, is
+            // declared in that type's or protocol's file (evolution proposal
+            // `private-declaration-source-files`).
+            configuration.privateDeclarationSourceFileComments(
+                for: [
+                    (try? dumped.typeNode(in: machO.context)) ?? nil,
+                    (try? dumped.protocolNode(in: machO.context)) ?? nil,
+                ].compactMap { $0 },
+                indentationLevel: 0
+            )
+
             try await declaration
 
             let typeNameString = try await typeName.string

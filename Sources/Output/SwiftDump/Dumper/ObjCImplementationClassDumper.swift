@@ -284,6 +284,10 @@ package struct ObjCImplementationClassDumper<MachO: MachOFieldLayoutRenderable>:
                     InlineComment("Swift " + kind.description)
                 }
                 BreakLine()
+                // An Objective-C class reads no discriminator, so a private
+                // member of its `@implementation` names its own file
+                // (evolution proposal `private-declaration-source-files`).
+                configuration.privateDeclarationSourceFileComments(for: [symbol.demangledNode], indentationLevel: configuration.indentation)
                 if configuration.printMemberAddress {
                     configuration.memberAddressComment(offset: symbol.offset, addressString: machO.addressString(forOffset: symbol.offset))
                 }

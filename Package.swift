@@ -659,16 +659,19 @@ extension Target {
     /// Recovers the source files private discriminators were derived from:
     /// MD5 over candidate file names, drawn from an indexed image's names and
     /// a generated list of known file names (evolution proposal
-    /// `private-declarations`).
+    /// `private-declarations`). Its index is what tells dump and interface
+    /// those files (`private-declaration-source-files`).
     static let SwiftPrivateDiscriminators = Target.target(
         name: "SwiftPrivateDiscriminators",
         dependencies: [
             .product(.MachOKit),
             .product(.MachOObjCSection),
             .product(.Demangling),
+            .target(.MachOFoundation),
             .target(.MachOSwiftSection),
             .target(.SwiftInspection),
             .target(.SwiftDeclaration),
+            .target(.SwiftDeclarationRendering),
             .target(.SwiftIndexing),
         ],
         path: "Sources/Declaration/SwiftPrivateDiscriminators",
@@ -820,6 +823,7 @@ extension Target {
             .target(.SwiftPrinting),
             .target(.SwiftDiffing),
             .target(.SwiftInterface),
+            .target(.SwiftPrivateDiscriminators),
             .target(.TypeIndexing),
             .target(.Utilities),
             .product(.MachOKit),
@@ -1087,6 +1091,8 @@ extension Target {
             .target(.SwiftPrinting),
             .target(.SwiftSpecialization),
             .target(.SwiftInterface),
+            // The nested-definition contract with source-file comments on.
+            .target(.SwiftPrivateDiscriminators),
             .product(.MachOKitExtensions),
             .target(.MachOTestingSupport),
             .target(.MachOFixtureSupport),
@@ -1203,6 +1209,9 @@ extension Target {
         dependencies: [
             .target(.SwiftSectionKit),
             .target(.MachOFoundation),
+            // `LocalTypeFixture` and `ExclusiveImageAccess`, for the source
+            // files of a public type's private members.
+            .target(.MachOTestingSupport),
             .target(.SwiftDeclaration),
             .target(.SwiftDiffing),
             .target(.SwiftOutputTransformer),
@@ -1220,6 +1229,7 @@ extension Target {
             .target(.SwiftPrivateDiscriminators),
             .target(.SwiftInspection),
             .target(.SwiftDeclaration),
+            .target(.SwiftDeclarationRendering),
             .target(.SwiftIndexing),
             .target(.MachOFixtureSupport),
             .target(.MachOTestingSupport),

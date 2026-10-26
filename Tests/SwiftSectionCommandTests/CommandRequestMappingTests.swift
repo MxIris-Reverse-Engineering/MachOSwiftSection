@@ -70,6 +70,7 @@ struct CommandRequestMappingTests {
             "--emit-expanded-field-offsets",
             "--emit-member-addresses", "--emit-vtable-offsets", "--emit-pwt-addresses",
             "--emit-type-layout", "--emit-enum-layout", "--emit-export-status", "--emit-header",
+            "--emit-private-source-files",
             "--output-path", "out.txt",
         ]).makeRequest()
         #expect(request.sections == .only([.protocols, .types]))
@@ -81,6 +82,7 @@ struct CommandRequestMappingTests {
         #expect(request.emitsTypeLayout)
         #expect(request.emitsEnumLayout)
         #expect(request.emitsExportStatus)
+        #expect(request.emitsPrivateDeclarationSourceFiles)
         #expect(request.emitsHeader)
         #expect(request.destination == .file(path: "out.txt"))
     }
@@ -116,6 +118,7 @@ struct CommandRequestMappingTests {
             "--resolve-c-module-names", "--supplementary-apinotes", "/tmp/Extra.apinotes",
             "--emit-offset-comments", "--sort-members-by-offset", "--exported-only",
             "--infer-objc-overrides", "--module-selectors", "--requirements-on-associated-types", "--emit-header",
+            "--emit-private-source-files",
         ]).makeRequest()
         #expect(request.showsCImportedTypes)
         #expect(request.parsesOpaqueReturnTypes)
@@ -127,6 +130,7 @@ struct CommandRequestMappingTests {
         #expect(request.usesModuleSelectors)
         #expect(request.protocolRequirementPlacement == .associatedTypes)
         #expect(request.emitsHeader)
+        #expect(request.emitsPrivateDeclarationSourceFiles)
     }
 
     @Test("interface prints without module selectors unless asked")
