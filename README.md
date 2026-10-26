@@ -9,8 +9,8 @@ On top of that model it generates complete Swift interfaces, diffs a module's AB
 
 ## Requirements
 
-- Swift 6.2+
-- Xcode 26.0+
+- Swift 6.3+
+- Xcode 26.4+
 - macOS 10.15+ / iOS 13+ / tvOS 13+ / watchOS 6+ / visionOS 1+
 
 ## MachOSwiftSection Library
@@ -167,7 +167,7 @@ Generated interfaces reflect a wide range of Swift language features:
 
 - `EnumLayoutCalculator` — compute the on-disk layout of Swift enums, including single-payload and multi-payload (tagged and untagged) cases. Mirrors the ABI rules in `swift/ABI/Enum.h`.
 - `ClassHierarchyDumper` — walk a class's inheritance chain across Swift/ObjC boundaries (requires `@_spi(Internals) import SwiftInspection`, `MachOImage` only).
-- `SymbolicDemangler` — demangle types, symbols, context descriptors, and build generic signatures against a Mach-O (requires `@_spi(Internals) import SwiftInspection`). Named `MetadataReader` before 0.20.0; the old name remains as a deprecated alias for one release.
+- `SymbolicDemangler` — demangle types, symbols, context descriptors, and build generic signatures against a Mach-O (requires `@_spi(Internals) import SwiftInspection`). Named `MetadataReader` before 0.20.0; the old name remains as a deprecated alias.
 
 #### Run a swift-section Command from Code
 
@@ -207,7 +207,7 @@ You can get the swift-section CLI tool in three ways:
 
 - **GitHub Releases**: Download from [GitHub releases](https://github.com/MxIris-Reverse-Engineering/MachOSwiftSection/releases)
 - **Homebrew**: Install via `brew install swift-section`
-- **Build from Source**: Build with `./build-executable-product.sh` (requires Xcode 26.0 / Swift 6.2+ toolchain), or build and install in one step with `./install.sh [install-directory]` (defaults to `/usr/local/bin`, using `sudo` only when that directory is not writable)
+- **Build from Source**: Build with `./build-executable-product.sh` (requires Xcode 26.4 / Swift 6.3+ toolchain), or build and install in one step with `./install.sh [install-directory]` (defaults to `/usr/local/bin`, using `sudo` only when that directory is not writable)
 
 ### Usage
 

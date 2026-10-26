@@ -4,7 +4,7 @@ This file provides guidance to coding agents when working with code in this repo
 
 A Swift library that parses Mach-O files to recover Swift metadata — types, protocols, conformances, field layouts — without loading the binary into a process. It carries its own demangler (symbolic references included) and reimplements the Swift runtime's own reading logic. `swift-section` is the companion CLI.
 
-Requires Swift 6.2+ / Xcode 26.0+.
+Requires Swift 6.3+ / Xcode 26.4+.
 
 **Detail lives in `Documentations/`, not here.** This file carries what an agent gets wrong by default; everything else is one link away. Start at [`Documentations/README.md`](Documentations/README.md) — `Internal/Modules/` for per-module reference, `Internal/` for topic notes, `Evolutions/` for the proposal per change, `Internal/TaskReports/` for per-task retrospectives.
 
