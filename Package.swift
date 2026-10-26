@@ -154,7 +154,10 @@ extension Package.Dependency {
             // instance each time, which `DyldCache.fileIO` keys its mapping on.
             // 1.1.2 adds `FullDyldCache.cachedHost`, the system cache opened
             // once per process rather than once per dependency locator.
-            from: "1.1.2",
+            // 1.3.0 adds `MachOReaderWrapper`, through which every reader-kind
+            // question (`asMachOImage`, `asMachOFile`, `underlyingReader`)
+            // sees through a host's wrapper type.
+            from: "1.3.0",
         ),
     )
 
@@ -228,7 +231,7 @@ extension Package.Dependency {
         ),
         remote: .package(
             url: "https://github.com/MxIris-Reverse-Engineering/swift-capstone",
-            from: "6.0.1",
+            from: "7.0.0",
             traits: capstoneTraits,
         ),
     )
@@ -326,6 +329,14 @@ extension Target {
             .product(name: "AsyncAlgorithms", package: "swift-async-algorithms"),
         ],
         path: "Sources/Support/Utilities",
+    )
+
+    /// Hand decoding of the few A64 encodings the analyses read, and the
+    /// trampoline shapes the linker and the dyld cache builder emit. Shared
+    /// by `SwiftThunkAnalysis` and `CrossReferenceAnalysis`.
+    static let ARM64InstructionDecoding = Target.target(
+        name: "ARM64InstructionDecoding",
+        path: "Sources/Support/ARM64InstructionDecoding",
     )
 
     static let MachOCaches = Target.target(
@@ -551,12 +562,31 @@ extension Target {
             .product(.Capstone),
             .product(name: "FoundationToolbox", package: "FrameworkToolbox"),
             .target(.Utilities),
+            .target(.ARM64InstructionDecoding),
             .target(.MachOCaches),
             .target(.MachOFoundation),
             .target(.MachOSwiftSection),
             .target(.SwiftInspection),
         ],
         path: "Sources/Analysis/SwiftThunkAnalysis",
+    )
+
+    /// What each function of an image references, read from its arm64
+    /// machine code in process (evolution proposal `cross-reference-analysis`).
+    static let CrossReferenceAnalysis = Target.target(
+        name: "CrossReferenceAnalysis",
+        dependencies: [
+            .product(.MachOKit),
+            .product(.MachOObjCSection),
+            .product(.Demangling),
+            .target(.ARM64InstructionDecoding),
+            .target(.MachOFoundation),
+            .target(.MachOSwiftSection),
+            // `SymbolicDemangler`: a type's name from its descriptor when no
+            // symbol spells it.
+            .target(.SwiftInspection),
+        ],
+        path: "Sources/Analysis/CrossReferenceAnalysis",
     )
 
     static let SwiftDump = Target.target(
@@ -632,16 +662,19 @@ extension Target {
     /// Recovers the source files private discriminators were derived from:
     /// MD5 over candidate file names, drawn from an indexed image's names and
     /// a generated list of known file names (evolution proposal
-    /// `private-declarations`).
+    /// `private-declarations`). Its index is what tells dump and interface
+    /// those files (`private-declaration-source-files`).
     static let SwiftPrivateDiscriminators = Target.target(
         name: "SwiftPrivateDiscriminators",
         dependencies: [
             .product(.MachOKit),
             .product(.MachOObjCSection),
             .product(.Demangling),
+            .target(.MachOFoundation),
             .target(.MachOSwiftSection),
             .target(.SwiftInspection),
             .target(.SwiftDeclaration),
+            .target(.SwiftDeclarationRendering),
             .target(.SwiftIndexing),
         ],
         path: "Sources/Declaration/SwiftPrivateDiscriminators",
@@ -793,6 +826,7 @@ extension Target {
             .target(.SwiftPrinting),
             .target(.SwiftDiffing),
             .target(.SwiftInterface),
+            .target(.SwiftPrivateDiscriminators),
             .target(.TypeIndexing),
             .target(.Utilities),
             .product(.MachOKit),
@@ -1060,6 +1094,8 @@ extension Target {
             .target(.SwiftPrinting),
             .target(.SwiftSpecialization),
             .target(.SwiftInterface),
+            // The nested-definition contract with source-file comments on.
+            .target(.SwiftPrivateDiscriminators),
             .product(.MachOKitExtensions),
             .target(.MachOTestingSupport),
             .target(.MachOFixtureSupport),
@@ -1115,6 +1151,21 @@ extension Target {
         swiftSettings: testSettings,
     )
 
+    static let CrossReferenceAnalysisTests = Target.testTarget(
+        name: "CrossReferenceAnalysisTests",
+        dependencies: [
+            .target(.CrossReferenceAnalysis),
+            .target(.ARM64InstructionDecoding),
+            .product(.MachOKit),
+            .product(.Capstone),
+            .product(.Demangling),
+            .target(.MachOSwiftSection),
+            .target(.MachOReading),
+            .target(.SwiftInspection),
+        ],
+        swiftSettings: testSettings,
+    )
+
     static let SwiftAttributeInferenceTests = Target.testTarget(
         name: "SwiftAttributeInferenceTests",
         dependencies: [
@@ -1161,6 +1212,9 @@ extension Target {
         dependencies: [
             .target(.SwiftSectionKit),
             .target(.MachOFoundation),
+            // `LocalTypeFixture` and `ExclusiveImageAccess`, for the source
+            // files of a public type's private members.
+            .target(.MachOTestingSupport),
             .target(.SwiftDeclaration),
             .target(.SwiftDiffing),
             .target(.SwiftOutputTransformer),
@@ -1178,6 +1232,7 @@ extension Target {
             .target(.SwiftPrivateDiscriminators),
             .target(.SwiftInspection),
             .target(.SwiftDeclaration),
+            .target(.SwiftDeclarationRendering),
             .target(.SwiftIndexing),
             .target(.MachOFixtureSupport),
             .target(.MachOTestingSupport),
@@ -1277,6 +1332,7 @@ let package = Package(
         .library(.SwiftLayout),
         .library(.SwiftDeclarationRendering),
         .library(.SwiftThunkAnalysis),
+        .library(.CrossReferenceAnalysis),
         .library(.SwiftDump),
         .library(.SwiftDeclaration),
         .library(.SwiftAttributeInference),
@@ -1294,6 +1350,7 @@ let package = Package(
     targets: [
         // Library
         .Utilities,
+        .ARM64InstructionDecoding,
         .SwiftOutputTransformer,
         .MachOCaches,
         .MachODependencies,
@@ -1309,6 +1366,7 @@ let package = Package(
         .SwiftLayout,
         .SwiftDeclarationRendering,
         .SwiftThunkAnalysis,
+        .CrossReferenceAnalysis,
         .SwiftDump,
         .SwiftDeclaration,
         .SwiftAttributeInference,
@@ -1345,6 +1403,7 @@ let package = Package(
         .SwiftPrintingTests,
         .SwiftDeclarationRenderingTests,
         .SwiftThunkAnalysisTests,
+        .CrossReferenceAnalysisTests,
         .SwiftAttributeInferenceTests,
         .SwiftDiffingTests,
         .SwiftSectionCommandTests,

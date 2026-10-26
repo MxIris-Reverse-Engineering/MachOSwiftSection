@@ -26,20 +26,24 @@ struct SubscriptNodePrinter<Target: NodePrinterTarget>: MemberDeclarationNodePri
 
     let isClassMember: Bool
 
-    private let hasSetter: Bool
+    private let accessorKeywords: AccessorBlockKeywords
 
     private let indentation: Int
 
     static var declarationNodeKinds: Set<Node.Kind> { subscriptDeclarationNodeKinds }
 
-    init(isOverride: Bool, isClassMember: Bool = false, isFinal: Bool = false, hasSetter: Bool, indentation: Int, delegate: (any NodePrintableDelegate)? = nil) {
+    init(isOverride: Bool, isClassMember: Bool = false, isFinal: Bool = false, accessorKeywords: AccessorBlockKeywords, indentation: Int, delegate: (any NodePrintableDelegate)? = nil) {
         self.isOverride = isOverride
         self.isClassMember = isClassMember
         self.isFinal = isFinal
-        self.hasSetter = hasSetter
+        self.accessorKeywords = accessorKeywords
         self.indentation = indentation
         self.delegate = delegate
         context.usesModuleSelectors = delegate?.usesModuleSelectors ?? false
+    }
+
+    init(isOverride: Bool, isClassMember: Bool = false, isFinal: Bool = false, hasSetter: Bool, indentation: Int, delegate: (any NodePrintableDelegate)? = nil) {
+        self.init(isOverride: isOverride, isClassMember: isClassMember, isFinal: isFinal, accessorKeywords: .getter(hasSetter: hasSetter), indentation: indentation, delegate: delegate)
     }
 
     mutating func printDeclaration(_ node: Node) async throws {
@@ -55,6 +59,6 @@ struct SubscriptNodePrinter<Target: NodePrinterTarget>: MemberDeclarationNodePri
         }
         await printWhereClause(of: subscriptNode)
 
-        printAccessorBlock(hasSetter: hasSetter, indentation: indentation)
+        printAccessorBlock(accessorKeywords, indentation: indentation)
     }
 }

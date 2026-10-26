@@ -195,16 +195,16 @@ public final class ObjCAncestorResolverStore: @unchecked Sendable {
             ?? ObjCAncestorResolver(inProcessRoot: machOImage)
     }
 
-    /// The resolver for whichever reader kind `machO` is; `nil` for a reader
-    /// of another kind. (Named apart from ``resolver(for:)`` on purpose — a
-    /// same-labelled generic overload resolved to itself from inside the
-    /// cast and recursed.)
+    /// The resolver for whichever reader kind `machO` reads through — itself,
+    /// or the reader beneath its wrappers; `nil` for a reader of another kind.
+    /// (Named apart from ``resolver(for:)`` on purpose — a same-labelled
+    /// generic overload resolved to itself from inside the cast and recursed.)
     func resolver(forImage machO: some MachORepresentableWithCache) -> ObjCAncestorResolver? {
-        if let machOFile = machO as? MachOFile {
+        if let machOFile = machO.asMachOFile {
             let fileResolver: ObjCAncestorResolver = resolver(for: machOFile)
             return fileResolver
         }
-        if let machOImage = machO as? MachOImage {
+        if let machOImage = machO.asMachOImage {
             let imageResolver: ObjCAncestorResolver = resolver(for: machOImage)
             return imageResolver
         }

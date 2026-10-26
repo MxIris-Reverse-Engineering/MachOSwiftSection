@@ -79,3 +79,10 @@
 | [0067](0067-nested-field-offset-memoization.md) | 进程内嵌套字段偏移展开的记忆化与匿名上下文判别符缓存 | Implemented |
 | [0068](0068-nested-definition-regions.md) | 在父定义的打印结果里标出嵌套子定义的边界 | Implemented |
 | [0069](0069-offline-generic-specialization.md) | 离线泛型特化：不经 runtime 特化泛型类型并完整打印 | Implemented |
+| [0070](0070-borrow-accessors-and-suppressed-associated-types.md) | Swift 6.4 的 `borrow` / `mutate` 访问器与关联类型上的 `~Copyable` | Implemented |
+| [0071](0071-swift-capstone-7.md) | 迁到 swift-capstone 7.0：解码器改用 `Disassembler<AArch64>` | Implemented |
+| [0072](0072-cross-reference-analysis.md) | 交叉引用分析：从机器码读出每个函数引用了什么 | Implemented |
+| [0073](0073-protocol-requirement-placement.md) | 协议约束可选写在各自的关联类型上 | Implemented |
+| draft | [evolution 与 diff 区分「不存在」和「看不见」](draft-evolution-unobservable-presence.md) | Accepted |
+| [0074](0074-private-declaration-source-files.md) | dump 与 interface 标出私有声明来自哪个源文件 | Implemented |
+| [0075](0075-wrapped-reader-recognition.md) | 包装类型读取器的识别：库看穿宿主的包装，按底下的读取器回答 | Implemented |

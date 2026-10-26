@@ -74,6 +74,14 @@ extension SymbolicDemangler {
     package static func cacheExists(for machO: some MachOSwiftSectionRepresentableWithCache) -> Bool {
         SymbolicDemanglerCache.shared.contains(in: machO)
     }
+
+    /// Non-creating membership probe for the process-wide memo that
+    /// `demangleType(for:in:)` fills for an in-process context, which is
+    /// never evicted — test-support surface for the callers that must not
+    /// leave a tree in it (`CrossReferenceAnalyzer.swiftTypeKeys(in:)`).
+    package static func processScopedMemoHoldsType(for mangledName: MangledName) -> Bool {
+        SymbolicDemanglerCache.shared.processScopedMemoHoldsType(for: mangledName)
+    }
 }
 
 extension SymbolicDemangler {
@@ -415,6 +423,30 @@ extension SymbolicDemangler {
         }
     }
 
+    /// The `Node.index` an `opaqueTypeDescriptorSymbolicReference` carries for
+    /// the descriptor at `offset`.
+    ///
+    /// Wherever `context` is mapped into this process — `InProcessContext`, an
+    /// in-process `MachOImage`, or a reader wrapping one — the index is the
+    /// descriptor's absolute address, the Swift runtime's own scheme
+    /// (`(ContextDescriptor *)demangleNode->getIndex()`,
+    /// `stdlib/public/runtime/MetadataLookup.cpp`): a descriptor in another
+    /// loaded image is then the same kind of value, and the rewriter reads the
+    /// whole opaque-type chain through `InProcessContext`. Off-process the index
+    /// is the offset itself. Whoever reads the index back tells the two apart by
+    /// asking its reader the question `MachOContext.runtimePointer(at:)` is built
+    /// on, `asMachOImage`.
+    ///
+    /// `nil` when the offset can be no index: a negative one, which only a
+    /// reader of this process's memory that never says so produces — the
+    /// reference is left unresolved rather than trapping.
+    private static func opaqueTypeDescriptorReferenceIndex(forDescriptorAt offset: Int, in context: some ReadingContext) throws -> UInt64? {
+        if let runtimePointer = try context.runtimePointer(at: context.addressFromOffset(offset)) {
+            return UInt64(UInt(bitPattern: runtimePointer))
+        }
+        return UInt64(exactly: offset)
+    }
+
     private static func demangle(for mangledName: MangledName, kind: MangledNameKind, in context: some ReadingContext) throws -> Node {
         let stringValue = switch kind {
         case .type:
@@ -433,27 +465,11 @@ extension SymbolicDemangler {
                 switch kind {
                 case .context:
                     switch directness {
-                    // ABI convention for `opaqueTypeDescriptorSymbolicReference` Node.index:
-                    //   * MachOContext<MachOImage> path: ALWAYS the descriptor's *absolute*
-                    //     in-process pointer bit pattern (`machO.ptr + opaqueTypeDescriptor.offset`).
-                    //     This unifies in-image and cross-image refs at the Node level so the
-                    //     downstream rewriter can drive the entire opaque-type chain through
-                    //     `InProcessContext`, matching the Swift runtime's own scheme of
-                    //     `(ContextDescriptor *)demangleNode->getIndex()` (see
-                    //     swift/stdlib/public/runtime/MetadataLookup.cpp). Cross-image refs
-                    //     (e.g. an indirect cell whose pointer lands in another loaded image)
-                    //     work transparently because the InProcess pipeline only ever
-                    //     dereferences pointers — there is no per-image "file offset" scale.
-                    //   * MachOFile / other contexts: keep the legacy file-offset semantic.
                     case .direct:
                         if let contextWrapper = try RelativeDirectPointer<ContextDescriptorWrapper?>(relativeOffset: relativeOffset).resolve(at: baseAddress, in: context) {
                             if let opaqueTypeDescriptor = contextWrapper.opaqueTypeDescriptor {
-                                if let machOImageContext = context as? MachOContext<MachOImage> {
-                                    let absoluteAddress = machOImageContext.machO.ptr.bitPattern.int + opaqueTypeDescriptor.offset
-                                    result = .createTransient(kind: .opaqueTypeDescriptorSymbolicReference, index: UInt64(absoluteAddress))
-                                } else {
-                                    result = .createTransient(kind: .opaqueTypeDescriptorSymbolicReference, index: opaqueTypeDescriptor.offset.cast())
-                                }
+                                guard let referenceIndex = try opaqueTypeDescriptorReferenceIndex(forDescriptorAt: opaqueTypeDescriptor.offset, in: context) else { return nil }
+                                result = .createTransient(kind: .opaqueTypeDescriptorSymbolicReference, index: referenceIndex)
                             } else {
                                 result = try buildContextMangling(context: .element(contextWrapper), in: context)
                             }
@@ -462,12 +478,8 @@ extension SymbolicDemangler {
                         let relativePointer = RelativeIndirectSymbolOrElementPointer<ContextDescriptorWrapper?>(relativeOffset: relativeOffset)
                         if let resolvableElement = try relativePointer.resolve(at: baseAddress, in: context).asOptional {
                             if case .element(let element) = resolvableElement, let opaqueTypeDescriptor = element.opaqueTypeDescriptor {
-                                if let machOImageContext = context as? MachOContext<MachOImage> {
-                                    let absoluteAddress = machOImageContext.machO.ptr.bitPattern.int + opaqueTypeDescriptor.offset
-                                    result = .createTransient(kind: .opaqueTypeDescriptorSymbolicReference, index: UInt64(absoluteAddress))
-                                } else {
-                                    result = .createTransient(kind: .opaqueTypeDescriptorSymbolicReference, index: opaqueTypeDescriptor.offset.cast())
-                                }
+                                guard let referenceIndex = try opaqueTypeDescriptorReferenceIndex(forDescriptorAt: opaqueTypeDescriptor.offset, in: context) else { return nil }
+                                result = .createTransient(kind: .opaqueTypeDescriptorSymbolicReference, index: referenceIndex)
                             } else {
                                 result = try buildContextMangling(context: resolvableElement, in: context)
                             }
@@ -477,7 +489,8 @@ extension SymbolicDemangler {
                     // The symbolic reference points at a resolver function, but we can't
                     // execute code in the target process to resolve it from here.
                     let rawPointerOffset = try RelativeDirectRawPointer(relativeOffset: relativeOffset).resolveDirectAddress(at: context.addressFromOffset(offset), in: context)
-                    result = try .createTransient(kind: .accessorFunctionReference, index: context.offsetFromAddress(rawPointerOffset).cast())
+                    guard let referenceIndex = try UInt64(exactly: context.offsetFromAddress(rawPointerOffset)) else { return nil }
+                    result = .createTransient(kind: .accessorFunctionReference, index: referenceIndex)
                 case .uniqueExtendedExistentialTypeShape:
                     let extendedExistentialTypeShape = try RelativeDirectPointer<ExtendedExistentialTypeShape>(relativeOffset: relativeOffset).resolve(at: baseAddress, in: context)
                     let existentialType = try extendedExistentialTypeShape.existentialType(in: context)
@@ -1147,6 +1160,10 @@ private final class SymbolicDemanglerCache: @unchecked Sendable {
 
     fileprivate func contains(in machO: some MachORepresentableWithCache) -> Bool {
         cache.contains(in: machO)
+    }
+
+    fileprivate func processScopedMemoHoldsType(for mangledName: MangledName) -> Bool {
+        Self.processScopedStorage.nodeReferenceForMangledNameBox[MangledNameBox(mangledName)] != nil
     }
 
     /// `InProcessContext`'s discriminator lookup, memoized as text. Only an

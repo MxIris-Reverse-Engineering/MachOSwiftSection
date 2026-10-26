@@ -9,8 +9,8 @@ On top of that model it generates complete Swift interfaces, diffs a module's AB
 
 ## Requirements
 
-- Swift 6.2+
-- Xcode 26.0+
+- Swift 6.3+
+- Xcode 26.4+
 - macOS 10.15+ / iOS 13+ / tvOS 13+ / watchOS 6+ / visionOS 1+
 
 ## MachOSwiftSection Library
@@ -33,7 +33,7 @@ Add the package to your `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/MxIris-Reverse-Engineering/MachOSwiftSection", from: "0.23.0"),
+    .package(url: "https://github.com/MxIris-Reverse-Engineering/MachOSwiftSection", from: "0.24.0"),
 ],
 targets: [
     .target(
@@ -68,6 +68,7 @@ Declare every product whose module you import. In particular, `MachOSwiftSection
 | `SwiftInspection` | Symbol attribution and runtime metadata analysis — `SymbolicDemangler` (formerly `MetadataReader`), `EnumLayoutCalculator`, `ClassHierarchyDumper`. |
 | `SwiftLayout` | The static layout engine: field offsets, type layouts and enum layouts computed offline, the way the runtime computes them at load time. |
 | `SwiftThunkAnalysis` | Reads a type stored behind a metadata accessor thunk (availability-conditional opaque types, noncopyable fields) by evaluating its ARM64 code instead of running it, and ties a class's ObjC method table to its Swift members. |
+| `CrossReferenceAnalysis` | What each function of a loaded arm64 image calls and references — functions, Objective-C classes, Swift types — read from its machine code. `MachOImage` only. |
 | `SwiftSpecialization` | Runtime specialization of generic types (`GenericSpecializer`). |
 | `TypeIndexing` | Attributes `__C` types to their real module (`__C.NSString` → `Foundation.NSString`) through SDK module interfaces and APINotes. macOS only. |
 
@@ -80,6 +81,7 @@ Declare every product whose module you import. In particular, `MachOSwiftSection
 | `SwiftDiffing` | ABI comparison over the indexed model, with no Mach-O needed: `ABIDiffer`, `ABIEvolution`, `ABISnapshot`. |
 | `SwiftDeclaration` | The declaration model shared by indexing, printing and diffing. |
 | `SwiftIndexing` | Builds the declaration model from an image. |
+| `SwiftPrivateDiscriminators` | Recovers the source file a private discriminator was derived from, by hashing candidate file names. |
 | `SwiftPrinting` | Renders the declaration model as Swift source. |
 | `SwiftAttributeInference` | Infers source-level attributes (`@propertyWrapper`, `@resultBuilder`, `@dynamicMemberLookup`, `@objc`, …). |
 | `SwiftDeclarationRendering` | The comment rendering shared by dump and interface (field layouts, opaque types, specialized metadata). |
@@ -167,7 +169,7 @@ Generated interfaces reflect a wide range of Swift language features:
 
 - `EnumLayoutCalculator` — compute the on-disk layout of Swift enums, including single-payload and multi-payload (tagged and untagged) cases. Mirrors the ABI rules in `swift/ABI/Enum.h`.
 - `ClassHierarchyDumper` — walk a class's inheritance chain across Swift/ObjC boundaries (requires `@_spi(Internals) import SwiftInspection`, `MachOImage` only).
-- `SymbolicDemangler` — demangle types, symbols, context descriptors, and build generic signatures against a Mach-O (requires `@_spi(Internals) import SwiftInspection`). Named `MetadataReader` before 0.20.0; the old name remains as a deprecated alias for one release.
+- `SymbolicDemangler` — demangle types, symbols, context descriptors, and build generic signatures against a Mach-O (requires `@_spi(Internals) import SwiftInspection`). Named `MetadataReader` before 0.20.0; the old name remains as a deprecated alias.
 
 #### Run a swift-section Command from Code
 
@@ -207,7 +209,7 @@ You can get the swift-section CLI tool in three ways:
 
 - **GitHub Releases**: Download from [GitHub releases](https://github.com/MxIris-Reverse-Engineering/MachOSwiftSection/releases)
 - **Homebrew**: Install via `brew install swift-section`
-- **Build from Source**: Build with `./build-executable-product.sh` (requires Xcode 26.0 / Swift 6.2+ toolchain), or build and install in one step with `./install.sh [install-directory]` (defaults to `/usr/local/bin`, using `sudo` only when that directory is not writable)
+- **Build from Source**: Build with `./build-executable-product.sh` (requires Xcode 26.4 / Swift 6.3+ toolchain), or build and install in one step with `./install.sh [install-directory]` (defaults to `/usr/local/bin`, using `sudo` only when that directory is not writable)
 
 ### Usage
 
@@ -282,6 +284,20 @@ swift-section dump --emit-header /path/to/binary
 # any exported symbol of their own). Nothing is emitted when the image
 # carries no export information.
 swift-section dump --emit-export-status /path/to/binary
+```
+
+**Source files of private declarations:**
+```bash
+# Comment each declaration whose name carries a private discriminator
+# (`(CodingKeys in _B89E…)`) with the source file the discriminator was derived
+# from: `// CodingKeys is declared in Codable.swift`. The file is recovered by
+# hashing candidate file names, so a named file is certain; one no candidate
+# produces reads `could not be recovered`, with its discriminator. A member of
+# a private type repeats nothing; a public type's private member names its own
+# file. The image is indexed and every discriminator searched once before the
+# first declaration prints, which takes a while for a framework the size of
+# SwiftUI.
+swift-section dump --emit-private-source-files /path/to/binary
 ```
 
 **Addresses and ordering:**
@@ -457,9 +473,15 @@ swift-section interface --emit-export-status /path/to/binary
 # anything without export evidence (and every `override` / `@objc` member) is
 # kept, so an `-enable-testing` build keeps its `internal` declarations.
 swift-section interface --exported-only /path/to/binary
+
+# The source file each private declaration comes from, as `dump` prints it.
+# The interface prints no private discriminator anywhere else, so this is what
+# tells two same-named private types from different files apart; an
+# unrecovered file is named by its discriminator.
+swift-section interface --emit-private-source-files /path/to/binary
 ```
 
-All three flags default to off, keeping default output byte-identical.
+All four flags default to off, keeping default output byte-identical.
 
 **Working with dyld shared cache:**
 

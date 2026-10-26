@@ -329,8 +329,15 @@ final class StaticTypeLayoutResolver<MachO: MachOSwiftSectionRepresentableWithCa
         throw LayoutResolutionError.unknown(.unsupportedTypeKind(nodeKindName: "builtin:\(node.text ?? "?")"))
     }
 
-    /// Fallback layouts for the compiler's builtin primitives, used when the
-    /// image emits no `BuiltinTypeDescriptor` for them.
+    /// Fallback layouts for the compiler's builtin leaf types, used when the
+    /// origin image records none. The compiler records builtin leaves for the
+    /// standard library alone, so a libswiftCore field is answered from
+    /// libswiftCore's own `__swift5_builtin` section, and every other image
+    /// that declares builtin-typed fields (`_Concurrency`'s `Builtin.Job` and
+    /// `Builtin.Executor`, an actor's artificial storage field) is answered
+    /// here. Every entry libswiftCore also records matches its record, and the
+    /// rest match IRGen's lowering (`GenType.cpp`, `GenConcurrency.cpp`) —
+    /// `StandardLibraryLeafLayoutTests` checks both.
     private static func builtinPrimitiveLayout(forName builtinName: String) -> StaticTypeLayout? {
         switch builtinName {
         case "Builtin.NativeObject",
@@ -338,17 +345,37 @@ final class StaticTypeLayoutResolver<MachO: MachOSwiftSectionRepresentableWithCa
              "Builtin.UnknownObject":
             // Managed references: the saturated heap-object count.
             return .pointerSized
-        case "Builtin.RawPointer",
-             "Builtin.RawUnsafeContinuation":
+        case "Builtin.RawUnsafeContinuation",
+             "Builtin.Job":
+            // A task or job pointer — IRGen's `AlignedRawPointerTypeInfo`: never
+            // null and never below `LeastValidPointerValue`, so it saturates
+            // like a managed reference, unlike a raw pointer.
+            return .pointerSized
+        case "Builtin.RawPointer":
             // Raw pointers: null is the only invalid representation.
             return .rawPointer
+        case "Builtin.Executor":
+            // An executor reference: an identity word whose extra inhabitants
+            // are a heap object's, then an implementation word, trivially
+            // copyable (IRGen's `ExecutorTypeInfo`).
+            return StaticTypeLayout(
+                size: 16,
+                stride: 16,
+                alignmentMask: 7,
+                extraInhabitantCount: StaticTypeLayout.pointerSized.extraInhabitantCount,
+                isBitwiseTakable: true
+            )
         case "Builtin.Word":
             // A pointer-*sized* integer, not a pointer: every bit pattern is a
             // valid value, so no extra inhabitants.
             return .fixedWidthScalar(byteCount: 8)
-        case "Builtin.Int1", "Builtin.Int8":
+        case "Builtin.Int1":
+            // One byte holding `0` or `1` — `Swift.Bool`'s storage — so the
+            // other 254 patterns are extra inhabitants.
+            return .bool
+        case "Builtin.Int8":
             return .fixedWidthScalar(byteCount: 1)
-        case "Builtin.Int16":
+        case "Builtin.Int16", "Builtin.FPIEEE16":
             return .fixedWidthScalar(byteCount: 2)
         case "Builtin.Int32", "Builtin.FPIEEE32":
             return .fixedWidthScalar(byteCount: 4)
@@ -356,12 +383,15 @@ final class StaticTypeLayoutResolver<MachO: MachOSwiftSectionRepresentableWithCa
             return .fixedWidthScalar(byteCount: 8)
         case "Builtin.Int128":
             return .fixedWidthScalar(byteCount: 16)
-        case "Builtin.DefaultActorStorage":
-            // A default actor's opaque inline storage: NumWords_DefaultActor (12)
-            // machine words, aligned to twice the pointer alignment (16). Ported
-            // from the runtime reflection lowering's
-            // `getDefaultActorStorageTypeInfo()`; this image emits no builtin
-            // descriptor for it, so it is answered here.
+        case "Builtin.DefaultActorStorage",
+             "Builtin.NonDefaultDistributedActorStorage":
+            // An actor's opaque inline storage — a default actor's, or a
+            // distributed actor's with a custom executor:
+            // NumWords_DefaultActor / NumWords_NonDefaultDistributedActor (both
+            // 12) machine words, aligned to twice the pointer alignment (16).
+            // Ported from the runtime reflection lowering's
+            // `getDefaultActorStorageTypeInfo()` and IRGen's `GenType.cpp`; no
+            // image records either, so it is answered here.
             let defaultActorWordCount = 12
             let size = 8 * defaultActorWordCount
             return StaticTypeLayout(

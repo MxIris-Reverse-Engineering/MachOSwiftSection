@@ -70,7 +70,7 @@ package enum InProcessAccessorFunctionResolution {
         conformingTypeName: MangledName,
         in machO: some MachOSwiftSectionRepresentableWithCache
     ) -> Node {
-        guard let machOImage = machO as? MachOImage, resolved.contains(Node.Kind.accessorFunctionReference) else { return resolved }
+        guard let machOImage = machO.asMachOImage, resolved.contains(Node.Kind.accessorFunctionReference) else { return resolved }
         return witnessNode(witnessMangledName: witnessMangledName, conformingTypeName: conformingTypeName, in: machOImage) ?? resolved
     }
 }

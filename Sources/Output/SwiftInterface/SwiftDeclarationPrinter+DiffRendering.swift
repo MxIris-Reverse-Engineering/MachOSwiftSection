@@ -59,14 +59,26 @@ package extension SwiftDeclarationPrinter {
     /// Renders a protocol's declaration header (`protocol Foo : Bar where …`) with
     /// no opening brace, body, or trailing newline. Mirrors the header portion of
     /// `printProtocolDefinition`; keep in sync.
+    ///
+    /// Every requirement stays in the header whatever
+    /// `protocolRequirementPlacement` says: the diff compares a protocol's
+    /// `associatedtype` lines by name alone (`printAssociatedType`), so a
+    /// requirement moved onto one would print nowhere.
     @SemanticStringBuilder
     func printProtocolHeader(_ protocolDefinition: ProtocolDefinition, level: Int, displayParentName: Bool = false) async throws -> SemanticString {
         try protocolDefinition.index(in: machO)
 
         // This header-print operation's single wrapper materialization
         // (proposal 0002).
+        let dumpedProtocol = try protocolDefinition.materializedProtocol(in: machO.context)
         try await renderProtocolDeclarationHeader(
-            for: protocolDefinition.materializedProtocol(in: machO.context),
+            for: dumpedProtocol,
+            requirementPartition: ProtocolRequirementPartition(
+                requirements: dumpedProtocol.requirementInSignatures,
+                associatedTypeNames: [],
+                placement: .protocolWhereClause,
+                in: machO.context
+            ),
             displayParentName: displayParentName,
             leafNameNode: leafNameNode(of: protocolDefinition.protocolName.node.materialize())
         )

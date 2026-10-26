@@ -5,6 +5,7 @@ import MachOFixtureSupport
 @testable import MachOTestingSupport
 @_spi(Support) import SwiftIndexing
 import SwiftInspection
+import SwiftDeclarationRendering
 @testable @_spi(Support) import SwiftPrivateDiscriminators
 
 /// An image's private discriminators, recovered from candidates the image's
@@ -126,6 +127,34 @@ struct PrivateDiscriminatorSourceFileIndexTests {
         #expect(answers == Array(repeating: [Self.enabledDiscriminator: Self.enabledSourceFile], count: 2))
         #expect(readCount.value == 2)
         #expect(index.searchCount == 1)
+    }
+
+    /// A printer naming the file of every private declaration it shows
+    /// searches once for the whole image (evolution proposal
+    /// `private-declaration-source-files`), and every answer after that is a
+    /// lookup — the same answer a request of its own gets.
+    @Test func wholeImageIsSearchedOnceAndAnsweredFromThen() async throws {
+        let indexer = SwiftDeclarationIndexer(configuration: .init(), eventHandlers: [], in: try LocalTypeFixture.machOFile(.unstripped))
+        try await indexer.prepare()
+        let index = PrivateDiscriminatorSourceFileIndex(indexer: indexer, knownFileNames: [])
+
+        index.recoverSourceFiles(ofEveryDeclarationIn: indexer)
+        #expect(index.searchCount == 1)
+
+        #expect(index.sourceFile(forPrivateDiscriminator: Self.unstrippedFixtureDiscriminator) == PrivateDeclarationSourceFile(fileName: "Fixture.swift", moduleName: "LocalTypeFixtureUnstripped", isSynthesized: false))
+        #expect(index.sourceFile(forPrivateDiscriminator: try Self.hiddenValuesDiscriminator(in: indexer)) != nil)
+        #expect(index.searchCount == 1)
+    }
+
+    /// What the whole-image search found is what a printer is told, and what
+    /// it did not find reads as not recovered rather than being searched for
+    /// again.
+    @Test func providerAnswersWhatTheSearchFound() {
+        let index = PrivateDiscriminatorSourceFileIndex(imagePath: Self.swiftUICorePath, knownFileNames: []) { Self.swiftUICoreNames }
+        #expect(index.sourceFile(forPrivateDiscriminator: Self.enabledDiscriminator) == PrivateDeclarationSourceFile(fileName: "Enabled.swift", moduleName: "SwiftUICore", isSynthesized: false))
+        #expect(index.sourceFile(forPrivateDiscriminator: Self.unrecoverableDiscriminator) == nil)
+        #expect(index.sourceFile(forPrivateDiscriminator: Self.unrecoverableDiscriminator) == nil)
+        #expect(index.searchCount == 2)
     }
 
     /// The indexer's deinit is what releases the image's caches

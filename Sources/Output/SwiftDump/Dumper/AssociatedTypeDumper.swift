@@ -95,6 +95,17 @@ package struct AssociatedTypeDumper<MachO: MachOFieldLayoutRenderable>: Conforme
 
     package var body: SemanticString {
         get async throws {
+            // The associated types of a conformance of a private type, or to
+            // a private protocol, are declared in that type's or protocol's
+            // file (evolution proposal `private-declaration-source-files`).
+            configuration.privateDeclarationSourceFileComments(
+                for: [
+                    try? SymbolicDemangler.demangleType(for: dumped.conformingTypeName, in: machO.context),
+                    try? SymbolicDemangler.demangleType(for: dumped.protocolTypeName, in: machO.context),
+                ].compactMap { $0 },
+                indentationLevel: 0
+            )
+
             try await declaration
 
             Space()

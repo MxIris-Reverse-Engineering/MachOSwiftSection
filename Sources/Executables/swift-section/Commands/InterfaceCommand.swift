@@ -59,11 +59,17 @@ struct InterfaceCommand: AsyncParsableCommand {
     @Flag(help: "Annotate members none of whose symbols have an export-trie entry with a `not exported` comment")
     var emitExportStatus: Bool = false
 
+    @Flag(help: "Comment each declaration whose name carries a private discriminator with the source file the discriminator was derived from (recovered by hashing candidate file names), or say it could not be recovered, with the discriminator. Searches every discriminator of the image once after indexing, which takes a while for a framework the size of SwiftUI")
+    var emitPrivateSourceFiles: Bool = false
+
     @Flag(name: .customLong("exported-only"), help: "Print only the declarations the image exports: types and protocols whose descriptor symbol has an export-trie entry, extensions targeting them, and members with at least one exported symbol (dispatch-thunk and other derived forms included). `override` / `@objc` members and anything without export evidence are kept.")
     var exportedOnly: Bool = false
 
     @Flag(name: .customLong("module-selectors"), help: "Qualify names with SE-0491 module selectors (Swift::Int instead of Swift.Int), the way the Swift 6.4 compiler writes a .swiftinterface. Every type level carries the module that declared it (Swift::Duration.Foundation::TimeFormatStyle).")
     var moduleSelectors: Bool = false
+
+    @Flag(name: .customLong("requirements-on-associated-types"), help: "Print each protocol requirement about one of the protocol's own associated types on that associatedtype (associatedtype Element: Hashable, associatedtype Nested: Sequence where Self.Nested.Element: Hashable) instead of in the protocol's where clause, the way the compiler writes a .swiftinterface. The requirements are the same either way: the binary records the canonical requirement signature, not where the source wrote each one.")
+    var requirementsOnAssociatedTypes: Bool = false
 
     @Option(name: .shortAndLong, help: "The color scheme for the output.")
     var colorScheme: SemanticColorScheme = .none
@@ -82,10 +88,12 @@ struct InterfaceCommand: AsyncParsableCommand {
             emitsTypeLayout: emitTypeLayout,
             emitsEnumLayout: emitEnumLayout,
             emitsExportStatus: emitExportStatus,
+            emitsPrivateDeclarationSourceFiles: emitPrivateSourceFiles,
             printsExportedDeclarationsOnly: exportedOnly,
             memberSortOrder: sortMembersByOffset ? .byOffset : .byCategory,
             infersObjCOverridesFromSelectorNames: objcMemberOptions.infersOverridesFromSelectorNames,
             usesModuleSelectors: moduleSelectors,
+            protocolRequirementPlacement: requirementsOnAssociatedTypes ? .associatedTypes : .protocolWhereClause,
             emitsHeader: emitHeader,
             commentTransformers: try transformerOptions.buildTransformerConfiguration(),
             destination: outputPath.map { .file(path: $0) } ?? .output

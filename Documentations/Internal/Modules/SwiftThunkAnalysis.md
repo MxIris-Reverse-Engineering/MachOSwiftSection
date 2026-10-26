@@ -32,7 +32,7 @@ SwiftThunkAnalysis 干一件事：**不执行 thunk，把它算出来**。
 
 | 输入 | 状态 |
 |---|---|
-| dyld shared cache 里的镜像（macOS 14.7 – 26.6、iOS 设备 cache、iOS 27 模拟器 cache） | 完整解析。跨镜像调用是 rebase 地址或镜像间跳板（读槽的 stub / 算地址的 stub island），都跟得下去 |
+| dyld shared cache 里的镜像（macOS 14.7 – 26.6、iOS 设备 cache、iOS 27 模拟器 cache） | 完整解析。跨镜像调用是 rebase 地址或镜像间跳板（读槽的 stub / 算地址的 stub island），都跟得下去；跳板的形状由 `ARM64InstructionDecoding` 的 `ARM64Trampoline` 认，与 CrossReferenceAnalysis 共用一份（此前用 Capstone 加寄存器跟踪认，行为相同） |
 | 独立文件（第三方 app、iOS 26 及更早的模拟器运行时、即时编译的 fixture） | 完整解析，前提是给得出依赖搜索路径。跨镜像调用全是 GOT bind（只有名字），靠依赖镜像的 export trie + accessor 索引解名 |
 | 编译器合并的 `…MaTm` accessor | 跟进函数体求值（真正的 accessor 从 `x3` 传入，函数体只查缓存再 `blr x3`） |
 | 按名字引用的、属于**别的镜像**的 opaque 类型 | 重新 mangle 出描述符符号名、定位镜像、在那个镜像里展开 |
@@ -42,21 +42,25 @@ SwiftThunkAnalysis 干一件事：**不执行 thunk，把它算出来**。
 
 ### Capstone v6 的解码边界
 
-依赖使用 `from: "6.0.0"` 和 `AARCH64` trait。v6 的指令编号可能是底层操作码，
-但操作数已经采用显示别名的形状，例如 `cmp` 是 `SUBS` 编号加两个比较输入，
-`mov x0, sp` 是 `ADD` 编号加两个寄存器。解码器同时核对编号与 mnemonic，
-再按别名解释操作数；只有改类型名的迁移会静默丢失这些操作。
-普通 `orr` 没有复制语义，仍走未建模指令的寄存器作废通路。
+依赖 swift-capstone 7 的 `AARCH64` trait。解码器创建一个 `Disassembler<AArch64>`，在 `forEachInstruction`
+的闭包里把每条指令就地转成 `ThunkInstruction`：swift-capstone 借出的指令视图带不出闭包，Capstone 的任何
+东西都不会留到 `decode` 返回之后。
 
-立即数的 `lsl` 修饰必须计入数值，完整 `mov` 常量不得重复移位。
-v6 不再提供通用 `writeBack` 属性：后索引用 `isPostIndex`，前索引读 Capstone
-输出的 `]!` 标记。仅凭基址出现在写寄存器列表中不能判定写回，因为 `ldr x0, [x0]`
-也会写 `x0`。后索引的访问偏移为零，更新量不是本次访问的偏移。
-现有求值器仍保守处理写回的成对访存，未新增栈更新模拟。
+capstone v6 的指令编号可能是底层操作码，但操作数已经采用显示别名的形状，例如 `cmp` 是 `SUBS` 编号加两个
+比较输入，`mov x0, sp` 是 `ADD` 编号加两个寄存器。解码器按 swift-capstone 报告的别名（`alias` 为
+`.aliasMov`、`.aliasCmp`）决定怎么解释操作数；6.x 没有这个字段时靠「编号 + mnemonic」配对，做的是同一件
+事。普通 `orr` 没有复制语义，仍走未建模指令的寄存器作废通路。
+
+立即数的 `lsl` 修饰必须计入数值，完整 `mov` 常量不得重复移位。写回读 swift-capstone 的
+`writesBackBaseRegister`：只在基址寄存器被更新时为真（前索引 `[x1, #8]!`、后索引 `[x1], #8`）。它不是
+Capstone 自己的 `writeback` 标志——那个标志对任何绑定操作数都置位，`movk`、`cas` 也算。仅凭基址出现在写
+寄存器列表中同样不能判定写回，因为 `ldr x0, [x0]` 也会写 `x0`。后索引的访问偏移为零，更新量不是本次访问
+的偏移。现有求值器仍保守处理写回的成对访存，未新增栈更新模拟。
 
 这些契约由 `CapstoneThunkDecoderTests` 的真实指令编码固定；跨仓库方案沿用
 [已交付工作分支的嵌套字段提案](https://github.com/MxIris-Reverse-Engineering/swift-decompiler/blob/2e038982a8d19600d6cd082bcf42603f4f52115b/docs/evolutions/draft-nested-coordinate-field-extents.md)。
-本次 v6 迁移的授权与验证记录见[项目演进日志](../ProjectEvolutionLog.md#58-capstone-v6-解码与反编译器依赖对齐)。
+v6 迁移的授权与验证记录见[项目演进日志](../ProjectEvolutionLog.md#58-capstone-v6-解码与反编译器依赖对齐)，迁到
+swift-capstone 7 见[提案](../../Evolutions/0071-swift-capstone-7.md)。
 
 ### 三条故意的拒绝
 

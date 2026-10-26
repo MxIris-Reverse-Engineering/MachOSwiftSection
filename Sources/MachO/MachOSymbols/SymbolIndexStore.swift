@@ -617,7 +617,7 @@ public final class SymbolIndexStore: @unchecked Sendable {
         // whose names are decoded per entry from the file) collects through
         // the generic leg below, whose Swift names are appended once into
         // the table's private byte buffer.
-        let machOImage = machO as? MachOImage
+        let machOImage = machO.asMachOImage
         let mappedSymbols64 = machOImage?.symbols64
         let mappedSymbols32 = machOImage?.symbols32
         let mappedStringTableBase = mappedSymbols64.map { UnsafeRawPointer($0.stringBase) } ?? mappedSymbols32.map { UnsafeRawPointer($0.stringBase) }
@@ -773,6 +773,10 @@ public final class SymbolIndexStore: @unchecked Sendable {
             }
             exportFacts.exportedRowBitmap[wordIndex] |= 1 << UInt64(Int(row) & 63)
         }
+        // A trie offset counts from the image's header; a file's index offsets
+        // count from its start offset (a dyld cache image's, from the shared
+        // region). Asked once — the reader is the same for every entry.
+        let exportedSymbolOffsetBase = machO.asMachOFile == nil ? 0 : machO.startOffset
         for exportedSymbol in machO.exportedSymbols {
             sawAnyExportedSymbol = true
             let name = exportedSymbol.name
@@ -780,10 +784,7 @@ public final class SymbolIndexStore: @unchecked Sendable {
             if let existingRow = tableBuilder.existingRow(forName: name) {
                 recordExportedRow(existingRow)
             } else if let rawOffset = exportedSymbol.offset {
-                var canonicalOffset = rawOffset
-                if machO is MachOFile {
-                    canonicalOffset += machO.startOffset
-                }
+                let canonicalOffset = rawOffset + exportedSymbolOffsetBase
                 // The `existingRow` guard above means this name has no row
                 // yet, so `canonicalRow` always mints one and the duplicate
                 // check is never needed here. Export-trie names are decoded
@@ -957,8 +958,13 @@ public final class SymbolIndexStore: @unchecked Sendable {
             if let first {
                 return processMemberSymbol(symbolTableRow, node: first, memberKind: .variable(inExtension: traits.contains(.inExtension), isStatic: traits.contains(.isStatic), isStorage: traits.contains(.isStorage)), builder: &builder)
             }
+        // A SE-0507 `borrow` / `mutate` accessor is the property's read /
+        // write accessor when it declares one: such a property has no getter
+        // or setter symbol of its own, so skipping them dropped it whole.
         case .getter,
-             .setter:
+             .setter,
+             .borrowAccessor,
+             .mutateAccessor:
             if let variableNode = node.children.first, variableNode.kind == .variable, var first = variableNode.children.first {
                 if first.kind == .extension, let type = first.children.at(1) {
                     traits.insert(.inExtension)
@@ -1071,7 +1077,9 @@ public final class SymbolIndexStore: @unchecked Sendable {
             // this is a stored variable declaration
             return .init(kind: .variable(isStorage: true), symbolTableRow: symbolTableRow)
         case .getter,
-             .setter:
+             .setter,
+             .borrowAccessor,
+             .mutateAccessor:
             if let variableNode = node.children.first, variableNode.kind == .variable {
                 return processGlobalSymbol(symbolTableRow, node: variableNode)
             }
@@ -1489,6 +1497,8 @@ extension Node.Kind {
              .function,
              .getter,
              .setter,
+             .borrowAccessor,
+             .mutateAccessor,
              .methodDescriptor,
              .protocolWitness,
              .variable:
@@ -1533,8 +1543,8 @@ extension DependencyValues {
 extension DemanglingNode {
     package var isGlobal: Bool {
         guard let first = children.first else { return false }
-        guard first.isKind(of: .getter, .setter, .function, .variable) else { return false }
-        if first.isKind(of: .getter, .setter), let variable = first.children.first, variable.isKind(of: .variable) {
+        guard first.isKind(of: .getter, .setter, .borrowAccessor, .mutateAccessor, .function, .variable) else { return false }
+        if first.isKind(of: .getter, .setter, .borrowAccessor, .mutateAccessor), let variable = first.children.first, variable.isKind(of: .variable) {
             return variable.children.first?.isKind(of: .module) ?? false
         } else {
             return first.children.first?.isKind(of: .module) ?? false
@@ -1542,7 +1552,7 @@ extension DemanglingNode {
     }
 
     package var isAccessor: Bool {
-        return isKind(of: .getter, .setter, .modifyAccessor, .readAccessor)
+        return isKind(of: .getter, .setter, .modifyAccessor, .readAccessor, .borrowAccessor, .mutateAccessor)
     }
 }
 

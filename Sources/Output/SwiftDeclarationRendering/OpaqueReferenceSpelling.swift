@@ -71,7 +71,7 @@ extension Node {
         if let ownerDeclaration = ownerDeclarationNode(of: reference) { return ownerDeclaration }
         guard reference.isKind(of: .opaqueTypeDescriptorSymbolicReference), let offset: Int = reference.index?.cast() else { return nil }
         var contextNode: Node?
-        if machO is MachOImage, let absolutePointer = UnsafeRawPointer(bitPattern: offset) {
+        if machO.asMachOImage != nil, let absolutePointer = UnsafeRawPointer(bitPattern: offset) {
             if let descriptor: OpaqueTypeDescriptor = try? absolutePointer.readWrapperElement() {
                 contextNode = try? SymbolicDemangler.demangleContext(for: .opaqueType(descriptor), in: .inProcess)
             }
