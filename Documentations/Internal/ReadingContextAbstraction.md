@@ -159,7 +159,7 @@ extension RelativeDirectPointerProtocol {
 
 ## Usage Examples
 
-Since the single-implementation pass (below, 2026-09-30) the `ReadingContext` form is the only one to call. The Mach-O form (`in: machO`) and the pointer form (no reader argument) are deprecated forwarders until 0.24.0.
+Since the single-implementation pass (below, 2026-09-30) the `ReadingContext` form is the only one to call. The Mach-O form (`in: machO`) and the pointer form (no reader argument) are deprecated forwarders until 0.25.0.
 
 ```swift
 // A Mach-O file or image: pass its context.
@@ -261,7 +261,7 @@ Sources/
 | **1. Add Infrastructure** | Add `ReadingContext`, `MachOContext`, `InProcessContext` | Non-breaking |
 | **2. Add Extensions** | Add `resolve(at:in:)` to `Resolvable` and pointer protocols | Non-breaking |
 | **3. Gradual Migration** | New code uses `ReadingContext` API | Progressive |
-| **4. Deprecation** | The `ReadingContext` form becomes the only implementation; the Mach-O and pointer forms are deprecated forwarders (0.22.0) and removed (0.24.0, postponed from 0.23.0) | Done 2026-09-30, see below |
+| **4. Deprecation** | The `ReadingContext` form becomes the only implementation; the Mach-O and pointer forms are deprecated forwarders (0.22.0) and removed (0.25.0, postponed twice from 0.23.0) | Done 2026-09-30, see below |
 
 ## Benefits
 
@@ -319,7 +319,7 @@ Two deliberate decisions worth keeping in mind:
 
 提案：[0057-reading-context-migration](../Evolutions/0057-reading-context-migration.md)。
 
-每个读取接口原先最多有三份手写实现：按偏移读 Mach-O 的、用裸指针读本进程的、经 `ReadingContext` 读的。现在只剩 `ReadingContext` 那一份；另外两份是一行转发（`machO.context` / `InProcessContext.shared`），标 `@available(*, deprecated)`，0.24.0 删除（原定 0.23.0，下游未迁完而推迟）。下面是代码里看不出来、下次维护会踩的几点。
+每个读取接口原先最多有三份手写实现：按偏移读 Mach-O 的、用裸指针读本进程的、经 `ReadingContext` 读的。现在只剩 `ReadingContext` 那一份；另外两份是一行转发（`machO.context` / `InProcessContext.shared`），标 `@available(*, deprecated)`，0.25.0 删除（原定 0.23.0，下游未迁完而两次推迟）。下面是代码里看不出来、下次维护会踩的几点。
 
 ### 转发必须原地保留
 
