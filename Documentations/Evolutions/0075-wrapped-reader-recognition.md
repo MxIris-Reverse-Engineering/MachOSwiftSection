@@ -1,11 +1,11 @@
-# Draft - 包装类型读取器的识别：库看穿宿主的包装，按底下的读取器回答
+# 0075 - 包装类型读取器的识别：库看穿宿主的包装，按底下的读取器回答
 
-- **状态**: In Progress
+- **状态**: Implemented
 - **创建日期**: 2026-10-13
-- **最后更新**: 2026-10-14
+- **最后更新**: 2026-10-26
 - **所属愿景**: 无
 - **关联提案**: [0057-reading-context-migration](0057-reading-context-migration.md)（`ReadingContext.bindRebaseResolver` 已经让包装类型声明自己能解 bind / rebase）、[0053-shared-cache-composition-and-eviction-registry](0053-shared-cache-composition-and-eviction-registry.md)（按镜像缓存以读取器的 `identifier` 为键）
-- **实现分支 / PR**: 本库 `fix/wrapped-reader-recognition`；MachOKitExtensions `feature/reader-wrapper`，发 1.3.0
+- **实现分支 / PR**: 本库 `fix/wrapped-reader-recognition`（直接合入 `next`，没有开 PR）；MachOKitExtensions `feature/reader-wrapper`，2026-10-26 快进成 `main` 并发 1.3.0
 - **配套文档**: [Internal/ReadingContextAbstraction.md](../Internal/ReadingContextAbstraction.md)「包装类型读取器」一节；术语表 [reader wrapper](../Glossary.md)
 
 ## 摘要
@@ -79,16 +79,16 @@ extension MachORepresentable {
 
 | 测试 | 修复前 | 修复后 |
 |---|---|---|
-| `WrappedReaderDemanglingTests`（SwiftInspectionTests）：子进程里经包装 demangle 进程内 SwiftUI 的全部 associated type witness。本机 macOS 27 cache 里 SwiftUICore 的 `__TEXT`（`0x190404000`）低于 SwiftUI（`0x19A048000`），正好产生负偏移。声明的包装与裸 `MachOImage` 逐个节点相同，且至少有一个引用落在 SwiftUI 之下；不声明的不 trap。 | 两条都以 SIGTRAP 结束 | 通过 |
+| `WrappedReaderDemanglingTests`（SwiftInspectionTests）：子进程里经包装 demangle 进程内 SwiftUI 的全部 associated type witness。声明的包装与裸 `MachOImage` 逐个节点相同，且至少出现一个 opaque 引用，任何宿主上都跑。不声明的包装那条先确认至少有一个引用落在 SwiftUI 之下、再确认不 trap；这种引用只在 SwiftUICore 映射在 SwiftUI 下方时存在——macOS 27 起的 cache 布局（本机 27 上 SwiftUICore 的 `__TEXT` 在 `0x190404000`，SwiftUI 在 `0x19A048000`），macOS 15 与 26 都放在上方——所以这条按已加载 cache 的镜像表判断布局，只在这种布局下启用（落地前核查时这样拆开，见决策日志）。 | 两条都以 SIGTRAP 结束 | 通过 |
 | `WrappedReaderInterfaceTests`（SwiftInterfaceTests）：fixture `SymbolTestsCore` 分别经 `MachOFile`、进程内 `MachOImage` 及各自的包装打印 interface（全部注释与文件头都开），逐字节相同；包装先打印。 | 测试进程 SIGSEGV（文件包装读到未解析的 fixup 原值） | 通过 |
 | `WrappedReaderSymbolTests`（MachOSymbolsTests）：包装 cache 里的 Combine 后 `swiftSymbols` 与裸文件相同；Combine 自己的类型描述符符号按偏移查得到；包装进程内 cache 镜像 Foundation 后 `address(forOffset:)` 与裸镜像相同。 | 三条都失败（272 + 1 + 3 处） | 通过 |
 | `ReaderKindCastScanTests`（SwiftInterfaceTests）：`Sources/`（`TestSupport` 除外）里不许出现对 `MachOImage` / `MachOFile` / `MachOContext<…>` 的类型转换；另一条确认扫描能看见转换、不会误报泛型约束。 | 列出上表 38 处 | 通过 |
 
 MachOKitExtensions 自己的 `MachOReaderWrapperTests`：声明的文件包装、包装的包装、不声明的包装、成员地址四种语义，23 个测试全过。
 
-**6. 验收与文档。** 跑完整测试（不含 `IntegrationTests`）；这次改了读取器与 demangle 路径，按规定跑三条读取路径的渲染 A/B，输出必须逐字节相同。文档：`Internal/ReadingContextAbstraction.md` 新增「包装类型读取器」一节；术语表登记 reader wrapper；`AGENTS.md` 加一个条件块「判断读取器种类用三个取法，不写类型转换」；MachOKitExtensions 的 README 与提案索引登记；`ProjectEvolutionLog` 随代码写一节，节号落地时分配；发版时写 `Changelogs/0.23.0.md`。CLI 的参数与输出不变，agent 插件不用改。
+**6. 验收与文档。** 跑完整测试（不含 `IntegrationTests`）；这次改了读取器与 demangle 路径，按规定跑三条读取路径的渲染 A/B，输出必须逐字节相同。文档：`Internal/ReadingContextAbstraction.md` 新增「包装类型读取器」一节；术语表登记 reader wrapper；`AGENTS.md` 加一个条件块「判断读取器种类用三个取法，不写类型转换」；MachOKitExtensions 的 README 与提案索引登记；`ProjectEvolutionLog` 随代码写一节，节号落地时分配；发版时写进当次的 Changelog（0.23.0 没赶上，见决策日志）。CLI 的参数与输出不变，agent 插件不用改。
 
-**7. 下游。** MachOKitUI 升到本库 0.23.0 与 MachOKitExtensions 1.3.0 后，给 `MachOImageSource` / `MachOFileSource` 各加一行遵循 `MachOReaderWrapper`（`base` 返回它们持有的 `machO`），同时删掉 `MachOSwiftSectionDetailBuilder.demangleTypeNode` 里的特判；`MachOFileSource` 手写的 `MachOBindRebaseResolving` 转发可留可删。
+**7. 下游。** MachOKitUI 升到含本提案的本库版本（0.23.0 之后的下一个版本）与 MachOKitExtensions 1.3.0 后，给 `MachOImageSource` / `MachOFileSource` 各加一行遵循 `MachOReaderWrapper`（`base` 返回它们持有的 `machO`），同时删掉 `MachOSwiftSectionDetailBuilder.demangleTypeNode` 里的特判；`MachOFileSource` 手写的 `MachOBindRebaseResolving` 转发可留可删。
 
 ## 决策日志
 
@@ -108,3 +108,8 @@ MachOKitExtensions 自己的 `MachOReaderWrapperTests`：声明的文件包装�
 | 2026-10-13 | 符号测试只查 Combine 自己的描述符符号 | 符号表也列出 Combine 引用的外部描述符（`$ss12StaticStringVMn`），它们不在 Combine 的任何偏移上；收窄后修复前 272 处失败、修复后 0 处，仍能区分修复前后。 |
 | 2026-10-13 | 试做验收 | 在两个沙盒里构建（本地 sibling；swift-demangling 与 MachOObjCSection 用各自远端 `next` 的导出副本，因为本机这两个 sibling 的 `next` 落后于远端）。全量测试（不含 `IntegrationTests`）只红了 `Arm64eSignedVWTPointer` 的 strip 探针一条，单独重跑 3/3 通过、基线也通过，与本次改动无交集，按偶发处理。渲染 A/B：归档 cache 26.6 / 15.5、模拟器 runtime 15.5–26.5、进程内镜像三条读取路径共 96 对，全部逐字节一致。 |
 | 2026-10-14 | 提交并推送两个功能分支 | 用户看过试做结果后要求提交推送。发 MachOKitExtensions 1.3.0 与合进 next 另等用户决定；本库 `Package.swift` 已要求 1.3.0，所以发版必须在落地之前。 |
+| 2026-10-26 | 合并前核查：`WrappedReaderDemanglingTests` 依赖宿主的 cache 布局，拆开 | 代码能干净合进 `next`：基线 `956b4e09` 之后又进了 50 多个提交，只有两份索引表冲突，合并结果里写死的读取器转换为 0。但「至少一个引用落在 SwiftUI 之下」只在 SwiftUICore 映射在 SwiftUI 下方时成立，这是 macOS 27 起的布局；macOS 15 与 26 都放在上方（26.6：`0x22d953000` 对 `0x1b594e000`），这条在 macOS 26 宿主上必红，CI 不跑这个套件所以没人发现。用户批准先修再落地：声明的包装那条在任何宿主上比较，只要求至少出现一个 opaque 引用（修复前它在任何宿主上都会红）；落在下方的引用改作不声明的包装那条的前提，用 `.enabled(if:)` 按已加载 cache 的镜像表（`DyldCacheLoaded.current`）判断布局，判断时不加载任何镜像。 |
+| 2026-10-26 | `ReaderKindCastScanTests` 与 `WrappedReaderInterfaceTests` 进 CI 名单 | 前者只读源码、后者只读 fixture，符合 CI 只跑不依赖开发机环境的规则；另两个读系统 dyld cache 或把 SwiftUI 加载进进程，留在本地。 |
+| 2026-10-26 | MachOKitExtensions 1.3.0 发版 | 用户批准。`feature/reader-wrapper` 快进成 `main`，打空消息的注释 tag，与以往版本一样不建 GitHub Release；发前在该提交上跑 MachOKitExtensions 自己的 23 个测试全过，发后只走远端依赖的副本能解析到 1.3.0。 |
+| 2026-10-26 | 合入 `next`，编号 0075；状态 → Implemented | 用户批准。先把 `next@7adbe83c` 合进功能分支（两份索引表两边都保留），在最终 tree 上重跑：全量 2574 个测试全过、退出码 0；渲染 A/B 96 对全部逐字节一致（各腿对数见演进账本第 106 节）。0.23.0 发版时本提案还在等 MachOKitExtensions 1.3.0，改随下一个版本发。文档判断：`ReadingContextAbstraction.md` 的「包装类型读取器」一节就是实现说明；宿主只需写一行遵循，写法在 MachOKitExtensions 的 README 里，不另写使用指南；术语表的 reader wrapper 实现时已登记，没有新词。 |
+| 2026-10-26 | 后续项：量进程内指针解析的额外开销 | `MachOContext.bindRebaseResolver` 在每次指针解析时都会被调用；对进程内 `MachOImage`，它现在多做两次失败的协议转换和一次 existential 装箱（`MachOImage` 32 字节，超出内联缓冲）。全量与 A/B 只验证了正确性，没量时间；要在性能足够的机器上按 instructions retired 对比前后。 |

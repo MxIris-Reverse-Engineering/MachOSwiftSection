@@ -2652,9 +2652,9 @@
 - **关联文档**：提案 [0074-private-declaration-source-files](../Evolutions/0074-private-declaration-source-files.md)；[Modules/SwiftPrivateDiscriminators.md](Modules/SwiftPrivateDiscriminators.md)。
 - **对应版本**：未发版（`next`）。
 
-## 2026-10-13 包装类型读取器的识别（节号落地时分配）
+## 106. 包装类型读取器的识别
 
-- **时间段**：2026-10-13 至 2026-10-14。
+- **时间段**：2026-10-13 至 2026-10-26，分支 `fix/wrapped-reader-recognition`，2026-10-26 直接合入 `next`（没有开 PR）；MachOKitExtensions 同日发 1.3.0。
 - **动机**：MachOKitUI 把 `MachOImage` / `MachOFile` 包成 `MachOImageSource` / `MachOFileSource` 交给本库，在 MachOViewer 里查看已加载镜像的 Swift section 时进程崩溃：`Fatal error: Negative value is not representable`（`SymbolicDemangler`，0.22.0 第 320 行）。本库判断读取器种类时写死了具体类型（next 上 16 个文件共 38 处，加上 MachOKitExtensions 的 `asMachOImage`），包装类型一处都走不进对应的路径。崩溃的那处把落在更低地址镜像里的 opaque type descriptor 存成负偏移再转 `UInt64`；其余各处不崩，结果却悄悄变差：符号按原值入索引、成员地址从 shared region 起点算、三个 ObjC 索引为空，不转发 bind / rebase 的文件包装还会让 interface 读到未解析的 chained fixup 原值而段错误。
 - **关键决策**：
   - 接口放 MachOKitExtensions 1.3.0：泛型协议 `MachOReaderWrapper`（`associatedtype Base`、`var base`）加三个取法：`underlyingReader`、`asMachOImage`（放宽为看穿包装）、`asMachOFile`（新增）。先后否决两种设计：按具体类型各开一个协议（`MachOImageBacked` / `MachOFileBacked`），以及 `MachORepresentableWithCache` 上的封闭枚举 `MachOReaderKind`。两者都把库认识的读取器写进了扩展点，用户自定义一个读取器类型就得改库，违反开闭原则。
@@ -2662,13 +2662,15 @@
   - `SymbolicDemangler` 的 opaque 节点值由 `context.runtimePointer(at:)` 决定：能给出本进程指针就存绝对地址，否则存偏移；读节点值的两处用同一个判据。偏移转不成 `UInt64` 时这个引用当作解析不了，不再 trap。
   - 按类型静态约束的 API（`GenericSpecializer`、`DependencyClosure`、`ImageUniverse+DependencyClosure`）不动，持有包装类型的宿主自己传 `base`。
   - `AGENTS.md` 加一条规则：判断读取器种类只用三个取法、不写类型转换；`ReaderKindCastScanTests` 扫描 `Sources/`（`TestSupport` 除外）防止写死的转换回来。
+  - 合并前核查发现 `WrappedReaderDemanglingTests` 依赖宿主的 cache 布局：「至少一个引用落在 SwiftUI 下方」只在 SwiftUICore 映射在 SwiftUI 下方时成立，这是 macOS 27 起的布局，macOS 15 与 26 都放在上方（26.6 上 SwiftUICore 在 `0x22d953000`，SwiftUI 在 `0x1b594e000`）。于是拆开：「声明的包装与镜像逐节点相同」在任何宿主上跑，只要求至少出现一个 opaque 引用；落在下方的引用改作「不声明的包装不 trap」那条的前提，按已加载 cache 的镜像表判断布局，只在 SwiftUICore 位于下方时启用。`ReaderKindCastScanTests` 与 `WrappedReaderInterfaceTests` 只读源码和 fixture，进 CI 名单；另两个套件读系统 cache 或把 SwiftUI 加载进进程，留在本地。
 - **落地模块**：MachOReading（`MachOContext`）、MachOSymbols（`SymbolIndexStore`、`SymbolValueOffsetConverter`、`MachO+Symbol`）、SwiftInspection、SwiftLayout（`ImageReference`）、SwiftThunkAnalysis（`ObjCMethodThunkReferences`）、SwiftIndexing、SwiftDeclarationRendering、SwiftPrinting（`InterfaceHeader`）、MachOTestingSupport（`ForwardingMachOReader`）；MachOKitExtensions（`MachOReaderWrapper.swift`）。
 - **验证**：
   - 新测试，修复前都确认是红的：`WrappedReaderDemanglingTests`（子进程 SIGTRAP → 通过）、`WrappedReaderInterfaceTests`（测试进程 SIGSEGV → 包装与裸读取器的 interface 逐字节相同）、`WrappedReaderSymbolTests`（272 + 1 + 3 处失败 → 通过）、`ReaderKindCastScanTests`（列出 38 处 → 通过）。MachOKitExtensions 自己的 23 个测试全过。
   - 全量 `swift test --skip IntegrationTests`（JHs-Mac-Studio-Ultra，Xcode 27 默认工具链，`USING_LOCAL_DEPENDENCIES=1`；本机 swift-demangling 与 MachOObjCSection 的 `next` 落后远端，沙盒里用各自远端 `next` 的导出副本）：2400 余个测试，原始退出码 0，但 `Arm64eSignedVWTPointer` 的 strip 探针红了一条；同一构建单独重跑 3/3 通过、基线也通过，与本次改动无交集，按偶发处理。
   - 渲染 A/B（基线为 next `956b4e09` 加 MachOKitExtensions 1.2.0）：**96 对全部逐字节一致**——归档 cache 15.5 与 26.6 各 12 对，iOS 15.5 / 16.4 / 17.5 / 18.5 / 26.5 模拟器 48 对，MachOImage 腿 24 对。
-- **关联文档**：[draft-wrapped-reader-recognition](../Evolutions/draft-wrapped-reader-recognition.md)、[ReadingContextAbstraction.md](ReadingContextAbstraction.md)「包装类型读取器」一节、术语表 [reader wrapper](../Glossary.md)、`AGENTS.md` 新增的读取器种类规则。
-- **对应版本**：下一个版本（0.23.0，未发版）。依赖下限：MachOKitExtensions 1.3.0，必须先于本分支落地发版。下游：MachOKitUI 升级后给两个包装类型各加一行 `MachOReaderWrapper` 遵循，并删掉 `demangleTypeNode` 里的特判。
+  - 落地验证，在把 `next@7adbe83c` 合进功能分支后的最终 tree 上跑（JHs-Mac-Studio-Ultra，macOS 27.2，Xcode 26.6，只走远端依赖、MachOKitExtensions 1.3.0，fixture 按 CI 的方式 ad-hoc 签名）：全量 `swift test --skip IntegrationTests` 2574 个测试 / 493 个套件全部通过，原始退出码 0，`WrappedReaderDemanglingTests` 的两条都跑了。渲染 A/B 的基线是 `next@7adbe83c`，两侧依赖只有 MachOKitExtensions 不同（1.2.0 对 1.3.0）：**96 对全部逐字节一致**，各腿对数同上，MachOImage 腿是 macOS 27.2 的进程内镜像。
+- **关联文档**：提案 [0075-wrapped-reader-recognition](../Evolutions/0075-wrapped-reader-recognition.md)、[ReadingContextAbstraction.md](ReadingContextAbstraction.md)「包装类型读取器」一节、术语表 [reader wrapper](../Glossary.md)、`AGENTS.md` 新增的读取器种类规则。
+- **对应版本**：未发版（`next`）。0.23.0 发版时它还在等 MachOKitExtensions 1.3.0，没有跟上。依赖下限：MachOKitExtensions 1.3.0（2026-10-26 已发版）。下游：MachOKitUI 升级后给两个包装类型各加一行 `MachOReaderWrapper` 遵循，并删掉 `demangleTypeNode` 里的特判。
 
 ## 维护约定
 

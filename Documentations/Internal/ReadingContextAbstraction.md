@@ -361,7 +361,7 @@ Two deliberate decisions worth keeping in mind:
 - `ValueMetadataProtocol.descriptor(in:)` 等经绝对指针读取的字段，对 dyld shared cache 里的镜像，偏移口径不对：`fileOffset(of:)` 给的是 cache 文件内的偏移，读取却按 `unslidVirtualAddress - sharedRegionStart` 来理解。三种形式本来就一样，这次既没修好也没弄坏。
 - `EnumMetadataProtocol.payloadSize` 的返回类型是 `StoredSize?`，泛型读取按 9 字节的 `Optional<UInt64>` 去读，和 AGENTS.md 里的 Optional 读取陷阱同类。迁移之后已单独修复并验证，同时修了 `FunctionTypeMetadata.extendedFlags` 与 `SwiftClassObjectIndex` 读 class flags 的两处同类写法，见 [ProjectEvolutionLog.md](ProjectEvolutionLog.md)「Optional 读取多读一个 tag byte」一节。
 
-## 包装类型读取器（2026-10，提案 draft-wrapped-reader-recognition）
+## 包装类型读取器（2026-10，提案 0075-wrapped-reader-recognition）
 
 宿主常把 `MachOFile` / `MachOImage` 包进自己的类型，再把读取协议的每个要求原样转发过去（MachOKitUI 的 `MachOFileSource` / `MachOImageSource`）。读本身没问题，问题出在「这是哪种读取器」：库里 38 处写的是 `as? MachOImage` / `as? MachOFile`，包装类型一处都进不去。崩的那处是 opaque 引用：经包装读进程内镜像时，描述符位置按偏移存进节点，落在地址更低的另一个镜像里就是负数，转 `UInt64` 时 trap。其余各处悄悄降级：符号按 `n_value` 原值入索引、成员地址从 shared region 起点算、ObjC 祖先链与依赖闭包不建，文件包装不转发 `MachOBindRebaseResolving` 时整份 interface 还会读到未解析的 chained fixup 原值而段错误。
 

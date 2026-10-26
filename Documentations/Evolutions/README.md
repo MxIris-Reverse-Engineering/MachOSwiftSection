@@ -85,4 +85,4 @@
 | [0073](0073-protocol-requirement-placement.md) | 协议约束可选写在各自的关联类型上 | Implemented |
 | draft | [evolution 与 diff 区分「不存在」和「看不见」](draft-evolution-unobservable-presence.md) | Accepted |
 | [0074](0074-private-declaration-source-files.md) | dump 与 interface 标出私有声明来自哪个源文件 | Implemented |
-| draft | [包装类型读取器的识别：库看穿宿主的包装，按底下的读取器回答](draft-wrapped-reader-recognition.md) | In Progress |
+| [0075](0075-wrapped-reader-recognition.md) | 包装类型读取器的识别：库看穿宿主的包装，按底下的读取器回答 | Implemented |
