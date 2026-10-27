@@ -962,3 +962,28 @@
 - **为什么判误报**：这个测试就是为该场景设的哨兵，模块文档「缓存外镜像的 GOT 槽」一节写着依据。
 - **既往修复**：无。当初有意这样设计，并留了哨兵。
 - **复审条件**：`LazyBindingTests` 变红。那时让解析失败的桩退回导入名，修法与 A64 的后半相同。
+
+---
+
+## A81 — MachOKit 的 `StubDecoder` 读不出 ld64 改写过的桩的槽位（交叉引用第二轮审查第 1 条的横向排查，上游缺口）
+
+- **裁决**：不报上游，也不在 fork 里修（2026-10-27，用户决定暂不处理）。
+- **发现**：ld64 按 linker optimization hint 把桩改写成 `nop` / `ldr x16, <槽>` / `br x16` 之后，MachOKit（0.54.101）的 `StubDecoder` 不认这种形态，`Stub.branch` 给 `.unknown`，读不出槽位。`StubDecoder` 是上游作者写的，上游的 MachOKit 同样如此。
+- **复现 / 是否误报**：属实。Asset Catalog Viewer（macOS 12 SDK）的 212 个桩全是这种形态；`LinkerOptimizationHintTests` 里改写过的桩，本库补读之前只认出 `.importedSymbol("_puts")`。
+- **与 main 基线对比**：缺口在依赖里，一直都有；本库从 0.24.0 的交叉引用分析起用 MachOKit 解桩。
+- **为什么不修**：用户决定暂不向上游报，也不在 fork 里改。本库已经不靠它：`ImageFunctionTable` 在 MachOKit 给不出 `.viaSlot` 时，用 `ARM64Trampoline` 读桩自己的字节取槽位；SwiftThunkAnalysis 认桩本来就从文件读出字节交给 `ARM64Trampoline`，不经 `StubDecoder`。
+- **既往修复**：无。
+- **代码锚点**：`Sources/Analysis/CrossReferenceAnalysis/Scanning/ImageFunctionTable.swift` 的 `trampoline(in:)` 回退。
+- **复审条件**：本库有新代码直接拿 MachOKit 的 `Stub.branch` 取槽位、不经 `ARM64Trampoline`；或上游自己修了 `StubDecoder`，那时这个回退成了多余，可以删。
+
+---
+
+## A82 — 单字母的泛型参数（交叉引用第二轮审查第 12 条的同类）
+
+- **裁决**：暂不清理（2026-10-27，用户决定暂不安排）。
+- **发现**：第 12 条把 `pc`、`lhs` / `rhs` 这些缩写的名字改成了完整的名字；同类的单字母泛型参数（`<T>`、`<M: …>` 一类）没有一起改。审查时数过，`Sources` 约 167 处、`Tests` 约 126 处，其中一部分在字符串里。
+- **复现 / 是否误报**：属实。
+- **与 main 基线对比**：main 上同样有，分布在各模块，不是这次的改动引入的；这次的修复批次一处也没有新加。
+- **为什么不修**：用户决定暂不安排清理。改名不改行为，但公开泛型类型的参数名可能被下游的 extension 按名字用到，真要清理时那部分要连同下游一起改。`AbbreviatedIdentifierScanTests` 只扫 `pc`、`lhs`、`rhs`，不管泛型参数。
+- **既往修复**：没有专门清理过。提案 [0044-opaque-parameters-for-single-use-generics](../Evolutions/0044-opaque-parameters-for-single-use-generics.md)（`7d429938`）把只用一次的泛型参数改写成 `some P`，为的是去掉多余的泛型参数列表，剩下的没有改名；`4e8f4a7f`（2026-10-08）只改了特化器新代码里的缩写。
+- **复审条件**：用户安排清理时。这条只覆盖已有的这些；改动里新加的单字母泛型参数照常算发现。

@@ -6,14 +6,14 @@
 
 **四问的共同答案**：本模块在 0.24.0 新写，0.23.0 没有；GitHub 上没有相关 PR 或 issue；[ReviewAdjudications.md](../Documentations/Internal/ReviewAdjudications.md) 已覆盖第 6 条（A66）与第 8 条（A71），理由仍成立，直接跳过。所以其余每条都是「0.24.0 引入、以前没修过」，例外写在各条的「既往」里。
 
-**状态**：用户 2026-10-27 批准修建议修的五条（N1、1、2、11、12）。每条修复都先写了修复前失败的测试：前四条的 9 个测试在原始代码上一起跑过一次，全部按预期失败，两个只核对扫描逻辑本身的测试通过；第 2 条的两组测试（16 个用例）在前四条修好、它自己还没修的代码上跑过，全部按预期失败。修复后全部通过，全量 `swift test --skip IntegrationTests` 在 JHs-Mac-Studio-Ultra（macOS 27.2，Xcode 26.6）上 2588 个测试全部通过。判为不修或误报的五条登记在 ReviewAdjudications A76–A80。第 2 条要改变查询结果，按提案制先写了精简提案 [0076-objc-runtime-send-entry-points](../Documentations/Evolutions/0076-objc-runtime-send-entry-points.md)，用户点头后实现。
+**状态**：用户 2026-10-27 批准修建议修的五条（N1、1、2、11、12）。每条修复都先写了修复前失败的测试：前四条的 9 个测试在原始代码上一起跑过一次，全部按预期失败，两个只核对扫描逻辑本身的测试通过；第 2 条的两组测试（16 个用例）在前四条修好、它自己还没修的代码上跑过，全部按预期失败。修复后全部通过，全量 `swift test --skip IntegrationTests` 在 JHs-Mac-Studio-Ultra（macOS 27.2，Xcode 26.6）上 2588 个测试全部通过。判为不修或误报的五条登记在 ReviewAdjudications A76–A80；横向排查到、交给用户定的两条（MachOKit 的桩解码缺口、单字母泛型参数），用户定暂不处理，登记在 A81、A82。第 2 条要改变查询结果，按提案制先写了精简提案 [0076-objc-runtime-send-entry-points](../Documentations/Evolutions/0076-objc-runtime-send-entry-points.md)，用户点头后实现。
 
 ## 总表
 
 | # | 问题 | 严重度 | 处理 | 测试 |
 |---|---|---|---|---|
 | N1 | 写死的 47 位地址掩码在 iOS 系真机上留下签名位 | 高 | 已修；第 9 条（同一掩码重复六处）并入 | `AddressMaskScanTests` |
-| 1 | ld64 改写出的字面量 `ldr` 与 `adr` 不解码 | 中 | 已修；横向排查又修了两处：改写过的桩、SwiftThunkAnalysis 的解码器 | `LinkerOptimizationHintTests`（4 个）、`linkerRewrittenSlotStub`、`aLiteralLoadNamesItsSlot` |
+| 1 | ld64 改写出的字面量 `ldr` 与 `adr` 不解码 | 中 | 已修；横向排查又修了两处：改写过的桩、SwiftThunkAnalysis 的解码器；MachOKit 的同一缺口暂不报上游（A81） | `LinkerOptimizationHintTests`（4 个）、`linkerRewrittenSlotStub`、`aLiteralLoadNamesItsSlot` |
 | 2 | `objc_alloc_init` 一类 libobjc 入口不算消息发送 | 高 | 按精简提案修 | `RuntimeSendEntryPointTests`（16 个用例）、`selectorPrefilterKeepsEverySender` 加 `isKindOfClass:` |
 | 3 | 目标算得出来的寄存器调用仍记成 `.indirect` | 低 | 不修（A76） | — |
 | 4 | 懒绑定的槽位指向 `__stub_helper` | — | 误报（A80） | `LazyBindingTests`，26.6 上也通过 |
@@ -24,7 +24,7 @@
 | 9 | 47 位掩码重复六处 | — | 并入 N1 | — |
 | 10 | `swiftTypeIdentity` 每次线性走一遍镜像的类 | 低 | 暂不修（A77） | — |
 | 11 | 查导入类型时先按 +8 读名字、后判断是不是类型描述符 | 中 | 已修 | `importedTypeQueriesReadNoNameWhereNoTypeDescriptorIs` |
-| 12 | 缩写的名字 `pc`、`lhs` / `rhs` | 低 | 已改，全仓库同类一并改 | `AbbreviatedIdentifierScanTests` |
+| 12 | 缩写的名字 `pc`、`lhs` / `rhs` | 低 | 已改，全仓库的 `lhs` / `rhs` 一并改；单字母泛型参数暂不改（A82） | `AbbreviatedIdentifierScanTests` |
 
 ## N1 — 47 位地址掩码在 iOS 系真机上算错地址
 
@@ -39,7 +39,7 @@
 - **问题**：ld64（Xcode 14 及更早，或 Xcode 15、16 加 `-ld_classic`）排好地址后按 linker optimization hint 改写指令：槽位在一兆字节以内的 `adrp` / `ldr` 变成 `nop` / `ldr xN, <槽>`，地址在一兆字节以内的 `adrp` / `add` 变成 `adr xN, <地址>` / `nop`。`ARM64InstructionWord.load(_:)` 不认字面量 `ldr`，载入的 `x1` 成了未知，这次发送被记成对 `objc_msgSend` 的普通调用；类引用只在 `add` 那一步报，`adr` 不报。
 - **当初为什么这样做**：提案 0072 与模块文档写着「`adr` 与字面量 `ldr` 两种形态在缓存与几个缓存外的系统 App 里都没有，不解码」。那次只量了 Apple 自己的二进制：Xcode 26 的链接器不做这种改写，本机验证过（同一份源码，默认链接器保留 `adrp` / `ldr`，`-ld_classic` 改写成 `nop` / `ldr`），Apple 的二进制里一处都没有。第三方 App 里却常见：抽查 12 个，2 个有，其中 Asset Catalog Viewer（macOS 12 SDK）有 357 处 selector 引用和 71 处类引用以字面量 `ldr` 载入。
 - **横向排查**（同一类：ld64 改写出的形态没人读）：
-  1. **改写过的桩**。Asset Catalog Viewer 的 212 个桩全是 `nop` / `ldr x16, <槽>` / `br x16`。MachOKit（0.54.101）的 `StubDecoder` 不认这种形态，给 `.unknown`，函数表于是没有槽位，经桩的调用只剩导入名：这个 App 里经桩调用 `objc_msgSend` 的发送一处也认不出来，光修函数体里的字面量 `ldr` 也没用。修法：`ImageFunctionTable` 在 MachOKit 给不出槽位时用 `ARM64Trampoline` 读桩自己的字节，`ARM64Trampoline` 认字面量 `ldr`。SwiftThunkAnalysis 也经 `ARM64Trampoline` 认桩，一并受益。MachOKit 的 `StubDecoder` 出自上游作者，同样的缺口在上游也有，要不要向上游报由用户定。
+  1. **改写过的桩**。Asset Catalog Viewer 的 212 个桩全是 `nop` / `ldr x16, <槽>` / `br x16`。MachOKit（0.54.101）的 `StubDecoder` 不认这种形态，给 `.unknown`，函数表于是没有槽位，经桩的调用只剩导入名：这个 App 里经桩调用 `objc_msgSend` 的发送一处也认不出来，光修函数体里的字面量 `ldr` 也没用。修法：`ImageFunctionTable` 在 MachOKit 给不出槽位时用 `ARM64Trampoline` 读桩自己的字节，`ARM64Trampoline` 认字面量 `ldr`。SwiftThunkAnalysis 也经 `ARM64Trampoline` 认桩，一并受益。MachOKit 的 `StubDecoder` 出自上游作者，同样的缺口在上游也有；用户定暂不报上游、也不在 fork 里修（A81）。
   2. **SwiftThunkAnalysis 的 Capstone 解码器**把字面量 `ldr` 当成不建模的指令，载入的值丢失。新增 `ThunkOperation.loadFromSlot`，求值时按槽位读，与 `adrp` / `ldr` 共用一段代码；32 位的 `ldr wN, <label>` 仍不建模。Capstone 把标签记成没有基址寄存器的内存操作数、位移是槽位地址，不是立即数（`adr` 才是）；第一版按立即数认，没有生效，`aLiteralLoadNamesItsSlot` 与 Capstone 对照测试当轮就抓到了。
   3. `__objc_stubs`：本机用 `-ld_classic` 编的样本里 ld64 不改写它，MachOKit 照常读得出 selector 引用。
 - **复现**：`LinkerOptimizationHintTests` 现编两个 dylib（Xcode 27 已不带 `ld-classic`，所以照常链接后按 ld64 的做法改写指令、重新签名再加载）：字面量 `ldr` 载入的 selector 认成 `description` 发送、字面量 `ldr` 载入的类与 `adr` 取的类认成类引用、改写过的桩跟到 libsystem_c 的 `puts`。修复前四个测试都失败：发送记成对 `objc_msgSend` 的 `.function`，两处类引用都没有，桩只剩 `.importedSymbol("_puts")`。`ARM64TrampolineTests.linkerRewrittenSlotStub` 修复前得到 `nil`；`CapstoneThunkDecoderTests.aLiteralLoadNamesItsSlot` 修复前得到 `.unmodelled`（修复前跑的版本只断言「不是 `.unmodelled`」，因为新的 case 那时还不存在；修复后加上了精确断言）。解码器的单元测试 `linkerRewrittenAddressesAndLoads` 与 Capstone 对照随修复一起加。
@@ -67,11 +67,11 @@
 - `ReferenceScanner` 里 37 行用 `pc` 指当前指令的地址，改成 `instructionAddress`，与公开模型 `CodeReference.instructionAddress` 同名。`lhs` / `rhs` 不只本模块：`Sources` 下 17 个文件（含测试支持模块）、`Tests` 下 1 个文件，`==`、`<`、数组的 `+` 与排序闭包的参数改成 `left` / `right`，`AddressArithmetic` 的运算符要求按文档注释改成 `address` / `offset`、`end` / `start`，测试里重复字符串的 `*` 改成 `repeated` / `count`。都是参数的内部名字，不涉及调用方。
 - 不动 `Tests/Projects` 下的 fixture 源码：它的 `test(lhs:rhs:)` 是参数标签，进了 fixture 二进制的符号与快照基线。
 - `AbbreviatedIdentifierScanTests` 扫 `Sources` 与 `Tests`，修复前报出全部这些行。
-- 同类但不在这次范围里的：单字母的泛型参数，库里约 167 处、测试里约 126 处（部分在字符串里），要不要另开一次清理由用户定。
+- 同类但不在这次范围里的：单字母的泛型参数，库里约 167 处、测试里约 126 处（部分在字符串里），用户定暂不安排清理（A82）。
 - **既往**：`4e8f4a7f`（2026-10-08）清理过特化器新代码里的缩写，这个模块写在那之后，没有跟上。
 
 ## 不修与误报
 
-见 ReviewAdjudications：A76（第 3 条）、A77（第 10 条）、A78（第 5 条）、A79（第 7 条）、A80（第 4 条）。
+见 ReviewAdjudications：A76（第 3 条）、A77（第 10 条）、A78（第 5 条）、A79（第 7 条）、A80（第 4 条）、A81（第 1 条横向排查到的 MachOKit 桩解码缺口）、A82（第 12 条同类的单字母泛型参数）。
 
 另：已暂缓的 A64（缓存构建器优化成直接跳转的桩）当初因为手头没有 macOS 26 的机器才暂缓，这次在 26.6 上核过：AppKit、Foundation、SwiftUI、libswiftCore 的 `__auth_stubs` 全是经槽位的形态，没有直接跳转型，仍复现不了，继续暂缓（条目已补记）。

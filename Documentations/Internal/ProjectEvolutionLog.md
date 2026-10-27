@@ -2702,13 +2702,13 @@
   - **libobjc 的发送入口**：`objc_alloc_init` 等八个入口记成它们代表的发送，按轻量档写了提案 [0076-objc-runtime-send-entry-points](../Evolutions/0076-objc-runtime-send-entry-points.md)，用户批准后实现。
   - **导入类型查询的越界读**：`SwiftTypeIndex.name(ofDescriptorAt:)` 只从类型描述符读名字；审查原本建议的 `describesType` 要为扫到的每个镜像建类型索引，没有采用。
   - **缩写**：`pc` 与全仓库的 `lhs` / `rhs` 改成完整的名字，`AbbreviatedIdentifierScanTests` 钉住；fixture 源码里的 `test(lhs:rhs:)` 是参数标签、进了快照基线，不动。
-  - 判为不修或误报的五条登记 ReviewAdjudications A76–A80；已暂缓的 A64 在 macOS 26.6 上核过仍复现不了，补记。
+  - 判为不修或误报的五条登记 ReviewAdjudications A76–A80；横向排查到的两条——MachOKit 的 `StubDecoder` 读不出改写过的桩、单字母的泛型参数——用户定暂不处理，登记 A81、A82；已暂缓的 A64 在 macOS 26.6 上核过仍复现不了，补记。
 - **落地模块**：CrossReferenceAnalysis、ARM64InstructionDecoding、SwiftThunkAnalysis、MachOReading（`InProcessContext`、`AddressArithmetic` 的参数名），以及 `lhs` / `rhs` 改名涉及的 SwiftInspection、SwiftDeclaration、SwiftIndexing、SwiftDeclarationRendering、SwiftDiffing、MachOResolving、MachOSymbols、MachOSwiftSection、MachOFixtureSupport。
 - **验证**：
   - 每条修复都先写了修复前会失败的测试。前四条的 9 个测试在原始代码上一起跑过一次，全部失败（导入类型查询那条的子进程以 SIGBUS 结束），两个只核对扫描逻辑本身的测试通过；第 2 条的两组测试（16 个用例）在前四条修好、它自己还没修的代码上全部失败。这两轮在公司的 Mac Studio（macOS 26.6）上跑，交叉引用与 thunk 分析两个测试目标里其余测试都过，只有 4 个本机原本就红的（按 macOS 27.2 的缓存挑镜像）。
   - 全量 `swift test --skip IntegrationTests` 按用户要求改到 JHs-Mac-Studio-Ultra 上跑（macOS 27.2，Xcode 26.6，只走远端依赖，版本与 0.24.0 发版审计相同：MachOKit 0.54.101、MachOKitExtensions 1.3.0、MachOObjCSection 0.8.200、swift-demangling 0.7.2、swift-semantic-string 0.5.0、swift-capstone 7.0.0；fixture 用发版审计时按 CI 方式 ad-hoc 签名编的那份）：2588 个测试 / 497 个套件全部通过，原始退出码 0。0.24.0 时是 2574 / 493，多出的 14 个测试、4 个套件是这次新加的；整个缓存上的 selector 预筛测试加了 `isKindOfClass:`，也通过。
   - 渲染 A/B 没有跑：打印、索引与读取层的改动只有运算符与闭包参数的改名和 `InProcessContext.addressMask` 的可见性，行为不变，由全量测试覆盖。
-- **关联文档**：审查记录、提案 [0076-objc-runtime-send-entry-points](../Evolutions/0076-objc-runtime-send-entry-points.md)、[Modules/CrossReferenceAnalysis.md](Modules/CrossReferenceAnalysis.md)「libobjc 的发送入口」「链接器改写过的代码」与「两种桩布局」、[Modules/SwiftThunkAnalysis.md](Modules/SwiftThunkAnalysis.md)、ReviewAdjudications A64、A76–A80。
+- **关联文档**：审查记录、提案 [0076-objc-runtime-send-entry-points](../Evolutions/0076-objc-runtime-send-entry-points.md)、[Modules/CrossReferenceAnalysis.md](Modules/CrossReferenceAnalysis.md)「libobjc 的发送入口」「链接器改写过的代码」与「两种桩布局」、[Modules/SwiftThunkAnalysis.md](Modules/SwiftThunkAnalysis.md)、ReviewAdjudications A64、A76–A82。
 - **对应版本**：未发版（0.24.0 之后）。
 
 ## 维护约定
