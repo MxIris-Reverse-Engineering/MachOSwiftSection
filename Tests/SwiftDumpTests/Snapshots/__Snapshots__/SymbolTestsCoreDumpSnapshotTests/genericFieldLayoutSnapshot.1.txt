@@ -149,6 +149,8 @@ class SymbolTestsCore.GenericFieldLayout.GenericClassLayoutRequirement<A> where 
     method descriptor for SymbolTestsCore.GenericFieldLayout.GenericClassLayoutRequirement.field3.setter : Swift.Int
 }
 class SymbolTestsCore.GenericFieldLayout.GenericClassNonRequirementInheritNSObject<A>: NSObject {
+    // ObjC ancestor chain: NSObject
+
     var field1: Swift.Double
     var field2: A
     var field3: Swift.Int
@@ -166,7 +168,7 @@ class SymbolTestsCore.GenericFieldLayout.GenericClassNonRequirementInheritNSObje
 
     /* Allocator */
     SymbolTestsCore.GenericFieldLayout.GenericClassNonRequirementInheritNSObject.__allocating_init(field1: Swift.Double, field2: A, field3: Swift.Int) -> SymbolTestsCore.GenericFieldLayout.GenericClassNonRequirementInheritNSObject<A>
-    SymbolTestsCore.GenericFieldLayout.GenericClassNonRequirementInheritNSObject.__allocating_init() -> SymbolTestsCore.GenericFieldLayout.GenericClassNonRequirementInheritNSObject<A>
+    SymbolTestsCore.GenericFieldLayout.GenericClassNonRequirementInheritNSObject.__allocating_init() -> SymbolTestsCore.GenericFieldLayout.GenericClassNonRequirementInheritNSObject<A> // overrides -[NSObject init] (To thunk symbol at the IMP)
 
     /* Deallocator */
     merged SymbolTestsCore.GenericFieldLayout.GenericClassNonRequirementInheritNSObject.__deallocating_deinit
@@ -174,7 +176,7 @@ class SymbolTestsCore.GenericFieldLayout.GenericClassNonRequirementInheritNSObje
 
     /* Constructor */
     SymbolTestsCore.GenericFieldLayout.GenericClassNonRequirementInheritNSObject.init(field1: Swift.Double, field2: A, field3: Swift.Int) -> SymbolTestsCore.GenericFieldLayout.GenericClassNonRequirementInheritNSObject<A>
-    SymbolTestsCore.GenericFieldLayout.GenericClassNonRequirementInheritNSObject.init() -> SymbolTestsCore.GenericFieldLayout.GenericClassNonRequirementInheritNSObject<A>
+    SymbolTestsCore.GenericFieldLayout.GenericClassNonRequirementInheritNSObject.init() -> SymbolTestsCore.GenericFieldLayout.GenericClassNonRequirementInheritNSObject<A> // overrides -[NSObject init] (To thunk symbol at the IMP)
 
     /* Variable */
     SymbolTestsCore.GenericFieldLayout.GenericClassNonRequirementInheritNSObject.field1.getter : Swift.Double
@@ -196,6 +198,8 @@ class SymbolTestsCore.GenericFieldLayout.GenericClassNonRequirementInheritNSObje
     method descriptor for SymbolTestsCore.GenericFieldLayout.GenericClassNonRequirementInheritNSObject.field3.setter : Swift.Int
 }
 class SymbolTestsCore.GenericFieldLayout.GenericClassLayoutRequirementInheritNSObject<A>: NSObject where A: AnyObject {
+    // ObjC ancestor chain: NSObject
+
     var field1: Swift.Double
     var field2: A
     var field3: Swift.Int
@@ -213,14 +217,14 @@ class SymbolTestsCore.GenericFieldLayout.GenericClassLayoutRequirementInheritNSO
 
     /* Allocator */
     SymbolTestsCore.GenericFieldLayout.GenericClassLayoutRequirementInheritNSObject.__allocating_init(field1: Swift.Double, field2: A, field3: Swift.Int) -> SymbolTestsCore.GenericFieldLayout.GenericClassLayoutRequirementInheritNSObject<A>
-    SymbolTestsCore.GenericFieldLayout.GenericClassLayoutRequirementInheritNSObject.__allocating_init() -> SymbolTestsCore.GenericFieldLayout.GenericClassLayoutRequirementInheritNSObject<A>
+    SymbolTestsCore.GenericFieldLayout.GenericClassLayoutRequirementInheritNSObject.__allocating_init() -> SymbolTestsCore.GenericFieldLayout.GenericClassLayoutRequirementInheritNSObject<A> // overrides -[NSObject init] (To thunk symbol at the IMP)
 
     /* Deallocator */
     SymbolTestsCore.GenericFieldLayout.GenericClassLayoutRequirementInheritNSObject.__deallocating_deinit
 
     /* Constructor */
     SymbolTestsCore.GenericFieldLayout.GenericClassLayoutRequirementInheritNSObject.init(field1: Swift.Double, field2: A, field3: Swift.Int) -> SymbolTestsCore.GenericFieldLayout.GenericClassLayoutRequirementInheritNSObject<A>
-    SymbolTestsCore.GenericFieldLayout.GenericClassLayoutRequirementInheritNSObject.init() -> SymbolTestsCore.GenericFieldLayout.GenericClassLayoutRequirementInheritNSObject<A>
+    SymbolTestsCore.GenericFieldLayout.GenericClassLayoutRequirementInheritNSObject.init() -> SymbolTestsCore.GenericFieldLayout.GenericClassLayoutRequirementInheritNSObject<A> // overrides -[NSObject init] (To thunk symbol at the IMP)
 
     /* Variable */
     SymbolTestsCore.GenericFieldLayout.GenericClassLayoutRequirementInheritNSObject.field1.getter : Swift.Double
@@ -957,6 +961,8 @@ class SymbolTestsCore.GenericFieldLayout.ClassBoundGenericSubclass<A>: SymbolTes
     method descriptor for SymbolTestsCore.GenericFieldLayout.ClassBoundGenericSubclass.__allocating_init(baseElement: A, subclassElement: A, subclassIdentifier: Swift.Int64) -> SymbolTestsCore.GenericFieldLayout.ClassBoundGenericSubclass<A>
 }
 class SymbolTestsCore.GenericFieldLayout.ClassBoundGenericNSObjectSubclass<A>: NSObject where A: AnyObject {
+    // ObjC ancestor chain: NSObject
+
     final var element: A
     final var identifier: Swift.Int
 
@@ -964,14 +970,14 @@ class SymbolTestsCore.GenericFieldLayout.ClassBoundGenericNSObjectSubclass<A>: N
 
     /* Allocator */
     SymbolTestsCore.GenericFieldLayout.ClassBoundGenericNSObjectSubclass.__allocating_init(element: A, identifier: Swift.Int) -> SymbolTestsCore.GenericFieldLayout.ClassBoundGenericNSObjectSubclass<A>
-    SymbolTestsCore.GenericFieldLayout.ClassBoundGenericNSObjectSubclass.__allocating_init() -> SymbolTestsCore.GenericFieldLayout.ClassBoundGenericNSObjectSubclass<A>
+    SymbolTestsCore.GenericFieldLayout.ClassBoundGenericNSObjectSubclass.__allocating_init() -> SymbolTestsCore.GenericFieldLayout.ClassBoundGenericNSObjectSubclass<A> // overrides -[NSObject init] (To thunk symbol at the IMP)
 
     /* Deallocator */
     SymbolTestsCore.GenericFieldLayout.ClassBoundGenericNSObjectSubclass.__deallocating_deinit
 
     /* Constructor */
     SymbolTestsCore.GenericFieldLayout.ClassBoundGenericNSObjectSubclass.init(element: A, identifier: Swift.Int) -> SymbolTestsCore.GenericFieldLayout.ClassBoundGenericNSObjectSubclass<A>
-    SymbolTestsCore.GenericFieldLayout.ClassBoundGenericNSObjectSubclass.init() -> SymbolTestsCore.GenericFieldLayout.ClassBoundGenericNSObjectSubclass<A>
+    SymbolTestsCore.GenericFieldLayout.ClassBoundGenericNSObjectSubclass.init() -> SymbolTestsCore.GenericFieldLayout.ClassBoundGenericNSObjectSubclass<A> // overrides -[NSObject init] (To thunk symbol at the IMP)
 
     /* Variable */
     SymbolTestsCore.GenericFieldLayout.ClassBoundGenericNSObjectSubclass.element.getter : A

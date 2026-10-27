@@ -1176,6 +1176,16 @@ public final class SymbolIndexStore: @unchecked Sendable {
         return storage.symbolTable.row(forName: name) != nil
     }
 
+    /// The offset `symbols(for:in:)` files the symbol named exactly `name`
+    /// under, or `nil` when the sweep collected no such symbol. A name only
+    /// a debug-map entry reserved has no offset, and answers `nil`.
+    package func offset(ofSymbolNamed name: String, in machO: some MachORepresentableWithCache) -> Int? {
+        guard let storage = storage(in: machO), let row = storage.symbolTable.row(forName: name) else { return nil }
+        let offset = storage.symbolTable.canonicalOffset(atRow: row)
+        guard storage.symbolRowsByOffset[offset]?.contains(row) == true else { return nil }
+        return offset
+    }
+
     /// The mangled suffixes deriving a member's exported entry points from
     /// its implementation symbol: `Tj` dispatch thunk, `Tq` method
     /// descriptor, `Tu` async function pointer, and the thunk's own async

@@ -2733,6 +2733,26 @@
 - **关联文档**：提案 [0077-thunk-only-objc-members](../Evolutions/0077-thunk-only-objc-members.md)、[ThunkOnlyObjCMembers.md](ThunkOnlyObjCMembers.md)、[ObjCMemberRecovery.md](ObjCMemberRecovery.md)「边界与已知限制」、[DescriptorOnlyVTableMembers.md](DescriptorOnlyVTableMembers.md)「什么时候不补」、[Modules/MachOSymbols.md](Modules/MachOSymbols.md)、[Modules/SwiftDeclaration.md](Modules/SwiftDeclaration.md)、ReviewAdjudications A13 的 2026-10-27 复核。
 - **对应版本**：未发版（0.24.0 之后）。
 
+## 110. 没有 class object 的 Swift 类
+
+- **时间段**：2026-10-27，分支 `feature/objc-classes-without-class-objects`（worktree `.worktrees/MachOSwiftSection-ClassesWithoutClassObjects`，基于 `next` d68e6c10），当天合入 `next`。
+- **动机**：issue #137 的 ObjC 侧。泛型类、父类在别的 resilience domain 的类、父类是本模块泛型类的类都不在 `__objc_classlist` 里，`swift-section objc` 列不出它们，本库的 ObjC 方法表也读不到它们，`Xcode Service` 的 `MenuBarPanelWindow<A>` 的 `canBecomeKey` 这类覆写因此只有 `@objc`、没有 `override`。用户批准本库与 MachOObjCSection 两边并行开工；MachOObjCSection 新增了让宿主补进类的 `ObjCSuppliedClass`（它那边的提案 0014，随 0.8.201 发布）。
+- **关键决策**：
+  - 新的 `SwiftClassWithoutClassObjectIndex` 从类型描述符读出三种类的 `class_ro_t`：泛型类从 generic metadata pattern 的 extra-data pattern（照运行时 `initializeClassMetadataFromPattern` 的偏移算法），Resilient 策略从 `ResilientClassMetadataPattern`，Singleton 策略从静态的 incomplete metadata。绝对指针一律经 MachOObjCSection 的读取器解。
+  - 名字：泛型类用 Swift 限定名加泛型参数（模板里的名字是空指针），另外两种用 `class_ro_t` 里的运行时名。父类给运行时名的地方都给运行时名，链能接着走；别的镜像里的 Swift 父类只给 Swift 写法，链在那里断（运行时名要用旧式 mangling 拼，本库没有旧式 remangler）。
+  - 交给 MachOObjCSection 的是全部泛型类与 `__objc_stublist` 登记的类：编译器只给有 ObjC 祖先的非泛型类登记 stub，MachOObjCSection 给它们写的注释也是这个意思。本库自己的方法表不过滤。
+  - Singleton 类的 stub 是非公开的，只有完整 stub 的私有符号 `…CMt`，isa 字段在它后面一个字；`…CMs` 别名只给公开 stub 定义（起初按 `…CMs` 找，测试抓到后用探针确认）。
+  - 祖先解析器在进程内也按名字到已加载的镜像里找 ObjC 父类：没有 class object 的类只有父类的名字。起初把这一点记成已知限制，已有的「进程内与文件打印出同样的声明」测试红了，于是补上。
+  - 打印父类名起初用了 `.interfaceType` 预设，它去掉泛型实参，`MenuBarLabelHostingView` 的父类读成了 `SwiftUI.NSHostingView`；改用 `.interface`，fixture 加了一个父类是别的模块泛型类的例子。
+- **落地模块**：SwiftInspection（`SwiftClassWithoutClassObjectIndex`、`ObjCClassMethodIndex` 的查询与祖先链、`ObjCAncestorResolver` 的进程内按名字查找）、MachOSymbols（按名字查符号偏移）、SwiftIndexing（`ObjCSuppliedClass.swiftClassesWithoutClassObjects(in:)`、provider 查 `suppliedClassGroup(forName:)`）、SwiftSectionKit（两处构造 ObjC 索引器时传入）、MachOTestingSupport（`ClassesWithoutClassObjectsFixture`）；依赖 MachOObjCSection 升到 0.8.201。
+- **验证**：都在 JHs-Mac-Studio-Ultra 上跑（Xcode 26.6，远端依赖）。
+  - 修复前：只有测试的提交（4212fe49）上 4 个行为套件全部失败（16 个测试、20 处断言），其中一处是剥过符号的泛型类成员被 `final` 还原误标成 `final`。
+  - 修复后：目标套件与相关的 ObjC 成员恢复套件 12 个、74 个测试通过；全量 `swift test --skip IntegrationTests` 2610 个测试 / 502 个套件，唯一的变化是 SymbolTestsCore 的两份快照：interface 里三个继承 `NSObject` 的泛型类，编译器合成的 `init()` 成了 `@objc override init()`，dump 里它们多了 `// ObjC ancestor chain: NSObject` 与 `init` 的覆写注释，与非泛型类一致（快照已更新）。
+  - `Xcode Service`：`objc dump` 列出 `MenuBarPanelWindow<A> : NSPanel`（9 个方法，与 MachOObjCSection 那边的测试一致）与 `MenuBarLabelHostingView : SwiftUI.NSHostingView<Xcode_Service.MenuBarLabel>`；interface 里 `MenuBarPanelWindow` 的 8 个 ObjC 成员都成了 `@objc override`。
+  - 渲染 A/B：96 对里 66 对一致、30 对不同，都在 SwiftUI 与 SwiftUICore，逐行归类后全部是预期中的改进：interface 只多出 `override`（1576 处）、`static` 改成 `override class`（14 处）、剥过符号的模拟器腿上的 `@objc` 与 12 处显式 selector，没有删掉的声明，也没有类型变化；dump 只多出方法表与祖先链的注释。显式 selector 逐个核过，都与基线对有 class object 的类的判定一致，或是方法表里的真实 selector（`NSHostingView<Content>` 的 `springLoadingHighlightExited:`，看起来是 SwiftUI 的笔误）。两侧渲染耗时相同。细节见 [ClassesWithoutClassObjects.md](ClassesWithoutClassObjects.md)「验证」。
+- **关联文档**：提案 [0078-objc-classes-without-class-objects](../Evolutions/0078-objc-classes-without-class-objects.md)、[ClassesWithoutClassObjects.md](ClassesWithoutClassObjects.md)、[ObjCMemberRecovery.md](ObjCMemberRecovery.md)「边界与已知限制」、[ThunkOnlyObjCMembers.md](ThunkOnlyObjCMembers.md)「边界」、[ObjCCommandLine.md](../ObjCCommandLine.md) 第 5 条。
+- **对应版本**：未发版（0.24.0 之后）。
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节

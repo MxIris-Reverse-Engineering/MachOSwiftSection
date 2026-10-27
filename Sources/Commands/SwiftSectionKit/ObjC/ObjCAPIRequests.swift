@@ -4,6 +4,7 @@ import ObjCDiffing
 import ObjCIndexing
 import ObjCInterface
 import ObjCMetadataSource
+import SwiftIndexing
 
 /// `swift-section objc snapshot`: index a binary's ObjC API and persist it as a
 /// baseline document — or relabel an existing document.
@@ -228,7 +229,7 @@ enum ObjCAPISnapshotLoading {
 
         output.reportProgress("Indexing \(source.path)…")
         let machOFile = try binaryLoading.machOSource(forBinaryAt: source.path).load()
-        let indexer = ObjCInterfaceIndexer(machO: machOFile, imagePath: machOFile.imagePath)
+        let indexer = ObjCInterfaceIndexer(machO: machOFile, imagePath: machOFile.imagePath, suppliedClasses: ObjCSuppliedClass.swiftClassesWithoutClassObjects(in: machOFile))
         try await indexer.prepare()
         let snapshotBuilder = ObjCAPISnapshotBuilder(indexer: indexer)
         let provenance = ObjCAPIProvenance(

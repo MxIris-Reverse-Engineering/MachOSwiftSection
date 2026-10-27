@@ -322,10 +322,8 @@ Attribution against a non-macOS binary is limited (it warns and degrades rather 
   rebuilt from the entry point that survived: `--emit-member-addresses` points at the thunk,
   which uses the Objective-C calling convention (`self` in `x0`, `_cmd` in `x1`), or at the
   initializing entry point. `dump` lists the members only a thunk names under
-  `/* [ObjC Thunk] … */` sections. In a generic class, or a class registered through
-  `__objc_stublist` (its superclass is in another module, or is generic), such a member prints
-  with `@objc` but without `override`: these classes have no static Objective-C method list to
-  prove it, and `swift-section objc` does not list them yet.
+  `/* [ObjC Thunk] … */` sections.
+- **A generic class, or one registered through `__objc_stublist` (its superclass is in another module, or is generic), has no class object, so its Objective-C method list comes from its Swift metadata.** `override` is printed where its superclass chain can be followed. When the superclass is a Swift class of another binary (SwiftUI's `NSHostingView<…>`), the chain stops there and the class's members print with `@objc` but without `override`.
 - **`associatedtype Element` without `: ~Copyable` / `: ~Escapable`** does not prove the
   associated type is Copyable. The binary does not record that suppression (SE-0503); it is
   printed only when an extension of the protocol in the same image proves it

@@ -68,6 +68,7 @@ swift-section objc dump /path/to/dyld_shared_cache_arm64e --dyld-shared-cache -n
   superclass defined in another binary is not followed, so `--strip-overrides` removes almost
   nothing and inherited members such as `init` stay listed. Inside one cache the chain crosses
   images normally. When you need the full chain, read the image inside its cache.
+- **Swift classes that have no class object are listed from their Swift metadata**, each under a comment saying why. A generic class prints under its Swift name with its generic parameters (`@interface Module.Panel<A> : NSPanel`): its `class_ro_t` is the template every instantiation is built from, and has no name of its own. A class registered through `__objc_stublist` (its superclass is in another module, or is a generic class) prints under its `_TtC…` name. A superclass that is a Swift class of another binary keeps its Swift spelling (`SwiftUI.NSHostingView<Module.Label>`), and `--strip-overrides` cannot see past it. A snapshot written by 0.24.0 or earlier lacks these classes, so a `diff` against it reports each of them as added.
 - **The ivar offsets of pure Swift classes (`_TtC…` names) are unreliable** — file and
   in-process readings disagree, and some ivars are dropped. Take Swift layout from the Swift
   subcommands (`--emit-field-offsets`).

@@ -82,6 +82,13 @@ macOS 27 与 iOS 27 的 dyld shared cache 不再给每个镜像留自己的 `__o
 - **主要出现在**：`Sources/Support/ARM64InstructionDecoding/ARM64Trampoline.swift`、`Sources/Analysis/CrossReferenceAnalysis/Scanning/ReferenceScanner.swift`
 - **延伸阅读**：[Modules/CrossReferenceAnalysis.md](Internal/Modules/CrossReferenceAnalysis.md)、[0072-cross-reference-analysis](Evolutions/0072-cross-reference-analysis.md)
 
+### class without a class object（没有 class object 的类，`SwiftClassWithoutClassObject`）
+
+`__objc_classlist` 里没有 class object 的 Swift 类：泛型类，父类在别的 resilience domain 的类，父类是本模块泛型类的类。它们的 `class_ro_t` 都静态存在，但只有经 Swift 元数据才找得到（generic metadata pattern、`ResilientClassMetadataPattern`、静态的 incomplete metadata）。后两种有 ObjC 祖先时还在 `__objc_stublist` 里登记一个 stub。交给 MachOObjCSection 时它们叫 supplied class（`ObjCSuppliedClass`），即宿主补进 ObjC 索引器的类。与 `@objc @implementation` 类的区别：那种类有 class object，没有的是 Swift 元数据。
+
+- **主要出现在**：`Sources/Analysis/SwiftInspection/SwiftClassWithoutClassObjectIndex.swift`、`Sources/Declaration/SwiftIndexing/ObjCSuppliedClass+SwiftClassesWithoutClassObjects.swift`
+- **延伸阅读**：[ClassesWithoutClassObjects.md](Internal/ClassesWithoutClassObjects.md)、[0078-objc-classes-without-class-objects](Evolutions/0078-objc-classes-without-class-objects.md)
+
 ### context form / Mach-O form / pointer form（读取接口的三种形式）
 
 同一个读取接口曾经最多有三份手写实现：context form 收 `some ReadingContext`（`name(in: context)`、静态 `resolve(at:in:)`），Mach-O form 收一个 Mach-O reader、按偏移读（`name(in: machO)`、`resolve(from:in:)`），pointer form 不收读取器、直接用裸指针读本进程内存（`name()`、`resolve(from: pointer)`）。2026-09-30 起 context form 是唯一实现，另外两种是 0.22.0 废弃、0.25.0 删除的一行转发（`machO.context` / `.inProcess`）。

@@ -125,12 +125,15 @@ struct ThunkOnlyObjCMemberTests {
         #expect(widgetDeclarations.contains("@objc func handleTick(_: Any?)"), "\(widgetBlock)")
         #expect(widgetDeclarations.contains("@objc func handleExtensionTick(_: Any?)"), "\(widgetBlock)")
 
-        // No static class object, so no ObjC method table: `@objc` from the
-        // thunk, no `override`.
+        // No static class object: the ObjC method table is the template in the
+        // generic metadata pattern (evolution proposal
+        // `objc-classes-without-class-objects`), which ties the thunks to
+        // NSObject's selectors as for the class above.
         let genericBlock = try #require(block(startingWith: "class GenericThunkOnlyWidget<", in: optimizedInterface), "\(optimizedInterface)")
         let genericDeclarations = declarations(in: genericBlock)
-        #expect(genericDeclarations.contains("@objc var description: Swift.String {"), "\(genericBlock)")
-        #expect(genericDeclarations.contains("@objc init()"), "\(genericBlock)")
+        #expect(genericDeclarations.contains("@objc override var description: Swift.String {"), "\(genericBlock)")
+        #expect(genericDeclarations.contains("@objc override init()"), "\(genericBlock)")
+        #expect(genericDeclarations.contains("@objc func handleTick(_: Any?)"), "\(genericBlock)")
 
         let holderBlock = try #require(block(startingWith: "class InitializingEntryOnlyHolder", in: optimizedInterface), "\(optimizedInterface)")
         #expect(declarations(in: holderBlock).contains("init(values: [Swift.String])"), "\(holderBlock)")

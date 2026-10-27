@@ -212,3 +212,17 @@ complain about four kinds nobody asked for.
 
 **Keeping exit code 0 is deliberate**: these are diagnostics, not failures, and no existing
 script or CI job should turn red over them. For gating, use `diff --fail-on-breaking`.
+
+### 5. Swift classes without a class object are read from Swift metadata
+
+`__objc_classlist` holds a class object for every Swift class whose metadata the compiler can emit complete. Three kinds of class have none. They are listed from their Swift metadata instead, each under a comment line naming the kind:
+
+| Comment | Class | Listed as |
+|---|---|---|
+| `// Generic Swift class, instantiated at runtime` | A generic class. Its `class_ro_t` is the template its generic metadata pattern carries, and every instantiation gets a copy with a name of its own | Its Swift name with its generic parameters: `Module.Panel<A>` |
+| `// Swift class with resilient ancestry, registered through __objc_stublist` | A class whose superclass is in another module built with library evolution, such as SwiftUI | Its runtime name: `_TtC6Module5Label` |
+| `// Swift class with generic ancestry, registered through __objc_stublist` | A class whose superclass is a generic class of the same module | Its runtime name |
+
+The last two kinds are listed only when an Objective-C class is among their ancestors, since only then does the compiler register them in `__objc_stublist`. A superclass that is a Swift class of another binary keeps its Swift spelling (`SwiftUI.NSHostingView<Module.Label>`), and `--strip-overrides` cannot see past it.
+
+A `snapshot` written by `swift-section` 0.24.0 or earlier does not contain these classes, so a `diff` against it reports each of them as added. Regenerate the baseline with the current tool before you compare.

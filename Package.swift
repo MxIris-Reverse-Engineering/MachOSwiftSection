@@ -181,8 +181,11 @@ extension Package.Dependency {
             // instance property and adopted protocol of a class other images
             // extend, such as NSView. 0.8.200 merges upstream 0.8.2 and reads
             // every list an image attaches to a class, not just its first:
-            // `_UTCoreType` lost the methods of its second list.
-            "0.8.200" ..< "0.9.0",
+            // `_UTCoreType` lost the methods of its second list. 0.8.201
+            // takes the classes without a class object a host supplies
+            // (`ObjCSuppliedClass`): generic Swift classes and the ones
+            // `__objc_stublist` registers, read from Swift metadata here.
+            "0.8.201" ..< "0.9.0",
         ),
     )
 }
