@@ -72,8 +72,8 @@ package enum ThunkOnlyMemberFixture {
         @objc func thunkOnlyFixtureHook() {}
     }
 
-    // A generic class has no static class object, so there is no ObjC method
-    // table to tie these members to.
+    // A generic class has no static class object: its ObjC method table is
+    // the template its generic metadata pattern carries.
     class GenericThunkOnlyWidget<Element>: NSObject {
         override var description: String { "GenericThunkOnlyWidget" }
         @objc func handleTick(_ sender: Any?) {}

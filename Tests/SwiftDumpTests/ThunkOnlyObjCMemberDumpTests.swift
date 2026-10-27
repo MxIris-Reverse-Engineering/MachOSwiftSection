@@ -51,15 +51,16 @@ struct ThunkOnlyObjCMemberDumpTests {
         #expect(!output.contains("[ObjC Thunk]"), "\(output)")
     }
 
-    /// A generic class has no static class object and so no ObjC method
-    /// table: the thunk is listed with no ObjC comment. Its synthesized
-    /// `init()` kept its initializing entry point, so its thunk is not the
-    /// only symbol it has.
-    @Test func genericClassThunkOnlyMembersCarryNoObjCComment() async throws {
+    /// A generic class has no static class object; its ObjC method table is
+    /// the template in its generic metadata pattern (evolution proposal
+    /// `objc-classes-without-class-objects`), so the thunk carries the same
+    /// comment as a class with a class object. Its synthesized `init()` kept
+    /// its initializing entry point, so its thunk is not the only symbol it
+    /// has.
+    @Test func genericClassThunkOnlyMembersCarryTheirObjCComment() async throws {
         let output = try await dump(ofClassNamed: "GenericThunkOnlyWidget", in: .wholeModuleOptimized)
         let moduleName = ThunkOnlyMemberFixture.moduleName
-        let descriptionLine = try #require(output.split(separator: "\n").first { $0.contains("@objc \(moduleName).GenericThunkOnlyWidget.description.getter") }, "\(output)")
-        #expect(!descriptionLine.contains("//"), "\(descriptionLine)")
+        #expect(output.contains("@objc \(moduleName).GenericThunkOnlyWidget.description.getter : Swift.String // overrides -[NSObject description] (To thunk symbol at the IMP)"), "\(output)")
         #expect(!output.contains("/* [ObjC Thunk] Constructor */"), "\(output)")
     }
 }
