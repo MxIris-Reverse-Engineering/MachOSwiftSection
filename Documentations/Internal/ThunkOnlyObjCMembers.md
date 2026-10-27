@@ -47,7 +47,7 @@
 
 ## 边界
 
-- **泛型类与经 `__objc_stublist` 登记的类没有静态的 class object**，读不到它们的 ObjC 方法表，替身成员只有 thunk 给的 `@objc`，没有 `override`，显式 selector 也不判。ObjC 侧另立提案，需要 MachOObjCSection 先让索引器接受宿主补进来的类（issue #137 第二部分）。
+- **泛型类与经 `__objc_stublist` 登记的类没有静态的 class object**。本提案落地时读不到它们的 ObjC 方法表，替身成员只有 thunk 给的 `@objc`。2026-10-27 起方法表从 Swift 元数据读（提案 `objc-classes-without-class-objects`，[ClassesWithoutClassObjects.md](ClassesWithoutClassObjects.md)），`override` 照常给出；只有父类是另一个镜像里的 Swift 类时，链断在那里，仍然只有 `@objc`。
 - **`class` 与 `static`**：没有 vtable 槽的类型级成员照旧打成 `static`，与有实现符号时一样（见 [ClassMemberKeywordRecovery.md](ClassMemberKeywordRecovery.md)）。
 - **interface 里替身成员与普通成员看起来一样**，替身从哪来只在 dump 里写明。从 initializing entry point 建出的 initializer，dump 本来就列在 `/* Constructor */` 下，没有改。
 - **0054 的「ABI 墓碑不补」照旧**：墓碑槽本身不造替身。槽对应的成员若还剩 initializing entry point 或 `@objc` thunk，由那一边的替身补上，槽号经节点联结照常挂上。

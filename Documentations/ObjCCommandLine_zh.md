@@ -133,7 +133,7 @@ swift-section objc evolution CoreLocation-*.json --summary-only
 意思是「每个输入都是 cache，从每一份里取同一个镜像」。`snapshot` 不接受
 `--uses-system-dyld-shared-cache`：当前系统的 cache 没有一个稳定的路径可以记进基线。
 
-## 必须知道的四件事
+## 必须知道的五件事
 
 下面每一条，都会让一份看起来正常的输出把你引向错误的结论，而且签名和 `--help` 里都看不出来。
 
@@ -189,3 +189,17 @@ dump 一个纯 Swift 二进制，都会为你根本没问过的四类刷屏。
 
 **退出码保持 0 是有意的**：这些是诊断信息，不是失败，不应该让任何现有的脚本或 CI 因此变红。
 需要把关时，用 `diff --fail-on-breaking`。
+
+### 五、没有 class object 的 Swift 类，从 Swift 元数据读出来
+
+编译器能把元数据整个静态生成的 Swift 类，在 `__objc_classlist` 里都有一个 class object。有三种类没有，它们改为从 Swift 元数据读出来列出，每个前面有一行注释说明是哪一种：
+
+| 注释 | 哪种类 | 列出时用的名字 |
+|---|---|---|
+| `// Generic Swift class, instantiated at runtime` | 泛型类。它的 `class_ro_t` 是 generic metadata pattern 里的模板，每次实例化都拷一份、各自取名 | Swift 名字加上泛型参数：`Module.Panel<A>` |
+| `// Swift class with resilient ancestry, registered through __objc_stublist` | 父类在另一个开了 library evolution 的模块里的类，比如 SwiftUI 的类 | 运行时名：`_TtC6Module5Label` |
+| `// Swift class with generic ancestry, registered through __objc_stublist` | 父类是本模块泛型类的类 | 运行时名 |
+
+后两种只在祖先里有 Objective-C 类时才列出，因为只有这时编译器才把它们登记进 `__objc_stublist`。父类是另一个二进制里的 Swift 类时，父类名保持 Swift 写法（`SwiftUI.NSHostingView<Module.Label>`），`--strip-overrides` 也越不过它。
+
+`swift-section` 0.24.0 及更早版本写的 `snapshot` 里没有这些类，拿它做 `diff` 会把它们一个个报成新增。比较之前先用当前版本重新生成基线。
