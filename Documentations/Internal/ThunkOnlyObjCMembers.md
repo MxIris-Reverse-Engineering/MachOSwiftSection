@@ -37,6 +37,14 @@
 - **`…ToTm`**：几个 thunk 合并后共用的函数体。`Xcode Service` 里 `canBecomeKey` 等三个 thunk 都是 `mov w2, #imm; b` 跳进同一个 `…ToTm`。它不是成员，扫描时第一个子节点是 `mergedFunction`，根本进不了新索引。
 - **`__ivar_destroyer`**（`…fETo`）：`processMemberSymbol` 不认它，同样不进新索引。
 
+## 顺带修的 `@objc` 误标
+
+`applyThunkAttributes` 按成员名给成员打 `@objc`，但 initializer 的 thunk 记不下 initializer 的名字（`ThunkAttributeMember.memberName` 取的是树里遇到的第一个 identifier，也就是类型名），于是只要一个 initializer 有 thunk，这个类的**所有** initializer 都被打上 `@objc`。`Xcode Service` 的 0.24.0 输出里 `MenuBarLabelHostingView` 的 `@objc override init(rootView:)` 就是这样来的：`init(rootView:)` 是 `NSHostingView` 的泛型初始化方法，不可能是 `@objc`，真正有 thunk 的是 `init?(coder:)`。这次补回的 initializer 让问题更显眼——`MenuBarPanelPresenter.init(statusItem:content:)` 的参数是 `SwiftUI.AnyView`，也被打成了 `@objc`。
+
+现在按 mangled 名找 initializer：thunk 进入的是 initializing entry point，它的名字是 allocator 名把 `fC` 换成 `fc`，再接上 thunk 种类的后缀（`To` / `TO` / `TE`），镜像里有这个符号才打。`ThunkOnlyMemberFixture` 的 `ThunkOnlyWidget.init(tags:)` 钉住这一点。
+
+方法有同一类问题：标记表里只有成员名，重载共用一个名字，`@objc func handleTick(_:)` 旁边的 Swift-only `handleTick(count:)` 也被打成 `@objc`。现在方法同样按自己的符号名加后缀查 thunk（merged function 先去掉 `Tm`）。属性仍按名字匹配：一个类型里不会有两个同名属性。fixture 里的 `handleTick(count:)` 钉住这一点。
+
 ## 边界
 
 - **泛型类与经 `__objc_stublist` 登记的类没有静态的 class object**，读不到它们的 ObjC 方法表，替身成员只有 thunk 给的 `@objc`，没有 `override`，显式 selector 也不判。ObjC 侧另立提案，需要 MachOObjCSection 先让索引器接受宿主补进来的类（issue #137 第二部分）。

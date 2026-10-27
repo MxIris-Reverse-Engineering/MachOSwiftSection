@@ -41,3 +41,5 @@
 | 2026-10-27 | #138 并入本提案 | `@objc` thunk 替身里的 `init` 来自 `…fcTo`，去掉后缀得到的是 initializing entry point，模型要先接受它；分两次改要把同一处改两遍。 |
 | 2026-10-27 | #137 的 ObjC 侧另立提案 | 让 `objc dump` 和 ObjC 方法表看见泛型类与 stub-list 类，需要 MachOObjCSection 先加 API，与本提案互不依赖。 |
 | 2026-10-27 | 状态 In Progress | 实现提交到 `fix/thunk-only-objc-members`；修复前在 Ultra 上跑新测试，7 个暴露问题的测试全部失败（24 处），3 个只核对前提的测试通过。 |
+| 2026-10-27 | 顺带修 initializer 的 `@objc` | 一个 initializer 有 thunk，整个类的 initializer 都被打成 `@objc`（旧问题）；补回的 initializer 会把它放大，改为按每个 initializer 自己的 thunk 名判断。属于显而易见的 bug 修复，记在本提案里。 |
+| 2026-10-27 | 同类问题一并修：重载的方法 | 标记表只记成员名，重载共用名字，Swift-only 的重载也被打成 `@objc`；方法同样改为按自己的符号名查 thunk。属性名在类型内唯一，不改。 |

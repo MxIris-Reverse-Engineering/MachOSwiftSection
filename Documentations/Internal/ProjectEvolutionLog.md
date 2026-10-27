@@ -2722,6 +2722,7 @@
   - 造替身之前先按名字查实现符号是否存在，没被优化掉的镜像几乎不付代价；结构相等的去重仍是最终判据。
   - 泛型类与 stub-list 类的 ObjC 方法表（`override` 与显式 selector 的证据）另立提案，与 MachOObjCSection 协作：那边让 `ObjCInterfaceIndexer` 接受宿主补进来的类，本库从 Swift 元数据算出这些类的 `class_ro_t`。
   - ABI snapshot 格式版本加一。
+  - 顺带修掉一个旧问题：一个 initializer 有 `@objc` thunk，整个类的 initializer 都被打成 `@objc`（0.24.0 把 `NSHostingView` 的泛型 `init(rootView:)` 印成 `@objc override init(rootView:)`）。改为按每个 initializer 自己的 thunk 名判断；横向排查发现重载的方法有同一个问题（Swift-only 的重载也被打成 `@objc`），一并改为按符号名判断。
 - **落地模块**：MachOSymbols（第四个成员索引与查询）、SwiftDeclaration（`StandInMemberSymbols`、`indexMembers`、`ClassDispatchLookups` 的去重键挪走）、SwiftIndexing（extension 成员）、SwiftDump（`[ObjC Thunk]` 一节）、SwiftDiffing（格式版本）、MachOTestingSupport（`ThunkOnlyMemberFixture`）。
 - **验证**：（待填）
 - **关联文档**：提案 [draft-thunk-only-objc-members](../Evolutions/draft-thunk-only-objc-members.md)、[ThunkOnlyObjCMembers.md](ThunkOnlyObjCMembers.md)、[ObjCMemberRecovery.md](ObjCMemberRecovery.md)「边界与已知限制」、[DescriptorOnlyVTableMembers.md](DescriptorOnlyVTableMembers.md)「什么时候不补」、[Modules/MachOSymbols.md](Modules/MachOSymbols.md)、[Modules/SwiftDeclaration.md](Modules/SwiftDeclaration.md)、ReviewAdjudications A13 的 2026-10-27 复核。
