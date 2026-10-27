@@ -1,4 +1,4 @@
-import Demangling
+@_spi(Internals) import Demangling
 import MachOSwiftSection
 import OrderedCollections
 @_spi(Internals) import MachOSymbols
