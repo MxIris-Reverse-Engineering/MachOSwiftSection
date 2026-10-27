@@ -1,11 +1,12 @@
-# Draft - 只剩 `@objc` thunk 或 initializing entry point 的成员照样建出来
+# 0077 - 只剩 `@objc` thunk 或 initializing entry point 的成员照样建出来
 
-- **状态**: In Progress
+- **状态**: Implemented
 - **创建日期**: 2026-10-27
 - **最后更新**: 2026-10-27
 - **关联 issue**: [#137](https://github.com/MxIris-Reverse-Engineering/MachOSwiftSection/issues/137)（Swift 侧）、[#138](https://github.com/MxIris-Reverse-Engineering/MachOSwiftSection/issues/138)
 - **关联提案**: [0054-interface-descriptor-only-vtable-members](0054-interface-descriptor-only-vtable-members.md)（同一种「替身成员符号」的先例）
-- **实现分支**: `fix/thunk-only-objc-members`
+- **实现分支**: `fix/thunk-only-objc-members`（已合入 `next`）
+- **配套文档**: [ThunkOnlyObjCMembers.md](../Internal/ThunkOnlyObjCMembers.md)（实现说明）
 
 ## 摘要
 
@@ -44,3 +45,5 @@
 | 2026-10-27 | 顺带修 initializer 的 `@objc` | 一个 initializer 有 thunk，整个类的 initializer 都被打成 `@objc`（旧问题）；补回的 initializer 会把它放大，改为按每个 initializer 自己的 thunk 名判断。属于显而易见的 bug 修复，记在本提案里。 |
 | 2026-10-27 | 同类问题一并修：重载的方法 | 标记表只记成员名，重载共用名字，Swift-only 的重载也被打成 `@objc`；方法同样改为按自己的符号名查 thunk。属性名在类型内唯一，不改。 |
 | 2026-10-27 | 验证完成，等待落地 | 全量测试与渲染 A/B 都在 Ultra 上跑完（结果见实现说明）；`TO` thunk 也会挂在 `fC` 上，但这些全是导入 ObjC initializer 的桥接 thunk，不影响打印出的成员，代码不为它改。 |
+| 2026-10-27 | 状态 Implemented，编号 0077，合入 `next` | 用户批准落地。实现说明写在 [ThunkOnlyObjCMembers.md](../Internal/ThunkOnlyObjCMembers.md)；没有新 flag，不需要使用指南，CLI skill 补了快照格式与输出解读两条；新术语 stand-in member symbol 与 thunk-only member 登记进术语表。偏离方案之处：顺带修了 initializer 与重载方法的 `@objc` 误标。 |
+| 2026-10-27 | 后续项 | #137 的 ObjC 侧（泛型类与 stub-list 类的 `class_ro_t`、`objc dump` 列出它们、ObjC 方法表据此给 `override`）另立提案，MachOObjCSection 的 host-supplied-classes 提案已获批准、正在实现。A/B 中看到的两个旧问题另开 #139（下划线开头的普通存储属性被当成 property wrapper 的 backing storage）与 #140（dump 把类方法的空 vtable 槽打成 `class func static`）。 |

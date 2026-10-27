@@ -2711,9 +2711,9 @@
 - **关联文档**：审查记录、提案 [0076-objc-runtime-send-entry-points](../Evolutions/0076-objc-runtime-send-entry-points.md)、[Modules/CrossReferenceAnalysis.md](Modules/CrossReferenceAnalysis.md)「libobjc 的发送入口」「链接器改写过的代码」与「两种桩布局」、[Modules/SwiftThunkAnalysis.md](Modules/SwiftThunkAnalysis.md)、ReviewAdjudications A64、A76–A80。
 - **对应版本**：未发版（0.24.0 之后）。
 
-## （落地时编号）2026-10-27 只剩 `@objc` thunk 或 initializing entry point 的成员
+## 109. 只剩 `@objc` thunk 或 initializing entry point 的成员
 
-- **时间段**：2026-10-27，分支 `fix/thunk-only-objc-members`（worktree `.worktrees/MachOSwiftSection-ThunkOnlyMembers`，基于 `next` b4d76a3b）。
+- **时间段**：2026-10-27，分支 `fix/thunk-only-objc-members`（worktree `.worktrees/MachOSwiftSection-ThunkOnlyMembers`，基于 `next` b4d76a3b），当天合入 `next`。
 - **动机**：逆向 Xcode 27.2 菜单栏助手的会话报来 issue #137：`Xcode Service` 里 `MenuBarPanelWindow.canBecomeKey` 这类成员在 dump 与 interface 里都不见了，只有 `nm` 能看到。triage 发现范围更大：7 个类、22 个 `@objc` 成员只剩 `To` thunk，`__objc_classlist` 里的普通类也一样；另有 9 个 class initializer 只剩 initializing entry point，interface 里也不见（issue #138）。成员模型只从实现符号（和提案 0054 的 `Tq` 替身）建成员，整模块优化删掉实现符号后就无从建起。用户批准本库与 MachOObjCSection 两边并行开工。
 - **关键决策**：
   - 沿用提案 0054 的替身成员符号：照实现符号的样子造（mangled 名、成员树），偏移用镜像留下的入口。thunk 去掉 `To` 与 `objCAttribute`；initializing entry point 把 `constructor` 改写成 `allocator`、`fc` 换成 `fC`，因为 builder、vtable 槽、ObjC 方法表与 ABI 身份都按 allocator 记。
@@ -2729,8 +2729,8 @@
   - 修复后：新增两个套件 11 个测试通过；全量 2599 个测试 / 499 个套件，唯一的变化是 SymbolTestsCore interface 快照里三个泛型 initializer 不再带 `@objc`，快照已更新。
   - `Xcode Service`：与 `next` 基线对比，dump 只增不减，interface 只删掉两个误标的 `@objc`；报告里的成员全部打出，地址是 thunk 或 `fc` 的地址。
   - 渲染 A/B：96 对里 61 对一致、35 对不同，逐对归了类：dump 全是新增；interface 的差异是补回的成员、去掉不可能成立的 `@objc`（随之有几处 `final`）、属性补回了访问器。细节见 [ThunkOnlyObjCMembers.md](ThunkOnlyObjCMembers.md)「验证」。
-  - 顺带看到两个与本次无关的旧问题，未修：property wrapper 识别把下划线开头的普通存储属性当成 backing storage，打出 `@Swift.String? var phase: Any?` 这种属性（SwiftUICore 的 `TextAnimator`）；dump 给类方法的 ABI 墓碑槽打 `class func static …`，关键字重复。
-- **关联文档**：提案 [draft-thunk-only-objc-members](../Evolutions/draft-thunk-only-objc-members.md)、[ThunkOnlyObjCMembers.md](ThunkOnlyObjCMembers.md)、[ObjCMemberRecovery.md](ObjCMemberRecovery.md)「边界与已知限制」、[DescriptorOnlyVTableMembers.md](DescriptorOnlyVTableMembers.md)「什么时候不补」、[Modules/MachOSymbols.md](Modules/MachOSymbols.md)、[Modules/SwiftDeclaration.md](Modules/SwiftDeclaration.md)、ReviewAdjudications A13 的 2026-10-27 复核。
+  - 顺带看到两个与本次无关的旧问题，未修，另开 issue：#139（property wrapper 识别把下划线开头的普通存储属性当成 backing storage，打出 `@Swift.String? var phase: Any?` 这种属性，SwiftUICore 的 `TextAnimator` 等）；#140（dump 给类方法的 ABI 墓碑槽打 `class func static …`，关键字重复）。
+- **关联文档**：提案 [0077-thunk-only-objc-members](../Evolutions/0077-thunk-only-objc-members.md)、[ThunkOnlyObjCMembers.md](ThunkOnlyObjCMembers.md)、[ObjCMemberRecovery.md](ObjCMemberRecovery.md)「边界与已知限制」、[DescriptorOnlyVTableMembers.md](DescriptorOnlyVTableMembers.md)「什么时候不补」、[Modules/MachOSymbols.md](Modules/MachOSymbols.md)、[Modules/SwiftDeclaration.md](Modules/SwiftDeclaration.md)、ReviewAdjudications A13 的 2026-10-27 复核。
 - **对应版本**：未发版（0.24.0 之后）。
 
 ## 维护约定

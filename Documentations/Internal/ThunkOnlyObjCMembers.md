@@ -1,6 +1,6 @@
 # 只剩 `@objc` thunk 或 initializing entry point 的成员
 
-> 提案 [draft-thunk-only-objc-members](../Evolutions/draft-thunk-only-objc-members.md) 的实现说明。读者：维护者。为什么要做、范围怎么定的在提案里，本文讲落地后的形状、几个看代码看不出来的决定，以及边界。
+> 提案 [0077-thunk-only-objc-members](../Evolutions/0077-thunk-only-objc-members.md) 的实现说明。读者：维护者。为什么要做、范围怎么定的在提案里，本文讲落地后的形状、几个看代码看不出来的决定，以及边界。
 
 ## 一句话
 
