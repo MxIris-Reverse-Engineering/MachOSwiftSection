@@ -178,6 +178,25 @@ final class PerImageCacheEvictionTests: MachOFileTests, @unchecked Sendable {
         )
     }
 
+    /// `SwiftClassWithoutClassObjectIndex` is ObjC-side per-image state of the
+    /// same lifetime (evolution proposal `objc-classes-without-class-objects`).
+    @Test func classesWithoutClassObjectsIndexGoesWithTheObjCClassHierarchies() async throws {
+        let unsafeMachOFile = machOFile
+        clearAllPerImageCaches(for: unsafeMachOFile)
+
+        var indexer: SwiftDeclarationIndexer<MachOFile>? = SwiftDeclarationIndexer(in: unsafeMachOFile)
+        try await indexer?.prepare()
+        _ = SwiftClassWithoutClassObjectIndex.shared.classes(in: unsafeMachOFile)
+        try #require(SwiftClassWithoutClassObjectIndex.shared.contains(in: unsafeMachOFile))
+
+        indexer = nil
+
+        #expect(
+            !SwiftClassWithoutClassObjectIndex.shared.contains(in: unsafeMachOFile),
+            "the index of classes without a class object outlived the indexer that reclaims the image's ObjC-side state"
+        )
+    }
+
     @Test func survivingIndexerKeepsPerImageCaches() async throws {
         let unsafeMachOFile = machOFile
         clearAllPerImageCaches(for: unsafeMachOFile)

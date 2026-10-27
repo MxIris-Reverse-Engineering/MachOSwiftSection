@@ -78,6 +78,8 @@ package final class ObjCClassMethodIndex: @unchecked Sendable {
         fileprivate struct HierarchyMemoKey: Hashable {
             let classOffset: Int?
             let foreignClassName: String?
+            /// A class without a class object, by its `class_ro_t`.
+            let readOnlyDataOffset: Int?
             let resolverIdentity: UUID?
         }
 
@@ -136,8 +138,7 @@ package final class ObjCClassMethodIndex: @unchecked Sendable {
     // MARK: - Queries
 
     /// The runtime names of the Swift classes whose qualified name is
-    /// `qualifiedName`; empty when the image defines no such class object
-    /// (a generic class has none — it is instantiated at runtime).
+    /// `qualifiedName`; empty when the image defines no such class.
     ///
     /// A class the source renamed (`@objc(NSScrollPocket)`) files under a
     /// runtime name that demangles to nothing, so the table built here never
@@ -145,12 +146,17 @@ package final class ObjCClassMethodIndex: @unchecked Sendable {
     /// metadata's descriptor gives (evolution proposal
     /// `objc-custom-class-name`), and both answers count: the qualified name
     /// drops the private discriminator, so two same-named private classes stay
-    /// ambiguous whichever of them was renamed. Only an image whose Swift
-    /// classes are asked about builds that index — the ancestor walk never
-    /// asks by Swift name.
+    /// ambiguous whichever of them was renamed. A class without a class
+    /// object — a generic class, or one the stub list registers — is answered
+    /// by the name `SwiftClassWithoutClassObjectIndex` gives it (evolution
+    /// proposal `objc-classes-without-class-objects`), and counts too. Only
+    /// an image whose Swift classes are asked about builds those indexes —
+    /// the ancestor walk never asks by Swift name.
     package func runtimeNames(forSwiftClassQualifiedName qualifiedName: String, in machO: some MachORepresentableWithCache) -> [String] {
         let demangledRuntimeNames = storage(in: machO)?.runtimeNamesBySwiftQualifiedName[qualifiedName] ?? []
-        return demangledRuntimeNames + SwiftClassObjectIndex.shared.customRuntimeNames(forSwiftClassQualifiedName: qualifiedName, in: machO)
+        return demangledRuntimeNames
+            + SwiftClassObjectIndex.shared.customRuntimeNames(forSwiftClassQualifiedName: qualifiedName, in: machO)
+            + SwiftClassWithoutClassObjectIndex.shared.names(forSwiftClassQualifiedName: qualifiedName, in: machO)
     }
 
     /// The hierarchy of the class the image defines under `runtimeName` —
@@ -175,7 +181,7 @@ package final class ObjCClassMethodIndex: @unchecked Sendable {
         let resolver = ObjCAncestorResolverStore.shared.resolver(forImage: reader)
         let folding = AncestorCategoryFolding(rootReader: reader, rootStorage: storage, resolver: resolver)
         if let classObject = storage.classObjectsByRuntimeName[runtimeName] {
-            let memoKey = Storage.HierarchyMemoKey(classOffset: classObject.offset, foreignClassName: nil, resolverIdentity: resolver?.identity)
+            let memoKey = Storage.HierarchyMemoKey(classOffset: classObject.offset, foreignClassName: nil, readOnlyDataOffset: nil, resolverIdentity: resolver?.identity)
             if let memoized = storage.memoizedHierarchy(for: memoKey) {
                 return memoized
             }
@@ -207,10 +213,15 @@ package final class ObjCClassMethodIndex: @unchecked Sendable {
             return hierarchy
         }
 
-        // No class object of that name here: the image's categories on a
-        // class another image defines.
+        // No class object of that name here, but a class whose `class_ro_t`
+        // only Swift metadata leads to.
+        if let swiftClass = SwiftClassWithoutClassObjectIndex.shared.swiftClass(named: runtimeName, in: reader) {
+            return hierarchy(of: swiftClass, categories: categories, storage: storage, reader: reader, resolver: resolver, folding: folding)
+        }
+
+        // Neither: the image's categories on a class another image defines.
         guard !categories.isEmpty else { return nil }
-        let memoKey = Storage.HierarchyMemoKey(classOffset: nil, foreignClassName: runtimeName, resolverIdentity: resolver?.identity)
+        let memoKey = Storage.HierarchyMemoKey(classOffset: nil, foreignClassName: runtimeName, readOnlyDataOffset: nil, resolverIdentity: resolver?.identity)
         if let memoized = storage.memoizedHierarchy(for: memoKey) {
             return memoized
         }
@@ -249,6 +260,64 @@ package final class ObjCClassMethodIndex: @unchecked Sendable {
         )
         storage.memoize(hierarchy, for: memoKey)
         return hierarchy
+    }
+
+    /// The hierarchy of a class without a class object: its methods are its
+    /// `class_ro_t`'s and its metaclass's, and its chain starts where its
+    /// descriptor's superclass names (`superclassLocation(of:in:)`). The
+    /// categories of the image's `@objc` extensions point at the class's
+    /// stub, which `targetClassName(of:)` reads no name from, so none is
+    /// found under the class's name.
+    private func hierarchy(of swiftClass: SwiftClassWithoutClassObject, categories: [ObjCCategory64], storage: Storage, reader: some ObjCImplementationClassReading, resolver: ObjCAncestorResolver?, folding: AncestorCategoryFolding) -> ObjCClassHierarchy? {
+        let memoKey = Storage.HierarchyMemoKey(classOffset: nil, foreignClassName: nil, readOnlyDataOffset: swiftClass.readOnlyDataOffset, resolverIdentity: resolver?.identity)
+        if let memoized = storage.memoizedHierarchy(for: memoKey) {
+            return memoized
+        }
+        guard let readOnlyData = swiftClass.readOnlyData(in: reader) else { return nil }
+        var methods: [ObjCClassHierarchy.Method] = reader.methods(of: readOnlyData).map {
+            ObjCClassHierarchy.Method(selector: $0.selector, isClassMethod: false, implementation: $0.implementationOffset.map { .offset($0) })
+        }
+        if let metaclassReadOnlyData = swiftClass.metaclassReadOnlyData(in: reader) {
+            methods += reader.methods(of: metaclassReadOnlyData).map {
+                ObjCClassHierarchy.Method(selector: $0.selector, isClassMethod: true, implementation: $0.implementationOffset.map { .offset($0) })
+            }
+        }
+        var protocolSelectors = reader.protocolSelectors(of: readOnlyData)
+        Self.append(categories, to: &methods, protocolSelectors: &protocolSelectors, in: reader)
+        guard !methods.isEmpty else { return nil }
+
+        let chain = ancestors(startingAt: superclassLocation(of: swiftClass, in: reader), className: swiftClass.name, resolver: resolver, folding: folding)
+        let hierarchy = ObjCClassHierarchy(
+            className: swiftClass.name,
+            methods: methods,
+            ancestors: chain.ancestors,
+            isAncestorChainComplete: chain.isComplete,
+            unresolvedAncestorName: chain.unresolvedAncestorName,
+            adoptedProtocolSelectors: protocolSelectors.hierarchyValue
+        )
+        storage.memoize(hierarchy, for: memoKey)
+        return hierarchy
+    }
+
+    /// Where the superclass of a class without a class object is: a class
+    /// object of the same image goes by pointer, an Objective-C class of
+    /// another image by name — the ancestor resolver follows it — another
+    /// class without a class object through this index, and a Swift class
+    /// another image defines nowhere: the chain stops, unnamed, since no
+    /// lookup could answer for its Swift spelling.
+    private func superclassLocation(of swiftClass: SwiftClassWithoutClassObject, in reader: some ObjCImplementationClassReading) -> ObjCSuperclassLocation {
+        switch swiftClass.superclass {
+        case .objectiveC(let runtimeName), .classObject(let runtimeName):
+            if let classObject = storage(in: reader)?.classObjectsByRuntimeName[runtimeName] {
+                return .resolved(reader, classObject)
+            }
+            return .unresolvable(runtimeName)
+        case .withoutClassObject(let name):
+            guard let superclass = SwiftClassWithoutClassObjectIndex.shared.swiftClass(named: name, in: reader) else { return .unresolvable(nil) }
+            return .withoutClassObject(reader, superclass)
+        case .swiftClass:
+            return .unresolvable(nil)
+        }
     }
 
     /// Continues a hierarchy a host's provider handed over with its chain
@@ -387,6 +456,27 @@ package final class ObjCClassMethodIndex: @unchecked Sendable {
                 }
                 chain.ancestors.append(ObjCClassHierarchy.Ancestor(className: selectorSets.className, instanceSelectors: instanceSelectors, classSelectors: classSelectors, adoptedProtocolSelectors: protocolSelectors.hierarchyValue))
                 location = ancestorReader.superclassLocation(of: ancestorClassObject)
+            case .withoutClassObject(let ancestorReader, let ancestorClass):
+                hopCount += 1
+                guard hopCount <= 64 else {
+                    #log(.error, "superclass chain of \(className, privacy: .public) exceeds 64 hops; treating it as broken")
+                    chain.isComplete = false
+                    break walk
+                }
+                guard let selectorSets = selectorSets(of: ancestorClass, in: ancestorReader) else {
+                    chain.isComplete = false
+                    break walk
+                }
+                var instanceSelectors = selectorSets.instanceSelectors
+                var classSelectors = selectorSets.classSelectors
+                var protocolSelectors = selectorSets.protocolSelectors
+                if let folded = folding?.selectors(onClassNamed: selectorSets.className), !folded.isEmpty {
+                    instanceSelectors.formUnion(folded.instanceSelectors)
+                    classSelectors.formUnion(folded.classSelectors)
+                    protocolSelectors.merge(folded.protocolSelectors)
+                }
+                chain.ancestors.append(ObjCClassHierarchy.Ancestor(className: selectorSets.className, instanceSelectors: instanceSelectors, classSelectors: classSelectors, adoptedProtocolSelectors: protocolSelectors.hierarchyValue))
+                location = superclassLocation(of: ancestorClass, in: ancestorReader)
             }
         }
         return chain
@@ -430,6 +520,24 @@ package final class ObjCClassMethodIndex: @unchecked Sendable {
         return compute(in: reader)
     }
 
+    /// The selectors a class without a class object implements, memoized in
+    /// its image's storage under its `class_ro_t` offset.
+    private func selectorSets(of swiftClass: SwiftClassWithoutClassObject, in reader: any ObjCImplementationClassReading) -> SelectorSets? {
+        func compute<Reader: ObjCImplementationClassReading>(in reader: Reader) -> SelectorSets? {
+            guard let storage = storage(in: reader) else { return nil }
+            if let memoized = storage.memoizedSelectorSets(forClassOffset: swiftClass.readOnlyDataOffset) {
+                return memoized
+            }
+            guard let readOnlyData = swiftClass.readOnlyData(in: reader) else { return nil }
+            let instanceSelectors = Set(reader.methods(of: readOnlyData).map(\.selector))
+            let classSelectors = swiftClass.metaclassReadOnlyData(in: reader).map { Set(reader.methods(of: $0).map(\.selector)) } ?? []
+            let selectorSets = SelectorSets(className: swiftClass.name, instanceSelectors: instanceSelectors, classSelectors: classSelectors, protocolSelectors: reader.protocolSelectors(of: readOnlyData))
+            storage.memoize(selectorSets, forClassOffset: swiftClass.readOnlyDataOffset)
+            return selectorSets
+        }
+        return compute(in: reader)
+    }
+
     // MARK: - Build
 
     private static func build(in machO: some ObjCImplementationClassReading) -> Storage {
@@ -465,6 +573,12 @@ enum ObjCSuperclassLocation {
     /// reach (a standalone file's dependency); `String?` is the bound
     /// symbol's class name when the bind names one.
     case unresolvable(String?)
+    /// A class of the reader's image without a class object, which only
+    /// Swift metadata leads to (evolution proposal
+    /// `objc-classes-without-class-objects`). No reader's
+    /// `superclassLocation(of:)` answers it: a class object's superclass has
+    /// a class object.
+    case withoutClassObject(any ObjCImplementationClassReading, SwiftClassWithoutClassObject)
 }
 
 /// What categories add to a class: instance and class selectors, and the
