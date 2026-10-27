@@ -36,12 +36,41 @@ macOS 27 / iOS 27 起的那种见术语表 [cache-shared stub（全缓存共用�
 
 | 缓存 | ObjC 消息 | 跨库调用 |
 |---|---|---|
-| macOS 15 至 26、iOS 26 及更早的真机，以及 Simulator | 镜像自己的 `__objc_stubs`（经 MachOKit `objcStubs(in:)` 读 selector 引用） | 镜像自己的 `__stubs` / `__auth_stubs`（MachOKit `stubs(in:)` 给出槽位） |
+| macOS 15 至 26、iOS 26 及更早的真机，以及 Simulator | 镜像自己的 `__objc_stubs`（经 MachOKit `objcStubs(in:)` 读 selector 引用） | 镜像自己的 `__stubs` / `__auth_stubs`（MachOKit `stubs(in:)` 给出槽位；它读不出的 ld64 改写形态由 `ARM64Trampoline` 补读，见「链接器改写过的代码」） |
 | macOS 27、iOS 27 真机 | 镜像里的段大小为 0；`bl` 落到全缓存共用的 selector 桩：`adrp x1; add x1; b <objc_msgSend 副本>`，`x1` 就是 selector 字符串 | 全缓存共用的 GOT 桩：`adrp x17; add x17; ldr x16, [x17]; braa x16, x17` |
 
 同一个 selector 在不同子缓存里各有一份共用桩（macOS 27.2：被调用的 155 万个桩只对应 104 万个字符串），所以 selector 以字符串为键，不以桩地址为键。GOT 槽在进程内已经绑定，读出指针、去掉指针认证位就是目标；读之前先确认槽位落在缓存的映射里。
 
+**去掉哪些位按平台定。** 从进程内存读出的指针（GOT 槽、selector 引用、类列表与 `isa`、Swift 类元数据 +0x40 与值类型元数据 +8 的描述符）一律经 `StoredPointer.address(in:)`，用 `InProcessContext.addressMask`，即 MachOKitExtensions 按镜像平台给的 `vmaddrMask`。Mac 的用户地址是 47 位，iPhone 等真机是 36 位，arm64e 的签名从地址宽度之上开始，iPhone 上从第 39 位开始。0.24.0 在六处写死了 Mac 的 47 位掩码，在 iOS、tvOS、watchOS、visionOS 真机上会把签名的第 39–46 位留在地址里，带签名的槽位全都跟不过去（第二轮审查 N1）；`AddressMaskScanTests` 扫遍库的源码，不许再出现这种常量。
+
 不经桩、直接 `bl` / `b` 到 `objc_msgSend` 的传统写法还有第三种形态：缓存构建器把读 selector 引用的 `adrp` / `ldr` 改写成了 `adrp` / `add` 出字符串本身的地址，指令里只剩字符串地址。macOS 27.2 的 `-[NSObject debugDescription]` 就是 `adrp x8; add x1, x8, #…; b _objc_msgSend`（`objc_msgSend` 在 `/usr/lib/objc/libobjcMsgSend.dylib` 里）。所以传统发送的 selector 两处都要认：`x1` 从本镜像的 `__objc_selrefs` 读来，或 `x1` 是 `adrp` / `add` 算出的地址；后者要确认它落在映射里、到结尾为止是不含空格的可打印字符（最长 1,024 字节），不满足就不当作发送。第一批漏了后一种，这些发送全被当成对 `objc_msgSend` 的普通调用；RuntimeViewer 第 3 步查 `-[NSObject description]` 的调用者时发现。
+
+### libobjc 的发送入口（提案 `objc-runtime-send-entry-points`）
+
+clang 把一部分发送编成对 libobjc 专用入口的调用：`[[Foo alloc] init]` 是 `objc_alloc_init(Foo)`，`[Foo alloc]`、`[Foo allocWithZone:nil]`、`[Foo new]` 是 `objc_alloc`、`objc_allocWithZone`、`objc_opt_new`，`[x self]`、`[x class]` 是 `objc_opt_self`、`objc_opt_class`，`[x isKindOfClass:c]`、`[x respondsToSelector:s]` 是 `objc_opt_isKindOfClass`、`objc_opt_respondsToSelector`。这样的发送不经 `objc_msgSend`，镜像里也可能没有这个 selector 的引用。macOS 26.6 的 AppKit 里 `objc_alloc_init` 有 2,488 处，按 selector 发送的 `init` 只有 720 处；`objc_opt_isKindOfClass` 3,369 处、`objc_opt_respondsToSelector` 2,977 处、`objc_opt_new` 590 处，对应的 selector 一次直接发送都没有。0.24.0 只认 `objc_msgSend`，这些都记成对 libobjc 函数的普通调用，查 `init` 的调用者漏掉约 78%，查另外几个一处都查不到（第二轮审查第 2 条）。
+
+现在每处这样的调用记成它代表的发送（`Scanning/MessageSendEntryPoints`）：
+
+- 入口按 libobjc 里的位置认，经桩、GOT 或共用桩到达都算；桩跟不过去、只剩导入名时按名字认。
+- 接收者按 `x0` 判断，与 `objc_msgSend` 相同。`objc_alloc_init` 在同一条指令上记 `alloc` 与 `init` 两条发送，`init` 发给 `alloc` 返回的实例，接收者记 `.unknown`。
+- 这些调用不再同时记成对 C 函数的调用：按函数查 `_objc_alloc_init` 的调用者没有结果，按 selector 查才对，与 `objc_msgSend` 的处理一致。
+- `objc_opt_self`、`objc_opt_class` 调用之后 `x0` 照旧保留（见「类引用」的类字面量接收者）。
+- `objc_retain`、`objc_release`、`objc_autorelease` 不算：ARC 插入的调用与源码里的 `[x retain]` 编出来是同一个调用，分不开，仍是运行时辅助调用。
+- selector 预筛（`imageIndices(referencingSelector:among:)`）对这几个 selector 另外留下导入或定义对应入口的镜像：只经 `objc_alloc_init` 发送 `init` 的镜像，`__objc_selrefs` 里根本没有 `init`。
+
+### 链接器改写过的代码（第二轮审查）
+
+ld64——Xcode 14 及更早的链接器，以及 Xcode 15、16 加 `-ld_classic` 时用的那个——排好地址之后，会按编译器留下的 linker optimization hint 改写指令：槽位在一兆字节以内的 `adrp` / `ldr` 改成 `nop` / `ldr xN, <槽>`，地址在一兆字节以内的 `adrp` / `add` 改成 `adr xN, <地址>` / `nop`，懒绑定的桩改成 `nop` / `ldr x16, <槽>` / `br x16`。Xcode 26 的链接器不做这种改写，Xcode 27 不再带 `ld-classic`，Apple 自己的二进制里也没有；用旧工具链链接的第三方 App 里却常见。抽查的 12 个第三方 App 里有 2 个，其中 Asset Catalog Viewer（macOS 12 SDK）有 357 处 selector 引用和 71 处类引用以字面量 `ldr` 载入，212 个桩全是改写过的形态。
+
+扫描把这些形态读成改写之前的样子：
+
+- 字面量 `ldr` 是从已知槽位载入（`RegisterFile.load(into:fromSlotAt:)`），载入的偏移记成槽位在页内的偏移，与改写前那对指令记下的相同。之后按槽位认 selector、类引用与 `__objc_superrefs`，与 `adrp` / `ldr` 一样。
+- `adr` 与 `adrp` / `add` 一样：算出的地址是类对象、元数据或元数据访问器时，报一处引用。`ARM64InstructionWord.addressMaterialization` 的 `isPageAddress` 区分两者，只给出页地址的 `adrp` 不报。
+- 改写过的桩，MachOKit（0.54.101）的 `stubs(in:)` 读不出槽位，给的是 `.unknown`；`ImageFunctionTable` 这时改用 `ARM64Trampoline` 读桩自己的字节，`ARM64Trampoline` 认字面量 `ldr`。SwiftThunkAnalysis 也经 `ARM64Trampoline` 认桩，同样受益。0.24.0 时这些桩只剩导入名，经它们调用 `objc_msgSend` 的发送一处也认不出来。
+
+SwiftThunkAnalysis 自己的 Capstone 解码器原先也把字面量 `ldr` 当成不建模的指令，同一轮补上了 `ThunkOperation.loadFromSlot`，求值时按槽位读，与 `adrp` / `ldr` 相同。0.24.0 之前的设计判断是「缓存与几个缓存外的系统 App 里都没有这两种形态，不解码」，那次只量了 Apple 自己的二进制。
+
+`LinkerOptimizationHintTests` 现编两个 dylib，按 ld64 的做法把这几种指令改写好、重新签名后加载，核对四种形态都读对；修复前四个测试都失败。
 
 ### 读任何目标之前先确认它可读
 
@@ -49,7 +78,7 @@ macOS 27 / iOS 27 起的那种见术语表 [cache-shared stub（全缓存共用�
 
 ### 寄存器跟踪只记确定的事
 
-`RegisterFile` 只记录 `adrp` / `adr` / `add` 算出的地址、从已知地址加载的槽位、ObjC 方法入口时 `x0` 里的接收者、指针认证常量，以及「这个寄存器的值是从内存读来的」和读取时的偏移。不建模的指令一律作废它写的寄存器（宁可多忘，不留陈旧的值）；调用作废 `x0`–`x18` 与 `x30`——原样返回所传类的三个函数例外，`x0` 留着（见「类引用」）。PAC 与 AUT 原地签名或认证，寄存器的含义不变，保留；XPAC 作废。
+`RegisterFile` 只记录 `adrp` / `adr` / `add` 算出的地址、从已知地址加载的槽位（`ldr` 的基址算得出来，或者是字面量 `ldr xN, <槽>`）、ObjC 方法入口时 `x0` 里的接收者、指针认证常量，以及「这个寄存器的值是从内存读来的」和读取时的偏移。不建模的指令一律作废它写的寄存器（宁可多忘，不留陈旧的值）；调用作废 `x0`–`x18` 与 `x30`——原样返回所传类的三个函数例外，`x0` 留着（见「类引用」）。PAC 与 AUT 原地签名或认证，寄存器的含义不变，保留；XPAC 作废。
 
 一条指令写哪些寄存器由 `RegisterFile.registersWritten(by:)` 按 A64 的编码分组判断，容易漏的几类：前 / 后变址的读写（单寄存器与寄存器对、通用与 SIMD 寄存器都一样）会改掉基址寄存器；原子指令不论内存序都返回旧值，不带内存序的那种（`ldadd`、`swp`）编码像存储；`ldxp` 写第二个寄存器，`casp` 写 `Rs` 与 `Rs+1`；`umov` / `smov`、浮点转整数与转定点写通用寄存器；SVE / SME 里有几条写通用寄存器（`cntd`、`addvl`、`rdsvl`）；`mrs` 与 `sysl`；`svc` 的结果在 `x0`、`x1`。第一批漏了其中大半（交叉引用审查 A1）；`RegisterFileTests` 用汇编器编出的 48 条指令逐条核对，并用 Capstone 的寄存器访问表独立核对那张表没有漏项（Capstone 把 `cas` / `casp` 的基址也算作被写，架构上并不写，测试里列为已知偏差）。SwiftThunkAnalysis 的两个跟踪器同一轮补上了成对回写的基址。
 
@@ -67,13 +96,13 @@ macOS 27 / iOS 27 起的那种见术语表 [cache-shared stub（全缓存共用�
 
 ### 类引用（第二批）
 
-一条指令取了某个类对象的地址、但不跳转，就是一处类引用：`CodeReference.Kind.reference`，目标 `.objectiveCClass(name:location:)`。macOS 27.2 的缓存里几乎没有 `__objc_classrefs` 了，类有三种取法：`adrp` / `add` 出本镜像的类对象（AppKit 3,319 处）；从本镜像的 `__got` / `__auth_got` 载入；从缓存放在所有镜像之外的共用 GOT 池载入别的镜像的类（AppKit 后两种合计 53,026 处）。缓存外的二进制还经 `__objc_classrefs`。别的槽里即使放着类指针也不算：常量字符串的 `isa`（`__cfstring`）、缓存某个类的全局变量都不是对类的静态引用。`adr` 与字面量 `ldr` 两种形态在 AppKit、SwiftUI、Foundation 与几个缓存外的系统 App 里一处都没有，不解码。元类的引用按它的类报。
+一条指令取了某个类对象的地址、但不跳转，就是一处类引用：`CodeReference.Kind.reference`，目标 `.objectiveCClass(name:location:)`。macOS 27.2 的缓存里几乎没有 `__objc_classrefs` 了，类有三种取法：`adrp` / `add` 出本镜像的类对象（AppKit 3,319 处）；从本镜像的 `__got` / `__auth_got` 载入；从缓存放在所有镜像之外的共用 GOT 池载入别的镜像的类（AppKit 后两种合计 53,026 处）。缓存外的二进制还经 `__objc_classrefs`。别的槽里即使放着类指针也不算：常量字符串的 `isa`（`__cfstring`）、缓存某个类的全局变量都不是对类的静态引用。ld64 改写出的 `adr` 与字面量 `ldr` 也按这三种取法认，见下文「链接器改写过的代码」。元类的引用按它的类报。
 
 **一个值是不是类对象，看它所在的镜像列没列它。** 不能按所在的节判断：缓存里 9.2 万个 Swift 类与元类放在 `__data` 而不是 `__objc_data`。`ObjectiveCClassIndex` 直接读 `__objc_classlist` 与每个类的 `isa`（即元类），不经 `MachOImage.objc.classes64`——后者对每个类都重新查一遍 load command，扫描全缓存时让整表扫描慢了一倍。类名只在要报出引用时经 `MachOObjCSection` 读 `class_ro_t`（类已被运行时实现时经 `class_rw_t`）。
 
 **类的身份带位置。** 全缓存 203,621 个类名里有 18,906 个不止一个镜像定义——多是 `/System/iOSSupport` 下的 Mac Catalyst 变体，两个 SwiftUI 都定义 `_TtC7SwiftUI13PinnedBarView`。引用表的键是类名（`CodeReferenceTable.Key.objectiveCClass`，预筛与过滤都按它），引用目标另带类对象的 `CodeLocation`，宿主按位置区分。`objectiveCClassLocations(named:inImageAt:)` 把宿主手里的（镜像，类名）换成位置。
 
-**类字面量接收者。** 发送时 `x0` 里是这样取来的类，接收者记为 `.classLiteral(名字)`（AppKit 35,175 处，发送的 11%）。`objc_opt_self`、`objc_opt_class`、`swift_getInitializedObjCClass` 原样返回传入的类，调用之后 `x0` 不作废：Swift 调 ObjC 类方法先过 `objc_opt_self`，SwiftUI 665 处类字面量接收者里 478 处经它。
+**类字面量接收者。** 发送时 `x0` 里是这样取来的类，接收者记为 `.classLiteral(名字)`（AppKit 35,175 处，发送的 11%）。`objc_opt_self`、`objc_opt_class`、`swift_getInitializedObjCClass` 原样返回传入的类，调用之后 `x0` 不作废：Swift 调 ObjC 类方法先过 `objc_opt_self`，SwiftUI 665 处类字面量接收者里 478 处经它。前两者本身也记成 `self`、`class` 发送（见「libobjc 的发送入口」）。
 
 **super 发送的类**取同一函数里从 `__objc_superrefs` 载入的类：分类方法（`-[NSDictionary(NSKeyValueCoding) valueForKey:]` 得到 `NSDictionary`）、类方法（槽里是元类，按类报）、没有符号的方法都对；没见到这种载入就退回方法符号里的类。这一载入本身不算类引用——它是编译器实现 `super` 的方式，报出来只会让每个调 `super` 的方法都「引用」了自己的类。Swift 代码的 super 发送不经 `__objc_superrefs`，类来自 `self` 的运行时类或元数据访问器的返回值，扫描不知道，类记为空：Foundation 1,803 处 super 发送里有 374 处、AppKit 8,336 处里有 1,133 处是这种，其余都有类。
 
@@ -93,7 +122,7 @@ macOS 27 / iOS 27 起的那种见术语表 [cache-shared stub（全缓存共用�
 
 **表按描述符位置归档**（`CodeReferenceTable.Key.swiftTypeDescriptor`），不按类型的 key。key 是名义类型的 mangling（`7SwiftUI4TextV`、`Sa`），取自描述符的 `…Mn` 符号（demangle 再 mangle，与名字、符号里的拼法一致）；没有符号时才 demangle 描述符的上下文，而那样拼出的 key 会偏：受约束扩展里的嵌套类型带上扩展的要求（SwiftUICore 有 58 处访问器调用拼法不同），其他模块类型的扩展里的 private 类型干脆丢了自己（Foundation 的 `Mutex<…>.LockResult` 成了 `15Synchronization5MutexV`）。位置没有这些问题，扫描时也不必解开任何东西。从名字取 key 时，泛型实参各算一个类型，嵌套在泛型类型（或它的受约束扩展）里的类型去掉父类型的实参：`Regex<AnyRegexOutput>.Match` 是 `17_StringProcessing5RegexV5MatchV` 加上 `AnyRegexOutput`。
 
-**查询**（`references(toSwiftType:inImageAt:)`）带一个比对器：访问器与元数据的引用比描述符位置；名字逐字节走，符号引用（`\x01` 直接、`\x02` 经指针）指向的描述符就是这个类型，就算提到了它。只有名字可能直接拼出来的类型——标准库、`_Concurrency`、从 C / ObjC 导入的，key 以 `s` 或 `S` 开头——才解开名字确认；文本子串比对不可靠，mangling 会把同一名字里重复出现的单词换成替身。前提是其他类型在名字里一定以符号引用出现：在 Foundation、SwiftData、libswift_Concurrency、SwiftUI 里逐个解开全部名字核对过，没有例外（AppIntentsServices 有 56 处 key 对不上，原始字节全是符号引用，是那个镜像没有 `…Mn` 符号造成的拼法差别）。导入的类型每个用到它的镜像各有一份描述符，比的是 key。Swift 类同时比它的 ObjC 类对象的位置。macOS 与 Mac Catalyst 变体里的同一个类型按位置分开。协议没有类型描述符，不在这一批。
+**查询**（`references(toSwiftType:inImageAt:)`）带一个比对器：访问器与元数据的引用比描述符位置；名字逐字节走，符号引用（`\x01` 直接、`\x02` 经指针）指向的描述符就是这个类型，就算提到了它。只有名字可能直接拼出来的类型——标准库、`_Concurrency`、从 C / ObjC 导入的，key 以 `s` 或 `S` 开头——才解开名字确认；文本子串比对不可靠，mangling 会把同一名字里重复出现的单词换成替身。前提是其他类型在名字里一定以符号引用出现：在 Foundation、SwiftData、libswift_Concurrency、SwiftUI 里逐个解开全部名字核对过，没有例外（AppIntentsServices 有 56 处 key 对不上，原始字节全是符号引用，是那个镜像没有 `…Mn` 符号造成的拼法差别）。导入的类型每个用到它的镜像各有一份描述符，比的是 key，比 key 之前先比描述符给的名字。名字只从类型描述符读（`SwiftTypeIndex.name(ofDescriptorAt:)` 先看标志位低五位的种类是不是 16–31）：符号引用指向的也可能是不透明类型（`some View`）的描述符，它在 +8 放的是泛型头，一个参数、一个约束读成偏移就是 64 KiB，在小镜像里读出镜像之外。0.24.0 没有这道检查，查导入类型时可能让宿主崩溃（第二轮审查 11，`importedTypeQueriesReadNoNameWhereNoTypeDescriptorIs` 在子进程里复现到 SIGBUS）。Swift 类同时比它的 ObjC 类对象的位置。macOS 与 Mac Catalyst 变体里的同一个类型按位置分开。协议没有类型描述符，不在这一批。
 
 宿主的用法：类型对象 → 描述符位置（或经 `swiftTypeDescriptorLocations(withKey:inImageAt:)`，先找 `…Mn` 符号）→ `swiftTypeIdentity(ofDescriptorAt:)` → 预筛 → 每个候选镜像 `references(toSwiftType:inImageAt:)`。`swiftTypeKeys(in:)` 解开一个 `SwiftTypeName`，供显示用。
 
@@ -136,7 +165,7 @@ Swift 符号改按链接关系预筛（`imageIndices(linkingImageAt:among:)`，`
 
 ### 缓存外镜像的 GOT 槽
 
-缓存外的镜像（第三方 App 自己的二进制）经自己的 `__stubs` / `__auth_stubs` 调别的镜像，槽位由 dyld 在加载时绑定，按 macOS 11 部署目标、不用 chained fixups 编出来的懒绑定二进制也一样：macOS 27.2 上以 `RTLD_LAZY` 加载，函数第一次被调用之前槽里已经是目标地址。所以扫描直接读槽。`LazyBindingTests` 是这件事的哨兵：哪天 dyld 不再在加载时绑定，槽会指回镜像自己的 `__stub_helper`，测试变红，那时再退回桩上的导入名。
+缓存外的镜像（第三方 App 自己的二进制）经自己的 `__stubs` / `__auth_stubs` 调别的镜像，槽位由 dyld 在加载时绑定，按 macOS 11 部署目标、不用 chained fixups 编出来的懒绑定二进制也一样：macOS 27.2 上以 `RTLD_LAZY` 加载，函数第一次被调用之前槽里已经是目标地址。所以扫描直接读槽。`LazyBindingTests` 是这件事的哨兵：哪天 dyld 不再在加载时绑定，槽会指回镜像自己的 `__stub_helper`，测试变红，那时再退回桩上的导入名。它在 macOS 27.2 与 26.6 上都通过（2026-10-27 第二轮审查据此把「懒绑定的槽指向 `__stub_helper`」判为误报，[ReviewAdjudications A80](../ReviewAdjudications.md)）。ld64 链接的懒绑定桩多半是改写过的 `nop` / `ldr x16, <槽>` / `br x16`，槽位由 `ARM64Trampoline` 读出，见上文「链接器改写过的代码」。
 
 ### 缓存、内存与生命周期
 
@@ -144,7 +173,7 @@ Swift 符号改按链接关系预筛（`imageIndices(linkingImageAt:among:)`，`
 
 第二批起分析器还在自己的生命期里留着：扫描碰到的每个镜像的类索引（类与元类按地址，类名读过的记住）与类型索引（描述符与访问器，key 算过的记住），链接关系，以及改名再导出表。它们以缓存里的类与类型的总数为上限（macOS 27.2 有 203,621 个类名），没有单独测过占用；下面那个约 170 MB 的数字是第二批之前测的。宿主想放掉，用 `releaseImageData(exceptForImagesAt:)` 放掉指定镜像以外按镜像留着的一切——函数表连同读过的名字、类索引、类型索引；链接关系与改名再导出表不按镜像，留着——或者换一个分析器。RuntimeViewer 的会话在缓存外的镜像变化时换分析器；起过名的镜像（预先准备的除外）超过 64 个时，只放掉预先准备之外的。2026-10-18 之前后一种情况也是换分析器，预先读好的名字跟着丢了，下一次查询又得重读。
 
-分析器存活期间若有缓存外的镜像被卸载，再读它会读到已释放的内存；极少见，没有防（A63）。名字的解开一律是瞬时的：类型查询碰到的访问器符号与 mangled 名字不进全局的 `NodeCache`，也不进进程级的 demangle 记忆（交叉引用审查 B2，`TypeNameRetentionTests`），按镜像的 `demangleContext` 记忆随镜像淘汰。
+分析器存活期间若有缓存外的镜像被卸载，再读它会读到已释放的内存；极少见，没有防（A63）。名字的解开一律是瞬时的：类型查询碰到的访问器符号与 mangled 名字不进全局的 `NodeCache`，也不进进程级的 demangle 记忆（交叉引用审查 B2，`TypeNameRetentionTests`）。例外是没有 `…Mn` 符号的类型算 key、起名时用的 `SymbolicDemangler.demangleContext`：它的结果记在按镜像的 `SharedCache` 里，`releaseImageData(exceptForImagesAt:)` 不管它，由宿主调 `SharedCacheRegistry.shared.evictImagesWithoutLiveOwners()` 回收，与库里其它按镜像的缓存相同（[ReviewAdjudications A78](../ReviewAdjudications.md)）。
 
 `CodeReferenceTable` 是值，宿主想留多久就留多久，按 `approximateByteCount` 计预算（不含字符串的堆存储；同一次扫描里重复的名字共用一份）。大镜像的整表很大（GeoServices 约 121 MiB，全缓存合计约 9 GB），28 个线程同时建整表时峰值约 1.5 GB，分配器之后还留着 1.2 GB 脏页不还。**查调用者用 `references(to:inImageAt:)`**：扫描时只留命中的引用，同样扫完全缓存后常驻约 170 MB（4 线程约 106 MB）。
 
@@ -167,10 +196,13 @@ Swift 符号改按链接关系预筛（`imageIndices(linkingImageAt:among:)`，`
 
 ## 测试锚点
 
-- `ARM64InstructionWordTests` / `ARM64TrampolineTests`：手写编码器造指令字；`capstoneAgreesWithTheEncoders` 让 Capstone 反汇编同一批字，编码器写错也藏不住。
+- `ARM64InstructionWordTests` / `ARM64TrampolineTests`：手写编码器造指令字；`capstoneAgreesWithTheEncoders` 让 Capstone 反汇编同一批字，编码器写错也藏不住。`linkerRewrittenAddressesAndLoads` 与 `linkerRewrittenSlotStub` 核对 ld64 改写出的 `adr`、字面量 `ldr` 与桩。
+- `LinkerOptimizationHintTests`：现编的 dylib 按 ld64 的做法改写后，字面量 `ldr` 载入的 selector 认成发送、载入的类与 `adr` 取的类认成类引用，改写过的桩跟到 libsystem_c 的 `puts`。编译与改写的辅助代码在 `CompiledFixture`。
+- `RuntimeSendEntryPointTests`：现编的 dylib 里八个 libobjc 入口各调用一处，每处都记成对应的发送（`objc_alloc_init` 两条，在同一条指令上），不再有对 libobjc 函数的调用；八个 selector 的预筛都留下这个没有一个 selector 引用的镜像。修复前全部失败。
+- `AddressMaskScanTests`：库的源码里不许出现 33 到 62 位宽的地址掩码常量，指针一律按平台的掩码去掉签名。`AbbreviatedIdentifierScanTests`：`Sources` 与 `Tests` 里不许再用 `pc`、`lhs`、`rhs` 当名字（`Tests/Projects` 的 fixture 源码除外）。
 - `CrossReferenceAnalyzerTests`（只在 arm64 进程里跑）：`-[NSWindow makeKeyAndOrderFront:]` 发出的三条消息及接收者；SwiftUICore 经桩调用 `swift_beginAccess` 落到 libswiftCore；按键过滤与整表一致；整镜像扫描不留函数表；给一批结果起名也不留；预筛；`branchesCarryTheirStateToTheirTargets` 与 `pathsThatDisagreeLeaveTheRegisterUnknown`：寄存器状态沿着分支走（见上文），后者在第一批的顺序读法下失败；`classicSendsInsideTheCacheNameTheirSelector`：libobjc 的 `-[NSObject debugDescription]` 认出发给 `self` 的 `description`（上文「两种桩布局」末段的第三种形态）；`selectorPrefilterKeepsEverySender` / `importPrefilterKeepsEveryCaller` / `swiftFunctionPrefilterKeepsEveryCaller`：预筛只丢掉引用不到主体的镜像（最后一个是 Swift 函数，见上文「预筛：缓存几乎不留 Swift 的未定义符号」）——在它丢掉的镜像里每 16 个抽 1 个扫描，一处引用也不许有（Debug 构建扫完整个缓存要几分钟，所以抽样）；`callSitesMatchCapstone` 抽样 400 个 AppKit 函数，双向比对：Capstone 找到的每一处调用与跳出函数的跳转，扫描都找到了；扫描报的每一处也都是 Capstone 眼里的调用或跳转（`br` 除外，Capstone 分不出跳转表与尾调用）。Capstone 不开 detail 模式就不给操作数，那半边比对曾因此什么都没比，测试断言比对过不止一处。
 - `ObjectiveCClassReferenceTests`：AppKit 里三种取法都有（取本镜像类的地址、载入本镜像的类、载入别的镜像的类，`NSString` 在其中）；`+[NSThread currentThread]` 发给类字面量 `NSNotificationCenter`；`_BenchmarkHost._started(test:)` 经 `objc_opt_self` 发给 `NSApplication`；分类方法与类方法的 super 类；Block 里的 super 发送按 `__objc_superrefs` 得到所在方法的类（Block 的符号不是方法名，只有槽位能给出类；分类方法那个测试里槽位与符号给出的类相同，分辨不出）；Matter 里没有符号的方法，super 类与方法表一致；两个 SwiftUI 的同名类各自指向自己；类预筛（`NSWindow`、`NSUUID`、`__NSStackBlock__`、`OS_xpc_dictionary`）丢掉的镜像里抽样一处引用也没有。其中三个在去掉对应做法时变红过：经 `objc_opt_self` 不保留 `x0`、不读 `__objc_superrefs`、预筛只认 `_OBJC_CLASS_$_`。
-- `SwiftTypeReferenceTests`：SwiftUICore 里访问器调用报出的类型与访问器符号全部一致（一万处以上）；紧邻的 `adrp` / `add` 取出的地址上若有符号，报出的类型与符号一致；Foundation 的名字取自 `x1` 的记录、落在 `__swift5_typeref`、能解开；Foundation 与 SwiftData 里，查询保留的名字恰是解开后提到该类型的名字（40 个最常被符号引用的类型；另四个标准库类型，查询退回的正是同一套解开，所以它们只守着符号引用不指错描述符）；两个 SwiftUI 的同名类型按位置分开；类型预筛（Foundation 的 `URL` 与 `JSONEncoder`、SwiftUICore 的 `Text`）丢掉的镜像里抽样一处引用也没有——按导入符号预筛时三者都漏；Foundation 与 AppKit 的每一个类型，按名字先筛再比 key 的查找与比每个类型的 key 结果相同（`typeLookupsCompareSameNamedTypesOnly`），按名字查导出表与读整个导出表判断导出与否相同（`exportLookupsAgreeWithTheWholeTrie`）。
+- `SwiftTypeReferenceTests`：SwiftUICore 里访问器调用报出的类型与访问器符号全部一致（一万处以上）；紧邻的 `adrp` / `add` 取出的地址上若有符号，报出的类型与符号一致；Foundation 的名字取自 `x1` 的记录、落在 `__swift5_typeref`、能解开；Foundation 与 SwiftData 里，查询保留的名字恰是解开后提到该类型的名字（40 个最常被符号引用的类型；另四个标准库类型，查询退回的正是同一套解开，所以它们只守着符号引用不指错描述符）；两个 SwiftUI 的同名类型按位置分开；类型预筛（Foundation 的 `URL` 与 `JSONEncoder`、SwiftUICore 的 `Text`）丢掉的镜像里抽样一处引用也没有——按导入符号预筛时三者都漏；Foundation 与 AppKit 的每一个类型，按名字先筛再比 key 的查找与比每个类型的 key 结果相同（`typeLookupsCompareSameNamedTypesOnly`），按名字查导出表与读整个导出表判断导出与否相同（`exportLookupsAgreeWithTheWholeTrie`）；查导入类型时不从不透明类型的描述符读名字，子进程里拿一页末尾的假描述符核对（`importedTypeQueriesReadNoNameWhereNoTypeDescriptorIs`，修复前子进程 SIGBUS）。
 - `FallbackNamingTests`：导出表给的名字落在导出的地址上（SiriAppIntents）；AppKit 里方法表给的名字与 `-[C sel]` 符号一致（去掉分类名后 99.9% 以上）；SwiftUICore 里从元数据重建的名字与真实的 `…Ma`、`…Mr`、方法符号一致（99% 以上）；Matter 的方法在没有符号时由方法表起名；SiriAppIntents 几乎每个类型的访问器都有名字，重建的名字 demangle 出来是元数据访问器。
 - `StandaloneImageTests`：SymbolTestsCore fixture 经自己的桩调用 libswiftCore，没有一条停在只有名字的导入上；它的路径是加载路径而不是 `@rpath/…`，安装名也能查回它；测试包（`MH_BUNDLE`，没有安装名）的路径等于 `dladdr` 给的；测试包算作主程序的依赖方。
 - `RegisterFileTests`：48 条汇编器编出的指令，每条写的寄存器都被作废，Capstone 的寄存器访问表独立核对这张表；普通读写只作废目标寄存器。

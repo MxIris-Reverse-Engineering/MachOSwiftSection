@@ -88,6 +88,12 @@ public enum ThunkOperation: Sendable, Hashable {
     /// unknown and leaves the read to a caller that has the Mach-O.
     case loadFromMemory(destination: ThunkRegister, base: ThunkRegister, displacement: Int64)
 
+    /// `ldr <destination>, <label>` — a 64-bit load straight from a slot
+    /// within a megabyte, what ld64 makes of an `adrp` / `ldr` pair whose slot
+    /// lies that close. Capstone resolves the label against the instruction's
+    /// own address, so `slotAddress` is absolute, like `adrp`'s page base.
+    case loadFromSlot(destination: ThunkRegister, slotAddress: UInt64)
+
     /// `ldp <first>, <second>, [<base>, #<displacement>]` — two consecutive
     /// words. `adjustsBase` is the write-back form (`[sp], #32`,
     /// `[sp, #-32]!`), which also moves the base register: a stack model

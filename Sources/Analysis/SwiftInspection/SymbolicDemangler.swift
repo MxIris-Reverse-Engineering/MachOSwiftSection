@@ -1103,8 +1103,8 @@ private final class SymbolicDemanglerCache: @unchecked Sendable {
             hasher.combine(wrappedValue.elements)
         }
 
-        static func == (lhs: Self, rhs: Self) -> Bool {
-            lhs.wrappedValue.elements == rhs.wrappedValue.elements
+        static func == (left: Self, right: Self) -> Bool {
+            left.wrappedValue.elements == right.wrappedValue.elements
         }
 
         init(_ wrappedValue: MangledName) {

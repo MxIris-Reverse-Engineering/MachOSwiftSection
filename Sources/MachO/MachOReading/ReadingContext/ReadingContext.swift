@@ -32,48 +32,48 @@ public protocol AddressArithmetic {
     /// Returns a new address by adding an offset to the base address.
     ///
     /// - Parameters:
-    ///   - lhs: The base address
-    ///   - rhs: The byte offset to add
+    ///   - address: The base address
+    ///   - offset: The byte offset to add
     /// - Returns: A new address offset by the given amount
-    static func + (lhs: Self, rhs: Int) -> Self
+    static func + (address: Self, offset: Int) -> Self
 
     /// Returns a new address by adding an offset to the base address (reversed operands).
     ///
     /// - Parameters:
-    ///   - lhs: The byte offset to add
-    ///   - rhs: The base address
+    ///   - offset: The byte offset to add
+    ///   - address: The base address
     /// - Returns: A new address offset by the given amount
-    static func + (lhs: Int, rhs: Self) -> Self
+    static func + (offset: Int, address: Self) -> Self
 
     /// Returns a new address by subtracting an offset from the base address.
     ///
     /// - Parameters:
-    ///   - lhs: The base address
-    ///   - rhs: The byte offset to subtract
+    ///   - address: The base address
+    ///   - offset: The byte offset to subtract
     /// - Returns: A new address offset by the given amount
-    static func - (lhs: Self, rhs: Int) -> Self
+    static func - (address: Self, offset: Int) -> Self
 
     /// Computes the byte distance between two addresses.
     ///
     /// - Parameters:
-    ///   - lhs: The end address
-    ///   - rhs: The start address
-    /// - Returns: The number of bytes from `rhs` to `lhs` (can be negative)
-    static func - (lhs: Self, rhs: Self) -> Int
+    ///   - end: The end address
+    ///   - start: The start address
+    /// - Returns: The number of bytes from `start` to `end` (can be negative)
+    static func - (end: Self, start: Self) -> Int
 
     /// Advances the address in place by adding an offset.
     ///
     /// - Parameters:
-    ///   - lhs: The address to modify
-    ///   - rhs: The byte offset to add
-    static func += (lhs: inout Self, rhs: Int)
+    ///   - address: The address to modify
+    ///   - offset: The byte offset to add
+    static func += (address: inout Self, offset: Int)
 
     /// Moves the address backward in place by subtracting an offset.
     ///
     /// - Parameters:
-    ///   - lhs: The address to modify
-    ///   - rhs: The byte offset to subtract
-    static func -= (lhs: inout Self, rhs: Int)
+    ///   - address: The address to modify
+    ///   - offset: The byte offset to subtract
+    static func -= (address: inout Self, offset: Int)
 }
 
 // MARK: - AddressArithmetic Conformances

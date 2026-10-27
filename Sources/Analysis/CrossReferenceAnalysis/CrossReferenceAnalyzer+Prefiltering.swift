@@ -42,14 +42,25 @@ extension CrossReferenceAnalyzer {
         }
     }
 
-    /// The images among `candidates` whose `__objc_selrefs` reference
-    /// `selector` — the only ones that can send it.
+    /// The images among `candidates` that can send `selector`: the ones whose
+    /// `__objc_selrefs` reference it, and — for a selector a libobjc entry
+    /// point sends, `init` for `objc_alloc_init` — the ones importing or
+    /// defining such an entry point. An image may send `init` through
+    /// `objc_alloc_init` alone, with no selector reference to it.
     public func imageIndices(referencingSelector selector: String, among candidates: some Sequence<Int>) -> [Int] {
-        selector.withCString { wantedSelector in
+        let candidates = Array(candidates)
+        var entryPointSenders = Set<Int>()
+        let entryPointSymbols = MessageSendEntryPoints.symbols(sending: selector)
+        if !entryPointSymbols.isEmpty {
+            entryPointSenders.formUnion(imageIndices(importingAnyOf: entryPointSymbols, among: candidates))
+            entryPointSenders.formUnion(messageSendEntryPoints.filter { $0.value.contains(selector) }.map(\.key.imageIndex))
+        }
+        return selector.withCString { wantedSelector in
             // The cache uniques selector strings; once one reference matched,
             // the same pointer is compared before any string.
             var matchedString: UInt?
             return candidates.filter { imageIndex in
+                if entryPointSenders.contains(imageIndex) { return true }
                 let image = images[imageIndex]
                 guard let slide = image.vmaddrSlide,
                       let section = image.sections64.first(where: { $0.sectionName == "__objc_selrefs" }),
@@ -57,7 +68,7 @@ extension CrossReferenceAnalyzer {
                       let slots = UnsafeRawPointer(bitPattern: Int(bitPattern: UInt(section.address)) &+ slide)
                 else { return false }
                 for slotIndex in 0 ..< section.size / 8 {
-                    let string = UInt(slots.loadUnaligned(fromByteOffset: slotIndex * 8, as: UInt64.self) & 0x0000_7FFF_FFFF_FFFF)
+                    let string = StoredPointer.address(in: slots.loadUnaligned(fromByteOffset: slotIndex * 8, as: UInt64.self))
                     if string == matchedString { return true }
                     guard let pointer = UnsafePointer<CChar>(bitPattern: string) else { continue }
                     if strcmp(pointer, wantedSelector) == 0 {

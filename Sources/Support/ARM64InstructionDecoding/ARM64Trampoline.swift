@@ -5,9 +5,11 @@
 ///
 /// - **A stub that loads its target from a GOT slot.** A standalone binary's
 ///   `__stubs` entry is `adrp x16, page` / `ldr x16, [x16, #offset]` /
-///   `br x16`; an arm64e `__auth_stubs` entry, and the stubs a dyld cache
-///   shares between all of its images (macOS 27, iOS 27), are `adrp x17,
-///   page` / `add x17, x17, #offset` / `ldr x16, [x17]` / `braa x16, x17`.
+///   `br x16` — or `nop` / `ldr x16, <slot>` / `br x16` where ld64 found the
+///   slot within a megabyte, a shape MachOKit's stub reader reads no slot
+///   from; an arm64e `__auth_stubs` entry, and the stubs a dyld cache shares
+///   between all of its images (macOS 27, iOS 27), are `adrp x17, page` /
+///   `add x17, x17, #offset` / `ldr x16, [x17]` / `braa x16, x17`.
 /// - **A stub island**, which computes its target outright and loads
 ///   nothing: `adrp x16, page` / `add x16, x16, #offset` / `br x16`. The cache
 ///   builder places these between images when a `bl` cannot reach across the
@@ -62,6 +64,9 @@ package enum ARM64Trampoline: Equatable, Sendable {
             } else if let load = ARM64InstructionWord.load(word) {
                 guard !load.writesBack, let base = registerValues[load.base] else { return nil }
                 self = .slotLoad(slotAddress: ARM64InstructionWord.adding(load.displacement, to: base))
+                return
+            } else if let literal = ARM64InstructionWord.loadLiteral(word, at: instructionAddress) {
+                self = .slotLoad(slotAddress: literal.slotAddress)
                 return
             } else if let branch = ARM64InstructionWord.registerBranch(word), !branch.isCall {
                 guard let target = registerValues[branch.target] else { return nil }

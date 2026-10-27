@@ -28,8 +28,8 @@ public enum SwiftAttribute: Int, Comparable, Sendable, CaseIterable, Codable {
     // Declared last so the raw values above stay put.
     case objcRuntimeName
 
-    public static func < (lhs: SwiftAttribute, rhs: SwiftAttribute) -> Bool {
-        lhs.rawValue < rhs.rawValue
+    public static func < (left: SwiftAttribute, right: SwiftAttribute) -> Bool {
+        left.rawValue < right.rawValue
     }
 
     public var annotationString: String {

@@ -73,6 +73,18 @@ struct CapstoneThunkDecoderTests {
         #expect(operations == Array(repeating: .signOrAuthenticatePointer(register: ThunkRegister(number: 16)), count: 4))
     }
 
+    /// ld64 rewrites an `adrp` / `ldr` pair whose slot lies within a megabyte
+    /// into `nop` / `ldr x8, <slot>` (`LinkerOptimizationHintTests` in
+    /// `CrossReferenceAnalysisTests`); the load still says which slot it
+    /// read, as the pair did.
+    @Test func aLiteralLoadNamesItsSlot() throws {
+        let operations = try decoded([0x5800_0048]) // ldr x8, #8
+        #expect(operations != [.unmodelled(writtenRegisters: [ThunkRegister(number: 8)])])
+        #expect(operations == [.loadFromSlot(destination: ThunkRegister(number: 8), slotAddress: 0x1008)])
+        // A 32-bit literal load is no pointer; it only forgets its register.
+        #expect(try decoded([0x1800_0048]) == [.unmodelled(writtenRegisters: [ThunkRegister(number: 8)])]) // ldr w8, #8
+    }
+
     @Test func aTrapIsATrap() throws {
         #expect(try decoded([0xD43E_8E20]) == [.trap]) // brk #0xf471
     }

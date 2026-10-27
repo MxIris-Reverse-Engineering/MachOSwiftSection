@@ -384,8 +384,8 @@ public struct ABIDiffer: Sendable {
     /// Deterministic ordering by key string then status, so repeated runs over
     /// the same inputs produce identical output.
     private func sorted<Change>(_ changes: [Change], key: (Change) -> ABIKey, status: (Change) -> ChangeStatus) -> [Change] {
-        changes.sorted { lhs, rhs in
-            (key(lhs).sortKey, status(lhs).sortRank) < (key(rhs).sortKey, status(rhs).sortRank)
+        changes.sorted { left, right in
+            (key(left).sortKey, status(left).sortRank) < (key(right).sortKey, status(right).sortRank)
         }
     }
 }

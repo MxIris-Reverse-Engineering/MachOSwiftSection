@@ -142,7 +142,7 @@ struct SwiftTypeReferenceTests {
                 if byte == 0x01 || byte == 0x02 {
                     let field = UInt(bitPattern: bytes + position + 1)
                     var descriptor = UInt(bitPattern: Int(bitPattern: field) &+ Int(UnsafeRawPointer(bytes + position + 1).loadUnaligned(as: Int32.self)))
-                    if byte == 0x02 { descriptor = UInt(UnsafeRawPointer(bitPattern: descriptor)!.loadUnaligned(as: UInt64.self) & 0x7FFF_FFFF_FFFF) }
+                    if byte == 0x02 { descriptor = StoredPointer.address(in: UnsafeRawPointer(bitPattern: descriptor)!.loadUnaligned(as: UInt64.self)) }
                     if let descriptorLocation = analyzer.location(ofDescriptorAtRuntimeAddress: descriptor) { mentions[descriptorLocation, default: 0] += 1 }
                 }
                 position += byte >= 0x01 && byte <= 0x17 ? 5 : (byte >= 0x18 && byte <= 0x1F ? 9 : 1)
@@ -262,6 +262,58 @@ struct SwiftTypeReferenceTests {
             if isExported { exportedTypeCount += 1 }
         }
         #expect(exportedTypeCount > 100)
+    }
+
+    /// A query for a type imported from C or Objective-C compares the name a
+    /// descriptor gives its type before anything else. A scan hands it every
+    /// context descriptor a mangled name's symbolic reference leads to — an
+    /// opaque type's among them, every `some View` — and only a type
+    /// descriptor keeps a pointer to its name at +8. An opaque type keeps its
+    /// generic header there, whose one parameter and one requirement read as
+    /// an offset of 64 KiB: in a small image, past its end. The query reads no
+    /// name where no type descriptor of the image is.
+    ///
+    /// In a child process, where the read used to fault.
+    @Test func importedTypeQueriesReadNoNameWhereNoTypeDescriptorIs() async {
+        await #expect(processExitsWith: .success) {
+            exit(Self.matchImportedTypeAgainstAnOpaqueTypeHeader())
+        }
+    }
+
+    /// Matches an imported type against an opaque type's descriptor that
+    /// ends a readable page, with nothing readable 64 KiB on.
+    private static func matchImportedTypeAgainstAnOpaqueTypeHeader() -> Int32 {
+        guard let analyzer = CrossReferenceAnalyzer() else { return EXIT_FAILURE }
+        var importedType: SwiftTypeIdentity?
+        search: for suffix in ["/SwiftUICore.framework/Versions/A/SwiftUICore", "/AppKit.framework/Versions/C/AppKit"] {
+            guard let imageIndex = analyzer.imagePaths.firstIndex(where: { $0.hasSuffix(suffix) }) else { continue }
+            for key in ["So6CGRectV", "So7CGPointV"] {
+                if let location = analyzer.swiftTypeDescriptorLocations(withKey: key, inImageAt: imageIndex).first,
+                   let identity = analyzer.swiftTypeIdentity(ofDescriptorAt: location) {
+                    importedType = identity
+                    break search
+                }
+            }
+        }
+        guard let importedType, let slide = analyzer.images[importedType.descriptorLocation.imageIndex].vmaddrSlide else { return EXIT_FAILURE }
+        let pageSize = Int(getpagesize())
+        let regionSize = pageSize + 128 * 1024
+        guard let region = mmap(nil, regionSize, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, -1, 0), region != MAP_FAILED,
+              mprotect(region + pageSize, regionSize - pageSize, PROT_NONE) == 0
+        else { return EXIT_FAILURE }
+        let descriptor = region + pageSize - 16
+        // Flags: kind 4, an opaque type. No parent. Then the generic header:
+        // one parameter, one requirement.
+        descriptor.storeBytes(of: UInt32(4), toByteOffset: 0, as: UInt32.self)
+        descriptor.storeBytes(of: Int32(0), toByteOffset: 4, as: Int32.self)
+        descriptor.storeBytes(of: UInt16(1), toByteOffset: 8, as: UInt16.self)
+        descriptor.storeBytes(of: UInt16(1), toByteOffset: 10, as: UInt16.self)
+        let location = CodeLocation(
+            imageIndex: importedType.descriptorLocation.imageIndex,
+            address: UInt64(bitPattern: Int64(Int(bitPattern: descriptor) &- slide))
+        )
+        let query = SwiftTypeQuery(identity: importedType, analyzer: analyzer)
+        return query.matches(.swiftType(descriptor: location)) ? EXIT_FAILURE : EXIT_SUCCESS
     }
 
     private func imagesReferencing(_ identity: SwiftTypeIdentity, among imageIndices: [Int]) -> Set<Int> {

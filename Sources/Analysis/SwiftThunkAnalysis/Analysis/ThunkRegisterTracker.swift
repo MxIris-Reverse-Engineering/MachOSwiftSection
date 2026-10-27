@@ -59,7 +59,7 @@ public struct ThunkRegisterTracker: Sendable {
             } else {
                 forget(destination)
             }
-        case .loadFromMemory(let destination, _, _):
+        case .loadFromMemory(let destination, _, _), .loadFromSlot(let destination, _):
             // The value is in the binary, not in the instruction. Reading it
             // is a caller's job — one that has the Mach-O — so the register
             // becomes unknown rather than wrong.

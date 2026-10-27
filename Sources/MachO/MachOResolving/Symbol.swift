@@ -31,8 +31,8 @@ public struct Symbol: Hashable, Sendable {
         hasher.combine(name)
     }
 
-    public static func == (lhs: Self, rhs: Self) -> Bool {
-        return lhs.offset == rhs.offset && lhs.name == rhs.name
+    public static func == (left: Self, right: Self) -> Bool {
+        return left.offset == right.offset && left.name == right.name
     }
 
     public enum AddressFormat {

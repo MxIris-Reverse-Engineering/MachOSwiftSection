@@ -45,7 +45,10 @@ public enum CodeReferenceTarget: Hashable, Sendable {
     /// A stub whose slot could not be followed; the name its indirect symbol
     /// carries.
     case importedSymbol(name: String)
-    /// An Objective-C message send whose selector is known.
+    /// An Objective-C message send whose selector is known: through
+    /// `objc_msgSend` or a selector stub, or a call to a libobjc entry point
+    /// that stands for a send — `objc_alloc_init` for `[[Foo alloc] init]`,
+    /// reported as two sends at its instruction, `alloc` and then `init`.
     case messageSend(selector: String, receiver: ReceiverClassHint)
     /// A send through `objc_msgSendSuper2` whose selector is known, and the
     /// class the lookup starts above: the one the sending method loads from

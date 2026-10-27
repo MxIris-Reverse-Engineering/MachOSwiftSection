@@ -1,5 +1,6 @@
 import Foundation
 import MachOKit
+import ARM64InstructionDecoding
 
 /// One image's functions and the sections a scan reads, collected in one pass
 /// over its load commands and symbol table.
@@ -98,7 +99,15 @@ final class ImageFunctionTable: @unchecked Sendable {
                 symbolStubRanges.append(sectionRange)
                 for stub in stubs {
                     var slotAddress: UInt64?
-                    if case .viaSlot(let address) = stub.branch { slotAddress = address }
+                    if case .viaSlot(let address) = stub.branch {
+                        slotAddress = address
+                    } else if case .slotLoad(let address)? = Self.trampoline(in: stub) {
+                        // `nop` / `ldr x16, <slot>` / `br x16`: ld64's stub
+                        // when the slot lies within a megabyte, every stub of
+                        // a third-party app linked that way. MachOKit reads no
+                        // slot from it.
+                        slotAddress = address
+                    }
                     var name: UnsafePointer<CChar>?
                     if let indirectIndex = stub.indirectSymbolIndex, indirectIndex < indirectSymbols.count,
                        let symbolIndex = indirectSymbols[indirectIndex].index,
@@ -147,8 +156,8 @@ final class ImageFunctionTable: @unchecked Sendable {
                 namedAddresses.append((entry.n_value, entry.n_type & 0x01 != 0, isRedacted ? nil : name))
             }
         }
-        namedAddresses.sort { lhs, rhs in
-            lhs.address != rhs.address ? lhs.address < rhs.address : (lhs.isExternal && !rhs.isExternal)
+        namedAddresses.sort { left, right in
+            left.address != right.address ? left.address < right.address : (left.isExternal && !right.isExternal)
         }
 
         var functionStarts: [UInt64] = []
@@ -211,12 +220,20 @@ final class ImageFunctionTable: @unchecked Sendable {
         self.dataInCodeRanges = dataInCodeRanges
     }
 
+    /// The trampoline a stub's own bytes make.
+    private static func trampoline(in stub: Stub) -> ARM64Trampoline? {
+        let bytes = stub.rawData
+        let words = stride(from: 0, to: bytes.count - 3, by: 4).map { offset in
+            UInt32(littleEndian: bytes.withUnsafeBytes { $0.loadUnaligned(fromByteOffset: offset, as: UInt32.self) })
+        }
+        return ARM64Trampoline(words: words, at: stub.address)
+    }
+
     /// The selector string a selector reference slot points at, read from
     /// memory — the cache builder and dyld have already bound it.
     static func selectorString(inSlotAt slotAddress: UInt64, slide: Int) -> UnsafePointer<CChar>? {
         guard let slot = UnsafeRawPointer(bitPattern: Int(bitPattern: UInt(slotAddress)) &+ slide) else { return nil }
-        let value = slot.loadUnaligned(as: UInt64.self) & 0x0000_7FFF_FFFF_FFFF
-        return UnsafePointer<CChar>(bitPattern: UInt(value))
+        return UnsafePointer<CChar>(bitPattern: StoredPointer.address(in: slot.loadUnaligned(as: UInt64.self)))
     }
 
     /// The index in `starts` of the function containing `address`.
