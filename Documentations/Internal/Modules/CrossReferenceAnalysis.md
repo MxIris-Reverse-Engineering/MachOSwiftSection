@@ -2,7 +2,7 @@
 
 从 arm64 机器码里读出一个镜像的函数表，以及每个函数引用了什么：直接调用与尾调用、ObjC 消息发送、`super` 发送、经桩的跨库调用、间接调用、ObjC 类引用、Swift 类型引用。只在进程内读 `MachOImage`，只支持 arm64 / arm64e。RuntimeViewer 的交叉引用功能（调用者、被调、类型引用）建在它上面。
 
-- 提案：[0072-cross-reference-analysis](../../Evolutions/0072-cross-reference-analysis.md)（本库这一层）；整体设计、实测数据在 RuntimeViewer 的 [0056-cross-references](https://github.com/MxIris-Reverse-Engineering/RuntimeViewer/blob/next/Documentations/Evolutions/0056-cross-references.md)。
+- 提案：[0072-cross-reference-analysis](../../Evolutions/0072-cross-reference-analysis.md)（本库这一层）、[0076-objc-runtime-send-entry-points](../../Evolutions/0076-objc-runtime-send-entry-points.md)（libobjc 的发送入口）；整体设计、实测数据在 RuntimeViewer 的 [0056-cross-references](https://github.com/MxIris-Reverse-Engineering/RuntimeViewer/blob/next/Documentations/Evolutions/0056-cross-references.md)。
 - 依赖：MachOKit、`ARM64InstructionDecoding`；第二批起还有 `MachOObjCSection`（方法表、类的只读数据）、`MachOSwiftSection` 与 `SwiftInspection`（Swift 元数据与 `SymbolicDemangler`）、`Demangling`——给符号表没有名字的函数起名，以及认出扫描碰到的类与类型（类列表、类型描述符、mangled 名字）。不依赖 Capstone。
 
 ## 子系统
@@ -45,7 +45,7 @@ macOS 27 / iOS 27 起的那种见术语表 [cache-shared stub（全缓存共用�
 
 不经桩、直接 `bl` / `b` 到 `objc_msgSend` 的传统写法还有第三种形态：缓存构建器把读 selector 引用的 `adrp` / `ldr` 改写成了 `adrp` / `add` 出字符串本身的地址，指令里只剩字符串地址。macOS 27.2 的 `-[NSObject debugDescription]` 就是 `adrp x8; add x1, x8, #…; b _objc_msgSend`（`objc_msgSend` 在 `/usr/lib/objc/libobjcMsgSend.dylib` 里）。所以传统发送的 selector 两处都要认：`x1` 从本镜像的 `__objc_selrefs` 读来，或 `x1` 是 `adrp` / `add` 算出的地址；后者要确认它落在映射里、到结尾为止是不含空格的可打印字符（最长 1,024 字节），不满足就不当作发送。第一批漏了后一种，这些发送全被当成对 `objc_msgSend` 的普通调用；RuntimeViewer 第 3 步查 `-[NSObject description]` 的调用者时发现。
 
-### libobjc 的发送入口（提案 `objc-runtime-send-entry-points`）
+### libobjc 的发送入口（提案 [0076-objc-runtime-send-entry-points](../../Evolutions/0076-objc-runtime-send-entry-points.md)）
 
 clang 把一部分发送编成对 libobjc 专用入口的调用：`[[Foo alloc] init]` 是 `objc_alloc_init(Foo)`，`[Foo alloc]`、`[Foo allocWithZone:nil]`、`[Foo new]` 是 `objc_alloc`、`objc_allocWithZone`、`objc_opt_new`，`[x self]`、`[x class]` 是 `objc_opt_self`、`objc_opt_class`，`[x isKindOfClass:c]`、`[x respondsToSelector:s]` 是 `objc_opt_isKindOfClass`、`objc_opt_respondsToSelector`。这样的发送不经 `objc_msgSend`，镜像里也可能没有这个 selector 的引用。macOS 26.6 的 AppKit 里 `objc_alloc_init` 有 2,488 处，按 selector 发送的 `init` 只有 720 处；`objc_opt_isKindOfClass` 3,369 处、`objc_opt_respondsToSelector` 2,977 处、`objc_opt_new` 590 处，对应的 selector 一次直接发送都没有。0.24.0 只认 `objc_msgSend`，这些都记成对 libobjc 函数的普通调用，查 `init` 的调用者漏掉约 78%，查另外几个一处都查不到（第二轮审查第 2 条）。
 

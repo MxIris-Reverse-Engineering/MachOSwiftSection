@@ -1,11 +1,12 @@
-# Draft - 交叉引用把 libobjc 的专用发送入口记成消息发送
+# 0076 - 交叉引用把 libobjc 的专用发送入口记成消息发送
 
-- **状态**: In Progress
+- **状态**: Implemented
 - **创建日期**: 2026-10-27
 - **最后更新**: 2026-10-27
 - **所属愿景**: 无
 - **关联提案**: [0072](0072-cross-reference-analysis.md)（交叉引用分析）
-- **实现分支 / PR**: `fix/cross-reference-review-findings`（worktree `.worktrees/MachOSwiftSection-CrossReferenceReviewFixes`，基于 `next`）
+- **实现分支 / PR**: `fix/cross-reference-review-findings`（worktree `.worktrees/MachOSwiftSection-CrossReferenceReviewFixes`，基于 `next`），2026-10-27 本地合入 `next`
+- **配套文档**: [Modules/CrossReferenceAnalysis.md](../Internal/Modules/CrossReferenceAnalysis.md)「libobjc 的发送入口」一节；[2026-10-27 审查记录](../../Roadmaps/2026-10-27-cross-reference-analysis-second-review-findings.md) 第 2 条
 
 ## 摘要
 
@@ -52,3 +53,4 @@ clang 不把每个 Objective-C 发送都编成 `objc_msgSend`：`[[Foo alloc] in
 | 2026-10-27 | 不认 `objc_retain` / `objc_release` / `objc_autorelease` | ARC 插入的调用与源码里的发送分不开 |
 | 2026-10-27 | 用户批准，状态改为 Accepted | — |
 | 2026-10-27 | 实现完成，状态改为 In Progress | 修复前 16 个用例全部失败、修复后通过；全量测试在 JHs-Mac-Studio-Ultra 上通过。合入 `next` 时取号并改为 Implemented |
+| 2026-10-27 | 合入 `next`，取号 0076，状态改为 Implemented | 与方案只有一处不同：预筛除了导入这些入口的镜像，也留下定义它们的 libobjc。模块文档的「libobjc 的发送入口」一节就是实现说明，不另写使用指南；没有新术语要登记。没做完的项：无 |
