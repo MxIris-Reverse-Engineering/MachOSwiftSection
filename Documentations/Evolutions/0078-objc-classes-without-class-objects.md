@@ -1,11 +1,12 @@
-# Draft - 没有 class object 的 Swift 类：从 Swift 元数据读出它们的 ObjC 类数据
+# 0078 - 没有 class object 的 Swift 类：从 Swift 元数据读出它们的 ObjC 类数据
 
-- **状态**: In Progress
+- **状态**: Implemented
 - **创建日期**: 2026-10-27
 - **最后更新**: 2026-10-27
 - **关联 issue**: [#137](https://github.com/MxIris-Reverse-Engineering/MachOSwiftSection/issues/137)（ObjC 侧）
 - **关联提案**: [0077-thunk-only-objc-members](0077-thunk-only-objc-members.md)（Swift 侧）；MachOObjCSection 的 0014 `host-supplied-classes`（跨仓库，提供本提案要用的 `ObjCSuppliedClass`，随 MachOObjCSection 0.8.201 发布）
-- **实现分支**: `feature/objc-classes-without-class-objects`
+- **实现分支**: `feature/objc-classes-without-class-objects`（已合入 `next`）
+- **配套文档**: [ClassesWithoutClassObjects.md](../Internal/ClassesWithoutClassObjects.md)（实现说明）
 
 ## 摘要
 
@@ -36,6 +37,12 @@
 - `Xcode Service`：两个类在 `objc dump` 里出现、方法表与 MachOObjCSection 那边的测试一致；`MenuBarPanelWindow` 的 `canBecomeKey` 等成员在 interface 里变成 `@objc override`。
 - 渲染 A/B：Swift 侧 interface 应只多出 `override` 与 `@objc`（以及随之少掉的 `final`）；dump 多出 ObjC 方法表的注释。
 
+## 后续项
+
+- **别的镜像里的 Swift 父类续链**：非泛型的那种（SwiftUI 的类继承 SwiftUICore 的类）按限定名到依赖镜像的 class list 里找 class object；泛型的那种（`NSHostingView<…>`）要跨镜像读它的 generic metadata pattern。
+- **本库读取器读挂在 stub 上的 category**：按 category 的目标指针与 `classStubOffset` 比对，像 MachOObjCSection 的索引器那样归到类上。
+- **RuntimeViewer 采用**：它的 ObjC 侧包着自己的 `ObjCInterfaceIndexer`（`RuntimeObjCInterfaceIndexer`），读文件时传入 `ObjCSuppliedClass.swiftClassesWithoutClassObjects(in:)` 就能列出这些类。
+
 ## 决策日志
 
 | 日期 | 决定 | 理由 |
@@ -47,3 +54,6 @@
 | 2026-10-27 | 别的镜像里的 Swift 父类只作显示，不续链 | 运行时名要用旧式 mangling 拼，本库没有旧式 remangler；按限定名到依赖镜像找 class object 可行，但不在 #137 的范围里，记为后续。 |
 | 2026-10-27 | 进程内也按名字找 ObjC 父类 | 起初把进程内断链记成已知限制，但已有的 `optimizedImageInProcessDeclaresWhatTheFileDeclares` 要求进程内与文件打印出同样的声明，泛型类在进程内少了 `override` 就红了。`ObjCAncestorResolver` 本来就持有进程内根的已加载镜像，按名字查与文件的依赖闭包用同一套 export trie 预检。 |
 | 2026-10-27 | Singleton 类的 stub 找 `…CMt`，不找 `…CMs` | 探针证实非公开 stub 只定义完整 stub 的私有符号 `…CMt`（`emitObjCResilientClassStub` 只在公开时才给 isa 字段定义别名 `…CMs`），isa 字段在它后面一个字。 |
+| 2026-10-27 | 父类名改用 `.interface` 预设打印 | `Xcode Service` 上抓到 `.interfaceType` 预设去掉泛型实参，`MenuBarLabelHostingView` 的父类读成了 `SwiftUI.NSHostingView`。fixture 加了一个父类是别的模块泛型类的例子。 |
+| 2026-10-27 | 渲染 A/B 的差异全部是预期中的改进 | 96 对里 30 对不同，都在 SwiftUI 与 SwiftUICore，没有删掉的声明，也没有类型变化。interface 只多出关键字：`override`、`static` 改成 `override class`、剥过符号的模拟器腿上的 `@objc`，以及 12 处显式 selector。显式 selector 逐个核过：两个 focus 方法与基线给有 class object 的兄弟类的判定相同，`_nsAttributedSubstringFromRange:` 与基线在 iOS 18.5 模拟器腿上的判定相同，`springLoadingHighlightExited:` 是 `NSHostingView<Content>` 方法表里的真实 selector。dump 只多出方法表与祖先链的注释。两侧渲染耗时相同。细节见实现说明的「验证」。 |
+| 2026-10-27 | 改为 Implemented，编号 0078 | 用户批准：A/B 差异全部是预期中的改进就合入 `next`。配套文档写了实现说明 [ClassesWithoutClassObjects.md](../Internal/ClassesWithoutClassObjects.md)，不需要单独的使用指南（CLI 的变化写进了 [ObjCCommandLine.md](../ObjCCommandLine.md) 第 5 条与插件 skill）；新术语 class without a class object 已登记进术语表。 |

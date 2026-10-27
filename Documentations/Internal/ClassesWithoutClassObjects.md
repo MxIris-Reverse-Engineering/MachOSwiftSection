@@ -1,6 +1,6 @@
 # 没有 class object 的 Swift 类
 
-提案 [`objc-classes-without-class-objects`](../Evolutions/draft-objc-classes-without-class-objects.md) 的实现说明。
+提案 [`objc-classes-without-class-objects`](../Evolutions/0078-objc-classes-without-class-objects.md) 的实现说明。
 
 ## 一句话
 
@@ -52,3 +52,9 @@
 - `ClassesWithoutClassObjectsInterfaceTests`（SwiftInterfaceTests）与 `ClassesWithoutClassObjectsRequestTests`（SwiftSectionKitTests）：interface 里的 `@objc override`，`objc dump` 列出这些类。这两组与改过的 `ThunkOnlyObjCMemberTests` / `ThunkOnlyObjCMemberDumpTests` 在不含本改动的代码上都失败。
 - `PerImageCacheEvictionTests`：索引随 indexer 一起驱逐。
 - SymbolTestsCore 的快照随之变化：三个继承 `NSObject` 的泛型类，编译器合成的 `init()` 在 interface 里成了 `@objc override init()`，dump 里多了祖先链与覆写注释，与非泛型类一直以来的输出一致。
+- `Xcode Service`（Xcode 27.2）：`objc dump` 列出 `Xcode_Service.MenuBarPanelWindow<A> : NSPanel`（9 个方法，与 MachOObjCSection 那边的测试一致）与 `_TtC13Xcode_Service23MenuBarLabelHostingView : SwiftUI.NSHostingView<Xcode_Service.MenuBarLabel>`；interface 里 `MenuBarPanelWindow` 的 8 个 ObjC 成员（`canBecomeKey`、`setFrame(_:display:)`、`init(contentRect:styleMask:backing:defer:)` 等）都是 `@objc override`。
+- 渲染 A/B（2026-10-27，JHs-Mac-Studio-Ultra，基线 `next` d68e6c10）：96 对里 66 对一致、30 对不同，都在 SwiftUI 与 SwiftUICore，各条腿都有。逐行归类：
+  - interface 只多出关键字：1576 处 `override`；14 处 `static` 改成 `override class`（`layerClass`、`cellClass`、`requiresConstraintBasedLayout` 这类 UIKit / AppKit 类成员的覆写）；iOS 16.4 / 17.5 模拟器腿上剥过符号的 4 + 4 处 `@objc`；12 处新的显式 selector。没有删掉的声明，也没有类型变化。
+  - 显式 selector 逐个核过。`_didUpdateFocusInContext:` 与 `_shouldUpdateFocusInContext:`：基线给有 class object 的兄弟类（`UIKitFocusableFillerItem`、`UIKitFocusableViewResponderItem`）的判定相同，这次是泛型的 `UIKitContainerFocusResponderItem<A>`。`_nsAttributedSubstringFromRange:`：基线在 iOS 18.5 模拟器腿上就是这样判的。`springLoadingHighlightExited:`：`NSHostingView<Content>` 的方法表里只有这个 selector，没有 `springLoadingExited:`，类也不遵循 `NSSpringLoadingDestination`，所以 Swift 方法 `springLoadingExited(_:)` 确实以别的 selector 导出（看起来是 SwiftUI 的笔误，AppKit 不会调到它）。
+  - dump 只多出注释：方法表的行尾注释、`// ObjC ancestor chain:` 一行及其后的空行、成员行前的 `@objc`；`ListCollectionViewCell` 原本是一行的空类体，多了祖先链注释后展开成多行。
+  - 两侧渲染耗时相同（macOS 26.6 cache 的 SwiftUI interface 都是 19 秒）。

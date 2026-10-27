@@ -87,7 +87,7 @@ macOS 27 与 iOS 27 的 dyld shared cache 不再给每个镜像留自己的 `__o
 `__objc_classlist` 里没有 class object 的 Swift 类：泛型类，父类在别的 resilience domain 的类，父类是本模块泛型类的类。它们的 `class_ro_t` 都静态存在，但只有经 Swift 元数据才找得到（generic metadata pattern、`ResilientClassMetadataPattern`、静态的 incomplete metadata）。后两种有 ObjC 祖先时还在 `__objc_stublist` 里登记一个 stub。交给 MachOObjCSection 时它们叫 supplied class（`ObjCSuppliedClass`），即宿主补进 ObjC 索引器的类。与 `@objc @implementation` 类的区别：那种类有 class object，没有的是 Swift 元数据。
 
 - **主要出现在**：`Sources/Analysis/SwiftInspection/SwiftClassWithoutClassObjectIndex.swift`、`Sources/Declaration/SwiftIndexing/ObjCSuppliedClass+SwiftClassesWithoutClassObjects.swift`
-- **延伸阅读**：[ClassesWithoutClassObjects.md](Internal/ClassesWithoutClassObjects.md)、[draft-objc-classes-without-class-objects](Evolutions/draft-objc-classes-without-class-objects.md)
+- **延伸阅读**：[ClassesWithoutClassObjects.md](Internal/ClassesWithoutClassObjects.md)、[0078-objc-classes-without-class-objects](Evolutions/0078-objc-classes-without-class-objects.md)
 
 ### context form / Mach-O form / pointer form（读取接口的三种形式）
 
