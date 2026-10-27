@@ -14,9 +14,10 @@ import Testing
 ///   thunks, which leaves each thunk (`$s…To`) as the member's only symbol;
 ///   the allocating entry point of `InitializingEntryOnlyHolder.init(values:)`
 ///   is inlined into both of its callers, while the initializing entry point
-///   is too large to inline and stays (`…fc` without `…fC`), and the
-///   synthesized `init()` of the generic class keeps only its initializing
-///   entry point and its thunk.
+///   is too large to inline and stays (`…fc` without `…fC`); so do
+///   `ThunkOnlyWidget.init(tags:)`'s, a Swift-only initializer beside the
+///   class's `@objc` `init()`; and the synthesized `init()` of the generic
+///   class keeps only its initializing entry point and its thunk.
 ///
 /// Xcode 27.2's `Xcode Service` executable has the same shapes in the wild:
 /// `MenuBarPanelWindow.canBecomeKey` and `XcodeServiceAppDelegate`'s
@@ -36,11 +37,26 @@ package enum ThunkOnlyMemberFixture {
     // Internal on purpose: only an internal member's every use is visible to
     // whole-module optimization, so only its entry points can be deleted.
     class ThunkOnlyWidget: NSObject {
+        let normalizedTagCount: Int
+
         override var description: String { "ThunkOnlyWidget" }
         override func isEqual(_ object: Any?) -> Bool { object is ThunkOnlyWidget }
         @objc func handleTick(_ sender: Any?) {}
         @objc class func classTick() -> Int { 1 }
-        override init() { super.init() }
+        override init() {
+            normalizedTagCount = 0
+            super.init()
+        }
+
+        // Swift-only beside the `@objc` `init()`: it has no thunk of its own.
+        init(tags: [String]) {
+            var normalizedTags: [String] = []
+            for tag in tags {
+                normalizedTags.append(tag.trimmingCharacters(in: .whitespaces).lowercased())
+            }
+            normalizedTagCount = Set(normalizedTags).count
+            super.init()
+        }
     }
 
     // Declared in the class's own module, so filed as a member of the class.
@@ -80,11 +96,11 @@ package enum ThunkOnlyMemberFixture {
     }
 
     public func makeFixtureObjects() -> [AnyObject] {
-        [ThunkOnlyWidget(), GenericThunkOnlyWidget<Int>(), InitializingEntryOnlyHolder(values: ["a", " B "])]
+        [ThunkOnlyWidget(), ThunkOnlyWidget(tags: ["a", " B "]), GenericThunkOnlyWidget<Int>(), InitializingEntryOnlyHolder(values: ["a", " B "])]
     }
 
-    public func makeAnotherHolder() -> AnyObject {
-        InitializingEntryOnlyHolder(values: ["c"])
+    public func makeMoreFixtureObjects() -> [AnyObject] {
+        [ThunkOnlyWidget(tags: ["c"]), InitializingEntryOnlyHolder(values: ["c"])]
     }
     """
 

@@ -139,6 +139,20 @@ struct ThunkOnlyObjCMemberTests {
         #expect(declarations(in: extensionBlock).contains("@objc func thunkOnlyFixtureHook()"), "\(extensionBlock)")
     }
 
+    /// Only an initializer that has an `@objc` thunk of its own is `@objc`.
+    /// An initializer's thunk names no member to match by, and every
+    /// initializer of the class used to get the attribute as soon as one had a
+    /// thunk: `init(tags:)` printed `@objc` beside `@objc override init()`, as
+    /// `MenuBarLabelHostingView.init(rootView:)` did in Xcode Service.
+    @Test(arguments: ThunkOnlyMemberFixture.Variant.allCases)
+    func onlyAnInitializerWithAnObjCThunkIsObjC(variant: ThunkOnlyMemberFixture.Variant) async throws {
+        let interface = try await interface(of: try ThunkOnlyMemberFixture.machOFile(variant))
+        let widgetBlock = try #require(block(startingWith: "class ThunkOnlyWidget: ", in: interface), "\(interface)")
+        let widgetDeclarations = declarations(in: widgetBlock)
+        #expect(widgetDeclarations.contains("init(tags: [Swift.String])"), "\(widgetBlock)")
+        #expect(widgetDeclarations.contains("@objc override init()"), "\(widgetBlock)")
+    }
+
     /// A member built from its thunk is located at the thunk, the only code it
     /// has; an initializer built from its initializing entry point, there.
     @Test func standInMembersPrintTheAddressOfTheEntryPointTheImageKept() async throws {
