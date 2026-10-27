@@ -33,6 +33,10 @@ package enum ClassesWithoutClassObjectsFixture {
     open class ResilientBase: NSObject {
         public override init() { super.init() }
     }
+
+    open class ResilientGenericBase<Element>: NSObject {
+        public override init() { super.init() }
+    }
     """
 
     package static let swiftSource = """
@@ -65,6 +69,13 @@ package enum ClassesWithoutClassObjectsFixture {
     public class ResilientChild: ResilientBase {
         public override var description: String { "ResilientChild" }
         @objc public func resilientPoke() {}
+    }
+
+    // The same with a generic superclass, the shape of a subclass of
+    // SwiftUI's `NSHostingView<Content>`: the superclass's name keeps its
+    // generic arguments.
+    public class ResilientGenericChild: ResilientGenericBase<Int> {
+        @objc public func resilientGenericPoke() {}
     }
 
     // Generic ancestry: statically emitted metadata the runtime initializes

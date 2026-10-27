@@ -422,7 +422,9 @@ package final class SwiftClassWithoutClassObjectIndex: @unchecked Sendable {
             #log(.error, "the superclass of the class with descriptor at offset \(descriptor.offset, privacy: .public) is unreadable: \(String(describing: error), privacy: .public)")
             return .swiftClass(displayName: "")
         }
-        let displayName = superclassNode.print(using: .interfaceType)
+        // `.interface`, not `.interfaceType`: that one removes the bound
+        // generic arguments, and `NSHostingView<Label>` read as `NSHostingView`.
+        let displayName = superclassNode.print(using: .interface)
         var nominalNode = superclassNode.kind == .type ? superclassNode.firstChild : superclassNode
         let isBoundGeneric = nominalNode?.kind == .boundGenericClass
         if isBoundGeneric {

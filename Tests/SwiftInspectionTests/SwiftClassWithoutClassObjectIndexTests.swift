@@ -80,6 +80,12 @@ struct SwiftClassWithoutClassObjectIndexTests {
         }
         try expectSelectors(of: resilientChild, in: machO, instance: ["description", "resilientPoke"])
 
+        // A generic superclass of another image keeps its arguments.
+        let resilientGenericChild = try #require(classes["\(moduleName).ResilientGenericChild"])
+        #expect(resilientGenericChild.kind == .resilientAncestry)
+        #expect(resilientGenericChild.superclass == .swiftClass(displayName: "\(kitModuleName).ResilientGenericBase<Swift.Int>"))
+        try expectSelectors(of: resilientGenericChild, in: machO, instance: ["resilientGenericPoke"])
+
         // Generic ancestry: the stub only its symbol names, and the
         // superclass another class without a class object.
         let concreteSubclass = try #require(classes["\(moduleName).ConcreteSubclass"])

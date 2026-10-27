@@ -27,6 +27,7 @@ struct ClassesWithoutClassObjectsRequestTests {
         #expect(product.contains("// Generic Swift class, instantiated at runtime\n@interface \(Self.moduleName).Namespace.NestedGenericWidget<A, B> : NSObject"), "\(product)")
         #expect(product.contains("// Generic Swift class, instantiated at runtime\n@interface \(Self.moduleName).GenericNativeRoot<A> : _TtCs12_SwiftObject"), "\(product)")
         #expect(product.contains("// Swift class with resilient ancestry, registered through __objc_stublist\n@interface _TtC\(Self.moduleName.count)\(Self.moduleName)14ResilientChild : \(Self.kitModuleName).ResilientBase"), "\(product)")
+        #expect(product.contains("// Swift class with resilient ancestry, registered through __objc_stublist\n@interface _TtC\(Self.moduleName.count)\(Self.moduleName)21ResilientGenericChild : \(Self.kitModuleName).ResilientGenericBase<Swift.Int>"), "\(product)")
         #expect(product.contains("// Swift class with generic ancestry, registered through __objc_stublist\n@interface _TtC\(Self.moduleName.count)\(Self.moduleName)16ConcreteSubclass : \(Self.moduleName).GenericWidget<A>"), "\(product)")
         // Generic ancestry on the native object model: nothing registers it.
         #expect(!product.contains("NativeConcreteSubclass"), "\(product)")
