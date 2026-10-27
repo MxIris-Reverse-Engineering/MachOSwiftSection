@@ -80,7 +80,7 @@ package final class ObjCClassMethodIndex: @unchecked Sendable {
 | `internedNames`（MachOSymbols） | `InternedNodeReferenceCache` | — |
 | `symbolicMangling`（SwiftInspection） | `SymbolicManglingIndex`（持有符号表的 `_symbolic` 表） | `symbolStore` |
 | `objcImplementationClasses`（SwiftInspection） | `ObjCImplementationClassIndex`（持有指向符号表 arena 的 `NodeReference`） | `symbolStore` |
-| `objcHierarchy`（SwiftInspection） | `ObjCClassMethodIndex`、`SwiftClassObjectIndex`、`ObjCClassHierarchyProviderStore`（宿主的弱引用注册，手工遵循 `SharedCacheEvicting`） | `symbolStore` |
+| `objcHierarchy`（SwiftInspection） | `ObjCClassMethodIndex`、`SwiftClassObjectIndex`、`SwiftClassWithoutClassObjectIndex`、`ObjCClassHierarchyProviderStore`（宿主的弱引用注册，手工遵循 `SharedCacheEvicting`） | `symbolStore` |
 | `objcAncestorResolver`（SwiftInspection） | `ObjCAncestorResolverStore` | `symbolStore` |
 | `demangleMemo`（SwiftInspection） | `SymbolicDemanglerCache`、`AnonymousContextNameIndex` | `internedNames` |
 | `propertyWrapperCatalog`（SwiftDeclarationRendering） | `PropertyWrapperTypeCatalogStore` | — |

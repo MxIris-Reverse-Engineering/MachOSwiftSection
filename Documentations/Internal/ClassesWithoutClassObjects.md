@@ -51,3 +51,4 @@
 - `SwiftClassWithoutClassObjectIndexTests`（SwiftInspectionTests）：文件、剥过的文件、进程内三条路径读出的种类、名字、父类、stub、方法表；方法表经泛型父类续到 `NSObject`，文件与进程内都是。
 - `ClassesWithoutClassObjectsInterfaceTests`（SwiftInterfaceTests）与 `ClassesWithoutClassObjectsRequestTests`（SwiftSectionKitTests）：interface 里的 `@objc override`，`objc dump` 列出这些类。这两组与改过的 `ThunkOnlyObjCMemberTests` / `ThunkOnlyObjCMemberDumpTests` 在不含本改动的代码上都失败。
 - `PerImageCacheEvictionTests`：索引随 indexer 一起驱逐。
+- SymbolTestsCore 的快照随之变化：三个继承 `NSObject` 的泛型类，编译器合成的 `init()` 在 interface 里成了 `@objc override init()`，dump 里多了祖先链与覆写注释，与非泛型类一直以来的输出一致。
