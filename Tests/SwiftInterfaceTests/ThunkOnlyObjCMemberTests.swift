@@ -153,6 +153,18 @@ struct ThunkOnlyObjCMemberTests {
         #expect(widgetDeclarations.contains("@objc override init()"), "\(widgetBlock)")
     }
 
+    /// Only the overload that has an `@objc` thunk of its own is `@objc`:
+    /// overloads share a member name, and the name alone gave the attribute
+    /// to `handleTick(count:)` beside `@objc func handleTick(_:)`.
+    @Test(arguments: ThunkOnlyMemberFixture.Variant.allCases)
+    func onlyAnOverloadWithAnObjCThunkIsObjC(variant: ThunkOnlyMemberFixture.Variant) async throws {
+        let interface = try await interface(of: try ThunkOnlyMemberFixture.machOFile(variant))
+        let widgetBlock = try #require(block(startingWith: "class ThunkOnlyWidget: ", in: interface), "\(interface)")
+        let widgetDeclarations = declarations(in: widgetBlock)
+        #expect(widgetDeclarations.contains("@objc func handleTick(_: Any?)"), "\(widgetBlock)")
+        #expect(widgetDeclarations.contains { $0.hasPrefix("func handleTick(count: Swift.Int) -> Swift.Int") || $0.hasPrefix("final func handleTick(count: Swift.Int) -> Swift.Int") }, "\(widgetBlock)")
+    }
+
     /// A member built from its thunk is located at the thunk, the only code it
     /// has; an initializer built from its initializing entry point, there.
     @Test func standInMembersPrintTheAddressOfTheEntryPointTheImageKept() async throws {

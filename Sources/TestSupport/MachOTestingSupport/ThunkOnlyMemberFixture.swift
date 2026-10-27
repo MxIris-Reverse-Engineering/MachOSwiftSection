@@ -42,6 +42,9 @@ package enum ThunkOnlyMemberFixture {
         override var description: String { "ThunkOnlyWidget" }
         override func isEqual(_ object: Any?) -> Bool { object is ThunkOnlyWidget }
         @objc func handleTick(_ sender: Any?) {}
+        // A Swift-only overload of the `@objc` method above, kept out of line
+        // so both builds have it.
+        @inline(never) func handleTick(count: Int) -> Int { count * 2 + normalizedTagCount }
         @objc class func classTick() -> Int { 1 }
         override init() {
             normalizedTagCount = 0
@@ -101,6 +104,10 @@ package enum ThunkOnlyMemberFixture {
 
     public func makeMoreFixtureObjects() -> [AnyObject] {
         [ThunkOnlyWidget(tags: ["c"]), InitializingEntryOnlyHolder(values: ["c"])]
+    }
+
+    public func countTicks(_ count: Int) -> Int {
+        ThunkOnlyWidget(tags: ["d"]).handleTick(count: count)
     }
     """
 
