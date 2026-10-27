@@ -37,10 +37,10 @@ package enum MemberAttributeApplication {
             var hasInitializerThunk = false
             for member in members {
                 if member.isStatic {
-                    apply(attribute, toFunctionNamed: member.memberName, in: &staticFunctions)
+                    apply(attribute, toFunctionsNamed: member.memberName, withThunkSuffix: mangledSuffix, in: &staticFunctions, symbolIndexStore: symbolIndexStore, in: machO)
                     apply(attribute, toVariableNamed: member.memberName, in: &staticVariables)
                 } else {
-                    apply(attribute, toFunctionNamed: member.memberName, in: &functions)
+                    apply(attribute, toFunctionsNamed: member.memberName, withThunkSuffix: mangledSuffix, in: &functions, symbolIndexStore: symbolIndexStore, in: machO)
                     apply(attribute, toVariableNamed: member.memberName, in: &variables)
                     if member.isInit {
                         hasInitializerThunk = true
@@ -49,6 +49,30 @@ package enum MemberAttributeApplication {
             }
             if hasInitializerThunk {
                 apply(attribute, toAllocatorsWithThunkSuffix: mangledSuffix, in: &allocators, symbolIndexStore: symbolIndexStore, in: machO)
+            }
+        }
+    }
+
+    /// `attribute` on each of `definitions` named `name` whose own symbol has
+    /// the thunk `mangledSuffix` spells: a thunk's name is its member's mangled
+    /// name plus the suffix. Overloads share a name, and the name alone gave
+    /// the attribute to a Swift-only overload of an `@objc` method. A merged
+    /// function (`…Tm`) is the member it was merged from.
+    package static func apply(
+        _ attribute: SwiftAttribute,
+        toFunctionsNamed name: String,
+        withThunkSuffix mangledSuffix: String,
+        in definitions: inout [FunctionDefinition],
+        symbolIndexStore: SymbolIndexStore,
+        in machO: some MachORepresentableWithCache
+    ) {
+        for definitionIndex in definitions.indices where definitions[definitionIndex].name == name && !definitions[definitionIndex].attributes.contains(attribute) {
+            var memberSymbolName = definitions[definitionIndex].symbol.name
+            if memberSymbolName.hasSuffix("Tm") {
+                memberSymbolName.removeLast(2)
+            }
+            if symbolIndexStore.containsSymbol(named: memberSymbolName + mangledSuffix, in: machO) {
+                definitions[definitionIndex].attributes.append(attribute)
             }
         }
     }
