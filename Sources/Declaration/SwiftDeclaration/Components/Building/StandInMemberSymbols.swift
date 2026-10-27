@@ -94,6 +94,31 @@ package enum StandInMemberSymbols {
         return DemangledSymbol(symbol: Symbol(offset: thunkSymbol.offset, name: implementationName), demangledNode: memberNode)
     }
 
+    /// Whether the image has a symbol of its own for the member an entry
+    /// point stands in for, found by the name the stand-in would carry: the
+    /// thunk's name without `To` (for an initializer's thunk, either entry
+    /// point of the initializer), the initializing entry point's name with
+    /// `fc` swapped for `fC`. One name lookup, made before a stand-in is built,
+    /// spares building one for every member that kept its implementation —
+    /// almost every `@objc` member and initializer of an unoptimized or
+    /// library image. `supplementing(_:with:)` still decides structurally for
+    /// the stand-ins that are built.
+    package static func imageKeepsTheMemberSymbol(
+        replacedBy entryPointSymbol: DemangledSymbol,
+        symbolIndexStore: SymbolIndexStore,
+        in machO: some MachORepresentableWithCache
+    ) -> Bool {
+        var memberSymbolName = entryPointSymbol.name
+        if memberSymbolName.hasSuffix("To") {
+            memberSymbolName.removeLast(2)
+            if symbolIndexStore.containsSymbol(named: memberSymbolName, in: machO) {
+                return true
+            }
+        }
+        guard memberSymbolName.hasSuffix("fc") else { return false }
+        return symbolIndexStore.containsSymbol(named: String(memberSymbolName.dropLast(2)) + "fC", in: machO)
+    }
+
     private static func allocatorStandIn(
         forConstructorNode constructorNode: NodeReference,
         initializerName: String,
@@ -124,12 +149,19 @@ extension StandInMemberSymbols {
             symbolIndexStore: SymbolIndexStore,
             in machO: some MachORepresentableWithCache
         ) {
-            func thunkStandIns(_ kinds: SymbolIndexStore.MemberKind...) -> [DemangledSymbol] {
-                kinds.flatMap { symbolIndexStore.objcThunkMemberSymbols(of: $0, for: typeName, node: typeNode, in: machO) }
-                    .compactMap { StandInMemberSymbols.memberStandIn(forObjCThunkSymbol: $0, in: machO) }
+            func standIns(for entryPointSymbols: [DemangledSymbol], _ makeStandIn: (DemangledSymbol) -> DemangledSymbol?) -> [DemangledSymbol] {
+                entryPointSymbols
+                    .filter { !StandInMemberSymbols.imageKeepsTheMemberSymbol(replacedBy: $0, symbolIndexStore: symbolIndexStore, in: machO) }
+                    .compactMap(makeStandIn)
             }
-            let initializerStandIns = symbolIndexStore.memberSymbols(of: .constructor(inExtension: false), for: typeName, node: typeNode, in: machO)
-                .compactMap { StandInMemberSymbols.allocatorStandIn(forInitializerSymbol: $0, in: machO) }
+            func thunkStandIns(_ kinds: SymbolIndexStore.MemberKind...) -> [DemangledSymbol] {
+                standIns(for: kinds.flatMap { symbolIndexStore.objcThunkMemberSymbols(of: $0, for: typeName, node: typeNode, in: machO) }) {
+                    StandInMemberSymbols.memberStandIn(forObjCThunkSymbol: $0, in: machO)
+                }
+            }
+            let initializerStandIns = standIns(for: symbolIndexStore.memberSymbols(of: .constructor(inExtension: false), for: typeName, node: typeNode, in: machO)) {
+                StandInMemberSymbols.allocatorStandIn(forInitializerSymbol: $0, in: machO)
+            }
             standInsByCategory[.allocators] = initializerStandIns + thunkStandIns(.constructor(inExtension: false), .allocator(inExtension: false))
             standInsByCategory[.functions] = thunkStandIns(.function(inExtension: false, isStatic: false))
             standInsByCategory[.staticFunctions] = thunkStandIns(.function(inExtension: false, isStatic: true))
@@ -158,7 +190,10 @@ extension StandInMemberSymbols {
         var standInsByTypeNode: OrderedDictionary<StructuralNodeReferenceKey, OrderedDictionary<SymbolIndexStore.MemberKind, [DemangledSymbol]>> = [:]
         let initializerSymbolsByTypeNode = symbolIndexStore.memberSymbols(of: .constructor(inExtension: true), excluding: [], in: machO)
         for (typeNodeKey, initializerSymbolsByKind) in initializerSymbolsByTypeNode {
-            let standIns = initializerSymbolsByKind.values.joined().compactMap { allocatorStandIn(forInitializerSymbol: $0, in: machO) }
+            let standIns = initializerSymbolsByKind.values.joined()
+                .filter { !imageKeepsTheMemberSymbol(replacedBy: $0, symbolIndexStore: symbolIndexStore, in: machO) }
+                .compactMap { allocatorStandIn(forInitializerSymbol: $0, in: machO) }
+            guard !standIns.isEmpty else { continue }
             standInsByTypeNode[typeNodeKey, default: [:]][.allocator(inExtension: true), default: []].append(contentsOf: standIns)
         }
         let thunkSymbolsByTypeNode = symbolIndexStore.objcThunkMemberSymbols(
@@ -179,7 +214,10 @@ extension StandInMemberSymbols {
                 case .constructor(inExtension: true): .allocator(inExtension: true)
                 default: kind
                 }
-                let standIns = thunkSymbols.compactMap { memberStandIn(forObjCThunkSymbol: $0, in: machO) }
+                let standIns = thunkSymbols
+                    .filter { !imageKeepsTheMemberSymbol(replacedBy: $0, symbolIndexStore: symbolIndexStore, in: machO) }
+                    .compactMap { memberStandIn(forObjCThunkSymbol: $0, in: machO) }
+                guard !standIns.isEmpty else { continue }
                 standInsByTypeNode[typeNodeKey, default: [:]][standInKind, default: []].append(contentsOf: standIns)
             }
         }
