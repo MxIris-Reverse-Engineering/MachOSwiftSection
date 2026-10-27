@@ -6,7 +6,7 @@
 
 **四问的共同答案**：本模块在 0.24.0 新写，0.23.0 没有；GitHub 上没有相关 PR 或 issue；[ReviewAdjudications.md](../Documentations/Internal/ReviewAdjudications.md) 已覆盖第 6 条（A66）与第 8 条（A71），理由仍成立，直接跳过。所以其余每条都是「0.24.0 引入、以前没修过」，例外写在各条的「既往」里。
 
-**状态**：用户 2026-10-27 批准修建议修的五条（N1、1、2、11、12）。每条修复都先写了修复前失败的测试：前四条的 9 个测试在原始代码上一起跑过一次，全部按预期失败，两个只核对扫描逻辑本身的测试通过；第 2 条的两组测试（16 个用例）在前四条修好、它自己还没修的代码上跑过，全部按预期失败。修复后全部通过。判为不修或误报的五条登记在 ReviewAdjudications A76–A80。第 2 条要改变查询结果，按提案制先写了精简提案 [draft-objc-runtime-send-entry-points](../Documentations/Evolutions/draft-objc-runtime-send-entry-points.md)，用户点头后实现。
+**状态**：用户 2026-10-27 批准修建议修的五条（N1、1、2、11、12）。每条修复都先写了修复前失败的测试：前四条的 9 个测试在原始代码上一起跑过一次，全部按预期失败，两个只核对扫描逻辑本身的测试通过；第 2 条的两组测试（16 个用例）在前四条修好、它自己还没修的代码上跑过，全部按预期失败。修复后全部通过，全量 `swift test --skip IntegrationTests` 在 JHs-Mac-Studio-Ultra（macOS 27.2，Xcode 26.6）上 2588 个测试全部通过。判为不修或误报的五条登记在 ReviewAdjudications A76–A80。第 2 条要改变查询结果，按提案制先写了精简提案 [draft-objc-runtime-send-entry-points](../Documentations/Evolutions/draft-objc-runtime-send-entry-points.md)，用户点头后实现。
 
 ## 总表
 

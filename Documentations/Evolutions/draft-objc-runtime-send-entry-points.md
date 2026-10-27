@@ -1,6 +1,6 @@
 # Draft - 交叉引用把 libobjc 的专用发送入口记成消息发送
 
-- **状态**: Accepted
+- **状态**: In Progress
 - **创建日期**: 2026-10-27
 - **最后更新**: 2026-10-27
 - **所属愿景**: 无
@@ -51,3 +51,4 @@ clang 不把每个 Objective-C 发送都编成 `objc_msgSend`：`[[Foo alloc] in
 | 2026-10-27 | `init` 的接收者记 `.unknown`，不加新的接收者提示 | 新 case 是公开 enum 的破坏性改动；`.unknown` 不失真 |
 | 2026-10-27 | 不认 `objc_retain` / `objc_release` / `objc_autorelease` | ARC 插入的调用与源码里的发送分不开 |
 | 2026-10-27 | 用户批准，状态改为 Accepted | — |
+| 2026-10-27 | 实现完成，状态改为 In Progress | 修复前 16 个用例全部失败、修复后通过；全量测试在 JHs-Mac-Studio-Ultra 上通过。合入 `next` 时取号并改为 Implemented |

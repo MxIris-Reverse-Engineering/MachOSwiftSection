@@ -2692,6 +2692,25 @@
 - **关联文档**：[Changelogs/0.24.0.md](../../Changelogs/0.24.0.md)。
 - **对应版本**：0.24.0。
 
+## 2026-10-27 交叉引用分析第二轮审查的修复
+
+- **时间段**：2026-10-27，分支 `fix/cross-reference-review-findings`（worktree `.worktrees/MachOSwiftSection-CrossReferenceReviewFixes`，基于 `next`）。
+- **动机**：对 0.24.0（`0.23.0..0.24.0`，重点是新加的交叉引用分析）做第二轮审查，12 条候选逐条核实，另外发现一条更严重的；用户批准修建议修的五条。详见 [2026-10-27 审查记录](../../Roadmaps/2026-10-27-cross-reference-analysis-second-review-findings.md)。
+- **关键决策**：
+  - **按平台的地址掩码**：模块六处写死的 Mac 47 位掩码在 iOS 系真机上会留下签名的第 39–46 位，改为统一用 `InProcessContext.addressMask`（改为 `package` 可见），经新的 `StoredPointer.address(in:)`；`AddressMaskScanTests` 防止常量回来。
+  - **ld64 改写过的代码**：字面量 `ldr` 记成从已知槽位载入、`adr` 像 `add` 一样报类引用；横向排查发现 ld64 改写过的桩 MachOKit 读不出槽位（第三方 App 里经桩的发送因此一处也认不出），改由 `ARM64Trampoline` 补读；SwiftThunkAnalysis 的解码器同样补上字面量 `ldr`（`ThunkOperation.loadFromSlot`）。复现测试现编 dylib 后按 ld64 的做法改写指令，因为 Xcode 26 的链接器不做这种改写、Xcode 27 不再带 `ld-classic`。
+  - **libobjc 的发送入口**：`objc_alloc_init` 等八个入口记成它们代表的发送，按轻量档写了提案 [draft-objc-runtime-send-entry-points](../Evolutions/draft-objc-runtime-send-entry-points.md)，用户批准后实现。
+  - **导入类型查询的越界读**：`SwiftTypeIndex.name(ofDescriptorAt:)` 只从类型描述符读名字；审查原本建议的 `describesType` 要为扫到的每个镜像建类型索引，没有采用。
+  - **缩写**：`pc` 与全仓库的 `lhs` / `rhs` 改成完整的名字，`AbbreviatedIdentifierScanTests` 钉住；fixture 源码里的 `test(lhs:rhs:)` 是参数标签、进了快照基线，不动。
+  - 判为不修或误报的五条登记 ReviewAdjudications A76–A80；已暂缓的 A64 在 macOS 26.6 上核过仍复现不了，补记。
+- **落地模块**：CrossReferenceAnalysis、ARM64InstructionDecoding、SwiftThunkAnalysis、MachOReading（`InProcessContext`、`AddressArithmetic` 的参数名），以及 `lhs` / `rhs` 改名涉及的 SwiftInspection、SwiftDeclaration、SwiftIndexing、SwiftDeclarationRendering、SwiftDiffing、MachOResolving、MachOSymbols、MachOSwiftSection、MachOFixtureSupport。
+- **验证**：
+  - 每条修复都先写了修复前会失败的测试。前四条的 9 个测试在原始代码上一起跑过一次，全部失败（导入类型查询那条的子进程以 SIGBUS 结束），两个只核对扫描逻辑本身的测试通过；第 2 条的两组测试（16 个用例）在前四条修好、它自己还没修的代码上全部失败。这两轮在公司的 Mac Studio（macOS 26.6）上跑，交叉引用与 thunk 分析两个测试目标里其余测试都过，只有 4 个本机原本就红的（按 macOS 27.2 的缓存挑镜像）。
+  - 全量 `swift test --skip IntegrationTests` 按用户要求改到 JHs-Mac-Studio-Ultra 上跑（macOS 27.2，Xcode 26.6，只走远端依赖，版本与 0.24.0 发版审计相同：MachOKit 0.54.101、MachOKitExtensions 1.3.0、MachOObjCSection 0.8.200、swift-demangling 0.7.2、swift-semantic-string 0.5.0、swift-capstone 7.0.0；fixture 用发版审计时按 CI 方式 ad-hoc 签名编的那份）：2588 个测试 / 497 个套件全部通过，原始退出码 0。0.24.0 时是 2574 / 493，多出的 14 个测试、4 个套件是这次新加的；整个缓存上的 selector 预筛测试加了 `isKindOfClass:`，也通过。
+  - 渲染 A/B 没有跑：打印、索引与读取层的改动只有运算符与闭包参数的改名和 `InProcessContext.addressMask` 的可见性，行为不变，由全量测试覆盖。
+- **关联文档**：审查记录、提案 draft-objc-runtime-send-entry-points、[Modules/CrossReferenceAnalysis.md](Modules/CrossReferenceAnalysis.md)「libobjc 的发送入口」「链接器改写过的代码」与「两种桩布局」、[Modules/SwiftThunkAnalysis.md](Modules/SwiftThunkAnalysis.md)、ReviewAdjudications A64、A76–A80。
+- **对应版本**：未发版（0.24.0 之后）。
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节
