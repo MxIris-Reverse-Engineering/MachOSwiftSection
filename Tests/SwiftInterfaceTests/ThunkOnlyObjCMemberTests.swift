@@ -6,6 +6,7 @@ import MachOFoundation
 import MachOSwiftSection
 import SwiftDeclarationRendering
 import SwiftInterface
+@_spi(Internals) import MachOSymbols
 @testable import MachOTestingSupport
 
 /// Members whose implementation symbol the optimizer deleted while another of
