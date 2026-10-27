@@ -273,7 +273,10 @@ swift-section evolution 17.0.json 18.0.json /path/Foo --labels 17.0,18.0,26.0
   descriptor names (see §9), which an old baseline would report as added wholesale. Format 7 (0.23.0
   and later) rejects every format-6 baseline: a type declared in a function or closure body is recorded
   under its own full name now (see §9), and an old baseline would report each one as removed —
-  a breaking change — and added again.
+  a breaking change — and added again. Format 8 (0.25.0 and later) rejects every format-7
+  baseline: in an optimized build the newer tool also records the members whose only symbol is
+  their `@objc` thunk or their initializing entry point (see §9), which an old baseline would
+  report as added.
 
 ## 8. `--resolve-c-module-names` (interface, macOS only)
 
@@ -312,6 +315,17 @@ Attribution against a non-macOS binary is limited (it warns and degrades rather 
   `@objc` / ObjC-override facts are joined through the implementation's symbol and are
   missing. A vtable slot nothing names (an internal member in a stripped image) is
   left out; `dump` lists it as `sub_…` or `<unnamed vtable slot>`.
+- **In an optimized app binary, a member may print at the address of its `@objc` thunk, and an
+  `init` at its initializing entry point.** Whole-module optimization can inline an internal
+  `@objc` member's body into its Objective-C thunk (`$s…To`) and delete the Swift entry point,
+  and inline a class initializer's allocating entry point into its callers. The member is then
+  rebuilt from the entry point that survived: `--emit-member-addresses` points at the thunk,
+  which uses the Objective-C calling convention (`self` in `x0`, `_cmd` in `x1`), or at the
+  initializing entry point. `dump` lists the members only a thunk names under
+  `/* [ObjC Thunk] … */` sections. In a generic class, or a class registered through
+  `__objc_stublist` (its superclass is in another module, or is generic), such a member prints
+  with `@objc` but without `override`: these classes have no static Objective-C method list to
+  prove it, and `swift-section objc` does not list them yet.
 - **`associatedtype Element` without `: ~Copyable` / `: ~Escapable`** does not prove the
   associated type is Copyable. The binary does not record that suppression (SE-0503); it is
   printed only when an extension of the protocol in the same image proves it

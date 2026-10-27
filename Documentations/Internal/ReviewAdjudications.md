@@ -172,6 +172,7 @@
 - **与 main 基线对比**：标注是 PR #111 新增，无基线可比。
 - **既往修复**：无。
 - **复审条件**：出现「实现符号保留而 `To` thunk 被选择性剥除」的真实输入（自定义 strip 脚本 / 非常规链接产物）。届时 dump 侧已有的 `containsSymbol(named: name + "To")` 口径可以直接搬到 interface 侧作第二道豁免。
+- **2026-10-27 复核**：论证 ② 的前提「未剥离时实现符号与 `To` thunk 同在」不成立。整模块优化的 app 会把 internal `@objc` 成员的函数体内联进 thunk、删掉实现符号，只留 thunk（issue #137，Xcode 27.2 的 `Xcode Service` 里 22 个）。这种成员原先根本不进模型，没有行可标；现在由 thunk 造的替身建出（提案 `thunk-only-objc-members`），`applyThunkAttributes` 照常打 `@objc`，豁免照常生效。裁决不变，也不是上面的复审条件。
 
 ---
 

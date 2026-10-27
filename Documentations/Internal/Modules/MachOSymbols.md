@@ -27,6 +27,8 @@ MachOSymbols 是**符号索引**层：把一个镜像的符号表和 export trie
 
 成员与全局变量按入口节点归类：getter、setter，以及 SE-0507 的 `borrow` / `mutate` 访问器（`vb` / `vz`）都算属性或下标的成员符号——只声明后两者的属性没有 getter 符号，漏了它们整个成员就不见了。`_read` / `_modify` 及其新 ABI 版本不收进成员桶。
 
+`@objc` thunk（`$s…To`）不是成员符号，成员索引不收它；它照旧进 thunk 属性的标记表（只记成员名，供 `applyThunkAttributes` 打 `@objc`），此外按它进入的成员归进第四个成员索引 `objcThunkMemberSymbolRowsByKind`，与实现符号、`Tq`、protocol witness 三个索引的键相同，存的是 thunk 自己的行（`objcThunkMemberSymbols(of:…)`）。这个索引是给优化构建用的：成员的 Swift 函数体被内联进 thunk、Swift entry point 被删掉之后，thunk 是这个成员仅剩的符号，声明模型从它造替身成员（[ThunkOnlyObjCMembers.md](../ThunkOnlyObjCMembers.md)）。`…ToTm`（合并后的 thunk 函数体）以 `mergedFunction` 开头，不进这个索引。
+
 存储形态是每个唯一符号名一行 16 字节的 `SymbolRow`（规范化偏移 + 名字字节的打包引用）。名字有两个来源：`MachOImage` 的行直接指进镜像 mmap 的 LINKEDIT 字符串表（零拷贝、干净页，代价是这张表要求镜像保持加载）；`MachOFile` 的行和 export trie 解出来的名字进表内部的私有连续缓冲区。名字反查是在 `rowsSortedByName` 排列上做字节级二分。
 
 **规范化偏移的口径**就是上层按偏移查询用的那一套：独立文件是文件偏移，cache 内的镜像是 `未滑动地址 - sharedRegionStart`，`MachOImage` 是距 mach header 的偏移。`MachOKit` 给 `MachOFile` 符号的 `offset` 却是原始 `n_value`，也就是虚拟地址（它的文档注释写的是「file offset」，不对）。换算统一走 `SymbolValueOffsetConverter`。dylib 的 `__TEXT` 链接在 0，地址和文件偏移恰好相等，所以独立文件这一支长期没有换算，直到主可执行文件（`__TEXT` 在 0x100000000）暴露出来：每个符号都被归到高出 0x100000000 的位置，成员地址打印成两倍基址，vtable 槽也对不上名字。
@@ -35,7 +37,7 @@ MachOSymbols 是**符号索引**层：把一个镜像的符号表和 export trie
 
 **成员 / typeInfo / thunk 属性这几个索引的 key 不是单射的**：第一层是打印出来的类型名，用 `.interfaceTypeBuilderOnly` 打印，会剥掉 private discriminator，于是不同文件里同名的 private 类型共用一个名字桶（issue #115：dump 路径按名字查，把两个类型的成员混进了同一个声明）。所以——
 
-> 解析**某一个**类型的成员 / 信息 / 属性，必须用带 node 的重载（`memberSymbols(of:for:node:in:)`、`methodDescriptorMemberSymbols(of:for:node:in:)`、`typeInfo(for:node:in:)`、`thunkAttributeMembers(of:for:node:in:)`）。只带名字的那几个重载会故意把所有子桶摊平，只用于「所有打印成这个名字的类型」这种聚合查询。
+> 解析**某一个**类型的成员 / 信息 / 属性，必须用带 node 的重载（`memberSymbols(of:for:node:in:)`、`methodDescriptorMemberSymbols(of:for:node:in:)`、`objcThunkMemberSymbols(of:for:node:in:)`、`typeInfo(for:node:in:)`、`thunkAttributeMembers(of:for:node:in:)`）。只带名字的那几个重载会故意把所有子桶摊平，只用于「所有打印成这个名字的类型」这种聚合查询。
 
 **同一地址上的符号按归属分组**（演进提案 `faster-lazy-definition-indexing`）。identical code folding 会把许多 conformance 内容相同的 witness 实现合并到一个地址上——SwiftUI 里一个 `_destroySelf` 或值 witness 的实现挂着上千个名字。要在这样的地址上找「属于某个 conformance 的那个」或「属于某个协议的那个」，用 `symbols(for:ownedBy:ownerKind:printedWith:in:)`：`SymbolOwnerKind.conformingType` 是符号树里第一个 `protocolConformance` 的第一个子节点，`.protocol` 是第一个 `protocol` 节点，按调用方给的打印预设打印后比较；结果按 `symbols(for:in:)` 的顺序排列，带查询偏移。每个「地址 + 规则 + 预设」第一次被问到时在 `Storage` 上分组一次（锁外计算、锁内先到者胜），之后每次是两次字典查找。以前 `ExtensionDefinition`、`ProtocolDefinition`、`ProtocolConformanceDumper`、`ProtocolDumper` 都是把这个地址的名字逐个 demangle、搜索、打印再比较，每个 conformance 来一次，对别名组大小是平方级：SwiftUI 一个镜像检查 365 万次、只涉及 17,852 个不同的名字。**新的「在别名里找归属」的代码走这个查询，不要再逐个比较。**`ClassDumper.validNode` 与 `OverrideSymbolMatcher` 按声明上下文结构相等来认领，规则不同、实测开销可以忽略，没有改。
 

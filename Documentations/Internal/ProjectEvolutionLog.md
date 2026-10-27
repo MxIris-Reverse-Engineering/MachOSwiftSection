@@ -2711,6 +2711,22 @@
 - **关联文档**：审查记录、提案 [0076-objc-runtime-send-entry-points](../Evolutions/0076-objc-runtime-send-entry-points.md)、[Modules/CrossReferenceAnalysis.md](Modules/CrossReferenceAnalysis.md)「libobjc 的发送入口」「链接器改写过的代码」与「两种桩布局」、[Modules/SwiftThunkAnalysis.md](Modules/SwiftThunkAnalysis.md)、ReviewAdjudications A64、A76–A80。
 - **对应版本**：未发版（0.24.0 之后）。
 
+## （落地时编号）2026-10-27 只剩 `@objc` thunk 或 initializing entry point 的成员
+
+- **时间段**：2026-10-27，分支 `fix/thunk-only-objc-members`（worktree `.worktrees/MachOSwiftSection-ThunkOnlyMembers`，基于 `next` b4d76a3b）。
+- **动机**：逆向 Xcode 27.2 菜单栏助手的会话报来 issue #137：`Xcode Service` 里 `MenuBarPanelWindow.canBecomeKey` 这类成员在 dump 与 interface 里都不见了，只有 `nm` 能看到。triage 发现范围更大：7 个类、22 个 `@objc` 成员只剩 `To` thunk，`__objc_classlist` 里的普通类也一样；另有 9 个 class initializer 只剩 initializing entry point，interface 里也不见（issue #138）。成员模型只从实现符号（和提案 0054 的 `Tq` 替身）建成员，整模块优化删掉实现符号后就无从建起。用户批准本库与 MachOObjCSection 两边并行开工。
+- **关键决策**：
+  - 沿用提案 0054 的替身成员符号：照实现符号的样子造（mangled 名、成员树），偏移用镜像留下的入口。thunk 去掉 `To` 与 `objCAttribute`；initializing entry point 把 `constructor` 改写成 `allocator`、`fc` 换成 `fC`，因为 builder、vtable 槽、ObjC 方法表与 ABI 身份都按 allocator 记。
+  - 符号索引给 `To` thunk 加第四个成员索引，存 thunk 自己的行；原来只记成员名的标记表不变。
+  - #138 并入同一份提案：thunk 替身里的 `init` 来自 `…fcTo`，依赖模型先接受 initializing entry point。
+  - 造替身之前先按名字查实现符号是否存在，没被优化掉的镜像几乎不付代价；结构相等的去重仍是最终判据。
+  - 泛型类与 stub-list 类的 ObjC 方法表（`override` 与显式 selector 的证据）另立提案，与 MachOObjCSection 协作：那边让 `ObjCInterfaceIndexer` 接受宿主补进来的类，本库从 Swift 元数据算出这些类的 `class_ro_t`。
+  - ABI snapshot 格式版本加一。
+- **落地模块**：MachOSymbols（第四个成员索引与查询）、SwiftDeclaration（`StandInMemberSymbols`、`indexMembers`、`ClassDispatchLookups` 的去重键挪走）、SwiftIndexing（extension 成员）、SwiftDump（`[ObjC Thunk]` 一节）、SwiftDiffing（格式版本）、MachOTestingSupport（`ThunkOnlyMemberFixture`）。
+- **验证**：（待填）
+- **关联文档**：提案 [draft-thunk-only-objc-members](../Evolutions/draft-thunk-only-objc-members.md)、[ThunkOnlyObjCMembers.md](ThunkOnlyObjCMembers.md)、[ObjCMemberRecovery.md](ObjCMemberRecovery.md)「边界与已知限制」、[DescriptorOnlyVTableMembers.md](DescriptorOnlyVTableMembers.md)「什么时候不补」、[Modules/MachOSymbols.md](Modules/MachOSymbols.md)、[Modules/SwiftDeclaration.md](Modules/SwiftDeclaration.md)、ReviewAdjudications A13 的 2026-10-27 复核。
+- **对应版本**：未发版（0.24.0 之后）。
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节
