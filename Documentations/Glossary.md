@@ -42,6 +42,8 @@
 
 **这也是不要靠 bind 来判定墓碑的原因之一**：离线读一个 Resilient 策略的类，`MachOFile` 里只有 metadata pattern，根本没有 vtable word 可读——判据必须回到 descriptor 的 null 本身。
 
+**墓碑只说明槽指向的那个入口没有代码，不说明成员没有代码**：整模块优化的 app 里，一个 `@objc` 方法的槽可以是墓碑而它的 ObjC thunk 还在（Swift 函数体内联进了 thunk），一个 initializer 的 `__allocating_init` 槽可以是墓碑而它的 initializing entry point（`…fc`）还在。这两种成员由替身成员符号补建，槽号经节点联结照常挂上（见 thunk-only member）。
+
 - **主要出现在**：`ClassDumper` 的 vtable 循环、`DeclarationRenderConfiguration.deletedMethodSlotComment`
 - **延伸阅读**：[提案 vtable-slot-attribution](Evolutions/0020-vtable-slot-attribution-via-method-descriptor-symbols.md)、[PR #123 review findings 第 1 条](../Roadmaps/2026-09-06-pr123-review-findings.md)
 
@@ -112,7 +114,7 @@ macOS 27 与 iOS 27 的 dyld shared cache 不再给每个镜像留自己的 `__o
 
 class 的 vtable 成员里，实现函数没有符号、只剩它自己 method descriptor 的 `Tq` 符号能说出它是谁的那一类。library-evolution 构建本来就只导出 `Tj` / `Tq`，实现符号保持 local（见上一条 derived symbol forms），所以镜像的 local 符号一旦被剥掉——系统 dyld shared cache 里的 AppKit、`strip -x` 过的二进制——public 的 class 方法和访问器就全都属于这一类：macOS 26.7 的 AppKit 因此在 interface 里少了 53 个成员。「实现符号没导出」不等于「没符号」：同一份 cache 里的 SwiftUI、SwiftUICore、Foundation 保留了 local 符号，不属于这一类。协议 requirement 也有 `Tq`，但它们从协议描述符打印，也不在此列。interface 过去只从实现符号建成员，这一类整个缺席；现在 `classDispatchLookups` 为每个有 `Tq`、实现指针非 null 的槽造一个成员符号（名字是 `Tq` 名去掉后缀，也就是实现函数本来的 mangled 名；偏移是 descriptor 记录的实现偏移，async 方法再跳一次到函数入口），`indexMembers` 在实现符号没有声明这个成员时用它补建。
 
-和 ABI 墓碑的区别：墓碑的实现指针是 null，镜像里根本没有这个成员的代码，所以不补建；descriptor-only member 的代码还在，只是没有名字。
+和 ABI 墓碑的区别：墓碑的实现指针是 null，槽指向的入口在镜像里没有代码，所以不从槽补建；descriptor-only member 的代码还在，只是没有名字。墓碑槽的成员若还剩 `@objc` thunk 或 initializing entry point，由那一边的替身补建（见 thunk-only member）。
 
 - **主要出现在**：`TypeDefinition+ClassDispatch.swift`、`ClassDispatchLookups.vtableSlotMemberSymbols`、`TypeDefinition+MemberIndexing.swift`
 - **延伸阅读**：[提案 0054-interface-descriptor-only-vtable-members](Evolutions/0054-interface-descriptor-only-vtable-members.md)
@@ -317,6 +319,13 @@ opaque 尖括号参数归属的第三条规则：协议无任何 anchor 命中�
 
 - **主要出现在**：`Sources/MachO/MachOSymbols/SymbolTable.swift`
 
+### stand-in member symbol（替身成员符号）
+
+为镜像里没有实现符号的成员造的成员符号，照它顶替的那个实现符号的样子造：mangled 名与成员树都与实现符号相同，偏移是镜像里留下的那个入口。下游按名字推导的东西（导出判定、ObjC 方法表联结、`@objc` 标记）和按树推导的东西（vtable 联结、ABI 身份）因此都把它当成实现符号来读，不用分支。来源有三种：vtable 槽的 `Tq`（descriptor-only member）、`@objc` thunk（thunk-only member）、只剩 initializing entry point 的 initializer（`…fc` 改写成 allocator 的形状）。只补真实符号没有声明的成员，按成员实体节点结构相等判断。
+
+- **主要出现在**：`StandInMemberSymbols`、`ClassDispatchLookups.vtableSlotMemberSymbols`
+- **延伸阅读**：[DescriptorOnlyVTableMembers.md](Internal/DescriptorOnlyVTableMembers.md)、[ThunkOnlyObjCMembers.md](Internal/ThunkOnlyObjCMembers.md)
+
 ### store-identity vs 结构相等（structural equality）
 
 `NodeReference` 的两种相等语义，混用会静默出错：intrinsic `Hashable` 按**store 身份**（同一 store 里的同一下标才相等），跨 store 的结构相同树不相等；**结构相等**（`structurallyEquals` / `StructuralNodeReferenceKey`）逐节点比对，跨 store 成立。规则：键和查询可能来自**不同 store** 的任何 `Dictionary` / `Set` 必须用 `StructuralNodeReferenceKey`，裸 `NodeReference` 键只在单一 hash-consed store 内部安全。踩过的坑：override/vtable 注释丢失、subscript getter/setter 分桶、merged thunk 重复输出。
@@ -354,6 +363,13 @@ substitution，必须连在一个 `$s` 后面一起 demangle。
 
 - **主要出现在**：`Sources/Analysis/SwiftInspection/SymbolicDemangler.swift`
 - **延伸阅读**：[提案 0022](Evolutions/0022-rename-metadata-reader-to-symbolic-demangler.md)、[ReadingContextAbstraction.md](Internal/ReadingContextAbstraction.md)
+
+### thunk-only member（只剩 `@objc` thunk 的成员）
+
+`@objc` 成员里，Swift 函数体被优化器内联进它的 Objective-C thunk（`$s…To`）、Swift entry point 随后被删掉的那一类：thunk 是它唯一的代码，也是唯一的符号。只有整模块优化下的 internal 成员会这样，因为每一处使用都可见、都内联完了才能删，所以这是 app 和 app 内嵌组件的形状，例如 Xcode 27.2 的 `Xcode Service` 里有 22 个。它和 OS 框架 strip 掉 `To` 符号正好相反：那里实现符号还在，thunk 没了名字。成员模型过去只从实现符号建成员，这一类在 dump 和 interface 里整个缺席；现在从 thunk 造替身成员符号补上。
+
+- **主要出现在**：`SymbolIndexStore.objcThunkMemberSymbols`、`StandInMemberSymbols.memberStandIn(forObjCThunkSymbol:in:)`、`ClassDumper` 的 `[ObjC Thunk]` 一节
+- **延伸阅读**：[ThunkOnlyObjCMembers.md](Internal/ThunkOnlyObjCMembers.md)
 
 ### TypeImportInfo（C 导入类型身份）
 

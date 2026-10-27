@@ -1381,7 +1381,7 @@ enum GenericFieldLayout {
         // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
         var field3: Swift.Int
 
-        @objc init(field1: Swift.Double, field2: A, field3: Swift.Int)
+        init(field1: Swift.Double, field2: A, field3: Swift.Int)
 
         @objc init()
 
@@ -1398,7 +1398,7 @@ enum GenericFieldLayout {
         // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
         var field3: Swift.Int
 
-        @objc init(field1: Swift.Double, field2: A, field3: Swift.Int)
+        init(field1: Swift.Double, field2: A, field3: Swift.Int)
 
         @objc init()
 
@@ -1923,7 +1923,7 @@ enum GenericFieldLayout {
         // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
         final var identifier: Swift.Int
 
-        @objc init(element: A, identifier: Swift.Int)
+        init(element: A, identifier: Swift.Int)
 
         @objc init()
 

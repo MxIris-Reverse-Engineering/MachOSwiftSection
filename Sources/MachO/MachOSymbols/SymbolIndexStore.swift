@@ -205,6 +205,15 @@ public final class SymbolIndexStore: @unchecked Sendable {
 
         let protocolWitnessMemberSymbolRowsByKind: OrderedDictionary<MemberKind, MemberSymbolRows>
 
+        /// The members an `@objc` thunk (`$s…To`) enters, bucketed like the
+        /// three member indexes above but holding the THUNK's row. A thunk is
+        /// not a member symbol and the member index never files it; this
+        /// index exists for the members whose Swift entry point the optimizer
+        /// inlined into the thunk and removed, which leaves the thunk as the
+        /// only symbol the image has for them (evolution proposal
+        /// `thunk-only-objc-members`).
+        let objcThunkMemberSymbolRowsByKind: OrderedDictionary<MemberKind, MemberSymbolRows>
+
         let symbolRowsByKind: OrderedDictionary<Node.Kind, [UInt32]>
 
         /// Plain `Dictionary`: the only consumer is the keyed lookup in
@@ -327,6 +336,7 @@ public final class SymbolIndexStore: @unchecked Sendable {
             self.memberSymbolRowsByKind = rowIndexes.memberSymbolRowsByKind
             self.methodDescriptorMemberSymbolRowsByKind = rowIndexes.methodDescriptorMemberSymbolRowsByKind
             self.protocolWitnessMemberSymbolRowsByKind = rowIndexes.protocolWitnessMemberSymbolRowsByKind
+            self.objcThunkMemberSymbolRowsByKind = rowIndexes.objcThunkMemberSymbolRowsByKind
             self.symbolRowsByKind = rowIndexes.symbolRowsByKind
             self.thunkAttributeMembersByKindAndTypeName = rowIndexes.thunkAttributeMembersByKindAndTypeName
         }
@@ -518,6 +528,7 @@ public final class SymbolIndexStore: @unchecked Sendable {
         var memberSymbolRowsByKind: OrderedDictionary<MemberKind, Storage.MemberSymbolRows> = [:]
         var methodDescriptorMemberSymbolRowsByKind: OrderedDictionary<MemberKind, Storage.MemberSymbolRows> = [:]
         var protocolWitnessMemberSymbolRowsByKind: OrderedDictionary<MemberKind, Storage.MemberSymbolRows> = [:]
+        var objcThunkMemberSymbolRowsByKind: OrderedDictionary<MemberKind, Storage.MemberSymbolRows> = [:]
         var symbolRowsByKind: OrderedDictionary<Node.Kind, [UInt32]> = [:]
         var thunkAttributeMembersByKindAndTypeName: [Node.Kind: [String: OrderedDictionary<NodeStore.NodeIndex, [ThunkAttributeMember]>]] = [:]
 
@@ -537,6 +548,11 @@ public final class SymbolIndexStore: @unchecked Sendable {
 
         mutating func setProtocolWitnessMemberSymbols(for result: ProcessMemberSymbolResult) {
             protocolWitnessMemberSymbolRowsByKind[result.memberKind, default: [:]][result.typeName, default: [:]][result.typeNodeIndex, default: .empty].append(result.symbolTableRow)
+            typeInfoByName[result.typeName, default: [:]][result.typeNodeIndex] = result.typeInfo
+        }
+
+        mutating func setObjCThunkMemberSymbols(for result: ProcessMemberSymbolResult) {
+            objcThunkMemberSymbolRowsByKind[result.memberKind, default: [:]][result.typeName, default: [:]][result.typeNodeIndex, default: .empty].append(result.symbolTableRow)
             typeInfoByName[result.typeName, default: [:]][result.typeNodeIndex] = result.typeInfo
         }
 
@@ -852,6 +868,13 @@ public final class SymbolIndexStore: @unchecked Sendable {
             if node.kind == .objCAttribute || node.kind == .nonObjCAttribute {
                 if let extracted = processThunkAttributeSymbol(thunkKind: node.kind, rootNode: rootNode, builder: &builder) {
                     rowIndexes.appendThunkAttributeMember(extracted.member, forKind: node.kind, typeName: extracted.typeName, typeNodeIndex: extracted.typeNodeIndex)
+                }
+                // The member the `@objc` thunk enters, filed by the member it
+                // stands for (see `objcThunkMemberSymbolRowsByKind`).
+                if node.kind == .objCAttribute,
+                   let entityNode = rootNode.children.first(where: { $0.kind != .objCAttribute }),
+                   let result = processMemberSymbol(symbolTableRow, node: entityNode, builder: &builder) {
+                    rowIndexes.setObjCThunkMemberSymbols(for: result)
                 }
                 continue
             }
@@ -1351,6 +1374,58 @@ public final class SymbolIndexStore: @unchecked Sendable {
             guard let rowsByTypeNodeIndex = storage.protocolWitnessMemberSymbolRowsByKind[kind]?[name] else { return [] }
             return rowsByTypeNodeIndex.values.flatMap { storage.demangledSymbols(atRows: $0) }
         }.reduce(into: []) { $0 += $1 }
+    }
+
+    /// The `@objc` thunks (`$s…To`) of the members of the type named `name`,
+    /// each the thunk's own symbol: its name ends in `To` and its tree leads
+    /// with the `objCAttribute` marker. Flattens every context-node bucket
+    /// under the name; prefer a node-taking overload when the caller has the
+    /// type's context node.
+    public func objcThunkMemberSymbols(of kinds: MemberKind..., for name: String, in machO: some MachORepresentableWithCache) -> [DemangledSymbol] {
+        guard let storage = storage(in: machO) else { return [] }
+        return kinds.map { kind -> [DemangledSymbol] in
+            guard let rowsByTypeNodeIndex = storage.objcThunkMemberSymbolRowsByKind[kind]?[name] else { return [] }
+            return rowsByTypeNodeIndex.values.flatMap { storage.demangledSymbols(atRows: $0) }
+        }.reduce(into: []) { $0 += $1 }
+    }
+
+    /// Same disambiguation as `memberSymbols(of:for:node:in:)`, for callers
+    /// holding an externally demangled `Node`.
+    public func objcThunkMemberSymbols(of kinds: MemberKind..., for name: String, node: Node, in machO: some MachORepresentableWithCache) -> [DemangledSymbol] {
+        guard let storage = storage(in: machO) else { return [] }
+        return kinds.map { kind -> [DemangledSymbol] in
+            guard let rowsByTypeNodeIndex = storage.objcThunkMemberSymbolRowsByKind[kind]?[name] else { return [] }
+            guard let matched = rowsByTypeNodeIndex.elements.first(where: { storage.nodeStore.reference(at: $0.key).structurallyEquals(node) }) else { return [] }
+            return storage.demangledSymbols(atRows: matched.value)
+        }.reduce(into: []) { $0 += $1 }
+    }
+
+    /// Same lookup as the `Node` overload, for callers holding a store-backed
+    /// reference, possibly minted into a different store than the index's own.
+    public func objcThunkMemberSymbols(of kinds: MemberKind..., for name: String, node: NodeReference, in machO: some MachORepresentableWithCache) -> [DemangledSymbol] {
+        guard let storage = storage(in: machO) else { return [] }
+        return kinds.map { kind -> [DemangledSymbol] in
+            guard let rowsByTypeNodeIndex = storage.objcThunkMemberSymbolRowsByKind[kind]?[name] else { return [] }
+            guard let matched = rowsByTypeNodeIndex.elements.first(where: { storage.nodeStore.reference(at: $0.key).structurallyEquals(node) }) else { return [] }
+            return storage.demangledSymbols(atRows: matched.value)
+        }.reduce(into: []) { $0 += $1 }
+    }
+
+    /// The `@objc` thunks of every type's members, grouped like
+    /// `memberSymbols(of:excluding:in:)` and keyed structurally for the same
+    /// reason.
+    public func objcThunkMemberSymbols(of kinds: MemberKind..., excluding names: borrowing Set<String>, in machO: some MachORepresentableWithCache) -> OrderedDictionary<StructuralNodeReferenceKey, OrderedDictionary<MemberKind, [DemangledSymbol]>> {
+        guard let storage = storage(in: machO) else { return [:] }
+        var result: OrderedDictionary<StructuralNodeReferenceKey, OrderedDictionary<MemberKind, [DemangledSymbol]>> = [:]
+        for kind in kinds {
+            guard let memberRows = storage.objcThunkMemberSymbolRowsByKind[kind] else { continue }
+            for (typeName, rowsByTypeNodeIndex) in memberRows where !names.contains(typeName) {
+                for (typeNodeIndex, rows) in rowsByTypeNodeIndex {
+                    result[StructuralNodeReferenceKey(storage.nodeStore.reference(at: typeNodeIndex)), default: [:]][kind, default: []].append(contentsOf: storage.demangledSymbols(atRows: rows))
+                }
+            }
+        }
+        return result
     }
 
     public func globalSymbols(of kinds: GlobalKind..., in machO: some MachORepresentableWithCache) -> [DemangledSymbol] {

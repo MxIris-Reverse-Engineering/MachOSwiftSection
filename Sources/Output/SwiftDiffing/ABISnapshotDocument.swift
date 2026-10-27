@@ -16,6 +16,13 @@ public struct ABISnapshotDocument: Sendable, Codable, Equatable {
     /// `ABIDiffer.extensionBucketKey(for:)`).
     ///
     /// History:
+    /// - 8: a class or extension container carries the members whose only
+    ///   symbol is their `@objc` thunk, and the initializers whose only
+    ///   symbol is their initializing entry point (evolution proposal
+    ///   `thunk-only-objc-members`) — what an optimized build leaves of a
+    ///   member once the optimizer has inlined its other entry points, which
+    ///   the index used to drop. Key scheme unchanged; an older baseline of
+    ///   such an image would misreport all of them as added.
     /// - 7: a type declared in a function or closure body is keyed by the
     ///   compiler's name for it (`Visitor #1 in Holder.countValues()`), or by
     ///   the address of its anonymous context when the image records no name
@@ -49,7 +56,7 @@ public struct ABISnapshotDocument: Sendable, Codable, Equatable {
     ///   (`tag:N|indirect|…`), so a version-1 baseline would silently miss
     ///   that transition.
     /// - 1: initial versioned format.
-    public static let currentFormatVersion = 7
+    public static let currentFormatVersion = 8
 
     public let formatVersion: Int
     public var provenance: ABIProvenance?

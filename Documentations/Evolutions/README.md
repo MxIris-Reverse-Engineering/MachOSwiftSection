@@ -87,3 +87,4 @@
 | [0074](0074-private-declaration-source-files.md) | dump 与 interface 标出私有声明来自哪个源文件 | Implemented |
 | [0075](0075-wrapped-reader-recognition.md) | 包装类型读取器的识别：库看穿宿主的包装，按底下的读取器回答 | Implemented |
 | [0076](0076-objc-runtime-send-entry-points.md) | 交叉引用把 libobjc 的专用发送入口记成消息发送 | Implemented |
+| [0077](0077-thunk-only-objc-members.md) | 只剩 `@objc` thunk 或 initializing entry point 的成员照样建出来 | Implemented |

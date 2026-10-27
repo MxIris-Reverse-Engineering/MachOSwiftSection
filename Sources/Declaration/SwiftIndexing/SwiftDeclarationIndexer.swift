@@ -868,16 +868,24 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
         @Dependency(\.symbolIndexStore)
         var symbolIndexStore
 
-        let memberSymbolsByName = await symbolIndexStore.memberSymbols(
-            of: .allocator(inExtension: true),
-            .variable(inExtension: true, isStatic: false, isStorage: false),
-            .variable(inExtension: true, isStatic: true, isStorage: false),
-            .variable(inExtension: true, isStatic: true, isStorage: true),
-            .function(inExtension: true, isStatic: false),
-            .function(inExtension: true, isStatic: true),
-            .subscript(inExtension: true, isStatic: false),
-            .subscript(inExtension: true, isStatic: true),
-            excluding: [],
+        // The members an optimized image kept only another entry point of —
+        // their `@objc` thunk, an initializer's initializing entry point —
+        // join the real symbols as stand-ins (evolution proposal
+        // `thunk-only-objc-members`).
+        let memberSymbolsByName = StandInMemberSymbols.supplementingExtensionMembers(
+            await symbolIndexStore.memberSymbols(
+                of: .allocator(inExtension: true),
+                .variable(inExtension: true, isStatic: false, isStorage: false),
+                .variable(inExtension: true, isStatic: true, isStorage: false),
+                .variable(inExtension: true, isStatic: true, isStorage: true),
+                .function(inExtension: true, isStatic: false),
+                .function(inExtension: true, isStatic: true),
+                .subscript(inExtension: true, isStatic: false),
+                .subscript(inExtension: true, isStatic: true),
+                excluding: [],
+                in: machO
+            ),
+            symbolIndexStore: symbolIndexStore,
             in: machO
         )
 

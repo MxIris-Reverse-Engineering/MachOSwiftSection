@@ -477,6 +477,50 @@ package struct ClassDumper<MachO: MachOFieldLayoutRenderable>: TypedDumper {
                 }
             }
 
+            // The members the image keeps only as their `@objc` thunk: the
+            // optimizer inlined the Swift body into the thunk and deleted the
+            // Swift entry point, so no member symbol above names them
+            // (evolution proposal `thunk-only-objc-members`).
+            for kind in SymbolIndexStore.MemberKind.allCases {
+                let thunkSymbols = if let contextNode {
+                    symbolIndexStore.objcThunkMemberSymbols(of: kind, for: interfaceNameString, node: contextNode, in: machO)
+                } else {
+                    symbolIndexStore.objcThunkMemberSymbols(of: kind, for: interfaceNameString, in: machO)
+                }
+                for (offset, symbol) in thunkSymbols.filter(isOnlySymbolOfItsMember).offsetEnumerated() {
+                    if offset.isStart {
+                        BreakLine()
+
+                        Indent(level: 1)
+
+                        InlineComment("[ObjC Thunk] " + kind.description)
+                    }
+
+                    BreakLine()
+
+                    configuration.privateDeclarationSourceFileComments(for: [symbol.demangledNode], enclosedBy: contextNodes, indentationLevel: configuration.indentation)
+
+                    if configuration.printMemberAddress {
+                        configuration.memberAddressComment(offset: symbol.offset, addressString: machO.addressString(forOffset: symbol.offset))
+                    }
+
+                    Indent(level: 1)
+
+                    try await demangleResolver.resolve(for: symbol.demangledNode)
+
+                    // Keyed by the member's own name, which the thunk's is
+                    // with `To` appended.
+                    if let member = objcMemberTable?.member(forMemberSymbolNamed: String(symbol.name.dropLast(2))) {
+                        Space()
+                        Comment(ObjCMemberRendering.memberComment(for: member))
+                    }
+
+                    if offset.isEnd {
+                        BreakLine()
+                    }
+                }
+            }
+
             for kind in SymbolIndexStore.MemberKind.allCases {
                 let methodDescriptorSymbols = if let contextNode {
                     symbolIndexStore.methodDescriptorMemberSymbols(of: kind, for: interfaceNameString, node: contextNode, in: machO)
@@ -525,6 +569,25 @@ package struct ClassDumper<MachO: MachOFieldLayoutRenderable>: TypedDumper {
             }
 
             Standard("}")
+        }
+    }
+
+    /// Whether `thunkSymbol`, an `@objc` thunk (`$s…To`), is the only symbol
+    /// its member has. The thunk's name is the member's mangled name with
+    /// `To` appended, so the member's own symbols are found by name: its
+    /// implementation, the implementation merged with an identical one
+    /// (`Tm`), and for an initializer, whose thunk enters the initializing
+    /// entry point, the allocating entry point as well.
+    private func isOnlySymbolOfItsMember(_ thunkSymbol: DemangledSymbol) -> Bool {
+        let thunkName = thunkSymbol.name
+        guard thunkName.hasSuffix("To") else { return false }
+        let implementationName = String(thunkName.dropLast(2))
+        var memberSymbolNames = [implementationName]
+        if implementationName.hasSuffix("fc") {
+            memberSymbolNames.append(String(implementationName.dropLast(2)) + "fC")
+        }
+        return !memberSymbolNames.contains { memberSymbolName in
+            symbolIndexStore.containsSymbol(named: memberSymbolName, in: machO) || symbolIndexStore.containsSymbol(named: memberSymbolName + "Tm", in: machO)
         }
     }
 

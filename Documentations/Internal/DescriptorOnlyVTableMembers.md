@@ -46,7 +46,7 @@ interface 的成员一直是从「实现函数的符号」建出来的。用 lib
 
 ## 什么时候不补
 
-- **ABI 墓碑**：实现指针是 null，镜像里没有这个成员的代码，只剩槽位。dump 带着墓碑注释列出它；interface 不补，和改动前一致。
+- **ABI 墓碑**：实现指针是 null，槽位指向的那个入口在镜像里没有代码。dump 带着墓碑注释列出它；interface 不从墓碑槽补，和改动前一致。不过成员本身未必没有代码了：整模块优化的 app 里，`@objc` 方法常常只剩它的 ObjC thunk，class 的 initializer 的 allocating entry point 被删、initializing entry point 还在。这两种由 [ThunkOnlyObjCMembers.md](ThunkOnlyObjCMembers.md) 的替身补上，槽号经节点联结照常挂到替身上。
 - **modify / read 协程**：符号索引从不把这两种访问器当成员，有实现符号的 class 在 interface 里也看不到它们，补了会让剥离前后的输出形态不同。属性的 `{ get set }` 已经由 getter / setter 表达。
 - **真实符号已经声明了这个成员**：按成员实体节点结构相等判断，merged function thunk 先跳过它开头的标记节点，因为 builder 会把 thunk 归到它代表的成员上。所以 fixture 这种没剥离的二进制，模型一个成员都不会多，也一个都不会变。
 - **叫不出名字的槽**：internal 成员的 `Tq` 和实现符号一样是 local 的，剥离后这个槽谁也叫不出名字。按用户的指示跳过，不打占位符；dump 里它显示为 `sub_…` 或 `<unnamed vtable slot>`。
