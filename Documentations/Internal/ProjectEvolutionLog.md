@@ -2724,7 +2724,12 @@
   - ABI snapshot 格式版本加一。
   - 顺带修掉一个旧问题：一个 initializer 有 `@objc` thunk，整个类的 initializer 都被打成 `@objc`（0.24.0 把 `NSHostingView` 的泛型 `init(rootView:)` 印成 `@objc override init(rootView:)`）。改为按每个 initializer 自己的 thunk 名判断；横向排查发现重载的方法有同一个问题（Swift-only 的重载也被打成 `@objc`），一并改为按符号名判断。
 - **落地模块**：MachOSymbols（第四个成员索引与查询）、SwiftDeclaration（`StandInMemberSymbols`、`indexMembers`、`ClassDispatchLookups` 的去重键挪走）、SwiftIndexing（extension 成员）、SwiftDump（`[ObjC Thunk]` 一节）、SwiftDiffing（格式版本）、MachOTestingSupport（`ThunkOnlyMemberFixture`）。
-- **验证**：（待填）
+- **验证**：都在 JHs-Mac-Studio-Ultra 上跑（Xcode 26.6，远端依赖）。
+  - 修复前：只有测试的提交上 7 个暴露问题的测试全部失败（24 处），3 个只核对前提的测试通过；两处 `@objc` 误标的测试在各自的修复之前也都失败。
+  - 修复后：新增两个套件 11 个测试通过；全量 2599 个测试 / 499 个套件，唯一的变化是 SymbolTestsCore interface 快照里三个泛型 initializer 不再带 `@objc`，快照已更新。
+  - `Xcode Service`：与 `next` 基线对比，dump 只增不减，interface 只删掉两个误标的 `@objc`；报告里的成员全部打出，地址是 thunk 或 `fc` 的地址。
+  - 渲染 A/B：96 对里 61 对一致、35 对不同，逐对归了类：dump 全是新增；interface 的差异是补回的成员、去掉不可能成立的 `@objc`（随之有几处 `final`）、属性补回了访问器。细节见 [ThunkOnlyObjCMembers.md](ThunkOnlyObjCMembers.md)「验证」。
+  - 顺带看到两个与本次无关的旧问题，未修：property wrapper 识别把下划线开头的普通存储属性当成 backing storage，打出 `@Swift.String? var phase: Any?` 这种属性（SwiftUICore 的 `TextAnimator`）；dump 给类方法的 ABI 墓碑槽打 `class func static …`，关键字重复。
 - **关联文档**：提案 [draft-thunk-only-objc-members](../Evolutions/draft-thunk-only-objc-members.md)、[ThunkOnlyObjCMembers.md](ThunkOnlyObjCMembers.md)、[ObjCMemberRecovery.md](ObjCMemberRecovery.md)「边界与已知限制」、[DescriptorOnlyVTableMembers.md](DescriptorOnlyVTableMembers.md)「什么时候不补」、[Modules/MachOSymbols.md](Modules/MachOSymbols.md)、[Modules/SwiftDeclaration.md](Modules/SwiftDeclaration.md)、ReviewAdjudications A13 的 2026-10-27 复核。
 - **对应版本**：未发版（0.24.0 之后）。
 

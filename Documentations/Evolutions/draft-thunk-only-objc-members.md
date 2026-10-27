@@ -43,3 +43,4 @@
 | 2026-10-27 | 状态 In Progress | 实现提交到 `fix/thunk-only-objc-members`；修复前在 Ultra 上跑新测试，7 个暴露问题的测试全部失败（24 处），3 个只核对前提的测试通过。 |
 | 2026-10-27 | 顺带修 initializer 的 `@objc` | 一个 initializer 有 thunk，整个类的 initializer 都被打成 `@objc`（旧问题）；补回的 initializer 会把它放大，改为按每个 initializer 自己的 thunk 名判断。属于显而易见的 bug 修复，记在本提案里。 |
 | 2026-10-27 | 同类问题一并修：重载的方法 | 标记表只记成员名，重载共用名字，Swift-only 的重载也被打成 `@objc`；方法同样改为按自己的符号名查 thunk。属性名在类型内唯一，不改。 |
+| 2026-10-27 | 验证完成，等待落地 | 全量测试与渲染 A/B 都在 Ultra 上跑完（结果见实现说明）；`TO` thunk 也会挂在 `fC` 上，但这些全是导入 ObjC initializer 的桥接 thunk，不影响打印出的成员，代码不为它改。 |
