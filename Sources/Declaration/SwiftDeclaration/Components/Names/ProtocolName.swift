@@ -23,8 +23,8 @@ extension ProtocolName {
 // See `TypeName`: names hash and compare by node STRUCTURE, not by
 // `NodeReference`'s store-identity `Hashable`.
 extension ProtocolName {
-    public static func == (lhs: ProtocolName, rhs: ProtocolName) -> Bool {
-        lhs.node.structurallyEquals(rhs.node)
+    public static func == (left: ProtocolName, right: ProtocolName) -> Bool {
+        left.node.structurallyEquals(right.node)
     }
 
     public func hash(into hasher: inout Hasher) {

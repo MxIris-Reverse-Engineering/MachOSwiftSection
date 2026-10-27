@@ -54,7 +54,12 @@ public struct InProcessContext: ReadingContext, Sendable {
     /// mask is computed once. `UnsafeRawPointer.stripPointerTags()` computes
     /// it again on every call — it looks up the current image and walks its
     /// load commands — which is a cost paid once per read here.
-    private static let addressMask = UInt(truncatingIfNeeded: MachOImage.current().vmaddrMask ?? .max)
+    ///
+    /// Which bits these are depends on the platform: a Mac's user addresses
+    /// fit in 47 bits, an iPhone's in 36, and an arm64e signature starts
+    /// right above them. Code that reads pointers out of this process's
+    /// memory strips them with this mask rather than a constant of its own.
+    package static let addressMask = UInt(truncatingIfNeeded: MachOImage.current().vmaddrMask ?? .max)
 
     /// `address` without its tag bits; throws for an address that is only tag
     /// bits, the way a null pointer throws.

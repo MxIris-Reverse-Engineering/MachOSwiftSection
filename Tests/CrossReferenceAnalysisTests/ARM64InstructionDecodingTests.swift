@@ -27,6 +27,26 @@ struct ARM64InstructionWordTests {
         #expect(ARM64InstructionWord.addressMaterialization(backward, at: address)?.address == 0x1_2000_0000)
     }
 
+    /// What ld64 makes of an `adrp` / `add` or `adrp` / `ldr` pair whose
+    /// address lies within a megabyte (`LinkerOptimizationHintTests`).
+    @Test func linkerRewrittenAddressesAndLoads() throws {
+        for target in [address + 0x10_0000 - 4, address - 0x10_0000, address + 0x2B4] {
+            let whole = try #require(ARM64InstructionWord.addressMaterialization(InstructionEncoding.adr(3, at: address, target: target), at: address))
+            #expect(whole.destination == 3 && whole.address == target && !whole.isPageAddress)
+        }
+        let page = try #require(ARM64InstructionWord.addressMaterialization(InstructionEncoding.adrp(3, at: address, page: 0x1_E20F_A000), at: address))
+        #expect(page.isPageAddress)
+
+        let slot = address + 0x4_2A8
+        let literal = try #require(ARM64InstructionWord.loadLiteral(InstructionEncoding.loadLiteral(1, at: address, slot: slot), at: address))
+        #expect(literal.destination == 1 && literal.slotAddress == slot)
+        #expect(ARM64InstructionWord.loadLiteral(InstructionEncoding.loadLiteral(16, at: address, slot: address - 0x8_0000), at: address)?.slotAddress == address - 0x8_0000)
+        // A 32-bit literal load and an ordinary load are not this one.
+        #expect(ARM64InstructionWord.loadLiteral(0x1800_0048, at: address) == nil)
+        #expect(ARM64InstructionWord.loadLiteral(InstructionEncoding.loadUnsignedOffset(1, base: 8, byteOffset: 0x2A8), at: address) == nil)
+        #expect(ARM64InstructionWord.load(InstructionEncoding.loadLiteral(1, at: address, slot: slot)) == nil)
+    }
+
     @Test func immediateArithmeticAndLoads() throws {
         let add = try #require(ARM64InstructionWord.addImmediate(InstructionEncoding.add(17, 17, immediate: 0xD00)))
         #expect(add.destination == 17 && add.source == 17 && add.addend == 0xD00)
@@ -72,11 +92,17 @@ struct ARM64InstructionWordTests {
             InstructionEncoding.moveKeep(16, immediate: 0x18B8, shift: 48),
             InstructionEncoding.callRegisterAuthenticated(9, modifier: 16),
             InstructionEncoding.branchWithLink(at: address + 28, to: address - 0x1_0000),
+            InstructionEncoding.adr(3, at: address + 32, target: address + 32 + 0x2B4),
+            InstructionEncoding.loadLiteral(1, at: address + 36, slot: address + 36 + 0x4_2A8),
         ]
         let instructions = try Disassembler<AArch64>().decode(InstructionEncoding.bytes(of: words), address: address)
-        #expect(instructions.map(\.mnemonic) == ["adrp", "add", "ldr", "braa", "ldr", "movk", "blraa", "bl"])
+        #expect(instructions.map(\.mnemonic) == ["adrp", "add", "ldr", "braa", "ldr", "movk", "blraa", "bl", "adr", "ldr"])
         #expect(instructions[0].operands[1].immediateValue == 0x1_E20F_A000)
         #expect(instructions[7].operands[0].immediateValue == Int64(address - 0x1_0000))
+        #expect(instructions[8].operands[1].immediateValue == Int64(address + 32 + 0x2B4))
+        // Capstone gives a literal load's label as memory with no base.
+        #expect(instructions[9].operands[1].memory?.base == AArch64Reg.invalid)
+        #expect(instructions[9].operands[1].memory?.displacement == Int64(address + 36 + 0x4_2A8))
     }
 }
 
@@ -104,6 +130,18 @@ struct ARM64TrampolineTests {
             0xD420_0020,
         ]
         #expect(ARM64Trampoline(words: words, at: address) == .slotLoad(slotAddress: 0x1_0000_8018))
+    }
+
+    /// ld64 rewrites a lazily bound stub whose slot lies within a megabyte
+    /// into a load straight from the slot (`LinkerOptimizationHintTests`).
+    @Test func linkerRewrittenSlotStub() {
+        let slot = address + 0x4_0008
+        let words = [
+            ARM64InstructionWord.noOperation,
+            InstructionEncoding.loadLiteral(16, at: address + 4, slot: slot),
+            InstructionEncoding.branchToRegister(16),
+        ]
+        #expect(ARM64Trampoline(words: words, at: address) == .slotLoad(slotAddress: slot))
     }
 
     @Test func stubIsland() {

@@ -13,10 +13,6 @@ import Demangling
 /// `7SwiftUI4TextV` — is built only when someone asks for it: it takes
 /// demangling the descriptor's context, tens of microseconds a type.
 final class SwiftTypeIndex: @unchecked Sendable {
-    /// User-space addresses fit in 47 bits; above them are pointer
-    /// authentication bits.
-    static let addressMask: UInt64 = 0x0000_7FFF_FFFF_FFFF
-
     private let image: MachOImage
     private let imageIndex: Int
     private let slide: Int
@@ -227,9 +223,19 @@ final class SwiftTypeIndex: @unchecked Sendable {
 
     /// The name a descriptor gives its type, `Text` — for a type declared in
     /// Swift, the last component of its key — read without demangling.
+    ///
+    /// `nil` for any other context descriptor. Only a type descriptor — a
+    /// class's, a struct's, an enum's: kinds 16 to 31 in the low five bits of
+    /// its flags — keeps its name at +8. An opaque type keeps its generic
+    /// header there, whose parameter and requirement counts read as an
+    /// offset of 64 KiB a requirement: in a small image, past its end. A type
+    /// query meets such descriptors through mangled names' symbolic
+    /// references.
     static func name(ofDescriptorAt address: UInt) -> UnsafePointer<CChar>? {
-        guard let field = UnsafeRawPointer(bitPattern: address &+ 8) else { return nil }
-        let relative = field.loadUnaligned(as: Int32.self)
+        guard let descriptor = UnsafeRawPointer(bitPattern: address),
+              (16 ... 31).contains(descriptor.loadUnaligned(as: UInt32.self) & 0x1F)
+        else { return nil }
+        let relative = descriptor.loadUnaligned(fromByteOffset: 8, as: Int32.self)
         guard relative != 0 else { return nil }
         return UnsafePointer<CChar>(bitPattern: UInt(bitPattern: Int(bitPattern: address &+ 8) &+ Int(relative)))
     }

@@ -50,6 +50,9 @@ struct ReferenceScanner {
     /// What the call being decoded stands for besides the call itself: a
     /// metadata accessor, a mangled-name instantiation.
     private var calledTypeFunction: TypeFunction?
+    /// The sends a call to a libobjc entry point makes after its first:
+    /// `init`, for `objc_alloc_init`.
+    private var followingSendSelectors: ArraySlice<String> = []
     /// What each slot and address holds, remembered: an image loads the same
     /// few hundred classes and types again and again.
     private var slotReferences: [UInt64: AddressReference?] = [:]
@@ -127,57 +130,58 @@ struct ReferenceScanner {
 
         var previousInstructionTransfers = false
         for instructionIndex in 0 ..< instructionCount {
-            let pc = start &+ UInt64(instructionIndex * 4)
-            if table.isInDataInCode(pc) { continue }
+            let instructionAddress = start &+ UInt64(instructionIndex * 4)
+            if table.isInDataInCode(instructionAddress) { continue }
             let word = UInt32(littleEndian: words[instructionIndex])
-            if followsBranches { enter(pc, afterTransfer: previousInstructionTransfers) }
+            if followsBranches { enter(instructionAddress, afterTransfer: previousInstructionTransfers) }
             previousInstructionTransfers = false
 
-            if let target = ARM64InstructionWord.callTarget(word, at: pc) {
+            if let target = ARM64InstructionWord.callTarget(word, at: instructionAddress) {
                 callReturnsArgument = false
-                let callReference = reference(to: target, at: pc, in: function, kind: .call, isObjectiveCMethod: isObjectiveCMethod)
-                keep(callReference, in: &references)
-                if let typeReference = typeReferenceOfCalledFunction(at: pc, in: function) { keep(typeReference, in: &references) }
+                noteCall(to: target, at: instructionAddress, in: function, kind: .call, isObjectiveCMethod: isObjectiveCMethod, references: &references)
                 if callReturnsArgument {
                     registers.clobberCallerSavedRegisters(keeping: 0)
                 } else {
                     registers.clobberCallerSavedRegisters()
                 }
-            } else if let target = ARM64InstructionWord.branchTarget(word, at: pc) {
+            } else if let target = ARM64InstructionWord.branchTarget(word, at: instructionAddress) {
                 previousInstructionTransfers = true
                 if target < start || target >= end {
-                    let tailCallReference = reference(to: target, at: pc, in: function, kind: .tailCall, isObjectiveCMethod: isObjectiveCMethod)
-                    keep(tailCallReference, in: &references)
-                    if let typeReference = typeReferenceOfCalledFunction(at: pc, in: function) { keep(typeReference, in: &references) }
-                } else if target > pc {
+                    noteCall(to: target, at: instructionAddress, in: function, kind: .tailCall, isObjectiveCMethod: isObjectiveCMethod, references: &references)
+                } else if target > instructionAddress {
                     carry(to: target)
                 }
-            } else if let materialization = ARM64InstructionWord.addressMaterialization(word, at: pc) {
+            } else if let materialization = ARM64InstructionWord.addressMaterialization(word, at: instructionAddress) {
                 registers.setAddress(materialization.address, of: materialization.destination)
+                // `adr` builds the whole address an `adrp` / `add` pair builds
+                // — what ld64 makes of such a pair within a megabyte.
+                if !materialization.isPageAddress, findsTypeReferences, let address = registers.builtAddress(of: materialization.destination), let addressReference = addressReference(atAddress: address) {
+                    let typeReference = reference(to: addressReference, at: instructionAddress, in: function)
+                    keep(typeReference, in: &references)
+                }
             } else if let arithmetic = ARM64InstructionWord.addImmediate(word) {
                 registers.add(arithmetic.addend, to: arithmetic.source, into: arithmetic.destination)
                 if findsTypeReferences, let address = registers.builtAddress(of: arithmetic.destination), let addressReference = addressReference(atAddress: address) {
-                    let typeReference = reference(to: addressReference, at: pc, in: function)
+                    let typeReference = reference(to: addressReference, at: instructionAddress, in: function)
                     keep(typeReference, in: &references)
                 }
             } else if let load = ARM64InstructionWord.load(word) {
                 let slot = registers.builtAddress(of: load.base).map { ARM64InstructionWord.adding(load.displacement, to: $0) }
                 registers.load(into: load.destination, base: load.base, displacement: load.displacement, writesBack: load.writesBack)
-                if load.destination != 31, let slot {
-                    if let range = table.superclassReferenceRange, range.contains(slot) {
-                        superclassReferenceClassName = classObject(storedAt: runtimeAddress(ofUnslid: slot, slide: table.slide))?.name
-                    } else if findsTypeReferences, let slotReference = slotReference(fromSlot: slot) {
-                        let typeReference = reference(to: slotReference, at: pc, in: function)
-                        keep(typeReference, in: &references)
-                    }
-                }
+                if let slot { noteLoad(fromSlot: slot, into: load.destination, at: instructionAddress, in: function, references: &references) }
+            } else if let literal = ARM64InstructionWord.loadLiteral(word, at: instructionAddress) {
+                // What ld64 makes of an `adrp` / `ldr` pair whose slot lies
+                // within a megabyte: the selector reference a send passes in
+                // `x1`, a class reference, a GOT slot.
+                registers.load(into: literal.destination, fromSlotAt: literal.slotAddress)
+                noteLoad(fromSlot: literal.slotAddress, into: literal.destination, at: instructionAddress, in: function, references: &references)
             } else if let move = ARM64InstructionWord.moveRegister(word) {
                 registers.copy(move.source, to: move.destination)
             } else if let wide = ARM64InstructionWord.moveWide(word) {
                 registers.moveWide(into: wide.destination, immediate: wide.immediate, shift: wide.shift, keepsOtherBits: wide.keepsOtherBits)
             } else if let branch = ARM64InstructionWord.registerBranch(word) {
                 if branch.isCall {
-                    let indirectCall = indirectReference(through: branch, at: pc, in: function, kind: .call)
+                    let indirectCall = indirectReference(through: branch, at: instructionAddress, in: function, kind: .call)
                     keep(indirectCall, in: &references)
                     registers.clobberCallerSavedRegisters()
                 } else {
@@ -185,16 +189,14 @@ struct ReferenceScanner {
                     // A computed `br` is a jump table; a pointer loaded from
                     // memory, or an authenticated one, is a tail call.
                     if branch.isAuthenticated || registers.wasLoadedFromMemory(branch.target) {
-                        let indirectTailCall = indirectReference(through: branch, at: pc, in: function, kind: .tailCall)
+                        let indirectTailCall = indirectReference(through: branch, at: instructionAddress, in: function, kind: .tailCall)
                         keep(indirectTailCall, in: &references)
                     }
                 }
-            } else if let target = ARM64InstructionWord.conditionalBranchTarget(word, at: pc) {
+            } else if let target = ARM64InstructionWord.conditionalBranchTarget(word, at: instructionAddress) {
                 if target < start || target >= end {
-                    let tailCallReference = reference(to: target, at: pc, in: function, kind: .tailCall, isObjectiveCMethod: isObjectiveCMethod)
-                    keep(tailCallReference, in: &references)
-                    if let typeReference = typeReferenceOfCalledFunction(at: pc, in: function) { keep(typeReference, in: &references) }
-                } else if target > pc {
+                    noteCall(to: target, at: instructionAddress, in: function, kind: .tailCall, isObjectiveCMethod: isObjectiveCMethod, references: &references)
+                } else if target > instructionAddress {
                     carry(to: target)
                 }
             } else if ARM64InstructionWord.isReturn(word) {
@@ -205,16 +207,43 @@ struct ReferenceScanner {
         }
     }
 
+    /// The references a call, or a branch out of the function, makes: the
+    /// call itself — or the sends a libobjc entry point stands for, a later
+    /// one to what the one before it returned, which the scan does not know —
+    /// and the type a metadata accessor or a mangled-name helper references.
+    private mutating func noteCall(to target: UInt64, at instructionAddress: UInt64, in function: CodeLocation, kind: CodeReference.Kind, isObjectiveCMethod: Bool, references: inout [CodeReference]) {
+        let callReference = reference(to: target, at: instructionAddress, in: function, kind: kind, isObjectiveCMethod: isObjectiveCMethod)
+        keep(callReference, in: &references)
+        for selector in followingSendSelectors {
+            let send = CodeReference(function: function, instructionAddress: instructionAddress, kind: kind, target: .messageSend(selector: selector, receiver: .unknown), isRuntimeHelperCall: false)
+            keep(send, in: &references)
+        }
+        if let typeReference = typeReferenceOfCalledFunction(at: instructionAddress, in: function) { keep(typeReference, in: &references) }
+    }
+
+    /// What a load from the slot at the unslid `slot` tells besides what the
+    /// register now holds: the class a super send in this function starts
+    /// above, or a class or a type it references.
+    private mutating func noteLoad(fromSlot slot: UInt64, into destination: Int, at instructionAddress: UInt64, in function: CodeLocation, references: inout [CodeReference]) {
+        guard destination != ARM64InstructionWord.zeroOrStackPointerRegister else { return }
+        if let range = table.superclassReferenceRange, range.contains(slot) {
+            superclassReferenceClassName = classObject(storedAt: runtimeAddress(ofUnslid: slot, slide: table.slide))?.name
+        } else if findsTypeReferences, let slotReference = slotReference(fromSlot: slot) {
+            let typeReference = reference(to: slotReference, at: instructionAddress, in: function)
+            keep(typeReference, in: &references)
+        }
+    }
+
     // MARK: - Branches
 
     /// The targets of the function's backward branches: what reaches them
     /// from below is not known when the scan gets there.
     private mutating func findLoopHeaders(start: UInt64, end: UInt64, words: UnsafePointer<UInt32>, instructionCount: Int) {
         for instructionIndex in 0 ..< instructionCount {
-            let pc = start &+ UInt64(instructionIndex * 4)
+            let instructionAddress = start &+ UInt64(instructionIndex * 4)
             let word = UInt32(littleEndian: words[instructionIndex])
-            guard let target = ARM64InstructionWord.branchTarget(word, at: pc) ?? ARM64InstructionWord.conditionalBranchTarget(word, at: pc),
-                  target >= start, target <= pc
+            guard let target = ARM64InstructionWord.branchTarget(word, at: instructionAddress) ?? ARM64InstructionWord.conditionalBranchTarget(word, at: instructionAddress),
+                  target >= start, target <= instructionAddress
             else { continue }
             loopHeaders.append(target)
         }
@@ -238,16 +267,16 @@ struct ReferenceScanner {
         }
     }
 
-    /// Sets the registers up for the instruction at `pc` from the paths that
+    /// Sets the registers up for the instruction at `instructionAddress` from the paths that
     /// reach it: the branches that carried state here, falling through unless
     /// the instruction before was an unconditional transfer, and nothing
     /// known about a loop's back edge. An instruction after a transfer that
     /// no branch here targets is reached some way the scan does not see — a
     /// jump table — so the caller-saved registers are unknown there.
-    private mutating func enter(_ pc: UInt64, afterTransfer: Bool) {
+    private mutating func enter(_ instructionAddress: UInt64, afterTransfer: Bool) {
         // Targets the scan stepped over (data in code) are dropped.
-        while pendingCursor < pendingTargets.count, pendingTargets[pendingCursor] < pc { pendingCursor += 1 }
-        if pendingCursor < pendingTargets.count, pendingTargets[pendingCursor] == pc {
+        while pendingCursor < pendingTargets.count, pendingTargets[pendingCursor] < instructionAddress { pendingCursor += 1 }
+        if pendingCursor < pendingTargets.count, pendingTargets[pendingCursor] == instructionAddress {
             if afterTransfer {
                 registers.restore(pendingSnapshots[pendingCursor])
             } else {
@@ -257,21 +286,26 @@ struct ReferenceScanner {
         } else if afterTransfer {
             registers.clobberCallerSavedRegisters()
         }
-        while loopHeaderCursor < loopHeaders.count, loopHeaders[loopHeaderCursor] < pc { loopHeaderCursor += 1 }
-        if loopHeaderCursor < loopHeaders.count, loopHeaders[loopHeaderCursor] == pc {
+        while loopHeaderCursor < loopHeaders.count, loopHeaders[loopHeaderCursor] < instructionAddress { loopHeaderCursor += 1 }
+        if loopHeaderCursor < loopHeaders.count, loopHeaders[loopHeaderCursor] == instructionAddress {
             registers.clobberCallerSavedRegisters()
         }
     }
 
     // MARK: - References
 
-    private mutating func reference(to target: UInt64, at pc: UInt64, in function: CodeLocation, kind: CodeReference.Kind, isObjectiveCMethod: Bool) -> CodeReference {
+    private mutating func reference(to target: UInt64, at instructionAddress: UInt64, in function: CodeLocation, kind: CodeReference.Kind, isObjectiveCMethod: Bool) -> CodeReference {
         let referenceTarget: CodeReferenceTarget
         var isRuntimeHelperCall = false
         calledTypeFunction = nil
+        followingSendSelectors = []
         switch resolve(target) {
         case .selector(let selector):
             referenceTarget = .messageSend(selector: selectorName(selector), receiver: receiverHint(isObjectiveCMethod: isObjectiveCMethod))
+        case .entryPoint(let selectors, let returnsItsClassArgument):
+            referenceTarget = .messageSend(selector: selectors[0], receiver: receiverHint(isObjectiveCMethod: isObjectiveCMethod))
+            followingSendSelectors = selectors.dropFirst()
+            callReturnsArgument = returnsItsClassArgument
         case .function(let functionTarget):
             switch functionTarget.messageSendKind {
             case .classic?:
@@ -296,15 +330,15 @@ struct ReferenceScanner {
             let importedName = importedSymbolName(name)
             referenceTarget = .importedSymbol(name: importedName)
             isRuntimeHelperCall = RuntimeHelperNames.isRuntimeHelper(name)
-            callReturnsArgument = Self.returnsItsClassArgument(name)
+            callReturnsArgument = CrossReferenceAnalyzer.returnsItsClassArgument(name)
             if let accessorSymbol = Self.accessorSymbol(name) { calledTypeFunction = .accessorSymbol(accessorSymbol) }
         case .unrecognized:
             referenceTarget = .unrecognized(address: target)
         }
-        return CodeReference(function: function, instructionAddress: pc, kind: kind, target: referenceTarget, isRuntimeHelperCall: isRuntimeHelperCall)
+        return CodeReference(function: function, instructionAddress: instructionAddress, kind: kind, target: referenceTarget, isRuntimeHelperCall: isRuntimeHelperCall)
     }
 
-    private func indirectReference(through branch: ARM64InstructionWord.RegisterBranch, at pc: UInt64, in function: CodeLocation, kind: CodeReference.Kind) -> CodeReference {
+    private func indirectReference(through branch: ARM64InstructionWord.RegisterBranch, at instructionAddress: UInt64, in function: CodeLocation, kind: CodeReference.Kind) -> CodeReference {
         var constant: UInt16?
         var isAddressBlended = false
         if let modifier = branch.modifier, let modifierConstant = registers.constant(of: modifier) {
@@ -317,7 +351,7 @@ struct ReferenceScanner {
             pointerAuthenticationConstant: constant,
             isAddressBlended: isAddressBlended
         )
-        return CodeReference(function: function, instructionAddress: pc, kind: kind, target: .indirect(evidence), isRuntimeHelperCall: false)
+        return CodeReference(function: function, instructionAddress: instructionAddress, kind: kind, target: .indirect(evidence), isRuntimeHelperCall: false)
     }
 
     private mutating func receiverHint(isObjectiveCMethod: Bool) -> ReceiverClassHint {
@@ -335,7 +369,7 @@ struct ReferenceScanner {
         case swiftType(CodeLocation)
     }
 
-    private func reference(to addressReference: AddressReference, at pc: UInt64, in function: CodeLocation) -> CodeReference {
+    private func reference(to addressReference: AddressReference, at instructionAddress: UInt64, in function: CodeLocation) -> CodeReference {
         let target: CodeReferenceTarget
         switch addressReference {
         case .objectiveCClass(let classObject):
@@ -343,7 +377,7 @@ struct ReferenceScanner {
         case .swiftType(let descriptor):
             target = .swiftType(descriptor: descriptor)
         }
-        return CodeReference(function: function, instructionAddress: pc, kind: .reference, target: target, isRuntimeHelperCall: false)
+        return CodeReference(function: function, instructionAddress: instructionAddress, kind: .reference, target: target, isRuntimeHelperCall: false)
     }
 
     /// What a register holds: an `adrp` / `add` of a class object or type
@@ -384,8 +418,7 @@ struct ReferenceScanner {
                 && analyzer.imageIndex(containingRuntimeAddress: runtimeSlot) == nil
                 && analyzer.isMapped(runtimeAddress: runtimeSlot, length: 8))
         if isReferenceSlot, let pointer = UnsafeRawPointer(bitPattern: runtimeSlot) {
-            // Strip the pointer-authentication bits; user addresses fit in 47.
-            let value = UInt(pointer.loadUnaligned(as: UInt64.self) & SwiftTypeIndex.addressMask)
+            let value = StoredPointer.address(in: pointer.loadUnaligned(as: UInt64.self))
             slotReference = addressReference(atRuntimeAddress: value) ?? accessorReference(atRuntimeAddress: value)
         }
         slotReferences[slot] = slotReference
@@ -404,8 +437,7 @@ struct ReferenceScanner {
     /// The class a slot at the runtime `slot` points at.
     private mutating func classObject(storedAt runtimeSlot: UInt) -> ObjectiveCClassObject? {
         guard let pointer = UnsafeRawPointer(bitPattern: runtimeSlot) else { return nil }
-        // Strip the pointer-authentication bits; user addresses fit in 47.
-        return classObject(atRuntimeAddress: UInt(pointer.loadUnaligned(as: UInt64.self) & SwiftTypeIndex.addressMask))
+        return classObject(atRuntimeAddress: StoredPointer.address(in: pointer.loadUnaligned(as: UInt64.self)))
     }
 
     private func classObject(atRuntimeAddress address: UInt) -> ObjectiveCClassObject? {
@@ -428,7 +460,7 @@ struct ReferenceScanner {
         // class 0x203, foreign reference type 0x204.
         let kind = metadata.loadUnaligned(as: UInt64.self)
         guard kind >= 0x200, kind <= 0x204 else { return nil }
-        let descriptor = UInt(metadata.loadUnaligned(fromByteOffset: 8, as: UInt64.self) & SwiftTypeIndex.addressMask)
+        let descriptor = StoredPointer.address(in: metadata.loadUnaligned(fromByteOffset: 8, as: UInt64.self))
         guard let imageIndex = analyzer.imageIndex(containingRuntimeAddress: descriptor) else { return nil }
         let index = swiftTypeIndex(ofImageAt: imageIndex)
         return index.describesType(descriptorAt: descriptor) ? index.location(ofRuntimeAddress: descriptor) : nil
@@ -441,7 +473,7 @@ struct ReferenceScanner {
     /// The type reference a call makes besides the call itself: to the type
     /// whose metadata accessor it calls, or to the types the mangled name it
     /// instantiates names.
-    private mutating func typeReferenceOfCalledFunction(at pc: UInt64, in function: CodeLocation) -> CodeReference? {
+    private mutating func typeReferenceOfCalledFunction(at instructionAddress: UInt64, in function: CodeLocation) -> CodeReference? {
         guard let typeFunction = calledTypeFunction else { return nil }
         let target: CodeReferenceTarget
         switch typeFunction {
@@ -456,7 +488,7 @@ struct ReferenceScanner {
             guard let name = mangledName(inRegister: nameRegister) else { return nil }
             target = .swiftTypeName(name)
         }
-        return CodeReference(function: function, instructionAddress: pc, kind: .reference, target: target, isRuntimeHelperCall: false)
+        return CodeReference(function: function, instructionAddress: instructionAddress, kind: .reference, target: target, isRuntimeHelperCall: false)
     }
 
     /// The longest mangled name read; a longer one is taken for something
@@ -525,12 +557,6 @@ struct ReferenceScanner {
     /// or, when no such load was seen, the class its symbol names.
     private func superclassSendClassName() -> String? {
         superclassReferenceClassName ?? table.primaryName(ofFunctionAt: currentFunctionIndex).flatMap(Self.className(ofMethodSymbol:))
-    }
-
-    /// `objc_opt_self`, `objc_opt_class`, `swift_getInitializedObjCClass`:
-    /// the class they are handed is what they return.
-    private static func returnsItsClassArgument(_ name: UnsafePointer<CChar>) -> Bool {
-        strcmp(name, "_objc_opt_self") == 0 || strcmp(name, "_objc_opt_class") == 0 || strcmp(name, "_swift_getInitializedObjCClass") == 0
     }
 
     /// `-[NSView(NSLayout) frame]` → `NSView`.
@@ -626,7 +652,8 @@ struct ReferenceScanner {
         let location: CodeLocation
         var isRuntimeHelper = false
         var messageSendKind: MessageSendKind?
-        /// `objc_opt_self`, `objc_opt_class`, `swift_getInitializedObjCClass`.
+        /// `swift_getInitializedObjCClass`; `objc_opt_self` and
+        /// `objc_opt_class` resolve as the entry points they are.
         var returnsItsClassArgument = false
         var typeFunction: TypeFunction?
     }
@@ -635,6 +662,10 @@ struct ReferenceScanner {
         case function(FunctionTarget)
         /// A stub that names its selector.
         case selector(UnsafePointer<CChar>)
+        /// A libobjc entry point that stands for these sends, the first to
+        /// the receiver in `x0`; `returnsItsClassArgument` as for
+        /// `FunctionTarget`.
+        case entryPoint(selectors: [String], returnsItsClassArgument: Bool)
         case importedSymbol(UnsafePointer<CChar>)
         case unrecognized
     }
@@ -663,7 +694,12 @@ struct ReferenceScanner {
                let resolved = resolveSlot(atRuntimeAddress: runtimeAddress(ofUnslid: slotAddress, slide: table.slide), hops: 0, detectsTypeFunctions: detectsTypeFunctions) {
                 return resolved
             }
-            if let name = stub.name { return .importedSymbol(name) }
+            if let name = stub.name {
+                if let selectors = MessageSendEntryPoints.selectors(ofSymbol: name) {
+                    return .entryPoint(selectors: selectors, returnsItsClassArgument: CrossReferenceAnalyzer.returnsItsClassArgument(name))
+                }
+                return .importedSymbol(name)
+            }
             return .unrecognized
         }
         if target >= table.textStart, target < table.textEnd {
@@ -701,8 +737,7 @@ struct ReferenceScanner {
         guard analyzer.isMapped(runtimeAddress: slotAddress, length: 8),
               let slot = UnsafeRawPointer(bitPattern: slotAddress)
         else { return nil }
-        // Strip the pointer-authentication bits; user addresses fit in 47.
-        let target = UInt(slot.loadUnaligned(as: UInt64.self) & 0x0000_7FFF_FFFF_FFFF)
+        let target = StoredPointer.address(in: slot.loadUnaligned(as: UInt64.self))
         guard target != 0 else { return nil }
         return resolve(runtimeAddress: target, hops: hops, detectsTypeFunctions: detectsTypeFunctions)
     }
@@ -716,6 +751,9 @@ struct ReferenceScanner {
         if analyzer.superMessageSendLocations.contains(location) {
             functionTarget.messageSendKind = .superclass
             return .function(functionTarget)
+        }
+        if let selectors = analyzer.messageSendEntryPoints[location] {
+            return .entryPoint(selectors: selectors, returnsItsClassArgument: analyzer.classReturningFunctionLocations.contains(location))
         }
         functionTarget.isRuntimeHelper = analyzer.runtimeHelperLocations.contains(location)
             || (location.imageIndex == table.imageIndex && table.runtimeHelperStarts.contains(location.address))
@@ -762,11 +800,11 @@ struct ReferenceScanner {
         var readsRecord = false
         var callsRuntime = false
         for instructionIndex in 0 ..< Int((end - start) / 4) {
-            let pc = start &+ UInt64(instructionIndex * 4)
+            let instructionAddress = start &+ UInt64(instructionIndex * 4)
             let word = UInt32(littleEndian: words[instructionIndex])
             if let load = ARM64InstructionWord.load(word), load.base == 1, load.displacement == 0 {
                 readsRecord = true
-            } else if let callee = ARM64InstructionWord.callTarget(word, at: pc) ?? ARM64InstructionWord.branchTarget(word, at: pc),
+            } else if let callee = ARM64InstructionWord.callTarget(word, at: instructionAddress) ?? ARM64InstructionWord.branchTarget(word, at: instructionAddress),
                       callee < start || callee >= end,
                       case .function(let calleeTarget) = computeResolution(of: callee, detectsTypeFunctions: false),
                       analyzer.typeByMangledNameEntries[calleeTarget.location] != nil {

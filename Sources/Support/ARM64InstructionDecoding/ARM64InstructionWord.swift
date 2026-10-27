@@ -52,17 +52,20 @@ package enum ARM64InstructionWord {
         return nil
     }
 
-    /// `adrp xd, label` and `adr xd, label`: the register written and the
-    /// address it receives.
+    /// `adrp xd, label` and `adr xd, label`: the register written, the
+    /// address it receives, and whether that is only a page's — `adrp`,
+    /// which an `add` completes — rather than the whole address `adr` builds
+    /// at once. ld64 turns an `adrp` / `add` pair whose address lies within a
+    /// megabyte into `adr` / `nop`.
     @inlinable
-    package static func addressMaterialization(_ word: UInt32, at address: UInt64) -> (destination: Int, address: UInt64)? {
+    package static func addressMaterialization(_ word: UInt32, at address: UInt64) -> (destination: Int, address: UInt64, isPageAddress: Bool)? {
         let destination = Int(word & 0x1F)
         let immediate = (UInt64((word >> 5) & 0x7FFFF) << 2) | UInt64((word >> 29) & 0x3)
         if word & 0x9F00_0000 == 0x9000_0000 {
-            return (destination, adding(signExtended(immediate << 12, bitWidth: 33), to: address & ~UInt64(0xFFF)))
+            return (destination, adding(signExtended(immediate << 12, bitWidth: 33), to: address & ~UInt64(0xFFF)), true)
         }
         if word & 0x9F00_0000 == 0x1000_0000 {
-            return (destination, adding(signExtended(immediate, bitWidth: 21), to: address))
+            return (destination, adding(signExtended(immediate, bitWidth: 21), to: address), false)
         }
         return nil
     }
@@ -99,6 +102,16 @@ package enum ARM64InstructionWord {
             return (destination, base, signExtended(immediate, bitWidth: 10) << 3, (word >> 11) & 1 == 1)
         }
         return nil
+    }
+
+    /// `ldr xt, label`, a 64-bit load from a slot within a megabyte of the
+    /// instruction: the register loaded and the slot's address. ld64 turns an
+    /// `adrp` / `ldr` pair whose slot lies that close into `nop` / this load —
+    /// in a function's body and in a lazily bound stub alike.
+    @inlinable
+    package static func loadLiteral(_ word: UInt32, at address: UInt64) -> (destination: Int, slotAddress: UInt64)? {
+        guard word & 0xFF00_0000 == 0x5800_0000 else { return nil }
+        return (Int(word & 0x1F), adding(signExtended(UInt64((word >> 5) & 0x7FFFF) << 2, bitWidth: 21), to: address))
     }
 
     /// `ret`, `retaa`, `retab`.

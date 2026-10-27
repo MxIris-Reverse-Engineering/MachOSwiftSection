@@ -28,8 +28,8 @@ public struct MachOIndexedValue<MachO: MachOSwiftSectionRepresentableWithCache, 
 }
 
 extension MachOIndexedValue: Equatable where Value: Equatable {
-    public static func == (lhs: Self, rhs: Self) -> Bool {
-        lhs.value == rhs.value
+    public static func == (left: Self, right: Self) -> Bool {
+        left.value == right.value
     }
 }
 

@@ -190,7 +190,9 @@ struct CrossReferenceAnalyzerTests {
     ///
     /// The dropped images are sampled, every sixteenth: a Debug build scans
     /// the whole cache in minutes, not seconds.
-    @Test(arguments: ["orderWindow:relativeTo:", "description", "count"])
+    /// `isKindOfClass:` is sent through `objc_opt_isKindOfClass` alone, which
+    /// no selector reference shows (`RuntimeSendEntryPointTests`).
+    @Test(arguments: ["orderWindow:relativeTo:", "description", "count", "isKindOfClass:"])
     func selectorPrefilterKeepsEverySender(selector: String) throws {
         let everyImage = Array(analyzer.images.indices)
         let kept = analyzer.imageIndices(referencingSelector: selector, among: everyImage)

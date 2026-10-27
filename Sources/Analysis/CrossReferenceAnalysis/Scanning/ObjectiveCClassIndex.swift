@@ -28,10 +28,6 @@ final class ObjectiveCClassIndex: @unchecked Sendable {
         let isMetaclass: Bool
     }
 
-    /// User-space addresses fit in 47 bits; above them are pointer
-    /// authentication bits.
-    private static let addressMask: UInt64 = 0x0000_7FFF_FFFF_FFFF
-
     private let image: MachOImage
     private let imageIndex: Int
     private let slide: Int
@@ -47,11 +43,11 @@ final class ObjectiveCClassIndex: @unchecked Sendable {
         for section in image.sections64 where section.sectionName == "__objc_classlist" {
             guard let list = UnsafeRawPointer(bitPattern: Int(bitPattern: UInt(section.address)) &+ slide) else { continue }
             for position in 0 ..< section.size / 8 {
-                let classAddress = UInt(list.loadUnaligned(fromByteOffset: position * 8, as: UInt64.self) & Self.addressMask)
+                let classAddress = StoredPointer.address(in: list.loadUnaligned(fromByteOffset: position * 8, as: UInt64.self))
                 guard let classObject = UnsafeRawPointer(bitPattern: classAddress) else { continue }
                 entries[classAddress] = Entry(classAddress: classAddress, isMetaclass: false)
                 // A class's `isa` is its metaclass.
-                let metaclassAddress = UInt(classObject.loadUnaligned(as: UInt64.self) & Self.addressMask)
+                let metaclassAddress = StoredPointer.address(in: classObject.loadUnaligned(as: UInt64.self))
                 if metaclassAddress != 0, entries[metaclassAddress] == nil {
                     entries[metaclassAddress] = Entry(classAddress: classAddress, isMetaclass: true)
                 }
@@ -120,7 +116,7 @@ final class ObjectiveCClassIndex: @unchecked Sendable {
         for (address, entry) in entriesByRuntimeAddress where !entry.isMetaclass {
             guard let classObject = UnsafeRawPointer(bitPattern: address),
                   classObject.loadUnaligned(fromByteOffset: 0x20, as: UInt64.self) & 0x3 != 0,
-                  UInt(classObject.loadUnaligned(fromByteOffset: 0x40, as: UInt64.self) & Self.addressMask) == descriptor,
+                  StoredPointer.address(in: classObject.loadUnaligned(fromByteOffset: 0x40, as: UInt64.self)) == descriptor,
                   let name = name(ofClassAt: address)
             else { continue }
             return ObjectiveCClassObject(name: name, location: location(ofRuntimeAddress: address))

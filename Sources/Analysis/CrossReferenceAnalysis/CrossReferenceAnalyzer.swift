@@ -53,6 +53,10 @@ public final class CrossReferenceAnalyzer: @unchecked Sendable {
     /// The runtime libraries' helper functions; helpers the compiler emits
     /// into each image are in that image's function table.
     let runtimeHelperLocations: Set<CodeLocation>
+    /// libobjc's entry points that stand for sends — `objc_alloc_init`,
+    /// `objc_opt_isKindOfClass` … — and the selectors each sends
+    /// (`MessageSendEntryPoints`).
+    let messageSendEntryPoints: [CodeLocation: [String]]
     /// `objc_opt_self`, `objc_opt_class` and `swift_getInitializedObjCClass`:
     /// each returns the class it was handed, so `x0` keeps naming it.
     let classReturningFunctionLocations: Set<CodeLocation>
@@ -158,6 +162,7 @@ public final class CrossReferenceAnalyzer: @unchecked Sendable {
         var messageSendLocations = Set<CodeLocation>()
         var superMessageSendLocations = Set<CodeLocation>()
         var runtimeHelperLocations = Set<CodeLocation>()
+        var messageSendEntryPoints: [CodeLocation: [String]] = [:]
         var classReturningFunctionLocations = Set<CodeLocation>()
         var typeByMangledNameEntries: [CodeLocation: Int] = [:]
         for (imageIndex, path) in imagePaths.enumerated() where Self.isRuntimeLibrary(path) {
@@ -166,7 +171,10 @@ public final class CrossReferenceAnalyzer: @unchecked Sendable {
                     messageSendLocations.insert(location)
                 } else if strcmp(name, "_objc_msgSendSuper2") == 0 {
                     superMessageSendLocations.insert(location)
-                } else if strcmp(name, "_objc_opt_self") == 0 || strcmp(name, "_objc_opt_class") == 0 || strcmp(name, "_swift_getInitializedObjCClass") == 0 {
+                } else if let selectors = MessageSendEntryPoints.selectors(ofSymbol: name) {
+                    messageSendEntryPoints[location] = selectors
+                    if Self.returnsItsClassArgument(name) { classReturningFunctionLocations.insert(location) }
+                } else if Self.returnsItsClassArgument(name) {
                     classReturningFunctionLocations.insert(location)
                 } else if strncmp(name, "_swift_getTypeByMangledNameIn", 29) == 0 {
                     typeByMangledNameEntries[location] = strstr(name, "InMetadataState") == nil ? 0 : 1
@@ -192,11 +200,18 @@ public final class CrossReferenceAnalyzer: @unchecked Sendable {
         self.messageSendLocations = messageSendLocations
         self.superMessageSendLocations = superMessageSendLocations
         self.runtimeHelperLocations = runtimeHelperLocations
+        self.messageSendEntryPoints = messageSendEntryPoints
         self.classReturningFunctionLocations = classReturningFunctionLocations
         self.typeByMangledNameEntries = typeByMangledNameEntries
         #else
         return nil
         #endif
+    }
+
+    /// `objc_opt_self`, `objc_opt_class`, `swift_getInitializedObjCClass`:
+    /// the class they are handed is what they return.
+    static func returnsItsClassArgument(_ name: UnsafePointer<CChar>) -> Bool {
+        strcmp(name, "_objc_opt_self") == 0 || strcmp(name, "_objc_opt_class") == 0 || strcmp(name, "_swift_getInitializedObjCClass") == 0
     }
 
     /// The libraries whose exported helpers a scan recognizes, and whose

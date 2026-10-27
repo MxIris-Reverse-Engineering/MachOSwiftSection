@@ -15,7 +15,7 @@ public struct CodeLocation: Hashable, Comparable, Sendable {
         self.address = address
     }
 
-    public static func < (lhs: CodeLocation, rhs: CodeLocation) -> Bool {
-        (lhs.imageIndex, lhs.address) < (rhs.imageIndex, rhs.address)
+    public static func < (left: CodeLocation, right: CodeLocation) -> Bool {
+        (left.imageIndex, left.address) < (right.imageIndex, right.address)
     }
 }

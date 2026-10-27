@@ -26,8 +26,8 @@ public struct IdentifiableClosure<Input, Output>: Sendable {
 }
 
 extension IdentifiableClosure: Equatable {
-    public static func == (lhs: Self, rhs: Self) -> Bool {
-        lhs.id == rhs.id
+    public static func == (left: Self, right: Self) -> Bool {
+        left.id == right.id
     }
 }
 

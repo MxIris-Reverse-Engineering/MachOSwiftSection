@@ -44,8 +44,8 @@ extension TypeName {
 // record and witness symbols, so the interface printed the conformance
 // block without its `typealias` witness and the witness as a bare block.
 extension TypeName {
-    public static func == (lhs: TypeName, rhs: TypeName) -> Bool {
-        lhs.node.structurallyEquals(rhs.node)
+    public static func == (left: TypeName, right: TypeName) -> Bool {
+        left.node.structurallyEquals(right.node)
     }
 
     public func hash(into hasher: inout Hasher) {

@@ -9,9 +9,9 @@ package struct MethodKey: Hashable, Comparable, CustomStringConvertible {
         self.memberName = memberName
     }
 
-    package static func < (lhs: MethodKey, rhs: MethodKey) -> Bool {
-        if lhs.typeName != rhs.typeName { return lhs.typeName < rhs.typeName }
-        return lhs.memberName < rhs.memberName
+    package static func < (left: MethodKey, right: MethodKey) -> Bool {
+        if left.typeName != right.typeName { return left.typeName < right.typeName }
+        return left.memberName < right.memberName
     }
 
     package var description: String {

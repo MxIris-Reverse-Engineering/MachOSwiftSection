@@ -336,8 +336,7 @@ final class ImageFallbackNames: @unchecked Sendable {
     }
 
     private func unslidAddress(ofRuntime runtimeAddress: UInt64) -> UInt64 {
-        // Strip the pointer-authentication bits; user addresses fit in 47.
-        let address = runtimeAddress & 0x0000_7FFF_FFFF_FFFF
+        let address = UInt64(StoredPointer.address(in: runtimeAddress))
         return UInt64(bitPattern: Int64(bitPattern: address) &- Int64(slide))
     }
 }
