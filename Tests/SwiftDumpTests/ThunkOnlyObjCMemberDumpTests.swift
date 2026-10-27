@@ -36,8 +36,8 @@ struct ThunkOnlyObjCMemberDumpTests {
         let output = try await dump(ofClassNamed: "ThunkOnlyWidget", in: .wholeModuleOptimized)
         let moduleName = ThunkOnlyMemberFixture.moduleName
         #expect(output.contains("/* [ObjC Thunk] Function */"), "\(output)")
-        #expect(output.contains("@objc \(moduleName).ThunkOnlyWidget.isEqual(Swift.Optional<Any>) -> Swift.Bool // overrides -[NSObject isEqual:] (To thunk symbol at the IMP)"), "\(output)")
-        #expect(output.contains("@objc \(moduleName).ThunkOnlyWidget.handleTick(Swift.Optional<Any>) -> () // @objc -[\(moduleName).ThunkOnlyWidget handleTick:] (To thunk symbol at the IMP)"), "\(output)")
+        #expect(output.contains("@objc \(moduleName).ThunkOnlyWidget.isEqual(Any?) -> Swift.Bool // overrides -[NSObject isEqual:] (To thunk symbol at the IMP)"), "\(output)")
+        #expect(output.contains("@objc \(moduleName).ThunkOnlyWidget.handleTick(Any?) -> () // @objc -[\(moduleName).ThunkOnlyWidget handleTick:] (To thunk symbol at the IMP)"), "\(output)")
         #expect(output.contains("/* [ObjC Thunk] Variable */"), "\(output)")
         #expect(output.contains("@objc \(moduleName).ThunkOnlyWidget.description.getter : Swift.String // overrides -[NSObject description] (To thunk symbol at the IMP)"), "\(output)")
         #expect(output.contains("/* [ObjC Thunk] Constructor */"), "\(output)")

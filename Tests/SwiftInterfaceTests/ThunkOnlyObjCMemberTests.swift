@@ -151,9 +151,9 @@ struct ThunkOnlyObjCMemberTests {
 
         let optimizedInterface = try await interface(of: machOFile, printsMemberAddresses: true)
         let widgetBlock = try #require(block(startingWith: "class ThunkOnlyWidget: ", in: optimizedInterface), "\(optimizedInterface)")
-        #expect(widgetBlock.contains("// Address: \(machOFile.addressString(forOffset: thunkSymbol.offset))\n    @objc override func isEqual("), "\(widgetBlock)")
+        #expect(widgetBlock.contains("// Address: 0x\(machOFile.addressString(forOffset: thunkSymbol.offset))\n    @objc override func isEqual("), "\(widgetBlock)")
         let holderBlock = try #require(block(startingWith: "class InitializingEntryOnlyHolder", in: optimizedInterface), "\(optimizedInterface)")
-        #expect(holderBlock.contains("// Address: \(machOFile.addressString(forOffset: initializerSymbol.offset))\n    init(values: [Swift.String])"), "\(holderBlock)")
+        #expect(holderBlock.contains("// Address: 0x\(machOFile.addressString(forOffset: initializerSymbol.offset))\n    init(values: [Swift.String])"), "\(holderBlock)")
     }
 
     /// RuntimeViewer's path: the optimized image loaded into the process and
