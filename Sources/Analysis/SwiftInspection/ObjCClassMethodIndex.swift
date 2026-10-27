@@ -237,7 +237,7 @@ package final class ObjCClassMethodIndex: @unchecked Sendable {
         // in a file; the bind is followed by name like a superclass.
         var chain = AncestorChain(ancestors: [], isComplete: false, unresolvedAncestorName: runtimeName)
         var targetClass: (any ObjCImplementationClassReading, ObjCClass64)? = reader.targetClass(of: categories[0])
-        if targetClass == nil, let resolver, let (classImage, classObject) = resolver.classObject(named: runtimeName) {
+        if targetClass == nil, let resolver, let (classImage, classObject) = resolver.resolvedClassObject(named: runtimeName) {
             targetClass = (classImage, classObject)
         }
         if let (classReader, classObject) = targetClass {
@@ -331,7 +331,7 @@ package final class ObjCClassMethodIndex: @unchecked Sendable {
         guard !hierarchy.isAncestorChainComplete,
               let unresolvedAncestorName = hierarchy.unresolvedAncestorName,
               let resolver = ObjCAncestorResolverStore.shared.resolver(forImage: machO),
-              let (ancestorImage, ancestorClassObject) = resolver.classObject(named: unresolvedAncestorName)
+              let (ancestorImage, ancestorClassObject) = resolver.resolvedClassObject(named: unresolvedAncestorName)
         else { return hierarchy }
         let folding = folding(for: machO, resolver: resolver)
         let chain = ancestors(startingAt: .resolved(ancestorImage, ancestorClassObject), className: hierarchy.className, resolver: resolver, folding: folding)
@@ -427,7 +427,7 @@ package final class ObjCClassMethodIndex: @unchecked Sendable {
             case .root:
                 break walk
             case .unresolvable(let superclassName):
-                if let superclassName, let resolver, let (ancestorImage, ancestorClassObject) = resolver.classObject(named: superclassName) {
+                if let superclassName, let resolver, let (ancestorImage, ancestorClassObject) = resolver.resolvedClassObject(named: superclassName) {
                     location = .resolved(ancestorImage, ancestorClassObject)
                     continue walk
                 }

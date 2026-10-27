@@ -392,12 +392,17 @@ package final class SwiftClassWithoutClassObjectIndex: @unchecked Sendable {
     }
 
     /// The stub of a class initialized by the singleton pattern, which the
-    /// descriptor does not record: the symbol named like the descriptor's
-    /// (`…CMn`) with the stub's suffix (`…CMs`). A stripped image keeps
-    /// neither, and the stub goes unnamed.
+    /// descriptor does not record. The compiler emits it non-public
+    /// (`emitObjCResilientClassStub(_:isPublic: false)`), so only the full
+    /// stub has a symbol — named like the descriptor's (`…CMn`) with the
+    /// suffix `…CMt` — and the `…CMs` alias for its isa word, one reserved
+    /// word further, is never defined. The symbol is local: a stripped image
+    /// keeps none, and the stub goes unnamed.
     private static func singletonClassStubOffset(of descriptor: ClassDescriptor, in machO: some MachORepresentableWithCache) -> Int? {
-        guard let descriptorSymbolName = machO.symbols(offset: descriptor.offset)?.first(where: { $0.name.hasSuffix("CMn") })?.name else { return nil }
-        return SymbolIndexStore.shared.offset(ofSymbolNamed: String(descriptorSymbolName.dropLast()) + "s", in: machO)
+        guard let descriptorSymbolName = machO.symbols(offset: descriptor.offset)?.first(where: { $0.name.hasSuffix("CMn") })?.name,
+              let fullStubOffset = SymbolIndexStore.shared.offset(ofSymbolNamed: String(descriptorSymbolName.dropLast()) + "t", in: machO)
+        else { return nil }
+        return fullStubOffset + MemoryLayout<UInt64>.size
     }
 
     private static func superclass(

@@ -75,7 +75,8 @@ struct SwiftClassWithoutClassObjectIndexTests {
         #expect(resilientChild.hasObjectiveCAncestry)
         let resilientChildStubOffset = try #require(resilientChild.classStubOffset)
         if keepsLocalSymbols {
-            #expect(resilientChildStubOffset == offset(ofSymbolEndingIn: "ResilientChildCMs", in: machO))
+            // A public stub: `…CMs` names its isa word.
+            #expect(resilientChildStubOffset == offset(ofSymbolEndingIn: "14ResilientChildCMs", in: machO))
         }
         try expectSelectors(of: resilientChild, in: machO, instance: ["description", "resilientPoke"])
 
@@ -87,8 +88,12 @@ struct SwiftClassWithoutClassObjectIndexTests {
         #expect(concreteSubclass.superclass == .withoutClassObject(name: "\(moduleName).GenericWidget<A>"))
         #expect(concreteSubclass.hasObjectiveCAncestry)
         if keepsLocalSymbols {
+            // A non-public stub has no `…CMs` alias: the isa word is one
+            // reserved word into the full stub `…CMt`.
             let concreteSubclassStubOffset = try #require(concreteSubclass.classStubOffset)
-            #expect(concreteSubclassStubOffset == offset(ofSymbolEndingIn: "ConcreteSubclassCMs", in: machO))
+            let fullStubOffset = try #require(offset(ofSymbolEndingIn: "16ConcreteSubclassCMt", in: machO))
+            #expect(concreteSubclassStubOffset == fullStubOffset + 8)
+            #expect(offset(ofSymbolEndingIn: "16ConcreteSubclassCMs", in: machO) == nil)
         } else {
             #expect(concreteSubclass.classStubOffset == nil)
         }
@@ -141,5 +146,21 @@ struct SwiftClassWithoutClassObjectIndexTests {
         #expect(!resilientChild.isAncestorChainComplete)
         #expect(resilientChild.unresolvedAncestorName == nil)
         #expect(resilientChild.ancestors.isEmpty)
+    }
+
+    /// In-process every class object's superclass is a pointer, but a class
+    /// without a class object only has its superclass's name: the resolver
+    /// looks it up in the loaded images, and the chain reaches `NSObject`
+    /// as it does from the file.
+    @Test func hierarchiesWalkThroughClassesWithoutClassObjectsInProcess() throws {
+        let machOImage = try ClassesWithoutClassObjectsFixture.loadedImage()
+        let methodIndex = ObjCClassMethodIndex.shared
+        let genericWidget = try #require(methodIndex.hierarchy(forRuntimeName: "\(Self.moduleName).GenericWidget<A>", in: machOImage))
+        #expect(genericWidget.isAncestorChainComplete)
+        #expect(genericWidget.ancestorDeclaring(selector: "description", isClassMethod: false)?.className == "NSObject")
+
+        let concreteSubclass = try #require(methodIndex.hierarchy(forRuntimeName: Self.concreteSubclassRuntimeName, in: machOImage))
+        #expect(concreteSubclass.isAncestorChainComplete)
+        #expect(concreteSubclass.ancestors.map(\.className).prefix(2) == ["\(Self.moduleName).GenericWidget<A>", "NSObject"])
     }
 }
