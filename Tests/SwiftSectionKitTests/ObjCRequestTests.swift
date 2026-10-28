@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+import MachO
 import ObjCDiffing
 import ObjCOutputTransformer
 import OutputTransformer
@@ -98,5 +99,66 @@ struct ObjCRequestTests {
             _ = try await ObjCAPIEvolutionRequest(inputs: [.path("/nonexistent/one"), .path("/nonexistent/two")], labels: ["a", "b", "c"])
                 .run(output: RecordingOutput(), environment: .testing)
         }
+    }
+
+    @Test("An annotated ObjC evolution refuses a snapshot document before loading anything")
+    func annotatedEvolutionRejectsADocument() async throws {
+        let directoryURL = try FixtureFiles.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directoryURL) }
+        let documentPath = directoryURL.appendingPathComponent("baseline.json").path
+        _ = try await ObjCAPISnapshotRequest(source: .path(FixtureFiles.symbolTestsCore), destination: .file(path: documentPath))
+            .run(output: RecordingOutput(), environment: .testing)
+
+        let output = RecordingOutput()
+        await #expect(throws: SnapshotSourceError.binaryRequired(path: documentPath)) {
+            _ = try await ObjCAPIEvolutionRequest(
+                inputs: [.path(FixtureFiles.symbolTestsCore), .path(documentPath)],
+                report: .annotatedInterface(availabilityAttributes: .none)
+            ).run(output: output, environment: .testing)
+        }
+        #expect(output.events.isEmpty)
+    }
+
+    /// The copy names another platform than the fixture's macOS; a simulator
+    /// counts as its device, and the names are the availability macros' own
+    /// (`API_AVAILABLE(macCatalyst(…))`). Thrown after loading and before any
+    /// indexing.
+    @Test("Inputs naming different platforms leave no availability platform to infer", arguments: [
+        (PLATFORM_IOSSIMULATOR, ["ios", "macos"]),
+        (PLATFORM_TVOS, ["macos", "tvos"]),
+        (PLATFORM_WATCHOSSIMULATOR, ["macos", "watchos"]),
+        (PLATFORM_VISIONOSSIMULATOR, ["macos", "visionos"]),
+        (PLATFORM_MACCATALYST, ["macCatalyst", "macos"]),
+        (PLATFORM_DRIVERKIT, ["driverkit", "macos"]),
+    ])
+    func annotatedEvolutionRefusesConflictingPlatforms(buildPlatform: Int32, expectedPlatforms: [String]) async throws {
+        let directoryURL = try FixtureFiles.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directoryURL) }
+        let copyPath = try FixtureFiles.makeCopy(of: FixtureFiles.symbolTestsCore, buildPlatform: buildPlatform, in: directoryURL)
+
+        let output = RecordingOutput()
+        await #expect(throws: ObjCAvailabilityPlatformInferenceError.conflictingPlatforms(expectedPlatforms)) {
+            _ = try await ObjCAPIEvolutionRequest(
+                inputs: [.path(FixtureFiles.symbolTestsCore), .path(copyPath)],
+                report: .annotatedInterface(availabilityAttributes: .inferredPlatform)
+            ).run(output: output, environment: .testing)
+        }
+        #expect(!output.messages(of: .progress).contains { $0.hasPrefix("Indexing") })
+    }
+
+    @Test("An input naming a platform the availability macros cannot spell leaves nothing to infer")
+    func annotatedEvolutionRefusesAnUnspellablePlatform() async throws {
+        let directoryURL = try FixtureFiles.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directoryURL) }
+        let copyPath = try FixtureFiles.makeCopy(of: FixtureFiles.symbolTestsCore, buildPlatform: PLATFORM_BRIDGEOS, in: directoryURL)
+
+        let output = RecordingOutput()
+        await #expect(throws: ObjCAvailabilityPlatformInferenceError.noPlatform(path: copyPath)) {
+            _ = try await ObjCAPIEvolutionRequest(
+                inputs: [.path(FixtureFiles.symbolTestsCore), .path(copyPath)],
+                report: .annotatedInterface(availabilityAttributes: .inferredPlatform)
+            ).run(output: output, environment: .testing)
+        }
+        #expect(!output.messages(of: .progress).contains { $0.hasPrefix("Indexing") })
     }
 }

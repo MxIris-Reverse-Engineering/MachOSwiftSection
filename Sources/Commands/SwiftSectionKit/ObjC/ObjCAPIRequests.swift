@@ -125,6 +125,32 @@ public struct ObjCAPIEvolutionRequest: Sendable, Equatable {
         case summary
         /// The evolution as JSON.
         case json
+        /// The union header annotated with per-declaration lifecycle
+        /// comments, each declaration rendered the way `objc dump` renders
+        /// it. Every input must be a binary. `availabilityAttributes` says
+        /// whether a lifecycle one availability macro can express is also
+        /// spelled as that macro.
+        case annotatedInterface(availabilityAttributes: AvailabilityAttributes)
+    }
+
+    /// Whether the annotated header also spells lifecycles as availability
+    /// macros (`API_AVAILABLE`, `API_OBSOLETED`), and for which platform.
+    ///
+    /// A declaration gets the macro only when one macro expresses its whole
+    /// lifecycle: one unbroken run of versions carrying it, every label
+    /// involved a numeric version (`26.0`), and an addition or a removal
+    /// inside the axis. Its lifecycle comment stays either way.
+    public enum AvailabilityAttributes: Sendable, Hashable {
+        /// The lifecycle comments alone.
+        case none
+        /// For the platform every input's `LC_BUILD_VERSION` names, a
+        /// simulator counting as its device. Inputs that name no platform the
+        /// availability macros can spell, or different ones, throw
+        /// ``ObjCAvailabilityPlatformInferenceError``.
+        case inferredPlatform
+        /// For this platform, spelled the way the availability macros spell
+        /// it: `macos`, `ios`, `macCatalyst`.
+        case platform(String)
     }
 
     /// The inputs in version order, oldest first. They are loaded one after
@@ -155,6 +181,9 @@ public struct ObjCAPIEvolutionRequest: Sendable, Equatable {
         if let labels, labels.count != inputs.count {
             throw ObjCAPIEvolutionError.labelCountMismatch(labelCount: labels.count, versionCount: inputs.count)
         }
+        if case .annotatedInterface(let availabilityAttributes) = report {
+            return try await runAnnotatedInterface(availabilityAttributes: availabilityAttributes, output: output)
+        }
 
         var documents: [ObjCAPISnapshotDocument] = []
         for (inputIndex, input) in inputs.enumerated() {
@@ -181,7 +210,7 @@ public struct ObjCAPIEvolutionRequest: Sendable, Equatable {
             String(decoding: try ObjCAPIJSON.encoder().encode(evolution), as: UTF8.self)
         case .summary:
             ObjCAPIEvolutionReporter().summary(evolution)
-        case .lineage:
+        case .lineage, .annotatedInterface:
             ObjCAPIEvolutionReporter().report(evolution)
         }
         try destination.deliver(
@@ -190,6 +219,111 @@ public struct ObjCAPIEvolutionRequest: Sendable, Equatable {
             announcingFileWith: { "Report written to \($0)" }
         )
         return ObjCAPIEvolutionOutcome(evolution: evolution)
+    }
+
+    /// The union header with lifecycle annotations, rendered from the live
+    /// declarations of every version — which is why snapshot inputs are
+    /// rejected, the same constraint as the Swift `evolution --interface`.
+    private func runAnnotatedInterface(
+        availabilityAttributes: AvailabilityAttributes,
+        output: some SwiftSectionOutput
+    ) async throws -> ObjCAPIEvolutionOutcome {
+        try SnapshotSource.requireBinaries(inputs)
+
+        var machOFiles: [MachOFile] = []
+        for input in inputs {
+            output.reportProgress("Loading \(input.path)…")
+            machOFiles.append(try binaryLoading.machOSource(forBinaryAt: input.path).load())
+        }
+        // Before indexing, so that a platform that cannot be inferred costs
+        // only the loading.
+        _ = try availabilityAttributes.platform(forInputsAt: inputs.map(\.path), loadedAs: machOFiles)
+
+        // Step 2 of the objc-evolution-interface proposal hands each version
+        // to MachOObjCSection's evolution header renderer here.
+        throw ObjCAnnotatedHeaderRendererUnavailableError()
+    }
+}
+
+/// Thrown by an annotated `objc evolution` until MachOObjCSection's evolution
+/// header renderer is connected (step 2 of the objc-evolution-interface
+/// proposal, which removes it).
+struct ObjCAnnotatedHeaderRendererUnavailableError: Error, LocalizedError {
+    var errorDescription: String? {
+        "The annotated Objective-C header needs MachOObjCSection's evolution renderer, which this build does not include yet."
+    }
+}
+
+/// Why ``ObjCAPIEvolutionRequest/AvailabilityAttributes/inferredPlatform``
+/// found no one platform to spell the availability macros for. Naming the
+/// platform with ``ObjCAPIEvolutionRequest/AvailabilityAttributes/platform(_:)``
+/// avoids both.
+public enum ObjCAvailabilityPlatformInferenceError: Error, LocalizedError, Sendable, Equatable {
+    /// The binary at `path` has no `LC_BUILD_VERSION`, or names a platform
+    /// the availability macros have no name for, such as bridgeOS.
+    case noPlatform(path: String)
+    /// The inputs name different platforms, spelled the availability macros'
+    /// way and sorted.
+    case conflictingPlatforms([String])
+
+    public var errorDescription: String? {
+        switch self {
+        case .noPlatform(let path):
+            "No availability platform can be inferred from '\(path)': it has no LC_BUILD_VERSION, or names a platform the availability macros have no name for."
+        case .conflictingPlatforms(let platforms):
+            "The inputs name different availability platforms (\(platforms.joined(separator: ", ")))."
+        }
+    }
+}
+
+extension ObjCAPIEvolutionRequest.AvailabilityAttributes {
+    /// The platform the availability macros are spelled for, `nil` for none.
+    /// `paths[index]` names `machOFiles[index]` in an error.
+    func platform(forInputsAt paths: [String], loadedAs machOFiles: [MachOFile]) throws -> String? {
+        switch self {
+        case .none:
+            return nil
+        case .platform(let platform):
+            return platform
+        case .inferredPlatform:
+            var platforms: Set<String> = []
+            for (path, machOFile) in zip(paths, machOFiles) {
+                guard let buildPlatform = machOFile.loadCommands.buildVersionCommand?.platform,
+                      let platform = Self.availabilityMacroSpelling(of: buildPlatform) else {
+                    throw ObjCAvailabilityPlatformInferenceError.noPlatform(path: path)
+                }
+                platforms.insert(platform)
+            }
+            if platforms.count > 1 {
+                throw ObjCAvailabilityPlatformInferenceError.conflictingPlatforms(platforms.sorted())
+            }
+            // No inputs at all is left to the renderer, which needs two.
+            return platforms.first
+        }
+    }
+
+    /// How the availability macros (`API_AVAILABLE(macos(13.0))`) spell a
+    /// Mach-O build platform, `nil` for one they have no name for (bridgeOS,
+    /// firmware, …). A simulator shares its device's availability domain.
+    static func availabilityMacroSpelling(of buildPlatform: MachOKit.Platform) -> String? {
+        switch buildPlatform {
+        case .macOS:
+            "macos"
+        case .iOS, .iOSSimulator:
+            "ios"
+        case .tvOS, .tvOSSimulator:
+            "tvos"
+        case .watchOS, .watchOSSimulator:
+            "watchos"
+        case .visionOS, .visionOSSimulator:
+            "visionos"
+        case .macCatalyst:
+            "macCatalyst"
+        case .driverKit:
+            "driverkit"
+        default:
+            nil
+        }
     }
 }
 
