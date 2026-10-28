@@ -1315,6 +1315,12 @@ extension Target {
             .target(.MachOFixtureSupport),
             .product(.MachOKit),
             .product(.MachOObjCSection),
+            // The ObjC API evolution dumps run the `swift-section objc
+            // evolution` pipeline on MachOObjCSection's own modules.
+            .product(name: "ObjCDiffing", package: "MachOObjCSection"),
+            .product(name: "ObjCIndexing", package: "MachOObjCSection"),
+            .product(name: "ObjCInterface", package: "MachOObjCSection"),
+            .product(name: "ObjCMetadataSource", package: "MachOObjCSection"),
             .product(.Demangling),
             .product(.Semantic),
             .product(name: "Dependencies", package: "swift-dependencies"),

@@ -2787,6 +2787,19 @@
   - 没有跑全量测试：本地 `next` 上的 7e42d054 改了 SymbolTestsCore 的源码，而这个 worktree 链接的 fixture 二进制是 8 月 27 日编的，已经过期，全量跑会出与本次无关的红。本库测试用到的输入（宿主 macOS 27.2、带 selector 基址的新格式 cache、fixture 里经 selref 的方法列表）走的解码路径都没有变。
 - **对应版本**：未发版。发版说明要写：`objc` 读 macOS 11 的 dyld cache 时，类与分类的方法名不再是乱码。
 
+## 2026-10-28 ObjC API 演进的集成测试
+
+- **时间段**：2026-10-28，直接在 `next` 上改。
+- **动机**：用户要一套和 Swift 一样的集成测试来检查 Objective-C 的演进。`swift-section objc evolution` 的整条流水线（MachOObjCSection 的 `ObjCInterfaceIndexer` → `ObjCAPISnapshotBuilder` → `ObjCAPIEvolutionBuilder` / `ObjCAPIEvolutionReporter`）原先只能经 CLI 跑，IntegrationTests 里没有对应的人工检查套件。
+- **关键决策**：
+  - 照 `ABIEvolutionTests` 的结构写：每个版本建一个索引器，和 `objc snapshot` 一样补进没有 class object 的 Swift 类；快照经 JSON 存取一次再交给 evolution；只有两个版本时，附上 `ObjCAPIDiffer` 的结论做对照。ObjC 没有带标注的接口视图，所以产物只有报告和 JSON（`-ObjCEvolution.txt` / `.json`），与 Swift 的产物一起写进 `~/Documents/SwiftInterfaceTests/`。
+  - 两个套件都读 AppKit。`DyldCacheTests` 用 Swift 套件默认的三版本轴（15.5 → 26.5.2 → 27.0）；`ArchivedDyldCacheTests` 直接引用 `SwiftEvolutionInterfaceBuilderTestSuite.ArchivedDyldCacheTests` 的 `cachePaths`，版本和标签只在那里维护一份。没有加 27.2：那张表止于 27.0，加进去会让 Swift 的 51 版测试变成 52 版，而它的内存峰值已经贴着 5 GB。
+  - `ABIEvolutionTestSuite.MultiVersionDyldCacheImageTests` 里「镜像有 `__swift5_*` 节才上轴」改成可覆写的 `isOnAxis(_:)`，默认行为不变；ObjC 套件改看 `__objc_*` 节，AppKit 在每个 cache 里都有。
+  - 不写提案：只加人工检查用的测试，不改产品行为，按低一档处理。
+- **落地**：`Tests/IntegrationTests/ObjCDiffing/ObjCAPIEvolutionTests.swift`（新增）、`Tests/IntegrationTests/SwiftDiffing/ABIEvolutionTests.swift`、`Package.swift`（`IntegrationTests` 加 MachOObjCSection 的 `ObjCDiffing`、`ObjCIndexing`、`ObjCInterface`、`ObjCMetadataSource` 四个 product）。
+- **验证**：在 JHs-Mac-Studio-Ultra 上（Xcode 27.2，远端依赖）`swift build --target IntegrationTests` 编译通过，原始退出码 0，新文件没有警告。按项目规定，IntegrationTests 不由 agent 运行；同一条流水线已用 CLI 在 52 个版本上跑过（上一节）。
+- **对应版本**：未发版（只有测试代码，不进发版说明）。
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节
