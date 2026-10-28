@@ -1,11 +1,11 @@
-# Draft - Swift 源码定义的 `@objc` 协议，以及类对 ObjC 协议的遵循
+# 0079 - Swift 源码定义的 `@objc` 协议，以及类对 ObjC 协议的遵循
 
-- **状态**: In Progress
+- **状态**: Implemented
 - **创建日期**: 2026-10-28
 - **最后更新**: 2026-10-28
 - **所属愿景**: 无
 - **关联提案**: [0048-objc-member-selector-recovery](0048-objc-member-selector-recovery.md)（ObjC 成员表：按 selector 把类的 ObjC 方法联结到 Swift 成员，本提案从这里取实现者的签名）、[0078-objc-classes-without-class-objects](0078-objc-classes-without-class-objects.md)（没有 class object 的类的 `class_ro_t`，它们的协议表也从那里读）
-- **实现分支 / PR**: `feature/swift-declared-objc-protocols`（worktree `.worktrees/MachOSwiftSection-SwiftDeclaredObjCProtocols`，自 `next` 分出）
+- **实现分支 / PR**: `feature/swift-declared-objc-protocols`（已合入 `next`）
 - **配套文档**: [SwiftDeclaredObjCProtocols.md](../Internal/SwiftDeclaredObjCProtocols.md)
 
 ## 摘要
@@ -159,3 +159,4 @@ Swift 源码里定义的 `@objc` 协议在 `dump` 和 `interface` 里都不出�
 | 2026-10-28 | dump 的要求经 dump 的 resolver 打印，类型不加糖 | dump 的其它符号都不加糖（`Swift.Optional<…>`），这里一致地写成 `Swift.ImplicitlyUnwrappedOptional<…>`。 |
 | 2026-10-28 | 新套件不加进 CI 的过滤名单 | 与最近几个 ObjC 方向的功能一致（它们的套件也没进名单）；新套件测试时现编 fixture，SymbolTestsCore 的两个快照套件已在 CI 里，覆盖输出的变化。 |
 | 2026-10-28 | 实现完成，待用户看过后收尾 | 全量测试 2648 个通过；渲染 A/B 64 对差异逐行归类全部在预期内，没有删掉或改动任何已有声明；DVTFoundation 手工核对通过。 |
+| 2026-10-28 | 改为 Implemented，编号 0079 | 用户看过后收尾，合入 `next`。配套文档写了实现说明 [SwiftDeclaredObjCProtocols.md](../Internal/SwiftDeclaredObjCProtocols.md)；不需要单独的使用指南：功能默认开启、没有新的 CLI flag，`dump` 与 `interface` 输出的变化写进了插件 skill。新术语 Swift-declared `@objc` protocol、category conformance、implied ObjC protocol、unclaimed record 已登记进术语表。上文「后续项」的两条留待以后。 |

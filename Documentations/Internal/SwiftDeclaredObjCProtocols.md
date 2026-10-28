@@ -1,6 +1,6 @@
 # Swift 声明的 `@objc` 协议与类对 ObjC 协议的遵循
 
-提案 [`swift-declared-objc-protocols`](../Evolutions/draft-swift-declared-objc-protocols.md) 的实现说明。
+提案 [`swift-declared-objc-protocols`](../Evolutions/0079-swift-declared-objc-protocols.md) 的实现说明。
 
 ## 一句话
 
@@ -94,7 +94,7 @@ Swift 源码声明的 `@objc` 协议没有 protocol descriptor，类对任何 Ob
 
 ## 延伸阅读
 
-- 提案 [`swift-declared-objc-protocols`](../Evolutions/draft-swift-declared-objc-protocols.md)，决策日志记着每处偏离方案的地方。
+- 提案 [`swift-declared-objc-protocols`](../Evolutions/0079-swift-declared-objc-protocols.md)，决策日志记着每处偏离方案的地方。
 - [ObjCMemberRecovery.md](ObjCMemberRecovery.md)：ObjC 成员表，实现者的签名从这里取。
 - [ClassesWithoutClassObjects.md](ClassesWithoutClassObjects.md)：没有 class object 的类的 `class_ro_t`。
 - [Modules/SwiftLayout.md](Modules/SwiftLayout.md)：存在类型的布局。
