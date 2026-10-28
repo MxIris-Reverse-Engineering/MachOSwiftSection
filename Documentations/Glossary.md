@@ -440,7 +440,7 @@ Swift runtime 的 descriptor 布局惯例：固定头之后按 flags 跟着可�
 ObjC 一侧的同一种视图是 `objc evolution --interface` 输出的合并头文件，由 MachOObjCSection 的 `ObjCEvolutionInterfaceBuilder` 渲染：每条声明按 `objc dump` 的方式渲染，标注与 `objc evolution` 报告里的 lineage 一一对应。容器内以最新版本的顺序为准，删掉的成员插在它在最后那一版里的前一个成员之后。
 
 - **主要出现在**：`Sources/Output/SwiftInterface/SwiftEvolutionInterfaceRenderer.swift`（`matchAcrossVersions`）；ObjC 一侧在 MachOObjCSection 的 `ObjCInterface` 模块，本库经 `ObjCAPIEvolutionRequest` 的 `annotatedInterface` 调用
-- **延伸阅读**：[提案 0013](Evolutions/0013-swift-evolution-interface-builder.md)；ObjC 一侧见 [draft-objc-evolution-interface](Evolutions/draft-objc-evolution-interface.md)
+- **延伸阅读**：[提案 0013](Evolutions/0013-swift-evolution-interface-builder.md)；ObjC 一侧见 [提案 0080](Evolutions/0080-objc-evolution-interface.md)
 
 ### wrapper vs descriptor（高层包装 vs 描述符）
 

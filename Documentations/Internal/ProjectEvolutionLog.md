@@ -2772,7 +2772,7 @@
 - **关联文档**：提案 [0079-swift-declared-objc-protocols](../Evolutions/0079-swift-declared-objc-protocols.md)、[SwiftDeclaredObjCProtocols.md](SwiftDeclaredObjCProtocols.md)、[ObjCMemberRecovery.md](ObjCMemberRecovery.md)、[Modules/SwiftDeclaration.md](Modules/SwiftDeclaration.md)。
 - **对应版本**：未发版（0.24.0 之后）。
 
-## 2026-10-28 MachOObjCSection 下限抬到 0.8.202：macOS 11 的 dyld cache 读出正确的方法名
+## 112. MachOObjCSection 下限抬到 0.8.202：macOS 11 的 dyld cache 读出正确的方法名
 
 - **时间段**：2026-10-28，直接在 `next` 上改。
 - **动机**：用户想看 AppKit 从 macOS 11.0 起的 Objective-C API 演进。对卷上 52 个归档 cache（11.0.1 → 27.2）跑 `objc snapshot` 与 `objc evolution` 时发现，11.0.1–11.7 里类与分类的方法名全部读错：每个版本约 7.6 万个成员里有 4.8–4.9 万个 selector 带控制字符，其余看似正常的是空串或单个字符，与 12.0.1 一个都对不上；协议的方法、属性、ivar、父类与协议遵循都是对的。演进报告因此在 11.7 → 12.0.1 报出约 4.7 万处移除、5.3 万处新增。根因在 MachOObjCSection：方法列表的 flag `0x40000000` 在 macOS 11（dyld-832、objc4-818，objc_opt v15）里表示 selector 偏移从 name 字段自身算起，macOS 12（dyld-940、objc4-838，objc_opt v16）起才改为从 cache 的 selector 基址算起。macOS 11 的 cache 没有这个基址，读取器以 0 兜底，就从 cache 开头去读。这个兜底从 MachOObjCSection 最初支持 cache 方法列表时就在。
@@ -2787,7 +2787,7 @@
   - 没有跑全量测试：本地 `next` 上的 7e42d054 改了 SymbolTestsCore 的源码，而这个 worktree 链接的 fixture 二进制是 8 月 27 日编的，已经过期，全量跑会出与本次无关的红。本库测试用到的输入（宿主 macOS 27.2、带 selector 基址的新格式 cache、fixture 里经 selref 的方法列表）走的解码路径都没有变。
 - **对应版本**：未发版。发版说明要写：`objc` 读 macOS 11 的 dyld cache 时，类与分类的方法名不再是乱码。
 
-## 2026-10-28 ObjC API 演进的集成测试
+## 113. ObjC API 演进的集成测试
 
 - **时间段**：2026-10-28，直接在 `next` 上改。
 - **动机**：用户要一套和 Swift 一样的集成测试来检查 Objective-C 的演进。`swift-section objc evolution` 的整条流水线（MachOObjCSection 的 `ObjCInterfaceIndexer` → `ObjCAPISnapshotBuilder` → `ObjCAPIEvolutionBuilder` / `ObjCAPIEvolutionReporter`）原先只能经 CLI 跑，IntegrationTests 里没有对应的人工检查套件。
@@ -2800,9 +2800,9 @@
 - **验证**：在 JHs-Mac-Studio-Ultra 上（Xcode 27.2，远端依赖）`swift build --target IntegrationTests` 编译通过，原始退出码 0，新文件没有警告。按项目规定，IntegrationTests 不由 agent 运行；同一条流水线已用 CLI 在 52 个版本上跑过（上一节）。
 - **对应版本**：未发版（只有测试代码，不进发版说明）。
 
-## 2026-10-28 `objc evolution --interface`：带演进标注的合并 ObjC 头文件
+## 114. `objc evolution --interface`：带演进标注的合并 ObjC 头文件
 
-- **时间段**：2026-10-28，分支 `feature/objc-evolution-interface`（worktree `.worktrees/MachOSwiftSection-ObjCEvolutionInterface`，基于 `next` 66c42e8a）。
+- **时间段**：2026-10-28 至 10-29，分支 `feature/objc-evolution-interface`（worktree `.worktrees/MachOSwiftSection-ObjCEvolutionInterface`，基于 `next` 66c42e8a），10-29 合入 `next`。
 - **动机**：`objc evolution` 只输出逐条变化的报告和 JSON，读 AppKit 这种有几千个类的框架时看不出全貌。用户要的是像 Swift 的 `evolution --interface` 那样，直接在头文件上标出演进。
 - **关键决策**：
   - 合并和标注的渲染放在 MachOObjCSection（`ObjCEvolutionInterfaceBuilder`），那边的提案和实现由负责那个仓库的会话完成。本库只做接线：CLI 选项、SwiftSectionKit 的请求、集成测试和文档。
@@ -2810,12 +2810,13 @@
   - 各版本逐个建索引，交给 builder 后立即释放，不让 N 个索引器同时留在内存里。
   - 可用性宏的平台名按宏自己的写法（`macos`、`ios`、`macCatalyst`、`driverkit`），推断失败有 ObjC 自己的错误类型；`--platform` 不校验拼写，与 Swift 一侧一致。
   - 写文件时补上打印时会加的那个换行，让两种输出的字节完全相同。
-- **落地**：SwiftSectionKit（`ObjCAPIEvolutionRequest.Report.annotatedInterface`、`AvailabilityAttributes`、`ObjCAvailabilityPlatformInferenceError`）；CLI（`objc evolution --interface` / `--emit-available` / `--platform` 及错误翻译）；IntegrationTests（`ObjCEvolutionInterfaceTestSuite`，输出 `-ObjCEvolutionInterface.h`）；文档（`ObjCCommandLine.md` 及 `_zh`、README、agent 插件的 skill、术语表里 union interface 一条）。提案见 [draft-objc-evolution-interface](../Evolutions/draft-objc-evolution-interface.md)。
-- **验证**：都在 JHs-Mac-Studio-Ultra 上跑（macOS 27.2，Xcode 27.2，本地兄弟依赖，MachOObjCSection `next` 29f4f9a）。
-  - SwiftSectionKitTests 86 个、SwiftSectionCommandTests 110 个测试全部通过，原始退出码 0；`IntegrationTests` 编译通过（按项目规定不运行）。
-  - release 构建的 CLI 渲染 AppKit 跨 52 个归档 macOS cache（11.0.1 → 27.2）：193 秒，内存峰值（footprint）1.98 GB；输出 17 万行，其中 26,964 条标注、14,637 处 `API_AVAILABLE`、2,615 处 `API_OBSOLETED`。
+- **落地**：SwiftSectionKit（`ObjCAPIEvolutionRequest.Report.annotatedInterface`、`AvailabilityAttributes`、`ObjCAvailabilityPlatformInferenceError`）；CLI（`objc evolution --interface` / `--emit-available` / `--platform` 及错误翻译）；IntegrationTests（`ObjCEvolutionInterfaceTestSuite`，输出 `-ObjCEvolutionInterface.h`）；文档（`ObjCCommandLine.md` 及 `_zh`、README、agent 插件的 skill、术语表里 union interface 一条）。提案见 [0080-objc-evolution-interface](../Evolutions/0080-objc-evolution-interface.md)。
+- **验证**：都在 JHs-Mac-Studio-Ultra 上跑（macOS 27.2）。
+  - 开发期间（Xcode 27.2，本地兄弟依赖，MachOObjCSection `next` 29f4f9a）：SwiftSectionKitTests 86 个、SwiftSectionCommandTests 110 个测试全部通过，原始退出码 0；`IntegrationTests` 编译通过（按项目规定不运行）。release 构建的 CLI 渲染 AppKit 跨 52 个归档 macOS cache（11.0.1 → 27.2）：193 秒，内存峰值（footprint）1.98 GB；输出 17 万行，其中 26,964 条标注、14,637 处 `API_AVAILABLE`、2,615 处 `API_OBSOLETED`。
+  - 用 Xcode 26.6 跑全量测试时编译停在上游：MachOObjCSection 新代码里一个局部常量和它初始化闭包里调用的方法同名，Swift 6.3.3 的类型检查器因此崩溃（`failed to produce diagnostic for expression`），Swift 6.4 能编过。上游改名修复，发了 0.8.204；0.8.203 在修复之前已经打了 tag，保留不动、不用。本库的依赖下限因此直接抬到 0.8.204。
+  - 落地前（`next` ad5bc459，Xcode 26.6，远端依赖：MachOObjCSection 0.8.204、MachOKit 0.55.100、MachOKitExtensions 1.3.0、swift-demangling 0.7.2、swift-semantic-string 0.5.0；fixture 用 Xcode 26.6 重新编译、ad-hoc 签名）：全量 `swift test --skip IntegrationTests` 共 2,658 个测试、510 个套件全部通过，原始退出码 0，比第 111 节落地时多出的 10 个正是这次新加的测试。
   - skill 里提到的每个选项都能在 CLI 的 `--help` 里找到。
-- **对应版本**：未发版。需要 MachOObjCSection 0.8.203：发版后本库抬依赖下限，再用远端依赖重新验证。发版说明要写：`objc evolution --interface` 把多个版本合并成一份带演进标注的头文件，`--emit-available` 再补上可用性宏。
+- **对应版本**：未发版。依赖下限：MachOObjCSection 0.8.204。发版说明要写：`objc evolution --interface` 把多个版本合并成一份带演进标注的头文件，`--emit-available` 再补上可用性宏。
 
 ## 维护约定
 

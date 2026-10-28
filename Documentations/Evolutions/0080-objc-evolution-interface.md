@@ -1,9 +1,9 @@
-# Draft - `objc evolution --interface`：带演进标注的合并 ObjC 头文件
+# 0080 - `objc evolution --interface`：带演进标注的合并 ObjC 头文件
 
-- **状态**: In Progress
+- **状态**: Implemented
 - **创建日期**: 2026-10-28
-- **最后更新**: 2026-10-28
-- **关联提案**: [0013-swift-evolution-interface-builder](0013-swift-evolution-interface-builder.md)（Swift 一侧的同一种视图）；MachOObjCSection 一侧的库提案（由那边的会话撰写）
+- **最后更新**: 2026-10-29
+- **关联提案**: [0013-swift-evolution-interface-builder](0013-swift-evolution-interface-builder.md)（Swift 一侧的同一种视图）；MachOObjCSection 一侧的库提案 [0015-objc-evolution-interface](https://github.com/MxIris-Reverse-Engineering/MachOObjCSection/blob/main/Documentations/Evolutions/0015-objc-evolution-interface.md)（合并与标注的渲染，随 0.8.204 发布）
 - **实现分支 / PR**: `feature/objc-evolution-interface`（worktree `.worktrees/MachOSwiftSection-ObjCEvolutionInterface`，自 `next` 分出）
 
 ## 摘要
@@ -26,7 +26,7 @@
 2. [x] **接上渲染**：对接 MachOObjCSection 的渲染接口（先用本地兄弟依赖），去掉第 1 步的占位；用 fixture 二进制完整跑通一次。
 3. [x] **集成测试**：`ObjCAPIEvolutionTests.swift` 新加一组套件，输出 `-ObjCEvolutionInterface.h`。
 4. [x] **文档**：`ObjCCommandLine.md`（及 `_zh`）、agent 插件的 `swift-section-cli` skill 与 `references/objc.md`、演进账本。
-5. [ ] **依赖**：MachOObjCSection 发版后抬依赖下限，用远端依赖重新验证。
+5. [x] **依赖**：MachOObjCSection 发版后抬依赖下限，用远端依赖重新验证。
 
 ## 决策日志
 
@@ -40,3 +40,5 @@
 | 2026-10-28 | 第 2 步：接 MachOObjCSection 的 `ObjCEvolutionInterfaceBuilder`（`addVersion` 逐个交版本、`build(availabilityPlatform:)` 出头文件与 `ObjCAPIEvolution`）；写文件时补上打印会加的换行 | 接口由那边的会话设计，逐个交版本、交完即可释放索引器，正好满足内存要求；补换行让文件和打印出来的字节完全相同，与 lineage 报告写文件的做法一致 |
 | 2026-10-28 | 第 3 步：新套件单独成组（`ObjCEvolutionInterfaceTestSuite`），版本轴直接引用报告格式套件的；归档套件传 `macos` 平台 | 与 Swift 一侧「报告一组、带标注接口一组」的分法一致；归档套件的标签都是版本号，宏能写出来 |
 | 2026-10-28 | 第 4 步：文档里写明 cache 输入要传 `--labels`、`--platform` 用宏的拼法、从第一版就在后来删掉的声明不写宏 | 三处都是读输出时最容易误会的地方：不传标签时每个 cache 的默认标签都是同一个文件名；`macOS` 这类 Swift 拼法不会报错，只会写出错的宏 |
+| 2026-10-29 | 第 5 步：依赖下限抬到 MachOObjCSection 0.8.204，跳过 0.8.203 | 用 Xcode 26.6 跑全量测试时发现，上游新代码里一个局部常量和它初始化闭包里调用的方法同名，Swift 6.3 的类型检查器因此崩溃；Xcode 27.2（Swift 6.4）能编过，所以上游自测没有发现。0.8.203 在修复之前就打了 tag，上游保留它、另发了修好的 0.8.204 |
+| 2026-10-29 | 实现完成，用户验收后落地为 0080 | 用法写在 `ObjCCommandLine.md`（及 `_zh`）「带标注的头文件」一节，渲染器的设计记在 MachOObjCSection 的提案 0015，本库只是接线，不另写使用指南或实现说明；没有新术语，术语表里 union interface 一条补上了 ObjC 一侧 |
