@@ -38,7 +38,6 @@ struct ObjCProtocolRequirementBuilderTests {
             .initializer, .method, .method, .method, .method, .method, .method, .method, .property, .property,
             .subscript, .method, .property, .method, .property,
         ])
-        #expect(requirements.allSatisfy { $0.source == .selector })
 
         let bySelector = Dictionary(requirements.map { ($0.selector, $0) }, uniquingKeysWith: { first, _ in first })
         // Accessors: a read-only property, a settable one, a settable subscript.

@@ -33,10 +33,20 @@ struct ObjCProtocolDefinitionIndexingTests {
         Dictionary(definitions.map { ($0.protocolName.name, $0) }, uniquingKeysWith: { first, _ in first })
     }
 
-    private static func expectModel(in machO: some MachOSwiftSectionRepresentableWithCache) async throws {
+    /// The qualified name of the class a requirement was taken from, `nil`
+    /// for one spelled from its selector.
+    private static func conformerName(of requirement: ObjCProtocolRequirementDefinition) -> String? {
+        guard case .conformer(let className) = requirement.source else { return nil }
+        return className.name
+    }
+
+    /// `keepsLocalSymbols` is false for the stripped file: an internal
+    /// class's members lose every symbol there, and its requirement falls
+    /// back to the selector.
+    private static func expectModel(in machO: some MachOSwiftSectionRepresentableWithCache, keepsLocalSymbols: Bool = true) async throws {
         let indexer = try await indexer(for: machO)
         let definitions = definitionsByName(indexer.objcProtocolDefinitions.values)
-        #expect(Set(definitions.keys) == Set(["DerivedSelectors", "SameNameRenamed", "DifferentlyNamed", "RefinedProtocol", "InternalProtocol"].map { "\(moduleName).\($0)" }))
+        #expect(Set(definitions.keys) == Set(["DerivedSelectors", "SameNameRenamed", "DifferentlyNamed", "RefinedProtocol", "InternalProtocol", "Outer.NestedProtocol"].map { "\(moduleName).\($0)" }))
         // None is a `ProtocolDefinition`: no protocol descriptor lists them.
         #expect(indexer.allProtocolDefinitions.keys.allSatisfy { !definitions.keys.contains($0.name) })
         for definition in definitions.values {
@@ -47,7 +57,7 @@ struct ObjCProtocolDefinitionIndexingTests {
         let derivedSelectors = try #require(definitions["\(moduleName).DerivedSelectors"])
         #expect(derivedSelectors.objcRuntimeName == "_TtP\(moduleName.count)\(moduleName)16DerivedSelectors_")
         #expect(!derivedSelectors.hasExplicitObjCName)
-        #expect(derivedSelectors.inheritedProtocolNames.map(\.name) == ["NSObjectProtocol"])
+        #expect(derivedSelectors.inheritedProtocolNames.map(\.name) == ["__C.NSObject"])
         #expect(derivedSelectors.requirements.count == 15)
         // No class of the image adopts it: every requirement is spelled from
         // its selector, and pinned.
@@ -66,21 +76,29 @@ struct ObjCProtocolDefinitionIndexingTests {
         #expect(sameNameRenamed.hasExplicitObjCName)
         let ping = try #require(sameNameRenamed.requirements.first)
         #expect(sameNameRenamed.requirements.map(\.selector) == ["ping"])
-        guard case .conformer(let pingClassName) = ping.source else {
-            Issue.record("ping was not taken from a conformer: \(ping.source)")
-            return
-        }
+        let pingClassName = try #require(conformerName(of: ping), "ping was not taken from a conformer")
         #expect(["\(moduleName).Conformer", "\(moduleName).ExtensionConformer"].contains(pingClassName))
+        // `ping()` derives `ping`: nothing to spell out.
         #expect(!ping.hasExplicitSelector)
         let printedPing = await ping.node.materialize().print(using: .interface)
         #expect(printedPing.contains("ping() -> ()"), "\(printedPing)")
 
         let refined = try #require(definitions["\(moduleName).RefinedProtocol"])
         #expect(refined.inheritedProtocolNames.map(\.name) == ["\(moduleName).SameNameRenamed"])
-        #expect(refined.requirements.map(\.source) == [.conformer(className: "\(moduleName).ExtensionConformer")])
+        #expect(refined.requirements.map(conformerName(of:)) == ["\(moduleName).ExtensionConformer"])
 
         let internalProtocol = try #require(definitions["\(moduleName).InternalProtocol"])
-        #expect(internalProtocol.requirements.map(\.source) == [.conformer(className: "\(moduleName).InternalConformer")])
+        if keepsLocalSymbols {
+            #expect(internalProtocol.requirements.map(conformerName(of:)) == ["\(moduleName).InternalConformer"])
+        } else {
+            #expect(internalProtocol.requirements.map(\.source) == [.selector])
+            #expect(internalProtocol.requirements.map(\.hasExplicitSelector) == [true])
+        }
+
+        // Declared in a type: its name and runtime name carry the parent.
+        let nestedProtocol = try #require(definitions["\(moduleName).Outer.NestedProtocol"])
+        #expect(nestedProtocol.objcRuntimeName == "_TtPC\(moduleName.count)\(moduleName)5Outer14NestedProtocol_")
+        #expect(nestedProtocol.requirements.map(conformerName(of:)) == ["\(moduleName).NestedConformer"])
 
         // Renamed to another name: no record pairs with it, so nothing lists
         // its requirements.
@@ -98,10 +116,11 @@ struct ObjCProtocolDefinitionIndexingTests {
         try await Self.expectModel(in: SwiftDeclaredObjCProtocolsFixture.loadedImage())
     }
 
-    /// Stripped of local symbols, a conformer's member is still tied to its
-    /// Objective-C method through the thunk's code.
+    /// Stripped of local symbols, a public class's member is still tied to
+    /// its Objective-C method through the thunk's code, which calls the
+    /// exported implementation.
     @Test func modelFromTheStrippedFile() async throws {
-        try await Self.expectModel(in: SwiftDeclaredObjCProtocolsFixture.machOFile(.strippedLocals))
+        try await Self.expectModel(in: SwiftDeclaredObjCProtocolsFixture.machOFile(.strippedLocals), keepsLocalSymbols: false)
     }
 
     /// Without reflection metadata only the protocols whose runtime names
@@ -109,6 +128,6 @@ struct ObjCProtocolDefinitionIndexingTests {
     @Test func modelWithoutReflectionMetadata() async throws {
         let indexer = try await Self.indexer(for: try SwiftDeclaredObjCProtocolsFixture.machOFile(.withoutReflectionMetadata))
         let names = Set(indexer.objcProtocolDefinitions.values.map(\.protocolName.name))
-        #expect(names == Set(["DerivedSelectors", "RefinedProtocol", "InternalProtocol"].map { "\(Self.moduleName).\($0)" }))
+        #expect(names == Set(["DerivedSelectors", "RefinedProtocol", "InternalProtocol", "Outer.NestedProtocol"].map { "\(Self.moduleName).\($0)" }))
     }
 }

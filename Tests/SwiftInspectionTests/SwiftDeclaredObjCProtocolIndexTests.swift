@@ -26,12 +26,8 @@ struct SwiftDeclaredObjCProtocolIndexTests {
         "\(moduleName).\(name)"
     }
 
-    /// Built afresh: `strip -x` keeps `LC_UUID`, and the per-image cache keys
-    /// a file on its UUID alone, so the stripped variant would otherwise be
-    /// answered from the index the full one built.
     private static func protocolsByQualifiedName(in machO: some MachORepresentableWithCache) -> [String: SwiftDeclaredObjCProtocol] {
-        SwiftDeclaredObjCProtocolIndex.shared.remove(for: machO)
-        return Dictionary(SwiftDeclaredObjCProtocolIndex.shared.protocols(in: machO).map { ($0.qualifiedName, $0) }, uniquingKeysWith: { first, _ in first })
+        Dictionary(SwiftDeclaredObjCProtocolIndex.shared.protocols(in: machO).map { ($0.qualifiedName, $0) }, uniquingKeysWith: { first, _ in first })
     }
 
     /// The client's five protocols and nothing else — not the kit's, whose
@@ -39,7 +35,7 @@ struct SwiftDeclaredObjCProtocolIndexTests {
     /// or, renamed to its own name, by name; renamed to another, unpaired.
     private static func expectDeclaredProtocols(in machO: some MachORepresentableWithCache) throws {
         let protocols = protocolsByQualifiedName(in: machO)
-        #expect(Set(protocols.keys) == Set(["DerivedSelectors", "SameNameRenamed", "DifferentlyNamed", "RefinedProtocol", "InternalProtocol"].map(qualifiedName)))
+        #expect(Set(protocols.keys) == Set(["DerivedSelectors", "SameNameRenamed", "DifferentlyNamed", "RefinedProtocol", "InternalProtocol", "Outer.NestedProtocol"].map(qualifiedName)))
         for declaredProtocol in protocols.values {
             guard case .fieldDescriptor = declaredProtocol.evidence else {
                 Issue.record("\(declaredProtocol.qualifiedName) was not found through its field descriptor")
@@ -127,7 +123,7 @@ struct SwiftDeclaredObjCProtocolIndexTests {
         #expect(throws: (any Error).self) { try machO.swift.fieldDescriptors }
 
         let protocols = Self.protocolsByQualifiedName(in: machO)
-        #expect(Set(protocols.keys) == Set(["DerivedSelectors", "RefinedProtocol", "InternalProtocol"].map(Self.qualifiedName)))
+        #expect(Set(protocols.keys) == Set(["DerivedSelectors", "RefinedProtocol", "InternalProtocol", "Outer.NestedProtocol"].map(Self.qualifiedName)))
         for declaredProtocol in protocols.values {
             #expect(declaredProtocol.evidence == .runtimeName, "\(declaredProtocol.qualifiedName)")
             #expect(!declaredProtocol.hasExplicitObjCName, "\(declaredProtocol.qualifiedName)")
@@ -146,6 +142,6 @@ struct SwiftDeclaredObjCProtocolIndexTests {
         for (earlier, later) in zip(descriptors, descriptors.dropFirst()) {
             #expect(later.offset - earlier.offset == earlier.actualSize)
         }
-        #expect(descriptors.filter { $0.kind == .objCProtocol }.count == 5)
+        #expect(descriptors.filter { $0.kind == .objCProtocol }.count == 6)
     }
 }

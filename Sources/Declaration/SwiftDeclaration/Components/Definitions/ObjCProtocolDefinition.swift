@@ -100,10 +100,10 @@ public struct ObjCProtocolRequirementDefinition: Sendable {
         /// The importer's rules applied to the selector and its type
         /// encoding: the Swift name may differ from the source's.
         case selector
-        /// The member implementing it in a Swift class of the image that
-        /// adopts the protocol, by the class's qualified name: the Swift name
-        /// and types are the source's.
-        case conformer(className: String)
+        /// The member implementing it in a class of the image that adopts
+        /// the protocol — a Swift class, or an Objective-C class the image
+        /// extends in a category: the Swift name and types are the source's.
+        case conformer(className: TypeName)
     }
 
     public let kind: Kind
@@ -120,7 +120,8 @@ public struct ObjCProtocolRequirementDefinition: Sendable {
     public let source: Source
     /// Whether the interface spells the selector out (`@objc(selector)`):
     /// always for a requirement named from its selector; for one taken from
-    /// a conformer, when the conformer's member spelled it out.
+    /// a conformer, when the compiler derives another selector from the
+    /// member's Swift name.
     public let hasExplicitSelector: Bool
     /// The method's type encoding, extended when the record carries one, or
     /// the property's attribute string.

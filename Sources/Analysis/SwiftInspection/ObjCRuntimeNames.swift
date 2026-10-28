@@ -10,18 +10,18 @@ import MachOSwiftSection
 package enum ObjCRuntimeNames {
     /// A `Protocol` node for the protocol the Objective-C runtime knows as
     /// `runtimeName`: a Swift one by its `_TtP` mangling, or as `machO`
-    /// declares it renamed; an imported one in `__C`, with `Protocol`
-    /// appended when a class shares its name, as the importer does
-    /// (`NSObject` → `NSObjectProtocol`). Another image's renamed Swift
-    /// protocol keeps its Objective-C name.
+    /// declares it renamed; an imported one in `__C` under its Objective-C
+    /// name, the way the compiler mangles it (`So8NSObject_p`). The Swift
+    /// name an imported protocol goes by (`NSObjectProtocol`) is the type
+    /// database's to give when the name prints, as for every `__C` name.
+    /// Another image's renamed Swift protocol keeps its Objective-C name.
     package static func protocolNode(forRuntimeName runtimeName: String, in machO: some MachOSwiftSectionRepresentableWithCache) -> Node {
         if let protocolNode = swiftProtocolNode(forRuntimeName: runtimeName, in: machO) {
             return protocolNode
         }
-        let swiftName = runtimeName == "NSObject" || classExists(named: runtimeName, in: machO) ? runtimeName + "Protocol" : runtimeName
         return Node.createTransient(kind: .protocol, children: [
             Node.createTransient(kind: .module, text: objcModule),
-            Node.createTransient(kind: .identifier, text: swiftName),
+            Node.createTransient(kind: .identifier, text: runtimeName),
         ])
     }
 
@@ -64,15 +64,5 @@ package enum ObjCRuntimeNames {
             return classNode
         }
         return nil
-    }
-
-    /// Whether an Objective-C class of that name is defined by the image or
-    /// one it can reach: the image's class list first, then its ancestor
-    /// resolver's images.
-    private static func classExists(named name: String, in machO: some MachOSwiftSectionRepresentableWithCache) -> Bool {
-        if ObjCClassMethodIndex.shared.storage(in: machO)?.classObjectsByRuntimeName[name] != nil {
-            return true
-        }
-        return ObjCAncestorResolverStore.shared.resolver(forImage: machO)?.resolvedClassObject(named: name) != nil
     }
 }

@@ -14,7 +14,8 @@ import Testing
 /// holds Swift-emitted copies of records it does not define. The client
 /// declares one protocol of each shape (selectors the compiler derives,
 /// renamed to its own Swift name, renamed to another name, refining another,
-/// internal) and the classes that adopt them, in three variants:
+/// internal, declared in a type) and the classes that adopt them, in three
+/// variants:
 /// - `.full`: reflection metadata and every symbol present.
 /// - `.withoutReflectionMetadata` (`-disable-reflection-metadata`): no
 ///   `__swift5_fieldmd`, so only the records' runtime names say which
@@ -85,6 +86,13 @@ package enum SwiftDeclaredObjCProtocolsFixture {
         func internalRequirement()
     }
 
+    // Declared in a type (SE-0404): `_TtPC…` names it, with its parent.
+    public class Outer: NSObject {
+        @objc public protocol NestedProtocol {
+            func nestedRequirement()
+        }
+    }
+
     extension DerivedSelectors {
         public func describe() -> String { title }
     }
@@ -112,6 +120,10 @@ package enum SwiftDeclaredObjCProtocolsFixture {
 
     final class InternalConformer: NSObject, InternalProtocol {
         func internalRequirement() {}
+    }
+
+    public class NestedConformer: NSObject, Outer.NestedProtocol {
+        public func nestedRequirement() {}
     }
 
     public func makeInternalConformer() -> AnyObject {

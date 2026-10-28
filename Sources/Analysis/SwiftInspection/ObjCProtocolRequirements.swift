@@ -6,26 +6,16 @@ import MachOSwiftSection
 /// One requirement of an `@objc` protocol declared in Swift, as a Swift
 /// declaration (evolution proposal `swift-declared-objc-protocols`). The
 /// binary keeps no Swift symbol for it; the declaration is built from the
-/// protocol's Objective-C record, shaped like the member symbol the compiler
-/// would have demangled to, so the member printers print it as they print
-/// any other.
+/// protocol's Objective-C record by the importer's rules, shaped like the
+/// member symbol the compiler would have demangled to, so the member
+/// printers print it as they print any other. Its Swift name may differ
+/// from the source's: the printer pins the selector with `@objc(selector)`.
 package struct ObjCProtocolRequirement: Sendable {
     package enum Kind: Sendable, Hashable {
         case method
         case initializer
         case property
         case `subscript`
-    }
-
-    /// Where the Swift spelling comes from.
-    package enum Source: Sendable, Hashable {
-        /// The importer's rules applied to the selector and type encoding:
-        /// the Swift name may differ from the source's, so the printer pins
-        /// the selector with `@objc(selector)`.
-        case selector
-        /// The member implementing it in a Swift class of the image that
-        /// adopts the protocol, by its Swift name and types.
-        case conformer(className: String)
     }
 
     package let kind: Kind
@@ -40,7 +30,6 @@ package struct ObjCProtocolRequirement: Sendable {
     /// Function`, `Global > Static > Getter > Variable`, `Global > Allocator`,
     /// `Global > Getter > Subscript`.
     package let node: Node
-    package let source: Source
     /// What the declaration was built from: the method's type encoding
     /// (extended when the record carries one), or the property's attributes.
     package let typeEncoding: String
@@ -49,14 +38,13 @@ package struct ObjCProtocolRequirement: Sendable {
         setterSelector != nil
     }
 
-    package init(kind: Kind, selector: String, setterSelector: String?, isClassMember: Bool, isOptional: Bool, node: Node, source: Source, typeEncoding: String) {
+    package init(kind: Kind, selector: String, setterSelector: String?, isClassMember: Bool, isOptional: Bool, node: Node, typeEncoding: String) {
         self.kind = kind
         self.selector = selector
         self.setterSelector = setterSelector
         self.isClassMember = isClassMember
         self.isOptional = isOptional
         self.node = node
-        self.source = source
         self.typeEncoding = typeEncoding
     }
 }
@@ -194,7 +182,6 @@ package enum ObjCProtocolRequirementBuilder {
                 isClassMember: isClassMember,
                 isOptional: isOptional,
                 node: global(getter, isStatic: isClassMember),
-                source: .selector,
                 typeEncoding: accessors.property.attributes
             )
         }
@@ -226,7 +213,6 @@ package enum ObjCProtocolRequirementBuilder {
                     isClassMember: isClassMethod,
                     isOptional: isOptional,
                     node: global(Node.createTransient(kind: .getter, child: subscriptNode), isStatic: isClassMethod),
-                    source: .selector,
                     typeEncoding: encoding
                 )
             case .initializer, .method:
@@ -271,7 +257,6 @@ package enum ObjCProtocolRequirementBuilder {
                     isClassMember: isClassMethod && name.kind == .method,
                     isOptional: isOptional,
                     node: global(declaration, isStatic: isClassMethod && name.kind == .method),
-                    source: .selector,
                     typeEncoding: encoding
                 )
             }
