@@ -17,8 +17,8 @@ import ObjCDiffing
 /// `ObjCAPISnapshotDocument` (round-tripping through the persisted JSON form
 /// so the codec and the format-version gate run on real-world data), and run
 /// the series through `ObjCAPIEvolutionBuilder` + `ObjCAPIEvolutionReporter` —
-/// the `swift-section objc evolution` pipeline. The Objective-C side has no
-/// annotated-interface view, so this lineage report is all of it. Like its
+/// the `swift-section objc evolution` pipeline. The annotated union header of
+/// the same axis is ``ObjCEvolutionInterfaceDumpTests``, below. Like its
 /// siblings it is a maintainer-inspection dump: it prints / writes results
 /// without assertions.
 protocol ObjCAPIEvolutionDumpTests: SwiftInterfaceDumpTests {}
@@ -140,6 +140,105 @@ enum ObjCAPIEvolutionTestSuite {
         @available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *)
         @Test func evolutionString() async throws {
             try await evolutionString(versions: versions)
+        }
+    }
+}
+
+/// The annotated-union-header analogue of ``ObjCAPIEvolutionDumpTests``, and
+/// the Objective-C counterpart of ``SwiftEvolutionInterfaceDumpTests``.
+///
+/// These run the same series through MachOObjCSection's
+/// `ObjCEvolutionInterfaceBuilder` — the `swift-section objc evolution
+/// --interface` pipeline: every declaration rendered the way `objc dump`
+/// renders it, the versions merged into one header, and each declaration's
+/// lifecycle annotated. Read the header against the lineage report of the
+/// same axis — the annotations are the same lineages. Like its siblings it is
+/// a maintainer-inspection dump: it prints / writes results without
+/// assertions.
+protocol ObjCEvolutionInterfaceDumpTests: SwiftInterfaceDumpTests {}
+
+@available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *)
+extension ObjCEvolutionInterfaceDumpTests {
+    /// Indexes every version (oldest first) the way `objc evolution
+    /// --interface` does and hands it to the builder, which keeps what it
+    /// rendered and snapshotted, never the indexer. The timed step covers the
+    /// indexing and rendering of every version.
+    private func evolutionInterface(
+        of versions: [(label: String, machO: MachOFile)],
+        availabilityPlatform: String?
+    ) async throws -> ObjCEvolutionInterface {
+        var builder = ObjCEvolutionInterfaceBuilder()
+        try await measuringPreparation {
+            for version in versions {
+                let indexer = ObjCInterfaceIndexer(
+                    machO: version.machO,
+                    imagePath: version.machO.imagePath,
+                    suppliedClasses: ObjCSuppliedClass.swiftClassesWithoutClassObjects(in: version.machO)
+                )
+                try await indexer.prepare()
+                builder.addVersion(indexer: indexer, machO: version.machO, version: ObjCAPIVersionDescriptor(label: version.label))
+            }
+        }
+        return try builder.build(availabilityPlatform: availabilityPlatform)
+    }
+
+    /// The annotated header plus the per-axis verdict line, so the manual
+    /// inspection can eyeball the CI-gate input next to the rendering.
+    private func annotatedHeaderReport(of evolutionInterface: ObjCEvolutionInterface) -> String {
+        evolutionInterface.interface.string + "\n\n// API-breaking on this axis: \(evolutionInterface.evolution.hasBreakingChange)"
+    }
+
+    /// Console analogue of `evolutionInterfaceFile`. A platform adds the
+    /// availability macros, as `objc evolution --interface --emit-available
+    /// --platform` does.
+    func evolutionInterfaceString(versions: [(label: String, machO: MachOFile)], availabilityPlatform: String? = nil) async throws {
+        let evolutionInterface = try await evolutionInterface(of: versions, availabilityPlatform: availabilityPlatform)
+        printResult(annotatedHeaderReport(of: evolutionInterface))
+    }
+
+    /// Writes the annotated header (`-ObjCEvolutionInterface.h`) next to the
+    /// lineage report, named after the *newest* version.
+    func evolutionInterfaceFile(versions: [(label: String, machO: MachOFile)], availabilityPlatform: String? = nil) async throws {
+        let evolutionInterface = try await evolutionInterface(of: versions, availabilityPlatform: availabilityPlatform)
+        guard let newestVersion = versions.last else { return }
+        try write(annotatedHeaderReport(of: evolutionInterface), for: newestVersion.machO, suffix: "ObjCEvolutionInterface", fileExtension: "h")
+    }
+}
+
+enum ObjCEvolutionInterfaceTestSuite {
+    /// AppKit across the three macOS caches the evolution suites default to
+    /// (15.5 → 26.5.2 → 27.0) — the axis of
+    /// `ObjCAPIEvolutionTestSuite.DyldCacheTests`, so the header and the
+    /// report can be read side by side.
+    final class DyldCacheTests: ObjCAPIEvolutionTestSuite.MultiVersionDyldCacheImageTests, ObjCEvolutionInterfaceDumpTests, @unchecked Sendable {
+        @available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *)
+        @Test func evolutionInterfaceFile() async throws {
+            try await evolutionInterfaceFile(versions: versions)
+        }
+
+        @available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *)
+        @Test func evolutionInterfaceString() async throws {
+            try await evolutionInterfaceString(versions: versions)
+        }
+    }
+
+    /// AppKit across every archived macOS cache, on the axis of
+    /// `ObjCAPIEvolutionTestSuite.ArchivedDyldCacheTests`. Every label is a
+    /// version number, so the header also spells each lifecycle one macro can
+    /// express as `API_AVAILABLE` / `API_OBSOLETED`.
+    final class ArchivedDyldCacheTests: ObjCAPIEvolutionTestSuite.MultiVersionDyldCacheImageTests, ObjCEvolutionInterfaceDumpTests, @unchecked Sendable {
+        override class var cachePaths: [DyldSharedCachePath] {
+            ObjCAPIEvolutionTestSuite.ArchivedDyldCacheTests.cachePaths
+        }
+
+        @available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *)
+        @Test func evolutionInterfaceFile() async throws {
+            try await evolutionInterfaceFile(versions: versions, availabilityPlatform: "macos")
+        }
+
+        @available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *)
+        @Test func evolutionInterfaceString() async throws {
+            try await evolutionInterfaceString(versions: versions, availabilityPlatform: "macos")
         }
     }
 }
