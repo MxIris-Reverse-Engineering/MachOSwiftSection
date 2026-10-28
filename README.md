@@ -706,6 +706,16 @@ swift-section objc diff CoreLocation-15.5.json CoreLocation-26.5.json
 
 # Every declaration's lifeline across N ordered versions
 swift-section objc evolution CoreLocation-*.json --labels 15.5,26.0,26.5 --summary-only
+
+# The versions merged into one header, each declaration rendered as `objc dump`
+# renders it and annotated with its lifecycle (binaries or caches only)
+swift-section objc evolution \
+  15.5/dyld_shared_cache_arm64e \
+  26.5/dyld_shared_cache_arm64e \
+  --dyld-shared-cache -n CoreLocation \
+  --labels 15.5,26.5 \
+  --interface --emit-available \
+  -o CoreLocation-evolution.h
 ```
 
 Both `diff` and `evolution` support `--json`, `--summary-only`, `--fail-on-breaking` (exit
@@ -713,6 +723,8 @@ nonzero on an API-breaking change, for CI gating) and `-o`. Baselines carry a `f
 one written by a different format version is rejected with an error rather than silently
 mis-compared, so regenerate it with the current tool. Baselines written by `objc-section`
 0.8.106 read unchanged.
+
+`evolution --interface` merges every version into one header instead: a changed declaration carries a `// [○●●] added in 26.5`-style lifecycle comment, and `--emit-available` adds the `API_AVAILABLE` / `API_OBSOLETED` macro where one expresses the lifecycle (the platform is inferred from `LC_BUILD_VERSION`, or named with `--platform macos`). Its inputs must be binaries or caches, since a snapshot carries no rendered declarations.
 
 The contracts that neither the signatures nor `--help` show — how file mode truncates the
 superclass chain, why pure-Swift classes' ivar records do not line up, and the rest — are in

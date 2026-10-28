@@ -437,8 +437,10 @@ Swift runtime 的 descriptor 布局惯例：固定头之后按 flags 跟着可�
 
 `evolution --interface` 的输出形态：N 个版本所有声明的**并集**只渲染一次的 Swift 接口——每条声明由「最后一个拥有它的版本」的模型与 printer 渲染文本，变化写进生命周期注解，同一成员改签名不裂成多行。与「逐 transition 串联 diff」（同一声明重复出现 N−1 次）和「只渲染最新版 + since 注解」（丢中间版本细节）相对。排序规则：最新版本声明序为脊柱，不在最新版的声明按其最后存在版本的顺序追加。
 
-- **主要出现在**：`Sources/Output/SwiftInterface/SwiftEvolutionInterfaceRenderer.swift`（`matchAcrossVersions`）
-- **延伸阅读**：[提案 0013](Evolutions/0013-swift-evolution-interface-builder.md)
+ObjC 一侧的同一种视图是 `objc evolution --interface` 输出的合并头文件，由 MachOObjCSection 的 `ObjCEvolutionInterfaceBuilder` 渲染：每条声明按 `objc dump` 的方式渲染，标注与 `objc evolution` 报告里的 lineage 一一对应。容器内以最新版本的顺序为准，删掉的成员插在它在最后那一版里的前一个成员之后。
+
+- **主要出现在**：`Sources/Output/SwiftInterface/SwiftEvolutionInterfaceRenderer.swift`（`matchAcrossVersions`）；ObjC 一侧在 MachOObjCSection 的 `ObjCInterface` 模块，本库经 `ObjCAPIEvolutionRequest` 的 `annotatedInterface` 调用
+- **延伸阅读**：[提案 0013](Evolutions/0013-swift-evolution-interface-builder.md)；ObjC 一侧见 [draft-objc-evolution-interface](Evolutions/draft-objc-evolution-interface.md)
 
 ### wrapper vs descriptor（高层包装 vs 描述符）
 

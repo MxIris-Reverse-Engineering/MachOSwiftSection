@@ -2800,6 +2800,23 @@
 - **验证**：在 JHs-Mac-Studio-Ultra 上（Xcode 27.2，远端依赖）`swift build --target IntegrationTests` 编译通过，原始退出码 0，新文件没有警告。按项目规定，IntegrationTests 不由 agent 运行；同一条流水线已用 CLI 在 52 个版本上跑过（上一节）。
 - **对应版本**：未发版（只有测试代码，不进发版说明）。
 
+## 2026-10-28 `objc evolution --interface`：带演进标注的合并 ObjC 头文件
+
+- **时间段**：2026-10-28，分支 `feature/objc-evolution-interface`（worktree `.worktrees/MachOSwiftSection-ObjCEvolutionInterface`，基于 `next` 66c42e8a）。
+- **动机**：`objc evolution` 只输出逐条变化的报告和 JSON，读 AppKit 这种有几千个类的框架时看不出全貌。用户要的是像 Swift 的 `evolution --interface` 那样，直接在头文件上标出演进。
+- **关键决策**：
+  - 合并和标注的渲染放在 MachOObjCSection（`ObjCEvolutionInterfaceBuilder`），那边的提案和实现由负责那个仓库的会话完成。本库只做接线：CLI 选项、SwiftSectionKit 的请求、集成测试和文档。
+  - 声明沿用 `objc dump` 的渲染，这是用户选定的。所以 `--interface` 只接受二进制或 cache，传快照会报用法错误。标注取自同样的快照和 `ObjCAPIEvolutionBuilder`，和报告、JSON 一致。
+  - 各版本逐个建索引，交给 builder 后立即释放，不让 N 个索引器同时留在内存里。
+  - 可用性宏的平台名按宏自己的写法（`macos`、`ios`、`macCatalyst`、`driverkit`），推断失败有 ObjC 自己的错误类型；`--platform` 不校验拼写，与 Swift 一侧一致。
+  - 写文件时补上打印时会加的那个换行，让两种输出的字节完全相同。
+- **落地**：SwiftSectionKit（`ObjCAPIEvolutionRequest.Report.annotatedInterface`、`AvailabilityAttributes`、`ObjCAvailabilityPlatformInferenceError`）；CLI（`objc evolution --interface` / `--emit-available` / `--platform` 及错误翻译）；IntegrationTests（`ObjCEvolutionInterfaceTestSuite`，输出 `-ObjCEvolutionInterface.h`）；文档（`ObjCCommandLine.md` 及 `_zh`、README、agent 插件的 skill、术语表里 union interface 一条）。提案见 [draft-objc-evolution-interface](../Evolutions/draft-objc-evolution-interface.md)。
+- **验证**：都在 JHs-Mac-Studio-Ultra 上跑（macOS 27.2，Xcode 27.2，本地兄弟依赖，MachOObjCSection `next` 29f4f9a）。
+  - SwiftSectionKitTests 86 个、SwiftSectionCommandTests 110 个测试全部通过，原始退出码 0；`IntegrationTests` 编译通过（按项目规定不运行）。
+  - release 构建的 CLI 渲染 AppKit 跨 52 个归档 macOS cache（11.0.1 → 27.2）：193 秒，内存峰值（footprint）1.98 GB；输出 17 万行，其中 26,964 条标注、14,637 处 `API_AVAILABLE`、2,615 处 `API_OBSOLETED`。
+  - skill 里提到的每个选项都能在 CLI 的 `--help` 里找到。
+- **对应版本**：未发版。需要 MachOObjCSection 0.8.203：发版后本库抬依赖下限，再用远端依赖重新验证。发版说明要写：`objc evolution --interface` 把多个版本合并成一份带演进标注的头文件，`--emit-available` 再补上可用性宏。
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节

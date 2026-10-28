@@ -25,7 +25,7 @@
 1. [x] **选项与校验**：SwiftSectionKit 的 `ObjCAPIEvolutionRequest` 加带标注头文件这种输出，可用性分「不写 / 从 `LC_BUILD_VERSION` 推断 / 指定平台」三种，平台按 ObjC 可用性宏的写法（`macos`、`ios`、`macCatalyst` …）；`--interface` 下的快照输入报错。CLI 加 `--interface`、`--emit-available`、`--platform` 及互斥校验，错误照现有措辞翻译成用法错误。两侧各加测试。这一步还没有渲染器，`--interface` 校验通过后报「渲染器尚未接入」。
 2. [x] **接上渲染**：对接 MachOObjCSection 的渲染接口（先用本地兄弟依赖），去掉第 1 步的占位；用 fixture 二进制完整跑通一次。
 3. [x] **集成测试**：`ObjCAPIEvolutionTests.swift` 新加一组套件，输出 `-ObjCEvolutionInterface.h`。
-4. [ ] **文档**：`ObjCCommandLine.md`（及 `_zh`）、agent 插件的 `swift-section-cli` skill 与 `references/objc.md`、演进账本。
+4. [x] **文档**：`ObjCCommandLine.md`（及 `_zh`）、agent 插件的 `swift-section-cli` skill 与 `references/objc.md`、演进账本。
 5. [ ] **依赖**：MachOObjCSection 发版后抬依赖下限，用远端依赖重新验证。
 
 ## 决策日志
@@ -37,3 +37,6 @@
 | 2026-10-28 | CLI 和集成测试都做 | 用户选定，与 Swift 一侧一致：集成测试走的就是 CLI 背后的同一个接口 |
 | 2026-10-28 | 用户批准，开始实现 | 状态改为 Accepted；精简提案原本没有落地步骤，按方案拆成五步，第 1 步不依赖 MachOObjCSection 的渲染器，先做 |
 | 2026-10-28 | 第 1 步：平台推断失败用 ObjC 自己的错误类型 `ObjCAvailabilityPlatformInferenceError`；`--platform` 不校验拼写 | Swift 一侧的错误讲的是 `@available`，ObjC 要讲可用性宏，平台名也不同（`macos` 而不是 `macOS`，还多出 `driverkit`）；不校验拼写与 Swift 一侧一致，宏以后加平台也不用改 CLI |
+| 2026-10-28 | 第 2 步：接 MachOObjCSection 的 `ObjCEvolutionInterfaceBuilder`（`addVersion` 逐个交版本、`build(availabilityPlatform:)` 出头文件与 `ObjCAPIEvolution`）；写文件时补上打印会加的换行 | 接口由那边的会话设计，逐个交版本、交完即可释放索引器，正好满足内存要求；补换行让文件和打印出来的字节完全相同，与 lineage 报告写文件的做法一致 |
+| 2026-10-28 | 第 3 步：新套件单独成组（`ObjCEvolutionInterfaceTestSuite`），版本轴直接引用报告格式套件的；归档套件传 `macos` 平台 | 与 Swift 一侧「报告一组、带标注接口一组」的分法一致；归档套件的标签都是版本号，宏能写出来 |
+| 2026-10-28 | 第 4 步：文档里写明 cache 输入要传 `--labels`、`--platform` 用宏的拼法、从第一版就在后来删掉的声明不写宏 | 三处都是读输出时最容易误会的地方：不传标签时每个 cache 的默认标签都是同一个文件名；`macOS` 这类 Swift 拼法不会报错，只会写出错的宏 |
