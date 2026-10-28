@@ -87,7 +87,7 @@ macOS 27 与 iOS 27 的 dyld shared cache 不再给每个镜像留自己的 `__o
 本镜像 extension 别的模块的类（ObjC 类，或别的模块的 Swift 类）时采纳的 ObjC 协议，记在那个 extension 的 category 的协议表里，没有 Swift 的 conformance record。interface 把每个 category 打成一个 `extension X: P {}`。与类头部列出的 ObjC 协议的区别：同一模块里的 extension 会被编译器并进类自己的 `class_ro_t`，那些遵循打在类头部，不算 category 遵循。
 
 - **主要出现在**：`Sources/Declaration/SwiftDeclaration/Components/Definitions/ObjCCategoryConformance.swift`、`Sources/Analysis/SwiftInspection/ObjCProtocolAdoptionIndex.swift`
-- **延伸阅读**：[SwiftDeclaredObjCProtocols.md](Internal/SwiftDeclaredObjCProtocols.md)、[swift-declared-objc-protocols](Evolutions/draft-swift-declared-objc-protocols.md)
+- **延伸阅读**：[SwiftDeclaredObjCProtocols.md](Internal/SwiftDeclaredObjCProtocols.md)、[0079-swift-declared-objc-protocols](Evolutions/0079-swift-declared-objc-protocols.md)
 
 ### class without a class object（没有 class object 的类，`SwiftClassWithoutClassObject`）
 
@@ -372,7 +372,7 @@ TypeIndexing 的外部知识入口：标准 `.apinotes` 格式的**用户自备*
 Swift 源码里声明的 `@objc protocol`。它没有 protocol descriptor（不在 `__swift5_protos` 里），要求也没有任何 Swift 符号；镜像里只有一条 kind 为 `ObjCProtocol` 的 field descriptor 与一条 ObjC 协议记录（`protocol_t`）。本库据 field descriptor 认定本镜像声明了它，要求从记录读出：有本镜像的类实现时照抄那个成员（**取自实现者**），没有时按 ClangImporter 的规则从 selector 推出 Swift 名并用 `@objc(selector)` 钉住（**按 selector 命名**）。与 `@objc @implementation` 类无关：那是 ObjC 声明、Swift 实现的类。
 
 - **主要出现在**：`Sources/Analysis/SwiftInspection/SwiftDeclaredObjCProtocolIndex.swift`、`Sources/Declaration/SwiftDeclaration/Components/Definitions/ObjCProtocolDefinition.swift`
-- **延伸阅读**：[SwiftDeclaredObjCProtocols.md](Internal/SwiftDeclaredObjCProtocols.md)、[swift-declared-objc-protocols](Evolutions/draft-swift-declared-objc-protocols.md)
+- **延伸阅读**：[SwiftDeclaredObjCProtocols.md](Internal/SwiftDeclaredObjCProtocols.md)、[0079-swift-declared-objc-protocols](Evolutions/0079-swift-declared-objc-protocols.md)
 
 ### symbolic-mangling symbol（`_symbolic` 符号）与被引用者（referent）
 
