@@ -2772,6 +2772,21 @@
 - **关联文档**：提案 [swift-declared-objc-protocols](../Evolutions/draft-swift-declared-objc-protocols.md)、[SwiftDeclaredObjCProtocols.md](SwiftDeclaredObjCProtocols.md)、[ObjCMemberRecovery.md](ObjCMemberRecovery.md)、[Modules/SwiftDeclaration.md](Modules/SwiftDeclaration.md)。
 - **对应版本**：未发版。
 
+## 2026-10-28 MachOObjCSection 下限抬到 0.8.202：macOS 11 的 dyld cache 读出正确的方法名
+
+- **时间段**：2026-10-28，直接在 `next` 上改。
+- **动机**：用户想看 AppKit 从 macOS 11.0 起的 Objective-C API 演进。对卷上 52 个归档 cache（11.0.1 → 27.2）跑 `objc snapshot` 与 `objc evolution` 时发现，11.0.1–11.7 里类与分类的方法名全部读错：每个版本约 7.6 万个成员里有 4.8–4.9 万个 selector 带控制字符，其余看似正常的是空串或单个字符，与 12.0.1 一个都对不上；协议的方法、属性、ivar、父类与协议遵循都是对的。演进报告因此在 11.7 → 12.0.1 报出约 4.7 万处移除、5.3 万处新增。根因在 MachOObjCSection：方法列表的 flag `0x40000000` 在 macOS 11（dyld-832、objc4-818，objc_opt v15）里表示 selector 偏移从 name 字段自身算起，macOS 12（dyld-940、objc4-838，objc_opt v16）起才改为从 cache 的 selector 基址算起。macOS 11 的 cache 没有这个基址，读取器以 0 兜底，就从 cache 开头去读。这个兜底从 MachOObjCSection 最初支持 cache 方法列表时就在。
+- **关键决策**：
+  - 修复放在 MachOObjCSection，由负责那个仓库的会话完成：按 objc 优化数据的版本选基址（v16 与新格式用 selector 基址，v12、v13、v15 从字段自身算起，读不到优化数据时方法名留空、不再猜），进程内路径在 macOS 12 / iOS 15 之前的系统上同样从字段自身算起。发了 0.8.202。
+  - 本库只抬下限、不改代码：`objc` 子命令经 SwiftSectionKit 调 MachOObjCSection，本库读方法列表也都经它的 `methods(in:)`，没有第二份同样的解码。
+- **落地**：`Package.swift`（MachOObjCSection `"0.8.202" ..< "0.9.0"`）。MachOObjCSection 的 tag 0.8.202 指向 `e804bd1`（`next` 与 `main` 都在这个提交上），修复提交是 `f40359a`，回归测试 `DyldCacheRelativeMethodNameTests` 读 11.0.1、12.0.1、13.0 的 AppKit。
+- **验证**：都在 JHs-Mac-Studio-Ultra 上跑（macOS 27.2，Xcode 27.2，远端依赖）。
+  - `swift package update machoobjcsection` 只把 MachOObjCSection 从 0.8.201 换成 0.8.202，`workspace-state.json` 里是 `remoteSourceControl`、revision `e804bd1`；release 构建的 `swift-section` 0 warning。
+  - 用它对 52 个版本的 AppKit 重做快照，与已安装的 0.24.0 release 版的快照逐一比较：每个版本带乱码的 selector 都是 0；11.x 的类、协议与分类集合不变，约 1,860 个容器的方法名改对了（NSView 1,731 个成员，有 `initWithFrame:` 与 `drawRect:`）；12.0.1–13.7 完全一致；14.0 起只多出 11–35 个容器，都是第 110 节交给 MachOObjCSection 的没有 class object 的 Swift 类，共有容器的成员没有差异。
+  - `objc diff` 11.7 → 12.0.1 降到 1,193 行移除、1,402 行新增（含类与协议本身的行），与 MachOObjCSection 那边直接读 cache 的结果一致；52 个版本的演进报告里，11.x 各步只有几十到一百多处变化。
+  - 没有跑全量测试：本地 `next` 上的 7e42d054 改了 SymbolTestsCore 的源码，而这个 worktree 链接的 fixture 二进制是 8 月 27 日编的，已经过期，全量跑会出与本次无关的红。本库测试用到的输入（宿主 macOS 27.2、带 selector 基址的新格式 cache、fixture 里经 selref 的方法列表）走的解码路径都没有变。
+- **对应版本**：未发版。发版说明要写：`objc` 读 macOS 11 的 dyld cache 时，类与分类的方法名不再是乱码。
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节

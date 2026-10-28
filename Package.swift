@@ -185,7 +185,12 @@ extension Package.Dependency {
             // takes the classes without a class object a host supplies
             // (`ObjCSuppliedClass`): generic Swift classes and the ones
             // `__objc_stublist` registers, read from Swift metadata here.
-            "0.8.201" ..< "0.9.0",
+            // 0.8.202 reads the method names of a macOS 11 dyld cache, whose
+            // relative method lists count a selector from the name field
+            // itself: the selector base it used to add only exists from
+            // macOS 12, so every class and category method of an 11.x cache
+            // read as garbage.
+            "0.8.202" ..< "0.9.0",
         ),
     )
 }
