@@ -105,6 +105,10 @@ enum CommandLineErrorTranslation {
             return ValidationError("--emit-available could not infer an @available platform from \(path) (no LC_BUILD_VERSION, or a platform with no @available spelling); pass --platform explicitly.")
         case AvailabilityPlatformInferenceError.conflictingPlatforms(let platforms):
             return ValidationError("--emit-available found conflicting platforms across the inputs (\(platforms.joined(separator: ", "))); pass --platform explicitly.")
+        case ObjCAvailabilityPlatformInferenceError.noPlatform(let path):
+            return ValidationError("--emit-available could not infer an availability-macro platform from \(path) (no LC_BUILD_VERSION, or a platform the availability macros have no name for); pass --platform explicitly.")
+        case ObjCAvailabilityPlatformInferenceError.conflictingPlatforms(let platforms):
+            return ValidationError("--emit-available found conflicting platforms across the inputs (\(platforms.joined(separator: ", "))); pass --platform explicitly.")
         default:
             return error
         }

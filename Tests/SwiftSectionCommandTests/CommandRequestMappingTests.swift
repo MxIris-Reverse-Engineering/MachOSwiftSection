@@ -237,4 +237,16 @@ struct CommandRequestMappingTests {
         #expect(request.labels == ["a", "b"])
         #expect(request.report == .json)
     }
+
+    @Test("objc evolution's output flags become one report", arguments: [
+        ([String](), ObjCAPIEvolutionRequest.Report.lineage),
+        (["--summary-only"], .summary),
+        (["--json"], .json),
+        (["--interface"], .annotatedInterface(availabilityAttributes: .none)),
+        (["--interface", "--emit-available"], .annotatedInterface(availabilityAttributes: .inferredPlatform)),
+        (["--interface", "--emit-available", "--platform", "ios"], .annotatedInterface(availabilityAttributes: .platform("ios"))),
+    ])
+    func objcEvolutionReport(flags: [String], expectedReport: ObjCAPIEvolutionRequest.Report) throws {
+        #expect(try ObjCEvolutionCommand.parse(flags + ["old.dylib", "new.dylib"]).makeRequest().report == expectedReport)
+    }
 }

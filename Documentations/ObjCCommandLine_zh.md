@@ -35,6 +35,9 @@ swift-section objc diff <old> <new>
 
 # 跨 N ≥ 2 个版本追踪每个声明的生命线
 swift-section objc evolution <v1> <v2> <v3> --labels 17.0,18.0,26.0
+
+# 把这几个版本合并成一份头文件，每个声明标出自己的生命周期
+swift-section objc evolution <v1> <v2> <v3> --labels 17.0,18.0,26.0 --interface -o evolution.h
 ```
 
 `dump` 是默认子命令，所以 `swift-section objc <file>` 等于 `swift-section objc dump <file>`。
@@ -124,14 +127,36 @@ swift-section objc evolution CoreLocation-*.json --summary-only
 | 选项（`diff` 和 `evolution` 都有） | 作用 |
 |---|---|
 | `--summary-only` | 只打印结论（`diff`：是否破坏兼容的那一行；`evolution`：各次版本变化的摘要） |
-| `--json` | 输出结构化 JSON，而不是文本报告（不能和 `--summary-only` 一起用） |
+| `--json` | 输出结构化 JSON，而不是文本报告（不能和 `--summary-only` 或 `--interface` 一起用） |
 | `--fail-on-breaking` | 有破坏 API 兼容的变化时以非零退出码结束，给 CI 把关用 |
 | `-o, --output-path <path>` | 写进文件，而不是 stdout（进度和日志一律走 stderr） |
 | `--labels a,b,c` | 只有 `evolution` 有：版本轴的标签，每个输入一个；不给时取快照里存的标签或文件名 |
+| `--interface` | 只有 `evolution` 有：把所有版本合并成一份头文件，每个声明标出自己的生命周期（见下文）；每个输入都必须是二进制或 cache |
+| `--emit-available` | 配合 `--interface`：一个可用性宏能表达的生命周期，再写成这个宏（`API_AVAILABLE` / `API_OBSOLETED`） |
+| `--platform <name>` | 配合 `--emit-available`：宏里的平台名，不用从 `LC_BUILD_VERSION` 推断的那个 |
 
 输入选项（`--dyld-shared-cache` / `-n` / `-p` / `-a`）和 `dump` 一样；在 `diff` 和 `evolution` 里的
 意思是「每个输入都是 cache，从每一份里取同一个镜像」。`snapshot` 不接受
 `--uses-system-dyld-shared-cache`：当前系统的 cache 没有一个稳定的路径可以记进基线。
+
+### 带标注的头文件（`evolution --interface`）
+
+`--interface` 不出逐条的报告，而是把所有版本合并成一份头文件。每个声明都按 `objc dump` 的方式渲染；有变化的声明在行尾写出生命周期：`// [○●●] added in 18.0`、`removed in …`，或者 `modified in …: 旧 → 新`。位图每一位对应一个版本，对应关系写在文件头的第二行。删掉的声明留在它最后出现的位置。加入或删掉的类、协议、分类只在 `@interface` / `@protocol` 那一行标注，成员不再逐个标；父类或协议遵循变了，写成它上方的一行注释。这些标注就是文本报告和 JSON 里的那些 lineage，取自同样的快照。
+
+`--emit-available` 再把一个可用性宏能表达的生命周期写成宏：在版本轴中途加入的写 `API_AVAILABLE(macos(13.0))`，加入后又删掉的写 `API_OBSOLETED("Removed", macos(12.0, 13.0, 13.0))`。宏里的版本是版本轴上的点，不一定是真正引入或删除这个声明的那个版本。从第一个版本就在、后来删掉的声明不写宏，因为 `API_OBSOLETED` 必须带引入版本；删了又加回的、只被修改过的、标签不是版本号的，也都不写。平台取自每个输入的 `LC_BUILD_VERSION`，模拟器算作它对应的设备平台。输入里没有平台、或者平台各不相同时，用 `--platform` 按宏自己的写法指定：`macos`、`ios`、`tvos`、`watchos`、`visionos`、`macCatalyst` 或 `driverkit`。
+
+```bash
+swift-section objc evolution \
+    15.5/dyld_shared_cache_arm64e \
+    26.5/dyld_shared_cache_arm64e \
+    27.0/dyld_shared_cache_arm64e \
+    --dyld-shared-cache -n AppKit \
+    --labels 15.5,26.5,27.0 \
+    --interface --emit-available \
+    -o AppKit-evolution.h
+```
+
+每个输入都必须是二进制或 cache：快照里没有渲染好的声明，传入快照会报用法错误。输入是 cache 时要传 `--labels`，否则每个标签都取文件名，而这些文件都叫 `dyld_shared_cache_arm64e`。各版本逐个索引，只留下渲染好的内容：release 构建下，AppKit 跨 52 个 macOS cache（11.0.1 到 27.2）约三分钟，内存峰值约 2 GB。
 
 ## 必须知道的五件事
 
