@@ -14,7 +14,7 @@ import Testing
 /// (library evolution, so its `ResilientBase` is resilient to the client)
 /// and the client itself, in two variants:
 /// - `.full`: every symbol present, the `To` thunks and the class stubs'
-///   `…CMs` symbols included.
+///   `…CMs` / `…CMt` symbols included.
 /// - `.strippedLocals` (`strip -x`): as in every OS framework, the thunks
 ///   and the non-public stub of the class with generic ancestry are gone.
 package enum ClassesWithoutClassObjectsFixture {
@@ -79,7 +79,7 @@ package enum ClassesWithoutClassObjectsFixture {
     }
 
     // Generic ancestry: statically emitted metadata the runtime initializes
-    // first, registered through a stub only its `…CMs` symbol names.
+    // first, registered through a stub only its local `…CMt` symbol names.
     public class ConcreteSubclass: GenericWidget<Int> {
         public override var description: String { "ConcreteSubclass" }
         @objc public func concretePoke() {}

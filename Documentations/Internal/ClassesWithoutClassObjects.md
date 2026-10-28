@@ -21,7 +21,8 @@
 - 泛型类那一行照的是运行时 `initializeClassMetadataFromPattern`（`Metadata.cpp`）：它把 extra-data pattern 拷到实例化元数据 extra data 的 `OffsetInWords` 处，再让 data 指向 extra data 的第 `ClassRODataOffset` 个字。所以在 pattern 自己的数据里，模板在第 (`ClassRODataOffset` − `OffsetInWords`) 个字。模板里的 `class_ro_t.name` 是空指针，由运行时给每个实例化各取一个名字。没有 extra-data pattern 的泛型类是不开 ObjC interop 的构建，跳过。
 - Resilient 与 Singleton 的描述符都有 singleton metadata initialization，`incompleteMetadata` 字段在 Resilient 下改指向 `ResilientClassMetadataPattern`（两者是同一个 union），靠描述符的 `hasResilientSuperclass` 区分。
 - Update 与 FixedOrUpdate 策略的类同样有 singleton metadata initialization，它们的 incomplete metadata 就是 class list 里的 class object，所以按偏移排除：偏移落在 class list 里的不算。
-- Singleton 的 stub 描述符不记录（`addObjCResilientClassStubInfo` 只在 Resilient 策略下写），只能按符号找。编译器给它的是非公开 stub（`emitObjCResilientClassStub(_:isPublic: false)`）：完整 stub 有一个私有符号 `…CMt`，它的第一个字是保留字，第二个字才是 isa；指向 isa 的别名 `…CMs` 只给公开 stub 定义，这里没有。所以把描述符符号 `…CMn` 换成 `…CMt` 去符号表里找（`SymbolIndexStore.offset(ofSymbolNamed:in:)`），再加一个字。`…CMt` 是 local 符号，剥掉 local 符号的镜像里找不到，`classStubOffset` 就留空。它只用来把挂在 stub 上的 category 归到这个类，缺了只影响这一点。公开的 stub（Resilient 那一行）两个符号都有，`…CMs` 正是描述符记录的那个地址。
+- Singleton 的 stub 描述符不记录（`addObjCResilientClassStubInfo` 只在 Resilient 策略下写），只能按符号找。编译器给它的是非公开 stub（`emitObjCResilientClassStub(_:isPublic: false)`）：完整 stub 有一个私有符号 `…CMt`，它的第一个字是保留字，第二个字才是 isa；指向 isa 的别名 `…CMs` 只给公开 stub 定义，这里没有。所以把描述符符号 `…CMn` 换成 `…CMt` 去符号表里找（`SymbolIndexStore.offset(ofSymbolNamed:in:)`），再加一个字。`…CMt` 是 local 符号，剥掉 local 符号的镜像里找不到，`classStubOffset` 就留空。这种类的 category 不指向 stub（见下一条），MachOObjCSection 的索引器也只拿 `classStubOffset` 归挂在 stub 上的 category，所以缺了不影响什么。公开的 stub（Resilient 那一行）两个符号都有，`…CMs` 正是描述符记录的那个地址。
+- **category 指向哪里**：Swift `extension` 里的 `@objc` 成员编成 category，三种类各不相同。父类在别的 resilience domain 的类（`AncestryFlags::ResilientOther`），category 指向它的 stub，放在 `__objc_catlist2` 里（`GenClass.cpp` 的 `getClassMetadataRef()`、`GenDecl.cpp` 的 `emitExtension`）。父类是本模块泛型类的类，category 指向类自己的 incomplete metadata，放在 `__objc_catlist` 里，从那里读得出 `class_ro_t` 里的运行时名。泛型类的 `extension` 不许有 `@objc` 成员（`TypeCheckDeclObjC.cpp` 报 `objc_in_generic_extension`），没有 category。
 - 绝对指针（Singleton 的 `data` 与 `isa` 字段、Resilient 的元类的 `data` 字段）一律构造成 `ObjCClass64` 交给 MachOObjCSection 的读取器解：它处理 rebase、chained fixup、dyld cache 的偏移、进程内已 realize 的类（`data` 指向 `class_rw_t`）这些情况。相对指针（pattern 里的字段、`data`、`metaclass`、stub）用 `resolvedDirectOffset` 自己解。读出来的元类 `class_ro_t` 必须带 `RO_META` 标志，不带就当没读到。
 
 ## 名字与父类
@@ -42,7 +43,7 @@
 ## 已知限制
 
 - 父类是另一个镜像里的 Swift 类时链就断，`override` 不判。非泛型的那种（SwiftUI 的类继承 SwiftUICore 的类）可以按限定名到依赖镜像的 class list 里找；泛型的那种（`NSHostingView<…>`）在那个镜像里同样没有 class object，要跨镜像读它的 pattern。都留作后续。
-- 本库自己的读取器看不到挂在 stub 上的 category（Swift `extension` 里的 `@objc` 成员）：`targetClassName(of:)` 从 stub 读不出名字。MachOObjCSection 的索引器按 `classStubOffset` 归类，宿主经 provider 时拿得到。
+- 本库自己的读取器看不到父类在别的 resilience domain 的类的 category（Swift `extension` 里的 `@objc` 成员）：读取器只读 `__objc_catlist`，这些 category 在 `__objc_catlist2` 里，它们指向的 stub 也读不出类名。MachOObjCSection 的索引器按 `classStubOffset` 归类，宿主经 provider 时拿得到。父类是本模块泛型类的类不受影响：category 指向类自己的 metadata，`targetClassName(of:)` 读出它的运行时名，照常并进方法表。fixture 里还没有带 `@objc` 成员的 `extension`，这两种情况都没有测试钉住。
 - 运行时名要用旧式 mangling 拼，本库没有旧式 remangler，所以别的镜像里的 Swift 父类只能给 Swift 写法，不能给它在运行时的名字。
 
 ## 验证

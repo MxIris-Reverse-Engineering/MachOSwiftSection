@@ -80,9 +80,14 @@ package struct SwiftClassWithoutClassObject: Sendable, Hashable {
     package let hasObjectiveCAncestry: Bool
     package let readOnlyDataOffset: Int
     package let metaclassReadOnlyDataOffset: Int?
-    /// The isa word of the class's Objective-C class stub (`…CMs`), which
-    /// the categories of its `@objc` extensions point at; `nil` for a
-    /// generic class, which has none.
+    /// The isa word of the class's Objective-C class stub: `…CMs` for a
+    /// class with resilient ancestry, one reserved word into `…CMt` for one
+    /// with generic ancestry. `nil` when the class has no stub (a generic
+    /// class never has one) or, with generic ancestry, when the image is
+    /// stripped of the local `…CMt` symbol, the stub's only name. Only a
+    /// class with resilient ancestry has the categories of its `@objc`
+    /// extensions point at its stub; one with generic ancestry has them
+    /// point at its metadata, whose `class_ro_t` names the class.
     package let classStubOffset: Int?
 }
 
@@ -120,9 +125,9 @@ extension SwiftClassWithoutClassObject {
 /// - A class initialized by the **singleton** pattern otherwise points at
 ///   the statically emitted incomplete metadata, a class object in shape;
 ///   only the stub list registers it, through a stub the descriptor does not
-///   record, found here by its `…CMs` symbol. The Update and FixedOrUpdate
-///   strategies initialize statically emitted metadata too, but theirs is in
-///   the class list, and is left out here.
+///   record, found here through its `…CMt` symbol. The Update and
+///   FixedOrUpdate strategies initialize statically emitted metadata too,
+///   but theirs is in the class list, and is left out here.
 ///
 /// Every class is recorded whether or not it has Objective-C ancestry, as
 /// the class list records every Swift class with a class object; what the

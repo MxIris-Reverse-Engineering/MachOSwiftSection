@@ -2,7 +2,7 @@
 
 - **状态**: Implemented
 - **创建日期**: 2026-10-27
-- **最后更新**: 2026-10-27
+- **最后更新**: 2026-10-28
 - **关联 issue**: [#137](https://github.com/MxIris-Reverse-Engineering/MachOSwiftSection/issues/137)（ObjC 侧）
 - **关联提案**: [0077-thunk-only-objc-members](0077-thunk-only-objc-members.md)（Swift 侧）；MachOObjCSection 的 0014 `host-supplied-classes`（跨仓库，提供本提案要用的 `ObjCSuppliedClass`，随 MachOObjCSection 0.8.201 发布）
 - **实现分支**: `feature/objc-classes-without-class-objects`（已合入 `next`）
@@ -57,3 +57,4 @@
 | 2026-10-27 | 父类名改用 `.interface` 预设打印 | `Xcode Service` 上抓到 `.interfaceType` 预设去掉泛型实参，`MenuBarLabelHostingView` 的父类读成了 `SwiftUI.NSHostingView`。fixture 加了一个父类是别的模块泛型类的例子。 |
 | 2026-10-27 | 渲染 A/B 的差异全部是预期中的改进 | 96 对里 30 对不同，都在 SwiftUI 与 SwiftUICore，没有删掉的声明，也没有类型变化。interface 只多出关键字：`override`、`static` 改成 `override class`、剥过符号的模拟器腿上的 `@objc`，以及 12 处显式 selector。显式 selector 逐个核过：两个 focus 方法与基线给有 class object 的兄弟类的判定相同，`_nsAttributedSubstringFromRange:` 与基线在 iOS 18.5 模拟器腿上的判定相同，`springLoadingHighlightExited:` 是 `NSHostingView<Content>` 方法表里的真实 selector。dump 只多出方法表与祖先链的注释。两侧渲染耗时相同。细节见实现说明的「验证」。 |
 | 2026-10-27 | 改为 Implemented，编号 0078 | 用户批准：A/B 差异全部是预期中的改进就合入 `next`。配套文档写了实现说明 [ClassesWithoutClassObjects.md](../Internal/ClassesWithoutClassObjects.md)，不需要单独的使用指南（CLI 的变化写进了 [ObjCCommandLine.md](../ObjCCommandLine.md) 第 5 条与插件 skill）；新术语 class without a class object 已登记进术语表。 |
+| 2026-10-28 | 落地后更正：只有父类在别的 resilience domain 的类，category 才指向 stub | 核对编译器源码（`GenClass.cpp` 的 `getClassMetadataRef()`、`GenDecl.cpp` 的 `emitExtension`）：只有 `AncestryFlags::ResilientOther` 的类，category 指向 stub、放进 `__objc_catlist2`。父类是本模块泛型类的类，category 指向类自己的 metadata，按 `class_ro_t` 里的运行时名归类，本库的读取器照常并入，`classStubOffset` 用不上；泛型类的 `extension` 不许有 `@objc` 成员。所以正文已知限制与后续项里的「挂在 stub 上的 category」只涉及前一种类，那条后续项还要先读 `__objc_catlist2`。实现不变；代码注释、实现说明与 [ObjCMemberRecovery.md](../Internal/ObjCMemberRecovery.md) 同批改正，正文保持落地时的原样。MachOObjCSection 的文档在它的 `next` 上同样改正了（4efe0dd）。 |

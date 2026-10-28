@@ -263,11 +263,16 @@ package final class ObjCClassMethodIndex: @unchecked Sendable {
     }
 
     /// The hierarchy of a class without a class object: its methods are its
-    /// `class_ro_t`'s and its metaclass's, and its chain starts where its
-    /// descriptor's superclass names (`superclassLocation(of:in:)`). The
-    /// categories of the image's `@objc` extensions point at the class's
-    /// stub, which `targetClassName(of:)` reads no name from, so none is
-    /// found under the class's name.
+    /// `class_ro_t`'s and its metaclass's, plus the image's categories on
+    /// it, and its chain starts where its descriptor's superclass names
+    /// (`superclassLocation(of:in:)`). Which categories are found depends on
+    /// the kind. A class with generic ancestry has the categories of its
+    /// `@objc` extensions point at its metadata, whose `class_ro_t` names
+    /// it, so `targetClassName(of:)` files them under its name. One with
+    /// resilient ancestry has them point at its stub, which names no class,
+    /// and listed in `__objc_catlist2`, which `objcCategories()` does not
+    /// read, so none is found. A generic class has none: Swift rejects
+    /// `@objc` members in its extensions.
     private func hierarchy(of swiftClass: SwiftClassWithoutClassObject, categories: [ObjCCategory64], storage: Storage, reader: some ObjCImplementationClassReading, resolver: ObjCAncestorResolver?, folding: AncestorCategoryFolding) -> ObjCClassHierarchy? {
         let memoKey = Storage.HierarchyMemoKey(classOffset: nil, foreignClassName: nil, readOnlyDataOffset: swiftClass.readOnlyDataOffset, resolverIdentity: resolver?.identity)
         if let memoized = storage.memoizedHierarchy(for: memoKey) {
