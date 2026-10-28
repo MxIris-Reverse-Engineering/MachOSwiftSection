@@ -1,10 +1,20 @@
 import MachOKit
+import MachOFoundation
 @_spi(Core) import MachOObjCSection
+@_spi(Internals) import SwiftInspection
 
 /// Builds a per-image index of the Objective-C protocol declarations
 /// (`__objc_protolist`), keyed by *Swift* qualified name, so an existential
 /// component that misses the Swift protocol index can be recognized as a
 /// Swift-declared `@objc` protocol.
+///
+/// Two sources. Every record with a legacy `_TtP` runtime name — the image's
+/// own protocols and the copies Swift emits of the ones it references —
+/// and the image's own protocols as `SwiftDeclaredObjCProtocolIndex` pairs
+/// them with their field descriptors (evolution proposal
+/// `swift-declared-objc-protocols`), which is what recognizes one the source
+/// renamed with `@objc(Name)` or declared in a type. Without reflection
+/// metadata the second adds nothing the first does not.
 ///
 /// A Swift-declared `@objc` protocol emits **no** Swift protocol descriptor
 /// (`__swift5_protos`) — its only runtime artifact is the Objective-C protocol
@@ -25,9 +35,8 @@ enum ObjCProtocolIndex {
     /// in-process image. An image with no `__objc_protolist` (or with only
     /// native ObjC protocols) contributes nothing.
     static func qualifiedNames(in machO: MachOImage) -> Set<String> {
-        guard let objCProtocols = machO.objc.protocols64 else { return [] }
-        var qualifiedNames: Set<String> = []
-        for objCProtocol in objCProtocols {
+        var qualifiedNames = declaredQualifiedNames(in: machO)
+        for objCProtocol in machO.objc.protocols64 ?? [] {
             if let qualifiedName = swiftQualifiedName(fromLegacyProtocolMangledName: objCProtocol.mangledName(in: machO)) {
                 qualifiedNames.insert(qualifiedName)
             }
@@ -38,14 +47,19 @@ enum ObjCProtocolIndex {
     /// The Swift qualified names of every `@objc` protocol declared in a
     /// file-backed (or dyld-cache-resident) image.
     static func qualifiedNames(in machO: MachOFile) -> Set<String> {
-        guard let objCProtocols = machO.objc.protocols64 else { return [] }
-        var qualifiedNames: Set<String> = []
-        for objCProtocol in objCProtocols {
+        var qualifiedNames = declaredQualifiedNames(in: machO)
+        for objCProtocol in machO.objc.protocols64 ?? [] {
             if let qualifiedName = swiftQualifiedName(fromLegacyProtocolMangledName: objCProtocol.mangledName(in: machO)) {
                 qualifiedNames.insert(qualifiedName)
             }
         }
         return qualifiedNames
+    }
+
+    /// The image's own `@objc` protocols declared in Swift, renamed and
+    /// nested ones included.
+    private static func declaredQualifiedNames(in machO: some MachORepresentableWithCache) -> Set<String> {
+        Set(SwiftDeclaredObjCProtocolIndex.shared.protocols(in: machO).map(\.qualifiedName))
     }
 
     /// Parses the legacy `_TtP<length>module<length>name_` protocol mangling

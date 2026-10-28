@@ -64,9 +64,9 @@ struct SwiftDeclaredObjCProtocolIndexTests {
         #expect(differentlyNamed.hasExplicitObjCName)
 
         // The renamed records nothing claims: the client's own one renamed to
-        // another name, and the kit's renamed one it references.
+        // another name, and the kit's renamed ones it references.
         let unclaimedNames = SwiftDeclaredObjCProtocolIndex.shared.unclaimedSwiftEmittedRecords(in: machO).map(\.runtimeName)
-        #expect(Set(unclaimedNames) == ["PRBDifferentlyNamed", "KITRenamedObserver"])
+        #expect(Set(unclaimedNames) == ["PRBDifferentlyNamed", "KITRenamedObserver", "KitSameName"])
 
         #expect(SwiftDeclaredObjCProtocolIndex.shared.qualifiedName(forRuntimeName: defaultRuntimeName(of: "DerivedSelectors"), in: machO) == qualifiedName("DerivedSelectors"))
         #expect(SwiftDeclaredObjCProtocolIndex.shared.qualifiedName(forRuntimeName: "SameNameRenamed", in: machO) == qualifiedName("SameNameRenamed"))

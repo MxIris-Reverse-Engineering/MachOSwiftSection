@@ -138,6 +138,16 @@ package enum SwiftDeclaredObjCProtocolsFixture {
         public func nestedRequirement() {}
     }
 
+    // Existentials of protocols only their field descriptors name: renamed,
+    // and declared in a type. Class-bound, with no witness table.
+    public struct RenamedProtocolExistentialHolder {
+        public var leading: Int
+        public var renamed: any SameNameRenamed
+        public var nested: any Outer.NestedProtocol
+        public var optionalRenamed: (any SameNameRenamed)?
+        public var trailing: Int8
+    }
+
     // Not @objc, refining an Objective-C protocol: the class data of a class
     // conforming to it lists `NSCopying` as well.
     public protocol CopyingRefinement: NSCopying {}
