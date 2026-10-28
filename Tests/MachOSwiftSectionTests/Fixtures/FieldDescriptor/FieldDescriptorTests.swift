@@ -80,6 +80,36 @@ final class FieldDescriptorTests: MachOSwiftSectionFixtureTests, FixtureSuite, @
 
     // MARK: - Derived var
 
+    /// The section is walked by size, so a wrong `actualSize` would desync
+    /// every later descriptor rather than fail locally. The walk over the
+    /// whole section is the real assertion here.
+    @Test func actualSize() async throws {
+        let genericDescriptors = try loadGenericStructFieldDescriptors()
+        let genericSize = try acrossAllReaders(
+            file: { genericDescriptors.file.actualSize },
+            image: { genericDescriptors.image.actualSize }
+        )
+        #expect(genericSize == FieldDescriptorBaseline.genericStructNonRequirement.actualSize)
+
+        let structTestDescriptors = try loadStructTestFieldDescriptors()
+        let structTestSize = try acrossAllReaders(
+            file: { structTestDescriptors.file.actualSize },
+            image: { structTestDescriptors.image.actualSize }
+        )
+        #expect(structTestSize == FieldDescriptorBaseline.structTest.actualSize)
+        #expect(structTestSize == MemoryLayout<FieldDescriptor.Layout>.size)
+
+        let descriptors = try BaselineFixturePicker.fieldDescriptors(in: machOFile)
+        #expect(descriptors.count == FieldDescriptorBaseline.descriptorCount)
+        for (earlier, later) in zip(descriptors, descriptors.dropFirst()) {
+            #expect(later.offset - earlier.offset == earlier.actualSize)
+        }
+        // The descriptors a type points at are among the ones the walk finds.
+        #expect(descriptors.contains { $0.offset == genericDescriptors.file.offset })
+        #expect(descriptors.contains { $0.offset == structTestDescriptors.file.offset })
+        #expect(try BaselineFixturePicker.fieldDescriptors(in: machOImage).count == descriptors.count)
+    }
+
     @Test func kind() async throws {
         let descriptors = try loadGenericStructFieldDescriptors()
         let result = try acrossAllReaders(

@@ -411,6 +411,8 @@ protocol ObjCImplementationClassReading: MachORepresentableWithCache, Readable {
     func instanceMethods(of category: ObjCCategory64) -> [RawObjCMethod]
     func classMethods(of category: ObjCCategory64) -> [RawObjCMethod]
     func protocolSelectors(of category: ObjCCategory64) -> RawObjCProtocolSelectors
+    /// `__objc_protolist`, every record read in full (`ObjCProtocolRecord.swift`).
+    func objcProtocolRecords() -> [ObjCProtocolRecord]
 }
 
 extension MachOFile: ObjCImplementationClassReading {

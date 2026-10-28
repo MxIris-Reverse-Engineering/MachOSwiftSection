@@ -1000,6 +1000,13 @@ extension BaselineFixturePicker {
 }
 
 extension BaselineFixturePicker {
+    /// The `__swift5_fieldmd` descriptors, in section order.
+    package static func fieldDescriptors(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> [FieldDescriptor] {
+        try machO.swift.fieldDescriptors
+    }
+
     /// The `__swift5_capture` descriptors, in section order.
     package static func captureDescriptors(
         in machO: some MachOSwiftSectionRepresentableWithCache

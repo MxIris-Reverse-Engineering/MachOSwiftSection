@@ -14,6 +14,11 @@ import MachOFoundation
 /// reader methods (`mangledTypeName(in:)`, `records(in:)`) plus their
 /// in-process and ReadingContext overloads.
 ///
+/// `actualSize` is pinned per variant, and the walk over the whole
+/// `__swift5_fieldmd` section (`fieldDescriptors`) by its count: the section
+/// is walked by size, so a wrong `actualSize` desyncs every later
+/// descriptor.
+///
 /// Picker variants:
 ///   - `GenericStructNonRequirement<A>` — three concrete fields
 ///     (`field1: Double`, `field2: A`, `field3: Int`). Exercises the
@@ -45,6 +50,7 @@ package enum FieldDescriptorBaselineGenerator {
         // entries under the scanner's name-based deduplication.
         // `init(layout:offset:)` is filtered as memberwise-synthesized.
         let registered = [
+            "actualSize",
             "kind",
             "layout",
             "mangledTypeName",
@@ -69,8 +75,11 @@ package enum FieldDescriptorBaselineGenerator {
         enum FieldDescriptorBaseline {
             static let registeredTestMethodNames: Set<String> = \(literal: registered)
 
+            static let descriptorCount = \(literal: try BaselineFixturePicker.fieldDescriptors(in: machO).count)
+
             struct Entry {
                 let offset: Int
+                let actualSize: Int
                 let kindRawValue: UInt16
                 let layoutNumFields: Int
                 let layoutFieldRecordSize: Int
@@ -94,6 +103,7 @@ package enum FieldDescriptorBaselineGenerator {
         in machO: some MachOSwiftSectionRepresentableWithCache
     ) throws -> String {
         let offset = descriptor.offset
+        let actualSize = descriptor.actualSize
         let kindRawValue = descriptor.layout.kind
         let layoutNumFields = Int(descriptor.layout.numFields)
         let layoutFieldRecordSize = Int(descriptor.layout.fieldRecordSize)
@@ -104,6 +114,7 @@ package enum FieldDescriptorBaselineGenerator {
         let expr: ExprSyntax = """
         Entry(
             offset: \(raw: BaselineEmitter.hex(offset)),
+            actualSize: \(literal: actualSize),
             kindRawValue: \(raw: BaselineEmitter.hex(kindRawValue)),
             layoutNumFields: \(literal: layoutNumFields),
             layoutFieldRecordSize: \(literal: layoutFieldRecordSize),

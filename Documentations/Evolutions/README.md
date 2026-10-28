@@ -89,4 +89,4 @@
 | [0076](0076-objc-runtime-send-entry-points.md) | 交叉引用把 libobjc 的专用发送入口记成消息发送 | Implemented |
 | [0077](0077-thunk-only-objc-members.md) | 只剩 `@objc` thunk 或 initializing entry point 的成员照样建出来 | Implemented |
 | [0078](0078-objc-classes-without-class-objects.md) | 没有 class object 的 Swift 类：从 Swift 元数据读出它们的 ObjC 类数据 | Implemented |
-| draft | [Swift 源码定义的 `@objc` 协议，以及类对 ObjC 协议的遵循](draft-swift-declared-objc-protocols.md) | Accepted |
+| draft | [Swift 源码定义的 `@objc` 协议，以及类对 ObjC 协议的遵循](draft-swift-declared-objc-protocols.md) | In Progress |
