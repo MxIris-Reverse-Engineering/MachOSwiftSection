@@ -189,8 +189,11 @@ extension Package.Dependency {
             // relative method lists count a selector from the name field
             // itself: the selector base it used to add only exists from
             // macOS 12, so every class and category method of an 11.x cache
-            // read as garbage.
-            "0.8.202" ..< "0.9.0",
+            // read as garbage. 0.8.204 adds `ObjCEvolutionInterfaceBuilder`,
+            // the merged and annotated header `objc evolution --interface`
+            // prints; 0.8.203 carried it too, but crashes the Swift 6.3
+            // compiler of Xcode 26.
+            "0.8.204" ..< "0.9.0",
         ),
     )
 }
