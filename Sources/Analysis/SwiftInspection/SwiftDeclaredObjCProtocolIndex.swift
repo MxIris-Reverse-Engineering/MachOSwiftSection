@@ -129,6 +129,13 @@ package final class SwiftDeclaredObjCProtocolIndex: @unchecked Sendable {
         storage(in: machO)?.qualifiedNamesByRuntimeName[runtimeName]
     }
 
+    /// The image's protocol that goes by `runtimeName` for the Objective-C
+    /// runtime.
+    package func declaredProtocol(forRuntimeName runtimeName: String, in machO: some MachORepresentableWithCache) -> SwiftDeclaredObjCProtocol? {
+        guard let storage = storage(in: machO), storage.qualifiedNamesByRuntimeName[runtimeName] != nil else { return nil }
+        return storage.protocols.first { $0.record?.runtimeName == runtimeName }
+    }
+
     /// Records Swift emitted that no declaration of this image claims.
     package func unclaimedSwiftEmittedRecords(in machO: some MachORepresentableWithCache) -> [ObjCProtocolRecord] {
         storage(in: machO)?.unclaimedSwiftEmittedRecords ?? []
