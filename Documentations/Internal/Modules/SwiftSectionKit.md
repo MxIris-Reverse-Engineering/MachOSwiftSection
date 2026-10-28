@@ -38,7 +38,8 @@ SwiftSectionKit 是 `swift-section` 每个子命令的库版本：一个子命�
 
 - **名字只在 `.output` 目的地才算**，而且在声明本身 dump 成功之后：写文件时产物根本不经过输出端，算了也没人要。算名字失败只置 `name: nil`，不报诊断，否则命令行的 stdout 会多出错误行。
 - **conformance 的名字用 `extension` 那一行的完整拼法**（`ProtocolConformance.dumpedTypeName(isFull: true, …)`，`package` 级），不用公开的 `dumpTypeName`。后者按 interface-type 选项打印，会去掉文件级 private 类型的判别符，而类型自己的名字带着它：fixture 里 `AlphaProtocolWitness` 的类型名是 `SymbolTestsCore.(AlphaProtocolWitness in _82F1…)`，用 `dumpTypeName` 拿到的却是 `SymbolTestsCore.AlphaProtocolWitness`，宿主就会把它和它的 conformance 分进两个文件。`filePrivateTypeAndConformanceShareName` 钉住这一点（换成 `dumpTypeName` 的单点变异实测变红）。associated type 用公开的 `dumpTypeName`，它和 `AssociatedTypeDumper` 的 `extension` 行本来就是同一个函数。
-- header 和「No @objc @implementation classes recognized」那行注释不是声明，照旧走 `write(_:)`；`objc dump` 每个声明后面那个 `.text("")` 空行也是。
+- header 和「No @objc @implementation classes recognized」那行注释不是声明，照旧走 `write(_:)`；`objc dump` 每个声明后面那个 `.text("")` 空行也是，`protocols` 段末尾那行「没有协议认领的 ObjC 协议记录」注释也是。
+- Swift 声明的 `@objc` 协议（`SwiftInspection.SwiftDeclaredObjCProtocol`）归 `.protocols`，名字是协议的 Swift 名；category 的 ObjC 协议遵循（`ObjCCategoryProtocolAdoption`）归 `.protocolConformances`，名字是被 extension 的类（提案 `swift-declared-objc-protocols`）。两种排序都带上它们。
 - 代价是每个 Swift 声明多解析一次名字，命令行用不上也要付；落地前用 release 版对大镜像实测了耗时，见提案的决策日志。
 
 ## 2. 环境

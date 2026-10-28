@@ -6,7 +6,7 @@
 - **所属愿景**: 无
 - **关联提案**: [0048-objc-member-selector-recovery](0048-objc-member-selector-recovery.md)（ObjC 成员表：按 selector 把类的 ObjC 方法联结到 Swift 成员，本提案从这里取实现者的签名）、[0078-objc-classes-without-class-objects](0078-objc-classes-without-class-objects.md)（没有 class object 的类的 `class_ro_t`，它们的协议表也从那里读）
 - **实现分支 / PR**: `feature/swift-declared-objc-protocols`（worktree `.worktrees/MachOSwiftSection-SwiftDeclaredObjCProtocols`，自 `next` 分出）
-- **配套文档**: 落地时写实现说明
+- **配套文档**: [SwiftDeclaredObjCProtocols.md](../Internal/SwiftDeclaredObjCProtocols.md)
 
 ## 摘要
 
@@ -125,12 +125,13 @@ Swift 源码里定义的 `@objc` 协议在 `dump` 和 `interface` 里都不出�
 4. **打印**：interface 的协议声明，以及 dump 的 `protocols` 段。（已完成，`bfecf4bf`）
 5. **类对 ObjC 协议的遵循**：读 `class_ro_t` 与 category 的协议表，打在类声明头部、`extension X: P {}` 与 dump 里。（已完成，`07c6153f`）
 6. **SwiftLayout 的 `ObjCProtocolIndex`** 改用新索引。（已完成，`86568e48`）
-7. **验证**：SymbolTestsCore 的快照、全量测试、渲染 A/B、DVTFoundation 手工核对。
-8. **文档**：实现说明、模块文档、`CLAUDE.md` 的模块清单、术语表、演进账本、插件 skill、文档索引。
+7. **验证**：SymbolTestsCore 的快照、全量测试、渲染 A/B、DVTFoundation 手工核对。（已完成，快照 `7e42d054`；结果见实现说明「验证」）
+8. **文档**：实现说明、模块文档、`CLAUDE.md` 的模块清单、术语表、演进账本、插件 skill、文档索引。（已完成）
 
 ### 后续项
 
 - RuntimeViewer 采用：列出并打印新的定义类型。
+- ABI 快照、diff、evolution 收录这两类事实（要改快照格式）。
 
 ## 决策日志
 
@@ -156,3 +157,5 @@ Swift 源码里定义的 `@objc` 协议在 `dump` 和 `interface` 里都不出�
 | 2026-10-28 | 别的模块改过名的 Swift 协议只对「Swift 生成、本镜像不认领」的记录名去依赖闭包里找，只查带反射元数据的镜像，锁外建索引、锁内按名字缓存 | clang 生成的记录名字的就是 ObjC 协议，没必要找；改过名的协议只能经 field descriptor 认出，跳过没有 fieldmd 的镜像能免掉系统缓存里绝大多数镜像的读取。建索引要 demangle，按项目规则不能在解析器的锁里做。 |
 | 2026-10-28 | `@objc(selector)` 与声明写在同一行 | 本库其它 `@objc(…)` 都这样打；方案示例里分成两行只是排版。 |
 | 2026-10-28 | dump 的要求经 dump 的 resolver 打印，类型不加糖 | dump 的其它符号都不加糖（`Swift.Optional<…>`），这里一致地写成 `Swift.ImplicitlyUnwrappedOptional<…>`。 |
+| 2026-10-28 | 新套件不加进 CI 的过滤名单 | 与最近几个 ObjC 方向的功能一致（它们的套件也没进名单）；新套件测试时现编 fixture，SymbolTestsCore 的两个快照套件已在 CI 里，覆盖输出的变化。 |
+| 2026-10-28 | 实现完成，待合并 | 全量测试 2648 个通过；渲染 A/B 64 对差异逐行归类全部在预期内，没有删掉或改动任何已有声明；DVTFoundation 手工核对通过。 |

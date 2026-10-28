@@ -24,7 +24,7 @@ SwiftThunkAnalysis 干一件事：**不执行 thunk，把它算出来**。
 | 3. thunk 形状识别 | `Analysis/AccessorThunkAnalyzer`、`Analysis/AccessorThunkProgram` |
 | 4. 环境与调用目标解析 | `Resolution/MachOThunkEnvironment`、`Resolution/MetadataAccessorIndex`、`Resolution/DependencyImageResolver`、`Resolution/ThunkAddressSpace` |
 | 5. 对外读取面 | `Resolution/AccessorThunkReader`、`Resolution/AccessorThunkOwnerLayout`、`Resolution/ThunkTypeNodeBuilder`、`SwiftThunkAnalysis` |
-| 6. ObjC 成员表联结 | `ObjCMembers/ObjCMembers`、`ObjCMembers/ObjCMethodThunkReferences` — 复用子系统 1 的解码器与 2 的寄存器跟踪，把一个 ObjC 方法的 IMP 反汇编、收它引用的地址换成 Swift 符号，把类的每一条 ObjC 方法联结到实现它的 Swift 成员——`@objc`、`override`、显式 selector 三个事实的第二档证据（提案 `objc-ancestor-override-recovery` 与 `objc-member-selector-recovery`；hierarchy 与接缝在 SwiftInspection，只有联结表在这里，因为解码器在这里）。见 [ObjCMemberRecovery.md](../ObjCMemberRecovery.md) |
+| 6. ObjC 成员表联结 | `ObjCMembers/ObjCMembers`、`ObjCMembers/ObjCMethodThunkReferences` — 复用子系统 1 的解码器与 2 的寄存器跟踪，把一个 ObjC 方法的 IMP 反汇编、收它引用的地址换成 Swift 符号，把类的每一条 ObjC 方法联结到实现它的 Swift 成员——`@objc`、`override`、显式 selector 三个事实的第二档证据（提案 `objc-ancestor-override-recovery` 与 `objc-member-selector-recovery`；hierarchy 与接缝在 SwiftInspection，只有联结表在这里，因为解码器在这里）。见 [ObjCMemberRecovery.md](../ObjCMemberRecovery.md)。`ObjCMembers/ObjCProtocolWitnesses` 在这张表上替 Swift 声明的 `@objc` 协议找实现每条要求的成员：Swift 类的表按 Swift 全名取（按运行时名取的是 ObjC 类的表，strip 后联结不上 Swift 类的成员），声明的上下文换成协议，显式 selector 按编译器的推导判断。见 [SwiftDeclaredObjCProtocols.md](../SwiftDeclaredObjCProtocols.md) |
 
 ## 当前能读到什么
 

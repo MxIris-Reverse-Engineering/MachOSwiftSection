@@ -2753,6 +2753,25 @@
 - **关联文档**：提案 [0078-objc-classes-without-class-objects](../Evolutions/0078-objc-classes-without-class-objects.md)、[ClassesWithoutClassObjects.md](ClassesWithoutClassObjects.md)、[ObjCMemberRecovery.md](ObjCMemberRecovery.md)「边界与已知限制」、[ThunkOnlyObjCMembers.md](ThunkOnlyObjCMembers.md)「边界」、[ObjCCommandLine.md](../ObjCCommandLine.md) 第 5 条。
 - **对应版本**：未发版（0.24.0 之后）。
 
+## 2026-10-28 Swift 声明的 `@objc` 协议与类对 ObjC 协议的遵循
+
+- **时间段**：2026-10-28，分支 `feature/swift-declared-objc-protocols`（worktree `.worktrees/MachOSwiftSection-SwiftDeclaredObjCProtocols`，基于 `next` 5f09ca46）。
+- **动机**：RuntimeViewer 会话转来的需求，样本是 Xcode 的 DVTFoundation。Swift 源码声明的 `@objc` 协议在 `dump` 与 `interface` 里都不出现：编译器不给它生成 protocol descriptor，本库只从 protocol descriptor 认协议。同一个原因带出第二个缺口：ObjC 协议没有 witness table，类对它的遵循也没有 conformance record，interface 里 Swift 类对任何 ObjC 协议的遵循全部丢失（`class DVTIconReference: __C.NSObject` 少了 `DVTResourceReference, NSCopying`）。用户决定两件一起做。
+- **关键决策**：
+  - 本镜像声明了哪些以 `__swift5_fieldmd` 里 kind 为 `ObjCProtocol` 的 field descriptor 为准，`protocol_t` 的 IsSwift 位不算证据：Swift 会给引用到的别的模块协议生成带这一位的副本，clang 经 `-Swift.h` 生成的副本这一位是 0。配对只看名字。
+  - 要求没有任何 Swift 符号（探针确认，与访问级别、library evolution 无关）。有本镜像的类实现时照抄那个成员；没有时移植 ClangImporter 的 `omitNeedlessWords` 从 selector 推出 Swift 名，再加一步去掉 Swift 插入的 `With`，用 `@objc(selector)` 钉住（用户决定，先用探针拿真实 importer 的输出核对过）。
+  - 找实现者时 Swift 类的成员表要按 Swift 全名取：按运行时名取的是 ObjC 类的表，strip 过的镜像里联结不上 Swift 类的成员——测试在 strip 变体上红了才发现。
+  - 同一模块里的 extension 被编译器并进类自己的 `class_ro_t`，只有 extension 别的模块的类才生成 category（探针确认）。类头部列 `class_ro_t` 的协议；每个 category 打成 `extension X: P {}`，范围因此从「本镜像的类」改成所有 category。隐含的协议（类遵循的 Swift 协议继承的 ObjC 协议）按遵循记录剔除，只认本镜像的 Swift 协议。
+  - 导入的协议在 `__C` 里保留 ObjC 名（`__C.NSObject`），与编译器的 mangling 和现有输出一致，不加 `Protocol` 后缀。别的模块改过名的协议只对「Swift 生成、本镜像不认领」的记录名到依赖闭包里找，只查带反射元数据的镜像，锁外建索引。
+  - 独立的 `ObjCProtocolDefinition`，不动 `ProtocolDefinition`；新增 `ExportStatus.declarationHasNoSymbol`。类头部的协议与 category 遵循只在单版本 interface 里打，diff、evolution 与 ABI 快照都不收录。
+- **落地模块**：MachOSwiftSection（`fieldDescriptors`、`FieldDescriptor.actualSize`）、SwiftInspection（`SwiftDeclaredObjCProtocolIndex`、`ObjCProtocolRecord`、`ObjCTypeEncoding`、`ObjCImporterNaming`、`ObjCProtocolRequirements`、`ObjCRuntimeNames`、`ObjCProtocolAdoptionIndex`、`ObjCAncestorResolver` 的跨镜像协议查找）、SwiftThunkAnalysis（`ObjCProtocolWitnesses`）、SwiftDeclaration（`ObjCProtocolDefinition`、`ObjCCategoryConformance`、`TypeDefinition.objcProtocolNames`、`ExportStatus.declarationHasNoSymbol`）、SwiftIndexing（`objcProtocolDefinitions`、`allObjCProtocolDefinitions`、`objcCategoryConformances`）、SwiftPrinting / SwiftInterface（协议声明、类头部、category 遵循）、SwiftDump 与 SwiftSectionKit（`protocols` 与 `protocolConformances` 两段、类的 `// ObjC protocols:` 行）、SwiftLayout（`ObjCProtocolIndex` 认改过名与嵌套的协议）、MachOTestingSupport（`SwiftDeclaredObjCProtocolsFixture`）。
+- **验证**：都在 JHs-Mac-Studio-Ultra 上跑（Xcode 26.6，远端依赖）。
+  - 全量 `swift test --skip IntegrationTests`：510 个套件、2648 个测试全部通过；已有测试只动了 SymbolTestsCore 的两份快照（新增三个 `@objc` 协议的声明与一个类头部的协议）与 `ExportStatusTests` 的穷举 `switch`。
+  - 渲染 A/B（基线 `next` 5f09ca46）：96 对里 32 对一致、64 对不同，逐行归类全部在预期内——769 处类头部只多了 ObjC 协议，35 行是挪到协议声明后面的 protocol extension，1979 行新增是协议声明、注释与 category 的 `extension`；没有删掉或改动任何已有的声明。两侧渲染耗时持平。
+  - DVTFoundation：11 个协议都打出来，`DVTIconReference` 的头部是 `__C.NSObject, DVTFoundation.DVTResourceReference, __C.NSCopying`。细节见 [SwiftDeclaredObjCProtocols.md](SwiftDeclaredObjCProtocols.md)「验证」。
+- **关联文档**：提案 [swift-declared-objc-protocols](../Evolutions/draft-swift-declared-objc-protocols.md)、[SwiftDeclaredObjCProtocols.md](SwiftDeclaredObjCProtocols.md)、[ObjCMemberRecovery.md](ObjCMemberRecovery.md)、[Modules/SwiftDeclaration.md](Modules/SwiftDeclaration.md)。
+- **对应版本**：未发版。
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节

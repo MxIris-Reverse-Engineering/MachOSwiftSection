@@ -331,6 +331,22 @@ Attribution against a non-macOS binary is limited (it warns and degrades rather 
   (`protocol P<Element>`) can.
 - **Enum-layout patterns marked "not resolved offline"** mean only the extra-inhabitant *index*
   is derivable statically; the concrete bytes need the live metadata.
+- **An `@objc protocol` whose requirements carry `@objc(selector)`, under the comment
+  "Swift names follow the ClangImporter's rules for these selectors"**, is declared in Swift,
+  but the binary keeps no Swift name for any requirement of an `@objc` protocol. When no class
+  of the binary implements one, its Swift name is derived from the selector the way the
+  importer would, so it can differ from the source (`removeObject(at:)` for `remove(at:)`);
+  the selector, which is what the protocol means to the runtime, is exact. A requirement under
+  `// Taken from the conformer X.` is X's own member and exact. `__C.NSObject` after such a
+  protocol's colon is the `NSObject` *protocol* (Swift's `NSObjectProtocol`), spelled the way
+  the compiler mangles it. `dump --sections protocols` on an image with no Swift protocols
+  reports `__swift5_protos not found` and still lists these.
+- **Objective-C protocols after a class's superclass** (`class X: __C.NSObject, M.P,
+  __C.NSCopying`) come from the class's Objective-C metadata: a conformance to an `@objc`
+  protocol has no Swift conformance record. An extension in the class's own module is folded
+  into the class there, so its conformances show in the header too, while
+  `extension __C.NSView: M.P {}` is an extension of another module's class (its category).
+  Neither shows in `diff`, `evolution` or a snapshot.
 - **`@objc(Name)` above a class** is the name the Objective-C runtime knows it by, and matters
   even when it equals the Swift name (`@objc(NSScrollPocket) class NSScrollPocket`): without it
   the runtime name would be the `_TtC…` mangling. That is also the class name `objc` headers
