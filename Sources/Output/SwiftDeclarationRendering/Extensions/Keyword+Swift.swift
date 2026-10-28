@@ -18,6 +18,7 @@ extension Keyword {
         case `override`
         case `static`
         case `dynamic`
+        case `optional`
         case `func`
         case `case`
         case `let`

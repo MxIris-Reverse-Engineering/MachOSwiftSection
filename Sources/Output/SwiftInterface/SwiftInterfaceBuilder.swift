@@ -241,6 +241,21 @@ public final class SwiftInterfaceBuilder<MachO: MachOFieldLayoutRenderable>: Sen
             }
         }
 
+        // `@objc` protocols declared in Swift, which have no protocol
+        // descriptor (evolution proposal `swift-declared-objc-protocols`).
+        // Each trails its own default-implementation extensions, a nested
+        // one included: it prints in an `extension` of its parent.
+        await BlockList {
+            for objcProtocolDefinition in indexer.objcProtocolDefinitions.values {
+                await printCatchedThrowing(
+                    dispatchingTo: eventDispatcher,
+                    context: .init(name: objcProtocolDefinition.protocolName.name, kind: .protocol)
+                ) {
+                    try await printer.printObjCProtocolDefinition(objcProtocolDefinition)
+                }
+            }
+        }
+
         await BlockList {
             // NESTED protocols' default-implementation / protocol-extension
             // blocks: the per-protocol printer emits them trailing TOP-LEVEL
