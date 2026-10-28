@@ -388,45 +388,12 @@ package enum ObjCProtocolRequirementBuilder {
             }
         }
 
-        /// A protocol the Objective-C runtime knows as `runtimeName`: a Swift
-        /// one by its `_TtP` mangling or as this image declares it renamed,
-        /// an imported one in `__C` — with `Protocol` appended when a class
-        /// shares its name, as the importer does (`NSObject` →
-        /// `NSObjectProtocol`). Another image's renamed Swift protocol keeps
-        /// its Objective-C name.
         private func protocolNode(forRuntimeName runtimeName: String) -> Node {
-            if runtimeName.hasPrefix("_TtP"), let node = try? demangleAsNodeTransient(runtimeName), let protocolNode = node.first(of: .protocol) {
-                return protocolNode
-            }
-            if let declared = SwiftDeclaredObjCProtocolIndex.shared.declaredProtocol(forRuntimeName: runtimeName, in: machO),
-               let node = try? demangleAsNodeTransient(declared.mangledName), let protocolNode = node.first(of: .protocol) {
-                return protocolNode
-            }
-            let swiftName = runtimeName == "NSObject" || classExists(named: runtimeName) ? runtimeName + "Protocol" : runtimeName
-            return Node.createTransient(kind: .protocol, children: [Self.module(objcModule), Node.createTransient(kind: .identifier, text: swiftName)])
+            ObjCRuntimeNames.protocolNode(forRuntimeName: runtimeName, in: machO)
         }
 
-        private func classExists(named name: String) -> Bool {
-            if ObjCClassMethodIndex.shared.storage(in: machO)?.classObjectsByRuntimeName[name] != nil {
-                return true
-            }
-            return ObjCAncestorResolverStore.shared.resolver(forImage: machO)?.resolvedClassObject(named: name) != nil
-        }
-
-        /// A class the Objective-C runtime knows as `runtimeName`: a Swift one
-        /// by its `_TtC` mangling or, renamed, through its descriptor; any
-        /// other in `__C`.
         private func classNode(forRuntimeName runtimeName: String) -> Node {
-            if runtimeName.hasPrefix("_Tt"), let node = try? demangleAsNodeTransient(runtimeName), let classNode = node.first(of: .class) {
-                return classNode
-            }
-            if let descriptorOffset = SwiftClassObjectIndex.shared.classDescriptorOffset(forCustomRuntimeName: runtimeName, in: machO),
-               let descriptor = try? ClassDescriptor.resolve(at: machO.context.addressFromOffset(descriptorOffset), in: machO.context),
-               let contextNode = try? SymbolicDemangler.demangleContext(for: .type(.class(descriptor)), in: machO.context),
-               let classNode = contextNode.first(of: .class) {
-                return classNode
-            }
-            return Node.createTransient(kind: .class, children: [Self.module(objcModule), Node.createTransient(kind: .identifier, text: runtimeName)])
+            ObjCRuntimeNames.classNode(forRuntimeName: runtimeName, in: machO)
         }
 
         // MARK: Node shapes

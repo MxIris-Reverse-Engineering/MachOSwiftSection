@@ -54,7 +54,7 @@ final class ExportStatusTests: MachOFileTests, @unchecked Sendable {
             switch typeDefinition.exportStatus {
             case .exported: exportedCount += 1
             case .notExported: notExportedCount += 1
-            case .imageHasNoExportInformation, .descriptorSymbolNameUnresolvable:
+            case .imageHasNoExportInformation, .descriptorSymbolNameUnresolvable, .declarationHasNoSymbol:
                 Issue.record("\(typeDefinition.typeName.name) reached a no-verdict case on an image that has an export trie")
             }
         }
@@ -81,7 +81,7 @@ final class ExportStatusTests: MachOFileTests, @unchecked Sendable {
             switch protocolDefinition.exportStatus {
             case .exported: exportedCount += 1
             case .notExported: notExportedCount += 1
-            case .imageHasNoExportInformation, .descriptorSymbolNameUnresolvable:
+            case .imageHasNoExportInformation, .descriptorSymbolNameUnresolvable, .declarationHasNoSymbol:
                 Issue.record("\(protocolDefinition.protocolName.name) reached a no-verdict case on an image that has an export trie")
             }
         }

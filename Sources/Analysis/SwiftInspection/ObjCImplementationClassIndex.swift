@@ -411,6 +411,8 @@ protocol ObjCImplementationClassReading: MachORepresentableWithCache, Readable {
     func instanceMethods(of category: ObjCCategory64) -> [RawObjCMethod]
     func classMethods(of category: ObjCCategory64) -> [RawObjCMethod]
     func protocolSelectors(of category: ObjCCategory64) -> RawObjCProtocolSelectors
+    /// The runtime names of the protocols the category adopts.
+    func protocolNames(of category: ObjCCategory64) -> [String]
     /// `__objc_protolist`, every record read in full (`ObjCProtocolRecord.swift`).
     func objcProtocolRecords() -> [ObjCProtocolRecord]
 }
@@ -539,6 +541,13 @@ extension MachOFile: ObjCImplementationClassReading {
 
     func protocolSelectors(of category: ObjCCategory64) -> RawObjCProtocolSelectors {
         Self.protocolSelectors(of: category.protocolList(in: self), in: self)
+    }
+
+    func protocolNames(of category: ObjCCategory64) -> [String] {
+        guard let protocolList = category.protocolList(in: self), !protocolList.isListOfLists,
+              let protocols = protocolList.protocols(in: self)
+        else { return [] }
+        return protocols.map { $1.mangledName(in: $0) }
     }
 
     private func rawMethods(of methodList: ObjCMethodList?) -> [RawObjCMethod] {
@@ -687,6 +696,13 @@ extension MachOImage: ObjCImplementationClassReading {
 
     func protocolSelectors(of category: ObjCCategory64) -> RawObjCProtocolSelectors {
         Self.protocolSelectors(of: category.protocolList(in: self), in: self)
+    }
+
+    func protocolNames(of category: ObjCCategory64) -> [String] {
+        guard let protocolList = category.protocolList(in: self), !protocolList.isListOfLists,
+              let protocols = protocolList.protocols(in: self)
+        else { return [] }
+        return protocols.map { $1.mangledName(in: $0) }
     }
 
     private func rawMethods(of methodList: ObjCMethodList?) -> [RawObjCMethod] {

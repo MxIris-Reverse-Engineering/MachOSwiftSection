@@ -112,6 +112,12 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
         @usableFromInline @Mutex
         var allProtocolDefinitions: OrderedDictionary<ProtocolName, ProtocolDefinition> = [:]
 
+        /// The image's `@objc` protocols declared in Swift (evolution
+        /// proposal `swift-declared-objc-protocols`), which no protocol
+        /// descriptor lists.
+        @usableFromInline @Mutex
+        var objcProtocolDefinitions: OrderedDictionary<ProtocolName, ObjCProtocolDefinition> = [:]
+
         @usableFromInline @Mutex
         var typeExtensionDefinitions: OrderedDictionary<ExtensionName, [ExtensionDefinition]> = [:]
 
@@ -139,6 +145,7 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
         var allAllTypeDefinitions: OrderedDictionary<TypeName, MachOIndexedValue<MachO, TypeDefinition>>?
         var allRootProtocolDefinitions: OrderedDictionary<ProtocolName, MachOIndexedValue<MachO, ProtocolDefinition>>?
         var allAllProtocolDefinitions: OrderedDictionary<ProtocolName, MachOIndexedValue<MachO, ProtocolDefinition>>?
+        var allObjCProtocolDefinitions: OrderedDictionary<ProtocolName, MachOIndexedValue<MachO, ObjCProtocolDefinition>>?
         var allTypeExtensionDefinitions: OrderedDictionary<ExtensionName, [MachOIndexedValue<MachO, ExtensionDefinition>]>?
         var allProtocolExtensionDefinitions: OrderedDictionary<ExtensionName, [MachOIndexedValue<MachO, ExtensionDefinition>]>?
         var allTypeAliasExtensionDefinitions: OrderedDictionary<ExtensionName, [MachOIndexedValue<MachO, ExtensionDefinition>]>?
@@ -453,6 +460,7 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
         do {
             eventDispatcher.dispatch(.phaseOperationStarted(phase: .indexing, operation: .protocolIndexing))
             try await indexProtocols()
+            indexObjCProtocols()
             eventDispatcher.dispatch(.phaseOperationCompleted(phase: .indexing, operation: .protocolIndexing))
         } catch {
             eventDispatcher.dispatch(.phaseOperationFailed(phase: .indexing, operation: .protocolIndexing, error: error))
@@ -685,6 +693,23 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
         currentStorage.rootProtocolDefinitions = rootProtocolDefinitions
         currentStorage.allProtocolDefinitions = allProtocolDefinitions
         eventDispatcher.dispatch(.protocolIndexingCompleted(result: SwiftIndexEvents.ProtocolIndexingResult(totalProcessed: currentStorage.protocols.count, successful: successfulCount, failed: failedCount)))
+    }
+
+    /// The image's `@objc` protocols declared in Swift (evolution proposal
+    /// `swift-declared-objc-protocols`): the compiler gives them no protocol
+    /// descriptor, so `indexProtocols()` never sees them. Their requirements
+    /// are read lazily, by each definition's `index(in:)`.
+    private func indexObjCProtocols() {
+        var objcProtocolDefinitions: OrderedDictionary<ProtocolName, ObjCProtocolDefinition> = [:]
+        for declaredProtocol in SwiftDeclaredObjCProtocolIndex.shared.protocols(in: machO) {
+            do {
+                let definition = try ObjCProtocolDefinition(declaredProtocol: declaredProtocol, in: machO)
+                objcProtocolDefinitions[definition.protocolName] = definition
+            } catch {
+                eventDispatcher.dispatch(.protocolProcessingFailed(protocolName: declaredProtocol.qualifiedName, error: error))
+            }
+        }
+        currentStorage.objcProtocolDefinitions = objcProtocolDefinitions
     }
 
     private func indexConformances() async throws {
@@ -1171,6 +1196,20 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
             }
             protocolDefinition.defaultImplementationExtensions = definitions
         }
+
+        // The same for the `@objc` protocols declared in Swift, whose names
+        // take a Swift protocol's `Type > Protocol` shape for this lookup.
+        var objcProtocolDefinitionsByName: [ExtensionName: ObjCProtocolDefinition] = [:]
+        for (protocolName, objcProtocolDefinition) in currentStorage.objcProtocolDefinitions {
+            objcProtocolDefinitionsByName[protocolName.extensionName] = objcProtocolDefinition
+        }
+        for (extensionName, definitions) in currentStorage.protocolExtensionDefinitions {
+            guard let objcProtocolDefinition = objcProtocolDefinitionsByName[extensionName] else { continue }
+            for definition in definitions {
+                definition.isAttachedToProtocolDefinition = true
+            }
+            objcProtocolDefinition.defaultImplementationExtensions = definitions
+        }
     }
 
     private func mergingSameIdentityContainers(_ buckets: OrderedDictionary<ExtensionName, [ExtensionDefinition]>) -> OrderedDictionary<ExtensionName, [ExtensionDefinition]> {
@@ -1232,6 +1271,11 @@ extension SwiftDeclarationIndexer {
 
     @inlinable
     public var allProtocolDefinitions: OrderedDictionary<ProtocolName, ProtocolDefinition> { currentStorage.allProtocolDefinitions }
+
+    /// The image's `@objc` protocols declared in Swift (evolution proposal
+    /// `swift-declared-objc-protocols`), in field-descriptor order.
+    @inlinable
+    public var objcProtocolDefinitions: OrderedDictionary<ProtocolName, ObjCProtocolDefinition> { currentStorage.objcProtocolDefinitions }
 
     @inlinable
     public var typeExtensionDefinitions: OrderedDictionary<ExtensionName, [ExtensionDefinition]> { currentStorage.typeExtensionDefinitions }
@@ -1327,6 +1371,16 @@ extension SwiftDeclarationIndexer {
             result.merge(subIndexer.allAllProtocolDefinitions) { prevValue, nextValue in prevValue }
         }
         allStorageCache.allAllProtocolDefinitions = result
+        return result
+    }
+
+    public var allObjCProtocolDefinitions: OrderedDictionary<ProtocolName, MachOIndexedValue<MachO, ObjCProtocolDefinition>> {
+        if let cached = allStorageCache.allObjCProtocolDefinitions { return cached }
+        var result = currentStorage.objcProtocolDefinitions.mapValues { MachOIndexedValue(machO: machO, value: $0) }
+        for subIndexer in subIndexers {
+            result.merge(subIndexer.allObjCProtocolDefinitions) { current, _ in current }
+        }
+        allStorageCache.allObjCProtocolDefinitions = result
         return result
     }
 
