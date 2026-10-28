@@ -345,7 +345,10 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
         let materializedTypeContext = try typeDefinition.materializedTypeContext(in: machO.context)
 
         try await DeclarationBlock(level: level) {
-            try await renderTypeDeclarationHeader(for: materializedTypeContext, displayParentName: displayParentName, level: level, boundTypeNode: boundTypeNode)
+            // The Objective-C protocols the class adopts print here only: the
+            // diff and evolution renderers leave them out, as the ABI
+            // snapshot does (evolution proposal `swift-declared-objc-protocols`).
+            try await renderTypeDeclarationHeader(for: materializedTypeContext, displayParentName: displayParentName, level: level, boundTypeNode: boundTypeNode, objcProtocolNames: typeDefinition.objcProtocolNames)
         } body: {
             // Per-CHILD catch: one nested child whose printing throws drops
             // only itself — the same per-definition contract `printRoot`

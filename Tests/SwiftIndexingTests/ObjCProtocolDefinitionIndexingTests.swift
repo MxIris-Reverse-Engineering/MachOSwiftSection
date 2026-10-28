@@ -106,6 +106,33 @@ struct ObjCProtocolDefinitionIndexingTests {
         #expect(differentlyNamed.objcRuntimeName == nil)
         #expect(differentlyNamed.hasExplicitObjCName)
         #expect(differentlyNamed.requirements.isEmpty)
+
+        try expectClassAdoptions(in: indexer, machO: machO)
+    }
+
+    /// The Objective-C protocols the classes adopt: in their own data, read
+    /// into the type definitions on `index(in:)`, and in the image's
+    /// categories, collected by `prepare()`.
+    private static func expectClassAdoptions<MachO: MachOSwiftSectionRepresentableWithCache>(in indexer: SwiftDeclarationIndexer<MachO>, machO: MachO) throws {
+        let kitModuleName = SwiftDeclaredObjCProtocolsFixture.kitModuleName
+        func objcProtocolNames(ofClassNamed name: String) throws -> [String] {
+            let typeDefinition = try #require(indexer.allTypeDefinitions.values.first { $0.typeName.name == "\(moduleName).\(name)" }, "\(name) not indexed")
+            try typeDefinition.index(in: machO)
+            return typeDefinition.objcProtocolNames.map(\.name)
+        }
+        #expect(try objcProtocolNames(ofClassNamed: "Conformer") == ["\(moduleName).SameNameRenamed", "__C.NSCopying"])
+        // Adopted in an extension of the class's own module: folded into the
+        // class's own data.
+        #expect(try objcProtocolNames(ofClassNamed: "ExtensionConformer") == ["\(moduleName).RefinedProtocol"])
+        // Another module's: renamed to its own name, found in the kit;
+        // renamed to another, kept as the runtime knows it.
+        #expect(try objcProtocolNames(ofClassNamed: "KitObserverConformer") == ["\(kitModuleName).KitObserver", "__C.KITRenamedObserver", "\(kitModuleName).KitSameName"])
+        // `NSCopying` comes with `CopyingRefinement`, a Swift conformance.
+        #expect(try objcProtocolNames(ofClassNamed: "ImpliedConformer").isEmpty)
+        #expect(try objcProtocolNames(ofClassNamed: "Outer").isEmpty)
+
+        #expect(indexer.objcCategoryConformances.map(\.extendedTypeName.name) == ["__C.NSDateFormatter"])
+        #expect(indexer.objcCategoryConformances.map { $0.protocolNames.map(\.name) } == [["\(moduleName).SameNameRenamed"]])
     }
 
     @Test func modelFromTheFile() async throws {

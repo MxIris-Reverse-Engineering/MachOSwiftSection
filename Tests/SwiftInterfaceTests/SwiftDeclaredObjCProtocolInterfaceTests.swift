@@ -112,14 +112,42 @@ struct SwiftDeclaredObjCProtocolInterfaceTests {
         #expect(!interface.contains("protocol RenamedKitObserver"), "\(interface)")
     }
 
+    /// A class's header lists the Objective-C protocols its own data lists —
+    /// an extension of its own module's included — named in Swift: another
+    /// module's protocol renamed to its own name found through the
+    /// dependency closure, one renamed to another name left as it is, and
+    /// one a Swift conformance implies left out.
+    @Test func classHeadersListAdoptedObjCProtocols() async throws {
+        let interface = try await interface(of: SwiftDeclaredObjCProtocolsFixture.machOFile(.full))
+        let kitModuleName = SwiftDeclaredObjCProtocolsFixture.kitModuleName
+        for expectedHeader in [
+            "class Conformer: __C.NSObject, \(Self.moduleName).SameNameRenamed, __C.NSCopying {",
+            "class ExtensionConformer: __C.NSObject, \(Self.moduleName).RefinedProtocol {",
+            "class KitObserverConformer: __C.NSObject, \(kitModuleName).KitObserver, __C.KITRenamedObserver, \(kitModuleName).KitSameName {",
+            "class ImpliedConformer: __C.NSObject {",
+        ] {
+            #expect(interface.contains("\n\(expectedHeader)"), "\(expectedHeader)\n---\n\(interface)")
+        }
+        // The implied protocol's Swift conformance prints as before.
+        #expect(interface.contains("extension \(Self.moduleName).ImpliedConformer: \(Self.moduleName).CopyingRefinement {}"), "\(interface)")
+    }
+
+    /// An extension of another module's class adopting one: its category's
+    /// protocol list, as an extension of its own.
+    @Test func categoryConformancePrintsAsAnExtension() async throws {
+        let interface = try await interface(of: SwiftDeclaredObjCProtocolsFixture.machOFile(.full))
+        #expect(interface.contains("\nextension __C.NSDateFormatter: \(Self.moduleName).SameNameRenamed {}"), "\(interface)")
+    }
+
     /// The in-process image prints the same declarations.
     @Test func loadedImageMatchesTheFile() async throws {
         let fileInterface = try await interface(of: SwiftDeclaredObjCProtocolsFixture.machOFile(.full))
         let imageInterface = try await interface(of: SwiftDeclaredObjCProtocolsFixture.loadedImage())
-        for prefix in ["@objc protocol DerivedSelectors:", "@objc(SameNameRenamed) protocol SameNameRenamed {", "@objc protocol RefinedProtocol:", "@objc protocol InternalProtocol {", "extension \(Self.moduleName).Outer {"] {
+        for prefix in ["@objc protocol DerivedSelectors:", "@objc(SameNameRenamed) protocol SameNameRenamed {", "@objc protocol RefinedProtocol:", "@objc protocol InternalProtocol {", "extension \(Self.moduleName).Outer {", "class Conformer:", "class KitObserverConformer:"] {
             let fileBlock = block(startingWith: prefix, in: fileInterface)
             #expect(fileBlock != nil, "\(prefix)")
             #expect(fileBlock == block(startingWith: prefix, in: imageInterface), "\(prefix)")
         }
+        #expect(imageInterface.contains("\nextension __C.NSDateFormatter: \(Self.moduleName).SameNameRenamed {}"), "\(imageInterface)")
     }
 }

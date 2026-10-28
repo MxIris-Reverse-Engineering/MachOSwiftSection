@@ -91,6 +91,15 @@ public final class TypeDefinition: Definition, @unchecked Sendable {
     /// See `WrappedPropertyDefinition`.
     public package(set) var wrappedProperties: [WrappedPropertyDefinition] = []
 
+    /// The Objective-C protocols a class adopts, read at index time from its
+    /// `class_ro_t` (evolution proposal `swift-declared-objc-protocols`): an
+    /// `@objc` protocol has no witness table, so no conformance record names
+    /// it. The compiler folds the extensions the class's own module declares
+    /// into the class's data, so theirs are here too. Those a Swift protocol
+    /// the class conforms to inherits are left out — the compiler lists them
+    /// as well, and the Swift conformance already says so.
+    public package(set) var objcProtocolNames: [ProtocolName] = []
+
     public package(set) var variables: [VariableDefinition] = []
 
     public package(set) var functions: [FunctionDefinition] = []

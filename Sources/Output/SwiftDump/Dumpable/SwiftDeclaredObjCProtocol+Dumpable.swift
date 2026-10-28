@@ -73,12 +73,22 @@ package enum SwiftDeclaredObjCProtocolDumpError: Swift.Error, CustomStringConver
 
 extension SwiftDeclaredObjCProtocol {
     /// The records Swift emitted that no protocol of the image claims: a
-    /// renamed protocol of another module the image references, or one of its
-    /// own renamed to a name other than its Swift name. `nil` when there are
-    /// none.
-    package static func unclaimedRecordsComment(in machO: some MachORepresentableWithCache) -> String? {
+    /// renamed protocol of another module the image references — followed by
+    /// its Swift name when an image of the dependency closure declares it —
+    /// or one of its own renamed to a name other than its Swift name. `nil`
+    /// when there are none.
+    package static func unclaimedRecordsComment(using resolver: DemangleResolver, in machO: some MachOSwiftSectionRepresentableWithCache) async throws -> String? {
         let runtimeNames = SwiftDeclaredObjCProtocolIndex.shared.unclaimedSwiftEmittedRecords(in: machO).map(\.runtimeName)
         guard !runtimeNames.isEmpty else { return nil }
-        return "ObjC protocol records emitted by Swift that no protocol of this image claims — renamed protocols of other modules it references, or its own renamed to a name other than their Swift names: \(runtimeNames.joined(separator: ", "))"
+        var entries: [String] = []
+        for runtimeName in runtimeNames {
+            if let protocolNode = ObjCRuntimeNames.swiftProtocolNode(forRuntimeName: runtimeName, in: machO) {
+                let swiftName = try await resolver.resolve(for: Node.createTransient(kind: .type, child: protocolNode)).string
+                entries.append("\(runtimeName) → \(swiftName)")
+            } else {
+                entries.append(runtimeName)
+            }
+        }
+        return "ObjC protocol records emitted by Swift that no protocol of this image claims — renamed protocols of other modules it references, with the Swift name where the dependency closure declares one, or its own renamed to a name other than their Swift names: \(entries.joined(separator: ", "))"
     }
 }

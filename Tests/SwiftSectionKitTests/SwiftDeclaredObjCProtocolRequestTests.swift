@@ -32,6 +32,21 @@ struct SwiftDeclaredObjCProtocolRequestTests {
         #expect(lastProtocol.upperBound < unclaimedRecords.lowerBound, "\(product)")
     }
 
+    @Test("The dump names the ObjC protocols a class adopts, and a category's as a conformance")
+    func dumpListsAdoptedObjCProtocols() async throws {
+        let output = RecordingOutput()
+        try await DumpRequest(
+            source: try Self.source(),
+            dependencySearchPaths: try SwiftDeclaredObjCProtocolsFixture.dependencySearchPaths()
+        ).run(output: output, environment: .testing)
+        let product = output.printedProduct
+
+        #expect(product.contains("// ObjC protocols: \(Self.moduleName).SameNameRenamed, __C.NSCopying\n"), "\(product)")
+        #expect(product.contains("// ObjC protocols: __C.NSCopying (implied by a Swift conformance)\n"), "\(product)")
+        #expect(product.contains("// ObjC protocols: \(SwiftDeclaredObjCProtocolsFixture.kitModuleName).KitObserver, __C.KITRenamedObserver, \(SwiftDeclaredObjCProtocolsFixture.kitModuleName).KitSameName\n"), "\(product)")
+        #expect(product.contains("extension __C.NSDateFormatter: \(Self.moduleName).SameNameRenamed {} // ObjC category at 0x"), "\(product)")
+    }
+
     @Test("The interface declares the protocols")
     func interfaceDeclaresTheProtocols() async throws {
         let output = RecordingOutput()

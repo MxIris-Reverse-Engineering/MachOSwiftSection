@@ -293,6 +293,27 @@ public final class SwiftInterfaceBuilder<MachO: MachOFieldLayoutRenderable>: Sen
                 }
             }
         }
+
+        // The Objective-C protocols the image's extensions of other modules'
+        // classes adopt (evolution proposal `swift-declared-objc-protocols`),
+        // one extension per category; no conformance record names them.
+        await BlockList {
+            for conformance in indexer.objcCategoryConformances where !isExcludedByExportFilter(conformance) {
+                await printCatchedThrowing(
+                    dispatchingTo: eventDispatcher,
+                    context: .init(name: conformance.extendedTypeName.name, kind: .extension)
+                ) {
+                    try await printer.printObjCCategoryConformance(conformance)
+                }
+            }
+        }
+    }
+
+    /// A category conformance on a class of this image the export filter
+    /// drops goes with it.
+    private func isExcludedByExportFilter(_ conformance: ObjCCategoryConformance) -> Bool {
+        guard let typeDefinition = indexer.allTypeDefinitions[conformance.extendedTypeName] else { return false }
+        return printer.isExcludedByExportFilter(typeDefinition)
     }
 
     /// `protocolDefinition`'s default-implementation extensions, read once

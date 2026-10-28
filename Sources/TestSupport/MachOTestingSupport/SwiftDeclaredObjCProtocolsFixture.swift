@@ -9,13 +9,14 @@ import Testing
 /// requirements, only an Objective-C protocol record and a field descriptor
 /// of kind `ObjCProtocol`.
 ///
-/// Two images. The kit `libSwiftDeclaredObjCProtocolsFixtureKit` declares two
-/// `@objc` protocols — one renamed — that the client adopts, so the client
-/// holds Swift-emitted copies of records it does not define. The client
-/// declares one protocol of each shape (selectors the compiler derives,
-/// renamed to its own Swift name, renamed to another name, refining another,
-/// internal, declared in a type) and the classes that adopt them, in three
-/// variants:
+/// Two images. The kit `libSwiftDeclaredObjCProtocolsFixtureKit` declares
+/// three `@objc` protocols — one renamed to its own Swift name, one to
+/// another name — that the client adopts, so the client holds Swift-emitted
+/// copies of records it does not define. The client declares one protocol of
+/// each shape (selectors the compiler derives, renamed to its own Swift name,
+/// renamed to another name, refining another, internal, declared in a type),
+/// the classes that adopt them, and an extension of a Foundation class that
+/// adopts one — a category — in three variants:
 /// - `.full`: reflection metadata and every symbol present.
 /// - `.withoutReflectionMetadata` (`-disable-reflection-metadata`): no
 ///   `__swift5_fieldmd`, so only the records' runtime names say which
@@ -41,6 +42,10 @@ package enum SwiftDeclaredObjCProtocolsFixture {
 
     @objc(KITRenamedObserver) public protocol RenamedKitObserver {
         func renamedObserve()
+    }
+
+    @objc(KitSameName) public protocol KitSameName {
+        func sameNameObserve()
     }
     """
 
@@ -104,7 +109,8 @@ package enum SwiftDeclaredObjCProtocolsFixture {
         public func copy(with zone: NSZone? = nil) -> Any { self }
     }
 
-    // Adopted in an extension: the category lists the protocol.
+    // Adopted in an extension of its own module: the compiler folds the
+    // extension into the class's own data, so no category lists it.
     public class ExtensionConformer: NSObject {}
 
     extension ExtensionConformer: RefinedProtocol {
@@ -113,9 +119,15 @@ package enum SwiftDeclaredObjCProtocolsFixture {
     }
 
     // Adopts the kit's protocols: the client holds copies of their records.
-    public class KitObserverConformer: NSObject, KitObserver, RenamedKitObserver {
+    public class KitObserverConformer: NSObject, KitObserver, RenamedKitObserver, KitSameName {
         public func observe() {}
         public func renamedObserve() {}
+        public func sameNameObserve() {}
+    }
+
+    // An extension of another module's class: a category lists the protocol.
+    extension DateFormatter: SameNameRenamed {
+        public func ping() {}
     }
 
     final class InternalConformer: NSObject, InternalProtocol {
@@ -124,6 +136,14 @@ package enum SwiftDeclaredObjCProtocolsFixture {
 
     public class NestedConformer: NSObject, Outer.NestedProtocol {
         public func nestedRequirement() {}
+    }
+
+    // Not @objc, refining an Objective-C protocol: the class data of a class
+    // conforming to it lists `NSCopying` as well.
+    public protocol CopyingRefinement: NSCopying {}
+
+    public class ImpliedConformer: NSObject, CopyingRefinement {
+        public func copy(with zone: NSZone? = nil) -> Any { self }
     }
 
     public func makeInternalConformer() -> AnyObject {

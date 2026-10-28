@@ -19,6 +19,9 @@ public enum DumpSection: String, CaseIterable, Sendable, Hashable {
     /// declared in Swift, which have no protocol descriptor: they are
     /// recognized from `__swift5_fieldmd` and `__objc_protolist`.
     case protocols
+    /// The conformance records of `__swift5_proto`, then the Objective-C
+    /// protocols the image's categories list — extensions of other modules'
+    /// classes adopting them, which no conformance record names.
     case protocolConformances
     case associatedTypes
     /// Classes implemented through `@objc @implementation`. They have no
@@ -260,7 +263,7 @@ public struct DumpRequest: Sendable, Equatable {
                 for objcProtocol in SwiftDeclaredObjCProtocol.all(in: machOFile) {
                     try await session.dump(.objcProtocol(objcProtocol), using: configuration, in: machOFile)
                 }
-                writeUnclaimedObjCProtocolRecords(in: machOFile, into: session)
+                await writeUnclaimedObjCProtocolRecords(using: configuration, in: machOFile, into: session)
             case .protocolConformances:
                 do {
                     for protocolConformance in try machOFile.swift.protocolConformances {
@@ -270,6 +273,9 @@ public struct DumpRequest: Sendable, Equatable {
                     if !isDefaultSelection {
                         session.reportError(error)
                     }
+                }
+                for categoryAdoption in ObjCProtocolAdoptionIndex.shared.categoryAdoptions(in: machOFile) {
+                    try await session.dump(.objcCategoryConformance(categoryAdoption), using: configuration, in: machOFile)
                 }
             case .associatedTypes:
                 do {
@@ -338,6 +344,7 @@ public struct DumpRequest: Sendable, Equatable {
                     session.reportError(error)
                 }
             }
+            topLevelContexts.append(contentsOf: ObjCProtocolAdoptionIndex.shared.categoryAdoptions(in: machOFile).map { .objcCategoryConformance($0) })
         }
 
         if selectedSections.contains(.associatedTypes) {
@@ -355,15 +362,19 @@ public struct DumpRequest: Sendable, Equatable {
         }
 
         if selectedSections.contains(.protocols) {
-            writeUnclaimedObjCProtocolRecords(in: machOFile, into: session)
+            await writeUnclaimedObjCProtocolRecords(using: configuration, in: machOFile, into: session)
         }
     }
 
     /// The `@objc` protocol records Swift emitted that no protocol of the
     /// image claims, as one comment after the protocols.
-    private func writeUnclaimedObjCProtocolRecords(in machOFile: MachOFile, into session: DumpSession<some SwiftSectionOutput>) {
-        guard let comment = SwiftDeclaredObjCProtocol.unclaimedRecordsComment(in: machOFile) else { return }
-        session.write(SemanticString { Comment(comment) })
+    private func writeUnclaimedObjCProtocolRecords(using configuration: DumperConfiguration, in machOFile: MachOFile, into session: DumpSession<some SwiftSectionOutput>) async {
+        do {
+            guard let comment = try await SwiftDeclaredObjCProtocol.unclaimedRecordsComment(using: configuration.demangleResolver, in: machOFile) else { return }
+            session.write(SemanticString { Comment(comment) })
+        } catch {
+            session.reportError(error)
+        }
     }
 }
 
@@ -375,6 +386,7 @@ private enum DumpTopLevelContext {
     case associatedType(AssociatedType)
     case objcImplementationClass(ObjCImplementationClass)
     case objcProtocol(SwiftDeclaredObjCProtocol)
+    case objcCategoryConformance(ObjCCategoryProtocolAdoption)
 
     var offset: Int {
         switch self {
@@ -382,6 +394,8 @@ private enum DumpTopLevelContext {
             return objcImplementationClass.offset
         case .objcProtocol(let objcProtocol):
             return objcProtocol.offset
+        case .objcCategoryConformance(let categoryAdoption):
+            return categoryAdoption.offset
         case .type(let type):
             switch type {
             case .enum(let `enum`):
@@ -406,7 +420,7 @@ private enum DumpTopLevelContext {
             .types
         case .protocol, .objcProtocol:
             .protocols
-        case .protocolConformance:
+        case .protocolConformance, .objcCategoryConformance:
             .protocolConformances
         case .associatedType:
             .associatedTypes
@@ -433,6 +447,8 @@ private enum DumpTopLevelContext {
             try await objcImplementationClass.dump(using: configuration, in: machOFile)
         case .objcProtocol(let objcProtocol):
             try await objcProtocol.dump(using: configuration, in: machOFile)
+        case .objcCategoryConformance(let categoryAdoption):
+            try await categoryAdoption.dump(using: configuration, in: machOFile)
         }
     }
 
@@ -465,6 +481,8 @@ private enum DumpTopLevelContext {
                 name = try await objcImplementationClass.dumpName(using: configuration, in: context)
             case .objcProtocol(let objcProtocol):
                 name = try await objcProtocol.dumpName(using: configuration, in: context)
+            case .objcCategoryConformance(let categoryAdoption):
+                name = try await categoryAdoption.dumpName(using: configuration, in: context)
             }
             return name.string
         } catch {

@@ -118,6 +118,12 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
         @usableFromInline @Mutex
         var objcProtocolDefinitions: OrderedDictionary<ProtocolName, ObjCProtocolDefinition> = [:]
 
+        /// The Objective-C protocols the image's extensions of other
+        /// modules' classes adopt, from their categories (evolution proposal
+        /// `swift-declared-objc-protocols`).
+        @usableFromInline @Mutex
+        var objcCategoryConformances: [ObjCCategoryConformance] = []
+
         @usableFromInline @Mutex
         var typeExtensionDefinitions: OrderedDictionary<ExtensionName, [ExtensionDefinition]> = [:]
 
@@ -470,6 +476,7 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
         do {
             eventDispatcher.dispatch(.phaseOperationStarted(phase: .indexing, operation: .conformanceIndexing))
             try await indexConformances()
+            currentStorage.objcCategoryConformances = ObjCCategoryConformance.all(in: machO)
             eventDispatcher.dispatch(.phaseOperationCompleted(phase: .indexing, operation: .conformanceIndexing))
         } catch {
             eventDispatcher.dispatch(.phaseOperationFailed(phase: .indexing, operation: .conformanceIndexing, error: error))
@@ -1288,6 +1295,13 @@ extension SwiftDeclarationIndexer {
 
     @inlinable
     public var conformanceExtensionDefinitions: OrderedDictionary<ExtensionName, [ExtensionDefinition]> { currentStorage.conformanceExtensionDefinitions }
+
+    /// The Objective-C protocols the image's extensions of other modules'
+    /// classes adopt (evolution proposal `swift-declared-objc-protocols`),
+    /// in category-list order: no conformance record names them, so no
+    /// conformance extension carries them.
+    @inlinable
+    public var objcCategoryConformances: [ObjCCategoryConformance] { currentStorage.objcCategoryConformances }
 
     @inlinable
     public var globalVariableDefinitions: [VariableDefinition] { currentStorage.globalVariableDefinitions }

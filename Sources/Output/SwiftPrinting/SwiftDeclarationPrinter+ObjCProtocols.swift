@@ -151,6 +151,31 @@ extension SwiftDeclarationPrinter {
         }
     }
 
+    /// An extension the image declares of another module's class that
+    /// adopts Objective-C protocols — `extension Name: P1, P2 {}`, from its
+    /// category (``ObjCCategoryConformance``). No conformance record names
+    /// such a protocol, so no conformance extension prints it.
+    public func printObjCCategoryConformance(_ conformance: ObjCCategoryConformance, level: Int = 1) async throws -> SemanticString {
+        try await LargeStackTaskExecution.run {
+            try await objcCategoryConformance(conformance, level: level)
+        }
+    }
+
+    @SemanticStringBuilder
+    private func objcCategoryConformance(_ conformance: ObjCCategoryConformance, level: Int) async throws -> SemanticString {
+        let resolver = typeDemangleResolver
+        try await DeclarationBlock(level: level) {
+            Keyword(.extension)
+            Space()
+            renderExtendedTypeName(conformance.extendedTypeName.extensionName)
+            for (offset, protocolName) in conformance.protocolNames.offsetEnumerated() {
+                Standard(offset.isStart ? ":" : ",")
+                Space()
+                try await resolver.resolve(for: protocolName.node.materialize())
+            }
+        } body: {}
+    }
+
     private func printingKind(of requirement: ObjCProtocolRequirementDefinition) -> SwiftIndexEvents.PrintingDefinitionKind {
         switch requirement.kind {
         case .method, .initializer: .function

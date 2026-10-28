@@ -25,7 +25,8 @@ struct SwiftDeclaredObjCProtocolDumpTests {
 
     @Test func requirementsNamedFromSelectorsCarryTheirObjCFacts() async throws {
         let output = try await dump(of: "DerivedSelectors", in: SwiftDeclaredObjCProtocolsFixture.machOFile(.full))
-        #expect(output.contains("@objc protocol \(Self.moduleName).DerivedSelectors: __C.NSObject {"), "\(output)")
+        // The test options print imported names without `__C`.
+        #expect(output.contains("@objc protocol \(Self.moduleName).DerivedSelectors: NSObject {"), "\(output)")
         #expect(output.contains("// Evidence: field descriptor of kind ObjCProtocol at 0x"), "\(output)")
         #expect(output.contains("// ObjC protocol _TtP\(Self.moduleName.count)\(Self.moduleName)16DerivedSelectors_, record emitted by Swift at 0x"), "\(output)")
         #expect(output.contains("// Requirements no class of this image implements are named from their selectors"), "\(output)")
@@ -58,10 +59,15 @@ struct SwiftDeclaredObjCProtocolDumpTests {
     }
 
     /// The records no declaration claims: this image's renamed-away one,
-    /// and the kit's renamed protocol it references.
-    @Test func unclaimedRecordsAreListed() throws {
-        let comment = try #require(SwiftDeclaredObjCProtocol.unclaimedRecordsComment(in: SwiftDeclaredObjCProtocolsFixture.machOFile(.full)))
+    /// and the kit's renamed protocols it references — the one renamed to
+    /// its own name found in the kit.
+    @Test func unclaimedRecordsAreListed() async throws {
+        let machOFile = try SwiftDeclaredObjCProtocolsFixture.machOFile(.full)
+        ObjCAncestorResolverStore.shared.register(ObjCAncestorResolver(root: machOFile, searchPaths: try SwiftDeclaredObjCProtocolsFixture.dependencySearchPaths()), for: machOFile)
+        defer { ObjCAncestorResolverStore.shared.remove(for: machOFile) }
+        let comment = try #require(try await SwiftDeclaredObjCProtocol.unclaimedRecordsComment(using: DumperConfiguration.demangleOptions(.test).demangleResolver, in: machOFile))
         #expect(comment.contains("PRBDifferentlyNamed"), "\(comment)")
-        #expect(comment.contains("KITRenamedObserver"), "\(comment)")
+        #expect(comment.contains("KITRenamedObserver,"), "\(comment)")
+        #expect(comment.contains("KitSameName → \(SwiftDeclaredObjCProtocolsFixture.kitModuleName).KitSameName"), "\(comment)")
     }
 }

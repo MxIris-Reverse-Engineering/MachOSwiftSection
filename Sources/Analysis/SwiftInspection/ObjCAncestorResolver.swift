@@ -3,6 +3,7 @@ import FoundationToolbox
 import MachOKit
 import MachOKitExtensions
 import MachOFoundation
+import MachOSwiftSection
 @_spi(Internals) import MachOCaches
 @_spi(Internals) import MachOSymbols
 @_spi(Core) import MachOObjCSection
@@ -53,6 +54,7 @@ public final class ObjCAncestorResolver: @unchecked Sendable {
     private var dependencyImages: DependencyImages?
     private var memoizedClassObjectsByRuntimeName: [String: (any ObjCImplementationClassReading, ObjCClass64)?] = [:]
     private var memoizedCategorySelectorsByRuntimeName: [String: RawObjCCategorySelectors] = [:]
+    private var memoizedSwiftDeclaredObjCProtocolsByRuntimeName: [String: SwiftDeclaredObjCProtocol?] = [:]
 
     /// - Parameter dependencyImages: Produces the images to look in, in
     ///   lookup order; called once, on the first name that reaches a bind.
@@ -174,6 +176,50 @@ public final class ObjCAncestorResolver: @unchecked Sendable {
         }
         memoizedCategorySelectorsByRuntimeName[runtimeName] = result
         return result
+    }
+
+    /// The `@objc` protocol declared in Swift that an image of the closure
+    /// registers under `runtimeName` — another module's protocol renamed with
+    /// `@objc(Name)`, whose name says nothing of its module — or `nil` when
+    /// none does (evolution proposal `swift-declared-objc-protocols`). Only an
+    /// image with reflection metadata can say: its field descriptors are what
+    /// pair a renamed protocol with its record, so the others — every image
+    /// clang alone built — are skipped unread. Memoized per name; the images'
+    /// indexes are built outside the lock, as building one demangles.
+    func swiftDeclaredObjCProtocol(forRuntimeName runtimeName: String) -> SwiftDeclaredObjCProtocol? {
+        lock.lock()
+        if let memoized = memoizedSwiftDeclaredObjCProtocolsByRuntimeName[runtimeName] {
+            lock.unlock()
+            return memoized
+        }
+        if dependencyImages == nil {
+            dependencyImages = makeDependencyImages()
+        }
+        let images = dependencyImages
+        lock.unlock()
+
+        let found: SwiftDeclaredObjCProtocol? = switch images {
+        case .files(let files): Self.firstSwiftDeclaredObjCProtocol(forRuntimeName: runtimeName, in: files)
+        case .loaded(let images): Self.firstSwiftDeclaredObjCProtocol(forRuntimeName: runtimeName, in: images)
+        case nil: nil
+        }
+
+        lock.lock()
+        defer { lock.unlock() }
+        if let memoized = memoizedSwiftDeclaredObjCProtocolsByRuntimeName[runtimeName] {
+            return memoized
+        }
+        memoizedSwiftDeclaredObjCProtocolsByRuntimeName[runtimeName] = .some(found)
+        return found
+    }
+
+    private static func firstSwiftDeclaredObjCProtocol<Image: MachORepresentableWithCache>(forRuntimeName runtimeName: String, in images: [Image]) -> SwiftDeclaredObjCProtocol? {
+        for image in images where image.sections.contains(where: { $0.sectionName == MachOSwiftSectionName.__swift5_fieldmd.rawValue }) {
+            if let declaredProtocol = SwiftDeclaredObjCProtocolIndex.shared.declaredProtocol(forRuntimeName: runtimeName, in: image) {
+                return declaredProtocol
+            }
+        }
+        return nil
     }
 }
 

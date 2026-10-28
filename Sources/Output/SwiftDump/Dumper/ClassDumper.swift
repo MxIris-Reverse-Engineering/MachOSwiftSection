@@ -1,5 +1,5 @@
 import Semantic
-import Demangling
+@_spi(Internals) import Demangling
 import MachOKit
 import MachOSwiftSection
 import Utilities
@@ -217,6 +217,28 @@ package struct ClassDumper<MachO: MachOFieldLayoutRenderable>: TypedDumper {
         }
     }
 
+    /// `ObjC protocols: P, Q`, the protocols the class's own data lists — an
+    /// extension of the class's module included, folded into it by the
+    /// compiler. One a Swift conformance of the class implies is marked, as
+    /// the interface leaves it out.
+    private func objcProtocolComments(ofClassNamed contextNode: Node?) async throws -> [String] {
+        guard let contextNode,
+              let qualifiedName = NodeTypeNaming.nominalQualifiedName(of: contextNode),
+              let adoption = ObjCProtocolAdoptionIndex.shared.adoption(ofSwiftClassQualifiedName: qualifiedName, in: machO)
+        else { return [] }
+        func names(_ runtimeNames: [String]) async throws -> String {
+            var printedNames: [String] = []
+            for runtimeName in runtimeNames {
+                let typeNode = Node.createTransient(kind: .type, child: ObjCRuntimeNames.protocolNode(forRuntimeName: runtimeName, in: machO))
+                let printedName = try await demangleResolver.resolve(for: typeNode).string
+                printedNames.append(adoption.impliedProtocolRuntimeNames.contains(runtimeName) ? "\(printedName) (implied by a Swift conformance)" : printedName)
+            }
+            return printedNames.joined(separator: ", ")
+        }
+        guard !adoption.declaredProtocolRuntimeNames.isEmpty else { return [] }
+        return ["ObjC protocols: \(try await names(adoption.declaredProtocolRuntimeNames))"]
+    }
+
     package var body: SemanticString {
         get async throws {
             // Same-named private types share the stripped name bucket; the
@@ -247,11 +269,22 @@ package struct ClassDumper<MachO: MachOFieldLayoutRenderable>: TypedDumper {
 
             // The ObjC ancestor chain (evolution proposal
             // `objc-ancestor-override-recovery`) right under the header, on a
-            // line of its own — whether or not any member follows.
-            if let hierarchy = objcAncestorChainHierarchy, !hierarchy.ancestors.isEmpty {
+            // line of its own — whether or not any member follows — then the
+            // ObjC protocols the class adopts, which no conformance record
+            // names (evolution proposal `swift-declared-objc-protocols`).
+            let ancestorChainHierarchy = objcAncestorChainHierarchy.flatMap { $0.ancestors.isEmpty ? nil : $0 }
+            let objcProtocolComments = try await objcProtocolComments(ofClassNamed: contextNode)
+            if let ancestorChainHierarchy {
                 BreakLine()
                 Indent(level: 1)
-                Comment(ObjCMemberRendering.ancestorChainComment(for: hierarchy))
+                Comment(ObjCMemberRendering.ancestorChainComment(for: ancestorChainHierarchy))
+            }
+            for objcProtocolComment in objcProtocolComments {
+                BreakLine()
+                Indent(level: 1)
+                Comment(objcProtocolComment)
+            }
+            if ancestorChainHierarchy != nil || !objcProtocolComments.isEmpty {
                 BreakLine()
             }
 
