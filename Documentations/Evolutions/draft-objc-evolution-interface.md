@@ -23,7 +23,7 @@
 ## 落地步骤
 
 1. [x] **选项与校验**：SwiftSectionKit 的 `ObjCAPIEvolutionRequest` 加带标注头文件这种输出，可用性分「不写 / 从 `LC_BUILD_VERSION` 推断 / 指定平台」三种，平台按 ObjC 可用性宏的写法（`macos`、`ios`、`macCatalyst` …）；`--interface` 下的快照输入报错。CLI 加 `--interface`、`--emit-available`、`--platform` 及互斥校验，错误照现有措辞翻译成用法错误。两侧各加测试。这一步还没有渲染器，`--interface` 校验通过后报「渲染器尚未接入」。
-2. [ ] **接上渲染**：对接 MachOObjCSection 的渲染接口（先用本地兄弟依赖），去掉第 1 步的占位；用 fixture 二进制完整跑通一次。
+2. [x] **接上渲染**：对接 MachOObjCSection 的渲染接口（先用本地兄弟依赖），去掉第 1 步的占位；用 fixture 二进制完整跑通一次。
 3. [ ] **集成测试**：`ObjCAPIEvolutionTests.swift` 新加一组套件，输出 `-ObjCEvolutionInterface.h`。
 4. [ ] **文档**：`ObjCCommandLine.md`（及 `_zh`）、agent 插件的 `swift-section-cli` skill 与 `references/objc.md`、演进账本。
 5. [ ] **依赖**：MachOObjCSection 发版后抬依赖下限，用远端依赖重新验证。

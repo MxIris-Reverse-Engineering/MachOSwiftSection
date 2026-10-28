@@ -182,7 +182,7 @@ public struct ObjCAPIEvolutionRequest: Sendable, Equatable {
             throw ObjCAPIEvolutionError.labelCountMismatch(labelCount: labels.count, versionCount: inputs.count)
         }
         if case .annotatedInterface(let availabilityAttributes) = report {
-            return try await runAnnotatedInterface(availabilityAttributes: availabilityAttributes, output: output)
+            return try await runAnnotatedInterface(availabilityAttributes: availabilityAttributes, output: output, environment: environment)
         }
 
         var documents: [ObjCAPISnapshotDocument] = []
@@ -226,7 +226,8 @@ public struct ObjCAPIEvolutionRequest: Sendable, Equatable {
     /// rejected, the same constraint as the Swift `evolution --interface`.
     private func runAnnotatedInterface(
         availabilityAttributes: AvailabilityAttributes,
-        output: some SwiftSectionOutput
+        output: some SwiftSectionOutput,
+        environment: SwiftSectionEnvironment
     ) async throws -> ObjCAPIEvolutionOutcome {
         try SnapshotSource.requireBinaries(inputs)
 
@@ -235,22 +236,53 @@ public struct ObjCAPIEvolutionRequest: Sendable, Equatable {
             output.reportProgress("Loading \(input.path)…")
             machOFiles.append(try binaryLoading.machOSource(forBinaryAt: input.path).load())
         }
+        let resolvedLabels = inputs.enumerated().map { inputIndex, input in
+            labels?[inputIndex] ?? input.defaultLabel
+        }
         // Before indexing, so that a platform that cannot be inferred costs
         // only the loading.
-        _ = try availabilityAttributes.platform(forInputsAt: inputs.map(\.path), loadedAs: machOFiles)
+        let availabilityPlatform = try availabilityAttributes.platform(forInputsAt: inputs.map(\.path), loadedAs: machOFiles)
 
-        // Step 2 of the objc-evolution-interface proposal hands each version
-        // to MachOObjCSection's evolution header renderer here.
-        throw ObjCAnnotatedHeaderRendererUnavailableError()
-    }
-}
+        // One version at a time, oldest first: the builder keeps what it
+        // rendered and snapshotted, never the indexer, so each version's index
+        // is released before the next one is built.
+        var builder = ObjCEvolutionInterfaceBuilder()
+        for (inputIndex, machOFile) in machOFiles.enumerated() {
+            output.reportProgress("Indexing \(inputs[inputIndex].path)…")
+            let indexer = ObjCInterfaceIndexer(
+                machO: machOFile,
+                imagePath: machOFile.imagePath,
+                suppliedClasses: ObjCSuppliedClass.swiftClassesWithoutClassObjects(in: machOFile)
+            )
+            try await indexer.prepare()
+            builder.addVersion(
+                indexer: indexer,
+                machO: machOFile,
+                version: ObjCAPIVersionDescriptor(
+                    label: resolvedLabels[inputIndex],
+                    provenance: ObjCAPIProvenance(
+                        label: resolvedLabels[inputIndex],
+                        binaryPath: inputs[inputIndex].path + binaryLoading.provenancePathSuffix,
+                        generatorVersion: environment.generator.version,
+                        createdAt: environment.currentDate()
+                    )
+                )
+            )
+        }
+        output.reportProgress("Rendering annotated header…")
+        let evolutionInterface = try builder.build(availabilityPlatform: availabilityPlatform)
+        let annotatedHeader = evolutionInterface.interface.string
 
-/// Thrown by an annotated `objc evolution` until MachOObjCSection's evolution
-/// header renderer is connected (step 2 of the objc-evolution-interface
-/// proposal, which removes it).
-struct ObjCAnnotatedHeaderRendererUnavailableError: Error, LocalizedError {
-    var errorDescription: String? {
-        "The annotated Objective-C header needs MachOObjCSection's evolution renderer, which this build does not include yet."
+        switch destination {
+        case .output:
+            output.write(.annotatedInterface(annotatedHeader, style: .evolution))
+        case .file(let path):
+            // The newline printing adds, so that the two destinations hold the
+            // same bytes.
+            try (annotatedHeader + "\n").write(to: URL(fileURLWithPath: path), atomically: true, encoding: .utf8)
+            output.reportProgress("Annotated header written to \(path)")
+        }
+        return ObjCAPIEvolutionOutcome(evolution: evolutionInterface.evolution)
     }
 }
 
