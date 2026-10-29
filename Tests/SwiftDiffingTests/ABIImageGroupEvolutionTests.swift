@@ -159,6 +159,15 @@ struct ABIImageGroupEvolutionTests {
         }, "\(result.protocolExtensions)")
     }
 
+    /// A collision whose images do not line up with its signatures — only
+    /// one built by hand or decoded from edited JSON — words its dropped
+    /// records without images rather than losing a signature.
+    @Test("dropped records whose images do not line up with them are worded without images")
+    func misalignedImagesFallBackToSignatures() {
+        let collision = ABIKeyCollision(key: .mangled("Shared"), containerName: nil, droppedSignatures: ["first", "second"], droppedImageNames: ["UIFoundation"])
+        #expect(collision.droppedRecordDescriptions == ["first", "second"])
+    }
+
     @Test("a declaration two images both define is compared once, and the dropped one names its image")
     func duplicateAcrossImagesNamesItsImage() throws {
         let result = try evolution([
