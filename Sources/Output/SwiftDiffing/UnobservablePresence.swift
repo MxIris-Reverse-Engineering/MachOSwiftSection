@@ -266,6 +266,19 @@ extension Array where Element == ABIVersionDescriptor {
         }
         return runs.map { labels(spanning: $0) }.joined(separator: ", ")
     }
+
+    /// Where a change first observed at `versionIndex` is placed, phrased
+    /// against the axis: `in 3.0` when exact, `between 1.0 and 3.0` — the
+    /// last version seen before it and the first seen after — when it spans
+    /// versions that could not show it, the first of them being
+    /// `earliestVersionIndex`.
+    func placement(ofChangeAt versionIndex: Int, earliestVersionIndex: Int?) -> String {
+        guard let earliestVersionIndex, earliestVersionIndex > 0, indices.contains(versionIndex) else {
+            let label = indices.contains(versionIndex) ? self[versionIndex].label : "v\(versionIndex + 1)"
+            return "in " + label
+        }
+        return "between \(self[earliestVersionIndex - 1].label) and \(self[versionIndex].label)"
+    }
 }
 
 extension LineageEvent {
@@ -273,11 +286,7 @@ extension LineageEvent {
     /// exact, `between 1.0 and 3.0` — the last version seen before it and
     /// the first seen after — when it spans versions that could not show it.
     public func placement(on versions: [ABIVersionDescriptor]) -> String {
-        guard let earliestVersionIndex, earliestVersionIndex > 0, versions.indices.contains(versionIndex) else {
-            let label = versions.indices.contains(versionIndex) ? versions[versionIndex].label : "v\(versionIndex + 1)"
-            return "in " + label
-        }
-        return "between \(versions[earliestVersionIndex - 1].label) and \(versions[versionIndex].label)"
+        versions.placement(ofChangeAt: versionIndex, earliestVersionIndex: earliestVersionIndex)
     }
 }
 

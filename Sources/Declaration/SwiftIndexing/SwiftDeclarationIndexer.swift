@@ -900,23 +900,70 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
         @Dependency(\.symbolIndexStore)
         var symbolIndexStore
 
+        var extensionMemberSymbolsByName = await symbolIndexStore.memberSymbols(
+            of: .allocator(inExtension: true),
+            .variable(inExtension: true, isStatic: false, isStorage: false),
+            .variable(inExtension: true, isStatic: true, isStorage: false),
+            .variable(inExtension: true, isStatic: true, isStorage: true),
+            .function(inExtension: true, isStatic: false),
+            .function(inExtension: true, isStatic: true),
+            .subscript(inExtension: true, isStatic: false),
+            .subscript(inExtension: true, isStatic: true),
+            excluding: [],
+            in: machO
+        )
+
+        // The members this image declares on a type another image defines,
+        // with no extension context in their mangling (evolution proposal
+        // `image-group-evolution`): SwiftUI's members of the types SwiftUICore
+        // defines under `@_originallyDefinedIn(module: "SwiftUI", …)` mangle
+        // like members of the type's own body. Only a definition of this image
+        // gathers such members, so these belonged to none; they join the
+        // extension members of their type instead.
+        //
+        // Only a struct, class or enum of one of this image's own Swift
+        // modules qualifies, reached from its module through other nominal
+        // types, and none this image defines or names as a protocol. The
+        // image also carries other modules' members it never declared — the
+        // standard library's inlinable code emitted into it, the importer's
+        // `init?(rawValue:)` for a C enum — and the symbols of its own types
+        // and protocols can carry a context their definitions do not gather by
+        // name: a type nested in a constrained extension, a protocol's
+        // requirements. A stored instance property cannot be declared outside
+        // its type's body, so none is taken.
+        let namesDefinedInThisImage = Set(currentStorage.allTypeDefinitions.keys.map(\.name))
+            .union(currentStorage.allProtocolDefinitions.keys.map(\.name))
+        let swiftModuleNamesOfThisImage = Set(
+            (currentStorage.allTypeDefinitions.keys.map(\.node) + currentStorage.allProtocolDefinitions.keys.map(\.node))
+                .compactMap(Self.moduleName(of:))
+        ).subtracting([CImportedModuleNames.objectiveC, CImportedModuleNames.cSynthesized])
+        let membersOfOtherImagesTypes = await symbolIndexStore.memberSymbols(
+            of: .allocator(inExtension: false),
+            .variable(inExtension: false, isStatic: false, isStorage: false),
+            .variable(inExtension: false, isStatic: true, isStorage: false),
+            .variable(inExtension: false, isStatic: true, isStorage: true),
+            .function(inExtension: false, isStatic: false),
+            .function(inExtension: false, isStatic: true),
+            .subscript(inExtension: false, isStatic: false),
+            .subscript(inExtension: false, isStatic: true),
+            excluding: namesDefinedInThisImage,
+            in: machO
+        )
+        for (typeNodeKey, memberSymbolsByKind) in membersOfOtherImagesTypes {
+            guard let moduleName = Self.moduleNameOfNominalTypeReachedThroughNominalTypes(typeNodeKey.reference),
+                  swiftModuleNamesOfThisImage.contains(moduleName)
+            else { continue }
+            for (kind, memberSymbols) in memberSymbolsByKind {
+                extensionMemberSymbolsByName[typeNodeKey, default: [:]][Self.extensionMemberKind(of: kind), default: []].append(contentsOf: memberSymbols)
+            }
+        }
+
         // The members an optimized image kept only another entry point of —
         // their `@objc` thunk, an initializer's initializing entry point —
         // join the real symbols as stand-ins (evolution proposal
         // `thunk-only-objc-members`).
         let memberSymbolsByName = StandInMemberSymbols.supplementingExtensionMembers(
-            await symbolIndexStore.memberSymbols(
-                of: .allocator(inExtension: true),
-                .variable(inExtension: true, isStatic: false, isStorage: false),
-                .variable(inExtension: true, isStatic: true, isStorage: false),
-                .variable(inExtension: true, isStatic: true, isStorage: true),
-                .function(inExtension: true, isStatic: false),
-                .function(inExtension: true, isStatic: true),
-                .subscript(inExtension: true, isStatic: false),
-                .subscript(inExtension: true, isStatic: true),
-                excluding: [],
-                in: machO
-            ),
+            extensionMemberSymbolsByName,
             symbolIndexStore: symbolIndexStore,
             in: machO
         )
@@ -1127,6 +1174,61 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
         }
 
         eventDispatcher.dispatch(.extensionIndexingCompleted(result: SwiftIndexEvents.ExtensionIndexingResult(typeExtensions: typeExtensionCount, protocolExtensions: protocolExtensionCount, typeAliasExtensions: typeAliasExtensionCount, failed: failedExtensions)))
+    }
+
+    /// The module of the struct, class or enum `typeNode` names when its
+    /// context is that module, possibly through other structs, classes and
+    /// enums — no extension, protocol or function context on the way — and
+    /// `nil` for any other shape. That is the only shape a member of a type
+    /// another image defines can carry without an extension context of its
+    /// own.
+    private static func moduleNameOfNominalTypeReachedThroughNominalTypes(_ typeNode: NodeReference) -> String? {
+        var currentNode: NodeReference? = typeNode.kind == .type ? typeNode.children.first : typeNode
+        guard let nominalNode = currentNode, [.structure, .class, .enum].contains(nominalNode.kind) else { return nil }
+        currentNode = nominalNode.children.first
+        while let contextNode = currentNode {
+            switch contextNode.kind {
+            case .module:
+                return contextNode.text
+            case .structure, .class, .enum:
+                currentNode = contextNode.children.first
+            default:
+                return nil
+            }
+        }
+        return nil
+    }
+
+    /// The module a type or protocol name's node is declared in: the module
+    /// at the root of its context chain, whatever contexts lie on the way.
+    private static func moduleName(of nameNode: NodeReference) -> String? {
+        var currentNode: NodeReference? = nameNode
+        while let node = currentNode {
+            if node.kind == .module {
+                return node.text
+            }
+            currentNode = node.children.first
+        }
+        return nil
+    }
+
+    /// The extension-member counterpart of `kind`, under which a member of a
+    /// type another image defines joins the extension members of that type.
+    private static func extensionMemberKind(of kind: SymbolIndexStore.MemberKind) -> SymbolIndexStore.MemberKind {
+        switch kind {
+        case .allocator:
+            .allocator(inExtension: true)
+        case .constructor:
+            .constructor(inExtension: true)
+        case .subscript(_, let isStatic):
+            .subscript(inExtension: true, isStatic: isStatic)
+        case .variable(_, let isStatic, let isStorage):
+            .variable(inExtension: true, isStatic: isStatic, isStorage: isStorage)
+        case .function(_, let isStatic):
+            .function(inExtension: true, isStatic: isStatic)
+        case .deallocator, .destructor:
+            kind
+        }
     }
 
     private func indexGlobals() async throws {

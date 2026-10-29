@@ -1,5 +1,8 @@
 package enum MachOImageName: String {
     case AppKit
+    case UIFoundation
+    case CollectionViewCore
+    case CoreAutoLayout
     case SwiftUI
     case SwiftUICore
     case AttributeGraph

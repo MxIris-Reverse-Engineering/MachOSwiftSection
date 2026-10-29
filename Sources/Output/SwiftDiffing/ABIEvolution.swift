@@ -5,10 +5,15 @@ public struct ABIVersionDescriptor: Sendable, Codable, Equatable {
     /// positional fallback.
     public let label: String
     public let provenance: ABIProvenance?
+    /// For a version made up of a group of images (evolution proposal
+    /// `image-group-evolution`): the images it holds, in the group's order.
+    /// `nil` when the evolution compares one image per version.
+    public let imageNames: [String]?
 
-    public init(label: String, provenance: ABIProvenance? = nil) {
+    public init(label: String, provenance: ABIProvenance? = nil, imageNames: [String]? = nil) {
         self.label = label
         self.provenance = provenance
+        self.imageNames = imageNames
     }
 }
 
@@ -91,7 +96,9 @@ public enum LineagePresenceState: String, Sendable, Codable, Equatable {
 /// container, when that span says something (inferred present, or a bound
 /// left unknown), so a reader learns which versions said nothing about them.
 /// A member unseen only where its container is unseen is the container's
-/// story, as the members of an added or removed container are.
+/// story, as the members of an added or removed container are. Over groups
+/// of images, a member that moved between images on its own — not along
+/// with its container — has a lineage for its moves too.
 public struct MemberLineage: Sendable, Codable, Equatable {
     public let key: ABIKey
     public let kind: MemberKind
@@ -112,8 +119,14 @@ public struct MemberLineage: Sendable, Codable, Equatable {
     public let presenceStates: [LineagePresenceState]?
     /// The member's rendering from the latest version that shows it, carried
     /// only by a lineage without events — one materialized for its
-    /// unobservable versions alone — since an event otherwise carries it.
+    /// unobservable versions or its moves alone — since an event otherwise
+    /// carries it.
     public let latestSignature: String?
+    /// Where the member moved between the images of a version's group
+    /// without its container moving the same way (evolution proposal
+    /// `image-group-evolution`), ordered by `versionIndex`; `nil` when it
+    /// never did, and always for an evolution of one image per version.
+    public let imageMoves: [ImageMove]?
 
     public init(
         key: ABIKey,
@@ -121,7 +134,8 @@ public struct MemberLineage: Sendable, Codable, Equatable {
         presence: [Bool],
         events: [LineageEvent],
         presenceStates: [LineagePresenceState]? = nil,
-        latestSignature: String? = nil
+        latestSignature: String? = nil,
+        imageMoves: [ImageMove]? = nil
     ) {
         self.key = key
         self.kind = kind
@@ -129,6 +143,7 @@ public struct MemberLineage: Sendable, Codable, Equatable {
         self.events = events
         self.presenceStates = presenceStates
         self.latestSignature = latestSignature
+        self.imageMoves = imageMoves
     }
 }
 
@@ -155,6 +170,12 @@ public struct ContainerLineage: Sendable, Codable, Equatable {
     /// version without local Swift symbols; `nil` when every version was
     /// observed (evolution proposal `evolution-unobservable-presence`).
     public let presenceStates: [LineagePresenceState]?
+    /// Where the container moved between the images of a version's group
+    /// (evolution proposal `image-group-evolution`), ordered by
+    /// `versionIndex`; `nil` when it never did, and always for an evolution
+    /// of one image per version. A container that only moved has a lineage
+    /// for its moves alone.
+    public let imageMoves: [ImageMove]?
 
     public init(
         key: ABIKey,
@@ -163,7 +184,8 @@ public struct ContainerLineage: Sendable, Codable, Equatable {
         presence: [Bool],
         events: [LineageEvent],
         memberLineages: [MemberLineage],
-        presenceStates: [LineagePresenceState]? = nil
+        presenceStates: [LineagePresenceState]? = nil,
+        imageMoves: [ImageMove]? = nil
     ) {
         self.key = key
         self.name = name
@@ -172,6 +194,7 @@ public struct ContainerLineage: Sendable, Codable, Equatable {
         self.events = events
         self.memberLineages = memberLineages
         self.presenceStates = presenceStates
+        self.imageMoves = imageMoves
     }
 }
 

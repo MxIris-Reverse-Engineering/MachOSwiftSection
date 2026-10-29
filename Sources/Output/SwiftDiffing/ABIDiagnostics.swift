@@ -18,11 +18,16 @@ public struct ABIKeyCollision: Sendable, Codable, Equatable {
     /// Human-readable renderings of the records that were dropped (the first
     /// record with the key was kept and compared).
     public let droppedSignatures: [String]
+    /// For a version made up of a group of images (evolution proposal
+    /// `image-group-evolution`): the image each dropped record came from,
+    /// one-to-one with `droppedSignatures`. `nil` for a snapshot of one image.
+    public let droppedImageNames: [String]?
 
-    public init(key: ABIKey, containerName: String?, droppedSignatures: [String]) {
+    public init(key: ABIKey, containerName: String?, droppedSignatures: [String], droppedImageNames: [String]? = nil) {
         self.key = key
         self.containerName = containerName
         self.droppedSignatures = droppedSignatures
+        self.droppedImageNames = droppedImageNames
     }
 }
 
@@ -85,55 +90,91 @@ public struct ABIDiffDiagnostics: Sendable, Codable, Equatable {
     }
 }
 
+/// The image each record of a snapshot merged from a group of images came
+/// from (evolution proposal `image-group-evolution`), parallel to the
+/// snapshot's arrays: the six container axes in `keyCollisions()`'s order
+/// (types, protocols, then the four extension buckets), each container's
+/// members, and the two global buckets.
+struct SnapshotRecordImageNames {
+    /// Per axis, one image per container.
+    var containerImageNames: [[String]]
+    /// Per axis, per container, one image per member.
+    var memberImageNames: [[[String]]]
+    var globalVariableImageNames: [String]
+    var globalFunctionImageNames: [String]
+}
+
 extension ABISnapshot {
     /// Every identity-key collision the first-wins keying would silently
     /// resolve when this snapshot is diffed: duplicate container keys within
     /// one axis, and duplicate member identities within one container or
     /// global bucket. Deterministically ordered (container name, then key).
     public func keyCollisions() -> [ABIKeyCollision] {
+        keyCollisions(imageNames: nil)
+    }
+
+    /// ``keyCollisions()`` of a snapshot merged from a group of images, each
+    /// dropped record named with the image it came from when `imageNames`
+    /// says which (evolution proposal `image-group-evolution`).
+    func keyCollisions(imageNames: SnapshotRecordImageNames?) -> [ABIKeyCollision] {
         var collisions: [ABIKeyCollision] = []
-        for axis in [types, protocols, typeExtensions, protocolExtensions, typeAliasExtensions, conformanceExtensions] {
-            collectContainerKeyCollisions(axis, into: &collisions)
-            for container in axis {
-                collectMemberKeyCollisions(container.members, containerName: container.name, into: &collisions)
+        for (axisIndex, axis) in [types, protocols, typeExtensions, protocolExtensions, typeAliasExtensions, conformanceExtensions].enumerated() {
+            collectContainerKeyCollisions(axis, imageNames: imageNames?.containerImageNames[axisIndex], into: &collisions)
+            for (containerIndex, container) in axis.enumerated() {
+                collectMemberKeyCollisions(
+                    container.members,
+                    containerName: container.name,
+                    imageNames: imageNames?.memberImageNames[axisIndex][containerIndex],
+                    into: &collisions
+                )
             }
         }
-        collectMemberKeyCollisions(globalVariables, containerName: nil, into: &collisions)
-        collectMemberKeyCollisions(globalFunctions, containerName: nil, into: &collisions)
+        collectMemberKeyCollisions(globalVariables, containerName: nil, imageNames: imageNames?.globalVariableImageNames, into: &collisions)
+        collectMemberKeyCollisions(globalFunctions, containerName: nil, imageNames: imageNames?.globalFunctionImageNames, into: &collisions)
         return collisions.sorted {
             ($0.containerName ?? "", $0.key.sortKey) < ($1.containerName ?? "", $1.key.sortKey)
         }
     }
 
     /// Two containers with the same key on one axis (dropped ones surface by
-    /// name — a container has no signature).
-    private func collectContainerKeyCollisions(_ containers: [ContainerSnapshot], into collisions: inout [ABIKeyCollision]) {
+    /// name — a container has no signature). `imageNames` is parallel to
+    /// `containers`.
+    private func collectContainerKeyCollisions(_ containers: [ContainerSnapshot], imageNames: [String]?, into collisions: inout [ABIKeyCollision]) {
         var firstSeen: Set<ABIKey> = []
         var droppedNamesByKey: [ABIKey: [String]] = [:]
-        for container in containers {
+        var droppedImageNamesByKey: [ABIKey: [String]] = [:]
+        for (containerIndex, container) in containers.enumerated() {
             if firstSeen.contains(container.key) {
                 droppedNamesByKey[container.key, default: []].append(container.name)
+                if let imageNames {
+                    droppedImageNamesByKey[container.key, default: []].append(imageNames[containerIndex])
+                }
             } else {
                 firstSeen.insert(container.key)
             }
         }
         for (key, droppedNames) in droppedNamesByKey {
-            collisions.append(ABIKeyCollision(key: key, containerName: nil, droppedSignatures: droppedNames))
+            collisions.append(ABIKeyCollision(key: key, containerName: nil, droppedSignatures: droppedNames, droppedImageNames: droppedImageNamesByKey[key]))
         }
     }
 
-    private func collectMemberKeyCollisions(_ members: [MemberRecord], containerName: String?, into collisions: inout [ABIKeyCollision]) {
+    /// `imageNames` is parallel to `members`.
+    private func collectMemberKeyCollisions(_ members: [MemberRecord], containerName: String?, imageNames: [String]?, into collisions: inout [ABIKeyCollision]) {
         var firstSeen: Set<ABIKey> = []
         var droppedSignaturesByKey: [ABIKey: [String]] = [:]
-        for member in members {
+        var droppedImageNamesByKey: [ABIKey: [String]] = [:]
+        for (memberIndex, member) in members.enumerated() {
             if firstSeen.contains(member.identityKey) {
                 droppedSignaturesByKey[member.identityKey, default: []].append(member.signature)
+                if let imageNames {
+                    droppedImageNamesByKey[member.identityKey, default: []].append(imageNames[memberIndex])
+                }
             } else {
                 firstSeen.insert(member.identityKey)
             }
         }
         for (key, droppedSignatures) in droppedSignaturesByKey {
-            collisions.append(ABIKeyCollision(key: key, containerName: containerName, droppedSignatures: droppedSignatures))
+            collisions.append(ABIKeyCollision(key: key, containerName: containerName, droppedSignatures: droppedSignatures, droppedImageNames: droppedImageNamesByKey[key]))
         }
     }
 

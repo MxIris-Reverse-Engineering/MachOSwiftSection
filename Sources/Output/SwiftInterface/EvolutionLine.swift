@@ -22,11 +22,15 @@ public struct EvolutionAnnotation: Sendable, Equatable {
     /// proposal `evolution-unobservable-presence`); `nil` when every version
     /// was observed.
     public let presenceStates: [LineagePresenceState]?
+    /// Where the declaration moved between the images of a version's group
+    /// (evolution proposal `image-group-evolution`); `nil` when it never did.
+    public let imageMoves: [ImageMove]?
 
-    public init(presence: [Bool], events: [LineageEvent], presenceStates: [LineagePresenceState]? = nil) {
+    public init(presence: [Bool], events: [LineageEvent], presenceStates: [LineagePresenceState]? = nil, imageMoves: [ImageMove]? = nil) {
         self.presence = presence
         self.events = events
         self.presenceStates = presenceStates
+        self.imageMoves = imageMoves
     }
 }
 

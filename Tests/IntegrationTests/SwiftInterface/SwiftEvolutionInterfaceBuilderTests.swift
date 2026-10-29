@@ -86,6 +86,50 @@ extension SwiftEvolutionInterfaceDumpTests {
         guard let newestVersion = versions.last else { return }
         try await write(annotatedInterfaceReport(of: builder), for: newestVersion.machO, suffix: "EvolutionInterface")
     }
+
+    // MARK: - Groups of images
+
+    /// Versions made up of groups of images (evolution proposal
+    /// `image-group-evolution`): each version's images render as one
+    /// interface, every declaration through the image that indexed it.
+    private func preparedBuilder(
+        imageGroupVersions: [(label: String, images: [(imageName: MachOImageName, machO: MachOFile)])],
+        availabilityAnnotationPlatform: String?
+    ) async throws -> AnySwiftEvolutionInterfaceBuilder {
+        let builder = try AnySwiftEvolutionInterfaceBuilder(
+            configuration: indexConfiguration,
+            imageGroups: imageGroupVersions.map { version in
+                version.images.map { SwiftEvolutionInterfaceImage(imageName: $0.imageName.rawValue, machO: $0.machO) }
+            },
+            labels: imageGroupVersions.map(\.label),
+            availabilityAnnotationPlatform: availabilityAnnotationPlatform
+        )
+        try await measuringPreparation {
+            try await builder.prepare()
+        }
+        return builder
+    }
+
+    /// Console analogue of `evolutionInterfaceFile(imageGroupVersions:availabilityAnnotationPlatform:)`.
+    func evolutionInterfaceString(
+        imageGroupVersions: [(label: String, images: [(imageName: MachOImageName, machO: MachOFile)])],
+        availabilityAnnotationPlatform: String? = nil
+    ) async throws {
+        let builder = try await preparedBuilder(imageGroupVersions: imageGroupVersions, availabilityAnnotationPlatform: availabilityAnnotationPlatform)
+        printResult(try await annotatedInterfaceReport(of: builder))
+    }
+
+    /// Writes the annotated union interface of an evolution over groups of
+    /// images, named after the newest version's group
+    /// (`…-SwiftUI+SwiftUICore-EvolutionInterface.swiftinterface`).
+    func evolutionInterfaceFile(
+        imageGroupVersions: [(label: String, images: [(imageName: MachOImageName, machO: MachOFile)])],
+        availabilityAnnotationPlatform: String? = nil
+    ) async throws {
+        let builder = try await preparedBuilder(imageGroupVersions: imageGroupVersions, availabilityAnnotationPlatform: availabilityAnnotationPlatform)
+        guard let newestVersion = imageGroupVersions.last else { return }
+        try await write(annotatedInterfaceReport(of: builder), forImageGroup: newestVersion.images, suffix: "EvolutionInterface")
+    }
 }
 
 enum SwiftEvolutionInterfaceBuilderTestSuite {
@@ -230,6 +274,47 @@ enum SwiftEvolutionInterfaceBuilderTestSuite {
         @available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *)
         @Test func evolutionInterfaceString() async throws {
             try await evolutionInterfaceString(versions: versions, availabilityAnnotationPlatform: "macOS")
+        }
+    }
+
+    /// SwiftUI together with SwiftUICore across the default three caches
+    /// (15.5 → 26.5.2 → 27.0), each version one group of images (evolution
+    /// proposal `image-group-evolution`) — the axis of
+    /// `ABIEvolutionTestSuite.SwiftUIImageGroupDyldCacheTests`, so the
+    /// interface and the report can be read side by side.
+    final class SwiftUIImageGroupDyldCacheTests: ABIEvolutionTestSuite.MultiVersionDyldCacheImageTests, SwiftEvolutionInterfaceDumpTests, @unchecked Sendable {
+        override class var cacheImageNames: [MachOImageName] { [.SwiftUI, .SwiftUICore] }
+
+        @available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *)
+        @Test func evolutionInterfaceFile() async throws {
+            try await evolutionInterfaceFile(imageGroupVersions: imageGroupVersions)
+        }
+
+        @available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *)
+        @Test func evolutionInterfaceString() async throws {
+            try await evolutionInterfaceString(imageGroupVersions: imageGroupVersions)
+        }
+    }
+
+    /// The same group across every archived macOS cache (`ArchivedDyldCacheTests`'
+    /// axis): SwiftUI alone until 14.8, SwiftUICore joining it in 15.0. Every
+    /// label is a version number, so the interface also spells each
+    /// lifecycle one attribute can express as `@available(macOS, …)`.
+    final class SwiftUIImageGroupArchivedDyldCacheTests: ABIEvolutionTestSuite.MultiVersionDyldCacheImageTests, SwiftEvolutionInterfaceDumpTests, @unchecked Sendable {
+        override class var cachePaths: [DyldSharedCachePath] {
+            ArchivedDyldCacheTests.cachePaths
+        }
+
+        override class var cacheImageNames: [MachOImageName] { [.SwiftUI, .SwiftUICore] }
+
+        @available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *)
+        @Test func evolutionInterfaceFile() async throws {
+            try await evolutionInterfaceFile(imageGroupVersions: imageGroupVersions, availabilityAnnotationPlatform: "macOS")
+        }
+
+        @available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *)
+        @Test func evolutionInterfaceString() async throws {
+            try await evolutionInterfaceString(imageGroupVersions: imageGroupVersions, availabilityAnnotationPlatform: "macOS")
         }
     }
 }

@@ -2835,6 +2835,24 @@
   - 合入前（`next` 合进分支之后，JHs-Mac-Studio-Ultra，Xcode 26.6，远端依赖：MachOObjCSection 0.8.204、MachOKit 0.55.100、MachOKitExtensions 1.3.0、swift-demangling 0.7.2、swift-semantic-string 0.5.0；fixture 用 0.24.0 发版审计时编的那份，此后 fixture 源码只改过注释）：全量 `swift test --skip IntegrationTests` 2,700 个测试、514 个套件，只有 `next` 后加的 `AbbreviatedIdentifierScanTests` 抓到本分支代码里的 `lhs` / `rhs`；改名为 `left` / `right` 后重跑该扫描与 SwiftDiffingTests，112 个测试全过，原始退出码 0。
 - **对应版本**：未发版。发版说明要写：evolution 与 diff 不再把被剥符号版本里看不见的成员报成删除；ABI 快照格式升到 9，旧快照要重新生成。
 
+## 2026-10-29：一个版本由一组 image 组成的演进（落地时编号）
+
+- **时间段**：2026-10-29，分支 `feature/image-group-evolution`（worktree `.worktrees/MachOSwiftSection-ImageGroupEvolution`，基于 `next` e1221a02）。
+- **动机**：用户要 ObjC 演进的集成套件支持多个 image。Apple 拆框架时声明在 image 之间搬家（AppKit 的类挪进 UIFoundation、CollectionViewCore，SwiftUI 的类型在 macOS 15 挪进 SwiftUICore），一个版本只读一个 image 时，搬走的报成删除、搬来的报成新增，看不出它们其实没有消失。
+- **关键决策**：
+  - ObjC 侧由 MachOObjCSection 的会话实现（提案 `objc-evolution-image-groups`），本库做 Swift 侧与集成测试；两边约定同一套输入形状（每个版本一个有序的单 image 快照列表）、搬家记录（`ImageMove`，成员跟着容器挪的不另记）与报告文案。
+  - 先把改同一批文件、已完成待合并的 `feature/evolution-unobservable-presence` 合进 `next`（第 115 节），再从 `next` 切本分支。
+  - 报告、JSON 与联合接口都支持，命令行不接。
+  - 顺带修掉单 image 的漏收：SwiftUI 给 SwiftUICore 类型加的、mangling 不带 extension 上下文的成员原先在 SwiftUI 的 interface 与快照里整个消失；现在收进 `extension <类型>`，快照格式升到 10（dump 不经这条路径）。判据收紧过两次：第一版只按名字排除本 image 的类型，SymbolTestsCore 的 interface 快照抓到误收的协议符号与带约束 extension 里的嵌套类型，改成只认「模块 → struct、class、enum 一路下来」的上下文；渲染 A/B 又抓到 image 里带着的别的模块的成员（标准库内联的代码、ClangImporter 给 C 枚举合成的成员），再要求类型的模块是本 image 自己的 Swift 模块。同一模块里没有类型描述符的内部命名空间等原先同样被丢掉的成员也一并收进来。
+  - 组里定义了的类型，另一个 image 给它加的普通 extension 并回类型本体比较，否则类型搬家那一版会报成「类型里删掉、extension 里新增」。
+- **落地**：SwiftIndexing（`indexExtensions()` 收别的 image 的类型的成员）、SwiftDiffing（`ImageGroups.swift`、`ABIEvolutionBuilder.evolution(ofImageGroups:versions:)`、报告、collision 的 image 名）、SwiftInterface（`InterfaceVersionGroupUnit`、`AnySwiftEvolutionInterfaceBuilder(…, imageGroups:…)`、注解短语与图例）、测试 fixture `ImageGroupFixture`、IntegrationTests（`MultiVersionDyldCacheImageTests.cacheImageNames` 与 SwiftUI + SwiftUICore 的报告和联合接口套件）、文档（`ABIEvolutionDesign.md` 第七批、`Modules/SwiftInterface.md`、术语表 image group、agent 插件 skill 的快照格式一段）。提案见 [draft-image-group-evolution](../Evolutions/draft-image-group-evolution.md)。
+- **验证**：都在 JHs-Mac-Studio-Ultra 上跑（Xcode 26.6，远端依赖同第 115 节）。
+  - 漏收成员的复现测试（`MembersOfAnotherImagesTypeTests`）在修复前 3 处失败、修复后通过；第一版判据让全量里 SymbolTestsCore 的 interface 快照变红，收紧后转绿。
+  - 第一到第三步合在一起：全量 `swift test --skip IntegrationTests` 2,729 个测试、518 个套件全部通过，原始退出码 0；IntegrationTests 编译通过（按项目规定不运行）。
+  - 第一次渲染 A/B 抓到别的模块的成员被印成 extension（标准库内联的代码、ClangImporter 给 C 枚举合成的成员）；加上模块判据后，回归测试修复前变红、修复后转绿，全量 2,731 个测试、518 个套件全部通过，原始退出码 0。
+  - 第二次渲染 A/B（基线 `next` e1221a02，候选 a0a7dc27，两侧共用一份 `Package.resolved`）：96 对里 77 对逐字节一致，所有 dump 一致；差异只在 SwiftUI、SwiftUICore、Combine 的 interface，全部只增不减，新 extension 全在本 image 自己的模块上，别的模块的 extension 块两侧逐字节一致。macOS 26.6 cache 的 SwiftUI 多出 1,222 行、52 个 extension（`Text.accessibilityTextContentType(_:)` 等）；拆分之前的 iOS 15.5 SwiftUI 也多出 191 行，是没有类型描述符的内部命名空间之类本模块原先丢掉的成员；Combine 多出 `Combine.CombineFeatures` 的一个静态成员。
+- **对应版本**：未发版。发版说明要写：interface 补上本模块里没有哪个定义收到的成员（SwiftUI 给 SwiftUICore 类型加的那批、内部命名空间的静态成员）；ABI 快照格式升到 10；evolution 能以一组 image 为一个版本比较、记录组内搬家（目前经库 API，命令行未接）。
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节

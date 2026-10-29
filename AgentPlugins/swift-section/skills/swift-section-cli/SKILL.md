@@ -288,12 +288,16 @@ swift-section evolution 17.0.json 18.0.json /path/Foo --labels 17.0,18.0,26.0
   descriptor names (see §9), which an old baseline would report as added wholesale. Format 7 (0.23.0
   and later) rejects every format-6 baseline: a type declared in a function or closure body is recorded
   under its own full name now (see §9), and an old baseline would report each one as removed —
-  a breaking change — and added again. Format 9 (0.25.0 and later) rejects every earlier baseline,
-  for two reasons: in an optimized build the newer tool also records the members whose only symbol
+  a breaking change — and added again. Format 10 (0.25.0 and later) rejects every earlier baseline,
+  for three reasons: in an optimized build the newer tool also records the members whose only symbol
   is their `@objc` thunk or their initializing entry point (see §9), which an old baseline would
-  report as added; and a snapshot now records whether its image keeps local Swift symbols and
-  whether each member is exported, which the not-observable rule above needs. Format 8 only ever
-  existed on the development branch, between those two changes.
+  report as added; a snapshot now records whether its image keeps local Swift symbols and whether
+  each member is exported, which the not-observable rule above needs; and an image's extensions now
+  hold the members of its own module's types that no definition in the image gathers — SwiftUI's
+  members of the types SwiftUICore defines, an internal namespace whose type descriptor was stripped —
+  which earlier tools left out of `interface` and the snapshot, and an old baseline would report as
+  added. `dump` does not show them. Formats 8 and 9 only ever existed on the development branch,
+  between those changes.
 
 ## 8. `--resolve-c-module-names` (interface, macOS only)
 

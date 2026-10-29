@@ -87,6 +87,60 @@ extension ABIEvolutionDumpTests {
         let evolution = try ABIEvolutionBuilder().evolution(of: documents)
         try write(String(decoding: ABIJSON.encoder().encode(evolution), as: UTF8.self), for: newestVersion.machO, suffix: "Evolution", fileExtension: "json")
     }
+
+    // MARK: - Groups of images
+
+    /// Versions made up of groups of images (evolution proposal
+    /// `image-group-evolution`): every image of every version indexed and
+    /// frozen as `snapshotDocuments(of:)` freezes one, round-tripped through
+    /// the persisted form, under its image name.
+    private func imageGroupEvolution(
+        of imageGroupVersions: [(label: String, images: [(imageName: MachOImageName, machO: MachOFile)])]
+    ) async throws -> ABIEvolution {
+        var imageGroups: [[ABIImageSnapshot]] = []
+        try await measuringPreparation {
+            for version in imageGroupVersions {
+                var imageSnapshots: [ABIImageSnapshot] = []
+                for image in version.images {
+                    let builder = SwiftDiffableInterfaceBuilder(configuration: indexConfiguration, in: image.machO)
+                    try await builder.prepare()
+                    let document = ABISnapshotDocument(
+                        provenance: ABIProvenance(
+                            label: version.label,
+                            binaryPath: image.machO.imagePath,
+                            generatorVersion: "IntegrationTests",
+                            createdAt: Date()
+                        ),
+                        snapshot: builder.snapshot()
+                    )
+                    imageSnapshots.append(ABIImageSnapshot(
+                        imageName: image.imageName.rawValue,
+                        snapshot: try ABISnapshotDocument.decode(from: document.encoded()).snapshot
+                    ))
+                }
+                imageGroups.append(imageSnapshots)
+            }
+        }
+        return try ABIEvolutionBuilder().evolution(
+            ofImageGroups: imageGroups,
+            versions: imageGroupVersions.map { ABIVersionDescriptor(label: $0.label) }
+        )
+    }
+
+    /// Console analogue of `evolutionFile(imageGroupVersions:)`.
+    func evolutionString(imageGroupVersions: [(label: String, images: [(imageName: MachOImageName, machO: MachOFile)])]) async throws {
+        printResult(ABIEvolutionReporter().report(try await imageGroupEvolution(of: imageGroupVersions)))
+    }
+
+    /// Writes the timeline report and the JSON of an evolution over groups of
+    /// images, named after the newest version's group
+    /// (`…-SwiftUI+SwiftUICore-Evolution.txt` / `.json`).
+    func evolutionFile(imageGroupVersions: [(label: String, images: [(imageName: MachOImageName, machO: MachOFile)])]) async throws {
+        let evolution = try await imageGroupEvolution(of: imageGroupVersions)
+        guard let newestVersion = imageGroupVersions.last else { return }
+        try write(ABIEvolutionReporter().report(evolution), forImageGroup: newestVersion.images, suffix: "Evolution", fileExtension: "txt")
+        try write(String(decoding: ABIJSON.encoder().encode(evolution), as: UTF8.self), forImageGroup: newestVersion.images, suffix: "Evolution", fileExtension: "json")
+    }
 }
 
 enum ABIEvolutionTestSuite {
@@ -109,14 +163,29 @@ enum ABIEvolutionTestSuite {
     /// its main file alone, every read into another sub-cache file mapped that
     /// file once more until MachOObjCSection 0.8.109, and an evolution over
     /// every archived macOS minor ran past 5 GB.
+    ///
+    /// A suite comparing a group of images per version (evolution proposal
+    /// `image-group-evolution`) lists them in `cacheImageNames`, the primary
+    /// image first: AppKit with the frameworks Apple moved its classes into,
+    /// SwiftUI with SwiftUICore. A version joins the axis when its cache has
+    /// the primary image on the axis; each other image joins its group where
+    /// the cache has it on the axis — CollectionViewCore is in the macOS
+    /// caches from 13.0 on, SwiftUICore from 15.0 on.
     @TestActor
     class MultiVersionDyldCacheImageTests: Sendable {
         let caches: [FullDyldCache]
+        /// Each version's primary image.
         let versions: [(label: String, machO: MachOFile)]
+        /// Each version's group of images, the primary image first.
+        let imageGroupVersions: [(label: String, images: [(imageName: MachOImageName, machO: MachOFile)])]
 
         /// Oldest first; each cache's `versionLabel` labels it on the axis.
         class var cachePaths: [DyldSharedCachePath] { [.macOS_15_5, .macOS_26_5_2, .macOS_27_0] }
         class var cacheImageName: MachOImageName { .SwiftUI }
+
+        /// The images whose declarations make up one version, the primary
+        /// image first; by default the primary image alone.
+        class var cacheImageNames: [MachOImageName] { [cacheImageName] }
 
         /// Whether a version's image belongs on the axis: it must carry the
         /// metadata the suite indexes, which for the Swift suites is a
@@ -128,17 +197,23 @@ enum ABIEvolutionTestSuite {
         init() async throws {
             var caches: [FullDyldCache] = []
             var versions: [(label: String, machO: MachOFile)] = []
+            var imageGroupVersions: [(label: String, images: [(imageName: MachOImageName, machO: MachOFile)])] = []
             for cachePath in Self.cachePaths {
                 let cache = try FullDyldCache(path: cachePath)
-                guard let machOFile = cache.machOFile(named: Self.cacheImageName),
-                      Self.isOnAxis(machOFile) else {
+                let images = Self.cacheImageNames.compactMap { imageName -> (imageName: MachOImageName, machO: MachOFile)? in
+                    guard let machOFile = cache.machOFile(named: imageName), Self.isOnAxis(machOFile) else { return nil }
+                    return (imageName, machOFile)
+                }
+                guard let primaryImage = images.first, primaryImage.imageName == Self.cacheImageNames.first else {
                     continue
                 }
                 caches.append(cache)
-                versions.append((cachePath.versionLabel, machOFile))
+                versions.append((cachePath.versionLabel, primaryImage.machO))
+                imageGroupVersions.append((cachePath.versionLabel, images))
             }
             self.caches = caches
             self.versions = versions
+            self.imageGroupVersions = imageGroupVersions
         }
     }
 
@@ -154,6 +229,47 @@ enum ABIEvolutionTestSuite {
         @available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *)
         @Test func evolutionString() async throws {
             try await evolutionString(versions: versions)
+        }
+    }
+
+    /// SwiftUI together with SwiftUICore across the default three caches
+    /// (15.5 → 26.5.2 → 27.0), each version one group of images (evolution
+    /// proposal `image-group-evolution`): what moved between the two images
+    /// after the split reads as moved, not as removed and added.
+    final class SwiftUIImageGroupDyldCacheTests: MultiVersionDyldCacheImageTests, ABIEvolutionDumpTests, @unchecked Sendable {
+        override class var cacheImageNames: [MachOImageName] { [.SwiftUI, .SwiftUICore] }
+
+        @available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *)
+        @Test func evolutionFile() async throws {
+            try await evolutionFile(imageGroupVersions: imageGroupVersions)
+        }
+
+        @available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *)
+        @Test func evolutionString() async throws {
+            try await evolutionString(imageGroupVersions: imageGroupVersions)
+        }
+    }
+
+    /// The same group across every archived macOS cache, on the axis of
+    /// `SwiftEvolutionInterfaceBuilderTestSuite.ArchivedDyldCacheTests`:
+    /// SwiftUI alone until 14.8, SwiftUICore joining it in 15.0 — where an
+    /// evolution of SwiftUI alone reads every declaration moved into
+    /// SwiftUICore as removed.
+    final class SwiftUIImageGroupArchivedDyldCacheTests: MultiVersionDyldCacheImageTests, ABIEvolutionDumpTests, @unchecked Sendable {
+        override class var cachePaths: [DyldSharedCachePath] {
+            SwiftEvolutionInterfaceBuilderTestSuite.ArchivedDyldCacheTests.cachePaths
+        }
+
+        override class var cacheImageNames: [MachOImageName] { [.SwiftUI, .SwiftUICore] }
+
+        @available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *)
+        @Test func evolutionFile() async throws {
+            try await evolutionFile(imageGroupVersions: imageGroupVersions)
+        }
+
+        @available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *)
+        @Test func evolutionString() async throws {
+            try await evolutionString(imageGroupVersions: imageGroupVersions)
         }
     }
 
