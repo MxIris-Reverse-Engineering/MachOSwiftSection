@@ -1,0 +1,48 @@
+# Draft - 一个版本由一组 image 组成的演进
+
+- **状态**: Accepted
+- **创建日期**: 2026-10-29
+- **最后更新**: 2026-10-29
+- **所属愿景**: 无
+- **关联提案**: [0013](0013-swift-evolution-interface-builder.md)（evolution 联合接口）、[0081](0081-evolution-unobservable-presence.md)（看不见的版本）、MachOObjCSection 的 `draft-objc-evolution-image-groups`（ObjC 侧，由那个仓库的会话实现）
+- **实现分支 / PR**: `feature/image-group-evolution`（worktree `.worktrees/MachOSwiftSection-ImageGroupEvolution`，基于 `next` e1221a02）
+
+## 摘要
+
+evolution 一个版本只读一个 image。Apple 拆框架时声明会在 image 之间搬家：AppKit 的东西挪进 UIFoundation、CollectionViewCore、CoreAutoLayout，macOS 15 起 SwiftUI 的大批类型挪进 SwiftUICore（带 `@_originallyDefinedIn(module: "SwiftUI")`，mangled name 不变）。单 image 的演进把搬走的报成 removed、搬来的报成 added，其实它们没有消失。本案让一个版本由一组 image（image group）组成：组里的声明合成一个 API 面来比较，组内搬家不再报成增删，而是单独记成 moved（`> moved in 15.0: SwiftUI → SwiftUICore`）；lineage 报告、JSON 与联合接口都支持。顺带修掉一个单 image 就有的缺口：SwiftUI 二进制里给 SwiftUICore 类型加的成员，mangling 里没有 extension 上下文，索引器只在类型自己的 image 里收这类成员，结果 SwiftUI 的 dump、interface 与快照里它们整个消失（macOS 26.7 的 SwiftUI interface 里就没有 `Text.accessibilityTextContentType(_:)`）。ObjC 侧的同一功能由 MachOObjCSection 的会话实现，两边约定同一套模型与文案。
+
+## 方案
+
+**第一步：索引漏收的成员**（单独提交）。`SwiftDeclarationIndexer.indexExtensions()` 另外收「类型不在本 image、mangling 里也没有 extension 上下文」的成员（allocator、函数、计算属性、下标、静态存储属性；实例存储属性除外），当作该类型的 extension 成员，进 `extension <类型>`。按类型名排除本 image 定义的类型，用的是 `TypeDefinition` 收成员时用的同一个名字。单 image 的 dump、interface 从此能看到这些成员；ABI 快照的格式版本从 9 升到 10，旧基线会把它们全报成新增。渲染 A/B 在 Ultra 上跑，差异应当只有新出现的这批成员，逐类核对后写进本提案。
+
+**第二步：SwiftDiffing 的 image 组**。
+
+- 输入：每个版本一个有序的单 image 快照列表，主 image 在前：`ABIImageSnapshot(imageName:snapshot:)`；入口 `ABIEvolutionBuilder().evolution(ofImageGroups: [[ABIImageSnapshot]], versions: [ABIVersionDescriptor])`。单 image 快照与它的文档格式不变，image 名由调用方给出。组为空就当这个版本什么都没有。
+- 合并：types、protocols、globals 直接拼接，同 key 的只比较组里第一个 image 的，其余走现有的 key collision 报出；四个 extension 桶里同 key 的容器合成一个，成员按组顺序拼接。组里定义了的类型，它的普通 extension 容器（没有协议、没有 `where`、不是 retroactive）并回类型本体：单 image 时这些成员本来就算在类型本体里，跨 image 才分出去，不并回就会在搬家那一版报成「类型里删掉、extension 里新增」。
+- 看不见的版本：组里任一 image 没有 local Swift 符号，这个版本就按没有 local Swift 符号处理，宁可多标看不见，不误报删除。
+- 搬家：一个声明在跳变两侧都观测到在场、两侧所在的 image 集合不同，就记一条 `ImageMove(versionIndex:oldImageNames:newImageNames:earliestVersionIndex:)`；中间隔着看不见的版本时比较两侧最近的观测，`earliestVersionIndex` 标出起点。成员只在旧集合 ≠ 新集合、并且 (旧, 新) 与所属容器的不同时才记，整个类型搬走时不给每个成员都记一遍。只有搬家的 lineage 也要收录；没有事件的成员 lineage 用 0081 加的 `latestSignature` 带签名。搬家不进兼容性判定：旧 image 有没有 re-export 新 image，快照里没有这个事实，只报不判。
+- 模型只增不改：`ABIVersionDescriptor.imageNames`、`ContainerLineage.imageMoves`、`MemberLineage.imageMoves`、`ABIKeyCollision.droppedImageNames`，值为空时不编码，单 image 的 `evolution --json` 逐字节不变。
+- 报告：头部那行下面紧跟 `Image group:` 与每个 image 的在场位图（按在轴上首次出现的顺序），`--summary-only` 也带；跳变摘要多一项 `N moved`；事件行与搬家行按版本合并排序，同一版本里事件在前：`> moved in 15.0: SwiftUI → SwiftUICore`、`> moved between 12.7 and 15.0: …`，集合用 ` + ` 连接；collision 警告写成 `dropped: <签名> (SwiftUICore)`。
+
+**第三步：联合接口的 image 组**。`SwiftEvolutionInterfaceImage(imageName:machO:)` 与 `AnySwiftEvolutionInterfaceBuilder(…, imageGroups:labels:…)`。内部一个版本由几个单 image 的渲染单元组成，每个声明交给索引它的那个 image 的打印器：容器按定义的身份找，成员跟着所属容器走，全局声明按 image 逐个列。并回类型本体的 extension 成员在类型体里渲染，与 evolution 的口径一致。注解多一种短语 `moved in 15.0: SwiftUI → SwiftUICore`，与其他短语按版本顺序用 ` · ` 连接；图例在位图位置那行之后加 `// Image group:` 与每个 image 的位图，放在 `@available` 说明之前。单 image 的构造与输出不变。
+
+**第四步：集成测试与文档**。`MachOImageName` 加 UIFoundation、CollectionViewCore、CoreAutoLayout；`ABIEvolutionTestSuite.MultiVersionDyldCacheImageTests` 加 `cacheImageNames`（默认只有主 image）和逐版本的 image 组，主 image 在场才上轴，其余在场才加入；Swift 侧新增 SwiftUI + SwiftUICore 的报告与联合接口套件（默认三版本轴与 51 版归档轴）；ObjC 的两个套件等 MachOObjCSection 的 API 进了它的 `next` 后改成 AppKit + UIFoundation + CollectionViewCore + CoreAutoLayout，另加 SwiftUI + SwiftUICore。产物文件名用组里的 image 名以 `+` 连接。文档同批更新 `ABIEvolutionDesign.md`、`Modules/SwiftInterface.md`、术语表（image group）与演进账本，agent 插件的 skill 只改快照格式那一段。
+
+**没问就定下的假设**：
+
+- 命令行这次不接，`evolution` 不加选项。
+- 两版本的 `ABIDiffer.diff` 不加 image 组入口。
+- 组里定义了的类型，它的普通 extension 容器不论 mangling 带不带 extension 上下文都并回类型本体；这只影响成员列在哪个容器下，不影响身份。
+
+**测试**：第一步用现编的两 image fixture（`ProbeCore` 定义带 `@_originallyDefinedIn(module: "Probe")` 的类型，`Probe` 给它加成员），验证单 image 索引收到这些成员、带 extension 上下文的跨模块成员照旧；第二步用手工快照覆盖合并规则、并回、搬家（容器、成员、只跟着容器走的不记、隔着看不见的版本）、collision 的 image 名、单 image JSON 不变与两个文本报告；第三步用同一 fixture 的多个版本做联合接口端到端，并在 `EvolutionMarkingTests` 覆盖新短语与图例。测试一律在 JHs-Mac-Studio-Ultra 上跑。
+
+## 决策日志
+
+| 日期 | 决定 | 理由 |
+|------|------|------|
+| 2026-10-29 | Created as Draft，用户批准开工（Accepted） | 用户要 ObjC 演进的集成套件支持多个 image：AppKit 的东西搬进 UIFoundation、CollectionViewCore，SwiftUI 的搬进 SwiftUICore，只看一个 image 发现不了；库里的快照与演进模型都只认一个版本一个 image，用户决定直接实现 |
+| 2026-10-29 | ObjC 侧交给 MachOObjCSection 的会话，本库做 Swift 侧与集成测试 | 用户的分工。两边约定同一套输入形状、搬家记录与文案；ObjC 侧另有 protocol 副本去重、同名 category 合并两条规则 |
+| 2026-10-29 | 先把 `feature/evolution-unobservable-presence` 合进 `next` 再切本分支 | 一轮提问定案。两者改的是同一批文件（演进模型、builder、报告、接口注解），那个分支 10-25 起就是「实现完成，待合并」；已作为 0081 落地 |
+| 2026-10-29 | 报告、JSON 与联合接口都做，命令行不接 | 一轮提问定案 |
+| 2026-10-29 | 单 image 漏收成员这次一起修，作为第一步单独提交 | 核实时发现 SwiftUI 给 SwiftUICore 类型加的、没有 extension 上下文的成员在单 image 索引里整个消失（宿主 26.7 的 SwiftUI interface 里没有 `Text.accessibilityTextContentType(_:)`），不修的话 image 组里它们照样在 15.0 报成 removed；用户选择这次一起修 |
+| 2026-10-29 | 成员搬家的签名放在 lineage 的 `latestSignature` 上，`ImageMove` 只记版本与两侧的 image；Swift 侧多一个 `earliestVersionIndex` | 0081 已经给没有事件的成员 lineage 加了 `latestSignature`；隔着看不见的版本时，搬家只能落在两次观测之间。ObjC 侧照同样的分工改了 |
