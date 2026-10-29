@@ -112,7 +112,9 @@ enum EvolutionMarking {
     /// show the declaration add their own phrase — `inferred present in
     /// 13.0–14.8`, or `not observable in 13.0` where they leave a bound
     /// unknown and no event spans them; between two absences the `◌`s say
-    /// enough.
+    /// enough. A move between the images of a group (evolution proposal
+    /// `image-group-evolution`) reads `moved in 15.0: SwiftUI → SwiftUICore`,
+    /// after the other phrases of its version.
     static func annotationText(for annotation: EvolutionAnnotation, versions: [ABIVersionDescriptor]) -> String {
         var placedPhrases: [(versionIndex: Int, phrase: String)] = annotation.events.map { event in
             (event.earliestVersionIndex ?? event.versionIndex, phrase(for: event, versions: versions))
@@ -127,6 +129,9 @@ enum EvolutionMarking {
                     placedPhrases.append((span.versionIndices.lowerBound, "not observable in \(labels)"))
                 }
             }
+        }
+        for imageMove in annotation.imageMoves ?? [] {
+            placedPhrases.append((imageMove.earliestVersionIndex ?? imageMove.versionIndex, imageMove.phrase(on: versions)))
         }
         var text = "// " + bitmap(for: annotation)
         let phrases = placedPhrases.enumerated()
@@ -259,6 +264,8 @@ enum EvolutionMarking {
 
     /// Two comment lines naming the axis and mapping bitmap positions to
     /// version labels — the key to reading every `[●●○]` in the body. When
+    /// the versions are groups of images, each image follows with the
+    /// versions holding it (evolution proposal `image-group-evolution`). When
     /// some version carries no local Swift symbols, a line names those
     /// versions and the two glyphs their positions read (evolution proposal
     /// `evolution-unobservable-presence`). With availability attributes
@@ -276,6 +283,17 @@ enum EvolutionMarking {
             "// Bitmap positions: " + labels.enumerated().map { "[\($0 + 1)] \($1)" }.joined(separator: "  "),
             type: .comment
         )
+        // Over groups of images (evolution proposal `image-group-evolution`):
+        // each image with the versions holding it, as the lineage report
+        // heads its axis.
+        if let imagePresences = evolution.imagePresences {
+            result.append("\n", type: .standard)
+            result.append("// Image group:", type: .comment)
+            for imagePresence in imagePresences {
+                result.append("\n", type: .standard)
+                result.append("//   \(bitmap(imagePresence.presence)) \(imagePresence.imageName)", type: .comment)
+            }
+        }
         if let versionIndicesWithoutLocalSwiftSymbols = evolution.versionIndicesWithoutLocalSwiftSymbols {
             let labels = evolution.versions.labels(ofVersionsAt: versionIndicesWithoutLocalSwiftSymbols)
             let isSingleVersion = versionIndicesWithoutLocalSwiftSymbols.count == 1

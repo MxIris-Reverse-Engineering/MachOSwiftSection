@@ -43,23 +43,24 @@ struct EvolutionAnnotationIndex: Sendable {
     }
 
     /// The annotation for a container header, or `nil` when the container has
-    /// no presence events of its own and every version showed it. A container
+    /// no presence events of its own, every version showed it and it never
+    /// moved between the images of a group. A container
     /// that exists on every version but has member events still returns `nil`
     /// here — the signal belongs on the member lines, not the header
     /// (container lineages store only `.added`/`.removed`; "modified" is
     /// derivable and deliberately unstored).
     func containerAnnotation(forKey key: ABIKey) -> EvolutionAnnotation? {
-        guard let lineage = containerLineagesByKey[key], !lineage.events.isEmpty || lineage.presenceStates != nil else { return nil }
-        return EvolutionAnnotation(presence: lineage.presence, events: lineage.events, presenceStates: lineage.presenceStates)
+        guard let lineage = containerLineagesByKey[key], !lineage.events.isEmpty || lineage.presenceStates != nil || lineage.imageMoves != nil else { return nil }
+        return EvolutionAnnotation(presence: lineage.presence, events: lineage.events, presenceStates: lineage.presenceStates, imageMoves: lineage.imageMoves)
     }
 
     func memberAnnotation(forContainerKey containerKey: ABIKey, memberKey: ABIKey) -> EvolutionAnnotation? {
         guard let lineage = memberLineagesByContainerKey[containerKey]?[memberKey] else { return nil }
-        return EvolutionAnnotation(presence: lineage.presence, events: lineage.events, presenceStates: lineage.presenceStates)
+        return EvolutionAnnotation(presence: lineage.presence, events: lineage.events, presenceStates: lineage.presenceStates, imageMoves: lineage.imageMoves)
     }
 
     func globalAnnotation(forKey key: ABIKey) -> EvolutionAnnotation? {
         guard let lineage = globalLineagesByKey[key] else { return nil }
-        return EvolutionAnnotation(presence: lineage.presence, events: lineage.events, presenceStates: lineage.presenceStates)
+        return EvolutionAnnotation(presence: lineage.presence, events: lineage.events, presenceStates: lineage.presenceStates, imageMoves: lineage.imageMoves)
     }
 }

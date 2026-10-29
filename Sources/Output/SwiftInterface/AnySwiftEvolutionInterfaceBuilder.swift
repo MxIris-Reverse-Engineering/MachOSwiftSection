@@ -37,6 +37,11 @@ public final class AnySwiftEvolutionInterfaceBuilder: Sendable {
     /// Oldest → newest, index-aligned with `labels`.
     private let versionUnits: [any InterfaceVersionRendering]
 
+    /// Whether every version is a group of images (evolution proposal
+    /// `image-group-evolution`), built by
+    /// ``init(configuration:eventHandlers:eventHandlersPerVersion:imageGroups:labels:availabilityAnnotationPlatform:)``.
+    private let comparesImageGroups: Bool
+
     /// The version-axis labels, oldest first (e.g. `["17.0", "18.0", "26.0"]`).
     public let labels: [String]
 
@@ -83,6 +88,43 @@ public final class AnySwiftEvolutionInterfaceBuilder: Sendable {
         }
         self.labels = labels
         self.availabilityAnnotationPlatform = availabilityAnnotationPlatform
+        self.comparesImageGroups = false
+    }
+
+    /// Construction over versions made up of groups of images (evolution
+    /// proposal `image-group-evolution`) — a module Apple split across
+    /// images, such as SwiftUI and SwiftUICore. Each inner array is one
+    /// version's images in the group's order, the primary image first.
+    ///
+    /// The images of a version render as one interface: every declaration
+    /// through the image that indexed it, a plain extension one image
+    /// declares on a type another image defines inside that type's body. The
+    /// annotations come from `ABIEvolutionBuilder.evolution(ofImageGroups:versions:)`:
+    /// a declaration that moved between images reads `moved in 15.0:
+    /// SwiftUI → SwiftUICore`, and the legend names each image with the
+    /// versions holding it.
+    ///
+    /// - Throws: `ABIEvolutionError.fewerThanTwoVersions` /
+    ///   `.labelCountMismatch` on invalid input shapes.
+    public init<MachO: MachOFieldLayoutRenderable>(
+        configuration: SwiftDeclarationIndexConfiguration = .init(),
+        eventHandlers: [SwiftIndexEvents.Handler] = [],
+        eventHandlersPerVersion: ((_ versionIndex: Int, _ label: String) -> [SwiftIndexEvents.Handler])? = nil,
+        imageGroups: [[SwiftEvolutionInterfaceImage<MachO>]],
+        labels: [String],
+        availabilityAnnotationPlatform: String? = nil
+    ) throws {
+        try Self.validate(versionCount: imageGroups.count, labelCount: labels.count)
+        self.versionUnits = imageGroups.enumerated().map { versionIndex, images in
+            InterfaceVersionGroupUnit(
+                configuration: configuration,
+                eventHandlers: eventHandlers + (eventHandlersPerVersion?(versionIndex, labels[versionIndex]) ?? []),
+                images: images.map { (imageName: $0.imageName, machO: $0.machO) }
+            )
+        }
+        self.labels = labels
+        self.availabilityAnnotationPlatform = availabilityAnnotationPlatform
+        self.comparesImageGroups = true
     }
 
     /// Heterogeneous construction: each version brings its own reader type.
@@ -104,6 +146,7 @@ public final class AnySwiftEvolutionInterfaceBuilder: Sendable {
         self.versionUnits = units
         self.labels = labels
         self.availabilityAnnotationPlatform = availabilityAnnotationPlatform
+        self.comparesImageGroups = false
     }
 
     private static func validate(versionCount: Int, labelCount: Int) throws {
@@ -142,9 +185,13 @@ public final class AnySwiftEvolutionInterfaceBuilder: Sendable {
             _ = try await versionUnits.concurrentMap(maximumConcurrency: maximumConcurrentPreparations) { versionUnit in
                 try await versionUnit.prepare()
             }
-            let snapshots = versionUnits.map { $0.snapshot() }
             let versionDescriptors = labels.map { ABIVersionDescriptor(label: $0) }
-            preparedEvolution = try ABIEvolutionBuilder().evolution(of: snapshots, versions: versionDescriptors)
+            if comparesImageGroups {
+                preparedEvolution = try ABIEvolutionBuilder().evolution(ofImageGroups: versionUnits.map { $0.imageSnapshots() }, versions: versionDescriptors)
+            } else {
+                // A version of one image freezes into exactly one snapshot.
+                preparedEvolution = try ABIEvolutionBuilder().evolution(of: versionUnits.flatMap { $0.imageSnapshots().map(\.snapshot) }, versions: versionDescriptors)
+            }
         }
     }
 
@@ -218,3 +265,19 @@ public enum SwiftEvolutionInterfaceBuilderError: Swift.Error, Equatable, CustomS
         }
     }
 }
+
+/// One image of a version made up of a group of images (evolution proposal
+/// `image-group-evolution`), for
+/// ``AnySwiftEvolutionInterfaceBuilder/init(configuration:eventHandlers:eventHandlersPerVersion:imageGroups:labels:availabilityAnnotationPlatform:)``:
+/// the name the image goes by on the axis (`SwiftUICore`) and its reader.
+public struct SwiftEvolutionInterfaceImage<MachO: MachOFieldLayoutRenderable> {
+    public let imageName: String
+    public let machO: MachO
+
+    public init(imageName: String, machO: MachO) {
+        self.imageName = imageName
+        self.machO = machO
+    }
+}
+
+extension SwiftEvolutionInterfaceImage: Sendable where MachO: Sendable {}

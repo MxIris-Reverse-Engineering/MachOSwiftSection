@@ -142,6 +142,45 @@ struct EvolutionMarkingTests {
         #expect(EvolutionMarking.annotationText(for: annotation, versions: fourVersionAxis) == "// [○●◍●] added in 2.0 · inferred present in 3.0")
     }
 
+    /// A move between the images of a group (evolution proposal
+    /// `image-group-evolution`) phrases with the images of both sides, a
+    /// group of them joined by ` + `, in axis order with the other phrases.
+    @Test func moveBetweenImagesPhrasesWithItsImages() {
+        let annotation = EvolutionAnnotation(
+            presence: [false, true, true],
+            events: [LineageEvent(versionIndex: 1, status: .added)],
+            imageMoves: [ImageMove(versionIndex: 2, oldImageNames: ["SwiftUI"], newImageNames: ["SwiftUI", "SwiftUICore"])]
+        )
+        #expect(EvolutionMarking.annotationText(for: annotation, versions: versionAxis) == "// [○●●] added in 2.0 · moved in 3.0: SwiftUI → SwiftUI + SwiftUICore")
+    }
+
+    /// Within one version an event reads before the move: a member that
+    /// changed while it moved.
+    @Test func eventsOfAVersionReadBeforeItsMoves() {
+        let annotation = EvolutionAnnotation(
+            presence: [true, true, true],
+            events: [LineageEvent(versionIndex: 2, status: .modified)],
+            imageMoves: [ImageMove(versionIndex: 2, oldImageNames: ["AppKit"], newImageNames: ["UIFoundation"])]
+        )
+        #expect(EvolutionMarking.annotationText(for: annotation, versions: versionAxis) == "// [●●●] modified in 3.0 · moved in 3.0: AppKit → UIFoundation")
+    }
+
+    @Test func legendNamesTheImageGroupBeforeTheAvailabilityNote() {
+        let evolution = ABIEvolution(versions: [
+            ABIVersionDescriptor(label: "1.0", imageNames: ["SwiftUI"]),
+            ABIVersionDescriptor(label: "2.0", imageNames: ["SwiftUI", "SwiftUICore"]),
+        ])
+        let legend = EvolutionMarking.legendLines(for: evolution, availabilityAnnotationPlatform: "macOS").string
+        #expect(legend.hasPrefix("""
+        // Swift ABI evolution across 2 versions: 1.0 → 2.0
+        // Bitmap positions: [1] 1.0  [2] 2.0
+        // Image group:
+        //   [●●] SwiftUI
+        //   [○●] SwiftUICore
+        // @available(macOS, …)
+        """))
+    }
+
     /// An unknown bound — a version that could not show the declaration and
     /// was not inferred present — leaves the lifecycle without an attribute;
     /// inferred presence counts as presence.
