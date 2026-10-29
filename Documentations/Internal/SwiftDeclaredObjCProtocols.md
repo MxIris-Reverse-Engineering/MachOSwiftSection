@@ -64,6 +64,7 @@ Swift 源码声明的 `@objc` 协议没有 protocol descriptor，类对任何 Ob
 | category 的协议 | indexer 的 `objcCategoryConformances`（`ObjCCategoryConformance`），`prepare()` 时收集 | 每个 category 一个 `extension X: P {}`，排在所有 extension 之后 | `protocolConformances` 段，`extension X: P {} // ObjC category at 0x…` |
 
 - **导出状态**：这种协议自己没有符号，新增无结论 case `ExportStatus.declarationHasNoSymbol`，`--exported-only` 下照样保留。下游四个仓库（RuntimeViewer、MachOKitUI、swift-decompiler、MachOViewer）都没有穷举 `ExportStatus` 的 `switch`。
+- **私有协议的名字**：interface 的声明头，以及 dump 在不带父名时声明的名字，都只打裸名（`@objc protocol P {`），不带私有鉴别器，与 Swift 协议的声明头一致。Swift 协议只在 ABI diff 里显示鉴别器，用来区分只差鉴别器的两次构建，而这种协议不进 diff 与 evolution，用不着它。dump 带父名时经 resolver 打印全名，显不显示鉴别器跟 demangle 选项走，这一点也与 Swift 协议相同。
 - **diff 与 evolution 不收录**：类头部的协议只由单版本 interface 的 `printTypeDefinition` 传给头部渲染器（`objcProtocolNames:` 参数），diff 渲染器的 `printTypeHeader` 不传；category 的遵循不进 `conformanceExtensionDefinitions`，只由 `SwiftInterfaceBuilder` 打印。ABI 快照不记这两样，两边一致，快照与二进制对比时不会出现假差异。
 - **SwiftLayout**：`ObjCProtocolIndex` 认存在类型里的 Swift 声明 `@objc` 协议，原本只读 `_TtP<模块><名字>_` 两段式的记录名，改过名的与嵌套在类型里的都认不出，那个存在类型的布局就算不出来。现在并上 `SwiftDeclaredObjCProtocolIndex` 给出的本镜像协议；原读法保留，别的模块协议在本镜像的副本、没有反射元数据的镜像仍靠它。
 

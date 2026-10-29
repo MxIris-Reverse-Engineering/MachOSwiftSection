@@ -2769,6 +2769,7 @@
   - 全量 `swift test --skip IntegrationTests`：510 个套件、2648 个测试全部通过；已有测试只动了 SymbolTestsCore 的两份快照（新增三个 `@objc` 协议的声明与一个类头部的协议）与 `ExportStatusTests` 的穷举 `switch`。
   - 渲染 A/B（基线 `next` 5f09ca46）：96 对里 32 对一致、64 对不同，逐行归类全部在预期内——769 处类头部只多了 ObjC 协议，35 行是挪到协议声明后面的 protocol extension，1979 行新增是协议声明、注释与 category 的 `extension`；没有删掉或改动任何已有的声明。两侧渲染耗时持平。
   - DVTFoundation：11 个协议都打出来，`DVTIconReference` 的头部是 `__C.NSObject, DVTFoundation.DVTResourceReference, __C.NSCopying`。细节见 [SwiftDeclaredObjCProtocols.md](SwiftDeclaredObjCProtocols.md)「验证」。
+- **后续修复（2026-10-29）**：分支 `fix/private-objc-protocol-bare-names`。私有协议在 interface 的声明头里、以及 dump 不带父名时的名字里带出了私有鉴别器，是 RuntimeViewer 验收时在 AppKit 的私有协议 `TextShadowViewControllerDelegate` 上看到的（`@objc protocol (TextShadowViewControllerDelegate in _05EA…) {`）。两处都改成与 Swift 协议的声明头一样只打裸名；ABI diff 路径与无名局部类型的位置名有意显示鉴别器，不动。fixture 原先没有私有的 `@objc` 协议，现在补了一个文件级 private 的，interface 与 dump 各加一条回归测试，修复前这两条都红。列举全部协议的五处断言也补上了它，四种读取情形（完整文件、strip 过的文件、已加载镜像、没有反射元数据的文件）都认得出这个协议。Ultra 上（Xcode 26.6，远端依赖）全量 `swift test --skip IntegrationTests` 510 个套件、2660 个测试全部通过。改动只影响私有 `@objc` 协议的名字，不算大重构，没有跑渲染 A/B。
 - **关联文档**：提案 [0079-swift-declared-objc-protocols](../Evolutions/0079-swift-declared-objc-protocols.md)、[SwiftDeclaredObjCProtocols.md](SwiftDeclaredObjCProtocols.md)、[ObjCMemberRecovery.md](ObjCMemberRecovery.md)、[Modules/SwiftDeclaration.md](Modules/SwiftDeclaration.md)。
 - **对应版本**：未发版（0.24.0 之后）。
 

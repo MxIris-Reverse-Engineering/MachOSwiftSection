@@ -91,6 +91,11 @@ package enum SwiftDeclaredObjCProtocolsFixture {
         func internalRequirement()
     }
 
+    // File-private: its Swift name carries a private discriminator.
+    @objc private protocol PrivateProtocol {
+        func privateRequirement()
+    }
+
     // Declared in a type (SE-0404): `_TtPC…` names it, with its parent.
     public class Outer: NSObject {
         @objc public protocol NestedProtocol {

@@ -96,6 +96,14 @@ struct SwiftDeclaredObjCProtocolInterfaceTests {
         #expect(declaration.contains("No Objective-C protocol record pairs with this declaration"), "\(declaration)")
     }
 
+    /// File-private: its Swift name carries a private discriminator, which
+    /// the header leaves out, as a Swift protocol's does.
+    @Test func privateProtocolHeaderPrintsTheBareName() async throws {
+        let interface = try await interface(of: SwiftDeclaredObjCProtocolsFixture.machOFile(.full))
+        #expect(block(startingWith: "@objc protocol PrivateProtocol {", in: interface) != nil, "\(interface)")
+        #expect(!interface.contains("PrivateProtocol in _"), "\(interface)")
+    }
+
     /// Declared in a type: printed in an extension of the type.
     @Test func nestedProtocolPrintsInAnExtensionOfItsParent() async throws {
         let interface = try await interface(of: SwiftDeclaredObjCProtocolsFixture.machOFile(.full))

@@ -33,16 +33,15 @@ extension SwiftDeclaredObjCProtocol: NamedDumpable {
 
     /// The name a dump declares for this protocol — behind
     /// `dumpName(using:in:)` and `SwiftDeclaredObjCProtocolDumper`'s name
-    /// alike.
+    /// alike. Unqualified, it is the bare name: a private one's without its
+    /// discriminator, as a Swift protocol's.
     @SemanticStringBuilder
     package func dumpedName(using resolver: DemangleResolver, configuration: DumperConfiguration) async throws -> SemanticString {
         let protocolNode = try protocolNode()
         if configuration.displayParentName {
             try await resolver.resolve(for: Node.createTransient(kind: .type, child: protocolNode)).replacingTypeNameOrOtherToTypeDeclaration()
-        } else if let leafNode = protocolNode.children.dropFirst().first, leafNode.kind == .privateDeclName {
-            leafNode.printSemantic(using: [.showPrivateDiscriminators])
         } else {
-            TypeDeclaration(kind: .protocol, protocolNode.children.dropFirst().first?.text ?? qualifiedName)
+            TypeDeclaration(kind: .protocol, protocolNode.identifier ?? qualifiedName)
         }
     }
 
