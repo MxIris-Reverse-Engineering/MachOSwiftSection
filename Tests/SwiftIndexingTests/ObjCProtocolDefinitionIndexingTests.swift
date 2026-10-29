@@ -46,7 +46,7 @@ struct ObjCProtocolDefinitionIndexingTests {
     private static func expectModel(in machO: some MachOSwiftSectionRepresentableWithCache, keepsLocalSymbols: Bool = true) async throws {
         let indexer = try await indexer(for: machO)
         let definitions = definitionsByName(indexer.objcProtocolDefinitions.values)
-        #expect(Set(definitions.keys) == Set(["DerivedSelectors", "SameNameRenamed", "DifferentlyNamed", "RefinedProtocol", "InternalProtocol", "Outer.NestedProtocol"].map { "\(moduleName).\($0)" }))
+        #expect(Set(definitions.keys) == Set(["DerivedSelectors", "SameNameRenamed", "DifferentlyNamed", "RefinedProtocol", "InternalProtocol", "PrivateProtocol", "Outer.NestedProtocol"].map { "\(moduleName).\($0)" }))
         // None is a `ProtocolDefinition`: no protocol descriptor lists them.
         #expect(indexer.allProtocolDefinitions.keys.allSatisfy { !definitions.keys.contains($0.name) })
         for definition in definitions.values {
@@ -155,6 +155,6 @@ struct ObjCProtocolDefinitionIndexingTests {
     @Test func modelWithoutReflectionMetadata() async throws {
         let indexer = try await Self.indexer(for: try SwiftDeclaredObjCProtocolsFixture.machOFile(.withoutReflectionMetadata))
         let names = Set(indexer.objcProtocolDefinitions.values.map(\.protocolName.name))
-        #expect(names == Set(["DerivedSelectors", "RefinedProtocol", "InternalProtocol", "Outer.NestedProtocol"].map { "\(Self.moduleName).\($0)" }))
+        #expect(names == Set(["DerivedSelectors", "RefinedProtocol", "InternalProtocol", "PrivateProtocol", "Outer.NestedProtocol"].map { "\(Self.moduleName).\($0)" }))
     }
 }

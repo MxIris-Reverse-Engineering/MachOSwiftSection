@@ -16,11 +16,11 @@ import SwiftDeclarationRendering
 struct SwiftDeclaredObjCProtocolDumpTests {
     private static let moduleName = SwiftDeclaredObjCProtocolsFixture.moduleName
 
-    private func dump(of name: String, in machOFile: MachOFile) async throws -> String {
+    private func dump(of name: String, in machOFile: MachOFile, using configuration: DumperConfiguration = .demangleOptions(.test)) async throws -> String {
         ObjCAncestorResolverStore.shared.register(ObjCAncestorResolver(root: machOFile, searchPaths: try SwiftDeclaredObjCProtocolsFixture.dependencySearchPaths()), for: machOFile)
         defer { ObjCAncestorResolverStore.shared.remove(for: machOFile) }
         let declaredProtocol = try #require(SwiftDeclaredObjCProtocol.all(in: machOFile).first { $0.qualifiedName == "\(Self.moduleName).\(name)" }, "\(name) not found")
-        return try await declaredProtocol.dump(using: .demangleOptions(.test), in: machOFile).string
+        return try await declaredProtocol.dump(using: configuration, in: machOFile).string
     }
 
     @Test func requirementsNamedFromSelectorsCarryTheirObjCFacts() async throws {
@@ -56,6 +56,21 @@ struct SwiftDeclaredObjCProtocolDumpTests {
         let output = try await dump(of: "DifferentlyNamed", in: SwiftDeclaredObjCProtocolsFixture.machOFile(.full))
         #expect(output.contains("@objc protocol \(Self.moduleName).DifferentlyNamed {"), "\(output)")
         #expect(output.contains("// No Objective-C protocol record pairs with this declaration"), "\(output)")
+    }
+
+    /// File-private: its Swift name carries a private discriminator, which
+    /// the name a dump declares leaves out, as a Swift protocol's does.
+    @Test func privateProtocolDeclaresTheBareName() async throws {
+        let machOFile = try SwiftDeclaredObjCProtocolsFixture.machOFile(.full)
+        var configuration = DumperConfiguration.demangleOptions(.test)
+        configuration.displayParentName = false
+        let output = try await dump(of: "PrivateProtocol", in: machOFile, using: configuration)
+        #expect(output.contains("@objc protocol PrivateProtocol {"), "\(output)")
+        #expect(!output.contains("PrivateProtocol in _"), "\(output)")
+
+        let declaredProtocol = try #require(SwiftDeclaredObjCProtocol.all(in: machOFile).first { $0.qualifiedName == "\(Self.moduleName).PrivateProtocol" })
+        let name = try await declaredProtocol.dumpName(using: configuration, in: machOFile.context).string
+        #expect(name == "PrivateProtocol")
     }
 
     /// The records no declaration claims: this image's renamed-away one,
