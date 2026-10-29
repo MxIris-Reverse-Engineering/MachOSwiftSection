@@ -919,11 +919,17 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
         // defines under `@_originallyDefinedIn(module: "SwiftUI", …)` mangle
         // like members of the type's own body. Only a definition of this image
         // gathers such members, so these belonged to none; they join the
-        // extension members of their type instead. The types this image
-        // defines are left out by the name their definitions gather members
-        // under. A stored instance property cannot be declared outside its
-        // type's body, so none is taken.
-        let typeNamesDefinedInThisImage = Set(currentStorage.allTypeDefinitions.keys.map(\.name))
+        // extension members of their type instead.
+        //
+        // Only a struct, class or enum reached from its module through other
+        // nominal types qualifies, and none this image defines or names as a
+        // protocol: the symbols of this image's own types and protocols can
+        // carry a context their definitions do not gather by name — a type
+        // nested in a constrained extension, a protocol's requirements — and
+        // those members are not missing. A stored instance property cannot be
+        // declared outside its type's body, so none is taken.
+        let namesDefinedInThisImage = Set(currentStorage.allTypeDefinitions.keys.map(\.name))
+            .union(currentStorage.allProtocolDefinitions.keys.map(\.name))
         let membersOfOtherImagesTypes = await symbolIndexStore.memberSymbols(
             of: .allocator(inExtension: false),
             .variable(inExtension: false, isStatic: false, isStorage: false),
@@ -933,10 +939,10 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
             .function(inExtension: false, isStatic: true),
             .subscript(inExtension: false, isStatic: false),
             .subscript(inExtension: false, isStatic: true),
-            excluding: typeNamesDefinedInThisImage,
+            excluding: namesDefinedInThisImage,
             in: machO
         )
-        for (typeNodeKey, memberSymbolsByKind) in membersOfOtherImagesTypes {
+        for (typeNodeKey, memberSymbolsByKind) in membersOfOtherImagesTypes where Self.isNominalTypeReachedThroughNominalTypes(typeNodeKey.reference) {
             for (kind, memberSymbols) in memberSymbolsByKind {
                 extensionMemberSymbolsByName[typeNodeKey, default: [:]][Self.extensionMemberKind(of: kind), default: []].append(contentsOf: memberSymbols)
             }
@@ -1158,6 +1164,28 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
         }
 
         eventDispatcher.dispatch(.extensionIndexingCompleted(result: SwiftIndexEvents.ExtensionIndexingResult(typeExtensions: typeExtensionCount, protocolExtensions: protocolExtensionCount, typeAliasExtensions: typeAliasExtensionCount, failed: failedExtensions)))
+    }
+
+    /// Whether `typeNode` names a struct, class or enum whose context is its
+    /// module, possibly through other structs, classes and enums — no
+    /// extension, protocol or function context on the way. That is the only
+    /// shape a member of a type another image defines can carry without an
+    /// extension context of its own.
+    private static func isNominalTypeReachedThroughNominalTypes(_ typeNode: NodeReference) -> Bool {
+        var currentNode: NodeReference? = typeNode.kind == .type ? typeNode.children.first : typeNode
+        guard let nominalNode = currentNode, [.structure, .class, .enum].contains(nominalNode.kind) else { return false }
+        currentNode = nominalNode.children.first
+        while let contextNode = currentNode {
+            switch contextNode.kind {
+            case .module:
+                return true
+            case .structure, .class, .enum:
+                currentNode = contextNode.children.first
+            default:
+                return false
+            }
+        }
+        return false
     }
 
     /// The extension-member counterpart of `kind`, under which a member of a
