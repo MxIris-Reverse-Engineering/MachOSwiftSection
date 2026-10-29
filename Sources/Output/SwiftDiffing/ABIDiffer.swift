@@ -64,9 +64,9 @@ public struct ABIDiffer: Sendable {
         let globalVariables = diffMembers(old: old.globalVariables, new: new.globalVariables, visibility, container: nil, &unobservableDeclarations)
         let globalFunctions = diffMembers(old: old.globalFunctions, new: new.globalFunctions, visibility, container: nil, &unobservableDeclarations)
         // Grouped by container, the container itself ahead of its members.
-        unobservableDeclarations.sort { lhs, rhs in
-            (lhs.containerName ?? "", lhs.memberKind == nil ? 0 : 1, lhs.key.sortKey, lhs.side.rawValue)
-                < (rhs.containerName ?? "", rhs.memberKind == nil ? 0 : 1, rhs.key.sortKey, rhs.side.rawValue)
+        unobservableDeclarations.sort { left, right in
+            (left.containerName ?? "", left.memberKind == nil ? 0 : 1, left.key.sortKey, left.side.rawValue)
+                < (right.containerName ?? "", right.memberKind == nil ? 0 : 1, right.key.sortKey, right.side.rawValue)
         }
         return ABIDiff(
             types: types,
