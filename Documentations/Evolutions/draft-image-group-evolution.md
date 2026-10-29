@@ -13,7 +13,9 @@ evolution 一个版本只读一个 image。Apple 拆框架时声明会在 image 
 
 ## 方案
 
-**第一步：索引漏收的成员**（已完成，单独提交）。`SwiftDeclarationIndexer.indexExtensions()` 另外收「类型不在本 image、mangling 里也没有 extension 上下文」的成员（allocator、函数、计算属性、下标、静态存储属性；实例存储属性除外），当作该类型的 extension 成员，进 `extension <类型>`。只认上下文是「模块 → struct、class、enum 一路下来」的成员，并按名字排除本 image 定义的类型和协议，用的是它们的定义收成员时用的同一个名字。单 image 的 dump、interface 从此能看到这些成员；ABI 快照的格式版本从 9 升到 10，旧基线会把它们全报成新增。渲染 A/B 在 Ultra 上跑，差异应当只有新出现的这批成员，逐类核对后写进本提案。
+**第一步：索引漏收的成员**（已完成，单独提交）。`SwiftDeclarationIndexer.indexExtensions()` 另外收「类型不在本 image、mangling 里也没有 extension 上下文」的成员（allocator、函数、计算属性、下标、静态存储属性；实例存储属性除外），当作该类型的 extension 成员，进 `extension <类型>`。三条判据同时成立才收：上下文是「模块 → struct、class、enum 一路下来」；那个模块是本 image 自己的类型或协议所在的 Swift 模块（`__C` 除外）；类型与协议的名字不在本 image 的定义里（用的是定义收成员时用的同一个名字）。单 image 的 interface 从此能看到这些成员（dump 不经这条路径，不变）；ABI 快照的格式版本从 9 升到 10，旧基线会把它们全报成新增。
+
+这样收到的不只是拆分出去的类型的成员：同一模块里没有类型描述符的类型（编译器把只当命名空间用的内部 enum 的描述符删掉了）的成员、定义按名字收不到的成员，原先同样被丢掉，现在也一并出现在 `extension <类型>` 里。它们都是本模块真实的成员，只是先前看不见。渲染 A/B 在 Ultra 上跑，差异逐类核对后写进本提案。
 
 **第二步：SwiftDiffing 的 image 组**（已完成）。
 
@@ -49,3 +51,5 @@ evolution 一个版本只读一个 image。Apple 拆框架时声明会在 image 
 | 2026-10-29 | 第一步的判据收紧：只认上下文是「模块 → struct、class、enum 一路下来」的成员，并排除本 image 定义的协议名 | 第一版只按类型名排除。全量测试里 SymbolTestsCore 的 interface 快照抓到误收：协议 `BasicDefaultProtocol` 的两个默认实现被列了两遍，带约束 extension 里三个嵌套类型的存储属性访问器成了 extension 成员。这些符号的上下文与本 image 的定义对不上名字，但它们都不属于别的 image |
 | 2026-10-29 | 第一到第三步完成（Draft → Accepted → In Progress） | 在 JHs-Mac-Studio-Ultra 上验证（Xcode 26.6，远端依赖：MachOObjCSection 0.8.204、MachOKit 0.55.100、MachOKitExtensions 1.3.0、swift-demangling 0.7.2、swift-semantic-string 0.5.0）：复现测试在修复前 3 处失败、修复后通过；全量 `swift test --skip IntegrationTests` 2,729 个测试、518 个套件全部通过，原始退出码 0；IntegrationTests 编译通过，按项目规定不运行 |
 | 2026-10-29 | ObjC 的两个集成套件等 MachOObjCSection 发版后再接 | ObjC 侧的 API 只在 MachOObjCSection 本地 `next`（118e8db）上，那边的提案还在等用户审。IntegrationTests 随全量一起编译，Ultra 与 CI 都按远端版本解析依赖，提前接会让 `next` 编不过 |
+| 2026-10-29 | 第一步再加一条判据：成员所在类型的模块必须是本 image 自己的类型或协议所在的 Swift 模块（`__C` 除外） | 第一次渲染 A/B（基线 `next` e1221a02，候选 f97ba3b2；归档 cache 15.5 与 26.6、iOS 15.5 / 16.4 / 17.5 / 18.5 / 26.5 模拟器、进程内）所有 dump 一致，interface 在 SwiftUI、SwiftUICore、Combine 有差异。其中一部分是别的模块的成员：标准库内联进来的代码（`Swift.Array._endMutation()`、`Swift.String._copying(_:)`）、ClangImporter 给导入的 C 枚举合成的 `init?(rawValue:)`（`__C.UIButtonType`）、SwiftUI 里带进来的 `Foundation` 与 `Combine` 成员。它们不是本模块的 API，判据把它们排除；回归测试在 fixture 里调用 `ComparisonResult(rawValue:)`，修复前变红 |
+| 2026-10-29 | 本模块里定义收不到的成员照样收进 `extension <类型>` | 同一次 A/B 里另一部分是本模块的成员：没有类型描述符的内部命名空间（`SwiftUI.Accessibility`、`Combine.CombineFeatures` 的静态成员）与定义按名字收不到的成员（如 iOS 15.5 SwiftUI 里 `ConicGradient` 的一个内部初始化器）。它们在单 image 里与拆分出去的类型的成员分不开，原先同样被丢掉；收进来是更完整的接口，不是误报 |

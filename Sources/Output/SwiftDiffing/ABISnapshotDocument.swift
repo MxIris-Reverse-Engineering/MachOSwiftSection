@@ -16,13 +16,14 @@ public struct ABISnapshotDocument: Sendable, Codable, Equatable {
     /// `ABIDiffer.extensionBucketKey(for:)`).
     ///
     /// History:
-    /// - 10: an image's extension containers also carry the members it
-    ///   declares on a type another image defines with no extension context
-    ///   in their mangling (evolution proposal `image-group-evolution`) —
-    ///   SwiftUI's members of the types SwiftUICore defines under
-    ///   `@_originallyDefinedIn`, which the index used to drop. Key scheme
-    ///   unchanged; an older baseline of such an image would misreport all of
-    ///   them as added.
+    /// - 10: an image's extension containers also carry the members of its
+    ///   own module's types that no definition in the image gathers, mangled
+    ///   with no extension context (evolution proposal
+    ///   `image-group-evolution`) — SwiftUI's members of the types SwiftUICore
+    ///   defines under `@_originallyDefinedIn`, the static members of an
+    ///   internal namespace whose type descriptor was stripped — which the
+    ///   index used to drop. Key scheme unchanged; an older baseline of such
+    ///   an image would misreport all of them as added.
     /// - 9: a snapshot records whether its image carries any local Swift
     ///   symbol (`ABISnapshot.hasLocalSwiftSymbols`), and each symbol-backed
     ///   member record whether the member is exported

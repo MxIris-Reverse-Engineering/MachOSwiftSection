@@ -293,9 +293,10 @@ swift-section evolution 17.0.json 18.0.json /path/Foo --labels 17.0,18.0,26.0
   is their `@objc` thunk or their initializing entry point (see §9), which an old baseline would
   report as added; a snapshot now records whether its image keeps local Swift symbols and whether
   each member is exported, which the not-observable rule above needs; and an image's extensions now
-  hold the members it declares on a type another image defines — SwiftUI's members of SwiftUICore's
-  types, which earlier tools left out of `dump`, `interface` and the snapshot alike — which an old
-  baseline would report as added. Formats 8 and 9 only ever existed on the development branch,
+  hold the members of its own module's types that no definition in the image gathers — SwiftUI's
+  members of the types SwiftUICore defines, an internal namespace whose type descriptor was stripped —
+  which earlier tools left out of `interface` and the snapshot, and an old baseline would report as
+  added. `dump` does not show them. Formats 8 and 9 only ever existed on the development branch,
   between those changes.
 
 ## 8. `--resolve-c-module-names` (interface, macOS only)
