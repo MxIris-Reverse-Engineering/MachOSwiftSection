@@ -252,7 +252,7 @@ diff 的 verdict 交叉核对行。
 
 ## 首轮落地后的增量（第六批）—— 看不见的版本
 
-提案：`Evolutions/draft-evolution-unobservable-presence.md`（落地时编号）。镜像没有 local Swift 符号的版本——macOS 13.0–14.8 dyld shared cache 里的 SwiftUI——看不到只靠非导出符号才出现的成员。原来的 `presence: [Bool]` 分不出「不在」和「看不见」，macOS 27.0 SwiftUI 的 51 版 evolution 因此有 5,189 条两端都在、中间缺席的假缺口。维护时会踩的决策：
+提案：[0081-evolution-unobservable-presence](../Evolutions/0081-evolution-unobservable-presence.md)。镜像没有 local Swift 符号的版本——macOS 13.0–14.8 dyld shared cache 里的 SwiftUI——看不到只靠非导出符号才出现的成员。原来的 `presence: [Bool]` 分不出「不在」和「看不见」，macOS 27.0 SwiftUI 的 51 版 evolution 因此有 5,189 条两端都在、中间缺席的假缺口。维护时会踩的决策：
 
 - **事实从快照来，格式版本 9**：`ABISnapshot.hasLocalSwiftSymbols`（`SymbolIndexStore.hasLocalSwiftSymbols(in:)`，读符号表条目的 `N_EXT` 位——本库的 `isExternal` 只指未定义的导入，不能拿来判断）与 `MemberRecord.isExported`（`isExportedIncludingDerivedSymbols(names:in:)`，与 interface 的 `// not exported` 注释同一条规则）。两者都只是判定用的元数据，不进 key。冻结时由 `SwiftDiffableInterfaceBuilder` 经 `ABIModule` 交进来，`ABIDiffer` 仍不碰 Mach-O。
 - **谁会看不见**（`UnobservablePresence.swift`，evolution 与 diff 共用）：`MemberRecord.needsLocalSymbolsToBeSeen` 是「只靠符号出现（函数、计算属性和下标、初始化器、`deinit`、全局）且没有判定说它导出」；`ContainerSnapshot.needsLocalSymbolsToBeSeen` 是「不是 conformance 的 extension，成员全是上面这种」。类型、协议、conformance 靠元数据，永远看得见。某个没有 local Swift 符号的版本里缺席时，取它前后最近一次出现的记录，**任一侧**需要 local 符号才看得见，这次缺席就记为 hidden——一侧的 hidden 不说假话，错判成 absent 才会。

@@ -447,7 +447,7 @@ ObjC 一侧的同一种视图是 `objc evolution --interface` 输出的合并头
 evolution 与 diff 里「这个版本看不到这条声明」的状态，与「不在」相对。镜像没有 local Swift 符号的版本（macOS 13.0–14.8 dyld shared cache 里的 SwiftUI）里，只靠非导出符号才出现的成员没有名字，它缺席并不说明它不存在；类型、conformance、存储属性、导出的成员不受影响。一段看不见的版本，两侧观测到的版本都有这条声明时记为 **inferred present**（推断存在，位图 `◍`），否则记为 unobservable（位图 `◌`）；两侧不同时，变化写成 `removed between 12.7 and 15.0` 这样的跨段事件。diff 里一侧看不见的成员进 `unobservableDeclarations`，不算删除或新增。
 
 - **主要出现在**：`Sources/Output/SwiftDiffing/UnobservablePresence.swift`、`ABIEvolutionBuilder.swift`、`Sources/Output/SwiftInterface/EvolutionMarking.swift`
-- **延伸阅读**：[提案 evolution-unobservable-presence](Evolutions/draft-evolution-unobservable-presence.md)、[ABIEvolutionDesign.md](Internal/ABIEvolutionDesign.md) 第六批
+- **延伸阅读**：[提案 0081](Evolutions/0081-evolution-unobservable-presence.md)、[ABIEvolutionDesign.md](Internal/ABIEvolutionDesign.md) 第六批
 
 ### wrapper vs descriptor（高层包装 vs 描述符）
 

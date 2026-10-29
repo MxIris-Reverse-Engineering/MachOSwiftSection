@@ -2819,6 +2819,22 @@
   - skill 里提到的每个选项都能在 CLI 的 `--help` 里找到。
 - **对应版本**：未发版。依赖下限：MachOObjCSection 0.8.204。发版说明要写：`objc evolution --interface` 把多个版本合并成一份带演进标注的头文件，`--emit-available` 再补上可用性宏。
 
+## 115. evolution 与 diff 区分「不存在」和「看不见」
+
+- **时间段**：2026-10-24 至 10-25 实现，分支 `feature/evolution-unobservable-presence`（worktree `.worktrees/MachOSwiftSection-EvolutionUnobservablePresence`，基于 `next` 80ef4cc5）；10-29 把 `next` 合进分支解冲突后合入 `next`。
+- **动机**：macOS 13.0–14.8 dyld shared cache 里的 SwiftUI 被剥掉了全部 local Swift 符号，非导出的函数、计算属性、初始化器在这些版本里一个都看不到，代码却都在。macOS 27.0 SwiftUI 跨 51 个版本的 evolution 因此有 5,189 条声明在 12.7 和 15.0 都在、中间却显示为缺席，多数印成 `removed in 13.0 · added in 15.0`；对 12.7 和 13.0 做 diff 也会把它们报成删除、判为 breaking。
+- **关键决策**：
+  - 快照多记两件事：镜像有没有 local Swift 符号（`ABISnapshot.hasLocalSwiftSymbols`），每个靠符号撑起的成员是否导出（`MemberRecord.isExported`）。两者都只是判定用的元数据，不进 key。
+  - 被剥的版本里，只靠非导出符号才看得见的成员、以及只由这类成员撑起的普通 extension 记为看不见，不记为删除。一段看不见的版本两侧都在就推断为在（位图画 `◍`），两侧不同就记成区间事件（`removed between 12.7 and 15.0`），挨着轴端的一段不推断（`◌`）。
+  - 规则放在 SwiftDiffing 的 `UnobservablePresence.swift`，evolution 与 diff 共用，两个版本时两条路径给出的变化一致；`diff --interface` 的渲染不动。
+  - 模型只增不改：`presence` 保留，另加逐版本的状态、区间事件的起点、无事件 lineage 的签名，值为空时不编码，没有被剥版本的轴 `evolution --json` 输出逐字节不变。
+  - 快照格式版本加一。起草时是 7 升到 8，合入时 8 已被 0077（thunk-only-objc-members）占用，改为 9；skill 里写明两次升级都在 0.25.0 出去，格式 8 只在开发分支上存在过。
+- **落地**：SwiftDiffing（`UnobservablePresence.swift`、evolution 与 diff 的判定、两个文本报告）、MachOSymbols（`SymbolIndexStore.hasLocalSwiftSymbols(in:)`）、SwiftInterface（`EvolutionAnnotation` 的状态与区间、`EvolutionMarking` 的新符号、短语、图例与 `@available` 规则）、SwiftSectionKit（注解着色认 `… between`）、测试 fixture `UnobservablePresenceFixture`、文档（`ABIEvolutionDesign.md` 第六批、`ABIDiffDesignAndLimitations.md` 第 6 节、`Modules/SwiftInterface.md`、术语表 unobservable、agent 插件的 skill）。提案见 [0081-evolution-unobservable-presence](../Evolutions/0081-evolution-unobservable-presence.md)。
+- **验证**：
+  - 实现期间（JHs-Mac-Studio-Ultra）：全量 `swift test --skip IntegrationTests` 在最终提交上 2,581 个测试全过，原始退出码 0；每次收紧规则都做了变异检验。51 版 SwiftUI 的 `evolution --interface --emit-available` 与 `next` 逐行对比：5,189 条假缺口里 5,097 条（98.2%）变成推断存在，`removed in 13.0 · added in 15.0` 从 5,089 条降到 24 条，峰值内存 4.46 GB 对 4.41 GB。细节见提案决策日志。
+  - 合入前（`next` 合进分支之后，JHs-Mac-Studio-Ultra，Xcode 26.6，远端依赖：MachOObjCSection 0.8.204、MachOKit 0.55.100、MachOKitExtensions 1.3.0、swift-demangling 0.7.2、swift-semantic-string 0.5.0；fixture 用 0.24.0 发版审计时编的那份，此后 fixture 源码只改过注释）：全量 `swift test --skip IntegrationTests` 2,700 个测试、514 个套件，只有 `next` 后加的 `AbbreviatedIdentifierScanTests` 抓到本分支代码里的 `lhs` / `rhs`；改名为 `left` / `right` 后重跑该扫描与 SwiftDiffingTests，112 个测试全过，原始退出码 0。
+- **对应版本**：未发版。发版说明要写：evolution 与 diff 不再把被剥符号版本里看不见的成员报成删除；ABI 快照格式升到 9，旧快照要重新生成。
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节
