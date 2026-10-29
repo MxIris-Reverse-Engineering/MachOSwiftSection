@@ -4,7 +4,7 @@
 - **创建日期**: 2026-10-29
 - **最后更新**: 2026-10-29
 - **所属愿景**: 无
-- **关联提案**: [0013](0013-swift-evolution-interface-builder.md)（evolution 联合接口）、[0081](0081-evolution-unobservable-presence.md)（看不见的版本）、MachOObjCSection 的 `draft-objc-evolution-image-groups`（ObjC 侧，由那个仓库的会话实现）
+- **关联提案**: [0013](0013-swift-evolution-interface-builder.md)（evolution 联合接口）、[0081](0081-evolution-unobservable-presence.md)（看不见的版本）、MachOObjCSection 的 `0016-objc-evolution-image-groups`（ObjC 侧，随 MachOObjCSection 0.8.205 发布）
 - **实现分支 / PR**: `feature/image-group-evolution`（worktree `.worktrees/MachOSwiftSection-ImageGroupEvolution`，基于 `next` e1221a02），2026-10-29 合入 `next`
 - **配套文档**: [ABIEvolutionDesign.md](../Internal/ABIEvolutionDesign.md) 第七批、[Modules/SwiftInterface.md](../Internal/Modules/SwiftInterface.md)（`InterfaceVersionGroupUnit`）
 
@@ -29,7 +29,7 @@ evolution 一个版本只读一个 image。Apple 拆框架时声明会在 image 
 
 **第三步：联合接口的 image 组**（已完成）。`SwiftEvolutionInterfaceImage(imageName:machO:)` 与 `AnySwiftEvolutionInterfaceBuilder(…, imageGroups:labels:…)`。内部一个版本由几个单 image 的渲染单元组成，每个声明交给索引它的那个 image 的打印器：容器按定义的身份找，成员跟着所属容器走，全局声明按 image 逐个列。并回类型本体的 extension 成员在类型体里渲染，与 evolution 的口径一致。注解多一种短语 `moved in 15.0: SwiftUI → SwiftUICore`，与其他短语按版本顺序用 ` · ` 连接；图例在位图位置那行之后加 `// Image group:` 与每个 image 的位图，放在 `@available` 说明之前。单 image 的构造与输出不变。
 
-**第四步：集成测试与文档**（Swift 侧与文档已完成，ObjC 的两个套件待接）。`MachOImageName` 加 UIFoundation、CollectionViewCore、CoreAutoLayout；`ABIEvolutionTestSuite.MultiVersionDyldCacheImageTests` 加 `cacheImageNames`（默认只有主 image）和逐版本的 image 组，主 image 在场才上轴，其余在场才加入；Swift 侧新增 SwiftUI + SwiftUICore 的报告与联合接口套件（默认三版本轴与 51 版归档轴）；ObjC 的两个套件等 MachOObjCSection 的 API 进了它的 `next` 后改成 AppKit + UIFoundation + CollectionViewCore + CoreAutoLayout，另加 SwiftUI + SwiftUICore。产物文件名用组里的 image 名以 `+` 连接。文档同批更新 `ABIEvolutionDesign.md`、`Modules/SwiftInterface.md`、术语表（image group）与演进账本，agent 插件的 skill 只改快照格式那一段。
+**第四步：集成测试与文档**（已完成）。`MachOImageName` 加 UIFoundation、CollectionViewCore、CoreAutoLayout；`ABIEvolutionTestSuite.MultiVersionDyldCacheImageTests` 加 `cacheImageNames`（默认只有主 image）和逐版本的 image 组，主 image 在场才上轴，其余在场才加入；Swift 侧新增 SwiftUI + SwiftUICore 的报告与联合接口套件（默认三版本轴与 51 版归档轴）；ObjC 的报告与联合接口套件（`ObjCAPIEvolutionTestSuite`、`ObjCEvolutionInterfaceTestSuite`）各加 AppKit + UIFoundation + CollectionViewCore + CoreAutoLayout 与 SwiftUI + SwiftUICore 两组，同样分默认三版本轴与归档轴，MachOObjCSection 的依赖下限随之抬到 0.8.205。产物文件名用组里的 image 名以 `+` 连接。文档同批更新 `ABIEvolutionDesign.md`、`Modules/SwiftInterface.md`、术语表（image group）与演进账本，agent 插件的 skill 只改快照格式那一段。
 
 **没问就定下的假设**：
 
@@ -41,7 +41,6 @@ evolution 一个版本只读一个 image。Apple 拆框架时声明会在 image 
 
 **后续项**：
 
-- ObjC 的两个集成套件：MachOObjCSection 发布 image 组的 API、本库把依赖下限抬上去之后，`ObjCAPIEvolutionTestSuite.MultiVersionDyldCacheImageTests` 改成 AppKit + UIFoundation + CollectionViewCore + CoreAutoLayout 一组、SwiftUI + SwiftUICore 一组。
 - 命令行入口：`evolution` 接收一组 image（这次按假设不接，有需要再提）。
 
 ## 决策日志
@@ -63,3 +62,4 @@ evolution 一个版本只读一个 image。Apple 拆框架时声明会在 image 
 | 2026-10-29 | 搬家按集合比较；被丢记录的文案收成 `ABIKeyCollision.droppedRecordDescriptions` 一处 | MachOObjCSection 的会话对照两边实现核对出两处不一致：联合接口末尾的 collision 警告没写 image 名，而报告写了；搬家按数组比较，调用方在两个版本里把同一组 image 换个顺序列，同时在两个 image 里的声明会被报成搬家。两条回归测试在修复前变红；两版本 diff 的报告也改用同一处文案。随后又按 ObjC 侧的做法补了一处：image 名与签名数量对不上时（只有手工构造或改过的 JSON 才会这样）只列签名，不再被 `zip` 悄悄截掉多出来的签名 |
 | 2026-10-29 | 合入 `next`，取号 0082，状态改 Implemented | 先在本地合进常驻检出给用户看（3c4356cf；跨端核对的修复之后又合一次，1ed65d32），用户看过后正式收尾。最终代码 fa33331a（之后只改文档）在 JHs-Mac-Studio-Ultra 上全量 `swift test --skip IntegrationTests`：2,734 个测试、518 个套件全过，原始退出码 0（Xcode 26.6；远端依赖 MachOObjCSection 0.8.204、MachOKit 0.55.100、MachOKitExtensions 1.3.0、swift-demangling 0.7.2、swift-semantic-string 0.5.0）。渲染 A/B 沿用 a0a7dc27 上的第二次结果：此后的三处修复只改 evolution 的搬家判定与 collision 文案，单版本的 `dump` / `interface` 不经过它们。ObjC 的两个集成套件与命令行入口记为后续项 |
 | 2026-10-29 | 不另写使用指南；术语已登记 | 实现说明在 `ABIEvolutionDesign.md` 第七批与 `Modules/SwiftInterface.md`。没有面向调用方的公开文档讲 evolution 的库 API（`SwiftSectionKit.md` 只讲命令对应的请求，这次没接命令行），所以不另写使用指南。image group 与 move 已登记进术语表 |
+| 2026-10-29 | 接上 ObjC 的两个集成套件，MachOObjCSection 的下限抬到 0.8.205 | MachOObjCSection 0.8.205（它的提案 0016）发布了 image 组的 API。`ObjCAPIEvolutionTestSuite` 与 `ObjCEvolutionInterfaceTestSuite` 各加 AppKit + UIFoundation + CollectionViewCore + CoreAutoLayout、SwiftUI + SwiftUICore 两组，默认三版本轴与归档轴各一套；按 `objc` 子命令的方式建 indexer 的几行收成一个共用函数，单 image 的套件也改用它。在 JHs-Mac-Studio-Ultra 上只把 MachOObjCSection 解析到 0.8.205、其余依赖不变，全量 2,734 个测试、518 个套件全过，原始退出码 0；IntegrationTests 编译通过（按项目规定不运行）。后续项只剩命令行入口 |
