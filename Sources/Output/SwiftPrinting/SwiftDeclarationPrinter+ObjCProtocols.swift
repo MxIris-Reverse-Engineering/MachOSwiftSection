@@ -108,20 +108,12 @@ extension SwiftDeclarationPrinter {
         }
     }
 
-    /// The protocol's own name, unqualified; a private one's with its
-    /// discriminator, as a Swift protocol's header prints it.
+    /// The protocol's own name, unqualified and bare: a private one's
+    /// without its discriminator, as a Swift protocol's header prints it.
     @SemanticStringBuilder
     private func objcProtocolLeafName(of definition: ObjCProtocolDefinition) -> SemanticString {
         let protocolNode = definition.protocolName.node.materialize().first(of: .protocol)
-        if let leafNode = protocolNode?.children.dropFirst().first {
-            if leafNode.kind == .privateDeclName {
-                leafNode.printSemantic(using: [.showPrivateDiscriminators])
-            } else {
-                TypeDeclaration(kind: .protocol, leafNode.text ?? definition.protocolName.name)
-            }
-        } else {
-            TypeDeclaration(kind: .protocol, definition.protocolName.name)
-        }
+        TypeDeclaration(kind: .protocol, protocolNode?.identifier ?? definition.protocolName.name)
     }
 
     @SemanticStringBuilder
