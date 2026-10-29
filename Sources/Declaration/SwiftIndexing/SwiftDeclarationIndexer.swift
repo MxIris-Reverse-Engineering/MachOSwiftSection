@@ -900,23 +900,54 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
         @Dependency(\.symbolIndexStore)
         var symbolIndexStore
 
+        var extensionMemberSymbolsByName = await symbolIndexStore.memberSymbols(
+            of: .allocator(inExtension: true),
+            .variable(inExtension: true, isStatic: false, isStorage: false),
+            .variable(inExtension: true, isStatic: true, isStorage: false),
+            .variable(inExtension: true, isStatic: true, isStorage: true),
+            .function(inExtension: true, isStatic: false),
+            .function(inExtension: true, isStatic: true),
+            .subscript(inExtension: true, isStatic: false),
+            .subscript(inExtension: true, isStatic: true),
+            excluding: [],
+            in: machO
+        )
+
+        // The members this image declares on a type another image defines,
+        // with no extension context in their mangling (evolution proposal
+        // `image-group-evolution`): SwiftUI's members of the types SwiftUICore
+        // defines under `@_originallyDefinedIn(module: "SwiftUI", …)` mangle
+        // like members of the type's own body. Only a definition of this image
+        // gathers such members, so these belonged to none; they join the
+        // extension members of their type instead. The types this image
+        // defines are left out by the name their definitions gather members
+        // under. A stored instance property cannot be declared outside its
+        // type's body, so none is taken.
+        let typeNamesDefinedInThisImage = Set(currentStorage.allTypeDefinitions.keys.map(\.name))
+        let membersOfOtherImagesTypes = await symbolIndexStore.memberSymbols(
+            of: .allocator(inExtension: false),
+            .variable(inExtension: false, isStatic: false, isStorage: false),
+            .variable(inExtension: false, isStatic: true, isStorage: false),
+            .variable(inExtension: false, isStatic: true, isStorage: true),
+            .function(inExtension: false, isStatic: false),
+            .function(inExtension: false, isStatic: true),
+            .subscript(inExtension: false, isStatic: false),
+            .subscript(inExtension: false, isStatic: true),
+            excluding: typeNamesDefinedInThisImage,
+            in: machO
+        )
+        for (typeNodeKey, memberSymbolsByKind) in membersOfOtherImagesTypes {
+            for (kind, memberSymbols) in memberSymbolsByKind {
+                extensionMemberSymbolsByName[typeNodeKey, default: [:]][Self.extensionMemberKind(of: kind), default: []].append(contentsOf: memberSymbols)
+            }
+        }
+
         // The members an optimized image kept only another entry point of —
         // their `@objc` thunk, an initializer's initializing entry point —
         // join the real symbols as stand-ins (evolution proposal
         // `thunk-only-objc-members`).
         let memberSymbolsByName = StandInMemberSymbols.supplementingExtensionMembers(
-            await symbolIndexStore.memberSymbols(
-                of: .allocator(inExtension: true),
-                .variable(inExtension: true, isStatic: false, isStorage: false),
-                .variable(inExtension: true, isStatic: true, isStorage: false),
-                .variable(inExtension: true, isStatic: true, isStorage: true),
-                .function(inExtension: true, isStatic: false),
-                .function(inExtension: true, isStatic: true),
-                .subscript(inExtension: true, isStatic: false),
-                .subscript(inExtension: true, isStatic: true),
-                excluding: [],
-                in: machO
-            ),
+            extensionMemberSymbolsByName,
             symbolIndexStore: symbolIndexStore,
             in: machO
         )
@@ -1127,6 +1158,25 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
         }
 
         eventDispatcher.dispatch(.extensionIndexingCompleted(result: SwiftIndexEvents.ExtensionIndexingResult(typeExtensions: typeExtensionCount, protocolExtensions: protocolExtensionCount, typeAliasExtensions: typeAliasExtensionCount, failed: failedExtensions)))
+    }
+
+    /// The extension-member counterpart of `kind`, under which a member of a
+    /// type another image defines joins the extension members of that type.
+    private static func extensionMemberKind(of kind: SymbolIndexStore.MemberKind) -> SymbolIndexStore.MemberKind {
+        switch kind {
+        case .allocator:
+            .allocator(inExtension: true)
+        case .constructor:
+            .constructor(inExtension: true)
+        case .subscript(_, let isStatic):
+            .subscript(inExtension: true, isStatic: isStatic)
+        case .variable(_, let isStatic, let isStorage):
+            .variable(inExtension: true, isStatic: isStatic, isStorage: isStorage)
+        case .function(_, let isStatic):
+            .function(inExtension: true, isStatic: isStatic)
+        case .deallocator, .destructor:
+            kind
+        }
     }
 
     private func indexGlobals() async throws {
