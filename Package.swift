@@ -192,8 +192,12 @@ extension Package.Dependency {
             // read as garbage. 0.8.204 adds `ObjCEvolutionInterfaceBuilder`,
             // the merged and annotated header `objc evolution --interface`
             // prints; 0.8.203 carried it too, but crashes the Swift 6.3
-            // compiler of Xcode 26.
-            "0.8.204" ..< "0.9.0",
+            // compiler of Xcode 26. 0.8.205 compares a version made up of a
+            // group of images (`evolution(ofImageGroups:versions:)`,
+            // `addVersion(images:version:)`), which the integration tests
+            // drive over AppKit with the frameworks Apple moved its classes
+            // into.
+            "0.8.205" ..< "0.9.0",
         ),
     )
 }
