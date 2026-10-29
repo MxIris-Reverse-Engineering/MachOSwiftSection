@@ -25,6 +25,9 @@ import Testing
 ///   it from 2.0 on with `sweep()`, an ordinary cross-module extension whose
 ///   mangling names the extension.
 /// - `Dial` stays in `ImageGroupFixture` and never changes.
+/// - `comparison(_:)` calls the importer's `ComparisonResult.init?(rawValue:)`
+///   in every version, which the compiler emits into the image: members of
+///   another module's type the image carries without declaring them.
 package enum ImageGroupFixture {
     /// The module every version declares, and the image it lives in.
     package static let moduleName = "ImageGroupFixture"
@@ -48,6 +51,8 @@ package enum ImageGroupFixture {
         (
             core: nil,
             module: """
+            import Foundation
+
             public struct Gauge {
                 public var value: Int
 
@@ -74,6 +79,10 @@ package enum ImageGroupFixture {
                 public func turn() -> Int {
                     1
                 }
+            }
+
+            public func comparison(_ value: Int) -> Int {
+                ComparisonResult(rawValue: value)?.rawValue ?? 0
             }
             """
         ),
@@ -100,6 +109,7 @@ package enum ImageGroupFixture {
             """,
             module: """
             @_exported import ImageGroupFixtureCore
+            import Foundation
 
             @available(macOS 10.15, *)
             extension Gauge {
@@ -124,6 +134,10 @@ package enum ImageGroupFixture {
                 public func turn() -> Int {
                     1
                 }
+            }
+
+            public func comparison(_ value: Int) -> Int {
+                ComparisonResult(rawValue: value)?.rawValue ?? 0
             }
             """
         ),
@@ -154,6 +168,7 @@ package enum ImageGroupFixture {
             """,
             module: """
             @_exported import ImageGroupFixtureCore
+            import Foundation
 
             @available(macOS 10.15, *)
             extension Gauge {
@@ -174,6 +189,10 @@ package enum ImageGroupFixture {
                 public func turn() -> Int {
                     1
                 }
+            }
+
+            public func comparison(_ value: Int) -> Int {
+                ComparisonResult(rawValue: value)?.rawValue ?? 0
             }
             """
         ),

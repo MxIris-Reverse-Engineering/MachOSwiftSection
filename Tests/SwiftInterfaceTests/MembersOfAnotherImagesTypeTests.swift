@@ -69,6 +69,21 @@ struct MembersOfAnotherImagesTypeTests {
         #expect(needleExtension.contains("func sweep() -> Swift.Int"), "\(needleExtension)")
     }
 
+    /// The premise of the next test: the image carries members of a type
+    /// another module declares without declaring them itself — the
+    /// importer's `init?(rawValue:)` for a C enum, emitted into every image
+    /// that calls it, as the standard library's inlinable code is.
+    @Test func theImageCarriesAnotherModulesMembers() throws {
+        let allocatorNames = SymbolIndexStore.shared.memberSymbols(of: .allocator(inExtension: false), in: try splitModuleImage()).map(\.name)
+        #expect(allocatorNames.contains { $0.contains("NSComparisonResult") }, "\(allocatorNames)")
+    }
+
+    @Test("another module's members the image only carries print nowhere")
+    func anotherModulesMembersStayOut() async throws {
+        let interface = try await interface(of: try splitModuleImage())
+        #expect(!interface.contains("extension __C."), "\(interface)")
+    }
+
     @Test("the image's ABI snapshot carries the members declared on another image's type")
     func snapshotCarriesMembersOfAnotherImagesType() async throws {
         let builder = SwiftDiffableInterfaceBuilder(in: try splitModuleImage())
