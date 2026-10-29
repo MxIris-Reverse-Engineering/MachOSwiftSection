@@ -165,6 +165,23 @@ struct EvolutionMarkingTests {
         #expect(EvolutionMarking.annotationText(for: annotation, versions: versionAxis) == "// [●●●] modified in 3.0 · moved in 3.0: AppKit → UIFoundation")
     }
 
+    /// The warnings tail words a collision as the lineage report does: over
+    /// groups of images, each dropped record names its image.
+    @Test func warningsNameEachDroppedRecordsImage() throws {
+        let evolution = ABIEvolution(
+            versions: [
+                ABIVersionDescriptor(label: "1.0", imageNames: ["AppKit"]),
+                ABIVersionDescriptor(label: "2.0", imageNames: ["AppKit", "UIFoundation"]),
+            ],
+            keyCollisionsByVersion: [
+                [],
+                [ABIKeyCollision(key: .mangled("Shared"), containerName: nil, droppedSignatures: ["Shared"], droppedImageNames: ["UIFoundation"])],
+            ]
+        )
+        let warnings = try #require(EvolutionMarking.warningsLines(for: evolution)).string
+        #expect(warnings.contains("//   2.0 · dropped: Shared (UIFoundation)"), "\(warnings)")
+    }
+
     @Test func legendNamesTheImageGroupBeforeTheAvailabilityNote() {
         let evolution = ABIEvolution(versions: [
             ABIVersionDescriptor(label: "1.0", imageNames: ["SwiftUI"]),

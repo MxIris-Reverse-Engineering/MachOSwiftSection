@@ -76,7 +76,7 @@ public struct ABIDiffReporter: Sendable {
 
     private func collisionLine(_ collision: ABIKeyCollision) -> String {
         let scope = collision.containerName.map { "\($0) · " } ?? ""
-        return scope + "dropped: " + collision.droppedSignatures.joined(separator: ", ")
+        return scope + "dropped: " + collision.droppedRecordDescriptions.joined(separator: ", ")
     }
 
     // MARK: - Sections

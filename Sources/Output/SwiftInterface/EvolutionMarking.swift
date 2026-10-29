@@ -370,7 +370,7 @@ enum EvolutionMarking {
             for (versionIndex, collisions) in keyCollisionsByVersion.enumerated() {
                 for collision in collisions {
                     let scope = collision.containerName.map { "\($0) · " } ?? ""
-                    lines.append("//   \(evolution.versions[versionIndex].label) · \(scope)dropped: \(collision.droppedSignatures.joined(separator: ", "))")
+                    lines.append("//   \(evolution.versions[versionIndex].label) · \(scope)dropped: \(collision.droppedRecordDescriptions.joined(separator: ", "))")
                 }
             }
         }

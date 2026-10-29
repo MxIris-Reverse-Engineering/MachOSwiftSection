@@ -29,6 +29,17 @@ public struct ABIKeyCollision: Sendable, Codable, Equatable {
         self.droppedSignatures = droppedSignatures
         self.droppedImageNames = droppedImageNames
     }
+
+    /// The dropped records as every report and the evolution interface word
+    /// them: each signature, followed — over groups of images — by the image
+    /// it came from in parentheses (`Shared (UIFoundation)`). Images that do
+    /// not line up one-to-one with the signatures — only a collision built by
+    /// hand or decoded from edited JSON — are left out rather than pairing
+    /// some signatures with the wrong image or losing the rest.
+    public var droppedRecordDescriptions: [String] {
+        guard let droppedImageNames, droppedImageNames.count == droppedSignatures.count else { return droppedSignatures }
+        return zip(droppedSignatures, droppedImageNames).map { "\($0) (\($1))" }
+    }
 }
 
 /// One record whose key came from the remangle-fallback path (`unmangled:`

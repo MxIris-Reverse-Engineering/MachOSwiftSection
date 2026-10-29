@@ -301,7 +301,10 @@ extension ImageMove {
     /// them but versions that could not show it, are compared: different
     /// images make a move, placed at the later one and — when versions lie
     /// between — spanning them. An observed absence in between ends the
-    /// comparison: what reappears after a removal was added, not moved.
+    /// comparison: what reappears after a removal was added, not moved. The
+    /// images compare as sets, so a caller listing a version's images in
+    /// another order moves nothing; a move reports them in each version's
+    /// group order.
     ///
     /// A member passes its container's images as `containerImageNames`: a
     /// move it made along with its container — the same images on both
@@ -320,9 +323,10 @@ extension ImageMove {
                 if let previousIndex = lastObservedPresentIndex,
                    let oldImageNames = imageNames[previousIndex],
                    let newImageNames = imageNames[versionIndex],
-                   oldImageNames != newImageNames {
+                   Set(oldImageNames) != Set(newImageNames) {
                     let movedWithItsContainer = containerImageNames.map { containerImageNames in
-                        containerImageNames[previousIndex] == oldImageNames && containerImageNames[versionIndex] == newImageNames
+                        containerImageNames[previousIndex].map { Set($0) } == Set(oldImageNames)
+                            && containerImageNames[versionIndex].map { Set($0) } == Set(newImageNames)
                     } ?? false
                     if !movedWithItsContainer {
                         moves.append(ImageMove(
