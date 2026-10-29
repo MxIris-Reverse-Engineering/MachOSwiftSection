@@ -139,6 +139,26 @@ struct ABIImageGroupEvolutionTests {
         #expect(result.keyCollisionsByVersion == nil)
     }
 
+    /// Moves compare the images holding a declaration as a set: a caller
+    /// listing the same images in another order in the next version moved
+    /// nothing.
+    @Test("a group listed in another order in the next version moves nothing")
+    func reorderedGroupMovesNothing() throws {
+        let result = try evolution([
+            [
+                image("SwiftUI", protocolExtensions: [protocolExtension(of: "View", members: [record("padding"), record("shared")])]),
+                image("SwiftUICore", protocolExtensions: [protocolExtension(of: "View", members: [record("toolbar"), record("shared")])]),
+            ],
+            [
+                image("SwiftUICore", protocolExtensions: [protocolExtension(of: "View", members: [record("toolbar"), record("shared")])]),
+                image("SwiftUI", protocolExtensions: [protocolExtension(of: "View", members: [record("padding"), record("shared")])]),
+            ],
+        ])
+        #expect(result.protocolExtensions.allSatisfy { lineage in
+            lineage.imageMoves == nil && lineage.memberLineages.allSatisfy { $0.imageMoves == nil }
+        }, "\(result.protocolExtensions)")
+    }
+
     @Test("a declaration two images both define is compared once, and the dropped one names its image")
     func duplicateAcrossImagesNamesItsImage() throws {
         let result = try evolution([
