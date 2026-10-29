@@ -59,11 +59,7 @@ public struct ABIEvolutionReporter: Sendable {
         for (versionIndex, collisions) in keyCollisionsByVersion.enumerated() {
             for collision in collisions {
                 let scope = collision.containerName.map { "\($0) · " } ?? ""
-                // Over groups of images, each dropped record names its image.
-                let droppedRecords = collision.droppedImageNames.map { droppedImageNames in
-                    zip(collision.droppedSignatures, droppedImageNames).map { "\($0) (\($1))" }
-                } ?? collision.droppedSignatures
-                lines.append("  \(evolution.versions[versionIndex].label) · \(scope)dropped: \(droppedRecords.joined(separator: ", "))")
+                lines.append("  \(evolution.versions[versionIndex].label) · \(scope)dropped: \(collision.droppedRecordDescriptions.joined(separator: ", "))")
             }
         }
         return lines.joined(separator: "\n")
