@@ -45,7 +45,8 @@ struct ImageGroupEvolutionTests {
     }
 
     private func lineIndex(in lines: [String], where predicate: (String) -> Bool) throws -> Int {
-        try #require(lines.firstIndex(where: predicate), "\(lines.joined(separator: "\n"))")
+        let index = lines.firstIndex(where: predicate)
+        return try #require(index, "\(lines.joined(separator: "\n"))")
     }
 
     // MARK: - The evolution
