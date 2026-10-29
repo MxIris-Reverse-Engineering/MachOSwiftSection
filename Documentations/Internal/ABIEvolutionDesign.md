@@ -252,7 +252,7 @@ diff 的 verdict 交叉核对行。
 
 ## 首轮落地后的增量（第七批）—— 一个版本由一组 image 组成
 
-提案：[draft-image-group-evolution](../Evolutions/draft-image-group-evolution.md)（落地时编号）。Apple 拆框架时声明在 image 之间搬家：AppKit 的类挪进 UIFoundation、CollectionViewCore，macOS 15 起 SwiftUI 的大批类型挪进 SwiftUICore（带 `@_originallyDefinedIn(module: "SwiftUI")`，mangled name 不变）。一个版本只读一个 image 时，搬走的报成 removed、搬来的报成 added。维护时会踩的决策：
+提案：[0082-image-group-evolution](../Evolutions/0082-image-group-evolution.md)。Apple 拆框架时声明在 image 之间搬家：AppKit 的类挪进 UIFoundation、CollectionViewCore，macOS 15 起 SwiftUI 的大批类型挪进 SwiftUICore（带 `@_originallyDefinedIn(module: "SwiftUI")`，mangled name 不变）。一个版本只读一个 image 时，搬走的报成 removed、搬来的报成 added。维护时会踩的决策：
 
 - **入口与输入**：`ABIEvolutionBuilder.evolution(ofImageGroups:versions:)`，每个版本一个有序的 `ABIImageSnapshot` 列表，主 image 在前。单 image 快照与文档格式不变，image 名由调用方给出——CLI 写进 provenance 的 `binaryPath` 是 `<cache 路径> (AppKit)`，推不出 image 名。空组就是这个版本什么都没有。
 - **合并**（`MergedImageGroup`）：types、protocols、globals 直接拼接，同 key 的只比较组里第一个 image 的，其余走 key collision，`ABIKeyCollision.droppedImageNames` 写出被丢的那份来自哪个 image，`droppedRecordDescriptions` 把它拼成 `Shared (UIFoundation)`（两者数量对不上时只列签名），报告与联合接口末尾的警告都用这一处；四个 extension 桶里同 key 的容器合成一个，成员按组顺序拼接。

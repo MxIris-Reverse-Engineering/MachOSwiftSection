@@ -1,11 +1,12 @@
-# Draft - 一个版本由一组 image 组成的演进
+# 0082 - 一个版本由一组 image 组成的演进
 
-- **状态**: In Progress
+- **状态**: Implemented
 - **创建日期**: 2026-10-29
 - **最后更新**: 2026-10-29
 - **所属愿景**: 无
 - **关联提案**: [0013](0013-swift-evolution-interface-builder.md)（evolution 联合接口）、[0081](0081-evolution-unobservable-presence.md)（看不见的版本）、MachOObjCSection 的 `draft-objc-evolution-image-groups`（ObjC 侧，由那个仓库的会话实现）
-- **实现分支 / PR**: `feature/image-group-evolution`（worktree `.worktrees/MachOSwiftSection-ImageGroupEvolution`，基于 `next` e1221a02）
+- **实现分支 / PR**: `feature/image-group-evolution`（worktree `.worktrees/MachOSwiftSection-ImageGroupEvolution`，基于 `next` e1221a02），2026-10-29 合入 `next`
+- **配套文档**: [ABIEvolutionDesign.md](../Internal/ABIEvolutionDesign.md) 第七批、[Modules/SwiftInterface.md](../Internal/Modules/SwiftInterface.md)（`InterfaceVersionGroupUnit`）
 
 ## 摘要
 
@@ -38,6 +39,11 @@ evolution 一个版本只读一个 image。Apple 拆框架时声明会在 image 
 
 **测试**：第一步用现编的两 image fixture（`ProbeCore` 定义带 `@_originallyDefinedIn(module: "Probe")` 的类型，`Probe` 给它加成员），验证单 image 索引收到这些成员、带 extension 上下文的跨模块成员照旧；第二步用手工快照覆盖合并规则、并回、搬家（容器、成员、只跟着容器走的不记、隔着看不见的版本）、collision 的 image 名、单 image JSON 不变与两个文本报告；第三步用同一 fixture 的多个版本做联合接口端到端，并在 `EvolutionMarkingTests` 覆盖新短语与图例。测试一律在 JHs-Mac-Studio-Ultra 上跑。
 
+**后续项**：
+
+- ObjC 的两个集成套件：MachOObjCSection 发布 image 组的 API、本库把依赖下限抬上去之后，`ObjCAPIEvolutionTestSuite.MultiVersionDyldCacheImageTests` 改成 AppKit + UIFoundation + CollectionViewCore + CoreAutoLayout 一组、SwiftUI + SwiftUICore 一组。
+- 命令行入口：`evolution` 接收一组 image（这次按假设不接，有需要再提）。
+
 ## 决策日志
 
 | 日期 | 决定 | 理由 |
@@ -55,3 +61,5 @@ evolution 一个版本只读一个 image。Apple 拆框架时声明会在 image 
 | 2026-10-29 | 本模块里定义收不到的成员照样收进 `extension <类型>` | 同一次 A/B 里另一部分是本模块的成员：没有类型描述符的内部命名空间（`SwiftUI.Accessibility`、`Combine.CombineFeatures` 的静态成员）与定义按名字收不到的成员（如 iOS 15.5 SwiftUI 里 `ConicGradient` 的一个内部初始化器）。它们在单 image 里与拆分出去的类型的成员分不开，原先同样被丢掉；收进来是更完整的接口，不是误报 |
 | 2026-10-29 | 第二次渲染 A/B 通过核对 | 基线 `next` e1221a02，候选 a0a7dc27，JHs-Mac-Studio-Ultra，Xcode 26.6，两侧共用一份 `Package.resolved`。96 对里 77 对逐字节一致，所有 dump 一致；差异只在 SwiftUI、SwiftUICore 与 Combine 的 interface，全部只增不减（每对删除 0 行），新出现的 extension 全在本 image 自己的模块上，别的模块的 extension 块两侧逐字节一致。规模：macOS 26.6 cache 的 SwiftUI +1,222 行、52 个新 extension（`Text.accessibilityTextContentType(_:)` 等，基线里没有），SwiftUICore +102 行、23 个；iOS 26.5 模拟器的 SwiftUI +1,336 行、69 个；iOS 15.5 模拟器（拆分之前）的 SwiftUI +191 行、35 个，都是没有类型描述符的内部命名空间之类本模块原先丢掉的成员；Combine 各场景 +3 行，即 `Combine.CombineFeatures` 的一个静态成员 |
 | 2026-10-29 | 搬家按集合比较；被丢记录的文案收成 `ABIKeyCollision.droppedRecordDescriptions` 一处 | MachOObjCSection 的会话对照两边实现核对出两处不一致：联合接口末尾的 collision 警告没写 image 名，而报告写了；搬家按数组比较，调用方在两个版本里把同一组 image 换个顺序列，同时在两个 image 里的声明会被报成搬家。两条回归测试在修复前变红；两版本 diff 的报告也改用同一处文案。随后又按 ObjC 侧的做法补了一处：image 名与签名数量对不上时（只有手工构造或改过的 JSON 才会这样）只列签名，不再被 `zip` 悄悄截掉多出来的签名 |
+| 2026-10-29 | 合入 `next`，取号 0082，状态改 Implemented | 先在本地合进常驻检出给用户看（3c4356cf；跨端核对的修复之后又合一次，1ed65d32），用户看过后正式收尾。最终代码 fa33331a（之后只改文档）在 JHs-Mac-Studio-Ultra 上全量 `swift test --skip IntegrationTests`：2,734 个测试、518 个套件全过，原始退出码 0（Xcode 26.6；远端依赖 MachOObjCSection 0.8.204、MachOKit 0.55.100、MachOKitExtensions 1.3.0、swift-demangling 0.7.2、swift-semantic-string 0.5.0）。渲染 A/B 沿用 a0a7dc27 上的第二次结果：此后的三处修复只改 evolution 的搬家判定与 collision 文案，单版本的 `dump` / `interface` 不经过它们。ObjC 的两个集成套件与命令行入口记为后续项 |
+| 2026-10-29 | 不另写使用指南；术语已登记 | 实现说明在 `ABIEvolutionDesign.md` 第七批与 `Modules/SwiftInterface.md`。没有面向调用方的公开文档讲 evolution 的库 API（`SwiftSectionKit.md` 只讲命令对应的请求，这次没接命令行），所以不另写使用指南。image group 与 move 已登记进术语表 |

@@ -188,7 +188,7 @@ linker 把字节相同的函数体合并到同一地址的优化。后果是「�
 evolution 里组成一个版本的一组 image，主 image 在前：Apple 拆过的框架以组为单位比较，例如 SwiftUI 与 SwiftUICore（macOS 15 起）、AppKit 与 UIFoundation、CollectionViewCore、CoreAutoLayout。组里的声明合成一个 API 面，一个声明从一个 image 挪到另一个 image（SwiftUI 的类型带 `@_originallyDefinedIn` 挪进 SwiftUICore，mangled name 不变）不再读成删除加新增，而是记一条 **move**：两侧都观测到它在场、所在的 image 不同，报告写 `> moved in 15.0: SwiftUI → SwiftUICore`。只跟着容器一起挪的成员不另记；move 不进兼容性判定。组里定义了的类型，另一个 image 给它加的普通 extension 并回类型本体比较。
 
 - **主要出现在**：`Sources/Output/SwiftDiffing/ImageGroups.swift`（`ABIImageSnapshot`、`ImageMove`、`MergedImageGroup`）、`ABIEvolutionBuilder.evolution(ofImageGroups:versions:)`、`Sources/Output/SwiftInterface/InterfaceVersionRendering.swift`（`InterfaceVersionGroupUnit`）；ObjC 一侧在 MachOObjCSection 的 `ObjCDiffing`（`ObjCAPIImageSnapshot`、`ObjCImageMove`）
-- **延伸阅读**：[提案 image-group-evolution](Evolutions/draft-image-group-evolution.md)、[ABIEvolutionDesign.md](Internal/ABIEvolutionDesign.md) 第七批
+- **延伸阅读**：[提案 0082](Evolutions/0082-image-group-evolution.md)、[ABIEvolutionDesign.md](Internal/ABIEvolutionDesign.md) 第七批
 
 ### implied ObjC protocol（隐含的 ObjC 协议）
 
