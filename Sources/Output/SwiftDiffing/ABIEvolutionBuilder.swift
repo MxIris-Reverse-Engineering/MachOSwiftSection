@@ -29,13 +29,55 @@ public struct ABIEvolutionBuilder: Sendable {
     /// Track a module's ABI across ordered snapshots (oldest first) under an
     /// explicit version axis.
     public func evolution(of snapshots: [ABISnapshot], versions: [ABIVersionDescriptor]) throws -> ABIEvolution {
-        guard snapshots.count >= 2 else {
-            throw ABIEvolutionError.fewerThanTwoVersions(versionCount: snapshots.count)
+        try Self.validate(versionCount: snapshots.count, descriptorCount: versions.count)
+        return evolution(
+            of: snapshots,
+            versions: versions,
+            keyCollisionsByVersion: snapshots.map { $0.keyCollisions() },
+            imageGroups: nil
+        )
+    }
+
+    /// Track a module's ABI across ordered versions (oldest first), each
+    /// made up of a group of images (evolution proposal
+    /// `image-group-evolution`) — a module Apple split across images, such
+    /// as SwiftUI and SwiftUICore.
+    ///
+    /// A version's images merge into one API surface (see
+    /// `MergedImageGroup`), so a declaration that moved between them stays
+    /// present instead of reading as removed and added; its lineage records
+    /// the move in `imageMoves`, and every descriptor names its images in
+    /// `imageNames`. An empty group is a version holding nothing.
+    public func evolution(ofImageGroups imageGroups: [[ABIImageSnapshot]], versions: [ABIVersionDescriptor]) throws -> ABIEvolution {
+        try Self.validate(versionCount: imageGroups.count, descriptorCount: versions.count)
+        let mergedGroups = imageGroups.map(MergedImageGroup.init)
+        return evolution(
+            of: mergedGroups.map(\.snapshot),
+            versions: zip(versions, mergedGroups).map { version, mergedGroup in
+                ABIVersionDescriptor(label: version.label, provenance: version.provenance, imageNames: mergedGroup.imageNames)
+            },
+            keyCollisionsByVersion: mergedGroups.map(\.keyCollisions),
+            imageGroups: mergedGroups
+        )
+    }
+
+    private static func validate(versionCount: Int, descriptorCount: Int) throws {
+        guard versionCount >= 2 else {
+            throw ABIEvolutionError.fewerThanTwoVersions(versionCount: versionCount)
         }
-        guard snapshots.count == versions.count else {
-            throw ABIEvolutionError.labelCountMismatch(labelCount: versions.count, versionCount: snapshots.count)
+        guard versionCount == descriptorCount else {
+            throw ABIEvolutionError.labelCountMismatch(labelCount: descriptorCount, versionCount: versionCount)
         }
-        let keyCollisionsByVersion = snapshots.map { $0.keyCollisions() }
+    }
+
+    /// The matrix over validated input. `imageGroups`, one per version, says
+    /// which images hold what when the versions are groups of images.
+    private func evolution(
+        of snapshots: [ABISnapshot],
+        versions: [ABIVersionDescriptor],
+        keyCollisionsByVersion: [[ABIKeyCollision]],
+        imageGroups: [MergedImageGroup]?
+    ) -> ABIEvolution {
         let remangleFallbacksByVersion = snapshots.map { $0.remangleFallbacks() }
         let hidesNonExportedMembers = snapshots.map { !$0.hasLocalSwiftSymbols }
         let versionIndicesWithoutLocalSwiftSymbols = hidesNonExportedMembers.indices.filter { hidesNonExportedMembers[$0] }
@@ -43,14 +85,26 @@ public struct ABIEvolutionBuilder: Sendable {
         let everyVersionPresent = [PresenceObservation](repeating: .present, count: snapshots.count)
         return ABIEvolution(
             versions: versions,
-            types: containerLineages(snapshots.map(\.types), hidesNonExportedMembers),
-            protocols: containerLineages(snapshots.map(\.protocols), hidesNonExportedMembers),
-            typeExtensions: containerLineages(snapshots.map(\.typeExtensions), hidesNonExportedMembers),
-            protocolExtensions: containerLineages(snapshots.map(\.protocolExtensions), hidesNonExportedMembers),
-            typeAliasExtensions: containerLineages(snapshots.map(\.typeAliasExtensions), hidesNonExportedMembers),
-            conformanceExtensions: containerLineages(snapshots.map(\.conformanceExtensions), hidesNonExportedMembers),
-            globalVariables: memberLineages(perVersionMembers: snapshots.map(\.globalVariables), containerObservations: everyVersionPresent, hidesNonExportedMembers),
-            globalFunctions: memberLineages(perVersionMembers: snapshots.map(\.globalFunctions), containerObservations: everyVersionPresent, hidesNonExportedMembers),
+            types: containerLineages(snapshots.map(\.types), hidesNonExportedMembers, imageGroups?.map(\.types)),
+            protocols: containerLineages(snapshots.map(\.protocols), hidesNonExportedMembers, imageGroups?.map(\.protocols)),
+            typeExtensions: containerLineages(snapshots.map(\.typeExtensions), hidesNonExportedMembers, imageGroups?.map(\.typeExtensions)),
+            protocolExtensions: containerLineages(snapshots.map(\.protocolExtensions), hidesNonExportedMembers, imageGroups?.map(\.protocolExtensions)),
+            typeAliasExtensions: containerLineages(snapshots.map(\.typeAliasExtensions), hidesNonExportedMembers, imageGroups?.map(\.typeAliasExtensions)),
+            conformanceExtensions: containerLineages(snapshots.map(\.conformanceExtensions), hidesNonExportedMembers, imageGroups?.map(\.conformanceExtensions)),
+            globalVariables: memberLineages(
+                perVersionMembers: snapshots.map(\.globalVariables),
+                containerObservations: everyVersionPresent,
+                hidesNonExportedMembers,
+                perVersionImageNames: imageGroups?.map(\.globalVariableImageNames),
+                containerImageNames: nil
+            ),
+            globalFunctions: memberLineages(
+                perVersionMembers: snapshots.map(\.globalFunctions),
+                containerObservations: everyVersionPresent,
+                hidesNonExportedMembers,
+                perVersionImageNames: imageGroups?.map(\.globalFunctionImageNames),
+                containerImageNames: nil
+            ),
             keyCollisionsByVersion: keyCollisionsByVersion.allSatisfy(\.isEmpty) ? nil : keyCollisionsByVersion,
             remangleFallbacksByVersion: remangleFallbacksByVersion.allSatisfy(\.isEmpty) ? nil : remangleFallbacksByVersion,
             versionIndicesWithoutLocalSwiftSymbols: versionIndicesWithoutLocalSwiftSymbols.isEmpty ? nil : versionIndicesWithoutLocalSwiftSymbols
@@ -62,8 +116,14 @@ public struct ABIEvolutionBuilder: Sendable {
     /// One container bucket (types, protocols, or an extension bucket) across
     /// all versions: `perVersionContainers[i]` is that bucket in version `i`.
     /// `hidesNonExportedMembers[i]` says version `i`'s image carries no local
-    /// Swift symbols (see `UnobservablePresence.swift`).
-    private func containerLineages(_ perVersionContainers: [[ContainerSnapshot]], _ hidesNonExportedMembers: [Bool]) -> [ContainerLineage] {
+    /// Swift symbols (see `UnobservablePresence.swift`). `perVersionImages`,
+    /// when the versions are groups of images, says which images hold the
+    /// bucket's containers and members in each version.
+    private func containerLineages(
+        _ perVersionContainers: [[ContainerSnapshot]],
+        _ hidesNonExportedMembers: [Bool],
+        _ perVersionImages: [BucketImageAttribution]?
+    ) -> [ContainerLineage] {
         let keyedPerVersion = perVersionContainers.map { keyedFirstWins($0, by: \.key) }
         let orderedKeys = unionOfKeys(keyedPerVersion)
 
@@ -77,9 +137,17 @@ public struct ABIEvolutionBuilder: Sendable {
             )
             let resolution = PresenceResolution(observations)
             let containerEvents = resolution.presenceEvents()
-            let members = memberLineages(perVersionMembers: perVersion.map { $0?.members }, containerObservations: observations, hidesNonExportedMembers)
+            let containerImageNames = perVersionImages?.map { $0.containerImageNames[containerKey] }
+            let members = memberLineages(
+                perVersionMembers: perVersion.map { $0?.members },
+                containerObservations: observations,
+                hidesNonExportedMembers,
+                perVersionImageNames: perVersionImages?.map { $0.memberImageNames[containerKey] ?? [:] },
+                containerImageNames: containerImageNames
+            )
             let presenceStates = resolution.presenceStatesIfAnyUnobserved
-            guard !containerEvents.isEmpty || !members.isEmpty || presenceStates != nil else { continue }
+            let imageMoves = containerImageNames.map { ImageMove.moves(observations: observations, imageNames: $0) } ?? []
+            guard !containerEvents.isEmpty || !members.isEmpty || presenceStates != nil || !imageMoves.isEmpty else { continue }
             // Name/kind from the latest appearance, so a report shows the most
             // recent spelling of the container.
             let latest = perVersion.reversed().compactMap { $0 }.first!
@@ -90,7 +158,8 @@ public struct ABIEvolutionBuilder: Sendable {
                 presence: resolution.presence,
                 events: containerEvents,
                 memberLineages: members,
-                presenceStates: presenceStates
+                presenceStates: presenceStates,
+                imageMoves: imageMoves.isEmpty ? nil : imageMoves
             ))
         }
         return lineages.sorted { $0.key.sortKey < $1.key.sortKey }
@@ -107,10 +176,18 @@ public struct ABIEvolutionBuilder: Sendable {
     /// members across the gap would diverge from the two-sided differ (which
     /// leaves an added/removed container's `memberChanges` empty). A member
     /// cannot be seen where its container cannot.
+    ///
+    /// When the versions are groups of images, `perVersionImageNames[i]`
+    /// maps each member identity to the images holding it in version `i`,
+    /// and `containerImageNames[i]` names the container's images there (`nil`
+    /// for the globals, which have no container): a member that moved along
+    /// with its container is the container's move.
     private func memberLineages(
         perVersionMembers: [[MemberRecord]?],
         containerObservations: [PresenceObservation],
-        _ hidesNonExportedMembers: [Bool]
+        _ hidesNonExportedMembers: [Bool],
+        perVersionImageNames: [[ABIKey: [String]]]? = nil,
+        containerImageNames: [[String]?]? = nil
     ) -> [MemberLineage] {
         let keyedPerVersion = perVersionMembers.map { members in
             members.map { keyedFirstWins($0, by: \.identityKey) }
@@ -169,7 +246,14 @@ public struct ABIEvolutionBuilder: Sendable {
                 (span.state == .inferredPresent || !span.leavesTheBoundsKnown)
                     && span.versionIndices.contains { containerObservations[$0] == .present }
             }
-            guard !events.isEmpty || hasTellingSpanOfItsOwn else { continue }
+            let imageMoves = perVersionImageNames.map { perVersionImageNames in
+                ImageMove.moves(
+                    observations: observations,
+                    imageNames: perVersionImageNames.map { $0[memberKey] },
+                    containerImageNames: containerImageNames
+                )
+            } ?? []
+            guard !events.isEmpty || hasTellingSpanOfItsOwn || !imageMoves.isEmpty else { continue }
             let presenceStates = resolution.presenceStatesIfAnyUnobserved
             // The record exists somewhere on the axis for the key to be in the
             // union, so the latest appearance always resolves a kind.
@@ -180,7 +264,8 @@ public struct ABIEvolutionBuilder: Sendable {
                 presence: resolution.presence,
                 events: events,
                 presenceStates: presenceStates,
-                latestSignature: events.isEmpty ? latestRecord.signature : nil
+                latestSignature: events.isEmpty ? latestRecord.signature : nil,
+                imageMoves: imageMoves.isEmpty ? nil : imageMoves
             ))
         }
         return lineages.sorted { $0.key.sortKey < $1.key.sortKey }

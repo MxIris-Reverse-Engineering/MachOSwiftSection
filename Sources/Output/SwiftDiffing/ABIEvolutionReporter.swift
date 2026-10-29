@@ -21,6 +21,12 @@
 /// versions around it both have the member (inferred present) and `◌`
 /// otherwise, and a change across such a span is placed `between` the
 /// versions that saw it.
+///
+/// Over groups of images (evolution proposal `image-group-evolution`), the
+/// header names each image with the versions holding it, and a declaration
+/// that moved between them reads `> moved in 15.0: SwiftUI → SwiftUICore`
+/// among its events; the transition summary counts the moves without
+/// letting them weigh on the verdict.
 public struct ABIEvolutionReporter: Sendable {
     public init() {}
 
@@ -53,7 +59,11 @@ public struct ABIEvolutionReporter: Sendable {
         for (versionIndex, collisions) in keyCollisionsByVersion.enumerated() {
             for collision in collisions {
                 let scope = collision.containerName.map { "\($0) · " } ?? ""
-                lines.append("  \(evolution.versions[versionIndex].label) · \(scope)dropped: \(collision.droppedSignatures.joined(separator: ", "))")
+                // Over groups of images, each dropped record names its image.
+                let droppedRecords = collision.droppedImageNames.map { droppedImageNames in
+                    zip(collision.droppedSignatures, droppedImageNames).map { "\($0) (\($1))" }
+                } ?? collision.droppedSignatures
+                lines.append("  \(evolution.versions[versionIndex].label) · \(scope)dropped: \(droppedRecords.joined(separator: ", "))")
             }
         }
         return lines.joined(separator: "\n")
@@ -81,9 +91,19 @@ public struct ABIEvolutionReporter: Sendable {
 
     // MARK: - Header & summary
 
+    /// The axis line, and — for an evolution over groups of images
+    /// (evolution proposal `image-group-evolution`) — each image with the
+    /// versions holding it, right under it.
     private func header(_ evolution: ABIEvolution) -> String {
         let axis = evolution.versions.map(\.label).joined(separator: " → ")
-        return "ABI evolution across \(evolution.versions.count) versions: \(axis)"
+        var lines = ["ABI evolution across \(evolution.versions.count) versions: \(axis)"]
+        if let imagePresences = evolution.imagePresences {
+            lines.append("Image group:")
+            for imagePresence in imagePresences {
+                lines.append("  \(bitmap(imagePresence.presence, nil)) \(imagePresence.imageName)")
+            }
+        }
+        return lines.joined(separator: "\n")
     }
 
     private func transitionSummary(_ evolution: ABIEvolution) -> String {
@@ -92,13 +112,16 @@ public struct ABIEvolutionReporter: Sendable {
         for versionIndex in 1 ..< evolution.versions.count {
             let counts = eventCounts(evolution, at: versionIndex)
             let step = "\(evolution.versions[versionIndex - 1].label) → \(evolution.versions[versionIndex].label)"
-            if counts.total == 0 {
+            if counts.total == 0, counts.moved == 0 {
                 lines.append("  \(step): no changes")
             } else {
                 var parts: [String] = []
                 if counts.added > 0 { parts.append("\(counts.added) added") }
                 if counts.removed > 0 { parts.append("\(counts.removed) removed") }
                 if counts.modified > 0 { parts.append("\(counts.modified) modified") }
+                // Moves between the images of a group never weigh on the
+                // verdict (see `ImageMove`).
+                if counts.moved > 0 { parts.append("\(counts.moved) moved") }
                 let verdict = compatibilities[versionIndex - 1] == .breaking ? "ABI-breaking" : "additive"
                 lines.append("  \(step): " + (parts + [verdict]).joined(separator: " · "))
                 // A change first observed here may have happened in the
@@ -120,10 +143,13 @@ public struct ABIEvolutionReporter: Sendable {
         return lines.joined(separator: "\n")
     }
 
-    private func eventCounts(_ evolution: ABIEvolution, at versionIndex: Int) -> (added: Int, removed: Int, modified: Int, total: Int, spanningCountsByEarliestVersionIndex: [Int: Int]) {
-        var added = 0, removed = 0, modified = 0
+    /// The changes first observed at `versionIndex`: the events by status,
+    /// their total, the moves between images, and how many of either span
+    /// versions that could not show them, by the first of those versions.
+    private func eventCounts(_ evolution: ABIEvolution, at versionIndex: Int) -> (added: Int, removed: Int, modified: Int, total: Int, moved: Int, spanningCountsByEarliestVersionIndex: [Int: Int]) {
+        var added = 0, removed = 0, modified = 0, moved = 0
         var spanningCountsByEarliestVersionIndex: [Int: Int] = [:]
-        func count(_ events: [LineageEvent]) {
+        func count(_ events: [LineageEvent], _ imageMoves: [ImageMove]?) {
             for event in events where event.versionIndex == versionIndex {
                 switch event.status {
                 case .added: added += 1
@@ -134,17 +160,23 @@ public struct ABIEvolutionReporter: Sendable {
                     spanningCountsByEarliestVersionIndex[earliestVersionIndex, default: 0] += 1
                 }
             }
+            for imageMove in imageMoves ?? [] where imageMove.versionIndex == versionIndex {
+                moved += 1
+                if let earliestVersionIndex = imageMove.earliestVersionIndex {
+                    spanningCountsByEarliestVersionIndex[earliestVersionIndex, default: 0] += 1
+                }
+            }
         }
         for lineage in evolution.allContainerLineages {
-            count(lineage.events)
+            count(lineage.events, lineage.imageMoves)
             for memberLineage in lineage.memberLineages {
-                count(memberLineage.events)
+                count(memberLineage.events, memberLineage.imageMoves)
             }
         }
         for lineage in evolution.allGlobalLineages {
-            count(lineage.events)
+            count(lineage.events, lineage.imageMoves)
         }
-        return (added, removed, modified, added + removed + modified, spanningCountsByEarliestVersionIndex)
+        return (added, removed, modified, added + removed + modified, moved, spanningCountsByEarliestVersionIndex)
     }
 
     // MARK: - Sections
@@ -159,16 +191,16 @@ public struct ABIEvolutionReporter: Sendable {
         var lines = ["\(title):"]
         for lineage in lineages {
             lines.append("  \(bitmap(lineage.presence, lineage.presenceStates)) \(lineage.name)")
-            for event in lineage.events {
-                lines.append("      \(eventLine(event, evolution, signatures: false))")
+            for changeLine in changeLines(lineage.events, lineage.imageMoves, evolution, signatures: false) {
+                lines.append("      \(changeLine)")
             }
             for spanLine in unobservedSpanLines(lineage.presenceStates, events: lineage.events, evolution) {
                 lines.append("      \(spanLine)")
             }
             for memberLineage in lineage.memberLineages {
                 lines.append("      \(bitmap(memberLineage.presence, memberLineage.presenceStates)) \(latestSignature(memberLineage))")
-                for event in memberLineage.events {
-                    lines.append("          \(eventLine(event, evolution, signatures: true))")
+                for changeLine in changeLines(memberLineage.events, memberLineage.imageMoves, evolution, signatures: true) {
+                    lines.append("          \(changeLine)")
                 }
                 for spanLine in unobservedSpanLines(memberLineage.presenceStates, events: memberLineage.events, evolution) {
                     lines.append("          \(spanLine)")
@@ -188,8 +220,8 @@ public struct ABIEvolutionReporter: Sendable {
         var lines = ["\(title):"]
         for lineage in lineages {
             lines.append("  \(bitmap(lineage.presence, lineage.presenceStates)) \(latestSignature(lineage))")
-            for event in lineage.events {
-                lines.append("      \(eventLine(event, evolution, signatures: true))")
+            for changeLine in changeLines(lineage.events, lineage.imageMoves, evolution, signatures: true) {
+                lines.append("      \(changeLine)")
             }
             for spanLine in unobservedSpanLines(lineage.presenceStates, events: lineage.events, evolution) {
                 lines.append("      \(spanLine)")
@@ -199,6 +231,23 @@ public struct ABIEvolutionReporter: Sendable {
     }
 
     // MARK: - Lines
+
+    /// A lineage's events and moves between images, ordered by the version
+    /// each was first observed at — the events of a version before its moves:
+    /// `> moved in 15.0: SwiftUI → SwiftUICore`.
+    private func changeLines(_ events: [LineageEvent], _ imageMoves: [ImageMove]?, _ evolution: ABIEvolution, signatures: Bool) -> [String] {
+        let eventLines = events.map { event in
+            (versionIndex: event.versionIndex, isMove: false, line: eventLine(event, evolution, signatures: signatures))
+        }
+        let moveLines = (imageMoves ?? []).map { imageMove in
+            (versionIndex: imageMove.versionIndex, isMove: true, line: "> " + imageMove.phrase(on: evolution.versions))
+        }
+        return (eventLines + moveLines).enumerated()
+            .sorted { left, right in
+                (left.element.versionIndex, left.element.isMove ? 1 : 0, left.offset) < (right.element.versionIndex, right.element.isMove ? 1 : 0, right.offset)
+            }
+            .map(\.element.line)
+    }
 
     /// The lineage's most recent rendering: the last event's signature (new
     /// side preferred), or — for a lineage without events, kept for its
