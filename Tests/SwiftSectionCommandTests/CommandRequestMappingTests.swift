@@ -70,6 +70,7 @@ struct CommandRequestMappingTests {
             "--emit-expanded-field-offsets",
             "--emit-member-addresses", "--emit-vtable-offsets", "--emit-pwt-addresses",
             "--emit-type-layout", "--emit-enum-layout", "--emit-export-status", "--emit-header",
+            "--emit-private-source-files",
             "--output-path", "out.txt",
         ]).makeRequest()
         #expect(request.sections == .only([.protocols, .types]))
@@ -81,6 +82,7 @@ struct CommandRequestMappingTests {
         #expect(request.emitsTypeLayout)
         #expect(request.emitsEnumLayout)
         #expect(request.emitsExportStatus)
+        #expect(request.emitsPrivateDeclarationSourceFiles)
         #expect(request.emitsHeader)
         #expect(request.destination == .file(path: "out.txt"))
     }
@@ -116,6 +118,7 @@ struct CommandRequestMappingTests {
             "--resolve-c-module-names", "--supplementary-apinotes", "/tmp/Extra.apinotes",
             "--emit-offset-comments", "--sort-members-by-offset", "--exported-only",
             "--infer-objc-overrides", "--module-selectors", "--requirements-on-associated-types", "--emit-header",
+            "--emit-private-source-files",
         ]).makeRequest()
         #expect(request.showsCImportedTypes)
         #expect(request.parsesOpaqueReturnTypes)
@@ -127,6 +130,7 @@ struct CommandRequestMappingTests {
         #expect(request.usesModuleSelectors)
         #expect(request.protocolRequirementPlacement == .associatedTypes)
         #expect(request.emitsHeader)
+        #expect(request.emitsPrivateDeclarationSourceFiles)
     }
 
     @Test("interface prints without module selectors unless asked")
@@ -232,5 +236,17 @@ struct CommandRequestMappingTests {
         let request = try ObjCEvolutionCommand.parse(["--labels", "a, b", "--json", "one", "two"]).makeRequest()
         #expect(request.labels == ["a", "b"])
         #expect(request.report == .json)
+    }
+
+    @Test("objc evolution's output flags become one report", arguments: [
+        ([String](), ObjCAPIEvolutionRequest.Report.lineage),
+        (["--summary-only"], .summary),
+        (["--json"], .json),
+        (["--interface"], .annotatedInterface(availabilityAttributes: .none)),
+        (["--interface", "--emit-available"], .annotatedInterface(availabilityAttributes: .inferredPlatform)),
+        (["--interface", "--emit-available", "--platform", "ios"], .annotatedInterface(availabilityAttributes: .platform("ios"))),
+    ])
+    func objcEvolutionReport(flags: [String], expectedReport: ObjCAPIEvolutionRequest.Report) throws {
+        #expect(try ObjCEvolutionCommand.parse(flags + ["old.dylib", "new.dylib"]).makeRequest().report == expectedReport)
     }
 }

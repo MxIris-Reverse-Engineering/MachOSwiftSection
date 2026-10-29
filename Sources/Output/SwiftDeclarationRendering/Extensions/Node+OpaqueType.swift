@@ -278,7 +278,7 @@ extension Node {
         /// ``AccessorThunkResolving`` vends to a host that wants to show them.
         private func resolvingAccessorFunctionReferences(in node: Node, ownerLayout: AccessorThunkOwnerLayout) -> Node? {
             guard node.contains(Node.Kind.accessorFunctionReference) else { return nil }
-            guard let machOFile = machO as? MachOFile else { return nil }
+            guard let machOFile = machO.asMachOFile else { return nil }
 
             let rewriter = AccessorFunctionReferenceRewriter(
                 resolver: AccessorThunkResolution.effectiveResolver,
@@ -343,8 +343,9 @@ extension Node {
         /// produces for it.
         ///
         /// **By pointer** (`opaqueTypeDescriptorSymbolicReference`): the
-        /// node carries the descriptor's offset — or, in any `MachOImage`
-        /// environment, its absolute in-process pointer bit pattern, which
+        /// node carries the descriptor's offset — or, whenever the reader reads
+        /// through a `MachOImage` (`asMachOImage`, wrappers included), its
+        /// absolute in-process pointer bit pattern, which
         /// `SymbolicDemangler` stashes in `Node.index` regardless of whether
         /// the descriptor lives in this image or a sibling loaded one
         /// (cross-image refs from `View.searchFieldStyle`-style helpers,
@@ -362,7 +363,7 @@ extension Node {
         /// resolves here; one it does not is ``foreignOpaqueType(referencedBy:)``'s.
         private func opaqueType(referencedBy reference: Node) throws -> ReadOpaqueType? {
             if reference.isKind(of: .opaqueTypeDescriptorSymbolicReference), let offset: Int = reference.index?.cast() {
-                if machO is MachOImage, let absolutePointer = UnsafeRawPointer(bitPattern: offset) {
+                if machO.asMachOImage != nil, let absolutePointer = UnsafeRawPointer(bitPattern: offset) {
                     let opaqueTypeDescriptor: OpaqueTypeDescriptor = try absolutePointer.readWrapperElement()
                     return try ReadOpaqueType(OpaqueType(descriptor: opaqueTypeDescriptor, in: .inProcess), in: .inProcess)
                 }
@@ -396,7 +397,7 @@ extension Node {
         /// list, printed the conformer itself as the witness (`typealias Body
         /// = SidebarListBody.CollectionViewBody`), a real, wrong type.
         private func foreignOpaqueType(referencedBy reference: Node) throws -> (image: MachOFile, opaqueType: ReadOpaqueType)? {
-            guard reference.isKind(of: .opaqueReturnTypeOf), let machOFile = machO as? MachOFile else { return nil }
+            guard reference.isKind(of: .opaqueReturnTypeOf), let machOFile = machO.asMachOFile else { return nil }
             let descriptorSymbolNode = Node.create(kind: .global, children: [Node.create(kind: .opaqueTypeDescriptor, children: [reference.copy()])])
             let descriptorSymbolName = try mangleAsString(descriptorSymbolNode)
             let searchPaths = (AccessorThunkResolution.effectiveResolver as? DisassemblingAccessorThunkResolver)?.searchPaths
@@ -440,7 +441,7 @@ extension Node {
             let allTypeList = Node.opaqueTypeGenericArgumentsByDepth(of: node, depthLayout: readOpaqueType.depthLayout)
             guard let underlyingTypeArgumentMangledName = opaqueType.underlyingTypeArgumentMangledNames[safe: ordinal] else { return nil }
             let underlyingTypeArgumentNode: Node?
-            if machO is MachOImage {
+            if machO.asMachOImage != nil {
                 underlyingTypeArgumentNode = try? SymbolicDemangler.demangleType(for: underlyingTypeArgumentMangledName, in: .inProcess)
             } else {
                 underlyingTypeArgumentNode = try? SymbolicDemangler.demangleType(for: underlyingTypeArgumentMangledName, in: machO.context)
@@ -497,18 +498,25 @@ extension Node {
             ))
             // The witness is that image's tree: its references are resolved
             // there, one nesting level down.
-            let rewritten = OpaqueTypeRewriter(
-                machO: projection.image,
+            let rewritten = rewriteOneLevelDown(projection.witnessNode, in: projection.image)
+            // Unwrapped so the result composes where a type belongs, the
+            // way `expansion(of:forNode:)`'s does.
+            if rewritten.kind == .type, let content = rewritten.firstChild { return content }
+            return rewritten
+        }
+
+        /// `node` rewritten one nesting level down by a rewriter over `image`,
+        /// whatever reader type `image` is — passing the projection's
+        /// existential opens it (SE-0352).
+        private func rewriteOneLevelDown<Image: MachOSwiftSectionRepresentableWithCache>(_ node: Node, in image: Image) -> Node {
+            OpaqueTypeRewriter<Image>(
+                machO: image,
                 reportDegradation: reportDegradation,
                 expansionDepth: expansionDepth + 1,
                 branchSelection: branchSelection,
                 candidateLedger: candidateLedger,
                 projectionLedger: projectionLedger
-            ).rewrite(projection.witnessNode)
-            // Unwrapped so the result composes where a type belongs, the
-            // way `expansion(of:forNode:)`'s does.
-            if rewritten.kind == .type, let content = rewritten.firstChild { return content }
-            return rewritten
+            ).rewrite(node)
         }
 
         override func visit(_ node: Node) -> Node {
@@ -602,7 +610,7 @@ extension Node {
         ownerLayout: AccessorThunkOwnerLayout
     ) -> Node {
         guard contains(Node.Kind.accessorFunctionReference),
-              let machOFile = machO as? MachOFile
+              let machOFile = machO.asMachOFile
         else { return self }
         let rewriter = AccessorFunctionReferenceRewriter(resolver: AccessorThunkResolution.effectiveResolver, machO: machOFile, ownerLayout: ownerLayout)
         let rewritten = rewriter.rewrite(copy())

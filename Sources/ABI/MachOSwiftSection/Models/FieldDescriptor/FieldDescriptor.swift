@@ -2,8 +2,11 @@ import Foundation
 import MachOKit
 import MachOBase
 
+/// A record in `__swift5_fieldmd`: a nominal type's or protocol's name, and
+/// one trailing ``FieldRecord`` per stored property or enum case. The section
+/// is a sequence of them, walked by size.
 @LocatableLayoutWrapping
-public struct FieldDescriptor: ResolvableLocatableLayoutWrapper {
+public struct FieldDescriptor: TopLevelDescriptor {
     public struct Layout: LayoutProtocol {
         public let mangledTypeName: RelativeDirectPointer<MangledName>
         public let superclass: RelativeOffset
@@ -15,6 +18,12 @@ public struct FieldDescriptor: ResolvableLocatableLayoutWrapper {
 
 extension FieldDescriptor {
     public var kind: FieldDescriptorKind { .init(rawValue: layout.kind)! }
+
+    /// Total length in bytes of the descriptor including its trailing
+    /// records, which is how the section walk advances to the next one.
+    public var actualSize: Int {
+        MemoryLayout<Layout>.size + Int(layout.numFields) * Int(layout.fieldRecordSize)
+    }
 }
 
 // MARK: - ReadingContext Support

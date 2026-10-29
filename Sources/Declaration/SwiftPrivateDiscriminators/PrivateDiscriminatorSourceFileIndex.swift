@@ -3,7 +3,10 @@ import MachOKit
 import MachOSwiftSection
 @_spi(Core) import MachOObjCSection
 @_spi(Internals) import Demangling
+@_spi(Internals) import MachOSymbols
+import Dependencies
 import SwiftDeclaration
+import SwiftDeclarationRendering
 @_spi(Support) import SwiftIndexing
 import SwiftInspection
 
@@ -101,33 +104,11 @@ public final class PrivateDiscriminatorSourceFileIndex: @unchecked Sendable {
     /// debug build that is seconds for SwiftUI. Ask for the ones shown.
     public func sourceFiles(forDiscriminators discriminators: some Sequence<String>) -> [String: PrivateDiscriminatorSourceFiles.SourceFile] {
         let requestedDiscriminators = Set(discriminators)
-        // Read outside the lock and on a large stack: reading the names
-        // prints every one of them, and the request may come from a
-        // cooperative thread's 512 KB stack. One hop for the whole batch;
-        // a thread that already has the stack reads them where it is.
-        let readCandidates = imageNamesToRead(forDiscriminators: requestedDiscriminators).map { imageNames in
-            PrivateDiscriminatorSourceFiles.Candidates(imagePath: imagePath, imageNames: StackSafeExecutor.withLargeStack { imageNames() })
-        }
+        let readCandidates = imageNamesToRead(unlessAnswering: requestedDiscriminators).map(candidates(readingNamesWith:))
         lock.lock()
         defer { lock.unlock() }
-        // Another first request may have built them meanwhile: those stay,
-        // and these are dropped.
-        if candidates == nil, let readCandidates {
-            candidates = readCandidates
-            imageNames = nil
-        }
-        let unansweredDiscriminators = requestedDiscriminators.filter { answerByDiscriminator[$0] == nil }
-        if !unansweredDiscriminators.isEmpty, let candidates {
-            numberOfSearches += 1
-            let search = PrivateDiscriminatorSourceFiles(recovering: unansweredDiscriminators, candidates: candidates, knownFileNames: knownFileNames)
-            // A search also finds the file a synthesized one was made for.
-            for (discriminator, sourceFile) in search.sourceFileByDiscriminator {
-                answerByDiscriminator[discriminator] = .recovered(sourceFile)
-            }
-            for discriminator in unansweredDiscriminators where answerByDiscriminator[discriminator] == nil {
-                answerByDiscriminator[discriminator] = .unrecovered
-            }
-        }
+        install(readCandidates)
+        searchUnanswered(requestedDiscriminators)
         var sourceFileByDiscriminator: [String: PrivateDiscriminatorSourceFiles.SourceFile] = [:]
         for discriminator in requestedDiscriminators {
             if case .recovered(let sourceFile) = answerByDiscriminator[discriminator] {
@@ -137,13 +118,94 @@ public final class PrivateDiscriminatorSourceFileIndex: @unchecked Sendable {
         return sourceFileByDiscriminator
     }
 
-    /// What reads the image's names, when a request for `discriminators`
-    /// brings one not answered before and the candidates are not built yet.
-    private func imageNamesToRead(forDiscriminators discriminators: Set<String>) -> (@Sendable () -> [PrivateDiscriminatorSourceFiles.ImageName])? {
+    /// Searches once for the source file of every discriminator `indexer`'s
+    /// image declares something with — its types', protocols' and extensions'
+    /// names, which the index reads anyway, and its members' and globals' — so
+    /// that asking for any of them afterwards costs a lookup (evolution
+    /// proposal `private-declaration-source-files`).
+    ///
+    /// A printer that names the file of every private declaration it shows
+    /// calls this first. Asked one declaration at a time, each discriminator
+    /// nothing recovers would run through every candidate on its own; asked
+    /// together, they share one pass. The candidates are the same either way.
+    @_spi(Support)
+    public func recoverSourceFiles<MachO>(ofEveryDeclarationIn indexer: SwiftDeclarationIndexer<MachO>) {
+        // Outside the lock and on a large stack, like the names: a member
+        // symbol's node may still have to be demangled.
+        let declarationDiscriminators = StackSafeExecutor.withLargeStack { Self.memberAndGlobalDiscriminators(in: indexer) }
+        let readCandidates = imageNamesToRead(unlessAnswering: nil).map(candidates(readingNamesWith:))
         lock.lock()
         defer { lock.unlock() }
-        guard candidates == nil, discriminators.contains(where: { answerByDiscriminator[$0] == nil }) else { return nil }
+        install(readCandidates)
+        let nameDiscriminators = candidates.map { Set($0.identifiersByDiscriminator.keys) } ?? []
+        searchUnanswered(nameDiscriminators.union(declarationDiscriminators))
+    }
+
+    /// What reads the image's names, when the candidates are not built yet
+    /// and — for `discriminators` — one of them is not answered either.
+    private func imageNamesToRead(unlessAnswering discriminators: Set<String>?) -> (@Sendable () -> [PrivateDiscriminatorSourceFiles.ImageName])? {
+        lock.lock()
+        defer { lock.unlock() }
+        guard candidates == nil else { return nil }
+        if let discriminators, !discriminators.contains(where: { answerByDiscriminator[$0] == nil }) {
+            return nil
+        }
         return imageNames
+    }
+
+    /// The candidates the image's names make. Called outside the lock; the
+    /// names are read on a large stack: reading them prints every one of
+    /// them, and the request may come from a cooperative thread's 512 KB
+    /// stack. One hop for the whole batch; a thread that already has the
+    /// stack reads them where it is.
+    private func candidates(readingNamesWith imageNames: @escaping @Sendable () -> [PrivateDiscriminatorSourceFiles.ImageName]) -> PrivateDiscriminatorSourceFiles.Candidates {
+        PrivateDiscriminatorSourceFiles.Candidates(imagePath: imagePath, imageNames: StackSafeExecutor.withLargeStack { imageNames() })
+    }
+
+    /// Keeps `readCandidates` unless another first request built them
+    /// meanwhile: those stay, and these are dropped. Called under the lock.
+    private func install(_ readCandidates: PrivateDiscriminatorSourceFiles.Candidates?) {
+        if candidates == nil, let readCandidates {
+            candidates = readCandidates
+            imageNames = nil
+        }
+    }
+
+    /// Searches for those of `discriminators` not answered before, in one
+    /// search, and remembers every answer. Called under the lock.
+    private func searchUnanswered(_ discriminators: Set<String>) {
+        let unansweredDiscriminators = discriminators.filter { answerByDiscriminator[$0] == nil }
+        guard !unansweredDiscriminators.isEmpty, let candidates else { return }
+        numberOfSearches += 1
+        let search = PrivateDiscriminatorSourceFiles(recovering: unansweredDiscriminators, candidates: candidates, knownFileNames: knownFileNames)
+        // A search also finds the file a synthesized one was made for.
+        for (discriminator, sourceFile) in search.sourceFileByDiscriminator {
+            answerByDiscriminator[discriminator] = .recovered(sourceFile)
+        }
+        for discriminator in unansweredDiscriminators where answerByDiscriminator[discriminator] == nil {
+            answerByDiscriminator[discriminator] = .unrecovered
+        }
+    }
+
+    /// The discriminators of the members and globals `indexer`'s image
+    /// declares, which no name the index reads has to carry: a file holding
+    /// only `extension View { private func … }` shows up nowhere else.
+    private static func memberAndGlobalDiscriminators<MachO>(in indexer: SwiftDeclarationIndexer<MachO>) -> Set<String> {
+        @Dependency(\.symbolIndexStore)
+        var symbolIndexStore
+        var discriminators: Set<String> = []
+        for memberKind in SymbolIndexStore.MemberKind.allCases {
+            for memberSymbol in symbolIndexStore.memberSymbols(of: memberKind, in: indexer.machO) {
+                discriminators.formUnion(memberSymbol.demangledNode.privateDeclarations.map(\.discriminator))
+            }
+        }
+        for globalVariable in indexer.globalVariableDefinitions {
+            discriminators.formUnion(globalVariable.node.privateDeclarations.map(\.discriminator))
+        }
+        for globalFunction in indexer.globalFunctionDefinitions {
+            discriminators.formUnion(globalFunction.node.privateDeclarations.map(\.discriminator))
+        }
+        return discriminators
     }
 
     // MARK: - Names of the Image
@@ -201,5 +263,17 @@ public final class PrivateDiscriminatorSourceFileIndex: @unchecked Sendable {
     /// `_TtC7SwiftUI…`; the Swift names cover it already.
     private static func objectiveCImageNames(_ names: [String]) -> [PrivateDiscriminatorSourceFiles.ImageName] {
         names.filter { !$0.isEmpty && !$0.hasPrefix("_Tt") }.map { .init(printedName: $0) }
+    }
+}
+
+/// What dump and interface ask for the file a private declaration comes from
+/// (evolution proposal `private-declaration-source-files`). A host searches
+/// the whole image first — `recoverSourceFiles(ofEveryDeclarationIn:)` — so
+/// that each answer is a lookup.
+extension PrivateDiscriminatorSourceFileIndex: PrivateDeclarationSourceFileProviding {
+    public func sourceFile(forPrivateDiscriminator discriminator: String) -> PrivateDeclarationSourceFile? {
+        sourceFiles(forDiscriminators: CollectionOfOne(discriminator))[discriminator].map {
+            PrivateDeclarationSourceFile(fileName: $0.fileName, moduleName: $0.moduleName, isSynthesized: $0.isSynthesized)
+        }
     }
 }

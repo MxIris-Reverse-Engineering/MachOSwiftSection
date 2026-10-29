@@ -38,6 +38,9 @@ swift-section objc diff <old> <new>
 
 # Follow every declaration across N ≥ 2 versions
 swift-section objc evolution <v1> <v2> <v3> --labels 17.0,18.0,26.0
+
+# The same versions merged into one header, each declaration annotated with its lifecycle
+swift-section objc evolution <v1> <v2> <v3> --labels 17.0,18.0,26.0 --interface -o evolution.h
 ```
 
 `dump` is the default, so `swift-section objc <file>` is `swift-section objc dump <file>`.
@@ -134,15 +137,37 @@ swift-section objc evolution CoreLocation-*.json --summary-only
 | Option (`diff` and `evolution`) | Meaning |
 |---|---|
 | `--summary-only` | Only the verdict (`diff`: the breaking line; `evolution`: the transition summary) |
-| `--json` | Structured JSON instead of the text report (not together with `--summary-only`) |
+| `--json` | Structured JSON instead of the text report (not together with `--summary-only` or `--interface`) |
 | `--fail-on-breaking` | Exit nonzero when there is an API-breaking change, for CI gating |
 | `-o, --output-path <path>` | Write to a file instead of stdout (progress and logs always go to stderr) |
 | `--labels a,b,c` | `evolution` only: the version axis, one label per input; defaults to each snapshot's stored label or the file name |
+| `--interface` | `evolution` only: one header merging every version, each declaration annotated with its lifecycle (see below); every input must be a binary or a cache |
+| `--emit-available` | With `--interface`: also spell each lifecycle one availability macro expresses (`API_AVAILABLE` / `API_OBSOLETED`) |
+| `--platform <name>` | With `--emit-available`: the macros' platform name, instead of the one inferred from `LC_BUILD_VERSION` |
 
 The input options (`--dyld-shared-cache` / `-n` / `-p` / `-a`) are the same as `dump`'s; for
 `diff` and `evolution` they mean "every input is a cache, extract the same image from each".
 `snapshot` rejects `--uses-system-dyld-shared-cache`: the running system's cache has no stable
 path to record in the baseline.
+
+### The annotated header (`evolution --interface`)
+
+`--interface` replaces the lineage report with one header that merges every version. Each declaration is rendered the way `objc dump` renders it, and the ones that changed carry their lifecycle at the end of the line — `// [○●●] added in 18.0`, `removed in …`, or `modified in …: old → new` — where the bitmap has one position per version and the header's second line says which. A removed declaration stays where it last was. A class, protocol or category that was added or removed is annotated on its `@interface` / `@protocol` line alone, not member by member, and a changed superclass or protocol adoption is a comment line above it. The annotations are the lineages the text and JSON reports print, read from the same snapshots.
+
+`--emit-available` also spells each lifecycle one availability macro can express: `API_AVAILABLE(macos(13.0))` for a declaration added inside the axis, and `API_OBSOLETED("Removed", macos(12.0, 13.0, 13.0))` for one added and later removed. The versions are axis points, not necessarily the releases that really introduced or removed a declaration. A declaration present from the first version and removed later gets no macro, because `API_OBSOLETED` needs the version that introduced it; neither does one that disappeared and came back, one that was only modified, or one whose labels are not version numbers. The platform comes from every input's `LC_BUILD_VERSION`, a simulator counting as its device. When the inputs name none or different ones, name it with `--platform` in the macros' own spelling: `macos`, `ios`, `tvos`, `watchos`, `visionos`, `macCatalyst` or `driverkit`.
+
+```bash
+swift-section objc evolution \
+    15.5/dyld_shared_cache_arm64e \
+    26.5/dyld_shared_cache_arm64e \
+    27.0/dyld_shared_cache_arm64e \
+    --dyld-shared-cache -n AppKit \
+    --labels 15.5,26.5,27.0 \
+    --interface --emit-available \
+    -o AppKit-evolution.h
+```
+
+Every input must be a binary or a cache: a snapshot does not carry rendered declarations, so a snapshot input is a usage error. Pass `--labels` when the inputs are caches, since each label otherwise defaults to the file name, which is `dyld_shared_cache_arm64e` for all of them. The versions are indexed one at a time and only what was rendered is kept: in a release build, AppKit across 52 macOS caches (11.0.1 to 27.2) takes about three minutes and peaks at 2 GB.
 
 ## Things you must know
 
@@ -212,3 +237,17 @@ complain about four kinds nobody asked for.
 
 **Keeping exit code 0 is deliberate**: these are diagnostics, not failures, and no existing
 script or CI job should turn red over them. For gating, use `diff --fail-on-breaking`.
+
+### 5. Swift classes without a class object are read from Swift metadata
+
+`__objc_classlist` holds a class object for every Swift class whose metadata the compiler can emit complete. Three kinds of class have none. They are listed from their Swift metadata instead, each under a comment line naming the kind:
+
+| Comment | Class | Listed as |
+|---|---|---|
+| `// Generic Swift class, instantiated at runtime` | A generic class. Its `class_ro_t` is the template its generic metadata pattern carries, and every instantiation gets a copy with a name of its own | Its Swift name with its generic parameters: `Module.Panel<A>` |
+| `// Swift class with resilient ancestry, registered through __objc_stublist` | A class whose superclass is in another module built with library evolution, such as SwiftUI | Its runtime name: `_TtC6Module5Label` |
+| `// Swift class with generic ancestry, registered through __objc_stublist` | A class whose superclass is a generic class of the same module | Its runtime name |
+
+The last two kinds are listed only when an Objective-C class is among their ancestors, since only then does the compiler register them in `__objc_stublist`. A superclass that is a Swift class of another binary keeps its Swift spelling (`SwiftUI.NSHostingView<Module.Label>`), and `--strip-overrides` cannot see past it.
+
+A `snapshot` written by `swift-section` 0.24.0 or earlier does not contain these classes, so a `diff` against it reports each of them as added. Regenerate the baseline with the current tool before you compare.

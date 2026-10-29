@@ -55,20 +55,20 @@ public struct ClassHierarchyDumper {
 }
 
 extension ObjCClass64: @retroactive Equatable {
-    public static func == (lhs: ObjCClass64, rhs: ObjCClass64) -> Bool {
-        lhs.offset == rhs.offset && lhs.layout == rhs.layout
+    public static func == (left: ObjCClass64, right: ObjCClass64) -> Bool {
+        left.offset == right.offset && left.layout == right.layout
     }
 }
 
 extension ObjCClass64: @retroactive LocatableLayoutWrapper, Resolvable, @unchecked @retroactive Sendable {}
 
 extension ObjCClass64.Layout: @retroactive Equatable {
-    public static func == (lhs: ObjCClass64.Layout, rhs: ObjCClass64.Layout) -> Bool {
-        lhs.isa == rhs.isa &&
-            lhs.superclass == rhs.superclass &&
-            lhs.methodCacheBuckets == rhs.methodCacheBuckets &&
-            lhs.methodCacheProperties == rhs.methodCacheProperties &&
-            lhs.swiftClassFlags == rhs.swiftClassFlags
+    public static func == (left: ObjCClass64.Layout, right: ObjCClass64.Layout) -> Bool {
+        left.isa == right.isa &&
+            left.superclass == right.superclass &&
+            left.methodCacheBuckets == right.methodCacheBuckets &&
+            left.methodCacheProperties == right.methodCacheProperties &&
+            left.swiftClassFlags == right.swiftClassFlags
     }
 }
 

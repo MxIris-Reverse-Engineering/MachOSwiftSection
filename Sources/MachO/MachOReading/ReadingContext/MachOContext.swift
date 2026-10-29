@@ -86,13 +86,14 @@ public struct MachOContext<MachO: MachORepresentableWithCache & Readable>: Readi
         address
     }
 
-    /// Vends the underlying MachO object as a bind/rebase resolver when it
-    /// conforms to `MachOBindRebaseResolving`. The runtime cast keeps the
-    /// generic parameter `MachO` unconstrained, so wrapper types (e.g.
-    /// UI-layer projections that compose a `MachOFile`) can opt in by
-    /// declaring conformance themselves without changing this site.
+    /// Vends the reader as a bind/rebase resolver when it conforms to
+    /// `MachOBindRebaseResolving` — or, for a `MachOReaderWrapper` that does
+    /// not, the reader beneath it. The runtime cast keeps the generic parameter
+    /// `MachO` unconstrained, so a wrapper type (a UI-layer projection that
+    /// composes a `MachOFile`) resolves through the file it wraps whether or
+    /// not it forwards the conformance itself.
     public var bindRebaseResolver: (any MachOBindRebaseResolving)? {
-        machO as? any MachOBindRebaseResolving
+        (machO as? any MachOBindRebaseResolving) ?? (machO.underlyingReader as? any MachOBindRebaseResolving)
     }
 
     /// Offsets are per image, so memo entries belong to this image: keyed on
@@ -129,14 +130,13 @@ extension MachORepresentableWithCache where Self: Readable {
 // MARK: - Runtime Pointer Support
 
 extension MachOContext {
-    /// Returns the runtime pointer for the given file offset when the
-    /// underlying reader is a `MachOImage` mapped into the current process.
-    /// Returns `nil` for `MachOFile` and other non-resident readers.
+    /// Returns the runtime pointer for the given offset when the reader reads
+    /// through a `MachOImage` mapped into the current process — the image
+    /// itself, or a `MachOReaderWrapper` of one. Returns `nil` for a
+    /// `MachOFile` and every other reader not resident here.
     public func runtimePointer(at address: Int) throws -> UnsafeRawPointer? {
-        if let machOImage = machO as? MachOImage {
-            return machOImage.ptr + UnsafeRawPointer.Stride(address)
-        }
-        return nil
+        guard let machOImage = machO.asMachOImage else { return nil }
+        return machOImage.ptr + UnsafeRawPointer.Stride(address)
     }
 }
 

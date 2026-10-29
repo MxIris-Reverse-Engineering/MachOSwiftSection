@@ -33,6 +33,17 @@ swift-section objc dump /path/to/dyld_shared_cache_arm64e --dyld-shared-cache -n
   --emit-method-imp-addresses --emit-property-accessor-addresses \
   --emit-ivar-offsets --emit-property-attributes \
   -o AppKit.h
+
+# Several versions of one image merged into one header, each declaration rendered as
+# `dump` renders it and annotated with its lifecycle (`// [○●●] added in 26.5`)
+swift-section objc evolution \
+  15.5/dyld_shared_cache_arm64e \
+  26.5/dyld_shared_cache_arm64e \
+  27.0/dyld_shared_cache_arm64e \
+  --dyld-shared-cache -n AppKit \
+  --labels 15.5,26.5,27.0 \
+  --interface --emit-available \
+  -o AppKit-evolution.h
 ```
 
 - The loading options are spelled exactly as in the Swift subcommands: `--dyld-shared-cache`
@@ -68,6 +79,7 @@ swift-section objc dump /path/to/dyld_shared_cache_arm64e --dyld-shared-cache -n
   superclass defined in another binary is not followed, so `--strip-overrides` removes almost
   nothing and inherited members such as `init` stay listed. Inside one cache the chain crosses
   images normally. When you need the full chain, read the image inside its cache.
+- **Swift classes that have no class object are listed from their Swift metadata**, each under a comment saying why. A generic class prints under its Swift name with its generic parameters (`@interface Module.Panel<A> : NSPanel`): its `class_ro_t` is the template every instantiation is built from, and has no name of its own. A class registered through `__objc_stublist` (its superclass is in another module, or is a generic class) prints under its `_TtC…` name. A superclass that is a Swift class of another binary keeps its Swift spelling (`SwiftUI.NSHostingView<Module.Label>`), and `--strip-overrides` cannot see past it. A snapshot written by 0.24.0 or earlier lacks these classes, so a `diff` against it reports each of them as added.
 - **The ivar offsets of pure Swift classes (`_TtC…` names) are unreliable** — file and
   in-process readings disagree, and some ivars are dropped. Take Swift layout from the Swift
   subcommands (`--emit-field-offsets`).
@@ -77,6 +89,8 @@ swift-section objc dump /path/to/dyld_shared_cache_arm64e --dyld-shared-cache -n
 - **Snapshots do not cross format versions.** A snapshot JSON carries a `formatVersion`; any
   other version is rejected with `Unsupported ObjC API snapshot format version …`, and the fix
   is to regenerate the baseline with the current tool.
+- **`objc evolution --interface` needs binaries and labels.** It renders live declarations, so a snapshot input is a usage error. With cache inputs every default label is the file name, `dyld_shared_cache_arm64e`, so pass `--labels`. `--platform` takes the availability macros' spelling (`macos`, `ios`, `macCatalyst`, `driverkit`), not the Swift `@available` one (`macOS`); it is not validated, so a Swift spelling silently produces `API_AVAILABLE(macOS(…))`.
+- **No macro is not "no lifecycle".** A declaration present from the first version and removed later gets no `API_OBSOLETED`, because the macro needs the version that introduced it; one that disappeared and came back, or was only modified, gets none either. The `// [●●○] removed in …` comment is always there. A class, protocol or category added or removed as a whole is annotated on its `@interface` / `@protocol` line only, and its members carry no annotations of their own.
 
 ## Where the details live
 

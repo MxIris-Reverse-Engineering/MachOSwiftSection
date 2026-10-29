@@ -120,6 +120,15 @@ package final class SwiftClassObjectIndex: @unchecked Sendable {
         storage(in: machO)?.customRuntimeNamesBySwiftQualifiedName[qualifiedName] ?? []
     }
 
+    /// The nominal type descriptor of the renamed class the Objective-C
+    /// runtime knows as `runtimeName`; `nil` when no class of the image goes
+    /// by it, or more than one does.
+    package func classDescriptorOffset(forCustomRuntimeName runtimeName: String, in machO: some MachORepresentableWithCache) -> Int? {
+        guard let renamedClassesByDescriptorOffset = storage(in: machO)?.renamedClassesByDescriptorOffset else { return nil }
+        let offsets = renamedClassesByDescriptorOffset.filter { $0.value.customObjCClassName.name == runtimeName }.map(\.key)
+        return offsets.count == 1 ? offsets[0] : nil
+    }
+
     // MARK: - Build
 
     /// `IsStaticSpecialization | IsCanonicalStaticSpecialization`: metadata

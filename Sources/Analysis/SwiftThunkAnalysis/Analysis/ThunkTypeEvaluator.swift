@@ -276,6 +276,8 @@ public struct ThunkTypeEvaluator {
             assign(valuesByRegister[source], to: destination)
         case .loadFromMemory(let destination, let base, let displacement):
             assign(loaded(from: base, displacement: displacement), to: destination)
+        case .loadFromSlot(let destination, let slotAddress):
+            assign(loaded(fromSlotAt: slotAddress), to: destination)
         case .loadPairFromMemory(let first, let second, let base, let displacement, let adjustsBase):
             if adjustsBase {
                 // A write-back moves the base past the pair, a general
@@ -421,21 +423,26 @@ public struct ThunkTypeEvaluator {
         case .stackAddress(let offset):
             return valuesByStackOffset[offset &+ displacement]
         case .address(let address):
-            let slotAddress = address &+ UInt64(bitPattern: displacement)
-            if let symbolName = environment.slotSymbolName(at: slotAddress), Self.runtimeCapabilityFlagNames.contains(symbolName) {
-                return .runtimeCapabilityFlag(symbolName)
-            }
-            if let pointer = environment.pointer(at: slotAddress) {
-                return .address(pointer)
-            }
-            // No pointer in the file: a bind, which holds only a name until
-            // dyld fills the slot in. What that name is, as a callee.
-            let boundCallee = environment.callee(boundInSlotAt: slotAddress)
-            if case .unknown = boundCallee { return nil }
-            return .functionReference(boundCallee)
+            return loaded(fromSlotAt: address &+ UInt64(bitPattern: displacement))
         default:
             return nil
         }
+    }
+
+    /// What the slot at `slotAddress` holds: a runtime capability flag, a
+    /// pointer the file stores, or the function a bind names.
+    private func loaded(fromSlotAt slotAddress: UInt64) -> Value? {
+        if let symbolName = environment.slotSymbolName(at: slotAddress), Self.runtimeCapabilityFlagNames.contains(symbolName) {
+            return .runtimeCapabilityFlag(symbolName)
+        }
+        if let pointer = environment.pointer(at: slotAddress) {
+            return .address(pointer)
+        }
+        // No pointer in the file: a bind, which holds only a name until dyld
+        // fills the slot in. What that name is, as a callee.
+        let boundCallee = environment.callee(boundInSlotAt: slotAddress)
+        if case .unknown = boundCallee { return nil }
+        return .functionReference(boundCallee)
     }
 
     private mutating func store(_ value: Value?, to base: ThunkRegister, displacement: Int64) {

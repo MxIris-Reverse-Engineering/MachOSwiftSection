@@ -172,6 +172,7 @@
 - **与 main 基线对比**：标注是 PR #111 新增，无基线可比。
 - **既往修复**：无。
 - **复审条件**：出现「实现符号保留而 `To` thunk 被选择性剥除」的真实输入（自定义 strip 脚本 / 非常规链接产物）。届时 dump 侧已有的 `containsSymbol(named: name + "To")` 口径可以直接搬到 interface 侧作第二道豁免。
+- **2026-10-27 复核**：论证 ② 的前提「未剥离时实现符号与 `To` thunk 同在」不成立。整模块优化的 app 会把 internal `@objc` 成员的函数体内联进 thunk、删掉实现符号，只留 thunk（issue #137，Xcode 27.2 的 `Xcode Service` 里 22 个）。这种成员原先根本不进模型，没有行可标；现在由 thunk 造的替身建出（提案 `thunk-only-objc-members`），`applyThunkAttributes` 照常打 `@objc`，豁免照常生效。裁决不变，也不是上面的复审条件。
 
 ---
 
@@ -769,6 +770,7 @@
 - **为什么暂缓**：修法简单（`.direct` 的目标按运行时地址解析；槽位解析为 `.unrecognized` 时退回名字），但仓库规则要求修复带修复前失败的测试，本机没有 26.x 的进程可扫。
 - **既往修复**：无。第一批（`0c0ebce3`）在 macOS 27.2 上写成，那时缓存已无桩。
 - **复审条件**：有 macOS 26 或 iOS 26 的环境可跑测试（另一台机器、或用户批准的 Simulator）——那时先写测试再修，同时让 RuntimeViewer 的调用者键带上改名再导出的别名（只有按名字报的调用需要它）。
+- **复核（2026-10-27，macOS 26.6）**：在 26.6 的机器上看过，仍复现不了。AppKit、Foundation、SwiftUI、libswiftCore 的 `__auth_stubs` 全是经槽位的四条指令（`adrp x17` / `add x17` / `ldr x16, [x17]` / `braa`，各 4,815、2,832、6,588、224 个），没有 `.direct` 形态，所以上面「macOS 26 及更早的缓存里有」的说法至少对 26.6 不成立。继续暂缓，复审条件改为能拿到 iOS 26 真机或更早 macOS 的缓存。同一轮另有一种桩 MachOKit 也读不出槽位：ld64 改写过的 `nop` / `ldr x16, <槽>` / `br x16`，已由 `ARM64Trampoline` 补读（第二轮审查第 1 条的横向排查，见 [2026-10-27 审查记录](../../Roadmaps/2026-10-27-cross-reference-analysis-second-review-findings.md)）。
 
 ---
 
@@ -901,3 +903,88 @@
 - **为什么不修**：diff / evolution 的 `associatedtype` 行按名字逐行比较、不带约束，约束挪过去就丢了。显式传值正是为了防这件事，提案 [0073-protocol-requirement-placement](../Evolutions/0073-protocol-requirement-placement.md) 的决策日志记了这个选择。
 - **既往修复**：无。
 - **复审条件**：diff 开始比较每个关联类型的约束（那时 `associatedtype` 行要带上约束，协议头才能按配置走）。
+
+---
+
+## A76 — 目标算得出来的寄存器调用仍记成没有目标的 `.indirect`（交叉引用第二轮审查 3）
+
+- **裁决**：不修（2026-10-27，数据裁决）。
+- **发现**：`ReferenceScanner.indirectReference(through:at:in:kind:)` 只记载入的偏移与指针认证常量，不看寄存器里有没有已知的地址或槽位。`adrp` / `add` 算出函数地址、或从 GOT 槽载入后再 `blr` 的调用，目标算得出来，仍报成 `.indirect`。
+- **复现 / 是否误报**：属实。macOS 26.6 的 AppKit 有 15,034 处 `blr`，目标算得出来的约 100 处，其中 97 处是从全局变量载入的函数指针，多是软链接的函数指针，变量里放的是运行时才写入的值。抽查的一个第三方 App 有 314 处，312 处调的是 `___chkstk_darwin`，即编译器为大栈帧插入的栈探测。
+- **与 main 基线对比**：模块在 0.24.0 新写，0.23.0 没有。
+- **为什么不修**：算得出目标的不到 1%。其中多数是变量里的运行时状态，按扫描「只记确定的事」的规矩不该当成目标；剩下的栈探测函数没有查询价值。
+- **既往修复**：无。
+- **复审条件**：某类常见代码让这种调用的占比明显变大，比如某个编译器版本改为经寄存器调用跨库函数。
+
+---
+
+## A77 — `swiftTypeIdentity(ofDescriptorAt:)` 每次都把镜像里的类线性走一遍（交叉引用第二轮审查 10）
+
+- **裁决**：暂不修（2026-10-27）。
+- **发现**：`ObjectiveCClassIndex.swiftClassObject(describedBy:)` 为找描述符对应的 Swift 类，逐个检查镜像里的全部类；`swiftTypeIdentity(ofDescriptorAt:)` 对结构体、枚举的描述符也照样走一遍。RuntimeViewer 在 `CrossReferenceQuery.swift` 里为每条 Swift 类型结果调一次。
+- **复现 / 是否误报**：写法属实。估算每次几十微秒；没有实测，在用的 10 核 Mac Studio 不适合做性能测量。
+- **与 main 基线对比**：0.24.0 新写。
+- **为什么不修**：一次查询的结果通常几十到几百条，合计在毫秒级。修法便宜：先看描述符的种类是不是类，或者为类索引建一张「描述符 → 类」的表。等有实际需要再做。
+- **既往修复**：无。
+- **复审条件**：RuntimeViewer 的大结果列表出现可感知的卡顿，或在更强的机器上测得单次超过 100 微秒。
+
+---
+
+## A78 — 没有 `…Mn` 符号的类型算 key 时，demangle 的结果留在按镜像的缓存里（交叉引用第二轮审查 5，**有意设计**）
+
+- **裁决**：不修（2026-10-27）。
+- **发现**：`SwiftTypeIndex.key(ofDescriptorAt:)` 与 `ImageFallbackNames` 给类型起名时，没有符号就调 `SymbolicDemangler.demangleContext`，结果记在按镜像的 `SharedCache` 里；分析器的 `releaseImageData(exceptForImagesAt:)` 不碰这份缓存。
+- **复现 / 是否误报**：属实。
+- **与 main 基线对比**：0.24.0 新写。
+- **为什么不修**：有意设计。上一轮审查的 B2（`6d3b80ed`）把类型查询里不受控的 demangle 改成用完即弃，同时写明保留这份按镜像的记忆。它和库里其它按镜像的缓存一样归 `SharedCacheRegistry` 管，宿主调 `evictImagesWithoutLiveOwners()` 就能回收，这是库统一的释放方式，理由仍成立。模块文档原先说它「随镜像淘汰」，容易读成 `releaseImageData` 会放掉它，这次改写成由宿主经注册表回收。
+- **既往修复**：B2（`6d3b80ed`）处理过同一片代码，这一处是当时有意留下的。
+- **复审条件**：分析器要求一次放干净它碰过的所有按镜像状态；或实测这份缓存在 RuntimeViewer 里占用可观。
+
+---
+
+## A79 — `isMapped` 一类函数线性查找映射区间（交叉引用第二轮审查 7）
+
+- **裁决**：不修（2026-10-27，数据裁决）。
+- **发现**：`isExecutable(runtimeAddress:length:)`、`isMapped(runtimeAddress:length:)`、`mappedLength(fromRuntimeAddress:)` 对区间数组线性查找；数组是缓存的每个映射加上缓存外镜像的每个段，几百项。审查认为每次发送都要查，全缓存「上千万次」。
+- **复现 / 是否误报**：写法属实，量级不成立。这几个函数只在解析调用目标（每个目标由扫描器记住，只解析一次）、读槽位、读 selector 字符串和 mangled 名字时用到。macOS 26.6 的 AppKit 里 148,494 处发送经 selector 桩，不查；要查的只有传统发送 174 处与 super 发送 7,859 处，约占发送的 5%。
+- **与 main 基线对比**：0.24.0 新写。
+- **为什么不修**：次数不大，每次也只是几百次比较，扫描时间不花在这里。同类的性能发现 A66 也是看过数据后判的不修。
+- **既往修复**：无。
+- **复审条件**：profiling 显示这几个函数占扫描时间可观。修法现成：区间排序后二分查找。
+
+---
+
+## A80 — 懒绑定的槽位可能指向 `__stub_helper`（交叉引用第二轮审查 4，**误报**）
+
+- **裁决**：误报（2026-10-27）。
+- **发现**：审查认为不用 chained fixups 的懒绑定二进制，槽位在第一次调用前指向镜像自己的 `__stub_helper`，扫描直接读槽会把调用解析到那里。
+- **复现 / 是否误报**：造不出。dyld 在加载时就绑定每个槽位，懒指针也一样。`LazyBindingTests` 现编一个部署目标 macOS 11、`-no_fixup_chains` 的 dylib，以 `RTLD_LAZY` 加载，断言函数第一次被调用之前槽里已经是 `puts`；macOS 27.2 上通过，2026-10-27 在 macOS 26.6 上也通过。
+- **与 main 基线对比**：—。
+- **为什么判误报**：这个测试就是为该场景设的哨兵，模块文档「缓存外镜像的 GOT 槽」一节写着依据。
+- **既往修复**：无。当初有意这样设计，并留了哨兵。
+- **复审条件**：`LazyBindingTests` 变红。那时让解析失败的桩退回导入名，修法与 A64 的后半相同。
+
+---
+
+## A81 — MachOKit 的 `StubDecoder` 读不出 ld64 改写过的桩的槽位（交叉引用第二轮审查第 1 条的横向排查，上游缺口）
+
+- **裁决**：不报上游，也不在 fork 里修（2026-10-27，用户决定暂不处理）。
+- **发现**：ld64 按 linker optimization hint 把桩改写成 `nop` / `ldr x16, <槽>` / `br x16` 之后，MachOKit（0.54.101）的 `StubDecoder` 不认这种形态，`Stub.branch` 给 `.unknown`，读不出槽位。`StubDecoder` 是上游作者写的，上游的 MachOKit 同样如此。
+- **复现 / 是否误报**：属实。Asset Catalog Viewer（macOS 12 SDK）的 212 个桩全是这种形态；`LinkerOptimizationHintTests` 里改写过的桩，本库补读之前只认出 `.importedSymbol("_puts")`。
+- **与 main 基线对比**：缺口在依赖里，一直都有；本库从 0.24.0 的交叉引用分析起用 MachOKit 解桩。
+- **为什么不修**：用户决定暂不向上游报，也不在 fork 里改。本库已经不靠它：`ImageFunctionTable` 在 MachOKit 给不出 `.viaSlot` 时，用 `ARM64Trampoline` 读桩自己的字节取槽位；SwiftThunkAnalysis 认桩本来就从文件读出字节交给 `ARM64Trampoline`，不经 `StubDecoder`。
+- **既往修复**：无。
+- **代码锚点**：`Sources/Analysis/CrossReferenceAnalysis/Scanning/ImageFunctionTable.swift` 的 `trampoline(in:)` 回退。
+- **复审条件**：本库有新代码直接拿 MachOKit 的 `Stub.branch` 取槽位、不经 `ARM64Trampoline`；或上游自己修了 `StubDecoder`，那时这个回退成了多余，可以删。
+
+---
+
+## A82 — 单字母的泛型参数（交叉引用第二轮审查第 12 条的同类）
+
+- **裁决**：暂不清理（2026-10-27，用户决定暂不安排）。
+- **发现**：第 12 条把 `pc`、`lhs` / `rhs` 这些缩写的名字改成了完整的名字；同类的单字母泛型参数（`<T>`、`<M: …>` 一类）没有一起改。审查时数过，`Sources` 约 167 处、`Tests` 约 126 处，其中一部分在字符串里。
+- **复现 / 是否误报**：属实。
+- **与 main 基线对比**：main 上同样有，分布在各模块，不是这次的改动引入的；这次的修复批次一处也没有新加。
+- **为什么不修**：用户决定暂不安排清理。改名不改行为，但公开泛型类型的参数名可能被下游的 extension 按名字用到，真要清理时那部分要连同下游一起改。`AbbreviatedIdentifierScanTests` 只扫 `pc`、`lhs`、`rhs`，不管泛型参数。
+- **既往修复**：没有专门清理过。提案 [0044-opaque-parameters-for-single-use-generics](../Evolutions/0044-opaque-parameters-for-single-use-generics.md)（`7d429938`）把只用一次的泛型参数改写成 `some P`，为的是去掉多余的泛型参数列表，剩下的没有改名；`4e8f4a7f`（2026-10-08）只改了特化器新代码里的缩写。
+- **复审条件**：用户安排清理时。这条只覆盖已有的这些；改动里新加的单字母泛型参数照常算发现。

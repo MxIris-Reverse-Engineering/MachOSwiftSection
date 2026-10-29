@@ -29,9 +29,9 @@ package enum ObjCMethodThunkReferences {
     /// The names of the Swift symbols the IMP at `implementationOffset`
     /// references, in first-reference order.
     package static func referencedSwiftSymbolNames(atImplementationOffset implementationOffset: Int, in machO: some MachORepresentableWithCache) -> [String] {
-        if let machOFile = machO as? MachOFile {
+        if let machOFile = machO.asMachOFile {
             return referencedSwiftSymbolNames(atImplementationOffset: implementationOffset, in: machOFile)
-        } else if let machOImage = machO as? MachOImage {
+        } else if let machOImage = machO.asMachOImage {
             return referencedSwiftSymbolNames(atImplementationOffset: implementationOffset, in: machOImage)
         }
         return []

@@ -45,8 +45,8 @@ extension ExtensionName {
 // the node already tells a protocol from a type from a typealias, while the
 // `TypeKind` inside `.type` is producer-dependent for C-imported types.
 extension ExtensionName {
-    public static func == (lhs: ExtensionName, rhs: ExtensionName) -> Bool {
-        lhs.node.structurallyEquals(rhs.node)
+    public static func == (left: ExtensionName, right: ExtensionName) -> Bool {
+        left.node.structurallyEquals(right.node)
     }
 
     public func hash(into hasher: inout Hasher) {

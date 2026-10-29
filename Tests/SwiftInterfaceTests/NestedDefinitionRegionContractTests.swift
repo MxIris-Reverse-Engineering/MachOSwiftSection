@@ -2,6 +2,7 @@
 @_spi(Support) @testable import SwiftIndexing
 @_spi(Support) @testable import SwiftPrinting
 @_spi(Support) @testable import SwiftInterface
+@_spi(Support) import SwiftPrivateDiscriminators
 import SwiftDeclarationRendering
 import OutputTransformer
 import SwiftOutputTransformer
@@ -38,12 +39,17 @@ final class NestedDefinitionRegionContractTests: MachOSwiftSectionFixtureTests, 
         case plain
         case markedOptionalContent
         case everyOptionWithTransformers
+        /// The comments naming private declarations' source files (evolution
+        /// proposal `private-declaration-source-files`), measured against a
+        /// nested definition's parent whatever level it prints at.
+        case privateDeclarationSourceFiles
 
         var description: String {
             switch self {
             case .plain: "plain"
             case .markedOptionalContent: "marked optional content"
             case .everyOptionWithTransformers: "every option with transformers"
+            case .privateDeclarationSourceFiles: "private declaration source files"
             }
         }
 
@@ -51,7 +57,7 @@ final class NestedDefinitionRegionContractTests: MachOSwiftSectionFixtureTests, 
             var configuration = SwiftDeclarationPrintConfiguration()
             configuration.marksNestedDefinitions = true
             switch self {
-            case .plain:
+            case .plain, .privateDeclarationSourceFiles:
                 break
             case .markedOptionalContent:
                 configuration.marksOptionalContent = true
@@ -77,6 +83,18 @@ final class NestedDefinitionRegionContractTests: MachOSwiftSectionFixtureTests, 
 
         var resolvesOpaqueTypes: Bool {
             self != .plain
+        }
+    }
+
+    /// The index of the indexer's image; built per reader, as the index's
+    /// initializers are.
+    private static func privateDeclarationSourceFileIndex<MachO>(of indexer: SwiftDeclarationIndexer<MachO>) -> PrivateDiscriminatorSourceFileIndex? {
+        if let fileIndexer = indexer as? SwiftDeclarationIndexer<MachOFile> {
+            PrivateDiscriminatorSourceFileIndex(indexer: fileIndexer)
+        } else if let imageIndexer = indexer as? SwiftDeclarationIndexer<MachOImage> {
+            PrivateDiscriminatorSourceFileIndex(indexer: imageIndexer)
+        } else {
+            nil
         }
     }
 
@@ -124,6 +142,11 @@ final class NestedDefinitionRegionContractTests: MachOSwiftSectionFixtureTests, 
         let printer = SwiftDeclarationPrinter(configuration: variant.configuration, in: machO)
         if variant.resolvesOpaqueTypes {
             printer.addTypeNameResolver(SwiftInterfaceBuilderOpaqueTypeProvider(machO: machO))
+        }
+        if variant == .privateDeclarationSourceFiles {
+            let index = try #require(Self.privateDeclarationSourceFileIndex(of: indexer))
+            index.recoverSourceFiles(ofEveryDeclarationIn: indexer)
+            printer.setPrivateDeclarationSourceFileProvider(index)
         }
 
         typealias Printing = (SwiftDeclarationPrinter<MachO>) async throws -> SemanticString

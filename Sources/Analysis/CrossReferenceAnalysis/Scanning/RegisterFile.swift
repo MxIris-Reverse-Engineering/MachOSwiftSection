@@ -100,6 +100,16 @@ final class RegisterFile {
         contents.loadDisplacements[destination] = displacement
     }
 
+    /// `ldr xt, label`: a load from the slot at `slotAddress`, kept as the
+    /// `adrp` / `ldr` pair ld64 rewrote it from kept it — the same slot, and
+    /// the slot's offset in its page as the load's displacement.
+    func load(into destination: Int, fromSlotAt slotAddress: UInt64) {
+        guard destination != 31 else { return }
+        overwrite(destination, state: .loadedFromSlot, value: slotAddress)
+        contents.loadedMask |= 1 << UInt32(destination)
+        contents.loadDisplacements[destination] = Int64(slotAddress & 0xFFF)
+    }
+
     func copy(_ source: Int, to destination: Int) {
         guard destination != 31 else { return }
         guard source != 31 else {

@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+import MachO
 import ObjCDiffing
 import ObjCOutputTransformer
 import OutputTransformer
@@ -98,5 +99,129 @@ struct ObjCRequestTests {
             _ = try await ObjCAPIEvolutionRequest(inputs: [.path("/nonexistent/one"), .path("/nonexistent/two")], labels: ["a", "b", "c"])
                 .run(output: RecordingOutput(), environment: .testing)
         }
+    }
+
+    /// One binary given twice changes nothing: the header carries the legend
+    /// and the declarations `objc dump` renders, and no lifecycle annotation.
+    @Test("An annotated ObjC evolution of one binary against itself annotates nothing")
+    func annotatedEvolutionOfOneBinaryAnnotatesNothing() async throws {
+        let output = RecordingOutput()
+        let outcome = try await ObjCAPIEvolutionRequest(
+            inputs: [.path(FixtureFiles.symbolTestsCore), .path(FixtureFiles.symbolTestsCore)],
+            labels: ["1.0", "2.0"],
+            report: .annotatedInterface(availabilityAttributes: .none)
+        ).run(output: output, environment: .testing)
+
+        guard case .annotatedInterface(let text, let style)? = output.products.first, output.products.count == 1 else {
+            Issue.record("expected one annotated header, got \(output.products)")
+            return
+        }
+        #expect(style == .evolution)
+        let lines = text.split(separator: "\n", omittingEmptySubsequences: false)
+        #expect(lines.prefix(2) == ["// ObjC API evolution across 2 versions: 1.0 → 2.0", "// Bitmap positions: [1] 1.0  [2] 2.0"])
+        #expect(lines.contains { $0.hasPrefix("@interface \(Self.bridgeClassName)") })
+        #expect(!lines.contains { $0.contains(" added in ") || $0.contains(" removed in ") || $0.contains(" modified in ") })
+        #expect(!outcome.hasBreakingChange)
+    }
+
+    @Test("An annotated ObjC evolution explains its availability macros exactly when they are on", arguments: [
+        (ObjCAPIEvolutionRequest.AvailabilityAttributes.none, false),
+        (.inferredPlatform, true),
+        (.platform("visionos"), true),
+    ])
+    func annotatedEvolutionAvailabilityLegend(availabilityAttributes: ObjCAPIEvolutionRequest.AvailabilityAttributes, expectsLegend: Bool) async throws {
+        let output = RecordingOutput()
+        _ = try await ObjCAPIEvolutionRequest(
+            inputs: [.path(FixtureFiles.symbolTestsCore), .path(FixtureFiles.symbolTestsCore)],
+            labels: ["1.0", "2.0"],
+            report: .annotatedInterface(availabilityAttributes: availabilityAttributes)
+        ).run(output: output, environment: .testing)
+
+        guard case .annotatedInterface(let text, _)? = output.products.first else {
+            Issue.record("expected an annotated header, got \(output.products)")
+            return
+        }
+        let legendLines = text.split(separator: "\n").filter { $0.hasPrefix("// API_AVAILABLE and API_OBSOLETED versions are axis points") }
+        #expect(legendLines.count == (expectsLegend ? 1 : 0))
+    }
+
+    @Test("An annotated ObjC evolution written to a file holds the bytes printing shows")
+    func annotatedEvolutionToFile() async throws {
+        let directoryURL = try FixtureFiles.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directoryURL) }
+        let headerPath = directoryURL.appendingPathComponent("evolution.h").path
+        let inputs: [SnapshotSource] = [.path(FixtureFiles.symbolTestsCore), .path(FixtureFiles.symbolTestsCore)]
+
+        let printed = RecordingOutput()
+        _ = try await ObjCAPIEvolutionRequest(inputs: inputs, labels: ["1.0", "2.0"], report: .annotatedInterface(availabilityAttributes: .none))
+            .run(output: printed, environment: .testing)
+        let written = RecordingOutput()
+        _ = try await ObjCAPIEvolutionRequest(inputs: inputs, labels: ["1.0", "2.0"], report: .annotatedInterface(availabilityAttributes: .none), destination: .file(path: headerPath))
+            .run(output: written, environment: .testing)
+
+        #expect(try String(contentsOfFile: headerPath, encoding: .utf8) == printed.printedProduct)
+        #expect(written.products.isEmpty)
+        #expect(written.messages(of: .progress).last == "Annotated header written to \(headerPath)")
+    }
+
+    @Test("An annotated ObjC evolution refuses a snapshot document before loading anything")
+    func annotatedEvolutionRejectsADocument() async throws {
+        let directoryURL = try FixtureFiles.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directoryURL) }
+        let documentPath = directoryURL.appendingPathComponent("baseline.json").path
+        _ = try await ObjCAPISnapshotRequest(source: .path(FixtureFiles.symbolTestsCore), destination: .file(path: documentPath))
+            .run(output: RecordingOutput(), environment: .testing)
+
+        let output = RecordingOutput()
+        await #expect(throws: SnapshotSourceError.binaryRequired(path: documentPath)) {
+            _ = try await ObjCAPIEvolutionRequest(
+                inputs: [.path(FixtureFiles.symbolTestsCore), .path(documentPath)],
+                report: .annotatedInterface(availabilityAttributes: .none)
+            ).run(output: output, environment: .testing)
+        }
+        #expect(output.events.isEmpty)
+    }
+
+    /// The copy names another platform than the fixture's macOS; a simulator
+    /// counts as its device, and the names are the availability macros' own
+    /// (`API_AVAILABLE(macCatalyst(…))`). Thrown after loading and before any
+    /// indexing.
+    @Test("Inputs naming different platforms leave no availability platform to infer", arguments: [
+        (PLATFORM_IOSSIMULATOR, ["ios", "macos"]),
+        (PLATFORM_TVOS, ["macos", "tvos"]),
+        (PLATFORM_WATCHOSSIMULATOR, ["macos", "watchos"]),
+        (PLATFORM_VISIONOSSIMULATOR, ["macos", "visionos"]),
+        (PLATFORM_MACCATALYST, ["macCatalyst", "macos"]),
+        (PLATFORM_DRIVERKIT, ["driverkit", "macos"]),
+    ])
+    func annotatedEvolutionRefusesConflictingPlatforms(buildPlatform: Int32, expectedPlatforms: [String]) async throws {
+        let directoryURL = try FixtureFiles.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directoryURL) }
+        let copyPath = try FixtureFiles.makeCopy(of: FixtureFiles.symbolTestsCore, buildPlatform: buildPlatform, in: directoryURL)
+
+        let output = RecordingOutput()
+        await #expect(throws: ObjCAvailabilityPlatformInferenceError.conflictingPlatforms(expectedPlatforms)) {
+            _ = try await ObjCAPIEvolutionRequest(
+                inputs: [.path(FixtureFiles.symbolTestsCore), .path(copyPath)],
+                report: .annotatedInterface(availabilityAttributes: .inferredPlatform)
+            ).run(output: output, environment: .testing)
+        }
+        #expect(!output.messages(of: .progress).contains { $0.hasPrefix("Indexing") })
+    }
+
+    @Test("An input naming a platform the availability macros cannot spell leaves nothing to infer")
+    func annotatedEvolutionRefusesAnUnspellablePlatform() async throws {
+        let directoryURL = try FixtureFiles.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directoryURL) }
+        let copyPath = try FixtureFiles.makeCopy(of: FixtureFiles.symbolTestsCore, buildPlatform: PLATFORM_BRIDGEOS, in: directoryURL)
+
+        let output = RecordingOutput()
+        await #expect(throws: ObjCAvailabilityPlatformInferenceError.noPlatform(path: copyPath)) {
+            _ = try await ObjCAPIEvolutionRequest(
+                inputs: [.path(FixtureFiles.symbolTestsCore), .path(copyPath)],
+                report: .annotatedInterface(availabilityAttributes: .inferredPlatform)
+            ).run(output: output, environment: .testing)
+        }
+        #expect(!output.messages(of: .progress).contains { $0.hasPrefix("Indexing") })
     }
 }

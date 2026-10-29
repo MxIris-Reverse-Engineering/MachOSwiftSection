@@ -92,6 +92,13 @@ package struct ProtocolDumper<MachO: MachOFieldLayoutRenderable>: NamedDumper {
 
     package var body: SemanticString {
         get async throws {
+            // The name whose private declarations the protocol's source-file
+            // comment names, and its default implementations' leave out
+            // (evolution proposal `private-declaration-source-files`).
+            let contextNodes: [Node] = (try? SymbolicDemangler.demangleContext(for: .protocol(dumped.descriptor), in: machO.context)).map { [$0] } ?? []
+
+            configuration.privateDeclarationSourceFileComments(for: contextNodes, indentationLevel: 0)
+
             try await declaration
 
             Space()
@@ -128,6 +135,7 @@ package struct ProtocolDumper<MachO: MachOFieldLayoutRenderable>: NamedDumper {
                 }
 
                 BreakLine()
+                configuration.privateDeclarationSourceFileComments(for: [defaultImplementation.reference], enclosedBy: contextNodes, indentationLevel: configuration.indentation)
                 Indent(level: configuration.indentation)
                 try await demangleResolver.resolve(for: defaultImplementation.reference)
 

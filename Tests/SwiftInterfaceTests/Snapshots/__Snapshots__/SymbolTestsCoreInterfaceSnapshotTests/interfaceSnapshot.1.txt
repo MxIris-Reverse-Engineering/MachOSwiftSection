@@ -1381,9 +1381,9 @@ enum GenericFieldLayout {
         // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
         var field3: Swift.Int
 
-        @objc init(field1: Swift.Double, field2: A, field3: Swift.Int)
+        init(field1: Swift.Double, field2: A, field3: Swift.Int)
 
-        @objc init()
+        @objc override init()
 
         deinit
     }
@@ -1398,9 +1398,9 @@ enum GenericFieldLayout {
         // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
         var field3: Swift.Int
 
-        @objc init(field1: Swift.Double, field2: A, field3: Swift.Int)
+        init(field1: Swift.Double, field2: A, field3: Swift.Int)
 
-        @objc init()
+        @objc override init()
 
         deinit
     }
@@ -1923,9 +1923,9 @@ enum GenericFieldLayout {
         // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
         final var identifier: Swift.Int
 
-        @objc init(element: A, identifier: Swift.Int)
+        init(element: A, identifier: Swift.Int)
 
-        @objc init()
+        @objc override init()
 
         deinit
     }
@@ -2360,7 +2360,7 @@ enum ObjCClassWrapperFixtures {
         deinit
     }
     @objc(SymbolTestsCoreObjCBridgeWithProto)
-    class ObjCBridgeWithProto: __C.NSObject {
+    class ObjCBridgeWithProto: __C.NSObject, SymbolTestsCore.ObjCClassWrapperFixtures.ObjCProto {
         @objc func ping()
 
         @objc override init()
@@ -3322,6 +3322,21 @@ extension SymbolTestsCore.PrivateDoppelgangerProtocol {
     func betaDefaultMethod() -> Swift.Int64
 }
 
+
+@objc protocol ObjCOnlyElementProtocol {
+    // Swift names follow the ClangImporter's rules for these selectors; the binary records no Swift names for them.
+    @objc(identify) func identify() -> Swift.Int
+}
+extension SymbolTestsCore.ObjCClassWrapperFixtures {
+    @objc protocol ObjCProto {
+        // Taken from the conformer SymbolTestsCore.ObjCClassWrapperFixtures.ObjCBridgeWithProto.
+        @objc func ping()
+    }
+}
+@objc protocol WeakUnownedObjCDelegateTest {
+    // Swift names follow the ClangImporter's rules for these selectors; the binary records no Swift names for them.
+    @objc(handle) func handle()
+}
 
 extension SymbolTestsCore.DefaultImplementationVariants.BasicDefaultProtocol {
     func withDefaultAndGeneric<A1>(_: A1) -> A1

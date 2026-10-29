@@ -2527,7 +2527,7 @@
     - 渲染 A/B 以 `b7be58ec` 为基线，90 对全部逐字节一致：两份归档 cache、四个 iOS 模拟器 runtime，加上 MachOImage 腿。
     - macOS 27.0 的 libswiftCore，interface 与 dump 都只多出两处 `: ~Swift.Copyable`。
 - **关联文档**：[0070-borrow-accessors-and-suppressed-associated-types](../Evolutions/0070-borrow-accessors-and-suppressed-associated-types.md)、[Modules/SwiftDeclaration.md](Modules/SwiftDeclaration.md)「访问器种类与关联类型的抑制」、[Modules/MachOSymbols.md](Modules/MachOSymbols.md)、`AgentPlugins/swift-section` 的 skill（新增一条读输出的提示）。
-- **对应版本**：未发版（`next`）。`AccessorKind` 新增 case 会让下游的穷举 `switch` 编不过，发版说明要写进 Breaking。
+- **对应版本**：0.24.0。`AccessorKind` 新增 case 会让下游的穷举 `switch` 编不过，写进了 0.24.0 Changelog 的 Breaking。
 
 ## 100. 迁到 swift-capstone 7.0
 
@@ -2549,8 +2549,8 @@
     解析失败；`swift package resolve --manifest-cache none` 一次即可。
 - **关联文档**：[0071-swift-capstone-7](../Evolutions/0071-swift-capstone-7.md)、
   [Modules/SwiftThunkAnalysis.md](Modules/SwiftThunkAnalysis.md)「Capstone v6 的解码边界」。
-- **对应版本**：未发版（`next`）。对外 API 不变，但依赖图里的 swift-capstone 从 6.x 换成 7.x：同时直接依赖
-  swift-capstone 6 的下游会解析失败，发版说明要写进 Breaking。
+- **对应版本**：0.24.0。对外 API 不变，但依赖图里的 swift-capstone 从 6.x 换成 7.x：同时直接依赖
+  swift-capstone 6 的下游会解析失败，写进了 0.24.0 Changelog 的 Breaking。
 
 ## 101. 交叉引用分析，第一批
 
@@ -2567,7 +2567,7 @@
 - **验证**：JHs-Mac-Studio-Ultra（macOS 27.2、Xcode 27.2、Swift 6.4.2），新 scratch，依赖全部从远端解析，fixture 链主检出现编的那份（`Tests/Projects` 无改动）。`CrossReferenceAnalysisTests` 20 个测试通过，其中 `callSitesMatchCapstone` 抽样 400 个 AppKit 函数与 Capstone 逐条对照调用与跳出函数的跳转，`wholeImageScansKeepNoFunctionTable` 改前红、改后绿。`SwiftThunkAnalysisTests` 82 个通过，含经 stub island 解析的离线 iOS 缓存测试。全量 `swift test --skip IntegrationTests` 跑了两次：改跳板识别后 2,458 个测试 / 471 个套件，最终代码 2,462 个 / 473 个，原始退出码都是 0，跳过的只有 3 个默认关闭的研究探针。release 基准：建分析器 0.02 秒，每个镜像都建整表 28 核 1.6–1.8 秒、4 线程 5.9 秒，`init` 的调用者（预筛出 2,759 个镜像）28 核 1.5 秒。渲染 A/B 未跑：这批不碰 demangle、打印、索引与读取栈，只换了 thunk 分析认跳板的实现，由它的测试覆盖。
 - **接入时的修补**：RuntimeViewer 第 3 步查 `-[NSObject description]` 的调用者一条都没有，追到缓存里的传统 `objc_msgSend` 发送——缓存构建器把读 selector 引用改写成了 `adrp` / `add` 出字符串地址，第一批没认，这些发送全被当成对 `objc_msgSend` 的普通调用。补认这种形态（回归测试改前红、改后绿），并补上预筛「不漏」的抽样测试（此前只测了「筛得够狠」）。另加 `functions(containing:)`，给一批结果起名不留函数表。
 - **关联文档**：[0072-cross-reference-analysis](../Evolutions/0072-cross-reference-analysis.md)、[Modules/CrossReferenceAnalysis.md](Modules/CrossReferenceAnalysis.md)、[Glossary.md](../Glossary.md)「cache-shared stub」、RuntimeViewer 的 [0056-cross-references](https://github.com/MxIris-Reverse-Engineering/RuntimeViewer/blob/next/Documentations/Evolutions/0056-cross-references.md)。
-- **对应版本**：未发版。
+- **对应版本**：0.24.0。
 
 ## 102. 交叉引用分析，第二批：起名、类引用、Swift 类型引用与宿主预读
 
@@ -2581,7 +2581,7 @@
 - **审查与修复（10-17）**：两批全部提交审一轮（[审查记录](../../Roadmaps/2026-10-17-cross-reference-analysis-review-findings.md)，不修或暂缓的登记在 [ReviewAdjudications](ReviewAdjudications.md) A62–A68）。修了：寄存器跟踪漏作废的写入（变址读写的基址、原子指令、成对寄存器、SVE / SME 里写通用寄存器的指令等，判断改成纯函数 `RegisterFile.registersWritten(by:)`，SwiftThunkAnalysis 的两个跟踪器同修）；预筛连同别的镜像改名再导出的名字一起比（缓存 12 个镜像 1,438 条，新增 `reexportedNames(ofSymbolsNamed:inImageAt:)`）；缓存外镜像取 dyld 的加载路径，安装名另建一张表；类型查询的 demangle 不再驻留。循环头与跳转表落点保留 `x19`–`x28`（A5）量过：错 0.02%–0.04% 的引用，精确做法多花 35%–60% 的扫描时间，用户定为已知局限（A68）。
 - **④ 宿主预先准备（10-18）**：`CodeReferenceIndex`（`referenceIndex(ofImageAt:)`）按目标分组、名字只存一份、偏移存 32 位，只留查调用者与类型引用会读的引用，AppKit 21 MiB 对整表 67 MiB，回答与过滤扫描逐条相同。第一次查询还要现读的几样也交给宿主提前读：`prepareNames(inImageAt:)`（AppKit 0.29 秒的三个起名来源、类名与类型符号）、`preparePrefilters()`（链接关系与改名再导出表，只用调用线程），`approximateByteCount(ofImageDataAt:)` 计入宿主的预算，`releaseImageData(exceptForImagesAt:)` 只放掉别的镜像的。能不读的不读：按 key 找类型只算同名类型的 key，判断导出与否在导出表里按名字查。验证：`CodeReferenceIndexTests` 6 个、`PreparedImageDataTests` 5 个、`SwiftTypeReferenceTests` 新增 4 个。
 - **关联文档**：[0072-cross-reference-analysis](../Evolutions/0072-cross-reference-analysis.md)、[Modules/CrossReferenceAnalysis.md](Modules/CrossReferenceAnalysis.md)、RuntimeViewer 的 [0056-cross-references](https://github.com/MxIris-Reverse-Engineering/RuntimeViewer/blob/next/Documentations/Evolutions/0056-cross-references.md)。
-- **对应版本**：未发版。
+- **对应版本**：0.24.0。
 
 ## 103. builtin 叶子布局以二进制为准
 
@@ -2599,7 +2599,7 @@
   - 用 0.23.0 的 CLI 与本分支的 CLI dump 宿主缓存里的 libswiftCore 与 libswift_Concurrency（`--emit-type-layout`），逐条比对布局注释：变化全部落在 builtin 叶子字段上——libswiftCore 多出 80 条注释、libswift_Concurrency 多出 6 条，数值改变的只有 `Bool._value`、`UnsafeContinuation.context` 与包着它的 `AsyncThrowingStream._Storage.State.continuation`。
   - 渲染 A/B 未跑：这批只改 SwiftLayout 的叶子布局，不碰 demangle、打印、索引与读取栈。
 - **关联文档**：[StaticLayoutEngine.md](StaticLayoutEngine.md)「叶子 XI 精确建模」与 builtin 记录的两条实测发现、[Modules/SwiftLayout.md](Modules/SwiftLayout.md)「已知布局表与 builtin 段」。
-- **对应版本**：未发版（`next`）。
+- **对应版本**：0.24.0。
 
 ## 104. 协议约束可选写在各自的关联类型上
 
@@ -2620,7 +2620,204 @@
   - 渲染 A/B 没有按完整流程跑（这批不是大重构），改为上面五个宿主镜像的 interface 逐字节对比。
   - code review（2026-10-21，`/code-review high`，8 条发现）：只有第 1 条要改。`ProtocolRequirementPlacement.associatedTypes` 的文档注释和本节的关键决策 ① 把规则说宽了，实现本身与提案、编译器一致。两处改了措辞（PR 描述同改），fixture 加 `SubjectOnlyRequirements`，用测试钉住「conformance / superclass / layout 约束只看主语」：Swift 6.3.3 的 `-emit-module-interface` 对同一源码也把这条约束留在协议头上；在沙盒里临时让 superclass 约束也看右侧（旧措辞的说法），只有这条新用例变红，往返测试照样通过。其余 7 条登记在 [ReviewAdjudications.md](ReviewAdjudications.md) A69–A75。用 CI 的工具链（Xcode 26.6 / Swift 6.3.3，依赖从远端重新解析）在 PR 头和修正后各跑一次两个新套件与 `DumpAndInterfaceRequestTests`、`CommandRequestMappingTests`：都是 45 个测试全部通过，退出码 0，只跑了 debug。修正只动了测试和一段文档注释，全量测试没有重跑。
 - **关联文档**：提案 [0073-protocol-requirement-placement](../Evolutions/0073-protocol-requirement-placement.md)；review 记录 [2026-10-21-pr135-review-findings](../../Roadmaps/2026-10-21-pr135-review-findings.md)。
-- **对应版本**：未发版（`next`）。
+- **对应版本**：0.24.0。
+
+## 105. dump 与 interface 标出私有声明来自哪个源文件
+
+- **时间段**：2026-10-25 至 2026-10-26，分支 `feature/private-declaration-source-files`，2026-10-26 直接合入 `next`（没有开 PR）。
+- **动机**：0063 把「反推 private discriminator 来自哪个源文件」搬进了本库（`SwiftPrivateDiscriminators`），但只有 RuntimeViewer 的 `Private` 标签在用。`swift-section dump` 只印 discriminator 原文，interface 连它也不印：SymbolTestsCore 里两个文件各声明的 `private struct PrivateDoppelganger`，在 interface 里印出来一模一样。
+- **关键决策**：
+  - ① 新开关 `--emit-private-source-files`，两个子命令同名，请求字段 `emitsPrivateDeclarationSourceFiles`，默认关闭。
+  - ② 声明上方加一行注释（`// CodingKeys is declared in Codable.swift`），两条输出用同一套写法（`SwiftDeclarationRendering` 的 `PrivateDeclarationSourceFileComments`）；哈希用的模块与声明打印的模块不同时写出模块，还原不出的附上 discriminator。只标外层没有的 discriminator：私有类型的成员和嵌套类型不重复，公开类型的私有成员标出自己的文件。interface 里嵌套定义的外层是它的父定义，与打印层级无关，因为 `marksNestedDefinitions` 要求单独打印与从父定义里摘出来的逐字相同。
+  - ③ 打印前对整个镜像批量反推一次（`recoverSourceFiles(ofEveryDeclarationIn:)`），名字、成员符号、全局声明里的 discriminator 一起搜；逐个声明去问的话，每个还原不出的都要把五步候选全部算一遍。候选不变。
+  - ④ 接缝放在 `SwiftDeclarationRendering`（`PrivateDeclarationSourceFileProviding` 与新的结果类型 `PrivateDeclarationSourceFile`），index 遵循它。搜索的结果类型没有挪下来，因为 RuntimeViewerCore 开了 `MemberImportVisibility`。
+  - ⑤ dump 本来没有索引器，打开开关时另建一个只为读名字，并留到 dump 结束：它最后一次释放会回收自己建的缓存，其中有 dump 读成员的符号索引。
+- **落地模块**：SwiftDeclarationRendering、SwiftPrivateDiscriminators、SwiftDump（各 dumper）、SwiftPrinting（打印器）、SwiftInterface（全局块）、SwiftSectionKit、swift-section、README 与 agent 插件的 CLI skill。
+- **输出变化**：关闭时逐字节不变。打开后只多注释行，interface 另多一条进度提示，照它的老规矩走 stdout。本机 macOS 27.2 的 cache、release CLI：
+
+  | 镜像 | dump 关 → 开 | interface 关 → 开 | 名字里的 discriminator | 还原不出 |
+  |---|---|---|---|---|
+  | Foundation | 3.9 → 8.6 秒 | 9.1 → 9.7 秒 | 142 | 20 |
+  | SwiftUICore | 8.2 → 25.5 秒 | 12.6 → 27.7 秒 | 553 | 58 |
+  | SwiftUI | 11.8 → 58.1 秒 | 19.9 → 61.0 秒 | 840 | 167 |
+
+  多出的时间几乎全在搜还原不出的那些：第 3、5 步按 discriminator 各算一遍。
+- **验证**：
+  - 新套件全部通过：`PrivateDeclarationSourceFileCommentsTests`（写法与该标哪些）、`PrivateDeclarationSourceFileRequestTests`（两条输出端到端，SymbolTestsCore 加 `LocalTypeFixture`）、`PrivateDiscriminatorSourceFileIndexTests` 新增的两条（批量入口、provider），`NestedDefinitionRegionContractTests` 新增打开注释的变体（两种读取路径），`CommandRequestMappingTests` 的两个 flag。两个新套件加进了 CI 的过滤名单。
+  - 每个实现提交各自构建通过、对应套件通过；`SwiftDumpTests`（105）、`SwiftInterfaceTests` 与 `SwiftPrintingTests`（357）的快照基线一个都没改。
+  - 全量 `swift test --skip IntegrationTests`（JHs-Mac-Studio-Ultra，macOS 27.2，默认的 Xcode 27 / Swift 6.4，远端依赖，fixture 链主检出那份 Xcode 26.x 编的）：22 个测试包、2565 个测试全部通过，原始退出码 0。
+  - 渲染 A/B（开关关闭）：基线是 `next@122cfd2f` 的 `git archive` 沙盒，两侧共用一份 `Package.resolved`、各编一个 release CLI；存档 cache 26.6、15.5 与 iOS 15.5 / 18.5 / 26.5 模拟器 runtime，54 对 dump / interface 全部逐字节一致。进程内（MachOImage）那条腿没跑，理由在提案的决策日志里。
+  - 插件：`claude-isolated plugin validate` 对插件目录与 marketplace（`--strict`）都通过；skill 里提到的每个 flag 都能在各子命令的 `--help` 里找到。Codex 的 `validate_plugin.py` 本机没有，没跑；插件清单没改，只改了 skill 正文。
+  - 开发中自查出一处：interface 起先只在嵌套打印时排除父定义的 discriminator，违反 `marksNestedDefinitions` 的契约，已改为任何层级都比父定义（见提案决策日志）。
+- **关联文档**：提案 [0074-private-declaration-source-files](../Evolutions/0074-private-declaration-source-files.md)；[Modules/SwiftPrivateDiscriminators.md](Modules/SwiftPrivateDiscriminators.md)。
+- **对应版本**：0.24.0。
+
+## 106. 包装类型读取器的识别
+
+- **时间段**：2026-10-13 至 2026-10-26，分支 `fix/wrapped-reader-recognition`，2026-10-26 直接合入 `next`（没有开 PR）；MachOKitExtensions 同日发 1.3.0。
+- **动机**：MachOKitUI 把 `MachOImage` / `MachOFile` 包成 `MachOImageSource` / `MachOFileSource` 交给本库，在 MachOViewer 里查看已加载镜像的 Swift section 时进程崩溃：`Fatal error: Negative value is not representable`（`SymbolicDemangler`，0.22.0 第 320 行）。本库判断读取器种类时写死了具体类型（next 上 16 个文件共 38 处，加上 MachOKitExtensions 的 `asMachOImage`），包装类型一处都走不进对应的路径。崩溃的那处把落在更低地址镜像里的 opaque type descriptor 存成负偏移再转 `UInt64`；其余各处不崩，结果却悄悄变差：符号按原值入索引、成员地址从 shared region 起点算、三个 ObjC 索引为空，不转发 bind / rebase 的文件包装还会让 interface 读到未解析的 chained fixup 原值而段错误。
+- **关键决策**：
+  - 接口放 MachOKitExtensions 1.3.0：泛型协议 `MachOReaderWrapper`（`associatedtype Base`、`var base`）加三个取法：`underlyingReader`、`asMachOImage`（放宽为看穿包装）、`asMachOFile`（新增）。先后否决两种设计：按具体类型各开一个协议（`MachOImageBacked` / `MachOFileBacked`），以及 `MachORepresentableWithCache` 上的封闭枚举 `MachOReaderKind`。两者都把库认识的读取器写进了扩展点，用户自定义一个读取器类型就得改库，违反开闭原则。
+  - 38 处写死的判断改走三个取法。另外三处同样认不出包装：`objcImplementationClassReader` / `swiftSectionReader` 改为退到 `underlyingReader`；`FieldLayoutRenderable` 对包装类型给默认实现（七个静态 witness 转给 `Base`），包装写一个空遵循即可进打印器；`DependentMemberProjection` 去掉会丢掉包装结果的 `as? MachO` 回转。`bindRebaseResolver` 先问读取器自己，再问 `underlyingReader`。
+  - `SymbolicDemangler` 的 opaque 节点值由 `context.runtimePointer(at:)` 决定：能给出本进程指针就存绝对地址，否则存偏移；读节点值的两处用同一个判据。偏移转不成 `UInt64` 时这个引用当作解析不了，不再 trap。
+  - 按类型静态约束的 API（`GenericSpecializer`、`DependencyClosure`、`ImageUniverse+DependencyClosure`）不动，持有包装类型的宿主自己传 `base`。
+  - `AGENTS.md` 加一条规则：判断读取器种类只用三个取法、不写类型转换；`ReaderKindCastScanTests` 扫描 `Sources/`（`TestSupport` 除外）防止写死的转换回来。
+  - 合并前核查发现 `WrappedReaderDemanglingTests` 依赖宿主的 cache 布局：「至少一个引用落在 SwiftUI 下方」只在 SwiftUICore 映射在 SwiftUI 下方时成立，这是 macOS 27 起的布局，macOS 15 与 26 都放在上方（26.6 上 SwiftUICore 在 `0x22d953000`，SwiftUI 在 `0x1b594e000`）。于是拆开：「声明的包装与镜像逐节点相同」在任何宿主上跑，只要求至少出现一个 opaque 引用；落在下方的引用改作「不声明的包装不 trap」那条的前提，按已加载 cache 的镜像表判断布局，只在 SwiftUICore 位于下方时启用。`ReaderKindCastScanTests` 与 `WrappedReaderInterfaceTests` 只读源码和 fixture，进 CI 名单；另两个套件读系统 cache 或把 SwiftUI 加载进进程，留在本地。
+- **落地模块**：MachOReading（`MachOContext`）、MachOSymbols（`SymbolIndexStore`、`SymbolValueOffsetConverter`、`MachO+Symbol`）、SwiftInspection、SwiftLayout（`ImageReference`）、SwiftThunkAnalysis（`ObjCMethodThunkReferences`）、SwiftIndexing、SwiftDeclarationRendering、SwiftPrinting（`InterfaceHeader`）、MachOTestingSupport（`ForwardingMachOReader`）；MachOKitExtensions（`MachOReaderWrapper.swift`）。
+- **验证**：
+  - 新测试，修复前都确认是红的：`WrappedReaderDemanglingTests`（子进程 SIGTRAP → 通过）、`WrappedReaderInterfaceTests`（测试进程 SIGSEGV → 包装与裸读取器的 interface 逐字节相同）、`WrappedReaderSymbolTests`（272 + 1 + 3 处失败 → 通过）、`ReaderKindCastScanTests`（列出 38 处 → 通过）。MachOKitExtensions 自己的 23 个测试全过。
+  - 全量 `swift test --skip IntegrationTests`（JHs-Mac-Studio-Ultra，Xcode 27 默认工具链，`USING_LOCAL_DEPENDENCIES=1`；本机 swift-demangling 与 MachOObjCSection 的 `next` 落后远端，沙盒里用各自远端 `next` 的导出副本）：2400 余个测试，原始退出码 0，但 `Arm64eSignedVWTPointer` 的 strip 探针红了一条；同一构建单独重跑 3/3 通过、基线也通过，与本次改动无交集，按偶发处理。
+  - 渲染 A/B（基线为 next `956b4e09` 加 MachOKitExtensions 1.2.0）：**96 对全部逐字节一致**——归档 cache 15.5 与 26.6 各 12 对，iOS 15.5 / 16.4 / 17.5 / 18.5 / 26.5 模拟器 48 对，MachOImage 腿 24 对。
+  - 落地验证，在把 `next@7adbe83c` 合进功能分支后的最终 tree 上跑（JHs-Mac-Studio-Ultra，macOS 27.2，Xcode 26.6，只走远端依赖、MachOKitExtensions 1.3.0，fixture 按 CI 的方式 ad-hoc 签名）：全量 `swift test --skip IntegrationTests` 2574 个测试 / 493 个套件全部通过，原始退出码 0，`WrappedReaderDemanglingTests` 的两条都跑了。渲染 A/B 的基线是 `next@7adbe83c`，两侧依赖只有 MachOKitExtensions 不同（1.2.0 对 1.3.0）：**96 对全部逐字节一致**，各腿对数同上，MachOImage 腿是 macOS 27.2 的进程内镜像。
+- **关联文档**：提案 [0075-wrapped-reader-recognition](../Evolutions/0075-wrapped-reader-recognition.md)、[ReadingContextAbstraction.md](ReadingContextAbstraction.md)「包装类型读取器」一节、术语表 [reader wrapper](../Glossary.md)、`AGENTS.md` 新增的读取器种类规则。
+- **对应版本**：0.24.0。0.23.0 发版时它还在等 MachOKitExtensions 1.3.0，没有跟上。依赖下限：MachOKitExtensions 1.3.0（2026-10-26 已发版）。下游：MachOKitUI 升级后给两个包装类型各加一行 `MachOReaderWrapper` 遵循，并删掉 `demangleTypeNode` 里的特判。
+
+## 107. 0.24.0 发版
+
+- **时间段**：2026-10-25 至 2026-10-26。
+- **动机**：用户要求审核 `next` 是否适合发版，看过审核结论后批准按建议发 0.24.0。自 0.23.0 以来 `next` 多了第 99–106 节的工作：borrow / mutate 访问器与关联类型上的 `~Copyable`、swift-capstone 7、交叉引用分析、builtin 叶子布局、协议约束的写法、私有声明的源文件注释，以及包装类型读取器的识别。审核期间 `next` 又合入第 105、106 节，验证随之补到最终代码上。
+- **关键决策**：
+  - **① 废弃的读取接口再推迟到 0.25.0**（用户按建议批准）。MachOKitUI 的 `main`（`from: "0.19.0"`，会自动解析到 0.24.0）与 swift-decompiler 的 `main`（跟本库 `next`）都还在调用，这一版删除会让它们下次解析时编不过。AGENTS.md、术语表、`ReadingContextAbstraction.md` 与文档索引改成 0.25.0，0057 的决策日志补记，Changelog 的 Breaking 写明新期限。
+  - **② evolution「看不见的版本」不进这一版**（用户按建议批准）。提案在 `next` 上是 Accepted，实现留在 `feature/evolution-unobservable-presence`；合进来会带来快照格式 8，要在合并结果上重新验证。
+  - **③ 包装类型读取器的修复赶上了这一版**：MachOKitExtensions 1.3.0 在审核期间发版，第 106 节随之合入，依赖下限抬到 1.3.0。
+  - **④ Changelog 1,563 字符**，一句话一条，比普通版本 1,500 的预算多 63 个：三条破坏性变化（`AccessorKind` 的两个新 case、废弃期限顺延、swift-capstone 7.0.0 与 MachOKitExtensions 1.3.0 的下限）和五项新接口。
+  - **⑤ 更正 README 与 AGENTS.md 的工具链要求**：`swift-tools-version` 自 0.22.0 起就是 6.3（`26c9012f`），两处一直写 Swift 6.2 / Xcode 26.0，改为 Swift 6.3 / Xcode 26.4。README 说 `MetadataReader` 别名只保留一个版本，四个版本后它还在，去掉了这个期限。
+  - **⑥ 版本号**：`Version.swift`、两个 `plugin.json` 改为 0.24.0，README 的安装示例同步，product 表补上 `CrossReferenceAnalysis` 和 0.23.0 起就漏掉的 `SwiftPrivateDiscriminators`；插件 skill 把 `interface --requirements-on-associated-types` 与 `--emit-private-source-files` 标为 0.24.0 起。
+- **落地模块**：`Sources/Executables/swift-section/Version.swift`、`AgentPlugins/swift-section/`（两个 `plugin.json`、skill）、`Changelogs/0.24.0.md`、`README.md`、`AGENTS.md`、本账本（第 99–106 节的对应版本、本节），以及术语表、`ReadingContextAbstraction.md`、文档索引与 0057（废弃期限）。
+- **验证**：都在 JHs-Mac-Studio-Ultra 上做，Xcode 26.6，只走远端依赖，源码是 `git archive` 导出的干净副本，scratch 是新的。
+  - 审核起点 `24c39555`：全量 `swift test --skip IntegrationTests` 2541 个测试 / 487 个套件，原始退出码 0，fixture 按 CI 的方式 ad-hoc 签名现编；照 `release.yml` 的 x86_64 与 arm64 release 构建都是 0 warning。渲染 A/B 以 0.23.0 为基线（`--skip-image-part`）：72 对里 18 对不同，外加手动比的 macOS 27.2 SwiftUI / SwiftUICore 4 对，差异全部是第 104 节修掉的三个协议头（`AccessibilityOptionalPropertiesKey` 与 `AccessibilityOptionalPropertyKey` 的 `?`、`PlatformViewRepresentable` 的 `<Self>`、`SliderTickContent` 的 `SliderTick<Self.Value>`）。
+  - 最终代码 `ecd7a521`：第 106 节落地时在同一 tree 上跑过全量，2574 个测试 / 493 个套件通过，A/B `7adbe83c` → `ecd7a521` 96 对一致（含 MachOImage 腿）。本节补跑了照 `release.yml` 的双架构 release 构建，编译 warning 为 0，两个二进制都能运行；又跑了 A/B `24c39555` → `ecd7a521`，72 对全部逐字节一致。依赖解析到 MachOKit 0.54.101、MachOKitExtensions 1.3.0、MachOObjCSection 0.8.200、swift-demangling 0.7.2、swift-semantic-string 0.5.0、swift-capstone 7.0.0、capstone 6.0.101、swift-objc-dump 0.8.101。
+  - 发版提交：arm64 release 构建的 `--version` 输出 0.24.0；skill 写到的每个 flag 都在各子命令的 `--help` 里；`claude-isolated plugin validate` 对插件目录与 marketplace（`--strict`）都通过。
+  - 本机没有 `release.yml` 用的 Xcode 26.4，以 26.6 代替。
+- **关联文档**：[Changelogs/0.24.0.md](../../Changelogs/0.24.0.md)。
+- **对应版本**：0.24.0。
+
+## 108. 交叉引用分析第二轮审查的修复
+
+- **时间段**：2026-10-27，分支 `fix/cross-reference-review-findings`（worktree `.worktrees/MachOSwiftSection-CrossReferenceReviewFixes`，基于 `next`），当天本地合入 `next`。
+- **动机**：对 0.24.0（`0.23.0..0.24.0`，重点是新加的交叉引用分析）做第二轮审查，12 条候选逐条核实，另外发现一条更严重的；用户批准修建议修的五条。详见 [2026-10-27 审查记录](../../Roadmaps/2026-10-27-cross-reference-analysis-second-review-findings.md)。
+- **关键决策**：
+  - **按平台的地址掩码**：模块六处写死的 Mac 47 位掩码在 iOS 系真机上会留下签名的第 39–46 位，改为统一用 `InProcessContext.addressMask`（改为 `package` 可见），经新的 `StoredPointer.address(in:)`；`AddressMaskScanTests` 防止常量回来。
+  - **ld64 改写过的代码**：字面量 `ldr` 记成从已知槽位载入、`adr` 像 `add` 一样报类引用；横向排查发现 ld64 改写过的桩 MachOKit 读不出槽位（第三方 App 里经桩的发送因此一处也认不出），改由 `ARM64Trampoline` 补读；SwiftThunkAnalysis 的解码器同样补上字面量 `ldr`（`ThunkOperation.loadFromSlot`）。复现测试现编 dylib 后按 ld64 的做法改写指令，因为 Xcode 26 的链接器不做这种改写、Xcode 27 不再带 `ld-classic`。
+  - **libobjc 的发送入口**：`objc_alloc_init` 等八个入口记成它们代表的发送，按轻量档写了提案 [0076-objc-runtime-send-entry-points](../Evolutions/0076-objc-runtime-send-entry-points.md)，用户批准后实现。
+  - **导入类型查询的越界读**：`SwiftTypeIndex.name(ofDescriptorAt:)` 只从类型描述符读名字；审查原本建议的 `describesType` 要为扫到的每个镜像建类型索引，没有采用。
+  - **缩写**：`pc` 与全仓库的 `lhs` / `rhs` 改成完整的名字，`AbbreviatedIdentifierScanTests` 钉住；fixture 源码里的 `test(lhs:rhs:)` 是参数标签、进了快照基线，不动。
+  - 判为不修或误报的五条登记 ReviewAdjudications A76–A80；横向排查到的两条——MachOKit 的 `StubDecoder` 读不出改写过的桩、单字母的泛型参数——用户定暂不处理，登记 A81、A82；已暂缓的 A64 在 macOS 26.6 上核过仍复现不了，补记。
+- **落地模块**：CrossReferenceAnalysis、ARM64InstructionDecoding、SwiftThunkAnalysis、MachOReading（`InProcessContext`、`AddressArithmetic` 的参数名），以及 `lhs` / `rhs` 改名涉及的 SwiftInspection、SwiftDeclaration、SwiftIndexing、SwiftDeclarationRendering、SwiftDiffing、MachOResolving、MachOSymbols、MachOSwiftSection、MachOFixtureSupport。
+- **验证**：
+  - 每条修复都先写了修复前会失败的测试。前四条的 9 个测试在原始代码上一起跑过一次，全部失败（导入类型查询那条的子进程以 SIGBUS 结束），两个只核对扫描逻辑本身的测试通过；第 2 条的两组测试（16 个用例）在前四条修好、它自己还没修的代码上全部失败。这两轮在公司的 Mac Studio（macOS 26.6）上跑，交叉引用与 thunk 分析两个测试目标里其余测试都过，只有 4 个本机原本就红的（按 macOS 27.2 的缓存挑镜像）。
+  - 全量 `swift test --skip IntegrationTests` 按用户要求改到 JHs-Mac-Studio-Ultra 上跑（macOS 27.2，Xcode 26.6，只走远端依赖，版本与 0.24.0 发版审计相同：MachOKit 0.54.101、MachOKitExtensions 1.3.0、MachOObjCSection 0.8.200、swift-demangling 0.7.2、swift-semantic-string 0.5.0、swift-capstone 7.0.0；fixture 用发版审计时按 CI 方式 ad-hoc 签名编的那份）：2588 个测试 / 497 个套件全部通过，原始退出码 0。0.24.0 时是 2574 / 493，多出的 14 个测试、4 个套件是这次新加的；整个缓存上的 selector 预筛测试加了 `isKindOfClass:`，也通过。
+  - 渲染 A/B 没有跑：打印、索引与读取层的改动只有运算符与闭包参数的改名和 `InProcessContext.addressMask` 的可见性，行为不变，由全量测试覆盖。
+- **关联文档**：审查记录、提案 [0076-objc-runtime-send-entry-points](../Evolutions/0076-objc-runtime-send-entry-points.md)、[Modules/CrossReferenceAnalysis.md](Modules/CrossReferenceAnalysis.md)「libobjc 的发送入口」「链接器改写过的代码」与「两种桩布局」、[Modules/SwiftThunkAnalysis.md](Modules/SwiftThunkAnalysis.md)、ReviewAdjudications A64、A76–A82。
+- **对应版本**：未发版（0.24.0 之后）。
+
+## 109. 只剩 `@objc` thunk 或 initializing entry point 的成员
+
+- **时间段**：2026-10-27，分支 `fix/thunk-only-objc-members`（worktree `.worktrees/MachOSwiftSection-ThunkOnlyMembers`，基于 `next` b4d76a3b），当天合入 `next`。
+- **动机**：逆向 Xcode 27.2 菜单栏助手的会话报来 issue #137：`Xcode Service` 里 `MenuBarPanelWindow.canBecomeKey` 这类成员在 dump 与 interface 里都不见了，只有 `nm` 能看到。triage 发现范围更大：7 个类、22 个 `@objc` 成员只剩 `To` thunk，`__objc_classlist` 里的普通类也一样；另有 9 个 class initializer 只剩 initializing entry point，interface 里也不见（issue #138）。成员模型只从实现符号（和提案 0054 的 `Tq` 替身）建成员，整模块优化删掉实现符号后就无从建起。用户批准本库与 MachOObjCSection 两边并行开工。
+- **关键决策**：
+  - 沿用提案 0054 的替身成员符号：照实现符号的样子造（mangled 名、成员树），偏移用镜像留下的入口。thunk 去掉 `To` 与 `objCAttribute`；initializing entry point 把 `constructor` 改写成 `allocator`、`fc` 换成 `fC`，因为 builder、vtable 槽、ObjC 方法表与 ABI 身份都按 allocator 记。
+  - 符号索引给 `To` thunk 加第四个成员索引，存 thunk 自己的行；原来只记成员名的标记表不变。
+  - #138 并入同一份提案：thunk 替身里的 `init` 来自 `…fcTo`，依赖模型先接受 initializing entry point。
+  - 造替身之前先按名字查实现符号是否存在，没被优化掉的镜像几乎不付代价；结构相等的去重仍是最终判据。
+  - 泛型类与 stub-list 类的 ObjC 方法表（`override` 与显式 selector 的证据）另立提案，与 MachOObjCSection 协作：那边让 `ObjCInterfaceIndexer` 接受宿主补进来的类，本库从 Swift 元数据算出这些类的 `class_ro_t`。
+  - ABI snapshot 格式版本加一。
+  - 顺带修掉一个旧问题：一个 initializer 有 `@objc` thunk，整个类的 initializer 都被打成 `@objc`（0.24.0 把 `NSHostingView` 的泛型 `init(rootView:)` 印成 `@objc override init(rootView:)`）。改为按每个 initializer 自己的 thunk 名判断；横向排查发现重载的方法有同一个问题（Swift-only 的重载也被打成 `@objc`），一并改为按符号名判断。
+- **落地模块**：MachOSymbols（第四个成员索引与查询）、SwiftDeclaration（`StandInMemberSymbols`、`indexMembers`、`ClassDispatchLookups` 的去重键挪走）、SwiftIndexing（extension 成员）、SwiftDump（`[ObjC Thunk]` 一节）、SwiftDiffing（格式版本）、MachOTestingSupport（`ThunkOnlyMemberFixture`）。
+- **验证**：都在 JHs-Mac-Studio-Ultra 上跑（Xcode 26.6，远端依赖）。
+  - 修复前：只有测试的提交上 7 个暴露问题的测试全部失败（24 处），3 个只核对前提的测试通过；两处 `@objc` 误标的测试在各自的修复之前也都失败。
+  - 修复后：新增两个套件 11 个测试通过；全量 2599 个测试 / 499 个套件，唯一的变化是 SymbolTestsCore interface 快照里三个泛型 initializer 不再带 `@objc`，快照已更新。
+  - `Xcode Service`：与 `next` 基线对比，dump 只增不减，interface 只删掉两个误标的 `@objc`；报告里的成员全部打出，地址是 thunk 或 `fc` 的地址。
+  - 渲染 A/B：96 对里 61 对一致、35 对不同，逐对归了类：dump 全是新增；interface 的差异是补回的成员、去掉不可能成立的 `@objc`（随之有几处 `final`）、属性补回了访问器。细节见 [ThunkOnlyObjCMembers.md](ThunkOnlyObjCMembers.md)「验证」。
+  - 顺带看到两个与本次无关的旧问题，未修，另开 issue：#139（property wrapper 识别把下划线开头的普通存储属性当成 backing storage，打出 `@Swift.String? var phase: Any?` 这种属性，SwiftUICore 的 `TextAnimator` 等）；#140（dump 给类方法的 ABI 墓碑槽打 `class func static …`，关键字重复）。
+- **关联文档**：提案 [0077-thunk-only-objc-members](../Evolutions/0077-thunk-only-objc-members.md)、[ThunkOnlyObjCMembers.md](ThunkOnlyObjCMembers.md)、[ObjCMemberRecovery.md](ObjCMemberRecovery.md)「边界与已知限制」、[DescriptorOnlyVTableMembers.md](DescriptorOnlyVTableMembers.md)「什么时候不补」、[Modules/MachOSymbols.md](Modules/MachOSymbols.md)、[Modules/SwiftDeclaration.md](Modules/SwiftDeclaration.md)、ReviewAdjudications A13 的 2026-10-27 复核。
+- **对应版本**：未发版（0.24.0 之后）。
+
+## 110. 没有 class object 的 Swift 类
+
+- **时间段**：2026-10-27，分支 `feature/objc-classes-without-class-objects`（worktree `.worktrees/MachOSwiftSection-ClassesWithoutClassObjects`，基于 `next` d68e6c10），当天合入 `next`。
+- **动机**：issue #137 的 ObjC 侧。泛型类、父类在别的 resilience domain 的类、父类是本模块泛型类的类都不在 `__objc_classlist` 里，`swift-section objc` 列不出它们，本库的 ObjC 方法表也读不到它们，`Xcode Service` 的 `MenuBarPanelWindow<A>` 的 `canBecomeKey` 这类覆写因此只有 `@objc`、没有 `override`。用户批准本库与 MachOObjCSection 两边并行开工；MachOObjCSection 新增了让宿主补进类的 `ObjCSuppliedClass`（它那边的提案 0014，随 0.8.201 发布）。
+- **关键决策**：
+  - 新的 `SwiftClassWithoutClassObjectIndex` 从类型描述符读出三种类的 `class_ro_t`：泛型类从 generic metadata pattern 的 extra-data pattern（照运行时 `initializeClassMetadataFromPattern` 的偏移算法），Resilient 策略从 `ResilientClassMetadataPattern`，Singleton 策略从静态的 incomplete metadata。绝对指针一律经 MachOObjCSection 的读取器解。
+  - 名字：泛型类用 Swift 限定名加泛型参数（模板里的名字是空指针），另外两种用 `class_ro_t` 里的运行时名。父类给运行时名的地方都给运行时名，链能接着走；别的镜像里的 Swift 父类只给 Swift 写法，链在那里断（运行时名要用旧式 mangling 拼，本库没有旧式 remangler）。
+  - 交给 MachOObjCSection 的是全部泛型类与 `__objc_stublist` 登记的类：编译器只给有 ObjC 祖先的非泛型类登记 stub，MachOObjCSection 给它们写的注释也是这个意思。本库自己的方法表不过滤。
+  - Singleton 类的 stub 是非公开的，只有完整 stub 的私有符号 `…CMt`，isa 字段在它后面一个字；`…CMs` 别名只给公开 stub 定义（起初按 `…CMs` 找，测试抓到后用探针确认）。
+  - 祖先解析器在进程内也按名字到已加载的镜像里找 ObjC 父类：没有 class object 的类只有父类的名字。起初把这一点记成已知限制，已有的「进程内与文件打印出同样的声明」测试红了，于是补上。
+  - 打印父类名起初用了 `.interfaceType` 预设，它去掉泛型实参，`MenuBarLabelHostingView` 的父类读成了 `SwiftUI.NSHostingView`；改用 `.interface`，fixture 加了一个父类是别的模块泛型类的例子。
+- **落地模块**：SwiftInspection（`SwiftClassWithoutClassObjectIndex`、`ObjCClassMethodIndex` 的查询与祖先链、`ObjCAncestorResolver` 的进程内按名字查找）、MachOSymbols（按名字查符号偏移）、SwiftIndexing（`ObjCSuppliedClass.swiftClassesWithoutClassObjects(in:)`、provider 查 `suppliedClassGroup(forName:)`）、SwiftSectionKit（两处构造 ObjC 索引器时传入）、MachOTestingSupport（`ClassesWithoutClassObjectsFixture`）；依赖 MachOObjCSection 升到 0.8.201。
+- **验证**：都在 JHs-Mac-Studio-Ultra 上跑（Xcode 26.6，远端依赖）。
+  - 修复前：只有测试的提交（4212fe49）上 4 个行为套件全部失败（16 个测试、20 处断言），其中一处是剥过符号的泛型类成员被 `final` 还原误标成 `final`。
+  - 修复后：目标套件与相关的 ObjC 成员恢复套件 12 个、74 个测试通过；全量 `swift test --skip IntegrationTests` 2610 个测试 / 502 个套件，唯一的变化是 SymbolTestsCore 的两份快照：interface 里三个继承 `NSObject` 的泛型类，编译器合成的 `init()` 成了 `@objc override init()`，dump 里它们多了 `// ObjC ancestor chain: NSObject` 与 `init` 的覆写注释，与非泛型类一致（快照已更新）。
+  - `Xcode Service`：`objc dump` 列出 `MenuBarPanelWindow<A> : NSPanel`（9 个方法，与 MachOObjCSection 那边的测试一致）与 `MenuBarLabelHostingView : SwiftUI.NSHostingView<Xcode_Service.MenuBarLabel>`；interface 里 `MenuBarPanelWindow` 的 8 个 ObjC 成员都成了 `@objc override`。
+  - 渲染 A/B：96 对里 66 对一致、30 对不同，都在 SwiftUI 与 SwiftUICore，逐行归类后全部是预期中的改进：interface 只多出 `override`（1576 处）、`static` 改成 `override class`（14 处）、剥过符号的模拟器腿上的 `@objc` 与 12 处显式 selector，没有删掉的声明，也没有类型变化；dump 只多出方法表与祖先链的注释。显式 selector 逐个核过，都与基线对有 class object 的类的判定一致，或是方法表里的真实 selector（`NSHostingView<Content>` 的 `springLoadingHighlightExited:`，看起来是 SwiftUI 的笔误）。两侧渲染耗时相同。细节见 [ClassesWithoutClassObjects.md](ClassesWithoutClassObjects.md)「验证」。
+- **关联文档**：提案 [0078-objc-classes-without-class-objects](../Evolutions/0078-objc-classes-without-class-objects.md)、[ClassesWithoutClassObjects.md](ClassesWithoutClassObjects.md)、[ObjCMemberRecovery.md](ObjCMemberRecovery.md)「边界与已知限制」、[ThunkOnlyObjCMembers.md](ThunkOnlyObjCMembers.md)「边界」、[ObjCCommandLine.md](../ObjCCommandLine.md) 第 5 条。
+- **对应版本**：未发版（0.24.0 之后）。
+
+## 111. Swift 声明的 `@objc` 协议与类对 ObjC 协议的遵循
+
+- **时间段**：2026-10-28，分支 `feature/swift-declared-objc-protocols`（worktree `.worktrees/MachOSwiftSection-SwiftDeclaredObjCProtocols`，基于 `next` 5f09ca46），当天合入 `next`。
+- **动机**：RuntimeViewer 会话转来的需求，样本是 Xcode 的 DVTFoundation。Swift 源码声明的 `@objc` 协议在 `dump` 与 `interface` 里都不出现：编译器不给它生成 protocol descriptor，本库只从 protocol descriptor 认协议。同一个原因带出第二个缺口：ObjC 协议没有 witness table，类对它的遵循也没有 conformance record，interface 里 Swift 类对任何 ObjC 协议的遵循全部丢失（`class DVTIconReference: __C.NSObject` 少了 `DVTResourceReference, NSCopying`）。用户决定两件一起做。
+- **关键决策**：
+  - 本镜像声明了哪些以 `__swift5_fieldmd` 里 kind 为 `ObjCProtocol` 的 field descriptor 为准，`protocol_t` 的 IsSwift 位不算证据：Swift 会给引用到的别的模块协议生成带这一位的副本，clang 经 `-Swift.h` 生成的副本这一位是 0。配对只看名字。
+  - 要求没有任何 Swift 符号（探针确认，与访问级别、library evolution 无关）。有本镜像的类实现时照抄那个成员；没有时移植 ClangImporter 的 `omitNeedlessWords` 从 selector 推出 Swift 名，再加一步去掉 Swift 插入的 `With`，用 `@objc(selector)` 钉住（用户决定，先用探针拿真实 importer 的输出核对过）。
+  - 找实现者时 Swift 类的成员表要按 Swift 全名取：按运行时名取的是 ObjC 类的表，strip 过的镜像里联结不上 Swift 类的成员——测试在 strip 变体上红了才发现。
+  - 同一模块里的 extension 被编译器并进类自己的 `class_ro_t`，只有 extension 别的模块的类才生成 category（探针确认）。类头部列 `class_ro_t` 的协议；每个 category 打成 `extension X: P {}`，范围因此从「本镜像的类」改成所有 category。隐含的协议（类遵循的 Swift 协议继承的 ObjC 协议）按遵循记录剔除，只认本镜像的 Swift 协议。
+  - 导入的协议在 `__C` 里保留 ObjC 名（`__C.NSObject`），与编译器的 mangling 和现有输出一致，不加 `Protocol` 后缀。别的模块改过名的协议只对「Swift 生成、本镜像不认领」的记录名到依赖闭包里找，只查带反射元数据的镜像，锁外建索引。
+  - 独立的 `ObjCProtocolDefinition`，不动 `ProtocolDefinition`；新增 `ExportStatus.declarationHasNoSymbol`。类头部的协议与 category 遵循只在单版本 interface 里打，diff、evolution 与 ABI 快照都不收录。
+- **落地模块**：MachOSwiftSection（`fieldDescriptors`、`FieldDescriptor.actualSize`）、SwiftInspection（`SwiftDeclaredObjCProtocolIndex`、`ObjCProtocolRecord`、`ObjCTypeEncoding`、`ObjCImporterNaming`、`ObjCProtocolRequirements`、`ObjCRuntimeNames`、`ObjCProtocolAdoptionIndex`、`ObjCAncestorResolver` 的跨镜像协议查找）、SwiftThunkAnalysis（`ObjCProtocolWitnesses`）、SwiftDeclaration（`ObjCProtocolDefinition`、`ObjCCategoryConformance`、`TypeDefinition.objcProtocolNames`、`ExportStatus.declarationHasNoSymbol`）、SwiftIndexing（`objcProtocolDefinitions`、`allObjCProtocolDefinitions`、`objcCategoryConformances`）、SwiftPrinting / SwiftInterface（协议声明、类头部、category 遵循）、SwiftDump 与 SwiftSectionKit（`protocols` 与 `protocolConformances` 两段、类的 `// ObjC protocols:` 行）、SwiftLayout（`ObjCProtocolIndex` 认改过名与嵌套的协议）、MachOTestingSupport（`SwiftDeclaredObjCProtocolsFixture`）。
+- **验证**：都在 JHs-Mac-Studio-Ultra 上跑（Xcode 26.6，远端依赖）。
+  - 全量 `swift test --skip IntegrationTests`：510 个套件、2648 个测试全部通过；已有测试只动了 SymbolTestsCore 的两份快照（新增三个 `@objc` 协议的声明与一个类头部的协议）与 `ExportStatusTests` 的穷举 `switch`。
+  - 渲染 A/B（基线 `next` 5f09ca46）：96 对里 32 对一致、64 对不同，逐行归类全部在预期内——769 处类头部只多了 ObjC 协议，35 行是挪到协议声明后面的 protocol extension，1979 行新增是协议声明、注释与 category 的 `extension`；没有删掉或改动任何已有的声明。两侧渲染耗时持平。
+  - DVTFoundation：11 个协议都打出来，`DVTIconReference` 的头部是 `__C.NSObject, DVTFoundation.DVTResourceReference, __C.NSCopying`。细节见 [SwiftDeclaredObjCProtocols.md](SwiftDeclaredObjCProtocols.md)「验证」。
+- **后续修复（2026-10-29）**：分支 `fix/private-objc-protocol-bare-names`。私有协议在 interface 的声明头里、以及 dump 不带父名时的名字里带出了私有鉴别器，是 RuntimeViewer 验收时在 AppKit 的私有协议 `TextShadowViewControllerDelegate` 上看到的（`@objc protocol (TextShadowViewControllerDelegate in _05EA…) {`）。两处都改成与 Swift 协议的声明头一样只打裸名；ABI diff 路径与无名局部类型的位置名有意显示鉴别器，不动。fixture 原先没有私有的 `@objc` 协议，现在补了一个文件级 private 的，interface 与 dump 各加一条回归测试，修复前这两条都红。列举全部协议的五处断言也补上了它，四种读取情形（完整文件、strip 过的文件、已加载镜像、没有反射元数据的文件）都认得出这个协议。Ultra 上（Xcode 26.6，远端依赖）全量 `swift test --skip IntegrationTests` 510 个套件、2660 个测试全部通过。改动只影响私有 `@objc` 协议的名字，不算大重构，没有跑渲染 A/B。
+- **关联文档**：提案 [0079-swift-declared-objc-protocols](../Evolutions/0079-swift-declared-objc-protocols.md)、[SwiftDeclaredObjCProtocols.md](SwiftDeclaredObjCProtocols.md)、[ObjCMemberRecovery.md](ObjCMemberRecovery.md)、[Modules/SwiftDeclaration.md](Modules/SwiftDeclaration.md)。
+- **对应版本**：未发版（0.24.0 之后）。
+
+## 112. MachOObjCSection 下限抬到 0.8.202：macOS 11 的 dyld cache 读出正确的方法名
+
+- **时间段**：2026-10-28，直接在 `next` 上改。
+- **动机**：用户想看 AppKit 从 macOS 11.0 起的 Objective-C API 演进。对卷上 52 个归档 cache（11.0.1 → 27.2）跑 `objc snapshot` 与 `objc evolution` 时发现，11.0.1–11.7 里类与分类的方法名全部读错：每个版本约 7.6 万个成员里有 4.8–4.9 万个 selector 带控制字符，其余看似正常的是空串或单个字符，与 12.0.1 一个都对不上；协议的方法、属性、ivar、父类与协议遵循都是对的。演进报告因此在 11.7 → 12.0.1 报出约 4.7 万处移除、5.3 万处新增。根因在 MachOObjCSection：方法列表的 flag `0x40000000` 在 macOS 11（dyld-832、objc4-818，objc_opt v15）里表示 selector 偏移从 name 字段自身算起，macOS 12（dyld-940、objc4-838，objc_opt v16）起才改为从 cache 的 selector 基址算起。macOS 11 的 cache 没有这个基址，读取器以 0 兜底，就从 cache 开头去读。这个兜底从 MachOObjCSection 最初支持 cache 方法列表时就在。
+- **关键决策**：
+  - 修复放在 MachOObjCSection，由负责那个仓库的会话完成：按 objc 优化数据的版本选基址（v16 与新格式用 selector 基址，v12、v13、v15 从字段自身算起，读不到优化数据时方法名留空、不再猜），进程内路径在 macOS 12 / iOS 15 之前的系统上同样从字段自身算起。发了 0.8.202。
+  - 本库只抬下限、不改代码：`objc` 子命令经 SwiftSectionKit 调 MachOObjCSection，本库读方法列表也都经它的 `methods(in:)`，没有第二份同样的解码。
+- **落地**：`Package.swift`（MachOObjCSection `"0.8.202" ..< "0.9.0"`）。MachOObjCSection 的 tag 0.8.202 指向 `e804bd1`（`next` 与 `main` 都在这个提交上），修复提交是 `f40359a`，回归测试 `DyldCacheRelativeMethodNameTests` 读 11.0.1、12.0.1、13.0 的 AppKit。
+- **验证**：都在 JHs-Mac-Studio-Ultra 上跑（macOS 27.2，Xcode 27.2，远端依赖）。
+  - `swift package update machoobjcsection` 只把 MachOObjCSection 从 0.8.201 换成 0.8.202，`workspace-state.json` 里是 `remoteSourceControl`、revision `e804bd1`；release 构建的 `swift-section` 0 warning。
+  - 用它对 52 个版本的 AppKit 重做快照，与已安装的 0.24.0 release 版的快照逐一比较：每个版本带乱码的 selector 都是 0；11.x 的类、协议与分类集合不变，约 1,860 个容器的方法名改对了（NSView 1,731 个成员，有 `initWithFrame:` 与 `drawRect:`）；12.0.1–13.7 完全一致；14.0 起只多出 11–35 个容器，都是第 110 节交给 MachOObjCSection 的没有 class object 的 Swift 类，共有容器的成员没有差异。
+  - `objc diff` 11.7 → 12.0.1 降到 1,193 行移除、1,402 行新增（含类与协议本身的行），与 MachOObjCSection 那边直接读 cache 的结果一致；52 个版本的演进报告里，11.x 各步只有几十到一百多处变化。
+  - 没有跑全量测试：本地 `next` 上的 7e42d054 改了 SymbolTestsCore 的源码，而这个 worktree 链接的 fixture 二进制是 8 月 27 日编的，已经过期，全量跑会出与本次无关的红。本库测试用到的输入（宿主 macOS 27.2、带 selector 基址的新格式 cache、fixture 里经 selref 的方法列表）走的解码路径都没有变。
+- **对应版本**：未发版。发版说明要写：`objc` 读 macOS 11 的 dyld cache 时，类与分类的方法名不再是乱码。
+
+## 113. ObjC API 演进的集成测试
+
+- **时间段**：2026-10-28，直接在 `next` 上改。
+- **动机**：用户要一套和 Swift 一样的集成测试来检查 Objective-C 的演进。`swift-section objc evolution` 的整条流水线（MachOObjCSection 的 `ObjCInterfaceIndexer` → `ObjCAPISnapshotBuilder` → `ObjCAPIEvolutionBuilder` / `ObjCAPIEvolutionReporter`）原先只能经 CLI 跑，IntegrationTests 里没有对应的人工检查套件。
+- **关键决策**：
+  - 照 `ABIEvolutionTests` 的结构写：每个版本建一个索引器，和 `objc snapshot` 一样补进没有 class object 的 Swift 类；快照经 JSON 存取一次再交给 evolution；只有两个版本时，附上 `ObjCAPIDiffer` 的结论做对照。ObjC 没有带标注的接口视图，所以产物只有报告和 JSON（`-ObjCEvolution.txt` / `.json`），与 Swift 的产物一起写进 `~/Documents/SwiftInterfaceTests/`。
+  - 两个套件都读 AppKit。`DyldCacheTests` 用 Swift 套件默认的三版本轴（15.5 → 26.5.2 → 27.0）；`ArchivedDyldCacheTests` 直接引用 `SwiftEvolutionInterfaceBuilderTestSuite.ArchivedDyldCacheTests` 的 `cachePaths`，版本和标签只在那里维护一份。没有加 27.2：那张表止于 27.0，加进去会让 Swift 的 51 版测试变成 52 版，而它的内存峰值已经贴着 5 GB。
+  - `ABIEvolutionTestSuite.MultiVersionDyldCacheImageTests` 里「镜像有 `__swift5_*` 节才上轴」改成可覆写的 `isOnAxis(_:)`，默认行为不变；ObjC 套件改看 `__objc_*` 节，AppKit 在每个 cache 里都有。
+  - 不写提案：只加人工检查用的测试，不改产品行为，按低一档处理。
+- **落地**：`Tests/IntegrationTests/ObjCDiffing/ObjCAPIEvolutionTests.swift`（新增）、`Tests/IntegrationTests/SwiftDiffing/ABIEvolutionTests.swift`、`Package.swift`（`IntegrationTests` 加 MachOObjCSection 的 `ObjCDiffing`、`ObjCIndexing`、`ObjCInterface`、`ObjCMetadataSource` 四个 product）。
+- **验证**：在 JHs-Mac-Studio-Ultra 上（Xcode 27.2，远端依赖）`swift build --target IntegrationTests` 编译通过，原始退出码 0，新文件没有警告。按项目规定，IntegrationTests 不由 agent 运行；同一条流水线已用 CLI 在 52 个版本上跑过（上一节）。
+- **对应版本**：未发版（只有测试代码，不进发版说明）。
+
+## 114. `objc evolution --interface`：带演进标注的合并 ObjC 头文件
+
+- **时间段**：2026-10-28 至 10-29，分支 `feature/objc-evolution-interface`（worktree `.worktrees/MachOSwiftSection-ObjCEvolutionInterface`，基于 `next` 66c42e8a），10-29 合入 `next`。
+- **动机**：`objc evolution` 只输出逐条变化的报告和 JSON，读 AppKit 这种有几千个类的框架时看不出全貌。用户要的是像 Swift 的 `evolution --interface` 那样，直接在头文件上标出演进。
+- **关键决策**：
+  - 合并和标注的渲染放在 MachOObjCSection（`ObjCEvolutionInterfaceBuilder`），那边的提案和实现由负责那个仓库的会话完成。本库只做接线：CLI 选项、SwiftSectionKit 的请求、集成测试和文档。
+  - 声明沿用 `objc dump` 的渲染，这是用户选定的。所以 `--interface` 只接受二进制或 cache，传快照会报用法错误。标注取自同样的快照和 `ObjCAPIEvolutionBuilder`，和报告、JSON 一致。
+  - 各版本逐个建索引，交给 builder 后立即释放，不让 N 个索引器同时留在内存里。
+  - 可用性宏的平台名按宏自己的写法（`macos`、`ios`、`macCatalyst`、`driverkit`），推断失败有 ObjC 自己的错误类型；`--platform` 不校验拼写，与 Swift 一侧一致。
+  - 写文件时补上打印时会加的那个换行，让两种输出的字节完全相同。
+- **落地**：SwiftSectionKit（`ObjCAPIEvolutionRequest.Report.annotatedInterface`、`AvailabilityAttributes`、`ObjCAvailabilityPlatformInferenceError`）；CLI（`objc evolution --interface` / `--emit-available` / `--platform` 及错误翻译）；IntegrationTests（`ObjCEvolutionInterfaceTestSuite`，输出 `-ObjCEvolutionInterface.h`）；文档（`ObjCCommandLine.md` 及 `_zh`、README、agent 插件的 skill、术语表里 union interface 一条）。提案见 [0080-objc-evolution-interface](../Evolutions/0080-objc-evolution-interface.md)。
+- **验证**：都在 JHs-Mac-Studio-Ultra 上跑（macOS 27.2）。
+  - 开发期间（Xcode 27.2，本地兄弟依赖，MachOObjCSection `next` 29f4f9a）：SwiftSectionKitTests 86 个、SwiftSectionCommandTests 110 个测试全部通过，原始退出码 0；`IntegrationTests` 编译通过（按项目规定不运行）。release 构建的 CLI 渲染 AppKit 跨 52 个归档 macOS cache（11.0.1 → 27.2）：193 秒，内存峰值（footprint）1.98 GB；输出 17 万行，其中 26,964 条标注、14,637 处 `API_AVAILABLE`、2,615 处 `API_OBSOLETED`。
+  - 用 Xcode 26.6 跑全量测试时编译停在上游：MachOObjCSection 新代码里一个局部常量和它初始化闭包里调用的方法同名，Swift 6.3.3 的类型检查器因此崩溃（`failed to produce diagnostic for expression`），Swift 6.4 能编过。上游改名修复，发了 0.8.204；0.8.203 在修复之前已经打了 tag，保留不动、不用。本库的依赖下限因此直接抬到 0.8.204。
+  - 落地前（`next` ad5bc459，Xcode 26.6，远端依赖：MachOObjCSection 0.8.204、MachOKit 0.55.100、MachOKitExtensions 1.3.0、swift-demangling 0.7.2、swift-semantic-string 0.5.0；fixture 用 Xcode 26.6 重新编译、ad-hoc 签名）：全量 `swift test --skip IntegrationTests` 共 2,658 个测试、510 个套件全部通过，原始退出码 0，比第 111 节落地时多出的 10 个正是这次新加的测试。
+  - skill 里提到的每个选项都能在 CLI 的 `--help` 里找到。
+- **对应版本**：未发版。依赖下限：MachOObjCSection 0.8.204。发版说明要写：`objc evolution --interface` 把多个版本合并成一份带演进标注的头文件，`--emit-available` 再补上可用性宏。
 
 ## 维护约定
 

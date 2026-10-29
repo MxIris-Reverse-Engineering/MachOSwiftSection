@@ -44,10 +44,11 @@ Flags added comparatively late, and therefore worth checking: `--emit-header`,
 `--supplementary-apinotes`, from 0.20.0 `--dependency-search-path`,
 `--infer-objc-overrides` and the whole `objc` subcommand group, from 0.22.0
 `evolution --emit-available` / `--platform`, from 0.23.0 `interface --module-selectors`
-/ `dump --enable-module-selectors`, and after 0.23.0
-`interface --requirements-on-associated-types`. When one is missing, say so
-rather than silently producing a weaker answer — the alternative is usually "upgrade
-(`brew upgrade swift-section`), or do without that annotation".
+/ `dump --enable-module-selectors`, from 0.24.0
+`interface --requirements-on-associated-types` and `--emit-private-source-files`, and after
+0.24.0 `objc evolution --interface` / `--emit-available` / `--platform`. When one is
+missing, say so rather than silently producing a weaker answer — the alternative is usually
+"upgrade (`brew upgrade swift-section`), or do without that annotation".
 
 ## 1. Pick the subcommand
 
@@ -143,8 +144,18 @@ The single most common mistake. Same underlying comment, different name:
 
 Spelled the same on both: `--emit-type-layout`, `--emit-enum-layout`, `--emit-member-addresses`,
 `--emit-vtable-offsets`, `--emit-expanded-field-offsets` (implies the field-offset flag),
-`--emit-header`, `--emit-export-status`, `--color-scheme`, `--output-path`,
-`--dependency-search-path` (§2).
+`--emit-header`, `--emit-export-status`, `--emit-private-source-files`, `--color-scheme`,
+`--output-path`, `--dependency-search-path` (§2).
+
+`--emit-private-source-files` puts a comment above each declaration whose name carries a
+private discriminator, naming the source file the discriminator was derived from:
+`// CodingKeys is declared in Codable.swift` above `enum Outer.(CodingKeys in _B89E…)`. The file
+is recovered by hashing candidate file names, so a named file is certain, but not every one is
+found; the rest read `… could not be recovered (private discriminator _…)`. `interface` prints
+no discriminator anywhere else, so there this comment is what tells two same-named private types
+from different files apart. A member or nested type of a private type repeats nothing, since it
+is declared in that type's file. A private member of a public type names its own file, usually
+the file of the extension that declares it.
 
 SE-0491 module selectors — `Swift::Int` instead of `Swift.Int`, the spelling a Swift 6.4
 `.swiftinterface` uses, with every nested level naming the module that declared it
@@ -207,6 +218,10 @@ resident memory. Budget for it:
   `--jobs N` bounds how many index at once (default: processor count); each in-flight input
   holds its indexed image in memory, so lower it when memory is the constraint, not `1` for
   speed's sake.
+- `--emit-private-source-files` searches every discriminator of the image once before the
+  first declaration prints, and on `dump` it first indexes the image too, which `dump` otherwise
+  never does. Measured on macOS 27.2 with a release build: SwiftUI's `dump` goes from 12 s to
+  58 s and its `interface` from 20 s to 61 s; Foundation's `interface` barely moves.
 - Anything long-running belongs in a background run written to a file with `-o`, not in a
   foreground command that will be waited on.
 
@@ -273,9 +288,12 @@ swift-section evolution 17.0.json 18.0.json /path/Foo --labels 17.0,18.0,26.0
   descriptor names (see §9), which an old baseline would report as added wholesale. Format 7 (0.23.0
   and later) rejects every format-6 baseline: a type declared in a function or closure body is recorded
   under its own full name now (see §9), and an old baseline would report each one as removed —
-  a breaking change — and added again. Format 8 (the release after 0.23.0) rejects every format-7
-  baseline: a snapshot now records whether its image keeps local Swift symbols and whether each
-  member is exported, which the not-observable rule above needs.
+  a breaking change — and added again. Format 9 (0.25.0 and later) rejects every earlier baseline,
+  for two reasons: in an optimized build the newer tool also records the members whose only symbol
+  is their `@objc` thunk or their initializing entry point (see §9), which an old baseline would
+  report as added; and a snapshot now records whether its image keeps local Swift symbols and
+  whether each member is exported, which the not-observable rule above needs. Format 8 only ever
+  existed on the development branch, between those two changes.
 
 ## 8. `--resolve-c-module-names` (interface, macOS only)
 
@@ -288,6 +306,10 @@ Attribution against a non-macOS binary is limited (it warns and degrades rather 
 
 - **`// not exported`** is an export-trie fact, not an access-level claim. A missing entry
   means "not statically callable from outside this image", which is not the same as `internal`.
+- **`… is declared in Enabled.swift of module SwiftUICore`** above a SwiftUI declaration is not a
+  wrong module: the discriminator was hashed with the framework's own name, while its
+  declarations print under their ABI module name (`SwiftUI`). **`could not be recovered`** means
+  no candidate file name produced the digest; it says nothing about the declaration.
 - **A type member printed `static`** may have been `class` in the source: the four
   descriptor-less `class` spellings are ABI-identical to `static`, so the printer picks the
   spelling that is always legal.
@@ -310,6 +332,15 @@ Attribution against a non-macOS binary is limited (it warns and degrades rather 
   `@objc` / ObjC-override facts are joined through the implementation's symbol and are
   missing. A vtable slot nothing names (an internal member in a stripped image) is
   left out; `dump` lists it as `sub_…` or `<unnamed vtable slot>`.
+- **In an optimized app binary, a member may print at the address of its `@objc` thunk, and an
+  `init` at its initializing entry point.** Whole-module optimization can inline an internal
+  `@objc` member's body into its Objective-C thunk (`$s…To`) and delete the Swift entry point,
+  and inline a class initializer's allocating entry point into its callers. The member is then
+  rebuilt from the entry point that survived: `--emit-member-addresses` points at the thunk,
+  which uses the Objective-C calling convention (`self` in `x0`, `_cmd` in `x1`), or at the
+  initializing entry point. `dump` lists the members only a thunk names under
+  `/* [ObjC Thunk] … */` sections.
+- **A generic class, or one registered through `__objc_stublist` (its superclass is in another module, or is generic), has no class object, so its Objective-C method list comes from its Swift metadata.** `override` is printed where its superclass chain can be followed. When the superclass is a Swift class of another binary (SwiftUI's `NSHostingView<…>`), the chain stops there and the class's members print with `@objc` but without `override`.
 - **`associatedtype Element` without `: ~Copyable` / `: ~Escapable`** does not prove the
   associated type is Copyable. The binary does not record that suppression (SE-0503); it is
   printed only when an extension of the protocol in the same image proves it
@@ -317,6 +348,22 @@ Attribution against a non-macOS binary is limited (it warns and degrades rather 
   (`protocol P<Element>`) can.
 - **Enum-layout patterns marked "not resolved offline"** mean only the extra-inhabitant *index*
   is derivable statically; the concrete bytes need the live metadata.
+- **An `@objc protocol` whose requirements carry `@objc(selector)`, under the comment
+  "Swift names follow the ClangImporter's rules for these selectors"**, is declared in Swift,
+  but the binary keeps no Swift name for any requirement of an `@objc` protocol. When no class
+  of the binary implements one, its Swift name is derived from the selector the way the
+  importer would, so it can differ from the source (`removeObject(at:)` for `remove(at:)`);
+  the selector, which is what the protocol means to the runtime, is exact. A requirement under
+  `// Taken from the conformer X.` is X's own member and exact. `__C.NSObject` after such a
+  protocol's colon is the `NSObject` *protocol* (Swift's `NSObjectProtocol`), spelled the way
+  the compiler mangles it. `dump --sections protocols` on an image with no Swift protocols
+  reports `__swift5_protos not found` and still lists these.
+- **Objective-C protocols after a class's superclass** (`class X: __C.NSObject, M.P,
+  __C.NSCopying`) come from the class's Objective-C metadata: a conformance to an `@objc`
+  protocol has no Swift conformance record. An extension in the class's own module is folded
+  into the class there, so its conformances show in the header too, while
+  `extension __C.NSView: M.P {}` is an extension of another module's class (its category).
+  Neither shows in `diff`, `evolution` or a snapshot.
 - **`@objc(Name)` above a class** is the name the Objective-C runtime knows it by, and matters
   even when it equals the Swift name (`@objc(NSScrollPocket) class NSScrollPocket`): without it
   the runtime name would be the `_TtC…` mangling. That is also the class name `objc` headers

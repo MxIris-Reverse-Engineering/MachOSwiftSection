@@ -145,40 +145,40 @@ public final class ImageReference<MachO: MachOSwiftSectionRepresentableWithCache
     }
 
     /// Builds the bare-name → ObjC-class start-layout index, dispatching to the
-    /// concrete `MachOImage` / `MachOFile` ObjC reader. A reader the engine does
-    /// not recognize (or an image with no ObjC classes) contributes nothing.
+    /// `MachOImage` / `MachOFile` ObjC reader the reader reads through. Any
+    /// other reader (or an image with no ObjC classes) contributes nothing.
     private static func objCClassInstanceSizes(in machO: MachO) -> [String: (instanceSize: Int, alignmentMask: Int)] {
-        if let inProcessImage = machO as? MachOImage {
+        if let inProcessImage = machO.asMachOImage {
             return ObjCClassIndex.instanceSizesByBareName(in: inProcessImage)
         }
-        if let fileImage = machO as? MachOFile {
+        if let fileImage = machO.asMachOFile {
             return ObjCClassIndex.instanceSizesByBareName(in: fileImage)
         }
         return [:]
     }
 
     /// Builds the Swift-qualified-name → own-`instanceStart` index for the
-    /// image's statically-emitted Swift classes, dispatching to the concrete
-    /// `MachOImage` / `MachOFile` ObjC reader.
+    /// image's statically-emitted Swift classes, dispatching to the
+    /// `MachOImage` / `MachOFile` ObjC reader the reader reads through.
     private static func swiftClassInstanceStarts(in machO: MachO) -> [String: Int] {
-        if let inProcessImage = machO as? MachOImage {
+        if let inProcessImage = machO.asMachOImage {
             return ObjCClassIndex.swiftClassInstanceStartsByQualifiedName(in: inProcessImage)
         }
-        if let fileImage = machO as? MachOFile {
+        if let fileImage = machO.asMachOFile {
             return ObjCClassIndex.swiftClassInstanceStartsByQualifiedName(in: fileImage)
         }
         return [:]
     }
 
     /// Builds the Swift-qualified-name index of the image's `@objc` protocol
-    /// declarations, dispatching to the concrete `MachOImage` / `MachOFile`
-    /// ObjC reader. A reader the engine does not recognize (or an image with
-    /// no ObjC protocols) contributes nothing.
+    /// declarations, dispatching to the `MachOImage` / `MachOFile` ObjC reader
+    /// the reader reads through. Any other reader (or an image with no ObjC
+    /// protocols) contributes nothing.
     private static func objCProtocolQualifiedNames(in machO: MachO) -> Set<String> {
-        if let inProcessImage = machO as? MachOImage {
+        if let inProcessImage = machO.asMachOImage {
             return ObjCProtocolIndex.qualifiedNames(in: inProcessImage)
         }
-        if let fileImage = machO as? MachOFile {
+        if let fileImage = machO.asMachOFile {
             return ObjCProtocolIndex.qualifiedNames(in: fileImage)
         }
         return []

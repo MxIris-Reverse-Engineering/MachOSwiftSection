@@ -3,6 +3,7 @@ import FoundationToolbox
 import MachOKit
 import MachOKitExtensions
 import MachOFoundation
+import MachOSwiftSection
 @_spi(Internals) import MachOCaches
 @_spi(Internals) import MachOSymbols
 @_spi(Core) import MachOObjCSection
@@ -41,7 +42,8 @@ public final class ObjCAncestorResolver: @unchecked Sendable {
 
     /// The dependency images, in lookup order: files for a file on disk,
     /// the loaded images for an in-process root (whose superclass pointers
-    /// are all real — only the category fold reads those).
+    /// are all real — only the category fold and a class without a class
+    /// object, whose superclass only has a name, read those).
     enum DependencyImages {
         case files([MachOFile])
         case loaded([MachOImage])
@@ -50,8 +52,9 @@ public final class ObjCAncestorResolver: @unchecked Sendable {
     private let makeDependencyImages: @Sendable () -> DependencyImages
     private let lock = NSLock()
     private var dependencyImages: DependencyImages?
-    private var memoizedClassObjectsByRuntimeName: [String: (MachOFile, ObjCClass64)?] = [:]
+    private var memoizedClassObjectsByRuntimeName: [String: (any ObjCImplementationClassReading, ObjCClass64)?] = [:]
     private var memoizedCategorySelectorsByRuntimeName: [String: RawObjCCategorySelectors] = [:]
+    private var memoizedSwiftDeclaredObjCProtocolsByRuntimeName: [String: SwiftDeclaredObjCProtocol?] = [:]
 
     /// - Parameter dependencyImages: Produces the images to look in, in
     ///   lookup order; called once, on the first name that reaches a bind.
@@ -73,7 +76,10 @@ public final class ObjCAncestorResolver: @unchecked Sendable {
     /// superclass pointer is real in-process — but the categories of the
     /// non-cache images the process loaded are attached by the runtime into
     /// `class_rw_ext_t`, which the readers do not see, so they are folded
-    /// from those images' `__objc_catlist` like a file's.
+    /// from those images' `__objc_catlist` like a file's. A Swift class
+    /// without a class object has no superclass pointer to follow at all —
+    /// its descriptor only names the superclass — so names are looked up in
+    /// the loaded images the way a file's binds are in its closure.
     public convenience init(inProcessRoot: MachOImage) {
         self.init(loadedImages: { DependencyClosure(root: inProcessRoot, traversal: .transitive).images })
     }
@@ -86,9 +92,18 @@ public final class ObjCAncestorResolver: @unchecked Sendable {
     /// behavior of a reader with no dependency closure at hand.
     public static let empty = ObjCAncestorResolver(dependencyImages: { [] })
 
-    /// The class object named `runtimeName` and the image defining it, or
-    /// `nil` when no dependency image exports such a class.
+    /// The class object named `runtimeName` and the file defining it, or
+    /// `nil` when no dependency file exports such a class — the file-typed
+    /// form of `resolvedClassObject(named:)`.
     package func classObject(named runtimeName: String) -> (MachOFile, ObjCClass64)? {
+        guard let (reader, classObject) = resolvedClassObject(named: runtimeName), let machOFile = reader.asMachOFile else { return nil }
+        return (machOFile, classObject)
+    }
+
+    /// The class object named `runtimeName` and the image defining it — a
+    /// file of the closure, or an image the process loaded — or `nil` when no
+    /// dependency image exports such a class.
+    func resolvedClassObject(named runtimeName: String) -> (any ObjCImplementationClassReading, ObjCClass64)? {
         lock.lock()
         defer { lock.unlock() }
         if let memoized = memoizedClassObjectsByRuntimeName[runtimeName] {
@@ -97,25 +112,31 @@ public final class ObjCAncestorResolver: @unchecked Sendable {
         if dependencyImages == nil {
             dependencyImages = makeDependencyImages()
         }
-        guard case .files(let files) = dependencyImages else {
-            memoizedClassObjectsByRuntimeName[runtimeName] = .some(nil)
-            return nil
-        }
         let exportedName = "_OBJC_CLASS_$_" + runtimeName
-        var found: (MachOFile, ObjCClass64)?
-        for image in files {
-            // A re-export entry (an umbrella framework's) passes here and
-            // misses the class list; the defining image follows in the closure.
-            guard image.exportTrie?.search(by: exportedName) != nil else { continue }
-            guard let classObject = ObjCClassMethodIndex.shared.storage(in: image)?.classObjectsByRuntimeName[runtimeName] else { continue }
-            found = (image, classObject)
-            break
+        let found: (any ObjCImplementationClassReading, ObjCClass64)? = switch dependencyImages {
+        case .files(let files): Self.firstClassObject(named: runtimeName, in: files) { $0.exportTrie?.search(by: exportedName) != nil }
+        case .loaded(let images): Self.firstClassObject(named: runtimeName, in: images) { $0.exportTrie?.search(by: exportedName) != nil }
+        case nil: nil
         }
         if found == nil {
             #log(.info, "no dependency image defines the ObjC class \(runtimeName, privacy: .public); the chain stops there")
         }
         memoizedClassObjectsByRuntimeName[runtimeName] = .some(found)
         return found
+    }
+
+    /// The first of `images` whose class list holds `runtimeName`, among the
+    /// ones that export it — an exact pre-check that spares the class-list
+    /// read of every image not carrying the class.
+    private static func firstClassObject<Image: ObjCImplementationClassReading>(named runtimeName: String, in images: [Image], exportsTheClass: (Image) -> Bool) -> (any ObjCImplementationClassReading, ObjCClass64)? {
+        for image in images {
+            // A re-export entry (an umbrella framework's) passes here and
+            // misses the class list; the defining image follows in the closure.
+            guard exportsTheClass(image) else { continue }
+            guard let classObject = ObjCClassMethodIndex.shared.storage(in: image)?.classObjectsByRuntimeName[runtimeName] else { continue }
+            return (image, classObject)
+        }
+        return nil
     }
 
     /// The selectors that categories in the file's dependency images add to
@@ -156,6 +177,50 @@ public final class ObjCAncestorResolver: @unchecked Sendable {
         memoizedCategorySelectorsByRuntimeName[runtimeName] = result
         return result
     }
+
+    /// The `@objc` protocol declared in Swift that an image of the closure
+    /// registers under `runtimeName` — another module's protocol renamed with
+    /// `@objc(Name)`, whose name says nothing of its module — or `nil` when
+    /// none does (evolution proposal `swift-declared-objc-protocols`). Only an
+    /// image with reflection metadata can say: its field descriptors are what
+    /// pair a renamed protocol with its record, so the others — every image
+    /// clang alone built — are skipped unread. Memoized per name; the images'
+    /// indexes are built outside the lock, as building one demangles.
+    func swiftDeclaredObjCProtocol(forRuntimeName runtimeName: String) -> SwiftDeclaredObjCProtocol? {
+        lock.lock()
+        if let memoized = memoizedSwiftDeclaredObjCProtocolsByRuntimeName[runtimeName] {
+            lock.unlock()
+            return memoized
+        }
+        if dependencyImages == nil {
+            dependencyImages = makeDependencyImages()
+        }
+        let images = dependencyImages
+        lock.unlock()
+
+        let found: SwiftDeclaredObjCProtocol? = switch images {
+        case .files(let files): Self.firstSwiftDeclaredObjCProtocol(forRuntimeName: runtimeName, in: files)
+        case .loaded(let images): Self.firstSwiftDeclaredObjCProtocol(forRuntimeName: runtimeName, in: images)
+        case nil: nil
+        }
+
+        lock.lock()
+        defer { lock.unlock() }
+        if let memoized = memoizedSwiftDeclaredObjCProtocolsByRuntimeName[runtimeName] {
+            return memoized
+        }
+        memoizedSwiftDeclaredObjCProtocolsByRuntimeName[runtimeName] = .some(found)
+        return found
+    }
+
+    private static func firstSwiftDeclaredObjCProtocol<Image: MachORepresentableWithCache>(forRuntimeName runtimeName: String, in images: [Image]) -> SwiftDeclaredObjCProtocol? {
+        for image in images where image.sections.contains(where: { $0.sectionName == MachOSwiftSectionName.__swift5_fieldmd.rawValue }) {
+            if let declaredProtocol = SwiftDeclaredObjCProtocolIndex.shared.declaredProtocol(forRuntimeName: runtimeName, in: image) {
+                return declaredProtocol
+            }
+        }
+        return nil
+    }
 }
 
 /// Per-image registry of ``ObjCAncestorResolver``s. Same shape as
@@ -195,16 +260,16 @@ public final class ObjCAncestorResolverStore: @unchecked Sendable {
             ?? ObjCAncestorResolver(inProcessRoot: machOImage)
     }
 
-    /// The resolver for whichever reader kind `machO` is; `nil` for a reader
-    /// of another kind. (Named apart from ``resolver(for:)`` on purpose — a
-    /// same-labelled generic overload resolved to itself from inside the
-    /// cast and recursed.)
+    /// The resolver for whichever reader kind `machO` reads through — itself,
+    /// or the reader beneath its wrappers; `nil` for a reader of another kind.
+    /// (Named apart from ``resolver(for:)`` on purpose — a same-labelled
+    /// generic overload resolved to itself from inside the cast and recursed.)
     func resolver(forImage machO: some MachORepresentableWithCache) -> ObjCAncestorResolver? {
-        if let machOFile = machO as? MachOFile {
+        if let machOFile = machO.asMachOFile {
             let fileResolver: ObjCAncestorResolver = resolver(for: machOFile)
             return fileResolver
         }
-        if let machOImage = machO as? MachOImage {
+        if let machOImage = machO.asMachOImage {
             let imageResolver: ObjCAncestorResolver = resolver(for: machOImage)
             return imageResolver
         }

@@ -173,6 +173,11 @@ public final class SwiftInterfaceBuilder<MachO: MachOFieldLayoutRenderable>: Sen
         await printCatchedThrowing(dispatchingTo: eventDispatcher, degradationSource: .definitionBlock) {
             await BlockList {
                 for variable in indexer.globalVariableDefinitions where !printer.isExcludedByExportFilter(globalSymbolNames: variable.accessors.map(\.symbol.name)) {
+                    // One item per line: the list breaks before each
+                    // (evolution proposal `private-declaration-source-files`).
+                    for line in printer.privateDeclarationSourceFileLines(for: [variable.node]) {
+                        Comment(line)
+                    }
                     printer.globalExportStatusComment(forSymbolNames: variable.accessors.map(\.symbol.name))
                     await printer.printVariable(variable, level: 0)
                 }
@@ -182,6 +187,9 @@ public final class SwiftInterfaceBuilder<MachO: MachOFieldLayoutRenderable>: Sen
         await printCatchedThrowing(dispatchingTo: eventDispatcher, degradationSource: .definitionBlock) {
             await BlockList {
                 for function in indexer.globalFunctionDefinitions where !printer.isExcludedByExportFilter(globalSymbolNames: [function.symbol.name]) {
+                    for line in printer.privateDeclarationSourceFileLines(for: [function.node]) {
+                        Comment(line)
+                    }
                     printer.globalExportStatusComment(forSymbolNames: [function.symbol.name])
                     await printer.printFunction(function, level: 0)
                 }
@@ -233,6 +241,21 @@ public final class SwiftInterfaceBuilder<MachO: MachOFieldLayoutRenderable>: Sen
             }
         }
 
+        // `@objc` protocols declared in Swift, which have no protocol
+        // descriptor (evolution proposal `swift-declared-objc-protocols`).
+        // Each trails its own default-implementation extensions, a nested
+        // one included: it prints in an `extension` of its parent.
+        await BlockList {
+            for objcProtocolDefinition in indexer.objcProtocolDefinitions.values {
+                await printCatchedThrowing(
+                    dispatchingTo: eventDispatcher,
+                    context: .init(name: objcProtocolDefinition.protocolName.name, kind: .protocol)
+                ) {
+                    try await printer.printObjCProtocolDefinition(objcProtocolDefinition)
+                }
+            }
+        }
+
         await BlockList {
             // NESTED protocols' default-implementation / protocol-extension
             // blocks: the per-protocol printer emits them trailing TOP-LEVEL
@@ -270,6 +293,27 @@ public final class SwiftInterfaceBuilder<MachO: MachOFieldLayoutRenderable>: Sen
                 }
             }
         }
+
+        // The Objective-C protocols the image's extensions of other modules'
+        // classes adopt (evolution proposal `swift-declared-objc-protocols`),
+        // one extension per category; no conformance record names them.
+        await BlockList {
+            for conformance in indexer.objcCategoryConformances where !isExcludedByExportFilter(conformance) {
+                await printCatchedThrowing(
+                    dispatchingTo: eventDispatcher,
+                    context: .init(name: conformance.extendedTypeName.name, kind: .extension)
+                ) {
+                    try await printer.printObjCCategoryConformance(conformance)
+                }
+            }
+        }
+    }
+
+    /// A category conformance on a class of this image the export filter
+    /// drops goes with it.
+    private func isExcludedByExportFilter(_ conformance: ObjCCategoryConformance) -> Bool {
+        guard let typeDefinition = indexer.allTypeDefinitions[conformance.extendedTypeName] else { return false }
+        return printer.isExcludedByExportFilter(typeDefinition)
     }
 
     /// `protocolDefinition`'s default-implementation extensions, read once

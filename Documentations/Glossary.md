@@ -42,6 +42,8 @@
 
 **这也是不要靠 bind 来判定墓碑的原因之一**：离线读一个 Resilient 策略的类，`MachOFile` 里只有 metadata pattern，根本没有 vtable word 可读——判据必须回到 descriptor 的 null 本身。
 
+**墓碑只说明槽指向的那个入口没有代码，不说明成员没有代码**：整模块优化的 app 里，一个 `@objc` 方法的槽可以是墓碑而它的 ObjC thunk 还在（Swift 函数体内联进了 thunk），一个 initializer 的 `__allocating_init` 槽可以是墓碑而它的 initializing entry point（`…fc`）还在。这两种成员由替身成员符号补建，槽号经节点联结照常挂上（见 thunk-only member）。
+
 - **主要出现在**：`ClassDumper` 的 vtable 循环、`DeclarationRenderConfiguration.deletedMethodSlotComment`
 - **延伸阅读**：[提案 vtable-slot-attribution](Evolutions/0020-vtable-slot-attribution-via-method-descriptor-symbols.md)、[PR #123 review findings 第 1 条](../Roadmaps/2026-09-06-pr123-review-findings.md)
 
@@ -80,9 +82,23 @@ macOS 27 与 iOS 27 的 dyld shared cache 不再给每个镜像留自己的 `__o
 - **主要出现在**：`Sources/Support/ARM64InstructionDecoding/ARM64Trampoline.swift`、`Sources/Analysis/CrossReferenceAnalysis/Scanning/ReferenceScanner.swift`
 - **延伸阅读**：[Modules/CrossReferenceAnalysis.md](Internal/Modules/CrossReferenceAnalysis.md)、[0072-cross-reference-analysis](Evolutions/0072-cross-reference-analysis.md)
 
+### category conformance（category 遵循，`ObjCCategoryConformance`）
+
+本镜像 extension 别的模块的类（ObjC 类，或别的模块的 Swift 类）时采纳的 ObjC 协议，记在那个 extension 的 category 的协议表里，没有 Swift 的 conformance record。interface 把每个 category 打成一个 `extension X: P {}`。与类头部列出的 ObjC 协议的区别：同一模块里的 extension 会被编译器并进类自己的 `class_ro_t`，那些遵循打在类头部，不算 category 遵循。
+
+- **主要出现在**：`Sources/Declaration/SwiftDeclaration/Components/Definitions/ObjCCategoryConformance.swift`、`Sources/Analysis/SwiftInspection/ObjCProtocolAdoptionIndex.swift`
+- **延伸阅读**：[SwiftDeclaredObjCProtocols.md](Internal/SwiftDeclaredObjCProtocols.md)、[0079-swift-declared-objc-protocols](Evolutions/0079-swift-declared-objc-protocols.md)
+
+### class without a class object（没有 class object 的类，`SwiftClassWithoutClassObject`）
+
+`__objc_classlist` 里没有 class object 的 Swift 类：泛型类，父类在别的 resilience domain 的类，父类是本模块泛型类的类。它们的 `class_ro_t` 都静态存在，但只有经 Swift 元数据才找得到（generic metadata pattern、`ResilientClassMetadataPattern`、静态的 incomplete metadata）。后两种有 ObjC 祖先时还在 `__objc_stublist` 里登记一个 stub。交给 MachOObjCSection 时它们叫 supplied class（`ObjCSuppliedClass`），即宿主补进 ObjC 索引器的类。与 `@objc @implementation` 类的区别：那种类有 class object，没有的是 Swift 元数据。
+
+- **主要出现在**：`Sources/Analysis/SwiftInspection/SwiftClassWithoutClassObjectIndex.swift`、`Sources/Declaration/SwiftIndexing/ObjCSuppliedClass+SwiftClassesWithoutClassObjects.swift`
+- **延伸阅读**：[ClassesWithoutClassObjects.md](Internal/ClassesWithoutClassObjects.md)、[0078-objc-classes-without-class-objects](Evolutions/0078-objc-classes-without-class-objects.md)
+
 ### context form / Mach-O form / pointer form（读取接口的三种形式）
 
-同一个读取接口曾经最多有三份手写实现：context form 收 `some ReadingContext`（`name(in: context)`、静态 `resolve(at:in:)`），Mach-O form 收一个 Mach-O reader、按偏移读（`name(in: machO)`、`resolve(from:in:)`），pointer form 不收读取器、直接用裸指针读本进程内存（`name()`、`resolve(from: pointer)`）。2026-09-30 起 context form 是唯一实现，另外两种是 0.22.0 废弃、0.24.0 删除的一行转发（`machO.context` / `.inProcess`）。
+同一个读取接口曾经最多有三份手写实现：context form 收 `some ReadingContext`（`name(in: context)`、静态 `resolve(at:in:)`），Mach-O form 收一个 Mach-O reader、按偏移读（`name(in: machO)`、`resolve(from:in:)`），pointer form 不收读取器、直接用裸指针读本进程内存（`name()`、`resolve(from: pointer)`）。2026-09-30 起 context form 是唯一实现，另外两种是 0.22.0 废弃、0.25.0 删除的一行转发（`machO.context` / `.inProcess`）。
 
 - **主要出现在**：`Sources/ABI/MachOSwiftSection/Models/`、`Sources/MachO/MachOPointers/`、`Sources/MachO/MachOResolving/Resolvable.swift`
 - **延伸阅读**：[提案 0057](Evolutions/0057-reading-context-migration.md)、[ReadingContextAbstraction.md](Internal/ReadingContextAbstraction.md)
@@ -112,7 +128,7 @@ macOS 27 与 iOS 27 的 dyld shared cache 不再给每个镜像留自己的 `__o
 
 class 的 vtable 成员里，实现函数没有符号、只剩它自己 method descriptor 的 `Tq` 符号能说出它是谁的那一类。library-evolution 构建本来就只导出 `Tj` / `Tq`，实现符号保持 local（见上一条 derived symbol forms），所以镜像的 local 符号一旦被剥掉——系统 dyld shared cache 里的 AppKit、`strip -x` 过的二进制——public 的 class 方法和访问器就全都属于这一类：macOS 26.7 的 AppKit 因此在 interface 里少了 53 个成员。「实现符号没导出」不等于「没符号」：同一份 cache 里的 SwiftUI、SwiftUICore、Foundation 保留了 local 符号，不属于这一类。协议 requirement 也有 `Tq`，但它们从协议描述符打印，也不在此列。interface 过去只从实现符号建成员，这一类整个缺席；现在 `classDispatchLookups` 为每个有 `Tq`、实现指针非 null 的槽造一个成员符号（名字是 `Tq` 名去掉后缀，也就是实现函数本来的 mangled 名；偏移是 descriptor 记录的实现偏移，async 方法再跳一次到函数入口），`indexMembers` 在实现符号没有声明这个成员时用它补建。
 
-和 ABI 墓碑的区别：墓碑的实现指针是 null，镜像里根本没有这个成员的代码，所以不补建；descriptor-only member 的代码还在，只是没有名字。
+和 ABI 墓碑的区别：墓碑的实现指针是 null，槽指向的入口在镜像里没有代码，所以不从槽补建；descriptor-only member 的代码还在，只是没有名字。墓碑槽的成员若还剩 `@objc` thunk 或 initializing entry point，由那一边的替身补建（见 thunk-only member）。
 
 - **主要出现在**：`TypeDefinition+ClassDispatch.swift`、`ClassDispatchLookups.vtableSlotMemberSymbols`、`TypeDefinition+MemberIndexing.swift`
 - **延伸阅读**：[提案 0054-interface-descriptor-only-vtable-members](Evolutions/0054-interface-descriptor-only-vtable-members.md)
@@ -166,6 +182,13 @@ linker 把字节相同的函数体合并到同一地址的优化。后果是「�
 
 - **主要出现在**：`Descriptor+MethodDescriptorSymbols.swift`、`ClassDumper`、`TypeDefinition.index`、`FinalKeywordICFRegressionTests`、`VTableSlotAttributionTests`
 - **延伸阅读**：[提案 vtable-slot-attribution](Evolutions/0020-vtable-slot-attribution-via-method-descriptor-symbols.md)、[提案 0006](Evolutions/0006-final-keyword-and-lazy-accessor-type-recovery.md)
+
+### implied ObjC protocol（隐含的 ObjC 协议）
+
+类遵循一个继承了 ObjC 协议的 Swift 协议时（`protocol CopyingRefinement: NSCopying`），编译器也把那个 ObjC 协议记进类（或 category）的协议表（`getObjCProtocols` 的递归），尽管源码没写。interface 不打它，Swift 遵循已经说明了；dump 在类的 `// ObjC protocols:` 一行里标注 `(implied by a Swift conformance)`。只认得出本镜像的 Swift 协议隐含的。
+
+- **主要出现在**：`ObjCProtocolAdoption.impliedProtocolRuntimeNames`（`Sources/Analysis/SwiftInspection/ObjCProtocolAdoptionIndex.swift`）
+- **延伸阅读**：[SwiftDeclaredObjCProtocols.md](Internal/SwiftDeclaredObjCProtocols.md)
 
 ### instantiated type name（实例化类型名）
 
@@ -297,6 +320,13 @@ opaque 尖括号参数归属的第三条规则：协议无任何 anchor 命中�
 - **主要出现在**：`Sources/Analysis/SwiftInspection/PrivateDeclarations.swift`、`Sources/Declaration/SwiftPrivateDiscriminators/PrivateDiscriminatorSourceFileIndex.swift`
 - **延伸阅读**：[提案 0063](Evolutions/0063-private-declarations.md)、[Modules/SwiftPrivateDiscriminators.md](Internal/Modules/SwiftPrivateDiscriminators.md)
 
+### reader wrapper（包装读取器，`MachOReaderWrapper`）
+
+宿主自己的读取器类型：手里拿着一个 `MachOFile` 或 `MachOImage`，把读取协议的每个要求原样转发给它（MachOKitUI 的 `MachOFileSource` / `MachOImageSource`）。声明 MachOKitExtensions 的 `MachOReaderWrapper` 之后，库里每个「这是哪种读取器」的问题——`asMachOImage`、`asMachOFile`、`underlyingReader`——都问到它底下的读取器；不声明，库就把它当成两种都不是，读得出，但进程内路径、符号偏移换算、ObjC 与依赖闭包这些按读取器种类做的事都做不了。契约是在每个偏移读到的内容与底下的读取器相同，`identifier` 也相同（两者共用按镜像的缓存）。
+
+- **主要出现在**：MachOKitExtensions `MachOReaderWrapper.swift`、`Sources/MachO/MachOReading/ReadingContext/MachOContext.swift`、`Sources/Output/SwiftDeclarationRendering/FieldLayoutRenderable+MachOReaderWrapper.swift`、`Tests/SwiftInterfaceTests/ReaderKindCastScanTests.swift`
+- **延伸阅读**：[提案 0075](Evolutions/0075-wrapped-reader-recognition.md)、[ReadingContextAbstraction.md](Internal/ReadingContextAbstraction.md)
+
 ### renamed class（改名类，`@objc(Name)` / `@_objcRuntimeName(Name)`）
 
 源码给 ObjC 运行时另起了名字的 Swift 类：类对象的 `class_ro_t` 名是源码写的名字（`NSScrollPocket`），而不是 `_TtC6AppKit14NSScrollPocket` 这样的 mangling。二进制里只剩类元数据 flag 字里的 `HasCustomObjCName` 与名字本身，`SwiftClassObjectIndex` 顺着类元数据自带的描述符指针把它们配到 Swift 类上（父类在另一个 resilience domain、不进 classlist 的类读 metadata pattern）。本仓库凡是「demangle 运行时名找 Swift 类」的地方都要为它回退，否则一律配不上——成员恢复与布局引擎以前就是这样漏掉它们的。interface 与 dump 打印 `@objc(Name)`，原生 Swift 对象模型的类打印 `@_objcRuntimeName(Name)`。
@@ -309,6 +339,13 @@ opaque 尖括号参数归属的第三条规则：协议无任何 anchor 命中�
 `SymbolTable` 的最小单位：每个唯一符号名一行，16 字节（canonical offset + `PackedNameReference`），行号（`UInt32`）是全部分类索引引用符号的方式。「一名一行」意味着按名字查询的语义是纯函数——同名必同行。
 
 - **主要出现在**：`Sources/MachO/MachOSymbols/SymbolTable.swift`
+
+### stand-in member symbol（替身成员符号）
+
+为镜像里没有实现符号的成员造的成员符号，照它顶替的那个实现符号的样子造：mangled 名与成员树都与实现符号相同，偏移是镜像里留下的那个入口。下游按名字推导的东西（导出判定、ObjC 方法表联结、`@objc` 标记）和按树推导的东西（vtable 联结、ABI 身份）因此都把它当成实现符号来读，不用分支。来源有三种：vtable 槽的 `Tq`（descriptor-only member）、`@objc` thunk（thunk-only member）、只剩 initializing entry point 的 initializer（`…fc` 改写成 allocator 的形状）。只补真实符号没有声明的成员，按成员实体节点结构相等判断。
+
+- **主要出现在**：`StandInMemberSymbols`、`ClassDispatchLookups.vtableSlotMemberSymbols`
+- **延伸阅读**：[DescriptorOnlyVTableMembers.md](Internal/DescriptorOnlyVTableMembers.md)、[ThunkOnlyObjCMembers.md](Internal/ThunkOnlyObjCMembers.md)
 
 ### store-identity vs 结构相等（structural equality）
 
@@ -330,6 +367,13 @@ TypeIndexing 的外部知识入口：标准 `.apinotes` 格式的**用户自备*
 - **主要出现在**：`Sources/MachO/MachOSymbols/SymbolIndexStore.swift`（`buildStorageSweep`）
 - **延伸阅读**：[提案 0001](Evolutions/0001-symbol-name-offsetization.md)、[SymbolIndexStoreMemoryOptimization.md](Internal/SymbolIndexStoreMemoryOptimization.md)
 
+### Swift-declared `@objc` protocol（Swift 声明的 `@objc` 协议，`ObjCProtocolDefinition`）
+
+Swift 源码里声明的 `@objc protocol`。它没有 protocol descriptor（不在 `__swift5_protos` 里），要求也没有任何 Swift 符号；镜像里只有一条 kind 为 `ObjCProtocol` 的 field descriptor 与一条 ObjC 协议记录（`protocol_t`）。本库据 field descriptor 认定本镜像声明了它，要求从记录读出：有本镜像的类实现时照抄那个成员（**取自实现者**），没有时按 ClangImporter 的规则从 selector 推出 Swift 名并用 `@objc(selector)` 钉住（**按 selector 命名**）。与 `@objc @implementation` 类无关：那是 ObjC 声明、Swift 实现的类。
+
+- **主要出现在**：`Sources/Analysis/SwiftInspection/SwiftDeclaredObjCProtocolIndex.swift`、`Sources/Declaration/SwiftDeclaration/Components/Definitions/ObjCProtocolDefinition.swift`
+- **延伸阅读**：[SwiftDeclaredObjCProtocols.md](Internal/SwiftDeclaredObjCProtocols.md)、[0079-swift-declared-objc-protocols](Evolutions/0079-swift-declared-objc-protocols.md)
+
 ### symbolic-mangling symbol（`_symbolic` 符号）与被引用者（referent）
 
 编译器给每条带 symbolic reference 的 mangled name 生成的链接器去重符号：`_symbolic ` / `_default assoc type ` 前缀，
@@ -347,6 +391,13 @@ substitution，必须连在一个 `$s` 后面一起 demangle。
 
 - **主要出现在**：`Sources/Analysis/SwiftInspection/SymbolicDemangler.swift`
 - **延伸阅读**：[提案 0022](Evolutions/0022-rename-metadata-reader-to-symbolic-demangler.md)、[ReadingContextAbstraction.md](Internal/ReadingContextAbstraction.md)
+
+### thunk-only member（只剩 `@objc` thunk 的成员）
+
+`@objc` 成员里，Swift 函数体被优化器内联进它的 Objective-C thunk（`$s…To`）、Swift entry point 随后被删掉的那一类：thunk 是它唯一的代码，也是唯一的符号。只有整模块优化下的 internal 成员会这样，因为每一处使用都可见、都内联完了才能删，所以这是 app 和 app 内嵌组件的形状，例如 Xcode 27.2 的 `Xcode Service` 里有 22 个。它和 OS 框架 strip 掉 `To` 符号正好相反：那里实现符号还在，thunk 没了名字。成员模型过去只从实现符号建成员，这一类在 dump 和 interface 里整个缺席；现在从 thunk 造替身成员符号补上。
+
+- **主要出现在**：`SymbolIndexStore.objcThunkMemberSymbols`、`StandInMemberSymbols.memberStandIn(forObjCThunkSymbol:in:)`、`ClassDumper` 的 `[ObjC Thunk]` 一节
+- **延伸阅读**：[ThunkOnlyObjCMembers.md](Internal/ThunkOnlyObjCMembers.md)
 
 ### TypeImportInfo（C 导入类型身份）
 
@@ -375,12 +426,21 @@ Swift runtime 的 descriptor 布局惯例：固定头之后按 flags 跟着可�
 - **主要出现在**：`Sources/Analysis/SwiftThunkAnalysis/Analysis/ThunkTypeEvaluator.swift`、`AccessorThunkAnalyzer.swift`
 - **延伸阅读**：[专题导读](Internal/AccessorThunkResolutionExplained.md)、[提案 0029](Evolutions/0029-thunk-type-construction-evaluation.md)、[提案 0028](Evolutions/0028-offline-opaque-accessor-thunk-resolution.md)
 
+### unclaimed record（没认领的记录）
+
+本镜像 `__objc_protolist` 里 Swift 生成、却没有本镜像的声明认领的 ObjC 协议记录。名字是 `_TtP…` 的已经按名字归了别的模块，剩下的都是改过名的协议：别的模块用 `@objc(Name)` 改过名、被本镜像引用的（Swift 会给引用到的协议生成一份副本），以及本镜像里改成与 Swift 名不同的名字、配不上 field descriptor 的。前一种才到依赖闭包里找它的 Swift 名；dump 在 `protocols` 段末尾一行列出它们。
+
+- **主要出现在**：`SwiftDeclaredObjCProtocolIndex.unclaimedSwiftEmittedRecords(in:)`、`ObjCRuntimeNames.swiftProtocolNode(forRuntimeName:in:)`
+- **延伸阅读**：[SwiftDeclaredObjCProtocols.md](Internal/SwiftDeclaredObjCProtocols.md)
+
 ### union interface（并集接口）
 
 `evolution --interface` 的输出形态：N 个版本所有声明的**并集**只渲染一次的 Swift 接口——每条声明由「最后一个拥有它的版本」的模型与 printer 渲染文本，变化写进生命周期注解，同一成员改签名不裂成多行。与「逐 transition 串联 diff」（同一声明重复出现 N−1 次）和「只渲染最新版 + since 注解」（丢中间版本细节）相对。排序规则：最新版本声明序为脊柱，不在最新版的声明按其最后存在版本的顺序追加。
 
-- **主要出现在**：`Sources/Output/SwiftInterface/SwiftEvolutionInterfaceRenderer.swift`（`matchAcrossVersions`）
-- **延伸阅读**：[提案 0013](Evolutions/0013-swift-evolution-interface-builder.md)
+ObjC 一侧的同一种视图是 `objc evolution --interface` 输出的合并头文件，由 MachOObjCSection 的 `ObjCEvolutionInterfaceBuilder` 渲染：每条声明按 `objc dump` 的方式渲染，标注与 `objc evolution` 报告里的 lineage 一一对应。容器内以最新版本的顺序为准，删掉的成员插在它在最后那一版里的前一个成员之后。
+
+- **主要出现在**：`Sources/Output/SwiftInterface/SwiftEvolutionInterfaceRenderer.swift`（`matchAcrossVersions`）；ObjC 一侧在 MachOObjCSection 的 `ObjCInterface` 模块，本库经 `ObjCAPIEvolutionRequest` 的 `annotatedInterface` 调用
+- **延伸阅读**：[提案 0013](Evolutions/0013-swift-evolution-interface-builder.md)；ObjC 一侧见 [提案 0080](Evolutions/0080-objc-evolution-interface.md)
 
 ### unobservable（看不见，`LineagePresenceState`）
 

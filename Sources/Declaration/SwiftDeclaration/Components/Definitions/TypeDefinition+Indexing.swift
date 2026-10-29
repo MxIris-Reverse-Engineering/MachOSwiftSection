@@ -94,6 +94,8 @@ extension TypeDefinition: OnceIndexedDefinition {
         // Needs the fields and the member variables above: which `_x` is a
         // wrapper's storage, and whether `x` still has accessors of its own.
         recoverWrappedProperties(in: machO)
+
+        applyObjCProtocolAdoption(in: machO)
     }
 
     /// The type's stored fields, read from its field descriptor. Carries no

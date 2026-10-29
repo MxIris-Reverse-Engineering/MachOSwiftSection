@@ -26,8 +26,8 @@ public struct IdentifiableClosure<Input, Output>: Sendable {
 }
 
 extension IdentifiableClosure: Equatable {
-    public static func == (lhs: Self, rhs: Self) -> Bool {
-        lhs.id == rhs.id
+    public static func == (left: Self, right: Self) -> Bool {
+        left.id == right.id
     }
 }
 
@@ -96,6 +96,13 @@ public struct DeclarationRenderConfiguration: Sendable {
     /// option with a `VisibilityRegion`, whatever the `print…` flags say.
     public var marksOptionalContent: Bool = false
 
+    /// Where the dump learns the source file of each private discriminator
+    /// (evolution proposal `private-declaration-source-files`). With one, a
+    /// declaration whose name reads a discriminator the declaration it is
+    /// printed inside does not carry is printed under a comment naming the
+    /// file; `nil` prints none and reads no name for it.
+    public var privateDeclarationSourceFileProvider: (any PrivateDeclarationSourceFileProviding)? = nil
+
     public static func demangleOptions(_ demangleOptions: DemangleOptions) -> Self {
         .init(demangleResolver: .options(demangleOptions))
     }
@@ -161,6 +168,30 @@ extension DeclarationRenderConfiguration {
             Comment("Address: 0x\(addressString)")
         }
         BreakLine()
+    }
+
+    /// The comment lines naming the source files of the private declarations
+    /// `nodes` read that `enclosingNodes` do not (evolution proposal
+    /// `private-declaration-source-files`; see
+    /// `PrivateDeclarationSourceFileComments`). Nothing without a
+    /// `privateDeclarationSourceFileProvider`, and the nodes are only worked
+    /// out with one.
+    ///
+    /// Each line is indented to `indentationLevel` and followed by a line
+    /// break.
+    @SemanticStringBuilder
+    package func privateDeclarationSourceFileComments(
+        for nodes: @autoclosure () -> [any DemanglingNode],
+        enclosedBy enclosingNodes: @autoclosure () -> [any DemanglingNode] = [],
+        indentationLevel: Int
+    ) -> SemanticString {
+        if let privateDeclarationSourceFileProvider {
+            for line in PrivateDeclarationSourceFileComments.lines(for: nodes(), enclosedBy: enclosingNodes(), provider: privateDeclarationSourceFileProvider) {
+                Indent(level: indentationLevel)
+                Comment(line)
+                BreakLine()
+            }
+        }
     }
 
     /// Builds a `not exported` comment line (evolution proposal 0008),

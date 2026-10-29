@@ -154,7 +154,10 @@ extension Package.Dependency {
             // instance each time, which `DyldCache.fileIO` keys its mapping on.
             // 1.1.2 adds `FullDyldCache.cachedHost`, the system cache opened
             // once per process rather than once per dependency locator.
-            from: "1.1.2",
+            // 1.3.0 adds `MachOReaderWrapper`, through which every reader-kind
+            // question (`asMachOImage`, `asMachOFile`, `underlyingReader`)
+            // sees through a host's wrapper type.
+            from: "1.3.0",
         ),
     )
 
@@ -178,8 +181,19 @@ extension Package.Dependency {
             // instance property and adopted protocol of a class other images
             // extend, such as NSView. 0.8.200 merges upstream 0.8.2 and reads
             // every list an image attaches to a class, not just its first:
-            // `_UTCoreType` lost the methods of its second list.
-            "0.8.200" ..< "0.9.0",
+            // `_UTCoreType` lost the methods of its second list. 0.8.201
+            // takes the classes without a class object a host supplies
+            // (`ObjCSuppliedClass`): generic Swift classes and the ones
+            // `__objc_stublist` registers, read from Swift metadata here.
+            // 0.8.202 reads the method names of a macOS 11 dyld cache, whose
+            // relative method lists count a selector from the name field
+            // itself: the selector base it used to add only exists from
+            // macOS 12, so every class and category method of an 11.x cache
+            // read as garbage. 0.8.204 adds `ObjCEvolutionInterfaceBuilder`,
+            // the merged and annotated header `objc evolution --interface`
+            // prints; 0.8.203 carried it too, but crashes the Swift 6.3
+            // compiler of Xcode 26.
+            "0.8.204" ..< "0.9.0",
         ),
     )
 }
@@ -659,16 +673,19 @@ extension Target {
     /// Recovers the source files private discriminators were derived from:
     /// MD5 over candidate file names, drawn from an indexed image's names and
     /// a generated list of known file names (evolution proposal
-    /// `private-declarations`).
+    /// `private-declarations`). Its index is what tells dump and interface
+    /// those files (`private-declaration-source-files`).
     static let SwiftPrivateDiscriminators = Target.target(
         name: "SwiftPrivateDiscriminators",
         dependencies: [
             .product(.MachOKit),
             .product(.MachOObjCSection),
             .product(.Demangling),
+            .target(.MachOFoundation),
             .target(.MachOSwiftSection),
             .target(.SwiftInspection),
             .target(.SwiftDeclaration),
+            .target(.SwiftDeclarationRendering),
             .target(.SwiftIndexing),
         ],
         path: "Sources/Declaration/SwiftPrivateDiscriminators",
@@ -820,6 +837,7 @@ extension Target {
             .target(.SwiftPrinting),
             .target(.SwiftDiffing),
             .target(.SwiftInterface),
+            .target(.SwiftPrivateDiscriminators),
             .target(.TypeIndexing),
             .target(.Utilities),
             .product(.MachOKit),
@@ -1087,6 +1105,8 @@ extension Target {
             .target(.SwiftPrinting),
             .target(.SwiftSpecialization),
             .target(.SwiftInterface),
+            // The nested-definition contract with source-file comments on.
+            .target(.SwiftPrivateDiscriminators),
             .product(.MachOKitExtensions),
             .target(.MachOTestingSupport),
             .target(.MachOFixtureSupport),
@@ -1203,6 +1223,9 @@ extension Target {
         dependencies: [
             .target(.SwiftSectionKit),
             .target(.MachOFoundation),
+            // `LocalTypeFixture` and `ExclusiveImageAccess`, for the source
+            // files of a public type's private members.
+            .target(.MachOTestingSupport),
             .target(.SwiftDeclaration),
             .target(.SwiftDiffing),
             .target(.SwiftOutputTransformer),
@@ -1220,6 +1243,7 @@ extension Target {
             .target(.SwiftPrivateDiscriminators),
             .target(.SwiftInspection),
             .target(.SwiftDeclaration),
+            .target(.SwiftDeclarationRendering),
             .target(.SwiftIndexing),
             .target(.MachOFixtureSupport),
             .target(.MachOTestingSupport),
@@ -1294,6 +1318,12 @@ extension Target {
             .target(.MachOFixtureSupport),
             .product(.MachOKit),
             .product(.MachOObjCSection),
+            // The ObjC API evolution dumps run the `swift-section objc
+            // evolution` pipeline on MachOObjCSection's own modules.
+            .product(name: "ObjCDiffing", package: "MachOObjCSection"),
+            .product(name: "ObjCIndexing", package: "MachOObjCSection"),
+            .product(name: "ObjCInterface", package: "MachOObjCSection"),
+            .product(name: "ObjCMetadataSource", package: "MachOObjCSection"),
             .product(.Demangling),
             .product(.Semantic),
             .product(name: "Dependencies", package: "swift-dependencies"),

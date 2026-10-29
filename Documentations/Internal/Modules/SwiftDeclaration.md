@@ -17,9 +17,9 @@ SwiftDeclaration 是**共享声明模型**：`SwiftIndexing` 往里填，`SwiftP
 
 | 子系统 | 文件 |
 |---|---|
-| 1. 声明本体 | `Components/Definitions/`（`Definition` / `MutableDefinition` 协议、`TypeDefinition` 及其七个功能扩展、`ProtocolDefinition`、`ExtensionDefinition` 及各自的 `+Indexing`（`ExtensionDefinition` 另有 `+ThunkAttributes`，与 `TypeDefinition+ThunkAttributes` 共用 `Building/MemberAttributeApplication`）、`FunctionDefinition`、`VariableDefinition`、`SubscriptDefinition`、`FieldDefinition`、`WrappedPropertyDefinition`） |
+| 1. 声明本体 | `Components/Definitions/`（`Definition` / `MutableDefinition` 协议、`TypeDefinition` 及其七个功能扩展、`ProtocolDefinition`、`ObjCProtocolDefinition`、`ExtensionDefinition` 及各自的 `+Indexing`（`ExtensionDefinition` 另有 `+ThunkAttributes`，与 `TypeDefinition+ThunkAttributes` 共用 `Building/MemberAttributeApplication`）、`FunctionDefinition`、`VariableDefinition`、`SubscriptDefinition`、`FieldDefinition`、`WrappedPropertyDefinition`、`ObjCCategoryConformance`） |
 | 2. 成员构件 | `Components/Members/`（`Accessor`、`OrderedMember`、`MemberCategory`、`StrippedSymbolicRequirement`）——模型的一部分，会出现在公开 API 的返回值里 |
-| 3. 构建期机器 | `Components/Building/`（`DefinitionBuilder`、`MemberSymbolBucketing`、`OverrideSymbolMatcher`、`ClassDispatchLookups`、`AnnotatedSymbol`、`WrappedPropertyRecovery`、`MemberAttributeApplication`）——全是 `package`，索引结束就不再有人碰 |
+| 3. 构建期机器 | `Components/Building/`（`DefinitionBuilder`、`MemberSymbolBucketing`、`OverrideSymbolMatcher`、`ClassDispatchLookups`、`StandInMemberSymbols`、`AnnotatedSymbol`、`WrappedPropertyRecovery`、`MemberAttributeApplication`）——全是 `package`，索引结束就不再有人碰 |
 | 4. 名字 | `Components/Names/`（`DefinitionName`、`TypeName`、`ProtocolName`、`ExtensionName`） |
 | 5. 种类枚举 | `Components/Kinds/` |
 | 6. 挂在声明上的独立概念 | `Components/ExportStatus`、`Components/AssociatedTypeWitnessProjection`、`Components/SwiftAttribute` |
@@ -74,11 +74,11 @@ SwiftDeclaration 是**共享声明模型**：`SwiftIndexing` 往里填，`SwiftP
 
 ### 导出状态在构造时定死
 
-每个 `TypeDefinition` / `ProtocolDefinition` 带一个四态 `ExportStatus`（`exported` / `notExported` / `imageHasNoExportInformation` / `descriptorSymbolNameUnresolvable`），在构造时从声明自己的描述符符号解析一次，存成 `let`。所以 `SwiftDeclarationIndexer.prepare()` 一返回，整张表就都有值了，宿主可以逐行标注而不必抱着 Mach-O。
+每个 `TypeDefinition` / `ProtocolDefinition` 带一个 `ExportStatus`（`exported` / `notExported` / `imageHasNoExportInformation` / `descriptorSymbolNameUnresolvable`），在构造时从声明自己的描述符符号解析一次，存成 `let`。`ObjCProtocolDefinition` 的永远是第五态 `declarationHasNoSymbol`：Swift 声明的 `@objc` 协议没有描述符，也没有任何自己的符号。所以 `SwiftDeclarationIndexer.prepare()` 一返回，整张表就都有值了，宿主可以逐行标注而不必抱着 Mach-O。
 
 `TypeDefinition.wrappedProperties` 是索引在 `index(in:)` 末尾算出的 property wrapper 用法（提案 [0041-interface-hides-compiler-synthesized-members](../../Evolutions/0041-interface-hides-compiler-synthesized-members.md)）：每个存储字段 `_x`，只要它的 nominal 类型有 `wrappedValue` accessor——先查本镜像符号索引（internal wrapper 也算），再经 `SwiftDeclarationRendering.PropertyWrapperTypeCatalog` 查本镜像与依赖闭包各镜像的导出 trie（SwiftUI 的 `@State` 用在 app 里）——就记一条 `WrappedPropertyDefinition`：属性名、`_x` / `$x` 的名字、attribute 类型节点（wrapper 恰一个泛型实参且等于被包装类型时省略实参），以及来源：`x` 自己的 accessor 符号还在就是 `declaredMember`；被 strip 了就 `synthesized(declaredTypeNode:hasSetter:)`，类型由 wrapper 的 `wrappedValue` 类型代入 `_x` 的泛型实参得到。`fields` 与 `variables` 里的 `_x`、`$x` 原样保留——diff / snapshot 的记录来自它们——只有 interface 打印器改按这张表渲染。目录由 `SwiftDeclarationIndexer.prepare()` 用索引配置里的 `dependencySearchPaths` 登记、随索引器一起释放（`PerImageCacheEvictionRegistry` 的 `propertyWrapperCatalog` claim）；没登记过的镜像退化成查系统 cache。
 
-两个「没有结论」的态**作用域不同**，不要混：`imageHasNoExportInformation` 是镜像级的（根本没有 export trie，此时把它读成「未导出」会把一个 `.o` 文件的每个声明都报成未导出）；`descriptorSymbolNameUnresolvable` 是声明级的（trie 没问题，但这一个名字的 remangle 不可信）。
+三个「没有结论」的态**作用域不同**，不要混：`imageHasNoExportInformation` 是镜像级的（根本没有 export trie，此时把它读成「未导出」会把一个 `.o` 文件的每个声明都报成未导出）；`descriptorSymbolNameUnresolvable` 是声明级的（trie 没问题，但这一个名字的 remangle 不可信）；`declarationHasNoSymbol` 也是声明级的，但不是读不出，是本来就没有可查的符号。
 
 对外投影只有两个：`isExported: Bool?` 和 `isDefinitelyNotExported`——**过滤和标注只能依据后者**。
 
@@ -104,9 +104,17 @@ SE-0436 的类在 `__swift5_*` 里没有身影，模型里它就是那个 `__C.X
 
 成员定义是符号驱动的：`FunctionDefinition.symbol`、`Accessor.symbol` 都不是可选值，`DefinitionBuilder` 的每个构造点都从一个 `DemangledSymbol` 出发。class 的 vtable 成员是例外来源：library evolution 模块只导出 public class 方法的 `Tj` / `Tq`，实现符号是 local 的，镜像的 local 符号被剥掉之后（系统 dyld shared cache 里的 AppKit、`strip -x` 过的二进制）这些成员没有符号可建。`classDispatchLookups` 为本类每个 `Tq` 能命名、实现指针非 null 的槽造一个替身符号——名字是 `Tq` 名去掉后缀（实现函数本来的 mangled 名），偏移是实现偏移（async 方法再跳到函数入口）——`indexMembers` 经 `ClassDispatchLookups.supplementing(_:in:)` 只补真实符号没有声明的成员。替身按实现符号的样子造，所以导出判定、ObjC 方法表 join、ABI 身份都不用分支。ABI 墓碑、modify / read 协程、override 槽不补。打印时 class 的 vtable 成员（有槽号的成员）按槽号排在最前（`OrderedMember.vtableOrdered`）。详见 [DescriptorOnlyVTableMembers.md](../DescriptorOnlyVTableMembers.md)。
 
+优化构建是另一个例外来源：整模块优化会把 internal 成员的实现符号删掉，只留下同一个成员的另一个入口——`@objc` 成员只剩它的 ObjC thunk（`$s…To`，函数体内联在里面），class 的 initializer 只剩 initializing entry point（`…fc`，allocating entry point 内联进了调用方）。`StandInMemberSymbols` 从这两种入口造替身，规则与 `Tq` 替身相同：名字与成员树照实现符号的样子（thunk 去掉 `To` 与 `objCAttribute`，initializing entry point 把 `constructor` 改写成 `allocator`、`fc` 换成 `fC`），偏移是镜像里留下的那个入口。类成员经 `StandInMemberSymbols.TypeMembers`，extension 成员经 `supplementingExtensionMembers`，都排在真实符号与 `Tq` 替身之后，只补没人声明的成员；去重键 `declaredEntityKey(of:)` 三种替身共用。详见 [ThunkOnlyObjCMembers.md](../ThunkOnlyObjCMembers.md)。
+
 ### ObjC 方法表给出的成员事实：`@objc`、`override`、显式 selector
 
 `FunctionDefinition` / `VariableDefinition` / `SubscriptDefinition` 各有一个 `objcMember: ObjCMember?`——这个成员实现的 ObjC 方法：selector、是否类方法、覆写的祖先（可空）、证据档位、selector 是否为源码里 `@objc(name)` 写出的。`isOverride` 与 `isClassMember` 都 OR 上 `objcMember?.isOverride`（覆写的类方法必须打 `class`）；联结上的成员缺 `.objc` 属性就补上（OS 框架 strip 掉了 `To` thunk 符号，方法表是 `@objc` 的唯一证据）；printer 在 `hasExplicitSelector` 时打 `@objc(selector)`。表联结不上的覆写方法**始终**按名字归属一次（第三档），结果照样写进 `objcMember`（`evidence == .selectorName`）——但**不写 `attributes`**，因为紧跟其后的 `final` 还原会把 `@objc` 读成 `@objc dynamic` 的证据，那是消费者还没下的裁决。用不用这一档由消费者决定：`resolvedObjCMemberFacts(trustingSelectorNameEvidence:)`（`ResolvedObjCMemberFacts.swift`）按裁决一次性给出 `attributes` / `isOverride` / `isClassMember` / `isFinal`，printer 传 `SwiftDeclarationPrintConfiguration.infersObjCOverridesFromSelectorNames`。定义自己的 `isOverride` / `isClassMember` 只认前两档（`ObjCMember.isJoinedOverride`）。它由 `Building/ObjCMemberApplication` 在 `TypeDefinition.index(in:)`（`applyThunkAttributes` 之后、`recoverFinalMembers` 之前——`final` 还原用 `@objc` 排除 `@objc dynamic`）和 `SwiftDeclarationIndexer.indexExtensions()`（`__C` 类的 extension 与本镜像 Swift 类的 extension）里从 `SwiftThunkAnalysis.ObjCMembers` 的表 join 上来：函数按自己的符号名，属性 / 下标先按 getter 再按任一 accessor 符号，`init` 按 allocator 符号换 initializer 后缀。第三档「只按名字」的覆写推断也在这里做。这个事实**不进** ABI 快照。详见 [ObjCMemberRecovery.md](../ObjCMemberRecovery.md)。
+
+### Swift 声明的 `@objc` 协议与类对 ObjC 协议的遵循
+
+这种协议没有 protocol descriptor，所以不是 `ProtocolDefinition`（把它的 `protocolDescriptor` 改成可选会破坏下游），而是独立的 `ObjCProtocolDefinition`：名字是 `Type > Protocol`，与 Swift 协议同形，本镜像对它的 `extension` 因此落进它的 `defaultImplementationExtensions`；`index(in:)` 读出继承的协议与要求（`ObjCProtocolRequirementDefinition`：selector、setter selector、实例还是类、required 还是 optional、类型编码、声明的 node、签名来源）。签名来源是 `.selector`（按 importer 规则推出名字，打印时钉住 selector）或 `.conformer(className:)`（实现它的类的成员，声明的上下文已换成协议）。索引期只读成员表，不索引实现者的 `TypeDefinition`。
+
+类对 ObjC 协议的遵循没有 conformance record：`TypeDefinition.objcProtocolNames` 是类的 `class_ro_t` 列的协议（同模块 extension 写的也在里面），在 `index(in:)` 里读；extension 别的模块的类时的 category 遵循是 indexer 的 `objcCategoryConformances`（`ObjCCategoryConformance`）。两者都去掉了某个 Swift 遵循隐含的 ObjC 协议。这些事实都**不进** ABI 快照。详见 [SwiftDeclaredObjCProtocols.md](../SwiftDeclaredObjCProtocols.md)。
 
 ### 访问器种类与关联类型的抑制（Swift 6.4）
 
@@ -123,4 +131,6 @@ SE-0436 的类在 `__swift5_*` 里没有身影，模型里它就是那个 `__C.X
 - [PerConformanceAttribution.md](../PerConformanceAttribution.md)——逐 conformance 的归属。
 - [ExportedOnlyInterfaceFiltering.md](../ExportedOnlyInterfaceFiltering.md)、[InterfaceHeaderAndExportStatusAnnotations.md](../InterfaceHeaderAndExportStatusAnnotations.md)——导出状态的两种消费方式。
 - [DescriptorOnlyVTableMembers.md](../DescriptorOnlyVTableMembers.md)——实现符号被剥掉的 class vtable 成员怎么从 `Tq` 补回来，以及 vtable 顺序打印。
+- [ThunkOnlyObjCMembers.md](../ThunkOnlyObjCMembers.md)——优化构建删掉实现符号后，成员怎么从 `@objc` thunk 或 initializing entry point 补回来。
+- [SwiftDeclaredObjCProtocols.md](../SwiftDeclaredObjCProtocols.md)——Swift 声明的 `@objc` 协议与类对 ObjC 协议的遵循。
 - 演进提案：[0002](../../Evolutions/0002-declaration-model-descriptor-slimming.md) 描述符化瘦身 · [0005](../../Evolutions/0005-event-based-degradation-reporting.md) 事件化上报 · [0023](../../Evolutions/0023-type-import-info-identity.md) C 导入类型的身份 · [0024](../../Evolutions/0024-exported-declaration-flag.md) 导出标志。

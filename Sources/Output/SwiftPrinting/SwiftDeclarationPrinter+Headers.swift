@@ -34,7 +34,7 @@ extension SwiftDeclarationPrinter {
     /// getters. Without it (the default), the clean unbound interface form
     /// renders straight from the descriptor as before.
     @SemanticStringBuilder
-    package func renderTypeDeclarationHeader(for type: TypeContextWrapper, displayParentName: Bool, level: Int, leafNameNode: Node? = nil, boundTypeNode: Node? = nil) async throws -> SemanticString {
+    package func renderTypeDeclarationHeader(for type: TypeContextWrapper, displayParentName: Bool, level: Int, leafNameNode: Node? = nil, boundTypeNode: Node? = nil, objcProtocolNames: [ProtocolName] = []) async throws -> SemanticString {
         let resolver = typeDemangleResolver
         switch type {
         case .struct(let dumped):
@@ -71,7 +71,7 @@ extension SwiftDeclarationPrinter {
             } else {
                 try await renderUnboundTypeName(.class, descriptorWrapper: .type(.class(dumped.descriptor)), name: dumped.descriptor.name(in: machO.context), displayParentName: displayParentName, leafNameNode: leafNameNode, resolver: resolver)
             }
-            let superclass = try await renderClassSuperclass(dumped, resolver: resolver)
+            let superclass = try await renderClassInheritanceClause(dumped, objcProtocolNames: objcProtocolNames, resolver: resolver)
             if boundTypeNode == nil, let genericContext = dumped.genericContext {
                 let depthLayout = GenericParameterDepthLayout.make(for: genericContext, ownedBy: .type(.class(dumped.descriptor)), in: machO.context)
                 try await genericContext.dumpGenericSignature(resolver: resolver, depthLayout: depthLayout, in: machO.context) {
@@ -138,6 +138,19 @@ extension SwiftDeclarationPrinter {
             leafNameNode.printSemantic(using: [.showPrivateDiscriminators])
         } else {
             TypeDeclaration(kind: kind, bareName)
+        }
+    }
+
+    /// The superclass, then the Objective-C protocols the class declaration
+    /// adopts (evolution proposal `swift-declared-objc-protocols`).
+    @SemanticStringBuilder
+    private func renderClassInheritanceClause(_ dumped: Class, objcProtocolNames: [ProtocolName], resolver: DemangleResolver) async throws -> SemanticString {
+        let superclass = try await renderClassSuperclass(dumped, resolver: resolver)
+        superclass
+        for (offset, protocolName) in objcProtocolNames.offsetEnumerated() {
+            Standard(offset.isStart && superclass.string.isEmpty ? ":" : ",")
+            Space()
+            try await resolver.resolve(for: protocolName.node.materialize())
         }
     }
 

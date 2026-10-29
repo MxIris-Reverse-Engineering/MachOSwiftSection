@@ -24,7 +24,7 @@ SwiftThunkAnalysis 干一件事：**不执行 thunk，把它算出来**。
 | 3. thunk 形状识别 | `Analysis/AccessorThunkAnalyzer`、`Analysis/AccessorThunkProgram` |
 | 4. 环境与调用目标解析 | `Resolution/MachOThunkEnvironment`、`Resolution/MetadataAccessorIndex`、`Resolution/DependencyImageResolver`、`Resolution/ThunkAddressSpace` |
 | 5. 对外读取面 | `Resolution/AccessorThunkReader`、`Resolution/AccessorThunkOwnerLayout`、`Resolution/ThunkTypeNodeBuilder`、`SwiftThunkAnalysis` |
-| 6. ObjC 成员表联结 | `ObjCMembers/ObjCMembers`、`ObjCMembers/ObjCMethodThunkReferences` — 复用子系统 1 的解码器与 2 的寄存器跟踪，把一个 ObjC 方法的 IMP 反汇编、收它引用的地址换成 Swift 符号，把类的每一条 ObjC 方法联结到实现它的 Swift 成员——`@objc`、`override`、显式 selector 三个事实的第二档证据（提案 `objc-ancestor-override-recovery` 与 `objc-member-selector-recovery`；hierarchy 与接缝在 SwiftInspection，只有联结表在这里，因为解码器在这里）。见 [ObjCMemberRecovery.md](../ObjCMemberRecovery.md) |
+| 6. ObjC 成员表联结 | `ObjCMembers/ObjCMembers`、`ObjCMembers/ObjCMethodThunkReferences` — 复用子系统 1 的解码器与 2 的寄存器跟踪，把一个 ObjC 方法的 IMP 反汇编、收它引用的地址换成 Swift 符号，把类的每一条 ObjC 方法联结到实现它的 Swift 成员——`@objc`、`override`、显式 selector 三个事实的第二档证据（提案 `objc-ancestor-override-recovery` 与 `objc-member-selector-recovery`；hierarchy 与接缝在 SwiftInspection，只有联结表在这里，因为解码器在这里）。见 [ObjCMemberRecovery.md](../ObjCMemberRecovery.md)。`ObjCMembers/ObjCProtocolWitnesses` 在这张表上替 Swift 声明的 `@objc` 协议找实现每条要求的成员：Swift 类的表按 Swift 全名取（按运行时名取的是 ObjC 类的表，strip 后联结不上 Swift 类的成员），声明的上下文换成协议，显式 selector 按编译器的推导判断。见 [SwiftDeclaredObjCProtocols.md](../SwiftDeclaredObjCProtocols.md) |
 
 ## 当前能读到什么
 
@@ -56,6 +56,8 @@ capstone v6 的指令编号可能是底层操作码，但操作数已经采用�
 Capstone 自己的 `writeback` 标志——那个标志对任何绑定操作数都置位，`movk`、`cas` 也算。仅凭基址出现在写
 寄存器列表中同样不能判定写回，因为 `ldr x0, [x0]` 也会写 `x0`。后索引的访问偏移为零，更新量不是本次访问
 的偏移。现有求值器仍保守处理写回的成对访存，未新增栈更新模拟。
+
+字面量 `ldr xN, <label>` 的标签，Capstone 记成一个没有基址寄存器的内存操作数，位移是按指令地址算好的槽位地址（不是立即数操作数，`adr` 才是）；解码成 `ThunkOperation.loadFromSlot`，求值时与 `adrp` / `ldr` 一样按槽位读（文件里存的指针、bind 的名字、运行时能力标志）。ld64（Xcode 14 及更早，或 Xcode 15、16 加 `-ld_classic`）会把槽位在一兆字节以内的 `adrp` / `ldr` 改写成 `nop` / 这条指令，第三方 App 里常见；0.24.0 之前把它当成不建模的指令，载入的值丢失。32 位的 `ldr wN, <label>` 不是指针，仍不建模。改写过的桩（`nop` / `ldr x16, <槽>` / `br x16`）由 `ARM64Trampoline` 认，见 [CrossReferenceAnalysis](CrossReferenceAnalysis.md)「链接器改写过的代码」。
 
 这些契约由 `CapstoneThunkDecoderTests` 的真实指令编码固定；跨仓库方案沿用
 [已交付工作分支的嵌套字段提案](https://github.com/MxIris-Reverse-Engineering/swift-decompiler/blob/2e038982a8d19600d6cd082bcf42603f4f52115b/docs/evolutions/draft-nested-coordinate-field-extents.md)。

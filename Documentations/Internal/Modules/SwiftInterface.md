@@ -35,7 +35,7 @@ SwiftInterface 是接口生成的**编排层**（thin orchestrator）：它自�
 
 **`collectModules()`**：import 列表不来自 load command，而是扫全部符号的 demangle 树收 `.module` 节点——binary 里真正被引用的模块才进 import。过滤 `__C` / `__ObjC` / stdlib 三个伪模块；`internalModules`（`Swift`、`_Concurrency`、`_StringProcessing`、`_SwiftConcurrencyShims`）恒定并入。
 
-**`printRoot()` 的段落与 catch 契约**：组成顺序是 header（提案 0008，flag-gated 默认缺席）→ imports → 全局变量 → 全局函数 → 根类型 → 特化变体（`specializedChildren` 挂在各 `TypeDefinition` 上，indexer 对用户驱动的特化保持无知，所以这里全量走查 `allTypeDefinitions`）→ 根协议 → **嵌套**协议的 default-implementation 扩展块（extension 不能嵌进父体，顶层补印；这个循环在提案 0007 之前是死代码）→ 四桶 extension（`isAttachedToProtocolDefinition` 的已附着定义被过滤，避免 issue #106 §5 的重复块）。贯穿全部段落的契约是**逐定义 catch**：一个定义打印抛错只丢它自己，绝不空掉整块（历史上块级 catch 让一个旧 binary 的全部类型被抹白；由 `LegacyDyldInfoBindTests` 与 `corruptNestedChildDropsOnlyItself` 钉住）。两个全局块例外地不带定义上下文——`printVariable`/`printFunction` 本身不抛、各自派发过失败事件，块级包裹只是保险带。
+**`printRoot()` 的段落与 catch 契约**：组成顺序是 header（提案 0008，flag-gated 默认缺席）→ imports → 全局变量 → 全局函数 → 根类型 → 特化变体（`specializedChildren` 挂在各 `TypeDefinition` 上，indexer 对用户驱动的特化保持无知，所以这里全量走查 `allTypeDefinitions`）→ 根协议 → Swift 声明的 `@objc` 协议（`indexer.objcProtocolDefinitions`，各自带着默认实现扩展；嵌套在类型里的打进 `extension 父类型 { … }`）→ **嵌套**协议的 default-implementation 扩展块（extension 不能嵌进父体，顶层补印；这个循环在提案 0007 之前是死代码）→ 四桶 extension（`isAttachedToProtocolDefinition` 的已附着定义被过滤，避免 issue #106 §5 的重复块）→ category 的 ObjC 协议遵循（`indexer.objcCategoryConformances`，每个 category 一个 `extension X: P {}`，类被 exported-only 过滤掉时跟着不打）。后两样与类头部的 ObjC 协议都只在单版本接口里打，diff 与 evolution 不打，ABI 快照也不记（提案 `swift-declared-objc-protocols`，见 [SwiftDeclaredObjCProtocols.md](../SwiftDeclaredObjCProtocols.md)）。贯穿全部段落的契约是**逐定义 catch**：一个定义打印抛错只丢它自己，绝不空掉整块（历史上块级 catch 让一个旧 binary 的全部类型被抹白；由 `LegacyDyldInfoBindTests` 与 `corruptNestedChildDropsOnlyItself` 钉住）。两个全局块例外地不带定义上下文——`printVariable`/`printFunction` 本身不抛、各自派发过失败事件，块级包裹只是保险带。
 
 **exported-only 过滤的接线**（提案 0016）：`printRoot()` 现在是一个普通函数壳，开关
 `printExportedDeclarationsOnly` 打开时先用 `indexer.allTypeDefinitions` / `allProtocolDefinitions` 调
@@ -43,6 +43,8 @@ SwiftInterface 是接口生成的**编排层**（thin orchestrator）：它自�
 扩展的「目标是不是本镜像内未导出声明」只有索引器的表能回答（strip 过的镜像里未导出类型零符号），所以 scope 在这里装；
 两个全局块各带一个 `where !printer.isExcludedByExportFilter(globalSymbolNames:)`。绕过 `printRoot` 的宿主要自己装 scope，否则扩展一腿 fail-open。
 详见 [ExportedOnlyInterfaceFiltering.md](../ExportedOnlyInterfaceFiltering.md)。
+
+**私有声明的源文件注释**（提案 [0074-private-declaration-source-files](../../Evolutions/0074-private-declaration-source-files.md)）：printer 经 `setPrivateDeclarationSourceFileProvider(_:)` 拿 provider，不放进 `SwiftDeclarationPrintConfiguration`（它是 `Equatable`，放不进一个 provider），builder 本身不动。打印点有五处：类型、协议、扩展的声明头，`renderMember` 里每种成员的第一行，以及 `printRootContents()` 的两个全局块——全局块是 `BlockList`，每行注释单独做一项，列表会在每项前换行。嵌套的类型与协议跟它的父定义比，打在哪一层都一样：`marksNestedDefinitions` 要求单独打印与从父定义里摘出来的逐字相同（`NestedDefinitionRegionContractTests` 有打开注释的变体）。也不跟名字里的上下文比：局部类型名字的上下文是声明它的函数，函数不打印在它上方。
 
 **`SwiftInterfaceBuilderExtraDataProvider`**：外部数据源的注入缝，纯生命周期钩子——`Sendable` + 一个默认为空的 `setup()`（提案 0015 之前它还继承 printer 的 resolver 协议，强迫所有 provider 都是类型名解析器）。「会不会回答 printer 查询」是正交能力：provider 按需另行声明 `SwiftPrinting` 的角色协议（`ModuleNameResolving` / `CImportedNameResolving` / `OpaqueTypeResolving`，均 refine 空标记协议 `TypeNameResolving`），`addExtraDataProvider(_:)` 用 `as? any TypeNameResolving` 命中才把它转发给 printer——所以一个 resolver 型 provider 一头挂在 builder 的 prepare 生命周期上，一头挂在打印热路径上，而纯 setup 型 provider（只预热缓存之类）也是合法形态。两个已知实现：`TypeIndexing.SwiftInterfaceBuilderTypeNameProvider`（`__C` 模块归属，跨模块，声明两个名字角色）和本模块的 `SwiftInterfaceBuilderOpaqueTypeProvider`（声明 `OpaqueTypeResolving`，见子系统 2）。
 

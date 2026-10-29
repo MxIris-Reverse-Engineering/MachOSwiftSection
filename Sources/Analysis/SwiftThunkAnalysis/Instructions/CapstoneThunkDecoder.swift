@@ -190,8 +190,15 @@ public enum CapstoneThunkDecoder {
             }
             return .unmodelled(writtenRegisters: [])
         case .ldr, .ldur:
-            guard let destination = register(at: 0, of: operands),
-                  let memory = memoryOperand(at: 1, of: instruction),
+            guard let destination = register(at: 0, of: operands) else { return .unmodelled(writtenRegisters: []) }
+            // `ldr xN, <label>`: Capstone gives the label as a memory operand
+            // with no base register, whose displacement is the slot's address.
+            // A 32-bit `ldr wN, <label>` loads no pointer and stays unmodelled.
+            if operands.count > 1, let label = operands[1].memory, label.base == .invalid, label.index == nil {
+                guard let loadedRegister = operands[0].register, isDoubleWordRegister(loadedRegister) else { return .unmodelled(writtenRegisters: []) }
+                return .loadFromSlot(destination: destination, slotAddress: UInt64(bitPattern: label.displacement))
+            }
+            guard let memory = memoryOperand(at: 1, of: instruction),
                   !writesBack(instruction)
             else { return .unmodelled(writtenRegisters: []) }
             return .loadFromMemory(
@@ -351,6 +358,14 @@ public enum CapstoneThunkDecoder {
         // v6 places the post-index update in mem.disp; the access itself still
         // reads the old base. The evaluator separately refuses write-back.
         return (base: base, displacement: instruction.isPostIndex ? 0 : memory.displacement)
+    }
+
+    /// Whether `register` is a 64-bit general-purpose register: `x0`–`x28`,
+    /// `fp`, `lr`.
+    private static func isDoubleWordRegister(_ register: AArch64Reg) -> Bool {
+        if register == .fp || register == .lr { return true }
+        let rawValue = Int(register.rawValue)
+        return rawValue >= Int(AArch64Reg.x0.rawValue) && rawValue <= Int(AArch64Reg.x28.rawValue)
     }
 
     /// Folds Capstone's separate 32-bit and 64-bit register spellings onto one

@@ -67,25 +67,7 @@ package struct ClassDispatchLookups {
     /// wins: the stand-ins only fill in what the image lost.
     package func supplementing(_ memberSymbols: [DemangledSymbol], in category: MemberCategory) -> [DemangledSymbol] {
         let categorySlotSymbols = vtableSlotMemberSymbols.filter { Self.memberCategory(ofMemberNode: $0.demangledNode) == category }
-        guard !categorySlotSymbols.isEmpty else { return memberSymbols }
-        let declaredEntityKeys = Set(memberSymbols.compactMap(Self.declaredEntityKey(of:)))
-        return memberSymbols + categorySlotSymbols.filter { slotSymbol in
-            guard let entityKey = Self.declaredEntityKey(of: slotSymbol) else { return false }
-            return !declaredEntityKeys.contains(entityKey)
-        }
-    }
-
-    /// The member a symbol declares, keyed structurally: its entity node,
-    /// past the marker a merged-function thunk leads with — the builders fold
-    /// a thunk onto the member it stands for, so it declares that member as
-    /// much as the canonical symbol does.
-    private static func declaredEntityKey(of memberSymbol: DemangledSymbol) -> StructuralNodeReferenceKey? {
-        let children = memberSymbol.demangledNode.children
-        guard let firstChild = children.first else { return nil }
-        if firstChild.kind == .mergedFunction {
-            return children.second.map(StructuralNodeReferenceKey.init)
-        }
-        return StructuralNodeReferenceKey(firstChild)
+        return StandInMemberSymbols.supplementing(memberSymbols, with: categorySlotSymbols)
     }
 
     /// The builder input a vtable member belongs in, read off its node the

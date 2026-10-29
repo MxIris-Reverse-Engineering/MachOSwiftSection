@@ -107,12 +107,15 @@ public final class ObjCInterfaceIndexerClassHierarchyProvider<MachO: ObjCMetadat
     }
 
     public func objcClassHierarchy(forClassNamed runtimeName: String) -> ObjCClassHierarchy? {
-        guard let classGroup = indexer.classGroup(forName: runtimeName) else { return nil }
+        // A class without a class object is a supplied class to the indexer
+        // (evolution proposal `objc-classes-without-class-objects`), its
+        // chain built the same way.
+        guard let classInfoChain = indexer.classGroup(forName: runtimeName)?.info ?? indexer.suppliedClassGroup(forName: runtimeName)?.info else { return nil }
         // The indexer's chain stops where a superclass could not be followed
         // (a standalone file's bound dependency); a chain that ends on a class
         // with no superclass reached the root.
-        let isAncestorChainComplete = classGroup.info.last?.superClassName == nil
-        return ObjCClassHierarchy(classInfoChain: classGroup.info, categoryInfos: categoryInfos(forClassNamed: runtimeName), isAncestorChainComplete: isAncestorChainComplete)
+        let isAncestorChainComplete = classInfoChain.last?.superClassName == nil
+        return ObjCClassHierarchy(classInfoChain: classInfoChain, categoryInfos: categoryInfos(forClassNamed: runtimeName), isAncestorChainComplete: isAncestorChainComplete)
     }
 
     /// The indexer files categories under their own unique names; grouping

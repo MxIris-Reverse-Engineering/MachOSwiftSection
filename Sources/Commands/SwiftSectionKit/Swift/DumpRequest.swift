@@ -9,12 +9,19 @@ import OutputTransformer
 import SwiftOutputTransformer
 import SwiftDeclarationRendering
 import SwiftPrinting
+@_spi(Support) import SwiftIndexing
 import Semantic
 
 /// A part of a binary's Swift metadata that `dump` can print.
 public enum DumpSection: String, CaseIterable, Sendable, Hashable {
     case types
+    /// The protocols of `__swift5_protos`, then the `@objc` protocols
+    /// declared in Swift, which have no protocol descriptor: they are
+    /// recognized from `__swift5_fieldmd` and `__objc_protolist`.
     case protocols
+    /// The conformance records of `__swift5_proto`, then the Objective-C
+    /// protocols the image's categories list — extensions of other modules'
+    /// classes adopting them, which no conformance record names.
     case protocolConformances
     case associatedTypes
     /// Classes implemented through `@objc @implementation`. They have no
@@ -75,6 +82,14 @@ public struct DumpRequest: Sendable, Equatable {
     /// A `not exported` comment on member lines whose symbol has no
     /// export-trie entry.
     public var emitsExportStatus: Bool
+    /// A comment above every declaration whose name brings a private
+    /// discriminator the declaration it is printed inside does not carry,
+    /// naming the source file the discriminator was derived from — or saying
+    /// it could not be recovered (evolution proposal
+    /// `private-declaration-source-files`). Indexes the image and searches
+    /// every discriminator it declares once, before the first declaration
+    /// prints: seconds to minutes for a framework the size of SwiftUI.
+    public var emitsPrivateDeclarationSourceFiles: Bool
     /// A leading header comment: generator, image path, UUID, architecture,
     /// library-evolution detection, unrecoverable-facts notes.
     public var emitsHeader: Bool
@@ -96,6 +111,7 @@ public struct DumpRequest: Sendable, Equatable {
         emitsTypeLayout: Bool = false,
         emitsEnumLayout: Bool = false,
         emitsExportStatus: Bool = false,
+        emitsPrivateDeclarationSourceFiles: Bool = false,
         emitsHeader: Bool = false,
         commentTransformers: Transformer.SwiftConfiguration? = nil,
         destination: ProductDestination = .output
@@ -112,6 +128,7 @@ public struct DumpRequest: Sendable, Equatable {
         self.emitsTypeLayout = emitsTypeLayout
         self.emitsEnumLayout = emitsEnumLayout
         self.emitsExportStatus = emitsExportStatus
+        self.emitsPrivateDeclarationSourceFiles = emitsPrivateDeclarationSourceFiles
         self.emitsHeader = emitsHeader
         self.commentTransformers = commentTransformers
         self.destination = destination
@@ -164,6 +181,24 @@ public struct DumpRequest: Sendable, Equatable {
                 resolution: configuration.staticLayoutDependencyResolution
             )
         }
+
+        // The index reads its candidates from an indexer, which `dump` does
+        // without otherwise. It has to live until the dump is done: its last
+        // release evicts the caches its `prepare()` built, the symbol index
+        // every member line is read from among them.
+        var privateDeclarationIndexer: SwiftDeclarationIndexer<MachOFile>?
+        if emitsPrivateDeclarationSourceFiles {
+            session.output.reportProgress(PrivateDeclarationSourceFileRecovery.progressMessage)
+            let indexer = SwiftDeclarationIndexer(
+                configuration: .init(dependencySearchPaths: dependencySearchPaths.indexingSearchPaths),
+                eventHandlers: session.output.indexEventHandlers(forInputLabeled: nil),
+                in: machOFile
+            )
+            try await indexer.prepare()
+            configuration.privateDeclarationSourceFileProvider = PrivateDeclarationSourceFileRecovery.index(searchingEveryDeclarationOf: indexer)
+            privateDeclarationIndexer = indexer
+        }
+        defer { withExtendedLifetime(privateDeclarationIndexer) {} }
 
         if emitsHeader {
             let headerInfo = InterfaceHeaderInfo(
@@ -222,6 +257,13 @@ public struct DumpRequest: Sendable, Equatable {
                         session.reportError(error)
                     }
                 }
+                // `@objc` protocols declared in Swift have no protocol
+                // descriptor (evolution proposal
+                // `swift-declared-objc-protocols`).
+                for objcProtocol in SwiftDeclaredObjCProtocol.all(in: machOFile) {
+                    try await session.dump(.objcProtocol(objcProtocol), using: configuration, in: machOFile)
+                }
+                await writeUnclaimedObjCProtocolRecords(using: configuration, in: machOFile, into: session)
             case .protocolConformances:
                 do {
                     for protocolConformance in try machOFile.swift.protocolConformances {
@@ -231,6 +273,9 @@ public struct DumpRequest: Sendable, Equatable {
                     if !isDefaultSelection {
                         session.reportError(error)
                     }
+                }
+                for categoryAdoption in ObjCProtocolAdoptionIndex.shared.categoryAdoptions(in: machOFile) {
+                    try await session.dump(.objcCategoryConformance(categoryAdoption), using: configuration, in: machOFile)
                 }
             case .associatedTypes:
                 do {
@@ -282,6 +327,7 @@ public struct DumpRequest: Sendable, Equatable {
                     session.reportError(error)
                 }
             }
+            topLevelContexts.append(contentsOf: SwiftDeclaredObjCProtocol.all(in: machOFile).map { .objcProtocol($0) })
         }
 
         if selectedSections.contains(.objcImplementationClasses) {
@@ -298,6 +344,7 @@ public struct DumpRequest: Sendable, Equatable {
                     session.reportError(error)
                 }
             }
+            topLevelContexts.append(contentsOf: ObjCProtocolAdoptionIndex.shared.categoryAdoptions(in: machOFile).map { .objcCategoryConformance($0) })
         }
 
         if selectedSections.contains(.associatedTypes) {
@@ -313,6 +360,21 @@ public struct DumpRequest: Sendable, Equatable {
         for topLevelContext in topLevelContexts {
             try? await session.dump(topLevelContext, using: configuration, in: machOFile)
         }
+
+        if selectedSections.contains(.protocols) {
+            await writeUnclaimedObjCProtocolRecords(using: configuration, in: machOFile, into: session)
+        }
+    }
+
+    /// The `@objc` protocol records Swift emitted that no protocol of the
+    /// image claims, as one comment after the protocols.
+    private func writeUnclaimedObjCProtocolRecords(using configuration: DumperConfiguration, in machOFile: MachOFile, into session: DumpSession<some SwiftSectionOutput>) async {
+        do {
+            guard let comment = try await SwiftDeclaredObjCProtocol.unclaimedRecordsComment(using: configuration.demangleResolver, in: machOFile) else { return }
+            session.write(SemanticString { Comment(comment) })
+        } catch {
+            session.reportError(error)
+        }
     }
 }
 
@@ -323,11 +385,17 @@ private enum DumpTopLevelContext {
     case protocolConformance(ProtocolConformance)
     case associatedType(AssociatedType)
     case objcImplementationClass(ObjCImplementationClass)
+    case objcProtocol(SwiftDeclaredObjCProtocol)
+    case objcCategoryConformance(ObjCCategoryProtocolAdoption)
 
     var offset: Int {
         switch self {
         case .objcImplementationClass(let objcImplementationClass):
             return objcImplementationClass.offset
+        case .objcProtocol(let objcProtocol):
+            return objcProtocol.offset
+        case .objcCategoryConformance(let categoryAdoption):
+            return categoryAdoption.offset
         case .type(let type):
             switch type {
             case .enum(let `enum`):
@@ -350,9 +418,9 @@ private enum DumpTopLevelContext {
         switch self {
         case .type:
             .types
-        case .protocol:
+        case .protocol, .objcProtocol:
             .protocols
-        case .protocolConformance:
+        case .protocolConformance, .objcCategoryConformance:
             .protocolConformances
         case .associatedType:
             .associatedTypes
@@ -377,6 +445,10 @@ private enum DumpTopLevelContext {
             try await associatedType.dump(using: configuration, in: machOFile)
         case .objcImplementationClass(let objcImplementationClass):
             try await objcImplementationClass.dump(using: configuration, in: machOFile)
+        case .objcProtocol(let objcProtocol):
+            try await objcProtocol.dump(using: configuration, in: machOFile)
+        case .objcCategoryConformance(let categoryAdoption):
+            try await categoryAdoption.dump(using: configuration, in: machOFile)
         }
     }
 
@@ -407,6 +479,10 @@ private enum DumpTopLevelContext {
                 name = try await associatedType.dumpTypeName(using: configuration, in: context)
             case .objcImplementationClass(let objcImplementationClass):
                 name = try await objcImplementationClass.dumpName(using: configuration, in: context)
+            case .objcProtocol(let objcProtocol):
+                name = try await objcProtocol.dumpName(using: configuration, in: context)
+            case .objcCategoryConformance(let categoryAdoption):
+                name = try await categoryAdoption.dumpName(using: configuration, in: context)
             }
             return name.string
         } catch {

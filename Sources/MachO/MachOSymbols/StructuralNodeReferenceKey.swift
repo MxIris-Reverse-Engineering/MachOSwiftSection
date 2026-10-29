@@ -89,8 +89,8 @@ public struct StructuralNodeReferenceKey: Hashable {
     }
 
     @_spi(Internals)
-    public static func == (lhs: StructuralNodeReferenceKey, rhs: StructuralNodeReferenceKey) -> Bool {
-        switch (lhs.storage, rhs.storage) {
+    public static func == (left: StructuralNodeReferenceKey, right: StructuralNodeReferenceKey) -> Bool {
+        switch (left.storage, right.storage) {
         case (.reference(let lhsReference), .reference(let rhsReference)):
             return lhsReference.structurallyEquals(rhsReference)
         case (.reference(let lhsReference), .queryNode(let rhsNode)):

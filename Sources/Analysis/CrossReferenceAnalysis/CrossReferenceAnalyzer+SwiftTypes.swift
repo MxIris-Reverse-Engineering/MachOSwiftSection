@@ -319,7 +319,7 @@ final class SwiftTypeQuery {
                             index += 5
                             continue
                         }
-                        descriptor = UInt(slot.loadUnaligned(as: UInt64.self) & SwiftTypeIndex.addressMask)
+                        descriptor = StoredPointer.address(in: slot.loadUnaligned(as: UInt64.self))
                     }
                     if let descriptorLocation = analyzer.location(ofDescriptorAtRuntimeAddress: descriptor), matchesDescriptor(at: descriptorLocation) {
                         return true

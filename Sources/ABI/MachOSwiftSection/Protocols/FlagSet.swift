@@ -52,8 +52,8 @@ extension FlagSet {
         return Field(truncatingIfNeeded: isolatedValue)
     }
 
-    public static func == (lhs: Self, rhs: Self) -> Bool {
-        return lhs.rawValue == rhs.rawValue
+    public static func == (left: Self, right: Self) -> Bool {
+        return left.rawValue == right.rawValue
     }
 }
 

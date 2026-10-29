@@ -10,6 +10,20 @@ enum InstructionEncoding {
         return 0x9000_0000 | ((immediate & 0x3) << 29) | ((immediate >> 2) << 5) | UInt32(destination)
     }
 
+    /// `adr xd, label`: an address within a megabyte, from the instruction's
+    /// own address.
+    static func adr(_ destination: Int, at address: UInt64, target: UInt64) -> UInt32 {
+        let immediate = UInt32(truncatingIfNeeded: Int64(bitPattern: target &- address)) & 0x1F_FFFF
+        return 0x1000_0000 | ((immediate & 0x3) << 29) | ((immediate >> 2) << 5) | UInt32(destination)
+    }
+
+    /// `ldr xt, label`: a 64-bit load from a slot within a megabyte of the
+    /// instruction.
+    static func loadLiteral(_ destination: Int, at address: UInt64, slot: UInt64) -> UInt32 {
+        let wordDelta = UInt32(truncatingIfNeeded: Int64(bitPattern: slot &- address) >> 2) & 0x7FFFF
+        return 0x5800_0000 | (wordDelta << 5) | UInt32(destination)
+    }
+
     static func add(_ destination: Int, _ source: Int, immediate: UInt32) -> UInt32 {
         0x9100_0000 | (immediate << 10) | (UInt32(source) << 5) | UInt32(destination)
     }

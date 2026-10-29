@@ -34,8 +34,4 @@ extension TypeDefinition {
     func applyAttributeToVariable(name: String, attribute: SwiftAttribute, in definitions: inout [VariableDefinition]) {
         MemberAttributeApplication.apply(attribute, toVariableNamed: name, in: &definitions)
     }
-
-    func applyAttributeToAllocator(attribute: SwiftAttribute, in definitions: inout [FunctionDefinition]) {
-        MemberAttributeApplication.apply(attribute, toEveryAllocatorIn: &definitions)
-    }
 }

@@ -96,12 +96,13 @@ enum ABIEvolutionTestSuite {
     /// The caches are retained because the extracted `MachOFile`s resolve
     /// cross-image references through them while indexing.
     ///
-    /// A version whose cache lacks the image, or whose image has no
-    /// `__swift5_*` section, is left off the axis: there is nothing to index,
-    /// and indexing it anyway logs four extraction failures. AppKit kept its
-    /// Swift API in `libswiftAppKit.dylib` until macOS 14, so an AppKit axis
-    /// reaching further back starts at 14.0. A cache that cannot be opened
-    /// still throws.
+    /// A version whose cache lacks the image, or whose image lacks the metadata
+    /// a suite reads (`isOnAxis(_:)`), is left off the axis: there is nothing
+    /// to index. For the Swift suites that is an image with no `__swift5_*`
+    /// section, and indexing it anyway logs four extraction failures. AppKit
+    /// kept its Swift API in `libswiftAppKit.dylib` until macOS 14, so a Swift
+    /// AppKit axis reaching further back starts at 14.0. A cache that cannot
+    /// be opened still throws.
     ///
     /// Each cache is opened whole, the way `swift-section --dyld-shared-cache`
     /// opens it, so the dumps match what the command line prints. Opened from
@@ -117,13 +118,20 @@ enum ABIEvolutionTestSuite {
         class var cachePaths: [DyldSharedCachePath] { [.macOS_15_5, .macOS_26_5_2, .macOS_27_0] }
         class var cacheImageName: MachOImageName { .SwiftUI }
 
+        /// Whether a version's image belongs on the axis: it must carry the
+        /// metadata the suite indexes, which for the Swift suites is a
+        /// `__swift5_*` section.
+        class func isOnAxis(_ machOFile: MachOFile) -> Bool {
+            machOFile.sections.contains(where: { $0.sectionName.hasPrefix("__swift5_") })
+        }
+
         init() async throws {
             var caches: [FullDyldCache] = []
             var versions: [(label: String, machO: MachOFile)] = []
             for cachePath in Self.cachePaths {
                 let cache = try FullDyldCache(path: cachePath)
                 guard let machOFile = cache.machOFile(named: Self.cacheImageName),
-                      machOFile.sections.contains(where: { $0.sectionName.hasPrefix("__swift5_") }) else {
+                      Self.isOnAxis(machOFile) else {
                     continue
                 }
                 caches.append(cache)

@@ -43,18 +43,24 @@ public enum ExportStatus: Sendable, Hashable {
     /// through a constrained `extension` — see
     /// ``ExportStatus/descriptorSymbolName(for:descriptorKind:)``.
     case descriptorSymbolNameUnresolvable
+
+    /// The declaration has no symbol of its own to judge by: an `@objc`
+    /// protocol declared in Swift gets no protocol descriptor, and its
+    /// Objective-C protocol record is never exported (evolution proposal
+    /// `swift-declared-objc-protocols`). Not judged.
+    case declarationHasNoSymbol
 }
 
 extension ExportStatus {
     /// The tri-state projection, shaped exactly like
-    /// `SymbolIndexStore.isExported(name:in:)`: `nil` for both non-verdict
-    /// cases. Use it where the caller only distinguishes "provably not
+    /// `SymbolIndexStore.isExported(name:in:)`: `nil` for every non-verdict
+    /// case. Use it where the caller only distinguishes "provably not
     /// exported" from everything else.
     public var isExported: Bool? {
         switch self {
         case .exported: true
         case .notExported: false
-        case .imageHasNoExportInformation, .descriptorSymbolNameUnresolvable: nil
+        case .imageHasNoExportInformation, .descriptorSymbolNameUnresolvable, .declarationHasNoSymbol: nil
         }
     }
 

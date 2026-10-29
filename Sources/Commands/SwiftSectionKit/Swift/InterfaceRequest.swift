@@ -4,8 +4,8 @@ import MachOFoundation
 import MachOSwiftSection
 import SwiftDeclaration
 import SwiftIndexing
-import SwiftPrinting
-import SwiftInterface
+@_spi(Support) import SwiftPrinting
+@_spi(Support) import SwiftInterface
 import SwiftDeclarationRendering
 import OutputTransformer
 import SwiftOutputTransformer
@@ -47,6 +47,14 @@ public struct InterfaceRequest: Sendable, Equatable {
     /// A `not exported` comment on members none of whose symbols has an
     /// export-trie entry.
     public var emitsExportStatus: Bool
+    /// A comment above every declaration whose name brings a private
+    /// discriminator the declaration it is printed inside does not carry,
+    /// naming the source file the discriminator was derived from — or saying
+    /// it could not be recovered (evolution proposal
+    /// `private-declaration-source-files`). Searches every discriminator the
+    /// image declares once, after indexing: seconds to minutes for a
+    /// framework the size of SwiftUI.
+    public var emitsPrivateDeclarationSourceFiles: Bool
     /// Only the declarations the image exports: types and protocols whose
     /// descriptor symbol has an export-trie entry, extensions targeting them,
     /// and members with at least one exported symbol. `override` / `@objc`
@@ -83,6 +91,7 @@ public struct InterfaceRequest: Sendable, Equatable {
         emitsTypeLayout: Bool = false,
         emitsEnumLayout: Bool = false,
         emitsExportStatus: Bool = false,
+        emitsPrivateDeclarationSourceFiles: Bool = false,
         printsExportedDeclarationsOnly: Bool = false,
         memberSortOrder: SwiftDeclarationMemberSortOrder = .byCategory,
         infersObjCOverridesFromSelectorNames: Bool = false,
@@ -103,6 +112,7 @@ public struct InterfaceRequest: Sendable, Equatable {
         self.emitsTypeLayout = emitsTypeLayout
         self.emitsEnumLayout = emitsEnumLayout
         self.emitsExportStatus = emitsExportStatus
+        self.emitsPrivateDeclarationSourceFiles = emitsPrivateDeclarationSourceFiles
         self.printsExportedDeclarationsOnly = printsExportedDeclarationsOnly
         self.memberSortOrder = memberSortOrder
         self.infersObjCOverridesFromSelectorNames = infersObjCOverridesFromSelectorNames
@@ -186,6 +196,11 @@ public struct InterfaceRequest: Sendable, Equatable {
         }
 
         try await builder.prepare()
+
+        if emitsPrivateDeclarationSourceFiles {
+            output.reportProgress(PrivateDeclarationSourceFileRecovery.progressMessage)
+            builder.printer.setPrivateDeclarationSourceFileProvider(PrivateDeclarationSourceFileRecovery.index(searchingEveryDeclarationOf: builder.indexer))
+        }
 
         output.reportProgress("Building Swift interface...")
 
