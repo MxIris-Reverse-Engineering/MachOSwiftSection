@@ -21,10 +21,30 @@ public struct ABIDiffReporter: Sendable {
         appendMemberSection(&sections, "Global functions", diff.globalFunctions)
 
         var report = sections.isEmpty ? "No ABI changes." : sections.joined(separator: "\n\n")
+        if let unobservableDeclarations = diff.unobservableDeclarations, !unobservableDeclarations.isEmpty {
+            report += "\n\n" + unobservableSection(unobservableDeclarations)
+        }
         if let diagnostics = diff.diagnostics, !diagnostics.isEmpty {
             report += "\n\n" + warningsSection(diagnostics)
         }
         return report
+    }
+
+    /// What one side could not show (evolution proposal
+    /// `evolution-unobservable-presence`), one block per side: neither
+    /// removed nor added, so never part of the verdict.
+    private func unobservableSection(_ unobservableDeclarations: [UnobservableDeclaration]) -> String {
+        var blocks: [String] = []
+        for side in [UnobservableDeclaration.Side.old, .new] {
+            let declarations = unobservableDeclarations.filter { $0.side == side }
+            guard !declarations.isEmpty else { continue }
+            var lines = ["Not observable on the \(side.rawValue) side — it carries no local Swift symbols, so these are neither removed nor added:"]
+            for declaration in declarations {
+                lines.append(declaration.memberKind == nil ? "  \(declaration.signature) (the whole container)" : "  \(declaration.signature)")
+            }
+            blocks.append(lines.joined(separator: "\n"))
+        }
+        return blocks.joined(separator: "\n\n")
     }
 
     /// Diagnostics surfaced so the verdict is never quietly weaker than it

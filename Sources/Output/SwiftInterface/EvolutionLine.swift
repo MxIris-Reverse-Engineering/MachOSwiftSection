@@ -8,17 +8,25 @@ import Semantic
 /// layer's job (`EvolutionMarking`), so a structured consumer can render it
 /// however it likes.
 public struct EvolutionAnnotation: Sendable, Equatable {
-    /// Per-version existence, aligned with the evolution's version axis.
+    /// Per-version existence, aligned with the evolution's version axis —
+    /// observed or inferred.
     public let presence: [Bool]
-    /// The lifecycle events, ordered by `versionIndex`. Never empty: a
-    /// declaration with no events carries no annotation at all (`nil` on its
-    /// ``EvolutionLine``), which is what "present throughout and never
-    /// changed" looks like.
+    /// The lifecycle events, ordered by `versionIndex`. Empty only when the
+    /// annotation exists for versions that could not show the declaration
+    /// (`presenceStates`); a declaration with no events and every version
+    /// observed carries no annotation at all (`nil` on its ``EvolutionLine``),
+    /// which is what "present throughout and never changed" looks like.
     public let events: [LineageEvent]
+    /// What each version shows of the declaration, when some version could
+    /// not show it — its image carries no local Swift symbols (evolution
+    /// proposal `evolution-unobservable-presence`); `nil` when every version
+    /// was observed.
+    public let presenceStates: [LineagePresenceState]?
 
-    public init(presence: [Bool], events: [LineageEvent]) {
+    public init(presence: [Bool], events: [LineageEvent], presenceStates: [LineagePresenceState]? = nil) {
         self.presence = presence
         self.events = events
+        self.presenceStates = presenceStates
     }
 }
 

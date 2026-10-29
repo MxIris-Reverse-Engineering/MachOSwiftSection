@@ -8,8 +8,9 @@ import SwiftDiffing
 /// snapshots) and looks the lineage up here. A hit yields an
 /// ``EvolutionAnnotation``; a miss means the declaration is present on every
 /// version and never changed (`ABIEvolution` materializes changed lineages
-/// only), which renders with no annotation. This is what keeps the annotated
-/// interface, the lineage report, and the JSON permanently in agreement.
+/// only, and those some version could not show), which renders with no
+/// annotation. This is what keeps the annotated interface, the lineage
+/// report, and the JSON permanently in agreement.
 ///
 /// Container keys are merged across all six buckets into one map — type,
 /// protocol, and extension-container keys are disjoint by construction (full
@@ -42,22 +43,23 @@ struct EvolutionAnnotationIndex: Sendable {
     }
 
     /// The annotation for a container header, or `nil` when the container has
-    /// no presence events of its own. A container that exists on every version
-    /// but has member events still returns `nil` here — the signal belongs on
-    /// the member lines, not the header (container lineages store only
-    /// `.added`/`.removed`; "modified" is derivable and deliberately unstored).
+    /// no presence events of its own and every version showed it. A container
+    /// that exists on every version but has member events still returns `nil`
+    /// here — the signal belongs on the member lines, not the header
+    /// (container lineages store only `.added`/`.removed`; "modified" is
+    /// derivable and deliberately unstored).
     func containerAnnotation(forKey key: ABIKey) -> EvolutionAnnotation? {
-        guard let lineage = containerLineagesByKey[key], !lineage.events.isEmpty else { return nil }
-        return EvolutionAnnotation(presence: lineage.presence, events: lineage.events)
+        guard let lineage = containerLineagesByKey[key], !lineage.events.isEmpty || lineage.presenceStates != nil else { return nil }
+        return EvolutionAnnotation(presence: lineage.presence, events: lineage.events, presenceStates: lineage.presenceStates)
     }
 
     func memberAnnotation(forContainerKey containerKey: ABIKey, memberKey: ABIKey) -> EvolutionAnnotation? {
         guard let lineage = memberLineagesByContainerKey[containerKey]?[memberKey] else { return nil }
-        return EvolutionAnnotation(presence: lineage.presence, events: lineage.events)
+        return EvolutionAnnotation(presence: lineage.presence, events: lineage.events, presenceStates: lineage.presenceStates)
     }
 
     func globalAnnotation(forKey key: ABIKey) -> EvolutionAnnotation? {
         guard let lineage = globalLineagesByKey[key] else { return nil }
-        return EvolutionAnnotation(presence: lineage.presence, events: lineage.events)
+        return EvolutionAnnotation(presence: lineage.presence, events: lineage.events, presenceStates: lineage.presenceStates)
     }
 }

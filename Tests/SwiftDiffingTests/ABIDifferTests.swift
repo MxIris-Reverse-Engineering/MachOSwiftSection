@@ -79,6 +79,13 @@ struct ABIDifferAlgorithmTests {
         let keys = changes.map(\.key.sortKey)
         #expect(keys == keys.sorted())
     }
+
+    @Test("a member's export verdict is not part of its identity or payload")
+    func exportVerdictIsNotCompared() {
+        let old = [MemberRecord(identityKey: .mangled("foo"), payloadKey: .mangled("foo"), kind: .function, signature: "foo", isExported: false)]
+        let new = [MemberRecord(identityKey: .mangled("foo"), payloadKey: .mangled("foo"), kind: .function, signature: "foo", isExported: true)]
+        #expect(ABIDiffer().diffMembers(old: old, new: new).isEmpty)
+    }
 }
 
 // MARK: - Projection from the model + keying

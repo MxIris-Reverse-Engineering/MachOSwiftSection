@@ -3,7 +3,8 @@ import SwiftDeclaration
 import SwiftDeclarationRendering
 import SwiftDiffing
 import MachOSwiftSection
-import MachOSymbols
+@_spi(Internals) import MachOSymbols
+import Dependencies
 
 /// The ABI-diff analogue of ``SwiftInterfaceBuilder``.
 ///
@@ -74,10 +75,14 @@ public final class SwiftDiffableInterfaceBuilder<MachO: MachOFieldLayoutRenderab
         // Globals are fully built by `indexer.prepare()`; no per-definition pass.
     }
 
-    /// The frozen-input snapshot. Every field is a 1:1 passthrough of an indexer
-    /// property, so this is a pure projection (call after `prepare()`).
+    /// The frozen-input snapshot. Every definition field is a 1:1 passthrough
+    /// of an indexer property, so this is a pure projection (call after
+    /// `prepare()`); the two symbol-table facts come from the image's symbol
+    /// index (evolution proposal `evolution-unobservable-presence`).
     public func abiModule() -> ABIModule {
-        ABIModule(
+        @Dependency(\.symbolIndexStore) var symbolIndexStore
+        let machO = machO
+        return ABIModule(
             rootTypeDefinitions: indexer.rootTypeDefinitions,
             allTypeDefinitions: indexer.allTypeDefinitions,
             rootProtocolDefinitions: indexer.rootProtocolDefinitions,
@@ -87,7 +92,13 @@ public final class SwiftDiffableInterfaceBuilder<MachO: MachOFieldLayoutRenderab
             typeAliasExtensionDefinitions: indexer.typeAliasExtensionDefinitions,
             conformanceExtensionDefinitions: indexer.conformanceExtensionDefinitions,
             globalVariableDefinitions: indexer.globalVariableDefinitions,
-            globalFunctionDefinitions: indexer.globalFunctionDefinitions
+            globalFunctionDefinitions: indexer.globalFunctionDefinitions,
+            // An unavailable index claims nothing: without it the image is
+            // not known to be stripped.
+            hasLocalSwiftSymbols: symbolIndexStore.hasLocalSwiftSymbols(in: machO) ?? true,
+            memberExportVerdict: { symbolNames in
+                symbolIndexStore.isExportedIncludingDerivedSymbols(names: symbolNames, in: machO)
+            }
         )
     }
 

@@ -14,6 +14,13 @@
 ///       [●○○] func bar() -> ()
 ///           - removed in 18.0
 /// ```
+///
+/// A version whose image carries no local Swift symbols cannot show a member
+/// only a non-exported symbol evidences (evolution proposal
+/// `evolution-unobservable-presence`): its position reads `◍` where the
+/// versions around it both have the member (inferred present) and `◌`
+/// otherwise, and a change across such a span is placed `between` the
+/// versions that saw it.
 public struct ABIEvolutionReporter: Sendable {
     public init() {}
 
@@ -94,23 +101,37 @@ public struct ABIEvolutionReporter: Sendable {
                 if counts.modified > 0 { parts.append("\(counts.modified) modified") }
                 let verdict = compatibilities[versionIndex - 1] == .breaking ? "ABI-breaking" : "additive"
                 lines.append("  \(step): " + (parts + [verdict]).joined(separator: " · "))
+                // A change first observed here may have happened in the
+                // versions before, which could not show it.
+                for (earliestVersionIndex, spanningCount) in counts.spanningCountsByEarliestVersionIndex.sorted(by: { $0.key < $1.key }) {
+                    let span = "between \(evolution.versions[earliestVersionIndex - 1].label) and \(evolution.versions[versionIndex].label)"
+                    lines.append("    (\(spanningCount) of them happened somewhere \(span): the versions in between could not show them)")
+                }
             }
         }
         if let firstBreakingVersionIndex = evolution.firstBreakingVersionIndex {
             let step = "\(evolution.versions[firstBreakingVersionIndex - 1].label) → \(evolution.versions[firstBreakingVersionIndex].label)"
             lines.append("First ABI-breaking transition: \(step)")
         }
+        if let versionIndicesWithoutLocalSwiftSymbols = evolution.versionIndicesWithoutLocalSwiftSymbols {
+            let labels = evolution.versions.labels(ofVersionsAt: versionIndicesWithoutLocalSwiftSymbols)
+            lines.append("No local Swift symbols, so non-exported members cannot be seen: \(labels) (◍ inferred present, ◌ not observable)")
+        }
         return lines.joined(separator: "\n")
     }
 
-    private func eventCounts(_ evolution: ABIEvolution, at versionIndex: Int) -> (added: Int, removed: Int, modified: Int, total: Int) {
+    private func eventCounts(_ evolution: ABIEvolution, at versionIndex: Int) -> (added: Int, removed: Int, modified: Int, total: Int, spanningCountsByEarliestVersionIndex: [Int: Int]) {
         var added = 0, removed = 0, modified = 0
+        var spanningCountsByEarliestVersionIndex: [Int: Int] = [:]
         func count(_ events: [LineageEvent]) {
             for event in events where event.versionIndex == versionIndex {
                 switch event.status {
                 case .added: added += 1
                 case .removed: removed += 1
                 case .modified: modified += 1
+                }
+                if let earliestVersionIndex = event.earliestVersionIndex {
+                    spanningCountsByEarliestVersionIndex[earliestVersionIndex, default: 0] += 1
                 }
             }
         }
@@ -123,7 +144,7 @@ public struct ABIEvolutionReporter: Sendable {
         for lineage in evolution.allGlobalLineages {
             count(lineage.events)
         }
-        return (added, removed, modified, added + removed + modified)
+        return (added, removed, modified, added + removed + modified, spanningCountsByEarliestVersionIndex)
     }
 
     // MARK: - Sections
@@ -137,14 +158,20 @@ public struct ABIEvolutionReporter: Sendable {
         guard !lineages.isEmpty else { return }
         var lines = ["\(title):"]
         for lineage in lineages {
-            lines.append("  \(bitmap(lineage.presence)) \(lineage.name)")
+            lines.append("  \(bitmap(lineage.presence, lineage.presenceStates)) \(lineage.name)")
             for event in lineage.events {
                 lines.append("      \(eventLine(event, evolution, signatures: false))")
             }
+            for spanLine in unobservedSpanLines(lineage.presenceStates, events: lineage.events, evolution) {
+                lines.append("      \(spanLine)")
+            }
             for memberLineage in lineage.memberLineages {
-                lines.append("      \(bitmap(memberLineage.presence)) \(latestSignature(memberLineage))")
+                lines.append("      \(bitmap(memberLineage.presence, memberLineage.presenceStates)) \(latestSignature(memberLineage))")
                 for event in memberLineage.events {
                     lines.append("          \(eventLine(event, evolution, signatures: true))")
+                }
+                for spanLine in unobservedSpanLines(memberLineage.presenceStates, events: memberLineage.events, evolution) {
+                    lines.append("          \(spanLine)")
                 }
             }
         }
@@ -160,9 +187,12 @@ public struct ABIEvolutionReporter: Sendable {
         guard !lineages.isEmpty else { return }
         var lines = ["\(title):"]
         for lineage in lineages {
-            lines.append("  \(bitmap(lineage.presence)) \(latestSignature(lineage))")
+            lines.append("  \(bitmap(lineage.presence, lineage.presenceStates)) \(latestSignature(lineage))")
             for event in lineage.events {
                 lines.append("      \(eventLine(event, evolution, signatures: true))")
+            }
+            for spanLine in unobservedSpanLines(lineage.presenceStates, events: lineage.events, evolution) {
+                lines.append("      \(spanLine)")
             }
         }
         sections.append(lines.joined(separator: "\n"))
@@ -171,36 +201,65 @@ public struct ABIEvolutionReporter: Sendable {
     // MARK: - Lines
 
     /// The lineage's most recent rendering: the last event's signature (new
-    /// side preferred) — every lineage has at least one event by construction.
+    /// side preferred), or — for a lineage without events, kept for its
+    /// unobservable versions — the signature it carries.
     private func latestSignature(_ lineage: MemberLineage) -> String {
         for event in lineage.events.reversed() {
             if let signature = event.newSignature ?? event.oldSignature {
                 return signature
             }
         }
-        return displayText(of: lineage.key)
+        return lineage.latestSignature ?? displayText(of: lineage.key)
     }
 
     /// One event phrased against the axis. `signatures: false` keeps container
     /// events to the bare phrase (containers carry no signature; their name is
     /// already on the lineage line).
     private func eventLine(_ event: LineageEvent, _ evolution: ABIEvolution, signatures: Bool) -> String {
-        let label = evolution.versions[event.versionIndex].label
+        let placement = event.placement(on: evolution.versions)
         switch event.status {
         case .added:
-            return "+ added in \(label)"
+            return "+ added \(placement)"
         case .removed:
-            return "- removed in \(label)"
+            return "- removed \(placement)"
         case .modified:
             guard signatures, let oldSignature = event.oldSignature, let newSignature = event.newSignature else {
-                return "~ modified in \(label)"
+                return "~ modified \(placement)"
             }
-            return "~ modified in \(label): \(oldSignature) → \(newSignature)"
+            return "~ modified \(placement): \(oldSignature) → \(newSignature)"
         }
     }
 
-    private func bitmap(_ presence: [Bool]) -> String {
-        "[" + presence.map { $0 ? "●" : "○" }.joined() + "]"
+    /// The spans of versions that could not show the declaration and that
+    /// say something: inferred present, or leaving a bound unknown without an
+    /// event spanning them (``UnobservedSpan/isPhrasedAsNotObservable(spannedFirstIndices:)``).
+    private func unobservedSpanLines(_ presenceStates: [LineagePresenceState]?, events: [LineageEvent], _ evolution: ABIEvolution) -> [String] {
+        guard let presenceStates else { return [] }
+        let spannedFirstIndices = Set(events.compactMap(\.earliestVersionIndex))
+        return presenceStates.unobservedSpans.compactMap { span in
+            let labels = evolution.versions.labels(spanning: span.versionIndices)
+            if span.state == .inferredPresent {
+                return "◍ inferred present in \(labels)"
+            } else if span.isPhrasedAsNotObservable(spannedFirstIndices: spannedFirstIndices) {
+                return "◌ not observable in \(labels)"
+            } else {
+                return nil
+            }
+        }
+    }
+
+    private func bitmap(_ presence: [Bool], _ presenceStates: [LineagePresenceState]?) -> String {
+        guard let presenceStates else {
+            return "[" + presence.map { $0 ? "●" : "○" }.joined() + "]"
+        }
+        return "[" + presenceStates.map { state in
+            switch state {
+            case .present: "●"
+            case .absent: "○"
+            case .inferredPresent: "◍"
+            case .unobservable: "◌"
+            }
+        }.joined() + "]"
     }
 
     private func displayText(of key: ABIKey) -> String {

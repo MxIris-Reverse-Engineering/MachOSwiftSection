@@ -63,6 +63,22 @@ struct InterfaceAnnotationStyleTests {
         #expect(InterfaceAnnotationStyle.evolution.lineKinds(of: text) == [.header, .plain, .added, .plain, .removed])
     }
 
+    /// Evolution proposal `evolution-unobservable-presence`: a change across
+    /// versions that could not show the declaration is placed `between` two
+    /// versions; an annotation that only marks such versions records no
+    /// change.
+    @Test("A change placed between two versions reads by its phrase; marking unobservable versions alone stays plain")
+    func evolutionUnobservableAnnotations() {
+        let text = """
+        func retired() // [●◌○] removed between 1.0 and 3.0
+        func fresh() // [○◌●] added between 1.0 and 3.0
+        var value: Int // [●◍●] modified between 1.0 and 3.0: var value: Int → let value: Int
+        func kept() // [●◍●] inferred present in 2.0
+        func trailing() // [●◌] not observable in 2.0
+        """
+        #expect(InterfaceAnnotationStyle.evolution.lineKinds(of: text) == [.removed, .added, .modified, .plain, .plain])
+    }
+
     @Test("A declaration whose name mentions a lifecycle word stays plain")
     func evolutionClassifiesByAnnotationOnly() {
         #expect(InterfaceAnnotationStyle.evolution.lineKinds(of: "public func removedInLegacyMode()") == [.plain])

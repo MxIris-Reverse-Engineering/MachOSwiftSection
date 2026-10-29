@@ -218,7 +218,7 @@ sweep 覆盖范围之外的名字走的旁路：demangle 后 intern 进 `Storage
 
 ### lifecycle annotation（生命周期注解）
 
-演进并集接口里每条「变过的」声明行尾的注释：`// [●●○] removed in 26.0` —— 存在位图（每版本一位，文件头图例映射位置到版本标签）+ 按 ` · ` 连接的事件短语（added / removed / modified in 版本；modified 带 `旧签名 → 新签名`，两侧文本相同时省略箭头段）。**没有注解本身就是信息**：全程存在且从未变化。注解事实唯一来源是 `ABIEvolution` 的 lineage 查表，渲染器不自行推导。打开 `--emit-available` 时，生命周期能完整写成一条 `@available` 的声明上方还会多一行真属性，它由同一份事实派生，是补充不是替代，注解照旧都在。
+演进并集接口里每条「变过的」声明行尾的注释：`// [●●○] removed in 26.0` —— 存在位图（每版本一位，文件头图例映射位置到版本标签）+ 按 ` · ` 连接的事件短语（added / removed / modified in 版本；modified 带 `旧签名 → 新签名`，两侧文本相同时省略箭头段）。**没有注解本身就是信息**：全程存在且从未变化。注解事实唯一来源是 `ABIEvolution` 的 lineage 查表，渲染器不自行推导。打开 `--emit-available` 时，生命周期能完整写成一条 `@available` 的声明上方还会多一行真属性，它由同一份事实派生，是补充不是替代，注解照旧都在。有版本看不到这条声明时（见 unobservable），位图另用 `◍` / `◌`，短语多出 `inferred present in …`、`not observable in …` 与 `… between A and B`。
 
 - **主要出现在**：`Sources/Output/SwiftInterface/EvolutionMarking.swift`、`EvolutionAnnotationIndex.swift`
 - **延伸阅读**：[提案 0013](Evolutions/0013-swift-evolution-interface-builder.md)、[提案 0060](Evolutions/0060-evolution-interface-available-annotations.md)（`@available` 属性）
@@ -441,6 +441,13 @@ ObjC 一侧的同一种视图是 `objc evolution --interface` 输出的合并头
 
 - **主要出现在**：`Sources/Output/SwiftInterface/SwiftEvolutionInterfaceRenderer.swift`（`matchAcrossVersions`）；ObjC 一侧在 MachOObjCSection 的 `ObjCInterface` 模块，本库经 `ObjCAPIEvolutionRequest` 的 `annotatedInterface` 调用
 - **延伸阅读**：[提案 0013](Evolutions/0013-swift-evolution-interface-builder.md)；ObjC 一侧见 [提案 0080](Evolutions/0080-objc-evolution-interface.md)
+
+### unobservable（看不见，`LineagePresenceState`）
+
+evolution 与 diff 里「这个版本看不到这条声明」的状态，与「不在」相对。镜像没有 local Swift 符号的版本（macOS 13.0–14.8 dyld shared cache 里的 SwiftUI）里，只靠非导出符号才出现的成员没有名字，它缺席并不说明它不存在；类型、conformance、存储属性、导出的成员不受影响。一段看不见的版本，两侧观测到的版本都有这条声明时记为 **inferred present**（推断存在，位图 `◍`），否则记为 unobservable（位图 `◌`）；两侧不同时，变化写成 `removed between 12.7 and 15.0` 这样的跨段事件。diff 里一侧看不见的成员进 `unobservableDeclarations`，不算删除或新增。
+
+- **主要出现在**：`Sources/Output/SwiftDiffing/UnobservablePresence.swift`、`ABIEvolutionBuilder.swift`、`Sources/Output/SwiftInterface/EvolutionMarking.swift`
+- **延伸阅读**：[提案 0081](Evolutions/0081-evolution-unobservable-presence.md)、[ABIEvolutionDesign.md](Internal/ABIEvolutionDesign.md) 第六批
 
 ### wrapper vs descriptor（高层包装 vs 描述符）
 

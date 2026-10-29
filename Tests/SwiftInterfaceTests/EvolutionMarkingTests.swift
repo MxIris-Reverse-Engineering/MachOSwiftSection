@@ -74,6 +74,95 @@ struct EvolutionMarkingTests {
         )
     }
 
+    // MARK: - Versions that cannot show a declaration
+
+    // Evolution proposal `evolution-unobservable-presence`: a version whose
+    // image carries no local Swift symbols cannot show a non-exported member.
+
+    @Test func bitmapDrawsTheVersionsThatCouldNotShowTheDeclaration() {
+        let annotation = EvolutionAnnotation(
+            presence: [true, true, false],
+            events: [],
+            presenceStates: [.present, .inferredPresent, .unobservable]
+        )
+        #expect(EvolutionMarking.bitmap(for: annotation) == "[●◍◌]")
+    }
+
+    @Test func changeAcrossSuchVersionsIsPlacedBetweenTheVersionsThatSawIt() {
+        let removed = LineageEvent(versionIndex: 2, status: .removed, earliestVersionIndex: 1)
+        let added = LineageEvent(versionIndex: 2, status: .added, earliestVersionIndex: 1)
+        let modified = LineageEvent(versionIndex: 2, status: .modified, oldSignature: "var x: Swift.Int", newSignature: "let x: Swift.Int", earliestVersionIndex: 1)
+        #expect(EvolutionMarking.phrase(for: removed, versions: versionAxis) == "removed between 1.0 and 3.0")
+        #expect(EvolutionMarking.phrase(for: added, versions: versionAxis) == "added between 1.0 and 3.0")
+        #expect(EvolutionMarking.phrase(for: modified, versions: versionAxis) == "modified between 1.0 and 3.0: var x: Swift.Int → let x: Swift.Int")
+    }
+
+    @Test func inferredPresenceIsPhrasedWithItsVersions() {
+        let annotation = EvolutionAnnotation(
+            presence: [true, true, true],
+            events: [],
+            presenceStates: [.present, .inferredPresent, .present]
+        )
+        #expect(EvolutionMarking.annotationText(for: annotation, versions: versionAxis) == "// [●◍●] inferred present in 2.0")
+    }
+
+    /// The versions an event spans are phrased by the event alone; others
+    /// say they could not show the declaration.
+    @Test func unobservableVersionsArePhrasedOnlyWhereNoEventSpansThem() {
+        let trailing = EvolutionAnnotation(presence: [true, false, false], events: [], presenceStates: [.present, .unobservable, .unobservable])
+        #expect(EvolutionMarking.annotationText(for: trailing, versions: versionAxis) == "// [●◌◌] not observable in 2.0–3.0")
+        let spanned = EvolutionAnnotation(
+            presence: [true, false, false],
+            events: [LineageEvent(versionIndex: 2, status: .removed, earliestVersionIndex: 1)],
+            presenceStates: [.present, .unobservable, .absent]
+        )
+        #expect(EvolutionMarking.annotationText(for: spanned, versions: versionAxis) == "// [●◌○] removed between 1.0 and 3.0")
+    }
+
+    /// Between two absences the versions only infer absence: the `◌`s say
+    /// enough, and the bounds stay observed.
+    @Test func unobservableVersionsBetweenTwoAbsencesAddNoPhraseAndKeepTheAttribute() {
+        let fourVersionAxis = versionAxis + [ABIVersionDescriptor(label: "4.0")]
+        let removedEarlier = EvolutionAnnotation(
+            presence: [true, false, false, false],
+            events: [LineageEvent(versionIndex: 1, status: .removed)],
+            presenceStates: [.present, .absent, .unobservable, .absent]
+        )
+        #expect(EvolutionMarking.annotationText(for: removedEarlier, versions: fourVersionAxis) == "// [●○◌○] removed in 2.0")
+        #expect(EvolutionMarking.availabilityAttributeText(for: removedEarlier, versions: fourVersionAxis, platform: "macOS") == "@available(macOS, obsoleted: 2.0)")
+    }
+
+    @Test func phrasesFollowAxisOrder() {
+        let fourVersionAxis = versionAxis + [ABIVersionDescriptor(label: "4.0")]
+        let annotation = EvolutionAnnotation(
+            presence: [false, true, true, true],
+            events: [LineageEvent(versionIndex: 1, status: .added)],
+            presenceStates: [.absent, .present, .inferredPresent, .present]
+        )
+        #expect(EvolutionMarking.annotationText(for: annotation, versions: fourVersionAxis) == "// [○●◍●] added in 2.0 · inferred present in 3.0")
+    }
+
+    /// An unknown bound — a version that could not show the declaration and
+    /// was not inferred present — leaves the lifecycle without an attribute;
+    /// inferred presence counts as presence.
+    @Test func availabilityAttributeNeedsKnownBounds() {
+        let trailing = EvolutionAnnotation(presence: [true, true, false], events: [], presenceStates: [.present, .present, .unobservable])
+        #expect(EvolutionMarking.availabilityAttributeText(for: trailing, versions: versionAxis, platform: "macOS") == nil)
+        let spanned = EvolutionAnnotation(
+            presence: [true, false, false],
+            events: [LineageEvent(versionIndex: 2, status: .removed, earliestVersionIndex: 1)],
+            presenceStates: [.present, .unobservable, .absent]
+        )
+        #expect(EvolutionMarking.availabilityAttributeText(for: spanned, versions: versionAxis, platform: "macOS") == nil)
+        let inferred = EvolutionAnnotation(
+            presence: [false, true, true, true],
+            events: [LineageEvent(versionIndex: 1, status: .added)],
+            presenceStates: [.absent, .present, .inferredPresent, .present]
+        )
+        let fourVersionAxis = versionAxis + [ABIVersionDescriptor(label: "4.0")]
+        #expect(EvolutionMarking.availabilityAttributeText(for: inferred, versions: fourVersionAxis, platform: "macOS") == "@available(macOS, introduced: 2.0)")
+    }
+
     // MARK: - Line classification
 
     /// A container header's attribute lines precede the declaration, so the
@@ -294,6 +383,13 @@ struct EvolutionMarkingTests {
         let annotatedLegend = EvolutionMarking.legendLines(for: evolution, availabilityAnnotationPlatform: "iOS").string
         #expect(annotatedLegend.hasPrefix(defaultLegend))
         #expect(annotatedLegend.contains("// @available(iOS, …) attributes are axis-resolution facts"))
+    }
+
+    @Test func legendNamesTheVersionsWithoutLocalSwiftSymbols() {
+        let evolution = ABIEvolution(versions: versionAxis, versionIndicesWithoutLocalSwiftSymbols: [1])
+        let legend = EvolutionMarking.legendLines(for: evolution).string
+        #expect(legend.contains("\n// 2.0 carries no local Swift symbols, so its non-exported declarations cannot be seen: ◌ not observable, ◍ not observable but present in the versions on both sides (inferred)."))
+        #expect(!EvolutionMarking.legendLines(for: ABIEvolution(versions: versionAxis)).string.contains("local Swift symbols"))
     }
 
     @Test func warningsAreNilWithoutDiagnostics() {

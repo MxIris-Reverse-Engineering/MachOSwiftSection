@@ -50,18 +50,37 @@ public struct ABIDiffer: Sendable {
             newSideRemangleFallbacks: new.remangleFallbacks()
         )
         let diagnostics = candidateDiagnostics.isEmpty ? nil : candidateDiagnostics
+        let visibility = DiffVisibility(
+            oldHidesNonExportedMembers: !old.hasLocalSwiftSymbols,
+            newHidesNonExportedMembers: !new.hasLocalSwiftSymbols
+        )
+        var unobservableDeclarations: [UnobservableDeclaration] = []
+        let types = diffContainerSnapshots(old.types, new.types, visibility, &unobservableDeclarations)
+        let protocols = diffContainerSnapshots(old.protocols, new.protocols, visibility, &unobservableDeclarations)
+        let typeExtensions = diffContainerSnapshots(old.typeExtensions, new.typeExtensions, visibility, &unobservableDeclarations)
+        let protocolExtensions = diffContainerSnapshots(old.protocolExtensions, new.protocolExtensions, visibility, &unobservableDeclarations)
+        let typeAliasExtensions = diffContainerSnapshots(old.typeAliasExtensions, new.typeAliasExtensions, visibility, &unobservableDeclarations)
+        let conformanceExtensions = diffContainerSnapshots(old.conformanceExtensions, new.conformanceExtensions, visibility, &unobservableDeclarations)
+        let globalVariables = diffMembers(old: old.globalVariables, new: new.globalVariables, visibility, container: nil, &unobservableDeclarations)
+        let globalFunctions = diffMembers(old: old.globalFunctions, new: new.globalFunctions, visibility, container: nil, &unobservableDeclarations)
+        // Grouped by container, the container itself ahead of its members.
+        unobservableDeclarations.sort { left, right in
+            (left.containerName ?? "", left.memberKind == nil ? 0 : 1, left.key.sortKey, left.side.rawValue)
+                < (right.containerName ?? "", right.memberKind == nil ? 0 : 1, right.key.sortKey, right.side.rawValue)
+        }
         return ABIDiff(
-            types: diffContainerSnapshots(old.types, new.types),
-            protocols: diffContainerSnapshots(old.protocols, new.protocols),
-            typeExtensions: diffContainerSnapshots(old.typeExtensions, new.typeExtensions),
-            protocolExtensions: diffContainerSnapshots(old.protocolExtensions, new.protocolExtensions),
-            typeAliasExtensions: diffContainerSnapshots(old.typeAliasExtensions, new.typeAliasExtensions),
-            conformanceExtensions: diffContainerSnapshots(old.conformanceExtensions, new.conformanceExtensions),
-            globalVariables: diffMembers(old: old.globalVariables, new: new.globalVariables),
-            globalFunctions: diffMembers(old: old.globalFunctions, new: new.globalFunctions),
+            types: types,
+            protocols: protocols,
+            typeExtensions: typeExtensions,
+            protocolExtensions: protocolExtensions,
+            typeAliasExtensions: typeAliasExtensions,
+            conformanceExtensions: conformanceExtensions,
+            globalVariables: globalVariables,
+            globalFunctions: globalFunctions,
             oldProvenance: oldProvenance,
             newProvenance: newProvenance,
-            diagnostics: diagnostics
+            diagnostics: diagnostics,
+            unobservableDeclarations: unobservableDeclarations.isEmpty ? nil : unobservableDeclarations
         )
     }
 
@@ -71,27 +90,29 @@ public struct ABIDiffer: Sendable {
     /// projecting every declaration into its diff records. All of the model
     /// knowledge lives here; the diff above is then pure data over the result.
     public func snapshot(of module: ABIModule) -> ABISnapshot {
-        ABISnapshot(
+        let exportVerdicts = MemberExportVerdicts(module.memberExportVerdict)
+        return ABISnapshot(
             types: containerSnapshots(
                 Array(module.allTypeDefinitions.values),
                 containerKind: .type,
                 key: { ABIKey.makeUnwrappingType(for: $0.typeName.node) },
                 name: { $0.typeName.name(using: .default) },
-                members: { self.memberRecords(of: $0) }
+                members: { self.memberRecords(of: $0, exportVerdicts: exportVerdicts) }
             ),
             protocols: containerSnapshots(
                 Array(module.allProtocolDefinitions.values),
                 containerKind: .protocol,
                 key: { ABIKey.makeUnwrappingType(for: $0.protocolName.node) },
                 name: { $0.protocolName.name(using: .default) },
-                members: { self.memberRecords(of: $0) }
+                members: { self.memberRecords(of: $0, exportVerdicts: exportVerdicts) }
             ),
-            typeExtensions: extensionContainerSnapshots(module.typeExtensionDefinitions, .typeExtension),
-            protocolExtensions: extensionContainerSnapshots(module.protocolExtensionDefinitions, .protocolExtension),
-            typeAliasExtensions: extensionContainerSnapshots(module.typeAliasExtensionDefinitions, .typeAliasExtension),
-            conformanceExtensions: extensionContainerSnapshots(module.conformanceExtensionDefinitions, .conformanceExtension),
-            globalVariables: module.globalVariableDefinitions.map(MemberRecord.make),
-            globalFunctions: module.globalFunctionDefinitions.map(MemberRecord.make)
+            typeExtensions: extensionContainerSnapshots(module.typeExtensionDefinitions, .typeExtension, exportVerdicts),
+            protocolExtensions: extensionContainerSnapshots(module.protocolExtensionDefinitions, .protocolExtension, exportVerdicts),
+            typeAliasExtensions: extensionContainerSnapshots(module.typeAliasExtensionDefinitions, .typeAliasExtension, exportVerdicts),
+            conformanceExtensions: extensionContainerSnapshots(module.conformanceExtensionDefinitions, .conformanceExtension, exportVerdicts),
+            globalVariables: module.globalVariableDefinitions.map { MemberRecord.make($0).withIsExported(exportVerdicts.isExported($0)) },
+            globalFunctions: module.globalFunctionDefinitions.map { MemberRecord.make($0).withIsExported(exportVerdicts.isExported($0)) },
+            hasLocalSwiftSymbols: module.hasLocalSwiftSymbols
         )
     }
 
@@ -119,7 +140,8 @@ public struct ABIDiffer: Sendable {
     /// structurally (the diagnostics channel stays as a backstop).
     private func extensionContainerSnapshots(
         _ buckets: OrderedDictionary<ExtensionName, [ExtensionDefinition]>,
-        _ containerKind: ContainerKind
+        _ containerKind: ContainerKind,
+        _ exportVerdicts: MemberExportVerdicts
     ) -> [ContainerSnapshot] {
         buckets.flatMap { name, definitions -> [ContainerSnapshot] in
             var groupedDefinitions: OrderedDictionary<ABIKey, [ExtensionDefinition]> = [:]
@@ -142,7 +164,7 @@ public struct ABIDiffer: Sendable {
                     kind: containerKind,
                     conformedProtocolName: protocolText,
                     whereClauseText: whereText,
-                    members: groupDefinitions.flatMap { self.memberRecords(of: $0) }
+                    members: groupDefinitions.flatMap { self.memberRecords(of: $0, exportVerdicts: exportVerdicts) }
                 )
             }
         }
@@ -153,18 +175,37 @@ public struct ABIDiffer: Sendable {
     /// Match container snapshots by key, then diff each matched pair's members.
     /// One helper serves every axis — types, protocols, and all four extension
     /// buckets — since they are all `[ContainerSnapshot]` once frozen.
-    private func diffContainerSnapshots(_ old: [ContainerSnapshot], _ new: [ContainerSnapshot]) -> [ContainerChange] {
+    ///
+    /// A container one side has and the other side's image could not show
+    /// (see `UnobservablePresence.swift`) is neither removed nor added: it
+    /// goes to `unobservableDeclarations`, its members unlisted like an added
+    /// or removed container's — exactly the lineages a two-version evolution
+    /// leaves unobservable.
+    private func diffContainerSnapshots(
+        _ old: [ContainerSnapshot],
+        _ new: [ContainerSnapshot],
+        _ visibility: DiffVisibility,
+        _ unobservableDeclarations: inout [UnobservableDeclaration]
+    ) -> [ContainerChange] {
         let matched = threeWayMatch(old: old, new: new) { $0.key }
 
         var changes: [ContainerChange] = []
-        changes.append(contentsOf: matched.removed.map {
-            ContainerChange(key: $0.key, name: $0.name, containerKind: $0.kind, status: .removed, memberChanges: [])
-        })
-        changes.append(contentsOf: matched.added.map {
-            ContainerChange(key: $0.key, name: $0.name, containerKind: $0.kind, status: .added, memberChanges: [])
-        })
+        for container in matched.removed {
+            if visibility.newHidesNonExportedMembers, container.needsLocalSymbolsToBeSeen {
+                unobservableDeclarations.append(contentsOf: Self.unobservableDeclarations(of: container, side: .new))
+            } else {
+                changes.append(ContainerChange(key: container.key, name: container.name, containerKind: container.kind, status: .removed, memberChanges: []))
+            }
+        }
+        for container in matched.added {
+            if visibility.oldHidesNonExportedMembers, container.needsLocalSymbolsToBeSeen {
+                unobservableDeclarations.append(contentsOf: Self.unobservableDeclarations(of: container, side: .old))
+            } else {
+                changes.append(ContainerChange(key: container.key, name: container.name, containerKind: container.kind, status: .added, memberChanges: []))
+            }
+        }
         for (oldContainer, newContainer) in matched.common {
-            let memberChanges = diffMembers(old: oldContainer.members, new: newContainer.members)
+            let memberChanges = diffMembers(old: oldContainer.members, new: newContainer.members, visibility, container: newContainer, &unobservableDeclarations)
             if !memberChanges.isEmpty {
                 changes.append(ContainerChange(
                     key: newContainer.key,
@@ -228,23 +269,23 @@ public struct ABIDiffer: Sendable {
     /// protocols, and extensions all expose them). The kind-specific extras —
     /// stored fields / enum cases / `deinit` for types, associated types for
     /// protocols — are layered on by the concrete overloads below.
-    func sharedMemberRecords(of definition: some Definition) -> [MemberRecord] {
+    func sharedMemberRecords(of definition: some Definition, exportVerdicts: MemberExportVerdicts = MemberExportVerdicts(nil)) -> [MemberRecord] {
         var records: [MemberRecord] = []
-        records.append(contentsOf: definition.variables.map(MemberRecord.make))
-        records.append(contentsOf: definition.staticVariables.map(MemberRecord.make))
-        records.append(contentsOf: definition.functions.map(MemberRecord.make))
-        records.append(contentsOf: definition.staticFunctions.map(MemberRecord.make))
-        records.append(contentsOf: definition.subscripts.map(MemberRecord.make))
-        records.append(contentsOf: definition.staticSubscripts.map(MemberRecord.make))
-        records.append(contentsOf: definition.allocators.map(MemberRecord.make))
-        records.append(contentsOf: definition.constructors.map(MemberRecord.make))
+        records.append(contentsOf: definition.variables.map { MemberRecord.make($0).withIsExported(exportVerdicts.isExported($0)) })
+        records.append(contentsOf: definition.staticVariables.map { MemberRecord.make($0).withIsExported(exportVerdicts.isExported($0)) })
+        records.append(contentsOf: definition.functions.map { MemberRecord.make($0).withIsExported(exportVerdicts.isExported($0)) })
+        records.append(contentsOf: definition.staticFunctions.map { MemberRecord.make($0).withIsExported(exportVerdicts.isExported($0)) })
+        records.append(contentsOf: definition.subscripts.map { MemberRecord.make($0).withIsExported(exportVerdicts.isExported($0)) })
+        records.append(contentsOf: definition.staticSubscripts.map { MemberRecord.make($0).withIsExported(exportVerdicts.isExported($0)) })
+        records.append(contentsOf: definition.allocators.map { MemberRecord.make($0).withIsExported(exportVerdicts.isExported($0)) })
+        records.append(contentsOf: definition.constructors.map { MemberRecord.make($0).withIsExported(exportVerdicts.isExported($0)) })
         return records
     }
 
     /// A type adds stored fields (or order-sensitive enum cases) and `deinit`
     /// on top of the shared members.
-    func memberRecords(of definition: TypeDefinition) -> [MemberRecord] {
-        var records = sharedMemberRecords(of: definition)
+    func memberRecords(of definition: TypeDefinition, exportVerdicts: MemberExportVerdicts = MemberExportVerdicts(nil)) -> [MemberRecord] {
+        var records = sharedMemberRecords(of: definition, exportVerdicts: exportVerdicts)
         if case .enum = definition.typeContextDescriptorWrapper {
             for (tag, field) in definition.fields.enumerated() {
                 records.append(.makeCase(field, tag: tag))
@@ -258,7 +299,7 @@ public struct ABIDiffer: Sendable {
             records.append(contentsOf: definition.fields.filter { !$0.isRawLayoutStorage }.map(MemberRecord.make))
         }
         if definition.hasDeallocator {
-            records.append(.makeDeinit())
+            records.append(MemberRecord.makeDeinit().withIsExported(exportVerdicts.isExported(deallocatorOf: definition)))
         }
         return records
     }
@@ -279,20 +320,20 @@ public struct ABIDiffer: Sendable {
     /// degrades to the status rule). Deliberately built per-collection rather
     /// than via `sharedMemberRecords`, which serves types/extensions where the
     /// fact does not apply.
-    func memberRecords(of definition: ProtocolDefinition) -> [MemberRecord] {
+    func memberRecords(of definition: ProtocolDefinition, exportVerdicts: MemberExportVerdicts = MemberExportVerdicts(nil)) -> [MemberRecord] {
         let defaultedOffsets = definition.defaultedRequirementPWTOffsets
         func flag(_ slotOffsets: [Int?]) -> Bool? {
             Self.requirementDefaultImplementationFlag(slotOffsets: slotOffsets, defaultedOffsets: defaultedOffsets)
         }
         var records: [MemberRecord] = []
-        records.append(contentsOf: definition.variables.map { MemberRecord.make($0).withHasDefaultImplementation(flag($0.accessors.map(\.offset))) })
-        records.append(contentsOf: definition.staticVariables.map { MemberRecord.make($0).withHasDefaultImplementation(flag($0.accessors.map(\.offset))) })
-        records.append(contentsOf: definition.functions.map { MemberRecord.make($0).withHasDefaultImplementation(flag([$0.offset])) })
-        records.append(contentsOf: definition.staticFunctions.map { MemberRecord.make($0).withHasDefaultImplementation(flag([$0.offset])) })
-        records.append(contentsOf: definition.subscripts.map { MemberRecord.make($0).withHasDefaultImplementation(flag($0.accessors.map(\.offset))) })
-        records.append(contentsOf: definition.staticSubscripts.map { MemberRecord.make($0).withHasDefaultImplementation(flag($0.accessors.map(\.offset))) })
-        records.append(contentsOf: definition.allocators.map { MemberRecord.make($0).withHasDefaultImplementation(flag([$0.offset])) })
-        records.append(contentsOf: definition.constructors.map { MemberRecord.make($0).withHasDefaultImplementation(flag([$0.offset])) })
+        records.append(contentsOf: definition.variables.map { MemberRecord.make($0).withHasDefaultImplementation(flag($0.accessors.map(\.offset))).withIsExported(exportVerdicts.isExported($0)) })
+        records.append(contentsOf: definition.staticVariables.map { MemberRecord.make($0).withHasDefaultImplementation(flag($0.accessors.map(\.offset))).withIsExported(exportVerdicts.isExported($0)) })
+        records.append(contentsOf: definition.functions.map { MemberRecord.make($0).withHasDefaultImplementation(flag([$0.offset])).withIsExported(exportVerdicts.isExported($0)) })
+        records.append(contentsOf: definition.staticFunctions.map { MemberRecord.make($0).withHasDefaultImplementation(flag([$0.offset])).withIsExported(exportVerdicts.isExported($0)) })
+        records.append(contentsOf: definition.subscripts.map { MemberRecord.make($0).withHasDefaultImplementation(flag($0.accessors.map(\.offset))).withIsExported(exportVerdicts.isExported($0)) })
+        records.append(contentsOf: definition.staticSubscripts.map { MemberRecord.make($0).withHasDefaultImplementation(flag($0.accessors.map(\.offset))).withIsExported(exportVerdicts.isExported($0)) })
+        records.append(contentsOf: definition.allocators.map { MemberRecord.make($0).withHasDefaultImplementation(flag([$0.offset])).withIsExported(exportVerdicts.isExported($0)) })
+        records.append(contentsOf: definition.constructors.map { MemberRecord.make($0).withHasDefaultImplementation(flag([$0.offset])).withIsExported(exportVerdicts.isExported($0)) })
         records.append(contentsOf: definition.associatedTypes.map(MemberRecord.makeAssociatedType))
         records.append(contentsOf: definition.strippedSymbolicRequirements.map {
             MemberRecord.makeProtocolRequirement(
@@ -320,8 +361,8 @@ public struct ABIDiffer: Sendable {
     /// **witnesses** — frozen into `AssociatedTypeWitnessProjection` at index
     /// time precisely because the raw `AssociatedType` records' name accessors
     /// are Mach-O-bound and cannot be resolved here.
-    func memberRecords(of definition: ExtensionDefinition) -> [MemberRecord] {
-        var records = sharedMemberRecords(of: definition)
+    func memberRecords(of definition: ExtensionDefinition, exportVerdicts: MemberExportVerdicts = MemberExportVerdicts(nil)) -> [MemberRecord] {
+        var records = sharedMemberRecords(of: definition, exportVerdicts: exportVerdicts)
         records.append(contentsOf: definition.resolvedAssociatedTypeWitnesses.map {
             MemberRecord.makeAssociatedTypeWitness(name: $0.name, substitutedTypeText: $0.substitutedTypeText)
         })
@@ -332,17 +373,40 @@ public struct ABIDiffer: Sendable {
 
     /// Three-way set difference over member records, keyed by `identityKey`.
     /// Public so it can be unit-tested without constructing a `Definition`
-    /// (whose initializers need a Mach-O).
+    /// (whose initializers need a Mach-O). Both sides are taken as able to
+    /// show every member.
     public func diffMembers(old: [MemberRecord], new: [MemberRecord]) -> [MemberChange] {
+        var unobservableDeclarations: [UnobservableDeclaration] = []
+        return diffMembers(old: old, new: new, .everySideObservable, container: nil, &unobservableDeclarations)
+    }
+
+    /// ``diffMembers(old:new:)`` with the sides' visibility: a member one
+    /// side has and the other side's image could not show goes to
+    /// `unobservableDeclarations` instead of being removed or added.
+    func diffMembers(
+        old: [MemberRecord],
+        new: [MemberRecord],
+        _ visibility: DiffVisibility,
+        container: ContainerSnapshot?,
+        _ unobservableDeclarations: inout [UnobservableDeclaration]
+    ) -> [MemberChange] {
         let matched = threeWayMatch(old: old, new: new) { $0.identityKey }
 
         var changes: [MemberChange] = []
-        changes.append(contentsOf: matched.removed.map {
-            MemberChange(key: $0.identityKey, kind: $0.kind, status: .removed, oldSignature: $0.signature, newSignature: nil, compatibilityOverride: MemberRecord.compatibilityOverride(old: $0, new: nil))
-        })
-        changes.append(contentsOf: matched.added.map {
-            MemberChange(key: $0.identityKey, kind: $0.kind, status: .added, oldSignature: nil, newSignature: $0.signature, compatibilityOverride: MemberRecord.compatibilityOverride(old: nil, new: $0))
-        })
+        for record in matched.removed {
+            if visibility.newHidesNonExportedMembers, record.needsLocalSymbolsToBeSeen {
+                unobservableDeclarations.append(Self.unobservableDeclaration(of: record, in: container, side: .new))
+            } else {
+                changes.append(MemberChange(key: record.identityKey, kind: record.kind, status: .removed, oldSignature: record.signature, newSignature: nil, compatibilityOverride: MemberRecord.compatibilityOverride(old: record, new: nil)))
+            }
+        }
+        for record in matched.added {
+            if visibility.oldHidesNonExportedMembers, record.needsLocalSymbolsToBeSeen {
+                unobservableDeclarations.append(Self.unobservableDeclaration(of: record, in: container, side: .old))
+            } else {
+                changes.append(MemberChange(key: record.identityKey, kind: record.kind, status: .added, oldSignature: nil, newSignature: record.signature, compatibilityOverride: MemberRecord.compatibilityOverride(old: nil, new: record)))
+            }
+        }
         for (oldRecord, newRecord) in matched.common where oldRecord.payloadKey != newRecord.payloadKey {
             changes.append(MemberChange(key: newRecord.identityKey, kind: newRecord.kind, status: .modified, oldSignature: oldRecord.signature, newSignature: newRecord.signature, compatibilityOverride: MemberRecord.compatibilityOverride(old: oldRecord, new: newRecord)))
         }
@@ -387,5 +451,63 @@ public struct ABIDiffer: Sendable {
         changes.sorted { left, right in
             (key(left).sortKey, status(left).sortRank) < (key(right).sortKey, status(right).sortRank)
         }
+    }
+}
+
+/// Which sides of a two-sided diff carry no local Swift symbols, and so
+/// cannot show a member only a non-exported symbol evidences (see
+/// `UnobservablePresence.swift`).
+struct DiffVisibility {
+    let oldHidesNonExportedMembers: Bool
+    let newHidesNonExportedMembers: Bool
+
+    static let everySideObservable = DiffVisibility(oldHidesNonExportedMembers: false, newHidesNonExportedMembers: false)
+}
+
+extension ABIDiffer {
+    /// A container `side` cannot show. Its members are not listed, as an
+    /// added or removed container's are not: the container is the entry.
+    static func unobservableDeclarations(of container: ContainerSnapshot, side: UnobservableDeclaration.Side) -> [UnobservableDeclaration] {
+        [UnobservableDeclaration(side: side, key: container.key, containerName: container.name, containerKind: container.kind, memberKind: nil, signature: container.name)]
+    }
+
+    /// A member `side` cannot show, filed under its container (`nil` for a
+    /// global).
+    static func unobservableDeclaration(of record: MemberRecord, in container: ContainerSnapshot?, side: UnobservableDeclaration.Side) -> UnobservableDeclaration {
+        UnobservableDeclaration(side: side, key: record.identityKey, containerName: container?.name, containerKind: container?.kind, memberKind: record.kind, signature: record.signature)
+    }
+}
+
+/// The module's member export verdict as the freeze asks it: once per
+/// symbol-backed record, with the symbol names its definition carries (see
+/// ``ABIModule/memberExportVerdict``). Without a verdict every answer is
+/// `nil`.
+struct MemberExportVerdicts {
+    private let verdict: ((_ symbolNames: [String]) -> Bool?)?
+
+    init(_ verdict: ((_ symbolNames: [String]) -> Bool?)?) {
+        self.verdict = verdict
+    }
+
+    func isExported(_ function: FunctionDefinition) -> Bool? {
+        answer([function.symbol.name])
+    }
+
+    func isExported(_ variable: VariableDefinition) -> Bool? {
+        answer(variable.accessors.map(\.symbol.name))
+    }
+
+    func isExported(_ subscriptDefinition: SubscriptDefinition) -> Bool? {
+        answer(subscriptDefinition.accessors.map(\.symbol.name))
+    }
+
+    func isExported(deallocatorOf typeDefinition: TypeDefinition) -> Bool? {
+        guard let deallocatorSymbol = typeDefinition.deallocatorSymbol else { return nil }
+        return answer([deallocatorSymbol.name])
+    }
+
+    private func answer(_ symbolNames: [String]) -> Bool? {
+        guard let verdict else { return nil }
+        return verdict(symbolNames)
     }
 }
