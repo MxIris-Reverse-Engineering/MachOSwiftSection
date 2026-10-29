@@ -2849,7 +2849,9 @@
 - **验证**：都在 JHs-Mac-Studio-Ultra 上跑（Xcode 26.6，远端依赖同第 115 节）。
   - 漏收成员的复现测试（`MembersOfAnotherImagesTypeTests`）在修复前 3 处失败、修复后通过；第一版判据让全量里 SymbolTestsCore 的 interface 快照变红，收紧后转绿。
   - 第一到第三步合在一起：全量 `swift test --skip IntegrationTests` 2,729 个测试、518 个套件全部通过，原始退出码 0；IntegrationTests 编译通过（按项目规定不运行）。
-- **对应版本**：未发版。发版说明要写：dump 与 interface 补上一个 image 给另一个 image 的类型加的成员（SwiftUI 给 SwiftUICore 类型加的那批）；ABI 快照格式升到 10；evolution 能以一组 image 为一个版本比较、记录组内搬家（目前经库 API，命令行未接）。
+  - 第一次渲染 A/B 抓到别的模块的成员被印成 extension（标准库内联的代码、ClangImporter 给 C 枚举合成的成员）；加上模块判据后，回归测试修复前变红、修复后转绿，全量 2,731 个测试、518 个套件全部通过，原始退出码 0。
+  - 第二次渲染 A/B（基线 `next` e1221a02，候选 a0a7dc27，两侧共用一份 `Package.resolved`）：96 对里 77 对逐字节一致，所有 dump 一致；差异只在 SwiftUI、SwiftUICore、Combine 的 interface，全部只增不减，新 extension 全在本 image 自己的模块上，别的模块的 extension 块两侧逐字节一致。macOS 26.6 cache 的 SwiftUI 多出 1,222 行、52 个 extension（`Text.accessibilityTextContentType(_:)` 等）；拆分之前的 iOS 15.5 SwiftUI 也多出 191 行，是没有类型描述符的内部命名空间之类本模块原先丢掉的成员；Combine 多出 `Combine.CombineFeatures` 的一个静态成员。
+- **对应版本**：未发版。发版说明要写：interface 补上本模块里没有哪个定义收到的成员（SwiftUI 给 SwiftUICore 类型加的那批、内部命名空间的静态成员）；ABI 快照格式升到 10；evolution 能以一组 image 为一个版本比较、记录组内搬家（目前经库 API，命令行未接）。
 
 ## 维护约定
 
