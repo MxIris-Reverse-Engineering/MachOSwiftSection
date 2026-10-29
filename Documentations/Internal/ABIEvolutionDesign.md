@@ -250,6 +250,20 @@ diff 的 verdict 交叉核对行。
 - ~~注释接口的时间线版（每行标注 introduced-in）~~ —— 已由第五批落地
   （`SwiftEvolutionInterfaceBuilder` 的并集注解接口，见下）。
 
+## 首轮落地后的增量（第七批）—— 一个版本由一组 image 组成
+
+提案：[draft-image-group-evolution](../Evolutions/draft-image-group-evolution.md)（落地时编号）。Apple 拆框架时声明在 image 之间搬家：AppKit 的类挪进 UIFoundation、CollectionViewCore，macOS 15 起 SwiftUI 的大批类型挪进 SwiftUICore（带 `@_originallyDefinedIn(module: "SwiftUI")`，mangled name 不变）。一个版本只读一个 image 时，搬走的报成 removed、搬来的报成 added。维护时会踩的决策：
+
+- **入口与输入**：`ABIEvolutionBuilder.evolution(ofImageGroups:versions:)`，每个版本一个有序的 `ABIImageSnapshot` 列表，主 image 在前。单 image 快照与文档格式不变，image 名由调用方给出——CLI 写进 provenance 的 `binaryPath` 是 `<cache 路径> (AppKit)`，推不出 image 名。空组就是这个版本什么都没有。
+- **合并**（`MergedImageGroup`）：types、protocols、globals 直接拼接，同 key 的只比较组里第一个 image 的，其余走 key collision，`ABIKeyCollision.droppedImageNames` 写出被丢的那份来自哪个 image；四个 extension 桶里同 key 的容器合成一个，成员按组顺序拼接。
+- **并回类型本体**：组里定义了的类型，它的普通 extension 容器（没有协议、没有 `where`、不是 retroactive）并进类型容器。单 image 里这些成员本来就算在类型本体（mangling 不带 extension 上下文），跨 image 才分出去；不并回，类型搬家那一版就报成「类型里删掉、extension 里新增」。并回只影响成员列在哪个容器下，不影响身份，所以带 extension 上下文的跨模块 extension 也照此并回。
+- **看不见的版本**（第六批）：组里任一 image 没有 local Swift 符号，这个版本就按没有处理，宁可多标看不见，不误报删除。
+- **搬家**（`ImageMove`）：一个声明两次观测在场、中间只隔着看不见的版本，两侧的 image 集合不同就记一条；隔着看不见的版本时用 `earliestVersionIndex` 标出起点，措辞与区间事件一致。中间有一次观测到的缺席就不比，那是删掉再加回来。成员只在旧集合 ≠ 新集合、并且 (旧, 新) 与所属容器的不同时才记：整个类型搬走时不给每个成员再记一遍，同名 extension 跨 image 合并后，没挪的成员也不会记成「A → A」。只有搬家的 lineage 也收录，成员的签名放在 `latestSignature`。搬家不进兼容性判定：旧 image 有没有 re-export 新 image，快照里没有这个事实。
+- **报告与 JSON**：`ABIVersionDescriptor.imageNames` 和两种 lineage 的 `imageMoves` 都是可选的，为空不编码，单 image 的 `evolution --json` 逐字节不变。报告头部那行下面紧跟 `Image group:` 和每个 image 的在场位图（按在轴上首次出现的顺序）；搬家行写成 `> moved in 15.0: SwiftUI → SwiftUICore`，同一版本里排在事件之后；跳变摘要多一项 `N moved`。
+- **联合接口**：`AnySwiftEvolutionInterfaceBuilder(…, imageGroups:labels:…)`。一个版本是一个 `InterfaceVersionGroupUnit`，里面每个 image 一个 `InterfaceVersionUnit`；walker 渲染一个定义前先用 `renderingUnit(for:)` 取它所在 image 的单元——打印器从建它的那个 image 读事实，用错 image 会丢属性、地址与 opaque 解析——成员跟着所属定义走，全局声明按 image 逐个列。并回的 extension 由 `foldedExtensionDefinitions(of:)` 交给类型体渲染，判据与 evolution 的并回逐条一致；两边不一致，注解就查不到。图例在位图位置那行之后列出 image 组。
+- **单 image 索引的配套修复**：SwiftUI 给 SwiftUICore 类型加的、mangling 不带 extension 上下文的成员，原来只有类型所在 image 的定义会收，于是两边都不收。`indexExtensions()` 现在把这类成员当作所在类型的 extension 成员收进 `extension <类型>`：只认上下文是「模块 → struct、class、enum 一路下来」的成员，并按名字排除本 image 定义的类型和协议。第一版只按类型名排除，误收了嵌在带约束 extension 里的类型的访问器和协议自己的符号（这些符号的上下文与定义对不上名字），SymbolTestsCore 的 interface 快照抓到了它。快照格式随之升到 10。
+- **局限**：搬家只在组内看得见，搬到组外 image 的仍是 removed；两版本的 `ABIDiffer.diff` 没有组入口；命令行不接；`@available` 的规则不看搬家。
+
 ## 首轮落地后的增量（第六批）—— 看不见的版本
 
 提案：[0081-evolution-unobservable-presence](../Evolutions/0081-evolution-unobservable-presence.md)。镜像没有 local Swift 符号的版本——macOS 13.0–14.8 dyld shared cache 里的 SwiftUI——看不到只靠非导出符号才出现的成员。原来的 `presence: [Bool]` 分不出「不在」和「看不见」，macOS 27.0 SwiftUI 的 51 版 evolution 因此有 5,189 条两端都在、中间缺席的假缺口。维护时会踩的决策：

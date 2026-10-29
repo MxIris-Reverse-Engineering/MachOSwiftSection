@@ -1,6 +1,6 @@
 # Draft - 一个版本由一组 image 组成的演进
 
-- **状态**: Accepted
+- **状态**: In Progress
 - **创建日期**: 2026-10-29
 - **最后更新**: 2026-10-29
 - **所属愿景**: 无
@@ -13,9 +13,9 @@ evolution 一个版本只读一个 image。Apple 拆框架时声明会在 image 
 
 ## 方案
 
-**第一步：索引漏收的成员**（单独提交）。`SwiftDeclarationIndexer.indexExtensions()` 另外收「类型不在本 image、mangling 里也没有 extension 上下文」的成员（allocator、函数、计算属性、下标、静态存储属性；实例存储属性除外），当作该类型的 extension 成员，进 `extension <类型>`。按类型名排除本 image 定义的类型，用的是 `TypeDefinition` 收成员时用的同一个名字。单 image 的 dump、interface 从此能看到这些成员；ABI 快照的格式版本从 9 升到 10，旧基线会把它们全报成新增。渲染 A/B 在 Ultra 上跑，差异应当只有新出现的这批成员，逐类核对后写进本提案。
+**第一步：索引漏收的成员**（已完成，单独提交）。`SwiftDeclarationIndexer.indexExtensions()` 另外收「类型不在本 image、mangling 里也没有 extension 上下文」的成员（allocator、函数、计算属性、下标、静态存储属性；实例存储属性除外），当作该类型的 extension 成员，进 `extension <类型>`。只认上下文是「模块 → struct、class、enum 一路下来」的成员，并按名字排除本 image 定义的类型和协议，用的是它们的定义收成员时用的同一个名字。单 image 的 dump、interface 从此能看到这些成员；ABI 快照的格式版本从 9 升到 10，旧基线会把它们全报成新增。渲染 A/B 在 Ultra 上跑，差异应当只有新出现的这批成员，逐类核对后写进本提案。
 
-**第二步：SwiftDiffing 的 image 组**。
+**第二步：SwiftDiffing 的 image 组**（已完成）。
 
 - 输入：每个版本一个有序的单 image 快照列表，主 image 在前：`ABIImageSnapshot(imageName:snapshot:)`；入口 `ABIEvolutionBuilder().evolution(ofImageGroups: [[ABIImageSnapshot]], versions: [ABIVersionDescriptor])`。单 image 快照与它的文档格式不变，image 名由调用方给出。组为空就当这个版本什么都没有。
 - 合并：types、protocols、globals 直接拼接，同 key 的只比较组里第一个 image 的，其余走现有的 key collision 报出；四个 extension 桶里同 key 的容器合成一个，成员按组顺序拼接。组里定义了的类型，它的普通 extension 容器（没有协议、没有 `where`、不是 retroactive）并回类型本体：单 image 时这些成员本来就算在类型本体里，跨 image 才分出去，不并回就会在搬家那一版报成「类型里删掉、extension 里新增」。
@@ -24,9 +24,9 @@ evolution 一个版本只读一个 image。Apple 拆框架时声明会在 image 
 - 模型只增不改：`ABIVersionDescriptor.imageNames`、`ContainerLineage.imageMoves`、`MemberLineage.imageMoves`、`ABIKeyCollision.droppedImageNames`，值为空时不编码，单 image 的 `evolution --json` 逐字节不变。
 - 报告：头部那行下面紧跟 `Image group:` 与每个 image 的在场位图（按在轴上首次出现的顺序），`--summary-only` 也带；跳变摘要多一项 `N moved`；事件行与搬家行按版本合并排序，同一版本里事件在前：`> moved in 15.0: SwiftUI → SwiftUICore`、`> moved between 12.7 and 15.0: …`，集合用 ` + ` 连接；collision 警告写成 `dropped: <签名> (SwiftUICore)`。
 
-**第三步：联合接口的 image 组**。`SwiftEvolutionInterfaceImage(imageName:machO:)` 与 `AnySwiftEvolutionInterfaceBuilder(…, imageGroups:labels:…)`。内部一个版本由几个单 image 的渲染单元组成，每个声明交给索引它的那个 image 的打印器：容器按定义的身份找，成员跟着所属容器走，全局声明按 image 逐个列。并回类型本体的 extension 成员在类型体里渲染，与 evolution 的口径一致。注解多一种短语 `moved in 15.0: SwiftUI → SwiftUICore`，与其他短语按版本顺序用 ` · ` 连接；图例在位图位置那行之后加 `// Image group:` 与每个 image 的位图，放在 `@available` 说明之前。单 image 的构造与输出不变。
+**第三步：联合接口的 image 组**（已完成）。`SwiftEvolutionInterfaceImage(imageName:machO:)` 与 `AnySwiftEvolutionInterfaceBuilder(…, imageGroups:labels:…)`。内部一个版本由几个单 image 的渲染单元组成，每个声明交给索引它的那个 image 的打印器：容器按定义的身份找，成员跟着所属容器走，全局声明按 image 逐个列。并回类型本体的 extension 成员在类型体里渲染，与 evolution 的口径一致。注解多一种短语 `moved in 15.0: SwiftUI → SwiftUICore`，与其他短语按版本顺序用 ` · ` 连接；图例在位图位置那行之后加 `// Image group:` 与每个 image 的位图，放在 `@available` 说明之前。单 image 的构造与输出不变。
 
-**第四步：集成测试与文档**。`MachOImageName` 加 UIFoundation、CollectionViewCore、CoreAutoLayout；`ABIEvolutionTestSuite.MultiVersionDyldCacheImageTests` 加 `cacheImageNames`（默认只有主 image）和逐版本的 image 组，主 image 在场才上轴，其余在场才加入；Swift 侧新增 SwiftUI + SwiftUICore 的报告与联合接口套件（默认三版本轴与 51 版归档轴）；ObjC 的两个套件等 MachOObjCSection 的 API 进了它的 `next` 后改成 AppKit + UIFoundation + CollectionViewCore + CoreAutoLayout，另加 SwiftUI + SwiftUICore。产物文件名用组里的 image 名以 `+` 连接。文档同批更新 `ABIEvolutionDesign.md`、`Modules/SwiftInterface.md`、术语表（image group）与演进账本，agent 插件的 skill 只改快照格式那一段。
+**第四步：集成测试与文档**（Swift 侧与文档已完成，ObjC 的两个套件待接）。`MachOImageName` 加 UIFoundation、CollectionViewCore、CoreAutoLayout；`ABIEvolutionTestSuite.MultiVersionDyldCacheImageTests` 加 `cacheImageNames`（默认只有主 image）和逐版本的 image 组，主 image 在场才上轴，其余在场才加入；Swift 侧新增 SwiftUI + SwiftUICore 的报告与联合接口套件（默认三版本轴与 51 版归档轴）；ObjC 的两个套件等 MachOObjCSection 的 API 进了它的 `next` 后改成 AppKit + UIFoundation + CollectionViewCore + CoreAutoLayout，另加 SwiftUI + SwiftUICore。产物文件名用组里的 image 名以 `+` 连接。文档同批更新 `ABIEvolutionDesign.md`、`Modules/SwiftInterface.md`、术语表（image group）与演进账本，agent 插件的 skill 只改快照格式那一段。
 
 **没问就定下的假设**：
 
@@ -46,3 +46,6 @@ evolution 一个版本只读一个 image。Apple 拆框架时声明会在 image 
 | 2026-10-29 | 报告、JSON 与联合接口都做，命令行不接 | 一轮提问定案 |
 | 2026-10-29 | 单 image 漏收成员这次一起修，作为第一步单独提交 | 核实时发现 SwiftUI 给 SwiftUICore 类型加的、没有 extension 上下文的成员在单 image 索引里整个消失（宿主 26.7 的 SwiftUI interface 里没有 `Text.accessibilityTextContentType(_:)`），不修的话 image 组里它们照样在 15.0 报成 removed；用户选择这次一起修 |
 | 2026-10-29 | 成员搬家的签名放在 lineage 的 `latestSignature` 上，`ImageMove` 只记版本与两侧的 image；Swift 侧多一个 `earliestVersionIndex` | 0081 已经给没有事件的成员 lineage 加了 `latestSignature`；隔着看不见的版本时，搬家只能落在两次观测之间。ObjC 侧照同样的分工改了 |
+| 2026-10-29 | 第一步的判据收紧：只认上下文是「模块 → struct、class、enum 一路下来」的成员，并排除本 image 定义的协议名 | 第一版只按类型名排除。全量测试里 SymbolTestsCore 的 interface 快照抓到误收：协议 `BasicDefaultProtocol` 的两个默认实现被列了两遍，带约束 extension 里三个嵌套类型的存储属性访问器成了 extension 成员。这些符号的上下文与本 image 的定义对不上名字，但它们都不属于别的 image |
+| 2026-10-29 | 第一到第三步完成（Draft → Accepted → In Progress） | 在 JHs-Mac-Studio-Ultra 上验证（Xcode 26.6，远端依赖：MachOObjCSection 0.8.204、MachOKit 0.55.100、MachOKitExtensions 1.3.0、swift-demangling 0.7.2、swift-semantic-string 0.5.0）：复现测试在修复前 3 处失败、修复后通过；全量 `swift test --skip IntegrationTests` 2,729 个测试、518 个套件全部通过，原始退出码 0；IntegrationTests 编译通过，按项目规定不运行 |
+| 2026-10-29 | ObjC 的两个集成套件等 MachOObjCSection 发版后再接 | ObjC 侧的 API 只在 MachOObjCSection 本地 `next`（118e8db）上，那边的提案还在等用户审。IntegrationTests 随全量一起编译，Ultra 与 CI 都按远端版本解析依赖，提前接会让 `next` 编不过 |

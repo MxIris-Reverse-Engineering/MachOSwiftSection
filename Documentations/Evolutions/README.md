@@ -91,4 +91,4 @@
 | [0079](0079-swift-declared-objc-protocols.md) | Swift 源码定义的 `@objc` 协议，以及类对 ObjC 协议的遵循 | Implemented |
 | [0080](0080-objc-evolution-interface.md) | `objc evolution --interface`：带演进标注的合并 ObjC 头文件 | Implemented |
 | [0081](0081-evolution-unobservable-presence.md) | evolution 与 diff 区分「不存在」和「看不见」 | Implemented |
-| draft | [一个版本由一组 image 组成的演进](draft-image-group-evolution.md) | Accepted |
+| draft | [一个版本由一组 image 组成的演进](draft-image-group-evolution.md) | In Progress |

@@ -183,6 +183,13 @@ linker 把字节相同的函数体合并到同一地址的优化。后果是「�
 - **主要出现在**：`Descriptor+MethodDescriptorSymbols.swift`、`ClassDumper`、`TypeDefinition.index`、`FinalKeywordICFRegressionTests`、`VTableSlotAttributionTests`
 - **延伸阅读**：[提案 vtable-slot-attribution](Evolutions/0020-vtable-slot-attribution-via-method-descriptor-symbols.md)、[提案 0006](Evolutions/0006-final-keyword-and-lazy-accessor-type-recovery.md)
 
+### image group（image 组）与 move（搬家）
+
+evolution 里组成一个版本的一组 image，主 image 在前：Apple 拆过的框架以组为单位比较，例如 SwiftUI 与 SwiftUICore（macOS 15 起）、AppKit 与 UIFoundation、CollectionViewCore、CoreAutoLayout。组里的声明合成一个 API 面，一个声明从一个 image 挪到另一个 image（SwiftUI 的类型带 `@_originallyDefinedIn` 挪进 SwiftUICore，mangled name 不变）不再读成删除加新增，而是记一条 **move**：两侧都观测到它在场、所在的 image 不同，报告写 `> moved in 15.0: SwiftUI → SwiftUICore`。只跟着容器一起挪的成员不另记；move 不进兼容性判定。组里定义了的类型，另一个 image 给它加的普通 extension 并回类型本体比较。
+
+- **主要出现在**：`Sources/Output/SwiftDiffing/ImageGroups.swift`（`ABIImageSnapshot`、`ImageMove`、`MergedImageGroup`）、`ABIEvolutionBuilder.evolution(ofImageGroups:versions:)`、`Sources/Output/SwiftInterface/InterfaceVersionRendering.swift`（`InterfaceVersionGroupUnit`）；ObjC 一侧在 MachOObjCSection 的 `ObjCDiffing`（`ObjCAPIImageSnapshot`、`ObjCImageMove`）
+- **延伸阅读**：[提案 image-group-evolution](Evolutions/draft-image-group-evolution.md)、[ABIEvolutionDesign.md](Internal/ABIEvolutionDesign.md) 第七批
+
 ### implied ObjC protocol（隐含的 ObjC 协议）
 
 类遵循一个继承了 ObjC 协议的 Swift 协议时（`protocol CopyingRefinement: NSCopying`），编译器也把那个 ObjC 协议记进类（或 category）的协议表（`getObjCProtocols` 的递归），尽管源码没写。interface 不打它，Swift 遵循已经说明了；dump 在类的 `// ObjC protocols:` 一行里标注 `(implied by a Swift conformance)`。只认得出本镜像的 Swift 协议隐含的。
