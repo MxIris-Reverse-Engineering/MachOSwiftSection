@@ -2840,7 +2840,7 @@
 - **时间段**：2026-10-29，分支 `feature/image-group-evolution`（worktree `.worktrees/MachOSwiftSection-ImageGroupEvolution`，基于 `next` e1221a02），当天合入 `next`。
 - **动机**：用户要 ObjC 演进的集成套件支持多个 image。Apple 拆框架时声明在 image 之间搬家（AppKit 的类挪进 UIFoundation、CollectionViewCore，SwiftUI 的类型在 macOS 15 挪进 SwiftUICore），一个版本只读一个 image 时，搬走的报成删除、搬来的报成新增，看不出它们其实没有消失。
 - **关键决策**：
-  - ObjC 侧由 MachOObjCSection 的会话实现（提案 `objc-evolution-image-groups`），本库做 Swift 侧与集成测试；两边约定同一套输入形状（每个版本一个有序的单 image 快照列表）、搬家记录（`ImageMove`，成员跟着容器挪的不另记）与报告文案。
+  - ObjC 侧由 MachOObjCSection 的会话实现（它的提案 0016，随 0.8.205 发布），本库做 Swift 侧与集成测试；两边约定同一套输入形状（每个版本一个有序的单 image 快照列表）、搬家记录（`ImageMove`，成员跟着容器挪的不另记）与报告文案。
   - 先把改同一批文件、已完成待合并的 `feature/evolution-unobservable-presence` 合进 `next`（第 115 节），再从 `next` 切本分支。
   - 报告、JSON 与联合接口都支持，命令行不接。
   - 顺带修掉单 image 的漏收：SwiftUI 给 SwiftUICore 类型加的、mangling 不带 extension 上下文的成员原先在 SwiftUI 的 interface 与快照里整个消失；现在收进 `extension <类型>`，快照格式升到 10（dump 不经这条路径）。判据收紧过两次：第一版只按名字排除本 image 的类型，SymbolTestsCore 的 interface 快照抓到误收的协议符号与带约束 extension 里的嵌套类型，改成只认「模块 → struct、class、enum 一路下来」的上下文；渲染 A/B 又抓到 image 里带着的别的模块的成员（标准库内联的代码、ClangImporter 给 C 枚举合成的成员），再要求类型的模块是本 image 自己的 Swift 模块。同一模块里没有类型描述符的内部命名空间等原先同样被丢掉的成员也一并收进来。
@@ -2852,7 +2852,8 @@
   - 第一次渲染 A/B 抓到别的模块的成员被印成 extension（标准库内联的代码、ClangImporter 给 C 枚举合成的成员）；加上模块判据后，回归测试修复前变红、修复后转绿，全量 2,731 个测试、518 个套件全部通过，原始退出码 0。
   - 第二次渲染 A/B（基线 `next` e1221a02，候选 a0a7dc27，两侧共用一份 `Package.resolved`）：96 对里 77 对逐字节一致，所有 dump 一致；差异只在 SwiftUI、SwiftUICore、Combine 的 interface，全部只增不减，新 extension 全在本 image 自己的模块上，别的模块的 extension 块两侧逐字节一致。macOS 26.6 cache 的 SwiftUI 多出 1,222 行、52 个 extension（`Text.accessibilityTextContentType(_:)` 等）；拆分之前的 iOS 15.5 SwiftUI 也多出 191 行，是没有类型描述符的内部命名空间之类本模块原先丢掉的成员；Combine 多出 `Combine.CombineFeatures` 的一个静态成员。
   - MachOObjCSection 的会话对照两边实现，核出三处不一致：联合接口的 collision 警告没写 image 名、搬家按数组比较、image 名与签名数量对不上时 `zip` 截掉签名。三处各加一条修复前变红的回归测试；最终代码上全量 2,734 个测试、518 个套件全部通过，原始退出码 0。
-- **对应版本**：未发版。发版说明要写：interface 补上本模块里没有哪个定义收到的成员（SwiftUI 给 SwiftUICore 类型加的那批、内部命名空间的静态成员）；ABI 快照格式升到 10；evolution 能以一组 image 为一个版本比较、记录组内搬家（目前经库 API，命令行未接）。
+  - ObjC 的两个集成套件等 MachOObjCSection 0.8.205 发布后接上，依赖下限随之抬到 0.8.205：只把 MachOObjCSection 解析到 0.8.205、其余依赖不变，全量 2,734 个测试、518 个套件全部通过，原始退出码 0；IntegrationTests 编译通过（按项目规定不运行）。
+- **对应版本**：未发版。发版说明要写：interface 补上本模块里没有哪个定义收到的成员（SwiftUI 给 SwiftUICore 类型加的那批、内部命名空间的静态成员）；ABI 快照格式升到 10；evolution 能以一组 image 为一个版本比较、记录组内搬家（目前经库 API，命令行未接）；MachOObjCSection 的依赖下限是 0.8.205。
 
 ## 维护约定
 
