@@ -48,6 +48,38 @@ extension SwiftDeclarationPrinter {
         }
     }
 
+    /// Where content the exported-only filter rules on is printed, given one
+    /// of the `isExcludedByExportFilter` predicates: everywhere when the
+    /// filter keeps it; when the filter rules it out, nowhere (`nil`: leave
+    /// it out) or, when marking, in a region visible only while
+    /// `printExportedDeclarationsOnly` is off (evolution proposal
+    /// `exported-only-marking-mode`).
+    package func exportFilterVisibility(excluded isExcluded: Bool) -> VisibilityCondition? {
+        guard isExcluded else { return .always }
+        guard configuration.marksOptionalContent else { return nil }
+        return .disabled(SwiftVisibilityOption.printExportedDeclarationsOnly.rawValue)
+    }
+
+    /// What a type's or an extension's body prints after its nested
+    /// definitions, without its last line break when marking and the
+    /// exported-only filter rules out every declaration in it
+    /// (`excludesEveryDeclarationAfterNestedDefinitions(of:)`).
+    ///
+    /// That break is visible only while the filter is off, and a
+    /// `DeclarationBlock` decides its own closing line break from the body as
+    /// printed in full: projected with the filter on, a body left with only
+    /// its nested definitions would end on their closing brace and close as
+    /// `}}`. Without the break the block adds one of its own, visible
+    /// whenever any of the body is, which stands in for it under every
+    /// projection (evolution proposal `exported-only-marking-mode`).
+    func bodyAfterNestedDefinitions(of definition: some Definition, @SemanticStringBuilder content: () async throws -> SemanticString) async rethrows -> SemanticString {
+        let body = try await content()
+        guard configuration.marksOptionalContent,
+              body.components.last?.string == "\n",
+              excludesEveryDeclarationAfterNestedDefinitions(of: definition) else { return body }
+        return body.dropLast()
+    }
+
     /// The attributes a member's ObjC facts call for, each followed by a
     /// space.
     @SemanticStringBuilder
@@ -62,5 +94,16 @@ extension SwiftDeclarationPrinter {
             }
             Space()
         }
+    }
+}
+
+extension SemanticString {
+    /// This string with every atom visible only under `condition`, as
+    /// wrapping it in a `VisibilityRegion` would make it — text and element
+    /// boundaries untouched. Under `.always` it is returned as it is.
+    package func visible(under condition: VisibilityCondition) -> SemanticString {
+        var marked = self
+        marked.markAtoms(from: 0, visibleUnder: condition)
+        return marked
     }
 }

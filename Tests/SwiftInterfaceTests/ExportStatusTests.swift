@@ -54,7 +54,7 @@ final class ExportStatusTests: MachOFileTests, @unchecked Sendable {
             switch typeDefinition.exportStatus {
             case .exported: exportedCount += 1
             case .notExported: notExportedCount += 1
-            case .imageHasNoExportInformation, .descriptorSymbolNameUnresolvable, .declarationHasNoSymbol:
+            case .imageHasNoExportInformation, .descriptorSymbolNameUnresolvable, .declarationHasNoSymbol, .declarationIsCImported:
                 Issue.record("\(typeDefinition.typeName.name) reached a no-verdict case on an image that has an export trie")
             }
         }
@@ -81,7 +81,7 @@ final class ExportStatusTests: MachOFileTests, @unchecked Sendable {
             switch protocolDefinition.exportStatus {
             case .exported: exportedCount += 1
             case .notExported: notExportedCount += 1
-            case .imageHasNoExportInformation, .descriptorSymbolNameUnresolvable, .declarationHasNoSymbol:
+            case .imageHasNoExportInformation, .descriptorSymbolNameUnresolvable, .declarationHasNoSymbol, .declarationIsCImported:
                 Issue.record("\(protocolDefinition.protocolName.name) reached a no-verdict case on an image that has an export trie")
             }
         }
@@ -126,6 +126,24 @@ final class ExportStatusTests: MachOFileTests, @unchecked Sendable {
         #expect(privateProtocol.exportStatus == .notExported)
     }
 
+    /// The fixture's one C-imported type, `CMTimeFlags`, carries a descriptor
+    /// the image emitted as its own copy — a private external, never in the
+    /// trie — so it reads as no verdict rather than as "not exported"
+    /// (evolution proposal `exported-only-marking-mode`). The verdict comes
+    /// from the descriptor's module, so it holds for any C type the indexer
+    /// shows.
+    @Test func cImportedTypeIsNotRuledOn() async throws {
+        let unsafeMachOFile = machOFile
+        let indexer = SwiftDeclarationIndexer(configuration: .init(showCImportedTypes: true), eventHandlers: [], in: machOFile)
+        try await indexer.prepare()
+        let cImportedType = try #require(indexer.allTypeDefinitions.values.first { typeDefinition in
+            let offset = typeDefinition.typeContextDescriptorWrapper.typeContextDescriptor.offset
+            return SymbolIndexStore.shared.symbols(for: offset, in: unsafeMachOFile)?.contains { $0.name == "_$sSo11CMTimeFlagsVMn" } == true
+        })
+        #expect(SymbolIndexStore.shared.isExported(name: "_$sSo11CMTimeFlagsVMn", in: unsafeMachOFile) == false)
+        #expect(cImportedType.exportStatus == .declarationIsCImported)
+    }
+
     /// Why the descriptor-symbol leg is not optional:
     /// `Generics.GenericRequirementTest.RawRepresentableNestedStruct` is
     /// `public` and exported, but it is declared inside a CONSTRAINED
@@ -153,11 +171,13 @@ final class ExportStatusTests: MachOFileTests, @unchecked Sendable {
 /// The projections, which every consumer rule is written against.
 @Suite
 struct ExportStatusProjectionTests {
-    @Test func isExportedProjectsBothNoVerdictCasesToNil() {
+    @Test func isExportedProjectsEveryNoVerdictCaseToNil() {
         #expect(ExportStatus.exported.isExported == true)
         #expect(ExportStatus.notExported.isExported == false)
         #expect(ExportStatus.imageHasNoExportInformation.isExported == nil)
         #expect(ExportStatus.descriptorSymbolNameUnresolvable.isExported == nil)
+        #expect(ExportStatus.declarationHasNoSymbol.isExported == nil)
+        #expect(ExportStatus.declarationIsCImported.isExported == nil)
     }
 
     /// The rule proposals 0008 / 0016 are built on: act only on a definitive
@@ -167,5 +187,7 @@ struct ExportStatusProjectionTests {
         #expect(!ExportStatus.exported.isDefinitelyNotExported)
         #expect(!ExportStatus.imageHasNoExportInformation.isDefinitelyNotExported)
         #expect(!ExportStatus.descriptorSymbolNameUnresolvable.isDefinitelyNotExported)
+        #expect(!ExportStatus.declarationHasNoSymbol.isDefinitelyNotExported)
+        #expect(!ExportStatus.declarationIsCImported.isDefinitelyNotExported)
     }
 }

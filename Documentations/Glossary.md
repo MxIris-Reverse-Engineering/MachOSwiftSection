@@ -164,10 +164,10 @@ Requirement Machine 最小化泛型签名时，把 pin 到同一具体类型的�
 
 ### exported-only 过滤（`--exported-only`，`printExportedDeclarationsOnly`）
 
-export status 的**过滤形态**：interface 只输出镜像导出的声明。类型 / 协议按描述符符号（`…Mn` / `…Mp`，优先取描述符 offset 处的符号，重整名只兜底）裁决，成员沿用 export status 的派生形态判定，扩展按「被扩展类型 / 遵循协议是否为本镜像内未导出声明」裁决（依据 **`ExportFilterScope`**——`printRoot` 从索引器表算出的本镜像内未导出 `TypeName` / `ProtocolName` 集合）。只在判定为 `false` 时删，`nil` 一律保留（绝不靠猜删）；普通扩展被清空则整块删，conformance 扩展留 `{}`。与 export status 是同一个事实的两种呈现：删除条件即标注条件，两开关同开输出零标注。
+export status 的**过滤形态**：interface 只输出镜像导出的声明。类型 / 协议按描述符符号（`…Mn` / `…Mp`，优先取描述符 offset 处的符号，重整名只兜底）裁决，成员沿用 export status 的派生形态判定，扩展按「被扩展类型 / 遵循协议是否为本镜像内未导出声明」裁决（依据 **`ExportFilterScope`**——`printRoot` 从索引器表算出的本镜像内未导出 `TypeName` / `ProtocolName` 集合）。只在判定为 `false` 时删，`nil` 一律保留（绝不靠猜删）；普通扩展被清空则整块删，conformance 扩展留 `{}`。与 export status 是同一个事实的两种呈现：删除条件即标注条件，两开关同开输出零标注。C 导入类型（`__C` 模块）不裁决：它的描述符是本镜像自己的副本。标记模式下被删的内容照常打出，条件是 `swift.printExportedDeclarationsOnly` 关着。
 
 - **主要出现在**：`Sources/Output/SwiftPrinting/SwiftDeclarationPrinter+ExportFilter.swift`、`SwiftInterfaceBuilder.printRoot()`
-- **延伸阅读**：[提案 0016](Evolutions/0016-exported-only-interface.md)、[ExportedOnlyInterfaceFiltering.md](Internal/ExportedOnlyInterfaceFiltering.md)
+- **延伸阅读**：[提案 0016](Evolutions/0016-exported-only-interface.md)、[draft-exported-only-marking-mode](Evolutions/draft-exported-only-marking-mode.md)、[ExportedOnlyInterfaceFiltering.md](Internal/ExportedOnlyInterfaceFiltering.md)
 
 ### emission strategy（发射策略）
 
@@ -232,10 +232,10 @@ sweep 覆盖范围之外的名字走的旁路：demangle 后 intern 进 `Storage
 
 ### marking mode（标记模式，`marksOptionalContent`）
 
-`SwiftDeclarationPrintConfiguration.marksOptionalContent` 为 `true` 时的打印：受显示选项控制的输出（偏移 / 地址 / 布局注释、stripped symbolic item、opaque 类型的约束、按 selector 名推断的 `@objc override`）不再由选项决定打不打，而是全部打出，包进 swift-semantic-string 的 `VisibilityRegion`，条件是对应的 `SwiftVisibilityOption`。条件记在原子的 `identifier` 上，所以文字与全部打开时逐字节相同。冻结后拆出区域表，按某组配置的 `isVisibilityOptionEnabled(_:resolvesOpaqueTypes:)` 投影，与按那组配置直接打印（「普通打印」，即该开关为 `false`）完全相同。「可见性区域」「投影」是 swift-semantic-string 的术语，定义见其 `docs/VisibilityRegions.md`；MachOObjCSection 的对应物叫 marked rendering（其提案 0011）。
+`SwiftDeclarationPrintConfiguration.marksOptionalContent` 为 `true` 时的打印：受显示选项控制的输出（偏移 / 地址 / 布局注释、stripped symbolic item、opaque 类型的约束、按 selector 名推断的 `@objc override`、exported-only 过滤删掉的声明）不再由选项决定打不打，而是全部打出，包进 swift-semantic-string 的 `VisibilityRegion`，条件是对应的 `SwiftVisibilityOption`。条件记在原子的 `identifier` 上，所以文字就是每段受控内容都打出来的全量文字（exported-only 过滤关着）。冻结后拆出区域表，按某组配置的 `isVisibilityOptionEnabled(_:resolvesOpaqueTypes:)` 投影，与按那组配置直接打印（「普通打印」，即该开关为 `false`）完全相同。「可见性区域」「投影」是 swift-semantic-string 的术语，定义见其 `docs/VisibilityRegions.md`；MachOObjCSection 的对应物叫 marked rendering（其提案 0011）。
 
 - **主要出现在**：`Sources/Output/SwiftPrinting/SwiftDeclarationPrinter+VisibilityRegions.swift`、`SwiftDeclarationPrintConfiguration.swift`、`Sources/Output/SwiftDeclarationRendering/DeclarationRenderConfiguration.swift`、`SwiftVisibilityOption.swift`
-- **延伸阅读**：[提案 0056](Evolutions/0056-visibility-regions.md)
+- **延伸阅读**：[提案 0056](Evolutions/0056-visibility-regions.md)；导出过滤进入标记模式：[draft-exported-only-marking-mode](Evolutions/draft-exported-only-marking-mode.md)
 
 ### materialize（物化）
 

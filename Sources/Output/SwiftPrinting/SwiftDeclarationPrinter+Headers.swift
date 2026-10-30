@@ -449,84 +449,97 @@ extension SwiftDeclarationPrinter {
         // member variable `x` renders instead; when `x`'s accessors are
         // stripped, `_x` stays in the list and the recovered declaration
         // prints in its place (`synthesizedPropertyWrapperMembers(of:)`).
+        // When marking, a field the filter rules out renders too, visible
+        // only while the filter is off, and the trailing break is visible
+        // whenever any field is (evolution proposal
+        // `exported-only-marking-mode`).
         let synthesizedPropertyWrapperMembers = synthesizedPropertyWrapperMembers(of: typeDefinition)
-        let renderedFields = Array(typeDefinition.fields.enumerated()).filter { !$0.element.flags.contains(.isArtificial) && !synthesizedPropertyWrapperMembers.hiddenFieldNames.contains($0.element.name) && (isEnum || !isExcludedByExportFilter(field: $0.element)) }
-        for (offset, indexedField) in renderedFields.offsetEnumerated() {
-            let fieldIndex = indexedField.offset
-            let field = indexedField.element
-            BreakLine()
-            let fieldRecord = fieldRecords[safe: fieldIndex]
-            let mangledTypeName = try fieldRecord?.mangledTypeName(in: machO.context)
-            // Per-record metadata comments (single source of truth with the
-            // `SwiftDump` dumpers): struct/class fields get the offset +
-            // type-layout block; enum cases get the type-layout + enum-layout
-            // block.
-            if let mangledTypeName {
-                if isEnum {
-                    try await fieldLayoutRenderer.enumCaseComments(forCaseAtIndex: fieldIndex, mangledTypeName: mangledTypeName, enumLayout: enumLayout)
-                } else {
-                    try await fieldLayoutRenderer.storedFieldComments(forFieldAtIndex: fieldIndex, mangledTypeName: mangledTypeName, fieldOffsets: fieldOffsets)
+        let renderedFields = Array(typeDefinition.fields.enumerated()).compactMap { indexedField -> (index: Int, field: FieldDefinition, visibility: VisibilityCondition)? in
+            guard !indexedField.element.flags.contains(.isArtificial),
+                  !synthesizedPropertyWrapperMembers.hiddenFieldNames.contains(indexedField.element.name),
+                  let visibility = isEnum ? .always : exportFilterVisibility(excluded: isExcludedByExportFilter(field: indexedField.element)) else { return nil }
+            return (indexedField.offset, indexedField.element, visibility)
+        }
+        for renderedField in renderedFields {
+            let fieldIndex = renderedField.index
+            let field = renderedField.field
+            try await VisibilityRegion(renderedField.visibility) {
+                BreakLine()
+                let fieldRecord = fieldRecords[safe: fieldIndex]
+                let mangledTypeName = try fieldRecord?.mangledTypeName(in: machO.context)
+                // Per-record metadata comments (single source of truth with the
+                // `SwiftDump` dumpers): struct/class fields get the offset +
+                // type-layout block; enum cases get the type-layout + enum-layout
+                // block.
+                if let mangledTypeName {
+                    if isEnum {
+                        try await fieldLayoutRenderer.enumCaseComments(forCaseAtIndex: fieldIndex, mangledTypeName: mangledTypeName, enumLayout: enumLayout)
+                    } else {
+                        try await fieldLayoutRenderer.storedFieldComments(forFieldAtIndex: fieldIndex, mangledTypeName: mangledTypeName, fieldOffsets: fieldOffsets)
+                    }
                 }
-            }
-            // A non-final stored `var`'s getter/setter occupy vtable slots
-            // (evolution proposal 0006) — surface them with the same comment
-            // the computed members get, so a stored property without any
-            // vtable comment genuinely is statically dispatched rather than
-            // silently unattributed (issue #106 §1).
-            if !isEnum {
-                for accessor in field.accessors {
-                    if let accessorVTableOffset = accessor.vtableOffset {
-                        renderConfiguration.optionalContent(.printVTableOffset) {
-                            renderConfiguration.vtableOffsetComment(slotOffset: accessorVTableOffset, label: accessor.kind.addressLabel)
+                // A non-final stored `var`'s getter/setter occupy vtable slots
+                // (evolution proposal 0006) — surface them with the same comment
+                // the computed members get, so a stored property without any
+                // vtable comment genuinely is statically dispatched rather than
+                // silently unattributed (issue #106 §1).
+                if !isEnum {
+                    for accessor in field.accessors {
+                        if let accessorVTableOffset = accessor.vtableOffset {
+                            renderConfiguration.optionalContent(.printVTableOffset) {
+                                renderConfiguration.vtableOffsetComment(slotOffset: accessorVTableOffset, label: accessor.kind.addressLabel)
+                            }
                         }
                     }
                 }
-            }
-            // Export status for stored `var`s whose accessor group joined
-            // (evolution proposal 0008): a field with no accessor symbols
-            // stays silent — "not checked", never "confirmed exported"; the
-            // header digest states this explicitly. The same two exemptions
-            // as `renderMember`: `override` accessors link through the
-            // parent's dispatch thunk, and an `@objc` accessor (identified
-            // by its `To` thunk's presence in the symbol population)
-            // dispatches through objc_msgSend.
-            if !isEnum, configuration.printExportStatus, !field.accessors.isEmpty, !field.isOverride {
-                @Dependency(\.symbolIndexStore) var symbolIndexStore
-                let hasObjCEntryPoint = field.accessors.contains { symbolIndexStore.containsSymbol(named: $0.symbol.name + "To", in: machO) }
-                if !hasObjCEntryPoint, exportVerdict(forSymbolNames: field.accessors.map(\.symbol.name)) == false {
-                    renderConfiguration.exportStatusComment()
+                // Export status for stored `var`s whose accessor group joined
+                // (evolution proposal 0008): a field with no accessor symbols
+                // stays silent — "not checked", never "confirmed exported"; the
+                // header digest states this explicitly. The same two exemptions
+                // as `renderMember`: `override` accessors link through the
+                // parent's dispatch thunk, and an `@objc` accessor (identified
+                // by its `To` thunk's presence in the symbol population)
+                // dispatches through objc_msgSend.
+                if !isEnum, configuration.printExportStatus, !field.accessors.isEmpty, !field.isOverride {
+                    @Dependency(\.symbolIndexStore) var symbolIndexStore
+                    let hasObjCEntryPoint = field.accessors.contains { symbolIndexStore.containsSymbol(named: $0.symbol.name + "To", in: machO) }
+                    if !hasObjCEntryPoint, exportVerdict(forSymbolNames: field.accessors.map(\.symbol.name)) == false {
+                        renderConfiguration.exportStatusComment()
+                    }
                 }
-            }
-            let substitutedTypeNode: Node? = {
-                if let staticSpecialization {
-                    return StaticSpecializationNodeSubstitution.substitutedTypeNode(
-                        of: field.typeNode.materialize(),
-                        binding: staticSpecialization,
-                        staticFieldLayoutProvider: renderConfiguration.staticFieldLayoutProvider,
-                        in: machO
-                    )
-                }
-                guard let specializedMetadata, let specializedMachOImage, let mangledTypeName else { return nil }
-                return SpecializedMetadataNodeSubstitution.substitutedFieldTypeNode(for: mangledTypeName, metadata: specializedMetadata, in: specializedMachOImage)
-            }()
-            Indent(level: level)
-            if isEnum {
-                // Payload presence follows the field record's mangled type name
-                // (the model's `.hasMangledTypeName` flag) — the pre-refactor
-                // `EnumDumper` gating — so a `Void` payload keeps its
-                // parentheses and both paths spell the same case.
-                try await printThrowingEnumCase(field, level: level, substitutedTypeNode: substitutedTypeNode)
-            } else if let synthesizedWrappedProperty = synthesizedPropertyWrapperMembers.synthesizedDeclaration(inPlaceOfField: field) {
-                // The field's layout comments above still describe this
-                // storage; the declaration is the source's, recovered from it.
-                Comment(FieldRecordRendering.synthesizedWrappedPropertyComment(backingFieldName: field.name))
-                BreakLine()
+                let substitutedTypeNode: Node? = {
+                    if let staticSpecialization {
+                        return StaticSpecializationNodeSubstitution.substitutedTypeNode(
+                            of: field.typeNode.materialize(),
+                            binding: staticSpecialization,
+                            staticFieldLayoutProvider: renderConfiguration.staticFieldLayoutProvider,
+                            in: machO
+                        )
+                    }
+                    guard let specializedMetadata, let specializedMachOImage, let mangledTypeName else { return nil }
+                    return SpecializedMetadataNodeSubstitution.substitutedFieldTypeNode(for: mangledTypeName, metadata: specializedMetadata, in: specializedMachOImage)
+                }()
                 Indent(level: level)
-                try await printThrowingSynthesizedWrappedProperty(synthesizedWrappedProperty, level: level)
-            } else {
-                try await printThrowingField(field, level: level, substitutedTypeNode: substitutedTypeNode)
+                if isEnum {
+                    // Payload presence follows the field record's mangled type name
+                    // (the model's `.hasMangledTypeName` flag) — the pre-refactor
+                    // `EnumDumper` gating — so a `Void` payload keeps its
+                    // parentheses and both paths spell the same case.
+                    try await printThrowingEnumCase(field, level: level, substitutedTypeNode: substitutedTypeNode)
+                } else if let synthesizedWrappedProperty = synthesizedPropertyWrapperMembers.synthesizedDeclaration(inPlaceOfField: field) {
+                    // The field's layout comments above still describe this
+                    // storage; the declaration is the source's, recovered from it.
+                    Comment(FieldRecordRendering.synthesizedWrappedPropertyComment(backingFieldName: field.name))
+                    BreakLine()
+                    Indent(level: level)
+                    try await printThrowingSynthesizedWrappedProperty(synthesizedWrappedProperty, level: level)
+                } else {
+                    try await printThrowingField(field, level: level, substitutedTypeNode: substitutedTypeNode)
+                }
             }
-            if offset.isEnd {
+        }
+        if !renderedFields.isEmpty {
+            VisibilityRegion(.any(renderedFields.map(\.visibility))) {
                 BreakLine()
             }
         }

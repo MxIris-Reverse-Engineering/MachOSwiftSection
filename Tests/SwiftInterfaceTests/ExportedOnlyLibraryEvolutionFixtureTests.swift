@@ -4,166 +4,34 @@ import MachOKit
 import Semantic
 @_spi(Internals) @testable import MachOSymbols
 @testable import MachOSwiftSection
+import SwiftDeclaration
+@_spi(Support) import SwiftIndexing
 @_spi(Support) @testable import SwiftPrinting
 @_spi(Support) @testable import SwiftInterface
+import MachOTestingSupport
 
 /// The exported-only filter (evolution proposal
-/// `exported-only-interface`) over `internal` declarations — the
-/// shape `SymbolTestsCore` cannot pin, because that fixture is built with
-/// `ENABLE_TESTABILITY` and exports its internals. This module is compiled
-/// on the fly with `-enable-library-evolution` and WITHOUT `-enable-testing`,
-/// so every `internal` declaration is a local symbol and the filter has a
-/// definitive negative to act on for: a type, a nested type, a protocol and
-/// its default implementation, a method, a stored property, a global, a
-/// conformance to an internal protocol, and a constrained extension whose
-/// members are all internal.
+/// `exported-only-interface`) over `internal` declarations, on the
+/// on-the-fly `ExportedOnlyFixture` module (see its documentation for the
+/// shapes it carries and why `SymbolTestsCore` cannot pin them).
 @Suite(.serialized)
 struct ExportedOnlyLibraryEvolutionFixtureTests {
-    private enum FixtureWorkingDirectoryCleanup {
-        nonisolated(unsafe) static var directories: [URL] = []
-        static let registration: Void = {
-            atexit {
-                for directory in FixtureWorkingDirectoryCleanup.directories {
-                    try? FileManager.default.removeItem(at: directory)
-                }
-            }
-        }()
-    }
-
-    /// The `Anchor` class is load-bearing fixture ballast: a struct-only
-    /// module compiles to a dylib with no `__DATA` segment, whose
-    /// chained-fixup pages MachOKit releases before 0.52.103 mis-walked (see
-    /// `DiffMemberIndentationTests`). `@inline(never)` keeps the internal
-    /// members' symbols from being folded away.
-    private static let fixtureSource = """
-    public struct PublicShape {
-        public var title: String
-        var internalNote: String
-        public init(title: String, internalNote: String) {
-            self.title = title
-            self.internalNote = internalNote
-        }
-        public func publicMethod() {}
-        @inline(never) func internalMethod() {}
-        public struct PublicNested {}
-        struct InternalNested {}
-    }
-    struct InternalShape {
-        var value: Int
-    }
-    extension InternalShape {
-        @inline(never) func orphanMethod() {}
-    }
-    public protocol PublicContract {
-        func requirement()
-    }
-    protocol InternalContract {
-        func hidden()
-    }
-    extension InternalContract {
-        @inline(never) func hiddenDefault() {}
-    }
-    extension PublicShape: PublicContract {
-        public func requirement() {}
-    }
-    extension PublicShape: InternalContract {
-        @inline(never) func hidden() {}
-    }
-    public struct PublicBox<Element> {
-        public var element: Element
-        public init(element: Element) { self.element = element }
-    }
-    extension PublicBox where Element == Int {
-        @inline(never) func internalConstrainedMember() {}
-    }
-    extension PublicBox where Element == String {
-        public func publicConstrainedMember() {}
-    }
-    public struct PublicPair<Element> {
-        public var first: Element
-        public var second: Element
-        public init(first: Element, second: Element) {
-            self.first = first
-            self.second = second
-        }
-    }
-    extension PublicPair where Element == Int {
-        @inline(never) func internalOnlyConstrainedMember() {}
-    }
-    public enum PublicEnum {
-        case alpha
-        case beta
-    }
-    public class Anchor {
-        public func run() {}
-    }
-    public func publicGlobal() {}
-    @inline(never) func internalGlobal() {}
-    """
-
-    // `Swift.Error` spelled out: the `Semantic` import brings its own `Error`
-    // type into scope, which would otherwise win the lookup.
-    private static let fixtureCompilationResult: Result<URL, Swift.Error> = {
-        Result {
-            let workingDirectory = FileManager.default.temporaryDirectory
-                .appendingPathComponent("ExportedOnlyFixture-\(UUID().uuidString)")
-            try FileManager.default.createDirectory(at: workingDirectory, withIntermediateDirectories: true)
-            _ = FixtureWorkingDirectoryCleanup.registration
-            FixtureWorkingDirectoryCleanup.directories.append(workingDirectory)
-
-            let sourceURL = workingDirectory.appendingPathComponent("ExportedOnlyFixture.swift")
-            let libraryURL = workingDirectory.appendingPathComponent("libExportedOnlyFixture.dylib")
-            try fixtureSource.write(to: sourceURL, atomically: true, encoding: .utf8)
-
-            let process = Process()
-            process.executableURL = URL(fileURLWithPath: "/usr/bin/xcrun")
-            process.arguments = [
-                "swiftc", "-emit-library", "-enable-library-evolution",
-                "-module-name", "ExportedOnlyFixture",
-                sourceURL.path, "-o", libraryURL.path,
-            ]
-            let standardErrorPipe = Pipe()
-            process.standardError = standardErrorPipe
-            try process.run()
-            // Drain BEFORE waitUntilExit — see LegacyDyldInfoBindTests.
-            let diagnosticsData = standardErrorPipe.fileHandleForReading.readDataToEndOfFile()
-            process.waitUntilExit()
-            guard process.terminationStatus == 0 else {
-                let diagnostics = String(decoding: diagnosticsData, as: UTF8.self)
-                throw FixtureCompilationError(diagnostics: diagnostics)
-            }
-            return libraryURL
-        }
-    }()
-
-    private struct FixtureCompilationError: Swift.Error, CustomStringConvertible {
-        let diagnostics: String
-        var description: String { "Exported-only fixture compilation failed:\n\(diagnostics)" }
-    }
-
-    private func loadFixtureMachOFile() throws -> MachOFile {
-        let libraryURL = try Self.fixtureCompilationResult.get()
-        let file = try MachOKit.loadFromFile(url: libraryURL)
-        switch file {
-        case .machO(let machOFile):
-            return machOFile
-        case .fat(let fatFile):
-            let machOFile = try fatFile.machOFiles().first { $0.header.cpuType == .arm64 }
-            return try #require(machOFile, "fixture unexpectedly missing an arm64 slice")
-        }
-    }
-
-    private func buildOutput(exportedOnly: Bool) async throws -> (output: String, machOFile: MachOFile) {
-        let machOFile = try loadFixtureMachOFile()
+    private func makePreparedBuilder(exportedOnly: Bool, showsCImportedTypes: Bool = false) async throws -> SwiftInterfaceBuilder<MachOFile> {
+        let machOFile = try ExportedOnlyFixture.machOFile()
         var printConfiguration = SwiftDeclarationPrintConfiguration()
         printConfiguration.printExportedDeclarationsOnly = exportedOnly
         let builder = try SwiftInterfaceBuilder(
-            configuration: .init(printConfiguration: printConfiguration),
+            configuration: .init(indexConfiguration: .init(showCImportedTypes: showsCImportedTypes), printConfiguration: printConfiguration),
             eventHandlers: [],
             in: machOFile
         )
         try await builder.prepare()
-        return (try await builder.printRoot().string, machOFile)
+        return builder
+    }
+
+    private func buildOutput(exportedOnly: Bool, showsCImportedTypes: Bool = false) async throws -> (output: String, machOFile: MachOFile) {
+        let builder = try await makePreparedBuilder(exportedOnly: exportedOnly, showsCImportedTypes: showsCImportedTypes)
+        return (try await builder.printRoot().string, builder.machO)
     }
 
     /// The premise every assertion below rests on: without `-enable-testing`
@@ -257,6 +125,30 @@ struct ExportedOnlyLibraryEvolutionFixtureTests {
         #expect(!filteredOutput.contains("func internalGlobal()"))
         #expect(filteredOutput.contains("case alpha"))
         #expect(filteredOutput.contains("case beta"))
+    }
+
+    /// A C-imported type's descriptor is a copy each module using the type
+    /// emits for itself, under non-unique linkage, so no image exports it
+    /// and it says nothing about whether the type can be used from outside
+    /// (evolution proposal `exported-only-marking-mode`). Read as "not
+    /// exported", it put the type into the filter's scope once
+    /// `showCImportedTypes` indexed it, and the filter dropped the type along
+    /// with this image's public extension of it and its public conformance.
+    @Test func cImportedTypeIsNotRuledOnAndItsPublicExtensionsAreKept() async throws {
+        let builder = try await makePreparedBuilder(exportedOnly: true, showsCImportedTypes: true)
+        let cImportedTypeDefinition = try #require(builder.indexer.allTypeDefinitions.values.first { $0.typeName.name.hasSuffix("CGPoint") })
+        #expect(!cImportedTypeDefinition.exportStatus.isDefinitelyNotExported)
+        #expect(cImportedTypeDefinition.exportStatus == .declarationIsCImported)
+
+        let (defaultOutput, _) = try await buildOutput(exportedOnly: false, showsCImportedTypes: true)
+        #expect(defaultOutput.contains("struct CGPoint {"))
+        #expect(defaultOutput.contains("CGPoint: ExportedOnlyFixture.PublicContract {"))
+        #expect(defaultOutput.contains("func publicCImportedTypeMember()"))
+
+        let filteredOutput = try await builder.printRoot().string
+        #expect(filteredOutput.contains("struct CGPoint {"))
+        #expect(filteredOutput.contains("CGPoint: ExportedOnlyFixture.PublicContract {"))
+        #expect(filteredOutput.contains("func publicCImportedTypeMember()"))
     }
 
     @Test func filteredOutputHasNoBlankLineArtifacts() async throws {

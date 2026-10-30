@@ -46,7 +46,8 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
     /// The in-image non-exported declaration names the exported-only filter
     /// consults for `extension` targets — installed by
     /// `installExportFilterScope(types:protocols:)`, consulted only while
-    /// `configuration.printExportedDeclarationsOnly` is set.
+    /// `configuration.printExportedDeclarationsOnly` or
+    /// `configuration.marksOptionalContent` is set.
     @Mutex
     var exportFilterScope: ExportFilterScope = .empty
 
@@ -245,6 +246,8 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
     /// an empty result every enclosing `BlockList` / `NestedDeclaration`
     /// skips without a stray break. Ruled before the start event, so a
     /// filtered definition leaves no unpaired `definitionPrintStarted`.
+    /// When marking, it prints as usual, visible only while the filter is
+    /// off (evolution proposal `exported-only-marking-mode`).
     ///
     /// The four per-definition entries (`printTypeDefinition` /
     /// `printProtocolDefinition` / `printExtensionDefinition` /
@@ -256,10 +259,10 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
     /// from a parent's nested-children loop the task is already on the
     /// executor and the wrap is a no-op.
     public func printTypeDefinition(_ typeDefinition: TypeDefinition, level: Int = 1, displayParentName: Bool = false) async throws -> SemanticString {
-        guard !isExcludedByExportFilter(typeDefinition) else { return SemanticString() }
+        guard let visibility = exportFilterVisibility(excluded: isExcludedByExportFilter(typeDefinition)) else { return SemanticString() }
         return try await LargeStackTaskExecution.run {
             try await printIncludedTypeDefinition(typeDefinition, level: level, displayParentName: displayParentName)
-        }
+        }.visible(under: visibility)
     }
 
     @SemanticStringBuilder
@@ -387,9 +390,11 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
                 }
             }
 
-            try await renderModelFields(typeDefinition, typeContext: materializedTypeContext, level: level)
+            try await bodyAfterNestedDefinitions(of: typeDefinition) {
+                try await renderModelFields(typeDefinition, typeContext: materializedTypeContext, level: level)
 
-            try await printDefinition(typeDefinition, level: level)
+                try await printDefinition(typeDefinition, level: level)
+            }
         }
 
         eventDispatcher.dispatch(.definitionPrintCompleted(context: printingContext))
@@ -397,12 +402,13 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
 
     /// Exported-only gate, same contract as `printTypeDefinition`: a protocol
     /// whose descriptor provably is not exported renders as nothing — its
-    /// trailing default-implementation extensions go with it.
+    /// trailing default-implementation extensions go with it — or, when
+    /// marking, as usual, visible only while the filter is off.
     public func printProtocolDefinition(_ protocolDefinition: ProtocolDefinition, level: Int = 1, displayParentName: Bool = false) async throws -> SemanticString {
-        guard !isExcludedByExportFilter(protocolDefinition) else { return SemanticString() }
+        guard let visibility = exportFilterVisibility(excluded: isExcludedByExportFilter(protocolDefinition)) else { return SemanticString() }
         return try await LargeStackTaskExecution.run {
             try await printIncludedProtocolDefinition(protocolDefinition, level: level, displayParentName: displayParentName)
-        }
+        }.visible(under: visibility)
     }
 
     @SemanticStringBuilder
@@ -494,12 +500,13 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
     /// `index(in:)` provides, so that rule is evaluated after the start
     /// event and the index — and reports a paired completion around an
     /// empty result, keeping the event stream's start/completion pairing
-    /// intact on that path too.
+    /// intact on that path too. When marking, either prints as usual,
+    /// visible only while the filter is off.
     public func printExtensionDefinition(_ extensionDefinition: ExtensionDefinition, level: Int = 1) async throws -> SemanticString {
-        guard !isExcludedByExportFilter(extensionDefinition) else { return SemanticString() }
+        guard let visibility = exportFilterVisibility(excluded: isExcludedByExportFilter(extensionDefinition)) else { return SemanticString() }
         return try await LargeStackTaskExecution.run {
             try await printExtensionDefinitionContents(extensionDefinition, level: level)
-        }
+        }.visible(under: visibility)
     }
 
     private func printExtensionDefinitionContents(_ extensionDefinition: ExtensionDefinition, level: Int) async throws -> SemanticString {
@@ -509,10 +516,10 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
         try extensionDefinition.index(in: machO)
 
         let rendered: SemanticString
-        if isEmptiedByExportFilter(extensionDefinition) {
-            rendered = SemanticString()
+        if let visibility = exportFilterVisibility(excluded: isEmptiedByExportFilter(extensionDefinition)) {
+            rendered = try await printIncludedExtensionDefinition(extensionDefinition, level: level).visible(under: visibility)
         } else {
-            rendered = try await printIncludedExtensionDefinition(extensionDefinition, level: level)
+            rendered = SemanticString()
         }
 
         eventDispatcher.dispatch(.definitionPrintCompleted(context: printingContext))
@@ -568,16 +575,18 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
                 }
             }
 
-            if !extensionDefinition.associatedTypes.isEmpty {
-                try await renderMergedAssociatedTypeRecords(of: extensionDefinition.associatedTypes, level: 1)
+            try await bodyAfterNestedDefinitions(of: extensionDefinition) {
+                if !extensionDefinition.associatedTypes.isEmpty {
+                    try await renderMergedAssociatedTypeRecords(of: extensionDefinition.associatedTypes, level: 1)
+                }
+
+                // Stored properties of an `@objc @implementation` that no member
+                // definition represents (no accessor symbol survived) — rendered
+                // from the ObjC ivar list, ahead of the symbol-derived members.
+                await renderUnrepresentedObjCImplementationInstanceVariables(extensionDefinition, level: 1)
+
+                try await printDefinition(extensionDefinition, level: 1)
             }
-
-            // Stored properties of an `@objc @implementation` that no member
-            // definition represents (no accessor symbol survived) — rendered
-            // from the ObjC ivar list, ahead of the symbol-derived members.
-            await renderUnrepresentedObjCImplementationInstanceVariables(extensionDefinition, level: 1)
-
-            try await printDefinition(extensionDefinition, level: 1)
         }
     }
 
@@ -721,8 +730,11 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
         let synthesizedPropertyWrapperMembers = synthesizedPropertyWrapperMembers(of: definition)
         let enclosingNodes = headerNameNodes(of: definition)
         await MemberList(level: level) {
-            for member in definition.orderedMembers where !isExcludedByExportFilter(member) && !synthesizedPropertyWrapperMembers.contains(member) {
-                await renderMember(member, level: level, offsetCommentPrefix: offsetCommentPrefix, offsetCommentOption: offsetCommentOption, printExportStatus: printExportStatus, vtableTransformerClosure: vtableTransformerClosure, synthesizedPropertyWrapperMembers: synthesizedPropertyWrapperMembers, enclosingNodes: enclosingNodes)
+            for member in definition.orderedMembers where !synthesizedPropertyWrapperMembers.contains(member) {
+                if let visibility = exportFilterVisibility(excluded: isExcludedByExportFilter(member)) {
+                    await renderMember(member, level: level, offsetCommentPrefix: offsetCommentPrefix, offsetCommentOption: offsetCommentOption, printExportStatus: printExportStatus, vtableTransformerClosure: vtableTransformerClosure, synthesizedPropertyWrapperMembers: synthesizedPropertyWrapperMembers, enclosingNodes: enclosingNodes)
+                        .visible(under: visibility)
+                }
             }
 
             // Terminal step: emit `deinit` for classes and noncopyable
@@ -764,14 +776,20 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
         // class body has vtable members, so every other definition renders
         // exactly as before.
         await MemberList(level: level) {
-            for member in OrderedMember.vtableOrdered(OrderedMember.allMembers(from: definition)) where !isExcludedByExportFilter(member) && !synthesizedPropertyWrapperMembers.contains(member) {
-                await renderMember(member, level: level, offsetCommentPrefix: offsetCommentPrefix, offsetCommentOption: offsetCommentOption, printExportStatus: printExportStatus, vtableTransformerClosure: vtableTransformerClosure, synthesizedPropertyWrapperMembers: synthesizedPropertyWrapperMembers, enclosingNodes: enclosingNodes)
+            for member in OrderedMember.vtableOrdered(OrderedMember.allMembers(from: definition)) where !synthesizedPropertyWrapperMembers.contains(member) {
+                if let visibility = exportFilterVisibility(excluded: isExcludedByExportFilter(member)) {
+                    await renderMember(member, level: level, offsetCommentPrefix: offsetCommentPrefix, offsetCommentOption: offsetCommentOption, printExportStatus: printExportStatus, vtableTransformerClosure: vtableTransformerClosure, synthesizedPropertyWrapperMembers: synthesizedPropertyWrapperMembers, enclosingNodes: enclosingNodes)
+                        .visible(under: visibility)
+                }
             }
         }
         for category in MemberCategory.allCases {
             await MemberList(level: level) {
-                for member in definition.members(in: category) where member.minVTableOffset == nil && !isExcludedByExportFilter(member) && !synthesizedPropertyWrapperMembers.contains(member) {
-                    await renderMember(member, level: level, offsetCommentPrefix: offsetCommentPrefix, offsetCommentOption: offsetCommentOption, printExportStatus: printExportStatus, vtableTransformerClosure: vtableTransformerClosure, synthesizedPropertyWrapperMembers: synthesizedPropertyWrapperMembers, enclosingNodes: enclosingNodes)
+                for member in definition.members(in: category) where member.minVTableOffset == nil && !synthesizedPropertyWrapperMembers.contains(member) {
+                    if let visibility = exportFilterVisibility(excluded: isExcludedByExportFilter(member)) {
+                        await renderMember(member, level: level, offsetCommentPrefix: offsetCommentPrefix, offsetCommentOption: offsetCommentOption, printExportStatus: printExportStatus, vtableTransformerClosure: vtableTransformerClosure, synthesizedPropertyWrapperMembers: synthesizedPropertyWrapperMembers, enclosingNodes: enclosingNodes)
+                            .visible(under: visibility)
+                    }
                 }
             }
         }

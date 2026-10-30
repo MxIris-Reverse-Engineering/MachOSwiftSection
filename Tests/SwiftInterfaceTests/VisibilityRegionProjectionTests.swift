@@ -52,6 +52,7 @@ final class VisibilityRegionProjectionTests: MachOSwiftSectionFixtureTests, @unc
         configuration.printTypeLayout = options.contains(.printTypeLayout)
         configuration.printEnumLayout = options.contains(.printEnumLayout)
         configuration.infersObjCOverridesFromSelectorNames = options.contains(.infersObjCOverridesFromSelectorNames)
+        configuration.printExportedDeclarationsOnly = options.contains(.printExportedDeclarationsOnly)
         return configuration
     }
 
@@ -68,7 +69,9 @@ final class VisibilityRegionProjectionTests: MachOSwiftSectionFixtureTests, @unc
     }
 
     /// Prints every declaration marked and plainly under every combination,
-    /// and describes the first few whose projection differs.
+    /// and describes the first few whose projection differs. Every printer
+    /// carries the same export filter scope, as a host printing one
+    /// declaration at a time installs it.
     private static func mismatches<MachO>(
         in machO: MachO,
         optionCombinations: [Set<SwiftVisibilityOption>]
@@ -81,6 +84,9 @@ final class VisibilityRegionProjectionTests: MachOSwiftSectionFixtureTests, @unc
         let markedPrinter = makePrinter(markedConfiguration, resolvesOpaqueTypes: true, in: machO)
         let plainPrinters = optionCombinations.map { options in
             (options, configuration(enabling: options), makePrinter(configuration(enabling: options), resolvesOpaqueTypes: options.contains(.opaqueTypeResolution), in: machO))
+        }
+        for printer in [markedPrinter] + plainPrinters.map(\.2) {
+            printer.installExportFilterScope(types: indexer.allTypeDefinitions.values, protocols: indexer.allProtocolDefinitions.values)
         }
 
         typealias Printing = (SwiftDeclarationPrinter<MachO>) async throws -> SemanticString
@@ -129,5 +135,50 @@ final class VisibilityRegionProjectionTests: MachOSwiftSectionFixtureTests, @unc
         let result = try await Self.mismatches(in: machOFile, optionCombinations: Self.optionCombinations(varying: Self.layoutOptions))
         #expect(result.checkedDeclarationCount > 100)
         #expect(result.mismatches.isEmpty, "\(result.mismatches.joined(separator: "\n\n"))")
+    }
+
+    // MARK: - The exported-only filter
+
+    /// The exported-only filter over `internal` declarations, which
+    /// `SymbolTestsCore` exports (evolution proposal
+    /// `exported-only-marking-mode`): a definition, member, stored property
+    /// or extension the filter leaves out is marked instead, and the
+    /// separators and line breaks around it go with it. `ExportedOnlyFixture`
+    /// carries the bodies whose last line break only the filter decides —
+    /// nested types kept, everything after them left out.
+    @Test func exportedOnlyFixturePrintsProjectToTheFilterBothWays() async throws {
+        let result = try await Self.mismatches(in: ExportedOnlyFixture.machOFile(), optionCombinations: Self.optionCombinations(varying: [.printExportedDeclarationsOnly]))
+        #expect(result.checkedDeclarationCount > 20)
+        #expect(result.mismatches.isEmpty, "\(result.mismatches.joined(separator: "\n\n"))")
+    }
+
+    /// The whole interface, `printRoot()`, which also leaves out globals and
+    /// installs the export filter scope by itself.
+    @Test func exportedOnlyFixtureRootPrintProjectsToTheFilterBothWays() async throws {
+        let machOFile = try ExportedOnlyFixture.machOFile()
+        var markedConfiguration = SwiftDeclarationPrintConfiguration()
+        markedConfiguration.marksOptionalContent = true
+        let separated = try await Self.rootPrint(of: machOFile, configuration: markedConfiguration).frozen().separatingVisibilityRegions()
+
+        var plainPrints: [FrozenSemanticString] = []
+        for printsExportedDeclarationsOnly in [false, true] {
+            var plainConfiguration = SwiftDeclarationPrintConfiguration()
+            plainConfiguration.printExportedDeclarationsOnly = printsExportedDeclarationsOnly
+            let expected = try await Self.rootPrint(of: machOFile, configuration: plainConfiguration).frozen()
+            let projected = separated.regions.projection(of: separated.text) {
+                plainConfiguration.isVisibilityOptionEnabled($0, resolvesOpaqueTypes: false)
+            }.text
+            #expect(projected == expected, "printExportedDeclarationsOnly \(printsExportedDeclarationsOnly):\n\(projected.string)\n--- expected ---\n\(expected.string)")
+            plainPrints.append(expected)
+        }
+        // Not vacuous: the filter leaves something out at the top level.
+        #expect(plainPrints[0].string.contains("func internalGlobal()"))
+        #expect(!plainPrints[1].string.contains("func internalGlobal()"))
+    }
+
+    private static func rootPrint(of machOFile: MachOFile, configuration: SwiftDeclarationPrintConfiguration) async throws -> SemanticString {
+        let builder = try SwiftInterfaceBuilder(configuration: .init(printConfiguration: configuration), eventHandlers: [], in: machOFile)
+        try await builder.prepare()
+        return try await builder.printRoot()
     }
 }

@@ -79,7 +79,12 @@ public struct SwiftDeclarationPrintConfiguration: Equatable, Sendable {
     /// `ExportFilterScope`). Still a symbol-table FACT: a declaration is
     /// dropped only on a definitive negative — anything without evidence
     /// (no export information, no joined symbols, `override` / `@objc`
-    /// members) is kept, so the filter never drops on a guess.
+    /// members, a C-imported type) is kept, so the filter never drops on a
+    /// guess.
+    ///
+    /// A marked print (`marksOptionalContent`) leaves nothing out for it: it
+    /// prints what the filter rules out in a region visible only while this
+    /// is off (evolution proposal `exported-only-marking-mode`).
     public var printExportedDeclarationsOnly: Bool = false
 
     /// Whether to act on the ObjC member recovery's NAME-only evidence tier
@@ -132,10 +137,15 @@ public struct SwiftDeclarationPrintConfiguration: Equatable, Sendable {
     /// projected with `isVisibilityOptionEnabled(_:resolvesOpaqueTypes:)` of
     /// some configuration, reads byte for byte as printing with that
     /// configuration. Everything else here — the transformers, the sort
-    /// order, the export options — applies as usual.
+    /// order, the `// not exported` annotation (`printExportStatus`) —
+    /// applies as usual.
     ///
     /// For the opaque type constraints to be there to mark, register the
-    /// opaque type resolver as for a normal print.
+    /// opaque type resolver as for a normal print. For the exported-only
+    /// filter to rule on extensions, install the export filter scope
+    /// (`SwiftDeclarationPrinter.installExportFilterScope(types:protocols:)`)
+    /// as for a normal print with the filter on — `SwiftInterfaceBuilder`'s
+    /// `printRoot()` installs it for a marked print too.
     public var marksOptionalContent: Bool = false
 
     /// Wrap every nested type and protocol printed inside its parent — a
@@ -198,6 +208,7 @@ extension SwiftDeclarationPrintConfiguration {
         case .printTypeLayout: printTypeLayout
         case .printEnumLayout: printEnumLayout
         case .infersObjCOverridesFromSelectorNames: infersObjCOverridesFromSelectorNames
+        case .printExportedDeclarationsOnly: printExportedDeclarationsOnly
         case .opaqueTypeResolution: resolvesOpaqueTypes
         }
     }

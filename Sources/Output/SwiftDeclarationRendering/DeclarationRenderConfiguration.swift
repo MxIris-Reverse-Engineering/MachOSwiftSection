@@ -123,7 +123,7 @@ extension DeclarationRenderConfiguration {
         case .printVTableOffset: printVTableOffset
         case .printTypeLayout: printTypeLayout
         case .printEnumLayout: printEnumLayout
-        case .printStrippedSymbolicItem, .printPWTOffset, .infersObjCOverridesFromSelectorNames, .opaqueTypeResolution: false
+        case .printStrippedSymbolicItem, .printPWTOffset, .infersObjCOverridesFromSelectorNames, .printExportedDeclarationsOnly, .opaqueTypeResolution: false
         }
     }
 

@@ -74,11 +74,11 @@ SwiftDeclaration 是**共享声明模型**：`SwiftIndexing` 往里填，`SwiftP
 
 ### 导出状态在构造时定死
 
-每个 `TypeDefinition` / `ProtocolDefinition` 带一个 `ExportStatus`（`exported` / `notExported` / `imageHasNoExportInformation` / `descriptorSymbolNameUnresolvable`），在构造时从声明自己的描述符符号解析一次，存成 `let`。`ObjCProtocolDefinition` 的永远是第五态 `declarationHasNoSymbol`：Swift 声明的 `@objc` 协议没有描述符，也没有任何自己的符号。所以 `SwiftDeclarationIndexer.prepare()` 一返回，整张表就都有值了，宿主可以逐行标注而不必抱着 Mach-O。
+每个 `TypeDefinition` / `ProtocolDefinition` 带一个 `ExportStatus`（`exported` / `notExported` / `imageHasNoExportInformation` / `descriptorSymbolNameUnresolvable` / `declarationIsCImported`），在构造时从声明自己的描述符解析一次，存成 `let`。描述符属于 `__C` 或 `__C_Synthesized` 模块时直接是 `declarationIsCImported`，不查 trie：编译器给 Clang 声明的是非唯一链接，每个用到这个 C 类型的模块各自生成一份描述符、谁都不导出，它说明不了类型能不能被外部使用，而本镜像给它写的扩展可以是公开 API（提案 [draft-exported-only-marking-mode](../../Evolutions/draft-exported-only-marking-mode.md)）。`ObjCProtocolDefinition` 的永远是 `declarationHasNoSymbol`：Swift 声明的 `@objc` 协议没有描述符，也没有任何自己的符号。所以 `SwiftDeclarationIndexer.prepare()` 一返回，整张表就都有值了，宿主可以逐行标注而不必抱着 Mach-O。
 
 `TypeDefinition.wrappedProperties` 是索引在 `index(in:)` 末尾算出的 property wrapper 用法（提案 [0041-interface-hides-compiler-synthesized-members](../../Evolutions/0041-interface-hides-compiler-synthesized-members.md)）：每个存储字段 `_x`，只要它的 nominal 类型有 `wrappedValue` accessor——先查本镜像符号索引（internal wrapper 也算），再经 `SwiftDeclarationRendering.PropertyWrapperTypeCatalog` 查本镜像与依赖闭包各镜像的导出 trie（SwiftUI 的 `@State` 用在 app 里）——就记一条 `WrappedPropertyDefinition`：属性名、`_x` / `$x` 的名字、attribute 类型节点（wrapper 恰一个泛型实参且等于被包装类型时省略实参），以及来源：`x` 自己的 accessor 符号还在就是 `declaredMember`；被 strip 了就 `synthesized(declaredTypeNode:hasSetter:)`，类型由 wrapper 的 `wrappedValue` 类型代入 `_x` 的泛型实参得到。`fields` 与 `variables` 里的 `_x`、`$x` 原样保留——diff / snapshot 的记录来自它们——只有 interface 打印器改按这张表渲染。目录由 `SwiftDeclarationIndexer.prepare()` 用索引配置里的 `dependencySearchPaths` 登记、随索引器一起释放（`PerImageCacheEvictionRegistry` 的 `propertyWrapperCatalog` claim）；没登记过的镜像退化成查系统 cache。
 
-三个「没有结论」的态**作用域不同**，不要混：`imageHasNoExportInformation` 是镜像级的（根本没有 export trie，此时把它读成「未导出」会把一个 `.o` 文件的每个声明都报成未导出）；`descriptorSymbolNameUnresolvable` 是声明级的（trie 没问题，但这一个名字的 remangle 不可信）；`declarationHasNoSymbol` 也是声明级的，但不是读不出，是本来就没有可查的符号。
+四个「没有结论」的态**作用域不同**，不要混：`imageHasNoExportInformation` 是镜像级的（根本没有 export trie，此时把它读成「未导出」会把一个 `.o` 文件的每个声明都报成未导出）；`descriptorSymbolNameUnresolvable` 是声明级的（trie 没问题，但这一个名字的 remangle 不可信）；`declarationHasNoSymbol` 也是声明级的，但不是读不出，是本来就没有可查的符号；`declarationIsCImported` 同样是声明级的，符号倒是有，只是那是本镜像的一份副本，不是声明自己的。
 
 对外投影只有两个：`isExported: Bool?` 和 `isDefinitelyNotExported`——**过滤和标注只能依据后者**。
 

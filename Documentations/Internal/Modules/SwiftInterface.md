@@ -38,10 +38,12 @@ SwiftInterface 是接口生成的**编排层**（thin orchestrator）：它自�
 **`printRoot()` 的段落与 catch 契约**：组成顺序是 header（提案 0008，flag-gated 默认缺席）→ imports → 全局变量 → 全局函数 → 根类型 → 特化变体（`specializedChildren` 挂在各 `TypeDefinition` 上，indexer 对用户驱动的特化保持无知，所以这里全量走查 `allTypeDefinitions`）→ 根协议 → Swift 声明的 `@objc` 协议（`indexer.objcProtocolDefinitions`，各自带着默认实现扩展；嵌套在类型里的打进 `extension 父类型 { … }`）→ **嵌套**协议的 default-implementation 扩展块（extension 不能嵌进父体，顶层补印；这个循环在提案 0007 之前是死代码）→ 四桶 extension（`isAttachedToProtocolDefinition` 的已附着定义被过滤，避免 issue #106 §5 的重复块）→ category 的 ObjC 协议遵循（`indexer.objcCategoryConformances`，每个 category 一个 `extension X: P {}`，类被 exported-only 过滤掉时跟着不打）。后两样与类头部的 ObjC 协议都只在单版本接口里打，diff 与 evolution 不打，ABI 快照也不记（提案 `swift-declared-objc-protocols`，见 [SwiftDeclaredObjCProtocols.md](../SwiftDeclaredObjCProtocols.md)）。贯穿全部段落的契约是**逐定义 catch**：一个定义打印抛错只丢它自己，绝不空掉整块（历史上块级 catch 让一个旧 binary 的全部类型被抹白；由 `LegacyDyldInfoBindTests` 与 `corruptNestedChildDropsOnlyItself` 钉住）。两个全局块例外地不带定义上下文——`printVariable`/`printFunction` 本身不抛、各自派发过失败事件，块级包裹只是保险带。
 
 **exported-only 过滤的接线**（提案 0016）：`printRoot()` 现在是一个普通函数壳，开关
-`printExportedDeclarationsOnly` 打开时先用 `indexer.allTypeDefinitions` / `allProtocolDefinitions` 调
+`printExportedDeclarationsOnly` 或标记模式（`marksOptionalContent`）打开时先用 `indexer.allTypeDefinitions` / `allProtocolDefinitions` 调
 `printer.installExportFilterScope(types:protocols:)`，再进入 builder 体 `printRootContents()`。类型 / 协议 / 成员由 printer 自行裁决，
 扩展的「目标是不是本镜像内未导出声明」只有索引器的表能回答（strip 过的镜像里未导出类型零符号），所以 scope 在这里装；
-两个全局块各带一个 `where !printer.isExcludedByExportFilter(globalSymbolNames:)`。绕过 `printRoot` 的宿主要自己装 scope，否则扩展一腿 fail-open。
+两个全局块与 ObjC category conformance 块逐项问 `printer.exportFilterVisibility(excluded:)`：过滤掉的项普通打印时略过，
+标记模式下包进只在过滤关着时可见的区域（提案 [draft-exported-only-marking-mode](../../Evolutions/draft-exported-only-marking-mode.md)）。
+绕过 `printRoot` 的宿主要自己装 scope，标记打印也一样，否则扩展一腿 fail-open。
 详见 [ExportedOnlyInterfaceFiltering.md](../ExportedOnlyInterfaceFiltering.md)。
 
 **私有声明的源文件注释**（提案 [0074-private-declaration-source-files](../../Evolutions/0074-private-declaration-source-files.md)）：printer 经 `setPrivateDeclarationSourceFileProvider(_:)` 拿 provider，不放进 `SwiftDeclarationPrintConfiguration`（它是 `Equatable`，放不进一个 provider），builder 本身不动。打印点有五处：类型、协议、扩展的声明头，`renderMember` 里每种成员的第一行，以及 `printRootContents()` 的两个全局块——全局块是 `BlockList`，每行注释单独做一项，列表会在每项前换行。嵌套的类型与协议跟它的父定义比，打在哪一层都一样：`marksNestedDefinitions` 要求单独打印与从父定义里摘出来的逐字相同（`NestedDefinitionRegionContractTests` 有打开注释的变体）。也不跟名字里的上下文比：局部类型名字的上下文是声明它的函数，函数不打印在它上方。

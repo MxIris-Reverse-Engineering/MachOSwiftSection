@@ -145,8 +145,10 @@ public final class SwiftInterfaceBuilder<MachO: MachOFieldLayoutRenderable>: Sen
         // the indexer's complete in-image tables — a stripped image carries no
         // symbol for a non-exported type, so only the index can say whether an
         // extension's target is a dropped in-image declaration. Installed per
-        // print so a configuration update between prints is honored.
-        if printer.configuration.printExportedDeclarationsOnly {
+        // print so a configuration update between prints is honored, and for
+        // a marked print too, which marks what the filter would drop
+        // (evolution proposal `exported-only-marking-mode`).
+        if printer.configuration.printExportedDeclarationsOnly || printer.configuration.marksOptionalContent {
             printer.installExportFilterScope(types: indexer.allTypeDefinitions.values, protocols: indexer.allProtocolDefinitions.values)
         }
         return try await LargeStackTaskExecution.run {
@@ -170,28 +172,40 @@ public final class SwiftInterfaceBuilder<MachO: MachOFieldLayoutRenderable>: Sen
         // `definitionPrintFailed`. These wrappers are belt-and-braces, so there
         // is no definition identity to attribute a block-level failure to, and
         // they report as `.definitionBlock` degradations instead.
+        // A global the exported-only filter rules out is left out, or, when
+        // marking, printed in a region visible only while the filter is off;
+        // a region keeps its items, so each comment line stays an item of
+        // its own.
         await printCatchedThrowing(dispatchingTo: eventDispatcher, degradationSource: .definitionBlock) {
             await BlockList {
-                for variable in indexer.globalVariableDefinitions where !printer.isExcludedByExportFilter(globalSymbolNames: variable.accessors.map(\.symbol.name)) {
-                    // One item per line: the list breaks before each
-                    // (evolution proposal `private-declaration-source-files`).
-                    for line in printer.privateDeclarationSourceFileLines(for: [variable.node]) {
-                        Comment(line)
+                for variable in indexer.globalVariableDefinitions {
+                    if let visibility = printer.exportFilterVisibility(excluded: printer.isExcludedByExportFilter(globalSymbolNames: variable.accessors.map(\.symbol.name))) {
+                        await VisibilityRegion(visibility) {
+                            // One item per line: the list breaks before each
+                            // (evolution proposal `private-declaration-source-files`).
+                            for line in printer.privateDeclarationSourceFileLines(for: [variable.node]) {
+                                Comment(line)
+                            }
+                            printer.globalExportStatusComment(forSymbolNames: variable.accessors.map(\.symbol.name))
+                            await printer.printVariable(variable, level: 0)
+                        }
                     }
-                    printer.globalExportStatusComment(forSymbolNames: variable.accessors.map(\.symbol.name))
-                    await printer.printVariable(variable, level: 0)
                 }
             }
         }
 
         await printCatchedThrowing(dispatchingTo: eventDispatcher, degradationSource: .definitionBlock) {
             await BlockList {
-                for function in indexer.globalFunctionDefinitions where !printer.isExcludedByExportFilter(globalSymbolNames: [function.symbol.name]) {
-                    for line in printer.privateDeclarationSourceFileLines(for: [function.node]) {
-                        Comment(line)
+                for function in indexer.globalFunctionDefinitions {
+                    if let visibility = printer.exportFilterVisibility(excluded: printer.isExcludedByExportFilter(globalSymbolNames: [function.symbol.name])) {
+                        await VisibilityRegion(visibility) {
+                            for line in printer.privateDeclarationSourceFileLines(for: [function.node]) {
+                                Comment(line)
+                            }
+                            printer.globalExportStatusComment(forSymbolNames: [function.symbol.name])
+                            await printer.printFunction(function, level: 0)
+                        }
                     }
-                    printer.globalExportStatusComment(forSymbolNames: [function.symbol.name])
-                    await printer.printFunction(function, level: 0)
                 }
             }
         }
@@ -298,19 +312,21 @@ public final class SwiftInterfaceBuilder<MachO: MachOFieldLayoutRenderable>: Sen
         // classes adopt (evolution proposal `swift-declared-objc-protocols`),
         // one extension per category; no conformance record names them.
         await BlockList {
-            for conformance in indexer.objcCategoryConformances where !isExcludedByExportFilter(conformance) {
-                await printCatchedThrowing(
-                    dispatchingTo: eventDispatcher,
-                    context: .init(name: conformance.extendedTypeName.name, kind: .extension)
-                ) {
-                    try await printer.printObjCCategoryConformance(conformance)
+            for conformance in indexer.objcCategoryConformances {
+                if let visibility = printer.exportFilterVisibility(excluded: isExcludedByExportFilter(conformance)) {
+                    await printCatchedThrowing(
+                        dispatchingTo: eventDispatcher,
+                        context: .init(name: conformance.extendedTypeName.name, kind: .extension)
+                    ) {
+                        try await printer.printObjCCategoryConformance(conformance).visible(under: visibility)
+                    }
                 }
             }
         }
     }
 
     /// A category conformance on a class of this image the export filter
-    /// drops goes with it.
+    /// drops goes with it — when marking, into the same region.
     private func isExcludedByExportFilter(_ conformance: ObjCCategoryConformance) -> Bool {
         guard let typeDefinition = indexer.allTypeDefinitions[conformance.extendedTypeName] else { return false }
         return printer.isExcludedByExportFilter(typeDefinition)
