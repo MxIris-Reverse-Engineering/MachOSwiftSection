@@ -22,7 +22,7 @@ RuntimeViewer 要加「只看导出的声明」：侧栏按 `exportStatus` 筛�
 
 不做：
 
-- 成员不加模型上的导出标志。类型或协议没导出，它的成员与嵌套类型必然也没导出（成员的有效访问级别受所在类型限制，见 `ValueDecl::getEffectiveAccess`），宿主按类型筛就够；导出类型里未导出的成员由打印器删，RuntimeViewer 的成员搜索读的是投影。
+- 成员不加模型上的导出标志。宿主按每个类型或协议自己的 `exportStatus` 筛就够；导出类型里未导出的成员由打印器删，RuntimeViewer 的成员搜索读的是投影。（起草时的理由是「类型或协议没导出，它的成员与嵌套类型必然也没导出」，按有效访问级别推得；实现后发现系统框架的导出表由导出清单决定、不跟访问级别走，这个前提不成立，但结论不受影响，见决策日志。）
 - `printExportStatus`（`// not exported` 标注）、dump 路径、ObjC 一侧都不动。
 
 兼容性：给 `ExportStatus` 加 case 会让宿主里穷举的 `switch` 编译不过；RuntimeViewer、MachOKitUI、MachOViewer、swift-decompiler 目前都没有用它，0024 选枚举时也为新增结局留了位置。`SwiftVisibilityOption` 加 case 同理，这四个仓库都没有穷举它：RuntimeViewer 只经 `isVisibilityOptionEnabled(_:resolvesOpaqueTypes:)` 投影，会自动认出新选项。`--exported-only` 的说明本来就写着「没有导出证据的一律保留」，C 类型落进这一条，flag 文案与 agent 插件 skill 不用改。
@@ -41,3 +41,5 @@ RuntimeViewer 要加「只看导出的声明」：侧栏按 `exportStatus` 筛�
 | 2026-10-30 | `printRoot` 的全局块与 ObjC category conformance 块一并标记 | 方案列的是打印器的入口，但原则是「过滤器原本不输出的每一处」。这两处也会删内容，不标就会让 `printRoot()` 的标记打印投影出错。逐个定义打印的 RuntimeViewer 用不到，但 `printRoot` 的契约要和逐个定义的一致。 |
 | 2026-10-30 | 现场编译的模块挪进 `MachOTestingSupport` | 投影测试与原来的过滤测试要用同一份模块，照 `ModuleSelectorFixture` 的样子做成共享的 `ExportedOnlyFixture`，每个进程只编一次。 |
 | 2026-10-30 | 实现完成，待用户看过后收尾 | 三步都已提交。验证（JHs-Mac-Studio-Ultra）：全量 2,738 个测试、518 个套件只红 `ThunkOnlyObjCMemberTests` 4 条，`next` 快照在同一工具链下同样红、换 Xcode 26.6 则绿，是现场编译 fixture 随编译器漂移的既有问题；Xcode 26.6 下编译通过、相关 9 个套件全过；临时探针在本机 dyld cache 的 Combine、SwiftUICore、AppKit 上逐个定义比对标记打印的投影，848 / 14,086 / 2,879 个定义全部一致。普通打印的路径在构造上逐字节不变、SymbolTestsCore 的 interface 快照通过，不算大重构，未跑渲染 A/B。文档：不另写使用指南或实现说明，ExportedOnlyInterfaceFiltering.md 加了「C 导入类型不裁决」与「标记模式」两节，术语表的 marking mode 与 exported-only 过滤两条已更新、没有新术语，演进账本按日期占位，节号落地时取。 |
+| 2026-10-31 | 「类型没导出则嵌套类型必然没导出」不成立；成员不下沉到模型的结论不变 | RuntimeViewer 接入时在 Foundation 碰到 `LocalePreferences` 没导出、它嵌套的 `LocalePreferences.ICUSymbolsAndStrings` 却导出了（类型描述符、元数据访问器与元数据都在导出表里）。swift-foundation 源码里两者都是 `package`，苹果构建系统框架时按导出清单决定导出什么，与访问级别无关。结论仍成立：每个类型与协议带的是它自己的 `exportStatus`，宿主按它筛、打印器也按它裁决，没有哪里依赖「随外层」。 |
+| 2026-10-31 | 嵌套定义区域契约在这里写明一个例外，不改标记方式 | 同一例子下，标记模式的 `marksNestedDefinitions` 契约不成立：父定义被过滤、整段带着「开关关着才可见」，从中取出的导出子定义比它单独打印多了这个条件。父定义投影到开关打开时必须整段不可见，子定义单独打印又必须可见，同一段原子带不了两种条件；要在取出区域时去掉祖先加的条件，得改 swift-semantic-string 的区域编码，超出本提案。所以在 `marksNestedDefinitions` 的文档里写明：宿主对「自己没被过滤、外层被过滤」的嵌套定义单独打印——RuntimeViewer 已经这样做。`ExportedOnlyFixture` 用链接器的 `-unexported_symbol` 造出同样的形态（`UnexportedParent.ExportedNested`），契约测试把这个区域按例外严格检查；去掉例外判定时它报的正是 RuntimeViewer 那一处。普通打印下这个导出的嵌套类型随外层一起被 `--exported-only` 删掉，是 0016 起就有的行为，记入 ExportedOnlyInterfaceFiltering.md 的已知降级。 |

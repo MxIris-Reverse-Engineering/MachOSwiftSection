@@ -97,6 +97,14 @@ conformance 扩展全部漏下来。所以 `SwiftInterfaceBuilder.printRoot()` �
   存储属性与成员全被过滤，且没有枚举 case、`deinit`、关联类型记录、ObjC ivar）时去掉最后那个换行，让块自己补一个条件为「body 任一部分可见」的换行。
   开关关着时它顶替被去掉的那个；开着时嵌套定义在就补、body 全空就不补（`{}`）。协议 body 没有嵌套定义，不需要。
 - **事件**：标记模式下被过滤的定义也打印了，所以照常派发 start / completed。
+- **嵌套定义区域契约的例外**（`marksNestedDefinitions`）：被过滤的定义里嵌着一个**没被过滤**的定义时，父定义的标记打印把整段、连同这个子定义，
+  都标成「开关关着才可见」，取出的子定义区域于是比它单独打印多了这个条件：开关关着时两者相同，开着时区域消失、单独打印还在。
+  这在现有编码下修不掉——父定义投影到开关打开时必须整段不可见，子定义单独打印时又必须可见，同一段原子带不了两种条件；
+  要在「取出区域」时去掉祖先加上的条件，得改 swift-semantic-string 的区域编码。所以写进契约作为例外：宿主遇到「自己的 `exportStatus` 不是
+  `isDefinitelyNotExported`、外层某个定义是」的嵌套定义，单独打印它。RuntimeViewer 接入时在 Foundation 碰到一例
+  （`LocalePreferences` 没导出、`LocalePreferences.ICUSymbolsAndStrings` 导出了，源码里两者都是 `package`，导出与否看苹果的导出清单），
+  它的 Find 语料已按此单独打印。`ExportedOnlyFixture` 用链接器的 `-unexported_symbol` 把 `UnexportedParent` 的类型符号移出导出表造出同样的形态，
+  `NestedDefinitionRegionContractTests.exportedOnlyFixtureNestedDefinitionsTakeOutAsTheirOwnPrints` 把这个区域按上述例外严格检查、其余区域照旧按契约检查。
 
 ## 模块结构
 
@@ -158,6 +166,9 @@ Sources/Executables/swift-section/Commands/InterfaceCommand.swift # --exported-o
 
 ## 已知降级
 
+- **外层没导出时，导出了的嵌套类型跟着被删。** 嵌套类型只在外层里面打印，外层被过滤，整段一起没了：`--exported-only` 的输出里没有
+  Foundation 的 `LocalePreferences.ICUSymbolsAndStrings`，虽然它的描述符导出了。系统框架的导出表由导出清单决定，不跟访问级别走，
+  这种形态真实存在；标记模式下它是嵌套定义区域契约的例外（见上文「标记模式」）。单独打印这个嵌套类型（宿主逐个对象打印时）照常输出。
 - **引用不改写。** 过滤按声明进行，导出成员的签名里仍可能引用被删的类型（fixture：`typealias Body = Structs.PrivateProtocolTest`）。
   这与真实二进制里 `some P` 解析到私有类型的情形同构，属于「输出忠实于二进制」的一面。
 - **绕过 `printRoot` 的宿主要自己装 scope**，标记打印也一样。RuntimeViewer 的 per-type 导出若不调 `installExportFilterScope`，类型 / 协议 / 成员照常过滤，
