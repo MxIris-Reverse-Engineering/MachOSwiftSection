@@ -1,9 +1,10 @@
 # Draft - 导出过滤进入标记模式，C 导入类型不再判成未导出
 
-- **状态**: Draft
+- **状态**: Accepted
 - **创建日期**: 2026-10-30
 - **最后更新**: 2026-10-30
 - **关联提案**: [0016](0016-exported-only-interface.md)（导出过滤）、[0024](0024-exported-declaration-flag.md)（类型 / 协议的 `exportStatus`）、[0056](0056-visibility-regions.md)（标记模式）；RuntimeViewer 的 `draft-exported-declarations-filter`（使用方）
+- **实现分支 / PR**: `feature/exported-only-marking-mode`（worktree `.worktrees/MachOSwiftSection-ExportedOnlyMarkingMode`，基于 `next`）
 
 ## 摘要
 
@@ -33,3 +34,4 @@ RuntimeViewer 要加「只看导出的声明」：侧栏按 `exportStatus` 筛�
 | 2026-10-30 | Created as Draft | RuntimeViewer 要过滤未导出的类型与成员，Find 依赖的标记模式不覆盖导出过滤；排查中发现 C 导入类型被判成未导出，会连带藏掉本镜像给它写的公开扩展。用户批准分两份提案推进：本库一份，RuntimeViewer 一份。 |
 | 2026-10-30 | 成员级的导出判断不下沉到模型 | 类型或协议没导出时，它的成员与嵌套类型必然没导出（编译器按所在类型限制成员的有效访问级别）。还需要成员级判断的只剩导出类型内部、别的模块类型的扩展与全局声明，这些都由打印器处理，RuntimeViewer 读投影即可。 |
 | 2026-10-30 | C 导入类型在裁决源头改为不给结论，不在扩展那一腿特判 | 错在裁决本身：描述符副本的导出状态说明不了类型能否被外部使用。改在源头，宿主的侧栏、过滤范围与 `exportStatus` 的其他读者一起正确。 |
+| 2026-10-30 | Draft → Accepted | 用户批准，开始实现。 |
