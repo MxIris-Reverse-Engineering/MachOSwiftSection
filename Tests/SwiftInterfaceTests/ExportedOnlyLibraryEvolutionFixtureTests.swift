@@ -4,6 +4,8 @@ import MachOKit
 import Semantic
 @_spi(Internals) @testable import MachOSymbols
 @testable import MachOSwiftSection
+import SwiftDeclaration
+@_spi(Support) import SwiftIndexing
 @_spi(Support) @testable import SwiftPrinting
 @_spi(Support) @testable import SwiftInterface
 
@@ -16,7 +18,8 @@ import Semantic
 /// definitive negative to act on for: a type, a nested type, a protocol and
 /// its default implementation, a method, a stored property, a global, a
 /// conformance to an internal protocol, and a constrained extension whose
-/// members are all internal.
+/// members are all internal. It also extends a C-imported type (`CGPoint`),
+/// whose descriptor the module emits as a copy of its own and never exports.
 @Suite(.serialized)
 struct ExportedOnlyLibraryEvolutionFixtureTests {
     private enum FixtureWorkingDirectoryCleanup {
@@ -36,6 +39,7 @@ struct ExportedOnlyLibraryEvolutionFixtureTests {
     /// `DiffMemberIndentationTests`). `@inline(never)` keeps the internal
     /// members' symbols from being folded away.
     private static let fixtureSource = """
+    import CoreGraphics
     public struct PublicShape {
         public var title: String
         var internalNote: String
@@ -99,6 +103,12 @@ struct ExportedOnlyLibraryEvolutionFixtureTests {
     }
     public func publicGlobal() {}
     @inline(never) func internalGlobal() {}
+    extension CGPoint: PublicContract {
+        public func requirement() {}
+    }
+    extension CGPoint {
+        public func publicCImportedTypeMember() {}
+    }
     """
 
     // `Swift.Error` spelled out: the `Semantic` import brings its own `Error`
@@ -153,17 +163,22 @@ struct ExportedOnlyLibraryEvolutionFixtureTests {
         }
     }
 
-    private func buildOutput(exportedOnly: Bool) async throws -> (output: String, machOFile: MachOFile) {
+    private func makePreparedBuilder(exportedOnly: Bool, showsCImportedTypes: Bool = false) async throws -> SwiftInterfaceBuilder<MachOFile> {
         let machOFile = try loadFixtureMachOFile()
         var printConfiguration = SwiftDeclarationPrintConfiguration()
         printConfiguration.printExportedDeclarationsOnly = exportedOnly
         let builder = try SwiftInterfaceBuilder(
-            configuration: .init(printConfiguration: printConfiguration),
+            configuration: .init(indexConfiguration: .init(showCImportedTypes: showsCImportedTypes), printConfiguration: printConfiguration),
             eventHandlers: [],
             in: machOFile
         )
         try await builder.prepare()
-        return (try await builder.printRoot().string, machOFile)
+        return builder
+    }
+
+    private func buildOutput(exportedOnly: Bool, showsCImportedTypes: Bool = false) async throws -> (output: String, machOFile: MachOFile) {
+        let builder = try await makePreparedBuilder(exportedOnly: exportedOnly, showsCImportedTypes: showsCImportedTypes)
+        return (try await builder.printRoot().string, builder.machO)
     }
 
     /// The premise every assertion below rests on: without `-enable-testing`
@@ -257,6 +272,30 @@ struct ExportedOnlyLibraryEvolutionFixtureTests {
         #expect(!filteredOutput.contains("func internalGlobal()"))
         #expect(filteredOutput.contains("case alpha"))
         #expect(filteredOutput.contains("case beta"))
+    }
+
+    /// A C-imported type's descriptor is a copy each module using the type
+    /// emits for itself, under non-unique linkage, so no image exports it
+    /// and it says nothing about whether the type can be used from outside
+    /// (evolution proposal `exported-only-marking-mode`). Read as "not
+    /// exported", it put the type into the filter's scope once
+    /// `showCImportedTypes` indexed it, and the filter dropped the type along
+    /// with this image's public extension of it and its public conformance.
+    @Test func cImportedTypeIsNotRuledOnAndItsPublicExtensionsAreKept() async throws {
+        let builder = try await makePreparedBuilder(exportedOnly: true, showsCImportedTypes: true)
+        let cImportedTypeDefinition = try #require(builder.indexer.allTypeDefinitions.values.first { $0.typeName.name.hasSuffix("CGPoint") })
+        #expect(!cImportedTypeDefinition.exportStatus.isDefinitelyNotExported)
+        #expect(cImportedTypeDefinition.exportStatus == .declarationIsCImported)
+
+        let (defaultOutput, _) = try await buildOutput(exportedOnly: false, showsCImportedTypes: true)
+        #expect(defaultOutput.contains("struct CGPoint {"))
+        #expect(defaultOutput.contains("CGPoint: ExportedOnlyFixture.PublicContract {"))
+        #expect(defaultOutput.contains("func publicCImportedTypeMember()"))
+
+        let filteredOutput = try await builder.printRoot().string
+        #expect(filteredOutput.contains("struct CGPoint {"))
+        #expect(filteredOutput.contains("CGPoint: ExportedOnlyFixture.PublicContract {"))
+        #expect(filteredOutput.contains("func publicCImportedTypeMember()"))
     }
 
     @Test func filteredOutputHasNoBlankLineArtifacts() async throws {

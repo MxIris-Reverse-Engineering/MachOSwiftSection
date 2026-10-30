@@ -229,7 +229,7 @@ public final class TypeDefinition: Definition, @unchecked Sendable {
     public convenience init(type: TypeContextWrapper, in machO: some MachOSwiftSectionRepresentableWithCache) async throws {
         let typeName = try type.typeName(in: machO.context)
         let exportStatus = ExportStatus.resolve(
-            forNominalTypeDescriptorAt: type.typeContextDescriptorWrapper.typeContextDescriptor.offset,
+            forNominalTypeDescriptor: type.typeContextDescriptorWrapper.typeContextDescriptor,
             typeNameNode: typeName.node,
             in: machO
         )

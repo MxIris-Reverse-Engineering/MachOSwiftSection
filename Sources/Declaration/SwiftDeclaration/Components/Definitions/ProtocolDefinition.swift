@@ -121,7 +121,7 @@ public final class ProtocolDefinition: Definition, MutableDefinition, @unchecked
         let protocolName = ProtocolName(node: InternedNodeReferenceCache.shared.reference(interning: node, in: machO))
         self.protocolName = protocolName
         self.exportStatus = ExportStatus.resolve(
-            forProtocolDescriptorAt: `protocol`.descriptor.offset,
+            forProtocolDescriptor: `protocol`.descriptor,
             protocolNameNode: protocolName.node,
             in: machO
         )

@@ -34,8 +34,8 @@ trie 查不到就成了假阴性，一个导出类型被删掉。因此裁决分
    一次 miss 就是真阴性。但**含 `.extension` 上下文的名字拒绝兜底**（返回 `nil` → 保留）：那正是第 1 腿存在的理由。
 
 **这两腿住在声明模型上，不在打印器里**（提案 `exported-declaration-flag`）。`TypeDefinition.exportStatus` /
-`ProtocolDefinition.exportStatus`（`SwiftDeclaration` 的 `ExportStatus` 四态枚举：`exported` / `notExported` /
-`imageHasNoExportInformation` / `descriptorSymbolNameUnresolvable`）在定义构造时一次算好，`prepare()` 返回时整张表就都有值——
+`ProtocolDefinition.exportStatus`（`SwiftDeclaration` 的 `ExportStatus` 枚举：`exported` / `notExported` /
+`imageHasNoExportInformation` / `descriptorSymbolNameUnresolvable`，后来又加了 `declarationHasNoSymbol` 与 `declarationIsCImported`）在定义构造时一次算好，`prepare()` 返回时整张表就都有值——
 裁决只要描述符 offset 与名字节点，不碰 `index(in:)` 的产物。宿主（RuntimeViewer 的类型列表）因此能逐行标注而不必持有 machO，
 打印器的 `exportVerdict(forTypeDefinition:/forProtocolDefinition:)` 退化为 `exportStatus.isExported` 的转发（签名不变，仍是 `Bool?`），
 `installExportFilterScope` 只筛 `isDefinitelyNotExported`——`printRoot()` 原先那趟全镜像重算随之消失。
@@ -43,6 +43,16 @@ trie 查不到就成了假阴性，一个导出类型被删掉。因此裁决分
 `descriptorSymbolNameUnresolvable` 是**声明级**的（trie 正常，只是这一条的名字重整不可信）。
 实测四个真实镜像（dyld shared cache 与 iOS 18.5 模拟器的 SwiftUICore、进程内 libswiftCore、`SymbolTestsCore`）共 8171 条类型 / 协议声明
 **全部走第 1 腿**、无一落到这两个 case，裁决总耗时占 `prepare()` 的 0.15% 以内——所以它是无条件填充，没有配置开关。
+
+**C 导入类型不裁决**（提案 [draft-exported-only-marking-mode](../Evolutions/draft-exported-only-marking-mode.md)）。`__C.CGSize` 一类类型在本镜像里的描述符
+是本镜像自己生成的一份副本：编译器给 Clang 声明的是非唯一链接（`swift/lib/SIL/IR/SIL.cpp` 的 `getDeclLinkage` 对 Clang 声明返回
+`PublicNonUnique`），每个用到它的模块各自生成一份、谁都不导出——fixture 里 `_$sSo11CMTimeFlagsVMn` 就是 private external。
+把它读成「未导出」，开了 `--show-c-imported-types` 的 `--exported-only` 会删掉 C 类型本身，而且因为它进了 `ExportFilterScope`，
+本镜像给它写的公开扩展与 conformance（SwiftUI 的 `extension CGSize: VectorArithmetic`）也跟着被删。所以裁决在源头改为
+`declarationIsCImported`：`ExportStatus.resolve` 先看描述符的模块是不是 `__C` / `__C_Synthesized`（`isCImportedContextDescriptor`），
+是就不查 trie。它不给结论，于是 C 类型本身保留、不进 scope，扩展照常按成员裁决；宿主读 `exportStatus` 的其他地方（RuntimeViewer 侧栏的
+「Not Exported」）一起正确。`ExportedOnlyLibraryEvolutionFixtureTests.cImportedTypeIsNotRuledOnAndItsPublicExtensionsAreKept`
+（即时编译的模块扩展 `CGPoint`）与 `ExportStatusTests.cImportedTypeIsNotRuledOn`（`CMTimeFlags`）钉住它；修复前前者的四条断言全红。
 
 **扩展的判据要靠索引器的表，符号推不出「本镜像内」。** 扩展没有自己的描述符符号，能判的只有「被扩展类型 / 遵循协议是不是本镜像内未导出声明」。
 「本镜像内」不能从符号存储推断——strip 过的镜像里一个未导出的类型**一个符号都没有**，用 `typeInfo` / `containsSymbol` 判会把被删私有类型的
@@ -105,9 +115,9 @@ Sources/Executables/swift-section/Commands/InterfaceCommand.swift # --exported-o
   私有类型的 conformance 扩展 / 嵌套私有类型（父级与公开兄弟保留）各一例删除；带约束扩展里的公开嵌套类型保留（回归）；
   未导出成员删而类型留；未导出全局删；`Tj` 导出、`@objc`、`override` 三类保留；清空的 conformance 扩展留 `{}`；
   双 flag 同开零标注；无空行残留；默认输出与从未听说过该开关的 builder 逐字节相同。每条否定断言都先在默认输出上断言其存在。
-- `Tests/SwiftInterfaceTests/ExportedOnlyLibraryEvolutionFixtureTests.swift`（即时编译，`-enable-library-evolution` 且无 `-enable-testing`，7 例）：
+- `Tests/SwiftInterfaceTests/ExportedOnlyLibraryEvolutionFixtureTests.swift`（即时编译，`-enable-library-evolution` 且无 `-enable-testing`，8 例）：
   `SymbolTestsCore` 因 `ENABLE_TESTABILITY` 导出全部 `internal`，所以 `internal` 形态在这里钉：类型（顶层 + 嵌套）、协议及其默认实现、
-  公开类型对内部协议的 conformance 扩展、方法、存储属性（accessor 以本地符号 join 上）、全局；被清空的普通扩展容器整块删、有公开成员的容器保留；枚举 case 保留。
+  公开类型对内部协议的 conformance 扩展、方法、存储属性（accessor 以本地符号 join 上）、全局；被清空的普通扩展容器整块删、有公开成员的容器保留；枚举 case 保留；C 导入类型 `CGPoint` 本身、本镜像给它写的公开扩展与 conformance 保留。
 - `Tests/SwiftSectionCommandTests/ExportedOnlyFlagTests.swift`：flag 解析、默认关、`dump` 无此 flag。
 - 落地前的人工交叉验证（fixture 全量输出）：默认 3824 行 → 过滤后 2839 行；标注模式下 378 处 `// not exported` 对应的声明在过滤输出里**零残留**；
   过滤输出相对默认输出的新增行只有 conformance 扩展的 `{` → `{}` 改写；无 `\n\n\n`、无 `{\n}`。
@@ -117,7 +127,6 @@ Sources/Executables/swift-section/Commands/InterfaceCommand.swift # --exported-o
 
 - **引用不改写。** 过滤按声明进行，导出成员的签名里仍可能引用被删的类型（fixture：`typealias Body = Structs.PrivateProtocolTest`）。
   这与真实二进制里 `some P` 解析到私有类型的情形同构，属于「输出忠实于二进制」的一面。
-- **`--show-c-imported-types` 下 C 导入类型会被过滤。** `__C.CMTime` 之类外来描述符的 `Mn` 是本地符号（它们不是本镜像导出的），判定为 `false`。
 - **绕过 `printRoot` 的宿主要自己装 scope。** RuntimeViewer 的 per-type 导出若不调 `installExportFilterScope`，类型 / 协议 / 成员照常过滤，
   只有扩展这一腿退化为「全部保留」——fail-open，静默。
 - **镜像没有导出信息时什么都不过滤**（三态 `nil`），静默。目前没有能构造这种镜像的 fixture（与 0008 同一个缺口）。

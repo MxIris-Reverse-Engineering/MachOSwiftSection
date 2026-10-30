@@ -1,6 +1,6 @@
 # Draft - 导出过滤进入标记模式，C 导入类型不再判成未导出
 
-- **状态**: Accepted
+- **状态**: In Progress
 - **创建日期**: 2026-10-30
 - **最后更新**: 2026-10-30
 - **关联提案**: [0016](0016-exported-only-interface.md)（导出过滤）、[0024](0024-exported-declaration-flag.md)（类型 / 协议的 `exportStatus`）、[0056](0056-visibility-regions.md)（标记模式）；RuntimeViewer 的 `draft-exported-declarations-filter`（使用方）
@@ -14,8 +14,8 @@ RuntimeViewer 要加「只看导出的声明」：侧栏按 `exportStatus` 筛�
 
 ## 方案
 
-1. **C 导入类型不裁决。** `ExportStatus` 加一个不给结论的 case（暂名 `cImportedDeclaration`）：`ExportStatus.resolve` 遇到 `isCImportedContextDescriptor` 为真（模块是 `__C` 或 `__C_Synthesized`）的描述符直接返回它，`isExported` 为 `nil`，`isDefinitelyNotExported` 为 `false`。于是 `ExportFilterScope` 不再收这些类型，它们的扩展照常按成员裁决，`--exported-only --show-c-imported-types` 也不再删 C 类型本身，ExportedOnlyInterfaceFiltering.md「已知降级」里的那一条随之撤掉。
-   - 先写复现测试：在现场编译的 fixture（`ExportedOnlyLibraryEvolutionFixtureTests` 那一套）里加一个 C 结构体的公开扩展与 conformance，以 `showCImportedTypes: true` 打印 `--exported-only`，断言二者保留，并确认修复前失败。若修复前就通过，说明扩展那一腿的推断不成立，测试改为钉住新 case 与 C 类型本身被保留，并在决策日志记下。
+1. **C 导入类型不裁决**（已完成）。`ExportStatus` 加一个不给结论的 case `declarationIsCImported`：`ExportStatus.resolve` 遇到 `isCImportedContextDescriptor` 为真（模块是 `__C` 或 `__C_Synthesized`）的描述符直接返回它，`isExported` 为 `nil`，`isDefinitelyNotExported` 为 `false`。两个 `resolve` 入口因此改为接收描述符本身（原先只收 offset），类型与协议走同一条规则。于是 `ExportFilterScope` 不再收这些类型，它们的扩展照常按成员裁决，`--exported-only --show-c-imported-types` 也不再删 C 类型本身，ExportedOnlyInterfaceFiltering.md「已知降级」里的那一条随之撤掉。
+   - 复现测试：现场编译的 fixture（`ExportedOnlyLibraryEvolutionFixtureTests`）加了 `CGPoint` 的公开扩展与对 `PublicContract` 的 conformance，`cImportedTypeIsNotRuledOnAndItsPublicExtensionsAreKept` 以 `showCImportedTypes: true` 打印 `--exported-only`。修复前它的四条断言全红：`CGPoint` 判成未导出，类型本身、conformance 扩展与公开扩展一起被删，扩展那一腿的推断成立。`ExportStatusTests.cImportedTypeIsNotRuledOn` 在 SymbolTestsCore 唯一的 C 导入类型 `CMTimeFlags`（描述符是 private external）上钉住新 case。
 2. **标记模式覆盖导出过滤。** `SwiftVisibilityOption` 加 `printExportedDeclarationsOnly`（原始值 `swift.printExportedDeclarationsOnly`），`isVisibilityOptionEnabled` 认它。标记模式下，过滤器原本不输出的每一处——类型、协议、扩展三个打印入口，被清空的普通扩展，成员循环，存储属性的预筛——改为照常输出，包进 `VisibilityRegion(.disabled("swift.printExportedDeclarationsOnly"))`。判定沿用同一组 `isExcludedByExportFilter`，标记模式下不看开关本身的取值；`ExportFilterScope` 照旧要由宿主装上。conformance 扩展被清空后印成 `{}`、相邻声明之间不多出空行，交给 swift-semantic-string 的容器把成员的条件带到分隔符上，与其他选项一样。普通模式的输出逐字节不变。
    - `VisibilityRegionProjectionTests` 加这个选项开、关两组（两边装同一个 scope），断言「标记打印按该配置投影」与「按该配置直接打印」完全相等。fixture 用 SymbolTestsCore（它导出全部 internal，未导出的是 private 声明）与第 1 步的现场编译模块。
 3. **宿主须知**写进 `marksOptionalContent` 与 `installExportFilterScope` 的文档注释：标记打印同样要先装 scope，否则扩展这一腿全部保留。
@@ -35,3 +35,5 @@ RuntimeViewer 要加「只看导出的声明」：侧栏按 `exportStatus` 筛�
 | 2026-10-30 | 成员级的导出判断不下沉到模型 | 类型或协议没导出时，它的成员与嵌套类型必然没导出（编译器按所在类型限制成员的有效访问级别）。还需要成员级判断的只剩导出类型内部、别的模块类型的扩展与全局声明，这些都由打印器处理，RuntimeViewer 读投影即可。 |
 | 2026-10-30 | C 导入类型在裁决源头改为不给结论，不在扩展那一腿特判 | 错在裁决本身：描述符副本的导出状态说明不了类型能否被外部使用。改在源头，宿主的侧栏、过滤范围与 `exportStatus` 的其他读者一起正确。 |
 | 2026-10-30 | Draft → Accepted | 用户批准，开始实现。 |
+| 2026-10-30 | Accepted → In Progress；新 case 定名 `declarationIsCImported` | 实现在 `feature/exported-only-marking-mode`。暂名 `cImportedDeclaration` 改成与同枚举的 `declarationHasNoSymbol` 同一句式（主语 + 谓语），读作「这个声明是 C 导入的」，`exportStatus == .declarationIsCImported` 在调用处读得通。 |
+| 2026-10-30 | 协议描述符也走 C 导入检查 | 规则针对的是描述符而不是种类：Clang 的协议在 Swift 里没有协议描述符，这条检查在协议上不会命中，但两个入口共用一条规则，以后出现例外也不会漏。代价是每个协议多读一次上下文链。 |

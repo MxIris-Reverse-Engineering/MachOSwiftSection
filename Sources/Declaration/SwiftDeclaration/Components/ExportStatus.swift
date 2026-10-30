@@ -10,20 +10,22 @@ import MachOSwiftSection
 /// lifted onto the declaration model so a host can read it per declaration
 /// without holding the Mach-O or reimplementing the verdict.
 ///
-/// The two non-verdict cases are deliberately distinct, because their scope
-/// is: ``imageHasNoExportInformation`` is a fact about the IMAGE (no export
-/// trie at all — nothing in it can be judged), while
-/// ``descriptorSymbolNameUnresolvable`` is a fact about this one
-/// DECLARATION (the image's trie is fine; this name cannot be spelled). Both
-/// mean "no verdict", and a consumer must never read either as "not
-/// exported" — collapsing the first would report every declaration of a
-/// `.o` file as unexported.
+/// The non-verdict cases are deliberately distinct, because their scope is:
+/// ``imageHasNoExportInformation`` is a fact about the IMAGE (no export
+/// trie at all — nothing in it can be judged), while the others are facts
+/// about one DECLARATION (the image's trie is fine; this declaration has no
+/// symbol of its own to judge by). All of them mean "no verdict", and a
+/// consumer must never read one as "not exported" — collapsing the first
+/// would report every declaration of a `.o` file as unexported, and
+/// collapsing ``declarationIsCImported`` would drop this image's public
+/// extensions of the C types it uses.
 ///
-/// Empirically neither occurs on shipped binaries: over SwiftUICore (dyld
-/// shared cache and iOS 18.5 simulator runtime), in-process libswiftCore and
-/// the `SymbolTestsCore` fixture, every type and protocol carried a symbol at
-/// its own descriptor, so all 8171 declarations resolved to ``exported`` or
-/// ``notExported``. They are correctness branches, not the common path.
+/// Empirically the first two do not occur on shipped binaries: over
+/// SwiftUICore (dyld shared cache and iOS 18.5 simulator runtime), in-process
+/// libswiftCore and the `SymbolTestsCore` fixture, every type and protocol
+/// carried a symbol at its own descriptor, so all 8171 declarations resolved
+/// to ``exported`` or ``notExported``. They are correctness branches, not the
+/// common path.
 public enum ExportStatus: Sendable, Hashable {
     /// The descriptor symbol is in the image's export trie.
     case exported
@@ -49,6 +51,17 @@ public enum ExportStatus: Sendable, Hashable {
     /// Objective-C protocol record is never exported (evolution proposal
     /// `swift-declared-objc-protocols`). Not judged.
     case declarationHasNoSymbol
+
+    /// The declaration is imported from C or Objective-C (`__C.CGSize`, or
+    /// a `__C_Synthesized` type the importer makes up), and the descriptor
+    /// in this image is not the declaration's own: the compiler gives a
+    /// Clang declaration non-unique linkage, so every module that uses the
+    /// type emits a copy of its descriptor and none exports it. That says
+    /// nothing about whether the type can be used from outside — this
+    /// image's extensions of it can be public API
+    /// (`extension CGSize: VectorArithmetic` in SwiftUI). Not judged
+    /// (evolution proposal `exported-only-marking-mode`).
+    case declarationIsCImported
 }
 
 extension ExportStatus {
@@ -60,7 +73,7 @@ extension ExportStatus {
         switch self {
         case .exported: true
         case .notExported: false
-        case .imageHasNoExportInformation, .descriptorSymbolNameUnresolvable, .declarationHasNoSymbol: nil
+        case .imageHasNoExportInformation, .descriptorSymbolNameUnresolvable, .declarationHasNoSymbol, .declarationIsCImported: nil
         }
     }
 
@@ -79,12 +92,12 @@ extension ExportStatus {
     /// what else got exported — on the `SymbolTestsCore` fixture the exported
     /// `Mn` and `Ma` (metadata accessor) sets coincide exactly.
     package static func resolve(
-        forNominalTypeDescriptorAt descriptorOffset: Int,
+        forNominalTypeDescriptor descriptor: some ContextDescriptorProtocol,
         typeNameNode: NodeReference,
         in machO: some MachOSwiftSectionRepresentableWithCache
     ) -> ExportStatus {
         resolve(
-            descriptorOffset: descriptorOffset,
+            descriptor: descriptor,
             nameNode: typeNameNode,
             descriptorKind: .nominalTypeDescriptor,
             descriptorSymbolSuffix: "Mn",
@@ -94,15 +107,37 @@ extension ExportStatus {
 
     /// A protocol's status, ruled by its protocol descriptor symbol (`…Mp`).
     package static func resolve(
-        forProtocolDescriptorAt descriptorOffset: Int,
+        forProtocolDescriptor descriptor: some ContextDescriptorProtocol,
         protocolNameNode: NodeReference,
         in machO: some MachOSwiftSectionRepresentableWithCache
     ) -> ExportStatus {
         resolve(
-            descriptorOffset: descriptorOffset,
+            descriptor: descriptor,
             nameNode: protocolNameNode,
             descriptorKind: .protocolDescriptor,
             descriptorSymbolSuffix: "Mp",
+            in: machO
+        )
+    }
+
+    /// A descriptor in the `__C` or `__C_Synthesized` module is the image's
+    /// own copy of a C declaration's (``declarationIsCImported``) and is not
+    /// judged; a descriptor whose module cannot be read is judged as usual.
+    private static func resolve(
+        descriptor: some ContextDescriptorProtocol,
+        nameNode: NodeReference,
+        descriptorKind: Node.Kind,
+        descriptorSymbolSuffix: String,
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) -> ExportStatus {
+        if (try? descriptor.isCImportedContextDescriptor(in: machO.context)) == true {
+            return .declarationIsCImported
+        }
+        return resolve(
+            descriptorOffset: descriptor.offset,
+            nameNode: nameNode,
+            descriptorKind: descriptorKind,
+            descriptorSymbolSuffix: descriptorSymbolSuffix,
             in: machO
         )
     }
