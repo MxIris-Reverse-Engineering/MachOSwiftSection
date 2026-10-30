@@ -106,7 +106,22 @@ descriptor（或其 GOT 槽）。本模块协议（ProtocolTest）走 `\x02<ref>
 
 `some Sendable` 在 descriptor 里只剩下参数本身：marker protocol（Sendable、Copyable、Escapable、BitwiseCopyable）从不进 generic requirements（`swift/lib/IRGen/GenMeta.cpp` 里 "Marker protocols do not record generic requirements at all"），`some Any` 本来就没有约束，`some AnyObject` 只有一条 layout 约束（kind `0x1F`），`SwiftInterfaceBuilderOpaqueTypeProvider` 不读 layout。这三种形状里 `numRequirements` 与父级相同，全部是继承来的。
 
-因此 provider 定位参数**只能按坐标，不能按位置**：opaque 自己的参数全在同一深度，下标就是它在声明里的序号（`Qr` 是 0，`QR<n>` 是 n + 1，见 `ASTMangler::appendOpaqueTypeArchetype`）。深度从 descriptor 算：沿父链找到最近的类型或 extension，取它的 `GenericParameterDepthLayout` 层数（非泛型嵌套类型不占层；extension 按被扩展的类型拆层，一个 extension 可以带来好几层，与运行时 `_gatherGenericParameterCounts` 换成被扩展类型来数一致），声明自己泛型再加一层（type 节点套着 `dependentGenericType`）。中间的匿名上下文是泛型声明自己签名所在的地方，它那一层由「声明自己泛型」那一项算，所以跳过；直接拿 descriptor 的父上下文来算，会把 `Outer<Element>.generic<Argument>() -> some Equatable` 的方法那层数两次。曾经按「父级每让参数总数增长一次算一层」来数：`extension Outer.SecondMiddle where A: Hashable` 一次带来 `Outer` 的 `A` 和 `SecondMiddle` 的 `C` 两层，被数成一层，约束落在 `τ_2_0` 上、超出算出的层号，debug 构建在 provider 里 trap，release 打出裸 `some`（PR #131 review 第 8 条，回归测试 `OpaqueParameterInMultiDepthExtensionTests`）。**不要**从声明的 mangled 签名数层——`swift-demangle -expand` 看 `Outer<Element>.generic<Argument>() -> some Equatable` 的 `QOMQ` 符号，签名里只有一个 `DependentGenericParamCount`，外层类型那一层被 `appendGenericSignatureParts` 省掉了；也不要用 `GenericContext.depth`，它对每个带泛型上下文的父级都加一。
+因此 provider 定位参数**只能按坐标，不能按位置**：opaque 自己的参数全在同一深度，下标就是它在声明里的序号（`Qr` 是 0，`QR<n>` 是 n + 1，见 `ASTMangler::appendOpaqueTypeArchetype`）。深度是 descriptor 自己的层布局里最内的一层，由 `GenericParameterDepthLayout.make(forOpaqueType:genericContext:in:)` 算，opaque 改写那条路径（`ReadOpaqueType`，给引用的实参分层）用的也是它。算法照运行时 `_gatherGenericParameterCounts` 的走法：沿 descriptor 的整条父链往上，每个让参数总数增长的祖先开一层，匿名上下文也算；非泛型嵌套类型不让总数增长，不占层；extension 按被扩展的类型拆层，一个 extension 可以带来好几层。
+
+opaque 的父链上会出现带参数的匿名上下文，类型的父链上不会（Swift 不允许在泛型函数里声明类型），所以这条算法单独给 opaque 用，类型照旧走 `make(for:ownedBy:in:)`。匿名上下文有两种：
+
+- **泛型函数、subscript 的上下文**：放在声明所属的类型或 extension 里，多出来的就是声明自己的参数，正好一层。
+- **属性的上下文**：只在 Debug 构建里出现。driver 给不优化的 `-g` 构建加上 `-enable-anonymous-context-mangled-names`，这时 IRGen 把属性的 opaque 类型挂在一个以属性命名的匿名上下文下（`OpaqueTypeDescriptorBuilder::getParent`）。这个上下文带着属性所在类型或 extension 的泛型签名，自己的父级却是那个类型的父级（`AnonymousContextDescriptorBuilder::getParent` 取的是属性声明上下文的父级），类型本身不在链上。属性写在 extension 里时，extension 的父级是模块，这个上下文一次带来被扩展类型的全部参数：`extension Outer.Inner { var values: some Sequence<B> }` 把 `Outer` 的 `A` 和 `Inner` 的 `B` 并成一团。这种上下文一定带着自己的 mangled 名字，从中取出被扩展的类型，按它的 `…Mn` 符号找到描述符，再按描述符拆层：按文件读时查这个镜像的符号索引；进程内先查描述符所在镜像，再经 `dlsym` 找别的镜像导出的描述符（跨模块扩展的类型一定是 public 的）。找不到描述符（stripped 镜像里的内部类型，按文件读时别的镜像声明的类型）就返回 nil，provider 打出裸 `some`。少算一层会把类型的参数当成 opaque 参数，印出不存在的约束。
+
+过去的错误：
+
+- 曾经按「父级每让参数总数增长一次算一层」来数：`extension Outer.SecondMiddle where A: Hashable` 一次带来 `Outer` 的 `A` 和 `SecondMiddle` 的 `C` 两层，被数成一层，约束落在 `τ_2_0` 上、超出算出的层号，debug 构建在 provider 里 trap，release 打出裸 `some`（PR #131 review 第 8 条，回归测试 `OpaqueParameterInMultiDepthExtensionTests`）。
+- 之后改成只看父链上最近的类型或 extension，再给泛型声明加一层，跳过中间的匿名上下文。这漏掉了 Debug 构建里属性所在的类型：`KeychainStorage<Value>.publisher` 的 opaque 参数是 `τ_1_0`，算出来的层号却是 0。RuntimeViewer 给静态链接了 FoundationToolbox 的 Debug 测试 bundle 建 Find 语料时，在 provider 里 trap。release 构建打出裸 `some`。更糟的是 `some Any` 这种 opaque 参数没有约束、而类型参数有约束的写法，会读到 `Value: Storable` 那条约束，印成 `some Storable`。
+- 同一个做法里，「声明是否自己开一层」看的是声明的类型节点有没有套 `dependentGenericType`。可是只带上下文 `where` 子句的函数也有自己的泛型签名，却没有自己的参数：`static func build() -> some Sequence<Value> where Value: Hashable` 被多算一层，任何构建里都打出裸 `some`。macOS 27.2 的 SwiftUICore 里 `KeyframesBuilder.buildBlock()` 就是这样。按参数总数是否增长来数，这一条自然算对。
+
+后两条的回归测试是 `OpaqueParameterDepthTests`（2026-10-31）：fixture 以 `-g -Onone` 现场编译，文件读法与进程内读法各打印一次 interface，另核对层布局本身。
+
+**不要**从声明的 mangled 签名数层——`swift-demangle -expand` 看 `Outer<Element>.generic<Argument>() -> some Equatable` 的 `QOMQ` 符号，签名里只有一个 `DependentGenericParamCount`，外层类型那一层被 `appendGenericSignatureParts` 省掉了；也不要用 `GenericContext.depth`，它对每个带泛型上下文的父级都加一。
 
 查不到就返回 nil，printer 打出裸 `some`。这是有意的：`some Any` 会把 `some Sendable` 写成一个不对的类型，裸 `some` 至少不撒谎，而且与 `swift-section interface` 不带 `--parse-opaque-return-type`（默认）时的输出形态一致。回归测试是 `Tests/SwiftInterfaceTests/OpaqueParameterWithoutProtocolRequirementTests.swift`（2026-09-18，RuntimeViewer 批量导出 PhotosUIFoundation 在 `PhotosGroupingItemListManager.GroupItem.value` 上崩溃的复现）。
 

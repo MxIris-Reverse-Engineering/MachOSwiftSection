@@ -2855,6 +2855,25 @@
   - ObjC 的两个集成套件等 MachOObjCSection 0.8.205 发布后接上，依赖下限随之抬到 0.8.205：只把 MachOObjCSection 解析到 0.8.205、其余依赖不变，全量 2,734 个测试、518 个套件全部通过，原始退出码 0；IntegrationTests 编译通过（按项目规定不运行）。
 - **对应版本**：未发版。发版说明要写：interface 补上本模块里没有哪个定义收到的成员（SwiftUI 给 SwiftUICore 类型加的那批、内部命名空间的静态成员）；ABI 快照格式升到 10；evolution 能以一组 image 为一个版本比较、记录组内搬家（目前经库 API，命令行未接）；MachOObjCSection 的依赖下限是 0.8.205。
 
+## 2026-10-31 opaque 结果的层号按每个加参数的上下文来数
+
+- **时间段**：2026-10-31，分支 `fix/opaque-parameter-depth`（worktree `.worktrees/MachOSwiftSection-OpaqueParameterDepth`，基于 `origin/next` e4b5595c）。
+- **动机**：RuntimeViewer 用 Debug 构建给一个静态链接了 FoundationToolbox 的测试 bundle 建 Find 语料时，在 `SwiftInterfaceBuilderOpaqueTypeProvider` 的断言上 trap：`KeychainStorage<Value>.publisher : some Publisher<Value, Never>` 的约束落在 `τ_1_0`，算出的 opaque 层号却是 0。
+  - 根因：Debug 构建（`-g -Onone`，driver 因此加上 `-enable-anonymous-context-mangled-names`）把属性的 opaque 类型挂在一个以属性命名的匿名上下文下。这个上下文带着类型的泛型签名，父级却是类型的父级。provider 跳过匿名上下文、只数父链上最近的类型或 extension，于是找不到类型。
+  - release 构建同样算错：打出裸 `some`；opaque 参数自己没有约束、类型参数却有约束时（`some Any`），读到类型参数的约束，印出不存在的 `some Storable`。
+  - 修好之后在系统框架上做前后对比，又发现同一处的另一个错误，任何构建都有：provider 凭类型节点套没套 `dependentGenericType` 判断声明是否自己开一层，只带上下文 `where` 子句的函数有签名、没参数，被多算一层，打出裸 `some`（SwiftUICore 的 `KeyframesBuilder.buildBlock()`）。
+- **关键决策**：
+  - 在 `GenericParameterDepthLayout` 加 `make(forOpaqueType:genericContext:in:)`，照运行时 `_gatherGenericParameterCounts` 沿整条父链数层，每个让参数总数增长的上下文开一层，匿名上下文也算。provider 与 opaque 改写（`ReadOpaqueType`，给引用的实参分层、给 kind-9 thunk 的实参取名）都改用它，provider 原先的 `enclosingDepthCount` 与 `declaresOwnGenericParameters` 删掉，`where` 子句那一条随之算对。
+  - 属性写在嵌套泛型类型的 extension 里时，它的匿名上下文直接挂在模块下，一次带来被扩展类型的全部参数。这时从匿名上下文的 mangled 名字取出被扩展的类型，按 `…Mn` 符号找到描述符再拆层：先查描述符所在镜像的符号索引；读的是本进程里已加载的镜像时（`MachOImage`，或进程内地址），被扩展类型在别的镜像就经 `dlsym` 找它导出的描述符（跨模块扩展的类型一定是 public 的）。按文件读、类型又在别的镜像时拆不了，返回 nil，provider 打裸 `some`，改写按位置分层：少算一层会印出别的参数的约束，宁可不印。
+  - 类型的层布局不动：Swift 不允许在泛型函数里声明类型（泛型类型的方法也算），类型的父链上不会有带参数的匿名上下文。
+- **落地**：SwiftInspection（`GenericParameterDepthLayout.make(forOpaqueType:genericContext:in:)`），SwiftInterface（`SwiftInterfaceBuilderOpaqueTypeProvider`），SwiftDeclarationRendering（`ReadOpaqueType`），回归测试 `OpaqueParameterDepthTests`（两个现场编译的模块：一个声明嵌套泛型类型，另一个以 `-g -Onone` 编译、在 extension 里给它加属性；文件读法与进程内读法各打印一次 interface，另核对层布局本身），文档 [OpaqueReturnTypeResolution.md](OpaqueReturnTypeResolution.md) §1.3、[Modules/SwiftInterface.md](Modules/SwiftInterface.md)。
+- **验证**：都在 JHs-Mac-Studio-Ultra 上跑。
+  - 修复前：两个 exit test（文件读法、进程内读法）都以 `SIGTRAP` 结束，正是 RuntimeViewer 报的那个断言；层布局 6 个声明全错。修复后全部通过，既有的 `OpaqueParameterInMultiDepthExtensionTests` 照旧通过。`where` 子句那条用两份 CLI 在 `-O` 与 `-g -Onone` 编的探针上核过：修复前都是裸 `some`，修复后都印出约束。
+  - 最终代码上 opaque 相关的单元测试套件全部通过（SwiftInterfaceTests 5 个套件 18 个测试、opaque 改写 3 个套件 10 个测试、ABI 层 opaque fixture 测试）；其中别的镜像声明的被扩展类型，按文件读印成裸 `some`，进程内读印出约束。
+  - 前后对比：基线 `origin/next` e4b5595c 与修复分支的 debug CLI，对本机 dyld cache 里 TipKit、Charts、SwiftData、WidgetKit、AppIntents、Combine、SwiftUICore、SwiftUI 各跑 `interface --parse-opaque-return-type` 与 `dump`。16 组输出里 15 组逐字节一致；SwiftUICore 的 interface 只差一行，就是上面 `KeyframesBuilder.buildBlock()` 印出了 SDK 里那个约束（`some SwiftUI.KeyframeTrackContent<A>`）。
+- **后续**：只带上下文 `where` 子句的方法，函数头多印了一个泛型参数表（`static func build<A>() -> … where A: Swift.Hashable`，SDK 写的是 `buildBlock() -> … where Value : …`），修复前后都这样，与层号无关，这次没动。
+- **对应版本**：未发版。发版说明要写：Debug 构建的镜像里，泛型类型的属性返回 `some` 时，interface 印出它自己的约束，不再印成裸 `some` 或别的参数的约束；只带上下文 `where` 子句的方法返回 `some` 时也印出约束；用 Debug 构建的宿主（RuntimeViewer）不再在这里崩溃。
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节

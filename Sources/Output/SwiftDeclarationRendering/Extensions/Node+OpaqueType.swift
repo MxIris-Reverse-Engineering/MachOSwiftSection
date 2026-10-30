@@ -723,14 +723,17 @@ fileprivate struct ReadOpaqueType {
     let ownerLayout: AccessorThunkOwnerLayout
     /// How the descriptor's parameters split into depths: what regroups the
     /// argument lists of a reference to it (`opaqueTypeGenericArgumentsByDepth`).
-    /// `nil` for a descriptor with no generic context.
+    /// `nil` for a descriptor with no generic context, or one whose depths
+    /// cannot be told (`GenericParameterDepthLayout.make(forOpaqueType:genericContext:in:)`),
+    /// which leaves the lists keyed by position.
     let depthLayout: GenericParameterDepthLayout?
 
     init(_ opaqueType: OpaqueType, in context: some ReadingContext) {
         self.opaqueType = opaqueType
         if let genericContext = opaqueType.genericContext {
-            let depthLayout = GenericParameterDepthLayout.make(for: genericContext, ownedBy: .opaqueType(opaqueType.descriptor), in: context)
-            self.ownerLayout = AccessorThunkOwnerLayout(genericContext: genericContext, depthLayout: depthLayout)
+            let depthLayout = GenericParameterDepthLayout.make(forOpaqueType: opaqueType.descriptor, genericContext: genericContext, in: context)
+            self.ownerLayout = depthLayout.map { AccessorThunkOwnerLayout(genericContext: genericContext, depthLayout: $0) }
+                ?? AccessorThunkOwnerLayout(genericContext: genericContext)
             self.depthLayout = depthLayout
         } else {
             self.ownerLayout = AccessorThunkOwnerLayout(genericContext: nil as GenericContext?)

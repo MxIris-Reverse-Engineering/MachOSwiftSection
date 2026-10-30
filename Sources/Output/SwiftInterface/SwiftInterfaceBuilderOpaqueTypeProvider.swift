@@ -219,17 +219,23 @@ public struct SwiftInterfaceBuilderOpaqueTypeProvider<MachO: MachOSwiftSectionRe
     /// The depth comes from the descriptor, not from the declaration's mangled
     /// signature: a member's signature spells only the depths it adds
     /// (`ASTMangler::appendGenericSignatureParts` skips the context's). It is
-    /// the number of enclosing depths — the depths of the context the
-    /// declaration sits in, the descriptor's parent, as
-    /// `GenericParameterDepthLayout` counts them: a non-generic nested type
-    /// adds none, and an extension of a nested generic type adds every level
-    /// of the type it extends, which the runtime's
-    /// `_gatherGenericParameterCounts` reaches by switching to the extended
-    /// type — plus one when the declaration is generic itself, which its type
-    /// node says (a `dependentGenericType` wrapper; a constrained extension's
-    /// signature sits in the context and does not count). Counting the parent
-    /// chain's growing levels instead took `extension Outer.SecondMiddle
-    /// where A: Hashable` for one depth and trapped below on its `τ_2_0`.
+    /// the innermost depth of the descriptor's own layout
+    /// (`GenericParameterDepthLayout.make(forOpaqueType:genericContext:in:)`):
+    /// the depths of the type or extension the declaration belongs to — an
+    /// extension of a nested generic type adds every level of the type it
+    /// extends — then one for a generic declaration's own parameters, then
+    /// the opaque parameters'. Counting the parent chain's growing levels took
+    /// `extension Outer.SecondMiddle where A: Hashable` for one depth and
+    /// trapped below on its `τ_2_0`; counting only the nearest type or
+    /// extension missed the type of a debug build's property, whose opaque
+    /// type sits in an anonymous context in the type's parent, and trapped
+    /// on `KeychainStorage<Value>.publisher`'s `τ_1_0` — or, for a `some Any`,
+    /// read the constraint on the type's `Value` as the opaque one's. Taking a
+    /// declaration whose type node carries a generic signature for one with
+    /// a depth of its own looked a contextual `where` clause's function
+    /// (`static func build() -> some Sequence<Value> where Value: Hashable`)
+    /// up one depth too deep, in every build. Depths the layout cannot tell
+    /// are answered with nil.
     ///
     /// A requirement on a parameter beyond that depth cannot exist for a
     /// well-formed image: that is reported as a fault and asserted in debug
@@ -243,7 +249,13 @@ public struct SwiftInterfaceBuilderOpaqueTypeProvider<MachO: MachOSwiftSectionRe
             return nil
         }
 
-        let opaqueParameterDepth = enclosingDepthCount(of: opaqueType) + (Self.declaresOwnGenericParameters(node) ? 1 : 0)
+        guard let depthLayout = GenericParameterDepthLayout.make(forOpaqueType: opaqueType.descriptor, genericContext: genericContext, in: machO.context) else {
+            let declaration = await node.print(using: .default)
+            #log(.error, "the depths around the opaque type of \(declaration, privacy: .public) cannot be told, rendering a bare `some`")
+            return nil
+        }
+        // The opaque parameters are the descriptor's own: the innermost depth.
+        let opaqueParameterDepth = depthLayout.depthCount - 1
 
         var constraintsByParameter: [GenericParameterCoordinate: OpaqueParameterConstraints] = [:]
         for requirement in requirements {
@@ -277,36 +289,6 @@ public struct SwiftInterfaceBuilderOpaqueTypeProvider<MachO: MachOSwiftSectionRe
             return nil
         }
         return parameterConstraints
-    }
-
-    /// The depths of the type or extension the declaration naming `opaqueType`
-    /// sits in, as `GenericParameterDepthLayout` counts them — the nearest one
-    /// up the descriptor's parent chain. An anonymous context in between is
-    /// where a generic declaration's own signature lives; its depth is the one
-    /// `declaresOwnGenericParameters` adds, so it is passed over here, as the
-    /// parent chain's own `parentParameters` passes over it. No type or
-    /// extension above (a top-level declaration) is no enclosing depth.
-    private func enclosingDepthCount(of opaqueType: OpaqueType) -> Int {
-        var parent = (try? opaqueType.descriptor.parent(in: machO.context))?.flatMap(\.resolved)
-        while let currentParent = parent {
-            switch currentParent {
-            case .type, .extension:
-                return (try? GenericParameterDepthLayout.make(for: currentParent, in: machO.context))?.depthCount ?? 0
-            default:
-                parent = (try? currentParent.parent(in: machO.context))?.flatMap(\.resolved)
-            }
-        }
-        return 0
-    }
-
-    /// Whether the declaration introduces generic parameters of its own: its
-    /// type is wrapped in a `dependentGenericType`. The entity is unwrapped
-    /// first so a `static` or accessor wrapper does not hide it; a constrained
-    /// extension's signature sits in the context child and is not consulted.
-    private static func declaresOwnGenericParameters(_ node: Node) -> Bool {
-        let declarationNode = node.first(of: .function, .variable, .subscript) ?? node
-        guard let typeNode = declarationNode.children.last, typeNode.isKind(of: .type) else { return false }
-        return typeNode[safeChild: 0]?.isKind(of: .dependentGenericType) ?? false
     }
 
     /// Decides which of the parameter's same-type constraints belong to one
