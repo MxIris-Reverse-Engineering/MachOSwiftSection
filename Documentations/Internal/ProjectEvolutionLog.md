@@ -2890,6 +2890,8 @@
 - **验证**：都在 JHs-Mac-Studio-Ultra 上跑。
   - 修复前：两个 exit test（文件读法、进程内读法）都以 `SIGTRAP` 结束，正是 RuntimeViewer 报的那个断言；层布局 6 个声明全错。修复后全部通过，既有的 `OpaqueParameterInMultiDepthExtensionTests` 照旧通过。`where` 子句那条用两份 CLI 在 `-O` 与 `-g -Onone` 编的探针上核过：修复前都是裸 `some`，修复后都印出约束。
   - 最终代码上 opaque 相关的单元测试套件全部通过（SwiftInterfaceTests 5 个套件 18 个测试、opaque 改写 3 个套件 10 个测试、ABI 层 opaque fixture 测试）；其中别的镜像声明的被扩展类型，按文件读印成裸 `some`，进程内读印出约束。
+  - Xcode 26.6（CI 的 Swift 6.3）编译通过，opaque 相关的 13 个套件 39 个测试全部通过，原始退出码 0。
+  - 合进本地 `next`（d20ba205，与导出过滤功能在一起）后跑全量 `swift test --skip IntegrationTests`：2,743 个测试、519 个套件，只有 `ThunkOnlyObjCMemberTests` 的 4 条失败，原始退出码 1。这 4 条是默认 Xcode 27.2 现场编译 fixture 的漂移，`next` 基线 e4b5595c 上同样失败，Xcode 26.6 下通过。
   - 前后对比：基线 `origin/next` e4b5595c 与修复分支的 debug CLI，对本机 dyld cache 里 TipKit、Charts、SwiftData、WidgetKit、AppIntents、Combine、SwiftUICore、SwiftUI 各跑 `interface --parse-opaque-return-type` 与 `dump`。16 组输出里 15 组逐字节一致；SwiftUICore 的 interface 只差一行，就是上面 `KeyframesBuilder.buildBlock()` 印出了 SDK 里那个约束（`some SwiftUI.KeyframeTrackContent<A>`）。
 - **后续**：只带上下文 `where` 子句的方法，函数头多印了一个泛型参数表（`static func build<A>() -> … where A: Swift.Hashable`，SDK 写的是 `buildBlock() -> … where Value : …`），修复前后都这样，与层号无关，这次没动。
 - **对应版本**：未发版。发版说明要写：Debug 构建的镜像里，泛型类型的属性返回 `some` 时，interface 印出它自己的约束，不再印成裸 `some` 或别的参数的约束；只带上下文 `where` 子句的方法返回 `some` 时也印出约束；用 Debug 构建的宿主（RuntimeViewer）不再在这里崩溃。
