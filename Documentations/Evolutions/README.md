@@ -92,3 +92,4 @@
 | [0080](0080-objc-evolution-interface.md) | `objc evolution --interface`：带演进标注的合并 ObjC 头文件 | Implemented |
 | [0081](0081-evolution-unobservable-presence.md) | evolution 与 diff 区分「不存在」和「看不见」 | Implemented |
 | [0082](0082-image-group-evolution.md) | 一个版本由一组 image 组成的演进 | Implemented |
+| draft | [导出过滤进入标记模式，C 导入类型不再判成未导出](draft-exported-only-marking-mode.md) | Draft |
