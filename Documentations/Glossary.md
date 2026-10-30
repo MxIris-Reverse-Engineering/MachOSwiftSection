@@ -259,10 +259,10 @@ opaque 尖括号参数归属的第三条规则：协议无任何 anchor 命中�
 
 ### nested-definition region（定义区域，`marksNestedDefinitions`）
 
-`SwiftDeclarationPrintConfiguration.marksNestedDefinitions` 为 `true` 时，父定义打印结果里每个内联打印的嵌套类型或协议被包进 swift-semantic-string 的 `DefinitionRegion`，身份是名字节点的 mangled name，与 RuntimeViewer 的对象名相同。冻结后用 `separatingDefinitionRegions()` 拆出区域表；对深度为 d 的区域，`content(ofDefinitionRegion:)` 再加 `removingIndentation(levels: d + 1)` 得到的值，与该定义单独打印的结果逐项相同（文本、span、identifier，以及两种分离得到的表）。宿主因此只需打印父定义，不必再单独打印每个嵌套定义。与标记模式同时打开时，定义区域的编码放在可见性标记的内层，两者互不影响。
+`SwiftDeclarationPrintConfiguration.marksNestedDefinitions` 为 `true` 时，父定义打印结果里每个内联打印的嵌套类型或协议被包进 swift-semantic-string 的 `DefinitionRegion`，身份是名字节点的 mangled name，与 RuntimeViewer 的对象名相同。冻结后用 `separatingDefinitionRegions()` 拆出区域表；对深度为 d 的区域，`content(ofDefinitionRegion:)` 再加 `removingIndentation(levels: d + 1)` 得到的值，与该定义单独打印的结果逐项相同（文本、span、identifier，以及两种分离得到的表）。宿主因此只需打印父定义，不必再单独打印每个嵌套定义。与标记模式同时打开时，定义区域的编码放在可见性标记的内层，两者互不影响。唯一的例外：exported-only 过滤保留、外层却被它过滤掉的嵌套定义，在父定义的标记打印里随外层只在过滤关着时可见，与它单独打印不同，宿主要单独打印它（提案 draft-exported-only-marking-mode）。
 
 - **主要出现在**：`Sources/Output/SwiftPrinting/SwiftDeclarationPrinter+DefinitionRegions.swift`、`SwiftDeclarationPrintConfiguration.swift`
-- **延伸阅读**：[提案 0068-nested-definition-regions](Evolutions/0068-nested-definition-regions.md)；swift-semantic-string 的 `docs/DefinitionRegions.md`
+- **延伸阅读**：[提案 0068-nested-definition-regions](Evolutions/0068-nested-definition-regions.md)；swift-semantic-string 的 `docs/DefinitionRegions.md`；例外见 [draft-exported-only-marking-mode](Evolutions/draft-exported-only-marking-mode.md)
 
 ### NodeStore / NodeReference
 

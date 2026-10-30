@@ -173,6 +173,18 @@ public struct SwiftDeclarationPrintConfiguration: Equatable, Sendable {
     /// `applyTransformers(_:)`; a hand-written transformer closure must start
     /// each line it emits with the indentation it is given.
     ///
+    /// One exception with `marksOptionalContent`: a definition the
+    /// exported-only filter keeps inside one it rules out — an exported type
+    /// nested in an unexported one, which an OS framework's export list
+    /// allows (Foundation's `LocalePreferences.ICUSymbolsAndStrings`). The
+    /// parent's print marks all of the parent, the child included, as
+    /// visible only while `printExportedDeclarationsOnly` is off, so the
+    /// region reads as the child's own print with the filter off and is gone
+    /// with it on, where the child's own print stays (evolution proposal
+    /// `exported-only-marking-mode`). The host prints such a child on its
+    /// own: one whose own `exportStatus` is not `isDefinitelyNotExported`
+    /// while an enclosing definition's is.
+    ///
     /// Off by default, and off the output is unchanged byte for byte.
     public var marksNestedDefinitions: Bool = false
 

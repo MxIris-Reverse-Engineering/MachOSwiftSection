@@ -33,6 +33,11 @@ import MachOFixtureSupport
 /// hard-coded level, a line its renderer does not indent — shows up here as a
 /// mismatch, or as a region whose indentation cannot be removed; a lost mark
 /// shows up as a parent with fewer regions than nested definitions.
+///
+/// The one documented exception (evolution proposal
+/// `exported-only-marking-mode`): marked, a definition the exported-only
+/// filter keeps inside one it rules out is visible in its parent's print
+/// only while the filter is off. Such a region is held to exactly that.
 @Suite(.serialized)
 final class NestedDefinitionRegionContractTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     enum Variant: CaseIterable, Sendable, CustomStringConvertible {
@@ -130,13 +135,42 @@ final class NestedDefinitionRegionContractTests: MachOSwiftSectionFixtureTests, 
         return "same text, span \(componentIndex) differs:\n  taken out: \(takenOutComponent)\n  own print: \(ownPrintComponent)"
     }
 
+    /// What the exception allows a region to differ by, and nothing more:
+    /// projected with the filter off it reads as the definition's own print
+    /// (all other options off, then all on), projected with the filter on it
+    /// is gone while the definition's own print is not. `nil` when it holds.
+    private static func exportFilterExceptionDifference(between takenOut: FrozenSemanticString, and ownPrint: FrozenSemanticString) -> String? {
+        let exportedOnlyOption = SwiftVisibilityOption.printExportedDeclarationsOnly.rawValue
+        let separatedTakenOut = takenOut.separatingVisibilityRegions()
+        let separatedOwnPrint = ownPrint.separatingVisibilityRegions()
+        let filterOffPredicates: [(String) -> Bool] = [{ _ in false }, { $0 != exportedOnlyOption }]
+        for isOptionEnabled in filterOffPredicates {
+            let projectedTakenOut = separatedTakenOut.regions.projection(of: separatedTakenOut.text, where: isOptionEnabled).text
+            let projectedOwnPrint = separatedOwnPrint.regions.projection(of: separatedOwnPrint.text, where: isOptionEnabled).text
+            if projectedTakenOut != projectedOwnPrint {
+                return "with the filter off, \(firstDifference(between: projectedTakenOut, and: projectedOwnPrint))"
+            }
+        }
+        let isOnlyTheFilterEnabled: (String) -> Bool = { $0 == exportedOnlyOption }
+        if !separatedTakenOut.regions.projection(of: separatedTakenOut.text, where: isOnlyTheFilterEnabled).text.string.isEmpty {
+            return "with the filter on, the region is still visible"
+        }
+        if separatedOwnPrint.regions.projection(of: separatedOwnPrint.text, where: isOnlyTheFilterEnabled).text.string.isEmpty {
+            return "with the filter on, the definition's own print is gone too: the filter rules it out"
+        }
+        return nil
+    }
+
     /// Prints every parent with nested definitions, takes each region out,
     /// and describes the first few that differ from the definition's own
-    /// print.
+    /// print. A marked print installs the export filter scope, as a host
+    /// printing one declaration at a time does, and holds a region the
+    /// exported-only filter keeps inside a definition it rules out to the
+    /// documented exception instead.
     private static func mismatches<MachO>(
         in machO: MachO,
         variant: Variant
-    ) async throws -> (checkedRegionCount: Int, mismatches: [String]) where MachO: MachOFieldLayoutRenderable & MachOSwiftSectionRepresentableWithCache & Sendable {
+    ) async throws -> (checkedRegionCount: Int, exceptionRegionCount: Int, mismatches: [String]) where MachO: MachOFieldLayoutRenderable & MachOSwiftSectionRepresentableWithCache & Sendable {
         let indexer = SwiftDeclarationIndexer(in: machO)
         try await indexer.prepare()
         let printer = SwiftDeclarationPrinter(configuration: variant.configuration, in: machO)
@@ -148,23 +182,44 @@ final class NestedDefinitionRegionContractTests: MachOSwiftSectionFixtureTests, 
             index.recoverSourceFiles(ofEveryDeclarationIn: indexer)
             printer.setPrivateDeclarationSourceFileProvider(index)
         }
+        if variant == .markedOptionalContent {
+            printer.installExportFilterScope(types: indexer.allTypeDefinitions.values, protocols: indexer.allProtocolDefinitions.values)
+        }
+
+        func hasRuledOutAncestor(_ typeDefinition: TypeDefinition?) -> Bool {
+            var ancestor = typeDefinition
+            while let currentAncestor = ancestor {
+                if printer.isExcludedByExportFilter(currentAncestor) { return true }
+                ancestor = currentAncestor.parent
+            }
+            return false
+        }
 
         typealias Printing = (SwiftDeclarationPrinter<MachO>) async throws -> SemanticString
         // Every definition a region can name, by the identity the printer
-        // gives it.
+        // gives it, and whether the filter keeps it inside a type it rules
+        // out.
         var ownPrintingByIdentity: [String: Printing] = [:]
+        var isKeptInsideRuledOutTypeByIdentity: [String: Bool] = [:]
+        var isKeptByIdentity: [String: Bool] = [:]
         for typeDefinition in indexer.allTypeDefinitions.values {
-            ownPrintingByIdentity[try await mangleAsString(typeDefinition.typeName.node)] = { try await $0.printTypeDefinition(typeDefinition) }
+            let identity = try await mangleAsString(typeDefinition.typeName.node)
+            ownPrintingByIdentity[identity] = { try await $0.printTypeDefinition(typeDefinition) }
+            isKeptByIdentity[identity] = !printer.isExcludedByExportFilter(typeDefinition)
+            isKeptInsideRuledOutTypeByIdentity[identity] = !printer.isExcludedByExportFilter(typeDefinition) && hasRuledOutAncestor(typeDefinition.parent)
         }
         for protocolDefinition in indexer.allProtocolDefinitions.values {
-            ownPrintingByIdentity[try await mangleAsString(protocolDefinition.protocolName.node)] = { try await $0.printProtocolDefinition(protocolDefinition) }
+            let identity = try await mangleAsString(protocolDefinition.protocolName.node)
+            ownPrintingByIdentity[identity] = { try await $0.printProtocolDefinition(protocolDefinition) }
+            isKeptByIdentity[identity] = !printer.isExcludedByExportFilter(protocolDefinition)
+            isKeptInsideRuledOutTypeByIdentity[identity] = !printer.isExcludedByExportFilter(protocolDefinition) && hasRuledOutAncestor(protocolDefinition.parent)
         }
 
-        var parents: [(label: String, nestedDefinitionCount: Int, print: Printing)] = []
+        var parents: [(label: String, nestedDefinitionCount: Int, isRuledOut: Bool, print: Printing)] = []
         for (name, typeDefinition) in indexer.rootTypeDefinitions {
             let nestedDefinitionCount = nestedDefinitionCount(of: typeDefinition)
             guard nestedDefinitionCount > 0 else { continue }
-            parents.append(("type \(name.name)", nestedDefinitionCount, { try await $0.printTypeDefinition(typeDefinition) }))
+            parents.append(("type \(name.name)", nestedDefinitionCount, printer.isExcludedByExportFilter(typeDefinition), { try await $0.printTypeDefinition(typeDefinition) }))
         }
         let extensionGroups = [indexer.typeExtensionDefinitions, indexer.protocolExtensionDefinitions, indexer.typeAliasExtensionDefinitions, indexer.conformanceExtensionDefinitions]
         for extensionGroup in extensionGroups {
@@ -172,12 +227,13 @@ final class NestedDefinitionRegionContractTests: MachOSwiftSectionFixtureTests, 
                 for extensionDefinition in extensionDefinitions {
                     let nestedDefinitionCount = nestedDefinitionCount(of: extensionDefinition)
                     guard nestedDefinitionCount > 0 else { continue }
-                    parents.append(("extension \(name.name)", nestedDefinitionCount, { try await $0.printExtensionDefinition(extensionDefinition) }))
+                    parents.append(("extension \(name.name)", nestedDefinitionCount, printer.isExcludedByExportFilter(extensionDefinition), { try await $0.printExtensionDefinition(extensionDefinition) }))
                 }
             }
         }
 
         var checkedRegionCount = 0
+        var exceptionRegionCount = 0
         var mismatches: [String] = []
         for parent in parents {
             let printed = try await parent.print(printer).frozen()
@@ -198,7 +254,13 @@ final class NestedDefinitionRegionContractTests: MachOSwiftSectionFixtureTests, 
                     mismatches.append("\(label): the indentation could not be removed\n\(regionContent.string)")
                     continue
                 }
-                if takenOut != ownPrint {
+                let isKeptInsideRuledOutDefinition = isKeptInsideRuledOutTypeByIdentity[region.identity] == true || (parent.isRuledOut && isKeptByIdentity[region.identity] == true)
+                if variant.configuration.marksOptionalContent, isKeptInsideRuledOutDefinition {
+                    exceptionRegionCount += 1
+                    if let difference = exportFilterExceptionDifference(between: takenOut, and: ownPrint) {
+                        mismatches.append("\(label): \(difference)")
+                    }
+                } else if takenOut != ownPrint {
                     mismatches.append("\(label): \(firstDifference(between: takenOut, and: ownPrint))")
                 } else if takenOut.separatingVisibilityRegions().regions != ownPrint.separatingVisibilityRegions().regions {
                     mismatches.append("\(label): the visibility regions differ")
@@ -208,7 +270,7 @@ final class NestedDefinitionRegionContractTests: MachOSwiftSectionFixtureTests, 
             }
             if mismatches.count >= 5 { break }
         }
-        return (checkedRegionCount, mismatches)
+        return (checkedRegionCount, exceptionRegionCount, mismatches)
     }
 
     @Test(arguments: Variant.allCases)
@@ -222,6 +284,18 @@ final class NestedDefinitionRegionContractTests: MachOSwiftSectionFixtureTests, 
     func fileNestedDefinitionsTakeOutAsTheirOwnPrints(variant: Variant) async throws {
         let result = try await Self.mismatches(in: machOFile, variant: variant)
         #expect(result.checkedRegionCount > 100)
+        #expect(result.mismatches.isEmpty, "\(result.mismatches.joined(separator: "\n\n"))")
+    }
+
+    /// The exception on `ExportedOnlyFixture`, whose `UnexportedParent` the
+    /// link leaves unexported while its nested `ExportedNested` stays
+    /// exported — the shape of Foundation's
+    /// `LocalePreferences.ICUSymbolsAndStrings`, where RuntimeViewer met it.
+    /// Every other nested definition of the module keeps the contract.
+    @Test func exportedOnlyFixtureNestedDefinitionsTakeOutAsTheirOwnPrints() async throws {
+        let result = try await Self.mismatches(in: ExportedOnlyFixture.machOFile(), variant: .markedOptionalContent)
+        #expect(result.checkedRegionCount > 5)
+        #expect(result.exceptionRegionCount == 1)
         #expect(result.mismatches.isEmpty, "\(result.mismatches.joined(separator: "\n\n"))")
     }
 

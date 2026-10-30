@@ -21,8 +21,23 @@ import Testing
 /// (`Holder`), a type whose stored property is internal (`FieldHolder`), a
 /// caseless enum (`Namespace`) and an extension of another module's type
 /// (`Int`) — and one that keeps nothing at all (`Hidden`).
+///
+/// `UnexportedParent` is public in the source, but the link leaves its type
+/// symbols out of the export trie (`unexportedSymbolNames`) while its nested
+/// `ExportedNested` keeps them: an exported type nested in one that is not,
+/// the shape an export list gives an OS framework — Foundation's
+/// `LocalePreferences.ICUSymbolsAndStrings`, `package` in the source like its
+/// parent, is exported while `LocalePreferences` is not.
 package enum ExportedOnlyFixture {
     package static let moduleName = "ExportedOnlyFixture"
+
+    /// The symbols the link leaves out of the export trie: the type
+    /// descriptor, metadata accessor and type metadata of `UnexportedParent`.
+    package static let unexportedSymbolNames = [
+        "_$s19ExportedOnlyFixture16UnexportedParentVMn",
+        "_$s19ExportedOnlyFixture16UnexportedParentVMa",
+        "_$s19ExportedOnlyFixture16UnexportedParentVN",
+    ]
 
     /// The `Anchor` class is load-bearing fixture ballast: a struct-only
     /// module compiles to a dylib with no `__DATA` segment, whose
@@ -120,6 +135,12 @@ package enum ExportedOnlyFixture {
         struct InternalNested {}
         @inline(never) func internalHelper() {}
     }
+    public struct UnexportedParent {
+        public struct ExportedNested {
+            public init() {}
+        }
+        public init() {}
+    }
     """
 
     package struct CompilationError: Swift.Error, CustomStringConvertible {
@@ -157,7 +178,7 @@ package enum ExportedOnlyFixture {
                 "swiftc", "-emit-library", "-enable-library-evolution",
                 "-module-name", moduleName,
                 sourceURL.path, "-o", libraryURL.path,
-            ]
+            ] + unexportedSymbolNames.flatMap { ["-Xlinker", "-unexported_symbol", "-Xlinker", $0] }
             let standardErrorPipe = Pipe()
             process.standardError = standardErrorPipe
             try process.run()

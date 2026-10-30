@@ -2863,6 +2863,7 @@
   - C 导入类型在裁决源头改为不给结论（`ExportStatus.declarationIsCImported`，看描述符的模块是不是 `__C` / `__C_Synthesized`），不在扩展那一腿特判；宿主读 `exportStatus` 的地方一起正确。
   - `printExportedDeclarationsOnly` 成为可见性选项 `swift.printExportedDeclarationsOnly`；标记模式下过滤器原本不输出的每一处（三个打印入口、被清空的普通扩展、成员、存储属性、`printRoot` 的全局块与 ObjC category conformance 块）照常打出，只在开关关着时可见；`printRoot()` 在标记模式下也装 `ExportFilterScope`。
   - `DeclarationBlock` 的闭合换行按全量打印的 body 决定，导出过滤会改变 body 的最后一个字节：在打印器里处理（嵌套定义之后的声明全被过滤时去掉末尾换行，交给块补一个条件换行），不改 swift-semantic-string。
+  - 2026-10-31 RuntimeViewer 接入时报告：Foundation 的 `LocalePreferences` 没导出、嵌套的 `ICUSymbolsAndStrings` 却导出了（系统框架按导出清单导出，不跟访问级别走），标记打印里从外层取出的这个嵌套定义区域多带了外层的条件，`marksNestedDefinitions` 的契约不成立。现有编码下修不掉，写进契约作为例外（宿主单独打印这种嵌套定义），`ExportedOnlyFixture` 用 `-unexported_symbol` 造出同样形态，契约测试按例外严格检查。
 - **落地**：SwiftDeclaration（`ExportStatus`）、SwiftDeclarationRendering（`SwiftVisibilityOption`）、SwiftPrinting（`SwiftDeclarationPrinter+ExportFilter.swift`、`+VisibilityRegions.swift`、`+Headers.swift`、`SwiftDeclarationPrinter.swift`）、SwiftInterface（`printRoot`）、MachOTestingSupport（共享的现场编译模块 `ExportedOnlyFixture`）。
 - **关联文档**：提案 [draft-exported-only-marking-mode](../Evolutions/draft-exported-only-marking-mode.md)，[ExportedOnlyInterfaceFiltering.md](ExportedOnlyInterfaceFiltering.md)「C 导入类型不裁决」与「标记模式」两节。
 - **验证**：都在 JHs-Mac-Studio-Ultra 上跑（默认 Xcode 27.2，远端依赖）。
@@ -2872,7 +2873,7 @@
   - Xcode 26.6 下本分支编译通过，`ThunkOnlyObjCMemberTests`、`VisibilityRegionProjectionTests`、`ExportedOnlyLibraryEvolutionFixtureTests`、`ExportStatusTests`、`ExportedOnlyInterfaceTests`、`SymbolTestsCoreInterfaceSnapshotTests`、`NestedDefinitionRegionContractTests` 等 9 个套件 44 个测试全过，原始退出码 0。
   - 真实框架探针（临时测试，未提交）：从本机 macOS 27.2 的 dyld cache 读 Combine、SwiftUICore、AppKit，每个定义的标记打印按「过滤开 / 关 × 地址等注释开 / 关」四组配置投影，与直接打印比较：848、14,086、2,879 个定义全部一致，其中 615、9,919、1,503 个有被过滤标记的内容。
   - 未跑渲染 A/B：普通打印的路径在构造上逐字节不变（`.always` 不打标，`VisibilityRegion(.always)` 就是原内容），SymbolTestsCore 的 interface 快照逐字节通过，改动不属于 AGENTS.md 所说的大重构。
-- **对应版本**：未发版。发版说明要写：`ExportStatus` 新增 `declarationIsCImported`（穷举 `switch` 的宿主要补一个分支）；`--exported-only --show-c-imported-types` 不再删 C 类型和本镜像对它的公开扩展；标记模式覆盖 exported-only 过滤，宿主逐个定义打印时要给标记打印器也装 `ExportFilterScope`。
+- **对应版本**：未发版。发版说明要写：`ExportStatus` 新增 `declarationIsCImported`（穷举 `switch` 的宿主要补一个分支）；`--exported-only --show-c-imported-types` 不再删 C 类型和本镜像对它的公开扩展；标记模式覆盖 exported-only 过滤，宿主逐个定义打印时要给标记打印器也装 `ExportFilterScope`；`marksNestedDefinitions` 契约有一个例外：被过滤的定义里没被过滤的嵌套定义要单独打印。
 
 ## 维护约定
 
