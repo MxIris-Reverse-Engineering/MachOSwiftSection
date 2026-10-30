@@ -2855,6 +2855,25 @@
   - ObjC 的两个集成套件等 MachOObjCSection 0.8.205 发布后接上，依赖下限随之抬到 0.8.205：只把 MachOObjCSection 解析到 0.8.205、其余依赖不变，全量 2,734 个测试、518 个套件全部通过，原始退出码 0；IntegrationTests 编译通过（按项目规定不运行）。
 - **对应版本**：未发版。发版说明要写：interface 补上本模块里没有哪个定义收到的成员（SwiftUI 给 SwiftUICore 类型加的那批、内部命名空间的静态成员）；ABI 快照格式升到 10；evolution 能以一组 image 为一个版本比较、记录组内搬家（目前经库 API，命令行未接）；MachOObjCSection 的依赖下限是 0.8.205。
 
+## 2026-10-30 导出过滤进入标记模式，C 导入类型不再判成未导出
+
+- **时间段**：2026-10-30，分支 `feature/exported-only-marking-mode`（worktree `.worktrees/MachOSwiftSection-ExportedOnlyMarkingMode`，基于 `next` e4b5595c）。
+- **动机**：RuntimeViewer 要加「只看导出的声明」（它的提案 `draft-exported-declarations-filter`）。内容区打开 `printExportedDeclarationsOnly` 就行，Find 的语料却是标记模式打印的，而导出过滤不在标记模式里，开着这个选项照样搜得到未导出的成员。排查中还发现 C 导入类型被判成未导出：它们的描述符是本镜像自己生成的副本，判成未导出会让 `--exported-only --show-c-imported-types` 连 C 类型本身和本镜像给它写的公开扩展一起删掉。
+- **关键决策**：
+  - C 导入类型在裁决源头改为不给结论（`ExportStatus.declarationIsCImported`，看描述符的模块是不是 `__C` / `__C_Synthesized`），不在扩展那一腿特判；宿主读 `exportStatus` 的地方一起正确。
+  - `printExportedDeclarationsOnly` 成为可见性选项 `swift.printExportedDeclarationsOnly`；标记模式下过滤器原本不输出的每一处（三个打印入口、被清空的普通扩展、成员、存储属性、`printRoot` 的全局块与 ObjC category conformance 块）照常打出，只在开关关着时可见；`printRoot()` 在标记模式下也装 `ExportFilterScope`。
+  - `DeclarationBlock` 的闭合换行按全量打印的 body 决定，导出过滤会改变 body 的最后一个字节：在打印器里处理（嵌套定义之后的声明全被过滤时去掉末尾换行，交给块补一个条件换行），不改 swift-semantic-string。
+- **落地**：SwiftDeclaration（`ExportStatus`）、SwiftDeclarationRendering（`SwiftVisibilityOption`）、SwiftPrinting（`SwiftDeclarationPrinter+ExportFilter.swift`、`+VisibilityRegions.swift`、`+Headers.swift`、`SwiftDeclarationPrinter.swift`）、SwiftInterface（`printRoot`）、MachOTestingSupport（共享的现场编译模块 `ExportedOnlyFixture`）。
+- **关联文档**：提案 [draft-exported-only-marking-mode](../Evolutions/draft-exported-only-marking-mode.md)，[ExportedOnlyInterfaceFiltering.md](ExportedOnlyInterfaceFiltering.md)「C 导入类型不裁决」与「标记模式」两节。
+- **验证**：都在 JHs-Mac-Studio-Ultra 上跑（默认 Xcode 27.2，远端依赖）。
+  - C 导入类型的复现测试（`cImportedTypeIsNotRuledOnAndItsPublicExtensionsAreKept`）修复前四条断言全红，修复后通过。
+  - 投影测试的两个探针：标记模式退回不管导出过滤时三条投影测试都红；不去掉 body 末尾的换行时，`ExportedOnlyFixture` 的四种形态投影到开关打开都印成 `}}`。
+  - 全量 `swift test --skip IntegrationTests`（d49bf523）：2,738 个测试、518 个套件，只红 `ThunkOnlyObjCMemberTests` 4 条，原始退出码 1。同一工具链下 `next` e4b5595c 的快照（两侧共用一份 `Package.resolved`）同样这 4 条、同样的行号红；换 CI 的 Xcode 26.6（Swift 6.3.3）它是绿的：现场编译的 fixture 随编译器漂移，是既有问题，不是本分支引入的。IntegrationTests 编译通过（按项目规定不运行）。
+  - Xcode 26.6 下本分支编译通过，`ThunkOnlyObjCMemberTests`、`VisibilityRegionProjectionTests`、`ExportedOnlyLibraryEvolutionFixtureTests`、`ExportStatusTests`、`ExportedOnlyInterfaceTests`、`SymbolTestsCoreInterfaceSnapshotTests`、`NestedDefinitionRegionContractTests` 等 9 个套件 44 个测试全过，原始退出码 0。
+  - 真实框架探针（临时测试，未提交）：从本机 macOS 27.2 的 dyld cache 读 Combine、SwiftUICore、AppKit，每个定义的标记打印按「过滤开 / 关 × 地址等注释开 / 关」四组配置投影，与直接打印比较：848、14,086、2,879 个定义全部一致，其中 615、9,919、1,503 个有被过滤标记的内容。
+  - 未跑渲染 A/B：普通打印的路径在构造上逐字节不变（`.always` 不打标，`VisibilityRegion(.always)` 就是原内容），SymbolTestsCore 的 interface 快照逐字节通过，改动不属于 AGENTS.md 所说的大重构。
+- **对应版本**：未发版。发版说明要写：`ExportStatus` 新增 `declarationIsCImported`（穷举 `switch` 的宿主要补一个分支）；`--exported-only --show-c-imported-types` 不再删 C 类型和本镜像对它的公开扩展；标记模式覆盖 exported-only 过滤，宿主逐个定义打印时要给标记打印器也装 `ExportFilterScope`。
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节

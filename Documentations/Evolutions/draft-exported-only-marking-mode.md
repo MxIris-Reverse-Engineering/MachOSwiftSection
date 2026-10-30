@@ -25,7 +25,7 @@ RuntimeViewer 要加「只看导出的声明」：侧栏按 `exportStatus` 筛�
 - 成员不加模型上的导出标志。类型或协议没导出，它的成员与嵌套类型必然也没导出（成员的有效访问级别受所在类型限制，见 `ValueDecl::getEffectiveAccess`），宿主按类型筛就够；导出类型里未导出的成员由打印器删，RuntimeViewer 的成员搜索读的是投影。
 - `printExportStatus`（`// not exported` 标注）、dump 路径、ObjC 一侧都不动。
 
-兼容性：给 `ExportStatus` 加 case 会让宿主里穷举的 `switch` 编译不过；RuntimeViewer、MachOKitUI、MachOViewer、swift-decompiler 目前都没有用它，0024 选枚举时也为新增结局留了位置。`--exported-only` 的说明本来就写着「没有导出证据的一律保留」，C 类型落进这一条，flag 文案与 agent 插件 skill 不用改。
+兼容性：给 `ExportStatus` 加 case 会让宿主里穷举的 `switch` 编译不过；RuntimeViewer、MachOKitUI、MachOViewer、swift-decompiler 目前都没有用它，0024 选枚举时也为新增结局留了位置。`SwiftVisibilityOption` 加 case 同理，这四个仓库都没有穷举它：RuntimeViewer 只经 `isVisibilityOptionEnabled(_:resolvesOpaqueTypes:)` 投影，会自动认出新选项。`--exported-only` 的说明本来就写着「没有导出证据的一律保留」，C 类型落进这一条，flag 文案与 agent 插件 skill 不用改。
 
 ## 决策日志
 
@@ -40,3 +40,4 @@ RuntimeViewer 要加「只看导出的声明」：侧栏按 `exportStatus` 筛�
 | 2026-10-30 | `DeclarationBlock` 闭合换行由打印器补，不改 swift-semantic-string | 方案原以为分隔符全交给容器即可。`DeclarationBlock` 是例外：它按全量打印的 body 最后一个字节决定补不补闭合换行，swift-semantic-string 的设计记录把这列为已知限制。别的选项只控制注释，从不改变 body 的最后一个字节；导出过滤会删掉整段声明，body 留着嵌套类型、之后的声明全被过滤时，投影到开关打开就印成 `}}`。在容器里修要给条件加取反、发新版再抬依赖，超出本提案范围；打印器知道哪些声明被过滤，在标记模式下去掉那部分最后的换行，交给块自己补一个条件为「body 任一部分可见」的换行，各种投影下都对。 |
 | 2026-10-30 | `printRoot` 的全局块与 ObjC category conformance 块一并标记 | 方案列的是打印器的入口，但原则是「过滤器原本不输出的每一处」。这两处也会删内容，不标就会让 `printRoot()` 的标记打印投影出错。逐个定义打印的 RuntimeViewer 用不到，但 `printRoot` 的契约要和逐个定义的一致。 |
 | 2026-10-30 | 现场编译的模块挪进 `MachOTestingSupport` | 投影测试与原来的过滤测试要用同一份模块，照 `ModuleSelectorFixture` 的样子做成共享的 `ExportedOnlyFixture`，每个进程只编一次。 |
+| 2026-10-30 | 实现完成，待用户看过后收尾 | 三步都已提交。验证（JHs-Mac-Studio-Ultra）：全量 2,738 个测试、518 个套件只红 `ThunkOnlyObjCMemberTests` 4 条，`next` 快照在同一工具链下同样红、换 Xcode 26.6 则绿，是现场编译 fixture 随编译器漂移的既有问题；Xcode 26.6 下编译通过、相关 9 个套件全过；临时探针在本机 dyld cache 的 Combine、SwiftUICore、AppKit 上逐个定义比对标记打印的投影，848 / 14,086 / 2,879 个定义全部一致。普通打印的路径在构造上逐字节不变、SymbolTestsCore 的 interface 快照通过，不算大重构，未跑渲染 A/B。文档：不另写使用指南或实现说明，ExportedOnlyInterfaceFiltering.md 加了「C 导入类型不裁决」与「标记模式」两节，术语表的 marking mode 与 exported-only 过滤两条已更新、没有新术语，演进账本按日期占位，节号落地时取。 |

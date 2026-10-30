@@ -150,6 +150,8 @@ Sources/Executables/swift-section/Commands/InterfaceCommand.swift # --exported-o
   `ExportedOnlyFixture`（即时编译，`internal` 不导出）逐个定义与整份 `printRoot()` 各对开关开、关投影一次。
   两个探针确认它们会红：标记模式退回不管导出过滤时三条都红；不去掉 body 末尾的换行时，`Holder` / `FieldHolder` / `Namespace` / `extension Int`
   投影到开关打开都印成 `}}`。
+- 落地前在真实框架上跑过一次临时探针（未提交）：本机 macOS 27.2 dyld cache 的 Combine、SwiftUICore、AppKit，每个定义的标记打印按「过滤开 / 关 ×
+  地址等注释开 / 关」四组配置投影，848 / 14,086 / 2,879 个定义全部与直接打印一致，其中 615 / 9,919 / 1,503 个有被过滤标记的内容。
 - 落地前的人工交叉验证（fixture 全量输出）：默认 3824 行 → 过滤后 2839 行；标注模式下 378 处 `// not exported` 对应的声明在过滤输出里**零残留**；
   过滤输出相对默认输出的新增行只有 conformance 扩展的 `{` → `{}` 改写；无 `\n\n\n`、无 `{\n}`。
 - 默认路径零行为改动，不构成 AGENTS.md 意义上的 large refactor，未跑渲染 A/B 脚本；由既有 interface 快照与 `defaultOutputIsUnchanged` 钉住。
