@@ -93,3 +93,4 @@
 | [0081](0081-evolution-unobservable-presence.md) | evolution 与 diff 区分「不存在」和「看不见」 | Implemented |
 | [0082](0082-image-group-evolution.md) | 一个版本由一组 image 组成的演进 | Implemented |
 | [0083](0083-exported-only-marking-mode.md) | 导出过滤进入标记模式，C 导入类型不再判成未导出 | Implemented |
+| draft | [注释结构标记：打印器给每条注释标出种类和各段角色](draft-comment-structure.md) | Accepted |
