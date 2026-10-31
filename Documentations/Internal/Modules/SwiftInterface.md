@@ -42,7 +42,7 @@ SwiftInterface 是接口生成的**编排层**（thin orchestrator）：它自�
 `printer.installExportFilterScope(types:protocols:)`，再进入 builder 体 `printRootContents()`。类型 / 协议 / 成员由 printer 自行裁决，
 扩展的「目标是不是本镜像内未导出声明」只有索引器的表能回答（strip 过的镜像里未导出类型零符号），所以 scope 在这里装；
 两个全局块与 ObjC category conformance 块逐项问 `printer.exportFilterVisibility(excluded:)`：过滤掉的项普通打印时略过，
-标记模式下包进只在过滤关着时可见的区域（提案 [draft-exported-only-marking-mode](../../Evolutions/draft-exported-only-marking-mode.md)）。
+标记模式下包进只在过滤关着时可见的区域（提案 [0083-exported-only-marking-mode](../../Evolutions/0083-exported-only-marking-mode.md)）。
 绕过 `printRoot` 的宿主要自己装 scope，标记打印也一样，否则扩展一腿 fail-open。
 详见 [ExportedOnlyInterfaceFiltering.md](../ExportedOnlyInterfaceFiltering.md)。
 

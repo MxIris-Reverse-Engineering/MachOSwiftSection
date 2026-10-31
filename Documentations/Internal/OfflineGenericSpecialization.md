@@ -26,7 +26,7 @@ let interface = try await printer.printTypeDefinition(specializedDefinition)
 - 本身不声明参数、只因嵌在泛型类型里才算泛型的类型，比如 `Outer<A>.Middle.Inner<B>` 里的 `Middle`。它有 generic context（继承了 `A`），却不开新层：`B` 在第 1 层。
 - extension 本身也不声明参数，但它的 generic context 带着被扩展类型的全部参数，可能跨好几层：`extension Outer.SecondMiddle where A == Int` 一个上下文覆盖 `Outer` 的第 0 层和 `SecondMiddle` 的第 1 层，里面声明的 `DeepConstrainedInner<B>` 的 `B` 在第 2 层。
 
-`GenericParameterDepthLayout`（SwiftInspection）给出每层几个参数：类型或 opaque type 上下文增加参数就开一层；extension 增加的参数按被扩展类型（extended context 的 mangling 里每个声明了参数的层各带一个参数列表）拆成几层。拆不开时（读不到、个数对不上）退回「这一级算一层」，不做超出父链的猜测。
+`GenericParameterDepthLayout`（SwiftInspection）给出每层几个参数：类型或 opaque type 上下文增加参数就开一层；extension 增加的参数按被扩展类型（extended context 的 mangling 里每个声明了参数的层各带一个参数列表）拆成几层。拆不开时（读不到、个数对不上）退回「这一级算一层」，不做超出父链的猜测。opaque type 另有入口 `make(forOpaqueType:genericContext:in:)`：它的父链上还有声明它的函数——Debug 构建里还有属性——的匿名上下文，这些上下文同样会增加参数，所以照运行时的 `_gatherGenericParameterCounts` 沿整条父链数，匿名上下文增加参数也开一层。写在 extension 里的属性，匿名上下文直接挂在模块下、一次带来被扩展类型的全部参数，要靠被扩展类型的描述符拆层；找不到描述符时返回 `nil`，由调用方降级，不退回「这一级算一层」——少算一层会把类型的参数当成 opaque 自己的（[OpaqueReturnTypeResolution.md](OpaqueReturnTypeResolution.md) §1.3）。类型的层布局不受影响：Swift 不允许在泛型函数里声明类型，类型的父链上不会有带参数的匿名上下文。
 
 此前有五处按「每个泛型祖先一层」计数，全部改用它：
 
@@ -38,7 +38,7 @@ let interface = try await printer.printTypeDefinition(specializedDefinition)
 | `AccessorThunkOwnerLayout` | thunk 从参数缓冲区读到的第二个字被标成 `(2, 0)`，是没有字段会引用的坐标 |
 | `GenericArgumentEnvironment.make(forInstantiatedTypeNode:)`（SwiftLayout） | 节点遍历在 extension 节点处停下，`Outer<Int>.ConstrainedInner<String>` 只收到最内层的实参，把 `String` 绑到第 0 层，引用它的字段整体降级 |
 
-`TargetGenericContext.depth`（ABI 模型）保留原义——泛型祖先的个数，baseline 仍记录它——只是不再拿它命名参数。`AccessorThunkOwnerLayout(genericContext:)` 留作没有 descriptor 时的形式，改为跳过不增加参数的祖先；extension 跨层的情况只有带 `depthLayout` 的新初始化方法能处理，库内调用点全部改用后者。opaque type 的 descriptor 可能在进程内、本镜像或别的镜像里读出，它的父链必须在读它的那个上下文里遍历，所以 `Node+OpaqueType` 在读出 descriptor 的地方就算好 `AccessorThunkOwnerLayout`（`ReadOpaqueType`）。
+`TargetGenericContext.depth`（ABI 模型）保留原义——泛型祖先的个数，baseline 仍记录它——只是不再拿它命名参数。`AccessorThunkOwnerLayout(genericContext:)` 留作没有 descriptor 时的形式，改为跳过不增加参数的祖先；extension 跨层的情况只有带 `depthLayout` 的新初始化方法能处理，库内调用点全部改用后者。opaque type 的 descriptor 可能在进程内、本镜像或别的镜像里读出，它的父链必须在读它的那个上下文里遍历，所以 `Node+OpaqueType` 在读出 descriptor 的地方就用 `make(forOpaqueType:genericContext:in:)` 的层布局算好 `AccessorThunkOwnerLayout`（`ReadOpaqueType`）；层布局算不出时退回不带 `depthLayout` 的形式，按位置分层。
 
 ## 实参按层绑定：`GenericArgumentBinding`
 

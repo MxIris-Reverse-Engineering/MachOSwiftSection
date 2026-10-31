@@ -167,7 +167,7 @@ Requirement Machine 最小化泛型签名时，把 pin 到同一具体类型的�
 export status 的**过滤形态**：interface 只输出镜像导出的声明。类型 / 协议按描述符符号（`…Mn` / `…Mp`，优先取描述符 offset 处的符号，重整名只兜底）裁决，成员沿用 export status 的派生形态判定，扩展按「被扩展类型 / 遵循协议是否为本镜像内未导出声明」裁决（依据 **`ExportFilterScope`**——`printRoot` 从索引器表算出的本镜像内未导出 `TypeName` / `ProtocolName` 集合）。只在判定为 `false` 时删，`nil` 一律保留（绝不靠猜删）；普通扩展被清空则整块删，conformance 扩展留 `{}`。与 export status 是同一个事实的两种呈现：删除条件即标注条件，两开关同开输出零标注。C 导入类型（`__C` 模块）不裁决：它的描述符是本镜像自己的副本。标记模式下被删的内容照常打出，条件是 `swift.printExportedDeclarationsOnly` 关着。
 
 - **主要出现在**：`Sources/Output/SwiftPrinting/SwiftDeclarationPrinter+ExportFilter.swift`、`SwiftInterfaceBuilder.printRoot()`
-- **延伸阅读**：[提案 0016](Evolutions/0016-exported-only-interface.md)、[draft-exported-only-marking-mode](Evolutions/draft-exported-only-marking-mode.md)、[ExportedOnlyInterfaceFiltering.md](Internal/ExportedOnlyInterfaceFiltering.md)
+- **延伸阅读**：[提案 0016](Evolutions/0016-exported-only-interface.md)、[提案 0083](Evolutions/0083-exported-only-marking-mode.md)、[ExportedOnlyInterfaceFiltering.md](Internal/ExportedOnlyInterfaceFiltering.md)
 
 ### emission strategy（发射策略）
 
@@ -235,7 +235,7 @@ sweep 覆盖范围之外的名字走的旁路：demangle 后 intern 进 `Storage
 `SwiftDeclarationPrintConfiguration.marksOptionalContent` 为 `true` 时的打印：受显示选项控制的输出（偏移 / 地址 / 布局注释、stripped symbolic item、opaque 类型的约束、按 selector 名推断的 `@objc override`、exported-only 过滤删掉的声明）不再由选项决定打不打，而是全部打出，包进 swift-semantic-string 的 `VisibilityRegion`，条件是对应的 `SwiftVisibilityOption`。条件记在原子的 `identifier` 上，所以文字就是每段受控内容都打出来的全量文字（exported-only 过滤关着）。冻结后拆出区域表，按某组配置的 `isVisibilityOptionEnabled(_:resolvesOpaqueTypes:)` 投影，与按那组配置直接打印（「普通打印」，即该开关为 `false`）完全相同。「可见性区域」「投影」是 swift-semantic-string 的术语，定义见其 `docs/VisibilityRegions.md`；MachOObjCSection 的对应物叫 marked rendering（其提案 0011）。
 
 - **主要出现在**：`Sources/Output/SwiftPrinting/SwiftDeclarationPrinter+VisibilityRegions.swift`、`SwiftDeclarationPrintConfiguration.swift`、`Sources/Output/SwiftDeclarationRendering/DeclarationRenderConfiguration.swift`、`SwiftVisibilityOption.swift`
-- **延伸阅读**：[提案 0056](Evolutions/0056-visibility-regions.md)；导出过滤进入标记模式：[draft-exported-only-marking-mode](Evolutions/draft-exported-only-marking-mode.md)
+- **延伸阅读**：[提案 0056](Evolutions/0056-visibility-regions.md)；导出过滤进入标记模式：[0083-exported-only-marking-mode](Evolutions/0083-exported-only-marking-mode.md)
 
 ### materialize（物化）
 
@@ -259,10 +259,10 @@ opaque 尖括号参数归属的第三条规则：协议无任何 anchor 命中�
 
 ### nested-definition region（定义区域，`marksNestedDefinitions`）
 
-`SwiftDeclarationPrintConfiguration.marksNestedDefinitions` 为 `true` 时，父定义打印结果里每个内联打印的嵌套类型或协议被包进 swift-semantic-string 的 `DefinitionRegion`，身份是名字节点的 mangled name，与 RuntimeViewer 的对象名相同。冻结后用 `separatingDefinitionRegions()` 拆出区域表；对深度为 d 的区域，`content(ofDefinitionRegion:)` 再加 `removingIndentation(levels: d + 1)` 得到的值，与该定义单独打印的结果逐项相同（文本、span、identifier，以及两种分离得到的表）。宿主因此只需打印父定义，不必再单独打印每个嵌套定义。与标记模式同时打开时，定义区域的编码放在可见性标记的内层，两者互不影响。唯一的例外：exported-only 过滤保留、外层却被它过滤掉的嵌套定义，在父定义的标记打印里随外层只在过滤关着时可见，与它单独打印不同，宿主要单独打印它（提案 draft-exported-only-marking-mode）。
+`SwiftDeclarationPrintConfiguration.marksNestedDefinitions` 为 `true` 时，父定义打印结果里每个内联打印的嵌套类型或协议被包进 swift-semantic-string 的 `DefinitionRegion`，身份是名字节点的 mangled name，与 RuntimeViewer 的对象名相同。冻结后用 `separatingDefinitionRegions()` 拆出区域表；对深度为 d 的区域，`content(ofDefinitionRegion:)` 再加 `removingIndentation(levels: d + 1)` 得到的值，与该定义单独打印的结果逐项相同（文本、span、identifier，以及两种分离得到的表）。宿主因此只需打印父定义，不必再单独打印每个嵌套定义。与标记模式同时打开时，定义区域的编码放在可见性标记的内层，两者互不影响。唯一的例外：exported-only 过滤保留、外层却被它过滤掉的嵌套定义，在父定义的标记打印里随外层只在过滤关着时可见，与它单独打印不同，宿主要单独打印它（提案 0083-exported-only-marking-mode）。
 
 - **主要出现在**：`Sources/Output/SwiftPrinting/SwiftDeclarationPrinter+DefinitionRegions.swift`、`SwiftDeclarationPrintConfiguration.swift`
-- **延伸阅读**：[提案 0068-nested-definition-regions](Evolutions/0068-nested-definition-regions.md)；swift-semantic-string 的 `docs/DefinitionRegions.md`；例外见 [draft-exported-only-marking-mode](Evolutions/draft-exported-only-marking-mode.md)
+- **延伸阅读**：[提案 0068-nested-definition-regions](Evolutions/0068-nested-definition-regions.md)；swift-semantic-string 的 `docs/DefinitionRegions.md`；例外见 [0083-exported-only-marking-mode](Evolutions/0083-exported-only-marking-mode.md)
 
 ### NodeStore / NodeReference
 

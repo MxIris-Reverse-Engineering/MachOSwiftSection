@@ -686,6 +686,7 @@
 - **二、离线特化把 `.metadata` 实参当指针用，文件里读出的 `Metadata` 会成野指针**：不成立。离线 `specialize` 的文档（`GenericSpecializer+StaticSpecialization.swift` 开头）与 [OfflineGenericSpecialization.md](OfflineGenericSpecialization.md) 都写明 `.metatype` / `.metadata` / `.specialized` 是宿主进程自己的类型；`.specialized` 的 `metadata()` 先从内存读 kind，只可能是已经解引用过的进程内地址。在线路径对 `.metadata` 一直有同样的前提，误用时同样会崩，不是本 PR 引入的新风险。
 - **三、特化后的泛型 enum 跳过解析不出的 payload，会算出错误的 Enum Layout**：不成立。`RuntimeFieldLayoutBackend` 在打印布局前用 value witness table 的 size 交叉校验（`impliedTotalSize` 与 `typeLayout.size` 不等就不出注释），这条校验是 `12232bee` 专门为这类缺口加的，对特化的泛型 enum 同样生效；跳过 payload 只会让注释消失，不会印出错的布局。非泛型 enum 在基线上就这样跳过。
 - **四、`GenericParameterDepthLayout` 跳过匿名上下文，让泛型方法的 opaque 描述符层号算错、thunk 名字跟着错**：不成立。层结构确实把方法的参数与 opaque 参数并成一层，但 kind-9 thunk 的实参缓冲只按命名声明的签名绑定（编译器 `AbstractMetadataAccessor::emit` 取 `O->getGenericSignature()`），不含 opaque 参数；两种层结构只在第三个字及以后不同，那里放的是 witness table，从不被命名。基线用 `AccessorThunkOwnerLayout(genericContext:)` 算出的是同一个结构，PR 只是把计算挪了位置。
+- **四的复审（2026-10-31）**：结论不变，前提的描述过时了。opaque 描述符的层布局已改由 `GenericParameterDepthLayout.make(forOpaqueType:genericContext:in:)` 计算（[ProjectEvolutionLog](ProjectEvolutionLog.md) 第 118 节）：匿名上下文增加参数也开一层，方法的参数与 opaque 参数各占一层，不再「并成一层」。就这一条说的泛型方法而言，thunk 实参的命名不受影响：实参缓冲仍只含命名声明的参数，它们在两种结构下的坐标相同。但「跳过匿名上下文无害」只在泛型方法上成立：Debug 构建里属性的 opaque 类型挂在一个带着类型泛型签名、父级却是类型父级的匿名上下文下，跳过它就找不到类型，provider 给约束定的层号与 opaque 改写给实参的分层都会算错，RuntimeViewer 的 Debug 构建因此 trap，这次一并修掉。
 - **既往修复**：无。
 - **复审条件**：上面任何一条的前提被改动——打印器或 RuntimeViewer 改了追加扩展的条件；离线特化开始接受文件里读出的 `Metadata`；enum 布局的 size 交叉校验被拿掉；thunk 的实参缓冲开始带 opaque 参数。
 

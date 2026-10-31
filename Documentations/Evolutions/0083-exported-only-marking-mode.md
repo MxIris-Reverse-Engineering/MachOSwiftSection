@@ -1,10 +1,10 @@
-# Draft - 导出过滤进入标记模式，C 导入类型不再判成未导出
+# 0083 - 导出过滤进入标记模式，C 导入类型不再判成未导出
 
-- **状态**: In Progress
+- **状态**: Implemented
 - **创建日期**: 2026-10-30
-- **最后更新**: 2026-10-30
+- **最后更新**: 2026-10-31
 - **关联提案**: [0016](0016-exported-only-interface.md)（导出过滤）、[0024](0024-exported-declaration-flag.md)（类型 / 协议的 `exportStatus`）、[0056](0056-visibility-regions.md)（标记模式）；RuntimeViewer 的 `draft-exported-declarations-filter`（使用方）
-- **实现分支 / PR**: `feature/exported-only-marking-mode`（worktree `.worktrees/MachOSwiftSection-ExportedOnlyMarkingMode`，基于 `next`）
+- **实现分支 / PR**: `feature/exported-only-marking-mode`（worktree `.worktrees/MachOSwiftSection-ExportedOnlyMarkingMode`，基于 `next` e4b5595c），2026-10-31 合入 `next`
 
 ## 摘要
 
@@ -43,3 +43,4 @@ RuntimeViewer 要加「只看导出的声明」：侧栏按 `exportStatus` 筛�
 | 2026-10-30 | 实现完成，待用户看过后收尾 | 三步都已提交。验证（JHs-Mac-Studio-Ultra）：全量 2,738 个测试、518 个套件只红 `ThunkOnlyObjCMemberTests` 4 条，`next` 快照在同一工具链下同样红、换 Xcode 26.6 则绿，是现场编译 fixture 随编译器漂移的既有问题；Xcode 26.6 下编译通过、相关 9 个套件全过；临时探针在本机 dyld cache 的 Combine、SwiftUICore、AppKit 上逐个定义比对标记打印的投影，848 / 14,086 / 2,879 个定义全部一致。普通打印的路径在构造上逐字节不变、SymbolTestsCore 的 interface 快照通过，不算大重构，未跑渲染 A/B。文档：不另写使用指南或实现说明，ExportedOnlyInterfaceFiltering.md 加了「C 导入类型不裁决」与「标记模式」两节，术语表的 marking mode 与 exported-only 过滤两条已更新、没有新术语，演进账本按日期占位，节号落地时取。 |
 | 2026-10-31 | 「类型没导出则嵌套类型必然没导出」不成立；成员不下沉到模型的结论不变 | RuntimeViewer 接入时在 Foundation 碰到 `LocalePreferences` 没导出、它嵌套的 `LocalePreferences.ICUSymbolsAndStrings` 却导出了（类型描述符、元数据访问器与元数据都在导出表里）。swift-foundation 源码里两者都是 `package`，苹果构建系统框架时按导出清单决定导出什么，与访问级别无关。结论仍成立：每个类型与协议带的是它自己的 `exportStatus`，宿主按它筛、打印器也按它裁决，没有哪里依赖「随外层」。 |
 | 2026-10-31 | 嵌套定义区域契约在这里写明一个例外，不改标记方式 | 同一例子下，标记模式的 `marksNestedDefinitions` 契约不成立：父定义被过滤、整段带着「开关关着才可见」，从中取出的导出子定义比它单独打印多了这个条件。父定义投影到开关打开时必须整段不可见，子定义单独打印又必须可见，同一段原子带不了两种条件；要在取出区域时去掉祖先加的条件，得改 swift-semantic-string 的区域编码，超出本提案。所以在 `marksNestedDefinitions` 的文档里写明：宿主对「自己没被过滤、外层被过滤」的嵌套定义单独打印——RuntimeViewer 已经这样做。`ExportedOnlyFixture` 用链接器的 `-unexported_symbol` 造出同样的形态（`UnexportedParent.ExportedNested`），契约测试把这个区域按例外严格检查；去掉例外判定时它报的正是 RuntimeViewer 那一处。普通打印下这个导出的嵌套类型随外层一起被 `--exported-only` 删掉，是 0016 起就有的行为，记入 ExportedOnlyInterfaceFiltering.md 的已知降级。 |
+| 2026-10-31 | 合入 `next`，取号 0083，状态改 Implemented | 先在本地合进常驻检出给用户看（ad95cacd；嵌套定义区域契约的例外之后又合一次，3323c163），用户看过后正式收尾。最终代码在 JHs-Mac-Studio-Ultra 上验证：与 opaque 层号的修复（ProjectEvolutionLog 第 118 节）一起合进本地 `next`（d20ba205）后，全量 `swift test --skip IntegrationTests` 2,743 个测试、519 个套件，只红 `ThunkOnlyObjCMemberTests` 4 条，原始退出码 1，与 `next` 基线 e4b5595c 相同，Xcode 26.6 下这 4 条是绿的；合并结果（09684869）用 Xcode 26.6（Swift 6.3.3）连同测试目标编译通过，原始退出码 0。RuntimeViewer 接入后核对：打开 `printExportedDeclarationsOnly` 时，3,996 个 Swift 条目的标记打印投影与内容区直接打印逐字一致，Find 只在开关关着时搜得到未导出的成员。没有未做完的项。文档：不另写使用指南或实现说明（ExportedOnlyInterfaceFiltering.md 的两节已覆盖），没有新术语 |

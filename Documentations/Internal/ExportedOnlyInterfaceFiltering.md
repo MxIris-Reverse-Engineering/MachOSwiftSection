@@ -44,7 +44,7 @@ trie 查不到就成了假阴性，一个导出类型被删掉。因此裁决分
 实测四个真实镜像（dyld shared cache 与 iOS 18.5 模拟器的 SwiftUICore、进程内 libswiftCore、`SymbolTestsCore`）共 8171 条类型 / 协议声明
 **全部走第 1 腿**、无一落到这两个 case，裁决总耗时占 `prepare()` 的 0.15% 以内——所以它是无条件填充，没有配置开关。
 
-**C 导入类型不裁决**（提案 [draft-exported-only-marking-mode](../Evolutions/draft-exported-only-marking-mode.md)）。`__C.CGSize` 一类类型在本镜像里的描述符
+**C 导入类型不裁决**（提案 [0083-exported-only-marking-mode](../Evolutions/0083-exported-only-marking-mode.md)）。`__C.CGSize` 一类类型在本镜像里的描述符
 是本镜像自己生成的一份副本：编译器给 Clang 声明的是非唯一链接（`swift/lib/SIL/IR/SIL.cpp` 的 `getDeclLinkage` 对 Clang 声明返回
 `PublicNonUnique`），每个用到它的模块各自生成一份、谁都不导出——fixture 里 `_$sSo11CMTimeFlagsVMn` 就是 private external。
 把它读成「未导出」，开了 `--show-c-imported-types` 的 `--exported-only` 会删掉 C 类型本身，而且因为它进了 `ExportFilterScope`，
@@ -78,7 +78,7 @@ conformance 扩展全部漏下来。所以 `SwiftInterfaceBuilder.printRoot()` �
 
 ## 标记模式
 
-提案 [draft-exported-only-marking-mode](../Evolutions/draft-exported-only-marking-mode.md)。标记模式（`marksOptionalContent`，提案 0056）
+提案 [0083-exported-only-marking-mode](../Evolutions/0083-exported-only-marking-mode.md)。标记模式（`marksOptionalContent`，提案 0056）
 把受选项控制的内容全部打出、标上可见条件，宿主按选项投影；RuntimeViewer 的 Find 语料就是这样打印的。导出过滤原本不在其中，
 开着这个选项 Find 照样搜得到被删的成员。现在 `SwiftVisibilityOption.printExportedDeclarationsOnly`（`swift.printExportedDeclarationsOnly`）
 也是一个可见性选项，`isVisibilityOptionEnabled` 认它：
@@ -178,7 +178,7 @@ Sources/Executables/swift-section/Commands/InterfaceCommand.swift # --exported-o
 
 ## 延伸阅读
 
-- 配套提案：[0016](../Evolutions/0016-exported-only-interface.md)；标记模式与 C 导入类型：[draft-exported-only-marking-mode](../Evolutions/draft-exported-only-marking-mode.md)
+- 配套提案：[0016](../Evolutions/0016-exported-only-interface.md)；标记模式与 C 导入类型：[0083](../Evolutions/0083-exported-only-marking-mode.md)
 - 前篇：[InterfaceHeaderAndExportStatusAnnotations.md](InterfaceHeaderAndExportStatusAnnotations.md)（导出事实层、派生符号形态、两个豁免的来历）
 - 模块参考：[Modules/SwiftInterface.md](Modules/SwiftInterface.md)（`printRoot()` 的段落与 catch 契约）
 - 术语：[Glossary.md](../Glossary.md) 的「export status」与「exported-only 过滤」

@@ -2855,9 +2855,9 @@
   - ObjC 的两个集成套件等 MachOObjCSection 0.8.205 发布后接上，依赖下限随之抬到 0.8.205：只把 MachOObjCSection 解析到 0.8.205、其余依赖不变，全量 2,734 个测试、518 个套件全部通过，原始退出码 0；IntegrationTests 编译通过（按项目规定不运行）。
 - **对应版本**：未发版。发版说明要写：interface 补上本模块里没有哪个定义收到的成员（SwiftUI 给 SwiftUICore 类型加的那批、内部命名空间的静态成员）；ABI 快照格式升到 10；evolution 能以一组 image 为一个版本比较、记录组内搬家（目前经库 API，命令行未接）；MachOObjCSection 的依赖下限是 0.8.205。
 
-## 2026-10-30 导出过滤进入标记模式，C 导入类型不再判成未导出
+## 117. 导出过滤进入标记模式，C 导入类型不再判成未导出
 
-- **时间段**：2026-10-30，分支 `feature/exported-only-marking-mode`（worktree `.worktrees/MachOSwiftSection-ExportedOnlyMarkingMode`，基于 `next` e4b5595c）。
+- **时间段**：2026-10-30 至 10-31，分支 `feature/exported-only-marking-mode`（worktree `.worktrees/MachOSwiftSection-ExportedOnlyMarkingMode`，基于 `next` e4b5595c），10-31 合入 `next`。
 - **动机**：RuntimeViewer 要加「只看导出的声明」（它的提案 `draft-exported-declarations-filter`）。内容区打开 `printExportedDeclarationsOnly` 就行，Find 的语料却是标记模式打印的，而导出过滤不在标记模式里，开着这个选项照样搜得到未导出的成员。排查中还发现 C 导入类型被判成未导出：它们的描述符是本镜像自己生成的副本，判成未导出会让 `--exported-only --show-c-imported-types` 连 C 类型本身和本镜像给它写的公开扩展一起删掉。
 - **关键决策**：
   - C 导入类型在裁决源头改为不给结论（`ExportStatus.declarationIsCImported`，看描述符的模块是不是 `__C` / `__C_Synthesized`），不在扩展那一腿特判；宿主读 `exportStatus` 的地方一起正确。
@@ -2865,7 +2865,7 @@
   - `DeclarationBlock` 的闭合换行按全量打印的 body 决定，导出过滤会改变 body 的最后一个字节：在打印器里处理（嵌套定义之后的声明全被过滤时去掉末尾换行，交给块补一个条件换行），不改 swift-semantic-string。
   - 2026-10-31 RuntimeViewer 接入时报告：Foundation 的 `LocalePreferences` 没导出、嵌套的 `ICUSymbolsAndStrings` 却导出了（系统框架按导出清单导出，不跟访问级别走），标记打印里从外层取出的这个嵌套定义区域多带了外层的条件，`marksNestedDefinitions` 的契约不成立。现有编码下修不掉，写进契约作为例外（宿主单独打印这种嵌套定义），`ExportedOnlyFixture` 用 `-unexported_symbol` 造出同样形态，契约测试按例外严格检查。
 - **落地**：SwiftDeclaration（`ExportStatus`）、SwiftDeclarationRendering（`SwiftVisibilityOption`）、SwiftPrinting（`SwiftDeclarationPrinter+ExportFilter.swift`、`+VisibilityRegions.swift`、`+Headers.swift`、`SwiftDeclarationPrinter.swift`）、SwiftInterface（`printRoot`）、MachOTestingSupport（共享的现场编译模块 `ExportedOnlyFixture`）。
-- **关联文档**：提案 [draft-exported-only-marking-mode](../Evolutions/draft-exported-only-marking-mode.md)，[ExportedOnlyInterfaceFiltering.md](ExportedOnlyInterfaceFiltering.md)「C 导入类型不裁决」与「标记模式」两节。
+- **关联文档**：提案 [0083-exported-only-marking-mode](../Evolutions/0083-exported-only-marking-mode.md)，[ExportedOnlyInterfaceFiltering.md](ExportedOnlyInterfaceFiltering.md)「C 导入类型不裁决」与「标记模式」两节。
 - **验证**：都在 JHs-Mac-Studio-Ultra 上跑（默认 Xcode 27.2，远端依赖）。
   - C 导入类型的复现测试（`cImportedTypeIsNotRuledOnAndItsPublicExtensionsAreKept`）修复前四条断言全红，修复后通过。
   - 投影测试的两个探针：标记模式退回不管导出过滤时三条投影测试都红；不去掉 body 末尾的换行时，`ExportedOnlyFixture` 的四种形态投影到开关打开都印成 `}}`。
@@ -2873,11 +2873,13 @@
   - Xcode 26.6 下本分支编译通过，`ThunkOnlyObjCMemberTests`、`VisibilityRegionProjectionTests`、`ExportedOnlyLibraryEvolutionFixtureTests`、`ExportStatusTests`、`ExportedOnlyInterfaceTests`、`SymbolTestsCoreInterfaceSnapshotTests`、`NestedDefinitionRegionContractTests` 等 9 个套件 44 个测试全过，原始退出码 0。
   - 真实框架探针（临时测试，未提交）：从本机 macOS 27.2 的 dyld cache 读 Combine、SwiftUICore、AppKit，每个定义的标记打印按「过滤开 / 关 × 地址等注释开 / 关」四组配置投影，与直接打印比较：848、14,086、2,879 个定义全部一致，其中 615、9,919、1,503 个有被过滤标记的内容。
   - 未跑渲染 A/B：普通打印的路径在构造上逐字节不变（`.always` 不打标，`VisibilityRegion(.always)` 就是原内容），SymbolTestsCore 的 interface 快照逐字节通过，改动不属于 AGENTS.md 所说的大重构。
+  - 与第 118 节的 opaque 修复一起合进本地 `next`（d20ba205）后跑全量：2,743 个测试、519 个套件，同样只红这 4 条，原始退出码 1；合并结果（09684869）用 Xcode 26.6（Swift 6.3.3）连同测试目标编译通过，原始退出码 0。
+  - RuntimeViewer 接入后核对：打开 `printExportedDeclarationsOnly` 时，3,996 个 Swift 条目的标记打印投影与内容区直接打印逐字一致；Find 只在开关关着时搜得到未导出的成员。
 - **对应版本**：未发版。发版说明要写：`ExportStatus` 新增 `declarationIsCImported`（穷举 `switch` 的宿主要补一个分支）；`--exported-only --show-c-imported-types` 不再删 C 类型和本镜像对它的公开扩展；标记模式覆盖 exported-only 过滤，宿主逐个定义打印时要给标记打印器也装 `ExportFilterScope`；`marksNestedDefinitions` 契约有一个例外：被过滤的定义里没被过滤的嵌套定义要单独打印。
 
-## 2026-10-31 opaque 结果的层号按每个加参数的上下文来数
+## 118. opaque 结果的层号按每个加参数的上下文来数
 
-- **时间段**：2026-10-31，分支 `fix/opaque-parameter-depth`（worktree `.worktrees/MachOSwiftSection-OpaqueParameterDepth`，基于 `origin/next` e4b5595c）。
+- **时间段**：2026-10-31，分支 `fix/opaque-parameter-depth`（worktree `.worktrees/MachOSwiftSection-OpaqueParameterDepth`，基于 `origin/next` e4b5595c），当天合入 `next`。
 - **动机**：RuntimeViewer 用 Debug 构建给一个静态链接了 FoundationToolbox 的测试 bundle 建 Find 语料时，在 `SwiftInterfaceBuilderOpaqueTypeProvider` 的断言上 trap：`KeychainStorage<Value>.publisher : some Publisher<Value, Never>` 的约束落在 `τ_1_0`，算出的 opaque 层号却是 0。
   - 根因：Debug 构建（`-g -Onone`，driver 因此加上 `-enable-anonymous-context-mangled-names`）把属性的 opaque 类型挂在一个以属性命名的匿名上下文下。这个上下文带着类型的泛型签名，父级却是类型的父级。provider 跳过匿名上下文、只数父链上最近的类型或 extension，于是找不到类型。
   - release 构建同样算错：打出裸 `some`；opaque 参数自己没有约束、类型参数却有约束时（`some Any`），读到类型参数的约束，印出不存在的 `some Storable`。
@@ -2891,8 +2893,10 @@
   - 修复前：两个 exit test（文件读法、进程内读法）都以 `SIGTRAP` 结束，正是 RuntimeViewer 报的那个断言；层布局 6 个声明全错。修复后全部通过，既有的 `OpaqueParameterInMultiDepthExtensionTests` 照旧通过。`where` 子句那条用两份 CLI 在 `-O` 与 `-g -Onone` 编的探针上核过：修复前都是裸 `some`，修复后都印出约束。
   - 最终代码上 opaque 相关的单元测试套件全部通过（SwiftInterfaceTests 5 个套件 18 个测试、opaque 改写 3 个套件 10 个测试、ABI 层 opaque fixture 测试）；其中别的镜像声明的被扩展类型，按文件读印成裸 `some`，进程内读印出约束。
   - Xcode 26.6（CI 的 Swift 6.3）编译通过，opaque 相关的 13 个套件 39 个测试全部通过，原始退出码 0。
-  - 合进本地 `next`（d20ba205，与导出过滤功能在一起）后跑全量 `swift test --skip IntegrationTests`：2,743 个测试、519 个套件，只有 `ThunkOnlyObjCMemberTests` 的 4 条失败，原始退出码 1。这 4 条是默认 Xcode 27.2 现场编译 fixture 的漂移，`next` 基线 e4b5595c 上同样失败，Xcode 26.6 下通过。
+  - 合进本地 `next`（d20ba205，与第 117 节的导出过滤在一起）后跑全量 `swift test --skip IntegrationTests`：2,743 个测试、519 个套件，只有 `ThunkOnlyObjCMemberTests` 的 4 条失败，原始退出码 1。这 4 条是默认 Xcode 27.2 现场编译 fixture 的漂移，`next` 基线 e4b5595c 上同样失败，Xcode 26.6 下通过。
   - 前后对比：基线 `origin/next` e4b5595c 与修复分支的 debug CLI，对本机 dyld cache 里 TipKit、Charts、SwiftData、WidgetKit、AppIntents、Combine、SwiftUICore、SwiftUI 各跑 `interface --parse-opaque-return-type` 与 `dump`。16 组输出里 15 组逐字节一致；SwiftUICore 的 interface 只差一行，就是上面 `KeyframesBuilder.buildBlock()` 印出了 SDK 里那个约束（`some SwiftUI.KeyframeTrackContent<A>`）。
+  - 合并结果（09684869）用 Xcode 26.6（Swift 6.3.3）连同测试目标编译通过，原始退出码 0。
+  - RuntimeViewer 用 Debug 构建核对（对着 d20ba205）：临时改回给整个 Core 测试 bundle 建 Find 语料，4,210 个对象 78 秒建完，断言一次也没触发。同一份 RuntimeViewer 代码配修复前（3323c163）与修复后的本库，Foundation 建语料修复后两次都是 40 秒，修复前一次 42 秒（另一次 77 秒是在机器负载 75 时测的，不算数），没有变慢。它的 Core 与 Packages 测试除满载时的等待超时外都通过，超时的套件单独重跑也通过。
 - **后续**：只带上下文 `where` 子句的方法，函数头多印了一个泛型参数表（`static func build<A>() -> … where A: Swift.Hashable`，SDK 写的是 `buildBlock() -> … where Value : …`），修复前后都这样，与层号无关，这次没动。
 - **对应版本**：未发版。发版说明要写：Debug 构建的镜像里，泛型类型的属性返回 `some` 时，interface 印出它自己的约束，不再印成裸 `some` 或别的参数的约束；只带上下文 `where` 子句的方法返回 `some` 时也印出约束；用 Debug 构建的宿主（RuntimeViewer）不再在这里崩溃。
 
