@@ -17,7 +17,7 @@ extension Transformer.SwiftConfiguration {
         guard swiftMemberAddress.isEnabled else { return nil }
         let module = swiftMemberAddress
         return MemberAddressTransformer { offset in
-            Comment(module.transform(.init(offset: offset))).asSemanticString()
+            StructuredComment.line([.text(module.transform(.init(offset: offset)))]).asSemanticString()
         }
     }
 
@@ -26,7 +26,7 @@ extension Transformer.SwiftConfiguration {
         guard swiftVTableOffset.isEnabled else { return nil }
         let module = swiftVTableOffset
         return VTableOffsetTransformer { input in
-            Comment(module.transform(.init(slotOffset: input.slotOffset, label: input.label))).asSemanticString()
+            StructuredComment.line([.text(module.transform(.init(slotOffset: input.slotOffset, label: input.label)))]).asSemanticString()
         }
     }
 
@@ -35,7 +35,7 @@ extension Transformer.SwiftConfiguration {
         guard swiftFieldOffset.isEnabled else { return nil }
         let module = swiftFieldOffset
         return FieldOffsetTransformer { input in
-            Comment(module.transform(.init(startOffset: input.startOffset, endOffset: input.endOffset))).asSemanticString()
+            StructuredComment.line([.text(module.transform(.init(startOffset: input.startOffset, endOffset: input.endOffset)))]).asSemanticString()
         }
     }
 
@@ -59,7 +59,7 @@ extension Transformer.SwiftConfiguration {
                 hasEnumWitnesses: typeLayout.flags.hasEnumWitnesses,
                 isIncomplete: typeLayout.flags.isIncomplete
             )
-            return Comment(module.transform(input)).asSemanticString()
+            return StructuredComment.line([.text(module.transform(input))]).asSemanticString()
         }
     }
 
@@ -69,12 +69,11 @@ extension Transformer.SwiftConfiguration {
         guard swiftEnumLayout.isEnabled else { return (nil, nil) }
         let module = swiftEnumLayout
         let layoutTransformer = EnumLayoutTransformer { layoutResult in
-            InlineComment(module.renderStrategyComment(for: layoutResult)).asSemanticString()
+            StructuredComment.inline([.text(module.renderStrategyComment(for: layoutResult))]).asSemanticString()
         }
         let caseTransformer = EnumLayoutCaseTransformer { input in
-            AtomicComponent(
-                string: input.caseProjection.description(indent: input.indentation, prefix: "//", template: module),
-                type: .comment
+            StructuredComment.enumLayoutCaseBlock(
+                input.caseProjection.description(indent: input.indentation, prefix: "//", template: module)
             ).asSemanticString()
         }
         return (layoutTransformer, caseTransformer)

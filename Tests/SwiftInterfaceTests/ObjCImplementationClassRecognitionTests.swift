@@ -5,6 +5,7 @@ import MachOFoundation
 import SwiftDeclaration
 import SwiftInterface
 import SwiftInspection
+import Semantic
 @_spi(Internals) import MachOSymbols
 @testable import MachOTestingSupport
 
@@ -16,12 +17,29 @@ import SwiftInspection
 @Suite(.serialized, ExclusiveImageAccess(ObjCImplementationFixture.moduleName))
 struct ObjCImplementationClassRecognitionTests {
     private func interface(of variant: ObjCImplementationFixture.Variant, printFieldOffset: Bool = false) async throws -> String {
+        try await printInterface(of: variant, printFieldOffset: printFieldOffset, marksCommentStructure: false).string
+    }
+
+    private func printInterface(of variant: ObjCImplementationFixture.Variant, printFieldOffset: Bool, marksCommentStructure: Bool) async throws -> SemanticString {
         let machOFile = try ObjCImplementationFixture.machOFile(variant)
         var configuration = SwiftInterfaceBuilderConfiguration()
         configuration.printConfiguration.printFieldOffset = printFieldOffset
+        configuration.printConfiguration.marksCommentStructure = marksCommentStructure
         let builder = try SwiftInterfaceBuilder(configuration: configuration, eventHandlers: [], in: machOFile)
         try await builder.prepare()
-        return try await builder.printRoot().string
+        return try await builder.printRoot()
+    }
+
+    /// The notes of a recognized `@objc @implementation` — inferred
+    /// evidence, an ivar's unrecoverable type — and its ivars' field offsets
+    /// are marked like every other comment (evolution proposal
+    /// `comment-structure`).
+    @Test(arguments: ObjCImplementationFixture.Variant.allCases)
+    func markingCommentStructureKeepsTheContract(variant: ObjCImplementationFixture.Variant) async throws {
+        let marked = try await printInterface(of: variant, printFieldOffset: true, marksCommentStructure: true).frozen()
+        let plain = try await printInterface(of: variant, printFieldOffset: true, marksCommentStructure: false).frozen()
+        let violation = CommentStructureContract.violation(marked: marked, unmarked: plain)
+        #expect(violation == nil, "\(violation ?? "")")
     }
 
     private func block(named header: String, in interface: String) -> String? {

@@ -63,14 +63,31 @@ public enum ConditionalWitnessComment {
     /// more than one branch, because a single answer is already the
     /// `typealias` line.
     public static func lines(associatedTypeName: String, branches: [Branch]) -> [String] {
+        lineBodies(associatedTypeName: associatedTypeName, branches: branches).map(\.text)
+    }
+
+    /// `lines(associatedTypeName:branches:)` as segments: the associated
+    /// type's name, and each branch's condition and type (evolution proposal
+    /// `comment-structure`).
+    package static func lineBodies(associatedTypeName: String, branches: [Branch]) -> [[StructuredComment.Segment]] {
         guard branches.count >= 2 else { return [] }
-        let labels = branches.map { branch in (branch.availability?.phrase ?? "always") + ":" }
-        let labelWidth = labels.map(\.count).max() ?? 0
-        var lines = ["\(associatedTypeName) is picked at run time by an availability check (SE-0360):"]
-        for (label, branch) in zip(labels, branches) {
-            lines.append("  " + label.padding(toLength: labelWidth, withPad: " ", startingAt: 0) + " " + branch.typeText)
+        let phrases = branches.map { branch in branch.availability?.phrase ?? "always" }
+        let labelWidth = phrases.map { ($0 + ":").count }.max() ?? 0
+        var lineBodies: [[StructuredComment.Segment]] = [[
+            .name(associatedTypeName), .separator(" "),
+            .text("is picked at run time by an availability check (SE-0360)"), .separator(":"),
+        ]]
+        for (phrase, branch) in zip(phrases, branches) {
+            // The padding lines the types up, so it goes with the colon.
+            let paddedLabel = (phrase + ":").padding(toLength: labelWidth, withPad: " ", startingAt: 0)
+            let condition: [StructuredComment.Segment] = if paddedLabel.hasPrefix(phrase) {
+                [.qualifier(phrase), .separator(String(paddedLabel.dropFirst(phrase.count)) + " ")]
+            } else {
+                [.qualifier(paddedLabel), .separator(" ")]
+            }
+            lineBodies.append([.marker("  ")] + condition + [.type(branch.typeText)])
         }
-        return lines
+        return lineBodies
     }
 }
 
@@ -79,13 +96,22 @@ extension Node.OpaqueTypeResolution {
     /// this resolution's branches, each printed through `resolver` so the
     /// comment spells types exactly as the `typealias` line does.
     package func conditionalWitnessCommentLines(associatedTypeName: String, resolvedBy resolver: DemangleResolver) async throws -> [String] {
+        try await conditionalWitnessCommentLineBodies(associatedTypeName: associatedTypeName, resolvedBy: resolver).map(\.text)
+    }
+
+    /// The same lines as the comments the printers emit.
+    package func conditionalWitnessComments(associatedTypeName: String, resolvedBy resolver: DemangleResolver) async throws -> [StructuredComment] {
+        try await conditionalWitnessCommentLineBodies(associatedTypeName: associatedTypeName, resolvedBy: resolver).map(StructuredComment.line)
+    }
+
+    private func conditionalWitnessCommentLineBodies(associatedTypeName: String, resolvedBy resolver: DemangleResolver) async throws -> [[StructuredComment.Segment]] {
         guard conditionalCandidates.count >= 2 else { return [] }
         var branches: [ConditionalWitnessComment.Branch] = []
         for candidate in conditionalCandidates {
             let typeText = try await resolver.resolve(for: candidate.substitutedNode).string
             branches.append(ConditionalWitnessComment.Branch(availability: candidate.availability, typeText: typeText))
         }
-        return ConditionalWitnessComment.lines(associatedTypeName: associatedTypeName, branches: branches)
+        return ConditionalWitnessComment.lineBodies(associatedTypeName: associatedTypeName, branches: branches)
     }
 
     /// The comment the dump puts above a witness whose member of an expanded

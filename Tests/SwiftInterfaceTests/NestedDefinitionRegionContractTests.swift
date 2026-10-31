@@ -48,6 +48,10 @@ final class NestedDefinitionRegionContractTests: MachOSwiftSectionFixtureTests, 
         /// proposal `private-declaration-source-files`), measured against a
         /// nested definition's parent whatever level it prints at.
         case privateDeclarationSourceFiles
+        /// Every comment marked with its kind and segments (evolution
+        /// proposal `comment-structure`): the marks of a nested definition's
+        /// comments must not depend on where it prints.
+        case everyOptionMarkingCommentStructure
 
         var description: String {
             switch self {
@@ -55,6 +59,7 @@ final class NestedDefinitionRegionContractTests: MachOSwiftSectionFixtureTests, 
             case .markedOptionalContent: "marked optional content"
             case .everyOptionWithTransformers: "every option with transformers"
             case .privateDeclarationSourceFiles: "private declaration source files"
+            case .everyOptionMarkingCommentStructure: "every option marking comment structure"
             }
         }
 
@@ -82,6 +87,16 @@ final class NestedDefinitionRegionContractTests: MachOSwiftSectionFixtureTests, 
                 transformers.swiftTypeLayout.isEnabled = true
                 transformers.swiftEnumLayout.isEnabled = true
                 configuration.applyTransformers(transformers)
+            case .everyOptionMarkingCommentStructure:
+                configuration.printFieldOffset = true
+                configuration.printExpandedFieldOffsets = true
+                configuration.printMemberAddress = true
+                configuration.printVTableOffset = true
+                configuration.printPWTOffset = true
+                configuration.printTypeLayout = true
+                configuration.printEnumLayout = true
+                configuration.printExportStatus = true
+                configuration.marksCommentStructure = true
             }
             return configuration
         }
@@ -266,6 +281,8 @@ final class NestedDefinitionRegionContractTests: MachOSwiftSectionFixtureTests, 
                     mismatches.append("\(label): the visibility regions differ")
                 } else if takenOut.separatingDefinitionRegions().definitions != ownPrint.separatingDefinitionRegions().definitions {
                     mismatches.append("\(label): the nested definition regions differ")
+                } else if takenOut.separatingAnnotationRegions().annotations != ownPrint.separatingAnnotationRegions().annotations {
+                    mismatches.append("\(label): the comment annotation regions differ")
                 }
             }
             if mismatches.count >= 5 { break }

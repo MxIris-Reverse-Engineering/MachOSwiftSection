@@ -4,6 +4,10 @@ import MachOKit
 import MachOFoundation
 import MachOSwiftSection
 import SwiftInterface
+// Scoped: the module's `Error` component would shadow `Swift.Error` here.
+import struct Semantic.SemanticString
+import struct Semantic.FrozenSemanticString
+import MachOTestingSupport
 
 /// `@_rawLayout` is an experimental feature any module can enable, not a
 /// standard-library privilege, and only its `like:` spelling leaves a field
@@ -109,6 +113,10 @@ struct RawLayoutBuiltinDescriptorRenderingTests {
     """
 
     private func renderInterface() async throws -> String {
+        try await printInterface(marksCommentStructure: false).string
+    }
+
+    private func printInterface(marksCommentStructure: Bool) async throws -> SemanticString {
         let libraryURL = try Self.fixtureCompilationResult.get()
         let machOFile: MachOFile
         switch try File.loadFromFile(url: libraryURL) {
@@ -117,9 +125,21 @@ struct RawLayoutBuiltinDescriptorRenderingTests {
         case .fat(let fatFile):
             machOFile = try #require(try fatFile.machOFiles().first { $0.header.cpuType == .arm64 })
         }
-        let builder = try SwiftInterfaceBuilder(configuration: .init(), eventHandlers: [], in: machOFile)
+        var configuration = SwiftInterfaceBuilderConfiguration()
+        configuration.printConfiguration.marksCommentStructure = marksCommentStructure
+        let builder = try SwiftInterfaceBuilder(configuration: configuration, eventHandlers: [], in: machOFile)
         try await builder.prepare()
-        return try await builder.printRoot().string
+        return try await builder.printRoot()
+    }
+
+    /// The note beside `@_rawLayout(size:alignment:)` is marked like every
+    /// other comment (evolution proposal `comment-structure`).
+    @Test func markingCommentStructureKeepsTheContract() async throws {
+        let marked = try await printInterface(marksCommentStructure: true).frozen()
+        let plain = try await printInterface(marksCommentStructure: false).frozen()
+        #expect(plain.string.contains("size and alignment from the builtin type descriptor"))
+        let violation = CommentStructureContract.violation(marked: marked, unmarked: plain)
+        #expect(violation == nil, "\(violation ?? "")")
     }
 
     /// The line printed directly above `declaration`, or `nil` when the

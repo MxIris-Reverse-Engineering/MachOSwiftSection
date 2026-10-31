@@ -5,6 +5,7 @@ import MachOFoundation
 import MachOSwiftSection
 import SwiftPrinting
 import SwiftInterface
+import Semantic
 @testable import MachOTestingSupport
 
 /// The interface of the declaration shapes Swift 6.4 introduced (evolution
@@ -15,9 +16,25 @@ import SwiftInterface
 struct Swift64DeclarationShapeInterfaceTests {
     /// The fixture is a handful of declarations, so each test builds its own.
     private func printedInterface(printConfiguration: SwiftDeclarationPrintConfiguration = .init()) async throws -> String {
+        try await semanticInterface(printConfiguration: printConfiguration).string
+    }
+
+    private func semanticInterface(printConfiguration: SwiftDeclarationPrintConfiguration) async throws -> SemanticString {
         let builder = try SwiftInterfaceBuilder(configuration: SwiftInterfaceBuilderConfiguration(printConfiguration: printConfiguration), eventHandlers: [], in: try Swift64DeclarationShapesFixture.machOFile())
         try await builder.prepare()
-        return try await builder.printRoot().string
+        return try await builder.printRoot()
+    }
+
+    /// The note in place of an element the records keep no name for is
+    /// marked like every other comment (evolution proposal
+    /// `comment-structure`).
+    @Test func markingCommentStructureKeepsTheContract() async throws {
+        var markedConfiguration = SwiftDeclarationPrintConfiguration()
+        markedConfiguration.marksCommentStructure = true
+        let marked = try await semanticInterface(printConfiguration: markedConfiguration).frozen()
+        let plain = try await semanticInterface(printConfiguration: .init()).frozen()
+        let violation = CommentStructureContract.violation(marked: marked, unmarked: plain)
+        #expect(violation == nil, "\(violation ?? "")")
     }
 
     /// The lines of the block whose header line, trimmed, starts with

@@ -4,6 +4,11 @@ import MachOKit
 import MachOFoundation
 import MachOSwiftSection
 import SwiftInterface
+import SwiftPrinting
+// Scoped: the module's `Error` component would shadow `Swift.Error` here.
+import struct Semantic.SemanticString
+import struct Semantic.FrozenSemanticString
+import MachOTestingSupport
 
 /// The interface side of wrapped-property recovery for the two cases the
 /// same-image suite (`PropertyWrapperSynthesizedMemberTests`) cannot show:
@@ -113,6 +118,10 @@ struct StrippedWrappedPropertyRenderingTests {
     }
 
     private func renderOfflineInterface() async throws -> String {
+        try await printOfflineInterface(marksCommentStructure: false).string
+    }
+
+    private func printOfflineInterface(marksCommentStructure: Bool) async throws -> SemanticString {
         let products = try Self.compilationResult.get()
         let machOFile: MachOFile
         switch try File.loadFromFile(url: products.clientURL) {
@@ -121,13 +130,25 @@ struct StrippedWrappedPropertyRenderingTests {
         case .fat(let fatFile):
             machOFile = try #require(try fatFile.machOFiles().first { $0.header.cpuType == .arm64 })
         }
+        var printConfiguration = SwiftDeclarationPrintConfiguration()
+        printConfiguration.marksCommentStructure = marksCommentStructure
         let configuration = SwiftInterfaceBuilderConfiguration(
             indexConfiguration: .init(showCImportedTypes: false, dependencySearchPaths: [.machOFile(path: products.kitURL.path), .systemDyldSharedCache]),
-            printConfiguration: .init()
+            printConfiguration: printConfiguration
         )
         let builder = try SwiftInterfaceBuilder(configuration: configuration, eventHandlers: [], in: machOFile)
         try await builder.prepare()
-        return try await builder.printRoot().string
+        return try await builder.printRoot()
+    }
+
+    /// The note on a property recovered from its backing storage is marked
+    /// like every other comment (evolution proposal `comment-structure`).
+    @Test func markingCommentStructureKeepsTheContract() async throws {
+        let marked = try await printOfflineInterface(marksCommentStructure: true).frozen()
+        let plain = try await printOfflineInterface(marksCommentStructure: false).frozen()
+        #expect(plain.string.contains("synthesized from the backing storage"))
+        let violation = CommentStructureContract.violation(marked: marked, unmarked: plain)
+        #expect(violation == nil, "\(violation ?? "")")
     }
 
     private func renderInProcessInterface() async throws -> String {

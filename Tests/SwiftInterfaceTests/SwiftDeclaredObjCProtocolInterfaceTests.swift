@@ -6,6 +6,7 @@ import MachOSwiftSection
 import SwiftDeclaration
 import SwiftDeclarationRendering
 import SwiftInterface
+import Semantic
 @testable import MachOTestingSupport
 
 /// The `@objc` protocols a Swift module declares, on the interface path
@@ -20,11 +21,28 @@ struct SwiftDeclaredObjCProtocolInterfaceTests {
     private static let moduleName = SwiftDeclaredObjCProtocolsFixture.moduleName
 
     private func interface(of machO: some MachOFieldLayoutRenderable) async throws -> String {
+        try await printInterface(of: machO, marksCommentStructure: false).string
+    }
+
+    private func printInterface(of machO: some MachOFieldLayoutRenderable, marksCommentStructure: Bool) async throws -> SemanticString {
         var configuration = SwiftInterfaceBuilderConfiguration()
         configuration.indexConfiguration.dependencySearchPaths = try SwiftDeclaredObjCProtocolsFixture.dependencySearchPaths()
+        configuration.printConfiguration.marksCommentStructure = marksCommentStructure
         let builder = try SwiftInterfaceBuilder(configuration: configuration, eventHandlers: [], in: machO)
         try await builder.prepare()
-        return try await builder.printRoot().string
+        return try await builder.printRoot()
+    }
+
+    /// The notes of an `@objc` protocol — its requirements' Swift names, a
+    /// requirement taken from a conformer — are marked like every other
+    /// comment (evolution proposal `comment-structure`).
+    @Test(arguments: SwiftDeclaredObjCProtocolsFixture.Variant.allCases)
+    func markingCommentStructureKeepsTheContract(variant: SwiftDeclaredObjCProtocolsFixture.Variant) async throws {
+        let machOFile = try SwiftDeclaredObjCProtocolsFixture.machOFile(variant)
+        let marked = try await printInterface(of: machOFile, marksCommentStructure: true).frozen()
+        let plain = try await printInterface(of: machOFile, marksCommentStructure: false).frozen()
+        let violation = CommentStructureContract.violation(marked: marked, unmarked: plain)
+        #expect(violation == nil, "\(violation ?? "")")
     }
 
     /// The block whose header line STARTS with `prefix`, through its closing

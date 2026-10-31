@@ -188,6 +188,13 @@ public enum EnumLayoutCalculator {
         /// `byte[0x0] & 0b11000000 = 0b10000000` — only the masked bits are a
         /// claim about the value.
         public func formattedFixedBytes() -> String {
+            formattedFixedByteRuns().joined(separator: ", ")
+        }
+
+        /// `formattedFixedBytes()` one run at a time — what a print marking
+        /// comment structure gives a value segment each (evolution proposal
+        /// `comment-structure`).
+        package func formattedFixedByteRuns() -> [String] {
             byteRuns().map { run in
                 if run.bytes.count == 1 {
                     let byteValue = run.bytes[0]
@@ -205,7 +212,6 @@ public enum EnumLayoutCalculator {
                     return "bytes[0x\(String(run.startOffset, radix: 16))..<0x\(String(endOffset, radix: 16))] = 0x\(String(runValue, radix: 16, uppercase: true))"
                 }
             }
-            .joined(separator: ", ")
         }
 
         /// Splits ``memoryChanges`` into runs of consecutive offsets, capped at
@@ -293,22 +299,30 @@ public enum EnumLayoutCalculator {
         /// terser line can supply an `enumLayoutTransformer` and pick fields
         /// (`strategyDescription`, `numTags`, `bitsNeededForTag`, …) directly.
         public var summaryDescription: String {
+            "\(strategyDescription) — " + summaryFacts.map { "\($0.key): \($0.value)" }.joined(separator: "; ")
+        }
+
+        /// The facts `summaryDescription` lists after the strategy, each a
+        /// name and its value, in order — what a print marking comment
+        /// structure segments the summary into (evolution proposal
+        /// `comment-structure`).
+        package var summaryFacts: [(key: String, value: String)] {
             let payloadCaseCount = cases.count { $0.isPayloadCase }
             let emptyCaseCount = cases.count - payloadCaseCount
-            var parts: [String] = []
-            parts.append("cases: \(cases.count) (\(payloadCaseCount) payload + \(emptyCaseCount) empty)")
-            parts.append("tag values used: \(numTags)")
+            var facts: [(key: String, value: String)] = []
+            facts.append(("cases", "\(cases.count) (\(payloadCaseCount) payload + \(emptyCaseCount) empty)"))
+            facts.append(("tag values used", "\(numTags)"))
             if bitsNeededForTag > 0 {
-                parts.append("tag bits: \(bitsNeededForTag)")
+                facts.append(("tag bits", "\(bitsNeededForTag)"))
             }
             if let tagRegion {
-                parts.append("tag region: offsets \(tagRegion.range) (\(tagRegion.bitCount) bits)")
+                facts.append(("tag region", "offsets \(tagRegion.range) (\(tagRegion.bitCount) bits)"))
             }
             if let payloadRegion {
-                parts.append("occupied-bits region: offsets \(payloadRegion.range) (\(payloadRegion.bitCount) bits)")
+                facts.append(("occupied-bits region", "offsets \(payloadRegion.range) (\(payloadRegion.bitCount) bits)"))
             }
-            parts.append("leftover extra inhabitants for an outer enum: \(extraInhabitantCount)")
-            return "\(strategyDescription) — " + parts.joined(separator: "; ")
+            facts.append(("leftover extra inhabitants for an outer enum", "\(extraInhabitantCount)"))
+            return facts
         }
 
         public var description: String {

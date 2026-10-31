@@ -5,6 +5,7 @@ import MachOKitExtensions
 import Demangling
 import Dependencies
 import Semantic
+import SwiftDeclarationRendering
 
 // MARK: - Interface Header Info
 
@@ -168,8 +169,14 @@ extension InterfaceHeaderInfo {
 public struct InterfaceHeaderBlock: SemanticStringComponent {
     public let info: InterfaceHeaderInfo
 
-    public init(_ info: InterfaceHeaderInfo) {
+    /// Whether each line is marked as a `note` (evolution proposal
+    /// `comment-structure`); see
+    /// `SwiftDeclarationPrintConfiguration.marksCommentStructure`.
+    public let marksCommentStructure: Bool
+
+    public init(_ info: InterfaceHeaderInfo, marksCommentStructure: Bool = false) {
         self.info = info
+        self.marksCommentStructure = marksCommentStructure
     }
 
     /// The short unrecoverable-facts list. The full catalog with root
@@ -230,7 +237,7 @@ public struct InterfaceHeaderBlock: SemanticStringComponent {
 
         var result: [AtomicComponent] = []
         for line in lines {
-            result.append(contentsOf: Comment(line).buildComponents())
+            result.append(contentsOf: StructuredComment.note(line).atoms(markingStructure: marksCommentStructure, as: .note))
             result.append(contentsOf: BreakLine().buildComponents())
         }
         // Trailing blank line so the header reads apart from whatever
