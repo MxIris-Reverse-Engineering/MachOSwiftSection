@@ -982,6 +982,7 @@ extension Target {
             .target(.SwiftPrinting),
             .target(.SwiftSpecialization),
             .target(.SwiftInterface),
+            .product(.Semantic),
         ],
         path: "Sources/TestSupport/MachOTestingSupport",
         swiftSettings: testSettings,

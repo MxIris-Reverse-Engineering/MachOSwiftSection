@@ -74,8 +74,11 @@ extension SwiftDeclarationPrinter {
     /// projection (evolution proposal `exported-only-marking-mode`).
     func bodyAfterNestedDefinitions(of definition: some Definition, @SemanticStringBuilder content: () async throws -> SemanticString) async rethrows -> SemanticString {
         let body = try await content()
+        // A line break atom, not any atom reading "\n": marking comment
+        // structure, the last piece of an enum case's layout block is one too
+        // (evolution proposal `comment-structure`).
         guard configuration.marksOptionalContent,
-              body.components.last?.string == "\n",
+              let lastAtom = body.components.last, lastAtom.string == "\n", lastAtom.type == .standard,
               excludesEveryDeclarationAfterNestedDefinitions(of: definition) else { return body }
         return body.dropLast()
     }

@@ -68,6 +68,11 @@ struct CommentConstructionScanTests {
     /// Renderers of their own, outside the proposal.
     private static let unscannedFileNames: Set<String> = ["EvolutionMarking.swift"]
 
+    /// `StructuredComment` itself: the one place a comment's atoms are made.
+    private static func isStructuredCommentSource(_ fileURL: URL) -> Bool {
+        fileURL.lastPathComponent.hasPrefix("StructuredComment")
+    }
+
     private static func scannedSourceFiles() throws -> [URL] {
         let sourcesDirectory = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()  // SwiftInterfaceTests
@@ -78,7 +83,7 @@ struct CommentConstructionScanTests {
         for moduleDirectory in scannedModuleDirectories {
             let directory = sourcesDirectory.appendingPathComponent(moduleDirectory)
             let enumerator = try #require(FileManager.default.enumerator(at: directory, includingPropertiesForKeys: nil))
-            for case let fileURL as URL in enumerator where fileURL.pathExtension == "swift" && !unscannedFileNames.contains(fileURL.lastPathComponent) {
+            for case let fileURL as URL in enumerator where fileURL.pathExtension == "swift" && !unscannedFileNames.contains(fileURL.lastPathComponent) && !isStructuredCommentSource(fileURL) {
                 files.append(fileURL)
             }
         }

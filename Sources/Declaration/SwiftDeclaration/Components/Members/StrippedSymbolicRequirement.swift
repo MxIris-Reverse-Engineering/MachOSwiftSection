@@ -47,12 +47,13 @@ extension StrippedSymbolicRequirement {
 }
 
 extension StrippedSymbolicRequirement {
-    @SemanticStringBuilder
-    package func strippedSymbolicInfo() -> SemanticString {
+    /// `// Kind: Method, isAsync: false, isInstance: true`, marked as a
+    /// `strippedSymbolicRequirement` when `markingStructure`.
+    package func strippedSymbolicInfo(markingStructure: Bool) -> SemanticString {
         StructuredComment.strippedSymbolicRequirement(
             kindDescription: requirement.layout.flags.kind.description,
             isAsync: requirement.layout.flags.isAsync,
             isInstance: requirement.layout.flags.isInstance
-        )
+        ).printed(markingStructure: markingStructure, as: .strippedSymbolicRequirement)
     }
 }

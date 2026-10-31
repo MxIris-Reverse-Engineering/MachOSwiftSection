@@ -188,6 +188,33 @@ public struct SwiftDeclarationPrintConfiguration: Equatable, Sendable {
     /// Off by default, and off the output is unchanged byte for byte.
     public var marksNestedDefinitions: Bool = false
 
+    /// Mark every comment the print contains with what it is (evolution
+    /// proposal `comment-structure`): each in an `AnnotationRegion` of its
+    /// kind — the `AnnotationRegion.Kind` constants this library adds, or
+    /// `note` — and each part of it in an `AnnotationSegment` of its role,
+    /// so a host can draw a comment as a tag without reading its text.
+    ///
+    /// Comments that state one fact make one region each. Three make trees
+    /// of regions instead: a `fieldOffset` region holds its expanded tree,
+    /// each `fieldLayoutNode` region a row and the rows nested under it; an
+    /// `enumLayoutCase` region holds `/* Enum Layout */` and one region for
+    /// each line of the case's block; and a `conditionalWitness` region holds
+    /// one `conditionalWitnessBranch` for each branch. A comment a
+    /// transformer printed is one `text` segment, since only the template
+    /// knows what its text is made of. Indentation and line breaks belong
+    /// to no segment, and a region's range in the table leaves them out at
+    /// its ends.
+    ///
+    /// `FrozenSemanticString.separatingAnnotationRegions()` of the frozen
+    /// print gives exactly the string printed with this off — text, spans and
+    /// identifiers — and the table of regions and segments. It composes with
+    /// `marksOptionalContent` and `marksNestedDefinitions`: a projection, or
+    /// a nested definition taken out of its parent, separates to the regions
+    /// of its own print.
+    ///
+    /// Off by default, and off the output is unchanged byte for byte.
+    public var marksCommentStructure: Bool = false
+
     /// How the static (`MachOFile`) field-layout path resolves cross-module
     /// types when a layout-bearing flag is on. Defaults to the full transitive
     /// dependency closure over the system dyld shared cache; set `.singleImage`

@@ -108,11 +108,15 @@ struct StaticFieldLayoutBackend {
                 endOffset = nil
             }
             configuration.optionalContent(.printFieldOffset) {
-                configuration.fieldOffsetComment(startOffset: startOffset, endOffset: endOffset)
-                // Expanded offsets hang off the field offset: printed only
-                // when both are on.
-                configuration.optionalContent(.printExpandedFieldOffsets) {
-                    expandedFieldOffsets(for: mangledTypeName, baseOffset: startOffset)
+                // The tree belongs to the field offset's region, so a host
+                // folds it under that line.
+                configuration.commentRegion(.fieldOffset) {
+                    configuration.fieldOffsetComment(startOffset: startOffset, endOffset: endOffset)
+                    // Expanded offsets hang off the field offset: printed only
+                    // when both are on.
+                    configuration.optionalContent(.printExpandedFieldOffsets) {
+                        expandedFieldOffsets(for: mangledTypeName, baseOffset: startOffset)
+                    }
                 }
             }
         } else if
@@ -189,8 +193,12 @@ struct StaticFieldLayoutBackend {
     private func renderNestedFieldOffsetTree(_ nodes: [NestedFieldOffset], ancestors: [Bool]) -> SemanticString {
         for (index, node) in nodes.enumerated() {
             let isLast = index == nodes.count - 1
-            configuration.expandedFieldOffsetComment(fieldName: node.fieldName, typeName: node.typeName, offset: node.offset, baseIndentation: configuration.indentation, ancestors: ancestors, isLast: isLast)
-            renderNestedFieldOffsetTree(node.children, ancestors: ancestors + [isLast])
+            // A row's region holds the rows nested under it: the tree is the
+            // regions' nesting.
+            configuration.commentRegion(.fieldLayoutNode) {
+                configuration.expandedFieldOffsetComment(fieldName: node.fieldName, typeName: node.typeName, offset: node.offset, baseIndentation: configuration.indentation, ancestors: ancestors, isLast: isLast)
+                renderNestedFieldOffsetTree(node.children, ancestors: ancestors + [isLast])
+            }
         }
     }
 
@@ -222,10 +230,12 @@ struct StaticFieldLayoutBackend {
                         BreakLine()
                     }
                 }
-                configuration.indentString
-                StructuredComment.enumLayoutCaseHeading
-                BreakLine()
-                configuration.enumLayoutCaseComment(caseProjection: caseProjection)
+                configuration.commentRegion(.enumLayoutCase) {
+                    configuration.indentString
+                    configuration.comment(.enumLayoutCaseHeading, as: nil)
+                    BreakLine()
+                    configuration.enumLayoutCaseComment(caseProjection: caseProjection)
+                }
             }
         }
     }

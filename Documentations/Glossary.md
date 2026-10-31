@@ -264,6 +264,13 @@ opaque 尖括号参数归属的第三条规则：协议无任何 anchor 命中�
 - **主要出现在**：`Sources/Output/SwiftPrinting/SwiftDeclarationPrinter+DefinitionRegions.swift`、`SwiftDeclarationPrintConfiguration.swift`
 - **延伸阅读**：[提案 0068-nested-definition-regions](Evolutions/0068-nested-definition-regions.md)；swift-semantic-string 的 `docs/DefinitionRegions.md`；例外见 [0083-exported-only-marking-mode](Evolutions/0083-exported-only-marking-mode.md)
 
+### comment structure（注释结构，`marksCommentStructure`）
+
+`SwiftDeclarationPrintConfiguration.marksCommentStructure` 为 `true` 时，打印器给输出的每一条注释标出它是什么：注释包进 swift-semantic-string 的 `AnnotationRegion`，种类（kind）是 `AnnotationRegion.Kind` 的常量（本库扩展的 `memberAddress`、`fieldOffset`……，以及它自带的 `note`）；注释的每一段包进 `AnnotationSegment`，角色（role）是 marker、label、qualifier、separator、key、value、name、type、treePrefix、text 之一。字段偏移树、枚举 case 块、元组 Type Layout、条件 witness 用区域的嵌套表达层级。冻结后 `separatingAnnotationRegions()` 得到与关着时逐个相同的冻结串，外加一张区域与段的表。宿主据此把注释画成标签，不必解析注释文本。
+
+- **主要出现在**：`Sources/Output/SwiftDeclarationRendering/StructuredComment.swift`（每条注释的文字与段）、`AnnotationRegionKind+SwiftComments.swift`（种类清单）、`SwiftDeclarationPrintConfiguration.swift`
+- **延伸阅读**：[提案 draft-comment-structure](Evolutions/draft-comment-structure.md)；swift-semantic-string 的 `docs/AnnotationRegions.md`
+
 ### NodeStore / NodeReference
 
 上游 swift-demangling 的 arena 存储：demangle 结果不再是 class `Node` 树，而是扁平缓冲里的节点（12 字节/节点）加一个 `(store, index)` 引用。本仓库的符号索引、声明模型、各级缓存全部换持 `NodeReference`。注意它的 `Hashable` 是 store 身份语义——见「store-identity vs 结构相等」。

@@ -96,6 +96,13 @@ public struct DeclarationRenderConfiguration: Sendable {
     /// option with a `VisibilityRegion`, whatever the `print…` flags say.
     public var marksOptionalContent: Bool = false
 
+    /// Set by a printer that marks comment structure
+    /// (`SwiftDeclarationPrintConfiguration.marksCommentStructure`): every
+    /// comment goes in an `AnnotationRegion` of its kind, its parts in
+    /// segments of their roles. The dump never sets it.
+    @Init(.ignore)
+    package var marksCommentStructure: Bool = false
+
     /// Where the dump learns the source file of each private discriminator
     /// (evolution proposal `private-declaration-source-files`). With one, a
     /// declaration whose name reads a discriminator the declaration it is
@@ -154,6 +161,47 @@ extension DeclarationRenderConfiguration {
         }
     }
 
+    /// This configuration, marking comment structure or not.
+    package func markingCommentStructure(_ marksCommentStructure: Bool) -> Self {
+        var configuration = self
+        configuration.marksCommentStructure = marksCommentStructure
+        return configuration
+    }
+
+    /// `content`; when marking comment structure, in a region of `kind` —
+    /// one spanning several comments: a field offset and its tree, a tree
+    /// row and the rows under it, a case's layout block.
+    @SemanticStringBuilder
+    package func commentRegion(_ kind: AnnotationRegion.Kind, @SemanticStringBuilder content: () -> SemanticString) -> SemanticString {
+        if marksCommentStructure {
+            AnnotationRegion(kind, content: content())
+        } else {
+            content()
+        }
+    }
+
+    /// The async form of `commentRegion(_:content:)`.
+    @SemanticStringBuilder
+    package func commentRegion(_ kind: AnnotationRegion.Kind, @SemanticStringBuilder content: () async throws -> SemanticString) async rethrows -> SemanticString {
+        if marksCommentStructure {
+            try await AnnotationRegion(kind, content: content)
+        } else {
+            try await content()
+        }
+    }
+
+    /// `comment` as printed, marked as a comment of `kind` when marking
+    /// comment structure (see `StructuredComment.printed(markingStructure:as:)`).
+    package func comment(_ comment: StructuredComment, as kind: AnnotationRegion.Kind?) -> SemanticString {
+        comment.printed(markingStructure: marksCommentStructure, as: kind)
+    }
+
+    /// What a transformer printed in place of a comment of `kind` (see
+    /// `StructuredComment.printedTemplate(_:markingStructure:as:)`).
+    package func templatedComment(_ output: SemanticString, as kind: AnnotationRegion.Kind?) -> SemanticString {
+        StructuredComment.printedTemplate(output, markingStructure: marksCommentStructure, as: kind)
+    }
+
     /// Builds a member address comment line for the given symbol offset.
     ///
     /// The returned ``SemanticString`` includes indentation and a trailing line break.
@@ -161,9 +209,9 @@ extension DeclarationRenderConfiguration {
     package func memberAddressComment(offset: Int, addressString: String, label: String? = nil) -> SemanticString {
         indentString
         if let memberAddressTransformer {
-            memberAddressTransformer(offset)
+            templatedComment(memberAddressTransformer(offset), as: .memberAddress)
         } else {
-            StructuredComment.memberAddress(addressString: addressString, qualifier: label)
+            comment(.memberAddress(addressString: addressString, qualifier: label), as: .memberAddress)
         }
         BreakLine()
     }
@@ -184,9 +232,9 @@ extension DeclarationRenderConfiguration {
         indentationLevel: Int
     ) -> SemanticString {
         if let privateDeclarationSourceFileProvider {
-            for comment in PrivateDeclarationSourceFileComments.comments(for: nodes(), enclosedBy: enclosingNodes(), provider: privateDeclarationSourceFileProvider) {
+            for sourceFileComment in PrivateDeclarationSourceFileComments.comments(for: nodes(), enclosedBy: enclosingNodes(), provider: privateDeclarationSourceFileProvider) {
                 Indent(level: indentationLevel)
-                comment
+                comment(sourceFileComment, as: .privateDeclarationSource)
                 BreakLine()
             }
         }
@@ -200,20 +248,22 @@ extension DeclarationRenderConfiguration {
     @SemanticStringBuilder
     package func exportStatusComment() -> SemanticString {
         indentString
-        StructuredComment.exportStatus
+        comment(.exportStatus, as: .exportStatus)
         BreakLine()
     }
 
     /// Builds a field offset comment line for the given start and end offsets.
     ///
     /// The returned ``SemanticString`` includes indentation and a trailing line break.
+    /// Marking comment structure, it is not a region of its own: the caller
+    /// puts it in a `fieldOffset` region with the expanded tree under it.
     @SemanticStringBuilder
     package func fieldOffsetComment(startOffset: Int, endOffset: Int?) -> SemanticString {
         indentString
         if let fieldOffsetTransformer {
-            fieldOffsetTransformer((startOffset, endOffset))
+            templatedComment(fieldOffsetTransformer((startOffset, endOffset)), as: nil)
         } else {
-            StructuredComment.fieldOffset(startOffset)
+            comment(.fieldOffset(startOffset), as: nil)
         }
         BreakLine()
     }
@@ -226,21 +276,23 @@ extension DeclarationRenderConfiguration {
     @SemanticStringBuilder
     package func unknownFieldOffsetComment(reasonDescription: String) -> SemanticString {
         indentString
-        StructuredComment.unknownFieldOffset(reasonDescription: reasonDescription)
+        comment(.unknownFieldOffset(reasonDescription: reasonDescription), as: .fieldOffsetUnknown)
         BreakLine()
     }
 
     /// Builds an expanded field offset comment line for a nested struct sub-field.
     ///
     /// The returned ``SemanticString`` includes indentation and a trailing line break.
+    /// Marking comment structure, it is not a region of its own: the walk puts
+    /// it in a `fieldLayoutNode` region with the rows nested under it.
     @SemanticStringBuilder
     package func expandedFieldOffsetComment(fieldName: String, typeName: String, offset: Int, baseIndentation: Int, ancestors: [Bool], isLast: Bool) -> SemanticString {
         let treePrefix = Self.buildTreePrefix(ancestors: ancestors, isLast: isLast)
         Indent(level: baseIndentation)
         if let expandedFieldOffsetTransformer {
-            expandedFieldOffsetTransformer((fieldName, typeName, offset, treePrefix))
+            templatedComment(expandedFieldOffsetTransformer((fieldName, typeName, offset, treePrefix)), as: nil)
         } else {
-            StructuredComment.fieldLayoutNode(treePrefix: treePrefix, fieldName: fieldName, typeName: typeName, offset: offset)
+            comment(.fieldLayoutNode(treePrefix: treePrefix, fieldName: fieldName, typeName: typeName, offset: offset), as: nil)
         }
         BreakLine()
     }
@@ -262,9 +314,9 @@ extension DeclarationRenderConfiguration {
     package func vtableOffsetComment(slotOffset: Int, label: String? = nil) -> SemanticString {
         indentString
         if let vtableOffsetTransformer {
-            vtableOffsetTransformer((slotOffset, label))
+            templatedComment(vtableOffsetTransformer((slotOffset, label)), as: .vtableOffset)
         } else {
-            StructuredComment.vtableOffset(slotOffset, qualifier: label)
+            comment(.vtableOffset(slotOffset, qualifier: label), as: .vtableOffset)
         }
         BreakLine()
     }
@@ -280,7 +332,7 @@ extension DeclarationRenderConfiguration {
     @SemanticStringBuilder
     package func deletedMethodSlotComment() -> SemanticString {
         indentString
-        StructuredComment.deletedMethodSlot
+        comment(.deletedMethodSlot, as: .deletedMethodSlot)
         BreakLine()
     }
 
@@ -293,15 +345,21 @@ extension DeclarationRenderConfiguration {
     @SemanticStringBuilder
     package func ambiguousAttributionComment(foldedSymbolCount: Int) -> SemanticString {
         indentString
-        StructuredComment.ambiguousAttribution(foldedSymbolCount: foldedSymbolCount)
+        comment(.ambiguousAttribution(foldedSymbolCount: foldedSymbolCount), as: .ambiguousAttribution)
         BreakLine()
     }
 
     /// Builds an enum layout per-case comment block for the given case projection.
+    ///
+    /// Marking comment structure, it is not a region of its own: the caller
+    /// puts it in an `enumLayoutCase` region with the `/* Enum Layout */` line
+    /// above it. Each line of the built-in block is a region of its own kind.
     @SemanticStringBuilder
     package func enumLayoutCaseComment(caseProjection: EnumLayoutCalculator.EnumCaseProjection) -> SemanticString {
         if let enumLayoutCaseTransformer {
-            enumLayoutCaseTransformer((caseProjection: caseProjection, indentation: indentation))
+            templatedComment(enumLayoutCaseTransformer((caseProjection: caseProjection, indentation: indentation)), as: nil)
+        } else if marksCommentStructure {
+            StructuredComment.annotatedEnumLayoutCaseBlock(caseProjection, indentation: indentation)
         } else {
             StructuredComment.enumLayoutCaseBlock(caseProjection.description(indent: indentation, prefix: "//"))
         }
@@ -312,9 +370,9 @@ extension DeclarationRenderConfiguration {
     package func spareBitAnalysisComment(analysis: SpareBitAnalyzer.Analysis) -> SemanticString {
         indentString
         if let spareBitAnalysisTransformer {
-            spareBitAnalysisTransformer((analysis: analysis, indentation: indentation))
+            templatedComment(spareBitAnalysisTransformer((analysis: analysis, indentation: indentation)), as: .spareBits)
         } else {
-            StructuredComment.spareBits(totalSpareBits: analysis.totalSpareBits)
+            comment(.spareBits(totalSpareBits: analysis.totalSpareBits), as: .spareBits)
         }
         BreakLine()
     }
@@ -326,9 +384,9 @@ extension DeclarationRenderConfiguration {
     package func enumLayoutComment(layoutResult: EnumLayoutCalculator.LayoutResult) -> SemanticString {
         indentString
         if let enumLayoutTransformer {
-            enumLayoutTransformer(layoutResult)
+            templatedComment(enumLayoutTransformer(layoutResult), as: .enumLayoutSummary)
         } else {
-            StructuredComment.enumLayoutSummary(layoutResult)
+            comment(.enumLayoutSummary(layoutResult), as: .enumLayoutSummary)
         }
         BreakLine()
     }
@@ -345,11 +403,14 @@ extension DeclarationRenderConfiguration {
     @SemanticStringBuilder
     package func staticTypeLayoutComment(_ staticTypeLayout: StaticTypeLayout) -> SemanticString {
         indentString
-        StructuredComment.typeLayout(
-            size: staticTypeLayout.size,
-            stride: staticTypeLayout.stride,
-            alignment: staticTypeLayout.alignment,
-            extraInhabitantCount: staticTypeLayout.extraInhabitantCount
+        comment(
+            .typeLayout(
+                size: staticTypeLayout.size,
+                stride: staticTypeLayout.stride,
+                alignment: staticTypeLayout.alignment,
+                extraInhabitantCount: staticTypeLayout.extraInhabitantCount
+            ),
+            as: .typeLayout
         )
         BreakLine()
     }

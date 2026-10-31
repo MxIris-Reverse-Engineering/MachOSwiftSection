@@ -313,11 +313,7 @@ extension SwiftDeclarationPrinter {
                     in: machO,
                     reportingDegradationTo: opaqueTypeDegradationReporter(subject: record.name)
                 )
-            for comment in try await resolution.conditionalWitnessComments(associatedTypeName: record.name, resolvedBy: resolver) {
-                BreakLine()
-                Indent(level: level)
-                comment
-            }
+            conditionalWitnessComment(try await resolution.conditionalWitnessComments(associatedTypeName: record.name, resolvedBy: resolver), level: level)
             BreakLine()
             Indent(level: level)
             Keyword(.typealias)
@@ -330,6 +326,25 @@ extension SwiftDeclarationPrinter {
             if offset.isEnd {
                 BreakLine()
             }
+        }
+    }
+
+    /// The lines above an availability-conditional witness, each on a line of
+    /// its own. Marking comment structure, they are one `conditionalWitness`
+    /// region, every line after the first a `conditionalWitnessBranch`.
+    @SemanticStringBuilder
+    private func conditionalWitnessComment(_ lines: [StructuredComment], level: Int) -> SemanticString {
+        let printedLines = SemanticString {
+            for (lineIndex, line) in lines.enumerated() {
+                BreakLine()
+                Indent(level: level)
+                comment(line, as: lineIndex == 0 ? nil : .conditionalWitnessBranch)
+            }
+        }
+        if marksCommentStructure, !lines.isEmpty {
+            AnnotationRegion(.conditionalWitness, content: printedLines)
+        } else {
+            printedLines
         }
     }
 
@@ -406,7 +421,7 @@ extension SwiftDeclarationPrinter {
             staticFieldLayoutProvider: staticFieldLayoutProvider(),
             staticLayoutDependencyResolution: configuration.staticLayoutDependencyResolution,
             marksOptionalContent: configuration.marksOptionalContent
-        )
+        ).markingCommentStructure(configuration.marksCommentStructure)
         // An offline specialization carries its arguments instead of
         // metadata (evolution proposal `offline-generic-specialization`): the
         // static layout path computes the comments for them, and the fields
@@ -529,7 +544,7 @@ extension SwiftDeclarationPrinter {
                 } else if let synthesizedWrappedProperty = synthesizedPropertyWrapperMembers.synthesizedDeclaration(inPlaceOfField: field) {
                     // The field's layout comments above still describe this
                     // storage; the declaration is the source's, recovered from it.
-                    StructuredComment.note(FieldRecordRendering.synthesizedWrappedPropertyComment(backingFieldName: field.name))
+                    comment(.note(FieldRecordRendering.synthesizedWrappedPropertyComment(backingFieldName: field.name)), as: .note)
                     BreakLine()
                     Indent(level: level)
                     try await printThrowingSynthesizedWrappedProperty(synthesizedWrappedProperty, level: level)

@@ -122,18 +122,22 @@ struct RuntimeFieldLayoutBackend {
                 endOffset = nil
             }
             configuration.optionalContent(.printFieldOffset) {
-                configuration.fieldOffsetComment(startOffset: startOffset, endOffset: endOffset)
-                // Expanded offsets hang off the field offset: printed only
-                // when both are on. A field whose specialized resolution
-                // failed may still resolve by its bare name, so the expansion
-                // keeps that second try.
-                configuration.optionalContent(.printExpandedFieldOffsets) {
-                    expandedFieldOffsets(
-                        of: fieldMetatype ?? (try? RuntimeFunctions.getTypeByMangledNameInContext(mangledTypeName, in: machO)),
-                        baseOffset: startOffset,
-                        baseIndentation: configuration.indentation,
-                        ancestors: []
-                    )
+                // The tree belongs to the field offset's region, so a host
+                // folds it under that line.
+                configuration.commentRegion(.fieldOffset) {
+                    configuration.fieldOffsetComment(startOffset: startOffset, endOffset: endOffset)
+                    // Expanded offsets hang off the field offset: printed only
+                    // when both are on. A field whose specialized resolution
+                    // failed may still resolve by its bare name, so the expansion
+                    // keeps that second try.
+                    configuration.optionalContent(.printExpandedFieldOffsets) {
+                        expandedFieldOffsets(
+                            of: fieldMetatype ?? (try? RuntimeFunctions.getTypeByMangledNameInContext(mangledTypeName, in: machO)),
+                            baseOffset: startOffset,
+                            baseIndentation: configuration.indentation,
+                            ancestors: []
+                        )
+                    }
                 }
             }
         }
@@ -175,10 +179,12 @@ struct RuntimeFieldLayoutBackend {
                         BreakLine()
                     }
                 }
-                configuration.indentString
-                StructuredComment.enumLayoutCaseHeading
-                BreakLine()
-                configuration.enumLayoutCaseComment(caseProjection: caseProjection)
+                configuration.commentRegion(.enumLayoutCase) {
+                    configuration.indentString
+                    configuration.comment(.enumLayoutCaseHeading, as: nil)
+                    BreakLine()
+                    configuration.enumLayoutCaseComment(caseProjection: caseProjection)
+                }
             }
         }
     }
@@ -255,19 +261,25 @@ struct RuntimeFieldLayoutBackend {
         } else {
             let nestedEnclosingMetatypes = enclosingMetatypes.union([ObjectIdentifier(metatype)])
             switch nestedFieldOffsetLevel(of: metatype) {
+            // A row's region holds the rows nested under it: the tree is the
+            // regions' nesting.
             case .structFields(let fields):
                 for field in fields {
                     let absoluteOffset = baseOffset + field.relativeOffset
-                    configuration.expandedFieldOffsetComment(fieldName: field.fieldName, typeName: field.typeName, offset: absoluteOffset, baseIndentation: baseIndentation, ancestors: ancestors, isLast: field.isLast)
-                    if let childMetatype = field.childMetatype {
-                        walkNestedExpandedFieldOffsets(of: childMetatype, baseOffset: absoluteOffset, baseIndentation: baseIndentation, ancestors: ancestors + [field.isLast], depth: depth + 1, enclosingMetatypes: nestedEnclosingMetatypes)
+                    configuration.commentRegion(.fieldLayoutNode) {
+                        configuration.expandedFieldOffsetComment(fieldName: field.fieldName, typeName: field.typeName, offset: absoluteOffset, baseIndentation: baseIndentation, ancestors: ancestors, isLast: field.isLast)
+                        if let childMetatype = field.childMetatype {
+                            walkNestedExpandedFieldOffsets(of: childMetatype, baseOffset: absoluteOffset, baseIndentation: baseIndentation, ancestors: ancestors + [field.isLast], depth: depth + 1, enclosingMetatypes: nestedEnclosingMetatypes)
+                        }
                     }
                 }
             case .enumPayloads(let payloads):
                 for payload in payloads {
-                    configuration.expandedFieldOffsetComment(fieldName: payload.caseName, typeName: payload.typeName, offset: baseOffset, baseIndentation: baseIndentation, ancestors: ancestors, isLast: payload.isLast)
-                    if payload.descends {
-                        walkNestedExpandedFieldOffsets(of: payload.payloadMetatype, baseOffset: baseOffset, baseIndentation: baseIndentation, ancestors: ancestors + [payload.isLast], depth: depth + 1, enclosingMetatypes: nestedEnclosingMetatypes)
+                    configuration.commentRegion(.fieldLayoutNode) {
+                        configuration.expandedFieldOffsetComment(fieldName: payload.caseName, typeName: payload.typeName, offset: baseOffset, baseIndentation: baseIndentation, ancestors: ancestors, isLast: payload.isLast)
+                        if payload.descends {
+                            walkNestedExpandedFieldOffsets(of: payload.payloadMetatype, baseOffset: baseOffset, baseIndentation: baseIndentation, ancestors: ancestors + [payload.isLast], depth: depth + 1, enclosingMetatypes: nestedEnclosingMetatypes)
+                        }
                     }
                 }
             case .notExpanded:

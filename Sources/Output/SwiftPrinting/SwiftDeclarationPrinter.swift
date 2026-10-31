@@ -279,7 +279,7 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
         // `local-type-context-names`).
         if let localTypeComment = localTypeDeclarationComment(for: typeDefinition.typeName) {
             Indent(level: level - 1)
-            StructuredComment.note(localTypeComment)
+            comment(.note(localTypeComment), as: .note)
             BreakLine()
         }
 
@@ -290,9 +290,9 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
         // declaring it, which prints nowhere above it. And the parent at any
         // level: a nested definition printed on its own must read as the one
         // taken out of its parent's print (`marksNestedDefinitions`).
-        for comment in privateDeclarationSourceFileComments(for: [typeDefinition.typeName.node], enclosedBy: typeDefinition.parent.map { [$0.typeName.node] } ?? []) {
+        for sourceFileComment in privateDeclarationSourceFileComments(for: [typeDefinition.typeName.node], enclosedBy: typeDefinition.parent.map { [$0.typeName.node] } ?? []) {
             Indent(level: level - 1)
-            comment
+            comment(sourceFileComment, as: .privateDeclarationSource)
             BreakLine()
         }
 
@@ -333,7 +333,7 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
             Indent(level: level - 1)
             Standard("@_rawLayout(size: \(rawLayoutBuiltinStorage.size), alignment: \(rawLayoutBuiltinStorage.alignment))")
             Space()
-            StructuredComment.note(FieldRecordRendering.rawLayoutBuiltinStorageComment)
+            comment(.note(FieldRecordRendering.rawLayoutBuiltinStorageComment), as: .note)
             BreakLine()
         }
 
@@ -445,9 +445,9 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
         )
 
         // As a type's (evolution proposal `private-declaration-source-files`).
-        for comment in privateDeclarationSourceFileComments(for: [protocolDefinition.protocolName.node], enclosedBy: protocolDefinition.parent.map { [$0.typeName.node] } ?? []) {
+        for sourceFileComment in privateDeclarationSourceFileComments(for: [protocolDefinition.protocolName.node], enclosedBy: protocolDefinition.parent.map { [$0.typeName.node] } ?? []) {
             Indent(level: level - 1)
-            comment
+            comment(sourceFileComment, as: .privateDeclarationSource)
             BreakLine()
         }
 
@@ -463,9 +463,9 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
                     for strippedSymbolicRequirement in protocolDefinition.strippedSymbolicRequirements {
                         MemberList(level: level) {
                             optionalContent(.printPWTOffset) {
-                                OffsetComment(prefix: "PWT offset", offset: strippedSymbolicRequirement.pwtOffset, emit: true)
+                                OffsetComment(prefix: "PWT offset", kind: .pwtOffset, offset: strippedSymbolicRequirement.pwtOffset, emit: true, marksStructure: marksCommentStructure)
                             }
-                            strippedSymbolicRequirement.strippedSymbolicInfo()
+                            strippedSymbolicRequirement.strippedSymbolicInfo(markingStructure: marksCommentStructure)
                         }
                     }
                 }
@@ -532,9 +532,9 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
         // An extension of a private type, or a conformance to a private
         // protocol, is declared in that type's or protocol's file (evolution
         // proposal `private-declaration-source-files`).
-        for comment in privateDeclarationSourceFileComments(for: headerNameNodes(of: extensionDefinition)) {
+        for sourceFileComment in privateDeclarationSourceFileComments(for: headerNameNodes(of: extensionDefinition)) {
             Indent(level: level - 1)
-            comment
+            comment(sourceFileComment, as: .privateDeclarationSource)
             BreakLine()
         }
 
@@ -608,7 +608,7 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
             Keyword(.atImplementation)
             Space()
             if objcImplementation.evidence.isInferred {
-                StructuredComment.inlineNote(objcImplementation.evidence.description)
+                comment(.inlineNote(objcImplementation.evidence.description), as: .note)
                 Space()
             }
         }
@@ -750,10 +750,10 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
             // when the type is an actor or value type.
             if let typeDefinition = definition as? TypeDefinition, let deallocatorSymbol = typeDefinition.deallocatorSymbol {
                 optionalContent(.printMemberAddress) {
-                    AddressComment(addressString: memberAddressString(forOffset: deallocatorSymbol.offset), emit: true)
+                    AddressComment(addressString: memberAddressString(forOffset: deallocatorSymbol.offset), emit: true, marksStructure: marksCommentStructure)
                 }
                 optionalContent(.printMemberAddress) {
-                    AddressComment(addressString: memberAddressString(forOffset: typeDefinition.destructorSymbol?.offset), label: "destructor", emit: true)
+                    AddressComment(addressString: memberAddressString(forOffset: typeDefinition.destructorSymbol?.offset), label: "destructor", emit: true, marksStructure: marksCommentStructure)
                 }
                 Keyword(.deinit)
             }
@@ -801,10 +801,10 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
         if let typeDefinition = definition as? TypeDefinition, let deallocatorSymbol = typeDefinition.deallocatorSymbol {
             MemberList(level: level) {
                 optionalContent(.printMemberAddress) {
-                    AddressComment(addressString: memberAddressString(forOffset: deallocatorSymbol.offset), emit: true)
+                    AddressComment(addressString: memberAddressString(forOffset: deallocatorSymbol.offset), emit: true, marksStructure: marksCommentStructure)
                 }
                 optionalContent(.printMemberAddress) {
-                    AddressComment(addressString: memberAddressString(forOffset: typeDefinition.destructorSymbol?.offset), label: "destructor", emit: true)
+                    AddressComment(addressString: memberAddressString(forOffset: typeDefinition.destructorSymbol?.offset), label: "destructor", emit: true, marksStructure: marksCommentStructure)
                 }
                 Keyword(.deinit)
             }
@@ -838,20 +838,21 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
         synthesizedPropertyWrapperMembers: SynthesizedPropertyWrapperMembers,
         enclosingNodes: [any DemanglingNode]
     ) async -> SemanticString {
+        let offsetCommentKind: AnnotationRegion.Kind = offsetCommentOption == .printPWTOffset ? .pwtOffset : .fieldOffset
         await Rows(level: level) {
             switch member {
             case .allocator(let function), .function(let function):
-                for comment in privateDeclarationSourceFileComments(for: [function.node], enclosedBy: enclosingNodes) {
-                    comment
+                for sourceFileComment in privateDeclarationSourceFileComments(for: [function.node], enclosedBy: enclosingNodes) {
+                    comment(sourceFileComment, as: .privateDeclarationSource)
                 }
                 optionalContent(offsetCommentOption) {
-                    OffsetComment(prefix: offsetCommentPrefix, offset: function.offset, emit: true)
+                    OffsetComment(prefix: offsetCommentPrefix, kind: offsetCommentKind, offset: function.offset, emit: true, marksStructure: marksCommentStructure)
                 }
                 optionalContent(.printVTableOffset) {
-                    VTableOffsetComment(vtableOffset: function.vtableOffset, emit: true, transformer: vtableTransformerClosure)
+                    VTableOffsetComment(vtableOffset: function.vtableOffset, emit: true, transformer: vtableTransformerClosure, marksStructure: marksCommentStructure)
                 }
                 optionalContent(.printMemberAddress) {
-                    AddressComment(addressString: memberAddressString(forOffset: function.symbol.offset), emit: true)
+                    AddressComment(addressString: memberAddressString(forOffset: function.symbol.offset), emit: true, marksStructure: marksCommentStructure)
                 }
                 // Qualifies the address above (evolution proposal 0007): the
                 // witness resolved to a protocol-extension DEFAULT — the code
@@ -859,7 +860,7 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
                 // share one identical-code-folded address.
                 if function.isProtocolExtensionDefault {
                     optionalContent(.printMemberAddress) {
-                        StructuredComment.protocolExtensionDefault
+                        comment(.protocolExtensionDefault, as: .protocolExtensionDefault)
                     }
                 }
                 // Export status is only ruled on for members whose OWN
@@ -872,42 +873,42 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
                 // `@objc public dynamic` members both trie-miss).
                 let objcFacts = function.resolvedObjCMemberFacts(trustingSelectorNameEvidence: trustsSelectorNameEvidence)
                 if printExportStatus, !objcFacts.isOverride, !objcFacts.isObjC {
-                    ExportStatusComment(isExported: exportVerdict(forSymbolNames: [function.symbol.name]))
+                    ExportStatusComment(isExported: exportVerdict(forSymbolNames: [function.symbol.name]), marksStructure: marksCommentStructure)
                 }
                 await printFunction(function, level: level)
 
             case .variable(let variable):
-                for comment in privateDeclarationSourceFileComments(for: [variable.node], enclosedBy: enclosingNodes) {
-                    comment
+                for sourceFileComment in privateDeclarationSourceFileComments(for: [variable.node], enclosedBy: enclosingNodes) {
+                    comment(sourceFileComment, as: .privateDeclarationSource)
                 }
                 // A stored property of an `@objc @implementation` carries its
                 // REAL field offset (from the ObjC ivar list), so the generic
                 // symbol-offset comment gives way to the field-offset one.
                 if let storage = variable.objcImplementationStorage {
                     optionalContent(.printFieldOffset) {
-                        ObjCImplementationFieldOffsetComment(instanceVariable: storage, emit: true, transformer: configuration.fieldOffsetTransformer)
+                        ObjCImplementationFieldOffsetComment(instanceVariable: storage, emit: true, transformer: configuration.fieldOffsetTransformer, marksStructure: marksCommentStructure)
                     }
                 } else {
                     optionalContent(offsetCommentOption) {
-                        OffsetComment(prefix: offsetCommentPrefix, offset: variable.offset, emit: true)
+                        OffsetComment(prefix: offsetCommentPrefix, kind: offsetCommentKind, offset: variable.offset, emit: true, marksStructure: marksCommentStructure)
                     }
                 }
                 for accessor in variable.accessors {
                     optionalContent(.printVTableOffset) {
-                        VTableOffsetComment(vtableOffset: accessor.vtableOffset, label: accessor.kind.addressLabel, emit: true, transformer: vtableTransformerClosure)
+                        VTableOffsetComment(vtableOffset: accessor.vtableOffset, label: accessor.kind.addressLabel, emit: true, transformer: vtableTransformerClosure, marksStructure: marksCommentStructure)
                     }
                     optionalContent(.printMemberAddress) {
-                        AddressComment(addressString: memberAddressString(forOffset: accessor.symbol.offset), label: accessor.kind.addressLabel, emit: true)
+                        AddressComment(addressString: memberAddressString(forOffset: accessor.symbol.offset), label: accessor.kind.addressLabel, emit: true, marksStructure: marksCommentStructure)
                     }
                 }
                 if variable.isProtocolExtensionDefault {
                     optionalContent(.printMemberAddress) {
-                        StructuredComment.protocolExtensionDefault
+                        comment(.protocolExtensionDefault, as: .protocolExtensionDefault)
                     }
                 }
                 let objcFacts = variable.resolvedObjCMemberFacts(trustingSelectorNameEvidence: trustsSelectorNameEvidence)
                 if printExportStatus, !objcFacts.isOverride, !objcFacts.isObjC {
-                    ExportStatusComment(isExported: exportVerdict(forSymbolNames: variable.accessors.map(\.symbol.name)))
+                    ExportStatusComment(isExported: exportVerdict(forSymbolNames: variable.accessors.map(\.symbol.name)), marksStructure: marksCommentStructure)
                 }
                 if let storage = variable.objcImplementationStorage {
                     await printObjCImplementationStoredProperty(variable, storage: storage, level: level)
@@ -916,28 +917,28 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
                 }
 
             case .subscript(let `subscript`):
-                for comment in privateDeclarationSourceFileComments(for: [`subscript`.node], enclosedBy: enclosingNodes) {
-                    comment
+                for sourceFileComment in privateDeclarationSourceFileComments(for: [`subscript`.node], enclosedBy: enclosingNodes) {
+                    comment(sourceFileComment, as: .privateDeclarationSource)
                 }
                 optionalContent(offsetCommentOption) {
-                    OffsetComment(prefix: offsetCommentPrefix, offset: `subscript`.offset, emit: true)
+                    OffsetComment(prefix: offsetCommentPrefix, kind: offsetCommentKind, offset: `subscript`.offset, emit: true, marksStructure: marksCommentStructure)
                 }
                 for accessor in `subscript`.accessors {
                     optionalContent(.printVTableOffset) {
-                        VTableOffsetComment(vtableOffset: accessor.vtableOffset, label: accessor.kind.addressLabel, emit: true, transformer: vtableTransformerClosure)
+                        VTableOffsetComment(vtableOffset: accessor.vtableOffset, label: accessor.kind.addressLabel, emit: true, transformer: vtableTransformerClosure, marksStructure: marksCommentStructure)
                     }
                     optionalContent(.printMemberAddress) {
-                        AddressComment(addressString: memberAddressString(forOffset: accessor.symbol.offset), label: accessor.kind.addressLabel, emit: true)
+                        AddressComment(addressString: memberAddressString(forOffset: accessor.symbol.offset), label: accessor.kind.addressLabel, emit: true, marksStructure: marksCommentStructure)
                     }
                 }
                 if `subscript`.isProtocolExtensionDefault {
                     optionalContent(.printMemberAddress) {
-                        StructuredComment.protocolExtensionDefault
+                        comment(.protocolExtensionDefault, as: .protocolExtensionDefault)
                     }
                 }
                 let objcFacts = `subscript`.resolvedObjCMemberFacts(trustingSelectorNameEvidence: trustsSelectorNameEvidence)
                 if printExportStatus, !objcFacts.isOverride, !objcFacts.isObjC {
-                    ExportStatusComment(isExported: exportVerdict(forSymbolNames: `subscript`.accessors.map(\.symbol.name)))
+                    ExportStatusComment(isExported: exportVerdict(forSymbolNames: `subscript`.accessors.map(\.symbol.name)), marksStructure: marksCommentStructure)
                 }
                 await printSubscript(`subscript`, level: level)
             }
@@ -958,7 +959,7 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
             // here would separate the comment from the declaration it
             // annotates by a blank line (the member path's `Rows` keeps
             // `ExportStatusComment` adjacent the same way).
-            StructuredComment.exportStatus
+            comment(.exportStatus, as: .exportStatus)
         }
     }
 
@@ -1080,6 +1081,18 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
     private var vtableOffsetTransformerClosure: (@Sendable (Int, String?) -> SemanticString)? {
         guard let transformer = configuration.vtableOffsetTransformer else { return nil }
         return { slotOffset, label in transformer((slotOffset, label)) }
+    }
+
+    /// Whether every comment is marked with its kind and segments (evolution
+    /// proposal `comment-structure`).
+    package var marksCommentStructure: Bool {
+        configuration.marksCommentStructure
+    }
+
+    /// `comment` as printed, marked as a comment of `kind` when marking
+    /// comment structure.
+    package func comment(_ comment: StructuredComment, as kind: AnnotationRegion.Kind?) -> SemanticString {
+        comment.printed(markingStructure: marksCommentStructure, as: kind)
     }
 }
 

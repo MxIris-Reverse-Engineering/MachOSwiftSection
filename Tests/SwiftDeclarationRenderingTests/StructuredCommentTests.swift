@@ -252,6 +252,73 @@ struct StructuredCommentTests {
         ])
     }
 
+    // MARK: - Marking
+
+    /// Marked, a comment separates to the atom it prints as, and a
+    /// continuation's marker is one segment however it was spelled.
+    @Test("a marked comment separates to its atom, neighbouring markers merged")
+    func markedCommentSeparatesToItsAtom() {
+        let comment = StructuredComment.note("  `T!` prints as `T?` (ABI-identical)")
+        let marked = comment.printed(markingStructure: true, as: .note).frozen().separatingAnnotationRegions()
+        #expect(marked.text == SemanticString { comment }.frozen())
+        #expect(marked.annotations.regions.map(\.kind) == [.note])
+        #expect(marked.annotations.segments.map(\.role) == [.marker, .text])
+        #expect(marked.annotations.segments.first?.utf8Length == 5)
+    }
+
+    @Test("a template's output is one text segment")
+    func templateOutputIsOneTextSegment() {
+        let output = SemanticString { Comment("addr: 0x135DC") }
+        let marked = StructuredComment.printedTemplate(output, markingStructure: true, as: .memberAddress).frozen().separatingAnnotationRegions()
+        #expect(marked.text == output.frozen())
+        #expect(marked.annotations.regions.map(\.kind) == [.memberAddress])
+        #expect(marked.annotations.segments.map(\.role) == [.text])
+        #expect(StructuredComment.printedTemplate(output, markingStructure: false, as: .memberAddress) == output)
+    }
+
+    /// The case blocks of `EnumLayoutCommentTemplateTests`, and two more:
+    /// a single payload's payload case, and an empty case with no name in
+    /// the records that fixes no byte.
+    static let caseProjections: [EnumLayoutCalculator.EnumCaseProjection] = [
+        .init(
+            caseIndex: 1, caseName: "payload case #1", declaredName: "foregroundKeyColor", isPayloadCase: true, tagValue: 1, payloadValue: 0,
+            memoryChanges: [0: 0b0000_0000, 7: 0b0100_0000], fixedBitMasks: [0: 0b0000_0111, 7: 0b1111_0000],
+            encodingExplanation: "tag 1 scattered into the payloads' common spare bits; the occupied (non-spare) bits hold this payload's value"
+        ),
+        .init(
+            caseIndex: 2, caseName: "empty case #0", declaredName: "none", isPayloadCase: false, tagValue: 2, payloadValue: 0,
+            memoryChanges: [8: 0x01, 9: 0x00], encodingExplanation: "stored via extra tag bytes"
+        ),
+        .init(
+            caseIndex: 3, caseName: "empty case #1", declaredName: "sentinel", isPayloadCase: false, tagValue: 3, payloadValue: 0,
+            memoryChanges: [:], patternResolution: .unresolvedExtraInhabitant(extraInhabitantIndex: 1),
+            encodingExplanation: "stored as the payload's extra-inhabitant pattern #1 (an invalid payload bit pattern)"
+        ),
+        .init(caseIndex: 0, caseName: "payload case", isPayloadCase: true, tagValue: 0, payloadValue: 0, memoryChanges: [:]),
+        .init(caseIndex: 4, caseName: "empty case #2", isPayloadCase: false, tagValue: 4, payloadValue: 0, memoryChanges: [:]),
+    ]
+
+    /// The marked block spells every line a second time; it must spell it
+    /// as the template does.
+    @Test("a marked case block separates to the block the template prints", arguments: caseProjections)
+    func annotatedCaseBlockSeparatesToTheTemplatesBlock(caseProjection: EnumLayoutCalculator.EnumCaseProjection) {
+        for indentation in [0, 1, 3] {
+            let marked = SemanticString { StructuredComment.annotatedEnumLayoutCaseBlock(caseProjection, indentation: indentation) }.frozen().separatingAnnotationRegions()
+            let plain = SemanticString { StructuredComment.enumLayoutCaseBlock(caseProjection.description(indent: indentation, prefix: "//")) }.frozen()
+            #expect(marked.text == plain, "indentation \(indentation)")
+        }
+    }
+
+    @Test("a marked case block is one region per line, in the template's order")
+    func annotatedCaseBlockLines() {
+        let lineKinds = Self.caseProjections.map { caseProjection in
+            SemanticString { StructuredComment.annotatedEnumLayoutCaseBlock(caseProjection, indentation: 1) }.frozen().separatingAnnotationRegions().annotations.regions.map(\.kind)
+        }
+        #expect(lineKinds[0] == [.enumLayoutCaseHeader, .enumLayoutCaseEncoding, .enumLayoutCaseFixedBytes, .enumLayoutCaseByte, .enumLayoutCaseByte])
+        #expect(lineKinds[2] == [.enumLayoutCaseHeader, .enumLayoutCaseEncoding, .enumLayoutCaseNote, .enumLayoutCaseFixedBytes])
+        #expect(lineKinds[3] == [.enumLayoutCaseHeader, .enumLayoutCaseFixedBytes])
+    }
+
     /// The padding that lines the types up belongs to the separator after the
     /// condition, never to the condition itself.
     @Test("a conditional witness names the associated type, then each branch's condition and type")

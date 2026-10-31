@@ -120,3 +120,78 @@ extension StructuredComment {
         inline([.text(text)])
     }
 }
+
+// MARK: - Marking Comment Structure
+
+extension StructuredComment {
+    /// The comment as printed: its one atom, or — marking comment structure
+    /// (evolution proposal `comment-structure`) — the same text as an
+    /// annotated atom whose pieces are the segments, in a region of `kind`.
+    /// `kind` is `nil` for a comment that is part of a larger region its
+    /// caller marks: a tree's row, a case's heading.
+    package func printed(markingStructure: Bool, as kind: AnnotationRegion.Kind?) -> SemanticString {
+        guard markingStructure else {
+            return SemanticString(self)
+        }
+        let annotatedAtom = annotatedAtom
+        guard let kind else {
+            return SemanticString(annotatedAtom)
+        }
+        return SemanticString(AnnotationRegion(kind) { annotatedAtom })
+    }
+
+    /// `printed(markingStructure:as:)` as the atoms a component builds.
+    package func atoms(markingStructure: Bool, as kind: AnnotationRegion.Kind?) -> [AtomicComponent] {
+        guard markingStructure else {
+            return buildComponents()
+        }
+        return printed(markingStructure: true, as: kind).components
+    }
+
+    /// What a transformer printed in place of a comment: as is, or — marking
+    /// comment structure — one `text` segment, since only the template knows
+    /// what its text is made of, in a region of `kind` unless the caller
+    /// marks a larger one.
+    package static func printedTemplate(_ output: SemanticString, markingStructure: Bool, as kind: AnnotationRegion.Kind?) -> SemanticString {
+        guard markingStructure else {
+            return output
+        }
+        let segment = AnnotationSegment(.text, content: output)
+        guard let kind else {
+            return SemanticString(segment)
+        }
+        return SemanticString(AnnotationRegion(kind) { segment })
+    }
+
+    /// The comment's text as one annotated atom: each run of segments that
+    /// share a role in an `AnnotationSegment`, text that plays none a bare
+    /// piece. Separated, it is the atom the comment prints as.
+    package var annotatedAtom: AnnotatedAtom {
+        AnnotatedAtom(type: .comment, content: Self.pieces(of: segments))
+    }
+
+    /// The pieces `segments` print as inside an annotated atom: neighbours of
+    /// one role merged — a continuation line's `// ` and the spaces aligning
+    /// it are one marker — since two segments of one role directly next to
+    /// each other read back as two.
+    package static func pieces(of segments: [Segment]) -> SemanticString {
+        var coalesced: [Segment] = []
+        coalesced.reserveCapacity(segments.count)
+        for segment in segments where !segment.text.isEmpty {
+            if let previous = coalesced.last, previous.role == segment.role {
+                coalesced[coalesced.count - 1] = Segment(previous.role, previous.text + segment.text)
+            } else {
+                coalesced.append(segment)
+            }
+        }
+        var pieces = SemanticString()
+        for segment in coalesced {
+            if let role = segment.role {
+                pieces.append(AnnotationSegment(role) { Standard(segment.text) })
+            } else {
+                pieces.append(Standard(segment.text))
+            }
+        }
+        return pieces
+    }
+}

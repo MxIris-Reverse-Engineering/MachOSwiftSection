@@ -16,13 +16,15 @@ struct ObjCImplementationFieldOffsetComment: SemanticStringComponent {
     let instanceVariable: ObjCImplementationClassFacts.InstanceVariable
     let emit: Bool
     let transformer: FieldOffsetTransformer?
+    let marksStructure: Bool
 
     package func buildComponents() -> [AtomicComponent] {
         guard emit else { return [] }
         if let transformer {
-            return transformer((instanceVariable.offset, instanceVariable.offset + instanceVariable.size)).buildComponents()
+            let output = transformer((instanceVariable.offset, instanceVariable.offset + instanceVariable.size))
+            return StructuredComment.printedTemplate(output, markingStructure: marksStructure, as: .fieldOffset).components
         }
-        return StructuredComment.fieldOffset(instanceVariable.offset).buildComponents()
+        return StructuredComment.fieldOffset(instanceVariable.offset).atoms(markingStructure: marksStructure, as: .fieldOffset)
     }
 }
 
@@ -64,7 +66,7 @@ extension SwiftDeclarationPrinter {
             if let typeNode {
                 try await printThrowingType(typeNode, isProtocol: false, level: level)
             } else {
-                StructuredComment.inlineNote("type not recoverable")
+                comment(.inlineNote("type not recoverable"), as: .note)
             }
         }
     }
@@ -82,7 +84,7 @@ extension SwiftDeclarationPrinter {
                 for instanceVariable in instanceVariables {
                     await Rows(level: level) {
                         optionalContent(.printFieldOffset) {
-                            ObjCImplementationFieldOffsetComment(instanceVariable: instanceVariable, emit: true, transformer: configuration.fieldOffsetTransformer)
+                            ObjCImplementationFieldOffsetComment(instanceVariable: instanceVariable, emit: true, transformer: configuration.fieldOffsetTransformer, marksStructure: marksCommentStructure)
                         }
                         if let typeNode = instanceVariable.swiftTypeNode, let propertyName = instanceVariable.swiftPropertyName {
                             SemanticString {
@@ -105,7 +107,7 @@ extension SwiftDeclarationPrinter {
                             }
                             await printType(typeNode.materialize(), isProtocol: false, level: level)
                         } else {
-                            StructuredComment.note(Self.unrecoverableStoredPropertyComment(for: instanceVariable))
+                            comment(.note(Self.unrecoverableStoredPropertyComment(for: instanceVariable)), as: .note)
                         }
                     }
                 }

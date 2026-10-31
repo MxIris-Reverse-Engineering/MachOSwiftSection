@@ -161,7 +161,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOFieldLayoutRenderable>: Sen
         // Leading header (evolution proposal 0008), deliberately independent
         // of the imports block below — flag-gated, default absent.
         if let interfaceHeaderInfo = configuration.interfaceHeaderInfo {
-            InterfaceHeaderBlock(interfaceHeaderInfo)
+            InterfaceHeaderBlock(interfaceHeaderInfo, marksCommentStructure: printer.marksCommentStructure)
         }
 
         ImportsBlock(OrderedSet(Self.internalModules + importedModules).sorted())
@@ -183,8 +183,8 @@ public final class SwiftInterfaceBuilder<MachO: MachOFieldLayoutRenderable>: Sen
                         await VisibilityRegion(visibility) {
                             // One item per line: the list breaks before each
                             // (evolution proposal `private-declaration-source-files`).
-                            for comment in printer.privateDeclarationSourceFileComments(for: [variable.node]) {
-                                comment
+                            for sourceFileComment in printer.privateDeclarationSourceFileComments(for: [variable.node]) {
+                                printer.comment(sourceFileComment, as: .privateDeclarationSource)
                             }
                             printer.globalExportStatusComment(forSymbolNames: variable.accessors.map(\.symbol.name))
                             await printer.printVariable(variable, level: 0)
@@ -199,8 +199,8 @@ public final class SwiftInterfaceBuilder<MachO: MachOFieldLayoutRenderable>: Sen
                 for function in indexer.globalFunctionDefinitions {
                     if let visibility = printer.exportFilterVisibility(excluded: printer.isExcludedByExportFilter(globalSymbolNames: [function.symbol.name])) {
                         await VisibilityRegion(visibility) {
-                            for comment in printer.privateDeclarationSourceFileComments(for: [function.node]) {
-                                comment
+                            for sourceFileComment in printer.privateDeclarationSourceFileComments(for: [function.node]) {
+                                printer.comment(sourceFileComment, as: .privateDeclarationSource)
                             }
                             printer.globalExportStatusComment(forSymbolNames: [function.symbol.name])
                             await printer.printFunction(function, level: 0)

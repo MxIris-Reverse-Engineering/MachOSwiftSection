@@ -188,6 +188,13 @@ public enum EnumLayoutCalculator {
         /// `byte[0x0] & 0b11000000 = 0b10000000` — only the masked bits are a
         /// claim about the value.
         public func formattedFixedBytes() -> String {
+            formattedFixedByteRuns().joined(separator: ", ")
+        }
+
+        /// `formattedFixedBytes()` one run at a time — what a print marking
+        /// comment structure gives a value segment each (evolution proposal
+        /// `comment-structure`).
+        package func formattedFixedByteRuns() -> [String] {
             byteRuns().map { run in
                 if run.bytes.count == 1 {
                     let byteValue = run.bytes[0]
@@ -205,7 +212,6 @@ public enum EnumLayoutCalculator {
                     return "bytes[0x\(String(run.startOffset, radix: 16))..<0x\(String(endOffset, radix: 16))] = 0x\(String(runValue, radix: 16, uppercase: true))"
                 }
             }
-            .joined(separator: ", ")
         }
 
         /// Splits ``memoryChanges`` into runs of consecutive offsets, capped at

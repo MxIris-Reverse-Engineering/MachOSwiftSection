@@ -92,15 +92,15 @@ extension SwiftDeclarationPrinter {
         } body: {
             try await MemberList(level: level) {
                 if definition.objcRuntimeName == nil {
-                    StructuredComment.note("No Objective-C protocol record pairs with this declaration: the source renamed it with @objc(Name) to a name other than its Swift name, so its requirements are not listed.")
+                    comment(.note("No Objective-C protocol record pairs with this declaration: the source renamed it with @objc(Name) to a name other than its Swift name, so its requirements are not listed."), as: .note)
                 }
                 if definition.requirements.contains(where: { $0.source == .selector }) {
-                    StructuredComment.note("Swift names follow the ClangImporter's rules for these selectors; the binary records no Swift names for them.")
+                    comment(.note("Swift names follow the ClangImporter's rules for these selectors; the binary records no Swift names for them."), as: .note)
                 }
                 for requirement in definition.requirements {
                     if case .conformer(let className) = requirement.source {
                         let printedClassName = try await resolver.resolve(for: className.node.materialize()).string
-                        StructuredComment.note("Taken from the conformer \(printedClassName).")
+                        comment(.note("Taken from the conformer \(printedClassName)."), as: .note)
                     }
                     await printObjCProtocolRequirement(requirement, level: level)
                 }

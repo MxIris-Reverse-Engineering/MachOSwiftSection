@@ -7,6 +7,7 @@ import SwiftDeclaration
 @_spi(Support) import SwiftIndexing
 import SwiftPrinting
 @_spi(Support) import SwiftInterface
+import Semantic
 @testable import MachOTestingSupport
 
 /// Local types on the indexing and interface paths (evolution proposal
@@ -33,6 +34,24 @@ struct LocalTypeInterfaceTests {
         let builder = try SwiftInterfaceBuilder(configuration: .init(), eventHandlers: [], in: try LocalTypeFixture.loadedImage(variant))
         try await builder.prepare()
         return try await builder.printRoot().string
+    }
+
+    /// The comment naming a local type's method, or saying that nothing
+    /// names it, is marked like every other comment (evolution proposal
+    /// `comment-structure`).
+    @Test(arguments: LocalTypeFixture.Variant.allCases)
+    func markingCommentStructureKeepsTheContract(variant: LocalTypeFixture.Variant) async throws {
+        func interface(marksCommentStructure: Bool) async throws -> FrozenSemanticString {
+            var configuration = SwiftInterfaceBuilderConfiguration()
+            configuration.printConfiguration.marksCommentStructure = marksCommentStructure
+            let builder = try SwiftInterfaceBuilder(configuration: configuration, eventHandlers: [], in: try LocalTypeFixture.machOFile(variant))
+            try await builder.prepare()
+            return try await builder.printRoot().frozen()
+        }
+        let marked = try await interface(marksCommentStructure: true)
+        let plain = try await interface(marksCommentStructure: false)
+        let violation = CommentStructureContract.violation(marked: marked, unmarked: plain)
+        #expect(violation == nil, "\(violation ?? "")")
     }
 
     /// The block whose header line STARTS with `prefix`, through its closing

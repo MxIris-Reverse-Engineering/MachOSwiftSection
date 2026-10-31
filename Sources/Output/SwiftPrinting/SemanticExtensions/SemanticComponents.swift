@@ -4,24 +4,31 @@ import Semantic
 
 // MARK: - Offset Comment
 
-/// An offset comment that outputs a comment when enabled.
+/// An offset comment that outputs a comment when enabled — a `pwtOffset` or
+/// a `fieldOffset` one, as `kind` says, when marking comment structure.
 struct OffsetComment: SemanticStringComponent {
     let prefix: String
+
+    let kind: AnnotationRegion.Kind
 
     let offset: Int?
 
     let emit: Bool
 
-    init(prefix: String, offset: Int?, emit: Bool) {
+    let marksStructure: Bool
+
+    init(prefix: String, kind: AnnotationRegion.Kind, offset: Int?, emit: Bool, marksStructure: Bool) {
         self.prefix = prefix
+        self.kind = kind
         self.offset = offset
         self.emit = emit
+        self.marksStructure = marksStructure
     }
 
     package func buildComponents() -> [AtomicComponent] {
         guard emit, let offset else { return [] }
 
-        return StructuredComment.offset(labeled: prefix, offset).buildComponents()
+        return StructuredComment.offset(labeled: prefix, offset).atoms(markingStructure: marksStructure, as: kind)
     }
 }
 
@@ -35,16 +42,19 @@ struct AddressComment: SemanticStringComponent {
 
     let emit: Bool
 
-    init(addressString: String?, label: String? = nil, emit: Bool) {
+    let marksStructure: Bool
+
+    init(addressString: String?, label: String? = nil, emit: Bool, marksStructure: Bool) {
         self.addressString = addressString
         self.label = label
         self.emit = emit
+        self.marksStructure = marksStructure
     }
 
     package func buildComponents() -> [AtomicComponent] {
         guard emit, let addressString else { return [] }
 
-        return StructuredComment.memberAddress(addressString: addressString, qualifier: label).buildComponents()
+        return StructuredComment.memberAddress(addressString: addressString, qualifier: label).atoms(markingStructure: marksStructure, as: .memberAddress)
     }
 }
 
@@ -60,20 +70,23 @@ struct VTableOffsetComment: SemanticStringComponent {
 
     let transformer: (@Sendable (Int, String?) -> SemanticString)?
 
-    init(vtableOffset: Int?, label: String? = nil, emit: Bool, transformer: (@Sendable (Int, String?) -> SemanticString)?) {
+    let marksStructure: Bool
+
+    init(vtableOffset: Int?, label: String? = nil, emit: Bool, transformer: (@Sendable (Int, String?) -> SemanticString)?, marksStructure: Bool) {
         self.vtableOffset = vtableOffset
         self.label = label
         self.emit = emit
         self.transformer = transformer
+        self.marksStructure = marksStructure
     }
 
     package func buildComponents() -> [AtomicComponent] {
         guard emit, let vtableOffset else { return [] }
 
         if let transformer {
-            return transformer(vtableOffset, label).buildComponents()
+            return StructuredComment.printedTemplate(transformer(vtableOffset, label), markingStructure: marksStructure, as: .vtableOffset).components
         } else {
-            return StructuredComment.vtableOffset(vtableOffset, qualifier: label).buildComponents()
+            return StructuredComment.vtableOffset(vtableOffset, qualifier: label).atoms(markingStructure: marksStructure, as: .vtableOffset)
         }
     }
 }
@@ -91,14 +104,17 @@ struct VTableOffsetComment: SemanticStringComponent {
 struct ExportStatusComment: SemanticStringComponent {
     let isExported: Bool?
 
-    init(isExported: Bool?) {
+    let marksStructure: Bool
+
+    init(isExported: Bool?, marksStructure: Bool) {
         self.isExported = isExported
+        self.marksStructure = marksStructure
     }
 
     package func buildComponents() -> [AtomicComponent] {
         guard isExported == false else { return [] }
 
-        return StructuredComment.exportStatus.buildComponents()
+        return StructuredComment.exportStatus.atoms(markingStructure: marksStructure, as: .exportStatus)
     }
 }
 
