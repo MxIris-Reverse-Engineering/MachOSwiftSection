@@ -227,9 +227,12 @@ extension Package.Dependency {
         ),
         remote: .package(
             url: "https://github.com/MxIris-Reverse-Engineering/swift-semantic-string",
-            // 0.5.0 adds definition regions, which `marksNestedDefinitions`
+            // Annotation regions, which `marksCommentStructure` marks every
+            // comment with, are on `next` until their release; this goes back
+            // to a version requirement before the comment-structure proposal
+            // lands. 0.5.0 added the definition regions `marksNestedDefinitions`
             // wraps each nested definition in.
-            from: "0.5.0",
+            branch: "next",
         ),
     )
 

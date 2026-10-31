@@ -76,30 +76,9 @@ extension StructuredComment {
         package static func plain(_ text: String) -> Self { Self(nil, text) }
     }
 
-    /// What a segment of a comment is.
-    ///
-    /// Stands in for swift-semantic-string's `AnnotationSegment.Role` until
-    /// its annotation regions ship (evolution proposal `comment-structure`).
-    /// The members are named as there, so a segment written `.label` keeps
-    /// its spelling once this becomes that type.
-    package struct Role: Hashable, Sendable {
-        package let rawValue: String
-
-        private init(_ rawValue: String) {
-            self.rawValue = rawValue
-        }
-
-        package static let marker = Self("marker")
-        package static let label = Self("label")
-        package static let qualifier = Self("qualifier")
-        package static let separator = Self("separator")
-        package static let key = Self("key")
-        package static let value = Self("value")
-        package static let name = Self("name")
-        package static let type = Self("type")
-        package static let treePrefix = Self("treePrefix")
-        package static let text = Self("text")
-    }
+    /// What a segment of a comment is: the roles every comment printer
+    /// shares, which swift-semantic-string defines.
+    package typealias Role = AnnotationSegment.Role
 }
 
 extension [StructuredComment.Segment] {
