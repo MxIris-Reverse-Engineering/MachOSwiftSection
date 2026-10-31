@@ -2902,16 +2902,16 @@
 
 ## 119. 打印器给每条注释标出种类和各段角色
 
-- **时间段**：2026-10-31，分支 `feature/comment-structure`（worktree `.worktrees/MachOSwiftSection-CommentStructure`，基于 `next` 849a0b21）。
+- **时间段**：2026-10-31，分支 `feature/comment-structure`（worktree `.worktrees/MachOSwiftSection-CommentStructure`，基于 `next` 849a0b21），当天合入 `next`。
 - **动机**：RuntimeViewer 要在 SourceEditor 面板里把 interface 的注释画成标签，把字段偏移树和枚举布局做成可折叠的（它的提案 `draft-source-editor-comment-annotations`）。定下来的分工是注释的结构由生成器输出，RuntimeViewer 不解析注释文本；而在这之前，每条注释在 `SemanticString` 里只是一个 `.comment` 原子，种类、段、树的层级都没有留下。载体是 swift-semantic-string 新增的注释区域（`AnnotationRegion` / `AnnotationSegment` / `AnnotatedAtom`，已落进它的 `next` 2698750，未发版），ObjC 一侧由 MachOObjCSection 按同一套约定做。
 - **关键决策**：
   - 每条注释的文字只在 `StructuredComment` 的工厂里写一次，写成带角色的段。开关 `marksCommentStructure` 关着时，各段拼成原来那一个 `.comment` 原子；打开时拆成一个 `AnnotatedAtom` 的几片，分离时并回那一个原子，所以分离后与关着时的打印逐个相同（文本、span、identifier）。
   - 种类是 `AnnotationRegion.Kind` 的静态成员：本库扩展 21 种公开的，另有 3 种只有 dump 输出、定为 package 级；`note` 来自 swift-semantic-string。跨行的结构用区域的嵌套表达：字段偏移的根区域包住整棵树，每个树节点包住自己的后代；枚举 case 块每行一个子区域；元组的 Type Layout 每个元素一个子区域；条件 witness 每个分支一个子区域。
   - 区域首尾的空白原子由 swift-semantic-string 在分离时裁掉，所以现有 helper 输出的「缩进 + 注释 + 换行」可以整个包进区域，不必重排原子（重排会改变换行字节的可见性标记）。
   - transformer 闭包的输出整个记为一个 `text` 段，按占位符分段留给后续提案。dump 不标记：共享 helper 也改走 `StructuredComment`，但开关只由打印器设置。
-  - 开发期依赖 swift-semantic-string 的 `next`（`branch: "next"`），只换这一个依赖，不开 `USING_LOCAL_DEPENDENCIES`，免得把别的兄弟库未发版的内容一起带进来。
+  - 开发期依赖 swift-semantic-string 的 `next`（`branch: "next"`），只换这一个依赖，不开 `USING_LOCAL_DEPENDENCIES`，免得把别的兄弟库未发版的内容一起带进来。落地前不带着分支依赖进 `next`：先请它发版（0.6.0），改回 `from: "0.6.0"` 再合并。
 - **落地**：SwiftDeclarationRendering（`StructuredComment` 与它的工厂、`AnnotationRegionKind+SwiftComments.swift`、`DeclarationRenderConfiguration` 的 `comment(_:as:)` 与 `commentRegion(_:content:)`、两个字段布局后端、元组的 Type Layout）；SwiftPrinting（`marksCommentStructure`、各个打印点、`InterfaceHeaderBlock`，`bodyAfterNestedDefinitions` 判断末尾换行时改认 `BreakLine` 原子）；SwiftInterface（`printRoot` 的文件头与两个全局块）；SwiftInspection（`summaryFacts`、`formattedFixedByteRuns()`）；MachOTestingSupport（`CommentStructureContract`）。测试有 `StructuredCommentTests`、`CommentConstructionScanTests`、`CommentStructureContractTests`、`CommentStructureShapeTests`、`ConditionalWitnessCommentStructureTests` 五个新套件，`NestedDefinitionRegionContractTests` 多一个变体，六个现场编译 fixture 的套件加了契约断言，新套件都进了 CI 的筛选清单。
-- **关联文档**：提案 [draft-comment-structure](../Evolutions/draft-comment-structure.md)（落地时取号），[Modules/SwiftInterface.md](Modules/SwiftInterface.md)「注释结构标记」，[术语表](../Glossary.md)「comment structure」，AGENTS.md 打印器一节的规则行。
+- **关联文档**：提案 [0084-comment-structure](../Evolutions/0084-comment-structure.md)，[Modules/SwiftInterface.md](Modules/SwiftInterface.md)「注释结构标记」，[术语表](../Glossary.md)「comment structure」，AGENTS.md 打印器一节的规则行。
 - **验证**：都在 JHs-Mac-Studio-Ultra 上跑（默认 Xcode 27.2，远端依赖；两侧的 `Package.resolved` 只差 swift-semantic-string 一项）。
   - 第 1 步只改注释的构造方式，输出不变：全量与 `next` 849a0b21 的快照逐条一致，只多出新套件。
   - 契约测试能抓到漏标：把 `ExportStatusComment` 临时改成不标记，`CommentStructureContractTests` 变红，并列出每一处落在区域外的 `// not exported`。
@@ -2919,11 +2919,12 @@
   - Xcode 26.6（CI 的 Swift 6.3.3）连同测试目标编译通过，受影响的 16 个套件 151 个测试全部通过（包括在 27.2 下红的 `ThunkOnlyObjCMemberTests`），原始退出码 0。条件 witness 的现场编译 fixture 用 26.6 编出来同样读得出两个分支。
   - 渲染 A/B（两侧 release 预构建后带 `--skip-build` 跑，基线是 `next` 849a0b21 的 `git archive` 沙盒，所以基线缓存不可用、两侧都全量渲染）：96 对输出全部逐字节一致，原始退出码 0。覆盖归档 cache 15.5 与 26.6、iOS 15.5 / 16.4 / 17.5 / 18.5 / 26.5 模拟器 runtime、进程内 `MachOImage` 三种读取方式的 dump 与 interface；iOS 27.0 模拟器 runtime 里找不到这些框架文件，两侧都跳过，旧 runtime 里没有的框架（如 15.5 的 SwiftData）同样跳过。
   - 性能（开关关着，量的是每条注释多建一个段数组的开销）：两侧 release CLI 对本机 dyld cache 里的 SwiftUI 打开全部注释选项生成 interface（`--emit-header`、偏移、地址、vtable、展开的偏移树、Type Layout、枚举布局、导出状态、私有声明来源、`--parse-opaque-return-type`），交替各跑两轮。四份输出逐字节一致（14.3 MB）。instructions retired 基线 926.4 G / 927.5 G，本分支 936.1 G / 930.4 G，平均多 0.7%（逐轮 1.1% 与 0.3%，本分支自己两轮相差 0.6%）；峰值 footprint 两侧都在 594–642 MB；墙钟基线 92 / 87 秒，本分支 110 / 87 秒（110 秒那轮机器上别的会话正忙）。开销可以忽略，不改成关着时直接拼字符串。
+  - RuntimeViewer 接入后核对（对着本地合并后的 `next` b6c37d31，加 swift-semantic-string 2698750、MachOObjCSection 635fe17）：用测试包里的嵌套 struct、多载荷 enum、open class 打印，开关开与关的文本、span、identifier 完全相等；每条注释都在注释表里、从注释符号开始，区域层层嵌套，出现的 kind 与 role 都在约定清单内；字段树和 case 块在它的 App 里都能收起（RuntimeViewer 提交 c3ad6ca7）。
+  - 依赖改回 swift-semantic-string 0.6.0（`fd7e93c`，相对 2698750 只改了 README 与 `docs/AnnotationRegions.md` 各一行）后重新解析、连同测试目标编译通过，受影响的 17 个套件 147 个测试全过，原始退出码 0；全量、A/B 与性能沿用上面的结果。
 - **后续**：
-  - swift-semantic-string 发版后，把 `Package.swift` 里 `Semantic` 的要求从 `branch: "next"` 改回版本号。这一条不做完不能落进 `next`。
   - transformer 模板按占位符分段（见提案「装了 transformer 的注释」）。
   - thunk 读取器不解析两个分支各自直接加载一个类型、编成 `csel` 的可用性条件 witness；interface 路径不用 `memberAddressTransformer`。两条都与本提案无关，见提案「顺带发现」。
-- **对应版本**：未发版。发版说明要写：`SwiftDeclarationPrintConfiguration.marksCommentStructure`（默认关）给 interface 的每条注释标出种类和各段的角色，宿主用 swift-semantic-string 的 `separatingAnnotationRegions()` 取出注释表；依赖的 swift-semantic-string 下限抬到带注释区域的那个版本。
+- **对应版本**：未发版。发版说明要写：`SwiftDeclarationPrintConfiguration.marksCommentStructure`（默认关）给 interface 的每条注释标出种类和各段的角色，宿主用 swift-semantic-string 的 `separatingAnnotationRegions()` 取出注释表；依赖的 swift-semantic-string 下限抬到 0.6.0。
 
 ## 维护约定
 

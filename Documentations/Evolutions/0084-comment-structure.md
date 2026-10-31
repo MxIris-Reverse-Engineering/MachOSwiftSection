@@ -1,11 +1,11 @@
-# Draft - 注释结构标记：打印器给每条注释标出种类和各段角色
+# 0084 - 注释结构标记：打印器给每条注释标出种类和各段角色
 
-- **状态**: In Progress
+- **状态**: Implemented
 - **创建日期**: 2026-10-31
 - **最后更新**: 2026-10-31
 - **所属愿景**: 无
-- **关联提案**: [0068-nested-definition-regions](0068-nested-definition-regions.md) 与 [0056-visibility-regions](0056-visibility-regions.md)（同一手法：标记写在原子的 `identifier` 里，冻结后分离成一张表）；RuntimeViewer 的 `draft-source-editor-comment-annotations`（使用方：SourceEditor 面板把注释画成标签，字段偏移树与枚举布局可折叠）；swift-semantic-string 新增的注释区域组件（载体，设计中）；MachOObjCSection 的同名开关（ObjC 一侧，同一套约定）
-- **实现分支 / PR**: 本库 `feature/comment-structure`（worktree `.worktrees/MachOSwiftSection-CommentStructure`）；swift-semantic-string 的注释区域组件已落进它的 `next`（`2698750`），未发版
+- **关联提案**: [0068-nested-definition-regions](0068-nested-definition-regions.md) 与 [0056-visibility-regions](0056-visibility-regions.md)（同一手法：标记写在原子的 `identifier` 里，冻结后分离成一张表）；RuntimeViewer 的 `draft-source-editor-comment-annotations`（使用方：SourceEditor 面板把注释画成标签，字段偏移树与枚举布局可折叠）；swift-semantic-string 0.6.0 新增的注释区域组件（载体）；MachOObjCSection 的同名开关（ObjC 一侧，同一套约定）
+- **实现分支 / PR**: `feature/comment-structure`（worktree `.worktrees/MachOSwiftSection-CommentStructure`，基于 `next` 849a0b21），2026-10-31 合入 `next`；swift-semantic-string 的注释区域组件随它的 0.6.0 发布
 - **配套文档**: [术语表](../Glossary.md)的「comment structure」条目；[`Internal/Modules/SwiftInterface.md`](../Internal/Modules/SwiftInterface.md) 的「注释结构标记」一段
 
 ## 摘要
@@ -16,7 +16,7 @@ RuntimeViewer 要在 SourceEditor 面板里把 interface 的注释画成圆角�
 
 ### 改动位置
 
-- **swift-semantic-string**（另一个仓库，由它的会话设计，草图见下文「依赖」）：`AnnotationRegion`（带一个 kind 的区域）、`AnnotationSegment`（带一个角色的段）、`AnnotatedAtom`（「不打标记时的一个原子」拆成几片打印，分离时并回一个 span）。标记写在原子的 `identifier` 上，不改文本；`separatingAnnotationRegions()` 分离出干净文本和一张表（区域的 kind、UTF-8 范围、深度、直接外层区域，段的角色、范围与所在区域）。
+- **swift-semantic-string**（另一个仓库，由它的会话设计与实现，0.6.0 发布，见下文「依赖」）：`AnnotationRegion`（带一个 kind 的区域）、`AnnotationSegment`（带一个角色的段）、`AnnotatedAtom`（「不打标记时的一个原子」拆成几片打印，分离时并回一个 span）。标记写在原子的 `identifier` 上，不改文本；`separatingAnnotationRegions()` 分离出干净文本和一张表（区域的 kind、UTF-8 范围、深度、直接外层区域，段的角色、范围与所在区域）。
 - **MachOSwiftSection**：
   - `SwiftDeclarationPrintConfiguration`（`SwiftDeclarationPrintConfiguration.swift:149` 起，与 `marksOptionalContent`、`marksNestedDefinitions` 并列）加 `public var marksCommentStructure: Bool = false`。
   - `DeclarationRenderConfiguration`（`DeclarationRenderConfiguration.swift:54`）加一个 package 级的同名属性，只由打印器在 `renderModelFields`（`SwiftDeclarationPrinter+Headers.swift:392`）里设置。
@@ -158,7 +158,7 @@ note
 
 ### 依赖 swift-semantic-string
 
-API 以它的会话定稿为准。它的草图（swift-semantic-string 的 next worktree 里 `docs/AnnotationRegions.md`，未提交）已满足本库提的要求：
+API 以它的会话定稿为准，随它的 0.6.0 发布，说明在它的 `docs/AnnotationRegions.md`。它满足本库提的要求：
 
 - 区域可以嵌套（同 kind 也行），原样保留内容的元素结构（同 `DefinitionRegion`），起止可以落在一个 `AnnotatedAtom` 内部；相邻的两个同 kind 区域读回为两个。
 - 边界不靠编号：每层区域在每个原子上记一个只取决于区域自身内容的阶段（锚点之前、锚点、锚点之后），所以去缩进、投影、切出定义区域都改不动它。0068 的「内联与单独打印逐个相同」、「标记模式投影到某个配置再分离 = 用该配置打印再分离」都成立，`content(ofDefinitionRegion:)` 与 `removingIndentation(levels:)` 不用改。
@@ -174,7 +174,7 @@ API 以它的会话定稿为准。它的草图（swift-semantic-string 的 next 
 
 草图里的「一次扫描的模板代入函数」本库第一版不用，它已从提案里删掉。它列出的已知限制「分离之前看到的是拆开的片」，本库打印路径上按原子判断的有两处。`DeclarationBlock` 看最后一个原子的末字节，片拼起来末字节不变，不受影响。`bodyAfterNestedDefinitions`（`SwiftDeclarationPrinter+VisibilityRegions.swift:78`）判断最后一个原子是不是 `"\n"`，而枚举块拆开后最后一片正是 `"\n"`；今天块后面总跟着 case 声明，块不会是 body 的最后一项，但这条前提不该靠顺序维持。这处判断改为「最后一个原子是 `BreakLine`」：字符串是 `"\n"` 且类型是 `.standard`。拆出的片类型是 `.comment`，不会被认错；不开标记时没有哪个 `.comment` 原子恰好是 `"\n"`，行为不变。
 
-本库依赖的下限随它发版抬高（今天是 0.5.0）。
+本库依赖的下限抬到 0.6.0，带注释区域的第一个版本（之前是 0.5.0）。
 
 ### 落地步骤
 
@@ -182,7 +182,7 @@ API 以它的会话定稿为准。它的草图（swift-semantic-string 的 next 
 2. **接上 swift-semantic-string**（已完成）：依赖暂时指向它的 `next` 分支；删掉过渡类型，角色改用 `AnnotationSegment.Role`，种类常量公开地扩展在 `AnnotationRegion.Kind` 上。
 3. **开关与标记渲染**（已完成）：`marksCommentStructure`、`StructuredComment` 的标记渲染、枚举 case 块的分段组装、字段偏移树与枚举与元组与条件 witness 的区域结构、transformer 闭包的包装、`bodyAfterNestedDefinitions` 的判断。
 4. **测试**（已完成，与第 3 步同一个提交）：契约测试、结构测试、少见种类所在套件里的断言、单元测试。
-5. **文档与完整验证**（除依赖下限外已完成）：模块文档、术语表、演进账本与 AGENTS.md 的规则行；全量测试、渲染 A/B、性能对比；依赖下限随 swift-semantic-string 发版抬高——它还没发版，`Semantic` 仍要求 `branch: "next"`，落进 `next` 之前要改回版本号。
+5. **文档与完整验证**（已完成）：模块文档、术语表、演进账本与 AGENTS.md 的规则行；全量测试、渲染 A/B、性能对比；依赖下限随 swift-semantic-string 发版抬到 0.6.0。
 
 ### 验证
 
@@ -201,7 +201,7 @@ API 以它的会话定稿为准。它的草图（swift-semantic-string 的 next 
 - 区域第一版不带属性：RuntimeViewer 第一版不用，需要的文字都在段里。
 - 每条注释的文字只写在 `StructuredComment` 一处，关着时由各段拼接，所以改动会经过默认输出路径，靠渲染 A/B 证明逐字节不变；只有枚举逐 case 块保留原实现、另写分段组装。
 - 不加 CLI 选项：CLI 只输出文本，注释表没有落点。
-- 实现等 swift-semantic-string 的组件在分支上可用后开始，开发期用本地兄弟依赖（`USING_LOCAL_DEPENDENCIES=1`）。
+- 实现等 swift-semantic-string 的组件在分支上可用后开始，开发期依赖它的 `next` 分支，它发版后改回版本号（原定用本地兄弟依赖，改法见决策日志）。
 
 ### 顺带发现
 
@@ -230,3 +230,5 @@ thunk 读取器不解析两个分支各自直接加载一个类型的可用性�
 | 2026-10-31 | 第 3、4 步落地，合成一个提交；与原方案有四处出入 | 第 3 步没有自己的测试，而且它让 `StructuredComment` 自己的文件构造 `.comment` 原子（`AnnotatedAtom(type: .comment, …)`），源码扫描测试要同时放行这些文件，单独提交的话中间那个提交的测试是红的。一，契约第 4 条后半（与 `marksNestedDefinitions` 组合）放进 `NestedDefinitionRegionContractTests` 新增的一个变体，并比较分离出的注释表，不在新套件里重复它切区域、去缩进的那套比较；新套件 `CommentStructureContractTests` 管第 2、3 条与第 4 条前半，另加整个 interface 的 `printRoot`（含文件头）。二，条件 witness 没有现成的现场编译 fixture（唯一的 SE-0360 测试读宿主 cache 里的 SwiftUI），新加套件 `ConditionalWitnessCommentStructureTests` 现场编一个小 dylib；两个分支返回 `[1]` 与 `["one": 1]`，原因见「顺带发现」。三，判漏标的覆盖检查只看非空白的注释字节，与区域首尾裁掉空白的规则一致。四，整个 import `Semantic` 的测试文件里，它的 `Error` 组件会遮住 `Swift.Error`，这些文件改为按名字只 import 用到的类型。三个新套件进了 CI 的筛选清单；条件 witness 那个 fixture 用 Xcode 26.6（Swift 6.3）编出来同样读得出两个分支。 |
 | 2026-10-31 | 第 5 步完成验证；关着时保留「每条注释建一个段数组」 | 全量测试与 `next` 849a0b21 一致（只红默认 Xcode 27.2 下既有的 `ThunkOnlyObjCMemberTests` 4 条），Xcode 26.6 下受影响的套件全过，渲染 A/B 96 对逐字节一致。性能：SwiftUI 打开全部注释选项生成 interface，instructions retired 平均多 0.7%，峰值内存不变，开销可以忽略，所以不改成关着时直接拼字符串。数字记在演进账本第 119 节。 |
 | 2026-10-31 | 实现完成，待用户看过后收尾 | 剩下的只有依赖下限：swift-semantic-string 发版后，把 `Semantic` 的要求从 `branch: "next"` 改回版本号，再落进 `next`。 |
+| 2026-10-31 | RuntimeViewer 端到端核对通过 | 它对着本地合并后的 `next`（b6c37d31，加 swift-semantic-string 2698750、MachOObjCSection 635fe17）用测试包里的嵌套 struct、多载荷 enum、open class 核对：开关开与关的文本、span、identifier 完全相等，每条注释都在表里、从注释符号开始，区域层层嵌套，出现的 kind 与 role 都在约定清单里；字段树和 case 块在它的 App 里都能收起。 |
+| 2026-10-31 | 依赖改回 `from: "0.6.0"`；Implemented，取号 0084 | 用户决定先请 swift-semantic-string 发版再落地，不带着分支依赖进 `next`。它发布的 0.6.0（`fd7e93c`）相对 `2698750` 只改了 README 与 `docs/AnnotationRegions.md` 各一行，所以改 pin 后只重跑受影响的 17 个套件（147 个测试全过，原始退出码 0），全量、A/B 与性能沿用第 5 步的结果。文档：术语表与模块文档在第 3、4 步已写好，不另写使用指南——开关只是一个布尔值，属性的文档注释写明了契约，宿主怎么读注释表由 swift-semantic-string 的 `docs/AnnotationRegions.md` 说明。 |
