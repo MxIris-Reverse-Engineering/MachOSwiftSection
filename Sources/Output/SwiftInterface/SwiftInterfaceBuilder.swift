@@ -183,8 +183,8 @@ public final class SwiftInterfaceBuilder<MachO: MachOFieldLayoutRenderable>: Sen
                         await VisibilityRegion(visibility) {
                             // One item per line: the list breaks before each
                             // (evolution proposal `private-declaration-source-files`).
-                            for line in printer.privateDeclarationSourceFileLines(for: [variable.node]) {
-                                Comment(line)
+                            for comment in printer.privateDeclarationSourceFileComments(for: [variable.node]) {
+                                comment
                             }
                             printer.globalExportStatusComment(forSymbolNames: variable.accessors.map(\.symbol.name))
                             await printer.printVariable(variable, level: 0)
@@ -199,8 +199,8 @@ public final class SwiftInterfaceBuilder<MachO: MachOFieldLayoutRenderable>: Sen
                 for function in indexer.globalFunctionDefinitions {
                     if let visibility = printer.exportFilterVisibility(excluded: printer.isExcludedByExportFilter(globalSymbolNames: [function.symbol.name])) {
                         await VisibilityRegion(visibility) {
-                            for line in printer.privateDeclarationSourceFileLines(for: [function.node]) {
-                                Comment(line)
+                            for comment in printer.privateDeclarationSourceFileComments(for: [function.node]) {
+                                comment
                             }
                             printer.globalExportStatusComment(forSymbolNames: [function.symbol.name])
                             await printer.printFunction(function, level: 0)

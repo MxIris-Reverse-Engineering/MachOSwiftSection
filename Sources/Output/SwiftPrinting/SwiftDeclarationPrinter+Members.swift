@@ -78,7 +78,7 @@ extension SwiftDeclarationPrinter {
     /// name demangled.
     public func printEnumCase(_ field: FieldDefinition, level: Int, substitutedTypeNode: Node? = nil) async -> SemanticString {
         if field.name.isEmpty {
-            return SemanticString { Comment(Self.namelessEnumCaseComment) }
+            return SemanticString { StructuredComment.note(Self.namelessEnumCaseComment) }
         }
         var result = SemanticString {
             if field.flags.contains(.isIndirectCase) {
@@ -128,7 +128,7 @@ extension SwiftDeclarationPrinter {
             // Swift 6.4: an element unavailable at run time keeps its tag,
             // but the compiler emits neither its name nor its payload type.
             // Say so rather than print a nameless `case`.
-            Comment(Self.namelessEnumCaseComment)
+            StructuredComment.note(Self.namelessEnumCaseComment)
         } else {
             if field.flags.contains(.isIndirectCase) {
                 Keyword(.indirect)

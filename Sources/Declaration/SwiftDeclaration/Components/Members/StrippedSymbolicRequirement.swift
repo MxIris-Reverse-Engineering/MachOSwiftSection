@@ -49,10 +49,10 @@ extension StrippedSymbolicRequirement {
 extension StrippedSymbolicRequirement {
     @SemanticStringBuilder
     package func strippedSymbolicInfo() -> SemanticString {
-        Comment(
-            """
-            Kind: \(requirement.layout.flags.kind.description), isAsync: \(requirement.layout.flags.isAsync), isInstance: \(requirement.layout.flags.isInstance)
-            """
+        StructuredComment.strippedSymbolicRequirement(
+            kindDescription: requirement.layout.flags.kind.description,
+            isAsync: requirement.layout.flags.isAsync,
+            isInstance: requirement.layout.flags.isInstance
         )
     }
 }

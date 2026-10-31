@@ -1,4 +1,5 @@
 import SwiftDeclaration
+import SwiftDeclarationRendering
 import Semantic
 
 // MARK: - Offset Comment
@@ -20,7 +21,7 @@ struct OffsetComment: SemanticStringComponent {
     package func buildComponents() -> [AtomicComponent] {
         guard emit, let offset else { return [] }
 
-        return Comment("\(prefix): 0x\(String(offset, radix: 16))").buildComponents()
+        return StructuredComment.offset(labeled: prefix, offset).buildComponents()
     }
 }
 
@@ -43,11 +44,7 @@ struct AddressComment: SemanticStringComponent {
     package func buildComponents() -> [AtomicComponent] {
         guard emit, let addressString else { return [] }
 
-        if let label {
-            return Comment("Address (\(label)): 0x\(addressString)").buildComponents()
-        } else {
-            return Comment("Address: 0x\(addressString)").buildComponents()
-        }
+        return StructuredComment.memberAddress(addressString: addressString, qualifier: label).buildComponents()
     }
 }
 
@@ -75,10 +72,8 @@ struct VTableOffsetComment: SemanticStringComponent {
 
         if let transformer {
             return transformer(vtableOffset, label).buildComponents()
-        } else if let label {
-            return Comment("VTable offset (\(label)): \(vtableOffset)").buildComponents()
         } else {
-            return Comment("VTable offset: \(vtableOffset)").buildComponents()
+            return StructuredComment.vtableOffset(vtableOffset, qualifier: label).buildComponents()
         }
     }
 }
@@ -103,7 +98,7 @@ struct ExportStatusComment: SemanticStringComponent {
     package func buildComponents() -> [AtomicComponent] {
         guard isExported == false else { return [] }
 
-        return Comment("not exported").buildComponents()
+        return StructuredComment.exportStatus.buildComponents()
     }
 }
 

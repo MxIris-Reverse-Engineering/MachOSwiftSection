@@ -22,7 +22,7 @@ struct ObjCImplementationFieldOffsetComment: SemanticStringComponent {
         if let transformer {
             return transformer((instanceVariable.offset, instanceVariable.offset + instanceVariable.size)).buildComponents()
         }
-        return Comment("Field offset: 0x\(String(instanceVariable.offset, radix: 16))").buildComponents()
+        return StructuredComment.fieldOffset(instanceVariable.offset).buildComponents()
     }
 }
 
@@ -64,7 +64,7 @@ extension SwiftDeclarationPrinter {
             if let typeNode {
                 try await printThrowingType(typeNode, isProtocol: false, level: level)
             } else {
-                InlineComment("type not recoverable")
+                StructuredComment.inlineNote("type not recoverable")
             }
         }
     }
@@ -105,7 +105,7 @@ extension SwiftDeclarationPrinter {
                             }
                             await printType(typeNode.materialize(), isProtocol: false, level: level)
                         } else {
-                            Comment(Self.unrecoverableStoredPropertyComment(for: instanceVariable))
+                            StructuredComment.note(Self.unrecoverableStoredPropertyComment(for: instanceVariable))
                         }
                     }
                 }

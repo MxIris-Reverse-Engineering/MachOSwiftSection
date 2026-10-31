@@ -162,10 +162,8 @@ extension DeclarationRenderConfiguration {
         indentString
         if let memberAddressTransformer {
             memberAddressTransformer(offset)
-        } else if let label {
-            Comment("Address (\(label)): 0x\(addressString)")
         } else {
-            Comment("Address: 0x\(addressString)")
+            StructuredComment.memberAddress(addressString: addressString, qualifier: label)
         }
         BreakLine()
     }
@@ -186,9 +184,9 @@ extension DeclarationRenderConfiguration {
         indentationLevel: Int
     ) -> SemanticString {
         if let privateDeclarationSourceFileProvider {
-            for line in PrivateDeclarationSourceFileComments.lines(for: nodes(), enclosedBy: enclosingNodes(), provider: privateDeclarationSourceFileProvider) {
+            for comment in PrivateDeclarationSourceFileComments.comments(for: nodes(), enclosedBy: enclosingNodes(), provider: privateDeclarationSourceFileProvider) {
                 Indent(level: indentationLevel)
-                Comment(line)
+                comment
                 BreakLine()
             }
         }
@@ -202,7 +200,7 @@ extension DeclarationRenderConfiguration {
     @SemanticStringBuilder
     package func exportStatusComment() -> SemanticString {
         indentString
-        Comment("not exported")
+        StructuredComment.exportStatus
         BreakLine()
     }
 
@@ -215,7 +213,7 @@ extension DeclarationRenderConfiguration {
         if let fieldOffsetTransformer {
             fieldOffsetTransformer((startOffset, endOffset))
         } else {
-            Comment("Field offset: 0x\(String(startOffset, radix: 16))")
+            StructuredComment.fieldOffset(startOffset)
         }
         BreakLine()
     }
@@ -228,7 +226,7 @@ extension DeclarationRenderConfiguration {
     @SemanticStringBuilder
     package func unknownFieldOffsetComment(reasonDescription: String) -> SemanticString {
         indentString
-        Comment("Field offset: unknown (\(reasonDescription))")
+        StructuredComment.unknownFieldOffset(reasonDescription: reasonDescription)
         BreakLine()
     }
 
@@ -241,10 +239,8 @@ extension DeclarationRenderConfiguration {
         Indent(level: baseIndentation)
         if let expandedFieldOffsetTransformer {
             expandedFieldOffsetTransformer((fieldName, typeName, offset, treePrefix))
-        } else if typeName.isEmpty {
-            Comment("\(treePrefix)\(fieldName): 0x\(String(offset, radix: 16))")
         } else {
-            Comment("\(treePrefix)\(fieldName) (\(typeName)): 0x\(String(offset, radix: 16))")
+            StructuredComment.fieldLayoutNode(treePrefix: treePrefix, fieldName: fieldName, typeName: typeName, offset: offset)
         }
         BreakLine()
     }
@@ -267,10 +263,8 @@ extension DeclarationRenderConfiguration {
         indentString
         if let vtableOffsetTransformer {
             vtableOffsetTransformer((slotOffset, label))
-        } else if let label {
-            Comment("VTable offset (\(label)): \(slotOffset)")
         } else {
-            Comment("VTable offset: \(slotOffset)")
+            StructuredComment.vtableOffset(slotOffset, qualifier: label)
         }
         BreakLine()
     }
@@ -286,7 +280,7 @@ extension DeclarationRenderConfiguration {
     @SemanticStringBuilder
     package func deletedMethodSlotComment() -> SemanticString {
         indentString
-        Comment("No implementation in this image (deleted method — slot retained for ABI)")
+        StructuredComment.deletedMethodSlot
         BreakLine()
     }
 
@@ -299,7 +293,7 @@ extension DeclarationRenderConfiguration {
     @SemanticStringBuilder
     package func ambiguousAttributionComment(foldedSymbolCount: Int) -> SemanticString {
         indentString
-        Comment("Attribution: ambiguous — \(foldedSymbolCount) symbols folded at this address")
+        StructuredComment.ambiguousAttribution(foldedSymbolCount: foldedSymbolCount)
         BreakLine()
     }
 
@@ -309,7 +303,7 @@ extension DeclarationRenderConfiguration {
         if let enumLayoutCaseTransformer {
             enumLayoutCaseTransformer((caseProjection: caseProjection, indentation: indentation))
         } else {
-            AtomicComponent(string: caseProjection.description(indent: indentation, prefix: "//"), type: .comment)
+            StructuredComment.enumLayoutCaseBlock(caseProjection.description(indent: indentation, prefix: "//"))
         }
     }
 
@@ -320,7 +314,7 @@ extension DeclarationRenderConfiguration {
         if let spareBitAnalysisTransformer {
             spareBitAnalysisTransformer((analysis: analysis, indentation: indentation))
         } else {
-            InlineComment("Spare Bits: \(analysis.totalSpareBits) total")
+            StructuredComment.spareBits(totalSpareBits: analysis.totalSpareBits)
         }
         BreakLine()
     }
@@ -334,7 +328,7 @@ extension DeclarationRenderConfiguration {
         if let enumLayoutTransformer {
             enumLayoutTransformer(layoutResult)
         } else {
-            InlineComment(layoutResult.summaryDescription)
+            StructuredComment.enumLayoutSummary(layoutResult)
         }
         BreakLine()
     }
@@ -351,7 +345,12 @@ extension DeclarationRenderConfiguration {
     @SemanticStringBuilder
     package func staticTypeLayoutComment(_ staticTypeLayout: StaticTypeLayout) -> SemanticString {
         indentString
-        Comment("Type Layout: (size: \(staticTypeLayout.size), stride: \(staticTypeLayout.stride), alignment: \(staticTypeLayout.alignment), extraInhabitantCount: \(staticTypeLayout.extraInhabitantCount))")
+        StructuredComment.typeLayout(
+            size: staticTypeLayout.size,
+            stride: staticTypeLayout.stride,
+            alignment: staticTypeLayout.alignment,
+            extraInhabitantCount: staticTypeLayout.extraInhabitantCount
+        )
         BreakLine()
     }
 }

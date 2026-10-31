@@ -1,6 +1,6 @@
 # Draft - 注释结构标记：打印器给每条注释标出种类和各段角色
 
-- **状态**: Accepted
+- **状态**: In Progress
 - **创建日期**: 2026-10-31
 - **最后更新**: 2026-10-31
 - **所属愿景**: 无
@@ -151,7 +151,7 @@ note
 ### 实现
 
 - **种类常量**：公开地扩展在 `AnnotationRegion.Kind`（swift-semantic-string 的 struct 加静态成员）上。种类会随新注释增加，宿主遇到不认识的种类按 `note` 处理即可。MachOObjCSection 在同一个类型上扩展它自己的六个，两份清单互不重叠；两边都要用的种类放进 swift-semantic-string，免得 RuntimeViewer 同时 import 两个库时出现同名的静态成员。
-- **`StructuredComment`**：一条注释的种类与段（角色加文字）。不标记时渲染成一个 `.comment` 原子，文字是各段拼接，与今天的原子相同；标记时渲染成 `AnnotationRegion(kind) { AnnotatedAtom(type: .comment) { AnnotationSegment(role) { 文字 } … } }`，每段一片，分离时并回那一个原子。每处输出点只描述一次文字，两种渲染都从它来，两边不会写走样。关着时不建段数组，直接拼出字符串，免得给默认路径加分配。一条注释无论拆成几个原子都仍是容器里的一个元素：`Rows`、`MemberList` 一个元素一行，拆散了成员前的注释会各占一行。
+- **`StructuredComment`**：一条注释的段（角色加文字），种类在加区域时由调用点给出——一个区域的种类未必只属于一行注释（字段偏移的根区域包着整棵树，枚举 case 的区域包着标题行与说明块）。不标记时渲染成一个 `.comment` 原子，文字是各段拼接，与今天的原子相同；标记时渲染成 `AnnotationRegion(kind) { AnnotatedAtom(type: .comment) { AnnotationSegment(role) { 文字 } … } }`，每段一片，分离时并回那一个原子。每处输出点只描述一次文字，两种渲染都从它来，两边不会写走样。关着时每条注释比今天多建一个段数组，第 5 步的性能对比量这部分开销，量出来不可忽略再改成直接拼字符串。一条注释无论拆成几个原子都仍是容器里的一个元素：`Rows`、`MemberList` 一个元素一行，拆散了成员前的注释会各占一行。
 - **例外是枚举逐 case 的说明块**：关着时仍走 `EnumCaseProjection.description(indent:prefix:)`（`Transformer+EnumLayoutProjection.swift:86`，它是公开 API，模板引擎与 dump 共用），打开时由同一组 `Transformer.SwiftEnumLayout.CaseInput` 字段按行组装。两边一致靠契约测试覆盖 fixture 里的每个枚举，另用合成的投影做单元测试：只固定部分位的字节、离线解不出的 extra inhabitant、单载荷、没有声明名的 case。
 - **dump 不标记**：`DeclarationRenderConfiguration` 里的共享 helper 都改走 `StructuredComment`（包括只有 dump 用的 `memberAddressComment`、`deletedMethodSlotComment`、`ambiguousAttributionComment`、`spareBitAnalysisComment`、`privateDeclarationSourceFileComments`），但它们的开关只由打印器设置，dump 建的配置从不设，所以 dump 输出不变、也不带标记。
 - **防漏标**：一个源码扫描测试，在 interface 路径的模块（`SwiftDeclarationRendering`、`SwiftPrinting`、`SwiftInterface`、`SwiftDeclaration`）里，除 `StructuredComment` 自身外不许再直接构造 `Comment(`、`InlineComment(`、`MultipleLineComment(` 或类型为 `.comment` 的原子；`EvolutionMarking.swift` 进白名单。仓库里已有同类扫描（`ReaderKindCastScanTests`、`CommandLineStreamWriteScanTests`）。
@@ -165,6 +165,8 @@ API 以它的会话定稿为准。它的草图（swift-semantic-string 的 next 
 - 区域包住带 identifier 的原子时，原 identifier 留在最里层，分离时原样还原。
 - 段的十种角色定义在 swift-semantic-string（`AnnotationSegment.Role`），两个生产方共用。
 
+本库后来补提的几条，它也已确认：
+
 - 表里报出的区域范围裁掉首尾那些不属于任何段、每个字节都是空格、制表符或换行的原子或片（见「结构」）。判断以原子为单位，被冻结切成几片的长原子按整个原子判断；只含这种原子的区域不进表。只看原子自身的字节，所以去缩进与投影都改变不了结果。
 - `AnnotatedAtom` 的输出可以再被外层的可见性、定义、注释区域包住，由外层给每一片加同一个标记，`marksOptionalContent` 下照常并回一个 span。
 - 不在 `AnnotatedAtom` 里的段可以包住任意原子：不同语义类型、带 identifier、带可见性或定义标记都行，只是段里不能再有段或注释区域。transformer 闭包的输出因此可以整个包成一个 `text` 段；哪天宿主自己也用注释区域标它的输出，就只包区域、不加段。
@@ -176,8 +178,8 @@ API 以它的会话定稿为准。它的草图（swift-semantic-string 的 next 
 
 ### 落地步骤
 
-1. **单一来源**（不依赖 swift-semantic-string）：新增 `StructuredComment`，这一步只有不标记的渲染。种类与角色先用两个 package 级的过渡类型 `StructuredComment.Kind` 与 `StructuredComment.Role`，成员名与 swift-semantic-string 草图里的 `AnnotationRegion.Kind`、`AnnotationSegment.Role` 相同；调用点写成 `.memberAddress`、`.label`，以后换类型时调用点不用动。interface 路径的全部注释输出点与 `DeclarationRenderConfiguration` 的共享 helper 改走它，`summaryDescription` 改为由事实拼出，加上源码扫描测试。这一步还没有开关，输出必须逐字节不变：相关套件（含快照）通过，另用单元测试钉住每种注释的文字。
-2. **接上 swift-semantic-string**（等它的组件在分支上可用）：本地兄弟依赖指向它的功能分支；删掉两个过渡类型，种类常量改为公开地扩展 `AnnotationRegion.Kind`，角色改用 `AnnotationSegment.Role`。
+1. **单一来源**（不依赖 swift-semantic-string；已完成）：新增 `StructuredComment`，这一步只有不标记的渲染。角色先用 package 级的过渡类型 `StructuredComment.Role`，成员名与 swift-semantic-string 草图里的 `AnnotationSegment.Role` 相同，段写成 `.label("Address")`，以后换类型时调用点不用动。interface 路径的全部注释输出点与 `DeclarationRenderConfiguration` 的共享 helper 改走它，`summaryDescription` 改为由事实拼出，加上源码扫描测试。这一步还没有开关，输出必须逐字节不变：全量测试与基线逐条一致，另用单元测试钉住每种注释的文字与段。
+2. **接上 swift-semantic-string**（等它的组件在分支上可用）：本地兄弟依赖指向它的功能分支；删掉过渡类型，角色改用 `AnnotationSegment.Role`，种类常量公开地扩展在 `AnnotationRegion.Kind` 上。
 3. **开关与标记渲染**：`marksCommentStructure`、`StructuredComment` 的标记渲染、枚举 case 块的分段组装、字段偏移树与枚举与元组与条件 witness 的区域结构、transformer 闭包的包装、`bodyAfterNestedDefinitions` 的判断。
 4. **测试**：契约测试、结构测试、少见种类所在套件里的断言、单元测试。
 5. **文档与完整验证**：模块文档、术语表、演进账本与 AGENTS.md 的规则行；全量测试、渲染 A/B、性能对比；依赖下限随 swift-semantic-string 发版抬高。
@@ -221,3 +223,4 @@ interface 路径从不使用 `SwiftDeclarationPrintConfiguration.memberAddressTr
 | 2026-10-31 | swift-semantic-string 接受裁剪，确认组合、闭包输出成段、空段静默丢弃三点；`bodyAfterNestedDefinitions` 的判断改为认 `BreakLine` 原子 | 它的草稿已同步更新（仍待它的用户批准）。判断加上类型条件后，开标记时不再依赖「枚举块不会是 body 最后一项」这条前提；不开标记时行为不变。 |
 | 2026-10-31 | 落地步骤拆成五步，第 1 步不依赖 swift-semantic-string | 它的组件还只是草图，要等它的用户批准后才实现。第 1 步（注释文字的单一来源）只动默认输出的构造方式，能单独构建与验证，先做；第 2 步起等它的组件在分支上可用。 |
 | 2026-10-31 | 用户批准，开始实现 | 状态改为 Accepted。 |
+| 2026-10-31 | In Progress；第 1 步落地，与原方案有四处出入 | 一，第 1 步不建种类的过渡类型：一个区域的种类未必只属于一行注释（字段偏移的根区域包着整棵树，枚举 case 的区域包着标题行与说明块），所以种类在第 3 步加区域时由调用点给出，`StructuredComment` 只记段。二，关着时每条注释多建一个段数组，没有做成「关着直接拼字符串」；开销留给第 5 步的性能对比，量出来不可忽略再改。三，返回字符串的现有接口都保留原签名，改为由段拼出：公开的 `ConditionalWitnessComment.lines`，package 级的 `PrivateDeclarationSourceFileComments.line` / `lines` 与 `conditionalWitnessCommentLines`（dump 与测试在用）；打印器改用新增的结构化形式。四，续行的注释符号写成两个相邻的 marker 段（`// ` 与对齐用的空格），说明性注释开头的空格同样归 marker；第 3 步标记时把相邻的同角色段并成一段，表里仍是一个 `//   `。另外两个新套件 `StructuredCommentTests`、`CommentConstructionScanTests` 进了 CI 的筛选清单，AGENTS.md 的打印器一节加了一行规则。 |

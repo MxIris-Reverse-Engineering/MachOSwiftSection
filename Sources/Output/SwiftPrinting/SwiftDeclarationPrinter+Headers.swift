@@ -313,10 +313,10 @@ extension SwiftDeclarationPrinter {
                     in: machO,
                     reportingDegradationTo: opaqueTypeDegradationReporter(subject: record.name)
                 )
-            for line in try await resolution.conditionalWitnessCommentLines(associatedTypeName: record.name, resolvedBy: resolver) {
+            for comment in try await resolution.conditionalWitnessComments(associatedTypeName: record.name, resolvedBy: resolver) {
                 BreakLine()
                 Indent(level: level)
-                Comment(line)
+                comment
             }
             BreakLine()
             Indent(level: level)
@@ -529,7 +529,7 @@ extension SwiftDeclarationPrinter {
                 } else if let synthesizedWrappedProperty = synthesizedPropertyWrapperMembers.synthesizedDeclaration(inPlaceOfField: field) {
                     // The field's layout comments above still describe this
                     // storage; the declaration is the source's, recovered from it.
-                    Comment(FieldRecordRendering.synthesizedWrappedPropertyComment(backingFieldName: field.name))
+                    StructuredComment.note(FieldRecordRendering.synthesizedWrappedPropertyComment(backingFieldName: field.name))
                     BreakLine()
                     Indent(level: level)
                     try await printThrowingSynthesizedWrappedProperty(synthesizedWrappedProperty, level: level)

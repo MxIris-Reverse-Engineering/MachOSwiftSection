@@ -216,13 +216,14 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
         privateDeclarationSourceFileProvider = provider
     }
 
-    /// The source-file comment lines of a declaration named `nodes`, printed
+    /// The source-file comments of a declaration named `nodes`, printed
     /// inside the declaration named `enclosingNodes` (evolution proposal
-    /// `private-declaration-source-files`); each call site lays them out. None
-    /// without a provider, and the nodes are only worked out with one.
-    package func privateDeclarationSourceFileLines(for nodes: @autoclosure () -> [any DemanglingNode], enclosedBy enclosingNodes: @autoclosure () -> [any DemanglingNode] = []) -> [String] {
+    /// `private-declaration-source-files`), one per line; each call site lays
+    /// them out. None without a provider, and the nodes are only worked out
+    /// with one.
+    package func privateDeclarationSourceFileComments(for nodes: @autoclosure () -> [any DemanglingNode], enclosedBy enclosingNodes: @autoclosure () -> [any DemanglingNode] = []) -> [StructuredComment] {
         guard let privateDeclarationSourceFileProvider else { return [] }
-        return PrivateDeclarationSourceFileComments.lines(for: nodes(), enclosedBy: enclosingNodes(), provider: privateDeclarationSourceFileProvider)
+        return PrivateDeclarationSourceFileComments.comments(for: nodes(), enclosedBy: enclosingNodes(), provider: privateDeclarationSourceFileProvider)
     }
 
     /// The names a definition prints in its header: a conformance
@@ -278,7 +279,7 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
         // `local-type-context-names`).
         if let localTypeComment = localTypeDeclarationComment(for: typeDefinition.typeName) {
             Indent(level: level - 1)
-            Comment(localTypeComment)
+            StructuredComment.note(localTypeComment)
             BreakLine()
         }
 
@@ -289,9 +290,9 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
         // declaring it, which prints nowhere above it. And the parent at any
         // level: a nested definition printed on its own must read as the one
         // taken out of its parent's print (`marksNestedDefinitions`).
-        for line in privateDeclarationSourceFileLines(for: [typeDefinition.typeName.node], enclosedBy: typeDefinition.parent.map { [$0.typeName.node] } ?? []) {
+        for comment in privateDeclarationSourceFileComments(for: [typeDefinition.typeName.node], enclosedBy: typeDefinition.parent.map { [$0.typeName.node] } ?? []) {
             Indent(level: level - 1)
-            Comment(line)
+            comment
             BreakLine()
         }
 
@@ -332,7 +333,7 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
             Indent(level: level - 1)
             Standard("@_rawLayout(size: \(rawLayoutBuiltinStorage.size), alignment: \(rawLayoutBuiltinStorage.alignment))")
             Space()
-            Comment(FieldRecordRendering.rawLayoutBuiltinStorageComment)
+            StructuredComment.note(FieldRecordRendering.rawLayoutBuiltinStorageComment)
             BreakLine()
         }
 
@@ -444,9 +445,9 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
         )
 
         // As a type's (evolution proposal `private-declaration-source-files`).
-        for line in privateDeclarationSourceFileLines(for: [protocolDefinition.protocolName.node], enclosedBy: protocolDefinition.parent.map { [$0.typeName.node] } ?? []) {
+        for comment in privateDeclarationSourceFileComments(for: [protocolDefinition.protocolName.node], enclosedBy: protocolDefinition.parent.map { [$0.typeName.node] } ?? []) {
             Indent(level: level - 1)
-            Comment(line)
+            comment
             BreakLine()
         }
 
@@ -531,9 +532,9 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
         // An extension of a private type, or a conformance to a private
         // protocol, is declared in that type's or protocol's file (evolution
         // proposal `private-declaration-source-files`).
-        for line in privateDeclarationSourceFileLines(for: headerNameNodes(of: extensionDefinition)) {
+        for comment in privateDeclarationSourceFileComments(for: headerNameNodes(of: extensionDefinition)) {
             Indent(level: level - 1)
-            Comment(line)
+            comment
             BreakLine()
         }
 
@@ -607,7 +608,7 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
             Keyword(.atImplementation)
             Space()
             if objcImplementation.evidence.isInferred {
-                InlineComment(objcImplementation.evidence.description)
+                StructuredComment.inlineNote(objcImplementation.evidence.description)
                 Space()
             }
         }
@@ -840,8 +841,8 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
         await Rows(level: level) {
             switch member {
             case .allocator(let function), .function(let function):
-                for line in privateDeclarationSourceFileLines(for: [function.node], enclosedBy: enclosingNodes) {
-                    Comment(line)
+                for comment in privateDeclarationSourceFileComments(for: [function.node], enclosedBy: enclosingNodes) {
+                    comment
                 }
                 optionalContent(offsetCommentOption) {
                     OffsetComment(prefix: offsetCommentPrefix, offset: function.offset, emit: true)
@@ -858,7 +859,7 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
                 // share one identical-code-folded address.
                 if function.isProtocolExtensionDefault {
                     optionalContent(.printMemberAddress) {
-                        Comment("protocol-extension default")
+                        StructuredComment.protocolExtensionDefault
                     }
                 }
                 // Export status is only ruled on for members whose OWN
@@ -876,8 +877,8 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
                 await printFunction(function, level: level)
 
             case .variable(let variable):
-                for line in privateDeclarationSourceFileLines(for: [variable.node], enclosedBy: enclosingNodes) {
-                    Comment(line)
+                for comment in privateDeclarationSourceFileComments(for: [variable.node], enclosedBy: enclosingNodes) {
+                    comment
                 }
                 // A stored property of an `@objc @implementation` carries its
                 // REAL field offset (from the ObjC ivar list), so the generic
@@ -901,7 +902,7 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
                 }
                 if variable.isProtocolExtensionDefault {
                     optionalContent(.printMemberAddress) {
-                        Comment("protocol-extension default")
+                        StructuredComment.protocolExtensionDefault
                     }
                 }
                 let objcFacts = variable.resolvedObjCMemberFacts(trustingSelectorNameEvidence: trustsSelectorNameEvidence)
@@ -915,8 +916,8 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
                 }
 
             case .subscript(let `subscript`):
-                for line in privateDeclarationSourceFileLines(for: [`subscript`.node], enclosedBy: enclosingNodes) {
-                    Comment(line)
+                for comment in privateDeclarationSourceFileComments(for: [`subscript`.node], enclosedBy: enclosingNodes) {
+                    comment
                 }
                 optionalContent(offsetCommentOption) {
                     OffsetComment(prefix: offsetCommentPrefix, offset: `subscript`.offset, emit: true)
@@ -931,7 +932,7 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
                 }
                 if `subscript`.isProtocolExtensionDefault {
                     optionalContent(.printMemberAddress) {
-                        Comment("protocol-extension default")
+                        StructuredComment.protocolExtensionDefault
                     }
                 }
                 let objcFacts = `subscript`.resolvedObjCMemberFacts(trustingSelectorNameEvidence: trustsSelectorNameEvidence)
@@ -957,7 +958,7 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
             // here would separate the comment from the declaration it
             // annotates by a blank line (the member path's `Rows` keeps
             // `ExportStatusComment` adjacent the same way).
-            Comment("not exported")
+            StructuredComment.exportStatus
         }
     }
 

@@ -10,26 +10,26 @@ extension MetadataWrapper {
         var isTuple = false
         if let tupleMetadata = tuple {
             configuration.indentString
-            InlineComment("Type Layout")
+            StructuredComment.tupleTypeLayoutHeading
             BreakLine()
             for (_, element) in try tupleMetadata.elements(in: .inProcess).enumerated() {
                 let tupleElementMetadata = try element.type.resolve(in: .inProcess)
                 if let descriptor = try tupleElementMetadata.typeContextDescriptorWrapper(in: .inProcess)?.asContextDescriptorWrapper {
                     configuration.indentString
-                    try await Comment("Type: " + configuration.demangleResolver.resolve(for: SymbolicDemangler.demangleContext(for: descriptor, in: .inProcess)).string)
+                    try await StructuredComment.tupleElementType(configuration.demangleResolver.resolve(for: SymbolicDemangler.demangleContext(for: descriptor, in: .inProcess)).string)
                     BreakLine()
                     configuration.indentString
                     let elementLayout = try tupleElementMetadata.asFullMetadata(in: .inProcess).valueWitnesses.resolve(in: .inProcess).typeLayout
                     if let transformer = configuration.typeLayoutTransformer {
                         transformer(elementLayout)
                     } else {
-                        Comment(elementLayout.dumpTupleDescription)
+                        elementLayout.structuredComment(labeled: "Layout")
                     }
                     BreakLine()
                 }
             }
             configuration.indentString
-            Comment("Total: ")
+            StructuredComment.tupleTypeLayoutTotal
             BreakLine()
             isTuple = true
         }
@@ -38,21 +38,18 @@ extension MetadataWrapper {
         if let transformer = configuration.typeLayoutTransformer {
             transformer(typeLayout)
         } else if isTuple {
-            Comment(typeLayout.dumpTupleDescription)
+            typeLayout.structuredComment(labeled: "Layout")
         } else {
-            Comment(typeLayout.dumpDescription)
+            typeLayout.structuredComment(labeled: "Type Layout")
         }
         BreakLine()
     }
 }
 
 extension TypeLayout {
-    fileprivate var dumpDescription: String {
-        "Type Layout: (size: \(size), stride: \(stride), alignment: \(flags.alignment), extraInhabitantCount: \(extraInhabitantCount))"
-    }
-
-    fileprivate var dumpTupleDescription: String {
-        "Layout: (size: \(size), stride: \(stride), alignment: \(flags.alignment), extraInhabitantCount: \(extraInhabitantCount))"
+    /// `// Type Layout: (size: …)`, or under `Layout` in a tuple's block.
+    fileprivate func structuredComment(labeled label: String) -> StructuredComment {
+        StructuredComment.typeLayout(labeled: label, size: size, stride: stride, alignment: flags.alignment, extraInhabitantCount: extraInhabitantCount)
     }
 
     fileprivate var dumpDebugDescription: String {

@@ -5,6 +5,7 @@ import MachOKitExtensions
 import Demangling
 import Dependencies
 import Semantic
+import SwiftDeclarationRendering
 
 // MARK: - Interface Header Info
 
@@ -230,7 +231,7 @@ public struct InterfaceHeaderBlock: SemanticStringComponent {
 
         var result: [AtomicComponent] = []
         for line in lines {
-            result.append(contentsOf: Comment(line).buildComponents())
+            result.append(contentsOf: StructuredComment.note(line).buildComponents())
             result.append(contentsOf: BreakLine().buildComponents())
         }
         // Trailing blank line so the header reads apart from whatever

@@ -176,7 +176,7 @@ struct RuntimeFieldLayoutBackend {
                     }
                 }
                 configuration.indentString
-                InlineComment("Enum Layout")
+                StructuredComment.enumLayoutCaseHeading
                 BreakLine()
                 configuration.enumLayoutCaseComment(caseProjection: caseProjection)
             }
