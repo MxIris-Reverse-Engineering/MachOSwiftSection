@@ -2926,7 +2926,7 @@
   - thunk 读取器不解析两个分支各自直接加载一个类型、编成 `csel` 的可用性条件 witness；interface 路径不用 `memberAddressTransformer`。两条都与本提案无关，见提案「顺带发现」。
 - **对应版本**：未发版。发版说明要写：`SwiftDeclarationPrintConfiguration.marksCommentStructure`（默认关）给 interface 的每条注释标出种类和各段的角色，宿主用 swift-semantic-string 的 `separatingAnnotationRegions()` 取出注释表；依赖的 swift-semantic-string 下限抬到 0.6.0。
 
-## （落地时定号）离线打印不再每次重建静态布局 provider，dyld cache 的镜像目录进程内共享
+## 120. 离线打印不再每次重建静态布局 provider，dyld cache 的镜像目录进程内共享
 
 - **时间段**：2026-11-03，分支 `feature/static-layout-provider-reuse`（worktree `.worktrees/MachOSwiftSection-StaticLayoutProviderReuse`，基于 `next` 1dcc0c08）。性能修复，用户批准直接做，不写提案。
 - **动机**：RuntimeViewer 离线读 dyld cache 里的镜像（`MachOFile`）、打开字段偏移 / Type Layout / 枚举布局注释打印 interface 时极慢。它每次打印前都调 `SwiftDeclarationPrinter.updateConfiguration(_:)`，多数时候配置没变；而 `updateConfiguration` 无条件把记住的静态布局 provider 置回未计算（5fe5eb61，为防止布局开关变了还用旧 provider）。于是下一次取 provider 就重建 `MachOFileStaticFieldLayoutProvider`：新的依赖闭包、新的 `FileDependencyLocator`——它的第一次查询把搜索路径里每个 cache 的约 3,500 个镜像各做一个 `MachOFile`、读一遍平台——再加一个从头惰性索引依赖类型的新 `ImageUniverse`。`MachOImage` 的打印器不建 provider，所以只有离线路径慢。
