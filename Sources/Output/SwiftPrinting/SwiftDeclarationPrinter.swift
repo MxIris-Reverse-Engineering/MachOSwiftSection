@@ -66,13 +66,39 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
     /// Memoized static field-layout provider for the offline (`MachOFile`) path,
     /// built once on first use — only when the reader is a `MachOFile` and a
     /// layout-bearing flag is on. `.computed(nil)` records "no provider", so the
-    /// (relatively expensive) dependency-closure build is attempted at most once.
+    /// (relatively expensive) dependency-closure build is attempted at most once
+    /// per set of inputs it was built from.
     @Mutex
     private var memoizedStaticFieldLayoutProvider: StaticFieldLayoutProviderState = .uncomputed
 
     private enum StaticFieldLayoutProviderState: Sendable {
         case uncomputed
-        case computed((any StaticFieldLayoutProvider)?)
+        case computed((any StaticFieldLayoutProvider)?, builtFrom: StaticFieldLayoutProviderInputs)
+    }
+
+    /// The part of a configuration the static field-layout provider is built
+    /// from, and nothing else: whether any flag needs a provider at all, and
+    /// the dependency resolution it lays types out over.
+    ///
+    /// `updateConfiguration(_:)` keeps the memoized provider while these stay
+    /// equal. Hosts hand the printer a configuration before every print —
+    /// RuntimeViewer does, mostly an unchanged one — and over the default
+    /// resolution every rebuild opens a new dependency closure, whose first
+    /// lookup in a dyld cache reads that cache's image directory and whose
+    /// image universe indexes every dependency's types again from scratch.
+    private struct StaticFieldLayoutProviderInputs: Equatable, Sendable {
+        /// The resolution a provider is built over, or `nil` when no flag of
+        /// the configuration needs one.
+        let requiredDependencyResolution: StaticLayoutDependencyResolution?
+
+        init(_ configuration: SwiftDeclarationPrintConfiguration) {
+            let needsProvider = configuration.marksOptionalContent
+                || configuration.printFieldOffset
+                || configuration.printTypeLayout
+                || configuration.printEnumLayout
+                || configuration.printExpandedFieldOffsets
+            requiredDependencyResolution = needsProvider ? configuration.staticLayoutDependencyResolution : nil
+        }
     }
 
     /// What names the source files of private declarations; see
@@ -116,24 +142,25 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
     /// double-checked compute-and-install inside one critical section, so the
     /// (relatively expensive) dependency-closure build cannot race or duplicate
     /// even when the printer is shared across concurrent renders.
+    ///
+    /// The configuration is read inside that critical section, which is also
+    /// where `updateConfiguration(_:)` replaces it: a provider is therefore
+    /// always recorded with the inputs of the configuration it was built from.
     func staticFieldLayoutProvider() -> (any StaticFieldLayoutProvider)? {
-        if case .computed(let provider) = memoizedStaticFieldLayoutProvider {
+        if case .computed(let provider, _) = memoizedStaticFieldLayoutProvider {
             return provider
         }
-        let configurationSnapshot = self.configuration
         return _memoizedStaticFieldLayoutProvider.withLock { state in
-            if case .computed(let provider) = state {
+            if case .computed(let provider, _) = state {
                 return provider
             }
-            let provider: (any StaticFieldLayoutProvider)?
-            if configurationSnapshot.marksOptionalContent || configurationSnapshot.printFieldOffset || configurationSnapshot.printTypeLayout || configurationSnapshot.printEnumLayout || configurationSnapshot.printExpandedFieldOffsets {
-                // Reader-type-dispatched (no runtime cast): only `MachOFile` builds a
-                // provider; `MachOImage` returns nil.
-                provider = MachO.makeStaticFieldLayoutProvider(machO: machO, resolution: configurationSnapshot.staticLayoutDependencyResolution)
-            } else {
-                provider = nil
+            let inputs = StaticFieldLayoutProviderInputs(self.configuration)
+            // Reader-type-dispatched (no runtime cast): only `MachOFile` builds a
+            // provider; `MachOImage` returns nil.
+            let provider = inputs.requiredDependencyResolution.flatMap { resolution in
+                MachO.makeStaticFieldLayoutProvider(machO: machO, resolution: resolution)
             }
-            state = .computed(provider)
+            state = .computed(provider, builtFrom: inputs)
             return provider
         }
     }
@@ -174,11 +201,18 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
     }
 
     public func updateConfiguration(_ configuration: SwiftDeclarationPrintConfiguration) {
-        self.configuration = configuration
-        // The memoized provider was built against the previous configuration's
-        // layout flags + dependency resolution. Reset it so the next
-        // `staticFieldLayoutProvider()` call rebuilds against the new one.
-        _memoizedStaticFieldLayoutProvider.withLock { $0 = .uncomputed }
+        let inputs = StaticFieldLayoutProviderInputs(configuration)
+        _memoizedStaticFieldLayoutProvider.withLock { state in
+            self.configuration = configuration
+            // A provider built from other inputs — a layout flag turning the
+            // need on or off, another dependency resolution — is dropped, so
+            // the next `staticFieldLayoutProvider()` call builds one from the
+            // new configuration. One built from the same inputs is the
+            // provider the new configuration would build, and is kept.
+            if case .computed(_, let builtFrom) = state, builtFrom != inputs {
+                state = .uncomputed
+            }
+        }
     }
 
     public func addTypeNameResolver(_ resolver: any TypeNameResolving) {

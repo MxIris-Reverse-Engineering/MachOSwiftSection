@@ -75,6 +75,13 @@ configuration/isGeneric/staticAggregateFieldLayout，不含 `Self`）传递 rend
 - 注入点：`SwiftDeclarationPrinter` 首次渲染时懒建一次（仅当 reader 是 MachOFile 且开了任一 layout flag）
   并注入每类型构造的 `DeclarationRenderConfiguration`；`swift-section dump` 在建好 `dumpConfiguration`
   后、循环前建一次。
+- **`updateConfiguration(_:)` 只在 provider 的输入变了时丢掉它**（2026-11-03）。输入只有两样：有没有哪个开关
+  需要 provider（`marksOptionalContent` 或四个布局开关之一），以及 `staticLayoutDependencyResolution`；两者合成
+  `StaticFieldLayoutProviderInputs`，建 provider 时随它一起记下，`updateConfiguration` 拿新配置的输入去比。
+  RuntimeViewer 每次打印 interface 前都交一次配置，多数时候没变，原先每次都丢（5fe5eb61 为防止「开关变了还用旧
+  provider」加的无条件重置），于是离线打印每个 interface 都重建依赖闭包、重新索引依赖镜像的类型。开关的需要
+  变了、或解析方式变了，照旧重建。配置的替换和 provider 读配置都在 provider 的锁里做，所以记下的输入一定是建它的
+  那份配置的（`StaticFieldLayoutProviderReuseTests`）。
 
 `FieldLayoutRenderer.init` 在 reader 为 MachOFile、开了 layout flag、且 provider 存在时，**每类型预算一次**
 `staticAggregateFieldLayout: AggregateFieldLayout?`（reader 无关数据，存于 facade）。MachOFile 路径的
