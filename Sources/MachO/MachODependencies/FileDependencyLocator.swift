@@ -30,10 +30,14 @@ import MachOKitExtensions
 /// and each file is opened once, on the first lookup that names it.
 ///
 /// Explicit files are indexed eagerly at construction. Each dyld shared cache
-/// is indexed **once**, lazily, on the first lookup that reaches the caches —
-/// one pass over `machOFiles()` rather than a fresh per-lookup scan, which
-/// would cost `O(dependencies × cache size)` (measured at 21 s over a
-/// 551-image closure before this was made one-shot).
+/// is indexed **once per process**, on the first lookup of any locator that
+/// reaches it — one pass over its images rather than a fresh per-lookup scan,
+/// which would cost `O(dependencies × cache size)` (measured at 21 s over a
+/// 551-image closure before this was made one-shot) — into a
+/// `DyldCacheImageDirectory` every later locator over that cache reads too.
+/// The directory is data only: a locator makes its own `MachOFile` for each
+/// cache image it locates, through its own opening of the cache, and hands
+/// the same one back on every later lookup of that image.
 ///
 /// A cache image is a candidate only when its platforms are compatible with
 /// the root's (`DependencyPlatforms`): the running system's macOS cache is
@@ -54,8 +58,10 @@ public final class FileDependencyLocator: DependencyLocating, @unchecked Sendabl
     private let preferredCPU: CPU?
     private let platforms: Set<Platform>
     private let caches: [FullDyldCache]
-    private let cacheIndexLock = NSLock()
-    private var cacheIndex: CacheImageIndex?
+    /// Guards `cacheDirectories` and `locatedCacheImages`.
+    private let cacheLookupLock = NSLock()
+    private var cacheDirectories: [CacheDirectory]?
+    private var locatedCacheImages: [CacheImageReference: MachOFile] = [:]
     private let systemRootFilesLock = NSLock()
     private var systemRootFilesByLoadName: [String: MachOFile?] = [:]
 
@@ -155,11 +161,7 @@ public final class FileDependencyLocator: DependencyLocating, @unchecked Sendabl
             return systemRootFile
         }
         guard !caches.isEmpty else { return nil }
-        let index = builtCacheIndex()
-        if let cacheImage = index.imagesByInstallPath[loadName] {
-            return cacheImage
-        }
-        return index.bestImagesByBareName[bareImageName]?.machOFile
+        return cacheImage(forLoadName: loadName, bareImageName: bareImageName)
     }
 
     /// Compared on `CPU.type` and `CPU.subtype` rather than `CPU ==`: the
@@ -210,43 +212,82 @@ public final class FileDependencyLocator: DependencyLocating, @unchecked Sendabl
         return located
     }
 
-    // MARK: - One-shot cache index
+    // MARK: - Cache images
 
-    private struct CacheImageIndex {
-        var imagesByInstallPath: [String: MachOFile] = [:]
-        var bestImagesByBareName: [String: (rank: Int, machOFile: MachOFile)] = [:]
+    /// One cache this locator searches, with its shared directory and the
+    /// directory's lookup tables for this locator's platforms.
+    private struct CacheDirectory {
+        let cache: FullDyldCache
+        let directory: DyldCacheImageDirectory
+        let lookup: DyldCacheImageDirectory.Lookup
     }
 
-    /// Rank given to a cache image whose path the `DyldCacheImageSearchMode`
-    /// name rule does not recognize under its bare name (a multi-dotted leaf
-    /// such as `libc++.1.dylib`, whose `deletingPathExtension` form is not the
-    /// bare name). It still resolves — every entry under a key legitimately
-    /// carries that bare name — it just loses to any recognized shape.
-    private static let unrankedShapeRank = Int.max
+    /// An image of one of this locator's caches: the cache's position in
+    /// `caches` and the image's in its directory.
+    private struct CacheImageReference: Hashable {
+        let cachePosition: Int
+        let imageIndex: Int
+    }
 
-    private func builtCacheIndex() -> CacheImageIndex {
-        cacheIndexLock.lock()
-        defer { cacheIndexLock.unlock() }
-        if let cacheIndex { return cacheIndex }
+    /// The caches in search order — the root's own first, then the search
+    /// paths' — each an install-path hit returned as soon as one cache has
+    /// it, then the best bare-name rank over all of them, an earlier cache
+    /// winning a tie. That is the answer the single index the caches used to
+    /// be merged into gave: first writer wins an install path, and a later
+    /// image takes a bare name only with a strictly better rank.
+    private func cacheImage(forLoadName loadName: String, bareImageName: String) -> MachOFile? {
+        cacheLookupLock.lock()
+        defer { cacheLookupLock.unlock() }
+        let cacheDirectories = resolvedCacheDirectories()
 
-        var index = CacheImageIndex()
-        for cache in caches {
-            for machOFile in cache.machOFiles() {
-                guard DependencyPlatforms.areCompatible(platforms, DependencyPlatforms.platforms(of: machOFile)) else { continue }
-                let installPath = machOFile.imagePath
-                if index.imagesByInstallPath[installPath] == nil {
-                    index.imagesByInstallPath[installPath] = machOFile
-                }
-                let bareImageName = DependencyLoadName.bareImageName(of: installPath)
-                guard !bareImageName.isEmpty else { continue }
-                let rank = DyldCacheImageSearchMode.name(bareImageName).matchRank(forImagePath: installPath) ?? Self.unrankedShapeRank
-                if let existing = index.bestImagesByBareName[bareImageName], existing.rank <= rank {
-                    continue
-                }
-                index.bestImagesByBareName[bareImageName] = (rank, machOFile)
+        var located: CacheImageReference?
+        for (cachePosition, cacheDirectory) in cacheDirectories.enumerated() {
+            if let imageIndex = cacheDirectory.lookup.imageIndicesByInstallPath[loadName] {
+                located = CacheImageReference(cachePosition: cachePosition, imageIndex: imageIndex)
+                break
             }
         }
-        cacheIndex = index
-        return index
+        if located == nil {
+            var bestRank = Int.max
+            for (cachePosition, cacheDirectory) in cacheDirectories.enumerated() {
+                guard let candidate = cacheDirectory.lookup.bestImagesByBareName[bareImageName] else { continue }
+                if located == nil || candidate.rank < bestRank {
+                    located = CacheImageReference(cachePosition: cachePosition, imageIndex: candidate.imageIndex)
+                    bestRank = candidate.rank
+                }
+            }
+        }
+        guard let located else { return nil }
+
+        if let machOFile = locatedCacheImages[located] {
+            return machOFile
+        }
+        let cacheDirectory = cacheDirectories[located.cachePosition]
+        guard let machOFile = DyldCacheImageDirectory.machOFile(of: cacheDirectory.directory.images[located.imageIndex], in: cacheDirectory.cache) else {
+            return nil
+        }
+        locatedCacheImages[located] = machOFile
+        return machOFile
+    }
+
+    /// Called with `cacheLookupLock` held. The first call reads each cache's
+    /// shared directory, which the first locator over that cache in the
+    /// process builds.
+    private func resolvedCacheDirectories() -> [CacheDirectory] {
+        if let cacheDirectories { return cacheDirectories }
+        let resolved = caches.map { cache in
+            let directory = DyldCacheImageDirectory.directory(of: cache)
+            return CacheDirectory(cache: cache, directory: directory, lookup: directory.lookup(forRootPlatforms: platforms))
+        }
+        cacheDirectories = resolved
+        return resolved
+    }
+
+    /// The identities of the directories this locator reads, in search
+    /// order, for the tests that pin the sharing.
+    func cacheImageDirectoryIdentifiers() -> [ObjectIdentifier] {
+        cacheLookupLock.lock()
+        defer { cacheLookupLock.unlock() }
+        return resolvedCacheDirectories().map { ObjectIdentifier($0.directory) }
     }
 }
