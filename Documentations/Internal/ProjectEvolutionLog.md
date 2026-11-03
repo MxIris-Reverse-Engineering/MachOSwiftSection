@@ -2926,6 +2926,25 @@
   - thunk 读取器不解析两个分支各自直接加载一个类型、编成 `csel` 的可用性条件 witness；interface 路径不用 `memberAddressTransformer`。两条都与本提案无关，见提案「顺带发现」。
 - **对应版本**：未发版。发版说明要写：`SwiftDeclarationPrintConfiguration.marksCommentStructure`（默认关）给 interface 的每条注释标出种类和各段的角色，宿主用 swift-semantic-string 的 `separatingAnnotationRegions()` 取出注释表；依赖的 swift-semantic-string 下限抬到 0.6.0。
 
+## （落地时定号）离线打印不再每次重建静态布局 provider，dyld cache 的镜像目录进程内共享
+
+- **时间段**：2026-11-03，分支 `feature/static-layout-provider-reuse`（worktree `.worktrees/MachOSwiftSection-StaticLayoutProviderReuse`，基于 `next` 1dcc0c08）。性能修复，用户批准直接做，不写提案。
+- **动机**：RuntimeViewer 离线读 dyld cache 里的镜像（`MachOFile`）、打开字段偏移 / Type Layout / 枚举布局注释打印 interface 时极慢。它每次打印前都调 `SwiftDeclarationPrinter.updateConfiguration(_:)`，多数时候配置没变；而 `updateConfiguration` 无条件把记住的静态布局 provider 置回未计算（5fe5eb61，为防止布局开关变了还用旧 provider）。于是下一次取 provider 就重建 `MachOFileStaticFieldLayoutProvider`：新的依赖闭包、新的 `FileDependencyLocator`——它的第一次查询把搜索路径里每个 cache 的约 3,500 个镜像各做一个 `MachOFile`、读一遍平台——再加一个从头惰性索引依赖类型的新 `ImageUniverse`。`MachOImage` 的打印器不建 provider，所以只有离线路径慢。
+- **关键决策**：
+  - **只在 provider 的输入变了时丢掉它。** 输入只有两样：有没有开关需要 provider（`marksOptionalContent`、`printFieldOffset`、`printTypeLayout`、`printEnumLayout`、`printExpandedFieldOffsets`），以及 `staticLayoutDependencyResolution`。两者合成 `StaticFieldLayoutProviderInputs`（不需要时只记 nil），建 provider 的地方和 `updateConfiguration` 共用这一处判断；建好的 provider 带着它的输入记下，`updateConfiguration` 拿新配置的输入比，不同才丢。5fe5eb61 的保证不变：需要与否变了、解析方式变了都重建。替换配置与 provider 读配置都放进 provider 的锁里，记下的输入一定是建它那份配置的（原先先取配置快照再上锁，中间插进一次 `updateConfiguration` 会留下按旧配置建的 provider）。
+  - **dyld cache 的镜像目录每个进程每个 cache 只读一次**（`DyldCacheImageDirectory`，MachODependencies）。目录只存数据：每个镜像的 install path、bare name 与 rank、平台集合、header 的未滑动地址；按根的平台集合过滤出的两张查找表在目录里按平台集合各建一次。键是主 cache 文件的标准化路径加主 header 的 UUID。注册表先在全局锁里取每个 cache 的槽、再在槽自己的锁里读，同一个 cache 的并发首查只读一遍，不同 cache 互不等待。
+  - **不共享 `MachOFile` 实例。** MachOKit 的 `MachOFile` 有不加锁的懒状态（`_fullCache`、`_cache`），读取共用一个文件句柄；每个定位器只为自己定位到的镜像、经自己打开的 cache 做新的 `MachOFile`（`FullDyldCache.cacheAndFileOffset(for:)`，与 `machOFiles()` 同样的 cache 文件、偏移与路径），记下来重复交回。目录不持有任何 cache 或映射。
+  - **查找结果与顺序不变**：root 自己的 cache 在前、搜索路径按序在后；install path 由第一个有它的 cache 回答；bare name 取所有 cache 里 rank 最好的，平局时前面的 cache 胜、同一个 cache 里先出现的镜像胜；平台过滤照旧。
+  - **没有按路径共享 `FullDyldCache(url:)` 的打开**（任务里的可选项）：它的映射表与 symbol cache 也是不加锁的懒状态，`cachedHost` 是先读好再共享的；按路径共享其它 cache 会让并行的根在同一个实例上首次写这些状态，而 RuntimeViewer 的离线路径本来就不重复打开（root 的 cache 用 root 来自的实例，宿主 cache 走 `cachedHost`）。
+- **落地**：SwiftPrinting（`SwiftDeclarationPrinter` 的 `StaticFieldLayoutProviderInputs`、`staticFieldLayoutProvider()`、`updateConfiguration(_:)`），MachODependencies（新增 `DyldCacheImageDirectory`，`FileDependencyLocator` 改读它），测试 `StaticFieldLayoutProviderReuseTests`（加进 CI 的筛选清单）与 `DyldCacheImageDirectorySharingTests`，文档 [Modules/MachODependencies.md](Modules/MachODependencies.md) §3、[FieldLayoutRendererReaderSpecialization.md](FieldLayoutRendererReaderSpecialization.md) §2。
+- **验证**：都在 JHs-Mac-Studio-Ultra 上跑（默认 Xcode 27.2，`USING_LOCAL_DEPENDENCIES=1`，兄弟库取各自的 `next` 检出）。
+  - 修复前：两个新套件都红，原始退出码 1。`StaticFieldLayoutProviderReuseTests` 4 个测试全红（配置不变或只多开一个布局开关时 provider 都换了实例）；`DyldCacheImageDirectorySharingTests` 的共享测试红（未修复的代码临时加了一个返回每个定位器自己索引身份的测试入口，两个定位器各是各的），其余三个照旧通过——参考实现就是旧算法。
+  - 修复后两个套件全过，原始退出码 0。把跨 cache 的平局规则临时改成 `<=`，root 的 cache 在前的比对测试变红，证明比对能抓到顺序错误。
+  - 宿主 cache 上定位器第一次查询的耗时（仅供参考）：修复前第一个定位器 0.513 秒、第二个 0.273 秒，修复后 0.298 秒与 0.006 秒。
+  - MachODependenciesTests、SwiftLayoutTests、SwiftPrintingTests、SwiftDeclarationRenderingTests 四个测试目标 280 个测试全过，原始退出码 0。
+  - 全量 `swift test --skip IntegrationTests`：2,781 个测试、526 个套件（比第 119 节多出本次的 8 个测试、2 个套件），只红 `ThunkOnlyObjCMemberTests` 4 条，原始退出码 1。同一次构建配置下在未修改的 `next` 1dcc0c08 上单跑这个套件，红的是同样 4 条（原始退出码 1），是 Xcode 27.2 现场编译 fixture 的旧漂移。
+- **对应版本**：未发版。发版说明要写：离线（`MachOFile`）打印 interface 时，宿主每次交回同样的布局配置不再重建静态布局引擎；多个根共用同一个 dyld cache 时，cache 的镜像只扫描一次。
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节
