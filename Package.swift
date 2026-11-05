@@ -97,7 +97,7 @@ var dependencies: [Package.Dependency] = [
 
     .package(url: "https://github.com/p-x9/AssociatedObject", from: "0.13.0"),
     .package(url: "https://github.com/p-x9/swift-fileio.git", from: "0.9.0"),
-    .package(url: "https://github.com/Mx-Iris/FrameworkToolbox", from: "0.4.0"),
+    .package(url: "https://github.com/Mx-Iris/FrameworkToolbox", from: "0.17.0"),
 
     .package(url: "https://github.com/gohanlon/swift-memberwise-init-macro", from: "0.6.0"),
 
