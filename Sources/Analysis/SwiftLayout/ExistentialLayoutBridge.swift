@@ -143,26 +143,24 @@ extension StaticTypeLayoutResolver {
             guard let qualifiedName = NodeTypeNaming.protocolQualifiedName(of: protocolNode) else {
                 throw LayoutResolutionError.unknown(.demangleFailure)
             }
-            if let classConstraint = imageUniverse.resolveProtocolClassConstraint(byQualifiedTypeName: qualifiedName) {
+            switch imageUniverse.resolveProtocol(byQualifiedTypeName: qualifiedName) {
+            case .swift(let classConstraint):
                 if classConstraint == .class { isClassBound = true }
                 witnessTableCount += 1
-                continue
-            }
-            // `Error` reaching this point is part of a composition, where it
-            // contributes an ordinary (non-class) witness table.
-            if qualifiedName == errorProtocolName {
-                witnessTableCount += 1
-                continue
-            }
-            // A Swift-declared `@objc` protocol also has no Swift protocol
-            // descriptor — its only runtime artifact is the ObjC protocol
-            // record. Like an imported ObjC protocol it is class-bound and
-            // contributes no Swift witness table.
-            if imageUniverse.isObjCProtocolDeclared(byQualifiedTypeName: qualifiedName) {
+            case .objC:
+                // A Swift-declared `@objc` protocol also has no Swift protocol
+                // descriptor — its only runtime artifact is the ObjC protocol
+                // record. Like an imported ObjC protocol it is class-bound and
+                // contributes no Swift witness table.
                 isClassBound = true
-                continue
+            case nil:
+                // `Error` reaching this point is part of a composition, where it
+                // contributes an ordinary (non-class) witness table.
+                guard qualifiedName == errorProtocolName else {
+                    throw LayoutResolutionError.unknown(.typeDescriptorNotFound(qualifiedTypeName: qualifiedName))
+                }
+                witnessTableCount += 1
             }
-            throw LayoutResolutionError.unknown(.typeDescriptorNotFound(qualifiedTypeName: qualifiedName))
         }
         return ExistentialComposition(
             witnessTableCount: witnessTableCount,
