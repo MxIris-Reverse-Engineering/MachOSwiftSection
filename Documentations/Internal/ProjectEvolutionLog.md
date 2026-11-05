@@ -2945,6 +2945,26 @@
   - 全量 `swift test --skip IntegrationTests`：2,781 个测试、526 个套件（比第 119 节多出本次的 8 个测试、2 个套件），只红 `ThunkOnlyObjCMemberTests` 4 条，原始退出码 1。同一次构建配置下在未修改的 `next` 1dcc0c08 上单跑这个套件，红的是同样 4 条（原始退出码 1），是 Xcode 27.2 现场编译 fixture 的旧漂移。
 - **对应版本**：未发版。发版说明要写：离线（`MachOFile`）打印 interface 时，宿主每次交回同样的布局配置不再重建静态布局引擎；多个根共用同一个 dyld cache 时，cache 的镜像只扫描一次。
 
+## （落地时定号）ABI 层的 flag word 改用 `@BitField`，修掉三个读错位的访问器
+
+- **时间段**：2026-11-05，分支 `feature/abi-flag-words-bit-field`（worktree `.worktrees/MachOSwiftSection-ABIFlagWordsBitField`，基于 `next` 463b2209）。提案 [abi-flag-words-bit-field](../Evolutions/draft-abi-flag-words-bit-field.md)；宏本身是 FrameworkToolbox 的提案 0015，随 FrameworkToolbox 0.17.0 发布。
+- **动机**：ABI 层照 Swift 运行时的 C++ 头文件手写了 24 个 flag word 类型，其中 17 个在一个整数里混排单比特与多位字段，写法有四种。三个访问器把位读错了：`ExistentialTypeFlags.classConstraint` 与 `ProtocolDescriptorFlags.classConstraint` 只掩码不移位，`FunctionTypeFlags.convention` 把整个字直接转成 `UInt8`。读 `Any` 的 metadata、不限定 class 的协议、任何 escaping 函数类型都会让进程停下；从 2025-10 首次提交起就在，测试为绕开它专门改用 `AnyObject.self`。
+- **关键决策**：
+  - 17 个类型的访问器改成 `@BitField(bits:)` 声明，位置照抄原来的掩码，逐位对过 Swift 6.4 的 `MetadataValues.h`，除上述三处外没有错位。读的转换由属性的类型经重载决议选出，typealias（`RawValue`、`StoredSize`）与泛型存储（`FunctionTypeFlags<IntType>`）照常可用。
+  - 会随编译器增长的 kind 改成可选，认不得的值得到 `nil`（用户选定）：三个 `kind`、两个 `TypeReferenceKind` 字段、`specialProtocol` / `specialProtocolKind`、`dispatchStrategy`、`convention`。单比特的三个 `classConstraint` 与 `ContextDescriptorFlags.kind` 经 `default:` 保持原类型。
+  - `GenericRequirementDescriptor.content` 与 `ProtocolConformanceDescriptor.typeReference` 遇到认不得的 kind 照旧停下，换成带说明的 `preconditionFailure`：返回类型没有能装下它的 case，要不停得给 `GenericRequirementContent` / `TypeReference` 加分支，留作后续。
+  - `SpecialProtocolKind` 有 `none` case，字段改成可选后裸写 `.none` 意味着 `nil` 且只给警告；全仓库只有 `ExistentialTypeMetadata.representation` 一处，写成 `.some(.none)`。
+  - `ClassFlags` 从「每个 case 是一个掩码的枚举」改成 `@FlagSet` 的选项集合，`InvertibleProtocolSet` 也改用 `@FlagSet`，`InvertibleProtocolKind` 留作 `InvertibleProtocolSet.Flag` 的 typealias（raw value 变成 `UInt16`）。`@FlagSet` 生成的成员不在源码里，覆盖率清单不再登记它们。
+  - 不迁移：要 setter 的 `MetadataRequest`、存储不叫 `rawValue` 的四处描述符字段、本来就正确的三个纯单比特 `OptionSet`；仓库自己的 `FlagSet` 协议保留。
+- **落地**：MachOSwiftSection（17 个 flag word、`ClassFlags`、`InvertibleProtocolSet`、`ExistentialTypeMetadata`、`GenericRequirementDescriptor`、`ProtocolConformanceDescriptor`）；改成可选的字段的调用方在 SwiftInspection、SwiftLayout、SwiftSpecialization、SwiftDeclaration、SwiftDump，dump 里认不得的方法 kind 印成 `[unknown kind, flags 0x…]`；`Package.swift` 要求 FrameworkToolbox 0.17.0；`AGENTS.md` 的 ABI 层一段加了 flag word 的规则。下游 MachOKitUI 的对应改动在它的 `feature/optional-flag-word-kinds`，对新旧两版 MachOSwiftSection 都能编（对本分支的那一版在 Ultra 的沙盒里实测编过）。
+- **验证**：都在 JHs-Mac-Studio-Ultra 上用 Xcode 26.6 跑，依赖走远端版本（FrameworkToolbox 0.17.0）。
+  - 修复前：新加的 `FlagWordDecodingTests` 三条逐条运行都让进程停下（两条 `Not enough bits to represent the passed value`，一条强制解包遇到 `nil`）；修复后三条都过。
+  - 每一步后清空构建产物重编，`MachOSwiftSectionTests` 852 个测试全过（含覆盖率检查）。
+  - `ClassFlags`、`InvertibleProtocolSet` 两份照生成器手改的 baseline，用 `regen-baselines` 重新生成后与提交的一致，`git diff` 为空。
+  - 全量 `swift test --skip IntegrationTests`：2,784 个测试、527 个套件全过（比第 120 节多出本次的 3 个测试、1 个套件），原始退出码 0。
+  - 渲染 A/B（基线 `next` 463b2209，两侧共用同一份 `Package.resolved`）：96 对 `dump` / `interface` 输出逐字节一致——归档 cache 15.5 与 26.6 共 24 对，iOS 15.5–26.5 模拟器文件 48 对，进程内 `MachOImage` 24 对；跳过的都是该运行时里没有的框架。
+- **对应版本**：未发版。发版说明要写：三个 flag word 访问器不再读错位、不再让进程停下；会增长的 kind 变成可选（源码不兼容，`switch` 要补 `nil` 分支）；`ClassFlags` 从枚举变成选项集合；`InvertibleProtocolKind` 的 raw value 变成 `UInt16`；依赖 FrameworkToolbox 0.17.0。
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节

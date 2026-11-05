@@ -74,7 +74,7 @@ ABI 层照 Swift 运行时的 C++ 头文件（`swift/ABI/MetadataValues.h`）手
 - [x] 1. 依赖下限抬到包含两个宏的 FrameworkToolbox 版本；三条复现测试，确认修复前失败。
 - [x] 2. 迁移 17 个类型，三个 bug 随之修掉；改成可选的字段的调用方跟着改；覆盖率清单与 baseline。
 - [x] 3. `ClassFlags`、`InvertibleProtocolSet` 改用 `@FlagSet`；覆盖率清单。
-- [ ] 4. 全量测试与渲染 A/B；文档；给 MachOKitUI 提一份对应的改动。
+- [x] 4. 全量测试与渲染 A/B；文档；给 MachOKitUI 提一份对应的改动。
 
 ## 决策日志
 
@@ -95,3 +95,7 @@ ABI 层照 Swift 运行时的 C++ 头文件（`swift/ABI/MetadataValues.h`）手
 | 2026-11-05 | 改了公开属性的类型之后先清掉构建产物再编 | 增量构建没有重编源码没变、却用到 `MethodDescriptorFlags.kind` 的 `VTableSlotAttributionTests.swift`，链接时还在找旧的非可选 getter；与 `CLAUDE.md` 里「改了 MachOSymbols 的结构布局要 clean」同一类 |
 | 2026-11-05 | `InvertibleProtocolKind` 成为 `InvertibleProtocolSet.Flag` 的 typealias，raw value 从 `UInt8` 变成 `UInt16` | `@FlagSet` 生成的 `rawValue` 取 `Flag` 的原始类型，而集合存的是 16 位；唯一的调用方 `SymbolicDemangler` 经 `UInt64(…rawValue)` 读它，不受影响 |
 | 2026-11-05 | `InvertibleProtocolSet` 的 Suite 只登记 `hasCopyable` / `hasEscapable` | `rawValue`、`init(rawValue:)` 与两个 static 改由 `@FlagSet` 生成，不在源码里，按语法扫描的覆盖率检查找不到它们，登记了就报「登记了不存在的成员」；Suite 里对它们的测试照旧保留、照旧运行 |
+| 2026-11-05 | MachOKitUI 的对应改动放在它的 `feature/optional-flag-word-kinds`，经一个 `kindDescription` 帮手显示，认不得时写 `unknown` | 那 6 处都是把 kind 直接插进字符串，改成可选后不会编译失败，只会印出 `Optional(…)`；帮手收的是 `Kind?`，非可选的值会自动提升，所以对新旧两版 MachOSwiftSection 都能编。在 Ultra 上用只放这两个仓库的沙盒（`git archive`，`USING_LOCAL_DEPENDENCIES=1`，MachOSwiftSection 解析为本地 `fileSystem`）编过 `MachOKitUICore`（`--traits SwiftSection`）；MachOKitUI 还没有 `.worktrees/` 的忽略规则，加在本地的 `.git/info/exclude`，不改它受版本控制的 `.gitignore` |
+| 2026-11-05 | 文档：演进账本记一节，`AGENTS.md` 的 ABI 层一段加了 flag word 的规则；`SelfContainedABILayer.md` 不改 | ABI 层早就经 MachOBase → Utilities 引入 FrameworkToolbox 的宏（`@CaseCheckable`、`@AssociatedValue`），这次没有新的依赖边；没有新术语 |
+| 2026-11-05 | 不另写使用指南或实现说明 | 宏的用法与契约在 FrameworkToolbox 的 `BitField.md`；本仓库要遵守的写法（可选的 kind、`default:`、`.some(.none)`、改类型后先清构建产物）已写进 `AGENTS.md`，没有别的维护者会踩、代码里又看不出的决策 |
+| 2026-11-05 | 实现完成，待用户看过后收尾 | 都在 Ultra 上用 Xcode 26.6 跑：全量 `swift test --skip IntegrationTests` 2,784 个测试全过；渲染 A/B 96 对逐字节一致，覆盖归档 cache、模拟器文件、进程内 `MachOImage` 三条读取路径；两份手改的 baseline 经 `regen-baselines` 重新生成后没有差异；MachOKitUI 对本分支编过 |
