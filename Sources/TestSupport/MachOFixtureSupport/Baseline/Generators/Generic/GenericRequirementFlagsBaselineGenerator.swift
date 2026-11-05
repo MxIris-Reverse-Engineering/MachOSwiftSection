@@ -83,7 +83,7 @@ package enum GenericRequirementFlagsBaselineGenerator {
 
     private static func emitEntryExpr(rawValue: UInt32) -> String {
         let flags = GenericRequirementFlags(rawValue: rawValue)
-        let kindRawValue = flags.kind.rawValue
+        let kindRawValue = flags.kind!.rawValue
         let isPackRequirement = flags.contains(.isPackRequirement)
         let hasKeyArgument = flags.contains(.hasKeyArgument)
         let isValueRequirement = flags.contains(.isValueRequirement)

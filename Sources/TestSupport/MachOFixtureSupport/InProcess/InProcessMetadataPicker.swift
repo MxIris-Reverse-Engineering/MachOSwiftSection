@@ -78,19 +78,14 @@ package enum InProcessMetadataPicker {
     /// `Any.self` — covers `ExistentialTypeMetadata` for the maximally-general
     /// existential.
     ///
-    /// Note: `Any.self` has flags `0x80000000` (bit 31 set →
-    /// `classConstraint == .any`). Calling `flags.classConstraint` traps
-    /// because the source's accessor does `UInt8(rawValue & 0x80000000)`,
-    /// which overflows for any value ≥ 256. Tests that exercise
-    /// `classConstraint` / `isClassBounded` / `isObjC` / `representation`
-    /// must therefore use `stdlibAnyObjectExistential` instead.
+    /// `Any.self` has flags `0x80000000`: bit 31 is set because it is not
+    /// class-constrained, so `classConstraint == .any`.
     package nonisolated(unsafe) static let stdlibAnyExistential: UnsafeRawPointer = {
         unsafeBitCast(Any.self, to: UnsafeRawPointer.self)
     }()
 
     /// `AnyObject.self` — class-bounded existential with zero witness tables
-    /// (flags `0x0`). Safe substitute for `stdlibAnyExistential` when a test
-    /// needs to call `flags.classConstraint`.
+    /// (flags `0x0`), so `classConstraint == .class`.
     package nonisolated(unsafe) static let stdlibAnyObjectExistential: UnsafeRawPointer = {
         unsafeBitCast(AnyObject.self, to: UnsafeRawPointer.self)
     }()

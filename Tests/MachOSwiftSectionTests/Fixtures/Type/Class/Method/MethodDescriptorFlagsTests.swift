@@ -44,7 +44,7 @@ final class MethodDescriptorFlagsTests: MachOSwiftSectionFixtureTests, FixtureSu
             rawValue: MethodDescriptorFlagsBaseline.firstClassTestMethod.rawValue
         )
         #expect(constructed.rawValue == MethodDescriptorFlagsBaseline.firstClassTestMethod.rawValue)
-        #expect(constructed.kind.rawValue == MethodDescriptorFlagsBaseline.firstClassTestMethod.kindRawValue)
+        #expect(constructed.kind?.rawValue == MethodDescriptorFlagsBaseline.firstClassTestMethod.kindRawValue)
         #expect(constructed.isDynamic == MethodDescriptorFlagsBaseline.firstClassTestMethod.isDynamic)
         #expect(constructed.isInstance == MethodDescriptorFlagsBaseline.firstClassTestMethod.isInstance)
     }
@@ -52,8 +52,8 @@ final class MethodDescriptorFlagsTests: MachOSwiftSectionFixtureTests, FixtureSu
     @Test func kind() async throws {
         let flags = try loadFirstFlags()
         let result = try acrossAllReaders(
-            file: { flags.file.kind.rawValue },
-            image: { flags.image.kind.rawValue }
+            file: { flags.file.kind?.rawValue },
+            image: { flags.image.kind?.rawValue }
         )
         #expect(result == MethodDescriptorFlagsBaseline.firstClassTestMethod.kindRawValue)
     }

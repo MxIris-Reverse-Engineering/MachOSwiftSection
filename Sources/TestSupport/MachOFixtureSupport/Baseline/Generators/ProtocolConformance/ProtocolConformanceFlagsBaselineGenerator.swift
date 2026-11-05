@@ -103,7 +103,7 @@ package enum ProtocolConformanceFlagsBaselineGenerator {
         let expr: ExprSyntax = """
         Entry(
             rawValue: \(raw: BaselineEmitter.hex(rawValue)),
-            typeReferenceKindRawValue: \(raw: BaselineEmitter.hex(flags.typeReferenceKind.rawValue)),
+            typeReferenceKindRawValue: \(raw: BaselineEmitter.hex(flags.typeReferenceKind!.rawValue)),
             isRetroactive: \(literal: flags.isRetroactive),
             isSynthesizedNonUnique: \(literal: flags.isSynthesizedNonUnique),
             isConformanceOfProtocol: \(literal: flags.isConformanceOfProtocol),

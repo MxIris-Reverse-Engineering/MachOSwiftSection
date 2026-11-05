@@ -21,10 +21,13 @@ extension ExistentialTypeMetadata {
     }
     
     public var representation: ExistentialTypeRepresentation {
+        // Spelled out: `specialProtocol` is optional and `SpecialProtocolKind`
+        // has a `none` case, so a bare `.none` would mean "not read".
         switch layout.flags.specialProtocol {
-        case .error:
+        case .some(.error):
             return .error
-        case .none:
+        case .some(.none),
+             nil:
             break
         }
         

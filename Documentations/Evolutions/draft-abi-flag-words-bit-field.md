@@ -1,6 +1,6 @@
 # Draft - ABI 层的 flag word 改用 `@BitField`，修掉三个读错位的访问器
 
-- **状态**: Accepted
+- **状态**: In Progress
 - **创建日期**: 2026-11-05
 - **最后更新**: 2026-11-05
 - **所属愿景**: 无
@@ -71,10 +71,10 @@ ABI 层照 Swift 运行时的 C++ 头文件（`swift/ABI/MetadataValues.h`）手
 
 每一步各自能构建、测试通过，单独提交。
 
-- [ ] 1. 依赖下限抬到包含两个宏的 FrameworkToolbox 版本；三条复现测试，确认修复前失败。
-- [ ] 2. 迁移 17 个类型，三个 bug 随之修掉；改成可选的字段的调用方跟着改；覆盖率清单与 baseline。
-- [ ] 3. `ClassFlags`、`InvertibleProtocolSet` 改用 `@FlagSet`；覆盖率清单。
-- [ ] 4. 全量测试与渲染 A/B；文档；给 MachOKitUI 提一份对应的改动。
+- [x] 1. 依赖下限抬到包含两个宏的 FrameworkToolbox 版本；三条复现测试，确认修复前失败。
+- [x] 2. 迁移 17 个类型，三个 bug 随之修掉；改成可选的字段的调用方跟着改；覆盖率清单与 baseline。
+- [x] 3. `ClassFlags`、`InvertibleProtocolSet` 改用 `@FlagSet`；覆盖率清单。
+- [x] 4. 全量测试与渲染 A/B；文档；给 MachOKitUI 提一份对应的改动。
 
 ## 决策日志
 
@@ -87,3 +87,15 @@ ABI 层照 Swift 运行时的 C++ 头文件（`swift/ABI/MetadataValues.h`）手
 | 2026-11-05 | 会随编译器增长的 kind 改成可选，三个 `classConstraint` 与 `ContextDescriptorFlags.kind` 写 `default:` | 用户选定。认不得的值不再让读取它的程序崩溃；代价是本仓库约 30 处、MachOKitUI 约 5 处调用跟着改。另一条路是私有的可选属性外包一层手写的强制解包，调用方不用改，但认不得的值照旧崩，没选 |
 | 2026-11-05 | 前提已就位：FrameworkToolbox 发出 0.17.0 | 用户批准发版。0.17.0 同时包含 `@FlagSet`（0014）与 `@BitField`（0015） |
 | 2026-11-05 | 用户批准，开始实现 | — |
+| 2026-11-05 | 实测三条复现测试在修复前都让进程停下 | 在 Ultra 上用 Xcode 26.6 逐条跑：`ExistentialTypeFlags` 与 `FunctionTypeFlags` 报 `Not enough bits to represent the passed value`，`ProtocolDescriptorFlags` 报强制解包遇到 `nil`；迁移后三条都通过 |
+| 2026-11-05 | `GenericRequirementDescriptor.content` 与 `ProtocolConformanceDescriptor.typeReference` 遇到认不得的 kind 照旧停下，改成带说明的 `preconditionFailure` | 两者的返回类型（`GenericRequirementContent`、`TypeReference`）没有能装下未知 kind 的 case，以前是 `kind` 的强制解包在这里停，现在 `kind` 本身能安全读取，停在真正无法往下的地方。要让它们也不停，得给两个枚举加分支，是另一次改动 |
+| 2026-11-05 | `ExistentialTypeMetadata.representation` 把 `case .none` 写成 `case .some(.none)` | `SpecialProtocolKind` 自己有 `none` case，字段改成可选后，裸写的 `.none` 会被编译器当成 `nil`，只给警告、语义悄悄变了；全仓库只有这一处 |
+| 2026-11-05 | dump 里认不得的方法 kind 印成 `[unknown kind, flags 0x…]`；协议要求的 kind token 认不得时是 `unknown` | 不猜，照实印出原始的 flag word；kind token 以前遇到这种情况会崩，所以没有已持久化的 key 用到它 |
+| 2026-11-05 | baseline 生成器对改成可选的字段强制解包，baseline 文件不变 | fixture 里只有本库认得的 kind；生成器是维护者手动跑的工具，遇到认不得的值当场停下比写进一个哨兵值好查 |
+| 2026-11-05 | 改了公开属性的类型之后先清掉构建产物再编 | 增量构建没有重编源码没变、却用到 `MethodDescriptorFlags.kind` 的 `VTableSlotAttributionTests.swift`，链接时还在找旧的非可选 getter；与 `CLAUDE.md` 里「改了 MachOSymbols 的结构布局要 clean」同一类 |
+| 2026-11-05 | `InvertibleProtocolKind` 成为 `InvertibleProtocolSet.Flag` 的 typealias，raw value 从 `UInt8` 变成 `UInt16` | `@FlagSet` 生成的 `rawValue` 取 `Flag` 的原始类型，而集合存的是 16 位；唯一的调用方 `SymbolicDemangler` 经 `UInt64(…rawValue)` 读它，不受影响 |
+| 2026-11-05 | `InvertibleProtocolSet` 的 Suite 只登记 `hasCopyable` / `hasEscapable` | `rawValue`、`init(rawValue:)` 与两个 static 改由 `@FlagSet` 生成，不在源码里，按语法扫描的覆盖率检查找不到它们，登记了就报「登记了不存在的成员」；Suite 里对它们的测试照旧保留、照旧运行 |
+| 2026-11-05 | MachOKitUI 的对应改动放在它的 `feature/optional-flag-word-kinds`，经一个 `kindDescription` 帮手显示，认不得时写 `unknown` | 那 6 处都是把 kind 直接插进字符串，改成可选后不会编译失败，只会印出 `Optional(…)`；帮手收的是 `Kind?`，非可选的值会自动提升，所以对新旧两版 MachOSwiftSection 都能编。在 Ultra 上用只放这两个仓库的沙盒（`git archive`，`USING_LOCAL_DEPENDENCIES=1`，MachOSwiftSection 解析为本地 `fileSystem`）编过 `MachOKitUICore`（`--traits SwiftSection`）；MachOKitUI 还没有 `.worktrees/` 的忽略规则，加在本地的 `.git/info/exclude`，不改它受版本控制的 `.gitignore` |
+| 2026-11-05 | 文档：演进账本记一节，`AGENTS.md` 的 ABI 层一段加了 flag word 的规则；`SelfContainedABILayer.md` 不改 | ABI 层早就经 MachOBase → Utilities 引入 FrameworkToolbox 的宏（`@CaseCheckable`、`@AssociatedValue`），这次没有新的依赖边；没有新术语 |
+| 2026-11-05 | 不另写使用指南或实现说明 | 宏的用法与契约在 FrameworkToolbox 的 `BitField.md`；本仓库要遵守的写法（可选的 kind、`default:`、`.some(.none)`、改类型后先清构建产物）已写进 `AGENTS.md`，没有别的维护者会踩、代码里又看不出的决策 |
+| 2026-11-05 | 实现完成，待用户看过后收尾 | 都在 Ultra 上用 Xcode 26.6 跑：全量 `swift test --skip IntegrationTests` 2,784 个测试全过；渲染 A/B 96 对逐字节一致，覆盖归档 cache、模拟器文件、进程内 `MachOImage` 三条读取路径；两份手改的 baseline 经 `regen-baselines` 重新生成后没有差异；MachOKitUI 对本分支编过 |

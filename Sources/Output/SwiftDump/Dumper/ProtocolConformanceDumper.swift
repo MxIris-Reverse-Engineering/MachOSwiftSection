@@ -91,7 +91,7 @@ package struct ProtocolConformanceDumper<MachO: MachOFieldLayoutRenderable>: Con
                             let requirementFlags = requirement.layout.flags
                             configuration.memberAddressComment(offset: slotOffset, addressString: machO.addressString(forOffset: slotOffset), label: "Protocol Witness Table[\(requirementIndex)]")
                             configuration.indentString
-                            Comment("Kind: \(requirementFlags.kind.description), isAsync: \(requirementFlags.isAsync), isInstance: \(requirementFlags.isInstance)")
+                            Comment("Kind: \(requirementFlags.kind?.description ?? "Unknown"), isAsync: \(requirementFlags.isAsync), isInstance: \(requirementFlags.isInstance)")
                             BreakLine()
                             if let requirementName {
                                 configuration.indentString

@@ -141,7 +141,8 @@ extension TypeDefinition {
              .setter:
             break
         case .modifyCoroutine,
-             .readCoroutine:
+             .readCoroutine,
+             nil:
             return nil
         }
         guard let implementationOffset = descriptor.implementationOffset,

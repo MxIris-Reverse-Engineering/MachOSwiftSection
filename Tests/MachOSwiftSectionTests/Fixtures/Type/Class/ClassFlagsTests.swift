@@ -6,11 +6,11 @@ import MachOFixtureSupport
 
 /// Fixture-based Suite for `ClassFlags`.
 ///
-/// `ClassFlags` is a `UInt32`-raw enum with five named cases. There are no
-/// derived properties, so the Suite simply round-trips each case's raw
-/// value to catch accidental renumbering. The baseline records no
-/// member names because none of the cases or static utilities are
-/// scanner-visible as method-keyed members.
+/// `ClassFlags` is a `UInt32` option set built by `@FlagSet` from five
+/// flags. There are no derived properties, so the Suite simply round-trips
+/// each flag's raw value to catch accidental renumbering. The baseline
+/// records no member names because neither the `Flag` cases nor the
+/// statics `@FlagSet` generates are scanner-visible as method-keyed members.
 @Suite
 final class ClassFlagsTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
     static let testedTypeName = "ClassFlags"

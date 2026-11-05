@@ -1,4 +1,5 @@
 import Foundation
+import SwiftStdlibToolbox
 
 public struct ExtraClassDescriptorFlags: FlagSet {
     public typealias RawValue = UInt32
@@ -9,11 +10,6 @@ public struct ExtraClassDescriptorFlags: FlagSet {
         self.rawValue = rawValue
     }
 
-    private enum Bits {
-        static let hasObjCResilientClassStub = 0
-    }
-
-    public var hasObjCResilientClassStub: Bool {
-        flag(bit: Bits.hasObjCResilientClassStub)
-    }
+    @BitField(bits: 0)
+    public var hasObjCResilientClassStub: Bool
 }

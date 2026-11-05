@@ -14,7 +14,7 @@ final class ProtocolRequirementSignatureTests: MachOFileTests, @unchecked Sendab
         for protocolDescriptor in protocolDescriptors {
             let proto = try Protocol(descriptor: protocolDescriptor, in: machO.context)
             for requirement in proto.requirements {
-                print(requirement.flags.kind)
+                print(requirement.flags.kind.map { "\($0)" } ?? "unknown")
             }
             print("-------------------------------")
         }

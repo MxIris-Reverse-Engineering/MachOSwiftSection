@@ -34,6 +34,11 @@ extension GenericRequirementDescriptor {
             })
         case .layout:
             return .layout(.init(rawValue: layout.content.cast())!)
+        case nil:
+            // What the content field holds depends on the kind, and
+            // `GenericRequirementContent` has no case for one this reader
+            // does not know; this stops the program, as it always has.
+            preconditionFailure("generic requirement flags 0x\(String(layout.flags.rawValue, radix: 16)) name a kind this reader does not know")
         }
     }
 }

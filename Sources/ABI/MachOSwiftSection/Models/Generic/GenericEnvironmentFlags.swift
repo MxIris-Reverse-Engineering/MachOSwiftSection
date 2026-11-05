@@ -1,5 +1,7 @@
 import Foundation
+import SwiftStdlibToolbox
 
+/// Mirrors `swift::GenericEnvironmentFlags` (`swift/ABI/MetadataValues.h`).
 public struct GenericEnvironmentFlags: OptionSet, Sendable {
     public typealias RawValue = UInt32
 
@@ -9,17 +11,9 @@ public struct GenericEnvironmentFlags: OptionSet, Sendable {
         self.rawValue = rawValue
     }
 
-    private enum Bits {
-        static let numGenericParameterLevelsMask: RawValue = 0xFFF
-        static let numGenericRequirementsShift: RawValue = 12
-        static let numGenericRequirementsMask: RawValue = 0xFFFF << Self.numGenericRequirementsShift
-    }
+    @BitField(bits: 0..<12)
+    public var numberOfGenericParameterLevels: RawValue
 
-    public var numberOfGenericParameterLevels: RawValue {
-        rawValue & Bits.numGenericParameterLevelsMask
-    }
-
-    public var numberOfGenericRequirements: RawValue {
-        (rawValue & Bits.numGenericRequirementsMask) >> Bits.numGenericRequirementsShift
-    }
+    @BitField(bits: 12..<28)
+    public var numberOfGenericRequirements: RawValue
 }

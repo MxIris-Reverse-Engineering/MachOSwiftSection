@@ -13,8 +13,13 @@ public struct ProtocolConformanceDescriptor: ResolvableLocatableLayoutWrapper {
 }
 
 extension ProtocolConformanceDescriptor {
+    /// The conforming type. A reference kind this reader does not know stops
+    /// the program, as it always has: `TypeReference` has no case to hold it.
     public var typeReference: TypeReference {
-        return .forKind(layout.flags.typeReferenceKind, at: layout.typeReference)
+        guard let typeReferenceKind = layout.flags.typeReferenceKind else {
+            preconditionFailure("conformance flags 0x\(String(layout.flags.rawValue, radix: 16)) name a type reference kind this reader does not know")
+        }
+        return .forKind(typeReferenceKind, at: layout.typeReference)
     }
 }
 

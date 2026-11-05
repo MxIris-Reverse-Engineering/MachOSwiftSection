@@ -51,15 +51,15 @@ final class ProtocolDescriptorFlagsTests: MachOSwiftSectionFixtureTests, Fixture
 
     @Test func dispatchStrategy() async throws {
         let swiftFlags = ProtocolDescriptorFlags(rawValue: ProtocolDescriptorFlagsBaseline.swift.rawValue)
-        #expect(swiftFlags.dispatchStrategy.rawValue == ProtocolDescriptorFlagsBaseline.swift.dispatchStrategyRawValue)
+        #expect(swiftFlags.dispatchStrategy?.rawValue == ProtocolDescriptorFlagsBaseline.swift.dispatchStrategyRawValue)
 
         let objcFlags = ProtocolDescriptorFlags(rawValue: ProtocolDescriptorFlagsBaseline.objc.rawValue)
-        #expect(objcFlags.dispatchStrategy.rawValue == ProtocolDescriptorFlagsBaseline.objc.dispatchStrategyRawValue)
+        #expect(objcFlags.dispatchStrategy?.rawValue == ProtocolDescriptorFlagsBaseline.objc.dispatchStrategyRawValue)
     }
 
     @Test func specialProtocolKind() async throws {
         let flags = ProtocolDescriptorFlags(rawValue: ProtocolDescriptorFlagsBaseline.swift.rawValue)
-        #expect(flags.specialProtocolKind.rawValue == ProtocolDescriptorFlagsBaseline.swift.specialProtocolKindRawValue)
+        #expect(flags.specialProtocolKind?.rawValue == ProtocolDescriptorFlagsBaseline.swift.specialProtocolKindRawValue)
     }
 
     @Test func needsProtocolWitnessTable() async throws {

@@ -1,4 +1,5 @@
 import Foundation
+import SwiftStdlibToolbox
 
 /// The 4-byte header word shared by every key path component and by every
 /// property descriptor.
@@ -23,49 +24,31 @@ public struct KeyPathComponentHeader: RawRepresentable, Hashable, Sendable {
         self.rawValue = rawValue
     }
 
-    private static let payloadMask: RawValue = 0x00FF_FFFF
-    private static let discriminatorMask: RawValue = 0x7F00_0000
-    private static let discriminatorShift: RawValue = 24
-
     private static let trivialPropertyDescriptorMarker: RawValue = 0
 
-    private static let storedOffsetPayloadMask: RawValue = 0x007F_FFFF
     private static let maximumOffsetPayload: RawValue = 0x007F_FFFC
     private static let unresolvedIndirectOffsetPayload: RawValue = 0x007F_FFFD
     private static let unresolvedFieldOffsetPayload: RawValue = 0x007F_FFFE
     private static let outOfLineOffsetPayload: RawValue = 0x007F_FFFF
-    private static let storedMutableFlag: RawValue = 0x0080_0000
-
-    private static let endOfReferencePrefixFlag: RawValue = 0x8000_0000
-
-    private static let computedMutatingFlag: RawValue = 0x0080_0000
-    private static let computedSettableFlag: RawValue = 0x0040_0000
-    private static let computedIdentifierByStoredPropertyFlag: RawValue = 0x0020_0000
-    private static let computedIdentifierByVTableOffsetFlag: RawValue = 0x0010_0000
-    private static let computedHasArgumentsFlag: RawValue = 0x0008_0000
-    private static let computedIdentifierResolutionMask: RawValue = 0x0000_000F
 }
 
 // MARK: - Kind
 
 extension KeyPathComponentHeader {
     /// The raw discriminator, 7 bits wide. Only values 0...4 are defined.
-    public var rawKind: RawValue {
-        (rawValue & Self.discriminatorMask) >> Self.discriminatorShift
-    }
+    @BitField(bits: 24..<31)
+    public var rawKind: RawValue
 
     /// The component's kind, or `nil` when the discriminator is not one the
     /// runtime defines. Unlike `MethodDescriptorFlags.kind` this cannot force
     /// unwrap: the field is wider than the set of valid values, and the input
     /// is arbitrary binary content.
-    public var kind: KeyPathComponentKind? {
-        KeyPathComponentKind(rawValue: rawKind)
-    }
+    @BitField(bits: 24..<31)
+    public var kind: KeyPathComponentKind?
 
     /// The low 24 bits, whose meaning depends on the kind.
-    public var payload: RawValue {
-        rawValue & Self.payloadMask
-    }
+    @BitField(bits: 0..<24)
+    public var payload: RawValue
 
     /// Whether this header is the trivial property-descriptor marker (the
     /// whole word is zero). Such a descriptor has no body, and a client
@@ -81,9 +64,8 @@ extension KeyPathComponentHeader {
     /// Set on the last component of a key path's reference prefix — the
     /// longest leading run of components that can be resolved to a mutable
     /// address. Only ever set inside a key path pattern.
-    public var isEndOfReferencePrefix: Bool {
-        rawValue & Self.endOfReferencePrefixFlag != 0
-    }
+    @BitField(bits: 31)
+    public var isEndOfReferencePrefix: Bool
 }
 
 // MARK: - Stored components
@@ -91,14 +73,12 @@ extension KeyPathComponentHeader {
 extension KeyPathComponentHeader {
     /// The low 23 bits of a `struct` / `class` component, before the sentinel
     /// values are interpreted.
-    public var storedOffsetPayload: RawValue {
-        rawValue & Self.storedOffsetPayloadMask
-    }
+    @BitField(bits: 0..<23)
+    public var storedOffsetPayload: RawValue
 
     /// Whether the stored property is mutable through the key path.
-    public var isStoredMutable: Bool {
-        rawValue & Self.storedMutableFlag != 0
-    }
+    @BitField(bits: 23)
+    public var isStoredMutable: Bool
 
     /// How to obtain the stored property's offset, without yet reading the
     /// body. `nil` when the component is not a stored one.
@@ -140,28 +120,31 @@ extension KeyPathComponentHeader {
 extension KeyPathComponentHeader {
     /// Whether the computed property has a setter, which is what decides
     /// whether the body carries a third word.
-    public var isComputedSettable: Bool {
-        rawValue & Self.computedSettableFlag != 0
-    }
+    @BitField(bits: 22)
+    public var isComputedSettable: Bool
 
     /// Whether the computed property's setter is mutating.
-    public var isComputedMutating: Bool {
-        rawValue & Self.computedMutatingFlag != 0
-    }
+    @BitField(bits: 23)
+    public var isComputedMutating: Bool
 
     /// Whether the component carries subscript arguments. A property
     /// descriptor never does — the arguments come from the client's own
     /// pattern — so this only ever matters when walking a key path pattern.
-    public var hasComputedArguments: Bool {
-        rawValue & Self.computedHasArgumentsFlag != 0
-    }
+    @BitField(bits: 19)
+    public var hasComputedArguments: Bool
+
+    @BitField(bits: 21)
+    private var isComputedIdentifiedByStoredProperty: Bool
+
+    @BitField(bits: 20)
+    private var isComputedIdentifiedByVTableOffset: Bool
 
     /// What the body's identifier word means.
     public var computedIdentifierKind: KeyPathComputedIdentifierKind {
-        if rawValue & Self.computedIdentifierByStoredPropertyFlag != 0 {
+        if isComputedIdentifiedByStoredProperty {
             return .storedPropertyOffset
         }
-        if rawValue & Self.computedIdentifierByVTableOffsetFlag != 0 {
+        if isComputedIdentifiedByVTableOffset {
             return .vtableOffset
         }
         return .pointer
@@ -169,9 +152,8 @@ extension KeyPathComponentHeader {
 
     /// How a pointer-kind identifier reaches the identity value, or `nil`
     /// when the 4-bit field holds a value the runtime does not define.
-    public var computedIdentifierResolution: KeyPathComputedIdentifierResolution? {
-        KeyPathComputedIdentifierResolution(rawValue: rawValue & Self.computedIdentifierResolutionMask)
-    }
+    @BitField(bits: 0..<4)
+    public var computedIdentifierResolution: KeyPathComputedIdentifierResolution?
 }
 
 // MARK: - Optional components

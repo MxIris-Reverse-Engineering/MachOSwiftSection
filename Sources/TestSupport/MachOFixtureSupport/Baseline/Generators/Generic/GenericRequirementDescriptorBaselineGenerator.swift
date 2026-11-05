@@ -113,7 +113,7 @@ package enum GenericRequirementDescriptorBaselineGenerator {
     private static func emitEntryExpr(for requirement: GenericRequirementDescriptor) -> String {
         let offset = requirement.offset
         let flagsRawValue = requirement.layout.flags.rawValue
-        let kindRawValue = requirement.layout.flags.kind.rawValue
+        let kindRawValue = requirement.layout.flags.kind!.rawValue
         let contentKindCase = describeContentKind(requirement.content)
 
         let expr: ExprSyntax = """

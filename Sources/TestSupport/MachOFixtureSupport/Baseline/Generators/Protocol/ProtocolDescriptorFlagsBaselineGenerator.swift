@@ -82,8 +82,8 @@ package enum ProtocolDescriptorFlagsBaselineGenerator {
         let isSwift = flags.isSwift
         let isResilient = flags.isResilient
         let classConstraintRawValue = flags.classConstraint.rawValue
-        let dispatchStrategyRawValue = flags.dispatchStrategy.rawValue
-        let specialProtocolKindRawValue = flags.specialProtocolKind.rawValue
+        let dispatchStrategyRawValue = flags.dispatchStrategy!.rawValue
+        let specialProtocolKindRawValue = flags.specialProtocolKind!.rawValue
         let needsProtocolWitnessTable = flags.needsProtocolWitnessTable
 
         let expr: ExprSyntax = """

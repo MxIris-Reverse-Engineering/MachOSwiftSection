@@ -57,8 +57,8 @@ final class ProtocolConformanceDescriptorTests: MachOSwiftSectionFixtureTests, F
     @Test func typeReference() async throws {
         let (file, image) = try loadStructTestProtocolTestDescriptors()
         let kindRawValue = try acrossAllReaders(
-            file: { file.layout.flags.typeReferenceKind.rawValue },
-            image: { image.layout.flags.typeReferenceKind.rawValue }
+            file: { file.layout.flags.typeReferenceKind?.rawValue },
+            image: { image.layout.flags.typeReferenceKind?.rawValue }
         )
         #expect(kindRawValue == ProtocolConformanceDescriptorBaseline.structTestProtocolTest.typeReferenceKindRawValue)
 

@@ -64,7 +64,7 @@ package enum ProtocolContextDescriptorFlagsBaselineGenerator {
         let rawValue = flags.rawValue
         let isResilient = flags.isResilient
         let classConstraintRawValue = flags.classConstraint.rawValue
-        let specialProtocolKindRawValue = flags.specialProtocolKind.rawValue
+        let specialProtocolKindRawValue = flags.specialProtocolKind!.rawValue
 
         let expr: ExprSyntax = """
         Entry(

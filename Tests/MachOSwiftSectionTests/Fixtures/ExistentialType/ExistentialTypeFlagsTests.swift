@@ -13,8 +13,8 @@ import MachOFixtureSupport
 ///     `init(rawValue:)`, `numberOfWitnessTables` (0),
 ///     `hasSuperclassConstraint` (false), `specialProtocol` (`.none`).
 ///
-///   - `AnyObject.self` flags (`0x0`) — anchor `classConstraint` because
-///     `Any.self`'s flags trap `UInt8(rawValue & 0x80000000)`.
+///   - `AnyObject.self` flags (`0x0`) — anchor `classConstraint` (`.class`);
+///     `Any.self` reading `.any` is pinned by `FlagWordDecodingTests`.
 @Suite
 final class ExistentialTypeFlagsTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
     static let testedTypeName = "ExistentialTypeFlags"
@@ -48,7 +48,7 @@ final class ExistentialTypeFlagsTests: MachOSwiftSectionFixtureTests, FixtureSui
 
     @Test func classConstraint() async throws {
         // `AnyObject.self` flags decode to `classConstraint == .class`.
-        // `Any.self` flags would trap (UInt8 conversion overflow).
+        // `Any.self` reads `.any`; `FlagWordDecodingTests` pins that.
         let result = try usingInProcessOnly { context in
             try ExistentialTypeMetadata.resolve(at: InProcessMetadataPicker.stdlibAnyObjectExistential, in: context)
                 .layout.flags.classConstraint.rawValue
@@ -67,7 +67,7 @@ final class ExistentialTypeFlagsTests: MachOSwiftSectionFixtureTests, FixtureSui
     @Test func specialProtocol() async throws {
         let result = try usingInProcessOnly { context in
             try ExistentialTypeMetadata.resolve(at: InProcessMetadataPicker.stdlibAnyExistential, in: context)
-                .layout.flags.specialProtocol.rawValue
+                .layout.flags.specialProtocol?.rawValue
         }
         #expect(result == ExistentialTypeFlagsBaseline.stdlibAnyExistential.specialProtocolRawValue)
     }

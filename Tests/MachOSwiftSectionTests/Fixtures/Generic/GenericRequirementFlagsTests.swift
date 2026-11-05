@@ -29,16 +29,16 @@ final class GenericRequirementFlagsTests: MachOSwiftSectionFixtureTests, Fixture
 
     @Test func kind() async throws {
         let protocolDefault = GenericRequirementFlags(rawValue: GenericRequirementFlagsBaseline.protocolDefault.rawValue)
-        #expect(protocolDefault.kind.rawValue == GenericRequirementFlagsBaseline.protocolDefault.kindRawValue)
+        #expect(protocolDefault.kind?.rawValue == GenericRequirementFlagsBaseline.protocolDefault.kindRawValue)
 
         let sameType = GenericRequirementFlags(rawValue: GenericRequirementFlagsBaseline.sameType.rawValue)
-        #expect(sameType.kind.rawValue == GenericRequirementFlagsBaseline.sameType.kindRawValue)
+        #expect(sameType.kind?.rawValue == GenericRequirementFlagsBaseline.sameType.kindRawValue)
 
         let layoutOnly = GenericRequirementFlags(rawValue: GenericRequirementFlagsBaseline.layoutOnly.rawValue)
-        #expect(layoutOnly.kind.rawValue == GenericRequirementFlagsBaseline.layoutOnly.kindRawValue)
+        #expect(layoutOnly.kind?.rawValue == GenericRequirementFlagsBaseline.layoutOnly.kindRawValue)
 
         let packWithKey = GenericRequirementFlags(rawValue: GenericRequirementFlagsBaseline.packWithKey.rawValue)
-        #expect(packWithKey.kind.rawValue == GenericRequirementFlagsBaseline.packWithKey.kindRawValue)
+        #expect(packWithKey.kind?.rawValue == GenericRequirementFlagsBaseline.packWithKey.kindRawValue)
     }
 
     @Test func isPackRequirement() async throws {

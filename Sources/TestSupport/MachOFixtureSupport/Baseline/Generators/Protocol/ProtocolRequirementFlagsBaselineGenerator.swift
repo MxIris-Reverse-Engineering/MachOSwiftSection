@@ -86,7 +86,7 @@ package enum ProtocolRequirementFlagsBaselineGenerator {
 
     private static func emitEntryExpr(rawValue: UInt32) -> String {
         let flags = ProtocolRequirementFlags(rawValue: rawValue)
-        let kindRawValue = flags.kind.rawValue
+        let kindRawValue = flags.kind!.rawValue
         let isCoroutine = flags.isCoroutine
         let isAsync = flags.isAsync
         let isInstance = flags.isInstance
