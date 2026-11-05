@@ -15,7 +15,7 @@
 ## 方案
 
 - **cache**：MachODependencies 内部加一张按路径共享打开的表。键是主 cache 文件的标准化路径加文件身份（设备号、inode、大小、修改时间；文件被换掉就开新的），值弱引用 `FullDyldCache`。定位器遇到 `.dyldSharedCache(path:)` 先查表：那份还活着（还有镜像引用它）就用它；否则开一份，先把它不加锁的懒状态读好（映射表、带滑动信息的映射表、symbol cache，与 `cachedHost` 的做法相同）再放进表。
-- **显式文件**：`.machOFile(path:)` 与系统根下的文件同理，按标准化路径、文件身份和首选 CPU 共享挑好的那个 slice，弱引用。
+- **显式文件**：`.machOFile(path:)` 与系统根下的文件同理，按标准化路径、文件身份和首选 CPU 共享挑好的那个 slice，弱引用。**分两步落地**：cache 这一半先做；显式文件等 MachOKit 去掉独立文件的 `cache` 探测（`fix/standalone-file-cache-probe`）发版之后再做。
 - **不变的**：查找顺序与结果，`cachedHost` 与根所在 cache 的特例，`DyldCacheImageDirectory` 的数据目录；`FileDependencyLocator` 与 `DependencySearchPath` 的公开接口不变，下游不用改。
 - **没问就定的假设**：
   - **弱引用，不常驻。** 定位器建完闭包就释放，缓存定位器没用，要缓存的是打开本身；常驻又会让 `evolution` 跨几十份 cache 时每份都一直开着（第 80 节常驻过 51 份宿主 cache、4,182 个文件）。
@@ -28,3 +28,5 @@
 | 日期 | 决定 | 理由 |
 |------|------|------|
 | 2026-11-06 | 创建为 Draft | 修描述符耗尽时横向排查到的同类问题：依赖定位器按根重开配对的 cache 与显式文件。用户要求另起一批、先给方案 |
+| 2026-11-06 | 共享表放在 MachODependencies 内部，不做成 MachOKitExtensions 的公开 API | 用户选定。不加公开接口、RuntimeViewer 不用改；配对的 cache 在一个进程里最多开两次，可以接受 |
+| 2026-11-06 | cache 先做，显式文件等 MachOKit 的独立文件探测修复发版后再做 | 用户选定。cache 这一半不依赖那个修复；共享独立文件的 `MachOFile` 要等它去掉并发时会写共享状态的探测 |
