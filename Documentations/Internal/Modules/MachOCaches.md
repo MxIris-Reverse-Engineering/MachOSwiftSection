@@ -86,7 +86,7 @@ package final class ObjCClassMethodIndex: @unchecked Sendable {
 | `propertyWrapperCatalog`（SwiftDeclarationRendering） | `PropertyWrapperTypeCatalogStore` | — |
 | `multiPayloadEnumDescriptors`（SwiftDeclarationRendering） | `MultiPayloadEnumDescriptorCache` | — |
 | `dependentMemberProjection`（SwiftDeclarationRendering） | `DependentMemberProjection` 的两个实例 | — |
-| `thunkResolution`（SwiftThunkAnalysis） | `MetadataAccessorIndex`、`DependencyImageResolver` | — |
+| `thunkResolution`（SwiftThunkAnalysis） | `MetadataAccessorIndex`、`DependencyImageResolver`、`CacheImageResolver`、`MachOThunkEnvironment` 的镜像自带运行时符号表 | — |
 
 **认领与驱逐的规则**（PR #103 review 的 M6，原来是 `SwiftDeclarationIndexer.swift` 里的私有注册表，现在下沉到这里并推广到全部 group）：
 

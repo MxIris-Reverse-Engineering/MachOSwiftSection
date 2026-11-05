@@ -2965,6 +2965,31 @@
   - 渲染 A/B（基线 `next` 463b2209，两侧共用同一份 `Package.resolved`）：96 对 `dump` / `interface` 输出逐字节一致——归档 cache 15.5 与 26.6 共 24 对，iOS 15.5–26.5 模拟器文件 48 对，进程内 `MachOImage` 24 对；跳过的都是该运行时里没有的框架。
 - **对应版本**：未发版。发版说明要写：三个 flag word 访问器不再读错位、不再让进程停下；会增长的 kind 变成可选（源码不兼容，`switch` 要补 `nil` 分支）；`ClassFlags` 从枚举变成选项集合；`InvertibleProtocolKind` 的 raw value 变成 `UInt16`；依赖 FrameworkToolbox 0.17.0。
 
+## 2026-11-05 离线读独立文件不再每读一次就重开文件，thunk 读取的镜像级表格按镜像只建一次（节号落地时取）
+
+- **时间段**：2026-11-05～06，分支 `fix/offline-reading-performance`（worktree `.worktrees/MachOSwiftSection-OfflineReadingPerformance`，基于 `next` 565fac44）；配套 MachOKit fork 的 `fix/standalone-file-cache-probe` 与 MachOKitExtensions 的 `fix/fixup-resolution-cache`。性能修复，用户批准按 bug 修复处理，不写提案。
+- **动机**：RuntimeViewer 离线（`MachOFile`）读二进制的 Swift 部分，加载要转很久。在 Ultra 上用 release CLI 读三个输入并用 `sample` 采样：
+  - **独立文件**（iOS 18.5 模拟器的 SwiftUI，97 MB）：约三分之二的 CPU 花在反复 `open` / `mmap` / `munmap` 同一个文件上（建索引阶段 78%，打印阶段 67%）。MachOKit 的 `MachOFile.cache` 对没交过 cache 的文件会把文件路径当成 dyld cache 打开，失败不记、下次再试；本库 `MachOFile+Readable.swift` 每读一个元素都先问它这个偏移在哪个 cache 文件里。3 MB 的 SwiftData 模拟器文件上 sys 时间（0.73 秒）比 user 时间（0.52 秒）还多。
+  - **dyld cache 里的镜像**（本机 SwiftUI）离线本来就不慢：同一个 `RenderingVerificationTests` 里 dump 39 秒对进程内 37 秒，interface 22 秒对 17 秒。差出来的主要是 thunk 读取：`AccessorThunkReader.read` 每读一个 thunk 新建一个 `MachOThunkEnvironment`，环境上的 lazy 表每次重建——整张符号表（22 万个 Swift 符号的镜像）重扫一遍，约占 interface 工作量的六分之一；cache 全部镜像的地址表重读一遍、目标镜像重开一遍，又占 thunk 读取的一成。
+  - **只影响 CLI**：`ConsoleEventHandler.handle(event:)` 对每个事件（包括不打印的）都调 `DateFormatter.localizedString`，每次新建一个格式器，约占 CLI 读本机 SwiftUI 时间的四分之一。
+  - 读取原语本身（关联对象查找、子 cache 定位、内存映射读）合计约 3%，不是瓶颈；符号索引的耗时是 demangle 与 intern，两种读取器一样。
+- **来历**：本库原先自带一个先判 `isLoadedFromDyldCache` 再找 cache 的 `MachOFile.cache`。2025-11-24 升 MachOKit 0.42.0 时，MachOKit 公开了同名属性，本地这个被注释掉、后来删除，此后用的是 MachOKit 那个不判断的版本，读独立文件就一直在反复重开。上游 p-x9/MachOKit 至今同样写法；用户决定只修 fork，不提上游。
+- **关键决策**：
+  - **独立文件不问 cache，两层都改**：MachOKit fork 的 `cache` / `fullCache` 对 `!isLoadedFromDyldCache` 的文件直接答 `nil`，不碰文件系统（MachOKitExtensions、MachOObjCSection 与 MachOKit 自己的 `fileOffset(of:)` 里其余直接问 `cache` 的地方一并受益）；本库五个读函数也先判 `isLoadedFromDyldCache`，不依赖 MachOKit 的版本。
+  - **thunk 读取的镜像级表格进 `thunkResolution` 组的按镜像缓存**：镜像自带运行时符号表（`SharedCache<[UInt64: String]>`）与 `CacheImageResolver`（`resolver(cacheOf:)`）。`CacheImageResolver` 会被多个环境共用，它记下的已打开镜像与导出入口表加 `@Mutex`，查找在锁外做、先存者胜。环境本身仍每个 thunk 一个，它记的调用目标与解码过的函数不跨 thunk 共享。
+  - **CLI 只为要打印的事件取时间**：`message(for:)` 先判断，返回非 nil 才格式化时间戳；行格式不变（`line(for:timestamp:)` 照旧给测试用）。时间来源做成可注入的（`package init(label:timestamp:)`），测试拿它数调用次数。
+  - **MachOKitExtensions 的 fixup 解析记忆表移进 `MachOCacheStorage`**：`resolveRebase(fileOffset:)` / `resolveBind(fileOffset:)` 原先把字典存在关联对象里，每记一条都整份拷贝，耗时随槽位数平方增长（夹具 5 万个 bind 槽位，最后 2000 个比最先 2000 个慢约 50 倍），且 `.nonatomic` 关联对象在并发下不安全；改成锁内原地插入。
+  - 横向排查：同一写法（关联对象里逐条插入的字典）三个仓库里只有这两处；`TypeDefinition` 的 `_specializedChildren` 只在用户手动特化时追加、条数很少，不算同类。thunk 环境上按环境重建镜像级数据的，除符号表外只有 `CacheImageResolver`，一并修了。
+- **落地**：MachOReading（`MachOFile+Readable.swift`），SwiftThunkAnalysis（`MachOThunkEnvironment.swift` 的符号表与 `CacheImageResolver`、`SharedCacheEvictionGroup+SwiftThunkAnalysis.swift`），SwiftIndexing（`ConsoleEventHandler`）；测试 `StandaloneFileReadingTests`、`ThunkEnvironmentImageTablesTests`、`ConsoleEventHandlerLineTests` 新增一条，三个套件加进 CI 的筛选清单；文档 [ReadingContextAbstraction.md](ReadingContextAbstraction.md)「性能」、[Modules/SwiftThunkAnalysis.md](Modules/SwiftThunkAnalysis.md)「环境每个 thunk 一个，镜像级的事实按镜像缓存」、[Modules/MachOCaches.md](Modules/MachOCaches.md) 的缓存组表。MachOKit fork：`MachOFile.swift` 与测试 `StandaloneFileDyldCacheTests`；MachOKitExtensions：`MachOCacheStorage`、`MachOFile+.swift`、测试 `FixupResolutionMemoTests`，提案 0001 的决策日志补了一条。
+- **验证**：都在 JHs-Mac-Studio-Ultra 上跑（默认 Xcode 27.2，依赖走远端版本；MachOKit 与 MachOKitExtensions 用 `swift package edit` 指向各自的修复分支）。
+  - MachOKit：`StandaloneFileDyldCacheTests` 修复前两条红（`cache`、`fullCache` 都按路径打开了换上去的 cache 头），修复后三条全过。fork 全量 200 个测试只红 5 个既有的环境失败（归档夹具文件缺失、macOS 27 的 cache 没有 PreBuildLoaderSet）。
+  - MachOKitExtensions：`FixupResolutionMemoTests` 修复前最后一批比最先一批慢 54 倍（bind）、49 倍（rebase，要配修好的 MachOKit 才显出来），修复后 1.2 倍、1.3 倍；全量 26 个测试全过。
+  - 本库三个新套件修复前全红：路径换成 cache 头之后读取抛错；新环境第一次查调用目标要 66 毫秒，直接遍历一遍符号表才 51 毫秒；不打印的两个事件取了两次时间。`CacheImageResolver` 那条修复前 9.4 毫秒，直接读一遍镜像列表 2.4 毫秒。修复后全过。
+  - 全量 `swift test --skip IntegrationTests`：2,788 个测试，只红 `ThunkOnlyObjCMemberTests` 4 条（Xcode 27.2 现场编译 fixture 的旧漂移，第 120 节在未修改的 `next` 上也是这 4 条），原始退出码 1。
+  - 渲染 A/B（基线是 `next` 565fac44 的 `git archive`，两侧远端依赖版本相同，候选侧只把 MachOKit 与 MachOKitExtensions 换成修复分支）：96 对逐字节一致——归档 cache 15.5 与 26.6 各 12 对，iOS 15.5 / 16.4 / 17.5 / 18.5 / 26.5 模拟器文件共 48 对，进程内 `MachOImage` 24 对。
+  - 耗时（release CLI 的 `interface --show-c-imported-types`，基线、候选、候选、基线交替跑，负载 13–16）：iOS 18.5 模拟器的 SwiftUI 50.8 秒 → 11.0 秒（sys 32 秒 → 0.12 秒，建索引约 26 秒 → 5 秒）；同一运行时的 SwiftData 1.33 秒 → 0.29 秒；本机 cache 里的 SwiftUI 22.8 秒 → 14.4 秒（含只影响 CLI 的时间戳那一项）。两侧输出逐字节一致。
+- **对应版本**：未发版。依赖下限抬到 MachOKit 0.55.101、MachOKitExtensions 1.3.1（2026-11-06 发布）。发版说明要写：离线读不在 dyld cache 里的 Mach-O 文件（app、bundle 里的框架、模拟器运行时文件）快很多——此前每读一个元素都把整个文件重新映射一次；读 opaque 类型的 accessor thunk 不再每次重扫符号表、重读 cache 的镜像列表；CLI 不再为每个不打印的事件格式化时间。
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节
