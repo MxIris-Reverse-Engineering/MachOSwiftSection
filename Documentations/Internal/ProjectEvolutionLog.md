@@ -2945,9 +2945,9 @@
   - 全量 `swift test --skip IntegrationTests`：2,781 个测试、526 个套件（比第 119 节多出本次的 8 个测试、2 个套件），只红 `ThunkOnlyObjCMemberTests` 4 条，原始退出码 1。同一次构建配置下在未修改的 `next` 1dcc0c08 上单跑这个套件，红的是同样 4 条（原始退出码 1），是 Xcode 27.2 现场编译 fixture 的旧漂移。
 - **对应版本**：未发版。发版说明要写：离线（`MachOFile`）打印 interface 时，宿主每次交回同样的布局配置不再重建静态布局引擎；多个根共用同一个 dyld cache 时，cache 的镜像只扫描一次。
 
-## （落地时定号）ABI 层的 flag word 改用 `@BitField`，修掉三个读错位的访问器
+## 121. ABI 层的 flag word 改用 `@BitField`，修掉三个读错位的访问器
 
-- **时间段**：2026-11-05，分支 `feature/abi-flag-words-bit-field`（worktree `.worktrees/MachOSwiftSection-ABIFlagWordsBitField`，基于 `next` 463b2209）。提案 [abi-flag-words-bit-field](../Evolutions/draft-abi-flag-words-bit-field.md)；宏本身是 FrameworkToolbox 的提案 0015，随 FrameworkToolbox 0.17.0 发布。
+- **时间段**：2026-11-05，分支 `feature/abi-flag-words-bit-field`（worktree `.worktrees/MachOSwiftSection-ABIFlagWordsBitField`，基于 `next` 463b2209）。提案 [0085-abi-flag-words-bit-field](../Evolutions/0085-abi-flag-words-bit-field.md)；宏本身是 FrameworkToolbox 的提案 0015，随 FrameworkToolbox 0.17.0 发布。
 - **动机**：ABI 层照 Swift 运行时的 C++ 头文件手写了 24 个 flag word 类型，其中 17 个在一个整数里混排单比特与多位字段，写法有四种。三个访问器把位读错了：`ExistentialTypeFlags.classConstraint` 与 `ProtocolDescriptorFlags.classConstraint` 只掩码不移位，`FunctionTypeFlags.convention` 把整个字直接转成 `UInt8`。读 `Any` 的 metadata、不限定 class 的协议、任何 escaping 函数类型都会让进程停下；从 2025-10 首次提交起就在，测试为绕开它专门改用 `AnyObject.self`。
 - **关键决策**：
   - 17 个类型的访问器改成 `@BitField(bits:)` 声明，位置照抄原来的掩码，逐位对过 Swift 6.4 的 `MetadataValues.h`，除上述三处外没有错位。读的转换由属性的类型经重载决议选出，typealias（`RawValue`、`StoredSize`）与泛型存储（`FunctionTypeFlags<IntType>`）照常可用。

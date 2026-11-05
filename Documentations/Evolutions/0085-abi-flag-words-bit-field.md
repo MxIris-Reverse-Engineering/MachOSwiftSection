@@ -1,11 +1,11 @@
-# Draft - ABI 层的 flag word 改用 `@BitField`，修掉三个读错位的访问器
+# 0085 - ABI 层的 flag word 改用 `@BitField`，修掉三个读错位的访问器
 
-- **状态**: In Progress
+- **状态**: Implemented
 - **创建日期**: 2026-11-05
 - **最后更新**: 2026-11-05
 - **所属愿景**: 无
 - **关联提案**: FrameworkToolbox 的 [0015-bit-field-macro](https://github.com/Mx-Iris/FrameworkToolbox/blob/main/Documentations/Evolutions/0015-bit-field-macro.md)（宏本身，以本仓库为第一个使用方）
-- **实现分支 / PR**: `feature/abi-flag-words-bit-field`
+- **实现分支 / PR**: `feature/abi-flag-words-bit-field`（worktree `.worktrees/MachOSwiftSection-ABIFlagWordsBitField`，基于 `next` 463b2209），2026-11-05 合入 `next`；MachOKitUI 的对应改动 `feature/optional-flag-word-kinds` 同日合入它的 `main`
 - **配套文档**: 无
 
 ## 摘要
@@ -99,3 +99,4 @@ ABI 层照 Swift 运行时的 C++ 头文件（`swift/ABI/MetadataValues.h`）手
 | 2026-11-05 | 文档：演进账本记一节，`AGENTS.md` 的 ABI 层一段加了 flag word 的规则；`SelfContainedABILayer.md` 不改 | ABI 层早就经 MachOBase → Utilities 引入 FrameworkToolbox 的宏（`@CaseCheckable`、`@AssociatedValue`），这次没有新的依赖边；没有新术语 |
 | 2026-11-05 | 不另写使用指南或实现说明 | 宏的用法与契约在 FrameworkToolbox 的 `BitField.md`；本仓库要遵守的写法（可选的 kind、`default:`、`.some(.none)`、改类型后先清构建产物）已写进 `AGENTS.md`，没有别的维护者会踩、代码里又看不出的决策 |
 | 2026-11-05 | 实现完成，待用户看过后收尾 | 都在 Ultra 上用 Xcode 26.6 跑：全量 `swift test --skip IntegrationTests` 2,784 个测试全过；渲染 A/B 96 对逐字节一致，覆盖归档 cache、模拟器文件、进程内 `MachOImage` 三条读取路径；两份手改的 baseline 经 `regen-baselines` 重新生成后没有差异；MachOKitUI 对本分支编过 |
+| 2026-11-05 | 落地，编号 0085，状态改 Implemented | 用户决定直接收尾，合入 `next` 时远端没有新提交，沿用上一行那次验证。摘要承诺的都已做到；留作后续的只有 `GenericRequirementDescriptor.content` 与 `ProtocolConformanceDescriptor.typeReference` 遇到认不得的 kind 仍会停下（见上文）。可选字段里裸写 `.none` 的陷阱同时补进了 FrameworkToolbox 的 `BitField.md`，那是宏的调用方都会踩的；不另配指南或实现说明、没有新术语的判断不变 |
