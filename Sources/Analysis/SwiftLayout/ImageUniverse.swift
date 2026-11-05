@@ -19,8 +19,9 @@ import MachOFoundation
 /// list once, after which every further lookup is `O(1)`.
 ///
 /// Because the resolver only ever calls `resolveType(byQualifiedTypeName:)` /
-/// `resolveProtocolClassConstraint(byQualifiedTypeName:)`, neither it nor any
-/// layout bridge changes when the universe grows from one image to a closure.
+/// `resolveProtocol(byQualifiedTypeName:)` and the other `resolve…` seams,
+/// neither it nor any layout bridge changes when the universe grows from one
+/// image to a closure.
 ///
 /// **Threading contract.** `ImageUniverse` is declared `@unchecked Sendable` so
 /// the rest of the layout pipeline (which transitively holds it through a
@@ -85,6 +86,10 @@ public final class ImageUniverse<MachO: MachOSwiftSectionRepresentableWithCache>
     /// The number of dependency images in the closure (whether or not indexed).
     public var dependencyImageCount: Int { dependencyMachOs.count }
 
+    /// How many dependency images lookups have folded in so far, a malformed
+    /// one that indexed nothing included.
+    var indexedDependencyImageCount: Int { nextDependencyToIndex }
+
     /// The install paths of the dependency images, in resolution order.
     public var dependencyImagePaths: [String] { dependencyMachOs.map(\.imagePath) }
 
@@ -113,21 +118,48 @@ public final class ImageUniverse<MachO: MachOSwiftSectionRepresentableWithCache>
         return typeIndex[qualifiedTypeName]
     }
 
-    /// Resolves a fully-qualified protocol name to its class constraint, or
-    /// `nil` if no image in the closure defines that protocol. Used to decide
-    /// whether an existential is class-bound.
-    func resolveProtocolClassConstraint(
-        byQualifiedTypeName qualifiedTypeName: String
-    ) -> ProtocolClassConstraint? {
-        if let resolved = protocolIndex[qualifiedTypeName] { return resolved.constraint }
-        while protocolIndex[qualifiedTypeName] == nil, indexNextDependency() {}
-        return protocolIndex[qualifiedTypeName]?.constraint
+    /// What a protocol name resolves to: a Swift protocol descriptor, or only
+    /// an Objective-C protocol record.
+    enum ResolvedProtocol: Equatable {
+        /// A Swift protocol, with the class constraint its descriptor declares.
+        case swift(ProtocolClassConstraint)
+        /// A Swift-declared `@objc` protocol, which gets no Swift protocol
+        /// descriptor — its only runtime artifact is the Objective-C protocol
+        /// record. Always class-bound, and it contributes no witness table.
+        case objC
+    }
+
+    /// Resolves a fully-qualified protocol name, or returns `nil` if no image
+    /// in the closure declares that protocol. Used to decide whether an
+    /// existential or a generic parameter is class-bound.
+    ///
+    /// Both records are looked for in each image as it is folded in, so a name
+    /// resolves in the first image that knows it either way. Asked of the Swift
+    /// descriptors alone first, a Swift-declared `@objc` protocol — which has
+    /// none — folded in the whole closure before its record, which the root
+    /// usually holds a copy of, was looked at: one field of Dock's DockHelper
+    /// indexed the 500-odd images its closure reaches in the system's cache.
+    func resolveProtocol(byQualifiedTypeName qualifiedTypeName: String) -> ResolvedProtocol? {
+        if let resolved = indexedProtocol(byQualifiedTypeName: qualifiedTypeName) { return resolved }
+        while indexNextDependency() {
+            if let resolved = indexedProtocol(byQualifiedTypeName: qualifiedTypeName) { return resolved }
+        }
+        return nil
+    }
+
+    /// What the images folded in so far say a protocol name is. A Swift
+    /// protocol descriptor wins over an Objective-C record of the same name,
+    /// the order the two were asked in before one lookup asked both.
+    private func indexedProtocol(byQualifiedTypeName qualifiedTypeName: String) -> ResolvedProtocol? {
+        if let resolved = protocolIndex[qualifiedTypeName] { return .swift(resolved.constraint) }
+        if objCProtocolQualifiedNames.contains(qualifiedTypeName) { return .objC }
+        return nil
     }
 
     /// Resolves an Objective-C class's start layout (its instance size and a
     /// pointer start alignment) by bare name, or `nil` if no image in the
     /// closure defines that ObjC class. The third resolution seam, sharing the
-    /// same lazy fold-in as `resolveType` / `resolveProtocolClassConstraint`:
+    /// same lazy fold-in as `resolveType` / `resolveProtocol`:
     /// every dependency's ObjC index is merged when that dependency is folded,
     /// so this needs no extra scan over the closure.
     func resolveObjCClassInstanceSize(
@@ -148,17 +180,6 @@ public final class ImageUniverse<MachO: MachOSwiftSectionRepresentableWithCache>
         if let resolved = associatedTypeWitnessIndex[key] { return resolved }
         while associatedTypeWitnessIndex[key] == nil, indexNextDependency() {}
         return associatedTypeWitnessIndex[key]
-    }
-
-    /// Whether any image in the closure declares an Objective-C protocol with
-    /// this Swift qualified name — i.e. whether the name identifies a
-    /// Swift-declared `@objc` protocol (which emits no Swift protocol
-    /// descriptor, so `resolveProtocolClassConstraint` misses it). The fifth
-    /// resolution seam, sharing the same lazy fold-in as the others.
-    func isObjCProtocolDeclared(byQualifiedTypeName qualifiedTypeName: String) -> Bool {
-        if objCProtocolQualifiedNames.contains(qualifiedTypeName) { return true }
-        while !objCProtocolQualifiedNames.contains(qualifiedTypeName), indexNextDependency() {}
-        return objCProtocolQualifiedNames.contains(qualifiedTypeName)
     }
 
     /// Folds the next un-indexed dependency into the merged indexes. Returns

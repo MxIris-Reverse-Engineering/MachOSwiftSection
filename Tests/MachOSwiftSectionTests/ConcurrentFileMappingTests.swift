@@ -4,12 +4,12 @@ import MachOKit
 @testable import MachOReading
 import MachOFixtureSupport
 
-/// A file's mapping and handle are created on its first read and shared by
-/// every read after it. Several readers can make that first read at once:
-/// `diff` and `evolution` prepare their inputs concurrently, and each input's
-/// dependency lookup reads the host's dyld cache through sub-cache instances
-/// every reader shares — a `FullDyldCache` hands the same ones to all its
-/// images, and `FullDyldCache.cachedHost` is opened once per process. Every
+/// A file's mapping is created on its first read and shared by every read
+/// after it. Several readers can make that first read at once: `diff` and
+/// `evolution` prepare their inputs concurrently, and each input's dependency
+/// lookup reads the host's dyld cache, which `FullDyldCache.cachedHost` opens
+/// once per process, through the cache instances MachOKit assembles for it —
+/// all of them sharing one mapping per file (`SharedFileMappingTests`). Every
 /// accessor must hand all of them one object. Created unlocked, each racing
 /// reader opened the file again and stored its own over the others'.
 @Suite
@@ -28,16 +28,8 @@ struct ConcurrentFileMappingTests {
     @Test func concurrentFirstReadsOfAFileShareOneMapping() throws {
         for _ in 0 ..< Self.roundCount {
             let machOFile = try Self.freshFixtureFile()
-            let distinctCount = Self.distinctObjectCount { machOFile.fileIO }
+            let distinctCount = try Self.distinctObjectCount { try machOFile.fileIO }
             #expect(distinctCount == 1, "\(distinctCount) mappings of one file")
-        }
-    }
-
-    @Test func concurrentFirstReadsOfAFileShareOneHandle() throws {
-        for _ in 0 ..< Self.roundCount {
-            let machOFile = try Self.freshFixtureFile()
-            let distinctCount = Self.distinctObjectCount { machOFile.fileHandle }
-            #expect(distinctCount == 1, "\(distinctCount) handles of one file")
         }
     }
 
@@ -45,22 +37,13 @@ struct ConcurrentFileMappingTests {
     func concurrentFirstReadsOfADyldCacheShareOneMapping() throws {
         for _ in 0 ..< Self.roundCount {
             let dyldCache = try DyldCache(path: .current)
-            let distinctCount = Self.distinctObjectCount { dyldCache.fileIO }
+            let distinctCount = try Self.distinctObjectCount { try dyldCache.fileIO }
             #expect(distinctCount == 1, "\(distinctCount) mappings of one cache file")
         }
     }
 
-    @Test(.enabled(if: isHostDyldCacheAvailable))
-    func concurrentFirstReadsOfADyldCacheShareOneHandle() throws {
-        for _ in 0 ..< Self.roundCount {
-            let dyldCache = try DyldCache(path: .current)
-            let distinctCount = Self.distinctObjectCount { dyldCache.fileHandle }
-            #expect(distinctCount == 1, "\(distinctCount) handles of one cache file")
-        }
-    }
-
-    /// A new instance each time: the accessor under test must not have run on
-    /// it yet.
+    /// A new instance each time, opened afresh: the accessor under test must
+    /// not have run on it, nor on anything sharing its opening, yet.
     private static func freshFixtureFile() throws -> MachOFile {
         switch try loadFromFile(named: .SymbolTestsCore) {
         case .machO(let machOFile):
@@ -71,14 +54,14 @@ struct ConcurrentFileMappingTests {
     }
 
     /// How many distinct objects `read` hands `readerCount` readers released
-    /// together.
+    /// together. Throws what the first failing read threw.
     ///
     /// The readers are threads of the test's own, not the global dispatch
     /// queue: this body blocks a cooperative thread until they finish (the
     /// same arrangement as `SharedCacheResolveTests`). Each one is parked on
     /// the start signal before any is let go, so the first reads overlap as
     /// closely as threads allow.
-    private static func distinctObjectCount(returnedBy read: @escaping () -> AnyObject) -> Int {
+    private static func distinctObjectCount(returnedBy read: @escaping () throws -> AnyObject) throws -> Int {
         let reader = UncheckedReader(read: read)
         let handedObjects = HandedObjects()
         let readersReady = DispatchGroup()
@@ -90,7 +73,7 @@ struct ConcurrentFileMappingTests {
             Thread {
                 readersReady.leave()
                 startSignal.wait()
-                handedObjects.append(reader.read())
+                handedObjects.append(Result { try reader.read() })
                 readersFinished.leave()
             }.start()
         }
@@ -99,14 +82,14 @@ struct ConcurrentFileMappingTests {
             startSignal.signal()
         }
         readersFinished.wait()
-        return handedObjects.distinctCount
+        return try handedObjects.distinctCount()
     }
 }
 
 /// Carries a read of a non-`Sendable` file onto the reader threads. Racing on
 /// that file is what the test does, so the box only quiets the checker.
 private struct UncheckedReader: @unchecked Sendable {
-    let read: () -> AnyObject
+    let read: () throws -> AnyObject
 }
 
 /// The objects the readers were handed, kept alive until they are counted:
@@ -114,17 +97,18 @@ private struct UncheckedReader: @unchecked Sendable {
 /// the next one, and two mappings would count as one.
 private final class HandedObjects: @unchecked Sendable {
     private let lock = NSLock()
-    private var objects: [AnyObject] = []
+    private var results: [Result<AnyObject, any Error>] = []
 
-    func append(_ object: AnyObject) {
+    func append(_ result: Result<AnyObject, any Error>) {
         lock.lock()
         defer { lock.unlock() }
-        objects.append(object)
+        results.append(result)
     }
 
-    var distinctCount: Int {
+    func distinctCount() throws -> Int {
         lock.lock()
         defer { lock.unlock() }
+        let objects = try results.map { try $0.get() }
         return Set(objects.map(ObjectIdentifier.init)).count
     }
 }

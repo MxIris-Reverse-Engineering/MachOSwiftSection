@@ -35,10 +35,10 @@ extension MachOFile: Readable {
     ) throws -> Element {
         let originalOffset = offset
         var offset = originalOffset
-        var fileIO = fileIO
+        var fileIO = try fileIO
         if let cacheAndFileOffset = cacheAndFileOffset(fromStart: offset.cast()) {
             offset = cacheAndFileOffset.1.cast()
-            fileIO = cacheAndFileOffset.0.fileIO
+            fileIO = try cacheAndFileOffset.0.fileIO
         }
         return try fileIO.machO.read(offset: numericCast(offset + headerStartOffset))
     }
@@ -52,10 +52,10 @@ extension MachOFile: Readable {
     public func readWrapperElement<Element>(offset: Int) throws -> Element where Element: LocatableLayoutWrapper {
         let originalOffset = offset
         var offset = originalOffset
-        var fileIO = fileIO
+        var fileIO = try fileIO
         if let cacheAndFileOffset = cacheAndFileOffset(fromStart: offset.cast()) {
             offset = cacheAndFileOffset.1.cast()
-            fileIO = cacheAndFileOffset.0.fileIO
+            fileIO = try cacheAndFileOffset.0.fileIO
         }
         let layout: Element.Layout = try fileIO.machO.read(offset: numericCast(offset + headerStartOffset))
         return .init(layout: layout, offset: originalOffset)
@@ -67,10 +67,10 @@ extension MachOFile: Readable {
     ) throws -> [Element] {
         let originalOffset = offset
         var offset = originalOffset
-        var fileIO = fileIO
+        var fileIO = try fileIO
         if let cacheAndFileOffset = cacheAndFileOffset(fromStart: offset.cast()) {
             offset = cacheAndFileOffset.1.cast()
-            fileIO = cacheAndFileOffset.0.fileIO
+            fileIO = try cacheAndFileOffset.0.fileIO
         }
         var currentOffset = offset
         let elements = try fileIO.machO.readDataSequence(offset: numericCast(offset + headerStartOffset), numberOfElements: numberOfElements).map { (element: Element) -> Element in
@@ -90,10 +90,10 @@ extension MachOFile: Readable {
     public func readWrapperElements<Element>(offset: Int, numberOfElements: Int) throws -> [Element] where Element: LocatableLayoutWrapper {
         let originalOffset = offset
         var offset = originalOffset
-        var fileIO = fileIO
+        var fileIO = try fileIO
         if let cacheAndFileOffset = cacheAndFileOffset(fromStart: offset.cast()) {
             offset = cacheAndFileOffset.1.cast()
-            fileIO = cacheAndFileOffset.0.fileIO
+            fileIO = try cacheAndFileOffset.0.fileIO
         }
         var currentOffset = originalOffset
         let elements = try fileIO.machO.readDataSequence(offset: numericCast(offset + headerStartOffset), numberOfElements: numberOfElements).map { (layout: Element.Layout) -> Element in
@@ -107,10 +107,10 @@ extension MachOFile: Readable {
     public func readString(offset: Int) throws -> String {
         let originalOffset = offset
         var offset = originalOffset
-        var fileIO = fileIO
+        var fileIO = try fileIO
         if let cacheAndFileOffset = cacheAndFileOffset(fromStart: offset.cast()) {
             offset = cacheAndFileOffset.1.cast()
-            fileIO = cacheAndFileOffset.0.fileIO
+            fileIO = try cacheAndFileOffset.0.fileIO
         }
         return fileIO.machO.readString(offset: numericCast(offset + headerStartOffset))
     }

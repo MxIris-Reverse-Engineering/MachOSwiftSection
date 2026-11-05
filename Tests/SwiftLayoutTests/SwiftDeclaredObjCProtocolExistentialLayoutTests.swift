@@ -30,6 +30,27 @@ struct SwiftDeclaredObjCProtocolExistentialLayoutTests {
         assertFullyComputed(fileAggregate, equals: runtimeOffsets, typeName: "\(Self.qualifiedTypeName) (MachOFile)")
     }
 
+    /// Over a whole dependency closure, a protocol the root's own Objective-C
+    /// protocol records name resolves in the root. Asked of the Swift
+    /// protocol descriptors first, every such protocol — which has none —
+    /// indexed the root's entire closure before its record was looked at:
+    /// hundreds of images of the system's dyld cache for each image a host
+    /// read, which is how RuntimeViewer's offline service, laying out a
+    /// field of a Swift-declared `@objc` protocol in DockHelper, mapped the
+    /// cache files over two thousand times.
+    @Test func objCProtocolExistentialsResolveWithoutIndexingDependencies() throws {
+        let machOImage = try SwiftDeclaredObjCProtocolsFixture.loadedImage()
+        let runtimeOffsets = try #require(try runtimeFieldOffsets(ofQualifiedTypeName: Self.qualifiedTypeName, in: machOImage), "no runtime field-offset vector")
+
+        let machOFile = try SwiftDeclaredObjCProtocolsFixture.machOFile(.full)
+        let universe = try ImageUniverse.dependencyClosure(root: machOFile, searchPaths: SwiftDeclaredObjCProtocolsFixture.dependencySearchPaths())
+        try #require(universe.dependencyImageCount > 0, "the closure must collect dependency images")
+        let fileAggregate = try fieldLayout(ofQualifiedTypeName: Self.qualifiedTypeName, with: StaticLayoutCalculator(imageUniverse: universe), in: machOFile)
+
+        assertFullyComputed(fileAggregate, equals: runtimeOffsets, typeName: "\(Self.qualifiedTypeName) (MachOFile, dependency closure)")
+        #expect(universe.indexedDependencyImageCount == 0, "indexed \(universe.indexedDependencyImageCount) of \(universe.dependencyImageCount) dependency images")
+    }
+
     /// The protocols the image declares, as the layout engine keys them.
     @Test func imageIndexNamesRenamedAndNestedProtocols() throws {
         let qualifiedNames = ObjCProtocolIndex.qualifiedNames(in: try SwiftDeclaredObjCProtocolsFixture.machOFile(.full))

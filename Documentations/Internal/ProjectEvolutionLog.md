@@ -2965,6 +2965,34 @@
   - 渲染 A/B（基线 `next` 463b2209，两侧共用同一份 `Package.resolved`）：96 对 `dump` / `interface` 输出逐字节一致——归档 cache 15.5 与 26.6 共 24 对，iOS 15.5–26.5 模拟器文件 48 对，进程内 `MachOImage` 24 对；跳过的都是该运行时里没有的框架。
 - **对应版本**：未发版。发版说明要写：三个 flag word 访问器不再读错位、不再让进程停下；会增长的 kind 变成可选（源码不兼容，`switch` 要补 `nil` 分支）；`ClassFlags` 从枚举变成选项集合；`InvertibleProtocolKind` 的 raw value 变成 `UInt16`；依赖 FrameworkToolbox 0.17.0。
 
+## 2026-11-06 读 dyld cache 时每个文件只映射一次，`@objc` 协议不再先索引整个依赖闭包（节号落地时取）
+
+- **时间段**：2026-11-05 至 11-06，分支 `fix/shared-cache-file-mappings`（worktree `.worktrees/MachOSwiftSection-SharedCacheFileMappings`，基于 `next` 565fac44）。缺陷修复，用户批准直接做，不写提案。
+- **动机**：RuntimeViewer 的离线服务读 `Dock.app`（配对本机 dyld cache）、给 DockHelper 建 Find 语料时，停在 `MachOReading/Extensions/DyldCache+.swift:50` 的 `try! MemoryMappedFile.open`：`system error 24`（`EMFILE`）。停住的进程开着 2,560 个描述符——launchd 给 XPC 服务的 256，加 CoreFoundation 第一次有人碰 `CFSocket` 时自动加的 2,304，正好是它的上限——其中 2,548 个只指向 85 个 cache 文件，`.26.dyldreadonly` 一个文件开了 343 次。
+- **根因**：
+  - `MachOFile.fileIO` 与 `DyldCache.fileIO` 是挂在实例上的关联对象：每个实例第一次读时自己 mmap 一遍所在文件，映射一直攥着一个描述符。实例却很多：`FullDyldCache.machOFiles()` 给每个不在主文件里的镜像新建一个 `DyldCache`（`cache(atIndex:)`），MachOKitExtensions 的子 cache 表按 `MachOFile` 各建一套子 cache 实例，依赖定位器给每个根各做一批依赖 `MachOFile`。描述符于是随读过的镜像数线性增长，与 cache 有几个文件无关。
+  - 放大它的是协议查找的顺序。DockHelper 的 `DockHelperDelegate.helperClient` 是 `Optional<DockCore.MenuHelperClientProtocol>`，一个 Swift 声明的 `@objc` 协议（定义在 Dock 可执行文件里，DockHelper 持有它的 ObjC 协议记录副本）。`ExistentialLayoutBridge` 与 `ClassBoundGenericParameterAnalysis` 先问 `resolveProtocolClassConstraint`——这种协议没有 Swift 描述符，必然落空，落空前先把根的整个依赖闭包索引进来——之后才问 `isObjCProtocolDeclared`，而根自己就有那条记录。
+  - `try!` 把打开失败变成了宿主进程停下。
+- **以前修过吗**：第 82 节修子 cache 查找时已经看到「本库按实例缓存的文件映射」每换一个实例就重开，当时让同一个 `MachOFile` 每次拿回同一个子 cache 实例，跨 `MachOFile` 的重复没有处理；07993a5f 给映射加了创建锁，仍按实例。先问 Swift 描述符的顺序是静态布局引擎阶段 8 加第五个 seam 时定的，那时只为认出这种协议，没考虑落空的代价。
+- **关键决策**：
+  - **映射按一次打开共享，不按实例。** 键用 MachOKit 的 `@_spi(Support) fileHandleIdentity`：同一次打开的 cache 文件，MachOKit 组装出的每个 `DyldCache` 与 `MachOFile` 都带同一个身份。映射作为关联对象挂在身份上（新类型 `SharedFileMapping`），MachOKit 释放句柄时身份随之释放，映射跟着关掉。MachOObjCSection 的 `FileHandleHolder` 早就这样做。描述符数从「读过的镜像数乘二到三」变成「打开的 cache 文件数」。
+  - **映射在锁里建、只建一次、从不替换**，沿用 07993a5f 的保证：并发的首次读只拿到一个映射，读者手里的映射不会被换掉后释放。之后的读不加锁。
+  - **`fileIO` 改为抛错。** 打开失败（文件已删、描述符用完）让这次读取失败，不再停掉宿主。`Readable` 的方法本来就 `throws`，只改了 `MachOFile+Readable.swift` 的调用处。
+  - **删掉 `fileHandle`。** `MachOFile` 与 `DyldCache` 的 Foundation `FileHandle` 访问器同样按实例各开一个描述符、带 `try!`，库里已没有调用方、只剩测试在测，连同 `ConcurrentFileMappingTests` 的两条一起删。
+  - **协议名两张表一起问。** `ImageUniverse.resolveProtocol(byQualifiedTypeName:)` 取代 `resolveProtocolClassConstraint` 与 `isObjCProtocolDeclared`：每索引进一个镜像就同时查 Swift 描述符和 ObjC 记录，谁先认出就停；同一时刻两张表都有时 Swift 描述符优先，即原先的先后。两个调用方都改用它。
+- **落地**：MachOReading（新增 `SharedFileMapping`；`MachOFile.fileIO`、`DyldCache.fileIO` 改为按身份共享、抛错；删 `fileHandle`），SwiftLayout（`ImageUniverse.resolveProtocol`，测试用的只读计数 `indexedDependencyImageCount`；`ExistentialLayoutBridge`、`ClassBoundGenericParameterAnalysis` 改用新查找），测试 `SharedFileMappingTests`（三条：子进程里压到 256 个描述符后连读本机 cache 的 400 个 Swift 镜像；同一文件的各个读者拿到同一个映射；文件被删后读取抛错）与 `SwiftDeclaredObjCProtocolExistentialLayoutTests.objCProtocolExistentialsResolveWithoutIndexingDependencies`，`ConcurrentFileMappingTests` 随之调整；`AGENTS.md` 加一条规则；文档 [Modules/SwiftLayout.md](Modules/SwiftLayout.md)、[StaticLayoutEngine.md](StaticLayoutEngine.md)。RuntimeViewer 一侧（配对本机 cache 改用 `cachedHost`、离线服务读文件前抬高描述符上限）在它的 `fix/offline-descriptor-exhaustion`。
+- **验证**：都在 JHs-Mac-Studio-Ultra 上跑（Xcode 27.2，依赖走远端版本）。
+  - 复现回路：`( ulimit -Hn 256; ulimit -Sn 256; swift-section dump <DockHelper> --architecture arm64e --sections types --emit-field-offsets -o … )`。硬上限要一起压，只压软上限时 CoreFoundation 会把它抬上去，同一条命令在 100 下也能跑完。`next` 565fac44 的 CLI 两次都以 133（`SIGTRAP`）退出，报同一行；修复后退出码 0，输出与修复前不设上限的输出逐字节一致。
+  - 修复前新加的 4 条测试全红：两条 exit test 以 `SIGTRAP` 结束；共享映射那条 4 处断言都不是同一个对象；`@objc` 协议那条索引了全部 513 个依赖镜像、耗时 64 秒。修复后全过，原始退出码 0；`@objc` 协议那条 0.19 秒、零个依赖。
+  - 全量 `swift test --skip IntegrationTests` 跑了两次，原始退出码都是 1：
+    - 第一次用默认 Xcode 27.2 新编的 fixture：2,786 个测试、528 个套件（比第 121 节多出本次的 4 个测试、1 个套件，少了删掉的 2 个），红 `MachOSwiftSectionTests` 195 处（偏移类 baseline）与 `ThunkOnlyObjCMemberTests` 4 条。565fac44 用同一份 fixture 跑这两个套件，失败点与次数完全相同：baseline 记的是 Xcode 26.6 编出的偏移，新 worktree 的 fixture 要照 CI 的参数编（Xcode 26.6、`ARCHS=arm64`、ad-hoc 签名）。`ThunkOnlyObjCMemberTests` 是测试现场用默认 Xcode 27.2 编自己的 fixture，旧漂移。
+    - 第二次换成照 CI 编的 fixture：`MachOSwiftSectionTests` 853 个全过，仍只红 `ThunkOnlyObjCMemberTests` 那 4 条。另外 `MachOSymbolsTests` 的测试进程在满载下以 `SIGTRAP` 停了一次（它的 58 个测试因此没计入），停时在跑 `concurrentInterningSharesOneWinner` 与 `derivedFormQueryRecognizesThunkOnlyExportedMember`。单跑 3 次全过；8 路并发各跑 24 次，本分支 24 次全过，565fac44 崩 1 次、停在同样两条上——本次之前就有的偶发崩溃，没查，记在后续里。
+  - 输出对比：565fac44 与本分支的 debug CLI，`dump`（字段偏移、类型布局、枚举布局全开）跑本机 cache 的 Combine、WidgetKit、TipKit、SwiftData、AppIntents、Charts 与 Dock、DockHelper 两个文件，`interface`（偏移注释全开）跑 DockHelper 与 TipKit：10 组共约 10.8 万行逐字节一致。没跑完整的渲染 A/B（归档 cache、模拟器文件、进程内三条读取路径）：本次不改解码与打印，只改映射挂在哪、协议按什么顺序查。
+- **后续**：
+  - 依赖定位器仍按根重开两类文件：根是独立文件、配对的是非本机 cache 时，每个根的定位器把那份 cache 整个再开一次（`FullDyldCache(url:)`）；`.machOFile(path:)` 搜索路径上的每个文件也是每个根各开一次。描述符随根数增长。第 120 节有意不共享这两样（MachOKit 对象的懒状态不加锁），要改得先定设计。
+  - `MachOSymbolsTests` 满载下偶发的 `SIGTRAP`（见上），没查。
+- **对应版本**：未发版。发版说明要写：读 dyld cache 时每个 cache 文件只映射一次，读多少个镜像都不再多占描述符；文件打不开时读取报错，不再让宿主进程停下；字段类型是 Swift 声明的 `@objc` 协议时，算字段偏移不再先索引整个依赖闭包。
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节
