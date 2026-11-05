@@ -2,9 +2,9 @@
 // Regenerate via: Scripts/regen-baselines.sh
 // Source fixture: SymbolTestsCore.framework
 //
-// ClassFlags is a raw UInt32 enum with five named cases. The Suite
-// (ClassFlagsTests) round-trips the raw values to catch any
-// accidental case renumbering / renaming.
+// ClassFlags is a UInt32 option set with five flags, built by
+// @FlagSet. The Suite (ClassFlagsTests) round-trips the raw values to
+// catch any accidental flag renumbering / renaming.
 
 enum ClassFlagsBaseline {
     static let registeredTestMethodNames: Set<String> = []

@@ -23,16 +23,13 @@ package enum InvertibleProtocolSetBaselineGenerator {
         let bothEntry = emitEntryExpr(rawValue: 0x3)
 
         // Public members declared directly in InvertibleProtocolSet.swift.
-        // `init(rawValue:)` and `rawValue` come from the OptionSet conformance.
-        // The static `.copyable` / `.escapable` OptionSet values surface as
-        // declared static vars.
+        // `@FlagSet` generates `rawValue`, `init(rawValue:)` and the
+        // `.copyable` / `.escapable` statics, which the source-scanning
+        // coverage check cannot see, so only the two declared properties are
+        // registered; the Suite still exercises the generated members.
         let registered = [
-            "copyable",
-            "escapable",
             "hasCopyable",
             "hasEscapable",
-            "init(rawValue:)",
-            "rawValue",
         ]
 
         let header = """

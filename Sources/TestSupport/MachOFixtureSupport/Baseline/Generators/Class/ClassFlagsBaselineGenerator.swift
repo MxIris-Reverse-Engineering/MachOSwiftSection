@@ -4,18 +4,18 @@ import SwiftSyntaxBuilder
 
 /// Emits `__Baseline__/ClassFlagsBaseline.swift`.
 ///
-/// `ClassFlags` is a `UInt32` raw enum with five named cases. It does not
-/// declare additional public properties or methods. The Suite verifies the
-/// raw values stay in lockstep with the ABI; the baseline records the
-/// expected raw values per case so any rename/renumber will trip a test.
+/// `ClassFlags` is a `UInt32` option set built by `@FlagSet` from its nested
+/// `Flag` enumeration of five cases. It declares no other public properties
+/// or methods. The Suite verifies the raw values stay in lockstep with the
+/// ABI; the baseline records the expected raw value per flag so any
+/// rename/renumber will trip a test.
 package enum ClassFlagsBaselineGenerator {
     package static func generate(outputDirectory: URL) throws {
-        // Public surface declared in ClassFlags.swift: the enum itself and its
-        // raw cases. Cases are tracked here but show up as type members on
-        // the enum (PublicMemberScanner emits no per-case keys), so the
-        // registered set is intentionally empty for this Suite — the Coverage
-        // Invariant test just expects an empty set to mean "no public
-        // members other than the cases".
+        // Public surface declared in ClassFlags.swift: the structure and its
+        // nested `Flag` cases. `@FlagSet` generates `rawValue`, the
+        // initializers and one static per case, none of which the
+        // source-scanning PublicMemberScanner sees, and it emits no per-case
+        // keys — so the registered set is intentionally empty for this Suite.
         let registered: [String] = []
 
         let header = """
@@ -23,9 +23,9 @@ package enum ClassFlagsBaselineGenerator {
         // Regenerate via: Scripts/regen-baselines.sh
         // Source fixture: SymbolTestsCore.framework
         //
-        // ClassFlags is a raw UInt32 enum with five named cases. The Suite
-        // (ClassFlagsTests) round-trips the raw values to catch any
-        // accidental case renumbering / renaming.
+        // ClassFlags is a UInt32 option set with five flags, built by
+        // @FlagSet. The Suite (ClassFlagsTests) round-trips the raw values to
+        // catch any accidental flag renumbering / renaming.
         """
 
         let file: SourceFileSyntax = """
