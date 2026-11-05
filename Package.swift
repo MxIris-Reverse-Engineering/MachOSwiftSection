@@ -133,8 +133,11 @@ extension Package.Dependency {
             // 0.53.0 through 0.54.100 trapped there, and the ObjC ancestor
             // lookup reads the exports of every image it walks, the iOS 15.5
             // simulator's UIKit among them. MachOObjCSection and
-            // MachOKitExtensions require it as well.
-            from: "0.54.101",
+            // MachOKitExtensions require it as well. 0.55.101 gives a file not
+            // read out of a dyld cache no cache instead of opening its path as
+            // one on every `cache` access: offline reading of a standalone file
+            // spent two thirds of its time reopening the file.
+            from: "0.55.101",
         ),
     )
 
@@ -156,8 +159,10 @@ extension Package.Dependency {
             // once per process rather than once per dependency locator.
             // 1.3.0 adds `MachOReaderWrapper`, through which every reader-kind
             // question (`asMachOImage`, `asMachOFile`, `underlyingReader`)
-            // sees through a host's wrapper type.
-            from: "1.3.0",
+            // sees through a host's wrapper type. 1.3.1 grows the memos of
+            // `resolveRebase(fileOffset:)` / `resolveBind(fileOffset:)` in
+            // place, where each new entry used to copy the whole dictionary.
+            from: "1.3.1",
         ),
     )
 

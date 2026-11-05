@@ -18,6 +18,12 @@ import AssociatedObject
 /// offsets may need to be resolved to different cache files. This extension
 /// automatically handles this resolution.
 ///
+/// Only an image read out of a cache asks which cache file an offset lies
+/// in. Asked of a standalone file, MachOKit's `cache` used to open the file's
+/// path as a dyld cache on every call — the attempt fails and is not
+/// remembered — so every read mapped and unmapped the whole file again: two
+/// thirds of the time spent reading the iOS 18.5 simulator's SwiftUI.
+///
 /// ## Example
 ///
 /// ```swift
@@ -36,7 +42,7 @@ extension MachOFile: Readable {
         let originalOffset = offset
         var offset = originalOffset
         var fileIO = try fileIO
-        if let cacheAndFileOffset = cacheAndFileOffset(fromStart: offset.cast()) {
+        if isLoadedFromDyldCache, let cacheAndFileOffset = cacheAndFileOffset(fromStart: offset.cast()) {
             offset = cacheAndFileOffset.1.cast()
             fileIO = try cacheAndFileOffset.0.fileIO
         }
@@ -53,7 +59,7 @@ extension MachOFile: Readable {
         let originalOffset = offset
         var offset = originalOffset
         var fileIO = try fileIO
-        if let cacheAndFileOffset = cacheAndFileOffset(fromStart: offset.cast()) {
+        if isLoadedFromDyldCache, let cacheAndFileOffset = cacheAndFileOffset(fromStart: offset.cast()) {
             offset = cacheAndFileOffset.1.cast()
             fileIO = try cacheAndFileOffset.0.fileIO
         }
@@ -68,7 +74,7 @@ extension MachOFile: Readable {
         let originalOffset = offset
         var offset = originalOffset
         var fileIO = try fileIO
-        if let cacheAndFileOffset = cacheAndFileOffset(fromStart: offset.cast()) {
+        if isLoadedFromDyldCache, let cacheAndFileOffset = cacheAndFileOffset(fromStart: offset.cast()) {
             offset = cacheAndFileOffset.1.cast()
             fileIO = try cacheAndFileOffset.0.fileIO
         }
@@ -91,7 +97,7 @@ extension MachOFile: Readable {
         let originalOffset = offset
         var offset = originalOffset
         var fileIO = try fileIO
-        if let cacheAndFileOffset = cacheAndFileOffset(fromStart: offset.cast()) {
+        if isLoadedFromDyldCache, let cacheAndFileOffset = cacheAndFileOffset(fromStart: offset.cast()) {
             offset = cacheAndFileOffset.1.cast()
             fileIO = try cacheAndFileOffset.0.fileIO
         }
@@ -108,7 +114,7 @@ extension MachOFile: Readable {
         let originalOffset = offset
         var offset = originalOffset
         var fileIO = try fileIO
-        if let cacheAndFileOffset = cacheAndFileOffset(fromStart: offset.cast()) {
+        if isLoadedFromDyldCache, let cacheAndFileOffset = cacheAndFileOffset(fromStart: offset.cast()) {
             offset = cacheAndFileOffset.1.cast()
             fileIO = try cacheAndFileOffset.0.fileIO
         }

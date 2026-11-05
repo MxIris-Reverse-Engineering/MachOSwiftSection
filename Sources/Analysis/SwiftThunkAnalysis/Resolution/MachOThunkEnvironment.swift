@@ -6,6 +6,7 @@ import MachOSwiftSection
 import Demangling
 import ARM64InstructionDecoding
 @_spi(Internals) import SwiftInspection
+@_spi(Internals) import MachOCaches
 
 @Loggable(.fileprivate, subsystem: "com.machoswiftsection.swift-thunk-analysis", category: "MachOThunkEnvironment")
 fileprivate protocol MachOThunkEnvironmentLogging {}
@@ -75,7 +76,7 @@ package final class MachOThunkEnvironment: ThunkEvaluationEnvironment, MachOThun
     package let addressSpace: ThunkAddressSpace
     private let accessorIndex: MetadataAccessorIndex
     private let searchPathsOverride: [DependencySearchPath]?
-    private lazy var cacheImages: CacheImageResolver? = CacheImageResolver(cacheOf: machO)
+    private lazy var cacheImages: CacheImageResolver? = CacheImageResolver.resolver(cacheOf: machO)
     private lazy var dependencyImages: DependencyImageResolver = DependencyImageResolver.resolver(for: machO)
     private var calleesByAddress: [UInt64: ThunkCallee] = [:]
     private var calleesBySlotAddress: [UInt64: ThunkCallee] = [:]
@@ -125,9 +126,23 @@ package final class MachOThunkEnvironment: ThunkEvaluationEnvironment, MachOThun
     /// carries no C symbol, and the compiler's per-image copy of
     /// `__swift_instantiateConcreteTypeFromMangledName` is exactly that (a
     /// local symbol, present while the image is unstripped).
-    private lazy var ownRuntimeSymbolNamesByAddress: [UInt64: String] = {
+    ///
+    /// Read once per image and shared by every environment of it:
+    /// `AccessorThunkReader.read` makes a new environment for each thunk, and
+    /// reading walks the whole symbol table. Read per environment, SwiftUI's
+    /// table was walked again for every opaque-type thunk its conformances
+    /// name — about a sixth of reading its interface offline.
+    private lazy var ownRuntimeSymbolNamesByAddress: [UInt64: String] =
+        Self.ownRuntimeSymbolNamesCache.storage(in: machO) { machO in
+            Self.ownRuntimeSymbolNamesByAddress(in: machO)
+        } ?? [:]
+
+    private static let ownRuntimeSymbolNamesCache = SharedCache<[UInt64: String]>(evictionGroup: .thunkResolution)
+
+    private static func ownRuntimeSymbolNamesByAddress(in machO: MachOFile) -> [UInt64: String] {
+        let addressSpace = ThunkAddressSpace(of: machO)
         var namesByAddress: [UInt64: String] = [:]
-        let wanted = Set(Self.namedRuntimeSymbols)
+        let wanted = Set(namedRuntimeSymbols)
         // A symbol table entry's value is already the address the thunk's
         // instructions name. Debug-map entries share the names and are skipped.
         if let symbols = machO.symbols64 {
@@ -140,7 +155,7 @@ package final class MachOThunkEnvironment: ThunkEvaluationEnvironment, MachOThun
             }
         }
         return namesByAddress
-    }()
+    }
 
     // MARK: - ThunkEvaluationEnvironment
 
@@ -443,11 +458,27 @@ package final class MachOThunkEnvironment: ThunkEvaluationEnvironment, MachOThun
 /// order). Images are opened on first use and kept, because one thunk
 /// typically calls into the same two images (`SwiftUICore`, `libswiftCore`)
 /// many times.
-package final class CacheImageResolver {
+///
+/// One resolver serves every environment of an image (``resolver(cacheOf:)``).
+/// `AccessorThunkReader.read` makes a new environment for each thunk, and a
+/// resolver per environment read the paths of all the cache's images and
+/// opened the target image again for every thunk.
+package final class CacheImageResolver: @unchecked Sendable {
     private let cache: DyldCache
     private let imagesByAddress: [(address: UInt64, path: String)]
+    @Mutex
     private var openedImagesByPath: [String: MachOFile?] = [:]
+    @Mutex
     private var entryPointAddressesByImagePath: [String: [UInt64: String]] = [:]
+
+    /// The resolver for the cache `machO` was read from, built once per
+    /// image; `nil` for a file not read out of a cache.
+    package static func resolver(cacheOf machO: MachOFile) -> CacheImageResolver? {
+        guard machO.isLoadedFromDyldCache else { return nil }
+        return resolvers.storage(in: machO) { machO in CacheImageResolver(cacheOf: machO) }
+    }
+
+    private static let resolvers = SharedCache<CacheImageResolver>(evictionGroup: .thunkResolution)
 
     package init?(cacheOf machO: MachOFile) {
         guard let cache = machO.cache else { return nil }
@@ -474,9 +505,14 @@ package final class CacheImageResolver {
         guard low > 0 else { return nil }
         let path = imagesByAddress[low - 1].path
         if let opened = openedImagesByPath[path] { return opened }
+        // Opened outside the lock; the first one stored is the one every
+        // caller gets, so they share its caches.
         let opened = cache.machOFile(by: .path(path))
-        openedImagesByPath[path] = opened
-        return opened
+        return _openedImagesByPath.withLock { openedImagesByPath in
+            if let alreadyOpened = openedImagesByPath[path] { return alreadyOpened }
+            openedImagesByPath[path] = opened
+            return opened
+        }
     }
 
     /// Which of `names` — runtime symbols, by their exported spelling — the
@@ -491,18 +527,25 @@ package final class CacheImageResolver {
     /// capability flag's unnamed pointer still reads as non-zero.
     package func exportedName(atAddress address: UInt64, in image: MachOFile, among names: some Sequence<String>) -> String? {
         let path = image.imagePath
-        if entryPointAddressesByImagePath[path] == nil {
-            var addressesByName: [UInt64: String] = [:]
-            let addressSpace = ThunkAddressSpace(of: image)
-            for name in names {
-                guard let exported = image.exportTrie?.search(by: name),
-                      let exportedSymbolOffset = exported.offset,
-                      let exportedAddress = addressSpace.address(forExportedSymbolOffset: exportedSymbolOffset)
-                else { continue }
-                addressesByName[exportedAddress] = name
-            }
-            entryPointAddressesByImagePath[path] = addressesByName
+        if let addressesByName = entryPointAddressesByImagePath[path] {
+            return addressesByName[address]
         }
-        return entryPointAddressesByImagePath[path]?[address]
+        // Searched outside the lock: the answer is a function of the image,
+        // so whichever caller stores it first stores the same table.
+        var addressesByName: [UInt64: String] = [:]
+        let addressSpace = ThunkAddressSpace(of: image)
+        for name in names {
+            guard let exported = image.exportTrie?.search(by: name),
+                  let exportedSymbolOffset = exported.offset,
+                  let exportedAddress = addressSpace.address(forExportedSymbolOffset: exportedSymbolOffset)
+            else { continue }
+            addressesByName[exportedAddress] = name
+        }
+        _entryPointAddressesByImagePath.withLock { entryPointAddressesByImagePath in
+            if entryPointAddressesByImagePath[path] == nil {
+                entryPointAddressesByImagePath[path] = addressesByName
+            }
+        }
+        return addressesByName[address]
     }
 }

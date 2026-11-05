@@ -347,6 +347,8 @@ Two deliberate decisions worth keeping in mind:
 
 `InProcessContext` 的 tag 掩码在进程里只算一次；`UnsafeRawPointer.stripPointerTags()` 每次调用都要找当前镜像、遍历一遍 load command。`advanceAddress` 也会剥 tag，与旧指针版的 `resolveDirectOffset(from:)` 一致。`MachOContext.addressFromVirtualAddress` 不再在 `resolveOffset(at:)` 之前多剥一次，因为 `MachOFile.fileOffset(of:)` 与 `MachOImage.resolveOffset(at:)` 自己会剥；它与 `addressFromOffset`、`offsetFromAddress` 一起声明成不抛错。
 
+`MachOFile` 的每次读取（`MachOFile+Readable.swift` 的五个读函数）都要先问这个偏移落在哪个 dyld cache 文件里，只有从 cache 里读出的镜像才问（`isLoadedFromDyldCache`）。独立文件以前也问：MachOKit 的 `cache` 对没交过 cache 的文件会把文件路径当成 dyld cache 打开，失败了不记，下次再试，于是每读一个元素就把整个文件映射一遍再解除。读 iOS 18.5 模拟器的 SwiftUI 时三分之二的 CPU 花在这上面。MachOKit fork 的 `cache` / `fullCache` 也同时改成对独立文件直接答 `nil`，库里其余直接问 `cache` 的地方一并受益。回归测试 `StandaloneFileReadingTests`：打开 fixture 的副本后把它的路径换成 dyld cache 的头部，读取仍须读到原文件的内容。
+
 ### 缓存范围：上层只读接口也收成一份
 
 上层有一批接口只读数据，却因为要按镜像缓存而离不开 `machO`：`SymbolicDemangler` 的 `demangleType` / `demangleContext`、SwiftDeclaration 的 `typeName` / `protocolName`、`GenericContext+Dump` 等。`ReadingContext` 原先说不出自己读的是哪个镜像，所以 `SymbolicDemangler` 的 context 入口干脆不走缓存。现在 `ReadingContext` 多了一条带默认值的 requirement `cacheScope`：`MachOContext` 答 `.image(identifier:)`，`InProcessContext` 答 `.process`，其余一律 `.uncached`。反混淆 memo 与节点驻留池按它选层，这批接口因此也收成了只收 context 的一份。

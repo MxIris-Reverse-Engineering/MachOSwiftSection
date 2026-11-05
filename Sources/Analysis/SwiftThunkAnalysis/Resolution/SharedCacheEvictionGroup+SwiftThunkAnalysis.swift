@@ -2,7 +2,9 @@
 
 /// The eviction group of this module's per-image caches.
 extension SharedCacheEvictionGroup {
-    /// `MetadataAccessorIndex` and `DependencyImageResolver`: the thunk
-    /// reader's per-root accessor index and dependency image handles.
+    /// `MetadataAccessorIndex`, `DependencyImageResolver`, `CacheImageResolver`
+    /// and the image's own runtime symbols `MachOThunkEnvironment` names call
+    /// targets by: the thunk reader's per-root accessor index, dependency
+    /// image handles, cache image table and symbol table extract.
     package static let thunkResolution = SharedCacheEvictionGroup("thunkResolution")
 }
