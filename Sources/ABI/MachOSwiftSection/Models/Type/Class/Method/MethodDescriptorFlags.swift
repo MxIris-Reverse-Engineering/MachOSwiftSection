@@ -1,5 +1,7 @@
 import Foundation
+import SwiftStdlibToolbox
 
+/// Mirrors `swift::MethodDescriptorFlags` (`swift/ABI/MetadataValues.h`).
 public struct MethodDescriptorFlags: RawRepresentable, Hashable, Sendable {
     public typealias RawValue = UInt32
 
@@ -9,39 +11,35 @@ public struct MethodDescriptorFlags: RawRepresentable, Hashable, Sendable {
         self.rawValue = rawValue
     }
 
-    private static let kindMask: RawValue = 0x0F
-    private static let isInstanceMask: RawValue = 0x10
-    private static let isDynamicMask: RawValue = 0x20
-    private static let isAsyncMask: RawValue = 0x40
-    private static let extraDiscriminatorShift: RawValue = 16
-    private static let extraDiscriminatorMask: RawValue = 0xFFFF_0000
+    /// The kind of method, or `nil` for a kind this reader does not know.
+    /// Four bits hold it and six values are defined so far.
+    @BitField(bits: 0..<4)
+    public var kind: MethodDescriptorKind?
 
-    public var kind: MethodDescriptorKind {
-        .init(rawValue: .init(rawValue & Self.kindMask))!
-    }
+    @BitField(bits: 5)
+    public var isDynamic: Bool
 
-    public var isDynamic: Bool {
-        rawValue & Self.isDynamicMask != 0
-    }
+    @BitField(bits: 4)
+    public var isInstance: Bool
 
-    public var isInstance: Bool {
-        rawValue & Self.isInstanceMask != 0
-    }
-
-    public var _hasAsyncBitSet: Bool {
-        rawValue & Self.isAsyncMask != 0
-    }
+    /// The raw async bit, which means a callee-allocated coroutine on a
+    /// coroutine and `async` on anything else.
+    @BitField(bits: 6)
+    public var _hasAsyncBitSet: Bool
 
     public var isAsync: Bool {
         !isCoroutine && _hasAsyncBitSet
     }
 
+    /// Whether the method is a coroutine accessor. A kind this reader does
+    /// not know is not taken for one.
     public var isCoroutine: Bool {
         switch kind {
         case .method,
              .`init`,
              .getter,
-             .setter:
+             .setter,
+             nil:
             return false
         case .modifyCoroutine,
              .readCoroutine:
@@ -57,7 +55,6 @@ public struct MethodDescriptorFlags: RawRepresentable, Hashable, Sendable {
         isAsync || isCalleeAllocatedCoroutine
     }
 
-    public var extraDiscriminator: UInt16 {
-        .init(rawValue >> Self.extraDiscriminatorShift)
-    }
+    @BitField(bits: 16..<32)
+    public var extraDiscriminator: UInt16
 }

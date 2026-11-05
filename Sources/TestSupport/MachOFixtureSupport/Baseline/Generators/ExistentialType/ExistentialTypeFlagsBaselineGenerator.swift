@@ -9,9 +9,8 @@ import SwiftSyntaxBuilder
 /// stdlib existential metadata flags. Two metadata sources:
 ///   - `Any.self` flags (`0x80000000`) — `numberOfWitnessTables`,
 ///     `hasSuperclassConstraint`, `specialProtocol`, `rawValue`.
-///   - `AnyObject.self` flags (`0x0`) — `classConstraint`. Required
-///     because `Any.self`'s flags trap the source's
-///     `UInt8(rawValue & 0x80000000)` accessor.
+///   - `AnyObject.self` flags (`0x0`) — `classConstraint` (`.class`). That
+///     `Any.self` reads `.any` is `FlagWordDecodingTests`' to pin.
 package enum ExistentialTypeFlagsBaselineGenerator {
     package static func generate(outputDirectory: URL) throws {
         let context = InProcessContext()
@@ -24,7 +23,7 @@ package enum ExistentialTypeFlagsBaselineGenerator {
         let anyRawValue = anyFlags.rawValue
         let anyNumberOfWitnessTables = anyFlags.numberOfWitnessTables
         let anyHasSuperclassConstraint = anyFlags.hasSuperclassConstraint
-        let anySpecialProtocolRaw = anyFlags.specialProtocol.rawValue
+        let anySpecialProtocolRaw = anyFlags.specialProtocol!.rawValue
 
         let anyObjectMetadata = try ExistentialTypeMetadata.resolve(
             at: InProcessMetadataPicker.stdlibAnyObjectExistential,

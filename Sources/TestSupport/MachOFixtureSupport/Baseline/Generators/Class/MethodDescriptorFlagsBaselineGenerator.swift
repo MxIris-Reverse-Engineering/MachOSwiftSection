@@ -74,7 +74,7 @@ package enum MethodDescriptorFlagsBaselineGenerator {
 
     private static func emitEntryExpr(for flags: MethodDescriptorFlags) -> String {
         let rawValue = flags.rawValue
-        let kindRawValue = flags.kind.rawValue
+        let kindRawValue = flags.kind!.rawValue
         let isDynamic = flags.isDynamic
         let isInstance = flags.isInstance
         let hasAsyncBitSet = flags._hasAsyncBitSet

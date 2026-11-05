@@ -71,8 +71,8 @@ ABI 层照 Swift 运行时的 C++ 头文件（`swift/ABI/MetadataValues.h`）手
 
 每一步各自能构建、测试通过，单独提交。
 
-- [ ] 1. 依赖下限抬到包含两个宏的 FrameworkToolbox 版本；三条复现测试，确认修复前失败。
-- [ ] 2. 迁移 17 个类型，三个 bug 随之修掉；改成可选的字段的调用方跟着改；覆盖率清单与 baseline。
+- [x] 1. 依赖下限抬到包含两个宏的 FrameworkToolbox 版本；三条复现测试，确认修复前失败。
+- [x] 2. 迁移 17 个类型，三个 bug 随之修掉；改成可选的字段的调用方跟着改；覆盖率清单与 baseline。
 - [ ] 3. `ClassFlags`、`InvertibleProtocolSet` 改用 `@FlagSet`；覆盖率清单。
 - [ ] 4. 全量测试与渲染 A/B；文档；给 MachOKitUI 提一份对应的改动。
 
@@ -87,3 +87,9 @@ ABI 层照 Swift 运行时的 C++ 头文件（`swift/ABI/MetadataValues.h`）手
 | 2026-11-05 | 会随编译器增长的 kind 改成可选，三个 `classConstraint` 与 `ContextDescriptorFlags.kind` 写 `default:` | 用户选定。认不得的值不再让读取它的程序崩溃；代价是本仓库约 30 处、MachOKitUI 约 5 处调用跟着改。另一条路是私有的可选属性外包一层手写的强制解包，调用方不用改，但认不得的值照旧崩，没选 |
 | 2026-11-05 | 前提已就位：FrameworkToolbox 发出 0.17.0 | 用户批准发版。0.17.0 同时包含 `@FlagSet`（0014）与 `@BitField`（0015） |
 | 2026-11-05 | 用户批准，开始实现 | — |
+| 2026-11-05 | 实测三条复现测试在修复前都让进程停下 | 在 Ultra 上用 Xcode 26.6 逐条跑：`ExistentialTypeFlags` 与 `FunctionTypeFlags` 报 `Not enough bits to represent the passed value`，`ProtocolDescriptorFlags` 报强制解包遇到 `nil`；迁移后三条都通过 |
+| 2026-11-05 | `GenericRequirementDescriptor.content` 与 `ProtocolConformanceDescriptor.typeReference` 遇到认不得的 kind 照旧停下，改成带说明的 `preconditionFailure` | 两者的返回类型（`GenericRequirementContent`、`TypeReference`）没有能装下未知 kind 的 case，以前是 `kind` 的强制解包在这里停，现在 `kind` 本身能安全读取，停在真正无法往下的地方。要让它们也不停，得给两个枚举加分支，是另一次改动 |
+| 2026-11-05 | `ExistentialTypeMetadata.representation` 把 `case .none` 写成 `case .some(.none)` | `SpecialProtocolKind` 自己有 `none` case，字段改成可选后，裸写的 `.none` 会被编译器当成 `nil`，只给警告、语义悄悄变了；全仓库只有这一处 |
+| 2026-11-05 | dump 里认不得的方法 kind 印成 `[unknown kind, flags 0x…]`；协议要求的 kind token 认不得时是 `unknown` | 不猜，照实印出原始的 flag word；kind token 以前遇到这种情况会崩，所以没有已持久化的 key 用到它 |
+| 2026-11-05 | baseline 生成器对改成可选的字段强制解包，baseline 文件不变 | fixture 里只有本库认得的 kind；生成器是维护者手动跑的工具，遇到认不得的值当场停下比写进一个哨兵值好查 |
+| 2026-11-05 | 改了公开属性的类型之后先清掉构建产物再编 | 增量构建没有重编源码没变、却用到 `MethodDescriptorFlags.kind` 的 `VTableSlotAttributionTests.swift`，链接时还在找旧的非可选 getter；与 `CLAUDE.md` 里「改了 MachOSymbols 的结构布局要 clean」同一类 |

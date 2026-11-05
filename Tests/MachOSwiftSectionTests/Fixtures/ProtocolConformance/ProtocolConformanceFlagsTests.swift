@@ -31,7 +31,7 @@ final class ProtocolConformanceFlagsTests: MachOSwiftSectionFixtureTests, Fixtur
 
     @Test func typeReferenceKind() async throws {
         let flags = ProtocolConformanceFlags(rawValue: ProtocolConformanceFlagsBaseline.structTestProtocolTest.rawValue)
-        #expect(flags.typeReferenceKind.rawValue == ProtocolConformanceFlagsBaseline.structTestProtocolTest.typeReferenceKindRawValue)
+        #expect(flags.typeReferenceKind?.rawValue == ProtocolConformanceFlagsBaseline.structTestProtocolTest.typeReferenceKindRawValue)
     }
 
     @Test func isRetroactive() async throws {

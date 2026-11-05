@@ -28,6 +28,9 @@ extension StrippedSymbolicRequirement {
         case .modifyCoroutine: return "modifyCoroutine"
         case .associatedTypeAccessFunction: return "associatedTypeAccessFunction"
         case .associatedConformanceAccessFunction: return "associatedConformanceAccessFunction"
+        // A kind this reader does not know. New: reading one used to stop the
+        // program, so no persisted key spells it yet.
+        case nil: return "unknown"
         }
     }
 
@@ -51,7 +54,7 @@ extension StrippedSymbolicRequirement {
     /// `strippedSymbolicRequirement` when `markingStructure`.
     package func strippedSymbolicInfo(markingStructure: Bool) -> SemanticString {
         StructuredComment.strippedSymbolicRequirement(
-            kindDescription: requirement.layout.flags.kind.description,
+            kindDescription: requirement.layout.flags.kind?.description ?? "Unknown",
             isAsync: requirement.layout.flags.isAsync,
             isInstance: requirement.layout.flags.isInstance
         ).printed(markingStructure: markingStructure, as: .strippedSymbolicRequirement)

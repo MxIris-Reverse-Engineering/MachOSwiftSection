@@ -672,7 +672,11 @@ package struct ClassDumper<MachO: MachOFieldLayoutRenderable>: TypedDumper {
     @SemanticStringBuilder
     private func dumpMethodKind(for descriptor: MethodDescriptor?) -> SemanticString? {
         if let descriptor {
-            InlineComment("[\(descriptor.flags.kind)]")
+            if let kind = descriptor.flags.kind {
+                InlineComment("[\(kind)]")
+            } else {
+                InlineComment("[unknown kind, flags 0x\(String(descriptor.flags.rawValue, radix: 16))]")
+            }
 
             Space()
         }
@@ -747,7 +751,7 @@ package struct ClassDumper<MachO: MachOFieldLayoutRenderable>: TypedDumper {
     private func vtableAccessorFieldNames(interfaceNameString: String, contextNode: Node?) -> Set<String> {
         var names: Set<String> = []
         let accessorKinds: Set<MethodDescriptorKind> = [.getter, .setter, .modifyCoroutine, .readCoroutine]
-        for descriptor in dumped.methodDescriptors where accessorKinds.contains(descriptor.flags.kind) {
+        for descriptor in dumped.methodDescriptors where descriptor.flags.kind.map(accessorKinds.contains) ?? false {
             guard let symbols = descriptor.implementationSymbols(in: machO) else { continue }
             for symbol in symbols {
                 guard let node = SymbolicDemangler.demangleSymbolReference(for: symbol, in: machO),

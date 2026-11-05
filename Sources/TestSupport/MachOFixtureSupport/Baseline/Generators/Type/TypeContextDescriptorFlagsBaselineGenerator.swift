@@ -110,7 +110,7 @@ package enum TypeContextDescriptorFlagsBaselineGenerator {
         let classHasDefaultOverrideTable = flags.classHasDefaultOverrideTable
         let classIsActor = flags.classIsActor
         let classIsDefaultActor = flags.classIsDefaultActor
-        let classResilientSuperclassReferenceKindRawValue = flags.classResilientSuperclassReferenceKind.rawValue
+        let classResilientSuperclassReferenceKindRawValue = flags.classResilientSuperclassReferenceKind!.rawValue
         let classAreImmdiateMembersNegative = flags.classAreImmdiateMembersNegative
         let classHasResilientSuperclass = flags.classHasResilientSuperclass
         let classHasOverrideTable = flags.classHasOverrideTable

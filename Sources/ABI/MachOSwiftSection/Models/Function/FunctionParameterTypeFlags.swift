@@ -1,3 +1,5 @@
+import SwiftStdlibToolbox
+
 /// Per-parameter flags in a function type metadata record.
 ///
 /// One word per parameter, present only when
@@ -14,41 +16,35 @@ public struct FunctionParameterTypeFlags: RawRepresentable, Hashable, Sendable {
         self.rawValue = rawValue
     }
 
-    private enum Constants {
-        static let ownershipMask: UInt32 = 0x7F
-        static let variadicMask: UInt32 = 0x80
-        static let autoClosureMask: UInt32 = 0x100
-        static let noDerivativeMask: UInt32 = 0x200
-        static let isolatedMask: UInt32 = 0x400
-        static let sendingMask: UInt32 = 0x800
-    }
-
     /// The raw ownership field. Wider than the cases the ABI defines, so a
     /// value outside them is representable and reported here.
-    public var ownershipRawValue: UInt8 {
-        UInt8(truncatingIfNeeded: rawValue & Constants.ownershipMask)
-    }
+    @BitField(bits: 0..<7)
+    public var ownershipRawValue: UInt8
 
     /// How the parameter is passed, or `nil` when the field holds a value
     /// this library does not recognize.
-    public var ownership: FunctionParameterOwnership? {
-        FunctionParameterOwnership(rawValue: ownershipRawValue)
-    }
+    @BitField(bits: 0..<7)
+    public var ownership: FunctionParameterOwnership?
 
     /// A `T...` parameter.
-    public var isVariadic: Bool { rawValue & Constants.variadicMask != 0 }
+    @BitField(bits: 7)
+    public var isVariadic: Bool
 
     /// An `@autoclosure` parameter.
-    public var isAutoClosure: Bool { rawValue & Constants.autoClosureMask != 0 }
+    @BitField(bits: 8)
+    public var isAutoClosure: Bool
 
     /// A `@noDerivative` parameter of a differentiable function.
-    public var isNoDerivative: Bool { rawValue & Constants.noDerivativeMask != 0 }
+    @BitField(bits: 9)
+    public var isNoDerivative: Bool
 
     /// An `isolated` parameter — the one that carries the actor a function is
     /// isolated to.
-    public var isIsolated: Bool { rawValue & Constants.isolatedMask != 0 }
+    @BitField(bits: 10)
+    public var isIsolated: Bool
 
     /// A `sending` parameter, whose value is transferred across an isolation
     /// boundary.
-    public var isSending: Bool { rawValue & Constants.sendingMask != 0 }
+    @BitField(bits: 11)
+    public var isSending: Bool
 }

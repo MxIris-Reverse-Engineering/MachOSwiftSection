@@ -79,7 +79,7 @@ package enum ProtocolConformanceDescriptorBaselineGenerator {
     ) throws -> String {
         let offset = descriptor.offset
         let layoutFlagsRawValue = descriptor.layout.flags.rawValue
-        let typeReferenceKindRawValue = descriptor.layout.flags.typeReferenceKind.rawValue
+        let typeReferenceKindRawValue = descriptor.layout.flags.typeReferenceKind!.rawValue
         let hasProtocolDescriptor = (try descriptor.protocolDescriptor(in: machO.context)) != nil
         let hasWitnessTablePattern = (try descriptor.witnessTablePattern(in: machO.context)) != nil
         let resolvedTypeReference = try descriptor.resolvedTypeReference(in: machO.context)

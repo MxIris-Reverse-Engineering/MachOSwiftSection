@@ -1,6 +1,8 @@
 import Foundation
 import MachOBase
+import SwiftStdlibToolbox
 
+/// Mirrors `swift::ExistentialTypeFlags` (`swift/ABI/MetadataValues.h`).
 public struct ExistentialTypeFlags: OptionSet, Sendable {
     public typealias RawValue = UInt32
     public let rawValue: RawValue
@@ -8,25 +10,21 @@ public struct ExistentialTypeFlags: OptionSet, Sendable {
         self.rawValue = rawValue
     }
 
-    private static let numWitnessTablesMask: RawValue = 0x00FF_FFFF
-    private static let classConstraintMask: RawValue = 0x8000_0000
-    private static let hasSuperclassMask: RawValue = 0x4000_0000
-    private static let specialProtocolMask: RawValue = 0x3F00_0000
-    private static let specialProtocolShift: RawValue = 24
+    @BitField(bits: 0..<24)
+    public var numberOfWitnessTables: RawValue
 
-    public var numberOfWitnessTables: RawValue {
-        rawValue & Self.numWitnessTablesMask
-    }
+    /// Bit 31 is SET when the existential is not class-constrained — `Any`,
+    /// or `any P` for a protocol that is not class-bound — so `.any` is the
+    /// common case. A single bit, both of whose values
+    /// `ProtocolClassConstraint` names, so the default is never read.
+    @BitField(bits: 31, default: ProtocolClassConstraint.any)
+    public var classConstraint: ProtocolClassConstraint
 
-    public var classConstraint: ProtocolClassConstraint {
-        .init(rawValue: .init(rawValue & Self.classConstraintMask))!
-    }
+    @BitField(bits: 30)
+    public var hasSuperclassConstraint: Bool
 
-    public var hasSuperclassConstraint: Bool {
-        rawValue & Self.hasSuperclassMask != 0
-    }
-
-    public var specialProtocol: SpecialProtocolKind {
-        .init(rawValue: .init((rawValue & Self.specialProtocolMask) >> Self.specialProtocolShift))!
-    }
+    /// The special protocol the existential stands for, or `nil` for a value
+    /// this reader does not know.
+    @BitField(bits: 24..<30)
+    public var specialProtocol: SpecialProtocolKind?
 }

@@ -44,7 +44,7 @@ final class ProtocolContextDescriptorFlagsTests: MachOSwiftSectionFixtureTests, 
         #expect(constructed.rawValue == ProtocolContextDescriptorFlagsBaseline.protocolTest.rawValue)
         #expect(constructed.isResilient == ProtocolContextDescriptorFlagsBaseline.protocolTest.isResilient)
         #expect(constructed.classConstraint.rawValue == ProtocolContextDescriptorFlagsBaseline.protocolTest.classConstraintRawValue)
-        #expect(constructed.specialProtocolKind.rawValue == ProtocolContextDescriptorFlagsBaseline.protocolTest.specialProtocolKindRawValue)
+        #expect(constructed.specialProtocolKind?.rawValue == ProtocolContextDescriptorFlagsBaseline.protocolTest.specialProtocolKindRawValue)
     }
 
     @Test func isResilient() async throws {
@@ -68,8 +68,8 @@ final class ProtocolContextDescriptorFlagsTests: MachOSwiftSectionFixtureTests, 
     @Test func specialProtocolKind() async throws {
         let flags = try loadProtocolTestFlags()
         let result = try acrossAllReaders(
-            file: { flags.file.specialProtocolKind.rawValue },
-            image: { flags.image.specialProtocolKind.rawValue }
+            file: { flags.file.specialProtocolKind?.rawValue },
+            image: { flags.image.specialProtocolKind?.rawValue }
         )
         #expect(result == ProtocolContextDescriptorFlagsBaseline.protocolTest.specialProtocolKindRawValue)
     }

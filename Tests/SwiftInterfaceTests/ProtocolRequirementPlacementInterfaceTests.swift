@@ -50,7 +50,7 @@ struct ProtocolRequirementPlacementInterfaceTests {
             var requirements: [String] = []
             for requirement in protocolModel.requirementInSignatures {
                 let requirementText = try await requirement.descriptor.dump(using: .default, in: machOFile.context).string
-                requirements.append("\(requirement.descriptor.flags.kind) \(requirementText)")
+                requirements.append("\(requirement.descriptor.flags.kind.map { "\($0)" } ?? "unknown") \(requirementText)")
             }
             requirementSignatures[protocolModel.name] = requirements
         }
