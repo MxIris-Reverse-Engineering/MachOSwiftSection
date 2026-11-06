@@ -261,7 +261,8 @@ final class PrintFailureEventTests: MachOFileTests, @unchecked Sendable {
             .deletingLastPathComponent()  // Tests
             .deletingLastPathComponent()  // package root
             .appendingPathComponent("Sources")
-        let hostModules: Set<String> = ["swift-section", "MachOTestingSupport"]
+        // Hosts, not library: each owns its process's streams.
+        let hostModules: Set<String> = ["swift-section", "reader-benchmark", "MachOTestingSupport"]
 
         let enumerator = try #require(FileManager.default.enumerator(at: sourcesDirectory, includingPropertiesForKeys: nil))
         var files: [URL] = []

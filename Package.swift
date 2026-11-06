@@ -897,6 +897,24 @@ extension Target {
         path: "Sources/Executables/swift-section",
     )
 
+    /// Maintainer tool, not a product: times indexing and printing one image's
+    /// interface through `MachOImage` or `MachOFile` in an ordinary process
+    /// (evolution proposal `machofile-performance`).
+    static let reader_benchmark = Target.executableTarget(
+        name: "reader-benchmark",
+        dependencies: [
+            .target(.SwiftSectionKit),
+            .target(.MachOFoundation),
+            .target(.SwiftIndexing),
+            .target(.SwiftPrinting),
+            .target(.SwiftInterface),
+            .target(.SwiftDeclarationRendering),
+            .product(.MachOKit),
+            .product(name: "ArgumentParser", package: "swift-argument-parser"),
+        ],
+        path: "Sources/Executables/reader-benchmark",
+    )
+
     static let baseline_generator = Target.executableTarget(
         name: "baseline-generator",
         dependencies: [
@@ -1418,6 +1436,7 @@ let package = Package(
 
         // Executable
         .swift_section,
+        .reader_benchmark,
         .baseline_generator,
 
         // Plugins

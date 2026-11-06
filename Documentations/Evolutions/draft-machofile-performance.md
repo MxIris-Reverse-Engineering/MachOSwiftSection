@@ -1,6 +1,6 @@
 # Draft - 离线读取追平进程内：去掉 MachOFile 独有的开销，再压两边共用的部分
 
-- **状态**: Accepted
+- **状态**: In Progress
 - **创建日期**: 2026-11-06
 - **最后更新**: 2026-11-06
 - **关联提案**: [0086-shared-dependency-openings](0086-shared-dependency-openings.md)（依赖定位器按路径共享 cache 与 Mach-O 文件的打开，本提案的依赖镜像索引建在它之上）
@@ -33,7 +33,17 @@ release 构建，Mac Studio Ultra（macOS 27.2），`sample` 按阶段采样，�
 
 ### 测量：开发用基准程序
 
-新增可执行 target `reader-benchmark`（`Sources/Executables/reader-benchmark`，不作为 product 对外）。它在普通进程里按同一份配置分别经 `MachOImage`（`dlopen` 后取镜像）与 `MachOFile`（本机 cache 或给定文件加依赖搜索路径）跑 `prepare()` 与 `printRoot()`，分段报告 CPU 时间、墙钟与 instructions retired（`proc_pid_rusage`）。每一步改动前后各量一次。
+新增可执行 target `reader-benchmark`（`Sources/Executables/reader-benchmark`，不作为 product 对外）。它在普通进程里按同一份配置分别经 `MachOImage`（`dlopen` 后取镜像）与 `MachOFile`（本机 cache 或给定文件加依赖搜索路径）跑 `prepare()` 与 `printRoot()`，分段报告 CPU 时间、墙钟与 instructions retired（`proc_pid_rusage`）；`--mode index` 只跑 `SwiftDeclarationIndexer.prepare()`，即 RuntimeViewer 加载镜像时等的那一步。每一步改动前后各量一次。
+
+基准程序量出的基线（release，本机 cache 里的 SwiftUI，CPU 秒 / instructions retired，两次运行的范围）：
+
+| 场景 | `MachOImage` | `MachOFile` |
+|---|---|---|
+| 只建索引 | 4.8–5.1 / 67 G | 6.0–6.4 / 86 G |
+| interface 准备 | 7.1–7.8 / 111 G | 8.4–9.0 / 131 G |
+| interface 打印（五类布局注释） | 5.1–5.6 / 69 G | 20.1–22.0 / 304 G |
+
+iOS 18.5 模拟器的 SwiftUI（单个文件，运行时根目录作依赖搜索路径）：只建索引 6.9–7.2 / 100 G，准备 9.1–10.0 / 139 G，打印 8.0–8.5 / 111 G。
 
 ### 第一期：去掉离线独有的开销
 
@@ -62,7 +72,7 @@ release 构建，Mac Studio Ultra（macOS 27.2），`sample` 按阶段采样，�
 
 ### 落地步骤
 
-1. 基准程序，记录基线（本库）。
+1. 基准程序，记录基线（本库）。**已完成**
 2. 依赖镜像索引，按上面四条依次做，每条各量一次（本库）。
 3. cache 里的 ObjC 方法表（MachOObjCSection）。
 4. 读取层（MachOKit fork → MachOKitExtensions → 本库）。
