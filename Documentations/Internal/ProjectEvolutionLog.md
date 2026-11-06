@@ -3069,7 +3069,7 @@
 - **关键决策**：
   - **按可见性分两棵树**（用户在三个布局里选定）：`Model/` 放公开模型，`Indexing/` 放全是 `package` / `internal` 的索引代码。沿用 0042 「`Members/` 是模型、`Building/` 是索引期机器」的分界，推到整个模块；九个 `TypeDefinition+…` 与三个 `ExtensionDefinition+…` 各进一个子目录。
   - **只搬文件**：`git mv` 保留历史；`ObjCProtocolRequirementDefinition`、`ObjCProtocolNames`、`isStoredVariable` 原样剪切成独立文件，没有改动任何代码。
-- **落地**：SwiftDeclaration（`Components/` 下 52 个文件改位置，新增 3 个文件，`Events/` 与 `Extensions/` 原有文件不动）。文档：[Modules/SwiftDeclaration.md](Modules/SwiftDeclaration.md) 的文件对照表与 `TypeDefinition` 扩展表重写（补上漏掉的 `+ObjCMembers`、`+ObjCProtocols`），术语表与四份实现说明里的完整路径改成新路径；历史记录里的旧路径不改。
+- **落地**：SwiftDeclaration（`Components/` 下 52 个文件改位置，新增 3 个文件，`Events/` 与 `Extensions/` 原有文件不动）。文档：[Modules/SwiftDeclaration.md](Modules/SwiftDeclaration.md) 的文件对照表与 `TypeDefinition` 扩展表重写（补上漏掉的 `+ObjCMembers`、`+ObjCProtocols`），术语表与四份实现说明里的完整路径改成新路径；历史记录里的旧路径不改。`AGENTS.md` 的 SwiftDeclaration 条目加一句归位规则（新的索引步骤放 `Indexing/`，不放在 `TypeDefinition.swift` 旁边）。
 - **验证**：在 JHs-Mac-Studio 上用默认工具链（Xcode 27.2）从空 scratch 编译库与全部测试 target（`swift build --build-tests`，本地兄弟依赖），原始退出码 0，SwiftDeclaration 没有新增警告。没跑测试和渲染 A/B：没有一行代码改变，源码扫描类测试按模块名取文件、不看目录层级。
 - **对应版本**：未发版。发版说明不必写：模块的公开 API 与输出都不变。
 
