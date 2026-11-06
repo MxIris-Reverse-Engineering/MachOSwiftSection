@@ -12,11 +12,10 @@ import SwiftSyntaxMacros
 /// `LocatableLayoutWrapper` — `var layout: Layout`, `let offset: Int` and
 /// `init(layout:offset:)` — which every wrapper spells out identically.
 ///
-/// The extension role adds whichever protocols of the hierarchy —
-/// `LocatableLayoutWrapper`, `Resolvable` and the ones they refine — the type
-/// does not conform to yet. The compiler hands over only the missing ones, so
-/// a wrapper declared as a refining protocol (`MetadataProtocol`,
-/// `ContextDescriptorProtocol`, …) gets no extension.
+/// The extension role names every protocol of the hierarchy —
+/// `LocatableLayoutWrapper`, `Resolvable` and the ones they refine — except
+/// those the declaration itself spells out. See the extension role for why it
+/// does not trust the compiler's list of missing protocols.
 public struct ResolvableLocatableLayoutWrapperMacro: MemberMacro {
     public static func expansion(
         of node: AttributeSyntax,
@@ -109,6 +108,37 @@ public struct ResolvableLocatableLayoutWrapperMacro: MemberMacro {
 // MARK: - Extension Role
 
 extension ResolvableLocatableLayoutWrapperMacro: ExtensionMacro {
+    /// The protocols the macro declaration lists in `conformances:`, in the
+    /// same order. Keep the two lists identical.
+    static let conformanceHierarchy = [
+        "LocatableLayoutWrapper",
+        "Resolvable",
+        "LayoutWrapper",
+        "Equatable",
+        "Sendable",
+    ]
+
+    /// Names every protocol of the hierarchy the declaration does not spell
+    /// out itself, whatever `protocols` says.
+    ///
+    /// Before expanding, the compiler records each listed protocol as a
+    /// placeholder conformance. Two consequences make its list of missing
+    /// protocols unreliable (Swift 6.3):
+    /// - A protocol implied by a placeholder (`LayoutWrapper` through
+    ///   `LocatableLayoutWrapper`) counts as present, so it is left out of
+    ///   `protocols`; and the conformance implied by the expanded extension can
+    ///   lose to the one implied by the placeholder, which has no conformance
+    ///   behind it. `TypeMetadataRecord.layoutSize` failed with "requires that
+    ///   'TypeMetadataRecord' conform to 'LayoutWrapper'" in one file and
+    ///   compiled in the next.
+    /// - A placeholder blocks the conformance a refining protocol implies
+    ///   (`EnumDescriptor` is a `LayoutWrapper` through
+    ///   `TypeContextDescriptorProtocol`), so a protocol left out of the
+    ///   expansion ends with no conformance at all.
+    ///
+    /// Naming each one explicitly gives every placeholder a real conformance
+    /// to give way to. A conformance a refining protocol already implies is
+    /// superseded by the explicit one without a diagnostic.
     public static func expansion(
         of node: AttributeSyntax,
         attachedTo declaration: some DeclGroupSyntax,
@@ -118,9 +148,15 @@ extension ResolvableLocatableLayoutWrapperMacro: ExtensionMacro {
     ) throws -> [ExtensionDeclSyntax] {
         // The member role reports a non-struct host; reporting it again here
         // would only duplicate the error.
-        guard declaration.is(StructDeclSyntax.self), !protocols.isEmpty else { return [] }
+        guard let structDeclaration = declaration.as(StructDeclSyntax.self) else { return [] }
 
-        let conformanceList = protocols.map(\.trimmedDescription).joined(separator: ", ")
+        let declaredInheritedTypeNames = Set(
+            structDeclaration.inheritanceClause?.inheritedTypes.map(\.type.trimmedDescription) ?? []
+        )
+        let conformances = conformanceHierarchy.filter { !declaredInheritedTypeNames.contains($0) }
+        guard !conformances.isEmpty else { return [] }
+
+        let conformanceList = conformances.joined(separator: ", ")
         let extensionDeclaration: DeclSyntax = "extension \(type.trimmed): \(raw: conformanceList) {}"
         return [extensionDeclaration.cast(ExtensionDeclSyntax.self)]
     }
