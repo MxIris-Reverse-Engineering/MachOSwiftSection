@@ -94,11 +94,11 @@ extension SwiftDeclarationPrinter {
                 if definition.objcRuntimeName == nil {
                     comment(.note("No Objective-C protocol record pairs with this declaration: the source renamed it with @objc(Name) to a name other than its Swift name, so its requirements are not listed."), as: .note)
                 }
-                if definition.requirements.contains(where: { $0.source == .selector }) {
+                if definition.requirements.contains(where: { $0.origin == .selector }) {
                     comment(.note("Swift names follow the ClangImporter's rules for these selectors; the binary records no Swift names for them."), as: .note)
                 }
                 for requirement in definition.requirements {
-                    if case .conformer(let className) = requirement.source {
+                    if case .conformer(let className) = requirement.origin {
                         let printedClassName = try await resolver.resolve(for: className.node.materialize()).string
                         comment(.note("Taken from the conformer \(printedClassName)."), as: .note)
                     }

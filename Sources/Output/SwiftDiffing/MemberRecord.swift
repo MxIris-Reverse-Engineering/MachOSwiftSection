@@ -132,7 +132,7 @@ extension MemberRecord {
         )
     }
 
-    /// `DefinitionBuilder` picks the *getter* node as `.node`, so the identity
+    /// `MemberDefinitionBuilder` picks the *getter* node as `.node`, so the identity
     /// tracks the property's type but NOT its mutability — a `let` → `var`
     /// change adds a separate setter symbol while leaving the getter identical.
     /// We therefore fold the accessor set into the payload so a mutability

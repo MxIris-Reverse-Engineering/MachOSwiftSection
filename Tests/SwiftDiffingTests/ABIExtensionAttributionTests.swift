@@ -62,7 +62,7 @@ struct ABIExtensionAttributionTests {
         _ target: String,
         to protocolText: String,
         where whereText: String? = nil,
-        witnesses: [AssociatedTypeWitnessProjection] = []
+        witnesses: [ResolvedAssociatedTypeWitness] = []
     ) -> (name: ExtensionName, definition: ExtensionDefinition) {
         let name = extensionName(target)
         let definition = ExtensionDefinition(

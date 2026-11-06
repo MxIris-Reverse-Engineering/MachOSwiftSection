@@ -25,7 +25,7 @@ import OrderedCollections
 /// replaces. `ClassDispatchLookups.vtableSlotMemberSymbols` builds the same
 /// kind of stand-in from a vtable slot's `Tq` (evolution proposal
 /// `interface-descriptor-only-vtable-members`).
-package enum StandInMemberSymbols {
+package enum StandInMemberSymbolBuilder {
     /// `memberSymbols` followed by each of `standIns` whose member none of
     /// the symbols before it declares. A real symbol always wins, and among
     /// stand-ins for the same member the first one wins.
@@ -134,7 +134,7 @@ package enum StandInMemberSymbols {
     }
 }
 
-extension StandInMemberSymbols {
+extension StandInMemberSymbolBuilder {
     /// The stand-ins for one type's own members, by the member builder input
     /// each belongs in, in the order they are tried: the initializing entry
     /// points before the `@objc` thunks, so an initializer that kept its
@@ -151,16 +151,16 @@ extension StandInMemberSymbols {
         ) {
             func standIns(for entryPointSymbols: [DemangledSymbol], _ makeStandIn: (DemangledSymbol) -> DemangledSymbol?) -> [DemangledSymbol] {
                 entryPointSymbols
-                    .filter { !StandInMemberSymbols.imageKeepsTheMemberSymbol(replacedBy: $0, symbolIndexStore: symbolIndexStore, in: machO) }
+                    .filter { !StandInMemberSymbolBuilder.imageKeepsTheMemberSymbol(replacedBy: $0, symbolIndexStore: symbolIndexStore, in: machO) }
                     .compactMap(makeStandIn)
             }
             func thunkStandIns(_ kinds: SymbolIndexStore.MemberKind...) -> [DemangledSymbol] {
                 standIns(for: kinds.flatMap { symbolIndexStore.objcThunkMemberSymbols(of: $0, for: typeName, node: typeNode, in: machO) }) {
-                    StandInMemberSymbols.memberStandIn(forObjCThunkSymbol: $0, in: machO)
+                    StandInMemberSymbolBuilder.memberStandIn(forObjCThunkSymbol: $0, in: machO)
                 }
             }
             let initializerStandIns = standIns(for: symbolIndexStore.memberSymbols(of: .constructor(inExtension: false), for: typeName, node: typeNode, in: machO)) {
-                StandInMemberSymbols.allocatorStandIn(forInitializerSymbol: $0, in: machO)
+                StandInMemberSymbolBuilder.allocatorStandIn(forInitializerSymbol: $0, in: machO)
             }
             standInsByCategory[.allocators] = initializerStandIns + thunkStandIns(.constructor(inExtension: false), .allocator(inExtension: false))
             standInsByCategory[.functions] = thunkStandIns(.function(inExtension: false, isStatic: false))
@@ -174,7 +174,7 @@ extension StandInMemberSymbols {
         /// `memberSymbols` plus the stand-ins of `category` whose member none
         /// of them declares.
         package func supplementing(_ memberSymbols: [DemangledSymbol], in category: MemberCategory) -> [DemangledSymbol] {
-            StandInMemberSymbols.supplementing(memberSymbols, with: standInsByCategory[category] ?? [])
+            StandInMemberSymbolBuilder.supplementing(memberSymbols, with: standInsByCategory[category] ?? [])
         }
     }
 

@@ -36,7 +36,7 @@ struct ObjCProtocolDefinitionIndexingTests {
     /// The qualified name of the class a requirement was taken from, `nil`
     /// for one spelled from its selector.
     private static func conformerName(of requirement: ObjCProtocolRequirementDefinition) -> String? {
-        guard case .conformer(let className) = requirement.source else { return nil }
+        guard case .conformer(let className) = requirement.origin else { return nil }
         return className.name
     }
 
@@ -61,7 +61,7 @@ struct ObjCProtocolDefinitionIndexingTests {
         #expect(derivedSelectors.requirements.count == 15)
         // No class of the image adopts it: every requirement is spelled from
         // its selector, and pinned.
-        #expect(derivedSelectors.requirements.allSatisfy { $0.source == .selector && $0.hasExplicitSelector })
+        #expect(derivedSelectors.requirements.allSatisfy { $0.origin == .selector && $0.hasExplicitSelector })
         // Its extension is its default implementation, out of the top-level
         // extensions.
         let defaultImplementation = try #require(derivedSelectors.defaultImplementationExtensions.first)
@@ -91,7 +91,7 @@ struct ObjCProtocolDefinitionIndexingTests {
         if keepsLocalSymbols {
             #expect(internalProtocol.requirements.map(conformerName(of:)) == ["\(moduleName).InternalConformer"])
         } else {
-            #expect(internalProtocol.requirements.map(\.source) == [.selector])
+            #expect(internalProtocol.requirements.map(\.origin) == [.selector])
             #expect(internalProtocol.requirements.map(\.hasExplicitSelector) == [true])
         }
 

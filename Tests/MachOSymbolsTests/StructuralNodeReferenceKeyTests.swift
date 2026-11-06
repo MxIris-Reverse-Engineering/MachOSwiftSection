@@ -12,7 +12,7 @@ import Testing
 /// based, so a bare-`NodeReference` key silently dropped the `override` keyword
 /// and the vtable-offset comment for those symbols.
 /// `StructuralNodeReferenceKey` restores structural matching; the same wrapper
-/// now also keys `DefinitionBuilder`'s accessor / merged-thunk dedup and every
+/// now also keys `MemberDefinitionBuilder`'s accessor / merged-thunk dedup and every
 /// `visitedNodes` set in the declaration and dump layers.
 ///
 /// `NodeReference(interning:)` mints a fresh private store per call, so

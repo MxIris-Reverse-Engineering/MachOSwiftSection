@@ -3073,6 +3073,19 @@
 - **验证**：在 JHs-Mac-Studio 上用默认工具链（Xcode 27.2）从空 scratch 编译库与全部测试 target（`swift build --build-tests`，本地兄弟依赖），原始退出码 0，SwiftDeclaration 没有新增警告。没跑测试和渲染 A/B：没有一行代码改变，源码扫描类测试按模块名取文件、不看目录层级。
 - **对应版本**：未发版。发版说明不必写：模块的公开 API 与输出都不变。
 
+## 2026-11-06 SwiftDeclaration 的类型名按角色统一后缀（节号落地时取）
+
+- **时间段**：2026-11-06，接着上一节在同一分支 `refactor/swift-declaration-layout` 上做。提案 [draft-swift-declaration-type-naming](../Evolutions/draft-swift-declaration-type-naming.md)（轻量档）。
+- **动机**：目录整理之后，用户指出这个模块的类型名不成套：`Indexing/Building/` 的六个命名空间用了四种起名法，`OverrideSymbolMatcher.swift` 里没有这个类型，「声明从哪来」一个叫 `Origin` 一个叫 `Source`，`AssociatedTypeWitnessProjection` 的「Projection」只此一处。
+- **关键决策**：
+  - **命名空间按角色取后缀**（用户选定）：造新东西的叫 `…Builder`（`MemberDefinitionBuilder`、`StandInMemberSymbolBuilder`、`ObjCProtocolNameBuilder`），拿二进制里另一处的证据对到已建好的成员上的叫 `…Matcher`（`ThunkAttributeMatcher`、`ObjCMemberMatcher`、`OverrideSymbolMatcher`），补回丢掉的事实的叫 `…Recovery`（`WrappedPropertyRecovery`）。
+  - **不用 `…Application`**：用户指出它会被读成「应用程序」，改用与已有的 `OverrideSymbolMatcher` 同类的 `…Matcher`。
+  - **三个公开名字**：`AssociatedTypeWitnessProjection` → `ResolvedAssociatedTypeWitness`（与属性 `resolvedAssociatedTypeWitnesses` 同名），`ConditionalWitnessCandidate` 嵌进去成为 `ConditionalCandidate`，`ObjCProtocolRequirementDefinition.Source` / `source` → `Origin` / `origin`（与 `WrappedPropertyDefinition` 同一个词）。旧名留 deprecated 别名，与 0057 的转发一起在 0.25.0 删除。
+  - **事件命名空间另开一批**：`SwiftIndexEvents` 的 payload case 改名留不了别名，改动量也大几倍。
+- **落地**：SwiftDeclaration（六个文件改名，两个自由函数收进 `enum OverrideSymbolMatcher`，并把原来叠在一起的两段文档注释各归各位），SwiftIndexing、SwiftDiffing、SwiftDump、SwiftPrinting 的调用点，测试套件 `AssociatedTypeWitnessProjectionTests` → `ResolvedAssociatedTypeWitnessTests`。文档：模块参考写上后缀规则，术语表与另外十份现行文档（实现说明与一份译注参考）换成新名；历史文档里的旧名不改。
+- **验证**：在 JHs-Mac-Studio 上用 Xcode 27.2 增量编译库与全部测试 target，原始退出码 0，没有出现指向旧名的弃用警告（仓库里已没有调用点用旧名）。没跑测试和渲染 A/B：只改名字，行为不变。
+- **对应版本**：未发版。发版说明要写：`AssociatedTypeWitnessProjection`、`ConditionalWitnessCandidate`、`ObjCProtocolRequirementDefinition.Source` / `.source` 改名，旧名仍可用但已废弃。
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节

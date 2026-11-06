@@ -56,7 +56,7 @@ extension TypeDefinition {
                 } else if let subscriptNode = descriptorSymbol.demangledNode.first(of: .subscript) {
                     // Overloaded subscripts share one name, so they key on
                     // the subscript subtree — the same extraction
-                    // `DefinitionBuilder.subscripts` groups accessors by.
+                    // `MemberDefinitionBuilder.subscripts` groups accessors by.
                     subscriptMethodDescriptorNodeKeys.insert(StructuralNodeReferenceKey(subscriptNode))
                 }
             }

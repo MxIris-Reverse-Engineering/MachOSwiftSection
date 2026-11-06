@@ -787,7 +787,7 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
                     }
 
                     let conformanceAssociatedTypes = associatedType.map { [$0] } ?? []
-                    let extensionDefinition = try ExtensionDefinition(extensionName: typeName.extensionName, genericSignature: SymbolicDemangler.buildGenericSignature(for: protocolConformance.conditionalRequirements, in: machO.context).map { InternedNodeReferenceCache.shared.reference(interning: $0, in: machO) }, protocolConformance: protocolConformance, conformingProtocolName: protocolName, associatedTypes: conformanceAssociatedTypes, resolvedAssociatedTypeWitnesses: resolvedWitnessProjections(of: conformanceAssociatedTypes))
+                    let extensionDefinition = try ExtensionDefinition(extensionName: typeName.extensionName, genericSignature: SymbolicDemangler.buildGenericSignature(for: protocolConformance.conditionalRequirements, in: machO.context).map { InternedNodeReferenceCache.shared.reference(interning: $0, in: machO) }, protocolConformance: protocolConformance, conformingProtocolName: protocolName, associatedTypes: conformanceAssociatedTypes, resolvedAssociatedTypeWitnesses: resolvedAssociatedTypeWitnesses(of: conformanceAssociatedTypes))
                     extensionDefinition.isRetroactive = protocolConformance.flags.isRetroactive
                     conformanceExtensionDefinitions[extensionDefinition.extensionName, default: []].append(extensionDefinition)
                     extensionCount += 1
@@ -801,7 +801,7 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
         }
         for (remainingTypeName, remainingAssociatedTypeByProtocolName) in associatedTypesByTypeNameCopy {
             for (_, remainingAssociatedType) in remainingAssociatedTypeByProtocolName {
-                let extensionDefinition = ExtensionDefinition(extensionName: remainingTypeName.extensionName, genericSignature: nil, protocolConformance: nil, associatedTypes: [remainingAssociatedType], resolvedAssociatedTypeWitnesses: resolvedWitnessProjections(of: [remainingAssociatedType]))
+                let extensionDefinition = ExtensionDefinition(extensionName: remainingTypeName.extensionName, genericSignature: nil, protocolConformance: nil, associatedTypes: [remainingAssociatedType], resolvedAssociatedTypeWitnesses: resolvedAssociatedTypeWitnesses(of: [remainingAssociatedType]))
                 conformanceExtensionDefinitions[extensionDefinition.extensionName, default: []].append(extensionDefinition)
             }
         }
@@ -849,7 +849,7 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
         eventDispatcher.dispatch(.conformanceIndexingCompleted(result: SwiftIndexEvents.ConformanceIndexingResult(conformedTypes: protocolConformancesByTypeName.count, associatedTypeCount: associatedTypesByTypeName.count, extensionCount: extensionCount, failedConformances: failedConformances, failedAssociatedTypes: failedAssociatedTypes, failedExtensions: failedExtensions)))
     }
 
-    /// Freezes associated-type witness records into Mach-O-free projections
+    /// Freezes associated-type witness records into Mach-O-free values
     /// while the Mach-O is still in hand — the record accessors cannot be
     /// resolved later by the snapshot layer. An unresolvable record is skipped
     /// (same tolerance as the printers' record collection).
@@ -862,9 +862,9 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
     /// every `Body` as modified. An availability-conditional thunk's other
     /// branches ride along as `conditionalCandidates` (evolution proposal
     /// `offline-opaque-accessor-thunk-resolution`).
-    private func resolvedWitnessProjections(of associatedTypes: [AssociatedType]) -> [AssociatedTypeWitnessProjection] {
+    private func resolvedAssociatedTypeWitnesses(of associatedTypes: [AssociatedType]) -> [ResolvedAssociatedTypeWitness] {
         var seenNames: Set<String> = []
-        var projections: [AssociatedTypeWitnessProjection] = []
+        var witnesses: [ResolvedAssociatedTypeWitness] = []
         for associatedType in associatedTypes {
             for record in associatedType.records {
                 guard let recordName = try? record.name(in: machO.context),
@@ -878,20 +878,20 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
                     in: machO
                 )
                 let conditionalCandidates = resolution.conditionalCandidates.map { candidate in
-                    ConditionalWitnessCandidate(
+                    ResolvedAssociatedTypeWitness.ConditionalCandidate(
                         availability: candidate.availability,
                         candidateTypeText: candidate.candidateTypeNode.print(using: .default),
                         substitutedTypeText: candidate.substitutedNode.print(using: .default)
                     )
                 }
-                projections.append(AssociatedTypeWitnessProjection(
+                witnesses.append(ResolvedAssociatedTypeWitness(
                     name: recordName,
                     substitutedTypeText: resolution.node.print(using: .default),
                     conditionalCandidates: conditionalCandidates
                 ))
             }
         }
-        return projections
+        return witnesses
     }
 
     private func indexExtensions() async throws {
@@ -962,7 +962,7 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
         // their `@objc` thunk, an initializer's initializing entry point —
         // join the real symbols as stand-ins (evolution proposal
         // `thunk-only-objc-members`).
-        let memberSymbolsByName = StandInMemberSymbols.supplementingExtensionMembers(
+        let memberSymbolsByName = StandInMemberSymbolBuilder.supplementingExtensionMembers(
             extensionMemberSymbolsByName,
             symbolIndexStore: symbolIndexStore,
             in: machO
@@ -998,31 +998,31 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
                 for (kind, memberSymbols) in memberSymbolsByKind {
                     switch kind {
                     case .allocator(inExtension: true):
-                        let allocators = DefinitionBuilder.allocators(for: memberSymbols.mapToAnnotatedSymbols())
+                        let allocators = MemberDefinitionBuilder.allocators(for: memberSymbols.mapToAnnotatedSymbols())
                         extensionDefinition.allocators.append(contentsOf: allocators)
                         memberCount += allocators.count
                     case .variable(inExtension: true, isStatic: false, isStorage: false):
-                        let variables = DefinitionBuilder.variables(for: memberSymbols.mapToAnnotatedSymbols(), fieldNames: [], isGlobalOrStatic: false)
+                        let variables = MemberDefinitionBuilder.variables(for: memberSymbols.mapToAnnotatedSymbols(), fieldNames: [], isGlobalOrStatic: false)
                         extensionDefinition.variables.append(contentsOf: variables)
                         memberCount += variables.count
                     case .function(inExtension: true, isStatic: false):
-                        let functions = DefinitionBuilder.functions(for: memberSymbols.mapToAnnotatedSymbols(), isGlobalOrStatic: false)
+                        let functions = MemberDefinitionBuilder.functions(for: memberSymbols.mapToAnnotatedSymbols(), isGlobalOrStatic: false)
                         extensionDefinition.functions.append(contentsOf: functions)
                         memberCount += functions.count
                     case .variable(inExtension: true, isStatic: true, _):
-                        let staticVariables = DefinitionBuilder.variables(for: memberSymbols.mapToAnnotatedSymbols(), fieldNames: [], isGlobalOrStatic: true)
+                        let staticVariables = MemberDefinitionBuilder.variables(for: memberSymbols.mapToAnnotatedSymbols(), fieldNames: [], isGlobalOrStatic: true)
                         extensionDefinition.staticVariables.append(contentsOf: staticVariables)
                         memberCount += staticVariables.count
                     case .function(inExtension: true, isStatic: true):
-                        let staticFunctions = DefinitionBuilder.functions(for: memberSymbols.mapToAnnotatedSymbols(), isGlobalOrStatic: true)
+                        let staticFunctions = MemberDefinitionBuilder.functions(for: memberSymbols.mapToAnnotatedSymbols(), isGlobalOrStatic: true)
                         extensionDefinition.staticFunctions.append(contentsOf: staticFunctions)
                         memberCount += staticFunctions.count
                     case .subscript(inExtension: true, isStatic: false):
-                        let subscripts = DefinitionBuilder.subscripts(for: memberSymbols.mapToAnnotatedSymbols(), isStatic: false)
+                        let subscripts = MemberDefinitionBuilder.subscripts(for: memberSymbols.mapToAnnotatedSymbols(), isStatic: false)
                         extensionDefinition.subscripts.append(contentsOf: subscripts)
                         memberCount += subscripts.count
                     case .subscript(inExtension: true, isStatic: true):
-                        let staticSubscripts = DefinitionBuilder.subscripts(for: memberSymbols.mapToAnnotatedSymbols(), isStatic: true)
+                        let staticSubscripts = MemberDefinitionBuilder.subscripts(for: memberSymbols.mapToAnnotatedSymbols(), isStatic: true)
                         extensionDefinition.staticSubscripts.append(contentsOf: staticSubscripts)
                         memberCount += staticSubscripts.count
                     default:
@@ -1235,8 +1235,8 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
         @Dependency(\.symbolIndexStore)
         var symbolIndexStore
 
-        currentStorage.globalVariableDefinitions = DefinitionBuilder.variables(for: symbolIndexStore.globalSymbols(of: .variable(isStorage: false), .variable(isStorage: true), in: machO).mapToAnnotatedSymbols(), fieldNames: [], isGlobalOrStatic: true)
-        currentStorage.globalFunctionDefinitions = DefinitionBuilder.functions(for: symbolIndexStore.globalSymbols(of: .function, in: machO).mapToAnnotatedSymbols(), isGlobalOrStatic: true)
+        currentStorage.globalVariableDefinitions = MemberDefinitionBuilder.variables(for: symbolIndexStore.globalSymbols(of: .variable(isStorage: false), .variable(isStorage: true), in: machO).mapToAnnotatedSymbols(), fieldNames: [], isGlobalOrStatic: true)
+        currentStorage.globalFunctionDefinitions = MemberDefinitionBuilder.functions(for: symbolIndexStore.globalSymbols(of: .function, in: machO).mapToAnnotatedSymbols(), isGlobalOrStatic: true)
     }
 
     // MARK: - Extension container unification (evolution proposal 0007)

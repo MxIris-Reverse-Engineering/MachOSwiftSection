@@ -18,7 +18,7 @@ extension TypeDefinition {
     ///
     /// After those, a member none of the symbols declares is built from the
     /// entry point an optimized image kept of it
-    /// (`StandInMemberSymbols.TypeMembers`, evolution proposal
+    /// (`StandInMemberSymbolBuilder.TypeMembers`, evolution proposal
     /// `thunk-only-objc-members`): an initializer from its initializing entry
     /// point when the allocating one was inlined away, an `@objc` member from
     /// its Objective-C thunk when its Swift body was inlined into the thunk.
@@ -35,7 +35,7 @@ extension TypeDefinition {
     ) -> [String: [Accessor]] {
         let name = typeName.name
         let node = typeName.node
-        let standIns = StandInMemberSymbols.TypeMembers(typeName: name, typeNode: node, symbolIndexStore: symbolIndexStore, in: machO)
+        let standIns = StandInMemberSymbolBuilder.TypeMembers(typeName: name, typeNode: node, symbolIndexStore: symbolIndexStore, in: machO)
 
         /// The builder input of `category`: the real symbols, then the
         /// vtable slots' stand-ins, then the optimized-away entry points'.
@@ -43,7 +43,7 @@ extension TypeDefinition {
             standIns.supplementing(dispatchLookups.supplementing(realSymbols, in: category), in: category)
         }
 
-        allocators = DefinitionBuilder.allocators(
+        allocators = MemberDefinitionBuilder.allocators(
             for: builderInput(symbolIndexStore.memberSymbols(of: .allocator(inExtension: false), for: name, node: node, in: machO), in: .allocators).mapToAnnotatedSymbols(),
             dispatchLookups: dispatchLookups
         )
@@ -58,7 +58,7 @@ extension TypeDefinition {
         deallocatorSymbol = symbolIndexStore.memberSymbols(of: .deallocator, for: name, node: node, in: machO).first?.detachedFromSharedTable()
         destructorSymbol = symbolIndexStore.memberSymbols(of: .destructor, for: name, node: node, in: machO).first?.detachedFromSharedTable()
 
-        let variablesProduct = DefinitionBuilder.variablesProduct(
+        let variablesProduct = MemberDefinitionBuilder.variablesProduct(
             for: builderInput(symbolIndexStore.memberSymbols(of: .variable(inExtension: false, isStatic: false, isStorage: false), for: name, node: node, in: machO), in: .variables).mapToAnnotatedSymbols(),
             fieldNames: fieldNames,
             dispatchLookups: dispatchLookups,
@@ -66,7 +66,7 @@ extension TypeDefinition {
         )
         variables = variablesProduct.variables
 
-        staticVariables = DefinitionBuilder.variables(
+        staticVariables = MemberDefinitionBuilder.variables(
             for: builderInput(
                 symbolIndexStore.memberSymbols(
                     of: .variable(inExtension: false, isStatic: true, isStorage: false),
@@ -81,25 +81,25 @@ extension TypeDefinition {
             isGlobalOrStatic: true
         )
 
-        functions = DefinitionBuilder.functions(
+        functions = MemberDefinitionBuilder.functions(
             for: builderInput(symbolIndexStore.memberSymbols(of: .function(inExtension: false, isStatic: false), for: name, node: node, in: machO), in: .functions).mapToAnnotatedSymbols(),
             dispatchLookups: dispatchLookups,
             isGlobalOrStatic: false
         )
 
-        staticFunctions = DefinitionBuilder.functions(
+        staticFunctions = MemberDefinitionBuilder.functions(
             for: builderInput(symbolIndexStore.memberSymbols(of: .function(inExtension: false, isStatic: true), for: name, node: node, in: machO), in: .staticFunctions).mapToAnnotatedSymbols(),
             dispatchLookups: dispatchLookups,
             isGlobalOrStatic: true
         )
 
-        subscripts = DefinitionBuilder.subscripts(
+        subscripts = MemberDefinitionBuilder.subscripts(
             for: builderInput(symbolIndexStore.memberSymbols(of: .subscript(inExtension: false, isStatic: false), for: name, node: node, in: machO), in: .subscripts).mapToAnnotatedSymbols(),
             dispatchLookups: dispatchLookups,
             isStatic: false
         )
 
-        staticSubscripts = DefinitionBuilder.subscripts(
+        staticSubscripts = MemberDefinitionBuilder.subscripts(
             for: builderInput(symbolIndexStore.memberSymbols(of: .subscript(inExtension: false, isStatic: true), for: name, node: node, in: machO), in: .staticSubscripts).mapToAnnotatedSymbols(),
             dispatchLookups: dispatchLookups,
             isStatic: true

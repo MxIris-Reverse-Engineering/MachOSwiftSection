@@ -7,14 +7,14 @@ extension TypeDefinition {
     /// and bucketed by parent type name inside `SymbolIndexStore`) with the
     /// already-built member definitions of this type, appending the matching
     /// attribute to each affected member. The matching itself lives in
-    /// `MemberAttributeApplication`, shared with `ExtensionDefinition`.
+    /// `ThunkAttributeMatcher`, shared with `ExtensionDefinition`.
     func applyThunkAttributes(
         symbolIndexStore: SymbolIndexStore,
         typeName: String,
         typeNode: NodeReference,
         in machO: some MachORepresentableWithCache
     ) {
-        MemberAttributeApplication.applyThunkAttributes(
+        ThunkAttributeMatcher.applyThunkAttributes(
             symbolIndexStore: symbolIndexStore,
             typeName: typeName,
             typeNode: typeNode,
@@ -28,10 +28,10 @@ extension TypeDefinition {
     }
 
     func applyAttributeToFunction(name: String, attribute: SwiftAttribute, in definitions: inout [FunctionDefinition]) {
-        MemberAttributeApplication.apply(attribute, toFunctionNamed: name, in: &definitions)
+        ThunkAttributeMatcher.apply(attribute, toFunctionNamed: name, in: &definitions)
     }
 
     func applyAttributeToVariable(name: String, attribute: SwiftAttribute, in definitions: inout [VariableDefinition]) {
-        MemberAttributeApplication.apply(attribute, toVariableNamed: name, in: &definitions)
+        ThunkAttributeMatcher.apply(attribute, toVariableNamed: name, in: &definitions)
     }
 }

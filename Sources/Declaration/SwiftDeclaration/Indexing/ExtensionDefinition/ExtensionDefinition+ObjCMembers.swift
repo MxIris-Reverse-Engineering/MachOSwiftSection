@@ -13,7 +13,7 @@ extension ExtensionDefinition {
     /// library's reader folds `__objc_catlist` in for the rest.
     @discardableResult
     package func applyObjCMembers(_ table: ObjCMemberTable) -> Int {
-        ObjCMemberApplication.apply(
+        ObjCMemberMatcher.apply(
             table,
             functions: &functions,
             variables: &variables,

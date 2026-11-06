@@ -29,7 +29,7 @@ public struct ObjCCategoryConformance: Sendable {
     /// is implied gives none.
     package static func all(in machO: some MachOSwiftSectionRepresentableWithCache) -> [ObjCCategoryConformance] {
         ObjCProtocolAdoptionIndex.shared.categoryAdoptions(in: machO).compactMap { categoryAdoption in
-            let protocolNames = ObjCProtocolNames.protocolNames(categoryAdoption.protocolRuntimeNames, excluding: categoryAdoption.impliedProtocolRuntimeNames, in: machO)
+            let protocolNames = ObjCProtocolNameBuilder.protocolNames(categoryAdoption.protocolRuntimeNames, excluding: categoryAdoption.impliedProtocolRuntimeNames, in: machO)
             guard !protocolNames.isEmpty else { return nil }
             let typeNode = Node.createTransient(kind: .type, child: ObjCRuntimeNames.classNode(forRuntimeName: categoryAdoption.classRuntimeName, in: machO))
             let extendedTypeName = TypeName(node: InternedNodeReferenceCache.shared.reference(interning: typeNode, in: machO), kind: .class)

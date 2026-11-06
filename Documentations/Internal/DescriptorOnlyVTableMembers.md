@@ -32,7 +32,7 @@ interface 的成员一直是从「实现函数的符号」建出来的。用 lib
 
 ## 替身符号为什么长这样
 
-**名字用实现函数的 mangled 名，不用 `Tq` 符号的名字。** 下游有三处按「成员的实现符号名」推导别的东西：导出判定往名字后面拼 `Tj` / `Tq` / `Tu` 去查 export trie（`isExportedIncludingDerivedSymbols`）；ObjC 方法表按实现符号名 join（`ObjCMemberApplication`）；ABI diff 的成员身份是重整后的声明节点。用实现函数的名字，这三处把替身当成它顶替的那个符号来读，一行不用改；用 `Tq` 的名字，导出判定会去查 `…TqTj` 这种不存在的符号。去掉后缀就能得到实现名，是因为 mangling 规则是把 `Tq` 原样追加在实体名后面。
+**名字用实现函数的 mangled 名，不用 `Tq` 符号的名字。** 下游有三处按「成员的实现符号名」推导别的东西：导出判定往名字后面拼 `Tj` / `Tq` / `Tu` 去查 export trie（`isExportedIncludingDerivedSymbols`）；ObjC 方法表按实现符号名 join（`ObjCMemberMatcher`）；ABI diff 的成员身份是重整后的声明节点。用实现函数的名字，这三处把替身当成它顶替的那个符号来读，一行不用改；用 `Tq` 的名字，导出判定会去查 `…TqTj` 这种不存在的符号。去掉后缀就能得到实现名，是因为 mangling 规则是把 `Tq` 原样追加在实体名后面。
 
 **偏移用 descriptor 记录的实现偏移，async 方法再跳一次。** 地址注释读的是成员符号的偏移，替身的偏移必须和「有实现符号时」的那个一样，fixture 的完整版与剥离版逐字比对才能对上。async 方法的 vtable 槽里放的不是代码地址，而是 async function pointer（`Tu` 常量，调用方从它读 async context 的大小），实现符号在它指向的函数入口，所以要经 `AsyncFunctionPointer` 读一次 `function` 字段。读这个记录时要显式标注非可选类型：`resolve(from:in:)` 有一个返回可选值的重载，推断到那个重载会按另一种内存形状去读。
 

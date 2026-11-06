@@ -8,7 +8,7 @@ import MachOSwiftSection
 /// dump's member symbols.
 enum ObjCMemberRendering {
     /// The name-only third tier over the dump's member symbols — the same
-    /// inference `ObjCMemberApplication` runs on the declaration model, keyed
+    /// inference `ObjCMemberMatcher` runs on the declaration model, keyed
     /// here by implementation symbol name: for each overriding method the
     /// table tied to no symbol, the ONE symbol among `memberSymbols` not
     /// already in the table whose shape is the importer's spelling of the

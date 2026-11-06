@@ -42,7 +42,7 @@ public final class ExtensionDefinition: Definition, MutableDefinition, @unchecke
     /// The associated-type witnesses of `associatedTypes`, resolved into pure
     /// value data at index time (their `AssociatedTypeRecord` accessors are
     /// Mach-O-bound, so the snapshot layer cannot resolve them later).
-    public package(set) var resolvedAssociatedTypeWitnesses: [AssociatedTypeWitnessProjection]
+    public package(set) var resolvedAssociatedTypeWitnesses: [ResolvedAssociatedTypeWitness]
 
     public package(set) var types: [TypeDefinition] = []
 
@@ -122,7 +122,7 @@ public final class ExtensionDefinition: Definition, MutableDefinition, @unchecke
     /// parsed wrapper is released once the indexer's grouping pass ends. Its
     /// `[ResilientWitness]` goes with it, except for the unresolvable subset
     /// `index(in:)` copies onto `missingSymbolWitnesses`.
-    public init(extensionName: ExtensionName, genericSignature: NodeReference?, protocolConformance: ProtocolConformance?, conformingProtocolName: ProtocolName? = nil, associatedTypes: [AssociatedType] = [], resolvedAssociatedTypeWitnesses: [AssociatedTypeWitnessProjection] = []) {
+    public init(extensionName: ExtensionName, genericSignature: NodeReference?, protocolConformance: ProtocolConformance?, conformingProtocolName: ProtocolName? = nil, associatedTypes: [AssociatedType] = [], resolvedAssociatedTypeWitnesses: [ResolvedAssociatedTypeWitness] = []) {
         self.extensionName = extensionName
         self.genericSignature = genericSignature
         self.protocolConformanceDescriptor = protocolConformance?.descriptor
@@ -133,13 +133,13 @@ public final class ExtensionDefinition: Definition, MutableDefinition, @unchecke
 
     /// The reader argument was never read.
     @available(*, deprecated, message: "Drop the reader argument: nothing is read.")
-    public convenience init(extensionName: ExtensionName, genericSignature: NodeReference?, protocolConformance: ProtocolConformance?, conformingProtocolName: ProtocolName? = nil, associatedTypes: [AssociatedType] = [], resolvedAssociatedTypeWitnesses: [AssociatedTypeWitnessProjection] = [], in machO: some MachOSwiftSectionRepresentableWithCache) throws {
+    public convenience init(extensionName: ExtensionName, genericSignature: NodeReference?, protocolConformance: ProtocolConformance?, conformingProtocolName: ProtocolName? = nil, associatedTypes: [AssociatedType] = [], resolvedAssociatedTypeWitnesses: [ResolvedAssociatedTypeWitness] = [], in machO: some MachOSwiftSectionRepresentableWithCache) throws {
         self.init(extensionName: extensionName, genericSignature: genericSignature, protocolConformance: protocolConformance, conformingProtocolName: conformingProtocolName, associatedTypes: associatedTypes, resolvedAssociatedTypeWitnesses: resolvedAssociatedTypeWitnesses)
     }
 
     /// Mach-O-free initializer for pure-value construction (tests, tooling).
     /// Carries no conformance descriptor — only the frozen attribution fields.
-    package init(extensionName: ExtensionName, genericSignature: NodeReference?, conformingProtocolName: ProtocolName? = nil, resolvedAssociatedTypeWitnesses: [AssociatedTypeWitnessProjection] = []) {
+    package init(extensionName: ExtensionName, genericSignature: NodeReference?, conformingProtocolName: ProtocolName? = nil, resolvedAssociatedTypeWitnesses: [ResolvedAssociatedTypeWitness] = []) {
         self.extensionName = extensionName
         self.genericSignature = genericSignature
         self.protocolConformanceDescriptor = nil

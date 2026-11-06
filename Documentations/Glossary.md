@@ -296,7 +296,7 @@ opaque 尖括号参数归属的第三条规则：协议无任何 anchor 命中�
 
 一个类的 ObjC 方法表——实例方法表、元类方法表、本镜像 `__objc_catlist` 里指向它的 category——的每一条联结到实现它的 Swift 成员之后得到的 per-class 表（`ObjCMemberTable`，按 Swift 符号名索引 `ObjCMember`）。方法表就是类的 `@objc` 成员清单，运行时靠它派发、strip 不会碰，所以它是三个 Swift 元数据不记的事实的来源：成员是 `@objc`（OS 框架 strip 掉 `To` thunk 符号后这是唯一证据）、它覆写了哪个祖先的成员（selector 在祖先链上有人实现）、它的 selector 是不是源码里 `@objc(name)` 写出来的（与编译器从 Swift 名正向推出的默认值不同，且不是从被覆写者或协议要求继承的——祖先链或协议没读完就不下这个判定）。联结证据分三档：IMP 处的 `To` 符号；反汇编无名 thunk 收它引用的成员实现，配「所属类」与「importer 拼法」两道守卫；只按名字（只对覆写）。三档**都在索引期跑完**并记进 `ObjCMember.evidence`，用不用是消费者的事：dump 每条都标证据，第三档写成 `(selector name, no symbol evidence)` 照常渲染；interface 只有 `override` 一个关键字、没处说明证据来源，默认不打，`--infer-objc-overrides` 才打。`@objc @implementation` 体不是例外：编译器同样从 Swift 名推导 selector 并要求头文件里有它，`draw(in:)` 要对上 `drawInRect:` 就得写 `@objc(drawInRect:)`。
 
-- **主要出现在**：`SwiftInspection/ObjCMember.swift`、`SwiftInspection/ObjCMemberShape.swift`、`SwiftThunkAnalysis/ObjCMembers/`、`SwiftDeclaration/Indexing/Building/ObjCMemberApplication.swift`、`SwiftDeclaration/Model/Members/ResolvedObjCMemberFacts.swift`
+- **主要出现在**：`SwiftInspection/ObjCMember.swift`、`SwiftInspection/ObjCMemberShape.swift`、`SwiftThunkAnalysis/ObjCMembers/`、`SwiftDeclaration/Indexing/Building/ObjCMemberMatcher.swift`、`SwiftDeclaration/Model/Members/ResolvedObjCMemberFacts.swift`
 - **延伸阅读**：[提案 0048-objc-member-selector-recovery](Evolutions/0048-objc-member-selector-recovery.md)、[ObjCMemberRecovery.md](Internal/ObjCMemberRecovery.md)
 
 ### ObjC ancestor resolver（ObjC 祖先解析器）
@@ -358,7 +358,7 @@ opaque 尖括号参数归属的第三条规则：协议无任何 anchor 命中�
 
 为镜像里没有实现符号的成员造的成员符号，照它顶替的那个实现符号的样子造：mangled 名与成员树都与实现符号相同，偏移是镜像里留下的那个入口。下游按名字推导的东西（导出判定、ObjC 方法表联结、`@objc` 标记）和按树推导的东西（vtable 联结、ABI 身份）因此都把它当成实现符号来读，不用分支。来源有三种：vtable 槽的 `Tq`（descriptor-only member）、`@objc` thunk（thunk-only member）、只剩 initializing entry point 的 initializer（`…fc` 改写成 allocator 的形状）。只补真实符号没有声明的成员，按成员实体节点结构相等判断。
 
-- **主要出现在**：`StandInMemberSymbols`、`ClassDispatchLookups.vtableSlotMemberSymbols`
+- **主要出现在**：`StandInMemberSymbolBuilder`、`ClassDispatchLookups.vtableSlotMemberSymbols`
 - **延伸阅读**：[DescriptorOnlyVTableMembers.md](Internal/DescriptorOnlyVTableMembers.md)、[ThunkOnlyObjCMembers.md](Internal/ThunkOnlyObjCMembers.md)
 
 ### store-identity vs 结构相等（structural equality）
@@ -410,7 +410,7 @@ substitution，必须连在一个 `$s` 后面一起 demangle。
 
 `@objc` 成员里，Swift 函数体被优化器内联进它的 Objective-C thunk（`$s…To`）、Swift entry point 随后被删掉的那一类：thunk 是它唯一的代码，也是唯一的符号。只有整模块优化下的 internal 成员会这样，因为每一处使用都可见、都内联完了才能删，所以这是 app 和 app 内嵌组件的形状，例如 Xcode 27.2 的 `Xcode Service` 里有 22 个。它和 OS 框架 strip 掉 `To` 符号正好相反：那里实现符号还在，thunk 没了名字。成员模型过去只从实现符号建成员，这一类在 dump 和 interface 里整个缺席；现在从 thunk 造替身成员符号补上。
 
-- **主要出现在**：`SymbolIndexStore.objcThunkMemberSymbols`、`StandInMemberSymbols.memberStandIn(forObjCThunkSymbol:in:)`、`ClassDumper` 的 `[ObjC Thunk]` 一节
+- **主要出现在**：`SymbolIndexStore.objcThunkMemberSymbols`、`StandInMemberSymbolBuilder.memberStandIn(forObjCThunkSymbol:in:)`、`ClassDumper` 的 `[ObjC Thunk]` 一节
 - **延伸阅读**：[ThunkOnlyObjCMembers.md](Internal/ThunkOnlyObjCMembers.md)
 
 ### TypeImportInfo（C 导入类型身份）

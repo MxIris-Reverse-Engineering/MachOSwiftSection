@@ -74,6 +74,6 @@ extension AnnotatedSymbol where Payload == ProtocolWitnessTableOffset? {
     }
 }
 
-/// What every `DefinitionBuilder` entry point consumes: a symbol plus the
+/// What every `MemberDefinitionBuilder` entry point consumes: a symbol plus the
 /// witness-table slot it occupies, if its producer knew one.
 package typealias MemberSymbol = AnnotatedSymbol<ProtocolWitnessTableOffset?>

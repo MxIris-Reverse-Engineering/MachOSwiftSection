@@ -358,7 +358,7 @@ public struct ABIDiffer: Sendable {
     }
 
     /// An extension contributes its shared members plus its associated-type
-    /// **witnesses** — frozen into `AssociatedTypeWitnessProjection` at index
+    /// **witnesses** — frozen into `ResolvedAssociatedTypeWitness` at index
     /// time precisely because the raw `AssociatedType` records' name accessors
     /// are Mach-O-bound and cannot be resolved here.
     func memberRecords(of definition: ExtensionDefinition, exportVerdicts: MemberExportVerdicts = MemberExportVerdicts(nil)) -> [MemberRecord] {

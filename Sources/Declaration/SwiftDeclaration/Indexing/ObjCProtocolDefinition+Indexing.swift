@@ -40,7 +40,7 @@ extension ObjCProtocolDefinition: OnceIndexedDefinition {
                 setterSelector: requirement.setterSelector,
                 isClassMember: requirement.isClassMember,
                 isOptional: requirement.isOptional,
-                source: witness.map { .conformer(className: Self.className(of: $0, in: machO)) } ?? .selector,
+                origin: witness.map { .conformer(className: Self.className(of: $0, in: machO)) } ?? .selector,
                 hasExplicitSelector: witness?.hasExplicitSelector ?? true,
                 typeEncoding: requirement.typeEncoding
             )

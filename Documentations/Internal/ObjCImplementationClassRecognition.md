@@ -13,7 +13,7 @@ SE-0436 的 `@objc @implementation extension` 让 ObjC 头文件里声明的类�
 | SwiftInspection | `ObjCImplementationClassFacts.swift` | 值类型：类名、superclass、class object 偏移、`class_ro_t` 事实、证据档位（`Evidence`）、ivar 列表（含与 `Wvd` 符号 join 出的 Swift 属性名与类型节点）、实例 / 类方法表（selector、type encoding、IMP 偏移、IMP 处的 Swift 符号）、属性表、协议名。 |
 | SwiftInspection | `ObjCImplementationClassIndex.swift` | `SharedCache` 子类（package），reader-split 的构建器；对外是 `public enum ObjCImplementationClasses` 门面：`facts(forClassNamed:in:)`、`all(in:)`、`skipped(in:)`、`removeCache(for:)`、`cImportedClassName(of:)`。 |
 | SwiftDeclaration | `ExtensionDefinition.objcImplementation` / `attachObjCImplementation(_:)` / `unrepresentedObjCImplementationInstanceVariables` | 模型上的事实；`absorbMembers(of:)` 合并时 OR 保留。`VariableDefinition.objcImplementationStorage` 标出「这个由访问器符号建出来的成员其实是存储属性」。 |
-| SwiftDeclaration | `Building/MemberAttributeApplication.swift`、`ExtensionDefinition+ThunkAttributes.swift` | thunk 符号推断 `@objc` / `@nonobjc` / `distributed` 的匹配逻辑抽成共享实现，extension 成员从此也能得到这些 attribute。 |
+| SwiftDeclaration | `Building/ThunkAttributeMatcher.swift`、`ExtensionDefinition+ThunkAttributes.swift` | thunk 符号推断 `@objc` / `@nonobjc` / `distributed` 的匹配逻辑抽成共享实现，extension 成员从此也能得到这些 attribute。 |
 | SwiftIndexing | `SwiftDeclarationIndexer.indexExtensions()` | 目标为 `__C` class 的 extension 查索引、挂事实；没有任何成员符号的命中类合成一个空 extension 承载事实；派发 `objcImplementationClassRecognized` / `objcImplementationClassSkipped` 事件；索引随符号表一起在 `deinit` 清理。 |
 | SwiftPrinting | `SwiftDeclarationPrinter.printExtensionHeader` / `SwiftDeclarationPrinter+ObjCImplementation.swift` | 头部 `@objc @implementation`（inferred 档在同一行内联 `/* inferred from ObjC class data: … */`）；存储属性打成 `var name: Type` 并带真实 field offset；没有成员定义代表的 ivar 单独渲染。 |
 | SwiftDump | `ObjCImplementationClass+Dumpable.swift`、`Dumper/ObjCImplementationClassDumper.swift` | dump 段的渲染。 |
@@ -51,7 +51,7 @@ SE-0436 的 `@objc @implementation extension` 让 ObjC 头文件里声明的类�
 
 ## 副作用：extension 成员的 `@objc`
 
-`MemberAttributeApplication` 让 `indexExtensions()` 对**每个** extension 的成员做 thunk 归属，不只 `@implementation` 的。之前 `@objc` 只出现在类型自身的成员上，`extension NSView { @objc func foo() }` 这类成员一直缺 `@objc`。这是本提案顺带修正的忠实度问题，会让含 `@objc` extension 成员的 interface 输出多出 attribute。
+`ThunkAttributeMatcher` 让 `indexExtensions()` 对**每个** extension 的成员做 thunk 归属，不只 `@implementation` 的。之前 `@objc` 只出现在类型自身的成员上，`extension NSView { @objc func foo() }` 这类成员一直缺 `@objc`。这是本提案顺带修正的忠实度问题，会让含 `@objc` extension 成员的 interface 输出多出 attribute。
 
 ## 验证
 
