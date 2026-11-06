@@ -974,13 +974,18 @@ public final class SymbolIndexStore: @unchecked Sendable {
         from symbolTable: SymbolTable,
         progressContinuation: AsyncStream<Progress>.Continuation?
     ) -> Storage.DemangledIndex {
-        // Single sequential sweep: demangle each symbol cache-free onto a
-        // transient tree, classify on that tree, and intern the result into
-        // the arena builder. Nothing touches the global `NodeCache` and no
-        // class trees outlive the loop iteration (NodeStore migration plan,
-        // Stage 1). Indexes accumulate directly in their final row-index
-        // form (Stage 3), so `freeze()` is followed by a plain move into
-        // `Storage`, not a conversion pass.
+        // Demangle each symbol cache-free onto a transient tree, classify on
+        // that tree, and intern the result into the arena builder. Nothing
+        // touches the global `NodeCache` and no class trees outlive their
+        // wave (NodeStore migration plan, Stage 1). Indexes accumulate
+        // directly in their final row-index form (Stage 3), so `freeze()` is
+        // followed by a plain move into `Storage`, not a conversion pass.
+        //
+        // The demangling — half of the sweep — runs a wave of rows ahead on
+        // every thread the machine runs at once (`DemanglingWave`); interning
+        // and classifying stay on this thread, in row order, so the store and
+        // every index come out exactly as a sequential sweep makes them
+        // (evolution proposal `machofile-performance`).
         let totalSymbolCount = symbolTable.rowCount
 
         var builder = NodeStoreBuilder()
@@ -988,59 +993,66 @@ public final class SymbolIndexStore: @unchecked Sendable {
         var rootNodeIndexByTableRow = [NodeStore.NodeIndex?](repeating: nil, count: totalSymbolCount)
         var rowIndexes = RowIndexes()
 
-        for row in 0..<totalSymbolCount {
-            if row % 500 == 0 {
-                progressContinuation?.yield(Progress(currentCount: row, totalCount: totalSymbolCount))
-            }
+        var pendingWave = DemanglingWave.start(rows: 0 ..< min(DemanglingWave.size, totalSymbolCount), of: symbolTable)
+        while let wave = pendingWave {
+            wave.waitUntilDemangled()
+            let nextRows = wave.rows.upperBound ..< min(wave.rows.upperBound + DemanglingWave.size, totalSymbolCount)
+            pendingWave = DemanglingWave.start(rows: nextRows, of: symbolTable)
 
-            let symbolTableRow = UInt32(row)
-            guard let rootNode = try? demangleAsNodeTransient(symbolTable.materializedName(atRow: symbolTableRow)) else { continue }
-            rootNodeIndexByTableRow[row] = builder.intern(rootNode)
-
-            guard rootNode.isKind(of: .global), let node = rootNode.children.first else { continue }
-
-            rowIndexes.appendSymbolRow(symbolTableRow, for: node.kind)
-
-            if node.kind == .objCAttribute || node.kind == .nonObjCAttribute {
-                if let extracted = processThunkAttributeSymbol(thunkKind: node.kind, rootNode: rootNode, builder: &builder) {
-                    rowIndexes.appendThunkAttributeMember(extracted.member, forKind: node.kind, typeName: extracted.typeName, typeNodeIndex: extracted.typeNodeIndex)
+            for row in wave.rows {
+                if row % 500 == 0 {
+                    progressContinuation?.yield(Progress(currentCount: row, totalCount: totalSymbolCount))
                 }
-                // The member the `@objc` thunk enters, filed by the member it
-                // stands for (see `objcThunkMemberSymbolRowsByKind`).
-                if node.kind == .objCAttribute,
-                   let entityNode = rootNode.children.first(where: { $0.kind != .objCAttribute }),
-                   let result = processMemberSymbol(symbolTableRow, node: entityNode, builder: &builder) {
-                    rowIndexes.setObjCThunkMemberSymbols(for: result)
-                }
-                continue
-            }
 
-            if rootNode.isGlobal {
-                if !symbolTable.isExternal(atRow: symbolTableRow) {
-                    if let result = processGlobalSymbol(symbolTableRow, node: node) {
-                        rowIndexes.setGlobalSymbols(for: result)
+                let symbolTableRow = UInt32(row)
+                guard let rootNode = wave.tree(forRow: row) else { continue }
+                rootNodeIndexByTableRow[row] = builder.intern(rootNode)
+
+                guard rootNode.isKind(of: .global), let node = rootNode.children.first else { continue }
+
+                rowIndexes.appendSymbolRow(symbolTableRow, for: node.kind)
+
+                if node.kind == .objCAttribute || node.kind == .nonObjCAttribute {
+                    if let extracted = processThunkAttributeSymbol(thunkKind: node.kind, rootNode: rootNode, builder: &builder) {
+                        rowIndexes.appendThunkAttributeMember(extracted.member, forKind: node.kind, typeName: extracted.typeName, typeNodeIndex: extracted.typeNodeIndex)
                     }
+                    // The member the `@objc` thunk enters, filed by the member it
+                    // stands for (see `objcThunkMemberSymbolRowsByKind`).
+                    if node.kind == .objCAttribute,
+                       let entityNode = rootNode.children.first(where: { $0.kind != .objCAttribute }),
+                       let result = processMemberSymbol(symbolTableRow, node: entityNode, builder: &builder) {
+                        rowIndexes.setObjCThunkMemberSymbols(for: result)
+                    }
+                    continue
                 }
-            } else {
-                if node.kind == .methodDescriptor, let firstChild = node.children.first {
-                    if let result = processMemberSymbol(symbolTableRow, node: firstChild, builder: &builder) {
-                        rowIndexes.setMethodDescriptorMemberSymbols(for: result)
-                    }
-                } else if node.kind == .protocolWitness, let firstChild = node.children.first {
-                    if let result = processMemberSymbol(symbolTableRow, node: firstChild, builder: &builder) {
-                        rowIndexes.setProtocolWitnessMemberSymbols(for: result)
-                    }
-                } else if node.kind == .mergedFunction, let secondChild = rootNode.children.second {
-                    if let result = processMemberSymbol(symbolTableRow, node: secondChild, builder: &builder) {
-                        rowIndexes.setMemberSymbols(for: result)
-                    }
-                } else if node.kind == .opaqueTypeDescriptor, let firstChild = node.children.first, firstChild.kind == .opaqueReturnTypeOf, let memberSymbol = firstChild.children.first {
-                    if symbolTable.canonicalOffset(atRow: symbolTableRow) > 0 {
-                        rowIndexes.opaqueTypeDescriptorSymbolRowByNodeIndex[builder.intern(memberSymbol)] = symbolTableRow
+
+                if rootNode.isGlobal {
+                    if !symbolTable.isExternal(atRow: symbolTableRow) {
+                        if let result = processGlobalSymbol(symbolTableRow, node: node) {
+                            rowIndexes.setGlobalSymbols(for: result)
+                        }
                     }
                 } else {
-                    if let result = processMemberSymbol(symbolTableRow, node: node, builder: &builder) {
-                        rowIndexes.setMemberSymbols(for: result)
+                    if node.kind == .methodDescriptor, let firstChild = node.children.first {
+                        if let result = processMemberSymbol(symbolTableRow, node: firstChild, builder: &builder) {
+                            rowIndexes.setMethodDescriptorMemberSymbols(for: result)
+                        }
+                    } else if node.kind == .protocolWitness, let firstChild = node.children.first {
+                        if let result = processMemberSymbol(symbolTableRow, node: firstChild, builder: &builder) {
+                            rowIndexes.setProtocolWitnessMemberSymbols(for: result)
+                        }
+                    } else if node.kind == .mergedFunction, let secondChild = rootNode.children.second {
+                        if let result = processMemberSymbol(symbolTableRow, node: secondChild, builder: &builder) {
+                            rowIndexes.setMemberSymbols(for: result)
+                        }
+                    } else if node.kind == .opaqueTypeDescriptor, let firstChild = node.children.first, firstChild.kind == .opaqueReturnTypeOf, let memberSymbol = firstChild.children.first {
+                        if symbolTable.canonicalOffset(atRow: symbolTableRow) > 0 {
+                            rowIndexes.opaqueTypeDescriptorSymbolRowByNodeIndex[builder.intern(memberSymbol)] = symbolTableRow
+                        }
+                    } else {
+                        if let result = processMemberSymbol(symbolTableRow, node: node, builder: &builder) {
+                            rowIndexes.setMemberSymbols(for: result)
+                        }
                     }
                 }
             }
@@ -1837,5 +1849,70 @@ extension NlistProtocol {
     /// (`SymbolTableBuilder.reserveRow`).
     package var isDebuggingEntry: Bool {
         flags?.stab != nil
+    }
+}
+
+/// The demangled trees of a run of symbol table rows, demangled on every
+/// thread the machine runs at once while the build sweep interns the run
+/// before it.
+///
+/// Each batch takes one hop to a large stack (`StackSafeExecutor`) and
+/// demangles all of its names there: a demangle on a 512KB thread hops once
+/// per name otherwise. The tree of a row is a pure function of its name, so
+/// which thread demangles it changes nothing the sweep makes of it.
+final class DemanglingWave: @unchecked Sendable {
+    /// Rows one thread demangles per large-stack hop.
+    private static let batchSize = 512
+
+    /// Rows per wave: a batch for every thread the machine runs at once, at
+    /// most sixteen, so two waves of trees — the one being interned and the
+    /// one being demangled — stay a few megabytes.
+    static let size = batchSize * max(1, min(ProcessInfo.processInfo.activeProcessorCount, 16))
+
+    let rows: Range<Int>
+
+    /// One slot per row, each written by the one batch that owns the row.
+    private let trees: UnsafeMutableBufferPointer<Node?>
+
+    private let group = DispatchGroup()
+
+    private init(rows: Range<Int>) {
+        self.rows = rows
+        self.trees = .allocate(capacity: rows.count)
+        self.trees.initialize(repeating: nil)
+    }
+
+    deinit {
+        _ = trees.deinitialize()
+        trees.deallocate()
+    }
+
+    /// Starts demangling the names of `rows`, or returns `nil` for none.
+    static func start(rows: Range<Int>, of symbolTable: SymbolTable) -> DemanglingWave? {
+        guard !rows.isEmpty else { return nil }
+        let wave = DemanglingWave(rows: rows)
+        let batchCount = (rows.count + batchSize - 1) / batchSize
+        let queue = DispatchQueue.global(qos: DispatchQoS.QoSClass(rawValue: qos_class_self()) ?? .default)
+        queue.async(group: wave.group) {
+            DispatchQueue.concurrentPerform(iterations: batchCount) { batchIndex in
+                let batchStart = rows.lowerBound + batchIndex * batchSize
+                let batchRows = batchStart ..< min(batchStart + batchSize, rows.upperBound)
+                StackSafeExecutor.withLargeStack {
+                    for row in batchRows {
+                        wave.trees[row - rows.lowerBound] = try? demangleAsNodeTransient(symbolTable.materializedName(atRow: UInt32(row)))
+                    }
+                }
+            }
+        }
+        return wave
+    }
+
+    func waitUntilDemangled() {
+        group.wait()
+    }
+
+    /// The row's demangled tree, or `nil` for a name the demangler rejected.
+    func tree(forRow row: Int) -> Node? {
+        trees[row - rows.lowerBound]
     }
 }

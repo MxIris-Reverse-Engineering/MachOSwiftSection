@@ -69,6 +69,40 @@ final class SymbolIndexDemangledIndexTests: MachOFileTests, @unchecked Sendable 
         #expect(Array(onDemandIndex.memberSymbolRowsByKind.keys) == Array(fullIndex.memberSymbolRowsByKind.keys))
     }
 
+    /// The sweep demangles a wave of rows ahead on several threads at once
+    /// and interns each wave in row order (`DemanglingWave`). Every row must
+    /// still hold the tree its own name demangles to, and a name the
+    /// demangler rejects none — across a wave boundary, and through the
+    /// last, partial wave.
+    @Test func everyRowHoldsTheTreeOfItsOwnName() throws {
+        let storage = try #require(SymbolIndexStore.shared.buildStorageWithoutDemangledIndexForTesting(for: machOFile))
+        let symbolTable = storage.symbolTable
+        #expect(symbolTable.rowCount > DemanglingWave.size)
+        #expect(symbolTable.rowCount % DemanglingWave.size != 0)
+
+        let index = storage.demangledIndex
+        #expect(index.rootNodeIndexByTableRow.count == symbolTable.rowCount)
+        var comparedTreeCount = 0
+        var mismatchedRows: [Int] = []
+        for row in 0 ..< symbolTable.rowCount {
+            let expectedTree = try? demangleAsNodeTransient(symbolTable.materializedName(atRow: UInt32(row)))
+            switch (index.rootNodeIndexByTableRow[row], expectedTree) {
+            case (nil, nil):
+                continue
+            case (let rootNodeIndex?, let expectedTree?):
+                if index.nodeStore.reference(at: rootNodeIndex).structurallyEquals(expectedTree) {
+                    comparedTreeCount += 1
+                } else {
+                    mismatchedRows.append(row)
+                }
+            default:
+                mismatchedRows.append(row)
+            }
+        }
+        #expect(comparedTreeCount > DemanglingWave.size)
+        #expect(mismatchedRows.isEmpty, "rows whose tree is not their own name's: \(mismatchedRows.prefix(20))")
+    }
+
     /// Threads asking for the index at once wait for one build and all get
     /// it. Each asks from a thread of its own, so a blocked asker never holds
     /// a cooperative pool thread the build might need.
