@@ -96,4 +96,4 @@
 | [0084](0084-comment-structure.md) | 注释结构标记：打印器给每条注释标出种类和各段角色 | Implemented |
 | [0085](0085-abi-flag-words-bit-field.md) | ABI 层的 flag word 改用 `@BitField`，修掉三个读错位的访问器 | Implemented |
 | [0086](0086-shared-dependency-openings.md) | 依赖定位器共享同一路径的打开，不再按根重开 cache 与显式文件 | Implemented |
-| draft | [`@ResolvableLocatableLayoutWrapper`：样板宏改名并补上遵循](draft-resolvable-locatable-layout-wrapper-macro.md) | In Progress |
+| [0087](0087-resolvable-locatable-layout-wrapper-macro.md) | `@ResolvableLocatableLayoutWrapper`：样板宏改名并补上遵循 | Implemented |

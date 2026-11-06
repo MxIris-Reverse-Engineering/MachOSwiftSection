@@ -1,6 +1,6 @@
-# Draft - `@ResolvableLocatableLayoutWrapper`：样板宏改名并补上遵循
+# 0087 - `@ResolvableLocatableLayoutWrapper`：样板宏改名并补上遵循
 
-- **状态**: In Progress
+- **状态**: Implemented
 - **创建日期**: 2026-11-06
 - **最后更新**: 2026-11-06
 - **关联提案**: [0027-locatable-layout-wrapping-macro](0027-locatable-layout-wrapping-macro.md)（引入这个宏；本提案推翻它「宏不生成遵循」的决定）
@@ -34,3 +34,4 @@
 | 2026-11-06 | `conformances:` 由两个协议改为整条协议链 | 只写两个时，两处对隐含协议 `LayoutWrapper` 的静态成员引用编不过，且同一行在另一个文件里能编过，取决于编译顺序；写出 `LayoutWrapper` 后编过 |
 | 2026-11-06 | 33 个宿主文件补 `import MachOKit` | 扩展里要写出 `LayoutWrapper` 这个名字，只有 MachOKit 转出口它；中途一度怀疑是编译器丢了遵循、改成无视编译器给的缺失清单，查明是名字不可见后撤回，宏仍只补编译器报缺的协议 |
 | 2026-11-06 | 实现完成，待用户看过后收尾 | Ultra 上 Xcode 26.6 全量 2,793 个测试全过，原始退出码 0，覆盖率不变式通过、baseline 零改动。文档：AGENTS.md 的 ABI 层规则改写（含 `import MachOKit` 的要求），演进账本加一节，0027 决策日志补一行；不另写实现说明，宏的文档注释已说明协议链与 import 的原因；没有新术语，术语表不动 |
+| 2026-11-06 | 落地：取号 0087，状态 In Progress → Implemented | 合进 `next` 前远端已落地 0086 与演进账本第 124、125 节，本提案顺延为 0087、账本第 126 节；与远端 `next` 合并后在 Ultra 上用 Xcode 26.6 重跑全量：2,796 个测试、532 个套件全过，原始退出码 0。配套文档的判断不变：不另写实现说明与使用指南，没有新术语 |
