@@ -95,3 +95,4 @@
 | [0083](0083-exported-only-marking-mode.md) | 导出过滤进入标记模式，C 导入类型不再判成未导出 | Implemented |
 | [0084](0084-comment-structure.md) | 注释结构标记：打印器给每条注释标出种类和各段角色 | Implemented |
 | [0085](0085-abi-flag-words-bit-field.md) | ABI 层的 flag word 改用 `@BitField`，修掉三个读错位的访问器 | Implemented |
+| draft | [依赖定位器共享同一路径的打开，不再按根重开 cache 与显式文件](draft-shared-dependency-openings.md) | In Progress |

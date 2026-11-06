@@ -36,8 +36,11 @@ import MachOKitExtensions
 /// 551-image closure before this was made one-shot) — into a
 /// `DyldCacheImageDirectory` every later locator over that cache reads too.
 /// The directory is data only: a locator makes its own `MachOFile` for each
-/// cache image it locates, through its own opening of the cache, and hands
-/// the same one back on every later lookup of that image.
+/// cache image it locates and hands the same one back on every later lookup
+/// of that image. The cache it makes them through is shared, though: a cache
+/// named by path is opened once per process while anything still holds that
+/// opening (`SharedDyldCacheOpenings`), instead of once per locator — and a
+/// locator is built per root by each consumer of a dependency closure.
 ///
 /// A cache image is a candidate only when its platforms are compatible with
 /// the root's (`DependencyPlatforms`): the running system's macOS cache is
@@ -121,7 +124,13 @@ public final class FileDependencyLocator: DependencyLocating, @unchecked Sendabl
                     continue
                 }
                 do {
-                    caches.append(try FullDyldCache(url: URL(fileURLWithPath: path)))
+                    // The opening every locator over this file shares while
+                    // anything holds it; opening it here for each locator
+                    // mapped the whole cache again for every root.
+                    let cache = try SharedDyldCacheOpenings.cache(at: URL(fileURLWithPath: path))
+                    if !caches.contains(where: { $0 === cache }) {
+                        caches.append(cache)
+                    }
                 } catch {
                     loadFailures.append(.init(searchPath: searchPath, error: error))
                 }
