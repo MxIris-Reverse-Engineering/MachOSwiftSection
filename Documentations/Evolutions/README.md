@@ -99,3 +99,4 @@
 | [0087](0087-resolvable-locatable-layout-wrapper-macro.md) | `@ResolvableLocatableLayoutWrapper`：样板宏改名并补上遵循 | Implemented |
 | draft | [SwiftDeclaration 的目录分成公开模型与索引代码两块](draft-swift-declaration-model-indexing-layout.md) | In Progress |
 | draft | [SwiftDeclaration 的类型名按角色统一后缀](draft-swift-declaration-type-naming.md) | In Progress |
+| draft | [离线读取追平进程内：去掉 MachOFile 独有的开销，再压两边共用的部分](draft-machofile-performance.md) | Accepted |
