@@ -2965,7 +2965,7 @@
   - 渲染 A/B（基线 `next` 463b2209，两侧共用同一份 `Package.resolved`）：96 对 `dump` / `interface` 输出逐字节一致——归档 cache 15.5 与 26.6 共 24 对，iOS 15.5–26.5 模拟器文件 48 对，进程内 `MachOImage` 24 对；跳过的都是该运行时里没有的框架。
 - **对应版本**：未发版。发版说明要写：三个 flag word 访问器不再读错位、不再让进程停下；会增长的 kind 变成可选（源码不兼容，`switch` 要补 `nil` 分支）；`ClassFlags` 从枚举变成选项集合；`InvertibleProtocolKind` 的 raw value 变成 `UInt16`；依赖 FrameworkToolbox 0.17.0。
 
-## 2026-11-06 读 dyld cache 时每个文件只映射一次，`@objc` 协议不再先索引整个依赖闭包（节号落地时取）
+## 122. 读 dyld cache 时每个文件只映射一次，`@objc` 协议不再先索引整个依赖闭包
 
 - **时间段**：2026-11-05 至 11-06，分支 `fix/shared-cache-file-mappings`（worktree `.worktrees/MachOSwiftSection-SharedCacheFileMappings`，基于 `next` 565fac44）。缺陷修复，用户批准直接做，不写提案。
 - **动机**：RuntimeViewer 的离线服务读 `Dock.app`（配对本机 dyld cache）、给 DockHelper 建 Find 语料时，停在 `MachOReading/Extensions/DyldCache+.swift:50` 的 `try! MemoryMappedFile.open`：`system error 24`（`EMFILE`）。停住的进程开着 2,560 个描述符——launchd 给 XPC 服务的 256，加 CoreFoundation 第一次有人碰 `CFSocket` 时自动加的 2,304，正好是它的上限——其中 2,548 个只指向 85 个 cache 文件，`.26.dyldreadonly` 一个文件开了 343 次。
@@ -2993,7 +2993,7 @@
   - `MachOSymbolsTests` 满载下偶发的 `SIGTRAP`（见上），没查。
 - **对应版本**：未发版。发版说明要写：读 dyld cache 时每个 cache 文件只映射一次，读多少个镜像都不再多占描述符；文件打不开时读取报错，不再让宿主进程停下；字段类型是 Swift 声明的 `@objc` 协议时，算字段偏移不再先索引整个依赖闭包。
 
-## 2026-11-05 离线读独立文件不再每读一次就重开文件，thunk 读取的镜像级表格按镜像只建一次（节号落地时取）
+## 123. 离线读独立文件不再每读一次就重开文件，thunk 读取的镜像级表格按镜像只建一次
 
 - **时间段**：2026-11-05～06，分支 `fix/offline-reading-performance`（worktree `.worktrees/MachOSwiftSection-OfflineReadingPerformance`，基于 `next` 565fac44）；配套 MachOKit fork 的 `fix/standalone-file-cache-probe` 与 MachOKitExtensions 的 `fix/fixup-resolution-cache`。性能修复，用户批准按 bug 修复处理，不写提案。
 - **动机**：RuntimeViewer 离线（`MachOFile`）读二进制的 Swift 部分，加载要转很久。在 Ultra 上用 release CLI 读三个输入并用 `sample` 采样：
