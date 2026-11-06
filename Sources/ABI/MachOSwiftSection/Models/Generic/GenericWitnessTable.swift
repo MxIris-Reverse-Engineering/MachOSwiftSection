@@ -1,8 +1,8 @@
 import Foundation
 import MachOBase
 
-@LocatableLayoutWrapping
-public struct GenericWitnessTable: ResolvableLocatableLayoutWrapper {
+@ResolvableLocatableLayoutWrapper
+public struct GenericWitnessTable {
     public struct Layout: LayoutProtocol {
         public let witnessTableSizeInWords: UInt16
         public let witnessTablePrivateSizeInWordsAndRequiresInstantiation: UInt16

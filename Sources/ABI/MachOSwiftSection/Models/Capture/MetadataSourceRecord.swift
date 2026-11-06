@@ -24,8 +24,8 @@ import MachOBase
 ///
 /// Mirrors `swift::reflection::MetadataSourceRecord`
 /// (`swift/RemoteInspection/Records.h`).
-@LocatableLayoutWrapping
-public struct MetadataSourceRecord: ResolvableLocatableLayoutWrapper {
+@ResolvableLocatableLayoutWrapper
+public struct MetadataSourceRecord {
     public struct Layout: LayoutProtocol {
         public let mangledTypeName: RelativeDirectPointer<MangledName>
         public let mangledMetadataSource: RelativeDirectPointer<MangledName>

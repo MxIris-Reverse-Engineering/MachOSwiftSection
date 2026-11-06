@@ -1,6 +1,6 @@
 import MachOBase
 
-@LocatableLayoutWrapping
+@ResolvableLocatableLayoutWrapper
 public struct TypeGenericContextDescriptorHeader: GenericContextDescriptorHeaderProtocol {
     public struct Layout: GenericContextDescriptorHeaderLayout {
         /// The runtime's metadata instantiation cache for this type. The

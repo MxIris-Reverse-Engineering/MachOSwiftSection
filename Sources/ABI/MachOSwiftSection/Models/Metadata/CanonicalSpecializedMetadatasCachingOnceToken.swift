@@ -3,8 +3,8 @@ import MachOBase
 
 public typealias SwiftOnceToken = intptr_t
 
-@LocatableLayoutWrapping
-public struct CanonicalSpecializedMetadatasCachingOnceToken: ResolvableLocatableLayoutWrapper {
+@ResolvableLocatableLayoutWrapper
+public struct CanonicalSpecializedMetadatasCachingOnceToken {
     public struct Layout: LayoutProtocol {
         let token: RelativeDirectPointer<SwiftOnceToken>
     }

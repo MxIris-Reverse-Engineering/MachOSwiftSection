@@ -1,6 +1,6 @@
 import Foundation
 
-@LocatableLayoutWrapping
+@ResolvableLocatableLayoutWrapper
 public struct Metadata: MetadataProtocol, Hashable {
     public typealias HeaderType = TypeMetadataHeader
 

@@ -25,8 +25,8 @@ import MachOBase
 /// the only entry is `AsyncFunctionPointer.resolve(at:in:)` with an address
 /// the caller already has. See also ``CoroFunctionPointer``, the same idea for
 /// callee-allocated coroutines.
-@LocatableLayoutWrapping
-public struct AsyncFunctionPointer: ResolvableLocatableLayoutWrapper {
+@ResolvableLocatableLayoutWrapper
+public struct AsyncFunctionPointer {
     public struct Layout: LayoutProtocol {
         /// The async function's entry point.
         public let function: RelativeDirectRawPointer

@@ -2,7 +2,7 @@ import Foundation
 import MachOBase
 import SwiftStdlibToolbox
 
-@LocatableLayoutWrapping
+@ResolvableLocatableLayoutWrapper
 public struct EnumDescriptor: TypeContextDescriptorProtocol {
     public struct Layout: EnumDescriptorLayout {
         public let flags: ContextDescriptorFlags

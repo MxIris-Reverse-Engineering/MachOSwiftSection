@@ -1,7 +1,7 @@
 import MachOBase
 
-@LocatableLayoutWrapping
-public struct SingletonMetadataPointer: ResolvableLocatableLayoutWrapper {
+@ResolvableLocatableLayoutWrapper
+public struct SingletonMetadataPointer {
     public struct Layout: LayoutProtocol {
         let metadata: RelativeDirectPointer<Metadata>
     }

@@ -27,8 +27,8 @@ import MachOBase
 /// `swift.accessibleFunctionRecords` throws
 /// `MachOSwiftSectionError.sectionNotFound` rather than answering empty —
 /// the same contract as every other section accessor here.
-@LocatableLayoutWrapping
-public struct AccessibleFunctionRecord: ResolvableLocatableLayoutWrapper {
+@ResolvableLocatableLayoutWrapper
+public struct AccessibleFunctionRecord {
     public struct Layout: LayoutProtocol {
         public let name: RelativeDirectPointer<String>
         /// Null for a non-generic function — the only nullable pointer here.

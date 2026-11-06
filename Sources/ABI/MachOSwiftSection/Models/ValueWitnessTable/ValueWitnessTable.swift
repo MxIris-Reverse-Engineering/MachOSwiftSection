@@ -1,8 +1,8 @@
 import Foundation
 import MachOBase
 
-@LocatableLayoutWrapping
-public struct ValueWitnessTable: ResolvableLocatableLayoutWrapper {
+@ResolvableLocatableLayoutWrapper
+public struct ValueWitnessTable {
     public struct Layout: LayoutProtocol {
         public let initializeBufferWithCopyOfBuffer: StoredPointer
         public let destroy: StoredPointer

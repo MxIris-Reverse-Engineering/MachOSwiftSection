@@ -1,6 +1,6 @@
 import Foundation
 
-@LocatableLayoutWrapping
+@ResolvableLocatableLayoutWrapper
 public struct MetadataBounds: MetadataBoundsProtocol {
     public struct Layout: MetadataBoundsLayout {
         public let negativeSizeInWords: UInt32

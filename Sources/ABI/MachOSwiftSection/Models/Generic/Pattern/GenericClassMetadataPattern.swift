@@ -14,7 +14,7 @@ import MachOBase
 /// class; a non-generic class with a resilient superclass gets a
 /// ``ResilientClassMetadataPattern`` instead, reached through its singleton
 /// metadata initialization record.
-@LocatableLayoutWrapping
+@ResolvableLocatableLayoutWrapper
 public struct GenericClassMetadataPattern: GenericMetadataPatternProtocol {
     public struct Layout: GenericMetadataPatternLayout {
         public let instantiationFunction: RelativeDirectRawPointer

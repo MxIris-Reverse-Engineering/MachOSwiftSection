@@ -1,8 +1,8 @@
 import Foundation
 import MachOBase
 
-@LocatableLayoutWrapping
-public struct GenericValueDescriptor: ResolvableLocatableLayoutWrapper {
+@ResolvableLocatableLayoutWrapper
+public struct GenericValueDescriptor {
     public struct Layout: LayoutProtocol {
         public let type: UInt32
     }

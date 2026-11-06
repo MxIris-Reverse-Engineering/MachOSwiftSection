@@ -1,8 +1,8 @@
 import Foundation
 import MachOBase
 
-@LocatableLayoutWrapping
-public struct CanonicalSpecializedMetadataAccessorsListEntry: ResolvableLocatableLayoutWrapper {
+@ResolvableLocatableLayoutWrapper
+public struct CanonicalSpecializedMetadataAccessorsListEntry {
     public struct Layout: LayoutProtocol {
         public let accessor: RelativeDirectRawPointer
     }

@@ -2,8 +2,8 @@ import Foundation
 import MachOKit
 import MachOBase
 
-@LocatableLayoutWrapping
-public struct FieldRecord: ResolvableLocatableLayoutWrapper {
+@ResolvableLocatableLayoutWrapper
+public struct FieldRecord {
     public struct Layout: LayoutProtocol {
         public let flags: FieldRecordFlags
         public let mangledTypeName: RelativeDirectPointer<MangledName>

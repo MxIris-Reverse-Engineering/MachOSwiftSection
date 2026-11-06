@@ -4,17 +4,19 @@ import SwiftSyntax
 import SwiftSyntaxBuilder
 import SwiftSyntaxMacros
 
-// MARK: - LocatableLayoutWrappingMacro Definition
+// MARK: - ResolvableLocatableLayoutWrapperMacro Definition
 
-/// Generates the three storage-level requirements of `LocatableLayoutWrapper`
-/// — `var layout: Layout`, `let offset: Int` and `init(layout:offset:)` —
-/// which every wrapper spells out identically.
+/// Makes a wrapper struct a `ResolvableLocatableLayoutWrapper`.
 ///
-/// The conformance itself is deliberately NOT generated: the protocol name
-/// stays on the declaration so the source remains searchable, and wrappers
-/// carrying further conformances need not split their list between the
-/// declaration and an expansion.
-public struct LocatableLayoutWrappingMacro: MemberMacro {
+/// The member role generates the three storage-level requirements of
+/// `LocatableLayoutWrapper` — `var layout: Layout`, `let offset: Int` and
+/// `init(layout:offset:)` — which every wrapper spells out identically.
+///
+/// The extension role adds whichever of `LocatableLayoutWrapper` and
+/// `Resolvable` the type does not conform to yet. The compiler hands over only
+/// the missing protocols, so a wrapper declared as a refining protocol
+/// (`MetadataProtocol`, `ContextDescriptorProtocol`, …) gets no extension.
+public struct ResolvableLocatableLayoutWrapperMacro: MemberMacro {
     public static func expansion(
         of node: AttributeSyntax,
         providingMembersOf declaration: some DeclGroupSyntax,
@@ -22,7 +24,7 @@ public struct LocatableLayoutWrappingMacro: MemberMacro {
         in context: some MacroExpansionContext
     ) throws -> [DeclSyntax] {
         guard let structDeclaration = declaration.as(StructDeclSyntax.self) else {
-            context.diagnose(LocatableLayoutWrappingError.notAStruct.diag(at: Syntax(node)))
+            context.diagnose(ResolvableLocatableLayoutWrapperError.notAStruct.diag(at: Syntax(node)))
             return []
         }
 
@@ -32,19 +34,19 @@ public struct LocatableLayoutWrappingMacro: MemberMacro {
         var generatedMembers: [DeclSyntax] = []
 
         if let conflicting = existingStoredProperty(named: "layout", in: existingMembers) {
-            context.diagnose(LocatableLayoutWrappingError.memberAlreadyDeclared("layout").diag(at: Syntax(conflicting)))
+            context.diagnose(ResolvableLocatableLayoutWrapperError.memberAlreadyDeclared("layout").diag(at: Syntax(conflicting)))
         } else {
             generatedMembers.append("\(raw: accessLevel)var layout: Layout")
         }
 
         if let conflicting = existingStoredProperty(named: "offset", in: existingMembers) {
-            context.diagnose(LocatableLayoutWrappingError.memberAlreadyDeclared("offset").diag(at: Syntax(conflicting)))
+            context.diagnose(ResolvableLocatableLayoutWrapperError.memberAlreadyDeclared("offset").diag(at: Syntax(conflicting)))
         } else {
             generatedMembers.append("\(raw: accessLevel)let offset: Int")
         }
 
         if let conflicting = existingLayoutOffsetInitializer(in: existingMembers) {
-            context.diagnose(LocatableLayoutWrappingError.memberAlreadyDeclared("init(layout:offset:)").diag(at: Syntax(conflicting)))
+            context.diagnose(ResolvableLocatableLayoutWrapperError.memberAlreadyDeclared("init(layout:offset:)").diag(at: Syntax(conflicting)))
         } else {
             generatedMembers.append(
                 """
@@ -103,18 +105,38 @@ public struct LocatableLayoutWrappingMacro: MemberMacro {
     }
 }
 
+// MARK: - Extension Role
+
+extension ResolvableLocatableLayoutWrapperMacro: ExtensionMacro {
+    public static func expansion(
+        of node: AttributeSyntax,
+        attachedTo declaration: some DeclGroupSyntax,
+        providingExtensionsOf type: some TypeSyntaxProtocol,
+        conformingTo protocols: [TypeSyntax],
+        in context: some MacroExpansionContext
+    ) throws -> [ExtensionDeclSyntax] {
+        // The member role reports a non-struct host; reporting it again here
+        // would only duplicate the error.
+        guard declaration.is(StructDeclSyntax.self), !protocols.isEmpty else { return [] }
+
+        let conformanceList = protocols.map(\.trimmedDescription).joined(separator: ", ")
+        let extensionDeclaration: DeclSyntax = "extension \(type.trimmed): \(raw: conformanceList) {}"
+        return [extensionDeclaration.cast(ExtensionDeclSyntax.self)]
+    }
+}
+
 // MARK: - Error Enum
 
-enum LocatableLayoutWrappingError: CustomStringConvertible, Error, DiagnosticMessage {
+enum ResolvableLocatableLayoutWrapperError: CustomStringConvertible, Error, DiagnosticMessage {
     case notAStruct
     case memberAlreadyDeclared(String)
 
     var message: String {
         switch self {
         case .notAStruct:
-            return "@LocatableLayoutWrapping can only be applied to structs."
+            return "@ResolvableLocatableLayoutWrapper can only be applied to structs."
         case .memberAlreadyDeclared(let name):
-            return "@LocatableLayoutWrapping did not generate '\(name)' because the type declares it already."
+            return "@ResolvableLocatableLayoutWrapper did not generate '\(name)' because the type declares it already."
         }
     }
 
@@ -125,9 +147,9 @@ enum LocatableLayoutWrappingError: CustomStringConvertible, Error, DiagnosticMes
     var diagnosticID: MessageID {
         switch self {
         case .notAStruct:
-            return MessageID(domain: "LocatableLayoutWrappingMacro", id: "NotAStruct")
+            return MessageID(domain: "ResolvableLocatableLayoutWrapperMacro", id: "NotAStruct")
         case .memberAlreadyDeclared:
-            return MessageID(domain: "LocatableLayoutWrappingMacro", id: "MemberAlreadyDeclared")
+            return MessageID(domain: "ResolvableLocatableLayoutWrapperMacro", id: "MemberAlreadyDeclared")
         }
     }
 

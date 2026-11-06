@@ -1,7 +1,7 @@
 import MachOBase
 
-@LocatableLayoutWrapping
-public struct GenericPackShapeDescriptor: ResolvableLocatableLayoutWrapper {
+@ResolvableLocatableLayoutWrapper
+public struct GenericPackShapeDescriptor {
     public struct Layout: LayoutProtocol {
         public let kind: UInt16
         public let index: UInt16

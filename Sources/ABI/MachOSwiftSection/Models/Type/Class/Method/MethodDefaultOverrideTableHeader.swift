@@ -1,8 +1,8 @@
 import Foundation
 import MachOBase
 
-@LocatableLayoutWrapping
-public struct MethodDefaultOverrideTableHeader: ResolvableLocatableLayoutWrapper {
+@ResolvableLocatableLayoutWrapper
+public struct MethodDefaultOverrideTableHeader {
     public struct Layout: LayoutProtocol {
         public let numEntries: UInt32
     }

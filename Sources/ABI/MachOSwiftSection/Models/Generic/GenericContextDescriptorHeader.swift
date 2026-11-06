@@ -1,4 +1,4 @@
-@LocatableLayoutWrapping
+@ResolvableLocatableLayoutWrapper
 public struct GenericContextDescriptorHeader: GenericContextDescriptorHeaderProtocol {
     public struct Layout: GenericContextDescriptorHeaderLayout {
         public let numParams: UInt16
