@@ -5,7 +5,7 @@ import MachOBase
 /// A record in `__swift5_fieldmd`: a nominal type's or protocol's name, and
 /// one trailing ``FieldRecord`` per stored property or enum case. The section
 /// is a sequence of them, walked by size.
-@LocatableLayoutWrapping
+@ResolvableLocatableLayoutWrapper
 public struct FieldDescriptor: TopLevelDescriptor {
     public struct Layout: LayoutProtocol {
         public let mangledTypeName: RelativeDirectPointer<MangledName>

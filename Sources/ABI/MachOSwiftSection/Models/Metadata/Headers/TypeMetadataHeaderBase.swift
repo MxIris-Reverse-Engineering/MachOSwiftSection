@@ -2,7 +2,7 @@ import Foundation
 import MachOKit
 import MachOBase
 
-@LocatableLayoutWrapping
+@ResolvableLocatableLayoutWrapper
 public struct TypeMetadataHeaderBase: TypeMetadataHeaderBaseProtocol {
     public struct Layout: TypeMetadataHeaderBaseLayout {
         public let valueWitnesses: Pointer<ValueWitnessTable>

@@ -2,8 +2,8 @@ import Foundation
 import MachOKit
 import MachOBase
 
-@LocatableLayoutWrapping
-public struct BuiltinTypeDescriptor: ResolvableLocatableLayoutWrapper, TopLevelDescriptor {
+@ResolvableLocatableLayoutWrapper
+public struct BuiltinTypeDescriptor: TopLevelDescriptor {
     public struct Layout: LayoutProtocol {
         public let typeName: RelativeDirectPointer<MangledName?>
         public let size: UInt32

@@ -2,8 +2,8 @@ import Foundation
 import MachOKit
 import MachOBase
 
-@LocatableLayoutWrapping
-public struct ObjCProtocolPrefix: ResolvableLocatableLayoutWrapper {
+@ResolvableLocatableLayoutWrapper
+public struct ObjCProtocolPrefix {
     public struct Layout: LayoutProtocol {
         public let isa: RawPointer
         public let name: Pointer<String>

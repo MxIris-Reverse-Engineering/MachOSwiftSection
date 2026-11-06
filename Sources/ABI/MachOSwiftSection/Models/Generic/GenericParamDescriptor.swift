@@ -1,7 +1,8 @@
+import MachOKit
 import MachOBase
 
-@LocatableLayoutWrapping
-public struct GenericParamDescriptor: ResolvableLocatableLayoutWrapper {
+@ResolvableLocatableLayoutWrapper
+public struct GenericParamDescriptor {
     public struct Layout: LayoutProtocol {
         public let rawValue: UInt8
     }

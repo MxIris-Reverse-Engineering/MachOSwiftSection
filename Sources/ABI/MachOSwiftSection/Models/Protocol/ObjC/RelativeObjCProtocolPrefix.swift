@@ -2,8 +2,8 @@ import Foundation
 import MachOKit
 import MachOBase
 
-@LocatableLayoutWrapping
-public struct RelativeObjCProtocolPrefix: ResolvableLocatableLayoutWrapper {
+@ResolvableLocatableLayoutWrapper
+public struct RelativeObjCProtocolPrefix {
     public struct Layout: LayoutProtocol {
         public let isa: RelativeDirectRawPointer
         public let mangledName: RelativeDirectPointer<MangledName>

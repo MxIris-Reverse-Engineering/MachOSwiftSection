@@ -9,8 +9,8 @@ import MachOBase
 ///
 /// Mirrors `swift::reflection::CaptureTypeRecord`
 /// (`swift/RemoteInspection/Records.h`).
-@LocatableLayoutWrapping
-public struct CaptureTypeRecord: ResolvableLocatableLayoutWrapper {
+@ResolvableLocatableLayoutWrapper
+public struct CaptureTypeRecord {
     public struct Layout: LayoutProtocol {
         public let mangledTypeName: RelativeDirectPointer<MangledName>
     }

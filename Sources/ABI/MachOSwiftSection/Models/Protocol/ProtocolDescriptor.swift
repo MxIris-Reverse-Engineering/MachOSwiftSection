@@ -11,7 +11,7 @@ import MachOBase
 /// Only Swift protocols are defined by a protocol descriptor, whereas
 /// Objective-C (including protocols defined in Swift as @objc) use the
 /// Objective-C protocol layout.
-@LocatableLayoutWrapping
+@ResolvableLocatableLayoutWrapper
 public struct ProtocolDescriptor: ProtocolDescriptorProtocol {
     public struct Layout: ProtocolDescriptorLayout {
         public let flags: ContextDescriptorFlags

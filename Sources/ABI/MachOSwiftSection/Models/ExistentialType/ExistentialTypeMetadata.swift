@@ -2,7 +2,7 @@ import Foundation
 import MachOKit
 import MachOBase
 
-@LocatableLayoutWrapping
+@ResolvableLocatableLayoutWrapper
 public struct ExistentialTypeMetadata: MetadataProtocol {
     public struct Layout: ExistentialTypeMetadataLayout {
         public let kind: StoredPointer

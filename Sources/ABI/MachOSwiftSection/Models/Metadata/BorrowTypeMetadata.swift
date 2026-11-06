@@ -8,7 +8,7 @@ import MachOKit
 /// words, bitwise-borrowable and not addressable-for-dependencies, and as a
 /// single pointer otherwise (`swift_getBorrowRepresentation`). The metadata
 /// itself records only the referent; the value witnesses carry the result.
-@LocatableLayoutWrapping
+@ResolvableLocatableLayoutWrapper
 public struct BorrowTypeMetadata: MetadataProtocol {
     public struct Layout: BorrowTypeMetadataLayout {
         public let kind: StoredPointer

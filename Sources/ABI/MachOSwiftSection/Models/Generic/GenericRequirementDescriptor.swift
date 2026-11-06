@@ -2,8 +2,8 @@ import Foundation
 import MachOKit
 import MachOBase
 
-@LocatableLayoutWrapping
-public struct GenericRequirementDescriptor: ResolvableLocatableLayoutWrapper {
+@ResolvableLocatableLayoutWrapper
+public struct GenericRequirementDescriptor {
     public struct Layout: LayoutProtocol {
         public let flags: GenericRequirementFlags
         public let param: RelativeDirectPointer<MangledName>

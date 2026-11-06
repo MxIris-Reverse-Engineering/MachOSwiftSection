@@ -2,7 +2,7 @@ import Foundation
 import MachOKit
 import MachOBase
 
-@LocatableLayoutWrapping
+@ResolvableLocatableLayoutWrapper
 public struct OpaqueMetadata: MetadataProtocol {
     public typealias HeaderType = TypeMetadataHeaderBase
 
