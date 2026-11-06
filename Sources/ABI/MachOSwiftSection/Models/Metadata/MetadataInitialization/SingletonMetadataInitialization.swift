@@ -1,4 +1,5 @@
 import Foundation
+import MachOKit
 import MachOBase
 
 /// The control structure for a type whose metadata cannot be laid out at

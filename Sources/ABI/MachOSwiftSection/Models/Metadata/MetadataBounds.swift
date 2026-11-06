@@ -1,4 +1,5 @@
 import Foundation
+import MachOKit
 
 @ResolvableLocatableLayoutWrapper
 public struct MetadataBounds: MetadataBoundsProtocol {

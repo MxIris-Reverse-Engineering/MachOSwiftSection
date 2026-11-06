@@ -1,3 +1,5 @@
+import MachOKit
+
 @ResolvableLocatableLayoutWrapper
 public struct GenericContextDescriptorHeader: GenericContextDescriptorHeaderProtocol {
     public struct Layout: GenericContextDescriptorHeaderLayout {

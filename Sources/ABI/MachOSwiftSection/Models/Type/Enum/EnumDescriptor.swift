@@ -1,4 +1,5 @@
 import Foundation
+import MachOKit
 import MachOBase
 import SwiftStdlibToolbox
 
