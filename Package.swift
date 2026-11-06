@@ -154,7 +154,7 @@ extension Package.Dependency {
             // its cache too (`dyldCacheImage`), which `SharedCacheKey` hashes.
             // 1.1.1 builds each dyld sub-cache once instead of on every read
             // that crosses into another cache file, and hands back the same
-            // instance each time, which `DyldCache.fileIO` keys its mapping on.
+            // instance each time.
             // 1.1.2 adds `FullDyldCache.cachedHost`, the system cache opened
             // once per process rather than once per dependency locator.
             // 1.3.0 adds `MachOReaderWrapper`, through which every reader-kind
@@ -162,7 +162,11 @@ extension Package.Dependency {
             // sees through a host's wrapper type. 1.3.1 grows the memos of
             // `resolveRebase(fileOffset:)` / `resolveBind(fileOffset:)` in
             // place, where each new entry used to copy the whole dictionary.
-            from: "1.3.1",
+            // 1.3.2 stores a file's `identifier` and its bind index once:
+            // threads reading a new file for the first time each stored their
+            // own, freeing the value another thread was still reading, and
+            // `SharedCacheKey` reads the identifier on every lookup.
+            from: "1.3.2",
         ),
     )
 
