@@ -3035,6 +3035,21 @@
   - 全量 `swift test --skip IntegrationTests`：2,793 个测试、531 个套件，只红 `ThunkOnlyObjCMemberTests` 4 条（Xcode 27.2 现场编译 fixture 的旧漂移），原始退出码 1。
 - **对应版本**：未发版。发版说明要写：依赖解析按路径点名的 dyld cache，同一份在进程里只打开一次，各个根与各个使用方共用。
 
+## 2026-11-06 `@ResolvableLocatableLayoutWrapper`：样板宏改名并补上遵循（节号落地时取）
+
+- **时间段**：2026-11-06，分支 `refactor/resolvable-locatable-layout-wrapper-macro`（worktree `.worktrees/MachOSwiftSection-ResolvableLocatableLayoutWrapperMacro`，基于 `next` 3e28c2ec）。提案 [draft-resolvable-locatable-layout-wrapper-macro](../Evolutions/draft-resolvable-locatable-layout-wrapper-macro.md)（轻量档）。
+- **动机**：0027 的 `@LocatableLayoutWrapping` 只生成 `layout` / `offset` / `init(layout:offset:)`，遵循要在声明处另写。98 个贴了宏的 struct 全是 `ResolvableLocatableLayoutWrapper`，宏与遵循总是成对出现，用户要求把遵循收进宏、宏改名。
+- **关键决策**：
+  - **宏名就是它带来的遵循**（用户选定）：`@ResolvableLocatableLayoutWrapper`，与 `@Observable` 宏对 `Observable` 协议同一思路；搜索协议名仍能找到全部遵循者，0027 保留声明处协议名的理由随之消失。
+  - **加 extension 角色，只补缺的协议**：编译器只把类型还没有的 `LocatableLayoutWrapper` / `Resolvable` 交给宏。直接写了 `: ResolvableLocatableLayoutWrapper` 的 51 处删掉它；经 `MetadataProtocol` 这类子协议遵循的 46 处照旧写子协议（它带着 `Layout` 约束），宏不再生成扩展。
+  - **宏声明搬进 MachOSwiftSection**：`conformances:` 要写出这些协议，`Utilities` 看不到它们；`MachOSwiftSection` 直接依赖 `MachOMacros`。
+  - **`conformances:` 写出整条协议链**（`LocatableLayoutWrapper, Resolvable, LayoutWrapper, Equatable, Sendable`）：只写顶上两个时，`LayoutWrapper` 只是隐含，Swift 6.3 下 `TypeMetadataRecord.layoutSize` 在一个文件里报不遵循 `LayoutWrapper`、同一行在另一个文件里编过，取决于编译顺序。
+  - **宿主文件都 `import MachOKit`**：扩展里写着 `LayoutWrapper`，只有 MachOKit 转出口它，33 个原来只 import `MachOBase` 的宿主文件补上。漏了时报「cannot find type 'LayoutWrapper' in scope」，指在宏展开里；中途一度把这条报错误判成编译器丢了遵循，查明后撤回了绕开编译器缺失清单的写法。
+  - `GlobalActorReference`、`MetadataBounds`、`ClassMetadataBounds` 由此新增 `Resolvable` 遵循，默认实现与它们原本的读法相同。下游仓库没有用到旧宏名，不留别名。
+- **落地**：MachOMacros（`ResolvableLocatableLayoutWrapperMacro`，原 `LocatableLayoutWrappingMacro`），Utilities（删掉旧宏声明），MachOSwiftSection（宏声明与 98 个宿主，33 个文件补 `import MachOKit`），MachOFixtureSupport（`PublicMemberScanner` 认新宏名），`Package.swift`，`AGENTS.md` 的 ABI 层一段，0027 的决策日志补一行。
+- **验证**：在 JHs-Mac-Studio-Ultra 上用 Xcode 26.6 跑，依赖走远端版本，fixture 照 CI 的参数编。全量 `swift test --skip IntegrationTests`：2,793 个测试、531 个套件全过，原始退出码 0（与上一节同数，本次没有新增测试）；`MachOSwiftSectionCoverageInvariantTests` 在内，`__Baseline__/` 与 allowlist 零改动，宏没有发出「成员已手写」的 warning。没跑渲染 A/B：生成的存储成员与改前逐字相同，只多了遵循。
+- **对应版本**：未发版。发版说明不必写：宏只在本库内部使用，生成的存储成员不变；三个类型多出的 `Resolvable` 遵循是增量变化。
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节
