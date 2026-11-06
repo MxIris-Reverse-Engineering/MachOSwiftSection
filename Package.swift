@@ -533,6 +533,7 @@ extension Target {
             .product(.MachOObjCSection),
             .product(.Demangling),
             .target(.Utilities),
+            .target(.MachOCaches),
             .target(.MachODependencies),
             .target(.MachOFoundation),
             .target(.MachOSwiftSection),
