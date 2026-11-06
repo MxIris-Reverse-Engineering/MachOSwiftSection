@@ -353,18 +353,13 @@ public final class SwiftInterfaceBuilder<MachO: MachOFieldLayoutRenderable>: Sen
 
         var usedModules: OrderedSet<String> = []
         let filterModules: Set<String> = [cModule, objcModule, stdlibName]
-        let allSymbols = symbolIndexStore.allSymbols(in: machO)
+        let (symbolCount, moduleNames) = symbolIndexStore.moduleNamesInAllSymbols(in: machO)
 
-        eventDispatcher.dispatch(.symbolScanStarted(context: SwiftIndexEvents.SymbolScanContext(totalSymbols: allSymbols.count, filterModules: Array(filterModules.sorted()))))
+        eventDispatcher.dispatch(.symbolScanStarted(context: SwiftIndexEvents.SymbolScanContext(totalSymbols: symbolCount, filterModules: Array(filterModules.sorted()))))
 
-        for symbol in allSymbols {
-            for moduleNode in symbol.demangledNode.all(of: .module) {
-                if let module = moduleNode.text, !filterModules.contains(module) {
-                    if usedModules.append(module).inserted {
-                        eventDispatcher.dispatch(.moduleFound(context: SwiftIndexEvents.ModuleContext(moduleName: module)))
-                    }
-                }
-            }
+        for module in moduleNames where !filterModules.contains(module) {
+            usedModules.append(module)
+            eventDispatcher.dispatch(.moduleFound(context: SwiftIndexEvents.ModuleContext(moduleName: module)))
         }
 
         importedModules = usedModules

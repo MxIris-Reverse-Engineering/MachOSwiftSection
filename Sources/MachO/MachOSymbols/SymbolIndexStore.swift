@@ -1261,6 +1261,42 @@ public final class SymbolIndexStore: @unchecked Sendable {
         return storage.symbolRowsByKind.values.flatMap { storage.demangledSymbols(atRows: $0) }
     }
 
+    /// The text of every `.module` node in the trees `allSymbols(in:)`
+    /// returns, in the order a preorder walk of those trees, one symbol after
+    /// another, meets them first — together with how many symbols that is.
+    ///
+    /// The walk reads the node store directly and enters each subtree once:
+    /// identical subtrees share one node in the store, and a subtree met
+    /// again can add no name its first visit did not already add, so
+    /// skipping it changes neither the names nor their order. Walking every
+    /// symbol's whole tree instead — what a caller of `allSymbols(in:)` does —
+    /// cost SwiftUI's interface about two seconds (evolution proposal
+    /// `machofile-performance`).
+    package func moduleNamesInAllSymbols(in machO: some MachORepresentableWithCache) -> (symbolCount: Int, moduleNames: OrderedSet<String>) {
+        guard let storage = storage(in: machO) else { return (0, []) }
+        let demangledIndex = storage.demangledIndex
+        var symbolCount = 0
+        var moduleNames: OrderedSet<String> = []
+        var visitedNodeIndices: Set<NodeStore.NodeIndex> = []
+        visitedNodeIndices.reserveCapacity(demangledIndex.nodeStore.nodeCount)
+        var pendingNodes: [NodeReference] = []
+        for rows in demangledIndex.symbolRowsByKind.values {
+            for row in rows {
+                guard let rootNodeIndex = demangledIndex.rootNodeIndexByTableRow[Int(row)] else { continue }
+                symbolCount += 1
+                pendingNodes.append(demangledIndex.nodeStore.reference(at: rootNodeIndex))
+                while let node = pendingNodes.popLast() {
+                    guard visitedNodeIndices.insert(node.nodeIndex).inserted else { continue }
+                    if node.kind == .module, let moduleName = node.text {
+                        moduleNames.append(moduleName)
+                    }
+                    pendingNodes.append(contentsOf: node.children.reversed())
+                }
+            }
+        }
+        return (symbolCount, moduleNames)
+    }
+
     public func symbolsByKind(in machO: some MachORepresentableWithCache) -> OrderedDictionary<Node.Kind, [DemangledSymbol]> {
         guard let storage = storage(in: machO) else { return [:] }
         return storage.symbolRowsByKind.mapValues { storage.demangledSymbols(atRows: $0) }
