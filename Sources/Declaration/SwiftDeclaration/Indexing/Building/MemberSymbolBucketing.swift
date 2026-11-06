@@ -38,23 +38,23 @@ extension MutableDefinition {
             switch kind {
             case .variable(inExtension, let isStatic, false):
                 if isStatic {
-                    staticVariables = DefinitionBuilder.variables(for: memberSymbols, fieldNames: [], isGlobalOrStatic: true)
+                    staticVariables = MemberDefinitionBuilder.variables(for: memberSymbols, fieldNames: [], isGlobalOrStatic: true)
                 } else {
-                    variables = DefinitionBuilder.variables(for: memberSymbols, fieldNames: [], isGlobalOrStatic: false)
+                    variables = MemberDefinitionBuilder.variables(for: memberSymbols, fieldNames: [], isGlobalOrStatic: false)
                 }
             case .allocator:
-                allocators = DefinitionBuilder.allocators(for: memberSymbols)
+                allocators = MemberDefinitionBuilder.allocators(for: memberSymbols)
             case .function(inExtension, let isStatic):
                 if isStatic {
-                    staticFunctions = DefinitionBuilder.functions(for: memberSymbols, isGlobalOrStatic: true)
+                    staticFunctions = MemberDefinitionBuilder.functions(for: memberSymbols, isGlobalOrStatic: true)
                 } else {
-                    functions = DefinitionBuilder.functions(for: memberSymbols, isGlobalOrStatic: false)
+                    functions = MemberDefinitionBuilder.functions(for: memberSymbols, isGlobalOrStatic: false)
                 }
             case .subscript(inExtension, let isStatic):
                 if isStatic {
-                    staticSubscripts = DefinitionBuilder.subscripts(for: memberSymbols, isStatic: true)
+                    staticSubscripts = MemberDefinitionBuilder.subscripts(for: memberSymbols, isStatic: true)
                 } else {
-                    subscripts = DefinitionBuilder.subscripts(for: memberSymbols, isStatic: false)
+                    subscripts = MemberDefinitionBuilder.subscripts(for: memberSymbols, isStatic: false)
                 }
             default:
                 break

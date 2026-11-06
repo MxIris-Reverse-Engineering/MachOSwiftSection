@@ -15,7 +15,7 @@ extension ExtensionDefinition {
         typeNode: NodeReference,
         in machO: some MachORepresentableWithCache
     ) {
-        MemberAttributeApplication.applyThunkAttributes(
+        ThunkAttributeMatcher.applyThunkAttributes(
             symbolIndexStore: symbolIndexStore,
             typeName: typeName,
             typeNode: typeNode,

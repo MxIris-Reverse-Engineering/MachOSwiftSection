@@ -27,7 +27,7 @@ extension TypeDefinition {
         // ObjC-side index derive from the class's runtime name.
         guard let qualifiedName = NodeTypeNaming.nominalQualifiedName(ofDemangledRoot: typeName.node.materialize()) else { return nil }
         guard let table = ObjCMembers.table(forSwiftClassQualifiedName: qualifiedName, in: machO), !table.isEmpty else { return nil }
-        ObjCMemberApplication.apply(
+        ObjCMemberMatcher.apply(
             table,
             functions: &functions,
             variables: &variables,

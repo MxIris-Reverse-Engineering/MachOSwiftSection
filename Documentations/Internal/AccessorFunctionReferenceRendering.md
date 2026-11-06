@@ -69,7 +69,7 @@ thunk 里先调 `__isPlatformVersionAtLeast`，再按结果在两个类型之间
   `accessor function at N` 兜底——读取器读不了的引用变成「类型里嵌一个未读引用」（首次落地时读取器只认两种
   形态，剩下的 5 条即如此）。文案沿用而不换，是因为它出自上游 `NodePrinter`、两条打印路径有 parity 测试钉着、快照归一化
   也认这个前缀。
-- **另一支进了模型**。`AssociatedTypeWitnessProjection.conditionalCandidates`：每支一条，带版本条件、
+- **另一支进了模型**。`ResolvedAssociatedTypeWitness.conditionalCandidates`：每支一条，带版本条件、
   thunk 那一支的类型、以及整条 witness 按该分支替换后的全文（宿主不必知道 thunk 嵌在树的哪一层）。
   `Node.resolveOpaqueTypeCollectingConditionalCandidates(in:)` 用同一个 rewriter 跑一遍记下候选，再对
   每个非默认分支按选择重跑一遍——每条 witness 一个双向 thunk（实测全部如此）就多一趟，没有笛卡尔积。

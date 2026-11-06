@@ -69,13 +69,13 @@ extension TypeDefinition {
                     lookups.vtableSlotMemberSymbols.append(slotMemberSymbol)
                 }
             } else if let symbols = descriptor.implementationSymbols(in: machO),
-                      let overrideSymbol = demangledOverrideSymbol(for: symbols, typeNode: typeNode, visitedNodes: visitedNodes, in: machO) {
+                      let overrideSymbol = OverrideSymbolMatcher.demangledOverrideSymbol(for: symbols, typeNode: typeNode, visitedNodes: visitedNodes, in: machO) {
                 node = overrideSymbol.demangledNode
             } else {
                 continue
             }
             visitedNodes.append(StructuralNodeReferenceKey(node))
-            let joinKey = memberJoinKey(for: node, in: machO.context)
+            let joinKey = OverrideSymbolMatcher.memberJoinKey(for: node, in: machO.context)
             lookups.methodDescriptorLookup[joinKey] = .method(descriptor)
             if let vtableBaseOffset {
                 lookups.vtableOffsetLookup[joinKey] = vtableBaseOffset + index
@@ -90,10 +90,10 @@ extension TypeDefinition {
             // symbol never matches. See
             // `Descriptor+MethodDescriptorSymbols.swift`.
             guard let symbols = descriptor.implementationSymbols(in: machO) else { continue }
-            guard let overrideSymbol = demangledOverrideSymbol(for: symbols, typeNode: typeNode, visitedNodes: visitedNodes, in: machO) else { continue }
+            guard let overrideSymbol = OverrideSymbolMatcher.demangledOverrideSymbol(for: symbols, typeNode: typeNode, visitedNodes: visitedNodes, in: machO) else { continue }
             let node = overrideSymbol.demangledNode
             visitedNodes.append(StructuralNodeReferenceKey(node))
-            let joinKey = memberJoinKey(for: node, in: machO.context)
+            let joinKey = OverrideSymbolMatcher.memberJoinKey(for: node, in: machO.context)
             lookups.methodDescriptorLookup[joinKey] = .methodOverride(descriptor)
 
             if let vtableSlot = try? parentVTableCache.slotIndex(for: descriptor, in: machO.context) {
@@ -107,10 +107,10 @@ extension TypeDefinition {
             // symbol never matches. See
             // `Descriptor+MethodDescriptorSymbols.swift`.
             guard let symbols = descriptor.implementationSymbols(in: machO) else { continue }
-            guard let overrideSymbol = demangledOverrideSymbol(for: symbols, typeNode: typeNode, visitedNodes: visitedNodes, in: machO) else { continue }
+            guard let overrideSymbol = OverrideSymbolMatcher.demangledOverrideSymbol(for: symbols, typeNode: typeNode, visitedNodes: visitedNodes, in: machO) else { continue }
             let node = overrideSymbol.demangledNode
             visitedNodes.append(StructuralNodeReferenceKey(node))
-            lookups.methodDescriptorLookup[memberJoinKey(for: node, in: machO.context)] = .methodDefaultOverride(descriptor)
+            lookups.methodDescriptorLookup[OverrideSymbolMatcher.memberJoinKey(for: node, in: machO.context)] = .methodDefaultOverride(descriptor)
         }
         return lookups
     }

@@ -7,7 +7,7 @@ import MachOSwiftSection
 ///
 /// Empty for every non-class: a struct or enum has no dispatch to describe,
 /// and the builders then attribute no method descriptor to any member. The
-/// default value is what `DefinitionBuilder`'s global / extension / protocol
+/// default value is what `MemberDefinitionBuilder`'s global / extension / protocol
 /// callers pass by omission.
 ///
 /// The two keyings are not interchangeable, and their order of use is the
@@ -67,7 +67,7 @@ package struct ClassDispatchLookups {
     /// wins: the stand-ins only fill in what the image lost.
     package func supplementing(_ memberSymbols: [DemangledSymbol], in category: MemberCategory) -> [DemangledSymbol] {
         let categorySlotSymbols = vtableSlotMemberSymbols.filter { Self.memberCategory(ofMemberNode: $0.demangledNode) == category }
-        return StandInMemberSymbols.supplementing(memberSymbols, with: categorySlotSymbols)
+        return StandInMemberSymbolBuilder.supplementing(memberSymbols, with: categorySlotSymbols)
     }
 
     /// The builder input a vtable member belongs in, read off its node the

@@ -13,7 +13,7 @@ import SwiftThunkAnalysis
 /// a lookup per member. A member the table knows is `@objc` — the attribute
 /// is added when the thunk symbols (stripped in OS frameworks) did not
 /// already supply it.
-package enum ObjCMemberApplication {
+package enum ObjCMemberMatcher {
     /// Applies the table and returns how many members it tied. The name-only
     /// third tier runs afterwards over the overriding methods the table tied
     /// to no symbol — always: the index RECORDS what it found, and whether a

@@ -50,9 +50,9 @@ conformance / extension 容器按 **(target, protocol, where 指纹, isRetroacti
 
 ```swift
 public let conformingProtocolName: ProtocolName?      // conformance extension 才非 nil
-public package(set) var resolvedAssociatedTypeWitnesses: [AssociatedTypeWitnessProjection]
+public package(set) var resolvedAssociatedTypeWitnesses: [ResolvedAssociatedTypeWitness]
 
-public struct AssociatedTypeWitnessProjection: Sendable, Codable, Equatable {
+public struct ResolvedAssociatedTypeWitness: Sendable, Codable, Equatable {
     public let name: String                // associated type 名
     public let substitutedTypeText: String // witness 类型的 demangle 打印
 }
@@ -61,7 +61,7 @@ public struct AssociatedTypeWitnessProjection: Sendable, Codable, Equatable {
 ### 2. SwiftIndexing（接线）
 
 - conformance extension 创建点把循环里的 `protocolName` 传入；
-- 同处把 `associatedType`（若有）的 records 解析成 `AssociatedTypeWitnessProjection`
+- 同处把 `associatedType`（若有）的 records 解析成 `ResolvedAssociatedTypeWitness`
   （machO 在手；解析失败的 record 跳过并走既有 event 告警路径）；
 - typealias-only 块（无 conformance 的剩余 associated types）protocol 保持 nil，
   P1-9 的 typealias-only 归并逻辑不动。

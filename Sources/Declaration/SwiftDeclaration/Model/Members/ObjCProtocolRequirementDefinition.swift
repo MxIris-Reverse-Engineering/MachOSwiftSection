@@ -16,7 +16,7 @@ public struct ObjCProtocolRequirementDefinition: Sendable {
     }
 
     /// Where the Swift spelling comes from.
-    public enum Source: Sendable, Hashable {
+    public enum Origin: Sendable, Hashable {
         /// The importer's rules applied to the selector and its type
         /// encoding: the Swift name may differ from the source's.
         case selector
@@ -37,7 +37,7 @@ public struct ObjCProtocolRequirementDefinition: Sendable {
     public let setterSelector: String?
     public let isClassMember: Bool
     public let isOptional: Bool
-    public let source: Source
+    public let origin: Origin
     /// Whether the interface spells the selector out (`@objc(selector)`):
     /// always for a requirement named from its selector; for one taken from
     /// a conformer, when the compiler derives another selector from the
@@ -51,14 +51,22 @@ public struct ObjCProtocolRequirementDefinition: Sendable {
         setterSelector != nil
     }
 
-    package init(kind: Kind, node: NodeReference, selector: String, setterSelector: String?, isClassMember: Bool, isOptional: Bool, source: Source, hasExplicitSelector: Bool, typeEncoding: String) {
+    @available(*, deprecated, renamed: "Origin")
+    public typealias Source = Origin
+
+    @available(*, deprecated, renamed: "origin")
+    public var source: Origin {
+        origin
+    }
+
+    package init(kind: Kind, node: NodeReference, selector: String, setterSelector: String?, isClassMember: Bool, isOptional: Bool, origin: Origin, hasExplicitSelector: Bool, typeEncoding: String) {
         self.kind = kind
         self.node = node
         self.selector = selector
         self.setterSelector = setterSelector
         self.isClassMember = isClassMember
         self.isOptional = isOptional
-        self.source = source
+        self.origin = origin
         self.hasExplicitSelector = hasExplicitSelector
         self.typeEncoding = typeEncoding
     }

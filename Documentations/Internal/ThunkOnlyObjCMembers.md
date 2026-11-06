@@ -16,7 +16,7 @@
 | 层 | 文件 | 做什么 |
 |---|---|---|
 | MachOSymbols | `SymbolIndexStore.swift` | 扫描时，以 `objCAttribute` 开头的符号照旧进 thunk 属性的标记表，此外经 `processMemberSymbol` 按它进入的成员归类，存进第四个成员索引 `objcThunkMemberSymbolRowsByKind`。它与实现符号、`Tq`、protocol witness 三个索引并列，键同样是「成员类别 → 类型名 → 类型节点」，存的是 thunk 自己的行。查询是 `objcThunkMemberSymbols(of:for:in:)`、两个带 node 的重载和 `objcThunkMemberSymbols(of:excluding:in:)`。 |
-| SwiftDeclaration | `Indexing/Building/StandInMemberSymbols.swift` | 造替身与去重：`memberStandIn(forObjCThunkSymbol:in:)`、`allocatorStandIn(forInitializerSymbol:in:)`、`supplementing(_:with:)`、`declaredEntityKey(of:)`（从 `ClassDispatchLookups` 挪过来，0054 的 `Tq` 替身也用它），以及造之前按名字预筛的 `imageKeepsTheMemberSymbol(replacedBy:symbolIndexStore:in:)`。`TypeMembers` 是一个类型自己成员的替身表，`supplementingExtensionMembers(_:symbolIndexStore:in:)` 补 extension 成员。 |
+| SwiftDeclaration | `Indexing/Building/StandInMemberSymbolBuilder.swift` | 造替身与去重：`memberStandIn(forObjCThunkSymbol:in:)`、`allocatorStandIn(forInitializerSymbol:in:)`、`supplementing(_:with:)`、`declaredEntityKey(of:)`（从 `ClassDispatchLookups` 挪过来，0054 的 `Tq` 替身也用它），以及造之前按名字预筛的 `imageKeepsTheMemberSymbol(replacedBy:symbolIndexStore:in:)`。`TypeMembers` 是一个类型自己成员的替身表，`supplementingExtensionMembers(_:symbolIndexStore:in:)` 补 extension 成员。 |
 | SwiftDeclaration | `TypeDefinition+MemberIndexing.swift` | 七类成员的 builder 输入都按「真实符号 → `Tq` 替身 → 这两种替身」的顺序拼起来。 |
 | SwiftIndexing | `SwiftDeclarationIndexer.indexExtensions()` | 按类型分组之前先补替身；成员全是替身的类型也会得到 extension。 |
 | SwiftDump | `ClassDumper` | 成员符号各节之后，按成员类别列出只剩 thunk 的成员（`/* [ObjC Thunk] Function */` 等），行尾照常挂 ObjC 方法表的注释。 |

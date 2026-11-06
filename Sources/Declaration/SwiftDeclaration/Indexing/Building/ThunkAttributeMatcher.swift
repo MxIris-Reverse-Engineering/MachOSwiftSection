@@ -9,7 +9,7 @@ import MachOSwiftSection
 /// and `ExtensionDefinition` — the sweep unwraps extension contexts when it
 /// buckets a thunk, so an extension's members are filed under the extended
 /// type's name and node, and one lookup serves both containers.
-package enum MemberAttributeApplication {
+package enum ThunkAttributeMatcher {
     /// Each thunk kind with the attribute it proves and the suffix its
     /// mangling appends to the member's name.
     package static let thunkKindsAndAttributes: [(thunkKind: Node.Kind, attribute: SwiftAttribute, mangledSuffix: String)] = [

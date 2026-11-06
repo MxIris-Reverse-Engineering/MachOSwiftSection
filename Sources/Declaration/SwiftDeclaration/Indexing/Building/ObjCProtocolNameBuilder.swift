@@ -5,7 +5,7 @@ import MachOSwiftSection
 @_spi(Internals) import SwiftInspection
 
 /// Protocol runtime names as the declaration model's names.
-package enum ObjCProtocolNames {
+package enum ObjCProtocolNameBuilder {
     /// `Type > Protocol` names for `runtimeNames`, without `excluded`.
     package static func protocolNames(_ runtimeNames: [String], excluding excluded: Set<String>, in machO: some MachOSwiftSectionRepresentableWithCache) -> [ProtocolName] {
         runtimeNames.filter { !excluded.contains($0) }.map { runtimeName in

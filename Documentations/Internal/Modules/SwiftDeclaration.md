@@ -21,9 +21,9 @@ SwiftDeclaration 是**共享声明模型**：`SwiftIndexing` 往里填，`SwiftP
 | 2. 成员 | `Model/Members/`：成员定义（`FunctionDefinition`、`VariableDefinition`、`SubscriptDefinition`、`FieldDefinition`、`WrappedPropertyDefinition`、`ObjCProtocolRequirementDefinition`）、成员构件（`Accessor`、`OrderedMember`、`MemberCategory`、`StrippedSymbolicRequirement`），以及三种成员定义上的公开投影 `ResolvedObjCMemberFacts` |
 | 3. 名字 | `Model/Names/`（`DefinitionName`、`TypeName`、`ProtocolName`、`ExtensionName`） |
 | 4. 种类枚举 | `Model/Kinds/` |
-| 5. 挂在声明上的独立概念 | `Model/` 根下的 `ExportStatus`、`SwiftAttribute`、`AssociatedTypeWitnessProjection`、`ObjCCategoryConformance` |
+| 5. 挂在声明上的独立概念 | `Model/` 根下的 `ExportStatus`、`SwiftAttribute`、`ResolvedAssociatedTypeWitness`、`ObjCCategoryConformance` |
 | 6. 各声明的索引 | `Indexing/`：`DefinitionIndexing`（每个定义只索引一次，见下文）、`TypeDefinition/` 下的九个扩展（见下表）、`ExtensionDefinition/` 下的 `+Indexing` / `+ObjCMembers` / `+ThunkAttributes`、`ProtocolDefinition+Indexing`、`ObjCProtocolDefinition+Indexing` |
-| 7. 构建期机器 | `Indexing/Building/`（`DefinitionBuilder`、`MemberSymbolBucketing`、`OverrideSymbolMatcher`、`ClassDispatchLookups`、`StandInMemberSymbols`、`AnnotatedSymbol`、`WrappedPropertyRecovery`、`MemberAttributeApplication`、`ObjCMemberApplication`、`ObjCProtocolNames`）——各声明的索引扩展调用的构件；`TypeDefinition+ThunkAttributes` 与 `ExtensionDefinition+ThunkAttributes` 共用 `MemberAttributeApplication`，两个 `+ObjCMembers` 共用 `ObjCMemberApplication` |
+| 7. 构建期机器 | `Indexing/Building/`（`MemberDefinitionBuilder`、`MemberSymbolBucketing`、`OverrideSymbolMatcher`、`ClassDispatchLookups`、`StandInMemberSymbolBuilder`、`AnnotatedSymbol`、`WrappedPropertyRecovery`、`ThunkAttributeMatcher`、`ObjCMemberMatcher`、`ObjCProtocolNameBuilder`）——各声明的索引扩展调用的构件；`TypeDefinition+ThunkAttributes` 与 `ExtensionDefinition+ThunkAttributes` 共用 `ThunkAttributeMatcher`，两个 `+ObjCMembers` 共用 `ObjCMemberMatcher`。命名空间按角色取后缀（提案 [draft-swift-declaration-type-naming](../../Evolutions/draft-swift-declaration-type-naming.md)）：造出新东西的叫 `…Builder`，拿二进制里另一处的证据（thunk 符号、ObjC 方法表、override 描述符）对到已建好的成员上的叫 `…Matcher`，补回二进制丢掉的事实的叫 `…Recovery`；不用 `…Application`，它会被读成「应用程序」 |
 | 8. 对上游类型的扩展 | `Extensions/`（按被扩展的类型分文件：`ProtocolConformance+Names`、`TypeContext+Names`、`FieldRecord+DemangledType`、`Node+TypeKind`、`DemanglingNode+StoredVariable`……） |
 | 9. 事件 | `Events/SwiftIndexEvents` |
 
@@ -37,11 +37,11 @@ SwiftDeclaration 是**共享声明模型**：`SwiftIndexing` 往里填，`SwiftP
 | `+ClassDispatch` | vtable / override / defaultOverride 三张表 → `ClassDispatchLookups`；另为本类每个 `Tq` 能命名的 vtable 槽造一个替身成员符号 |
 | `+MemberIndexing` | 六类成员与两个 `deinit` 符号；实现符号缺席的 vtable 成员用替身补上 |
 | `+ThunkAttributes` | `@objc` / `@nonobjc` / `@distributed` 的交叉引用 |
-| `+ObjCMembers` | 类自己的 ObjC 方法表 join 到成员上：`@objc`、`override`、显式 selector（经 `Building/ObjCMemberApplication`） |
+| `+ObjCMembers` | 类自己的 ObjC 方法表 join 到成员上：`@objc`、`override`、显式 selector（经 `Building/ObjCMemberMatcher`） |
 | `+FinalRecovery` | 提案 0006 的 `final` 恢复与它的四道门 |
 | `+SynthesizedMembers` | 自动合成成员的去重 |
 | `+WrappedProperties` | property wrapper 用法的恢复 |
-| `+ObjCProtocols` | 类的 `class_ro_t` 列出的 ObjC 协议 → `objcProtocolNames`（经 `Building/ObjCProtocolNames`） |
+| `+ObjCProtocols` | 类的 `class_ro_t` 列出的 ObjC 协议 → `objcProtocolNames`（经 `Building/ObjCProtocolNameBuilder`） |
 
 **主干里的顺序是有约束的，不能随手调**：`final` 恢复要在 `applyThunkAttributes` 与 `applyObjCMembers` 之后（两者都给它 `@objc` 证据，它据此排除 `@objc dynamic`），且在 `orderedMembers` 之前（那一步会把成员值复制走）；wrapped property 恢复要在字段回折与成员构建都完成之后。每个步骤方法的 doc comment 各自写明了自己依赖什么。
 
@@ -104,13 +104,13 @@ SE-0436 的类在 `__swift5_*` 里没有身影，模型里它就是那个 `__C.X
 
 ### 成员从符号建，vtable 槽补上缺席的那些
 
-成员定义是符号驱动的：`FunctionDefinition.symbol`、`Accessor.symbol` 都不是可选值，`DefinitionBuilder` 的每个构造点都从一个 `DemangledSymbol` 出发。class 的 vtable 成员是例外来源：library evolution 模块只导出 public class 方法的 `Tj` / `Tq`，实现符号是 local 的，镜像的 local 符号被剥掉之后（系统 dyld shared cache 里的 AppKit、`strip -x` 过的二进制）这些成员没有符号可建。`classDispatchLookups` 为本类每个 `Tq` 能命名、实现指针非 null 的槽造一个替身符号——名字是 `Tq` 名去掉后缀（实现函数本来的 mangled 名），偏移是实现偏移（async 方法再跳到函数入口）——`indexMembers` 经 `ClassDispatchLookups.supplementing(_:in:)` 只补真实符号没有声明的成员。替身按实现符号的样子造，所以导出判定、ObjC 方法表 join、ABI 身份都不用分支。ABI 墓碑、modify / read 协程、override 槽不补。打印时 class 的 vtable 成员（有槽号的成员）按槽号排在最前（`OrderedMember.vtableOrdered`）。详见 [DescriptorOnlyVTableMembers.md](../DescriptorOnlyVTableMembers.md)。
+成员定义是符号驱动的：`FunctionDefinition.symbol`、`Accessor.symbol` 都不是可选值，`MemberDefinitionBuilder` 的每个构造点都从一个 `DemangledSymbol` 出发。class 的 vtable 成员是例外来源：library evolution 模块只导出 public class 方法的 `Tj` / `Tq`，实现符号是 local 的，镜像的 local 符号被剥掉之后（系统 dyld shared cache 里的 AppKit、`strip -x` 过的二进制）这些成员没有符号可建。`classDispatchLookups` 为本类每个 `Tq` 能命名、实现指针非 null 的槽造一个替身符号——名字是 `Tq` 名去掉后缀（实现函数本来的 mangled 名），偏移是实现偏移（async 方法再跳到函数入口）——`indexMembers` 经 `ClassDispatchLookups.supplementing(_:in:)` 只补真实符号没有声明的成员。替身按实现符号的样子造，所以导出判定、ObjC 方法表 join、ABI 身份都不用分支。ABI 墓碑、modify / read 协程、override 槽不补。打印时 class 的 vtable 成员（有槽号的成员）按槽号排在最前（`OrderedMember.vtableOrdered`）。详见 [DescriptorOnlyVTableMembers.md](../DescriptorOnlyVTableMembers.md)。
 
-优化构建是另一个例外来源：整模块优化会把 internal 成员的实现符号删掉，只留下同一个成员的另一个入口——`@objc` 成员只剩它的 ObjC thunk（`$s…To`，函数体内联在里面），class 的 initializer 只剩 initializing entry point（`…fc`，allocating entry point 内联进了调用方）。`StandInMemberSymbols` 从这两种入口造替身，规则与 `Tq` 替身相同：名字与成员树照实现符号的样子（thunk 去掉 `To` 与 `objCAttribute`，initializing entry point 把 `constructor` 改写成 `allocator`、`fc` 换成 `fC`），偏移是镜像里留下的那个入口。类成员经 `StandInMemberSymbols.TypeMembers`，extension 成员经 `supplementingExtensionMembers`，都排在真实符号与 `Tq` 替身之后，只补没人声明的成员；去重键 `declaredEntityKey(of:)` 三种替身共用。详见 [ThunkOnlyObjCMembers.md](../ThunkOnlyObjCMembers.md)。
+优化构建是另一个例外来源：整模块优化会把 internal 成员的实现符号删掉，只留下同一个成员的另一个入口——`@objc` 成员只剩它的 ObjC thunk（`$s…To`，函数体内联在里面），class 的 initializer 只剩 initializing entry point（`…fc`，allocating entry point 内联进了调用方）。`StandInMemberSymbolBuilder` 从这两种入口造替身，规则与 `Tq` 替身相同：名字与成员树照实现符号的样子（thunk 去掉 `To` 与 `objCAttribute`，initializing entry point 把 `constructor` 改写成 `allocator`、`fc` 换成 `fC`），偏移是镜像里留下的那个入口。类成员经 `StandInMemberSymbolBuilder.TypeMembers`，extension 成员经 `supplementingExtensionMembers`，都排在真实符号与 `Tq` 替身之后，只补没人声明的成员；去重键 `declaredEntityKey(of:)` 三种替身共用。详见 [ThunkOnlyObjCMembers.md](../ThunkOnlyObjCMembers.md)。
 
 ### ObjC 方法表给出的成员事实：`@objc`、`override`、显式 selector
 
-`FunctionDefinition` / `VariableDefinition` / `SubscriptDefinition` 各有一个 `objcMember: ObjCMember?`——这个成员实现的 ObjC 方法：selector、是否类方法、覆写的祖先（可空）、证据档位、selector 是否为源码里 `@objc(name)` 写出的。`isOverride` 与 `isClassMember` 都 OR 上 `objcMember?.isOverride`（覆写的类方法必须打 `class`）；联结上的成员缺 `.objc` 属性就补上（OS 框架 strip 掉了 `To` thunk 符号，方法表是 `@objc` 的唯一证据）；printer 在 `hasExplicitSelector` 时打 `@objc(selector)`。表联结不上的覆写方法**始终**按名字归属一次（第三档），结果照样写进 `objcMember`（`evidence == .selectorName`）——但**不写 `attributes`**，因为紧跟其后的 `final` 还原会把 `@objc` 读成 `@objc dynamic` 的证据，那是消费者还没下的裁决。用不用这一档由消费者决定：`resolvedObjCMemberFacts(trustingSelectorNameEvidence:)`（`ResolvedObjCMemberFacts.swift`）按裁决一次性给出 `attributes` / `isOverride` / `isClassMember` / `isFinal`，printer 传 `SwiftDeclarationPrintConfiguration.infersObjCOverridesFromSelectorNames`。定义自己的 `isOverride` / `isClassMember` 只认前两档（`ObjCMember.isJoinedOverride`）。它由 `Building/ObjCMemberApplication` 在 `TypeDefinition.index(in:)`（`applyThunkAttributes` 之后、`recoverFinalMembers` 之前——`final` 还原用 `@objc` 排除 `@objc dynamic`）和 `SwiftDeclarationIndexer.indexExtensions()`（`__C` 类的 extension 与本镜像 Swift 类的 extension）里从 `SwiftThunkAnalysis.ObjCMembers` 的表 join 上来：函数按自己的符号名，属性 / 下标先按 getter 再按任一 accessor 符号，`init` 按 allocator 符号换 initializer 后缀。第三档「只按名字」的覆写推断也在这里做。这个事实**不进** ABI 快照。详见 [ObjCMemberRecovery.md](../ObjCMemberRecovery.md)。
+`FunctionDefinition` / `VariableDefinition` / `SubscriptDefinition` 各有一个 `objcMember: ObjCMember?`——这个成员实现的 ObjC 方法：selector、是否类方法、覆写的祖先（可空）、证据档位、selector 是否为源码里 `@objc(name)` 写出的。`isOverride` 与 `isClassMember` 都 OR 上 `objcMember?.isOverride`（覆写的类方法必须打 `class`）；联结上的成员缺 `.objc` 属性就补上（OS 框架 strip 掉了 `To` thunk 符号，方法表是 `@objc` 的唯一证据）；printer 在 `hasExplicitSelector` 时打 `@objc(selector)`。表联结不上的覆写方法**始终**按名字归属一次（第三档），结果照样写进 `objcMember`（`evidence == .selectorName`）——但**不写 `attributes`**，因为紧跟其后的 `final` 还原会把 `@objc` 读成 `@objc dynamic` 的证据，那是消费者还没下的裁决。用不用这一档由消费者决定：`resolvedObjCMemberFacts(trustingSelectorNameEvidence:)`（`ResolvedObjCMemberFacts.swift`）按裁决一次性给出 `attributes` / `isOverride` / `isClassMember` / `isFinal`，printer 传 `SwiftDeclarationPrintConfiguration.infersObjCOverridesFromSelectorNames`。定义自己的 `isOverride` / `isClassMember` 只认前两档（`ObjCMember.isJoinedOverride`）。它由 `Building/ObjCMemberMatcher` 在 `TypeDefinition.index(in:)`（`applyThunkAttributes` 之后、`recoverFinalMembers` 之前——`final` 还原用 `@objc` 排除 `@objc dynamic`）和 `SwiftDeclarationIndexer.indexExtensions()`（`__C` 类的 extension 与本镜像 Swift 类的 extension）里从 `SwiftThunkAnalysis.ObjCMembers` 的表 join 上来：函数按自己的符号名，属性 / 下标先按 getter 再按任一 accessor 符号，`init` 按 allocator 符号换 initializer 后缀。第三档「只按名字」的覆写推断也在这里做。这个事实**不进** ABI 快照。详见 [ObjCMemberRecovery.md](../ObjCMemberRecovery.md)。
 
 ### Swift 声明的 `@objc` 协议与类对 ObjC 协议的遵循
 
@@ -120,7 +120,7 @@ SE-0436 的类在 `__swift5_*` 里没有身影，模型里它就是那个 `__C.X
 
 ### 访问器种类与关联类型的抑制（Swift 6.4）
 
-`AccessorKind` 除 get / set / read / modify 外还有 SE-0507 的 `borrowAccessor` / `mutateAccessor`（符号后缀 `vb` / `vz`）。只声明了这两种访问器的属性、下标与协议要求没有 getter 符号，`DefinitionBuilder` 因此把 getter 与 `borrow` 都当作「读访问器」来选声明节点；打印出的访问器块由 `hasBorrowAccessor` / `hasMutateAccessor` 决定（`{ borrow mutate }`），旁边编译器为满足协议合成的 getter / setter 不盖掉它们。`yielding borrow` / `yielding mutate`（SE-0474）还没有接。
+`AccessorKind` 除 get / set / read / modify 外还有 SE-0507 的 `borrowAccessor` / `mutateAccessor`（符号后缀 `vb` / `vz`）。只声明了这两种访问器的属性、下标与协议要求没有 getter 符号，`MemberDefinitionBuilder` 因此把 getter 与 `borrow` 都当作「读访问器」来选声明节点；打印出的访问器块由 `hasBorrowAccessor` / `hasMutateAccessor` 决定（`{ borrow mutate }`），旁边编译器为满足协议合成的 getter / setter 不盖掉它们。`yielding borrow` / `yielding mutate`（SE-0474）还没有接。
 
 `ProtocolDefinition.suppressedInvertibleProtocolsByAssociatedTypeName` 记 `associatedtype Element: ~Copyable`（SE-0503）。二进制本身不记录这个声明，这里只装 `SwiftInspection.SuppressedAssociatedTypeInference` 从本镜像里该协议的 extension 签名证明出来的部分，而且只有主关联类型留得下证据；没有条目不代表关联类型是 Copyable。这个事实**不进** ABI 快照：证据有无随版本里写没写 extension 变化。详见提案 [0070-borrow-accessors-and-suppressed-associated-types](../../Evolutions/0070-borrow-accessors-and-suppressed-associated-types.md)。
 

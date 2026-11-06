@@ -9,13 +9,13 @@ class 成员是否 `final` 决定调用方走 dispatch thunk 还是直接符号�
 
 ## 关键设计决策
 
-**核心不是新解析，是停止丢弃已解析的数据。** stored `var` 的 accessor 符号组早就在 `DefinitionBuilder.variables` 里完成了 method descriptor / vtable slot 解析，只是被 `fieldNames` 去重整组扔掉（避免属性打印两次）。实现把它改成 `variablesProduct`，被抑制的组以 `storedPropertyAccessorsByFieldName` 交还，`TypeDefinition.index` 将其折回 `FieldDefinition.accessors`——`final` 判定、stored var 的 vtable 注释、lazy 的访问器类型三件事都吃这一份数据。
+**核心不是新解析，是停止丢弃已解析的数据。** stored `var` 的 accessor 符号组早就在 `MemberDefinitionBuilder.variables` 里完成了 method descriptor / vtable slot 解析，只是被 `fieldNames` 去重整组扔掉（避免属性打印两次）。实现把它改成 `variablesProduct`，被抑制的组以 `storedPropertyAccessorsByFieldName` 交还，`TypeDefinition.index` 将其折回 `FieldDefinition.accessors`——`final` 判定、stored var 的 vtable 注释、lazy 的访问器类型三件事都吃这一份数据。
 
-**join key 必须剥掉 `Tu` 的 `.asyncFunctionPointer` 标记（`memberJoinKey`，OverrideSymbolMatcher.swift）。** async 方法的 method descriptor 的 `implementation` 指向 async-function-pointer 常量（`Tu` 符号），其 demangled 树是 `global([asyncFunctionPointer, function(...)])`，而成员符号树是 `global([function(...)])`——按整树结构键 join 永远 miss。这个 miss 在本提案之前就存在（表现为 async 成员没有 vtable 注释、async override 丢 `override` 关键字，都不显眼），`final` 标记让它变成「被子类 override 的方法被标 `final`」的显性错误才被抓到。剥标记后三个症状一起修复。**下次给 join 加新符号形态时，先想它是不是又一个 wrapper-marker 形态**（`needsSkipFirstNodeKinds` 里的 `.asyncSuspendResumePartialFunction`、`.mergedFunction` 是同族；merged function 已由 DefinitionBuilder 的专门去重处理）。
+**join key 必须剥掉 `Tu` 的 `.asyncFunctionPointer` 标记（`OverrideSymbolMatcher.memberJoinKey`）。** async 方法的 method descriptor 的 `implementation` 指向 async-function-pointer 常量（`Tu` 符号），其 demangled 树是 `global([asyncFunctionPointer, function(...)])`，而成员符号树是 `global([function(...)])`——按整树结构键 join 永远 miss。这个 miss 在本提案之前就存在（表现为 async 成员没有 vtable 注释、async override 丢 `override` 关键字，都不显眼），`final` 标记让它变成「被子类 override 的方法被标 `final`」的显性错误才被抓到。剥标记后三个症状一起修复。**下次给 join 加新符号形态时，先想它是不是又一个 wrapper-marker 形态**（`needsSkipFirstNodeKinds` 里的 `.asyncSuspendResumePartialFunction`、`.mergedFunction` 是同族；merged function 已由 MemberDefinitionBuilder 的专门去重处理）。
 
 **`@objc` 且无 descriptor ⇒ `@objc dynamic`，绝不标 `final`。** `@objc dynamic` 成员经 objc_msgSend 派发，没有 vtable 条目，但完全可覆写——按裸判据必然误标。模型路径在 `applyThunkAttributes` 之后标记并按 `attributes.contains(.objc)` 排除（这决定了标记块必须排在 thunk 归因之后、`orderedMembers` 构建之前——OrderedMember 持有值拷贝，晚了改不动）；dump 路径用 thunk 成员名集合做同样的排除。非 dynamic 的 `@objc` 成员有 Swift vtable 条目，本来就被 descriptor 判据排除，不受影响。
 
-**证据门是四层的，宁缺勿错。** （a）只有非 actor class 且 `vTableDescriptorHeader != nil` 才可能标记——actor 不可子类化，没 header 的类与 final class 不可分；（b）stored 属性还要求 accessor 组确实 join 上（`accessors.isEmpty` ⇒ 不标——符号被 strip 时缺席不是证据）；（c）`@objc` 排除如上；（d）**`Tq` method-descriptor 符号作负证据**——成员名存在 `Tq` 符号即证明 vtable 条目在场，绝不标 `final`，无论地址 join 说什么。（d）是在真实二进制上抓到的：SourceEditor 把 1128 个空实现 ICF 折叠到同一地址（`SourceEditorView.elide` 等五个类成员在内），descriptor→implementation-symbol 的地址 join 在这种地址上配不上对，函数没有 accessor-join 那样的门，全体误标 `final`；而 `Tq` 是每成员一个、地址唯一的数据符号，不受折叠影响。函数与属性按成员名匹配（重载中任一带 `Tq` 即全组不标——保守方向）；下标共名，按 `.subscript` 子树的结构键精确匹配（与 `DefinitionBuilder.subscripts` 的分组键同一抽取，第一版「任一下标 `Tq` 即全部不标」把 fixture 里合法的 `final subscript` 一起挡了）。任何一层不满足都静默降级为不打 `final`。回归钉死在 `FinalKeywordICFRegressionTests`（环境门控于 Xcode 的 SourceEditor 在场）。
+**证据门是四层的，宁缺勿错。** （a）只有非 actor class 且 `vTableDescriptorHeader != nil` 才可能标记——actor 不可子类化，没 header 的类与 final class 不可分；（b）stored 属性还要求 accessor 组确实 join 上（`accessors.isEmpty` ⇒ 不标——符号被 strip 时缺席不是证据）；（c）`@objc` 排除如上；（d）**`Tq` method-descriptor 符号作负证据**——成员名存在 `Tq` 符号即证明 vtable 条目在场，绝不标 `final`，无论地址 join 说什么。（d）是在真实二进制上抓到的：SourceEditor 把 1128 个空实现 ICF 折叠到同一地址（`SourceEditorView.elide` 等五个类成员在内），descriptor→implementation-symbol 的地址 join 在这种地址上配不上对，函数没有 accessor-join 那样的门，全体误标 `final`；而 `Tq` 是每成员一个、地址唯一的数据符号，不受折叠影响。函数与属性按成员名匹配（重载中任一带 `Tq` 即全组不标——保守方向）；下标共名，按 `.subscript` 子树的结构键精确匹配（与 `MemberDefinitionBuilder.subscripts` 的分组键同一抽取，第一版「任一下标 `Tq` 即全部不标」把 fixture 里合法的 `final subscript` 一起挡了）。任何一层不满足都静默降级为不打 `final`。回归钉死在 `FinalKeywordICFRegressionTests`（环境门控于 Xcode 的 SourceEditor 在场）。
 
 **final class 的成员会获得成员级 `final`，这是接受的行为而非 bug。** final class 因 designated init 的 vtable 条目仍带 vtable header（实测 `Enums.SinglePayloadBoxClass`），门挡不住它。类级 `final` 没有 ABI 位（ClassMemberKeywordRecovery.md 查证过），成员级标记如实反映「无动态派发条目」，对重建场景的链接语义恰好正确；输出比源码啰嗦（源码里 final class 的成员不写 `final`），但诚实。
 
@@ -32,7 +32,7 @@ Sources/Declaration/SwiftDeclaration/
 ├── Indexing/TypeDefinition/TypeDefinition+Indexing.swift      # 主干：折回 accessor 组
 ├── Indexing/TypeDefinition/TypeDefinition+ClassDispatch.swift # 证据门 → ClassDispatchLookups.canRecoverFinalMembers
 ├── Indexing/TypeDefinition/TypeDefinition+FinalRecovery.swift # final 标记块与它的四道门
-├── Indexing/Building/DefinitionBuilder.swift                  # variables → variablesProduct（交还被抑制的 accessor 组）
+├── Indexing/Building/MemberDefinitionBuilder.swift                  # variables → variablesProduct（交还被抑制的 accessor 组）
 └── Indexing/Building/OverrideSymbolMatcher.swift              # + memberJoinKey（Tu 标记剥离）
 Sources/Output/SwiftPrinting/
 ├── SwiftDeclarationPrinter+Members.swift  # printThrowingField：final 关键字 + fieldTypeNode 取型

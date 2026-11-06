@@ -193,7 +193,7 @@ thunk 之外还有一种「引用」不是指针：独立文件里的 witness �
 ## 读出来的答案怎么进输出
 
 - **原位替换**。kind-9 引用可以嵌在类型树的任何位置（`FeedbackGenerator.Body` 的引用在 `ModifiedContent<ModifiedContent<…>, _AppearanceActionModifier>` 的中间），所以渲染侧是一个 `Node` 的 rewriter（`AccessorFunctionReferenceRewriter`），在树里找到引用、换成答案，外面的 `ModifiedContent<…>` 链和泛型实参照常保留。关联类型 witness 和 field record 走同一个 rewriter。
-- **两支都保留**。rewriter 用当前平台那支（版本满足支）替换，同时把每个 thunk 的全部候选记进一个账本；要另一支时用「选第 n 支」再跑一遍 rewriter，得到整条 witness 按那一支替换后的全文。这就是模型里 `AssociatedTypeWitnessProjection.conditionalCandidates` 的来源（每支带平台版本条件、thunk 那一支的类型、整条 witness 全文），也是 `interface` / `dump` 里 `typealias` 上方那几行注释的来源（`ConditionalWitnessComment`）。
+- **两支都保留**。rewriter 用当前平台那支（版本满足支）替换，同时把每个 thunk 的全部候选记进一个账本；要另一支时用「选第 n 支」再跑一遍 rewriter，得到整条 witness 按那一支替换后的全文。这就是模型里 `ResolvedAssociatedTypeWitness.conditionalCandidates` 的来源（每支带平台版本条件、thunk 那一支的类型、整条 witness 全文），也是 `interface` / `dump` 里 `typealias` 上方那几行注释的来源（`ConditionalWitnessComment`）。
 - **diff 不看它**。哪个系统上读的二进制不是 ABI 事实，所以候选不进 ABI diff 的 key。
 - **失败时**：树保留，引用位置打 `accessor function at N`（这句来自上游 `NodePrinter`，快照归一化认识它）。之前的做法是整棵树放弃、只打一个裸的描述符地址，把实参全丢了。
 

@@ -16,7 +16,7 @@ interface 只输出镜像导出的声明。「导出」始终是 **export trie �
 **过滤在打印期，不在索引期。** 用户选定。索引出的模型保持完整，RuntimeViewer 浏览、ABI diff / snapshot / evolution
 全部不受影响；代价是打印器多了一组判定入口。（注意区分**动作**与**事实**：删不删仍然只发生在打印期，
 但「类型 / 协议导出与否」这个事实本身自提案 `exported-declaration-flag` 起在索引期算好、存在模型上——见下文「这两腿住在声明模型上」。）索引期过滤本可顺带给 diff 一个「只比对导出面」的能力，但要在
-`DefinitionBuilder` 和四个 extension 桶上做更深的手术，且提案 0008 的标注本来就是打印期的事实——两者同层最自然。
+`MemberDefinitionBuilder` 和四个 extension 桶上做更深的手术，且提案 0008 的标注本来就是打印期的事实——两者同层最自然。
 
 **绝不靠猜删东西。** 每个判定都是三态：`false` 才删，`true` 与 `nil` 都保留。`nil` 覆盖「镜像没有导出信息」「成员没有 join 上任何符号」
 「重整名不可信」「宿主没装 `ExportFilterScope`」全部情形。这和标注的「绝不靠猜打标」是同一条原则的两面，

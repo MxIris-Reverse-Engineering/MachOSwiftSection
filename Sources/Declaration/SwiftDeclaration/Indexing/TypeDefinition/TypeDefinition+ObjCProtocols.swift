@@ -14,6 +14,6 @@ extension TypeDefinition {
               let qualifiedName = NodeTypeNaming.nominalQualifiedName(ofDemangledRoot: typeName.node.materialize()),
               let adoption = ObjCProtocolAdoptionIndex.shared.adoption(ofSwiftClassQualifiedName: qualifiedName, in: machO)
         else { return }
-        objcProtocolNames = ObjCProtocolNames.protocolNames(adoption.declaredProtocolRuntimeNames, excluding: adoption.impliedProtocolRuntimeNames, in: machO)
+        objcProtocolNames = ObjCProtocolNameBuilder.protocolNames(adoption.declaredProtocolRuntimeNames, excluding: adoption.impliedProtocolRuntimeNames, in: machO)
     }
 }

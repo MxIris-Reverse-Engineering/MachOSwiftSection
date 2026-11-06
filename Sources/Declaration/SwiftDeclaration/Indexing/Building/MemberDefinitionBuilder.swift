@@ -3,7 +3,7 @@ import Demangling
 import MachOSwiftSection
 import OrderedCollections
 
-package enum DefinitionBuilder {
+package enum MemberDefinitionBuilder {
     /// The output of `variablesProduct(...)`: the computed-variable definitions
     /// plus the accessor groups that were suppressed because their name matches
     /// a stored field record (the property renders once, from the field
