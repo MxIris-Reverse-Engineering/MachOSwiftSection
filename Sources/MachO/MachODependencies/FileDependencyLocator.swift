@@ -37,10 +37,11 @@ import MachOKitExtensions
 /// `DyldCacheImageDirectory` every later locator over that cache reads too.
 /// The directory is data only: a locator makes its own `MachOFile` for each
 /// cache image it locates and hands the same one back on every later lookup
-/// of that image. The cache it makes them through is shared, though: a cache
-/// named by path is opened once per process while anything still holds that
-/// opening (`SharedDyldCacheOpenings`), instead of once per locator — and a
-/// locator is built per root by each consumer of a dependency closure.
+/// of that image. What it reads through is shared, though: a cache named by
+/// path (`SharedDyldCacheOpenings`) and an explicit or system-root file
+/// (`SharedMachOFileOpenings`) are opened once per process while anything
+/// still holds that opening, instead of once per locator — and a locator is
+/// built per root by each consumer of a dependency closure.
 ///
 /// A cache image is a candidate only when its platforms are compatible with
 /// the root's (`DependencyPlatforms`): the running system's macOS cache is
@@ -101,8 +102,10 @@ public final class FileDependencyLocator: DependencyLocating, @unchecked Sendabl
                 }
             case .machOFile(let path):
                 do {
-                    let slices = try File.loadFromFile(url: URL(fileURLWithPath: path)).machOFiles
-                    guard let machOFile = Self.preferredSlice(among: slices, preferredCPU: preferredCPU) else {
+                    // The opening every locator naming this file shares while
+                    // anything holds it; read here for each locator, a
+                    // bundle's files were opened again for every root.
+                    guard let machOFile = try SharedMachOFileOpenings.machOFile(at: URL(fileURLWithPath: path), preferredCPU: preferredCPU) else {
                         throw DependencySearchPathError.noMachOSlice(path: path)
                     }
                     // A file's `imagePath` is its install name (`LC_ID_DYLIB`,
@@ -173,24 +176,6 @@ public final class FileDependencyLocator: DependencyLocating, @unchecked Sendabl
         return cacheImage(forLoadName: loadName, bareImageName: bareImageName)
     }
 
-    /// Compared on `CPU.type` and `CPU.subtype` rather than `CPU ==`: the
-    /// struct's synthesized equality includes the raw subtype's capability
-    /// bits (the arm64e pointer-authentication ABI version and versioned-ABI
-    /// flag under `CPU_SUBTYPE_MASK`), so a versioned-ABI arm64e slice would
-    /// compare unequal to a plain arm64e root and silently fall through to
-    /// the type-only match — the arm64 / arm64e confusion this exists to
-    /// avoid. `subtype` masks those bits.
-    private static func preferredSlice(among slices: [MachOFile], preferredCPU: CPU?) -> MachOFile? {
-        guard let preferredCPU else { return slices.first }
-        if let exactSlice = slices.first(where: { $0.header.cpu.type == preferredCPU.type && $0.header.cpu.subtype == preferredCPU.subtype }) {
-            return exactSlice
-        }
-        if let sameTypeSlice = slices.first(where: { $0.header.cpu.type == preferredCPU.type }) {
-            return sameTypeSlice
-        }
-        return slices.first
-    }
-
     /// Whether two file URLs name one file, through symbolic links and
     /// `..` components alike.
     private static func isSameFile(_ firstURL: URL, _ secondURL: URL) -> Bool {
@@ -211,8 +196,7 @@ public final class FileDependencyLocator: DependencyLocating, @unchecked Sendabl
         for systemRoot in systemRoots {
             let path = systemRoot + loadName
             guard FileManager.default.fileExists(atPath: path),
-                  let slices = try? File.loadFromFile(url: URL(fileURLWithPath: path)).machOFiles,
-                  let machOFile = Self.preferredSlice(among: slices, preferredCPU: preferredCPU)
+                  let machOFile = try? SharedMachOFileOpenings.machOFile(at: URL(fileURLWithPath: path), preferredCPU: preferredCPU)
             else { continue }
             located = machOFile
             break

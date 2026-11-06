@@ -13,8 +13,8 @@ import MachOKit
 /// An opening is held weakly. The images a locator hands out keep their cache,
 /// and through it the opening, alive; once none is left it closes, so a run
 /// over dozens of caches keeps only the ones still in use open. Openings are
-/// keyed by the file's identity — device, inode, size and modification time —
-/// so a cache file replaced on disk is opened afresh.
+/// keyed by the file's identity (`DependencyFileIdentity`), so a cache file
+/// replaced on disk is opened afresh.
 ///
 /// `FullDyldCache` fills in its mapping tables and symbol cache on first use,
 /// without a lock. They are read before an opening is handed out, so every
@@ -30,25 +30,6 @@ enum SharedDyldCacheOpenings {
 
     private static let registry = Registry()
 
-    private struct FileIdentity: Hashable {
-        let device: Int32
-        let inode: UInt64
-        let size: Int64
-        let modificationSeconds: Int
-        let modificationNanoseconds: Int
-
-        /// `nil` when the file cannot be examined; opening it then reports why.
-        init?(fileAt url: URL) {
-            var status = stat()
-            guard stat(url.path, &status) == 0 else { return nil }
-            device = status.st_dev
-            inode = status.st_ino
-            size = status.st_size
-            modificationSeconds = status.st_mtimespec.tv_sec
-            modificationNanoseconds = status.st_mtimespec.tv_nsec
-        }
-    }
-
     private final class Registry: @unchecked Sendable {
         /// One per cache file, created under the registry's lock and filled in
         /// under its own, so a cache being opened holds up only the requests
@@ -60,10 +41,10 @@ enum SharedDyldCacheOpenings {
         }
 
         private let lock = NSLock()
-        private var slotsByFileIdentity: [FileIdentity: Slot] = [:]
+        private var slotsByFileIdentity: [DependencyFileIdentity: Slot] = [:]
 
         func cache(at url: URL) throws -> FullDyldCache {
-            guard let fileIdentity = FileIdentity(fileAt: url) else {
+            guard let fileIdentity = DependencyFileIdentity(fileAt: url) else {
                 return try FullDyldCache(url: url)
             }
             lock.lock()
