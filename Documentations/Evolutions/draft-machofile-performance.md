@@ -2,7 +2,7 @@
 
 - **状态**: In Progress
 - **创建日期**: 2026-11-06
-- **最后更新**: 2026-11-07
+- **最后更新**: 2026-11-06
 - **关联提案**: [0086-shared-dependency-openings](0086-shared-dependency-openings.md)（依赖定位器按路径共享 cache 与 Mach-O 文件的打开，本提案的依赖镜像索引建在它之上）
 - **实现分支 / PR**: 本库 `perf/machofile-performance`；MachOObjCSection、MachOKitExtensions、MachOKit fork 各开同名分支
 
