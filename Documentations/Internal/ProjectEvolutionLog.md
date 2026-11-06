@@ -2989,8 +2989,8 @@
     - 第二次换成照 CI 编的 fixture：`MachOSwiftSectionTests` 853 个全过，仍只红 `ThunkOnlyObjCMemberTests` 那 4 条。另外 `MachOSymbolsTests` 的测试进程在满载下以 `SIGTRAP` 停了一次（它的 58 个测试因此没计入），停时在跑 `concurrentInterningSharesOneWinner` 与 `derivedFormQueryRecognizesThunkOnlyExportedMember`。单跑 3 次全过；8 路并发各跑 24 次，本分支 24 次全过，565fac44 崩 1 次、停在同样两条上——本次之前就有的偶发崩溃，没查，记在后续里。
   - 输出对比：565fac44 与本分支的 debug CLI，`dump`（字段偏移、类型布局、枚举布局全开）跑本机 cache 的 Combine、WidgetKit、TipKit、SwiftData、AppIntents、Charts 与 Dock、DockHelper 两个文件，`interface`（偏移注释全开）跑 DockHelper 与 TipKit：10 组共约 10.8 万行逐字节一致。没跑完整的渲染 A/B（归档 cache、模拟器文件、进程内三条读取路径）：本次不改解码与打印，只改映射挂在哪、协议按什么顺序查。
 - **后续**：
-  - 依赖定位器仍按根重开两类文件：根是独立文件、配对的是非本机 cache 时，每个根的定位器把那份 cache 整个再开一次（`FullDyldCache(url:)`）；`.machOFile(path:)` 搜索路径上的每个文件也是每个根各开一次。描述符随根数增长。第 120 节有意不共享这两样（MachOKit 对象的懒状态不加锁），要改得先定设计。
-  - `MachOSymbolsTests` 满载下偶发的 `SIGTRAP`（见上），没查。
+  - 依赖定位器仍按根重开两类文件：根是独立文件、配对的是非本机 cache 时，每个根的定位器把那份 cache 整个再开一次（`FullDyldCache(url:)`）；`.machOFile(path:)` 搜索路径上的每个文件也是每个根各开一次。描述符随根数增长。第 120 节有意不共享这两样（MachOKit 对象的懒状态不加锁），要改得先定设计。已在第 124 节做完。
+  - `MachOSymbolsTests` 满载下偶发的 `SIGTRAP`（见上）：根因在 MachOKitExtensions，见第 125 节。
 - **对应版本**：未发版。发版说明要写：读 dyld cache 时每个 cache 文件只映射一次，读多少个镜像都不再多占描述符；文件打不开时读取报错，不再让宿主进程停下；字段类型是 Swift 声明的 `@objc` 协议时，算字段偏移不再先索引整个依赖闭包。
 
 ## 123. 离线读独立文件不再每读一次就重开文件，thunk 读取的镜像级表格按镜像只建一次
@@ -3018,9 +3018,9 @@
   - 耗时（release CLI 的 `interface --show-c-imported-types`，基线、候选、候选、基线交替跑，负载 13–16）：iOS 18.5 模拟器的 SwiftUI 50.8 秒 → 11.0 秒（sys 32 秒 → 0.12 秒，建索引约 26 秒 → 5 秒）；同一运行时的 SwiftData 1.33 秒 → 0.29 秒；本机 cache 里的 SwiftUI 22.8 秒 → 14.4 秒（含只影响 CLI 的时间戳那一项）。两侧输出逐字节一致。
 - **对应版本**：未发版。依赖下限抬到 MachOKit 0.55.101、MachOKitExtensions 1.3.1（2026-11-06 发布）。发版说明要写：离线读不在 dyld cache 里的 Mach-O 文件（app、bundle 里的框架、模拟器运行时文件）快很多——此前每读一个元素都把整个文件重新映射一次；读 opaque 类型的 accessor thunk 不再每次重扫符号表、重读 cache 的镜像列表；CLI 不再为每个不打印的事件格式化时间。
 
-## 2026-11-06 依赖定位器共享按路径打开的 cache 与 Mach-O 文件（节号落地时取）
+## 124. 依赖定位器共享按路径打开的 cache 与 Mach-O 文件
 
-- **时间段**：2026-11-06，分支 `feature/shared-dependency-openings`（worktree `.worktrees/MachOSwiftSection-SharedDependencyOpenings`，基于 `next` 4b08e02a）。提案 [draft-shared-dependency-openings](../Evolutions/draft-shared-dependency-openings.md)（轻量档）的两步：先 cache，后显式文件。
+- **时间段**：2026-11-06，分支 `feature/shared-dependency-openings`（worktree `.worktrees/MachOSwiftSection-SharedDependencyOpenings`，基于 `next` 4b08e02a）。提案 [0086-shared-dependency-openings](../Evolutions/0086-shared-dependency-openings.md)（轻量档）的两步：先 cache，后显式文件。
 - **动机**：第 122 节后续的第一条。`FileDependencyLocator` 每建一个，就把 `.dyldSharedCache(path:)` 搜索路径上的 cache 整个打开一次，而每个依赖闭包的使用方都按根建定位器。DockHelper 配对归档的 macOS 27.0 cache 跑一次 `interface --emit-offset-comments`，那份 cache 的 80 个文件上同时开着 369 个描述符，单个文件最多 7 个；RuntimeViewer 离线读一个配对非本机 cache 的 bundle，每个 bundle 镜像都是一个根。
 - **关键决策**：
   - **共享打开，不共享定位器。** 定位器建完闭包就释放，缓存它没用；要留住的是打开本身。
@@ -3034,7 +3034,18 @@
   - DockHelper 那条命令：那份 cache 上同时开着的描述符 369 → 205，单个文件最多 7 → 4，`interface` 输出逐字节一致。这次运行只建了两个定位器（静态布局、ObjC 祖先解析），改前各开一份、改后共用一份；剩下的是 MachOKit、Swift 读取层、ObjC 读取层各自的映射。根越多省得越多。
   - 显式文件：修复前 `SharedMachOFileOpeningTests` 红两条（两个定位器各拿一个实例；子进程里压到 256 个描述符后，300 个同时存活的定位器有的打不开文件），没人持有就释放那条本来就绿。修复后 3 条全过，`MachODependenciesTests` 38 条全过。测试读的是 fixture 里 `SymbolTestsHelper` 的临时拷贝，不与别的套件争同一个文件。
   - 全量 `swift test --skip IntegrationTests`：只做 cache 时 2,793 个测试、531 个套件，两步都做完 2,796 个测试、532 个套件，每次都只红 `ThunkOnlyObjCMemberTests` 4 条（Xcode 27.2 现场编译 fixture 的旧漂移），原始退出码 1，没有测试进程崩溃。
+  - 用户用 RuntimeViewer 离线打开 Dock.app（配对本机 cache）验证通过。
 - **对应版本**：未发版。发版说明要写：依赖解析按路径点名的 dyld cache 与 Mach-O 文件，同一份在进程里只打开一次，各个根与各个使用方共用。
+
+## 125. MachOKitExtensions 下限抬到 1.3.2：多个线程首读同一个文件时 `identifier` 会被提前释放
+
+- **时间段**：2026-11-06。修复在 MachOKitExtensions（分支 `fix/concurrent-first-reads`，发布为 1.3.2），本库只抬下限，按 bug 修复处理，不写提案。
+- **动机**：第 122 节后续的第二条。`MachOSymbolsTests` 满载下偶发的 `SIGTRAP` 出在 MachOKitExtensions：`MachOFile.identifier` 存在 `.retain(.nonatomic)` 的关联对象里，先读、没有就算、再写，读写之间不加锁。几个线程同时首读一个新文件时各写一份，后写的把先写的释放掉，而 nonatomic getter 交出值时不 retain，别的线程手里的那份就成了悬空对象，arm64e 上停在 `swift_getObjectType` 的 isa 检查。本库每次查 `SharedCache` 都经 `SharedCacheKey.init` 读 `identifier`，所以 `concurrentInterningSharesOneWinner` 以 5000 次重复跑时几秒内必崩。同一个文件里 LC_DYLD_INFO 的 bind 索引是同一种写法。修复是 `identifier` 在锁里只写一次、此后不再替换，bind 索引改记在 `MachOCacheStorage` 里；回归测试 `ConcurrentFirstReadTests` 与数据记在 MachOKitExtensions 提案 0001 的决策日志里。
+- **对本库的影响**：代码不动，只把 `Package.swift` 里 MachOKitExtensions 的远程下限从 `1.3.1` 抬到 `1.3.2`，并删掉同一段注释里过时的半句：`DyldCache.fileIO` 的映射自第 122 节起挂在 MachOKit 的 `fileHandleIdentity` 上，不再按 sub-cache 实例取。
+- **验证**：都在 JHs-Mac-Studio-Ultra 上跑（Xcode 27.2）。
+  - 修复前：`concurrentInterningSharesOneWinner` 以 5000 次重复跑 10 次，对 1.3.1 全红。
+  - 抬下限后只用远端依赖构建，解析到 MachOKitExtensions 1.3.2：`MachOSymbolsTests` 58 个、`MachODependenciesTests` 38 个测试全过；`concurrentInterningSharesOneWinner` 以 5000 次重复跑 10 次全过。
+- **对应版本**：未发版。发版说明要写：多个线程同时开始读同一个文件时偶尔会崩溃，已修复。
 
 ## 维护约定
 

@@ -1,11 +1,11 @@
-# Draft - 依赖定位器共享同一路径的打开，不再按根重开 cache 与显式文件
+# 0086 - 依赖定位器共享同一路径的打开，不再按根重开 cache 与显式文件
 
-- **状态**: In Progress
+- **状态**: Implemented
 - **创建日期**: 2026-11-06
 - **最后更新**: 2026-11-06
 - **所属愿景**: 无
-- **关联提案**: 无。起因见演进账本「2026-11-06 读 dyld cache 时每个文件只映射一次」一节的后续第一条；当时不共享的理由见第 120 节
-- **实现分支 / PR**: `feature/shared-dependency-openings`（两步都已实现，合在本地 `next`，未推送）
+- **关联提案**: 无。起因见演进账本第 122 节的后续第一条；当时不共享的理由见第 120 节；落地记在第 124 节
+- **实现分支 / PR**: `feature/shared-dependency-openings`，已合进 `next`
 - **配套文档**: [Modules/MachODependencies.md](../Internal/Modules/MachODependencies.md)
 
 ## 摘要
@@ -40,3 +40,4 @@
 | 2026-11-06 | 用户同意开工显式文件这一半 | MachOKit 0.55.101 去掉了独立文件的 `cache` 探测，共享独立文件的 `MachOFile` 不再有并发写 |
 | 2026-11-06 | 显式文件按文件身份加 CPU 的原始值取键；挑 slice 的规则搬进共享表；系统根下的文件一并共享 | 原始值做键，只差能力位的两个 CPU 会各开一份，只是少共享；同一个文件挑出的 slice 只取决于 CPU，所以挑 slice 放在共享表里。系统根文件与显式文件是同一种「按路径读 Mach-O」，分开处理只会留下同类问题 |
 | 2026-11-06 | 显式文件这一半实现完成，待用户看过后收尾 | `MachODependenciesTests` 38 条全过；全量见账本 |
+| 2026-11-06 | 落地为 0086，状态改 Implemented | 用户在 RuntimeViewer 里离线打开 Dock.app 验证通过。两步都已实现，没有后续项。不另写使用指南或实现说明：公开接口不变，没有调用方要守的新约定，设计与取舍已写进配套的 Modules/MachODependencies.md 第 3 节；没有新术语 |
