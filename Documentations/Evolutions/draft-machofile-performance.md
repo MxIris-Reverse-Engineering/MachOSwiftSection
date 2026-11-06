@@ -55,10 +55,10 @@ iOS 18.5 模拟器的 SwiftUI（单个文件，运行时根目录作依赖搜索
 2. **cache 里按地址、按序号找镜像**（MachOObjCSection）
    - `DyldCache.machO(containing:)` 每次调用都把 cache 里的全部镜像逐个构造出来、逐段比较地址（macOS 27 的 cache 约四千个镜像），读协议列表、类与 category 时每个指针调一次；`DyldCacheLoaded` 的同名函数（进程内）也一样。改为每个 cache 只建一次按地址排序的区间表，二分查找，同一地址落在几个镜像里时仍取原来遍历顺序里的第一个。
    - `DyldCache._machO(at:)` 每次调用都重建整张 header info 列表、线性查找、再逐个子 cache 尝试构造镜像；改为每个 cache 只建一次「镜像序号 → 镜像」的对照表。
-3. **读取层**（MachOKit fork、MachOKitExtensions、本库 MachOReading）
-   - `MachOFile` 的读取直接从映射指针按偏移取值：不再每读一次就查一次关联对象、做一次动态类型转换、分配一个 `Data`。
-   - cache 镜像的「地址区间 → 子文件映射」表与独立文件的段表各只算一次，`resolveOffset(at:)` 不再每次重读 load command。
-   - `identifier` 等每次查找都要用到的值改为存在实例上，不再经全局锁保护的关联对象。
+   - **已完成**（MachOObjCSection 分支 `perf/machofile-performance`）：文件一侧的表挂在 cache 文件打开的 file handle identity 上，进程内的表随进程存活（已加载的 shared cache 从不卸载）。只建索引 86 G → 79 G，准备 131 G → 124 G，打印 153 G → 118 G。
+3. **读取层**（MachOKit fork、本库 MachOReading）
+   - `MachOFile` 的读取直接从 MachOKit 打开文件时做的那份映射里按偏移取值（fork 新增 `@_spi(Support) fileBytes`）：不再另外映射一遍文件（`SharedFileMapping` 删除），不再每读一次就查一次关联对象、做一次动态类型转换、分配一个 `Data`。**已完成**：准备 117 G → 116 G，打印 111 G → 107 G，只建索引 72 G → 71 G。
+   - 原计划的「地址区间表、段表各算一次」与「`identifier` 存在实例上」不做：采样显示从完整 cache 枚举出的镜像本来就带着自己文件的 `DyldCache`，`cacheAndFileOffset` 只是每次读取走一遍已记住的映射表，剩下的这几项合计不到 1%。
 
 ### 第二期：两种读取器共用的部分
 
@@ -76,8 +76,8 @@ iOS 18.5 模拟器的 SwiftUI（单个文件，运行时根目录作依赖搜索
 
 1. 基准程序，记录基线（本库）。**已完成**
 2. 依赖镜像索引，按上面四条依次做，每条各量一次（本库）。前三条已完成，第四条待定。
-3. cache 里按地址、按序号找镜像（MachOObjCSection）。
-4. 读取层（MachOKit fork → MachOKitExtensions → 本库）。
+3. cache 里按地址、按序号找镜像（MachOObjCSection）。**已完成**，待发版。
+4. 读取层（MachOKit fork → 本库）。**已完成**，fork 待发版；MachOKitExtensions 不用改。
 5. 统计模块名（本库）。
 6. 主镜像符号索引多线程（本库）。
 7. 索引器与打印的热点（本库）。
@@ -104,3 +104,5 @@ iOS 18.5 模拟器的 SwiftUI（单个文件，运行时根目录作依赖搜索
 | 2026-11-06 | 依赖镜像起名改为「符号索引分两段」，不再「沿描述符父链自己拼名字」 | 自己拼名字要逐条复刻 `demangleContext` 的规则（C 导入类型的 TypeImportInfo、扩展上下文、私有类型的 discriminator），依赖镜像的私有类型又确实会被按名字查到（依赖类型的字段经 symbolic reference 指向它）；分两段后起名只查一个地址上的符号，贵的部分（demangle 整个镜像）已经去掉，名字仍由同一套代码给出，查找两侧必然一致 |
 | 2026-11-06 | 依赖镜像的表按需建、按查找种类分开折叠、按镜像共享 | 各种查找折叠的镜像与顺序和原来相同，每次查找答案不变；共享的 `ImageReference` 只含值类型，不指向别的淘汰组的存储 |
 | 2026-11-06 | `DyldCache.machO(containing:)` 与 `DyldCacheLoaded` 的同名函数并入第 2 项 | 符号索引分两段后重新采样，它是依赖镜像索引里剩下的最大一块（读 ObjC 协议列表时每个协议都要遍历 cache 的全部镜像） |
+| 2026-11-06 | 读取改走 MachOKit 自己的映射，删掉 `SharedFileMapping` 与 `ConcurrentFileMappingTests`；`SharedFileMappingTests` 改名 `FileMappingTests`，「删掉的文件读取要抛错」改为「照样读得到」，另加越界读取抛错；CI 套件列表随之换名 | 映射在打开文件时就已建好且按打开共享，读取不再有「第一次读时映射」这一步，竞态与映射失败两种情形都不存在了；描述符反而少了一份 |
+| 2026-11-06 | 第 3 项缩小为只做 `fileBytes`，MachOKitExtensions 不改 | 采样修正了「每次访问 `cache` 都新建 `DyldCache`」的判断：cache 里的镜像创建时就带着自己文件的 `DyldCache`，余下几项合计不到 1% |
