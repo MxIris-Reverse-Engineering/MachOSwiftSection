@@ -12,10 +12,11 @@ import SwiftSyntaxMacros
 /// `LocatableLayoutWrapper` — `var layout: Layout`, `let offset: Int` and
 /// `init(layout:offset:)` — which every wrapper spells out identically.
 ///
-/// The extension role adds whichever of `LocatableLayoutWrapper` and
-/// `Resolvable` the type does not conform to yet. The compiler hands over only
-/// the missing protocols, so a wrapper declared as a refining protocol
-/// (`MetadataProtocol`, `ContextDescriptorProtocol`, …) gets no extension.
+/// The extension role adds whichever protocols of the hierarchy —
+/// `LocatableLayoutWrapper`, `Resolvable` and the ones they refine — the type
+/// does not conform to yet. The compiler hands over only the missing ones, so
+/// a wrapper declared as a refining protocol (`MetadataProtocol`,
+/// `ContextDescriptorProtocol`, …) gets no extension.
 public struct ResolvableLocatableLayoutWrapperMacro: MemberMacro {
     public static func expansion(
         of node: AttributeSyntax,

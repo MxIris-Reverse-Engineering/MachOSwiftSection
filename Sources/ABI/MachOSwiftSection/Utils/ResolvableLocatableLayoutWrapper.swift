@@ -1,4 +1,5 @@
 import Foundation
+import MachOKit
 import MachOBase
 
 public typealias ResolvableLocatableLayoutWrapper = LocatableLayoutWrapper & Resolvable
@@ -6,8 +7,8 @@ public typealias ResolvableLocatableLayoutWrapper = LocatableLayoutWrapper & Res
 /// Makes a wrapper struct a `ResolvableLocatableLayoutWrapper`: generates the
 /// three storage-level requirements of `LocatableLayoutWrapper` —
 /// `var layout: Layout`, `let offset: Int` and `init(layout:offset:)` — and
-/// adds whichever of `LocatableLayoutWrapper` and `Resolvable` the type does
-/// not conform to yet.
+/// adds whichever protocols of the `ResolvableLocatableLayoutWrapper`
+/// hierarchy the type does not conform to yet.
 ///
 ///     @ResolvableLocatableLayoutWrapper
 ///     public struct MethodDescriptor {
@@ -23,6 +24,13 @@ public typealias ResolvableLocatableLayoutWrapper = LocatableLayoutWrapper & Res
 ///
 /// Generated members take the host's own access level. A member the host
 /// declares itself is left alone, with a warning saying so.
+///
+/// The extension names every protocol of the hierarchy, not only the two at
+/// its top. A conformance the macro only implies (`LayoutWrapper` through
+/// `LocatableLayoutWrapper`) was invisible to a static member reference
+/// type-checked before the macro expanded: `TypeMetadataRecord.layoutSize`
+/// failed with "requires that 'TypeMetadataRecord' conform to
+/// 'LayoutWrapper'" in one file and compiled in the next.
 @attached(member, names: named(layout), named(offset), named(init))
-@attached(extension, conformances: LocatableLayoutWrapper, Resolvable)
+@attached(extension, conformances: LocatableLayoutWrapper, Resolvable, LayoutWrapper, Equatable, Sendable)
 public macro ResolvableLocatableLayoutWrapper() = #externalMacro(module: "MachOMacros", type: "ResolvableLocatableLayoutWrapperMacro")
