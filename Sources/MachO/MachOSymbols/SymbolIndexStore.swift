@@ -145,10 +145,6 @@ public final class SymbolIndexStore: @unchecked Sendable {
     public final class Storage: @unchecked Sendable {
         typealias MemberSymbolRows = OrderedDictionary<String, OrderedDictionary<NodeStore.NodeIndex, SymbolRowBucket>>
 
-        /// The frozen arena holding every demangled node of this image.
-        /// All `NodeReference` values vended by this storage point into it.
-        let nodeStore: NodeStore
-
         /// Flat symbol table (Stage 3, offset-ized by evolution proposal
         /// 0001): one 16-byte row per unique symbol name, holding the
         /// canonical (cache-adjusted) offset plus a packed reference into
@@ -162,60 +158,6 @@ public final class SymbolIndexStore: @unchecked Sendable {
         /// `tableRowByName` dictionary is build-time-only now).
         let symbolTable: SymbolTable
 
-        /// Parallel to `symbolTable`: the row's demangled root node, or
-        /// `nil` for names the demangler rejected (those still occupy a row
-        /// because `symbolRowsByOffset` references them).
-        let rootNodeIndexByTableRow: [NodeStore.NodeIndex?]
-
-        /// Per printed type name, the `TypeInfo` of every distinct context
-        /// node that printed to it. The stripped interface print is not
-        /// injective — same-named private types from different files collide
-        /// on it (issue #115) — so the name alone cannot key a single
-        /// `TypeInfo`; the interned context node disambiguates.
-        let typeInfoByName: [String: OrderedDictionary<NodeStore.NodeIndex, TypeInfo>]
-
-        let globalSymbolRowsByKind: OrderedDictionary<GlobalKind, [UInt32]>
-
-        let opaqueTypeDescriptorSymbolRowByNodeIndex: OrderedDictionary<NodeStore.NodeIndex, UInt32>
-
-        /// The same entries as `opaqueTypeDescriptorSymbolRowByNodeIndex`,
-        /// keyed **structurally** so a print-time query is one hash probe.
-        ///
-        /// `opaqueTypeDescriptorSymbol(for:)` is queried with a node the caller
-        /// demangled while printing — a different store — so node-index
-        /// equality cannot answer it. Bucketing by `DemanglingNode.identifier`
-        /// and scanning the bucket was the first attempt at narrowing that, on
-        /// the assumption that a member identifier picks out "normally exactly
-        /// one" descriptor. It does not: in SwiftUI the `body` bucket alone
-        /// holds hundreds of entries (every `some View` implementation shares
-        /// the identifier), and the caller queries once per printed
-        /// `some`-returning declaration with no memoization, so the scan was
-        /// quadratic in a count that runs into the thousands — and each
-        /// `structurallyEquals` allocates a fresh visited-pair set before its
-        /// first kind check.
-        ///
-        /// `StructuralNodeReferenceKey` hashes a stored `NodeReference` and a
-        /// queried `Node` alike, which is what makes the direct dictionary
-        /// possible.
-        let opaqueTypeDescriptorSymbolRowByMemberNode: [StructuralNodeReferenceKey: UInt32]
-
-        let memberSymbolRowsByKind: OrderedDictionary<MemberKind, MemberSymbolRows>
-
-        let methodDescriptorMemberSymbolRowsByKind: OrderedDictionary<MemberKind, MemberSymbolRows>
-
-        let protocolWitnessMemberSymbolRowsByKind: OrderedDictionary<MemberKind, MemberSymbolRows>
-
-        /// The members an `@objc` thunk (`$s…To`) enters, bucketed like the
-        /// three member indexes above but holding the THUNK's row. A thunk is
-        /// not a member symbol and the member index never files it; this
-        /// index exists for the members whose Swift entry point the optimizer
-        /// inlined into the thunk and removed, which leaves the thunk as the
-        /// only symbol the image has for them (evolution proposal
-        /// `thunk-only-objc-members`).
-        let objcThunkMemberSymbolRowsByKind: OrderedDictionary<MemberKind, MemberSymbolRows>
-
-        let symbolRowsByKind: OrderedDictionary<Node.Kind, [UInt32]>
-
         /// Plain `Dictionary`: the only consumer is the keyed lookup in
         /// `symbols(for:in:)` — nothing iterates it in order (proposal 0001
         /// rider; the former `OrderedDictionary` paid an ordering table for
@@ -224,11 +166,6 @@ public final class SymbolIndexStore: @unchecked Sendable {
         /// stays inline in the dictionary slot instead of paying a per-key
         /// array allocation.
         let symbolRowsByOffset: [Int: SymbolRowBucket]
-
-        /// Like the member indexes, bucketed by printed type name first and
-        /// the interned parent-context node second, so same-named private
-        /// types' thunk attributes never cross-stamp each other's members.
-        let thunkAttributeMembersByKindAndTypeName: [Node.Kind: [String: OrderedDictionary<NodeStore.NodeIndex, [ThunkAttributeMember]>]]
 
         /// Export-trie facts for the image (evolution proposal 0008), the
         /// backing for `isExported(name:)`. Collected explicitly during the
@@ -312,45 +249,199 @@ public final class SymbolIndexStore: @unchecked Sendable {
         @Mutex
         private var lateDemangledNodeByName: [String: NodeReference?] = [:]
 
+        /// Builds the demangled index from the symbol table, reporting
+        /// progress to the continuation when one is given.
+        typealias DemangledIndexBuilder = @Sendable (SymbolTable, AsyncStream<Progress>.Continuation?) -> DemangledIndex
+
+        private let demangledIndexBuilder: DemangledIndexBuilder
+
+        /// Held while the demangled index is built, so concurrent first
+        /// readers wait for the one build instead of each running their own.
+        private let demangledIndexBuildLock = NSLock()
+
+        @Mutex
+        private var builtDemangledIndex: DemangledIndex?
+
         fileprivate init(
-            nodeStore: NodeStore,
             symbolTable: SymbolTable,
-            rootNodeIndexByTableRow: [NodeStore.NodeIndex?],
             symbolRowsByOffset: [Int: SymbolRowBucket],
             exportFacts: ExportFacts,
             hasLocalSwiftSymbols: Bool,
             symbolicManglingSymbolTable: SymbolTable,
-            rowIndexes: consuming RowIndexes
+            demangledIndexBuilder: @escaping DemangledIndexBuilder
         ) {
-            self.nodeStore = nodeStore
             self.symbolTable = symbolTable
-            self.rootNodeIndexByTableRow = rootNodeIndexByTableRow
             self.symbolRowsByOffset = symbolRowsByOffset
             self.exportFacts = exportFacts
             self.hasLocalSwiftSymbols = hasLocalSwiftSymbols
             self.symbolicManglingSymbolTable = symbolicManglingSymbolTable
-            self.typeInfoByName = rowIndexes.typeInfoByName
-            self.globalSymbolRowsByKind = rowIndexes.globalSymbolRowsByKind
-            self.opaqueTypeDescriptorSymbolRowByNodeIndex = rowIndexes.opaqueTypeDescriptorSymbolRowByNodeIndex
-            var opaqueTypeDescriptorSymbolRowByMemberNode: [StructuralNodeReferenceKey: UInt32] = [:]
-            opaqueTypeDescriptorSymbolRowByMemberNode.reserveCapacity(rowIndexes.opaqueTypeDescriptorSymbolRowByNodeIndex.count)
-            for (memberNodeIndex, symbolTableRow) in rowIndexes.opaqueTypeDescriptorSymbolRowByNodeIndex {
-                // First wins, matching the ordered dictionary this replaced:
-                // its per-node-index keys were already unique, so a collision
-                // here means two arena nodes that are structurally equal, and
-                // either answers the query identically.
-                let memberNodeKey = StructuralNodeReferenceKey(nodeStore.reference(at: memberNodeIndex))
-                if opaqueTypeDescriptorSymbolRowByMemberNode[memberNodeKey] == nil {
-                    opaqueTypeDescriptorSymbolRowByMemberNode[memberNodeKey] = symbolTableRow
-                }
+            self.demangledIndexBuilder = demangledIndexBuilder
+        }
+
+        /// The demangled index, built on first use.
+        var demangledIndex: DemangledIndex {
+            demangledIndex(reportingProgressTo: nil)
+        }
+
+        /// The demangled index, built on first use with its progress reported
+        /// to `progressContinuation`; a caller that finds it built gets no
+        /// progress.
+        ///
+        /// The build demangles every name, so it runs on a large stack taken
+        /// before the build lock: a demangle that hopped threads while the
+        /// lock is held would leave every other reader waiting behind the hop.
+        func demangledIndex(reportingProgressTo progressContinuation: AsyncStream<Progress>.Continuation?) -> DemangledIndex {
+            if let builtDemangledIndex = _builtDemangledIndex.withLockUnchecked({ $0 }) {
+                return builtDemangledIndex
             }
-            self.opaqueTypeDescriptorSymbolRowByMemberNode = opaqueTypeDescriptorSymbolRowByMemberNode
-            self.memberSymbolRowsByKind = rowIndexes.memberSymbolRowsByKind
-            self.methodDescriptorMemberSymbolRowsByKind = rowIndexes.methodDescriptorMemberSymbolRowsByKind
-            self.protocolWitnessMemberSymbolRowsByKind = rowIndexes.protocolWitnessMemberSymbolRowsByKind
-            self.objcThunkMemberSymbolRowsByKind = rowIndexes.objcThunkMemberSymbolRowsByKind
-            self.symbolRowsByKind = rowIndexes.symbolRowsByKind
-            self.thunkAttributeMembersByKindAndTypeName = rowIndexes.thunkAttributeMembersByKindAndTypeName
+            return StackSafeExecutor.withLargeStack { [self] in
+                demangledIndexBuildLock.lock()
+                defer { demangledIndexBuildLock.unlock() }
+                if let builtDemangledIndex = _builtDemangledIndex.withLockUnchecked({ $0 }) {
+                    return builtDemangledIndex
+                }
+                let demangledIndex = demangledIndexBuilder(symbolTable, progressContinuation)
+                _builtDemangledIndex.withLockUnchecked { $0 = demangledIndex }
+                return demangledIndex
+            }
+        }
+
+        /// Whether the demangled index has been built.
+        var hasBuiltDemangledIndex: Bool {
+            _builtDemangledIndex.withLockUnchecked { $0 != nil }
+        }
+
+        // MARK: Demangled index fields
+
+        var nodeStore: NodeStore { demangledIndex.nodeStore }
+
+        var rootNodeIndexByTableRow: [NodeStore.NodeIndex?] { demangledIndex.rootNodeIndexByTableRow }
+
+        var typeInfoByName: [String: OrderedDictionary<NodeStore.NodeIndex, TypeInfo>] { demangledIndex.typeInfoByName }
+
+        var globalSymbolRowsByKind: OrderedDictionary<GlobalKind, [UInt32]> { demangledIndex.globalSymbolRowsByKind }
+
+        var opaqueTypeDescriptorSymbolRowByNodeIndex: OrderedDictionary<NodeStore.NodeIndex, UInt32> { demangledIndex.opaqueTypeDescriptorSymbolRowByNodeIndex }
+
+        var opaqueTypeDescriptorSymbolRowByMemberNode: [StructuralNodeReferenceKey: UInt32] { demangledIndex.opaqueTypeDescriptorSymbolRowByMemberNode }
+
+        var memberSymbolRowsByKind: OrderedDictionary<MemberKind, MemberSymbolRows> { demangledIndex.memberSymbolRowsByKind }
+
+        var methodDescriptorMemberSymbolRowsByKind: OrderedDictionary<MemberKind, MemberSymbolRows> { demangledIndex.methodDescriptorMemberSymbolRowsByKind }
+
+        var protocolWitnessMemberSymbolRowsByKind: OrderedDictionary<MemberKind, MemberSymbolRows> { demangledIndex.protocolWitnessMemberSymbolRowsByKind }
+
+        var objcThunkMemberSymbolRowsByKind: OrderedDictionary<MemberKind, MemberSymbolRows> { demangledIndex.objcThunkMemberSymbolRowsByKind }
+
+        var symbolRowsByKind: OrderedDictionary<Node.Kind, [UInt32]> { demangledIndex.symbolRowsByKind }
+
+        var thunkAttributeMembersByKindAndTypeName: [Node.Kind: [String: OrderedDictionary<NodeStore.NodeIndex, [ThunkAttributeMember]>]] { demangledIndex.thunkAttributeMembersByKindAndTypeName }
+
+        /// What the build sweep's second pass derives from the symbol table:
+        /// every row's demangled tree and the indexes classified on it.
+        ///
+        /// Built on the first query that needs it (evolution proposal
+        /// `machofile-performance`). A symbol lookup by offset, the
+        /// symbolic-mangling table and the export facts read the table alone,
+        /// and an image read only for another's sake — a dependency whose
+        /// private type the layout engine names through the descriptor's
+        /// symbol — never needs its hundreds of thousands of names demangled:
+        /// laying out SwiftUI demangled the whole of every dependency it named
+        /// a type in, 7.7 of 27.8 seconds.
+        final class DemangledIndex: @unchecked Sendable {
+            /// The frozen arena holding every demangled node of this image.
+            /// All `NodeReference` values vended by this storage point into it.
+            let nodeStore: NodeStore
+
+            /// Parallel to `symbolTable`: the row's demangled root node, or
+            /// `nil` for names the demangler rejected (those still occupy a row
+            /// because `symbolRowsByOffset` references them).
+            let rootNodeIndexByTableRow: [NodeStore.NodeIndex?]
+
+            /// Per printed type name, the `TypeInfo` of every distinct context
+            /// node that printed to it. The stripped interface print is not
+            /// injective — same-named private types from different files collide
+            /// on it (issue #115) — so the name alone cannot key a single
+            /// `TypeInfo`; the interned context node disambiguates.
+            let typeInfoByName: [String: OrderedDictionary<NodeStore.NodeIndex, TypeInfo>]
+
+            let globalSymbolRowsByKind: OrderedDictionary<GlobalKind, [UInt32]>
+
+            let opaqueTypeDescriptorSymbolRowByNodeIndex: OrderedDictionary<NodeStore.NodeIndex, UInt32>
+
+            /// The same entries as `opaqueTypeDescriptorSymbolRowByNodeIndex`,
+            /// keyed **structurally** so a print-time query is one hash probe.
+            ///
+            /// `opaqueTypeDescriptorSymbol(for:)` is queried with a node the caller
+            /// demangled while printing — a different store — so node-index
+            /// equality cannot answer it. Bucketing by `DemanglingNode.identifier`
+            /// and scanning the bucket was the first attempt at narrowing that, on
+            /// the assumption that a member identifier picks out "normally exactly
+            /// one" descriptor. It does not: in SwiftUI the `body` bucket alone
+            /// holds hundreds of entries (every `some View` implementation shares
+            /// the identifier), and the caller queries once per printed
+            /// `some`-returning declaration with no memoization, so the scan was
+            /// quadratic in a count that runs into the thousands — and each
+            /// `structurallyEquals` allocates a fresh visited-pair set before its
+            /// first kind check.
+            ///
+            /// `StructuralNodeReferenceKey` hashes a stored `NodeReference` and a
+            /// queried `Node` alike, which is what makes the direct dictionary
+            /// possible.
+            let opaqueTypeDescriptorSymbolRowByMemberNode: [StructuralNodeReferenceKey: UInt32]
+
+            let memberSymbolRowsByKind: OrderedDictionary<MemberKind, MemberSymbolRows>
+
+            let methodDescriptorMemberSymbolRowsByKind: OrderedDictionary<MemberKind, MemberSymbolRows>
+
+            let protocolWitnessMemberSymbolRowsByKind: OrderedDictionary<MemberKind, MemberSymbolRows>
+
+            /// The members an `@objc` thunk (`$s…To`) enters, bucketed like the
+            /// three member indexes above but holding the THUNK's row. A thunk is
+            /// not a member symbol and the member index never files it; this
+            /// index exists for the members whose Swift entry point the optimizer
+            /// inlined into the thunk and removed, which leaves the thunk as the
+            /// only symbol the image has for them (evolution proposal
+            /// `thunk-only-objc-members`).
+            let objcThunkMemberSymbolRowsByKind: OrderedDictionary<MemberKind, MemberSymbolRows>
+
+            let symbolRowsByKind: OrderedDictionary<Node.Kind, [UInt32]>
+
+            /// Like the member indexes, bucketed by printed type name first and
+            /// the interned parent-context node second, so same-named private
+            /// types' thunk attributes never cross-stamp each other's members.
+            let thunkAttributeMembersByKindAndTypeName: [Node.Kind: [String: OrderedDictionary<NodeStore.NodeIndex, [ThunkAttributeMember]>]]
+
+            fileprivate init(
+                nodeStore: NodeStore,
+                rootNodeIndexByTableRow: [NodeStore.NodeIndex?],
+                rowIndexes: consuming RowIndexes
+            ) {
+                self.nodeStore = nodeStore
+                self.rootNodeIndexByTableRow = rootNodeIndexByTableRow
+                self.typeInfoByName = rowIndexes.typeInfoByName
+                self.globalSymbolRowsByKind = rowIndexes.globalSymbolRowsByKind
+                self.opaqueTypeDescriptorSymbolRowByNodeIndex = rowIndexes.opaqueTypeDescriptorSymbolRowByNodeIndex
+                var opaqueTypeDescriptorSymbolRowByMemberNode: [StructuralNodeReferenceKey: UInt32] = [:]
+                opaqueTypeDescriptorSymbolRowByMemberNode.reserveCapacity(rowIndexes.opaqueTypeDescriptorSymbolRowByNodeIndex.count)
+                for (memberNodeIndex, symbolTableRow) in rowIndexes.opaqueTypeDescriptorSymbolRowByNodeIndex {
+                    // First wins, matching the ordered dictionary this replaced:
+                    // its per-node-index keys were already unique, so a collision
+                    // here means two arena nodes that are structurally equal, and
+                    // either answers the query identically.
+                    let memberNodeKey = StructuralNodeReferenceKey(nodeStore.reference(at: memberNodeIndex))
+                    if opaqueTypeDescriptorSymbolRowByMemberNode[memberNodeKey] == nil {
+                        opaqueTypeDescriptorSymbolRowByMemberNode[memberNodeKey] = symbolTableRow
+                    }
+                }
+                self.opaqueTypeDescriptorSymbolRowByMemberNode = opaqueTypeDescriptorSymbolRowByMemberNode
+                self.memberSymbolRowsByKind = rowIndexes.memberSymbolRowsByKind
+                self.methodDescriptorMemberSymbolRowsByKind = rowIndexes.methodDescriptorMemberSymbolRowsByKind
+                self.protocolWitnessMemberSymbolRowsByKind = rowIndexes.protocolWitnessMemberSymbolRowsByKind
+                self.objcThunkMemberSymbolRowsByKind = rowIndexes.objcThunkMemberSymbolRowsByKind
+                self.symbolRowsByKind = rowIndexes.symbolRowsByKind
+                self.thunkAttributeMembersByKindAndTypeName = rowIndexes.thunkAttributeMembersByKindAndTypeName
+            }
         }
 
         /// Get-or-demangle for a name outside the build sweep.
@@ -455,10 +546,11 @@ public final class SymbolIndexStore: @unchecked Sendable {
         /// before either.
         private func groupRowsByOwnerName(at offset: Int, ownerKind: SymbolOwnerKind, options: DemangleOptions) -> [String: [UInt32]] {
             guard let rows = symbolRowsByOffset[offset] else { return [:] }
+            let demangledIndex = demangledIndex
             var rowsByOwnerName: [String: [UInt32]] = [:]
             for row in rows {
-                guard let rootNodeIndex = rootNodeIndexByTableRow[Int(row)] else { continue }
-                let rootNode = nodeStore.reference(at: rootNodeIndex)
+                guard let rootNodeIndex = demangledIndex.rootNodeIndexByTableRow[Int(row)] else { continue }
+                let rootNode = demangledIndex.nodeStore.reference(at: rootNodeIndex)
                 let ownerNode: NodeReference? = switch ownerKind {
                 case .conformingType:
                     rootNode.first(of: .protocolConformance)?.children.first
@@ -489,12 +581,17 @@ public final class SymbolIndexStore: @unchecked Sendable {
         }
 
         func demangledSymbol(atRow row: UInt32) -> DemangledSymbol? {
-            guard let rootNodeIndex = rootNodeIndexByTableRow[Int(row)] else { return nil }
-            return DemangledSymbol(symbolTable: symbolTable, symbolTableRow: row, demangledNode: nodeStore.reference(at: rootNodeIndex))
+            demangledSymbol(atRow: row, in: demangledIndex)
         }
 
         func demangledSymbols(atRows rows: some Sequence<UInt32>) -> [DemangledSymbol] {
-            rows.compactMap { demangledSymbol(atRow: $0) }
+            let demangledIndex = demangledIndex
+            return rows.compactMap { demangledSymbol(atRow: $0, in: demangledIndex) }
+        }
+
+        private func demangledSymbol(atRow row: UInt32, in demangledIndex: DemangledIndex) -> DemangledSymbol? {
+            guard let rootNodeIndex = demangledIndex.rootNodeIndexByTableRow[Int(row)] else { return nil }
+            return DemangledSymbol(symbolTable: symbolTable, symbolTableRow: row, demangledNode: demangledIndex.nodeStore.reference(at: rootNodeIndex))
         }
 
         /// One-shot acceptance statistic for proposal 0003: how many buckets
@@ -586,14 +683,27 @@ public final class SymbolIndexStore: @unchecked Sendable {
     /// The image's storage: built on first use, shared with every later
     /// caller, and dropped through ``remove(for:)`` by the declaration
     /// indexer's per-image cleanup.
+    ///
+    /// Building it collects the symbol table; the demangled index is built
+    /// on the first query that needs it (see `Storage.DemangledIndex`).
     public func storage(in machO: some MachORepresentableWithCache) -> Storage? {
-        cache.storage(in: machO) { buildStorage(for: $0) }
+        cache.storage(in: machO) { buildSymbolTableStage(for: $0) }
     }
 
-    /// Builds the storage without consulting or filling the cache. The
-    /// baseline measurements time the sweep itself through this.
+    /// Builds the storage, demangled index included, without consulting or
+    /// filling the cache. The baseline measurements time the sweep itself
+    /// through this.
     public func buildStorage(for machO: some MachORepresentableWithCache) -> Storage? {
-        return buildStorageImpl(for: machO, progressContinuation: nil)
+        guard let storage = buildSymbolTableStage(for: machO) else { return nil }
+        _ = storage.demangledIndex
+        return storage
+    }
+
+    /// Builds the storage without consulting or filling the cache and
+    /// without its demangled index, so a test can watch which queries build
+    /// that index.
+    package func buildStorageWithoutDemangledIndexForTesting(for machO: some MachORepresentableWithCache) -> Storage? {
+        buildSymbolTableStage(for: machO)
     }
 
     public func contains(in machO: some MachORepresentableWithCache) -> Bool {
@@ -604,39 +714,11 @@ public final class SymbolIndexStore: @unchecked Sendable {
         cache.remove(for: machO)
     }
 
-    /// Batch boundary for the sweep's per-symbol demangling.
-    ///
-    /// `demangleAsNodeTransient` — like every `Demangling` entry point —
-    /// probes the *calling* thread's remaining stack and moves the work to an
-    /// 8MB worker when less than 2MB is left, blocking on a semaphore until
-    /// that worker returns. Darwin gives every thread except the main one a
-    /// 512KB stack, so on the Swift Concurrency cooperative worker or
-    /// libdispatch worker a build runs on, that probe never passes: without a
-    /// batch boundary each of a framework's hundreds of thousands of symbols
-    /// pays its own thread round trip.
-    ///
-    /// One hop here puts the whole sweep on an 8MB thread, where the probe
-    /// passes and every demangle inside runs inline — which is exactly what
-    /// `withLargeStack` documents itself for ("indexing every symbol of a
-    /// binary, say"). It is not a second guard: the probe and its 2MB floor
-    /// are unchanged, this only stops the answer from being "no" every time.
-    ///
-    /// Wrapping the sweep's *call sites* instead would be a no-op — a hop that
-    /// covers one demangle saves the one it replaces and nothing else. The
-    /// saving is `(calls - 1)` hops, so the wrapper has to enclose the loop.
-    private func buildStorageImpl(
-        for machO: some MachORepresentableWithCache,
-        progressContinuation: AsyncStream<Progress>.Continuation?
-    ) -> Storage? {
-        return StackSafeExecutor.withLargeStack {
-            self.buildStorageSweep(for: machO, progressContinuation: progressContinuation)
-        }
-    }
-
-    private func buildStorageSweep(
-        for machO: some MachORepresentableWithCache,
-        progressContinuation: AsyncStream<Progress>.Continuation?
-    ) -> Storage? {
+    /// The build sweep's first pass: the symbol table, the offset index, the
+    /// symbolic-mangling table and the export facts. It demangles nothing;
+    /// the second pass, `buildDemangledIndex(from:progressContinuation:)`,
+    /// runs when a query first needs a demangled tree.
+    private func buildSymbolTableStage(for machO: some MachORepresentableWithCache) -> Storage? {
         // Reader split (proposal 0001): a MachOImage's symbol names already
         // live in the image's mmap'd string table, so its rows reference
         // those bytes in place — zero copies, zero retained strings — and
@@ -862,6 +944,36 @@ public final class SymbolIndexStore: @unchecked Sendable {
             exportFacts.exportedRowBitmap.append(0)
         }
 
+        return Storage(
+            symbolTable: symbolTable,
+            symbolRowsByOffset: symbolRowsByOffset,
+            exportFacts: exportFacts,
+            hasLocalSwiftSymbols: hasLocalSwiftSymbols,
+            symbolicManglingSymbolTable: symbolicManglingSymbolTable,
+            demangledIndexBuilder: { [self] symbolTable, progressContinuation in
+                buildDemangledIndex(from: symbolTable, progressContinuation: progressContinuation)
+            }
+        )
+    }
+
+    /// The build sweep's second pass: every row's name demangled, interned
+    /// and classified into the indexes `Storage.DemangledIndex` holds.
+    ///
+    /// Runs on an 8MB thread: `Storage.demangledIndex(reportingProgressTo:)`
+    /// takes one before calling. `demangleAsNodeTransient` — like every
+    /// `Demangling` entry point — probes the *calling* thread's remaining
+    /// stack and moves the work to an 8MB worker when less than 2MB is left,
+    /// blocking on a semaphore until that worker returns. Darwin gives every
+    /// thread except the main one a 512KB stack, so on the Swift Concurrency
+    /// cooperative worker or libdispatch worker a build runs on, that probe
+    /// never passes: without one hop around the whole loop each of a
+    /// framework's hundreds of thousands of symbols pays its own thread round
+    /// trip. Wrapping the *call sites* instead would be a no-op — a hop that
+    /// covers one demangle saves the one it replaces and nothing else.
+    private func buildDemangledIndex(
+        from symbolTable: SymbolTable,
+        progressContinuation: AsyncStream<Progress>.Continuation?
+    ) -> Storage.DemangledIndex {
         // Single sequential sweep: demangle each symbol cache-free onto a
         // transient tree, classify on that tree, and intern the result into
         // the arena builder. Nothing touches the global `NodeCache` and no
@@ -935,14 +1047,9 @@ public final class SymbolIndexStore: @unchecked Sendable {
         }
         progressContinuation?.yield(Progress(currentCount: totalSymbolCount, totalCount: totalSymbolCount))
 
-        return Storage(
+        return Storage.DemangledIndex(
             nodeStore: builder.freeze(),
-            symbolTable: symbolTable,
             rootNodeIndexByTableRow: rootNodeIndexByTableRow,
-            symbolRowsByOffset: symbolRowsByOffset,
-            exportFacts: exportFacts,
-            hasLocalSwiftSymbols: hasLocalSwiftSymbols,
-            symbolicManglingSymbolTable: symbolicManglingSymbolTable,
             rowIndexes: rowIndexes
         )
     }
@@ -1607,21 +1714,24 @@ public final class SymbolIndexStore: @unchecked Sendable {
         public let totalCount: Int
     }
 
+    /// Builds the image's whole index, demangled trees included.
     public func prepare(in machO: some MachORepresentableWithCache) {
-        _ = storage(in: machO)
+        _ = storage(in: machO)?.demangledIndex
     }
 
+    /// Builds the image's whole index, reporting the demangling progress —
+    /// the symbol table itself is collected without demangling, too quickly
+    /// to report.
     public func prepareWithProgress(in machO: some MachORepresentableWithCache) -> AsyncStream<Progress> {
         let (stream, continuation) = AsyncStream<Progress>.makeStream()
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             defer { continuation.finish() }
             guard let self else { return }
-            // continuation flows into buildStorageImpl via closure capture only.
-            // No shared instance state is involved, so concurrent calls cannot
-            // interfere with each other's progress streams.
-            _ = self.cache.storage(in: machO) { machO in
-                self.buildStorageImpl(for: machO, progressContinuation: continuation)
-            }
+            // The continuation flows into the demangled index's build as an
+            // argument only. No shared instance state is involved, so
+            // concurrent calls cannot interfere with each other's progress
+            // streams; a call that finds the index built reports nothing.
+            _ = self.storage(in: machO)?.demangledIndex(reportingProgressTo: continuation)
         }
         return stream
     }

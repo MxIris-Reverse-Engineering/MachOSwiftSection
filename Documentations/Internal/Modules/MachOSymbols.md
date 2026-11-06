@@ -25,6 +25,8 @@ MachOSymbols 是**符号索引**层：把一个镜像的符号表和 export trie
 
 `SymbolIndexStore.Storage` 里**不驻留 `Node` 类树，也不驻留符号名 `String`**。建索引时每个符号 demangle 到一棵临时树上，分类完就 intern 进这个镜像的 `NodeStoreBuilder`；全局 `NodeCache` 全程不参与，`Storage` 一放，整个镜像的内存占用就跟着走。
 
+**建索引分两段**（演进提案 `machofile-performance`）。`storage(in:)` 建出来的只有第一段：符号表、按偏移的行索引、`_symbolic` 符号表和导出事实，一个名字也不 demangle。第二段 `Storage.DemangledIndex`——每一行的节点树和按树分类的各个索引——在第一次有查询要用到树时才建，建在大栈上、持锁只建一次，并发的第一批读者等同一次构建。`symbols(for:in:)`、`containsSymbol(named:)`、`offset(ofSymbolNamed:)`、导出判定、`hasLocalSwiftSymbols` 与 `symbolicManglingSymbols(in:)` 只读第一段。原因是只为别的镜像而读的镜像：静态布局引擎经匿名上下文描述符上的符号给依赖镜像的私有类型起名，以前这一查就把整个依赖镜像的名字全部 demangle 一遍，生成 SwiftUI 的 interface 27.8 秒里有 7.7 秒花在这上面。`prepare(in:)`、`prepareWithProgress(in:)` 与 `buildStorage(for:)` 照旧把两段都建好，进度只报第二段（第一段太快，不值得报）。字段仍以原名从 `Storage` 上读，第二段的字段经转发属性取；逐行的循环先取一次 `demangledIndex` 再读，不要每行都经转发属性。
+
 成员与全局变量按入口节点归类：getter、setter，以及 SE-0507 的 `borrow` / `mutate` 访问器（`vb` / `vz`）都算属性或下标的成员符号——只声明后两者的属性没有 getter 符号，漏了它们整个成员就不见了。`_read` / `_modify` 及其新 ABI 版本不收进成员桶。
 
 `@objc` thunk（`$s…To`）不是成员符号，成员索引不收它；它照旧进 thunk 属性的标记表（只记成员名，供 `applyThunkAttributes` 打 `@objc`），此外按它进入的成员归进第四个成员索引 `objcThunkMemberSymbolRowsByKind`，与实现符号、`Tq`、protocol witness 三个索引的键相同，存的是 thunk 自己的行（`objcThunkMemberSymbols(of:…)`）。这个索引是给优化构建用的：成员的 Swift 函数体被内联进 thunk、Swift entry point 被删掉之后，thunk 是这个成员仅剩的符号，声明模型从它造替身成员（[ThunkOnlyObjCMembers.md](../ThunkOnlyObjCMembers.md)）。`…ToTm`（合并后的 thunk 函数体）以 `mergedFunction` 开头，不进这个索引。
