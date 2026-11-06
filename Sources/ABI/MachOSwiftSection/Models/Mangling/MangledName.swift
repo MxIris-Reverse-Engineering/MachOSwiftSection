@@ -137,14 +137,14 @@ extension MangledName: Resolvable {
             let value: UInt8 = try context.readElement(at: currentAddress)
             if value == 0xFF {}
             else if value == 0 {
-                if currentString.count > 0 {
+                if !currentString.isEmpty {
                     elements.append(.string(currentString))
                     currentString = ""
                 }
                 distanceFromStart.offset(of: UInt8.self)
                 break
             } else if value >= 0x01, value <= 0x17 {
-                if currentString.count > 0 {
+                if !currentString.isEmpty {
                     elements.append(.string(currentString))
                     currentString = ""
                 }
@@ -152,7 +152,7 @@ extension MangledName: Resolvable {
                 elements.append(.lookup(.init(offset: startOffset + distanceFromStart, reference: .relative(.init(kind: value, relativeOffset: reference + 1)))))
                 distanceFromStart.offset(of: Int32.self)
             } else if value >= 0x18, value <= 0x1F {
-                if currentString.count > 0 {
+                if !currentString.isEmpty {
                     elements.append(.string(currentString))
                     currentString = ""
                 }
@@ -160,7 +160,12 @@ extension MangledName: Resolvable {
                 elements.append(.lookup(.init(offset: startOffset + distanceFromStart, reference: .absolute(.init(kind: value, reference: reference)))))
                 distanceFromStart.offset(of: UInt64.self)
             } else {
-                currentString.append(String(format: "%c", value))
+                // The byte as the Latin-1 scalar of the same value: what
+                // `String(format: "%c", value)` made of every byte from 0x20
+                // to 0xFE, without a Foundation format call per character —
+                // 4.6% of laying out SwiftUI offline went to those calls
+                // (evolution proposal `machofile-performance`).
+                currentString.unicodeScalars.append(UnicodeScalar(value))
             }
             distanceFromStart.offset(of: UInt8.self)
         }
