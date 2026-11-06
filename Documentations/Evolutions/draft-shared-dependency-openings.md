@@ -1,11 +1,11 @@
 # Draft - 依赖定位器共享同一路径的打开，不再按根重开 cache 与显式文件
 
-- **状态**: Accepted
+- **状态**: In Progress
 - **创建日期**: 2026-11-06
 - **最后更新**: 2026-11-06
 - **所属愿景**: 无
 - **关联提案**: 无。起因见演进账本「2026-11-06 读 dyld cache 时每个文件只映射一次」一节的后续第一条；当时不共享的理由见第 120 节
-- **实现分支 / PR**: `feature/shared-dependency-openings`（未开始实现）
+- **实现分支 / PR**: `feature/shared-dependency-openings`（cache 这一半已实现，未推送）
 - **配套文档**: [Modules/MachODependencies.md](../Internal/Modules/MachODependencies.md)
 
 ## 摘要
@@ -21,9 +21,9 @@
   - **弱引用，不常驻。** 定位器建完闭包就释放，缓存定位器没用，要缓存的是打开本身；常驻又会让 `evolution` 跨几十份 cache 时每份都一直开着（第 80 节常驻过 51 份宿主 cache、4,182 个文件）。
   - **共享 `MachOFile` 是安全的。** 读取走 MachOKit 的内存映射，并发读没问题；cache 里的镜像在构造时就给了 `_cache`，之后不再写懒状态。独立文件的 `cache` 探测会写 `_cache`，另一个会话正在 MachOKit 的 `fix/standalone-file-cache-probe` 去掉这个探测，显式文件的共享排在它之后落地。
   - **RuntimeViewer 的目录照旧自己开配对的 cache。** 定位器之间共用一份之后，一个进程里这份 cache 最多开两次（目录一次、定位器一次），不值得为省这一次加公开 API。
-- **验证**：上面那条命令，每个文件的描述符从最多 7 个降到 3 个以内（MachOKit 的打开、Swift 与 ObjC 读取层的映射各一个）；新测试：两个根各自的依赖闭包里，同一个 cache 镜像来自同一个 `FullDyldCache`，同一路径的显式文件是同一个实例；放掉全部引用后再查，会重新打开。
+- **验证**：上面那条命令，这份 cache 上同时开着的描述符 369 → 205，单个文件最多 7 → 4（MachOKit 的打开、Swift 与 ObjC 读取层的映射；预估的「3 个以内」偏少，见决策日志），输出逐字节一致；新测试：两个根各自的依赖闭包里，同一个 cache 镜像来自同一个 `FullDyldCache`，同一路径的显式文件是同一个实例；放掉全部引用后再查，会重新打开。
 - **落地步骤**：
-  1. cache 这一半：`SharedDyldCacheOpeningTests` 先红（两个定位器共用一份打开；六个定位器在 256 个描述符下都能定位到镜像），再在 MachODependencies 加共享打开表、`FileDependencyLocator` 改用它；`Modules/MachODependencies.md` 与账本同批。
+  1. ✅ cache 这一半：`SharedDyldCacheOpeningTests` 先红（两个定位器共用一份打开；六个定位器在 256 个描述符下都能定位到镜像），再在 MachODependencies 加共享打开表（`SharedDyldCacheOpenings`）、`FileDependencyLocator` 改用它；`Modules/MachODependencies.md` 与账本同批。
   2. 显式文件这一半：等用户另行点头（前提 MachOKit 0.55.101 已发）。
 
 ## 决策日志
@@ -34,3 +34,5 @@
 | 2026-11-06 | 共享表放在 MachODependencies 内部，不做成 MachOKitExtensions 的公开 API | 用户选定。不加公开接口、RuntimeViewer 不用改；配对的 cache 在一个进程里最多开两次，可以接受 |
 | 2026-11-06 | cache 先做，显式文件等 MachOKit 的独立文件探测修复发版后再做 | 用户选定。cache 这一半不依赖那个修复；共享独立文件的 `MachOFile` 要等它去掉并发时会写共享状态的探测 |
 | 2026-11-06 | 用户批准，开始实现 cache 这一半 | 叠在本地 `next`（0bdfd80d）上：它含描述符耗尽的修复与 MachOKit 0.55.101 / MachOKitExtensions 1.3.1，都还没推送。同日 MachOKit 0.55.101 已发，显式文件那一半的前提满足，开不开工另问用户 |
+| 2026-11-06 | 同一个定位器的搜索路径里同一份打开只加一次 | 两次点名同一个 cache 文件，原先各开一份、各查一遍，结果相同；共用之后是同一个实例，查一遍即可 |
+| 2026-11-06 | 实测：每个文件最多 4 个描述符，不是预估的 3 个以内 | DockHelper 配对归档的 27.0 cache 跑一次 `interface`：这份 cache 上同时开着的描述符 369 → 205，单个文件最多 7 → 4（改动前 4–7，改动后 2–4），输出逐字节一致。这次运行只建了两个定位器（静态布局、ObjC 祖先解析），改动前它们各开一份，改动后共用一份；剩下的是 MachOKit、Swift 读取层与 ObjC 读取层各自的映射。根越多，省得越多 |
