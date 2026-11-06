@@ -3018,22 +3018,23 @@
   - 耗时（release CLI 的 `interface --show-c-imported-types`，基线、候选、候选、基线交替跑，负载 13–16）：iOS 18.5 模拟器的 SwiftUI 50.8 秒 → 11.0 秒（sys 32 秒 → 0.12 秒，建索引约 26 秒 → 5 秒）；同一运行时的 SwiftData 1.33 秒 → 0.29 秒；本机 cache 里的 SwiftUI 22.8 秒 → 14.4 秒（含只影响 CLI 的时间戳那一项）。两侧输出逐字节一致。
 - **对应版本**：未发版。依赖下限抬到 MachOKit 0.55.101、MachOKitExtensions 1.3.1（2026-11-06 发布）。发版说明要写：离线读不在 dyld cache 里的 Mach-O 文件（app、bundle 里的框架、模拟器运行时文件）快很多——此前每读一个元素都把整个文件重新映射一次；读 opaque 类型的 accessor thunk 不再每次重扫符号表、重读 cache 的镜像列表；CLI 不再为每个不打印的事件格式化时间。
 
-## 2026-11-06 依赖定位器共享按路径点名的 cache 打开（节号落地时取）
+## 2026-11-06 依赖定位器共享按路径打开的 cache 与 Mach-O 文件（节号落地时取）
 
-- **时间段**：2026-11-06，分支 `feature/shared-dependency-openings`（worktree `.worktrees/MachOSwiftSection-SharedDependencyOpenings`，基于 `next` 4b08e02a）。提案 [draft-shared-dependency-openings](../Evolutions/draft-shared-dependency-openings.md)（轻量档）的 cache 那一半。
+- **时间段**：2026-11-06，分支 `feature/shared-dependency-openings`（worktree `.worktrees/MachOSwiftSection-SharedDependencyOpenings`，基于 `next` 4b08e02a）。提案 [draft-shared-dependency-openings](../Evolutions/draft-shared-dependency-openings.md)（轻量档）的两步：先 cache，后显式文件。
 - **动机**：第 122 节后续的第一条。`FileDependencyLocator` 每建一个，就把 `.dyldSharedCache(path:)` 搜索路径上的 cache 整个打开一次，而每个依赖闭包的使用方都按根建定位器。DockHelper 配对归档的 macOS 27.0 cache 跑一次 `interface --emit-offset-comments`，那份 cache 的 80 个文件上同时开着 369 个描述符，单个文件最多 7 个；RuntimeViewer 离线读一个配对非本机 cache 的 bundle，每个 bundle 镜像都是一个根。
 - **关键决策**：
   - **共享打开，不共享定位器。** 定位器建完闭包就释放，缓存它没用；要留住的是打开本身。
   - **弱引用。** 定位器交出的镜像经它的 cache 留住这份打开，镜像都放掉就关掉，`evolution` 跨几十份 cache 时不会每份都一直开着（第 80 节常驻 51 份宿主 cache 开过 4,182 个文件）。键是文件身份（设备号、inode、大小、修改时间），文件换了就开新的。
   - **先读好懒状态再交出去。** `FullDyldCache` 的映射表、带滑动信息的映射表与 symbol cache 不加锁地懒填，第 120 节当初因此不共享；现在照 `cachedHost` 的做法，打开后先把这三样读好。
   - **放在 MachODependencies 内部，不加公开 API**（用户选定）。RuntimeViewer 的目录自己另开一份，配对的 cache 在一个进程里最多两份。
-  - **显式文件这次不做**（用户定的顺序）：共享独立文件的 `MachOFile` 要等 MachOKit 去掉并发时会写共享状态的 `cache` 探测，那个修复已随 0.55.101 发布，开工另问用户。
-- **落地**：MachODependencies（新增 `SharedDyldCacheOpenings`；`FileDependencyLocator` 改用它，同一个定位器的搜索路径里同一份打开只加一次），测试 `SharedDyldCacheOpeningTests`，文档 [Modules/MachODependencies.md](Modules/MachODependencies.md) §3。
+  - **显式文件第二步做**（用户定的顺序）：`.machOFile(path:)` 与系统根下的文件按文件身份加挑 slice 用的 CPU 原始值共享，同样弱引用（`SharedMachOFileOpenings`）。前提是 MachOKit 0.55.101 去掉了独立文件的 `cache` 探测——在那之前，每读一次都把文件当 cache 探测、并且不加锁地写回结果，同一个实例不能交给多个线程。挑 slice 的规则随之搬进共享表。
+- **落地**：MachODependencies（新增 `DependencyFileIdentity`、`SharedDyldCacheOpenings`、`SharedMachOFileOpenings`；`FileDependencyLocator` 改用后两者，同一个定位器的搜索路径里同一份打开只加一次），测试 `SharedDyldCacheOpeningTests`、`SharedMachOFileOpeningTests`，文档 [Modules/MachODependencies.md](Modules/MachODependencies.md) §3。
 - **验证**：都在 JHs-Mac-Studio-Ultra 上跑（Xcode 27.2，依赖走远端版本，fixture 照 CI 的参数编）。
   - 修复前 `SharedDyldCacheOpeningTests` 红两条：两个按同一路径搜索的定位器拿到不同的实例；子进程里压到 256 个描述符后，六个定位器有的定位不到 libobjc。第三条（没人持有之后会释放）本来就绿，守的是弱引用的约定。修复后 3 条全过，`MachODependenciesTests` 35 条全过。
   - DockHelper 那条命令：那份 cache 上同时开着的描述符 369 → 205，单个文件最多 7 → 4，`interface` 输出逐字节一致。这次运行只建了两个定位器（静态布局、ObjC 祖先解析），改前各开一份、改后共用一份；剩下的是 MachOKit、Swift 读取层、ObjC 读取层各自的映射。根越多省得越多。
-  - 全量 `swift test --skip IntegrationTests`：2,793 个测试、531 个套件，只红 `ThunkOnlyObjCMemberTests` 4 条（Xcode 27.2 现场编译 fixture 的旧漂移），原始退出码 1。
-- **对应版本**：未发版。发版说明要写：依赖解析按路径点名的 dyld cache，同一份在进程里只打开一次，各个根与各个使用方共用。
+  - 显式文件：修复前 `SharedMachOFileOpeningTests` 红两条（两个定位器各拿一个实例；子进程里压到 256 个描述符后，300 个同时存活的定位器有的打不开文件），没人持有就释放那条本来就绿。修复后 3 条全过，`MachODependenciesTests` 38 条全过。测试读的是 fixture 里 `SymbolTestsHelper` 的临时拷贝，不与别的套件争同一个文件。
+  - 全量 `swift test --skip IntegrationTests`：只做 cache 时 2,793 个测试、531 个套件，两步都做完 2,796 个测试、532 个套件，每次都只红 `ThunkOnlyObjCMemberTests` 4 条（Xcode 27.2 现场编译 fixture 的旧漂移），原始退出码 1，没有测试进程崩溃。
+- **对应版本**：未发版。发版说明要写：依赖解析按路径点名的 dyld cache 与 Mach-O 文件，同一份在进程里只打开一次，各个根与各个使用方共用。
 
 ## 维护约定
 
