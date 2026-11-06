@@ -13,8 +13,8 @@ import MachOBase
 /// itself; the next bit ("reserved for future use", see
 /// `Metadata.h:2769`) is exposed via `Bit` and currently ignored by the
 /// runtime (`MetadataLookup.cpp:821` only calls `getPointer()`).
-@LocatableLayoutWrapping
-public struct ProtocolRecord: ResolvableLocatableLayoutWrapper {
+@ResolvableLocatableLayoutWrapper
+public struct ProtocolRecord {
     public struct Layout: LayoutProtocol {
         public let `protocol`: RelativeIndirectablePointerIntPair<ProtocolDescriptor?, Bit, Pointer<ProtocolDescriptor?>>
     }

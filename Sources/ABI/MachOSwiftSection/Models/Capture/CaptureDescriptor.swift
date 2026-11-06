@@ -30,7 +30,7 @@ import MachOBase
 ///
 /// Mirrors `swift::reflection::CaptureDescriptor`
 /// (`swift/RemoteInspection/Records.h`).
-@LocatableLayoutWrapping
+@ResolvableLocatableLayoutWrapper
 public struct CaptureDescriptor: TopLevelDescriptor {
     public struct Layout: LayoutProtocol {
         /// Number of captured values, and hence of trailing

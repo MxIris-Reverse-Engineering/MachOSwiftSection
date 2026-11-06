@@ -2,8 +2,8 @@ import Foundation
 import MachOKit
 import MachOBase
 
-@LocatableLayoutWrapping
-public struct AssociatedTypeRecord: ResolvableLocatableLayoutWrapper {
+@ResolvableLocatableLayoutWrapper
+public struct AssociatedTypeRecord {
     public struct Layout: LayoutProtocol {
         public let name: RelativeDirectPointer<String>
         public let substitutedTypeName: RelativeDirectPointer<MangledName>

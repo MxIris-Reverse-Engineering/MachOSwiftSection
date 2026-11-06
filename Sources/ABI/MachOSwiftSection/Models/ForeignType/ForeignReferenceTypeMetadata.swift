@@ -1,7 +1,8 @@
 import Foundation
+import MachOKit
 import MachOBase
 
-@LocatableLayoutWrapping
+@ResolvableLocatableLayoutWrapper
 public struct ForeignReferenceTypeMetadata: MetadataProtocol {
     public struct Layout: ForeignReferenceTypeMetadataLayout {
         public let kind: StoredPointer

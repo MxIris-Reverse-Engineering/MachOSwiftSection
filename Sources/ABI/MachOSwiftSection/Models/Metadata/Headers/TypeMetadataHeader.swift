@@ -2,7 +2,7 @@ import Foundation
 import MachOKit
 import MachOBase
 
-@LocatableLayoutWrapping
+@ResolvableLocatableLayoutWrapper
 public struct TypeMetadataHeader: TypeMetadataHeaderProtocol {
     public struct Layout: TypeMetadataHeaderLayout {
         public let layoutString: Pointer<String?>

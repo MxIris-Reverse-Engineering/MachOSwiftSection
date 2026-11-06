@@ -2,8 +2,8 @@ import Foundation
 import MachOKit
 import MachOBase
 
-@LocatableLayoutWrapping
-public struct NonUniqueExtendedExistentialTypeShape: ResolvableLocatableLayoutWrapper {
+@ResolvableLocatableLayoutWrapper
+public struct NonUniqueExtendedExistentialTypeShape {
     public struct Layout: LayoutProtocol {
         public let uniqueCache: RelativeDirectPointer<Pointer<ExtendedExistentialTypeShape>>
         public let localCopy: ExtendedExistentialTypeShape.Layout

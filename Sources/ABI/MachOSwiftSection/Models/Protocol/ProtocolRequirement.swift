@@ -1,8 +1,8 @@
 import MachOKit
 import MachOBase
 
-@LocatableLayoutWrapping
-public struct ProtocolRequirement: ResolvableLocatableLayoutWrapper {
+@ResolvableLocatableLayoutWrapper
+public struct ProtocolRequirement {
     public struct Layout: LayoutProtocol {
         public let flags: ProtocolRequirementFlags
         public let defaultImplementation: RelativeDirectRawPointer
@@ -19,8 +19,8 @@ extension ProtocolRequirement {
     }
 }
 
-@LocatableLayoutWrapping
-public struct ProtocolBaseRequirement: ResolvableLocatableLayoutWrapper {
+@ResolvableLocatableLayoutWrapper
+public struct ProtocolBaseRequirement {
     public struct Layout: LayoutProtocol {}
 }
 

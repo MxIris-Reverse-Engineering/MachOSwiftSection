@@ -1,8 +1,9 @@
 import Foundation
+import MachOKit
 import MachOBase
 
-@LocatableLayoutWrapping
-public struct GenericEnvironment: ResolvableLocatableLayoutWrapper {
+@ResolvableLocatableLayoutWrapper
+public struct GenericEnvironment {
     public struct Layout: LayoutProtocol {
         public let flags: GenericEnvironmentFlags
     }

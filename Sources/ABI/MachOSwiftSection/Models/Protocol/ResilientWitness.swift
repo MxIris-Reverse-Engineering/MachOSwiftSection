@@ -2,8 +2,8 @@ import Foundation
 import MachOKit
 import MachOBase
 
-@LocatableLayoutWrapping
-public struct ResilientWitness: ResolvableLocatableLayoutWrapper {
+@ResolvableLocatableLayoutWrapper
+public struct ResilientWitness {
     public struct Layout: LayoutProtocol {
         public let requirement: RelativeProtocolRequirementPointer
         public let implementation: RelativeDirectRawPointer

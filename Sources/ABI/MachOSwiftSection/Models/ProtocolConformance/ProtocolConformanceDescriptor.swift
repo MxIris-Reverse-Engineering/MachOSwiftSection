@@ -2,8 +2,8 @@ import Foundation
 import MachOKit
 import MachOBase
 
-@LocatableLayoutWrapping
-public struct ProtocolConformanceDescriptor: ResolvableLocatableLayoutWrapper {
+@ResolvableLocatableLayoutWrapper
+public struct ProtocolConformanceDescriptor {
     public struct Layout: LayoutProtocol {
         public let protocolDescriptor: RelativeSymbolOrElementPointer<ProtocolDescriptor?>
         public let typeReference: RelativeOffset

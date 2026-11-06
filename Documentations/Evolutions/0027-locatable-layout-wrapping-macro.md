@@ -66,3 +66,4 @@ public struct MethodDescriptor: ResolvableLocatableLayoutWrapper {
 | 2026-09-11 | 顺带把三处 `var offset` 统一为 `let offset` | 全库无赋值点，是历史偶然差异，宏只能生成一种形状 |
 | 2026-09-11 | 状态 Draft → Accepted | 用户批准方案原样，三个决策点（只生成三项要求 / 97 处一次性全换 / 改扫描器认宏）均按推荐执行 |
 | 2026-09-11 | 状态 Accepted → Implemented，落地取号 0027 | 97 处全部迁移，全量测试绿（除两处已知的 `SharedCacheTests` 墙钟 flaky，单独复跑 0.41 秒通过），覆盖率不变式四条绿且 baseline / allowlist 零漂移，`-dump-macro-expansions` 抽查确认展开与手写逐字一致。不另写配套实现说明（AGENTS.md 的 Key Patterns 已收录约定，提案 + 任务报告足够）；未引入新术语，术语表不动 |
+| 2026-11-06 | 「宏只生成三项要求、不生成 conformance」的决定被推翻，宏改名 `@ResolvableLocatableLayoutWrapper` | 宏与遵循在 98 个类型上总是成对出现；见 [draft-resolvable-locatable-layout-wrapper-macro](draft-resolvable-locatable-layout-wrapper-macro.md) |

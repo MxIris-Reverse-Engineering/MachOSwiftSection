@@ -1,8 +1,9 @@
 import Foundation
+import MachOKit
 import MachOBase
 
-@LocatableLayoutWrapping
-public struct ProtocolWitnessTable: ResolvableLocatableLayoutWrapper {
+@ResolvableLocatableLayoutWrapper
+public struct ProtocolWitnessTable {
     public struct Layout: LayoutProtocol {
         public let descriptor: Pointer<ProtocolConformanceDescriptor>
     }

@@ -10,8 +10,8 @@ import MachOBase
 /// mangled actor type name followed by a relative pointer to the actor's
 /// `GlobalActor` conformance descriptor. Only the type-name pointer is used when
 /// rendering the attribute; the conformance pointer exists for runtime dispatch.
-@LocatableLayoutWrapping
-public struct GlobalActorReference: LocatableLayoutWrapper {
+@ResolvableLocatableLayoutWrapper
+public struct GlobalActorReference {
     public struct Layout: LayoutProtocol {
         public let type: RelativeDirectPointer<MangledName>
         /// Relative pointer to the conformance descriptor that witnesses the actor's

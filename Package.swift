@@ -473,6 +473,7 @@ extension Target {
             .target(.MachOBase),
             .target(.Utilities),
             .target(.MachOSwiftSectionC),
+            .target(.MachOMacros),
         ],
         path: "Sources/ABI/MachOSwiftSection",
     )

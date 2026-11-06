@@ -1,7 +1,8 @@
 import Foundation
+import MachOKit
 import MachOBase
 
-@LocatableLayoutWrapping
+@ResolvableLocatableLayoutWrapper
 public struct TupleTypeMetadata: MetadataProtocol {
     public typealias HeaderType = TypeMetadataHeaderBase
     
