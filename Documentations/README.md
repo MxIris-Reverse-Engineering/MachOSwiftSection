@@ -1,5 +1,7 @@
 # Documentation
 
+**Start here: [Internal/ProjectMap.md](Internal/ProjectMap.md)** — 项目地图：项目现在长什么样（产物、模块分层、`dump` / `interface` / `evolution` 三条关键流程、地标、术语、在做的事、复杂度热点），头部记着核对时的 commit，之后的改动从那里讲起。
+
 Documentation is split by audience.
 
 > **Project kind: library (source distribution).** SPM library product consumed from source —
