@@ -1,6 +1,6 @@
 # Draft - 依赖定位器共享同一路径的打开，不再按根重开 cache 与显式文件
 
-- **状态**: Draft
+- **状态**: Accepted
 - **创建日期**: 2026-11-06
 - **最后更新**: 2026-11-06
 - **所属愿景**: 无
@@ -22,6 +22,9 @@
   - **共享 `MachOFile` 是安全的。** 读取走 MachOKit 的内存映射，并发读没问题；cache 里的镜像在构造时就给了 `_cache`，之后不再写懒状态。独立文件的 `cache` 探测会写 `_cache`，另一个会话正在 MachOKit 的 `fix/standalone-file-cache-probe` 去掉这个探测，显式文件的共享排在它之后落地。
   - **RuntimeViewer 的目录照旧自己开配对的 cache。** 定位器之间共用一份之后，一个进程里这份 cache 最多开两次（目录一次、定位器一次），不值得为省这一次加公开 API。
 - **验证**：上面那条命令，每个文件的描述符从最多 7 个降到 3 个以内（MachOKit 的打开、Swift 与 ObjC 读取层的映射各一个）；新测试：两个根各自的依赖闭包里，同一个 cache 镜像来自同一个 `FullDyldCache`，同一路径的显式文件是同一个实例；放掉全部引用后再查，会重新打开。
+- **落地步骤**：
+  1. cache 这一半：`SharedDyldCacheOpeningTests` 先红（两个定位器共用一份打开；六个定位器在 256 个描述符下都能定位到镜像），再在 MachODependencies 加共享打开表、`FileDependencyLocator` 改用它；`Modules/MachODependencies.md` 与账本同批。
+  2. 显式文件这一半：等用户另行点头（前提 MachOKit 0.55.101 已发）。
 
 ## 决策日志
 
@@ -30,3 +33,4 @@
 | 2026-11-06 | 创建为 Draft | 修描述符耗尽时横向排查到的同类问题：依赖定位器按根重开配对的 cache 与显式文件。用户要求另起一批、先给方案 |
 | 2026-11-06 | 共享表放在 MachODependencies 内部，不做成 MachOKitExtensions 的公开 API | 用户选定。不加公开接口、RuntimeViewer 不用改；配对的 cache 在一个进程里最多开两次，可以接受 |
 | 2026-11-06 | cache 先做，显式文件等 MachOKit 的独立文件探测修复发版后再做 | 用户选定。cache 这一半不依赖那个修复；共享独立文件的 `MachOFile` 要等它去掉并发时会写共享状态的探测 |
+| 2026-11-06 | 用户批准，开始实现 cache 这一半 | 叠在本地 `next`（0bdfd80d）上：它含描述符耗尽的修复与 MachOKit 0.55.101 / MachOKitExtensions 1.3.1，都还没推送。同日 MachOKit 0.55.101 已发，显式文件那一半的前提满足，开不开工另问用户 |
