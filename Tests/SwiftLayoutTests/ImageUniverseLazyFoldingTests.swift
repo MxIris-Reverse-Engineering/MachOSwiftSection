@@ -3,6 +3,8 @@ import Testing
 import MachOKit
 import MachOFoundation
 @testable import MachOSwiftSection
+@_spi(Internals) import SwiftInspection
+import Demangling
 @testable import SwiftLayout
 @testable import MachOTestingSupport
 import MachOFixtureSupport
@@ -33,6 +35,26 @@ final class ImageUniverseLazyFoldingTests: MachOFileTests, @unchecked Sendable {
         #expect(universe.foldedImageCount(for: .protocols) == 0)
         #expect(universe.foldedImageCount(for: .objCClasses) == 0)
         #expect(universe.foldedImageCount(for: .associatedTypeWitnesses) == 0)
+    }
+
+    /// A member of the stand-in for an unbound class-bound parameter is
+    /// answered without folding anything: no image records a conformance of
+    /// `Swift.AnyObject`. Asked like any other conforming type, the one such
+    /// member SwiftUI's layouts meet folded all 552 images of its closure
+    /// into the witness index, to answer `nil` all the same.
+    @Test func aWitnessOfTheClassBoundPlaceholderFoldsNothing() throws {
+        let universe = try ImageUniverse.dependencyClosure(root: machOFile, searchPaths: [.systemDyldSharedCache])
+        try #require(universe.dependencyImageCount > 0, "the closure must collect dependency images")
+
+        let placeholderName = try #require(NodeTypeNaming.nominalQualifiedName(of: GenericArgumentEnvironment.classBoundParameterPlaceholderNode()))
+        #expect(placeholderName == GenericArgumentEnvironment.classBoundParameterPlaceholderQualifiedName)
+
+        #expect(universe.resolveAssociatedTypeWitness(conformingName: placeholderName, protocolName: "Swift.IteratorProtocol", associatedTypeName: "Element") == nil)
+        #expect(universe.foldedImageCount(for: .associatedTypeWitnesses) == 0)
+
+        // Every other conforming type folds images in until it resolves.
+        #expect(universe.resolveAssociatedTypeWitness(conformingName: "Swift.IndexingIterator", protocolName: "Swift.IteratorProtocol", associatedTypeName: "Element") != nil)
+        #expect(universe.foldedImageCount(for: .associatedTypeWitnesses) > 1)
     }
 
     /// Reading one index builds that index alone. Asked of a reference of

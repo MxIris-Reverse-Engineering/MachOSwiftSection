@@ -209,6 +209,29 @@ public final class ImageUniverse<MachO: MachOSwiftSectionRepresentableWithCache>
         return associatedTypeWitnessIndex[key]
     }
 
+    /// Resolves the witness a conformance of `conformingName` to
+    /// `protocolName` binds `associatedTypeName` to, or `nil` if no image in
+    /// the closure records that conformance.
+    ///
+    /// The stand-in for an unbound class-bound generic parameter
+    /// (`GenericArgumentEnvironment.classBoundParameterPlaceholderQualifiedName`)
+    /// is answered without a lookup: no image records a conformance of it, and
+    /// asking folded every image of the closure into the witness index before
+    /// answering `nil` — all 552 of SwiftUI's, for one member of a class-bound
+    /// parameter (evolution proposal `machofile-performance`).
+    func resolveAssociatedTypeWitness(
+        conformingName: String,
+        protocolName: String,
+        associatedTypeName: String
+    ) -> (image: ImageReference<MachO>, record: AssociatedTypeRecord)? {
+        guard conformingName != GenericArgumentEnvironment.classBoundParameterPlaceholderQualifiedName else { return nil }
+        return resolveAssociatedTypeWitness(forKey: ImageReference<MachO>.associatedTypeWitnessKey(
+            conformingName: conformingName,
+            protocolName: protocolName,
+            associatedTypeName: associatedTypeName
+        ))
+    }
+
     /// Folds the next image `kind` has not reached — the root first, then the
     /// dependencies in order — into that kind's closure-wide indexes, first
     /// writer wins (so already-folded images shadow this one). Returns `false`
