@@ -116,7 +116,7 @@ Sources/Output/SwiftPrinting/
 ├── SwiftDeclarationPrinter.swift                 # 三个入口的过滤壳 + printIncluded… 体；成员循环逐项问可见性；exportFilterScope 存储
 └── SwiftDeclarationPrinter+Headers.swift         # renderModelFields 的字段预筛
 Sources/Output/SwiftDeclarationRendering/SwiftVisibilityOption.swift # 可见性选项 swift.printExportedDeclarationsOnly
-Sources/Declaration/SwiftDeclaration/Components/ExportStatus.swift # 裁决枚举、C 导入类型不裁决、两腿裁决、descriptorSymbolName 重整（提案 exported-declaration-flag）
+Sources/Declaration/SwiftDeclaration/Model/ExportStatus.swift # 裁决枚举、C 导入类型不裁决、两腿裁决、descriptorSymbolName 重整（提案 exported-declaration-flag）
 Sources/Output/SwiftInterface/SwiftInterfaceBuilder.swift # printRoot 装 scope（标记模式也装）；全局块与 ObjC category conformance 块逐项问可见性
 Sources/Executables/swift-section/Commands/InterfaceCommand.swift # --exported-only
 ```

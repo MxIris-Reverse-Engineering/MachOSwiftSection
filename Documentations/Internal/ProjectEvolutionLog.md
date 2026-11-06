@@ -3062,6 +3062,17 @@
 - **验证**：在 JHs-Mac-Studio-Ultra 上用 Xcode 26.6 跑，依赖走远端版本，fixture 照 CI 的参数编。全量 `swift test --skip IntegrationTests`：合并前 2,793 个测试、531 个套件全过；与远端 `next`（第 124、125 节）合并后重跑，2,796 个测试、532 个套件全过，原始退出码都是 0（多出的是第 124 节的测试，本次没有新增）；`MachOSwiftSectionCoverageInvariantTests` 在内，`__Baseline__/` 与 allowlist 零改动，宏没有发出「成员已手写」的 warning。没跑渲染 A/B：生成的存储成员与改前逐字相同，只多了遵循。
 - **对应版本**：未发版。发版说明不必写：宏只在本库内部使用，生成的存储成员不变；三个类型多出的 `Resolvable` 遵循是增量变化。
 
+## 2026-11-06 SwiftDeclaration 的目录分成公开模型与索引代码两块（节号落地时取）
+
+- **时间段**：2026-11-06，分支 `refactor/swift-declaration-layout`（worktree `.worktrees/MachOSwiftSection-SwiftDeclarationLayout`，基于 `next` d5368156）。提案 [draft-swift-declaration-model-indexing-layout](../Evolutions/draft-swift-declaration-model-indexing-layout.md)（轻量档）。
+- **动机**：0042 整理过这个模块之后，新增的 ObjC 相关文件都放进了 `Components/Definitions/`，那里攒到 25 个文件，声明本体、成员定义、索引扩展混在一起；`Components/` 这一层不区分任何东西；三个类型藏在别人的文件里。用户要求重新整理。
+- **关键决策**：
+  - **按可见性分两棵树**（用户在三个布局里选定）：`Model/` 放公开模型，`Indexing/` 放全是 `package` / `internal` 的索引代码。沿用 0042 「`Members/` 是模型、`Building/` 是索引期机器」的分界，推到整个模块；九个 `TypeDefinition+…` 与三个 `ExtensionDefinition+…` 各进一个子目录。
+  - **只搬文件**：`git mv` 保留历史；`ObjCProtocolRequirementDefinition`、`ObjCProtocolNames`、`isStoredVariable` 原样剪切成独立文件，没有改动任何代码。
+- **落地**：SwiftDeclaration（`Components/` 下 52 个文件改位置，新增 3 个文件，`Events/` 与 `Extensions/` 原有文件不动）。文档：[Modules/SwiftDeclaration.md](Modules/SwiftDeclaration.md) 的文件对照表与 `TypeDefinition` 扩展表重写（补上漏掉的 `+ObjCMembers`、`+ObjCProtocols`），术语表与四份实现说明里的完整路径改成新路径；历史记录里的旧路径不改。
+- **验证**：在 JHs-Mac-Studio 上用默认工具链（Xcode 27.2）从空 scratch 编译库与全部测试 target（`swift build --build-tests`，本地兄弟依赖），原始退出码 0，SwiftDeclaration 没有新增警告。没跑测试和渲染 A/B：没有一行代码改变，源码扫描类测试按模块名取文件、不看目录层级。
+- **对应版本**：未发版。发版说明不必写：模块的公开 API 与输出都不变。
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节

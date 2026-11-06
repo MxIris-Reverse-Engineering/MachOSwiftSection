@@ -13,39 +13,41 @@ SwiftDeclaration 是**共享声明模型**：`SwiftIndexing` 往里填，`SwiftP
 
 ## 文件 → 子系统对照
 
-目录名说什么，里面就只放什么：`Definitions/` 只有声明本体，成员构件与构建期机器各有自己的目录。
+模块分成两棵树，判据是可见性（提案 [draft-swift-declaration-model-indexing-layout](../../Evolutions/draft-swift-declaration-model-indexing-layout.md)）：`Model/` 是下游读的公开模型，索引结束后还留着；`Indexing/` 是把模型填满的代码，里面每个声明都是 `package` 或 `internal`，只在 `index(in:)` 与 `SwiftDeclarationIndexer.prepare()` 期间有人调用。新文件按这条判据归位：类型是 `public` 的、会出现在公开 API 的返回值里，进 `Model/`；只在索引期活着，进 `Indexing/`。将来要把索引代码整体挪到 `SwiftIndexing`，边界已经画好了。
 
 | 子系统 | 文件 |
 |---|---|
-| 1. 声明本体 | `Components/Definitions/`（`Definition` / `MutableDefinition` 协议、`TypeDefinition` 及其七个功能扩展、`ProtocolDefinition`、`ObjCProtocolDefinition`、`ExtensionDefinition` 及各自的 `+Indexing`（`ExtensionDefinition` 另有 `+ThunkAttributes`，与 `TypeDefinition+ThunkAttributes` 共用 `Building/MemberAttributeApplication`）、`FunctionDefinition`、`VariableDefinition`、`SubscriptDefinition`、`FieldDefinition`、`WrappedPropertyDefinition`、`ObjCCategoryConformance`） |
-| 2. 成员构件 | `Components/Members/`（`Accessor`、`OrderedMember`、`MemberCategory`、`StrippedSymbolicRequirement`）——模型的一部分，会出现在公开 API 的返回值里 |
-| 3. 构建期机器 | `Components/Building/`（`DefinitionBuilder`、`MemberSymbolBucketing`、`OverrideSymbolMatcher`、`ClassDispatchLookups`、`StandInMemberSymbols`、`AnnotatedSymbol`、`WrappedPropertyRecovery`、`MemberAttributeApplication`）——全是 `package`，索引结束就不再有人碰 |
-| 4. 名字 | `Components/Names/`（`DefinitionName`、`TypeName`、`ProtocolName`、`ExtensionName`） |
-| 5. 种类枚举 | `Components/Kinds/` |
-| 6. 挂在声明上的独立概念 | `Components/ExportStatus`、`Components/AssociatedTypeWitnessProjection`、`Components/SwiftAttribute` |
-| 7. 对上游类型的扩展 | `Extensions/`（按被扩展的类型分文件：`ProtocolConformance+Names`、`TypeContext+Names`、`FieldRecord+DemangledType`、`Node+TypeKind`……） |
-| 8. 事件 | `Events/SwiftIndexEvents` |
+| 1. 声明本体 | `Model/Definitions/`（`Definition` / `MutableDefinition` 协议、`TypeDefinition`、`ProtocolDefinition`、`ExtensionDefinition`、`ObjCProtocolDefinition`）——只有存储属性、`init` 与 materialize 方法，不含索引逻辑 |
+| 2. 成员 | `Model/Members/`：成员定义（`FunctionDefinition`、`VariableDefinition`、`SubscriptDefinition`、`FieldDefinition`、`WrappedPropertyDefinition`、`ObjCProtocolRequirementDefinition`）、成员构件（`Accessor`、`OrderedMember`、`MemberCategory`、`StrippedSymbolicRequirement`），以及三种成员定义上的公开投影 `ResolvedObjCMemberFacts` |
+| 3. 名字 | `Model/Names/`（`DefinitionName`、`TypeName`、`ProtocolName`、`ExtensionName`） |
+| 4. 种类枚举 | `Model/Kinds/` |
+| 5. 挂在声明上的独立概念 | `Model/` 根下的 `ExportStatus`、`SwiftAttribute`、`AssociatedTypeWitnessProjection`、`ObjCCategoryConformance` |
+| 6. 各声明的索引 | `Indexing/`：`DefinitionIndexing`（每个定义只索引一次，见下文）、`TypeDefinition/` 下的九个扩展（见下表）、`ExtensionDefinition/` 下的 `+Indexing` / `+ObjCMembers` / `+ThunkAttributes`、`ProtocolDefinition+Indexing`、`ObjCProtocolDefinition+Indexing` |
+| 7. 构建期机器 | `Indexing/Building/`（`DefinitionBuilder`、`MemberSymbolBucketing`、`OverrideSymbolMatcher`、`ClassDispatchLookups`、`StandInMemberSymbols`、`AnnotatedSymbol`、`WrappedPropertyRecovery`、`MemberAttributeApplication`、`ObjCMemberApplication`、`ObjCProtocolNames`）——各声明的索引扩展调用的构件；`TypeDefinition+ThunkAttributes` 与 `ExtensionDefinition+ThunkAttributes` 共用 `MemberAttributeApplication`，两个 `+ObjCMembers` 共用 `ObjCMemberApplication` |
+| 8. 对上游类型的扩展 | `Extensions/`（按被扩展的类型分文件：`ProtocolConformance+Names`、`TypeContext+Names`、`FieldRecord+DemangledType`、`Node+TypeKind`、`DemanglingNode+StoredVariable`……） |
+| 9. 事件 | `Events/SwiftIndexEvents` |
 
-### TypeDefinition 的七个扩展
+### TypeDefinition 的九个扩展
 
-`index(in:)` 串起来的是六件互不相干的事，每件一个文件，主干只剩调用顺序：
+本体 `TypeDefinition.swift` 在 `Model/Definitions/`：存储属性、两个 `init`、`materializedTypeContext(in:)`，不含任何索引逻辑。索引代码在 `Indexing/TypeDefinition/`：主干在 `+Indexing`，`index(in:)` 串起来的其余八件互不相干的事每件一个文件，主干只剩调用顺序：
 
 | 文件 | 负责 |
 |---|---|
-| `TypeDefinition.swift` | 存储属性、两个 `init`、`materializedTypeContext(in:)`——不含任何索引逻辑 |
-| `+Indexing` | `index(in:)` 主干、字段记录 → `FieldDefinition`、accessor 组回折 |
+| `+Indexing` | `index(in:)` 主干、字段记录 → `FieldDefinition`、accessor 组回折、源码给类起的 ObjC 运行时名字 |
 | `+ClassDispatch` | vtable / override / defaultOverride 三张表 → `ClassDispatchLookups`；另为本类每个 `Tq` 能命名的 vtable 槽造一个替身成员符号 |
 | `+MemberIndexing` | 六类成员与两个 `deinit` 符号；实现符号缺席的 vtable 成员用替身补上 |
-| `+FinalRecovery` | 提案 0006 的 `final` 恢复与它的四道门 |
 | `+ThunkAttributes` | `@objc` / `@nonobjc` / `@distributed` 的交叉引用 |
+| `+ObjCMembers` | 类自己的 ObjC 方法表 join 到成员上：`@objc`、`override`、显式 selector（经 `Building/ObjCMemberApplication`） |
+| `+FinalRecovery` | 提案 0006 的 `final` 恢复与它的四道门 |
 | `+SynthesizedMembers` | 自动合成成员的去重 |
 | `+WrappedProperties` | property wrapper 用法的恢复 |
+| `+ObjCProtocols` | 类的 `class_ro_t` 列出的 ObjC 协议 → `objcProtocolNames`（经 `Building/ObjCProtocolNames`） |
 
-**主干里的顺序是有约束的，不能随手调**：`final` 恢复要在 `applyThunkAttributes` 之后（它要 `@objc` 证据）且在 `orderedMembers` 之前（那一步会把成员值复制走）；wrapped property 恢复要在字段回折与成员构建都完成之后。每个步骤方法的 doc comment 各自写明了自己依赖什么。
+**主干里的顺序是有约束的，不能随手调**：`final` 恢复要在 `applyThunkAttributes` 与 `applyObjCMembers` 之后（两者都给它 `@objc` 证据，它据此排除 `@objc dynamic`），且在 `orderedMembers` 之前（那一步会把成员值复制走）；wrapped property 恢复要在字段回折与成员构建都完成之后。每个步骤方法的 doc comment 各自写明了自己依赖什么。
 
 ### 每个定义只索引一次，可以被并发打印
 
-三个 Definition 的 `index(in:)` 是**同步**函数，都经 `DefinitionIndexing.swift` 执行（提案 [0066-concurrent-definition-printing](../../Evolutions/0066-concurrent-definition-printing.md)）。进程级一把锁守着两样东西：一张「正在索引」的表（按 `ObjectIdentifier(定义)`），和每个定义自己的 `hasCompletedIndexing`。首个调用者认领后在自己的线程上跑完索引体；同时到来的调用者在认领者的 promise（复用 `SharedCacheBuildPromise`，载荷是 `Result`）上阻塞等待，拿到同一个结果。索引体抛错时定义回到未索引、错误交给全部等待者，下次调用重试。`isIndexed` 是只读的计算属性，读的就是锁下的那个标志。
+四个 Definition（`TypeDefinition`、`ProtocolDefinition`、`ExtensionDefinition`、`ObjCProtocolDefinition`）的 `index(in:)` 是**同步**函数，都经 `Indexing/DefinitionIndexing.swift` 执行（提案 [0066-concurrent-definition-printing](../../Evolutions/0066-concurrent-definition-printing.md)）。进程级一把锁守着两样东西：一张「正在索引」的表（按 `ObjectIdentifier(定义)`），和每个定义自己的 `hasCompletedIndexing`。首个调用者认领后在自己的线程上跑完索引体；同时到来的调用者在认领者的 promise（复用 `SharedCacheBuildPromise`，载荷是 `Result`）上阻塞等待，拿到同一个结果。索引体抛错时定义回到未索引、错误交给全部等待者，下次调用重试。`isIndexed` 是只读的计算属性，读的就是锁下的那个标志。
 
 阻塞等待不会死锁，靠两条前提，改索引时要守住：
 

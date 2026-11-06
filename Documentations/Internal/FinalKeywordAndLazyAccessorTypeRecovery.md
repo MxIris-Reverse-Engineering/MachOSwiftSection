@@ -26,14 +26,14 @@ class 成员是否 `final` 决定调用方走 dispatch thunk 还是直接符号�
 ## 模块结构
 
 ```
-Sources/Declaration/SwiftDeclaration/Components/
-├── Definitions/FieldDefinition.swift              # + accessors / accessorTypeNode / isFinal / hasVTableAccessor
-├── Definitions/VariableDefinition.swift           # + isFinal（Function/Subscript 同形）
-├── Definitions/TypeDefinition+Indexing.swift      # 主干：折回 accessor 组
-├── Definitions/TypeDefinition+ClassDispatch.swift # 证据门 → ClassDispatchLookups.canRecoverFinalMembers
-├── Definitions/TypeDefinition+FinalRecovery.swift # final 标记块与它的四道门
-├── Building/DefinitionBuilder.swift               # variables → variablesProduct（交还被抑制的 accessor 组）
-└── Building/OverrideSymbolMatcher.swift           # + memberJoinKey（Tu 标记剥离）
+Sources/Declaration/SwiftDeclaration/
+├── Model/Members/FieldDefinition.swift                        # + accessors / accessorTypeNode / isFinal / hasVTableAccessor
+├── Model/Members/VariableDefinition.swift                     # + isFinal（Function/Subscript 同形）
+├── Indexing/TypeDefinition/TypeDefinition+Indexing.swift      # 主干：折回 accessor 组
+├── Indexing/TypeDefinition/TypeDefinition+ClassDispatch.swift # 证据门 → ClassDispatchLookups.canRecoverFinalMembers
+├── Indexing/TypeDefinition/TypeDefinition+FinalRecovery.swift # final 标记块与它的四道门
+├── Indexing/Building/DefinitionBuilder.swift                  # variables → variablesProduct（交还被抑制的 accessor 组）
+└── Indexing/Building/OverrideSymbolMatcher.swift              # + memberJoinKey（Tu 标记剥离）
 Sources/Output/SwiftPrinting/
 ├── SwiftDeclarationPrinter+Members.swift  # printThrowingField：final 关键字 + fieldTypeNode 取型
 ├── SwiftDeclarationPrinter+Headers.swift  # renderModelFields：stored var 的 vtable 注释
