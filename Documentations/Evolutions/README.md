@@ -97,3 +97,4 @@
 | [0085](0085-abi-flag-words-bit-field.md) | ABI 层的 flag word 改用 `@BitField`，修掉三个读错位的访问器 | Implemented |
 | draft | [依赖定位器共享同一路径的打开，不再按根重开 cache 与显式文件](draft-shared-dependency-openings.md) | In Progress |
 | draft | [`@ResolvableLocatableLayoutWrapper`：样板宏改名并补上遵循](draft-resolvable-locatable-layout-wrapper-macro.md) | In Progress |
+| draft | [SwiftDeclaration 的目录分成公开模型与索引代码两块](draft-swift-declaration-model-indexing-layout.md) | In Progress |

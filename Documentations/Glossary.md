@@ -86,7 +86,7 @@ macOS 27 与 iOS 27 的 dyld shared cache 不再给每个镜像留自己的 `__o
 
 本镜像 extension 别的模块的类（ObjC 类，或别的模块的 Swift 类）时采纳的 ObjC 协议，记在那个 extension 的 category 的协议表里，没有 Swift 的 conformance record。interface 把每个 category 打成一个 `extension X: P {}`。与类头部列出的 ObjC 协议的区别：同一模块里的 extension 会被编译器并进类自己的 `class_ro_t`，那些遵循打在类头部，不算 category 遵循。
 
-- **主要出现在**：`Sources/Declaration/SwiftDeclaration/Components/Definitions/ObjCCategoryConformance.swift`、`Sources/Analysis/SwiftInspection/ObjCProtocolAdoptionIndex.swift`
+- **主要出现在**：`Sources/Declaration/SwiftDeclaration/Model/ObjCCategoryConformance.swift`、`Sources/Analysis/SwiftInspection/ObjCProtocolAdoptionIndex.swift`
 - **延伸阅读**：[SwiftDeclaredObjCProtocols.md](Internal/SwiftDeclaredObjCProtocols.md)、[0079-swift-declared-objc-protocols](Evolutions/0079-swift-declared-objc-protocols.md)
 
 ### class without a class object（没有 class object 的类，`SwiftClassWithoutClassObject`）
@@ -296,7 +296,7 @@ opaque 尖括号参数归属的第三条规则：协议无任何 anchor 命中�
 
 一个类的 ObjC 方法表——实例方法表、元类方法表、本镜像 `__objc_catlist` 里指向它的 category——的每一条联结到实现它的 Swift 成员之后得到的 per-class 表（`ObjCMemberTable`，按 Swift 符号名索引 `ObjCMember`）。方法表就是类的 `@objc` 成员清单，运行时靠它派发、strip 不会碰，所以它是三个 Swift 元数据不记的事实的来源：成员是 `@objc`（OS 框架 strip 掉 `To` thunk 符号后这是唯一证据）、它覆写了哪个祖先的成员（selector 在祖先链上有人实现）、它的 selector 是不是源码里 `@objc(name)` 写出来的（与编译器从 Swift 名正向推出的默认值不同，且不是从被覆写者或协议要求继承的——祖先链或协议没读完就不下这个判定）。联结证据分三档：IMP 处的 `To` 符号；反汇编无名 thunk 收它引用的成员实现，配「所属类」与「importer 拼法」两道守卫；只按名字（只对覆写）。三档**都在索引期跑完**并记进 `ObjCMember.evidence`，用不用是消费者的事：dump 每条都标证据，第三档写成 `(selector name, no symbol evidence)` 照常渲染；interface 只有 `override` 一个关键字、没处说明证据来源，默认不打，`--infer-objc-overrides` 才打。`@objc @implementation` 体不是例外：编译器同样从 Swift 名推导 selector 并要求头文件里有它，`draw(in:)` 要对上 `drawInRect:` 就得写 `@objc(drawInRect:)`。
 
-- **主要出现在**：`SwiftInspection/ObjCMember.swift`、`SwiftInspection/ObjCMemberShape.swift`、`SwiftThunkAnalysis/ObjCMembers/`、`SwiftDeclaration/Components/Building/ObjCMemberApplication.swift`、`SwiftDeclaration/Components/Definitions/ResolvedObjCMemberFacts.swift`
+- **主要出现在**：`SwiftInspection/ObjCMember.swift`、`SwiftInspection/ObjCMemberShape.swift`、`SwiftThunkAnalysis/ObjCMembers/`、`SwiftDeclaration/Indexing/Building/ObjCMemberApplication.swift`、`SwiftDeclaration/Model/Members/ResolvedObjCMemberFacts.swift`
 - **延伸阅读**：[提案 0048-objc-member-selector-recovery](Evolutions/0048-objc-member-selector-recovery.md)、[ObjCMemberRecovery.md](Internal/ObjCMemberRecovery.md)
 
 ### ObjC ancestor resolver（ObjC 祖先解析器）
@@ -385,7 +385,7 @@ TypeIndexing 的外部知识入口：标准 `.apinotes` 格式的**用户自备*
 
 Swift 源码里声明的 `@objc protocol`。它没有 protocol descriptor（不在 `__swift5_protos` 里），要求也没有任何 Swift 符号；镜像里只有一条 kind 为 `ObjCProtocol` 的 field descriptor 与一条 ObjC 协议记录（`protocol_t`）。本库据 field descriptor 认定本镜像声明了它，要求从记录读出：有本镜像的类实现时照抄那个成员（**取自实现者**），没有时按 ClangImporter 的规则从 selector 推出 Swift 名并用 `@objc(selector)` 钉住（**按 selector 命名**）。与 `@objc @implementation` 类无关：那是 ObjC 声明、Swift 实现的类。
 
-- **主要出现在**：`Sources/Analysis/SwiftInspection/SwiftDeclaredObjCProtocolIndex.swift`、`Sources/Declaration/SwiftDeclaration/Components/Definitions/ObjCProtocolDefinition.swift`
+- **主要出现在**：`Sources/Analysis/SwiftInspection/SwiftDeclaredObjCProtocolIndex.swift`、`Sources/Declaration/SwiftDeclaration/Model/Definitions/ObjCProtocolDefinition.swift`
 - **延伸阅读**：[SwiftDeclaredObjCProtocols.md](Internal/SwiftDeclaredObjCProtocols.md)、[0079-swift-declared-objc-protocols](Evolutions/0079-swift-declared-objc-protocols.md)
 
 ### symbolic-mangling symbol（`_symbolic` 符号）与被引用者（referent）
