@@ -2,9 +2,9 @@
 
 - **状态**: In Progress
 - **创建日期**: 2026-11-06
-- **最后更新**: 2026-11-06
+- **最后更新**: 2026-11-07
 - **关联提案**: [0086-shared-dependency-openings](0086-shared-dependency-openings.md)（依赖定位器按路径共享 cache 与 Mach-O 文件的打开，本提案的依赖镜像索引建在它之上）
-- **实现分支 / PR**: 本库 `perf/machofile-performance`；MachOObjCSection、MachOKitExtensions、MachOKit fork 各开同名分支
+- **实现分支 / PR**: 本库 `perf/machofile-performance`；MachOObjCSection、MachOKit fork 各开同名分支；swift-demangling 另有提案与分支（`perf/demangler-self-copy`）
 
 ## 摘要
 
@@ -124,3 +124,4 @@ iOS 18.5 模拟器的 SwiftUI（单个文件，运行时根目录作依赖搜索
 | 2026-11-06 | 第 4 项改为在节点池里遍历，共享子树只进一次 | 结果、首次出现顺序与符号数都和逐棵树遍历相同（`moduleNamesMatchAWalkOfEveryTree` 钉住） |
 | 2026-11-06 | 第 7 项先做 `MangledName.resolve` 与类约束替身的 witness 查找 | 前者逐字节核对过 `%c` 与按 Latin-1 标量追加在 0x20–0xFE 上结果相同；后者经临时插桩确认：整次运行只有这一次 witness 查不到，代价是 552 个依赖镜像的 witness 表 |
 | 2026-11-06 | 修 MachOKit fork 的竞态：两张映射表在打开 cache 时就读好、改为常量；镜像组装时就带的 `DyldCache` 改为常量；其余懒得出的引用（main cache、full cache、symbol cache）经 `MemoizedReference` 加锁读写，锁外计算、只在仍为空时发布 | SwiftInterfaceTests 约一半的运行在 `mappingInfo(for:)` 里 SIGSEGV（lldb 抓栈）。缓存是上游 2026-06 加的，第 4 步之前的读取路径也走它；第 2 步让依赖镜像的表在所有 universe 间共享、`LazilyBuiltIndex` 又在锁外建表，两个测试会同时给同一个镜像建同一张表，才变得常见。热路径上的两处改成常量而不是加锁，读取不多一次加锁 |
+| 2026-11-07 | 用户批准：swift-demangling 也改并发版（修 `Demangler` 的自我复制，顺带看 `Remangler` 销毁替换表的开销），走它自己的提案与语料对照测试，本库抬依赖下限；MachOKit 的竞态修复只留在 fork，不提上游；类型查找按模块定向记为后续项 | 前者让两种读取器建索引都少约 5% 指令、并行时的 CPU 从约 2.3 倍降到约 1.25 倍；后两项按用户的取舍 |
