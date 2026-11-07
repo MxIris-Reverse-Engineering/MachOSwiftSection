@@ -63,18 +63,20 @@ iOS 18.5 模拟器的 SwiftUI（单个文件，运行时根目录作依赖搜索
 ### 第二期：两种读取器共用的部分
 
 4. **统计模块名**（SwiftInterface）：把节点池扫一遍，不再对每个符号的整棵树做一次泛型遍历（每次调用都要向运行时实例化一次 opaque 类型）。**已完成**：`SymbolIndexStore.moduleNamesInAllSymbols(in:)` 在节点池里前序遍历、共享子树只进一次，名字与首次出现的顺序不变；interface 准备阶段 116 G → 70 G，与只建索引持平。
-5. **主镜像符号索引**（MachOSymbols）：把符号名还原成节点树这一步分到多个线程做，再按原顺序驻留，索引内容与顺序不变。**已完成**：每批最多 16 × 512 行，提前一批分给各线程还原，驻留与分类留在建索引的线程上按行号顺序做。只建索引的墙钟 6.6 秒 → 3.7 秒；CPU 时间升到约 12 秒——swift-demangling 0.7.2 的 `Demangler` 在 `require(pop())` 上会整份复制自身，多线程同时复制节点栈时抢引用计数。沙盒里只修这一处（`require` 标成 `mutating`），CPU 回到约 6.5 秒、指令数少约 5%，要不要改 swift-demangling 并发版待用户决定（见决策日志）。
-6. **索引器与打印的热点**：按前几步做完后的采样逐个处理，方向是减少临时分配、去掉热循环里没有特化的泛型调用。**已做两处**：`MangledName.resolve` 不再每个字符调一次 `String(format: "%c")`（离线打印约 4.6%，进程内约 1.8%）；类约束泛型参数的替身 `Swift.AnyObject` 的 assocty witness 查找直接答没有（它是 SwiftUI 布局里唯一一次查不到的 witness 查找，却让 552 个依赖镜像全部建了 witness 表）。打印阶段 107 G → 92 G。剩下的大头：类型查找为找到第 33、46、56、59 个依赖镜像里的四个类型，把前面的镜像全建了类型表（约占离线打印 4%，其中三分之二是为给依赖镜像的匿名上下文起名而建整张符号表第一段）；swift-demangling 的 `Remangler` 销毁替换表时走未特化的值见证（进程内打印约 5%）。
+5. **主镜像符号索引**（MachOSymbols）：把符号名还原成节点树这一步分到多个线程做，再按原顺序驻留，索引内容与顺序不变。**已完成**：每批最多 16 × 512 行，提前一批分给各线程还原，驻留与分类留在建索引的线程上按行号顺序做。只建索引的墙钟 6.6 秒 → 3.7 秒。swift-demangling 0.7.2 的 `Demangler` 在 `require(pop())` 上会整份复制自身，多线程同时复制节点栈时抢引用计数，CPU 时间一度升到约 11.4 秒；用户批准后在 swift-demangling 修掉（它的提案 0018，随 0.7.3 发布），CPU 回到约 6.3 秒，指令数也少了约 6 G。
+6. **索引器与打印的热点**：按前几步做完后的采样逐个处理，方向是减少临时分配、去掉热循环里没有特化的泛型调用。**已做两处**：`MangledName.resolve` 不再每个字符调一次 `String(format: "%c")`（离线打印约 4.6%，进程内约 1.8%）；类约束泛型参数的替身 `Swift.AnyObject` 的 assocty witness 查找直接答没有（它是 SwiftUI 布局里唯一一次查不到的 witness 查找，却让 552 个依赖镜像全部建了 witness 表）。打印阶段 107 G → 92 G。另在 swift-demangling 0.7.3 里让 `Remangler` 的节点哈希缓存不再逐格销毁（进程内打印约 6%）。剩下的大头：类型查找为找到第 33、46、56、59 个依赖镜像里的四个类型，把前面的镜像全建了类型表（约占离线打印 4%，其中三分之二是为给依赖镜像的匿名上下文起名而建整张符号表第一段），记为后续项。
 
-第二期之后（本机 cache 里的 SwiftUI，instructions retired / 墙钟，输出与基线逐字节相同）：
+第二期之后（release，上游用发布版：MachOKit 0.55.102、MachOObjCSection 0.8.206、swift-demangling 0.7.3；instructions retired / 墙钟，三份 interface 与基线逐字节相同）：
 
 | 场景 | 基线 `MachOFile` | 现在 `MachOFile` | 现在 `MachOImage` |
 |---|---|---|---|
-| 只建索引 | 86 G / 6.4 秒 | 70 G / 3.5 秒 | 65 G / 3.1 秒 |
-| interface 准备 | 131 G | 70 G | 65 G |
-| interface 打印（五类布局注释） | 304 G / 21 秒 | 92 G / 6.3 秒 | 67 G / 4.5 秒 |
+| 本机 cache 的 SwiftUI：只建索引 | 86 G / 6.4 秒 | 64 G / 3.8 秒 | 59 G / 3.1 秒 |
+| 同上：interface 准备 | 131 G | 64 G | 60 G |
+| 同上：interface 打印（五类布局注释） | 304 G / 21 秒 | 86 G / 6.2 秒 | 61 G / 4.5 秒 |
+| iOS 18.5 模拟器的 SwiftUI：只建索引 | 100 G | 71 G | — |
+| 同上：interface 准备 / 打印 | 139 G / 111 G | 73 G / 70 G | — |
 
-只建索引与准备阶段的 CPU 时间目前约 11.4 秒（单线程时约 5.2 秒），原因见第 5 项。
+只建索引的 CPU 时间约 6.3 秒（单线程时约 5.2 秒），多出的是各线程分批还原树的开销。
 
 ### 不变的部分
 
@@ -92,7 +94,7 @@ iOS 18.5 模拟器的 SwiftUI（单个文件，运行时根目录作依赖搜索
 6. 主镜像符号索引多线程（本库）。**已完成**。
 7. 索引器与打印的热点（本库）。做了两处，其余见上。
    - 期间查出 MachOKit 的竞态（fork 修复，见决策日志）：`DyldCache`、`FullDyldCache`、`MachOFile` 把算过的映射表、main cache、full cache、symbol cache 记在不加锁的存储属性里，两个线程第一次同时读同一个镜像时会 use-after-free。
-8. 收尾：全量测试、渲染 A/B、Xcode 26.6 编译检查；上游按依赖顺序发版（MachOKit fork、MachOKitExtensions、MachOObjCSection），本库抬依赖下限；更新演进账本与相关模块文档。
+8. 收尾：全量测试、渲染 A/B、Xcode 26.6 编译检查；上游按依赖顺序发版（MachOKit fork、MachOKitExtensions、MachOObjCSection），本库抬依赖下限；更新演进账本与相关模块文档。**除演进账本外已完成**：上游发版 MachOKit fork 0.55.102、MachOObjCSection 0.8.206、swift-demangling 0.7.3（MachOKitExtensions 不用改），本库已抬下限；账本一节随落地编号时补。
 
 开发期间本库经 `swift package edit` 指向上游的功能分支，不动任何共享检出的依赖链接。
 
@@ -125,3 +127,4 @@ iOS 18.5 模拟器的 SwiftUI（单个文件，运行时根目录作依赖搜索
 | 2026-11-06 | 第 7 项先做 `MangledName.resolve` 与类约束替身的 witness 查找 | 前者逐字节核对过 `%c` 与按 Latin-1 标量追加在 0x20–0xFE 上结果相同；后者经临时插桩确认：整次运行只有这一次 witness 查不到，代价是 552 个依赖镜像的 witness 表 |
 | 2026-11-06 | 修 MachOKit fork 的竞态：两张映射表在打开 cache 时就读好、改为常量；镜像组装时就带的 `DyldCache` 改为常量；其余懒得出的引用（main cache、full cache、symbol cache）经 `MemoizedReference` 加锁读写，锁外计算、只在仍为空时发布 | SwiftInterfaceTests 约一半的运行在 `mappingInfo(for:)` 里 SIGSEGV（lldb 抓栈）。缓存是上游 2026-06 加的，第 4 步之前的读取路径也走它；第 2 步让依赖镜像的表在所有 universe 间共享、`LazilyBuiltIndex` 又在锁外建表，两个测试会同时给同一个镜像建同一张表，才变得常见。热路径上的两处改成常量而不是加锁，读取不多一次加锁 |
 | 2026-11-07 | 用户批准：swift-demangling 也改并发版（修 `Demangler` 的自我复制，顺带看 `Remangler` 销毁替换表的开销），走它自己的提案与语料对照测试，本库抬依赖下限；MachOKit 的竞态修复只留在 fork，不提上游；类型查找按模块定向记为后续项 | 前者让两种读取器建索引都少约 5% 指令、并行时的 CPU 从约 2.3 倍降到约 1.25 倍；后两项按用户的取舍 |
+| 2026-11-07 | 实现完成，待用户看过后收尾 | 全量测试约 2800 个，只有 ThunkOnlyObjCMemberTests 的 4 条在默认 Xcode 27.2 下红，用 Xcode 26.6 跑同一套 8 个全过（现场编译 fixture 的工具链差异，基线就有），这一步同时是本库的 Xcode 26.6 编译检查；渲染 A/B（基线为本分支切出时的 `next` 并固定在旧的上游版本，候选用新发布的上游）三条读取路径 96 对全部逐字节相同。AGENTS.md 里「`MachOFile` 不能并行打印是因为读取共用 `FileHandle`」的理由已不成立，改为如实说明尚未验证、规则不变。文档：MachOSymbols、SwiftInterface、SwiftLayout、MachOCaches 的模块文档已随各步同步；不另写使用指南或实现说明；新术语无。 |
