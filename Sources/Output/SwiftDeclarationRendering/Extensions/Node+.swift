@@ -89,7 +89,7 @@ extension DemanglingNode {
     /// before it, the printer recursed unguarded and a deeply nested generic
     /// really did overflow a 512KB worker. It is paid down at a *batch*
     /// boundary, never here — a `withLargeStack` around this single call would
-    /// save exactly the one hop it adds. `SymbolIndexStore.buildStorageImpl`
+    /// save exactly the one hop it adds. `SymbolIndexStore.Storage.demangledIndex`
     /// does that for the synchronous sweep, because it owns a loop; the
     /// printer's loop lives in `SwiftDeclarationPrinter` and is `async`, which
     /// a synchronous wrapper cannot enclose. The async side's batch boundary

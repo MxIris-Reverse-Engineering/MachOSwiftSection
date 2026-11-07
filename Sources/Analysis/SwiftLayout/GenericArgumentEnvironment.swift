@@ -207,12 +207,19 @@ struct GenericArgumentEnvironment {
         return classBoundParameterKeys.contains(GenericParameterKey(depth: depth, index: index))
     }
 
+    /// The qualified name of `classBoundParameterPlaceholderNode()`. No
+    /// nominal type has it — `AnyObject` is a type alias of a builtin, which
+    /// no extension can conform to anything — so no image records a
+    /// conformance of the stand-in, and a witness lookup for it is answered
+    /// without one (`ImageUniverse.resolveAssociatedTypeWitness(conformingName:protocolName:associatedTypeName:)`).
+    static let classBoundParameterPlaceholderQualifiedName = "Swift.AnyObject"
+
     /// The stand-in substituted for an unbound class-constrained parameter. Any
     /// class reference has the identical stored layout (`.pointerSized`, with
     /// the heap-object extra-inhabitant count), and the resolver stops at every
     /// class node without reading its name — the spelling exists only for cache
-    /// keys and diagnostics.
-    private static func classBoundParameterPlaceholderNode() -> Node {
+    /// keys, diagnostics and `classBoundParameterPlaceholderQualifiedName`.
+    static func classBoundParameterPlaceholderNode() -> Node {
         Node.create(kind: .class, children: [
             Node.create(kind: .module, text: "Swift"),
             Node.create(kind: .identifier, text: "AnyObject"),

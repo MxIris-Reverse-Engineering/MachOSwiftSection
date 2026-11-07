@@ -1,13 +1,14 @@
 import Foundation
 import Testing
-import MachOKit
+@_spi(Support) import MachOKit
 import MachOKitExtensions
 @testable import MachOReading
 import MachOSwiftSection
 import MachOFixtureSupport
 
-/// Every reader of one file reads it through one mapping, and one that cannot
-/// be made fails the read.
+/// A `MachOFile` is read through the mapping MachOKit made when it opened the
+/// file (`fileBytes`), which every value assembled from that opening shares
+/// (evolution proposal `machofile-performance`).
 ///
 /// MachOKit hands out a new `DyldCache` for every image a `FullDyldCache`
 /// enumerates, MachOKitExtensions another for every sub-cache an image's reads
@@ -16,9 +17,11 @@ import MachOFixtureSupport
 /// again for each of them, and each mapping holds a descriptor: RuntimeViewer's
 /// offline service, reading Dock.app against the system's cache, held 2,548
 /// descriptors on 85 cache files when the next open failed with `EMFILE` and
-/// the accessor's `try!` stopped the process.
+/// the accessor's `try!` stopped the process. The reading layer then kept one
+/// mapping of its own per opening, made on a file's first read; it now reads
+/// MachOKit's, so it maps nothing and holds no descriptor of its own.
 @Suite
-struct SharedFileMappingTests {
+struct FileMappingTests {
     private static var isHostDyldCacheAvailable: Bool {
         FileManager.default.fileExists(atPath: DyldSharedCachePath.current.rawValue)
     }
@@ -35,7 +38,7 @@ struct SharedFileMappingTests {
     func readingManyImagesOfACacheStaysWithinAServiceDescriptorLimit() async {
         await #expect(processExitsWith: .success) {
             do {
-                try SharedFileMappingTests.readSwiftImagesOfTheHostCacheUnderTheServiceDescriptorLimit()
+                try FileMappingTests.readSwiftImagesOfTheHostCacheUnderTheServiceDescriptorLimit()
             } catch {
                 // A thrown error ends the child on a trap too; exiting keeps a
                 // read that failed apart from an accessor that stopped.
@@ -44,6 +47,9 @@ struct SharedFileMappingTests {
         }
     }
 
+    /// Images of one cache file, their cache instances and the sub-cache
+    /// instance another image's read crosses into the file through all read
+    /// one mapping.
     @Test(.enabled(if: isHostDyldCacheAvailable))
     func readersOfOneCacheFileShareOneMapping() throws {
         let cache = try FullDyldCache(url: URL(fileURLWithPath: DyldSharedCachePath.current.rawValue))
@@ -64,16 +70,42 @@ struct SharedFileMappingTests {
         let headerAddress = try #require(cache.imageInfos?.first { $0.path(in: cache) == firstImage.imagePath }?.address)
         let (crossedCache, _) = try #require(otherImage.cacheAndFileOffset(for: headerAddress))
 
-        let mapping = try firstImage.fileIO
-        #expect(try secondImage.fileIO === mapping)
-        #expect(try firstImageCache.fileIO === mapping)
-        #expect(try secondImageCache.fileIO === mapping)
-        #expect(try crossedCache.fileIO === mapping)
+        let mappingStart = try #require(firstImage.fileBytes.baseAddress)
+        #expect(secondImage.fileBytes.baseAddress == mappingStart)
+        #expect(firstImageCache.fileBytes.baseAddress == mappingStart)
+        #expect(secondImageCache.fileBytes.baseAddress == mappingStart)
+        #expect(crossedCache.fileBytes.baseAddress == mappingStart)
     }
 
-    @Test func aFileThatCannotBeMappedFailsTheReadInsteadOfStoppingTheProcess() async {
-        await #expect(processExitsWith: .success) {
-            exit(SharedFileMappingTests.readOfARemovedFileThrows() ? EXIT_SUCCESS : EXIT_FAILURE)
+    /// A read never goes back to the file's path: removed after it was
+    /// opened, the file still reads through the mapping made when it was
+    /// opened.
+    @Test func aRemovedFileStillReadsThroughTheMappingMadeWhenItWasOpened() throws {
+        let temporaryDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("FileMappingTests-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: temporaryDirectory) }
+        let copyURL = temporaryDirectory.appendingPathComponent("dyld")
+        try FileManager.default.createDirectory(at: temporaryDirectory, withIntermediateDirectories: true)
+        try FileManager.default.copyItem(at: URL(fileURLWithPath: "/usr/lib/dyld"), to: copyURL)
+        let machOFile = try #require(try Self.firstMachOFile(at: copyURL))
+        try FileManager.default.removeItem(at: copyURL)
+
+        let magic: UInt32 = try machOFile.readElement(offset: 0)
+        #expect(magic == machOFile.header.magic?.rawValue)
+    }
+
+    /// A read outside the file throws rather than reading past the mapping.
+    @Test func aReadPastTheEndOfTheFileThrows() throws {
+        let machOFile = try #require(try Self.firstMachOFile(at: URL(fileURLWithPath: "/usr/lib/dyld")))
+        let pastTheEnd = machOFile.fileBytes.count - machOFile.headerStartOffset
+        #expect(throws: (any Error).self) {
+            let _: UInt64 = try machOFile.readElement(offset: pastTheEnd - 4)
+        }
+        #expect(throws: (any Error).self) {
+            let _: [UInt32] = try machOFile.readElements(offset: pastTheEnd - 8, numberOfElements: 4)
+        }
+        #expect(throws: (any Error).self) {
+            _ = try machOFile.readString(offset: pastTheEnd + 1)
         }
     }
 
@@ -101,29 +133,6 @@ struct SharedFileMappingTests {
         }
         for image in swiftImages {
             _ = try image.swift.typeContextDescriptors
-        }
-    }
-
-    /// Whether a read of a file removed after it was opened, before anything
-    /// mapped it for reading, throws. MachOKit keeps its own mapping of the
-    /// file; the reading layer's is made on the first read, from the path.
-    static func readOfARemovedFileThrows() -> Bool {
-        let temporaryDirectory = FileManager.default.temporaryDirectory
-            .appendingPathComponent("SharedFileMappingTests-\(UUID().uuidString)", isDirectory: true)
-        defer { try? FileManager.default.removeItem(at: temporaryDirectory) }
-        let copyURL = temporaryDirectory.appendingPathComponent("dyld")
-        guard (try? FileManager.default.createDirectory(at: temporaryDirectory, withIntermediateDirectories: true)) != nil,
-              (try? FileManager.default.copyItem(at: URL(fileURLWithPath: "/usr/lib/dyld"), to: copyURL)) != nil,
-              let machOFile = try? firstMachOFile(at: copyURL),
-              (try? FileManager.default.removeItem(at: copyURL)) != nil
-        else {
-            return false
-        }
-        do {
-            let _: UInt32 = try machOFile.readElement(offset: 0)
-            return false
-        } catch {
-            return true
         }
     }
 

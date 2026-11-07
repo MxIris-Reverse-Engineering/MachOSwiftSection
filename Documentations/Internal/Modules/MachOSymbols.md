@@ -25,6 +25,12 @@ MachOSymbols 是**符号索引**层：把一个镜像的符号表和 export trie
 
 `SymbolIndexStore.Storage` 里**不驻留 `Node` 类树，也不驻留符号名 `String`**。建索引时每个符号 demangle 到一棵临时树上，分类完就 intern 进这个镜像的 `NodeStoreBuilder`；全局 `NodeCache` 全程不参与，`Storage` 一放，整个镜像的内存占用就跟着走。
 
+**建索引分两段**（演进提案 `machofile-performance`）。`storage(in:)` 建出来的只有第一段：符号表、按偏移的行索引、`_symbolic` 符号表和导出事实，一个名字也不 demangle。第二段 `Storage.DemangledIndex`——每一行的节点树和按树分类的各个索引——在第一次有查询要用到树时才建，建在大栈上、持锁只建一次，并发的第一批读者等同一次构建。`symbols(for:in:)`、`containsSymbol(named:)`、`offset(ofSymbolNamed:)`、导出判定、`hasLocalSwiftSymbols` 与 `symbolicManglingSymbols(in:)` 只读第一段。原因是只为别的镜像而读的镜像：静态布局引擎经匿名上下文描述符上的符号给依赖镜像的私有类型起名，以前这一查就把整个依赖镜像的名字全部 demangle 一遍，生成 SwiftUI 的 interface 27.8 秒里有 7.7 秒花在这上面。`prepare(in:)`、`prepareWithProgress(in:)` 与 `buildStorage(for:)` 照旧把两段都建好，进度只报第二段（第一段太快，不值得报）。字段仍以原名从 `Storage` 上读，第二段的字段经转发属性取；逐行的循环先取一次 `demangledIndex` 再读，不要每行都经转发属性。
+
+**第二段的 demangle 分到多个线程**（同一提案）。建第二段的线程按行号顺序一批一批地驻留、分类，`DemanglingWave` 提前一批把下一批的名字分给机器上同时运行的线程去还原成树（每批最多 16 × 512 行，每 512 行跳一次大栈），两批在内存里交替。驻留和分类仍只在建索引的线程上按行号顺序做，节点池与各个索引因此和单线程建出来的逐位相同；一行的树只由它的名字决定，哪个线程还原的不影响结果（`everyRowHoldsTheTreeOfItsOwnName` 钉住）。不要把驻留挪进线程里，也不要让线程按别的顺序交回结果：节点序号就是驻留顺序，打印与快照都依赖它。本机 SwiftUI 的第二段墙钟时间减半；CPU 时间的代价取决于 demangler 自己的引用计数开销——swift-demangling 0.7.2 的 `Demangler` 在 `require(pop())` 这类写法上会整份复制自身，多线程同时复制节点栈时互相抢引用计数，CPU 时间约为单线程的 2.3 倍，修掉这处复制后只多约四分之一。
+
+**interface 的 import 列表从节点池里收**（同一提案）。`moduleNamesInAllSymbols(in:)` 沿每个符号的根节点在节点池里做前序遍历，每个节点只进一次：同样的子树在池里是同一个节点，第二次遇到时它能贡献的模块名第一次都已收过，所以名字和它们第一次出现的顺序都与逐棵树完整遍历相同（`moduleNamesMatchAWalkOfEveryTree` 钉住）。以前 `SwiftInterfaceBuilder.collectModules()` 对 `allSymbols(in:)` 的每棵树做一次泛型的整树遍历，SwiftUI 的 interface 准备阶段因此多出约 450 亿条指令。
+
 成员与全局变量按入口节点归类：getter、setter，以及 SE-0507 的 `borrow` / `mutate` 访问器（`vb` / `vz`）都算属性或下标的成员符号——只声明后两者的属性没有 getter 符号，漏了它们整个成员就不见了。`_read` / `_modify` 及其新 ABI 版本不收进成员桶。
 
 `@objc` thunk（`$s…To`）不是成员符号，成员索引不收它；它照旧进 thunk 属性的标记表（只记成员名，供 `applyThunkAttributes` 打 `@objc`），此外按它进入的成员归进第四个成员索引 `objcThunkMemberSymbolRowsByKind`，与实现符号、`Tq`、protocol witness 三个索引的键相同，存的是 thunk 自己的行（`objcThunkMemberSymbols(of:…)`）。这个索引是给优化构建用的：成员的 Swift 函数体被内联进 thunk、Swift entry point 被删掉之后，thunk 是这个成员仅剩的符号，声明模型从它造替身成员（[ThunkOnlyObjCMembers.md](../ThunkOnlyObjCMembers.md)）。`…ToTm`（合并后的 thunk 函数体）以 `mergedFunction` 开头，不进这个索引。

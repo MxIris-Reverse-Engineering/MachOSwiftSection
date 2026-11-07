@@ -1,8 +1,7 @@
 import Foundation
-import MachOKit
+@_spi(Support) import MachOKit
 import MachOKitExtensions
 import FileIO
-import AssociatedObject
 
 /// Extends `MachOFile` to conform to `Readable`, enabling file-based reading.
 ///
@@ -10,7 +9,6 @@ import AssociatedObject
 /// It handles the complexity of:
 /// - dyld shared cache support (resolving cross-file references)
 /// - Header offset adjustments
-/// - File handle management
 ///
 /// ## dyld Shared Cache Support
 ///
@@ -23,6 +21,14 @@ import AssociatedObject
 /// path as a dyld cache on every call — the attempt fails and is not
 /// remembered — so every read mapped and unmapped the whole file again: two
 /// thirds of the time spent reading the iOS 18.5 simulator's SwiftUI.
+///
+/// ## The bytes read
+///
+/// Every value is read straight out of the mapping MachOKit made when it
+/// opened the file (`fileBytes`), shared by every value assembled from that
+/// opening: no second mapping of the file, and no `Data` allocated and
+/// copied per read (evolution proposal `machofile-performance`). A read
+/// outside the file throws.
 ///
 /// ## Example
 ///
@@ -39,14 +45,9 @@ extension MachOFile: Readable {
     public func readElement<Element>(
         offset: Int
     ) throws -> Element {
-        let originalOffset = offset
-        var offset = originalOffset
-        var fileIO = try fileIO
-        if isLoadedFromDyldCache, let cacheAndFileOffset = cacheAndFileOffset(fromStart: offset.cast()) {
-            offset = cacheAndFileOffset.1.cast()
-            fileIO = try cacheAndFileOffset.0.fileIO
+        try withFileBytes(atOffset: offset, count: MemoryLayout<Element>.size) { bytes in
+            bytes.loadUnaligned(as: Element.self)
         }
-        return try fileIO.machO.read(offset: numericCast(offset + headerStartOffset))
     }
 
     public func readElement<Element>(
@@ -56,34 +57,22 @@ extension MachOFile: Readable {
     }
 
     public func readWrapperElement<Element>(offset: Int) throws -> Element where Element: LocatableLayoutWrapper {
-        let originalOffset = offset
-        var offset = originalOffset
-        var fileIO = try fileIO
-        if isLoadedFromDyldCache, let cacheAndFileOffset = cacheAndFileOffset(fromStart: offset.cast()) {
-            offset = cacheAndFileOffset.1.cast()
-            fileIO = try cacheAndFileOffset.0.fileIO
+        let layout: Element.Layout = try withFileBytes(atOffset: offset, count: MemoryLayout<Element.Layout>.size) { bytes in
+            bytes.loadUnaligned(as: Element.Layout.self)
         }
-        let layout: Element.Layout = try fileIO.machO.read(offset: numericCast(offset + headerStartOffset))
-        return .init(layout: layout, offset: originalOffset)
+        return .init(layout: layout, offset: offset)
     }
 
     public func readElements<Element>(
         offset: Int,
         numberOfElements: Int
     ) throws -> [Element] {
-        let originalOffset = offset
-        var offset = originalOffset
-        var fileIO = try fileIO
-        if isLoadedFromDyldCache, let cacheAndFileOffset = cacheAndFileOffset(fromStart: offset.cast()) {
-            offset = cacheAndFileOffset.1.cast()
-            fileIO = try cacheAndFileOffset.0.fileIO
+        let elementSize = MemoryLayout<Element>.size
+        return try withFileBytes(atOffset: offset, count: elementSize * numberOfElements) { bytes in
+            (0 ..< numberOfElements).map { index in
+                bytes.loadUnaligned(fromByteOffset: index * elementSize, as: Element.self)
+            }
         }
-        var currentOffset = offset
-        let elements = try fileIO.machO.readDataSequence(offset: numericCast(offset + headerStartOffset), numberOfElements: numberOfElements).map { (element: Element) -> Element in
-            currentOffset += MemoryLayout<Element>.size
-            return element
-        }
-        return elements
     }
 
     public func readElements<Element>(
@@ -94,30 +83,80 @@ extension MachOFile: Readable {
     }
 
     public func readWrapperElements<Element>(offset: Int, numberOfElements: Int) throws -> [Element] where Element: LocatableLayoutWrapper {
-        let originalOffset = offset
-        var offset = originalOffset
-        var fileIO = try fileIO
-        if isLoadedFromDyldCache, let cacheAndFileOffset = cacheAndFileOffset(fromStart: offset.cast()) {
-            offset = cacheAndFileOffset.1.cast()
-            fileIO = try cacheAndFileOffset.0.fileIO
+        let layoutSize = MemoryLayout<Element.Layout>.size
+        return try withFileBytes(atOffset: offset, count: layoutSize * numberOfElements) { bytes in
+            (0 ..< numberOfElements).map { index in
+                Element(
+                    layout: bytes.loadUnaligned(fromByteOffset: index * layoutSize, as: Element.Layout.self),
+                    offset: offset + index * Element.layoutSize
+                )
+            }
         }
-        var currentOffset = originalOffset
-        let elements = try fileIO.machO.readDataSequence(offset: numericCast(offset + headerStartOffset), numberOfElements: numberOfElements).map { (layout: Element.Layout) -> Element in
-            let element = Element(layout: layout, offset: currentOffset)
-            currentOffset += Element.layoutSize
-            return element
-        }
-        return elements
     }
 
     public func readString(offset: Int) throws -> String {
-        let originalOffset = offset
-        var offset = originalOffset
-        var fileIO = try fileIO
-        if isLoadedFromDyldCache, let cacheAndFileOffset = cacheAndFileOffset(fromStart: offset.cast()) {
-            offset = cacheAndFileOffset.1.cast()
-            fileIO = try cacheAndFileOffset.0.fileIO
+        try withFileBytes(fromOffset: offset) { bytes in
+            guard let start = bytes.baseAddress else { return "" }
+            // Up to the terminator, which a string table always carries; a
+            // run without one ends at the end of the file.
+            guard memchr(start, 0, bytes.count) != nil else {
+                return String(decoding: bytes, as: UTF8.self)
+            }
+            return String(cString: start.assumingMemoryBound(to: CChar.self))
         }
-        return fileIO.machO.readString(offset: numericCast(offset + headerStartOffset))
+    }
+}
+
+extension MachOFile {
+    /// Runs `body` over the `count` bytes at `offset`, read out of the file
+    /// that holds them: this file, or — for an image of a dyld cache — the
+    /// cache file the offset lies in. Throws when they lie outside it.
+    @inline(__always)
+    fileprivate func withFileBytes<Result>(
+        atOffset offset: Int,
+        count: Int,
+        _ body: (UnsafeRawBufferPointer) throws -> Result
+    ) throws -> Result {
+        try withContainingFileBytes(atOffset: offset) { fileBytes, fileOffset in
+            guard count >= 0, fileOffset <= fileBytes.count, count <= fileBytes.count - fileOffset, let base = fileBytes.baseAddress else {
+                throw FileIOError.offsetOutOfBounds
+            }
+            return try body(UnsafeRawBufferPointer(start: base + fileOffset, count: count))
+        }
+    }
+
+    /// Runs `body` over the bytes from `offset` to the end of the file that
+    /// holds them.
+    @inline(__always)
+    fileprivate func withFileBytes<Result>(
+        fromOffset offset: Int,
+        _ body: (UnsafeRawBufferPointer) throws -> Result
+    ) throws -> Result {
+        try withContainingFileBytes(atOffset: offset) { fileBytes, fileOffset in
+            guard fileOffset <= fileBytes.count, let base = fileBytes.baseAddress else {
+                throw FileIOError.offsetOutOfBounds
+            }
+            return try body(UnsafeRawBufferPointer(start: base + fileOffset, count: fileBytes.count - fileOffset))
+        }
+    }
+
+    /// The bytes of the file `offset` lies in and the offset within them.
+    @inline(__always)
+    private func withContainingFileBytes<Result>(
+        atOffset offset: Int,
+        _ body: (UnsafeRawBufferPointer, Int) throws -> Result
+    ) throws -> Result {
+        if isLoadedFromDyldCache, let (cache, fileOffset) = cacheAndFileOffset(fromStart: offset.cast()) {
+            // The cache file's bytes are valid while a value sharing its
+            // handle lives; this one may be the only such value.
+            return try withExtendedLifetime(cache) {
+                let position = Int(fileOffset) + headerStartOffset
+                guard position >= 0 else { throw FileIOError.offsetOutOfBounds }
+                return try body(cache.fileBytes, position)
+            }
+        }
+        let position = offset + headerStartOffset
+        guard position >= 0 else { throw FileIOError.offsetOutOfBounds }
+        return try body(fileBytes, position)
     }
 }

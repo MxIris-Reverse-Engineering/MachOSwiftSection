@@ -11,7 +11,7 @@ import FoundationToolbox
 /// carry 512KB, so on them the probe never passes and every call pays a
 /// thread round trip plus a semaphore wait — 8–21 µs each in release, 1.14–2.28×
 /// the work itself. The synchronous indexing sweep amortizes that with one
-/// `withLargeStack` batch (`SymbolIndexStore.buildStorageImpl`); an `async`
+/// `withLargeStack` batch (`SymbolIndexStore.Storage.demangledIndex`); an `async`
 /// print loop cannot be enclosed in a synchronous batch. The upstream answer
 /// (swift-demangling proposal 0014, shipped in 0.6.3) is a `TaskExecutor`
 /// whose threads carry 16MB: a task running on it passes the probe at every

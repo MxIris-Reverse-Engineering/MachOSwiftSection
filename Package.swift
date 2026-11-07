@@ -136,8 +136,13 @@ extension Package.Dependency {
             // MachOKitExtensions require it as well. 0.55.101 gives a file not
             // read out of a dyld cache no cache instead of opening its path as
             // one on every `cache` access: offline reading of a standalone file
-            // spent two thirds of its time reopening the file.
-            from: "0.55.101",
+            // spent two thirds of its time reopening the file. 0.55.102 hands
+            // over the bytes it mapped a file into (`fileBytes`), which every
+            // `MachOFile` read now goes through, and remembers a dyld cache's
+            // mapping tables and its main, full and symbol caches safely when
+            // several threads first read one image at once: two indexes built
+            // on one image crashed in `mappingInfo(for:)`.
+            from: "0.55.102",
         ),
     )
 
@@ -205,8 +210,11 @@ extension Package.Dependency {
             // group of images (`evolution(ofImageGroups:versions:)`,
             // `addVersion(images:version:)`), which the integration tests
             // drive over AppKit with the frameworks Apple moved its classes
-            // into.
-            "0.8.205" ..< "0.9.0",
+            // into. 0.8.206 finds the image of a dyld cache an address or a
+            // header index lies in through tables built once per cache file,
+            // where reading a protocol list walked every image of the cache
+            // for each pointer.
+            "0.8.206" ..< "0.9.0",
         ),
     )
 }
@@ -224,8 +232,12 @@ extension Package.Dependency {
             // 0.7.2 adds `DemangleOptions.useModuleSelectors`, which
             // `--module-selectors` prints with, and answers kind queries on a
             // `NodeReference` without retaining its store, which parallel
-            // printing contended on.
-            "0.7.2" ..< "0.8.0",
+            // printing contended on. 0.7.3 demangles without copying the
+            // whole demangler on each `require(pop())` and remangles without
+            // visiting every slot of its hash cache on the way out: building
+            // a symbol index on several threads spent 2.3 times its
+            // single-threaded CPU time on those copies.
+            "0.7.3" ..< "0.8.0",
         ),
     )
 
@@ -533,6 +545,7 @@ extension Target {
             .product(.MachOObjCSection),
             .product(.Demangling),
             .target(.Utilities),
+            .target(.MachOCaches),
             .target(.MachODependencies),
             .target(.MachOFoundation),
             .target(.MachOSwiftSection),
@@ -895,6 +908,24 @@ extension Target {
             .product(name: "ArgumentParser", package: "swift-argument-parser"),
         ],
         path: "Sources/Executables/swift-section",
+    )
+
+    /// Maintainer tool, not a product: times indexing and printing one image's
+    /// interface through `MachOImage` or `MachOFile` in an ordinary process
+    /// (evolution proposal `machofile-performance`).
+    static let reader_benchmark = Target.executableTarget(
+        name: "reader-benchmark",
+        dependencies: [
+            .target(.SwiftSectionKit),
+            .target(.MachOFoundation),
+            .target(.SwiftIndexing),
+            .target(.SwiftPrinting),
+            .target(.SwiftInterface),
+            .target(.SwiftDeclarationRendering),
+            .product(.MachOKit),
+            .product(name: "ArgumentParser", package: "swift-argument-parser"),
+        ],
+        path: "Sources/Executables/reader-benchmark",
     )
 
     static let baseline_generator = Target.executableTarget(
@@ -1418,6 +1449,7 @@ let package = Package(
 
         // Executable
         .swift_section,
+        .reader_benchmark,
         .baseline_generator,
 
         // Plugins

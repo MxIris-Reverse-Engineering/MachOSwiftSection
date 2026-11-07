@@ -349,6 +349,8 @@ Two deliberate decisions worth keeping in mind:
 
 `MachOFile` 的每次读取（`MachOFile+Readable.swift` 的五个读函数）都要先问这个偏移落在哪个 dyld cache 文件里，只有从 cache 里读出的镜像才问（`isLoadedFromDyldCache`）。独立文件以前也问：MachOKit 的 `cache` 对没交过 cache 的文件会把文件路径当成 dyld cache 打开，失败了不记，下次再试，于是每读一个元素就把整个文件映射一遍再解除。读 iOS 18.5 模拟器的 SwiftUI 时三分之二的 CPU 花在这上面。MachOKit fork 的 `cache` / `fullCache` 也同时改成对独立文件直接答 `nil`，库里其余直接问 `cache` 的地方一并受益。回归测试 `StandaloneFileReadingTests`：打开 fixture 的副本后把它的路径换成 dyld cache 的头部，读取仍须读到原文件的内容。
 
+读到的字节直接取自 MachOKit 打开文件时做的那份映射（fork 的 `@_spi(Support) fileBytes`，同一次打开的所有实例共用），按偏移 `loadUnaligned`，数组一次拷进结果（演进提案 `machofile-performance`）。以前本层另外为每次打开再映射一遍文件（`SharedFileMapping`，挂在 `fileHandleIdentity` 上的关联对象），每读一次查一次关联对象、做一次动态类型转换、分配并拷贝一个 `Data`。映射在打开时就已建好，读取不会再因映射失败而失败，也不再多占描述符；读到文件之外照旧抛 `FileIOError.offsetOutOfBounds`。`FileMappingTests` 钉住：同一个 cache 文件的各个读者共用一份映射、打开后被删掉的文件照样读得到、越界读取抛错、400 个镜像在 256 个描述符的上限内读完。
+
 ### 缓存范围：上层只读接口也收成一份
 
 上层有一批接口只读数据，却因为要按镜像缓存而离不开 `machO`：`SymbolicDemangler` 的 `demangleType` / `demangleContext`、SwiftDeclaration 的 `typeName` / `protocolName`、`GenericContext+Dump` 等。`ReadingContext` 原先说不出自己读的是哪个镜像，所以 `SymbolicDemangler` 的 context 入口干脆不走缓存。现在 `ReadingContext` 多了一条带默认值的 requirement `cacheScope`：`MachOContext` 答 `.image(identifier:)`，`InProcessContext` 答 `.process`，其余一律 `.uncached`。反混淆 memo 与节点驻留池按它选层，这批接口因此也收成了只收 context 的一份。
