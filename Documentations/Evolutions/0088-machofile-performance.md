@@ -1,10 +1,10 @@
-# Draft - 离线读取追平进程内：去掉 MachOFile 独有的开销，再压两边共用的部分
+# 0088 - 离线读取追平进程内：去掉 MachOFile 独有的开销，再压两边共用的部分
 
-- **状态**: In Progress
+- **状态**: Implemented
 - **创建日期**: 2026-11-06
-- **最后更新**: 2026-11-07
+- **最后更新**: 2026-11-08
 - **关联提案**: [0086-shared-dependency-openings](0086-shared-dependency-openings.md)（依赖定位器按路径共享 cache 与 Mach-O 文件的打开，本提案的依赖镜像索引建在它之上）
-- **实现分支 / PR**: 本库 `perf/machofile-performance`；MachOObjCSection、MachOKit fork 各开同名分支；swift-demangling 另有提案与分支（`perf/demangler-self-copy`）
+- **实现分支 / PR**: 本库 `perf/machofile-performance`（已合进 `next`，演进账本第 127 节）；MachOObjCSection、MachOKit fork 各开同名分支；swift-demangling 另有提案与分支（`perf/demangler-self-copy`）
 
 ## 摘要
 
@@ -87,14 +87,14 @@ iOS 18.5 模拟器的 SwiftUI（单个文件，运行时根目录作依赖搜索
 ### 落地步骤
 
 1. 基准程序，记录基线（本库）。**已完成**
-2. 依赖镜像索引，按上面四条依次做，每条各量一次（本库）。前三条已完成，第四条待定。
-3. cache 里按地址、按序号找镜像（MachOObjCSection）。**已完成**，待发版。
-4. 读取层（MachOKit fork → 本库）。**已完成**，fork 待发版；MachOKitExtensions 不用改。
+2. 依赖镜像索引，按上面四条依次做，每条各量一次（本库）。前三条已完成，第四条（类型查找按模块定向）记为后续项。
+3. cache 里按地址、按序号找镜像（MachOObjCSection）。**已完成**，随 0.8.206 发布。
+4. 读取层（MachOKit fork → 本库）。**已完成**，fork 随 0.55.102 发布；MachOKitExtensions 不用改。
 5. 统计模块名（本库）。**已完成**。
 6. 主镜像符号索引多线程（本库）。**已完成**。
 7. 索引器与打印的热点（本库）。做了两处，其余见上。
    - 期间查出 MachOKit 的竞态（fork 修复，见决策日志）：`DyldCache`、`FullDyldCache`、`MachOFile` 把算过的映射表、main cache、full cache、symbol cache 记在不加锁的存储属性里，两个线程第一次同时读同一个镜像时会 use-after-free。
-8. 收尾：全量测试、渲染 A/B、Xcode 26.6 编译检查；上游按依赖顺序发版（MachOKit fork、MachOKitExtensions、MachOObjCSection），本库抬依赖下限；更新演进账本与相关模块文档。**除演进账本外已完成**：上游发版 MachOKit fork 0.55.102、MachOObjCSection 0.8.206、swift-demangling 0.7.3（MachOKitExtensions 不用改），本库已抬下限；账本一节随落地编号时补。
+8. 收尾：全量测试、渲染 A/B、Xcode 26.6 编译检查；上游按依赖顺序发版（MachOKit fork、MachOKitExtensions、MachOObjCSection），本库抬依赖下限；更新演进账本与相关模块文档。**已完成**：上游发版 MachOKit fork 0.55.102、MachOObjCSection 0.8.206、swift-demangling 0.7.3（MachOKitExtensions 不用改），本库已抬下限；演进账本记在第 127 节。
 
 开发期间本库经 `swift package edit` 指向上游的功能分支，不动任何共享检出的依赖链接。
 
@@ -128,3 +128,4 @@ iOS 18.5 模拟器的 SwiftUI（单个文件，运行时根目录作依赖搜索
 | 2026-11-06 | 修 MachOKit fork 的竞态：两张映射表在打开 cache 时就读好、改为常量；镜像组装时就带的 `DyldCache` 改为常量；其余懒得出的引用（main cache、full cache、symbol cache）经 `MemoizedReference` 加锁读写，锁外计算、只在仍为空时发布 | SwiftInterfaceTests 约一半的运行在 `mappingInfo(for:)` 里 SIGSEGV（lldb 抓栈）。缓存是上游 2026-06 加的，第 4 步之前的读取路径也走它；第 2 步让依赖镜像的表在所有 universe 间共享、`LazilyBuiltIndex` 又在锁外建表，两个测试会同时给同一个镜像建同一张表，才变得常见。热路径上的两处改成常量而不是加锁，读取不多一次加锁 |
 | 2026-11-07 | 用户批准：swift-demangling 也改并发版（修 `Demangler` 的自我复制，顺带看 `Remangler` 销毁替换表的开销），走它自己的提案与语料对照测试，本库抬依赖下限；MachOKit 的竞态修复只留在 fork，不提上游；类型查找按模块定向记为后续项 | 前者让两种读取器建索引都少约 5% 指令、并行时的 CPU 从约 2.3 倍降到约 1.25 倍；后两项按用户的取舍 |
 | 2026-11-07 | 实现完成，待用户看过后收尾 | 全量测试约 2800 个，只有 ThunkOnlyObjCMemberTests 的 4 条在默认 Xcode 27.2 下红，用 Xcode 26.6 跑同一套 8 个全过（现场编译 fixture 的工具链差异，基线就有），这一步同时是本库的 Xcode 26.6 编译检查；渲染 A/B（基线为本分支切出时的 `next` 并固定在旧的上游版本，候选用新发布的上游）三条读取路径 96 对全部逐字节相同。AGENTS.md 里「`MachOFile` 不能并行打印是因为读取共用 `FileHandle`」的理由已不成立，改为如实说明尚未验证、规则不变。文档：MachOSymbols、SwiftInterface、SwiftLayout、MachOCaches 的模块文档已随各步同步；不另写使用指南或实现说明；新术语无。 |
+| 2026-11-08 | 用户看过后落地：合进 `next`，取号 0088，状态 Implemented，演进账本第 127 节 | 收尾前在本分支切出时的 `next` 上用默认 Xcode 27.2 复跑 `ThunkOnlyObjCMemberTests`：红的是同样 4 条、断言位置相同，确认不是本次引入。此后只改了文档，其余验证沿用上一行。使用指南、实现说明与新术语的判断同上一行，都不需要；后续项照旧三条。 |

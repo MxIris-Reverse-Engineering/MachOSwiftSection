@@ -3086,6 +3086,36 @@
 - **验证**：在 JHs-Mac-Studio 上用 Xcode 27.2 增量编译库与全部测试 target，原始退出码 0，没有出现指向旧名的弃用警告（仓库里已没有调用点用旧名）。没跑测试和渲染 A/B：只改名字，行为不变。
 - **对应版本**：未发版。发版说明要写：`AssociatedTypeWitnessProjection`、`ConditionalWitnessCandidate`、`ObjCProtocolRequirementDefinition.Source` / `.source` 改名，旧名仍可用但已废弃。
 
+## 127. 离线读取追平进程内：依赖镜像不再整个 demangle，读取直取 MachOKit 的映射，符号名多线程还原
+
+- **时间段**：2026-11-06～08，分支 `perf/machofile-performance`（worktree `.worktrees/MachOSwiftSection-MachOFilePerformance`，基于 `next` a13712ae）；配套 MachOKit fork 与 MachOObjCSection 的同名分支，以及 swift-demangling 的 `perf/demangler-self-copy`。提案 [0088-machofile-performance](../Evolutions/0088-machofile-performance.md)（轻量档）。
+- **动机**：第 123 节修掉四处根因之后，本机 cache 里的 SwiftUI 打开全部布局注释（RuntimeViewer 的默认）生成 interface，离线仍要约 27.8 秒 CPU，进程内约 15.9 秒。采样显示差距几乎全在离线独有的计算上：给依赖镜像建索引 12 秒，在 cache 里定位 ObjC 方法表 1.7 秒，读取原语约 1.4 秒。用户要求尽可能追平进程内，两种读取器共用的部分也一起压。
+- **关键决策**：
+  - **先有基准程序再改**：测试进程的墙钟被 swift-dependencies 的 `dlsym` 污染（占采样忙碌时间 45–60%），新增开发用可执行目标 `reader-benchmark`（不是 product），在普通进程里分段报告两种读取器的 CPU、墙钟与 instructions retired，每一步改动前后各量一次。
+  - **符号索引分两段**：第一段只有符号表、按偏移的行索引、`_symbolic` 表与导出事实，不 demangle；第二段（每行的节点树与按树分类的索引）第一次有查询要用树时才建。依赖镜像只为给匿名上下文起名查一个地址上的符号，不再 demangle 整个镜像。没有改成沿描述符父链自己拼名字：那要逐条复刻 `demangleContext` 的规则，查找两侧未必一致。
+  - **依赖镜像的七张表各自用到才建、四种查找各折各的、按镜像共享**（`ImageReference.shared(for:)`，淘汰组 `layoutImageIndexes`）：每种查找折叠的镜像与顺序不变，答案不变。
+  - **读取直取 MachOKit 打开文件时的映射**（fork 新增 `@_spi(Support) fileBytes`），删掉本库自己的 `SharedFileMapping`：不再每读一次查关联对象、做动态类型转换、分配 `Data`，也少占一份描述符。
+  - **MachOObjCSection 在 cache 里按地址、按序号找镜像改为查表**：每个 cache 只建一次按地址排序的区间表与「镜像序号 → 镜像」对照表，挂在 cache 文件的 `fileHandleIdentity` 上；同一地址落在几个镜像里时仍取原来遍历顺序里的第一个。
+  - **符号名多线程还原、按行号顺序驻留**：每批最多 16 × 512 行，提前一批分给各线程还原成树，驻留与分类留在建索引的线程上，节点序号与原来相同。
+  - **import 列表在节点池里遍历一次**（`SymbolIndexStore.moduleNamesInAllSymbols(in:)`），共享子树只进一次，名字与首次出现的顺序不变。
+  - **两处热点**：`MangledName.resolve` 不再每个字符调一次 `String(format: "%c")`；类约束泛型参数的替身 `Swift.AnyObject` 查 assocty witness 时直接答没有——它是 SwiftUI 布局里唯一一次查不到的 witness 查找，却让 552 个依赖镜像全部建了 witness 表。
+  - **swift-demangling 也改并发版**（用户批准，走它自己的提案 0018，随 0.7.3 发布）：`try require(pop())` 里 `require` 不是 `mutating`，编译器先整份复制 `Demangler` 再求参数，之后每次 `pop()` 都写时复制节点栈，多线程时抢引用计数；`require` 与复合的 `createNode` 改为 `mutating`，`Remangler` 的节点哈希缓存不再逐格销毁。并行建索引的 CPU 从约 11.4 秒回到约 6.3 秒。
+  - **MachOKit 懒缓存的竞态只修 fork、不提上游**（用户定）：`DyldCache`、`FullDyldCache`、`MachOFile` 把映射表与 main / full / symbol cache 记在不加锁的属性里，两个线程第一次同时读同一个镜像会 use-after-free；`ImageReference` 共享之后同一个镜像会被并发建表，SwiftInterfaceTests 约一半的运行在 `mappingInfo(for:)` 里 SIGSEGV。映射表改为打开 cache 时读好的常量，组装镜像时就带的 `DyldCache` 改为常量，其余经 `MemoizedReference` 在锁外计算、只在仍为空时发布；热路径上不多一次加锁。
+  - **类型查找按模块定向不做**（用户定为后续项）：Foundation、SwiftUICore 都扩展了 `Swift` 里的类型，查 `Swift.*` 时它们仍要建表，收益有限。
+- **落地**：
+  - 本库：MachOSymbols（`SymbolIndexStore` 两段、`DemanglingWave`、`moduleNamesInAllSymbols(in:)`），SwiftLayout（`ImageReference`、`ImageUniverse`、新增 `LazilyBuiltIndex` 与 `SharedCacheEvictionGroup+SwiftLayout`，替身 witness 的短路），MachOReading（`MachOFile+Readable.swift` 改读 `fileBytes`，删 `SharedFileMapping.swift` 与 `MachOFile+`、`DyldCache+`、`FileIO+` 三个扩展文件），SwiftInterface（`collectModules()`），MachOSwiftSection（`MangledName`），新增 `reader-benchmark`；`Package.swift` 的下限抬到 MachOKit 0.55.102、MachOObjCSection 0.8.206、swift-demangling 0.7.3。
+  - 测试：新增 `SymbolIndexDemangledIndexTests`、`SymbolIndexModuleNameTests`、`ImageUniverseLazyFoldingTests`；`SharedFileMappingTests` 改名 `FileMappingTests`（CI 的筛选清单随之改名），「删掉的文件读取要抛错」改为「照样读得到」并加越界读取抛错；删 `ConcurrentFileMappingTests`。
+  - 文档：`AGENTS.md` 的按文件状态一条（字节经 `fileBytes` 读）与并发一段（`MachOFile` 不能并行打印的旧理由已不成立，如实写成尚未验证、规则不变）；[Modules/MachOSymbols.md](Modules/MachOSymbols.md)、[Modules/SwiftInterface.md](Modules/SwiftInterface.md)、[Modules/SwiftLayout.md](Modules/SwiftLayout.md)、[Modules/MachOCaches.md](Modules/MachOCaches.md)、[ReadingContextAbstraction.md](ReadingContextAbstraction.md)。
+  - 上游：MachOKit fork 0.55.102（`fileBytes`、竞态修复与 `DyldCacheConcurrentReadTests`），MachOObjCSection 0.8.206（`CacheImageAddressTable`），swift-demangling 0.7.3（提案 0018）。MachOKitExtensions 不用改。
+- **验证**：都在 JHs-Mac-Studio-Ultra 上跑。
+  - 全量 `swift test --skip IntegrationTests`（默认 Xcode 27.2）：约 2,800 个测试，只红 `ThunkOnlyObjCMemberTests` 4 条，原始退出码 1。改动前的 `next`（a13712ae）上同一套件在同一工具链下红同样 4 条、断言位置相同；用 Xcode 26.6 跑这个套件 8 条全过（测试现场编译 fixture 的工具链漂移，第 122、123 节也是这 4 条），这一步同时是本库的 Xcode 26.6 编译检查。
+  - 新测试修复前红、修复后绿：`ImageUniverseLazyFoldingTests.aWitnessOfTheClassBoundPlaceholderFoldsNothing`（去掉短路时，替身的查找把依赖镜像折了进来）；MachOKit 的 `DyldCacheConcurrentReadTests` 两条在 TSan 下修复前报竞态。SwiftInterfaceTests 修复前 5 次运行崩约 2 次，修复后 5 次都不崩。
+  - 渲染 A/B（基线为本分支切出时的 `next`，固定在旧的上游版本；候选用新发布的上游）：96 对逐字节一致——归档 cache 15.5 与 26.6、iOS 15.5 / 16.4 / 17.5 / 18.5 / 26.5 模拟器文件、进程内 `MachOImage` 三条读取路径。
+  - 上游：swift-demangling 全量 645 个测试跑两次全过（8 个已知问题）；MachOKit fork 204 个测试只红 5 个既有的环境失败；MachOKit 与 MachOObjCSection 的 CI 绿；三个上游都用 Xcode 26.6 编过。
+  - 耗时（`reader-benchmark`，release，上游用发布版，instructions retired / 墙钟；三份 interface 与基线逐字节相同）：本机 cache 的 SwiftUI 离线只建索引 86 G / 6.4 秒 → 64 G / 3.8 秒（进程内 59 G / 3.1 秒），准备 131 G → 64 G（进程内 60 G），打印（五类布局注释）304 G / 21 秒 → 86 G / 6.2 秒（进程内 61 G / 4.5 秒）；iOS 18.5 模拟器的 SwiftUI 只建索引 100 G → 71 G，准备 139 G → 73 G，打印 111 G → 70 G。
+- **后续**：类型查找按模块定向；依赖镜像的符号表第一段再拆出只按偏移查的一段（跳过按名字排序、去重哈希与导出 trie 遍历）；测试进程里 swift-dependencies 的 `TestContext.current` 每次都 `dlsym`。剩下的离线差距里最大的一块是类型查找为找到四个类型把前面的依赖镜像全建了类型表（约占离线打印 4%）。
+- **对应版本**：未发版。依赖下限抬到 MachOKit 0.55.102、MachOObjCSection 0.8.206、swift-demangling 0.7.3（2026-11-07 发布）。发版说明要写：离线读取（`MachOFile`）生成 interface 快很多，本机 cache 里的 SwiftUI 打开全部布局注释时指令数不到原来的三成，只建索引的墙钟也少约四成；多个线程第一次同时读同一个 dyld cache 镜像时偶尔崩溃，已修复。
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节
