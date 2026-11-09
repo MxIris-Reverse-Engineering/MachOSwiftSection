@@ -3,6 +3,7 @@ import MachOKit
 import MachOSwiftSection
 @_spi(Internals) import Demangling
 @_spi(Internals) import SwiftInspection
+import SwiftObjCInterop
 
 /// The member implementing one requirement of an `@objc` protocol declared
 /// in Swift, in a class of the image (evolution proposal

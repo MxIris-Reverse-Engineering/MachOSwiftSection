@@ -6,6 +6,7 @@ import MachOFoundation
 @testable import SwiftDump
 import SwiftDeclarationRendering
 import SwiftInspection
+import SwiftObjCInterop
 @testable import MachOTestingSupport
 
 /// The dump path's rendering of a class the source renamed for the

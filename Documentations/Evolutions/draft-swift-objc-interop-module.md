@@ -1,6 +1,6 @@
 # Draft - 把 SwiftInspection 的 ObjC 部分拆成 SwiftObjCInterop 模块
 
-- **状态**: Accepted
+- **状态**: In Progress
 - **作者**: JH
 - **创建日期**: 2026-11-09
 - **最后更新**: 2026-11-09
@@ -276,3 +276,4 @@ let classNames = ObjCImplementationClasses.all(in: machO).map(\.className)
 | 2026-11-09 | RuntimeViewer 同批改 | 用户选定，没选「只在发版说明里写迁移」：RuntimeViewer 的本地构建直接读本库的集成 worktree，远端依赖跟 `next` 分支，本库一合入它就编不过 |
 | 2026-11-09 | 默认做法定稿 | 用户确认：只换模块，类型名、访问级别、日志 subsystem 与 category、缓存淘汰分组名都不变；`ClassHierarchyDumper` 一起搬；5 个纯 ObjC 测试套件搬进新测试 target，4 个两边都测的留在原处；`ObjCMembers/` 与 SwiftLayout 自带的 ObjC 索引不动；验收含全量测试与渲染 A/B，都在 Ultra 上跑；新写模块参考、缩短 `AGENTS.md` 的条目；随 0.25.0 发布。提问到此结束 |
 | 2026-11-09 | Draft → Accepted | 用户批准，开始实现 |
+| 2026-11-09 | Accepted → In Progress | 从 `next` 切出分支 `refactor/swift-objc-interop-module` 与 worktree `.worktrees/MachOSwiftSection-SwiftObjCInterop` |

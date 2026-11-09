@@ -3,6 +3,7 @@ import Demangling
 import MachOSymbols
 import MachOSwiftSection
 import SwiftInspection
+import SwiftObjCInterop
 
 @MemberwiseInit(.public)
 public struct VariableDefinition: Sendable, AccessorRepresentable {

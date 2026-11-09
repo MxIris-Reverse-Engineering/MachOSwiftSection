@@ -1,4 +1,5 @@
 import SwiftInspection
+import SwiftObjCInterop
 
 /// A member's ObjC-derived source facts, resolved against one consumer's
 /// verdict on NAME-only evidence (evolution proposal

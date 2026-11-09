@@ -3,6 +3,7 @@ import MachOSwiftSection
 @_spi(Internals) import Demangling
 @_spi(Internals) import MachOSymbols
 @_spi(Internals) import SwiftInspection
+import SwiftObjCInterop
 
 /// An `@objc` protocol declared in Swift that the image defines (evolution
 /// proposal `swift-declared-objc-protocols`).

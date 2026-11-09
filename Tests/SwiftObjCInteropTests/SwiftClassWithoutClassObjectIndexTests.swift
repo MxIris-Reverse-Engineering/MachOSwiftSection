@@ -6,6 +6,7 @@ import MachOFoundation
 import MachOObjCSection
 @testable import MachOTestingSupport
 @_spi(Internals) @testable import SwiftInspection
+@_spi(Internals) @testable import SwiftObjCInterop
 
 /// `SwiftClassWithoutClassObjectIndex` (evolution proposal
 /// `objc-classes-without-class-objects`): the Swift classes

@@ -5,6 +5,7 @@ import MachOKit
 @testable import MachOSwiftSection
 @testable import MachOTestingSupport
 @testable @_spi(Internals) import SwiftInspection
+@testable @_spi(Internals) import SwiftObjCInterop
 @testable import SwiftDeclarationRendering
 
 /// A name that comes from the runtime (`_mangledTypeName`) spells a private

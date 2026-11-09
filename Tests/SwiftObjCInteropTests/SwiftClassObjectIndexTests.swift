@@ -7,6 +7,7 @@ import MachOObjCSection
 @testable import MachOTestingSupport
 import MachOFixtureSupport
 @_spi(Internals) @testable import SwiftInspection
+@_spi(Internals) @testable import SwiftObjCInterop
 
 /// `SwiftClassObjectIndex` (evolution proposal `objc-custom-class-name`):
 /// the runtime name a source gave a Swift class, read off the class metadata

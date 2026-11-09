@@ -2,6 +2,7 @@ import Foundation
 import MachOKit
 import MachOSwiftSection
 @_spi(Internals) import Demangling
+@_spi(Internals) import SwiftInspection
 
 /// The Swift nodes for the names the Objective-C runtime knows protocols and
 /// classes by (evolution proposal `swift-declared-objc-protocols`): what an

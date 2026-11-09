@@ -8,6 +8,7 @@ import Demangling
 @_spi(Core) import MachOObjCSection
 @_spi(Internals) import MachOCaches
 @_spi(Internals) import MachOSymbols
+@_spi(Internals) import SwiftInspection
 
 /// Per-image index of the Swift classes whose source renamed them for the
 /// Objective-C runtime — `@objc(Name)` or `@_objcRuntimeName(Name)` —

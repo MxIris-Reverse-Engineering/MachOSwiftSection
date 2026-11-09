@@ -1,5 +1,6 @@
 import Demangling
 import SwiftInspection
+import SwiftObjCInterop
 import SwiftThunkAnalysis
 
 /// Joins an `ObjCMemberTable` — the class's ObjC method table tied to its

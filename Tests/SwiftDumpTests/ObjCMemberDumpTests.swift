@@ -6,6 +6,7 @@ import MachOFoundation
 @testable import SwiftDump
 import SwiftDeclarationRendering
 import SwiftInspection
+import SwiftObjCInterop
 import SwiftThunkAnalysis
 @testable import MachOTestingSupport
 

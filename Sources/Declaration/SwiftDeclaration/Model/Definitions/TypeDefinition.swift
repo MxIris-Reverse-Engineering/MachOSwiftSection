@@ -1,5 +1,6 @@
 import MachOSwiftSection
 import SwiftInspection
+import SwiftObjCInterop
 @_spi(Internals) import MachOSymbols
 
 /// A nominal type of an image, as the declaration model holds it.

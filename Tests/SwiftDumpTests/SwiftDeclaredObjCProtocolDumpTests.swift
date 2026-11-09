@@ -6,6 +6,7 @@ import MachOSwiftSection
 @testable import SwiftDump
 import SwiftDeclarationRendering
 @_spi(Internals) import SwiftInspection
+@_spi(Internals) import SwiftObjCInterop
 @testable import MachOTestingSupport
 
 /// The dump of an `@objc` protocol declared in Swift (evolution proposal

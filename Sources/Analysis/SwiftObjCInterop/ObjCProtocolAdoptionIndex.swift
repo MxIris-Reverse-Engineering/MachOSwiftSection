@@ -4,6 +4,7 @@ import MachOSwiftSection
 @_spi(Internals) import Demangling
 @_spi(Core) import MachOObjCSection
 @_spi(Internals) import MachOCaches
+@_spi(Internals) import SwiftInspection
 
 /// The Objective-C protocols one Swift class of the image adopts in its own
 /// class data (evolution proposal `swift-declared-objc-protocols`). An

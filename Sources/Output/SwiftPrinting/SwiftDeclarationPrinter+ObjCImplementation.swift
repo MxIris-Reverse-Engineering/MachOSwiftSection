@@ -3,6 +3,7 @@ import SwiftDeclarationRendering
 import Demangling
 import Semantic
 @_spi(Internals) import SwiftInspection
+import SwiftObjCInterop
 
 // The interface-side rendering of an `@objc @implementation` class's stored
 // properties (evolution proposal `objc-implementation-class-recognition`).

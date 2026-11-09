@@ -1,6 +1,7 @@
 import MemberwiseInit
 import Demangling
 import SwiftInspection
+import SwiftObjCInterop
 
 @MemberwiseInit(.public)
 public struct SubscriptDefinition: Sendable, AccessorRepresentable {

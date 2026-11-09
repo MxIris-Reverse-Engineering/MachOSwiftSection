@@ -10,6 +10,7 @@ import ObjCMetadataSource
 @_spi(Support) @testable import SwiftIndexing
 import SwiftInterface
 import SwiftInspection
+import SwiftObjCInterop
 import SwiftThunkAnalysis
 @testable import MachOTestingSupport
 

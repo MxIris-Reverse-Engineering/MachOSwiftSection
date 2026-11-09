@@ -2,6 +2,7 @@ import MachOKit
 import MachOFoundation
 @_spi(Core) import MachOObjCSection
 @_spi(Internals) import SwiftInspection
+import SwiftObjCInterop
 
 /// Builds a per-image index of the Objective-C protocol declarations
 /// (`__objc_protolist`), keyed by *Swift* qualified name, so an existential

@@ -1,6 +1,7 @@
 import Demangling
 import MachOKitExtensions
 @_spi(Internals) import SwiftInspection
+import SwiftObjCInterop
 import SwiftThunkAnalysis
 
 extension TypeDefinition {

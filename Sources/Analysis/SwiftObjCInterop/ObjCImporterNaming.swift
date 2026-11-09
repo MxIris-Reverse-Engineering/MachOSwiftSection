@@ -1,3 +1,5 @@
+import SwiftInspection
+
 /// The Swift importer's names for the methods of an Objective-C protocol,
 /// ported for the requirements of an `@objc` protocol declared in Swift
 /// (evolution proposal `swift-declared-objc-protocols`). The binary keeps no

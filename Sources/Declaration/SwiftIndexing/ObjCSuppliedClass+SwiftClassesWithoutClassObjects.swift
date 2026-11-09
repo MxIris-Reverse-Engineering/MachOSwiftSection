@@ -2,6 +2,7 @@ import MachOKit
 import MachOKitExtensions
 import ObjCIndexing
 import SwiftInspection
+import SwiftObjCInterop
 
 extension ObjCSuppliedClass {
     /// The Swift classes of `machO` the image keeps no class object for,

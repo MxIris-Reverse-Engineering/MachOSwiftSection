@@ -2,6 +2,7 @@ import MemberwiseInit
 import MachOSymbols
 import MachOSwiftSection
 import SwiftInspection
+import SwiftObjCInterop
 
 public protocol AccessorRepresentable: Sendable {
     var accessors: [Accessor] { get }

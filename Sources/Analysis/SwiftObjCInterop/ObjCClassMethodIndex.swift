@@ -6,6 +6,7 @@ import MachOKitExtensions
 @_spi(Internals) import MachOCaches
 @_spi(Internals) import MachOSymbols
 import MachOReading
+import SwiftInspection
 
 /// The library's own ``ObjCClassHierarchy`` reader (evolution proposals
 /// `objc-ancestor-override-recovery` and `objc-member-selector-recovery`):

@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 @_spi(Internals) @testable import SwiftInspection
+@_spi(Internals) @testable import SwiftObjCInterop
 
 /// `ObjCImporterNaming` (evolution proposal `swift-declared-objc-protocols`):
 /// the importer's names for the methods of an `@objc` protocol, from the
