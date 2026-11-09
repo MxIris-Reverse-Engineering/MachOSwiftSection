@@ -1,7 +1,7 @@
 # SwiftObjCInterop 模块
 
 > 模块参考文档（module reference），随代码维护。读者：维护者。
-> 模块从 SwiftInspection 拆出的来历见提案 [draft-swift-objc-interop-module](../../Evolutions/draft-swift-objc-interop-module.md)；各子系统的来历见下文各节链接的提案与实现说明。本文负责全貌与分工。
+> 模块从 SwiftInspection 拆出的来历见提案 [0089-swift-objc-interop-module](../../Evolutions/0089-swift-objc-interop-module.md)；各子系统的来历见下文各节链接的提案与实现说明。本文负责全貌与分工。
 
 ## 模块定位
 
@@ -77,7 +77,7 @@ SE-0436 的 `@objc @implementation` 类编出来是纯 ObjC class object，没�
 
 ## 相关文档
 
-- 拆分：[draft-swift-objc-interop-module](../../Evolutions/draft-swift-objc-interop-module.md)
+- 拆分：[0089-swift-objc-interop-module](../../Evolutions/0089-swift-objc-interop-module.md)
 - 各子系统的提案：[0046](../../Evolutions/0046-objc-implementation-class-recognition.md)（`@objc @implementation`）、[0047](../../Evolutions/0047-objc-ancestor-override-recovery.md)（祖先链与 `override`）、[0048](../../Evolutions/0048-objc-member-selector-recovery.md)（成员与显式 selector）、[0049](../../Evolutions/0049-objc-ancestor-dependency-closure.md)（祖先链走依赖闭包）、[0052](../../Evolutions/0052-objc-custom-class-name.md)（改过的 ObjC 类名）、[0078](../../Evolutions/0078-objc-classes-without-class-objects.md)（没有 class object 的类）、[0079](../../Evolutions/0079-swift-declared-objc-protocols.md)（Swift 声明的 `@objc` 协议）
 - 实现说明：[ObjCImplementationClassRecognition.md](../ObjCImplementationClassRecognition.md)、[ObjCMemberRecovery.md](../ObjCMemberRecovery.md)、[ThunkOnlyObjCMembers.md](../ThunkOnlyObjCMembers.md)、[CustomObjCClassNames.md](../CustomObjCClassNames.md)、[ClassesWithoutClassObjects.md](../ClassesWithoutClassObjects.md)、[SwiftDeclaredObjCProtocols.md](../SwiftDeclaredObjCProtocols.md)
 - 联结方法表与 Swift 成员的那一半：[SwiftThunkAnalysis.md](SwiftThunkAnalysis.md)

@@ -3116,9 +3116,9 @@
 - **后续**：类型查找按模块定向；依赖镜像的符号表第一段再拆出只按偏移查的一段（跳过按名字排序、去重哈希与导出 trie 遍历）；测试进程里 swift-dependencies 的 `TestContext.current` 每次都 `dlsym`。剩下的离线差距里最大的一块是类型查找为找到四个类型把前面的依赖镜像全建了类型表（约占离线打印 4%）。
 - **对应版本**：未发版。依赖下限抬到 MachOKit 0.55.102、MachOObjCSection 0.8.206、swift-demangling 0.7.3（2026-11-07 发布）。发版说明要写：离线读取（`MachOFile`）生成 interface 快很多，本机 cache 里的 SwiftUI 打开全部布局注释时指令数不到原来的三成，只建索引的墙钟也少约四成；多个线程第一次同时读同一个 dyld cache 镜像时偶尔崩溃，已修复。
 
-## 2026-11-09 把 SwiftInspection 的 ObjC 部分拆成 SwiftObjCInterop 模块（节号落地时取）
+## 128. 把 SwiftInspection 的 ObjC 部分拆成 SwiftObjCInterop 模块
 
-- **时间段**：2026-11-09，分支 `refactor/swift-objc-interop-module`（worktree `.worktrees/MachOSwiftSection-SwiftObjCInterop`，基于 `next` a7b151d3）；RuntimeViewer 的 `feature/swift-objc-interop-module`。提案 [draft-swift-objc-interop-module](../Evolutions/draft-swift-objc-interop-module.md)（完整档）。
+- **时间段**：2026-11-09，分支 `refactor/swift-objc-interop-module`（worktree `.worktrees/MachOSwiftSection-SwiftObjCInterop`，基于 `next` a7b151d3）；RuntimeViewer 的 `feature/swift-objc-interop-module`。提案 [0089-swift-objc-interop-module](../Evolutions/0089-swift-objc-interop-module.md)（完整档）。
 - **动机**：SwiftInspection 的 39 个源文件里有 19 个、约 6100 行讲 Swift 类型在 ObjC 一侧的样子——Swift 类的 class object、`@objc @implementation` 类、Swift 声明的 `@objc` 协议、ObjC 方法表与祖先链、ClangImporter 命名规则——是 0046 到 0079 几份 ObjC 功能提案各自就近放进来的。模块只为这一半依赖 MachOObjCSection，`AGENTS.md` 里它的条目是所有模块里最长的，模块参考也一直没法写成一篇。用户指出 ObjC 内容太多。
 - **关键决策**：
   - **拆成独立模块 `SwiftObjCInterop`**（用户选定，没选只在模块内分子目录）：放在 SwiftInspection 正上方、SwiftLayout 与 SwiftThunkAnalysis 之下。依赖只有一个方向——ObjC 一侧用 `SymbolicDemangler`、`NodeTypeNaming`、`GenericParameterDepthLayout`，核心不用 ObjC 一侧——所以不成环，也不用放宽任何访问级别。
@@ -3133,6 +3133,7 @@
   - 全量 `swift test --skip IntegrationTests`（Xcode 26.6，fixture 用 Xcode 26.6 编的 `SymbolTestsFixture-Xcode26.6`）：2804 个测试、534 个套件全部通过，原始退出码 0。
   - 渲染 A/B（基线为分支切出时的 `next` a7b151d3，两侧同一份 `Package.resolved`、同一套 Xcode 26.6 的 release 预构建）：96 对逐字节一致——归档 cache 15.5 与 26.6、iOS 15.5 / 16.4 / 17.5 / 18.5 / 26.5 模拟器文件、进程内 `MachOImage` 三条读取路径。跳过的只有旧 runtime 里本来没有的框架。
   - RuntimeViewerCore：在沙盒里把 MachOSwiftSection 换成本分支的副本，其余依赖走远端的 `next`（`swift-helper-service`、`swift-injection-peer` 照 RuntimeViewer 平时的做法走本地），`swift build` 通过。
+- **后续**：RuntimeViewer 的 `next` 还没推送（里面有别的会话尚未推送的合并），推上去之前远端的 RuntimeViewer 跟远端的本库 `next` 编不过。
 - **对应版本**：未发版，随 0.25.0 发布。发版说明要写迁移：`ObjCImplementationClasses`、`ObjCImplementationClassFacts`、`ObjCMember`、`ObjCMemberTable`、`ObjCMemberShape`、`ObjCClassHierarchy`、`ObjCClassHierarchyProviding`、`ObjCClassHierarchyProviderStore`、`ObjCClassHierarchies`、`ObjCAncestorResolver`、`ObjCAncestorResolverStore`、`CustomObjCClassName` 与 SPI 的 `ClassHierarchyDumper` 从 `SwiftInspection` 移到新模块 `SwiftObjCInterop`，名字与形状不变；直接用到它们的下游加 `import SwiftObjCInterop`（`ClassHierarchyDumper` 要 `@_spi(Internals)`）和 `SwiftObjCInterop` product。
 
 ## 维护约定

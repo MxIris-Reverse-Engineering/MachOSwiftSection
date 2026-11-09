@@ -28,7 +28,7 @@
 | SwiftDeclarationRendering | — | 待写 |
 | SwiftDump | — | 待写 |
 | SwiftInspection | — | 待写（ObjC 一侧已拆进 SwiftObjCInterop） |
-| SwiftObjCInterop | [SwiftObjCInterop.md](SwiftObjCInterop.md) | ✅ 已写（拆分来历：[draft-swift-objc-interop-module](../../Evolutions/draft-swift-objc-interop-module.md)） |
+| SwiftObjCInterop | [SwiftObjCInterop.md](SwiftObjCInterop.md) | ✅ 已写（拆分来历：[0089-swift-objc-interop-module](../../Evolutions/0089-swift-objc-interop-module.md)） |
 | SwiftLayout | [SwiftLayout.md](SwiftLayout.md) | ✅ 已写（专题：[StaticLayoutEngine.md](../StaticLayoutEngine.md)、[StaticLayoutDependencyClosure.md](../StaticLayoutDependencyClosure.md)） |
 | SwiftDiffing | — | 待写（专题：[ABIDiffDesignAndLimitations.md](../ABIDiffDesignAndLimitations.md)、[ABIEvolutionDesign.md](../ABIEvolutionDesign.md)） |
 | TypeIndexing | — | 待写（专题：[TypeIndexingPipeline.md](../TypeIndexingPipeline.md)） |

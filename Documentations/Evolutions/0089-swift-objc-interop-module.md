@@ -1,6 +1,6 @@
-# Draft - 把 SwiftInspection 的 ObjC 部分拆成 SwiftObjCInterop 模块
+# 0089 - 把 SwiftInspection 的 ObjC 部分拆成 SwiftObjCInterop 模块
 
-- **状态**: In Progress
+- **状态**: Implemented
 - **作者**: JH
 - **创建日期**: 2026-11-09
 - **最后更新**: 2026-11-09
@@ -284,3 +284,4 @@ let classNames = ObjCImplementationClasses.all(in: machO).map(\.className)
 | 2026-11-09 | RuntimeViewer 单独建 worktree 与功能分支，验证改在 Ultra 的沙盒里做 | 原定在 RuntimeViewer 的集成 worktree 里改、用本机的本地依赖编译。改成照跨仓库流程各建各的分支；编译放到 Ultra，因为本机只改代码、构建与测试都去 Ultra，而本机的集成 worktree 在推送之前 Ultra 看不到，所以沙盒里只把 MachOSwiftSection 换成本分支的副本，其余依赖走远端的 `next` |
 | 2026-11-09 | 沙盒里 `swift-helper-service` 与 `swift-injection-peer` 也走本地 | 它们的发布版本依赖只有分支版本的包，纯远端解析不出来；RuntimeViewer 平时就从兄弟目录取这两个，沙盒里照样链到 Ultra 上的检出。沙盒第一次解析把 MachOKit 的 `next` 定在 Ultra 上 SwiftPM 缓存里的旧提交（缺 `fileBytes`），`swift package update` 之后取到远端最新的 `next` 才编过——与本次改动无关 |
 | 2026-11-09 | 实现完成，待用户看过后收尾 | 全部在 Ultra 上验证：全量 `swift test --skip IntegrationTests`（Xcode 26.6）2804 个测试、534 个套件全部通过，原始退出码 0；渲染 A/B 96 对逐字节一致（归档 cache 15.5 与 26.6、iOS 15.5 / 16.4 / 17.5 / 18.5 / 26.5 模拟器文件、进程内 `MachOImage`）；RuntimeViewerCore 在沙盒里编译通过。配套文档只有新模块的模块参考，已登记到头部，不另写实现说明或使用指南：搬迁本身没有代码里看不出来的决策，迁移改法记在 ProjectEvolutionLog 本节、发版时写进 Changelog。没有新术语：`SwiftObjCInterop` 是模块名 |
+| 2026-11-09 | In Progress → Implemented | 用户看过后收尾：本库合进 `next` 并推送，提案编号 0089，ProjectEvolutionLog 记为第 128 节。RuntimeViewer 一侧的改动在功能分支 `feature/swift-objc-interop-module` 上，已在本地合进它的 `next`；那个 `next` 里还有别的会话没推送的合并，所以这次没有推 RuntimeViewer 的 `next`。在它推上去之前，远端的 RuntimeViewer 跟远端的本库 `next` 编不过，这是留下的后续项 |
