@@ -3116,6 +3116,23 @@
 - **后续**：类型查找按模块定向；依赖镜像的符号表第一段再拆出只按偏移查的一段（跳过按名字排序、去重哈希与导出 trie 遍历）；测试进程里 swift-dependencies 的 `TestContext.current` 每次都 `dlsym`。剩下的离线差距里最大的一块是类型查找为找到四个类型把前面的依赖镜像全建了类型表（约占离线打印 4%）。
 - **对应版本**：未发版。依赖下限抬到 MachOKit 0.55.102、MachOObjCSection 0.8.206、swift-demangling 0.7.3（2026-11-07 发布）。发版说明要写：离线读取（`MachOFile`）生成 interface 快很多，本机 cache 里的 SwiftUI 打开全部布局注释时指令数不到原来的三成，只建索引的墙钟也少约四成；多个线程第一次同时读同一个 dyld cache 镜像时偶尔崩溃，已修复。
 
+## 2026-11-09 把 SwiftInspection 的 ObjC 部分拆成 SwiftObjCInterop 模块（节号落地时取）
+
+- **时间段**：2026-11-09，分支 `refactor/swift-objc-interop-module`（worktree `.worktrees/MachOSwiftSection-SwiftObjCInterop`，基于 `next` a7b151d3）；RuntimeViewer 的 `feature/swift-objc-interop-module`。提案 [draft-swift-objc-interop-module](../Evolutions/draft-swift-objc-interop-module.md)（完整档）。
+- **动机**：SwiftInspection 的 39 个源文件里有 19 个、约 6100 行讲 Swift 类型在 ObjC 一侧的样子——Swift 类的 class object、`@objc @implementation` 类、Swift 声明的 `@objc` 协议、ObjC 方法表与祖先链、ClangImporter 命名规则——是 0046 到 0079 几份 ObjC 功能提案各自就近放进来的。模块只为这一半依赖 MachOObjCSection，`AGENTS.md` 里它的条目是所有模块里最长的，模块参考也一直没法写成一篇。用户指出 ObjC 内容太多。
+- **关键决策**：
+  - **拆成独立模块 `SwiftObjCInterop`**（用户选定，没选只在模块内分子目录）：放在 SwiftInspection 正上方、SwiftLayout 与 SwiftThunkAnalysis 之下。依赖只有一个方向——ObjC 一侧用 `SymbolicDemangler`、`NodeTypeNaming`、`GenericParameterDepthLayout`，核心不用 ObjC 一侧——所以不成环，也不用放宽任何访问级别。
+  - **只换模块**：类型名、访问级别、日志 subsystem（`com.machoswiftsection.swift-inspection`，RuntimeViewer 按它过滤）与缓存淘汰分组的字符串都不变。两个共用文件拆开，三个 ObjC 淘汰分组与 `objcImplementationClassReader` 跟着走。
+  - **`ObjCMembers/` 留在 SwiftThunkAnalysis**：它用 Capstone 解码 thunk，搬下来会让 SwiftLayout 间接依赖 Capstone。
+  - **留不了过渡别名**：新模块依赖 SwiftInspection，反向的 typealias 会成环，所以公开类型换模块是源码破坏；RuntimeViewer 的两处同批改（用户选定）。
+- **落地**：
+  - 本库：新 target `SwiftObjCInterop` 与同名 library product（19 个文件 `git mv`，另有拆出的两个文件）；SwiftInspection 去掉 MachOObjCSection；SwiftLayout、SwiftThunkAnalysis、SwiftDeclarationRendering、SwiftDump、SwiftDeclaration、SwiftIndexing、SwiftPrinting、SwiftSectionKit 加依赖，34 个源文件加 import；5 个纯 ObjC 套件搬进新测试 target `SwiftObjCInteropTests`，13 个测试文件加 import。
+  - RuntimeViewer：`RuntimeObjCSection.swift` 与 `RuntimeLoadedImageReading.swift` 加 import，`RuntimeViewerCore/Package.swift` 加 `SwiftObjCInterop` product。
+  - 文档：新写模块参考 [Modules/SwiftObjCInterop.md](Modules/SwiftObjCInterop.md)；`AGENTS.md` 的层级图与两条模块说明；术语表、七份实现说明、五份模块参考与模块参考的索引、`ProjectMap.md` 的分层表、两份 README 索引、公开的 `README.md` 改成新模块。
+- **验证**：都在 JHs-Mac-Studio-Ultra 上跑。
+  - 全量 `swift test --skip IntegrationTests`（Xcode 26.6，fixture 用 Xcode 26.6 编的 `SymbolTestsFixture-Xcode26.6`）：2804 个测试、534 个套件全部通过，原始退出码 0。
+- **对应版本**：未发版，随 0.25.0 发布。发版说明要写迁移：`ObjCImplementationClasses`、`ObjCImplementationClassFacts`、`ObjCMember`、`ObjCMemberTable`、`ObjCMemberShape`、`ObjCClassHierarchy`、`ObjCClassHierarchyProviding`、`ObjCClassHierarchyProviderStore`、`ObjCClassHierarchies`、`ObjCAncestorResolver`、`ObjCAncestorResolverStore`、`CustomObjCClassName` 与 SPI 的 `ClassHierarchyDumper` 从 `SwiftInspection` 移到新模块 `SwiftObjCInterop`，名字与形状不变；直接用到它们的下游加 `import SwiftObjCInterop`（`ClassHierarchyDumper` 要 `@_spi(Internals)`）和 `SwiftObjCInterop` product。
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节

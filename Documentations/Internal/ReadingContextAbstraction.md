@@ -372,7 +372,7 @@ Two deliberate decisions worth keeping in mind:
 现在的规则：
 
 - **读取器种类只问三个取法**（MachOKitExtensions）：`asMachOImage`、`asMachOFile`、`underlyingReader`。宿主的类型声明 `MachOReaderWrapper`（`associatedtype Base`，`var base: Base`）之后，三者都问到它底下的读取器，包装可以套包装，`Base` 也可以是宿主自己的读取器类型。库里不再对 `MachOImage` / `MachOFile` 做类型转换，`ReaderKindCastScanTests` 扫 `Sources/`（`TestSupport` 除外）强制这一点。
-- **能力协议先问自己、再问底下的读取器**：`MachOContext.bindRebaseResolver` 先看包装类型自己是否遵循 `MachOBindRebaseResolving`，没有就用 `underlyingReader` 的；建 ObjC 索引用的 `objcImplementationClassReader` 直接取 `underlyingReader`，因为 `ObjCImplementationClassReading` 是 SwiftInspection 的内部协议，外面的包装类型遵循不了。
+- **能力协议先问自己、再问底下的读取器**：`MachOContext.bindRebaseResolver` 先看包装类型自己是否遵循 `MachOBindRebaseResolving`，没有就用 `underlyingReader` 的；建 ObjC 索引用的 `objcImplementationClassReader` 直接取 `underlyingReader`，因为 `ObjCImplementationClassReading` 是 SwiftObjCInterop 的内部协议，外面的包装类型遵循不了。
 - **按类型在编译期选策略的协议给包装类型默认实现**：`FieldLayoutRenderable` 对 `MachOReaderWrapper` 的每个静态 witness 都转给 `Base`，包装类型写一个空的遵循就能进打印器，按底下读取器的后端渲染。
 - **opaque 引用的生产方与消费方用同一个判据**：`SymbolicDemangler` 存进 `Node.index` 的值由 `context.runtimePointer(at:)` 决定，能给出本进程指针就存绝对地址，否则存偏移，偏移为负就当这个引用解析不了；读回来的 `Node+OpaqueType` 与 `OpaqueReferenceSpelling` 问读取器的 `asMachOImage`，而 `MachOContext.runtimePointer(at:)` 正是建在它上面。两边改其中一边，另一边就会把绝对地址当偏移读（或反过来）。
 - **契约**：包装类型在每个偏移读到的内容与底下的读取器相同，`identifier` 也相同。按镜像的缓存（符号索引、ObjC 索引、反混淆 memo）以 `identifier` 为键，包装类型和底下的读取器共用一份；没声明 `MachOReaderWrapper` 的包装类型会和底下的读取器共用缓存，却在按种类分支的地方算出不同的结果，所以 MachOKitUI 的绕过修复要求同一个镜像的 demangle 全部走裸 `MachOImage`。

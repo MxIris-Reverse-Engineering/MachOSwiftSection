@@ -9,7 +9,7 @@ MachODependencies 回答一个问题：**一个二进制链接了哪些镜像，
 
 它取代了两套各自为政的实现：`SwiftLayout` 里文件私有的传递闭包（BFS + bare name 去重 + cache 一次性索引），和 `SwiftInterface` 里绑定在 `SwiftInterfaceBuilderDependencies` 上的一层直接依赖加载（按 install path 精确匹配）。两处现在都是薄包装，各自的语义保持不变：静态布局要传递闭包，`__C` 类型归属只要直接依赖。
 
-下游消费者：`SwiftLayout.ImageUniverse`（三个 `dependencyClosure` 工厂）、`SwiftInterface.SwiftInterfaceBuilderDependencies`（供 TypeIndexing）、`swift-section interface --resolve-c-module-names`、`SwiftIndexing.SwiftDeclarationIndexer`（一个 `SharedDependencyClosure` 同时喂 property-wrapper catalog 与 `SwiftInspection.ObjCAncestorResolver`——独立文件的 ObjC 祖先链，提案 `objc-ancestor-dependency-closure`）。
+下游消费者：`SwiftLayout.ImageUniverse`（三个 `dependencyClosure` 工厂）、`SwiftInterface.SwiftInterfaceBuilderDependencies`（供 TypeIndexing）、`swift-section interface --resolve-c-module-names`、`SwiftIndexing.SwiftDeclarationIndexer`（一个 `SharedDependencyClosure` 同时喂 property-wrapper catalog 与 `SwiftObjCInterop.ObjCAncestorResolver`——独立文件的 ObjC 祖先链，提案 `objc-ancestor-dependency-closure`）。
 
 ## 文件 → 子系统对照
 

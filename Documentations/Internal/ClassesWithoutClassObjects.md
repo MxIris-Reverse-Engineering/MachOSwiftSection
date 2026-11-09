@@ -4,7 +4,7 @@
 
 ## 一句话
 
-泛型类、父类在别的 resilience domain 的类、父类是本模块泛型类的类，这三种 Swift 类在 `__objc_classlist` 里没有 class object，但它们的 `class_ro_t` 都静态存在于 Swift 元数据里。`SwiftClassWithoutClassObjectIndex`（SwiftInspection）按镜像把它们找出来，本库的 ObjC 方法表据此给出 `override` 与显式 selector 的证据，`swift-section objc` 经 MachOObjCSection 0.8.201 的 `ObjCSuppliedClass` 把它们列出来。
+泛型类、父类在别的 resilience domain 的类、父类是本模块泛型类的类，这三种 Swift 类在 `__objc_classlist` 里没有 class object，但它们的 `class_ro_t` 都静态存在于 Swift 元数据里。`SwiftClassWithoutClassObjectIndex`（SwiftObjCInterop）按镜像把它们找出来，本库的 ObjC 方法表据此给出 `override` 与显式 selector 的证据，`swift-section objc` 经 MachOObjCSection 0.8.201 的 `ObjCSuppliedClass` 把它们列出来。
 
 ## 三种类与编译器的元数据策略
 
@@ -49,7 +49,7 @@
 ## 验证
 
 - `ClassesWithoutClassObjectsFixture`（MachOTestingSupport）测试时现编两个镜像：开 library evolution 的 kit（`ResilientBase: NSObject`），加上使用它的客户端，`.full` 与 `strip -x` 两种。客户端里有三种类各一个、纯 Swift 的泛型类、没有 ObjC 祖先的 Singleton 类，以及有 class object 的对照组。
-- `SwiftClassWithoutClassObjectIndexTests`（SwiftInspectionTests）：文件、剥过的文件、进程内三条路径读出的种类、名字、父类、stub、方法表；方法表经泛型父类续到 `NSObject`，文件与进程内都是。
+- `SwiftClassWithoutClassObjectIndexTests`（SwiftObjCInteropTests）：文件、剥过的文件、进程内三条路径读出的种类、名字、父类、stub、方法表；方法表经泛型父类续到 `NSObject`，文件与进程内都是。
 - `ClassesWithoutClassObjectsInterfaceTests`（SwiftInterfaceTests）与 `ClassesWithoutClassObjectsRequestTests`（SwiftSectionKitTests）：interface 里的 `@objc override`，`objc dump` 列出这些类。这两组与改过的 `ThunkOnlyObjCMemberTests` / `ThunkOnlyObjCMemberDumpTests` 在不含本改动的代码上都失败。
 - `PerImageCacheEvictionTests`：索引随 indexer 一起驱逐。
 - SymbolTestsCore 的快照随之变化：三个继承 `NSObject` 的泛型类，编译器合成的 `init()` 在 interface 里成了 `@objc override init()`，dump 里多了祖先链与覆写注释，与非泛型类一直以来的输出一致。

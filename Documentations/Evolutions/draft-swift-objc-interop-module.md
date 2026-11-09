@@ -6,8 +6,8 @@
 - **最后更新**: 2026-11-09
 - **所属愿景**: 无
 - **关联提案**: [0055-group-sources-by-layer](0055-group-sources-by-layer.md)（上一次整理 target 的位置，新模块沿用它的 `Sources/<层>/<Target>` 布局）；[0018-self-contained-abi-layer](0018-self-contained-abi-layer.md)（把符号归属定在 SwiftInspection，后来的 ObjC 功能以此为由就近落户）；要搬的代码出自 [0046](0046-objc-implementation-class-recognition.md)、[0047](0047-objc-ancestor-override-recovery.md)、[0048](0048-objc-member-selector-recovery.md)、[0049](0049-objc-ancestor-dependency-closure.md)、[0052](0052-objc-custom-class-name.md)、[0078](0078-objc-classes-without-class-objects.md)、[0079](0079-swift-declared-objc-protocols.md)；[0057-reading-context-migration](0057-reading-context-migration.md)（0.25.0 删除废弃的读取转发，本提案随同一个破坏性版本发布）
-- **实现分支 / PR**: `refactor/swift-objc-interop-module`（worktree `.worktrees/MachOSwiftSection-SwiftObjCInterop`）
-- **配套文档**: 待定 —— 落地时登记新模块的模块参考 `Internal/Modules/SwiftObjCInterop.md`
+- **实现分支 / PR**: `refactor/swift-objc-interop-module`（worktree `.worktrees/MachOSwiftSection-SwiftObjCInterop`）；RuntimeViewer 一侧是 `feature/swift-objc-interop-module`（worktree `RuntimeViewer/.worktrees/RuntimeViewer-SwiftObjCInterop`）
+- **配套文档**: 模块参考 [Modules/SwiftObjCInterop.md](../Internal/Modules/SwiftObjCInterop.md)
 
 ## 摘要
 
@@ -47,7 +47,7 @@ SwiftInspection 的定位是 Swift runtime metadata 分析：带 symbolic refere
 
 ### 包内的消费方
 
-37 个源文件，分布在 8 个模块：SwiftDeclaration 19、SwiftDump 7、SwiftIndexing 4、SwiftLayout 2、SwiftThunkAnalysis 2、SwiftDeclarationRendering 1、SwiftPrinting 1、SwiftSectionKit 1。CrossReferenceAnalysis 只用 `SymbolicDemangler`，不受影响；TestSupport、Executables、Plugins 一处都没用到。
+37 个源文件提到要搬的类型，分布在 8 个模块：SwiftDeclaration 19、SwiftDump 7、SwiftIndexing 4、SwiftLayout 2、SwiftThunkAnalysis 2、SwiftDeclarationRendering 1、SwiftPrinting 1、SwiftSectionKit 1。其中 3 个只在文档注释里提到（`SwiftDeclarationIndexConfiguration.swift`、`StandInMemberSymbolBuilder.swift`、`SwiftIndexEvents.swift`），真正要加 import 的是 34 个。CrossReferenceAnalysis 只用 `SymbolicDemangler`，不受影响；TestSupport、Executables、Plugins 一处都没用到。
 
 ### 测试
 
@@ -55,7 +55,7 @@ SwiftInspection 的定位是 Swift runtime metadata 分析：带 symbolic refere
 
 - SwiftInspectionTests 里 5 个纯 ObjC 的套件：`ObjCImporterNamingTests`、`ObjCProtocolRequirementBuilderTests`、`SwiftClassObjectIndexTests`、`SwiftClassWithoutClassObjectIndexTests`、`SwiftDeclaredObjCProtocolIndexTests`。
 - SwiftInspectionTests 里 4 个两边都测的套件：`AnonymousContextPrivateDiscriminatorTests`、`DyldCacheTwinImageTests`、`MalformedSymbolValueTests`、`SymbolicManglingIndexTests`。其中 `AnonymousContextPrivateDiscriminatorTests` 与 `SymbolicManglingIndexTests` 经 `internal` 的协议 `ObjCImplementationClassReading` 读 ObjC class。
-- 其余 11 个分布在 SwiftDumpTests、SwiftInterfaceTests、SwiftIndexingTests、SwiftDeclarationRenderingTests、SwiftSectionCommandTests、SwiftSectionKitTests、IntegrationTests。
+- 其余 11 个分布在 SwiftDumpTests、SwiftInterfaceTests、SwiftIndexingTests、SwiftDeclarationRenderingTests、SwiftSectionCommandTests、SwiftSectionKitTests、IntegrationTests。SwiftSectionCommandTests 与 SwiftSectionKitTests 的那两个只用到同名的 dump 段名字 `objcImplementationClasses`（不是淘汰分组），不需要 import，所以要加 import 的测试文件是 13 个，要加依赖的测试 target 是 6 个。
 
 CI 按套件名过滤（`.github/workflows/macOS.yml:123` 的 `\.(…)(/|$)`），套件换了测试 target 照样匹配；名单里的 `MalformedSymbolValueTests` 本来也留在原处。没有源码扫描测试写死 `SwiftInspection` 的路径。
 
@@ -78,7 +78,7 @@ CI 按套件名过滤（`.github/workflows/macOS.yml:123` 的 `\.(…)(/|$)`）�
 
 ## 提议方案
 
-新增 target `SwiftObjCInterop`（`Sources/Analysis/SwiftObjCInterop/`）与同名 library product，把上表 19 个文件原样搬进去（`git mv`，只改 import），两个共用文件里 ObjC 一侧的声明拆到新模块的文件里。SwiftInspection 去掉对 MachOObjCSection 的依赖。8 个消费方模块在 `Package.swift` 里加上对新模块的依赖，37 个源文件各加一行 import。
+新增 target `SwiftObjCInterop`（`Sources/Analysis/SwiftObjCInterop/`）与同名 library product，把上表 19 个文件原样搬进去（`git mv`，只改 import），两个共用文件里 ObjC 一侧的声明拆到新模块的文件里。SwiftInspection 去掉对 MachOObjCSection 的依赖。8 个消费方模块在 `Package.swift` 里加上对新模块的依赖，34 个源文件各加一行 import。
 
 测试照同一条分界：5 个纯 ObjC 套件搬进新的测试 target `SwiftObjCInteropTests`（`Tests/SwiftObjCInteropTests/`），其余用到这些类型的测试文件留在原处，加一行 import。
 
@@ -149,7 +149,7 @@ RuntimeViewer 同批改：两个文件各加一行 import，`RuntimeViewerCore/P
       )
   ```
 
-- 直接 import 新模块的其他测试 target（SwiftInspectionTests、SwiftDumpTests、SwiftInterfaceTests、SwiftIndexingTests、SwiftDeclarationRenderingTests、SwiftSectionCommandTests、SwiftSectionKitTests、IntegrationTests）各加 `.target(.SwiftObjCInterop)`。
+- 直接 import 新模块的其他测试 target（SwiftInspectionTests、SwiftDumpTests、SwiftInterfaceTests、SwiftIndexingTests、SwiftDeclarationRenderingTests、IntegrationTests）各加 `.target(.SwiftObjCInterop)`。
 
 ### 依赖层级
 
@@ -227,7 +227,7 @@ let classNames = ObjCImplementationClasses.all(in: machO).map(\.className)
 
 ### 下游影响
 
-本仓库内：上述 8 个源码模块与 8 个测试 target 加依赖、加 import；SwiftInspection 去掉一项依赖；CrossReferenceAnalysis 不受影响。
+本仓库内：上述 8 个源码模块与 6 个测试 target 加依赖、加 import；SwiftInspection 去掉一项依赖；CrossReferenceAnalysis 不受影响。
 
 下游仓库：
 
@@ -237,11 +237,11 @@ let classNames = ObjCImplementationClasses.all(in: machO).map(\.className)
 
 ### 文档与示例
 
-- `AGENTS.md`：层级图加一层；SwiftInspection 条目只留 Swift 一侧，ObjC 那部分移进新的 SwiftObjCInterop 条目，两条都缩到「一两行加链接」的长度，细节进模块参考；SwiftLayout 的 peer 说明加上新模块。
-- 新写模块参考 `Documentations/Internal/Modules/SwiftObjCInterop.md`，登记进 `Modules/README.md` 与 `Documentations/README.md`。它串起已有的五篇专题文档（`ObjCImplementationClassRecognition.md`、`ObjCMemberRecovery.md`、`CustomObjCClassNames.md`、`ClassesWithoutClassObjects.md`、`SwiftDeclaredObjCProtocols.md`），不复述它们。
-- 改写写着「在 SwiftInspection」的现行文档：`Glossary.md`（7 处）、`Documentations/README.md`（2 处）、`SwiftDeclaredObjCProtocols.md`、`StaticFieldOffsetComputation.md`、`ClassesWithoutClassObjects.md`、`ObjCImplementationClassRecognition.md`、`Modules/SwiftLayout.md`、`Modules/SwiftDeclaration.md`、`Modules/MachODependencies.md`、`ProjectMap.md` 的模块分层表。
+- `AGENTS.md`：层级图加一层；SwiftInspection 条目删去 ObjC 那部分，Swift 一侧原样保留（它没有模块参考可承接细节）；新的 SwiftObjCInterop 条目只列组成部分和三条最容易做错的事实，细节进模块参考；SwiftLayout 的 peer 说明与缓存规则里的模块归属改成新模块。
+- 新写模块参考 `Documentations/Internal/Modules/SwiftObjCInterop.md`，登记进 `Modules/README.md` 与 `Documentations/README.md`。它串起已有的六篇专题文档（`ObjCImplementationClassRecognition.md`、`ObjCMemberRecovery.md`、`ThunkOnlyObjCMembers.md`、`CustomObjCClassNames.md`、`ClassesWithoutClassObjects.md`、`SwiftDeclaredObjCProtocols.md`），不复述它们。
+- 改写写着「在 SwiftInspection」的现行文档：`Glossary.md`（7 处）、`Documentations/README.md`（2 处）、`SwiftDeclaredObjCProtocols.md`、`StaticFieldOffsetComputation.md`、`ClassesWithoutClassObjects.md`、`ObjCImplementationClassRecognition.md`、`CustomObjCClassNames.md`、`ObjCMemberRecovery.md`、`ReadingContextAbstraction.md`、`Modules/SwiftLayout.md`、`Modules/SwiftDeclaration.md`、`Modules/MachODependencies.md`、`Modules/SwiftSectionKit.md`、`Modules/SwiftThunkAnalysis.md`、`ProjectMap.md` 的模块分层表；代码里两处讲模块归属的注释（`ObjCMembers.swift`、`SwiftDeclarationIndexer.swift`）。
 - 根目录 `README.md`（英文公开文档）：模块表加 `SwiftObjCInterop` 一行，`ClassHierarchyDumper` 从 SwiftInspection 的介绍里移出，import 说明改成 `@_spi(Internals) import SwiftObjCInterop`。
-- `Changelogs/0.25.0.md` 写明搬迁与改法。
+- `Changelogs/0.25.0.md` 写明搬迁与改法。项目惯例是发版时才写 Changelog，所以迁移说明先记在 ProjectEvolutionLog 本节的「对应版本」里，发版时照着写。
 
 ## API 演进与废弃策略
 
@@ -251,14 +251,14 @@ let classNames = ObjCImplementationClasses.all(in: machO).map(\.className)
 
 ## 落地步骤
 
-1. 从 `next` 切出 worktree `.worktrees/MachOSwiftSection-SwiftObjCInterop` 与分支 `refactor/swift-objc-interop-module`，fixture 只链 `DerivedData/SymbolTests`。
-2. `Package.swift`：新 target、product、测试 target；SwiftInspection 去掉 MachOObjCSection；8 个消费方模块加依赖。
-3. `git mv` 19 个文件，拆开两个共用文件，37 个源文件加 import；编译整个库，原始退出码为 0。
-4. 测试：5 个套件搬进 `Tests/SwiftObjCInteropTests/`，其余 15 个测试文件加 import，相关测试 target 加依赖；编译全部测试 target。
-5. 在 Ultra 上跑 `swift test --skip IntegrationTests`，以原始退出码为准。
+1. 从 `next` 切出 worktree `.worktrees/MachOSwiftSection-SwiftObjCInterop` 与分支 `refactor/swift-objc-interop-module`，fixture 只链 `DerivedData/SymbolTests`。（已完成）
+2. `Package.swift`：新 target、product、测试 target；SwiftInspection 去掉 MachOObjCSection；8 个消费方模块加依赖。（已完成，`d5a9f332`）
+3. `git mv` 19 个文件，拆开两个共用文件，34 个源文件加 import；编译整个库，原始退出码为 0。（已完成，`d5a9f332`）
+4. 测试：5 个套件搬进 `Tests/SwiftObjCInteropTests/`，其余 13 个测试文件加 import，6 个测试 target 加依赖；编译全部测试 target。（已完成，`d5a9f332`）
+5. 在 Ultra 上跑 `swift test --skip IntegrationTests`，以原始退出码为准。（已完成：2804 个测试全部通过，原始退出码 0）
 6. 在 Ultra 上跑渲染 A/B（`Scripts/run-rendering-ab-verification.py`，基线是合入前的 `next`）：三条读取路径的 dump 与 interface 逐字节一致。
 7. 文档：按「文档与示例」一节改；提案状态与决策日志同批更新。
-8. 在本地把分支合进集成 worktree 的 `next`（不推送）；随即在 RuntimeViewer 的集成 worktree 改两个文件与清单，用本地依赖编译 RuntimeViewerCore 确认通过，提交到它的 `next`（不推送）。之后推送时本库在前。
+8. RuntimeViewer 照跨仓库的流程单独建 worktree 与分支 `feature/swift-objc-interop-module`，改两个文件与清单。验证在 Ultra 的沙盒里做：把 RuntimeViewerCore 与本分支各导出一份放在一起，只有 MachOSwiftSection 走本地、其余依赖照常解析远端的 `next`，编译 RuntimeViewerCore。通过后两边各自在本地合进集成 worktree 的 `next`（不推送）；之后推送时本库在前。
 
 **收尾时必须判断两件事**（判断结果写进决策日志，不允许沉默跳过）：
 
@@ -277,3 +277,8 @@ let classNames = ObjCImplementationClasses.all(in: machO).map(\.className)
 | 2026-11-09 | 默认做法定稿 | 用户确认：只换模块，类型名、访问级别、日志 subsystem 与 category、缓存淘汰分组名都不变；`ClassHierarchyDumper` 一起搬；5 个纯 ObjC 测试套件搬进新测试 target，4 个两边都测的留在原处；`ObjCMembers/` 与 SwiftLayout 自带的 ObjC 索引不动；验收含全量测试与渲染 A/B，都在 Ultra 上跑；新写模块参考、缩短 `AGENTS.md` 的条目；随 0.25.0 发布。提问到此结束 |
 | 2026-11-09 | Draft → Accepted | 用户批准，开始实现 |
 | 2026-11-09 | Accepted → In Progress | 从 `next` 切出分支 `refactor/swift-objc-interop-module` 与 worktree `.worktrees/MachOSwiftSection-SwiftObjCInterop` |
+| 2026-11-09 | 加 import 的文件数按实际用法核定：源码 34 个、测试 13 个、测试 target 6 个 | 调研时按名字出现次数数的。3 个源文件只在文档注释里提到要搬的类型；SwiftSectionCommandTests 与 SwiftSectionKitTests 里的 `objcImplementationClasses` 是同名的 dump 段名字，不是淘汰分组。正文的数字已改成实际值 |
+| 2026-11-09 | 消费方源码一律加不带属性的 `import SwiftObjCInterop`；测试照搬原来那行 `import SwiftInspection` 的 `@testable` / `@_spi(Internals)` | 源码里没有用到新模块的 SPI（`ClassHierarchyDumper` 只有 RuntimeViewer 与 IntegrationTests 用）；测试照搬属性，原来经 SwiftInspection 能访问的 `internal` 与 SPI 成员搬过去后照样能访问 |
+| 2026-11-09 | `AGENTS.md` 的 SwiftInspection 条目只删 ObjC 部分，Swift 一侧原样保留；SwiftObjCInterop 条目保留三条最容易做错的事实 | 原定两条都缩到「一两行加链接」。SwiftInspection 没有模块参考可以承接删掉的细节（`Modules/README.md` 仍记为待写），删了就没有去处；SwiftObjCInterop 那三条（`@objc` 协议没有协议描述符、ObjC 协议遵循没有 conformance record、按名字查 Swift 类查不到时回退 `SwiftClassObjectIndex`）是 agent 默认会做错的，其余细节都进了模块参考 |
+| 2026-11-09 | Changelog 留到发版时写 | 项目惯例是 `release:` 提交里才写 `Changelogs/<版本>.md`；迁移说明先记在 ProjectEvolutionLog 本节的「对应版本」里 |
+| 2026-11-09 | RuntimeViewer 单独建 worktree 与功能分支，验证改在 Ultra 的沙盒里做 | 原定在 RuntimeViewer 的集成 worktree 里改、用本机的本地依赖编译。改成照跨仓库流程各建各的分支；编译放到 Ultra，因为本机只改代码、构建与测试都去 Ultra，而本机的集成 worktree 在推送之前 Ultra 看不到，所以沙盒里只把 MachOSwiftSection 换成本分支的副本，其余依赖走远端的 `next` |

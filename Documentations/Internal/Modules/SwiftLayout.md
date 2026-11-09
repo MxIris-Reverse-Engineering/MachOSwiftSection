@@ -7,7 +7,7 @@
 
 SwiftLayout 是**静态聚合布局引擎**：不加载进程、不调用 metadata accessor，直接从 Mach-O 文件算出 struct / class 的存储属性偏移与类型的整体布局（size / stride / alignment / extra inhabitants / bitwise-takable）。它是离线 ABI 分析路径的底座——`swift-section dump` 和 `interface` 在读文件（而非进程内镜像）时，字段偏移注释、type layout 注释、enum layout 注释全部由它算出来。
 
-它在模块图里是 `SwiftInspection` + `MachOSwiftSection` 的**平级消费者**（另加 `MachOObjCSection` 用于取 Objective-C 祖先类的实例尺寸），上游是 `SwiftDeclarationRendering` 的 `FieldLayoutRenderer`。同一个 renderer 按 reader 分叉：`MachOImage` 路径读进程内活 metadata，`MachOFile` 路径走本模块静态计算，两条腿产出同一套注释。
+它在模块图里是 `SwiftObjCInterop`、`SwiftInspection` 与 `MachOSwiftSection` 的**平级消费者**（另加 `MachOObjCSection` 用于取 Objective-C 祖先类的实例尺寸），上游是 `SwiftDeclarationRendering` 的 `FieldLayoutRenderer`。同一个 renderer 按 reader 分叉：`MachOImage` 路径读进程内活 metadata，`MachOFile` 路径走本模块静态计算，两条腿产出同一套注释。
 
 **能力边界一句话**：凡是二进制里带着的事实，它都能算；凡是需要泛型实参而二进制没记的，它诚实降级成 `FieldResolution.unknown(<原因>)`，绝不编一个看起来合理的偏移出来。
 
@@ -68,7 +68,7 @@ libswiftCore 的 builtin 段还多一类记录：编译器 builtin 叶子类型�
 
 `ObjCClassIndex` 读 `class_ro_t.instanceSize`（Swift 子类第一个字段的起点），并索引每个静态发出的 Swift 类自己的 `instanceStart`——实际祖先变大时这个值会被 ObjC runtime 滑移（objc4 的 `moveIvars`），dyld cache 里的镜像带的已是滑移后的终值。是否在 classlist 里决定走哪套规则。
 
-`ObjCProtocolIndex` 认存在类型里的 Swift 声明 `@objc` 协议（它没有 protocol descriptor，只在 `__objc_protolist` 里有记录）：每条 `_TtP<模块><名字>_` 记录（本镜像的，加上它引用的别的模块协议的副本），并上 `SwiftInspection.SwiftDeclaredObjCProtocolIndex` 给出的本镜像协议——改过名的与嵌套在类型里的（`_TtPC…`）只有后者认得出（2026-10-28，提案 `swift-declared-objc-protocols`）。
+`ObjCProtocolIndex` 认存在类型里的 Swift 声明 `@objc` 协议（它没有 protocol descriptor，只在 `__objc_protolist` 里有记录）：每条 `_TtP<模块><名字>_` 记录（本镜像的，加上它引用的别的模块协议的副本），并上 `SwiftObjCInterop.SwiftDeclaredObjCProtocolIndex` 给出的本镜像协议——改过名的与嵌套在类型里的（`_TtPC…`）只有后者认得出（2026-10-28，提案 `swift-declared-objc-protocols`）。
 
 `ImageUniverse` 是四个解析 seam 的统一查找面（类型、协议、ObjC 类实例尺寸、assocty witness），可以是单镜像，也可以是**依赖闭包**——镜像按解析顺序（根镜像在前）**惰性**折进来，而且四种查找各折各的：类型查找只把镜像折进类型索引，协议、ObjC 类、assocty witness 查找各自折进自己的索引，所以几百个镜像的系统闭包不会被急切 demangle 一遍，一次类型查找也不会顺带读路过的每个镜像的 ObjC 协议表。每个镜像的七张表（`ImageReference`）各自第一次被读时才建，读失败的表当空表，不再连累整个镜像；同一个镜像的 `ImageReference` 经 `ImageReference.shared(for:)` 按镜像缓存，所有 universe 共用（2026-11-06，演进提案 `machofile-performance`：本机 cache 里的 SwiftUI 打开布局注释，打印阶段 2000 亿条指令降到 1530 亿）。协议这个 seam（`resolveProtocol(byQualifiedTypeName:)`）每折进一个镜像就同时查 Swift 协议描述符和 ObjC 协议记录，哪张先认出就停：Swift 声明的 `@objc` 协议没有描述符，原先先问描述符、落空后才查记录，等于每个这种协议都要把整个闭包折一遍（2026-11-06，RuntimeViewer 离线读 DockHelper 时一个根读了五百多个镜像）。闭包本身由 `MachODependencies` 提供，本模块只是薄封装。assocty witness 查找一律经 `resolveAssociatedTypeWitness(conformingName:protocolName:associatedTypeName:)`：遵循类型是类约束泛型参数的替身（`GenericArgumentEnvironment.classBoundParameterPlaceholderQualifiedName`，即 `Swift.AnyObject`）时直接答没有——没有哪个名义类型叫这个名字，任何镜像都不会有它的一致性记录，而照常去查要先把整个闭包折进 witness 索引才能答出「没有」：SwiftUI 的布局里只有一个这样的成员，就把 552 个依赖镜像的 witness 表全建了一遍（2026-11-06，同一提案）。assocty witness 这个 seam 有一个返回**节点**而非布局的公开入口 `projectedAssociatedTypeWitness(base:associatedTypeReference:)`（2026-09-18，提案 0045-opaque-reference-spelling-and-member-projection）：`SwiftDeclarationRendering` 用它把展开后的 opaque archetype 的成员（`IndexingIterator<[Int]>.Element`）投影成 witness 类型，逻辑与 `DependentMemberTypeBridge` 一致，只是不往下算布局。`projectingConcreteMembers(in:)`（2026-10-01）在它之上把整棵节点里所有 base 已具体的成员投影掉、投影结果再投影（有跳数上限）：展开偏移树用它命名和展开字段（`[Swift.Int].Element` 显示为 `Swift.Int` 并继续展开，与运行时的遍历一致），离线泛型特化用它代换字段类型与约束检查的两侧。
 
