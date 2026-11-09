@@ -100,3 +100,4 @@
 | [0088](0088-machofile-performance.md) | 离线读取追平进程内：去掉 MachOFile 独有的开销，再压两边共用的部分 | Implemented |
 | draft | [SwiftDeclaration 的目录分成公开模型与索引代码两块](draft-swift-declaration-model-indexing-layout.md) | In Progress |
 | draft | [SwiftDeclaration 的类型名按角色统一后缀](draft-swift-declaration-type-naming.md) | In Progress |
+| draft | [把 SwiftInspection 的 ObjC 部分拆成 SwiftObjCInterop 模块](draft-swift-objc-interop-module.md) | Accepted |
