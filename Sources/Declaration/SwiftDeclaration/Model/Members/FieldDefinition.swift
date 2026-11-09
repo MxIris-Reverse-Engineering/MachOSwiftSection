@@ -2,6 +2,7 @@ import MemberwiseInit
 import Demangling
 import SwiftDeclarationRendering
 import SwiftInspection
+import SwiftObjCInterop
 
 public struct FieldFlags: OptionSet, Sendable {
     public let rawValue: Int

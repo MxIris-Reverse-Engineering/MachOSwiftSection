@@ -6,6 +6,7 @@ import Utilities
 @_spi(Internals) import Demangling
 @_spi(Internals) import MachOSymbols
 @_spi(Internals) import SwiftInspection
+import SwiftObjCInterop
 import SwiftThunkAnalysis
 import SwiftDeclarationRendering
 

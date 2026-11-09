@@ -4,6 +4,7 @@ import MachOKit
 import Demangling
 @_spi(Internals) import MachOSymbols
 @testable @_spi(Internals) import SwiftInspection
+@testable @_spi(Internals) import SwiftObjCInterop
 
 /// A symbol's value is the binary's own claim about where something sits, and
 /// two indexes read the bytes there: `SymbolicManglingIndex` (the mangled name

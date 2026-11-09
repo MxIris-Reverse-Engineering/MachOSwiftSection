@@ -65,7 +65,8 @@ Declare every product whose module you import. In particular, `MachOSwiftSection
 
 | Product | Purpose |
 | --- | --- |
-| `SwiftInspection` | Symbol attribution and runtime metadata analysis — `SymbolicDemangler` (formerly `MetadataReader`), `EnumLayoutCalculator`, `ClassHierarchyDumper`. |
+| `SwiftInspection` | Symbol attribution and runtime metadata analysis — `SymbolicDemangler` (formerly `MetadataReader`), `EnumLayoutCalculator`. |
+| `SwiftObjCInterop` | The Objective-C side of Swift types: `@objc @implementation` classes, Swift classes renamed for the ObjC runtime, `@objc` protocols declared in Swift, ObjC method tables and ancestor chains, `ClassHierarchyDumper`. Split out of `SwiftInspection` in 0.25.0. |
 | `SwiftLayout` | The static layout engine: field offsets, type layouts and enum layouts computed offline, the way the runtime computes them at load time. |
 | `SwiftThunkAnalysis` | Reads a type stored behind a metadata accessor thunk (availability-conditional opaque types, noncopyable fields) by evaluating its ARM64 code instead of running it, and ties a class's ObjC method table to its Swift members. |
 | `CrossReferenceAnalysis` | What each function of a loaded arm64 image calls and references — functions, Objective-C classes, Swift types — read from its machine code. `MachOImage` only. |
@@ -168,8 +169,12 @@ Generated interfaces reflect a wide range of Swift language features:
 `SwiftInspection` exposes higher-level inspection utilities built on top of `MachOSwiftSection`:
 
 - `EnumLayoutCalculator` — compute the on-disk layout of Swift enums, including single-payload and multi-payload (tagged and untagged) cases. Mirrors the ABI rules in `swift/ABI/Enum.h`.
-- `ClassHierarchyDumper` — walk a class's inheritance chain across Swift/ObjC boundaries (requires `@_spi(Internals) import SwiftInspection`, `MachOImage` only).
 - `SymbolicDemangler` — demangle types, symbols, context descriptors, and build generic signatures against a Mach-O (requires `@_spi(Internals) import SwiftInspection`). Named `MetadataReader` before 0.20.0; the old name remains as a deprecated alias.
+
+The Objective-C side of Swift types lives in `SwiftObjCInterop` (part of `SwiftInspection` before 0.25.0 — add `import SwiftObjCInterop` and the product when upgrading):
+
+- `ObjCImplementationClasses` — the `@objc @implementation` classes an image defines, with their instance variables and method tables.
+- `ClassHierarchyDumper` — walk a class's inheritance chain across Swift/ObjC boundaries (requires `@_spi(Internals) import SwiftObjCInterop`, `MachOImage` only).
 
 #### Run a swift-section Command from Code
 

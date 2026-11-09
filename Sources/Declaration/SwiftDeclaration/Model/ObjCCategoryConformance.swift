@@ -3,6 +3,7 @@ import MachOSwiftSection
 @_spi(Internals) import Demangling
 @_spi(Internals) import MachOSymbols
 @_spi(Internals) import SwiftInspection
+import SwiftObjCInterop
 
 /// An extension the image declares of a class another module declares, in
 /// which it adopts Objective-C protocols (evolution proposal

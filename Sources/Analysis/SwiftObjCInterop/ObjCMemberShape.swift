@@ -1,5 +1,6 @@
 import Foundation
 @_spi(Internals) import Demangling
+import SwiftInspection
 
 /// The shape of a Swift member as far as its ObjC selector is concerned
 /// (evolution proposals `objc-ancestor-override-recovery` and

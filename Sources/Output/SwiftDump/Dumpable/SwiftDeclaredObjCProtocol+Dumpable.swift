@@ -6,6 +6,7 @@ import Semantic
 import Utilities
 @_spi(Internals) import Demangling
 @_spi(Internals) import SwiftInspection
+import SwiftObjCInterop
 import SwiftDeclarationRendering
 
 /// An `@objc` protocol declared in Swift (evolution proposal

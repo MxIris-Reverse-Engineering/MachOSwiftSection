@@ -7,6 +7,7 @@ import Semantic
 import SwiftStdlibToolbox
 @_spi(Internals) import MachOSymbols
 @_spi(Internals) import SwiftInspection
+import SwiftObjCInterop
 
 /// An extension block of an image — a conformance, a member extension or a
 /// typealias-only block — as the declaration model holds it.

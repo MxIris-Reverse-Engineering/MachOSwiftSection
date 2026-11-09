@@ -86,14 +86,14 @@ macOS 27 与 iOS 27 的 dyld shared cache 不再给每个镜像留自己的 `__o
 
 本镜像 extension 别的模块的类（ObjC 类，或别的模块的 Swift 类）时采纳的 ObjC 协议，记在那个 extension 的 category 的协议表里，没有 Swift 的 conformance record。interface 把每个 category 打成一个 `extension X: P {}`。与类头部列出的 ObjC 协议的区别：同一模块里的 extension 会被编译器并进类自己的 `class_ro_t`，那些遵循打在类头部，不算 category 遵循。
 
-- **主要出现在**：`Sources/Declaration/SwiftDeclaration/Model/ObjCCategoryConformance.swift`、`Sources/Analysis/SwiftInspection/ObjCProtocolAdoptionIndex.swift`
+- **主要出现在**：`Sources/Declaration/SwiftDeclaration/Model/ObjCCategoryConformance.swift`、`Sources/Analysis/SwiftObjCInterop/ObjCProtocolAdoptionIndex.swift`
 - **延伸阅读**：[SwiftDeclaredObjCProtocols.md](Internal/SwiftDeclaredObjCProtocols.md)、[0079-swift-declared-objc-protocols](Evolutions/0079-swift-declared-objc-protocols.md)
 
 ### class without a class object（没有 class object 的类，`SwiftClassWithoutClassObject`）
 
 `__objc_classlist` 里没有 class object 的 Swift 类：泛型类，父类在别的 resilience domain 的类，父类是本模块泛型类的类。它们的 `class_ro_t` 都静态存在，但只有经 Swift 元数据才找得到（generic metadata pattern、`ResilientClassMetadataPattern`、静态的 incomplete metadata）。后两种有 ObjC 祖先时还在 `__objc_stublist` 里登记一个 stub。交给 MachOObjCSection 时它们叫 supplied class（`ObjCSuppliedClass`），即宿主补进 ObjC 索引器的类。与 `@objc @implementation` 类的区别：那种类有 class object，没有的是 Swift 元数据。
 
-- **主要出现在**：`Sources/Analysis/SwiftInspection/SwiftClassWithoutClassObjectIndex.swift`、`Sources/Declaration/SwiftIndexing/ObjCSuppliedClass+SwiftClassesWithoutClassObjects.swift`
+- **主要出现在**：`Sources/Analysis/SwiftObjCInterop/SwiftClassWithoutClassObjectIndex.swift`、`Sources/Declaration/SwiftIndexing/ObjCSuppliedClass+SwiftClassesWithoutClassObjects.swift`
 - **延伸阅读**：[ClassesWithoutClassObjects.md](Internal/ClassesWithoutClassObjects.md)、[0078-objc-classes-without-class-objects](Evolutions/0078-objc-classes-without-class-objects.md)
 
 ### context form / Mach-O form / pointer form（读取接口的三种形式）
@@ -194,7 +194,7 @@ evolution 里组成一个版本的一组 image，主 image 在前：Apple 拆过
 
 类遵循一个继承了 ObjC 协议的 Swift 协议时（`protocol CopyingRefinement: NSCopying`），编译器也把那个 ObjC 协议记进类（或 category）的协议表（`getObjCProtocols` 的递归），尽管源码没写。interface 不打它，Swift 遵循已经说明了；dump 在类的 `// ObjC protocols:` 一行里标注 `(implied by a Swift conformance)`。只认得出本镜像的 Swift 协议隐含的。
 
-- **主要出现在**：`ObjCProtocolAdoption.impliedProtocolRuntimeNames`（`Sources/Analysis/SwiftInspection/ObjCProtocolAdoptionIndex.swift`）
+- **主要出现在**：`ObjCProtocolAdoption.impliedProtocolRuntimeNames`（`Sources/Analysis/SwiftObjCInterop/ObjCProtocolAdoptionIndex.swift`）
 - **延伸阅读**：[SwiftDeclaredObjCProtocols.md](Internal/SwiftDeclaredObjCProtocols.md)
 
 ### instantiated type name（实例化类型名）
@@ -289,21 +289,21 @@ opaque 尖括号参数归属的第三条规则：协议无任何 anchor 命中�
 
 一个 Swift 成员覆写了从 ObjC 继承来的成员——NSView 的 `layout()`、NSObject 的 `description`——这件事在 Swift 元数据里没有记录：编译器给这种覆写发的是一条**新的**普通 vtable 项而不是 override 表项（`NeedsNewVTableEntryRequest` 对「被覆写者来自 clang」答「需要新项」），`@objc @implementation` 类更是没有 vtable。本仓库从 ObjC 侧判：类自己的 ObjC 方法表里某条方法的 selector 在祖先链（NSView → NSResponder → NSObject，跨镜像）上有人实现，它就是覆写；再把那条方法联结到 Swift 成员——IMP 处的 `To` 符号、或反汇编 IMP 找它引用的成员实现、或（默认关）只按 selector 名字唯一匹配。三档证据记在 `ObjCMember.evidence` 里，dump 打出来，interface 只打 `override`。自提案 `objc-member-selector-recovery` 起它是「ObjC member table」的一个投影（`overriddenAncestorClassName` 非空的成员）。
 
-- **主要出现在**：`SwiftInspection/ObjCMember.swift`、`SwiftThunkAnalysis/ObjCMembers/`
+- **主要出现在**：`SwiftObjCInterop/ObjCMember.swift`、`SwiftThunkAnalysis/ObjCMembers/`
 - **延伸阅读**：[提案 0047-objc-ancestor-override-recovery](Evolutions/0047-objc-ancestor-override-recovery.md)、[ObjCMemberRecovery.md](Internal/ObjCMemberRecovery.md)
 
 ### ObjC member table（ObjC 成员表）
 
 一个类的 ObjC 方法表——实例方法表、元类方法表、本镜像 `__objc_catlist` 里指向它的 category——的每一条联结到实现它的 Swift 成员之后得到的 per-class 表（`ObjCMemberTable`，按 Swift 符号名索引 `ObjCMember`）。方法表就是类的 `@objc` 成员清单，运行时靠它派发、strip 不会碰，所以它是三个 Swift 元数据不记的事实的来源：成员是 `@objc`（OS 框架 strip 掉 `To` thunk 符号后这是唯一证据）、它覆写了哪个祖先的成员（selector 在祖先链上有人实现）、它的 selector 是不是源码里 `@objc(name)` 写出来的（与编译器从 Swift 名正向推出的默认值不同，且不是从被覆写者或协议要求继承的——祖先链或协议没读完就不下这个判定）。联结证据分三档：IMP 处的 `To` 符号；反汇编无名 thunk 收它引用的成员实现，配「所属类」与「importer 拼法」两道守卫；只按名字（只对覆写）。三档**都在索引期跑完**并记进 `ObjCMember.evidence`，用不用是消费者的事：dump 每条都标证据，第三档写成 `(selector name, no symbol evidence)` 照常渲染；interface 只有 `override` 一个关键字、没处说明证据来源，默认不打，`--infer-objc-overrides` 才打。`@objc @implementation` 体不是例外：编译器同样从 Swift 名推导 selector 并要求头文件里有它，`draw(in:)` 要对上 `drawInRect:` 就得写 `@objc(drawInRect:)`。
 
-- **主要出现在**：`SwiftInspection/ObjCMember.swift`、`SwiftInspection/ObjCMemberShape.swift`、`SwiftThunkAnalysis/ObjCMembers/`、`SwiftDeclaration/Indexing/Building/ObjCMemberMatcher.swift`、`SwiftDeclaration/Model/Members/ResolvedObjCMemberFacts.swift`
+- **主要出现在**：`SwiftObjCInterop/ObjCMember.swift`、`SwiftObjCInterop/ObjCMemberShape.swift`、`SwiftThunkAnalysis/ObjCMembers/`、`SwiftDeclaration/Indexing/Building/ObjCMemberMatcher.swift`、`SwiftDeclaration/Model/Members/ResolvedObjCMemberFacts.swift`
 - **延伸阅读**：[提案 0048-objc-member-selector-recovery](Evolutions/0048-objc-member-selector-recovery.md)、[ObjCMemberRecovery.md](Internal/ObjCMemberRecovery.md)
 
 ### ObjC ancestor resolver（ObjC 祖先解析器）
 
 独立 Mach-O 文件的父类指针是 bind，ObjC 读取器跟不过去；祖先解析器（`ObjCAncestorResolver`）拿 bind 符号里的类名（`_OBJC_CLASS_$_UIView` 去前缀，Swift 父类是 `_TtC…` 运行时名）在文件的传递依赖闭包里找定义它的镜像——先问每个镜像的 export trie（bind 只能落到导出符号），有才建那个镜像的名字表，第一个命中即返回——祖先链从那个镜像继续走。祖先链的每一跳还把根镜像与闭包里每个独立文件对该祖先的 category 折进它的 selector 集合（cache 里的类由 dyld 预挂，文件世界里离线看不到）。按镜像登记在 `ObjCAncestorResolverStore`：indexer 与 `dump` 用各自的搜索路径注册，无人注册的文件默认走系统 cache，进程内镜像没有解析器。hierarchy 的 memo 键带解析器身份，宿主 provider 交出的断链也用它续。配套的平台守卫在 MachODependencies：cache 里另一个平台的同名镜像（macOS cache 的 Catalyst UIKit）永远不是候选。
 
-- **主要出现在**：`SwiftInspection/ObjCAncestorResolver.swift`、`SwiftInspection/ObjCClassMethodIndex.swift`、`MachODependencies/DependencyPlatforms.swift`
+- **主要出现在**：`SwiftObjCInterop/ObjCAncestorResolver.swift`、`SwiftObjCInterop/ObjCClassMethodIndex.swift`、`MachODependencies/DependencyPlatforms.swift`
 - **延伸阅读**：[提案 0049-objc-ancestor-dependency-closure](Evolutions/0049-objc-ancestor-dependency-closure.md)、[ObjCMemberRecovery.md](Internal/ObjCMemberRecovery.md)
 
 ### offline specialization（离线特化）
@@ -345,7 +345,7 @@ opaque 尖括号参数归属的第三条规则：协议无任何 anchor 命中�
 
 源码给 ObjC 运行时另起了名字的 Swift 类：类对象的 `class_ro_t` 名是源码写的名字（`NSScrollPocket`），而不是 `_TtC6AppKit14NSScrollPocket` 这样的 mangling。二进制里只剩类元数据 flag 字里的 `HasCustomObjCName` 与名字本身，`SwiftClassObjectIndex` 顺着类元数据自带的描述符指针把它们配到 Swift 类上（父类在另一个 resilience domain、不进 classlist 的类读 metadata pattern）。本仓库凡是「demangle 运行时名找 Swift 类」的地方都要为它回退，否则一律配不上——成员恢复与布局引擎以前就是这样漏掉它们的。interface 与 dump 打印 `@objc(Name)`，原生 Swift 对象模型的类打印 `@_objcRuntimeName(Name)`。
 
-- **主要出现在**：`SwiftInspection/SwiftClassObjectIndex.swift`、`SwiftInspection/CustomObjCClassName.swift`
+- **主要出现在**：`SwiftObjCInterop/SwiftClassObjectIndex.swift`、`SwiftObjCInterop/CustomObjCClassName.swift`
 - **延伸阅读**：[提案 0052-objc-custom-class-name](Evolutions/0052-objc-custom-class-name.md)、[CustomObjCClassNames.md](Internal/CustomObjCClassNames.md)
 
 ### row / `SymbolRow`（行）
@@ -385,7 +385,7 @@ TypeIndexing 的外部知识入口：标准 `.apinotes` 格式的**用户自备*
 
 Swift 源码里声明的 `@objc protocol`。它没有 protocol descriptor（不在 `__swift5_protos` 里），要求也没有任何 Swift 符号；镜像里只有一条 kind 为 `ObjCProtocol` 的 field descriptor 与一条 ObjC 协议记录（`protocol_t`）。本库据 field descriptor 认定本镜像声明了它，要求从记录读出：有本镜像的类实现时照抄那个成员（**取自实现者**），没有时按 ClangImporter 的规则从 selector 推出 Swift 名并用 `@objc(selector)` 钉住（**按 selector 命名**）。与 `@objc @implementation` 类无关：那是 ObjC 声明、Swift 实现的类。
 
-- **主要出现在**：`Sources/Analysis/SwiftInspection/SwiftDeclaredObjCProtocolIndex.swift`、`Sources/Declaration/SwiftDeclaration/Model/Definitions/ObjCProtocolDefinition.swift`
+- **主要出现在**：`Sources/Analysis/SwiftObjCInterop/SwiftDeclaredObjCProtocolIndex.swift`、`Sources/Declaration/SwiftDeclaration/Model/Definitions/ObjCProtocolDefinition.swift`
 - **延伸阅读**：[SwiftDeclaredObjCProtocols.md](Internal/SwiftDeclaredObjCProtocols.md)、[0079-swift-declared-objc-protocols](Evolutions/0079-swift-declared-objc-protocols.md)
 
 ### symbolic-mangling symbol（`_symbolic` 符号）与被引用者（referent）

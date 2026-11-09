@@ -4,6 +4,7 @@ import MachOSwiftSection
 import MachOFoundation
 import Utilities
 import SwiftInspection
+import SwiftObjCInterop
 
 @MemberwiseInit(.public)
 public struct FunctionDefinition: Sendable {

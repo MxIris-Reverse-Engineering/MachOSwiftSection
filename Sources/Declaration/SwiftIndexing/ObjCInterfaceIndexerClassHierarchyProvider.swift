@@ -4,6 +4,7 @@ import ObjCDump
 import ObjCIndexing
 import ObjCMetadataSource
 import SwiftInspection
+import SwiftObjCInterop
 
 extension ObjCClassHierarchy {
     /// Builds the hierarchy from the shape the ObjC indexers keep per class:

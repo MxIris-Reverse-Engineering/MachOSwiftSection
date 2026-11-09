@@ -6,6 +6,7 @@ import MachOFoundation
 @testable import MachOSwiftSection
 @testable import MachOTestingSupport
 @_spi(Internals) @testable import SwiftInspection
+@_spi(Internals) @testable import SwiftObjCInterop
 
 /// `ObjCProtocolRequirementBuilder` (evolution proposal
 /// `swift-declared-objc-protocols`): the requirements of an `@objc` protocol

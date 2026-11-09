@@ -6,6 +6,7 @@ import Semantic
 import Utilities
 @_spi(Internals) import Demangling
 @_spi(Internals) import SwiftInspection
+import SwiftObjCInterop
 import SwiftDeclarationRendering
 
 /// The Objective-C protocols one of the image's categories lists, as a

@@ -7,6 +7,7 @@ import OrderedCollections
 @_spi(Internals) import Demangling
 import SwiftThunkAnalysis
 import SwiftInspection
+import SwiftObjCInterop
 import SwiftStdlibToolbox
 import MachOKit
 import MachOFoundation
@@ -1168,7 +1169,7 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
         currentStorage.typeAliasExtensionDefinitions = typeAliasExtensionDefinitions
 
         // Surfaced here rather than logged where they happened: the index is
-        // built in SwiftInspection, below the event layer.
+        // built in SwiftObjCInterop, below the event layer.
         for skippedClass in ObjCImplementationClasses.skipped(in: machO) {
             eventDispatcher.dispatch(.objcImplementationClassSkipped(className: skippedClass.className, reason: skippedClass.reason))
         }

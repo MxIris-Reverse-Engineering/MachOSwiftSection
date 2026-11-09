@@ -6,6 +6,7 @@ import SwiftStdlibToolbox
 import SwiftThunkAnalysis
 @_spi(Internals) import MachOSymbols
 @_spi(Internals) import SwiftInspection
+import SwiftObjCInterop
 
 extension TypeDefinition: OnceIndexedDefinition {
     /// Fills the definition from the image: fields, members, the facts that

@@ -3,6 +3,7 @@ import MachOSwiftSection
 @_spi(Internals) import Demangling
 @_spi(Internals) import MachOSymbols
 @_spi(Internals) import SwiftInspection
+import SwiftObjCInterop
 
 extension TypeDefinition {
     /// Reads the Objective-C protocols the class adopts in its own data

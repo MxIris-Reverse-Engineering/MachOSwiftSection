@@ -1,5 +1,6 @@
 import MachOSwiftSection
 @_spi(Internals) import SwiftInspection
+import SwiftObjCInterop
 import Demangling
 
 /// Resolves a Swift type (given by its mangled name or demangled `Node`) to its

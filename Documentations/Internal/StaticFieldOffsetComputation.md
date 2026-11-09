@@ -122,7 +122,7 @@ resilient 的本质是「编译当前二进制时不知道字段布局，但运�
 
 ## 5. ObjC 祖先 class
 
-本项目**已依赖 MachOObjCSection**（`Package.swift:122`，`useCustomObjCSection=true`），已用于 `SwiftInspection/ClassHierarchyDumper.swift`、`TypeIndexing/ObjCInterfaceIndexer.swift`。它提供 `ObjCIvarListProtocol`（ivar list）、`ClassROData`（class_ro_t），能静态读 ObjC class 的 **instanceStart / instanceSize / ivars**。
+本项目**已依赖 MachOObjCSection**（`Package.swift:122`，`useCustomObjCSection=true`），已用于 `SwiftObjCInterop/ClassHierarchyDumper.swift`、`TypeIndexing/ObjCInterfaceIndexer.swift`。它提供 `ObjCIvarListProtocol`（ivar list）、`ClassROData`（class_ro_t），能静态读 ObjC class 的 **instanceStart / instanceSize / ivars**。
 
 对应运行时算法：`initClassFieldOffsetVector`（`Metadata.cpp:3771-3776`）对 ObjC 父类**从 `rodata->InstanceStart` 起算、对齐 `0xF`**。解法：
 
@@ -241,4 +241,4 @@ fixed-layout 非泛型（单镜像）         直接读 vector，几乎零成本
 | dyld cache 取镜像 / 符号索引 | 上游包 `MachOKitExtensions` 的 `DyldCache+.swift`（`machOFile(by:)`）、`Sources/MachO/MachOSymbols/SymbolIndexStore.swift` |
 | InProcess-only runtime 桥 | `Sources/ABI/MachOSwiftSection/Runtime/RuntimeFunctions.swift` |
 | 泛型 specialization（runtime 编排，可作 ground truth/fallback） | `Sources/Declaration/SwiftSpecialization/GenericSpecializer.swift`、`ConformanceProvider.swift`（已静态、可复用） |
-| ObjC ivar / class_ro_t | MachOObjCSection `ObjCIvarListProtocol`、`ClassROData`；本项目用例 `Sources/Analysis/SwiftInspection/ClassHierarchyDumper.swift`、`Sources/Declaration/TypeIndexing/ObjCInterfaceIndexer.swift` |
+| ObjC ivar / class_ro_t | MachOObjCSection `ObjCIvarListProtocol`、`ClassROData`；本项目用例 `Sources/Analysis/SwiftObjCInterop/ClassHierarchyDumper.swift`、`Sources/Declaration/TypeIndexing/ObjCInterfaceIndexer.swift` |

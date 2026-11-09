@@ -5,6 +5,7 @@ import MachOKitExtensions
 @_spi(Internals) import Demangling
 @_spi(Internals) import MachOSymbols
 @_spi(Internals) import SwiftInspection
+import SwiftObjCInterop
 
 /// The public face of the ObjC member recovery (evolution proposals
 /// `objc-ancestor-override-recovery` and `objc-member-selector-recovery`):
@@ -25,8 +26,8 @@ import MachOKitExtensions
 /// that it rests on a name rather than a symbol.
 ///
 /// Lives in `SwiftThunkAnalysis` rather than next to the hierarchy in
-/// `SwiftInspection` because the second tier decodes the thunk, and the
-/// decoder sits here, above `SwiftInspection`.
+/// `SwiftObjCInterop` because the second tier decodes the thunk, and the
+/// decoder sits here, above `SwiftObjCInterop`.
 @Loggable(.private, subsystem: "com.machoswiftsection.swift-thunk-analysis", category: "ObjCMembers")
 public enum ObjCMembers {
     /// The table for the class the image defines under ObjC runtime name

@@ -48,9 +48,10 @@ SwiftDeclaration                    the shared declaration model all of the abov
 └─ SwiftDeclarationRendering        comment engine shared by dump and interface
    ├─ SwiftLayout                   static field offsets and layouts
    └─ SwiftThunkAnalysis            accessor-thunk evaluation, ObjC member tables
-SwiftInspection                     runtime-metadata analysis, symbol attribution
-└─ MachOSwiftSection                ABI model: the `__swift5_*` sections and their descriptors
-   └─ MachOBase                     reading / resolving / pointers
+SwiftObjCInterop                    the Objective-C side of Swift types (MachOObjCSection enters here)
+└─ SwiftInspection                  runtime-metadata analysis, symbol attribution
+   └─ MachOSwiftSection             ABI model: the `__swift5_*` sections and their descriptors
+      └─ MachOBase                  reading / resolving / pointers
 MachOFoundation = MachOBase + MachOSymbols + MachODependencies
 ```
 

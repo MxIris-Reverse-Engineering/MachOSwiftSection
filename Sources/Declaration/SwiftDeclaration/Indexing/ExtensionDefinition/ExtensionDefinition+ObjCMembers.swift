@@ -1,4 +1,5 @@
 import SwiftInspection
+import SwiftObjCInterop
 
 extension ExtensionDefinition {
     /// The extension-side twin of `TypeDefinition.applyObjCMembers` (evolution

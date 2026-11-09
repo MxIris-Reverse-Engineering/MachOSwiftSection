@@ -518,7 +518,6 @@ extension Target {
         name: "SwiftInspection",
         dependencies: [
             .product(.MachOKit),
-            .product(.MachOObjCSection),
             .product(.Semantic),
             .product(.Demangling),
             .product(name: "FoundationToolbox", package: "FrameworkToolbox"),
@@ -530,6 +529,29 @@ extension Target {
             .target(.SwiftOutputTransformer),
         ],
         path: "Sources/Analysis/SwiftInspection",
+    )
+
+    /// The Objective-C side of Swift types: the class objects of Swift
+    /// classes, `@objc @implementation` classes, `@objc` protocols declared
+    /// in Swift, ObjC method tables and ancestor chains, and the
+    /// ClangImporter's naming rules (evolution proposal
+    /// `swift-objc-interop-module`). Sits directly above `SwiftInspection`,
+    /// whose demangler it uses; this is where `MachOObjCSection` enters the
+    /// Swift-facing stack.
+    static let SwiftObjCInterop = Target.target(
+        name: "SwiftObjCInterop",
+        dependencies: [
+            .product(.MachOKit),
+            .product(.MachOObjCSection),
+            .product(.Demangling),
+            .product(name: "FoundationToolbox", package: "FrameworkToolbox"),
+            .target(.Utilities),
+            .target(.MachOCaches),
+            .target(.MachOFoundation),
+            .target(.MachOSwiftSection),
+            .target(.SwiftInspection),
+        ],
+        path: "Sources/Analysis/SwiftObjCInterop",
     )
 
     /// Static aggregate-layout engine: computes Swift struct/class field
@@ -550,6 +572,7 @@ extension Target {
             .target(.MachOFoundation),
             .target(.MachOSwiftSection),
             .target(.SwiftInspection),
+            .target(.SwiftObjCInterop),
         ],
         path: "Sources/Analysis/SwiftLayout",
     )
@@ -575,6 +598,7 @@ extension Target {
             .target(.MachOSwiftSection),
             .target(.SwiftOutputTransformer),
             .target(.SwiftInspection),
+            .target(.SwiftObjCInterop),
             .target(.SwiftLayout),
             .target(.SwiftThunkAnalysis),
         ],
@@ -606,6 +630,7 @@ extension Target {
             .target(.MachOFoundation),
             .target(.MachOSwiftSection),
             .target(.SwiftInspection),
+            .target(.SwiftObjCInterop),
         ],
         path: "Sources/Analysis/SwiftThunkAnalysis",
     )
@@ -639,6 +664,7 @@ extension Target {
             .target(.MachOFoundation),
             .target(.MachOSwiftSection),
             .target(.SwiftInspection),
+            .target(.SwiftObjCInterop),
             .target(.SwiftDeclarationRendering),
             .target(.SwiftThunkAnalysis),
         ],
@@ -666,6 +692,7 @@ extension Target {
             .target(.MachOFoundation),
             .target(.MachOSwiftSection),
             .target(.SwiftInspection),
+            .target(.SwiftObjCInterop),
             .target(.SwiftDeclarationRendering),
             .target(.SwiftThunkAnalysis),
         ],
@@ -691,6 +718,7 @@ extension Target {
             .target(.MachOFoundation),
             .target(.MachOSwiftSection),
             .target(.SwiftInspection),
+            .target(.SwiftObjCInterop),
             .target(.SwiftThunkAnalysis),
             .target(.SwiftDeclaration),
             .target(.SwiftDeclarationRendering),
@@ -767,6 +795,7 @@ extension Target {
             .target(.MachOSwiftSection),
             .target(.SwiftOutputTransformer),
             .target(.SwiftInspection),
+            .target(.SwiftObjCInterop),
             .target(.SwiftDeclarationRendering),
             .target(.SwiftDeclaration),
             .target(.SwiftAttributeInference),
@@ -858,6 +887,7 @@ extension Target {
             .target(.MachOSwiftSection),
             .target(.SwiftDump),
             .target(.SwiftInspection),
+            .target(.SwiftObjCInterop),
             .target(.SwiftOutputTransformer),
             .target(.SwiftDeclaration),
             .target(.SwiftDeclarationRendering),
@@ -1098,6 +1128,21 @@ extension Target {
             .target(.MachOFixtureSupport),
             .target(.SwiftOutputTransformer),
             .target(.SwiftInspection),
+            // The suites that read ObjC classes through
+            // `ObjCImplementationClassReading` or evict an ObjC-side index.
+            .target(.SwiftObjCInterop),
+        ],
+        swiftSettings: testSettings,
+    )
+
+    static let SwiftObjCInteropTests = Target.testTarget(
+        name: "SwiftObjCInteropTests",
+        dependencies: [
+            .target(.MachOSwiftSection),
+            .target(.MachOTestingSupport),
+            .target(.MachOFixtureSupport),
+            .target(.SwiftInspection),
+            .target(.SwiftObjCInterop),
         ],
         swiftSettings: testSettings,
     )
@@ -1121,6 +1166,7 @@ extension Target {
         dependencies: [
             .target(.SwiftThunkAnalysis),
             .target(.SwiftDump),
+            .target(.SwiftObjCInterop),
             .target(.MachOTestingSupport),
             .target(.MachOFixtureSupport),
             .product(.MachOObjCSection),
@@ -1148,6 +1194,7 @@ extension Target {
             .target(.SwiftIndexing),
             .product(name: "ObjCIndexing", package: "MachOObjCSection"),
             .product(name: "ObjCMetadataSource", package: "MachOObjCSection"),
+            .target(.SwiftObjCInterop),
             .target(.SwiftThunkAnalysis),
             .target(.SwiftPrinting),
             .target(.SwiftSpecialization),
@@ -1183,6 +1230,7 @@ extension Target {
         dependencies: [
             .target(.MachOSwiftSection),
             .target(.SwiftInspection),
+            .target(.SwiftObjCInterop),
             .target(.SwiftLayout),
             .target(.SwiftDeclarationRendering),
             .target(.SwiftThunkAnalysis),
@@ -1306,6 +1354,7 @@ extension Target {
             .target(.SwiftPrinting),
             .target(.SwiftAttributeInference),
             .target(.SwiftInspection),
+            .target(.SwiftObjCInterop),
             .target(.MachOTestingSupport),
             .target(.MachOFixtureSupport),
             .target(.MachOFoundation),
@@ -1354,6 +1403,7 @@ extension Target {
             .target(.MachOFoundation),
             .target(.MachOSwiftSection),
             .target(.SwiftInspection),
+            .target(.SwiftObjCInterop),
             .target(.SwiftDump),
             .target(.SwiftDeclaration),
             .target(.SwiftIndexing),
@@ -1393,6 +1443,7 @@ let package = Package(
         .library(.MachODependencies),
         .library(.SwiftOutputTransformer),
         .library(.SwiftInspection),
+        .library(.SwiftObjCInterop),
         .library(.SwiftLayout),
         .library(.SwiftDeclarationRendering),
         .library(.SwiftThunkAnalysis),
@@ -1427,6 +1478,7 @@ let package = Package(
         .MachOSwiftSectionC,
         .MachOSwiftSection,
         .SwiftInspection,
+        .SwiftObjCInterop,
         .SwiftLayout,
         .SwiftDeclarationRendering,
         .SwiftThunkAnalysis,
@@ -1461,6 +1513,7 @@ let package = Package(
         .MachOCachesTests,
         .MachODependenciesTests,
         .SwiftInspectionTests,
+        .SwiftObjCInteropTests,
         .SwiftOutputTransformerTests,
         .SwiftLayoutTests,
         .SwiftDumpTests,

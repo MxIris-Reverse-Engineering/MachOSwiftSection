@@ -8,6 +8,7 @@ import MachOSwiftSection
 @_spi(Core) import MachOObjCSection
 @_spi(Internals) import MachOCaches
 @_spi(Internals) import MachOSymbols
+@_spi(Internals) import SwiftInspection
 
 /// A Swift class the image keeps no class object for (evolution proposal
 /// `objc-classes-without-class-objects`): `__objc_classlist` does not list

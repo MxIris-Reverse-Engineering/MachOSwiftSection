@@ -8,6 +8,7 @@ import SwiftDeclarationRendering
 import SwiftInterface
 import SwiftThunkAnalysis
 @_spi(Internals) import SwiftInspection
+@_spi(Internals) import SwiftObjCInterop
 @testable import MachOTestingSupport
 
 /// Classes a source renamed for the Objective-C runtime on the interface

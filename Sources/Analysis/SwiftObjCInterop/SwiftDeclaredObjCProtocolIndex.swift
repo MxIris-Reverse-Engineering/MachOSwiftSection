@@ -5,6 +5,7 @@ import MachOKitExtensions
 import MachOSwiftSection
 @_spi(Internals) import Demangling
 @_spi(Internals) import MachOCaches
+import SwiftInspection
 
 /// An `@objc` protocol declared in Swift that this image defines (evolution
 /// proposal `swift-declared-objc-protocols`). The compiler gives such a

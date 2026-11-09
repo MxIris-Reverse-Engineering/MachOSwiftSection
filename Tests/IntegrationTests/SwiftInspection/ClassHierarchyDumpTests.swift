@@ -10,6 +10,7 @@ import Dependencies
 @testable import MachOTestingSupport
 import MachOFixtureSupport
 @testable @_spi(Internals) import SwiftInspection
+@testable @_spi(Internals) import SwiftObjCInterop
 
 #if os(macOS)
 import AppKit

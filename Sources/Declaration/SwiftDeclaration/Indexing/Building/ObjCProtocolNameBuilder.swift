@@ -3,6 +3,7 @@ import MachOSwiftSection
 @_spi(Internals) import Demangling
 @_spi(Internals) import MachOSymbols
 @_spi(Internals) import SwiftInspection
+import SwiftObjCInterop
 
 /// Protocol runtime names as the declaration model's names.
 package enum ObjCProtocolNameBuilder {

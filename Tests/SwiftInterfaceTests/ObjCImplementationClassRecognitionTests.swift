@@ -5,6 +5,7 @@ import MachOFoundation
 import SwiftDeclaration
 import SwiftInterface
 import SwiftInspection
+import SwiftObjCInterop
 import Semantic
 @_spi(Internals) import MachOSymbols
 @testable import MachOTestingSupport

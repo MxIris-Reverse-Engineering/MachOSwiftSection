@@ -35,7 +35,7 @@ Swift 源码声明的 `@objc` 协议没有 protocol descriptor，类对任何 Ob
 
 ### 只有 selector
 
-`ObjCProtocolRequirementBuilder`（SwiftInspection）按记录顺序构造声明的 node，形状与 demangle 成员符号得到的一样（`Global > Function`、`Global > Static > Getter > Variable`、`Global > Allocator`、`Global > Getter > Subscript`），打印器照打成员的方式打它：
+`ObjCProtocolRequirementBuilder`（SwiftObjCInterop）按记录顺序构造声明的 node，形状与 demangle 成员符号得到的一样（`Global > Function`、`Global > Static > Getter > Variable`、`Global > Allocator`、`Global > Getter > Subscript`），打印器照打成员的方式打它：
 
 - **名字**：`ObjCImporterNaming` 移植 importer 的 `omitNeedlessWords`（`lib/Basic/StringExtras.cpp`）与 `ImportName.cpp` 的相关部分：在第一段的最后一个介词处拆出基名与第一个标签、按参数与返回值的类型名删词、初始化器去掉 `With`、`…error:` 与 `…AndReturnError:` 还原成 `throws`、subscript 访问器。再加本库自己的一步：第一个标签以 `with` 开头、后面还有词时去掉 `with`，这是 Swift 插入 `With` 那条规则的逆运算。completion handler 保持 closure，不改写成 `async`。
 - **类型**：`ObjCTypeEncodingParser` 读扩展类型编码，照 importer 的桥接写成 Swift 类型（`NSString` → `String`、`NSArray` → `[Any]`、`id` → `Any`、`id<P>` → 协议存在类型、block → closure），可空性未知写 `!`（`Swift.ImplicitlyUnwrappedOptional<T>`，interface 的打印器写成 `T!` 与 `init!`）。MachOObjCSection 的 `extendedMethodTypes(in:)` 只返回表里第一条，本库按下标读整张表。
@@ -80,7 +80,7 @@ Swift 源码声明的 `@objc` 协议没有 protocol descriptor，类对任何 Ob
 ## 验证
 
 - `SwiftDeclaredObjCProtocolsFixture`（MachOTestingSupport）测试时现编两个镜像。kit 声明三个 `@objc` 协议（没改名、改成自身名字、改成别的名字）；客户端声明六种形状的协议（编译器推导 selector、改成自身名字、改成别的名字、继承另一个、internal、嵌套在类型里）、在类声明与同模块 extension 里采纳它们的类、采纳 kit 协议的类、遵循继承 `NSCopying` 的 Swift 协议的类、extension `DateFormatter` 采纳协议（category），以及装着改名协议与嵌套协议存在类型的结构体；`.full`、关掉反射元数据、`strip -x` 三个变体。
-- `SwiftDeclaredObjCProtocolIndexTests`、`ObjCImporterNamingTests`、`ObjCProtocolRequirementBuilderTests`（SwiftInspectionTests）：配对、退回路径、没认领的记录；命名规则对照真实 ClangImporter 的输出（含 DVTFoundation 的 selector）；要求的种类、访问器、类成员与 optional。
+- `SwiftDeclaredObjCProtocolIndexTests`、`ObjCImporterNamingTests`、`ObjCProtocolRequirementBuilderTests`（SwiftObjCInteropTests）：配对、退回路径、没认领的记录；命名规则对照真实 ClangImporter 的输出（含 DVTFoundation 的 selector）；要求的种类、访问器、类成员与 optional。
 - `ObjCProtocolDefinitionIndexingTests`（SwiftIndexingTests）：文件、进程内、strip 后的文件三条路径的模型——要求的来源（selector 或实现者）、strip 后经 thunk 代码联结、继承的协议、默认实现、类与 category 的协议、跨镜像找回的改名协议、隐含协议的剔除。
 - `SwiftDeclaredObjCProtocolInterfaceTests`（SwiftInterfaceTests）、`SwiftDeclaredObjCProtocolDumpTests`（SwiftDumpTests）、`SwiftDeclaredObjCProtocolRequestTests`（SwiftSectionKitTests）：两种输出、两种 dump 排序、进程内与文件的 interface 一致。
 - `SwiftDeclaredObjCProtocolExistentialLayoutTests`（SwiftLayoutTests）：存在类型的静态布局对照运行时的字段偏移，进程内与文件两条路径。

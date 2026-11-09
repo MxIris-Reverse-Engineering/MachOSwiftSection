@@ -5,6 +5,7 @@ import MachOSwiftSection
 import SwiftDump
 import Demangling
 import SwiftInspection
+import SwiftObjCInterop
 import OutputTransformer
 import SwiftOutputTransformer
 import SwiftDeclarationRendering

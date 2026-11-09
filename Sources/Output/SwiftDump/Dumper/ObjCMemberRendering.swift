@@ -1,6 +1,7 @@
 import MachOSwiftSection
 @_spi(Internals) import MachOSymbols
 @_spi(Internals) import SwiftInspection
+import SwiftObjCInterop
 
 /// Comment text the dumpers share for the ObjC member facts (evolution
 /// proposals `objc-ancestor-override-recovery` and
