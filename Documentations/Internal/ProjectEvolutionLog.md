@@ -3131,6 +3131,8 @@
   - 文档：新写模块参考 [Modules/SwiftObjCInterop.md](Modules/SwiftObjCInterop.md)；`AGENTS.md` 的层级图与两条模块说明；术语表、七份实现说明、五份模块参考与模块参考的索引、`ProjectMap.md` 的分层表、两份 README 索引、公开的 `README.md` 改成新模块。
 - **验证**：都在 JHs-Mac-Studio-Ultra 上跑。
   - 全量 `swift test --skip IntegrationTests`（Xcode 26.6，fixture 用 Xcode 26.6 编的 `SymbolTestsFixture-Xcode26.6`）：2804 个测试、534 个套件全部通过，原始退出码 0。
+  - 渲染 A/B（基线为分支切出时的 `next` a7b151d3，两侧同一份 `Package.resolved`、同一套 Xcode 26.6 的 release 预构建）：96 对逐字节一致——归档 cache 15.5 与 26.6、iOS 15.5 / 16.4 / 17.5 / 18.5 / 26.5 模拟器文件、进程内 `MachOImage` 三条读取路径。跳过的只有旧 runtime 里本来没有的框架。
+  - RuntimeViewerCore：在沙盒里把 MachOSwiftSection 换成本分支的副本，其余依赖走远端的 `next`（`swift-helper-service`、`swift-injection-peer` 照 RuntimeViewer 平时的做法走本地），`swift build` 通过。
 - **对应版本**：未发版，随 0.25.0 发布。发版说明要写迁移：`ObjCImplementationClasses`、`ObjCImplementationClassFacts`、`ObjCMember`、`ObjCMemberTable`、`ObjCMemberShape`、`ObjCClassHierarchy`、`ObjCClassHierarchyProviding`、`ObjCClassHierarchyProviderStore`、`ObjCClassHierarchies`、`ObjCAncestorResolver`、`ObjCAncestorResolverStore`、`CustomObjCClassName` 与 SPI 的 `ClassHierarchyDumper` 从 `SwiftInspection` 移到新模块 `SwiftObjCInterop`，名字与形状不变；直接用到它们的下游加 `import SwiftObjCInterop`（`ClassHierarchyDumper` 要 `@_spi(Internals)`）和 `SwiftObjCInterop` product。
 
 ## 维护约定

@@ -256,9 +256,9 @@ let classNames = ObjCImplementationClasses.all(in: machO).map(\.className)
 3. `git mv` 19 个文件，拆开两个共用文件，34 个源文件加 import；编译整个库，原始退出码为 0。（已完成，`d5a9f332`）
 4. 测试：5 个套件搬进 `Tests/SwiftObjCInteropTests/`，其余 13 个测试文件加 import，6 个测试 target 加依赖；编译全部测试 target。（已完成，`d5a9f332`）
 5. 在 Ultra 上跑 `swift test --skip IntegrationTests`，以原始退出码为准。（已完成：2804 个测试全部通过，原始退出码 0）
-6. 在 Ultra 上跑渲染 A/B（`Scripts/run-rendering-ab-verification.py`，基线是合入前的 `next`）：三条读取路径的 dump 与 interface 逐字节一致。
-7. 文档：按「文档与示例」一节改；提案状态与决策日志同批更新。
-8. RuntimeViewer 照跨仓库的流程单独建 worktree 与分支 `feature/swift-objc-interop-module`，改两个文件与清单。验证在 Ultra 的沙盒里做：把 RuntimeViewerCore 与本分支各导出一份放在一起，只有 MachOSwiftSection 走本地、其余依赖照常解析远端的 `next`，编译 RuntimeViewerCore。通过后两边各自在本地合进集成 worktree 的 `next`（不推送）；之后推送时本库在前。
+6. 在 Ultra 上跑渲染 A/B（`Scripts/run-rendering-ab-verification.py`，基线是合入前的 `next`）：三条读取路径的 dump 与 interface 逐字节一致。（已完成：96 对全部一致）
+7. 文档：按「文档与示例」一节改；提案状态与决策日志同批更新。（已完成，`f7d77dd6`）
+8. RuntimeViewer 照跨仓库的流程单独建 worktree 与分支 `feature/swift-objc-interop-module`，改两个文件与清单。验证在 Ultra 的沙盒里做：把 RuntimeViewerCore 与本分支各导出一份放在一起，只有 MachOSwiftSection 走本地、其余依赖照常解析远端的 `next`，编译 RuntimeViewerCore。通过后两边各自在本地合进集成 worktree 的 `next`（不推送）；之后推送时本库在前。（已完成：RuntimeViewer `e7e5a1b1`，沙盒编译通过）
 
 **收尾时必须判断两件事**（判断结果写进决策日志，不允许沉默跳过）：
 
@@ -282,3 +282,5 @@ let classNames = ObjCImplementationClasses.all(in: machO).map(\.className)
 | 2026-11-09 | `AGENTS.md` 的 SwiftInspection 条目只删 ObjC 部分，Swift 一侧原样保留；SwiftObjCInterop 条目保留三条最容易做错的事实 | 原定两条都缩到「一两行加链接」。SwiftInspection 没有模块参考可以承接删掉的细节（`Modules/README.md` 仍记为待写），删了就没有去处；SwiftObjCInterop 那三条（`@objc` 协议没有协议描述符、ObjC 协议遵循没有 conformance record、按名字查 Swift 类查不到时回退 `SwiftClassObjectIndex`）是 agent 默认会做错的，其余细节都进了模块参考 |
 | 2026-11-09 | Changelog 留到发版时写 | 项目惯例是 `release:` 提交里才写 `Changelogs/<版本>.md`；迁移说明先记在 ProjectEvolutionLog 本节的「对应版本」里 |
 | 2026-11-09 | RuntimeViewer 单独建 worktree 与功能分支，验证改在 Ultra 的沙盒里做 | 原定在 RuntimeViewer 的集成 worktree 里改、用本机的本地依赖编译。改成照跨仓库流程各建各的分支；编译放到 Ultra，因为本机只改代码、构建与测试都去 Ultra，而本机的集成 worktree 在推送之前 Ultra 看不到，所以沙盒里只把 MachOSwiftSection 换成本分支的副本，其余依赖走远端的 `next` |
+| 2026-11-09 | 沙盒里 `swift-helper-service` 与 `swift-injection-peer` 也走本地 | 它们的发布版本依赖只有分支版本的包，纯远端解析不出来；RuntimeViewer 平时就从兄弟目录取这两个，沙盒里照样链到 Ultra 上的检出。沙盒第一次解析把 MachOKit 的 `next` 定在 Ultra 上 SwiftPM 缓存里的旧提交（缺 `fileBytes`），`swift package update` 之后取到远端最新的 `next` 才编过——与本次改动无关 |
+| 2026-11-09 | 实现完成，待用户看过后收尾 | 全部在 Ultra 上验证：全量 `swift test --skip IntegrationTests`（Xcode 26.6）2804 个测试、534 个套件全部通过，原始退出码 0；渲染 A/B 96 对逐字节一致（归档 cache 15.5 与 26.6、iOS 15.5 / 16.4 / 17.5 / 18.5 / 26.5 模拟器文件、进程内 `MachOImage`）；RuntimeViewerCore 在沙盒里编译通过。配套文档只有新模块的模块参考，已登记到头部，不另写实现说明或使用指南：搬迁本身没有代码里看不出来的决策，迁移改法记在 ProjectEvolutionLog 本节、发版时写进 Changelog。没有新术语：`SwiftObjCInterop` 是模块名 |
