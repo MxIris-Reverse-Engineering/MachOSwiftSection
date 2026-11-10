@@ -1,7 +1,13 @@
 import Foundation
+import MachOKit
 import ObjCDeclarationRendering
 import ObjCOutputTransformer
 import OutputTransformer
+import Semantic
+import SwiftDeclaration
+import SwiftIndexing
+import SwiftInterface
+import SwiftPrinting
 
 /// `swift-section objc interface`: print the interface of one Objective-C
 /// declaration.
@@ -21,6 +27,12 @@ public struct ObjCInterfaceRequest: Sendable, Equatable {
     public var ivarOffsetComment: Transformer.ObjCIvarOffset?
     public var reportsIndexingProgress: Bool
     public var destination: ProductDestination
+    /// Print the declaration as Swift imports it — names by the
+    /// ClangImporter's rules, members Swift implements as their Swift
+    /// declarations — instead of as an Objective-C header (evolution
+    /// proposal `objc-imported-declarations`). Classes, categories and
+    /// protocols only; the header options do not apply.
+    public var printsSwiftImport: Bool
 
     public init(
         declarationName: String,
@@ -30,7 +42,8 @@ public struct ObjCInterfaceRequest: Sendable, Equatable {
         cTypeReplacements: [ObjCPrimitiveTypePattern: String] = [:],
         ivarOffsetComment: Transformer.ObjCIvarOffset? = nil,
         reportsIndexingProgress: Bool = false,
-        destination: ProductDestination = .output
+        destination: ProductDestination = .output,
+        printsSwiftImport: Bool = false
     ) {
         self.declarationName = declarationName
         self.kind = kind
@@ -40,9 +53,14 @@ public struct ObjCInterfaceRequest: Sendable, Equatable {
         self.ivarOffsetComment = ivarOffsetComment
         self.reportsIndexingProgress = reportsIndexingProgress
         self.destination = destination
+        self.printsSwiftImport = printsSwiftImport
     }
 
     public func run(output: some SwiftSectionOutput) async throws {
+        if printsSwiftImport {
+            try await runPrintingSwiftImport(output: output)
+            return
+        }
         let session = try await ObjCInterfaceSession.make(
             source: source,
             generation: generation,
@@ -57,6 +75,42 @@ public struct ObjCInterfaceRequest: Sendable, Equatable {
         // class, a protocol or a struct.
         for candidateKind in kind.map({ [$0] }) ?? ObjCDeclarationKind.allCases {
             guard let interface = session.interface(of: candidateKind, named: declarationName) else { continue }
+            switch destination {
+            case .file(let path):
+                try interface.string.write(to: URL(fileURLWithPath: path), atomically: true, encoding: .utf8)
+            case .output:
+                output.write(.declarations(interface))
+            }
+            return
+        }
+
+        throw ObjCDeclarationLookupError.declarationNotFound(declarationName)
+    }
+
+    /// The Swift side: the image's declaration index, which pairs a class or
+    /// category Swift implements with its Swift definitions.
+    private func runPrintingSwiftImport(output: some SwiftSectionOutput) async throws {
+        let machOFile = try source.load()
+        let builder = try SwiftInterfaceBuilder(eventHandlers: output.indexEventHandlers(forInputLabeled: nil), in: machOFile)
+        output.reportProgress("Indexing Swift declarations...")
+        try await builder.prepare()
+
+        for candidateKind in kind.map({ [$0] }) ?? ObjCDeclarationKind.allCases {
+            let interface: SemanticString
+            switch candidateKind {
+            case .classes:
+                guard let definition = builder.indexer.objcImportedClassDefinition(named: declarationName) else { continue }
+                interface = try await builder.printer.printObjCImportedClassDefinition(definition)
+            case .protocols:
+                guard let definition = builder.indexer.objcImportedProtocolDefinition(named: declarationName) else { continue }
+                interface = try await builder.printer.printObjCImportedProtocolDefinition(definition)
+            case .categories:
+                guard let definition = builder.indexer.objcImportedCategoryDefinition(uniqueName: declarationName) else { continue }
+                interface = try await builder.printer.printObjCImportedCategoryDefinition(definition)
+            case .structs, .unions:
+                // C aggregates are no Objective-C declarations to import.
+                continue
+            }
             switch destination {
             case .file(let path):
                 try interface.string.write(to: URL(fileURLWithPath: path), atomically: true, encoding: .utf8)
