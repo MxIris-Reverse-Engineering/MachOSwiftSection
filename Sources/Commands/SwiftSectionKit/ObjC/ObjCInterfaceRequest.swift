@@ -6,8 +6,8 @@ import OutputTransformer
 import Semantic
 import SwiftDeclaration
 import SwiftIndexing
-import SwiftInterface
-import SwiftPrinting
+@_spi(Support) import SwiftInterface
+@_spi(Support) import SwiftPrinting
 
 /// `swift-section objc interface`: print the interface of one Objective-C
 /// declaration.
@@ -124,7 +124,7 @@ public struct ObjCInterfaceRequest: Sendable, Equatable {
     }
 }
 
-public enum ObjCDeclarationLookupError: Error, LocalizedError, Sendable, Equatable {
+public enum ObjCDeclarationLookupError: Swift.Error, LocalizedError, Sendable, Equatable {
     case declarationNotFound(String)
 
     public var errorDescription: String? {
