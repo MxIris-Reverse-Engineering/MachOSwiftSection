@@ -46,7 +46,8 @@ Flags added comparatively late, and therefore worth checking: `--emit-header`,
 `evolution --emit-available` / `--platform`, from 0.23.0 `interface --module-selectors`
 / `dump --enable-module-selectors`, from 0.24.0
 `interface --requirements-on-associated-types` and `--emit-private-source-files`, and after
-0.24.0 `objc evolution --interface` / `--emit-available` / `--platform`. When one is
+0.24.0 `objc evolution --interface` / `--emit-available` / `--platform` and
+`objc interface --swift`. When one is
 missing, say so rather than silently producing a weaker answer — the alternative is usually
 "upgrade (`brew upgrade swift-section`), or do without that annotation".
 
