@@ -968,6 +968,18 @@ extension Target {
         swiftSettings: testSettings,
     )
 
+    /// Throwaway measurement for proposal `objc-imported-declarations`, step 1:
+    /// how often `ObjCImporterNaming`, fed only what the Objective-C runtime
+    /// keeps, reproduces the SDK's Swift names. Lives on a probe branch only.
+    static let objc_importer_naming_probe = Target.executableTarget(
+        name: "objc-importer-naming-probe",
+        dependencies: [
+            .target(.SwiftObjCInterop),
+            .product(name: "ArgumentParser", package: "swift-argument-parser"),
+        ],
+        path: "Sources/Executables/objc-importer-naming-probe",
+    )
+
     // MARK: - Plugins
 
     /// `swift package regen-baselines` — regenerates the auto-generated
@@ -1503,6 +1515,7 @@ let package = Package(
         .swift_section,
         .reader_benchmark,
         .baseline_generator,
+        .objc_importer_naming_probe,
 
         // Plugins
         .RegenerateBaselinesPlugin,
