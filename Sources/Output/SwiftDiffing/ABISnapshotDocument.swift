@@ -16,6 +16,12 @@ public struct ABISnapshotDocument: Sendable, Codable, Equatable {
     /// `ABIDiffer.extensionBucketKey(for:)`).
     ///
     /// History:
+    /// - 11: a class initializer of an optimized image whose only code is the
+    ///   function signature specialization of its initializing entry point
+    ///   (`…fcTf…`, what Swift 6.4's whole-module optimization leaves of an
+    ///   internal class's initializer) is recorded, rebuilt from the
+    ///   specialization, which the index used to drop. Key scheme unchanged;
+    ///   an older baseline of such an image would misreport each as added.
     /// - 10: an image's extension containers also carry the members of its
     ///   own module's types that no definition in the image gathers, mangled
     ///   with no extension context (evolution proposal
@@ -74,7 +80,7 @@ public struct ABISnapshotDocument: Sendable, Codable, Equatable {
     ///   (`tag:N|indirect|…`), so a version-1 baseline would silently miss
     ///   that transition.
     /// - 1: initial versioned format.
-    public static let currentFormatVersion = 10
+    public static let currentFormatVersion = 11
 
     public let formatVersion: Int
     public var provenance: ABIProvenance?
