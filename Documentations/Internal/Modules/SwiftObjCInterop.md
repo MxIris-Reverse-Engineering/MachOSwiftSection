@@ -66,7 +66,7 @@ SE-0436 的 `@objc @implementation` 类编出来是纯 ObjC class object，没�
 
 ### 6：ObjC 声明导入成 Swift
 
-镜像里的 ObjC 类、category 与协议按 Swift 导入它们的样子读出来，交给 SwiftDeclaration 的 `ObjCImportedClassDefinition` / `ObjCImportedCategoryDefinition` / `ObjCImportedProtocolDefinition`（提案 [draft-objc-imported-declarations](../../Evolutions/draft-objc-imported-declarations.md)）。
+镜像里的 ObjC 类、category 与协议按 Swift 导入它们的样子读出来，交给 SwiftDeclaration 的 `ObjCImportedClassDefinition` / `ObjCImportedCategoryDefinition` / `ObjCImportedProtocolDefinition`（提案 [0090-objc-imported-declarations](../../Evolutions/0090-objc-imported-declarations.md)）。
 
 - `ObjCImportedContainerIndex`（`SharedCache`，`.objcHierarchy` 分组）：每个类与 category 的记录——方法、属性、协议、父类、Swift 位——只存名字与编码，按运行时名或 `uniqueName` 查。协议记录沿用 `ObjCProtocolRecord`，同名时取 Swift 发出的那份。
 - `ObjCImportedMemberBuilder`：把一条记录建成成员（`ObjCImportedMember`）：属性排在 getter 的位置、getter 与 setter 不单列；不导入的 selector 跳过；参数类型先取类采纳的协议里同一 selector 的扩展编码，参数个数对不上时退回方法表的编码，再对不上就不建这个成员；所有权、是否要 `@objc(selector)` 也在这里定。
@@ -92,6 +92,6 @@ SE-0436 的 `@objc @implementation` 类编出来是纯 ObjC class object，没�
 ## 相关文档
 
 - 拆分：[0089-swift-objc-interop-module](../../Evolutions/0089-swift-objc-interop-module.md)
-- 各子系统的提案：[0046](../../Evolutions/0046-objc-implementation-class-recognition.md)（`@objc @implementation`）、[0047](../../Evolutions/0047-objc-ancestor-override-recovery.md)（祖先链与 `override`）、[0048](../../Evolutions/0048-objc-member-selector-recovery.md)（成员与显式 selector）、[0049](../../Evolutions/0049-objc-ancestor-dependency-closure.md)（祖先链走依赖闭包）、[0052](../../Evolutions/0052-objc-custom-class-name.md)（改过的 ObjC 类名）、[0078](../../Evolutions/0078-objc-classes-without-class-objects.md)（没有 class object 的类）、[0079](../../Evolutions/0079-swift-declared-objc-protocols.md)（Swift 声明的 `@objc` 协议）、[draft-objc-imported-declarations](../../Evolutions/draft-objc-imported-declarations.md)（ObjC 声明导入成 Swift）
+- 各子系统的提案：[0046](../../Evolutions/0046-objc-implementation-class-recognition.md)（`@objc @implementation`）、[0047](../../Evolutions/0047-objc-ancestor-override-recovery.md)（祖先链与 `override`）、[0048](../../Evolutions/0048-objc-member-selector-recovery.md)（成员与显式 selector）、[0049](../../Evolutions/0049-objc-ancestor-dependency-closure.md)（祖先链走依赖闭包）、[0052](../../Evolutions/0052-objc-custom-class-name.md)（改过的 ObjC 类名）、[0078](../../Evolutions/0078-objc-classes-without-class-objects.md)（没有 class object 的类）、[0079](../../Evolutions/0079-swift-declared-objc-protocols.md)（Swift 声明的 `@objc` 协议）、[0090](../../Evolutions/0090-objc-imported-declarations.md)（ObjC 声明导入成 Swift）
 - 实现说明：[ObjCImplementationClassRecognition.md](../ObjCImplementationClassRecognition.md)、[ObjCMemberRecovery.md](../ObjCMemberRecovery.md)、[ThunkOnlyObjCMembers.md](../ThunkOnlyObjCMembers.md)、[CustomObjCClassNames.md](../CustomObjCClassNames.md)、[ClassesWithoutClassObjects.md](../ClassesWithoutClassObjects.md)、[SwiftDeclaredObjCProtocols.md](../SwiftDeclaredObjCProtocols.md)
 - 联结方法表与 Swift 成员的那一半：[SwiftThunkAnalysis.md](SwiftThunkAnalysis.md)

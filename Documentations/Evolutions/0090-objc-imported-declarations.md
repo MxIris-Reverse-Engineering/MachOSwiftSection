@@ -1,10 +1,11 @@
-# Draft - ObjC 类、category 与协议按 ClangImporter 的规则建成 Swift 声明
+# 0090 - ObjC 类、category 与协议按 ClangImporter 的规则建成 Swift 声明
 
-- **状态**: In Progress
+- **状态**: Implemented
 - **创建日期**: 2026-11-10
 - **最后更新**: 2026-11-10
 - **关联提案**: [0079-swift-declared-objc-protocols](0079-swift-declared-objc-protocols.md)（Swift 定义的 `@objc` 协议：本提案把它为协议要求移植的命名规则与类型桥接推广到类、category 与任意协议）、[0048-objc-member-selector-recovery](0048-objc-member-selector-recovery.md)（ObjC 成员表：按 selector 把 ObjC 方法联结到 Swift 成员，本提案靠它把 Swift 实现的成员换成真实声明）、[0046-objc-implementation-class-recognition](0046-objc-implementation-class-recognition.md)（识别 `@objc @implementation` 类）；下游是 RuntimeViewer 的草案 `draft-objc-generated-interface`
-- **实现分支 / PR**: `feature/objc-imported-declarations`（worktree `.worktrees/MachOSwiftSection-ObjCImportedDeclarations`，自 `next` 切出）
+- **实现分支 / PR**: `feature/objc-imported-declarations`（自 `next` 切出，已合入 `next`）
+- **配套文档**: [Modules/SwiftObjCInterop.md](../Internal/Modules/SwiftObjCInterop.md)（第 6 个子系统与两条契约）、[Modules/SwiftDeclaration.md](../Internal/Modules/SwiftDeclaration.md)「ObjC 声明按 Swift 导入的样子」、[ObjCCommandLine.md](../ObjCCommandLine.md)「The Swift view」
 
 ## 摘要
 
@@ -127,6 +128,14 @@ let categoryNames = indexer.objcImportedCategoryUniqueNames
 - 公开 API 不查 SDK：经 SourceKit 读 SDK 头文件能给公开 API 换上精确的名字，但要装 Xcode、只能在 macOS 上用，留作以后的提案。
 - 发版：新增公开 API，随下一个小版本发布；RuntimeViewer 抬 pin 后接入。
 
+## 后续项
+
+- `objc interface --swift` 接上 `--resolve-c-module-names` 的类型名提供者：`NSObject` 协议才会打成 `NSObjectProtocol`，`CF…Ref` 才会去掉 `Ref`。
+- 类型名提供者补上 ClangImporter 的一条规则：与同一模块里别的实体重名的协议加 `Protocol`（`NSAccessibilityElementProtocol` 这类）。TypeDatabase 现在只认 API notes 与 CF 规则，Swift 一侧的接口也受影响。
+- `TypeDefinition.extensions` 从来没有人填：填上，或者删掉。
+- 剥掉本地符号的镜像（dyld cache 里的 AppKit）中，`@objc @implementation` 类没有 Swift 符号的成员仍按规则推导，例如 `NSGlassEffectView` 的 `init(frame:)`。
+- 查 SDK 拿精确名字（API notes、`NS_SWIFT_NAME`、枚举与选项集的类型名、可空性），带 completion handler 的方法的 `async` 版本，C struct 与 union 的 Swift 视图：都留给以后的提案。
+
 ## 决策日志
 
 | 日期 | 决定 | 理由 |
@@ -146,3 +155,5 @@ let categoryNames = indexer.objcImportedCategoryUniqueNames
 | 2026-11-10 | `Protocol` 后缀不在模型里做，节点保持 `__C` 下的 ObjC 名 | 本库的节点与 mangling 一致，Swift 里改了名的 `__C` 名由打印时的类型名提供者（`--resolve-c-module-names`）改写；`objc interface --swift` 还没接它，留作后续 |
 | 2026-11-10 | 第五步不另跑 `swift-synthesize-interface`，命名规则的期望值取自 SDK 里 importer 给出的名字 | 第一步已经用 SDK 的符号图对过 6,937 个成员，同一来源更全，也不用在测试里依赖工具链 |
 | 2026-11-10 | 实现完成，待用户看过后收尾 | 第二到第五步都已落地，SwiftObjCInteropTests 与新的 ObjCImportedDefinitionTests 在 Ultra 上通过 |
+| 2026-11-10 | 用户看过后批准收尾；按本库 CLI 的规定补上请求与命令两侧的 `--swift` 测试，随库发布的 agent 插件 skill 同批写上 `--swift` | 本库规定新开关在请求与命令两侧各有一个测试，改 CLI 要同批更新插件 skill |
+| 2026-11-10 | 落地编号 0090，状态改 Implemented。不另写实现说明与使用指南：维护者要知道的契约与坑写进 SwiftObjCInterop、SwiftDeclaration 两份模块参考，用法写进命令行指南的「The Swift view」一节；新术语「ObjC imported declaration」「category merging」登记进术语表 | 模块参考已经覆盖实现里看不出来的取舍，再写一篇实现说明只会复述；没做的几项记进「后续项」 |

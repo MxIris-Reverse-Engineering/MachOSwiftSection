@@ -3136,6 +3136,24 @@
 - **后续**：RuntimeViewer 的三行改动已单独推到它的 `next`（cherry-pick `cf32c2e7`，2026-11-09）；它本地 `next` 里别的会话合进来的 Tuist 改动不在其中，照常等用户看。
 - **对应版本**：未发版，随 0.25.0 发布。发版说明要写迁移：`ObjCImplementationClasses`、`ObjCImplementationClassFacts`、`ObjCMember`、`ObjCMemberTable`、`ObjCMemberShape`、`ObjCClassHierarchy`、`ObjCClassHierarchyProviding`、`ObjCClassHierarchyProviderStore`、`ObjCClassHierarchies`、`ObjCAncestorResolver`、`ObjCAncestorResolverStore`、`CustomObjCClassName` 与 SPI 的 `ClassHierarchyDumper` 从 `SwiftInspection` 移到新模块 `SwiftObjCInterop`，名字与形状不变；直接用到它们的下游加 `import SwiftObjCInterop`（`ClassHierarchyDumper` 要 `@_spi(Internals)`）和 `SwiftObjCInterop` product。
 
+## 129. ObjC 类、category 与协议按 Swift 导入的样子打印
+
+- **时间段**：2026-11-10，分支 `feature/objc-imported-declarations`（worktree `.worktrees/MachOSwiftSection-ObjCImportedDeclarations`，基于 `next` bd1df364）。提案 [0090-objc-imported-declarations](../Evolutions/0090-objc-imported-declarations.md)（轻量档）。
+- **动机**：RuntimeViewer 要做 Xcode 的 Generated Interface，把一个 ObjC 类显示成 Swift 导入它之后的样子；Swift 实现的类要和 Swift 一侧的信息合在一起。本库此前只为 Swift 声明的 `@objc` 协议（0079）移植过 ClangImporter 的命名规则。
+- **关键决策**：
+  - **扩展已有的移植，不在运行时调用编译器**（用户选定）。先拿 macOS 27.2 的 AppKit 量准确率：只凭运行时元数据 80.8 % 的成员与 SDK 的 Swift 名一致，换上 SDK 的类型上限 86.3 %；据此补了三条规则（属性名开头缩写词小写、属性名删减、error 约定只认名为 `error` 的那段）。测量程序在临时分支 `probe/objc-importer-naming-accuracy`，不合并。
+  - **类只读自己的表**：dyld cache 预先附加的 category（含别的镜像的）不算类的成员。**链接器已把同镜像的 category 并进类**，所以 category 声明只剩给别的镜像的类写的；夹具因此整个没有 `__objc_catlist`。
+  - **与 Swift 的配对在打印器里做**，按 Swift 成员的 `objcMember`；前两档证据都没有时也认只按名字的第三档。不打访问级别；只读属性不打所有权；`@NSCopying` 只给导入成类的类型。
+  - **名字保持 `__C` 下的 ObjC 名**：`Protocol` 后缀这类 Swift 改名照本库惯例交给类型名提供者，`--swift` 还没接它，记为后续项。
+- **落地**：
+  - SwiftObjCInterop：`ObjCImportedContainerIndex`、`ObjCImportedMemberBuilder`、`ObjCImportedMemberNodes`、`ObjCImportedTypes`，`ObjCImporterNaming` 加工厂初始化器与属性名规则，`ObjCProtocolRequirements` 加 `DeclaringLanguage`，读取器加只读类自己的表的三个方法。
+  - SwiftDeclaration / SwiftIndexing / SwiftPrinting：三种模型与 `ObjCImportedMemberDefinition`，`SwiftDeclarationIndexer` 的按名字查找，`SwiftDeclarationPrinter` 的三个打印入口。
+  - SwiftSectionKit 与 CLI：`ObjCInterfaceRequest.printsSwiftImport`，`swift-section objc interface --swift`；agent 插件的 skill 同批写上。
+  - 文档：提案、两份模块参考、命令行指南（中英）、术语表两条、`AGENTS.md` 的 SwiftObjCInterop 条目。
+- **验证**：在 JHs-Mac-Studio-Ultra（macOS 27.2，Xcode 27.2）上跑。全量 `swift test --skip IntegrationTests` 只有 `ThunkOnlyObjCMemberTests` 4 处失败，切到 `next` bd1df364 跑同一组同样失败：Swift 6.4.2 的 `-O -wmo` 把夹具 `InitializingEntryOnlyHolder.init(values:)` 的初始化入口只留成签名特化副本（`…tcfcTf4gn_n`），与本批无关，另开修复。新增与相关的套件（`ObjCImportedDefinitionTests`、`SwiftObjCInteropTests`、`ObjCRequestTests`、`ObjCSectionCommandTests`）全部通过。
+- **后续**：见提案的「后续项」；RuntimeViewer 一侧（它的草案 `draft-objc-generated-interface`）等本库发版后抬 pin 接入。
+- **对应版本**：未发版，随 0.25.0 发布。发版说明写新增的公开 API：三种 `ObjCImported…Definition` 与 `ObjCImportedMemberDefinition`、`SwiftDeclarationIndexer.objcImportedClassDefinition(named:)` 等查找方法、`SwiftDeclarationPrinter.printObjCImported…Definition(_:level:)`、`ObjCInterfaceRequest.printsSwiftImport` 与 `objc interface --swift`。
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节

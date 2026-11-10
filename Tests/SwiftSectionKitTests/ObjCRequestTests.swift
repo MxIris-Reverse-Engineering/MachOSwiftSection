@@ -75,6 +75,19 @@ struct ObjCRequestTests {
         }
     }
 
+    /// The bridge class is a Swift class renamed for Objective-C
+    /// (`@objc(SymbolTestsCoreObjCBridgeClass)`), so its Swift view is the
+    /// Swift class itself rather than names the importer's rules derive.
+    @Test("The Swift view prints a Swift class as the Swift class")
+    func swiftViewOfASwiftClass() async throws {
+        let output = RecordingOutput()
+        try await ObjCInterfaceRequest(declarationName: Self.bridgeClassName, source: Self.fixture, printsSwiftImport: true).run(output: output)
+
+        #expect(output.printedProduct.contains("class ObjCBridge"), "\(output.printedProduct)")
+        #expect(output.printedProduct.contains("var label: Swift.String"), "\(output.printedProduct)")
+        #expect(!output.printedProduct.contains("@interface"), "\(output.printedProduct)")
+    }
+
     @Test("A binary diffed against its own snapshot breaks no API")
     func diffAgainstOwnSnapshot() async throws {
         let directoryURL = try FixtureFiles.makeTemporaryDirectory()
