@@ -102,3 +102,4 @@
 | draft | [SwiftDeclaration 的目录分成公开模型与索引代码两块](draft-swift-declaration-model-indexing-layout.md) | In Progress |
 | draft | [SwiftDeclaration 的类型名按角色统一后缀](draft-swift-declaration-type-naming.md) | In Progress |
 | draft | [ObjC 类、category 与协议按 ClangImporter 的规则建成 Swift 声明](draft-objc-imported-declarations.md) | Accepted |
+| draft | [没有本地符号的镜像里，扩展中的类型与私有 `@objc` 协议也给出导出结论](draft-export-verdict-without-local-symbols.md) | Accepted |
