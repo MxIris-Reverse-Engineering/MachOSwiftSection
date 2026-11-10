@@ -17,12 +17,12 @@ SwiftDeclaration 是**共享声明模型**：`SwiftIndexing` 往里填，`SwiftP
 
 | 子系统 | 文件 |
 |---|---|
-| 1. 声明本体 | `Model/Definitions/`（`Definition` / `MutableDefinition` 协议、`TypeDefinition`、`ProtocolDefinition`、`ExtensionDefinition`、`ObjCProtocolDefinition`）——只有存储属性、`init` 与 materialize 方法，不含索引逻辑 |
-| 2. 成员 | `Model/Members/`：成员定义（`FunctionDefinition`、`VariableDefinition`、`SubscriptDefinition`、`FieldDefinition`、`WrappedPropertyDefinition`、`ObjCProtocolRequirementDefinition`）、成员构件（`Accessor`、`OrderedMember`、`MemberCategory`、`StrippedSymbolicRequirement`），以及三种成员定义上的公开投影 `ResolvedObjCMemberFacts` |
+| 1. 声明本体 | `Model/Definitions/`（`Definition` / `MutableDefinition` 协议、`TypeDefinition`、`ProtocolDefinition`、`ExtensionDefinition`、`ObjCProtocolDefinition`，以及 ObjC 声明导入成 Swift 的 `ObjCImportedClassDefinition`、`ObjCImportedCategoryDefinition`、`ObjCImportedProtocolDefinition`）——只有存储属性、`init` 与 materialize 方法，不含索引逻辑 |
+| 2. 成员 | `Model/Members/`：成员定义（`FunctionDefinition`、`VariableDefinition`、`SubscriptDefinition`、`FieldDefinition`、`WrappedPropertyDefinition`、`ObjCProtocolRequirementDefinition`、`ObjCImportedMemberDefinition`）、成员构件（`Accessor`、`OrderedMember`、`MemberCategory`、`StrippedSymbolicRequirement`），以及三种成员定义上的公开投影 `ResolvedObjCMemberFacts` |
 | 3. 名字 | `Model/Names/`（`DefinitionName`、`TypeName`、`ProtocolName`、`ExtensionName`） |
 | 4. 种类枚举 | `Model/Kinds/` |
 | 5. 挂在声明上的独立概念 | `Model/` 根下的 `ExportStatus`、`SwiftAttribute`、`ResolvedAssociatedTypeWitness`、`ObjCCategoryConformance` |
-| 6. 各声明的索引 | `Indexing/`：`DefinitionIndexing`（每个定义只索引一次，见下文）、`TypeDefinition/` 下的九个扩展（见下表）、`ExtensionDefinition/` 下的 `+Indexing` / `+ObjCMembers` / `+ThunkAttributes`、`ProtocolDefinition+Indexing`、`ObjCProtocolDefinition+Indexing` |
+| 6. 各声明的索引 | `Indexing/`：`DefinitionIndexing`（每个定义只索引一次，见下文）、`TypeDefinition/` 下的九个扩展（见下表）、`ExtensionDefinition/` 下的 `+Indexing` / `+ObjCMembers` / `+ThunkAttributes`、`ProtocolDefinition+Indexing`、`ObjCProtocolDefinition+Indexing`、`ObjCImportedDefinitions+Indexing`（三种 ObjC 导入定义） |
 | 7. 构建期机器 | `Indexing/Building/`（`MemberDefinitionBuilder`、`MemberSymbolBucketing`、`OverrideSymbolMatcher`、`ClassDispatchLookups`、`StandInMemberSymbolBuilder`、`AnnotatedSymbol`、`WrappedPropertyRecovery`、`ThunkAttributeMatcher`、`ObjCMemberMatcher`、`ObjCProtocolNameBuilder`）——各声明的索引扩展调用的构件；`TypeDefinition+ThunkAttributes` 与 `ExtensionDefinition+ThunkAttributes` 共用 `ThunkAttributeMatcher`，两个 `+ObjCMembers` 共用 `ObjCMemberMatcher`。命名空间按角色取后缀（提案 [draft-swift-declaration-type-naming](../../Evolutions/draft-swift-declaration-type-naming.md)）：造出新东西的叫 `…Builder`，拿二进制里另一处的证据（thunk 符号、ObjC 方法表、override 描述符）对到已建好的成员上的叫 `…Matcher`，补回二进制丢掉的事实的叫 `…Recovery`；不用 `…Application`，它会被读成「应用程序」 |
 | 8. 对上游类型的扩展 | `Extensions/`（按被扩展的类型分文件：`ProtocolConformance+Names`、`TypeContext+Names`、`FieldRecord+DemangledType`、`Node+TypeKind`、`DemanglingNode+StoredVariable`……） |
 | 9. 事件 | `Events/SwiftIndexEvents` |
@@ -47,7 +47,7 @@ SwiftDeclaration 是**共享声明模型**：`SwiftIndexing` 往里填，`SwiftP
 
 ### 每个定义只索引一次，可以被并发打印
 
-四个 Definition（`TypeDefinition`、`ProtocolDefinition`、`ExtensionDefinition`、`ObjCProtocolDefinition`）的 `index(in:)` 是**同步**函数，都经 `Indexing/DefinitionIndexing.swift` 执行（提案 [0066-concurrent-definition-printing](../../Evolutions/0066-concurrent-definition-printing.md)）。进程级一把锁守着两样东西：一张「正在索引」的表（按 `ObjectIdentifier(定义)`），和每个定义自己的 `hasCompletedIndexing`。首个调用者认领后在自己的线程上跑完索引体；同时到来的调用者在认领者的 promise（复用 `SharedCacheBuildPromise`，载荷是 `Result`）上阻塞等待，拿到同一个结果。索引体抛错时定义回到未索引、错误交给全部等待者，下次调用重试。`isIndexed` 是只读的计算属性，读的就是锁下的那个标志。
+七个 Definition（`TypeDefinition`、`ProtocolDefinition`、`ExtensionDefinition`、`ObjCProtocolDefinition` 与三种 ObjC 导入定义）的 `index(in:)` 是**同步**函数，都经 `Indexing/DefinitionIndexing.swift` 执行（提案 [0066-concurrent-definition-printing](../../Evolutions/0066-concurrent-definition-printing.md)）。进程级一把锁守着两样东西：一张「正在索引」的表（按 `ObjectIdentifier(定义)`），和每个定义自己的 `hasCompletedIndexing`。首个调用者认领后在自己的线程上跑完索引体；同时到来的调用者在认领者的 promise（复用 `SharedCacheBuildPromise`，载荷是 `Result`）上阻塞等待，拿到同一个结果。索引体抛错时定义回到未索引、错误交给全部等待者，下次调用重试。`isIndexed` 是只读的计算属性，读的就是锁下的那个标志。
 
 阻塞等待不会死锁，靠两条前提，改索引时要守住：
 
@@ -117,6 +117,15 @@ SE-0436 的类在 `__swift5_*` 里没有身影，模型里它就是那个 `__C.X
 这种协议没有 protocol descriptor，所以不是 `ProtocolDefinition`（把它的 `protocolDescriptor` 改成可选会破坏下游），而是独立的 `ObjCProtocolDefinition`：名字是 `Type > Protocol`，与 Swift 协议同形，本镜像对它的 `extension` 因此落进它的 `defaultImplementationExtensions`；`index(in:)` 读出继承的协议与要求（`ObjCProtocolRequirementDefinition`：selector、setter selector、实例还是类、required 还是 optional、类型编码、声明的 node、签名来源）。签名来源是 `.selector`（按 importer 规则推出名字，打印时钉住 selector）或 `.conformer(className:)`（实现它的类的成员，声明的上下文已换成协议）。索引期只读成员表，不索引实现者的 `TypeDefinition`。
 
 类对 ObjC 协议的遵循没有 conformance record：`TypeDefinition.objcProtocolNames` 是类的 `class_ro_t` 列的协议（同模块 extension 写的也在里面），在 `index(in:)` 里读；extension 别的模块的类时的 category 遵循是 indexer 的 `objcCategoryConformances`（`ObjCCategoryConformance`）。两者都去掉了某个 Swift 遵循隐含的 ObjC 协议。这些事实都**不进** ABI 快照。详见 [SwiftDeclaredObjCProtocols.md](../SwiftDeclaredObjCProtocols.md)。
+
+### ObjC 声明按 Swift 导入的样子
+
+镜像里的 ObjC 类、category 与协议，按 Swift 导入它们的样子建成 `ObjCImportedClassDefinition`、`ObjCImportedCategoryDefinition`、`ObjCImportedProtocolDefinition`（提案 [draft-objc-imported-declarations](../../Evolutions/draft-objc-imported-declarations.md)）。一个镜像的 ObjC 类动辄上千，所以它们不随 `prepare()` 建，而是由 `SwiftDeclarationIndexer` 的 `objcImportedClassDefinition(named:)` 等方法按名字现建，第一次打印时索引自己：从 SwiftObjCInterop 的记录建出成员（`ObjCImportedMemberDefinition`）、父类与协议的名字。名字保持 `__C` 下的 ObjC 名，与 mangling 一致，Swift 里改了名的交给打印时的类型名提供者。
+
+类与 category 定义带着实现它们的 Swift 定义：桥接出去的 Swift 类带 `swiftClassDefinition`，`swiftExtensions` 是本镜像里这个类的 Swift extension。成员与 Swift 成员的配对在打印器里做（按 Swift 成员的 `objcMember`），模型不记。建这两样时有两个容易踩的坑：
+
+- **同一模块里 extension 的成员在 mangling 里就是类型自己的成员**（extension 没有约束时不带 extension 上下文），所以它们已经在 `TypeDefinition` 里，`typeExtensionDefinitions` 里没有对应的 extension。
+- **`TypeDefinition.extensions` 没有人填**，一直是空的。要一个类型在本镜像里的 extension，按 `typeName.extensionName` 去查 indexer 的 `typeExtensionDefinitions` 与 `conformanceExtensionDefinitions`。
 
 ### 访问器种类与关联类型的抑制（Swift 6.4）
 

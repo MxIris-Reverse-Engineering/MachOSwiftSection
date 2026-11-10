@@ -30,6 +30,9 @@ swift-section objc dump <file>
 # One class, protocol, category, struct or union
 swift-section objc interface <name> <file>
 
+# The same class, protocol or category as Swift imports it
+swift-section objc interface <name> <file> --swift
+
 # Freeze a binary's Objective-C API as a baseline snapshot (JSON)
 swift-section objc snapshot <file> --label 26.0 -o baseline.json
 
@@ -76,6 +79,39 @@ reads other images yet (see the first item under [Things you must know](#things-
 `interface` also takes `--kind` to disambiguate a name that is, say, both a class and a struct.
 Without it the first match wins, in the order classes → protocols → categories → structs →
 unions.
+
+## The Swift view (`interface --swift`)
+
+`interface --swift` prints a class, category or protocol the way Swift imports it, the
+declaration Xcode shows as its Generated Interface, instead of as an Objective-C header:
+
+```text
+$ swift-section objc interface NSColor --uses-system-dyld-shared-cache -n AppKit --swift
+class NSColor: __C.NSObject, __C.NSAccessibilityColor, __C.CAAnimatableValue, __C.NSCopying, … {
+    // Swift names follow the ClangImporter's rules for these selectors; the binary records no Swift names for them.
+    @objc(encodeWithCoder:) func encode(with: __C.NSCoder!)
+    init!(coder: __C.NSCoder!)
+    …
+```
+
+- **The names are inferred.** They are the ClangImporter's naming rules applied to what the
+  binary records. On macOS 27.2's AppKit about 81 % of the public members get the name the SDK
+  gives them. The rest need what only the SDK has: API notes and `NS_SWIFT_NAME` renames, enum
+  and option-set type names, collection element types, nullability. Where the printed name would
+  not lead the compiler back to the selector, `@objc(selector)` pins it.
+- **The types are what the binary records.** An object whose nullability is unknown prints as
+  `T!`, as Swift imports a header without nullability annotations; an enum or option-set
+  argument prints as its integer type; imported types keep their Objective-C names under `__C`.
+- **What Swift implements prints as Swift declares it.** A Swift class prints as the Swift class,
+  and a member of an `@objc @implementation` class or of a Swift extension prints as that Swift
+  member. The binary's Swift declarations are indexed first for this, so `--swift` takes longer
+  than the header: about 16 seconds for AppKit.
+- **A class shows its own members.** The linker merges a binary's categories on its own classes
+  into the classes, so they print as members of the class; in a dyld shared cache, the categories
+  the cache attached to a class ahead of time are left out. Only a category on a class of
+  another binary is a category; name it by its unique name, such as `CIColor(NSAppKitAdditions)`.
+- A Swift class goes by its runtime name (`_TtC6AppKit11SliderModel`), as for the header. Structs
+  and unions have no Swift view.
 
 ## Ten generation switches
 

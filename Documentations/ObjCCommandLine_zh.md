@@ -27,6 +27,9 @@ swift-section objc dump <file>
 # 只导出一个类 / 协议 / 分类 / struct / union
 swift-section objc interface <name> <file>
 
+# 同一个类 / 协议 / 分类，打印成 Swift 导入它的样子
+swift-section objc interface <name> <file> --swift
+
 # 把二进制的 Objective-C API 冻结成基线快照（JSON）
 swift-section objc snapshot <file> --label 26.0 -o baseline.json
 
@@ -70,6 +73,35 @@ Objective-C 这边目前不读取别的镜像（见「必须知道的四件事�
 
 `interface` 还有一个 `--kind`，用来区分一个既是类名又是 struct 名的名字。不给的话按
 类 → 协议 → 分类 → struct → union 的顺序取第一个找到的。
+
+## Swift 视图（`interface --swift`）
+
+`interface --swift` 把一个类、分类或协议打印成 Swift 导入它之后的样子，也就是 Xcode 里
+Generated Interface 显示的声明，而不是 Objective-C 头文件：
+
+```text
+$ swift-section objc interface NSColor --uses-system-dyld-shared-cache -n AppKit --swift
+class NSColor: __C.NSObject, __C.NSAccessibilityColor, __C.CAAnimatableValue, __C.NSCopying, … {
+    // Swift names follow the ClangImporter's rules for these selectors; the binary records no Swift names for them.
+    @objc(encodeWithCoder:) func encode(with: __C.NSCoder!)
+    init!(coder: __C.NSCoder!)
+    …
+```
+
+- **名字是推出来的**：把 ClangImporter 的命名规则用在二进制记录的信息上。macOS 27.2 的
+  AppKit 里，公开成员约有 81 % 与 SDK 给的名字一致；其余的要 SDK 才有的信息：API notes 与
+  `NS_SWIFT_NAME` 的改名、枚举与选项集的类型名、集合的元素类型、可空性。打印出的名字推不回
+  原 selector 时，用 `@objc(selector)` 钉住。
+- **类型是二进制记录的类型**：不知道可空性的对象打成 `T!`，与 Swift 导入没有可空性标注的
+  头文件一样；枚举与选项集参数打成它的整数类型；导入的类型保持 `__C` 下的 Objective-C 名。
+- **Swift 实现的部分照 Swift 的声明打印**：Swift 类打成那个 Swift 类，`@objc @implementation`
+  类与 Swift extension 的成员打成那个 Swift 成员。为此要先索引二进制里的 Swift 声明，所以
+  `--swift` 比头文件慢，AppKit 约 16 秒。
+- **类只显示自己的成员**：链接器会把二进制给自己的类写的分类并进类里，所以它们打成类的成员；
+  dyld shared cache 里，cache 预先附加到类上的分类不算。只有给别的二进制的类写的分类才是分类，
+  按它的唯一名字指定，例如 `CIColor(NSAppKitAdditions)`。
+- Swift 类按运行时名指定（`_TtC6AppKit11SliderModel`），与头文件一样。struct 与 union 没有
+  Swift 视图。
 
 ## 十个生成开关
 
