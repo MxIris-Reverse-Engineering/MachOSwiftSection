@@ -333,6 +333,8 @@ public final class SymbolIndexStore: @unchecked Sendable {
 
         var objcThunkMemberSymbolRowsByKind: OrderedDictionary<MemberKind, MemberSymbolRows> { demangledIndex.objcThunkMemberSymbolRowsByKind }
 
+        var specializedInitializerSymbolRowsByKind: OrderedDictionary<MemberKind, MemberSymbolRows> { demangledIndex.specializedInitializerSymbolRowsByKind }
+
         var symbolRowsByKind: OrderedDictionary<Node.Kind, [UInt32]> { demangledIndex.symbolRowsByKind }
 
         var thunkAttributeMembersByKindAndTypeName: [Node.Kind: [String: OrderedDictionary<NodeStore.NodeIndex, [ThunkAttributeMember]>]] { demangledIndex.thunkAttributeMembersByKindAndTypeName }
@@ -405,6 +407,19 @@ public final class SymbolIndexStore: @unchecked Sendable {
             /// `thunk-only-objc-members`).
             let objcThunkMemberSymbolRowsByKind: OrderedDictionary<MemberKind, MemberSymbolRows>
 
+            /// The initializers a function signature specialization of the
+            /// initializing entry point (`$s…fcTf…`) specializes, bucketed like
+            /// the member indexes above but holding the SPECIALIZATION's row,
+            /// always under `constructor`. A specialization is not a member
+            /// symbol and the member index never files it; this index exists
+            /// for the initializers whose allocating entry point the optimizer
+            /// inlined into the callers and whose initializing entry point it
+            /// replaced by the specialization and removed, which leaves the
+            /// specialization as the only code the initializer has — the shape
+            /// Swift 6.4's whole-module optimization gives an internal class's
+            /// initializer. Specializations of anything else are not filed.
+            let specializedInitializerSymbolRowsByKind: OrderedDictionary<MemberKind, MemberSymbolRows>
+
             let symbolRowsByKind: OrderedDictionary<Node.Kind, [UInt32]>
 
             /// Like the member indexes, bucketed by printed type name first and
@@ -439,6 +454,7 @@ public final class SymbolIndexStore: @unchecked Sendable {
                 self.methodDescriptorMemberSymbolRowsByKind = rowIndexes.methodDescriptorMemberSymbolRowsByKind
                 self.protocolWitnessMemberSymbolRowsByKind = rowIndexes.protocolWitnessMemberSymbolRowsByKind
                 self.objcThunkMemberSymbolRowsByKind = rowIndexes.objcThunkMemberSymbolRowsByKind
+                self.specializedInitializerSymbolRowsByKind = rowIndexes.specializedInitializerSymbolRowsByKind
                 self.symbolRowsByKind = rowIndexes.symbolRowsByKind
                 self.thunkAttributeMembersByKindAndTypeName = rowIndexes.thunkAttributeMembersByKindAndTypeName
             }
@@ -638,6 +654,7 @@ public final class SymbolIndexStore: @unchecked Sendable {
         var methodDescriptorMemberSymbolRowsByKind: OrderedDictionary<MemberKind, Storage.MemberSymbolRows> = [:]
         var protocolWitnessMemberSymbolRowsByKind: OrderedDictionary<MemberKind, Storage.MemberSymbolRows> = [:]
         var objcThunkMemberSymbolRowsByKind: OrderedDictionary<MemberKind, Storage.MemberSymbolRows> = [:]
+        var specializedInitializerSymbolRowsByKind: OrderedDictionary<MemberKind, Storage.MemberSymbolRows> = [:]
         var symbolRowsByKind: OrderedDictionary<Node.Kind, [UInt32]> = [:]
         var thunkAttributeMembersByKindAndTypeName: [Node.Kind: [String: OrderedDictionary<NodeStore.NodeIndex, [ThunkAttributeMember]>]] = [:]
 
@@ -662,6 +679,11 @@ public final class SymbolIndexStore: @unchecked Sendable {
 
         mutating func setObjCThunkMemberSymbols(for result: ProcessMemberSymbolResult) {
             objcThunkMemberSymbolRowsByKind[result.memberKind, default: [:]][result.typeName, default: [:]][result.typeNodeIndex, default: .empty].append(result.symbolTableRow)
+            typeInfoByName[result.typeName, default: [:]][result.typeNodeIndex] = result.typeInfo
+        }
+
+        mutating func setSpecializedInitializerSymbols(for result: ProcessMemberSymbolResult) {
+            specializedInitializerSymbolRowsByKind[result.memberKind, default: [:]][result.typeName, default: [:]][result.typeNodeIndex, default: .empty].append(result.symbolTableRow)
             typeInfoByName[result.typeName, default: [:]][result.typeNodeIndex] = result.typeInfo
         }
 
@@ -1024,6 +1046,17 @@ public final class SymbolIndexStore: @unchecked Sendable {
                         rowIndexes.setObjCThunkMemberSymbols(for: result)
                     }
                     continue
+                }
+
+                // An initializing entry point's function signature
+                // specialization, filed by the initializer it specializes (see
+                // `specializedInitializerSymbolRowsByKind`). It still takes the
+                // path below, which files no specialization.
+                if node.kind == .functionSignatureSpecialization,
+                   let entityNode = rootNode.children.first(where: { $0.kind != .functionSignatureSpecialization }),
+                   entityNode.kind == .constructor,
+                   let result = processMemberSymbol(symbolTableRow, node: entityNode, builder: &builder) {
+                    rowIndexes.setSpecializedInitializerSymbols(for: result)
                 }
 
                 if rootNode.isGlobal {
@@ -1639,6 +1672,49 @@ public final class SymbolIndexStore: @unchecked Sendable {
         var result: OrderedDictionary<StructuralNodeReferenceKey, OrderedDictionary<MemberKind, [DemangledSymbol]>> = [:]
         for kind in kinds {
             guard let memberRows = storage.objcThunkMemberSymbolRowsByKind[kind] else { continue }
+            for (typeName, rowsByTypeNodeIndex) in memberRows where !names.contains(typeName) {
+                for (typeNodeIndex, rows) in rowsByTypeNodeIndex {
+                    result[StructuralNodeReferenceKey(storage.nodeStore.reference(at: typeNodeIndex)), default: [:]][kind, default: []].append(contentsOf: storage.demangledSymbols(atRows: rows))
+                }
+            }
+        }
+        return result
+    }
+
+    /// The function signature specializations of the initializing entry
+    /// points of the type named `name` (`$s…fcTf…`), each the specialization's
+    /// own symbol: its tree leads with the `functionSignatureSpecialization`
+    /// node, the `constructor` follows. Only `constructor` kinds are filed.
+    /// Flattens every context-node bucket under the name; prefer the
+    /// node-taking overload when the caller has the type's context node.
+    public func specializedInitializerSymbols(of kinds: MemberKind..., for name: String, in machO: some MachORepresentableWithCache) -> [DemangledSymbol] {
+        guard let storage = storage(in: machO) else { return [] }
+        return kinds.map { kind -> [DemangledSymbol] in
+            guard let rowsByTypeNodeIndex = storage.specializedInitializerSymbolRowsByKind[kind]?[name] else { return [] }
+            return rowsByTypeNodeIndex.values.flatMap { storage.demangledSymbols(atRows: $0) }
+        }.reduce(into: []) { $0 += $1 }
+    }
+
+    /// Same disambiguation as `memberSymbols(of:for:node:in:)`, for callers
+    /// holding a store-backed reference, possibly minted into a different
+    /// store than the index's own.
+    public func specializedInitializerSymbols(of kinds: MemberKind..., for name: String, node: NodeReference, in machO: some MachORepresentableWithCache) -> [DemangledSymbol] {
+        guard let storage = storage(in: machO) else { return [] }
+        return kinds.map { kind -> [DemangledSymbol] in
+            guard let rowsByTypeNodeIndex = storage.specializedInitializerSymbolRowsByKind[kind]?[name] else { return [] }
+            guard let matched = rowsByTypeNodeIndex.elements.first(where: { storage.nodeStore.reference(at: $0.key).structurallyEquals(node) }) else { return [] }
+            return storage.demangledSymbols(atRows: matched.value)
+        }.reduce(into: []) { $0 += $1 }
+    }
+
+    /// The initializing entry points' specializations of every type, grouped
+    /// like `memberSymbols(of:excluding:in:)` and keyed structurally for the
+    /// same reason.
+    public func specializedInitializerSymbols(of kinds: MemberKind..., excluding names: borrowing Set<String>, in machO: some MachORepresentableWithCache) -> OrderedDictionary<StructuralNodeReferenceKey, OrderedDictionary<MemberKind, [DemangledSymbol]>> {
+        guard let storage = storage(in: machO) else { return [:] }
+        var result: OrderedDictionary<StructuralNodeReferenceKey, OrderedDictionary<MemberKind, [DemangledSymbol]>> = [:]
+        for kind in kinds {
+            guard let memberRows = storage.specializedInitializerSymbolRowsByKind[kind] else { continue }
             for (typeName, rowsByTypeNodeIndex) in memberRows where !names.contains(typeName) {
                 for (typeNodeIndex, rows) in rowsByTypeNodeIndex {
                     result[StructuralNodeReferenceKey(storage.nodeStore.reference(at: typeNodeIndex)), default: [:]][kind, default: []].append(contentsOf: storage.demangledSymbols(atRows: rows))
