@@ -78,23 +78,22 @@ struct ObjCImportedDefinitionTests {
         #expect(!printed.contains("describe() -> Swift.String!"), "\(printed)")
     }
 
-    @Test func aSwiftClassPrintsAsItselfWithItsExtensions() async throws {
+    @Test func aSwiftClassPrintsAsItself() async throws {
         let builder = try await fixtureBuilder()
         let runtimeName = try #require(builder.indexer.objcImportedClassRuntimeNames.first { $0.hasSuffix("SwiftDerivedWidget") })
         let definition = try #require(builder.indexer.objcImportedClassDefinition(named: runtimeName))
         #expect(definition.isSwiftClass)
         #expect(definition.swiftClassDefinition != nil)
-        #expect(!definition.swiftExtensions.isEmpty)
 
         let printed = try await builder.printer.printObjCImportedClassDefinition(definition).string
-        #expect(printed.contains("class SwiftDerivedWidget"), "\(printed)")
-        #expect(printed.contains("notAnOverride()"), "\(printed)")
-        // `extension SwiftDerivedWidget { @objc public func fromExtension() }`
-        // trails the class.
-        #expect(printed.contains("extension ObjCImplementationFixture.SwiftDerivedWidget"), "\(printed)")
+        #expect(printed.contains("class SwiftDerivedWidget: __C.ClangWidget, ObjCImplementationFixture.WidgetObserving {"), "\(printed)")
+        #expect(printed.contains("@objc(pokeUsingForce:) func poke(force: Swift.Int)"), "\(printed)")
+        // An extension in the class's own module mangles its members as the
+        // class's, so `extension SwiftDerivedWidget { @objc public func
+        // fromExtension() }` is the class's member.
         #expect(printed.contains("fromExtension()"), "\(printed)")
-        // Every Objective-C method is a member of the Swift class or of one
-        // of its extensions: no extension of the rest follows.
+        // Every Objective-C method is a member of the Swift class: no
+        // extension of the rest follows.
         #expect(!printed.contains("no member of the Swift class answers to"), "\(printed)")
     }
 
