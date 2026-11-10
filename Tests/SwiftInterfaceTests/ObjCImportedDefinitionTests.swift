@@ -65,7 +65,7 @@ struct ObjCImportedDefinitionTests {
         let builder = try await builder()
 
         // `@objc(Extras) @implementation extension Widget`.
-        let extras = try #require(builder.indexer.objcImportedCategoryDefinition(uniqueName: "Widget(Extras)"))
+        let extras = try #require(builder.indexer.objcImportedCategoryDefinition(uniqueName: "Widget(Extras)"), "\(builder.indexer.objcImportedCategoryUniqueNames)")
         #expect(extras.categoryName == "Extras")
         let printedExtras = try await builder.printer.printObjCImportedCategoryDefinition(extras).string
         #expect(printedExtras.contains("The Objective-C category Widget(Extras)."), "\(printedExtras)")
