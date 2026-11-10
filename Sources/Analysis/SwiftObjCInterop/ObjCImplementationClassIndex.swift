@@ -413,6 +413,10 @@ protocol ObjCImplementationClassReading: MachORepresentableWithCache, Readable {
     func protocolSelectors(of category: ObjCCategory64) -> RawObjCProtocolSelectors
     /// The runtime names of the protocols the category adopts.
     func protocolNames(of category: ObjCCategory64) -> [String]
+    /// The category's own name: `NSTouchBar` of `NSView(NSTouchBar)`.
+    func categoryName(of category: ObjCCategory64) -> String?
+    func instanceProperties(of category: ObjCCategory64) -> [ObjCImplementationClassFacts.Property]
+    func classProperties(of category: ObjCCategory64) -> [ObjCImplementationClassFacts.Property]
     /// `__objc_protolist`, every record read in full (`ObjCProtocolRecord.swift`).
     func objcProtocolRecords() -> [ObjCProtocolRecord]
 }
@@ -736,5 +740,47 @@ extension MachOImage: ObjCImplementationClassReading {
         }
         visit(protocolList, in: machO)
         return result
+    }
+}
+
+// MARK: - Category names and properties
+
+/// What an imported category's declaration reads beyond its methods
+/// (evolution proposal `objc-imported-declarations`).
+extension MachOFile {
+    func categoryName(of category: ObjCCategory64) -> String? {
+        category.name(in: self)
+    }
+
+    func instanceProperties(of category: ObjCCategory64) -> [ObjCImplementationClassFacts.Property] {
+        categoryProperties(of: category.instancePropertyList(in: self))
+    }
+
+    func classProperties(of category: ObjCCategory64) -> [ObjCImplementationClassFacts.Property] {
+        categoryProperties(of: category.classPropertyList(in: self))
+    }
+
+    private func categoryProperties(of propertyList: ObjCPropertyList?) -> [ObjCImplementationClassFacts.Property] {
+        guard let propertyList, !propertyList.isListOfLists else { return [] }
+        return propertyList.properties(in: self).map { .init(name: $0.name, attributes: $0.attributes) }
+    }
+}
+
+extension MachOImage {
+    func categoryName(of category: ObjCCategory64) -> String? {
+        category.name(in: self)
+    }
+
+    func instanceProperties(of category: ObjCCategory64) -> [ObjCImplementationClassFacts.Property] {
+        categoryProperties(of: category.instancePropertyList(in: self))
+    }
+
+    func classProperties(of category: ObjCCategory64) -> [ObjCImplementationClassFacts.Property] {
+        categoryProperties(of: category.classPropertyList(in: self))
+    }
+
+    private func categoryProperties(of propertyList: ObjCPropertyList?) -> [ObjCImplementationClassFacts.Property] {
+        guard let propertyList, !propertyList.isListOfLists else { return [] }
+        return propertyList.properties(in: self).map { .init(name: $0.name, attributes: $0.attributes) }
     }
 }
