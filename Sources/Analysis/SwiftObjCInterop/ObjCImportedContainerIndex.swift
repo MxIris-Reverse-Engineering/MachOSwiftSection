@@ -158,7 +158,9 @@ package final class ObjCImportedContainerIndex: @unchecked Sendable {
 
         var categoryRecordsByUniqueName: [String: ObjCImportedContainerRecord] = [:]
         for category in machO.objcCategories() ?? [] {
-            guard let targetClassName = machO.targetClassName(of: category),
+            // A file names a target class only when it is bound in from
+            // another image; one of its own is read through the pointer.
+            guard let targetClassName = machO.targetClassName(of: category) ?? machO.targetClass(of: category).flatMap({ className(of: $0.1, in: $0.0) }),
                   let categoryName = machO.categoryName(of: category)
             else { continue }
             let record = ObjCImportedContainerRecord(
@@ -188,6 +190,10 @@ package final class ObjCImportedContainerIndex: @unchecked Sendable {
             categoryRecordsByUniqueName: categoryRecordsByUniqueName,
             protocolRecordsByRuntimeName: protocolRecordsByRuntimeName
         )
+    }
+
+    private static func className(of classObject: ObjCClass64, in reader: some ObjCImplementationClassReading) -> String? {
+        reader.instanceReadOnlyData(of: classObject).flatMap { reader.className(of: $0) }
     }
 
     /// The methods, each selector once: the first list naming it is the one
