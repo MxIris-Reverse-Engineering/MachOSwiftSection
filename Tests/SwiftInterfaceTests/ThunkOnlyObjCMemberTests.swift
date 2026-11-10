@@ -66,8 +66,10 @@ struct ThunkOnlyObjCMemberTests {
 
     /// What the optimized build lost: `isEqual(_:)` has no Swift entry point
     /// beside its thunk, `init(values:)` no allocating entry point beside its
-    /// initializing one. Without this, the tests below could pass on a
-    /// compiler that stopped deleting the entry points.
+    /// initializing one — and from Swift 6.4 no initializing entry point
+    /// either, only that entry point's function signature specialization.
+    /// Without this, the tests below could pass on a compiler that stopped
+    /// deleting the entry points.
     @Test func optimizedBuildKeepsOnlyTheThunkOrTheInitializingEntryPoint() throws {
         let machOFile = try ThunkOnlyMemberFixture.machOFile(.wholeModuleOptimized)
         let symbolIndexStore = SymbolIndexStore.shared
@@ -79,7 +81,12 @@ struct ThunkOnlyObjCMemberTests {
 
         let holderName = Self.typeQualifiedNamePrefix + "InitializingEntryOnlyHolder"
         #expect(symbolIndexStore.memberSymbols(of: .allocator(inExtension: false), for: holderName, in: machOFile).isEmpty)
-        #expect(symbolIndexStore.memberSymbols(of: .constructor(inExtension: false), for: holderName, in: machOFile).count == 1)
+        let initializingEntryPoints = symbolIndexStore.memberSymbols(of: .constructor(inExtension: false), for: holderName, in: machOFile)
+        let specializedInitializingEntryPoints = symbolIndexStore.specializedInitializerSymbols(of: .constructor(inExtension: false), for: holderName, in: machOFile)
+        #expect(
+            initializingEntryPoints.count == 1 || (initializingEntryPoints.isEmpty && !specializedInitializingEntryPoints.isEmpty),
+            "\(initializingEntryPoints.map(\.name)) \(specializedInitializingEntryPoints.map(\.name))"
+        )
     }
 
     /// The thunk index holds the thunk's own symbol, and nothing it holds is
@@ -169,14 +176,19 @@ struct ThunkOnlyObjCMemberTests {
     }
 
     /// A member built from its thunk is located at the thunk, the only code it
-    /// has; an initializer built from its initializing entry point, there.
+    /// has; an initializer built from its initializing entry point, there, or
+    /// at that entry point's specialization when only the specialization is
+    /// left.
     @Test func standInMembersPrintTheAddressOfTheEntryPointTheImageKept() async throws {
         let machOFile = try ThunkOnlyMemberFixture.machOFile(.wholeModuleOptimized)
         let symbolIndexStore = SymbolIndexStore.shared
         let widgetName = Self.typeQualifiedNamePrefix + "ThunkOnlyWidget"
         let thunkSymbol = try #require(symbolIndexStore.objcThunkMemberSymbols(of: .function(inExtension: false, isStatic: false), for: widgetName, in: machOFile).first { $0.name.hasSuffix("7isEqualySbypSgFTo") })
         let holderName = Self.typeQualifiedNamePrefix + "InitializingEntryOnlyHolder"
-        let initializerSymbol = try #require(symbolIndexStore.memberSymbols(of: .constructor(inExtension: false), for: holderName, in: machOFile).first)
+        let initializerSymbol = try #require(
+            symbolIndexStore.memberSymbols(of: .constructor(inExtension: false), for: holderName, in: machOFile).first
+                ?? symbolIndexStore.specializedInitializerSymbols(of: .constructor(inExtension: false), for: holderName, in: machOFile).first
+        )
 
         let optimizedInterface = try await interface(of: machOFile, printsMemberAddresses: true)
         let widgetBlock = try #require(block(startingWith: "class ThunkOnlyWidget: ", in: optimizedInterface), "\(optimizedInterface)")

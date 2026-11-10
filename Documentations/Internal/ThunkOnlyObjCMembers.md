@@ -45,6 +45,16 @@
 
 方法有同一类问题：标记表里只有成员名，重载共用一个名字，`@objc func handleTick(_:)` 旁边的 Swift-only `handleTick(count:)` 也被打成 `@objc`。现在方法同样按自己的符号名加后缀查 thunk（merged function 先去掉 `Tm`）。属性仍按名字匹配：一个类型里不会有两个同名属性。fixture 里的 `handleTick(count:)` 钉住这一点。
 
+## Swift 6.4：initializer 只剩签名特化副本
+
+Swift 6.4 的 `-O -wmo` 对 internal 类的 initializer 又多做一步：allocating entry point 照旧内联进调用方删掉，initializing entry point 也换成它的函数签名特化副本（function signature specialization，`…fcTf4gn_n`：编译器改了参数的传递方式，比如把 owned 改成 guaranteed，再让所有调用方改调副本）后删掉。镜像里这个 initializer 只剩副本，`fc` 与 `fC` 都没有，上面两种替身都造不出来，interface 里它整个缺席。Xcode 27.2（Swift 6.4.2）编出的夹具就是这样，`ThunkOnlyObjCMemberTests` 因此红了 4 处。
+
+- **索引**：副本的树是 `global(functionSignatureSpecialization, constructor)`。扫描时以 `functionSignatureSpecialization` 开头、后面是 `constructor` 的符号，按它特化的 initializer 归进第五个索引 `specializedInitializerSymbolRowsByKind`（键与另外四个相同，存副本自己的行）；别的特化不归档，免得给每个特化过的函数都多存一份。查询是 `specializedInitializerSymbols(of:for:in:)`、带 node 的重载和 `specializedInitializerSymbols(of:excluding:in:)`。
+- **替身**：`allocatorStandIn(forSpecializedInitializerSymbol:in:)`。副本的名字就是 initializing entry point 的名字接上 `Tf…` 后缀，所以从后往前找 `Tf`，取第一个使前缀以 `fc` 结尾的位置，前缀就是 initializing entry point 的名字（`specializedInitializerName(of:)`）；特化的特化（`…fcTf4gn_nTf4n_g`）也读得回去。之后与 initializing entry point 的替身完全一样：`constructor` 改写成 `allocator`、`fc` 换成 `fC`，偏移是副本的偏移。
+- **什么时候用**：只在镜像里 `fc` 与 `fC` 都没有时（`imageKeepsTheMemberSymbol(replacedBy:symbolIndexStore:in:)` 对副本查这两个名字）。顺序排在 initializing entry point 的替身之后、thunk 的替身之前，所以还有 `fc` 时地址落在 `fc` 上。
+- **地址**：注释指向副本。副本的参数约定与原函数不同（`Tf` 后面的编码写着改了什么），反汇编时要照副本的约定读。
+- **ABI 快照格式升到 11**：旧基线会把这些 initializer 报成新增。
+
 ## 边界
 
 - **泛型类与经 `__objc_stublist` 登记的类没有静态的 class object**。本提案落地时读不到它们的 ObjC 方法表，替身成员只有 thunk 给的 `@objc`。2026-10-27 起方法表从 Swift 元数据读（提案 `objc-classes-without-class-objects`，[ClassesWithoutClassObjects.md](ClassesWithoutClassObjects.md)），`override` 照常给出；只有父类是另一个镜像里的 Swift 类时，链断在那里，仍然只有 `@objc`。

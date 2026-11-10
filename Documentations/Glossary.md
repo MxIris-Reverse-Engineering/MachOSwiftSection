@@ -422,7 +422,7 @@ substitution，必须连在一个 `$s` 后面一起 demangle。
 
 ### thunk-only member（只剩 `@objc` thunk 的成员）
 
-`@objc` 成员里，Swift 函数体被优化器内联进它的 Objective-C thunk（`$s…To`）、Swift entry point 随后被删掉的那一类：thunk 是它唯一的代码，也是唯一的符号。只有整模块优化下的 internal 成员会这样，因为每一处使用都可见、都内联完了才能删，所以这是 app 和 app 内嵌组件的形状，例如 Xcode 27.2 的 `Xcode Service` 里有 22 个。它和 OS 框架 strip 掉 `To` 符号正好相反：那里实现符号还在，thunk 没了名字。成员模型过去只从实现符号建成员，这一类在 dump 和 interface 里整个缺席；现在从 thunk 造替身成员符号补上。
+`@objc` 成员里，Swift 函数体被优化器内联进它的 Objective-C thunk（`$s…To`）、Swift entry point 随后被删掉的那一类：thunk 是它唯一的代码，也是唯一的符号。只有整模块优化下的 internal 成员会这样，因为每一处使用都可见、都内联完了才能删，所以这是 app 和 app 内嵌组件的形状，例如 Xcode 27.2 的 `Xcode Service` 里有 22 个。它和 OS 框架 strip 掉 `To` 符号正好相反：那里实现符号还在，thunk 没了名字。成员模型过去只从实现符号建成员，这一类在 dump 和 interface 里整个缺席；现在从 thunk 造替身成员符号补上。class 的 initializer 有同类的情形：allocating entry point 被内联掉后只剩 initializing entry point（`…fc`），Swift 6.4 连它也换成函数签名特化副本（`…fcTf…`），替身就从副本造。
 
 - **主要出现在**：`SymbolIndexStore.objcThunkMemberSymbols`、`StandInMemberSymbolBuilder.memberStandIn(forObjCThunkSymbol:in:)`、`ClassDumper` 的 `[ObjC Thunk]` 一节
 - **延伸阅读**：[ThunkOnlyObjCMembers.md](Internal/ThunkOnlyObjCMembers.md)

@@ -15,7 +15,11 @@ import OrderedCollections
 ///   thunk (`$s…To`) and whose Swift entry point it then deleted, so the
 ///   thunk is the only code the member has;
 /// - a class initializer whose allocating entry point (`…fC`) was inlined
-///   into its callers and deleted, leaving the initializing one (`…fc`).
+///   into its callers and deleted, leaving the initializing one (`…fc`);
+/// - the same initializer whose initializing entry point the optimizer also
+///   replaced by its function signature specialization (`…fcTf…`) and
+///   deleted, leaving the specialization — what Swift 6.4's whole-module
+///   optimization does to an internal class's initializer.
 ///
 /// A stand-in is shaped like the implementation symbol it replaces — that
 /// symbol's mangled name and member tree — at the address of the entry point
@@ -70,6 +74,47 @@ package enum StandInMemberSymbolBuilder {
         return allocatorStandIn(forConstructorNode: constructorNode, initializerName: initializerSymbol.name, offset: initializerSymbol.offset, in: machO)
     }
 
+    /// The allocating entry point that an initializer's initializing entry
+    /// point stands in for, built from that entry point's function signature
+    /// specialization (`…fcTf4gn_n`) when the optimizer left only the
+    /// specialization: the specialization's name up to its `Tf` suffix is the
+    /// initializing entry point's own (`specializedInitializerName(of:)`), and
+    /// the stand-in is built from it as from the entry point, at the
+    /// specialization's address. `nil` for anything that is not such a
+    /// specialization.
+    package static func allocatorStandIn(
+        forSpecializedInitializerSymbol specializedSymbol: DemangledSymbol,
+        in machO: some MachORepresentableWithCache
+    ) -> DemangledSymbol? {
+        guard let initializerName = specializedInitializerName(of: specializedSymbol),
+              let constructorNode = specializedSymbol.demangledNode.children.first(where: { $0.kind == .constructor })
+        else { return nil }
+        return allocatorStandIn(forConstructorNode: constructorNode, initializerName: initializerName, offset: specializedSymbol.offset, in: machO)
+    }
+
+    /// The name of the initializing entry point a function signature
+    /// specialization specializes: the specialization's name up to a `Tf`
+    /// suffix — the last one whose prefix ends in the entry point's `fc`, so a
+    /// specialization of a specialization reads back to the entry point too.
+    /// `nil` for anything that is not a specialization of an initializing
+    /// entry point.
+    package static func specializedInitializerName(of specializedSymbol: DemangledSymbol) -> String? {
+        let children = specializedSymbol.demangledNode.children
+        guard children.first?.kind == .functionSignatureSpecialization,
+              children.contains(where: { $0.kind == .constructor })
+        else { return nil }
+        let name = specializedSymbol.name
+        var searchUpperBound = name.endIndex
+        while let suffixRange = name.range(of: "Tf", options: .backwards, range: name.startIndex ..< searchUpperBound) {
+            let entryPointName = name[..<suffixRange.lowerBound]
+            if entryPointName.hasSuffix("fc") {
+                return String(entryPointName)
+            }
+            searchUpperBound = suffixRange.lowerBound
+        }
+        return nil
+    }
+
     /// The implementation symbol an `@objc` thunk (`$s…To`) stands in for:
     /// the thunk's tree without its `objCAttribute` marker, the thunk's name
     /// without its `To` suffix, at the thunk's own address. An initializer's
@@ -98,17 +143,25 @@ package enum StandInMemberSymbolBuilder {
     /// point stands in for, found by the name the stand-in would carry: the
     /// thunk's name without `To` (for an initializer's thunk, either entry
     /// point of the initializer), the initializing entry point's name with
-    /// `fc` swapped for `fC`. One name lookup, made before a stand-in is built,
-    /// spares building one for every member that kept its implementation —
-    /// almost every `@objc` member and initializer of an unoptimized or
-    /// library image. `supplementing(_:with:)` still decides structurally for
-    /// the stand-ins that are built.
+    /// `fc` swapped for `fC`, and for the specialization of an initializing
+    /// entry point either entry point of the initializer. One name lookup,
+    /// made before a stand-in is built, spares building one for every member
+    /// that kept its implementation — almost every `@objc` member and
+    /// initializer of an unoptimized or library image.
+    /// `supplementing(_:with:)` still decides structurally for the stand-ins
+    /// that are built.
     package static func imageKeepsTheMemberSymbol(
         replacedBy entryPointSymbol: DemangledSymbol,
         symbolIndexStore: SymbolIndexStore,
         in machO: some MachORepresentableWithCache
     ) -> Bool {
         var memberSymbolName = entryPointSymbol.name
+        if let initializerName = specializedInitializerName(of: entryPointSymbol) {
+            if symbolIndexStore.containsSymbol(named: initializerName, in: machO) {
+                return true
+            }
+            memberSymbolName = initializerName
+        }
         if memberSymbolName.hasSuffix("To") {
             memberSymbolName.removeLast(2)
             if symbolIndexStore.containsSymbol(named: memberSymbolName, in: machO) {
@@ -137,9 +190,9 @@ package enum StandInMemberSymbolBuilder {
 extension StandInMemberSymbolBuilder {
     /// The stand-ins for one type's own members, by the member builder input
     /// each belongs in, in the order they are tried: the initializing entry
-    /// points before the `@objc` thunks, so an initializer that kept its
-    /// Swift initializing entry point is located there rather than at its
-    /// thunk.
+    /// points, then their specializations, then the `@objc` thunks, so an
+    /// initializer that kept Swift code of its own is located there rather
+    /// than at its thunk.
     package struct TypeMembers {
         private var standInsByCategory: [MemberCategory: [DemangledSymbol]] = [:]
 
@@ -162,7 +215,10 @@ extension StandInMemberSymbolBuilder {
             let initializerStandIns = standIns(for: symbolIndexStore.memberSymbols(of: .constructor(inExtension: false), for: typeName, node: typeNode, in: machO)) {
                 StandInMemberSymbolBuilder.allocatorStandIn(forInitializerSymbol: $0, in: machO)
             }
-            standInsByCategory[.allocators] = initializerStandIns + thunkStandIns(.constructor(inExtension: false), .allocator(inExtension: false))
+            let specializedInitializerStandIns = standIns(for: symbolIndexStore.specializedInitializerSymbols(of: .constructor(inExtension: false), for: typeName, node: typeNode, in: machO)) {
+                StandInMemberSymbolBuilder.allocatorStandIn(forSpecializedInitializerSymbol: $0, in: machO)
+            }
+            standInsByCategory[.allocators] = initializerStandIns + specializedInitializerStandIns + thunkStandIns(.constructor(inExtension: false), .allocator(inExtension: false))
             standInsByCategory[.functions] = thunkStandIns(.function(inExtension: false, isStatic: false))
             standInsByCategory[.staticFunctions] = thunkStandIns(.function(inExtension: false, isStatic: true))
             standInsByCategory[.variables] = thunkStandIns(.variable(inExtension: false, isStatic: false, isStorage: false))
@@ -193,6 +249,14 @@ extension StandInMemberSymbolBuilder {
             let standIns = initializerSymbolsByKind.values.joined()
                 .filter { !imageKeepsTheMemberSymbol(replacedBy: $0, symbolIndexStore: symbolIndexStore, in: machO) }
                 .compactMap { allocatorStandIn(forInitializerSymbol: $0, in: machO) }
+            guard !standIns.isEmpty else { continue }
+            standInsByTypeNode[typeNodeKey, default: [:]][.allocator(inExtension: true), default: []].append(contentsOf: standIns)
+        }
+        let specializedInitializerSymbolsByTypeNode = symbolIndexStore.specializedInitializerSymbols(of: .constructor(inExtension: true), excluding: [], in: machO)
+        for (typeNodeKey, specializedSymbolsByKind) in specializedInitializerSymbolsByTypeNode {
+            let standIns = specializedSymbolsByKind.values.joined()
+                .filter { !imageKeepsTheMemberSymbol(replacedBy: $0, symbolIndexStore: symbolIndexStore, in: machO) }
+                .compactMap { allocatorStandIn(forSpecializedInitializerSymbol: $0, in: machO) }
             guard !standIns.isEmpty else { continue }
             standInsByTypeNode[typeNodeKey, default: [:]][.allocator(inExtension: true), default: []].append(contentsOf: standIns)
         }

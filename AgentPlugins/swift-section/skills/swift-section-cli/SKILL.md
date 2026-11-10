@@ -289,16 +289,16 @@ swift-section evolution 17.0.json 18.0.json /path/Foo --labels 17.0,18.0,26.0
   descriptor names (see §9), which an old baseline would report as added wholesale. Format 7 (0.23.0
   and later) rejects every format-6 baseline: a type declared in a function or closure body is recorded
   under its own full name now (see §9), and an old baseline would report each one as removed —
-  a breaking change — and added again. Format 10 (0.25.0 and later) rejects every earlier baseline,
+  a breaking change — and added again. Format 11 (0.25.0 and later) rejects every earlier baseline,
   for three reasons: in an optimized build the newer tool also records the members whose only symbol
-  is their `@objc` thunk or their initializing entry point (see §9), which an old baseline would
-  report as added; a snapshot now records whether its image keeps local Swift symbols and whether
+  is their `@objc` thunk, their initializing entry point or that entry point's function signature
+  specialization (see §9), which an old baseline would report as added; a snapshot now records whether its image keeps local Swift symbols and whether
   each member is exported, which the not-observable rule above needs; and an image's extensions now
   hold the members of its own module's types that no definition in the image gathers — SwiftUI's
   members of the types SwiftUICore defines, an internal namespace whose type descriptor was stripped —
   which earlier tools left out of `interface` and the snapshot, and an old baseline would report as
-  added. `dump` does not show them. Formats 8 and 9 only ever existed on the development branch,
-  between those changes.
+  added. `dump` does not show them. Formats 8, 9 and 10 only ever existed on the development
+  branch, between those changes.
 
 ## 8. `--resolve-c-module-names` (interface, macOS only)
 
@@ -338,12 +338,14 @@ Attribution against a non-macOS binary is limited (it warns and degrades rather 
   missing. A vtable slot nothing names (an internal member in a stripped image) is
   left out; `dump` lists it as `sub_…` or `<unnamed vtable slot>`.
 - **In an optimized app binary, a member may print at the address of its `@objc` thunk, and an
-  `init` at its initializing entry point.** Whole-module optimization can inline an internal
-  `@objc` member's body into its Objective-C thunk (`$s…To`) and delete the Swift entry point,
-  and inline a class initializer's allocating entry point into its callers. The member is then
-  rebuilt from the entry point that survived: `--emit-member-addresses` points at the thunk,
-  which uses the Objective-C calling convention (`self` in `x0`, `_cmd` in `x1`), or at the
-  initializing entry point. `dump` lists the members only a thunk names under
+  `init` at its initializing entry point or at that entry point's specialization.** Whole-module
+  optimization can inline an internal `@objc` member's body into its Objective-C thunk (`$s…To`)
+  and delete the Swift entry point, and inline a class initializer's allocating entry point into
+  its callers; Swift 6.4 also replaces the initializing entry point by its function signature
+  specialization (`…fcTf…`), which takes its arguments differently. The member is then rebuilt
+  from the code that survived: `--emit-member-addresses` points at the thunk, which uses the
+  Objective-C calling convention (`self` in `x0`, `_cmd` in `x1`), at the initializing entry
+  point, or at its specialization. `dump` lists the members only a thunk names under
   `/* [ObjC Thunk] … */` sections.
 - **A generic class, or one registered through `__objc_stublist` (its superclass is in another module, or is generic), has no class object, so its Objective-C method list comes from its Swift metadata.** `override` is printed where its superclass chain can be followed. When the superclass is a Swift class of another binary (SwiftUI's `NSHostingView<…>`), the chain stops there and the class's members print with `@objc` but without `override`.
 - **`associatedtype Element` without `: ~Copyable` / `: ~Escapable`** does not prove the

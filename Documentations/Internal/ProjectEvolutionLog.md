@@ -2732,6 +2732,7 @@
   - 顺带看到两个与本次无关的旧问题，未修，另开 issue：#139（property wrapper 识别把下划线开头的普通存储属性当成 backing storage，打出 `@Swift.String? var phase: Any?` 这种属性，SwiftUICore 的 `TextAnimator` 等）；#140（dump 给类方法的 ABI 墓碑槽打 `class func static …`，关键字重复）。
 - **关联文档**：提案 [0077-thunk-only-objc-members](../Evolutions/0077-thunk-only-objc-members.md)、[ThunkOnlyObjCMembers.md](ThunkOnlyObjCMembers.md)、[ObjCMemberRecovery.md](ObjCMemberRecovery.md)「边界与已知限制」、[DescriptorOnlyVTableMembers.md](DescriptorOnlyVTableMembers.md)「什么时候不补」、[Modules/MachOSymbols.md](Modules/MachOSymbols.md)、[Modules/SwiftDeclaration.md](Modules/SwiftDeclaration.md)、ReviewAdjudications A13 的 2026-10-27 复核。
 - **对应版本**：未发版（0.24.0 之后）。
+- **补记（2026-11-10，分支 `fix/specialized-initializing-entry-points`）**：Xcode 27.2（Swift 6.4.2）成了 Ultra 上的默认工具链后，`-O -wmo` 把夹具 `InitializingEntryOnlyHolder.init(values:)` 的初始化入口也只留成函数签名特化副本（`…tcfcTf4gn_n`），`fc` 与 `fC` 都没有了，interface 里这个 initializer 消失，`ThunkOnlyObjCMemberTests` 红 4 处（`next` 基线同样红）。符号索引加第五个索引，按 initializer 归档初始化入口的特化副本；替身构建在 `fc` 与 `fC` 都没有时从副本造 initializer（名字去掉 `Tf…` 后缀，`specializedInitializerName(of:)`）。测试的前提改成两种形状都认，地址测试取实际留下的入口，另加名字推导的单元测试（`SpecializedInitializerNameTests`）；ABI snapshot 格式升到 11。验证在 Ultra（Xcode 27.2）上：`ThunkOnlyObjCMemberTests` 8 个全过，全量 `swift test --skip IntegrationTests` 原始退出码 0。细节见 [ThunkOnlyObjCMembers.md](ThunkOnlyObjCMembers.md)「Swift 6.4：initializer 只剩签名特化副本」。
 
 ## 110. 没有 class object 的 Swift 类
 
