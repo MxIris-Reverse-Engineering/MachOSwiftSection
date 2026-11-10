@@ -44,14 +44,14 @@ extension SwiftDeclarationIndexer {
     /// The category listed as `uniqueName` (`NSView(NSTouchBar)`) as Swift
     /// imports it, or `nil` when the image defines none. It comes with the
     /// image's Swift extensions of the class, which implement a category
-    /// Swift wrote.
+    /// Swift wrote — an `@objc @implementation` of a category declared in a
+    /// header, or a plain extension with `@objc` members.
     public func objcImportedCategoryDefinition(uniqueName: String) -> ObjCImportedCategoryDefinition? {
         guard let record = ObjCImportedContainerIndex.shared.categoryRecord(uniqueName: uniqueName, in: machO),
               case .category(let categoryName) = record.kind
         else { return nil }
         let swiftExtensions = typeExtensionDefinitions.values.flatMap { $0 }.filter { extensionDefinition in
-            extensionDefinition.objcImplementation == nil
-                && ObjCImplementationClasses.cImportedClassName(of: extensionDefinition.extensionName.node) == record.classRuntimeName
+            ObjCImplementationClasses.cImportedClassName(of: extensionDefinition.extensionName.node) == record.classRuntimeName
         }
         return ObjCImportedCategoryDefinition(record: record, categoryName: categoryName, swiftExtensions: swiftExtensions, in: machO)
     }

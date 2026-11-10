@@ -10,8 +10,9 @@ import SwiftObjCInterop
 /// — Swift has no name for a category — its members built from the
 /// category's method and property lists by the importer's rules.
 ///
-/// A category Swift wrote (`extension NSView { @objc func … }`) takes each
-/// member from the image's Swift extension of the class implementing it
+/// A category Swift wrote — an `@objc @implementation` of a category a header
+/// declares, or `extension NSView { @objc func … }` — takes each member from
+/// the image's Swift extension of the class implementing it
 /// (``swiftExtensions``), paired by selector as for
 /// ``ObjCImportedClassDefinition``.
 ///
@@ -26,8 +27,8 @@ public final class ObjCImportedCategoryDefinition: @unchecked Sendable {
     /// The name the category is listed under, `NSView(NSTouchBar)`.
     public let uniqueName: String
 
-    /// The image's Swift extensions of the class that are no
-    /// `@objc @implementation`.
+    /// The image's Swift extensions of the class, which implement a category
+    /// Swift wrote.
     public let swiftExtensions: [ExtensionDefinition]
 
     /// The protocols the category adopts; read by `index(in:)`.
