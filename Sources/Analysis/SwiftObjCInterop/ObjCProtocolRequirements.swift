@@ -56,11 +56,8 @@ package struct ObjCProtocolRequirement: Sendable {
 ///
 /// Names follow `ObjCImporterNaming`; a property keeps the name its record
 /// carries, which is the Swift name unless the source renamed it. Types
-/// follow the importer too: Foundation's bridged classes import as their
-/// Swift value types, `id` as `Any`, a block as a closure, a Swift class or
-/// protocol by its Swift name. An object type's nullability is not recorded,
-/// so it is `T!` — what the importer makes of an unannotated declaration —
-/// and `T?` inside a closure's signature, where `!` cannot be written.
+/// follow the importer too (`ObjCImportedTypes`), and the declarations take
+/// the shapes `ObjCImportedMemberNodes` gives every imported member.
 package enum ObjCProtocolRequirementBuilder {
     /// The requirements of `record`, declared on `protocolNode` (a
     /// `Protocol` node, as the protocol's mangled name demangles to).
@@ -69,41 +66,19 @@ package enum ObjCProtocolRequirementBuilder {
         return builder.requirements()
     }
 
-    /// The Foundation classes the importer bridges to Swift value types.
-    fileprivate static let bridgedStructures: [String: (module: String, name: String)] = [
-        "NSString": ("Swift", "String"),
-        "NSURL": ("Foundation", "URL"),
-        "NSData": ("Foundation", "Data"),
-        "NSDate": ("Foundation", "Date"),
-        "NSUUID": ("Foundation", "UUID"),
-        "NSIndexSet": ("Foundation", "IndexSet"),
-        "NSIndexPath": ("Foundation", "IndexPath"),
-        "NSLocale": ("Foundation", "Locale"),
-        "NSTimeZone": ("Foundation", "TimeZone"),
-        "NSCalendar": ("Foundation", "Calendar"),
-        "NSCharacterSet": ("Foundation", "CharacterSet"),
-        "NSNotification": ("Foundation", "Notification"),
-        "NSDateComponents": ("Foundation", "DateComponents"),
-        "NSDateInterval": ("Foundation", "DateInterval"),
-        "NSURLComponents": ("Foundation", "URLComponents"),
-        "NSURLQueryItem": ("Foundation", "URLQueryItem"),
-        "NSURLRequest": ("Foundation", "URLRequest"),
-        "NSPersonNameComponents": ("Foundation", "PersonNameComponents"),
-    ]
-
     private struct Builder<MachO: MachOSwiftSectionRepresentableWithCache> {
         let protocolNode: Node
         let record: ObjCProtocolRecord
-        let machO: MachO
         let contextTypeName: String
         let propertyNames: Set<String>
+        let nodes: ObjCImportedMemberNodes<MachO>
 
         init(protocolNode: Node, record: ObjCProtocolRecord, machO: MachO) {
             self.protocolNode = protocolNode
             self.record = record
-            self.machO = machO
             self.contextTypeName = protocolNode.children.at(1)?.text ?? record.runtimeName
             self.propertyNames = Set((record.instanceProperties + record.classProperties).map(\.name))
+            self.nodes = ObjCImportedMemberNodes(machO: machO)
         }
 
         private struct PropertyAccessors {
@@ -169,19 +144,13 @@ package enum ObjCProtocolRequirementBuilder {
 
         private func propertyRequirement(_ accessors: PropertyAccessors, isClassMember: Bool, isOptional: Bool) -> ObjCProtocolRequirement? {
             guard let type = ObjCTypeEncodingParser.propertyType(fromAttributes: accessors.property.attributes) else { return nil }
-            let variable = Node.createTransient(kind: .variable, children: [
-                protocolNode,
-                Node.createTransient(kind: .identifier, text: accessors.property.name),
-                typeNode(type, position: .topLevel),
-            ])
-            let getter = Node.createTransient(kind: .getter, child: variable)
             return ObjCProtocolRequirement(
                 kind: .property,
                 selector: accessors.getterSelector,
                 setterSelector: accessors.setterSelector,
                 isClassMember: isClassMember,
                 isOptional: isOptional,
-                node: global(getter, isStatic: isClassMember),
+                node: nodes.propertyNode(contextNode: protocolNode, name: accessors.property.name, type: type, isClassMember: isClassMember),
                 typeEncoding: accessors.property.attributes
             )
         }
@@ -195,230 +164,31 @@ package enum ObjCProtocolRequirementBuilder {
                 // Folded into the getter's subscript.
                 return nil
             case .subscriptGetter:
-                guard let indexType = methodType.parameterTypes.first else { return nil }
+                guard let node = nodes.subscriptNode(contextNode: protocolNode, methodType: methodType, isClassMember: isClassMethod) else { return nil }
                 let setterSelector = method.selector == "objectAtIndexedSubscript:" ? "setObject:atIndexedSubscript:" : "setObject:forKeyedSubscript:"
-                let functionType = Node.createTransient(kind: .functionType, children: [
-                    Node.createTransient(kind: .argumentTuple, child: typeNode(indexType, position: .topLevel)),
-                    Node.createTransient(kind: .returnType, child: typeNode(methodType.returnType, position: .topLevel)),
-                ])
-                let subscriptNode = Node.createTransient(kind: .subscript, children: [
-                    protocolNode,
-                    Node.createTransient(kind: .labelList),
-                    Node.createTransient(kind: .type, child: functionType),
-                ])
                 return ObjCProtocolRequirement(
                     kind: .subscript,
                     selector: method.selector,
                     setterSelector: methodsBySelector[setterSelector] != nil ? setterSelector : nil,
                     isClassMember: isClassMethod,
                     isOptional: isOptional,
-                    node: global(Node.createTransient(kind: .getter, child: subscriptNode), isStatic: isClassMethod),
+                    node: node,
                     typeEncoding: encoding
                 )
-            case .initializer, .method:
-                let parameterTypes = name.parameterIndices.map { methodType.parameterTypes[$0] }
-                let resultType: Node
-                if name.kind == .initializer {
-                    // `instancetype`, of unknown nullability: `init!`.
-                    resultType = Self.implicitlyUnwrapped(Self.type(Node.createTransient(kind: .dependentGenericParamType, children: [
-                        Node.createTransient(kind: .index, index: 0),
-                        Node.createTransient(kind: .index, index: 0),
-                    ])))
-                } else {
-                    switch name.errorConvention {
-                    case .booleanResult: resultType = typeNode(.void, position: .topLevel)
-                    case .nonNilResult: resultType = typeNode(methodType.returnType, position: .nonOptional)
-                    case nil: resultType = typeNode(methodType.returnType, position: .topLevel)
-                    }
-                }
-                var functionTypeChildren: [Node] = []
-                if name.errorConvention != nil {
-                    functionTypeChildren.append(Node.createTransient(kind: .throwsAnnotation))
-                }
-                functionTypeChildren.append(Node.createTransient(kind: .argumentTuple, child: Self.type(Node.createTransient(kind: .tuple, children: parameterTypes.map {
-                    Node.createTransient(kind: .tupleElement, child: typeNode($0, position: .topLevel))
-                }))))
-                functionTypeChildren.append(Node.createTransient(kind: .returnType, child: resultType))
-                var declarationChildren: [Node] = [protocolNode]
-                if name.kind == .method {
-                    declarationChildren.append(Node.createTransient(kind: .identifier, text: name.baseName))
-                }
-                if !name.argumentLabels.isEmpty {
-                    declarationChildren.append(Node.createTransient(kind: .labelList, children: name.argumentLabels.map {
-                        $0.isEmpty ? Node.createTransient(kind: .firstElementMarker) : Node.createTransient(kind: .identifier, text: $0)
-                    }))
-                }
-                declarationChildren.append(Node.createTransient(kind: .type, child: Node.createTransient(kind: .functionType, children: functionTypeChildren)))
-                let declaration = Node.createTransient(kind: name.kind == .initializer ? .allocator : .function, children: declarationChildren)
+            case .initializer, .factoryInitializer, .method:
+                // A protocol's method is never a factory initializer: the
+                // naming is asked for one only on behalf of a class.
+                let isInitializer = name.kind != .method
                 return ObjCProtocolRequirement(
-                    kind: name.kind == .initializer ? .initializer : .method,
+                    kind: isInitializer ? .initializer : .method,
                     selector: method.selector,
                     setterSelector: nil,
-                    isClassMember: isClassMethod && name.kind == .method,
+                    isClassMember: isClassMethod && !isInitializer,
                     isOptional: isOptional,
-                    node: global(declaration, isStatic: isClassMethod && name.kind == .method),
+                    node: nodes.methodNode(contextNode: protocolNode, name: name, methodType: methodType, isClassMember: isClassMethod),
                     typeEncoding: encoding
                 )
             }
-        }
-
-        private func global(_ declaration: Node, isStatic: Bool) -> Node {
-            Node.createTransient(kind: .global, child: isStatic ? Node.createTransient(kind: .static, child: declaration) : declaration)
-        }
-
-        // MARK: Types
-
-        enum Position {
-            /// A parameter, a result or a property: an object's nullability
-            /// is unknown, `T!`.
-            case topLevel
-            /// A closure's parameter or result: `T?`, as `!` cannot nest.
-            case closureComponent
-            /// A result the error convention proves non-nil.
-            case nonOptional
-        }
-
-        /// A `Type` node for `type` in `position`.
-        func typeNode(_ type: ObjCEncodedType, position: Position) -> Node {
-            let base = Self.type(bareTypeNode(type))
-            guard Self.isNullable(type) else { return base }
-            switch position {
-            case .topLevel: return Self.implicitlyUnwrapped(base)
-            case .closureComponent: return Self.optional(base)
-            case .nonOptional: return base
-            }
-        }
-
-        private static func isNullable(_ type: ObjCEncodedType) -> Bool {
-            switch type {
-            case .object, .block, .objectClass, .characterString: true
-            case .pointer: true
-            default: false
-            }
-        }
-
-        /// The type itself, unwrapped: what a `Type` node holds.
-        private func bareTypeNode(_ type: ObjCEncodedType) -> Node {
-            switch type {
-            case .void: return Node.createTransient(kind: .tuple)
-            case .bool: return Self.swiftStructure("Bool")
-            case .character: return Self.swiftStructure("Int8")
-            case .unsignedCharacter: return Self.swiftStructure("UInt8")
-            case .short: return Self.swiftStructure("Int16")
-            case .unsignedShort: return Self.swiftStructure("UInt16")
-            case .int, .long: return Self.swiftStructure("Int32")
-            case .unsignedInt, .unsignedLong: return Self.swiftStructure("UInt32")
-            case .longLong: return Self.swiftStructure("Int")
-            case .unsignedLongLong: return Self.swiftStructure("UInt")
-            case .float: return Self.swiftStructure("Float")
-            case .double, .longDouble: return Self.swiftStructure("Double")
-            case .characterString: return Self.boundGenericStructure(Self.swiftStructure("UnsafeMutablePointer"), arguments: [Self.swiftStructure("Int8")])
-            case .selector: return Self.structure(module: "ObjectiveC", name: "Selector")
-            case .objectClass: return Node.createTransient(kind: .typeAlias, children: [Self.module("Swift"), Node.createTransient(kind: .identifier, text: "AnyClass")])
-            case .object(let className, let protocolNames): return objectNode(className: className, protocolNames: protocolNames)
-            case .block(let signature):
-                guard let signature else { return Self.anyNode }
-                return Node.createTransient(kind: .functionType, children: [
-                    Node.createTransient(kind: .argumentTuple, child: Self.type(Node.createTransient(kind: .tuple, children: signature.parameterTypes.map {
-                        Node.createTransient(kind: .tupleElement, child: typeNode($0, position: .closureComponent))
-                    }))),
-                    Node.createTransient(kind: .returnType, child: typeNode(signature.returnType, position: .closureComponent)),
-                ])
-            case .pointer(let pointee, let isConst):
-                switch pointee {
-                case .void: return Self.swiftStructure(isConst ? "UnsafeRawPointer" : "UnsafeMutableRawPointer")
-                case .unknown, .object, .block, .objectClass, .bitField: return Self.swiftStructure("OpaquePointer")
-                default: return Self.boundGenericStructure(Self.swiftStructure(isConst ? "UnsafePointer" : "UnsafeMutablePointer"), arguments: [bareTypeNode(pointee)])
-                }
-            case .structure(let name), .union(let name):
-                guard let name else { return Self.swiftStructure("OpaquePointer") }
-                return Self.structure(module: objcModule, name: name)
-            case .array(let count, let element):
-                // A C array imports as a tuple of its elements.
-                return Node.createTransient(kind: .tuple, children: (0 ..< max(count, 0)).map { _ in
-                    Node.createTransient(kind: .tupleElement, child: Self.type(bareTypeNode(element)))
-                })
-            case .bitField, .unknown:
-                return Self.anyNode
-            }
-        }
-
-        private func objectNode(className: String?, protocolNames: [String]) -> Node {
-            let protocols = protocolNames.map { Self.type(protocolNode(forRuntimeName: $0)) }
-            guard let className else {
-                // `id`, `id<P>`, `id<P, Q>`.
-                return Node.createTransient(kind: .protocolList, child: Node.createTransient(kind: .typeList, children: protocols))
-            }
-            if !protocols.isEmpty {
-                // `NSObject<P> *` imports as `NSObject & P`.
-                return Node.createTransient(kind: .protocolListWithClass, children: [
-                    Node.createTransient(kind: .protocolList, child: Node.createTransient(kind: .typeList, children: protocols)),
-                    Self.type(classNode(forRuntimeName: className)),
-                ])
-            }
-            if let bridged = ObjCProtocolRequirementBuilder.bridgedStructures[className] {
-                return Self.structure(module: bridged.module, name: bridged.name)
-            }
-            switch className {
-            case "NSArray":
-                return Self.boundGenericStructure(Self.swiftStructure("Array"), arguments: [Self.anyNode])
-            case "NSDictionary":
-                return Self.boundGenericStructure(Self.swiftStructure("Dictionary"), arguments: [Self.swiftStructure("AnyHashable"), Self.anyNode])
-            case "NSSet":
-                return Self.boundGenericStructure(Self.swiftStructure("Set"), arguments: [Self.swiftStructure("AnyHashable")])
-            case "NSError":
-                return Node.createTransient(kind: .protocolList, child: Node.createTransient(kind: .typeList, child: Self.type(Node.createTransient(kind: .protocol, children: [Self.module("Swift"), Node.createTransient(kind: .identifier, text: "Error")]))))
-            default:
-                return classNode(forRuntimeName: className)
-            }
-        }
-
-        private func protocolNode(forRuntimeName runtimeName: String) -> Node {
-            ObjCRuntimeNames.protocolNode(forRuntimeName: runtimeName, in: machO)
-        }
-
-        private func classNode(forRuntimeName runtimeName: String) -> Node {
-            ObjCRuntimeNames.classNode(forRuntimeName: runtimeName, in: machO)
-        }
-
-        // MARK: Node shapes
-
-        private static var anyNode: Node {
-            Node.createTransient(kind: .protocolList, child: Node.createTransient(kind: .typeList))
-        }
-
-        private static func type(_ node: Node) -> Node {
-            node.kind == .type ? node : Node.createTransient(kind: .type, child: node)
-        }
-
-        private static func module(_ name: String) -> Node {
-            Node.createTransient(kind: .module, text: name)
-        }
-
-        private static func structure(module moduleName: String, name: String) -> Node {
-            Node.createTransient(kind: .structure, children: [module(moduleName), Node.createTransient(kind: .identifier, text: name)])
-        }
-
-        private static func swiftStructure(_ name: String) -> Node {
-            structure(module: "Swift", name: name)
-        }
-
-        private static func boundGenericStructure(_ structure: Node, arguments: [Node]) -> Node {
-            Node.createTransient(kind: .boundGenericStructure, children: [
-                type(structure),
-                Node.createTransient(kind: .typeList, children: arguments.map(type)),
-            ])
-        }
-
-        private static func optional(_ wrapped: Node, enumName: String = "Optional") -> Node {
-            type(Node.createTransient(kind: .boundGenericEnum, children: [
-                type(Node.createTransient(kind: .enum, children: [module("Swift"), Node.createTransient(kind: .identifier, text: enumName)])),
-                Node.createTransient(kind: .typeList, child: type(wrapped)),
-            ]))
-        }
-
-        private static func implicitlyUnwrapped(_ wrapped: Node) -> Node {
-            optional(wrapped, enumName: "ImplicitlyUnwrappedOptional")
         }
     }
 }
