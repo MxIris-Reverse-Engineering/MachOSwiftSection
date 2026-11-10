@@ -1,6 +1,6 @@
-# Draft - 没有本地符号的镜像里，扩展中的类型与私有 `@objc` 协议也给出导出结论
+# 0091 - 没有本地符号的镜像里，扩展中的类型与私有 `@objc` 协议也给出导出结论
 
-- **状态**: In Progress
+- **状态**: Implemented
 - **创建日期**: 2026-11-10
 - **最后更新**: 2026-11-10
 - **所属愿景**: 无
@@ -47,3 +47,4 @@ RuntimeViewer 的侧栏把「Not Exported」设为排除后，AppKit 里仍列�
 | 2026-11-10 | 新增包内接口 `SymbolIndexStore.hasExportInformation(in:)`，不公开 | 第三条腿要分清镜像有没有导出信息，只有本库自己用。 |
 | 2026-11-10 | 全量测试的 43 个失败判为基线既有，不在本分支处理 | 在 JH's Mac Studio Ultra（macOS 27.2，Xcode 27.2）上，`SymbolTestsCore` 按 CI 的方式（ad-hoc 签名）现编，`swift test --skip IntegrationTests` 有 43 个测试失败，全是 ABI 层描述符偏移与基线不等一类（另有 `KeyPathComputedPropertyBodyTests`、`ThunkOnlyObjCMemberTests`）。在 `next`（`bd1df364`）上用同一份夹具跑同一批测试，失败的测试一个不差、也没有多出来，与本改动无关。 |
 | 2026-11-10 | 实现完成，待用户看过后收尾 | 验证都在 JH's Mac Studio Ultra 上：撤掉判定修复时，扩展中的类型、私有 `@objc` 协议与往返重整共 8 组测试变红，恢复后全绿；单撤类别规则时只有它那一条变红。最终提交上 `SwiftInterfaceTests`、`SwiftIndexingTests` 与 `SwiftSectionKitTests` 只剩 4 个失败，都在上一行的基线集合里。用新编的 swift-section 对 macOS 27.2 的 AppKit 跑 `interface --exported-only --emit-private-source-files`：修复前留下 25 个私有类型、32 个扩展，修复后一个带私有鉴别器的声明都不剩，`NSTextList` 遵循 `_TitleProviding` 的类别也不在了。没有另写实现说明或使用指南：实现说明 `Internal/ExportedOnlyInterfaceFiltering.md` 已同批更新；没有新术语，术语表只改了已有词条。 |
+| 2026-11-10 | 落地：编号 0091，演进账本第 130 节，状态改为 Implemented | 用户批准收尾。这期间 `next` 已推上 0090（ObjC imported declarations），所以取 0091；合并只在两份索引表冲突，两边都保留，合并结果推送前在 Ultra 上重跑了验证。第 1–5 步与方案一致，没有没做完的项；RuntimeViewer 一侧的跟进另做。指南与术语的判断见上一行。 |
