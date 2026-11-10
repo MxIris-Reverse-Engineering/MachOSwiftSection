@@ -33,12 +33,18 @@ package struct ObjCProtocolRequirement: Sendable {
     /// What the declaration was built from: the method's type encoding
     /// (extended when the record carries one), or the property's attributes.
     package let typeEncoding: String
+    /// Whether the compiler would derive a selector other than `selector`
+    /// from the Swift name the declaration prints — what an imported
+    /// protocol pins with `@objc(selector)` (evolution proposal
+    /// `objc-imported-declarations`). A protocol declared in Swift pins
+    /// every requirement named from its selector instead.
+    package let hasExplicitSelector: Bool
 
     package var isSettable: Bool {
         setterSelector != nil
     }
 
-    package init(kind: Kind, selector: String, setterSelector: String?, isClassMember: Bool, isOptional: Bool, node: Node, typeEncoding: String) {
+    package init(kind: Kind, selector: String, setterSelector: String?, isClassMember: Bool, isOptional: Bool, node: Node, typeEncoding: String, hasExplicitSelector: Bool) {
         self.kind = kind
         self.selector = selector
         self.setterSelector = setterSelector
@@ -46,6 +52,7 @@ package struct ObjCProtocolRequirement: Sendable {
         self.isOptional = isOptional
         self.node = node
         self.typeEncoding = typeEncoding
+        self.hasExplicitSelector = hasExplicitSelector
     }
 }
 
@@ -59,23 +66,36 @@ package struct ObjCProtocolRequirement: Sendable {
 /// follow the importer too (`ObjCImportedTypes`), and the declarations take
 /// the shapes `ObjCImportedMemberNodes` gives every imported member.
 package enum ObjCProtocolRequirementBuilder {
+    /// The language a protocol was declared in, which decides how its
+    /// requirements are named.
+    package enum DeclaringLanguage: Sendable {
+        /// An `@objc` protocol declared in Swift: a property keeps the name
+        /// its record carries — the Swift name — and a method's first label
+        /// loses the `With` Swift inserts into the selector it derives.
+        case swift
+        /// A protocol declared in Objective-C: every name is the importer's.
+        case objectiveC
+    }
+
     /// The requirements of `record`, declared on `protocolNode` (a
     /// `Protocol` node, as the protocol's mangled name demangles to).
-    package static func requirements(of record: ObjCProtocolRecord, protocolNode: Node, in machO: some MachOSwiftSectionRepresentableWithCache) -> [ObjCProtocolRequirement] {
-        let builder = Builder(protocolNode: protocolNode, record: record, machO: machO)
+    package static func requirements(of record: ObjCProtocolRecord, protocolNode: Node, declaredIn declaringLanguage: DeclaringLanguage = .swift, in machO: some MachOSwiftSectionRepresentableWithCache) -> [ObjCProtocolRequirement] {
+        let builder = Builder(protocolNode: protocolNode, record: record, declaringLanguage: declaringLanguage, machO: machO)
         return builder.requirements()
     }
 
     private struct Builder<MachO: MachOSwiftSectionRepresentableWithCache> {
         let protocolNode: Node
         let record: ObjCProtocolRecord
+        let declaringLanguage: DeclaringLanguage
         let contextTypeName: String
         let propertyNames: Set<String>
         let nodes: ObjCImportedMemberNodes<MachO>
 
-        init(protocolNode: Node, record: ObjCProtocolRecord, machO: MachO) {
+        init(protocolNode: Node, record: ObjCProtocolRecord, declaringLanguage: DeclaringLanguage, machO: MachO) {
             self.protocolNode = protocolNode
             self.record = record
+            self.declaringLanguage = declaringLanguage
             self.contextTypeName = protocolNode.children.at(1)?.text ?? record.runtimeName
             self.propertyNames = Set((record.instanceProperties + record.classProperties).map(\.name))
             self.nodes = ObjCImportedMemberNodes(machO: machO)
@@ -144,21 +164,26 @@ package enum ObjCProtocolRequirementBuilder {
 
         private func propertyRequirement(_ accessors: PropertyAccessors, isClassMember: Bool, isOptional: Bool) -> ObjCProtocolRequirement? {
             guard let type = ObjCTypeEncodingParser.propertyType(fromAttributes: accessors.property.attributes) else { return nil }
+            let name = switch declaringLanguage {
+            case .swift: accessors.property.name
+            case .objectiveC: ObjCImporterNaming.importedPropertyName(accessors.property.name, attributes: accessors.property.attributes, contextTypeName: contextTypeName, propertyNames: propertyNames)
+            }
             return ObjCProtocolRequirement(
                 kind: .property,
                 selector: accessors.getterSelector,
                 setterSelector: accessors.setterSelector,
                 isClassMember: isClassMember,
                 isOptional: isOptional,
-                node: nodes.propertyNode(contextNode: protocolNode, name: accessors.property.name, type: type, isClassMember: isClassMember),
-                typeEncoding: accessors.property.attributes
+                node: nodes.propertyNode(contextNode: protocolNode, name: name, type: type, isClassMember: isClassMember),
+                typeEncoding: accessors.property.attributes,
+                hasExplicitSelector: ObjCImportedMemberBuilder.hasExplicitSelector(getterSelector: accessors.getterSelector, propertyName: name, isClassMember: isClassMember)
             )
         }
 
         private func methodRequirement(_ method: ObjCProtocolRecord.Method, isClassMethod: Bool, isOptional: Bool, methodsBySelector: [String: ObjCProtocolRecord.Method]) -> ObjCProtocolRequirement? {
             let encoding = method.extendedTypeEncoding ?? method.typeEncoding
             guard let methodType = ObjCTypeEncodingParser.methodType(from: encoding) ?? ObjCTypeEncodingParser.methodType(from: method.typeEncoding) else { return nil }
-            let name = ObjCImporterNaming.importedName(selector: method.selector, isClassMethod: isClassMethod, methodType: methodType, contextTypeName: contextTypeName, propertyNames: propertyNames)
+            let name = ObjCImporterNaming.importedName(selector: method.selector, isClassMethod: isClassMethod, methodType: methodType, contextTypeName: contextTypeName, propertyNames: propertyNames, undoesSwiftInsertedWith: declaringLanguage == .swift)
             switch name.kind {
             case .subscriptSetter:
                 // Folded into the getter's subscript.
@@ -173,7 +198,8 @@ package enum ObjCProtocolRequirementBuilder {
                     isClassMember: isClassMethod,
                     isOptional: isOptional,
                     node: node,
-                    typeEncoding: encoding
+                    typeEncoding: encoding,
+                    hasExplicitSelector: false
                 )
             case .initializer, .factoryInitializer, .method:
                 // A protocol's method is never a factory initializer: the
@@ -186,7 +212,8 @@ package enum ObjCProtocolRequirementBuilder {
                     isClassMember: isClassMethod && !isInitializer,
                     isOptional: isOptional,
                     node: nodes.methodNode(contextNode: protocolNode, name: name, methodType: methodType, isClassMember: isClassMethod),
-                    typeEncoding: encoding
+                    typeEncoding: encoding,
+                    hasExplicitSelector: ObjCImportedMemberBuilder.hasExplicitSelector(method.selector, name: name, isClassMember: isClassMethod)
                 )
             }
         }

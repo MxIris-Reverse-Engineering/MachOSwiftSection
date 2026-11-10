@@ -47,6 +47,11 @@ package struct ObjCImportedMember: Sendable {
     package let typeEncoding: String
     /// An object property's ownership; `nil` for every other member.
     package let ownership: Ownership?
+    /// Whether the interface spells the selector out (`@objc(selector)`): the
+    /// compiler would derive another one from the Swift name it prints
+    /// (`ObjCMemberShape.defaultSelector()`), as for `convert(_:fromView:)`,
+    /// whose selector is `convertPoint:fromView:`.
+    package let hasExplicitSelector: Bool
 
     package var isSettable: Bool {
         setterSelector != nil
@@ -78,6 +83,30 @@ package enum ObjCImportedMemberBuilder {
         ".cxx_construct", ".cxx_destruct", "dealloc",
         "retain", "release", "autorelease", "retainCount",
     ]
+
+    /// Whether the compiler would derive a selector other than `selector`
+    /// from the Swift name `name` gives a method (`ObjCMemberShape`).
+    package static func hasExplicitSelector(_ selector: String, name: ObjCImporterNaming.ImportedName, isClassMember: Bool) -> Bool {
+        let labels: [String?] = name.argumentLabels.map { $0.isEmpty ? nil : $0 }
+        let kind: ObjCMemberShape.Kind
+        switch name.kind {
+        case .method:
+            kind = .method(baseName: name.baseName, labels: labels, arity: labels.count)
+        case .initializer, .factoryInitializer:
+            kind = .initializer(labels: labels, arity: labels.count)
+        case .subscriptGetter, .subscriptSetter:
+            // The four fixed selectors are every subscript's.
+            return false
+        }
+        let shape = ObjCMemberShape(kind: kind, isStatic: isClassMember && name.kind == .method, ownerQualifiedName: nil, isThrowing: name.errorConvention != nil)
+        return shape.defaultSelector() != selector
+    }
+
+    /// Whether the compiler would derive a getter other than `getterSelector`
+    /// from a property's Swift name: `cgPath`'s is `CGPath`.
+    package static func hasExplicitSelector(getterSelector: String, propertyName: String, isClassMember: Bool) -> Bool {
+        ObjCMemberShape(kind: .getter(propertyName: propertyName), isStatic: isClassMember, ownerQualifiedName: nil).defaultSelector() != getterSelector
+    }
 
     private struct Builder<MachO: MachOSwiftSectionRepresentableWithCache> {
         let record: ObjCImportedContainerRecord
@@ -166,7 +195,8 @@ package enum ObjCImportedMemberBuilder {
                 isClassMember: isClassMember,
                 node: nodes.propertyNode(contextNode: contextNode, name: name, type: type, isClassMember: isClassMember),
                 typeEncoding: attributes,
-                ownership: Self.ownership(type: type, attributes: attributes)
+                ownership: Self.ownership(type: type, attributes: attributes),
+                hasExplicitSelector: ObjCImportedMemberBuilder.hasExplicitSelector(getterSelector: accessors.getterSelector, propertyName: name, isClassMember: isClassMember)
             )
         }
 
@@ -223,7 +253,8 @@ package enum ObjCImportedMemberBuilder {
                     isClassMember: isClassMember,
                     node: node,
                     typeEncoding: encoding,
-                    ownership: nil
+                    ownership: nil,
+                    hasExplicitSelector: false
                 )
             case .initializer, .factoryInitializer, .method:
                 let kind: ObjCImportedMember.Kind = switch name.kind {
@@ -238,7 +269,8 @@ package enum ObjCImportedMemberBuilder {
                     isClassMember: isClassMember && kind == .method,
                     node: nodes.methodNode(contextNode: contextNode, name: name, methodType: methodType, isClassMember: isClassMember),
                     typeEncoding: encoding,
-                    ownership: nil
+                    ownership: nil,
+                    hasExplicitSelector: ObjCImportedMemberBuilder.hasExplicitSelector(method.selector, name: name, isClassMember: isClassMember)
                 )
             }
         }

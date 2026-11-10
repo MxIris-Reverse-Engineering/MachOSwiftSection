@@ -82,6 +82,12 @@ struct ObjCImportedMemberBuilderTests {
 
         // What Swift never sees is left out.
         #expect(!members.contains { $0.selector == ".cxx_destruct" || $0.selector == "dealloc" })
+
+        // The selector is pinned only where the compiler would derive
+        // another one from the printed name.
+        #expect(factory.hasExplicitSelector)
+        #expect(black.hasExplicitSelector)
+        #expect(members.first { $0.selector == "initWithCoder:" }?.hasExplicitSelector == false)
     }
 
     /// An encoding whose arguments do not pair with the selector's colons —
