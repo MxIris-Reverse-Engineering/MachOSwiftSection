@@ -326,10 +326,19 @@ public final class SwiftInterfaceBuilder<MachO: MachOFieldLayoutRenderable>: Sen
     }
 
     /// A category conformance on a class of this image the export filter
-    /// drops goes with it — when marking, into the same region.
+    /// drops goes with it — when marking, into the same region. So does one
+    /// whose every protocol is a Swift-declared `@objc` protocol of this
+    /// image that is not exported (a private one; evolution proposal
+    /// `export-verdict-without-local-symbols`), as a Swift type's
+    /// conformance to a non-exported protocol does. One that adopts an
+    /// exported or unjudged protocol as well is kept whole.
     private func isExcludedByExportFilter(_ conformance: ObjCCategoryConformance) -> Bool {
-        guard let typeDefinition = indexer.allTypeDefinitions[conformance.extendedTypeName] else { return false }
-        return printer.isExcludedByExportFilter(typeDefinition)
+        if let typeDefinition = indexer.allTypeDefinitions[conformance.extendedTypeName], printer.isExcludedByExportFilter(typeDefinition) {
+            return true
+        }
+        return !conformance.protocolNames.isEmpty && conformance.protocolNames.allSatisfy { protocolName in
+            indexer.objcProtocolDefinitions[protocolName].map { printer.isExcludedByExportFilter($0) } ?? false
+        }
     }
 
     /// `protocolDefinition`'s default-implementation extensions, read once

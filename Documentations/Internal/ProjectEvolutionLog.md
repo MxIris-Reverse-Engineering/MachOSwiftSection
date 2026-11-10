@@ -3154,6 +3154,24 @@
 - **后续**：见提案的「后续项」；RuntimeViewer 一侧（它的草案 `draft-objc-generated-interface`）等本库发版后抬 pin 接入。
 - **对应版本**：未发版，随 0.25.0 发布。发版说明写新增的公开 API：三种 `ObjCImported…Definition` 与 `ObjCImportedMemberDefinition`、`SwiftDeclarationIndexer.objcImportedClassDefinition(named:)` 等查找方法、`SwiftDeclarationPrinter.printObjCImported…Definition(_:level:)`、`ObjCInterfaceRequest.printsSwiftImport` 与 `objc interface --swift`。
 
+## 130. 没有本地符号的镜像里，扩展中的类型与私有 `@objc` 协议也给出导出结论
+
+- **时间段**：2026-11-10，分支 `feature/export-verdict-without-local-symbols`（worktree `.worktrees/MachOSwiftSection-ExportVerdictWithoutLocalSymbols`，基于 `next` bd1df364）。提案 [0091-export-verdict-without-local-symbols](../Evolutions/0091-export-verdict-without-local-symbols.md)（轻量档）。
+- **动机**：RuntimeViewer 把未导出的类型设为排除后，仍列出 AppKit 的私有类型。macOS 27.2 dyld shared cache 里的 AppKit 只留导出、导入与 `_symbolic` 符号，写在 ObjC 类扩展里的未导出类型都落到重整名一腿，又被「拒绝一切扩展上下文」挡住，约 45 个没有结论；Swift 声明的私有 `@objc` 协议则从来不裁决。
+- **关键决策**：
+  - 重整名一腿只拒绝带约束的扩展：不带约束的扩展节点重整后与编译器的拼法一致，夹具上逐个比对过。
+  - 加第三条腿：前两条判不了时，私有或局部声明判未导出，看名字或描述符外层的匿名上下文；`-enable-private-imports` 编出的镜像由第一条腿先认出导出。
+  - 私有 `@objc` 协议判未导出（用户选定），打印器照常过滤；只遵循这类协议的 ObjC 类别在 `--exported-only` 时一并去掉，同 Swift 类型遵循未导出协议一样。
+  - 夹具三个变体分别编译：各镜像的缓存按 `LC_UUID` 认文件，从一次编译复制的变体会读到彼此的符号索引。
+- **落地**：
+  - SwiftDeclaration：`ExportStatus` 的三条腿与 `isPrivateOrLocal(_:)`，`ObjCProtocolDefinition.exportStatus`；MachOSymbols：包内的 `SymbolIndexStore.hasExportInformation(in:)`。
+  - SwiftPrinting / SwiftInterface：`printObjCProtocolDefinition` 的导出过滤，`SwiftInterfaceBuilder` 的类别规则。
+  - 测试：`ExtensionContextExportFixture` 与 `ExtensionContextExportStatusTests`，`SwiftDeclaredObjCProtocolInterfaceTests` 加一条，`ObjCProtocolDefinitionIndexingTests` 的断言随之改。
+  - 文档：提案、`ExportedOnlyInterfaceFiltering.md`、`Modules/SwiftDeclaration.md`、术语表一个词条、README 与 `--exported-only` 的帮助文字。
+- **验证**：在 JHs-Mac-Studio-Ultra（macOS 27.2，Xcode 27.2）上跑。撤掉修复时 8 组回归测试变红、恢复后全绿；用新编的 swift-section 跑 AppKit 的 `interface --exported-only`，带私有鉴别器的声明从 25 个类型、32 个扩展降到 0。全量测试的失败与 `next` bd1df364 一致：`ThunkOnlyObjCMemberTests` 4 处（第 129 节已记），以及现编夹具带来的一批 ABI 偏移类失败，两侧相同。
+- **后续**：RuntimeViewer 一侧抬 pin，`@objc` 协议条目读 `exportStatus`，它自己打印的类别 conformance 照做类别规则。
+- **对应版本**：未发版。
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节

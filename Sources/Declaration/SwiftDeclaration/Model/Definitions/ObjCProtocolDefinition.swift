@@ -45,8 +45,11 @@ public final class ObjCProtocolDefinition: @unchecked Sendable {
     /// the protocol as an extended context, as for a Swift protocol.
     public package(set) var defaultImplementationExtensions: [ExtensionDefinition] = []
 
-    /// Never a verdict: the protocol has no symbol of its own.
-    public let exportStatus: ExportStatus = .declarationHasNoSymbol
+    /// The protocol has no symbol of its own, so only its name can rule:
+    /// ``ExportStatus/notExported`` for a private protocol or one nested in a
+    /// private type, ``ExportStatus/declarationHasNoSymbol`` — no verdict —
+    /// for any other (evolution proposal `export-verdict-without-local-symbols`).
+    public let exportStatus: ExportStatus
 
     /// Whether `index(in:)` has completed a pass over this definition. Safe
     /// to read from any thread.
@@ -68,7 +71,9 @@ public final class ObjCProtocolDefinition: @unchecked Sendable {
             throw ObjCProtocolDefinitionError.nameIsNoProtocol(mangledName: declaredProtocol.mangledName)
         }
         let typeNode = Node.createTransient(kind: .type, child: protocolNode)
-        self.protocolName = ProtocolName(node: InternedNodeReferenceCache.shared.reference(interning: typeNode, in: machO))
+        let protocolName = ProtocolName(node: InternedNodeReferenceCache.shared.reference(interning: typeNode, in: machO))
+        self.protocolName = protocolName
+        self.exportStatus = ExportStatus.resolve(forSwiftDeclaredObjCProtocolNamed: protocolName.node, in: machO)
         self.objcRuntimeName = declaredProtocol.record?.runtimeName
         self.hasExplicitObjCName = declaredProtocol.hasExplicitObjCName
         self.declaredProtocol = declaredProtocol
