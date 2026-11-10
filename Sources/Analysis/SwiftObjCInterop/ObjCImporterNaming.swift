@@ -1,21 +1,27 @@
 import SwiftInspection
 
-/// The Swift importer's names for the methods of an Objective-C protocol,
-/// ported for the requirements of an `@objc` protocol declared in Swift
-/// (evolution proposal `swift-declared-objc-protocols`). The binary keeps no
-/// Swift name for such a requirement, only its selector and type encodings;
-/// the name the importer would give the same Objective-C declaration is what
-/// the interface prints, with `@objc(selector)` pinning the selector.
+/// The Swift importer's names for Objective-C methods and properties, from
+/// what a binary keeps of them: selectors, type encodings, property
+/// attributes. Ported for the requirements of an `@objc` protocol declared in
+/// Swift (evolution proposal `swift-declared-objc-protocols`) and used for
+/// every Objective-C class, category and protocol an interface imports
+/// (evolution proposal `objc-imported-declarations`). The binary keeps no
+/// Swift name for such a declaration; the name the importer would give it is
+/// what the interface prints, with `@objc(selector)` pinning the selector.
 ///
 /// Ported from the Swift repository: `omitNeedlessWords` and what it calls
 /// in `lib/Basic/StringExtras.cpp` (word splitting, parts of speech,
 /// splitting the base name at its last preposition, dropping words a
 /// parameter's type makes redundant), and from
 /// `lib/ClangImporter/ImportName.cpp` the parts it hands over to: the
-/// initializer family, the subscript accessors, the error convention.
-/// Left out: what needs a header the binary does not keep — nullability,
-/// default arguments, `NS_SWIFT_NAME` — and the `async` import, which the
-/// proposal keeps as a completion handler.
+/// initializer family, factory methods imported as initializers, the
+/// subscript accessors, the error convention, property names. Left out: what
+/// needs a header the binary does not keep — nullability, default arguments,
+/// API notes and `NS_SWIFT_NAME`, enumeration and option set type names,
+/// collection element types, parameter names — and the `async` import, which
+/// is kept as a completion handler. Measured on AppKit, names from a method
+/// list's encodings alone match the SDK's for about four members in five
+/// (`objc-imported-declarations`, its measurement section).
 ///
 /// One step is the library's own, after the importer's: Swift inserts `With`
 /// before a first argument label that starts with no preposition
@@ -28,6 +34,11 @@ package enum ObjCImporterNaming {
         package enum Kind: Sendable, Hashable {
             case method
             case initializer
+            /// A class method whose selector restates its class's name and
+            /// that returns an instance (`+colorWithRed:green:blue:alpha:`
+            /// of `NSColor`), which the importer imports as a convenience
+            /// initializer (`init(red:green:blue:alpha:)`).
+            case factoryInitializer
             case subscriptGetter
             case subscriptSetter
         }
@@ -61,13 +72,21 @@ package enum ObjCImporterNaming {
     ///     name in a selector from being dropped as redundant.
     ///   - undoesSwiftInsertedWith: whether to take the library's own step
     ///     after the importer's; `false` gives the importer's name exactly.
+    ///   - factoryInitializerClassName: the name of the class whose class
+    ///     method this is, to import a factory method as an initializer the
+    ///     way the importer does (`matchFactoryAsInitName`); `nil` for a
+    ///     protocol's method, which never is one. The importer also demands
+    ///     that the method return `instancetype` or the class itself, which a
+    ///     method list's encoding cannot tell from `id`: any object result
+    ///     counts.
     package static func importedName(
         selector: String,
         isClassMethod: Bool,
         methodType: ObjCMethodTypeEncoding,
         contextTypeName: String,
         propertyNames: Set<String> = [],
-        undoesSwiftInsertedWith: Bool = true
+        undoesSwiftInsertedWith: Bool = true,
+        factoryInitializerClassName: String? = nil
     ) -> ImportedName {
         let pieces = selectorPieces(selector)
         let parameterTypes = methodType.parameterTypes
@@ -76,16 +95,28 @@ package enum ObjCImporterNaming {
             return ImportedName(kind: subscriptKind, baseName: "subscript", argumentLabels: Array(repeating: "", count: parameterTypes.count), parameterIndices: Array(parameterTypes.indices), errorConvention: nil)
         }
 
-        var baseName = pieces.first ?? selector
+        let firstPiece = pieces.first ?? selector
+        var baseName = firstPiece
         // A selector without a colon takes no argument.
         var argumentNames: [String] = selector.hasSuffix(":") ? [""] + pieces.dropFirst() : []
         var parameterIndices = Array(0 ..< argumentNames.count)
-        let isInitializer = !isClassMethod && isInitializerFamily(baseName) && isObject(methodType.returnType)
 
-        if isInitializer {
+        // `shouldImportAsInitializer`: how much of the first piece names the
+        // initializer — `init`, or the class name a factory method restates.
+        var initializerPrefixLength: Int?
+        var isFactoryInitializer = false
+        if !isClassMethod, isInitializerFamily(baseName), isObject(methodType.returnType) {
+            initializerPrefixLength = 4
+        } else if isClassMethod, let factoryInitializerClassName, returnsInstance(methodType.returnType, ofClassNamed: factoryInitializerClassName),
+                  let prefixLength = factoryPrefixLength(of: firstPiece, className: factoryInitializerClassName, takesArguments: selector.hasSuffix(":")) {
+            initializerPrefixLength = prefixLength
+            isFactoryInitializer = true
+        }
+        let isInitializer = initializerPrefixLength != nil
+
+        if let initializerPrefixLength {
             baseName = "init"
-            let initializerPrefixLength = 4
-            var argumentName = String((pieces.first ?? "").dropFirst(initializerPrefixLength))
+            var argumentName = String(firstPiece.dropFirst(initializerPrefixLength))
             var droppedWith = false
             if argumentName.hasPrefix("With") {
                 argumentName = String(argumentName.dropFirst(4))
@@ -93,7 +124,7 @@ package enum ObjCImporterNaming {
             }
             argumentName = toLowercaseWord(argumentName)
             if droppedWith, isSwiftReservedName(argumentName) {
-                argumentName = "with" + String((pieces.first ?? "").dropFirst(initializerPrefixLength + 4))
+                argumentName = "with" + String(firstPiece.dropFirst(initializerPrefixLength + 4))
             }
             if argumentNames.isEmpty {
                 if !argumentName.isEmpty {
@@ -105,14 +136,17 @@ package enum ObjCImporterNaming {
         }
 
         // The error convention: a trailing `NSError **`, past any trailing
-        // blocks, on a method returning `BOOL` or an object.
+        // blocks, on a method returning `BOOL` or an object. An encoding
+        // spells every pointer to an object `^@` — `NSDictionary **` too
+        // (`initWithRTF:documentAttributes:`) — so the selector piece of the
+        // parameter has to name an error as well.
         var errorConvention: ImportedName.ErrorConvention?
         if argumentNames.count == parameterTypes.count {
             var index = parameterTypes.count
             while index > 0 {
                 index -= 1
                 if case .block = parameterTypes[index] { continue }
-                guard isErrorOutParameter(parameterTypes[index]) else { break }
+                guard isErrorOutParameter(parameterTypes[index]), index < pieces.count, namesError(pieces[index]) else { break }
                 switch methodType.returnType {
                 case .bool: errorConvention = .booleanResult
                 case .object, .objectClass: errorConvention = .nonNilResult
@@ -159,7 +193,66 @@ package enum ObjCImporterNaming {
             }
         }
 
-        return ImportedName(kind: isInitializer ? .initializer : .method, baseName: baseName, argumentLabels: argumentNames, parameterIndices: parameterIndices, errorConvention: errorConvention)
+        let kind: ImportedName.Kind = isFactoryInitializer ? .factoryInitializer : isInitializer ? .initializer : .method
+        return ImportedName(kind: kind, baseName: baseName, argumentLabels: argumentNames, parameterIndices: parameterIndices, errorConvention: errorConvention)
+    }
+
+    /// The importer's name for a property (`NameImporter::importNameImpl` and
+    /// the property branch of `omitNeedlessWords`): a `BOOL` property goes by
+    /// its getter (`hidden` with `getter=isHidden` is `isHidden`), a name
+    /// restating a result of the context's own type drops it (`NSColor`'s
+    /// class property `blackColor` is `black`), and a leading initialism is
+    /// lowercased (`CGPath` is `cgPath`).
+    ///
+    /// - Parameters:
+    ///   - propertyName: the name the property list records.
+    ///   - attributes: the property's attribute string (`T@"NSColor",R,N`).
+    ///   - contextTypeName: the name of the class or protocol declaring it.
+    ///   - propertyNames: the names that keep a type name in the property's
+    ///     name from being dropped (`NameImporter::getAllPropertyNames`).
+    package static func importedPropertyName(_ propertyName: String, attributes: String, contextTypeName: String, propertyNames: Set<String> = []) -> String {
+        let type = ObjCTypeEncodingParser.propertyType(fromAttributes: attributes)
+        var baseName = propertyName
+        // `BOOL` encodes as `B` on arm64 and as `c`, a `signed char`, elsewhere.
+        if type == .bool || type == .character,
+           let getter = attributes.split(separator: ",").first(where: { $0.hasPrefix("G") }) {
+            baseName = String(getter.dropFirst())
+        }
+        var argumentNames: [String] = []
+        omitNeedlessWords(
+            baseName: &baseName,
+            argumentNames: &argumentNames,
+            resultType: type.map(omissionTypeName(of:)) ?? OmissionTypeName(name: ""),
+            contextType: OmissionTypeName(name: contextTypeName),
+            parameterTypes: [],
+            allPropertyNames: propertyNames,
+            isProperty: true
+        )
+        return baseName
+    }
+
+    // MARK: - Factory methods
+
+    /// Whether the class method's result can be the instance the importer
+    /// demands of a factory initializer: an object of unknown class (an
+    /// encoding keeps `instancetype` as `@`) or of the class itself.
+    private static func returnsInstance(_ returnType: ObjCEncodedType, ofClassNamed className: String) -> Bool {
+        guard case .object(let returnedClassName, let protocolNames) = returnType, protocolNames.isEmpty else { return false }
+        return returnedClassName == nil || returnedClassName == className
+    }
+
+    /// `matchFactoryAsInitName`: how much of the first selector piece
+    /// restates the class name (`color` of `colorWithRed` in `NSColor`), or
+    /// `nil` when it restates none of it. A factory method with no argument
+    /// must restate the first piece whole (`+date` of `NSDate`).
+    private static func factoryPrefixLength(of firstPiece: String, className: String, takesArguments: Bool) -> Int? {
+        guard !firstPiece.isEmpty else { return nil }
+        let firstArgumentLabel = matchLeadingTypeName(firstPiece, typeName: OmissionTypeName(name: className))
+        guard firstArgumentLabel.utf8.count != firstPiece.utf8.count else { return nil }
+        if !firstArgumentLabel.isEmpty, !takesArguments {
+            return nil
+        }
+        return firstPiece.utf8.count - firstArgumentLabel.utf8.count
     }
 
     // MARK: - Selectors
@@ -195,6 +288,13 @@ package enum ObjCImporterNaming {
     private static func isErrorOutParameter(_ type: ObjCEncodedType) -> Bool {
         if case .pointer(.object, _) = type { return true }
         return false
+    }
+
+    /// Whether a selector piece names the error a method reports through it:
+    /// its last word is `error` (`error:`, `outError:`, and the first piece
+    /// `tokenAndReturnError` or `loadWithError`).
+    private static func namesError(_ selectorPiece: String) -> Bool {
+        Words(selectorPiece).lastWord.lowercased() == "error"
     }
 
     // MARK: - Omission type names
@@ -288,16 +388,17 @@ package enum ObjCImporterNaming {
         case partial
     }
 
-    /// `swift::omitNeedlessWords`, for a method that is neither a property
-    /// accessor nor imported as `async`, and whose parameters take no
-    /// default arguments (inferring those needs nullability).
+    /// `swift::omitNeedlessWords`, for a method not imported as `async` whose
+    /// parameters take no default arguments (inferring those needs
+    /// nullability), or for a property (`isProperty`, with no parameters).
     static func omitNeedlessWords(
         baseName: inout String,
         argumentNames: inout [String],
         resultType: OmissionTypeName,
         contextType: OmissionTypeName,
         parameterTypes: [OmissionTypeName],
-        allPropertyNames: Set<String>?
+        allPropertyNames: Set<String>?,
+        isProperty: Bool = false
     ) {
         defer {
             baseName = toLowercaseInitialisms(baseName)
@@ -311,7 +412,10 @@ package enum ObjCImporterNaming {
             baseName = omitNeedlessWordsFromPrefix(baseName, type: contextType)
         }
 
-        baseName = omitSelfTypeFromBaseName(baseName, typeName: contextType, allPropertyNames: allPropertyNames)
+        // Only a method's base name loses the context type's name.
+        if !isProperty {
+            baseName = omitSelfTypeFromBaseName(baseName, typeName: contextType, allPropertyNames: allPropertyNames)
+        }
 
         if parameterTypes.isEmpty {
             if resultTypeMatchesContext {

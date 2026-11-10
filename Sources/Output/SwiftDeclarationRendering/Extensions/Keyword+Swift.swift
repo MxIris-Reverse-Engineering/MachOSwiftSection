@@ -30,7 +30,9 @@ extension Keyword {
         case `Self`
         case `each`
         case `repeat`
+        case convenience
         case atObjc = "@objc"
+        case atNSCopying = "@NSCopying"
         case atObjCRuntimeName = "@_objcRuntimeName"
         case atImplementation = "@implementation"
         case atNonobjc = "@nonobjc"

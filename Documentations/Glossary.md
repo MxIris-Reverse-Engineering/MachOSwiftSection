@@ -89,6 +89,13 @@ macOS 27 与 iOS 27 的 dyld shared cache 不再给每个镜像留自己的 `__o
 - **主要出现在**：`Sources/Declaration/SwiftDeclaration/Model/ObjCCategoryConformance.swift`、`Sources/Analysis/SwiftObjCInterop/ObjCProtocolAdoptionIndex.swift`
 - **延伸阅读**：[SwiftDeclaredObjCProtocols.md](Internal/SwiftDeclaredObjCProtocols.md)、[0079-swift-declared-objc-protocols](Evolutions/0079-swift-declared-objc-protocols.md)
 
+### category merging（category 并进类）
+
+同一镜像里给本镜像的类写的 category 不会以 category 的形式留下来：同模块 Swift extension 的成员由编译器直接并进类，其余的（ObjC 写的 category、Swift 给 ObjC 类写的 extension、`@objc(Name) @implementation extension`）由链接器并进类自己的表，`__objc_catlist` 里不再有它们，事后也分不出哪些成员来自 category。所以本库读到的 category 只有给别的镜像的类写的那些；`ObjCImplementationFixture` 整个没有 `__objc_catlist`。别与 dyld cache 的「预先附加」混淆：那是构建 cache 时把 category（含别的镜像的）挂到类上，类的表变成「多张表的表」，类自己的那张仍分得出来。
+
+- **主要出现在**：`Sources/Analysis/SwiftObjCInterop/ObjCImportedContainerIndex.swift`、`ObjCImplementationClassIndex.swift` 的 `importedMethods(of:)`
+- **延伸阅读**：[draft-objc-imported-declarations](Evolutions/draft-objc-imported-declarations.md)
+
 ### class without a class object（没有 class object 的类，`SwiftClassWithoutClassObject`）
 
 `__objc_classlist` 里没有 class object 的 Swift 类：泛型类，父类在别的 resilience domain 的类，父类是本模块泛型类的类。它们的 `class_ro_t` 都静态存在，但只有经 Swift 元数据才找得到（generic metadata pattern、`ResilientClassMetadataPattern`、静态的 incomplete metadata）。后两种有 ObjC 祖先时还在 `__objc_stublist` 里登记一个 stub。交给 MachOObjCSection 时它们叫 supplied class（`ObjCSuppliedClass`），即宿主补进 ObjC 索引器的类。与 `@objc @implementation` 类的区别：那种类有 class object，没有的是 Swift 元数据。
@@ -284,6 +291,13 @@ opaque 尖括号参数归属的第三条规则：协议无任何 anchor 命中�
 
 - **主要出现在**：提案 0046-objc-implementation-class-recognition 的判据与证据分级
 - **延伸阅读**：[提案 0046-objc-implementation-class-recognition](Evolutions/0046-objc-implementation-class-recognition.md)
+
+### ObjC imported declaration（ObjC 导入声明，`ObjCImportedClassDefinition` 等）
+
+镜像里的 ObjC 类、category 或协议，按 Swift 导入它们的样子建成的声明，即 Xcode 的 Generated Interface 显示的那种。名字由本库移植的 ClangImporter 命名规则从 selector 与属性名推出，类型取自方法编码、采纳的协议里的扩展编码与属性特性串；Swift 实现的部分（桥接出去的 Swift 类、`@objc @implementation` 类、Swift extension 的成员）照抄 Swift 的声明。与「Swift 声明的 `@objc` 协议」的区别：那是 Swift 源码声明、只有 ObjC 记录的协议，导入声明面向镜像里任意的 ObjC 声明。
+
+- **主要出现在**：`Sources/Analysis/SwiftObjCInterop/ObjCImportedContainerIndex.swift`、`ObjCImportedMemberBuilder.swift`，`Sources/Declaration/SwiftDeclaration/Model/Definitions/ObjCImported*Definition.swift`，`swift-section objc interface --swift`
+- **延伸阅读**：[draft-objc-imported-declarations](Evolutions/draft-objc-imported-declarations.md)
 
 ### ObjC ancestor override（ObjC 祖先覆写）
 
