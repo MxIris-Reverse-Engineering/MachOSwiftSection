@@ -285,9 +285,10 @@ extension SwiftDeclarationPrinter {
 
 /// The Swift members of a class's or category's Swift definitions that
 /// answer Objective-C selectors, by the selector the class's Objective-C
-/// member table ties each to (`objcMember`). Only the two tiers of evidence
-/// that join a member — the `To` thunk symbol and the thunk's code — count;
-/// a tie by name alone does not.
+/// member table ties each to (`objcMember`). A tie by the `To` thunk symbol
+/// or the thunk's code wins; a tie by name alone is taken when there is no
+/// other — the definitions here implement the class, so a member whose name
+/// is the importer's spelling of a selector of the class answers to it.
 struct ObjCImplementingSwiftMembers {
     enum Member {
         case function(FunctionDefinition)
@@ -300,19 +301,20 @@ struct ObjCImplementingSwiftMembers {
         let isClassMethod: Bool
     }
 
-    private var membersByKey: [Key: Member] = [:]
+    private var joinedMembersByKey: [Key: Member] = [:]
+    private var nameOnlyMembersByKey: [Key: Member] = [:]
 
     init(typeDefinitions: [TypeDefinition], extensionDefinitions: [ExtensionDefinition]) {
         for typeDefinition in typeDefinitions {
             add(
-                functions: typeDefinition.functions + typeDefinition.staticFunctions + typeDefinition.allocators,
+                functions: typeDefinition.functions + typeDefinition.staticFunctions + typeDefinition.allocators + typeDefinition.constructors,
                 variables: typeDefinition.variables + typeDefinition.staticVariables,
                 subscripts: typeDefinition.subscripts + typeDefinition.staticSubscripts
             )
         }
         for extensionDefinition in extensionDefinitions {
             add(
-                functions: extensionDefinition.functions + extensionDefinition.staticFunctions + extensionDefinition.allocators,
+                functions: extensionDefinition.functions + extensionDefinition.staticFunctions + extensionDefinition.allocators + extensionDefinition.constructors,
                 variables: extensionDefinition.variables + extensionDefinition.staticVariables,
                 subscripts: extensionDefinition.subscripts + extensionDefinition.staticSubscripts
             )
@@ -332,10 +334,14 @@ struct ObjCImplementingSwiftMembers {
     }
 
     private mutating func insert(_ objcMember: ObjCMember?, as member: Member) {
-        guard let objcMember, objcMember.evidence != .selectorName else { return }
+        guard let objcMember else { return }
         let key = Key(selector: objcMember.selector, isClassMethod: objcMember.isClassMethod)
-        if membersByKey[key] == nil {
-            membersByKey[key] = member
+        if objcMember.evidence == .selectorName {
+            if nameOnlyMembersByKey[key] == nil {
+                nameOnlyMembersByKey[key] = member
+            }
+        } else if joinedMembersByKey[key] == nil {
+            joinedMembersByKey[key] = member
         }
     }
 
@@ -344,9 +350,12 @@ struct ObjCImplementingSwiftMembers {
     func member(answering member: ObjCImportedMemberDefinition) -> Member? {
         // A factory method is a class method in Objective-C.
         let isClassMethod = member.isClassMember || member.kind == .factoryInitializer
-        if let found = membersByKey[Key(selector: member.selector, isClassMethod: isClassMethod)] {
-            return found
+        let keys = [member.selector, member.setterSelector].compactMap { $0 }.map { Key(selector: $0, isClassMethod: isClassMethod) }
+        for membersByKey in [joinedMembersByKey, nameOnlyMembersByKey] {
+            if let found = keys.lazy.compactMap({ membersByKey[$0] }).first {
+                return found
+            }
         }
-        return member.setterSelector.flatMap { membersByKey[Key(selector: $0, isClassMethod: isClassMethod)] }
+        return nil
     }
 }
