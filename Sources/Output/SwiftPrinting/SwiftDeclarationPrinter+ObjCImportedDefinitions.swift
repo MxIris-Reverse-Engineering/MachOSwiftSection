@@ -15,10 +15,12 @@ extension SwiftDeclarationPrinter {
     /// `objc-imported-declarations`): `class Name: Superclass, Protocol…`
     /// and its members, named by the importer's rules.
     ///
-    /// A Swift class prints as the Swift class it is, followed by an
-    /// `extension` of the Objective-C methods no member of it answers to. An
-    /// `@objc @implementation` class prints each member the implementing
-    /// extension answers to as that Swift member, and the rest by the rules.
+    /// A Swift class prints as the Swift class it is, followed by its
+    /// extensions in the image and an `extension` of the Objective-C methods
+    /// no member of them answers to. A class declared in Objective-C prints
+    /// each member a Swift extension of it answers to as that Swift member —
+    /// an `@objc @implementation` class all of its own — and the rest by the
+    /// rules.
     public func printObjCImportedClassDefinition(_ definition: ObjCImportedClassDefinition, level: Int = 1) async throws -> SemanticString {
         try await LargeStackTaskExecution.run {
             try await printIncludedObjCImportedClassDefinition(definition, level: level)
@@ -54,24 +56,40 @@ extension SwiftDeclarationPrinter {
 
         if let swiftClassDefinition = definition.swiftClassDefinition {
             try await printTypeDefinition(swiftClassDefinition, level: level)
-            let swiftMembers = try implementingSwiftMembers(typeDefinitions: [swiftClassDefinition], extensionDefinitions: swiftClassDefinition.extensions)
+            let swiftMembers = try implementingSwiftMembers(typeDefinitions: [swiftClassDefinition], extensionDefinitions: definition.swiftExtensions)
             let unimplementedMembers = definition.members.filter { swiftMembers.member(answering: $0) == nil }
-            if !unimplementedMembers.isEmpty {
-                try await DeclarationBlock(level: level) {
-                    Keyword(.extension)
-                    Space()
-                    renderExtendedTypeName(definition.className.extensionName)
-                } body: {
-                    try await MemberList(level: level) {
-                        comment(.note("Objective-C methods of the class that no member of the Swift class answers to. Swift names follow the ClangImporter's rules for these selectors."), as: .note)
-                        for member in unimplementedMembers {
-                            await printObjCImportedMember(member, level: level)
+            // Its extensions trail it, as in the module's interface.
+            await BlockList {
+                for extensionDefinition in definition.swiftExtensions {
+                    await printCatchedThrowing(
+                        dispatchingTo: eventDispatcher,
+                        context: .init(name: extensionDefinition.extensionName.name, kind: .extension)
+                    ) {
+                        try await printExtensionDefinition(extensionDefinition)
+                    }
+                }
+                if !unimplementedMembers.isEmpty {
+                    await printCatchedThrowing(
+                        dispatchingTo: eventDispatcher,
+                        context: .init(name: definition.className.name, kind: .extension)
+                    ) {
+                        try await DeclarationBlock(level: level) {
+                            Keyword(.extension)
+                            Space()
+                            renderExtendedTypeName(definition.className.extensionName)
+                        } body: {
+                            try await MemberList(level: level) {
+                                comment(.note("Objective-C methods of the class that no member of the Swift class answers to. Swift names follow the ClangImporter's rules for these selectors."), as: .note)
+                                for member in unimplementedMembers {
+                                    await printObjCImportedMember(member, level: level)
+                                }
+                            }
                         }
                     }
                 }
             }
         } else {
-            let swiftMembers = try implementingSwiftMembers(typeDefinitions: [], extensionDefinitions: definition.implementationExtensions)
+            let swiftMembers = try implementingSwiftMembers(typeDefinitions: [], extensionDefinitions: definition.swiftExtensions)
             let inheritedNodes = [definition.superclassName?.node].compactMap { $0 } + definition.protocolNames.map(\.node)
             try await DeclarationBlock(level: level) {
                 Keyword(.class)

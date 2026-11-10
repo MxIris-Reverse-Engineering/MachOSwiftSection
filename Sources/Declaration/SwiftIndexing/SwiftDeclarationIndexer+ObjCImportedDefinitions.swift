@@ -25,20 +25,27 @@ extension SwiftDeclarationIndexer {
 
     /// The class the Objective-C runtime knows as `runtimeName` as Swift
     /// imports it, or `nil` when the image defines no class of that name.
-    /// A Swift class comes with its own definition, an `@objc
-    /// @implementation` class with the image's extensions implementing it.
+    /// It comes with the image's Swift extensions of the class, whose
+    /// `@objc` members the linker merges into the class's own lists: a
+    /// Swift class with its own definition, its extensions and its
+    /// conformances; a class declared in Objective-C with its `@objc
+    /// @implementation` bodies and the extensions adding `@objc` members.
     public func objcImportedClassDefinition(named runtimeName: String) -> ObjCImportedClassDefinition? {
         guard let record = ObjCImportedContainerIndex.shared.classRecord(named: runtimeName, in: machO) else { return nil }
-        var swiftClassDefinition: TypeDefinition?
-        if record.isSwiftClass, let classNode = ObjCRuntimeNames.swiftClassNode(forRuntimeName: runtimeName, in: machO) {
-            let typeNode = Node.createTransient(kind: .type, child: classNode)
-            let typeName = TypeName(node: InternedNodeReferenceCache.shared.reference(interning: typeNode, in: machO), kind: .class)
-            swiftClassDefinition = allTypeDefinitions[typeName]
+        guard record.isSwiftClass else {
+            return ObjCImportedClassDefinition(record: record, swiftClassDefinition: nil, swiftExtensions: swiftExtensions(ofObjCClassNamed: runtimeName), in: machO)
         }
-        let implementationExtensions = record.isSwiftClass ? [] : typeExtensionDefinitions.values.flatMap { $0 }.filter {
-            $0.objcImplementation?.className == runtimeName
+        guard let classNode = ObjCRuntimeNames.swiftClassNode(forRuntimeName: runtimeName, in: machO) else {
+            return ObjCImportedClassDefinition(record: record, swiftClassDefinition: nil, swiftExtensions: [], in: machO)
         }
-        return ObjCImportedClassDefinition(record: record, swiftClassDefinition: swiftClassDefinition, implementationExtensions: implementationExtensions, in: machO)
+        let typeNode = Node.createTransient(kind: .type, child: classNode)
+        let typeName = TypeName(node: InternedNodeReferenceCache.shared.reference(interning: typeNode, in: machO), kind: .class)
+        guard let swiftClassDefinition = allTypeDefinitions[typeName] else {
+            return ObjCImportedClassDefinition(record: record, swiftClassDefinition: nil, swiftExtensions: [], in: machO)
+        }
+        let extensionName = typeName.extensionName
+        let swiftExtensions = (typeExtensionDefinitions[extensionName] ?? []) + (conformanceExtensionDefinitions[extensionName] ?? [])
+        return ObjCImportedClassDefinition(record: record, swiftClassDefinition: swiftClassDefinition, swiftExtensions: swiftExtensions, in: machO)
     }
 
     /// The category listed as `uniqueName` (`NSView(NSTouchBar)`) as Swift
@@ -50,10 +57,15 @@ extension SwiftDeclarationIndexer {
         guard let record = ObjCImportedContainerIndex.shared.categoryRecord(uniqueName: uniqueName, in: machO),
               case .category(let categoryName) = record.kind
         else { return nil }
-        let swiftExtensions = typeExtensionDefinitions.values.flatMap { $0 }.filter { extensionDefinition in
-            ObjCImplementationClasses.cImportedClassName(of: extensionDefinition.extensionName.node) == record.classRuntimeName
+        return ObjCImportedCategoryDefinition(record: record, categoryName: categoryName, swiftExtensions: swiftExtensions(ofObjCClassNamed: record.classRuntimeName), in: machO)
+    }
+
+    /// The image's Swift extensions of the class declared in Objective-C as
+    /// `className` (`extension __C.NSView`).
+    private func swiftExtensions(ofObjCClassNamed className: String) -> [ExtensionDefinition] {
+        typeExtensionDefinitions.values.flatMap { $0 }.filter { extensionDefinition in
+            ObjCImplementationClasses.cImportedClassName(of: extensionDefinition.extensionName.node) == className
         }
-        return ObjCImportedCategoryDefinition(record: record, categoryName: categoryName, swiftExtensions: swiftExtensions, in: machO)
     }
 
     /// The protocol the Objective-C runtime knows as `runtimeName` as Swift

@@ -13,11 +13,14 @@ import SwiftObjCInterop
 /// When Swift implements the class, the interface prints Swift's own
 /// declarations rather than the names the rules derive: a Swift class
 /// registered with the runtime prints as the Swift class it is
-/// (``swiftClassDefinition``), and an `@objc @implementation` class takes
-/// each member from the extension implementing it
-/// (``implementationExtensions``). The printer pairs the two by selector,
-/// through the Objective-C member table of those definitions; a member none
-/// of them implements still prints by the rules.
+/// (``swiftClassDefinition``) with its extensions, and a class declared in
+/// Objective-C takes each member Swift implements from the image's Swift
+/// extension implementing it (``swiftExtensions``). The linker merges the
+/// category an extension with `@objc` members compiles to into the class's
+/// own lists when the class is the image's, so those members are the class's
+/// methods too. The printer pairs them by selector, through the Objective-C
+/// member table of those definitions; a member none of them implements still
+/// prints by the rules.
 ///
 /// `@unchecked Sendable` for the reason `TypeDefinition` gives: written only
 /// while the model is built and while `index(in:)` runs once behind
@@ -38,8 +41,11 @@ public final class ObjCImportedClassDefinition: @unchecked Sendable {
     /// indexes; `nil` otherwise.
     public let swiftClassDefinition: TypeDefinition?
 
-    /// The image's `@objc @implementation` extensions of the class.
-    public let implementationExtensions: [ExtensionDefinition]
+    /// The image's Swift extensions of the class: of a Swift class, its
+    /// extensions and conformances; of a class declared in Objective-C, its
+    /// `@objc @implementation` bodies and the extensions adding `@objc`
+    /// members.
+    public let swiftExtensions: [ExtensionDefinition]
 
     /// The superclass, by the name Swift gives it; `nil` for a root class
     /// and for a superclass the reader cannot name. Read by `index(in:)`.
@@ -65,13 +71,13 @@ public final class ObjCImportedClassDefinition: @unchecked Sendable {
     /// What the image's lists record of the class.
     package let record: ObjCImportedContainerRecord
 
-    package init(record: ObjCImportedContainerRecord, swiftClassDefinition: TypeDefinition?, implementationExtensions: [ExtensionDefinition], in machO: some MachOSwiftSectionRepresentableWithCache) {
+    package init(record: ObjCImportedContainerRecord, swiftClassDefinition: TypeDefinition?, swiftExtensions: [ExtensionDefinition], in machO: some MachOSwiftSectionRepresentableWithCache) {
         let classNode = ObjCRuntimeNames.classNode(forRuntimeName: record.classRuntimeName, in: machO)
         self.className = TypeName(node: InternedNodeReferenceCache.shared.reference(interning: Node.createTransient(kind: .type, child: classNode), in: machO), kind: .class)
         self.objcRuntimeName = record.classRuntimeName
         self.isSwiftClass = record.isSwiftClass
         self.swiftClassDefinition = swiftClassDefinition
-        self.implementationExtensions = implementationExtensions
+        self.swiftExtensions = swiftExtensions
         self.record = record
     }
 }

@@ -12,13 +12,18 @@ import SwiftObjCInterop
 /// The Objective-C declarations as Swift imports them (evolution proposal
 /// `objc-imported-declarations`), over the shared `@objc @implementation`
 /// fixture: a class declared and implemented in Objective-C, named by the
-/// importer's rules; an `@objc @implementation` class and category whose
-/// members come from their Swift implementations; a category Swift wrote on
-/// the Objective-C class; and a Swift class registered with the runtime.
+/// importer's rules; an `@objc @implementation` class whose members come from
+/// its Swift implementation; a Swift class registered with the runtime; an
+/// `@objc` protocol; and the separately shipped dylib's category on a class
+/// of another image.
+///
+/// The linker merges every category of a class the image defines into the
+/// class's own lists, so the fixture itself lists no category: the members
+/// of `@objc(Extras) @implementation extension Widget` and of the Swift
+/// extensions with `@objc` members are the classes' methods.
 @Suite(.serialized, ExclusiveImageAccess(ObjCImplementationFixture.moduleName))
 struct ObjCImportedDefinitionTests {
-    private func builder() async throws -> SwiftInterfaceBuilder<MachOFile> {
-        let machOFile = try ObjCImplementationFixture.machOFile(.full)
+    private func builder(of machOFile: MachOFile) async throws -> SwiftInterfaceBuilder<MachOFile> {
         let configuration = SwiftInterfaceBuilderConfiguration(
             indexConfiguration: .init(dependencySearchPaths: try ObjCImplementationFixture.dependencySearchPaths())
         )
@@ -27,12 +32,17 @@ struct ObjCImportedDefinitionTests {
         return builder
     }
 
+    private func fixtureBuilder() async throws -> SwiftInterfaceBuilder<MachOFile> {
+        try await builder(of: ObjCImplementationFixture.machOFile(.full))
+    }
+
     @Test func aClassDeclaredInObjectiveCTakesTheImportersNames() async throws {
-        let builder = try await builder()
+        let builder = try await fixtureBuilder()
         let definition = try #require(builder.indexer.objcImportedClassDefinition(named: "ClangWidget"))
         #expect(!definition.isSwiftClass)
         #expect(definition.swiftClassDefinition == nil)
-        #expect(definition.implementationExtensions.isEmpty)
+        // `extension ClangWidget { @objc public func swiftAdded() -> Int }`.
+        #expect(!definition.swiftExtensions.isEmpty)
 
         let printed = try await builder.printer.printObjCImportedClassDefinition(definition).string
         #expect(printed.contains("class ClangWidget: __C.NSObject {"), "\(printed)")
@@ -45,52 +55,46 @@ struct ObjCImportedDefinitionTests {
         #expect(printed.contains("class func pingCount() -> Swift.Int"), "\(printed)")
         // The accessors are the properties, not methods of their own.
         #expect(!printed.contains("func setLabel"), "\(printed)")
+        // The method the Swift extension adds, merged into the class's lists.
+        #expect(printed.contains("swiftAdded() -> Swift.Int"), "\(printed)")
     }
 
     @Test func anImplementationClassTakesItsMembersFromSwift() async throws {
-        let builder = try await builder()
+        let builder = try await fixtureBuilder()
         let definition = try #require(builder.indexer.objcImportedClassDefinition(named: "Widget"))
-        #expect(!definition.implementationExtensions.isEmpty)
+        #expect(!definition.swiftExtensions.isEmpty)
 
         let printed = try await builder.printer.printObjCImportedClassDefinition(definition).string
         #expect(printed.contains("class Widget: __C.NSObject {"), "\(printed)")
-        // The Swift members' own types: non-optional, which no method list records.
+        // The Swift members' own types: non-optional, which no method list
+        // records — the rules would print `String!`.
         #expect(printed.contains("title: Swift.String"), "\(printed)")
         #expect(!printed.contains("title: Swift.String!"), "\(printed)")
         #expect(printed.contains("init(title: Swift.String)"), "\(printed)")
         #expect(printed.contains("func refresh()"), "\(printed)")
+        // `@objc(Extras) @implementation extension Widget`, merged into the
+        // class's lists.
+        #expect(printed.contains("describe() -> Swift.String"), "\(printed)")
+        #expect(!printed.contains("describe() -> Swift.String!"), "\(printed)")
     }
 
-    @Test func aCategoryTakesItsMembersFromTheSwiftExtensionImplementingIt() async throws {
-        let builder = try await builder()
-
-        // `@objc(Extras) @implementation extension Widget`.
-        let extras = try #require(builder.indexer.objcImportedCategoryDefinition(uniqueName: "Widget(Extras)"), "\(builder.indexer.objcImportedCategoryUniqueNames)")
-        #expect(extras.categoryName == "Extras")
-        let printedExtras = try await builder.printer.printObjCImportedCategoryDefinition(extras).string
-        #expect(printedExtras.contains("The Objective-C category Widget(Extras)."), "\(printedExtras)")
-        #expect(printedExtras.contains("describe() -> Swift.String"), "\(printedExtras)")
-        #expect(!printedExtras.contains("describe() -> Swift.String!"), "\(printedExtras)")
-
-        // `extension ClangWidget { @objc public func swiftAdded() -> Int }`.
-        let uniqueName = try #require(builder.indexer.objcImportedCategoryUniqueNames.first { $0.hasPrefix("ClangWidget(") })
-        let swiftCategory = try #require(builder.indexer.objcImportedCategoryDefinition(uniqueName: uniqueName))
-        let printedSwiftCategory = try await builder.printer.printObjCImportedCategoryDefinition(swiftCategory).string
-        #expect(printedSwiftCategory.contains("swiftAdded() -> Swift.Int"), "\(printedSwiftCategory)")
-    }
-
-    @Test func aSwiftClassPrintsAsItself() async throws {
-        let builder = try await builder()
-        let runtimeName = try #require(builder.indexer.objcImportedClassRuntimeNames.first { $0.hasSuffix("PlainSwiftSibling") })
+    @Test func aSwiftClassPrintsAsItselfWithItsExtensions() async throws {
+        let builder = try await fixtureBuilder()
+        let runtimeName = try #require(builder.indexer.objcImportedClassRuntimeNames.first { $0.hasSuffix("SwiftDerivedWidget") })
         let definition = try #require(builder.indexer.objcImportedClassDefinition(named: runtimeName))
         #expect(definition.isSwiftClass)
         #expect(definition.swiftClassDefinition != nil)
+        #expect(!definition.swiftExtensions.isEmpty)
 
         let printed = try await builder.printer.printObjCImportedClassDefinition(definition).string
-        #expect(printed.contains("class PlainSwiftSibling"), "\(printed)")
-        #expect(printed.contains("poke()"), "\(printed)")
-        // Every Objective-C method is a member of the Swift class: no
-        // extension of the rest follows.
+        #expect(printed.contains("class SwiftDerivedWidget"), "\(printed)")
+        #expect(printed.contains("notAnOverride()"), "\(printed)")
+        // `extension SwiftDerivedWidget { @objc public func fromExtension() }`
+        // trails the class.
+        #expect(printed.contains("extension ObjCImplementationFixture.SwiftDerivedWidget"), "\(printed)")
+        #expect(printed.contains("fromExtension()"), "\(printed)")
+        // Every Objective-C method is a member of the Swift class or of one
+        // of its extensions: no extension of the rest follows.
         #expect(!printed.contains("no member of the Swift class answers to"), "\(printed)")
     }
 
@@ -99,11 +103,36 @@ struct ObjCImportedDefinitionTests {
     /// the Swift source called them (`widgetWillPing()` was renamed
     /// `@objc(widgetWillPingSoon)`).
     @Test func aProtocolTakesTheImportersNames() async throws {
-        let builder = try await builder()
+        let builder = try await fixtureBuilder()
         let definition = try #require(builder.indexer.objcImportedProtocolDefinition(named: "_TtP25ObjCImplementationFixture15WidgetObserving_"))
         let printed = try await builder.printer.printObjCImportedProtocolDefinition(definition).string
         #expect(printed.contains("protocol WidgetObserving"), "\(printed)")
         #expect(printed.contains("func widgetDidPing(_: __C.ClangWidget!)"), "\(printed)")
         #expect(printed.contains("optional func widgetWillPingSoon()"), "\(printed)")
+    }
+
+    /// `@interface NSObject (SeparatelyShipped)`, implemented in the
+    /// separately shipped dylib: a category on a class of another image
+    /// stays a category.
+    @Test func aCategoryOnAClassOfAnotherImage() async throws {
+        let categoriesLibrary: MachOFile
+        switch try MachOKit.loadFromFile(url: ObjCImplementationFixture.categoriesLibraryURL()) {
+        case .machO(let machOFile):
+            categoriesLibrary = machOFile
+        case .fat(let fatFile):
+            categoriesLibrary = try #require(try fatFile.machOFiles().first { $0.header.cpuType == .arm64 })
+        }
+        let builder = try await builder(of: categoriesLibrary)
+        #expect(builder.indexer.objcImportedCategoryUniqueNames == ["NSObject(SeparatelyShipped)"])
+        let definition = try #require(builder.indexer.objcImportedCategoryDefinition(uniqueName: "NSObject(SeparatelyShipped)"))
+        #expect(definition.categoryName == "SeparatelyShipped")
+        #expect(definition.swiftExtensions.isEmpty)
+
+        let printed = try await builder.printer.printObjCImportedCategoryDefinition(definition).string
+        #expect(printed.contains("extension __C.NSObject {"), "\(printed)")
+        #expect(printed.contains("The Objective-C category NSObject(SeparatelyShipped)."), "\(printed)")
+        // `noteValueForKeyPath:ofObject:` is `noteValue(forKeyPath:of:)` in
+        // the SDK: `Object` restates the type of an `id` argument.
+        #expect(printed.contains("func noteValue(forKeyPath: Any!, of: Any!)"), "\(printed)")
     }
 }
