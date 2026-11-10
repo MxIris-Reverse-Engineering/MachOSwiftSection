@@ -160,7 +160,11 @@ package final class ObjCImportedContainerIndex: @unchecked Sendable {
         for category in machO.objcCategories() ?? [] {
             // A file names a target class only when it is bound in from
             // another image; one of its own is read through the pointer.
-            guard let targetClassName = machO.targetClassName(of: category) ?? machO.targetClass(of: category).flatMap({ className(of: $0.1, in: $0.0) }),
+            var resolvedTargetClassName = machO.targetClassName(of: category)
+            if resolvedTargetClassName == nil, let (targetReader, targetClassObject) = machO.targetClass(of: category) {
+                resolvedTargetClassName = className(of: targetClassObject, in: targetReader)
+            }
+            guard let targetClassName = resolvedTargetClassName,
                   let categoryName = machO.categoryName(of: category)
             else { continue }
             let record = ObjCImportedContainerRecord(
