@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 import Demangling
+import MachOResolving
 import MachOSymbols
 import SwiftDeclaration
 
