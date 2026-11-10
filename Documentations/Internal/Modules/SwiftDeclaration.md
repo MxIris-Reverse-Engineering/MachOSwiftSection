@@ -120,7 +120,7 @@ SE-0436 的类在 `__swift5_*` 里没有身影，模型里它就是那个 `__C.X
 
 ### ObjC 声明按 Swift 导入的样子
 
-镜像里的 ObjC 类、category 与协议，按 Swift 导入它们的样子建成 `ObjCImportedClassDefinition`、`ObjCImportedCategoryDefinition`、`ObjCImportedProtocolDefinition`（提案 [draft-objc-imported-declarations](../../Evolutions/draft-objc-imported-declarations.md)）。一个镜像的 ObjC 类动辄上千，所以它们不随 `prepare()` 建，而是由 `SwiftDeclarationIndexer` 的 `objcImportedClassDefinition(named:)` 等方法按名字现建，第一次打印时索引自己：从 SwiftObjCInterop 的记录建出成员（`ObjCImportedMemberDefinition`）、父类与协议的名字。名字保持 `__C` 下的 ObjC 名，与 mangling 一致，Swift 里改了名的交给打印时的类型名提供者。
+镜像里的 ObjC 类、category 与协议，按 Swift 导入它们的样子建成 `ObjCImportedClassDefinition`、`ObjCImportedCategoryDefinition`、`ObjCImportedProtocolDefinition`（提案 [0090-objc-imported-declarations](../../Evolutions/0090-objc-imported-declarations.md)）。一个镜像的 ObjC 类动辄上千，所以它们不随 `prepare()` 建，而是由 `SwiftDeclarationIndexer` 的 `objcImportedClassDefinition(named:)` 等方法按名字现建，第一次打印时索引自己：从 SwiftObjCInterop 的记录建出成员（`ObjCImportedMemberDefinition`）、父类与协议的名字。名字保持 `__C` 下的 ObjC 名，与 mangling 一致，Swift 里改了名的交给打印时的类型名提供者。
 
 类与 category 定义带着实现它们的 Swift 定义：桥接出去的 Swift 类带 `swiftClassDefinition`，`swiftExtensions` 是本镜像里这个类的 Swift extension。成员与 Swift 成员的配对在打印器里做（按 Swift 成员的 `objcMember`），模型不记。建这两样时有两个容易踩的坑：
 
