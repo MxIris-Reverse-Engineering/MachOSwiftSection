@@ -417,6 +417,13 @@ protocol ObjCImplementationClassReading: MachORepresentableWithCache, Readable {
     func categoryName(of category: ObjCCategory64) -> String?
     func instanceProperties(of category: ObjCCategory64) -> [ObjCImplementationClassFacts.Property]
     func classProperties(of category: ObjCCategory64) -> [ObjCImplementationClassFacts.Property]
+    /// Every property the class data lists — the lists a dyld cache
+    /// attached ahead of time included, which `properties(of:)` leaves out
+    /// the way `methods(of:)` does not.
+    func importedProperties(of readOnlyData: ObjCClassROData64) -> [ObjCImplementationClassFacts.Property]
+    /// The runtime names of every protocol the class data lists, a dyld
+    /// cache's attached lists included.
+    func importedProtocolNames(of readOnlyData: ObjCClassROData64) -> [String]
     /// `__objc_protolist`, every record read in full (`ObjCProtocolRecord.swift`).
     func objcProtocolRecords() -> [ObjCProtocolRecord]
 }
@@ -782,5 +789,67 @@ extension MachOImage {
     private func categoryProperties(of propertyList: ObjCPropertyList?) -> [ObjCImplementationClassFacts.Property] {
         guard let propertyList, !propertyList.isListOfLists else { return [] }
         return propertyList.properties(in: self).map { .init(name: $0.name, attributes: $0.attributes) }
+    }
+}
+
+// MARK: - Every list of a class's data
+
+/// The class data's properties and protocols read the way `methods(of:)`
+/// reads its methods: from the class's own list, or from every list of the
+/// relative list of lists a dyld cache builds when it attaches an image's
+/// categories ahead of time (evolution proposal `objc-imported-declarations`).
+extension MachOFile {
+    func importedProperties(of readOnlyData: ObjCClassROData64) -> [ObjCImplementationClassFacts.Property] {
+        var propertyLists: [(MachOFile, ObjCPropertyList)] = []
+        if let propertyList = readOnlyData.propertyList(in: self) {
+            propertyLists.append((self, propertyList))
+        } else if let relativeListList = readOnlyData.propertyRelativeListList(in: self) {
+            propertyLists.append(contentsOf: relativeListList.lists(in: self))
+        }
+        return propertyLists.flatMap { listMachO, propertyList -> [ObjCImplementationClassFacts.Property] in
+            guard !propertyList.isListOfLists else { return [] }
+            return propertyList.properties(in: listMachO).map { .init(name: $0.name, attributes: $0.attributes) }
+        }
+    }
+
+    func importedProtocolNames(of readOnlyData: ObjCClassROData64) -> [String] {
+        var protocolLists: [(MachOFile, ObjCProtocolList64)] = []
+        if let protocolList = readOnlyData.protocolList(in: self) {
+            protocolLists.append((self, protocolList))
+        } else if let relativeListList = readOnlyData.protocolRelativeListList(in: self) {
+            protocolLists.append(contentsOf: relativeListList.lists(in: self))
+        }
+        return protocolLists.flatMap { listMachO, protocolList -> [String] in
+            guard !protocolList.isListOfLists, let protocols = protocolList.protocols(in: listMachO) else { return [] }
+            return protocols.map { $1.mangledName(in: $0) }
+        }
+    }
+}
+
+extension MachOImage {
+    func importedProperties(of readOnlyData: ObjCClassROData64) -> [ObjCImplementationClassFacts.Property] {
+        var propertyLists: [(MachOImage, ObjCPropertyList)] = []
+        if let propertyList = readOnlyData.propertyList(in: self) {
+            propertyLists.append((self, propertyList))
+        } else if let relativeListList = readOnlyData.propertyRelativeListList(in: self) {
+            propertyLists.append(contentsOf: relativeListList.lists(in: self))
+        }
+        return propertyLists.flatMap { listMachO, propertyList -> [ObjCImplementationClassFacts.Property] in
+            guard !propertyList.isListOfLists else { return [] }
+            return propertyList.properties(in: listMachO).map { .init(name: $0.name, attributes: $0.attributes) }
+        }
+    }
+
+    func importedProtocolNames(of readOnlyData: ObjCClassROData64) -> [String] {
+        var protocolLists: [(MachOImage, ObjCProtocolList64)] = []
+        if let protocolList = readOnlyData.protocolList(in: self) {
+            protocolLists.append((self, protocolList))
+        } else if let relativeListList = readOnlyData.protocolRelativeListList(in: self) {
+            protocolLists.append(contentsOf: relativeListList.lists(in: self))
+        }
+        return protocolLists.flatMap { listMachO, protocolList -> [String] in
+            guard !protocolList.isListOfLists, let protocols = protocolList.protocols(in: listMachO) else { return [] }
+            return protocols.map { $1.mangledName(in: $0) }
+        }
     }
 }

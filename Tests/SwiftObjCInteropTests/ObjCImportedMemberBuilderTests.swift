@@ -84,6 +84,35 @@ struct ObjCImportedMemberBuilderTests {
         #expect(!members.contains { $0.selector == ".cxx_destruct" || $0.selector == "dealloc" })
     }
 
+    /// An encoding whose arguments do not pair with the selector's colons —
+    /// a record could carry one — never pairs names with the wrong types: the
+    /// method is left out instead of trapping on a missing argument. An
+    /// initializer with no argument whose first piece goes on past `init`
+    /// takes the `()` parameter the importer gives it.
+    @Test func encodingsThatDoNotPairWithTheSelector() throws {
+        let appKit = try Self.appKit()
+        let record = ObjCImportedContainerRecord(
+            kind: .class,
+            classRuntimeName: "Probe",
+            superclassRuntimeName: "NSObject",
+            protocolRuntimeNames: [],
+            isSwiftClass: false,
+            instanceMethods: [
+                .init(selector: "takeOne:andAnother:", typeEncoding: "v24@0:8@16", implementationOffset: nil),
+                .init(selector: "initForIncrementalLoad", typeEncoding: "@16@0:8", implementationOffset: nil),
+            ],
+            classMethods: [],
+            instanceProperties: [],
+            classProperties: []
+        )
+        let classNode = ObjCRuntimeNames.classNode(forRuntimeName: "Probe", in: appKit)
+        let members = ObjCImportedMemberBuilder.members(of: record, contextNode: classNode, contextTypeName: "Probe", in: appKit)
+        #expect(members.map(\.selector) == ["initForIncrementalLoad"])
+        let initializer = try #require(members.first)
+        #expect(initializer.kind == .initializer)
+        #expect(Self.printed(initializer).contains("init(forIncrementalLoad: ())"), "\(Self.printed(initializer))")
+    }
+
     @Test func objectPropertiesCarryTheirOwnership() throws {
         let appKit = try Self.appKit()
         let members = try Self.members(ofClassNamed: "NSWindow", in: appKit)

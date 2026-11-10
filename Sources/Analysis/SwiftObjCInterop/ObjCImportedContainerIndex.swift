@@ -135,16 +135,19 @@ package final class ObjCImportedContainerIndex: @unchecked Sendable {
                 continue
             }
             let metaClassReadOnlyData = machO.metaClass(of: classObject).flatMap { machO.instanceReadOnlyData(of: $0) }
+            // In a dyld cache the class data also lists the categories the
+            // cache attached ahead of time: every list is read, the way the
+            // runtime sees the class.
             let record = ObjCImportedContainerRecord(
                 kind: .class,
                 classRuntimeName: runtimeName,
                 superclassRuntimeName: machO.superclassName(of: classObject),
-                protocolRuntimeNames: machO.protocolNames(of: readOnlyData),
+                protocolRuntimeNames: uniqued(machO.importedProtocolNames(of: readOnlyData)),
                 isSwiftClass: classObject.isSwiftStable,
                 instanceMethods: methods(machO.methods(of: readOnlyData)),
                 classMethods: metaClassReadOnlyData.map { methods(machO.methods(of: $0)) } ?? [],
-                instanceProperties: properties(machO.properties(of: readOnlyData)),
-                classProperties: metaClassReadOnlyData.map { properties(machO.properties(of: $0)) } ?? []
+                instanceProperties: properties(machO.importedProperties(of: readOnlyData)),
+                classProperties: metaClassReadOnlyData.map { properties(machO.importedProperties(of: $0)) } ?? []
             )
             // A name listed twice keeps its first class object.
             if classRecordsByRuntimeName[runtimeName] == nil {
@@ -186,11 +189,28 @@ package final class ObjCImportedContainerIndex: @unchecked Sendable {
         )
     }
 
+    /// The methods, each selector once: the first list naming it is the one
+    /// a message reaches, as an attached category's list comes before the
+    /// class's own.
     private static func methods(_ rawMethods: [RawObjCMethod]) -> [ObjCImportedContainerRecord.Method] {
-        rawMethods.map { ObjCImportedContainerRecord.Method(selector: $0.selector, typeEncoding: $0.typeEncoding, implementationOffset: $0.implementationOffset) }
+        var seenSelectors: Set<String> = []
+        return rawMethods.compactMap { rawMethod in
+            guard seenSelectors.insert(rawMethod.selector).inserted else { return nil }
+            return ObjCImportedContainerRecord.Method(selector: rawMethod.selector, typeEncoding: rawMethod.typeEncoding, implementationOffset: rawMethod.implementationOffset)
+        }
     }
 
+    /// The properties, each name once.
     private static func properties(_ properties: [ObjCImplementationClassFacts.Property]) -> [ObjCImportedContainerRecord.Property] {
-        properties.map { ObjCImportedContainerRecord.Property(name: $0.name, attributes: $0.attributes) }
+        var seenNames: Set<String> = []
+        return properties.compactMap { property in
+            guard seenNames.insert(property.name).inserted else { return nil }
+            return ObjCImportedContainerRecord.Property(name: property.name, attributes: property.attributes)
+        }
+    }
+
+    private static func uniqued(_ names: [String]) -> [String] {
+        var seenNames: Set<String> = []
+        return names.filter { seenNames.insert($0).inserted }
     }
 }

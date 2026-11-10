@@ -49,7 +49,13 @@ package struct ObjCImportedMemberNodes<MachO: MachOSwiftSectionRepresentableWith
     /// An initializer returns `instancetype` of unknown nullability, `init!`.
     package func methodNode(contextNode: Node, name: ObjCImporterNaming.ImportedName, methodType: ObjCMethodTypeEncoding, isClassMember: Bool) -> Node {
         let isInitializer = name.kind == .initializer || name.kind == .factoryInitializer
-        let parameterTypes = name.parameterIndices.map { methodType.parameterTypes[$0] }
+        var parameterTypes = name.parameterIndices.map { methodType.parameterTypes.indices.contains($0) ? methodType.parameterTypes[$0] : .unknown }
+        // An initializer with no argument whose first piece goes on past
+        // `init` (`initForIncrementalLoad`) takes a label but no parameter:
+        // the importer gives it a `()` one, `init(forIncrementalLoad: ())`.
+        if parameterTypes.count < name.argumentLabels.count {
+            parameterTypes += Array(repeating: .void, count: name.argumentLabels.count - parameterTypes.count)
+        }
         let resultType: Node
         if isInitializer {
             resultType = ObjCImportedTypes<MachO>.initializerResultTypeNode
