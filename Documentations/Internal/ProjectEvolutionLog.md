@@ -3153,6 +3153,7 @@
   - 文档：提案、两份模块参考、命令行指南（中英）、术语表两条、`AGENTS.md` 的 SwiftObjCInterop 条目。
 - **验证**：在 JHs-Mac-Studio-Ultra（macOS 27.2，Xcode 27.2）上跑。全量 `swift test --skip IntegrationTests` 只有 `ThunkOnlyObjCMemberTests` 4 处失败，切到 `next` bd1df364 跑同一组同样失败：Swift 6.4.2 的 `-O -wmo` 把夹具 `InitializingEntryOnlyHolder.init(values:)` 的初始化入口只留成签名特化副本（`…tcfcTf4gn_n`），与本批无关，另开修复。新增与相关的套件（`ObjCImportedDefinitionTests`、`SwiftObjCInteropTests`、`ObjCRequestTests`、`ObjCSectionCommandTests`）全部通过。
 - **后续**：见提案的「后续项」；RuntimeViewer 一侧（它的草案 `draft-objc-generated-interface`）等本库发版后抬 pin 接入。
+- **补记（2026-11-10）**：RuntimeViewer 一侧没等发版，把按分支依赖的 pin 抬到含本节的 `next` 修订就接上了，落地为它的提案 0084-objc-generated-interface。
 - **对应版本**：未发版，随 0.25.0 发布。发版说明写新增的公开 API：三种 `ObjCImported…Definition` 与 `ObjCImportedMemberDefinition`、`SwiftDeclarationIndexer.objcImportedClassDefinition(named:)` 等查找方法、`SwiftDeclarationPrinter.printObjCImported…Definition(_:level:)`、`ObjCInterfaceRequest.printsSwiftImport` 与 `objc interface --swift`。
 
 ## 130. 没有本地符号的镜像里，扩展中的类型与私有 `@objc` 协议也给出导出结论

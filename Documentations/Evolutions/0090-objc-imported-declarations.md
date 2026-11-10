@@ -3,7 +3,7 @@
 - **状态**: Implemented
 - **创建日期**: 2026-11-10
 - **最后更新**: 2026-11-10
-- **关联提案**: [0079-swift-declared-objc-protocols](0079-swift-declared-objc-protocols.md)（Swift 定义的 `@objc` 协议：本提案把它为协议要求移植的命名规则与类型桥接推广到类、category 与任意协议）、[0048-objc-member-selector-recovery](0048-objc-member-selector-recovery.md)（ObjC 成员表：按 selector 把 ObjC 方法联结到 Swift 成员，本提案靠它把 Swift 实现的成员换成真实声明）、[0046-objc-implementation-class-recognition](0046-objc-implementation-class-recognition.md)（识别 `@objc @implementation` 类）；下游是 RuntimeViewer 的草案 `draft-objc-generated-interface`
+- **关联提案**: [0079-swift-declared-objc-protocols](0079-swift-declared-objc-protocols.md)（Swift 定义的 `@objc` 协议：本提案把它为协议要求移植的命名规则与类型桥接推广到类、category 与任意协议）、[0048-objc-member-selector-recovery](0048-objc-member-selector-recovery.md)（ObjC 成员表：按 selector 把 ObjC 方法联结到 Swift 成员，本提案靠它把 Swift 实现的成员换成真实声明）、[0046-objc-implementation-class-recognition](0046-objc-implementation-class-recognition.md)（识别 `@objc @implementation` 类）；下游是 RuntimeViewer 的提案 0084-objc-generated-interface
 - **实现分支 / PR**: `feature/objc-imported-declarations`（自 `next` 切出，已合入 `next`）
 - **配套文档**: [Modules/SwiftObjCInterop.md](../Internal/Modules/SwiftObjCInterop.md)（第 6 个子系统与两条契约）、[Modules/SwiftDeclaration.md](../Internal/Modules/SwiftDeclaration.md)「ObjC 声明按 Swift 导入的样子」、[ObjCCommandLine.md](../ObjCCommandLine.md)「The Swift view」
 
