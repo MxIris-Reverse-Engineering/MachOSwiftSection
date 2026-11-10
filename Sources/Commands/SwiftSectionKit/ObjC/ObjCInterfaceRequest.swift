@@ -5,7 +5,7 @@ import ObjCOutputTransformer
 import OutputTransformer
 import Semantic
 import SwiftDeclaration
-import SwiftIndexing
+@_spi(Support) import SwiftIndexing
 @_spi(Support) import SwiftInterface
 @_spi(Support) import SwiftPrinting
 
