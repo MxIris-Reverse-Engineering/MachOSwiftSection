@@ -164,7 +164,7 @@ Requirement Machine 最小化泛型签名时，把 pin 到同一具体类型的�
 
 ### exported-only 过滤（`--exported-only`，`printExportedDeclarationsOnly`）
 
-export status 的**过滤形态**：interface 只输出镜像导出的声明。类型 / 协议按描述符符号（`…Mn` / `…Mp`，优先取描述符 offset 处的符号，重整名只兜底）裁决，成员沿用 export status 的派生形态判定，扩展按「被扩展类型 / 遵循协议是否为本镜像内未导出声明」裁决（依据 **`ExportFilterScope`**——`printRoot` 从索引器表算出的本镜像内未导出 `TypeName` / `ProtocolName` 集合）。只在判定为 `false` 时删，`nil` 一律保留（绝不靠猜删）；普通扩展被清空则整块删，conformance 扩展留 `{}`。与 export status 是同一个事实的两种呈现：删除条件即标注条件，两开关同开输出零标注。C 导入类型（`__C` 模块）不裁决：它的描述符是本镜像自己的副本。标记模式下被删的内容照常打出，条件是 `swift.printExportedDeclarationsOnly` 关着。
+export status 的**过滤形态**：interface 只输出镜像导出的声明。类型 / 协议按描述符符号（`…Mn` / `…Mp`，优先取描述符 offset 处的符号，重整名只兜底；都判不了时私有或局部声明算未导出）裁决，Swift 声明的 `@objc` 协议没有描述符、私有的算未导出，成员沿用 export status 的派生形态判定，扩展按「被扩展类型 / 遵循协议是否为本镜像内未导出声明」裁决（依据 **`ExportFilterScope`**——`printRoot` 从索引器表算出的本镜像内未导出 `TypeName` / `ProtocolName` 集合）。只在判定为 `false` 时删，`nil` 一律保留（绝不靠猜删）；普通扩展被清空则整块删，conformance 扩展留 `{}`。与 export status 是同一个事实的两种呈现：删除条件即标注条件，两开关同开输出零标注。C 导入类型（`__C` 模块）不裁决：它的描述符是本镜像自己的副本。标记模式下被删的内容照常打出，条件是 `swift.printExportedDeclarationsOnly` 关着。
 
 - **主要出现在**：`Sources/Output/SwiftPrinting/SwiftDeclarationPrinter+ExportFilter.swift`、`SwiftInterfaceBuilder.printRoot()`
 - **延伸阅读**：[提案 0016](Evolutions/0016-exported-only-interface.md)、[提案 0083](Evolutions/0083-exported-only-marking-mode.md)、[ExportedOnlyInterfaceFiltering.md](Internal/ExportedOnlyInterfaceFiltering.md)

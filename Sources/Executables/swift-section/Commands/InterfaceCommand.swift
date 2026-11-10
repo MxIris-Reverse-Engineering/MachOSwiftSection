@@ -62,7 +62,7 @@ struct InterfaceCommand: AsyncParsableCommand {
     @Flag(help: "Comment each declaration whose name carries a private discriminator with the source file the discriminator was derived from (recovered by hashing candidate file names), or say it could not be recovered, with the discriminator. Searches every discriminator of the image once after indexing, which takes a while for a framework the size of SwiftUI")
     var emitPrivateSourceFiles: Bool = false
 
-    @Flag(name: .customLong("exported-only"), help: "Print only the declarations the image exports: types and protocols whose descriptor symbol has an export-trie entry, extensions targeting them, and members with at least one exported symbol (dispatch-thunk and other derived forms included). `override` / `@objc` members and anything without export evidence are kept.")
+    @Flag(name: .customLong("exported-only"), help: "Print only the declarations the image exports: types and protocols whose descriptor symbol has an export-trie entry, extensions targeting them, and members with at least one exported symbol (dispatch-thunk and other derived forms included). A private or local declaration with no symbol to judge by (a Swift-declared `@objc` protocol, a type in an image without local symbols) is dropped too. `override` / `@objc` members and anything else without export evidence are kept.")
     var exportedOnly: Bool = false
 
     @Flag(name: .customLong("module-selectors"), help: "Qualify names with SE-0491 module selectors (Swift::Int instead of Swift.Int), the way the Swift 6.4 compiler writes a .swiftinterface. Every type level carries the module that declared it (Swift::Duration.Foundation::TimeFormatStyle).")

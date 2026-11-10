@@ -122,6 +122,26 @@ struct SwiftDeclaredObjCProtocolInterfaceTests {
         #expect(!interface.contains("PrivateProtocol in _"), "\(interface)")
     }
 
+    /// A private protocol is ruled not exported by its name alone (evolution
+    /// proposal `export-verdict-without-local-symbols`): the exported-only
+    /// filter drops it, while the internal one, which nothing rules on, stays.
+    @Test(arguments: SwiftDeclaredObjCProtocolsFixture.Variant.allCases)
+    func exportedOnlyDropsThePrivateProtocol(variant: SwiftDeclaredObjCProtocolsFixture.Variant) async throws {
+        let machOFile = try SwiftDeclaredObjCProtocolsFixture.machOFile(variant)
+        let unfiltered = try await interface(of: machOFile)
+        #expect(unfiltered.contains("@objc protocol PrivateProtocol {"), "\(unfiltered)")
+
+        var configuration = SwiftInterfaceBuilderConfiguration()
+        configuration.indexConfiguration.dependencySearchPaths = try SwiftDeclaredObjCProtocolsFixture.dependencySearchPaths()
+        configuration.printConfiguration.printExportedDeclarationsOnly = true
+        let builder = try SwiftInterfaceBuilder(configuration: configuration, eventHandlers: [], in: machOFile)
+        try await builder.prepare()
+        let filtered = try await builder.printRoot().string
+        #expect(!filtered.contains("PrivateProtocol"), "\(filtered)")
+        #expect(!filtered.contains("privateRequirement"), "\(filtered)")
+        #expect(filtered.contains("@objc protocol InternalProtocol {"), "\(filtered)")
+    }
+
     /// Declared in a type: printed in an extension of the type.
     @Test func nestedProtocolPrintsInAnExtensionOfItsParent() async throws {
         let interface = try await interface(of: SwiftDeclaredObjCProtocolsFixture.machOFile(.full))

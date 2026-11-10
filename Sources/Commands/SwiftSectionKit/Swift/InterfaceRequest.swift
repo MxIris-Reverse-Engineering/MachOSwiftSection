@@ -57,8 +57,9 @@ public struct InterfaceRequest: Sendable, Equatable {
     public var emitsPrivateDeclarationSourceFiles: Bool
     /// Only the declarations the image exports: types and protocols whose
     /// descriptor symbol has an export-trie entry, extensions targeting them,
-    /// and members with at least one exported symbol. `override` / `@objc`
-    /// members and anything without export evidence are kept.
+    /// and members with at least one exported symbol. A private or local
+    /// declaration with no symbol to judge by is dropped too. `override` /
+    /// `@objc` members and anything else without export evidence are kept.
     public var printsExportedDeclarationsOnly: Bool
     public var memberSortOrder: SwiftDeclarationMemberSortOrder
     /// Whether an ObjC method tied to its Swift member by the member's name

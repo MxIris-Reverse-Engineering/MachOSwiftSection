@@ -1345,6 +1345,15 @@ public final class SymbolIndexStore: @unchecked Sendable {
         return storage.isExported(name: name)
     }
 
+    /// Whether `machO` carries export information at all — the condition
+    /// under which ``isExported(name:in:)`` answers `true` / `false` rather
+    /// than `nil`. A verdict that rests on something other than a trie entry
+    /// (a private declaration, which the compiler never exports) still
+    /// needs it: without a trie, nothing in the image is judged.
+    package func hasExportInformation(in machO: some MachORepresentableWithCache) -> Bool {
+        storage(in: machO)?.exportFacts.hasExportInformation ?? false
+    }
+
     /// Whether the build sweep collected a symbol with exactly this name —
     /// presence in the symtab/trie population, regardless of export status.
     /// Backs the dump path's `@objc` exemption (evolution proposal 0008):

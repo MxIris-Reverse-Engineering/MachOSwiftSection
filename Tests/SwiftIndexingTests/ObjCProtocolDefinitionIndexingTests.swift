@@ -50,7 +50,11 @@ struct ObjCProtocolDefinitionIndexingTests {
         // None is a `ProtocolDefinition`: no protocol descriptor lists them.
         #expect(indexer.allProtocolDefinitions.keys.allSatisfy { !definitions.keys.contains($0.name) })
         for definition in definitions.values {
-            #expect(definition.exportStatus == .declarationHasNoSymbol)
+            // No protocol has a symbol of its own, so only a name rules: the
+            // private one's discriminator says it is not exported (evolution
+            // proposal `export-verdict-without-local-symbols`).
+            let expectedStatus: ExportStatus = definition.protocolName.name == "\(moduleName).PrivateProtocol" ? .notExported : .declarationHasNoSymbol
+            #expect(definition.exportStatus == expectedStatus, "\(definition.protocolName.name)")
             try definition.index(in: machO)
         }
 

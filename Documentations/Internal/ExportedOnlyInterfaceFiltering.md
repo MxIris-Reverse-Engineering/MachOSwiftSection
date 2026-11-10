@@ -26,14 +26,25 @@ interface 只输出镜像导出的声明。「导出」始终是 **export trie �
 查 trie。第一版这么做，fixture 当场暴露一个真实误删：`extension GenericRequirementTest where T: RawRepresentable { public struct RawRepresentableNestedStruct {} }`
 ——编译器给嵌套在**带约束扩展**里的类型 mangle 的上下文只含扩展自己的 requirement（`…VAASYRzrlE28RawRepresentableNestedStructVMn`），
 而模型的名字节点带着类型的完整签名（interface 头部印出 `where A: RawRepresentable, A: ProtocolTest` 两条），重整结果与真实符号不等，
-trie 查不到就成了假阴性，一个导出类型被删掉。因此裁决分两腿：
+trie 查不到就成了假阴性，一个导出类型被删掉。因此裁决分三腿：
 
 1. `symbolIndexStore.symbols(for: descriptor.offset)` 取**描述符所在位置**的符号（按 `Mn` / `Mp` 后缀挑），拿编译器自己的拼法查导出位图。
-   导出描述符必有 trie 行、未 strip 的镜像对未导出描述符也有本地 symtab 行，所以这一腿几乎总能答。
+   导出描述符必有 trie 行、未 strip 的镜像对未导出描述符也有本地 symtab 行，所以留着本地符号的镜像里这一腿总能答。
 2. 只有描述符处没有任何符号（strip 过的镜像里的未导出类型）才用重整名查 trie——trie 在 symtab 被 strip 后依然完整，
-   一次 miss 就是真阴性。但**含 `.extension` 上下文的名字拒绝兜底**（返回 `nil` → 保留）：那正是第 1 腿存在的理由。
+   一次 miss 就是真阴性。但**含带约束扩展上下文的名字拒绝兜底**：那正是第 1 腿存在的理由。不带约束的扩展节点只有扩展所在的模块与被扩展的类型两个子节点，
+   重整结果与编译器的拼法逐字相同（`ExtensionContextExportStatusTests` 在未 strip 的夹具上逐个比对），照常重整。
+   Swift 写在 ObjC 类里的类型全都经过这种扩展上下文（`(extension in AppKit):__C.NSView`）。
+3. 第 2 腿拒绝时，私有或局部声明判 `notExported`——编译器不给它们 public 链接；`-enable-private-imports` 编出的模块会导出私有描述符，
+   但那时第 1 腿已经在描述符上找到导出符号。认法有两种，任一成立即可：名字的上下文链（自己、外层类型、扩展所扩展的类型）里有私有声明或局部类型；
+   或者描述符外层有匿名上下文（编译器给私有声明与局部声明套的那一层）。后一种在什么符号都没留的镜像里也读得到——那里匿名上下文没有名字，
+   私有类型的名字里就没有鉴别器，光看名字认不出。其余保留为 `descriptorSymbolNameUnresolvable`。
+   泛型实参、扩展的要求与函数签名不在链上：特化出的 `Box<Private>` 与 `Box` 一样是导出的。
 
-**这两腿住在声明模型上，不在打印器里**（提案 `exported-declaration-flag`）。`TypeDefinition.exportStatus` /
+2026-11-10 之前第 2 腿拒绝一切扩展上下文、也没有第 3 腿（提案 `export-verdict-without-local-symbols`）。macOS 27.2 dyld shared cache 里的
+AppKit 只留导出、导入与 `_symbolic` 符号，未导出描述符上没有符号，写在 ObjC 类扩展里的约 45 个未导出类型（33 个是私有的）因此全部没有结论，
+`--exported-only` 照样印出它们，RuntimeViewer 排除未导出之后也照样列出。
+
+**这几腿住在声明模型上，不在打印器里**（提案 `exported-declaration-flag`）。`TypeDefinition.exportStatus` /
 `ProtocolDefinition.exportStatus`（`SwiftDeclaration` 的 `ExportStatus` 枚举：`exported` / `notExported` /
 `imageHasNoExportInformation` / `descriptorSymbolNameUnresolvable`，后来又加了 `declarationHasNoSymbol` 与 `declarationIsCImported`）在定义构造时一次算好，`prepare()` 返回时整张表就都有值——
 裁决只要描述符 offset 与名字节点，不碰 `index(in:)` 的产物。宿主（RuntimeViewer 的类型列表）因此能逐行标注而不必持有 machO，
@@ -43,6 +54,7 @@ trie 查不到就成了假阴性，一个导出类型被删掉。因此裁决分
 `descriptorSymbolNameUnresolvable` 是**声明级**的（trie 正常，只是这一条的名字重整不可信）。
 实测四个真实镜像（dyld shared cache 与 iOS 18.5 模拟器的 SwiftUICore、进程内 libswiftCore、`SymbolTestsCore`）共 8171 条类型 / 协议声明
 **全部走第 1 腿**、无一落到这两个 case，裁决总耗时占 `prepare()` 的 0.15% 以内——所以它是无条件填充，没有配置开关。
+这四个镜像都留着本地符号；没留本地符号的镜像（上文的 AppKit）里，未导出声明全靠第 2、3 腿。
 
 **C 导入类型不裁决**（提案 [0083-exported-only-marking-mode](../Evolutions/0083-exported-only-marking-mode.md)）。`__C.CGSize` 一类类型在本镜像里的描述符
 是本镜像自己生成的一份副本：编译器给 Clang 声明的是非唯一链接（`swift/lib/SIL/IR/SIL.cpp` 的 `getDeclLinkage` 对 Clang 声明返回
@@ -129,13 +141,14 @@ Sources/Executables/swift-section/Commands/InterfaceCommand.swift # --exported-o
 | 对象 | 判定入口 | 依据 |
 |------|----------|------|
 | 全局变量 / 函数 | `isExcludedByExportFilter(globalSymbolNames:)` | `exportVerdict(forSymbolNames:)`（0008 的派生形态查询） |
-| 类型 / 协议（含嵌套、特化子类型） | 入口壳 → `TypeDefinition/ProtocolDefinition.exportStatus.isDefinitelyNotExported` | 构造期算好的 `ExportStatus`（C 导入类型不裁决 → 描述符 offset 处的符号 → 重整名兜底） |
+| 类型 / 协议（含嵌套、特化子类型） | 入口壳 → `TypeDefinition/ProtocolDefinition.exportStatus.isDefinitelyNotExported` | 构造期算好的 `ExportStatus`（C 导入类型不裁决 → 描述符 offset 处的符号 → 重整名兜底 → 私有或局部声明判未导出） |
+| Swift 声明的 `@objc` 协议 | `printObjCProtocolDefinition` 入口壳 → `ObjCProtocolDefinition.exportStatus.isDefinitelyNotExported` | 没有描述符，只看名字：私有的或嵌在私有类型里的判未导出，其余不裁决；它的扩展随它打印、随它删除，不进 `ExportFilterScope` |
 | 扩展 | 入口壳 → `isExcludedByExportFilter(_ extension)`；索引后 `isEmptiedByExportFilter` | `ExportFilterScope` 集合；过滤后内容是否为空 |
 | 成员 | `printMembersByOffset` / `ByCategory` 逐项 | 派生形态查询；`override` / `@objc` 豁免 |
 | 存储属性 | `renderModelFields` 预筛 `isExcludedByExportFilter(field:)` | accessor 组的派生形态查询；无 accessor 符号 / `override` / `To` 入口豁免 |
-| ObjC category conformance | `SwiftInterfaceBuilder` 的 `isExcludedByExportFilter(_ conformance:)` | 被扩展的本镜像类是否被过滤 |
+| ObjC category conformance | `SwiftInterfaceBuilder` 的 `isExcludedByExportFilter(_ conformance:)` | 被扩展的本镜像类是否被过滤；或者它遵循的协议全是本镜像未导出（私有）的 `@objc` 协议——同 Swift 类型遵循未导出协议的 conformance 一样删；还遵循了别的协议的整条保留 |
 
-特化子类型的名字是 bound-generic 节点，verdict 的两腿都落在未绑定描述符上（第 1 腿直接用描述符 offset，第 2 腿剥 bound-generic 壳）。
+特化子类型的名字是 bound-generic 节点，verdict 的三腿都落在未绑定描述符上（第 1 腿直接用描述符 offset，第 2、3 腿剥 bound-generic 壳）。
 
 ## 与提案的差异
 

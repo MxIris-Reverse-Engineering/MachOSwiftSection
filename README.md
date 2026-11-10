@@ -474,9 +474,12 @@ swift-section interface --emit-export-status /path/to/binary
 # --emit-export-status. Types and protocols are ruled by their descriptor
 # symbol's export-trie entry, extensions by whether their target is an
 # in-image non-exported declaration, members by the same derived-form verdict
-# the annotation uses. Still a symbol-table fact, never an access-level guess:
-# anything without export evidence (and every `override` / `@objc` member) is
-# kept, so an `-enable-testing` build keeps its `internal` declarations.
+# the annotation uses. Still a symbol-table fact, never an access-level guess,
+# with one certainty added: a private or local declaration with no symbol to
+# judge by (a Swift-declared `@objc` protocol, a type in an image without local
+# symbols) is dropped, as the compiler never exports one. Anything else without
+# export evidence (and every `override` / `@objc` member) is kept, so an
+# `-enable-testing` build keeps its `internal` declarations.
 swift-section interface --exported-only /path/to/binary
 
 # The source file each private declaration comes from, as `dump` prints it.

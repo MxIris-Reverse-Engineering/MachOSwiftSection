@@ -21,10 +21,16 @@ extension SwiftDeclarationPrinter {
     /// the importer's rules give it a Swift name, which may not be the
     /// source's, and the attribute keeps the selector it compiles to. One
     /// taken from a class implementing it says which class.
+    ///
+    /// Exported-only gate, same contract as `printProtocolDefinition`: a
+    /// protocol that is not exported — a private one — renders as nothing,
+    /// its default-implementation extensions with it, or, when marking, as
+    /// usual, visible only while the filter is off.
     public func printObjCProtocolDefinition(_ definition: ObjCProtocolDefinition, level: Int = 1) async throws -> SemanticString {
-        try await LargeStackTaskExecution.run {
+        guard let visibility = exportFilterVisibility(excluded: isExcludedByExportFilter(definition)) else { return SemanticString() }
+        return try await LargeStackTaskExecution.run {
             try await printIncludedObjCProtocolDefinition(definition, level: level)
-        }
+        }.visible(under: visibility)
     }
 
     @SemanticStringBuilder

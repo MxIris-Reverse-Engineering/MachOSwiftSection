@@ -105,6 +105,14 @@ extension SwiftDeclarationPrinter {
         evaluatesExportFilter && protocolDefinition.exportStatus.isDefinitelyNotExported
     }
 
+    /// A Swift-declared `@objc` protocol is ruled on by its name alone — a
+    /// private one is not exported (evolution proposal
+    /// `export-verdict-without-local-symbols`). Its extensions print with it
+    /// and go with it, so it needs no place in the ``ExportFilterScope``.
+    package func isExcludedByExportFilter(_ objcProtocolDefinition: ObjCProtocolDefinition) -> Bool {
+        evaluatesExportFilter && objcProtocolDefinition.exportStatus.isDefinitelyNotExported
+    }
+
     /// An extension is dropped when its target (the extended type or
     /// protocol) or the protocol it declares conformance to is an in-image
     /// declaration the installed ``ExportFilterScope`` recorded as not
