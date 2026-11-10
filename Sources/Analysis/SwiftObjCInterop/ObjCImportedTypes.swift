@@ -179,7 +179,13 @@ package struct ObjCImportedTypes<MachO: MachOSwiftSectionRepresentableWithCache>
 /// The Foundation classes the importer bridges to Swift value types. Kept out
 /// of `ObjCImportedTypes`, which is generic and so cannot hold a static
 /// stored property.
-private enum ObjCBridgedStructures {
+package enum ObjCBridgedStructures {
+    /// Whether the importer gives the class a type that is no class: a
+    /// bridged value type, one of the three collections, or `Error`.
+    package static func importsAsNonClassType(_ className: String) -> Bool {
+        structuresByClassName[className] != nil || ["NSArray", "NSDictionary", "NSSet", "NSError"].contains(className)
+    }
+
     static let structuresByClassName: [String: (module: String, name: String)] = [
         "NSString": ("Swift", "String"),
         "NSURL": ("Foundation", "URL"),

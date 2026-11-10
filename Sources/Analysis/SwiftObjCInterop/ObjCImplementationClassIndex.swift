@@ -417,12 +417,12 @@ protocol ObjCImplementationClassReading: MachORepresentableWithCache, Readable {
     func categoryName(of category: ObjCCategory64) -> String?
     func instanceProperties(of category: ObjCCategory64) -> [ObjCImplementationClassFacts.Property]
     func classProperties(of category: ObjCCategory64) -> [ObjCImplementationClassFacts.Property]
-    /// Every property the class data lists — the lists a dyld cache
-    /// attached ahead of time included, which `properties(of:)` leaves out
-    /// the way `methods(of:)` does not.
+    /// The class data's own methods, properties and protocols — in a dyld
+    /// cache, the class's own list of the relative list of lists the cache
+    /// builds when it attaches categories ahead of time, never the attached
+    /// categories' (`methods(of:)` reads every list).
+    func importedMethods(of readOnlyData: ObjCClassROData64) -> [RawObjCMethod]
     func importedProperties(of readOnlyData: ObjCClassROData64) -> [ObjCImplementationClassFacts.Property]
-    /// The runtime names of every protocol the class data lists, a dyld
-    /// cache's attached lists included.
     func importedProtocolNames(of readOnlyData: ObjCClassROData64) -> [String]
     /// `__objc_protolist`, every record read in full (`ObjCProtocolRecord.swift`).
     func objcProtocolRecords() -> [ObjCProtocolRecord]
@@ -792,64 +792,85 @@ extension MachOImage {
     }
 }
 
-// MARK: - Every list of a class's data
+// MARK: - A class's own lists
 
-/// The class data's properties and protocols read the way `methods(of:)`
-/// reads its methods: from the class's own list, or from every list of the
-/// relative list of lists a dyld cache builds when it attaches an image's
-/// categories ahead of time (evolution proposal `objc-imported-declarations`).
+/// The class data's own methods, properties and protocols, for importing
+/// the class into Swift (evolution proposal `objc-imported-declarations`).
+///
+/// In a dyld cache, a class whose image's or other images' categories the
+/// cache attached ahead of time lists them in a relative list of lists, the
+/// attached categories' lists first and the class's own list last. An
+/// imported class shows what its image declares of it, the way a header does:
+/// the class's own list alone. Its image's categories are imported on their
+/// own; other images' never belong to it.
 extension MachOFile {
+    func importedMethods(of readOnlyData: ObjCClassROData64) -> [RawObjCMethod] {
+        let ownList: (MachOFile, ObjCMethodList)?
+        if let methodList = readOnlyData.methodList(in: self) {
+            ownList = (self, methodList)
+        } else {
+            ownList = readOnlyData.methodRelativeListList(in: self)?.lists(in: self).last { $0.0.imagePath == imagePath }
+        }
+        guard let (listMachO, methodList) = ownList, !methodList.isListOfLists, let methods = methodList.methods(in: listMachO) else { return [] }
+        // On a file the reader hands back an offset already.
+        return methods.map { RawObjCMethod(selector: $0.name, typeEncoding: $0.types, implementationOffset: $0.imp == 0 ? nil : Int($0.imp)) }
+    }
+
     func importedProperties(of readOnlyData: ObjCClassROData64) -> [ObjCImplementationClassFacts.Property] {
-        var propertyLists: [(MachOFile, ObjCPropertyList)] = []
+        let ownList: (MachOFile, ObjCPropertyList)?
         if let propertyList = readOnlyData.propertyList(in: self) {
-            propertyLists.append((self, propertyList))
-        } else if let relativeListList = readOnlyData.propertyRelativeListList(in: self) {
-            propertyLists.append(contentsOf: relativeListList.lists(in: self))
+            ownList = (self, propertyList)
+        } else {
+            ownList = readOnlyData.propertyRelativeListList(in: self)?.lists(in: self).last { $0.0.imagePath == imagePath }
         }
-        return propertyLists.flatMap { listMachO, propertyList -> [ObjCImplementationClassFacts.Property] in
-            guard !propertyList.isListOfLists else { return [] }
-            return propertyList.properties(in: listMachO).map { .init(name: $0.name, attributes: $0.attributes) }
-        }
+        guard let (listMachO, propertyList) = ownList, !propertyList.isListOfLists else { return [] }
+        return propertyList.properties(in: listMachO).map { .init(name: $0.name, attributes: $0.attributes) }
     }
 
     func importedProtocolNames(of readOnlyData: ObjCClassROData64) -> [String] {
-        var protocolLists: [(MachOFile, ObjCProtocolList64)] = []
+        let ownList: (MachOFile, ObjCProtocolList64)?
         if let protocolList = readOnlyData.protocolList(in: self) {
-            protocolLists.append((self, protocolList))
-        } else if let relativeListList = readOnlyData.protocolRelativeListList(in: self) {
-            protocolLists.append(contentsOf: relativeListList.lists(in: self))
+            ownList = (self, protocolList)
+        } else {
+            ownList = readOnlyData.protocolRelativeListList(in: self)?.lists(in: self).last { $0.0.imagePath == imagePath }
         }
-        return protocolLists.flatMap { listMachO, protocolList -> [String] in
-            guard !protocolList.isListOfLists, let protocols = protocolList.protocols(in: listMachO) else { return [] }
-            return protocols.map { $1.mangledName(in: $0) }
-        }
+        guard let (listMachO, protocolList) = ownList, !protocolList.isListOfLists, let protocols = protocolList.protocols(in: listMachO) else { return [] }
+        return protocols.map { $1.mangledName(in: $0) }
     }
 }
 
 extension MachOImage {
+    func importedMethods(of readOnlyData: ObjCClassROData64) -> [RawObjCMethod] {
+        let ownList: (MachOImage, ObjCMethodList)?
+        if let methodList = readOnlyData.methodList(in: self) {
+            ownList = (self, methodList)
+        } else {
+            ownList = readOnlyData.methodRelativeListList(in: self)?.lists(in: self).last { $0.0.ptr == ptr }
+        }
+        guard let (listMachO, methodList) = ownList, !methodList.isListOfLists else { return [] }
+        // In-process the reader hands back an address.
+        return methodList.methods(in: listMachO).map { RawObjCMethod(selector: $0.name, typeEncoding: $0.types, implementationOffset: $0.imp == 0 ? nil : listMachO.resolveOffset(at: $0.imp)) }
+    }
+
     func importedProperties(of readOnlyData: ObjCClassROData64) -> [ObjCImplementationClassFacts.Property] {
-        var propertyLists: [(MachOImage, ObjCPropertyList)] = []
+        let ownList: (MachOImage, ObjCPropertyList)?
         if let propertyList = readOnlyData.propertyList(in: self) {
-            propertyLists.append((self, propertyList))
-        } else if let relativeListList = readOnlyData.propertyRelativeListList(in: self) {
-            propertyLists.append(contentsOf: relativeListList.lists(in: self))
+            ownList = (self, propertyList)
+        } else {
+            ownList = readOnlyData.propertyRelativeListList(in: self)?.lists(in: self).last { $0.0.ptr == ptr }
         }
-        return propertyLists.flatMap { listMachO, propertyList -> [ObjCImplementationClassFacts.Property] in
-            guard !propertyList.isListOfLists else { return [] }
-            return propertyList.properties(in: listMachO).map { .init(name: $0.name, attributes: $0.attributes) }
-        }
+        guard let (listMachO, propertyList) = ownList, !propertyList.isListOfLists else { return [] }
+        return propertyList.properties(in: listMachO).map { .init(name: $0.name, attributes: $0.attributes) }
     }
 
     func importedProtocolNames(of readOnlyData: ObjCClassROData64) -> [String] {
-        var protocolLists: [(MachOImage, ObjCProtocolList64)] = []
+        let ownList: (MachOImage, ObjCProtocolList64)?
         if let protocolList = readOnlyData.protocolList(in: self) {
-            protocolLists.append((self, protocolList))
-        } else if let relativeListList = readOnlyData.protocolRelativeListList(in: self) {
-            protocolLists.append(contentsOf: relativeListList.lists(in: self))
+            ownList = (self, protocolList)
+        } else {
+            ownList = readOnlyData.protocolRelativeListList(in: self)?.lists(in: self).last { $0.0.ptr == ptr }
         }
-        return protocolLists.flatMap { listMachO, protocolList -> [String] in
-            guard !protocolList.isListOfLists, let protocols = protocolList.protocols(in: listMachO) else { return [] }
-            return protocols.map { $1.mangledName(in: $0) }
-        }
+        guard let (listMachO, protocolList) = ownList, !protocolList.isListOfLists, let protocols = protocolList.protocols(in: listMachO) else { return [] }
+        return protocols.map { $1.mangledName(in: $0) }
     }
 }

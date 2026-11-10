@@ -136,16 +136,17 @@ package final class ObjCImportedContainerIndex: @unchecked Sendable {
             }
             let metaClassReadOnlyData = machO.metaClass(of: classObject).flatMap { machO.instanceReadOnlyData(of: $0) }
             // In a dyld cache the class data also lists the categories the
-            // cache attached ahead of time: every list is read, the way the
-            // runtime sees the class.
+            // cache attached ahead of time, other images' among them: only
+            // the class's own list is read, as a header declares the class.
+            // The image's categories are records of their own.
             let record = ObjCImportedContainerRecord(
                 kind: .class,
                 classRuntimeName: runtimeName,
                 superclassRuntimeName: machO.superclassName(of: classObject),
                 protocolRuntimeNames: uniqued(machO.importedProtocolNames(of: readOnlyData)),
                 isSwiftClass: classObject.isSwiftStable,
-                instanceMethods: methods(machO.methods(of: readOnlyData)),
-                classMethods: metaClassReadOnlyData.map { methods(machO.methods(of: $0)) } ?? [],
+                instanceMethods: methods(machO.importedMethods(of: readOnlyData)),
+                classMethods: metaClassReadOnlyData.map { methods(machO.importedMethods(of: $0)) } ?? [],
                 instanceProperties: properties(machO.importedProperties(of: readOnlyData)),
                 classProperties: metaClassReadOnlyData.map { properties(machO.importedProperties(of: $0)) } ?? []
             )

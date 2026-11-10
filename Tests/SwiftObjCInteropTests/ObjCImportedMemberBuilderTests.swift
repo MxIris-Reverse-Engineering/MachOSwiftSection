@@ -122,12 +122,19 @@ struct ObjCImportedMemberBuilderTests {
     @Test func objectPropertiesCarryTheirOwnership() throws {
         let appKit = try Self.appKit()
         let members = try Self.members(ofClassNamed: "NSWindow", in: appKit)
-        let title = try #require(members.first { $0.selector == "title" && !$0.isClassMember })
-        #expect(title.kind == .property)
-        #expect(title.ownership == .copy)
+        func property(_ getterSelector: String) throws -> ObjCImportedMember {
+            try #require(members.first { $0.selector == getterSelector && !$0.isClassMember && $0.kind == .property }, "\(getterSelector)")
+        }
+        // `copy` of a class type is `@NSCopying`.
+        #expect(try property("backgroundColor").ownership == .copy)
+        // `copy` of a class Swift imports as a value type is nothing more.
+        let title = try property("title")
+        #expect(title.ownership == nil)
         #expect(title.setterSelector == "setTitle:")
+        #expect(try property("delegate").ownership == .weak)
+        // A read-only property records no ownership it was not given.
+        #expect(try property("screen").ownership == nil)
         // A non-object property has none.
-        let level = try #require(members.first { $0.selector == "level" && !$0.isClassMember })
-        #expect(level.ownership == nil)
+        #expect(try property("level").ownership == nil)
     }
 }

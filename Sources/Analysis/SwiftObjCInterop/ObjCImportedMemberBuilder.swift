@@ -203,9 +203,17 @@ package enum ObjCImportedMemberBuilder {
         private static func ownership(type: ObjCEncodedType, attributes: String) -> ObjCImportedMember.Ownership? {
             guard type.isObjectPointer else { return nil }
             let attributeCodes = Set(attributes.split(separator: ",").map(String.init))
-            if attributeCodes.contains("C") { return .copy }
             if attributeCodes.contains("W") { return .weak }
+            if attributeCodes.contains("C") {
+                // `@NSCopying` takes a class type: not `id`, and not a class
+                // Swift imports as a value type (`copy` `NSString` is a
+                // plain `String`).
+                guard case .object(let className?, _) = type, !ObjCBridgedStructures.importsAsNonClassType(className) else { return nil }
+                return .copy
+            }
             if attributeCodes.contains("&") { return .strong }
+            // A read-only property records no ownership it was not given.
+            if attributeCodes.contains("R") { return nil }
             return .unownedUnsafe
         }
 
