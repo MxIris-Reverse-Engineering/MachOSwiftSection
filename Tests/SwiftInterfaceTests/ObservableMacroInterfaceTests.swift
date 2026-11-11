@@ -41,7 +41,7 @@ struct ObservableMacroInterfaceTests {
     }
 
     private func indexed(_ variant: ObservableMacroFixture.Variant) async throws -> Indexed<MachOFile> {
-        let machOFile = try ObservableMacroFixture.machOFile(variant)
+        let machOFile = try await ObservableMacroFixture.machOFile(variant)
         let indexer = SwiftDeclarationIndexer(in: machOFile)
         try await indexer.prepare()
         return Indexed(machO: machOFile, indexer: indexer)
@@ -123,7 +123,7 @@ struct ObservableMacroInterfaceTests {
     // MARK: - The whole interface
 
     @Test func theGeneratedConformanceIsPartOfTheExpansion() async throws {
-        let machOFile = try ObservableMacroFixture.machOFile(.release)
+        let machOFile = try await ObservableMacroFixture.machOFile(.release)
         func interface(expandsMacros: Bool) async throws -> String {
             var printConfiguration = SwiftDeclarationPrintConfiguration()
             printConfiguration.expandsMacros = expandsMacros

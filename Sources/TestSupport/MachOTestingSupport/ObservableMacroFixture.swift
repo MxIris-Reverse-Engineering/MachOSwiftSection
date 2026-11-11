@@ -150,41 +150,80 @@ package enum ObservableMacroFixture {
         }()
     }
 
-    /// Compiled once per process; every variant shares one working directory.
-    private static let compilationResult: Result<[Variant: URL], Swift.Error> = {
-        Result {
-            let workingDirectory = FileManager.default.temporaryDirectory
-                .appendingPathComponent("\(moduleName)-\(UUID().uuidString)")
-            try FileManager.default.createDirectory(at: workingDirectory, withIntermediateDirectories: true)
-            _ = WorkingDirectoryCleanup.registration
-            WorkingDirectoryCleanup.directories.append(workingDirectory)
+    /// Compiled once per process, on a thread of its own: a test that needs
+    /// the fixture suspends until it is built instead of holding a
+    /// cooperative thread through four compiles. Several suites ask for it at
+    /// once, and a pool whose threads all wait on `swiftc` stalls every other
+    /// test in the process — a timed one fails.
+    private static let compilation = OneTimeCompilation()
 
-            let swiftSourceURL = workingDirectory.appendingPathComponent("Fixture.swift")
-            try swiftSource.write(to: swiftSourceURL, atomically: true, encoding: .utf8)
+    private final class OneTimeCompilation: @unchecked Sendable {
+        private let lock = NSLock()
+        private var result: Result<[Variant: URL], Swift.Error>?
+        private var waiters: [CheckedContinuation<[Variant: URL], Swift.Error>] = []
+        private var hasStarted = false
 
-            var libraries: [Variant: URL] = [:]
-            for variant in Variant.allCases {
-                // Each variant its own install name: the in-process leg loads
-                // one by path, and its image is told from the others by name.
-                let libraryURL = workingDirectory.appendingPathComponent("lib\(moduleName)-\(variant.rawValue).dylib")
-                let optimization = variant == .debug ? "-Onone" : "-O"
-                let deadStripping = variant == .releaseDeadStripped ? ["-Xlinker", "-dead_strip"] : []
-                try run(step: "swiftc (\(variant.rawValue))", [
-                    // The language mode pinned: CI's toolchain and a newer
-                    // local one must compile the same source the same way.
-                    "swiftc", "-swift-version", "5", "-emit-library", optimization, "-module-name", moduleName,
-                    "-Xlinker", "-install_name", "-Xlinker", libraryURL.path,
-                ] + deadStripping + [
-                    swiftSourceURL.path, "-o", libraryURL.path,
-                ])
-                if variant == .releaseStripped {
-                    try run(step: "strip (\(variant.rawValue))", ["strip", "-x", libraryURL.path])
+        func libraries() async throws -> [Variant: URL] {
+            try await withCheckedThrowingContinuation { continuation in
+                lock.lock()
+                if let result {
+                    lock.unlock()
+                    continuation.resume(with: result)
+                    return
                 }
-                libraries[variant] = libraryURL
+                waiters.append(continuation)
+                let startsCompilation = !hasStarted
+                hasStarted = true
+                lock.unlock()
+                guard startsCompilation else { return }
+                Thread {
+                    let result = Result { try ObservableMacroFixture.compileLibraries() }
+                    self.lock.lock()
+                    self.result = result
+                    let waiters = self.waiters
+                    self.waiters = []
+                    self.lock.unlock()
+                    for waiter in waiters {
+                        waiter.resume(with: result)
+                    }
+                }.start()
             }
-            return libraries
         }
-    }()
+    }
+
+    /// Every variant, in one working directory.
+    private static func compileLibraries() throws -> [Variant: URL] {
+        let workingDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("\(moduleName)-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: workingDirectory, withIntermediateDirectories: true)
+        _ = WorkingDirectoryCleanup.registration
+        WorkingDirectoryCleanup.directories.append(workingDirectory)
+
+        let swiftSourceURL = workingDirectory.appendingPathComponent("Fixture.swift")
+        try swiftSource.write(to: swiftSourceURL, atomically: true, encoding: .utf8)
+
+        var libraries: [Variant: URL] = [:]
+        for variant in Variant.allCases {
+            // Each variant its own install name: the in-process leg loads
+            // one by path, and its image is told from the others by name.
+            let libraryURL = workingDirectory.appendingPathComponent("lib\(moduleName)-\(variant.rawValue).dylib")
+            let optimization = variant == .debug ? "-Onone" : "-O"
+            let deadStripping = variant == .releaseDeadStripped ? ["-Xlinker", "-dead_strip"] : []
+            try run(step: "swiftc (\(variant.rawValue))", [
+                // The language mode pinned: CI's toolchain and a newer
+                // local one must compile the same source the same way.
+                "swiftc", "-swift-version", "5", "-emit-library", optimization, "-module-name", moduleName,
+                "-Xlinker", "-install_name", "-Xlinker", libraryURL.path,
+            ] + deadStripping + [
+                swiftSourceURL.path, "-o", libraryURL.path,
+            ])
+            if variant == .releaseStripped {
+                try run(step: "strip (\(variant.rawValue))", ["strip", "-x", libraryURL.path])
+            }
+            libraries[variant] = libraryURL
+        }
+        return libraries
+    }
 
     private static func run(step: String, _ arguments: [String]) throws {
         let process = Process()
@@ -201,16 +240,16 @@ package enum ObservableMacroFixture {
         }
     }
 
-    package static func libraryURL(_ variant: Variant) throws -> URL {
-        let libraries = try compilationResult.get()
+    package static func libraryURL(_ variant: Variant) async throws -> URL {
+        let libraries = try await compilation.libraries()
         guard let libraryURL = libraries[variant] else {
             throw CompilationError(step: "lookup", diagnostics: "no library for variant \(variant.rawValue)")
         }
         return libraryURL
     }
 
-    package static func machOFile(_ variant: Variant) throws -> MachOFile {
-        let libraryURL = try libraryURL(variant)
+    package static func machOFile(_ variant: Variant) async throws -> MachOFile {
+        let libraryURL = try await libraryURL(variant)
         switch try MachOKit.loadFromFile(url: libraryURL) {
         case .machO(let machOFile):
             return machOFile
@@ -223,8 +262,8 @@ package enum ObservableMacroFixture {
     /// The `.release` variant loaded into the test process — only that one:
     /// the variants define the same classes, and the Objective-C runtime keeps
     /// one of each.
-    package static func loadedImage() throws -> MachOImage {
-        let libraryURL = try libraryURL(.release)
+    package static func loadedImage() async throws -> MachOImage {
+        let libraryURL = try await libraryURL(.release)
         _ = libraryURL.path.withCString { dlopen($0, RTLD_NOW) }
         let imageName = libraryURL.deletingPathExtension().lastPathComponent
         return try #require(MachOImage(name: imageName), "the fixture dylib did not load in-process")

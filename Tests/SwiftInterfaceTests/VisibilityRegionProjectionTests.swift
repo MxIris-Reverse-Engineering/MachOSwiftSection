@@ -150,7 +150,7 @@ final class VisibilityRegionProjectionTests: MachOSwiftSectionFixtureTests, @unc
     @Test(arguments: ObservableMacroFixture.Variant.allCases)
     func observableMacroFixturePrintsProjectToEveryConfiguration(variant: ObservableMacroFixture.Variant) async throws {
         let result = try await Self.mismatches(
-            in: try ObservableMacroFixture.machOFile(variant),
+            in: try await ObservableMacroFixture.machOFile(variant),
             optionCombinations: Self.optionCombinations(varying: [.expandsMacros, .printExportedDeclarationsOnly, .printMemberAddress, .printVTableOffset, .printFieldOffset])
         )
         #expect(result.checkedDeclarationCount > 10)
@@ -159,7 +159,7 @@ final class VisibilityRegionProjectionTests: MachOSwiftSectionFixtureTests, @unc
 
     @Test func observableMacroFixtureInProcessPrintsProjectToEveryConfiguration() async throws {
         let result = try await Self.mismatches(
-            in: try ObservableMacroFixture.loadedImage(),
+            in: try await ObservableMacroFixture.loadedImage(),
             optionCombinations: Self.optionCombinations(varying: [.expandsMacros, .printExportedDeclarationsOnly, .printMemberAddress, .printVTableOffset, .printFieldOffset])
         )
         #expect(result.checkedDeclarationCount > 10)

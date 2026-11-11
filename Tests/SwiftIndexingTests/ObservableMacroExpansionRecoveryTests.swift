@@ -35,7 +35,7 @@ struct ObservableMacroExpansionRecoveryTests {
 
     @Test(arguments: [ObservableMacroFixture.Variant.debug, .release])
     func everyTrackedPropertyIsToldByItsInitAccessor(variant: ObservableMacroFixture.Variant) async throws {
-        let machO = try ObservableMacroFixture.machOFile(variant)
+        let machO = try await ObservableMacroFixture.machOFile(variant)
         let finalModel = try await expansion(of: "FinalModel", in: machO)
         #expect(finalModel.trackedProperties == [
             TrackedProperty(name: "name", backingFieldName: "_name", origin: .declaredMember, evidence: .initAccessor),
@@ -64,7 +64,7 @@ struct ObservableMacroExpansionRecoveryTests {
     }
 
     @Test func theInProcessReaderRecoversTheSameExpansion() async throws {
-        let image = try ObservableMacroFixture.loadedImage()
+        let image = try await ObservableMacroFixture.loadedImage()
         let finalModel = try await expansion(of: "FinalModel", in: image)
         #expect(finalModel.trackedProperties.map(\.name) == ["name", "count", "uninitialized"])
         #expect(finalModel.trackedProperties.allSatisfy { $0.evidence == .initAccessor })
@@ -84,7 +84,7 @@ struct ObservableMacroExpansionRecoveryTests {
     /// `Immersion` printed `@ObservationIgnored var _amount` beside the
     /// computed `amount`.
     @Test func aDeadStrippedImageIsReadFromWhatItKeeps() async throws {
-        let machO = try ObservableMacroFixture.machOFile(.releaseDeadStripped)
+        let machO = try await ObservableMacroFixture.machOFile(.releaseDeadStripped)
         let internalModel = try await expansion(of: "InternalModel", in: machO)
         #expect(internalModel.trackedProperties == [
             // The vtable keeps the computed properties' accessors.
@@ -110,7 +110,7 @@ struct ObservableMacroExpansionRecoveryTests {
     // MARK: - An image stripped of its local symbols
 
     @Test func aStrippedPublicClassIsReadFromItsExports() async throws {
-        let machO = try ObservableMacroFixture.machOFile(.releaseStripped)
+        let machO = try await ObservableMacroFixture.machOFile(.releaseStripped)
         let finalModel = try await expansion(of: "FinalModel", in: machO)
         #expect(finalModel.trackedProperties == [
             // Public: the computed property's setter is exported.
@@ -135,7 +135,7 @@ struct ObservableMacroExpansionRecoveryTests {
     /// property named `_underscored` reads as the storage of a tracked
     /// `underscored`. It is recorded with the evidence that says so.
     @Test func aStrippedInternalClassIsReadFromItsStorageNames() async throws {
-        let machO = try ObservableMacroFixture.machOFile(.releaseStripped)
+        let machO = try await ObservableMacroFixture.machOFile(.releaseStripped)
         let internalModel = try await trackedProperties(of: "InternalModel", in: machO)
         #expect(internalModel == [
             TrackedProperty(name: "value", backingFieldName: "_value", origin: .synthesized, evidence: .backingFieldName),

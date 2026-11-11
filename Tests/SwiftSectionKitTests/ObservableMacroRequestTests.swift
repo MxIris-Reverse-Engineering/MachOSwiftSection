@@ -8,14 +8,14 @@ import SwiftSectionKit
 /// proposal `observable-macro-folding`).
 @Suite(.serialized)
 struct ObservableMacroRequestTests {
-    private static func source() throws -> MachOSource {
-        .file(path: try ObservableMacroFixture.libraryURL(.release).path, architecture: nil)
+    private static func source() async throws -> MachOSource {
+        .file(path: try await ObservableMacroFixture.libraryURL(.release).path, architecture: nil)
     }
 
     @Test("The interface folds the expansion unless the request expands macros")
     func interfaceFoldsTheExpansion() async throws {
         let folded = RecordingOutput()
-        try await InterfaceRequest(source: try Self.source()).run(output: folded, environment: .testing)
+        try await InterfaceRequest(source: try await Self.source()).run(output: folded, environment: .testing)
         #expect(folded.printedProduct.contains("@Observation.Observable\nclass FinalModel {"), "\(folded.printedProduct)")
         // The look-alikes declare a registrar of their own; the class the
         // macro expanded prints none.
@@ -25,7 +25,7 @@ struct ObservableMacroRequestTests {
         #expect(!finalModel.contains("_$observationRegistrar"), "\(finalModel)")
 
         let expanded = RecordingOutput()
-        try await InterfaceRequest(source: try Self.source(), expandsMacros: true).run(output: expanded, environment: .testing)
+        try await InterfaceRequest(source: try await Self.source(), expandsMacros: true).run(output: expanded, environment: .testing)
         #expect(!expanded.printedProduct.contains("@Observation."), "\(expanded.printedProduct)")
         #expect(expanded.printedProduct.contains("_$observationRegistrar"), "\(expanded.printedProduct)")
         #expect(expanded.printedProduct.contains("extension ObservableMacroFixture.FinalModel: Observation.Observable {}"), "\(expanded.printedProduct)")
@@ -34,7 +34,7 @@ struct ObservableMacroRequestTests {
     @Test("The dump names the macro on the class's header line")
     func dumpNamesTheMacro() async throws {
         let output = RecordingOutput()
-        try await DumpRequest(source: try Self.source()).run(output: output, environment: .testing)
+        try await DumpRequest(source: try await Self.source()).run(output: output, environment: .testing)
         #expect(output.printedProduct.contains("@Observation.Observable class ObservableMacroFixture.FinalModel"), "\(output.printedProduct)")
         #expect(output.printedProduct.contains("_$observationRegistrar"), "\(output.printedProduct)")
     }

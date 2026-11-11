@@ -12,7 +12,7 @@ import SwiftDump
 @Suite
 struct ObservableMacroDumpTests {
     private func classDumps(_ variant: ObservableMacroFixture.Variant, options: DemangleOptions = .interface) async throws -> [String: String] {
-        let machOFile = try ObservableMacroFixture.machOFile(variant)
+        let machOFile = try await ObservableMacroFixture.machOFile(variant)
         var dumps: [String: String] = [:]
         for typeContextDescriptor in try machOFile.swift.typeContextDescriptors {
             guard case .class(let classDescriptor) = typeContextDescriptor else { continue }

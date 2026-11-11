@@ -69,11 +69,11 @@ struct ObservableMacroRecognitionTests {
 
     @Test(arguments: ObservableMacroFixture.Variant.allCases)
     func everyVariantRecognizesTheSameClasses(variant: ObservableMacroFixture.Variant) async throws {
-        expectFixtureRecognition(try await recognition(in: try ObservableMacroFixture.machOFile(variant)))
+        expectFixtureRecognition(try await recognition(in: try await ObservableMacroFixture.machOFile(variant)))
     }
 
     @Test func theInProcessReaderRecognizesTheSameClasses() async throws {
-        expectFixtureRecognition(try await recognition(in: try ObservableMacroFixture.loadedImage()))
+        expectFixtureRecognition(try await recognition(in: try await ObservableMacroFixture.loadedImage()))
     }
 
     @Test func theRegistrarTypeIsReadWithOrWithoutItsTypeNode() {
