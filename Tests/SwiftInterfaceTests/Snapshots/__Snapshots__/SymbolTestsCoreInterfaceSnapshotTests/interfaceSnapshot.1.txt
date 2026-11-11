@@ -319,7 +319,7 @@ enum Classes {
     class ExternalObjCSubclassTest: __C.NSObject {
         @objc override init()
 
-        @objc override func isKind(of: Swift.AnyObject.Type) -> Swift.Bool
+        @objc override func isKind(of: any Swift.AnyObject.Type) -> Swift.Bool
 
         deinit
     }
@@ -995,7 +995,7 @@ enum ErrorTypes {
         // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
         case withCode(Swift.Int)
         // Type Layout: (size: 32, stride: 32, alignment: 8, extraInhabitantCount: 2147483647)
-        case withContext(message: Swift.String, code: Swift.Int, underlying: Swift.Error?)
+        case withContext(message: Swift.String, code: Swift.Int, underlying: (any Swift.Error)?)
     }
     struct LocalizedErrorTest {
         // Field offset: 0x0
@@ -1042,34 +1042,34 @@ enum ExistentialAny {
     struct ExistentialFieldTest {
         // Field offset: 0x0
         // Type Layout: (size: 40, stride: 40, alignment: 8, extraInhabitantCount: 2147483647)
-        var simpleExistential: SymbolTestsCore.Protocols.ProtocolTest
+        var simpleExistential: any SymbolTestsCore.Protocols.ProtocolTest
         // Field offset: 0x28
         // Type Layout: (size: 40, stride: 40, alignment: 8, extraInhabitantCount: 2147483647)
-        var compositionExistential: SymbolTestsCore.Protocols.ProtocolTest
+        var compositionExistential: any SymbolTestsCore.Protocols.ProtocolTest
         // Field offset: 0x50
         // Type Layout: (size: 40, stride: 40, alignment: 8, extraInhabitantCount: 2147483646)
-        var optionalExistential: SymbolTestsCore.Protocols.ProtocolTest?
+        var optionalExistential: (any SymbolTestsCore.Protocols.ProtocolTest)?
         // Field offset: 0x78
         // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 2147483647)
-        var existentialArray: [SymbolTestsCore.Protocols.ProtocolTest]
+        var existentialArray: [any SymbolTestsCore.Protocols.ProtocolTest]
         // Field offset: 0x80
         // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 2147483647)
-        var existentialDictionary: [Swift.String : SymbolTestsCore.Protocols.ProtocolTest]
+        var existentialDictionary: [Swift.String : any SymbolTestsCore.Protocols.ProtocolTest]
         // Field offset: 0x88
         // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 2147483647)
-        var existentialFunction: (_: SymbolTestsCore.Protocols.ProtocolTest) -> ()
+        var existentialFunction: (_: any SymbolTestsCore.Protocols.ProtocolTest) -> ()
 
-        init(simpleExistential: SymbolTestsCore.Protocols.ProtocolTest, compositionExistential: Swift.Sendable & SymbolTestsCore.Protocols.ProtocolTest, optionalExistential: SymbolTestsCore.Protocols.ProtocolTest?, existentialArray: [SymbolTestsCore.Protocols.ProtocolTest], existentialDictionary: [Swift.String : SymbolTestsCore.Protocols.ProtocolTest], existentialFunction: @escaping (_: SymbolTestsCore.Protocols.ProtocolTest) -> ())
+        init(simpleExistential: any SymbolTestsCore.Protocols.ProtocolTest, compositionExistential: any Swift.Sendable & SymbolTestsCore.Protocols.ProtocolTest, optionalExistential: (any SymbolTestsCore.Protocols.ProtocolTest)?, existentialArray: [any SymbolTestsCore.Protocols.ProtocolTest], existentialDictionary: [Swift.String : any SymbolTestsCore.Protocols.ProtocolTest], existentialFunction: @escaping (_: any SymbolTestsCore.Protocols.ProtocolTest) -> ())
     }
     struct ExistentialClassBoundTest {
         // Field offset: 0x0
         // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 2147483647)
-        var classBound: SymbolTestsCore.Protocols.ClassBoundProtocolTest
+        var classBound: any SymbolTestsCore.Protocols.ClassBoundProtocolTest
         // Field offset: 0x10
         // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 2147483647)
         var anyObjectReference: Swift.AnyObject
 
-        init(classBound: SymbolTestsCore.Protocols.ClassBoundProtocolTest, anyObjectReference: Swift.AnyObject)
+        init(classBound: any SymbolTestsCore.Protocols.ClassBoundProtocolTest, anyObjectReference: Swift.AnyObject)
     }
 }
 enum Extensions {
@@ -1217,7 +1217,7 @@ enum FunctionFeatures {
         static func staticConsume(_: consuming SymbolTestsCore.FunctionFeatures.OwnershipParameterTest.Box)
     }
     struct VariadicFunctionTest {
-        func format(_: Swift.String, _: Swift.CVarArg...) -> Swift.String
+        func format(_: Swift.String, _: any Swift.CVarArg...) -> Swift.String
         func sum(_: Swift.Int...) -> Swift.Int
     }
     struct ConventionFunctionTest {
@@ -1225,12 +1225,12 @@ enum FunctionFeatures {
         func acceptBlockFunction(_: @convention(block) (_: Swift.Int32) -> Swift.Int32) -> Swift.Int32
     }
     struct ExistentialAndMetatypeTest {
-        func returnExistential() -> Swift.Sendable & SymbolTestsCore.Protocols.ProtocolTest
-        func acceptMetatype(_: Any.Type) -> Swift.String
-        func acceptExistentialCollection(_: [SymbolTestsCore.Protocols.ProtocolTest]) -> Swift.Int
-        func acceptProtocolMetatype(_: SymbolTestsCore.Protocols.ProtocolTest.Protocol) -> Swift.Bool
-        func acceptExistential(_: SymbolTestsCore.Protocols.ProtocolTest)
-        func acceptComposition(_: Swift.Sendable & SymbolTestsCore.Protocols.ProtocolTest)
+        func returnExistential() -> any Swift.Sendable & SymbolTestsCore.Protocols.ProtocolTest
+        func acceptMetatype(_: any Any.Type) -> Swift.String
+        func acceptExistentialCollection(_: [any SymbolTestsCore.Protocols.ProtocolTest]) -> Swift.Int
+        func acceptProtocolMetatype(_: (any SymbolTestsCore.Protocols.ProtocolTest).Type) -> Swift.Bool
+        func acceptExistential(_: any SymbolTestsCore.Protocols.ProtocolTest)
+        func acceptComposition(_: any Swift.Sendable & SymbolTestsCore.Protocols.ProtocolTest)
     }
     struct FailableInitTest {
         // Field offset: 0x0
@@ -1771,16 +1771,16 @@ enum GenericFieldLayout {
         var leading: Swift.Int
         // Field offset: 0x8
         // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 2147483647)
-        var bareElement: SymbolTestsCore.ObjCOnlyElementProtocol
+        var bareElement: any SymbolTestsCore.ObjCOnlyElementProtocol
         // Field offset: 0x10
         // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 2147483647)
-        var anchoredElement: __C.NSObject & SymbolTestsCore.ObjCOnlyElementProtocol
+        var anchoredElement: any __C.NSObject & SymbolTestsCore.ObjCOnlyElementProtocol
         // Field offset: 0x18
         // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 2147483646)
-        var optionalElement: SymbolTestsCore.ObjCOnlyElementProtocol?
+        var optionalElement: (any SymbolTestsCore.ObjCOnlyElementProtocol)?
         // Field offset: 0x20
         // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 2147483647)
-        var composedElement: SymbolTestsCore.DescriptorBackedSwiftProtocol & SymbolTestsCore.ObjCOnlyElementProtocol
+        var composedElement: any SymbolTestsCore.DescriptorBackedSwiftProtocol & SymbolTestsCore.ObjCOnlyElementProtocol
         // Field offset: 0x30
         // Type Layout: (size: 1, stride: 1, alignment: 1, extraInhabitantCount: 0)
         var trailing: Swift.Int8
@@ -2245,18 +2245,18 @@ enum MetatypeUsage {
         var concreteMetatype: Swift.Int.Type
         // Field offset: 0x0
         // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 2147483647)
-        var anyMetatype: Any.Type
+        var anyMetatype: any Any.Type
         // Field offset: 0x8
         // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 2147483647)
-        var protocolMetatype: SymbolTestsCore.Protocols.ProtocolTest.Type
+        var protocolMetatype: any SymbolTestsCore.Protocols.ProtocolTest.Type
         // Field offset: 0x18
         // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 2147483647)
-        var anyObjectMetatype: Swift.AnyObject.Type
+        var anyObjectMetatype: any Swift.AnyObject.Type
 
-        init(concreteMetatype: Swift.Int.Type, anyMetatype: Any.Type, protocolMetatype: SymbolTestsCore.Protocols.ProtocolTest.Type, anyObjectMetatype: Swift.AnyObject.Type)
+        init(concreteMetatype: Swift.Int.Type, anyMetatype: any Any.Type, protocolMetatype: any SymbolTestsCore.Protocols.ProtocolTest.Type, anyObjectMetatype: any Swift.AnyObject.Type)
     }
     struct MetatypeFunctionTest {
-        func acceptProtocolMetatype(_: SymbolTestsCore.Protocols.ProtocolTest.Type) -> Swift.String
+        func acceptProtocolMetatype(_: any SymbolTestsCore.Protocols.ProtocolTest.Type) -> Swift.String
         func dynamicType<A>(of: A) -> A.Type
         func acceptMetatype<A>(_: A.Type) -> A.Type
         func returnMetatype() -> SymbolTestsCore.MetatypeUsage.MetatypeFunctionTest.Type
@@ -2604,22 +2604,22 @@ enum ProtocolComposition {
     struct ProtocolCompositionFieldTest {
         // Field offset: 0x0
         // Type Layout: (size: 48, stride: 48, alignment: 8, extraInhabitantCount: 2147483647)
-        var twoComposition: SymbolTestsCore.ProtocolComposition.ComposeFirstProtocol & SymbolTestsCore.ProtocolComposition.ComposeSecondProtocol
+        var twoComposition: any SymbolTestsCore.ProtocolComposition.ComposeFirstProtocol & SymbolTestsCore.ProtocolComposition.ComposeSecondProtocol
         // Field offset: 0x30
         // Type Layout: (size: 56, stride: 56, alignment: 8, extraInhabitantCount: 2147483647)
-        var threeComposition: SymbolTestsCore.ProtocolComposition.ComposeFirstProtocol & SymbolTestsCore.ProtocolComposition.ComposeSecondProtocol & SymbolTestsCore.ProtocolComposition.ComposeThirdProtocol
+        var threeComposition: any SymbolTestsCore.ProtocolComposition.ComposeFirstProtocol & SymbolTestsCore.ProtocolComposition.ComposeSecondProtocol & SymbolTestsCore.ProtocolComposition.ComposeThirdProtocol
         // Field offset: 0x68
         // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 2147483647)
-        var classBoundComposition: SymbolTestsCore.ProtocolComposition.ComposeFirstProtocol & Swift.AnyObject
+        var classBoundComposition: any SymbolTestsCore.ProtocolComposition.ComposeFirstProtocol & Swift.AnyObject
         // Field offset: 0x78
         // Type Layout: (size: 40, stride: 40, alignment: 8, extraInhabitantCount: 2147483647)
-        var sendableComposition: SymbolTestsCore.ProtocolComposition.ComposeFirstProtocol
+        var sendableComposition: any SymbolTestsCore.ProtocolComposition.ComposeFirstProtocol
 
-        init(twoComposition: SymbolTestsCore.ProtocolComposition.ComposeFirstProtocol & SymbolTestsCore.ProtocolComposition.ComposeSecondProtocol, threeComposition: SymbolTestsCore.ProtocolComposition.ComposeFirstProtocol & SymbolTestsCore.ProtocolComposition.ComposeSecondProtocol & SymbolTestsCore.ProtocolComposition.ComposeThirdProtocol, classBoundComposition: SymbolTestsCore.ProtocolComposition.ComposeFirstProtocol & Swift.AnyObject, sendableComposition: Swift.Sendable & SymbolTestsCore.ProtocolComposition.ComposeFirstProtocol)
+        init(twoComposition: any SymbolTestsCore.ProtocolComposition.ComposeFirstProtocol & SymbolTestsCore.ProtocolComposition.ComposeSecondProtocol, threeComposition: any SymbolTestsCore.ProtocolComposition.ComposeFirstProtocol & SymbolTestsCore.ProtocolComposition.ComposeSecondProtocol & SymbolTestsCore.ProtocolComposition.ComposeThirdProtocol, classBoundComposition: any SymbolTestsCore.ProtocolComposition.ComposeFirstProtocol & Swift.AnyObject, sendableComposition: any Swift.Sendable & SymbolTestsCore.ProtocolComposition.ComposeFirstProtocol)
     }
     struct ProtocolCompositionFunctionTest {
-        func returnComposition() -> SymbolTestsCore.ProtocolComposition.ComposeFirstProtocol & SymbolTestsCore.ProtocolComposition.ComposeSecondProtocol
-        func acceptComposition(_: SymbolTestsCore.ProtocolComposition.ComposeFirstProtocol & SymbolTestsCore.ProtocolComposition.ComposeSecondProtocol)
+        func returnComposition() -> any SymbolTestsCore.ProtocolComposition.ComposeFirstProtocol & SymbolTestsCore.ProtocolComposition.ComposeSecondProtocol
+        func acceptComposition(_: any SymbolTestsCore.ProtocolComposition.ComposeFirstProtocol & SymbolTestsCore.ProtocolComposition.ComposeSecondProtocol)
         func genericCompositionParameter<A>(_: A) where A: SymbolTestsCore.ProtocolComposition.ComposeFirstProtocol, A: SymbolTestsCore.ProtocolComposition.ComposeSecondProtocol
     }
     protocol ComposeFirstProtocol {
@@ -3217,16 +3217,16 @@ enum WeakUnownedReferences {
     struct WeakExistentialStructTest {
         // Field offset: 0x0
         // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 2147483647)
-        weak var delegate: SymbolTestsCore.WeakUnownedReferences.ReferenceDelegateTest?
+        weak var delegate: (any SymbolTestsCore.WeakUnownedReferences.ReferenceDelegateTest)?
 
-        init(delegate: SymbolTestsCore.WeakUnownedReferences.ReferenceDelegateTest?)
+        init(delegate: (any SymbolTestsCore.WeakUnownedReferences.ReferenceDelegateTest)?)
     }
     struct WeakCompositionExistentialStructTest {
         // Field offset: 0x0
         // Type Layout: (size: 24, stride: 24, alignment: 8, extraInhabitantCount: 2147483647)
-        weak var delegate: (SymbolTestsCore.WeakUnownedReferences.ReferenceDelegateTest & SymbolTestsCore.WeakUnownedReferences.SecondaryDelegateTest)?
+        weak var delegate: (any SymbolTestsCore.WeakUnownedReferences.ReferenceDelegateTest & SymbolTestsCore.WeakUnownedReferences.SecondaryDelegateTest)?
 
-        init(delegate: (SymbolTestsCore.WeakUnownedReferences.ReferenceDelegateTest & SymbolTestsCore.WeakUnownedReferences.SecondaryDelegateTest)?)
+        init(delegate: (any SymbolTestsCore.WeakUnownedReferences.ReferenceDelegateTest & SymbolTestsCore.WeakUnownedReferences.SecondaryDelegateTest)?)
     }
     struct WeakAnyObjectStructTest {
         // Field offset: 0x0
@@ -3238,35 +3238,35 @@ enum WeakUnownedReferences {
     struct WeakObjCExistentialStructTest {
         // Field offset: 0x0
         // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
-        weak var delegate: SymbolTestsCore.WeakUnownedObjCDelegateTest?
+        weak var delegate: (any SymbolTestsCore.WeakUnownedObjCDelegateTest)?
 
-        init(delegate: SymbolTestsCore.WeakUnownedObjCDelegateTest?)
+        init(delegate: (any SymbolTestsCore.WeakUnownedObjCDelegateTest)?)
     }
     struct UnownedObjCExistentialStructTest {
         // Field offset: 0x0
         // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 1)
-        unowned var delegate: SymbolTestsCore.WeakUnownedObjCDelegateTest
+        unowned var delegate: any SymbolTestsCore.WeakUnownedObjCDelegateTest
 
-        init(delegate: SymbolTestsCore.WeakUnownedObjCDelegateTest)
+        init(delegate: any SymbolTestsCore.WeakUnownedObjCDelegateTest)
     }
     struct UnownedExistentialStructTest {
         // Field offset: 0x0
         // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 2147483647)
-        unowned var delegate: SymbolTestsCore.WeakUnownedReferences.ReferenceDelegateTest
+        unowned var delegate: any SymbolTestsCore.WeakUnownedReferences.ReferenceDelegateTest
 
-        init(delegate: SymbolTestsCore.WeakUnownedReferences.ReferenceDelegateTest)
+        init(delegate: any SymbolTestsCore.WeakUnownedReferences.ReferenceDelegateTest)
     }
     struct UnmanagedExistentialStructTest {
         // Field offset: 0x0
         // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 2147483647)
-        unowned(unsafe) var delegate: SymbolTestsCore.WeakUnownedReferences.ReferenceDelegateTest
+        unowned(unsafe) var delegate: any SymbolTestsCore.WeakUnownedReferences.ReferenceDelegateTest
 
-        init(delegate: SymbolTestsCore.WeakUnownedReferences.ReferenceDelegateTest)
+        init(delegate: any SymbolTestsCore.WeakUnownedReferences.ReferenceDelegateTest)
     }
     class WeakExistentialHolderTest {
         // Field offset: 0x10
         // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 2147483647)
-        weak var delegate: SymbolTestsCore.WeakUnownedReferences.ReferenceDelegateTest?
+        weak var delegate: (any SymbolTestsCore.WeakUnownedReferences.ReferenceDelegateTest)?
         // Field offset: 0x20
         // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
         weak var parent: SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest?
@@ -3510,7 +3510,7 @@ extension SymbolTestsCore.AsyncSequenceTests.AsyncSequenceTest.AsyncIterator: Sw
     typealias Failure = Swift.Never
 
     func next() async throws -> Self.Element?
-    func next(isolation: isolated Swift.Actor?) async throws(Self.Failure) -> Self.Element?
+    func next(isolation: isolated (any Swift.Actor)?) async throws(Self.Failure) -> Self.Element?
 }
 extension SymbolTestsCore.AsyncSequenceTests.AsyncSequenceTest: Swift.AsyncSequence {
     typealias AsyncIterator = SymbolTestsCore.AsyncSequenceTests.AsyncSequenceTest.AsyncIterator
@@ -3521,15 +3521,15 @@ extension SymbolTestsCore.AsyncSequenceTests.AsyncSequenceTest: Swift.AsyncSeque
 }
 extension SymbolTestsCore.AsyncSequenceTests.ThrowingAsyncSequenceTest.AsyncIterator: Swift.AsyncIteratorProtocol {
     typealias Element = Swift.String
-    typealias Failure = Swift.Error
+    typealias Failure = any Swift.Error
 
     func next() async throws -> Self.Element?
-    func next(isolation: isolated Swift.Actor?) async throws(Self.Failure) -> Self.Element?
+    func next(isolation: isolated (any Swift.Actor)?) async throws(Self.Failure) -> Self.Element?
 }
 extension SymbolTestsCore.AsyncSequenceTests.ThrowingAsyncSequenceTest: Swift.AsyncSequence {
     typealias AsyncIterator = SymbolTestsCore.AsyncSequenceTests.ThrowingAsyncSequenceTest.AsyncIterator
     typealias Element = Swift.String
-    typealias Failure = Swift.Error
+    typealias Failure = any Swift.Error
 
     func makeAsyncIterator() -> Self.AsyncIterator
 }
@@ -3538,7 +3538,7 @@ extension SymbolTestsCore.AsyncSequenceTests.GenericAsyncSequenceTest.AsyncItera
     typealias Failure = Swift.Never
 
     func next() async throws -> Self.Element?
-    func next(isolation: isolated Swift.Actor?) async throws(Self.Failure) -> Self.Element?
+    func next(isolation: isolated (any Swift.Actor)?) async throws(Self.Failure) -> Self.Element?
 }
 extension SymbolTestsCore.AsyncSequenceTests.GenericAsyncSequenceTest: Swift.AsyncSequence {
     typealias AsyncIterator = SymbolTestsCore.AsyncSequenceTests.GenericAsyncSequenceTest<A>.AsyncIterator
@@ -3548,34 +3548,34 @@ extension SymbolTestsCore.AsyncSequenceTests.GenericAsyncSequenceTest: Swift.Asy
     func makeAsyncIterator() -> Self.AsyncIterator
 }
 extension SymbolTestsCore.CodableTests.SynthesizedCodableTest: Swift.Decodable {
-    init(from: Swift.Decoder) throws
+    init(from: any Swift.Decoder) throws
 }
 extension SymbolTestsCore.CodableTests.SynthesizedCodableTest: Swift.Encodable {
-    func encode(to: Swift.Encoder) throws
+    func encode(to: any Swift.Encoder) throws
 }
 extension SymbolTestsCore.CodableTests.CustomCodableTest: Swift.Decodable {
-    init(from: Swift.Decoder) throws
+    init(from: any Swift.Decoder) throws
 }
 extension SymbolTestsCore.CodableTests.CustomCodableTest: Swift.Encodable {
-    func encode(to: Swift.Encoder) throws
+    func encode(to: any Swift.Encoder) throws
 }
 extension SymbolTestsCore.CodableTests.CodableClassTest: Swift.Decodable {
-    init(from: Swift.Decoder) throws
+    init(from: any Swift.Decoder) throws
 }
 extension SymbolTestsCore.CodableTests.CodableClassTest: Swift.Encodable {
-    func encode(to: Swift.Encoder) throws
+    func encode(to: any Swift.Encoder) throws
 }
 extension SymbolTestsCore.CodableTests.CodableEnumTest: Swift.Decodable {
-    init(from: Swift.Decoder) throws
+    init(from: any Swift.Decoder) throws
 }
 extension SymbolTestsCore.CodableTests.CodableEnumTest: Swift.Encodable {
-    func encode(to: Swift.Encoder) throws
+    func encode(to: any Swift.Encoder) throws
 }
 extension SymbolTestsCore.CodableTests.GenericCodableTest: Swift.Decodable {
-    init(from: Swift.Decoder) throws
+    init(from: any Swift.Decoder) throws
 }
 extension SymbolTestsCore.CodableTests.GenericCodableTest: Swift.Encodable {
-    func encode(to: Swift.Encoder) throws
+    func encode(to: any Swift.Encoder) throws
 }
 extension SymbolTestsCore.CodableTests.SynthesizedCodableTest.CodingKeys: Swift.CustomStringConvertible {
     var description: Swift.String {
@@ -4132,7 +4132,7 @@ extension SymbolTestsCore.DiamondInheritance.DiamondImplementationTest: SymbolTe
 extension SymbolTestsCore.DiamondInheritance.DiamondImplementationTest: SymbolTestsCore.DiamondInheritance.DiamondBaseProtocol {}
 extension SymbolTestsCore.DistributedActors.DistributedActorTest: Distributed.DistributedActor {
     typealias ActorSystem = Distributed.LocalTestingDistributedActorSystem
-    typealias SerializationRequirement = Swift.Decodable & Swift.Encodable
+    typealias SerializationRequirement = any Swift.Decodable & Swift.Encodable
 
     var actorSystem: Self.ActorSystem {
         get
@@ -4162,14 +4162,14 @@ extension SymbolTestsCore.DistributedActors.DistributedActorTest: Swift.Equatabl
     static func == (_: Self, _: Self) -> Swift.Bool
 }
 extension SymbolTestsCore.DistributedActors.DistributedActorTest: Swift.Encodable {
-    func encode(to: Swift.Encoder) throws
+    func encode(to: any Swift.Encoder) throws
 }
 extension SymbolTestsCore.DistributedActors.DistributedActorTest: Swift.Decodable {
-    init(from: Swift.Decoder) throws
+    init(from: any Swift.Decoder) throws
 }
 extension SymbolTestsCore.DistributedActors.GenericDistributedActorTest: Distributed.DistributedActor {
     typealias ActorSystem = Distributed.LocalTestingDistributedActorSystem
-    typealias SerializationRequirement = Swift.Decodable & Swift.Encodable
+    typealias SerializationRequirement = any Swift.Decodable & Swift.Encodable
 
     var actorSystem: Self.ActorSystem {
         get
@@ -4199,10 +4199,10 @@ extension SymbolTestsCore.DistributedActors.GenericDistributedActorTest: Swift.E
     static func == (_: Self, _: Self) -> Swift.Bool
 }
 extension SymbolTestsCore.DistributedActors.GenericDistributedActorTest: Swift.Encodable {
-    func encode(to: Swift.Encoder) throws
+    func encode(to: any Swift.Encoder) throws
 }
 extension SymbolTestsCore.DistributedActors.GenericDistributedActorTest: Swift.Decodable {
-    init(from: Swift.Decoder) throws
+    init(from: any Swift.Decoder) throws
 }
 extension SymbolTestsCore.Enums.NoPayloadEnumTest: Swift.Equatable {
     static func == (_: Self, _: Self) -> Swift.Bool
