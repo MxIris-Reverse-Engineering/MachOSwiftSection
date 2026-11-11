@@ -128,6 +128,41 @@ public struct SwiftDeclarationPrintConfiguration: Equatable, Sendable {
     /// be written `any Collection`.
     public var usesExistentialAny: Bool = true
 
+    /// Print what an attached macro the type was declared with generated, as
+    /// the binary has it, instead of the macro attribute and the
+    /// declarations the source wrote (evolution proposal
+    /// `observable-macro-folding`).
+    ///
+    /// Off by default: a class `@Observable` expanded
+    /// (`TypeDefinition.attachedMacros`) prints with
+    /// `@Observation.Observable`, each tracked property as the stored
+    /// `var x: T` it was declared as, in the place of its storage `_x`, and a
+    /// stored `var` the macro leaves alone with
+    /// `@Observation.ObservationIgnored`. The registrar, the computed
+    /// properties over the storage, `access(keyPath:)`,
+    /// `withMutation(keyPath:_:)`, the `shouldNotifyObservers(_:_:)`
+    /// overloads and the `Observation.Observable` conformance the macro
+    /// generated are left out. On, the output is unchanged byte for byte:
+    /// every one of them prints as it did before.
+    ///
+    /// The diff and evolution interfaces always print the expansion: they
+    /// compare what the binary has.
+    public var expandsMacros: Bool = false
+
+    /// Mark the attribute of each attached macro the folded form prints —
+    /// `@Observation.Observable` — with an `AnnotationRegion` of kind
+    /// `AnnotationRegion.Kind.attachedMacro(_:)` for that macro (evolution
+    /// proposal `observable-macro-folding`), so a host can anchor what it
+    /// shows of the expansion (`SwiftDeclarationPrinter.printMacroExpansion(of:attachedTo:level:)`)
+    /// to that line without reading text.
+    /// `FrozenSemanticString.separatingAnnotationRegions()` reads the regions
+    /// back. With `marksNestedDefinitions`, the innermost `DefinitionRegion`
+    /// around a region names the type whose macro it is; a region in none
+    /// belongs to the definition printed.
+    ///
+    /// Off by default, and off the output is unchanged byte for byte.
+    public var marksAttachedMacros: Bool = false
+
     /// Where a requirement about one of a protocol's own associated types
     /// prints: in the protocol's `where` clause (the default, unchanged byte
     /// for byte), or on that `associatedtype` (evolution proposal
@@ -262,6 +297,7 @@ extension SwiftDeclarationPrintConfiguration {
         case .infersObjCOverridesFromSelectorNames: infersObjCOverridesFromSelectorNames
         case .printExportedDeclarationsOnly: printExportedDeclarationsOnly
         case .opaqueTypeResolution: resolvesOpaqueTypes
+        case .expandsMacros: expandsMacros
         }
     }
 

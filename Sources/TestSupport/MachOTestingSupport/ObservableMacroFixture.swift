@@ -91,6 +91,18 @@ package enum ObservableMacroFixture {
         init() {}
     }
 
+    // Nested in another `@Observable` class, so one print holds both
+    // attributes.
+    @Observable
+    final class ContainerModel {
+        var title: String = ""
+
+        @Observable
+        final class NestedModel {
+            var flag: Bool = false
+        }
+    }
+
     final class ManualObservable: Observable {
         var plain: Int = 0
     }
@@ -108,7 +120,7 @@ package enum ObservableMacroFixture {
 
     /// The classes `@Observable` expanded, by the name the source declares.
     package static let observableClassNames: Set<String> = [
-        "FinalModel", "OpenModel", "InternalModel", "SubModel", "GenericModel", "WrapperModel",
+        "FinalModel", "OpenModel", "InternalModel", "SubModel", "GenericModel", "WrapperModel", "ContainerModel", "NestedModel",
     ]
 
     /// The classes and types the recognition must turn down.

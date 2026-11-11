@@ -59,6 +59,8 @@ struct ObservableMacroRecognitionTests {
                 "InternalModel": .observable,
                 "GenericModel": .observable,
                 "WrapperModel": .observable,
+                "ContainerModel": .observable,
+                "NestedModel": .observable,
                 "ManualObservable": nil,
             ],
             sourceLocation: sourceLocation

@@ -34,6 +34,15 @@ public enum FieldRecordRendering {
         "synthesized from the backing storage `\(backingFieldName)`; the property's own accessors are stripped"
     }
 
+    /// The comment the interface prints above a property an `@Observable`
+    /// class tracks when it had to synthesize the declaration from the
+    /// property's storage because the property's own accessors are stripped
+    /// (`ObservableMacroExpansion.TrackedProperty.Origin.synthesized`,
+    /// evolution proposal `observable-macro-folding`).
+    public static func synthesizedTrackedPropertyComment(backingFieldName: String) -> String {
+        "synthesized from the storage `\(backingFieldName)` that @Observable generated; the property's own accessors are stripped"
+    }
+
     /// The line printed in place of an enum element whose record carries no
     /// name: the element is unavailable at run time (Swift 6.4 emits neither
     /// its name nor its payload type) but keeps its tag, so the case count

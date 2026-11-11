@@ -82,6 +82,22 @@ configuration.expandsMacros = true
 - `ExtensionDefinition.generatingMacro: SwiftAttachedMacro?`：这个 extension 是哪个宏生成的；宿主把 extension 当独立对象显示时，凭它在折叠形态里隐藏。
 - `SwiftDeclarationPrintConfiguration.expandsMacros: Bool = false`、`SwiftVisibilityOption.expandsMacros`、`InterfaceRequest.expandsMacros`、CLI `interface --expand-macros`。关掉折叠（`expandsMacros = true`）时输出与今天逐字节相同。
 
+### 宿主的内联展开
+
+RuntimeViewer 要像 Xcode 的 Expand Macro 那样，在 `@Observation.Observable` 那一行下面单独显示宏生成的声明。为此再加两样，打印规则仍只在本库一处：
+
+```swift
+// 宏生成的声明成块打印：成员在类型成员的缩进上，extension 在类型自己的缩进上。
+let expansion = try await printer.printMacroExpansion(of: .observable, attachedTo: typeDefinition)
+
+// 折叠形态里给宏属性打上定位标记，separatingAnnotationRegions() 读回。
+configuration.marksAttachedMacros = true
+// region.kind == .attachedMacro(.observable)
+```
+
+- `SwiftDeclarationPrinter.printMacroExpansion(of:attachedTo:level:)`：印出 registrar、每个被跟踪属性的存储 `_x`、镜像里还有 accessor 的 computed `x`、`access(keyPath:)`、`withMutation(keyPath:_:)`、镜像里留下的 `shouldNotifyObservers(_:_:)`，最后是 `extension X: Observation.Observable {}`。每条声明带着展开形态里同样的注释，用的是同一套成员打印代码；导出过滤照常生效。类型没带这个宏时印出空串。
+- `SwiftDeclarationPrintConfiguration.marksAttachedMacros`：折叠形态里每个宏属性包在 `AnnotationRegion` 里，种类是 `AnnotationRegion.Kind.attachedMacro(_:)`（`attachedMacro.Observation.Observable`），一个宏一个种类，宿主不必读文字就知道是哪个宏。默认关，关着时输出逐字节不变。
+
 ### dump
 
 dump 照旧印出二进制里的全部成员，只在类头前加 `@Observation.Observable`，与 `@objc @implementation` 类在 dump 里的写法一致。
@@ -102,7 +118,7 @@ RuntimeViewer 的 release 构建按版本解析，要等本库发版。`next` �
 
 1. [x] 识别与模型标记：`ObservableMacroRecognition`、`SwiftAttachedMacro`、`TypeDefinition.attachedMacros`（含 specialization 沿用）、`ExtensionDefinition.generatingMacro`；新 fixture `ObservableMacroFixture` 与识别的测试。
 2. [x] 索引期的展开分析：`ObservableMacroExpansion`、`TypeDefinition.observableMacroExpansion`；三个变体下被跟踪属性、来源、`@ObservationIgnored` 属性与生成方法的测试。
-3. [ ] interface 折叠：`expandsMacros`、`SwiftVisibilityOption.expandsMacros`、类型头属性、字段块与成员块、导出过滤、conformance extension、`marksOptionalContent` 下的两种形态；输出与投影一致性的测试。
+3. [ ] interface 折叠：`expandsMacros`、`SwiftVisibilityOption.expandsMacros`、类型头属性、字段块与成员块、导出过滤、conformance extension、`marksOptionalContent` 下的两种形态，以及 `printMacroExpansion(of:attachedTo:level:)` 与 `marksAttachedMacros`；输出与投影一致性的测试。
 4. [ ] dump 类头的 `@Observation.Observable` 与测试。
 5. [ ] `InterfaceRequest.expandsMacros`、`interface --expand-macros`、`AgentPlugins/swift-section` 的 skill，以及两侧的测试。
 6. [ ] 文档（模块文档、演进账本、术语表、`AGENTS.md` 与文档索引按需）、全量测试与渲染 A/B。
@@ -119,3 +135,4 @@ RuntimeViewer 的 release 构建按版本解析，要等本库发版。`next` �
 | 2026-11-11 | interface 默认折叠 | 用户选定：interface 的目标是读起来像源码，要看二进制里的展开就加 `--expand-macros` |
 | 2026-11-11 | 用户批准，开始实现；补上落地步骤 | 精简提案原本没有分步，按方案拆成六步，每步能单独构建与验证 |
 | 2026-11-11 | 带本地符号的镜像只认 init accessor；剥过符号的镜像依次看导出的 accessor、初始值表达式、存储字段名，每个属性记下证据 | 探针实测 debug 与 release 都保留每个被跟踪属性的 init accessor；手写的 `_y` 在这样的镜像里没有 `y` 的 init accessor，不会误认。只有全剥的 internal 类才需要推断 |
+| 2026-11-11 | 加入展开块的打印与宏属性的定位标记 | RuntimeViewer 要做 Xcode 式的内联展开，用户批准把这两项加进本提案；由本库打印，宿主不必再写一遍打印规则 |
