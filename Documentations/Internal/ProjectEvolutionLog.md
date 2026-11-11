@@ -3191,7 +3191,7 @@
   - 测试：`ExistentialAnyFixture` 与 `ExistentialAnyInterfaceTests` / `ExistentialAnyDumpTests`，`ConstrainedExistentialFieldTests` / `ConstrainedExistentialFieldDumpTests`，命令映射测试；12 份 fixture 快照重新录制。
   - 脚本：渲染 A/B 加三个只给候选一侧的参数，`RenderingVerificationTests` 认 `bareExistentials`。
   - 文档：提案、`Modules/SwiftInterface.md`、`StaticLayoutEngine.md`、`SystemFrameworkRenderingVerification.md`、`AgentPlugins/swift-section` 的 skill。
-- **验证**：见提案的落地步骤（Ultra，Xcode 26.6）。
+- **验证**：在 JHs-Mac-Studio-Ultra（macOS 27.2，Xcode 26.6）上跑，细节见提案第 6 步。swift-demangling 全量 651 个测试通过，语料对照证明选项关闭时输出不变。本库全量 2843 个测试 / 543 个套件只剩两条单独跑都通过的偶发，其中映射测试那条基线上同样失败。渲染 A/B 96 对：候选关掉 `any` 时，差异只有 constrained existential 字段（54 对、185 行，含 SwiftUICore 三处布局注释由 40 字节改为 16 字节）；打开后改动 50207 行，归一化掉 `any`、括号与 `.Protocol` 后全部相同。复现测试在修复前全部失败。
 - **后续**：swift-demangling 发版后抬本库的版本下限；ABI 快照要用新版重新生成；RuntimeViewer 用打印配置的默认值，升级后直接显示 `any`，要不要给它加设置项另议。
 - **对应版本**：未发版。
 

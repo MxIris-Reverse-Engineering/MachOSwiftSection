@@ -60,7 +60,12 @@
 3. ✅ interface：打印配置、打印上下文、`TypeNodePrintable` / `BoundGenericNodePrintable`、opaque type provider 的拼写参数、`InterfaceRequest` 与 CLI 开关。
 4. ✅ dump：`DemangleOptionGroup` 的开关、`DumpRequest` 与测试预设的默认值。
 5. ✅ 现编 fixture `ExistentialAnyFixture` 与 `ExistentialAnyInterfaceTests`（26 个形状 × 开关两种状态）、`ExistentialAnyDumpTests`，命令映射测试。第一轮全量测试 2842 个测试 / 543 个套件：新测试全过，失败的是 12 份 fixture 快照、`FinalKeywordICFRegressionTests` 里 SourceEditor 的 `languageService`（协议类型，现在写 `any`），以及 `FileMappingTests.readersOfOneCacheFileShareOneMapping`。12 份快照重新录制，共 202 行变化，去掉 `any`、括号并把 `.Protocol` 当 `.Type` 之后与旧快照逐字节相同；SourceEditor 的期望改成 `any`。`readersOfOneCacheFileShareOneMapping` 是全量并发下的偶发：基线与候选单独跑都通过（候选连跑三次），与本改动无关。另补 `constrainedExistentialMetatypeIsLaidOutAsAMetatype`：把三处修复文件换回修复前的版本，它报 40 字节（值容器），修复后是 16 字节。
-6. 验证与文档：全量测试、渲染 A/B（含脚本与 MachOImage 那条腿的关闭入口）、演进账本、模块文档、`AgentPlugins/swift-section` 的 skill。
+6. ✅ 验证与文档，都在 JHs-Mac-Studio-Ultra（macOS 27.2，Xcode 26.6）上跑；本库只让 swift-demangling 走本分支的本地副本，其余依赖两侧解析成同一份远端发布版（MachOKit 0.55.102、MachOKitExtensions 1.3.3、MachOObjCSection 0.8.206、swift-semantic-string 0.6.0）。
+   - 全量 `swift test --skip IntegrationTests`：2843 个测试 / 543 个套件。失败只有两条，单独跑都通过：`FileMappingTests.readersOfOneCacheFileShareOneMapping` 在基线（`next` 577eadf2 + swift-demangling `next` 6489476）的全量里同样失败，是基线已有的并发偶发；`BoundedConcurrentMapTests.cancellationStopsSubmittingPendingElements` 只在三个任务同跑、负载 60 以上那一轮超出它一分钟的时限，前两轮候选与基线的全量都通过。
+   - 渲染 A/B，基线同上，各预构建一次 release 后带 `--skip-build` 跑，96 对（归档 cache 15.5 与 26.6、iOS 16.4–26.5 模拟器、MachOImage 腿）。候选关掉 `any`（`--disable-existential-any` / `--no-existential-any` / `bareExistentials`）时 42 对逐字节一致，54 对共 185 行不同，全部来自 constrained existential 的修复：基线把这类字段印成实参（ActivityKit 的 `[Swift.String : Foundation.DataSwift.Never]`、SwiftUICore 的 `var base: A`），候选印出 `any Combine.Subject`、`any SwiftUI.Keyframes<A>`，另有 SwiftUICore 三处 `any AnimationFinishingDefinition<A>.Type` 的布局注释由 40 字节改为 16 字节。候选打开 `any` 再跑一遍，与关掉时相比改动 50207 行，去掉 `any`、括号并把 `.Protocol` 当 `.Type` 之后 96 对逐字节相同。
+   - 关掉 `any` 那一轮暴露一处缺括号：可选的 constrained existential 元类型印成 `any …<A>.Type?`，已改为 `(any …<A>.Type)?` 并加测试。
+   - A/B 脚本自己的单元测试 17 个全过（含新加的两个）。
+   - 文档：演进账本、`Modules/SwiftInterface.md`、`StaticLayoutEngine.md`、`SystemFrameworkRenderingVerification.md`、`AGENTS.md`、`AgentPlugins/swift-section` 的 skill（其中点名的开关逐个对过各子命令的 `--help`）。
 
 ## 决策日志
 
@@ -79,3 +84,5 @@
 | 2026-11-11 | interface 打印器遇到没解析出类型的 shape，交给上游打印器原样写出，不再印实参 | 把实参当成类型印出来是一个看起来对、实际错的类型；上游的原文至少名副其实 |
 | 2026-11-11 | 特化器的诊断文字（`displayName(of:)`）也写 `any` | 它的约定是「照 interface 的写法」，interface 默认写 `any` 了 |
 | 2026-11-11 | 两处已知缺口留作后续，这次不改：未展开 opaque 引用拼成 `@_opaqueReturnTypeOf("$s…", n) __<…>` 时，尖括号里的实参按 `.default` 打印；「展开的字段偏移」注释里嵌套字段的类型名在离线与进程内两条路径上都按 `.default` 打印 | 两处都不跟打印配置的拼写走，模块选择器当初同样没接；一处只在独立文件里 opaque 引用展开失败、实参又是 existential 时才碰到，另一处是注释里的类型名而不是声明本身。要接得把拼写选项一路传进 `OpaqueReferenceSpelling` 与 SwiftLayout 的 `NestedFieldOffsetTree`，超出这次的范围 |
+| 2026-11-11 | 开关关掉时，可选的 constrained existential 元类型也加括号：`(any P<Int>.Type)?` | constrained existential 无论开关都写 `any`，它的元类型同样以 `any` 开头；A/B 里 SwiftUICore 的 `finishingDefinition` 印成 `any …<A>.Type?`，不是合法的 Swift。上游打印器在选项关闭时保持与官方 demangler 一致，不改 |
+| 2026-11-11 | 实现完成，待用户看过后收尾。配套文档：不另写使用指南或实现说明，写法规则在提案与 swift-demangling 的 README，实现要点在 `AGENTS.md` 与模块文档；新术语：无 | 落地步骤六步全部完成并验证 |
