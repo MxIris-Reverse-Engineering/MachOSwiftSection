@@ -126,7 +126,16 @@ RuntimeViewer 的 release 构建按版本解析，要等本库发版。`next` �
 3. [x] interface 折叠：`expandsMacros`、`SwiftVisibilityOption.expandsMacros`、类型头属性、字段块与成员块、导出过滤、conformance extension、`marksOptionalContent` 下的两种形态，以及 `printMacroExpansion(of:attachedTo:level:)` 与 `marksAttachedMacros`；输出与投影一致性的测试。
 4. [x] dump 类头的 `@Observation.Observable` 与测试。
 5. [x] `InterfaceRequest.expandsMacros`、`interface --expand-macros`、`AgentPlugins/swift-section` 的 skill，以及两侧的测试。
-6. [ ] 文档（模块文档、演进账本、术语表、`AGENTS.md` 与文档索引按需）、全量测试与渲染 A/B。
+6. [x] 文档（模块文档、术语表、`AGENTS.md`、A/B 流程；演进账本一节与文档索引留到正式收尾）、全量测试与渲染 A/B。
+
+### 验证
+
+在 JHs-Mac-Studio-Ultra（macOS 27.2、Xcode 26.6）的沙盒里跑，swift-demangling 用它 `next` 的 8809c1b 作本地兄弟依赖（existential-any 的选项还没发版）。
+
+- 全量测试：2879 个测试、548 个套件，只剩 `FileMappingTests.readersOfOneCacheFileShareOneMapping` 一条；分支起点上跑全量同样只这一条失败，是基线已有的。
+- 全量中途暴露并修好的两件事：`TypeDefinition` 实例大小超过提案 0002 的守卫（456 > 448，展开描述改为装箱，回到 440）；fixture 在静态初始化里同步编四个变体，占住协作线程，让 `BoundedConcurrentMapTests` 的一分钟时限两次超时（改为在独立线程编译、访问器改成 async）。
+- 渲染 A/B（96 对，基线是分支起点，候选侧加 `--expand-macros` 与 `RV_OPTS` 的 `expandsMacros`）：interface 全部逐字节一致；dump 有 10 对不同，去掉 `@Observation.Observable ` 前缀后都逐字节一致，进程内一侧标出 SwiftUI、SwiftUICore、SwiftData 共 28 个类。A/B 跑在 dead-strip 修复之前的提交上；之后的改动只动折叠形态（A/B 里关着）和测试支持代码，展开形态与 dump 不受影响。
+- 真实框架：用修复后的 CLI 渲染 macOS 27.2 的 SwiftUI，`Immersion`、`WindowVisibilityState`、`SearchEnvironmentStorage` 等都折叠对了；剩下印 `@Observation.ObservationIgnored var _x` 的都是手写写法（存储与同名属性类型不同，或同名的是方法）。
 
 ## 决策日志
 
@@ -148,3 +157,5 @@ RuntimeViewer 的 release 构建按版本解析，要等本库发版。`next` �
 | 2026-11-11 | 标记打印里，只属于展开形态的声明在「类型体最后一个换行」的判断里算作可能看不见 | 投影到折叠形态加只印导出时，嵌套类型之后可能什么都不剩，闭合括号会粘成 `}}`；与导出过滤用同一个机制处理 |
 | 2026-11-11 | dump 只在类头加属性，不加关闭开关；渲染 A/B 的进程内一侧加 `RV_OPTS` 的 `expandsMacros` | dump 以信息最大化为目标，A/B 里它的差异只有类头行，人工核对；interface 有 `--expand-macros`，进程内一侧照样需要能关掉折叠 |
 | 2026-11-11 | 证据规则不再按镜像有没有本地符号分流：init accessor、成员的 setter 或 `_modify`、挂在 `x` 名下的初始值表达式在任何镜像里都算，只有 `_x` 自己的初始值表达式、或 `_x` 有 accessor 而 `x` 没有，才把它排除 | 用修好的 CLI 渲染真实 SwiftUI 时发现 `Immersion` 等类没折叠对：SwiftUI 带本地符号，但 dead-strip 去掉了 init accessor，旧规则把 `_amount` 读成手写字段。fixture 加 `-dead_strip` 变体复现，修复前的 CLI 在它上面错得一样 |
+| 2026-11-11 | fixture 改在独立线程编译，访问器改成 async | 几个套件同时要 fixture 时，同步编译占住多条协作线程，全量里 `BoundedConcurrentMapTests` 两次超时，分支起点上没有；改后全量通过 |
+| 2026-11-11 | 实现完成，待用户看过后收尾 | 文档：模块文档（SwiftDeclaration、SwiftInterface）写实现说明，术语表登记 macro folding，插件 skill 写 CLI 用法；不另写使用指南，CLI 的 `--help` 与 skill 已够；演进账本一节、取号与文档索引留给正式收尾 |
