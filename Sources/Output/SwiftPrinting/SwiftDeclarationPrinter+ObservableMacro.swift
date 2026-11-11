@@ -4,6 +4,7 @@ import SwiftDeclarationRendering
 import Semantic
 import SwiftInspection
 import MachOSwiftSection
+import MachOSymbols
 
 /// How the interface prints what an attached macro generated (evolution
 /// proposal `observable-macro-folding`). For a class `@Observable` expanded
