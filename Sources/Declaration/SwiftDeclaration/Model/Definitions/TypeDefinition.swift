@@ -111,7 +111,24 @@ public final class TypeDefinition: Definition, @unchecked Sendable {
     /// `variables` and `functions` as the binary has them. `nil` unless
     /// `attachedMacros` contains `.observable`, and until `index(in:)` has
     /// run. See `ObservableMacroExpansion`.
-    public package(set) var observableMacroExpansion: ObservableMacroExpansion? = nil
+    public package(set) var observableMacroExpansion: ObservableMacroExpansion? {
+        get { observableMacroExpansionStorage?.expansion }
+        set { observableMacroExpansionStorage = newValue.map(ObservableMacroExpansionStorage.init(expansion:)) }
+    }
+
+    /// Boxed, so every definition carries one reference and only the few
+    /// classes the macro expanded allocate the description: the instance
+    /// size stays in the descriptor-sized band evolution proposal 0002
+    /// guards (`DeclarationModelInstanceSizeTests`).
+    private var observableMacroExpansionStorage: ObservableMacroExpansionStorage? = nil
+
+    private final class ObservableMacroExpansionStorage: Sendable {
+        let expansion: ObservableMacroExpansion
+
+        init(expansion: ObservableMacroExpansion) {
+            self.expansion = expansion
+        }
+    }
 
     /// The Objective-C protocols a class adopts, read at index time from its
     /// `class_ro_t` (evolution proposal `swift-declared-objc-protocols`): an
