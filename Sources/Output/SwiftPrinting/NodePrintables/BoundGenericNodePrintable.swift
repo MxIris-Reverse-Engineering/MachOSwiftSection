@@ -47,7 +47,8 @@ extension BoundGenericNodePrintable {
         case .optional,
              .implicitlyUnwrappedOptional:
             if let type = name.children.at(1)?.children.at(0) {
-                let needParens = !type.isSimpleType
+                // An existential spelled with `any` is not simple: `(any P)?`.
+                let needParens = !type.isSimpleType || (context.usesExistentialAny && type.takesAnyKeyword)
                 await printOptional(type, prefix: needParens ? "(" : "", suffix: needParens ? ")" : "")
                 target.write(sugarType == .optional ? "?" : "!")
             }

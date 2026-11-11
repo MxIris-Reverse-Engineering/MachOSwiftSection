@@ -9,7 +9,7 @@ import Demangling
 protocol NodePrintableDelegate: AnyObject, Sendable {
     func moduleName(forTypeName typeName: String) async -> String?
     func swiftName(forCName cName: String, category: CImportedTypeNameCategory) async -> String?
-    func opaqueType(forNode node: Node, index: Int?, usesModuleSelectors: Bool) async -> String?
+    func opaqueType(forNode node: Node, index: Int?, spellingOptions: DemangleOptions) async -> String?
     /// Whether what `opaqueType(forNode:index:)` supplies is to be marked as
     /// visible only with opaque type resolution on (see
     /// `SwiftDeclarationPrintConfiguration.marksOptionalContent`).
@@ -18,4 +18,8 @@ protocol NodePrintableDelegate: AnyObject, Sendable {
     /// `SwiftDeclarationPrintConfiguration.usesModuleSelectors`). A printer
     /// reads it once, when it is created.
     var usesModuleSelectors: Bool { get }
+    /// Whether existential types are spelled with the `any` keyword (see
+    /// `SwiftDeclarationPrintConfiguration.usesExistentialAny`). A printer
+    /// reads it once, when it is created.
+    var usesExistentialAny: Bool { get }
 }

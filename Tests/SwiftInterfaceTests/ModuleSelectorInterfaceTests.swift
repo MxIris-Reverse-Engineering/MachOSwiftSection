@@ -58,8 +58,8 @@ struct ModuleSelectorInterfaceTests {
         ),
         SpellingCase(
             summary: "AnyObject in a composition",
-            spellingWithoutSelectors: "var composition: ModuleSelectorFixture.Marker & Swift.AnyObject",
-            spellingWithSelectors: "var composition: ModuleSelectorFixture::Marker & Swift::AnyObject"
+            spellingWithoutSelectors: "var composition: any ModuleSelectorFixture.Marker & Swift.AnyObject",
+            spellingWithSelectors: "var composition: any ModuleSelectorFixture::Marker & Swift::AnyObject"
         ),
         SpellingCase(
             summary: "the header of an extension of another module's type",

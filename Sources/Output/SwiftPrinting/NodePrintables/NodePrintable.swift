@@ -25,6 +25,10 @@ protocol NodePrintableContext {
     /// a printer's lifetime — it is read from the delegate when the printer
     /// is created — so a memoized fragment never mixes the two spellings.
     var usesModuleSelectors: Bool { get }
+
+    /// Spell existential types with the `any` keyword. Fixed for a printer's
+    /// lifetime, like `usesModuleSelectors`.
+    var usesExistentialAny: Bool { get }
 }
 
 /// Per-call hints for one `printName`.

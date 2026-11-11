@@ -115,6 +115,19 @@ public struct SwiftDeclarationPrintConfiguration: Equatable, Sendable {
     /// Off by default, and off the output is unchanged byte for byte.
     public var usesModuleSelectors: Bool = false
 
+    /// Spell existential types with the `any` keyword, as the compiler writes
+    /// a `.swiftinterface` (SE-0335; evolution proposal `existential-any`):
+    /// `any P`, `any P & Q`, `(any P)?`, `any P.Type` for the existential
+    /// metatype and `(any P).Type` for the metatype of the existential, which
+    /// the bare spelling writes as `P.Protocol`. A lone `Any` or `AnyObject`
+    /// stays bare, except in a metatype (`any Any.Type`), where the compiler
+    /// writes the keyword for them too.
+    ///
+    /// On by default. Off, existentials print bare, the way they did before —
+    /// `Swift.Collection` for `any Collection`, which the compiler warns must
+    /// be written `any Collection`.
+    public var usesExistentialAny: Bool = true
+
     /// Where a requirement about one of a protocol's own associated types
     /// prints: in the protocol's `where` clause (the default, unchanged byte
     /// for byte), or on that `associatedtype` (evolution proposal
