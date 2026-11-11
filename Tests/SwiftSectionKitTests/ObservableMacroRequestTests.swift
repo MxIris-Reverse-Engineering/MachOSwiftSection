@@ -17,7 +17,12 @@ struct ObservableMacroRequestTests {
         let folded = RecordingOutput()
         try await InterfaceRequest(source: try Self.source()).run(output: folded, environment: .testing)
         #expect(folded.printedProduct.contains("@Observation.Observable\nclass FinalModel {"), "\(folded.printedProduct)")
-        #expect(!folded.printedProduct.contains("_$observationRegistrar"), "\(folded.printedProduct)")
+        // The look-alikes declare a registrar of their own; the class the
+        // macro expanded prints none.
+        let finalModelStart = try #require(folded.printedProduct.range(of: "class FinalModel {"), "\(folded.printedProduct)")
+        let finalModelEnd = try #require(folded.printedProduct.range(of: "\n}", range: finalModelStart.upperBound ..< folded.printedProduct.endIndex))
+        let finalModel = folded.printedProduct[finalModelStart.lowerBound ..< finalModelEnd.upperBound]
+        #expect(!finalModel.contains("_$observationRegistrar"), "\(finalModel)")
 
         let expanded = RecordingOutput()
         try await InterfaceRequest(source: try Self.source(), expandsMacros: true).run(output: expanded, environment: .testing)
