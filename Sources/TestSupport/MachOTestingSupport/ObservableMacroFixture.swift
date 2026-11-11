@@ -10,12 +10,16 @@ import Testing
 /// registrar of the same name and type beside `_$backingData`), and a
 /// registrar field of another type.
 ///
-/// One module, three variants:
+/// One module, four variants:
 /// - `.debug` (`-Onone`): every symbol, and the private backing storage's
 ///   accessors in the vtable.
 /// - `.release` (`-O`): every symbol the optimizer leaves; the private
 ///   generated `shouldNotifyObservers(_:_:)` overloads of a final class are
 ///   gone.
+/// - `.releaseDeadStripped` (`-O`, linked with `-dead_strip`): as SwiftUI —
+///   the local symbols kept, but every function nothing references dropped:
+///   most init accessors, and every accessor of a final class's internal
+///   properties.
 /// - `.releaseStripped` (`-O`, then `strip -x`): as an OS framework or a
 ///   shipped app — an internal class keeps no symbol at all, a public one
 ///   only its exports, among them the initial-value expressions of its stored
@@ -24,6 +28,7 @@ package enum ObservableMacroFixture {
     package enum Variant: String, CaseIterable, Sendable {
         case debug
         case release
+        case releaseDeadStripped
         case releaseStripped
     }
 
@@ -163,11 +168,13 @@ package enum ObservableMacroFixture {
                 // one by path, and its image is told from the others by name.
                 let libraryURL = workingDirectory.appendingPathComponent("lib\(moduleName)-\(variant.rawValue).dylib")
                 let optimization = variant == .debug ? "-Onone" : "-O"
+                let deadStripping = variant == .releaseDeadStripped ? ["-Xlinker", "-dead_strip"] : []
                 try run(step: "swiftc (\(variant.rawValue))", [
                     // The language mode pinned: CI's toolchain and a newer
                     // local one must compile the same source the same way.
                     "swiftc", "-swift-version", "5", "-emit-library", optimization, "-module-name", moduleName,
                     "-Xlinker", "-install_name", "-Xlinker", libraryURL.path,
+                ] + deadStripping + [
                     swiftSourceURL.path, "-o", libraryURL.path,
                 ])
                 if variant == .releaseStripped {

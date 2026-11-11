@@ -12,11 +12,14 @@ package enum ObservableMacroExpansionRecovery {
         package let typeNode: Node
         /// Declared `var`: the macro tracks no `let`.
         package let isVariable: Bool
+        /// Whether the property's own accessor symbols are in the image.
+        package let hasAccessors: Bool
 
-        package init(name: String, typeNode: Node, isVariable: Bool) {
+        package init(name: String, typeNode: Node, isVariable: Bool, hasAccessors: Bool = false) {
             self.name = name
             self.typeNode = typeNode
             self.isVariable = isVariable
+            self.hasAccessors = hasAccessors
         }
     }
 
@@ -36,21 +39,15 @@ package enum ObservableMacroExpansionRecovery {
     /// What the symbol table says about the class's variables.
     package struct SymbolEvidence {
         /// The variables with an init accessor.
-        package var initAccessorNames: Set<String> = []
-        /// The variables with an initial-value expression. Gathered only
-        /// when the image keeps no local symbol: only then do the expressions
-        /// still standing decide anything.
-        package var initialValueExpressionNames: Set<String> = []
-        /// Whether the image carries any local Swift symbol. When it does, a
-        /// tracked property's init accessor is among them, so its absence
-        /// says `_x` is a stored property of its own; when it does not,
-        /// absence says nothing.
-        package var imageHasLocalSwiftSymbols: Bool = true
+        package var initAccessorNames: Set<String>
+        /// The variables with an initial-value expression — asked for once,
+        /// and only when a storage's accessors leave it undecided: in an image
+        /// that keeps its local symbols the expressions are many.
+        package var initialValueExpressionNames: () -> Set<String>
 
-        package init(initAccessorNames: Set<String> = [], initialValueExpressionNames: Set<String> = [], imageHasLocalSwiftSymbols: Bool = true) {
+        package init(initAccessorNames: Set<String> = [], initialValueExpressionNames: @escaping () -> Set<String> = { [] }) {
             self.initAccessorNames = initAccessorNames
             self.initialValueExpressionNames = initialValueExpressionNames
-            self.imageHasLocalSwiftSymbols = imageHasLocalSwiftSymbols
         }
     }
 
@@ -67,6 +64,7 @@ package enum ObservableMacroExpansionRecovery {
     ) -> (trackedProperties: [ObservableMacroExpansion.TrackedProperty], ignoredStoredPropertyNames: [String]) {
         var trackedProperties: [ObservableMacroExpansion.TrackedProperty] = []
         var ignoredStoredPropertyNames: [String] = []
+        var initialValueExpressionNames: Set<String>?
         for storedProperty in storedProperties where storedProperty.isVariable && storedProperty.name != ObservableMacroRecognition.registrarFieldName {
             guard !claimedBackingFieldNames.contains(storedProperty.name),
                   let propertyName = trackedPropertyName(forBackingFieldName: storedProperty.name)
@@ -80,7 +78,19 @@ package enum ObservableMacroExpansionRecovery {
                 ignoredStoredPropertyNames.append(storedProperty.name)
                 continue
             }
-            guard let evidence = trackingEvidence(propertyName: propertyName, backingFieldName: storedProperty.name, memberVariable: memberVariable, evidence: evidence) else {
+            let trackingEvidence = trackingEvidence(
+                propertyName: propertyName,
+                storedProperty: storedProperty,
+                memberVariable: memberVariable,
+                initAccessorNames: evidence.initAccessorNames,
+                initialValueExpressionNames: {
+                    if let initialValueExpressionNames { return initialValueExpressionNames }
+                    let names = evidence.initialValueExpressionNames()
+                    initialValueExpressionNames = names
+                    return names
+                }
+            )
+            guard let trackingEvidence else {
                 ignoredStoredPropertyNames.append(storedProperty.name)
                 continue
             }
@@ -88,34 +98,44 @@ package enum ObservableMacroExpansionRecovery {
                 name: propertyName,
                 backingFieldName: storedProperty.name,
                 origin: memberVariable == nil ? .synthesized : .declaredMember,
-                evidence: evidence
+                evidence: trackingEvidence
             ))
         }
         return (trackedProperties, ignoredStoredPropertyNames)
     }
 
+    /// What tells `_x` apart from a stored property the source named so,
+    /// strongest first, or `nil` when `_x` is one. An optimized, dead-stripped
+    /// image — an OS framework — drops the init accessor and the accessors of
+    /// every property nothing calls, local symbols kept or not, so absence
+    /// alone never rules `_x` out: only a fact of `_x`'s own does.
     private static func trackingEvidence(
         propertyName: String,
-        backingFieldName: String,
+        storedProperty: StoredProperty,
         memberVariable: MemberVariable?,
-        evidence: SymbolEvidence
+        initAccessorNames: Set<String>,
+        initialValueExpressionNames: () -> Set<String>
     ) -> ObservableMacroExpansion.TrackedProperty.Evidence? {
-        if evidence.initAccessorNames.contains(propertyName) {
+        if initAccessorNames.contains(propertyName) {
             return .initAccessor
         }
-        // An image with local symbols keeps every tracked property's init
-        // accessor, so a `_x` without one is a stored property of its own.
-        guard !evidence.imageHasLocalSwiftSymbols else { return nil }
         if memberVariable?.hasSetterOrModify == true {
             return .accessors
         }
         // The initial value belongs to whichever property the source wrote it
         // on: `x` when the macro moved the storage, `_x` when it is its own.
-        if evidence.initialValueExpressionNames.contains(backingFieldName) {
+        let initialValueExpressionNames = initialValueExpressionNames()
+        if initialValueExpressionNames.contains(storedProperty.name) {
             return nil
         }
-        if evidence.initialValueExpressionNames.contains(propertyName) {
+        if initialValueExpressionNames.contains(propertyName) {
             return .initialValueExpression
+        }
+        // The image keeps `_x`'s accessors and none of `x`'s: the macro's
+        // storage and its computed property go together, kept by the same
+        // vtable or dropped by the same strip.
+        if storedProperty.hasAccessors, memberVariable == nil {
+            return nil
         }
         return .backingFieldName
     }

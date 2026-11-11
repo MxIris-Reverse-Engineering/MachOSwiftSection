@@ -37,24 +37,28 @@ public struct ObservableMacroExpansion: Sendable {
         /// with that name and `@ObservationIgnored`.
         public enum Evidence: Sendable, Equatable {
             /// `x` has an init accessor: only a property whose storage the
-            /// macro moved to `_x` has one. Every image that keeps its local
-            /// symbols carries it.
+            /// macro moved to `_x` has one.
             case initAccessor
 
-            /// The computed `x` the image exports has a setter or a `_modify`
+            /// The computed `x` in the image has a setter or a `_modify`
             /// accessor and `_x`'s type.
             case accessors
 
-            /// The exported initial-value expression is `x`'s: the source
-            /// gave `x` the initial value, and the macro moved only its
-            /// storage. A stored property of its own would carry the
-            /// expression itself.
+            /// The initial-value expression is `x`'s: the source gave `x` the
+            /// initial value, and the macro moved only its storage. A stored
+            /// property of its own would carry the expression itself.
             case initialValueExpression
 
-            /// Nothing in the image names `x`; the storage's name alone says
-            /// it. An `@ObservationIgnored` property named `_y` in a class
-            /// whose symbols are all stripped reads as the tracked `y` this
-            /// way, which is why it is told apart from the others.
+            /// Nothing in the image names `x`, and nothing says `_x` is a
+            /// stored property of its own — an initial-value expression of its
+            /// own, or accessors of its own while `x` has none — so the
+            /// storage's name alone says it. Common in an OS framework or a
+            /// shipped app: an optimized, dead-stripped image drops the init
+            /// accessor and the accessors of every property nothing calls,
+            /// whether it keeps its local symbols or not. An
+            /// `@ObservationIgnored` property named `_y` with neither reads as
+            /// the tracked `y` this way, which is why it is told apart from
+            /// the others.
             case backingFieldName
         }
 

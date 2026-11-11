@@ -74,6 +74,39 @@ struct ObservableMacroExpansionRecoveryTests {
         #expect(internalModel.ignoredStoredPropertyNames == ["_underscored"])
     }
 
+    // MARK: - A dead-stripped image
+
+    /// SwiftUI's shape: the image keeps its local symbols, but linking with
+    /// `-dead_strip` dropped every function nothing references — most init
+    /// accessors, and every accessor of a final class's internal properties.
+    /// The absence of an init accessor must not turn a tracked property's
+    /// storage into a stored property of its own; it did, and SwiftUI's
+    /// `Immersion` printed `@ObservationIgnored var _amount` beside the
+    /// computed `amount`.
+    @Test func aDeadStrippedImageIsReadFromWhatItKeeps() async throws {
+        let machO = try ObservableMacroFixture.machOFile(.releaseDeadStripped)
+        let internalModel = try await expansion(of: "InternalModel", in: machO)
+        #expect(internalModel.trackedProperties == [
+            // The vtable keeps the computed properties' accessors.
+            TrackedProperty(name: "value", backingFieldName: "_value", origin: .declaredMember, evidence: .accessors),
+            TrackedProperty(name: "optionalText", backingFieldName: "_optionalText", origin: .declaredMember, evidence: .accessors),
+            TrackedProperty(name: "delegate", backingFieldName: "_delegate", origin: .declaredMember, evidence: .accessors),
+        ])
+        // `_underscored` keeps accessors of its own while nothing names
+        // `underscored`: a stored property of its own.
+        #expect(internalModel.ignoredStoredPropertyNames == ["_underscored"])
+
+        let finalModel = try await expansion(of: "FinalModel", in: machO)
+        #expect(finalModel.trackedProperties == [
+            // `name`'s init accessor is one the strip kept.
+            TrackedProperty(name: "name", backingFieldName: "_name", origin: .declaredMember, evidence: .initAccessor),
+            // The rest of the final class's accessors are gone.
+            TrackedProperty(name: "count", backingFieldName: "_count", origin: .synthesized, evidence: .initialValueExpression),
+            TrackedProperty(name: "uninitialized", backingFieldName: "_uninitialized", origin: .synthesized, evidence: .backingFieldName),
+        ])
+        #expect(finalModel.ignoredStoredPropertyNames == ["ignored", "_cache", "lazyValue"])
+    }
+
     // MARK: - An image stripped of its local symbols
 
     @Test func aStrippedPublicClassIsReadFromItsExports() async throws {
@@ -147,21 +180,24 @@ struct ObservableMacroExpansionRecoveryTests {
         #expect(!ObservableMacroExpansionRecovery.isGeneratedFunction(name: "reload", argumentLabels: []))
     }
 
-    @Test func withLocalSymbolsOnlyAnInitAccessorTellsATrackedProperty() {
+    @Test func anInitAccessorOrTheComputedPropertysSetterTellsATrackedProperty() {
         let recovered = ObservableMacroExpansionRecovery.recover(
             storedProperties: [
-                .init(name: "_tracked", typeNode: Self.intTypeNode, isVariable: true),
-                .init(name: "_handWritten", typeNode: Self.intTypeNode, isVariable: true),
+                .init(name: "_initialized", typeNode: Self.intTypeNode, isVariable: true),
+                .init(name: "_settable", typeNode: Self.intTypeNode, isVariable: true, hasAccessors: true),
                 .init(name: "_constant", typeNode: Self.intTypeNode, isVariable: false),
                 .init(name: "_$observationRegistrar", typeNode: Self.intTypeNode, isVariable: false),
             ],
-            // A hand-written computed `handWritten` over `_handWritten`, with a setter.
-            memberVariables: [.init(name: "handWritten", declaredTypeNode: Self.intTypeNode, hasSetterOrModify: true)],
+            // No init accessor for `settable`: dead-stripped, as in SwiftUI.
+            memberVariables: [.init(name: "settable", declaredTypeNode: Self.intTypeNode, hasSetterOrModify: true)],
             claimedBackingFieldNames: [],
-            evidence: .init(initAccessorNames: ["tracked"], imageHasLocalSwiftSymbols: true)
+            evidence: .init(initAccessorNames: ["initialized"])
         )
-        #expect(recovered.trackedProperties == [TrackedProperty(name: "tracked", backingFieldName: "_tracked", origin: .synthesized, evidence: .initAccessor)])
-        #expect(recovered.ignoredStoredPropertyNames == ["_handWritten"])
+        #expect(recovered.trackedProperties == [
+            TrackedProperty(name: "initialized", backingFieldName: "_initialized", origin: .synthesized, evidence: .initAccessor),
+            TrackedProperty(name: "settable", backingFieldName: "_settable", origin: .declaredMember, evidence: .accessors),
+        ])
+        #expect(recovered.ignoredStoredPropertyNames.isEmpty)
     }
 
     @Test func aMemberOfAnotherTypeIsNotWhatTheStorageHolds() {
@@ -169,7 +205,7 @@ struct ObservableMacroExpansionRecoveryTests {
             storedProperties: [.init(name: "_label", typeNode: Self.intTypeNode, isVariable: true)],
             memberVariables: [.init(name: "label", declaredTypeNode: Self.stringTypeNode, hasSetterOrModify: true)],
             claimedBackingFieldNames: [],
-            evidence: .init(initAccessorNames: ["label"], imageHasLocalSwiftSymbols: true)
+            evidence: .init(initAccessorNames: ["label"])
         )
         #expect(recovered.trackedProperties.isEmpty)
         #expect(recovered.ignoredStoredPropertyNames == ["_label"])
@@ -180,32 +216,48 @@ struct ObservableMacroExpansionRecoveryTests {
             storedProperties: [.init(name: "_clamped", typeNode: Self.intTypeNode, isVariable: true)],
             memberVariables: [],
             claimedBackingFieldNames: ["_clamped"],
-            evidence: .init(initAccessorNames: ["clamped"], imageHasLocalSwiftSymbols: true)
+            evidence: .init(initAccessorNames: ["clamped"])
         )
         #expect(recovered.trackedProperties.isEmpty)
         #expect(recovered.ignoredStoredPropertyNames == ["_clamped"])
     }
 
-    @Test func withoutLocalSymbolsTheEvidenceIsTakenInOrder() {
+    @Test func whatTheStorageHasOfItsOwnRulesItOut() {
+        var askedForInitialValueExpressions = 0
         let recovered = ObservableMacroExpansionRecovery.recover(
             storedProperties: [
-                .init(name: "_exported", typeNode: Self.intTypeNode, isVariable: true),
                 .init(name: "_initialized", typeNode: Self.intTypeNode, isVariable: true),
                 .init(name: "_ownInitialValue", typeNode: Self.intTypeNode, isVariable: true),
+                .init(name: "_ownAccessors", typeNode: Self.intTypeNode, isVariable: true, hasAccessors: true),
                 .init(name: "_unnamed", typeNode: Self.intTypeNode, isVariable: true),
             ],
-            memberVariables: [.init(name: "exported", declaredTypeNode: Self.intTypeNode, hasSetterOrModify: true)],
+            memberVariables: [],
             claimedBackingFieldNames: [],
-            evidence: .init(
-                initialValueExpressionNames: ["initialized", "_ownInitialValue"],
-                imageHasLocalSwiftSymbols: false
-            )
+            evidence: .init(initialValueExpressionNames: {
+                askedForInitialValueExpressions += 1
+                return ["initialized", "_ownInitialValue"]
+            })
         )
         #expect(recovered.trackedProperties == [
-            TrackedProperty(name: "exported", backingFieldName: "_exported", origin: .declaredMember, evidence: .accessors),
             TrackedProperty(name: "initialized", backingFieldName: "_initialized", origin: .synthesized, evidence: .initialValueExpression),
             TrackedProperty(name: "unnamed", backingFieldName: "_unnamed", origin: .synthesized, evidence: .backingFieldName),
         ])
-        #expect(recovered.ignoredStoredPropertyNames == ["_ownInitialValue"])
+        #expect(recovered.ignoredStoredPropertyNames == ["_ownInitialValue", "_ownAccessors"])
+        // Gathered once, however many storages ask.
+        #expect(askedForInitialValueExpressions == 1)
+    }
+
+    @Test func theInitialValueExpressionsAreNotGatheredWhenTheAccessorsDecide() {
+        var askedForInitialValueExpressions = 0
+        _ = ObservableMacroExpansionRecovery.recover(
+            storedProperties: [.init(name: "_value", typeNode: Self.intTypeNode, isVariable: true)],
+            memberVariables: [.init(name: "value", declaredTypeNode: Self.intTypeNode, hasSetterOrModify: true)],
+            claimedBackingFieldNames: [],
+            evidence: .init(initialValueExpressionNames: {
+                askedForInitialValueExpressions += 1
+                return []
+            })
+        )
+        #expect(askedForInitialValueExpressions == 0)
     }
 }
