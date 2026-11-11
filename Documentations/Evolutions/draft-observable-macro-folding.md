@@ -1,6 +1,6 @@
 # Draft - 识别 `@Observable` 宏：interface 默认折叠它的展开
 
-- **状态**: Accepted
+- **状态**: In Progress
 - **创建日期**: 2026-11-11
 - **最后更新**: 2026-11-11
 - **实现分支**: `feature/observable-macro`
@@ -31,11 +31,13 @@
 
 ### 被跟踪的属性怎么认
 
-每个存储字段 `_x`（`var`，名字不以 `_$` 开头，没被 property wrapper 还原认领）按下面的证据认作属性 `x` 的存储：
+每个存储字段 `_x`（`var`，名字不以 `_$` 开头，没被 property wrapper 还原认领）先排除一种情况：类型里有成员变量 `x`、但类型与 `_x` 不同（`weak` 之类的引用存储先剥掉再比），那 `_x` 存的就不是 `x`。其余的按下面的证据认作属性 `x` 的存储，每个被跟踪的属性都记下认定它的证据（`ObservableMacroExpansion.TrackedProperty.Evidence`）：
 
-1. 类型里有成员变量 `x`，类型与 `_x` 相同，并且有 setter 或 modify：来源记为 `declaredMember`。
-2. `x` 的 accessor 被剥掉了：从 `_x` 合成 `var x: T`，来源记为 `synthesized`，打印时照 property wrapper 合成的先例在上方加一行 note 注释，写明是从存储字段 `_x` 合成的。实测有一条额外证据可用：被跟踪属性的初始值表达式符号挂在 `x` 名下（`variable initialization expression of Model.count`），手写的存储属性挂在自己名下（`… of Model._cache`），并且 public 类的这类符号剥过之后还在。`_x` 自己有初始值表达式符号时，它就是手写的存储属性，不认。
-3. 剩下的唯一误判：类是 internal、符号全部剥掉、又有一个用 `@ObservationIgnored` 声明且名字以下划线开头的 `var _y`，它会被读成被跟踪的 `y`。note 注释里写着 `_y`，读者看得到原始字段名。
+1. `x` 有 init accessor（`Model.count.init`）：只有被宏挪走存储的属性才有。带本地符号的镜像里每个被跟踪的属性都有这个符号（debug 与 release 实测），所以在这样的镜像里它是唯一的证据，没有它的 `_x` 就是手写的存储属性。
+2. 剥掉了本地符号的镜像里，依次看：导出的成员变量 `x` 有 setter 或 `_modify`；导出的初始值表达式挂在 `x` 名下（`variable initialization expression of Model.count`；手写的存储属性挂在自己名下，`… of Model._cache`，这时不认）；最后只凭存储字段名推断。public 类的初始值表达式剥过之后还在，open 类连 init accessor 也导出。
+3. 剩下的唯一误判：internal 类、符号全部剥掉、又有一个用 `@ObservationIgnored` 声明且名字以下划线开头的 `var _y`，它会被读成被跟踪的 `y`，证据记为 `backingFieldName`。测试把这一条钉住。
+
+成员变量 `x` 在镜像里时来源记为 `declaredMember`，否则记为 `synthesized`：从 `_x` 合成 `var x: T`，打印时照 property wrapper 合成的先例在上方加一行 note 注释，写明是从存储字段 `_x` 合成的。
 
 其余存储的 `var`（`@ObservationIgnored` 声明的）在折叠形态里加上 `@Observation.ObservationIgnored`：不加的话，读者分不出哪些属性被跟踪。`let` 不加，宏本来就不跟踪它。
 
@@ -98,8 +100,8 @@ RuntimeViewer 的 release 构建按版本解析，要等本库发版。`next` �
 
 每一步单独构建通过、相关测试通过后提交并推送；测试在 Ultra 上跑。
 
-1. [ ] 识别与模型标记：`ObservableMacroRecognition`、`SwiftAttachedMacro`、`TypeDefinition.attachedMacros`（含 specialization 沿用）、`ExtensionDefinition.generatingMacro`；新 fixture `ObservableMacroFixture` 与识别的测试。
-2. [ ] 索引期的展开分析：`ObservableMacroExpansion`、`TypeDefinition.observableMacroExpansion`；三个变体下被跟踪属性、来源、`@ObservationIgnored` 属性与生成方法的测试。
+1. [x] 识别与模型标记：`ObservableMacroRecognition`、`SwiftAttachedMacro`、`TypeDefinition.attachedMacros`（含 specialization 沿用）、`ExtensionDefinition.generatingMacro`；新 fixture `ObservableMacroFixture` 与识别的测试。
+2. [x] 索引期的展开分析：`ObservableMacroExpansion`、`TypeDefinition.observableMacroExpansion`；三个变体下被跟踪属性、来源、`@ObservationIgnored` 属性与生成方法的测试。
 3. [ ] interface 折叠：`expandsMacros`、`SwiftVisibilityOption.expandsMacros`、类型头属性、字段块与成员块、导出过滤、conformance extension、`marksOptionalContent` 下的两种形态；输出与投影一致性的测试。
 4. [ ] dump 类头的 `@Observation.Observable` 与测试。
 5. [ ] `InterfaceRequest.expandsMacros`、`interface --expand-macros`、`AgentPlugins/swift-section` 的 skill，以及两侧的测试。
@@ -116,3 +118,4 @@ RuntimeViewer 的 release 构建按版本解析，要等本库发版。`next` �
 | 2026-11-11 | accessor 被剥掉时也合成被跟踪的属性，上方加 note 注释 | 剥过符号的 App 里 internal 的 view model 是常态；先例是 property wrapper 的合成，note 写明来源字段 |
 | 2026-11-11 | interface 默认折叠 | 用户选定：interface 的目标是读起来像源码，要看二进制里的展开就加 `--expand-macros` |
 | 2026-11-11 | 用户批准，开始实现；补上落地步骤 | 精简提案原本没有分步，按方案拆成六步，每步能单独构建与验证 |
+| 2026-11-11 | 带本地符号的镜像只认 init accessor；剥过符号的镜像依次看导出的 accessor、初始值表达式、存储字段名，每个属性记下证据 | 探针实测 debug 与 release 都保留每个被跟踪属性的 init accessor；手写的 `_y` 在这样的镜像里没有 `y` 的 init accessor，不会误认。只有全剥的 internal 类才需要推断 |
