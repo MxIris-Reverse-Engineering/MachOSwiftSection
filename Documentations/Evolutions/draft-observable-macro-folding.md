@@ -118,9 +118,9 @@ RuntimeViewer 的 release 构建按版本解析，要等本库发版。`next` �
 
 1. [x] 识别与模型标记：`ObservableMacroRecognition`、`SwiftAttachedMacro`、`TypeDefinition.attachedMacros`（含 specialization 沿用）、`ExtensionDefinition.generatingMacro`；新 fixture `ObservableMacroFixture` 与识别的测试。
 2. [x] 索引期的展开分析：`ObservableMacroExpansion`、`TypeDefinition.observableMacroExpansion`；三个变体下被跟踪属性、来源、`@ObservationIgnored` 属性与生成方法的测试。
-3. [ ] interface 折叠：`expandsMacros`、`SwiftVisibilityOption.expandsMacros`、类型头属性、字段块与成员块、导出过滤、conformance extension、`marksOptionalContent` 下的两种形态，以及 `printMacroExpansion(of:attachedTo:level:)` 与 `marksAttachedMacros`；输出与投影一致性的测试。
-4. [ ] dump 类头的 `@Observation.Observable` 与测试。
-5. [ ] `InterfaceRequest.expandsMacros`、`interface --expand-macros`、`AgentPlugins/swift-section` 的 skill，以及两侧的测试。
+3. [x] interface 折叠：`expandsMacros`、`SwiftVisibilityOption.expandsMacros`、类型头属性、字段块与成员块、导出过滤、conformance extension、`marksOptionalContent` 下的两种形态，以及 `printMacroExpansion(of:attachedTo:level:)` 与 `marksAttachedMacros`；输出与投影一致性的测试。
+4. [x] dump 类头的 `@Observation.Observable` 与测试。
+5. [x] `InterfaceRequest.expandsMacros`、`interface --expand-macros`、`AgentPlugins/swift-section` 的 skill，以及两侧的测试。
 6. [ ] 文档（模块文档、演进账本、术语表、`AGENTS.md` 与文档索引按需）、全量测试与渲染 A/B。
 
 ## 决策日志
@@ -136,3 +136,9 @@ RuntimeViewer 的 release 构建按版本解析，要等本库发版。`next` �
 | 2026-11-11 | 用户批准，开始实现；补上落地步骤 | 精简提案原本没有分步，按方案拆成六步，每步能单独构建与验证 |
 | 2026-11-11 | 带本地符号的镜像只认 init accessor；剥过符号的镜像依次看导出的 accessor、初始值表达式、存储字段名，每个属性记下证据 | 探针实测 debug 与 release 都保留每个被跟踪属性的 init accessor；手写的 `_y` 在这样的镜像里没有 `y` 的 init accessor，不会误认。只有全剥的 internal 类才需要推断 |
 | 2026-11-11 | 加入展开块的打印与宏属性的定位标记 | RuntimeViewer 要做 Xcode 式的内联展开，用户批准把这两项加进本提案；由本库打印，宿主不必再写一遍打印规则 |
+| 2026-11-11 | 嵌套类型的宏属性靠 `marksNestedDefinitions` 对应到定义：最内层的 `DefinitionRegion` 就是它的类型，不另加 API | 一次打印会内联嵌套类型，宿主要知道每个属性区域属于哪个定义；类型的属性行本来就印在它自己的定义区域里，复用现成机制比复刻打印顺序可靠 |
+| 2026-11-11 | 折叠出的 `var x` 用 computed `x` 的 `final`、导出结论与 accessor 注释（vtable 槽位、地址），字段的偏移与布局注释照旧 | 存储字段 `_x` 是 private，它的 `final` 与导出结论说的是存储，不是属性；`x` 的槽位与代码地址才是宿主要找的入口 |
+| 2026-11-11 | `@Observation.Observable` 从 `Observation.Observable` 协议的名字节点打印，`@Observation.ObservationIgnored` 从结构体节点打印；两者都是静态节点 | 打印器按节点身份缓存片段，节点要活过打印；协议节点不会被写上 `any`，属性还能链到同名协议 |
+| 2026-11-11 | 展开块一行一条声明、不留空行，交给 `Rows` 组合 | 每条声明自带缩进，`Rows` 按两侧是否可见放换行，标记打印投影后也不会多出空行或首尾换行 |
+| 2026-11-11 | 标记打印里，只属于展开形态的声明在「类型体最后一个换行」的判断里算作可能看不见 | 投影到折叠形态加只印导出时，嵌套类型之后可能什么都不剩，闭合括号会粘成 `}}`；与导出过滤用同一个机制处理 |
+| 2026-11-11 | dump 只在类头加属性，不加关闭开关；渲染 A/B 的进程内一侧加 `RV_OPTS` 的 `expandsMacros` | dump 以信息最大化为目标，A/B 里它的差异只有类头行，人工核对；interface 有 `--expand-macros`，进程内一侧照样需要能关掉折叠 |
