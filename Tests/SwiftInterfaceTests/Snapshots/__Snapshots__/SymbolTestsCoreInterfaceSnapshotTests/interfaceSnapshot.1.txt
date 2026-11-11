@@ -1690,10 +1690,10 @@ enum GenericFieldLayout {
         var leading: Swift.Int
         // Field offset: 0x8
         // Type Layout: (size: 40, stride: 40, alignment: 8, extraInhabitantCount: 2147483647)
-        var boxed: Swift.Int
+        var boxed: any SymbolTestsCore.GenericFieldLayout.Boxed<Swift.Int>
         // Field offset: 0x30
         // Type Layout: (size: 40, stride: 40, alignment: 8, extraInhabitantCount: 2147483646)
-        var optionalBoxed: (Swift.String)?
+        var optionalBoxed: (any SymbolTestsCore.GenericFieldLayout.Boxed<Swift.String>)?
         // Field offset: 0x58
         // Type Layout: (size: 1, stride: 1, alignment: 1, extraInhabitantCount: 0)
         var trailing: Swift.Int8

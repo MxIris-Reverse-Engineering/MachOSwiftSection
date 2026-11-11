@@ -638,8 +638,8 @@ struct SymbolTestsCore.GenericFieldLayout.AssociatedTypeFieldHolder {
 }
 struct SymbolTestsCore.GenericFieldLayout.ConstrainedExistentialFieldHolder {
     var leading: Swift.Int
-    var boxed: symbolic existential type (non-unique) 0x0 <Swift.Int>
-    var optionalBoxed: (symbolic existential type (non-unique) 0x0 <Swift.String>)?
+    var boxed: any SymbolTestsCore.GenericFieldLayout.Boxed<Self.Boxed.Wrapped == Swift.Int>
+    var optionalBoxed: (any SymbolTestsCore.GenericFieldLayout.Boxed<Self.Boxed.Wrapped == Swift.String>)?
     var trailing: Swift.Int8
 
     /* Variable */

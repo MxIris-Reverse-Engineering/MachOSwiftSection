@@ -55,8 +55,8 @@
 
 **落地步骤**（每步各自构建通过、相关测试通过后提交）：
 
-1. swift-demangling：`DemangleOptions.useExistentialAny` 与 `NodePrinter` 的改动、打印测试、该仓库的精简提案。
-2. bug 修复：复现测试先红；`SymbolicDemangler` 代回实参，静态布局引擎认 `constrainedExistential`，ABI 快照格式升到 12，更新受影响的快照。
+1. ✅ swift-demangling：`DemangleOptions.useExistentialAny` 与 `NodePrinter` 的改动、打印测试、该仓库的精简提案（`feature/existential-any`）。全量 651 个测试在 Ultra 上跑，与官方 demangler 逐字节对照的语料测试全过；只有新测试里 5 个可选类型用例的期望写错（`.default` 不合成 `?`），改用 `.interface` 并补两个 `XSq` 用例后通过。
+2. ✅ bug 修复：`ConstrainedExistentialFieldTests`（interface、ABI 快照）与 `ConstrainedExistentialFieldDumpTests` 修复前 3 个测试全部失败，症状正是 `var boxed: Swift.Int` 与 `symbolic existential type (non-unique) 0x0 <Swift.Int>`；修复后相关的 43 个套件、209 个测试只剩两份快照不符，差异正好是这两个字段，已更新。
 3. interface：打印配置、打印上下文、`TypeNodePrintable` / `BoundGenericNodePrintable`、opaque type provider 的拼写参数、`InterfaceRequest` 与 CLI 开关。
 4. dump：`DemangleOptionGroup` 的开关、`DumpRequest` 的默认值。
 5. 现编 fixture 与 interface / dump 测试，重新生成快照基线。
@@ -72,3 +72,8 @@
 | 2026-11-11 | `Any.Type` 写成 `any Any.Type` | 照编译器，SDK 接口里就是这么写的 |
 | 2026-11-11 | opaque type 的拼写参数并成一个 `DemangleOptions` | 两个布尔开关并成选项集合，以后再加拼写开关不用改签名 |
 | 2026-11-11 | Draft → Accepted：用户批准，开始实现；补上落地步骤 | 精简提案原先没有拆步骤，按方案拆成六步，每步各自能构建、能测 |
+| 2026-11-11 | 两个打印器里，「外层已经写了 `any`」的位置（existential 元类型的实例、`any P<X>` 的协议列表）直接印协议成员，不经带缓存的 `printName` | 两个打印器都按节点身份缓存打印片段，而 `any` 是唯一取决于父节点的写法：同一个 protocol list 节点在别处带 `any`、在这里不带，经 `printName` 会互相串用缓存。swift-demangling 有测试覆盖两种顺序 |
+| 2026-11-11 | swift-demangling 的 `nestedNameOptions`（特化参数、宏名里的嵌套名字）也透传 `useExistentialAny` | 与 `useModuleSelectors` 同理，一行里不该混两种写法 |
+| 2026-11-11 | dump 里的 constrained existential 用上游写法 `any …Boxed<Self.Boxed.Wrapped == Swift.Int>`，与同一份 dump 里 getter 符号那行一致 | 代回实参后的节点与 getter 符号里的节点同形，上游打印器对两者给出同一种写法 |
+| 2026-11-11 | 静态布局引擎原先给 `any P<X>.Type` 的分支永远走不到（先找到的是内层的 constrained existential），会按值容器而不是元类型布局；随修复改为按元类型布局 | 修复后字段直接是 `existentialMetatype(constrainedExistential)`，走普通的元类型路径；`extendedExistentialLayout` 只留给没经过 `SymbolicDemangler` 的树，并复用同一个解析函数 |
+| 2026-11-11 | interface 打印器遇到没解析出类型的 shape，交给上游打印器原样写出，不再印实参 | 把实参当成类型印出来是一个看起来对、实际错的类型；上游的原文至少名副其实 |
