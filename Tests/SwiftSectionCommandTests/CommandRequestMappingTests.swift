@@ -96,6 +96,22 @@ struct CommandRequestMappingTests {
         #expect(request.demangleOptions == expectedOptions)
     }
 
+    @Test("the dump spells existentials with any under every preset unless --disable-existential-any")
+    func dumpExistentialAny() throws {
+        let defaultRequest = try DumpCommand.parse(["/tmp/Sample"]).makeRequest()
+        #expect(defaultRequest.demangleOptions.contains(.useExistentialAny))
+        // The library's own default is what the CLI prints by default.
+        #expect(DumpRequest(source: defaultRequest.source).demangleOptions == defaultRequest.demangleOptions)
+        for preset in ["default", "simplified", "interface"] {
+            let presetRequest = try DumpCommand.parse(["/tmp/Sample", "--demangle-options", preset]).makeRequest()
+            #expect(presetRequest.demangleOptions.contains(.useExistentialAny), "\(preset)")
+        }
+        var expectedOptions = defaultRequest.demangleOptions
+        expectedOptions.remove(.useExistentialAny)
+        let request = try DumpCommand.parse(["/tmp/Sample", "--disable-existential-any"]).makeRequest()
+        #expect(request.demangleOptions == expectedOptions)
+    }
+
     @Test("--emit-field-offsets alone is the flat form")
     func dumpFlatFieldOffsets() throws {
         #expect(try DumpCommand.parse(["/tmp/Sample", "--emit-field-offsets"]).makeRequest().fieldOffsetComments == .flat)
@@ -136,6 +152,14 @@ struct CommandRequestMappingTests {
     @Test("interface prints without module selectors unless asked")
     func interfaceModuleSelectorsDefaultOff() throws {
         #expect(try InterfaceCommand.parse(["/tmp/Sample"]).makeRequest().usesModuleSelectors == false)
+    }
+
+    @Test("interface spells existentials with any unless --no-existential-any")
+    func interfaceExistentialAny() throws {
+        let defaultRequest = try InterfaceCommand.parse(["/tmp/Sample"]).makeRequest()
+        #expect(defaultRequest.usesExistentialAny)
+        #expect(InterfaceRequest(source: defaultRequest.source).usesExistentialAny)
+        #expect(try InterfaceCommand.parse(["/tmp/Sample", "--no-existential-any"]).makeRequest().usesExistentialAny == false)
     }
 
     @Test("interface keeps protocol requirements in the protocol's where clause unless asked")

@@ -8,6 +8,8 @@ extension DemangleOptions {
     /// `.synthesizeSugarOnTypes`, which `.default` does not). Keep this on
     /// `.interface` so the recorded `SwiftDumpTests` snapshots stay sugared and
     /// idiomatic — switching to `.default` desugars every optional/array in the
-    /// output and breaks the snapshot suite.
-    package static let test: DemangleOptions = .interface
+    /// output and breaks the snapshot suite. Existentials are spelled with
+    /// `any`, as the dump prints them by default (evolution proposal
+    /// `existential-any`).
+    package static let test: DemangleOptions = DemangleOptions.interface.union(.useExistentialAny)
 }
