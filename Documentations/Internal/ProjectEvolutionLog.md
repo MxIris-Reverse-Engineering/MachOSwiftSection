@@ -3174,9 +3174,9 @@
 - **后续**：RuntimeViewer 一侧抬 pin，`@objc` 协议条目读 `exportStatus`，它自己打印的类别 conformance 照做类别规则。
 - **对应版本**：未发版。
 
-## 2026-11-11 existential 写上 `any`，constrained existential 字段印回它的类型
+## 131. existential 写上 `any`，constrained existential 字段印回它的类型
 
-- **时间段**：2026-11-11，分支 `feature/existential-any`（worktree `.worktrees/MachOSwiftSection-ExistentialAny`，基于 `next` 577eadf2）；swift-demangling 同名分支（基于它的 `next` 6489476）。提案 [existential-any](../Evolutions/draft-existential-any.md)（轻量档），swift-demangling 一侧另有同名精简提案。
+- **时间段**：2026-11-11，分支 `feature/existential-any`（worktree `.worktrees/MachOSwiftSection-ExistentialAny`，基于 `next` 577eadf2），当天合入 `next`；swift-demangling 同名分支（基于它的 `next` 6489476），快进合入它的 `next`。提案 [0092-existential-any](../Evolutions/0092-existential-any.md)（轻量档），swift-demangling 一侧是它的提案 0020。
 - **动机**：本库印 existential 一律不写 `any`——`any P` 印成 `P`，`(any P).Type` 印成 `P.Protocol`——而编译器写 `.swiftinterface` 时除 `Any`、`AnyObject` 外都写，有 associated type 的协议不写还会被编译器警告。查的时候又发现 constrained existential 的存储属性印错了类型：`any Boxed<Int>` 在 interface 里是 `var boxed: Swift.Int`，dump 与 ABI 快照里是 `symbolic existential type (non-unique) 0x0 <Swift.Int>`，ABI diff 因此分不开协议不同、实参相同的两个字段。
 - **关键决策**：
   - 默认打开，打印配置与 CLI 都留关闭开关；写法照编译器（`any Any.Type`、`(any P).Type`、`(any P)?`、`any (P & Q).Type`）。
@@ -3192,7 +3192,7 @@
   - 脚本：渲染 A/B 加三个只给候选一侧的参数，`RenderingVerificationTests` 认 `bareExistentials`。
   - 文档：提案、`Modules/SwiftInterface.md`、`StaticLayoutEngine.md`、`SystemFrameworkRenderingVerification.md`、`AgentPlugins/swift-section` 的 skill。
 - **验证**：在 JHs-Mac-Studio-Ultra（macOS 27.2，Xcode 26.6）上跑，细节见提案第 6 步。swift-demangling 全量 651 个测试通过，语料对照证明选项关闭时输出不变。本库全量 2843 个测试 / 543 个套件只剩两条单独跑都通过的偶发，其中映射测试那条基线上同样失败。渲染 A/B 96 对：候选关掉 `any` 时，差异只有 constrained existential 字段（54 对、185 行，含 SwiftUICore 三处布局注释由 40 字节改为 16 字节）；打开后改动 50207 行，归一化掉 `any`、括号与 `.Protocol` 后全部相同。复现测试在修复前全部失败。
-- **后续**：swift-demangling 发版后抬本库的版本下限；ABI 快照要用新版重新生成；RuntimeViewer 用打印配置的默认值，升级后直接显示 `any`，要不要给它加设置项另议。
+- **后续**：swift-demangling 发版后抬本库的版本下限——在那之前，走远端依赖的构建编不过；ABI 快照要用新版重新生成；RuntimeViewer 用打印配置的默认值，升级后直接显示 `any`，要不要给它加设置项另议；两处拼写仍按 `.default` 走、不写 `any`（未展开 opaque 引用的实参、展开字段偏移注释里的嵌套类型名，见提案决策日志）。
 - **对应版本**：未发版。
 
 ## 维护约定

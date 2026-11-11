@@ -1,9 +1,9 @@
-# Draft - interface 与 dump 给 existential 写上 `any`，并修好 constrained existential 字段的类型
+# 0092 - interface 与 dump 给 existential 写上 `any`，并修好 constrained existential 字段的类型
 
-- **状态**: In Progress
+- **状态**: Implemented
 - **创建日期**: 2026-11-11
 - **最后更新**: 2026-11-11
-- **关联提案**: swift-demangling 的精简提案 `draft-existential-any`（`Evolutions/draft-existential-any.md`，同名分支），加 `DemangleOptions.useExistentialAny`。同一套做法的先例是 [0064-module-selectors](0064-module-selectors.md) 与 swift-demangling 的 `0017-module-selectors`。
+- **关联提案**: swift-demangling 的提案 `0020-existential-any`（`Evolutions/0020-existential-any.md`），加 `DemangleOptions.useExistentialAny`。同一套做法的先例是 [0064-module-selectors](0064-module-selectors.md) 与 swift-demangling 的 `0017-module-selectors`。
 - **实现分支 / PR**: 本库与 swift-demangling 都是 `feature/existential-any`
 
 ## 摘要
@@ -86,3 +86,4 @@
 | 2026-11-11 | 两处已知缺口留作后续，这次不改：未展开 opaque 引用拼成 `@_opaqueReturnTypeOf("$s…", n) __<…>` 时，尖括号里的实参按 `.default` 打印；「展开的字段偏移」注释里嵌套字段的类型名在离线与进程内两条路径上都按 `.default` 打印 | 两处都不跟打印配置的拼写走，模块选择器当初同样没接；一处只在独立文件里 opaque 引用展开失败、实参又是 existential 时才碰到，另一处是注释里的类型名而不是声明本身。要接得把拼写选项一路传进 `OpaqueReferenceSpelling` 与 SwiftLayout 的 `NestedFieldOffsetTree`，超出这次的范围 |
 | 2026-11-11 | 开关关掉时，可选的 constrained existential 元类型也加括号：`(any P<Int>.Type)?` | constrained existential 无论开关都写 `any`，它的元类型同样以 `any` 开头；A/B 里 SwiftUICore 的 `finishingDefinition` 印成 `any …<A>.Type?`，不是合法的 Swift。上游打印器在选项关闭时保持与官方 demangler 一致，不改 |
 | 2026-11-11 | 实现完成，待用户看过后收尾。配套文档：不另写使用指南或实现说明，写法规则在提案与 swift-demangling 的 README，实现要点在 `AGENTS.md` 与模块文档；新术语：无 | 落地步骤六步全部完成并验证 |
+| 2026-11-11 | In Progress → Implemented，编号 0092 | 用户要求收尾。本库与 swift-demangling（提案 0020）的 `next` 都已推送；swift-demangling 没有发版，本库 `Package.swift` 对它的下限仍是 `0.7.3`，所以走远端依赖的构建要等它发版、本库抬下限后才编得过。验证沿用最终代码上的那轮全量与两轮渲染 A/B（之后只改了文档）。按共享分支编号：origin/next 最大 0091，origin/main 最大 0075；演进账本第 131 节 |
