@@ -57,7 +57,7 @@ extension SwiftDeclarationPrinter {
     /// node still wins, because it resolves generic parameters, which the
     /// accessor symbol's node does not. When no getter symbol joined, the
     /// storage type renders unchanged — the honest fallback.
-    private func fieldTypeNode(for field: FieldDefinition, substitutedTypeNode: Node?) -> Node {
+    func fieldTypeNode(for field: FieldDefinition, substitutedTypeNode: Node?) -> Node {
         if let substitutedTypeNode {
             return substitutedTypeNode
         }
@@ -165,7 +165,7 @@ extension SwiftDeclarationPrinter {
     /// of inspecting the type node, since indexing already folded the
     /// `weak` / `unowned` / `lazy` signal into `flags`.
     @SemanticStringBuilder
-    private func fieldDeclarationKeywords(for flags: FieldFlags) -> SemanticString {
+    func fieldDeclarationKeywords(for flags: FieldFlags) -> SemanticString {
         if flags.contains(.isWeak) {
             Keyword(.weak)
             Space()

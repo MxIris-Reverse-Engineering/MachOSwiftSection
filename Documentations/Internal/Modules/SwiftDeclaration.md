@@ -18,18 +18,18 @@ SwiftDeclaration 是**共享声明模型**：`SwiftIndexing` 往里填，`SwiftP
 | 子系统 | 文件 |
 |---|---|
 | 1. 声明本体 | `Model/Definitions/`（`Definition` / `MutableDefinition` 协议、`TypeDefinition`、`ProtocolDefinition`、`ExtensionDefinition`、`ObjCProtocolDefinition`，以及 ObjC 声明导入成 Swift 的 `ObjCImportedClassDefinition`、`ObjCImportedCategoryDefinition`、`ObjCImportedProtocolDefinition`）——只有存储属性、`init` 与 materialize 方法，不含索引逻辑 |
-| 2. 成员 | `Model/Members/`：成员定义（`FunctionDefinition`、`VariableDefinition`、`SubscriptDefinition`、`FieldDefinition`、`WrappedPropertyDefinition`、`ObjCProtocolRequirementDefinition`、`ObjCImportedMemberDefinition`）、成员构件（`Accessor`、`OrderedMember`、`MemberCategory`、`StrippedSymbolicRequirement`），以及三种成员定义上的公开投影 `ResolvedObjCMemberFacts` |
+| 2. 成员 | `Model/Members/`：成员定义（`FunctionDefinition`、`VariableDefinition`、`SubscriptDefinition`、`FieldDefinition`、`WrappedPropertyDefinition`、`ObjCProtocolRequirementDefinition`、`ObjCImportedMemberDefinition`）、宏展开的描述 `ObservableMacroExpansion`、成员构件（`Accessor`、`OrderedMember`、`MemberCategory`、`StrippedSymbolicRequirement`），以及三种成员定义上的公开投影 `ResolvedObjCMemberFacts` |
 | 3. 名字 | `Model/Names/`（`DefinitionName`、`TypeName`、`ProtocolName`、`ExtensionName`） |
 | 4. 种类枚举 | `Model/Kinds/` |
-| 5. 挂在声明上的独立概念 | `Model/` 根下的 `ExportStatus`、`SwiftAttribute`、`ResolvedAssociatedTypeWitness`、`ObjCCategoryConformance` |
-| 6. 各声明的索引 | `Indexing/`：`DefinitionIndexing`（每个定义只索引一次，见下文）、`TypeDefinition/` 下的九个扩展（见下表）、`ExtensionDefinition/` 下的 `+Indexing` / `+ObjCMembers` / `+ThunkAttributes`、`ProtocolDefinition+Indexing`、`ObjCProtocolDefinition+Indexing`、`ObjCImportedDefinitions+Indexing`（三种 ObjC 导入定义） |
-| 7. 构建期机器 | `Indexing/Building/`（`MemberDefinitionBuilder`、`MemberSymbolBucketing`、`OverrideSymbolMatcher`、`ClassDispatchLookups`、`StandInMemberSymbolBuilder`、`AnnotatedSymbol`、`WrappedPropertyRecovery`、`ThunkAttributeMatcher`、`ObjCMemberMatcher`、`ObjCProtocolNameBuilder`）——各声明的索引扩展调用的构件；`TypeDefinition+ThunkAttributes` 与 `ExtensionDefinition+ThunkAttributes` 共用 `ThunkAttributeMatcher`，两个 `+ObjCMembers` 共用 `ObjCMemberMatcher`。命名空间按角色取后缀（提案 [draft-swift-declaration-type-naming](../../Evolutions/draft-swift-declaration-type-naming.md)）：造出新东西的叫 `…Builder`，拿二进制里另一处的证据（thunk 符号、ObjC 方法表、override 描述符）对到已建好的成员上的叫 `…Matcher`，补回二进制丢掉的事实的叫 `…Recovery`；不用 `…Application`，它会被读成「应用程序」 |
+| 5. 挂在声明上的独立概念 | `Model/` 根下的 `ExportStatus`、`SwiftAttribute`、`SwiftAttachedMacro`、`ResolvedAssociatedTypeWitness`、`ObjCCategoryConformance` |
+| 6. 各声明的索引 | `Indexing/`：`DefinitionIndexing`（每个定义只索引一次，见下文）、`TypeDefinition/` 下的十个扩展（见下表）、`ExtensionDefinition/` 下的 `+Indexing` / `+ObjCMembers` / `+ThunkAttributes`、`ProtocolDefinition+Indexing`、`ObjCProtocolDefinition+Indexing`、`ObjCImportedDefinitions+Indexing`（三种 ObjC 导入定义） |
+| 7. 构建期机器 | `Indexing/Building/`（`MemberDefinitionBuilder`、`MemberSymbolBucketing`、`OverrideSymbolMatcher`、`ClassDispatchLookups`、`StandInMemberSymbolBuilder`、`AnnotatedSymbol`、`WrappedPropertyRecovery`、`ObservableMacroExpansionRecovery`、`ThunkAttributeMatcher`、`ObjCMemberMatcher`、`ObjCProtocolNameBuilder`）——各声明的索引扩展调用的构件；`TypeDefinition+ThunkAttributes` 与 `ExtensionDefinition+ThunkAttributes` 共用 `ThunkAttributeMatcher`，两个 `+ObjCMembers` 共用 `ObjCMemberMatcher`。命名空间按角色取后缀（提案 [draft-swift-declaration-type-naming](../../Evolutions/draft-swift-declaration-type-naming.md)）：造出新东西的叫 `…Builder`，拿二进制里另一处的证据（thunk 符号、ObjC 方法表、override 描述符）对到已建好的成员上的叫 `…Matcher`，补回二进制丢掉的事实的叫 `…Recovery`；不用 `…Application`，它会被读成「应用程序」 |
 | 8. 对上游类型的扩展 | `Extensions/`（按被扩展的类型分文件：`ProtocolConformance+Names`、`TypeContext+Names`、`FieldRecord+DemangledType`、`Node+TypeKind`、`DemanglingNode+StoredVariable`……） |
 | 9. 事件 | `Events/SwiftIndexEvents` |
 
-### TypeDefinition 的九个扩展
+### TypeDefinition 的十个扩展
 
-本体 `TypeDefinition.swift` 在 `Model/Definitions/`：存储属性、两个 `init`、`materializedTypeContext(in:)`，不含任何索引逻辑。索引代码在 `Indexing/TypeDefinition/`：主干在 `+Indexing`，`index(in:)` 串起来的其余八件互不相干的事每件一个文件，主干只剩调用顺序：
+本体 `TypeDefinition.swift` 在 `Model/Definitions/`：存储属性、两个 `init`、`materializedTypeContext(in:)`，不含任何索引逻辑。索引代码在 `Indexing/TypeDefinition/`：主干在 `+Indexing`，`index(in:)` 串起来的其余九件互不相干的事每件一个文件，主干只剩调用顺序：
 
 | 文件 | 负责 |
 |---|---|
@@ -41,9 +41,10 @@ SwiftDeclaration 是**共享声明模型**：`SwiftIndexing` 往里填，`SwiftP
 | `+FinalRecovery` | 提案 0006 的 `final` 恢复与它的四道门 |
 | `+SynthesizedMembers` | 自动合成成员的去重 |
 | `+WrappedProperties` | property wrapper 用法的恢复 |
+| `+ObservableMacro` | `@Observable` 展开的恢复 → `observableMacroExpansion`（规则在 `Building/ObservableMacroExpansionRecovery`） |
 | `+ObjCProtocols` | 类的 `class_ro_t` 列出的 ObjC 协议 → `objcProtocolNames`（经 `Building/ObjCProtocolNameBuilder`） |
 
-**主干里的顺序是有约束的，不能随手调**：`final` 恢复要在 `applyThunkAttributes` 与 `applyObjCMembers` 之后（两者都给它 `@objc` 证据，它据此排除 `@objc dynamic`），且在 `orderedMembers` 之前（那一步会把成员值复制走）；wrapped property 恢复要在字段回折与成员构建都完成之后。每个步骤方法的 doc comment 各自写明了自己依赖什么。
+**主干里的顺序是有约束的，不能随手调**：`final` 恢复要在 `applyThunkAttributes` 与 `applyObjCMembers` 之后（两者都给它 `@objc` 证据，它据此排除 `@objc dynamic`），且在 `orderedMembers` 之前（那一步会把成员值复制走）；wrapped property 恢复要在字段回折与成员构建都完成之后；`@Observable` 展开的恢复又要在它之后，wrapper 的存储字段不归宏。每个步骤方法的 doc comment 各自写明了自己依赖什么。
 
 ### 每个定义只索引一次，可以被并发打印
 
@@ -79,6 +80,10 @@ SwiftDeclaration 是**共享声明模型**：`SwiftIndexing` 往里填，`SwiftP
 每个 `TypeDefinition` / `ProtocolDefinition` 带一个 `ExportStatus`（`exported` / `notExported` / `imageHasNoExportInformation` / `descriptorSymbolNameUnresolvable` / `declarationIsCImported`），在构造时从声明自己的描述符解析一次，存成 `let`。描述符属于 `__C` 或 `__C_Synthesized` 模块时直接是 `declarationIsCImported`，不查 trie：编译器给 Clang 声明的是非唯一链接，每个用到这个 C 类型的模块各自生成一份描述符、谁都不导出，它说明不了类型能不能被外部使用，而本镜像给它写的扩展可以是公开 API（提案 [0083-exported-only-marking-mode](../../Evolutions/0083-exported-only-marking-mode.md)）。描述符上没有符号、名字又不能可信地重整（镜像没留本地符号，声明在带约束的扩展里）时，私有或局部声明判 `notExported`，其余是 `descriptorSymbolNameUnresolvable`。`ObjCProtocolDefinition` 只能看名字：Swift 声明的 `@objc` 协议没有描述符，也没有任何自己的符号，私有的（或嵌在私有类型里的）判 `notExported`，其余是 `declarationHasNoSymbol`（提案 `export-verdict-without-local-symbols`）。所以 `SwiftDeclarationIndexer.prepare()` 一返回，整张表就都有值了，宿主可以逐行标注而不必抱着 Mach-O。
 
 `TypeDefinition.wrappedProperties` 是索引在 `index(in:)` 末尾算出的 property wrapper 用法（提案 [0041-interface-hides-compiler-synthesized-members](../../Evolutions/0041-interface-hides-compiler-synthesized-members.md)）：每个存储字段 `_x`，只要它的 nominal 类型有 `wrappedValue` accessor——先查本镜像符号索引（internal wrapper 也算），再经 `SwiftDeclarationRendering.PropertyWrapperTypeCatalog` 查本镜像与依赖闭包各镜像的导出 trie（SwiftUI 的 `@State` 用在 app 里）——就记一条 `WrappedPropertyDefinition`：属性名、`_x` / `$x` 的名字、attribute 类型节点（wrapper 恰一个泛型实参且等于被包装类型时省略实参），以及来源：`x` 自己的 accessor 符号还在就是 `declaredMember`；被 strip 了就 `synthesized(declaredTypeNode:hasSetter:)`，类型由 wrapper 的 `wrappedValue` 类型代入 `_x` 的泛型实参得到。`fields` 与 `variables` 里的 `_x`、`$x` 原样保留——diff / snapshot 的记录来自它们——只有 interface 打印器改按这张表渲染。目录由 `SwiftDeclarationIndexer.prepare()` 用索引配置里的 `dependencySearchPaths` 登记、随索引器一起释放（`PerImageCacheEvictionRegistry` 的 `propertyWrapperCatalog` claim）；没登记过的镜像退化成查系统 cache。
+
+`@Observable` 宏分两层进模型（提案 [draft-observable-macro-folding](../../Evolutions/draft-observable-macro-folding.md)）。`TypeDefinition.attachedMacros` 在构造时算出，和 `ExportStatus` 一样 `prepare()` 一返回就在：类里有类型正是 `Observation.ObservationRegistrar` 的 `_$observationRegistrar` 字段、又没有 SwiftData `@Model` 留下的 `_$backingData`，就记 `.observable`。规则只读字段记录（`SwiftInspection.ObservableMacroRecognition`），所以剥过符号的镜像照样认得出；特化出来的定义沿用泛型定义的值。`SwiftAttachedMacro` 用 struct 加静态成员而不是 enum，以后识别别的宏，宿主的 `switch` 不会编不过。索引器建 conformance extension 时，给宏生成的 `extension X: Observation.Observable {}` 记上 `ExtensionDefinition.generatingMacro`。
+
+`index(in:)` 在 wrapped property 恢复之后算 `TypeDefinition.observableMacroExpansion`：哪些 `_x` 是被跟踪属性 `x` 的存储、来源（`x` 的 accessor 还在镜像里是 `declaredMember`，否则 `synthesized`）与认定它的证据，哪些存储的 `var` 是 `@ObservationIgnored`，以及宏生成的方法。证据依次是：`x` 的 init accessor；镜像里成员 `x` 的 setter 或 `_modify`；初始值表达式挂在 `x` 名下。`_x` 自己的初始值表达式、或 `_x` 有 accessor 而 `x` 一个都没有，把它排除；什么都没有时只凭存储字段名认作被跟踪，这一档会把 `@ObservationIgnored var _y` 读成被跟踪的 `y`。镜像带不带本地符号不分流：系统框架链接时 dead-strip，SwiftUI 带本地符号却没有 init accessor，缺了不代表没有。init accessor 与初始值表达式不进成员桶，用 `symbols(of: .initAccessor)` / `symbols(of: .initializer)` 按类型筛，先比名字再比上下文；初始值表达式只在 accessor 定不下来时才查，每个类最多一次。和 wrapped property 一样，`fields`、`variables`、`functions` 原样保留，只有 interface 打印器按这份描述折叠。
 
 四个「没有结论」的态**作用域不同**，不要混：`imageHasNoExportInformation` 是镜像级的（根本没有 export trie，此时把它读成「未导出」会把一个 `.o` 文件的每个声明都报成未导出）；`descriptorSymbolNameUnresolvable` 是声明级的（trie 没问题，但这一个名字的 remangle 不可信）；`declarationHasNoSymbol` 也是声明级的，但不是读不出，是本来就没有可查的符号；`declarationIsCImported` 同样是声明级的，符号倒是有，只是那是本镜像的一份副本，不是声明自己的。
 

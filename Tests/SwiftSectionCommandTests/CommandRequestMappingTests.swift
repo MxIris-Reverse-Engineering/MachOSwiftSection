@@ -134,7 +134,7 @@ struct CommandRequestMappingTests {
             "--resolve-c-module-names", "--supplementary-apinotes", "/tmp/Extra.apinotes",
             "--emit-offset-comments", "--sort-members-by-offset", "--exported-only",
             "--infer-objc-overrides", "--module-selectors", "--requirements-on-associated-types", "--emit-header",
-            "--emit-private-source-files",
+            "--emit-private-source-files", "--expand-macros",
         ]).makeRequest()
         #expect(request.showsCImportedTypes)
         #expect(request.parsesOpaqueReturnTypes)
@@ -147,6 +147,7 @@ struct CommandRequestMappingTests {
         #expect(request.protocolRequirementPlacement == .associatedTypes)
         #expect(request.emitsHeader)
         #expect(request.emitsPrivateDeclarationSourceFiles)
+        #expect(request.expandsMacros)
     }
 
     @Test("interface prints without module selectors unless asked")
@@ -160,6 +161,14 @@ struct CommandRequestMappingTests {
         #expect(defaultRequest.usesExistentialAny)
         #expect(InterfaceRequest(source: defaultRequest.source).usesExistentialAny)
         #expect(try InterfaceCommand.parse(["/tmp/Sample", "--no-existential-any"]).makeRequest().usesExistentialAny == false)
+    }
+
+    @Test("interface folds what an attached macro generated unless --expand-macros")
+    func interfaceExpandMacros() throws {
+        let defaultRequest = try InterfaceCommand.parse(["/tmp/Sample"]).makeRequest()
+        #expect(defaultRequest.expandsMacros == false)
+        #expect(InterfaceRequest(source: defaultRequest.source).expandsMacros == false)
+        #expect(try InterfaceCommand.parse(["/tmp/Sample", "--expand-macros"]).makeRequest().expandsMacros)
     }
 
     @Test("interface keeps protocol requirements in the protocol's where clause unless asked")

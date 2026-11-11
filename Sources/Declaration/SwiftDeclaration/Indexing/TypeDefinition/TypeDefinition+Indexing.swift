@@ -96,6 +96,10 @@ extension TypeDefinition: OnceIndexedDefinition {
         // wrapper's storage, and whether `x` still has accessors of its own.
         recoverWrappedProperties(in: machO)
 
+        // Needs the wrapped properties: a wrapper's storage is not the
+        // `@Observable` macro's (evolution proposal `observable-macro-folding`).
+        recoverObservableMacroExpansion(in: machO)
+
         applyObjCProtocolAdoption(in: machO)
     }
 

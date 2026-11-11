@@ -54,6 +54,16 @@ package struct ClassDumper<MachO: MachOFieldLayoutRenderable>: TypedDumper {
 
     package var declaration: SemanticString {
         get async throws {
+            // A class `@Observable` expanded (evolution proposal
+            // `observable-macro-folding`): the dump keeps every member the
+            // macro generated, as the records have them, and says which macro
+            // generated them, on the header line as the `@objc @implementation`
+            // header does.
+            if ObservableMacroRecognition.isObservableClass(.class(dumped.descriptor), in: machO.context) {
+                Standard("@")
+                try await demangleResolver.resolve(for: ObservableMacroRecognition.observableAttributeNameNode)
+                Space()
+            }
             if dumped.descriptor.isActor {
                 if isDistributedActor {
                     Keyword(.distributed)

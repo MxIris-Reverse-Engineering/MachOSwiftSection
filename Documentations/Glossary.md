@@ -237,6 +237,13 @@ sweep 覆盖范围之外的名字走的旁路：demangle 后 intern 进 `Storage
 - **主要出现在**：`Sources/Output/SwiftInterface/EvolutionMarking.swift`、`EvolutionAnnotationIndex.swift`
 - **延伸阅读**：[提案 0013](Evolutions/0013-swift-evolution-interface-builder.md)、[提案 0060](Evolutions/0060-evolution-interface-available-annotations.md)（`@available` 属性）
 
+### macro folding（宏展开的折叠，folded form / expanded form）
+
+interface 把一个 attached macro 生成的东西收回成源码里的写法：`@Observable` 展开的类印成 `@Observation.Observable` 加普通的 `var x: T`，这是**折叠形态**；`expandsMacros` 打开时照二进制原样印出 registrar、存储 `_x`、computed `x`、生成的方法与 conformance，这是**展开形态**。二进制不记宏本身，只记它生成的东西，所以「这个类用了宏」是从生成物推断出来的（`TypeDefinition.attachedMacros`）。折叠只发生在单版本 interface；模型、dump、diff、evolution 始终是展开形态，dump 另在类头上写出宏的名字。
+
+- **主要出现在**：`SwiftDeclarationPrinter+ObservableMacro.swift`、`TypeDefinition+ObservableMacro.swift`、`ObservableMacroRecognition`
+- **延伸阅读**：[draft-observable-macro-folding](Evolutions/draft-observable-macro-folding.md)
+
 ### marking mode（标记模式，`marksOptionalContent`）
 
 `SwiftDeclarationPrintConfiguration.marksOptionalContent` 为 `true` 时的打印：受显示选项控制的输出（偏移 / 地址 / 布局注释、stripped symbolic item、opaque 类型的约束、按 selector 名推断的 `@objc override`、exported-only 过滤删掉的声明）不再由选项决定打不打，而是全部打出，包进 swift-semantic-string 的 `VisibilityRegion`，条件是对应的 `SwiftVisibilityOption`。条件记在原子的 `identifier` 上，所以文字就是每段受控内容都打出来的全量文字（exported-only 过滤关着）。冻结后拆出区域表，按某组配置的 `isVisibilityOptionEnabled(_:resolvesOpaqueTypes:)` 投影，与按那组配置直接打印（「普通打印」，即该开关为 `false`）完全相同。「可见性区域」「投影」是 swift-semantic-string 的术语，定义见其 `docs/VisibilityRegions.md`；MachOObjCSection 的对应物叫 marked rendering（其提案 0011）。

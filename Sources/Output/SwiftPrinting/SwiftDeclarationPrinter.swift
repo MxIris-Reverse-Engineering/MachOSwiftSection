@@ -348,6 +348,16 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
             BreakLine()
         }
 
+        // `@Observation.Observable`, where the folded form stands for what the
+        // macro generated (evolution proposal `observable-macro-folding`).
+        if typeDefinition.observableMacroExpansion != nil, let foldedVisibility = foldedMacroVisibility() {
+            try await VisibilityRegion(foldedVisibility) {
+                Indent(level: level - 1)
+                try await attachedMacroAttribute(.observable, level: level)
+                BreakLine()
+            }
+        }
+
         // `@_rawLayout(like: T)`: a Swift 6.4 compiler records the like type
         // as an artificial `_rawLayout` field so offline tools can size the
         // struct. The source attribute is what it stands for, so print that;
@@ -538,7 +548,11 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
     /// intact on that path too. When marking, either prints as usual,
     /// visible only while the filter is off.
     public func printExtensionDefinition(_ extensionDefinition: ExtensionDefinition, level: Int = 1) async throws -> SemanticString {
-        guard let visibility = exportFilterVisibility(excluded: isExcludedByExportFilter(extensionDefinition)) else { return SemanticString() }
+        // The conformance an attached macro generated is part of the
+        // expansion: the folded form prints the macro attribute instead
+        // (evolution proposal `observable-macro-folding`).
+        let macroVisibility: VisibilityCondition? = extensionDefinition.generatingMacro == nil ? .always : macroExpansionVisibility()
+        guard let visibility = combinedVisibility(exportFilterVisibility(excluded: isExcludedByExportFilter(extensionDefinition)), macroVisibility) else { return SemanticString() }
         return try await LargeStackTaskExecution.run {
             try await printExtensionDefinitionContents(extensionDefinition, level: level)
         }.visible(under: visibility)
@@ -755,20 +769,40 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
         }
     }
 
+    /// What every member of one definition renders with, hoisted once per
+    /// list: they depend on the enclosing definition, not on the member.
+    struct MemberRenderingContext {
+        let offsetCommentPrefix: String
+        let offsetCommentOption: SwiftVisibilityOption
+        let printExportStatus: Bool
+        let vtableTransformerClosure: (@Sendable (Int, String?) -> SemanticString)?
+        let synthesizedPropertyWrapperMembers: SynthesizedPropertyWrapperMembers
+        /// The names of the definition the members are printed in, whose
+        /// private declarations their source-file comments leave out.
+        let enclosingNodes: [any DemanglingNode]
+    }
+
+    func memberRenderingContext(of definition: some Definition, isProtocol: Bool) -> MemberRenderingContext {
+        MemberRenderingContext(
+            offsetCommentPrefix: isProtocol ? "PWT offset" : "Field offset",
+            offsetCommentOption: isProtocol ? .printPWTOffset : .printFieldOffset,
+            printExportStatus: configuration.printExportStatus,
+            vtableTransformerClosure: vtableOffsetTransformerClosure,
+            synthesizedPropertyWrapperMembers: synthesizedPropertyWrapperMembers(of: definition),
+            enclosingNodes: headerNameNodes(of: definition)
+        )
+    }
+
     @SemanticStringBuilder
     private func printMembersByOffset(_ definition: some Definition, level: Int, isProtocol: Bool) async -> SemanticString {
-        let offsetCommentPrefix = isProtocol ? "PWT offset" : "Field offset"
-        let offsetCommentOption: SwiftVisibilityOption = isProtocol ? .printPWTOffset : .printFieldOffset
-        let printExportStatus = configuration.printExportStatus
-        let vtableTransformerClosure = vtableOffsetTransformerClosure
-
-        let synthesizedPropertyWrapperMembers = synthesizedPropertyWrapperMembers(of: definition)
-        let enclosingNodes = headerNameNodes(of: definition)
+        let context = memberRenderingContext(of: definition, isProtocol: isProtocol)
+        let folding = observableMacroFolding(of: definition)
         await MemberList(level: level) {
-            for member in definition.orderedMembers where !synthesizedPropertyWrapperMembers.contains(member) {
+            for member in definition.orderedMembers where !context.synthesizedPropertyWrapperMembers.contains(member) {
                 if let visibility = exportFilterVisibility(excluded: isExcludedByExportFilter(member)) {
-                    await renderMember(member, level: level, offsetCommentPrefix: offsetCommentPrefix, offsetCommentOption: offsetCommentOption, printExportStatus: printExportStatus, vtableTransformerClosure: vtableTransformerClosure, synthesizedPropertyWrapperMembers: synthesizedPropertyWrapperMembers, enclosingNodes: enclosingNodes)
-                        .visible(under: visibility)
+                    await renderMember(member, visibleUnder: visibility, folding: folding) { marksObservationIgnored in
+                        await renderMember(member, level: level, context: context, marksObservationIgnored: marksObservationIgnored)
+                    }
                 }
             }
 
@@ -796,13 +830,8 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
 
     @SemanticStringBuilder
     private func printMembersByCategory(_ definition: some Definition, level: Int, isProtocol: Bool) async -> SemanticString {
-        let offsetCommentPrefix = isProtocol ? "PWT offset" : "Field offset"
-        let offsetCommentOption: SwiftVisibilityOption = isProtocol ? .printPWTOffset : .printFieldOffset
-        let printExportStatus = configuration.printExportStatus
-        let vtableTransformerClosure = vtableOffsetTransformerClosure
-
-        let synthesizedPropertyWrapperMembers = synthesizedPropertyWrapperMembers(of: definition)
-        let enclosingNodes = headerNameNodes(of: definition)
+        let context = memberRenderingContext(of: definition, isProtocol: isProtocol)
+        let folding = observableMacroFolding(of: definition)
         // A class's vtable members come first, in slot order — the order the
         // class metadata lays its vtable out in, and for the class's own
         // slots the source's declaration order — the way the dump walks them
@@ -811,19 +840,21 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
         // class body has vtable members, so every other definition renders
         // exactly as before.
         await MemberList(level: level) {
-            for member in OrderedMember.vtableOrdered(OrderedMember.allMembers(from: definition)) where !synthesizedPropertyWrapperMembers.contains(member) {
+            for member in OrderedMember.vtableOrdered(OrderedMember.allMembers(from: definition)) where !context.synthesizedPropertyWrapperMembers.contains(member) {
                 if let visibility = exportFilterVisibility(excluded: isExcludedByExportFilter(member)) {
-                    await renderMember(member, level: level, offsetCommentPrefix: offsetCommentPrefix, offsetCommentOption: offsetCommentOption, printExportStatus: printExportStatus, vtableTransformerClosure: vtableTransformerClosure, synthesizedPropertyWrapperMembers: synthesizedPropertyWrapperMembers, enclosingNodes: enclosingNodes)
-                        .visible(under: visibility)
+                    await renderMember(member, visibleUnder: visibility, folding: folding) { marksObservationIgnored in
+                        await renderMember(member, level: level, context: context, marksObservationIgnored: marksObservationIgnored)
+                    }
                 }
             }
         }
         for category in MemberCategory.allCases {
             await MemberList(level: level) {
-                for member in definition.members(in: category) where member.minVTableOffset == nil && !synthesizedPropertyWrapperMembers.contains(member) {
+                for member in definition.members(in: category) where member.minVTableOffset == nil && !context.synthesizedPropertyWrapperMembers.contains(member) {
                     if let visibility = exportFilterVisibility(excluded: isExcludedByExportFilter(member)) {
-                        await renderMember(member, level: level, offsetCommentPrefix: offsetCommentPrefix, offsetCommentOption: offsetCommentOption, printExportStatus: printExportStatus, vtableTransformerClosure: vtableTransformerClosure, synthesizedPropertyWrapperMembers: synthesizedPropertyWrapperMembers, enclosingNodes: enclosingNodes)
-                            .visible(under: visibility)
+                        await renderMember(member, visibleUnder: visibility, folding: folding) { marksObservationIgnored in
+                            await renderMember(member, level: level, context: context, marksObservationIgnored: marksObservationIgnored)
+                        }
                     }
                 }
             }
@@ -861,17 +892,24 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
     /// in, whose private declarations its source-file comments leave out
     /// (evolution proposal `private-declaration-source-files`): a member of a
     /// private type is declared in that type's file.
+    ///
+    /// `marksObservationIgnored` prints a member variable with
+    /// `@Observation.ObservationIgnored` in front of it: a wrapped property of
+    /// an `@Observable` class in the folded form (evolution proposal
+    /// `observable-macro-folding`).
     @SemanticStringBuilder
-    private func renderMember(
+    func renderMember(
         _ member: OrderedMember,
         level: Int,
-        offsetCommentPrefix: String,
-        offsetCommentOption: SwiftVisibilityOption,
-        printExportStatus: Bool,
-        vtableTransformerClosure: (@Sendable (Int, String?) -> SemanticString)?,
-        synthesizedPropertyWrapperMembers: SynthesizedPropertyWrapperMembers,
-        enclosingNodes: [any DemanglingNode]
+        context: MemberRenderingContext,
+        marksObservationIgnored: Bool
     ) async -> SemanticString {
+        let offsetCommentPrefix = context.offsetCommentPrefix
+        let offsetCommentOption = context.offsetCommentOption
+        let printExportStatus = context.printExportStatus
+        let vtableTransformerClosure = context.vtableTransformerClosure
+        let synthesizedPropertyWrapperMembers = context.synthesizedPropertyWrapperMembers
+        let enclosingNodes = context.enclosingNodes
         let offsetCommentKind: AnnotationRegion.Kind = offsetCommentOption == .printPWTOffset ? .pwtOffset : .fieldOffset
         await Rows(level: level) {
             switch member {
@@ -946,6 +984,8 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
                 }
                 if let storage = variable.objcImplementationStorage {
                     await printObjCImplementationStoredProperty(variable, storage: storage, level: level)
+                } else if marksObservationIgnored {
+                    await printObservationIgnoredVariable(variable, level: level, propertyWrapperAttributeTypeNode: synthesizedPropertyWrapperMembers.wrapperAttributeTypeNode(for: variable))
                 } else {
                     await printVariable(variable, level: level, propertyWrapperAttributeTypeNode: synthesizedPropertyWrapperMembers.wrapperAttributeTypeNode(for: variable))
                 }
@@ -1107,7 +1147,7 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
         }
     }
 
-    private func memberAddressString(forOffset offset: Int?) -> String? {
+    func memberAddressString(forOffset offset: Int?) -> String? {
         guard let offset else { return nil }
         return machO.addressString(forOffset: offset)
     }

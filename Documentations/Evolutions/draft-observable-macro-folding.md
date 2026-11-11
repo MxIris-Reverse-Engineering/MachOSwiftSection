@@ -1,6 +1,6 @@
 # Draft - 识别 `@Observable` 宏：interface 默认折叠它的展开
 
-- **状态**: Accepted
+- **状态**: In Progress
 - **创建日期**: 2026-11-11
 - **最后更新**: 2026-11-11
 - **实现分支**: `feature/observable-macro`
@@ -31,11 +31,18 @@
 
 ### 被跟踪的属性怎么认
 
-每个存储字段 `_x`（`var`，名字不以 `_$` 开头，没被 property wrapper 还原认领）按下面的证据认作属性 `x` 的存储：
+每个存储字段 `_x`（`var`，名字不以 `_$` 开头，没被 property wrapper 还原认领）先排除一种情况：类型里有成员变量 `x`、但类型与 `_x` 不同（`weak` 之类的引用存储先剥掉再比），那 `_x` 存的就不是 `x`。其余的依次看下面的证据，第一条成立的为准；每个被跟踪的属性都记下认定它的证据（`ObservableMacroExpansion.TrackedProperty.Evidence`）：
 
-1. 类型里有成员变量 `x`，类型与 `_x` 相同，并且有 setter 或 modify：来源记为 `declaredMember`。
-2. `x` 的 accessor 被剥掉了：从 `_x` 合成 `var x: T`，来源记为 `synthesized`，打印时照 property wrapper 合成的先例在上方加一行 note 注释，写明是从存储字段 `_x` 合成的。实测有一条额外证据可用：被跟踪属性的初始值表达式符号挂在 `x` 名下（`variable initialization expression of Model.count`），手写的存储属性挂在自己名下（`… of Model._cache`），并且 public 类的这类符号剥过之后还在。`_x` 自己有初始值表达式符号时，它就是手写的存储属性，不认。
-3. 剩下的唯一误判：类是 internal、符号全部剥掉、又有一个用 `@ObservationIgnored` 声明且名字以下划线开头的 `var _y`，它会被读成被跟踪的 `y`。note 注释里写着 `_y`，读者看得到原始字段名。
+1. `x` 有 init accessor（`Model.count.init`）：只有被宏挪走存储的属性才有。
+2. 镜像里的成员变量 `x` 有 setter 或 `_modify`，类型与 `_x` 相同。
+3. `_x` 自己有初始值表达式（`variable initialization expression of Model._cache`）：它是手写的存储属性，不认。
+4. 初始值表达式挂在 `x` 名下（`… of Model.count`）：源码把初始值写在 `x` 上，宏只挪走了存储。
+5. `_x` 有自己的 accessor 而 `x` 一个都没有：宏的存储与它的 computed 属性要么一起被 vtable 留住，要么一起被剥掉，所以这是手写的存储属性，不认。
+6. 都没有：只凭存储字段名认作被跟踪，证据记为 `backingFieldName`。
+
+带本地符号也不能当作「缺了就是没有」：系统框架链接时 dead-strip，没人引用的 init accessor、final 类 internal 属性的 accessor 都会被去掉（SwiftUI 实测，fixture 用 `-dead_strip` 变体复现）。剩下的误判只有一种：用 `@ObservationIgnored` 声明、名字以下划线开头的 `var _y`，镜像里既没有它自己的初始值表达式、也没有它自己的 accessor 时，会被读成被跟踪的 `y`。初始值表达式只在前两条都不成立时才按类型查一次。
+
+成员变量 `x` 在镜像里时来源记为 `declaredMember`，否则记为 `synthesized`：从 `_x` 合成 `var x: T`，打印时照 property wrapper 合成的先例在上方加一行 note 注释，写明是从存储字段 `_x` 合成的。
 
 其余存储的 `var`（`@ObservationIgnored` 声明的）在折叠形态里加上 `@Observation.ObservationIgnored`：不加的话，读者分不出哪些属性被跟踪。`let` 不加，宏本来就不跟踪它。
 
@@ -80,6 +87,22 @@ configuration.expandsMacros = true
 - `ExtensionDefinition.generatingMacro: SwiftAttachedMacro?`：这个 extension 是哪个宏生成的；宿主把 extension 当独立对象显示时，凭它在折叠形态里隐藏。
 - `SwiftDeclarationPrintConfiguration.expandsMacros: Bool = false`、`SwiftVisibilityOption.expandsMacros`、`InterfaceRequest.expandsMacros`、CLI `interface --expand-macros`。关掉折叠（`expandsMacros = true`）时输出与今天逐字节相同。
 
+### 宿主的内联展开
+
+RuntimeViewer 要像 Xcode 的 Expand Macro 那样，在 `@Observation.Observable` 那一行下面单独显示宏生成的声明。为此再加两样，打印规则仍只在本库一处：
+
+```swift
+// 宏生成的声明成块打印：成员在类型成员的缩进上，extension 在类型自己的缩进上。
+let expansion = try await printer.printMacroExpansion(of: .observable, attachedTo: typeDefinition)
+
+// 折叠形态里给宏属性打上定位标记，separatingAnnotationRegions() 读回。
+configuration.marksAttachedMacros = true
+// region.kind == .attachedMacro(.observable)
+```
+
+- `SwiftDeclarationPrinter.printMacroExpansion(of:attachedTo:level:)`：印出 registrar、每个被跟踪属性的存储 `_x`、镜像里还有 accessor 的 computed `x`、`access(keyPath:)`、`withMutation(keyPath:_:)`、镜像里留下的 `shouldNotifyObservers(_:_:)`，最后是 `extension X: Observation.Observable {}`。每条声明带着展开形态里同样的注释，用的是同一套成员打印代码；导出过滤照常生效。类型没带这个宏时印出空串。
+- `SwiftDeclarationPrintConfiguration.marksAttachedMacros`：折叠形态里每个宏属性包在 `AnnotationRegion` 里，种类是 `AnnotationRegion.Kind.attachedMacro(_:)`（`attachedMacro.Observation.Observable`），一个宏一个种类，宿主不必读文字就知道是哪个宏。默认关，关着时输出逐字节不变。
+
 ### dump
 
 dump 照旧印出二进制里的全部成员，只在类头前加 `@Observation.Observable`，与 `@objc @implementation` 类在 dump 里的写法一致。
@@ -98,12 +121,21 @@ RuntimeViewer 的 release 构建按版本解析，要等本库发版。`next` �
 
 每一步单独构建通过、相关测试通过后提交并推送；测试在 Ultra 上跑。
 
-1. [ ] 识别与模型标记：`ObservableMacroRecognition`、`SwiftAttachedMacro`、`TypeDefinition.attachedMacros`（含 specialization 沿用）、`ExtensionDefinition.generatingMacro`；新 fixture `ObservableMacroFixture` 与识别的测试。
-2. [ ] 索引期的展开分析：`ObservableMacroExpansion`、`TypeDefinition.observableMacroExpansion`；三个变体下被跟踪属性、来源、`@ObservationIgnored` 属性与生成方法的测试。
-3. [ ] interface 折叠：`expandsMacros`、`SwiftVisibilityOption.expandsMacros`、类型头属性、字段块与成员块、导出过滤、conformance extension、`marksOptionalContent` 下的两种形态；输出与投影一致性的测试。
-4. [ ] dump 类头的 `@Observation.Observable` 与测试。
-5. [ ] `InterfaceRequest.expandsMacros`、`interface --expand-macros`、`AgentPlugins/swift-section` 的 skill，以及两侧的测试。
-6. [ ] 文档（模块文档、演进账本、术语表、`AGENTS.md` 与文档索引按需）、全量测试与渲染 A/B。
+1. [x] 识别与模型标记：`ObservableMacroRecognition`、`SwiftAttachedMacro`、`TypeDefinition.attachedMacros`（含 specialization 沿用）、`ExtensionDefinition.generatingMacro`；新 fixture `ObservableMacroFixture` 与识别的测试。
+2. [x] 索引期的展开分析：`ObservableMacroExpansion`、`TypeDefinition.observableMacroExpansion`；三个变体下被跟踪属性、来源、`@ObservationIgnored` 属性与生成方法的测试。
+3. [x] interface 折叠：`expandsMacros`、`SwiftVisibilityOption.expandsMacros`、类型头属性、字段块与成员块、导出过滤、conformance extension、`marksOptionalContent` 下的两种形态，以及 `printMacroExpansion(of:attachedTo:level:)` 与 `marksAttachedMacros`；输出与投影一致性的测试。
+4. [x] dump 类头的 `@Observation.Observable` 与测试。
+5. [x] `InterfaceRequest.expandsMacros`、`interface --expand-macros`、`AgentPlugins/swift-section` 的 skill，以及两侧的测试。
+6. [x] 文档（模块文档、术语表、`AGENTS.md`、A/B 流程；演进账本一节与文档索引留到正式收尾）、全量测试与渲染 A/B。
+
+### 验证
+
+在 JHs-Mac-Studio-Ultra（macOS 27.2、Xcode 26.6）的沙盒里跑，swift-demangling 用它 `next` 的 8809c1b 作本地兄弟依赖（existential-any 的选项还没发版）。
+
+- 全量测试：2879 个测试、548 个套件，只剩 `FileMappingTests.readersOfOneCacheFileShareOneMapping` 一条；分支起点上跑全量同样只这一条失败，是基线已有的。
+- 全量中途暴露并修好的两件事：`TypeDefinition` 实例大小超过提案 0002 的守卫（456 > 448，展开描述改为装箱，回到 440）；fixture 在静态初始化里同步编四个变体，占住协作线程，让 `BoundedConcurrentMapTests` 的一分钟时限两次超时（改为在独立线程编译、访问器改成 async）。
+- 渲染 A/B（96 对，基线是分支起点，候选侧加 `--expand-macros` 与 `RV_OPTS` 的 `expandsMacros`）：interface 全部逐字节一致；dump 有 10 对不同，去掉 `@Observation.Observable ` 前缀后都逐字节一致，进程内一侧标出 SwiftUI、SwiftUICore、SwiftData 共 28 个类。A/B 跑在 dead-strip 修复之前的提交上；之后的改动只动折叠形态（A/B 里关着）和测试支持代码，展开形态与 dump 不受影响。
+- 真实框架：用修复后的 CLI 渲染 macOS 27.2 的 SwiftUI，`Immersion`、`WindowVisibilityState`、`SearchEnvironmentStorage` 等都折叠对了；剩下印 `@Observation.ObservationIgnored var _x` 的都是手写写法（存储与同名属性类型不同，或同名的是方法）。
 
 ## 决策日志
 
@@ -116,3 +148,14 @@ RuntimeViewer 的 release 构建按版本解析，要等本库发版。`next` �
 | 2026-11-11 | accessor 被剥掉时也合成被跟踪的属性，上方加 note 注释 | 剥过符号的 App 里 internal 的 view model 是常态；先例是 property wrapper 的合成，note 写明来源字段 |
 | 2026-11-11 | interface 默认折叠 | 用户选定：interface 的目标是读起来像源码，要看二进制里的展开就加 `--expand-macros` |
 | 2026-11-11 | 用户批准，开始实现；补上落地步骤 | 精简提案原本没有分步，按方案拆成六步，每步能单独构建与验证 |
+| 2026-11-11 | 带本地符号的镜像只认 init accessor；剥过符号的镜像依次看导出的 accessor、初始值表达式、存储字段名，每个属性记下证据 | 探针实测 debug 与 release 都保留每个被跟踪属性的 init accessor；手写的 `_y` 在这样的镜像里没有 `y` 的 init accessor，不会误认。只有全剥的 internal 类才需要推断 |
+| 2026-11-11 | 加入展开块的打印与宏属性的定位标记 | RuntimeViewer 要做 Xcode 式的内联展开，用户批准把这两项加进本提案；由本库打印，宿主不必再写一遍打印规则 |
+| 2026-11-11 | 嵌套类型的宏属性靠 `marksNestedDefinitions` 对应到定义：最内层的 `DefinitionRegion` 就是它的类型，不另加 API | 一次打印会内联嵌套类型，宿主要知道每个属性区域属于哪个定义；类型的属性行本来就印在它自己的定义区域里，复用现成机制比复刻打印顺序可靠 |
+| 2026-11-11 | 折叠出的 `var x` 用 computed `x` 的 `final`、导出结论与 accessor 注释（vtable 槽位、地址），字段的偏移与布局注释照旧 | 存储字段 `_x` 是 private，它的 `final` 与导出结论说的是存储，不是属性；`x` 的槽位与代码地址才是宿主要找的入口 |
+| 2026-11-11 | `@Observation.Observable` 从 `Observation.Observable` 协议的名字节点打印，`@Observation.ObservationIgnored` 从结构体节点打印；两者都是静态节点 | 打印器按节点身份缓存片段，节点要活过打印；协议节点不会被写上 `any`，属性还能链到同名协议 |
+| 2026-11-11 | 展开块一行一条声明、不留空行，交给 `Rows` 组合 | 每条声明自带缩进，`Rows` 按两侧是否可见放换行，标记打印投影后也不会多出空行或首尾换行 |
+| 2026-11-11 | 标记打印里，只属于展开形态的声明在「类型体最后一个换行」的判断里算作可能看不见 | 投影到折叠形态加只印导出时，嵌套类型之后可能什么都不剩，闭合括号会粘成 `}}`；与导出过滤用同一个机制处理 |
+| 2026-11-11 | dump 只在类头加属性，不加关闭开关；渲染 A/B 的进程内一侧加 `RV_OPTS` 的 `expandsMacros` | dump 以信息最大化为目标，A/B 里它的差异只有类头行，人工核对；interface 有 `--expand-macros`，进程内一侧照样需要能关掉折叠 |
+| 2026-11-11 | 证据规则不再按镜像有没有本地符号分流：init accessor、成员的 setter 或 `_modify`、挂在 `x` 名下的初始值表达式在任何镜像里都算，只有 `_x` 自己的初始值表达式、或 `_x` 有 accessor 而 `x` 没有，才把它排除 | 用修好的 CLI 渲染真实 SwiftUI 时发现 `Immersion` 等类没折叠对：SwiftUI 带本地符号，但 dead-strip 去掉了 init accessor，旧规则把 `_amount` 读成手写字段。fixture 加 `-dead_strip` 变体复现，修复前的 CLI 在它上面错得一样 |
+| 2026-11-11 | fixture 改在独立线程编译，访问器改成 async | 几个套件同时要 fixture 时，同步编译占住多条协作线程，全量里 `BoundedConcurrentMapTests` 两次超时，分支起点上没有；改后全量通过 |
+| 2026-11-11 | 实现完成，待用户看过后收尾 | 文档：模块文档（SwiftDeclaration、SwiftInterface）写实现说明，术语表登记 macro folding，插件 skill 写 CLI 用法；不另写使用指南，CLI 的 `--help` 与 skill 已够；演进账本一节、取号与文档索引留给正式收尾 |

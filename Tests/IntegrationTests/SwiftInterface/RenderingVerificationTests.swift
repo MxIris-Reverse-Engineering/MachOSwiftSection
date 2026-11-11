@@ -36,6 +36,14 @@ import Demangling
 ///                      `existential-any`: an A/B run turns it on for the
 ///                      candidate alone to compare against a baseline from
 ///                      before the keyword.
+///                      `expandsMacros` (never in the default) prints what
+///                      `@Observable` generated instead of folding it into the
+///                      attribute, the interface default since evolution
+///                      proposal `observable-macro-folding`: the candidate
+///                      turns it on to compare against a baseline from before
+///                      the folding. The dump has no such switch; its
+///                      difference is the `@Observation.Observable` on the
+///                      header line of each class the macro expanded.
 ///
 /// Caveat: `expandedFieldOffsets` over a MachOImage of a framework with very
 /// deeply nested generic types (e.g. SwiftUI) hits a pre-existing stack overflow
@@ -115,6 +123,7 @@ struct RenderingVerificationTests {
         configuration.printConfiguration.printVTableOffset = options.contains("vtableOffset")
         configuration.printConfiguration.printPWTOffset = options.contains("pwtOffset")
         configuration.printConfiguration.usesExistentialAny = !options.contains("bareExistentials")
+        configuration.printConfiguration.expandsMacros = options.contains("expandsMacros")
         let builder = try SwiftInterfaceBuilder(configuration: configuration, in: machO)
         try await builder.prepare()
         return try await builder.printRoot().string
