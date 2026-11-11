@@ -183,9 +183,10 @@ was declared as, a stored `var` the macro left alone with `@Observation.Observat
 no registrar, no `access(keyPath:)` / `withMutation(keyPath:_:)` / `shouldNotifyObservers`, no
 `extension X: Observation.Observable {}`. In the binary each tracked `x` is a computed property
 over private storage `_x`; `interface --expand-macros` prints that, as older builds always did.
-A tracked property whose accessors are stripped (an internal class in a stripped app or OS
-framework) carries a note naming the storage it was synthesized from; in a class with no
-symbols left, an `@ObservationIgnored var _y` reads as a tracked `y` behind such a note. SwiftData
+A tracked property whose accessors are stripped or dead-stripped (an internal class in an app or
+OS framework) carries a note naming the storage it was synthesized from; when nothing in the
+image names `y` or gives `_y` an initial value or accessors of its own, an
+`@ObservationIgnored var _y` reads as a tracked `y` behind such a note. SwiftData
 `@Model` classes are not folded. `dump` keeps every generated member and adds
 `@Observation.Observable` to the class's header line.
 

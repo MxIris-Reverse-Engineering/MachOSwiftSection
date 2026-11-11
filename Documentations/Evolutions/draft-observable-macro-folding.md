@@ -31,11 +31,16 @@
 
 ### 被跟踪的属性怎么认
 
-每个存储字段 `_x`（`var`，名字不以 `_$` 开头，没被 property wrapper 还原认领）先排除一种情况：类型里有成员变量 `x`、但类型与 `_x` 不同（`weak` 之类的引用存储先剥掉再比），那 `_x` 存的就不是 `x`。其余的按下面的证据认作属性 `x` 的存储，每个被跟踪的属性都记下认定它的证据（`ObservableMacroExpansion.TrackedProperty.Evidence`）：
+每个存储字段 `_x`（`var`，名字不以 `_$` 开头，没被 property wrapper 还原认领）先排除一种情况：类型里有成员变量 `x`、但类型与 `_x` 不同（`weak` 之类的引用存储先剥掉再比），那 `_x` 存的就不是 `x`。其余的依次看下面的证据，第一条成立的为准；每个被跟踪的属性都记下认定它的证据（`ObservableMacroExpansion.TrackedProperty.Evidence`）：
 
-1. `x` 有 init accessor（`Model.count.init`）：只有被宏挪走存储的属性才有。带本地符号的镜像里每个被跟踪的属性都有这个符号（debug 与 release 实测），所以在这样的镜像里它是唯一的证据，没有它的 `_x` 就是手写的存储属性。
-2. 剥掉了本地符号的镜像里，依次看：导出的成员变量 `x` 有 setter 或 `_modify`；导出的初始值表达式挂在 `x` 名下（`variable initialization expression of Model.count`；手写的存储属性挂在自己名下，`… of Model._cache`，这时不认）；最后只凭存储字段名推断。public 类的初始值表达式剥过之后还在，open 类连 init accessor 也导出。
-3. 剩下的唯一误判：internal 类、符号全部剥掉、又有一个用 `@ObservationIgnored` 声明且名字以下划线开头的 `var _y`，它会被读成被跟踪的 `y`，证据记为 `backingFieldName`。测试把这一条钉住。
+1. `x` 有 init accessor（`Model.count.init`）：只有被宏挪走存储的属性才有。
+2. 镜像里的成员变量 `x` 有 setter 或 `_modify`，类型与 `_x` 相同。
+3. `_x` 自己有初始值表达式（`variable initialization expression of Model._cache`）：它是手写的存储属性，不认。
+4. 初始值表达式挂在 `x` 名下（`… of Model.count`）：源码把初始值写在 `x` 上，宏只挪走了存储。
+5. `_x` 有自己的 accessor 而 `x` 一个都没有：宏的存储与它的 computed 属性要么一起被 vtable 留住，要么一起被剥掉，所以这是手写的存储属性，不认。
+6. 都没有：只凭存储字段名认作被跟踪，证据记为 `backingFieldName`。
+
+带本地符号也不能当作「缺了就是没有」：系统框架链接时 dead-strip，没人引用的 init accessor、final 类 internal 属性的 accessor 都会被去掉（SwiftUI 实测，fixture 用 `-dead_strip` 变体复现）。剩下的误判只有一种：用 `@ObservationIgnored` 声明、名字以下划线开头的 `var _y`，镜像里既没有它自己的初始值表达式、也没有它自己的 accessor 时，会被读成被跟踪的 `y`。初始值表达式只在前两条都不成立时才按类型查一次。
 
 成员变量 `x` 在镜像里时来源记为 `declaredMember`，否则记为 `synthesized`：从 `_x` 合成 `var x: T`，打印时照 property wrapper 合成的先例在上方加一行 note 注释，写明是从存储字段 `_x` 合成的。
 
@@ -142,3 +147,4 @@ RuntimeViewer 的 release 构建按版本解析，要等本库发版。`next` �
 | 2026-11-11 | 展开块一行一条声明、不留空行，交给 `Rows` 组合 | 每条声明自带缩进，`Rows` 按两侧是否可见放换行，标记打印投影后也不会多出空行或首尾换行 |
 | 2026-11-11 | 标记打印里，只属于展开形态的声明在「类型体最后一个换行」的判断里算作可能看不见 | 投影到折叠形态加只印导出时，嵌套类型之后可能什么都不剩，闭合括号会粘成 `}}`；与导出过滤用同一个机制处理 |
 | 2026-11-11 | dump 只在类头加属性，不加关闭开关；渲染 A/B 的进程内一侧加 `RV_OPTS` 的 `expandsMacros` | dump 以信息最大化为目标，A/B 里它的差异只有类头行，人工核对；interface 有 `--expand-macros`，进程内一侧照样需要能关掉折叠 |
+| 2026-11-11 | 证据规则不再按镜像有没有本地符号分流：init accessor、成员的 setter 或 `_modify`、挂在 `x` 名下的初始值表达式在任何镜像里都算，只有 `_x` 自己的初始值表达式、或 `_x` 有 accessor 而 `x` 没有，才把它排除 | 用修好的 CLI 渲染真实 SwiftUI 时发现 `Immersion` 等类没折叠对：SwiftUI 带本地符号，但 dead-strip 去掉了 init accessor，旧规则把 `_amount` 读成手写字段。fixture 加 `-dead_strip` 变体复现，修复前的 CLI 在它上面错得一样 |
