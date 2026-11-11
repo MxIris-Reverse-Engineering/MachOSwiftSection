@@ -42,8 +42,10 @@ final class FinalKeywordICFRegressionTests: MachOFileTests, @unchecked Sendable 
         // Positive control, straight from issue #106: the getter of
         // `SourceEditorDataSource.languageService` exports only a direct
         // symbol (no `Tq`, no thunk) — a genuine `final`, and its lazy
-        // storage's `Optional` must not leak into the printed type.
-        #expect(output.contains("final lazy var languageService: SourceEditor.SourceEditorLanguageService\n"))
-        #expect(!output.contains("languageService: SourceEditor.SourceEditorLanguageService?"))
+        // storage's `Optional` must not leak into the printed type. The
+        // property is an existential, spelled with `any` (evolution proposal
+        // `existential-any`).
+        #expect(output.contains("final lazy var languageService: any SourceEditor.SourceEditorLanguageService\n"))
+        #expect(!output.contains("languageService: (any SourceEditor.SourceEditorLanguageService)?"))
     }
 }

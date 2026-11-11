@@ -183,6 +183,24 @@ struct ExistentialAnyInterfaceTests {
         #expect(SwiftDeclarationPrintConfiguration().usesExistentialAny)
     }
 
+    /// The existential metatype of a constrained existential is a metadata
+    /// word plus one witness table, 16 bytes. The static layout engine used to
+    /// look for the constrained existential inside the field's extended
+    /// existential shape, so its metatype branch was never taken and the field
+    /// was laid out as a value container, 40 bytes; the field now reaches it
+    /// as an `existentialMetatype` like any other.
+    @Test func constrainedExistentialMetatypeIsLaidOutAsAMetatype() async throws {
+        let machOFile = try ExistentialAnyFixture.machOFile()
+        var printConfiguration = SwiftDeclarationPrintConfiguration()
+        printConfiguration.printTypeLayout = true
+        let builder = try SwiftInterfaceBuilder(configuration: .init(printConfiguration: printConfiguration), eventHandlers: [], in: machOFile)
+        try await builder.prepare()
+        let interface = try await builder.printRoot().string
+        let lines = interface.split(separator: "\n").map { $0.trimmingCharacters(in: .whitespaces) }
+        let fieldIndex = try #require(lines.firstIndex { $0.hasPrefix("var constrainedMetatype: ") }, "\(interface)")
+        #expect(lines[fieldIndex - 1] == "// Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 2147483647)", "\(interface)")
+    }
+
     /// The keyword and module selectors are independent spellings: one name
     /// takes both, and so does an opaque type's constraint, which the opaque
     /// type provider spells.
