@@ -3,26 +3,26 @@
 enum SymbolTestsCore.MetatypeUsage {}
 struct SymbolTestsCore.MetatypeUsage.MetatypeFieldTest {
     var concreteMetatype: Swift.Int.Type
-    var anyMetatype: Any.Type
-    var protocolMetatype: SymbolTestsCore.Protocols.ProtocolTest.Type
-    var anyObjectMetatype: Swift.AnyObject.Type
+    var anyMetatype: any Any.Type
+    var protocolMetatype: any SymbolTestsCore.Protocols.ProtocolTest.Type
+    var anyObjectMetatype: any Swift.AnyObject.Type
 
     /* Allocator */
-    SymbolTestsCore.MetatypeUsage.MetatypeFieldTest.init(concreteMetatype: Swift.Int.Type, anyMetatype: Any.Type, protocolMetatype: SymbolTestsCore.Protocols.ProtocolTest.Type, anyObjectMetatype: Swift.AnyObject.Type) -> SymbolTestsCore.MetatypeUsage.MetatypeFieldTest
+    SymbolTestsCore.MetatypeUsage.MetatypeFieldTest.init(concreteMetatype: Swift.Int.Type, anyMetatype: any Any.Type, protocolMetatype: any SymbolTestsCore.Protocols.ProtocolTest.Type, anyObjectMetatype: any Swift.AnyObject.Type) -> SymbolTestsCore.MetatypeUsage.MetatypeFieldTest
 
     /* Variable */
-    SymbolTestsCore.MetatypeUsage.MetatypeFieldTest.anyMetatype.getter : Any.Type
-    SymbolTestsCore.MetatypeUsage.MetatypeFieldTest.anyMetatype.setter : Any.Type
+    SymbolTestsCore.MetatypeUsage.MetatypeFieldTest.anyMetatype.getter : any Any.Type
+    SymbolTestsCore.MetatypeUsage.MetatypeFieldTest.anyMetatype.setter : any Any.Type
     SymbolTestsCore.MetatypeUsage.MetatypeFieldTest.concreteMetatype.getter : Swift.Int.Type
     SymbolTestsCore.MetatypeUsage.MetatypeFieldTest.concreteMetatype.setter : Swift.Int.Type
-    SymbolTestsCore.MetatypeUsage.MetatypeFieldTest.protocolMetatype.getter : SymbolTestsCore.Protocols.ProtocolTest.Type
-    SymbolTestsCore.MetatypeUsage.MetatypeFieldTest.protocolMetatype.setter : SymbolTestsCore.Protocols.ProtocolTest.Type
-    SymbolTestsCore.MetatypeUsage.MetatypeFieldTest.anyObjectMetatype.getter : Swift.AnyObject.Type
-    SymbolTestsCore.MetatypeUsage.MetatypeFieldTest.anyObjectMetatype.setter : Swift.AnyObject.Type
+    SymbolTestsCore.MetatypeUsage.MetatypeFieldTest.protocolMetatype.getter : any SymbolTestsCore.Protocols.ProtocolTest.Type
+    SymbolTestsCore.MetatypeUsage.MetatypeFieldTest.protocolMetatype.setter : any SymbolTestsCore.Protocols.ProtocolTest.Type
+    SymbolTestsCore.MetatypeUsage.MetatypeFieldTest.anyObjectMetatype.getter : any Swift.AnyObject.Type
+    SymbolTestsCore.MetatypeUsage.MetatypeFieldTest.anyObjectMetatype.setter : any Swift.AnyObject.Type
 }
 struct SymbolTestsCore.MetatypeUsage.MetatypeFunctionTest {
     /* Function */
-    SymbolTestsCore.MetatypeUsage.MetatypeFunctionTest.acceptProtocolMetatype(SymbolTestsCore.Protocols.ProtocolTest.Type) -> Swift.String
+    SymbolTestsCore.MetatypeUsage.MetatypeFunctionTest.acceptProtocolMetatype(any SymbolTestsCore.Protocols.ProtocolTest.Type) -> Swift.String
     SymbolTestsCore.MetatypeUsage.MetatypeFunctionTest.dynamicType<A>(of: A) -> A.Type
     SymbolTestsCore.MetatypeUsage.MetatypeFunctionTest.acceptMetatype<A>(A.Type) -> A.Type
     SymbolTestsCore.MetatypeUsage.MetatypeFunctionTest.returnMetatype() -> SymbolTestsCore.MetatypeUsage.MetatypeFunctionTest.Type

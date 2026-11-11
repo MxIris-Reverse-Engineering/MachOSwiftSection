@@ -8,7 +8,7 @@ struct SymbolTestsCore.CodableTests.SynthesizedCodableTest {
 
     /* Allocator */
     SymbolTestsCore.CodableTests.SynthesizedCodableTest.init(identifier: Swift.Int, name: Swift.String, optionalValue: Swift.Double?) -> SymbolTestsCore.CodableTests.SynthesizedCodableTest
-    SymbolTestsCore.CodableTests.SynthesizedCodableTest.init(from: Swift.Decoder) throws -> SymbolTestsCore.CodableTests.SynthesizedCodableTest
+    SymbolTestsCore.CodableTests.SynthesizedCodableTest.init(from: any Swift.Decoder) throws -> SymbolTestsCore.CodableTests.SynthesizedCodableTest
 
     /* Variable */
     SymbolTestsCore.CodableTests.SynthesizedCodableTest.optionalValue.getter : Swift.Double?
@@ -19,7 +19,7 @@ struct SymbolTestsCore.CodableTests.SynthesizedCodableTest {
     SymbolTestsCore.CodableTests.SynthesizedCodableTest.name.setter : Swift.String
 
     /* Function */
-    SymbolTestsCore.CodableTests.SynthesizedCodableTest.encode(to: Swift.Encoder) throws -> ()
+    SymbolTestsCore.CodableTests.SynthesizedCodableTest.encode(to: any Swift.Encoder) throws -> ()
 }
 struct SymbolTestsCore.CodableTests.CustomCodableTest {
     var displayName: Swift.String
@@ -27,7 +27,7 @@ struct SymbolTestsCore.CodableTests.CustomCodableTest {
 
     /* Allocator */
     SymbolTestsCore.CodableTests.CustomCodableTest.init(displayName: Swift.String, hiddenCount: Swift.Int) -> SymbolTestsCore.CodableTests.CustomCodableTest
-    SymbolTestsCore.CodableTests.CustomCodableTest.init(from: Swift.Decoder) throws -> SymbolTestsCore.CodableTests.CustomCodableTest
+    SymbolTestsCore.CodableTests.CustomCodableTest.init(from: any Swift.Decoder) throws -> SymbolTestsCore.CodableTests.CustomCodableTest
 
     /* Variable */
     SymbolTestsCore.CodableTests.CustomCodableTest.displayName.getter : Swift.String
@@ -36,7 +36,7 @@ struct SymbolTestsCore.CodableTests.CustomCodableTest {
     SymbolTestsCore.CodableTests.CustomCodableTest.hiddenCount.setter : Swift.Int
 
     /* Function */
-    SymbolTestsCore.CodableTests.CustomCodableTest.encode(to: Swift.Encoder) throws -> ()
+    SymbolTestsCore.CodableTests.CustomCodableTest.encode(to: any Swift.Encoder) throws -> ()
 }
 class SymbolTestsCore.CodableTests.CodableClassTest {
     var identifier: Swift.Int
@@ -49,19 +49,19 @@ class SymbolTestsCore.CodableTests.CodableClassTest {
     /* [Setter] */ SymbolTestsCore.CodableTests.CodableClassTest.label.setter : Swift.String
     /* [Modify] */ SymbolTestsCore.CodableTests.CodableClassTest.label.modify : Swift.String
     /* [ Init ] */ SymbolTestsCore.CodableTests.CodableClassTest.__allocating_init(identifier: Swift.Int, label: Swift.String) -> SymbolTestsCore.CodableTests.CodableClassTest
-    /* [Method] */ func SymbolTestsCore.CodableTests.CodableClassTest.encode(to: Swift.Encoder) throws -> ()
-    /* [ Init ] */ SymbolTestsCore.CodableTests.CodableClassTest.__allocating_init(from: Swift.Decoder) throws -> SymbolTestsCore.CodableTests.CodableClassTest
+    /* [Method] */ func SymbolTestsCore.CodableTests.CodableClassTest.encode(to: any Swift.Encoder) throws -> ()
+    /* [ Init ] */ SymbolTestsCore.CodableTests.CodableClassTest.__allocating_init(from: any Swift.Decoder) throws -> SymbolTestsCore.CodableTests.CodableClassTest
 
     /* Allocator */
     SymbolTestsCore.CodableTests.CodableClassTest.__allocating_init(identifier: Swift.Int, label: Swift.String) -> SymbolTestsCore.CodableTests.CodableClassTest
-    SymbolTestsCore.CodableTests.CodableClassTest.__allocating_init(from: Swift.Decoder) throws -> SymbolTestsCore.CodableTests.CodableClassTest
+    SymbolTestsCore.CodableTests.CodableClassTest.__allocating_init(from: any Swift.Decoder) throws -> SymbolTestsCore.CodableTests.CodableClassTest
 
     /* Deallocator */
     SymbolTestsCore.CodableTests.CodableClassTest.__deallocating_deinit
 
     /* Constructor */
     SymbolTestsCore.CodableTests.CodableClassTest.init(identifier: Swift.Int, label: Swift.String) -> SymbolTestsCore.CodableTests.CodableClassTest
-    SymbolTestsCore.CodableTests.CodableClassTest.init(from: Swift.Decoder) throws -> SymbolTestsCore.CodableTests.CodableClassTest
+    SymbolTestsCore.CodableTests.CodableClassTest.init(from: any Swift.Decoder) throws -> SymbolTestsCore.CodableTests.CodableClassTest
 
     /* Destructor */
     SymbolTestsCore.CodableTests.CodableClassTest.deinit
@@ -73,11 +73,11 @@ class SymbolTestsCore.CodableTests.CodableClassTest {
     SymbolTestsCore.CodableTests.CodableClassTest.label.setter : Swift.String
 
     /* Function */
-    SymbolTestsCore.CodableTests.CodableClassTest.encode(to: Swift.Encoder) throws -> ()
+    SymbolTestsCore.CodableTests.CodableClassTest.encode(to: any Swift.Encoder) throws -> ()
 
     /* [Method] Allocator */
     method descriptor for SymbolTestsCore.CodableTests.CodableClassTest.__allocating_init(identifier: Swift.Int, label: Swift.String) -> SymbolTestsCore.CodableTests.CodableClassTest
-    method descriptor for SymbolTestsCore.CodableTests.CodableClassTest.__allocating_init(from: Swift.Decoder) throws -> SymbolTestsCore.CodableTests.CodableClassTest
+    method descriptor for SymbolTestsCore.CodableTests.CodableClassTest.__allocating_init(from: any Swift.Decoder) throws -> SymbolTestsCore.CodableTests.CodableClassTest
 
     /* [Method] Variable */
     method descriptor for SymbolTestsCore.CodableTests.CodableClassTest.identifier.getter : Swift.Int
@@ -86,7 +86,7 @@ class SymbolTestsCore.CodableTests.CodableClassTest {
     method descriptor for SymbolTestsCore.CodableTests.CodableClassTest.label.setter : Swift.String
 
     /* [Method] Function */
-    method descriptor for SymbolTestsCore.CodableTests.CodableClassTest.encode(to: Swift.Encoder) throws -> ()
+    method descriptor for SymbolTestsCore.CodableTests.CodableClassTest.encode(to: any Swift.Encoder) throws -> ()
 }
 enum SymbolTestsCore.CodableTests.CodableEnumTest {
     case withValue(Swift.Int)
@@ -94,10 +94,10 @@ enum SymbolTestsCore.CodableTests.CodableEnumTest {
     case empty
 
     /* Allocator */
-    SymbolTestsCore.CodableTests.CodableEnumTest.init(from: Swift.Decoder) throws -> SymbolTestsCore.CodableTests.CodableEnumTest
+    SymbolTestsCore.CodableTests.CodableEnumTest.init(from: any Swift.Decoder) throws -> SymbolTestsCore.CodableTests.CodableEnumTest
 
     /* Function */
-    SymbolTestsCore.CodableTests.CodableEnumTest.encode(to: Swift.Encoder) throws -> ()
+    SymbolTestsCore.CodableTests.CodableEnumTest.encode(to: any Swift.Encoder) throws -> ()
 }
 struct SymbolTestsCore.CodableTests.GenericCodableTest<A> where A: Swift.Decodable, A: Swift.Encodable {
     var element: A
@@ -105,7 +105,7 @@ struct SymbolTestsCore.CodableTests.GenericCodableTest<A> where A: Swift.Decodab
 
     /* Allocator */
     SymbolTestsCore.CodableTests.GenericCodableTest.init(element: A, metadata: [Swift.String : Swift.String]) -> SymbolTestsCore.CodableTests.GenericCodableTest<A>
-    SymbolTestsCore.CodableTests.GenericCodableTest.init(from: Swift.Decoder) throws -> SymbolTestsCore.CodableTests.GenericCodableTest<A>
+    SymbolTestsCore.CodableTests.GenericCodableTest.init(from: any Swift.Decoder) throws -> SymbolTestsCore.CodableTests.GenericCodableTest<A>
 
     /* Variable */
     SymbolTestsCore.CodableTests.GenericCodableTest.metadata.getter : [Swift.String : Swift.String]
@@ -114,7 +114,7 @@ struct SymbolTestsCore.CodableTests.GenericCodableTest<A> where A: Swift.Decodab
     SymbolTestsCore.CodableTests.GenericCodableTest.element.setter : A
 
     /* Function */
-    SymbolTestsCore.CodableTests.GenericCodableTest.encode(to: Swift.Encoder) throws -> ()
+    SymbolTestsCore.CodableTests.GenericCodableTest.encode(to: any Swift.Encoder) throws -> ()
 }
 enum SymbolTestsCore.CodableTests.GenericCodableTest.CodingKeys {
     case element
@@ -163,34 +163,34 @@ enum SymbolTestsCore.CodableTests.SynthesizedCodableTest.CodingKeys {
 // MARK: - Protocol Conformances
 
 extension SymbolTestsCore.CodableTests.SynthesizedCodableTest: Swift.Decodable {
-    protocol witness for Swift.Decodable.init(from: Swift.Decoder) throws -> A in conformance SymbolTestsCore.CodableTests.SynthesizedCodableTest : Swift.Decodable in SymbolTestsCore
+    protocol witness for Swift.Decodable.init(from: any Swift.Decoder) throws -> A in conformance SymbolTestsCore.CodableTests.SynthesizedCodableTest : Swift.Decodable in SymbolTestsCore
 }
 extension SymbolTestsCore.CodableTests.SynthesizedCodableTest: Swift.Encodable {
-    protocol witness for Swift.Encodable.encode(to: Swift.Encoder) throws -> () in conformance SymbolTestsCore.CodableTests.SynthesizedCodableTest : Swift.Encodable in SymbolTestsCore
+    protocol witness for Swift.Encodable.encode(to: any Swift.Encoder) throws -> () in conformance SymbolTestsCore.CodableTests.SynthesizedCodableTest : Swift.Encodable in SymbolTestsCore
 }
 extension SymbolTestsCore.CodableTests.CustomCodableTest: Swift.Decodable {
-    protocol witness for Swift.Decodable.init(from: Swift.Decoder) throws -> A in conformance SymbolTestsCore.CodableTests.CustomCodableTest : Swift.Decodable in SymbolTestsCore
+    protocol witness for Swift.Decodable.init(from: any Swift.Decoder) throws -> A in conformance SymbolTestsCore.CodableTests.CustomCodableTest : Swift.Decodable in SymbolTestsCore
 }
 extension SymbolTestsCore.CodableTests.CustomCodableTest: Swift.Encodable {
-    protocol witness for Swift.Encodable.encode(to: Swift.Encoder) throws -> () in conformance SymbolTestsCore.CodableTests.CustomCodableTest : Swift.Encodable in SymbolTestsCore
+    protocol witness for Swift.Encodable.encode(to: any Swift.Encoder) throws -> () in conformance SymbolTestsCore.CodableTests.CustomCodableTest : Swift.Encodable in SymbolTestsCore
 }
 extension SymbolTestsCore.CodableTests.CodableClassTest: Swift.Decodable {
-    protocol witness for Swift.Decodable.init(from: Swift.Decoder) throws -> A in conformance SymbolTestsCore.CodableTests.CodableClassTest : Swift.Decodable in SymbolTestsCore
+    protocol witness for Swift.Decodable.init(from: any Swift.Decoder) throws -> A in conformance SymbolTestsCore.CodableTests.CodableClassTest : Swift.Decodable in SymbolTestsCore
 }
 extension SymbolTestsCore.CodableTests.CodableClassTest: Swift.Encodable {
-    protocol witness for Swift.Encodable.encode(to: Swift.Encoder) throws -> () in conformance SymbolTestsCore.CodableTests.CodableClassTest : Swift.Encodable in SymbolTestsCore
+    protocol witness for Swift.Encodable.encode(to: any Swift.Encoder) throws -> () in conformance SymbolTestsCore.CodableTests.CodableClassTest : Swift.Encodable in SymbolTestsCore
 }
 extension SymbolTestsCore.CodableTests.CodableEnumTest: Swift.Decodable {
-    protocol witness for Swift.Decodable.init(from: Swift.Decoder) throws -> A in conformance SymbolTestsCore.CodableTests.CodableEnumTest : Swift.Decodable in SymbolTestsCore
+    protocol witness for Swift.Decodable.init(from: any Swift.Decoder) throws -> A in conformance SymbolTestsCore.CodableTests.CodableEnumTest : Swift.Decodable in SymbolTestsCore
 }
 extension SymbolTestsCore.CodableTests.CodableEnumTest: Swift.Encodable {
-    protocol witness for Swift.Encodable.encode(to: Swift.Encoder) throws -> () in conformance SymbolTestsCore.CodableTests.CodableEnumTest : Swift.Encodable in SymbolTestsCore
+    protocol witness for Swift.Encodable.encode(to: any Swift.Encoder) throws -> () in conformance SymbolTestsCore.CodableTests.CodableEnumTest : Swift.Encodable in SymbolTestsCore
 }
 extension SymbolTestsCore.CodableTests.GenericCodableTest: Swift.Decodable {
-    protocol witness for Swift.Decodable.init(from: Swift.Decoder) throws -> A in conformance SymbolTestsCore.CodableTests.GenericCodableTest<A> : Swift.Decodable in SymbolTestsCore
+    protocol witness for Swift.Decodable.init(from: any Swift.Decoder) throws -> A in conformance SymbolTestsCore.CodableTests.GenericCodableTest<A> : Swift.Decodable in SymbolTestsCore
 }
 extension SymbolTestsCore.CodableTests.GenericCodableTest: Swift.Encodable {
-    protocol witness for Swift.Encodable.encode(to: Swift.Encoder) throws -> () in conformance SymbolTestsCore.CodableTests.GenericCodableTest<A> : Swift.Encodable in SymbolTestsCore
+    protocol witness for Swift.Encodable.encode(to: any Swift.Encoder) throws -> () in conformance SymbolTestsCore.CodableTests.GenericCodableTest<A> : Swift.Encodable in SymbolTestsCore
 }
 extension SymbolTestsCore.CodableTests.SynthesizedCodableTest.CodingKeys: Swift.CustomStringConvertible {
     protocol witness for Swift.CustomStringConvertible.description.getter : Swift.String in conformance SymbolTestsCore.CodableTests.SynthesizedCodableTest.CodingKeys : Swift.CustomStringConvertible in SymbolTestsCore

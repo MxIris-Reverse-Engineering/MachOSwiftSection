@@ -638,8 +638,8 @@ struct SymbolTestsCore.GenericFieldLayout.AssociatedTypeFieldHolder {
 }
 struct SymbolTestsCore.GenericFieldLayout.ConstrainedExistentialFieldHolder {
     var leading: Swift.Int
-    var boxed: symbolic existential type (non-unique) 0x0 <Swift.Int>
-    var optionalBoxed: (symbolic existential type (non-unique) 0x0 <Swift.String>)?
+    var boxed: any SymbolTestsCore.GenericFieldLayout.Boxed<Self.Boxed.Wrapped == Swift.Int>
+    var optionalBoxed: (any SymbolTestsCore.GenericFieldLayout.Boxed<Self.Boxed.Wrapped == Swift.String>)?
     var trailing: Swift.Int8
 
     /* Variable */
@@ -737,23 +737,23 @@ struct SymbolTestsCore.GenericFieldLayout.MultiLevelNestedFieldHolder {
 }
 struct SymbolTestsCore.GenericFieldLayout.ObjCProtocolExistentialFieldHolder {
     var leading: Swift.Int
-    var bareElement: SymbolTestsCore.ObjCOnlyElementProtocol
-    var anchoredElement: NSObject & SymbolTestsCore.ObjCOnlyElementProtocol
-    var optionalElement: SymbolTestsCore.ObjCOnlyElementProtocol?
-    var composedElement: SymbolTestsCore.DescriptorBackedSwiftProtocol & SymbolTestsCore.ObjCOnlyElementProtocol
+    var bareElement: any SymbolTestsCore.ObjCOnlyElementProtocol
+    var anchoredElement: any NSObject & SymbolTestsCore.ObjCOnlyElementProtocol
+    var optionalElement: (any SymbolTestsCore.ObjCOnlyElementProtocol)?
+    var composedElement: any SymbolTestsCore.DescriptorBackedSwiftProtocol & SymbolTestsCore.ObjCOnlyElementProtocol
     var trailing: Swift.Int8
 
     /* Variable */
-    SymbolTestsCore.GenericFieldLayout.ObjCProtocolExistentialFieldHolder.anchoredElement.getter : NSObject & SymbolTestsCore.ObjCOnlyElementProtocol
-    SymbolTestsCore.GenericFieldLayout.ObjCProtocolExistentialFieldHolder.anchoredElement.setter : NSObject & SymbolTestsCore.ObjCOnlyElementProtocol
-    SymbolTestsCore.GenericFieldLayout.ObjCProtocolExistentialFieldHolder.optionalElement.getter : SymbolTestsCore.ObjCOnlyElementProtocol?
-    SymbolTestsCore.GenericFieldLayout.ObjCProtocolExistentialFieldHolder.optionalElement.setter : SymbolTestsCore.ObjCOnlyElementProtocol?
-    SymbolTestsCore.GenericFieldLayout.ObjCProtocolExistentialFieldHolder.composedElement.getter : SymbolTestsCore.DescriptorBackedSwiftProtocol & SymbolTestsCore.ObjCOnlyElementProtocol
-    SymbolTestsCore.GenericFieldLayout.ObjCProtocolExistentialFieldHolder.composedElement.setter : SymbolTestsCore.DescriptorBackedSwiftProtocol & SymbolTestsCore.ObjCOnlyElementProtocol
+    SymbolTestsCore.GenericFieldLayout.ObjCProtocolExistentialFieldHolder.anchoredElement.getter : any NSObject & SymbolTestsCore.ObjCOnlyElementProtocol
+    SymbolTestsCore.GenericFieldLayout.ObjCProtocolExistentialFieldHolder.anchoredElement.setter : any NSObject & SymbolTestsCore.ObjCOnlyElementProtocol
+    SymbolTestsCore.GenericFieldLayout.ObjCProtocolExistentialFieldHolder.optionalElement.getter : (any SymbolTestsCore.ObjCOnlyElementProtocol)?
+    SymbolTestsCore.GenericFieldLayout.ObjCProtocolExistentialFieldHolder.optionalElement.setter : (any SymbolTestsCore.ObjCOnlyElementProtocol)?
+    SymbolTestsCore.GenericFieldLayout.ObjCProtocolExistentialFieldHolder.composedElement.getter : any SymbolTestsCore.DescriptorBackedSwiftProtocol & SymbolTestsCore.ObjCOnlyElementProtocol
+    SymbolTestsCore.GenericFieldLayout.ObjCProtocolExistentialFieldHolder.composedElement.setter : any SymbolTestsCore.DescriptorBackedSwiftProtocol & SymbolTestsCore.ObjCOnlyElementProtocol
     SymbolTestsCore.GenericFieldLayout.ObjCProtocolExistentialFieldHolder.trailing.getter : Swift.Int8
     SymbolTestsCore.GenericFieldLayout.ObjCProtocolExistentialFieldHolder.trailing.setter : Swift.Int8
-    SymbolTestsCore.GenericFieldLayout.ObjCProtocolExistentialFieldHolder.bareElement.getter : SymbolTestsCore.ObjCOnlyElementProtocol
-    SymbolTestsCore.GenericFieldLayout.ObjCProtocolExistentialFieldHolder.bareElement.setter : SymbolTestsCore.ObjCOnlyElementProtocol
+    SymbolTestsCore.GenericFieldLayout.ObjCProtocolExistentialFieldHolder.bareElement.getter : any SymbolTestsCore.ObjCOnlyElementProtocol
+    SymbolTestsCore.GenericFieldLayout.ObjCProtocolExistentialFieldHolder.bareElement.setter : any SymbolTestsCore.ObjCOnlyElementProtocol
     SymbolTestsCore.GenericFieldLayout.ObjCProtocolExistentialFieldHolder.leading.getter : Swift.Int
     SymbolTestsCore.GenericFieldLayout.ObjCProtocolExistentialFieldHolder.leading.setter : Swift.Int
 }

@@ -17,6 +17,7 @@ struct TypeNodePrinter<Target: NodePrinterTarget>: InterfaceNodePrintable {
     init(delegate: (any NodePrintableDelegate)? = nil, isProtocol: Bool = false) {
         self.delegate = delegate
         context.usesModuleSelectors = delegate?.usesModuleSelectors ?? false
+        context.usesExistentialAny = delegate?.usesExistentialAny ?? false
         context.isProtocol = isProtocol
     }
 

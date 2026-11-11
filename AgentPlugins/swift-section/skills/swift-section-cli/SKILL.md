@@ -46,8 +46,9 @@ Flags added comparatively late, and therefore worth checking: `--emit-header`,
 `evolution --emit-available` / `--platform`, from 0.23.0 `interface --module-selectors`
 / `dump --enable-module-selectors`, from 0.24.0
 `interface --requirements-on-associated-types` and `--emit-private-source-files`, and after
-0.24.0 `objc evolution --interface` / `--emit-available` / `--platform` and
-`objc interface --swift`. When one is
+0.24.0 `objc evolution --interface` / `--emit-available` / `--platform`,
+`objc interface --swift` and `interface --no-existential-any` / `dump --disable-existential-any`.
+When one is
 missing, say so rather than silently producing a weaker answer — the alternative is usually
 "upgrade (`brew upgrade swift-section`), or do without that annotation".
 
@@ -163,6 +164,17 @@ SE-0491 module selectors — `Swift::Int` instead of `Swift.Int`, the spelling a
 (`Swift::Duration.Foundation::TimeFormatStyle`) — are off by default and spelled differently
 too: `interface --module-selectors`, `dump --enable-module-selectors` (one of the demangler
 switches below).
+
+Existential types carry the `any` keyword by default in both outputs (after 0.24.0), as the
+compiler writes a `.swiftinterface`: `any P`, `(any P)?`, `any P.Type` for the existential
+metatype, `(any P).Type` for the metatype of the existential (older builds print `P.Protocol`),
+and `any Any.Type` — a lone `Any` or `AnyObject` stays bare. Older builds print every
+existential bare, so `Swift.Collection` in their output is `any Collection`. The off switches:
+`interface --no-existential-any`, `dump --disable-existential-any`. A stored property of a
+constrained existential type (`any Boxed<Int>`) printed in older builds as its arguments alone —
+`var boxed: Swift.Int` in `interface`, `symbolic existential type … <Swift.Int>` in `dump` —
+so read such a line from an older build as a constrained existential of unknown protocol, not
+as the type it names.
 
 Only `dump` has: `--sections`, `--preferred-binary-order`, and the demangler option group
 (`--demangle-options default|simplified|interface` plus ~22 `--enable-…` / `--disable-…`

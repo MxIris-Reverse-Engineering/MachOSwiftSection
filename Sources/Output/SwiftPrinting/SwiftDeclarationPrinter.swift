@@ -1180,11 +1180,16 @@ extension SwiftDeclarationPrinter: NodePrintableDelegate {
     }
 
     public func opaqueType(forNode node: Node, index: Int?) async -> String? {
-        await opaqueType(forNode: node, index: index, usesModuleSelectors: configuration.usesModuleSelectors)
+        await opaqueType(forNode: node, index: index, spellingOptions: configuration.spellingOptions)
     }
 
+    public func opaqueType(forNode node: Node, index: Int?, spellingOptions: DemangleOptions) async -> String? {
+        await typeNameResolverRegistry.opaqueTypeResolvers.asyncFirstNonNil { await $0.opaqueType(forNode: node, index: index, spellingOptions: spellingOptions) }
+    }
+
+    @available(*, deprecated, renamed: "opaqueType(forNode:index:spellingOptions:)", message: "Pass the spelling options; module selectors are one of them.")
     public func opaqueType(forNode node: Node, index: Int?, usesModuleSelectors: Bool) async -> String? {
-        await typeNameResolverRegistry.opaqueTypeResolvers.asyncFirstNonNil { await $0.opaqueType(forNode: node, index: index, usesModuleSelectors: usesModuleSelectors) }
+        await opaqueType(forNode: node, index: index, spellingOptions: usesModuleSelectors ? .useModuleSelectors : [])
     }
 
     var marksOptionalContent: Bool {
@@ -1193,5 +1198,9 @@ extension SwiftDeclarationPrinter: NodePrintableDelegate {
 
     var usesModuleSelectors: Bool {
         configuration.usesModuleSelectors
+    }
+
+    var usesExistentialAny: Bool {
+        configuration.usesExistentialAny
     }
 }

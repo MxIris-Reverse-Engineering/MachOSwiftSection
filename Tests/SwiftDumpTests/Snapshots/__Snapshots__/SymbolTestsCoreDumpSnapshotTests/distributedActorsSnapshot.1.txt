@@ -125,10 +125,10 @@ extension SymbolTestsCore.DistributedActors.DistributedActorTest: Swift.Equatabl
     protocol witness for static Swift.Equatable.== infix(A, A) -> Swift.Bool in conformance SymbolTestsCore.DistributedActors.DistributedActorTest : Swift.Equatable in SymbolTestsCore
 }
 extension SymbolTestsCore.DistributedActors.DistributedActorTest: Swift.Encodable {
-    protocol witness for Swift.Encodable.encode(to: Swift.Encoder) throws -> () in conformance SymbolTestsCore.DistributedActors.DistributedActorTest : Swift.Encodable in SymbolTestsCore
+    protocol witness for Swift.Encodable.encode(to: any Swift.Encoder) throws -> () in conformance SymbolTestsCore.DistributedActors.DistributedActorTest : Swift.Encodable in SymbolTestsCore
 }
 extension SymbolTestsCore.DistributedActors.DistributedActorTest: Swift.Decodable {
-    protocol witness for Swift.Decodable.init(from: Swift.Decoder) throws -> A in conformance SymbolTestsCore.DistributedActors.DistributedActorTest : Swift.Decodable in SymbolTestsCore
+    protocol witness for Swift.Decodable.init(from: any Swift.Decoder) throws -> A in conformance SymbolTestsCore.DistributedActors.DistributedActorTest : Swift.Decodable in SymbolTestsCore
 }
 extension SymbolTestsCore.DistributedActors.GenericDistributedActorTest: Distributed.DistributedActor {
     base conformance descriptor for Distributed.DistributedActor: Swift.Hashable
@@ -155,8 +155,8 @@ extension SymbolTestsCore.DistributedActors.GenericDistributedActorTest: Swift.E
     protocol witness for static Swift.Equatable.== infix(A, A) -> Swift.Bool in conformance SymbolTestsCore.DistributedActors.GenericDistributedActorTest<A> : Swift.Equatable in SymbolTestsCore
 }
 extension SymbolTestsCore.DistributedActors.GenericDistributedActorTest: Swift.Encodable {
-    protocol witness for Swift.Encodable.encode(to: Swift.Encoder) throws -> () in conformance SymbolTestsCore.DistributedActors.GenericDistributedActorTest<A> : Swift.Encodable in SymbolTestsCore
+    protocol witness for Swift.Encodable.encode(to: any Swift.Encoder) throws -> () in conformance SymbolTestsCore.DistributedActors.GenericDistributedActorTest<A> : Swift.Encodable in SymbolTestsCore
 }
 extension SymbolTestsCore.DistributedActors.GenericDistributedActorTest: Swift.Decodable {
-    protocol witness for Swift.Decodable.init(from: Swift.Decoder) throws -> A in conformance SymbolTestsCore.DistributedActors.GenericDistributedActorTest<A> : Swift.Decodable in SymbolTestsCore
+    protocol witness for Swift.Decodable.init(from: any Swift.Decoder) throws -> A in conformance SymbolTestsCore.DistributedActors.GenericDistributedActorTest<A> : Swift.Decodable in SymbolTestsCore
 }

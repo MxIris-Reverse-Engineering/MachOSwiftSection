@@ -80,15 +80,15 @@ public struct SwiftInterfaceBuilderOpaqueTypeProvider<MachO: MachOSwiftSectionRe
     /// `options` for text this provider hands back, as opposed to the names
     /// it matches protocols by: those stay in the `opaqueTypeBuilderOnly`
     /// spelling the protocol facts are keyed with, whatever the output uses.
-    private static func outputOptions(_ options: DemangleOptions, usesModuleSelectors: Bool) -> DemangleOptions {
-        usesModuleSelectors ? options.union(.useModuleSelectors) : options
+    private static func outputOptions(_ options: DemangleOptions, spellingOptions: DemangleOptions) -> DemangleOptions {
+        options.union(spellingOptions.intersection(.interfaceSpellingOptions))
     }
 
     public init(machO: MachO) {
         self.machO = machO
     }
 
-    public func opaqueType(forNode node: Node, index: Int?, usesModuleSelectors: Bool) async -> String? {
+    public func opaqueType(forNode node: Node, index: Int?, spellingOptions: DemangleOptions) async -> String? {
         do {
             @Dependency(\.symbolIndexStore)
             var symbolIndexStore
@@ -140,14 +140,16 @@ public struct SwiftInterfaceBuilderOpaqueTypeProvider<MachO: MachOSwiftSectionRe
             if let superclassRequirement = parameterConstraints.superclass {
                 // The class leads the composition, as the compiler's own
                 // interface printer spells it (`some Base & P`).
-                try await results.append(superclassRequirement.dumpContent(resolver: .using(options: Self.outputOptions(Self.typeSpellingOptions, usesModuleSelectors: usesModuleSelectors)), in: machO.context).string)
+                try await results.append(superclassRequirement.dumpContent(resolver: .using(options: Self.outputOptions(Self.typeSpellingOptions, spellingOptions: spellingOptions)), in: machO.context).string)
             }
             for protocolRequirement in protocolRequirements {
                 var result = ""
                 let parameterName = try await protocolRequirement.dumpParameterName(resolver: .using(options: .opaqueTypeBuilderOnly), in: machO.context).string
                 let protocolName = try await protocolRequirement.dumpContent(resolver: .using(options: .opaqueTypeBuilderOnly), in: machO.context).string
-                if usesModuleSelectors {
-                    try await result.write(protocolRequirement.dumpContent(resolver: .using(options: Self.outputOptions(.opaqueTypeBuilderOnly, usesModuleSelectors: true)), in: machO.context).string)
+                if spellingOptions.contains(.useModuleSelectors) {
+                    // A protocol name: the only spelling it takes is the
+                    // module selector — a protocol is no existential.
+                    try await result.write(protocolRequirement.dumpContent(resolver: .using(options: Self.outputOptions(.opaqueTypeBuilderOnly, spellingOptions: .useModuleSelectors)), in: machO.context).string)
                 } else {
                     result.write(protocolName)
                 }
@@ -166,14 +168,14 @@ public struct SwiftInterfaceBuilderOpaqueTypeProvider<MachO: MachOSwiftSectionRe
                     for attachedConstraint in attachedConstraints {
                         switch attachedConstraint.argumentSource {
                         case .node(let argumentNode):
-                            await primaryAssociatedTypes.append(argumentNode.strippingAssociatedTypeProtocolQualifiers().print(using: Self.outputOptions(Self.typeSpellingOptions, usesModuleSelectors: usesModuleSelectors)))
+                            await primaryAssociatedTypes.append(argumentNode.strippingAssociatedTypeProtocolQualifiers().print(using: Self.outputOptions(Self.typeSpellingOptions, spellingOptions: spellingOptions)))
                         case .substitutionRoot(let substitutionNode):
                             // An outer dependent member (`some Sequence<T.A.A>`,
                             // the generics book's own example) is what lands
                             // here; its mangling qualifies every step with its
                             // declaring protocol, and the upstream printer
                             // would spell that out as `A.Probe.N.A.Probe.N.A`.
-                            await primaryAssociatedTypes.append(substitutionMap.rootOriginal(for: substitutionNode).strippingAssociatedTypeProtocolQualifiers().print(using: Self.outputOptions(Self.typeSpellingOptions, usesModuleSelectors: usesModuleSelectors)))
+                            await primaryAssociatedTypes.append(substitutionMap.rootOriginal(for: substitutionNode).strippingAssociatedTypeProtocolQualifiers().print(using: Self.outputOptions(Self.typeSpellingOptions, spellingOptions: spellingOptions)))
                         }
                     }
                     result.write("<")

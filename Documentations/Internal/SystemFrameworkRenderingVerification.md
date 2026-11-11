@@ -8,7 +8,9 @@
 Scripts/run-rendering-ab-verification.py <基线检出> <重构检出> \
     [--output-root 目录] [--frameworks A,B,...] [--scenarios cache-15.5,sim-iOS-18.5,...] \
     [--baseline-scratch 目录] [--candidate-scratch 目录] [--skip-image-part] \
-    [--jobs N] [--baseline-cache 目录 | --no-baseline-cache] [--skip-build]
+    [--jobs N] [--baseline-cache 目录 | --no-baseline-cache] [--skip-build] \
+    [--candidate-dump-arguments 参数] [--candidate-interface-arguments 参数] \
+    [--candidate-image-options 选项]
 ```
 
 脚本默认自己构建两侧的 release CLI（带 `--skip-build` 时什么都不构建，只用预先构建好的产物，见「关键调用细节」），跑完三部分、输出逐对 IDENTICAL/DIFFERS 表格；有任何差异以非零码退出。
@@ -54,6 +56,15 @@ SwiftUI、SwiftUICore、SwiftData、Combine、ActivityKit、WidgetKit——**输
 - **`--scenarios a,b,...`**：只跑点名的腿（`cache-15.5` / `cache-current-system` / `sim-iOS-18.5` / `machoimage-current` …），修完一处只回查受影响的腿。零对比对的兜底照旧生效：筛选打错名字会落到「zero pairs were compared」的失败，不会静默通过。
 
 三样都不碰 `compare_all_pairs` 与 `.skip` 标记的写法，harness 自己的单元测试（`Scripts/test-run-rendering-ab-verification.py`）在改动后重跑为绿。
+
+## 默认写法变了时怎么比（2026-11-11 起）
+
+一次改动把新写法设成默认（`any` 关键字，提案 [existential-any](../Evolutions/draft-existential-any.md)），候选与基线在它碰到的每一行上都不同，逐字节比对就说明不了「别的都没变」。办法是只在候选一侧把新默认关掉，再与改动前的基线比：
+
+- `--candidate-dump-arguments '…'`、`--candidate-interface-arguments '…'`：按 shell 规则拆开，追加到候选一侧 dump / interface 的命令行（如 `--disable-existential-any`、`--no-existential-any`）。基线侧的 CLI 可能不认识这些开关，所以它的命令行与渲染缓存都不受影响。
+- `--candidate-image-options a,b`：追加到候选一侧 MachOImage 部分的 `RV_OPTS`（如 `bareExistentials`，`RenderingVerificationTests` 据此关掉 `any`）。
+
+关掉新默认之后仍然不同的行，就是这次改动在新写法之外带来的变化，逐条核对。再打开它跑一遍，抽查差异只在新写法上。
 
 ## 验收标准与差异排查
 

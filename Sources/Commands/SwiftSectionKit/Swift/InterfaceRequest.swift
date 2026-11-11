@@ -69,6 +69,10 @@ public struct InterfaceRequest: Sendable, Equatable {
     /// Names qualified with SE-0491 module selectors (`Swift::Int`), as a
     /// Swift 6.4 `.swiftinterface` spells them.
     public var usesModuleSelectors: Bool
+    /// Existential types spelled with the `any` keyword (`any P`, `(any P)?`,
+    /// `any P.Type`), as the compiler writes a `.swiftinterface`. On by
+    /// default.
+    public var usesExistentialAny: Bool
     /// Where a requirement about one of a protocol's own associated types
     /// prints: in the protocol's `where` clause, or on that `associatedtype`
     /// (`associatedtype Body: SwiftUI.View`). The requirements are the same
@@ -97,6 +101,7 @@ public struct InterfaceRequest: Sendable, Equatable {
         memberSortOrder: SwiftDeclarationMemberSortOrder = .byCategory,
         infersObjCOverridesFromSelectorNames: Bool = false,
         usesModuleSelectors: Bool = false,
+        usesExistentialAny: Bool = true,
         protocolRequirementPlacement: ProtocolRequirementPlacement = .protocolWhereClause,
         emitsHeader: Bool = false,
         commentTransformers: Transformer.SwiftConfiguration? = nil,
@@ -118,6 +123,7 @@ public struct InterfaceRequest: Sendable, Equatable {
         self.memberSortOrder = memberSortOrder
         self.infersObjCOverridesFromSelectorNames = infersObjCOverridesFromSelectorNames
         self.usesModuleSelectors = usesModuleSelectors
+        self.usesExistentialAny = usesExistentialAny
         self.protocolRequirementPlacement = protocolRequirementPlacement
         self.emitsHeader = emitsHeader
         self.commentTransformers = commentTransformers
@@ -155,6 +161,7 @@ public struct InterfaceRequest: Sendable, Equatable {
         // whether it prints as `@objc override`.
         printConfiguration.infersObjCOverridesFromSelectorNames = infersObjCOverridesFromSelectorNames
         printConfiguration.usesModuleSelectors = usesModuleSelectors
+        printConfiguration.usesExistentialAny = usesExistentialAny
         printConfiguration.protocolRequirementPlacement = protocolRequirementPlacement
 
         var configuration = SwiftInterfaceBuilderConfiguration(

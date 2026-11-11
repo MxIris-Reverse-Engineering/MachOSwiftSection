@@ -517,7 +517,10 @@ extension SymbolicDemangler {
         case .symbol:
             result = try demangleAsNodeTransient(stringValue, isType: false, symbolicReferenceResolver: symbolicReferenceResolver)
         }
-        return result
+        // A constrained existential reads as its shape plus the arguments that
+        // instantiate it; hand every consumer the existential type itself.
+        guard mangledName.refersToExtendedExistentialTypeShape else { return result }
+        return ExtendedExistentialTypeResolution.resolvingExtendedExistentialTypes(in: result)
     }
 
     private static func buildContextMangling(context: SymbolOrElement<ContextDescriptorWrapper>, in readingContext: some ReadingContext) throws -> Node? {

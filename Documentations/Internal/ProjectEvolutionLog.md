@@ -3174,6 +3174,27 @@
 - **后续**：RuntimeViewer 一侧抬 pin，`@objc` 协议条目读 `exportStatus`，它自己打印的类别 conformance 照做类别规则。
 - **对应版本**：未发版。
 
+## 2026-11-11 existential 写上 `any`，constrained existential 字段印回它的类型
+
+- **时间段**：2026-11-11，分支 `feature/existential-any`（worktree `.worktrees/MachOSwiftSection-ExistentialAny`，基于 `next` 577eadf2）；swift-demangling 同名分支（基于它的 `next` 6489476）。提案 [existential-any](../Evolutions/draft-existential-any.md)（轻量档），swift-demangling 一侧另有同名精简提案。
+- **动机**：本库印 existential 一律不写 `any`——`any P` 印成 `P`，`(any P).Type` 印成 `P.Protocol`——而编译器写 `.swiftinterface` 时除 `Any`、`AnyObject` 外都写，有 associated type 的协议不写还会被编译器警告。查的时候又发现 constrained existential 的存储属性印错了类型：`any Boxed<Int>` 在 interface 里是 `var boxed: Swift.Int`，dump 与 ABI 快照里是 `symbolic existential type (non-unique) 0x0 <Swift.Int>`，ABI diff 因此分不开协议不同、实参相同的两个字段。
+- **关键决策**：
+  - 默认打开，打印配置与 CLI 都留关闭开关；写法照编译器（`any Any.Type`、`(any P).Type`、`(any P)?`、`any (P & Q).Type`）。
+  - swift-demangling 加 `DemangleOptions.useExistentialAny`，不进任何预设，预设的输出仍与官方 demangler 逐字节一致；dump 由 CLI 与 `DumpRequest` 的默认值打开。
+  - 两个打印器都按节点身份缓存打印片段，而 `any` 是唯一取决于父节点的写法：「外层已经写了 `any`」的位置（existential 元类型的实例、`any P<X>` 的协议列表）直接印成员，不经 `printName`。
+  - bug 在 `SymbolicDemangler` 修：把实参代回 extended existential 的 shape，得到与 getter 符号同形的 `constrainedExistential`；ABI 快照格式升到 12。顺带让 `any P<X>.Type` 按元类型布局——原先那条分支走不到，字段被当成值容器（40 字节，应为 16）。
+  - `OpaqueTypeResolving.opaqueType` 的拼写参数由布尔值换成 `DemangleOptions`（`interfaceSpellingOptions`），`some Sequence<any P>` 才印得出来；`SwiftDeclarationPrinter` 上的旧签名留作废弃的转发。
+- **落地**：
+  - swift-demangling：`DemangleOptions.useExistentialAny`、`NodePrinter`（三种 protocol list、existential 元类型、元类型、constrained existential 与括号判断）、`ExistentialAnyPrintingTests`。
+  - SwiftInspection：`ExtendedExistentialTypeResolution`，`SymbolicDemangler` 在名字带 shape 引用时调用它；SwiftLayout：`StaticTypeLayoutResolver`、`ExistentialLayoutBridge`；SwiftDiffing：`ABISnapshotDocument` 格式 12。
+  - SwiftPrinting：`SwiftDeclarationPrintConfiguration.usesExistentialAny`、`TypeNodePrintable` / `BoundGenericNodePrintable`、`SwiftDeclarationPrintConfiguration+Spelling`；SwiftInterface：opaque type provider；SwiftSectionKit 与 CLI：`InterfaceRequest.usesExistentialAny`、`interface --no-existential-any`、`dump --disable-existential-any`、`DumpRequest` 的默认值。
+  - 测试：`ExistentialAnyFixture` 与 `ExistentialAnyInterfaceTests` / `ExistentialAnyDumpTests`，`ConstrainedExistentialFieldTests` / `ConstrainedExistentialFieldDumpTests`，命令映射测试；12 份 fixture 快照重新录制。
+  - 脚本：渲染 A/B 加三个只给候选一侧的参数，`RenderingVerificationTests` 认 `bareExistentials`。
+  - 文档：提案、`Modules/SwiftInterface.md`、`StaticLayoutEngine.md`、`SystemFrameworkRenderingVerification.md`、`AgentPlugins/swift-section` 的 skill。
+- **验证**：在 JHs-Mac-Studio-Ultra（macOS 27.2，Xcode 26.6）上跑，细节见提案第 6 步。swift-demangling 全量 651 个测试通过，语料对照证明选项关闭时输出不变。本库全量 2843 个测试 / 543 个套件只剩两条单独跑都通过的偶发，其中映射测试那条基线上同样失败。渲染 A/B 96 对：候选关掉 `any` 时，差异只有 constrained existential 字段（54 对、185 行，含 SwiftUICore 三处布局注释由 40 字节改为 16 字节）；打开后改动 50207 行，归一化掉 `any`、括号与 `.Protocol` 后全部相同。复现测试在修复前全部失败。
+- **后续**：swift-demangling 发版后抬本库的版本下限；ABI 快照要用新版重新生成；RuntimeViewer 用打印配置的默认值，升级后直接显示 `any`，要不要给它加设置项另议。
+- **对应版本**：未发版。
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节

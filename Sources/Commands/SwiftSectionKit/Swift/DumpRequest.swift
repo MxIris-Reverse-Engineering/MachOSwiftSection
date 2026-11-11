@@ -69,6 +69,9 @@ public struct DumpRequest: Sendable, Equatable {
     public var dependencySearchPaths: [DependencySearchPath]
     public var sections: SectionSelection
     public var ordering: Ordering
+    /// How names print. The default is `.default` with existentials spelled
+    /// with `any` (`useExistentialAny`), as the CLI prints them; a request
+    /// passing a preset of its own gets what that preset says.
     public var demangleOptions: DemangleOptions
     /// Computed statically through SwiftLayout.
     public var fieldOffsetComments: FieldOffsetComments
@@ -104,7 +107,7 @@ public struct DumpRequest: Sendable, Equatable {
         dependencySearchPaths: [DependencySearchPath] = [],
         sections: SectionSelection = .all,
         ordering: Ordering = .bySection,
-        demangleOptions: DemangleOptions = .default,
+        demangleOptions: DemangleOptions = DemangleOptions.default.union(.useExistentialAny),
         fieldOffsetComments: FieldOffsetComments = .none,
         emitsMemberAddresses: Bool = false,
         emitsVTableOffsets: Bool = false,

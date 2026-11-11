@@ -16,6 +16,13 @@ public struct ABISnapshotDocument: Sendable, Codable, Equatable {
     /// `ABIDiffer.extensionBucketKey(for:)`).
     ///
     /// History:
+    /// - 12: a constrained existential in a field record (`any Boxed<Int>`) is
+    ///   recorded as the existential type it stands for — the shape with its
+    ///   generalization arguments substituted — instead of the symbolic
+    ///   reference to the shape, which printed as the arguments alone (every
+    ///   such field of `[Swift.Int]` read the same, whatever its protocol;
+    ///   evolution proposal `existential-any`). Key scheme unchanged; an older
+    ///   baseline would misreport every such field as changed.
     /// - 11: a class initializer of an optimized image whose only code is the
     ///   function signature specialization of its initializing entry point
     ///   (`…fcTf…`, what Swift 6.4's whole-module optimization leaves of an
@@ -80,7 +87,7 @@ public struct ABISnapshotDocument: Sendable, Codable, Equatable {
     ///   (`tag:N|indirect|…`), so a version-1 baseline would silently miss
     ///   that transition.
     /// - 1: initial versioned format.
-    public static let currentFormatVersion = 11
+    public static let currentFormatVersion = 12
 
     public let formatVersion: Int
     public var provenance: ABIProvenance?

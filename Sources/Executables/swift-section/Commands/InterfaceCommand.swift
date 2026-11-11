@@ -68,6 +68,9 @@ struct InterfaceCommand: AsyncParsableCommand {
     @Flag(name: .customLong("module-selectors"), help: "Qualify names with SE-0491 module selectors (Swift::Int instead of Swift.Int), the way the Swift 6.4 compiler writes a .swiftinterface. Every type level carries the module that declared it (Swift::Duration.Foundation::TimeFormatStyle).")
     var moduleSelectors: Bool = false
 
+    @Flag(name: .customLong("existential-any"), inversion: .prefixedNo, help: "Spell existential types with the any keyword (any P, (any P)?, any P.Type, (any P).Type), the way the compiler writes a .swiftinterface; a lone Any or AnyObject stays bare. On by default; --no-existential-any prints them bare (P, P?, P.Type, P.Protocol).")
+    var existentialAny: Bool = true
+
     @Flag(name: .customLong("requirements-on-associated-types"), help: "Print each protocol requirement about one of the protocol's own associated types on that associatedtype (associatedtype Element: Hashable, associatedtype Nested: Sequence where Self.Nested.Element: Hashable) instead of in the protocol's where clause, the way the compiler writes a .swiftinterface. The requirements are the same either way: the binary records the canonical requirement signature, not where the source wrote each one.")
     var requirementsOnAssociatedTypes: Bool = false
 
@@ -93,6 +96,7 @@ struct InterfaceCommand: AsyncParsableCommand {
             memberSortOrder: sortMembersByOffset ? .byOffset : .byCategory,
             infersObjCOverridesFromSelectorNames: objcMemberOptions.infersOverridesFromSelectorNames,
             usesModuleSelectors: moduleSelectors,
+            usesExistentialAny: existentialAny,
             protocolRequirementPlacement: requirementsOnAssociatedTypes ? .associatedTypes : .protocolWhereClause,
             emitsHeader: emitHeader,
             commentTransformers: try transformerOptions.buildTransformerConfiguration(),
