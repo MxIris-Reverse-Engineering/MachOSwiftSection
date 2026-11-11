@@ -106,6 +106,13 @@ public final class TypeDefinition: Definition, @unchecked Sendable {
     /// See `WrappedPropertyDefinition`.
     public package(set) var wrappedProperties: [WrappedPropertyDefinition] = []
 
+    /// What `@Observable` generated in this class, recovered at index time
+    /// from the fields and members it left — which stay in `fields`,
+    /// `variables` and `functions` as the binary has them. `nil` unless
+    /// `attachedMacros` contains `.observable`, and until `index(in:)` has
+    /// run. See `ObservableMacroExpansion`.
+    public package(set) var observableMacroExpansion: ObservableMacroExpansion? = nil
+
     /// The Objective-C protocols a class adopts, read at index time from its
     /// `class_ro_t` (evolution proposal `swift-declared-objc-protocols`): an
     /// `@objc` protocol has no witness table, so no conformance record names

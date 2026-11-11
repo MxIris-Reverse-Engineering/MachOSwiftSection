@@ -2,7 +2,7 @@ import Foundation
 import Testing
 import MachOKit
 import MachOFoundation
-import Demangling
+@_spi(Internals) import Demangling
 import MachOSwiftSection
 @_spi(Support) @testable import SwiftDeclaration
 @_spi(Support) @testable import SwiftIndexing
@@ -59,7 +59,7 @@ struct ObservableMacroRecognitionTests {
                 "InternalModel": .observable,
                 "GenericModel": .observable,
                 "WrapperModel": .observable,
-                "ManualObservable": .some(nil),
+                "ManualObservable": nil,
             ],
             sourceLocation: sourceLocation
         )
