@@ -31,9 +31,9 @@
 
 - `SwiftDeclarationPrintConfiguration.usesExistentialAny`，默认打开；`InterfaceRequest.usesExistentialAny` 同名；CLI 用 `interface --no-existential-any` 关闭。
 - 打印上下文照 `usesModuleSelectors` 的路子在创建时读一次；`TypeNodePrintable` 与 `BoundGenericNodePrintable` 按上表改；委托给上游打印器的地方带上新选项。
-- `OpaqueTypeResolving.opaqueType(forNode:index:usesModuleSelectors:)` 的布尔参数换成一个 `DemangleOptions`，只认拼写类选项（`useModuleSelectors`、`useExistentialAny`）。opaque type 约束里的实参由 provider 自己打印，这样 `some Sequence<any Equatable>` 里的 `any` 才印得出来，以后再加拼写开关也不用再改签名。这是源码不兼容的改动，但实现方只有本库的 provider，RuntimeViewer 只构造它。
+- `OpaqueTypeResolving.opaqueType(forNode:index:usesModuleSelectors:)` 的布尔参数换成一个 `DemangleOptions`（`spellingOptions:`），只认拼写类选项——集合 `DemangleOptions.interfaceSpellingOptions`，即 `useModuleSelectors` 与 `useExistentialAny`。opaque type 约束里的实参由 provider 自己打印，这样 `some Sequence<any Equatable>` 里的 `any` 才印得出来，以后再加拼写开关也不用再改签名；协议名本身只认模块选择器。这是源码不兼容的改动，但实现方只有本库的 provider，RuntimeViewer 只构造它。`SwiftDeclarationPrinter` 上同名的公开方法保留旧签名，标为废弃并转发到新签名。
 
-**dump**：CLI 默认带上 `useExistentialAny`，`--disable-existential-any` 关闭；与其他 demangle 选项一样走 `DemangleOptionGroup`，三个预设都生效。`DumpRequest.demangleOptions` 的默认值同步加上。dump 里的 constrained existential 沿用上游的写法 `any …Boxed<Self.Boxed.Wrapped == Swift.Int>`，与 dump 里符号那几行一致；interface 仍写成 `any …Boxed<Swift.Int>`。
+**dump**：CLI 默认带上 `useExistentialAny`，`--disable-existential-any` 关闭；与其他 demangle 选项一样走 `DemangleOptionGroup`，三个预设都生效。`DumpRequest.demangleOptions` 的默认值同步加上，测试用的 `DemangleOptions.test` 也加上，dump 快照因此记录新写法。dump 里的 constrained existential 沿用上游的写法 `any …Boxed<Self.Boxed.Wrapped == Swift.Int>`，与 dump 里符号那几行一致；interface 仍写成 `any …Boxed<Swift.Int>`。
 
 **bug 修复**：字段记录里的 `any Boxed<Int>` 是一个 `symbolicExtendedExistentialType`，由 shape（`any Boxed<τ_0_0>`）和实参列表 `[Int]` 组成，两个打印器都只印了实参。改为在 `SymbolicDemangler` 解出类型之后，用 `GenericArgumentBinding` 把实参代回 shape，得到与 getter 符号里一样的 `constrainedExistential` 节点，dump、interface、ABI diff 拿到的都是正确的类型。连带：
 
@@ -57,9 +57,9 @@
 
 1. ✅ swift-demangling：`DemangleOptions.useExistentialAny` 与 `NodePrinter` 的改动、打印测试、该仓库的精简提案（`feature/existential-any`）。全量 651 个测试在 Ultra 上跑，与官方 demangler 逐字节对照的语料测试全过；只有新测试里 5 个可选类型用例的期望写错（`.default` 不合成 `?`），改用 `.interface` 并补两个 `XSq` 用例后通过。
 2. ✅ bug 修复：`ConstrainedExistentialFieldTests`（interface、ABI 快照）与 `ConstrainedExistentialFieldDumpTests` 修复前 3 个测试全部失败，症状正是 `var boxed: Swift.Int` 与 `symbolic existential type (non-unique) 0x0 <Swift.Int>`；修复后相关的 43 个套件、209 个测试只剩两份快照不符，差异正好是这两个字段，已更新。
-3. interface：打印配置、打印上下文、`TypeNodePrintable` / `BoundGenericNodePrintable`、opaque type provider 的拼写参数、`InterfaceRequest` 与 CLI 开关。
-4. dump：`DemangleOptionGroup` 的开关、`DumpRequest` 的默认值。
-5. 现编 fixture 与 interface / dump 测试，重新生成快照基线。
+3. ✅ interface：打印配置、打印上下文、`TypeNodePrintable` / `BoundGenericNodePrintable`、opaque type provider 的拼写参数、`InterfaceRequest` 与 CLI 开关。
+4. ✅ dump：`DemangleOptionGroup` 的开关、`DumpRequest` 与测试预设的默认值。
+5. ✅ 现编 fixture `ExistentialAnyFixture` 与 `ExistentialAnyInterfaceTests`（26 个形状 × 开关两种状态）、`ExistentialAnyDumpTests`，命令映射测试。第一轮全量测试 2842 个测试 / 543 个套件：新测试全过，失败的是 12 份 fixture 快照、`FinalKeywordICFRegressionTests` 里 SourceEditor 的 `languageService`（协议类型，现在写 `any`），以及 `FileMappingTests.readersOfOneCacheFileShareOneMapping`。12 份快照重新录制，共 202 行变化，去掉 `any`、括号并把 `.Protocol` 当 `.Type` 之后与旧快照逐字节相同；SourceEditor 的期望改成 `any`。`readersOfOneCacheFileShareOneMapping` 是全量并发下的偶发：基线与候选单独跑都通过（候选连跑三次），与本改动无关。另补 `constrainedExistentialMetatypeIsLaidOutAsAMetatype`：把三处修复文件换回修复前的版本，它报 40 字节（值容器），修复后是 16 字节。
 6. 验证与文档：全量测试、渲染 A/B（含脚本与 MachOImage 那条腿的关闭入口）、演进账本、模块文档、`AgentPlugins/swift-section` 的 skill。
 
 ## 决策日志
@@ -77,3 +77,5 @@
 | 2026-11-11 | dump 里的 constrained existential 用上游写法 `any …Boxed<Self.Boxed.Wrapped == Swift.Int>`，与同一份 dump 里 getter 符号那行一致 | 代回实参后的节点与 getter 符号里的节点同形，上游打印器对两者给出同一种写法 |
 | 2026-11-11 | 静态布局引擎原先给 `any P<X>.Type` 的分支永远走不到（先找到的是内层的 constrained existential），会按值容器而不是元类型布局；随修复改为按元类型布局 | 修复后字段直接是 `existentialMetatype(constrainedExistential)`，走普通的元类型路径；`extendedExistentialLayout` 只留给没经过 `SymbolicDemangler` 的树，并复用同一个解析函数 |
 | 2026-11-11 | interface 打印器遇到没解析出类型的 shape，交给上游打印器原样写出，不再印实参 | 把实参当成类型印出来是一个看起来对、实际错的类型；上游的原文至少名副其实 |
+| 2026-11-11 | 特化器的诊断文字（`displayName(of:)`）也写 `any` | 它的约定是「照 interface 的写法」，interface 默认写 `any` 了 |
+| 2026-11-11 | 两处已知缺口留作后续，这次不改：未展开 opaque 引用拼成 `@_opaqueReturnTypeOf("$s…", n) __<…>` 时，尖括号里的实参按 `.default` 打印；「展开的字段偏移」注释里嵌套字段的类型名在离线与进程内两条路径上都按 `.default` 打印 | 两处都不跟打印配置的拼写走，模块选择器当初同样没接；一处只在独立文件里 opaque 引用展开失败、实参又是 existential 时才碰到，另一处是注释里的类型名而不是声明本身。要接得把拼写选项一路传进 `OpaqueReferenceSpelling` 与 SwiftLayout 的 `NestedFieldOffsetTree`，超出这次的范围 |
