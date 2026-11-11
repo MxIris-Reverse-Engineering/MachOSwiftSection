@@ -89,8 +89,8 @@ extension MangledName {
     var refersToExtendedExistentialTypeShape: Bool {
         lookupElements.contains { lookup in
             guard case .relative(let reference) = lookup.reference else { return false }
-            return reference.kind == SymbolicManglingIndex.Kind.uniqueExtendedExistentialTypeShape.rawValue
-                || reference.kind == SymbolicManglingIndex.Kind.nonUniqueExtendedExistentialTypeShape.rawValue
+            return reference.kind == SymbolicManglingReference.Kind.uniqueExtendedExistentialTypeShape.rawValue
+                || reference.kind == SymbolicManglingReference.Kind.nonUniqueExtendedExistentialTypeShape.rawValue
         }
     }
 }
