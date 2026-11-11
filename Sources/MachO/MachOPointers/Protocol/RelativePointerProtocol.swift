@@ -35,32 +35,3 @@ extension RelativePointerProtocol {
         return relativeOffset != 0
     }
 }
-
-// MARK: - Deprecated Mach-O and pointer forms
-
-extension RelativePointerProtocol {
-    @available(*, deprecated, message: "Pass a ReadingContext: resolve(at: offset, in: machO.context).")
-    public func resolve(from offset: Int, in machO: some MachORepresentableWithCache & Readable) throws -> Pointee {
-        try resolve(at: offset, in: machO.context)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: resolve(at: pointer, in: .inProcess).")
-    public func resolve(from ptr: UnsafeRawPointer) throws -> Pointee {
-        try resolve(at: ptr, in: InProcessContext.shared)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: resolveAny(at: offset, in: machO.context).")
-    public func resolveAny<T: Resolvable>(from offset: Int, in machO: some MachORepresentableWithCache & Readable) throws -> T {
-        try resolveAny(at: offset, in: machO.context)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: resolveAny(at: pointer, in: .inProcess).")
-    public func resolveAny<T: Resolvable>(from ptr: UnsafeRawPointer) throws -> T {
-        try resolveAny(at: ptr, in: InProcessContext.shared)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: resolveDirectAddress(at: pointer, in: .inProcess).")
-    public func resolveDirectOffset(from ptr: UnsafeRawPointer) throws -> UnsafeRawPointer {
-        try resolveDirectAddress(at: ptr, in: InProcessContext.shared)
-    }
-}

@@ -58,16 +58,6 @@ final class MetadataWrapperTests: MachOSwiftSectionFixtureTests, FixtureSuite, @
         #expect(metadata.kind == .struct)
     }
 
-    /// `metadata` re-reads the kind-erased `Metadata` prefix at the
-    /// wrapped metadata's offset, interpreting the offset as a runtime
-    /// raw pointer. Only the in-process wrapper produces a valid raw
-    /// pointer, so we materialise the wrapper through `inProcessContext`.
-    @Test func metadata() async throws {
-        let wrapper = try loadStructTestInProcessWrapper()
-        let metadata = try wrapper.anyMetadata.asMetadata(in: inProcessContext)
-        #expect(metadata.kind == .struct)
-    }
-
     /// `valueWitnessTable(in:)` resolves the value-witness table through
     /// the full-metadata header.
     ///

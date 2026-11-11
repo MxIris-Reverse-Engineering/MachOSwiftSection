@@ -34,17 +34,3 @@ extension BuiltinTypeDescriptor {
         return try layout.typeName.resolve(at: try context.addressFromOffset(offset(of: \.typeName)), in: context)
     }
 }
-
-// MARK: - Deprecated Mach-O and pointer forms
-
-extension BuiltinTypeDescriptor {
-    @available(*, deprecated, message: "Pass a ReadingContext: typeName(in: machO.context).")
-    public func typeName(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> MangledName? {
-        try typeName(in: machO.context)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: typeName(in: .inProcess).")
-    public func typeName() throws -> MangledName? {
-        try typeName(in: InProcessContext.shared)
-    }
-}

@@ -123,27 +123,3 @@ extension PropertyDescriptor {
         return computedPropertyBody(rawIdentifier: rawIdentifier, getter: getter, setter: setter)
     }
 }
-
-// MARK: - Deprecated Mach-O and pointer forms
-
-extension PropertyDescriptor {
-    @available(*, deprecated, message: "Pass a ReadingContext: storedFieldOffset(in: machO.context).")
-    public func storedFieldOffset(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> KeyPathStoredFieldOffset? {
-        try storedFieldOffset(in: machO.context)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: computedPropertyBody(in: machO.context).")
-    public func computedPropertyBody(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> KeyPathComputedPropertyBody? {
-        try computedPropertyBody(in: machO.context)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: storedFieldOffset(in: .inProcess).")
-    public func storedFieldOffset() throws -> KeyPathStoredFieldOffset? {
-        try storedFieldOffset(in: InProcessContext.shared)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: computedPropertyBody(in: .inProcess).")
-    public func computedPropertyBody() throws -> KeyPathComputedPropertyBody? {
-        try computedPropertyBody(in: InProcessContext.shared)
-    }
-}

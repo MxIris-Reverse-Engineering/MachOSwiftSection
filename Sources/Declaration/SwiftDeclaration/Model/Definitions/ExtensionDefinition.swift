@@ -171,11 +171,6 @@ public final class ExtensionDefinition: Definition, MutableDefinition, @unchecke
         try protocolConformanceDescriptor.map { try ProtocolConformance(descriptor: $0, in: context) }
     }
 
-    @available(*, deprecated, message: "Pass a ReadingContext: materializedProtocolConformance(in: machO.context).")
-    public func materializedProtocolConformance(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> ProtocolConformance? {
-        try materializedProtocolConformance(in: machO.context)
-    }
-
     /// Folds another definition's associated types (and their frozen witness
     /// projections) into this one — the indexer's typealias-only merge path.
     package func absorbAssociatedTypes(of other: ExtensionDefinition) {

@@ -31,37 +31,3 @@ extension AssociatedTypeDescriptor {
         return try context.readWrapperElements(at: try context.addressFromOffset(offset + layoutSize), numberOfElements: layout.numAssociatedTypes.cast())
     }
 }
-
-// MARK: - Deprecated Mach-O and pointer forms
-
-extension AssociatedTypeDescriptor {
-    @available(*, deprecated, message: "Pass a ReadingContext: conformingTypeName(in: machO.context).")
-    public func conformingTypeName(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> MangledName {
-        try conformingTypeName(in: machO.context)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: protocolTypeName(in: machO.context).")
-    public func protocolTypeName(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> MangledName {
-        try protocolTypeName(in: machO.context)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: associatedTypeRecords(in: machO.context).")
-    public func associatedTypeRecords(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> [AssociatedTypeRecord] {
-        try associatedTypeRecords(in: machO.context)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: conformingTypeName(in: .inProcess).")
-    public func conformingTypeName() throws -> MangledName {
-        try conformingTypeName(in: InProcessContext.shared)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: protocolTypeName(in: .inProcess).")
-    public func protocolTypeName() throws -> MangledName {
-        try protocolTypeName(in: InProcessContext.shared)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: associatedTypeRecords(in: .inProcess).")
-    public func associatedTypeRecords() throws -> [AssociatedTypeRecord] {
-        try associatedTypeRecords(in: InProcessContext.shared)
-    }
-}

@@ -48,27 +48,3 @@ extension RelativeProtocolDescriptorPointer {
         }
     }
 }
-
-// MARK: - Deprecated Mach-O and pointer forms
-
-extension RelativeProtocolDescriptorPointer {
-    @available(*, deprecated, message: "Pass a ReadingContext: protocolDescriptorRef(at: offset, in: machO.context).")
-    public func protocolDescriptorRef(from offset: Int, in machO: some MachOSwiftSectionRepresentableWithCache) throws -> ProtocolDescriptorRef {
-        try protocolDescriptorRef(at: offset, in: machO.context)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: resolve(at: offset, in: machO.context).")
-    public func resolve(from offset: Int, in machO: some MachOSwiftSectionRepresentableWithCache) throws -> SymbolOrElement<ProtocolDescriptorWithObjCInterop> {
-        try resolve(at: offset, in: machO.context)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: protocolDescriptorRef(at: pointer, in: .inProcess).")
-    public func protocolDescriptorRef(from ptr: UnsafeRawPointer) throws -> ProtocolDescriptorRef {
-        try protocolDescriptorRef(at: ptr, in: InProcessContext.shared)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: resolve(at: pointer, in: .inProcess).")
-    public func resolve(from ptr: UnsafeRawPointer) throws -> SymbolOrElement<ProtocolDescriptorWithObjCInterop> {
-        try resolve(at: ptr, in: InProcessContext.shared)
-    }
-}

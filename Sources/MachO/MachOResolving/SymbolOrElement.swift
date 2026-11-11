@@ -59,21 +59,6 @@ public enum SymbolOrElement<Element: Resolvable>: Resolvable {
         return Symbol(offset: offset, name: name)
     }
 
-    @available(*, deprecated, message: "Pass a ReadingContext: resolve(at: offset, in: machO.context).")
-    public static func resolve(from offset: Int, in machO: some MachORepresentableWithCache & Readable) throws -> Self {
-        try resolve(at: offset, in: machO.context)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: resolve(at: offset, in: machO.context).")
-    public static func resolve(from offset: Int, in machO: some MachORepresentableWithCache & Readable) throws -> Self? {
-        try resolve(at: offset, in: machO.context)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: resolve(at: pointer, in: .inProcess).")
-    public static func resolve(from ptr: UnsafeRawPointer) throws -> Self {
-        try resolve(at: ptr, in: InProcessContext.shared)
-    }
-    
     public func map<T, E: Swift.Error>(_ transform: (Element) throws(E) -> T) throws(E) -> SymbolOrElement<T> {
         switch self {
         case .symbol(let unsolvedSymbol):

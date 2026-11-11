@@ -56,12 +56,3 @@ extension TypeMetadataRecord {
         }
     }
 }
-
-// MARK: - Deprecated Mach-O form
-
-extension TypeMetadataRecord {
-    @available(*, deprecated, message: "Pass a ReadingContext: contextDescriptor(in: machO.context).")
-    public func contextDescriptor(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> ContextDescriptorWrapper? {
-        try contextDescriptor(in: machO.context)
-    }
-}

@@ -32,8 +32,6 @@ package enum ClassBaselineGenerator {
         let subclassTestExpr = emitEntryExpr(for: subclassTestClass)
 
         // Public ivars + initializers declared directly in Class.swift.
-        // Two `init(descriptor:in:)` overloads (MachO + Context) collapse to
-        // a single MethodKey under PublicMemberScanner's name-based key.
         let registered = [
             "canonicalSpecializedMetadataAccessors",
             "canonicalSpecializedMetadatas",
@@ -42,7 +40,6 @@ package enum ClassBaselineGenerator {
             "descriptor",
             "foreignMetadataInitialization",
             "genericContext",
-            "init(descriptor:)",
             "init(descriptor:in:)",
             "invertibleProtocolSet",
             "methodDefaultOverrideDescriptors",

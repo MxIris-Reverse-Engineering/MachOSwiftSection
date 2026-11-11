@@ -24,13 +24,9 @@ package enum AnonymousContextBaselineGenerator {
         let entryExpr = emitEntryExpr(for: context)
 
         // Public members declared directly in AnonymousContext.swift.
-        // Both `init(descriptor:in:)` overloads (MachO + ReadingContext)
-        // collapse to one MethodKey under PublicMemberScanner's name-based
-        // deduplication.
         let registered = [
             "descriptor",
             "genericContext",
-            "init(descriptor:)",
             "init(descriptor:in:)",
             "mangledName",
         ]

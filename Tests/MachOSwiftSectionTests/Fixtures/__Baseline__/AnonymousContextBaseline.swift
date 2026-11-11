@@ -3,7 +3,7 @@
 // Source fixture: SymbolTestsCore.framework
 
 enum AnonymousContextBaseline {
-    static let registeredTestMethodNames: Set<String> = ["descriptor", "genericContext", "init(descriptor:)", "init(descriptor:in:)", "mangledName"]
+    static let registeredTestMethodNames: Set<String> = ["descriptor", "genericContext", "init(descriptor:in:)", "mangledName"]
 
     struct Entry {
         let descriptorOffset: Int

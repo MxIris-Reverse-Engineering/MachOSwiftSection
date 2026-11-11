@@ -92,17 +92,3 @@ extension Enum {
         }
     }
 }
-
-// MARK: - Deprecated Mach-O and pointer forms
-
-extension Enum {
-    @available(*, deprecated, message: "Pass a ReadingContext: Enum(descriptor:in: machO.context).")
-    public init(descriptor: EnumDescriptor, in machO: some MachOSwiftSectionRepresentableWithCache) throws {
-        try self.init(descriptor: descriptor, in: machO.context)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: Enum(descriptor:in: .inProcess).")
-    public init(descriptor: EnumDescriptor) throws {
-        try self.init(descriptor: descriptor, in: InProcessContext.shared)
-    }
-}

@@ -19,13 +19,9 @@ package enum BuiltinTypeBaselineGenerator {
         let builtin = try BuiltinType(descriptor: descriptor, in: machO.context)
         let entryExpr = emitEntryExpr(for: builtin)
 
-        // Public members declared in BuiltinType.swift. The two MachO
-        // initializers (`init(descriptor:in:)`) and the InProcess form
-        // (`init(descriptor:)`) collapse into two MethodKey entries
-        // under the scanner.
+        // Public members declared in BuiltinType.swift.
         let registered = [
             "descriptor",
-            "init(descriptor:)",
             "init(descriptor:in:)",
             "typeName",
         ]

@@ -8,7 +8,7 @@
 // counts / presence flags recorded here.
 
 enum AssociatedTypeBaseline {
-    static let registeredTestMethodNames: Set<String> = ["conformingTypeName", "descriptor", "init(descriptor:)", "init(descriptor:in:)", "protocolTypeName", "records"]
+    static let registeredTestMethodNames: Set<String> = ["conformingTypeName", "descriptor", "init(descriptor:in:)", "protocolTypeName", "records"]
 
     struct Entry {
         let descriptorOffset: Int

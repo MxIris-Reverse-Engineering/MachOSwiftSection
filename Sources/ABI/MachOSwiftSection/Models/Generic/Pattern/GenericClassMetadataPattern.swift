@@ -62,12 +62,3 @@ extension GenericClassMetadataPattern {
         return try partialPatterns(in: context).last
     }
 }
-
-// MARK: - Deprecated Mach-O form
-
-extension GenericClassMetadataPattern {
-    @available(*, deprecated, message: "Pass a ReadingContext: immediateMembersPattern(in: machO.context).")
-    public func immediateMembersPattern(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> GenericMetadataPartialPattern? {
-        try immediateMembersPattern(in: machO.context)
-    }
-}

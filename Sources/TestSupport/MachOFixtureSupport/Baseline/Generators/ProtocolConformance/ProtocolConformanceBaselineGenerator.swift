@@ -49,10 +49,7 @@ package enum ProtocolConformanceBaselineGenerator {
 
         // Public members declared directly in ProtocolConformance.swift
         // (across the body and the same-file ReadingContext extension).
-        // The `init(descriptor:in:)` MachO and ReadingContext overloads
-        // collapse to a single MethodKey under PublicMemberScanner's
-        // name-based deduplication. `flags` is a derived computed
-        // property over `descriptor.flags`.
+        // `flags` is a derived computed property over `descriptor.flags`.
         let registered = [
             "conditionalPackShapeDescriptors",
             "conditionalRequirements",
@@ -60,7 +57,6 @@ package enum ProtocolConformanceBaselineGenerator {
             "flags",
             "genericWitnessTable",
             "globalActorReference",
-            "init(descriptor:)",
             "init(descriptor:in:)",
             "protocol",
             "resilientWitnesses",

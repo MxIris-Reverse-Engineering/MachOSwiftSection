@@ -370,15 +370,6 @@ final class GenericContextTests: MachOSwiftSectionFixtureTests, FixtureSuite, @u
         #expect(count == GenericContextBaseline.layoutRequirement.requirementsCount)
     }
 
-    @Test func uniqueCurrentRequirementsInProcess() async throws {
-        let contexts = try layoutRequirementContexts()
-        let count = try acrossAllReaders(
-            file: { contexts.file.uniqueCurrentRequirements(in: inProcessContext).count },
-            image: { contexts.image.uniqueCurrentRequirements(in: inProcessContext).count }
-        )
-        #expect(count == GenericContextBaseline.layoutRequirement.requirementsCount)
-    }
-
     // MARK: - Three-level-nested counter-examples (P0 regression guards)
     //
     // Every `current*` / `all*` / `parent*` derived var on `TargetGenericContext`

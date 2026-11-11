@@ -9,19 +9,18 @@ import SwiftSyntaxBuilder
 /// kind. PublicMemberScanner sees only the source-declared members
 /// (macro-injected case-presence helpers and associated-value extractors
 /// are out of scope per `GenericRequirementContentBaseline`'s pattern):
-///   - `anyMetadata`, `metadata` (computed properties)
-///   - `valueWitnessTable` (3 overloads collapsing to one MethodKey)
-///   - `resolve` (3 overloads collapsing to one MethodKey)
+///   - `anyMetadata` (computed property)
+///   - `valueWitnessTable`
+///   - `resolve`
 ///
 /// Live wrappers are materialised only via MachOImage's accessor
 /// (`StructTest`'s `MetadataResponse.value.resolve(in:)`). The Suite asserts
 /// the wrapper enum's `case` discriminant matches `.struct` and the
-/// projected `metadata`/`anyMetadata` round-trip the offset.
+/// projected `anyMetadata` round-trips the offset.
 package enum MetadataWrapperBaselineGenerator {
     package static func generate(outputDirectory: URL) throws {
         let registered = [
             "anyMetadata",
-            "metadata",
             "resolve",
             "valueWitnessTable",
         ]

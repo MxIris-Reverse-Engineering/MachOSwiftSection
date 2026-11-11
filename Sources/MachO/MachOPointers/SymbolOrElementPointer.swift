@@ -54,50 +54,9 @@ public enum SymbolOrElementPointer<Element: Resolvable>: RelativeIndirectType {
     }
 }
 
-// MARK: - Deprecated Mach-O and pointer forms
-
-extension SymbolOrElementPointer {
-    @available(*, deprecated, message: "Pass a ReadingContext: resolve(in: .inProcess).")
-    public func resolve() throws -> Resolved {
-        try resolve(in: InProcessContext.shared)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: resolve(in: machO.context).")
-    public func resolve(in machO: some MachORepresentableWithCache & Readable) throws -> Resolved {
-        try resolve(in: machO.context)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: resolveAddress(in: machO.context).")
-    public func resolveOffset(in machO: some MachORepresentableWithCache & Readable) -> Int {
-        // `MachOContext` converts addresses without failing; the requirement
-        // is declared `throws` only for the contexts that can.
-        try! resolveAddress(in: machO.context)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: resolveAny(in: .inProcess).")
-    public func resolveAny<T>() throws -> T where T: Resolvable {
-        try resolveAny(in: InProcessContext.shared)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: resolveAny(in: machO.context).")
-    public func resolveAny<T: Resolvable>(in machO: some MachORepresentableWithCache & Readable) throws -> T {
-        try resolveAny(in: machO.context)
-    }
-}
-
 extension SymbolOrElementPointer where Element: OptionalProtocol {
     public func resolve(in context: some ReadingContext) throws -> Resolved {
         try resolveUnlessNull(in: context)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: resolve(in: .inProcess).")
-    public func resolve() throws -> Resolved {
-        try resolveUnlessNull(in: InProcessContext.shared)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: resolve(in: machO.context).")
-    public func resolve(in machO: some MachORepresentableWithCache & Readable) throws -> Resolved {
-        try resolveUnlessNull(in: machO.context)
     }
 
     /// A stored address that is null once its tag bits are stripped

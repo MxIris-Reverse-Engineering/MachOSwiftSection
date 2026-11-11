@@ -27,7 +27,6 @@ package enum OpaqueTypeBaselineGenerator {
         let registered = [
             "descriptor",
             "genericContext",
-            "init(descriptor:)",
             "init(descriptor:in:)",
             "invertedProtocols",
             "underlyingTypeArgumentMangledNames",

@@ -22,27 +22,3 @@ extension EnumMetadataProtocol {
         return payloadSize
     }
 }
-
-// MARK: - Deprecated Mach-O and pointer forms
-
-extension EnumMetadataProtocol {
-    @available(*, deprecated, message: "Pass a ReadingContext: enumDescriptor(in: machO.context).")
-    public func enumDescriptor(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> EnumDescriptor {
-        try enumDescriptor(in: machO.context)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: payloadSize(in: machO.context).")
-    public func payloadSize(descriptor: EnumDescriptor? = nil, in machO: some MachOSwiftSectionRepresentableWithCache) throws -> StoredSize? {
-        try payloadSize(descriptor: descriptor, in: machO.context)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: enumDescriptor(in: .inProcess).")
-    public func enumDescriptor() throws -> EnumDescriptor {
-        try enumDescriptor(in: InProcessContext.shared)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: payloadSize(in: .inProcess).")
-    public func payloadSize(descriptor: EnumDescriptor? = nil) throws -> StoredSize? {
-        try payloadSize(descriptor: descriptor, in: InProcessContext.shared)
-    }
-}

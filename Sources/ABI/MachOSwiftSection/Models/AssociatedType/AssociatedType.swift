@@ -22,17 +22,3 @@ extension AssociatedType {
         self.records = try descriptor.associatedTypeRecords(in: context)
     }
 }
-
-// MARK: - Deprecated Mach-O and pointer forms
-
-extension AssociatedType {
-    @available(*, deprecated, message: "Pass a ReadingContext: AssociatedType(descriptor:in: machO.context).")
-    public init(descriptor: AssociatedTypeDescriptor, in machO: some MachOSwiftSectionRepresentableWithCache) throws {
-        try self.init(descriptor: descriptor, in: machO.context)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: AssociatedType(descriptor:in: .inProcess).")
-    public init(descriptor: AssociatedTypeDescriptor) throws {
-        try self.init(descriptor: descriptor, in: InProcessContext.shared)
-    }
-}

@@ -56,43 +56,14 @@ extension RelativeIndirectablePointerProtocol {
     }
 }
 
-// MARK: - Deprecated Mach-O and pointer forms
-
-extension RelativeIndirectablePointerProtocol {
-    @available(*, deprecated, message: "Pass a ReadingContext: resolveIndirectableType(at: offset, in: machO.context).")
-    public func resolveIndirectableType(from offset: Int, in machO: some MachORepresentableWithCache & Readable) throws -> IndirectType? {
-        try resolveIndirectableType(at: offset, in: machO.context)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: resolveIndirectableOffset(at: offset, in: machO.context).")
-    public func resolveIndirectableOffset(from offset: Int, in machO: some MachORepresentableWithCache & Readable) throws -> Int {
-        try resolveIndirectableOffset(at: offset, in: machO.context)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: resolveIndirectableType(at: pointer, in: .inProcess).")
-    public func resolveIndirectableType(from ptr: UnsafeRawPointer) throws -> IndirectType? {
-        try resolveIndirectableType(at: ptr, in: InProcessContext.shared)
-    }
-}
-
 extension RelativeIndirectablePointerProtocol where Pointee: OptionalProtocol {
     public func resolve<Context: ReadingContext>(at address: Context.Address, in context: Context) throws -> Pointee {
         try resolveUnlessNull(at: address, in: context)
     }
 
-    @available(*, deprecated, message: "Pass a ReadingContext: resolve(at: offset, in: machO.context).")
-    public func resolve(from offset: Int, in machO: some MachORepresentableWithCache & Readable) throws -> Pointee {
-        try resolveUnlessNull(at: offset, in: machO.context)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: resolve(at: pointer, in: .inProcess).")
-    public func resolve(from ptr: UnsafeRawPointer) throws -> Pointee {
-        try resolveUnlessNull(at: ptr, in: InProcessContext.shared)
-    }
-
-    /// A null pointer resolves to `nil`. The deprecated forms call this
-    /// rather than `resolve(at:in:)`, which from here binds to the protocol
-    /// requirement and skips the check.
+    /// A null pointer resolves to `nil`; any other pointer goes on to the
+    /// protocol requirement, which is what `resolve(at:in:)` names from
+    /// inside this extension and which skips the check.
     private func resolveUnlessNull<Context: ReadingContext>(at address: Context.Address, in context: Context) throws -> Pointee {
         guard isValid else { return nil }
         return try resolve(at: address, in: context)

@@ -77,32 +77,3 @@ extension AccessibleFunctionRecord {
         return try context.addressFromOffset(functionOffset)
     }
 }
-
-// MARK: - Deprecated Mach-O and pointer forms
-
-extension AccessibleFunctionRecord {
-    @available(*, deprecated, message: "Pass a ReadingContext: name(in: machO.context).")
-    public func name(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> String {
-        try name(in: machO.context)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: functionType(in: machO.context).")
-    public func functionType(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> MangledName {
-        try functionType(in: machO.context)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: genericEnvironment(in: machO.context).")
-    public func genericEnvironment(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> GenericEnvironment? {
-        try genericEnvironment(in: machO.context)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: name(in: .inProcess).")
-    public func name() throws -> String {
-        try name(in: InProcessContext.shared)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: functionType(in: .inProcess).")
-    public func functionType() throws -> MangledName {
-        try functionType(in: InProcessContext.shared)
-    }
-}

@@ -37,27 +37,3 @@ extension MethodDefaultOverrideDescriptor {
         return try context.addressFromOffset(implementationOffset)
     }
 }
-
-// MARK: - Deprecated Mach-O and pointer forms
-
-extension MethodDefaultOverrideDescriptor {
-    @available(*, deprecated, message: "Pass a ReadingContext: originalMethodDescriptor(in: machO.context).")
-    public func originalMethodDescriptor(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> SymbolOrElement<MethodDescriptor>? {
-        try originalMethodDescriptor(in: machO.context)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: replacementMethodDescriptor(in: machO.context).")
-    public func replacementMethodDescriptor(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> SymbolOrElement<MethodDescriptor>? {
-        try replacementMethodDescriptor(in: machO.context)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: originalMethodDescriptor(in: .inProcess).")
-    public func originalMethodDescriptor() throws -> SymbolOrElement<MethodDescriptor>? {
-        try originalMethodDescriptor(in: InProcessContext.shared)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: replacementMethodDescriptor(in: .inProcess).")
-    public func replacementMethodDescriptor() throws -> SymbolOrElement<MethodDescriptor>? {
-        try replacementMethodDescriptor(in: InProcessContext.shared)
-    }
-}

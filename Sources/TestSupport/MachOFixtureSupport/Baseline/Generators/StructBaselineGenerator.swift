@@ -42,8 +42,6 @@ package enum StructBaselineGenerator {
         let genericStructExpr = emitEntryExpr(for: genericStructStruct)
 
         // Public members declared directly in Struct.swift, per scanner output.
-        // Two `init(descriptor:in:)` overloads (MachO + Context) collapse to one
-        // MethodKey under PublicMemberScanner's name-based deduplication.
         let registered = [
             "canonicalSpecializedMetadatas",
             "canonicalSpecializedMetadatasCachingOnceToken",
@@ -51,7 +49,6 @@ package enum StructBaselineGenerator {
             "descriptor",
             "foreignMetadataInitialization",
             "genericContext",
-            "init(descriptor:)",
             "init(descriptor:in:)",
             "invertibleProtocolSet",
             "singletonMetadataInitialization",

@@ -249,11 +249,6 @@ public final class TypeDefinition: Definition, @unchecked Sendable {
         try TypeContextWrapper.forTypeContextDescriptorWrapper(typeContextDescriptorWrapper, in: context)
     }
 
-    @available(*, deprecated, message: "Pass a ReadingContext: materializedTypeContext(in: machO.context).")
-    public func materializedTypeContext(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> TypeContextWrapper {
-        try materializedTypeContext(in: machO.context)
-    }
-
     /// What a type-level attribute prints in parentheses, or `nil` when it
     /// takes no argument: the runtime name of `@objc(NSColorModel)` and
     /// `@_objcRuntimeName(Name)` (evolution proposal `objc-custom-class-name`).

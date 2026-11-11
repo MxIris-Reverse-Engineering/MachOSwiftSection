@@ -89,27 +89,3 @@ extension ContextWrapper {
         }
     }
 }
-
-// MARK: - Deprecated Mach-O and pointer forms
-
-extension ContextWrapper {
-    @available(*, deprecated, message: "Pass a ReadingContext: forContextDescriptorWrapper(_:in: machO.context).")
-    public static func forContextDescriptorWrapper(_ contextDescriptorWrapper: ContextDescriptorWrapper, in machO: some MachOSwiftSectionRepresentableWithCache) throws -> Self {
-        try forContextDescriptorWrapper(contextDescriptorWrapper, in: machO.context)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: parent(in: machO.context).")
-    public func parent(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> SymbolOrElement<ContextWrapper>? {
-        try parent(in: machO.context)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: forContextDescriptorWrapper(_:in: .inProcess).")
-    public static func forContextDescriptorWrapper(_ contextDescriptorWrapper: ContextDescriptorWrapper) throws -> Self {
-        try forContextDescriptorWrapper(contextDescriptorWrapper, in: InProcessContext.shared)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: parent(in: .inProcess).")
-    public func parent() throws -> SymbolOrElement<ContextWrapper>? {
-        try parent(in: InProcessContext.shared)
-    }
-}

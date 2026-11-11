@@ -46,27 +46,3 @@ extension MetadataSourceRecord {
         try layout.mangledMetadataSource.resolve(at: try context.addressFromOffset(offset(of: \.mangledMetadataSource)), in: context)
     }
 }
-
-// MARK: - Deprecated Mach-O and pointer forms
-
-extension MetadataSourceRecord {
-    @available(*, deprecated, message: "Pass a ReadingContext: mangledTypeName(in: machO.context).")
-    public func mangledTypeName(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> MangledName {
-        try mangledTypeName(in: machO.context)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: mangledMetadataSource(in: machO.context).")
-    public func mangledMetadataSource(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> MangledName {
-        try mangledMetadataSource(in: machO.context)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: mangledTypeName(in: .inProcess).")
-    public func mangledTypeName() throws -> MangledName {
-        try mangledTypeName(in: InProcessContext.shared)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: mangledMetadataSource(in: .inProcess).")
-    public func mangledMetadataSource() throws -> MangledName {
-        try mangledMetadataSource(in: InProcessContext.shared)
-    }
-}

@@ -274,27 +274,3 @@ extension TargetGenericContext {
         return currentRequirements
     }
 }
-
-// MARK: - Deprecated Mach-O and pointer forms
-
-extension TargetGenericContext {
-    @available(*, deprecated, message: "Pass a ReadingContext: TargetGenericContext(contextDescriptor:in: machO.context).")
-    public init(contextDescriptor: some ContextDescriptorProtocol, in machO: some MachOSwiftSectionRepresentableWithCache) throws {
-        try self.init(contextDescriptor: contextDescriptor, in: machO.context)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: TargetGenericContext(contextDescriptor:in: .inProcess).")
-    public init(contextDescriptor: some ContextDescriptorProtocol) throws {
-        try self.init(contextDescriptor: contextDescriptor, in: InProcessContext.shared)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: uniqueCurrentRequirements(in: machO.context).")
-    public func uniqueCurrentRequirements(in machO: some MachOSwiftSectionRepresentableWithCache) -> [GenericRequirementDescriptor] {
-        uniqueCurrentRequirements(in: machO.context)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: uniqueCurrentRequirements(in: .inProcess).")
-    public func uniqueCurrentRequirementsInProcess() -> [GenericRequirementDescriptor] {
-        uniqueCurrentRequirements(in: InProcessContext.shared)
-    }
-}

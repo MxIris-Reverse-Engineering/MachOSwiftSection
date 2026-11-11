@@ -40,21 +40,10 @@ extension RelativeDirectPointerProtocol where Pointee: OptionalProtocol {
         try resolveUnlessNull(at: address, in: context)
     }
 
-    @available(*, deprecated, message: "Pass a ReadingContext: resolve(at: offset, in: machO.context).")
-    public func resolve(from offset: Int, in machO: some MachORepresentableWithCache & Readable) throws -> Pointee {
-        try resolveUnlessNull(at: offset, in: machO.context)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: resolve(at: pointer, in: .inProcess).")
-    public func resolve(from ptr: UnsafeRawPointer) throws -> Pointee {
-        try resolveUnlessNull(at: ptr, in: InProcessContext.shared)
-    }
-
     /// A null pointer resolves to `nil` instead of the bytes at its own
-    /// location. The deprecated forms call this rather than
-    /// `resolve(at:in:)`: from here that name binds to the protocol
-    /// requirement, whose witness is the unconstrained implementation
-    /// without this check.
+    /// location; any other pointer goes on to the protocol requirement, which
+    /// is what `resolve(at:in:)` names from inside this extension and whose
+    /// witness is the unconstrained implementation without this check.
     private func resolveUnlessNull<Context: ReadingContext>(at address: Context.Address, in context: Context) throws -> Pointee {
         guard isValid else { return nil }
         return try resolve(at: address, in: context)

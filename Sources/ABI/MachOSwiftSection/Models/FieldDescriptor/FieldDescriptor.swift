@@ -39,27 +39,3 @@ extension FieldDescriptor {
         return try context.readWrapperElements(at: try context.addressFromOffset(offset), numberOfElements: layout.numFields.cast())
     }
 }
-
-// MARK: - Deprecated Mach-O and pointer forms
-
-extension FieldDescriptor {
-    @available(*, deprecated, message: "Pass a ReadingContext: mangledTypeName(in: machO.context).")
-    public func mangledTypeName(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> MangledName {
-        try mangledTypeName(in: machO.context)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: records(in: machO.context).")
-    public func records(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> [FieldRecord] {
-        try records(in: machO.context)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: mangledTypeName(in: .inProcess).")
-    public func mangledTypeName() throws -> MangledName {
-        try mangledTypeName(in: InProcessContext.shared)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: records(in: .inProcess).")
-    public func records() throws -> [FieldRecord] {
-        try records(in: InProcessContext.shared)
-    }
-}

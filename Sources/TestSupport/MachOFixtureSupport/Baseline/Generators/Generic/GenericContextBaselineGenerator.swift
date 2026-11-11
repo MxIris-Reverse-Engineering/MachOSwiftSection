@@ -62,10 +62,7 @@ package enum GenericContextBaselineGenerator {
         let invertibleExpr = emitEntryExpr(for: invertibleContext)
 
         // Public members declared directly in GenericContext.swift on
-        // `TargetGenericContext`. The three `init(contextDescriptor:in:)`
-        // overloads (MachO + InProcess + ReadingContext) collapse to one
-        // MethodKey under PublicMemberScanner's name-based deduplication;
-        // `init(contextDescriptor:)` is the InProcess variant.
+        // `TargetGenericContext`.
         let registered = [
             "allParameters",
             "allRequirements",
@@ -81,7 +78,6 @@ package enum GenericContextBaselineGenerator {
             "currentValues",
             "depth",
             "header",
-            "init(contextDescriptor:)",
             "init(contextDescriptor:in:)",
             "offset",
             "parameters",
@@ -94,7 +90,6 @@ package enum GenericContextBaselineGenerator {
             "typePackHeader",
             "typePacks",
             "uniqueCurrentRequirements",
-            "uniqueCurrentRequirementsInProcess",
             "valueHeader",
             "values",
         ]

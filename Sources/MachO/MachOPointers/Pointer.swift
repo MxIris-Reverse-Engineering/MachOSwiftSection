@@ -21,16 +21,6 @@ public struct Pointer<Pointee: Resolvable>: RelativeIndirectType, PointerProtoco
         }
         return try context.readElement(at: address)
     }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: resolve(at: offset, in: machO.context).")
-    public static func resolve(from offset: Int, in machO: some MachORepresentableWithCache & Readable) throws -> Self {
-        try resolve(at: offset, in: machO.context)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: resolve(at: pointer, in: .inProcess).")
-    public static func resolve(from ptr: UnsafeRawPointer) throws -> Self {
-        try resolve(at: ptr, in: InProcessContext.shared)
-    }
 }
 
 public typealias RawPointer = Pointer<AnyResolvable>

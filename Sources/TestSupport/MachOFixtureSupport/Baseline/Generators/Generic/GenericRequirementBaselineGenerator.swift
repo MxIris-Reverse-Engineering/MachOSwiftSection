@@ -47,13 +47,9 @@ package enum GenericRequirementBaselineGenerator {
         let sameTypeExpr = emitEntryExpr(for: sameTypeReq)
 
         // Public members declared directly in GenericRequirement.swift.
-        // The three `init(descriptor:in:)` overloads (MachO + InProcess +
-        // ReadingContext) collapse to one MethodKey under PublicMemberScanner's
-        // name-based deduplication; `init(descriptor:)` is the InProcess form.
         let registered = [
             "content",
             "descriptor",
-            "init(descriptor:)",
             "init(descriptor:in:)",
             "paramManagledName",
         ]

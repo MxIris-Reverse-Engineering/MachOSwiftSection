@@ -31,14 +31,9 @@ package enum ProtocolBaselineGenerator {
 
         // Public members declared directly in Protocol.swift (across the main
         // body and two same-file extensions, both in the ReadingContext block).
-        // Stored properties (descriptor/protocolFlags/name/baseRequirement/
-        // requirementInSignatures/requirements) collapse with the two
-        // `init(descriptor:in:)` overloads under PublicMemberScanner's name-
-        // based deduplication.
         let registered = [
             "baseRequirement",
             "descriptor",
-            "init(descriptor:)",
             "init(descriptor:in:)",
             "name",
             "numberOfRequirements",

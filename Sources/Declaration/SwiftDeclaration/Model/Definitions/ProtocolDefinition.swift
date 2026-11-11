@@ -152,9 +152,4 @@ public final class ProtocolDefinition: Definition, MutableDefinition, @unchecked
     public func materializedProtocol(in context: some ReadingContext) throws -> MachOSwiftSection.`Protocol` {
         try MachOSwiftSection.`Protocol`(descriptor: protocolDescriptor, in: context)
     }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: materializedProtocol(in: machO.context).")
-    public func materializedProtocol(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> MachOSwiftSection.`Protocol` {
-        try materializedProtocol(in: machO.context)
-    }
 }

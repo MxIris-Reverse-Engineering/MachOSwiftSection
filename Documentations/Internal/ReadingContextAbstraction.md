@@ -159,7 +159,7 @@ extension RelativeDirectPointerProtocol {
 
 ## Usage Examples
 
-Since the single-implementation pass (below, 2026-09-30) the `ReadingContext` form is the only one to call. The Mach-O form (`in: machO`) and the pointer form (no reader argument) are deprecated forwarders until 0.25.0.
+Since the single-implementation pass (below, 2026-09-30) the `ReadingContext` form is the only one there is. The Mach-O form (`in: machO`) and the pointer form (no reader argument) were deprecated forwarders from 0.22.0 and are deleted in 0.25.0.
 
 ```swift
 // A Mach-O file or image: pass its context.
@@ -261,7 +261,7 @@ Sources/
 | **1. Add Infrastructure** | Add `ReadingContext`, `MachOContext`, `InProcessContext` | Non-breaking |
 | **2. Add Extensions** | Add `resolve(at:in:)` to `Resolvable` and pointer protocols | Non-breaking |
 | **3. Gradual Migration** | New code uses `ReadingContext` API | Progressive |
-| **4. Deprecation** | The `ReadingContext` form becomes the only implementation; the Mach-O and pointer forms are deprecated forwarders (0.22.0) and removed (0.25.0, postponed twice from 0.23.0) | Done 2026-09-30, see below |
+| **4. Deprecation** | The `ReadingContext` form becomes the only implementation; the Mach-O and pointer forms are deprecated forwarders (0.22.0) and removed (0.25.0, postponed twice from 0.23.0) | Done 2026-09-30; forwarders deleted 2026-11-11 for 0.25.0, see below |
 
 ## Benefits
 
@@ -319,7 +319,7 @@ Two deliberate decisions worth keeping in mind:
 
 提案：[0057-reading-context-migration](../Evolutions/0057-reading-context-migration.md)。
 
-每个读取接口原先最多有三份手写实现：按偏移读 Mach-O 的、用裸指针读本进程的、经 `ReadingContext` 读的。现在只剩 `ReadingContext` 那一份；另外两份是一行转发（`machO.context` / `InProcessContext.shared`），标 `@available(*, deprecated)`，0.25.0 删除（原定 0.23.0，下游未迁完而两次推迟）。下面是代码里看不出来、下次维护会踩的几点。
+每个读取接口原先最多有三份手写实现：按偏移读 Mach-O 的、用裸指针读本进程的、经 `ReadingContext` 读的。现在只剩 `ReadingContext` 那一份；另外两份在 0.22.0 改成一行转发（`machO.context` / `InProcessContext.shared`）并标 `@available(*, deprecated)`，0.25.0 删除（原定 0.23.0，下游未迁完而两次推迟；2026-11-11 在 MachOReading / MachOResolving 迁入 MachOKitExtensions 的同一版删去）。下面几点是当年做转发时的取舍，转发虽已删除，以后给读取接口加重载时同样会遇到。
 
 ### 转发必须原地保留
 
@@ -331,7 +331,7 @@ Two deliberate decisions worth keeping in mind:
 
 ### 约束扩展里的空指针 guard
 
-在 `where Pointee: OptionalProtocol` 这类约束扩展里，按名字调用一个同时是协议 requirement 的方法，绑定的是 requirement，也就是无约束的 witness，而不是旁边那个约束重载。所以转发如果写成 `try resolve(at: offset, in: machO.context)`，就会跳过空指针 guard，去读空指针自己所在位置的字节。guard 因此放在一个私有 helper 里，由 `ReadingContext` 入口和各个转发共同调用（`RelativeDirectPointerProtocol` 等四个协议，以及 `PointerProtocol`、`SymbolOrElementPointer`）。
+在 `where Pointee: OptionalProtocol` 这类约束扩展里，按名字调用一个同时是协议 requirement 的方法，绑定的是 requirement，也就是无约束的 witness，而不是旁边那个约束重载。所以转发如果写成 `try resolve(at: offset, in: machO.context)`，就会跳过空指针 guard，去读空指针自己所在位置的字节。guard 因此放在一个私有 helper 里，由约束扩展里的 `ReadingContext` 入口调用，转发删除之前也由各个转发调用（`RelativeDirectPointerProtocol` 等四个协议，以及 `PointerProtocol`、`SymbolOrElementPointer`）。
 
 ### 收成一份时修掉的分歧
 

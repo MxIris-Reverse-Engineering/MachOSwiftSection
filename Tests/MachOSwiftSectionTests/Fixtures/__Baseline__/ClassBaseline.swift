@@ -3,7 +3,7 @@
 // Source fixture: SymbolTestsCore.framework
 
 enum ClassBaseline {
-    static let registeredTestMethodNames: Set<String> = ["canonicalSpecializedMetadataAccessors", "canonicalSpecializedMetadatas", "canonicalSpecializedMetadatasCachingOnceToken", "canonicalSpecializedMetadatasListCount", "descriptor", "foreignMetadataInitialization", "genericContext", "init(descriptor:)", "init(descriptor:in:)", "invertibleProtocolSet", "methodDefaultOverrideDescriptors", "methodDefaultOverrideTableHeader", "methodDescriptors", "methodOverrideDescriptors", "objcResilientClassStubInfo", "overrideTableHeader", "resilientSuperclass", "singletonMetadataInitialization", "singletonMetadataPointer", "vTableDescriptorHeader"]
+    static let registeredTestMethodNames: Set<String> = ["canonicalSpecializedMetadataAccessors", "canonicalSpecializedMetadatas", "canonicalSpecializedMetadatasCachingOnceToken", "canonicalSpecializedMetadatasListCount", "descriptor", "foreignMetadataInitialization", "genericContext", "init(descriptor:in:)", "invertibleProtocolSet", "methodDefaultOverrideDescriptors", "methodDefaultOverrideTableHeader", "methodDescriptors", "methodOverrideDescriptors", "objcResilientClassStubInfo", "overrideTableHeader", "resilientSuperclass", "singletonMetadataInitialization", "singletonMetadataPointer", "vTableDescriptorHeader"]
 
     struct Entry {
         let descriptorOffset: Int

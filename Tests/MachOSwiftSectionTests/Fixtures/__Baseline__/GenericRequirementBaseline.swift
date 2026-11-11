@@ -3,7 +3,7 @@
 // Source fixture: SymbolTestsCore.framework
 
 enum GenericRequirementBaseline {
-    static let registeredTestMethodNames: Set<String> = ["content", "descriptor", "init(descriptor:)", "init(descriptor:in:)", "paramManagledName"]
+    static let registeredTestMethodNames: Set<String> = ["content", "descriptor", "init(descriptor:in:)", "paramManagledName"]
 
     struct Entry {
         let descriptorOffset: Int

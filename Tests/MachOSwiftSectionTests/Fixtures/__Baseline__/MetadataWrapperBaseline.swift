@@ -9,5 +9,5 @@
 // appear in the registered set.
 
 enum MetadataWrapperBaseline {
-    static let registeredTestMethodNames: Set<String> = ["anyMetadata", "metadata", "resolve", "valueWitnessTable"]
+    static let registeredTestMethodNames: Set<String> = ["anyMetadata", "resolve", "valueWitnessTable"]
 }

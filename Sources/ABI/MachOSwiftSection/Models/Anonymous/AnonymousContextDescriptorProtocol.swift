@@ -24,17 +24,3 @@ extension AnonymousContextDescriptorProtocol {
         return anonymousContextDescriptorFlags.hasMangledName
     }
 }
-
-// MARK: - Deprecated Mach-O and pointer forms
-
-extension AnonymousContextDescriptorProtocol {
-    @available(*, deprecated, message: "Pass a ReadingContext: mangledName(in: machO.context).")
-    public func mangledName(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> MangledName? {
-        try mangledName(in: machO.context)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: mangledName(in: .inProcess).")
-    public func mangledName() throws -> MangledName? {
-        try mangledName(in: InProcessContext.shared)
-    }
-}

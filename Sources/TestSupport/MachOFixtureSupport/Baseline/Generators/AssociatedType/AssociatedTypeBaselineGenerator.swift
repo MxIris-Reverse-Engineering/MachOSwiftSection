@@ -9,10 +9,7 @@ import MachOFoundation
 /// `AssociatedType` is the high-level wrapper around
 /// `AssociatedTypeDescriptor`. Beyond holding the descriptor itself it
 /// pre-resolves `conformingTypeName`, `protocolTypeName`, and the
-/// trailing `[AssociatedTypeRecord]`. The two MachO-based initializers
-/// (`init(descriptor:in:)`) and the InProcess `init(descriptor:)` collapse
-/// to single MethodKey entries under PublicMemberScanner's name-based
-/// deduplication.
+/// trailing `[AssociatedTypeRecord]`.
 ///
 /// Picker: `AssociatedTypeWitnessPatterns.ConcreteWitnessTest` conforming
 /// to `AssociatedTypeWitnessPatterns.AssociatedPatternProtocol`. The
@@ -30,13 +27,9 @@ package enum AssociatedTypeBaselineGenerator {
         let entryExpr = emitEntryExpr(for: associatedType)
 
         // Public members declared directly in AssociatedType.swift.
-        // The two `init(descriptor:in:)` overloads (MachO + ReadingContext)
-        // collapse to one MethodKey under the scanner's name-based
-        // deduplication; `init(descriptor:)` is the InProcess form.
         let registered = [
             "conformingTypeName",
             "descriptor",
-            "init(descriptor:)",
             "init(descriptor:in:)",
             "protocolTypeName",
             "records",

@@ -30,8 +30,6 @@ package enum EnumBaselineGenerator {
         let noPayloadExpr = emitEntryExpr(for: noPayloadEnum)
 
         // Public ivars + initializers declared directly in Enum.swift.
-        // Two `init(descriptor:in:)` overloads (MachO + Context) collapse to
-        // a single MethodKey under PublicMemberScanner's name-based key.
         let registered = [
             "canonicalSpecializedMetadatas",
             "canonicalSpecializedMetadatasCachingOnceToken",
@@ -39,7 +37,6 @@ package enum EnumBaselineGenerator {
             "descriptor",
             "foreignMetadataInitialization",
             "genericContext",
-            "init(descriptor:)",
             "init(descriptor:in:)",
             "invertibleProtocolSet",
             "singletonMetadataInitialization",

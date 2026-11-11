@@ -22,12 +22,8 @@ package enum ModuleContextBaselineGenerator {
         let entryExpr = emitEntryExpr(for: context)
 
         // Public members declared directly in ModuleContext.swift.
-        // Both `init(descriptor:in:)` overloads (MachO + ReadingContext)
-        // collapse to a single MethodKey under PublicMemberScanner's
-        // name-based deduplication.
         let registered = [
             "descriptor",
-            "init(descriptor:)",
             "init(descriptor:in:)",
             "name",
         ]

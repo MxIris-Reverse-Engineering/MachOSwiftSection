@@ -44,17 +44,3 @@ extension TypeReference {
         }
     }
 }
-
-// MARK: - Deprecated Mach-O and pointer forms
-
-extension TypeReference {
-    @available(*, deprecated, message: "Pass a ReadingContext: resolve(at: offset, in: machO.context).")
-    public func resolve(at offset: Int, in machO: some MachOSwiftSectionRepresentableWithCache) throws -> ResolvedTypeReference {
-        try resolve(at: offset, in: machO.context)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: resolve(at: Int(bitPattern: pointer), in: .inProcess).")
-    public func resolve(from ptr: UnsafeRawPointer) throws -> ResolvedTypeReference {
-        try resolve(at: Int(bitPattern: ptr), in: InProcessContext.shared)
-    }
-}
