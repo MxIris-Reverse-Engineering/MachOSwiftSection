@@ -3,6 +3,8 @@ import Testing
 import MachOKit
 @_spi(Internals) import Demangling
 import Semantic
+import SwiftDeclarationRendering
+@testable import MachOSwiftSection
 @_spi(Support) @testable import SwiftDeclaration
 @_spi(Support) @testable import SwiftIndexing
 @_spi(Support) @testable import SwiftPrinting
@@ -179,9 +181,12 @@ struct ObservableMacroInterfaceTests {
         #expect(unmarked.separatingAnnotationRegions().annotations.isEmpty)
         let regions = separated.annotations.regions(ofKind: .attachedMacro(.observable))
         #expect(regions.count == 1)
-        #expect(regions.first.map { region in
-            String(decoding: Array(separated.text.string.utf8)[Int(region.utf8Offset) ..< Int(region.utf8Offset + region.utf8Length)], as: UTF8.self)
-        } == "@Observation.Observable")
+        let region = try #require(regions.first)
+        let printedBytes = Array(separated.text.string.utf8)
+        let regionStart = Int(region.utf8Offset)
+        let regionEnd = regionStart + Int(region.utf8Length)
+        let attributeText = String(decoding: printedBytes[regionStart ..< regionEnd], as: UTF8.self)
+        #expect(attributeText == "@Observation.Observable")
         #expect(AnnotationRegion.Kind.attachedMacro(.observable).rawValue == "attachedMacro.Observation.Observable")
     }
 
@@ -205,7 +210,7 @@ struct ObservableMacroInterfaceTests {
             definitions.regions.filter { definition in
                 definition.utf8Offset <= attributeRegion.utf8Offset
                     && attributeRegion.utf8Offset + attributeRegion.utf8Length <= definition.utf8Offset + definition.utf8Length
-            }.map(\.identity)
+            }.map { definition in definition.identity }
         }
         let nestedIdentity = try await mangleAsString(nested.typeName.node)
         #expect(attributeRegions.map(enclosingIdentities) == [[], [nestedIdentity]])

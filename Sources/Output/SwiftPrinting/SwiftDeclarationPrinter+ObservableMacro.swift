@@ -311,30 +311,17 @@ extension SwiftDeclarationPrinter {
     }
 }
 
-/// The name nodes the folded form and the expansion print. Static, so they
-/// outlive every print: the type printer memoizes fragments by node
-/// identity, and a node freed mid-print could hand its address to another.
+/// The name nodes the folded form and the expansion print, shared with the
+/// dump (`ObservableMacroRecognition`).
 enum AttachedMacroNameNodes {
-    /// `Observation.Observable`, the protocol the macro's generated extension
-    /// conforms to and whose name the macro shares — so the attribute links
-    /// where the protocol does.
-    static let observableProtocol = nominalTypeNode(.protocol, moduleName: ObservableMacroRecognition.observationModuleName, name: ObservableMacroRecognition.observableName)
+    static var observableProtocol: Node { ObservableMacroRecognition.observableAttributeNameNode }
 
-    /// `Observation.ObservationIgnored`, a macro no type shares a name with.
-    static let observationIgnored = nominalTypeNode(.structure, moduleName: ObservableMacroRecognition.observationModuleName, name: ObservableMacroRecognition.observationIgnoredName)
+    static var observationIgnored: Node { ObservableMacroRecognition.observationIgnoredAttributeNameNode }
 
     static func attributeNameNode(of macro: SwiftAttachedMacro) -> Node {
-        if macro == .observable {
-            return observableProtocol
-        }
-        // No other macro is recognized; one that is gets its own static node.
-        return nominalTypeNode(.structure, moduleName: macro.moduleName, name: macro.name)
-    }
-
-    private static func nominalTypeNode(_ kind: Node.Kind, moduleName: String, name: String) -> Node {
-        Node.createTransient(kind: .type, child: Node.createTransient(kind: kind, children: [
-            Node.createTransient(kind: .module, text: moduleName),
-            Node.createTransient(kind: .identifier, text: name),
-        ]))
+        // `.observable` is the one macro recognized; another gets a static
+        // node of its own beside it.
+        precondition(macro == .observable, "no attribute name node for \(macro.moduleName).\(macro.name)")
+        return observableProtocol
     }
 }

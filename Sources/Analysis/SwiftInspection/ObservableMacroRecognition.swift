@@ -1,4 +1,4 @@
-import Demangling
+@_spi(Internals) import Demangling
 import MachOSwiftSection
 
 /// Recognizes a class the Observation module's `@Observable` macro expanded,
@@ -80,6 +80,27 @@ package enum ObservableMacroRecognition {
     /// the macro's generated extension conforms the class to.
     package static func isObservableProtocol(_ protocolNode: Node) -> Bool {
         isNominal(protocolNode, kind: .protocol, moduleName: observationModuleName, name: observableName)
+    }
+
+    /// `Observation.Observable` as a name node: the protocol the macro's
+    /// generated extension conforms to, whose name the macro shares — what the
+    /// interface and the dump print the macro's attribute from, so module
+    /// selectors reach it and the attribute links where the protocol does.
+    /// Static, so it outlives every print: the interface printer memoizes
+    /// fragments by node identity, and a node freed mid-print could hand its
+    /// address to another.
+    package static let observableAttributeNameNode = nominalTypeNode(.protocol, moduleName: observationModuleName, name: observableName)
+
+    /// `Observation.ObservationIgnored` as a name node, for the attribute of a
+    /// stored property the macro left alone. A macro no type shares a name
+    /// with; static for the same reason.
+    package static let observationIgnoredAttributeNameNode = nominalTypeNode(.structure, moduleName: observationModuleName, name: observationIgnoredName)
+
+    private static func nominalTypeNode(_ kind: Node.Kind, moduleName: String, name: String) -> Node {
+        Node.createTransient(kind: .type, child: Node.createTransient(kind: kind, children: [
+            Node.createTransient(kind: .module, text: moduleName),
+            Node.createTransient(kind: .identifier, text: name),
+        ]))
     }
 
     private static func isNominal(_ node: Node, kind: Node.Kind, moduleName: String, name: String) -> Bool {
