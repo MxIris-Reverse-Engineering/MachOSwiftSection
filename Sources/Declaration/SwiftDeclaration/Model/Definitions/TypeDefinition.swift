@@ -56,6 +56,20 @@ public final class TypeDefinition: Definition, @unchecked Sendable {
     /// preparation.
     public let exportStatus: ExportStatus
 
+    /// The macros the source attached to this type, recognized from what
+    /// their expansion left in the binary (evolution proposal
+    /// `observable-macro-folding`): `.observable` for a class `@Observable`
+    /// expanded. Resolved once at construction, from the type's field
+    /// records alone, so it is there the moment
+    /// `SwiftDeclarationIndexer.prepare()` returns — a host listing types
+    /// can mark every row before any of them is indexed. A specialized
+    /// definition carries the value of the generic definition it was
+    /// derived from.
+    ///
+    /// What the expansion of a recognized macro holds comes with
+    /// `index(in:)`: see `observableMacroExpansion`.
+    public let attachedMacros: Set<SwiftAttachedMacro>
+
     public package(set) weak var parent: TypeDefinition?
 
     /// Nested type definitions whose containing context is `self`.
@@ -201,11 +215,12 @@ public final class TypeDefinition: Definition, @unchecked Sendable {
     /// path holds one anyway (indexing needs it for `typeName(in:)`) — but
     /// only its descriptor reference is retained, so the caller's parsed
     /// wrapper is released as soon as construction returns.
-    package init(type: TypeContextWrapper, typeName: TypeName, isSpecialized: Bool, exportStatus: ExportStatus) {
+    package init(type: TypeContextWrapper, typeName: TypeName, isSpecialized: Bool, exportStatus: ExportStatus, attachedMacros: Set<SwiftAttachedMacro>) {
         self.typeContextDescriptorWrapper = type.typeContextDescriptorWrapper
         self.typeName = typeName
         self.isSpecialized = isSpecialized
         self.exportStatus = exportStatus
+        self.attachedMacros = attachedMacros
     }
 
     /// Test/tooling surface: constructs a definition around a RAW descriptor
@@ -214,17 +229,20 @@ public final class TypeDefinition: Definition, @unchecked Sendable {
     /// fails (a real descriptor layout re-wrapped at an out-of-bounds
     /// offset).
     /// `exportStatus` defaults to the no-verdict case because a definition
-    /// built this way has no trustworthy descriptor to rule on.
+    /// built this way has no trustworthy descriptor to rule on, and
+    /// `attachedMacros` to none for the same reason.
     package init(
         typeContextDescriptorWrapper: TypeContextDescriptorWrapper,
         typeName: TypeName,
         isSpecialized: Bool,
-        exportStatus: ExportStatus = .descriptorSymbolNameUnresolvable
+        exportStatus: ExportStatus = .descriptorSymbolNameUnresolvable,
+        attachedMacros: Set<SwiftAttachedMacro> = []
     ) {
         self.typeContextDescriptorWrapper = typeContextDescriptorWrapper
         self.typeName = typeName
         self.isSpecialized = isSpecialized
         self.exportStatus = exportStatus
+        self.attachedMacros = attachedMacros
     }
 
     public convenience init(type: TypeContextWrapper, in machO: some MachOSwiftSectionRepresentableWithCache) async throws {
@@ -234,7 +252,13 @@ public final class TypeDefinition: Definition, @unchecked Sendable {
             typeNameNode: typeName.node,
             in: machO
         )
-        self.init(type: type, typeName: typeName, isSpecialized: false, exportStatus: exportStatus)
+        self.init(
+            type: type,
+            typeName: typeName,
+            isSpecialized: false,
+            exportStatus: exportStatus,
+            attachedMacros: SwiftAttachedMacro.macros(attachedTo: type.typeContextDescriptorWrapper, in: machO.context)
+        )
     }
     /// Rebuilds the full `TypeContextWrapper` — trailing objects included —
     /// from the retained descriptor, exactly the parse the model-build sweep

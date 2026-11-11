@@ -279,13 +279,15 @@ extension TypeDefinition {
         }
 
         // The specialized definition shares this definition's descriptor, so
-        // it shares its export fact — resolving it again would only re-derive
-        // the same verdict from the same symbol.
+        // it shares its export fact and its attached macros — resolving them
+        // again would only re-derive the same verdicts from the same symbol
+        // and field records.
         let specialized = TypeDefinition(
             type: materializedTypeContext,
             typeName: finalTypeName,
             isSpecialized: true,
-            exportStatus: exportStatus
+            exportStatus: exportStatus,
+            attachedMacros: attachedMacros
         )
         specialized.metadata = metadata
         return specialized
@@ -565,7 +567,8 @@ extension TypeDefinition {
             type: materializedTypeContext,
             typeName: specializationResult.typeName,
             isSpecialized: true,
-            exportStatus: exportStatus
+            exportStatus: exportStatus,
+            attachedMacros: attachedMacros
         )
         specialized.staticSpecialization = specializationResult.binding
         return specialized
