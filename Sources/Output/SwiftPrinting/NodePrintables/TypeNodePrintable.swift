@@ -555,6 +555,31 @@ extension Node {
         }
     }
 
+    /// Whether this type prints starting with the `any` keyword, so a suffix
+    /// such as `?` needs parentheses around it. With existentials spelled
+    /// with `any` that is ``takesAnyKeyword``; without, only a constrained
+    /// existential still carries the keyword — it always does — and so does
+    /// an existential metatype of one (`any P<Int>.Type`, whose optional is
+    /// `(any P<Int>.Type)?`).
+    func printsLeadingAnyKeyword(usesExistentialAny: Bool) -> Bool {
+        if usesExistentialAny {
+            return takesAnyKeyword
+        }
+        var existential = self
+        while existential.kind == .type, let wrappedType = existential.children.first {
+            existential = wrappedType
+        }
+        switch existential.kind {
+        case .constrainedExistential:
+            return true
+        case .existentialMetatype:
+            // The instance follows an optional metatype representation.
+            return existential.children.last?.printsLeadingAnyKeyword(usesExistentialAny: false) ?? false
+        default:
+            return false
+        }
+    }
+
     /// The number of `&`-separated terms this existential's constraint spells
     /// — protocols, a superclass, `AnyObject` — which decides, as in the
     /// compiler's `TypeBase::hasSimpleTypeRepr`, whether it needs parentheses

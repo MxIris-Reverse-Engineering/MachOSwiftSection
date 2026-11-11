@@ -140,6 +140,11 @@ struct ExistentialAnyInterfaceTests {
             spellingWithKeyword: "var constrainedMetatype: any ExistentialAnyFixture.Boxed<Swift.Int>.Type\n"
         ),
         SpellingCase(
+            summary: "an optional existential metatype of a constrained existential is parenthesized either way",
+            bareSpelling: "var optionalConstrainedMetatype: (any ExistentialAnyFixture.Boxed<Swift.Int>.Type)?\n",
+            spellingWithKeyword: "var optionalConstrainedMetatype: (any ExistentialAnyFixture.Boxed<Swift.Int>.Type)?\n"
+        ),
+        SpellingCase(
             summary: "an array of existentials",
             bareSpelling: "var existentialArray: [ExistentialAnyFixture.Marker]\n",
             spellingWithKeyword: "var existentialArray: [any ExistentialAnyFixture.Marker]\n"

@@ -21,9 +21,11 @@ import Testing
 ///   with the keyword — the compiler writes `any Any.Type`.
 /// - `(any Marker).Type`: the metatype of the existential itself, which the
 ///   bare spelling writes as `Marker.Protocol`.
-/// - `any Boxed<Int>`, `(any Boxed<String>)?`, `any Boxed<Int>.Type`: a
-///   constrained existential, which a field record spells as an extended
-///   existential shape plus its arguments.
+/// - `any Boxed<Int>`, `(any Boxed<String>)?`, `any Boxed<Int>.Type`,
+///   `(any Boxed<Int>.Type)?`: a constrained existential, which a field record
+///   spells as an extended existential shape plus its arguments, and which
+///   takes the keyword — and the parentheses an optional needs — whether or
+///   not the other existentials do.
 /// - an array of existentials, a closure taking and returning one, a variadic
 ///   and an `inout` parameter, a parameterized existential parameter, and an
 ///   opaque type constrained by an existential argument.
@@ -69,6 +71,7 @@ package enum ExistentialAnyFixture {
         public var constrained: any Boxed<Int>
         public var optionalConstrained: (any Boxed<String>)?
         public var constrainedMetatype: any Boxed<Int>.Type
+        public var optionalConstrainedMetatype: (any Boxed<Int>.Type)?
         public var existentialArray: [any Marker]
         public var existentialFunction: (any Marker) -> any SecondMarker
 
