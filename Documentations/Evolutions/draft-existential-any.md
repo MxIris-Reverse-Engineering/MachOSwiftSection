@@ -1,9 +1,9 @@
 # Draft - interface 与 dump 给 existential 写上 `any`，并修好 constrained existential 字段的类型
 
-- **状态**: Accepted
+- **状态**: In Progress
 - **创建日期**: 2026-11-11
 - **最后更新**: 2026-11-11
-- **关联提案**: swift-demangling 一侧另起一份精简提案（slug 同为 `existential-any`，开工时创建），加 `DemangleOptions.useExistentialAny`。同一套做法的先例是 [0064-module-selectors](0064-module-selectors.md) 与 swift-demangling 的 `0017-module-selectors`。
+- **关联提案**: swift-demangling 的精简提案 `draft-existential-any`（`Evolutions/draft-existential-any.md`，同名分支），加 `DemangleOptions.useExistentialAny`。同一套做法的先例是 [0064-module-selectors](0064-module-selectors.md) 与 swift-demangling 的 `0017-module-selectors`。
 - **实现分支 / PR**: 本库与 swift-demangling 都是 `feature/existential-any`
 
 ## 摘要
