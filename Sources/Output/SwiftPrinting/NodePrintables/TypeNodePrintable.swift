@@ -402,12 +402,19 @@ extension TypeNodePrintable {
         await printOptional(name.children.at(name.children.count == 2 ? 1 : 0), suffix: ".Type")
     }
 
+    /// A constrained existential still in its symbolic form: a shape reference
+    /// plus the arguments that instantiate it. `SymbolicDemangler` hands a
+    /// field's over as the `constrainedExistential` it stands for; a tree that
+    /// did not come through it prints the same way here. This used to print the
+    /// arguments alone, so `any Boxed<Int>` read as `Swift.Int` — a real,
+    /// wrong type (evolution proposal `existential-any`). A shape never
+    /// resolved to a type is handed to the upstream printer, which names it for
+    /// what it is.
     mutating func printSymbolicExtendedExistentialType(_ name: Node) async {
-        guard let second = name.children.at(1) else { return }
-        await printName(second)
-        if let third = name.children.at(2) {
-            target.write(", ")
-            await printName(third)
+        if let existentialType = ExtendedExistentialTypeResolution.existentialType(of: name) {
+            await printName(existentialType)
+        } else {
+            target.write(await name.print(using: delegatedPrintOptions), context: .context(for: name, state: .printType))
         }
     }
 }
