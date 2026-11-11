@@ -47,7 +47,8 @@ Flags added comparatively late, and therefore worth checking: `--emit-header`,
 / `dump --enable-module-selectors`, from 0.24.0
 `interface --requirements-on-associated-types` and `--emit-private-source-files`, and after
 0.24.0 `objc evolution --interface` / `--emit-available` / `--platform`,
-`objc interface --swift` and `interface --no-existential-any` / `dump --disable-existential-any`.
+`objc interface --swift`, `interface --no-existential-any` / `dump --disable-existential-any`
+and `interface --expand-macros`.
 When one is
 missing, say so rather than silently producing a weaker answer — the alternative is usually
 "upgrade (`brew upgrade swift-section`), or do without that annotation".
@@ -176,13 +177,26 @@ constrained existential type (`any Boxed<Int>`) printed in older builds as its a
 so read such a line from an older build as a constrained existential of unknown protocol, not
 as the type it names.
 
+A class the `@Observable` macro expanded prints the way its source reads (after 0.24.0):
+`@Observation.Observable` above the class, each tracked property as the stored `var x: T` it
+was declared as, a stored `var` the macro left alone with `@Observation.ObservationIgnored`, and
+no registrar, no `access(keyPath:)` / `withMutation(keyPath:_:)` / `shouldNotifyObservers`, no
+`extension X: Observation.Observable {}`. In the binary each tracked `x` is a computed property
+over private storage `_x`; `interface --expand-macros` prints that, as older builds always did.
+A tracked property whose accessors are stripped (an internal class in a stripped app or OS
+framework) carries a note naming the storage it was synthesized from; in a class with no
+symbols left, an `@ObservationIgnored var _y` reads as a tracked `y` behind such a note. SwiftData
+`@Model` classes are not folded. `dump` keeps every generated member and adds
+`@Observation.Observable` to the class's header line.
+
 Only `dump` has: `--sections`, `--preferred-binary-order`, and the demangler option group
 (`--demangle-options default|simplified|interface` plus ~22 `--enable-…` / `--disable-…`
 switches).
 
 Only `interface` has: `--exported-only`, `--sort-members-by-offset`,
 `--parse-opaque-return-type`, `--show-c-imported-types`, `--resolve-c-module-names`,
-`--supplementary-apinotes`, `--infer-objc-overrides`, `--requirements-on-associated-types`.
+`--supplementary-apinotes`, `--infer-objc-overrides`, `--requirements-on-associated-types`,
+`--expand-macros`.
 
 `--requirements-on-associated-types` changes where a protocol's requirements print, never which:
 `associatedtype Body: SwiftUI.View` instead of `protocol View where Self.Body: SwiftUI.View`,

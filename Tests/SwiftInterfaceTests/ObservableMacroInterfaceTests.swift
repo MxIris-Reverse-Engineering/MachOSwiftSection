@@ -148,7 +148,10 @@ struct ObservableMacroInterfaceTests {
         #expect(!expansion.hasPrefix("\n") && !expansion.hasSuffix("\n"), "\(expansion)")
         let lines = expansion.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
         #expect(!lines.contains(""), "no blank line in:\n\(expansion)")
-        #expect(lines.first == "    var _value: Swift.Int", "\(expansion)")
+        // The storage of the first tracked property opens it, at the members'
+        // indentation, as the expanded type body prints it.
+        let firstLine = try #require(lines.first)
+        #expect(firstLine.hasPrefix("    ") && firstLine.hasSuffix("var _value: Swift.Int"), "\(expansion)")
         #expect(lines.last == "extension ObservableMacroFixture.InternalModel: Observation.Observable {}", "\(expansion)")
         for declaration in ["let _$observationRegistrar: Observation.ObservationRegistrar", "var value: Swift.Int {", "func access<A>(keyPath: Swift.KeyPath<ObservableMacroFixture.InternalModel, A>)", "func withMutation<A, B>(keyPath:", "func shouldNotifyObservers<A>("] {
             #expect(expansion.contains(declaration), "\(declaration) not in:\n\(expansion)")
