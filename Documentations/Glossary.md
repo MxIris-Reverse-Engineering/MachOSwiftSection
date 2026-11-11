@@ -72,7 +72,7 @@
 
 一个 `ReadingContext` 声明的「按它读出来的东西，memo 缓存该存到哪一层」：`.image(identifier:)` 按镜像存（键就是 reader 的 `identifier`，与其它按镜像缓存同一个键，随镜像一起驱逐），`.process` 存进全进程共享的一层（地址是绝对地址，两个镜像不会撞），`.uncached` 不缓存。`MachOContext` 声明 `.image`，`InProcessContext` 声明 `.process`，其余实现默认 `.uncached`——以文件偏移为地址的第三方 context 如果落进全进程那层，两个镜像的偏移会互相串结果。反混淆 memo（`SymbolicDemanglerCache`）与节点驻留池（`InternedNodeReferenceCache`）按它选层。
 
-- **主要出现在**：`Sources/MachO/MachOReading/ReadingContext/ReadingContext.swift`、`Sources/Analysis/SwiftInspection/SymbolicDemangler.swift`、`Sources/MachO/MachOSymbols/InternedNodeReferenceCache.swift`
+- **主要出现在**：MachOKitExtensions `Sources/MachOReading/ReadingContext/ReadingContext.swift`、`Sources/Analysis/SwiftInspection/SymbolicDemangler.swift`、`Sources/MachO/MachOSymbols/InternedNodeReferenceCache.swift`
 - **延伸阅读**：[提案 0057](Evolutions/0057-reading-context-migration.md)、[ReadingContextAbstraction.md](Internal/ReadingContextAbstraction.md)
 
 ### cache-shared stub（全缓存共用桩）
@@ -107,7 +107,7 @@ macOS 27 与 iOS 27 的 dyld shared cache 不再给每个镜像留自己的 `__o
 
 同一个读取接口曾经最多有三份手写实现：context form 收 `some ReadingContext`（`name(in: context)`、静态 `resolve(at:in:)`），Mach-O form 收一个 Mach-O reader、按偏移读（`name(in: machO)`、`resolve(from:in:)`），pointer form 不收读取器、直接用裸指针读本进程内存（`name()`、`resolve(from: pointer)`）。2026-09-30 起 context form 是唯一实现；另外两种改成一行转发（`machO.context` / `.inProcess`），0.22.0 废弃，0.25.0 删除。
 
-- **主要出现在**：`Sources/ABI/MachOSwiftSection/Models/`、`Sources/MachO/MachOPointers/`、`Sources/MachO/MachOResolving/Resolvable.swift`
+- **主要出现在**：`Sources/ABI/MachOSwiftSection/Models/`、`Sources/MachO/MachOPointers/`、MachOKitExtensions `Sources/MachOResolving/Resolvable.swift`
 - **延伸阅读**：[提案 0057](Evolutions/0057-reading-context-migration.md)、[ReadingContextAbstraction.md](Internal/ReadingContextAbstraction.md)
 
 ### depth（泛型参数层号，`GenericParameterDepthLayout`）
@@ -352,7 +352,7 @@ opaque 尖括号参数归属的第三条规则：协议无任何 anchor 命中�
 
 宿主自己的读取器类型：手里拿着一个 `MachOFile` 或 `MachOImage`，把读取协议的每个要求原样转发给它（MachOKitUI 的 `MachOFileSource` / `MachOImageSource`）。声明 MachOKitExtensions 的 `MachOReaderWrapper` 之后，库里每个「这是哪种读取器」的问题——`asMachOImage`、`asMachOFile`、`underlyingReader`——都问到它底下的读取器；不声明，库就把它当成两种都不是，读得出，但进程内路径、符号偏移换算、ObjC 与依赖闭包这些按读取器种类做的事都做不了。契约是在每个偏移读到的内容与底下的读取器相同，`identifier` 也相同（两者共用按镜像的缓存）。
 
-- **主要出现在**：MachOKitExtensions `MachOReaderWrapper.swift`、`Sources/MachO/MachOReading/ReadingContext/MachOContext.swift`、`Sources/Output/SwiftDeclarationRendering/FieldLayoutRenderable+MachOReaderWrapper.swift`、`Tests/SwiftInterfaceTests/ReaderKindCastScanTests.swift`
+- **主要出现在**：MachOKitExtensions `MachOReaderWrapper.swift` 与 `Sources/MachOReading/ReadingContext/MachOContext.swift`、`Sources/Output/SwiftDeclarationRendering/FieldLayoutRenderable+MachOReaderWrapper.swift`、`Tests/SwiftInterfaceTests/ReaderKindCastScanTests.swift`
 - **延伸阅读**：[提案 0075](Evolutions/0075-wrapped-reader-recognition.md)、[ReadingContextAbstraction.md](Internal/ReadingContextAbstraction.md)
 
 ### renamed class（改名类，`@objc(Name)` / `@_objcRuntimeName(Name)`）

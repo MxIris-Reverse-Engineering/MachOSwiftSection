@@ -38,7 +38,7 @@
 | MachOSymbols | [MachOSymbols.md](MachOSymbols.md) | ✅ 已写（专题：[SymbolIndexStoreMemoryOptimization.md](../SymbolIndexStoreMemoryOptimization.md)） |
 | MachOBase | — | 待写（伞模块：ABI 层允许看到的全部——reading / resolving / pointers；见 [SelfContainedABILayer.md](../SelfContainedABILayer.md)） |
 | MachOPointers | — | 待写（`SymbolOrElementPointer` 自 `MachOSymbolPointers` 并入，见 [SelfContainedABILayer.md](../SelfContainedABILayer.md)） |
-| MachOReading / MachOResolving | — | 待写 |
+| MachOReading / MachOResolving | — | 0.25.0 起是 MachOKitExtensions 包的模块（2.0.0 起，同名），实现说明在该包的 `Documentations/Internal/ReadingContextAbstraction.md`；本库怎么用它们见 [ReadingContextAbstraction.md](../ReadingContextAbstraction.md) |
 | MachOCaches | [MachOCaches.md](MachOCaches.md) | ✅ 已写 |
 | MachODependencies | [MachODependencies.md](MachODependencies.md) | ✅ 已写 |
 | MachOSwiftSectionC | — | 待写 |

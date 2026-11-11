@@ -1,8 +1,10 @@
 # ReadingContext Abstraction
 
+> 读取层本身——`ReadingContext`、`MachOContext`、`InProcessContext`、`Resolvable`、`SymbolOrElement`、`MachOFile` 怎么读、缓存范围的设计、读取层这一侧怎么看穿包装类型——自 0.25.0 起是 MachOKitExtensions 包的 MachOReading / MachOResolving 模块（2.0.0 起，模块名不变），实现说明在那个包的 `Documentations/Internal/ReadingContextAbstraction.md`，迁移的来历见它的提案「把 MachOReading 与 MachOResolving 迁入本包」。本文留下的是本库这一侧：ABI 层的读取接口怎样统一到 `ReadingContext`、指针协议怎样接入、上层怎样按缓存范围缓存，以及看穿包装类型在本库各处的规则。
+
 ## Overview
 
-This document describes the design and implementation of the `ReadingContext` protocol abstraction, which unifies memory reading operations across different data sources (MachO files and in-process memory).
+This document describes how this package reads through the `ReadingContext` protocol abstraction, which unifies memory reading operations across different data sources (MachO files and in-process memory). The abstraction itself lives in MachOKitExtensions; see the note above.
 
 ## Problem Statement
 
@@ -60,90 +62,9 @@ This duplication leads to:
 └───────────────────────────────┘    └─────────────────────────────────┘
 ```
 
-### RuntimeProtocol Extension
-
-The existing `RuntimeProtocol` is extended to support pointer type aliases:
-
-```swift
-public protocol RuntimeProtocol {
-    associatedtype StoredPointer: FixedWidthInteger & UnsignedInteger
-    associatedtype StoredSignedPointer: FixedWidthInteger
-    associatedtype StoredSize: FixedWidthInteger & UnsignedInteger
-    associatedtype StoredPointerDifference: FixedWidthInteger & SignedInteger
-
-    static var pointerSize: Int { get }
-}
-
-// New: InProcess runtime for direct memory access
-public enum InProcess: RuntimeProtocol {
-    public typealias StoredPointer = UInt
-    public typealias StoredSignedPointer = Int
-    public typealias StoredSize = UInt
-    public typealias StoredPointerDifference = Int
-
-    public static var pointerSize: Int { MemoryLayout<UInt>.size }
-}
-```
-
-### Key Components
-
-#### 1. ReadingContext Protocol
-
-The core abstraction that unifies different memory reading modes:
-
-```swift
-public protocol ReadingContext: Sendable {
-    associatedtype Runtime: RuntimeProtocol
-    associatedtype Address
-
-    func readElement<T>(at address: Address) throws -> T
-    func readWrapperElement<T: LocatableLayoutWrapper>(at address: Address) throws -> T
-    func readString(at address: Address) throws -> String
-    func advanceAddress(_ address: Address, by offset: Int32) -> Address
-}
-```
-
-#### 2. MachOContext
-
-Wraps a MachO file/image for external reading:
-
-```swift
-public struct MachOContext<MachO: MachORepresentableWithCache & Readable>: ReadingContext {
-    public typealias Runtime = RuntimeTarget64
-    public typealias Address = Int
-
-    public let machO: MachO
-
-    // Delegates to MachO.readElement, MachO.readString, etc.
-}
-```
-
-#### 3. InProcessContext
-
-Provides direct memory access for in-process reading:
-
-```swift
-public struct InProcessContext: ReadingContext {
-    public typealias Runtime = InProcess
-    public typealias Address = UnsafeRawPointer
-
-    // Direct memory load via UnsafeRawPointer
-}
-```
+`RuntimeProtocol` and its `InProcess` runtime, the `ReadingContext` requirements, `MachOContext`, `InProcessContext` and `Resolvable` are described in MachOKitExtensions' implementation note, where they now live.
 
 ### Integration with Existing APIs
-
-#### Resolvable Protocol Extension
-
-```swift
-extension Resolvable {
-    // New unified API
-    public static func resolve<Context: ReadingContext>(
-        at address: Context.Address,
-        in context: Context
-    ) throws -> Self
-}
-```
 
 #### RelativePointerProtocol Extension
 
@@ -193,66 +114,7 @@ let desc1 = try readProtocolDescriptor(at: offset, in: machO.context)
 let desc2 = try readProtocolDescriptor(at: ptr, in: InProcessContext.shared)
 ```
 
-## Comparison with Swift Runtime
-
-This design is inspired by the Swift runtime's `MemoryReader` abstraction:
-
-| Swift Runtime (C++) | This Project (Swift) |
-|---------------------|----------------------|
-| `MemoryReader` | `ReadingContext` |
-| `InProcessMemoryReader` | `InProcessContext` |
-| `CMemoryReader` | `MachOContext` |
-| `RemoteAddress` | `Context.Address` |
-| `RuntimeTarget<8>` / `InProcess` | `RuntimeTarget64` / `InProcess` |
-
-### Swift Runtime Reference
-
-From `swift/include/swift/ABI/TargetLayout.h`:
-
-```cpp
-// InProcess: Pointer<T> = T* (real pointer)
-struct InProcess {
-    template <typename T>
-    using Pointer = T*;
-};
-
-// External: Pointer<T> = StoredPointer (just a number)
-template <typename Runtime>
-struct External {
-    template <typename T>
-    using Pointer = StoredPointer;
-};
-```
-
-From `swift/include/swift/Remote/MemoryReader.h`:
-
-```cpp
-class MemoryReader {
-public:
-    virtual bool readBytes(RemoteAddress address, uint8_t *dest, uint64_t size) = 0;
-    virtual bool readString(RemoteAddress address, std::string &dest) = 0;
-    // ...
-};
-```
-
-## File Structure
-
-```
-Sources/
-├── MachOReading/
-│   └── Reading/
-│       ├── ReadingContext.swift          # Core protocol
-│       ├── MachOContext.swift            # MachO implementation
-│       └── InProcessContext.swift        # InProcess implementation
-├── MachOResolving/
-│   └── Resolvable+ReadingContext.swift   # Resolvable extension
-├── MachOPointers/
-│   └── Protocol/
-│       └── RelativePointerProtocol+ReadingContext.swift  # Pointer extension
-└── MachOSwiftSection/
-    └── Protocols/
-        └── RuntimeProtocol.swift         # Extended with InProcess
-```
+The comparison with the Swift runtime's `MemoryReader` the design follows, and where each part of the reading layer lives, are in MachOKitExtensions' implementation note.
 
 ## Migration Strategy
 
@@ -345,20 +207,14 @@ Two deliberate decisions worth keeping in mind:
 
 ### 性能
 
-`InProcessContext` 的 tag 掩码在进程里只算一次；`UnsafeRawPointer.stripPointerTags()` 每次调用都要找当前镜像、遍历一遍 load command。`advanceAddress` 也会剥 tag，与旧指针版的 `resolveDirectOffset(from:)` 一致。`MachOContext.addressFromVirtualAddress` 不再在 `resolveOffset(at:)` 之前多剥一次，因为 `MachOFile.fileOffset(of:)` 与 `MachOImage.resolveOffset(at:)` 自己会剥；它与 `addressFromOffset`、`offsetFromAddress` 一起声明成不抛错。
-
-`MachOFile` 的每次读取（`MachOFile+Readable.swift` 的五个读函数）都要先问这个偏移落在哪个 dyld cache 文件里，只有从 cache 里读出的镜像才问（`isLoadedFromDyldCache`）。独立文件以前也问：MachOKit 的 `cache` 对没交过 cache 的文件会把文件路径当成 dyld cache 打开，失败了不记，下次再试，于是每读一个元素就把整个文件映射一遍再解除。读 iOS 18.5 模拟器的 SwiftUI 时三分之二的 CPU 花在这上面。MachOKit fork 的 `cache` / `fullCache` 也同时改成对独立文件直接答 `nil`，库里其余直接问 `cache` 的地方一并受益。回归测试 `StandaloneFileReadingTests`：打开 fixture 的副本后把它的路径换成 dyld cache 的头部，读取仍须读到原文件的内容。
-
-读到的字节直接取自 MachOKit 打开文件时做的那份映射（fork 的 `@_spi(Support) fileBytes`，同一次打开的所有实例共用），按偏移 `loadUnaligned`，数组一次拷进结果（演进提案 `machofile-performance`）。以前本层另外为每次打开再映射一遍文件（`SharedFileMapping`，挂在 `fileHandleIdentity` 上的关联对象），每读一次查一次关联对象、做一次动态类型转换、分配并拷贝一个 `Data`。映射在打开时就已建好，读取不会再因映射失败而失败，也不再多占描述符；读到文件之外照旧抛 `FileIOError.offsetOutOfBounds`。`FileMappingTests` 钉住：同一个 cache 文件的各个读者共用一份映射、打开后被删掉的文件照样读得到、越界读取抛错、400 个镜像在 256 个描述符的上限内读完。
+本进程地址的 tag 掩码、`MachOContext` 的地址换算、`MachOFile` 只对 dyld cache 里的镜像问 cache 文件、读取直接用 MachOKit 打开文件时做的映射（演进提案 `machofile-performance`），这些取舍随读取层搬到了 MachOKitExtensions，写在它的实现说明里。本库留下两个经本库样本或元数据验证的回归测试：`StandaloneFileReadingTests`（打开 fixture 的副本后把它的路径换成 dyld cache 的头部，读取仍须读到原文件的内容），以及 `FileMappingTests` 里在 256 个描述符的上限内读完 400 个 Swift 镜像的那一个；只测映射本身的另外三个随模块搬走了。
 
 ### 缓存范围：上层只读接口也收成一份
 
 上层有一批接口只读数据，却因为要按镜像缓存而离不开 `machO`：`SymbolicDemangler` 的 `demangleType` / `demangleContext`、SwiftDeclaration 的 `typeName` / `protocolName`、`GenericContext+Dump` 等。`ReadingContext` 原先说不出自己读的是哪个镜像，所以 `SymbolicDemangler` 的 context 入口干脆不走缓存。现在 `ReadingContext` 多了一条带默认值的 requirement `cacheScope`：`MachOContext` 答 `.image(identifier:)`，`InProcessContext` 答 `.process`，其余一律 `.uncached`。反混淆 memo 与节点驻留池按它选层，这批接口因此也收成了只收 context 的一份。
 
 - **同一个镜像只有一个键**：`.image` 带的就是 reader 的 `MachOTargetIdentifier`，两个缓存用现成的 `SharedCacheKey(identifier:)` 建键，与 `SharedCacheKey(machO)` 得到的是同一个键。经 reader 和经 context 存进去的条目是同一条，`SymbolicDemangler.removeCache(for:)` 与驱逐注册表照常认领、清理。
-- **身份不装箱**：每次 memo 查找都要问一次 `cacheScope`。文件的 identifier 是路径加 UUID，放不进 existential 的 24 字节内联缓冲，包成 `AnyHashable` 每次都要堆分配，而 `SharedCacheKey` 当初就是为了去掉这次分配才写成现在的样子（见 [Modules/MachOCaches.md](Modules/MachOCaches.md)「键」一节）。所以 `.image` 的载荷是具体类型 `MachOTargetIdentifier`，不是 `AnyHashable`。代价是 identifier 不是这个类型的读者经 context 读时不缓存（`MachOContext` 答 `.uncached`），只慢不错；今天的读者（`MachOFile`、`MachOImage`、MachOKitUI 的包装类型）全都是这个类型。
-- **默认不缓存是安全边界，不是省事**：全进程那层按偏移做键，只有地址是绝对地址时两个镜像才不会撞。一个以文件偏移为地址的第三方 context 如果落进去，会把 A 镜像的解析结果当成 B 镜像的返回。
-- **只暴露缓存身份，不暴露 Mach-O**：`.image` 带的是 reader 的 `identifier`，不是 reader 本身，调用方拿它做不了符号查询或 `as? MachOFile`，延续提案 0018「`ReadingContext` 只管读」的定位。`SymbolicDemangler` 查符号仍走它私有的 `SymbolLookupContext` 转型。
+- `cacheScope` 本身的设计取舍（身份为什么不装箱、默认不缓存为什么是安全边界、为什么只暴露缓存身份而不暴露 Mach-O）随读取层搬到了 MachOKitExtensions 的实现说明。本库这边要守的一条：`SymbolicDemangler` 查符号仍走它私有的 `SymbolLookupContext` 转型，不靠 `cacheScope` 拿读取器（提案 0018「`ReadingContext` 只管读」）。
 
 ### 这次没动的已知缺口
 
@@ -380,16 +236,5 @@ Two deliberate decisions worth keeping in mind:
 
 没动的：按类型静态约束的 API（`GenericSpecializer where MachO == MachOImage`、`ImageUniverse.dependencyClosure(root:)`、`DependencyClosure` 的两个约束扩展）不是运行时判断，持有包装类型的宿主自己传 `base`。
 
-## Future Considerations
-
-1. **Async Support**: Add `AsyncReadingContext` for async reading operations
-2. **Caching**: Add optional caching layer to `ReadingContext`
-3. **Remote Reading**: Add `RemoteProcessContext` for reading from other processes
-4. **32-bit Support**: `MachOContext` could dynamically select `RuntimeTarget32` based on MachO header
-
-## References
-
-- Swift Runtime: `swift/include/swift/ABI/TargetLayout.h`
-- Memory Reader: `swift/include/swift/Remote/MemoryReader.h`
-- Metadata Reader: `swift/include/swift/Remote/MetadataReader.h`
+本库的 `ReaderKindCastScanTests` 只扫本库自己的 `Sources/`；搬到 MachOKitExtensions 的 MachOReading / MachOResolving 由那个包里的同名扫描守着。
 - Reflection Context: `swift/include/swift/RemoteInspection/ReflectionContext.h`

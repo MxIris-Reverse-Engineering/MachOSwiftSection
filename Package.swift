@@ -96,7 +96,6 @@ var dependencies: [Package.Dependency] = [
     .package(url: "https://github.com/apple/swift-collections", from: "1.2.0"),
 
     .package(url: "https://github.com/p-x9/AssociatedObject", from: "0.13.0"),
-    .package(url: "https://github.com/p-x9/swift-fileio.git", from: "0.9.0"),
     .package(url: "https://github.com/Mx-Iris/FrameworkToolbox", from: "0.17.0"),
 
     .package(url: "https://github.com/gohanlon/swift-memberwise-init-macro", from: "0.6.0"),
@@ -171,7 +170,9 @@ extension Package.Dependency {
             // threads reading a new file for the first time each stored their
             // own, freeing the value another thread was still reading, and
             // `SharedCacheKey` reads the identifier on every lookup.
-            from: "1.3.2",
+            // 2.0.0 carries MachOReading and MachOResolving, which used to be
+            // targets of this package; earlier releases do not have them.
+            from: "2.0.0",
         ),
     )
 
@@ -294,6 +295,16 @@ extension Target.Dependency {
         name: "MachOKitExtensions",
         package: "MachOKitExtensions",
     )
+    // The reading layer: targets of this package until MachOKitExtensions
+    // 2.0.0 took them over under the same names.
+    static let MachOReading = Target.Dependency.product(
+        name: "MachOReading",
+        package: "MachOKitExtensions",
+    )
+    static let MachOResolving = Target.Dependency.product(
+        name: "MachOResolving",
+        package: "MachOKitExtensions",
+    )
     static let MachOKitMain = Target.Dependency.product(
         name: "MachOKit",
         package: "MachOKit",
@@ -401,34 +412,13 @@ extension Target {
         path: "Sources/MachO/MachODependencies",
     )
 
-    static let MachOReading = Target.target(
-        name: "MachOReading",
-        dependencies: [
-            .product(.MachOKit),
-            .product(.MachOKitExtensions),
-            .target(.Utilities),
-            .product(name: "FileIO", package: "swift-fileio"),
-        ],
-        path: "Sources/MachO/MachOReading",
-    )
-
-    static let MachOResolving = Target.target(
-        name: "MachOResolving",
-        dependencies: [
-            .product(.MachOKit),
-            .product(.MachOKitExtensions),
-            .target(.MachOReading),
-        ],
-        path: "Sources/MachO/MachOResolving",
-    )
-
     static let MachOSymbols = Target.target(
         name: "MachOSymbols",
         dependencies: [
             .product(.MachOKit),
             .product(.Demangling),
-            .target(.MachOReading),
-            .target(.MachOResolving),
+            .product(.MachOReading),
+            .product(.MachOResolving),
             .target(.Utilities),
             .target(.MachOCaches),
         ],
@@ -440,8 +430,8 @@ extension Target {
         dependencies: [
             .product(.MachOKit),
             .product(.MachOKitExtensions),
-            .target(.MachOReading),
-            .target(.MachOResolving),
+            .product(.MachOReading),
+            .product(.MachOResolving),
             .target(.Utilities),
         ],
         path: "Sources/MachO/MachOPointers",
@@ -455,8 +445,8 @@ extension Target {
         name: "MachOBase",
         dependencies: [
             .product(.MachOKitExtensions),
-            .target(.MachOReading),
-            .target(.MachOResolving),
+            .product(.MachOReading),
+            .product(.MachOResolving),
             .target(.MachOPointers),
             .target(.Utilities),
         ],
@@ -1014,8 +1004,8 @@ extension Target {
         dependencies: [
             .product(.MachOKit),
             .target(.MachOFoundation),
-            .target(.MachOReading),
-            .target(.MachOResolving),
+            .product(.MachOReading),
+            .product(.MachOResolving),
             .target(.MachOSwiftSectionC),
             .target(.SwiftDump),
             .target(.SwiftDeclaration),
@@ -1042,8 +1032,8 @@ extension Target {
             .product(.MachOKit),
             .product(.Demangling),
             .target(.MachOFoundation),
-            .target(.MachOReading),
-            .target(.MachOResolving),
+            .product(.MachOReading),
+            .product(.MachOResolving),
             .target(.MachOFixtureSupport),
             .target(.MachOSwiftSection),
             .target(.SwiftDeclaration),
@@ -1072,7 +1062,7 @@ extension Target {
             .target(.MachOTestingSupport),
             .target(.MachOFixtureSupport),
             .product(.Demangling),
-            .target(.MachOResolving),
+            .product(.MachOResolving),
         ],
         swiftSettings: testSettings,
     )
@@ -1266,7 +1256,7 @@ extension Target {
             .product(.Capstone),
             .product(.Demangling),
             .target(.MachOSwiftSection),
-            .target(.MachOReading),
+            .product(.MachOReading),
             .target(.SwiftInspection),
         ],
         swiftSettings: testSettings,
@@ -1396,8 +1386,8 @@ extension Target {
         dependencies: [
             .product(.MachOKitExtensions),
             .target(.MachOCaches),
-            .target(.MachOReading),
-            .target(.MachOResolving),
+            .product(.MachOReading),
+            .product(.MachOResolving),
             .target(.MachOSymbols),
             .target(.MachOPointers),
             .target(.MachOFoundation),
@@ -1469,8 +1459,6 @@ let package = Package(
         .SwiftOutputTransformer,
         .MachOCaches,
         .MachODependencies,
-        .MachOReading,
-        .MachOResolving,
         .MachOSymbols,
         .MachOPointers,
         .MachOBase,
