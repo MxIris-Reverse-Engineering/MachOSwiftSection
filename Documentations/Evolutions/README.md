@@ -104,6 +104,6 @@
 | [0092](0092-existential-any.md) | interface 与 dump 给 existential 写上 `any`，并修好 constrained existential 字段的类型 | Implemented |
 | [0093](0093-observable-macro-folding.md) | 识别 `@Observable` 宏：interface 默认折叠它的展开 | Implemented |
 | [0094](0094-init-accessor-recovery.md) | 还原 SE-0400 的 init accessor | Implemented |
+| [0095](0095-observable-nested-expansion.md) | `@Observable` 的展开分两层：先出 `@ObservationTracked`，再展开它 | Implemented |
 | draft | [SwiftDeclaration 的目录分成公开模型与索引代码两块](draft-swift-declaration-model-indexing-layout.md) | In Progress |
 | draft | [SwiftDeclaration 的类型名按角色统一后缀](draft-swift-declaration-type-naming.md) | In Progress |
-| draft | [`@Observable` 的展开分两层：先出 `@ObservationTracked`，再展开它](draft-observable-nested-expansion.md) | In Progress |

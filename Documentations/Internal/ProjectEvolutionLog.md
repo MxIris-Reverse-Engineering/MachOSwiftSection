@@ -3241,6 +3241,24 @@
   - 旧的 ABI 快照要用新版重新生成。RuntimeViewer 的 `next` 等它那边 `@Observable` 的改动做完再推，`kindString` 那一行跟着一起上。
 - **对应版本**：未发版。
 
+## 134. `@Observable` 的展开分两层，`@Observation.ObservationIgnored` 单独占一行
+
+- **时间段**：2026-11-12，分支 `feature/observable-nested-expansion`（worktree `.worktrees/MachOSwiftSection-ObservableNestedExpansion`，基于 `next` 2837d2e0），两次在本地合进 `next` 供用户查看，当天正式落地。提案 [0095-observable-nested-expansion](../Evolutions/0095-observable-nested-expansion.md)（轻量档），接着第 132 节的 0093。
+- **动机**：0093 的分块展开，把 accessor 块与存储直接算作展开 `@Observable` 的结果。Swift 源码里 `ObservableMacro` 只给每个被跟踪属性加 `@ObservationTracked`，accessor 块与存储是 `ObservationTrackedMacro` 写的，Xcode 也分两次展开，RuntimeViewer 要照这个分层显示。同一轮里，用户在 RuntimeViewer 里看 SwiftUI 时发现，折叠形态的 `@Observation.ObservationIgnored` 与很长的类型挤在一行，行行折行。
+- **关键决策**：
+  - 分块分两层。第一层每个被跟踪属性一块 `@Observation.ObservationTracked`（`.trackedPropertyAttribute`，放在折叠声明上方），带一个 `NestedExpansion`：属性在块里的 UTF-8 范围、宏，以及展开它的分块，也就是原来的 `.trackedProperty`，内容不变。两层的 `anchorKind` 都是同一个折叠声明的区域，`anchorKind` 改为存储属性。
+  - 属性写成带模块名的 `@Observation.ObservationTracked`（用户选定；宏源码写的是 `@ObservationTracked`），经类型打印器印出，module selector 照样生效。
+  - 被导出过滤排除的属性两层都不出；属性块里不放标记区域，范围由 `attributeUTF8Range` 给出。整块展开 `printMacroExpansion` 不变，仍是两层合起来的样子。
+  - `@Observation.ObservationIgnored` 单独占一行，放在声明上方；被忽略的 wrapped property，wrapper 属性也单独占一行（用户选定），`lazy` 留在声明行，别处的 wrapper 属性照旧与声明同行。公开的 `printThrowingVariable` 签名不变，转调一个内部重载。
+- **落地**：
+  - SwiftInspection：`ObservableMacroRecognition.observationTrackedAttributeNameNode`。SwiftDeclaration：`SwiftAttachedMacro.observationTracked`。
+  - SwiftPrinting：`MacroExpansionPart`（`.trackedPropertyAttribute`、`NestedExpansion`、存储的 `anchorKind`）、`printMacroExpansionParts`、`observationIgnoredAttribute(level:)`、`printThrowingVariable` 的内部重载、`printThrowingSynthesizedWrappedProperty(_:level:placesAttributeOnItsOwnLine:)`。
+  - 测试：`ObservableMacroInterfaceTests` 的两层分块、属性写法与属性换行（成员与合成两条路径）。
+  - 文档：提案、`Modules/SwiftInterface.md`、`AGENTS.md`、`AgentPlugins/swift-section` 的 skill。
+- **验证**：在 JHs-Mac-Studio-Ultra（macOS 27.2，Xcode 26.6）上跑。最终全量 2909 个测试，只红两条：`FileMappingTests`，基线上同样失败；`BoundedConcurrentMapTests` 的时限超时，是既有偶发，失败在新测试开始之前。分块 API 不影响 interface 与 dump 的输出；折叠形态只改了换行，而渲染 A/B 的候选侧带 `--expand-macros`，比较不到折叠形态，所以没跑渲染 A/B。
+- **后续**：RuntimeViewer 照这一版的分块显示两层展开，它的锁文件要钉到推送后的 origin/next。
+- **对应版本**：未发版。
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节

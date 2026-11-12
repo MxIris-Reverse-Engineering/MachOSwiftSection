@@ -1,9 +1,10 @@
-# Draft - `@Observable` 的展开分两层：先出 `@ObservationTracked`，再展开它
+# 0095 - `@Observable` 的展开分两层：先出 `@ObservationTracked`，再展开它
 
-- **状态**: In Progress
+- **状态**: Implemented
 - **创建日期**: 2026-11-12
 - **最后更新**: 2026-11-12
 - **实现分支**: `feature/observable-nested-expansion`
+- **配套文档**: [Modules/SwiftInterface.md](../Internal/Modules/SwiftInterface.md)（两层分块与折叠形态的写法）
 
 ## 摘要
 
@@ -74,3 +75,4 @@
 | 2026-11-12 | 两层展开实现完成 | 文档：`Modules/SwiftInterface.md` 与 `AGENTS.md` 已写两层；术语表不加新词 |
 | 2026-11-12 | 折叠形态里 `@Observation.ObservationIgnored` 单独占一行，并进本提案；被忽略的 wrapped property 的 wrapper 属性也单独占一行，`lazy` 留在声明行；只改带 `@Observation.ObservationIgnored` 的属性，别处的 wrapper 属性照旧与声明同行 | 用户在 RuntimeViewer 里看 SwiftUI 时提出：类型长的属性行行折行。用户定：并进正在做的提案一起收尾；wrapper 属性也各占一行 |
 | 2026-11-12 | 实现完成，待用户看过后收尾 | 文档：`Modules/SwiftInterface.md` 写了两层与属性换行，`AGENTS.md` 写了两层，插件 skill 写了 `@Observation.ObservationIgnored` 单独占一行；术语表不加新词 |
+| 2026-11-12 | 落地：取号 0095，状态改 Implemented。不另写使用指南，术语表不加新词 | 用户看过后批准收尾。配套文档是 SwiftInterface 模块文档，分块 API 的用法在 `MacroExpansionPart` 的文档注释里。后续项：整块展开 `printMacroExpansion` 仍是两层合起来的样子；`@Model` 等别的宏还没有识别 |
