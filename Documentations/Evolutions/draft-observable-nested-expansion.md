@@ -1,6 +1,6 @@
 # Draft - `@Observable` 的展开分两层：先出 `@ObservationTracked`，再展开它
 
-- **状态**: Accepted
+- **状态**: In Progress
 - **创建日期**: 2026-11-12
 - **最后更新**: 2026-11-12
 - **实现分支**: `feature/observable-nested-expansion`

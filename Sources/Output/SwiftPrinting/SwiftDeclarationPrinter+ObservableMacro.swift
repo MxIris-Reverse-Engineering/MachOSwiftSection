@@ -292,10 +292,13 @@ extension SwiftDeclarationPrinter {
 
     /// What `macro` generated in `typeDefinition`, in the pieces a host places
     /// where Xcode's Expand Macro shows an attached macro's expansion
-    /// (evolution proposal `observable-macro-folding`): for `.observable`, one
-    /// piece below each tracked property's folded declaration — the accessor
-    /// block the macro writes, whichever accessors the image keeps, then the
-    /// storage `_x` — in the order the type body prints them; one above the type's
+    /// (evolution proposals `observable-macro-folding` and
+    /// `observable-nested-expansion`): for `.observable`, one piece above
+    /// each tracked property's folded declaration — the attribute the macro
+    /// attaches, `@Observation.ObservationTracked`, whose nested expansion
+    /// is one piece below the declaration: the accessor block that macro
+    /// writes, whichever accessors the image keeps, then the storage `_x` —
+    /// in the order the type body prints them; one above the type's
     /// closing brace — the registrar and the generated methods; and one below
     /// it — the generated conformance. See `MacroExpansionPart` for where
     /// each goes.
@@ -330,18 +333,30 @@ extension SwiftDeclarationPrinter {
 
         var parts: [MacroExpansionPart] = []
         for trackedProperty in expansion.trackedProperties {
-            var rows: [SemanticString] = []
-            // Visible exactly where the folded declaration it is placed
-            // below is.
-            if let storageField = typeDefinition.fields.first(where: { $0.name == trackedProperty.backingFieldName }),
-               let visibility = trackedPropertyExportVisibility(trackedProperty, storedIn: storageField, folding: folding) {
-                rows.append(observableTrackedPropertyAccessorBlock(for: trackedProperty, level: 0).visible(under: visibility))
-            }
+            // The attribute and what expanding it gives are visible exactly
+            // where the folded declaration they are placed by is.
+            guard let storageField = typeDefinition.fields.first(where: { $0.name == trackedProperty.backingFieldName }),
+                  let visibility = trackedPropertyExportVisibility(trackedProperty, storedIn: storageField, folding: folding)
+            else { continue }
+            let anchorKind = AnnotationRegion.Kind.attachedMacroTrackedProperty(.observable, named: trackedProperty.name)
+
+            // What `@ObservationTracked` writes: the accessor block, then
+            // the storage.
+            var rows = [observableTrackedPropertyAccessorBlock(for: trackedProperty, level: 0).visible(under: visibility)]
             if let storage = fieldDeclarationsByName[trackedProperty.backingFieldName] {
                 rows.append(storage)
             }
-            guard !rows.isEmpty else { continue }
-            parts.append(MacroExpansionPart(macro: .observable, placement: .trackedProperty(named: trackedProperty.name), content: SemanticString(Rows(level: 0, rows))))
+            let trackedPropertyPart = MacroExpansionPart(macro: .observationTracked, placement: .trackedProperty(named: trackedProperty.name), content: SemanticString(Rows(level: 0, rows)), anchorKind: anchorKind)
+
+            // What `@Observable` writes for the property: the attribute.
+            let attribute = try await macroAttribute(named: AttachedMacroNameNodes.attributeNameNode(of: .observationTracked), level: 0)
+            parts.append(MacroExpansionPart(
+                macro: .observable,
+                placement: .trackedPropertyAttribute(named: trackedProperty.name),
+                content: attribute.visible(under: visibility),
+                nestedExpansions: [MacroExpansionPart.NestedExpansion(attributeUTF8Range: 0 ..< attribute.string.utf8.count, macro: .observationTracked, parts: [trackedPropertyPart])],
+                anchorKind: anchorKind
+            ))
         }
 
         var memberRows: [SemanticString] = []
@@ -439,9 +454,15 @@ enum AttachedMacroNameNodes {
     static var observationIgnored: Node { ObservableMacroRecognition.observationIgnoredAttributeNameNode }
 
     static func attributeNameNode(of macro: SwiftAttachedMacro) -> Node {
-        // `.observable` is the one macro recognized; another gets a static
-        // node of its own beside it.
-        precondition(macro == .observable, "no attribute name node for \(macro.moduleName).\(macro.name)")
-        return observableProtocol
+        // Each macro the printer writes an attribute of has a static node of
+        // its own.
+        switch macro {
+        case .observable:
+            return observableProtocol
+        case .observationTracked:
+            return ObservableMacroRecognition.observationTrackedAttributeNameNode
+        default:
+            preconditionFailure("no attribute name node for \(macro.moduleName).\(macro.name)")
+        }
     }
 }

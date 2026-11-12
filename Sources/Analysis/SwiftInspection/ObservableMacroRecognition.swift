@@ -39,6 +39,10 @@ package enum ObservableMacroRecognition {
     /// The macro a stored property the macro leaves alone is declared with.
     package static let observationIgnoredName = "ObservationIgnored"
 
+    /// The macro `@Observable` attaches to each property it tracks, which
+    /// writes the property's accessors and its storage.
+    package static let observationTrackedName = "ObservationTracked"
+
     /// The type of `registrarFieldName`.
     package static let registrarTypeName = "ObservationRegistrar"
 
@@ -95,6 +99,11 @@ package enum ObservableMacroRecognition {
     /// stored property the macro left alone. A macro no type shares a name
     /// with; static for the same reason.
     package static let observationIgnoredAttributeNameNode = nominalTypeNode(.structure, moduleName: observationModuleName, name: observationIgnoredName)
+
+    /// `Observation.ObservationTracked` as a name node, for the attribute
+    /// `@Observable` attaches to each property it tracks (evolution proposal
+    /// `observable-nested-expansion`). Static for the same reason.
+    package static let observationTrackedAttributeNameNode = nominalTypeNode(.structure, moduleName: observationModuleName, name: observationTrackedName)
 
     private static func nominalTypeNode(_ kind: Node.Kind, moduleName: String, name: String) -> Node {
         Node.createTransient(kind: .type, child: Node.createTransient(kind: kind, children: [
