@@ -29,6 +29,25 @@ package enum InitAccessorFieldInference {
         }
     }
 
+    /// The fields the init accessor `symbolNode` names is inferred to
+    /// initialize, by the property name and type its own symbol spells. That
+    /// type need not be the getter's: SwiftUICore keeps
+    /// `_GeometryActionModifier2.value`'s getter and setter under the mangling
+    /// from before the type became `@Sendable` (`@_silgen_name`), and only
+    /// the init accessor spells the type its field `_value` has. `nil` when
+    /// `symbolNode` is no init accessor of a variable.
+    package static func initializedFieldNames(
+        ofInitAccessorSymbol symbolNode: NodeReference,
+        fieldNamed: (String) -> StoredField?
+    ) -> [String]? {
+        guard let initAccessorNode = symbolNode.children.first(where: { $0.kind == .initAccessor }),
+              let variableNode = initAccessorNode.children.first, variableNode.kind == .variable,
+              let propertyName = variableNode.identifier,
+              let declaredTypeNode = variableNode.children.first(where: { $0.kind == .type })?.materialize()
+        else { return nil }
+        return initializedFieldNames(ofPropertyNamed: propertyName, declaredTypeNode: declaredTypeNode, fieldNamed: fieldNamed)
+    }
+
     /// The fields the init accessor of the property `propertyName`, of
     /// `declaredTypeNode`, is inferred to initialize: `["_<propertyName>"]`
     /// when `storedFields` has that field with the property's type, `nil`

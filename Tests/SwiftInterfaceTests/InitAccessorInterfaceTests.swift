@@ -74,7 +74,7 @@ struct InitAccessorInterfaceTests {
         // The declaration prints from the getter, whose older mangling lacks
         // `@Sendable`; the init accessor names the field's type.
         let sendableUpgrade = try await indexed.printedType("SendableUpgrade").string
-        #expect(try accessorBlock(of: "var value: (Swift.Int) -> Swift.Int", in: sendableUpgrade) == ["@storageRestrictions(initializes: _value) init", "get", "set"])
+        #expect(try accessorBlock(of: "var value: (_: Swift.Int) -> Swift.Int", in: sendableUpgrade) == ["@storageRestrictions(initializes: _value) init", "get", "set"])
         for print in [frozenBox, model, mixed, sendableUpgrade] {
             #expect(!print.contains(Self.notRecordedComment), "\(print)")
         }
