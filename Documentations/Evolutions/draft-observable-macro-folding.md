@@ -2,7 +2,7 @@
 
 - **状态**: In Progress
 - **创建日期**: 2026-11-11
-- **最后更新**: 2026-11-11
+- **最后更新**: 2026-11-12
 - **实现分支**: `feature/observable-macro`
 
 ## 摘要
@@ -102,6 +102,7 @@ configuration.marksAttachedMacros = true
 
 - `SwiftDeclarationPrinter.printMacroExpansion(of:attachedTo:level:)`：印出 registrar、每个被跟踪属性的存储 `_x`、镜像里还有 accessor 的 computed `x`、`access(keyPath:)`、`withMutation(keyPath:_:)`、镜像里留下的 `shouldNotifyObservers(_:_:)`，最后是 `extension X: Observation.Observable {}`。每条声明带着展开形态里同样的注释，用的是同一套成员打印代码；导出过滤照常生效。类型没带这个宏时印出空串。
 - `SwiftDeclarationPrintConfiguration.marksAttachedMacros`：折叠形态里每个宏属性包在 `AnnotationRegion` 里，种类是 `AnnotationRegion.Kind.attachedMacro(_:)`（`attachedMacro.Observation.Observable`），一个宏一个种类，宿主不必读文字就知道是哪个宏。默认关，关着时输出逐字节不变。
+- `SwiftDeclarationPrinter.printMacroExpansionParts(of:attachedTo:)`：照 Xcode 展开 attached macro 的位置把展开拆成几块（`MacroExpansionPart`），每块不带自身缩进、首尾不带换行：每个被跟踪属性一块，放在它折叠出的声明下方，先是镜像里 computed 属性的 accessor 块（剥掉了就没有），再是存储 `_x`；registrar 与生成的方法一块，放在类型闭合括号上方；生成的 conformance 一块，放在闭合括号下方。`marksAttachedMacros` 打开时，每个被跟踪属性折叠出的声明包在 `AnnotationRegion.Kind.attachedMacroTrackedProperty(_:named:)` 的区域里，`MacroExpansionPart.anchorKind` 与它相等；闭合括号不另做标记，它是类型 `DefinitionRegion` 的最后一行（或打印的那个定义的最后一行），不必改 swift-semantic-string。
 
 ### dump
 
@@ -159,3 +160,4 @@ RuntimeViewer 的 release 构建按版本解析，要等本库发版。`next` �
 | 2026-11-11 | 证据规则不再按镜像有没有本地符号分流：init accessor、成员的 setter 或 `_modify`、挂在 `x` 名下的初始值表达式在任何镜像里都算，只有 `_x` 自己的初始值表达式、或 `_x` 有 accessor 而 `x` 没有，才把它排除 | 用修好的 CLI 渲染真实 SwiftUI 时发现 `Immersion` 等类没折叠对：SwiftUI 带本地符号，但 dead-strip 去掉了 init accessor，旧规则把 `_amount` 读成手写字段。fixture 加 `-dead_strip` 变体复现，修复前的 CLI 在它上面错得一样 |
 | 2026-11-11 | fixture 改在独立线程编译，访问器改成 async | 几个套件同时要 fixture 时，同步编译占住多条协作线程，全量里 `BoundedConcurrentMapTests` 两次超时，分支起点上没有；改后全量通过 |
 | 2026-11-11 | 实现完成，待用户看过后收尾 | 文档：模块文档（SwiftDeclaration、SwiftInterface）写实现说明，术语表登记 macro folding，插件 skill 写 CLI 用法；不另写使用指南，CLI 的 `--help` 与 skill 已够；演进账本一节、取号与文档索引留给正式收尾 |
+| 2026-11-12 | 加入分块的展开 `printMacroExpansionParts` 与被跟踪属性的定位标记；闭合括号用类型的定义区域定位 | RuntimeViewer 改为 Xcode 式的分散展开，用户批准在正式收尾前加上；给 `DeclarationBlock` 的闭合括号打标记要改 swift-semantic-string 并先发版，类型的定义区域已经给出它的范围 |

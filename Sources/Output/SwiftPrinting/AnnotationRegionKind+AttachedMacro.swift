@@ -12,4 +12,13 @@ extension AnnotationRegion.Kind {
     public static func attachedMacro(_ macro: SwiftAttachedMacro) -> Self {
         Self("attachedMacro.\(macro.moduleName).\(macro.name)")
     }
+
+    /// The folded declaration of a property `macro` tracks — `var count:
+    /// Swift.Int`, without the comments above it — marked when
+    /// `SwiftDeclarationPrintConfiguration.marksAttachedMacros` is on. One
+    /// kind per property, so a host places the expansion part of that
+    /// property (`MacroExpansionPart.anchorKind`) below it by comparing kinds.
+    public static func attachedMacroTrackedProperty(_ macro: SwiftAttachedMacro, named propertyName: String) -> Self {
+        Self("attachedMacro.\(macro.moduleName).\(macro.name).trackedProperty.\(propertyName)")
+    }
 }
