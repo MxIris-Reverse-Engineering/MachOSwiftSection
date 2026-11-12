@@ -106,6 +106,22 @@ package enum InitAccessorFixture {
         @inlinable public init(value: Value) { self.value = value }
     }
 
+    // SwiftUICore's `_GeometryActionModifier2.value` again: the getter and
+    // setter keep the mangling from before the type became `@Sendable`, so
+    // only the init accessor spells the property's type as its field has it.
+    public struct SendableUpgrade {
+        private var _value: @Sendable (Int) -> Int
+        public var value: @Sendable (Int) -> Int {
+            @storageRestrictions(initializes: _value)
+            init(initialValue) { _value = initialValue }
+            @_silgen_name("$s19InitAccessorFixture15SendableUpgradeV5valueyS2icvg")
+            get { _value }
+            @_silgen_name("$s19InitAccessorFixture15SendableUpgradeV5valueyS2icvs")
+            set { _value = newValue }
+        }
+        public init(value: @escaping @Sendable (Int) -> Int) { self.value = value }
+    }
+
     // A class, and a storage whose field type is `weak Swift.AnyObject?`.
     public final class Model {
         private var _name: String
@@ -188,6 +204,7 @@ package enum InitAccessorFixture {
         Property("Pair", "point"),
         Property("Mixed", "a"),
         Property("FrozenBox", "value"),
+        Property("SendableUpgrade", "value"),
         Property("Model", "name"),
         Property("Model", "delegate"),
         Property("PersistedLookalike", "name"),
@@ -199,11 +216,13 @@ package enum InitAccessorFixture {
     ]
 
     /// What `@storageRestrictions(initializes:)` is inferred to list: a
-    /// stored property named `_<name>` with the property's type. `Mixed.a`
-    /// also accesses `b`, which nothing infers.
+    /// stored property named `_<name>` with the property's type — the type
+    /// the init accessor names, which `SendableUpgrade.value`'s getter does
+    /// not. `Mixed.a` also accesses `b`, which nothing infers.
     package static let inferredInitializedFieldNames: [Property: [String]] = [
         Property("Mixed", "a"): ["_a"],
         Property("FrozenBox", "value"): ["_value"],
+        Property("SendableUpgrade", "value"): ["_value"],
         Property("Model", "name"): ["_name"],
         Property("Model", "delegate"): ["_delegate"],
     ]

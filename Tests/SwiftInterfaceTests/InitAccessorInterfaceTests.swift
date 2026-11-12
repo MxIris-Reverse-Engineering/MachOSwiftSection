@@ -71,7 +71,11 @@ struct InitAccessorInterfaceTests {
         // `accesses: b` is not recovered.
         let mixed = try await indexed.printedType("Mixed").string
         #expect(try accessorBlock(of: "var a: Swift.String", in: mixed) == ["@storageRestrictions(initializes: _a) init", "get", "set"])
-        for print in [frozenBox, model, mixed] {
+        // The declaration prints from the getter, whose older mangling lacks
+        // `@Sendable`; the init accessor names the field's type.
+        let sendableUpgrade = try await indexed.printedType("SendableUpgrade").string
+        #expect(try accessorBlock(of: "var value: (Swift.Int) -> Swift.Int", in: sendableUpgrade) == ["@storageRestrictions(initializes: _value) init", "get", "set"])
+        for print in [frozenBox, model, mixed, sendableUpgrade] {
             #expect(!print.contains(Self.notRecordedComment), "\(print)")
         }
     }
