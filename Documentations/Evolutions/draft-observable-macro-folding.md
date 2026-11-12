@@ -161,3 +161,4 @@ RuntimeViewer 的 release 构建按版本解析，要等本库发版。`next` �
 | 2026-11-11 | fixture 改在独立线程编译，访问器改成 async | 几个套件同时要 fixture 时，同步编译占住多条协作线程，全量里 `BoundedConcurrentMapTests` 两次超时，分支起点上没有；改后全量通过 |
 | 2026-11-11 | 实现完成，待用户看过后收尾 | 文档：模块文档（SwiftDeclaration、SwiftInterface）写实现说明，术语表登记 macro folding，插件 skill 写 CLI 用法；不另写使用指南，CLI 的 `--help` 与 skill 已够；演进账本一节、取号与文档索引留给正式收尾 |
 | 2026-11-12 | 加入分块的展开 `printMacroExpansionParts` 与被跟踪属性的定位标记；闭合括号用类型的定义区域定位 | RuntimeViewer 改为 Xcode 式的分散展开，用户批准在正式收尾前加上；给 `DeclarationBlock` 的闭合括号打标记要改 swift-semantic-string 并先发版，类型的定义区域已经给出它的范围 |
+| 2026-11-12 | 分块里属性的 accessor 块单独打印，由测试逐行对照展开形态的同一块 | 分块要的是不带声明头的块，变量打印器只会连声明一起印；init accessor 提案正在给展开形态的块加 `init` 一行，对照测试保证分块跟着加，而不是悄悄少一行 |
