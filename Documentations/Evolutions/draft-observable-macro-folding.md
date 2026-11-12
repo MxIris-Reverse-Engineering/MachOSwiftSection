@@ -134,8 +134,9 @@ RuntimeViewer 的 release 构建按版本解析，要等本库发版。`next` �
 在 JHs-Mac-Studio-Ultra（macOS 27.2、Xcode 26.6）的沙盒里跑，swift-demangling 用它 `next` 的 8809c1b 作本地兄弟依赖（existential-any 的选项还没发版）。
 
 - 全量测试：2879 个测试、548 个套件，只剩 `FileMappingTests.readersOfOneCacheFileShareOneMapping` 一条；分支起点上跑全量同样只这一条失败，是基线已有的。
-- 全量中途暴露并修好的两件事：`TypeDefinition` 实例大小超过提案 0002 的守卫（456 > 448，展开描述改为装箱，回到 440）；fixture 在静态初始化里同步编四个变体，占住协作线程，让 `BoundedConcurrentMapTests` 的一分钟时限两次超时（改为在独立线程编译、访问器改成 async）。
-- 渲染 A/B（96 对，基线是分支起点，候选侧加 `--expand-macros` 与 `RV_OPTS` 的 `expandsMacros`）：interface 全部逐字节一致；dump 有 10 对不同，去掉 `@Observation.Observable ` 前缀后都逐字节一致，进程内一侧标出 SwiftUI、SwiftUICore、SwiftData 共 28 个类。A/B 跑在 dead-strip 修复之前的提交上；之后的改动只动折叠形态（A/B 里关着）和测试支持代码，展开形态与 dump 不受影响。
+- 全量中途暴露并修好的两件事：`TypeDefinition` 实例大小超过提案 0002 的守卫（456 > 448，展开描述改为装箱，回到 440）；fixture 在静态初始化里同步编四个变体，编译期间占住协作线程（改为在独立线程编译、访问器改成 async）。当时把 `BoundedConcurrentMapTests` 的一分钟时限超时也归到它头上，后来查明这条在没有本分支改动的全量里也会超时，见下一条。
+- 分块的展开（`printMacroExpansionParts`）加入后再跑全量：2884 个测试，三条失败，都不是本次引入的。`FileMappingTests` 是基线已有的。`BoundedConcurrentMapTests.cancellationStopsSubmittingPendingElements` 的时限超时在 Ultra 上其他会话不含本分支的全量里也出现过（2026-11-11 的两次）。`SharedCacheTests.differentKeysParallelViaAsyncLet` 要两个 detached task 在 30 秒内同时拿到协作线程，而 Ultra 的全量自始至终占满协作线程池，排在前面的测试都要等 800 秒以上才结束。这两条在日志里都是在任何新测试开始之前就已经失败的，分块的代码也只在新测试里执行。
+- 渲染 A/B（96 对，基线是分支起点，候选侧加 `--expand-macros` 与 `RV_OPTS` 的 `expandsMacros`）：interface 全部逐字节一致；dump 有 10 对不同，去掉 `@Observation.Observable ` 前缀后都逐字节一致，进程内一侧标出 SwiftUI、SwiftUICore、SwiftData 共 28 个类。A/B 跑在 dead-strip 修复之前的提交上；之后的改动只动折叠形态（A/B 里关着）、只在 `marksAttachedMacros` 打开时才有的标记、新加的分块 API 和测试支持代码，展开形态与 dump 不受影响，没有重跑。
 - 真实框架：用修复后的 CLI 渲染 macOS 27.2 的 SwiftUI，`Immersion`、`WindowVisibilityState`、`SearchEnvironmentStorage` 等都折叠对了；剩下印 `@Observation.ObservationIgnored var _x` 的都是手写写法（存储与同名属性类型不同，或同名的是方法）。
 
 ## 决策日志
@@ -162,3 +163,4 @@ RuntimeViewer 的 release 构建按版本解析，要等本库发版。`next` �
 | 2026-11-11 | 实现完成，待用户看过后收尾 | 文档：模块文档（SwiftDeclaration、SwiftInterface）写实现说明，术语表登记 macro folding，插件 skill 写 CLI 用法；不另写使用指南，CLI 的 `--help` 与 skill 已够；演进账本一节、取号与文档索引留给正式收尾 |
 | 2026-11-12 | 加入分块的展开 `printMacroExpansionParts` 与被跟踪属性的定位标记；闭合括号用类型的定义区域定位 | RuntimeViewer 改为 Xcode 式的分散展开，用户批准在正式收尾前加上；给 `DeclarationBlock` 的闭合括号打标记要改 swift-semantic-string 并先发版，类型的定义区域已经给出它的范围 |
 | 2026-11-12 | 分块里属性的 accessor 块单独打印，由测试逐行对照展开形态的同一块 | 分块要的是不带声明头的块，变量打印器只会连声明一起印；init accessor 提案正在给展开形态的块加 `init` 一行，对照测试保证分块跟着加，而不是悄悄少一行 |
+| 2026-11-12 | 更正 2026-11-11 那一行：`BoundedConcurrentMapTests` 的超时不是 fixture 同步编译造成的，独立线程编译照旧保留 | Ultra 上其他会话不含本分支的全量里这条也超时；同步编译占住协作线程是真问题，但当时「改后全量通过」只是一次运气 |
