@@ -128,7 +128,8 @@ struct ObservableMacroInterfaceTests {
         let print = try await indexed(.release).printedType("SendingModel")
         #expect(!print.contains("var _makeCoordinator") && !print.contains("var _takeCoordinator") && !print.contains("ObservationIgnored"), "\(print)")
         #expect(try line(declaring: "var makeCoordinator: ", in: print).contains("sending ObservableMacroFixture.Coordinator"), "\(print)")
-        #expect(try line(declaring: "var takeCoordinator: ", in: print).contains("(sending ObservableMacroFixture.Coordinator)"), "\(print)")
+        let takeCoordinator = try line(declaring: "var takeCoordinator: ", in: print)
+        #expect(takeCoordinator.contains("sending") && takeCoordinator.hasSuffix("ObservableMacroFixture.Coordinator) -> ()"), "\(print)")
     }
 
     // MARK: - The whole interface
