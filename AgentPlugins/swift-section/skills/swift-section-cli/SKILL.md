@@ -380,6 +380,15 @@ Attribution against a non-macOS binary is limited (it warns and degrades rather 
   printed only when an extension of the protocol in the same image proves it
   (`extension P where Element: ~Copyable`), which only a primary associated type
   (`protocol P<Element>`) can.
+- **`@storageRestrictions(initializes: _x) init` in an accessor block is inferred, not read**
+  (after 0.24.0). No binary records the attribute (SE-0400 init accessors): it is printed when
+  the type has a stored property `_x` of the property's own type — what `@Observable` and most
+  hand-written storage do — and it never lists `accesses:`. Otherwise a bare `init` prints under
+  `// init accessor: the binary does not record which stored properties it initializes`. **No
+  `init` line does not mean no init accessor**: the compiler gives one internal access unless it
+  is `@usableFromInline`, so an optimized, dead-stripped image (most OS frameworks, shipped
+  apps) keeps only the exported ones. `dump` lists each one it finds as `X.x.init : T`, with the
+  inference on the line above.
 - **Enum-layout patterns marked "not resolved offline"** mean only the extra-inhabitant *index*
   is derivable statically; the concrete bytes need the live metadata.
 - **An `@objc protocol` whose requirements carry `@objc(selector)`, under the comment

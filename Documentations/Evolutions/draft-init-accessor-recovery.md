@@ -92,8 +92,8 @@ struct Angle {
 
 1. （已完成）模型与分桶：改动位置 1 到 5 里除 `initializedFieldNames` 以外的部分，ABI diff 的 token 与快照格式 13（改动位置 9），RuntimeViewer 的 `kindString`（改动位置 10，RuntimeViewer 仓库里单独的分支）；新的 `InitAccessorFixture`，以及模型、dump（init accessor 自动列出）、ABI diff 的测试。这一步之后 interface 还不印 `init`，只有成员地址注释多出 `init` 的地址。
 2. （已完成）推断：`InitAccessorFieldInference`（连同挪过来的 `referencedTypeNode(ofStoredType:)`）、新的索引步骤与 `initializedFieldNames`，以及模型测试。
-3. interface：`init` 那一行、推得出时的 `@storageRestrictions`、推不出时的注释（新工厂与新注释种类）；interface 测试，`ObservableMacroInterfaceTests` 里展开形态的期望。
-4. dump：每条 init accessor 前的推断结果，以及 dump 测试。
+3. （已完成）interface：`init` 那一行、推得出时的 `@storageRestrictions`、推不出时的注释（新工厂与新注释种类）；interface 测试，`ObservableMacroInterfaceTests` 里展开形态的期望。
+4. （已完成）dump：每条 init accessor 前的推断结果，以及 dump 测试。
 5. 文档与验证：改动位置之外的文档同步（见下一节最后一条），Ultra 上的全量测试与渲染 A/B。
 
 ### 没有询问就采用的假设
@@ -115,3 +115,4 @@ struct Angle {
 | 2026-11-12 | `final` 推断不把 init accessor 当证据 | 实现时发现 `final` 的证据门槛是「有任意 accessor 符号」，init accessor 进了 `accessors` 之后会被算进去；它从不经 vtable 派发，什么也证明不了。排除之后所有结论与今天相同 |
 | 2026-11-12 | 落地步骤 1、2 完成 | Ultra 上相关的 14 个套件（新增的三组、`ABIDifferTests`、`@Observable` 的各组）80 个测试全过。第一次跑时 init accessor 一个都没进成员桶：分桶之前还有一道 `isMember` 名单（`SymbolIndexStore.swift:1878`），补上之后全绿 |
 | 2026-11-12 | 推不出时的注释印在声明上一行，不放在 `init` 行尾 | accessor block 由节点打印器写出，那里没有带注释种类的注释通道；声明上一行是地址、导出状态等成员注释共用的位置，走 `comment(_:as:)` 就能被 `marksCommentStructure` 标出来 |
+| 2026-11-12 | 落地步骤 3、4 完成；`init` 那一行抽成 `AccessorBlockKeywords.InitAccessorLine.write(into:)` | Ultra 上 interface、dump、printing、rendering、indexing、diffing 六个测试目标 913 个测试全过。`@Observable` 那边新加的 `printMacroExpansionParts` 自己拼 accessor block、不经 `printAccessorBlock`，抽出来以后两处共用同一份渲染 |
