@@ -1,5 +1,6 @@
 import SwiftDeclaration
 import Demangling
+import Semantic
 
 /// The keywords of a computed member's accessor block: `{ get }` and
 /// `{ get set }`, or SE-0507's `{ borrow }` and `{ borrow mutate }`, opened by
@@ -84,5 +85,13 @@ extension AccessorBlockKeywords.InitAccessorLine {
             target.writeSpace()
         }
         target.write("init", context: .context(state: .printKeyword))
+    }
+
+    /// The line on its own, for an accessor block assembled outside a node
+    /// printer — the `@Observable` expansion's parts.
+    var semanticString: SemanticString {
+        var line = SemanticString()
+        write(into: &line)
+        return line
     }
 }
