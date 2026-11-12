@@ -299,4 +299,23 @@ struct WrappedPropertyAttributeSpellingTests {
         )
         #expect(attributeTypeNode == Self.wrapperNominalTypeNode)
     }
+
+    /// `sending` is all that is set aside: an argument of another type keeps
+    /// the attribute's arguments.
+    @Test func anArgumentOfAnotherTypeKeepsTheArguments() {
+        let fieldTypeNode = Node.createTransient(kind: .type, child: Node.createTransient(kind: .boundGenericStructure, children: [
+            Self.wrapperNominalTypeNode,
+            Node.createTransient(kind: .typeList, child: Self.functionTypeNode(sendingResult: true)),
+        ]))
+        let stringTypeNode = Node.createTransient(kind: .type, child: Node.createTransient(kind: .structure, children: [
+            Node.createTransient(kind: .module, text: "Swift"),
+            Node.createTransient(kind: .identifier, text: "String"),
+        ]))
+        let attributeTypeNode = WrappedPropertyRecovery.attributeTypeNode(
+            fieldTypeNode: fieldTypeNode,
+            wrapperNominalTypeNode: Self.wrapperNominalTypeNode,
+            wrappedPropertyTypeNode: stringTypeNode
+        )
+        #expect(attributeTypeNode == fieldTypeNode)
+    }
 }
