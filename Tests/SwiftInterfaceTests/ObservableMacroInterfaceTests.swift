@@ -47,6 +47,15 @@ struct ObservableMacroInterfaceTests {
         return Indexed(machO: machOFile, indexer: indexer)
     }
 
+    /// The `count` lines above the line of `print` declaring `declaration`,
+    /// in order, with their indentation trimmed.
+    private func lines(above declaration: String, count: Int, in print: String, sourceLocation: SourceLocation = #_sourceLocation) throws -> [String] {
+        let printLines = print.split(separator: "\n", omittingEmptySubsequences: false)
+        let declarationIndex = try #require(printLines.firstIndex { $0.contains(declaration) }, "no line declares \(declaration) in:\n\(print)", sourceLocation: sourceLocation)
+        try #require(declarationIndex >= count, "fewer than \(count) lines above \(declaration) in:\n\(print)", sourceLocation: sourceLocation)
+        return printLines[(declarationIndex - count) ..< declarationIndex].map { $0.trimmingCharacters(in: .whitespaces) }
+    }
+
     /// The line of `print` declaring `declaration` — the first that contains
     /// it — with its indentation trimmed.
     private func line(declaring declaration: String, in print: String, sourceLocation: SourceLocation = #_sourceLocation) throws -> String {
@@ -66,9 +75,11 @@ struct ObservableMacroInterfaceTests {
             #expect(!declaringLine.contains("@Observation"), "\(declaringLine)")
             #expect(!declaringLine.contains("{"), "a tracked property prints as stored: \(declaringLine)")
         }
-        // Stored `var`s the macro left alone say so; a `let` needs not.
+        // Stored `var`s the macro left alone say so, on a line of their own
+        // above the declaration; a `let` needs not.
         for declaration in ["var ignored: Swift.Double", "var _cache: [Swift.Int]", "var lazyValue: Swift.Int"] {
-            #expect(try line(declaring: declaration, in: print).hasPrefix("@Observation.ObservationIgnored "))
+            #expect(!(try line(declaring: declaration, in: print)).contains("@"), "\(print)")
+            #expect(try lines(above: declaration, count: 1, in: print) == ["@Observation.ObservationIgnored"], "\(print)")
         }
         #expect(try line(declaring: "let constant: Swift.Int", in: print).hasPrefix("let "))
         // What the macro generated is left out.
@@ -89,13 +100,23 @@ struct ObservableMacroInterfaceTests {
         #expect(print.contains("@storageRestrictions(initializes: _name) init\n"), "\(print)")
     }
 
-    @Test func aWrappedPropertyTheSourceIgnoredSaysSo() async throws {
-        let indexed = try await indexed(.release)
+    /// The folded form gives each attribute of an ignored wrapped property a
+    /// line of its own, at the declaration's indentation — whether the image
+    /// keeps the property's accessors or the declaration is synthesized from
+    /// its storage; the expanded form keeps the wrapper inline.
+    @Test(arguments: [ObservableMacroFixture.Variant.release, .releaseStripped])
+    func aWrappedPropertyTheSourceIgnoredSaysSo(variant: ObservableMacroFixture.Variant) async throws {
+        let indexed = try await indexed(variant)
         let folded = try await indexed.printedType("WrapperModel")
-        #expect(try line(declaring: "var clamped: Swift.Int", in: folded).hasPrefix("@Observation.ObservationIgnored @ObservableMacroFixture.Clamped "))
+        #expect(!(try line(declaring: "var clamped: Swift.Int", in: folded)).contains("@"), "\(folded)")
+        #expect(try lines(above: "var clamped: Swift.Int", count: 2, in: folded) == ["@Observation.ObservationIgnored", "@ObservableMacroFixture.Clamped"], "\(folded)")
+        let rawLines = folded.split(separator: "\n", omittingEmptySubsequences: false)
+        let declarationIndex = try #require(rawLines.firstIndex { $0.contains("var clamped: Swift.Int") })
+        let indentations = rawLines[(declarationIndex - 2) ... declarationIndex].map { $0.prefix { $0 == " " }.count }
+        #expect(Set(indentations).count == 1, "\(folded)")
         #expect(!(try line(declaring: "var tracked: Swift.Int", in: folded)).contains("@"))
         let expanded = try await indexed.printedType("WrapperModel") { $0.expandsMacros = true }
-        #expect(try line(declaring: "var clamped: Swift.Int", in: expanded).hasPrefix("@ObservableMacroFixture.Clamped "))
+        #expect(try line(declaring: "var clamped: Swift.Int", in: expanded).hasPrefix("@ObservableMacroFixture.Clamped "), "\(expanded)")
     }
 
     @Test func aStrippedClassSaysWhichPropertiesAreSynthesized() async throws {
@@ -112,7 +133,7 @@ struct ObservableMacroInterfaceTests {
     @Test func moduleSelectorsReachTheAttributes() async throws {
         let print = try await indexed(.release).printedType("FinalModel") { $0.usesModuleSelectors = true }
         #expect(print.hasPrefix("@Observation::Observable\n"), "\(print)")
-        #expect(try line(declaring: "var ignored: Swift::Double", in: print).hasPrefix("@Observation::ObservationIgnored "))
+        #expect(try lines(above: "var ignored: Swift::Double", count: 1, in: print) == ["@Observation::ObservationIgnored"], "\(print)")
     }
 
     @Test func theExportedOnlyFilterRulesOnTheComputedProperty() async throws {

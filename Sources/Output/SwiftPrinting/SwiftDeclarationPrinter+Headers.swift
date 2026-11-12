@@ -691,10 +691,14 @@ extension SwiftDeclarationPrinter {
                 comment(.note(FieldRecordRendering.synthesizedWrappedPropertyComment(backingFieldName: field.name)), as: .note)
                 BreakLine()
                 Indent(level: level)
-                if case .observationIgnored = form {
+                let isObservationIgnored: Bool = {
+                    guard case .observationIgnored = form else { return false }
+                    return true
+                }()
+                if isObservationIgnored {
                     try await observationIgnoredAttribute(level: level)
                 }
-                try await printThrowingSynthesizedWrappedProperty(synthesizedWrappedProperty, level: level)
+                try await printThrowingSynthesizedWrappedProperty(synthesizedWrappedProperty, level: level, placesAttributeOnItsOwnLine: isObservationIgnored)
             } else {
                 if case .observationIgnored = form {
                     try await observationIgnoredAttribute(level: level)

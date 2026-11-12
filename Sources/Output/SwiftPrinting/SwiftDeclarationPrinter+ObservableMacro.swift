@@ -174,12 +174,16 @@ extension SwiftDeclarationPrinter {
         }
     }
 
-    /// `@Observation.ObservationIgnored ` — with the space — in front of a
-    /// stored property the macro left alone.
+    /// `@Observation.ObservationIgnored` on a line of its own above a stored
+    /// property the macro left alone: the attribute, a line break and the
+    /// declaration's indentation (evolution proposal
+    /// `observable-nested-expansion`). A long declaration would otherwise
+    /// wrap under it, as `@Observation.Observable` sits above its class.
     @SemanticStringBuilder
     func observationIgnoredAttribute(level: Int) async throws -> SemanticString {
         try await macroAttribute(named: AttachedMacroNameNodes.observationIgnored, level: level)
-        Space()
+        BreakLine()
+        Indent(level: level)
     }
 
     @SemanticStringBuilder
@@ -207,13 +211,15 @@ extension SwiftDeclarationPrinter {
     }
 
     /// A member variable's declaration with `@Observation.ObservationIgnored`
-    /// in front of it, as one row.
+    /// above it, as one row; a wrapper attribute takes a line of its own too.
     @SemanticStringBuilder
     func printObservationIgnoredVariable(_ variable: VariableDefinition, level: Int, propertyWrapperAttributeTypeNode: Node?) async -> SemanticString {
         if let attribute = await printCatchedThrowing(dispatchingTo: eventDispatcher, { try await observationIgnoredAttribute(level: level) }) {
             attribute
         }
-        await printVariable(variable, level: level, propertyWrapperAttributeTypeNode: propertyWrapperAttributeTypeNode)
+        await dispatchingCatchedThrowing(.init(name: variable.name, kind: .variable)) {
+            try await printThrowingVariable(variable, level: level, propertyWrapperAttributeTypeNode: propertyWrapperAttributeTypeNode, placesWrapperAttributeOnItsOwnLine: true)
+        }
     }
 
     /// `member` in a type body under the `@Observable` folding, given the

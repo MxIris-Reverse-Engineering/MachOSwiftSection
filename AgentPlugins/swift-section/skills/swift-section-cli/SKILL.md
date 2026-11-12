@@ -179,8 +179,8 @@ as the type it names.
 
 A class the `@Observable` macro expanded prints the way its source reads (after 0.24.0):
 `@Observation.Observable` above the class, each tracked property as the stored `var x: T` it
-was declared as, a stored `var` the macro left alone with `@Observation.ObservationIgnored`, and
-no registrar, no `access(keyPath:)` / `withMutation(keyPath:_:)` / `shouldNotifyObservers`, no
+was declared as, a stored `var` the macro left alone under `@Observation.ObservationIgnored`
+on a line of its own (a property wrapper's attribute gets a line of its own too), and no registrar, no `access(keyPath:)` / `withMutation(keyPath:_:)` / `shouldNotifyObservers`, no
 `extension X: Observation.Observable {}`. In the binary each tracked `x` is a computed property
 over private storage `_x`; `interface --expand-macros` prints that, as older builds always did.
 A tracked property whose accessors are stripped or dead-stripped (an internal class in an app or
