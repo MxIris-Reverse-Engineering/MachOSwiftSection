@@ -144,6 +144,30 @@ extension StructuredComment {
     /// protocol-extension default.
     package static let protocolExtensionDefault = line([.label("protocol-extension default")])
 
+    /// `// init accessor: the binary does not record which stored properties it initializes`:
+    /// the property's SE-0400 init accessor, whose `@storageRestrictions`
+    /// nothing in the image infers (evolution proposal
+    /// `init-accessor-recovery`).
+    package static let initAccessorFieldsNotRecorded = line([
+        .label("init accessor"), .separator(": "), .text("the binary does not record which stored properties it initializes"),
+    ])
+
+    /// `// init accessor: initializes _value (inferred from the stored property's name and type)`:
+    /// what the dump says above an init accessor whose `@storageRestrictions`
+    /// the image's stored properties infer (evolution proposal
+    /// `init-accessor-recovery`).
+    package static func initAccessorInitializedFields(_ fieldNames: [String]) -> Self {
+        var body: [Segment] = [.label("init accessor"), .separator(": "), .text("initializes ")]
+        for (index, fieldName) in fieldNames.enumerated() {
+            if index > 0 {
+                body.append(.separator(", "))
+            }
+            body.append(.name(fieldName))
+        }
+        body.append(.text(" (inferred from the stored property's name and type)"))
+        return line(body)
+    }
+
     /// `// No implementation in this image (deleted method — slot retained for ABI)`.
     package static let deletedMethodSlot = note("No implementation in this image (deleted method — slot retained for ABI)")
 

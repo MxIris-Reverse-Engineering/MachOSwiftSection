@@ -135,6 +135,19 @@ struct StructuredCommentTests {
             segments: [.marker("// "), .label("protocol-extension default")]
         ),
         Expectation(
+            comment: .initAccessorFieldsNotRecorded,
+            text: "// init accessor: the binary does not record which stored properties it initializes",
+            segments: [.marker("// "), .label("init accessor"), .separator(": "), .text("the binary does not record which stored properties it initializes")]
+        ),
+        Expectation(
+            comment: .initAccessorInitializedFields(["_x", "_y"]),
+            text: "// init accessor: initializes _x, _y (inferred from the stored property's name and type)",
+            segments: [
+                .marker("// "), .label("init accessor"), .separator(": "), .text("initializes "),
+                .name("_x"), .separator(", "), .name("_y"), .text(" (inferred from the stored property's name and type)"),
+            ]
+        ),
+        Expectation(
             comment: .deletedMethodSlot,
             text: "// No implementation in this image (deleted method — slot retained for ABI)",
             segments: [.marker("// "), .text("No implementation in this image (deleted method — slot retained for ABI)")]

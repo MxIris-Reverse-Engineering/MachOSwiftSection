@@ -982,6 +982,12 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
                 if printExportStatus, !objcFacts.isOverride, !objcFacts.isObjC {
                     ExportStatusComment(isExported: exportVerdict(forSymbolNames: variable.accessors.map(\.symbol.name)), marksStructure: marksCommentStructure)
                 }
+                // The accessor block prints the bare `init` of a SE-0400 init
+                // accessor whose fields nothing in the image names, and says
+                // so here (evolution proposal `init-accessor-recovery`).
+                if variable.hasInitAccessor, variable.initializedFieldNames == nil, variable.objcImplementationStorage == nil, !marksObservationIgnored {
+                    comment(.initAccessorFieldsNotRecorded, as: .initAccessorFields)
+                }
                 if let storage = variable.objcImplementationStorage {
                     await printObjCImplementationStoredProperty(variable, storage: storage, level: level)
                 } else if marksObservationIgnored {

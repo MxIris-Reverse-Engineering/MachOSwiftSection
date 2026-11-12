@@ -28,7 +28,7 @@ SE-0400 让 computed property 带一个 `init` accessor：初始化器给这个�
 4. 建成员：`Indexing/Building/MemberDefinitionBuilder.swift:50` 把 init accessor 排在同名那一组的最后，`accessors.first` 不变；声明节点照旧取 getter 或 borrow（`:62`），只有 init accessor 的组照旧不建成属性（今天也不建）。
 5. 成员顺序：`Model/Members/OrderedMember.swift:22` 的 `minSymbolOffset` 跳过 init accessor，成员顺序和今天一样。
 6. 推断：新文件 `Sources/Analysis/SwiftInspection/InitAccessorFieldInference.swift`，放在 dump 和模型都够得着的一层，和 `ObservableMacroRecognition` 同一个位置；`ObservableMacroExpansionRecovery.referencedTypeNode(ofStoredType:)`（剥掉 `weak` / `unowned`，`ObservableMacroExpansionRecovery.swift:157`）挪进来两边共用。新的索引步骤 `Indexing/TypeDefinition/TypeDefinition+InitAccessors.swift`，接在 `TypeDefinition+Indexing.swift:47` 的 `foldStoredPropertyAccessors` 之后、`:88` 收集 `orderedMembers` 之前（后者拷贝成员的值，晚了就写不进去）。
-7. interface：`Sources/Output/SwiftPrinting/NodePrinter/AccessorBlockKeywords.swift` 加上 `init` 那一行，`NodePrintables/MemberDeclarationNodePrintable.swift:167` 的 `printAccessorBlock` 把它印在 `get` 之前。推不出时的注释走 `Sources/Output/SwiftDeclarationRendering/StructuredComment+Factories.swift` 里的新工厂，配一个新的 `AnnotationRegion.Kind`（`AnnotationRegionKind+SwiftComments.swift`）。
+7. interface：`Sources/Output/SwiftPrinting/NodePrinter/AccessorBlockKeywords.swift` 加上 `init` 那一行，`NodePrintables/MemberDeclarationNodePrintable.swift:167` 的 `printAccessorBlock` 把它印在 `get` 之前。推不出时的注释走 `Sources/Output/SwiftDeclarationRendering/StructuredComment+Factories.swift` 里的新工厂 `initAccessorFieldsNotRecorded`，配新的注释种类 `AnnotationRegion.Kind.initAccessorFields`（`AnnotationRegionKind+SwiftComments.swift`），由 `SwiftDeclarationPrinter.renderMember` 印在声明的上一行。
 8. dump：`Sources/Output/SwiftDump/Dumper/StructDumper.swift:154` 与 `ClassDumper.swift:471` 一带的成员循环。init accessor 进桶之后自动列出，带地址和导出状态；每一条前面再加一行推断结果。
 9. ABI diff：`Sources/Output/SwiftDiffing/MemberRecord.swift:322` 给 `.initAccessor` 一个 token `init`；`ABISnapshotDocument.swift:90` 的格式版本从 12 升到 13，因为带 init accessor 的属性的 `|acc:` 标签变了，旧基线会把它们全报成改动。
 10. RuntimeViewer：`RuntimeViewerCore/Sources/RuntimeViewerCore/Sections/Swift/RuntimeSwiftSection.swift:1952` 的 `kindString` 对 `AccessorKind` 穷举 `switch`，要补一行 `case .initAccessor`，和本库合进 `next` 放在同一批，否则它直接编不过。它的注释种类是按字符串比较的 struct，新的注释种类不用改代码，按普通注释的样式显示。
@@ -61,21 +61,22 @@ struct FrozenBox<A> {
 }
 ```
 
-推不出时只印 `init`，后面跟一句注释：
+推不出时只印 `init`，声明上一行用注释说明：
 
 ```swift
 struct Angle {
     var degrees: Swift.Double
     init(radians: Swift.Double)
+    // init accessor: the binary does not record which stored properties it initializes
     var radians: Swift.Double {
-        init // the binary does not record which stored properties it initializes
+        init
         get
         set
     }
 }
 ```
 
-- 带 `…vi` 符号的 stored property（SwiftUICore 那个兼容函数）照旧按 stored property 印，没有 accessor block；只在开着成员地址注释时多一行 `init` 的地址。
+- 带 `…vi` 符号的 stored property（SwiftUICore 那个兼容函数）照旧按 stored property 印，输出和今天完全一样：stored property 只给 accessor 印 vtable 槽注释，init accessor 没有槽。
 - 开着成员地址注释时，computed property 和 `@Observable` 折叠形态里的被跟踪属性都多一行 `init` 的地址；`expandsMacros` 的展开形态在每个被跟踪属性的 accessor block 里多出 `@storageRestrictions(initializes: _x) init`。
 - dump 在类型的 variable 符号里多列一条 `X.value.init : A`，前面一行写推断结果：推出的名单，或者二进制没有记录。
 
@@ -89,8 +90,8 @@ struct Angle {
 
 每一步单独能构建、相关测试能过，做完各提交一次。
 
-1. 模型与分桶：改动位置 1 到 5 里除 `initializedFieldNames` 以外的部分，ABI diff 的 token 与快照格式 13（改动位置 9），RuntimeViewer 的 `kindString`（改动位置 10，RuntimeViewer 仓库里单独的分支）；新的 `InitAccessorFixture`，以及模型、dump（init accessor 自动列出）、ABI diff 的测试。这一步之后 interface 还不印 `init`，只有成员地址注释多出 `init` 的地址。
-2. 推断：`InitAccessorFieldInference`（连同挪过来的 `referencedTypeNode(ofStoredType:)`）、新的索引步骤与 `initializedFieldNames`，以及模型测试。
+1. （已完成）模型与分桶：改动位置 1 到 5 里除 `initializedFieldNames` 以外的部分，ABI diff 的 token 与快照格式 13（改动位置 9），RuntimeViewer 的 `kindString`（改动位置 10，RuntimeViewer 仓库里单独的分支）；新的 `InitAccessorFixture`，以及模型、dump（init accessor 自动列出）、ABI diff 的测试。这一步之后 interface 还不印 `init`，只有成员地址注释多出 `init` 的地址。
+2. （已完成）推断：`InitAccessorFieldInference`（连同挪过来的 `referencedTypeNode(ofStoredType:)`）、新的索引步骤与 `initializedFieldNames`，以及模型测试。
 3. interface：`init` 那一行、推得出时的 `@storageRestrictions`、推不出时的注释（新工厂与新注释种类）；interface 测试，`ObservableMacroInterfaceTests` 里展开形态的期望。
 4. dump：每条 init accessor 前的推断结果，以及 dump 测试。
 5. 文档与验证：改动位置之外的文档同步（见下一节最后一条），Ultra 上的全量测试与渲染 A/B。
@@ -112,3 +113,5 @@ struct Angle {
 | 2026-11-12 | 推断要求类型相同 | 只看名字会把类型不同的 `_x` 也认成被初始化的存储，SwiftData `@Model` 就是这样 |
 | 2026-11-12 | 用户批准，开始实现；补上落地步骤 | 原稿只列了改动位置，按能各自构建的顺序拆成五步 |
 | 2026-11-12 | `final` 推断不把 init accessor 当证据 | 实现时发现 `final` 的证据门槛是「有任意 accessor 符号」，init accessor 进了 `accessors` 之后会被算进去；它从不经 vtable 派发，什么也证明不了。排除之后所有结论与今天相同 |
+| 2026-11-12 | 落地步骤 1、2 完成 | Ultra 上相关的 14 个套件（新增的三组、`ABIDifferTests`、`@Observable` 的各组）80 个测试全过。第一次跑时 init accessor 一个都没进成员桶：分桶之前还有一道 `isMember` 名单（`SymbolIndexStore.swift:1878`），补上之后全绿 |
+| 2026-11-12 | 推不出时的注释印在声明上一行，不放在 `init` 行尾 | accessor block 由节点打印器写出，那里没有带注释种类的注释通道；声明上一行是地址、导出状态等成员注释共用的位置，走 `comment(_:as:)` 就能被 `marksCommentStructure` 标出来 |

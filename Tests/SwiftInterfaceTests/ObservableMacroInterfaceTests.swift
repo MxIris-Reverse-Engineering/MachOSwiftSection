@@ -84,6 +84,9 @@ struct ObservableMacroInterfaceTests {
         for generated in ["let _$observationRegistrar: Observation.ObservationRegistrar", "var _name: Swift.String", "var name: Swift.String {", "func access<A>(keyPath:", "func withMutation<A, B>(keyPath:"] {
             #expect(print.contains(generated), "\(generated) not in:\n\(print)")
         }
+        // The init accessor the macro writes, with the storage it
+        // initializes (evolution proposal `init-accessor-recovery`).
+        #expect(print.contains("@storageRestrictions(initializes: _name) init\n"), "\(print)")
     }
 
     @Test func aWrappedPropertyTheSourceIgnoredSaysSo() async throws {
