@@ -238,11 +238,15 @@ struct ObservableMacroInterfaceTests {
     func everyTrackedPropertysPieceOpensWithTheMacrosAccessorBlock(variant: ObservableMacroFixture.Variant) async throws {
         let indexed = try await indexed(variant)
         for typeName in ["FinalModel", "InternalModel"] {
-            let parts = try await indexed.printer().printMacroExpansionParts(of: .observable, attachedTo: indexed.typeDefinition(named: typeName))
+            let typeDefinition = try indexed.typeDefinition(named: typeName)
+            let parts = try await indexed.printer().printMacroExpansionParts(of: .observable, attachedTo: typeDefinition)
             let trackedPropertyParts = parts.filter { part in
                 if case .trackedProperty = part.placement { true } else { false }
             }
-            #expect(trackedPropertyParts.count == 3, "\(typeName): \(parts.map(\.placement))")
+            // One piece a tracked property, as the recognition has them: in a
+            // stripped internal class, the misread `_underscored` among them.
+            let trackedPropertyNames = try #require(typeDefinition.observableMacroExpansion).trackedProperties.map(\.name)
+            #expect(trackedPropertyParts.map(\.placement) == trackedPropertyNames.map { .trackedProperty(named: $0) }, "\(typeName): \(parts.map(\.placement))")
             for part in trackedPropertyParts {
                 let lines = part.content.string.components(separatedBy: "\n")
                 #expect(Array(lines.prefix(Self.macroAccessorBlockLines.count)) == Self.macroAccessorBlockLines, "\(typeName) \(part.placement):\n\(part.content.string)")
