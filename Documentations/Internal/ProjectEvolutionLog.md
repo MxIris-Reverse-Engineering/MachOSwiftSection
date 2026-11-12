@@ -3195,6 +3195,30 @@
 - **后续**：swift-demangling 发版后抬本库的版本下限——在那之前，走远端依赖的构建编不过；ABI 快照要用新版重新生成；RuntimeViewer 用打印配置的默认值，升级后直接显示 `any`，要不要给它加设置项另议；两处拼写仍按 `.default` 走、不写 `any`（未展开 opaque 引用的实参、展开字段偏移注释里的嵌套类型名，见提案决策日志）。
 - **对应版本**：未发版。
 
+## 132. 识别 `@Observable` 宏：interface 默认折叠它的展开
+
+- **时间段**：2026-11-11 至 2026-11-12，分支 `feature/observable-macro`（worktree `.worktrees/MachOSwiftSection-ObservableMacro`，基于 `next` cd8472b2），分几次在本地合进 `next` 供用户查看，11-12 正式落地。提案 [0093-observable-macro-folding](../Evolutions/0093-observable-macro-folding.md)（轻量档）。
+- **动机**：`@Observable` 类在二进制里只剩宏展开的结果——存储 `_x`、computed `x`、registrar、`access(keyPath:)`、`withMutation(keyPath:_:)`、`shouldNotifyObservers(_:_:)` 重载与 conformance——interface 原样印出来，与源码对不上。RuntimeViewer 要在侧边栏标出这类类型、在折叠与展开之间切换，之后又要做 Xcode 式的内联展开。
+- **关键决策**：
+  - 识别在构造时只读字段记录：有类型正是 `Observation.ObservationRegistrar` 的 `_$observationRegistrar`、又没有 SwiftData `@Model` 的 `_$backingData`。剥过符号的镜像照样认得出；`SwiftAttachedMacro` 用 struct 加静态成员，以后加别的宏不会让宿主的 `switch` 编不过。
+  - 哪些 `_x` 是被跟踪属性的存储由索引期按证据定：init accessor、成员的 setter 或 `_modify`、挂在 `x` 名下的初始值表达式；`_x` 自己有初始值表达式、或只有 `_x` 有 accessor 时排除；都没有就凭字段名。镜像带不带本地符号不分流：SwiftUI 带本地符号，却被 dead-strip 去掉了 init accessor。
+  - 类型比对撇开 `sending`：编译器 mangle 声明自身的函数类型时不写它，字段记录照写，SwiftUI 三个类的 `makeFileCoordinator` 因此没折叠。wrapped property 的属性写法用同一个比较。
+  - interface 默认折叠，`expandsMacros` / `--expand-macros` 关掉折叠后与之前逐字节相同，标记模式两种形态都印；dump 只在类头加 `@Observation.Observable`。
+  - 宿主的内联展开：`printMacroExpansion` 整块，`printMacroExpansionParts` 照 Xcode 的位置分块，`marksAttachedMacros` 标出宏属性与每个被跟踪属性折叠出的声明；类型的闭合括号靠定义区域定位，不改 swift-semantic-string。accessor 块一律照宏的写法 `{ get set }`，不看镜像里还剩哪些 accessor。
+- **落地**：
+  - SwiftInspection：`ObservableMacroRecognition`。SwiftDeclaration：`SwiftAttachedMacro`、`TypeDefinition.attachedMacros` / `observableMacroExpansion`、`ExtensionDefinition.generatingMacro`、`ObservableMacroExpansionRecovery`。SwiftIndexing 标出宏生成的 conformance。
+  - SwiftPrinting：`expandsMacros`、`marksAttachedMacros`、`MacroExpansionPart`、`AnnotationRegion.Kind.attachedMacro(_:)` / `attachedMacroTrackedProperty(_:named:)`。SwiftDump：类头。SwiftSectionKit 与 CLI：`InterfaceRequest.expandsMacros`、`interface --expand-macros`。
+  - 测试：现场编译的 `ObservableMacroFixture`（debug、release、dead-strip、strip 四个变体），覆盖识别、证据、折叠与展开、投影、分块、dump、Kit 与 CLI 映射。
+  - 文档：提案、`Modules/SwiftDeclaration.md`、`Modules/SwiftInterface.md`、术语表 macro folding、`SystemFrameworkRenderingVerification.md`、`AgentPlugins/swift-section` 的 skill。
+- **验证**：在 JHs-Mac-Studio-Ultra（macOS 27.2，Xcode 26.6）上跑。最终全量 2889 个测试，只红两条：`FileMappingTests`，基线上同样失败；`BoundedConcurrentMapTests` 的时限超时，是 Ultra 全量下的既有偶发，失败发生在任何新测试开始之前。渲染 A/B 96 对：关掉折叠时 interface 全部一致，dump 只差 28 个类的类头。修复 `sending` 前后渲染 SwiftUI、SwiftUICore、SwiftData 的折叠形态，只有那三处变了。
+- **后续**：
+  - getter 被 `@_silgen_name` 钉成旧 mangling 的属性不折叠，已裁决不处理。
+  - 完全剥光符号的 internal 类会把 `@ObservationIgnored var _y` 读成被跟踪属性。
+  - `@Model` 等别的宏还没有识别。
+  - 发版要先发 swift-demangling。
+  - init accessor 提案（draft-init-accessor-recovery）在这之上给 accessor 块加了 `init` 一行，并把类型比对挪进 SwiftInspection 的 `StoredTypeMatching`。
+- **对应版本**：未发版。
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节

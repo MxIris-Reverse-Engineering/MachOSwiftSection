@@ -66,7 +66,7 @@ SwiftUI、SwiftUICore、SwiftData、Combine、ActivityKit、WidgetKit——**输
 
 关掉新默认之后仍然不同的行，就是这次改动在新写法之外带来的变化，逐条核对。再打开它跑一遍，抽查差异只在新写法上。
 
-interface 默认折叠 `@Observable` 展开之后（提案 [draft-observable-macro-folding](../Evolutions/draft-observable-macro-folding.md)），候选一侧用 `--candidate-interface-arguments=--expand-macros` 与 `--candidate-image-options expandsMacros` 回到折叠之前的写法。dump 没有对应的开关：它的差异只能是 `@Observable` 类的类头行多出 `@Observation.Observable `，去掉这个前缀后应与基线逐字节相同。
+interface 默认折叠 `@Observable` 展开之后（提案 [0093-observable-macro-folding](../Evolutions/0093-observable-macro-folding.md)），候选一侧用 `--candidate-interface-arguments=--expand-macros` 与 `--candidate-image-options expandsMacros` 回到折叠之前的写法。dump 没有对应的开关：它的差异只能是 `@Observable` 类的类头行多出 `@Observation.Observable `，去掉这个前缀后应与基线逐字节相同。
 
 ## 验收标准与差异排查
 

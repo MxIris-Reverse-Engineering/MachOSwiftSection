@@ -1,9 +1,10 @@
-# Draft - 识别 `@Observable` 宏：interface 默认折叠它的展开
+# 0093 - 识别 `@Observable` 宏：interface 默认折叠它的展开
 
-- **状态**: In Progress
+- **状态**: Implemented
 - **创建日期**: 2026-11-11
 - **最后更新**: 2026-11-12
 - **实现分支**: `feature/observable-macro`
+- **配套文档**: [Modules/SwiftDeclaration.md](../Internal/Modules/SwiftDeclaration.md)（模型与识别）、[Modules/SwiftInterface.md](../Internal/Modules/SwiftInterface.md)（折叠、展开与分块的打印）
 
 ## 摘要
 
@@ -110,7 +111,7 @@ dump 照旧印出二进制里的全部成员，只在类头前加 `@Observation.
 
 ### 测试与验证
 
-- 新的现场编译 fixture `ObservableMacroFixture`（照 `ClassesWithoutClassObjectsFixture` 的写法），三个变体：debug、release、release 加 `strip -x`；覆盖 final、open、internal、子类、泛型、带 property wrapper 的类，一个只手写 conformance 的类，以及一个手写出 `_$backingData` 与 registrar 字段、代替 `@Model` 的类。
+- 新的现场编译 fixture `ObservableMacroFixture`（照 `ClassesWithoutClassObjectsFixture` 的写法），四个变体：debug、release、release 加 `-dead_strip` 链接、release 加 `strip -x`；覆盖 final、open、internal、子类、泛型、带 property wrapper 的类、属性类型是带 `sending` 的函数类型的类，一个只手写 conformance 的类，以及一个手写出 `_$backingData` 与 registrar 字段、代替 `@Model` 的类。
 - 断言：识别结果、每个变体的折叠与展开输出、`marksOptionalContent` 下两种投影与直接打印逐字节相同、dump 类头、CLI 开关、Kit 字段。
 - 渲染 A/B：候选侧加 `--expand-macros` 的 interface 应与基线逐字节相同；dump 的差异只能是 `@Observable` 类的类头行，逐条核对。测试与 A/B 都在 Ultra 上跑。
 
@@ -123,11 +124,12 @@ RuntimeViewer 的 release 构建按版本解析，要等本库发版。`next` �
 每一步单独构建通过、相关测试通过后提交并推送；测试在 Ultra 上跑。
 
 1. [x] 识别与模型标记：`ObservableMacroRecognition`、`SwiftAttachedMacro`、`TypeDefinition.attachedMacros`（含 specialization 沿用）、`ExtensionDefinition.generatingMacro`；新 fixture `ObservableMacroFixture` 与识别的测试。
-2. [x] 索引期的展开分析：`ObservableMacroExpansion`、`TypeDefinition.observableMacroExpansion`；三个变体下被跟踪属性、来源、`@ObservationIgnored` 属性与生成方法的测试。
+2. [x] 索引期的展开分析：`ObservableMacroExpansion`、`TypeDefinition.observableMacroExpansion`；各变体下被跟踪属性、来源、`@ObservationIgnored` 属性与生成方法的测试。
 3. [x] interface 折叠：`expandsMacros`、`SwiftVisibilityOption.expandsMacros`、类型头属性、字段块与成员块、导出过滤、conformance extension、`marksOptionalContent` 下的两种形态，以及 `printMacroExpansion(of:attachedTo:level:)` 与 `marksAttachedMacros`；输出与投影一致性的测试。
 4. [x] dump 类头的 `@Observation.Observable` 与测试。
 5. [x] `InterfaceRequest.expandsMacros`、`interface --expand-macros`、`AgentPlugins/swift-section` 的 skill，以及两侧的测试。
-6. [x] 文档（模块文档、术语表、`AGENTS.md`、A/B 流程；演进账本一节与文档索引留到正式收尾）、全量测试与渲染 A/B。
+6. [x] 文档（模块文档、术语表、`AGENTS.md`、A/B 流程、演进账本第 132 节与文档索引）、全量测试与渲染 A/B。
+7. [x] 用户批准后追加：分块展开 `printMacroExpansionParts` 与被跟踪属性的定位标记；accessor 块照宏的写法印。
 
 ### 验证
 
@@ -167,3 +169,4 @@ RuntimeViewer 的 release 构建按版本解析，要等本库发版。`next` �
 | 2026-11-12 | 比对 `_x` 与 `x` 的类型时撇开 `sending`，类型照旧读 getter 的符号；wrapped property 的属性写法改用同一个比较 | 编译器 mangle 声明自身的函数类型时不写 `sending`，字段记录照写；SwiftUI 三个类的 `makeFileCoordinator` 因此被当成「另一种类型的成员」，存储被印成 `@ObservationIgnored`。init accessor 的符号同样不写 `sending`，改读它没有用。getter 被 `@_silgen_name` 钉成旧 mangling 的情形不处理（init accessor 会话指出的 SwiftUICore `_GeometryActionModifier2.value`）：宏生成的 accessor 加不了这个属性 |
 | 2026-11-12 | 「关掉折叠时输出逐字节不变」以本提案之前的输出为准 | init accessor 提案（draft-init-accessor-recovery）让展开形态里每个被跟踪属性的 accessor 块多印 `@storageRestrictions(initializes: _x) init` 一行，分块里的块跟着印；那一行是那份提案带来的变化 |
 | 2026-11-12 | 分块与整块展开里，被跟踪属性的 accessor 块一律照宏的写法印 `{ get set }`，不看镜像里还剩哪些 accessor；`--expand-macros` 的展开形态仍照镜像。取代前面「逐行对照展开形态」那一行，对照测试改为钉住宏的写法 | 用户批准（RuntimeViewer 提出）：macOS 27.2 的 AppKit 剥光了 `ColorSliderModel` 的 accessor，分块里只剩存储，看不出属性变成了 computed；SwiftUI 的 `_makeFileCoordinator` 只剩 getter，分块只印 `{ get }`。宏生成的块是固定的，跟着识别结果走；init accessor 那份改动落地后，这个块再加 `@storageRestrictions(initializes: _x) init` 一行 |
+| 2026-11-12 | 落地：取号 0093，状态改 Implemented。不另写使用指南，术语表不加新词 | 用户看过后批准收尾。配套文档是 SwiftDeclaration 与 SwiftInterface 两份模块文档，CLI 用法在 `--help` 与插件 skill 里，`macro folding` 已登记。后续项：getter 被 `@_silgen_name` 钉成旧 mangling 时不折叠（已裁决不处理）；完全剥光符号的 internal 类会把 `@ObservationIgnored var _y` 读成被跟踪属性；`@Model` 等别的宏还没有识别；发版要先发 swift-demangling |

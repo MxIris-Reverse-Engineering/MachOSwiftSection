@@ -242,7 +242,7 @@ sweep 覆盖范围之外的名字走的旁路：demangle 后 intern 进 `Storage
 interface 把一个 attached macro 生成的东西收回成源码里的写法：`@Observable` 展开的类印成 `@Observation.Observable` 加普通的 `var x: T`，这是**折叠形态**；`expandsMacros` 打开时照二进制原样印出 registrar、存储 `_x`、computed `x`、生成的方法与 conformance，这是**展开形态**。二进制不记宏本身，只记它生成的东西，所以「这个类用了宏」是从生成物推断出来的（`TypeDefinition.attachedMacros`）。折叠只发生在单版本 interface；模型、dump、diff、evolution 始终是展开形态，dump 另在类头上写出宏的名字。
 
 - **主要出现在**：`SwiftDeclarationPrinter+ObservableMacro.swift`、`TypeDefinition+ObservableMacro.swift`、`ObservableMacroRecognition`
-- **延伸阅读**：[draft-observable-macro-folding](Evolutions/draft-observable-macro-folding.md)
+- **延伸阅读**：[0093-observable-macro-folding](Evolutions/0093-observable-macro-folding.md)
 
 ### marking mode（标记模式，`marksOptionalContent`）
 
