@@ -1098,12 +1098,26 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
 
     @SemanticStringBuilder
     public func printThrowingVariable(_ variable: VariableDefinition, level: Int, propertyWrapperAttributeTypeNode: Node? = nil) async throws -> SemanticString {
+        try await printThrowingVariable(variable, level: level, propertyWrapperAttributeTypeNode: propertyWrapperAttributeTypeNode, placesWrapperAttributeOnItsOwnLine: false)
+    }
+
+    /// `placesWrapperAttributeOnItsOwnLine` puts the wrapper attribute on a
+    /// line of its own, as the `@Observable` folding does under
+    /// `@Observation.ObservationIgnored` (evolution proposal
+    /// `observable-nested-expansion`).
+    @SemanticStringBuilder
+    func printThrowingVariable(_ variable: VariableDefinition, level: Int, propertyWrapperAttributeTypeNode: Node?, placesWrapperAttributeOnItsOwnLine: Bool) async throws -> SemanticString {
         // The wrapper attribute comes first, as the compiler's own
         // swiftinterface prints it (`@SwiftUICore.Binding public var isOn`).
         if let propertyWrapperAttributeTypeNode {
             Standard("@")
             try await printThrowingType(propertyWrapperAttributeTypeNode, isProtocol: false, level: level)
-            Space()
+            if placesWrapperAttributeOnItsOwnLine {
+                BreakLine()
+                Indent(level: level)
+            } else {
+                Space()
+            }
         }
         try await printUnderObjCVerdicts(of: variable.resolvedObjCMemberFacts(trustingSelectorNameEvidence:)) { objcFacts in
             objcAttributes(objcFacts)

@@ -9,6 +9,8 @@
 
 提案 [0093](0093-observable-macro-folding.md) 的分块展开（`printMacroExpansionParts`），把每个被跟踪属性的 accessor 块与存储 `_x` 直接算作展开 `@Observable` 的结果。Swift 源码里这是两层。`ObservableMacro` 是 MemberAttributeMacro，只给每个被跟踪属性加一个 `@ObservationTracked`，此外写出成员与 conformance；accessor 块与存储是 `ObservationTrackedMacro` 的 accessor 与 peer 两个角色写的。Xcode 也是在展开结果里再展开一次 `@ObservationTracked`，才看到这两样。RuntimeViewer 要照这个分层显示，用户定由本库印出两层，RuntimeViewer 只负责摆放。
 
+同一轮里还有一处折叠形态的格式改动，也并进本提案：`@Observation.ObservationIgnored` 原先和声明挤在同一行，SwiftUI 里类型长的属性因此行行折行；现在它单独占一行，放在声明上方。
+
 ## 方案
 
 改动位置：
@@ -20,9 +22,15 @@
 - `Sources/Output/SwiftPrinting/SwiftDeclarationPrinter+ObservableMacro.swift:318`（`printIncludedObservableMacroExpansionParts`）：每个被跟踪属性改出一块 `.trackedPropertyAttribute(named:)`，内容是那个属性，写作 `@Observation.ObservationTracked`（打开 module selector 时是 `@Observation::ObservationTracked`）。它的 `nestedExpansions` 只有一项，宏是 `.observationTracked`，分块就是今天的 `.trackedProperty(named:)`：先是 accessor 块（含 init 行），再是存储，内容一字不改。成员块与 conformance 块不变。
 - `Sources/Declaration/SwiftDeclaration/Model/SwiftAttachedMacro.swift:30` 加 `SwiftAttachedMacro.observationTracked`。`Sources/Analysis/SwiftInspection/ObservableMacroRecognition.swift:97` 旁边加它的静态名字节点，因为打印器按节点身份缓存片段。
 
+折叠形态的格式（用户追加）：
+
+- `SwiftDeclarationPrinter+ObservableMacro.swift` 的 `observationIgnoredAttribute(level:)`：属性后面不再接空格，改为换行加声明的缩进。字段与成员两条打印路径都经过它。
+- 被忽略的 wrapped property，wrapper 的属性也单独占一行。成员路径经 `printThrowingVariable` 的内部重载 `placesWrapperAttributeOnItsOwnLine`，公开签名不变；合成路径经 `printThrowingSynthesizedWrappedProperty` 的 `placesAttributeOnItsOwnLine`。
+- `lazy` 是声明的一部分，留在声明那一行。
+
 明确不动：
 
-- 折叠形态。
+- 折叠形态里除上面这条以外的部分。
 - `--expand-macros` 的展开形态。
 - 定位标记。
 - 整块展开 `printMacroExpansion`：仍是两层合起来的样子。它印的是一块独立的声明，挂在别的声明上的 `@ObservationTracked` 放不进去。
@@ -39,6 +47,7 @@
 
 1. [x] `SwiftAttachedMacro.observationTracked` 与它的名字节点；`MacroExpansionPart` 的 `.trackedPropertyAttribute(named:)`、`NestedExpansion` 与存储的 `anchorKind`；`printMacroExpansionParts` 出两层；分块测试改成两层。
 2. [x] 文档：`Modules/SwiftInterface.md`、`AGENTS.md` 里分块的说明；全量测试。
+3. [ ] 折叠形态里 `@Observation.ObservationIgnored` 与被忽略的 wrapper 属性各占一行；测试、模块文档与插件 skill。
 
 测试：
 
@@ -63,3 +72,4 @@
 | 2026-11-12 | 用户批准，开始实现；补上落地步骤 | 精简提案原本没有分步 |
 | 2026-11-12 | 被导出过滤排除的属性两层都不出；属性块里不放标记区域 | 两层都摆在折叠声明旁边，声明被排除时宿主找不到锚点；嵌套宏的范围已经由 `attributeUTF8Range` 给出，不必再用 `marksAttachedMacros` 的区域 |
 | 2026-11-12 | 实现完成，待用户看过后收尾 | 文档：`Modules/SwiftInterface.md` 与 `AGENTS.md` 已写两层；术语表不加新词，插件 skill 不涉及（CLI 没变） |
+| 2026-11-12 | 折叠形态里 `@Observation.ObservationIgnored` 单独占一行，并进本提案；被忽略的 wrapped property 的 wrapper 属性也单独占一行，`lazy` 留在声明行；只改带 `@Observation.ObservationIgnored` 的属性，别处的 wrapper 属性照旧与声明同行 | 用户在 RuntimeViewer 里看 SwiftUI 时提出：类型长的属性行行折行。用户定：并进正在做的提案一起收尾；wrapper 属性也各占一行 |
