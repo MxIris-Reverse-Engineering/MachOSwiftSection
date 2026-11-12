@@ -74,18 +74,25 @@ extension SwiftDeclarationPrinter {
     }
 
     /// How a field prints: as the binary declares it, as the tracked property
-    /// its storage is, or with `@Observation.ObservationIgnored`.
+    /// its storage is, with `@Observation.ObservationIgnored`, or as the
+    /// computed property the macro generated over it.
     enum ModelFieldForm: Sendable {
         case asDeclared
         case trackedProperty(ObservableMacroExpansion.TrackedProperty)
         case observationIgnored
+        /// `var x: T { get set }` over a tracked property's storage `_x`, the
+        /// way `@Observable` writes it: under the accessor comments of the
+        /// computed property the image keeps, or a note when it keeps none.
+        case generatedComputedProperty(ObservableMacroExpansion.TrackedProperty)
     }
 
-    /// Whether the type body prints, or only the fields and members a macro
-    /// generated (`printMacroExpansion(of:attachedTo:level:)`).
+    /// Whether the type body prints, only the fields a macro generated, or
+    /// the computed properties it generated over the tracked properties'
+    /// storage (`printMacroExpansion(of:attachedTo:level:)`).
     enum ModelMembersSelection: Sendable {
         case typeBody
         case observableMacroExpansion
+        case observableMacroComputedProperties
     }
 
     func observableMacroFolding(of definition: some Definition) -> ObservableMacroFolding {
@@ -110,6 +117,17 @@ extension SwiftDeclarationPrinter {
     }
 
     // MARK: - Visibility
+
+    /// The visibility the exported-only filter gives a tracked property's
+    /// folded declaration, and what is placed by it: ruled on by the computed
+    /// property the macro generated, or — its accessors stripped — by the
+    /// storage.
+    func trackedPropertyExportVisibility(_ trackedProperty: ObservableMacroExpansion.TrackedProperty, storedIn field: FieldDefinition, folding: ObservableMacroFolding) -> VisibilityCondition? {
+        if let memberVariable = folding.trackedMemberVariablesByName[trackedProperty.name] {
+            return exportFilterVisibility(excluded: isExcludedByExportFilter(.variable(memberVariable)))
+        }
+        return exportFilterVisibility(excluded: isExcludedByExportFilter(field: field))
+    }
 
     /// Where content only the expansion prints goes: everywhere when the
     /// configuration expands macros, nowhere (`nil`) when it folds them, and
@@ -228,11 +246,13 @@ extension SwiftDeclarationPrinter {
     /// What `macro` generated in `typeDefinition`, as one block of
     /// declarations, the way `expandsMacros` prints each of them inside the
     /// type: for `.observable`, the storage `_x` of each tracked property and
-    /// the registrar in field order, the computed properties over the
-    /// storage that the image keeps accessors of, `access(keyPath:)`,
-    /// `withMutation(keyPath:_:)` and the `shouldNotifyObservers(_:_:)`
-    /// overloads the image keeps, then the conformance the macro generated
-    /// (evolution proposal `observable-macro-folding`).
+    /// the registrar in field order, each tracked property's computed
+    /// property the way the macro writes it — `var x: T { get set }`,
+    /// whichever accessors the image keeps, with a note when it keeps none —
+    /// `access(keyPath:)`, `withMutation(keyPath:_:)` and the
+    /// `shouldNotifyObservers(_:_:)` overloads the image keeps, then the
+    /// conformance the macro generated (evolution proposal
+    /// `observable-macro-folding`).
     ///
     /// Everything the configuration decides applies as for the type —
     /// comments, transformers, the exported-only filter, module selectors,
@@ -260,22 +280,22 @@ extension SwiftDeclarationPrinter {
         let extendedTypeNameNode = typeDefinition.typeName.node.materialize()
 
         let fieldDeclarations = try await renderedModelFieldDeclarations(typeDefinition, typeContext: materializedTypeContext, level: level, selection: .observableMacroExpansion).map(\.declaration)
-        let memberDeclarations = await renderedMacroExpansionMembers(of: typeDefinition, level: level, includesTrackedProperties: true)
+        let computedPropertyDeclarations = try await renderedModelFieldDeclarations(typeDefinition, typeContext: materializedTypeContext, level: level, selection: .observableMacroComputedProperties).map(\.declaration)
+        let memberDeclarations = await renderedMacroExpansionMembers(of: typeDefinition, level: level)
         let conformance = try await printThrowingGeneratedConformance(extendingTypeNamed: extendedTypeNameNode, level: level)
         // One declaration a row, each carrying its own indentation: the rows
         // put a line break between two of them exactly where both are
         // visible, so a marked print projects to the block printed with the
         // same options, and the block opens and closes on a declaration.
-        return SemanticString(Rows(level: 0, fieldDeclarations + memberDeclarations + [conformance]))
+        return SemanticString(Rows(level: 0, fieldDeclarations + computedPropertyDeclarations + memberDeclarations + [conformance]))
     }
 
     /// What `macro` generated in `typeDefinition`, in the pieces a host places
     /// where Xcode's Expand Macro shows an attached macro's expansion
     /// (evolution proposal `observable-macro-folding`): for `.observable`, one
     /// piece below each tracked property's folded declaration — the accessor
-    /// block of the computed property the macro generated as the expanded
-    /// form prints it, when the image keeps its accessors, then the storage
-    /// `_x` — in the order the type body prints them; one above the type's
+    /// block the macro writes, whichever accessors the image keeps, then the
+    /// storage `_x` — in the order the type body prints them; one above the type's
     /// closing brace — the registrar and the generated methods; and one below
     /// it — the generated conformance. See `MacroExpansionPart` for where
     /// each goes.
@@ -311,9 +331,11 @@ extension SwiftDeclarationPrinter {
         var parts: [MacroExpansionPart] = []
         for trackedProperty in expansion.trackedProperties {
             var rows: [SemanticString] = []
-            if let memberVariable = folding.trackedMemberVariablesByName[trackedProperty.name],
-               let visibility = exportFilterVisibility(excluded: isExcludedByExportFilter(.variable(memberVariable))) {
-                rows.append(accessorBlock(of: memberVariable).visible(under: visibility))
+            // Visible exactly where the folded declaration it is placed
+            // below is.
+            if let storageField = typeDefinition.fields.first(where: { $0.name == trackedProperty.backingFieldName }),
+               let visibility = trackedPropertyExportVisibility(trackedProperty, storedIn: storageField, folding: folding) {
+                rows.append(observableTrackedPropertyAccessorBlock(level: 0).visible(under: visibility))
             }
             if let storage = fieldDeclarationsByName[trackedProperty.backingFieldName] {
                 rows.append(storage)
@@ -326,7 +348,7 @@ extension SwiftDeclarationPrinter {
         if let registrar = fieldDeclarationsByName[ObservableMacroRecognition.registrarFieldName] {
             memberRows.append(registrar)
         }
-        memberRows += await renderedMacroExpansionMembers(of: typeDefinition, level: 0, includesTrackedProperties: false)
+        memberRows += await renderedMacroExpansionMembers(of: typeDefinition, level: 0)
         if !memberRows.isEmpty {
             parts.append(MacroExpansionPart(macro: .observable, placement: .members, content: SemanticString(Rows(level: 0, memberRows))))
         }
@@ -338,33 +360,32 @@ extension SwiftDeclarationPrinter {
         return parts
     }
 
-    /// The accessor block a member variable's declaration ends with, as the
-    /// expanded form prints it — `{`, `get` and `set` one level in, `}` — on
-    /// its own. It must print every line `printAccessorBlock(_:indentation:)`
-    /// prints: `aTrackedPropertysAccessorBlockIsTheExpandedFormsBlock`
-    /// compares the two line for line.
+    /// The accessor block `@Observable` writes for a tracked property — `{`,
+    /// `get` and `set` one level in, `}` — whichever accessors the image
+    /// keeps: the macro always generates both (and `_modify`, which an
+    /// interface never prints), so the block follows from the recognition,
+    /// not from the symbols. `level` is the indentation of the declaration
+    /// it closes.
     @SemanticStringBuilder
-    private func accessorBlock(of variable: VariableDefinition) -> SemanticString {
-        let keywords = AccessorBlockKeywords(of: variable)
+    func observableTrackedPropertyAccessorBlock(level: Int) -> SemanticString {
         Standard("{")
         BreakLine()
-        Indent(level: 1)
-        Keyword(keywords.read)
-        if let write = keywords.write {
-            BreakLine()
-            Indent(level: 1)
-            Keyword(write)
-        }
+        Indent(level: level + 1)
+        Keyword("get")
         BreakLine()
+        Indent(level: level + 1)
+        Keyword("set")
+        BreakLine()
+        Indent(level: level)
         Standard("}")
     }
 
-    /// The members of `typeDefinition`'s expansion, each a row of its own —
+    /// The methods of `typeDefinition`'s expansion, each a row of its own —
     /// its comments and its declaration, indented to `level` — in the order
-    /// the type body prints them, under the exported-only filter. Without
-    /// `includesTrackedProperties`, the computed properties over the storage
-    /// are left out: their accessor blocks go into each property's piece.
-    private func renderedMacroExpansionMembers(of typeDefinition: TypeDefinition, level: Int, includesTrackedProperties: Bool) async -> [SemanticString] {
+    /// the type body prints them, under the exported-only filter. The
+    /// computed properties over the storage are left out: they print from
+    /// the tracked properties, the way the macro writes them.
+    private func renderedMacroExpansionMembers(of typeDefinition: TypeDefinition, level: Int) async -> [SemanticString] {
         let folding = observableMacroFolding(of: typeDefinition)
         let members: [OrderedMember]
         switch configuration.memberSortOrder {
@@ -379,7 +400,7 @@ extension SwiftDeclarationPrinter {
         let renderingContext = memberRenderingContext(of: typeDefinition, isProtocol: false)
         var renderedMembers: [SemanticString] = []
         for member in members where folding.isExpansionOnly(member) {
-            if !includesTrackedProperties, case .variable = member { continue }
+            if case .variable = member { continue }
             guard let visibility = exportFilterVisibility(excluded: isExcludedByExportFilter(member)) else { continue }
             let rendered = await renderMember(member, level: level, context: renderingContext, marksObservationIgnored: false)
             renderedMembers.append((SemanticString(Indent(level: level)) + rendered).visible(under: visibility))

@@ -100,9 +100,9 @@ configuration.marksAttachedMacros = true
 // region.kind == .attachedMacro(.observable)
 ```
 
-- `SwiftDeclarationPrinter.printMacroExpansion(of:attachedTo:level:)`：印出 registrar、每个被跟踪属性的存储 `_x`、镜像里还有 accessor 的 computed `x`、`access(keyPath:)`、`withMutation(keyPath:_:)`、镜像里留下的 `shouldNotifyObservers(_:_:)`，最后是 `extension X: Observation.Observable {}`。每条声明带着展开形态里同样的注释，用的是同一套成员打印代码；导出过滤照常生效。类型没带这个宏时印出空串。
+- `SwiftDeclarationPrinter.printMacroExpansion(of:attachedTo:level:)`：印出 registrar、每个被跟踪属性的存储 `_x`、每个被跟踪属性的 computed `x`（照宏的写法 `{ get set }`，镜像剥掉了 accessor 也印，上方加 note 注释）、`access(keyPath:)`、`withMutation(keyPath:_:)`、镜像里留下的 `shouldNotifyObservers(_:_:)`，最后是 `extension X: Observation.Observable {}`。存储和方法带着展开形态里同样的注释，用的是同一套打印代码，computed `x` 带镜像里它的 accessor 注释（地址、vtable 槽位、导出结论）；导出过滤照常生效。类型没带这个宏时印出空串。
 - `SwiftDeclarationPrintConfiguration.marksAttachedMacros`：折叠形态里每个宏属性包在 `AnnotationRegion` 里，种类是 `AnnotationRegion.Kind.attachedMacro(_:)`（`attachedMacro.Observation.Observable`），一个宏一个种类，宿主不必读文字就知道是哪个宏。默认关，关着时输出逐字节不变。
-- `SwiftDeclarationPrinter.printMacroExpansionParts(of:attachedTo:)`：照 Xcode 展开 attached macro 的位置把展开拆成几块（`MacroExpansionPart`），每块不带自身缩进、首尾不带换行：每个被跟踪属性一块，放在它折叠出的声明下方，先是镜像里 computed 属性的 accessor 块（剥掉了就没有），再是存储 `_x`；registrar 与生成的方法一块，放在类型闭合括号上方；生成的 conformance 一块，放在闭合括号下方。`marksAttachedMacros` 打开时，每个被跟踪属性折叠出的声明包在 `AnnotationRegion.Kind.attachedMacroTrackedProperty(_:named:)` 的区域里，`MacroExpansionPart.anchorKind` 与它相等；闭合括号不另做标记，它是类型 `DefinitionRegion` 的最后一行（或打印的那个定义的最后一行），不必改 swift-semantic-string。
+- `SwiftDeclarationPrinter.printMacroExpansionParts(of:attachedTo:)`：照 Xcode 展开 attached macro 的位置把展开拆成几块（`MacroExpansionPart`），每块不带自身缩进、首尾不带换行：每个被跟踪属性一块，放在它折叠出的声明下方，先是宏生成的 accessor 块（总是 `get`、`set`，不看镜像里还剩哪些 accessor），再是存储 `_x`；registrar 与生成的方法一块，放在类型闭合括号上方；生成的 conformance 一块，放在闭合括号下方。`marksAttachedMacros` 打开时，每个被跟踪属性折叠出的声明包在 `AnnotationRegion.Kind.attachedMacroTrackedProperty(_:named:)` 的区域里，`MacroExpansionPart.anchorKind` 与它相等；闭合括号不另做标记，它是类型 `DefinitionRegion` 的最后一行（或打印的那个定义的最后一行），不必改 swift-semantic-string。
 
 ### dump
 
@@ -166,3 +166,4 @@ RuntimeViewer 的 release 构建按版本解析，要等本库发版。`next` �
 | 2026-11-12 | 更正 2026-11-11 那一行：`BoundedConcurrentMapTests` 的超时不是 fixture 同步编译造成的，独立线程编译照旧保留 | Ultra 上其他会话不含本分支的全量里这条也超时；同步编译占住协作线程是真问题，但当时「改后全量通过」只是一次运气 |
 | 2026-11-12 | 比对 `_x` 与 `x` 的类型时撇开 `sending`，类型照旧读 getter 的符号；wrapped property 的属性写法改用同一个比较 | 编译器 mangle 声明自身的函数类型时不写 `sending`，字段记录照写；SwiftUI 三个类的 `makeFileCoordinator` 因此被当成「另一种类型的成员」，存储被印成 `@ObservationIgnored`。init accessor 的符号同样不写 `sending`，改读它没有用。getter 被 `@_silgen_name` 钉成旧 mangling 的情形不处理（init accessor 会话指出的 SwiftUICore `_GeometryActionModifier2.value`）：宏生成的 accessor 加不了这个属性 |
 | 2026-11-12 | 「关掉折叠时输出逐字节不变」以本提案之前的输出为准 | init accessor 提案（draft-init-accessor-recovery）让展开形态里每个被跟踪属性的 accessor 块多印 `@storageRestrictions(initializes: _x) init` 一行，分块里的块跟着印；那一行是那份提案带来的变化 |
+| 2026-11-12 | 分块与整块展开里，被跟踪属性的 accessor 块一律照宏的写法印 `{ get set }`，不看镜像里还剩哪些 accessor；`--expand-macros` 的展开形态仍照镜像。取代前面「逐行对照展开形态」那一行，对照测试改为钉住宏的写法 | 用户批准（RuntimeViewer 提出）：macOS 27.2 的 AppKit 剥光了 `ColorSliderModel` 的 accessor，分块里只剩存储，看不出属性变成了 computed；SwiftUI 的 `_makeFileCoordinator` 只剩 getter，分块只印 `{ get }`。宏生成的块是固定的，跟着识别结果走；init accessor 那份改动落地后，这个块再加 `@storageRestrictions(initializes: _x) init` 一行 |
