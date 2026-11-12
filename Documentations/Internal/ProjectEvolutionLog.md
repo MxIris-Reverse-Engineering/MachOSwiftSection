@@ -3216,7 +3216,29 @@
   - 完全剥光符号的 internal 类会把 `@ObservationIgnored var _y` 读成被跟踪属性。
   - `@Model` 等别的宏还没有识别。
   - 发版要先发 swift-demangling。
-  - init accessor 提案（draft-init-accessor-recovery）在这之上给 accessor 块加了 `init` 一行，并把类型比对挪进 SwiftInspection 的 `StoredTypeMatching`。
+  - init accessor 提案（[0094-init-accessor-recovery](../Evolutions/0094-init-accessor-recovery.md)）在这之上给 accessor 块加了 `init` 一行，并把类型比对挪进 SwiftInspection 的 `StoredTypeMatching`。
+- **对应版本**：未发版。
+
+## 133. 还原 SE-0400 的 init accessor
+
+- **时间段**：2026-11-12，分支 `feature/init-accessor-recovery`（worktree `.worktrees/MachOSwiftSection-InitAccessorRecovery`，基于 `next` 096970e7），中途三次合进本地 `next` 上 `@Observable` 的改动，做完先在本地合进 `next` 供用户查看，当天与第 132 节一起正式落地；RuntimeViewer 的同名分支只补 `kindString` 一行。提案 [0094-init-accessor-recovery](../Evolutions/0094-init-accessor-recovery.md)（轻量档）。
+- **动机**：SE-0400 的 init accessor 在二进制里只留下符号（后缀 `vi`），`@storageRestrictions` 的名单与参数名都不留。库原先把这个符号整个丢掉：dump 不列，ABI diff 看不到，interface 只印 `get` / `set`。起因是 SwiftUICore 导出的 `_GeometryActionModifier2.value.init`，编译器自己的 `.swiftinterface` 印成 `@storageRestrictions(initializes: _value) init(initialValue)`；`@Observable` 展开里每个被跟踪属性也都缺这一行。
+- **关键决策**：
+  - init accessor 是 `AccessorKind` 的一个 case，与 SE-0507 的 `borrow` / `mutate` 一样：dump 的成员循环、地址注释与 ABI diff 沿着 `accessors` 自动带上它，代价是 RuntimeViewer 的穷举 `switch` 要同批补一行。它排在同名一组的最后，不参与成员排序（release 里它的地址可能在 getter 前面），也不算 `final` 的证据（它从不进 vtable）。
+  - 不从机器码推 `initializes:` / `accesses:`：指针直接指向存储，只数得出个数。名单只按「同名的 `_x`、类型与属性相同（先剥掉 `weak` / `unowned`）」推断，推不出就只印 `init`，声明上一行注明二进制没有记录；只看名字会把 SwiftData `@Model` 那种类型不同的 `_name` 也认进来。
+  - 比较的类型取 init accessor 自己的符号，不取 getter 的：SwiftUICore 用 `@_silgen_name` 把 `_GeometryActionModifier2.value` 的 getter 钉在没有 `@Sendable` 的旧 mangling 上，渲染 A/B 抓到了这一处。声明自身的 mangling 不写 `sending`，比较照 `@Observable` 那边的修法撇开它；比较函数下沉到 SwiftInspection 的 `StoredTypeMatching`，`@Observable` 的展开恢复、wrapper attribute 的写法与本推断三处共用。
+  - `@Observable` 的整块与分块展开照宏的写法，总是印 `@storageRestrictions(initializes: _x) init`，与别处的 accessor 块共用 `AccessorBlockKeywords.InitAccessorLine`；`--expand-macros` 照镜像。
+- **落地**：
+  - MachOSymbols：`.initAccessor` 进成员桶；分桶之前的 `Node.Kind.isMember` 名单也要加，漏了就一个都不进桶、不报错。SwiftDeclaration：`AccessorKind.initAccessor`、`hasInitAccessor`、`VariableDefinition.initializedFieldNames`、索引步骤 `TypeDefinition+InitAccessors`。SwiftInspection：`InitAccessorFieldInference`、`StoredTypeMatching`。
+  - SwiftPrinting：accessor 块的 `init` 一行。SwiftDeclarationRendering：注释工厂 `initAccessorFieldsNotRecorded` / `initAccessorInitializedFields(_:)` 与注释种类 `initAccessorFields`。SwiftDump：每条 init accessor 前的推断结果。SwiftDiffing：token `init`，ABI 快照格式 13。
+  - 测试：现场编译的 `InitAccessorFixture`（debug、release、dead-strip、strip 四个变体），模型、interface、dump、ABI diff 各一组；`ObservableMacroInterfaceTests` 补上 `init` 那一行。
+  - RuntimeViewer：`kindString` 补 `case .initAccessor`，随 RuntimeViewer 的 `@Observable` 改动一起推。
+  - 文档：提案、`Modules/SwiftDeclaration.md`、`Modules/MachOSymbols.md`、`Modules/SwiftInterface.md`、`AgentPlugins/swift-section` 的 skill（推断出的名单；快照格式的说明改到 13）。
+- **验证**：在 JHs-Mac-Studio-Ultra（macOS 27.2，Xcode 26.6）上跑。最终全量 2908 个测试，红 5 条，在不含本分支的 `@Observable` 全量里都同样出现：`FileMappingTests` 一条，`SharedCacheTests` 一条与 `BoundedConcurrentMapTests` 三条是满负载下超时，单独重跑都过。渲染 A/B 96 对：80 对逐字节相同，16 对只多出新行（init accessor 的符号行、推断注释、`init` 一行与它的地址注释）；interface 里 SwiftUICore 的 `_GeometryActionModifier2.value` 与官方 `.swiftinterface` 只差参数名。RuntimeViewerCore 带上 `kindString` 那一行，对着本分支编译通过。
+- **后续**：
+  - 一个属性初始化几块存储（`initializes: _x, _y`）、初始化的不是 `_x`、只写 `accesses:` 的写法推不出，只印 `init` 加注释；参数名与 `accesses:` 一律不印。
+  - `propertyWrappedFieldInitAccessor`（mangling 里的 `fF`）不在范围内。
+  - 旧的 ABI 快照要用新版重新生成。RuntimeViewer 的 `next` 等它那边 `@Observable` 的改动做完再推，`kindString` 那一行跟着一起上。
 - **对应版本**：未发版。
 
 ## 维护约定

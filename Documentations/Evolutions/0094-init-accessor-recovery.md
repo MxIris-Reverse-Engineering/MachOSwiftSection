@@ -1,9 +1,10 @@
-# Draft - 还原 SE-0400 的 init accessor
+# 0094 - 还原 SE-0400 的 init accessor
 
-- **状态**: In Progress
+- **状态**: Implemented
 - **创建日期**: 2026-11-12
 - **最后更新**: 2026-11-12
 - **实现分支**: `feature/init-accessor-recovery`（RuntimeViewer 一侧是同名分支，见落地步骤 1）
+- **配套文档**: [Modules/SwiftDeclaration.md](../Internal/Modules/SwiftDeclaration.md)（accessor 种类、索引步骤与推断规则）、[Modules/MachOSymbols.md](../Internal/Modules/MachOSymbols.md)（分桶前的 `isMember` 名单）、[Modules/SwiftInterface.md](../Internal/Modules/SwiftInterface.md)（宏展开里 accessor 块的 `init` 一行）
 
 ## 摘要
 
@@ -124,3 +125,4 @@ struct Angle {
 | 2026-11-12 | 渲染 A/B 通过（以本地 `next` 54c3b9ef 为基线） | 96 对里 80 对逐字节相同；16 对不同的全是新增行，没有一行被删改，内容只有 init accessor 的符号行、推断注释、`init` 那一行和它的地址注释。interface 里 SwiftUICore 的 `_GeometryActionModifier2.value` 印成 `@storageRestrictions(initializes: _value) init`，与官方 `.swiftinterface` 只差参数名；进程内 SwiftUICore 推出 `ReorderableStyleConfiguration.ContainerState.placeholder` 的 `_placeholder`；进程内 SwiftUI 有 4 个属性推不出（`taskState`、两个 `previousSnapshot`、`results`），按规则注明。合并 `sending` 修复之前在 0bcfe627 上跑的全量 2903 个测试，只红了 Ultra 上已知的 3 条（`FileMappingTests` 每次都红，两条满负载下偶发）；合并之后相关的 19 个套件全过，全量留到最后一次合并之后再跑 |
 | 2026-11-12 | 合进 `next` 上宏形状的 accessor block，`init` 那一行照宏的写法总是印 | `@Observable` 那边按 RuntimeViewer 的要求，让 `printMacroExpansion` 与 `printMacroExpansionParts` 照宏的写法印被跟踪属性的 accessor block、不再照镜像，`accessorBlock(of:)` 随之删掉。宏总会为被跟踪属性生成初始化 `_x` 的 init accessor，所以这个固定的块也印 `@storageRestrictions(initializes: _x) init`，经 `InitAccessorLine` 渲染；`--expand-macros` 照旧按镜像 |
 | 2026-11-12 | 实现完成，待用户看过后收尾 | 最终提交 b0ff1597 的全量测试 2908 个，红了 5 条：`FileMappingTests` 在 Ultra 上每次都红，`SharedCacheTests` 一条与 `BoundedConcurrentMapTests` 三条是满负载下超时，单独重跑这两个套件 20 个测试全过。RuntimeViewerCore 带上 `kindString` 那一行、对着本分支编译通过。文档已同步：两份模块说明（SwiftDeclaration、MachOSymbols）、SwiftInterface 的宏折叠一段、agent skill；演进账本一节与总索引的条目留到正式收尾取号时写 |
+| 2026-11-12 | 落地：取号 0094，状态改 Implemented，与 0093 一起推进 `next` | 用户看过后批准收尾。实现叠在 `@Observable` 的改动上（`StoredTypeMatching` 与宏形状的 accessor 块），两份提案只能一起推，编号按合进 `next` 的先后，0093 在前。收尾时核对：最终全量红的 5 条，在不含本分支的 `@Observable` 全量（2883 个测试）里都同样出现。配套文档是三份模块文档，不另写使用指南，输出的变化写在插件 skill 里；术语表不加新词（init accessor 是 Swift 自己的术语）；`AGENTS.md` 不用改，分桶前的 `isMember` 名单写在 MachOSymbols 的模块文档里。插件 skill 的快照格式说明改到 13，顺带补上格式 12 漏写的那一条。后续项：一个属性初始化几块存储、初始化的不是 `_x`、只写 `accesses:` 的写法推不出，只印 `init` 加注释；`propertyWrappedFieldInitAccessor`（`fF`）不在范围内；旧的 ABI 快照要用新版重新生成；RuntimeViewer 的 `kindString` 那一行随 RuntimeViewer 那边 `@Observable` 的改动一起推 |

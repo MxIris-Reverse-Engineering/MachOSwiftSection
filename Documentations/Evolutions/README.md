@@ -103,6 +103,6 @@
 | [0091](0091-export-verdict-without-local-symbols.md) | 没有本地符号的镜像里，扩展中的类型与私有 `@objc` 协议也给出导出结论 | Implemented |
 | [0092](0092-existential-any.md) | interface 与 dump 给 existential 写上 `any`，并修好 constrained existential 字段的类型 | Implemented |
 | [0093](0093-observable-macro-folding.md) | 识别 `@Observable` 宏：interface 默认折叠它的展开 | Implemented |
+| [0094](0094-init-accessor-recovery.md) | 还原 SE-0400 的 init accessor | Implemented |
 | draft | [SwiftDeclaration 的目录分成公开模型与索引代码两块](draft-swift-declaration-model-indexing-layout.md) | In Progress |
 | draft | [SwiftDeclaration 的类型名按角色统一后缀](draft-swift-declaration-type-naming.md) | In Progress |
-| draft | [还原 SE-0400 的 init accessor](draft-init-accessor-recovery.md) | In Progress |

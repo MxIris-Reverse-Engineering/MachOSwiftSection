@@ -316,16 +316,20 @@ swift-section evolution 17.0.json 18.0.json /path/Foo --labels 17.0,18.0,26.0
   descriptor names (see §9), which an old baseline would report as added wholesale. Format 7 (0.23.0
   and later) rejects every format-6 baseline: a type declared in a function or closure body is recorded
   under its own full name now (see §9), and an old baseline would report each one as removed —
-  a breaking change — and added again. Format 11 (0.25.0 and later) rejects every earlier baseline,
-  for three reasons: in an optimized build the newer tool also records the members whose only symbol
+  a breaking change — and added again. Format 13 (0.25.0 and later) rejects every earlier baseline,
+  for five reasons: in an optimized build the newer tool also records the members whose only symbol
   is their `@objc` thunk, their initializing entry point or that entry point's function signature
   specialization (see §9), which an old baseline would report as added; a snapshot now records whether its image keeps local Swift symbols and whether
-  each member is exported, which the not-observable rule above needs; and an image's extensions now
+  each member is exported, which the not-observable rule above needs; an image's extensions now
   hold the members of its own module's types that no definition in the image gathers — SwiftUI's
   members of the types SwiftUICore defines, an internal namespace whose type descriptor was stripped —
   which earlier tools left out of `interface` and the snapshot, and an old baseline would report as
-  added. `dump` does not show them. Formats 8, 9 and 10 only ever existed on the development
-  branch, between those changes.
+  added (`dump` does not show them); a stored field whose type is a constrained existential
+  (`any Boxed<Int>`) is recorded as that existential, where it used to read as its arguments alone,
+  and an old baseline would report each such field as changed; and a property's SE-0400 init
+  accessor is one of its accessors now, so an old baseline would report every property that has
+  one as changed. Formats 8 through 12 only ever existed on the development branch, between those
+  changes.
 
 ## 8. `--resolve-c-module-names` (interface, macOS only)
 
