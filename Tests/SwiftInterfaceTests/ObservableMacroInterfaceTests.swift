@@ -201,33 +201,62 @@ struct ObservableMacroInterfaceTests {
 
     // MARK: - The expansion in parts
 
+    /// `@Observable` writes an attribute on each tracked property, then the
+    /// members and the conformance; expanding that `@ObservationTracked`
+    /// gives the accessor block and the storage — the two levels Xcode
+    /// expands (evolution proposal `observable-nested-expansion`).
     @Test func theExpansionPrintsInPartsPlacedLikeXcodes() async throws {
         let indexed = try await indexed(.release)
         let parts = try await indexed.printer().printMacroExpansionParts(of: .observable, attachedTo: indexed.typeDefinition(named: "InternalModel"))
         #expect(parts.map(\.placement) == [
-            .trackedProperty(named: "value"),
-            .trackedProperty(named: "optionalText"),
-            .trackedProperty(named: "delegate"),
+            .trackedPropertyAttribute(named: "value"),
+            .trackedPropertyAttribute(named: "optionalText"),
+            .trackedPropertyAttribute(named: "delegate"),
             .members,
             .conformance,
         ])
-        for part in parts {
+        for part in parts + parts.flatMap(\.nestedExpansions).flatMap(\.parts) {
             let content = part.content.string
             #expect(!content.hasPrefix("\n") && !content.hasSuffix("\n") && !content.hasPrefix(" "), "\(part.placement): \(content)")
         }
+
+        let attribute = parts[0]
+        #expect(attribute.macro == .observable)
+        #expect(attribute.content.string == "@Observation.ObservationTracked")
+        #expect(attribute.nestedExpansions.count == 1)
+        let nestedExpansion = try #require(attribute.nestedExpansions.first)
+        #expect(nestedExpansion.macro == .observationTracked)
+        #expect(nestedExpansion.attributeUTF8Range == 0 ..< attribute.content.string.utf8.count)
+        #expect(nestedExpansion.parts.map(\.placement) == [.trackedProperty(named: "value")])
         // The computed property's accessor block, then its storage.
-        let value = parts[0].content.string
-        #expect(value.hasPrefix("{\n") && value.contains("\n    get\n    set\n}\n"), "\(value)")
-        #expect(value.hasSuffix("var _value: Swift.Int"), "\(value)")
+        let value = try #require(nestedExpansion.parts.first)
+        #expect(value.macro == .observationTracked)
+        #expect(value.nestedExpansions.isEmpty)
+        #expect(value.content.string.hasPrefix("{\n") && value.content.string.contains("\n    get\n    set\n}\n"), "\(value.content.string)")
+        #expect(value.content.string.hasSuffix("var _value: Swift.Int"), "\(value.content.string)")
+
         let members = parts[3].content.string
         for declaration in ["let _$observationRegistrar: Observation.ObservationRegistrar", "func access<A>(keyPath:", "func withMutation<A, B>(keyPath:", "func shouldNotifyObservers<A>("] {
             #expect(members.contains(declaration), "\(declaration) not in:\n\(members)")
         }
         // A tracked property's computed property is in its own piece.
         #expect(!members.contains("var value"), "\(members)")
+        #expect(parts[3].nestedExpansions.isEmpty)
         #expect(parts[4].content.string == "extension ObservableMacroFixture.InternalModel: Observation.Observable {}")
-        #expect(parts[0].anchorKind == .attachedMacroTrackedProperty(.observable, named: "value"))
+        // Both levels are placed by the property's folded declaration.
+        #expect(attribute.anchorKind == .attachedMacroTrackedProperty(.observable, named: "value"))
+        #expect(value.anchorKind == .attachedMacroTrackedProperty(.observable, named: "value"))
         #expect(parts[3].anchorKind == nil)
+    }
+
+    /// The attribute prints through the type printer, so the configured
+    /// spelling reaches it as it reaches the folded attributes.
+    @Test func theAttributeFollowsTheConfiguredSpelling() async throws {
+        let indexed = try await indexed(.release)
+        let parts = try await indexed.printer { $0.usesModuleSelectors = true }.printMacroExpansionParts(of: .observable, attachedTo: indexed.typeDefinition(named: "InternalModel"))
+        let attribute = try #require(parts.first)
+        #expect(attribute.content.string == "@Observation::ObservationTracked")
+        #expect(attribute.nestedExpansions.first?.attributeUTF8Range == 0 ..< attribute.content.string.utf8.count)
     }
 
     /// The accessor block `@Observable` writes for a tracked property stored
@@ -237,24 +266,28 @@ struct ObservableMacroInterfaceTests {
         ["{", "    @storageRestrictions(initializes: \(backingFieldName)) init", "    get", "    set", "}"]
     }
 
-    /// Every tracked property's piece opens with the accessor block the macro
-    /// writes and ends with its storage, whichever accessors the image keeps:
-    /// all of them in a debug or release build, none for a stripped internal
-    /// class or a dead-stripped final class's internal properties.
+    /// Every tracked property has its attribute piece, whose one nested
+    /// expansion opens with the accessor block the macro writes and ends
+    /// with the storage, whichever accessors the image keeps: all of them in
+    /// a debug or release build, none for a stripped internal class or a
+    /// dead-stripped final class's internal properties.
     @Test(arguments: ObservableMacroFixture.Variant.allCases)
-    func everyTrackedPropertysPieceOpensWithTheMacrosAccessorBlock(variant: ObservableMacroFixture.Variant) async throws {
+    func everyTrackedPropertysAttributeExpandsToTheMacrosAccessorBlock(variant: ObservableMacroFixture.Variant) async throws {
         let indexed = try await indexed(variant)
         for typeName in ["FinalModel", "InternalModel"] {
             let typeDefinition = try indexed.typeDefinition(named: typeName)
             let parts = try await indexed.printer().printMacroExpansionParts(of: .observable, attachedTo: typeDefinition)
-            let trackedPropertyParts = parts.filter { part in
-                if case .trackedProperty = part.placement { true } else { false }
+            let attributeParts = parts.filter { part in
+                if case .trackedPropertyAttribute = part.placement { true } else { false }
             }
             // One piece a tracked property, as the recognition has them: in a
             // stripped internal class, the misread `_underscored` among them.
             let trackedProperties = try #require(typeDefinition.observableMacroExpansion).trackedProperties
-            #expect(trackedPropertyParts.map(\.placement) == trackedProperties.map { .trackedProperty(named: $0.name) }, "\(typeName): \(parts.map(\.placement))")
-            for (part, trackedProperty) in zip(trackedPropertyParts, trackedProperties) {
+            #expect(attributeParts.map(\.placement) == trackedProperties.map { .trackedPropertyAttribute(named: $0.name) }, "\(typeName): \(parts.map(\.placement))")
+            for (attributePart, trackedProperty) in zip(attributeParts, trackedProperties) {
+                let nestedParts = attributePart.nestedExpansions.flatMap(\.parts)
+                #expect(nestedParts.map(\.placement) == [.trackedProperty(named: trackedProperty.name)], "\(typeName) \(attributePart.placement)")
+                let part = try #require(nestedParts.first)
                 let lines = part.content.string.components(separatedBy: "\n")
                 let expectedBlockLines = Self.macroAccessorBlockLines(backingFieldName: trackedProperty.backingFieldName)
                 #expect(Array(lines.prefix(expectedBlockLines.count)) == expectedBlockLines, "\(typeName) \(part.placement):\n\(part.content.string)")

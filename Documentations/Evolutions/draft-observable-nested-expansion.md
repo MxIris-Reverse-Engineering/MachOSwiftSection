@@ -1,6 +1,6 @@
 # Draft - `@Observable` 的展开分两层：先出 `@ObservationTracked`，再展开它
 
-- **状态**: Accepted
+- **状态**: In Progress
 - **创建日期**: 2026-11-12
 - **最后更新**: 2026-11-12
 - **实现分支**: `feature/observable-nested-expansion`
@@ -37,14 +37,22 @@
 
 每一步单独构建通过、相关测试通过后提交并推送；测试在 Ultra 上跑。
 
-1. [ ] `SwiftAttachedMacro.observationTracked` 与它的名字节点；`MacroExpansionPart` 的 `.trackedPropertyAttribute(named:)`、`NestedExpansion` 与存储的 `anchorKind`；`printMacroExpansionParts` 出两层；分块测试改成两层。
-2. [ ] 文档：`Modules/SwiftInterface.md`、`AGENTS.md` 里分块的说明；全量测试。
+1. [x] `SwiftAttachedMacro.observationTracked` 与它的名字节点；`MacroExpansionPart` 的 `.trackedPropertyAttribute(named:)`、`NestedExpansion` 与存储的 `anchorKind`；`printMacroExpansionParts` 出两层；分块测试改成两层。
+2. [x] 文档：`Modules/SwiftInterface.md`、`AGENTS.md` 里分块的说明；全量测试。
 
 测试：
 
 - 第一层每个被跟踪属性一块，内容是属性，带一项嵌套展开，范围覆盖属性文本。
 - 嵌套分块与今天的 `.trackedProperty` 分块逐字节相同。
 - fixture 的四个变体都要过。
+
+### 验证
+
+在 JHs-Mac-Studio-Ultra（macOS 27.2、Xcode 26.6）的沙盒里跑，swift-demangling 用它 `next` 的 8809c1b 作本地兄弟依赖。
+
+- 相关套件（`@Observable` 与 init accessor 的测试、投影、注释结构与嵌套定义区域的契约）88 个测试全过。
+- 全量 2909 个测试，只有 `FileMappingTests.readersOfOneCacheFileShareOneMapping` 一条失败，基线上同样失败。
+- 改动只在分块 API 里，折叠形态、展开形态与 dump 的输出都不变，所以不跑渲染 A/B。
 
 ## 决策日志
 
@@ -53,3 +61,5 @@
 | 2026-11-12 | Created as Draft | RuntimeViewer 要照 Swift 源码的两层展开 `@Observable`，用户定由本库印两层 |
 | 2026-11-12 | 第一层的属性写作 `@Observation.ObservationTracked`，经类型打印器印出 | 用户选定：与折叠形态的 `@Observation.Observable`、`@Observation.ObservationIgnored` 一致，module selector 也照样生效；宏源码写的是不带模块名的 `@ObservationTracked` |
 | 2026-11-12 | 用户批准，开始实现；补上落地步骤 | 精简提案原本没有分步 |
+| 2026-11-12 | 被导出过滤排除的属性两层都不出；属性块里不放标记区域 | 两层都摆在折叠声明旁边，声明被排除时宿主找不到锚点；嵌套宏的范围已经由 `attributeUTF8Range` 给出，不必再用 `marksAttachedMacros` 的区域 |
+| 2026-11-12 | 实现完成，待用户看过后收尾 | 文档：`Modules/SwiftInterface.md` 与 `AGENTS.md` 已写两层；术语表不加新词，插件 skill 不涉及（CLI 没变） |

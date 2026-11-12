@@ -31,6 +31,16 @@ public struct SwiftAttachedMacro: Hashable, Sendable {
         name: ObservableMacroRecognition.observableName,
         moduleName: ObservableMacroRecognition.observationModuleName
     )
+
+    /// `@ObservationTracked`, from the Observation module: the macro
+    /// `@Observable` attaches to each property it tracks, which writes the
+    /// property's accessors and its storage. It appears in an expansion of
+    /// `@Observable`, never on a type (evolution proposal
+    /// `observable-nested-expansion`).
+    public static let observationTracked = SwiftAttachedMacro(
+        name: ObservableMacroRecognition.observationTrackedName,
+        moduleName: ObservableMacroRecognition.observationModuleName
+    )
 }
 
 extension SwiftAttachedMacro {
