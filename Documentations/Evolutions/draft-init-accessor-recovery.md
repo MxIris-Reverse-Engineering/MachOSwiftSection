@@ -1,9 +1,9 @@
 # Draft - 还原 SE-0400 的 init accessor
 
-- **状态**: Accepted
+- **状态**: In Progress
 - **创建日期**: 2026-11-12
 - **最后更新**: 2026-11-12
-- **实现分支**: `feature/init-accessor-recovery`（RuntimeViewer 一侧另开一条分支，见落地步骤 1）
+- **实现分支**: `feature/init-accessor-recovery`（RuntimeViewer 一侧是同名分支，见落地步骤 1）
 
 ## 摘要
 
@@ -37,7 +37,8 @@ SE-0400 让 computed property 带一个 `init` accessor：初始化器给这个�
 
 - `@Observable` 的识别：证据照旧按 kind 查 `symbols(of: .initAccessor)`。按 kind 的索引对每个符号都记一行（`SymbolIndexStore.swift:1035`），进不进成员桶都不影响它；折叠形态整块不印被跟踪属性背后的 computed property，不会出现 accessor block。
 - 导出判定：成员的导出结论是「任一 accessor 导出即导出」（`SymbolIndexStore.swift:1445`），加进一个不导出的 init accessor 不改变任何结论，`--exported-only` 也一样。
-- 属性的声明节点、名字和类型，property wrapper 的还原，`final` 的推断（判据是「所有 accessor 都没有 vtable descriptor」，有 getter / setter 的属性结论不变）。
+- 属性的声明节点、名字和类型，property wrapper 的还原。
+- `final` 的推断结论不变：它把「有 accessor 符号、却都没有 vtable descriptor」当证据，而 init accessor 从不进 vtable，所以证据里不算它（`TypeDefinition+FinalRecovery.swift` 的两处判据、dump 那条路的 `ClassDumper.storedAccessorFieldNames`）。不排除的话，SwiftUICore 那种兼容函数放在 class 的 stored property 上，会让它单凭这一个符号被判成 `final`。
 - `accesses:` 和参数名一律不印；`propertyWrappedFieldInitAccessor`（mangling 里的 `fF`）不在范围内；swift-demangling 不改。
 
 ### 推断规则
@@ -110,3 +111,4 @@ struct Angle {
 | 2026-11-12 | 不从机器码推 `initializes:` / `accesses:` | 能数出 indirect result 和 `inout` 参数各有几个，但指针直接指向存储，看不出是哪个字段；只有个数印不成合法的 Swift |
 | 2026-11-12 | 推断要求类型相同 | 只看名字会把类型不同的 `_x` 也认成被初始化的存储，SwiftData `@Model` 就是这样 |
 | 2026-11-12 | 用户批准，开始实现；补上落地步骤 | 原稿只列了改动位置，按能各自构建的顺序拆成五步 |
+| 2026-11-12 | `final` 推断不把 init accessor 当证据 | 实现时发现 `final` 的证据门槛是「有任意 accessor 符号」，init accessor 进了 `accessors` 之后会被算进去；它从不经 vtable 派发，什么也证明不了。排除之后所有结论与今天相同 |

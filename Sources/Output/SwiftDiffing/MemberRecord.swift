@@ -327,6 +327,7 @@ extension MemberRecord {
         case .readAccessor: return "read"
         case .borrowAccessor: return "borrow"
         case .mutateAccessor: return "mutate"
+        case .initAccessor: return "init"
         case .none: return "none"
         }
     }

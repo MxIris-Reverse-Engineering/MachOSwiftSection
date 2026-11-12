@@ -1161,10 +1161,14 @@ public final class SymbolIndexStore: @unchecked Sendable {
         // A SE-0507 `borrow` / `mutate` accessor is the property's read /
         // write accessor when it declares one: such a property has no getter
         // or setter symbol of its own, so skipping them dropped it whole.
+        // A SE-0400 init accessor belongs to its property the same way
+        // (evolution proposal `init-accessor-recovery`); the kind index above
+        // keeps listing it too, which `@Observable` recovery reads.
         case .getter,
              .setter,
              .borrowAccessor,
-             .mutateAccessor:
+             .mutateAccessor,
+             .initAccessor:
             if let variableNode = node.children.first, variableNode.kind == .variable, var first = variableNode.children.first {
                 if first.kind == .extension, let type = first.children.at(1) {
                     traits.insert(.inExtension)
@@ -1934,8 +1938,10 @@ extension DemanglingNode {
         }
     }
 
+    /// An init accessor is one: without it, its node read as a property's
+    /// storage (`isStoredVariable`) and could stand for the declaration.
     package var isAccessor: Bool {
-        return isKind(of: .getter, .setter, .modifyAccessor, .readAccessor, .borrowAccessor, .mutateAccessor)
+        return isKind(of: .getter, .setter, .modifyAccessor, .readAccessor, .borrowAccessor, .mutateAccessor, .initAccessor)
     }
 }
 

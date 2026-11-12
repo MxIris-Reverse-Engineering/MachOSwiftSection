@@ -105,4 +105,4 @@
 | draft | [SwiftDeclaration 的目录分成公开模型与索引代码两块](draft-swift-declaration-model-indexing-layout.md) | In Progress |
 | draft | [SwiftDeclaration 的类型名按角色统一后缀](draft-swift-declaration-type-naming.md) | In Progress |
 | draft | [识别 `@Observable` 宏：interface 默认折叠它的展开](draft-observable-macro-folding.md) | In Progress |
-| draft | [还原 SE-0400 的 init accessor](draft-init-accessor-recovery.md) | Accepted |
+| draft | [还原 SE-0400 的 init accessor](draft-init-accessor-recovery.md) | In Progress |

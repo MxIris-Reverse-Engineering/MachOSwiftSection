@@ -10,8 +10,11 @@ extension DemanglingNode where Self: Sequence<Self> {
     /// search for accessors alone found for a static stored property's
     /// storage symbol, and the property printed as a computed one (evolution
     /// proposal `local-type-context-names`).
+    ///
+    /// An init accessor is one too: read as `.none`, it made its property
+    /// a stored one (`AccessorRepresentable.isStored`).
     package var accessorKind: AccessorKind {
-        guard let node = first(of: .getter, .setter, .modifyAccessor, .readAccessor, .borrowAccessor, .mutateAccessor, .variable, .subscript) else { return .none }
+        guard let node = first(of: .getter, .setter, .modifyAccessor, .readAccessor, .borrowAccessor, .mutateAccessor, .initAccessor, .variable, .subscript) else { return .none }
         switch node.kind {
         case .getter: return .getter
         case .setter: return .setter
@@ -19,6 +22,7 @@ extension DemanglingNode where Self: Sequence<Self> {
         case .readAccessor: return .readAccessor
         case .borrowAccessor: return .borrowAccessor
         case .mutateAccessor: return .mutateAccessor
+        case .initAccessor: return .initAccessor
         default: return .none
         }
     }

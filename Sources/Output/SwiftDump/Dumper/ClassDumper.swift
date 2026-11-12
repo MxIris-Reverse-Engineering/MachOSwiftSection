@@ -799,6 +799,9 @@ package struct ClassDumper<MachO: MachOFieldLayoutRenderable>: TypedDumper {
             symbolIndexStore.memberSymbols(of: variableKind, for: interfaceNameString, in: machO)
         }
         for symbol in accessorSymbols {
+            // A SE-0400 init accessor is never dispatched, so it testifies
+            // to nothing (evolution proposal `init-accessor-recovery`).
+            guard !symbol.demangledNode.children.contains(where: { $0.kind == .initAccessor }) else { continue }
             guard let variableName = symbol.demangledNode.first(of: .variable)?.identifier else { continue }
             names.insert(variableName)
         }
