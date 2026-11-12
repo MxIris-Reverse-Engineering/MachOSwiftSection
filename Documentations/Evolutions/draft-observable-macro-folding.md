@@ -31,7 +31,7 @@
 
 ### 被跟踪的属性怎么认
 
-每个存储字段 `_x`（`var`，名字不以 `_$` 开头，没被 property wrapper 还原认领）先排除一种情况：类型里有成员变量 `x`、但类型与 `_x` 不同（`weak` 之类的引用存储先剥掉再比），那 `_x` 存的就不是 `x`。其余的依次看下面的证据，第一条成立的为准；每个被跟踪的属性都记下认定它的证据（`ObservableMacroExpansion.TrackedProperty.Evidence`）：
+每个存储字段 `_x`（`var`，名字不以 `_$` 开头，没被 property wrapper 还原认领）先排除一种情况：类型里有成员变量 `x`、但类型与 `_x` 不同（`weak` 之类的引用存储先剥掉再比），那 `_x` 存的就不是 `x`。`sending` 不算不同：编译器 mangle 声明自身的函数类型时不写 `sending`（`ASTMangler::appendDeclType`，加上它不改符号），字段记录照写，`var make: () -> sending T` 的 accessor 符号读出 `() -> T`、存储读出 `() -> sending T`。其余的依次看下面的证据，第一条成立的为准；每个被跟踪的属性都记下认定它的证据（`ObservableMacroExpansion.TrackedProperty.Evidence`）：
 
 1. `x` 有 init accessor（`Model.count.init`）：只有被宏挪走存储的属性才有。
 2. 镜像里的成员变量 `x` 有 setter 或 `_modify`，类型与 `_x` 相同。
@@ -137,7 +137,7 @@ RuntimeViewer 的 release 构建按版本解析，要等本库发版。`next` �
 - 全量中途暴露并修好的两件事：`TypeDefinition` 实例大小超过提案 0002 的守卫（456 > 448，展开描述改为装箱，回到 440）；fixture 在静态初始化里同步编四个变体，编译期间占住协作线程（改为在独立线程编译、访问器改成 async）。当时把 `BoundedConcurrentMapTests` 的一分钟时限超时也归到它头上，后来查明这条在没有本分支改动的全量里也会超时，见下一条。
 - 分块的展开（`printMacroExpansionParts`）加入后再跑全量：2884 个测试，三条失败，都不是本次引入的。`FileMappingTests` 是基线已有的。`BoundedConcurrentMapTests.cancellationStopsSubmittingPendingElements` 的时限超时在 Ultra 上其他会话不含本分支的全量里也出现过（2026-11-11 的两次）。`SharedCacheTests.differentKeysParallelViaAsyncLet` 要两个 detached task 在 30 秒内同时拿到协作线程，而 Ultra 的全量自始至终占满协作线程池，排在前面的测试都要等 800 秒以上才结束。这两条在日志里都是在任何新测试开始之前就已经失败的，分块的代码也只在新测试里执行。
 - 渲染 A/B（96 对，基线是分支起点，候选侧加 `--expand-macros` 与 `RV_OPTS` 的 `expandsMacros`）：interface 全部逐字节一致；dump 有 10 对不同，去掉 `@Observation.Observable ` 前缀后都逐字节一致，进程内一侧标出 SwiftUI、SwiftUICore、SwiftData 共 28 个类。A/B 跑在 dead-strip 修复之前的提交上；之后的改动只动折叠形态（A/B 里关着）、只在 `marksAttachedMacros` 打开时才有的标记、新加的分块 API 和测试支持代码，展开形态与 dump 不受影响，没有重跑。
-- 真实框架：用修复后的 CLI 渲染 macOS 27.2 的 SwiftUI，`Immersion`、`WindowVisibilityState`、`SearchEnvironmentStorage` 等都折叠对了；剩下印 `@Observation.ObservationIgnored var _x` 的都是手写写法（存储与同名属性类型不同，或同名的是方法）。
+- 真实框架：用修复后的 CLI 渲染 macOS 27.2 的 SwiftUI，`Immersion`、`WindowVisibilityState`、`SearchEnvironmentStorage` 等都折叠对了；剩下印 `@Observation.ObservationIgnored var _x` 的当时都判为手写写法（存储与同名属性类型不同，或同名的是方法）。其中三个类的 `makeFileCoordinator` 判错了：类型只差一个 `sending`，见决策日志。修好后用新旧两个 CLI 渲染 SwiftUI、SwiftUICore、SwiftData 的折叠形态逐字比较，只有这三处变了，都折叠成 `var makeFileCoordinator: @Sendable () -> sending NSFileCoordinator`（其中一处属性名本身带下划线）。
 
 ## 决策日志
 
@@ -164,3 +164,5 @@ RuntimeViewer 的 release 构建按版本解析，要等本库发版。`next` �
 | 2026-11-12 | 加入分块的展开 `printMacroExpansionParts` 与被跟踪属性的定位标记；闭合括号用类型的定义区域定位 | RuntimeViewer 改为 Xcode 式的分散展开，用户批准在正式收尾前加上；给 `DeclarationBlock` 的闭合括号打标记要改 swift-semantic-string 并先发版，类型的定义区域已经给出它的范围 |
 | 2026-11-12 | 分块里属性的 accessor 块单独打印，由测试逐行对照展开形态的同一块 | 分块要的是不带声明头的块，变量打印器只会连声明一起印；init accessor 提案正在给展开形态的块加 `init` 一行，对照测试保证分块跟着加，而不是悄悄少一行 |
 | 2026-11-12 | 更正 2026-11-11 那一行：`BoundedConcurrentMapTests` 的超时不是 fixture 同步编译造成的，独立线程编译照旧保留 | Ultra 上其他会话不含本分支的全量里这条也超时；同步编译占住协作线程是真问题，但当时「改后全量通过」只是一次运气 |
+| 2026-11-12 | 比对 `_x` 与 `x` 的类型时撇开 `sending`，类型照旧读 getter 的符号；wrapped property 的属性写法改用同一个比较 | 编译器 mangle 声明自身的函数类型时不写 `sending`，字段记录照写；SwiftUI 三个类的 `makeFileCoordinator` 因此被当成「另一种类型的成员」，存储被印成 `@ObservationIgnored`。init accessor 的符号同样不写 `sending`，改读它没有用。getter 被 `@_silgen_name` 钉成旧 mangling 的情形不处理（init accessor 会话指出的 SwiftUICore `_GeometryActionModifier2.value`）：宏生成的 accessor 加不了这个属性 |
+| 2026-11-12 | 「关掉折叠时输出逐字节不变」以本提案之前的输出为准 | init accessor 提案（draft-init-accessor-recovery）让展开形态里每个被跟踪属性的 accessor 块多印 `@storageRestrictions(initializes: _x) init` 一行，分块里的块跟着印；那一行是那份提案带来的变化 |

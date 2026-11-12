@@ -34,6 +34,16 @@ struct ObservableMacroExpansionRecoveryTests {
 
     // MARK: - Images that keep their local symbols
 
+    /// SwiftUI's `makeFileCoordinator` properties are this shape: a function
+    /// type with `sending`, which the storage's field record spells and the
+    /// accessor symbols do not. Every variant keeps the public accessors.
+    @Test(arguments: ObservableMacroFixture.Variant.allCases)
+    func aPropertyOfAFunctionTypeWithSendingIsTracked(variant: ObservableMacroFixture.Variant) async throws {
+        let sendingModel = try await expansion(of: "SendingModel", in: try await ObservableMacroFixture.machOFile(variant))
+        #expect(sendingModel.trackedProperties.map(\.name) == ["makeCoordinator", "takeCoordinator"])
+        #expect(sendingModel.ignoredStoredPropertyNames.isEmpty)
+    }
+
     @Test(arguments: [ObservableMacroFixture.Variant.debug, .release])
     func everyTrackedPropertyIsToldByItsInitAccessor(variant: ObservableMacroFixture.Variant) async throws {
         let machO = try await ObservableMacroFixture.machOFile(variant)
@@ -158,6 +168,23 @@ struct ObservableMacroExpansionRecoveryTests {
         Node.createTransient(kind: .identifier, text: "String"),
     ]))
 
+    /// `(sending Swift.Int) -> sending Swift.Int` in the demangler's shape,
+    /// either `sending` optional: a field record spells both, a declaration's
+    /// symbol neither.
+    private static func functionTypeNode(sendingResult: Bool, sendingParameter: Bool) -> Node {
+        let intStructureNode = Node.createTransient(kind: .structure, children: [
+            Node.createTransient(kind: .module, text: "Swift"),
+            Node.createTransient(kind: .identifier, text: "Int"),
+        ])
+        let parameterTypeNode = sendingParameter
+            ? Node.createTransient(kind: .type, child: Node.createTransient(kind: .sending, child: intStructureNode))
+            : Node.createTransient(kind: .type, child: intStructureNode)
+        var children: [Node] = sendingResult ? [Node.createTransient(kind: .sendingResultFunctionType)] : []
+        children.append(Node.createTransient(kind: .argumentTuple, child: parameterTypeNode))
+        children.append(Node.createTransient(kind: .returnType, child: Node.createTransient(kind: .type, child: intStructureNode)))
+        return Node.createTransient(kind: .type, child: Node.createTransient(kind: .functionType, children: children))
+    }
+
     @Test func onlyAnUnderscoredNameWithoutADollarSignCanBeStorage() {
         #expect(ObservableMacroExpansionRecovery.trackedPropertyName(forBackingFieldName: "_value") == "value")
         #expect(ObservableMacroExpansionRecovery.trackedPropertyName(forBackingFieldName: "__value") == "_value")
@@ -168,8 +195,8 @@ struct ObservableMacroExpansionRecoveryTests {
 
     @Test func aWeakStorageStoresTheTypeItsPropertyDeclares() {
         let weakTypeNode = Node.createTransient(kind: .type, child: Node.createTransient(kind: .weak, child: Self.intTypeNode))
-        #expect(InitAccessorFieldInference.referencedTypeNode(ofStoredType: weakTypeNode) == Self.intTypeNode)
-        #expect(InitAccessorFieldInference.referencedTypeNode(ofStoredType: Self.intTypeNode) == Self.intTypeNode)
+        #expect(StoredTypeMatching.referencedTypeNode(ofStoredType: weakTypeNode) == Self.intTypeNode)
+        #expect(StoredTypeMatching.referencedTypeNode(ofStoredType: Self.intTypeNode) == Self.intTypeNode)
     }
 
     @Test func theGeneratedMethodsAreToldByNameAndLabels() {
@@ -210,6 +237,23 @@ struct ObservableMacroExpansionRecoveryTests {
         )
         #expect(recovered.trackedProperties.isEmpty)
         #expect(recovered.ignoredStoredPropertyNames == ["_label"])
+    }
+
+    /// The accessor symbols never spell `sending` on the property's own
+    /// function type — the mangler leaves it out of a declaration's type
+    /// (`ASTMangler::appendDeclType`) — while the storage's field record
+    /// does. The two name one type.
+    @Test func aStorageOfAFunctionTypeWithSendingIsThePropertysWithout() {
+        let recovered = ObservableMacroExpansionRecovery.recover(
+            storedProperties: [.init(name: "_make", typeNode: Self.functionTypeNode(sendingResult: true, sendingParameter: true), isVariable: true)],
+            memberVariables: [.init(name: "make", declaredTypeNode: Self.functionTypeNode(sendingResult: false, sendingParameter: false), hasSetterOrModify: true)],
+            claimedBackingFieldNames: [],
+            evidence: .init(initAccessorNames: ["make"])
+        )
+        #expect(recovered.trackedProperties == [
+            TrackedProperty(name: "make", backingFieldName: "_make", origin: .declaredMember, evidence: .initAccessor),
+        ])
+        #expect(recovered.ignoredStoredPropertyNames.isEmpty)
     }
 
     @Test func aWrappersStorageIsLeftToTheWrappedProperty() {

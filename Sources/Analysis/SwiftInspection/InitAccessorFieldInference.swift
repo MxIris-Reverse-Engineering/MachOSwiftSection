@@ -34,8 +34,10 @@ package enum InitAccessorFieldInference {
     /// type need not be the getter's: SwiftUICore keeps
     /// `_GeometryActionModifier2.value`'s getter and setter under the mangling
     /// from before the type became `@Sendable` (`@_silgen_name`), and only
-    /// the init accessor spells the type its field `_value` has. `nil` when
-    /// `symbolNode` is no init accessor of a variable.
+    /// the init accessor spells the type its field `_value` has. Like every
+    /// declaration's own mangling it leaves `sending` out, which the
+    /// comparison sets aside. `nil` when `symbolNode` is no init accessor of
+    /// a variable.
     package static func initializedFieldNames(
         ofInitAccessorSymbol symbolNode: NodeReference,
         fieldNamed: (String) -> StoredField?
@@ -50,8 +52,10 @@ package enum InitAccessorFieldInference {
 
     /// The fields the init accessor of the property `propertyName`, of
     /// `declaredTypeNode`, is inferred to initialize: `["_<propertyName>"]`
-    /// when `storedFields` has that field with the property's type, `nil`
-    /// when nothing tells. Never lists `accesses:`.
+    /// when the type has that field with the property's type — compared the
+    /// way `StoredTypeMatching` compares a declaration with its storage,
+    /// `weak` / `unowned` and `sending` set aside — `nil` when nothing
+    /// tells. Never lists `accesses:`.
     ///
     /// - Parameter fieldNamed: the type's stored field of a given name, asked
     ///   for `_<propertyName>` only — a caller holding field records
@@ -63,23 +67,8 @@ package enum InitAccessorFieldInference {
     ) -> [String]? {
         let backingFieldName = "_" + propertyName
         guard let backingField = fieldNamed(backingFieldName),
-              referencedTypeNode(ofStoredType: backingField.typeNode) == declaredTypeNode
+              StoredTypeMatching.declaredType(declaredTypeNode, matchesStoredType: StoredTypeMatching.referencedTypeNode(ofStoredType: backingField.typeNode))
         else { return nil }
         return [backingFieldName]
-    }
-
-    /// The type a stored property's accessors traffic in: its field type
-    /// without the `weak` / `unowned` / `unowned(unsafe)` storage around it,
-    /// with the `type` node around it — the shape a member variable's
-    /// declared type has. The `@Observable` expansion recovery compares a
-    /// tracked property's storage the same way.
-    package static func referencedTypeNode(ofStoredType storedTypeNode: Node) -> Node {
-        var node = storedTypeNode
-        while node.kind == .type, let referenceStorage = node.firstChild,
-              referenceStorage.kind == .weak || referenceStorage.kind == .unowned || referenceStorage.kind == .unmanaged,
-              let referencedTypeNode = referenceStorage.firstChild {
-            node = referencedTypeNode
-        }
-        return node
     }
 }

@@ -1,5 +1,6 @@
 @_spi(Internals) import Demangling
 import SwiftDeclarationRendering
+import SwiftInspection
 @_spi(Internals) import MachOSymbols
 
 /// The node-level rules of wrapped-property recovery, kept free of any
@@ -38,7 +39,9 @@ package enum WrappedPropertyRecovery {
     /// (`@Tagged<String, Int> var count: Int`). Both are valid source.
     package static func attributeTypeNode(fieldTypeNode: Node, wrapperNominalTypeNode: Node, wrappedPropertyTypeNode: Node?) -> Node {
         let arguments = genericArguments(ofBoundType: fieldTypeNode)
-        guard arguments.count == 1, let onlyArgument = arguments.first, let wrappedPropertyTypeNode, onlyArgument == wrappedPropertyTypeNode else {
+        guard arguments.count == 1, let onlyArgument = arguments.first, let wrappedPropertyTypeNode,
+              StoredTypeMatching.declaredType(wrappedPropertyTypeNode, matchesStoredType: onlyArgument)
+        else {
             return fieldTypeNode
         }
         return wrapperNominalTypeNode
