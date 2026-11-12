@@ -179,6 +179,17 @@ struct ObservableMacroInterfaceTests {
         #expect(expansion.contains("// Address (getter): 0x"), "\(expansion)")
     }
 
+    /// A tracked property whose accessors the image strips still has its
+    /// computed property in the block, the way the macro writes it, under a
+    /// note saying the declaration was recovered from the storage.
+    @Test func aStrippedPropertysComputedPropertyIsInTheBlockAllTheSame() async throws {
+        let indexed = try await indexed(.releaseStripped)
+        let expansion = try await indexed.printer().printMacroExpansion(of: .observable, attachedTo: indexed.typeDefinition(named: "InternalModel")).string
+        #expect(expansion.contains("var value: Swift.Int {\n        get\n        set\n    }"), "\(expansion)")
+        #expect(expansion.contains("synthesized from the storage `_value`"), "\(expansion)")
+        #expect(!expansion.contains("\n\n"), "\(expansion)")
+    }
+
     @Test func aTypeWithoutTheMacroHasNoExpansion() async throws {
         let indexed = try await indexed(.release)
         let expansion = try await indexed.printer().printMacroExpansion(of: .observable, attachedTo: indexed.typeDefinition(named: "ManualObservable"))
@@ -216,33 +227,28 @@ struct ObservableMacroInterfaceTests {
         #expect(parts[3].anchorKind == nil)
     }
 
-    /// A tracked property's piece opens with the accessor block the expanded
-    /// form prints for the property, line for line: a host showing the
-    /// pieces shows what the expanded interface shows, whatever lines the
-    /// block gains.
-    @Test(arguments: [("FinalModel", "name"), ("FinalModel", "count"), ("InternalModel", "value")])
-    func aTrackedPropertysAccessorBlockIsTheExpandedFormsBlock(typeName: String, propertyName: String) async throws {
-        let indexed = try await indexed(.release)
-        let typeDefinition = try indexed.typeDefinition(named: typeName)
-        let expandedLines = try await indexed.printer { $0.expandsMacros = true }.printTypeDefinition(typeDefinition).string.components(separatedBy: "\n")
-        let declarationLineIndex = try #require(expandedLines.firstIndex { $0.contains("var \(propertyName): ") && $0.hasSuffix(" {") })
-        let indentation = expandedLines[declarationLineIndex].prefix { $0 == " " }.count
-        let closingLine = String(repeating: " ", count: indentation) + "}"
-        let closingLineIndex = try #require(expandedLines[(declarationLineIndex + 1)...].firstIndex(of: closingLine))
-        let expandedBlock = ["{"] + expandedLines[(declarationLineIndex + 1) ..< closingLineIndex].map { String($0.dropFirst(indentation)) } + ["}"]
+    /// The accessor block `@Observable` writes for a tracked property.
+    private static let macroAccessorBlockLines = ["{", "    get", "    set", "}"]
 
-        let parts = try await indexed.printer().printMacroExpansionParts(of: .observable, attachedTo: typeDefinition)
-        let part = try #require(parts.first { $0.placement == .trackedProperty(named: propertyName) })
-        let partLines = part.content.string.components(separatedBy: "\n")
-        let partBlock = Array(partLines[...(try #require(partLines.firstIndex(of: "}")))])
-        #expect(partBlock == expandedBlock)
-    }
-
-    @Test func aPropertyWhoseAccessorsAreStrippedHasItsStorageAlone() async throws {
-        let indexed = try await indexed(.releaseStripped)
-        let parts = try await indexed.printer().printMacroExpansionParts(of: .observable, attachedTo: indexed.typeDefinition(named: "InternalModel"))
-        let value = try #require(parts.first { $0.placement == .trackedProperty(named: "value") })
-        #expect(value.content.string.hasSuffix("var _value: Swift.Int") && !value.content.string.contains("{"), "\(value.content.string)")
+    /// Every tracked property's piece opens with the accessor block the macro
+    /// writes and ends with its storage, whichever accessors the image keeps:
+    /// all of them in a debug or release build, none for a stripped internal
+    /// class or a dead-stripped final class's internal properties.
+    @Test(arguments: ObservableMacroFixture.Variant.allCases)
+    func everyTrackedPropertysPieceOpensWithTheMacrosAccessorBlock(variant: ObservableMacroFixture.Variant) async throws {
+        let indexed = try await indexed(variant)
+        for typeName in ["FinalModel", "InternalModel"] {
+            let parts = try await indexed.printer().printMacroExpansionParts(of: .observable, attachedTo: indexed.typeDefinition(named: typeName))
+            let trackedPropertyParts = parts.filter { part in
+                if case .trackedProperty = part.placement { true } else { false }
+            }
+            #expect(trackedPropertyParts.count == 3, "\(typeName): \(parts.map(\.placement))")
+            for part in trackedPropertyParts {
+                let lines = part.content.string.components(separatedBy: "\n")
+                #expect(Array(lines.prefix(Self.macroAccessorBlockLines.count)) == Self.macroAccessorBlockLines, "\(typeName) \(part.placement):\n\(part.content.string)")
+                #expect(lines.count > Self.macroAccessorBlockLines.count && lines.last?.contains("var _") == true, "\(typeName) \(part.placement):\n\(part.content.string)")
+            }
+        }
     }
 
     @Test func aTypeWithoutTheMacroHasNoParts() async throws {

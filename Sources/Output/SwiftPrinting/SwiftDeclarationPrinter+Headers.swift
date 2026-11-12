@@ -466,7 +466,9 @@ extension SwiftDeclarationPrinter {
         let staticSpecialization: GenericArgumentBinding? = typeDefinition.isSpecialized ? typeDefinition.staticSpecialization : nil
         let fieldLayoutRenderer = FieldLayoutRenderer(type: typeContext, metadata: typeDefinition.metadata, genericArgumentBinding: staticSpecialization, machO: machO, configuration: renderConfiguration)
         let fieldRecords = try typeDefinition.typeContextDescriptorWrapper.typeContextDescriptor.fieldDescriptor(in: machO.context).records(in: machO.context)
-        let fieldOffsets = isEnum ? nil : fieldLayoutRenderer.fieldOffsets
+        // The generated computed properties carry no layout comments: those
+        // describe their storage.
+        let fieldOffsets = isEnum || selection == .observableMacroComputedProperties ? nil : fieldLayoutRenderer.fieldOffsets
 
         // Specialized definitions substitute each field's generic-parameter
         // references through the runtime metadata (`var value: A` →
@@ -522,6 +524,11 @@ extension SwiftDeclarationPrinter {
             case .observableMacroExpansion:
                 guard folding.isExpansionOnly(field) || folding.trackedProperty(storedIn: field) != nil, let exportVisibility else { continue }
                 renderedFields.append((fieldIndex, field, exportVisibility, .asDeclared))
+            case .observableMacroComputedProperties:
+                guard let trackedProperty = folding.trackedProperty(storedIn: field),
+                      let visibility = trackedPropertyExportVisibility(trackedProperty, storedIn: field, folding: folding)
+                else { continue }
+                renderedFields.append((fieldIndex, field, visibility, .generatedComputedProperty(trackedProperty)))
             case .typeBody:
                 if !folding.hasExpansion || isEnum {
                     if let exportVisibility {
@@ -534,10 +541,7 @@ extension SwiftDeclarationPrinter {
                 } else if let trackedProperty = folding.trackedProperty(storedIn: field) {
                     // The folded property is ruled on by the computed property
                     // the macro generated, the storage by its own accessors.
-                    var foldedExportVisibility = exportVisibility
-                    if let memberVariable = folding.trackedMemberVariablesByName[trackedProperty.name] {
-                        foldedExportVisibility = exportFilterVisibility(excluded: isExcludedByExportFilter(.variable(memberVariable)))
-                    }
+                    let foldedExportVisibility = trackedPropertyExportVisibility(trackedProperty, storedIn: field, folding: folding)
                     if let visibility = combinedVisibility(foldedExportVisibility, foldedMacroVisibility()) {
                         renderedFields.append((fieldIndex, field, visibility, .trackedProperty(trackedProperty)))
                     }
@@ -564,8 +568,12 @@ extension SwiftDeclarationPrinter {
             // Per-record metadata comments (single source of truth with the
             // `SwiftDump` dumpers): struct/class fields get the offset +
             // type-layout block; enum cases get the type-layout + enum-layout
-            // block.
-            if let mangledTypeName {
+            // block. A generated computed property has no storage of its own.
+            let isGeneratedComputedProperty: Bool = {
+                guard case .generatedComputedProperty = form else { return false }
+                return true
+            }()
+            if let mangledTypeName, !isGeneratedComputedProperty {
                 if isEnum {
                     try await fieldLayoutRenderer.enumCaseComments(forCaseAtIndex: fieldIndex, mangledTypeName: mangledTypeName, enumLayout: enumLayout)
                 } else {
@@ -575,8 +583,12 @@ extension SwiftDeclarationPrinter {
             // A tracked property printed in place of its storage carries the
             // computed property's accessors: where its slots and code are.
             let trackedMemberVariable: VariableDefinition? = {
-                guard case .trackedProperty(let trackedProperty) = form else { return nil }
-                return folding.trackedMemberVariablesByName[trackedProperty.name]
+                switch form {
+                case .trackedProperty(let trackedProperty), .generatedComputedProperty(let trackedProperty):
+                    return folding.trackedMemberVariablesByName[trackedProperty.name]
+                case .asDeclared, .observationIgnored:
+                    return nil
+                }
             }()
             if let trackedMemberVariable {
                 for accessor in trackedMemberVariable.accessors {
@@ -597,7 +609,7 @@ extension SwiftDeclarationPrinter {
                 if configuration.printExportStatus, !objcFacts.isOverride, !objcFacts.isObjC, exportVerdict(forSymbolNames: trackedMemberVariable.accessors.map(\.symbol.name)) == false {
                     renderConfiguration.exportStatusComment()
                 }
-            } else {
+            } else if !isGeneratedComputedProperty {
                 // A non-final stored `var`'s getter/setter occupy vtable slots
                 // (evolution proposal 0006) — surface them with the same comment
                 // the computed members get, so a stored property without any
@@ -662,6 +674,17 @@ extension SwiftDeclarationPrinter {
                 } else {
                     declaration
                 }
+            } else if case .generatedComputedProperty(let trackedProperty) = form {
+                if trackedProperty.origin == .synthesized {
+                    // The image keeps none of the computed property's
+                    // accessors; the macro wrote it all the same.
+                    comment(.note(FieldRecordRendering.synthesizedTrackedPropertyComment(backingFieldName: field.name)), as: .note)
+                    BreakLine()
+                    Indent(level: level)
+                }
+                try await printThrowingTrackedProperty(trackedProperty, storedIn: field, memberVariable: trackedMemberVariable, level: level, substitutedTypeNode: substitutedTypeNode)
+                Space()
+                observableTrackedPropertyAccessorBlock(level: level)
             } else if let synthesizedWrappedProperty = synthesizedPropertyWrapperMembers.synthesizedDeclaration(inPlaceOfField: field) {
                 // The field's layout comments above still describe this
                 // storage; the declaration is the source's, recovered from it.

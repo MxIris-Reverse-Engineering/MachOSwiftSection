@@ -14,8 +14,8 @@ public struct MacroExpansionPart: Sendable {
         /// Below the folded declaration of the tracked property named so —
         /// the region of kind `anchorKind` in a print with
         /// `marksAttachedMacros`: the accessor block of the computed property
-        /// the macro generated, when the image keeps its accessors, then its
-        /// storage.
+        /// the macro generated, the way the macro writes it whichever
+        /// accessors the image keeps, then the storage.
         case trackedProperty(named: String)
 
         /// Above the closing brace of the type: the registrar and the
