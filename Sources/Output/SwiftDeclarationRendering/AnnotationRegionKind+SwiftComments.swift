@@ -69,6 +69,13 @@ extension AnnotationRegion.Kind {
     /// `// protocol-extension default`.
     public static let protocolExtensionDefault = Self("protocolExtensionDefault")
 
+    /// `// init accessor: the binary does not record which stored properties it initializes`:
+    /// above a property whose SE-0400 init accessor initializes fields
+    /// nothing in the image names. The dump puts it, or
+    /// `// init accessor: initializes _value (inferred from the stored property's name and type)`,
+    /// above every init accessor's symbol.
+    public static let initAccessorFields = Self("initAccessorFields")
+
     /// `// EnabledKey is declared in Enabled.swift of module SwiftUICore`.
     public static let privateDeclarationSource = Self("privateDeclarationSource")
 

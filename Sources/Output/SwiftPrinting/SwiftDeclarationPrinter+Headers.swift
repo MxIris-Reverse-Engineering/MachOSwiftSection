@@ -684,7 +684,7 @@ extension SwiftDeclarationPrinter {
                 }
                 try await printThrowingTrackedProperty(trackedProperty, storedIn: field, memberVariable: trackedMemberVariable, level: level, substitutedTypeNode: substitutedTypeNode)
                 Space()
-                observableTrackedPropertyAccessorBlock(level: level)
+                observableTrackedPropertyAccessorBlock(for: trackedProperty, level: level)
             } else if let synthesizedWrappedProperty = synthesizedPropertyWrapperMembers.synthesizedDeclaration(inPlaceOfField: field) {
                 // The field's layout comments above still describe this
                 // storage; the declaration is the source's, recovered from it.

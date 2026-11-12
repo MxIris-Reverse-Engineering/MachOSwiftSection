@@ -64,7 +64,7 @@ extension TypeDefinition {
         for index in functions.indices where functions[index].methodDescriptor == nil && !functions[index].attributes.contains(.objc) && !methodDescriptorSymbolMemberNames.contains(functions[index].name) {
             functions[index].isFinal = true
         }
-        for index in variables.indices where !variables[index].accessors.isEmpty && !variables[index].hasVTableAccessor && !variables[index].attributes.contains(.objc) && !methodDescriptorSymbolMemberNames.contains(variables[index].name) {
+        for index in variables.indices where variables[index].hasDispatchableAccessorSymbol && !variables[index].hasVTableAccessor && !variables[index].attributes.contains(.objc) && !methodDescriptorSymbolMemberNames.contains(variables[index].name) {
             variables[index].isFinal = true
         }
         for index in subscripts.indices where !subscripts[index].accessors.isEmpty && !subscripts[index].hasVTableAccessor && !subscripts[index].attributes.contains(.objc) {
@@ -75,8 +75,20 @@ extension TypeDefinition {
         // Stored `let`s are not overridable to begin with, so `final` on
         // them is pure noise — only stored `var`s (field records carrying
         // the IsVar flag) participate.
-        for index in fields.indices where fields[index].flags.contains(.isVariable) && !fields[index].accessors.isEmpty && !fields[index].hasVTableAccessor && !objcThunkMemberNames.contains(fields[index].name) && !methodDescriptorSymbolMemberNames.contains(fields[index].name) {
+        for index in fields.indices where fields[index].flags.contains(.isVariable) && fields[index].hasDispatchableAccessorSymbol && !fields[index].hasVTableAccessor && !objcThunkMemberNames.contains(fields[index].name) && !methodDescriptorSymbolMemberNames.contains(fields[index].name) {
             fields[index].isFinal = true
         }
+    }
+}
+
+extension AccessorRepresentable {
+    /// Whether one of the member's accessors that a vtable could hold has a
+    /// symbol — the evidence `final` recovery needs. A SE-0400 init accessor
+    /// is never dispatched, so it testifies to nothing: on its own it would
+    /// mark a class's stored property `final` — the function SwiftUICore
+    /// keeps under a stored property's init accessor name is one (evolution
+    /// proposal `init-accessor-recovery`).
+    fileprivate var hasDispatchableAccessorSymbol: Bool {
+        accessors.contains { $0.kind != .initAccessor }
     }
 }

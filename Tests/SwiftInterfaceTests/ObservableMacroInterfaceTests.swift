@@ -84,6 +84,9 @@ struct ObservableMacroInterfaceTests {
         for generated in ["let _$observationRegistrar: Observation.ObservationRegistrar", "var _name: Swift.String", "var name: Swift.String {", "func access<A>(keyPath:", "func withMutation<A, B>(keyPath:"] {
             #expect(print.contains(generated), "\(generated) not in:\n\(print)")
         }
+        // The init accessor the macro writes, with the storage it
+        // initializes (evolution proposal `init-accessor-recovery`).
+        #expect(print.contains("@storageRestrictions(initializes: _name) init\n"), "\(print)")
     }
 
     @Test func aWrappedPropertyTheSourceIgnoredSaysSo() async throws {
@@ -185,7 +188,7 @@ struct ObservableMacroInterfaceTests {
     @Test func aStrippedPropertysComputedPropertyIsInTheBlockAllTheSame() async throws {
         let indexed = try await indexed(.releaseStripped)
         let expansion = try await indexed.printer().printMacroExpansion(of: .observable, attachedTo: indexed.typeDefinition(named: "InternalModel")).string
-        #expect(expansion.contains("var value: Swift.Int {\n        get\n        set\n    }"), "\(expansion)")
+        #expect(expansion.contains("var value: Swift.Int {\n        @storageRestrictions(initializes: _value) init\n        get\n        set\n    }"), "\(expansion)")
         #expect(expansion.contains("synthesized from the storage `_value`"), "\(expansion)")
         #expect(!expansion.contains("\n\n"), "\(expansion)")
     }
@@ -227,8 +230,12 @@ struct ObservableMacroInterfaceTests {
         #expect(parts[3].anchorKind == nil)
     }
 
-    /// The accessor block `@Observable` writes for a tracked property.
-    private static let macroAccessorBlockLines = ["{", "    get", "    set", "}"]
+    /// The accessor block `@Observable` writes for a tracked property stored
+    /// in `backingFieldName`, its init accessor included (evolution proposal
+    /// `init-accessor-recovery`).
+    private static func macroAccessorBlockLines(backingFieldName: String) -> [String] {
+        ["{", "    @storageRestrictions(initializes: \(backingFieldName)) init", "    get", "    set", "}"]
+    }
 
     /// Every tracked property's piece opens with the accessor block the macro
     /// writes and ends with its storage, whichever accessors the image keeps:
@@ -245,12 +252,13 @@ struct ObservableMacroInterfaceTests {
             }
             // One piece a tracked property, as the recognition has them: in a
             // stripped internal class, the misread `_underscored` among them.
-            let trackedPropertyNames = try #require(typeDefinition.observableMacroExpansion).trackedProperties.map(\.name)
-            #expect(trackedPropertyParts.map(\.placement) == trackedPropertyNames.map { .trackedProperty(named: $0) }, "\(typeName): \(parts.map(\.placement))")
-            for part in trackedPropertyParts {
+            let trackedProperties = try #require(typeDefinition.observableMacroExpansion).trackedProperties
+            #expect(trackedPropertyParts.map(\.placement) == trackedProperties.map { .trackedProperty(named: $0.name) }, "\(typeName): \(parts.map(\.placement))")
+            for (part, trackedProperty) in zip(trackedPropertyParts, trackedProperties) {
                 let lines = part.content.string.components(separatedBy: "\n")
-                #expect(Array(lines.prefix(Self.macroAccessorBlockLines.count)) == Self.macroAccessorBlockLines, "\(typeName) \(part.placement):\n\(part.content.string)")
-                #expect(lines.count > Self.macroAccessorBlockLines.count && lines.last?.contains("var _") == true, "\(typeName) \(part.placement):\n\(part.content.string)")
+                let expectedBlockLines = Self.macroAccessorBlockLines(backingFieldName: trackedProperty.backingFieldName)
+                #expect(Array(lines.prefix(expectedBlockLines.count)) == expectedBlockLines, "\(typeName) \(part.placement):\n\(part.content.string)")
+                #expect(lines.count > expectedBlockLines.count && lines.last?.contains("var _") == true, "\(typeName) \(part.placement):\n\(part.content.string)")
             }
         }
     }

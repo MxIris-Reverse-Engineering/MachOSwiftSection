@@ -335,7 +335,7 @@ extension SwiftDeclarationPrinter {
             // below is.
             if let storageField = typeDefinition.fields.first(where: { $0.name == trackedProperty.backingFieldName }),
                let visibility = trackedPropertyExportVisibility(trackedProperty, storedIn: storageField, folding: folding) {
-                rows.append(observableTrackedPropertyAccessorBlock(level: 0).visible(under: visibility))
+                rows.append(observableTrackedPropertyAccessorBlock(for: trackedProperty, level: 0).visible(under: visibility))
             }
             if let storage = fieldDeclarationsByName[trackedProperty.backingFieldName] {
                 rows.append(storage)
@@ -361,14 +361,20 @@ extension SwiftDeclarationPrinter {
     }
 
     /// The accessor block `@Observable` writes for a tracked property — `{`,
-    /// `get` and `set` one level in, `}` — whichever accessors the image
-    /// keeps: the macro always generates both (and `_modify`, which an
-    /// interface never prints), so the block follows from the recognition,
-    /// not from the symbols. `level` is the indentation of the declaration
-    /// it closes.
+    /// `@storageRestrictions(initializes: _x) init`, `get` and `set` one
+    /// level in, `}` — whichever accessors the image keeps: the macro always
+    /// generates all three (and `_modify`, which an interface never prints),
+    /// with an init accessor that initializes the property's storage, so the
+    /// block follows from the recognition, not from the symbols. The `init`
+    /// line renders as every accessor block's does (evolution proposal
+    /// `init-accessor-recovery`). `level` is the indentation of the
+    /// declaration it closes.
     @SemanticStringBuilder
-    func observableTrackedPropertyAccessorBlock(level: Int) -> SemanticString {
+    func observableTrackedPropertyAccessorBlock(for trackedProperty: ObservableMacroExpansion.TrackedProperty, level: Int) -> SemanticString {
         Standard("{")
+        BreakLine()
+        Indent(level: level + 1)
+        AccessorBlockKeywords.InitAccessorLine(initializedFieldNames: [trackedProperty.backingFieldName]).semanticString
         BreakLine()
         Indent(level: level + 1)
         Keyword("get")

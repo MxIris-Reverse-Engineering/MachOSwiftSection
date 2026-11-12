@@ -77,7 +77,7 @@ package enum ObservableMacroExpansionRecovery {
             // `sending` aside, which its accessor symbols never spell on its
             // own function type.
             if let declaredTypeNode = memberVariable?.declaredTypeNode,
-               !WrappedPropertyRecovery.declaredType(declaredTypeNode, matchesStoredType: referencedTypeNode(ofStoredType: storedProperty.typeNode)) {
+               !StoredTypeMatching.declaredType(declaredTypeNode, matchesStoredType: StoredTypeMatching.referencedTypeNode(ofStoredType: storedProperty.typeNode)) {
                 ignoredStoredPropertyNames.append(storedProperty.name)
                 continue
             }
@@ -151,20 +151,6 @@ package enum ObservableMacroExpansionRecovery {
         let propertyName = backingFieldName.dropFirst()
         guard let firstCharacter = propertyName.first, firstCharacter != "$" else { return nil }
         return String(propertyName)
-    }
-
-    /// The type a stored property's accessors traffic in: its field type
-    /// without the `weak` / `unowned` / `unowned(unsafe)` storage around it,
-    /// with the `type` node around it — the shape a member variable's
-    /// declared type has.
-    package static func referencedTypeNode(ofStoredType storedTypeNode: Node) -> Node {
-        var node = storedTypeNode
-        while node.kind == .type, let referenceStorage = node.firstChild,
-              referenceStorage.kind == .weak || referenceStorage.kind == .unowned || referenceStorage.kind == .unmanaged,
-              let referencedTypeNode = referenceStorage.firstChild {
-            node = referencedTypeNode
-        }
-        return node
     }
 
     /// Whether a method of the class is one the macro generates, by its base
