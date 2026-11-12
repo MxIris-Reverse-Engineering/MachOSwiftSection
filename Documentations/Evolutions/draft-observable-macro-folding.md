@@ -164,3 +164,5 @@ RuntimeViewer 的 release 构建按版本解析，要等本库发版。`next` �
 | 2026-11-12 | 加入分块的展开 `printMacroExpansionParts` 与被跟踪属性的定位标记；闭合括号用类型的定义区域定位 | RuntimeViewer 改为 Xcode 式的分散展开，用户批准在正式收尾前加上；给 `DeclarationBlock` 的闭合括号打标记要改 swift-semantic-string 并先发版，类型的定义区域已经给出它的范围 |
 | 2026-11-12 | 分块里属性的 accessor 块单独打印，由测试逐行对照展开形态的同一块 | 分块要的是不带声明头的块，变量打印器只会连声明一起印；init accessor 提案正在给展开形态的块加 `init` 一行，对照测试保证分块跟着加，而不是悄悄少一行 |
 | 2026-11-12 | 更正 2026-11-11 那一行：`BoundedConcurrentMapTests` 的超时不是 fixture 同步编译造成的，独立线程编译照旧保留 | Ultra 上其他会话不含本分支的全量里这条也超时；同步编译占住协作线程是真问题，但当时「改后全量通过」只是一次运气 |
+| 2026-11-12 | 比对 `_x` 与 `x` 的类型照旧用 getter 的符号，不改读 init accessor 的符号 | init accessor 会话发现 getter 被 `@_silgen_name` 钉成旧 mangling 时类型会对不上（SwiftUICore 的 `_GeometryActionModifier2.value` 少了 `@Sendable`）；被跟踪属性的 accessor 由宏生成，加不了这个属性，真实框架的 A/B 里也没遇到；真遇上时只是这个属性不折叠，不会印错 |
+| 2026-11-12 | 「关掉折叠时输出逐字节不变」以本提案之前的输出为准 | init accessor 提案（draft-init-accessor-recovery）让展开形态里每个被跟踪属性的 accessor 块多印 `@storageRestrictions(initializes: _x) init` 一行，分块里的块跟着印；那一行是那份提案带来的变化 |
