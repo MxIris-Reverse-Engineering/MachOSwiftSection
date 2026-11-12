@@ -47,6 +47,24 @@ struct InitAccessorDumpTests {
         #expect(angle.contains("InitAccessorFixture.Angle.radians.init : Swift.Double"), "\(angle)")
     }
 
+    /// The line above each init accessor says what it is inferred to
+    /// initialize, or that the binary does not record it.
+    @Test(arguments: [InitAccessorFixture.Variant.debug, .release])
+    func everyInitAccessorSaysWhatItInitializes(variant: InitAccessorFixture.Variant) async throws {
+        let dumps = try await typeDumps(variant)
+        for property in InitAccessorFixture.propertiesWithInitAccessors {
+            let dump = try #require(dumps[property.typeName], "no type \(property.typeName)")
+            let lines = dump.split(separator: "\n").map { $0.trimmingCharacters(in: .whitespaces) }
+            let index = try #require(lines.firstIndex { $0.hasPrefix(initAccessorSymbolPrefix(of: property)) }, "\(property) not in:\n\(dump)")
+            let expectedComment = if let fieldNames = InitAccessorFixture.inferredInitializedFieldNames[property] {
+                "// init accessor: initializes \(fieldNames.joined(separator: ", ")) (inferred from the stored property's name and type)"
+            } else {
+                "// init accessor: the binary does not record which stored properties it initializes"
+            }
+            #expect(lines[index - 1] == expectedComment, "\(property):\n\(dump)")
+        }
+    }
+
     @Test(arguments: [InitAccessorFixture.Variant.releaseDeadStripped, .releaseStripped])
     func aStrippedImageListsOnlyTheExportedOnes(variant: InitAccessorFixture.Variant) async throws {
         let dumps = try await typeDumps(variant)
