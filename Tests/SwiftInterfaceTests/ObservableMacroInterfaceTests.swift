@@ -191,7 +191,7 @@ struct ObservableMacroInterfaceTests {
         }
         // The computed property's accessor block, then its storage.
         let value = parts[0].content.string
-        #expect(value.hasPrefix("{\n    get\n    set\n}\n"), "\(value)")
+        #expect(value.hasPrefix("{\n") && value.contains("\n    get\n    set\n}\n"), "\(value)")
         #expect(value.hasSuffix("var _value: Swift.Int"), "\(value)")
         let members = parts[3].content.string
         for declaration in ["let _$observationRegistrar: Observation.ObservationRegistrar", "func access<A>(keyPath:", "func withMutation<A, B>(keyPath:", "func shouldNotifyObservers<A>("] {
@@ -202,6 +202,28 @@ struct ObservableMacroInterfaceTests {
         #expect(parts[4].content.string == "extension ObservableMacroFixture.InternalModel: Observation.Observable {}")
         #expect(parts[0].anchorKind == .attachedMacroTrackedProperty(.observable, named: "value"))
         #expect(parts[3].anchorKind == nil)
+    }
+
+    /// A tracked property's piece opens with the accessor block the expanded
+    /// form prints for the property, line for line: a host showing the
+    /// pieces shows what the expanded interface shows, whatever lines the
+    /// block gains.
+    @Test(arguments: [("FinalModel", "name"), ("FinalModel", "count"), ("InternalModel", "value")])
+    func aTrackedPropertysAccessorBlockIsTheExpandedFormsBlock(typeName: String, propertyName: String) async throws {
+        let indexed = try await indexed(.release)
+        let typeDefinition = try indexed.typeDefinition(named: typeName)
+        let expandedLines = try await indexed.printer { $0.expandsMacros = true }.printTypeDefinition(typeDefinition).string.components(separatedBy: "\n")
+        let declarationLineIndex = try #require(expandedLines.firstIndex { $0.contains("var \(propertyName): ") && $0.hasSuffix(" {") })
+        let indentation = expandedLines[declarationLineIndex].prefix { $0 == " " }.count
+        let closingLine = String(repeating: " ", count: indentation) + "}"
+        let closingLineIndex = try #require(expandedLines[(declarationLineIndex + 1)...].firstIndex(of: closingLine))
+        let expandedBlock = ["{"] + expandedLines[(declarationLineIndex + 1) ..< closingLineIndex].map { String($0.dropFirst(indentation)) } + ["}"]
+
+        let parts = try await indexed.printer().printMacroExpansionParts(of: .observable, attachedTo: typeDefinition)
+        let part = try #require(parts.first { $0.placement == .trackedProperty(named: propertyName) })
+        let partLines = part.content.string.components(separatedBy: "\n")
+        let partBlock = Array(partLines[...(try #require(partLines.firstIndex(of: "}")))])
+        #expect(partBlock == expandedBlock)
     }
 
     @Test func aPropertyWhoseAccessorsAreStrippedHasItsStorageAlone() async throws {

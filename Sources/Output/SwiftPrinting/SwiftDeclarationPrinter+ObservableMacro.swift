@@ -340,7 +340,9 @@ extension SwiftDeclarationPrinter {
 
     /// The accessor block a member variable's declaration ends with, as the
     /// expanded form prints it — `{`, `get` and `set` one level in, `}` — on
-    /// its own.
+    /// its own. It must print every line `printAccessorBlock(_:indentation:)`
+    /// prints: `aTrackedPropertysAccessorBlockIsTheExpandedFormsBlock`
+    /// compares the two line for line.
     @SemanticStringBuilder
     private func accessorBlock(of variable: VariableDefinition) -> SemanticString {
         let keywords = AccessorBlockKeywords(of: variable)
