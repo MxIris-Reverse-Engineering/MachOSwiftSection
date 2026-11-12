@@ -1886,6 +1886,7 @@ extension Node.Kind {
              .setter,
              .borrowAccessor,
              .mutateAccessor,
+             .initAccessor,
              .methodDescriptor,
              .protocolWitness,
              .variable:
