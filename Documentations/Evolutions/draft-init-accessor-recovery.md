@@ -79,7 +79,7 @@ struct Angle {
 ```
 
 - 带 `…vi` 符号的 stored property（SwiftUICore 那个兼容函数）照旧按 stored property 印，输出和今天完全一样：stored property 只给 accessor 印 vtable 槽注释，init accessor 没有槽。
-- 开着成员地址注释时，computed property 和 `@Observable` 折叠形态里的被跟踪属性都多一行 `init` 的地址；`expandsMacros` 的展开形态在每个被跟踪属性的 accessor block 里多出 `@storageRestrictions(initializes: _x) init`。
+- 开着成员地址注释时，computed property 和 `@Observable` 折叠形态里的被跟踪属性都多一行 `init` 的地址；`expandsMacros` 的展开形态在每个被跟踪属性的 accessor block 里多出 `@storageRestrictions(initializes: _x) init`（照镜像里有的 init accessor）；`printMacroExpansion` 与 `printMacroExpansionParts` 照宏的写法总是印这一行，不看镜像留没留它。
 - dump 在类型的 variable 符号里多列一条 `X.value.init : A`，前面一行写推断结果：推出的名单，或者二进制没有记录。
 
 ### 测试与验证
@@ -122,3 +122,4 @@ struct Angle {
 | 2026-11-12 | 合进 `next` 上的 `@Observable` 分段打印，`accessorBlock(of:)` 改用 `InitAccessorLine` | 它在 `printAccessorBlock` 之外自己拼 accessor block；合并后、改动前，它的 `aTrackedPropertysAccessorBlockIsTheExpandedFormsBlock` 三个用例全红，改成共用同一份渲染 |
 | 2026-11-12 | 比较撇开 `sending`；比较类型的两个函数搬到 SwiftInspection 的 `StoredTypeMatching` | `@Observable` 会话在 SwiftUI 里查到：声明自身的 mangling 不写 `sending`，字段记录写，`() -> sending T` 的存储因此对不上自己的属性；init accessor 的符号同样如此。fixture 加 `SendingResult`，修复前模型、interface、dump 都漏推。对方的比较函数原在 SwiftDeclaration 的 `WrappedPropertyRecovery`，dump 够不着，经对方同意搬下去，三处共用 |
 | 2026-11-12 | 渲染 A/B 通过（以本地 `next` 54c3b9ef 为基线） | 96 对里 80 对逐字节相同；16 对不同的全是新增行，没有一行被删改，内容只有 init accessor 的符号行、推断注释、`init` 那一行和它的地址注释。interface 里 SwiftUICore 的 `_GeometryActionModifier2.value` 印成 `@storageRestrictions(initializes: _value) init`，与官方 `.swiftinterface` 只差参数名；进程内 SwiftUICore 推出 `ReorderableStyleConfiguration.ContainerState.placeholder` 的 `_placeholder`；进程内 SwiftUI 有 4 个属性推不出（`taskState`、两个 `previousSnapshot`、`results`），按规则注明。合并 `sending` 修复之前在 0bcfe627 上跑的全量 2903 个测试，只红了 Ultra 上已知的 3 条（`FileMappingTests` 每次都红，两条满负载下偶发）；合并之后相关的 19 个套件全过，全量留到最后一次合并之后再跑 |
+| 2026-11-12 | 合进 `next` 上宏形状的 accessor block，`init` 那一行照宏的写法总是印 | `@Observable` 那边按 RuntimeViewer 的要求，让 `printMacroExpansion` 与 `printMacroExpansionParts` 照宏的写法印被跟踪属性的 accessor block、不再照镜像，`accessorBlock(of:)` 随之删掉。宏总会为被跟踪属性生成初始化 `_x` 的 init accessor，所以这个固定的块也印 `@storageRestrictions(initializes: _x) init`，经 `InitAccessorLine` 渲染；`--expand-macros` 照旧按镜像 |
