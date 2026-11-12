@@ -73,8 +73,11 @@ package enum ObservableMacroExpansionRecovery {
                 continue
             }
             let memberVariable = memberVariables.first { $0.name == propertyName }
-            // A member `x` of another type is not what `_x` stores.
-            if let declaredTypeNode = memberVariable?.declaredTypeNode, declaredTypeNode != referencedTypeNode(ofStoredType: storedProperty.typeNode) {
+            // A member `x` of another type is not what `_x` stores —
+            // `sending` aside, which its accessor symbols never spell on its
+            // own function type.
+            if let declaredTypeNode = memberVariable?.declaredTypeNode,
+               !WrappedPropertyRecovery.declaredType(declaredTypeNode, matchesStoredType: referencedTypeNode(ofStoredType: storedProperty.typeNode)) {
                 ignoredStoredPropertyNames.append(storedProperty.name)
                 continue
             }

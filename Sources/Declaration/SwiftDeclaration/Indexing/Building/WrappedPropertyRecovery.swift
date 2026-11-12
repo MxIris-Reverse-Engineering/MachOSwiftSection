@@ -38,10 +38,46 @@ package enum WrappedPropertyRecovery {
     /// (`@Tagged<String, Int> var count: Int`). Both are valid source.
     package static func attributeTypeNode(fieldTypeNode: Node, wrapperNominalTypeNode: Node, wrappedPropertyTypeNode: Node?) -> Node {
         let arguments = genericArguments(ofBoundType: fieldTypeNode)
-        guard arguments.count == 1, let onlyArgument = arguments.first, let wrappedPropertyTypeNode, onlyArgument == wrappedPropertyTypeNode else {
+        guard arguments.count == 1, let onlyArgument = arguments.first, let wrappedPropertyTypeNode,
+              declaredType(wrappedPropertyTypeNode, matchesStoredType: onlyArgument)
+        else {
             return fieldTypeNode
         }
         return wrapperNominalTypeNode
+    }
+
+    /// Whether a member variable's declared type — read off its symbol,
+    /// `declaredTypeNode(of:)` — is the type a field record stores, `sending`
+    /// set aside. The mangler leaves `sending` out of a declaration's own
+    /// function type, on its result and its parameters
+    /// (`ASTMangler::appendDeclType`: adding it must not change a symbol),
+    /// while a field record's type keeps it: the accessors of
+    /// `var make: () -> sending T` read `() -> T`, its storage
+    /// `() -> sending T` (SwiftUI's `makeFileCoordinator`). A function type
+    /// nested deeper carries it on both sides.
+    package static func declaredType(_ declaredTypeNode: Node, matchesStoredType storedTypeNode: Node) -> Bool {
+        var pendingPairs: [(declared: Node, stored: Node)] = [(declaredTypeNode, storedTypeNode)]
+        while let pair = pendingPairs.popLast() {
+            let declared = withoutSendingParameterMarker(pair.declared)
+            let stored = withoutSendingParameterMarker(pair.stored)
+            if declared === stored { continue }
+            guard declared.kind == stored.kind, declared.contents == stored.contents else { return false }
+            let declaredChildren = declared.children.filter { $0.kind != .sendingResultFunctionType }
+            let storedChildren = stored.children.filter { $0.kind != .sendingResultFunctionType }
+            guard declaredChildren.count == storedChildren.count else { return false }
+            pendingPairs.append(contentsOf: zip(declaredChildren, storedChildren).map { (declared: $0, stored: $1) })
+        }
+        return true
+    }
+
+    /// A parameter's type with the `sending` the demangler wraps around it
+    /// (`type(sending(X))`) taken off, the shape it has without one.
+    private static func withoutSendingParameterMarker(_ node: Node) -> Node {
+        var node = node
+        while node.kind == .sending, let child = node.firstChild {
+            node = child
+        }
+        return node
     }
 
     /// The declared type of a member variable, read off its symbol node —

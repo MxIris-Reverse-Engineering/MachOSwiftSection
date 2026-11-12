@@ -120,6 +120,18 @@ struct ObservableMacroInterfaceTests {
         #expect(!print.contains("var count: Swift.Int"), "\(print)")
     }
 
+    /// A property of a function type with `sending` folds like any other.
+    /// Its accessor symbols leave `sending` out of the property's own type,
+    /// the storage's field record keeps it, and the folded declaration
+    /// prints the storage's type, `sending` included.
+    @Test func aPropertyOfAFunctionTypeWithSendingFolds() async throws {
+        let print = try await indexed(.release).printedType("SendingModel")
+        #expect(!print.contains("var _makeCoordinator") && !print.contains("var _takeCoordinator") && !print.contains("ObservationIgnored"), "\(print)")
+        #expect(try line(declaring: "var makeCoordinator: ", in: print).contains("sending ObservableMacroFixture.Coordinator"), "\(print)")
+        let takeCoordinator = try line(declaring: "var takeCoordinator: ", in: print)
+        #expect(takeCoordinator.contains("sending") && takeCoordinator.hasSuffix("ObservableMacroFixture.Coordinator) -> ()"), "\(print)")
+    }
+
     // MARK: - The whole interface
 
     @Test func theGeneratedConformanceIsPartOfTheExpansion() async throws {

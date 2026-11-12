@@ -108,6 +108,21 @@ package enum ObservableMacroFixture {
         }
     }
 
+    // Properties of a function type with `sending` on its result or a
+    // parameter: the storage's field record spells `sending`, the accessor
+    // symbols do not — the mangler leaves it out of a declaration's own
+    // function type. Public, so every variant keeps the accessors.
+    public final class Coordinator {
+        public init() {}
+    }
+
+    @Observable
+    public final class SendingModel {
+        public var makeCoordinator: @Sendable () -> sending Coordinator = { Coordinator() }
+        public var takeCoordinator: (sending Coordinator) -> Void = { _ in }
+        public init() {}
+    }
+
     final class ManualObservable: Observable {
         var plain: Int = 0
     }
@@ -126,6 +141,7 @@ package enum ObservableMacroFixture {
     /// The classes `@Observable` expanded, by the name the source declares.
     package static let observableClassNames: Set<String> = [
         "FinalModel", "OpenModel", "InternalModel", "SubModel", "GenericModel", "WrapperModel", "ContainerModel", "NestedModel",
+        "SendingModel",
     ]
 
     /// The classes and types the recognition must turn down.
