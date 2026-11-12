@@ -96,7 +96,7 @@ struct Angle {
 2. （已完成）推断：`InitAccessorFieldInference`（连同挪过来的 `referencedTypeNode(ofStoredType:)`）、新的索引步骤与 `initializedFieldNames`，以及模型测试。
 3. （已完成）interface：`init` 那一行、推得出时的 `@storageRestrictions`、推不出时的注释（新工厂与新注释种类）；interface 测试，`ObservableMacroInterfaceTests` 里展开形态的期望。
 4. （已完成）dump：每条 init accessor 前的推断结果，以及 dump 测试。
-5. 文档与验证：改动位置之外的文档同步（见下一节最后一条），Ultra 上的全量测试与渲染 A/B。
+5. （已完成）文档与验证：改动位置之外的文档同步（见下一节最后一条），Ultra 上的全量测试与渲染 A/B。
 
 ### 没有询问就采用的假设
 
@@ -123,3 +123,4 @@ struct Angle {
 | 2026-11-12 | 比较撇开 `sending`；比较类型的两个函数搬到 SwiftInspection 的 `StoredTypeMatching` | `@Observable` 会话在 SwiftUI 里查到：声明自身的 mangling 不写 `sending`，字段记录写，`() -> sending T` 的存储因此对不上自己的属性；init accessor 的符号同样如此。fixture 加 `SendingResult`，修复前模型、interface、dump 都漏推。对方的比较函数原在 SwiftDeclaration 的 `WrappedPropertyRecovery`，dump 够不着，经对方同意搬下去，三处共用 |
 | 2026-11-12 | 渲染 A/B 通过（以本地 `next` 54c3b9ef 为基线） | 96 对里 80 对逐字节相同；16 对不同的全是新增行，没有一行被删改，内容只有 init accessor 的符号行、推断注释、`init` 那一行和它的地址注释。interface 里 SwiftUICore 的 `_GeometryActionModifier2.value` 印成 `@storageRestrictions(initializes: _value) init`，与官方 `.swiftinterface` 只差参数名；进程内 SwiftUICore 推出 `ReorderableStyleConfiguration.ContainerState.placeholder` 的 `_placeholder`；进程内 SwiftUI 有 4 个属性推不出（`taskState`、两个 `previousSnapshot`、`results`），按规则注明。合并 `sending` 修复之前在 0bcfe627 上跑的全量 2903 个测试，只红了 Ultra 上已知的 3 条（`FileMappingTests` 每次都红，两条满负载下偶发）；合并之后相关的 19 个套件全过，全量留到最后一次合并之后再跑 |
 | 2026-11-12 | 合进 `next` 上宏形状的 accessor block，`init` 那一行照宏的写法总是印 | `@Observable` 那边按 RuntimeViewer 的要求，让 `printMacroExpansion` 与 `printMacroExpansionParts` 照宏的写法印被跟踪属性的 accessor block、不再照镜像，`accessorBlock(of:)` 随之删掉。宏总会为被跟踪属性生成初始化 `_x` 的 init accessor，所以这个固定的块也印 `@storageRestrictions(initializes: _x) init`，经 `InitAccessorLine` 渲染；`--expand-macros` 照旧按镜像 |
+| 2026-11-12 | 实现完成，待用户看过后收尾 | 最终提交 b0ff1597 的全量测试 2908 个，红了 5 条：`FileMappingTests` 在 Ultra 上每次都红，`SharedCacheTests` 一条与 `BoundedConcurrentMapTests` 三条是满负载下超时，单独重跑这两个套件 20 个测试全过。RuntimeViewerCore 带上 `kindString` 那一行、对着本分支编译通过。文档已同步：两份模块说明（SwiftDeclaration、MachOSymbols）、SwiftInterface 的宏折叠一段、agent skill；演进账本一节与总索引的条目留到正式收尾取号时写 |
