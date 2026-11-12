@@ -106,3 +106,4 @@
 | [0094](0094-init-accessor-recovery.md) | 还原 SE-0400 的 init accessor | Implemented |
 | draft | [SwiftDeclaration 的目录分成公开模型与索引代码两块](draft-swift-declaration-model-indexing-layout.md) | In Progress |
 | draft | [SwiftDeclaration 的类型名按角色统一后缀](draft-swift-declaration-type-naming.md) | In Progress |
+| draft | [`@Observable` 的展开分两层：先出 `@ObservationTracked`，再展开它](draft-observable-nested-expansion.md) | Accepted |
