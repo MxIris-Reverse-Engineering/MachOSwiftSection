@@ -47,7 +47,7 @@
 
 1. [x] `SwiftAttachedMacro.observationTracked` 与它的名字节点；`MacroExpansionPart` 的 `.trackedPropertyAttribute(named:)`、`NestedExpansion` 与存储的 `anchorKind`；`printMacroExpansionParts` 出两层；分块测试改成两层。
 2. [x] 文档：`Modules/SwiftInterface.md`、`AGENTS.md` 里分块的说明；全量测试。
-3. [ ] 折叠形态里 `@Observation.ObservationIgnored` 与被忽略的 wrapper 属性各占一行；测试、模块文档与插件 skill。
+3. [x] 折叠形态里 `@Observation.ObservationIgnored` 与被忽略的 wrapper 属性各占一行；测试、模块文档与插件 skill。
 
 测试：
 
@@ -59,9 +59,9 @@
 
 在 JHs-Mac-Studio-Ultra（macOS 27.2、Xcode 26.6）的沙盒里跑，swift-demangling 用它 `next` 的 8809c1b 作本地兄弟依赖。
 
-- 相关套件（`@Observable` 与 init accessor 的测试、投影、注释结构与嵌套定义区域的契约）88 个测试全过。
-- 全量 2909 个测试，只有 `FileMappingTests.readersOfOneCacheFileShareOneMapping` 一条失败，基线上同样失败。
-- 改动只在分块 API 里，折叠形态、展开形态与 dump 的输出都不变，所以不跑渲染 A/B。
+- 两层展开：相关套件（`@Observable` 与 init accessor 的测试、投影、注释结构与嵌套定义区域的契约）88 个测试全过；全量 2909 个测试，只有 `FileMappingTests.readersOfOneCacheFileShareOneMapping` 一条失败，基线上同样失败。
+- 加上 `@Observation.ObservationIgnored` 单独占一行之后：相关套件（另加 property wrapper 的测试）106 个测试全过；全量 2909 个测试有两条失败。一条是 `FileMappingTests`；另一条是 `BoundedConcurrentMapTests` 的时限超时，是 Ultra 全量下的既有偶发，失败在任何新测试开始之前。
+- 分块 API 的改动不影响输出。折叠形态只改了 `@Observation.ObservationIgnored` 那几行的换行，渲染 A/B 的候选一侧带 `--expand-macros`，比较不到折叠形态，所以不跑渲染 A/B。
 
 ## 决策日志
 
@@ -71,5 +71,6 @@
 | 2026-11-12 | 第一层的属性写作 `@Observation.ObservationTracked`，经类型打印器印出 | 用户选定：与折叠形态的 `@Observation.Observable`、`@Observation.ObservationIgnored` 一致，module selector 也照样生效；宏源码写的是不带模块名的 `@ObservationTracked` |
 | 2026-11-12 | 用户批准，开始实现；补上落地步骤 | 精简提案原本没有分步 |
 | 2026-11-12 | 被导出过滤排除的属性两层都不出；属性块里不放标记区域 | 两层都摆在折叠声明旁边，声明被排除时宿主找不到锚点；嵌套宏的范围已经由 `attributeUTF8Range` 给出，不必再用 `marksAttachedMacros` 的区域 |
-| 2026-11-12 | 实现完成，待用户看过后收尾 | 文档：`Modules/SwiftInterface.md` 与 `AGENTS.md` 已写两层；术语表不加新词，插件 skill 不涉及（CLI 没变） |
+| 2026-11-12 | 两层展开实现完成 | 文档：`Modules/SwiftInterface.md` 与 `AGENTS.md` 已写两层；术语表不加新词 |
 | 2026-11-12 | 折叠形态里 `@Observation.ObservationIgnored` 单独占一行，并进本提案；被忽略的 wrapped property 的 wrapper 属性也单独占一行，`lazy` 留在声明行；只改带 `@Observation.ObservationIgnored` 的属性，别处的 wrapper 属性照旧与声明同行 | 用户在 RuntimeViewer 里看 SwiftUI 时提出：类型长的属性行行折行。用户定：并进正在做的提案一起收尾；wrapper 属性也各占一行 |
+| 2026-11-12 | 实现完成，待用户看过后收尾 | 文档：`Modules/SwiftInterface.md` 写了两层与属性换行，`AGENTS.md` 写了两层，插件 skill 写了 `@Observation.ObservationIgnored` 单独占一行；术语表不加新词 |
