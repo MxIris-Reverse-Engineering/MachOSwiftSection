@@ -45,6 +45,8 @@ SE-0400 让 computed property 带一个 `init` accessor：初始化器给这个�
 
 属性有 init accessor，并且类型里有一个名叫 `_<属性名>`、类型与属性相同（先剥掉 `weak` / `unowned`）的 stored property，`initializedFieldNames` 就是 `["_<属性名>"]`；否则为 `nil`。这条规则对得上 `@Observable` 的展开、SwiftUICore 那一例和手写的 `_x` 写法；对不上探针里的 `Angle`（初始化的是 `degrees`）、`Pair`（一个属性同时初始化 `_x` 和 `_y`）和只写 `accesses:` 的写法。要求类型相同，是因为只看名字会把类型不同的 `_x` 也认进来：SwiftData `@Model` 的 `_name` 是占位类型，它的 init accessor 真正写入的是 `_$backingData`。
 
+比较用的「属性的类型」取 init accessor 自己符号里写的那个，不取声明（getter）的：SwiftUICore 用 `@_silgen_name` 把 `_GeometryActionModifier2.value` 的 getter 和 setter 钉在类型改成 `@Sendable` 之前的旧 mangling 上，只有 init accessor 的符号写着字段 `_value` 的类型。模型与 dump 都经 `InitAccessorFieldInference.initializedFieldNames(ofInitAccessorSymbol:)` 读同一个符号，结论一致。
+
 ### 输出的样子
 
 推得出时，照编译器的写法把属性和 `init` 写在同一行：
@@ -82,7 +84,7 @@ struct Angle {
 
 ### 测试与验证
 
-- 新的现编 fixture `InitAccessorFixture`（`Sources/TestSupport/MachOTestingSupport/`），照 `ObservableMacroFixture` 分四个变体：debug、release、release 加 dead-strip、release 加 `strip -x`。源码是探针的六种写法，再加 SwiftUICore 那种兼容函数；编译照它的做法放在协作线程池之外。
+- 新的现编 fixture `InitAccessorFixture`（`Sources/TestSupport/MachOTestingSupport/`），照 `ObservableMacroFixture` 分四个变体：debug、release、release 加 dead-strip、release 加 `strip -x`。源码是探针的六种写法（`Model` 多一个 `weak` 存储的属性），加上 SwiftUICore 的两种写法（stored property 上的兼容函数 `ShimmedBox`、getter 钉在旧 mangling 上的 `SendableUpgrade`）和 SwiftData 那种 `_name` 类型不同的 `PersistedLookalike`；编译照它的做法放在协作线程池之外，带 library evolution，与 SwiftUICore 一样。
 - 模型、interface、dump、ABI diff 各一组测试，覆盖推得出、推不出、兼容函数，以及 dead-strip 之后只剩导出的那一个；`ObservableMacroInterfaceTests` 里展开形态的期望补上 `init` 那一行。
 - 在 Ultra 上跑全量测试和渲染 A/B（改动碰了索引和打印，按规定必须跑）。差异只允许出现在带 `…vi` 符号的属性上。
 
@@ -116,3 +118,5 @@ struct Angle {
 | 2026-11-12 | 落地步骤 1、2 完成 | Ultra 上相关的 14 个套件（新增的三组、`ABIDifferTests`、`@Observable` 的各组）80 个测试全过。第一次跑时 init accessor 一个都没进成员桶：分桶之前还有一道 `isMember` 名单（`SymbolIndexStore.swift:1878`），补上之后全绿 |
 | 2026-11-12 | 推不出时的注释印在声明上一行，不放在 `init` 行尾 | accessor block 由节点打印器写出，那里没有带注释种类的注释通道；声明上一行是地址、导出状态等成员注释共用的位置，走 `comment(_:as:)` 就能被 `marksCommentStructure` 标出来 |
 | 2026-11-12 | 落地步骤 3、4 完成；`init` 那一行抽成 `AccessorBlockKeywords.InitAccessorLine.write(into:)` | Ultra 上 interface、dump、printing、rendering、indexing、diffing 六个测试目标 913 个测试全过。`@Observable` 那边新加的 `printMacroExpansionParts` 自己拼 accessor block、不经 `printAccessorBlock`，抽出来以后两处共用同一份渲染 |
+| 2026-11-12 | 推断比较的类型改取 init accessor 自己的符号 | 第一轮渲染 A/B 的差异全是新增行，但 SwiftUICore 的 `_GeometryActionModifier2.value` 在 dump 里推出了 `_value`、在 interface 里却印成「没有记录」：模型拿的是 getter 的类型，而这个 getter 被 `@_silgen_name` 钉在没有 `@Sendable` 的旧 mangling 上。fixture 加了同样写法的 `SendableUpgrade`，修复前三个测试变红，修复后模型与 dump 走同一个入口 |
+| 2026-11-12 | 合进 `next` 上的 `@Observable` 分段打印，`accessorBlock(of:)` 改用 `InitAccessorLine` | 它在 `printAccessorBlock` 之外自己拼 accessor block；合并后、改动前，它的 `aTrackedPropertysAccessorBlockIsTheExpandedFormsBlock` 三个用例全红，改成共用同一份渲染 |
