@@ -413,14 +413,15 @@ extension SwiftDeclarationPrinter {
         }
     }
 
-    /// The field declarations of `selection`, each its comments and its
-    /// declaration at `level`, without line breaks around it, and visible
-    /// where the configuration prints it — for the expansion block
-    /// (`printMacroExpansion(of:attachedTo:level:)`), which arranges them in
+    /// The field declarations of `selection` by field name, each its comments
+    /// and its declaration at `level`, without line breaks around it, and
+    /// visible where the configuration prints it — for the expansion
+    /// (`printMacroExpansion(of:attachedTo:level:)`,
+    /// `printMacroExpansionParts(of:attachedTo:)`), which arranges them in
     /// rows of its own.
-    func renderedModelFieldDeclarations(_ typeDefinition: TypeDefinition, typeContext: TypeContextWrapper, level: Int, selection: ModelMembersSelection) async throws -> [SemanticString] {
+    func renderedModelFieldDeclarations(_ typeDefinition: TypeDefinition, typeContext: TypeContextWrapper, level: Int, selection: ModelMembersSelection) async throws -> [(fieldName: String, declaration: SemanticString)] {
         try await modelFieldBlock(typeDefinition, typeContext: typeContext, level: level, selection: selection).fields.map { renderedField in
-            renderedField.content.visible(under: renderedField.visibility)
+            (renderedField.fieldName, renderedField.content.visible(under: renderedField.visibility))
         }
     }
 
@@ -430,7 +431,7 @@ extension SwiftDeclarationPrinter {
     /// line break that opens it.
     struct ModelFieldBlock {
         var prologue = SemanticString()
-        var fields: [(visibility: VisibilityCondition, content: SemanticString)] = []
+        var fields: [(fieldName: String, visibility: VisibilityCondition, content: SemanticString)] = []
     }
 
     private func modelFieldBlock(_ typeDefinition: TypeDefinition, typeContext: TypeContextWrapper, level: Int, selection: ModelMembersSelection) async throws -> ModelFieldBlock {
@@ -654,7 +655,13 @@ extension SwiftDeclarationPrinter {
                     BreakLine()
                     Indent(level: level)
                 }
-                try await printThrowingTrackedProperty(trackedProperty, storedIn: field, memberVariable: trackedMemberVariable, level: level, substitutedTypeNode: substitutedTypeNode)
+                let declaration = try await printThrowingTrackedProperty(trackedProperty, storedIn: field, memberVariable: trackedMemberVariable, level: level, substitutedTypeNode: substitutedTypeNode)
+                // The anchor a host places this property's expansion part below.
+                if configuration.marksAttachedMacros {
+                    AnnotationRegion(.attachedMacroTrackedProperty(.observable, named: trackedProperty.name), content: declaration)
+                } else {
+                    declaration
+                }
             } else if let synthesizedWrappedProperty = synthesizedPropertyWrapperMembers.synthesizedDeclaration(inPlaceOfField: field) {
                 // The field's layout comments above still describe this
                 // storage; the declaration is the source's, recovered from it.
@@ -675,7 +682,7 @@ extension SwiftDeclarationPrinter {
 
         for renderedField in renderedFields {
             let content = try await fieldContent(atIndex: renderedField.index, field: renderedField.field, form: renderedField.form)
-            fieldBlock.fields.append((renderedField.visibility, content))
+            fieldBlock.fields.append((renderedField.field.name, renderedField.visibility, content))
         }
         return fieldBlock
     }
