@@ -6,6 +6,7 @@ import MachOFoundation
 import MachOSwiftSection
 @_spi(Support) @testable import SwiftDeclaration
 @_spi(Support) @testable import SwiftIndexing
+import SwiftInspection
 @testable import MachOTestingSupport
 
 /// `TypeDefinition.observableMacroExpansion` sorts an `@Observable` class's
@@ -167,8 +168,8 @@ struct ObservableMacroExpansionRecoveryTests {
 
     @Test func aWeakStorageStoresTheTypeItsPropertyDeclares() {
         let weakTypeNode = Node.createTransient(kind: .type, child: Node.createTransient(kind: .weak, child: Self.intTypeNode))
-        #expect(ObservableMacroExpansionRecovery.referencedTypeNode(ofStoredType: weakTypeNode) == Self.intTypeNode)
-        #expect(ObservableMacroExpansionRecovery.referencedTypeNode(ofStoredType: Self.intTypeNode) == Self.intTypeNode)
+        #expect(InitAccessorFieldInference.referencedTypeNode(ofStoredType: weakTypeNode) == Self.intTypeNode)
+        #expect(InitAccessorFieldInference.referencedTypeNode(ofStoredType: Self.intTypeNode) == Self.intTypeNode)
     }
 
     @Test func theGeneratedMethodsAreToldByNameAndLabels() {

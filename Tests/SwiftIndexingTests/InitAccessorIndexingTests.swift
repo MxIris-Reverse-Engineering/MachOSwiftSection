@@ -100,6 +100,41 @@ struct InitAccessorIndexingTests {
         #expect(field.hasInitAccessor)
     }
 
+    // MARK: - What an init accessor initializes
+
+    /// No image records `@storageRestrictions`; the field named `_<name>`
+    /// with the property's type is read as what it initializes. `Angle` and
+    /// `Pair` initialize fields of other names, `Titled` only accesses one,
+    /// and `PersistedLookalike._name` has another type: none of them tells.
+    @Test(arguments: [InitAccessorFixture.Variant.debug, .release])
+    func theInitializedFieldIsInferredFromItsNameAndType(variant: InitAccessorFixture.Variant) async throws {
+        let indexed = try await indexed(in: try await InitAccessorFixture.machOFile(variant))
+        for property in InitAccessorFixture.propertiesWithInitAccessors {
+            let variable = try #require(indexed.variablesByProperty[property], "no variable \(property)")
+            #expect(variable.initializedFieldNames == InitAccessorFixture.inferredInitializedFieldNames[property], "\(property)")
+        }
+    }
+
+    @Test func theInProcessReaderInfersTheSameFields() async throws {
+        let indexed = try await indexed(in: try await InitAccessorFixture.loadedImage())
+        for property in InitAccessorFixture.propertiesWithInitAccessors {
+            let variable = try #require(indexed.variablesByProperty[property], "no variable \(property)")
+            #expect(variable.initializedFieldNames == InitAccessorFixture.inferredInitializedFieldNames[property], "\(property)")
+        }
+    }
+
+    /// Only a property whose init accessor the image kept is inferred about.
+    @Test(arguments: [InitAccessorFixture.Variant.releaseDeadStripped, .releaseStripped])
+    func aStrippedImageInfersOnlyWhatItKeeps(variant: InitAccessorFixture.Variant) async throws {
+        let indexed = try await indexed(in: try await InitAccessorFixture.machOFile(variant))
+        for property in InitAccessorFixture.propertiesWithInitAccessors {
+            let variable = try #require(indexed.variablesByProperty[property], "no variable \(property)")
+            let expected = InitAccessorFixture.propertiesWithExportedInitAccessors.contains(property) ? InitAccessorFixture.inferredInitializedFieldNames[property] : nil
+            #expect(variable.initializedFieldNames == expected, "\(property)")
+        }
+        #expect(indexed.variablesByProperty[Property("FrozenBox", "value")]?.initializedFieldNames == ["_value"])
+    }
+
     // MARK: - The member order
 
     /// Whether the image kept an init accessor depends on the build, so it

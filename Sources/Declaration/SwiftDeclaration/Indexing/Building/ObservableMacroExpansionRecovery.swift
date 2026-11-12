@@ -74,7 +74,7 @@ package enum ObservableMacroExpansionRecovery {
             }
             let memberVariable = memberVariables.first { $0.name == propertyName }
             // A member `x` of another type is not what `_x` stores.
-            if let declaredTypeNode = memberVariable?.declaredTypeNode, declaredTypeNode != referencedTypeNode(ofStoredType: storedProperty.typeNode) {
+            if let declaredTypeNode = memberVariable?.declaredTypeNode, declaredTypeNode != InitAccessorFieldInference.referencedTypeNode(ofStoredType: storedProperty.typeNode) {
                 ignoredStoredPropertyNames.append(storedProperty.name)
                 continue
             }
@@ -148,20 +148,6 @@ package enum ObservableMacroExpansionRecovery {
         let propertyName = backingFieldName.dropFirst()
         guard let firstCharacter = propertyName.first, firstCharacter != "$" else { return nil }
         return String(propertyName)
-    }
-
-    /// The type a stored property's accessors traffic in: its field type
-    /// without the `weak` / `unowned` / `unowned(unsafe)` storage around it,
-    /// with the `type` node around it — the shape a member variable's
-    /// declared type has.
-    package static func referencedTypeNode(ofStoredType storedTypeNode: Node) -> Node {
-        var node = storedTypeNode
-        while node.kind == .type, let referenceStorage = node.firstChild,
-              referenceStorage.kind == .weak || referenceStorage.kind == .unowned || referenceStorage.kind == .unmanaged,
-              let referencedTypeNode = referenceStorage.firstChild {
-            node = referencedTypeNode
-        }
-        return node
     }
 
     /// Whether a method of the class is one the macro generates, by its base

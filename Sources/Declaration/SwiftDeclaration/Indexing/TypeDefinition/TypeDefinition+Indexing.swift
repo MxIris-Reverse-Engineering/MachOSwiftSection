@@ -46,6 +46,10 @@ extension TypeDefinition: OnceIndexedDefinition {
         )
         foldStoredPropertyAccessors(storedPropertyAccessorsByFieldName, into: &indexedFields)
 
+        // Needs the member variables and the fields: which field each init
+        // accessor initializes (evolution proposal `init-accessor-recovery`).
+        recoverInitAccessorFieldNames(fields: indexedFields)
+
         // Cross-reference @objc and @nonobjc thunk symbols with built definitions
         applyThunkAttributes(symbolIndexStore: symbolIndexStore, typeName: typeName.name, typeNode: typeName.node, in: machO)
 
