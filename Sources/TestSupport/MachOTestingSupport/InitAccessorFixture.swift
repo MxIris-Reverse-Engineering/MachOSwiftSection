@@ -122,6 +122,20 @@ package enum InitAccessorFixture {
         public init(value: @escaping @Sendable (Int) -> Int) { self.value = value }
     }
 
+    // A function type with a `sending` result: the field record spells
+    // `sending`, while every accessor symbol, the init accessor's too,
+    // leaves it out of the property's own type.
+    public struct SendingResult<Value> {
+        private var _make: () -> sending Value
+        public var make: () -> sending Value {
+            @storageRestrictions(initializes: _make)
+            init(initialValue) { _make = initialValue }
+            get { _make }
+            set { _make = newValue }
+        }
+        public init(make: @escaping () -> sending Value) { self.make = make }
+    }
+
     // A class, and a storage whose field type is `weak Swift.AnyObject?`.
     public final class Model {
         private var _name: String
@@ -205,6 +219,7 @@ package enum InitAccessorFixture {
         Property("Mixed", "a"),
         Property("FrozenBox", "value"),
         Property("SendableUpgrade", "value"),
+        Property("SendingResult", "make"),
         Property("Model", "name"),
         Property("Model", "delegate"),
         Property("PersistedLookalike", "name"),
@@ -218,11 +233,13 @@ package enum InitAccessorFixture {
     /// What `@storageRestrictions(initializes:)` is inferred to list: a
     /// stored property named `_<name>` with the property's type — the type
     /// the init accessor names, which `SendableUpgrade.value`'s getter does
-    /// not. `Mixed.a` also accesses `b`, which nothing infers.
+    /// not, and with `sending` left out the way a declaration's own mangling
+    /// leaves it out. `Mixed.a` also accesses `b`, which nothing infers.
     package static let inferredInitializedFieldNames: [Property: [String]] = [
         Property("Mixed", "a"): ["_a"],
         Property("FrozenBox", "value"): ["_value"],
         Property("SendableUpgrade", "value"): ["_value"],
+        Property("SendingResult", "make"): ["_make"],
         Property("Model", "name"): ["_name"],
         Property("Model", "delegate"): ["_delegate"],
     ]
