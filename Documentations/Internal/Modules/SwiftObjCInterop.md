@@ -32,8 +32,8 @@
 ### 1：Swift 类在 ObjC 一侧的样子
 
 - `SwiftClassObjectIndex`：source 用 `@objc(Name)` 或 `@_objcRuntimeName(Name)` 改过运行时名的 Swift 类，运行时名 demangle 不出任何东西，所以经类元数据的描述符指针（resilient 父类的类走 metadata pattern）配回它的描述符。按名字查 Swift 类的 ObjC 侧查找，查不到时都回退到它。`@objc(Name)` 与 `@_objcRuntimeName(Name)` 怎么区分、为什么只在查不到时回退，见 [CustomObjCClassNames.md](../CustomObjCClassNames.md)。
-- `SwiftClassWithoutClassObjectIndex`：`__objc_classlist` 不列出的 Swift 类——泛型类，以及 `__objc_stublist` 登记的类——它们的 `class_ro_t` 从 Swift 元数据读出来。ObjC 成员表读它们，SwiftIndexing 把它们作为 `ObjCSuppliedClass` 交给 MachOObjCSection 的索引器。见 [ClassesWithoutClassObjects.md](../ClassesWithoutClassObjects.md)。
-- `ObjCRuntimeNames`：ObjC 运行时认识协议与类的名字（`_TtP…`、`_TtC…`、改过的名字），读回成 Swift 的节点。
+- `SwiftClassWithoutClassObjectIndex`：`__objc_classlist` 不列出的 Swift 类——泛型类，以及 `__objc_stublist` 登记的类——它们的 `class_ro_t` 从 Swift 元数据读出来。ObjC 成员表读它们，SwiftIndexing 把它们作为 `ObjCSuppliedClass` 交给 MachOObjCSection 的索引器。泛型类的名字是不带私有鉴别符的限定名加泛型参数（`Module.Box<A>`），两个文件里同名的 private 泛型类因此同名：两个都登记在限定名下（成员表据此认定有歧义、不归属任何成员），按名字查不到任何一个（体检第 5 条：此前只留第一个，它的成员表被套到两个定义上）。见 [ClassesWithoutClassObjects.md](../ClassesWithoutClassObjects.md)。
+- `ObjCRuntimeNames`：ObjC 运行时认识协议与类的名字（`_TtP…`、`_TtC…`、改过的名字），读回成 Swift 的节点。从文件里读，给别的镜像的 Swift 类写的 category 指向的不是 `_TtC…`，而是它绑定到的类元数据符号 `_$s…CN`；这三种写法都由 `NodeTypeNaming.swiftClassNode(fromRuntimeName:)`（SwiftInspection）认，`dump` 的 category 行与 ObjC 成员表的所属名也用它（2026-11-16 体检第 4 条之前，这种 category 在 interface 里印成 `extension __C._$s…`，它的 witness 也找不到）。
 - `ClassHierarchyDumper`（SPI，只用于进程内的 `MachOImage`）：沿 Swift 类的元数据一路走进 ObjC 父类，列出整条继承链。RuntimeViewer 用它。
 
 ### 2：`@objc @implementation` 类
@@ -42,7 +42,7 @@ SE-0436 的 `@objc @implementation` 类编出来是纯 ObjC class object，没�
 
 ### 3：ObjC 协议
 
-- **Swift 里声明的 `@objc` 协议没有协议描述符**：只有一条 kind 为 `ObjCProtocol` 的 `__swift5_fieldmd` 记录和一个 ObjC `protocol_t`，两者按名字配对。记录上的 IsSwift 标志不是证据：Swift 给它引用的别的协议也发带这个标志的副本。`SwiftDeclaredObjCProtocolIndex` 做配对；`ObjCProtocolRecord` 读 `protocol_t`，方法表、属性表与扩展类型编码按下标读整张表（MachOObjCSection 的 `extendedMethodTypes(in:)` 只返回第一条）；`ObjCProtocolRequirements` 把读到的记录变成 requirement。
+- **Swift 里声明的 `@objc` 协议没有协议描述符**：只有一条 kind 为 `ObjCProtocol` 的 `__swift5_fieldmd` 记录和一个 ObjC `protocol_t`，两者按名字配对。记录上的 IsSwift 标志不是证据：Swift 给它引用的别的协议也发带这个标志的副本。`SwiftDeclaredObjCProtocolIndex` 做配对；`ObjCProtocolRecord` 读 `protocol_t`，方法表、属性表与扩展类型编码按下标读整张表（MachOObjCSection 的 `extendedMethodTypes(in:)` 只返回第一条）；`ObjCProtocolRequirements` 把读到的记录变成 requirement。扩展类型编码按方法在四张表里的位置一一对应，读不出的表会让后面每个方法错配到别的方法的编码上，所以 `ObjCProtocolRecord.make` 逐个核对：擦掉类名、协议名与 block 签名后要与方法表的编码相同，有一个对不上就整组不用（体检第 8 条）。
 - **类对 ObjC 协议的遵循没有 conformance record**：`class_ro_t` 列出它（同一模块里 extension 声明的遵循也折进这里），只有给别的模块的类写的 category 才另外列出。`ObjCProtocolAdoptionIndex` 读这两处。
 - 只剩 selector 的 requirement 由 `ObjCImporterNaming` 起名，再用 `@objc(selector)` 钉住 selector。
 
@@ -60,7 +60,7 @@ SE-0436 的 `@objc @implementation` 类编出来是纯 ObjC class object，没�
 
 ### 5：命名规则与类型编码
 
-`ObjCImporterNaming`（词表在 `ObjCImporterVerbs`）移植自 Swift 仓库 `lib/Basic/StringExtras.cpp` 的 `omitNeedlessWords` 与 `lib/ClangImporter/ImportName.cpp`；`ObjCTypeEncoding` 解析 ObjC 协议记录里方法与属性的类型编码，包括 Swift 发出的扩展编码（`@"NSString"`、`@"<NSCopying>"`、block 签名）。这三个文件不读 Mach-O。
+`ObjCImporterNaming`（词表在 `ObjCImporterVerbs`）移植自 Swift 仓库 `lib/Basic/StringExtras.cpp` 的 `omitNeedlessWords` 与 `lib/ClangImporter/ImportName.cpp`；`ObjCTypeEncoding` 解析 ObjC 协议记录里方法与属性的类型编码，包括 Swift 发出的扩展编码（`@"NSString"`、`@"<NSCopying>"`、block 签名）。这三个文件不读 Mach-O。导入命名按 selector 的冒号数与编码的参数一一配对，所以编码必须先过 `ObjCTypeEncodingParser.methodType(from:matchingArgumentsOf:)`：参数个数对不上的编码不导入，类成员与协议要求两条路径都走它（体检第 2 条：协议要求那条路径曾漏掉这一步，个数对不上时越界崩溃）。
 
 为类与 category 的成员，`ObjCImporterNaming` 还有三条只在那里用到的规则：返回对象的类方法、selector 开头与类名末尾对得上时按工厂方法导入成初始化器（`ImportedName.Kind.factoryInitializer`，传 `factoryInitializerClassName`）；属性名经 `importedPropertyName`，`BOOL` 属性取 getter 名，开头的缩写词改小写，再按属性的规则删减（不删本类型名）；error 约定只认 selector 里名为 `error` 的那一段。
 
@@ -71,7 +71,7 @@ SE-0436 的 `@objc @implementation` 类编出来是纯 ObjC class object，没�
 - `ObjCImportedContainerIndex`（`SharedCache`，`.objcHierarchy` 分组）：每个类与 category 的记录——方法、属性、协议、父类、Swift 位——只存名字与编码，按运行时名或 `uniqueName` 查。协议记录沿用 `ObjCProtocolRecord`，同名时取 Swift 发出的那份。
 - `ObjCImportedMemberBuilder`：把一条记录建成成员（`ObjCImportedMember`）：属性排在 getter 的位置、getter 与 setter 不单列；不导入的 selector 跳过；参数类型先取类采纳的协议里同一 selector 的扩展编码，参数个数对不上时退回方法表的编码，再对不上就不建这个成员；所有权、是否要 `@objc(selector)` 也在这里定。
 - `ObjCImportedMemberNodes`：方法、属性、subscript 的 demangle 树，0079 的协议要求也经它建。
-- `ObjCImportedTypes`：编码里的类型换成 Swift 的类型树（对象是 `T!`，`NSString` 这类桥接成值类型）；`ObjCBridgedStructures` 记哪些类导入成值类型，`@NSCopying` 据此判断。
+- `ObjCImportedTypes`：编码里的类型换成 Swift 的类型树（对象是 `T!`，`NSString` 这类桥接成值类型；`r*` 即 `const char *` 是 `UnsafePointer<Int8>`，`*` 是 `UnsafeMutablePointer<Int8>`）；`ObjCBridgedStructures` 记哪些类导入成值类型，`@NSCopying` 据此判断。
 
 ## 关键契约
 

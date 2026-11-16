@@ -3259,6 +3259,28 @@
 - **后续**：RuntimeViewer 照这一版的分块显示两层展开，它的锁文件要钉到推送后的 origin/next。
 - **对应版本**：未发版。
 
+## 2026-11-16 首次代码库体检，修掉其中七条严重 bug
+
+- **时间段**：2026-11-16，分支 `fix/codebase-audit-2026-11-16`（worktree `.worktrees/MachOSwiftSection-AuditFixes`，基于 `next` 1ba927ad）。节号在落地时取。
+- **动机**：第一次用 `audit-codebase` 给整个 `next` 做体检，审的是近 30 天的改动（443 个文件，约 2.6 万新增行），报告与账本见 [Reviews/CodebaseAudits/](Reviews/CodebaseAudits/README.md)。确认 7 条严重 bug、2 条待确认，用户批准修掉 7 条，第 8 条（待确认）随第 2 条一起修。
+- **关键决策**：
+  - 每条先写复现测试，确认修复前失败（两条是子进程 SIGTRAP，其余是错误输出），测试永久保留；崩溃类的用 exit test，避免拖垮整个测试进程。
+  - 参数个数守卫收成 `ObjCTypeEncodingParser.methodType(from:matchingArgumentsOf:)`，类成员与协议要求两条路径共用，不再各写一份。
+  - 第 8 条不改读取器的表示，在 `ObjCProtocolRecord.make` 里核对扩展编码与方法表编码是否同一签名，对不上就整组不用：不论错位从哪来都挡得住。
+  - 第 4 条修的时候发现同类问题：文件里给别的镜像的 Swift 类写的 category 指向类元数据符号 `_$s…CN`，interface 把扩展印成 `extension __C._$s…`。由新的 `NodeTypeNaming.swiftClassNode(fromRuntimeName:)` 统一认 `_TtC`、`$s`、`_$s` 三种写法，dump 那份私有实现也改用它。
+  - 三条建议不修的登记为已裁决清单的 A83–A85。
+- **落地**：
+  - CrossReferenceAnalysis：`CrossReferenceAnalyzer.ClassArgumentReturn`（`objc_opt_class` 与原样返回的两个分开），`ImageFunctionTable.isObjectiveCClassMethod(at:)`；`RenamedReexportIndex` 不再把超出表尾的终端大小与游标相加。
+  - SwiftObjCInterop：`ObjCTypeEncodingParser.methodType(from:matchingArgumentsOf:)`、`ObjCEncodedType.characterString(isConst:)` 与 `withoutExtendedNames`、`ObjCProtocolRecord.make` 的签名核对、`SwiftClassWithoutClassObjectIndex` 的同名处理、`ObjCRuntimeNames` 改用共享的类名识别。
+  - SwiftInspection：`NodeTypeNaming.swiftClassNode(fromRuntimeName:)`。SwiftThunkAnalysis：`ObjCProtocolWitnesses` 对别的镜像的 Swift 类按运行时名取表，`ObjCMembers.table(forObjCClassNamed:)` 的所属名取 Swift 名。SwiftDeclaration：`ObservableMacroExpansionRecovery.isGeneratedFunction(name:node:)`。SwiftDump：category 行的类名。
+  - 测试：新增 `MalformedExportTrieTests`、`ClassOfReceiverSendTests`，以及 `ObjCProtocolRequirementBuilderTests`、`ObjCImportedMemberBuilderTests`、`ObjCProtocolDefinitionIndexingTests`、`SwiftClassWithoutClassObjectIndexTests`、`ObservableMacroInterfaceTests`、`ObservableMacroExpansionRecoveryTests` 里的用例；三个现场编译的 fixture 各加了对应的形态。
+  - 文档：体检报告与账本、`ReviewAdjudications.md`（A83–A85）、`Modules/CrossReferenceAnalysis.md`、`Modules/SwiftObjCInterop.md`、`Modules/SwiftDeclaration.md`、文档索引。
+- **验证**：**待验证**。在 JHs-Mac-Studio（macOS 27.2，Xcode 26.6，本地兄弟依赖）上，受影响的 22 个套件 118 个测试全过；并行全量两次卡死在 `DemanglingWave`（体检报告第 10 条，与本批改动无关）；改串行全量后跑到 2825 个测试全过、0 失败时，因工作转到 Ultra 而中止。全量结果要在 Ultra 上重跑确认；渲染 A/B 没跑。
+- **后续**：
+  - 待确认的第 9 条（编码里超大的 C 数组让导入卡死）没动。
+  - 体检报告里复核为 PLAUSIBLE、未达门槛的 8 条线索没动。
+- **对应版本**：未发版。
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节
