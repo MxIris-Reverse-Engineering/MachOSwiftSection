@@ -89,15 +89,16 @@ package enum ObjCProtocolWitnesses {
         let isClassMethod: Bool
     }
 
-    /// A Swift class's table is keyed by its qualified name: a member tied
+    /// A Swift class of the image goes by its qualified name: a member tied
     /// through the thunk's code must belong to that class. Any other class —
-    /// one another image defines and this one extends — goes by its runtime
-    /// name, as its members' symbols spell it (`__C.NSView`).
+    /// one another image defines and this one extends in a category, an
+    /// Objective-C class (`__C.NSView`) or a Swift one — goes by its runtime
+    /// name: the image's table for it is its categories'.
     private static func memberTable(ofClassNamed runtimeName: String, in machO: some MachOSwiftSectionRepresentableWithCache) -> (Node, ObjCMemberTable)? {
-        if let classNode = ObjCRuntimeNames.swiftClassNode(forRuntimeName: runtimeName, in: machO) {
-            guard let qualifiedName = NodeTypeNaming.nominalQualifiedName(of: classNode),
-                  let table = ObjCMembers.table(forSwiftClassQualifiedName: qualifiedName, in: machO)
-            else { return nil }
+        if let classNode = ObjCRuntimeNames.swiftClassNode(forRuntimeName: runtimeName, in: machO),
+           let qualifiedName = NodeTypeNaming.nominalQualifiedName(of: classNode),
+           !ObjCClassMethodIndex.shared.runtimeNames(forSwiftClassQualifiedName: qualifiedName, in: machO).isEmpty {
+            guard let table = ObjCMembers.table(forSwiftClassQualifiedName: qualifiedName, in: machO) else { return nil }
             return (classNode, table)
         }
         guard let table = ObjCMembers.table(forObjCClassNamed: runtimeName, in: machO) else { return nil }

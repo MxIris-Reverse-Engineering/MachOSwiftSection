@@ -24,8 +24,8 @@ package indirect enum ObjCEncodedType: Sendable, Hashable {
     case float
     case double
     case longDouble
-    /// `*`
-    case characterString
+    /// `*`; `r*`, a `const char *`, is constant.
+    case characterString(isConst: Bool)
     /// `:`
     case selector
     /// `#`
@@ -50,6 +50,19 @@ package indirect enum ObjCEncodedType: Sendable, Hashable {
         switch self {
         case .object, .block, .objectClass: true
         default: false
+        }
+    }
+
+    /// The type as a method list's encoding spells it: no class or protocol
+    /// named for an object, no signature for a block — what only an
+    /// extended encoding carries.
+    package var withoutExtendedNames: ObjCEncodedType {
+        switch self {
+        case .object: .object(className: nil, protocolNames: [])
+        case .block: .block(nil)
+        case .pointer(let pointee, let isConst): .pointer(pointee.withoutExtendedNames, isConst: isConst)
+        case .array(let count, let element): .array(count: count, element: element.withoutExtendedNames)
+        default: self
         }
     }
 }
@@ -86,6 +99,16 @@ package enum ObjCTypeEncodingParser {
         // `self` and `_cmd`.
         guard argumentTypes.count >= 2 else { return nil }
         return ObjCMethodTypeEncoding(returnType: returnType, parameterTypes: Array(argumentTypes.dropFirst(2)))
+    }
+
+    /// A method's encoding, only when it takes one argument per colon of
+    /// `selector` — what the importer pairs the selector's pieces and the
+    /// types by. An encoding another method's slot handed over (a shifted
+    /// extended types array) or a malformed one takes another count, and
+    /// pairing it would index past its arguments.
+    package static func methodType(from encoding: String, matchingArgumentsOf selector: String) -> ObjCMethodTypeEncoding? {
+        guard let methodType = methodType(from: encoding), methodType.parameterTypes.count == selector.count(where: { $0 == ":" }) else { return nil }
+        return methodType
     }
 
     /// One type (`@"NSString"`), as a property's `T` attribute spells it.
@@ -178,7 +201,7 @@ package enum ObjCTypeEncodingParser {
             case "f": return .float
             case "d": return .double
             case "D": return .longDouble
-            case "*": return .characterString
+            case "*": return .characterString(isConst: isConst)
             case ":": return .selector
             case "#": return .objectClass
             case "?": return .unknown

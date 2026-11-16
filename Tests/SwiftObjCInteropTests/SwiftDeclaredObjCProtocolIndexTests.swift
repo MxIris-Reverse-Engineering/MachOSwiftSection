@@ -36,7 +36,7 @@ struct SwiftDeclaredObjCProtocolIndexTests {
     /// or, renamed to its own name, by name; renamed to another, unpaired.
     private static func expectDeclaredProtocols(in machO: some MachORepresentableWithCache) throws {
         let protocols = protocolsByQualifiedName(in: machO)
-        #expect(Set(protocols.keys) == Set(["DerivedSelectors", "SameNameRenamed", "DifferentlyNamed", "RefinedProtocol", "InternalProtocol", "PrivateProtocol", "Outer.NestedProtocol"].map(qualifiedName)))
+        #expect(Set(protocols.keys) == Set(["DerivedSelectors", "SameNameRenamed", "DifferentlyNamed", "RefinedProtocol", "InternalProtocol", "PrivateProtocol", "Outer.NestedProtocol", "KitWidgetAdopted"].map(qualifiedName)))
         for declaredProtocol in protocols.values {
             guard case .fieldDescriptor = declaredProtocol.evidence else {
                 Issue.record("\(declaredProtocol.qualifiedName) was not found through its field descriptor")
@@ -124,7 +124,7 @@ struct SwiftDeclaredObjCProtocolIndexTests {
         #expect(throws: (any Error).self) { try machO.swift.fieldDescriptors }
 
         let protocols = Self.protocolsByQualifiedName(in: machO)
-        #expect(Set(protocols.keys) == Set(["DerivedSelectors", "RefinedProtocol", "InternalProtocol", "PrivateProtocol", "Outer.NestedProtocol"].map(Self.qualifiedName)))
+        #expect(Set(protocols.keys) == Set(["DerivedSelectors", "RefinedProtocol", "InternalProtocol", "PrivateProtocol", "Outer.NestedProtocol", "KitWidgetAdopted"].map(Self.qualifiedName)))
         for declaredProtocol in protocols.values {
             #expect(declaredProtocol.evidence == .runtimeName, "\(declaredProtocol.qualifiedName)")
             #expect(!declaredProtocol.hasExplicitObjCName, "\(declaredProtocol.qualifiedName)")
@@ -143,6 +143,6 @@ struct SwiftDeclaredObjCProtocolIndexTests {
         for (earlier, later) in zip(descriptors, descriptors.dropFirst()) {
             #expect(later.offset - earlier.offset == earlier.actualSize)
         }
-        #expect(descriptors.filter { $0.kind == .objCProtocol }.count == 7)
+        #expect(descriptors.filter { $0.kind == .objCProtocol }.count == 8)
     }
 }

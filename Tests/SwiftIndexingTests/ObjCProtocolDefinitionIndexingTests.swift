@@ -46,7 +46,7 @@ struct ObjCProtocolDefinitionIndexingTests {
     private static func expectModel(in machO: some MachOSwiftSectionRepresentableWithCache, keepsLocalSymbols: Bool = true) async throws {
         let indexer = try await indexer(for: machO)
         let definitions = definitionsByName(indexer.objcProtocolDefinitions.values)
-        #expect(Set(definitions.keys) == Set(["DerivedSelectors", "SameNameRenamed", "DifferentlyNamed", "RefinedProtocol", "InternalProtocol", "PrivateProtocol", "Outer.NestedProtocol"].map { "\(moduleName).\($0)" }))
+        #expect(Set(definitions.keys) == Set(["DerivedSelectors", "SameNameRenamed", "DifferentlyNamed", "RefinedProtocol", "InternalProtocol", "PrivateProtocol", "Outer.NestedProtocol", "KitWidgetAdopted"].map { "\(moduleName).\($0)" }))
         // None is a `ProtocolDefinition`: no protocol descriptor lists them.
         #expect(indexer.allProtocolDefinitions.keys.allSatisfy { !definitions.keys.contains($0.name) })
         for definition in definitions.values {
@@ -104,6 +104,12 @@ struct ObjCProtocolDefinitionIndexingTests {
         #expect(nestedProtocol.objcRuntimeName == "_TtPC\(moduleName.count)\(moduleName)5Outer14NestedProtocol_")
         #expect(nestedProtocol.requirements.map(conformerName(of:)) == ["\(moduleName).NestedConformer"])
 
+        // Adopted in an extension of another module's Swift class: the
+        // member is that class's, found by the runtime name the category
+        // gives it.
+        let kitWidgetAdopted = try #require(definitions["\(moduleName).KitWidgetAdopted"])
+        #expect(kitWidgetAdopted.requirements.map(conformerName(of:)) == ["\(SwiftDeclaredObjCProtocolsFixture.kitModuleName).KitWidget"])
+
         // Renamed to another name: no record pairs with it, so nothing lists
         // its requirements.
         let differentlyNamed = try #require(definitions["\(moduleName).DifferentlyNamed"])
@@ -135,8 +141,12 @@ struct ObjCProtocolDefinitionIndexingTests {
         #expect(try objcProtocolNames(ofClassNamed: "ImpliedConformer").isEmpty)
         #expect(try objcProtocolNames(ofClassNamed: "Outer").isEmpty)
 
-        #expect(indexer.objcCategoryConformances.map(\.extendedTypeName.name) == ["__C.NSDateFormatter"])
-        #expect(indexer.objcCategoryConformances.map { $0.protocolNames.map(\.name) } == [["\(moduleName).SameNameRenamed"]])
+        // An Objective-C class keeps its Objective-C name; another module's
+        // Swift class reads as Swift spells it, whether the category names
+        // it by its runtime name (in process) or by the class metadata
+        // symbol it is bound to (in a file).
+        #expect(indexer.objcCategoryConformances.map(\.extendedTypeName.name) == ["__C.NSDateFormatter", "\(kitModuleName).KitWidget"])
+        #expect(indexer.objcCategoryConformances.map { $0.protocolNames.map(\.name) } == [["\(moduleName).SameNameRenamed"], ["\(moduleName).KitWidgetAdopted"]])
     }
 
     @Test func modelFromTheFile() async throws {
@@ -159,6 +169,6 @@ struct ObjCProtocolDefinitionIndexingTests {
     @Test func modelWithoutReflectionMetadata() async throws {
         let indexer = try await Self.indexer(for: try SwiftDeclaredObjCProtocolsFixture.machOFile(.withoutReflectionMetadata))
         let names = Set(indexer.objcProtocolDefinitions.values.map(\.protocolName.name))
-        #expect(names == Set(["DerivedSelectors", "RefinedProtocol", "InternalProtocol", "PrivateProtocol", "Outer.NestedProtocol"].map { "\(Self.moduleName).\($0)" }))
+        #expect(names == Set(["DerivedSelectors", "RefinedProtocol", "InternalProtocol", "PrivateProtocol", "Outer.NestedProtocol", "KitWidgetAdopted"].map { "\(Self.moduleName).\($0)" }))
     }
 }

@@ -88,7 +88,9 @@ struct RenamedReexportIndex {
             name.append(contentsOf: UnsafeBufferPointer(start: base + node.labelStart, count: node.labelLength))
             var cursor = node.offset
             guard let terminalSize = readULEB128(base, size: size, at: &cursor) else { continue }
-            let childrenOffset = cursor + Int(clamping: terminalSize)
+            // A terminal running past the trie leaves no children to read —
+            // and its size, up to 2^64 − 1, must not be added as it stands.
+            let childrenOffset = terminalSize > UInt64(size - cursor) ? size : cursor + Int(terminalSize)
             if terminalSize > 0,
                let flags = readULEB128(base, size: size, at: &cursor), flags & reexportFlag != 0,
                let ordinal = readULEB128(base, size: size, at: &cursor),

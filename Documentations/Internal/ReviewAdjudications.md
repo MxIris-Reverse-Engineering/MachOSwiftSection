@@ -989,3 +989,42 @@
 - **为什么不修**：用户决定暂不安排清理。改名不改行为，但公开泛型类型的参数名可能被下游的 extension 按名字用到，真要清理时那部分要连同下游一起改。`AbbreviatedIdentifierScanTests` 只扫 `pc`、`lhs`、`rhs`，不管泛型参数。
 - **既往修复**：没有专门清理过。提案 [0044-opaque-parameters-for-single-use-generics](../Evolutions/0044-opaque-parameters-for-single-use-generics.md)（`7d429938`）把只用一次的泛型参数改写成 `some P`，为的是去掉多余的泛型参数列表，剩下的没有改名；`4e8f4a7f`（2026-10-08）只改了特化器新代码里的缩写。
 - **复审条件**：用户安排清理时。这条只覆盖已有的这些；改动里新加的单字母泛型参数照常算发现。
+
+---
+
+## A83 — `@Observable` 的折叠特例叠在共享的字段渲染上（2026-11-16 代码库体检，结构类，**有意设计**）
+
+- **裁决**：不修（2026-11-16，用户确认）。
+- **发现**：`SwiftDeclarationPrinter+Headers.swift` 的 `renderedModelFieldDeclarations` 为 `@Observable` 分了 `ModelMembersSelection` 三种模式（`.typeBody`、`.observableMacroExpansion`、`.observableMacroComputedProperties`），`.typeBody` 下还有几个分支各自组合可见性，成员循环里另外穿着 `folding` 与 `marksObservationIgnored`。下一个要折叠的宏还得在同一个函数里加模式和分支。
+- **复现 / 是否误报**：结构属实，没有错误输出。
+- **与 main 基线对比**：`f0fd4447`（2026-11-11）引入，main 上没有。
+- **为什么不修**：提案 [0093-observable-macro-folding](../Evolutions/0093-observable-macro-folding.md) 有意把折叠接进字段块与成员块，为的是展开形态与折叠形态用同一套打印代码，两种形态的注释逐字节一致。拆成「各个宏的折叠规则先产出字段列表、字段渲染只消费列表」要动这套共用，眼下只有一个宏，收益不抵风险。
+- **既往修复**：无。
+- **代码锚点**：`Sources/Output/SwiftPrinting/SwiftDeclarationPrinter+Headers.swift` 的 `renderedModelFieldDeclarations`；体检报告 [CodebaseAudit20261116](Reviews/CodebaseAudits/CodebaseAudit20261116.md)。
+- **复审条件**：出现第二个要折叠的宏时。
+
+---
+
+## A84 — 交叉引用索引里同一条指令上几条引用的先后每个进程不同（2026-11-16 代码库体检，**不修**）
+
+- **裁决**：不修（2026-11-16，用户确认）。
+- **发现**：`CodeReferenceIndex` 查询结果先按指令排，同一条指令上的引用再按分组号排，而分组的顺序取自 `keyedTargets` 字典的遍历（`Models/CodeReferenceIndex.swift:117`、`:291`），Swift 的 `Hasher` 每个进程随机播种。一次查 `{.selector("alloc"), .selector("init")}` 两个键时，`objc_alloc_init` 那条指令上的两条发送谁先谁后每个进程都可能不同；扫描路径 `references(to:inImageAt:)` 固定 `alloc` 在前。类型文档说两条路径的答案一致。
+- **复现 / 是否误报**：属实，只差顺序，内容一致。
+- **与 main 基线对比**：`3ca49d4d`（2026-10-18）的索引在 main 上也有；同一条指令上出现两条引用要等 `e64b1085`（2026-10-27，入口点发送）之后，那部分 main 上没有。
+- **为什么不修**：宿主只拿结果显示调用者，不逐数组比较两条路径；现有测试也不比这种组合。要修只是在分组时按键排序，代价很小，但眼下没有消费者受影响。
+- **既往修复**：无。
+- **代码锚点**：`Sources/Analysis/CrossReferenceAnalysis/Models/CodeReferenceIndex.swift`；体检报告 [CodebaseAudit20261116](Reviews/CodebaseAudits/CodebaseAudit20261116.md)。
+- **复审条件**：有宿主或测试开始逐数组比较索引与扫描两条路径的结果，或类型文档要继续承诺「答案完全一致」时。
+
+---
+
+## A85 — `reader-benchmark` 用 `print` 输出测量结果（2026-11-16 代码库体检，规则类，**有意如此**）
+
+- **裁决**：不修（2026-11-16，用户确认）。
+- **发现**：全局指令「编码风格」要求打日志不用 `print`；`Sources/Executables/reader-benchmark/ReaderBenchmark.swift:221-232` 用 `print` 输出测量结果。
+- **复现 / 是否误报**：写法属实，但输出的是基准的结果，不是日志。
+- **与 main 基线对比**：`b28d8887`（2026-11-06）引入，main 上没有。
+- **为什么不修**：基准可执行文件的标准输出就是它的产品；`swift-section` 经 `StandardStreamOutput` 的规定只管那个 CLI，`reader-benchmark` 不随库发布。
+- **既往修复**：无。
+- **代码锚点**：`Sources/Executables/reader-benchmark/ReaderBenchmark.swift`；体检报告 [CodebaseAudit20261116](Reviews/CodebaseAudits/CodebaseAudit20261116.md)。
+- **复审条件**：它被并进 `swift-section`，或开始输出诊断与进度信息。

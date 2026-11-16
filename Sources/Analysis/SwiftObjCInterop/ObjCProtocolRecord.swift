@@ -80,7 +80,15 @@ extension ObjCProtocolRecord {
         in machO: some MachORepresentableWithCache & Readable
     ) -> ObjCProtocolRecord {
         let methodCount = methodLists.reduce(0) { $0 + $1.count }
-        let extendedTypeEncodings = extendedMethodTypes(ofRecordAt: offset, recordSize: recordSize, methodCount: methodCount, in: machO)
+        var extendedTypeEncodings = extendedMethodTypes(ofRecordAt: offset, recordSize: recordSize, methodCount: methodCount, in: machO)
+        // The array follows every method of the four lists in order, so a
+        // list the reader could not read moves every later method onto
+        // another method's encoding. Each slot has to describe its method's
+        // signature, or none is used.
+        if let encodings = extendedTypeEncodings,
+           !zip(methodLists.joined(), encodings).allSatisfy({ describeTheSameSignature(extended: $1, plain: $0.typeEncoding) }) {
+            extendedTypeEncodings = nil
+        }
         var slot = 0
         let lists: [[Method]] = methodLists.map { list in
             list.map { entry in
@@ -100,6 +108,18 @@ extension ObjCProtocolRecord {
             instanceProperties: instanceProperties,
             classProperties: classProperties
         )
+    }
+
+    /// Whether an extended method encoding is the one the compiler wrote for
+    /// the method whose method-list encoding is `plain`: the same types, once
+    /// the class and protocol names and block signatures only the extended
+    /// one spells are set aside. Either one not parsing tells nothing.
+    private static func describeTheSameSignature(extended: String, plain: String) -> Bool {
+        guard let extendedMethodType = ObjCTypeEncodingParser.methodType(from: extended),
+              let plainMethodType = ObjCTypeEncodingParser.methodType(from: plain)
+        else { return true }
+        return extendedMethodType.returnType.withoutExtendedNames == plainMethodType.returnType.withoutExtendedNames
+            && extendedMethodType.parameterTypes.map(\.withoutExtendedNames) == plainMethodType.parameterTypes.map(\.withoutExtendedNames)
     }
 
     /// The extended method types, one per method. MachOObjCSection's

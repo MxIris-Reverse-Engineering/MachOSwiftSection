@@ -153,24 +153,65 @@ package enum ObservableMacroExpansionRecovery {
         return String(propertyName)
     }
 
-    /// Whether a method of the class is one the macro generates, by its base
-    /// name and argument labels: `access(keyPath:)`,
-    /// `withMutation(keyPath:_:)` or `shouldNotifyObservers(_:_:)`. The macro
-    /// adds none the class declares itself, so one written in the source
-    /// stands in for the generated one.
-    package static func isGeneratedFunction(name: String, argumentLabels: [String]) -> Bool {
+    /// Whether a method of the class, declared by `node`, is one the macro
+    /// generates — by its base name, its argument labels and its shape:
+    /// `access(keyPath:)` and `withMutation(keyPath:_:)`, generic over the
+    /// `KeyPath` they take first, and the `shouldNotifyObservers(_:_:)`
+    /// overloads, generic, of two parameters. The macro adds none the class
+    /// declares itself with the same signature, so one written in the source
+    /// in that shape stands in for the generated one; a method of another
+    /// shape under one of these names — no parameters, another parameter
+    /// type — is the source's own, and the macro adds its own beside it.
+    package static func isGeneratedFunction(name: String, node: Node) -> Bool {
+        guard let signature = parameterTypes(ofFunction: node), signature.isGeneric else { return false }
+        let argumentLabels = argumentLabels(ofFunction: node)
         switch name {
         case "access":
-            return argumentLabels == ["keyPath"]
+            return argumentLabels == ["keyPath"] && signature.types.count == 1 && isKeyPath(signature.types[0])
         case "withMutation":
-            return argumentLabels == ["keyPath", "_"]
+            return argumentLabels == ["keyPath", "_"] && signature.types.count == 2 && isKeyPath(signature.types[0])
         case "shouldNotifyObservers":
             // The demangler leaves out the label list of a function whose
             // arguments are all unlabeled.
-            return argumentLabels.isEmpty || argumentLabels == ["_", "_"]
+            return (argumentLabels.isEmpty || argumentLabels == ["_", "_"]) && signature.types.count == 2
         default:
             return false
         }
+    }
+
+    /// The parameter types of a function's own declaration, and whether it
+    /// is generic — read from the declaration node's direct children, as
+    /// its labels are. `nil` when the node is not a function or its type
+    /// does not read as a function type.
+    private static func parameterTypes(ofFunction node: Node) -> (types: [Node], isGeneric: Bool)? {
+        guard let declarationNode = functionDeclarationNode(of: node),
+              var typeNode = declarationNode.children.last(where: { $0.kind == .type })?.firstChild
+        else { return nil }
+        var isGeneric = false
+        if typeNode.kind == .dependentGenericType {
+            isGeneric = true
+            guard let genericType = typeNode.children.last(where: { $0.kind == .type })?.firstChild else { return nil }
+            typeNode = genericType
+        }
+        guard typeNode.kind == .functionType,
+              let argumentTypeNode = typeNode.children.first(where: { $0.kind == .argumentTuple })?.firstChild?.firstChild
+        else { return nil }
+        // Several parameters, or none, are a tuple; one is its own type.
+        guard argumentTypeNode.kind == .tuple else { return ([argumentTypeNode], isGeneric) }
+        let types = argumentTypeNode.children.compactMap { element in
+            element.children.last(where: { $0.kind == .type })?.firstChild
+        }
+        guard types.count == argumentTypeNode.children.count else { return nil }
+        return (types, isGeneric)
+    }
+
+    /// Whether `typeNode` is `Swift.KeyPath<…>`.
+    private static func isKeyPath(_ typeNode: Node) -> Bool {
+        guard typeNode.kind == .boundGenericClass,
+              let classNode = typeNode.firstChild?.firstChild, classNode.kind == .class,
+              classNode.firstChild?.kind == .module, classNode.firstChild?.text == "Swift"
+        else { return false }
+        return classNode.children.at(1)?.text == "KeyPath"
     }
 
     /// The argument labels of a function's own declaration, `_` for an

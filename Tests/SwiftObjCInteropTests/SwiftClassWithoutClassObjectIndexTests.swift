@@ -170,4 +170,20 @@ struct SwiftClassWithoutClassObjectIndexTests {
         #expect(concreteSubclass.isAncestorChainComplete)
         #expect(concreteSubclass.ancestors.map(\.className).prefix(2) == ["\(Self.moduleName).GenericWidget<A>", "NSObject"])
     }
+
+    /// One private generic class of each source file under one name: the
+    /// index names both `SameNamedPrivateGeneric<A>`, so the name tells
+    /// neither apart. Both are listed under their qualified name — which
+    /// `ObjCMembers` takes as ambiguous and attributes no member through —
+    /// and a lookup by the shared name answers neither.
+    @Test(arguments: ClassesWithoutClassObjectsFixture.Variant.allCases)
+    func sameNamedPrivateGenericClassesAreBothListed(variant: ClassesWithoutClassObjectsFixture.Variant) throws {
+        let machO = try ClassesWithoutClassObjectsFixture.machOFile(variant)
+        let qualifiedName = "\(Self.moduleName).SameNamedPrivateGeneric"
+        let classes = SwiftClassWithoutClassObjectIndex.shared.classes(in: machO).filter { $0.qualifiedName == qualifiedName }
+        try #require(classes.count == 2, "\(SwiftClassWithoutClassObjectIndex.shared.classes(in: machO).map(\.qualifiedName))")
+        #expect(Set(classes.map(\.name)) == ["\(qualifiedName)<A>"])
+        #expect(SwiftClassWithoutClassObjectIndex.shared.names(forSwiftClassQualifiedName: qualifiedName, in: machO).count == 2)
+        #expect(SwiftClassWithoutClassObjectIndex.shared.swiftClass(named: "\(qualifiedName)<A>", in: machO) == nil)
+    }
 }

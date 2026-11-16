@@ -123,6 +123,18 @@ package enum ObservableMacroFixture {
         public init() {}
     }
 
+    // Methods the source declares under the names of those the macro
+    // generates, in shapes the macro does not generate: it adds its own
+    // beside them, and these stay the source's. Public, so every variant
+    // keeps them.
+    @Observable
+    public final class HandwrittenNamesModel {
+        public var value: Int = 0
+        public init() {}
+        public func shouldNotifyObservers() -> Bool { true }
+        public func access(keyPath: String) {}
+    }
+
     final class ManualObservable: Observable {
         var plain: Int = 0
     }
@@ -141,7 +153,7 @@ package enum ObservableMacroFixture {
     /// The classes `@Observable` expanded, by the name the source declares.
     package static let observableClassNames: Set<String> = [
         "FinalModel", "OpenModel", "InternalModel", "SubModel", "GenericModel", "WrapperModel", "ContainerModel", "NestedModel",
-        "SendingModel",
+        "SendingModel", "HandwrittenNamesModel",
     ]
 
     /// The classes and types the recognition must turn down.

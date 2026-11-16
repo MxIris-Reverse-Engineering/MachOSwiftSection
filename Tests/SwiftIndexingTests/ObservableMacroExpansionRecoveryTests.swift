@@ -199,13 +199,22 @@ struct ObservableMacroExpansionRecoveryTests {
         #expect(StoredTypeMatching.referencedTypeNode(ofStoredType: Self.intTypeNode) == Self.intTypeNode)
     }
 
-    @Test func theGeneratedMethodsAreToldByNameAndLabels() {
-        #expect(ObservableMacroExpansionRecovery.isGeneratedFunction(name: "access", argumentLabels: ["keyPath"]))
-        #expect(ObservableMacroExpansionRecovery.isGeneratedFunction(name: "withMutation", argumentLabels: ["keyPath", "_"]))
-        #expect(ObservableMacroExpansionRecovery.isGeneratedFunction(name: "shouldNotifyObservers", argumentLabels: []))
-        #expect(!ObservableMacroExpansionRecovery.isGeneratedFunction(name: "access", argumentLabels: []))
-        #expect(!ObservableMacroExpansionRecovery.isGeneratedFunction(name: "withMutation", argumentLabels: ["keyPath"]))
-        #expect(!ObservableMacroExpansionRecovery.isGeneratedFunction(name: "reload", argumentLabels: []))
+    /// The methods the macro generates are told by name, labels and shape: a
+    /// method the source declares under one of their names in another shape
+    /// — `shouldNotifyObservers()`, `access(keyPath: String)` — is not among
+    /// them, while the macro's own beside it are.
+    @Test(arguments: [ObservableMacroFixture.Variant.debug, .release])
+    func theGeneratedMethodsAreToldByTheirShape(variant: ObservableMacroFixture.Variant) async throws {
+        let machO = try await ObservableMacroFixture.machOFile(variant)
+        let indexer = SwiftDeclarationIndexer(in: machO)
+        try await indexer.prepare()
+        let definition = try #require(indexer.allTypeDefinitions.values.first { $0.typeName.declaredNameForTesting == "HandwrittenNamesModel" })
+        try definition.index(in: machO)
+        let expansion = try #require(definition.observableMacroExpansion)
+        let generatedSymbolNames = Set(expansion.generatedFunctions.map(\.symbol.name))
+        let sourceDeclared = definition.functions.filter { !generatedSymbolNames.contains($0.symbol.name) }
+        #expect(Set(sourceDeclared.map(\.name)).isSuperset(of: ["access", "shouldNotifyObservers"]))
+        #expect(Set(expansion.generatedFunctions.map(\.name)).isSuperset(of: ["access", "withMutation"]))
     }
 
     @Test func anInitAccessorOrTheComputedPropertysSetterTellsATrackedProperty() {
