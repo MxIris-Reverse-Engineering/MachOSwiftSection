@@ -124,7 +124,7 @@
 - **判定**: CONFIRMED（本机两次复现）
 - **状态**: 未修，等用户决定。
 - **失败场景**: 建 demangled index 的线程持着构建锁，把下一批名字交给 `DispatchQueue.global()` 去还原，再同步等这批做完（`group.wait()`）。同时别的读者在协作线程上调 `demangledIndex`，经 `withLargeStack` 同步阻塞，等大栈线程，而大栈线程要么持锁等这一批、要么等这把锁。协作线程池被占满后，那批任务一直没有被调度起来，整个测试进程停住，CPU 为 0。
-- **能复现吗**: 能。在公司那台 10 核 Mac Studio（macOS 27.2，Xcode 26.6）上，修复分支的并行全量测试两次都卡死，一次在约 9 分钟处，一次在约 2 分钟处。`sample` 显示 10 个协作线程全在 `demangledIndex(reportingProgressTo:)` → `StackSafeExecutor.runOnLargeStack` 的信号量上；几个大栈线程在 `DemanglingWave.waitUntilDemangled()`，其余在构建锁上；没有一个线程在执行 `DemanglingWave.start` 交出去的那批任务。卡住时在跑的是 `DumpAndInterfaceRequestTests`、`ConstructedThunkOracleTests`、`SymbolIndexDemangledIndexTests.concurrentFirstReadersShareOneBuild` 等与本次修复无关的套件。还缺一条单独就能变红的命令：拟在 `LIBDISPATCH_COOPERATIVE_POOL_STRICT=1` 下跑 `SymbolIndexDemangledIndexTests`，未跑。
+- **能复现吗**: 能。在公司那台 10 核 Mac Studio（macOS 27.2，Xcode 26.6）上，修复分支的并行全量测试两次都卡死，一次在约 9 分钟处，一次在约 2 分钟处。`sample` 显示 10 个协作线程全在 `demangledIndex(reportingProgressTo:)` → `StackSafeExecutor.runOnLargeStack` 的信号量上；几个大栈线程在 `DemanglingWave.waitUntilDemangled()`，其余在构建锁上；没有一个线程在执行 `DemanglingWave.start` 交出去的那批任务。卡住时在跑的是 `DumpAndInterfaceRequestTests`、`ConstructedThunkOracleTests`、`SymbolIndexDemangledIndexTests.concurrentFirstReadersShareOneBuild` 等与本次修复无关的套件。还缺一条单独就能变红的命令：在 `LIBDISPATCH_COOPERATIVE_POOL_STRICT=1`（单线程协作池）下单跑 `SymbolIndexDemangledIndexTests` 不卡，4 个测试 2 秒跑完；28 核的 Ultra 上并行全量也不卡。目前唯一的复现方式是在 10 核那台上并行跑全量，要先缩小成一条命令，才好判断根因。
 - **新的还是旧的**: `b4f80bf9`（2026-11-06，demangle a symbol table's names on several threads ahead of the interning sweep，提案 0088 第 5 项）引入，`main` 上没有。11-12 两批的全量测试在 28 核的 Ultra 上跑过，协作线程池有 28 个线程，没有撞上。体检时第 D 单元的 finder 判断「靠大栈线程池的溢出放行不会死锁」，但那个放行只管大栈线程，管不到 GCD 全局队列给不给线程。
 - **值不值得修**: 卡死。宿主在 Swift 并发里同时给几个镜像建索引（RuntimeViewer、多版本 evolution），核数少的机器上就可能撞上。建议修：那批任务改交给不和协作线程池共用额度的地方执行（自建的并发队列，或自己起线程），并把相关套件加进 CI 的严格线程池那一步。
 - **以前修过吗**: 同一类问题出过：项目 `CLAUDE.md` 写着「不要在协作线程上无时限地等一个需要线程池线程的任务，比如 `DispatchQueue.global()` 的 block」，2026-09-29 有三个测试因此在 3 核的 CI 上冻住整个进程，CI 为此加了 `LIBDISPATCH_COOPERATIVE_POOL_STRICT=1` 的步骤。这次是同一类等待出现在库代码里，而且等待的一方在大栈线程上，那一步的套件名单没收它。
@@ -269,7 +269,7 @@
 - **第 7 条**：终端大小超出表尾时不再与游标相加，按「没有子节点」处理。
 - **第 8 条**：`ObjCProtocolRecord.make` 逐个核对扩展编码与方法表编码是否同一签名（擦掉类名、协议名与 block 签名后比较），有一个对不上就整组不用。
 - **fixture 的扩充**：`SwiftDeclaredObjCProtocolsFixture` 的 kit 加 `KitWidget`、客户端加 `KitWidgetAdopted` 与对它的 extension；`ClassesWithoutClassObjectsFixture` 的客户端加第二个源文件与两个同名 private 泛型类；`ObservableMacroFixture` 加 `HandwrittenNamesModel`。列举协议、category 与被识别类的既有断言随之补上新成员。
-- **验证**：**待验证**。本机（JHs-Mac-Studio，macOS 27.2，Xcode 26.6，本地兄弟依赖）上受影响的 22 个套件 118 个测试全过；并行全量两次卡死在第 10 条；串行全量跑到 2825 个全过时因工作转到 Ultra 中止，要在 Ultra 上重跑。没跑渲染 A/B：改动只影响上面几种具体形态的输出，不是大重构。
+- **验证**：JHs-Mac-Studio-Ultra（macOS 27.2，Xcode 26.6，本地兄弟依赖）上全量 2,916 个测试只红 3 条，都是满负载下的既有偶发（`FileMappingTests`、`SharedCacheTests` 的重叠测试、`BoundedConcurrentMapTests` 的时限），单独重跑全过。JHs-Mac-Studio（10 核）上受影响的 22 个套件 118 个测试全过，并行全量两次卡死在第 10 条。没跑渲染 A/B：改动只影响上面几种具体形态的输出，不是大重构。
 
 ## 下一轮
 

@@ -3275,7 +3275,7 @@
   - SwiftInspection：`NodeTypeNaming.swiftClassNode(fromRuntimeName:)`。SwiftThunkAnalysis：`ObjCProtocolWitnesses` 对别的镜像的 Swift 类按运行时名取表，`ObjCMembers.table(forObjCClassNamed:)` 的所属名取 Swift 名。SwiftDeclaration：`ObservableMacroExpansionRecovery.isGeneratedFunction(name:node:)`。SwiftDump：category 行的类名。
   - 测试：新增 `MalformedExportTrieTests`、`ClassOfReceiverSendTests`，以及 `ObjCProtocolRequirementBuilderTests`、`ObjCImportedMemberBuilderTests`、`ObjCProtocolDefinitionIndexingTests`、`SwiftClassWithoutClassObjectIndexTests`、`ObservableMacroInterfaceTests`、`ObservableMacroExpansionRecoveryTests` 里的用例；三个现场编译的 fixture 各加了对应的形态。
   - 文档：体检报告与账本、`ReviewAdjudications.md`（A83–A85）、`Modules/CrossReferenceAnalysis.md`、`Modules/SwiftObjCInterop.md`、`Modules/SwiftDeclaration.md`、文档索引。
-- **验证**：**待验证**。在 JHs-Mac-Studio（macOS 27.2，Xcode 26.6，本地兄弟依赖）上，受影响的 22 个套件 118 个测试全过；并行全量两次卡死在 `DemanglingWave`（体检报告第 10 条，与本批改动无关）；改串行全量后跑到 2825 个测试全过、0 失败时，因工作转到 Ultra 而中止。全量结果要在 Ultra 上重跑确认；渲染 A/B 没跑。
+- **验证**：在 JHs-Mac-Studio-Ultra（macOS 27.2，Xcode 26.6，本地兄弟依赖）上跑全量：2,916 个测试、554 个套件，红 3 条——`FileMappingTests.readersOfOneCacheFileShareOneMapping`、`SharedCacheTests.differentKeysParallelViaAsyncLet`、`BoundedConcurrentMapTests.cancellationStopsSubmittingPendingElements` 的时限，都是满负载下的既有偶发，三个套件单独重跑全过；28 核上并行全量没有卡死。此前在 JHs-Mac-Studio（10 核）上，受影响的 22 个套件 118 个测试全过，并行全量两次卡死在 `DemanglingWave`（体检报告第 10 条，与本批改动无关）。没跑渲染 A/B：改动只影响几种具体形态的输出，不是大重构。
 - **后续**：
   - 待确认的第 9 条（编码里超大的 C 数组让导入卡死）没动。
   - 体检报告里复核为 PLAUSIBLE、未达门槛的 8 条线索没动。
