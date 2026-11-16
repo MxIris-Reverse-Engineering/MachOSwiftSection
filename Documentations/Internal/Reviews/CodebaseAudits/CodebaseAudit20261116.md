@@ -122,11 +122,13 @@
 
 - **位置**: `Sources/MachO/MachOSymbols/SymbolIndexStore.swift:2019-2040`（`DemanglingWave.start` / `waitUntilDemangled`），调用处 `:1018-1022`，加锁处 `:297-303`
 - **判定**: CONFIRMED（本机两次复现）
-- **状态**: 未修，等用户决定。
+- **状态**: 已修（同日，用户看过报告后批准「先缩小复现再修」），回归测试 `SymbolIndexDemangledIndexTests.firstReadersOnEveryCooperativeThreadAllFinish`。
 - **失败场景**: 建 demangled index 的线程持着构建锁，把下一批名字交给 `DispatchQueue.global()` 去还原，再同步等这批做完（`group.wait()`）。同时别的读者在协作线程上调 `demangledIndex`，经 `withLargeStack` 同步阻塞，等大栈线程，而大栈线程要么持锁等这一批、要么等这把锁。协作线程池被占满后，那批任务一直没有被调度起来，整个测试进程停住，CPU 为 0。
-- **能复现吗**: 能。在公司那台 10 核 Mac Studio（macOS 27.2，Xcode 26.6）上，修复分支的并行全量测试两次都卡死，一次在约 9 分钟处，一次在约 2 分钟处。`sample` 显示 10 个协作线程全在 `demangledIndex(reportingProgressTo:)` → `StackSafeExecutor.runOnLargeStack` 的信号量上；几个大栈线程在 `DemanglingWave.waitUntilDemangled()`，其余在构建锁上；没有一个线程在执行 `DemanglingWave.start` 交出去的那批任务。卡住时在跑的是 `DumpAndInterfaceRequestTests`、`ConstructedThunkOracleTests`、`SymbolIndexDemangledIndexTests.concurrentFirstReadersShareOneBuild` 等与本次修复无关的套件。还缺一条单独就能变红的命令：在 `LIBDISPATCH_COOPERATIVE_POOL_STRICT=1`（单线程协作池）下单跑 `SymbolIndexDemangledIndexTests` 不卡，4 个测试 2 秒跑完；28 核的 Ultra 上并行全量也不卡。目前唯一的复现方式是在 10 核那台上并行跑全量，要先缩小成一条命令，才好判断根因。
+- **能复现吗**: 能。在公司那台 10 核 Mac Studio（macOS 27.2，Xcode 26.6）上，修复分支的并行全量测试两次都卡死，一次在约 9 分钟处，一次在约 2 分钟处。`sample` 显示 10 个协作线程全在 `demangledIndex(reportingProgressTo:)` → `StackSafeExecutor.runOnLargeStack` 的信号量上；几个大栈线程在 `DemanglingWave.waitUntilDemangled()`，其余在构建锁上；没有一个线程在执行 `DemanglingWave.start` 交出去的那批任务。卡住时在跑的是 `DumpAndInterfaceRequestTests`、`ConstructedThunkOracleTests`、`SymbolIndexDemangledIndexTests.concurrentFirstReadersShareOneBuild` 等与本次修复无关的套件。还缺一条单独就能变红的命令：在 `LIBDISPATCH_COOPERATIVE_POOL_STRICT=1`（单线程协作池）下单跑 `SymbolIndexDemangledIndexTests` 不卡，4 个测试 2 秒跑完；28 核的 Ultra 上并行全量也不卡。之后缩小成了一条命令：在子进程里同时起「核数 × 2」个任务，各自在协作线程上同步读一个新建 storage 的 demangled index，28 核的 Ultra 上也稳定卡住（两次都卡满 60 秒看门狗），采样形态与 10 核那台一致。
+- **根因**: 协作线程全部同步阻塞时，它们仍占着同一 QoS 的并发额度，交给 `DispatchQueue.global()` 的任务分不到线程。只用 GCD 的探针证实了这一点：把协作线程全部阻塞后，全局队列和私有并发队列的任务 5 秒内都没执行，私有串行队列（挂在 overcommit 根队列上）0.07 秒就执行了。建索引的线程同步等这一批，于是整个进程停住。
+- **修法**: `DemanglingWave` 改从私有串行队列起头，里面的 `concurrentPerform` 照常用满所有核（探针实测 28 个线程），没有别的线程加入时由调用线程自己做完。`AGENTS.md` 的异步一节加了「同步等待的工作只交给私有串行队列」这条规则；回归测试所在的套件加进了 CI 的名单。
 - **新的还是旧的**: `b4f80bf9`（2026-11-06，demangle a symbol table's names on several threads ahead of the interning sweep，提案 0088 第 5 项）引入，`main` 上没有。11-12 两批的全量测试在 28 核的 Ultra 上跑过，协作线程池有 28 个线程，没有撞上。体检时第 D 单元的 finder 判断「靠大栈线程池的溢出放行不会死锁」，但那个放行只管大栈线程，管不到 GCD 全局队列给不给线程。
-- **值不值得修**: 卡死。宿主在 Swift 并发里同时给几个镜像建索引（RuntimeViewer、多版本 evolution），核数少的机器上就可能撞上。建议修：那批任务改交给不和协作线程池共用额度的地方执行（自建的并发队列，或自己起线程），并把相关套件加进 CI 的严格线程池那一步。
+- **值不值得修**: 卡死。宿主在 Swift 并发里同时给几个镜像建索引（RuntimeViewer、多版本 evolution），核数少的机器上就可能撞上。建议修：那批任务改交给不和协作线程池共用额度的地方执行（私有串行队列，或自己起线程；私有并发队列不行，见下文根因），并把回归测试所在的套件加进 CI。
 - **以前修过吗**: 同一类问题出过：项目 `CLAUDE.md` 写着「不要在协作线程上无时限地等一个需要线程池线程的任务，比如 `DispatchQueue.global()` 的 block」，2026-09-29 有三个测试因此在 3 核的 CI 上冻住整个进程，CI 为此加了 `LIBDISPATCH_COOPERATIVE_POOL_STRICT=1` 的步骤。这次是同一类等待出现在库代码里，而且等待的一方在大栈线程上，那一步的套件名单没收它。
 
 ## 规则

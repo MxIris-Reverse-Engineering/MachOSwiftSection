@@ -32,7 +32,7 @@
 | baseline-generator | `Sources/Executables/baseline-generator/` | 33 | 从未 | — | — |
 | MachOSwiftSection | `Sources/ABI/MachOSwiftSection/` | 10,453 | 从未（改动集审过 2026-11-16） | — | 0 |
 | MachOSwiftSectionC | `Sources/ABI/MachOSwiftSectionC/` | 588 | 从未 | — | — |
-| MachOSymbols | `Sources/MachO/MachOSymbols/` | 3,207 | 从未（改动集审过 2026-11-16） | — | 1 |
+| MachOSymbols | `Sources/MachO/MachOSymbols/` | 3,207 | 从未（改动集审过 2026-11-16） | — | 0 |
 | MachODependencies | `Sources/MachO/MachODependencies/` | 1,156 | 从未（改动集审过 2026-11-16） | — | 0 |
 | MachOReading | `Sources/MachO/MachOReading/` | 1,416 | 从未（改动集审过 2026-11-16） | — | 0 |
 | MachOResolving | `Sources/MachO/MachOResolving/` | 431 | 从未（改动集审过 2026-11-16） | — | 0 |
@@ -85,4 +85,4 @@
 
 | 日期 | 分支 | 提交 | 范围 | 严重 bug | 结构类 | 报告 |
 |------|------|------|------|---------|--------|------|
-| 2026-11-16 | `next` | `1ba927ad` | 首次体检：改动集（自 `42cbf5d4`，2026-10-17 起 443 个文件）；改动集已覆盖大半模块，未轮转 | 9（2 待确认）；同日全部修掉；验证修复时另发现 1 条（卡死，未修） | 13 | [CodebaseAudit20261116.md](CodebaseAudit20261116.md) |
+| 2026-11-16 | `next` | `1ba927ad` | 首次体检：改动集（自 `42cbf5d4`，2026-10-17 起 443 个文件）；改动集已覆盖大半模块，未轮转 | 9（2 待确认）；同日全部修掉；验证修复时另发现 1 条（卡死），随后也修掉 | 13 | [CodebaseAudit20261116.md](CodebaseAudit20261116.md) |
