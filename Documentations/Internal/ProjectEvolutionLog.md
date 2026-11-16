@@ -3279,6 +3279,11 @@
 - **后续**：
   - 体检报告里复核为 PLAUSIBLE、未达门槛的 8 条线索没动。
 - **对应版本**：未发版。
+- **补记（同日，体检报告第 10 条）**：验证修复时发现的卡死已查明并修掉，分支 `fix/demangling-wave-hang`。
+  - 复现：在子进程里同时起「核数 × 2」个任务，各自在协作线程上同步读一个新建 storage 的 demangled index（`SymbolIndexDemangledIndexTests.firstReadersOnEveryCooperativeThreadAllFinish`），28 核的 Ultra 上也稳定卡住。
+  - 根因：协作线程全部同步阻塞时，它们仍占着同一 QoS 的并发额度，交给 `DispatchQueue.global()` 的那批 demangle 分不到线程，建索引的线程同步等它，整个进程停住。只用 GCD 的探针也一样：全局队列和私有并发队列都饿死，私有串行队列（挂在 overcommit 根队列上）0.07 秒就执行。
+  - 修法：`DemanglingWave` 改从私有串行队列起头，`concurrentPerform` 照常用满所有核。`AGENTS.md` 的异步一节加了这条规则，`Modules/MachOSymbols.md` 写明原因，回归测试所在的套件加进了 CI 名单。
+  - 验证：修复前回归测试两次都卡满看门狗，修复后单跑 15 秒通过。JHs-Mac-Studio-Ultra（macOS 27.2，Xcode 26.6，本地兄弟依赖）上全量 2,918 个测试只红 `FileMappingTests` 一条，是负载相关的既有问题。回归测试在全量里连排队一共 360 秒，所以子进程的看门狗定为 300 秒，真回归时子进程永远卡住，照样变红。
 
 ## 维护约定
 

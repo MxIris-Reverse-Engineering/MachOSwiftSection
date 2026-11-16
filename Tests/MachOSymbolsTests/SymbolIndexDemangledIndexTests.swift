@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+import MachOKit
 import MachOResolving
 @_spi(Internals) import Demangling
 @_spi(Internals) @testable import MachOSymbols
@@ -122,6 +123,43 @@ final class SymbolIndexDemangledIndexTests: MachOFileTests, @unchecked Sendable 
         }
         #expect(indexes.count == askerCount)
         #expect(Set(indexes).count == 1)
+    }
+
+    /// Twice as many first readers as the cooperative pool has threads, each
+    /// of a storage of its own, all asking from the pool at once: every pool
+    /// thread blocks on its large-stack hop while the builders wait for the
+    /// names they handed out to be demangled. Run in a child process with a
+    /// watchdog, so a hang fails the test instead of stopping the run.
+    @Test func firstReadersOnEveryCooperativeThreadAllFinish() async {
+        await #expect(processExitsWith: .success) {
+            Thread {
+                Thread.sleep(forTimeInterval: 300)
+                exit(EXIT_FAILURE)
+            }.start()
+            let machOFile: MachOFile
+            do {
+                switch try loadFromFile(named: .SymbolTestsCore) {
+                case .machO(let machO):
+                    machOFile = machO
+                case .fat(let fatFile):
+                    guard let machO = try fatFile.machOFiles().first(where: { $0.header.cpuType == .arm64 }) else { exit(EXIT_FAILURE) }
+                    machOFile = machO
+                }
+            } catch {
+                exit(EXIT_FAILURE)
+            }
+            let readerCount = ProcessInfo.processInfo.activeProcessorCount * 2
+            var storages: [SymbolIndexStore.Storage] = []
+            for _ in 0 ..< readerCount {
+                guard let storage = SymbolIndexStore.shared.buildStorageWithoutDemangledIndexForTesting(for: machOFile) else { exit(EXIT_FAILURE) }
+                storages.append(storage)
+            }
+            await withTaskGroup(of: Void.self) { group in
+                for storage in storages {
+                    group.addTask { _ = storage.demangledIndex }
+                }
+            }
+        }
     }
 
     private final class Collected: @unchecked Sendable {

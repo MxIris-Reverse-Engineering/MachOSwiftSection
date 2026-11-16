@@ -2020,7 +2020,18 @@ final class DemanglingWave: @unchecked Sendable {
         guard !rows.isEmpty else { return nil }
         let wave = DemanglingWave(rows: rows)
         let batchCount = (rows.count + batchSize - 1) / batchSize
-        let queue = DispatchQueue.global(qos: DispatchQoS.QoSClass(rawValue: qos_class_self()) ?? .default)
+        // A private serial queue: it targets an overcommit root queue, which
+        // gets a thread whatever the cooperative pool is doing. `global()` —
+        // and a private concurrent queue, which targets the same root — does
+        // not: while every cooperative thread of the class is blocked (first
+        // readers on each of them, waiting on their large-stack hops), they
+        // still count against the class's width, the block never starts, and
+        // the builder in `waitUntilDemangled()` waits for ever. That hung the
+        // whole test process on a 10-core machine. `concurrentPerform` runs
+        // iterations on its calling thread too, so a wave no other thread
+        // joins still finishes.
+        let qualityOfService = DispatchQoS.QoSClass(rawValue: qos_class_self()) ?? .default
+        let queue = DispatchQueue(label: "com.machoswiftsection.symbols.demangling-wave", qos: DispatchQoS(qosClass: qualityOfService, relativePriority: 0))
         queue.async(group: wave.group) {
             DispatchQueue.concurrentPerform(iterations: batchCount) { batchIndex in
                 let batchStart = rows.lowerBound + batchIndex * batchSize
