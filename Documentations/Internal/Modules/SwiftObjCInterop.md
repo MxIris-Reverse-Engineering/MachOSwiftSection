@@ -71,7 +71,7 @@ SE-0436 的 `@objc @implementation` 类编出来是纯 ObjC class object，没�
 - `ObjCImportedContainerIndex`（`SharedCache`，`.objcHierarchy` 分组）：每个类与 category 的记录——方法、属性、协议、父类、Swift 位——只存名字与编码，按运行时名或 `uniqueName` 查。协议记录沿用 `ObjCProtocolRecord`，同名时取 Swift 发出的那份。
 - `ObjCImportedMemberBuilder`：把一条记录建成成员（`ObjCImportedMember`）：属性排在 getter 的位置、getter 与 setter 不单列；不导入的 selector 跳过；参数类型先取类采纳的协议里同一 selector 的扩展编码，参数个数对不上时退回方法表的编码，再对不上就不建这个成员；所有权、是否要 `@objc(selector)` 也在这里定。
 - `ObjCImportedMemberNodes`：方法、属性、subscript 的 demangle 树，0079 的协议要求也经它建。
-- `ObjCImportedTypes`：编码里的类型换成 Swift 的类型树（对象是 `T!`，`NSString` 这类桥接成值类型；`r*` 即 `const char *` 是 `UnsafePointer<Int8>`，`*` 是 `UnsafeMutablePointer<Int8>`）；`ObjCBridgedStructures` 记哪些类导入成值类型，`@NSCopying` 据此判断。
+- `ObjCImportedTypes`：编码里的类型换成 Swift 的类型树（对象是 `T!`，`NSString` 这类桥接成值类型；`r*` 即 `const char *` 是 `UnsafePointer<Int8>`，`*` 是 `UnsafeMutablePointer<Int8>`；C 数组照 ClangImporter 导入成元组，单元素的是元素本身，超过 4,096 个元素的导入不了、指针指向它时是 `OpaquePointer`，嵌套数组展开超过 65,536 个元素也按导入不了处理）；`ObjCBridgedStructures` 记哪些类导入成值类型，`@NSCopying` 据此判断。
 
 ## 关键契约
 

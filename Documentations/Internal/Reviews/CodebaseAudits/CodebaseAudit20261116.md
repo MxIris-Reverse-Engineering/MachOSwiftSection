@@ -109,7 +109,7 @@
 
 - **位置**: `Sources/Analysis/SwiftObjCInterop/ObjCImportedTypes.swift:97-100`
 - **判定**: PLAUSIBLE
-- **状态**: 未修，待确认。
+- **状态**: 已修（同日，用户看过报告后批准），回归测试 `ObjCImportedMemberBuilderTests.aCArrayImportsAsClangImporterImportsIt`。
 - **失败场景**: C 数组按编码里的元素个数建等长 tuple，个数没有上限，`readNumber` 能读到接近 `Int.max`。编码 `^[999999999c]` 会让 `map` 分配十亿个节点。正常的方法与属性编码里 C 数组会退化成指针，只有指向数组的指针或畸形编码能走到这里。
 - **能复现吗**: 缺证据：要一个真实二进制里出现大数组的 `^[N…]` 编码，或人为构造。
 - **新的还是旧的**: `9dca5805`（2026-11-10），`main` 上没有。
@@ -258,7 +258,7 @@
 
 ## 修复（2026-11-16 同日）
 
-体检报告写完后，用户批准修第 1–7 条，第 8 条随第 2 条一起修，第 9 条不动；三条「建议不修」登记为已裁决清单的 A83–A85。分支 `fix/codebase-audit-2026-11-16`，每条都先写复现测试、确认它在修复前失败（第 2、7 条是子进程 SIGTRAP，其余是错误输出），修复后转绿。
+体检报告写完后，用户批准修第 1–7 条，第 8 条随第 2 条一起修；前八条验证完之后又批准修第 9 条；三条「建议不修」登记为已裁决清单的 A83–A85。分支 `fix/codebase-audit-2026-11-16`，每条都先写复现测试、确认它在修复前失败（第 2、7 条是子进程 SIGTRAP，其余是错误输出），修复后转绿。
 
 - **第 1 条**：`CrossReferenceAnalyzer.ClassArgumentReturn` 把 `objc_opt_class`（返回参数的类）与 `objc_opt_self`、`swift_getInitializedObjCClass`（原样返回参数）分开；`objc_opt_class` 之后，`x0` 只在类方法里或不是方法接收者时保留。函数表新增 `isObjectiveCClassMethod(at:)`。
 - **第 2 条**：参数个数守卫收成 `ObjCTypeEncodingParser.methodType(from:matchingArgumentsOf:)`，类成员（`ObjCImportedMemberBuilder`）与协议要求（`ObjCProtocolRequirements`）共用；协议要求也照类成员的做法，扩展编码不合时退回方法表的编码，再不合就不导入。顺带修了原来扩展编码解析失败、退回方法表编码时 `typeEncoding` 仍记扩展编码的不一致。
@@ -268,6 +268,7 @@
 - **第 6 条**：`ObservableMacroExpansionRecovery.isGeneratedFunction(name:node:)` 连形状一起比：`access`、`withMutation` 要求泛型、第一个参数是 `KeyPath`，`shouldNotifyObservers` 要求泛型、两个参数。
 - **第 7 条**：终端大小超出表尾时不再与游标相加，按「没有子节点」处理。
 - **第 8 条**：`ObjCProtocolRecord.make` 逐个核对扩展编码与方法表编码是否同一签名（擦掉类名、协议名与 block 签名后比较），有一个对不上就整组不用。
+- **第 9 条**（在 Ultra 上验证完前八条之后，用户批准一并修）：C 数组照 ClangImporter 的 `VisitConstantArrayType` 导入——超过 4,096 个元素的不导入（指针指向它时导入成 `OpaquePointer`），只有一个元素的导入成元素本身；嵌套数组展开后超过 65,536 个元素的同样当作导入不了，免得构造出来的编码让构建与打印没有尽头。顺带修了单元素数组印成一元元组的偏差。
 - **fixture 的扩充**：`SwiftDeclaredObjCProtocolsFixture` 的 kit 加 `KitWidget`、客户端加 `KitWidgetAdopted` 与对它的 extension；`ClassesWithoutClassObjectsFixture` 的客户端加第二个源文件与两个同名 private 泛型类；`ObservableMacroFixture` 加 `HandwrittenNamesModel`。列举协议、category 与被识别类的既有断言随之补上新成员。
 - **验证**：JHs-Mac-Studio-Ultra（macOS 27.2，Xcode 26.6，本地兄弟依赖）上全量 2,916 个测试只红 3 条，都是满负载下的既有偶发（`FileMappingTests`、`SharedCacheTests` 的重叠测试、`BoundedConcurrentMapTests` 的时限），单独重跑全过。JHs-Mac-Studio（10 核）上受影响的 22 个套件 118 个测试全过，并行全量两次卡死在第 10 条。没跑渲染 A/B：改动只影响上面几种具体形态的输出，不是大重构。
 
