@@ -47,6 +47,11 @@ package enum SwiftDeclaredObjCProtocolsFixture {
     @objc(KitSameName) public protocol KitSameName {
         func sameNameObserve()
     }
+
+    // A Swift class the client extends to adopt one of its own protocols.
+    open class KitWidget: NSObject {
+        public override init() { super.init() }
+    }
     """
 
     package static let swiftSource = """
@@ -133,6 +138,16 @@ package enum SwiftDeclaredObjCProtocolsFixture {
     // An extension of another module's class: a category lists the protocol.
     extension DateFormatter: SameNameRenamed {
         public func ping() {}
+    }
+
+    // The same for another module's Swift class: the category names it by
+    // its `_TtC` runtime name.
+    @objc public protocol KitWidgetAdopted {
+        func adoptedPoke()
+    }
+
+    extension KitWidget: KitWidgetAdopted {
+        public func adoptedPoke() {}
     }
 
     final class InternalConformer: NSObject, InternalProtocol {

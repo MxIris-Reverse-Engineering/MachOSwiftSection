@@ -63,10 +63,12 @@ package enum ObjCRuntimeNames {
         ])
     }
 
-    /// The node of a class declared in Swift — by its `_TtC` mangling, or
-    /// renamed by `machO` — and `nil` for any other name.
+    /// The node of a class declared in Swift — by its `_TtC` mangling or the
+    /// class metadata symbol a file's category is bound to
+    /// (`NodeTypeNaming.swiftClassNode(fromRuntimeName:)`), or renamed by
+    /// `machO` — and `nil` for any other name.
     package static func swiftClassNode(forRuntimeName runtimeName: String, in machO: some MachOSwiftSectionRepresentableWithCache) -> Node? {
-        if runtimeName.hasPrefix("_Tt"), let node = try? demangleAsNodeTransient(runtimeName), let classNode = node.first(of: .class) {
+        if let classNode = NodeTypeNaming.swiftClassNode(fromRuntimeName: runtimeName) {
             return classNode
         }
         if let descriptorOffset = SwiftClassObjectIndex.shared.classDescriptorOffset(forCustomRuntimeName: runtimeName, in: machO),
