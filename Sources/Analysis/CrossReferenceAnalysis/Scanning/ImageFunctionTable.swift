@@ -264,6 +264,13 @@ final class ImageFunctionTable: @unchecked Sendable {
         return (name[0] == 0x2D || name[0] == 0x2B) && name[1] == 0x5B
     }
 
+    /// Whether the function at `index` is an Objective-C class method
+    /// (`+[…]`), whose receiver is a class object.
+    func isObjectiveCClassMethod(at index: Int) -> Bool {
+        guard let name = primaryName(ofFunctionAt: index) else { return false }
+        return name[0] == 0x2B && name[1] == 0x5B
+    }
+
     /// The memory holding the instruction at the unslid `address`.
     func instructionPointer(at address: UInt64) -> UnsafePointer<UInt32> {
         UnsafeRawPointer(bitPattern: Int(bitPattern: UInt(address)) &+ slide)!.assumingMemoryBound(to: UInt32.self)

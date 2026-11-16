@@ -54,7 +54,7 @@ clang 把一部分发送编成对 libobjc 专用入口的调用：`[[Foo alloc] 
 - 入口按 libobjc 里的位置认，经桩、GOT 或共用桩到达都算；桩跟不过去、只剩导入名时按名字认。
 - 接收者按 `x0` 判断，与 `objc_msgSend` 相同。`objc_alloc_init` 在同一条指令上记 `alloc` 与 `init` 两条发送，`init` 发给 `alloc` 返回的实例，接收者记 `.unknown`。
 - 这些调用不再同时记成对 C 函数的调用：按函数查 `_objc_alloc_init` 的调用者没有结果，按 selector 查才对，与 `objc_msgSend` 的处理一致。
-- `objc_opt_self`、`objc_opt_class` 调用之后 `x0` 照旧保留（见「类引用」的类字面量接收者）。
+- `objc_opt_self` 调用之后 `x0` 照旧保留；`objc_opt_class` 只在 `x0` 是类对象时照旧保留（见「类引用」的类字面量接收者）。
 - `objc_retain`、`objc_release`、`objc_autorelease` 不算：ARC 插入的调用与源码里的 `[x retain]` 编出来是同一个调用，分不开，仍是运行时辅助调用。
 - selector 预筛（`imageIndices(referencingSelector:among:)`）对这几个 selector 另外留下导入或定义对应入口的镜像：只经 `objc_alloc_init` 发送 `init` 的镜像，`__objc_selrefs` 里根本没有 `init`。
 
@@ -102,7 +102,7 @@ SwiftThunkAnalysis 自己的 Capstone 解码器原先也把字面量 `ldr` 当�
 
 **类的身份带位置。** 全缓存 203,621 个类名里有 18,906 个不止一个镜像定义——多是 `/System/iOSSupport` 下的 Mac Catalyst 变体，两个 SwiftUI 都定义 `_TtC7SwiftUI13PinnedBarView`。引用表的键是类名（`CodeReferenceTable.Key.objectiveCClass`，预筛与过滤都按它），引用目标另带类对象的 `CodeLocation`，宿主按位置区分。`objectiveCClassLocations(named:inImageAt:)` 把宿主手里的（镜像，类名）换成位置。
 
-**类字面量接收者。** 发送时 `x0` 里是这样取来的类，接收者记为 `.classLiteral(名字)`（AppKit 35,175 处，发送的 11%）。`objc_opt_self`、`objc_opt_class`、`swift_getInitializedObjCClass` 原样返回传入的类，调用之后 `x0` 不作废：Swift 调 ObjC 类方法先过 `objc_opt_self`，SwiftUI 665 处类字面量接收者里 478 处经它。前两者本身也记成 `self`、`class` 发送（见「libobjc 的发送入口」）。
+**类字面量接收者。** 发送时 `x0` 里是这样取来的类，接收者记为 `.classLiteral(名字)`（AppKit 35,175 处，发送的 11%）。`objc_opt_self`、`swift_getInitializedObjCClass` 原样返回传入的参数，调用之后 `x0` 不作废：Swift 调 ObjC 类方法先过 `objc_opt_self`，SwiftUI 665 处类字面量接收者里 478 处经它。`objc_opt_class` 返回的是参数的类，只有参数本身是类对象时才等于参数：`x0` 是类字面量、或在类方法（`+[…]`）里是方法自己的接收者时照旧保留；在实例方法里，`[[self class] foo]` 的 `x0` 已是接收者的类而不是接收者，调用之后作废，接下来的发送记 `.unknown`（2026-11-16 体检第 1 条：此前一律保留，把对类方法的发送记成了发给实例，`ClassOfReceiverSendTests`）。`objc_opt_self`、`objc_opt_class` 本身也记成 `self`、`class` 发送（见「libobjc 的发送入口」）。
 
 **super 发送的类**取同一函数里从 `__objc_superrefs` 载入的类：分类方法（`-[NSDictionary(NSKeyValueCoding) valueForKey:]` 得到 `NSDictionary`）、类方法（槽里是元类，按类报）、没有符号的方法都对；没见到这种载入就退回方法符号里的类。这一载入本身不算类引用——它是编译器实现 `super` 的方式，报出来只会让每个调 `super` 的方法都「引用」了自己的类。Swift 代码的 super 发送不经 `__objc_superrefs`，类来自 `self` 的运行时类或元数据访问器的返回值，扫描不知道，类记为空：Foundation 1,803 处 super 发送里有 374 处、AppKit 8,336 处里有 1,133 处是这种，其余都有类。
 

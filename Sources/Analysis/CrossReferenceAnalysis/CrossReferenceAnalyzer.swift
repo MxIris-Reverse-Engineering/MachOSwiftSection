@@ -57,9 +57,9 @@ public final class CrossReferenceAnalyzer: @unchecked Sendable {
     /// `objc_opt_isKindOfClass` … — and the selectors each sends
     /// (`MessageSendEntryPoints`).
     let messageSendEntryPoints: [CodeLocation: [String]]
-    /// `objc_opt_self`, `objc_opt_class` and `swift_getInitializedObjCClass`:
-    /// each returns the class it was handed, so `x0` keeps naming it.
-    let classReturningFunctionLocations: Set<CodeLocation>
+    /// `objc_opt_self`, `objc_opt_class` and `swift_getInitializedObjCClass`,
+    /// and what each returns of the class it is handed in `x0`.
+    let classReturningFunctions: [CodeLocation: ClassArgumentReturn]
     /// The runtime's entry points that instantiate a type from its mangled
     /// name, and the register each takes the name in: `x0`, or `x1` for the
     /// `…InMetadataState` forms, whose first argument is the state.
@@ -163,7 +163,7 @@ public final class CrossReferenceAnalyzer: @unchecked Sendable {
         var superMessageSendLocations = Set<CodeLocation>()
         var runtimeHelperLocations = Set<CodeLocation>()
         var messageSendEntryPoints: [CodeLocation: [String]] = [:]
-        var classReturningFunctionLocations = Set<CodeLocation>()
+        var classReturningFunctions: [CodeLocation: ClassArgumentReturn] = [:]
         var typeByMangledNameEntries: [CodeLocation: Int] = [:]
         for (imageIndex, path) in imagePaths.enumerated() where Self.isRuntimeLibrary(path) {
             func classify(_ name: UnsafePointer<CChar>, at location: CodeLocation) {
@@ -173,9 +173,9 @@ public final class CrossReferenceAnalyzer: @unchecked Sendable {
                     superMessageSendLocations.insert(location)
                 } else if let selectors = MessageSendEntryPoints.selectors(ofSymbol: name) {
                     messageSendEntryPoints[location] = selectors
-                    if Self.returnsItsClassArgument(name) { classReturningFunctionLocations.insert(location) }
-                } else if Self.returnsItsClassArgument(name) {
-                    classReturningFunctionLocations.insert(location)
+                    if let classArgumentReturn = Self.classArgumentReturn(name) { classReturningFunctions[location] = classArgumentReturn }
+                } else if let classArgumentReturn = Self.classArgumentReturn(name) {
+                    classReturningFunctions[location] = classArgumentReturn
                 } else if strncmp(name, "_swift_getTypeByMangledNameIn", 29) == 0 {
                     typeByMangledNameEntries[location] = strstr(name, "InMetadataState") == nil ? 0 : 1
                 } else if RuntimeHelperNames.isRuntimeHelper(name) {
@@ -201,17 +201,30 @@ public final class CrossReferenceAnalyzer: @unchecked Sendable {
         self.superMessageSendLocations = superMessageSendLocations
         self.runtimeHelperLocations = runtimeHelperLocations
         self.messageSendEntryPoints = messageSendEntryPoints
-        self.classReturningFunctionLocations = classReturningFunctionLocations
+        self.classReturningFunctions = classReturningFunctions
         self.typeByMangledNameEntries = typeByMangledNameEntries
         #else
         return nil
         #endif
     }
 
+    /// What a runtime function returns of the class it is handed in `x0`.
+    enum ClassArgumentReturn: Hashable, Sendable {
+        /// `objc_opt_self`, `swift_getInitializedObjCClass`: the argument
+        /// itself, whatever it is.
+        case argument
+        /// `objc_opt_class`: the argument's class — the argument itself only
+        /// when it is a class object. An instance method's `[self class]` is
+        /// the receiver's class, not the receiver.
+        case classOfArgument
+    }
+
     /// `objc_opt_self`, `objc_opt_class`, `swift_getInitializedObjCClass`:
-    /// the class they are handed is what they return.
-    static func returnsItsClassArgument(_ name: UnsafePointer<CChar>) -> Bool {
-        strcmp(name, "_objc_opt_self") == 0 || strcmp(name, "_objc_opt_class") == 0 || strcmp(name, "_swift_getInitializedObjCClass") == 0
+    /// what each returns of the class it is handed; `nil` for any other.
+    static func classArgumentReturn(_ name: UnsafePointer<CChar>) -> ClassArgumentReturn? {
+        if strcmp(name, "_objc_opt_self") == 0 || strcmp(name, "_swift_getInitializedObjCClass") == 0 { return .argument }
+        if strcmp(name, "_objc_opt_class") == 0 { return .classOfArgument }
+        return nil
     }
 
     /// The libraries whose exported helpers a scan recognizes, and whose

@@ -40,9 +40,9 @@ struct ReferenceScanner {
     private var resolvedTargets: [UInt64: ResolvedTarget] = [:]
     private var selectorNames: [UInt: String] = [:]
     private var importedNames: [UInt: String] = [:]
-    /// Whether the call being decoded is to a function that returns the class
-    /// it was handed (`objc_opt_self` …), so `x0` survives it.
-    private var callReturnsArgument = false
+    /// What the call being decoded returns of the class it was handed
+    /// (`objc_opt_self` …), which decides whether `x0` survives it.
+    private var callClassArgumentReturn: CrossReferenceAnalyzer.ClassArgumentReturn?
     /// The function being scanned, and the class its last load from
     /// `__objc_superrefs` yielded: a super send in it starts above that class.
     private var currentFunctionIndex = 0
@@ -115,6 +115,7 @@ struct ReferenceScanner {
         let words = table.instructionPointer(at: start)
         let instructionCount = Int((end - start) / 4)
         let isObjectiveCMethod = table.isObjectiveCMethod(at: index)
+        let isObjectiveCClassMethod = isObjectiveCMethod && table.isObjectiveCClassMethod(at: index)
 
         registers.reset()
         if isObjectiveCMethod { registers.setMethodReceiver(0) }
@@ -137,11 +138,16 @@ struct ReferenceScanner {
             previousInstructionTransfers = false
 
             if let target = ARM64InstructionWord.callTarget(word, at: instructionAddress) {
-                callReturnsArgument = false
+                callClassArgumentReturn = nil
                 noteCall(to: target, at: instructionAddress, in: function, kind: .call, isObjectiveCMethod: isObjectiveCMethod, references: &references)
-                if callReturnsArgument {
+                switch callClassArgumentReturn {
+                case .argument?:
                     registers.clobberCallerSavedRegisters(keeping: 0)
-                } else {
+                // A class object's class is itself; an instance method's
+                // receiver is an instance, whose class is not what `x0` named.
+                case .classOfArgument? where isObjectiveCClassMethod || !registers.holdsMethodReceiver(0):
+                    registers.clobberCallerSavedRegisters(keeping: 0)
+                default:
                     registers.clobberCallerSavedRegisters()
                 }
             } else if let target = ARM64InstructionWord.branchTarget(word, at: instructionAddress) {
@@ -302,10 +308,10 @@ struct ReferenceScanner {
         switch resolve(target) {
         case .selector(let selector):
             referenceTarget = .messageSend(selector: selectorName(selector), receiver: receiverHint(isObjectiveCMethod: isObjectiveCMethod))
-        case .entryPoint(let selectors, let returnsItsClassArgument):
+        case .entryPoint(let selectors, let classArgumentReturn):
             referenceTarget = .messageSend(selector: selectors[0], receiver: receiverHint(isObjectiveCMethod: isObjectiveCMethod))
             followingSendSelectors = selectors.dropFirst()
-            callReturnsArgument = returnsItsClassArgument
+            callClassArgumentReturn = classArgumentReturn
         case .function(let functionTarget):
             switch functionTarget.messageSendKind {
             case .classic?:
@@ -323,14 +329,14 @@ struct ReferenceScanner {
             case nil:
                 referenceTarget = .function(functionTarget.location)
                 isRuntimeHelperCall = functionTarget.isRuntimeHelper
-                callReturnsArgument = functionTarget.returnsItsClassArgument
+                callClassArgumentReturn = functionTarget.classArgumentReturn
                 calledTypeFunction = functionTarget.typeFunction
             }
         case .importedSymbol(let name):
             let importedName = importedSymbolName(name)
             referenceTarget = .importedSymbol(name: importedName)
             isRuntimeHelperCall = RuntimeHelperNames.isRuntimeHelper(name)
-            callReturnsArgument = CrossReferenceAnalyzer.returnsItsClassArgument(name)
+            callClassArgumentReturn = CrossReferenceAnalyzer.classArgumentReturn(name)
             if let accessorSymbol = Self.accessorSymbol(name) { calledTypeFunction = .accessorSymbol(accessorSymbol) }
         case .unrecognized:
             referenceTarget = .unrecognized(address: target)
@@ -654,7 +660,7 @@ struct ReferenceScanner {
         var messageSendKind: MessageSendKind?
         /// `swift_getInitializedObjCClass`; `objc_opt_self` and
         /// `objc_opt_class` resolve as the entry points they are.
-        var returnsItsClassArgument = false
+        var classArgumentReturn: CrossReferenceAnalyzer.ClassArgumentReturn?
         var typeFunction: TypeFunction?
     }
 
@@ -663,9 +669,9 @@ struct ReferenceScanner {
         /// A stub that names its selector.
         case selector(UnsafePointer<CChar>)
         /// A libobjc entry point that stands for these sends, the first to
-        /// the receiver in `x0`; `returnsItsClassArgument` as for
+        /// the receiver in `x0`; `classArgumentReturn` as for
         /// `FunctionTarget`.
-        case entryPoint(selectors: [String], returnsItsClassArgument: Bool)
+        case entryPoint(selectors: [String], classArgumentReturn: CrossReferenceAnalyzer.ClassArgumentReturn?)
         case importedSymbol(UnsafePointer<CChar>)
         case unrecognized
     }
@@ -696,7 +702,7 @@ struct ReferenceScanner {
             }
             if let name = stub.name {
                 if let selectors = MessageSendEntryPoints.selectors(ofSymbol: name) {
-                    return .entryPoint(selectors: selectors, returnsItsClassArgument: CrossReferenceAnalyzer.returnsItsClassArgument(name))
+                    return .entryPoint(selectors: selectors, classArgumentReturn: CrossReferenceAnalyzer.classArgumentReturn(name))
                 }
                 return .importedSymbol(name)
             }
@@ -753,11 +759,11 @@ struct ReferenceScanner {
             return .function(functionTarget)
         }
         if let selectors = analyzer.messageSendEntryPoints[location] {
-            return .entryPoint(selectors: selectors, returnsItsClassArgument: analyzer.classReturningFunctionLocations.contains(location))
+            return .entryPoint(selectors: selectors, classArgumentReturn: analyzer.classReturningFunctions[location])
         }
         functionTarget.isRuntimeHelper = analyzer.runtimeHelperLocations.contains(location)
             || (location.imageIndex == table.imageIndex && table.runtimeHelperStarts.contains(location.address))
-        functionTarget.returnsItsClassArgument = analyzer.classReturningFunctionLocations.contains(location)
+        functionTarget.classArgumentReturn = analyzer.classReturningFunctions[location]
         if detectsTypeFunctions { functionTarget.typeFunction = typeFunction(at: location) }
         return .function(functionTarget)
     }
