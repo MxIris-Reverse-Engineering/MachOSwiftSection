@@ -66,10 +66,7 @@ extension TypeDefinition {
             ignoredStoredPropertyNames: recovered.ignoredStoredPropertyNames,
             generatedFunctions: functions.filter { function in
                 !function.isGlobalOrStatic
-                    && ObservableMacroExpansionRecovery.isGeneratedFunction(
-                        name: function.name,
-                        argumentLabels: ObservableMacroExpansionRecovery.argumentLabels(ofFunction: function.node.materialize())
-                    )
+                    && ObservableMacroExpansionRecovery.isGeneratedFunction(name: function.name, node: function.node.materialize())
             }
         )
     }

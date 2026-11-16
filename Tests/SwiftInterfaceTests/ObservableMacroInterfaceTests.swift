@@ -65,6 +65,16 @@ struct ObservableMacroInterfaceTests {
 
     // MARK: - The folded form
 
+    /// Methods the source declares under the generated ones' names, in
+    /// shapes the macro does not generate — no parameters, another
+    /// parameter type — are the source's: the folded form prints them.
+    @Test(arguments: [ObservableMacroFixture.Variant.debug, .release])
+    func methodsNamedLikeTheGeneratedOnesArePrinted(variant: ObservableMacroFixture.Variant) async throws {
+        let print = try await indexed(variant).printedType("HandwrittenNamesModel")
+        #expect(print.contains("func shouldNotifyObservers()"), "\(print)")
+        #expect(print.contains("func access(keyPath: Swift.String)"), "\(print)")
+    }
+
     @Test(arguments: [ObservableMacroFixture.Variant.debug, .release])
     func theFoldedFormReadsLikeTheSource(variant: ObservableMacroFixture.Variant) async throws {
         let print = try await indexed(variant).printedType("FinalModel")
