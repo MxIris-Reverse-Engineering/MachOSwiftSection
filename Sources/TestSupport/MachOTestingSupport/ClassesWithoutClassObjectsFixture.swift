@@ -10,6 +10,9 @@ import Testing
 /// domain, a class with generic ancestry — beside a class with a class
 /// object, the negative control.
 ///
+/// Two same-named private generic classes, one in each of the client's two
+/// source files, are what no name the index gives tells apart.
+///
 /// Two images: the Swift kit `libClassesWithoutClassObjectsFixtureKit`
 /// (library evolution, so its `ResilientBase` is resilient to the client)
 /// and the client itself, in two variants:
@@ -93,6 +96,29 @@ package enum ClassesWithoutClassObjectsFixture {
     public class PlainWidget: NSObject {
         @objc public func plainPoke() {}
     }
+
+    // Same-named as the one in `SecondFile.swift`: both private and generic,
+    // so the index names both `SameNamedPrivateGeneric<A>`.
+    private class SameNamedPrivateGeneric<Element>: NSObject {
+        @objc func firstFilePoke() {}
+    }
+
+    public func makeFirstFilePrivateGeneric() -> NSObject {
+        SameNamedPrivateGeneric<Int>()
+    }
+    """
+
+    /// The client's second source file.
+    package static let secondSwiftSource = """
+    import Foundation
+
+    private class SameNamedPrivateGeneric<Element>: NSObject {
+        @objc func secondFilePoke() {}
+    }
+
+    public func makeSecondFilePrivateGeneric() -> NSObject {
+        SameNamedPrivateGeneric<Int>()
+    }
     """
 
     package struct CompilationError: Swift.Error, CustomStringConvertible {
@@ -129,8 +155,10 @@ package enum ClassesWithoutClassObjectsFixture {
             let kitSourceURL = workingDirectory.appendingPathComponent("Kit.swift")
             let kitLibraryURL = workingDirectory.appendingPathComponent("lib\(kitModuleName).dylib")
             let swiftSourceURL = workingDirectory.appendingPathComponent("Fixture.swift")
+            let secondSwiftSourceURL = workingDirectory.appendingPathComponent("SecondFile.swift")
             try kitSource.write(to: kitSourceURL, atomically: true, encoding: .utf8)
             try swiftSource.write(to: swiftSourceURL, atomically: true, encoding: .utf8)
+            try secondSwiftSource.write(to: secondSwiftSourceURL, atomically: true, encoding: .utf8)
 
             // Install names are the absolute output paths, which is what the
             // client's load commands then spell — so the in-process leg loads
@@ -151,7 +179,7 @@ package enum ClassesWithoutClassObjectsFixture {
                 try run(step: "swiftc (\(variant.rawValue))", [
                     "swiftc", "-swift-version", "5", "-emit-library", "-Onone", "-module-name", moduleName,
                     "-I", workingDirectory.path,
-                    swiftSourceURL.path, kitLibraryURL.path, "-framework", "Foundation",
+                    swiftSourceURL.path, secondSwiftSourceURL.path, kitLibraryURL.path, "-framework", "Foundation",
                     "-o", clientLibraryURL.path,
                 ])
                 if variant == .strippedLocals {

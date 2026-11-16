@@ -155,19 +155,29 @@ package final class SwiftClassWithoutClassObjectIndex: @unchecked Sendable {
         /// In type-context-descriptor order.
         let classes: [SwiftClassWithoutClassObject]
 
+        /// The classes by name, a name several classes share left out: no
+        /// lookup by it can tell which is meant.
         let classesByName: [String: SwiftClassWithoutClassObject]
 
-        /// Swift qualified name → names. More than one entry means same-named
-        /// private classes from different files, as in the ObjC-side indexes.
+        /// Swift qualified name → names, one per class. More than one entry
+        /// means same-named private classes from different files, as in the
+        /// ObjC-side indexes — the same name twice for two generic ones,
+        /// which the name does not tell apart (`Module.Box<A>`).
         let namesBySwiftQualifiedName: [String: [String]]
 
         init(classes: [SwiftClassWithoutClassObject]) {
             self.classes = classes
             var classesByName: [String: SwiftClassWithoutClassObject] = [:]
+            var sharedNames: Set<String> = []
             var namesBySwiftQualifiedName: [String: [String]] = [:]
-            for swiftClass in classes where classesByName[swiftClass.name] == nil {
-                classesByName[swiftClass.name] = swiftClass
+            for swiftClass in classes {
                 namesBySwiftQualifiedName[swiftClass.qualifiedName, default: []].append(swiftClass.name)
+                if classesByName.updateValue(swiftClass, forKey: swiftClass.name) != nil {
+                    sharedNames.insert(swiftClass.name)
+                }
+            }
+            for name in sharedNames {
+                classesByName[name] = nil
             }
             self.classesByName = classesByName
             self.namesBySwiftQualifiedName = namesBySwiftQualifiedName
@@ -198,7 +208,8 @@ package final class SwiftClassWithoutClassObjectIndex: @unchecked Sendable {
         storage(in: machO)?.classes ?? []
     }
 
-    /// The class that goes by `name` on the Objective-C side.
+    /// The class that goes by `name` on the Objective-C side; `nil` when
+    /// none does, or when several do.
     package func swiftClass(named name: String, in machO: some MachORepresentableWithCache) -> SwiftClassWithoutClassObject? {
         storage(in: machO)?.classesByName[name]
     }
