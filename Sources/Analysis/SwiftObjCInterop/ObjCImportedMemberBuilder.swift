@@ -221,18 +221,13 @@ package enum ObjCImportedMemberBuilder {
             // An adopted protocol's extended encoding names what the method
             // list's leaves as `@`. Either has to take one argument per
             // colon of the selector, or the names and types would not pair.
-            let argumentCount = method.selector.count(where: { $0 == ":" })
-            func argumentMatchedMethodType(from encoding: String) -> ObjCMethodTypeEncoding? {
-                guard let parsed = ObjCTypeEncodingParser.methodType(from: encoding), parsed.parameterTypes.count == argumentCount else { return nil }
-                return parsed
-            }
             let encoding: String
             let methodType: ObjCMethodTypeEncoding
             if let extendedEncoding = adoptedProtocolEncoding(of: method.selector, isClassMember: isClassMember),
-               let extendedMethodType = argumentMatchedMethodType(from: extendedEncoding) {
+               let extendedMethodType = ObjCTypeEncodingParser.methodType(from: extendedEncoding, matchingArgumentsOf: method.selector) {
                 encoding = extendedEncoding
                 methodType = extendedMethodType
-            } else if let plainMethodType = argumentMatchedMethodType(from: method.typeEncoding) {
+            } else if let plainMethodType = ObjCTypeEncodingParser.methodType(from: method.typeEncoding, matchingArgumentsOf: method.selector) {
                 encoding = method.typeEncoding
                 methodType = plainMethodType
             } else {

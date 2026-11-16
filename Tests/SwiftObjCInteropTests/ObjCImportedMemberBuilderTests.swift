@@ -137,4 +137,18 @@ struct ObjCImportedMemberBuilderTests {
         // A non-object property has none.
         #expect(try property("level").ownership == nil)
     }
+
+    /// `const char *` — `r*` in an encoding — imports as `UnsafePointer`, as
+    /// the importer has it: `NSString.utf8String`, whose getter's encoding is
+    /// `r*16@0:8`.
+    @Test func aConstantCStringImportsAsAnImmutablePointer() throws {
+        _ = dlopen("/System/Library/Frameworks/Foundation.framework/Foundation", RTLD_NOW)
+        let foundation = try #require(MachOImage(named: .Foundation))
+        let members = try Self.members(ofClassNamed: "NSString", in: foundation)
+        let utf8String = try #require(members.first { $0.selector == "UTF8String" }, "NSString has no UTF8String")
+        #expect(utf8String.typeEncoding.contains("r*"), "\(utf8String.typeEncoding)")
+        let printed = Self.printed(utf8String)
+        #expect(printed.contains("UnsafePointer<Swift.Int8>"), "\(printed)")
+        #expect(!printed.contains("UnsafeMutablePointer"), "\(printed)")
+    }
 }

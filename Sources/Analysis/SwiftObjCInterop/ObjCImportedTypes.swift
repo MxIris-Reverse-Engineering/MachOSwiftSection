@@ -73,7 +73,7 @@ package struct ObjCImportedTypes<MachO: MachOSwiftSectionRepresentableWithCache>
         case .unsignedLongLong: return Self.swiftStructure("UInt")
         case .float: return Self.swiftStructure("Float")
         case .double, .longDouble: return Self.swiftStructure("Double")
-        case .characterString: return Self.boundGenericStructure(Self.swiftStructure("UnsafeMutablePointer"), arguments: [Self.swiftStructure("Int8")])
+        case .characterString(let isConst): return Self.boundGenericStructure(Self.swiftStructure(isConst ? "UnsafePointer" : "UnsafeMutablePointer"), arguments: [Self.swiftStructure("Int8")])
         case .selector: return Self.structure(module: "ObjectiveC", name: "Selector")
         case .objectClass: return Node.createTransient(kind: .typeAlias, children: [Self.module("Swift"), Node.createTransient(kind: .identifier, text: "AnyClass")])
         case .object(let className, let protocolNames): return objectNode(className: className, protocolNames: protocolNames)

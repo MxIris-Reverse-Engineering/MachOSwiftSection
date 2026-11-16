@@ -181,8 +181,22 @@ package enum ObjCProtocolRequirementBuilder {
         }
 
         private func methodRequirement(_ method: ObjCProtocolRecord.Method, isClassMethod: Bool, isOptional: Bool, methodsBySelector: [String: ObjCProtocolRecord.Method]) -> ObjCProtocolRequirement? {
-            let encoding = method.extendedTypeEncoding ?? method.typeEncoding
-            guard let methodType = ObjCTypeEncodingParser.methodType(from: encoding) ?? ObjCTypeEncodingParser.methodType(from: method.typeEncoding) else { return nil }
+            // The extended encoding names what the method list's leaves as
+            // `@`. Either has to take one argument per colon of the
+            // selector, or the names and types would not pair — as for a
+            // class's members (`ObjCImportedMemberBuilder`).
+            let encoding: String
+            let methodType: ObjCMethodTypeEncoding
+            if let extendedTypeEncoding = method.extendedTypeEncoding,
+               let extendedMethodType = ObjCTypeEncodingParser.methodType(from: extendedTypeEncoding, matchingArgumentsOf: method.selector) {
+                encoding = extendedTypeEncoding
+                methodType = extendedMethodType
+            } else if let plainMethodType = ObjCTypeEncodingParser.methodType(from: method.typeEncoding, matchingArgumentsOf: method.selector) {
+                encoding = method.typeEncoding
+                methodType = plainMethodType
+            } else {
+                return nil
+            }
             let name = ObjCImporterNaming.importedName(selector: method.selector, isClassMethod: isClassMethod, methodType: methodType, contextTypeName: contextTypeName, propertyNames: propertyNames, undoesSwiftInsertedWith: declaringLanguage == .swift)
             switch name.kind {
             case .subscriptSetter:
