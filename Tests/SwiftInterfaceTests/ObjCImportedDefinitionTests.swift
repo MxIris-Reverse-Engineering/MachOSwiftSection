@@ -78,6 +78,41 @@ struct ObjCImportedDefinitionTests {
         #expect(!printed.contains("describe() -> Swift.String!"), "\(printed)")
     }
 
+    /// An `@objc @implementation` class shaped like an OS framework's
+    /// (evolution proposal `swift-first-imported-declarations`): optimized
+    /// and stripped, so the thunks carry no symbol and call no Swift member,
+    /// and the joined tiers tie almost nothing. It prints as its Swift side:
+    /// the Swift members, the header's refined property as the Swift members
+    /// implementing and replacing it, and what the Swift side lacks from the
+    /// Objective-C side.
+    @Test func anOptimizedStrippedImplementationClassPrintsAsItsSwiftSide() async throws {
+        let builder = try await builder(of: ObjCImplementationFixture.machOFile(.optimizedStripped))
+        let definition = try #require(builder.indexer.objcImportedClassDefinition(named: "ScenePresentationWidget"))
+        let printed = try await builder.printer.printObjCImportedClassDefinition(definition).string
+        #expect(printed.contains("class ScenePresentationWidget: __C.NSObject {"), "\(printed)")
+        // The Swift name, which the importer only reaches knowing the
+        // parameter's type — not `isHostingSceneLayer(_:)`.
+        #expect(printed.contains("func isHosting(sceneLayer: __C.PresentationSceneLayer) -> Swift.Bool"), "\(printed)")
+        #expect(!printed.contains("isHostingSceneLayer"), "\(printed)")
+        // `layerFilter`: the `__` member implementing it, and the Swift-only
+        // member the header leaves the plain name to.
+        #expect(printed.contains("var __layerFilter: __C.PresentationFilter"), "\(printed)")
+        #expect(printed.contains("var layerFilter: ObjCImplementationFixture.PresentationFilterValue"), "\(printed)")
+        #expect(!printed.contains("var layerFilter: __C.PresentationFilter!"), "\(printed)")
+        // `settings`: the Swift-only member, and the Objective-C property its
+        // implementation left no symbol of, under the name Swift gives it.
+        #expect(printed.contains("var settings: ObjCImplementationFixture.PresentationSettingsValue"), "\(printed)")
+        #expect(printed.contains("// NS_REFINED_FOR_SWIFT: var __settings: __C.PresentationSettings!"), "\(printed)")
+        #expect(!printed.contains("var settings: __C.PresentationSettings!"), "\(printed)")
+        // A stored property whose setter left no symbol is settable when
+        // Objective-C has a setter, and `weak` as Objective-C says.
+        #expect(printed.contains("weak var scene: __C.NSObject?"), "\(printed)")
+        // A stored property no symbol names: the Objective-C property
+        // synthesized on it, not a comment about its ivar.
+        #expect(printed.contains("var observers: Any"), "\(printed)")
+        #expect(!printed.contains("stored property observers"), "\(printed)")
+    }
+
     @Test func aSwiftClassPrintsAsItself() async throws {
         let builder = try await fixtureBuilder()
         let runtimeName = try #require(builder.indexer.objcImportedClassRuntimeNames.first { $0.hasSuffix("SwiftDerivedWidget") })

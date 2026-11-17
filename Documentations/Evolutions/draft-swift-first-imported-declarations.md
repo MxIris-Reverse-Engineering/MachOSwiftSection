@@ -1,6 +1,6 @@
 # Draft - Swift 实现的类，导入声明以 Swift 一侧为准
 
-- **状态**: Accepted
+- **状态**: In Progress
 - **创建日期**: 2026-11-17
 - **最后更新**: 2026-11-17
 - **关联提案**: [0090-objc-imported-declarations](0090-objc-imported-declarations.md)（本提案改它的「与 Swift 合并」）、[0048-objc-member-selector-recovery](0048-objc-member-selector-recovery.md)（把 ObjC 方法联结到 Swift 成员的三档证据）、[0046-objc-implementation-class-recognition](0046-objc-implementation-class-recognition.md)（认出 `@objc @implementation` 类）；RuntimeViewer 的提案 0084（Generated Interface）
@@ -111,7 +111,7 @@ ObjC 头文件，改后（节选）：
 
 ### 落地步骤
 
-1. MachOObjCSection：头文件渲染接受宿主给的 Swift 导入标注、打出 `NS_REFINED_FOR_SWIFT`；测试覆盖属性、实例方法、类方法，不传标注时输出逐字节不变，marked 形式投影后与普通形式一致；文档写进它的使用指南「库调用方」一节与下一个版本的 Changelog。
+1. （已完成）MachOObjCSection：头文件渲染接受宿主给的 Swift 导入标注、打出 `NS_REFINED_FOR_SWIFT`；测试覆盖属性、实例方法、类方法，不传标注时输出逐字节不变，marked 形式投影后与普通形式一致；文档写进它的使用指南「库调用方」一节与下一个版本的 Changelog。
 2. 本库测试先红：夹具加一个照 `SHScenePresentation` 写的 `@implementation` 类，成员 `public`，像系统框架那样留下导出符号——一个让 importer 把类型名拆成标签的方法（`isHosting(sceneLayer:)` 那种）、一对 `NS_REFINED_FOR_SWIFT` 属性加同名的纯 Swift 属性（一个留下 `__` 成员的符号、一个不留）、一个 `weak` 可写存储属性、一个只留 ivar 的存储属性。在 `.optimizedStripped` 变体上断言 Generated Interface 与改名查询的结果，先确认它们在改动前失败。
 3. 本库实现：配对、打印形状、改了 Swift 名字的成员（判定、Swift 视图的注释、给宿主的查询）、存储属性的两条。
 4. RuntimeViewer：抬两个库的修订号；ObjC 头文件的显示与 Find 语料带上标注，测试接线；在 App 里看 `SHScenePresentation` 复核（交互验收由用户做）。
