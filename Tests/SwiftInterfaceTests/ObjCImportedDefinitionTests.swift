@@ -92,7 +92,7 @@ struct ObjCImportedDefinitionTests {
         #expect(printed.contains("class ScenePresentationWidget: __C.NSObject {"), "\(printed)")
         // The Swift name, which the importer only reaches knowing the
         // parameter's type — not `isHostingSceneLayer(_:)`.
-        #expect(printed.contains("func isHosting(sceneLayer: __C.PresentationSceneLayer) -> Swift.Bool"), "\(printed)")
+        #expect(printed.contains("func isHosting(sceneLayer: __C.FXSceneLayer) -> Swift.Bool"), "\(printed)")
         #expect(!printed.contains("isHostingSceneLayer"), "\(printed)")
         // `layerFilter`: the `__` member implementing it, and the Swift-only
         // member the header leaves the plain name to.
@@ -111,6 +111,19 @@ struct ObjCImportedDefinitionTests {
         // synthesized on it, not a comment about its ivar.
         #expect(printed.contains("var observers: Any"), "\(printed)")
         #expect(!printed.contains("stored property observers"), "\(printed)")
+    }
+
+    /// The Swift interface of the implementation itself: a stored property
+    /// whose setter left no symbol, of a settable `weak` Objective-C property
+    /// (evolution proposal `swift-first-imported-declarations`). It used to
+    /// print `let scene`.
+    @Test func aStoredPropertyIsAsSettableAndWeakAsItsObjectiveCProperty() async throws {
+        let builder = try await builder(of: ObjCImplementationFixture.machOFile(.optimizedStripped))
+        let definition = try #require(builder.indexer.objcImportedClassDefinition(named: "ScenePresentationWidget"))
+        let implementation = try #require(definition.swiftExtensions.first { $0.objcImplementation != nil })
+        let printed = try await builder.printer.printExtensionDefinition(implementation).string
+        #expect(printed.contains("weak var scene: __C.NSObject?"), "\(printed)")
+        #expect(!printed.contains("let scene"), "\(printed)")
     }
 
     @Test func aSwiftClassPrintsAsItself() async throws {
