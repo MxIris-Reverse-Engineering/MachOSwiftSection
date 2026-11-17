@@ -52,6 +52,10 @@ package struct ObjCImportedMember: Sendable {
     /// (`ObjCMemberShape.defaultSelector()`), as for `convert(_:fromView:)`,
     /// whose selector is `convertPoint:fromView:`.
     package let hasExplicitSelector: Bool
+    /// A property's name in the property list, which a header's
+    /// `@property` declares (`hidden` for the `isHidden` getter); `nil` for
+    /// every other member.
+    package var objcPropertyName: String? = nil
 
     package var isSettable: Bool {
         setterSelector != nil
@@ -196,7 +200,8 @@ package enum ObjCImportedMemberBuilder {
                 node: nodes.propertyNode(contextNode: contextNode, name: name, type: type, isClassMember: isClassMember),
                 typeEncoding: attributes,
                 ownership: Self.ownership(type: type, attributes: attributes),
-                hasExplicitSelector: ObjCImportedMemberBuilder.hasExplicitSelector(getterSelector: accessors.getterSelector, propertyName: name, isClassMember: isClassMember)
+                hasExplicitSelector: ObjCImportedMemberBuilder.hasExplicitSelector(getterSelector: accessors.getterSelector, propertyName: name, isClassMember: isClassMember),
+                objcPropertyName: accessors.property.name
             )
         }
 

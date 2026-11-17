@@ -128,7 +128,7 @@ SE-0436 的类在 `__swift5_*` 里没有身影，模型里它就是那个 `__C.X
 
 镜像里的 ObjC 类、category 与协议，按 Swift 导入它们的样子建成 `ObjCImportedClassDefinition`、`ObjCImportedCategoryDefinition`、`ObjCImportedProtocolDefinition`（提案 [0090-objc-imported-declarations](../../Evolutions/0090-objc-imported-declarations.md)）。一个镜像的 ObjC 类动辄上千，所以它们不随 `prepare()` 建，而是由 `SwiftDeclarationIndexer` 的 `objcImportedClassDefinition(named:)` 等方法按名字现建，第一次打印时索引自己：从 SwiftObjCInterop 的记录建出成员（`ObjCImportedMemberDefinition`）、父类与协议的名字。名字保持 `__C` 下的 ObjC 名，与 mangling 一致，Swift 里改了名的交给打印时的类型名提供者。
 
-类与 category 定义带着实现它们的 Swift 定义：桥接出去的 Swift 类带 `swiftClassDefinition`，`swiftExtensions` 是本镜像里这个类的 Swift extension。成员与 Swift 成员的配对在打印器里做（按 Swift 成员的 `objcMember`），模型不记。建这两样时有两个容易踩的坑：
+类与 category 定义带着实现它们的 Swift 定义：桥接出去的 Swift 类带 `swiftClassDefinition`，`swiftExtensions` 是本镜像里这个类的 Swift extension。成员与 Swift 成员的配对在打印器里做（SwiftPrinting 的 `ObjCImplementingSwiftMembers`），模型不记：先认索引期按符号记下的 `objcMember`，再认按名字记下的 override，剩下的在打印时按名字配——系统框架剥掉 thunk 符号、`-O` 把函数体内联进 thunk，前两档配不上多少（提案 `swift-first-imported-declarations`）。属性成员带着 ObjC 属性表里的名字（`objcPropertyName`），宿主按它给头文件的 `@property` 标注。建这两样时有两个容易踩的坑：
 
 - **同一模块里 extension 的成员在 mangling 里就是类型自己的成员**（extension 没有约束时不带 extension 上下文），所以它们已经在 `TypeDefinition` 里，`typeExtensionDefinitions` 里没有对应的 extension。
 - **`TypeDefinition.extensions` 没有人填**，一直是空的。要一个类型在本镜像里的 extension，按 `typeName.extensionName` 去查 indexer 的 `typeExtensionDefinitions` 与 `conformanceExtensionDefinitions`。

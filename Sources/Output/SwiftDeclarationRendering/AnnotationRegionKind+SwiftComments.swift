@@ -90,6 +90,11 @@ extension AnnotationRegion.Kind {
     /// requirement whose symbol was stripped still records.
     public static let strippedSymbolicRequirement = Self("strippedSymbolicRequirement")
 
+    /// `// NS_REFINED_FOR_SWIFT: var __settings: __C.SHScenePresentationSettings! { get set }`:
+    /// in the Swift view of an Objective-C class, a member the header refines
+    /// for Swift whose Swift declaration the image keeps no symbol of.
+    public static let refinedForSwiftMember = Self("refinedForSwiftMember")
+
     // Comments only the dump prints, and the dump marks none.
 
     package static let deletedMethodSlot = Self("deletedMethodSlot")

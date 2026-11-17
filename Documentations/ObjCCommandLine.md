@@ -102,10 +102,17 @@ class NSColor: __C.NSObject, __C.NSAccessibilityColor, __C.CAAnimatableValue, __
 - **The types are what the binary records.** An object whose nullability is unknown prints as
   `T!`, as Swift imports a header without nullability annotations; an enum or option-set
   argument prints as its integer type; imported types keep their Objective-C names under `__C`.
-- **What Swift implements prints as Swift declares it.** A Swift class prints as the Swift class,
-  and a member of an `@objc @implementation` class or of a Swift extension prints as that Swift
-  member. The binary's Swift declarations are indexed first for this, so `--swift` takes longer
-  than the header: about 16 seconds for AppKit.
+- **What Swift implements prints as Swift declares it.** A Swift class prints as the Swift class.
+  An `@objc @implementation` class prints as its Swift side: the implementation's body under the
+  class's own declaration, its Swift-only members included, then the Objective-C methods no Swift
+  member answers to. A member of a Swift extension prints as that Swift member. An OS framework
+  strips the thunks and inlines the bodies into them, so a member the symbols do not tie is paired
+  with the Swift member the importer's rules name after its selector, when that is the only one
+  and its type fits. A property the header marks `NS_REFINED_FOR_SWIFT` is implemented under a
+  `__` name; when that implementation left no symbol, the property shows as a comment,
+  `// NS_REFINED_FOR_SWIFT: var __settings: …`. A stored property whose type the binary does not
+  record prints as the Objective-C property synthesized on it. The binary's Swift declarations are
+  indexed first for this, so `--swift` takes longer than the header: about 16 seconds for AppKit.
 - **A class shows its own members.** The linker merges a binary's categories on its own classes
   into the classes, so they print as members of the class; in a dyld shared cache, the categories
   the cache attached to a class ahead of time are left out. Only a category on a class of

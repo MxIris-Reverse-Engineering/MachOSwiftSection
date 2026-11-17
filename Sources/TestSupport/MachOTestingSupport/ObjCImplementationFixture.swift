@@ -111,6 +111,32 @@ package enum ObjCImplementationFixture {
     - (void)drawInRect:(NSRect)rect;
     @end
 
+    // Shaped after SceneHosting's `SHScenePresentation` on macOS 27.2
+    // (evolution proposal `swift-first-imported-declarations`): an
+    // `@objc @implementation` class shipped optimized and stripped, whose
+    // header refines two properties for Swift. `isHostingSceneLayer:` takes
+    // the Swift name `NS_SWIFT_NAME` gives it, as SceneHosting's does: the
+    // importer alone keeps `isHostingSceneLayer(_:)`.
+    @interface FXSceneLayer : NSObject
+    @end
+
+    @interface PresentationFilter : NSObject
+    @end
+
+    @interface PresentationSettings : NSObject
+    @end
+
+    @interface ScenePresentationWidget : NSObject
+    @property (nonatomic, strong) id observers;
+    @property (nonatomic, weak, nullable) NSObject *scene;
+    @property (nonatomic) NSInteger priority;
+    @property (nonatomic, readonly) BOOL isActive;
+    @property (nonatomic, strong) PresentationFilter *layerFilter NS_REFINED_FOR_SWIFT;
+    @property (nonatomic, strong) PresentationSettings *settings NS_REFINED_FOR_SWIFT;
+    - (BOOL)isHostingSceneLayer:(FXSceneLayer *)sceneLayer NS_SWIFT_NAME(isHosting(sceneLayer:));
+    - (void)activate;
+    @end
+
     NS_ASSUME_NONNULL_END
     """
 
@@ -121,6 +147,15 @@ package enum ObjCImplementationFixture {
     - (void)bump { self.tally += 1; }
     - (void)ping { self.tally += 2; }
     + (NSInteger)pingCount { return 1; }
+    @end
+
+    @implementation FXSceneLayer
+    @end
+
+    @implementation PresentationFilter
+    @end
+
+    @implementation PresentationSettings
     @end
     """
 
@@ -259,6 +294,54 @@ package enum ObjCImplementationFixture {
     public class SwiftGrandchildWidget: SwiftDerivedWidget {
         public override func dynamicHook() { super.dynamicHook() }
         public func widgetWillPing() {}
+    }
+
+    // Shaped after SceneHosting's `SHScenePresentation` (evolution proposal
+    // `swift-first-imported-declarations`). `public` members keep their
+    // symbols through `strip -x`, as an OS framework's exports do, and under
+    // `-O` the thunks inline the bodies and call none of them. A refined
+    // property's implementation takes the `__` name Swift imports it under and
+    // spells the selector out. `__settings` is internal, so the optimized
+    // stripped image keeps no symbol of the member implementing the header's
+    // `settings`, nor `observers` of its storage; `scene`'s setter is
+    // internal, so its getter and field offset survive alone.
+    public struct PresentationFilterValue {
+        public var isEnabled = true
+    }
+
+    public struct PresentationSettingsValue {
+        public var level = 0
+    }
+
+    @objc @implementation extension ScenePresentationWidget {
+        var observers: Any = NSNull()
+        public internal(set) weak var scene: NSObject?
+        public var priority: Int = 0
+        public var isActive: Bool { priority > 0 }
+        @objc(layerFilter) public var __layerFilter: PresentationFilter {
+            get { PresentationFilter() }
+            set { priority += newValue.hash & 1 }
+        }
+        public final var layerFilter: PresentationFilterValue {
+            get { PresentationFilterValue(isEnabled: priority > 0) }
+            set { priority = newValue.isEnabled ? 1 : 0 }
+        }
+        @objc(settings) var __settings: PresentationSettings {
+            get { PresentationSettings() }
+            set { priority += newValue.hash & 1 }
+        }
+        public final var settings: PresentationSettingsValue {
+            get { PresentationSettingsValue(level: priority) }
+            set { priority = newValue.level }
+        }
+        // The compiler derives `isHostingWithSceneLayer:` from the Swift name,
+        // so the body spells the header's selector, as for `draw(in:)`.
+        @objc(isHostingSceneLayer:) public func isHosting(sceneLayer: FXSceneLayer) -> Bool {
+            sceneLayer.hash == priority
+        }
+        public func activate() {
+            priority += 1
+        }
     }
     """
 

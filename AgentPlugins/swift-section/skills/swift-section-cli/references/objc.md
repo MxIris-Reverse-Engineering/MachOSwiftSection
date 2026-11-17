@@ -90,8 +90,12 @@ swift-section objc evolution \
   its integer type), collection element types, nullability (objects print as `T!`). Imported
   types keep their Objective-C names under `__C`. Where the printed name would not lead the
   compiler back to the selector, `@objc(selector)` pins it — trust the selector over the name.
-  What Swift implements prints as Swift declares it: a Swift class as the Swift class, the
-  members of an `@objc @implementation` class or a Swift extension as those Swift members. A
+  What Swift implements prints as Swift declares it: a Swift class as the Swift class, an
+  `@objc @implementation` class as its implementation's body (its Swift-only members too) with
+  the Objective-C methods no Swift member answers to last, the members of a Swift extension as
+  those Swift members. In an OS framework the thunks are stripped and inlined, so members are
+  paired by name; a property the header marks `NS_REFINED_FOR_SWIFT` whose Swift implementation
+  left no symbol shows as a `// NS_REFINED_FOR_SWIFT: var __name: …` comment. A
   class shows only its own members: the linker merges a binary's categories on its own classes
   into them, and the categories a dyld cache attached ahead of time are left out, so only a
   category on another binary's class is a category. It indexes the binary's Swift side first,

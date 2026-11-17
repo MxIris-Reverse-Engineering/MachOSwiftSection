@@ -3285,6 +3285,24 @@
   - 修法：`DemanglingWave` 改从私有串行队列起头，`concurrentPerform` 照常用满所有核。`AGENTS.md` 的异步一节加了这条规则，`Modules/MachOSymbols.md` 写明原因，回归测试所在的套件加进了 CI 名单。
   - 验证：修复前回归测试两次都卡满看门狗，修复后单跑 15 秒通过。JHs-Mac-Studio-Ultra（macOS 27.2，Xcode 26.6，本地兄弟依赖）上全量 2,918 个测试只红 `FileMappingTests` 一条，是负载相关的既有问题。回归测试在全量里连排队一共 360 秒，所以子进程的看门狗定为 300 秒，真回归时子进程永远卡住，照样变红。
 
+## （落地时编号）Swift 实现的类，导入声明以 Swift 一侧为准
+
+- **时间段**：2026-11-17，三个仓库同名的分支 `feature/swift-first-imported-declarations`（本库 worktree `.worktrees/MachOSwiftSection-SwiftFirstImportedDeclarations`）。在 JHs-Mac-Studio 上写，在 JHs-MacBook-Pro 上构建与测试：JHs-Mac-Studio-Ultra 当天连不上 GitHub。
+- **动机**：RuntimeViewer 的 Generated Interface 显示 macOS 27.2 SceneHosting 的 `SHScenePresentation`（`@objc @implementation` 类）时，只有 5 个成员用上 Swift 声明，其余按 selector 推导（`isHostingSceneLayer(_: Any!)`）。系统框架剥掉 thunk 符号、`-O` 把函数体内联进 thunk，0048 的前两档配不上，按名字的第三档只算 override。用户要求 Swift 实现的类以 Swift 一侧为准，并让 ObjC 头文件标出 `NS_REFINED_FOR_SWIFT`。提案 [draft-swift-first-imported-declarations](../Evolutions/draft-swift-first-imported-declarations.md)，三个库共用。
+- **关键决策**：
+  - `@objc @implementation` 类改成桥接 Swift 类那样的形状：类体是实现的 Swift 一侧，纯 Swift 成员也在，没有 Swift 成员回答的 ObjC 方法放最后；category 与 ObjC 实现的类仍逐个成员替换。
+  - 按名字配对在打印时做（`ObjCImplementingSwiftMembers`），不改 0048 在索引期记下的事实；认 `NS_REFINED_FOR_SWIFT` 的 `__` 前缀并优先于同名的纯 Swift 成员；类型明显对不上的不配（`ObjCSwiftTypeCompatibility`）；两边都只有对方一个候选时才配。
+  - 「改名成员」两种：配上 `__` 成员的有凭据；同名 Swift 属性类型对不上的 ObjC 属性是推断，只用于属性。推断的那种在导入声明里打成结构化注释（`refinedForSwiftMember` 种类），交给宿主的查询是 `objcMembersRefinedForSwift(in:)`，用本库自己的类型——本库按版本依赖 MachOObjCSection，它的新接口（`ObjCSwiftImportNotes`）只在它的 `next` 上。
+  - `@implementation` 存储属性的 `var` / `weak` 取自 ObjC 属性特性，Swift 一侧的 interface 同样生效；只剩 ivar 的存储属性在导入声明里打成同名 ObjC 属性的导入形式。
+- **落地**：
+  - SwiftObjCInterop：`ObjCSwiftTypeCompatibility`、`ObjCMemberShape.removingRefinedForSwiftPrefix`、`ObjCImplementationClassFacts.objcProperty(storedIn:swiftPropertyName:)` 与 `Property` 的特性判断、`ObjCImportedMember.objcPropertyName`。
+  - SwiftDeclaration：`ObjCImportedMemberDefinition.objcPropertyName`。SwiftIndexing：`objcClassRuntimeNamesExtendedInSwift`。
+  - SwiftPrinting：`ObjCImplementingSwiftMembers`（从打印器文件里移出、改按位置配对）、`ObjCRefinedForSwiftMember`、`objcMembersRefinedForSwift(in:)`、`@implementation` 类的 Swift 优先打印、`printExtensionBodyContents`（扩展体与导入声明共用）、存储属性的 `var` / `weak`。SwiftDeclarationRendering：`StructuredComment.refinedForSwiftMember(declaration:)` 与注释种类 `refinedForSwiftMember`。
+  - 测试：夹具加 `ScenePresentationWidget`（仿 `SHScenePresentation`）；`ObjCImportedDefinitionTests` 四个新用例、`ObjCMemberRecoveryTests` 一个、新的 `ObjCSwiftTypeCompatibilityTests`、`StructuredCommentTests` 一条期望；识别测试的类集合加上新类。
+  - 文档：`ObjCCommandLine.md`「The Swift view」、插件 skill 的 `references/objc.md`、`Modules/SwiftObjCInterop.md`、`Modules/SwiftDeclaration.md`、术语表（新词「改名成员」）。
+- **验证**：JHs-MacBook-Pro（macOS 27.2，Xcode 27.2，本地兄弟依赖只配了 swift-demangling `next`）。新测试改动前失败（夹具编过后 11 处），改动后相关套件全过；全量（`--skip IntegrationTests`）有 167 个失败点，与同机同夹具跑不含改动的 `next` 完全相同——SymbolTests 夹具的 ABI 基线按 Xcode 26.6 录，这台只有 27.2，另有 `SymbolicDemanglerTests` 要的模拟器 SwiftUI 不在。
+- **对应版本**：未发版。
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节
