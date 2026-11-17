@@ -102,7 +102,7 @@ struct ObjCImportedDefinitionTests {
         // `settings`: the Swift-only member, and the Objective-C property its
         // implementation left no symbol of, under the name Swift gives it.
         #expect(printed.contains("var settings: ObjCImplementationFixture.PresentationSettingsValue"), "\(printed)")
-        #expect(printed.contains("// NS_REFINED_FOR_SWIFT: var __settings: __C.PresentationSettings!"), "\(printed)")
+        #expect(printed.contains("// NS_REFINED_FOR_SWIFT: var __settings: __C.PresentationSettings! { get set }\n"), "\(printed)")
         #expect(!printed.contains("var settings: __C.PresentationSettings!"), "\(printed)")
         // A stored property whose setter left no symbol is settable when
         // Objective-C has a setter, and `weak` as Objective-C says.

@@ -190,7 +190,9 @@ extension SwiftDeclarationPrinter {
         for extensionDefinition in implementationExtensions {
             guard let facts = extensionDefinition.objcImplementation else { continue }
             for instanceVariable in extensionDefinition.unrepresentedObjCImplementationInstanceVariables where instanceVariable.swiftTypeNode == nil && !instanceVariable.name.isEmpty {
-                guard let property = facts.properties.first(where: { $0.instanceVariableName == instanceVariable.name }),
+                // A property's attributes name its ivar (`V…`) when the
+                // compiler wrote one; otherwise it is the ivar's namesake.
+                guard let property = facts.objcProperty(storedIn: instanceVariable, swiftPropertyName: instanceVariable.swiftPropertyName ?? instanceVariable.name),
                       let index = members.indices.first(where: { members[$0].kind == .property && !members[$0].isClassMember && members[$0].objcPropertyName == property.name && swiftMembers.member(answeringMemberAt: $0) == nil })
                 else { continue }
                 indicesByInstanceVariable[ObjectIdentifier(instanceVariable)] = index
@@ -286,7 +288,11 @@ extension SwiftDeclarationPrinter {
     @SemanticStringBuilder
     private func printUnansweredObjCImportedMember(_ member: ObjCImportedMemberDefinition, refinement: ObjCImplementingSwiftMembers.Refinement?, level: Int) async -> SemanticString {
         if refinement == .nameTakenByAnotherDeclaration, let refinedMember = refinedForSwiftMember(of: member) {
+            // On one line, as a line comment holds it: `{ get set }`.
             let declaration = await printObjCImportedMember(refinedMember, level: level).string
+                .split(whereSeparator: \.isNewline)
+                .map { $0.trimmingCharacters(in: .whitespaces) }
+                .joined(separator: " ")
             comment(.refinedForSwiftMember(declaration: declaration), as: .refinedForSwiftMember)
         } else {
             await printObjCImportedMember(member, level: level)
