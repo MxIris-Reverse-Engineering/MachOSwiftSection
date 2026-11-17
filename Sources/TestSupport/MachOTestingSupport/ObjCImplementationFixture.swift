@@ -334,7 +334,9 @@ package enum ObjCImplementationFixture {
             get { PresentationSettingsValue(level: priority) }
             set { priority = newValue.level }
         }
-        public func isHosting(sceneLayer: FXSceneLayer) -> Bool {
+        // The compiler derives `isHostingWithSceneLayer:` from the Swift name,
+        // so the body spells the header's selector, as for `draw(in:)`.
+        @objc(isHostingSceneLayer:) public func isHosting(sceneLayer: FXSceneLayer) -> Bool {
             sceneLayer.hash == priority
         }
         public func activate() {
