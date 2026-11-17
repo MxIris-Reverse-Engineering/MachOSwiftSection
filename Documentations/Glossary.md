@@ -308,7 +308,7 @@ opaque 尖括号参数归属的第三条规则：协议无任何 anchor 命中�
 
 ### refined member（改名成员，`NS_REFINED_FOR_SWIFT`）
 
-头文件标了 `NS_REFINED_FOR_SWIFT` 的 ObjC 成员：Swift 导入它时名字前加 `__`（属性名、方法基名、初始化器的第一个标签），原名留给一个包装它的纯 Swift 声明。二进制不记这个宏，本库从 Swift 一侧认：有凭据的是配上了 `__` 开头的 Swift 成员（`layerFilter` ↔ `__layerFilter`）；推断的是没有 Swift 成员回答的 ObjC 属性，而同名的 Swift 属性类型明显不可能是它（`settings` 对上本模块的 struct）——Swift 不允许一个类型里有两个同名属性。方法只认前者：方法能按参数类型重载，同名说明不了改过名。导入声明把推断出的这种属性打成 `// NS_REFINED_FOR_SWIFT: var __name: …` 注释；`SwiftDeclarationPrinter.objcMembersRefinedForSwift(in:)` 交给宿主，由它在 ObjC 头文件里打回这个宏。
+头文件标了 `NS_REFINED_FOR_SWIFT` 的 ObjC 成员：Swift 导入它时名字前加 `__`（属性名、方法基名、初始化器的第一个标签），原名留给一个包装它的纯 Swift 声明。二进制不记这个宏，本库从 Swift 一侧认：有凭据的是配上了 `__` 开头的 Swift 成员（`layerFilter` ↔ `__layerFilter`）；推断的是没有 Swift 成员回答的 ObjC 属性，而同名的 Swift 属性类型明显不可能是它（`settings` 对上本模块的 struct）——Swift 不允许一个类型里有两个同名属性。方法只认前者：方法能按参数类型重载，同名说明不了改过名。导入声明把推断出的这种属性打成 `// NS_REFINED_FOR_SWIFT: var __name: …` 注释，挂在占了它原名的 Swift 属性正上方；`SwiftDeclarationPrinter.objcMembersRefinedForSwift(in:)` 交给宿主，由它在 ObjC 头文件里打回这个宏。
 
 - **主要出现在**：`Sources/Output/SwiftPrinting/ObjCImplementingSwiftMembers.swift`、`ObjCRefinedForSwiftMember.swift`，`Sources/Analysis/SwiftObjCInterop/ObjCSwiftTypeCompatibility.swift`
 - **延伸阅读**：提案 `swift-first-imported-declarations`

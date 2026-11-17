@@ -17,7 +17,7 @@ RuntimeViewer 的 Generated Interface 显示 macOS 27.2 共享缓存里 SceneHos
 
 ### 打印形状
 
-- **`@objc @implementation` 类**（类的 Swift extension 里有 0046 认出的 `@implementation` 主体）改成与桥接出去的 Swift 类同一种形状：类头仍取 ObjC 记录的父类与协议；类体是 Swift 一侧 interface 里 `@implementation` extension 的内容，存储属性、`final` 的纯 Swift 成员都在；本镜像里这个类的其余 Swift extension 跟在类后面；ObjC 方法表里没有 Swift 成员回答的，按规则推导、加注明，放在类体最后。
+- **`@objc @implementation` 类**（类的 Swift extension 里有 0046 认出的 `@implementation` 主体）改成与桥接出去的 Swift 类同一种形状：类头仍取 ObjC 记录的父类与协议；类体是 Swift 一侧 interface 里 `@implementation` extension 的内容，存储属性、`final` 的纯 Swift 成员都在；本镜像里这个类的其余 Swift extension 跟在类后面；ObjC 方法表里没有 Swift 成员回答的，按规则推导、加注明，放在类体最后——推断出改了名的属性除外，它的注释挂在占了它原名的 Swift 属性正上方（见「改了 Swift 名字的成员」）。
 - 桥接出去的 Swift 类形状不变。ObjC 实现、只被 Swift 扩展的类（夹具里的 `ClangWidget`）与 category 仍逐个成员替换。三种都用下面的配对：Swift 类末尾那个「没有 Swift 成员回答」的 extension 会少掉误列的成员。
 
 ### 配对：哪个 ObjC 成员有 Swift 成员回答
@@ -38,7 +38,9 @@ RuntimeViewer 的 Generated Interface 显示 macOS 27.2 共享缓存里 SceneHos
 
 两边怎么标：
 
-- **Swift 视图**（Generated Interface）：有凭据的照 Swift 一侧打（`var __layerFilter: …`）。推断的没有 Swift 符号可抄，在类体末尾打一条结构化注释（`StructuredComment`），内容是按 importer 规则推出的 `__` 声明。
+- **Swift 视图**（Generated Interface）：有凭据的照 Swift 一侧打（`var __layerFilter: …`）。推断的没有 Swift 符号可抄，打一条结构化注释（`StructuredComment`），内容是按 importer 规则推出的 `__` 声明，压成一行：
+  - **位置**：`@objc @implementation` 类里，挂在占了它原名的那个 Swift 属性正上方（`var settings: ScenePresentationSettings` 的上一行），排在那个属性自己的注释（地址、偏移）之前，不再进类体末尾那组；那组因此变空时，那行说明也不打。类体里没有那个 Swift 属性时留在原处：ObjC 实现、只被 Swift 扩展的类，类体按 ObjC 方法表逐个打，纯 Swift 属性不在里面；导出过滤（`--exported-only`）滤掉那个 Swift 属性时也一样，免得注释随它一起消失。
+  - **分段**：注释里的声明按结构分段，宿主可以像字段偏移树的行那样分色。`NS_REFINED_FOR_SWIFT` 是 `.label`，后面的 `: ` 是 `.separator`；声明里属性名 `__settings` 是 `.name`，类型 `__C.SHScenePresentationSettings!` 是 `.type`；`var `、声明里的 `: `、` { get set }` 不带角色——宿主会藏起 `.separator` 里的标点，声明里的冒号不能是 separator。各段取自结构，不切打印出的文字：名字与修饰词取自声明打印出的组件（名字是语义类型为 `.variable` 的那个），类型由 `TypeNodePrinter` 单独打印属性的类型节点，访问器块取自 `AccessorBlockKeywords`。
 - **ObjC 头文件**：两种都在声明的分号前打 `NS_REFINED_FOR_SWIFT`。头文件由 MachOObjCSection 打印，由宿主告诉它哪些成员要打（见「三个库各做什么」）。
 
 ### Swift 一侧缺、ObjC 一侧有的事实
@@ -70,11 +72,11 @@ class SHScenePresentation: __C.NSObject {
     var __layerFilter: __C.SHSceneLayerFilter { get set }
     var layerFilter: SceneHosting.SceneLayerFilter { get set }
     @objc var priority: Swift.Int { get set }
+    // NS_REFINED_FOR_SWIFT: var __settings: __C.SHScenePresentationSettings! { get set }
     var settings: SceneHosting.ScenePresentationSettings { get set }
     func isHosting(sceneLayer: __C.FBSceneLayer) -> Swift.Bool
 
     // Objective-C methods of the class that no Swift member answers to. …
-    // NS_REFINED_FOR_SWIFT: var __settings: __C.SHScenePresentationSettings! { get set }
 }
 ```
 
@@ -138,3 +140,4 @@ ObjC 头文件，改后（节选）：
 | 2026-11-17 | `NS_REFINED_FOR_SWIFT` 注释把声明压成一行（`{ get set }`） | 原样打印时访问器块占好几行，只有第一行在注释里 |
 | 2026-11-17 | 夹具照编译器的要求写：改名属性的实现写成 `@objc(name) var __name`；`isHostingSceneLayer:` 的 Swift 名由头文件的 `NS_SWIFT_NAME` 给，实现写 `@objc(isHostingSceneLayer:)` | 编译器拒绝不写 selector 的 `__name`（它从 Swift 名推出 `__name`，头文件里没有），也从 `isHosting(sceneLayer:)` 推出 `isHostingWithSceneLayer:`；importer 自己不会把 `isHostingSceneLayer:` 拆成 `isHosting(sceneLayer:)`，参数类带前缀也一样，所以 SceneHosting 的这个名字来自 `NS_SWIFT_NAME`，后续项据此更正 |
 | 2026-11-17 | 实现完成，待用户看过后收尾 | 三个库在 JHs-MacBook-Pro（macOS 27.2，Xcode 27.2）上验证：MachOObjCSection 的 `ObjCInterfaceTests` 与 `ObjCDeclarationRenderingTests` 全过；本库新测试改动前失败、改动后通过，相关套件全过，全量（跳过 IntegrationTests）与不含改动的 `next` 失败点完全相同（167 处，SymbolTests 夹具的 ABI 基线按 Xcode 26.6 录、模拟器 runtime 缺文件）；RuntimeViewerCore 的新测试与 Generated Interface 测试全过。RuntimeViewer 锁文件里两个库的修订号留到正式收尾再抬：两个库的改动那时才进各自的 `next`。不另写实现说明与使用指南：契约写进了两份模块参考、命令行指南与 MachOObjCSection 的使用指南；新术语「改名成员」与 MachOObjCSection 的「Swift 导入标注」已登记 |
+| 2026-11-17 | 推断出改了名的属性，注释挂到占了它原名的 Swift 属性正上方（排在那个属性自己的注释之前）；注释里的声明分段：属性名 `.name`、类型 `.type`，`var `、声明里的冒号和访问器块不带角色。类体里没有那个 Swift 属性、或导出过滤滤掉了它时，注释留在原处 | 用户在 RuntimeViewer 里看过效果后定的：注释放在类体末尾，离它说的那个属性太远；整条声明是一个 `.value` 段，宿主只能整段一个颜色。宿主会藏起 `.separator` 里的标点，所以声明里的冒号不能标成 separator |

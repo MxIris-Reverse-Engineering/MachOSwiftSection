@@ -3292,7 +3292,7 @@
 - **关键决策**：
   - `@objc @implementation` 类改成桥接 Swift 类那样的形状：类体是实现的 Swift 一侧，纯 Swift 成员也在，没有 Swift 成员回答的 ObjC 方法放最后；category 与 ObjC 实现的类仍逐个成员替换。
   - 按名字配对在打印时做（`ObjCImplementingSwiftMembers`），不改 0048 在索引期记下的事实；认 `NS_REFINED_FOR_SWIFT` 的 `__` 前缀并优先于同名的纯 Swift 成员；类型明显对不上的不配（`ObjCSwiftTypeCompatibility`）；两边都只有对方一个候选时才配。
-  - 「改名成员」两种：配上 `__` 成员的有凭据；同名 Swift 属性类型对不上的 ObjC 属性是推断，只用于属性。推断的那种在导入声明里打成结构化注释（`refinedForSwiftMember` 种类），交给宿主的查询是 `objcMembersRefinedForSwift(in:)`，用本库自己的类型——本库按版本依赖 MachOObjCSection，它的新接口（`ObjCSwiftImportNotes`）只在它的 `next` 上。
+  - 「改名成员」两种：配上 `__` 成员的有凭据；同名 Swift 属性类型对不上的 ObjC 属性是推断，只用于属性。推断的那种在导入声明里打成结构化注释（`refinedForSwiftMember` 种类），挂在占了它原名的 Swift 属性正上方，声明里的属性名与类型各成一段（`.name`、`.type`），供宿主分色——这两点是用户在 RuntimeViewer 里看过效果后追加的；交给宿主的查询是 `objcMembersRefinedForSwift(in:)`，用本库自己的类型——本库按版本依赖 MachOObjCSection，它的新接口（`ObjCSwiftImportNotes`）只在它的 `next` 上。
   - `@implementation` 存储属性的 `var` / `weak` 取自 ObjC 属性特性，Swift 一侧的 interface 同样生效；只剩 ivar 的存储属性在导入声明里打成同名 ObjC 属性的导入形式。
 - **落地**：
   - SwiftObjCInterop：`ObjCSwiftTypeCompatibility`、`ObjCMemberShape.removingRefinedForSwiftPrefix`、`ObjCImplementationClassFacts.objcProperty(storedIn:swiftPropertyName:)` 与 `Property` 的特性判断、`ObjCImportedMember.objcPropertyName`。
