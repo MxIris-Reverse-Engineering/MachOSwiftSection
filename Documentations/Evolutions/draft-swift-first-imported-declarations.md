@@ -112,14 +112,14 @@ ObjC 头文件，改后（节选）：
 ### 落地步骤
 
 1. （已完成）MachOObjCSection：头文件渲染接受宿主给的 Swift 导入标注、打出 `NS_REFINED_FOR_SWIFT`；测试覆盖属性、实例方法、类方法，不传标注时输出逐字节不变，marked 形式投影后与普通形式一致；文档写进它的使用指南「库调用方」一节与下一个版本的 Changelog。
-2. 本库测试先红：夹具加一个照 `SHScenePresentation` 写的 `@implementation` 类，成员 `public`，像系统框架那样留下导出符号——一个让 importer 把类型名拆成标签的方法（`isHosting(sceneLayer:)` 那种）、一对 `NS_REFINED_FOR_SWIFT` 属性加同名的纯 Swift 属性（一个留下 `__` 成员的符号、一个不留）、一个 `weak` 可写存储属性、一个只留 ivar 的存储属性。在 `.optimizedStripped` 变体上断言 Generated Interface 与改名查询的结果，先确认它们在改动前失败。
+2. 本库测试先红：夹具加一个照 `SHScenePresentation` 写的 `@implementation` 类，成员 `public`，像系统框架那样留下导出符号——一个头文件用 `NS_SWIFT_NAME` 改了 Swift 名的方法（`isHosting(sceneLayer:)` 那种）、一对 `NS_REFINED_FOR_SWIFT` 属性加同名的纯 Swift 属性（一个留下 `__` 成员的符号、一个不留）、一个 `weak` 可写存储属性、一个只留 ivar 的存储属性。在 `.optimizedStripped` 变体上断言 Generated Interface 与改名查询的结果，先确认它们在改动前失败。
 3. 本库实现：配对、打印形状、改了 Swift 名字的成员（判定、Swift 视图的注释、给宿主的查询）、存储属性的两条。
 4. RuntimeViewer：抬两个库的修订号；ObjC 头文件的显示与 Find 语料带上标注，测试接线；在 App 里看 `SHScenePresentation` 复核（交互验收由用户做）。
 5. 文档：模块参考 SwiftObjCInterop 与 SwiftDeclaration 里「ObjC 声明按 Swift 导入的样子」、命令行指南的「The Swift view」、演进账本、术语表；插件 skill 里讲 `objc interface --swift` 输出的地方一并核对。
 
 ## 后续项
 
-- `NS_SWIFT_NAME`：配上的 Swift 成员的名字与 importer 推出的名字不同时，头文件里打 `NS_SWIFT_NAME(…)`。推导要用上 Swift 成员的参数类型——只凭 `@` 推不准，`isHostingSceneLayer:` 拿 `FBSceneLayer` 才推得出 `isHosting(sceneLayer:)`。MachOObjCSection 的标注已为它留了位置。
+- `NS_SWIFT_NAME`：配上的 Swift 成员的名字与 importer 推出的名字不同时，头文件里打 `NS_SWIFT_NAME(…)`。`SHScenePresentation` 的 `isHosting(sceneLayer:)` 就是这样：夹具实测 importer 自己只给 `isHostingSceneLayer(_:)`，参数是 `FXSceneLayer` 这种带前缀的类也一样，这个名字只能来自头文件的 `NS_SWIFT_NAME`。比较要用上 Swift 成员的参数类型——只凭 `@` 推出的名字本来就偏。MachOObjCSection 的标注已为它留了位置。
 - `swift-section objc interface` 与 `objc dump` 也打这个宏：要 MachOObjCSection 先发带新接口的版本，本库再抬依赖下限。
 
 ## 决策日志
@@ -131,3 +131,4 @@ ObjC 头文件，改后（节选）：
 | 2026-11-17 | 本库用自己的类型给出改了名的成员，由 RuntimeViewer 转成 MachOObjCSection 的输入；`swift-section` 的 ObjC 头文件暂不打这个宏 | 本库按版本依赖 MachOObjCSection，直接用它的新类型就得先发版、再抬下限；RuntimeViewer 按分支依赖两个库，不用等 |
 | 2026-11-17 | 三个库共用这一份提案，另两个仓库的提案索引各加一行 cross-repository draft | 一次改动一份提案；MachOObjCSection 的索引里已有这种跨仓库草案的先例 |
 | 2026-11-17 | 用户批准，开始实现 | 按 MachOObjCSection → 本库 → RuntimeViewer 的顺序做，三个仓库各一条 `feature/swift-first-imported-declarations` |
+| 2026-11-17 | 夹具照编译器的要求写：改名属性的实现写成 `@objc(name) var __name`；`isHostingSceneLayer:` 的 Swift 名由头文件的 `NS_SWIFT_NAME` 给，实现写 `@objc(isHostingSceneLayer:)` | 编译器拒绝不写 selector 的 `__name`（它从 Swift 名推出 `__name`，头文件里没有），也从 `isHosting(sceneLayer:)` 推出 `isHostingWithSceneLayer:`；importer 自己不会把 `isHostingSceneLayer:` 拆成 `isHosting(sceneLayer:)`，参数类带前缀也一样，所以 SceneHosting 的这个名字来自 `NS_SWIFT_NAME`，后续项据此更正 |

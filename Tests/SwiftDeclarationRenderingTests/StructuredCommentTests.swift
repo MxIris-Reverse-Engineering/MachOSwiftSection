@@ -148,6 +148,11 @@ struct StructuredCommentTests {
             ]
         ),
         Expectation(
+            comment: .refinedForSwiftMember(declaration: "var __settings: Settings! { get set }"),
+            text: "// NS_REFINED_FOR_SWIFT: var __settings: Settings! { get set }",
+            segments: [.marker("// "), .label("NS_REFINED_FOR_SWIFT"), .separator(": "), .value("var __settings: Settings! { get set }")]
+        ),
+        Expectation(
             comment: .deletedMethodSlot,
             text: "// No implementation in this image (deleted method — slot retained for ABI)",
             segments: [.marker("// "), .text("No implementation in this image (deleted method — slot retained for ABI)")]

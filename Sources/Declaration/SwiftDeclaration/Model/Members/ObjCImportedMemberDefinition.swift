@@ -50,12 +50,16 @@ public struct ObjCImportedMemberDefinition: Sendable {
     /// The encoding the declaration was built from: the method list's, an
     /// adopted protocol's extended one, or the property's attributes.
     public let typeEncoding: String
+    /// A property's name in the property list — what a header's `@property`
+    /// declares, and what an API notes file keys it by (`hidden` for the
+    /// `isHidden` getter); `nil` for every other member.
+    public let objcPropertyName: String?
 
     public var isSettable: Bool {
         setterSelector != nil
     }
 
-    package init(kind: Kind, node: NodeReference, selector: String, setterSelector: String?, isClassMember: Bool, ownership: Ownership?, hasExplicitSelector: Bool, typeEncoding: String) {
+    package init(kind: Kind, node: NodeReference, selector: String, setterSelector: String?, isClassMember: Bool, ownership: Ownership?, hasExplicitSelector: Bool, typeEncoding: String, objcPropertyName: String? = nil) {
         self.kind = kind
         self.node = node
         self.selector = selector
@@ -64,5 +68,6 @@ public struct ObjCImportedMemberDefinition: Sendable {
         self.ownership = ownership
         self.hasExplicitSelector = hasExplicitSelector
         self.typeEncoding = typeEncoding
+        self.objcPropertyName = objcPropertyName
     }
 }

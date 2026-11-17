@@ -14,6 +14,7 @@ import Utilities
 @_spi(Internals) import MachOSymbols
 @_spi(Internals) import MachOCaches
 @_spi(Internals) import SwiftInspection
+import SwiftObjCInterop
 
 @_spi(Support)
 public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: Sendable {
@@ -589,53 +590,70 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
         try await DeclarationBlock(level: level) {
             try await printExtensionHeader(extensionDefinition, level: level)
         } body: {
-            // Per-CHILD catch, same contract as `printTypeDefinition`'s
-            // nested loops: a nested definition whose printing throws
-            // drops only itself, never the whole extension.
-            for typeDefinition in extensionDefinition.types {
-                if let renderedChild = await printCatchedThrowing(
-                    dispatchingTo: eventDispatcher,
-                    context: .init(name: typeDefinition.typeName.name, kind: .type),
-                    {
-                        try await NestedDeclaration {
-                            try await nestedDefinition(named: typeDefinition.typeName.node) {
-                                try await printTypeDefinition(typeDefinition, level: level + 1)
-                            }
-                        }
-                    }
-                ) {
-                    renderedChild
-                }
-            }
-
-            for protocolDefinition in extensionDefinition.protocols {
-                if let renderedChild = await printCatchedThrowing(
-                    dispatchingTo: eventDispatcher,
-                    context: .init(name: protocolDefinition.protocolName.name, kind: .protocol),
-                    {
-                        try await NestedDeclaration {
-                            try await nestedDefinition(named: protocolDefinition.protocolName.node) {
-                                try await printProtocolDefinition(protocolDefinition, level: level + 1)
-                            }
-                        }
-                    }
-                ) {
-                    renderedChild
-                }
-            }
-
-            try await bodyAfterNestedDefinitions(of: extensionDefinition) {
-                if !extensionDefinition.associatedTypes.isEmpty {
-                    try await renderMergedAssociatedTypeRecords(of: extensionDefinition.associatedTypes, level: 1)
-                }
-
+            try await printExtensionBodyContents(extensionDefinition, level: level) {
                 // Stored properties of an `@objc @implementation` that no member
                 // definition represents (no accessor symbol survived) — rendered
                 // from the ObjC ivar list, ahead of the symbol-derived members.
                 await renderUnrepresentedObjCImplementationInstanceVariables(extensionDefinition, level: 1)
-
-                try await printDefinition(extensionDefinition, level: 1)
             }
+        }
+    }
+
+    /// What an extension's braces hold: its nested types and protocols, then
+    /// `instanceVariables` and its members. Shared with the Generated
+    /// Interface of an `@objc @implementation` class, which prints the
+    /// implementation's body under the class's own declaration and words its
+    /// stored properties itself (evolution proposal
+    /// `swift-first-imported-declarations`).
+    @SemanticStringBuilder
+    func printExtensionBodyContents(
+        _ extensionDefinition: ExtensionDefinition,
+        level: Int,
+        @SemanticStringBuilder instanceVariables: () async -> SemanticString
+    ) async throws -> SemanticString {
+        // Per-CHILD catch, same contract as `printTypeDefinition`'s
+        // nested loops: a nested definition whose printing throws
+        // drops only itself, never the whole extension.
+        for typeDefinition in extensionDefinition.types {
+            if let renderedChild = await printCatchedThrowing(
+                dispatchingTo: eventDispatcher,
+                context: .init(name: typeDefinition.typeName.name, kind: .type),
+                {
+                    try await NestedDeclaration {
+                        try await nestedDefinition(named: typeDefinition.typeName.node) {
+                            try await printTypeDefinition(typeDefinition, level: level + 1)
+                        }
+                    }
+                }
+            ) {
+                renderedChild
+            }
+        }
+
+        for protocolDefinition in extensionDefinition.protocols {
+            if let renderedChild = await printCatchedThrowing(
+                dispatchingTo: eventDispatcher,
+                context: .init(name: protocolDefinition.protocolName.name, kind: .protocol),
+                {
+                    try await NestedDeclaration {
+                        try await nestedDefinition(named: protocolDefinition.protocolName.node) {
+                            try await printProtocolDefinition(protocolDefinition, level: level + 1)
+                        }
+                    }
+                }
+            ) {
+                renderedChild
+            }
+        }
+
+        try await bodyAfterNestedDefinitions(of: extensionDefinition) {
+            if !extensionDefinition.associatedTypes.isEmpty {
+                try await renderMergedAssociatedTypeRecords(of: extensionDefinition.associatedTypes, level: 1)
+            }
+
+            await instanceVariables()
+
+            try await printDefinition(extensionDefinition, level: 1)
         }
     }
 
@@ -780,6 +798,10 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
         /// The names of the definition the members are printed in, whose
         /// private declarations their source-file comments leave out.
         let enclosingNodes: [any DemanglingNode]
+        /// What the binary records about the class an `@objc @implementation`
+        /// extension implements: its stored properties' Objective-C
+        /// properties say what their symbols may not.
+        let objcImplementation: ObjCImplementationClassFacts?
     }
 
     func memberRenderingContext(of definition: some Definition, isProtocol: Bool) -> MemberRenderingContext {
@@ -789,7 +811,8 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
             printExportStatus: configuration.printExportStatus,
             vtableTransformerClosure: vtableOffsetTransformerClosure,
             synthesizedPropertyWrapperMembers: synthesizedPropertyWrapperMembers(of: definition),
-            enclosingNodes: headerNameNodes(of: definition)
+            enclosingNodes: headerNameNodes(of: definition),
+            objcImplementation: (definition as? ExtensionDefinition)?.objcImplementation
         )
     }
 
@@ -989,7 +1012,7 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
                     comment(.initAccessorFieldsNotRecorded, as: .initAccessorFields)
                 }
                 if let storage = variable.objcImplementationStorage {
-                    await printObjCImplementationStoredProperty(variable, storage: storage, level: level)
+                    await printObjCImplementationStoredProperty(variable, storage: storage, objcProperty: context.objcImplementation?.objcProperty(storedIn: storage, swiftPropertyName: variable.name), level: level)
                 } else if marksObservationIgnored {
                     await printObservationIgnoredVariable(variable, level: level, propertyWrapperAttributeTypeNode: synthesizedPropertyWrapperMembers.wrapperAttributeTypeNode(for: variable))
                 } else {

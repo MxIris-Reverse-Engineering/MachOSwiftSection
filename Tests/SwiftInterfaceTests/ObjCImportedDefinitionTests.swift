@@ -113,6 +113,34 @@ struct ObjCImportedDefinitionTests {
         #expect(!printed.contains("stored property observers"), "\(printed)")
     }
 
+    /// What a host puts back on the header: the members it marks
+    /// `NS_REFINED_FOR_SWIFT`, keyed as API notes key them (evolution
+    /// proposal `swift-first-imported-declarations`).
+    @Test func theRefinedMembersOfAnImplementationClass() async throws {
+        let builder = try await builder(of: ObjCImplementationFixture.machOFile(.optimizedStripped))
+        let definition = try #require(builder.indexer.objcImportedClassDefinition(named: "ScenePresentationWidget"))
+        let refinedMembers = try builder.printer.objcMembersRefinedForSwift(in: definition)
+        #expect(Set(refinedMembers) == [
+            ObjCRefinedForSwiftMember(member: .property(name: "layerFilter", isClassProperty: false), evidence: .prefixedSwiftMember),
+            ObjCRefinedForSwiftMember(member: .property(name: "settings", isClassProperty: false), evidence: .nameTakenBySwiftDeclaration),
+        ])
+        // A Swift extension of a class Objective-C implements refines nothing
+        // the fixture's header declares.
+        let clangWidget = try #require(builder.indexer.objcImportedClassDefinition(named: "ClangWidget"))
+        #expect(try builder.printer.objcMembersRefinedForSwift(in: clangWidget).isEmpty)
+    }
+
+    /// The classes a host asks for refined members of: the ones the image's
+    /// Swift code extends, its `@objc @implementation` classes included —
+    /// not a Swift class's own extension, nor a class Swift only uses.
+    @Test func theClassesSwiftExtends() async throws {
+        let builder = try await fixtureBuilder()
+        let classNames = builder.indexer.objcClassRuntimeNamesExtendedInSwift
+        #expect(classNames.isSuperset(of: ["Widget", "DerivedImplementationWidget", "ClangWidget", "ScenePresentationWidget"]), "\(classNames)")
+        #expect(!classNames.contains("PresentationFilter"), "\(classNames)")
+        #expect(!classNames.contains { $0.contains("SwiftDerivedWidget") }, "\(classNames)")
+    }
+
     /// The Swift interface of the implementation itself: a stored property
     /// whose setter left no symbol, of a settable `weak` Objective-C property
     /// (evolution proposal `swift-first-imported-declarations`). It used to

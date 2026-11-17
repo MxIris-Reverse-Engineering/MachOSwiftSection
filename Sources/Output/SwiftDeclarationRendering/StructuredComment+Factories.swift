@@ -168,6 +168,15 @@ extension StructuredComment {
         return line(body)
     }
 
+    /// `// NS_REFINED_FOR_SWIFT: var __settings: __C.SHScenePresentationSettings! { get set }`:
+    /// an Objective-C member a header refines for Swift that no Swift member
+    /// of the image implements under its Swift name — the declaration the
+    /// importer gives it, by its rules (evolution proposal
+    /// `swift-first-imported-declarations`).
+    package static func refinedForSwiftMember(declaration: String) -> Self {
+        line([.label("NS_REFINED_FOR_SWIFT"), .separator(": "), .value(declaration)])
+    }
+
     /// `// No implementation in this image (deleted method — slot retained for ABI)`.
     package static let deletedMethodSlot = note("No implementation in this image (deleted method — slot retained for ABI)")
 
