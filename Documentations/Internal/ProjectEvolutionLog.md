@@ -3300,7 +3300,7 @@
   - SwiftPrinting：`ObjCImplementingSwiftMembers`（从打印器文件里移出、改按位置配对）、`ObjCRefinedForSwiftMember`、`objcMembersRefinedForSwift(in:)`、`@implementation` 类的 Swift 优先打印、`printExtensionBodyContents`（扩展体与导入声明共用）、存储属性的 `var` / `weak`。SwiftDeclarationRendering：`StructuredComment.refinedForSwiftMember(declaration:)` 与注释种类 `refinedForSwiftMember`。
   - 测试：夹具加 `ScenePresentationWidget`（仿 `SHScenePresentation`）；`ObjCImportedDefinitionTests` 四个新用例、`ObjCMemberRecoveryTests` 一个、新的 `ObjCSwiftTypeCompatibilityTests`、`StructuredCommentTests` 一条期望；识别测试的类集合加上新类。
   - 文档：`ObjCCommandLine.md`「The Swift view」、插件 skill 的 `references/objc.md`、`Modules/SwiftObjCInterop.md`、`Modules/SwiftDeclaration.md`、术语表（新词「改名成员」）。
-- **验证**：（实现完成后补）
+- **验证**：JHs-MacBook-Pro（macOS 27.2，Xcode 27.2，本地兄弟依赖只配了 swift-demangling `next`）。新测试改动前失败（夹具编过后 11 处），改动后相关套件全过；全量（`--skip IntegrationTests`）有 167 个失败点，与同机同夹具跑不含改动的 `next` 完全相同——SymbolTests 夹具的 ABI 基线按 Xcode 26.6 录，这台只有 27.2，另有 `SymbolicDemanglerTests` 要的模拟器 SwiftUI 不在。
 - **对应版本**：未发版。
 
 ## 维护约定
