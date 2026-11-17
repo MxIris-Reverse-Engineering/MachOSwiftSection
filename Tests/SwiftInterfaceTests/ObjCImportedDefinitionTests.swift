@@ -90,8 +90,8 @@ struct ObjCImportedDefinitionTests {
         let definition = try #require(builder.indexer.objcImportedClassDefinition(named: "ScenePresentationWidget"))
         let printed = try await builder.printer.printObjCImportedClassDefinition(definition).string
         #expect(printed.contains("class ScenePresentationWidget: __C.NSObject {"), "\(printed)")
-        // The Swift name, which the importer only reaches knowing the
-        // parameter's type — not `isHostingSceneLayer(_:)`.
+        // The Swift name the header's `NS_SWIFT_NAME` gives it, which the
+        // importer's rules miss — not `isHostingSceneLayer(_:)`.
         #expect(printed.contains("func isHosting(sceneLayer: __C.FXSceneLayer) -> Swift.Bool"), "\(printed)")
         #expect(!printed.contains("isHostingSceneLayer"), "\(printed)")
         // `layerFilter`: the `__` member implementing it, and the Swift-only

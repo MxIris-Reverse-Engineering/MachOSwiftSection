@@ -114,9 +114,9 @@ package enum ObjCImplementationFixture {
     // Shaped after SceneHosting's `SHScenePresentation` on macOS 27.2
     // (evolution proposal `swift-first-imported-declarations`): an
     // `@objc @implementation` class shipped optimized and stripped, whose
-    // header refines two properties for Swift. The importer splits the
-    // parameter's type name off `isHostingSceneLayer:` only once it drops the
-    // type's prefix, as it does `FBSceneLayer`'s.
+    // header refines two properties for Swift. `isHostingSceneLayer:` takes
+    // the Swift name `NS_SWIFT_NAME` gives it, as SceneHosting's does: the
+    // importer alone keeps `isHostingSceneLayer(_:)`.
     @interface FXSceneLayer : NSObject
     @end
 
@@ -133,7 +133,7 @@ package enum ObjCImplementationFixture {
     @property (nonatomic, readonly) BOOL isActive;
     @property (nonatomic, strong) PresentationFilter *layerFilter NS_REFINED_FOR_SWIFT;
     @property (nonatomic, strong) PresentationSettings *settings NS_REFINED_FOR_SWIFT;
-    - (BOOL)isHostingSceneLayer:(FXSceneLayer *)sceneLayer;
+    - (BOOL)isHostingSceneLayer:(FXSceneLayer *)sceneLayer NS_SWIFT_NAME(isHosting(sceneLayer:));
     - (void)activate;
     @end
 
