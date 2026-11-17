@@ -74,6 +74,7 @@ struct ObjCImplementingSwiftMembers {
 
     private var membersByObjCMemberIndex: [Int: Member] = [:]
     private var refinementsByObjCMemberIndex: [Int: Refinement] = [:]
+    private var nameTakingMembersByObjCMemberIndex: [Int: Member] = [:]
 
     /// `typeDefinitions` and `extensionDefinitions` must be indexed.
     init(objcMembers: [ObjCImportedMemberDefinition], typeDefinitions: [TypeDefinition], extensionDefinitions: [ExtensionDefinition], recognizesRefinements: Bool) {
@@ -174,8 +175,9 @@ struct ObjCImplementingSwiftMembers {
                 if Self.isNamedWithRefinedForSwiftPrefix(member, answering: objcMember) {
                     refinementsByObjCMemberIndex[index] = .answeredUnderPrefixedName
                 }
-            } else if objcMember.kind == .property, candidates.contains(where: { Self.takesName(of: objcMember, candidate: $0) }) {
+            } else if objcMember.kind == .property, let nameTakingCandidate = candidates.first(where: { Self.takesName(of: objcMember, candidate: $0) }) {
                 refinementsByObjCMemberIndex[index] = .nameTakenByAnotherDeclaration
+                nameTakingMembersByObjCMemberIndex[index] = nameTakingCandidate.member
             }
         }
     }
@@ -190,6 +192,16 @@ struct ObjCImplementingSwiftMembers {
     /// or `nil` when nothing says it is.
     func refinement(ofMemberAt index: Int) -> Refinement? {
         refinementsByObjCMemberIndex[index]
+    }
+
+    /// The Swift property that took the plain name of the Objective-C
+    /// property at `index`, when that is why the property counts as
+    /// `NS_REFINED_FOR_SWIFT` (`Refinement.nameTakenByAnotherDeclaration`);
+    /// `nil` otherwise. The Generated Interface words the Objective-C property
+    /// right above it (evolution proposal
+    /// `swift-first-imported-declarations`).
+    func member(takingNameOfMemberAt index: Int) -> Member? {
+        nameTakingMembersByObjCMemberIndex[index]
     }
 
     // MARK: - Matching

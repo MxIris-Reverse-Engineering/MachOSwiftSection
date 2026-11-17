@@ -95,7 +95,8 @@ swift-section objc evolution \
   the Objective-C methods no Swift member answers to last, the members of a Swift extension as
   those Swift members. In an OS framework the thunks are stripped and inlined, so members are
   paired by name; a property the header marks `NS_REFINED_FOR_SWIFT` whose Swift implementation
-  left no symbol shows as a `// NS_REFINED_FOR_SWIFT: var __name: …` comment. A
+  left no symbol shows as a `// NS_REFINED_FOR_SWIFT: var __name: …` comment, right above the
+  Swift property that took its plain name. A
   class shows only its own members: the linker merges a binary's categories on its own classes
   into them, and the categories a dyld cache attached ahead of time are left out, so only a
   category on another binary's class is a category. It indexes the binary's Swift side first,

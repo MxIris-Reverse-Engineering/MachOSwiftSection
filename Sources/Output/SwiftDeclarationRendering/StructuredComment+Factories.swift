@@ -172,9 +172,13 @@ extension StructuredComment {
     /// an Objective-C member a header refines for Swift that no Swift member
     /// of the image implements under its Swift name — the declaration the
     /// importer gives it, by its rules (evolution proposal
-    /// `swift-first-imported-declarations`).
-    package static func refinedForSwiftMember(declaration: String) -> Self {
-        line([.label("NS_REFINED_FOR_SWIFT"), .separator(": "), .value(declaration)])
+    /// `swift-first-imported-declarations`). `declaration` is that
+    /// declaration on one line, its parts marked as a field tree's row marks
+    /// them: the member's name `.name`, its type `.type`, and the keywords and
+    /// punctuation playing no role — a host hides a separator's punctuation,
+    /// and the colon inside a declaration has to stay.
+    package static func refinedForSwiftMember(declaration: [Segment]) -> Self {
+        line([.label("NS_REFINED_FOR_SWIFT"), .separator(": ")] + declaration)
     }
 
     /// `// No implementation in this image (deleted method — slot retained for ABI)`.

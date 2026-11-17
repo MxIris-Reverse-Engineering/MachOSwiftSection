@@ -132,7 +132,10 @@ extension SwiftDeclarationPrinter {
     /// Swift extensions of the class trail it. A stored property whose Swift
     /// type the image does not record prints as the Objective-C property
     /// synthesized on it, where the Swift interface can only describe the
-    /// ivar in a comment.
+    /// ivar in a comment. A property the header refines for Swift whose `__`
+    /// declaration the image keeps no symbol of is worded right above the
+    /// Swift property that took its plain name, rather than with the other
+    /// unanswered methods.
     @SemanticStringBuilder
     private func printObjCImplementationClass(_ definition: ObjCImportedClassDefinition, level: Int) async throws -> SemanticString {
         let swiftMembers = try implementingSwiftMembers(of: definition.members, typeDefinitions: [], extensionDefinitions: definition.swiftExtensions, recognizesRefinements: true)
@@ -141,12 +144,14 @@ extension SwiftDeclarationPrinter {
         let standInIndices = Self.memberIndicesStandingIn(forInstanceVariablesOf: implementationExtensions, members: definition.members, swiftMembers: swiftMembers)
         let standIns = standInIndices.mapValues { definition.members[$0] }
         let standInIndexSet = Set(standInIndices.values)
-        let trailingIndices = definition.members.indices.filter { swiftMembers.member(answeringMemberAt: $0) == nil && !standInIndexSet.contains($0) }
+        let unansweredIndices = definition.members.indices.filter { swiftMembers.member(answeringMemberAt: $0) == nil && !standInIndexSet.contains($0) }
+        let refinedForSwiftComments = await refinedForSwiftCommentsAboveNameTakingProperties(of: unansweredIndices, in: definition, swiftMembers: swiftMembers, implementationExtensions: implementationExtensions, level: level)
+        let trailingIndices = unansweredIndices.filter { !refinedForSwiftComments.placedMemberIndices.contains($0) }
         try await DeclarationBlock(level: level) {
             try await importedClassDeclaration(definition)
         } body: {
             for extensionDefinition in implementationExtensions {
-                try await printExtensionBodyContents(extensionDefinition, level: level) {
+                try await printExtensionBodyContents(extensionDefinition, level: level, refinedForSwiftCommentsByVariableKey: refinedForSwiftComments.commentsByVariableKey) {
                     await renderUnrepresentedObjCImplementationInstanceVariables(extensionDefinition, level: 1, standIns: standIns)
                 }
             }
@@ -199,6 +204,49 @@ extension SwiftDeclarationPrinter {
             }
         }
         return indicesByInstanceVariable
+    }
+
+    /// The `NS_REFINED_FOR_SWIFT` comments of an `@objc @implementation`
+    /// class that print above a Swift property rather than with the other
+    /// unanswered methods, and the members they word.
+    private struct RefinedForSwiftCommentPlacement {
+        /// Keyed by `variableKey(of:)` of the Swift property each prints above.
+        var commentsByVariableKey: [String: [StructuredComment]] = [:]
+        var placedMemberIndices: Set<Int> = []
+    }
+
+    /// Places the comment of each of `unansweredIndices` that is a property
+    /// whose plain name a Swift property took
+    /// (`ObjCImplementingSwiftMembers.Refinement.nameTakenByAnotherDeclaration`)
+    /// above that Swift property — when the class body prints it: it is a
+    /// member of the implementation, not of another extension of the class,
+    /// and the exported-only filter keeps it, or the comment would vanish with
+    /// it. The rest stay where they were.
+    private func refinedForSwiftCommentsAboveNameTakingProperties(
+        of unansweredIndices: [Int],
+        in definition: ObjCImportedClassDefinition,
+        swiftMembers: ObjCImplementingSwiftMembers,
+        implementationExtensions: [ExtensionDefinition],
+        level: Int
+    ) async -> RefinedForSwiftCommentPlacement {
+        let bodyVariableKeys = Set(implementationExtensions.flatMap { $0.variables + $0.staticVariables }.compactMap(Self.variableKey(of:)))
+        var placement = RefinedForSwiftCommentPlacement()
+        for index in unansweredIndices where swiftMembers.refinement(ofMemberAt: index) == .nameTakenByAnotherDeclaration {
+            guard case .variable(let nameTakingVariable)? = swiftMembers.member(takingNameOfMemberAt: index),
+                  let variableKey = Self.variableKey(of: nameTakingVariable), bodyVariableKeys.contains(variableKey),
+                  !isExcludedByExportFilter(.variable(nameTakingVariable)),
+                  let refinedForSwiftComment = await refinedForSwiftComment(of: definition.members[index], refinement: .nameTakenByAnotherDeclaration, level: level)
+            else { continue }
+            placement.commentsByVariableKey[variableKey, default: []].append(refinedForSwiftComment)
+            placement.placedMemberIndices.insert(index)
+        }
+        return placement
+    }
+
+    /// What a variable is found by among the members a definition prints:
+    /// its first accessor's symbol, whose name no other member shares.
+    static func variableKey(of variable: VariableDefinition) -> String? {
+        variable.accessors.first?.symbol.name
     }
 
     // MARK: Categories
@@ -287,16 +335,45 @@ extension SwiftDeclarationPrinter {
     /// (evolution proposal `swift-first-imported-declarations`).
     @SemanticStringBuilder
     private func printUnansweredObjCImportedMember(_ member: ObjCImportedMemberDefinition, refinement: ObjCImplementingSwiftMembers.Refinement?, level: Int) async -> SemanticString {
-        if refinement == .nameTakenByAnotherDeclaration, let refinedMember = refinedForSwiftMember(of: member) {
-            // On one line, as a line comment holds it: `{ get set }`.
-            let declaration = await printObjCImportedMember(refinedMember, level: level).string
-                .split(whereSeparator: \.isNewline)
-                .map { $0.trimmingCharacters(in: .whitespaces) }
-                .joined(separator: " ")
-            comment(.refinedForSwiftMember(declaration: declaration), as: .refinedForSwiftMember)
+        let refinedForSwiftComment = await refinedForSwiftComment(of: member, refinement: refinement, level: level)
+        if let refinedForSwiftComment {
+            comment(refinedForSwiftComment, as: .refinedForSwiftMember)
         } else {
             await printObjCImportedMember(member, level: level)
         }
+    }
+
+    /// The `NS_REFINED_FOR_SWIFT` comment wording `member`, a property whose
+    /// plain name a Swift declaration of another type has taken, under the
+    /// name Swift gives it; `nil` for any other member, or when its
+    /// declaration does not print.
+    private func refinedForSwiftComment(of member: ObjCImportedMemberDefinition, refinement: ObjCImplementingSwiftMembers.Refinement?, level: Int) async -> StructuredComment? {
+        guard refinement == .nameTakenByAnotherDeclaration,
+              let refinedMember = refinedForSwiftMember(of: member),
+              let declaration = await refinedForSwiftDeclarationSegments(of: refinedMember, level: level)
+        else { return nil }
+        return .refinedForSwiftMember(declaration: declaration)
+    }
+
+    /// The declaration of `refinedMember` — a property under its `__` name —
+    /// on one line, as a line comment holds it, in segments: its name and its
+    /// type marked, the modifiers, the colon and the accessor block playing
+    /// no role. Each part is taken from the structure, not cut out of the
+    /// printed text: the modifiers and the name from the components the
+    /// declaration prints as (the name is the `.variable` one), the type
+    /// printed on its own from the property's type node — as the declaration
+    /// prints it — and the accessor block from its keywords.
+    private func refinedForSwiftDeclarationSegments(of refinedMember: ObjCImportedMemberDefinition, level: Int) async -> [StructuredComment.Segment]? {
+        let components = await printObjCImportedMember(refinedMember, level: level).components
+        guard let nameIndex = components.firstIndex(where: { $0.type == .variable }),
+              let typeNode = ObjCSwiftTypeCompatibility.propertyType(ofDemangledMember: refinedMember.node.materialize())
+        else { return nil }
+        var typePrinter = SemanticTypeNodePrinter(delegate: self)
+        guard let typeName = try? await typePrinter.printRoot(typeNode).string, !typeName.isEmpty else { return nil }
+        let modifiers = components[..<nameIndex].map(\.string).joined()
+        let accessorKeywords = AccessorBlockKeywords.getter(hasSetter: refinedMember.isSettable)
+        let accessorBlock = " { " + ([accessorKeywords.read] + [accessorKeywords.write].compactMap { $0 }).joined(separator: " ") + " }"
+        return [.plain(modifiers), .name(components[nameIndex].string), .plain(": "), .type(typeName), .plain(accessorBlock)]
     }
 
     /// `member`, a property, under the name Swift gives a property the header

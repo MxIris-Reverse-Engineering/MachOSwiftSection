@@ -110,7 +110,8 @@ class NSColor: __C.NSObject, __C.NSAccessibilityColor, __C.CAAnimatableValue, __
   with the Swift member the importer's rules name after its selector, when that is the only one
   and its type fits. A property the header marks `NS_REFINED_FOR_SWIFT` is implemented under a
   `__` name; when that implementation left no symbol, the property shows as a comment,
-  `// NS_REFINED_FOR_SWIFT: var __settings: …`. A stored property whose type the binary does not
+  `// NS_REFINED_FOR_SWIFT: var __settings: …`, right above the Swift property that took its plain
+  name. A stored property whose type the binary does not
   record prints as the Objective-C property synthesized on it. The binary's Swift declarations are
   indexed first for this, so `--swift` takes longer than the header: about 16 seconds for AppKit.
 - **A class shows its own members.** The linker merges a binary's categories on its own classes

@@ -148,9 +148,12 @@ struct StructuredCommentTests {
             ]
         ),
         Expectation(
-            comment: .refinedForSwiftMember(declaration: "var __settings: Settings! { get set }"),
+            comment: .refinedForSwiftMember(declaration: [.plain("var "), .name("__settings"), .plain(": "), .type("Settings!"), .plain(" { get set }")]),
             text: "// NS_REFINED_FOR_SWIFT: var __settings: Settings! { get set }",
-            segments: [.marker("// "), .label("NS_REFINED_FOR_SWIFT"), .separator(": "), .value("var __settings: Settings! { get set }")]
+            segments: [
+                .marker("// "), .label("NS_REFINED_FOR_SWIFT"), .separator(": "),
+                .plain("var "), .name("__settings"), .plain(": "), .type("Settings!"), .plain(" { get set }"),
+            ]
         ),
         Expectation(
             comment: .deletedMethodSlot,

@@ -604,11 +604,14 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
     /// Interface of an `@objc @implementation` class, which prints the
     /// implementation's body under the class's own declaration and words its
     /// stored properties itself (evolution proposal
-    /// `swift-first-imported-declarations`).
+    /// `swift-first-imported-declarations`). It also passes the
+    /// `NS_REFINED_FOR_SWIFT` comments that print above a variable, keyed by
+    /// `variableKey(of:)`.
     @SemanticStringBuilder
     func printExtensionBodyContents(
         _ extensionDefinition: ExtensionDefinition,
         level: Int,
+        refinedForSwiftCommentsByVariableKey: [String: [StructuredComment]] = [:],
         @SemanticStringBuilder instanceVariables: () async -> SemanticString
     ) async throws -> SemanticString {
         // Per-CHILD catch, same contract as `printTypeDefinition`'s
@@ -653,7 +656,9 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
 
             await instanceVariables()
 
-            try await printDefinition(extensionDefinition, level: 1)
+            try await LargeStackTaskExecution.run {
+                try await printDefinitionContents(extensionDefinition, level: 1, refinedForSwiftCommentsByVariableKey: refinedForSwiftCommentsByVariableKey)
+            }
         }
     }
 
@@ -772,18 +777,19 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
     }
 
     @SemanticStringBuilder
-    private func printDefinitionContents(_ definition: some Definition, level: Int) async throws -> SemanticString {
+    private func printDefinitionContents(_ definition: some Definition, level: Int, refinedForSwiftCommentsByVariableKey: [String: [StructuredComment]] = [:]) async throws -> SemanticString {
         if let mutableDefinition = definition as? MutableDefinition {
             try mutableDefinition.index(in: machO)
         }
 
         let isProtocol = definition is ProtocolDefinition
+        let context = memberRenderingContext(of: definition, isProtocol: isProtocol, refinedForSwiftCommentsByVariableKey: refinedForSwiftCommentsByVariableKey)
 
         switch configuration.memberSortOrder {
         case .byOffset:
-            await printMembersByOffset(definition, level: level, isProtocol: isProtocol)
+            await printMembersByOffset(definition, level: level, context: context)
         case .byCategory:
-            await printMembersByCategory(definition, level: level, isProtocol: isProtocol)
+            await printMembersByCategory(definition, level: level, context: context)
         }
     }
 
@@ -802,9 +808,20 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
         /// extension implements: its stored properties' Objective-C
         /// properties say what their symbols may not.
         let objcImplementation: ObjCImplementationClassFacts?
+        /// The Generated Interface of an `@objc @implementation` class words
+        /// a property the header refines for Swift right above the Swift
+        /// property that took its plain name, before that property's own
+        /// comments; keyed by `variableKey(of:)` (evolution proposal
+        /// `swift-first-imported-declarations`). Empty everywhere else.
+        let refinedForSwiftCommentsByVariableKey: [String: [StructuredComment]]
+
+        func refinedForSwiftComments(above variable: VariableDefinition) -> [StructuredComment] {
+            guard !refinedForSwiftCommentsByVariableKey.isEmpty, let variableKey = SwiftDeclarationPrinter.variableKey(of: variable) else { return [] }
+            return refinedForSwiftCommentsByVariableKey[variableKey] ?? []
+        }
     }
 
-    func memberRenderingContext(of definition: some Definition, isProtocol: Bool) -> MemberRenderingContext {
+    func memberRenderingContext(of definition: some Definition, isProtocol: Bool, refinedForSwiftCommentsByVariableKey: [String: [StructuredComment]] = [:]) -> MemberRenderingContext {
         MemberRenderingContext(
             offsetCommentPrefix: isProtocol ? "PWT offset" : "Field offset",
             offsetCommentOption: isProtocol ? .printPWTOffset : .printFieldOffset,
@@ -812,13 +829,13 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
             vtableTransformerClosure: vtableOffsetTransformerClosure,
             synthesizedPropertyWrapperMembers: synthesizedPropertyWrapperMembers(of: definition),
             enclosingNodes: headerNameNodes(of: definition),
-            objcImplementation: (definition as? ExtensionDefinition)?.objcImplementation
+            objcImplementation: (definition as? ExtensionDefinition)?.objcImplementation,
+            refinedForSwiftCommentsByVariableKey: refinedForSwiftCommentsByVariableKey
         )
     }
 
     @SemanticStringBuilder
-    private func printMembersByOffset(_ definition: some Definition, level: Int, isProtocol: Bool) async -> SemanticString {
-        let context = memberRenderingContext(of: definition, isProtocol: isProtocol)
+    private func printMembersByOffset(_ definition: some Definition, level: Int, context: MemberRenderingContext) async -> SemanticString {
         let folding = observableMacroFolding(of: definition)
         await MemberList(level: level) {
             for member in definition.orderedMembers where !context.synthesizedPropertyWrapperMembers.contains(member) {
@@ -852,8 +869,7 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
     }
 
     @SemanticStringBuilder
-    private func printMembersByCategory(_ definition: some Definition, level: Int, isProtocol: Bool) async -> SemanticString {
-        let context = memberRenderingContext(of: definition, isProtocol: isProtocol)
+    private func printMembersByCategory(_ definition: some Definition, level: Int, context: MemberRenderingContext) async -> SemanticString {
         let folding = observableMacroFolding(of: definition)
         // A class's vtable members come first, in slot order — the order the
         // class metadata lays its vtable out in, and for the class's own
@@ -973,6 +989,9 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
                 await printFunction(function, level: level)
 
             case .variable(let variable):
+                for refinedForSwiftComment in context.refinedForSwiftComments(above: variable) {
+                    comment(refinedForSwiftComment, as: .refinedForSwiftMember)
+                }
                 for sourceFileComment in privateDeclarationSourceFileComments(for: [variable.node], enclosedBy: enclosingNodes) {
                     comment(sourceFileComment, as: .privateDeclarationSource)
                 }
