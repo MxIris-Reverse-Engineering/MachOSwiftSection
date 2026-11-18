@@ -1,7 +1,7 @@
 import Foundation
 import Testing
 import MachOKit
-@_spi(Internals) @testable import MachOSymbols
+@_spi(Internals) @testable import SwiftSymbols
 @_spi(Support) @testable import SwiftDeclaration
 @_spi(Support) @testable import SwiftPrinting
 @_spi(Support) @testable import SwiftInterface
@@ -55,8 +55,8 @@ final class ExportStatusAnnotationTests: MachOFileTests, @unchecked Sendable {
     @Test func publicThunkExportedMemberIsNotAnnotated() async throws {
         let unsafeMachOFile = machOFile
         let implementationName = "_$s15SymbolTestsCore6ActorsO9ActorTestC11mutateStateyyF"
-        #expect(SymbolIndexStore.shared.isExported(name: implementationName, in: unsafeMachOFile) == false)
-        #expect(SymbolIndexStore.shared.isExportedIncludingDerivedSymbols(name: implementationName, in: unsafeMachOFile) == true)
+        #expect(SwiftSymbolIndexStore.shared.isExported(name: implementationName, in: unsafeMachOFile) == false)
+        #expect(SwiftSymbolIndexStore.shared.isExportedIncludingDerivedSymbols(name: implementationName, in: unsafeMachOFile) == true)
 
         let output = try await buildOutput(printExportStatus: true)
         #expect(try !isAnnotated("func mutateState()", in: output))
@@ -70,7 +70,7 @@ final class ExportStatusAnnotationTests: MachOFileTests, @unchecked Sendable {
     @Test func objcMemberIsExempt() async throws {
         let unsafeMachOFile = machOFile
         let implementationName = "_$s15SymbolTestsCore10AttributesO18ObjCAttributeClassC17objcDynamicMethodyyF"
-        #expect(SymbolIndexStore.shared.isExportedIncludingDerivedSymbols(name: implementationName, in: unsafeMachOFile) == false)
+        #expect(SwiftSymbolIndexStore.shared.isExportedIncludingDerivedSymbols(name: implementationName, in: unsafeMachOFile) == false)
 
         let output = try await buildOutput(printExportStatus: true)
         #expect(try !isAnnotated("@objc func objcDynamicMethod()", in: output))
@@ -82,7 +82,7 @@ final class ExportStatusAnnotationTests: MachOFileTests, @unchecked Sendable {
     @Test func overrideMemberIsExempt() async throws {
         let unsafeMachOFile = machOFile
         let implementationName = "_$s15SymbolTestsCore7ClassesO25ExternalSwiftSubclassTestC14instanceMethodSSyF"
-        #expect(SymbolIndexStore.shared.isExportedIncludingDerivedSymbols(name: implementationName, in: unsafeMachOFile) == false)
+        #expect(SwiftSymbolIndexStore.shared.isExportedIncludingDerivedSymbols(name: implementationName, in: unsafeMachOFile) == false)
 
         let output = try await buildOutput(printExportStatus: true)
         #expect(try !isAnnotated("override func instanceMethod() -> Swift.String", in: output))

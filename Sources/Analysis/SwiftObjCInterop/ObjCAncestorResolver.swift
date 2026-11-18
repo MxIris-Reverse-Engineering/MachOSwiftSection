@@ -5,7 +5,7 @@ import MachOKitExtensions
 import MachOFoundation
 import MachOSwiftSection
 @_spi(Internals) import MachOCaches
-@_spi(Internals) import MachOSymbols
+@_spi(Internals) import SwiftSymbols
 @_spi(Core) import MachOObjCSection
 
 /// Follows a standalone file's bound superclass — or a category's bound
@@ -233,7 +233,7 @@ public final class ObjCAncestorResolver: @unchecked Sendable {
 public final class ObjCAncestorResolverStore: @unchecked Sendable {
     public static let shared = ObjCAncestorResolverStore()
 
-    private let cache = SharedCache<ObjCAncestorResolver>(evictionGroup: .objcAncestorResolver, follows: [.symbolStore])
+    private let cache = SharedCache<ObjCAncestorResolver>(evictionGroup: .objcAncestorResolver, follows: [.swiftSymbolStore])
 
     private init() {}
 

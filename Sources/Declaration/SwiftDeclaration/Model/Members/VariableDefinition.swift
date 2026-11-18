@@ -1,6 +1,6 @@
 import MemberwiseInit
 import Demangling
-import MachOSymbols
+import SwiftSymbols
 import MachOSwiftSection
 import SwiftInspection
 import SwiftObjCInterop

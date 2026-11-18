@@ -5,7 +5,7 @@ import Semantic
 import Demangling
 import Utilities
 import OrderedCollections
-@_spi(Internals) import MachOSymbols
+@_spi(Internals) import SwiftSymbols
 @_spi(Internals) import SwiftInspection
 import SwiftDeclarationRendering
 
@@ -207,7 +207,7 @@ package struct ProtocolConformanceDumper<MachO: MachOFieldLayoutRenderable>: Con
     /// `faster-lazy-definition-indexing`). `symbols` is what the index
     /// listed at its offset.
     package static func demangledSymbol(for symbols: Symbols, typeName: String, visitedNodes: borrowing OrderedSet<StructuralNodeReferenceKey> = [], in machO: MachO) -> DemangledSymbol? {
-        for candidate in SymbolIndexStore.shared.symbols(for: symbols.offset, ownedBy: typeName, ownerKind: .conformingType, printedWith: .interfaceType, in: machO) {
+        for candidate in SwiftSymbolIndexStore.shared.symbols(for: symbols.offset, ownedBy: typeName, ownerKind: .conformingType, printedWith: .interfaceType, in: machO) {
             if !visitedNodes.contains(StructuralNodeReferenceKey(candidate.demangledNode)) {
                 return candidate
             }

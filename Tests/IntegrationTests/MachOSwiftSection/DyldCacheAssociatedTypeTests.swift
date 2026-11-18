@@ -4,7 +4,7 @@ import Demangling
 @testable import SwiftDump
 @testable import MachOTestingSupport
 import MachOFixtureSupport
-@_spi(Internals) @testable import MachOSymbols
+@_spi(Internals) @testable import SwiftSymbols
 @testable @_spi(Internals) import SwiftInspection
 
 final class DyldCacheAssociatedTypeTests: DyldCacheTests, @unchecked Sendable {

@@ -13,7 +13,7 @@ import MachOKit
 import MachOFoundation
 import Dependencies
 import Utilities
-@_spi(Internals) import MachOSymbols
+@_spi(Internals) import SwiftSymbols
 @_spi(Internals) import MachOCaches
 @_spi(Internals) import SwiftInspection
 
@@ -245,7 +245,7 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
     /// Registration is what keeps a per-image indexer — and therefore its whole
     /// declaration graph, including the `NodeStore` its definitions reference —
     /// alive for as long as the aggregate lives. Dropping the last reference
-    /// lets the sub-indexer deinit, which in turn evicts its `SymbolIndexStore`
+    /// lets the sub-indexer deinit, which in turn evicts its `SwiftSymbolIndexStore`
     /// entry (see this type's `deinit`), so per-image memory is actually
     /// reclaimed. Callers that hold the indexer rather than its position should
     /// prefer this over the index-based overload.
@@ -321,7 +321,7 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
             currentStorage.associatedTypes = []
         }
 
-        @Dependency(\.symbolIndexStore)
+        @Dependency(\.swiftSymbolIndexStore)
         var symbolIndexStore
 
         // Register this indexer as a live owner of the image's caches before
@@ -913,7 +913,7 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
     private func indexExtensions() async throws {
         eventDispatcher.dispatch(.extensionIndexingStarted)
 
-        @Dependency(\.symbolIndexStore)
+        @Dependency(\.swiftSymbolIndexStore)
         var symbolIndexStore
 
         var extensionMemberSymbolsByName = await symbolIndexStore.memberSymbols(
@@ -1007,7 +1007,7 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
                 continue
             }
 
-            func extensionDefinition(of kind: ExtensionKind, for memberSymbolsByKind: OrderedDictionary<SymbolIndexStore.MemberKind, [DemangledSymbol]>, genericSignature: NodeReference?) throws -> ExtensionDefinition {
+            func extensionDefinition(of kind: ExtensionKind, for memberSymbolsByKind: OrderedDictionary<SwiftSymbolIndexStore.MemberKind, [DemangledSymbol]>, genericSignature: NodeReference?) throws -> ExtensionDefinition {
                 let extensionDefinition = ExtensionDefinition(extensionName: .init(node: node, kind: kind), genericSignature: genericSignature, protocolConformance: nil)
                 var memberCount = 0
 
@@ -1088,8 +1088,8 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
                 return extensionDefinition
             }
 
-            var memberSymbolsByGenericSignature: OrderedDictionary<NodeReference, OrderedDictionary<SymbolIndexStore.MemberKind, [DemangledSymbol]>> = [:]
-            var memberSymbolsByKind: OrderedDictionary<SymbolIndexStore.MemberKind, [DemangledSymbol]> = [:]
+            var memberSymbolsByGenericSignature: OrderedDictionary<NodeReference, OrderedDictionary<SwiftSymbolIndexStore.MemberKind, [DemangledSymbol]>> = [:]
+            var memberSymbolsByKind: OrderedDictionary<SwiftSymbolIndexStore.MemberKind, [DemangledSymbol]> = [:]
 
             for (kind, memberSymbols) in memberSymbols {
                 for memberSymbol in memberSymbols {
@@ -1230,7 +1230,7 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
 
     /// The extension-member counterpart of `kind`, under which a member of a
     /// type another image defines joins the extension members of that type.
-    private static func extensionMemberKind(of kind: SymbolIndexStore.MemberKind) -> SymbolIndexStore.MemberKind {
+    private static func extensionMemberKind(of kind: SwiftSymbolIndexStore.MemberKind) -> SwiftSymbolIndexStore.MemberKind {
         switch kind {
         case .allocator:
             .allocator(inExtension: true)
@@ -1248,7 +1248,7 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
     }
 
     private func indexGlobals() async throws {
-        @Dependency(\.symbolIndexStore)
+        @Dependency(\.swiftSymbolIndexStore)
         var symbolIndexStore
 
         currentStorage.globalVariableDefinitions = MemberDefinitionBuilder.variables(for: symbolIndexStore.globalSymbols(of: .variable(isStorage: false), .variable(isStorage: true), in: machO).mapToAnnotatedSymbols(), fieldNames: [], isGlobalOrStatic: true)

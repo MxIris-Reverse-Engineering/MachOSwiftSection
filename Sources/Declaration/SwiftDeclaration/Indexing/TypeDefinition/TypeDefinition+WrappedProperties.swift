@@ -2,7 +2,7 @@
 import Dependencies
 import MachOSwiftSection
 import SwiftDeclarationRendering
-@_spi(Internals) import MachOSymbols
+@_spi(Internals) import SwiftSymbols
 
 /// Wrapped-property recovery, the last step of `TypeDefinition.index(in:)`.
 ///
@@ -17,7 +17,7 @@ import SwiftDeclarationRendering
 /// `wrappedValue`.
 extension TypeDefinition {
     package func recoverWrappedProperties(in machO: some MachOSwiftSectionRepresentableWithCache) {
-        @Dependency(\.symbolIndexStore)
+        @Dependency(\.swiftSymbolIndexStore)
         var symbolIndexStore
         let catalog = PropertyWrapperTypeCatalogStore.shared.catalog(for: machO)
         var recovered: [WrappedPropertyDefinition] = []

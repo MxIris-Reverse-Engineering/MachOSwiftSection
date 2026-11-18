@@ -5,7 +5,7 @@ import Semantic
 import Utilities
 import Dependencies
 import Demangling
-@_spi(Internals) import MachOSymbols
+@_spi(Internals) import SwiftSymbols
 @_spi(Internals) import SwiftInspection
 import SwiftObjCInterop
 import SwiftThunkAnalysis
@@ -27,7 +27,7 @@ package struct ObjCImplementationClassDumper<MachO: MachOFieldLayoutRenderable>:
 
     package let machO: MachO
 
-    @Dependency(\.symbolIndexStore)
+    @Dependency(\.swiftSymbolIndexStore)
     private var symbolIndexStore
 
     package init(_ dumped: Dumped, using configuration: DumperConfiguration, in machO: MachO) {
@@ -188,8 +188,8 @@ package struct ObjCImplementationClassDumper<MachO: MachOFieldLayoutRenderable>:
     /// The class's Swift member symbols under the `__C`-qualified interface
     /// name, per member kind — the list the Swift member section prints and
     /// the name-only inference reads.
-    private var memberSymbolsByKind: [(kind: SymbolIndexStore.MemberKind, symbols: [DemangledSymbol])] {
-        SymbolIndexStore.MemberKind.allCases.map { kind in
+    private var memberSymbolsByKind: [(kind: SwiftSymbolIndexStore.MemberKind, symbols: [DemangledSymbol])] {
+        SwiftSymbolIndexStore.MemberKind.allCases.map { kind in
             (kind: kind, symbols: symbolIndexStore.memberSymbols(of: kind, for: interfaceNameString, in: machO))
         }
     }

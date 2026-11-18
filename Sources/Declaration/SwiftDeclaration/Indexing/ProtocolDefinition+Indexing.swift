@@ -2,7 +2,7 @@ import Demangling
 import MachOSwiftSection
 import OrderedCollections
 import SwiftStdlibToolbox
-@_spi(Internals) import MachOSymbols
+@_spi(Internals) import SwiftSymbols
 @_spi(Internals) import SwiftInspection
 
 extension ProtocolDefinition: OnceIndexedDefinition {
@@ -29,7 +29,7 @@ extension ProtocolDefinition: OnceIndexedDefinition {
         // different stores, and store-identity equality would let the same
         // implementation symbol be claimed by two requirements.
         func _symbol(for symbols: Symbols, visitedNodes: borrowing OrderedSet<StructuralNodeReferenceKey> = []) throws -> DemangledSymbol? {
-            for candidate in SymbolIndexStore.shared.symbols(for: symbols.offset, ownedBy: name, ownerKind: .protocol, printedWith: .interfaceTypeBuilderOnly, in: machO) {
+            for candidate in SwiftSymbolIndexStore.shared.symbols(for: symbols.offset, ownedBy: name, ownerKind: .protocol, printedWith: .interfaceTypeBuilderOnly, in: machO) {
                 if !visitedNodes.contains(StructuralNodeReferenceKey(candidate.demangledNode)) {
                     return candidate
                 }
@@ -43,8 +43,8 @@ extension ProtocolDefinition: OnceIndexedDefinition {
             in: machO
         )
 
-        var requirementMemberSymbolsByKind: OrderedDictionary<SymbolIndexStore.MemberKind, [MemberSymbol]> = [:]
-        var defaultImplementationMemberSymbolsByKind: OrderedDictionary<SymbolIndexStore.MemberKind, [MemberSymbol]> = [:]
+        var requirementMemberSymbolsByKind: OrderedDictionary<SwiftSymbolIndexStore.MemberKind, [MemberSymbol]> = [:]
+        var defaultImplementationMemberSymbolsByKind: OrderedDictionary<SwiftSymbolIndexStore.MemberKind, [MemberSymbol]> = [:]
 
         var requirementVisitedNodes: OrderedSet<StructuralNodeReferenceKey> = []
         var defaultImplementationVisitedNodes: OrderedSet<StructuralNodeReferenceKey> = []

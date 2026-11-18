@@ -1,7 +1,7 @@
 @_spi(Internals) import Demangling
 import MachOSwiftSection
 import OrderedCollections
-@_spi(Internals) import MachOSymbols
+@_spi(Internals) import SwiftSymbols
 
 /// Member symbols that stand in for an implementation symbol the image does
 /// not have.
@@ -152,7 +152,7 @@ package enum StandInMemberSymbolBuilder {
     /// that are built.
     package static func imageKeepsTheMemberSymbol(
         replacedBy entryPointSymbol: DemangledSymbol,
-        symbolIndexStore: SymbolIndexStore,
+        symbolIndexStore: SwiftSymbolIndexStore,
         in machO: some MachORepresentableWithCache
     ) -> Bool {
         var memberSymbolName = entryPointSymbol.name
@@ -199,7 +199,7 @@ extension StandInMemberSymbolBuilder {
         package init(
             typeName: String,
             typeNode: NodeReference,
-            symbolIndexStore: SymbolIndexStore,
+            symbolIndexStore: SwiftSymbolIndexStore,
             in machO: some MachORepresentableWithCache
         ) {
             func standIns(for entryPointSymbols: [DemangledSymbol], _ makeStandIn: (DemangledSymbol) -> DemangledSymbol?) -> [DemangledSymbol] {
@@ -207,7 +207,7 @@ extension StandInMemberSymbolBuilder {
                     .filter { !StandInMemberSymbolBuilder.imageKeepsTheMemberSymbol(replacedBy: $0, symbolIndexStore: symbolIndexStore, in: machO) }
                     .compactMap(makeStandIn)
             }
-            func thunkStandIns(_ kinds: SymbolIndexStore.MemberKind...) -> [DemangledSymbol] {
+            func thunkStandIns(_ kinds: SwiftSymbolIndexStore.MemberKind...) -> [DemangledSymbol] {
                 standIns(for: kinds.flatMap { symbolIndexStore.objcThunkMemberSymbols(of: $0, for: typeName, node: typeNode, in: machO) }) {
                     StandInMemberSymbolBuilder.memberStandIn(forObjCThunkSymbol: $0, in: machO)
                 }
@@ -235,15 +235,15 @@ extension StandInMemberSymbolBuilder {
     }
 
     /// `memberSymbolsByTypeNode` — the extension members of every type, as
-    /// `SymbolIndexStore.memberSymbols(of:excluding:in:)` groups them — plus
+    /// `SwiftSymbolIndexStore.memberSymbols(of:excluding:in:)` groups them — plus
     /// the stand-ins of the members none of those symbols declares. A type
     /// whose extension members are all stand-ins gains an entry of its own.
     package static func supplementingExtensionMembers(
-        _ memberSymbolsByTypeNode: OrderedDictionary<StructuralNodeReferenceKey, OrderedDictionary<SymbolIndexStore.MemberKind, [DemangledSymbol]>>,
-        symbolIndexStore: SymbolIndexStore,
+        _ memberSymbolsByTypeNode: OrderedDictionary<StructuralNodeReferenceKey, OrderedDictionary<SwiftSymbolIndexStore.MemberKind, [DemangledSymbol]>>,
+        symbolIndexStore: SwiftSymbolIndexStore,
         in machO: some MachORepresentableWithCache
-    ) -> OrderedDictionary<StructuralNodeReferenceKey, OrderedDictionary<SymbolIndexStore.MemberKind, [DemangledSymbol]>> {
-        var standInsByTypeNode: OrderedDictionary<StructuralNodeReferenceKey, OrderedDictionary<SymbolIndexStore.MemberKind, [DemangledSymbol]>> = [:]
+    ) -> OrderedDictionary<StructuralNodeReferenceKey, OrderedDictionary<SwiftSymbolIndexStore.MemberKind, [DemangledSymbol]>> {
+        var standInsByTypeNode: OrderedDictionary<StructuralNodeReferenceKey, OrderedDictionary<SwiftSymbolIndexStore.MemberKind, [DemangledSymbol]>> = [:]
         let initializerSymbolsByTypeNode = symbolIndexStore.memberSymbols(of: .constructor(inExtension: true), excluding: [], in: machO)
         for (typeNodeKey, initializerSymbolsByKind) in initializerSymbolsByTypeNode {
             let standIns = initializerSymbolsByKind.values.joined()
@@ -274,7 +274,7 @@ extension StandInMemberSymbolBuilder {
         )
         for (typeNodeKey, thunkSymbolsByKind) in thunkSymbolsByTypeNode {
             for (kind, thunkSymbols) in thunkSymbolsByKind {
-                let standInKind: SymbolIndexStore.MemberKind = switch kind {
+                let standInKind: SwiftSymbolIndexStore.MemberKind = switch kind {
                 case .constructor(inExtension: true): .allocator(inExtension: true)
                 default: kind
                 }

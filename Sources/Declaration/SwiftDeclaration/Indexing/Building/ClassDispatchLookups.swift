@@ -1,6 +1,6 @@
 import Demangling
 import MachOSwiftSection
-@_spi(Internals) import MachOSymbols
+@_spi(Internals) import SwiftSymbols
 
 /// The dynamic-dispatch facts a class's vtable and override tables give up,
 /// in the two forms the member builders join against.

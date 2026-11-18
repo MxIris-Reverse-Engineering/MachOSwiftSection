@@ -3,7 +3,7 @@ import MachOKit
 import MachOSwiftSection
 @_spi(Core) import MachOObjCSection
 @_spi(Internals) import Demangling
-@_spi(Internals) import MachOSymbols
+@_spi(Internals) import SwiftSymbols
 import Dependencies
 import SwiftDeclaration
 import SwiftDeclarationRendering
@@ -191,10 +191,10 @@ public final class PrivateDiscriminatorSourceFileIndex: @unchecked Sendable {
     /// declares, which no name the index reads has to carry: a file holding
     /// only `extension View { private func … }` shows up nowhere else.
     private static func memberAndGlobalDiscriminators<MachO>(in indexer: SwiftDeclarationIndexer<MachO>) -> Set<String> {
-        @Dependency(\.symbolIndexStore)
+        @Dependency(\.swiftSymbolIndexStore)
         var symbolIndexStore
         var discriminators: Set<String> = []
-        for memberKind in SymbolIndexStore.MemberKind.allCases {
+        for memberKind in SwiftSymbolIndexStore.MemberKind.allCases {
             for memberSymbol in symbolIndexStore.memberSymbols(of: memberKind, in: indexer.machO) {
                 discriminators.formUnion(memberSymbol.demangledNode.privateDeclarations.map(\.discriminator))
             }

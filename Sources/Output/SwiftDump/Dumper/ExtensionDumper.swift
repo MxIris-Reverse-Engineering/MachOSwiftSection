@@ -5,7 +5,7 @@ import MachOSwiftSection
 import Utilities
 import Dependencies
 import OrderedCollections
-@_spi(Internals) import MachOSymbols
+@_spi(Internals) import SwiftSymbols
 import SwiftDeclarationRendering
 
 package struct ExtensionDumped: Sendable {}
@@ -17,7 +17,7 @@ package struct ExtensionDumper<MachO: MachOFieldLayoutRenderable>: Dumper {
 
     package let machO: MachO
 
-    @Dependency(\.symbolIndexStore)
+    @Dependency(\.swiftSymbolIndexStore)
     private var symbolIndexStore
 
     package init(_ dumped: ExtensionDumped, using configuration: DumperConfiguration, in machO: MachO) {
@@ -42,7 +42,7 @@ package struct GlobalDumper<MachO: MachOFieldLayoutRenderable>: Dumper {
 
     package let machO: MachO
 
-    @Dependency(\.symbolIndexStore)
+    @Dependency(\.swiftSymbolIndexStore)
     private var symbolIndexStore
 
     package init(_ dumped: ExtensionDumped, using configuration: DumperConfiguration, in machO: MachO) {

@@ -2,7 +2,7 @@ import Foundation
 import Testing
 import MachOKit
 import Dependencies
-@_spi(Internals) @testable import MachOSymbols
+@_spi(Internals) @testable import SwiftSymbols
 @_spi(Core) import MachOObjCSection
 @testable import MachOFoundation
 @testable import MachOSwiftSection

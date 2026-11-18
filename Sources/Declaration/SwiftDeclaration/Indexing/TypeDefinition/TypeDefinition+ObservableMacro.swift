@@ -2,7 +2,7 @@
 import Dependencies
 import MachOSwiftSection
 import SwiftInspection
-@_spi(Internals) import MachOSymbols
+@_spi(Internals) import SwiftSymbols
 
 /// `@Observable` expansion recovery, a step of `TypeDefinition.index(in:)`
 /// (evolution proposal `observable-macro-folding`).
@@ -20,7 +20,7 @@ extension TypeDefinition {
             observableMacroExpansion = nil
             return
         }
-        @Dependency(\.symbolIndexStore)
+        @Dependency(\.swiftSymbolIndexStore)
         var symbolIndexStore
 
         let storedProperties = fields.filter { !$0.flags.contains(.isArtificial) }

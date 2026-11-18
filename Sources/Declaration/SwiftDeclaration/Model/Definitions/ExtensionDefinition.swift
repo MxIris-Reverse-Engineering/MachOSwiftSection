@@ -5,7 +5,7 @@ import OrderedCollections
 import Demangling
 import Semantic
 import SwiftStdlibToolbox
-@_spi(Internals) import MachOSymbols
+@_spi(Internals) import SwiftSymbols
 @_spi(Internals) import SwiftInspection
 import SwiftObjCInterop
 

@@ -1,5 +1,5 @@
 @_spi(Internals) import Demangling
-@_spi(Internals) import MachOSymbols
+@_spi(Internals) import SwiftSymbols
 import SwiftInspection
 
 /// SE-0400 init accessor recovery, a step of `TypeDefinition.index(in:)`

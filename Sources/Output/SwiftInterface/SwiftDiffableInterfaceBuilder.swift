@@ -3,7 +3,7 @@ import SwiftDeclaration
 import SwiftDeclarationRendering
 import SwiftDiffing
 import MachOSwiftSection
-@_spi(Internals) import MachOSymbols
+@_spi(Internals) import SwiftSymbols
 import Dependencies
 
 /// The ABI-diff analogue of ``SwiftInterfaceBuilder``.
@@ -80,7 +80,7 @@ public final class SwiftDiffableInterfaceBuilder<MachO: MachOFieldLayoutRenderab
     /// `prepare()`); the two symbol-table facts come from the image's symbol
     /// index (evolution proposal `evolution-unobservable-presence`).
     public func abiModule() -> ABIModule {
-        @Dependency(\.symbolIndexStore) var symbolIndexStore
+        @Dependency(\.swiftSymbolIndexStore) var symbolIndexStore
         let machO = machO
         return ABIModule(
             rootTypeDefinitions: indexer.rootTypeDefinitions,

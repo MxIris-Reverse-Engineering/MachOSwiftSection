@@ -2,7 +2,7 @@ import Foundation
 import Testing
 import MachOKit
 @_spi(Internals) @testable import Demangling
-@_spi(Internals) @testable import MachOSymbols
+@_spi(Internals) @testable import SwiftSymbols
 @_spi(Support) @testable import SwiftDeclaration
 @_spi(Support) @testable import SwiftIndexing
 @testable import MachOTestingSupport
@@ -42,13 +42,13 @@ final class ExportStatusTests: MachOFileTests, @unchecked Sendable {
 
         for typeDefinition in indexer.allTypeDefinitions.values {
             let descriptorOffset = typeDefinition.typeContextDescriptorWrapper.typeContextDescriptor.offset
-            let symbolsAtDescriptor = SymbolIndexStore.shared.symbols(for: descriptorOffset, in: unsafeMachOFile)
+            let symbolsAtDescriptor = SwiftSymbolIndexStore.shared.symbols(for: descriptorOffset, in: unsafeMachOFile)
             let descriptorSymbol = symbolsAtDescriptor?.first { $0.name.isSwiftSymbol && $0.name.hasSuffix("Mn") }
             // Every type of this fixture carries a symbol at its own
             // descriptor — the measured norm on shipped binaries too, which is
             // why the remangling leg practically never runs.
             let descriptorSymbolName = try #require(descriptorSymbol?.name, "\(typeDefinition.typeName.name) has no descriptor symbol")
-            let trieVerdict = SymbolIndexStore.shared.isExported(name: descriptorSymbolName, in: unsafeMachOFile)
+            let trieVerdict = SwiftSymbolIndexStore.shared.isExported(name: descriptorSymbolName, in: unsafeMachOFile)
             #expect(typeDefinition.exportStatus.isExported == trieVerdict, "\(typeDefinition.typeName.name)")
 
             switch typeDefinition.exportStatus {
@@ -72,10 +72,10 @@ final class ExportStatusTests: MachOFileTests, @unchecked Sendable {
 
         for protocolDefinition in indexer.allProtocolDefinitions.values {
             let descriptorOffset = protocolDefinition.protocolDescriptor.offset
-            let symbolsAtDescriptor = SymbolIndexStore.shared.symbols(for: descriptorOffset, in: unsafeMachOFile)
+            let symbolsAtDescriptor = SwiftSymbolIndexStore.shared.symbols(for: descriptorOffset, in: unsafeMachOFile)
             let descriptorSymbol = symbolsAtDescriptor?.first { $0.name.isSwiftSymbol && $0.name.hasSuffix("Mp") }
             let descriptorSymbolName = try #require(descriptorSymbol?.name, "\(protocolDefinition.protocolName.name) has no descriptor symbol")
-            let trieVerdict = SymbolIndexStore.shared.isExported(name: descriptorSymbolName, in: unsafeMachOFile)
+            let trieVerdict = SwiftSymbolIndexStore.shared.isExported(name: descriptorSymbolName, in: unsafeMachOFile)
             #expect(protocolDefinition.exportStatus.isExported == trieVerdict, "\(protocolDefinition.protocolName.name)")
 
             switch protocolDefinition.exportStatus {
@@ -101,7 +101,7 @@ final class ExportStatusTests: MachOFileTests, @unchecked Sendable {
             try #require(
                 indexer.allTypeDefinitions.values.first { typeDefinition in
                     let offset = typeDefinition.typeContextDescriptorWrapper.typeContextDescriptor.offset
-                    return SymbolIndexStore.shared.symbols(for: offset, in: unsafeMachOFile)?.contains { $0.name == symbolName } == true
+                    return SwiftSymbolIndexStore.shared.symbols(for: offset, in: unsafeMachOFile)?.contains { $0.name == symbolName } == true
                 },
                 "expected a type definition whose descriptor carries \(symbolName)"
             )
@@ -118,7 +118,7 @@ final class ExportStatusTests: MachOFileTests, @unchecked Sendable {
         let privateProtocolDescriptorName = "_$s15SymbolTestsCore27PrivateDoppelgangerProtocol33_1282F137F8790A6AF4B7E2738A640142LLMp"
         let privateProtocol = try #require(
             indexer.allProtocolDefinitions.values.first { protocolDefinition in
-                SymbolIndexStore.shared.symbols(for: protocolDefinition.protocolDescriptor.offset, in: unsafeMachOFile)?
+                SwiftSymbolIndexStore.shared.symbols(for: protocolDefinition.protocolDescriptor.offset, in: unsafeMachOFile)?
                     .contains { $0.name == privateProtocolDescriptorName } == true
             },
             "expected a protocol definition whose descriptor carries \(privateProtocolDescriptorName)"
@@ -138,9 +138,9 @@ final class ExportStatusTests: MachOFileTests, @unchecked Sendable {
         try await indexer.prepare()
         let cImportedType = try #require(indexer.allTypeDefinitions.values.first { typeDefinition in
             let offset = typeDefinition.typeContextDescriptorWrapper.typeContextDescriptor.offset
-            return SymbolIndexStore.shared.symbols(for: offset, in: unsafeMachOFile)?.contains { $0.name == "_$sSo11CMTimeFlagsVMn" } == true
+            return SwiftSymbolIndexStore.shared.symbols(for: offset, in: unsafeMachOFile)?.contains { $0.name == "_$sSo11CMTimeFlagsVMn" } == true
         })
-        #expect(SymbolIndexStore.shared.isExported(name: "_$sSo11CMTimeFlagsVMn", in: unsafeMachOFile) == false)
+        #expect(SwiftSymbolIndexStore.shared.isExported(name: "_$sSo11CMTimeFlagsVMn", in: unsafeMachOFile) == false)
         #expect(cImportedType.exportStatus == .declarationIsCImported)
     }
 
@@ -158,7 +158,7 @@ final class ExportStatusTests: MachOFileTests, @unchecked Sendable {
         let nestedType = try #require(
             indexer.allTypeDefinitions.values.first { typeDefinition in
                 let offset = typeDefinition.typeContextDescriptorWrapper.typeContextDescriptor.offset
-                return SymbolIndexStore.shared.symbols(for: offset, in: unsafeMachOFile)?.contains { $0.name == descriptorSymbolName } == true
+                return SwiftSymbolIndexStore.shared.symbols(for: offset, in: unsafeMachOFile)?.contains { $0.name == descriptorSymbolName } == true
             }
         )
 

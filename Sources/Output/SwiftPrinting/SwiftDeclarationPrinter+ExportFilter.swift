@@ -3,7 +3,7 @@ import SwiftDeclaration
 @_spi(Internals) import Demangling
 import Dependencies
 import MachOSwiftSection
-@_spi(Internals) import MachOSymbols
+@_spi(Internals) import SwiftSymbols
 
 /// The in-image declarations the exported-only filter (evolution proposal
 /// `exported-only-interface`) needs in order to rule on an
@@ -189,7 +189,7 @@ extension SwiftDeclarationPrinter {
     /// reach here — they own no symbols.
     package func isExcludedByExportFilter(field: FieldDefinition) -> Bool {
         guard evaluatesExportFilter, !field.accessors.isEmpty, !field.isOverride else { return false }
-        @Dependency(\.symbolIndexStore) var symbolIndexStore
+        @Dependency(\.swiftSymbolIndexStore) var symbolIndexStore
         let hasObjCEntryPoint = field.accessors.contains { symbolIndexStore.containsSymbol(named: $0.symbol.name + "To", in: machO) }
         return !hasObjCEntryPoint && exportVerdict(forSymbolNames: field.accessors.map(\.symbol.name)) == false
     }

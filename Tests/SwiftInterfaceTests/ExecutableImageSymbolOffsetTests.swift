@@ -7,7 +7,7 @@ import Demangling
 import SwiftDeclarationRendering
 import SwiftInterface
 @testable import SwiftDump
-@_spi(Internals) @testable import MachOSymbols
+@_spi(Internals) @testable import SwiftSymbols
 @testable import MachOTestingSupport
 import MachOFixtureSupport
 
@@ -240,7 +240,7 @@ struct ExecutableImageSymbolOffsetTests {
             expectedOffsetByName[symbol.name] = Int(try #require(machOFile.fileOffset(of: symbol.address)))
         }
         try #require(!expectedOffsetByName.isEmpty, "premise: the fixture carries `_symbolic` symbols")
-        let collectedSymbols = try #require(SymbolIndexStore.shared.symbolicManglingSymbols(in: machOFile))
+        let collectedSymbols = try #require(SwiftSymbolIndexStore.shared.symbolicManglingSymbols(in: machOFile))
         var collectedOffsetByName: [String: Int] = [:]
         for symbol in collectedSymbols {
             collectedOffsetByName[symbol.name] = symbol.offset

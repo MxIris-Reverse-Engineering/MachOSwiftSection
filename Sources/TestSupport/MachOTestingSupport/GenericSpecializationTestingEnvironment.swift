@@ -4,7 +4,7 @@
 import Foundation
 import Testing
 import MachOKit
-@_spi(Internals) import MachOSymbols
+@_spi(Internals) import SwiftSymbols
 import MachOSwiftSection
 @_spi(Support) import SwiftInterface
 

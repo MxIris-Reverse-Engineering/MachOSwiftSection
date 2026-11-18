@@ -2,6 +2,7 @@ import Foundation
 @_spi(Internals) import Demangling
 import MachOKit
 import MachOFoundation
+import SwiftSymbols
 @_spi(Internals) import MachOCaches
 
 /// What a wrapper type's `wrappedValue` accessor symbols say about it.
@@ -178,7 +179,7 @@ public final class PropertyWrapperTypeCatalog: @unchecked Sendable {
                 return winner
             }
             // `updateValue` stores a `nil` verdict unambiguously, as
-            // `SymbolIndexStore`'s late-demangle cache does.
+            // `SwiftSymbolIndexStore`'s late-demangle cache does.
             memoizedEvidenceByPrefix.updateValue(evidence, forKey: prefix)
             return evidence
         }

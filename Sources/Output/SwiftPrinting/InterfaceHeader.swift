@@ -1,7 +1,7 @@
 import Foundation
 import MachOKit
 import MachOKitExtensions
-@_spi(Internals) import MachOSymbols
+@_spi(Internals) import SwiftSymbols
 import Demangling
 import Dependencies
 import Semantic
@@ -93,7 +93,7 @@ extension InterfaceHeaderInfo {
         generatedDate: Date? = nil,
         includesUnrecoverableNotes: Bool = true
     ) {
-        @Dependency(\.symbolIndexStore)
+        @Dependency(\.swiftSymbolIndexStore)
         var symbolIndexStore
 
         let imagePath: String? = if let machOFile = machO.asMachOFile {

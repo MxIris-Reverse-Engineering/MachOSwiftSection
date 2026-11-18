@@ -4,7 +4,7 @@ import MachOKit
 import MachOObjCSection
 @testable import Demangling
 @testable import MachOSwiftSection
-@_spi(Internals) import MachOSymbols
+@_spi(Internals) import SwiftSymbols
 @testable import MachOTestingSupport
 import MachOFixtureSupport
 @testable @_spi(Internals) import SwiftInspection

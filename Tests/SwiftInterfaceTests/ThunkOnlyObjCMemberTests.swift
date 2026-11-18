@@ -6,7 +6,7 @@ import MachOFoundation
 import MachOSwiftSection
 import SwiftDeclarationRendering
 import SwiftInterface
-@_spi(Internals) import MachOSymbols
+@_spi(Internals) import SwiftSymbols
 @testable import MachOTestingSupport
 
 /// Members whose implementation symbol the optimizer deleted while another of
@@ -72,7 +72,7 @@ struct ThunkOnlyObjCMemberTests {
     /// deleting the entry points.
     @Test func optimizedBuildKeepsOnlyTheThunkOrTheInitializingEntryPoint() throws {
         let machOFile = try ThunkOnlyMemberFixture.machOFile(.wholeModuleOptimized)
-        let symbolIndexStore = SymbolIndexStore.shared
+        let symbolIndexStore = SwiftSymbolIndexStore.shared
         let widgetName = Self.typeQualifiedNamePrefix + "ThunkOnlyWidget"
         let functionNames = symbolIndexStore.memberSymbols(of: .function(inExtension: false, isStatic: false), for: widgetName, in: machOFile).map(\.name)
         #expect(!functionNames.contains { $0.contains("7isEqual") }, "\(functionNames)")
@@ -95,7 +95,7 @@ struct ThunkOnlyObjCMemberTests {
     /// (its thunk), each under its own name.
     @Test func thunkIndexHoldsTheThunksOwnSymbol() throws {
         let machOFile = try ThunkOnlyMemberFixture.machOFile(.unoptimized)
-        let symbolIndexStore = SymbolIndexStore.shared
+        let symbolIndexStore = SwiftSymbolIndexStore.shared
         let widgetName = Self.typeQualifiedNamePrefix + "ThunkOnlyWidget"
         let implementationNames = symbolIndexStore.memberSymbols(of: .function(inExtension: false, isStatic: false), for: widgetName, in: machOFile).map(\.name)
         let thunkNames = symbolIndexStore.objcThunkMemberSymbols(of: .function(inExtension: false, isStatic: false), for: widgetName, in: machOFile).map(\.name)
@@ -181,7 +181,7 @@ struct ThunkOnlyObjCMemberTests {
     /// left.
     @Test func standInMembersPrintTheAddressOfTheEntryPointTheImageKept() async throws {
         let machOFile = try ThunkOnlyMemberFixture.machOFile(.wholeModuleOptimized)
-        let symbolIndexStore = SymbolIndexStore.shared
+        let symbolIndexStore = SwiftSymbolIndexStore.shared
         let widgetName = Self.typeQualifiedNamePrefix + "ThunkOnlyWidget"
         let thunkSymbol = try #require(symbolIndexStore.objcThunkMemberSymbols(of: .function(inExtension: false, isStatic: false), for: widgetName, in: machOFile).first { $0.name.hasSuffix("7isEqualySbypSgFTo") })
         let holderName = Self.typeQualifiedNamePrefix + "InitializingEntryOnlyHolder"

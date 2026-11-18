@@ -8,7 +8,7 @@ import Dependencies
 @testable import MachOSwiftSection
 @testable import MachOTestingSupport
 import MachOFixtureSupport
-@_spi(Internals) import MachOSymbols
+@_spi(Internals) import SwiftSymbols
 @testable import SwiftDump
 @testable import SwiftInterface
 @testable @_spi(Internals) import SwiftInspection
@@ -254,7 +254,7 @@ struct NodePrinterUnitTests {
 
 @Suite
 final class NodePrinterIntegrationTests: DyldCacheTests, @unchecked Sendable {
-    @Dependency(\.symbolIndexStore)
+    @Dependency(\.swiftSymbolIndexStore)
     private var symbolIndexStore
 
     override class var cacheImageName: MachOImageName { .SwiftUICore }

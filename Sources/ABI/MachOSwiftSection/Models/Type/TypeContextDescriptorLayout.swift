@@ -1,5 +1,6 @@
 
 import MachOBase
+import Utilities
 
 @Layout
 public protocol TypeContextDescriptorLayout: NamedContextDescriptorLayout {

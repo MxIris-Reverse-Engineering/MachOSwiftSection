@@ -11,7 +11,7 @@ import SwiftStdlibToolbox
 import MachOKit
 import Dependencies
 import Utilities
-@_spi(Internals) import MachOSymbols
+@_spi(Internals) import SwiftSymbols
 @_spi(Internals) import MachOCaches
 @_spi(Internals) import SwiftInspection
 import SwiftObjCInterop
@@ -1093,7 +1093,7 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
     /// annotation never fires on a guess. Internal (not private): the
     /// stored-field leg lives in `SwiftDeclarationPrinter+Headers.swift`.
     func exportVerdict(forSymbolNames symbolNames: [String]) -> Bool? {
-        @Dependency(\.symbolIndexStore) var symbolIndexStore
+        @Dependency(\.swiftSymbolIndexStore) var symbolIndexStore
         return symbolIndexStore.isExportedIncludingDerivedSymbols(names: symbolNames, in: machO)
     }
 

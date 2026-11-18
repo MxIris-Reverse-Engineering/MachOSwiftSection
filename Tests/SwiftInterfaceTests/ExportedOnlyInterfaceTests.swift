@@ -1,7 +1,7 @@
 import Foundation
 import Testing
 import MachOKit
-@_spi(Internals) @testable import MachOSymbols
+@_spi(Internals) @testable import SwiftSymbols
 @_spi(Support) @testable import SwiftDeclaration
 @_spi(Support) @testable import SwiftPrinting
 @_spi(Support) @testable import SwiftInterface
@@ -44,7 +44,7 @@ final class ExportedOnlyInterfaceTests: MachOFileTests, @unchecked Sendable {
     @Test func privateTypeIsDropped() async throws {
         let unsafeMachOFile = machOFile
         let descriptorName = "_$s15SymbolTestsCore19PrivateDoppelganger33_1282F137F8790A6AF4B7E2738A640142LLVMn"
-        #expect(SymbolIndexStore.shared.isExported(name: descriptorName, in: unsafeMachOFile) == false)
+        #expect(SwiftSymbolIndexStore.shared.isExported(name: descriptorName, in: unsafeMachOFile) == false)
 
         let defaultOutput = try await buildOutput(exportedOnly: false)
         #expect(defaultOutput.contains("struct PrivateDoppelganger {"))
@@ -61,7 +61,7 @@ final class ExportedOnlyInterfaceTests: MachOFileTests, @unchecked Sendable {
     @Test func privateProtocolAndItsDefaultImplementationsAreDropped() async throws {
         let unsafeMachOFile = machOFile
         let descriptorName = "_$s15SymbolTestsCore27PrivateDoppelgangerProtocol33_1282F137F8790A6AF4B7E2738A640142LLMp"
-        #expect(SymbolIndexStore.shared.isExported(name: descriptorName, in: unsafeMachOFile) == false)
+        #expect(SwiftSymbolIndexStore.shared.isExported(name: descriptorName, in: unsafeMachOFile) == false)
 
         let defaultOutput = try await buildOutput(exportedOnly: false)
         #expect(defaultOutput.contains("protocol PrivateDoppelgangerProtocol {"))
@@ -92,7 +92,7 @@ final class ExportedOnlyInterfaceTests: MachOFileTests, @unchecked Sendable {
     @Test func nestedPrivateTypeIsDroppedWhileParentStays() async throws {
         let unsafeMachOFile = machOFile
         let descriptorName = "_$s15SymbolTestsCore7StructsO19PrivateProtocolTest33_930E68B58AC9D850D1A6B7A3A1786E37LLOMn"
-        #expect(SymbolIndexStore.shared.isExported(name: descriptorName, in: unsafeMachOFile) == false)
+        #expect(SwiftSymbolIndexStore.shared.isExported(name: descriptorName, in: unsafeMachOFile) == false)
 
         let defaultOutput = try await buildOutput(exportedOnly: false)
         #expect(defaultOutput.contains("    enum PrivateProtocolTest {"))
@@ -115,7 +115,7 @@ final class ExportedOnlyInterfaceTests: MachOFileTests, @unchecked Sendable {
     @Test func publicTypeNestedInConstrainedExtensionIsKept() async throws {
         let unsafeMachOFile = machOFile
         let descriptorName = "_$s15SymbolTestsCore8GenericsO22GenericRequirementTestVAASYRzrlE28RawRepresentableNestedStructVMn"
-        #expect(SymbolIndexStore.shared.isExported(name: descriptorName, in: unsafeMachOFile) == true)
+        #expect(SwiftSymbolIndexStore.shared.isExported(name: descriptorName, in: unsafeMachOFile) == true)
 
         let filteredOutput = try await buildOutput(exportedOnly: true)
         #expect(filteredOutput.contains("struct RawRepresentableNestedStruct {"))
@@ -154,10 +154,10 @@ final class ExportedOnlyInterfaceTests: MachOFileTests, @unchecked Sendable {
     /// `ExportStatusAnnotationTests`, so "kept" is the exemption's doing.
     @Test func thunkExportedObjCAndOverrideMembersAreKept() async throws {
         let unsafeMachOFile = machOFile
-        #expect(SymbolIndexStore.shared.isExported(name: "_$s15SymbolTestsCore6ActorsO9ActorTestC11mutateStateyyF", in: unsafeMachOFile) == false)
-        #expect(SymbolIndexStore.shared.isExportedIncludingDerivedSymbols(name: "_$s15SymbolTestsCore6ActorsO9ActorTestC11mutateStateyyF", in: unsafeMachOFile) == true)
-        #expect(SymbolIndexStore.shared.isExportedIncludingDerivedSymbols(name: "_$s15SymbolTestsCore10AttributesO18ObjCAttributeClassC17objcDynamicMethodyyF", in: unsafeMachOFile) == false)
-        #expect(SymbolIndexStore.shared.isExportedIncludingDerivedSymbols(name: "_$s15SymbolTestsCore7ClassesO25ExternalSwiftSubclassTestC14instanceMethodSSyF", in: unsafeMachOFile) == false)
+        #expect(SwiftSymbolIndexStore.shared.isExported(name: "_$s15SymbolTestsCore6ActorsO9ActorTestC11mutateStateyyF", in: unsafeMachOFile) == false)
+        #expect(SwiftSymbolIndexStore.shared.isExportedIncludingDerivedSymbols(name: "_$s15SymbolTestsCore6ActorsO9ActorTestC11mutateStateyyF", in: unsafeMachOFile) == true)
+        #expect(SwiftSymbolIndexStore.shared.isExportedIncludingDerivedSymbols(name: "_$s15SymbolTestsCore10AttributesO18ObjCAttributeClassC17objcDynamicMethodyyF", in: unsafeMachOFile) == false)
+        #expect(SwiftSymbolIndexStore.shared.isExportedIncludingDerivedSymbols(name: "_$s15SymbolTestsCore7ClassesO25ExternalSwiftSubclassTestC14instanceMethodSSyF", in: unsafeMachOFile) == false)
 
         let filteredOutput = try await buildOutput(exportedOnly: true)
         #expect(filteredOutput.contains("func mutateState()"))

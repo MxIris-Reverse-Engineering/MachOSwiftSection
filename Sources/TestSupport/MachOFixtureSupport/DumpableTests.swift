@@ -5,7 +5,7 @@ import MachOSwiftSection
 import SwiftDump
 import SwiftDeclarationRendering
 import Dependencies
-@_spi(Internals) import MachOSymbols
+@_spi(Internals) import SwiftSymbols
 @_spi(Internals) import SwiftInspection
 
 @MainActor
@@ -103,7 +103,7 @@ extension DumpableTests {
     }
 
     package func dumpOpaqueTypes(for machO: some MachOFieldLayoutRenderable) async throws {
-        @Dependency(\.symbolIndexStore)
+        @Dependency(\.swiftSymbolIndexStore)
         var symbolIndexStore
         let symbols = symbolIndexStore.symbols(of: .opaqueTypeDescriptor, in: machO)
         for symbol in symbols where symbol.offset != 0 {

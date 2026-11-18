@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 import MachOFoundation
+import SwiftSymbols
 import SwiftInspection
 @testable import MachOSwiftSection
 @testable import MachOTestingSupport

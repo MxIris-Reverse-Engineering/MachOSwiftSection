@@ -2,12 +2,12 @@ import Foundation
 import Testing
 import MachO
 import Demangling
-@_spi(Internals) @testable import MachOSymbols
+@_spi(Internals) @testable import SwiftSymbols
 @testable import MachOTestingSupport
 import MachOFixtureSupport
 
 /// Stage 0 of the NodeStore migration plan: capture per-image baseline
-/// metrics for `SymbolIndexStore.buildStorage` so Stage 1/4 can compare
+/// metrics for `SwiftSymbolIndexStore.buildStorage` so Stage 1/4 can compare
 /// like-for-like. Run this suite alone (`--filter SymbolIndexStoreBaselineTests`)
 /// so no other test warms the global `NodeCache` or demangles symbols first.
 @Suite
@@ -22,9 +22,9 @@ final class SymbolIndexStoreBaselineTests: MachOImageTests {
         let subtreeCacheCountBefore = NodeCache.shared.subtreeCount
 
         let clock = ContinuousClock()
-        var builtStorage: SymbolIndexStore.Storage?
+        var builtStorage: SwiftSymbolIndexStore.Storage?
         let buildDuration = clock.measure {
-            builtStorage = SymbolIndexStore.shared.buildStorage(for: machOImage)
+            builtStorage = SwiftSymbolIndexStore.shared.buildStorage(for: machOImage)
         }
         let footprintAfter = ProcessMemory.value(of: .physicalFootprint)
         let leafCacheCountAfter = NodeCache.shared.count

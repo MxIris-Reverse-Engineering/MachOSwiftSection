@@ -1,6 +1,6 @@
 import Demangling
 import MachOSwiftSection
-@_spi(Internals) import MachOSymbols
+@_spi(Internals) import SwiftSymbols
 
 extension TypeDefinition {
     /// Builds every symbol-backed member of this type — the six member
@@ -30,7 +30,7 @@ extension TypeDefinition {
     func indexMembers(
         fieldNames: Set<String>,
         dispatchLookups: ClassDispatchLookups,
-        symbolIndexStore: SymbolIndexStore,
+        symbolIndexStore: SwiftSymbolIndexStore,
         in machO: some MachOSwiftSectionRepresentableWithCache
     ) -> [String: [Accessor]] {
         let name = typeName.name

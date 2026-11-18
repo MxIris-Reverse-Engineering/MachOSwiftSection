@@ -7,7 +7,7 @@ import SwiftInterface
 import SwiftInspection
 import SwiftObjCInterop
 import Semantic
-@_spi(Internals) import MachOSymbols
+@_spi(Internals) import SwiftSymbols
 @testable import MachOTestingSupport
 
 /// `@objc @implementation` recognition on the interface path (evolution
@@ -194,7 +194,7 @@ struct ObjCImplementationClassRecognitionTests {
     /// `DateFormattingContext` (caught by the rendering A/B).
     @Test func aHiddenNonUniqueAccessorIsNotEvidence() throws {
         let machOFile = try ObjCImplementationFixture.machOFile(.full)
-        let symbolIndexStore = SymbolIndexStore.shared
+        let symbolIndexStore = SwiftSymbolIndexStore.shared
         // The premise: the fixture really does carry the clang class's accessor,
         // and it really is not exported.
         #expect(symbolIndexStore.containsSymbol(named: "_$sSo11ClangWidgetCMa", in: machOFile), "the fixture no longer emits the non-unique accessor the test is about")

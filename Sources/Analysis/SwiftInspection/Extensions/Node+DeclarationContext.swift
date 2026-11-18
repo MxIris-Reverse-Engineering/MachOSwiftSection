@@ -14,7 +14,7 @@
 //
 // The declaration context is the DIRECT context of the tree's outermost
 // entity, which is what the symbol index keys its member buckets on
-// (`SymbolIndexStore.processThunkAttributeSymbol` extracts the same thing).
+// (`SwiftSymbolIndexStore.processThunkAttributeSymbol` extracts the same thing).
 
 /// Node kinds that carry `(context, identifier, type)` — the shape whose first
 /// child is the declaration context.

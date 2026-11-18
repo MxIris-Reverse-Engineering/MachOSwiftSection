@@ -1,7 +1,7 @@
 import Foundation
 import MachOKit
 import MachOKitExtensions
-@_spi(Internals) import MachOSymbols
+@_spi(Internals) import SwiftSymbols
 
 /// What an ObjC method's IMP references (evolution proposal
 /// `objc-ancestor-override-recovery`): the addresses its code calls,

@@ -2,6 +2,7 @@ import MemberwiseInit
 import Demangling
 import MachOSwiftSection
 import MachOFoundation
+import SwiftSymbols
 import Utilities
 import SwiftInspection
 import SwiftObjCInterop

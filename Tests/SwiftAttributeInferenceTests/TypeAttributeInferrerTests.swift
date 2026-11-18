@@ -4,7 +4,7 @@ import MachOFoundation
 import Testing
 import SwiftDump
 import Demangling
-@_spi(Internals) import MachOSymbols
+@_spi(Internals) import SwiftSymbols
 
 // MARK: - TypeAttributeInferrer Static Predicate Tests
 

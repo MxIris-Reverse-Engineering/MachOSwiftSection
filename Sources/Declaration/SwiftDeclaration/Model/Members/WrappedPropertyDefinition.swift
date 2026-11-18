@@ -1,5 +1,5 @@
 import Demangling
-import MachOSymbols
+import SwiftSymbols
 
 /// A property the source declared with a property wrapper (`@Wrapper var x: T`),
 /// recovered at index time from what the compiler synthesized for it: the

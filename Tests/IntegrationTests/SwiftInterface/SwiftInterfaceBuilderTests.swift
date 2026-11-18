@@ -10,7 +10,7 @@ import Dependencies
 @testable import MachOTestingSupport
 import MachOFixtureSupport
 @testable import SwiftInterface
-@_spi(Internals) @testable import MachOSymbols
+@_spi(Internals) @testable import SwiftSymbols
 @_spi(Internals) @testable import MachOCaches
 
 protocol SwiftInterfaceBuilderTests: SwiftInterfaceDumpTests {

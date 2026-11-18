@@ -1,7 +1,7 @@
 import MachOKit
 import MachOFoundation
 import MachOSwiftSection
-@_spi(Internals) import MachOSymbols
+@_spi(Internals) import SwiftSymbols
 @_spi(Internals) import Demangling
 
 /// How a generic context's parameters split into depths — the first half of
@@ -355,7 +355,7 @@ private protocol DescriptorSymbolLookupContext {
 
 extension MachOContext: DescriptorSymbolLookupContext {
     fileprivate func offset(ofSymbolNamed name: String, inImageOfDescriptorAt descriptorOffset: Int) -> Int? {
-        SymbolIndexStore.shared.offset(ofSymbolNamed: name, in: machO)
+        SwiftSymbolIndexStore.shared.offset(ofSymbolNamed: name, in: machO)
     }
 
     fileprivate var readsImageLoadedInProcess: Bool {
@@ -369,7 +369,7 @@ extension InProcessContext: DescriptorSymbolLookupContext {
     fileprivate func offset(ofSymbolNamed name: String, inImageOfDescriptorAt descriptorOffset: Int) -> Int? {
         guard let descriptorPointer = UnsafeRawPointer(bitPattern: descriptorOffset),
               let machOImage = MachOImage.image(for: descriptorPointer),
-              let imageOffset = SymbolIndexStore.shared.offset(ofSymbolNamed: name, in: machOImage)
+              let imageOffset = SwiftSymbolIndexStore.shared.offset(ofSymbolNamed: name, in: machOImage)
         else { return nil }
         return Int(bitPattern: machOImage.ptr) + imageOffset
     }

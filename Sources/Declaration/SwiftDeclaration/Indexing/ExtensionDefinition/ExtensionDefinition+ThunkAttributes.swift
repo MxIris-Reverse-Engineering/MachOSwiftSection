@@ -1,6 +1,6 @@
 import Demangling
 import MachOSwiftSection
-@_spi(Internals) import MachOSymbols
+@_spi(Internals) import SwiftSymbols
 
 extension ExtensionDefinition {
     /// The extension-side twin of `TypeDefinition.applyThunkAttributes`
@@ -10,7 +10,7 @@ extension ExtensionDefinition {
     /// decorates the members its extensions add. Before this the interface
     /// printed `@objc` on a class's members but never on its extensions'.
     package func applyThunkAttributes(
-        symbolIndexStore: SymbolIndexStore,
+        symbolIndexStore: SwiftSymbolIndexStore,
         typeName: String,
         typeNode: NodeReference,
         in machO: some MachORepresentableWithCache

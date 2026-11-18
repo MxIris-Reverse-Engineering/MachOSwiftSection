@@ -5,7 +5,7 @@ import MachOFoundation
 import SwiftDeclarationRendering
 import SwiftDiffing
 import SwiftInterface
-@_spi(Internals) import MachOSymbols
+@_spi(Internals) import SwiftSymbols
 @testable import MachOTestingSupport
 
 /// A member an image declares on a type another image defines, with no
@@ -50,7 +50,7 @@ struct MembersOfAnotherImagesTypeTests {
     @Test func theMembersManglingNamesNoExtension() throws {
         let machOFile = try splitModuleImage()
         let gaugeName = "\(ImageGroupFixture.moduleName).Gauge"
-        let functionNames = SymbolIndexStore.shared.memberSymbols(of: .function(inExtension: false, isStatic: false), for: gaugeName, in: machOFile).map(\.name)
+        let functionNames = SwiftSymbolIndexStore.shared.memberSymbols(of: .function(inExtension: false, isStatic: false), for: gaugeName, in: machOFile).map(\.name)
         #expect(functionNames.contains { $0.contains("10calibrated") }, "\(functionNames)")
     }
 
@@ -74,7 +74,7 @@ struct MembersOfAnotherImagesTypeTests {
     /// importer's `init?(rawValue:)` for a C enum, emitted into every image
     /// that calls it, as the standard library's inlinable code is.
     @Test func theImageCarriesAnotherModulesMembers() throws {
-        let allocatorNames = SymbolIndexStore.shared.memberSymbols(of: .allocator(inExtension: false), in: try splitModuleImage()).map(\.name)
+        let allocatorNames = SwiftSymbolIndexStore.shared.memberSymbols(of: .allocator(inExtension: false), in: try splitModuleImage()).map(\.name)
         #expect(allocatorNames.contains { $0.contains("NSComparisonResult") }, "\(allocatorNames)")
     }
 

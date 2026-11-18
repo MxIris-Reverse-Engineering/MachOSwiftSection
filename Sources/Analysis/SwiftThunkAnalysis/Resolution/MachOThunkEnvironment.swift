@@ -2,6 +2,7 @@ import Foundation
 import FoundationToolbox
 import MachOKit
 import MachOFoundation
+import SwiftSymbols
 import MachOSwiftSection
 import Demangling
 import ARM64InstructionDecoding

@@ -7,14 +7,14 @@ import Demangling
 import MachOFixtureSupport
 import MachOSwiftSection
 @testable import SwiftDump
-@_spi(Internals) import MachOSymbols
+@_spi(Internals) import SwiftSymbols
 @testable @_spi(Internals) import SwiftInspection
 
 protocol OpaqueTypeTests {}
 
 extension OpaqueTypeTests {
     func opaqueTypes(in machO: some MachOFieldLayoutRenderable) async throws {
-        let symbols = SymbolIndexStore.shared.symbols(of: .opaqueTypeDescriptor, in: machO)
+        let symbols = SwiftSymbolIndexStore.shared.symbols(of: .opaqueTypeDescriptor, in: machO)
         for symbol in symbols {
             guard symbol.offset > 0 else { continue }
             print("Offset:", symbol.offset)

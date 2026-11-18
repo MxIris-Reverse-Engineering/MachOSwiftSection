@@ -5,7 +5,7 @@ import MachOFoundation
 import SwiftStdlibToolbox
 import MachOSwiftSection
 @_spi(Internals) import MachOCaches
-@_spi(Internals) import MachOSymbols
+@_spi(Internals) import SwiftSymbols
 
 /// Demangles with the symbolic references resolved against a Mach-O image.
 ///
@@ -45,7 +45,7 @@ extension SymbolicDemangler {
     public static let isCacheEnabled: Bool = true
 
     public static func demangleSymbol(for symbol: Symbol, in machO: some MachOSwiftSectionRepresentableWithCache) throws -> Node? {
-        return SymbolIndexStore.shared.demangledNode(for: symbol, in: machO)
+        return SwiftSymbolIndexStore.shared.demangledNode(for: symbol, in: machO)
     }
 
     /// Store-backed variant of `demangleSymbol(for:in:)`: returns a
@@ -53,7 +53,7 @@ extension SymbolicDemangler {
     /// mini store for symbols outside the build sweep) without materializing
     /// a `Node` tree.
     public static func demangleSymbolReference(for symbol: Symbol, in machO: some MachOSwiftSectionRepresentableWithCache) -> NodeReference? {
-        return SymbolIndexStore.shared.demangledNodeReference(for: symbol, in: machO)
+        return SwiftSymbolIndexStore.shared.demangledNodeReference(for: symbol, in: machO)
     }
 
     /// Drops the per-image demangle memo so the next query rebuilds it.

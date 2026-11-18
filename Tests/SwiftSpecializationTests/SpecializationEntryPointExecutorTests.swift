@@ -5,7 +5,7 @@ import Foundation
 import Testing
 import MachOKit
 import Demangling
-@_spi(Internals) import MachOSymbols
+@_spi(Internals) import SwiftSymbols
 @testable import MachOSwiftSection
 import MachOTestingSupport
 

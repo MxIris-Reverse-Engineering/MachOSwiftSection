@@ -6,7 +6,7 @@ import Demangling
 import OrderedCollections
 import Dependencies
 import SwiftDeclarationRendering
-@_spi(Internals) import MachOSymbols
+@_spi(Internals) import SwiftSymbols
 @_spi(Internals) import SwiftInspection
 
 /// Model-driven declaration-header rendering for the interface path.
@@ -184,7 +184,7 @@ extension SwiftDeclarationPrinter {
     /// whose class context matches it — mirroring `ClassDumper.isDistributedActor`.
     private func isDistributedActor(_ dumped: Class) -> Bool {
         guard dumped.descriptor.isActor else { return false }
-        @Dependency(\.symbolIndexStore) var symbolIndexStore
+        @Dependency(\.swiftSymbolIndexStore) var symbolIndexStore
 
         guard let currentTypeNode = try? SymbolicDemangler.demangleContext(for: .type(.class(dumped.descriptor)), in: machO.context) else { return false }
         let currentTypeName = currentTypeNode.print(using: .interfaceTypeBuilderOnly)
@@ -633,7 +633,7 @@ extension SwiftDeclarationPrinter {
                 // by its `To` thunk's presence in the symbol population)
                 // dispatches through objc_msgSend.
                 if !isEnum, configuration.printExportStatus, !field.accessors.isEmpty, !field.isOverride {
-                    @Dependency(\.symbolIndexStore) var symbolIndexStore
+                    @Dependency(\.swiftSymbolIndexStore) var symbolIndexStore
                     let hasObjCEntryPoint = field.accessors.contains { symbolIndexStore.containsSymbol(named: $0.symbol.name + "To", in: machO) }
                     if !hasObjCEntryPoint, exportVerdict(forSymbolNames: field.accessors.map(\.symbol.name)) == false {
                         renderConfiguration.exportStatusComment()
