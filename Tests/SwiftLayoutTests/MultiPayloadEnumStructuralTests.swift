@@ -5,8 +5,8 @@ import MachOFoundation
 @testable import MachOSwiftSection
 @_spi(Internals) import SwiftInspection
 @testable import SwiftLayout
-@testable import MachOTestingSupport
-import MachOFixtureSupport
+@testable import SwiftSectionTestingSupport
+import SwiftSectionFixtureSupport
 
 /// Validates the structural multi-payload enum path (the fallback reached when no
 /// `__swift5_builtin` whole-type descriptor exists). The resolver prefers the

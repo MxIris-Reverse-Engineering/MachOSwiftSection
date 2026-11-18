@@ -1,7 +1,7 @@
 import Foundation
 import Testing
 import SwiftSectionKit
-@testable import MachOTestingSupport
+@testable import SwiftSectionTestingSupport
 
 /// `interface` folds what `@Observable` generated unless the request expands
 /// macros, and `dump` names the macro on the class's header line (evolution

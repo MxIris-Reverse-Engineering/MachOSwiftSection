@@ -3,8 +3,8 @@ import Testing
 import MachOKit
 import MachOFoundation
 import SwiftSymbols
-import MachOTestingSupport
-import MachOFixtureSupport
+import SwiftSectionTestingSupport
+import SwiftSectionFixtureSupport
 
 /// A host's wrapper — MachOKitUI's `MachOFileSource` / `MachOImageSource` —
 /// around a reader of the system dyld shared cache.

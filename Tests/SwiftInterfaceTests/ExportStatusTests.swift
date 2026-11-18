@@ -5,8 +5,8 @@ import MachOKit
 @_spi(Internals) @testable import SwiftSymbols
 @_spi(Support) @testable import SwiftDeclaration
 @_spi(Support) @testable import SwiftIndexing
-@testable import MachOTestingSupport
-import MachOFixtureSupport
+@testable import SwiftSectionTestingSupport
+import SwiftSectionFixtureSupport
 
 /// `TypeDefinition.exportStatus` / `ProtocolDefinition.exportStatus` — the
 /// export fact carried on the declaration model (evolution proposal

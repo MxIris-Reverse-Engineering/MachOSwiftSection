@@ -5,7 +5,7 @@ import MachOFoundation
 @testable import MachOSwiftSection
 @_spi(Internals) import SwiftInspection
 @testable import SwiftLayout
-@testable import MachOTestingSupport
+@testable import SwiftSectionTestingSupport
 
 /// Existentials of `@objc` protocols declared in Swift that only their field
 /// descriptors name (evolution proposal `swift-declared-objc-protocols`):

@@ -4,7 +4,7 @@ import MachOKit
 import MachOFoundation
 import MachOSwiftSection
 import SwiftDump
-@testable import MachOTestingSupport
+@testable import SwiftSectionTestingSupport
 
 /// `dump` names the macro that generated an `@Observable` class's members on
 /// its header line and keeps every member as the records have them

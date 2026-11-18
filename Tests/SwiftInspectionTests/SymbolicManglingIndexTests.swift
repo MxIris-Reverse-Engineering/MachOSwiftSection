@@ -5,8 +5,8 @@ import MachOObjCSection
 @testable import Demangling
 @testable import MachOSwiftSection
 @_spi(Internals) import SwiftSymbols
-@testable import MachOTestingSupport
-import MachOFixtureSupport
+@testable import SwiftSectionTestingSupport
+import SwiftSectionFixtureSupport
 @testable @_spi(Internals) import SwiftInspection
 @testable @_spi(Internals) import SwiftObjCInterop
 

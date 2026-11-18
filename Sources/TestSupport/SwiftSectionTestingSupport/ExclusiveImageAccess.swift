@@ -1,5 +1,5 @@
 import Foundation
-import MachOFixtureSupport
+import SwiftSectionFixtureSupport
 import Testing
 
 /// Serializes every test that declares the same fixture image — **across

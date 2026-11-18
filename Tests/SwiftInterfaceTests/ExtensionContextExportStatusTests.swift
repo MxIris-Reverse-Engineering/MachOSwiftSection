@@ -6,7 +6,7 @@ import MachOKit
 @_spi(Support) @testable import SwiftDeclaration
 @_spi(Support) @testable import SwiftIndexing
 import SwiftInterface
-@testable import MachOTestingSupport
+@testable import SwiftSectionTestingSupport
 
 /// The export verdict of declarations in extensions of another module's
 /// types, in images that keep no symbol at a non-exported descriptor

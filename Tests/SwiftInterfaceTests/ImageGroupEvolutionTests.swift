@@ -3,7 +3,7 @@ import Testing
 import MachOKit
 import SwiftDiffing
 import SwiftInterface
-@testable import MachOTestingSupport
+@testable import SwiftSectionTestingSupport
 
 /// An evolution whose versions are groups of images (evolution proposal
 /// `image-group-evolution`), over `ImageGroupFixture`: one module split from

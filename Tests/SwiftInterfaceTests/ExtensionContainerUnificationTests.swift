@@ -6,8 +6,8 @@ import Testing
 import MachOKit
 @_spi(Support) @testable import SwiftInterface
 @testable import MachOSwiftSection
-@testable import MachOTestingSupport
-import MachOFixtureSupport
+@testable import SwiftSectionTestingSupport
+import SwiftSectionFixtureSupport
 
 /// Coverage for the extension-container unification (evolution proposal 0007):
 /// same-identity bucket merging, protocol attachment (a protocol's extension

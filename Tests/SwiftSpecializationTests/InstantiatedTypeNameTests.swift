@@ -8,7 +8,7 @@ import Demangling
 @testable import MachOSwiftSection
 @_spi(Internals) import SwiftInspection
 import SwiftDeclarationRendering
-import MachOTestingSupport
+import SwiftSectionTestingSupport
 
 /// A specialization's name hangs each argument on the level that declares
 /// its parameter — `Outer<Swift.Int>.Inner<Swift.String>`, the shape the

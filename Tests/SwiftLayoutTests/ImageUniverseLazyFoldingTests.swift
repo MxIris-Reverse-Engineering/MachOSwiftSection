@@ -6,8 +6,8 @@ import MachOFoundation
 @_spi(Internals) import SwiftInspection
 import Demangling
 @testable import SwiftLayout
-@testable import MachOTestingSupport
-import MachOFixtureSupport
+@testable import SwiftSectionTestingSupport
+import SwiftSectionFixtureSupport
 
 /// Pins what a layout lookup builds (evolution proposal
 /// `machofile-performance`): a lookup folds images into the indexes of its

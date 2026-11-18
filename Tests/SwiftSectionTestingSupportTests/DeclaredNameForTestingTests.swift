@@ -1,7 +1,7 @@
 import Testing
 import Demangling
 import SwiftDeclaration
-@testable import MachOTestingSupport
+@testable import SwiftSectionTestingSupport
 
 /// `declaredNameForTesting` is what tests look definitions up by. It exists
 /// because `currentName` misnames a function-local type — the case this suite

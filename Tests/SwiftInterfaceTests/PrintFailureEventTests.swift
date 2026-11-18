@@ -7,8 +7,8 @@ import Testing
 import MachOKit
 import Dependencies
 @testable import MachOSwiftSection
-@testable import MachOTestingSupport
-import MachOFixtureSupport
+@testable import SwiftSectionTestingSupport
+import SwiftSectionFixtureSupport
 
 /// A definition that cannot be printed must be **reported**, not printed away.
 ///
@@ -262,7 +262,7 @@ final class PrintFailureEventTests: MachOFileTests, @unchecked Sendable {
             .deletingLastPathComponent()  // package root
             .appendingPathComponent("Sources")
         // Hosts, not library: each owns its process's streams.
-        let hostModules: Set<String> = ["swift-section", "reader-benchmark", "MachOTestingSupport"]
+        let hostModules: Set<String> = ["swift-section", "reader-benchmark", "SwiftSectionTestingSupport"]
 
         let enumerator = try #require(FileManager.default.enumerator(at: sourcesDirectory, includingPropertiesForKeys: nil))
         var files: [URL] = []

@@ -2,8 +2,8 @@ import Foundation
 import Testing
 import MachO
 @_spi(Internals) @testable import SwiftSymbols
-@testable import MachOTestingSupport
-import MachOFixtureSupport
+@testable import SwiftSectionTestingSupport
+import SwiftSectionFixtureSupport
 
 @Suite
 enum SymbolIndexStoreTests {

@@ -3,12 +3,12 @@ import Testing
 import MachOKit
 import MachOFoundation
 import MachOSwiftSection
-import MachOFixtureSupport
+import SwiftSectionFixtureSupport
 import Demangling
 @_spi(Internals) import SwiftInspection
 import SwiftDeclarationRendering
 import SwiftThunkAnalysis
-@testable import MachOTestingSupport
+@testable import SwiftSectionTestingSupport
 
 /// Kind-9 *field records* resolved offline through the same reader, pinned
 /// on the fixture — a standalone dylib, so no shared-cache stub and no OS

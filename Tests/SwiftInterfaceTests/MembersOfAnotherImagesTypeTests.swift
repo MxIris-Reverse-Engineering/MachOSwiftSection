@@ -6,7 +6,7 @@ import SwiftDeclarationRendering
 import SwiftDiffing
 import SwiftInterface
 @_spi(Internals) import SwiftSymbols
-@testable import MachOTestingSupport
+@testable import SwiftSectionTestingSupport
 
 /// A member an image declares on a type another image defines, with no
 /// extension context in its mangling (evolution proposal

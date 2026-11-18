@@ -13,7 +13,7 @@ import Testing
 @Suite
 struct ContinuousIntegrationTestFilterTests {
     private static let packageRoot = URL(fileURLWithPath: #filePath)
-        .deletingLastPathComponent() // MachOTestingSupportTests
+        .deletingLastPathComponent() // SwiftSectionTestingSupportTests
         .deletingLastPathComponent() // Tests
         .deletingLastPathComponent() // package root
 

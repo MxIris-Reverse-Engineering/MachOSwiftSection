@@ -7,8 +7,8 @@ import SwiftDeclarationRendering
 import MachOKit
 import Dependencies
 @testable import MachOSwiftSection
-@testable import MachOTestingSupport
-import MachOFixtureSupport
+@testable import SwiftSectionTestingSupport
+import SwiftSectionFixtureSupport
 @testable import SwiftInterface
 @_spi(Internals) @testable import SwiftSymbols
 @_spi(Internals) @testable import MachOCaches
@@ -68,7 +68,7 @@ extension SwiftInterfaceBuilderTests {
 }
 
 enum SwiftInterfaceBuilderTestSuite {
-    class DyldCacheTests: MachOTestingSupport.DyldCacheTests, SwiftInterfaceBuilderTests, @unchecked Sendable {
+    class DyldCacheTests: SwiftSectionTestingSupport.DyldCacheTests, SwiftInterfaceBuilderTests, @unchecked Sendable {
         override class var cacheImageName: MachOImageName {
             .AppKit
         }
@@ -91,7 +91,7 @@ enum SwiftInterfaceBuilderTestSuite {
     /// The same image from an archived macOS cache, picked by version: point
     /// `cacheVersion` at any directory under `/Volumes/DyldSharedCaches/macOS`
     /// that holds a cache.
-    class ArchivedDyldCacheTests: MachOTestingSupport.DyldCacheTests, SwiftInterfaceBuilderTests, @unchecked Sendable {
+    class ArchivedDyldCacheTests: SwiftSectionTestingSupport.DyldCacheTests, SwiftInterfaceBuilderTests, @unchecked Sendable {
         class var cacheVersion: String {
             "26.6"
         }
@@ -115,7 +115,7 @@ enum SwiftInterfaceBuilderTestSuite {
         }
     }
 
-    class MachOFileTests: MachOTestingSupport.MachOFileTests, SwiftInterfaceBuilderTests, @unchecked Sendable {
+    class MachOFileTests: SwiftSectionTestingSupport.MachOFileTests, SwiftInterfaceBuilderTests, @unchecked Sendable {
         override class var fileName: MachOFileName {
             .SymbolTestsCore
         }
@@ -131,7 +131,7 @@ enum SwiftInterfaceBuilderTestSuite {
         }
     }
 
-    class MachOImageTests: MachOTestingSupport.MachOImageTests, SwiftInterfaceBuilderTests, @unchecked Sendable {
+    class MachOImageTests: SwiftSectionTestingSupport.MachOImageTests, SwiftInterfaceBuilderTests, @unchecked Sendable {
         override class var imageName: MachOImageName {
             .SwiftUICore
         }
@@ -147,7 +147,7 @@ enum SwiftInterfaceBuilderTestSuite {
         }
     }
 
-    class XcodeMachOFileTests: MachOTestingSupport.XcodeMachOFileTests, SwiftInterfaceBuilderTests {
+    class XcodeMachOFileTests: SwiftSectionTestingSupport.XcodeMachOFileTests, SwiftInterfaceBuilderTests {
         var builderConfiguration: SwiftInterfaceBuilderConfiguration {
             SwiftInterfaceBuilderConfiguration(
                 indexConfiguration: .init(

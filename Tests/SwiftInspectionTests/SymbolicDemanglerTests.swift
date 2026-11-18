@@ -2,8 +2,8 @@ import Foundation
 import Testing
 @testable import Demangling
 @testable import MachOSwiftSection
-@testable import MachOTestingSupport
-import MachOFixtureSupport
+@testable import SwiftSectionTestingSupport
+import SwiftSectionFixtureSupport
 @testable @_spi(Internals) import SwiftInspection
 
 // MARK: - Unit Tests for SymbolicDemangler demangling functions

@@ -1,11 +1,12 @@
+@_spi(Internals) import MachOSymbols
 import Foundation
 import Testing
 import MachOKit
 import MachOResolving
 @_spi(Internals) import Demangling
 @_spi(Internals) @testable import SwiftSymbols
-@testable import MachOTestingSupport
-import MachOFixtureSupport
+@testable import SwiftSectionTestingSupport
+import SwiftSectionFixtureSupport
 
 /// Pins when a symbol index demangles its names (evolution proposal
 /// `machofile-performance`): the storage's first stage — the symbol table,

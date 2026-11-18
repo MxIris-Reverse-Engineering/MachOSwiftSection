@@ -3,8 +3,8 @@ import Testing
 @_spi(Internals) import Demangling
 @_spi(Internals) @testable import SwiftSymbols
 @_spi(Internals) import MachOCaches
-@testable import MachOTestingSupport
-import MachOFixtureSupport
+@testable import SwiftSectionTestingSupport
+import SwiftSectionFixtureSupport
 
 /// Unit coverage for `InternedNodeReferenceCache` — the structural
 /// deduplication layer over `NodeReference(interning:)`. The batching claim

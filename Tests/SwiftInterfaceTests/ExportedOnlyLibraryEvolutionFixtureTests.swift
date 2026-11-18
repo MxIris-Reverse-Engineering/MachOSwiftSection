@@ -8,7 +8,7 @@ import SwiftDeclaration
 @_spi(Support) import SwiftIndexing
 @_spi(Support) @testable import SwiftPrinting
 @_spi(Support) @testable import SwiftInterface
-import MachOTestingSupport
+import SwiftSectionTestingSupport
 
 /// The exported-only filter (evolution proposal
 /// `exported-only-interface`) over `internal` declarations, on the

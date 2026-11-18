@@ -2,7 +2,7 @@ import Foundation
 import Testing
 import MachOKit
 import MachOReading
-import MachOFixtureSupport
+import SwiftSectionFixtureSupport
 
 /// A read of a standalone file — one not read out of a dyld shared cache —
 /// comes from the file's own mapping and never goes back to its path.

@@ -3,7 +3,7 @@ import Foundation
 /// Shared generic fixtures for tests that exercise the specialized
 /// mangled-name resolution helpers in `RuntimeFunctions`.
 ///
-/// Lives in `MachOTestingSupport` so any test target that links it gets the
+/// Lives in `SwiftSectionTestingSupport` so any test target that links it gets the
 /// type context descriptors compiled into the test executable's
 /// `__swift5_types` section. Tests look the descriptors up by substring on
 /// `MachOImage.current()` and force per-instantiation metadata emission by

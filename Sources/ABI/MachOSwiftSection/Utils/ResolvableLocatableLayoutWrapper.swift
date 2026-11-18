@@ -37,4 +37,4 @@ public typealias ResolvableLocatableLayoutWrapper = LocatableLayoutWrapper & Res
 /// 'LayoutWrapper' in scope".
 @attached(member, names: named(layout), named(offset), named(init))
 @attached(extension, conformances: LocatableLayoutWrapper, Resolvable, LayoutWrapper, Equatable, Sendable)
-public macro ResolvableLocatableLayoutWrapper() = #externalMacro(module: "MachOMacros", type: "ResolvableLocatableLayoutWrapperMacro")
+public macro ResolvableLocatableLayoutWrapper() = #externalMacro(module: "SwiftSectionMacros", type: "ResolvableLocatableLayoutWrapperMacro")

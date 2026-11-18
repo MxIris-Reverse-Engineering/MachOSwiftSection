@@ -6,8 +6,8 @@ import Demangling
 import Testing
 import Dependencies
 @testable import MachOSwiftSection
-@testable import MachOTestingSupport
-import MachOFixtureSupport
+@testable import SwiftSectionTestingSupport
+import SwiftSectionFixtureSupport
 @_spi(Internals) import SwiftSymbols
 @testable import SwiftDump
 @testable import SwiftInterface

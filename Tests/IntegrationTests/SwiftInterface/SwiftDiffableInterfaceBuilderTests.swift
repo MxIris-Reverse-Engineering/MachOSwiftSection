@@ -2,8 +2,8 @@ import Foundation
 import Testing
 import SwiftDeclarationRendering
 import MachOKit
-import MachOFixtureSupport
-import MachOTestingSupport
+import SwiftSectionFixtureSupport
+import SwiftSectionTestingSupport
 @testable import MachOSwiftSection
 @testable import SwiftInterface
 @_spi(Support) @testable import SwiftIndexing
@@ -88,7 +88,7 @@ extension SwiftDiffableInterfaceBuilderTests {
 }
 
 /// Selects the preferred-architecture slice from a loaded `File`, mirroring the
-/// loading convention of `MachOTestingSupport`'s single-binary base classes.
+/// loading convention of `SwiftSectionTestingSupport`'s single-binary base classes.
 /// Shared by every cross-version base class below so the fat/thin handling lives
 /// in one place.
 private func selectMachOFile(from file: File, architecture: CPUType) throws -> MachOFile {
@@ -104,7 +104,7 @@ private func selectMachOFile(from file: File, architecture: CPUType) throws -> M
 
 enum SwiftDiffableInterfaceBuilderTestSuite {
     /// Loads a fixed `(old, new)` pair of `MachOFile`s by name — the two-binary
-    /// counterpart of `MachOTestingSupport.MachOFileTests`, which only loads one.
+    /// counterpart of `SwiftSectionTestingSupport.MachOFileTests`, which only loads one.
     @TestActor
     class CrossVersionMachOFileTests: Sendable {
         let oldMachOFile: MachOFile
@@ -121,7 +121,7 @@ enum SwiftDiffableInterfaceBuilderTestSuite {
     }
 
     /// Extracts the same image from two dyld shared caches — the two-binary,
-    /// two-cache counterpart of `MachOTestingSupport.DyldCacheTests`. The caches are
+    /// two-cache counterpart of `SwiftSectionTestingSupport.DyldCacheTests`. The caches are
     /// retained because the extracted `MachOFile`s resolve cross-image references
     /// (into Foundation, libswiftCore, …) through them while indexing.
     @TestActor

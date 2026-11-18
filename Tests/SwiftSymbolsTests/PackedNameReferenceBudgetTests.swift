@@ -3,6 +3,7 @@ import MachOResolving
 import Testing
 import Demangling
 @_spi(Internals) @testable import SwiftSymbols
+@_spi(Internals) import MachOSymbols
 
 /// The packed name-reference budgets (22-bit byte length / 40-bit byte
 /// offset) are enforced against binary-supplied values: a name that cannot
@@ -18,34 +19,6 @@ struct PackedNameReferenceBudgetTests {
         var nodeStoreBuilder = NodeStoreBuilder()
         let nodeIndex = nodeStoreBuilder.intern(Node.create(kind: .identifier, text: "PackedNameReferenceBudgetTests"))
         return nodeStoreBuilder.freeze().reference(at: nodeIndex)
-    }
-
-    @Test func packedNameReferenceRefusesOverBudgetComponents() {
-        #expect(PackedNameReference(usesPrivateNameBuffer: true, isExternal: false, byteOffset: 0, byteLength: PackedNameReference.maximumByteLength + 1) == nil)
-        #expect(PackedNameReference(usesPrivateNameBuffer: true, isExternal: false, byteOffset: PackedNameReference.maximumByteOffset + 1, byteLength: 1) == nil)
-        #expect(PackedNameReference(usesPrivateNameBuffer: true, isExternal: false, byteOffset: -1, byteLength: 1) == nil)
-        #expect(PackedNameReference(usesPrivateNameBuffer: true, isExternal: false, byteOffset: 0, byteLength: -1) == nil)
-
-        let packedNameReference = PackedNameReference(usesPrivateNameBuffer: true, isExternal: true, byteOffset: 7, byteLength: 5)
-        #expect(packedNameReference?.usesPrivateNameBuffer == true)
-        #expect(packedNameReference?.isExternal == true)
-        #expect(packedNameReference?.byteOffset == 7)
-        #expect(packedNameReference?.byteLength == 5)
-    }
-
-    /// A private-buffer name beyond the byte-length budget is skipped by the
-    /// build sweep (its row is refused, no orphan bytes are appended), while
-    /// normal names keep minting rows as before.
-    @Test func tableBuilderSkipsAnOverBudgetPrivateBufferName() {
-        var tableBuilder = SymbolTableBuilder(mappedStringTableBase: nil)
-        #expect(tableBuilder.canonicalRow(forName: Self.oversizedName, canonicalOffset: 0, isExternal: false) == nil)
-
-        let normalRow = tableBuilder.canonicalRow(forName: "$s10NormalNameV", canonicalOffset: 8, isExternal: false)
-        #expect(normalRow?.isNewRow == true)
-
-        let symbolTable = tableBuilder.freeze()
-        #expect(symbolTable.rowCount == 1)
-        #expect(symbolTable.materializedName(atRow: 0) == "$s10NormalNameV")
     }
 
     /// The public `DemangledSymbol(symbol:demangledNode:)` initializer packs

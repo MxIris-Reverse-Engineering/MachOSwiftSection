@@ -1,7 +1,7 @@
 import Foundation
 import Testing
 import SwiftSectionKit
-@testable import MachOTestingSupport
+@testable import SwiftSectionTestingSupport
 
 /// The `objc` requests list the Swift classes an image keeps no class object
 /// for (evolution proposal `objc-classes-without-class-objects`), their

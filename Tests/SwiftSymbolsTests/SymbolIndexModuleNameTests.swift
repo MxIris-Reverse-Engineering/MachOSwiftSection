@@ -1,8 +1,8 @@
 import Testing
 @_spi(Internals) import Demangling
 @_spi(Internals) @testable import SwiftSymbols
-@testable import MachOTestingSupport
-import MachOFixtureSupport
+@testable import SwiftSectionTestingSupport
+import SwiftSectionFixtureSupport
 
 /// Pins `SwiftSymbolIndexStore.moduleNamesInAllSymbols(in:)`, which the interface
 /// builder reads the modules it imports from (evolution proposal

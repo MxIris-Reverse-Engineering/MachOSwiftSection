@@ -2,8 +2,8 @@ import Foundation
 import Testing
 import SwiftDeclarationRendering
 import MachOKit
-import MachOFixtureSupport
-import MachOTestingSupport
+import SwiftSectionFixtureSupport
+import SwiftSectionTestingSupport
 @testable import MachOSwiftSection
 @testable import SwiftInterface
 @_spi(Support) @testable import SwiftIndexing

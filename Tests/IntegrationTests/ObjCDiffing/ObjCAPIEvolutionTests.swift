@@ -1,8 +1,8 @@
 import Foundation
 import Testing
 import MachOKit
-import MachOFixtureSupport
-import MachOTestingSupport
+import SwiftSectionFixtureSupport
+import SwiftSectionTestingSupport
 @testable import MachOSwiftSection
 import SwiftIndexing
 import ObjCMetadataSource

@@ -9,8 +9,8 @@ import Dependencies
 @_spi(Internals) import MachOCaches
 @_spi(Support) @testable import SwiftInterface
 @testable import MachOSwiftSection
-@testable import MachOTestingSupport
-import MachOFixtureSupport
+@testable import SwiftSectionTestingSupport
+import SwiftSectionFixtureSupport
 
 final class SwiftDeclarationIndexerTests: MachOImageTests, @unchecked Sendable {
     override class var imageName: MachOImageName { .SwiftUICore }

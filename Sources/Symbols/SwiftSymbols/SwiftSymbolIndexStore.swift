@@ -7,13 +7,11 @@ import MachOResolving
 import OrderedCollections
 import Utilities
 import Dependencies
-import MemberwiseInit
 @_spi(Internals) import MachOCaches
-import AsyncAlgorithms
+@_spi(Internals) import MachOSymbols
 
 @_spi(ForSymbolViewer)
 @_spi(Internals)
-@Loggable(.private)
 public final class SwiftSymbolIndexStore: @unchecked Sendable {
     public enum MemberKind: Hashable, CaseIterable, CustomStringConvertible, Sendable {
         fileprivate struct Traits: OptionSet, Hashable, Sendable {
@@ -168,34 +166,9 @@ public final class SwiftSymbolIndexStore: @unchecked Sendable {
         let symbolRowsByOffset: [Int: SymbolRowBucket]
 
         /// Export-trie facts for the image (evolution proposal 0008), the
-        /// backing for `isExported(name:)`. Collected explicitly during the
-        /// build sweep because no existing structure records them: both
-        /// symtab collection legs filter on `!nlist.isExternal`, which skips
-        /// imports only — an exported symbol the symbol table lists gets its
-        /// row there, one it does not list from the export-trie leg — and
-        /// that leg's row-minting is *conditional*
-        /// (only names the symtab missed, only entries carrying an offset),
-        /// so "row came from the trie leg" is not recoverable after the
-        /// fact and offset-less re-export entries never mint a row at all.
-        struct ExportFacts {
-            /// One bit per `symbolTable` row: set when the row's name has an
-            /// export-trie entry. Sized `(rowCount + 63) / 64` words — ~23 KB
-            /// for a 185k-row SwiftUI-scale table.
-            var exportedRowBitmap: [UInt64] = []
-
-            /// Exported Swift names with no row home: offset-less trie
-            /// entries (re-exports) and names whose row minting was refused
-            /// by the packed-reference budget. Expected empty or tiny.
-            var exportedSwiftNamesWithoutRows: Set<String> = []
-
-            /// `false` when the image's export-trie enumeration yielded no
-            /// entries at all (stripped-of-exports or static-style input) —
-            /// then "not exported" is not a meaningful distinction and
-            /// `isExported(name:)` answers `nil` rather than `false`.
-            var hasExportInformation: Bool = false
-        }
-
-        let exportFacts: ExportFacts
+        /// backing for `isExported(name:)`, collected by MachOKitExtensions'
+        /// symbol sweep along with the table.
+        let exportFacts: SymbolExportFacts
 
         /// Whether the symbol table holds any local Swift symbol — one whose
         /// `N_EXT` bit is clear (evolution proposal
@@ -216,16 +189,11 @@ public final class SwiftSymbolIndexStore: @unchecked Sendable {
 
         /// Whether `name` has an export-trie entry in this image:
         /// `true`/`false` per the trie, or `nil` when the image carries no
-        /// export information at all (see `ExportFacts.hasExportInformation`).
+        /// export information at all (see `SymbolExportFacts.hasExportInformation`).
         /// Only Swift names are recorded, matching the table's population —
         /// callers query with mangled member-symbol names.
         func isExported(name: String) -> Bool? {
-            guard exportFacts.hasExportInformation else { return nil }
-            if let row = symbolTable.row(forName: name) {
-                let rowIndex = Int(row)
-                return exportFacts.exportedRowBitmap[rowIndex >> 6] & (1 << UInt64(rowIndex & 63)) != 0
-            }
-            return exportFacts.exportedSwiftNamesWithoutRows.contains(name)
+            exportFacts.isExported(name: name, in: symbolTable)
         }
 
         /// Symbols demangled after the store was frozen (rare path: lookups
@@ -265,7 +233,7 @@ public final class SwiftSymbolIndexStore: @unchecked Sendable {
         fileprivate init(
             symbolTable: SymbolTable,
             symbolRowsByOffset: [Int: SymbolRowBucket],
-            exportFacts: ExportFacts,
+            exportFacts: SymbolExportFacts,
             hasLocalSwiftSymbols: Bool,
             symbolicManglingSymbolTable: SymbolTable,
             demangledIndexBuilder: @escaping DemangledIndexBuilder
@@ -741,237 +709,18 @@ public final class SwiftSymbolIndexStore: @unchecked Sendable {
     /// the second pass, `buildDemangledIndex(from:progressContinuation:)`,
     /// runs when a query first needs a demangled tree.
     private func buildSymbolTableStage(for machO: some MachORepresentableWithCache) -> Storage? {
-        // Reader split (proposal 0001): a MachOImage's symbol names already
-        // live in the image's mmap'd string table, so its rows reference
-        // those bytes in place — zero copies, zero retained strings — and
-        // the Swift-symbol test runs on the raw bytes so non-Swift symbols
-        // never materialize a name at all. Every other reader (MachOFile,
-        // whose names are decoded per entry from the file) collects through
-        // the generic leg below, whose Swift names are appended once into
-        // the table's private byte buffer.
-        let machOImage = machO.asMachOImage
-        let mappedSymbols64 = machOImage?.symbols64
-        let mappedSymbols32 = machOImage?.symbols32
-        let mappedStringTableBase = mappedSymbols64.map { UnsafeRawPointer($0.stringBase) } ?? mappedSymbols32.map { UnsafeRawPointer($0.stringBase) }
-
-        var tableBuilder = SymbolTableBuilder(mappedStringTableBase: mappedStringTableBase)
-        var symbolRowsByOffset: [Int: SymbolRowBucket] = [:]
-
-        // The symbolic-mangling symbols go into a table of their own (see
-        // `Storage.symbolicManglingSymbolTable`): same name sources and offset
-        // accounting as the Swift rows, but no offset index and no demangling.
-        var symbolicManglingTableBuilder = SymbolTableBuilder(mappedStringTableBase: mappedStringTableBase)
-
-        // One offset legitimately maps to several rows — distinct symbol names
-        // can share an address — so the bucket keeps list semantics (inline
-        // for the dominant single-row case, spilling to an array only when a
-        // second row actually lands; proposal 0003). The *same* row must not
-        // be listed twice though, or every `for symbol in symbols` loop
-        // visits it twice.
-        //
-        // A row repeats for two independent reasons, and each is headed off
-        // without scanning the bucket:
-        //
-        // - Raw and canonical offsets coincide whenever there is nothing to
-        //   adjust (a `MachOImage`, or a file at offset 0), which would make
-        //   the second append a duplicate of the first. Comparing the two
-        //   offsets settles it.
-        // - Two symbol-table entries carrying the *same name* at the same
-        //   address — aliases and weak definitions do occur in a symtab —
-        //   fold onto one canonical row, so the second entry re-registers a
-        //   row the first already put in that bucket. Only a row that already
-        //   existed can be in a bucket at all: a freshly minted row index is
-        //   `symbolTable.count`, strictly greater than every row issued so
-        //   far, so no bucket can hold it. Checking `isNewRow` therefore
-        //   settles this one too.
-        //
-        // Scanning the bucket instead would be O(bucket) on every symbol,
-        // which is fine while buckets stay short but goes quadratic on a
-        // degenerate address — offset 0, or a heavily aliased address in a
-        // stripped or dyld-cache image — where thousands of distinct names
-        // pile onto one offset. Those piles are exactly the case that must
-        // stay cheap, and under `isNewRow` they never get scanned at all.
-        func appendRow(_ row: UInt32, atOffset offset: Int, mayAlreadyBeListed: Bool) {
-            if mayAlreadyBeListed, symbolRowsByOffset[offset]?.contains(row) == true {
-                return
-            }
-            symbolRowsByOffset[offset, default: .empty].append(row)
-        }
-
-        func registerRow(_ row: UInt32, rawOffset: Int, canonicalOffset: Int, isNewRow: Bool) {
-            appendRow(row, atOffset: rawOffset, mayAlreadyBeListed: !isNewRow)
-            if canonicalOffset != rawOffset {
-                appendRow(row, atOffset: canonicalOffset, mayAlreadyBeListed: !isNewRow)
-            }
-        }
-
-        // Set by either symtab leg on the first Swift symbol it collects whose
-        // `N_EXT` bit is clear (see `Storage.hasLocalSwiftSymbols`). The legs
-        // collect every defined symbol, exported ones included — they skip
-        // only imports (`isExternal`) — so the bit has to be read here.
-        var hasLocalSwiftSymbols = false
-
-        /// Mapped-name collection leg: iterates the image's own symbol
-        /// sequence so each entry exposes `nameC` (a pointer into the
-        /// mapped string table). The Swift-symbol test runs byte-level on
-        /// that pointer; a `String` is materialized only for the symbols
-        /// that pass it, and only as the build-time dedup key. An image's
-        /// offsets need no cache adjustment (that path is `MachOFile`-only),
-        /// so canonical == raw here. A debug-map entry only reserves its
-        /// name's row (see `SymbolTableBuilder.reserveRow`), on both legs.
-        func collectMappedSymbolRows(_ mappedSymbols: some Sequence<MachOImage.Symbol>, stringBase: UnsafeRawPointer) {
-            for symbol in mappedSymbols {
-                if nameBytesHaveSwiftManglingPrefix(symbol.nameC) {
-                    guard !symbol.nlist.isExternal else { continue }
-                    if symbol.nlist.isDebuggingEntry {
-                        tableBuilder.reserveRow(
-                            forName: String(cString: symbol.nameC),
-                            mappedNameByteOffset: UnsafeRawPointer(symbol.nameC) - stringBase,
-                            nameByteLength: strlen(symbol.nameC),
-                            canonicalOffset: symbol.offset
-                        )
-                        continue
-                    }
-                    if symbol.nlist.isLocal {
-                        hasLocalSwiftSymbols = true
-                    }
-                    // A `nil` row means the name's binary-supplied geometry
-                    // exceeds the packed budgets (malformed/hostile string
-                    // table) — skip the symbol instead of trapping (M3).
-                    guard let (row, isNewRow) = tableBuilder.canonicalRow(
-                        forName: String(cString: symbol.nameC),
-                        mappedNameByteOffset: UnsafeRawPointer(symbol.nameC) - stringBase,
-                        nameByteLength: strlen(symbol.nameC),
-                        canonicalOffset: symbol.offset,
-                        isExternal: symbol.nlist.isExternal
-                    ) else { continue }
-                    registerRow(row, rawOffset: symbol.offset, canonicalOffset: symbol.offset, isNewRow: isNewRow)
-                } else if nameBytesHaveSymbolicManglingSymbolPrefix(symbol.nameC), !symbol.nlist.isExternal {
-                    if symbol.nlist.isDebuggingEntry {
-                        symbolicManglingTableBuilder.reserveRow(
-                            forName: String(cString: symbol.nameC),
-                            mappedNameByteOffset: UnsafeRawPointer(symbol.nameC) - stringBase,
-                            nameByteLength: strlen(symbol.nameC),
-                            canonicalOffset: symbol.offset
-                        )
-                        continue
-                    }
-                    // Same refusal rule for a name whose geometry cannot pack.
-                    _ = symbolicManglingTableBuilder.canonicalRow(
-                        forName: String(cString: symbol.nameC),
-                        mappedNameByteOffset: UnsafeRawPointer(symbol.nameC) - stringBase,
-                        nameByteLength: strlen(symbol.nameC),
-                        canonicalOffset: symbol.offset,
-                        isExternal: symbol.nlist.isExternal
-                    )
-                }
-            }
-        }
-
-        if let mappedSymbols64, let mappedStringTableBase {
-            collectMappedSymbolRows(mappedSymbols64, stringBase: mappedStringTableBase)
-        } else if let mappedSymbols32, let mappedStringTableBase {
-            collectMappedSymbolRows(mappedSymbols32, stringBase: mappedStringTableBase)
-        } else {
-            let symbolValueOffsetConverter = SymbolValueOffsetConverter(for: machO)
-            for symbol in machO.symbols where !symbol.nlist.isExternal {
-                let name = symbol.name
-                let isSwiftSymbol = name.isSwiftSymbol
-                guard isSwiftSymbol || SymbolicManglingSymbolName.hasPrefix(name) else { continue }
-                let rawOffset = symbol.offset
-                let canonicalOffset = symbolValueOffsetConverter.offset(forSymbolValue: rawOffset)
-                if symbol.nlist.isDebuggingEntry {
-                    if isSwiftSymbol {
-                        tableBuilder.reserveRow(forName: name, canonicalOffset: canonicalOffset)
-                    } else {
-                        symbolicManglingTableBuilder.reserveRow(forName: name, canonicalOffset: canonicalOffset)
-                    }
-                    continue
-                }
-                if isSwiftSymbol {
-                    if symbol.nlist.isLocal {
-                        hasLocalSwiftSymbols = true
-                    }
-                    guard let (row, isNewRow) = tableBuilder.canonicalRow(forName: name, canonicalOffset: canonicalOffset, isExternal: symbol.nlist.isExternal) else { continue }
-                    registerRow(row, rawOffset: rawOffset, canonicalOffset: canonicalOffset, isNewRow: isNewRow)
-                } else {
-                    _ = symbolicManglingTableBuilder.canonicalRow(forName: name, canonicalOffset: canonicalOffset, isExternal: symbol.nlist.isExternal)
-                }
-            }
-        }
-
-        // The same single pass also collects the export facts (evolution
-        // proposal 0008): every Swift trie name is recorded as exported —
-        // by row when it has one, by name otherwise — because nothing else
-        // remembers trie membership (the symtab legs above collect local
-        // symbols only, and the row minting below is conditional). Bits are
-        // set in the bitmap directly (row indices only grow, so the word
-        // array grows monotonically; the final row count is settled at
-        // freeze below, where the array is padded to full width).
-        var sawAnyExportedSymbol = false
-        var exportFacts = Storage.ExportFacts()
-        func recordExportedRow(_ row: UInt32) {
-            let wordIndex = Int(row) >> 6
-            while exportFacts.exportedRowBitmap.count <= wordIndex {
-                exportFacts.exportedRowBitmap.append(0)
-            }
-            exportFacts.exportedRowBitmap[wordIndex] |= 1 << UInt64(Int(row) & 63)
-        }
-        // A trie offset counts from the image's header; a file's index offsets
-        // count from its start offset (a dyld cache image's, from the shared
-        // region). Asked once — the reader is the same for every entry.
-        let exportedSymbolOffsetBase = machO.asMachOFile == nil ? 0 : machO.startOffset
-        for exportedSymbol in machO.exportedSymbols {
-            sawAnyExportedSymbol = true
-            let name = exportedSymbol.name
-            guard name.isSwiftSymbol else { continue }
-            if let existingRow = tableBuilder.existingRow(forName: name) {
-                recordExportedRow(existingRow)
-            } else if let rawOffset = exportedSymbol.offset {
-                let canonicalOffset = rawOffset + exportedSymbolOffsetBase
-                // The `existingRow` guard above means this name has no row
-                // yet, so `canonicalRow` always mints one and the duplicate
-                // check is never needed here. Export-trie names are decoded
-                // strings with no home in the mapped string table, so they
-                // take the private-buffer overload on every reader.
-                guard let (row, isNewRow) = tableBuilder.canonicalRow(forName: name, canonicalOffset: canonicalOffset, isExternal: false) else {
-                    // Refused by the packed-reference budget — the export
-                    // fact still stands, it just has no row home.
-                    exportFacts.exportedSwiftNamesWithoutRows.insert(name)
-                    continue
-                }
-                registerRow(row, rawOffset: rawOffset, canonicalOffset: canonicalOffset, isNewRow: isNewRow)
-                recordExportedRow(row)
-            } else {
-                // Offset-less trie entry (a re-export): exported, no row.
-                exportFacts.exportedSwiftNamesWithoutRows.insert(name)
-            }
-        }
-        exportFacts.hasExportInformation = sawAnyExportedSymbol
-
-        // Freezing here drops the build-time dedup dictionary and sorts the
-        // name-order permutation; the demangle sweep below reads names back
-        // from the frozen table (a transient `String` per row — the
-        // demangler's entry point takes a `String` until the upstream
-        // byte-span entry lands, see proposal 0001's upstream-interface
-        // section).
-        let symbolTable = tableBuilder.freeze()
-        let symbolicManglingSymbolTable = symbolicManglingTableBuilder.freeze()
-
-        // Row count is final after freeze (freezing sorts a permutation, it
-        // never renumbers or adds rows); pad the bitmap to full width so
-        // lookups never bounds-check.
-        let exportedRowBitmapWordCount = (symbolTable.rowCount + 63) / 64
-        while exportFacts.exportedRowBitmap.count < exportedRowBitmapWordCount {
-            exportFacts.exportedRowBitmap.append(0)
-        }
-
+        // MachOKitExtensions' sweep collects the Swift names and the
+        // symbolic-mangling names into tables of their own, the first with an
+        // offset index, both with export facts; it reads a loaded image's names
+        // in place (dyld never unloads an image carrying Swift content).
+        let sweep = SymbolSweep(sweeping: machO, routing: SwiftSymbolTableRouting())
+        let sweptSwiftSymbols = sweep[.swift]
         return Storage(
-            symbolTable: symbolTable,
-            symbolRowsByOffset: symbolRowsByOffset,
-            exportFacts: exportFacts,
-            hasLocalSwiftSymbols: hasLocalSwiftSymbols,
-            symbolicManglingSymbolTable: symbolicManglingSymbolTable,
+            symbolTable: sweptSwiftSymbols.symbolTable,
+            symbolRowsByOffset: sweptSwiftSymbols.rowsByOffset,
+            exportFacts: sweptSwiftSymbols.exportFacts,
+            hasLocalSwiftSymbols: sweptSwiftSymbols.hasLocalSymbols,
+            symbolicManglingSymbolTable: sweep[.symbolicMangling].symbolTable,
             demangledIndexBuilder: { [self] symbolTable, progressContinuation in
                 buildDemangledIndex(from: symbolTable, progressContinuation: progressContinuation)
             }
@@ -1949,34 +1698,6 @@ extension DemanglingNode {
 extension DemanglingNode where Self: Sequence<Self> {
     package var hasAccessor: Bool {
         return contains { $0.isAccessor }
-    }
-}
-
-extension NlistProtocol {
-    package var isExternal: Bool {
-        guard let flags = flags, let type = flags.type else { return false }
-        return flags.contains(.ext) && type == .undf
-    }
-
-    /// A symbol private to its image: the `N_EXT` bit clear, so neither an
-    /// export nor an import. Not the negation of ``isExternal``, which names
-    /// an undefined import only. A linker turns a private external
-    /// (`N_PEXT`) into one of these, which is how a Swift declaration below
-    /// `public` reaches a linked image's symbol table, and what a strip of
-    /// the local symbols removes.
-    package var isLocal: Bool {
-        guard let flags else { return false }
-        return !flags.contains(.ext)
-    }
-
-    /// A debug-map (STABS) entry: it describes a symbol for the debugger and
-    /// is not one. An `N_GSYM` entry carries the value 0 under the very name
-    /// of the symbol it describes; indexed like a symbol, it was filed at the
-    /// mach header and, listed after a local symbol, overwrote that symbol's
-    /// offset with 0. The index lets one only reserve a row
-    /// (`SymbolTableBuilder.reserveRow`).
-    package var isDebuggingEntry: Bool {
-        flags?.stab != nil
     }
 }
 

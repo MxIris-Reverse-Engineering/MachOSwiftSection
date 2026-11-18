@@ -1,5 +1,6 @@
 import Foundation
 import MachOResolving
+@_spi(Internals) import MachOSymbols
 
 /// The symbols an image's symbolic manglings are named by, as
 /// `SwiftSymbolIndexStore`'s build sweep collected them (evolution proposal
@@ -104,7 +105,7 @@ package struct SymbolicManglingSymbolName: Sendable {
 
 /// Byte-level `SymbolicManglingSymbolName.hasPrefix(_:)` over a C string, so
 /// the build sweep can pass over every other symbol without materializing its
-/// name. Disjoint from `nameBytesHaveSwiftManglingPrefix`: neither prefix
+/// name. Disjoint from the Swift mangling prefixes: neither prefix
 /// starts like a Swift mangling. Pinned equal to the `String` check over a
 /// real symbol table by `SymbolicManglingSymbolCollectionTests`.
 func nameBytesHaveSymbolicManglingSymbolPrefix(_ nameC: UnsafePointer<CChar>) -> Bool {

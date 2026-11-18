@@ -5,8 +5,8 @@ import MachOKit
 @_spi(Support) @testable import SwiftDeclaration
 @_spi(Support) @testable import SwiftPrinting
 @_spi(Support) @testable import SwiftInterface
-@testable import MachOTestingSupport
-import MachOFixtureSupport
+@testable import SwiftSectionTestingSupport
+import SwiftSectionFixtureSupport
 
 /// End-to-end coverage for the `// not exported` annotation (evolution
 /// proposal 0008) on the `SymbolTestsCore` fixture — a library-evolution

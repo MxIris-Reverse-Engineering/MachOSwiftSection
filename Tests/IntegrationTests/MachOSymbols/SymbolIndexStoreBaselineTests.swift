@@ -1,10 +1,11 @@
+@_spi(Internals) import MachOSymbols
 import Foundation
 import Testing
 import MachO
 import Demangling
 @_spi(Internals) @testable import SwiftSymbols
-@testable import MachOTestingSupport
-import MachOFixtureSupport
+@testable import SwiftSectionTestingSupport
+import SwiftSectionFixtureSupport
 
 /// Stage 0 of the NodeStore migration plan: capture per-image baseline
 /// metrics for `SwiftSymbolIndexStore.buildStorage` so Stage 1/4 can compare

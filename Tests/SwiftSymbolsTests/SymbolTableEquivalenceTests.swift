@@ -4,18 +4,20 @@ import MachOKit
 @_spi(Internals) import Demangling
 @_spi(Internals) @testable import SwiftSymbols
 @_spi(Internals) import MachOCaches
-@testable import MachOTestingSupport
-import MachOFixtureSupport
+@_spi(Internals) import MachOSymbols
+@testable import SwiftSectionTestingSupport
+import SwiftSectionFixtureSupport
 
 /// Equivalence pins for the offset-ized symbol table (evolution proposal
 /// 0001), run against a real in-process image so the mapped-string-table
 /// leg — the one the fixture-file suite cannot exercise — is covered end
 /// to end:
 ///
-/// 1. the byte-level Swift-symbol test agrees with `String.isSwiftSymbol`
-///    on every entry of a real symbol table (the byte version re-states the
-///    demangler's prefix list and would silently diverge if that list ever
-///    grew);
+/// 1. MachOKitExtensions' `SymbolLanguage`, which tells Swift names from the
+///    others byte by byte, agrees with `String.isSwiftSymbol` on every entry
+///    of a real symbol table once the symbolic-mangling names (Swift too,
+///    but no mangling) are set apart (it re-states the demangler's prefix
+///    list and would silently diverge if that list ever grew);
 /// 2. the collection sweep retains exactly the rows the former
 ///    `String`-keyed collection pass retained, with the same last-wins
 ///    canonical offsets;
@@ -23,11 +25,12 @@ import MachOFixtureSupport
 ///    materialized name with that row (the dictionary it replaced was
 ///    keyed on those exact strings).
 final class SymbolTableImageEquivalenceTests: MachOImageTests, @unchecked Sendable {
-    @Test func byteLevelSwiftSymbolCheckMatchesStringCheck() throws {
+    @Test func symbolLanguageSwiftMatchesDemanglingIsSwiftSymbol() throws {
         var checkedCount = 0
         var mismatchCount = 0
         func check(nameC: UnsafePointer<CChar>, name: String) {
-            if nameBytesHaveSwiftManglingPrefix(nameC) != name.isSwiftSymbol {
+            let isSwiftMangling = SymbolLanguage(ofSymbolNameBytes: nameC) == .swift && !nameBytesHaveSymbolicManglingSymbolPrefix(nameC)
+            if isSwiftMangling != name.isSwiftSymbol {
                 mismatchCount += 1
                 if mismatchCount <= 3 {
                     Issue.record("byte-level Swift-symbol check mismatch for \(name)")

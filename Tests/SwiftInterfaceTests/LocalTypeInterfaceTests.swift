@@ -8,7 +8,7 @@ import SwiftDeclaration
 import SwiftPrinting
 @_spi(Support) import SwiftInterface
 import Semantic
-@testable import MachOTestingSupport
+@testable import SwiftSectionTestingSupport
 
 /// Local types on the indexing and interface paths (evolution proposal
 /// `local-type-context-names`). Named after their method, two methods'

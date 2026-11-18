@@ -4,8 +4,8 @@ import MachOKit
 import Demangling
 @_spi(Internals) import MachOCaches
 @testable import MachOSwiftSection
-@testable import MachOTestingSupport
-import MachOFixtureSupport
+@testable import SwiftSectionTestingSupport
+import SwiftSectionFixtureSupport
 @testable @_spi(Internals) import SwiftInspection
 
 /// A `ReadingContext` declares where memo caches may file what they compute

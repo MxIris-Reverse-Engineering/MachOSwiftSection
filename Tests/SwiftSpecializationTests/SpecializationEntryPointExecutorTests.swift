@@ -7,7 +7,7 @@ import MachOKit
 import Demangling
 @_spi(Internals) import SwiftSymbols
 @testable import MachOSwiftSection
-import MachOTestingSupport
+import SwiftSectionTestingSupport
 
 /// The async `TypeDefinition.specialize` overloads are library entry points,
 /// so their bodies run on the large-stack task executor like every other

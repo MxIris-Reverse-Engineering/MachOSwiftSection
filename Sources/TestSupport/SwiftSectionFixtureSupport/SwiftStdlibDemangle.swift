@@ -1,5 +1,5 @@
 import Foundation
-import MachOTestingSupportC
+import SwiftSectionTestingSupportC
 
 @_silgen_name("swift_demangle")
 private func _stdlib_demangleImpl(

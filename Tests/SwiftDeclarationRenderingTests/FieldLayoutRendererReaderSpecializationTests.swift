@@ -7,8 +7,8 @@ import MachOFoundation
 @testable import SwiftLayout
 import SwiftDeclarationRendering
 import Demangling
-@testable import MachOTestingSupport
-import MachOFixtureSupport
+@testable import SwiftSectionTestingSupport
+import SwiftSectionFixtureSupport
 
 /// Verifies the reader-specialized `FieldLayoutRenderer`:
 ///

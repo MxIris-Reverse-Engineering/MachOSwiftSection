@@ -4,7 +4,7 @@ import MachOKit
 import MachOFoundation
 import MachOSwiftSection
 import SwiftDump
-@testable import MachOTestingSupport
+@testable import SwiftSectionTestingSupport
 
 /// `dump` with `DemangleOptions.useExistentialAny` (evolution proposal
 /// `existential-any`): the field types swift-demangling prints spell

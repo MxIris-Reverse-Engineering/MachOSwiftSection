@@ -1,10 +1,10 @@
 import Foundation
-import MachOFixtureSupport
+import SwiftSectionFixtureSupport
 import MachOKit
 import MachOKitExtensions
 import Testing
 import MachODependencies
-@testable import MachOTestingSupport
+@testable import SwiftSectionTestingSupport
 
 /// Covers the traversal contract of `DependencyClosure` on the
 /// `SymbolTestsCore` fixture, whose load commands mix every shape the

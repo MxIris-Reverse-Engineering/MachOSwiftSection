@@ -1,6 +1,7 @@
 import Foundation
 import FoundationToolbox
 import MachOKit
+@_spi(Internals) import MachOSymbols
 import MachOFoundation
 import SwiftSymbols
 import MachOSwiftSection

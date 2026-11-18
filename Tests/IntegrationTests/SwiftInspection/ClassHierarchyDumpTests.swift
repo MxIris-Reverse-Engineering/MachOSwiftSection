@@ -7,8 +7,8 @@ import Dependencies
 @testable import MachOFoundation
 @testable import MachOSwiftSection
 @testable import SwiftDump
-@testable import MachOTestingSupport
-import MachOFixtureSupport
+@testable import SwiftSectionTestingSupport
+import SwiftSectionFixtureSupport
 @testable @_spi(Internals) import SwiftInspection
 @testable @_spi(Internals) import SwiftObjCInterop
 

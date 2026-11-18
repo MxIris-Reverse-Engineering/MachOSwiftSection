@@ -3,8 +3,8 @@ import Testing
 @testable import Demangling
 import MachOKit
 import MachOFoundation
-@testable import MachOTestingSupport
-import MachOFixtureSupport
+@testable import SwiftSectionTestingSupport
+import SwiftSectionFixtureSupport
 import Dependencies
 
 struct MachOSwiftSymbol {

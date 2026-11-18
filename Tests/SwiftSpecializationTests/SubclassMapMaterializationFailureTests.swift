@@ -7,8 +7,8 @@ import MachOKit
 import Dependencies
 @_spi(Internals) import SwiftSymbols
 @testable import MachOSwiftSection
-@testable import MachOTestingSupport
-import MachOFixtureSupport
+@testable import SwiftSectionTestingSupport
+import SwiftSectionFixtureSupport
 
 /// `IndexerConformanceProvider`'s subclass map must not lose a class silently.
 ///

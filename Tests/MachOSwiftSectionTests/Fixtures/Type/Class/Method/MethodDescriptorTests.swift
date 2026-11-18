@@ -4,8 +4,8 @@ import MachOFoundation
 import SwiftSymbols
 import SwiftInspection
 @testable import MachOSwiftSection
-@testable import MachOTestingSupport
-import MachOFixtureSupport
+@testable import SwiftSectionTestingSupport
+import SwiftSectionFixtureSupport
 
 /// Fixture-based Suite for `MethodDescriptor`.
 ///

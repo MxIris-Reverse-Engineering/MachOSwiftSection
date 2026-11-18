@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import MachOTestingSupport
+@testable import SwiftSectionTestingSupport
 
 /// The exclusion must be demonstrated, not asserted in prose — a promise in a
 /// doc comment is exactly what failed here the first time.

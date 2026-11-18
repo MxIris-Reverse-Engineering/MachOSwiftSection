@@ -7,7 +7,7 @@ import SwiftInterface
 // Scoped: the module's `Error` component would shadow `Swift.Error` here.
 import struct Semantic.SemanticString
 import struct Semantic.FrozenSemanticString
-import MachOTestingSupport
+import SwiftSectionTestingSupport
 
 /// `@_rawLayout` is an experimental feature any module can enable, not a
 /// standard-library privilege, and only its `like:` spelling leaves a field

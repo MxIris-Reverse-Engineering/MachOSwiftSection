@@ -6,8 +6,8 @@ import MachOFoundation
 @testable import SwiftDump
 import SwiftDeclarationRendering
 @_spi(Internals) @testable import SwiftSymbols
-@testable import MachOTestingSupport
-import MachOFixtureSupport
+@testable import SwiftSectionTestingSupport
+import SwiftSectionFixtureSupport
 
 /// Dump-path coverage for the `// not exported` annotation (evolution
 /// proposal 0008), pinning the two false-positive classes the member-symbol

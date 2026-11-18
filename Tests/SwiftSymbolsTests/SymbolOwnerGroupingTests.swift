@@ -1,11 +1,12 @@
+@_spi(Internals) import MachOSymbols
 import Foundation
 import Testing
 import MachOKit
 import MachOResolving
 @_spi(Internals) import Demangling
 @_spi(Internals) @testable import SwiftSymbols
-@testable import MachOTestingSupport
-import MachOFixtureSupport
+@testable import SwiftSectionTestingSupport
+import SwiftSectionFixtureSupport
 
 /// Pins `SwiftSymbolIndexStore.symbols(for:ownedBy:ownerKind:printedWith:in:)` —
 /// the per-address grouping that tells which of the names identical code

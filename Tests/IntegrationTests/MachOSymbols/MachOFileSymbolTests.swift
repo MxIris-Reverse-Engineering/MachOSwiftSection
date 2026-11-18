@@ -2,8 +2,8 @@ import Foundation
 import Testing
 @_spi(Internals) import SwiftSymbols
 @testable import MachOSwiftSection
-@testable import MachOTestingSupport
-import MachOFixtureSupport
+@testable import SwiftSectionTestingSupport
+import SwiftSectionFixtureSupport
 
 final class MachOFileSymbolTests: MachOFileTests, @unchecked Sendable {
     override class var fileName: MachOFileName { .iOS_18_5_Simulator_SwiftUI }

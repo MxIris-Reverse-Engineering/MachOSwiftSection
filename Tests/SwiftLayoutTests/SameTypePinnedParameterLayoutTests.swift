@@ -5,7 +5,7 @@ import MachOFoundation
 @testable import MachOSwiftSection
 @_spi(Internals) import SwiftInspection
 @testable import SwiftLayout
-@testable import MachOTestingSupport
+@testable import SwiftSectionTestingSupport
 import Demangling
 
 /// Validates concrete same-type pinning: a generic parameter pinned to a

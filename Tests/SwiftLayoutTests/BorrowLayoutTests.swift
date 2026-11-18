@@ -4,8 +4,8 @@ import MachOKit
 import Demangling
 @testable import MachOSwiftSection
 @testable import SwiftLayout
-@testable import MachOTestingSupport
-import MachOFixtureSupport
+@testable import SwiftSectionTestingSupport
+import SwiftSectionFixtureSupport
 
 /// `Builtin.Borrow<Referent>` (Swift 6.4, the storage behind `Swift.Ref`) is
 /// laid out inline like its referent unless the referent is larger than four

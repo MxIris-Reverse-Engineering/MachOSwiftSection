@@ -1,7 +1,7 @@
 import Foundation
 import MachOKit
 import MachOFoundation
-import MachOFixtureSupport
+import SwiftSectionFixtureSupport
 import MachOSwiftSection
 import Testing
 

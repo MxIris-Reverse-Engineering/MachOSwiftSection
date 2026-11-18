@@ -7,7 +7,7 @@ import MachOSwiftSection
 @_spi(Support) @testable import SwiftDeclaration
 @_spi(Support) @testable import SwiftIndexing
 @testable import SwiftInspection
-@testable import MachOTestingSupport
+@testable import SwiftSectionTestingSupport
 
 /// `TypeDefinition.attachedMacros` recognizes a class `@Observable` expanded
 /// from its field records when the definition is built, before anything is

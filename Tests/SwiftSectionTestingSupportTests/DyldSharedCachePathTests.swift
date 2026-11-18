@@ -1,5 +1,5 @@
 import Testing
-import MachOFixtureSupport
+import SwiftSectionFixtureSupport
 
 /// `DyldSharedCachePath` builds an archived cache's path and label from its
 /// version. The named macOS caches are built that way too, and only the

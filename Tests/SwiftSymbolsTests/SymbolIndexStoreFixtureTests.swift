@@ -4,8 +4,9 @@ import Testing
 @_spi(Internals) import Demangling
 @_spi(Internals) @testable import SwiftSymbols
 @_spi(Internals) import MachOCaches
-@testable import MachOTestingSupport
-import MachOFixtureSupport
+@_spi(Internals) import MachOSymbols
+@testable import SwiftSectionTestingSupport
+import SwiftSectionFixtureSupport
 
 /// Fixture-based unit coverage for `SwiftSymbolIndexStore` against the
 /// `SymbolTestsCore` framework (self-built fixture, no external Xcode
@@ -96,33 +97,6 @@ final class SymbolIndexStoreFixtureTests: MachOFileTests, @unchecked Sendable {
     }
 
     // MARK: - Row buckets (proposal 0003)
-
-    /// The bucket's whole contract: first append stays inline, the second
-    /// spills to an array, iteration preserves insertion order (the
-    /// byte-identical-output guarantee), and `contains` answers both forms.
-    @Test func symbolRowBucketAppendMigrationAndIterationOrder() {
-        var bucket = SymbolRowBucket.empty
-        #expect(bucket.isEmpty)
-        #expect(bucket.count == 0)
-        #expect(!bucket.contains(7))
-
-        bucket.append(7)
-        #expect(bucket == .single(7))
-        #expect(bucket.count == 1)
-        #expect(Array(bucket) == [7])
-        #expect(bucket.contains(7))
-        #expect(!bucket.contains(9))
-
-        bucket.append(9)
-        #expect(bucket == .multiple([7, 9]))
-
-        bucket.append(5)
-        #expect(bucket == .multiple([7, 9, 5]))
-        #expect(Array(bucket) == [7, 9, 5])
-        #expect(bucket.count == 3)
-        #expect(bucket.contains(5))
-        #expect(!bucket.contains(6))
-    }
 
     /// Single-row dominance is what proposal 0003's memory estimate rests
     /// on; assert the direction on the fixture and surface the exact ratio

@@ -6,7 +6,7 @@ import MachOSwiftSection
 import SwiftDump
 import SwiftDeclarationRendering
 import SwiftInterface
-import MachOFixtureSupport
+import SwiftSectionFixtureSupport
 import Demangling
 
 /// Maintainer-only rendering-verification harness (no assertions — like the rest

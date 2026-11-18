@@ -3,7 +3,7 @@ import Testing
 import MachOKit
 import SwiftDiffing
 import SwiftInterface
-@testable import MachOTestingSupport
+@testable import SwiftSectionTestingSupport
 
 /// Telling a declaration a version cannot show from one that is gone
 /// (evolution proposal `evolution-unobservable-presence`), over

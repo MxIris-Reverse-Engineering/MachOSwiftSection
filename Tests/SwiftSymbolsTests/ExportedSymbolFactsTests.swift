@@ -1,10 +1,11 @@
+@_spi(Internals) import MachOSymbols
 import Foundation
 import Testing
 @_spi(Internals) import Demangling
 @_spi(Internals) @testable import SwiftSymbols
 @_spi(Internals) import MachOCaches
-@testable import MachOTestingSupport
-import MachOFixtureSupport
+@testable import SwiftSectionTestingSupport
+import SwiftSectionFixtureSupport
 
 /// Fixture-based coverage for the export facts (evolution proposal 0008):
 /// `isExported(name:in:)` answering the export-trie membership FACT, and

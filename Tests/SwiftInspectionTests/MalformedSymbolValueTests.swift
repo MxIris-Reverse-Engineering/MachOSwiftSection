@@ -1,3 +1,4 @@
+@_spi(Internals) import MachOSymbols
 import Foundation
 import Testing
 import MachOKit

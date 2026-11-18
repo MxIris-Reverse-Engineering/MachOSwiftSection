@@ -5,8 +5,8 @@ import MachOKit
 import Dependencies
 @_spi(Internals) import SwiftSymbols
 @_spi(Internals) import MachOCaches
-@testable import MachOTestingSupport
-import MachOFixtureSupport
+@testable import SwiftSectionTestingSupport
+import SwiftSectionFixtureSupport
 @_spi(Internals) @testable import SwiftInspection
 @_spi(Internals) @testable import SwiftObjCInterop
 @_spi(Internals) import Demangling

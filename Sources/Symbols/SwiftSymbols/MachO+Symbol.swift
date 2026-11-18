@@ -1,6 +1,7 @@
 import MachOKit
 import MachOKitExtensions
 import MachOResolving
+@_spi(Internals) import MachOSymbols
 
 extension MachORepresentableWithCache {
     /// Every symbol the image's index knows at `offset`, building the index

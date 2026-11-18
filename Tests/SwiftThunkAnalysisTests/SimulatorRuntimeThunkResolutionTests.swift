@@ -3,8 +3,8 @@ import Testing
 import MachOKit
 import MachOFoundation
 import MachOSwiftSection
-import MachOFixtureSupport
-import MachOTestingSupport
+import SwiftSectionFixtureSupport
+import SwiftSectionTestingSupport
 import Demangling
 @_spi(Internals) import SwiftInspection
 import SwiftDeclarationRendering

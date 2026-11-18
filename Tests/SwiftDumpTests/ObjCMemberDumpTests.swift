@@ -8,7 +8,7 @@ import SwiftDeclarationRendering
 import SwiftInspection
 import SwiftObjCInterop
 import SwiftThunkAnalysis
-@testable import MachOTestingSupport
+@testable import SwiftSectionTestingSupport
 
 /// The dump path's rendering of the ObjC member facts (evolution proposals
 /// `objc-ancestor-override-recovery` and `objc-member-selector-recovery`):

@@ -6,8 +6,8 @@ import MachOFoundation
 @_spi(Internals) import SwiftInspection
 @testable import SwiftDeclarationRendering
 import Demangling
-@testable import MachOTestingSupport
-import MachOFixtureSupport
+@testable import SwiftSectionTestingSupport
+import SwiftSectionFixtureSupport
 
 /// Pins the restored `MultiPayloadEnumDescriptorCache` (deleted by the leaf
 /// migration's `ebb04d3`, which replaced it with a per-enum throwing linear

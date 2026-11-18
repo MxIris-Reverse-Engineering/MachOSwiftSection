@@ -64,7 +64,7 @@ private actor SharedSpecializationIndexerCache {
 /// `machO` and an async `indexer` for free, plus descriptor-lookup helpers,
 /// all backed by a single per-process cache.
 ///
-/// Lives in `MachOTestingSupport` so any test target depending on it can
+/// Lives in `SwiftSectionTestingSupport` so any test target depending on it can
 /// adopt the protocol without copy-pasting the boilerplate or reaching into
 /// another test file's nested namespace.
 package protocol GenericSpecializationTestingEnvironment {

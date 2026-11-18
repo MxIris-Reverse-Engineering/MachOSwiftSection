@@ -2,7 +2,7 @@ import Foundation
 import Testing
 import MachOKit
 import MachOFoundation
-import MachOFixtureSupport
+import SwiftSectionFixtureSupport
 
 @MainActor
 package class MachOImageTests: Sendable {

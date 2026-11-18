@@ -2,10 +2,10 @@ import Foundation
 import Testing
 import MachOKit
 @testable import MachOSwiftSection
-@testable import MachOTestingSupport
+@testable import SwiftSectionTestingSupport
 @testable import SwiftDump
 import SwiftDeclarationRendering
-import MachOFixtureSupport
+import SwiftSectionFixtureSupport
 import Semantic
 
 /// Private at file scope, so the compiler parents it on an anonymous context,

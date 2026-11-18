@@ -1,6 +1,7 @@
 import MachOKit
 import MachOReading
 import MachOResolving
+@_spi(Internals) import MachOSymbols
 import MachOKitExtensions
 @_spi(Internals) import Demangling
 import FoundationToolbox

@@ -7,7 +7,7 @@ import MachOSwiftSection
 import SwiftDeclarationRendering
 import SwiftInterface
 @_spi(Internals) import SwiftSymbols
-@testable import MachOTestingSupport
+@testable import SwiftSectionTestingSupport
 
 /// Members whose implementation symbol the optimizer deleted while another of
 /// their entry points survived (evolution proposal `thunk-only-objc-members`):

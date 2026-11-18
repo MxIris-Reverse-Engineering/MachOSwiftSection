@@ -1,7 +1,7 @@
 import Foundation
 import Testing
 import SwiftSectionKit
-@testable import MachOTestingSupport
+@testable import SwiftSectionTestingSupport
 
 /// `dump`'s `protocols` section and `interface` carry the `@objc` protocols
 /// a Swift module declares (evolution proposal

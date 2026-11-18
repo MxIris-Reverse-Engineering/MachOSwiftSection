@@ -4,7 +4,7 @@ import MachOKit
 import MachOFoundation
 import MachOSwiftSection
 import SwiftDump
-@testable import MachOTestingSupport
+@testable import SwiftSectionTestingSupport
 
 /// `dump` with `DemangleOptions.useModuleSelectors` (evolution proposal
 /// `module-selectors`): the names swift-demangling prints follow the option,

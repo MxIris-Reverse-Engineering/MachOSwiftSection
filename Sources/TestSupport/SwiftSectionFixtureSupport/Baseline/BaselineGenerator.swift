@@ -888,8 +888,8 @@ package enum BaselineGenerator {
         let header = """
         // AUTO-GENERATED — DO NOT EDIT.
         // Regenerate via: swift package --allow-writing-to-package-directory regen-baselines
-        @testable import MachOTestingSupport
-        import MachOFixtureSupport
+        @testable import SwiftSectionTestingSupport
+        import SwiftSectionFixtureSupport
 
         // `FixtureSuite` is `@MainActor`-isolated, so its metatype likewise inherits
         // main-actor isolation. Annotating the constant binds access to MainActor and

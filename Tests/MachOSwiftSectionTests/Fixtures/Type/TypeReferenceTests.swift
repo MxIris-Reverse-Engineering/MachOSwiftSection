@@ -3,8 +3,8 @@ import Testing
 import MachOFoundation
 import MachOKit
 @testable import MachOSwiftSection
-@testable import MachOTestingSupport
-import MachOFixtureSupport
+@testable import SwiftSectionTestingSupport
+import SwiftSectionFixtureSupport
 
 /// Fixture-based Suite for `TypeReference`.
 ///

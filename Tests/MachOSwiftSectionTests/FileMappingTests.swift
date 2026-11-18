@@ -2,7 +2,7 @@ import Foundation
 import Testing
 import MachOKit
 import MachOSwiftSection
-import MachOFixtureSupport
+import SwiftSectionFixtureSupport
 
 /// A `MachOFile` is read through the mapping MachOKit made when it opened the
 /// file (`fileBytes`), which every value assembled from that opening shares

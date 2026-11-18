@@ -5,7 +5,7 @@ import MachOFoundation
 @testable import MachOSwiftSection
 @_spi(Internals) import SwiftInspection
 @testable import SwiftLayout
-import MachOTestingSupport
+import SwiftSectionTestingSupport
 
 /// An instantiation of a type declared in a constrained extension names its
 /// context as an extension: `DepthOuter<Int>.ConstrainedInner<String>`

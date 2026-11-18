@@ -7,7 +7,7 @@ import SwiftDeclaration
 import SwiftDeclarationRendering
 import SwiftInterface
 import Semantic
-@testable import MachOTestingSupport
+@testable import SwiftSectionTestingSupport
 
 /// The `@objc` protocols a Swift module declares, on the interface path
 /// (evolution proposal `swift-declared-objc-protocols`): they have no

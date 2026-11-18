@@ -3,7 +3,7 @@ import Testing
 import MachOKit
 import MachOFoundation
 import MachOSwiftSection
-import MachOFixtureSupport
+import SwiftSectionFixtureSupport
 import SwiftThunkAnalysis
 
 /// `AccessorThunkReader.read` makes a new thunk environment for every thunk,

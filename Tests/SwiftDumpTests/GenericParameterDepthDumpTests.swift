@@ -4,7 +4,7 @@ import MachOKit
 import MachOFoundation
 @testable import MachOSwiftSection
 @testable import SwiftDump
-import MachOTestingSupport
+import SwiftSectionTestingSupport
 
 /// The dump path's half of `GenericParameterDepthNamingTests`: the dumpers
 /// render a generic declaration's parameter clause through the same

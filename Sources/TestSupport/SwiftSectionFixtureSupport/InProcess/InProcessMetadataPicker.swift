@@ -240,8 +240,8 @@ extension InProcessMetadataPicker {
     /// Caveat: `MachOImageName.SymbolTestsCore.rawValue` is rooted as if the
     /// caller lives in `Sources/<Group>/<Target>/Foo.swift`, i.e. exactly three
     /// `../` hops to reach the package root. This file lives one level deeper
-    /// in `Sources/TestSupport/MachOFixtureSupport/InProcess/`, so we anchor
-    /// against `Sources/TestSupport/MachOFixtureSupport/` (one path component up
+    /// in `Sources/TestSupport/SwiftSectionFixtureSupport/InProcess/`, so we anchor
+    /// against `Sources/TestSupport/SwiftSectionFixtureSupport/` (one path component up
     /// from `#filePath`'s parent) to make the existing `../../../...` rawValue
     /// resolve correctly.
     private static func resolveFixturePath(_ relativePath: String) -> String {

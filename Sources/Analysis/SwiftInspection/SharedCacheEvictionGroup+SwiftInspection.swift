@@ -5,7 +5,7 @@
 /// cache that holds the reference.
 extension SharedCacheEvictionGroup {
     /// `SymbolicManglingIndex`: holds the symbol store's symbolic-mangling
-    /// table, so it follows `symbolStore`.
+    /// table, so it follows `swiftSymbolStore`.
     package static let symbolicMangling = SharedCacheEvictionGroup("symbolicMangling")
 
     /// `SymbolicDemanglerCache` and `AnonymousContextNameIndex`:

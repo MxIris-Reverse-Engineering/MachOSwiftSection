@@ -3,8 +3,9 @@ import Testing
 import MachOKit
 @_spi(Internals) @testable import SwiftSymbols
 @_spi(Internals) import MachOCaches
-@testable import MachOTestingSupport
-import MachOFixtureSupport
+@_spi(Internals) import MachOSymbols
+@testable import SwiftSectionTestingSupport
+import SwiftSectionFixtureSupport
 
 /// The collection layer of evolution proposal `symbolic-mangling-symbol-index`:
 /// the build sweep gathers every `_symbolic ` / `_default assoc type ` symbol
@@ -146,8 +147,8 @@ struct SymbolicManglingSymbolCollectionTests {
                 }
             }
             let symbolTable = collectedSymbols.symbolTable
-            let tableByteCount = symbolTable.rows.count * MemoryLayout<SymbolRow>.stride + symbolTable.rowsSortedByName.count * MemoryLayout<UInt32>.stride + symbolTable.privateNameBuffer.count
-            censusLines.append("\(imageName): \(symbolCount) symbols, \(withReferentsCount) with referents, \(referentCount) referents, \(defaultAssociatedTypeWitnessCount) default assoc type, table \(tableByteCount) bytes (names \(symbolTable.privateNameBuffer.count))")
+            let tableByteCount = symbolTable.retainedByteCount
+            censusLines.append("\(imageName): \(symbolCount) symbols, \(withReferentsCount) with referents, \(referentCount) referents, \(defaultAssociatedTypeWitnessCount) default assoc type, table \(tableByteCount) bytes (names \(symbolTable.privateNameByteCount))")
             #expect(withReferentsCount > 0, "\(imageName) carries no symbolic-mangling symbol with referents")
             if imageName == .SwiftUICore {
                 #expect(defaultAssociatedTypeWitnessCount > 0, "SwiftUICore's default associated type witnesses were not collected")

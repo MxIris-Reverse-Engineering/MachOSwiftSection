@@ -7,8 +7,8 @@ import MachOKit
 import Dependencies
 @_spi(Internals) import SwiftSymbols
 @testable import MachOSwiftSection
-@testable import MachOTestingSupport
-import MachOFixtureSupport
+@testable import SwiftSectionTestingSupport
+import SwiftSectionFixtureSupport
 
 /// `IndexerConformanceProvider` builds its class hierarchy on a large stack.
 ///

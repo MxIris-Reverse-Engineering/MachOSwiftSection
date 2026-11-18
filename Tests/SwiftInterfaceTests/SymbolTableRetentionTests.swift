@@ -1,3 +1,4 @@
+@_spi(Internals) import MachOSymbols
 @_spi(Support) @testable import SwiftDeclaration
 @_spi(Support) @testable import SwiftIndexing
 import Foundation
@@ -7,8 +8,8 @@ import MachOKit
 @_spi(Internals) import MachOCaches
 @_spi(Support) @testable import SwiftInterface
 @testable import MachOSwiftSection
-@testable import MachOTestingSupport
-import MachOFixtureSupport
+@testable import SwiftSectionTestingSupport
+import SwiftSectionFixtureSupport
 
 /// A `DemangledSymbol` stored in the declaration model must not keep the
 /// shared per-image symbol table alive.

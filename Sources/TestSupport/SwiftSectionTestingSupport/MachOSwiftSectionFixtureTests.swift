@@ -4,7 +4,7 @@ import MachOKit
 import MachOFoundation
 import MachOReading
 import MachOResolving
-import MachOFixtureSupport
+import SwiftSectionFixtureSupport
 
 @MainActor
 package class MachOSwiftSectionFixtureTests: Sendable {
@@ -78,7 +78,7 @@ package class MachOSwiftSectionFixtureTests: Sendable {
     /// Resolve a relative MachOImageName path (rooted at the package-relative `../../../Tests/...`
     /// convention) to an absolute filesystem path. Uses the same anchor strategy as
     /// `loadFromFile` for parity: relative paths resolve against the directory containing
-    /// this source file (i.e. `Sources/TestSupport/MachOTestingSupport/`).
+    /// this source file (i.e. `Sources/TestSupport/SwiftSectionTestingSupport/`).
     private static func resolveFixturePath(_ relativePath: String) -> String {
         if relativePath.hasPrefix("/") { return relativePath }
         let url = URL(fileURLWithPath: relativePath, relativeTo: URL(fileURLWithPath: #filePath))

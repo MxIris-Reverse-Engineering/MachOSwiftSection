@@ -1,4 +1,5 @@
 import MachOResolving
+@_spi(Internals) import MachOSymbols
 import Demangling
 
 /// A symbol paired with the handle of its demangled tree.

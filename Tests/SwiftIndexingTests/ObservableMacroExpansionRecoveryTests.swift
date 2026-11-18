@@ -7,7 +7,7 @@ import MachOSwiftSection
 @_spi(Support) @testable import SwiftDeclaration
 @_spi(Support) @testable import SwiftIndexing
 import SwiftInspection
-@testable import MachOTestingSupport
+@testable import SwiftSectionTestingSupport
 
 /// `TypeDefinition.observableMacroExpansion` sorts an `@Observable` class's
 /// stored `var`s into the storage of the properties the macro tracks and the
