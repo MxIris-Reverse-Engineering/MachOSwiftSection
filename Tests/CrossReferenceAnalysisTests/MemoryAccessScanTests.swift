@@ -1,7 +1,8 @@
 import Foundation
 import Testing
 
-/// Every read of image memory in `CrossReferenceAnalysis` goes through
+/// Every read of image memory in the cross-reference analysis — its core,
+/// its Objective-C layer and `CrossReferenceAnalysis` — goes through
 /// `CrossReferenceMemory`, so that an analyzer can read images that were
 /// never loaded: an address turned into a pointer anywhere else reads the
 /// process's memory whatever the analyzer was made from.
@@ -42,19 +43,22 @@ struct MemoryAccessScanTests {
         pointerFromAddress.firstMatch(in: code, range: NSRange(code.startIndex..., in: code)) != nil
     }
 
-    /// Every Swift file of `Sources/Analysis/CrossReferenceAnalysis`.
+    /// Every Swift file of the three cross-reference modules.
     private static func moduleSourceFiles() throws -> [URL] {
-        let moduleDirectory = URL(fileURLWithPath: #filePath)
+        let analysisDirectory = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()  // CrossReferenceAnalysisTests
             .deletingLastPathComponent()  // Tests
             .deletingLastPathComponent()  // package root
-            .appendingPathComponent("Sources/Analysis/CrossReferenceAnalysis")
-        let enumerator = try #require(FileManager.default.enumerator(at: moduleDirectory, includingPropertiesForKeys: nil))
+            .appendingPathComponent("Sources/Analysis")
         var files: [URL] = []
-        for case let fileURL as URL in enumerator where fileURL.pathExtension == "swift" {
-            files.append(fileURL)
+        for moduleName in ["CrossReferenceCore", "CrossReferenceObjC", "CrossReferenceAnalysis"] {
+            let moduleDirectory = analysisDirectory.appendingPathComponent(moduleName)
+            let enumerator = try #require(FileManager.default.enumerator(at: moduleDirectory, includingPropertiesForKeys: nil))
+            for case let fileURL as URL in enumerator where fileURL.pathExtension == "swift" {
+                files.append(fileURL)
+            }
         }
-        #expect(files.count > 15, "found only \(files.count) sources under \(moduleDirectory.path)")
+        #expect(files.count > 25, "found only \(files.count) sources under \(analysisDirectory.path)")
         return files
     }
 }

@@ -1,24 +1,13 @@
 import Foundation
 
-/// The functions a scan marks as runtime helpers: memory management and
-/// value operations, which outnumber everything else a function calls — in
-/// a macOS 27.2 shared cache, 26.5% of all direct call targets.
-enum RuntimeHelperNames {
-    /// Symbol-name prefixes of helpers exported by libobjc and the Swift
-    /// runtime, and of the helpers the Swift compiler emits into each image.
+/// The Swift functions a scan marks as runtime helpers: memory management and
+/// value operations, which with libobjc's (`ObjCRuntimeHelperNames`)
+/// outnumber everything else a function calls — in a macOS 27.2 shared
+/// cache, 26.5% of all direct call targets.
+enum SwiftRuntimeHelperNames {
+    /// Symbol-name prefixes of helpers exported by the Swift runtime, and of
+    /// the helpers the Swift compiler emits into each image.
     private static let prefixes: [StaticString] = [
-        "_objc_retain",
-        "_objc_release",
-        "_objc_autorelease",
-        "_objc_storeStrong",
-        "_objc_loadWeak",
-        "_objc_storeWeak",
-        "_objc_initWeak",
-        "_objc_destroyWeak",
-        "_objc_copyWeak",
-        "_objc_moveWeak",
-        "_objc_claimAutoreleasedReturnValue",
-        "_objc_unsafeClaimAutoreleasedReturnValue",
         "_swift_retain",
         "_swift_release",
         "_swift_bridgeObjectRetain",
@@ -45,7 +34,7 @@ enum RuntimeHelperNames {
         if name[1] == 0x24 {
             return isOutlinedValueOperation(name)
         }
-        guard name[1] == 0x6F || name[1] == 0x73 || name[1] == 0x5F else { return false }
+        guard name[1] == 0x73 || name[1] == 0x5F else { return false }
         for prefix in prefixes {
             let matches = prefix.withUTF8Buffer { buffer in
                 buffer.withMemoryRebound(to: CChar.self) { strncmp(name, $0.baseAddress!, buffer.count) == 0 }

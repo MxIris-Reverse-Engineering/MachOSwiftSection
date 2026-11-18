@@ -5,62 +5,68 @@ import ARM64InstructionDecoding
 /// One image's functions and the sections a scan reads, collected in one pass
 /// over its load commands and symbol table.
 ///
-/// Symbol and selector names are kept as pointers into the image's mapped
-/// `__LINKEDIT` and the cache's selector strings, which stay valid for the
-/// life of the process; that is what makes the unchecked `Sendable` sound.
-final class ImageFunctionTable: @unchecked Sendable {
+/// Symbol names are kept as pointers into the image's mapped `__LINKEDIT`,
+/// which stays valid for the life of the analyzer's memory; that is what
+/// makes the unchecked `Sendable` sound.
+///
+/// Knows no language. What a language layer reads per image — the
+/// Objective-C sections, the names its metadata gives — it keeps as an
+/// attachment (``attachment(_:makingIt:)``), which lives and goes with the
+/// table.
+package final class ImageFunctionTable: @unchecked Sendable {
     /// One entry of the image's `__stubs` / `__auth_stubs`.
-    struct SymbolStub {
+    package struct SymbolStub {
         /// The GOT slot the stub loads its target from, unslid.
-        let slotAddress: UInt64?
+        package let slotAddress: UInt64?
         /// The imported symbol its indirect symbol entry names.
-        let name: UnsafePointer<CChar>?
+        package let name: UnsafePointer<CChar>?
     }
 
-    let imageIndex: Int
-    let image: MachOImage
+    package let imageIndex: Int
+    package let image: MachOImage
     /// Where the image's bytes are read.
-    let memory: any CrossReferenceMemory
+    package let memory: any CrossReferenceMemory
     /// What to add to an unslid address to reach memory.
-    let slide: Int
-    let textStart: UInt64
-    let textEnd: UInt64
+    package let slide: Int
+    package let textStart: UInt64
+    package let textEnd: UInt64
     /// Every function start, sorted: `LC_FUNCTION_STARTS` and the symbols in
     /// `__text`.
-    let starts: [UInt64]
+    package let starts: [UInt64]
     /// For each start, the index of its primary name in `primaryNames`, or -1.
-    let primaryNameIndices: [Int32]
-    let primaryNames: [UnsafePointer<CChar>]
+    package let primaryNameIndices: [Int32]
+    package let primaryNames: [UnsafePointer<CChar>]
     /// The other names at an address, left by identical code folding.
-    let foldedNames: [UInt64: [UnsafePointer<CChar>]]
-    let runtimeHelperStarts: Set<UInt64>
-    let objectiveCStubRange: Range<UInt64>?
-    let objectiveCStubSelectors: [UInt64: UnsafePointer<CChar>]
-    let symbolStubRanges: [Range<UInt64>]
-    let symbolStubs: [UInt64: SymbolStub]
-    let selectorReferenceRange: Range<UInt64>?
-    /// The sections whose slots may hold a reference to a class or a Swift
-    /// type: `__got`, `__auth_got`, `__objc_classrefs`. Other slots that point
-    /// at a class — a constant string's `isa` — are no reference to it.
-    let referenceSlotRanges: [Range<UInt64>]
-    /// `__objc_superrefs`: the class a super send in one of its methods starts
-    /// above.
-    let superclassReferenceRange: Range<UInt64>?
+    package let foldedNames: [UInt64: [UnsafePointer<CChar>]]
+    package let runtimeHelperStarts: Set<UInt64>
+    package let symbolStubRanges: [Range<UInt64>]
+    package let symbolStubs: [UInt64: SymbolStub]
+    /// `__got` and `__auth_got`, whose slots may hold a reference to
+    /// anything another image defines. Other slots that point at a class — a
+    /// constant string's `isa` — are no reference to it.
+    package let globalOffsetTableRanges: [Range<UInt64>]
     /// The image's segments other than `__TEXT` and `__LINKEDIT`, unslid: where
     /// its own class objects lie.
-    let dataSegmentRanges: [Range<UInt64>]
+    package let dataSegmentRanges: [Range<UInt64>]
     /// Every segment of the image, unslid.
-    let segmentRanges: [Range<UInt64>]
-    let dataInCodeRanges: [Range<UInt64>]
+    package let segmentRanges: [Range<UInt64>]
+    package let dataInCodeRanges: [Range<UInt64>]
     /// The unslid address of the Mach header — `__TEXT`'s vmaddr.
-    let headerAddress: UInt64
+    package let headerAddress: UInt64
+    /// Every section of the image, in load-command order, collected in the
+    /// table's one pass over them: a language layer reads the sections it
+    /// knows from here rather than walking the load commands again for every
+    /// scan.
+    package let sections: [Section64]
     /// The instructions of `__text`, from `textStart` on.
     private let instructions: UnsafePointer<UInt32>?
 
-    private let fallbackNamesLock = NSLock()
-    private var fallbackNamesStorage: ImageFallbackNames?
+    private let attachmentsLock = NSLock()
+    private var attachments: [ObjectIdentifier: any ImageFunctionTableAttachment] = [:]
 
-    init(imageIndex: Int, image: MachOImage, memory: any CrossReferenceMemory) {
+    /// `isRuntimeHelperName` tells the functions a scan marks as runtime
+    /// helpers by their symbols — the language layers know which.
+    package init(imageIndex: Int, image: MachOImage, memory: any CrossReferenceMemory, isRuntimeHelperName: (UnsafePointer<CChar>) -> Bool) {
         self.imageIndex = imageIndex
         self.image = image
         self.memory = memory
@@ -72,18 +78,16 @@ final class ImageFunctionTable: @unchecked Sendable {
         var textStart: UInt64 = 0
         var textEnd: UInt64 = 0
         var textSectionOrdinal = 0
-        var objectiveCStubRange: Range<UInt64>?
-        var objectiveCStubSelectors: [UInt64: UnsafePointer<CChar>] = [:]
         var symbolStubRanges: [Range<UInt64>] = []
         var symbolStubs: [UInt64: SymbolStub] = [:]
-        var selectorReferenceRange: Range<UInt64>?
-        var referenceSlotRanges: [Range<UInt64>] = []
-        var superclassReferenceRange: Range<UInt64>?
+        var globalOffsetTableRanges: [Range<UInt64>] = []
         let symbols = image.symbols64
         let indirectSymbols = image.indirectSymbols.map { Array($0) } ?? []
 
         var ordinal = 0
+        var sections: [Section64] = []
         for section in image.sections64 {
+            sections.append(section)
             ordinal += 1
             let sectionStart = UInt64(section.address)
             let sectionRange = sectionStart ..< sectionStart + UInt64(section.size)
@@ -92,14 +96,6 @@ final class ImageFunctionTable: @unchecked Sendable {
                 textStart = sectionRange.lowerBound
                 textEnd = sectionRange.upperBound
                 textSectionOrdinal = ordinal
-            } else if sectionName == "__objc_stubs", !sectionRange.isEmpty, let stubs = section.objcStubs(in: image) {
-                objectiveCStubRange = sectionRange
-                for objectiveCStub in stubs {
-                    guard let selectorReference = objectiveCStub.selectorReference,
-                          let selector = Self.selectorString(inSlotAt: selectorReference, slide: slide, in: memory)
-                    else { continue }
-                    objectiveCStubSelectors[objectiveCStub.stub.address] = selector
-                }
             } else if section.flags.type == .symbol_stubs, !sectionRange.isEmpty, let stubs = section.stubs(in: image) {
                 symbolStubRanges.append(sectionRange)
                 for stub in stubs {
@@ -121,12 +117,8 @@ final class ImageFunctionTable: @unchecked Sendable {
                     }
                     symbolStubs[stub.address] = SymbolStub(slotAddress: slotAddress, name: name)
                 }
-            } else if sectionName == "__objc_selrefs", !sectionRange.isEmpty {
-                selectorReferenceRange = sectionRange
-            } else if sectionName == "__objc_superrefs", !sectionRange.isEmpty {
-                superclassReferenceRange = sectionRange
-            } else if !sectionRange.isEmpty, ["__got", "__auth_got", "__objc_classrefs"].contains(sectionName) {
-                referenceSlotRanges.append(sectionRange)
+            } else if !sectionRange.isEmpty, sectionName == "__got" || sectionName == "__auth_got" {
+                globalOffsetTableRanges.append(sectionRange)
             }
         }
         self.textStart = textStart
@@ -134,13 +126,10 @@ final class ImageFunctionTable: @unchecked Sendable {
         self.instructions = textEnd > textStart
             ? memory.typedPointer(to: UInt32.self, at: Self.runtimeAddress(ofUnslid: textStart, slide: slide), length: Int(textEnd - textStart))
             : nil
-        self.objectiveCStubRange = objectiveCStubRange
-        self.objectiveCStubSelectors = objectiveCStubSelectors
         self.symbolStubRanges = symbolStubRanges
         self.symbolStubs = symbolStubs
-        self.selectorReferenceRange = selectorReferenceRange
-        self.referenceSlotRanges = referenceSlotRanges
-        self.superclassReferenceRange = superclassReferenceRange
+        self.globalOffsetTableRanges = globalOffsetTableRanges
+        self.sections = sections
         var dataSegmentRanges: [Range<UInt64>] = []
         var segmentRanges: [Range<UInt64>] = []
         for segment in image.segments64 where segment.layout.vmsize > 0 && segment.segmentName != "__PAGEZERO" {
@@ -206,7 +195,7 @@ final class ImageFunctionTable: @unchecked Sendable {
                 primaryNameIndices.append(Int32(primaryNames.count))
                 primaryNames.append(primaryName)
                 if names.count > 1 { foldedNames[address] = Array(names.dropFirst()) }
-                if names.contains(where: { RuntimeHelperNames.isRuntimeHelper($0) }) { runtimeHelperStarts.insert(address) }
+                if names.contains(where: isRuntimeHelperName) { runtimeHelperStarts.insert(address) }
             } else {
                 primaryNameIndices.append(-1)
             }
@@ -237,20 +226,23 @@ final class ImageFunctionTable: @unchecked Sendable {
         return ARM64Trampoline(words: words, at: stub.address)
     }
 
-    /// The selector string a selector reference slot points at — the slot
-    /// the cache builder or dyld has bound. Its length is not checked: a
-    /// selector reference always points at a selector name.
-    static func selectorString(inSlotAt slotAddress: UInt64, slide: Int, in memory: any CrossReferenceMemory) -> UnsafePointer<CChar>? {
-        guard let selector = memory.pointer(at: runtimeAddress(ofUnslid: slotAddress, slide: slide)), selector != 0 else { return nil }
-        return memory.typedPointer(to: CChar.self, at: selector, length: 1)
-    }
-
-    static func runtimeAddress(ofUnslid address: UInt64, slide: Int) -> UInt {
+    package static func runtimeAddress(ofUnslid address: UInt64, slide: Int) -> UInt {
         UInt(bitPattern: Int(bitPattern: UInt(address)) &+ slide)
     }
 
+    /// Where the unslid `address` of this image lies in the analyzer's
+    /// address space.
+    package func runtimeAddress(ofUnslid address: UInt64) -> UInt {
+        Self.runtimeAddress(ofUnslid: address, slide: slide)
+    }
+
+    /// The unslid address in this image of the runtime `address`.
+    package func unslidAddress(ofRuntime address: UInt) -> UInt64 {
+        UInt64(bitPattern: Int64(Int(bitPattern: address) &- slide))
+    }
+
     /// The index in `starts` of the function containing `address`.
-    func functionIndex(containing address: UInt64) -> Int? {
+    package func functionIndex(containing address: UInt64) -> Int? {
         guard address >= textStart, address < textEnd, let first = starts.first, address >= first else { return nil }
         var lower = 0
         var upper = starts.count
@@ -261,83 +253,70 @@ final class ImageFunctionTable: @unchecked Sendable {
         return lower - 1
     }
 
-    func end(ofFunctionAt index: Int) -> UInt64 {
+    package func end(ofFunctionAt index: Int) -> UInt64 {
         index + 1 < starts.count ? starts[index + 1] : textEnd
     }
 
-    func primaryName(ofFunctionAt index: Int) -> UnsafePointer<CChar>? {
+    package func primaryName(ofFunctionAt index: Int) -> UnsafePointer<CChar>? {
         let nameIndex = primaryNameIndices[index]
         return nameIndex < 0 ? nil : primaryNames[Int(nameIndex)]
     }
 
-    /// Whether the function at `index` is an Objective-C method, whose `x0`
-    /// on entry is its receiver.
-    func isObjectiveCMethod(at index: Int) -> Bool {
-        guard let name = primaryName(ofFunctionAt: index) else { return false }
-        return (name[0] == 0x2D || name[0] == 0x2B) && name[1] == 0x5B
+    /// The memory holding the `count` instructions from the unslid `address`
+    /// on, or `nil` when they cannot be read.
+    ///
+    /// A function start usually lies in `__text`, read from the section's
+    /// bytes. Not always: some images' symbol tables put a start of `__text`
+    /// below the section's own start, and such a function is read where it
+    /// lies, as the scan always did.
+    package func instructionPointer(at address: UInt64, count: Int) -> UnsafePointer<UInt32>? {
+        if let instructions, address >= textStart, address &+ UInt64(count) &* 4 <= textEnd {
+            return instructions.advanced(by: Int((address - textStart) / 4))
+        }
+        return memory.typedPointer(to: UInt32.self, at: runtimeAddress(ofUnslid: address), length: count &* 4)
     }
 
-    /// Whether the function at `index` is an Objective-C class method
-    /// (`+[…]`), whose receiver is a class object.
-    func isObjectiveCClassMethod(at index: Int) -> Bool {
-        guard let name = primaryName(ofFunctionAt: index) else { return false }
-        return name[0] == 0x2B && name[1] == 0x5B
-    }
-
-    /// The memory holding the instruction at the unslid `address`, which
-    /// lies in `__text`.
-    func instructionPointer(at address: UInt64) -> UnsafePointer<UInt32> {
-        instructions!.advanced(by: Int((address - textStart) / 4))
-    }
-
-    func isInDataInCode(_ address: UInt64) -> Bool {
+    package func isInDataInCode(_ address: UInt64) -> Bool {
         guard !dataInCodeRanges.isEmpty else { return false }
         return dataInCodeRanges.contains { $0.contains(address) }
     }
 
-    func codeFunction(at index: Int) -> CodeFunction {
-        let start = starts[index]
-        var name: CodeFunction.Name? = primaryName(ofFunctionAt: index).map { .symbol(String(cString: $0)) }
-        var foldedSymbolNames = foldedNames[start]?.map { String(cString: $0) } ?? []
-        if name == nil, let fallback = fallbackNames.name(at: start) {
-            name = fallback.name
-            foldedSymbolNames = fallback.foldedSymbolNames
-        }
-        return CodeFunction(
-            location: CodeLocation(imageIndex: imageIndex, address: start),
-            size: Int(end(ofFunctionAt: index) - start),
-            name: name,
-            foldedSymbolNames: foldedSymbolNames,
-            isRuntimeHelper: runtimeHelperStarts.contains(start)
-        )
+    /// What a language layer keeps for this image, made on first use and
+    /// kept as long as the table is: `make` runs once, under the table's lock,
+    /// and must not ask the table for an attachment.
+    package func attachment<Attachment: ImageFunctionTableAttachment>(_ type: Attachment.Type, makingIt make: () -> Attachment) -> Attachment {
+        attachmentsLock.lock()
+        defer { attachmentsLock.unlock() }
+        if let existing = attachments[ObjectIdentifier(type)] as? Attachment { return existing }
+        let attachment = make()
+        attachments[ObjectIdentifier(type)] = attachment
+        return attachment
     }
 
-    /// The names the symbol table does not give, read on first use: naming a
-    /// function needs them, scanning never does.
-    var fallbackNames: ImageFallbackNames {
-        fallbackNamesLock.lock()
-        defer { fallbackNamesLock.unlock() }
-        if let fallbackNamesStorage { return fallbackNamesStorage }
-        let fallbackNames = ImageFallbackNames(image: image, headerAddress: headerAddress, slide: slide, textRange: textStart ..< textEnd, memory: memory)
-        fallbackNamesStorage = fallbackNames
-        return fallbackNames
+    /// The attachment of type `type`, when something has made it.
+    package func existingAttachment<Attachment: ImageFunctionTableAttachment>(_ type: Attachment.Type) -> Attachment? {
+        attachmentsLock.lock()
+        defer { attachmentsLock.unlock() }
+        return attachments[ObjectIdentifier(type)] as? Attachment
     }
 
-    /// The fallback names, when something has asked for them.
-    var existingFallbackNames: ImageFallbackNames? {
-        fallbackNamesLock.lock()
-        defer { fallbackNamesLock.unlock() }
-        return fallbackNamesStorage
-    }
-
-    /// The memory the table takes, with the fallback names read for it; see
+    /// The memory the table takes, with its attachments; see
     /// `ApproximateSize`. The names it points at belong to the image.
-    var approximateByteCount: Int {
+    package var approximateByteCount: Int {
         var byteCount = ApproximateSize.of(starts) + ApproximateSize.of(primaryNameIndices) + ApproximateSize.of(primaryNames)
         byteCount += foldedNames.values.reduce(ApproximateSize.of(foldedNames)) { $0 + ApproximateSize.of($1) }
-        byteCount += ApproximateSize.of(runtimeHelperStarts) + ApproximateSize.of(objectiveCStubSelectors) + ApproximateSize.of(symbolStubs)
-        byteCount += ApproximateSize.of(symbolStubRanges) + ApproximateSize.of(referenceSlotRanges) + ApproximateSize.of(dataSegmentRanges)
+        byteCount += ApproximateSize.of(runtimeHelperStarts) + ApproximateSize.of(symbolStubs)
+        byteCount += ApproximateSize.of(symbolStubRanges) + ApproximateSize.of(globalOffsetTableRanges) + ApproximateSize.of(dataSegmentRanges)
         byteCount += ApproximateSize.of(segmentRanges) + ApproximateSize.of(dataInCodeRanges)
-        return byteCount + (existingFallbackNames?.approximateByteCount ?? 0)
+        attachmentsLock.lock()
+        let attachments = Array(self.attachments.values)
+        attachmentsLock.unlock()
+        return attachments.reduce(byteCount) { $0 + $1.approximateByteCount }
     }
+}
+
+/// What a language layer keeps per image on its function table.
+package protocol ImageFunctionTableAttachment: AnyObject, Sendable {
+    /// The memory it takes; see `ApproximateSize`.
+    var approximateByteCount: Int { get }
 }

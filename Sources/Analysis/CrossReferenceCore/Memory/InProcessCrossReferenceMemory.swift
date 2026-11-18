@@ -15,6 +15,16 @@ package struct InProcessCrossReferenceMemory: CrossReferenceMemory {
         return UnsafeRawBufferPointer(start: start, count: length)
     }
 
+    package func pointers(inSlotsAt address: UInt, count: Int) -> [UInt] {
+        guard count > 0, let slots = UnsafeRawPointer(bitPattern: address) else { return [] }
+        let mask = addressMask
+        return (0 ..< count).map { UInt(truncatingIfNeeded: slots.loadUnaligned(fromByteOffset: $0 * 8, as: UInt64.self)) & mask }
+    }
+
+    package func readablePointers(at addresses: [UInt]) -> [UnsafeRawPointer?] {
+        addresses.map { UnsafeRawPointer(bitPattern: $0) }
+    }
+
     package func slotContent(at address: UInt) -> SlotContent? {
         guard let slot = UnsafeRawPointer(bitPattern: address) else { return nil }
         return .address(UInt(truncatingIfNeeded: slot.loadUnaligned(as: UInt64.self)) & addressMask)

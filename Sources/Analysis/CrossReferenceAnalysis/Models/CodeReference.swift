@@ -1,42 +1,3 @@
-/// What an Objective-C send's receiver is known to be.
-public enum ReceiverClassHint: Hashable, Sendable {
-    /// The sending method's own receiver, still in `x0` where it arrived, or a
-    /// copy of it.
-    case methodReceiver
-    /// Loaded from a class reference: `[NSWindow alloc]`.
-    case classLiteral(String)
-    case unknown
-}
-
-/// Evidence for where an indirect call may go.
-public struct IndirectCallEvidence: Hashable, Sendable {
-    /// The table the callee was loaded from.
-    public enum Table: Hashable, Sendable {
-        case classVirtualTable
-        case protocolWitnessTable
-        case valueWitnessTable
-        /// A function value, or a table the analysis cannot identify.
-        case none
-    }
-
-    public let table: Table
-    /// The displacement of the load that produced the callee, when it came
-    /// from memory.
-    public let tableOffset: Int64?
-    /// The 16-bit arm64e discriminator constant, when there is one.
-    public let pointerAuthenticationConstant: UInt16?
-    /// Whether the constant was blended into an address (`movk xN, #imm,
-    /// lsl #48`) or used alone (`mov x17, #imm`).
-    public let isAddressBlended: Bool
-
-    public init(table: Table, tableOffset: Int64?, pointerAuthenticationConstant: UInt16?, isAddressBlended: Bool) {
-        self.table = table
-        self.tableOffset = tableOffset
-        self.pointerAuthenticationConstant = pointerAuthenticationConstant
-        self.isAddressBlended = isAddressBlended
-    }
-}
-
 /// What one instruction references.
 public enum CodeReferenceTarget: Hashable, Sendable {
     /// A function: in the same image, in another, or wherever a stub, a GOT
@@ -77,17 +38,9 @@ public enum CodeReferenceTarget: Hashable, Sendable {
 
 /// One instruction's reference.
 public struct CodeReference: Hashable, Sendable {
-    public enum Kind: Hashable, Sendable {
-        case call
-        /// A branch out of the function that does not return to it.
-        case tailCall
-        /// A reference to a type: an instruction that takes the address of a
-        /// class object, a type's metadata or its metadata accessor — a load
-        /// from a GOT slot or class reference, or `adrp` / `add` of the object
-        /// itself — or a call to a metadata accessor or a mangled-name
-        /// instantiation, which is reported as the call it is as well.
-        case reference
-    }
+    /// Whether the instruction calls, leaves the function, or only takes an
+    /// address. Defined with the core of the analysis, which produces it.
+    public typealias Kind = CodeReferenceKind
 
     /// The first instruction of the function the referencing instruction
     /// belongs to.

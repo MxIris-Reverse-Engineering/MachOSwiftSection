@@ -32,11 +32,33 @@ package protocol CrossReferenceMemory: Sendable {
     /// The bits of a stored pointer that are its address: the rest carry an
     /// arm64e signature or tag bits.
     var addressMask: UInt { get }
+
+    /// The addresses `count` consecutive pointer slots from `address` on
+    /// hold, 0 for a slot that holds none: what a pass over a whole section
+    /// of slots — an image's selector references — reads in one call
+    /// rather than one call a slot.
+    func pointers(inSlotsAt address: UInt, count: Int) -> [UInt]
+
+    /// Where each of `addresses` can be read from, `nil` for 0 or one that
+    /// cannot: for a pass that reads a string at each address a section's
+    /// slots hold, in one call rather than one call an address. How far each
+    /// may be read is the caller's to know.
+    func readablePointers(at addresses: [UInt]) -> [UnsafeRawPointer?]
 }
 
 extension CrossReferenceMemory {
+    /// One ``slotContent(at:)`` a slot.
+    package func pointers(inSlotsAt address: UInt, count: Int) -> [UInt] {
+        (0 ..< count).map { pointer(at: address &+ UInt($0 * 8)) ?? 0 }
+    }
+
+    /// One ``bytes(at:length:)`` an address.
+    package func readablePointers(at addresses: [UInt]) -> [UnsafeRawPointer?] {
+        addresses.map { $0 == 0 ? nil : bytes(at: $0, length: 1)?.baseAddress }
+    }
+
     /// The value of type `type` stored at `address`, read unaligned.
-    func load<Value>(_ type: Value.Type, at address: UInt) -> Value? {
+    package func load<Value>(_ type: Value.Type, at address: UInt) -> Value? {
         guard let buffer = bytes(at: address, length: MemoryLayout<Value>.size) else { return nil }
         let value: Value = buffer.loadUnaligned(as: Value.self)
         return value
@@ -44,14 +66,14 @@ extension CrossReferenceMemory {
 
     /// The address the pointer slot at `address` holds; `nil` when it holds
     /// a symbol no image defines, or cannot be read.
-    func pointer(at address: UInt) -> UInt? {
+    package func pointer(at address: UInt) -> UInt? {
         guard case .address(let target)? = slotContent(at: address) else { return nil }
         return target
     }
 
     /// The start of the bytes at `address`, typed, for a caller that reads a
     /// string or an array from there and has bounded how far it reads.
-    func typedPointer<Element>(to type: Element.Type, at address: UInt, length: Int) -> UnsafePointer<Element>? {
+    package func typedPointer<Element>(to type: Element.Type, at address: UInt, length: Int) -> UnsafePointer<Element>? {
         bytes(at: address, length: length)?.baseAddress?.assumingMemoryBound(to: Element.self)
     }
 }

@@ -55,13 +55,12 @@ extension CrossReferenceAnalyzer {
     /// spell out — the standard library's and the imported ones — take
     /// demangling the names to find.
     public func references(toSwiftType identity: SwiftTypeIdentity, inImageAt imageIndex: Int) -> [CodeReference] {
-        let table = existingFunctionTable(ofImageAt: imageIndex) ?? ImageFunctionTable(imageIndex: imageIndex, image: images[imageIndex], memory: memory)
-        var scanner = ReferenceScanner(analyzer: self, table: table, matching: SwiftTypeQuery(identity: identity, analyzer: self))
-        var references: [CodeReference] = []
-        for index in table.starts.indices {
-            scanner.scanFunction(at: index, into: &references)
+        let table = imageSet.transientFunctionTable(ofImageAt: imageIndex)
+        return scan(table, matching: SwiftTypeQuery(identity: identity, analyzer: self)) { scanner, _ in
+            for index in table.starts.indices {
+                scanner.scanFunction(at: index)
+            }
         }
-        return references
     }
 
     /// What ``references(toSwiftType:inImageAt:)`` finds, read from the

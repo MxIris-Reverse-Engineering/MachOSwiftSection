@@ -11,11 +11,11 @@ import Foundation
 /// `objc_retain`, `objc_release` and `objc_autorelease` are left out: the
 /// calls ARC adds and a `[x retain]` written in source compile to the same
 /// call, and they stay runtime helpers.
-enum MessageSendEntryPoints {
+package enum MessageSendEntryPoints {
     /// The sends each entry point stands for, in the order it makes them,
     /// by its symbol: `objc_alloc_init` sends `alloc`, then `init` to what
     /// `alloc` returned.
-    static let selectorsBySymbol: [String: [String]] = [
+    package static let selectorsBySymbol: [String: [String]] = [
         "_objc_alloc": ["alloc"],
         "_objc_allocWithZone": ["allocWithZone:"],
         "_objc_alloc_init": ["alloc", "init"],
@@ -27,13 +27,13 @@ enum MessageSendEntryPoints {
     ]
 
     /// The sends the symbol `name` stands for; `nil` for every other symbol.
-    static func selectors(ofSymbol name: UnsafePointer<CChar>) -> [String]? {
+    package static func selectors(ofSymbol name: UnsafePointer<CChar>) -> [String]? {
         guard strncmp(name, "_objc_", 6) == 0 else { return nil }
         return selectorsBySymbol[String(cString: name)]
     }
 
     /// The entry points that send `selector`, by symbol.
-    static func symbols(sending selector: String) -> [String] {
+    package static func symbols(sending selector: String) -> [String] {
         selectorsBySymbol.filter { $0.value.contains(selector) }.map(\.key).sorted()
     }
 }

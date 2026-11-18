@@ -23,6 +23,8 @@
 | SwiftThunkAnalysis | [SwiftThunkAnalysis.md](SwiftThunkAnalysis.md) | ✅ 已写（入门：[AccessorThunkResolutionExplained.md](../AccessorThunkResolutionExplained.md)） |
 | CrossReferenceAnalysis | [CrossReferenceAnalysis.md](CrossReferenceAnalysis.md) | ✅ 已写（提案 [0072-cross-reference-analysis](../../Evolutions/0072-cross-reference-analysis.md)） |
 | ARM64InstructionDecoding | [CrossReferenceAnalysis.md](CrossReferenceAnalysis.md) | ✅ 已写（与 CrossReferenceAnalysis 同篇：手写的指令字读取与跳板形状，SwiftThunkAnalysis 也用） |
+| CrossReferenceCore | [CrossReferenceCore.md](CrossReferenceCore.md) | ✅ 已写（交叉引用与语言无关的核心层，将来迁进 MachOKitExtensions） |
+| CrossReferenceObjC | [CrossReferenceObjC.md](CrossReferenceObjC.md) | ✅ 已写（交叉引用的 ObjC 层，将来迁进 MachOObjCSection） |
 | SwiftAttributeInference | — | 待写 |
 | SwiftDeclaration | [SwiftDeclaration.md](SwiftDeclaration.md) | ✅ 已写 |
 | SwiftDeclarationRendering | — | 待写 |

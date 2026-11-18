@@ -5,20 +5,32 @@
 - 提案：[0072-cross-reference-analysis](../../Evolutions/0072-cross-reference-analysis.md)（本库这一层）、[0076-objc-runtime-send-entry-points](../../Evolutions/0076-objc-runtime-send-entry-points.md)（libobjc 的发送入口）；整体设计、实测数据在 RuntimeViewer 的 [0056-cross-references](https://github.com/MxIris-Reverse-Engineering/RuntimeViewer/blob/next/Documentations/Evolutions/0056-cross-references.md)。
 - 依赖：MachOKit、`ARM64InstructionDecoding`；第二批起还有 `MachOObjCSection`（方法表、类的只读数据）、`MachOSwiftSection` 与 `SwiftInspection`（Swift 元数据与 `SymbolicDemangler`）、`Demangling`——给符号表没有名字的函数起名，以及认出扫描碰到的类与类型（类列表、类型描述符、mangled 名字）。不依赖 Capstone。
 
+## 三层与识别器
+
+交叉引用分成三个模块，依赖从上到下（提案 [draft-offline-cross-references-and-symbolication](../../Evolutions/draft-offline-cross-references-and-symbolication.md) 第 2 步）：
+
+- **`CrossReferenceCore`**（核心层，将来迁进 MachOKitExtensions，改名 `MachOCodeReferences`）：读取层、镜像集 `CodeImageSet`（镜像、路径、内存区间、按镜像缓存的函数表、链接关系与改名再导出）、函数表、指令扫描与寄存器跟踪、按导入名与链接关系预筛、导出表起名，以及识别器扩展点。不认识任何一种语言：只许 import 将来 MachOKitExtensions 里也有的模块，源码里不许出现 `objc_` / `swift_` 开头的字面量（`CrossReferenceLayerBoundaryTests`）。
+- **`CrossReferenceObjC`**（ObjC 层，将来迁进 MachOObjCSection，改名 `ObjCCodeReferences`）：`objc_msgSend` 系列与 libobjc 专用入口、`__objc_stubs` 与 cache 共用 selector 桩的含义、selector 与接收者、classref / superref / 类对象、ObjC 方法列表起名、按 selector 与类预筛、libobjc 的运行时辅助函数名单。
+- **`CrossReferenceAnalysis`**（Swift 层兼门面，留在本库）：Swift 元数据访问器、值类型元数据、mangled name、Swift 类型查询与 Swift 元数据起名、Swift 运行时的辅助函数名单；`CrossReferenceAnalyzer` 把三层拼起来，持有全部公开模型，`@_exported import` 两个下层模块，所以 `import CrossReferenceAnalysis` 照旧看得到 `CodeLocation`、`ReceiverClassHint` 这些下移的类型。
+
+**识别器怎么接进扫描。** 核心层定义 `CodeReferenceRecognitionSession` 与 `CodeReferenceRecording` 两个 package 协议（`Recognition/CodeReferenceRecognition.swift`）。门面每次扫描为 ObjC 层、Swift 层各建一个会话，排成一列交给核心的 `ReferenceScanner`，核心只在五个时机问它们：进入函数（ObjC 会话在 `x0` 打「方法接收者」标记，`RegisterFile` 的标记位是通用的）、解析只有会话认得的调用目标（`__objc_stubs`）、调用点、算出地址、读槽。为了不拖慢扫描：每个不同的调用目标只问一次各会话的角色（`role(of:)`，结果记在扫描器的调用计划里），没有角色的调用——绝大多数——不经过任何会话；地址与槽按地址记住是哪个会话认领的，没人认领的下次直接跳过。会话产出的引用不经核心转手，记到各层的记录协议上，门面里的 `ReferenceCollector` 实现全部三个，造出公开的 `CodeReference` 并按查询的键过滤。
+
+**按镜像的缓存挂在函数表上。** 各层按镜像读的东西作为函数表的「附件」（`ImageFunctionTable.attachment(_:makingIt:)`）：核心层的导出表名字 `ExportedFunctionNames`、ObjC 层的节范围 `ObjCImageSections` 与方法名 `ObjCMethodNames`、Swift 层的元数据名字 `SwiftMetadataNames`，随表一起留下或释放，`approximateByteCount` 把它们算进表里。类索引与 Swift 类型索引仍由各层的识别器按镜像记住。
+
 ## 子系统
 
 | 子系统 | 文件 | 分工 |
 |---|---|---|
-| 0. 读取 | `Memory/CrossReferenceMemory`、`Memory/InProcessCrossReferenceMemory` | 分析器读镜像内存的唯一入口：按分析器地址空间里的地址取一段只读字节、问一个指针槽里装着什么（`slotContent(at:)`，去掉签名与标记位）、给出地址掩码。进程内实现直接读本进程内存，槽里是 dyld 已绑定的值；以后读磁盘文件的实现在槽上解 fixup。模块里只有进程内实现那一个文件允许把地址变成指针（`MemoryAccessScanTests`），提案 [draft-offline-cross-references-and-symbolication](../../Evolutions/draft-offline-cross-references-and-symbolication.md) 第 1 步 |
+| 0. 读取 | Core `Memory/CrossReferenceMemory`、`Memory/InProcessCrossReferenceMemory` | 分析器读镜像内存的唯一入口：按分析器地址空间里的地址取一段只读字节、问一个指针槽里装着什么（`slotContent(at:)`，去掉签名与标记位）、给出地址掩码；整段读槽与把一组地址换成指针各有批量接口（selector 预筛按块读，不再每个槽一次 existential 调用）。进程内实现直接读本进程内存，槽里是 dyld 已绑定的值；以后读磁盘文件的实现在槽上解 fixup。三个模块里只有进程内实现那一个文件允许把地址变成指针（`MemoryAccessScanTests`） |
 | 1. 指令字与跳板 | `ARM64InstructionDecoding` 模块的 `ARM64InstructionWord`、`ARM64Trampoline` | 手写读取少数几类 A64 编码；按形状认 GOT 桩、stub island 与全缓存共用的 selector 桩。与 SwiftThunkAnalysis 共用 |
-| 2. 地址空间 | `CrossReferenceAnalyzer` | 进程里全部镜像（整个共享缓存加缓存外已加载的镜像）、各镜像的路径与安装名、`__TEXT` 的内存区间、缓存的可执行与可读映射、`objc_msgSend` 与运行时辅助函数的位置；给函数起名要用的函数表按需建一次并记住。宿主可以预先读好一个镜像起名、查类、查类型要用的一切（`prepareNames(inImageAt:)`），放掉其余镜像的（`releaseImageData(exceptForImagesAt:)`），并估算一个镜像留着多少（`approximateByteCount(ofImageDataAt:)`，`Scanning/ApproximateSize`） |
-| 3. 函数表 | `Scanning/ImageFunctionTable` | 函数起点（`LC_FUNCTION_STARTS` 与 `__text` 里的符号取并集）、主名与代码合并留下的别名、辅助函数、镜像自带的 `__objc_stubs` / `__stubs` / `__auth_stubs`、`__objc_selrefs`、放类引用的槽（`__got`、`__auth_got`、`__objc_classrefs`）与 `__objc_superrefs`、各段的地址区间 |
-| 3a. 补充名字 | `Scanning/ImageFallbackNames` | 符号表没有名字的函数，依次从导出表、ObjC 方法表、Swift 元数据起名；起名时按镜像按需读，扫描不读 |
-| 3b. 类索引 | `Scanning/ObjectiveCClassIndex` | 一个镜像定义的类与元类，按地址；直接读 `__objc_classlist` 与各类的 `isa`。扫描时按需建、分析器记住；类名只在报出引用时读 |
-| 3c. 类型索引 | `Scanning/SwiftTypeIndex` | 一个镜像 `__swift5_types` 列出的描述符与各自的元数据访问器；类型的 key 按需算，优先取 `…Mn` 符号；按 key 找类型时只算描述符名字相同的那几个 |
-| 4. 扫描 | `Scanning/ReferenceScanner`、`Scanning/RegisterFile`、`Scanning/RuntimeHelperNames` | 逐条解码、跟踪寄存器、解析调用目标 |
-| 5. 结果 | `Models/*` | `CodeLocation`、`CodeFunction`、`CodeReference`、`CodeReferenceTarget`、按目标分组的 `CodeReferenceTable`，以及给宿主常驻用的紧凑版 `CodeReferenceIndex` |
-| 6. 预筛与过滤 | `CrossReferenceAnalyzer+Prefiltering`、`CrossReferenceAnalyzer+Linkage`、`Scanning/RenamedReexportIndex`、`references(to:inImageAt:)` | 按未定义符号（只对 C 与 ObjC 符号，连同别的镜像改名再导出的名字）、链接关系（Swift 符号）、`__objc_selrefs`、类对象上的符号筛出可能引用某个符号、selector 或类的镜像；扫描时只留命中的引用；`preparePrefilters()` 让宿主在后台单线程预先读好链接关系与改名再导出表 |
+| 2. 地址空间 | Core `Images/CodeImageSet`；门面 `CrossReferenceAnalyzer` | 进程里全部镜像（整个共享缓存加缓存外已加载的镜像）、各镜像的路径与安装名、`__TEXT` 的内存区间、缓存的可执行与可读映射、运行时库里的辅助函数位置；给函数起名要用的函数表按需建一次并记住。宿主可以预先读好一个镜像起名、查类、查类型要用的一切（`prepareNames(inImageAt:)`），放掉其余镜像的（`releaseImageData(exceptForImagesAt:)`），并估算一个镜像留着多少（`approximateByteCount(ofImageDataAt:)`，`Scanning/ApproximateSize`） |
+| 3. 函数表 | Core `Scanning/ImageFunctionTable` | 函数起点（`LC_FUNCTION_STARTS` 与 `__text` 里的符号取并集）、主名与代码合并留下的别名、辅助函数（名单由两个语言层给）、镜像自带的 `__stubs` / `__auth_stubs`、GOT、各段的地址区间；各层的附件 |
+| 3a. 补充名字 | Core `Scanning/ExportedFunctionNames`、ObjC `ObjCMethodNames`、Swift `Scanning/SwiftMetadataNames`；门面 `codeFunction(at:in:)` | 符号表没有名字的函数，依次从导出表、ObjC 方法表、Swift 元数据起名；起名时按镜像按需读，扫描不读 |
+| 3b. 类索引 | ObjC `ObjectiveCClassIndex`、`ObjCImageSections` | 一个镜像定义的类与元类，按地址；直接读 `__objc_classlist` 与各类的 `isa`。扫描时按需建、ObjC 识别器记住；类名只在报出引用时读。`ObjCImageSections` 是镜像的 `__objc_stubs`、selref、classref 与 superref |
+| 3c. 类型索引 | Swift `Scanning/SwiftTypeIndex` | 一个镜像 `__swift5_types` 列出的描述符与各自的元数据访问器；类型的 key 按需算，优先取 `…Mn` 符号；按 key 找类型时只算描述符名字相同的那几个 |
+| 4. 扫描 | Core `Scanning/ReferenceScanner`（含 `CallTargetResolver`）、`Scanning/RegisterFile`、`Recognition/`；ObjC `ObjCCodeReferenceRecognizer`；Swift `Scanning/SwiftCodeReferenceRecognizer`；`ObjCRuntimeHelperNames`、`Scanning/SwiftRuntimeHelperNames` | 逐条解码、跟踪寄存器、解析调用目标（核心）；发送与类引用（ObjC 会话）；Swift 类型引用（Swift 会话） |
+| 5. 结果 | `Models/*`（`CodeLocation`、`CodeReferenceKind`、`IndirectCallEvidence` 在核心层，`ReceiverClassHint` 在 ObjC 层） | `CodeLocation`、`CodeFunction`、`CodeReference`、`CodeReferenceTarget`、按目标分组的 `CodeReferenceTable`，以及给宿主常驻用的紧凑版 `CodeReferenceIndex` |
+| 6. 预筛与过滤 | Core `Images/CodeImageSet+Linkage`、`Scanning/RenamedReexportIndex`；ObjC `ObjCCodeReferenceRecognizer+Prefiltering`；门面 `CrossReferenceAnalyzer+Prefiltering`、`+Linkage`、`references(to:inImageAt:)` | 按未定义符号（只对 C 与 ObjC 符号，连同别的镜像改名再导出的名字）、链接关系（Swift 符号）、`__objc_selrefs`、类对象上的符号筛出可能引用某个符号、selector 或类的镜像；扫描时只留命中的引用；`preparePrefilters()` 让宿主在后台单线程预先读好链接关系与改名再导出表 |
 | 7. 类型查询 | `CrossReferenceAnalyzer+SwiftTypes` | Swift 类型的身份、预筛与按类型的扫描；`SwiftTypeQuery` 比对描述符位置与名字里的符号引用 |
 
 ## 关键契约
@@ -50,7 +62,7 @@ macOS 27 / iOS 27 起的那种见术语表 [cache-shared stub（全缓存共用�
 
 clang 把一部分发送编成对 libobjc 专用入口的调用：`[[Foo alloc] init]` 是 `objc_alloc_init(Foo)`，`[Foo alloc]`、`[Foo allocWithZone:nil]`、`[Foo new]` 是 `objc_alloc`、`objc_allocWithZone`、`objc_opt_new`，`[x self]`、`[x class]` 是 `objc_opt_self`、`objc_opt_class`，`[x isKindOfClass:c]`、`[x respondsToSelector:s]` 是 `objc_opt_isKindOfClass`、`objc_opt_respondsToSelector`。这样的发送不经 `objc_msgSend`，镜像里也可能没有这个 selector 的引用。macOS 26.6 的 AppKit 里 `objc_alloc_init` 有 2,488 处，按 selector 发送的 `init` 只有 720 处；`objc_opt_isKindOfClass` 3,369 处、`objc_opt_respondsToSelector` 2,977 处、`objc_opt_new` 590 处，对应的 selector 一次直接发送都没有。0.24.0 只认 `objc_msgSend`，这些都记成对 libobjc 函数的普通调用，查 `init` 的调用者漏掉约 78%，查另外几个一处都查不到（第二轮审查第 2 条）。
 
-现在每处这样的调用记成它代表的发送（`Scanning/MessageSendEntryPoints`）：
+现在每处这样的调用记成它代表的发送（ObjC 层的 `MessageSendEntryPoints`）：
 
 - 入口按 libobjc 里的位置认，经桩、GOT 或共用桩到达都算；桩跟不过去、只剩导入名时按名字认。
 - 接收者按 `x0` 判断，与 `objc_msgSend` 相同。`objc_alloc_init` 在同一条指令上记 `alloc` 与 `init` 两条发送，`init` 发给 `alloc` 返回的实例，接收者记 `.unknown`。
@@ -93,7 +105,7 @@ SwiftThunkAnalysis 自己的 Capstone 解码器原先也把字面量 `ldr` 当�
 
 ### 运行时辅助调用
 
-`RuntimeHelperNames` 维护名单：libobjc 的 retain / release / autorelease / weak 系列，Swift 运行时的 retain / release / bridgeObject / unknownObject / unowned / weak / beginAccess / endAccess，编译器写进每个镜像的 `___swift_*_boxed_opaque_existential*` / `___swift_memcpy*`，以及以 `WO` 加小写字母结尾的 outlined 值操作。跨镜像的辅助函数只在 libobjc、libswiftCore、libswift_Concurrency 里找；镜像内的在该镜像的函数表里标出。结果只打标记，过滤交给宿主。
+名单分在两层维护（ObjC 层的 `ObjCRuntimeHelperNames`、Swift 层的 `SwiftRuntimeHelperNames`）：libobjc 的 retain / release / autorelease / weak 系列，Swift 运行时的 retain / release / bridgeObject / unknownObject / unowned / weak / beginAccess / endAccess，编译器写进每个镜像的 `___swift_*_boxed_opaque_existential*` / `___swift_memcpy*`，以及以 `WO` 加小写字母结尾的 outlined 值操作。跨镜像的辅助函数只在 libobjc、libswiftCore、libswift_Concurrency 里找；镜像内的在该镜像的函数表里标出。结果只打标记，过滤交给宿主。
 
 ### 类引用（第二批）
 
@@ -193,6 +205,17 @@ Swift 符号改按链接关系预筛（`imageIndices(linkingImageAt:among:)`，`
 
 比第一批多出来的是寄存器状态沿着分支走（约 +10–20%）、类引用与 Swift 类型引用（整表约 +45%，只查 selector 或函数时约 +10%）。「现在」一列是在别的会话同时编译、负载较高的机器上交替跑多轮取的最好值。
 
+**读取层与拆层的代价**（2026-11-19，同一台 Ultra，release，`ScanThroughputBenchmarkTests` 三方交替各三轮取最好；提案 [draft-offline-cross-references-and-symbolication](../../Evolutions/draft-offline-cross-references-and-symbolication.md) 第 1、2 步）：
+
+| 操作 | 拆分前的 `next` | 第 1 步：读取层 | 第 2 步：三层与识别器 |
+|---|---|---|---|
+| 建分析器 | 0.054 秒 | 0.055 秒 | 0.055 秒 |
+| 每个镜像都建整表（1.274 亿条引用） | 2.42 秒 | 2.54 秒 | 2.52 秒 |
+| `init` 的调用者：预筛 2,880 个镜像 + 过滤扫描 | 0.038 + 1.663 秒 | 0.038 + 1.667 秒 | 0.039 + 1.698 秒 |
+| `makeKeyAndOrderFront:` 的调用者：105 个镜像 | 0.050 + 0.309 秒 | 0.062 + 0.311 秒 | 0.059 + 0.325 秒 |
+
+第 2 步相对第 1 步在 −0.5% 到 +3% 之间；整表多出的约 5% 来自第 1 步——每次读槽、读字符串都经读取层的 existential 调用。拆层第一次量时超过 5%，采样后改掉的几处见提案的决策日志：读槽先做区间排除再查认领表、调用计划不持有数组、只调用角色需要的会话方法、热路径上的类属性去掉运行时独占检查、函数表记下各节免得 ObjC 层再遍历 load command、selector 预筛按块批量读槽。
+
 单线程解码 AppKit 约 187 MiB/s，比 Capstone 快 25–50 倍（RuntimeViewer 提案落地第一步的探针）。库比探针慢一些（4 线程扫完整个缓存，探针 4.1 秒，库 5.9–6.3 秒），多出来的是起名、建 `CodeReference` 与 selector 字符串；过滤扫描也是先建好每条引用再丢弃，按键提前跳过是能做的优化。
 
 ## 测试锚点
@@ -212,3 +235,7 @@ Swift 符号改按链接关系预筛（`imageIndices(linkingImageAt:among:)`，`
 - `LazyBindingTests`：现编一个懒绑定的 dylib，见上文「缓存外镜像的 GOT 槽」。
 - `PreparedImageDataTests`（每个测试用自己的分析器）：`prepareNames(inImageAt:)` 之后三个来源、类名、类型符号都已读好，给 Foundation 全部函数起的名字与不预读时相同；估算随留着的东西增减，放掉后为零；`releaseImageData(exceptForImagesAt:)` 只留指定镜像（连同读过的名字），其余放掉、之后照样能起名；一个线程预读预筛表、另一个线程同时要用，表只建一次；单线程读与并行读导出表结果相同。
 - `CodeReferenceIndexTests`：Foundation 整表的每一个键，索引给出的引用与整表逐条相同、顺序相同，条数等于整表里有键的加上 Swift 类型名；AppKit 里一次查几个键（selector、libswiftCore 的函数、`NSWindow`）与过滤扫描逐条相同；Foundation 里 `URL`、`JSONEncoder`（类，经类对象）与标准库的 `Sa`（名字里拼出来，要解开）从索引查与按类型扫描逐条相同；索引不到整表的一半大；建索引留住函数表；进度从 0 报到函数总数，回答「停」就不建。
+- `CrossReferenceLayerBoundaryTests`：核心层只 import MachOKitExtensions 将来也有的模块，ObjC 层另加 MachOObjCSection 与核心层；核心层的源码里没有 `objc_` / `swift_` 开头的字面量。`MemoryAccessScanTests`：三个模块里只有 `InProcessCrossReferenceMemory` 把地址变成指针。
+- `RecognizerExtensionPointTests`：测试里定义的会话（代替一切调用 libobjc 的调用）接进核心的扫描，核心不改就生效；只查 selector 时 Swift 会话不建任何镜像的类型索引。`PublicNameTests`：只 `import CrossReferenceAnalysis` 也看得到下移的 `CodeLocation`、`CodeReference.Kind`、`ReceiverClassHint`、`IndirectCallEvidence`。
+- `FunctionStartOutsideTextTests`：符号表把函数起点放在 `__text` 起点之下的镜像照常扫描（第 1 步曾因此下溢陷入）。
+- 两个按环境变量启用的 A/B 套件，库里没有可存的基线：`ReferenceTableDigestTests`（AppKit、SwiftUICore、Foundation 的整表摘要，在基线检出上生成、在候选上比对，也能整表导出逐行比较）与 `ScanThroughputBenchmarkTests`（上面「读取层与拆层的代价」那张表，release 下跑）。用法写在各自的文档注释里。

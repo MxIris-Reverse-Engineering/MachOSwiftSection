@@ -6,15 +6,19 @@ import ARM64InstructionDecoding
 ///
 /// Register 31 is the zero register or the stack pointer, neither of which
 /// is tracked: writing it changes nothing and reading it yields nothing.
-final class RegisterFile {
+///
+/// Knows no language. A recognition session may tag a register with a value
+/// of its own — the Objective-C one tags the receiver a method arrives with —
+/// and the tag lasts until the register is written, moving with `mov`.
+package final class RegisterFile {
     private enum State: UInt8 {
         case unknown = 0
         /// Holds an address `adrp` / `adr` / `add` built.
         case address
         /// Holds what was loaded from the slot at a known address.
         case loadedFromSlot
-        /// Holds the receiver an Objective-C method arrived with.
-        case methodReceiver
+        /// Holds what a session tagged it with: the value is the tag.
+        case tagged
     }
 
     private static let registerCount = 32
@@ -25,7 +29,7 @@ final class RegisterFile {
     /// Everything the file knows at one instruction. A value of fixed size,
     /// so a forward branch carries it to its target as a plain copy — the
     /// scan takes one at every forward branch, and arrays would allocate.
-    struct Snapshot {
+    package struct Snapshot {
         fileprivate var states = SIMD32<UInt8>(repeating: 0)
         fileprivate var values = SIMD32<UInt64>(repeating: 0)
         fileprivate var loadDisplacements = SIMD32<Int64>(repeating: 0)
@@ -40,7 +44,7 @@ final class RegisterFile {
         /// Keeps only what `other` agrees on: two paths that reach one
         /// instruction leave a register known there only when both put the
         /// same thing in it.
-        mutating func meet(_ other: Snapshot) {
+        package mutating func meet(_ other: Snapshot) {
             for register in 0 ..< RegisterFile.registerCount where !agrees(with: other, on: register) {
                 let bit: UInt32 = 1 << UInt32(register)
                 states[register] = State.unknown.rawValue
@@ -64,7 +68,9 @@ final class RegisterFile {
 
     private var contents = Snapshot()
 
-    func reset() {
+    package init() {}
+
+    package func reset() {
         contents.states = SIMD32(repeating: 0)
         contents.loadedMask = 0
         contents.constantMask = 0
@@ -73,15 +79,16 @@ final class RegisterFile {
 
     // MARK: - Writes
 
-    func setMethodReceiver(_ register: Int) {
-        overwrite(register, state: .methodReceiver, value: 0)
+    /// Tags `register` with `tag`, as a session does when a function starts.
+    package func setTag(_ tag: UInt64, of register: Int) {
+        overwrite(register, state: .tagged, value: tag)
     }
 
-    func setAddress(_ address: UInt64, of register: Int) {
+    package func setAddress(_ address: UInt64, of register: Int) {
         overwrite(register, state: .address, value: address)
     }
 
-    func add(_ addend: Int64, to source: Int, into destination: Int) {
+    package func add(_ addend: Int64, to source: Int, into destination: Int) {
         guard destination != 31 else { return }
         if source != 31, contents.states[source] == State.address.rawValue {
             overwrite(destination, state: .address, value: UInt64(bitPattern: Int64(bitPattern: contents.values[source]) &+ addend))
@@ -90,7 +97,7 @@ final class RegisterFile {
         }
     }
 
-    func load(into destination: Int, base: Int, displacement: Int64, writesBack: Bool) {
+    package func load(into destination: Int, base: Int, displacement: Int64, writesBack: Bool) {
         let slotIsKnown = base != 31 && contents.states[base] == State.address.rawValue
         let slotAddress = UInt64(bitPattern: Int64(bitPattern: contents.values[base & 31]) &+ displacement)
         if writesBack, base != 31 { overwrite(base, state: .unknown, value: 0) }
@@ -103,14 +110,14 @@ final class RegisterFile {
     /// `ldr xt, label`: a load from the slot at `slotAddress`, kept as the
     /// `adrp` / `ldr` pair ld64 rewrote it from kept it — the same slot, and
     /// the slot's offset in its page as the load's displacement.
-    func load(into destination: Int, fromSlotAt slotAddress: UInt64) {
+    package func load(into destination: Int, fromSlotAt slotAddress: UInt64) {
         guard destination != 31 else { return }
         overwrite(destination, state: .loadedFromSlot, value: slotAddress)
         contents.loadedMask |= 1 << UInt32(destination)
         contents.loadDisplacements[destination] = Int64(slotAddress & 0xFFF)
     }
 
-    func copy(_ source: Int, to destination: Int) {
+    package func copy(_ source: Int, to destination: Int) {
         guard destination != 31 else { return }
         guard source != 31 else {
             overwrite(destination, state: .unknown, value: 0)
@@ -127,7 +134,7 @@ final class RegisterFile {
 
     /// `movz` / `movk`: a pointer-authentication constant is `movk xN, #imm,
     /// lsl #48` blended into an address, or `mov x17, #imm` on its own.
-    func moveWide(into destination: Int, immediate: UInt16, shift: Int, keepsOtherBits: Bool) {
+    package func moveWide(into destination: Int, immediate: UInt16, shift: Int, keepsOtherBits: Bool) {
         guard destination != 31 else { return }
         let isConstant = keepsOtherBits ? shift == 48 : shift == 0
         overwrite(destination, state: .unknown, value: 0)
@@ -137,7 +144,7 @@ final class RegisterFile {
         if keepsOtherBits { contents.blendedMask |= 1 << UInt32(destination) }
     }
 
-    func clobberCallerSavedRegisters() {
+    package func clobberCallerSavedRegisters() {
         for register in 0 ... 18 { contents.states[register] = State.unknown.rawValue }
         contents.states[30] = State.unknown.rawValue
         contents.loadedMask &= ~Self.callerSavedMask
@@ -145,26 +152,35 @@ final class RegisterFile {
         contents.blendedMask &= ~Self.callerSavedMask
     }
 
-    /// What a call to a function that returns its argument leaves: the
-    /// caller-saved registers forgotten except `kept`, which still holds what
-    /// it was handed.
-    func clobberCallerSavedRegisters(keeping kept: Int) {
+    /// What a call leaves when the registers in `keptMask`, by bit, still
+    /// hold what they were handed — a function that returns its argument:
+    /// the caller-saved registers forgotten except those.
+    package func clobberCallerSavedRegisters(keepingMask keptMask: UInt32) {
+        guard keptMask != 0 else {
+            clobberCallerSavedRegisters()
+            return
+        }
         let keptContents = contents
         clobberCallerSavedRegisters()
-        let bit: UInt32 = 1 << UInt32(kept)
-        contents.states[kept] = keptContents.states[kept]
-        contents.values[kept] = keptContents.values[kept]
-        contents.loadDisplacements[kept] = keptContents.loadDisplacements[kept]
-        contents.constants[kept] = keptContents.constants[kept]
-        contents.loadedMask = (contents.loadedMask & ~bit) | (keptContents.loadedMask & bit)
-        contents.constantMask = (contents.constantMask & ~bit) | (keptContents.constantMask & bit)
-        contents.blendedMask = (contents.blendedMask & ~bit) | (keptContents.blendedMask & bit)
+        var remaining = keptMask
+        while remaining != 0 {
+            let kept = remaining.trailingZeroBitCount
+            remaining &= remaining - 1
+            let bit: UInt32 = 1 << UInt32(kept)
+            contents.states[kept] = keptContents.states[kept]
+            contents.values[kept] = keptContents.values[kept]
+            contents.loadDisplacements[kept] = keptContents.loadDisplacements[kept]
+            contents.constants[kept] = keptContents.constants[kept]
+            contents.loadedMask = (contents.loadedMask & ~bit) | (keptContents.loadedMask & bit)
+            contents.constantMask = (contents.constantMask & ~bit) | (keptContents.constantMask & bit)
+            contents.blendedMask = (contents.blendedMask & ~bit) | (keptContents.blendedMask & bit)
+        }
     }
 
     /// Forgets the registers an instruction the scanner does not model
     /// writes. Erring toward forgetting only loses facts; never forgetting a
     /// write would keep a stale one.
-    func forgetRegistersWritten(by word: UInt32) {
+    package func forgetRegistersWritten(by word: UInt32) {
         forget(mask: Self.registersWritten(by: word))
     }
 
@@ -172,7 +188,7 @@ final class RegisterFile {
     /// write, never one it does not — except a pointer signed or
     /// authenticated in place, which keeps what it means. A call writes the
     /// caller-saved registers.
-    static func registersWritten(by word: UInt32) -> UInt32 {
+    package static func registersWritten(by word: UInt32) -> UInt32 {
         let destination = word & 0x1F
         let base = (word >> 5) & 0x1F
         // Calls: `bl`, and `blr` and its authenticating forms.
@@ -284,49 +300,52 @@ final class RegisterFile {
 
     // MARK: - Branches
 
-    func snapshot() -> Snapshot {
+    package func snapshot() -> Snapshot {
         contents
     }
 
     /// Becomes `snapshot`: the instruction is reached only by the branches
     /// it was taken at.
-    func restore(_ snapshot: Snapshot) {
+    package func restore(_ snapshot: Snapshot) {
         contents = snapshot
     }
 
     /// Keeps only what `snapshot` agrees on: the instruction is reached both
     /// by falling through and by the branches `snapshot` was taken at.
-    func meet(_ snapshot: Snapshot) {
+    package func meet(_ snapshot: Snapshot) {
         contents.meet(snapshot)
     }
 
     // MARK: - Reads
 
-    func wasLoadedFromMemory(_ register: Int) -> Bool {
+    package func wasLoadedFromMemory(_ register: Int) -> Bool {
         register != 31 && contents.loadedMask & (1 << UInt32(register)) != 0
     }
 
-    func loadDisplacement(of register: Int) -> Int64? {
+    package func loadDisplacement(of register: Int) -> Int64? {
         wasLoadedFromMemory(register) ? contents.loadDisplacements[register] : nil
     }
 
-    func constant(of register: Int) -> (value: UInt16, isBlended: Bool)? {
+    package func constant(of register: Int) -> (value: UInt16, isBlended: Bool)? {
         guard register != 31, contents.constantMask & (1 << UInt32(register)) != 0 else { return nil }
         return (contents.constants[register], contents.blendedMask & (1 << UInt32(register)) != 0)
     }
 
-    func holdsMethodReceiver(_ register: Int) -> Bool {
-        register != 31 && contents.states[register] == State.methodReceiver.rawValue
+    /// The tag `register` carries, when a session tagged it and nothing
+    /// wrote it since.
+    package func tag(of register: Int) -> UInt64? {
+        guard register != 31, contents.states[register] == State.tagged.rawValue else { return nil }
+        return contents.values[register]
     }
 
     /// The address a register holds, when `adrp` / `adr` / `add` built it.
-    func builtAddress(of register: Int) -> UInt64? {
+    package func builtAddress(of register: Int) -> UInt64? {
         guard register != 31, contents.states[register] == State.address.rawValue else { return nil }
         return contents.values[register]
     }
 
     /// The slot a register's value was loaded from, when that is known.
-    func slotAddress(of register: Int) -> UInt64? {
+    package func slotAddress(of register: Int) -> UInt64? {
         guard register != 31, contents.states[register] == State.loadedFromSlot.rawValue else { return nil }
         return contents.values[register]
     }
@@ -348,7 +367,7 @@ final class RegisterFile {
     }
 
     /// Forgets every register `mask` has a bit for.
-    func forget(mask: UInt32) {
+    package func forget(mask: UInt32) {
         var remaining = mask & 0x7FFF_FFFF
         while remaining != 0 {
             let register = remaining.trailingZeroBitCount

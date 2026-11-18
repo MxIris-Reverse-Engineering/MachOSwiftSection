@@ -1,11 +1,11 @@
-/// An address in the code of one image a ``CrossReferenceAnalyzer`` knows.
+/// An address in the code of one image a cross-reference analyzer knows.
 ///
 /// The address is the image's own, unslid — the one `dyld_info`, a
 /// disassembler or a crash report's binary image list prints. Unslid
 /// addresses of two images outside the dyld shared cache can coincide, so a
 /// location carries its image.
 public struct CodeLocation: Hashable, Comparable, Sendable {
-    /// The image's position in ``CrossReferenceAnalyzer/images``.
+    /// The image's position among the images the analyzer covers.
     public let imageIndex: Int
     /// The unslid address.
     public let address: UInt64
