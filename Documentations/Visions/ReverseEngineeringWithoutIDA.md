@@ -90,7 +90,8 @@
    本库的 `CodeLocation` 是「镜像下标 + 未滑动地址」，RuntimeViewer 已经按它建了一层查询。
 6. **新能力放在哪一层。** MachOKit 是 p-x9 上游的 fork，fork 已落后上游 33 个提交，越加越难合；
    MachOKitExtensions 是自有的通用层，正在接收本库的读取层（MachOKitExtensions 草案
-   `move-reading-and-resolving-modules`）；本库的 Analysis 层离使用方最近，但通用的东西放这里，别的仓库
+   `move-reading-and-resolving-modules`，之后又接收了整个 Mach-O 层，见下文「我们选的方向」第 6 条）；
+   本库的 Analysis 层离使用方最近，但通用的东西放这里，别的仓库
    （MachOKitUI、swift-decompiler）拿不到。
 7. **正确性的标准答案用谁。** 反汇编有 `otool -tV` / `llvm-objdump`；fixup 有 `dyld_info -fixups`（只读本机
    cache）；交叉引用没有天然的地面真值，IDA 自己就会漏，Binary Ninja 更全但只能在它的界面里跑。
@@ -148,9 +149,11 @@
    读几个 GB 的 cache 若明显拖慢重复查询，持久化再作为独立阶段提出。
 5. **保留按镜像的 `CodeLocation`，另给一张全 cache 的地址符号化表。** 统一地址空间里最有价值的是「任何地址
    都能说出它是什么」，这一点用符号化器单独提供，不推翻已有的模型和 RuntimeViewer 的查询层。
-6. **分层：通用读取与地址换算最终归 MachOKitExtensions，分析留在本库的 Analysis 层。** 新的通用代码先在本库
-   的 `Sources/MachO/` 下写成不依赖 Swift 元数据的独立模块，等 MachOKitExtensions 的读取层迁移落定后再整体
-   搬过去，走法照 `MachOReading` 这次迁移。除了修 bug，不往 MachOKit fork 里加新能力。
+6. **分层：通用读取与地址换算归 MachOKitExtensions，分析留在本库的 Analysis 层。** 不依赖 Swift 元数据的
+   通用代码直接写进 MachOKitExtensions：自它的 2.0.0 起，本库原来的整个 Mach-O 层（读取、指针、按镜像的
+   缓存、依赖闭包、符号表与采集，外加一个 C/C++ 符号索引）都在那里，本库的 `Sources/MachO/` 分组已经没有了
+   （MachOKitExtensions 草案 `move-macho-infrastructure-modules`）。本库只写依赖 Swift 元数据或属于分析的
+   部分。除了修 bug，不往 MachOKit fork 里加新能力。
 7. **标准答案**：反汇编对 `otool -tV`；fixup 对本机 cache 的 `dyld_info -fixups`；交叉引用以 IDA（查到两跳）
    为主要参照，Binary Ninja 为辅——第 1 条的实测里，IDA 两跳的召回是 99.4%，Binary Ninja 经 MCP 是 67.6%。
    最可靠的仍是 `otool -tV` 加独立寄存器跟踪生成的标准答案，那次实测就是这样做的。
