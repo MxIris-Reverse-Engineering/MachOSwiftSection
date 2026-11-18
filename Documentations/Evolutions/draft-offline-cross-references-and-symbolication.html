@@ -68,8 +68,8 @@ details > summary { cursor: pointer; font-weight: 600; padding: 8px 0; }
 
 <h1>Draft - 交叉引用与地址符号化扩展到磁盘文件和归档 dyld cache</h1>
 <div class="meta">
-  <span>状态：<b>Accepted</b></span>
-  <span>对应提案最后更新：<b>2026-11-18</b></span>
+  <span>状态：<b>In Progress</b></span>
+  <span>对应提案最后更新：<b>2026-11-19</b></span>
   <span>作者：JH</span>
   <span>创建：2026-11-18</span>
   <span>所属愿景：<a href="../Visions/ReverseEngineeringWithoutIDA.md">不依赖 IDA 的逆向</a>（第 1 阶段）</span>
@@ -88,13 +88,13 @@ details > summary { cursor: pointer; font-weight: 600; padding: 8px 0; }
   <li>把分析器里「直接读进程内存」的地方收进一个读取抽象，新增从 <code>FullDyldCache</code> 和一组 <code>MachOFile</code> 构造分析器的入口，槽里的值改由 fixup 解码得到；</li>
   <li><b>把交叉引用按层拆成三个模块</b>：与语言无关的核心 <code>CrossReferenceCore</code>（指令扫描、函数表、桩与槽、字符串、符号化）、ObjC 层 <code>CrossReferenceObjC</code>（消息发送、类引用、ivar、ObjC 方法名）、Swift 层 <code>CrossReferenceAnalysis</code>（Swift 类型、对外的公开 API）。层与层之间经「识别器」扩展点相接，核心不认识任何一种语言；各层能 import 什么由源码扫描测试守住，只许 import 它们将来的落脚处也有的模块。真正搬到 MachOKitExtensions（核心）与 MachOObjCSection（ObjC 层）<b>另写迁移提案</b>，在本提案量完吞吐、跑稳之后做；</li>
   <li>把 <code>SwiftThunkAnalysis</code> 里已经写好的离线桩链与槽解析抽成独立的 <code>CodeAddressResolution</code> 模块，两边共用；</li>
-  <li>补三类引用：经 ivar 偏移变量读写 ObjC ivar、C 字符串字面量、CFString 常量，并给每条引用标上它是怎么到达目标的（直接调用、本镜像桩、stub island、cache 共用桩、指针槽……）；</li>
+  <li>补三类引用：经 ivar 偏移变量读写 ObjC ivar、C 字符串字面量、CFString 常量，并给每条引用标上它是怎么到达目标的（直接调用、本镜像桩、stub island、cache 共用桩、GOT 槽……）；</li>
   <li>新增地址符号化：任意一个地址，说出它在哪个镜像的哪个函数加多少偏移，或者它是桩、最终跳到谁，或者它是槽、里面装着谁；</li>
   <li>新增 <code>swift-section refs</code> 与 <code>swift-section symbolicate</code> 两个子命令（文本与 JSON 输出），并在 RuntimeViewer 的 CLI 与 MCP 上接出 <code>callers</code> / <code>callees</code> / <code>references</code> / <code>symbolicate</code>。</li>
 </ol>
 
 <h2 id="decide">要定的事</h2>
-<div class="callout">本提案属轻量档：用户看过简报点头即可开工。「一步到位写进三个仓库」还是「先在本库拆层、量完再迁」已由用户定为后者。提案本身没有其它留待用户拍板的设计问题；下层模块迁出后对外的公开模型留给之后的迁移提案。</div>
+<div class="callout">没有留待拍板的设计问题。九个落地步骤都已完成，实现完成，待用户看过后收尾（见决策日志最后一行）。下层模块迁出后对外的公开模型留给之后的迁移提案（见非目标）。</div>
 
 <h2 id="architecture">架构图</h2>
 <div class="legend"><span class="tag add">新增</span><span class="tag mod">修改</span><span class="tag del">删除</span>未着色的是不变的上下文。虚线框右上角是这一层将来的落脚处。</div>
@@ -116,11 +116,11 @@ details > summary { cursor: pointer; font-weight: 600; padding: 8px 0; }
           <li>+ symbolication(of:) -&gt; AddressSymbolication</li>
         </ul>
       </div>
-      <div class="box add"><div class="name">SwiftCodeReferenceRecognizer</div>accessors, value metadata, mangled names, large string literals, swift_* helpers</div>
+      <div class="box add"><div class="name">SwiftCodeReferenceRecognizer</div>accessors, value metadata, mangled names, swift_* helpers</div>
       <div class="box add"><div class="name">SwiftMetadataNames</div>split from ImageFallbackNames</div>
       <div class="box mod"><div class="name">CodeReferenceTarget, CodeReferenceTable, CodeReferenceIndex, CodeFunction</div>public model stays here；+ objectiveCInstanceVariable, + cString, + constantString；+ route</div>
       <div class="box add"><div class="name">AddressSymbolication</div>public</div>
-      <div class="box del"><div class="name">RuntimeHelperNames</div>split into the ObjC and Swift recognizers</div>
+      <div class="box mod"><div class="name">RuntimeHelperNames → SwiftRuntimeHelperNames</div>Swift names only; the libobjc list moves to ObjCRuntimeHelperNames</div>
     </div>
     <div class="arrow">▼ @_exported import</div>
     <div class="layer">
@@ -133,7 +133,7 @@ details > summary { cursor: pointer; font-weight: 600; padding: 8px 0; }
     <div class="arrow">▼</div>
     <div class="layer">
       <div class="title">Sources/Analysis/CrossReferenceCore — package, not a product　[MachOKitExtensions: MachOCodeReferences]</div>
-      <div class="box add"><div class="name">CodeReferenceRecognizer · CodeReferenceRecognitionSession · CodeReferenceRecording</div>the extension point: five moments in the scan</div>
+      <div class="box add"><div class="name">CodeReferenceRecognitionSession, CodeReferenceRecording, ResolvedCallTarget</div>the extension point: five moments in the scan</div>
       <div class="box add"><div class="name">CodeImageSet</div>images, mappings, function tables（split from CrossReferenceAnalyzer）</div>
       <div class="box mod"><div class="name">ReferenceScanner, RegisterFile, ImageFunctionTable</div>moved; language-free；register tags replace methodReceiver；+ route, + C string / CFString, + ldrsw sources</div>
       <div class="box add"><div class="name">CrossReferenceMemory</div>package protocol</div>
@@ -222,9 +222,8 @@ details > summary { cursor: pointer; font-weight: 600; padding: 8px 0; }
 <tr><td><code>…/Memory/InProcessCrossReferenceMemory.swift</code> · <code>InProcessCrossReferenceMemory</code></td><td><span class="tag add">新增</span></td><td>搬入现有的直接读指针与 slide 换算</td><td>进程内行为不变</td><td>1、2</td></tr>
 <tr><td>现有 22 处 <code>UnsafeRawPointer(bitPattern:)</code>（<code>ReferenceScanner</code>、<code>ObjectiveCClassIndex</code>、<code>SwiftTypeIndex</code>、<code>ImageFunctionTable</code>、<code>+SwiftTypes</code>、<code>+Prefiltering</code>、<code>ImageFallbackNames</code>）、<code>StoredPointer</code></td><td><span class="tag mod">修改</span></td><td>改走 <code>CrossReferenceMemory</code>；掩码由 memory 提供</td><td>读取抽象；文件模式没有 <code>InProcessContext</code></td><td>1</td></tr>
 <tr><td><code>Sources/Analysis/CrossReferenceCore/</code></td><td><span class="tag add">新增</span></td><td>核心层模块：<code>CodeLocation</code>、<code>CodeReferenceRoute</code>、<code>IndirectCallEvidence</code>（由顶层下移），镜像表、函数表、扫描循环、寄存器跟踪、链接关系与导入名预筛、<code>RenamedReexportIndex</code></td><td>按层拆分</td><td>2</td></tr>
-<tr><td><code>…/CrossReferenceCore/Recognition/CodeReferenceRecognizer.swift</code> · <code>CodeReferenceRecognizer</code>、<code>CodeReferenceRecognitionSession</code></td><td><span class="tag add">新增</span></td><td>package 协议：五个时机（进入函数、解析不认识的调用目标、调用点、算出地址、读槽）与无名函数的起名</td><td>扩展点；核心不认识任何语言</td><td>2</td></tr>
-<tr><td><code>…/CrossReferenceCore/Recognition/CodeReferenceRecording.swift</code> · <code>CodeReferenceRecording</code></td><td><span class="tag add">新增</span></td><td>package 协议：核心层产出的引用交给谁</td><td>引用不经核心转手，顶层直接造公开模型</td><td>2</td></tr>
-<tr><td><code>…/CrossReferenceCore/Analysis/CodeImageSet.swift</code> · <code>CodeImageSet</code></td><td><span class="tag add">新增</span></td><td>由 <code>CrossReferenceAnalyzer</code> 里与语言无关的部分拆出：镜像与映射、按镜像缓存的函数表、锁、<code>releaseImageData</code> 的核心部分</td><td>顶层门面之下的核心状态</td><td>2</td></tr>
+<tr><td><code>…/CrossReferenceCore/Recognition/CodeReferenceRecognition.swift</code> · <code>CodeReferenceRecognitionSession</code>、<code>CodeReferenceRecording</code>、<code>ResolvedCallTarget</code>、<code>ScanSite</code></td><td><span class="tag add">新增</span></td><td>package 协议：会话在五个时机（进入函数、解析只有它认得的调用目标、调用点、算出地址、读槽）被问；核心层产出的引用交给谁</td><td>扩展点；核心不认识任何语言；引用不经核心转手</td><td>2</td></tr>
+<tr><td><code>…/CrossReferenceCore/Images/CodeImageSet.swift</code>、<code>CodeImageSet+Linkage.swift</code> · <code>CodeImageSet</code>、<code>RuntimeLibraryRules</code></td><td><span class="tag add">新增</span></td><td>由 <code>CrossReferenceAnalyzer</code> 里与语言无关的部分拆出：镜像与映射、按镜像缓存的函数表、锁、<code>releaseImageData</code> 的核心部分</td><td>顶层门面之下的核心状态</td><td>2</td></tr>
 <tr><td><code>…/CrossReferenceCore/Scanning/ReferenceScanner.swift</code></td><td><span class="tag mod">修改（搬家）</span></td><td>只留通用识别；ObjC 与 Swift 的分支改成在五个时机问识别器；<code>findsTypeReferences</code> 一类的跳过改成每个识别器按这次查询要的种类决定</td><td>按层拆分</td><td>2</td></tr>
 <tr><td><code>…/CrossReferenceCore/Scanning/RegisterFile.swift</code></td><td><span class="tag mod">修改（搬家）</span></td><td><code>methodReceiver</code> 状态换成识别器可用的寄存器标记位（随 <code>mov</code> 复制、写入即清除、调用后按识别器给的保留集合保留）</td><td>去掉核心里唯一的 ObjC 状态</td><td>2</td></tr>
 <tr><td><code>…/CrossReferenceCore/Scanning/ImageFunctionTable.swift</code></td><td><span class="tag mod">修改（搬家）</span></td><td>ObjC 节的范围（<code>__objc_stubs</code>、selref、superref、classref）移出，只留函数起点、名字、data in code、本镜像桩、GOT、段范围</td><td>按层拆分</td><td>2</td></tr>
@@ -232,19 +231,28 @@ details > summary { cursor: pointer; font-weight: 600; padding: 8px 0; }
 <tr><td><code>…/CrossReferenceObjC/ObjectiveCClassIndex.swift</code>、<code>MessageSendEntryPoints.swift</code></td><td><span class="tag mod">修改（搬家）</span></td><td>原样搬入</td><td>属于 ObjC 层</td><td>2</td></tr>
 <tr><td><code>…/CrossReferenceObjC/ObjCImageSections.swift</code>、<code>ObjCMethodNames.swift</code></td><td><span class="tag add">新增</span></td><td>由 <code>ImageFunctionTable</code> 拆出的 ObjC 节范围与方法标记；由 <code>ImageFallbackNames</code> 拆出的 ObjC 方法列表回退名</td><td>按层拆分</td><td>2</td></tr>
 <tr><td><code>…/CrossReferenceObjC/</code> 预筛</td><td><span class="tag mod">修改（搬家）</span></td><td><code>imageIndices(referencingSelector:)</code>、<code>imageIndices(referencingObjectiveCClassAt:)</code>、<code>objectiveCClassLocations(named:)</code> 的实现由 <code>+Prefiltering</code> 搬来，顶层门面转发</td><td>按层拆分</td><td>2</td></tr>
-<tr><td><code>Sources/Analysis/CrossReferenceAnalysis/SwiftCodeReferenceRecognizer.swift</code> · <code>SwiftCodeReferenceRecognizer</code></td><td><span class="tag add">新增</span></td><td>由扫描器拆出的 Swift 部分：元数据访问器、值类型元数据、mangled name 实例化辅助函数与运行时入口、<code>swift_*</code> 运行时辅助函数、<code>swift_getInitializedObjCClass</code> 的 <code>x0</code> 保留</td><td>按层拆分</td><td>2</td></tr>
-<tr><td><code>…/CrossReferenceAnalysis/SwiftMetadataNames.swift</code></td><td><span class="tag add">新增</span></td><td>由 <code>ImageFallbackNames</code> 拆出的 Swift 元数据回退名；导出 trie 的部分留核心层</td><td>按层拆分</td><td>2</td></tr>
+<tr><td><code>Sources/Analysis/CrossReferenceAnalysis/Scanning/SwiftCodeReferenceRecognizer.swift</code> · <code>SwiftCodeReferenceRecognizer</code></td><td><span class="tag add">新增</span></td><td>由扫描器拆出的 Swift 部分：元数据访问器、值类型元数据、mangled name 实例化辅助函数与运行时入口、<code>swift_*</code> 运行时辅助函数、<code>swift_getInitializedObjCClass</code> 的 <code>x0</code> 保留</td><td>按层拆分</td><td>2</td></tr>
+<tr><td><code>…/CrossReferenceAnalysis/Scanning/SwiftMetadataNames.swift</code>、<code>…/CrossReferenceCore/Scanning/ExportedFunctionNames.swift</code></td><td><span class="tag add">新增</span></td><td>由 <code>ImageFallbackNames</code> 拆出：Swift 元数据回退名（Swift 层）、导出 trie 的名字（核心层），都是函数表附件</td><td>按层拆分</td><td>2</td></tr>
 <tr><td><code>…/CrossReferenceAnalysis/CrossReferenceAnalyzer.swift</code> · <code>CrossReferenceAnalyzer</code></td><td><span class="tag mod">修改</span></td><td>变成门面：持有 <code>CodeImageSet</code> 与两个识别器，实现三个记录协议造出公开的 <code>CodeReference</code>；公开方法签名不变；<code>@_exported import</code> 两个下层模块；之后持有 <code>CrossReferenceMemory</code>、拆出「进程」与「文件」两条构造、<code>images</code> 标 deprecated</td><td>公开 API 不变；支持文件模式</td><td>2、4</td></tr>
-<tr><td><code>…/CrossReferenceAnalysis/Scanning/RuntimeHelperNames.swift</code></td><td><span class="tag del">删除</span></td><td>名单按 <code>objc_</code> / <code>swift_</code> 分到两层的识别器</td><td>核心不许出现运行时名字</td><td>2</td></tr>
-<tr><td><code>…/CrossReferenceAnalysis/Scanning/ImageFallbackNames.swift</code></td><td><span class="tag mod">修改（搬家）</span></td><td>只留起名顺序与导出 trie，搬进核心层；ObjC、Swift 两种来源由识别器提供</td><td>按层拆分</td><td>2</td></tr>
+<tr><td><code>…/CrossReferenceAnalysis/Scanning/RuntimeHelperNames.swift</code></td><td><span class="tag mod">改名</span></td><td>改名 <code>SwiftRuntimeHelperNames</code>，只留 Swift 的名单；libobjc 的名单移到 ObjC 层的 <code>ObjCRuntimeHelperNames</code></td><td>核心不许出现运行时名字</td><td>2</td></tr>
+<tr><td><code>…/CrossReferenceAnalysis/Scanning/ImageFallbackNames.swift</code></td><td><span class="tag del">删除</span></td><td>三种来源拆成三层各自的函数表附件，起名顺序留在门面的 <code>codeFunction(at:in:)</code></td><td>按层拆分</td><td>2</td></tr>
+<tr><td><code>Sources/Analysis/CrossReferenceAnalysis/Exports.swift</code>、<code>CrossReferenceAnalyzer+Linkage.swift</code>、<code>+Prefiltering.swift</code></td><td><span class="tag add">新增</span> / <span class="tag mod">修改</span></td><td><code>@_exported import</code> 两个下层模块；公开预筛与链接方法转发到各层</td><td>公开 API 不变</td><td>2</td></tr>
 <tr><td><code>Sources/Analysis/CodeAddressResolution/ImageAddressSpace.swift</code> · <code>ImageAddressSpace</code></td><td><span class="tag add">新增</span></td><td>由 <code>ThunkAddressSpace</code> 搬来，连同地址约定的注释</td><td>两个分析模块共用</td><td>3</td></tr>
 <tr><td><code>…/CodeAddressResolution/CacheImageLocator.swift</code> · <code>CacheImageLocator</code></td><td><span class="tag add">新增</span></td><td>由 <code>CacheImageResolver</code> 搬来</td><td>同上</td><td>3</td></tr>
 <tr><td><code>…/CodeAddressResolution/StubChainResolver.swift</code> · <code>StubChainResolver</code></td><td><span class="tag add">新增</span></td><td>由 <code>MachOThunkEnvironment</code> 的桩链部分抽出，补 27 的 cache 共用桩，记录每一跳与跳板设定的寄存器常量</td><td>同上；符号化要每一跳</td><td>3</td></tr>
 <tr><td><code>…/CodeAddressResolution/SlotResolver.swift</code> · <code>SlotResolver</code></td><td><span class="tag add">新增</span></td><td>由 <code>MachOThunkEnvironment</code> 的槽解析抽出，泛化到任意指针槽</td><td>同上</td><td>3</td></tr>
+<tr><td><code>Sources/Support/ARM64InstructionDecoding/ARM64Trampoline.swift</code></td><td><span class="tag mod">修改</span></td><td>GOT 桩的载入之后必须紧跟经同一寄存器的跳转</td><td>开头是 <code>adrp; ldr</code> 的普通函数被误认成桩</td><td>3</td></tr>
 <tr><td><code>Sources/Analysis/SwiftThunkAnalysis/Resolution/MachOThunkEnvironment.swift</code></td><td><span class="tag mod">修改</span></td><td>改用上面四个类型，行为不变</td><td>去重</td><td>3</td></tr>
 <tr><td><code>…/SwiftThunkAnalysis/Resolution/ThunkAddressSpace.swift</code> · <code>ThunkAddressSpace</code></td><td><span class="tag del">删除</span></td><td>调用点改用 <code>ImageAddressSpace</code></td><td>已搬走</td><td>3</td></tr>
-<tr><td><code>…/CrossReferenceCore/Memory/FileCrossReferenceMemory.swift</code> · <code>FileCrossReferenceMemory</code></td><td><span class="tag add">新增</span></td><td>映射的代码字节；经 <code>SlotResolver</code> 解 fixup</td><td>文件模式</td><td>4</td></tr>
-<tr><td><code>…/CrossReferenceCore/Scanning/ImageFunctionTable.swift</code>、<code>…/CrossReferenceObjC/ObjectiveCClassIndex.swift</code></td><td><span class="tag mod">修改</span></td><td>文件模式的函数起点；文件模式下类名经 MachOObjCSection 的文件读取</td><td>文件模式</td><td>4</td></tr>
+<tr><td><code>…/CrossReferenceCore/Memory/FileCrossReferenceMemory.swift</code> · <code>FileCrossReferenceMemory</code></td><td><span class="tag add">新增</span></td><td>值，<code>unowned(unsafe)</code> 引用镜像集持有的 <code>Storage</code>：MachOKit 映射的文件字节；cache 的槽按 mapping 预取的 slide info 解（v5 自己解，其余交给 MachOKit），独立文件的槽经 <code>SlotResolver</code>，bind 落到所覆盖文件的导出上</td><td>文件模式</td><td>4</td></tr>
+<tr><td><code>…/CrossReferenceCore/Images/CodeImage.swift</code> · <code>CodeImage</code>、<code>ImageLinkEdit</code></td><td><span class="tag add">新增</span></td><td>与读取器无关的镜像描述（slide、读取器 offset 与地址的换算只在构造处定一次）；<code>__LINKEDIT</code> 的各表按地址经读取层读</td><td>两种模式共用一套读法</td><td>4</td></tr>
+<tr><td><code>…/CrossReferenceCore/Images/CodeImageSet.swift</code></td><td><span class="tag mod">修改</span></td><td><code>images: [CodeImage]</code>；新增 <code>dyldCache(_:…)</code> 与 <code>files(_:…)</code> 两个构造器（独立文件按 dyld 的做法错开）；持有文件读取层的存储</td><td>文件模式</td><td>4</td></tr>
+<tr><td><code>…/CrossReferenceCore/Scanning/ImageFunctionTable.swift</code>、<code>ExportedFunctionNames</code>、<code>RenamedReexportIndex</code>、<code>CodeImageSet+Linkage</code></td><td><span class="tag mod">修改</span></td><td>符号、间接符号、桩、函数起点、data in code、导出树、依赖都改走 <code>CodeImage</code> / <code>ImageLinkEdit</code></td><td>文件模式</td><td>4</td></tr>
+<tr><td><code>…/CrossReferenceObjC/ObjectiveCClassIndex.swift</code>、<code>ObjCMethodNames.swift</code>、<code>ObjCImageSections.swift</code>、<code>+Prefiltering</code></td><td><span class="tag mod">修改</span></td><td>类名、方法表、objc 桩按读取器分两条路读（MachOObjCSection 的 API 各一套，文件里 <code>imp</code> 是读取器 offset）；按名字导入的 <code>_objc_msgSend</code> 认成发送</td><td>文件模式</td><td>4</td></tr>
+<tr><td><code>…/CrossReferenceAnalysis/Scanning/SwiftTypeIndex.swift</code>、<code>SwiftMetadataNames.swift</code>、<code>CrossReferenceAnalyzer+SwiftTypes.swift</code></td><td><span class="tag mod">修改</span></td><td>经 <code>MachOSwiftSectionRepresentableWithCache</code> 泛型读描述符；文件里的 mangled name 经文件的读取上下文解</td><td>文件模式</td><td>4</td></tr>
+<tr><td><code>…/CrossReferenceAnalysis/CrossReferenceAnalyzer.swift</code>、<code>FileAnalysisError.swift</code></td><td><span class="tag mod">修改</span> / <span class="tag add">新增</span></td><td><code>init(dyldCache:)</code>、<code>init(machOFiles:)</code>、<code>imageCount</code>、<code>FileAnalysisError</code></td><td>公开入口</td><td>4</td></tr>
+<tr><td><code>…/CodeAddressResolution/SlotResolver.swift</code>、<code>ImageAddressSpace.swift</code></td><td><span class="tag mod">修改</span></td><td>独立文件的链式 fixup 目标按 <code>__TEXT</code> 加偏移换算（<code>address(forHeaderOffset:)</code>）</td><td>修 bug：可执行文件的槽解错 4 GiB</td><td>4</td></tr>
+<tr><td><code>Tests/CrossReferenceAnalysisTests/FileModeTests.swift</code>、<code>StandaloneFileReferenceDumpTests.swift</code></td><td><span class="tag add">新增</span></td><td>文件模式的行为测试；独立文件引用导出（按环境变量启用，供与反汇编器对照）</td><td>验证</td><td>4</td></tr>
 <tr><td><code>Sources/Support/ARM64InstructionDecoding/ARM64InstructionWord.swift</code></td><td><span class="tag mod">修改</span></td><td><code>load(_:)</code> 之外新增 32 位 <code>ldr</code> 与 <code>ldrsw</code> 的解码</td><td>ivar 偏移变量的读法</td><td>5</td></tr>
 <tr><td><code>…/CrossReferenceCore/Scanning/ReferenceScanner.swift</code>、<code>RegisterFile.swift</code></td><td><span class="tag mod">修改</span></td><td>记录 <code>route</code>；C 字符串与 CFString；跟踪 <code>ldrsw</code> / 32 位 <code>ldr</code> 读出的来源，交给识别器</td><td>引用路线；新引用种类</td><td>5</td></tr>
 <tr><td><code>…/CrossReferenceObjC/ObjCCodeReferenceRecognizer.swift</code></td><td><span class="tag mod">修改</span></td><td>ivar 偏移变量 → ivar 引用；selector 优先于 C 字符串认领</td><td>新引用种类</td><td>5</td></tr>
@@ -258,15 +266,19 @@ details > summary { cursor: pointer; font-weight: 600; padding: 8px 0; }
 <tr><td><code>Sources/Commands/SwiftSectionKit/CrossReferences/CrossReferenceInput.swift</code></td><td><span class="tag add">新增</span></td><td>由文件、cache 或本机 cache 建分析器</td><td>两个子命令共用</td><td>7</td></tr>
 <tr><td><code>…/SwiftSectionKit/CrossReferences/ReferencesRequest.swift</code> · <code>ReferencesRequest</code></td><td><span class="tag add">新增</span></td><td>预筛 → 并发逐镜像查 → 起名 → 文本 / JSON</td><td><code>refs</code> 的逻辑</td><td>7</td></tr>
 <tr><td><code>…/SwiftSectionKit/CrossReferences/SymbolicateRequest.swift</code> · <code>SymbolicateRequest</code></td><td><span class="tag add">新增</span></td><td>批量符号化 → 文本 / JSON</td><td><code>symbolicate</code> 的逻辑</td><td>7</td></tr>
+<tr><td><code>…/SwiftSectionKit/CrossReferences/CrossReferenceFormatting.swift</code></td><td><span class="tag add">新增</span></td><td>文本与 JSON 的拼写（<code>CrossReferenceJSONValue</code>、目标起名）</td><td>两个子命令共用，JSON 名字即契约</td><td>7</td></tr>
+<tr><td><code>Sources/Analysis/CrossReferenceCore/Images/CodeImageSet+SymbolLookup.swift</code>；门面 <code>locations(ofSymbolNamed:among:)</code></td><td><span class="tag add">新增</span></td><td>按名字在导出表与符号表里找定义</td><td><code>refs --symbol</code> / <code>--class</code></td><td>7</td></tr>
+<tr><td><code>Sources/Analysis/CrossReferenceAnalysis/CrossReferenceAnalyzer.swift</code> · <code>ReferenceCollector</code></td><td><span class="tag mod">修改</span></td><td>键集合拷一份自己的</td><td>并发共用键集合时的引用计数争抢</td><td>7</td></tr>
 <tr><td><code>Sources/Executables/swift-section/Commands/ReferencesCommand.swift</code>、<code>SymbolicateCommand.swift</code></td><td><span class="tag add">新增</span></td><td>flag、<code>validate()</code>、<code>makeRequest()</code></td><td>CLI 入口</td><td>7</td></tr>
 <tr><td><code>Sources/Executables/swift-section/Models/CrossReferenceInputOptionGroup.swift</code></td><td><span class="tag add">新增</span></td><td>多文件 / cache / 本机 cache、<code>-a</code>、<code>--in-image</code></td><td>现有选项组只产出单个 <code>MachOFile</code></td><td>7</td></tr>
 <tr><td><code>Sources/Executables/swift-section/SwiftSectionCommand.swift</code></td><td><span class="tag mod">修改</span></td><td>登记两个子命令</td><td>CLI 入口</td><td>7</td></tr>
+<tr><td><code>Sources/Executables/swift-section/Models/CommandLineSupport.swift</code></td><td><span class="tag mod">修改</span></td><td><code>--in-image</code> / <code>--function-image</code> 的错误译成退出码 64</td><td>用法错误按惯例</td><td>7</td></tr>
 <tr><td><code>Package.swift</code></td><td><span class="tag mod">修改</span></td><td>新增 <code>CrossReferenceCore</code>、<code>CrossReferenceObjC</code>、<code>CodeAddressResolution</code> 三个 target（不做 product）；<code>CrossReferenceAnalysis</code> 依赖前两个，<code>CrossReferenceCore</code> 与 <code>SwiftThunkAnalysis</code> 依赖第三个；<code>SwiftSectionKit</code> 与 <code>swift-section</code> 依赖 <code>CrossReferenceAnalysis</code></td><td>模块图</td><td>2、3、7</td></tr>
 <tr><td><code>Tests/CrossReferenceAnalysisTests/CrossReferenceLayerBoundaryTests.swift</code></td><td><span class="tag add">新增</span></td><td>源码扫描：每层只 import 允许的模块；核心层没有 <code>objc_</code> / <code>swift_</code> 字面量</td><td>守住拆分的边界</td><td>2</td></tr>
 <tr><td><code>Tests/CrossReferenceAnalysisTests/…</code></td><td><span class="tag add">新增</span></td><td>对照、按层拆分、文件模式、新种类、符号化测试（见落地步骤）</td><td>验证</td><td>1–6</td></tr>
 <tr><td><code>Tests/CodeAddressResolutionTests/…</code></td><td><span class="tag add">新增</span></td><td>桩链、槽解析测试</td><td>验证</td><td>3</td></tr>
 <tr><td><code>Tests/SwiftThunkAnalysisTests/…</code></td><td><span class="tag mod">修改</span></td><td>抽取前后结果一致的守护测试</td><td>去重不改行为</td><td>3</td></tr>
-<tr><td><code>Tests/…</code>（SwiftSectionKit 的命令测试）</td><td><span class="tag add">新增</span></td><td><code>refs</code> / <code>symbolicate</code> 的文本与 JSON 输出</td><td>验证</td><td>7</td></tr>
+<tr><td><code>Tests/SwiftSectionKitTests/CrossReferenceRequestTests.swift</code>、<code>Tests/SwiftSectionCommandTests/CrossReferenceCommandTests.swift</code></td><td><span class="tag add">新增</span></td><td><code>refs</code> / <code>symbolicate</code> 的文本与 JSON 输出、flag 映射与拒绝的组合</td><td>验证</td><td>7</td></tr>
 <tr><td><code>Documentations/Internal/Modules/CrossReferenceAnalysis.md</code></td><td><span class="tag mod">修改</span></td><td>三层的分工与识别器；文件模式、读取抽象、新种类、路线、符号化、拆分前后与离线吞吐实测</td><td>模块参考</td><td>2、4–6</td></tr>
 <tr><td><code>Documentations/Internal/Modules/CrossReferenceCore.md</code>、<code>CrossReferenceObjC.md</code>、<code>CodeAddressResolution.md</code></td><td><span class="tag add">新增</span></td><td>三个新模块的参考；各写明将来的落脚处与名字</td><td>模块参考</td><td>2、3</td></tr>
 <tr><td><code>AGENTS.md</code>（模块层级图与各模块说明）、<code>Documentations/README.md</code></td><td><span class="tag mod">修改</span></td><td>登记三个新模块与它们的去向</td><td>项目约定</td><td>2、3</td></tr>
@@ -275,11 +287,17 @@ details > summary { cursor: pointer; font-weight: 600; padding: 8px 0; }
 <tr><td><code>README.md</code>（CLI 一节）</td><td><span class="tag mod">修改</span></td><td>列出两个新子命令</td><td>面向用户</td><td>7</td></tr>
 <tr><td><code>Documentations/Internal/ProjectEvolutionLog.md</code>、<code>Documentations/Glossary.md</code></td><td><span class="tag mod">修改</span></td><td>追加本批次；登记「符号化」「引用路线」「识别器」「stub island」等术语</td><td>文档约定</td><td>9</td></tr>
 <tr><td>RuntimeViewer <code>RuntimeViewerCore/Sources/RuntimeViewerCrossReferences/Analysis/CrossReferenceQuery.swift</code></td><td><span class="tag mod">修改</span></td><td><code>switch reference.target</code>（<code>:92</code>）补三个新 case</td><td>穷尽 switch 会编译失败</td><td>5</td></tr>
-<tr><td>RuntimeViewer <code>…/RuntimeViewerCrossReferences/</code>（新文件）· 符号化引擎命令</td><td><span class="tag add">新增</span></td><td>引擎侧 <code>symbolicate</code> 命令</td><td>CLI / MCP 的符号化</td><td>8</td></tr>
+<tr><td>RuntimeViewer <code>…/RuntimeViewerCrossReferences/</code>（新文件）· 符号化引擎命令</td><td><span class="tag add">新增</span></td><td>引擎侧 <code>crossReferenceSymbolicate</code> 与 <code>crossReferenceLocateSymbol</code> 两个命令，<code>RuntimeEngine.symbolicate(_:inImageAt:)</code>、<code>locations(ofSymbolNamed:)</code>，线上类型 <code>RuntimeAddressSymbolication</code>、<code>RuntimeSymbolLocation</code></td><td>CLI / MCP 的符号化与按名字找函数</td><td>8</td></tr>
+<tr><td>RuntimeViewer <code>…/RuntimeViewerCrossReferences/RuntimeCrossReferenceTargetResolution.swift</code></td><td><span class="tag add">新增</span></td><td>目标写法（方法、Swift 成员、符号、地址、selector）→ 查询主体，CLI 与 MCP 共用</td><td>两个前端一套写法</td><td>8</td></tr>
+<tr><td>RuntimeViewer <code>…/RuntimeViewerCrossReferences/Models/RuntimeCrossReferenceRow.swift</code>、<code>RuntimeAddressSymbolicationRow.swift</code></td><td><span class="tag add">新增</span></td><td>CLI <code>--json</code> 与 MCP 每行字段的唯一来源，地址一律十六进制字符串</td><td>字段名一致</td><td>8</td></tr>
+<tr><td>RuntimeViewer <code>…/RuntimeViewerCrossReferences/Analysis/CrossReferenceQuery.swift</code>、<code>Models/RuntimeCrossReferenceError.swift</code></td><td><span class="tag mod">修改</span></td><td>两处穷尽 switch 补三个新目标（不显示）；符号化与按名定位的实现；错误加 <code>addressNeedsImage</code>、<code>targetNotFound</code>、<code>ambiguousTarget</code></td><td>源码兼容；新命令</td><td>8</td></tr>
+<tr><td>RuntimeViewer <code>…/Model/CommandFailure.swift</code></td><td><span class="tag mod">修改</span></td><td>失败代码加 <code>targetNotFound</code>、<code>crossReferencesUnavailable</code></td><td>CLI</td><td>8</td></tr>
+<tr><td>RuntimeViewer <code>Documentations/Guides/CommandLineInterface.md</code>、<code>AgentPlugins/runtime-viewer/</code>（skill 与两个清单 1.3.0）、<code>README.md</code></td><td><span class="tag mod">修改</span></td><td>四个子命令与目标写法</td><td>RuntimeViewer 的 AGENTS.md 要求</td><td>8</td></tr>
 <tr><td>RuntimeViewer <code>RuntimeViewerCommandLine/Sources/RuntimeViewerCommandLineInterface/Model/Command.swift</code>、<code>CommandResult.swift</code></td><td><span class="tag mod">修改</span></td><td><code>.callers</code> / <code>.callees</code> / <code>.references</code> / <code>.symbolicate</code> 与结果</td><td>CLI</td><td>8</td></tr>
 <tr><td>RuntimeViewer <code>…/CommandLine/Subcommands.swift</code>、<code>Execution/CommandExecutor.swift</code>、<code>Rendering/TextRenderer.swift</code></td><td><span class="tag mod">修改</span></td><td>四个子命令的解析、执行与显示</td><td>CLI</td><td>8</td></tr>
 <tr><td>RuntimeViewer <code>…/Protocol/WireMessage.swift</code> · <code>CommandLineProtocol.version</code></td><td><span class="tag mod">修改</span></td><td>2 → 3</td><td>新增命令</td><td>8</td></tr>
-<tr><td>RuntimeViewer <code>RuntimeViewerMCP/Sources/RuntimeViewerMCPBridge/MCPBridgeServer.swift</code></td><td><span class="tag mod">修改</span></td><td><code>Callers</code>、<code>Callees</code>、<code>TypeReferences</code>、<code>Symbolicate</code> 四个工具</td><td>MCP</td><td>9</td></tr>
+<tr><td>RuntimeViewer <code>RuntimeViewerMCP/Sources/RuntimeViewerMCPBridge/MCPBridgeServer.swift</code>、<code>MCPBridgeProtocol.swift</code></td><td><span class="tag mod">修改</span></td><td><code>Callers</code>、<code>Callees</code>、<code>TypeReferences</code>、<code>Symbolicate</code> 四个工具，30 秒等待 <code>references(within:_:)</code>，响应类型 <code>MCPCrossReferencesResponse</code> 等</td><td>MCP</td><td>9</td></tr>
+<tr><td>RuntimeViewer <code>Documentations/Evolutions/README.md</code>、<code>0056-cross-references.md</code></td><td><span class="tag mod">修改</span></td><td>cross-repository draft 一行；暂缓表第 4 步指向本提案</td><td>提案索引</td><td>9</td></tr>
 <tr><td>RuntimeViewer <code>AgentPlugins/runtime-viewer/</code>、<code>Documentations/Guides/CommandLineInterface.md</code>、<code>Documentations/Evolutions/README.md</code></td><td><span class="tag mod">修改</span></td><td>skill 与两个插件清单的 version；使用指南；<code>cross-repository draft</code> 一行</td><td>文档同批</td><td>8、9</td></tr>
 </tbody>
 </table>
@@ -314,7 +332,7 @@ details > summary { cursor: pointer; font-weight: 600; padding: 8px 0; }
 </tbody>
 </table>
 <p><code>CodeAddressResolution</code>（第 3 节）在核心层之下，将来随核心一起迁到 MachOKitExtensions，改名 <code>MachOAddressResolution</code>。</p>
-<p><b>扩展点：识别器。</b>核心层定义两个 package 协议：<code>CodeReferenceRecognizer</code>（每个分析器一个，建表时读一次自己要的符号与节）和它为每次扫描造的 <code>CodeReferenceRecognitionSession</code>（单线程，持有这次扫描的记忆化与当前函数的状态）。核心的扫描循环只在「前期调研 · 按层拆分的依据」列出的五个时机问识别器：进入函数、解析不认识的调用目标、调用点、算出地址、读槽。识别器按顺序排成一列，核心逐个问，第一个认领的为准；新增一种语言的识别只是多一个识别器，核心不改。识别器产出的引用不经核心转手：各层定义自己的记录协议（<code>CodeReferenceRecording</code>、<code>ObjCCodeReferenceRecording</code>、<code>SwiftCodeReferenceRecording</code>），顶层实现全部三个，直接造出公开的 <code>CodeReference</code>。细节见「详细设计」。</p>
+<p><b>扩展点：识别器。</b>每个语言层有一个识别器（每个分析器一个，建分析器时读一次自己要的运行时符号，按镜像记住自己的索引），它为每次扫描造一个会话；核心层定义会话协议 <code>CodeReferenceRecognitionSession</code>（单线程，持有这次扫描的记忆化与当前函数的状态）。核心的扫描循环只在「前期调研 · 按层拆分的依据」列出的五个时机问识别器：进入函数、解析不认识的调用目标、调用点、算出地址、读槽。识别器按顺序排成一列，核心逐个问，第一个认领的为准；新增一种语言的识别只是多一个识别器，核心不改。识别器产出的引用不经核心转手：各层定义自己的记录协议（<code>CodeReferenceRecording</code>、<code>ObjCCodeReferenceRecording</code>、<code>SwiftCodeReferenceRecording</code>），顶层实现全部三个，直接造出公开的 <code>CodeReference</code>。细节见「详细设计」。</p>
 <p><b>公开模型第一步全部留在顶层。</b><code>CodeReferenceTarget</code>、<code>CodeReferenceTable</code>、<code>CodeReferenceIndex</code>、<code>CodeFunction</code> 都还在 <code>CrossReferenceAnalysis</code>；纯数据、不含语言的 <code>CodeLocation</code> 下移到核心层，<code>ReceiverClassHint</code> 下移到 ObjC 层，顶层 <code>@_exported import</code> 两个下层模块，RuntimeViewer 的 <code>import CrossReferenceAnalysis</code> 照旧看得到它们。两个下层模块这一步不做 library product，不对外承诺 API。下层模块对外该长什么样（例如没有 Swift 层时目标用什么类型表示），等迁移提案时有了具体的使用方再定。</p>
 <p><b>边界由测试守住。</b>源码扫描测试逐层检查 import：核心层只许 import 将来 MachOKitExtensions 里也有的模块（MachOKit、MachOKitExtensions、读取层与基础模块迁移提案搬过去的那些、<code>CodeAddressResolution</code>、<code>ARM64InstructionDecoding</code>、Foundation）；ObjC 层在此之上多一个 MachOObjCSection；两层都不许出现 <code>MachOSwiftSection</code>、<code>SwiftInspection</code>、Demangling。核心层的源码里还不许出现 <code>objc_</code> 与 <code>swift_</code> 开头的符号名字面量——运行时的名单属于各自的层。</p>
 <p><b>本库里的名字刻意不同于落脚处的名字。</b>理由见「前期调研 · 按层拆分的依据」的「模块名与版本」：本库只要发布过一个与 MachOKitExtensions 2.x 新模块同名的模块，旧版本本库与新版本 MachOKitExtensions 就解析不到一起；而且基础模块迁移之后，本库带 <code>MachO</code> 前缀的模块只留 ABI 模型。搬的时候改名，只动本库内部的 import——两个下层模块不是 product，没有外部使用方。</p>
@@ -333,7 +351,8 @@ details > summary { cursor: pointer; font-weight: 600; padding: 8px 0; }
 <h3>4. 文件模式的分析器</h3>
 <pre><code>let cache = try FullDyldCache(url: URL(filePath: "/Volumes/DyldSharedCaches/macOS/27.2/dyld_shared_cache_arm64e"))
 let analyzer = try CrossReferenceAnalyzer(dyldCache: cache)</code></pre>
-<p>镜像表来自 cache 头的 <code>imageInfos</code>；<code>imagePaths</code>、<code>imageIndex(forPath:)</code>、函数表、预筛、<code>referenceTable</code> 等全部照旧可用。<code>location(ofRuntimeAddress:)</code> 在文件模式下接受的就是未滑动地址。<code>images: [MachOImage]</code> 在文件模式下为空，标为 deprecated 并指向 <code>imagePaths</code> / <code>imageCount</code>。</p>
+<p>镜像表来自 cache 头的 <code>imageInfos</code>；<code>imagePaths</code>、<code>imageIndex(forPath:)</code>、函数表、预筛、<code>referenceTable</code> 等全部照旧可用。<code>location(ofRuntimeAddress:)</code> 在 cache 文件模式下接受的就是未滑动地址；一组独立文件里各文件按 dyld 的做法错开（与已放下的重叠就滑到其后的下一个 MB 边界），那时它接受的是错开后的地址。<code>images: [MachOImage]</code> 在文件模式下为空，只在文档注释里写明，不标 deprecated（见决策日志）；<code>imageCount</code> 在两种模式下都给镜像数。</p>
+<p>实现（第 4 步）：每个镜像由核心层的 <code>CodeImage</code> 描述——<code>reader</code> 是 <code>MachOImage</code> 或 <code>MachOFile</code>，两种读取器的差别（slide、读取器 API 给出的 offset 落在哪个地址）只在构造它的地方定一次；<code>__LINKEDIT</code> 里的表（符号表、间接符号、函数起点、data in code、导出树）一律按「<code>__LINKEDIT</code> 的地址 + 表的偏移 − 段的文件偏移」经读取层读（<code>ImageLinkEdit</code>），进程内与文件里是同一个算法。ObjC 层与 Swift 层用到 MachOObjCSection / MachOSwiftSection 各读取器一套的 API 时，经 <code>asMachOImage</code> / <code>asMachOFile</code> 或 <code>MachOSwiftSectionRepresentableWithCache</code> 打开。文件读取层 <code>FileCrossReferenceMemory</code> 是个值，以 <code>unowned(unsafe)</code> 引用由镜像集持有的存储：经 existential 的每次读都复制一次读取层，类或持有引用的值每次复制都要计数，整 cache 建表因此慢过 6 倍。cache 的槽按 mapping 预取的 slide info 解：v5（macOS 14 / iOS 17 起的 arm64e cache）在读取层里直接解，其余交给 MachOKit。</p>
 
 <h3>5. 新的引用种类与引用路线</h3>
 <p>各种引用落在哪一层写在每条末尾。</p>
@@ -342,6 +361,7 @@ let analyzer = try CrossReferenceAnalyzer(dyldCache: cache)</code></pre>
   <li><b>C 字符串字面量</b>：<code>adrp</code> + <code>add</code> 落进 <code>__cstring</code> / <code>__objc_methname</code> / <code>__oslogstring</code>，且没被当作 selector 用掉 → <code>.cString(String)</code>。覆盖 <code>objc_getClass("…")</code>、<code>sel_registerName</code>、<code>dlsym</code> 一类调用。核心层；识别器按顺序问，ObjC 层先认领当作 selector 的那些。Swift 大字符串字面量的写法是 <code>adrp; add; sub #0x20</code>（对象里存的是「地址 − 0x20」），也要认成指向那段字符的引用——Binary Ninja 在实测里正是漏在这里。这个写法是 Swift 的约定，由 Swift 层的识别器认出，记成同一种 C 字符串引用。</li>
   <li><b>CFString 常量</b>：<code>adrp</code> + <code>add</code> 落进 <code>__cfstring</code> → 解出字符串指针 → <code>.constantString(String)</code>。覆盖 <code>NSSelectorFromString(@"…")</code>、<code>NSUserDefaults</code> 键一类用法。核心层：<code>__cfstring</code> 的结构是 CoreFoundation 的链接约定，不依赖 ObjC 运行时。</li>
   <li>两种字符串引用默认<b>不记录</b>：它们数量大，RuntimeViewer 常驻的索引不需要。构造分析器时用 <code>recordingStringReferences: true</code> 打开，<code>swift-section refs --string</code> 会自动打开。</li>
+  <li><b>对其他镜像符号的数据引用</b>（第 4 步核对时补进来）：只分析一个 app 而不带它链接的库时，经 GOT 槽读别的镜像的类（<code>adrp; ldr x0, [_OBJC_CLASS_$_CALayer@GOT]</code>）、ivar 或数据，槽里是 bind，读出的是导入名而不是地址，现在什么都不记——进程内槽里是地址，会记成类引用。改为记一条指向导入符号的 <code>.reference</code>，ObjC 层再把 <code>_OBJC_CLASS_$_&lt;类&gt;</code> 认成按名字的类引用。核心层（读槽时机拿到导入名）加 ObjC 层。</li>
   <li><b>引用路线</b>：<code>CodeReference</code> 新增 <code>route</code>，说明引用是怎么到达目标的。照 Binary Ninja 的「引用按来源种类建模」，但只在代码引用上加一个字段，不引入数据引用（见非目标）。</li>
 </ul>
 
@@ -407,10 +427,15 @@ let appAnalyzer = try CrossReferenceAnalyzer(machOFiles: files, recordingStringR
 <p>声明：</p>
 <pre><code>extension CrossReferenceAnalyzer {
     /// Analyzes every image of a dyld shared cache read from disk, such as an archived one.
+    /// `recordingStringReferences` arrives with step 5.
     public convenience init(dyldCache: FullDyldCache, recordingStringReferences: Bool = false) throws
 
     /// Analyzes standalone Mach-O files, such as an app's executable and its embedded frameworks.
     public convenience init(machOFiles: [MachOFile], recordingStringReferences: Bool = false) throws
+
+    /// Why an analyzer could not be made from files: `Code.unsupportedArchitecture` for a cache or
+    /// a file holding no arm64 code. A struct with codes, since more may come.
+    public struct FileAnalysisError: Error, Hashable, Sendable { public let code: Code; public let path: String }
 
     /// The number of images the analyzer covers, in either mode.
     public var imageCount: Int { get }
@@ -420,8 +445,9 @@ let appAnalyzer = try CrossReferenceAnalyzer(machOFiles: files, recordingStringR
 }
 
 extension CrossReferenceAnalyzer {
-    @available(*, deprecated, message: "Empty for analyzers created from files; use imagePaths or imageCount")
-    public var images: [MachOImage] { get }
+    /// The in-process analyzer's images; empty for one made from files. Not deprecated: in-process
+    /// hosts read what only a `MachOImage` tells (its slide, its header).
+    public let images: [MachOImage]
 }
 
 public enum CodeReferenceTarget: Hashable, Sendable {
@@ -451,8 +477,9 @@ public enum CodeReferenceRoute: UInt8, Hashable, Sendable {
     case addressMaterialization
     /// `ldr` of a literal pool entry.
     case literalLoad
-    /// An authenticated indirect call (`blraa`, `braa` …).
-    case authenticatedIndirect
+    /// A call or a jump through a register — `blr`, `br` and their authenticating forms; the
+    /// evidence says what is known. (Was `authenticatedIndirect`; see the decision log.)
+    case indirect
 }
 
 /// Whether the referencing instruction calls, leaves the function, or only takes an address.
@@ -501,6 +528,8 @@ public struct AddressSymbolication: Hashable, Sendable {
         case constantString(String)
         /// None of the above: the nearest preceding symbol.
         case symbol(name: String, offset: UInt64)
+        /// Mapped by an image, but none of the above and no symbol at or below it.
+        case data
         /// Not inside any mapped image.
         case unmapped
     }
@@ -527,82 +556,99 @@ public struct AddressSymbolication: Hashable, Sendable {
 
 <details open>
 <summary>按层拆分与识别器（package）</summary>
-<p>三层之间的接口全部是 <code>package</code> 级：两个下层模块这一步不做 product，接口还可以按实测改。</p>
-<p>核心层的扩展点（<code>CrossReferenceCore/Recognition/</code>）：</p>
-<pre><code>/// One language's knowledge of what code references, plugged into the scan. Built once per analyzer:
-/// it reads what it needs from every image — the functions it recognizes, the sections it reads — up front.
-package protocol CodeReferenceRecognizer: Sendable {
-    /// State for one scan of one image, used from one thread. `query` says which kinds of reference the scan
-    /// keeps, so a session skips the lookups nobody asked for (a selector query reads no class objects).
-    func makeSession(forImageAt imageIndex: Int, query: CodeReferenceScanQuery) -&gt; any CodeReferenceRecognitionSession
-}
-
+<p>三层之间的接口全部是 <code>package</code> 级：两个下层模块这一步不做 product，接口还可以按实测改。下面是第 2 步实际做成的样子。</p>
+<p>核心层的扩展点（<code>CrossReferenceCore/Recognition/CodeReferenceRecognition.swift</code>）：</p>
+<pre><code>/// One scan of one image by one language layer, on one thread.
 package protocol CodeReferenceRecognitionSession: AnyObject {
-    /// A function's first instruction. May tag registers: an Objective-C method's receiver in `x0`.
-    func enterFunction(at location: CodeLocation, tagging registers: inout RegisterTags)
-    /// A call target the core could not resolve: an address in a section only this recognizer knows
-    /// (`__objc_stubs`). The first session to answer wins.
-    func resolveCallTarget(at address: UInt64) -&gt; ResolvedCallTarget?
-    /// A call, or a branch out of the function, to a callee the core resolved — with the register constants a
-    /// trampoline set on the way (a cache-shared selector stub's `x1`). The session records what it recognizes;
-    /// the note says whether that replaces the core's plain call reference, and which caller-saved registers keep
-    /// their contents across the call (`objc_opt_self` keeps `x0`).
-    func noteCall(_ call: ScannedCall, registers: RegisterView) -&gt; CallNote
-    /// `adrp` / `add` or `adr` built `address`. Returns whether the session recorded a reference for it.
-    func noteAddress(_ address: UInt64, at site: ScanSite, registers: RegisterView) -&gt; Bool
-    /// A load through the pointer slot at `slot` into `destination`.
-    func noteSlotLoad(from slot: UInt64, into destination: Int, at site: ScanSite, registers: RegisterView) -&gt; Bool
+    /// Slots, unslid, holding references the session reads besides the core's GOT: `__objc_classrefs`.
+    var referenceSlotRanges: [Range&lt;UInt64&gt;] { get }
+    /// Slots a load from which the session watches on every load: `__objc_superrefs`.
+    var watchedSlotRanges: [Range&lt;UInt64&gt;] { get }
+    /// Whether the session looks at addresses built and slots loaded at all.
+    var looksForAddressReferences: Bool { get }
+
+    /// A function starts; may tag registers (an Objective-C method's receiver in `x0`).
+    func enterFunction(at functionIndex: Int, registers: RegisterFile)
+    /// A target only this session can read (`__objc_stubs`); asked before the core resolves it.
+    func claimCallTarget(at target: UInt64) -&gt; CallTargetClaim?
+    /// The session's role for a target the core resolved; asked once per distinct target of a scan.
+    func role(of target: ResolvedCallTarget) -&gt; CalleeRole?
+    /// Records what the call stands for in place of the plain call reference — a message send.
+    func recordCallStandIn(_ call: ScannedCall, registers: RegisterFile) -&gt; Bool
+    /// After the call's reference: records what it references besides (a Swift type); returns
+    /// the caller-saved registers, by bit, that keep their contents across it.
+    func noteCallMade(_ call: ScannedCall, registers: RegisterFile) -&gt; UInt32
+    /// An address an instruction built, at its runtime address; `isCode` when in the image's `__text`.
+    func recordAddressReference(toRuntimeAddress address: UInt, isCode: Bool, at site: ScanSite) -&gt; Bool
+    /// A load from a reference slot that holds the runtime address `value`.
+    func recordSlotReference(holding value: UInt, at site: ScanSite) -&gt; Bool
+    /// A load from one of `watchedSlotRanges`.
+    func noteWatchedSlotLoad(from slot: UInt64)
 }
 
-/// Where the references a scan finds go. The core records the references it recognizes itself; each layer
-/// refines the protocol with the references only it recognizes.
+/// Where the references a scan finds go; each language layer refines it.
 package protocol CodeReferenceRecording: AnyObject {
-    func recordCall(to callee: ResolvedCallee, at site: ScanSite, route: CodeReferenceRoute, isRuntimeHelperCall: Bool)
-    func recordIndirectCall(_ evidence: IndirectCallEvidence, at site: ScanSite, route: CodeReferenceRoute)
-    func recordCString(_ string: String, at site: ScanSite, route: CodeReferenceRoute)
-    func recordConstantString(_ string: String, at site: ScanSite, route: CodeReferenceRoute)
+    func recordCall(to target: ResolvedCallTarget, targetAddress: UInt64, at site: ScanSite, isRuntimeHelperCall: Bool)
+    func recordIndirectCall(_ evidence: IndirectCallEvidence, at site: ScanSite)
+}
+
+/// What the core resolves a call target to, knowing no language.
+package enum ResolvedCallTarget: Hashable {
+    case function(CodeLocation)
+    case importedSymbol(UnsafePointer&lt;CChar&gt;)
+    /// macOS / iOS 27's cache-shared selector stub: `x1` = the selector string, then a branch.
+    case registerSettingTrampoline(register: Int, value: UInt64)
+    case unrecognized
 }</code></pre>
 <p>ObjC 层（<code>CrossReferenceObjC</code>）与 Swift 层各自细化记录协议：</p>
 <pre><code>package protocol ObjCCodeReferenceRecording: CodeReferenceRecording {
-    func recordMessageSend(selector: String, receiver: ReceiverClassHint, at site: ScanSite, route: CodeReferenceRoute)
-    func recordSuperMessageSend(selector: String, className: String?, at site: ScanSite, route: CodeReferenceRoute)
-    func recordClassReference(name: String, location: CodeLocation, at site: ScanSite, route: CodeReferenceRoute)
-    func recordInstanceVariableReference(className: String, name: String, at site: ScanSite, route: CodeReferenceRoute)
+    func recordMessageSend(selector: String, receiver: ReceiverClassHint, at site: ScanSite)
+    func recordSuperMessageSend(selector: String, className: String?, at site: ScanSite)
+    func recordClassReference(_ classObject: ObjectiveCClassObject, at site: ScanSite)
 }
 
-package protocol SwiftCodeReferenceRecording: CodeReferenceRecording {
-    func recordSwiftType(descriptor: CodeLocation, at site: ScanSite, route: CodeReferenceRoute)
-    func recordSwiftTypeName(_ name: SwiftTypeName, at site: ScanSite, route: CodeReferenceRoute)
+protocol SwiftCodeReferenceRecording: CodeReferenceRecording {
+    func recordSwiftType(descriptor: CodeLocation, at site: ScanSite)
+    func recordSwiftTypeName(_ name: SwiftTypeName, at site: ScanSite)
 }</code></pre>
 <p>规则：</p>
 <ul>
-  <li><b>识别器排成一列，顺序就是优先级</b>：门面按 ObjC、Swift 的顺序建会话；同一个时机第一个认领的为准（selector 先于 C 字符串）。核心只在没有会话认领时记自己的引用。</li>
-  <li><b>门面是组合根</b>：<code>CrossReferenceAnalyzer</code> 同时实现三个记录协议，在记录里直接造公开的 <code>CodeReference</code> 并按查询的键过滤（原 <code>ReferenceScanner.keep</code>）。下层不认识 <code>CodeReferenceTarget</code>，所以加一种目标不碰下层。</li>
-  <li><b>寄存器标记</b>：<code>RegisterTags</code> 是每个寄存器若干位的标记，随 <code>mov</code> 复制、写入即清除、调用时按会话返回的保留集合保留；ObjC 层用一位表示「方法接收者」。这取代 <code>RegisterFile</code> 里唯一的 ObjC 状态。</li>
-  <li><b>跳板常量</b>：<code>StubChainResolver</code> 把跳板一路设定的寄存器常量放进 <code>ScannedCall</code>，核心不解释它们；cache 共用 selector 桩就是「<code>x1</code> = 字符串地址，最终跳到 <code>objc_msgSend</code> 的副本」，由 ObjC 会话读成发送。</li>
-  <li><b>无名函数的起名</b>不在扫描热路径上，不走识别器：核心给出符号与导出 trie 的名字，门面再依次问 ObjC 层的方法列表与 Swift 层的元数据——门面本来就认识这两个具体的层。</li>
-  <li><b>预筛</b>各归各层：导入名与链接关系在核心层，selector 与类在 ObjC 层，Swift 类型在 Swift 层；门面上的公开预筛方法签名不变，只是转发。</li>
-  <li><b>性能</b>：识别器经 existential 调用，只发生在调用、算出地址、读槽这些事件上，不在每条指令上。验收：在 Ultra 上，拆分后整 cache 建表与 <code>--selector init</code>、<code>--selector makeKeyAndOrderFront:</code> 两条查询的耗时，相对拆分前的增幅都不超过 5%。超出时先把会话列表改成具体类型的泛型参数、扫描入口标 <code>@inline(always)</code> 让门面特化，再量；两次的数字都写进模块文档。</li>
+  <li><b>识别器是各层的具体类型，没有共同协议</b>：<code>ObjCCodeReferenceRecognizer</code>、<code>SwiftCodeReferenceRecognizer</code> 各自按镜像记住类索引与 Swift 类型索引，各有 <code>makeSession(table:recording:…)</code>。门面是组合根，本来就认识两个具体的层，再抽一个识别器协议说不出能带来什么。核心只认会话协议。</li>
+  <li><b>会话排成一列，顺序就是优先级</b>：门面按 ObjC、Swift 的顺序建会话；同一个时机第一个认领的为准。核心只在没有会话代替时记录普通调用。</li>
+  <li><b>调用不拖慢扫描</b>：每个不同的调用目标只问一次各会话的角色，结果连同核心的解析一起记在扫描器的调用计划里；没有角色的调用——绝大多数——不经过任何会话。地址与槽按地址记住是哪个会话认领的（或谁都没认领），下次只问那一个或直接跳过。</li>
+  <li><b>门面是组合根</b>：<code>CrossReferenceAnalyzer</code> 里的 <code>ReferenceCollector</code> 实现全部三个记录协议，直接造公开的 <code>CodeReference</code> 并按查询的键过滤（原 <code>ReferenceScanner.keep</code>）。下层不认识 <code>CodeReferenceTarget</code>，所以加一种目标不碰下层。</li>
+  <li><b>查询只给一个开关</b>：两层的会话收到同一个「找不找类与类型引用」的开关（原 <code>findsTypeReferences</code>），与拆分前一致；只查 selector 或函数时两层都跳过地址与槽，ObjC 层在发送处照旧认类字面量接收者。</li>
+  <li><b>寄存器标记</b>：<code>RegisterFile</code> 的「方法接收者」状态换成通用的标记（<code>setTag(_:of:)</code> / <code>tag(of:)</code>），随 <code>mov</code> 复制、写入即清除；ObjC 会话用标记 1。调用后保留哪些寄存器由会话按位返回（<code>clobberCallerSavedRegisters(keepingMask:)</code>）。</li>
+  <li><b>跳板常量</b>：cache 共用 selector 桩由核心解析成 <code>.registerSettingTrampoline(register: 1, value:)</code>，核心不解释；ObjC 会话把它读成发送。</li>
+  <li><b>运行时库与辅助函数</b>：核心不认识运行时库。门面把两层的规则（<code>RuntimeLibraryRules</code>：哪些路径是运行时库、哪些符号是辅助函数）交给 <code>CodeImageSet</code>；建镜像集时核心扫一遍运行时库的符号，记下辅助函数位置，并把每个符号交给门面，门面分发给两层各自记下 <code>objc_msgSend</code>、专用入口、<code>swift_getTypeByMangledName…</code> 这些位置。</li>
+  <li><b>按镜像的缓存挂在函数表上</b>：<code>ImageFunctionTable.attachment(_:makingIt:)</code>，核心的 <code>ExportedFunctionNames</code>、ObjC 层的 <code>ObjCImageSections</code> 与 <code>ObjCMethodNames</code>、Swift 层的 <code>SwiftMetadataNames</code>。无名函数的起名不在扫描热路径上，由门面依次问这三个附件。</li>
+  <li><b>预筛</b>各归各层：导入名与链接关系在核心层（<code>CodeImageSet+Linkage</code>），selector 与类在 ObjC 层，Swift 类型在 Swift 层；门面上的公开预筛方法签名不变，只是转发。</li>
+  <li><b>性能</b>：会话只在事件上经 existential 调用。验收：在 Ultra 上 release 构建，拆分后整 cache 建表与 <code>init</code>、<code>makeKeyAndOrderFront:</code> 两条查询的耗时，相对拆分前的增幅都不超过 5%（<code>ScanThroughputBenchmarkTests</code>，按环境变量启用，两边各跑三轮取最好）。超出时先把会话列表改成具体类型的泛型参数、扫描入口标 <code>@inline(always)</code> 让门面特化，再量；数字写进模块文档。</li>
 </ul>
 </details>
 
 <details>
 <summary>读取抽象（package）</summary>
 <pre><code>package protocol CrossReferenceMemory: Sendable {
-    /// Read-only bytes of an image range, contiguous, for the scanner's decode loop.
-    func bytes(inImageAt imageIndex: Int, unslidRange: Range&lt;UInt64&gt;) -&gt; UnsafeRawBufferPointer?
-    /// What a pointer slot holds: an address in some image, or an imported symbol name.
-    func slotContent(at unslidAddress: UInt64, inImageAt imageIndex: Int) -&gt; SlotContent?
-    /// A NUL-terminated C string at the address, if it is printable to the end.
-    func cString(at unslidAddress: UInt64) -&gt; String?
-    /// Mask that strips pointer-authentication and tag bits.
-    var addressMask: UInt64 { get }
+    /// The `length` bytes from `address` on — an address in the analyzer's own
+    /// address space — contiguous and read-only, or nil when they cannot be read.
+    func bytes(at address: UInt, length: Int) -&gt; UnsafeRawBufferPointer?
+    /// What the pointer slot at `address` holds, its signature and tag bits stripped.
+    func slotContent(at address: UInt) -&gt; SlotContent?
+    /// The bits of a stored pointer that are its address.
+    var addressMask: UInt { get }
+    /// Bulk forms for a pass over a whole section of slots (the selector prefilter):
+    /// one call rather than one call a slot. Default implementations go slot by slot.
+    func pointers(inSlotsAt address: UInt, count: Int) -&gt; [UInt]
+    func readablePointers(at addresses: [UInt]) -&gt; [UnsafeRawPointer?]
 }
 
 package enum SlotContent: Hashable, Sendable {
-    case address(UInt64)
+    case address(UInt)
     case importedSymbol(String)
-}</code></pre>
+}
+
+// load(_:at:), pointer(at:), typedPointer(to:at:length:) are extension helpers.</code></pre>
 <p>并发：分析器今天是 <code>@unchecked Sendable</code> 加手写锁（裁决 A62）。<code>FileCrossReferenceMemory</code> 的读取是对只读映射的并发读，fixup 解码的记忆化沿用 MachOKitExtensions <code>cached</code> 视图里已有的锁。</p>
 </details>
 
@@ -792,58 +838,68 @@ case .objectiveCInstanceVariable, .cString, .constantString:
 
 <h2 id="steps">落地步骤</h2>
 <ol>
-  <li><b>读取抽象，行为不变</b> —— 改动地图里的 <code>CrossReferenceMemory</code>、<code>InProcessCrossReferenceMemory</code>、分析器与各扫描文件的读取改造、<code>StoredPointer</code>、<code>Package.swift</code>。
+  <li><b>读取抽象，行为不变</b>（已完成） —— 改动地图里的 <code>CrossReferenceMemory</code>、<code>InProcessCrossReferenceMemory</code>、分析器与各扫描文件的读取改造、<code>StoredPointer</code>、<code>Package.swift</code>。
     <ul><li><code>inProcessReferenceTablesAreUnchangedForAppKitSwiftUICoreAndFoundation</code>（改造前后逐条比对整表）</li>
     <li><code>crossReferenceAnalysisReadsMemoryOnlyThroughCrossReferenceMemory</code>（源码扫描：分析模块里不再有 <code>UnsafeRawPointer(bitPattern:)</code>）</li></ul></li>
-  <li><b>按层拆分，行为不变</b> —— 改动地图里步骤列为 2 的各行：建 <code>CrossReferenceCore</code> 与 <code>CrossReferenceObjC</code>，识别器、会话与三个记录协议，寄存器标记，<code>CodeImageSet</code>，函数表与回退名按层拆开，运行时名单分到两层，门面改为组合两个识别器，<code>@_exported import</code>，边界测试，三份模块文档、<code>AGENTS.md</code>、愿景第 6 条。先量拆分前的基准，拆完在同一台机器上再量。
-    <ul><li><code>inProcessReferenceTablesAreUnchangedAfterTheLayerSplit</code>（沿用第 1 步的整表比对，AppKit、SwiftUICore、Foundation 逐条相同）</li>
+  <li><b>按层拆分，行为不变</b>（已完成） —— 改动地图里步骤列为 2 的各行：建 <code>CrossReferenceCore</code> 与 <code>CrossReferenceObjC</code>，识别器、会话与三个记录协议，寄存器标记，<code>CodeImageSet</code>，函数表与回退名按层拆开，运行时名单分到两层，门面改为组合两个识别器，<code>@_exported import</code>，边界测试，三份模块文档、<code>AGENTS.md</code>、愿景第 6 条。先量拆分前的基准，拆完在同一台机器上再量。
+    <ul><li><code>inProcessReferenceTablesAreUnchangedForAppKitSwiftUICoreAndFoundation</code>（沿用第 1 步的整表比对，AppKit、SwiftUICore、Foundation 逐条相同；比较前去掉类型搬家带来的拼写差异）</li>
+    <li><code>aFunctionStartingOutsideTextScansWhereItLies</code>（第 1 步引入、吞吐基准发现的下溢陷入的复现）</li>
     <li><code>crossReferenceLayersImportOnlyWhatTheirFutureHomesProvide</code>（源码扫描：核心层、ObjC 层的 import 都在白名单里）</li>
     <li><code>crossReferenceCoreSpellsNoRuntimeSymbolName</code>（源码扫描：核心层没有 <code>objc_</code> / <code>swift_</code> 开头的字面量）</li>
     <li><code>aRecognizerDefinedInTestsPlugsInWithoutChangingTheCore</code>（测试里定义一个只认某个 C 函数的识别器，它的引用出现在结果里——扩展点确实开放）</li>
-    <li><code>selectorQueriesSkipClassAndTypeLookups</code>（只查 selector 时两个会话都不读类对象与 Swift 元数据）</li>
+    <li><code>selectorQueriesLookUpNoSwiftType</code>（只查 selector 时 Swift 会话不建任何镜像的类型索引；ObjC 会话照旧为发送的类字面量接收者读类对象，与拆分前一致）</li>
     <li><code>scanThroughputAfterTheLayerSplitIsRecordedInTheModuleDocument</code>（不是断言：拆分前后整 cache 建表与两条查询的耗时写进模块文档，增幅超过 5% 时按「详细设计」的退路处理后再量）</li>
     <li><code>publicNamesStillResolveThroughCrossReferenceAnalysis</code>（只 <code>import CrossReferenceAnalysis</code> 的测试文件能用 <code>CodeLocation</code>、<code>CodeReference.Kind.call</code>、<code>ReceiverClassHint.methodReceiver</code>）</li></ul></li>
-  <li><b>抽出 <code>CodeAddressResolution</code></b> —— 四个新类型、<code>MachOThunkEnvironment</code> 改用它们、删 <code>ThunkAddressSpace</code>、模块文档。
-    <ul><li><code>thunkAnalysisResultsAreUnchangedAfterExtraction</code></li>
+  <li><b>抽出 <code>CodeAddressResolution</code></b>（已完成） —— 四个新类型、<code>MachOThunkEnvironment</code> 改用它们、删 <code>ThunkAddressSpace</code>、模块文档。
+    <ul><li>线程读取的结果不变——由 <code>SwiftThunkAnalysisTests</code> 全套守着（归档 iOS 设备 cache 的 stub island、归档 macOS cache 的合并 accessor、模拟器运行时、独立文件），不另写测试</li>
     <li><code>stubChainCarriesTheSelectorRegisterConstantOfACacheSharedSelectorStub</code>（<code>x1</code> 的常量与最终的 <code>objc_msgSend</code> 副本；模块本身不认识 selector）</li>
     <li><code>stubChainRecordsEveryStubIslandHop</code></li>
-    <li><code>slotResolverNamesTheOwnImageClassHeldInAGlobalOffsetTableSlot</code></li>
-    <li><code>slotResolverResolvesStandaloneBindsAndSelfBinds</code></li></ul></li>
-  <li><b>文件模式的分析器</b> —— <code>FileCrossReferenceMemory</code>、两个新构造器、函数起点与类名的文件模式。
+    <li><code>slotResolverMatchesTheProcessForEveryGlobalOffsetTableSlotOfAppKit</code>（含指向 AppKit 自己的类对象的槽）</li>
+    <li><code>slotResolverResolvesStandaloneBinds</code></li>
+    <li><code>cacheImageLocatorFindsTheImageAnAddressLiesIn</code></li>
+    <li><code>aFunctionLoadingAGlobalIsNoSlotStub</code>（<code>ARM64Trampoline</code> 的修复，见决策日志）</li></ul></li>
+  <li><b>文件模式的分析器</b>（已完成） —— <code>CodeImage</code> 与 <code>ImageLinkEdit</code>、<code>FileCrossReferenceMemory</code>、两个新构造器、各层按镜像读取的文件模式。
     <ul><li><code>fileModeMatchesInProcessReferencesOnTheRunningSystemCache</code>（同一个 cache 两种模式逐条比对，镜像取 AppKit、SwiftUICore、Foundation）</li>
+    <li><code>fileModeNamesFunctionsAsTheProcessDoes</code>、<code>fileModeReadsTheFallbackNameSourcesAsTheProcessDoes</code>（函数名与 ObjC 方法表、Swift 元数据两种后备来源两种模式逐条一致）</li>
+    <li><code>fileModePrefiltersSelectorsAsTheProcessDoes</code></li>
+    <li><code>fileMemoryDecodesSlotsAsMachOKitDoes</code>（v5 与没有 slide info 的模拟器 cache，逐槽与 MachOKit 一致）</li>
     <li><code>archivedCacheFindsBothCallersOfPasteboardWritingItemProvider</code>（27.0 与 27.2；卷不在时跳过）</li>
     <li><code>archivedCacheFollowsStubIslandsForSelectorSends</code></li>
     <li><code>standaloneAppResolvesImportedAndSelfBoundSymbols</code></li>
-    <li><code>offlineThroughputIsRecordedInTheModuleDocument</code>（不是断言，是把实测写进文档）</li>
+    <li><code>standaloneExecutableResolvesRebasesAndObjectiveCStubs</code>（<code>SlotResolver</code> 的修复，见决策日志）</li>
     <li><code>fileModeScansExceptionCleanupCodeAfterReturn</code>（<code>retab</code> 之后、没有函数起点的异常清理代码也要被扫到）</li>
-    <li>核对：在 Finder 26.5.2 与 ControlCenter 26.7（卷上有现成 <code>.i64</code>）上，用 2026-11-18 那次实测的做法——<code>otool -tV</code> 加独立寄存器跟踪生成标准答案——比对本库文件模式的结果，并与 IDA 查到两跳的结果对照，差异逐条归因后写进模块文档。Binary Ninja 经 MCP 只作补充：它没有「代码 → 数据地址」的反查，dyld cache 的镜像也要先在界面里加载。</li></ul></li>
-  <li><b>新引用种类与路线</b> —— 解码器的 <code>ldrsw</code> / 32 位 <code>ldr</code>、<code>RegisterFile</code>、核心层的字符串与路线、ObjC 层的 ivar、Swift 层的大字符串、三个 target、<code>Route</code>、表键、常驻索引编码、RuntimeViewer 的穷尽 switch。
-    <ul><li><code>instanceVariableOffsetLoadsBecomeInstanceVariableReferences</code></li>
+    <li>吞吐：<code>ScanThroughputBenchmarkTests</code> 加 <code>CROSS_REFERENCE_BENCHMARK_DYLD_CACHE</code>，实测写进模块文档</li>
+    <li>核对：卷上没有 Finder 26.5.2，也没有 2026-11-18 那次的标准答案与生成脚本；按原法重做要新写 <code>otool -tV</code> 加寄存器跟踪的脚本，留给用户看过之后再跑。改做抽样：ControlCenter 26.7 的文件模式结果（<code>StandaloneFileReferenceDumpTests</code> 导出）与 IDA 逐函数对照，见决策日志。</li></ul></li>
+  <li><b>新引用种类与路线</b>（已完成） —— 解码器的 <code>ldrsw</code> / 32 位 <code>ldr</code>（含字面量形式）、核心层的字符串、路线与对导入符号的数据引用、ObjC 层的 ivar、三个 target、<code>Route</code>、表键、常驻索引编码。RuntimeViewer 的穷尽 switch 挪到第 8 步，与 RuntimeViewer 的其余改动一起做。
+    <ul><li><code>instanceVariableOffsetLoadsBecomeInstanceVariableReferences</code>（带符号与剥了符号两种）</li>
     <li><code>stringReferencesAreRecordedOnlyWhenRequested</code></li>
-    <li><code>constantStringReferencesCarryTheirCharacters</code></li>
-    <li><code>everyReferenceCarriesTheRouteItTook</code></li>
+    <li><code>constantStringReferencesCarryTheirCharacters</code>（8 位与 UTF-16 两种）</li>
+    <li><code>everyReferenceCarriesTheRouteItTook</code>、<code>inProcessReferencesCarryTheirRoutes</code>；iOS 设备 cache 经 stub island 的发送路线是 <code>stubIsland</code>（<code>archivedCacheFollowsStubIslandsForSelectorSends</code>）</li>
     <li><code>referenceIndexRoundTripsNewTargetsAndRoutes</code></li>
     <li><code>decoderDecodesThirtyTwoBitLoadAndLoadSignedWord</code></li>
-    <li><code>pageAlignedClassObjectMaterializationIsAReference</code>（<code>adrp; add #0</code>）</li>
-    <li><code>swiftLargeStringLiteralPointsAtItsCharacters</code>（<code>adrp; add; sub #0x20</code>）</li></ul></li>
-  <li><b>地址符号化</b> —— <code>AddressSymbolication</code> 与 <code>symbolication(of:)</code>。
-    <ul><li><code>symbolicatesEverySwiftUICoreAuthStubToItsIndirectSymbol</code>（对照 MachOKit 的 <code>Stub.indirectSymbolIndex</code>，正是 <code>dyld_info</code> 标错的那批）</li>
+    <li><code>pageAlignedClassObjectMaterializationIsAReference</code>（<code>adrp; add #0</code>，在运行中的 cache 里找）</li>
+    <li><code>swiftLargeStringLiteralPointsAtItsCharacters</code>（<code>adrp; add; sub #0x20</code>）</li>
+    <li>对导入符号的数据引用由 ControlCenter 的导出核对（<code>_OBJC_CLASS_$_CALayer</code> 一类）</li></ul></li>
+  <li><b>地址符号化</b>（已完成） —— <code>AddressSymbolication</code> 与 <code>symbolication(of:)</code>、<code>symbolication(of:inImageAt:)</code>；核心层的 <code>AddressPlace</code> 判断结构，门面补含义。
+    <ul><li><code>symbolicatesSwiftUICoreAuthStubsByTheirSlotsNotTheirIndirectSymbols</code>（26.7 SwiftUICore 的全部 <code>__auth_stubs</code> 都解到函数或导入名；其中 5 个经 <code>ipsw dyld macho --stubs</code> 独立核对的桩，间接符号表给的是错名，正是 <code>dyld_info</code> 标错的那批）</li>
     <li><code>symbolicatesCacheSharedMessageSendStubToItsSelector</code></li>
     <li><code>symbolicatesGlobalOffsetTableSlotToItsBoundSymbol</code></li>
     <li><code>symbolicatesAnAddressInsideAnUnnamedFunctionWithItsFallbackName</code></li>
-    <li><code>symbolicatesAnUnmappedAddressAsUnmapped</code></li></ul></li>
-  <li><b><code>swift-section refs</code> 与 <code>symbolicate</code></b> —— SwiftSectionKit 的三个类型、两个命令、选项组、登记、README、skill。
+    <li><code>symbolicatesAnUnmappedAddressAsUnmapped</code></li>
+    <li><code>symbolicatesStringsAndObjectiveCSlots</code>（C 字符串、<code>CFString</code>、<code>__objc_ivar</code> 的偏移变量）</li></ul></li>
+  <li><b><code>swift-section refs</code> 与 <code>symbolicate</code></b>（已完成） —— SwiftSectionKit 的三个类型、两个命令、选项组、登记、README、skill。
     <ul><li><code>refsListsCallerRowsForASelectorInAnArchivedCache</code></li>
     <li><code>refsJSONUsesHexadecimalStringAddresses</code></li>
     <li><code>refsMarksTruncatedResultsWhenLimited</code></li>
     <li><code>refsRequiresExactlyOneQuery</code></li>
     <li><code>symbolicateAcceptsSeveralAddresses</code></li>
+    <li><code>refsListsTheCalleesOfAFunction</code>、<code>refsListsTheCallersOfASymbol</code>、<code>refsListsTheReferencesToAClass</code>、<code>refsReadsAStandaloneFatExecutable</code>、<code>symbolicateJSONUsesHexadecimalStringAddresses</code></li>
     <li><code>crossReferenceCommandsWriteOnlyThroughStandardStreamOutput</code>（沿用仓库已有的输出扫描测试）</li></ul></li>
-  <li><b>RuntimeViewer CLI</b> —— 引擎侧符号化命令、四个子命令、协议版本、文本显示、使用指南、skill。
+  <li><b>RuntimeViewer CLI</b>（已完成） —— 引擎侧符号化命令、四个子命令、协议版本、文本显示、使用指南、skill。
     <ul><li><code>callersCommandJSONMatchesTheMCPResponseFields</code></li>
     <li><code>commandLineProtocolVersionIsThree</code></li>
     <li><code>symbolicateCommandWorksOnTheLocalSource</code></li></ul></li>
-  <li><b>RuntimeViewer MCP 与收尾</b> —— 四个 MCP 工具；本库的 <code>ProjectEvolutionLog.md</code>、<code>Glossary.md</code>；RuntimeViewer 的 <code>Evolutions/README.md</code> 加 <code>cross-repository draft</code> 一行，0056 的暂缓表里把第 4 步那一行指向本提案。
+  <li><b>RuntimeViewer MCP 与收尾</b>（已完成） —— 四个 MCP 工具；本库的 <code>ProjectEvolutionLog.md</code>、<code>Glossary.md</code>；RuntimeViewer 的 <code>Evolutions/README.md</code> 加 <code>cross-repository draft</code> 一行，0056 的暂缓表里把第 4 步那一行指向本提案。
     <ul><li><code>callersToolReturnsAPartialResultAfterThirtySeconds</code></li>
     <li><code>symbolicateToolRequiresAWindowIdentifier</code></li></ul></li>
 </ol>
@@ -863,6 +919,29 @@ case .objectiveCInstanceVariable, .cString, .constantString:
 <tr><td>2026-11-18</td><td>实测后改用 IDA 核对</td><td>在 Finder 与 ControlCenter 上实测：代码引用召回 IDA 两跳 99.4%、Binary Ninja 经 MCP 67.6%。第 3 步的核对改以独立生成的标准答案为准、IDA 对照、Binary Ninja 补充；双方的三处盲点（页对齐类对象、Swift 大字符串、<code>retab</code> 后的清理代码）加成测试</td></tr>
 <tr><td>2026-11-18</td><td>改为按层拆分、分两步迁移</td><td>用户提出把核心放进 MachOKitExtensions、ObjC 与 Swift 各管自己的部分。核实了两份 MachOKitExtensions 迁移提案都已 Accepted，核心层要的依赖届时都在那里；难点在扫描器里 ObjC 与 Swift 的识别穿插在五个时机。用户在「一步到位写进三个仓库」与「先在本库拆层、量完再迁」之间选了后者。本提案因此新增第 2 步：拆成 <code>CrossReferenceCore</code>、<code>CrossReferenceObjC</code>、<code>CrossReferenceAnalysis</code> 三个模块，经识别器与记录协议相接，核心不认识任何语言，源码扫描守住 import 边界，公开模型与 API 留在顶层不变；<code>MachOAddressResolution</code> 改名 <code>CodeAddressResolution</code>，下层模块在本库里的名字刻意不同于落脚处，避开同名模块与 <code>MachO</code> 前缀两条约束；<code>Route</code> 去掉按节区分的两个 case。原第 2–8 步顺延为第 3–9 步（上面几行里的「第 3 步」指现在的第 4 步）。真正的搬迁另写迁移提案</td></tr>
 <tr><td>2026-11-18</td><td>Accepted</td><td>用户批准，开始实现</td></tr>
+<tr><td>2026-11-19</td><td>第 1 步完成</td><td>读取协议按分析器地址空间里的地址读（进程内就是运行时地址），而不是原设计的「未滑动地址 + 镜像下标」：现有代码处处用运行时地址，这样改动最小，文件模式给每个镜像定一个滑动量即可。进程内实现不检查映射，信任调用方——此前的直接读也不检查，可能读到未映射地址的地方本来就先问 <code>isMapped</code>。「整表不变」做成靠环境变量驱动的 A/B 测试（<code>ReferenceTableDigestTests</code>）：基线用 <code>git archive</code> 导出、拷入同一个测试文件生成摘要，候选与之比对；两边都要带 <code>USING_LOCAL_DEPENDENCIES=1</code>，因为 <code>next</code> 已用到 swift-demangling 未发版的 API。2026-11-19 在 Ultra 上 AppKit、SwiftUICore、Foundation 三个镜像逐条一致</td></tr>
+<tr><td>2026-11-19</td><td>第 2 步完成</td><td>按层拆分落地，与原设计的出入：识别器没有共同协议，两层各是具体类型，核心只认会话与记录协议（门面本来就认识两个具体的层）；角色声明自己会不会代替调用、要不要事后记录，扫描器只调用需要的那个方法，调用计划里的角色用 <code>SIMD4</code> 存，一次扫描最多四个会话；运行时库的规则（<code>RuntimeLibraryRules</code>）由门面交给核心，建镜像集时只扫一遍运行时库的符号；各层按镜像的缓存挂在函数表上作附件，函数表在它那一遍里记下各节供 ObjC 层用；<code>CodeReference.Kind</code> 改成核心层 <code>CodeReferenceKind</code> 的 typealias。测试 <code>selectorQueriesSkipClassAndTypeLookups</code> 改为 <code>selectorQueriesLookUpNoSwiftType</code>：ObjC 会话为发送的类字面量接收者照旧读类对象，与拆分前一致。整表对照：<code>String(describing:)</code> 给枚举负载里的类型加模块前缀，<code>Kind</code> 的拼法也变了，摘要在比较前去掉这两处；归一化后 AppKit、SwiftUICore、Foundation 逐行一致，整 cache 4,116 个系统镜像的引用数逐个一致</td></tr>
+<tr><td>2026-11-19</td><td>修掉第 1 步引入的陷入</td><td>吞吐基准扫整个 cache 时触发：第 1 步把读指令改成以 <code>__text</code> 起点为基的偏移，有些镜像的符号表把 <code>__text</code> 的函数起点放在节起点之下，减法下溢陷入。改回按地址经读取层读，<code>instructionPointer(at:count:)</code> 由调用方给条数。复现测试 <code>FunctionStartOutsideTextTests</code> 修复前陷入、修复后通过。同类排查：<code>CodeReferenceIndex</code> 的编码本就先比较再用 <code>&amp;-</code>，没有别处</td></tr>
+<tr><td>2026-11-19</td><td>吞吐优化</td><td>第一次量（Ultra，release，对 <code>next</code>）超了 5%：整 cache 建表 +8%、<code>init</code> 调用者 +8%、<code>makeKeyAndOrderFront:</code> +11%、建分析器 +24%。逐项采样后改了四处：读槽先做区间排除再查认领表（原来就是这个顺序）；运行时库的符号只扫一遍；调用计划不再持有数组（复制计划时的引用计数）、只调用角色需要的方法；会话与收集器里热路径上的可变属性标 <code>@exclusivity(unchecked)</code>（它们只在一个线程上用）；函数表记下各节，ObjC 层不再为每次扫描遍历一遍 load command。另给读取层加了两个批量读接口（<code>pointers(inSlotsAt:count:)</code>、<code>readablePointers(at:)</code>），selector 预筛按 256 个槽一块读，不再每个槽一次 existential 调用</td></tr>
+<tr><td>2026-11-19</td><td>吞吐验收</td><td>同一台 Ultra、release、三方交替各三轮取最好：整 cache 建表 <code>next</code> 2.42 / 第 1 步 2.54 / 第 2 步 2.52 秒，<code>init</code> 调用者 1.70 / 1.71 / 1.74 秒，<code>makeKeyAndOrderFront:</code> 调用者 0.36 / 0.37 / 0.38 秒。第 2 步相对拆分前（第 1 步）在 −0.5% 到 +3% 之间，满足 5% 的验收线，不必退到泛型特化；整表多出的约 5% 来自第 1 步的读取层，记进模块文档。debug 下交叉引用全套 99 个测试通过</td></tr>
+<tr><td>2026-11-19</td><td>第 3 步完成</td><td><code>CodeAddressResolution</code> 按设计抽出，另有两处细节：它依赖 <code>MachOReading</code>（<code>MachOFile.readElements</code>，设计里说的读取层）；<code>CacheImageLocator</code> 不自带 <code>SharedCache</code>，按镜像共用一个 locator 由线程读取器在 <code>thunkResolution</code> 组里做，本模块因此不依赖 <code>MachOCaches</code>，将来能原样搬走。<code>SwiftThunkAnalysis</code> 不再直接依赖 <code>ARM64InstructionDecoding</code>。行为清单对齐实际测试：抽取前后结果不变由 <code>SwiftThunkAnalysisTests</code> 全套守着；「本镜像类对象在 GOT 里」并进 AppKit 全部 GOT 槽与进程逐个比对的测试；独立文件的 self-bind 在 <code>SlotResolver</code> 里只是名字，换成地址是第 4 步文件模式的事，那条行为由第 4 步的 <code>standaloneAppResolvesImportedAndSelfBoundSymbols</code> 覆盖</td></tr>
+<tr><td>2026-11-19</td><td>修掉跳板把普通函数认成 GOT 桩</td><td>写 <code>stubChainRecordsEveryStubIslandHop</code> 时发现：iOS 26.3.1 设备 cache 里 SwiftUI 经 stub island 调到 UIKitCore 的 <code>UIHostingViewBase.viewGraph</code> getter，它开头是 <code>adrp x8; ldr x8, [x8, #0xb10]; ldr x0, [x20, x8]</code>（读一个字段偏移），<code>ARM64Trampoline</code> 读到 <code>ldr</code> 就认定是从槽里取目标的桩，链落到 <code>sharedRegionStart + 0x38</code>。这是 <code>next</code> 上就有的旧 bug。改成载入之后必须紧跟一条经同一寄存器的非调用跳转（三种 GOT 桩都是这个形状），复现测试 <code>aFunctionLoadingAGlobalIsNoSlotStub</code> 修复前四处断言全红、修复后通过。影响面：进程内扫描器只对不落在任何镜像里的地址认跳板，结果不变；线程读取器只在调用目标落在别的镜像、又不是 accessor 或运行时入口时才走到它，原来得出 <code>unknown</code>，现在也是。真正会受影响的是第 4 步的文件模式，它经同一个解析器一跳一跳地跟，所以在这一步修掉</td></tr>
+<tr><td>2026-11-19</td><td>第 4 步：镜像抽象</td><td>每个镜像改由核心层的 <code>CodeImage</code> 描述，<code>__LINKEDIT</code> 的表经读取层按地址读（<code>ImageLinkEdit</code>），桩按 <code>S_SYMBOL_STUBS</code> 的 <code>reserved1/2</code> 与 <code>ARM64Trampoline</code> 自己读，不再经 MachOKit 各读取器一套的 <code>symbols64</code>、<code>stubs(in:)</code>、<code>functionStarts</code>。读取器专属的 API 只在 ObjC 层（MachOObjCSection）与 Swift 层（MachOSwiftSection）里经 <code>asMachOImage</code> / <code>asMachOFile</code> / <code>MachOSwiftSectionRepresentableWithCache</code> 打开。进程内结果不变：交叉引用全套 100 个测试与整表摘要照旧，吞吐与第 1 步相比 −3% 到 +3%</td></tr>
+<tr><td>2026-11-19</td><td>第 4 步：文件读取层的形状</td><td><code>FileCrossReferenceMemory</code> 是值，以 <code>unowned(unsafe)</code> 引用镜像集持有的存储，区间表放在手动分配的缓冲区。第一版是类，整 cache 建表 37 秒（进程内 2.5 秒）：每次经 existential 读都复制读取层、计一次数，<code>FullDyldCache.cacheAndFileOffset(for:)</code> 每次还新建子 cache 对象、重读 slide info。按 mapping 预取 slide info、v5 在读取层里直接解之后 16.5 秒，改成值之后 2.6 秒，与进程内持平。v2、v3 的快速路径写过又删了：卷上没有能验证它们的 arm64 cache（模拟器 cache 没有 slide info），只留 v5，其余交给 MachOKit</td></tr>
+<tr><td>2026-11-19</td><td>第 4 步：API 与设计的出入</td><td>两个构造器先不带 <code>recordingStringReferences</code>，第 5 步加字符串引用时一起加。失败时抛 <code>FileAnalysisError</code>（带 <code>Code</code> 的结构体，眼下只有 <code>unsupportedArchitecture</code>）。<code>images</code> 不标 deprecated：进程内的宿主与测试读的是只有 <code>MachOImage</code> 给得出的东西（slide、header），<code>imagePaths</code> / <code>imageCount</code> 替代不了，标了只会把它们推向无处可去；文件模式下它为空写在文档注释里。一组独立文件按 dyld 的做法错开地址。ObjC 层把按名字导入的 <code>_objc_msgSend</code> / <code>_objc_msgSendSuper2</code> 认成发送：不带 libobjc 分析一个 app 时它们就是这样到达的</td></tr>
+<tr><td>2026-11-19</td><td>修掉 <code>SlotResolver</code> 把 rebase 偏移当地址</td><td>抽样核对 ControlCenter 时发现：几乎所有 objc 桩都没认出 selector。MachOKitExtensions 对独立文件的链式 fixup 给的是「相对首选加载地址的偏移」，<code>SlotResolver</code>（承自线程读取器的 <code>rebaseTargetAddress</code>，注释写着「独立文件给的是目标地址」）直接当地址用——dylib 的 <code>__TEXT</code> 在 0，两者相同，夹具都是 dylib，所以没被测到；可执行文件的 <code>__TEXT</code> 在 0x100000000，槽解出 0x798 而函数在 0x100000798。改为按 <code>__TEXT</code> 加偏移（<code>ImageAddressSpace.address(forHeaderOffset:)</code>）；没有链式 fixup、靠 opcode rebase 的旧文件，MachOKitExtensions 不解，文件读取层直接用槽里的值。复现测试 <code>standaloneExecutableResolvesRebasesAndObjectiveCStubs</code> 修复前四处断言全红、修复后通过。同类排查：别处（<code>MachOPointers</code>、线程读取器的描述符读取）都把这个结果当 MachOSwiftSection 自己口径的 offset 用，是一致的。修复后 ControlCenter 的发送从 967 条到 4,909 条，无法识别的调用从 3,933 条到 1 条</td></tr>
+<tr><td>2026-11-19</td><td>第 4 步完成</td><td>吞吐（Ultra，release，归档 macOS 27.2 cache，三轮最好）：建分析器 0.14 秒，整 cache 建表 2.58 秒（1.263 亿条），<code>init</code> 调用者预筛 0.04 + 扫描 1.74 秒，<code>makeKeyAndOrderFront:</code> 0.11 + 0.34 秒；进程里第一次查询 0.5 秒与 1.9 秒。读运行中的 cache 文件与外置卷上的归档一样快，远低于愿景里「冷启动整 cache 查询超过 60 秒就提前落盘」的线。核对改为抽样：ControlCenter 26.7 的三个函数（ObjC 发送与 super 发送、Swift 元数据访问器与类型引用、<code>objc_allocWithZone</code> 与 <code>init</code>），IDA 反汇编里的直接调用与发送本库逐一都有；差异两类——经 GOT 槽读别的镜像的类（槽里是 bind）不记，补进第 5 步；直接经 GOT 槽的 <code>blraa</code> 记成间接调用，进程内同样如此。按 2026-11-18 的做法重做全面核对，需要新写生成标准答案的脚本，留给用户</td></tr>
+<tr><td>2026-11-19</td><td>文件读取层不掩地址</td><td><code>AddressMaskScanTests</code> 不许库里出现自定义的地址掩码常量。文件读取层的 <code>addressMask</code> 改为不掩（解出的槽本来就是干净地址）；slide info v5 的 34 位 <code>runtimeOffset</code> 是格式字段不是掩码，在扫描用例里加了一条只减不增、写明是哪个字段的白名单</td></tr>
+<tr><td>2026-11-19</td><td>第 5 步完成</td><td>与设计的出入：路线的最后一种叫 <code>indirect</code>，不叫 <code>authenticatedIndirect</code>——不带认证的 <code>blr</code> / <code>br</code> 也得有路线，认证与否已在 <code>IndirectCallEvidence</code> 里。Swift 大字符串不需要 Swift 层专门认：<code>add</code> 算出的正是字符串起点，核心在那里记下；只是「减法算出的地址」从不当作字符串，否则 <code>sub #0x20</code> 之后的地址会落进前一个字符串中间。ivar 只认 <code>__objc_ivar</code> 里的偏移变量，即父类不在本镜像的 ObjC 类（父类是 <code>NSObject</code> 时 clang 用常量偏移、根本不载入）；Swift 类经 ObjC ivar 列表登记的偏移变量是 <code>__data</code> 里的 Swift 字段偏移全局量，不在 <code>__objc_ivar</code>，没有收（ControlCenter 的 <code>BentoBackdrop.maskLayer</code> 就是这样），留作后续。对导入符号的数据引用记成 <code>.importedSymbol(name:)</code>、<code>kind == .reference</code>，不另外按名字认成 ObjC 类引用：类引用的 target 要带位置，导入的类没有；查一个类的全部引用时，调用方同时查 <code>_OBJC_CLASS_$_&lt;类&gt;</code>。查询里含字符串键时，那次扫描照样找字符串，不受分析器开关限制。32 位载入另认 ld64 改写出的字面量形式（<code>ldrsw xt, label</code>）。RuntimeViewer 的穷尽 switch 挪到第 8 步：它经远端版本依赖本库，本库发版之前不受影响</td></tr>
+<tr><td>2026-11-19</td><td>第 6 步完成</td><td>与设计的出入：另有 <code>symbolication(of:inImageAt:)</code>——一组独立文件各留自己的地址，两个文件可能都有同一个未滑动地址（进程内，链接在 0 的测试 bundle 就占着 0x10），不指定镜像时取第一个有它的镜像，cache 优先。<code>Meaning</code> 多一个 <code>.data</code>：映射着、但不是函数、桩、槽、字符串，其下也没有符号，不能说成未映射。槽里的东西按节说：selector 引用给 <code>.messageSend(selector:receiver: .unknown)</code>（目标类型里没有单独的 selector），protocol 引用给协议名 <code>.cString</code>，GOT 给函数、类、Swift 类型或导入名，<code>__objc_ivar</code> 给 ivar。结构由核心层的 <code>AddressPlace</code> 判断（函数体、本镜像的桩、镜像之间的跳板链、槽、字符串、最近的符号），ObjC 层的 selector 桩、类与 ivar、Swift 类型与无符号函数的名字在门面补上。符号化用留存的函数表（第一版用不留存的，问 26.7 SwiftUICore 的全部桩花了 207 秒，改后 0.9 秒）。原计划的「对照 MachOKit 的 <code>Stub.indirectSymbolIndex</code>」不成立：那批桩上 MachOKit 读间接符号表与 <code>dyld_info</code> 一样标错，改为用 <code>ipsw</code> 独立核对的 5 个桩钉住、其余全部桩都要解出目标</td></tr>
+<tr><td>2026-11-19</td><td>ivar 名字改经读取层读</td><td>第 5 步的 ivar 名字第二来源经 MachOObjCSection 遍历类，每个类都重走一遍加载命令，整 cache 建表因此慢了 30%（3.25 秒）。改为从 <code>__objc_classlist</code> 起经读取层读 <code>class_ro_t</code> 与 ivar 列表（已 realize 的类经 <code>class_rw_t</code> 的第二个字，指针剥签名），两种读取器一套代码；整表回到 2.57–2.66 秒，比第 4 步多约 4%，多出的正是 182 万条 ivar 引用。两条路给的名字有 23 条之差（共约 182 万条），没有逐条追</td></tr>
+<tr><td>2026-11-19</td><td>第 7 步完成</td><td>与设计的出入：<code>refs --function</code> 多一个 <code>--function-image</code>——一组文件各有各的地址，两个链接在 0 的 dylib 会在同一地址都有函数，此时报错要求指名；<code>symbolicate</code> 的文件输入是可重复的 <code>--file</code>（位置参数是地址），<code>--in-image</code> 指地址属于哪个镜像。胖文件必须给 <code>-a</code>，沿用 README 自 0.10.0 起「不默默挑切片」的约定（实现时一度自动挑 arm64e，发现与约定相悖后改回）。<code>--string</code> 不需要打开 <code>recordingStringReferences</code>：按键查询本来就找字符串。<code>--class</code> 先找 <code>_OBJC_CLASS_$_</code> 符号，找不到（cache 里多数私有类）再读各镜像的类表，并按类对象位置过滤同名类。<code>--symbol</code> 要求名字是函数的起点，变量报错；没有任何镜像定义时按导入名找（一组文件里调用外部库的情形）。为此门面加了 <code>locations(ofSymbolNamed:among:)</code>（导出表加符号表），<code>CodeFunction.Name</code> 加了 <code>spelling</code>。JSON 键排序、地址一律十六进制字符串，每条引用多一个 <code>isRuntimeHelperCall</code>。请求的 <code>run(output:)</code> 不收环境：不往产物里盖任何东西</td></tr>
+<tr><td>2026-11-19</td><td>修共用键集合的争抢</td><td>写 <code>refs</code> 时发现：多个线程并发扫描、共用同一个键集合时，<code>ReferenceCollector.keep</code> 每检查一条引用都对该集合 retain/release 一次（<code>tableKey.map(keptKeys.contains)</code> 把集合捕获进闭包），28 个核争一个引用计数，整 cache 查 <code>init</code> 的调用者用了 152 秒、查 <code>makeKeyAndOrderFront:</code> 11.6 秒。<code>next</code> 上的 <code>ReferenceScanner.keep</code> 是同一写法，RuntimeViewer 并发查调用者时也共用一个键集合，是基线就有的问题；基准每个镜像现建一个集合，所以没暴露。改为收集器各留一份自己的拷贝、去掉闭包捕获：两条查询降到 2.2 秒与 1.05 秒（release CLI，含建分析器与起名）。基准的调用者查询改成共用一个键集合，与真实调用方一致，今后回归能在数字上看出；改后 <code>init</code> 的扫描 1.69 秒，与原来每镜像一个集合时相同</td></tr>
+<tr><td>2026-11-19</td><td>第 8 步完成</td><td>与设计的出入：引擎侧加两个命令而不是一个——符号化之外还有「按名字定位符号」（<code>crossReferenceLocateSymbol</code>，用本库新加的 <code>locations(ofSymbolNamed:among:)</code>），因为查询主体没有「符号」这一种，符号名要先在引擎进程里换成函数地址。目标写法的解析放进 <code>RuntimeViewerCrossReferences</code> 的 <code>RuntimeCrossReferenceTargetResolution</code>，CLI 与 MCP 共用；按名字找类型由调用方传入，各前端沿用自己的查找规则。CLI 的 <code>--json</code> 与 MCP 的每行字段同出 Core 的 <code>RuntimeCrossReferenceRow</code> / <code>RuntimeAddressSymbolicationRow</code>（MCP 的响应类型要用 SwiftMCP 的 <code>@Schema</code>，Core 里不能用，所以 MCP 一侧逐字段照抄、测试钉住键名一致）。三种新目标（ivar、C 字符串、常量字符串）在 RuntimeViewer 里先不显示，照源码兼容性一节的约定返回空。失败代码新增 <code>targetNotFound</code> 与 <code>crossReferencesUnavailable</code>。RuntimeViewer 分支从远端 <code>next</code> 切出：本地 <code>next</code> 当时有十几个别的会话未推送的提交，从它切会在推送功能分支时把那些工作一并公开</td></tr>
+<tr><td>2026-11-19</td><td>第 9 步完成</td><td>MCP 四个工具照现有工具带 <code>windowIdentifier</code>；30 秒的等待做成可单测的 <code>MCPBridgeServer.references(within:_:)</code>：边查边收进度里的引用，到时取消查询、带着已有结果返回 <code>isComplete: false</code> 与说明（已扫完的镜像有缓存，再调一次接着扫）。RuntimeViewer 的提案索引加了 cross-repository draft 一行，暂缓表里第 4 步那一行指向本提案，0056 的决策日志记了一行</td></tr>
+<tr><td>2026-11-19</td><td>渲染 A/B 验证全部一致</td><td>桩与槽的解析从 <code>SwiftThunkAnalysis</code> 抽成共用模块，动到了读取层，按 AGENTS.md 跑系统框架渲染 A/B：基线是开工时的 <code>next</code>（f8b25d2a），三条读取路径共 84 对 dump 与 interface 逐字节一致（归档 cache 15.5 与 26.6、iOS 15.5 至 26.5 模拟器、进程内）</td></tr>
+<tr><td>2026-11-19</td><td>RuntimeViewer 交叉引用模块的并发超时是基线就有的</td><td>在沙盒里对本分支跑 RuntimeViewer 整个交叉引用测试模块（82 条并发），「分析器换新后要重新读名字」的两条等了 60 秒没等到；基线（RuntimeViewer 远端 <code>next</code> 加本库 <code>next</code>）整模块跑同样有其中一条在同一行失败，两边单跑这一组（18 条）都在 41 秒内全过。是会话队列在整模块并发时被前面的准备工作占满，与本次改动无关，没有修</td></tr>
+<tr><td>2026-11-19</td><td>实现完成，待用户看过后收尾</td><td>九个落地步骤都已完成。本库全量测试（跳过 IntegrationTests）2,993 个零失败；渲染 A/B 84 对一致；RuntimeViewer 一侧在沙盒里对本分支编过 Core、CLI 与 MCP 三个包，新测试全过，App 工程本身没有构建。文档判断：配套使用指南不另写——CLI 的用法与契约写在 README、<code>swift-section</code> 插件的 <code>references/cross-references.md</code> 与 RuntimeViewer 的 <code>Guides/CommandLineInterface.md</code>，实现细节在三份模块文档；新术语「地址符号化」「识别器」「引用路线」「stub island」已登记进术语表。两个仓库的功能分支已在本地合进各自常驻的 <code>next</code> 检出，没有推送</td></tr>
 </tbody>
 </table>
 

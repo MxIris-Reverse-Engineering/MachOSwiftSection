@@ -534,11 +534,17 @@ swift-section symbolicate 0x19012345 0x1e1226590 --dyld-shared-cache /Volumes/Dy
 | `README.md`（CLI 一节） | 修改 | 列出两个新子命令 | 面向用户 | 7 |
 | `Documentations/Internal/ProjectEvolutionLog.md`、`Documentations/Glossary.md` | 修改 | 追加本批次；登记「符号化」「引用路线」「识别器」「stub island」等术语 | 文档约定 | 9 |
 | RuntimeViewer `RuntimeViewerCore/Sources/RuntimeViewerCrossReferences/Analysis/CrossReferenceQuery.swift` | 修改 | `switch reference.target`（`:92`）补三个新 case | 穷尽 switch 会编译失败 | 5 |
-| RuntimeViewer `…/RuntimeViewerCrossReferences/`（新文件）· 符号化引擎命令 | 新增 | 引擎侧 `symbolicate` 命令 | CLI / MCP 的符号化 | 8 |
+| RuntimeViewer `…/RuntimeViewerCrossReferences/`（新文件）· 符号化引擎命令 | 新增 | 引擎侧 `crossReferenceSymbolicate` 与 `crossReferenceLocateSymbol` 两个命令，`RuntimeEngine.symbolicate(_:inImageAt:)`、`locations(ofSymbolNamed:)`，线上类型 `RuntimeAddressSymbolication`、`RuntimeSymbolLocation` | CLI / MCP 的符号化与按名字找函数 | 8 |
+| RuntimeViewer `…/RuntimeViewerCrossReferences/RuntimeCrossReferenceTargetResolution.swift` | 新增 | 目标写法（方法、Swift 成员、符号、地址、selector）→ 查询主体，CLI 与 MCP 共用 | 两个前端一套写法 | 8 |
+| RuntimeViewer `…/RuntimeViewerCrossReferences/Models/RuntimeCrossReferenceRow.swift`、`RuntimeAddressSymbolicationRow.swift` | 新增 | CLI `--json` 与 MCP 每行字段的唯一来源，地址一律十六进制字符串 | 字段名一致 | 8 |
+| RuntimeViewer `…/RuntimeViewerCrossReferences/Analysis/CrossReferenceQuery.swift`、`Models/RuntimeCrossReferenceError.swift` | 修改 | 两处穷尽 switch 补三个新目标（不显示）；符号化与按名定位的实现；错误加 `addressNeedsImage`、`targetNotFound`、`ambiguousTarget` | 源码兼容；新命令 | 8 |
+| RuntimeViewer `…/Model/CommandFailure.swift` | 修改 | 失败代码加 `targetNotFound`、`crossReferencesUnavailable` | CLI | 8 |
+| RuntimeViewer `Documentations/Guides/CommandLineInterface.md`、`AgentPlugins/runtime-viewer/`（skill 与两个清单 1.3.0）、`README.md` | 修改 | 四个子命令与目标写法 | RuntimeViewer 的 AGENTS.md 要求 | 8 |
 | RuntimeViewer `RuntimeViewerCommandLine/Sources/RuntimeViewerCommandLineInterface/Model/Command.swift`、`CommandResult.swift` | 修改 | `.callers` / `.callees` / `.references` / `.symbolicate` 与结果 | CLI | 8 |
 | RuntimeViewer `…/CommandLine/Subcommands.swift`、`Execution/CommandExecutor.swift`、`Rendering/TextRenderer.swift` | 修改 | 四个子命令的解析、执行与显示 | CLI | 8 |
 | RuntimeViewer `…/Protocol/WireMessage.swift` · `CommandLineProtocol.version` | 修改 | 2 → 3 | 新增命令 | 8 |
-| RuntimeViewer `RuntimeViewerMCP/Sources/RuntimeViewerMCPBridge/MCPBridgeServer.swift` | 修改 | `Callers`、`Callees`、`TypeReferences`、`Symbolicate` 四个工具 | MCP | 9 |
+| RuntimeViewer `RuntimeViewerMCP/Sources/RuntimeViewerMCPBridge/MCPBridgeServer.swift`、`MCPBridgeProtocol.swift` | 修改 | `Callers`、`Callees`、`TypeReferences`、`Symbolicate` 四个工具，30 秒等待 `references(within:_:)`，响应类型 `MCPCrossReferencesResponse` 等 | MCP | 9 |
+| RuntimeViewer `Documentations/Evolutions/README.md`、`0056-cross-references.md` | 修改 | cross-repository draft 一行；暂缓表第 4 步指向本提案 | 提案索引 | 9 |
 | RuntimeViewer `AgentPlugins/runtime-viewer/`、`Documentations/Guides/CommandLineInterface.md`、`Documentations/Evolutions/README.md` | 修改 | skill 与两个插件清单的 version；使用指南；`cross-repository draft` 一行 | 文档同批 | 8、9 |
 
 ## 架构图
@@ -1171,3 +1177,6 @@ RuntimeViewer 的 CLI 使用指南与 `runtime-viewer` skill。
 | 2026-11-19 | 修共用键集合的争抢 | 写 `refs` 时发现：多个线程并发扫描、共用同一个键集合时，`ReferenceCollector.keep` 每检查一条引用都对该集合 retain/release 一次（`tableKey.map(keptKeys.contains)` 把集合捕获进闭包），28 个核争一个引用计数，整 cache 查 `init` 的调用者用了 152 秒、查 `makeKeyAndOrderFront:` 11.6 秒。`next` 上的 `ReferenceScanner.keep` 是同一写法，RuntimeViewer 并发查调用者时也共用一个键集合，是基线就有的问题；基准每个镜像现建一个集合，所以没暴露。改为收集器各留一份自己的拷贝、去掉闭包捕获：两条查询降到 2.2 秒与 1.05 秒（release CLI，含建分析器与起名）。基准的调用者查询改成共用一个键集合，与真实调用方一致，今后回归能在数字上看出；改后 `init` 的扫描 1.69 秒，与原来每镜像一个集合时相同 |
 | 2026-11-19 | 第 8 步完成 | 与设计的出入：引擎侧加两个命令而不是一个——符号化之外还有「按名字定位符号」（`crossReferenceLocateSymbol`，用本库新加的 `locations(ofSymbolNamed:among:)`），因为查询主体没有「符号」这一种，符号名要先在引擎进程里换成函数地址。目标写法的解析放进 `RuntimeViewerCrossReferences` 的 `RuntimeCrossReferenceTargetResolution`，CLI 与 MCP 共用；按名字找类型由调用方传入，各前端沿用自己的查找规则。CLI 的 `--json` 与 MCP 的每行字段同出 Core 的 `RuntimeCrossReferenceRow` / `RuntimeAddressSymbolicationRow`（MCP 的响应类型要用 SwiftMCP 的 `@Schema`，Core 里不能用，所以 MCP 一侧逐字段照抄、测试钉住键名一致）。三种新目标（ivar、C 字符串、常量字符串）在 RuntimeViewer 里先不显示，照源码兼容性一节的约定返回空。失败代码新增 `targetNotFound` 与 `crossReferencesUnavailable`。RuntimeViewer 分支从远端 `next` 切出：本地 `next` 当时有十几个别的会话未推送的提交，从它切会在推送功能分支时把那些工作一并公开 |
 | 2026-11-19 | 第 9 步完成 | MCP 四个工具照现有工具带 `windowIdentifier`；30 秒的等待做成可单测的 `MCPBridgeServer.references(within:_:)`：边查边收进度里的引用，到时取消查询、带着已有结果返回 `isComplete: false` 与说明（已扫完的镜像有缓存，再调一次接着扫）。RuntimeViewer 的提案索引加了 cross-repository draft 一行，暂缓表里第 4 步那一行指向本提案，0056 的决策日志记了一行 |
+| 2026-11-19 | 渲染 A/B 验证全部一致 | 桩与槽的解析从 `SwiftThunkAnalysis` 抽成共用模块，动到了读取层，按 AGENTS.md 跑系统框架渲染 A/B：基线是开工时的 `next`（f8b25d2a），三条读取路径共 84 对 dump 与 interface 逐字节一致（归档 cache 15.5 与 26.6、iOS 15.5 至 26.5 模拟器、进程内） |
+| 2026-11-19 | RuntimeViewer 交叉引用模块的并发超时是基线就有的 | 在沙盒里对本分支跑 RuntimeViewer 整个交叉引用测试模块（82 条并发），「分析器换新后要重新读名字」的两条等了 60 秒没等到；基线（RuntimeViewer 远端 `next` 加本库 `next`）整模块跑同样有其中一条在同一行失败，两边单跑这一组（18 条）都在 41 秒内全过。是会话队列在整模块并发时被前面的准备工作占满，与本次改动无关，没有修 |
+| 2026-11-19 | 实现完成，待用户看过后收尾 | 九个落地步骤都已完成。本库全量测试（跳过 IntegrationTests）2,993 个零失败；渲染 A/B 84 对一致；RuntimeViewer 一侧在沙盒里对本分支编过 Core、CLI 与 MCP 三个包，新测试全过，App 工程本身没有构建。文档判断：配套使用指南不另写——CLI 的用法与契约写在 README、`swift-section` 插件的 `references/cross-references.md` 与 RuntimeViewer 的 `Guides/CommandLineInterface.md`，实现细节在三份模块文档；新术语「地址符号化」「识别器」「引用路线」「stub island」已登记进术语表。两个仓库的功能分支已在本地合进各自常驻的 `next` 检出，没有推送 |
