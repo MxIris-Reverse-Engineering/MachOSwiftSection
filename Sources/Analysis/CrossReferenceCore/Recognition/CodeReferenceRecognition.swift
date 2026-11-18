@@ -6,11 +6,25 @@ package struct ScanSite: Sendable {
     /// The instruction's unslid address, in the same image as `function`.
     package let instructionAddress: UInt64
     package let kind: CodeReferenceKind
+    /// How the instruction reaches what it references.
+    package let route: CodeReferenceRoute
 
-    package init(function: CodeLocation, instructionAddress: UInt64, kind: CodeReferenceKind) {
+    package init(function: CodeLocation, instructionAddress: UInt64, kind: CodeReferenceKind, route: CodeReferenceRoute) {
         self.function = function
         self.instructionAddress = instructionAddress
         self.kind = kind
+        self.route = route
+    }
+
+    /// The same site, reached by `route`.
+    package func reached(by route: CodeReferenceRoute) -> ScanSite {
+        ScanSite(function: function, instructionAddress: instructionAddress, kind: kind, route: route)
+    }
+
+    /// The same instruction, as a reference of `kind`: what a call also
+    /// references besides its callee.
+    package func referencing(as kind: CodeReferenceKind) -> ScanSite {
+        ScanSite(function: function, instructionAddress: instructionAddress, kind: kind, route: route)
     }
 }
 
@@ -144,8 +158,19 @@ package protocol CodeReferenceRecognitionSession: AnyObject {
     /// address `value`. Records a reference and returns whether it did.
     func recordSlotReference(holding value: UInt, at site: ScanSite) -> Bool
 
-    /// A load from a slot in one of `watchedSlotRanges`.
-    func noteWatchedSlotLoad(from slot: UInt64)
+    /// A load from a slot in one of `watchedSlotRanges`, at `site` — a
+    /// pointer, or a 32-bit offset such as an instance variable's.
+    func noteWatchedSlotLoad(from slot: UInt64, at site: ScanSite)
+}
+
+/// A string literal the code takes the address of — recorded only when the
+/// scan records string references.
+package enum StringLiteralReference: Hashable, Sendable {
+    /// Characters in a C string section: `__cstring`, `__objc_methname`,
+    /// `__oslogstring` and the other sections of C string literals.
+    case cString(String)
+    /// A constant `CFString` / `NSString` in `__cfstring`: its characters.
+    case constantString(String)
 }
 
 /// Where the references a scan finds go. The core records the ones it
@@ -157,4 +182,10 @@ package protocol CodeReferenceRecording: AnyObject {
     /// in for it.
     func recordCall(to target: ResolvedCallTarget, targetAddress: UInt64, at site: ScanSite, isRuntimeHelperCall: Bool)
     func recordIndirectCall(_ evidence: IndirectCallEvidence, at site: ScanSite)
+    /// A string literal whose address the code materializes.
+    func recordString(_ string: StringLiteralReference, at site: ScanSite)
+    /// A load from a reference slot that binds to `name`, a symbol of an
+    /// image the analyzer does not cover: what a standalone file analyzed
+    /// without its libraries reads another image's class or data through.
+    func recordImportedSymbolReference(named name: String, at site: ScanSite)
 }

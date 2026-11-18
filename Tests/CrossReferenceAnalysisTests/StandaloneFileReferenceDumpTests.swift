@@ -25,7 +25,7 @@ struct StandaloneFileReferenceDumpTests {
                 "no arm64 slice in \(inputPath)"
             )
         }
-        let analyzer = try CrossReferenceAnalyzer(machOFiles: [file])
+        let analyzer = try CrossReferenceAnalyzer(machOFiles: [file], recordingStringReferences: true)
         let functions = analyzer.functions(inImageAt: 0)
         let functionsByLocation = Dictionary(functions.map { ($0.location, $0) }, uniquingKeysWith: { first, _ in first })
         var lines: [String] = []
@@ -36,7 +36,7 @@ struct StandaloneFileReferenceDumpTests {
                 let name = functionsByLocation[reference.function].map { Self.describe($0.name) } ?? "<unnamed>"
                 lines.append("function 0x\(String(reference.function.address, radix: 16)) \(name)")
             }
-            lines.append("  0x\(String(reference.instructionAddress, radix: 16)) \(reference.kind) \(Self.describe(reference.target, functionsByLocation: functionsByLocation))\(reference.isRuntimeHelperCall ? " helper" : "")")
+            lines.append("  0x\(String(reference.instructionAddress, radix: 16)) \(reference.kind) \(Self.describe(reference.target, functionsByLocation: functionsByLocation)) via \(reference.route)\(reference.isRuntimeHelperCall ? " helper" : "")")
         }
         try (lines.joined(separator: "\n") + "\n").write(toFile: outputPath, atomically: true, encoding: .utf8)
         #expect(lines.count > 100)
@@ -67,6 +67,12 @@ struct StandaloneFileReferenceDumpTests {
             "swiftTypeName \(name)"
         case .objectiveCClass(let name, let location):
             "class \(name) 0x\(String(location.address, radix: 16))"
+        case .objectiveCInstanceVariable(let className, let name):
+            "ivar \(className).\(name)"
+        case .cString(let characters):
+            "cString \(characters.debugDescription)"
+        case .constantString(let characters):
+            "constantString \(characters.debugDescription)"
         case .indirect(let evidence):
             "indirect \(evidence)"
         case .unrecognized(let address):

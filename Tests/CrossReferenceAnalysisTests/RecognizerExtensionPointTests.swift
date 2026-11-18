@@ -39,7 +39,7 @@ struct RecognizerExtensionPointTests {
         func noteCallMade(_ call: ScannedCall, registers: RegisterFile) -> UInt32 { 0 }
         func recordAddressReference(toRuntimeAddress address: UInt, isCode: Bool, at site: ScanSite) -> Bool { false }
         func recordSlotReference(holding value: UInt, at site: ScanSite) -> Bool { false }
-        func noteWatchedSlotLoad(from slot: UInt64) {}
+        func noteWatchedSlotLoad(from slot: UInt64, at site: ScanSite) {}
     }
 
     private final class Recording: CodeReferenceRecording {
@@ -58,6 +58,8 @@ struct RecognizerExtensionPointTests {
         }
 
         func recordIndirectCall(_ evidence: IndirectCallEvidence, at site: ScanSite) {}
+        func recordString(_ string: StringLiteralReference, at site: ScanSite) {}
+        func recordImportedSymbolReference(named name: String, at site: ScanSite) {}
     }
 
     @Test func aRecognizerDefinedInTestsPlugsInWithoutChangingTheCore() throws {

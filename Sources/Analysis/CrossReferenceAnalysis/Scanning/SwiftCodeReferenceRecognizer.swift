@@ -153,7 +153,7 @@ final class SwiftCodeReferenceRecognitionSession: CodeReferenceRecognitionSessio
 
     func claimCallTarget(at target: UInt64) -> CallTargetClaim? { nil }
 
-    func noteWatchedSlotLoad(from slot: UInt64) {}
+    func noteWatchedSlotLoad(from slot: UInt64, at site: ScanSite) {}
 
     // MARK: - Calls
 
@@ -182,7 +182,7 @@ final class SwiftCodeReferenceRecognitionSession: CodeReferenceRecognitionSessio
     func noteCallMade(_ call: ScannedCall, registers: RegisterFile) -> UInt32 {
         let plan = rolePlans[Int(call.role) - 1]
         if let typeFunction = plan.typeFunction {
-            let site = ScanSite(function: call.site.function, instructionAddress: call.site.instructionAddress, kind: .reference)
+            let site = call.site.referencing(as: .reference)
             switch typeFunction {
             case .accessor(let descriptor):
                 recording.recordSwiftType(descriptor: descriptor, at: site)

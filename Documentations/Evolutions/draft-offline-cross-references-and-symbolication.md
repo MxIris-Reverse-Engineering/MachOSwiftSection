@@ -707,8 +707,9 @@ public enum CodeReferenceRoute: UInt8, Hashable, Sendable {
     case addressMaterialization
     /// `ldr` of a literal pool entry.
     case literalLoad
-    /// An authenticated indirect call (`blraa`, `braa` …).
-    case authenticatedIndirect
+    /// A call or a jump through a register — `blr`, `br` and their authenticating forms; the
+    /// evidence says what is known. (Was `authenticatedIndirect`; see the decision log.)
+    case indirect
 }
 
 /// Whether the referencing instruction calls, leaves the function, or only takes an address.
@@ -1085,16 +1086,19 @@ RuntimeViewer 的 CLI 使用指南与 `runtime-viewer` skill。
    - 核对：卷上没有 Finder 26.5.2，也没有 2026-11-18 那次的标准答案与生成脚本；按原法重做要新写 `otool -tV`
      加寄存器跟踪的脚本，留给用户看过之后再跑。改做抽样：ControlCenter 26.7 的文件模式结果
      （`StandaloneFileReferenceDumpTests` 导出）与 IDA 逐函数对照，见决策日志。
-5. **新引用种类与路线** —— 解码器的 `ldrsw` / 32 位 `ldr`、`RegisterFile`、核心层的字符串与路线、ObjC 层的
-   ivar、Swift 层的大字符串、三个 target、`Route`、表键、常驻索引编码、RuntimeViewer 的穷尽 switch。
-   - 行为：`instanceVariableOffsetLoadsBecomeInstanceVariableReferences`
+5. **新引用种类与路线**（已完成） —— 解码器的 `ldrsw` / 32 位 `ldr`（含字面量形式）、核心层的字符串、路线与对
+   导入符号的数据引用、ObjC 层的 ivar、三个 target、`Route`、表键、常驻索引编码。RuntimeViewer 的穷尽 switch
+   挪到第 8 步，与 RuntimeViewer 的其余改动一起做。
+   - 行为：`instanceVariableOffsetLoadsBecomeInstanceVariableReferences`（带符号与剥了符号两种）
    - 行为：`stringReferencesAreRecordedOnlyWhenRequested`
-   - 行为：`constantStringReferencesCarryTheirCharacters`
-   - 行为：`everyReferenceCarriesTheRouteItTook`
+   - 行为：`constantStringReferencesCarryTheirCharacters`（8 位与 UTF-16 两种）
+   - 行为：`everyReferenceCarriesTheRouteItTook`、`inProcessReferencesCarryTheirRoutes`；iOS 设备 cache 经 stub
+     island 的发送路线是 `stubIsland`（`archivedCacheFollowsStubIslandsForSelectorSends`）
    - 行为：`referenceIndexRoundTripsNewTargetsAndRoutes`
    - 行为：`decoderDecodesThirtyTwoBitLoadAndLoadSignedWord`
-   - 行为：`pageAlignedClassObjectMaterializationIsAReference`（`adrp; add #0`）
+   - 行为：`pageAlignedClassObjectMaterializationIsAReference`（`adrp; add #0`，在运行中的 cache 里找）
    - 行为：`swiftLargeStringLiteralPointsAtItsCharacters`（`adrp; add; sub #0x20`）
+   - 对导入符号的数据引用由 ControlCenter 的导出核对（`_OBJC_CLASS_$_CALayer` 一类）
 6. **地址符号化** —— `AddressSymbolication` 与 `symbolication(of:)`。
    - 行为：`symbolicatesEverySwiftUICoreAuthStubToItsIndirectSymbol`（对照 MachOKit 的
      `Stub.indirectSymbolIndex`，正是 `dyld_info` 标错的那批）
@@ -1150,3 +1154,4 @@ RuntimeViewer 的 CLI 使用指南与 `runtime-viewer` skill。
 | 2026-11-19 | 修掉 `SlotResolver` 把 rebase 偏移当地址 | 抽样核对 ControlCenter 时发现：几乎所有 objc 桩都没认出 selector。MachOKitExtensions 对独立文件的链式 fixup 给的是「相对首选加载地址的偏移」，`SlotResolver`（承自线程读取器的 `rebaseTargetAddress`，注释写着「独立文件给的是目标地址」）直接当地址用——dylib 的 `__TEXT` 在 0，两者相同，夹具都是 dylib，所以没被测到；可执行文件的 `__TEXT` 在 0x100000000，槽解出 0x798 而函数在 0x100000798。改为按 `__TEXT` 加偏移（`ImageAddressSpace.address(forHeaderOffset:)`）；没有链式 fixup、靠 opcode rebase 的旧文件，MachOKitExtensions 不解，文件读取层直接用槽里的值。复现测试 `standaloneExecutableResolvesRebasesAndObjectiveCStubs` 修复前四处断言全红、修复后通过。同类排查：别处（`MachOPointers`、线程读取器的描述符读取）都把这个结果当 MachOSwiftSection 自己口径的 offset 用，是一致的。修复后 ControlCenter 的发送从 967 条到 4,909 条，无法识别的调用从 3,933 条到 1 条 |
 | 2026-11-19 | 第 4 步完成 | 吞吐（Ultra，release，归档 macOS 27.2 cache，三轮最好）：建分析器 0.14 秒，整 cache 建表 2.58 秒（1.263 亿条），`init` 调用者预筛 0.04 + 扫描 1.74 秒，`makeKeyAndOrderFront:` 0.11 + 0.34 秒；进程里第一次查询 0.5 秒与 1.9 秒。读运行中的 cache 文件与外置卷上的归档一样快，远低于愿景里「冷启动整 cache 查询超过 60 秒就提前落盘」的线。核对改为抽样：ControlCenter 26.7 的三个函数（ObjC 发送与 super 发送、Swift 元数据访问器与类型引用、`objc_allocWithZone` 与 `init`），IDA 反汇编里的直接调用与发送本库逐一都有；差异两类——经 GOT 槽读别的镜像的类（槽里是 bind）不记，补进第 5 步；直接经 GOT 槽的 `blraa` 记成间接调用，进程内同样如此。按 2026-11-18 的做法重做全面核对，需要新写生成标准答案的脚本，留给用户 |
 | 2026-11-19 | 文件读取层不掩地址 | `AddressMaskScanTests` 不许库里出现自定义的地址掩码常量。文件读取层的 `addressMask` 改为不掩（解出的槽本来就是干净地址）；slide info v5 的 34 位 `runtimeOffset` 是格式字段不是掩码，在扫描用例里加了一条只减不增、写明是哪个字段的白名单 |
+| 2026-11-19 | 第 5 步完成 | 与设计的出入：路线的最后一种叫 `indirect`，不叫 `authenticatedIndirect`——不带认证的 `blr` / `br` 也得有路线，认证与否已在 `IndirectCallEvidence` 里。Swift 大字符串不需要 Swift 层专门认：`add` 算出的正是字符串起点，核心在那里记下；只是「减法算出的地址」从不当作字符串，否则 `sub #0x20` 之后的地址会落进前一个字符串中间。ivar 只认 `__objc_ivar` 里的偏移变量，即父类不在本镜像的 ObjC 类（父类是 `NSObject` 时 clang 用常量偏移、根本不载入）；Swift 类经 ObjC ivar 列表登记的偏移变量是 `__data` 里的 Swift 字段偏移全局量，不在 `__objc_ivar`，没有收（ControlCenter 的 `BentoBackdrop.maskLayer` 就是这样），留作后续。对导入符号的数据引用记成 `.importedSymbol(name:)`、`kind == .reference`，不另外按名字认成 ObjC 类引用：类引用的 target 要带位置，导入的类没有；查一个类的全部引用时，调用方同时查 `_OBJC_CLASS_$_<类>`。查询里含字符串键时，那次扫描照样找字符串，不受分析器开关限制。32 位载入另认 ld64 改写出的字面量形式（`ldrsw xt, label`）。RuntimeViewer 的穷尽 switch 挪到第 8 步：它经远端版本依赖本库，本库发版之前不受影响 |

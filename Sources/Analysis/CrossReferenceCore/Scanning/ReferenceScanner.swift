@@ -50,6 +50,20 @@ package struct ReferenceScanner {
     /// reference at all.
     private var addressClaims: [UInt64: Int8] = [:]
     private var slotClaims: [UInt64: Int8] = [:]
+    /// The imported symbol each reference slot claimed as one binds to.
+    private var importedSlotNames: [UInt64: String] = [:]
+    /// The string literal at each address a scan recording strings met, or
+    /// `nil` when it holds none.
+    private var stringLiterals: [UInt64: StringLiteralReference?] = [:]
+    /// A slot's claim when it binds to a symbol no image the analyzer covers
+    /// defines.
+    private static let importedSymbolClaim: Int8 = -2
+    /// Whether the string literals code takes the address of are recorded.
+    package let recordsStringReferences: Bool
+    /// Whether loads from reference slots and built addresses are looked at
+    /// for the core's own references — strings, imported symbols — even when
+    /// no session looks at them.
+    private let looksForDataReferences: Bool
     /// The image's GOT and the sessions' reference slot ranges.
     private let referenceSlotRanges: [Range<UInt64>]
     /// The ranges sessions watch loads from, and the session watching each.
@@ -63,6 +77,8 @@ package struct ReferenceScanner {
     /// counting.
     private struct CallPlan {
         let target: ResolvedCallTarget
+        /// How a call reaches the target.
+        let route: CodeReferenceRoute
         /// By session; 0 for none.
         var roles = SIMD4<UInt32>(repeating: 0)
         /// The sessions, by bit, whose role may stand in for the call, and
@@ -88,7 +104,9 @@ package struct ReferenceScanner {
         table: ImageFunctionTable,
         sessions: [any CodeReferenceRecognitionSession],
         recording: any CodeReferenceRecording,
-        followsBranches: Bool = true
+        followsBranches: Bool = true,
+        recordsStringReferences: Bool = false,
+        recordsImportedSymbolReferences: Bool = false
     ) {
         precondition(sessions.count <= Self.maximumSessionCount, "a plan holds at most \(Self.maximumSessionCount) sessions' roles")
         self.images = images
@@ -101,7 +119,9 @@ package struct ReferenceScanner {
         self.watchedSlotRanges = sessions.enumerated().flatMap { sessionIndex, session in
             session.watchedSlotRanges.map { (range: $0, sessionIndex: sessionIndex) }
         }
-        self.looksForAddressReferences = sessions.contains { $0.looksForAddressReferences }
+        self.recordsStringReferences = recordsStringReferences
+        self.looksForDataReferences = recordsStringReferences || recordsImportedSymbolReferences
+        self.looksForAddressReferences = sessions.contains { $0.looksForAddressReferences } || looksForDataReferences
     }
 
     // MARK: - Scanning
@@ -135,12 +155,12 @@ package struct ReferenceScanner {
             previousInstructionTransfers = false
 
             if let target = ARM64InstructionWord.callTarget(word, at: instructionAddress) {
-                let keptRegisters = noteCall(to: target, at: ScanSite(function: function, instructionAddress: instructionAddress, kind: .call))
+                let keptRegisters = noteCall(to: target, at: ScanSite(function: function, instructionAddress: instructionAddress, kind: .call, route: .direct))
                 registers.clobberCallerSavedRegisters(keepingMask: keptRegisters)
             } else if let target = ARM64InstructionWord.branchTarget(word, at: instructionAddress) {
                 previousInstructionTransfers = true
                 if target < start || target >= end {
-                    _ = noteCall(to: target, at: ScanSite(function: function, instructionAddress: instructionAddress, kind: .tailCall))
+                    _ = noteCall(to: target, at: ScanSite(function: function, instructionAddress: instructionAddress, kind: .tailCall, route: .direct))
                 } else if target > instructionAddress {
                     carry(to: target)
                 }
@@ -149,42 +169,55 @@ package struct ReferenceScanner {
                 // `adr` builds the whole address an `adrp` / `add` pair builds
                 // — what ld64 makes of such a pair within a megabyte.
                 if !materialization.isPageAddress, looksForAddressReferences, let address = registers.builtAddress(of: materialization.destination) {
-                    noteAddress(address, at: ScanSite(function: function, instructionAddress: instructionAddress, kind: .reference))
+                    noteAddress(address, at: ScanSite(function: function, instructionAddress: instructionAddress, kind: .reference, route: .addressMaterialization), mayNameAString: true)
                 }
             } else if let arithmetic = ARM64InstructionWord.addImmediate(word) {
                 registers.add(arithmetic.addend, to: arithmetic.source, into: arithmetic.destination)
                 if looksForAddressReferences, let address = registers.builtAddress(of: arithmetic.destination) {
-                    noteAddress(address, at: ScanSite(function: function, instructionAddress: instructionAddress, kind: .reference))
+                    // An address built by subtracting names no string: Swift
+                    // keeps a large string literal as its address less 32,
+                    // and the `add` before has named the string already.
+                    noteAddress(address, at: ScanSite(function: function, instructionAddress: instructionAddress, kind: .reference, route: .addressMaterialization), mayNameAString: arithmetic.addend >= 0)
                 }
             } else if let load = ARM64InstructionWord.load(word) {
                 let slot = registers.builtAddress(of: load.base).map { ARM64InstructionWord.adding(load.displacement, to: $0) }
                 registers.load(into: load.destination, base: load.base, displacement: load.displacement, writesBack: load.writesBack)
-                if let slot { noteLoad(fromSlot: slot, into: load.destination, at: ScanSite(function: function, instructionAddress: instructionAddress, kind: .reference)) }
+                if let slot { noteLoad(fromSlot: slot, into: load.destination, at: ScanSite(function: function, instructionAddress: instructionAddress, kind: .reference, route: .pointerSlot)) }
+            } else if let wordLoad = ARM64InstructionWord.wordLoad(word) {
+                // A 32-bit value read through a slot address: an instance
+                // variable's offset, which the session watching the slot
+                // names. No pointer, so no reference of the core's own.
+                let slot = registers.builtAddress(of: wordLoad.base).map { ARM64InstructionWord.adding(wordLoad.displacement, to: $0) }
+                registers.forgetRegistersWritten(by: word)
+                if let slot { noteWatchedLoad(fromSlot: slot, at: ScanSite(function: function, instructionAddress: instructionAddress, kind: .reference, route: .pointerSlot)) }
+            } else if let wordLiteral = ARM64InstructionWord.wordLoadLiteral(word, at: instructionAddress) {
+                registers.forgetRegistersWritten(by: word)
+                noteWatchedLoad(fromSlot: wordLiteral.slotAddress, at: ScanSite(function: function, instructionAddress: instructionAddress, kind: .reference, route: .literalLoad))
             } else if let literal = ARM64InstructionWord.loadLiteral(word, at: instructionAddress) {
                 // What ld64 makes of an `adrp` / `ldr` pair whose slot lies
                 // within a megabyte: the selector reference a send passes in
                 // `x1`, a class reference, a GOT slot.
                 registers.load(into: literal.destination, fromSlotAt: literal.slotAddress)
-                noteLoad(fromSlot: literal.slotAddress, into: literal.destination, at: ScanSite(function: function, instructionAddress: instructionAddress, kind: .reference))
+                noteLoad(fromSlot: literal.slotAddress, into: literal.destination, at: ScanSite(function: function, instructionAddress: instructionAddress, kind: .reference, route: .literalLoad))
             } else if let move = ARM64InstructionWord.moveRegister(word) {
                 registers.copy(move.source, to: move.destination)
             } else if let wide = ARM64InstructionWord.moveWide(word) {
                 registers.moveWide(into: wide.destination, immediate: wide.immediate, shift: wide.shift, keepsOtherBits: wide.keepsOtherBits)
             } else if let branch = ARM64InstructionWord.registerBranch(word) {
                 if branch.isCall {
-                    recordIndirectCall(through: branch, at: ScanSite(function: function, instructionAddress: instructionAddress, kind: .call))
+                    recordIndirectCall(through: branch, at: ScanSite(function: function, instructionAddress: instructionAddress, kind: .call, route: .indirect))
                     registers.clobberCallerSavedRegisters()
                 } else {
                     previousInstructionTransfers = true
                     // A computed `br` is a jump table; a pointer loaded from
                     // memory, or an authenticated one, is a tail call.
                     if branch.isAuthenticated || registers.wasLoadedFromMemory(branch.target) {
-                        recordIndirectCall(through: branch, at: ScanSite(function: function, instructionAddress: instructionAddress, kind: .tailCall))
+                        recordIndirectCall(through: branch, at: ScanSite(function: function, instructionAddress: instructionAddress, kind: .tailCall, route: .indirect))
                     }
                 }
             } else if let target = ARM64InstructionWord.conditionalBranchTarget(word, at: instructionAddress) {
                 if target < start || target >= end {
-                    _ = noteCall(to: target, at: ScanSite(function: function, instructionAddress: instructionAddress, kind: .tailCall))
+                    _ = noteCall(to: target, at: ScanSite(function: function, instructionAddress: instructionAddress, kind: .tailCall, route: .direct))
                 } else if target > instructionAddress {
                     carry(to: target)
                 }
@@ -200,8 +233,9 @@ package struct ReferenceScanner {
     /// session records in its place — or the plain call — then what the
     /// sessions record besides. Returns the caller-saved registers that keep
     /// their contents across it, by bit.
-    private mutating func noteCall(to target: UInt64, at site: ScanSite) -> UInt32 {
+    private mutating func noteCall(to target: UInt64, at unroutedSite: ScanSite) -> UInt32 {
         let plan = plan(for: target)
+        let site = unroutedSite.reached(by: plan.route)
         var stoodIn = false
         var remaining = plan.standInSessions
         while remaining != 0 {
@@ -233,11 +267,20 @@ package struct ReferenceScanner {
     private mutating func noteLoad(fromSlot slot: UInt64, into destination: Int, at site: ScanSite) {
         guard destination != ARM64InstructionWord.zeroOrStackPointerRegister else { return }
         for watched in watchedSlotRanges where watched.range.contains(slot) {
-            sessions[watched.sessionIndex].noteWatchedSlotLoad(from: slot)
+            sessions[watched.sessionIndex].noteWatchedSlotLoad(from: slot, at: site)
             return
         }
         if looksForAddressReferences {
             noteSlotReference(fromSlot: slot, at: site)
+        }
+    }
+
+    /// A 32-bit load through the slot at the unslid `slot`: only what a
+    /// session watching it makes of it.
+    private mutating func noteWatchedLoad(fromSlot slot: UInt64, at site: ScanSite) {
+        for watched in watchedSlotRanges where watched.range.contains(slot) {
+            sessions[watched.sessionIndex].noteWatchedSlotLoad(from: slot, at: site)
+            return
         }
     }
 
@@ -321,12 +364,21 @@ package struct ReferenceScanner {
     /// addresses code builds lie in its own image outside its code and data —
     /// strings, selectors, constants — and are turned away before any
     /// session is asked.
-    private mutating func noteAddress(_ address: UInt64, at site: ScanSite) {
+    private mutating func noteAddress(_ address: UInt64, at site: ScanSite, mayNameAString: Bool) {
         let isCode = address >= table.textStart && address < table.textEnd
-        if !isCode, !table.dataSegmentRanges.contains(where: { $0.contains(address) }), table.segmentRanges.contains(where: { $0.contains(address) }) { return }
+        if !isCode, !table.dataSegmentRanges.contains(where: { $0.contains(address) }), table.segmentRanges.contains(where: { $0.contains(address) }) {
+            // The image's own read-only data: a C string literal is the one
+            // reference it may hold.
+            if recordsStringReferences, mayNameAString { noteString(at: address, at: site) }
+            return
+        }
         let runtimeAddress = table.runtimeAddress(ofUnslid: address)
         if let claim = addressClaims[address] {
-            if claim >= 0 { _ = sessions[Int(claim)].recordAddressReference(toRuntimeAddress: runtimeAddress, isCode: isCode, at: site) }
+            if claim >= 0 {
+                _ = sessions[Int(claim)].recordAddressReference(toRuntimeAddress: runtimeAddress, isCode: isCode, at: site)
+            } else if recordsStringReferences, mayNameAString {
+                noteString(at: address, at: site)
+            }
             return
         }
         var claim: Int8 = -1
@@ -337,6 +389,50 @@ package struct ReferenceScanner {
             }
         }
         addressClaims[address] = claim
+        if claim < 0, recordsStringReferences, mayNameAString { noteString(at: address, at: site) }
+    }
+
+    /// The string literal at the unslid `address`, when it lies in one of
+    /// the image's string sections: a C string's characters from there to
+    /// its end, or a constant `CFString`'s.
+    private mutating func noteString(at address: UInt64, at site: ScanSite) {
+        let literal: StringLiteralReference?
+        if let known = stringLiterals[address] {
+            literal = known
+        } else {
+            literal = stringLiteral(at: address)
+            stringLiterals[address] = literal
+        }
+        if let literal { recording.recordString(literal, at: site) }
+    }
+
+    private func stringLiteral(at address: UInt64) -> StringLiteralReference? {
+        let memory = images.memory
+        if let section = table.cStringSectionRanges.first(where: { $0.contains(address) }) {
+            let readable = Int(section.upperBound - address)
+            guard let bytes = memory.bytes(at: table.runtimeAddress(ofUnslid: address), length: readable),
+                  let terminator = bytes.firstIndex(of: 0)
+            else { return nil }
+            return .cString(String(decoding: bytes[..<terminator], as: UTF8.self))
+        }
+        // `{ isa, flags, characters, length }`, 32 bytes, each at its start.
+        guard let section = table.constantStringSectionRanges.first(where: { $0.contains(address) }),
+              (address - section.lowerBound) % 32 == 0
+        else { return nil }
+        let structure = table.runtimeAddress(ofUnslid: address)
+        guard let flags = memory.load(UInt64.self, at: structure &+ 8),
+              let characters = memory.pointer(at: structure &+ 16),
+              let length = memory.load(UInt64.self, at: structure &+ 24),
+              length < 1 << 24
+        else { return nil }
+        // `__kCFIsUnicode`: UTF-16 characters, `length` of them.
+        if flags & 0x10 != 0 {
+            guard let bytes = memory.bytes(at: characters, length: Int(length) * 2) else { return nil }
+            let codeUnits = (0 ..< Int(length)).map { bytes.loadUnaligned(fromByteOffset: $0 * 2, as: UInt16.self) }
+            return .constantString(String(decoding: codeUnits, as: UTF16.self))
+        }
+        guard let bytes = memory.bytes(at: characters, length: Int(length)) else { return nil }
+        return .constantString(String(decoding: bytes, as: UTF8.self))
     }
 
     /// A load from the slot at the unslid `slot`. Only a slot of this image's
@@ -351,6 +447,8 @@ package struct ReferenceScanner {
         if let claim = slotClaims[slot] {
             if claim >= 0, let value = slotValue(atUnslid: slot, isOwnReferenceSlot: isOwnReferenceSlot) {
                 _ = sessions[Int(claim)].recordSlotReference(holding: value, at: site)
+            } else if claim == Self.importedSymbolClaim, looksForDataReferences, let name = importedSlotNames[slot] {
+                recording.recordImportedSymbolReference(named: name, at: site)
             }
             return
         }
@@ -362,8 +460,23 @@ package struct ReferenceScanner {
                     break
                 }
             }
+        } else if let name = importedSymbolName(inSlotAt: slot, isOwnReferenceSlot: isOwnReferenceSlot) {
+            // A file analyzed without the library its slot binds to.
+            claim = Self.importedSymbolClaim
+            importedSlotNames[slot] = name
+            if looksForDataReferences { recording.recordImportedSymbolReference(named: name, at: site) }
         }
         slotClaims[slot] = claim
+    }
+
+    /// The symbol a reference slot binds to when no image the analyzer
+    /// covers defines it.
+    private func importedSymbolName(inSlotAt slot: UInt64, isOwnReferenceSlot: Bool) -> String? {
+        let runtimeSlot = table.runtimeAddress(ofUnslid: slot)
+        guard isOwnReferenceSlot || images.isSlotOutsideEveryImage(runtimeAddress: runtimeSlot), runtimeSlot != 0,
+              case .importedSymbol(let name)? = images.memory.slotContent(at: runtimeSlot)
+        else { return nil }
+        return name
     }
 
     /// What the slot at the unslid `slot` holds, when it is a reference slot:
@@ -375,6 +488,15 @@ package struct ReferenceScanner {
     }
 
     // MARK: - Resolving call targets
+
+    /// How a call reaches a target a session claimed: in the image's own
+    /// code, directly; elsewhere in the image — `__objc_stubs` — through one
+    /// of its stubs; outside every image, through a stub the cache shares.
+    private func claimedRoute(of target: UInt64) -> CodeReferenceRoute {
+        if target >= table.textStart, target < table.textEnd { return .direct }
+        if table.segmentRanges.contains(where: { $0.contains(target) }) { return .imageStub }
+        return .cacheSharedStub
+    }
 
     /// Where an unslid address in this image's address space leads, and
     /// what each session makes of it.
@@ -388,14 +510,14 @@ package struct ReferenceScanner {
     private func makePlan(for target: UInt64) -> CallPlan {
         for (sessionIndex, session) in sessions.enumerated() {
             guard let claim = session.claimCallTarget(at: target) else { continue }
-            var plan = CallPlan(target: .unrecognized)
+            var plan = CallPlan(target: .unrecognized, route: claimedRoute(of: target))
             if case .role(let role) = claim {
                 plan.add(role, ofSessionAt: sessionIndex)
             }
             return plan
         }
-        let resolved = resolver.resolve(target)
-        var plan = CallPlan(target: resolved)
+        let (resolved, route) = resolver.resolveWithRoute(target)
+        var plan = CallPlan(target: resolved, route: route)
         plan.isRuntimeHelper = resolver.isRuntimeHelper(resolved)
         for (sessionIndex, session) in sessions.enumerated() {
             guard let role = session.role(of: resolved) else { continue }
@@ -424,21 +546,28 @@ package struct CallTargetResolver {
 
     /// Where an unslid address in the table's image's address space leads.
     package func resolve(_ target: UInt64) -> ResolvedCallTarget {
+        resolveWithRoute(target).target
+    }
+
+    /// Where an unslid address in the table's image's address space leads,
+    /// and how a call gets there: through one of the image's own stubs, or
+    /// — leaving the image — through the first kind of trampoline met.
+    package func resolveWithRoute(_ target: UInt64) -> (target: ResolvedCallTarget, route: CodeReferenceRoute) {
         if let stub = table.symbolStubs[target] {
             // dyld binds every slot when it loads the image, lazy pointers
             // included (macOS 27.2, `LazyBindingTests`), so the slot is read
             // as it stands.
             if let slotAddress = stub.slotAddress,
-               let resolved = resolveSlot(atRuntimeAddress: table.runtimeAddress(ofUnslid: slotAddress), hops: 0) {
-                return resolved
+               let resolved = resolveSlot(atRuntimeAddress: table.runtimeAddress(ofUnslid: slotAddress), hops: 0, route: .imageStub) {
+                return (resolved.target, .imageStub)
             }
-            if let name = stub.name { return .importedSymbol(name) }
-            return .unrecognized
+            if let name = stub.name { return (.importedSymbol(name), .imageStub) }
+            return (.unrecognized, .imageStub)
         }
         if target >= table.textStart, target < table.textEnd {
-            return .function(CodeLocation(imageIndex: table.imageIndex, address: target))
+            return (.function(CodeLocation(imageIndex: table.imageIndex, address: target)), .direct)
         }
-        return resolve(runtimeAddress: table.runtimeAddress(ofUnslid: target), hops: 0)
+        return resolve(runtimeAddress: table.runtimeAddress(ofUnslid: target), hops: 0, route: .direct)
     }
 
     /// Whether the core counts calls to `target` as runtime helper calls: an
@@ -456,9 +585,11 @@ package struct CallTargetResolver {
         }
     }
 
-    private func resolve(runtimeAddress address: UInt, hops: Int) -> ResolvedCallTarget {
+    /// `route` is how the call got this far: `.direct` until a trampoline
+    /// is met, then the kind of the first one.
+    private func resolve(runtimeAddress address: UInt, hops: Int, route: CodeReferenceRoute) -> (target: ResolvedCallTarget, route: CodeReferenceRoute) {
         if let location = images.location(ofRuntimeAddress: address) {
-            return .function(location)
+            return (.function(location), route)
         }
         // Between images: a stub or island the cache builder put there.
         guard hops < Self.maximumTrampolineHops,
@@ -466,23 +597,26 @@ package struct CallTargetResolver {
               images.isExecutable(runtimeAddress: address, length: UInt(ARM64Trampoline.maximumInstructionCount * 4)),
               let pointer = images.memory.bytes(at: address, length: ARM64Trampoline.maximumInstructionCount * 4)?.baseAddress,
               let trampoline = ARM64Trampoline(readingAt: pointer, address: UInt64(address))
-        else { return .unrecognized }
+        else { return (.unrecognized, route) }
+        // Between images, a stub the cache shares loads or names its target;
+        // a stub island computes it.
         switch trampoline {
         case .selectorStub(let constant, _):
-            return .registerSettingTrampoline(register: 1, value: constant)
+            return (.registerSettingTrampoline(register: 1, value: constant), route == .direct ? .cacheSharedStub : route)
         case .slotLoad(let slotAddress):
-            return resolveSlot(atRuntimeAddress: UInt(slotAddress), hops: hops + 1) ?? .unrecognized
+            let throughRoute = route == .direct ? CodeReferenceRoute.cacheSharedStub : route
+            return resolveSlot(atRuntimeAddress: UInt(slotAddress), hops: hops + 1, route: throughRoute) ?? (.unrecognized, throughRoute)
         case .computed(let computedTarget):
-            return resolve(runtimeAddress: UInt(computedTarget), hops: hops + 1)
+            return resolve(runtimeAddress: UInt(computedTarget), hops: hops + 1, route: route == .direct ? .stubIsland : route)
         }
     }
 
     /// Follows the pointer a GOT slot holds — dyld or the cache builder bound
     /// it already.
-    private func resolveSlot(atRuntimeAddress slotAddress: UInt, hops: Int) -> ResolvedCallTarget? {
+    private func resolveSlot(atRuntimeAddress slotAddress: UInt, hops: Int, route: CodeReferenceRoute) -> (target: ResolvedCallTarget, route: CodeReferenceRoute)? {
         guard slotAddress != 0, images.isMapped(runtimeAddress: slotAddress, length: 8),
               let target = images.memory.pointer(at: slotAddress), target != 0
         else { return nil }
-        return resolve(runtimeAddress: target, hops: hops)
+        return resolve(runtimeAddress: target, hops: hops, route: route)
     }
 }

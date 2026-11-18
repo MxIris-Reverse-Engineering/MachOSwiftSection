@@ -48,7 +48,7 @@ struct ReferenceTableDigestTests {
         // does.
         if let dumpDirectory = ReferenceTableDigestEnvironment.dumpDirectory {
             try FileManager.default.createDirectory(at: dumpDirectory, withIntermediateDirectories: true)
-            let lines = table.references.map(Self.spelling(of:)).joined(separator: "\n")
+            let lines = table.references.filter { !Self.isAddedByStepFive($0) }.map(Self.spelling(of:)).joined(separator: "\n")
             try lines.write(to: dumpDirectory.appendingPathComponent((imageSuffix as NSString).lastPathComponent + ".references"), atomically: true, encoding: .utf8)
         }
 
@@ -70,11 +70,27 @@ struct ReferenceTableDigestTests {
     /// and moving a type between the layers is no change to a reference.
     static func digest(of table: CodeReferenceTable) -> String {
         var hasher = SHA256()
-        for reference in table.references {
+        var count = 0
+        for reference in table.references where !isAddedByStepFive(reference) {
             hasher.update(data: Data((spelling(of: reference) + "\n").utf8))
+            count += 1
         }
         let hash = hasher.finalize().map { String(format: "%02x", $0) }.joined()
-        return "\(table.references.count) \(hash)"
+        return "\(count) \(hash)"
+    }
+
+    /// A reference of a kind step 5 of the proposal added — an instance
+    /// variable, a string literal, a data reference through a slot binding
+    /// to an imported symbol — which a baseline from before has none of.
+    static func isAddedByStepFive(_ reference: CodeReference) -> Bool {
+        switch reference.target {
+        case .objectiveCInstanceVariable, .cString, .constantString:
+            return true
+        case .importedSymbol:
+            return reference.kind == .reference
+        default:
+            return false
+        }
     }
 
     /// A reference as `String(describing:)` spells it, with what moving a
@@ -84,10 +100,13 @@ struct ReferenceTableDigestTests {
     /// `CodeReferenceKind`.
     static func spelling(of reference: CodeReference) -> String {
         let description = String(describing: reference).replacingOccurrences(of: "CodeReference.Kind.", with: "CodeReferenceKind.")
-        return moduleQualifier.stringByReplacingMatches(in: description, range: NSRange(location: 0, length: description.utf16.count), withTemplate: "")
+        let unqualified = moduleQualifier.stringByReplacingMatches(in: description, range: NSRange(location: 0, length: description.utf16.count), withTemplate: "")
+        // The route came with step 5; a baseline from before has none.
+        return routeField.stringByReplacingMatches(in: unqualified, range: NSRange(location: 0, length: unqualified.utf16.count), withTemplate: "")
     }
 
     private static let moduleQualifier = try! NSRegularExpression(pattern: #"\b(CrossReferenceCore|CrossReferenceObjC|CrossReferenceAnalysis)\."#)
+    private static let routeField = try! NSRegularExpression(pattern: #", route: CodeReferenceRoute\.[A-Za-z]+"#)
 }
 
 /// Where the digests go, and where the baseline's are: outside the suite's

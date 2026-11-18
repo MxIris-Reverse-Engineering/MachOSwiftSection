@@ -10,10 +10,12 @@ struct PublicNameTests {
     @Test func publicNamesStillResolveThroughCrossReferenceAnalysis() {
         let location = CodeLocation(imageIndex: 1, address: 0x1000)
         let kind: CodeReference.Kind = .call
+        let route: CodeReference.Route = .imageStub
         let receiver: ReceiverClassHint = .methodReceiver
         let evidence = IndirectCallEvidence(table: .none, tableOffset: 8, pointerAuthenticationConstant: nil, isAddressBlended: false)
-        let reference = CodeReference(function: location, instructionAddress: 0x1004, kind: kind, target: .messageSend(selector: "init", receiver: receiver), isRuntimeHelperCall: false)
+        let reference = CodeReference(function: location, instructionAddress: 0x1004, kind: kind, target: .messageSend(selector: "init", receiver: receiver), route: route, isRuntimeHelperCall: false)
         #expect(reference.kind == .call)
+        #expect(reference.route == .imageStub)
         #expect(reference.target.tableKey == .selector("init"))
         #expect(CodeReferenceTarget.indirect(evidence).tableKey == nil)
     }

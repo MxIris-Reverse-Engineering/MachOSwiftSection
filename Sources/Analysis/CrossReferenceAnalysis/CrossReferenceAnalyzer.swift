@@ -38,6 +38,14 @@ public final class CrossReferenceAnalyzer: @unchecked Sendable {
 
     /// How many images the analyzer covers, in either kind.
     public var imageCount: Int { imageSet.images.count }
+
+    /// Whether a whole-image scan records the string literals code takes
+    /// the address of (``CodeReferenceTarget/cString(_:)``,
+    /// ``CodeReferenceTarget/constantString(_:)``). Off unless asked for when
+    /// the analyzer is made: they are many, and a host keeping indexes for
+    /// every image needs none. A query for a string key looks for strings
+    /// either way.
+    public let recordsStringReferences: Bool
     /// Each image's path, by position in ``images``: where dyld loaded it —
     /// for a shared cache image, its install name.
     ///
@@ -65,9 +73,9 @@ public final class CrossReferenceAnalyzer: @unchecked Sendable {
     /// them, and addresses in and out are the cache's own, unslid ones.
     ///
     /// - Throws: ``FileAnalysisError`` when the cache is not an arm64 one.
-    public convenience init(dyldCache: FullDyldCache) throws {
+    public convenience init(dyldCache: FullDyldCache, recordingStringReferences: Bool = false) throws {
         guard dyldCache.cpu.type == .arm64 else { throw FileAnalysisError(code: .unsupportedArchitecture, path: dyldCache.url.path) }
-        self.init(parts: Self.makeParts { CodeImageSet.dyldCache(dyldCache, rules: $0, visitingRuntimeLibrarySymbols: $1) }!)
+        self.init(parts: Self.makeParts { CodeImageSet.dyldCache(dyldCache, rules: $0, visitingRuntimeLibrarySymbols: $1) }!, recordsStringReferences: recordingStringReferences)
     }
 
     /// Analyzes standalone Mach-O files, such as an app's executable and its
@@ -78,11 +86,11 @@ public final class CrossReferenceAnalyzer: @unchecked Sendable {
     /// for a self-bind — leads to it.
     ///
     /// - Throws: ``FileAnalysisError`` when a file is not an arm64 slice.
-    public convenience init(machOFiles: [MachOFile]) throws {
+    public convenience init(machOFiles: [MachOFile], recordingStringReferences: Bool = false) throws {
         if let file = machOFiles.first(where: { $0.header.cpuType != .arm64 }) {
             throw FileAnalysisError(code: .unsupportedArchitecture, path: file.url.path)
         }
-        self.init(parts: Self.makeParts { CodeImageSet.files(machOFiles, rules: $0, visitingRuntimeLibrarySymbols: $1) }!)
+        self.init(parts: Self.makeParts { CodeImageSet.files(machOFiles, rules: $0, visitingRuntimeLibrarySymbols: $1) }!, recordsStringReferences: recordingStringReferences)
     }
 
     /// What a set of images is analyzed with: the set, and the runtime's
@@ -103,7 +111,8 @@ public final class CrossReferenceAnalyzer: @unchecked Sendable {
         return (imageSet, objectiveCFunctions, swiftFunctions)
     }
 
-    private init(parts: Parts) {
+    private init(parts: Parts, recordsStringReferences: Bool = false) {
+        self.recordsStringReferences = recordsStringReferences
         self.imageSet = parts.imageSet
         self.images = parts.imageSet.images.compactMap { $0.reader.asMachOImage }
         self.objectiveC = ObjCCodeReferenceRecognizer(images: parts.imageSet, runtimeFunctions: parts.objectiveCFunctions)
@@ -375,7 +384,15 @@ public final class CrossReferenceAnalyzer: @unchecked Sendable {
             objectiveC.makeSession(table: table, recording: collector, findsClassReferences: collector.findsTypeReferences),
             swift.makeSession(table: table, recording: collector, findsTypeReferences: collector.findsTypeReferences),
         ]
-        var scanner = ReferenceScanner(images: imageSet, table: table, sessions: sessions, recording: collector, followsBranches: followsBranches)
+        var scanner = ReferenceScanner(
+            images: imageSet,
+            table: table,
+            sessions: sessions,
+            recording: collector,
+            followsBranches: followsBranches,
+            recordsStringReferences: collector.findsStrings(whenWholeImage: recordsStringReferences),
+            recordsImportedSymbolReferences: collector.findsImportedSymbolReferences
+        )
         body(&scanner, collector)
         return collector.references
     }
@@ -472,11 +489,30 @@ final class ReferenceCollector: ObjCCodeReferenceRecording, SwiftCodeReferenceRe
         self.findsTypeReferences = swiftTypeQuery != nil || keptKeys.map { keys in
             keys.contains { key in
                 switch key {
-                case .objectiveCClass, .swiftTypeDescriptor: return true
-                case .function, .selector, .importedSymbol: return false
+                case .objectiveCClass, .swiftTypeDescriptor, .instanceVariable: return true
+                case .function, .selector, .importedSymbol, .cString, .constantString: return false
                 }
             }
         } ?? true
+        self.findsImportedSymbolReferences = keptKeys.map { keys in
+            keys.contains { if case .importedSymbol = $0 { true } else { false } }
+        } ?? true
+    }
+
+    /// Whether loads from slots that bind to another image's symbol are
+    /// recorded: for a whole image, or for a query for an imported name.
+    let findsImportedSymbolReferences: Bool
+
+    /// Whether the scan looks for string literals: for a whole image as the
+    /// analyzer was made to, and for any query for a string key.
+    func findsStrings(whenWholeImage wholeImageRecordsStrings: Bool) -> Bool {
+        guard let keptKeys, swiftTypeQuery == nil else { return keptKeys == nil && wholeImageRecordsStrings }
+        return keptKeys.contains { key in
+            switch key {
+            case .cString, .constantString: true
+            default: false
+            }
+        }
     }
 
     private func keep(_ target: CodeReferenceTarget, at site: ScanSite, isRuntimeHelperCall: Bool = false) {
@@ -484,7 +520,7 @@ final class ReferenceCollector: ObjCCodeReferenceRecording, SwiftCodeReferenceRe
             let isFiled = target.tableKey.map(keptKeys.contains) ?? false
             guard isFiled || swiftTypeQuery?.matches(target) == true else { return }
         }
-        references.append(CodeReference(function: site.function, instructionAddress: site.instructionAddress, kind: site.kind, target: target, isRuntimeHelperCall: isRuntimeHelperCall))
+        references.append(CodeReference(function: site.function, instructionAddress: site.instructionAddress, kind: site.kind, target: target, route: site.route, isRuntimeHelperCall: isRuntimeHelperCall))
     }
 
     func recordCall(to target: ResolvedCallTarget, targetAddress: UInt64, at site: ScanSite, isRuntimeHelperCall: Bool) {
@@ -512,6 +548,23 @@ final class ReferenceCollector: ObjCCodeReferenceRecording, SwiftCodeReferenceRe
 
     func recordClassReference(_ classObject: ObjectiveCClassObject, at site: ScanSite) {
         keep(.objectiveCClass(name: classObject.name, location: classObject.location), at: site)
+    }
+
+    func recordInstanceVariableReference(className: String, name: String, at site: ScanSite) {
+        keep(.objectiveCInstanceVariable(className: className, name: name), at: site)
+    }
+
+    func recordString(_ string: StringLiteralReference, at site: ScanSite) {
+        switch string {
+        case .cString(let characters):
+            keep(.cString(characters), at: site)
+        case .constantString(let characters):
+            keep(.constantString(characters), at: site)
+        }
+    }
+
+    func recordImportedSymbolReference(named name: String, at site: ScanSite) {
+        keep(.importedSymbol(name: name), at: site)
     }
 
     func recordSwiftType(descriptor: CodeLocation, at site: ScanSite) {

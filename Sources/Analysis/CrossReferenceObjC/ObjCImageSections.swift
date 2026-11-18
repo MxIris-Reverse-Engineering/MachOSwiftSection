@@ -20,6 +20,9 @@ package final class ObjCImageSections: ImageFunctionTableAttachment, @unchecked 
     /// `__objc_superrefs`: the class a super send in one of its methods starts
     /// above.
     package let superclassReferenceRange: Range<UInt64>?
+    /// `__objc_ivar`: the offset variables of its classes' instance
+    /// variables.
+    package let instanceVariableOffsetRange: Range<UInt64>?
 
     package static func of(_ table: ImageFunctionTable) -> ObjCImageSections {
         table.attachment(ObjCImageSections.self) { ObjCImageSections(table: table) }
@@ -31,6 +34,7 @@ package final class ObjCImageSections: ImageFunctionTableAttachment, @unchecked 
         var selectorReferenceRange: Range<UInt64>?
         var classReferenceRanges: [Range<UInt64>] = []
         var superclassReferenceRange: Range<UInt64>?
+        var instanceVariableOffsetRange: Range<UInt64>?
         let image = table.image.reader
         for section in table.sections {
             let sectionStart = UInt64(section.address)
@@ -60,6 +64,8 @@ package final class ObjCImageSections: ImageFunctionTableAttachment, @unchecked 
                 superclassReferenceRange = sectionRange
             case "__objc_classrefs":
                 classReferenceRanges.append(sectionRange)
+            case "__objc_ivar":
+                instanceVariableOffsetRange = sectionRange
             default:
                 break
             }
@@ -69,6 +75,7 @@ package final class ObjCImageSections: ImageFunctionTableAttachment, @unchecked 
         self.selectorReferenceRange = selectorReferenceRange
         self.classReferenceRanges = classReferenceRanges
         self.superclassReferenceRange = superclassReferenceRange
+        self.instanceVariableOffsetRange = instanceVariableOffsetRange
     }
 
     package var approximateByteCount: Int {

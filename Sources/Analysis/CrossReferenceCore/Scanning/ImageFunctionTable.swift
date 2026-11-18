@@ -47,6 +47,11 @@ package final class ImageFunctionTable: @unchecked Sendable {
     /// anything another image defines. Other slots that point at a class — a
     /// constant string's `isa` — are no reference to it.
     package let globalOffsetTableRanges: [Range<UInt64>]
+    /// The sections of C string literals — `__cstring`, `__objc_methname`,
+    /// `__oslogstring` and the like — and `__cfstring`, where constant
+    /// `CFString`s lie: where a scan recording string references looks.
+    package let cStringSectionRanges: [Range<UInt64>]
+    package let constantStringSectionRanges: [Range<UInt64>]
     /// The image's segments other than `__TEXT` and `__LINKEDIT`, unslid: where
     /// its own class objects lie.
     package let dataSegmentRanges: [Range<UInt64>]
@@ -83,6 +88,8 @@ package final class ImageFunctionTable: @unchecked Sendable {
         var symbolStubRanges: [Range<UInt64>] = []
         var symbolStubs: [UInt64: SymbolStub] = [:]
         var globalOffsetTableRanges: [Range<UInt64>] = []
+        var cStringSectionRanges: [Range<UInt64>] = []
+        var constantStringSectionRanges: [Range<UInt64>] = []
 
         var ordinal = 0
         var sections: [Section64] = []
@@ -127,6 +134,10 @@ package final class ImageFunctionTable: @unchecked Sendable {
                 }
             } else if !sectionRange.isEmpty, sectionName == "__got" || sectionName == "__auth_got" {
                 globalOffsetTableRanges.append(sectionRange)
+            } else if !sectionRange.isEmpty, section.flags.type == .cstring_literals {
+                cStringSectionRanges.append(sectionRange)
+            } else if !sectionRange.isEmpty, sectionName == "__cfstring" {
+                constantStringSectionRanges.append(sectionRange)
             }
         }
         self.textStart = textStart
@@ -137,6 +148,8 @@ package final class ImageFunctionTable: @unchecked Sendable {
         self.symbolStubRanges = symbolStubRanges
         self.symbolStubs = symbolStubs
         self.globalOffsetTableRanges = globalOffsetTableRanges
+        self.cStringSectionRanges = cStringSectionRanges
+        self.constantStringSectionRanges = constantStringSectionRanges
         self.sections = sections
         var dataSegmentRanges: [Range<UInt64>] = []
         var segmentRanges: [Range<UInt64>] = []

@@ -177,7 +177,10 @@ struct FileModeTests {
                   let branchTarget = ARM64InstructionWord.callTarget(word, at: reference.instructionAddress) ?? ARM64InstructionWord.branchTarget(word, at: reference.instructionAddress)
             else { continue }
             // The `bl` lands between the images: on an island.
-            if analyzer.imageSet.imageIndex(containingRuntimeAddress: UInt(branchTarget)) == nil { sendsThroughIslands += 1 }
+            if analyzer.imageSet.imageIndex(containingRuntimeAddress: UInt(branchTarget)) == nil {
+                sendsThroughIslands += 1
+                #expect(reference.route == .stubIsland, "\(String(reference.instructionAddress, radix: 16)): \(reference.route)")
+            }
         }
         #expect(sendsThroughIslands > 100, "only \(sendsThroughIslands) sends of SwiftUI go through stub islands")
     }

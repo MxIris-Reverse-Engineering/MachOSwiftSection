@@ -61,6 +61,38 @@ struct ARM64InstructionWordTests {
         #expect(negative.displacement == -0x20)
     }
 
+    /// How code reads an Objective-C instance variable's offset variable:
+    /// `adrp` / `ldrsw`, or the literal `ldrsw` ld64 makes of a pair within a
+    /// megabyte. A 64-bit load is none of them, and none of them a 64-bit
+    /// load.
+    @Test func decoderDecodesThirtyTwoBitLoadAndLoadSignedWord() throws {
+        let word = try #require(ARM64InstructionWord.wordLoad(InstructionEncoding.loadWordUnsignedOffset(3, base: 8, byteOffset: 0x1F4)))
+        #expect(word.destination == 3 && word.base == 8 && word.displacement == 0x1F4)
+        let signedWord = try #require(ARM64InstructionWord.wordLoad(InstructionEncoding.loadSignedWordUnsignedOffset(8, base: 8, byteOffset: 0x3FFC)))
+        #expect(signedWord.destination == 8 && signedWord.base == 8 && signedWord.displacement == 0x3FFC)
+        #expect(ARM64InstructionWord.wordLoad(InstructionEncoding.loadUnsignedOffset(8, base: 8, byteOffset: 0x10)) == nil)
+        #expect(ARM64InstructionWord.load(InstructionEncoding.loadSignedWordUnsignedOffset(8, base: 8, byteOffset: 0x10)) == nil)
+
+        let slot = address + 0x2_0004
+        let literal = try #require(ARM64InstructionWord.wordLoadLiteral(InstructionEncoding.loadSignedWordLiteral(9, at: address, slot: slot), at: address))
+        #expect(literal.destination == 9 && literal.slotAddress == slot)
+        // A 64-bit literal load is the other reader's.
+        #expect(ARM64InstructionWord.wordLoadLiteral(InstructionEncoding.loadLiteral(9, at: address, slot: slot), at: address) == nil)
+        #expect(ARM64InstructionWord.loadLiteral(InstructionEncoding.loadSignedWordLiteral(9, at: address, slot: slot), at: address) == nil)
+
+        let instructions = try Disassembler<AArch64>().decode(
+            InstructionEncoding.bytes(of: [
+                InstructionEncoding.loadWordUnsignedOffset(3, base: 8, byteOffset: 0x1F4),
+                InstructionEncoding.loadSignedWordUnsignedOffset(8, base: 8, byteOffset: 0x3FFC),
+                InstructionEncoding.loadSignedWordLiteral(9, at: address + 8, slot: address + 8 + 0x2_0004),
+            ]),
+            address: address
+        )
+        #expect(instructions.map(\.mnemonic) == ["ldr", "ldrsw", "ldrsw"])
+        #expect(instructions[0].operands[1].memory?.displacement == 0x1F4)
+        #expect(instructions[1].operands[1].memory?.displacement == 0x3FFC)
+    }
+
     @Test func registerBranchesAndConstants() throws {
         let tailCall = try #require(ARM64InstructionWord.registerBranch(InstructionEncoding.branchToRegisterAuthenticated(16, modifier: 17)))
         #expect(tailCall == .init(target: 16, modifier: 17, isCall: false, isAuthenticated: true))

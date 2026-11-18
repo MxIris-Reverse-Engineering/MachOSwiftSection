@@ -67,6 +67,18 @@ enum CompiledFixture {
         return (directory, library)
     }
 
+    /// Compiles one Swift source into the arm64 library `libraryName`,
+    /// optimized, and leaves it on disk. The caller removes `directory`.
+    static func buildSwift(libraryName: String, source: String) throws -> (directory: URL, library: URL) {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("CrossReferenceAnalysisTests-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let sourceURL = directory.appendingPathComponent("Fixture.swift")
+        try source.write(to: sourceURL, atomically: true, encoding: .utf8)
+        let library = directory.appendingPathComponent(libraryName)
+        try run("/usr/bin/xcrun", arguments: ["swiftc", "-O", "-emit-library", "-target", "arm64-apple-macos14", "-module-name", "Fixture", "-o", library.path, sourceURL.path])
+        return (directory, library)
+    }
+
     private static func run(_ executablePath: String, arguments: [String]) throws {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: executablePath)

@@ -28,6 +28,15 @@
 - **读取层是值，不持有存储**：经 `any CrossReferenceMemory` 的每次读都复制一次读取层，类或持有引用的值每次复制都要计一次数——第一版这样写，整 cache 建表比进程内慢 6 倍以上。现在它以 `unowned(unsafe)` 引用存储，存储由镜像集持有，读取层只在镜像集活着时有效。
 - **只给一个 app 时的缺口**：经 GOT 槽读别的镜像的类、ivar 或数据，槽里是 bind，眼下不记任何引用（进程内会记成类引用），补在第 5 步；调用照常记成导入符号，`_objc_msgSend` / `_objc_msgSendSuper2` 按名字认成发送。一个 app 连同系统 cache 一起分析还不支持。
 
+## 引用种类与路线
+
+提案 [draft-offline-cross-references-and-symbolication](../../Evolutions/draft-offline-cross-references-and-symbolication.md) 第 5 步加了三种目标、对导入符号的数据引用，以及每条引用的「路线」。
+
+- **ivar**：`.objectiveCInstanceVariable(className:name:)`。代码经 `adrp; ldrsw`（或 ld64 改写出的字面量 `ldrsw`、Swift 的 64 位 `ldr`）读 `__objc_ivar` 里的偏移变量；ObjC 会话把这个节作为「观察的槽」，核心在 32 位与 64 位载入时都问它。名字先取 `_OBJC_IVAR_$_<类>.<变量>` 符号，没有符号再从类的 ivar 列表反查（列表项的第一个字段指向偏移变量，第二个是名字），在 ObjC 层的附件 `ObjCInstanceVariableNames` 里，第一次碰到时读。父类是 `NSObject` 的类，clang 直接用常量偏移，不经偏移变量；Swift 类经 ObjC ivar 列表登记的偏移变量是 `__data` 里的 Swift 字段偏移全局量，不在 `__objc_ivar`，眼下不收。
+- **字符串**：`.cString(String)`（`adrp; add` 或 `adr` 落进 C 字符串节——`__cstring`、`__objc_methname`、`__oslogstring` 等 `S_CSTRING_LITERALS` 节）与 `.constantString(String)`（落进 `__cfstring`，按 `{ isa, flags, characters, length }` 读，`flags & 0x10` 是 UTF-16）。核心层认，默认不记：分析器用 `recordingStringReferences: true` 打开（`recordsStringReferences`），查询里含 `.cString` / `.constantString` 键时那次扫描也会找。减法算出的地址从不当作字符串：Swift 的大字符串字面量是 `adrp; add; sub #0x20`，`add` 已经指到字符串起点，`sub` 之后的地址会落进前一个字符串中间。
+- **对导入符号的数据引用**：从引用槽（GOT 等）读到一个 bind，而它绑到的符号不在分析器覆盖的镜像里——只给一个 app 时读 `_OBJC_CLASS_$_CALayer`、ivar、全局量都是这样——记成 `.importedSymbol(name:)`、`kind == .reference`。进程内槽里都是地址，不会出现。查一个类的全部引用时，调用方还要查 `_OBJC_CLASS_$_<类>` 这个导入名。
+- **路线**：`CodeReference.route`（`CodeReferenceRoute`，核心层定义）说明这条引用是怎么到达目标的，不说明目标是什么。`direct`（`bl` / `b` 直达）、`imageStub`（本镜像的 `__stubs`、`__auth_stubs`、`__objc_stubs`）、`stubIsland`（cache 镜像之间的 stub island，可多跳）、`cacheSharedStub`（macOS / iOS 27 整个 cache 共用的 selector 桩与 GOT 桩）、`pointerSlot`（经指针槽载入：GOT、ObjC 引用节、ivar 偏移变量）、`addressMaterialization`（`adrp; add` 或 `adr` 算地址）、`literalLoad`（字面量 `ldr`）、`indirect`（经寄存器的调用与跳转，认证与否看证据）。调用的路线由 `CallTargetResolver.resolveWithRoute(_:)` 给出，经多跳时取第一种跳板；会话认领的目标按地址落在哪定（本镜像代码直达、本镜像其他节经本镜像桩、镜像之外经 cache 共用桩）。常驻索引把路线存在每条记录 `flags` 的第 5–7 位。
+
 ## 子系统
 
 | 子系统 | 文件 | 分工 |
@@ -264,3 +273,4 @@ Swift 符号改按链接关系预筛（`imageIndices(linkingImageAt:among:)`，`
 - 两个按环境变量启用的 A/B 套件，库里没有可存的基线：`ReferenceTableDigestTests`（AppKit、SwiftUICore、Foundation 的整表摘要，在基线检出上生成、在候选上比对，也能整表导出逐行比较）与 `ScanThroughputBenchmarkTests`（上面「读取层与拆层的代价」那张表，release 下跑）。用法写在各自的文档注释里。
 - `FileModeTests`（文件模式，提案第 4 步）：运行中的 cache 从文件读与进程内读，AppKit、SwiftUICore、Foundation 的整张引用表逐行一致，函数名、ObjC 方法表与 Swift 元数据给的名字、selector 预筛也一致；cache 的每个指针槽（v5 与没有 slide info 的模拟器 cache）解出的与 MachOKit 一致；归档 27.0、27.2 里 `UINSPasteboardWritingItemProvider` 的两个经 GOT 的调用者；iOS 26.3.1 设备 cache 里经 stub island 的发送；现编的独立文件——`-interposable` 的 dylib（self-bind 落到自己的函数、`puts` 是导入名）、Objective-C 可执行文件（`__TEXT` 在 0x100000000 时 rebase 与 objc 桩都解对）、C++ 的 `retab` 之后的异常清理代码。归档卷不在时相应用例跳过。
 - `StandaloneFileReferenceDumpTests`：按环境变量启用，把一个独立文件（universal 取 arm64e 切片）的全部引用按函数导出成文本，供与反汇编器对照。第 4 步拿它与 IDA 抽样核对过 ControlCenter 26.7。
+- `ReferenceKindAndRouteTests`（第 5 步）：现编的 ObjC 库里，读 ivar 的两个方法各有一条 ivar 引用（带符号与剥了符号两种）；字符串只在打开时或查字符串键时记；8 位与 UTF-16 的 `CFString` 常量带字符；Swift 大字符串只在 `add` 处记一条；调用、经本镜像桩的调用与发送、字符串的路线；常驻索引与整表对新种类与路线一致；运行中的 cache 里 AppKit 的路线覆盖直达、经槽、算地址、间接与桩；cache 里有一个恰好页对齐的类对象由 `adrp; add #0` 引用。`ARM64InstructionWordTests.decoderDecodesThirtyTwoBitLoadAndLoadSignedWord` 核对 32 位载入的解码，Capstone 对拍。

@@ -10,6 +10,8 @@ package protocol ObjCCodeReferenceRecording: CodeReferenceRecording {
     /// time.
     func recordSuperMessageSend(selector: String, className: String?, at site: ScanSite)
     func recordClassReference(_ classObject: ObjectiveCClassObject, at site: ScanSite)
+    /// A load of an instance variable's offset variable.
+    func recordInstanceVariableReference(className: String, name: String, at site: ScanSite)
 }
 
 /// What a runtime function returns of the class it is handed in `x0`.
@@ -205,7 +207,7 @@ package final class ObjCCodeReferenceRecognitionSession: CodeReferenceRecognitio
     package var referenceSlotRanges: [Range<UInt64>] { sections.classReferenceRanges }
 
     package var watchedSlotRanges: [Range<UInt64>] {
-        sections.superclassReferenceRange.map { [$0] } ?? []
+        [sections.superclassReferenceRange, findsClassReferences ? sections.instanceVariableOffsetRange : nil].compactMap(\.self)
     }
 
     package var looksForAddressReferences: Bool { findsClassReferences }
@@ -312,7 +314,13 @@ package final class ObjCCodeReferenceRecognitionSession: CodeReferenceRecognitio
         return true
     }
 
-    package func noteWatchedSlotLoad(from slot: UInt64) {
+    package func noteWatchedSlotLoad(from slot: UInt64, at site: ScanSite) {
+        if let instanceVariables = sections.instanceVariableOffsetRange, instanceVariables.contains(slot) {
+            if let variable = ObjCInstanceVariableNames.of(table).instanceVariablesBySlot[slot] {
+                recording.recordInstanceVariableReference(className: variable.className, name: variable.name, at: site)
+            }
+            return
+        }
         let runtimeSlot = table.runtimeAddress(ofUnslid: slot)
         guard runtimeSlot != 0, let classAddress = images.memory.pointer(at: runtimeSlot) else {
             superclassReferenceClassName = nil
