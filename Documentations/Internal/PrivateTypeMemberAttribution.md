@@ -4,7 +4,7 @@
 
 ## 不变量：成员索引的字符串 key 会把同名私有类型折叠成一个桶
 
-`SymbolIndexStore` 的成员类索引统一是三层结构：
+`SwiftSymbolIndexStore` 的成员类索引统一是三层结构：
 
 ```
 memberSymbolRowsByKind[MemberKind][打印后的类型名 String][interned 上下文节点 NodeIndex] → SymbolRowBucket

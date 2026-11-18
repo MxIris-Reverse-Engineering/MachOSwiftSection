@@ -7,8 +7,8 @@
 
 mangled name 里的 symbolic reference 只是 5 个字节（控制字节 + 相对偏移），说得出被引用的东西在哪，说不出它叫什么。
 编译器另给每条带引用的 mangled name 生成一个供链接器去重的符号，名字里按引用顺序写出每个被引用者的完整 mangling，
-模块、外层类型、private 鉴别符一个不缺，而 dyld shared cache 保留着它们。`SymbolIndexStore` 在已有的符号表扫描里把这类
-符号收进一张独立的表；SwiftInspection 的 `SymbolicManglingIndex` 把每个引用和它的被引用者配对，按被引用的位置建索引。
+模块、外层类型、private 鉴别符一个不缺，而 dyld shared cache 保留着它们。`SwiftSymbolIndexStore` 在已有的符号表扫描里把这类
+符号收进一张独立的表（采集由 MachOKitExtensions 的 `SymbolSweep` 按 `SwiftSymbolTableRouting` 分表）；SwiftInspection 的 `SymbolicManglingIndex` 把每个引用和它的被引用者配对，按被引用的位置建索引。
 匿名上下文里的类型取名（`AnonymousContextNameIndex`：private 类型的鉴别符，函数体里声明的局部类型的完整名字）是第一个消费者，`SymbolicDemangler` 的对照测试是第二个。
 
 ## 这些符号长什么样
@@ -48,24 +48,24 @@ name」这种东西：typeref 本体里的 substitution 把 symbolic reference �
 
 | 层 | 文件 | 做什么 |
 |---|---|---|
-| MachOSymbols | `SymbolicManglingSymbols.swift` | `SymbolicManglingSymbols`：按行、零拷贝的集合（`MachOImage` 的名字留在映射的字符串表里）；`SymbolicManglingSymbolName`：拆出角色、带占位的 mangled name、被引用者；字节级前缀判断 `nameBytesHaveSymbolicManglingSymbolPrefix` |
-| MachOSymbols | `SymbolIndexStore.swift` | 两条采集腿各多一个前缀分支，收进 `Storage.symbolicManglingSymbolTable`（沿用 `SymbolTable`）；查询 `symbolicManglingSymbols(in:)` |
+| SwiftSymbols | `SymbolicManglingSymbols.swift` | `SymbolicManglingSymbols`：按行、零拷贝的集合（`MachOImage` 的名字留在映射的字符串表里）；`SymbolicManglingSymbolName`：拆出角色、带占位的 mangled name、被引用者；字节级前缀判断 `nameBytesHaveSymbolicManglingSymbolPrefix` |
+| SwiftSymbols | `SwiftSymbolIndexStore.swift`、`SwiftSymbolTableRouting.swift` | routing 把这类名字分进采集的 `.symbolicMangling` 表（`.nameOnly`），存为 `Storage.symbolicManglingSymbolTable`（沿用 MachOKitExtensions 的 `SymbolTable`）；查询 `symbolicManglingSymbols(in:)` |
 | SwiftInspection | `SymbolicManglingIndex.swift` | `SymbolicManglingReference`（种类、引用位置、被引用位置、符号位置、第几个被引用者，24 字节）；按镜像的 `SharedCache`：读每个符号标的 mangled name、按顺序配对、按被引用位置排一份下标；查询 `references(in:)` / `references(to:in:)` / `referentNode(of:in:)` / `referentNode(forContextDescriptorAt:in:)` / `referentNodes(ofSymbolAt:in:)` / `unpairedSymbolCount(in:)` |
 | SwiftInspection | `AnonymousContextNameIndex.swift` | 不再自己扫符号表：遍历 `0x01` 引用，每个描述符只读一次父级，父级是匿名上下文就从解好的被引用者节点里取名字——private 类型取鉴别符，局部类型（名字是 `localDeclName`）把整个名字存成 type mangling，用时再解；某个引用解不出来就接着试下一个指向同一描述符的引用。原名 `AnonymousContextPrivateDiscriminatorIndex`，提案 [0062-local-type-context-names](../Evolutions/0062-local-type-context-names.md) 改名 |
-| SwiftIndexing | `SwiftDeclarationIndexer.deinit` | 符号库那一支（`claims.symbolStore`）一起驱逐 `SymbolicManglingIndex` |
+| SwiftIndexing | `SwiftDeclarationIndexer.deinit` | 符号库那一支（驱逐组 `.swiftSymbolStore`，`.symbolicMangling` 跟随它）一起驱逐 `SymbolicManglingIndex` |
 
 ## 为什么这样落
 
 - **独立的一张表**：不进 `symbolRowsByOffset`，所以 `symbols(for:in:)` / `Symbol.resolve` 的结果不变——它们的调用方默认拿到的
   都是能 demangle 的 Swift 符号；也不进 demangle 扫描、不进导出事实。`containsSymbol(named:)` 同样看不到它们。
-- **收集在 MachOSymbols、解码在 SwiftInspection**：解码要读 mangled name 的字节，现成的解析是 ABI 模型里的
-  `MangledName.resolve(from:in:)`，`MachOSymbols` 的依赖够不到 ABI 模型；提案 0018 也已把符号归属放在 SwiftInspection。
+- **收集在 SwiftSymbols、解码在 SwiftInspection**：解码要读 mangled name 的字节，现成的解析是 ABI 模型里的
+  `MangledName.resolve(from:in:)`，`SwiftSymbols` 的依赖够不到 ABI 模型；提案 0018 也已把符号归属放在 SwiftInspection。
 - **不驻留 `String` / `Node`**：引用只记位置与下标，被引用者在查询时连同前面的被引用者一起 transient demangle。
-- **驱逐**：索引的存储握着符号库那张表，符号库被回收时它若留着，就钉住那张表，所以放在 `claims.symbolStore` 那一支。
+- **驱逐**：索引的存储握着符号库那张表，符号库被回收时它若留着，就钉住那张表，所以跟随 `.swiftSymbolStore` 那一支。
   匿名上下文名字索引只存字符串（鉴别符、局部类型的 mangling），不握任何表，仍跟着 demangle memo 走。
-- **代价**：离线路径（`MachOContext`）找符号本来就经 `SymbolIndexStore`，收集在同一趟扫描里，不多扫一遍。进程内路径
+- **代价**：离线路径（`MachOContext`）找符号本来就经 `SwiftSymbolIndexStore`，收集在同一趟扫描里，不多扫一遍。进程内路径
   （`InProcessContext`）找符号走 MachOKit，不建符号库；私有鉴别符改为经本索引之后，进程内第一次遇到没有名字的匿名上下文，
-  要先为该镜像建 `SymbolIndexStore`（原先只扫一遍符号表）。RuntimeViewer 这类宿主通常早已为正在看的镜像建好；这笔一次性
+  要先为该镜像建 `SwiftSymbolIndexStore`（原先只扫一遍符号表）。RuntimeViewer 这类宿主通常早已为正在看的镜像建好；这笔一次性
   代价没有单独测量。
 
 ## 边界
@@ -103,7 +103,7 @@ name」这种东西：typeref 本体里的 substitution 把 symbolic reference �
 - 提案：[0050-symbolic-mangling-symbol-index](../Evolutions/0050-symbolic-mangling-symbol-index.md)；上游
   [0018](../Evolutions/0018-self-contained-abi-layer.md)（符号归属在 SwiftInspection）、[0001](../Evolutions/0001-symbol-name-offsetization.md) /
   [0003](../Evolutions/0003-symbol-row-bucket-flattening.md)（符号表的行与名字来源）。
-- [Modules/MachOSymbols.md](Modules/MachOSymbols.md)「子系统 5」。
+- [Modules/SwiftSymbols.md](Modules/SwiftSymbols.md)「子系统 5」。
 - [SpecializedInterfaceBoundRenderingRestoration.md](SpecializedInterfaceBoundRenderingRestoration.md)「私有鉴别符（2026-09-24）」：私有鉴别符修复本身。
-- 测试：`Tests/MachOSymbolsTests/SymbolicManglingSymbolCollectionTests.swift`、`Tests/SwiftInspectionTests/SymbolicManglingIndexTests.swift`、
+- 测试：`Tests/SwiftSymbolsTests/SymbolicManglingSymbolCollectionTests.swift`、`Tests/SwiftInspectionTests/SymbolicManglingIndexTests.swift`、
   `Tests/SwiftInspectionTests/AnonymousContextPrivateDiscriminatorTests.swift`、`Tests/SwiftIndexingTests/PerImageCacheEvictionTests.swift`。

@@ -220,7 +220,7 @@ Sources/Analysis/SwiftThunkAnalysis/
     ├── ThunkTypeNodeBuilder.swift              # 第四步：表达式 → 类型名节点
     └── AccessorThunkOwnerLayout.swift          # thunk 主人的泛型参数布局（argument(k) 对应哪个参数）
 
-Sources/MachO/MachODependencies/
+MachOKitExtensions: Sources/MachODependencies/（0.25.0 起在 MachOKitExtensions 包里）
 ├── DependencySearchPath.swift                  # 搜索路径的四种（含 system root）、从文件位置推断、按形状归类
 └── FileDependencyLocator.swift                 # 按 load name 找依赖文件：显式文件 → system root → cache
 

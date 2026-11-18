@@ -79,7 +79,7 @@ Swift 源码声明的 `@objc` 协议没有 protocol descriptor，类对任何 Ob
 
 ## 验证
 
-- `SwiftDeclaredObjCProtocolsFixture`（MachOTestingSupport）测试时现编两个镜像。kit 声明三个 `@objc` 协议（没改名、改成自身名字、改成别的名字）；客户端声明六种形状的协议（编译器推导 selector、改成自身名字、改成别的名字、继承另一个、internal、嵌套在类型里）、在类声明与同模块 extension 里采纳它们的类、采纳 kit 协议的类、遵循继承 `NSCopying` 的 Swift 协议的类、extension `DateFormatter` 采纳协议（category），以及装着改名协议与嵌套协议存在类型的结构体；`.full`、关掉反射元数据、`strip -x` 三个变体。
+- `SwiftDeclaredObjCProtocolsFixture`（SwiftSectionTestingSupport）测试时现编两个镜像。kit 声明三个 `@objc` 协议（没改名、改成自身名字、改成别的名字）；客户端声明六种形状的协议（编译器推导 selector、改成自身名字、改成别的名字、继承另一个、internal、嵌套在类型里）、在类声明与同模块 extension 里采纳它们的类、采纳 kit 协议的类、遵循继承 `NSCopying` 的 Swift 协议的类、extension `DateFormatter` 采纳协议（category），以及装着改名协议与嵌套协议存在类型的结构体；`.full`、关掉反射元数据、`strip -x` 三个变体。
 - `SwiftDeclaredObjCProtocolIndexTests`、`ObjCImporterNamingTests`、`ObjCProtocolRequirementBuilderTests`（SwiftObjCInteropTests）：配对、退回路径、没认领的记录；命名规则对照真实 ClangImporter 的输出（含 DVTFoundation 的 selector）；要求的种类、访问器、类成员与 optional。
 - `ObjCProtocolDefinitionIndexingTests`（SwiftIndexingTests）：文件、进程内、strip 后的文件三条路径的模型——要求的来源（selector 或实现者）、strip 后经 thunk 代码联结、继承的协议、默认实现、类与 category 的协议、跨镜像找回的改名协议、隐含协议的剔除。
 - `SwiftDeclaredObjCProtocolInterfaceTests`（SwiftInterfaceTests）、`SwiftDeclaredObjCProtocolDumpTests`（SwiftDumpTests）、`SwiftDeclaredObjCProtocolRequestTests`（SwiftSectionKitTests）：两种输出、两种 dump 排序、进程内与文件的 interface 一致。

@@ -1,6 +1,6 @@
 # MachOSwiftSection 项目地图
 
-- **核对基准**: `1dcc0c08`（`next`，提交于 2026-10-31）——下面每个说法都对照过这个 commit，之后的改动从这里讲起
+- **核对基准**: `1dcc0c08`（`next`，提交于 2026-10-31）——下面每个说法都对照过这个 commit，之后的改动从这里讲起。Mach-O 基础模块迁往 MachOKitExtensions（2026-11）之后，模块名、`Sources/` 路径与符号索引的行号已按迁移后的代码同步，其余行号仍以这个 commit 为准
 - **怎么用**: 这一页只讲项目现在长什么样、东西在哪。细节顺着链接去 [模块参考](Modules/README.md)、[术语表](../Glossary.md)、[提案](../Evolutions/README.md)；给 agent 的约定与陷阱在仓库根的 [`AGENTS.md`](../../AGENTS.md)。
 
 ## 这是什么
@@ -50,10 +50,13 @@ SwiftDeclaration                    the shared declaration model all of the abov
    └─ SwiftThunkAnalysis            accessor-thunk evaluation, ObjC member tables
 SwiftObjCInterop                    the Objective-C side of Swift types (MachOObjCSection enters here)
 └─ SwiftInspection                  runtime-metadata analysis, symbol attribution
+   ├─ SwiftSymbols                  the Swift symbol index (SwiftSymbolIndexStore)
    └─ MachOSwiftSection             ABI model: the `__swift5_*` sections and their descriptors
-      └─ MachOBase                  reading / resolving / pointers
-MachOFoundation = MachOBase + MachOSymbols + MachODependencies
+      └─ MachOBase                  reading / resolving / pointers (external, MachOKitExtensions)
+MachOFoundation = MachOBase + MachOSymbols + MachODependencies (all external, MachOKitExtensions)
 ```
+
+- `MachOBase`、`MachOFoundation`、`MachOSymbols`（与语言无关的符号表、采集与 C/C++ 符号索引）、`MachODependencies`、`MachOCaches`、`MachOPointers`、`MachOReading`、`MachOResolving` 都是 MachOKitExtensions 2.0.0 的 product，不在本仓库；`Utilities` 仍在本仓库，由 `MachOSwiftSection` 再导出。
 
 - 每个 target 的完整依赖在 `Package.swift`（`:336` 起）；每个模块一句话的说明在 `AGENTS.md`。
 - `Sources/` 按职责分 9 组目录，新 target 要在 `Package.swift` 里写 `path:`（[提案 0055](../Evolutions/0055-group-sources-by-layer.md)）。分组不等于依赖层次：`Sources/Output/SwiftDeclarationRendering` 反而被 `Sources/Declaration/SwiftDeclaration` 依赖。
@@ -97,7 +100,7 @@ MachOFoundation = MachOBase + MachOSymbols + MachODependencies
 ## 地标
 
 - `Package.swift` — 29 个库 target 的声明与依赖（`:336` 起）、product 清单（`:1344`）；最近三个月改了 80 次，是改得最勤的文件
-- `Sources/MachO/MachOSymbols/SymbolIndexStore.swift:17` — 符号索引：每个 image 的符号表解析、demangle、按成员种类分桶
+- `Sources/Symbols/SwiftSymbols/SwiftSymbolIndexStore.swift:15` — Swift 符号索引：在 MachOKitExtensions 的 `SymbolSweep` 采集上 demangle、按成员种类分桶
 - `Sources/ABI/MachOSwiftSection/MachOFile+Swift.swift:14` — ABI 模型的入口 `machO.swift`
 - `Sources/Analysis/SwiftInspection/SymbolicDemangler.swift:31` — 带 symbolic reference 的名字怎么还原成完整的名字
 - `Sources/Declaration/SwiftIndexing/SwiftDeclarationIndexer.swift:45` — 从一个 image 建出声明模型
@@ -135,7 +138,7 @@ MachOFoundation = MachOBase + MachOSymbols + MachODependencies
 
 ## 复杂度热点
 
-- **符号索引的几套成员索引**（`Sources/MachO/MachOSymbols/SymbolIndexStore.swift:202`–`:215`）：实现符号、method descriptor、protocol witness、`@objc` thunk 四套成员索引并列，同一个成员可能同时出现在几套里。名字键去掉了 private discriminator，同名的私有类型共用一个桶，所以按单个类型查要用带 node 的重载（`:1334`）。难在哪一套回答哪一种问题，只能从注释和提案里拼出来。
+- **符号索引的几套成员索引**（`Sources/Symbols/SwiftSymbols/SwiftSymbolIndexStore.swift:296`–`:302`）：实现符号、method descriptor、protocol witness、`@objc` thunk 四套成员索引并列，同一个成员可能同时出现在几套里。名字键去掉了 private discriminator，同名的私有类型共用一个桶，所以按单个类型查要用带 node 的重载（`:1284`）。难在哪一套回答哪一种问题，只能从注释和提案里拼出来。
 - **`TypeDefinition` 索引的步骤顺序是承重的**（`Sources/Declaration/SwiftDeclaration/Components/Definitions/TypeDefinition+Indexing.swift:22`）：`final` 的还原要读 `applyThunkAttributes` 挂上的 `@objc` 证据，又必须早于 `orderedMembers` 拷贝成员值；wrapped property 的还原要等字段和成员变量都齐。换了顺序照样编译通过，输出却静默变错。
 - **dyld shared cache 里的四种偏移口径**（`Sources/Analysis/SwiftThunkAnalysis/Resolution/ThunkAddressSpace.swift:42`）：本库的 offset 是「未滑动的虚拟地址减 shared region 起点」；另外三种（subcache 文件偏移、`MachOFile.fileOffset(of:)`、`FullDyldCache.address(of:)`）看着能用却不对，而且算错时给出的是一个落在邻近 image 里、看起来合理的地址，不报错。
 - **泛型参数的层号**（`Sources/Analysis/SwiftInspection/GenericParameterDepthLayout.swift:30`）：一层只算真正声明了参数的上下文，不能数祖先链；opaque type 还要把声明它的函数（debug 构建里还有属性）算进去。八个读取点曾各自数错，现在统一从这里取。

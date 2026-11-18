@@ -58,21 +58,21 @@
 
 一个 dylib load name（`@rpath/Foo.framework/Versions/A/Foo`、`/usr/lib/libobjc.A.dylib`）归约成的镜像名：末段路径去**第一个**扩展名（`Foo`、`libobjc`）。这是与 MachOKit 的契约——`MachOImage(name:)` 对进程内每个镜像的路径做同一归约再比较，把未归约的 load name 喂给它永远匹配不到。它也是所有依赖集合的去重键：同一个库会被不同镜像以不同拼写链接，只有裸名跨拼写稳定。
 
-- **主要出现在**：`Sources/MachO/MachODependencies/DependencyLoadName.swift`、`DependencyClosure`、`FileDependencyLocator`
-- **延伸阅读**：[Modules/MachODependencies.md](Internal/Modules/MachODependencies.md) §2
+- **主要出现在**：MachOKitExtensions `Sources/MachODependencies/DependencyLoadName.swift`、`DependencyClosure`、`FileDependencyLocator`
+- **延伸阅读**：MachOKitExtensions 的 [DependencyResolution.md](https://github.com/MxIris-Reverse-Engineering/MachOKitExtensions/blob/main/Documentations/Internal/DependencyResolution.md) §2
 
 ### bucket（桶）
 
 分类索引里「一个键对应的一组符号表行号」（如 `symbolRowsByOffset` 的值、`MemberSymbolRows` 的叶子）。旧形态是 `[UInt32]` 小数组——绝大多数桶只有一个元素，却各付一次堆分配；提案 0003 落地后值形态为 `SymbolRowBucket`（单元素内联于字典槽，第二个元素起才落堆数组），迭代序保持插入序。
 
-- **主要出现在**：`Sources/MachO/MachOSymbols/SymbolIndexStore.swift`、`Sources/MachO/MachOSymbols/SymbolRowBucket.swift`
+- **主要出现在**：`Sources/Symbols/SwiftSymbols/SwiftSymbolIndexStore.swift`、MachOKitExtensions `Sources/MachOSymbols/SymbolRowBucket.swift`
 - **延伸阅读**：[提案 0003](Evolutions/0003-symbol-row-bucket-flattening.md)
 
 ### cache scope（缓存范围，`ReadingContextCacheScope`）
 
 一个 `ReadingContext` 声明的「按它读出来的东西，memo 缓存该存到哪一层」：`.image(identifier:)` 按镜像存（键就是 reader 的 `identifier`，与其它按镜像缓存同一个键，随镜像一起驱逐），`.process` 存进全进程共享的一层（地址是绝对地址，两个镜像不会撞），`.uncached` 不缓存。`MachOContext` 声明 `.image`，`InProcessContext` 声明 `.process`，其余实现默认 `.uncached`——以文件偏移为地址的第三方 context 如果落进全进程那层，两个镜像的偏移会互相串结果。反混淆 memo（`SymbolicDemanglerCache`）与节点驻留池（`InternedNodeReferenceCache`）按它选层。
 
-- **主要出现在**：MachOKitExtensions `Sources/MachOReading/ReadingContext/ReadingContext.swift`、`Sources/Analysis/SwiftInspection/SymbolicDemangler.swift`、`Sources/MachO/MachOSymbols/InternedNodeReferenceCache.swift`
+- **主要出现在**：MachOKitExtensions `Sources/MachOReading/ReadingContext/ReadingContext.swift`、`Sources/Analysis/SwiftInspection/SymbolicDemangler.swift`、`Sources/Symbols/SwiftSymbols/InternedNodeReferenceCache.swift`
 - **延伸阅读**：[提案 0057](Evolutions/0057-reading-context-migration.md)、[ReadingContextAbstraction.md](Internal/ReadingContextAbstraction.md)
 
 ### cache-shared stub（全缓存共用桩）
@@ -107,7 +107,7 @@ macOS 27 与 iOS 27 的 dyld shared cache 不再给每个镜像留自己的 `__o
 
 同一个读取接口曾经最多有三份手写实现：context form 收 `some ReadingContext`（`name(in: context)`、静态 `resolve(at:in:)`），Mach-O form 收一个 Mach-O reader、按偏移读（`name(in: machO)`、`resolve(from:in:)`），pointer form 不收读取器、直接用裸指针读本进程内存（`name()`、`resolve(from: pointer)`）。2026-09-30 起 context form 是唯一实现；另外两种改成一行转发（`machO.context` / `.inProcess`），0.22.0 废弃，0.25.0 删除。
 
-- **主要出现在**：`Sources/ABI/MachOSwiftSection/Models/`、`Sources/MachO/MachOPointers/`、MachOKitExtensions `Sources/MachOResolving/Resolvable.swift`
+- **主要出现在**：`Sources/ABI/MachOSwiftSection/Models/`、MachOKitExtensions `Sources/MachOPointers/`、MachOKitExtensions `Sources/MachOResolving/Resolvable.swift`
 - **延伸阅读**：[提案 0057](Evolutions/0057-reading-context-migration.md)、[ReadingContextAbstraction.md](Internal/ReadingContextAbstraction.md)
 
 ### depth（泛型参数层号，`GenericParameterDepthLayout`）
@@ -121,14 +121,14 @@ macOS 27 与 iOS 27 的 dyld shared cache 不再给每个镜像留自己的 `__o
 
 一个 root 二进制经 `LC_LOAD_DYLIB` 家族 load command 解析出的依赖镜像集合（`MachODependencies.DependencyClosure`）。本项目里的「闭包」默认指**传递**闭包：BFS 递归、按裸镜像名去重、root 排除、解析顺序是契约的一部分（`SwiftLayout.ImageUniverse` 按此顺序惰性索引、命中即停）。同一类型也承载 `.direct` 遍历（只取 root 自己的一层），`SwiftInterfaceBuilderDependencies` 用的是这一种——名字里的「闭包」在那里只是复用同一个结果类型。定位不到的依赖记入 `unresolvedLoadNames`，不算失败。
 
-- **主要出现在**：`Sources/MachO/MachODependencies/DependencyClosure.swift`、`Sources/Analysis/SwiftLayout/ImageUniverse+DependencyClosure.swift`
-- **延伸阅读**：[Modules/MachODependencies.md](Internal/Modules/MachODependencies.md)、[StaticLayoutDependencyClosure.md](Internal/StaticLayoutDependencyClosure.md)
+- **主要出现在**：MachOKitExtensions `Sources/MachODependencies/DependencyClosure.swift`、`Sources/Analysis/SwiftLayout/ImageUniverse+DependencyClosure.swift`
+- **延伸阅读**：MachOKitExtensions 的 [DependencyResolution.md](https://github.com/MxIris-Reverse-Engineering/MachOKitExtensions/blob/main/Documentations/Internal/DependencyResolution.md)、[StaticLayoutDependencyClosure.md](Internal/StaticLayoutDependencyClosure.md)
 
 ### derived symbol forms（派生符号形态）
 
 一个成员实现符号经追加后缀派生出的入口符号：`Tj`（dispatch thunk）、`Tq`（method descriptor）、`Tu`（async function pointer）、`TjTu`。library-evolution 构建的常态是**实现符号不导出、`Tj` 导出**（外部调用方经 thunk 派发），所以判断成员导出状态必须查全形态（`isExportedIncludingDerivedSymbols`）——裸查实现符号会把整个 resilient 库误判为未导出。
 
-- **主要出现在**：`Sources/MachO/MachOSymbols/SymbolIndexStore.swift`
+- **主要出现在**：`Sources/Symbols/SwiftSymbols/SwiftSymbolIndexStore.swift`
 - **延伸阅读**：[提案 0008](Evolutions/0008-interface-header-and-export-status-annotations.md)、[InterfaceHeaderAndExportStatusAnnotations.md](Internal/InterfaceHeaderAndExportStatusAnnotations.md)
 
 ### descriptor-only member（只剩 method descriptor 符号的成员）
@@ -144,7 +144,7 @@ class 的 vtable 成员里，实现函数没有符号、只剩它自己 method d
 
 把一个查询期 vend 出来的 `DemangledSymbol` 从共享 `SymbolTable` 上摘下来、换成自带单行表的独立值。共享表对「vend 十万个、随手丢弃」是正确的取舍，但**存进声明模型的长命值必须先 detach**——一个存活值会把整张表（几十万行 + 对镜像映射内存的引用）钉在内存里，让按镜像回收失效。六个存储点由 `SymbolTableRetentionTests` 钉住；查询路径**不要** detach。
 
-- **主要出现在**：`Sources/MachO/MachOSymbols/DemangledSymbol.swift`、AGENTS.md「Symbol indexing」段
+- **主要出现在**：`Sources/Symbols/SwiftSymbols/DemangledSymbol.swift`、AGENTS.md「Symbol indexing」段
 - **延伸阅读**：[提案 0001](Evolutions/0001-symbol-name-offsetization.md)
 
 ### 等价类塌缩（equivalence-class collapse）
@@ -156,11 +156,11 @@ Requirement Machine 最小化泛型签名时，把 pin 到同一具体类型的�
 
 ### eviction group（驱逐分组）、claim（认领）、live owner（活持有者）
 
-按镜像缓存的三个所有权概念（`MachOCaches.SharedCacheRegistry`，2026-09-28 提案 `0053-shared-cache-composition-and-eviction-registry`）。**eviction group** 是一个 `SharedCache` 在创建时声明的家族（`SharedCacheEvictionGroup`，只有名字的结构体；`MachOCaches` 不定义任何家族，各模块在自己的扩展里声明 `symbolStore`、`internedNames`、`demangleMemo`、`objcHierarchy`……），一个镜像的缓存按家族而不是按 cache 驱逐；条目引用着别的家族存储的 cache 在创建时用 `follows:` 声明跟谁走（`symbolicMangling` / `objcImplementationClasses` / `objcHierarchy` / `objcAncestorResolver` 跟 `symbolStore`，`demangleMemo` 跟 `internedNames`），因为单独留下它们什么都释放不了；注册表据此反向建表、传递展开。**live owner** 是向注册表登记「我在用这个镜像的缓存」的对象，今天只有 `SwiftDeclarationIndexer`；**claim** 是它登记时在注册表锁内采样得到的「这个镜像还没有条目的家族」——那些是它即将建的，由它负责；镜像的最后一个 live owner 注销时驱逐它们认领的家族及其 dependents，提早注销的什么都不清。非持有者（渲染器、SwiftLayout）在登记之前填的条目永远不被认领。
+按镜像缓存的三个所有权概念（`MachOCaches.SharedCacheRegistry`，2026-09-28 提案 `0053-shared-cache-composition-and-eviction-registry`）。**eviction group** 是一个 `SharedCache` 在创建时声明的家族（`SharedCacheEvictionGroup`，只有名字的结构体；`MachOCaches` 不定义任何家族，各模块在自己的扩展里声明 `swiftSymbolStore`、`internedNames`、`demangleMemo`、`objcHierarchy`……），一个镜像的缓存按家族而不是按 cache 驱逐；条目引用着别的家族存储的 cache 在创建时用 `follows:` 声明跟谁走（`symbolicMangling` / `objcImplementationClasses` / `objcHierarchy` / `objcAncestorResolver` 跟 `swiftSymbolStore`，`demangleMemo` 跟 `internedNames`），因为单独留下它们什么都释放不了；注册表据此反向建表、传递展开。**live owner** 是向注册表登记「我在用这个镜像的缓存」的对象，今天只有 `SwiftDeclarationIndexer`；**claim** 是它登记时在注册表锁内采样得到的「这个镜像还没有条目的家族」——那些是它即将建的，由它负责；镜像的最后一个 live owner 注销时驱逐它们认领的家族及其 dependents，提早注销的什么都不清。非持有者（渲染器、SwiftLayout）在登记之前填的条目永远不被认领。
 
 - **不要混淆**：`evict(groups:for:)` 是显式驱逐，只清点名的家族、不展开 followers；followers 只在最后一个持有者注销时展开。「内存压力驱逐」已不存在，宿主要清就调 `evictImagesWithoutLiveOwners()`。
-- **主要出现在**：`Sources/MachO/MachOCaches/SharedCacheRegistry.swift`、`Sources/MachO/MachOCaches/SharedCacheEvictionGroup.swift`、各模块的 `SharedCacheEvictionGroup+<模块>.swift`、`Sources/Declaration/SwiftIndexing/SwiftDeclarationIndexer.swift`（`prepare()` 与 `deinit`）
-- **延伸阅读**：[Modules/MachOCaches.md](Internal/Modules/MachOCaches.md)
+- **主要出现在**：MachOKitExtensions `Sources/MachOCaches/SharedCacheRegistry.swift`、`Sources/MachOCaches/SharedCacheEvictionGroup.swift`、各模块的 `SharedCacheEvictionGroup+<模块>.swift`、`Sources/Declaration/SwiftIndexing/SwiftDeclarationIndexer.swift`（`prepare()` 与 `deinit`）
+- **延伸阅读**：MachOKitExtensions 的 [SharedCache.md](https://github.com/MxIris-Reverse-Engineering/MachOKitExtensions/blob/main/Documentations/Internal/SharedCache.md)
 
 ### export status（导出状态标注，`// not exported`）
 
@@ -213,22 +213,22 @@ evolution 里组成一个版本的一组 image，主 image 在前：Apple 拆过
 
 ### large-stack executor（大栈执行器，`LargeStackTaskExecution`）
 
-swift-demangling 0.6.3 起提供的 `TaskExecutor`（`StackSafeExecutor.taskExecutor`，线程栈 16 MB，`@_spi(Internals)`）。demangler 每次 demangle / print / remangle 都按**调用线程的剩余栈**决定要不要跳到它的 8 MB 线程池——协作线程只有 512 KB，探针永远不过，async 打印循环因此每打印一个符号付一次线程往返；task 跑在大栈执行器的线程上时探针每个入口都通过，全程原地执行、零跳转。本库通过 `MachOSymbols.LargeStackTaskExecution.run` 在库入口（索引器 prepare、interface builder、printer 逐定义入口、diff / evolution、dump）自装偏好，宿主零改动；macOS 15 / iOS 18 以下静默回退为原样执行。与「跳转池」（demangler 自己的 8 MB `LargeStackThreadPool`，同步 `withLargeStack` 批次用）是两个池：执行器的 job 是整段 task，会占线程上百秒，不能挤占同步跳转的额度。
+swift-demangling 0.6.3 起提供的 `TaskExecutor`（`StackSafeExecutor.taskExecutor`，线程栈 16 MB，`@_spi(Internals)`）。demangler 每次 demangle / print / remangle 都按**调用线程的剩余栈**决定要不要跳到它的 8 MB 线程池——协作线程只有 512 KB，探针永远不过，async 打印循环因此每打印一个符号付一次线程往返；task 跑在大栈执行器的线程上时探针每个入口都通过，全程原地执行、零跳转。本库通过 `SwiftSymbols.LargeStackTaskExecution.run` 在库入口（索引器 prepare、interface builder、printer 逐定义入口、diff / evolution、dump）自装偏好，宿主零改动；macOS 15 / iOS 18 以下静默回退为原样执行。与「跳转池」（demangler 自己的 8 MB `LargeStackThreadPool`，同步 `withLargeStack` 批次用）是两个池：执行器的 job 是整段 task，会占线程上百秒，不能挤占同步跳转的额度。
 
-- **主要出现在**：`Sources/MachO/MachOSymbols/LargeStackTaskExecution.swift`、各 async 入口的 `LargeStackTaskExecution.run { … }`
+- **主要出现在**：`Sources/Symbols/SwiftSymbols/LargeStackTaskExecution.swift`、各 async 入口的 `LargeStackTaskExecution.run { … }`
 - **延伸阅读**：[LargeStackTaskExecutorAdoption.md](Internal/LargeStackTaskExecutorAdoption.md)、提案 [0019-large-stack-executor-and-cross-version-parallelism](Evolutions/0019-large-stack-executor-and-cross-version-parallelism.md)、上游 swift-demangling `Documentations/StackSafety.md` 第八节
 
 ### late-name 路径（`lateDemangledNode(forName:)`）
 
 sweep 覆盖范围之外的名字走的旁路：demangle 后 intern 进 `Storage` 自持的一个可追加 side store，名字 → 裁决字典保证一个名字只 demangle 一次（拒绝也缓存为 `nil` 裁决、不再重试）。与主表冻结不可变的性质相对。
 
-- **主要出现在**：`Sources/MachO/MachOSymbols/SymbolIndexStore.swift`
+- **主要出现在**：`Sources/Symbols/SwiftSymbols/SwiftSymbolIndexStore.swift`
 
 ### leg（腿，reader-split）
 
 同一逻辑按 reader 类型分出的并行实现路径，口语记作「镜像腿 / 文件腿」：`MachOImage`（进程内映射，符号名可直指 LINKEDIT 字符串表、零拷贝）与 `MachOFile`（离线文件，名字须读进私有缓冲）。0001 的 sweep 收集与名字来源都是按腿分叉的。
 
-- **主要出现在**：`Sources/MachO/MachOSymbols/SymbolIndexStore.swift`（`buildStorageSweep`）、`Sources/MachO/MachOSymbols/SymbolTable.swift`
+- **主要出现在**：MachOKitExtensions `Sources/MachOSymbols/SymbolSweep.swift`、`Sources/MachOSymbols/SymbolTable.swift`
 
 ### lifecycle annotation（生命周期注解）
 
@@ -268,7 +268,7 @@ opaque 尖括号参数归属的第三条规则：协议无任何 anchor 命中�
 
 `SymbolTable` 里一行的名字字节从哪里读：**mapped 字符串表**（`MachOImage` 行直指镜像 mmap 的 LINKEDIT 字符串表，clean 页、零拷贝，代价是要求镜像保持加载）或**私有缓冲**（`MachOFile` 行与 export-trie 解码名，字节存进表自有的连续缓冲）。`PackedNameReference` 用 1 个 bit 区分两者。
 
-- **主要出现在**：`Sources/MachO/MachOSymbols/SymbolTable.swift`
+- **主要出现在**：MachOKitExtensions `Sources/MachOSymbols/SymbolTable.swift`
 - **延伸阅读**：[提案 0001](Evolutions/0001-symbol-name-offsetization.md)
 
 ### nested-definition region（定义区域，`marksNestedDefinitions`）
@@ -331,7 +331,7 @@ opaque 尖括号参数归属的第三条规则：协议无任何 anchor 命中�
 
 独立 Mach-O 文件的父类指针是 bind，ObjC 读取器跟不过去；祖先解析器（`ObjCAncestorResolver`）拿 bind 符号里的类名（`_OBJC_CLASS_$_UIView` 去前缀，Swift 父类是 `_TtC…` 运行时名）在文件的传递依赖闭包里找定义它的镜像——先问每个镜像的 export trie（bind 只能落到导出符号），有才建那个镜像的名字表，第一个命中即返回——祖先链从那个镜像继续走。祖先链的每一跳还把根镜像与闭包里每个独立文件对该祖先的 category 折进它的 selector 集合（cache 里的类由 dyld 预挂，文件世界里离线看不到）。按镜像登记在 `ObjCAncestorResolverStore`：indexer 与 `dump` 用各自的搜索路径注册，无人注册的文件默认走系统 cache，进程内镜像没有解析器。hierarchy 的 memo 键带解析器身份，宿主 provider 交出的断链也用它续。配套的平台守卫在 MachODependencies：cache 里另一个平台的同名镜像（macOS cache 的 Catalyst UIKit）永远不是候选。
 
-- **主要出现在**：`SwiftObjCInterop/ObjCAncestorResolver.swift`、`SwiftObjCInterop/ObjCClassMethodIndex.swift`、`MachODependencies/DependencyPlatforms.swift`
+- **主要出现在**：`SwiftObjCInterop/ObjCAncestorResolver.swift`、`SwiftObjCInterop/ObjCClassMethodIndex.swift`、MachOKitExtensions `Sources/MachODependencies/DependencyPlatforms.swift`
 - **延伸阅读**：[提案 0049-objc-ancestor-dependency-closure](Evolutions/0049-objc-ancestor-dependency-closure.md)、[ObjCMemberRecovery.md](Internal/ObjCMemberRecovery.md)
 
 ### offline specialization（离线特化）
@@ -345,7 +345,7 @@ opaque 尖括号参数归属的第三条规则：协议无任何 anchor 命中�
 
 不给数据本体排序，而是另存一条「按某序排列的下标数组」（permutation），查询时在这条下标序列上二分。`SymbolTable.rowsSortedByName` 即名字序 permutation：行本体保持插入序不动，名字查找二分这条 `[UInt32]`。替代了被退役的名字键字典 `tableRowByName`。
 
-- **主要出现在**：`Sources/MachO/MachOSymbols/SymbolTable.swift`（`row(forName:)`）
+- **主要出现在**：MachOKitExtensions `Sources/MachOSymbols/SymbolTable.swift`（`row(forName:)`）
 - **延伸阅读**：[提案 0001](Evolutions/0001-symbol-name-offsetization.md)
 
 ### position-based name（按位置起的名字）
@@ -380,7 +380,7 @@ opaque 尖括号参数归属的第三条规则：协议无任何 anchor 命中�
 
 `SymbolTable` 的最小单位：每个唯一符号名一行，16 字节（canonical offset + `PackedNameReference`），行号（`UInt32`）是全部分类索引引用符号的方式。「一名一行」意味着按名字查询的语义是纯函数——同名必同行。
 
-- **主要出现在**：`Sources/MachO/MachOSymbols/SymbolTable.swift`
+- **主要出现在**：MachOKitExtensions `Sources/MachOSymbols/SymbolTable.swift`
 
 ### stand-in member symbol（替身成员符号）
 
@@ -393,7 +393,7 @@ opaque 尖括号参数归属的第三条规则：协议无任何 anchor 命中�
 
 `NodeReference` 的两种相等语义，混用会静默出错：intrinsic `Hashable` 按**store 身份**（同一 store 里的同一下标才相等），跨 store 的结构相同树不相等；**结构相等**（`structurallyEquals` / `StructuralNodeReferenceKey`）逐节点比对，跨 store 成立。规则：键和查询可能来自**不同 store** 的任何 `Dictionary` / `Set` 必须用 `StructuralNodeReferenceKey`，裸 `NodeReference` 键只在单一 hash-consed store 内部安全。踩过的坑：override/vtable 注释丢失、subscript getter/setter 分桶、merged thunk 重复输出。
 
-- **主要出现在**：`Sources/MachO/MachOSymbols/StructuralNodeReferenceKey.swift`；键位清单见 AGENTS.md「Symbol indexing」段
+- **主要出现在**：`Sources/Symbols/SwiftSymbols/StructuralNodeReferenceKey.swift`；键位清单见 AGENTS.md「Symbol indexing」段
 
 ### supplementary APINotes（补充映射）
 
@@ -404,9 +404,9 @@ TypeIndexing 的外部知识入口：标准 `.apinotes` 格式的**用户自备*
 
 ### sweep（构建扫描）
 
-对一个镜像的**全量符号一遍扫过**的批处理构建过程：`SymbolIndexStore` 首次索引某镜像时，`buildStorageSweep` 遍历整张符号表 + export trie，收集行、对每个 Swift 符号 demangle 一次、把结果分类进各查询索引——与之相对的是查询期的按需单点操作。RuntimeViewer 语境里「按需索引 sweep」指用户打开某镜像才触发这一遍构建；sweep 期的临时缓冲是瞬态内存峰值的来源（完即释放）。
+对一个镜像的**全量符号一遍扫过**的批处理构建过程：`SwiftSymbolIndexStore` 首次索引某镜像时，先由 MachOKitExtensions 的 `SymbolSweep`（按 `SwiftSymbolTableRouting` 分表）遍历整张符号表 + export trie 收集行，再对每个 Swift 符号 demangle 一次、把结果分类进各查询索引——与之相对的是查询期的按需单点操作。RuntimeViewer 语境里「按需索引 sweep」指用户打开某镜像才触发这一遍构建；sweep 期的临时缓冲是瞬态内存峰值的来源（完即释放）。
 
-- **主要出现在**：`Sources/MachO/MachOSymbols/SymbolIndexStore.swift`（`buildStorageSweep`）
+- **主要出现在**：MachOKitExtensions `Sources/MachOSymbols/SymbolSweep.swift`（采集）、`Sources/Symbols/SwiftSymbols/SwiftSymbolIndexStore.swift`（`buildSymbolTableStage` 与第二段的 demangle 分类）
 - **延伸阅读**：[提案 0001](Evolutions/0001-symbol-name-offsetization.md)、[SymbolIndexStoreMemoryOptimization.md](Internal/SymbolIndexStoreMemoryOptimization.md)
 
 ### Swift-declared `@objc` protocol（Swift 声明的 `@objc` 协议，`ObjCProtocolDefinition`）
@@ -424,7 +424,7 @@ Swift 源码里声明的 `@objc protocol`。它没有 protocol descriptor（不�
 名字的地方，dyld shared cache 也保留着。被引用者不能单独 demangle：同一个 mangler 依次写出它们，后面的会借用前面的
 substitution，必须连在一个 `$s` 后面一起 demangle。
 
-- **主要出现在**：`Sources/MachO/MachOSymbols/SymbolicManglingSymbols.swift`（收集）、`Sources/Analysis/SwiftInspection/SymbolicManglingIndex.swift`（配对与解码）
+- **主要出现在**：`Sources/Symbols/SwiftSymbols/SymbolicManglingSymbols.swift`（收集）、`Sources/Analysis/SwiftInspection/SymbolicManglingIndex.swift`（配对与解码）
 - **延伸阅读**：[SymbolicManglingSymbols.md](Internal/SymbolicManglingSymbols.md)、[提案 0050-symbolic-mangling-symbol-index](Evolutions/0050-symbolic-mangling-symbol-index.md)
 
 ### SymbolicDemangler（旧名 MetadataReader）
@@ -438,7 +438,7 @@ substitution，必须连在一个 `$s` 后面一起 demangle。
 
 `@objc` 成员里，Swift 函数体被优化器内联进它的 Objective-C thunk（`$s…To`）、Swift entry point 随后被删掉的那一类：thunk 是它唯一的代码，也是唯一的符号。只有整模块优化下的 internal 成员会这样，因为每一处使用都可见、都内联完了才能删，所以这是 app 和 app 内嵌组件的形状，例如 Xcode 27.2 的 `Xcode Service` 里有 22 个。它和 OS 框架 strip 掉 `To` 符号正好相反：那里实现符号还在，thunk 没了名字。成员模型过去只从实现符号建成员，这一类在 dump 和 interface 里整个缺席；现在从 thunk 造替身成员符号补上。class 的 initializer 有同类的情形：allocating entry point 被内联掉后只剩 initializing entry point（`…fc`），Swift 6.4 连它也换成函数签名特化副本（`…fcTf…`），替身就从副本造。
 
-- **主要出现在**：`SymbolIndexStore.objcThunkMemberSymbols`、`StandInMemberSymbolBuilder.memberStandIn(forObjCThunkSymbol:in:)`、`ClassDumper` 的 `[ObjC Thunk]` 一节
+- **主要出现在**：`SwiftSymbolIndexStore.objcThunkMemberSymbols`、`StandInMemberSymbolBuilder.memberStandIn(forObjCThunkSymbol:in:)`、`ClassDumper` 的 `[ObjC Thunk]` 一节
 - **延伸阅读**：[ThunkOnlyObjCMembers.md](Internal/ThunkOnlyObjCMembers.md)
 
 ### TypeImportInfo（C 导入类型身份）
@@ -459,7 +459,7 @@ Swift runtime 的 descriptor 布局惯例：固定头之后按 flags 跟着可�
 - **定义**：`DependencySearchPath.systemRoot(path:)`，一棵目录树，把依赖的绝对 install name 直接拼在它下面找文件：`<root>/System/Library/Frameworks/Foo.framework/Foo`。iOS 26 及更早的模拟器运行时的 `RuntimeRoot` 就是这个形状；iOS 27 起模拟器改带自己的 `dyld_sim_shared_cache`，对应 `.dyldSharedCache(path:)`。
 - **为什么要有**：不在 cache 里的二进制（第三方 app、老模拟器框架）调别的镜像里的 metadata accessor 时只有一个 bind 名，得先找到那个镜像才能查它的 accessor 索引。`DependencySearchPath.inferred(forRoot:)` 从根文件的磁盘位置推断出 cache 或 system root。
 - **不要混淆**：`.machOFile(path:)` 是显式指定一个文件；system root 是按 install name 在目录树里现找。
-- **延伸阅读**：[MachODependencies 模块文档](Internal/Modules/MachODependencies.md)、[提案 standalone-file-thunk-resolution](Evolutions/0030-standalone-file-thunk-resolution.md)
+- **延伸阅读**：MachOKitExtensions 的 [DependencyResolution.md](https://github.com/MxIris-Reverse-Engineering/MachOKitExtensions/blob/main/Documentations/Internal/DependencyResolution.md)、[提案 standalone-file-thunk-resolution](Evolutions/0030-standalone-file-thunk-resolution.md)
 
 ### type-construction evaluation（类型构造求值）
 

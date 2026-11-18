@@ -162,7 +162,7 @@ Sources/Executables/swift-section/Commands/InterfaceCommand.swift # --exported-o
   私有类型的 conformance 扩展 / 嵌套私有类型（父级与公开兄弟保留）各一例删除；带约束扩展里的公开嵌套类型保留（回归）；
   未导出成员删而类型留；未导出全局删；`Tj` 导出、`@objc`、`override` 三类保留；清空的 conformance 扩展留 `{}`；
   双 flag 同开零标注；无空行残留；默认输出与从未听说过该开关的 builder 逐字节相同。每条否定断言都先在默认输出上断言其存在。
-- `Tests/SwiftInterfaceTests/ExportedOnlyLibraryEvolutionFixtureTests.swift`（8 例，跑在即时编译的 `ExportedOnlyFixture` 上——`Sources/TestSupport/MachOTestingSupport/ExportedOnlyFixture.swift`，`-enable-library-evolution` 且无 `-enable-testing`）：
+- `Tests/SwiftInterfaceTests/ExportedOnlyLibraryEvolutionFixtureTests.swift`（8 例，跑在即时编译的 `ExportedOnlyFixture` 上——`Sources/TestSupport/SwiftSectionTestingSupport/ExportedOnlyFixture.swift`，`-enable-library-evolution` 且无 `-enable-testing`）：
   `SymbolTestsCore` 因 `ENABLE_TESTABILITY` 导出全部 `internal`，所以 `internal` 形态在这里钉：类型（顶层 + 嵌套）、协议及其默认实现、
   公开类型对内部协议的 conformance 扩展、方法、存储属性（accessor 以本地符号 join 上）、全局；被清空的普通扩展容器整块删、有公开成员的容器保留；枚举 case 保留；C 导入类型 `CGPoint` 本身、本镜像给它写的公开扩展与 conformance 保留。
 - `Tests/SwiftSectionCommandTests/ExportedOnlyFlagTests.swift`：flag 解析、默认关、`dump` 无此 flag。

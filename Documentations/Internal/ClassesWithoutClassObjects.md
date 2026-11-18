@@ -48,7 +48,7 @@
 
 ## 验证
 
-- `ClassesWithoutClassObjectsFixture`（MachOTestingSupport）测试时现编两个镜像：开 library evolution 的 kit（`ResilientBase: NSObject`），加上使用它的客户端，`.full` 与 `strip -x` 两种。客户端里有三种类各一个、纯 Swift 的泛型类、没有 ObjC 祖先的 Singleton 类，以及有 class object 的对照组。
+- `ClassesWithoutClassObjectsFixture`（SwiftSectionTestingSupport）测试时现编两个镜像：开 library evolution 的 kit（`ResilientBase: NSObject`），加上使用它的客户端，`.full` 与 `strip -x` 两种。客户端里有三种类各一个、纯 Swift 的泛型类、没有 ObjC 祖先的 Singleton 类，以及有 class object 的对照组。
 - `SwiftClassWithoutClassObjectIndexTests`（SwiftObjCInteropTests）：文件、剥过的文件、进程内三条路径读出的种类、名字、父类、stub、方法表；方法表经泛型父类续到 `NSObject`，文件与进程内都是。
 - `ClassesWithoutClassObjectsInterfaceTests`（SwiftInterfaceTests）与 `ClassesWithoutClassObjectsRequestTests`（SwiftSectionKitTests）：interface 里的 `@objc override`，`objc dump` 列出这些类。这两组与改过的 `ThunkOnlyObjCMemberTests` / `ThunkOnlyObjCMemberDumpTests` 在不含本改动的代码上都失败。
 - `PerImageCacheEvictionTests`：索引随 indexer 一起驱逐。

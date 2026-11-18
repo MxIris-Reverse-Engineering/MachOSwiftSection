@@ -79,7 +79,7 @@ SE-0436 的 `@objc @implementation` 类编出来是纯 ObjC class object，没�
 
 - **SwiftInspection 不依赖本模块。** 新的 ObjC 侧代码放在这里，不放回 SwiftInspection：放回去会让 SwiftInspection 重新依赖 MachOObjCSection。
 - **按名字查 Swift 类的 ObjC 侧查找，查不到时回退到 `SwiftClassObjectIndex`**：改过运行时名的类，按 Swift 名字推出的运行时名是查不到的。
-- **按镜像的索引都是 `SharedCache`**，淘汰分组在 `SharedCacheEvictionGroup+SwiftObjCInterop.swift`：`objcImplementationClasses`、`objcHierarchy`、`objcAncestorResolver`，都跟随 `symbolStore`。分组的字符串从 SwiftInspection 时期起没变。
+- **按镜像的索引都是 `SharedCache`**，淘汰分组在 `SharedCacheEvictionGroup+SwiftObjCInterop.swift`：`objcImplementationClasses`、`objcHierarchy`、`objcAncestorResolver`，都跟随 `swiftSymbolStore`（0.25.0 之前叫 `symbolStore`，那个名字现在属于 MachOKitExtensions 的 C/C++ 符号索引）。这三个分组的字符串从 SwiftInspection 时期起没变。
 - **build closure 经 `objcImplementationClassReader` 转型读取器**：得到 `MachOFile`、`MachOImage`，或宿主包装器底下的那个读取器；不写 `as? MachOFile` / `as? MachOImage`。`ObjCImplementationClassReading` 是本模块自己的协议，外面的包装器无法遵循。
 - **导入一个类只读类自己的表**：dyld cache 预先把 category（含别的镜像的）附加到类上，类的表成了「多张表的表」，类自己的那张是本镜像的最后一张（`importedMethods(of:)` / `importedProperties(of:)` / `importedProtocolNames(of:)`）；`methods(of:)` 读全部，是成员表要的，导入不用它。
 - **同镜像的 category 早被链接器并进了类**：给本镜像的类写的 category（ObjC 的、Swift `extension` 编出来的、`@objc(Name) @implementation` 的）不会出现在 `__objc_catlist` 里，事后也分不出来；只有给别的镜像的类写的 category 还是 category。夹具（`ObjCImplementationFixture`）因此整个没有 `__objc_catlist`。

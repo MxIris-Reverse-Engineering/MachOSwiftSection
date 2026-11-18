@@ -34,16 +34,17 @@
 | TypeIndexing | — | 待写（专题：[TypeIndexingPipeline.md](../TypeIndexingPipeline.md)） |
 | SwiftOutputTransformer | — | 待写（专题：[OutputTransformerMigration.md](../OutputTransformerMigration.md)） |
 | MachOSwiftSection | — | 待写 |
-| MachOFoundation | — | 待写 |
-| MachOSymbols | [MachOSymbols.md](MachOSymbols.md) | ✅ 已写（专题：[SymbolIndexStoreMemoryOptimization.md](../SymbolIndexStoreMemoryOptimization.md)） |
-| MachOBase | — | 待写（伞模块：ABI 层允许看到的全部——reading / resolving / pointers；见 [SelfContainedABILayer.md](../SelfContainedABILayer.md)） |
-| MachOPointers | — | 待写（`SymbolOrElementPointer` 自 `MachOSymbolPointers` 并入，见 [SelfContainedABILayer.md](../SelfContainedABILayer.md)） |
+| MachOFoundation | — | 由 MachOKitExtensions 提供（2.0.0 起，同名 product）：再导出 `MachOBase`、`MachOSymbols`、`MachODependencies` |
+| SwiftSymbols | [SwiftSymbols.md](SwiftSymbols.md) | ✅ 已写（Swift 符号索引 `SwiftSymbolIndexStore`；专题：[SymbolIndexStoreMemoryOptimization.md](../SymbolIndexStoreMemoryOptimization.md)） |
+| MachOSymbols | — | 由 MachOKitExtensions 提供（2.0.0 起）：符号表、采集与 C/C++ 符号索引，实现说明 [SymbolIndex.md](https://github.com/MxIris-Reverse-Engineering/MachOKitExtensions/blob/main/Documentations/Internal/SymbolIndex.md) |
+| MachOBase | — | 由 MachOKitExtensions 提供（2.0.0 起）：伞模块，ABI 层允许看到的全部——reading / resolving / pointers，不再再导出 `Utilities`（ABI 模块 `MachOSwiftSection` 自己再导出）；边界见 [SelfContainedABILayer.md](../SelfContainedABILayer.md) |
+| MachOPointers | — | 由 MachOKitExtensions 提供（2.0.0 起）：相对 / 间接指针与 `SymbolOrElementPointer`（自 `MachOSymbolPointers` 并入的来历见 [SelfContainedABILayer.md](../SelfContainedABILayer.md)） |
 | MachOReading / MachOResolving | — | 0.25.0 起是 MachOKitExtensions 包的模块（2.0.0 起，同名），实现说明在该包的 `Documentations/Internal/ReadingContextAbstraction.md`；本库怎么用它们见 [ReadingContextAbstraction.md](../ReadingContextAbstraction.md) |
-| MachOCaches | [MachOCaches.md](MachOCaches.md) | ✅ 已写 |
-| MachODependencies | [MachODependencies.md](MachODependencies.md) | ✅ 已写 |
+| MachOCaches | — | 由 MachOKitExtensions 提供（2.0.0 起），实现说明 [SharedCache.md](https://github.com/MxIris-Reverse-Engineering/MachOKitExtensions/blob/main/Documentations/Internal/SharedCache.md) |
+| MachODependencies | — | 由 MachOKitExtensions 提供（2.0.0 起），实现说明 [DependencyResolution.md](https://github.com/MxIris-Reverse-Engineering/MachOKitExtensions/blob/main/Documentations/Internal/DependencyResolution.md) |
 | MachOSwiftSectionC | — | 待写 |
-| MachOMacros | — | 待写 |
+| SwiftSectionMacros | — | 待写 |
 | Utilities | — | 待写 |
-| MachOFixtureSupport / MachOTestingSupport(C) / baseline-generator | — | 待写（测试基础设施，可合并成一篇） |
+| SwiftSectionFixtureSupport / SwiftSectionTestingSupport(C) / baseline-generator | — | 待写（测试基础设施，可合并成一篇） |
 
-（`Demangling` / `Semantic` 来自上游包 swift-demangling / swift-semantic-string，`MachOKitExtensions` / `MachOObjCSection` 是 sibling 外部包，文档归各自仓库。）
+（`Demangling` / `Semantic` 来自上游包 swift-demangling / swift-semantic-string，`MachOKitExtensions` / `MachOObjCSection` 是 sibling 外部包，文档归各自仓库——上表标「由 MachOKitExtensions 提供」的模块也一样。）

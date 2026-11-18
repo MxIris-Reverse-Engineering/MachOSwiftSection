@@ -69,7 +69,7 @@ Structural resolution stage 虽然跳过了一部分语义检查，却仍然可�
 
 **identifier type representation** 是单个 identifier，它命名了某个外层 scope 里的一个 type declaration。我们从该 type representation 的 source location 出发，用 unqualified lookup 找到 **resolved type declaration**（见 `compilation-model.tex`（中译 [SwiftGenericsCompilationModel.md](SwiftGenericsCompilationModel.md)）（中译 [SwiftGenericsCompilationModel.md](SwiftGenericsCompilationModel.md)）的 Name Lookup 一节）。然后构造 resolved type：随 type declaration 的种类不同，它会是 nominal type、type alias type、generic parameter type 或 dependent member type。下面先看几个例子，再讲一般原理。
 
-> 译注：本库也有一套「按名字找类型」的机制，只不过找的是 Mach-O 镜像里的 type descriptor：先在根镜像的 `__swift5_types` 里找，miss 了再按依赖闭包的广度优先顺序逐个镜像折进来。规则见 [MachODependencies.md](../Modules/MachODependencies.md) 与 [StaticLayoutDependencyClosure.md](../StaticLayoutDependencyClosure.md)。
+> 译注：本库也有一套「按名字找类型」的机制，只不过找的是 Mach-O 镜像里的 type descriptor：先在根镜像的 `__swift5_types` 里找，miss 了再按依赖闭包的广度优先顺序逐个镜像折进来。规则见 MachOKitExtensions 的 [DependencyResolution.md](https://github.com/MxIris-Reverse-Engineering/MachOKitExtensions/blob/main/Documentations/Internal/DependencyResolution.md) 与 [StaticLayoutDependencyClosure.md](../StaticLayoutDependencyClosure.md)。
 
 ### Nominal types.
 
