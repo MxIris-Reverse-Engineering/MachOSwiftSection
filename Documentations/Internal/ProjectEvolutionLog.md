@@ -3303,6 +3303,20 @@
 - **验证**：JHs-MacBook-Pro（macOS 27.2，Xcode 27.2，本地兄弟依赖只配了 swift-demangling `next`）。新测试改动前失败（夹具编过后 11 处），改动后相关套件全过；全量（`--skip IntegrationTests`）有 167 个失败点，与同机同夹具跑不含改动的 `next` 完全相同——SymbolTests 夹具的 ABI 基线按 Xcode 26.6 录，这台只有 27.2，另有 `SymbolicDemanglerTests` 要的模拟器 SwiftUI 不在。追加的两处在 JHs-Mac-Studio-Ultra（macOS 27.2，Xcode 27.2，本地兄弟依赖）上验证：两个新用例改动前失败、改动后通过，相关的 9 个套件 73 个测试全过。
 - **对应版本**：未发版。
 
+## 2026-11-19 离线交叉引用与地址符号化
+
+- **时间段**：2026-11-18 至 11-19，本库分支 `feature/offline-cross-references-and-symbolication`（worktree `.worktrees/MachOSwiftSection-OfflineCrossReferences`），RuntimeViewer 同名分支（worktree `.worktrees/RuntimeViewer-OfflineCrossReferences`）。在 JHs-Mac-Studio-Ultra 上写、构建与测试。
+- **动机**：交叉引用只能在活的进程里读；归档的 cache、别的设备的 cache、磁盘上的 app 都要开 IDA。愿景《不靠 IDA 的逆向》的第一步：同一套分析从文件读，加上地址符号化，并给命令行与 MCP 入口。
+- **关键决策**：
+  - 分两步：本提案在本库内把交叉引用拆成核心 / ObjC / Swift 三层模块，用源码扫描守住 import 边界；把核心与 ObjC 层迁去 MachOKitExtensions 与 MachOObjCSection 另写提案。
+  - 两种模式唯一的本质差别（槽里的值怎么得到）收进读取协议 `CrossReferenceMemory`；文件模式整 cache 建表 2.58 秒，与进程内 2.48 秒相当。
+  - 桩与槽的解析抽成 `CodeAddressResolution`，`SwiftThunkAnalysis` 与交叉引用共用。
+  - 引用多了路线、ivar、字符串与经槽读到的导入符号；JSON 的地址一律是十六进制字符串。
+- **落地**：`CrossReferenceCore`、`CrossReferenceObjC`、`CodeAddressResolution` 三个新模块；`CrossReferenceAnalysis` 成为门面并加文件模式与 `symbolication(of:)`；SwiftSectionKit 的 `ReferencesRequest` / `SymbolicateRequest` 与 `swift-section refs` / `symbolicate`；RuntimeViewer 的两个引擎命令、CLI 四个子命令（协议版本 3）与四个 MCP 工具。
+- **顺带修掉**：`ARM64Trampoline` 把「读槽后不经该寄存器跳转」的指令序列误认成 GOT 桩；`SlotResolver` 在可执行文件上把 rebase 目标当成文件偏移；收集器共用调用方的键集合，并发扫描时引用计数争抢让整 cache 查 `init` 的调用者从 2 秒变成 150 秒（`next` 上的同一写法 RuntimeViewer 也会踩到）。
+- **文档**：提案 [draft-offline-cross-references-and-symbolication](../Evolutions/draft-offline-cross-references-and-symbolication.md)；`Modules/CrossReferenceAnalysis.md`、`CrossReferenceCore.md`、`CodeAddressResolution.md`、`SwiftSectionKit.md`；README 与插件 skill 的 `references/cross-references.md`；术语表新增「地址符号化」「识别器」「引用路线」「stub island」。
+- **对应版本**：未发版。
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节

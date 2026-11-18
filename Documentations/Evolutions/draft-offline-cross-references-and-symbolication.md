@@ -1124,11 +1124,11 @@ RuntimeViewer 的 CLI 使用指南与 `runtime-viewer` skill。
    - 行为：`symbolicateAcceptsSeveralAddresses`
    - 行为：`refsListsTheCalleesOfAFunction`、`refsListsTheCallersOfASymbol`、`refsListsTheReferencesToAClass`、`refsReadsAStandaloneFatExecutable`、`symbolicateJSONUsesHexadecimalStringAddresses`
    - 行为：`crossReferenceCommandsWriteOnlyThroughStandardStreamOutput`（沿用仓库已有的输出扫描测试）
-8. **RuntimeViewer CLI** —— 引擎侧符号化命令、四个子命令、协议版本、文本显示、使用指南、skill。
+8. **RuntimeViewer CLI**（已完成） —— 引擎侧符号化命令、四个子命令、协议版本、文本显示、使用指南、skill。
    - 行为：`callersCommandJSONMatchesTheMCPResponseFields`
    - 行为：`commandLineProtocolVersionIsThree`
    - 行为：`symbolicateCommandWorksOnTheLocalSource`
-9. **RuntimeViewer MCP 与收尾** —— 四个 MCP 工具；本库的 `ProjectEvolutionLog.md`、`Glossary.md`；
+9. **RuntimeViewer MCP 与收尾**（已完成） —— 四个 MCP 工具；本库的 `ProjectEvolutionLog.md`、`Glossary.md`；
    RuntimeViewer 的 `Evolutions/README.md` 加 `cross-repository draft` 一行，0056 的暂缓表里把第 4 步那一行
    指向本提案。
    - 行为：`callersToolReturnsAPartialResultAfterThirtySeconds`
@@ -1169,3 +1169,5 @@ RuntimeViewer 的 CLI 使用指南与 `runtime-viewer` skill。
 | 2026-11-19 | ivar 名字改经读取层读 | 第 5 步的 ivar 名字第二来源经 MachOObjCSection 遍历类，每个类都重走一遍加载命令，整 cache 建表因此慢了 30%（3.25 秒）。改为从 `__objc_classlist` 起经读取层读 `class_ro_t` 与 ivar 列表（已 realize 的类经 `class_rw_t` 的第二个字，指针剥签名），两种读取器一套代码；整表回到 2.57–2.66 秒，比第 4 步多约 4%，多出的正是 182 万条 ivar 引用。两条路给的名字有 23 条之差（共约 182 万条），没有逐条追 |
 | 2026-11-19 | 第 7 步完成 | 与设计的出入：`refs --function` 多一个 `--function-image`——一组文件各有各的地址，两个链接在 0 的 dylib 会在同一地址都有函数，此时报错要求指名；`symbolicate` 的文件输入是可重复的 `--file`（位置参数是地址），`--in-image` 指地址属于哪个镜像。胖文件必须给 `-a`，沿用 README 自 0.10.0 起「不默默挑切片」的约定（实现时一度自动挑 arm64e，发现与约定相悖后改回）。`--string` 不需要打开 `recordingStringReferences`：按键查询本来就找字符串。`--class` 先找 `_OBJC_CLASS_$_` 符号，找不到（cache 里多数私有类）再读各镜像的类表，并按类对象位置过滤同名类。`--symbol` 要求名字是函数的起点，变量报错；没有任何镜像定义时按导入名找（一组文件里调用外部库的情形）。为此门面加了 `locations(ofSymbolNamed:among:)`（导出表加符号表），`CodeFunction.Name` 加了 `spelling`。JSON 键排序、地址一律十六进制字符串，每条引用多一个 `isRuntimeHelperCall`。请求的 `run(output:)` 不收环境：不往产物里盖任何东西 |
 | 2026-11-19 | 修共用键集合的争抢 | 写 `refs` 时发现：多个线程并发扫描、共用同一个键集合时，`ReferenceCollector.keep` 每检查一条引用都对该集合 retain/release 一次（`tableKey.map(keptKeys.contains)` 把集合捕获进闭包），28 个核争一个引用计数，整 cache 查 `init` 的调用者用了 152 秒、查 `makeKeyAndOrderFront:` 11.6 秒。`next` 上的 `ReferenceScanner.keep` 是同一写法，RuntimeViewer 并发查调用者时也共用一个键集合，是基线就有的问题；基准每个镜像现建一个集合，所以没暴露。改为收集器各留一份自己的拷贝、去掉闭包捕获：两条查询降到 2.2 秒与 1.05 秒（release CLI，含建分析器与起名）。基准的调用者查询改成共用一个键集合，与真实调用方一致，今后回归能在数字上看出；改后 `init` 的扫描 1.69 秒，与原来每镜像一个集合时相同 |
+| 2026-11-19 | 第 8 步完成 | 与设计的出入：引擎侧加两个命令而不是一个——符号化之外还有「按名字定位符号」（`crossReferenceLocateSymbol`，用本库新加的 `locations(ofSymbolNamed:among:)`），因为查询主体没有「符号」这一种，符号名要先在引擎进程里换成函数地址。目标写法的解析放进 `RuntimeViewerCrossReferences` 的 `RuntimeCrossReferenceTargetResolution`，CLI 与 MCP 共用；按名字找类型由调用方传入，各前端沿用自己的查找规则。CLI 的 `--json` 与 MCP 的每行字段同出 Core 的 `RuntimeCrossReferenceRow` / `RuntimeAddressSymbolicationRow`（MCP 的响应类型要用 SwiftMCP 的 `@Schema`，Core 里不能用，所以 MCP 一侧逐字段照抄、测试钉住键名一致）。三种新目标（ivar、C 字符串、常量字符串）在 RuntimeViewer 里先不显示，照源码兼容性一节的约定返回空。失败代码新增 `targetNotFound` 与 `crossReferencesUnavailable`。RuntimeViewer 分支从远端 `next` 切出：本地 `next` 当时有十几个别的会话未推送的提交，从它切会在推送功能分支时把那些工作一并公开 |
+| 2026-11-19 | 第 9 步完成 | MCP 四个工具照现有工具带 `windowIdentifier`；30 秒的等待做成可单测的 `MCPBridgeServer.references(within:_:)`：边查边收进度里的引用，到时取消查询、带着已有结果返回 `isComplete: false` 与说明（已扫完的镜像有缓存，再调一次接着扫）。RuntimeViewer 的提案索引加了 cross-repository draft 一行，暂缓表里第 4 步那一行指向本提案，0056 的决策日志记了一行 |
