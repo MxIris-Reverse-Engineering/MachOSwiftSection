@@ -1,10 +1,11 @@
 import Foundation
 import MachOKit
-import MachOFoundation
-import MachOSwiftSection
 
 /// Converts between the offsets `MachOSwiftSection` uses and the virtual
-/// addresses a disassembler needs.
+/// addresses a disassembler needs: one image's address space, as the offline
+/// analyses — the accessor-thunk reader, the cross-reference analysis — read
+/// it. Was `ThunkAddressSpace` in `SwiftThunkAnalysis` (evolution proposal
+/// `offline-cross-references-and-symbolication`).
 ///
 /// ## Why this type exists at all
 ///
@@ -39,7 +40,7 @@ import MachOSwiftSection
 /// candidate addresses *computable and wrong*, pointing into a neighbouring
 /// image's segments. Measured symptom: SwiftUI's candidates appearing to live
 /// in `TextRecognition`'s `__AUTH_CONST`.
-package struct ThunkAddressSpace: Sendable {
+package struct ImageAddressSpace: Sendable {
     /// `sharedRegionStart` when the image lives in a shared cache; `nil` for a
     /// standalone file, where offsets are ordinary file offsets.
     private let sharedRegionStart: UInt64?

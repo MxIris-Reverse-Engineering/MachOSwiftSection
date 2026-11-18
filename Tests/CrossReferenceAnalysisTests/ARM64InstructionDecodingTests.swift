@@ -168,6 +168,38 @@ struct ARM64TrampolineTests {
         #expect(ARM64Trampoline(words: words, at: stubAddress) == .selectorStub(selectorAddress: 0x1_F57F_7F98, messageSendAddress: messageSend))
     }
 
+    /// A function that starts by loading a global — a Swift field offset
+    /// here — begins the way a GOT stub does; what it does with the loaded
+    /// value tells the two apart. UIKitCore's `UIHostingViewBase.viewGraph`
+    /// getter in the iOS 26.3.1 device cache, which a stub island leads to,
+    /// read as a stub loading its target from the offset variable.
+    @Test func aFunctionLoadingAGlobalIsNoSlotStub() {
+        // adrp x8, 0x1e9949000 / ldr x8, [x8, #0xb10] / ldr x0, [x20, x8] / b <swift_retain>
+        let getter: [UInt32] = [0xB030_47C8, 0xF945_8908, 0xF868_6A80, 0x1503_490D]
+        #expect(ARM64Trampoline(words: getter, at: 0x1_8905_01B0) == nil)
+        // A jump through another register leaves the loaded value unused.
+        let otherRegister = [
+            InstructionEncoding.adrp(16, at: address, page: 0x1_0000_8000),
+            InstructionEncoding.loadUnsignedOffset(16, base: 16, byteOffset: 0x18),
+            InstructionEncoding.branchToRegister(17),
+        ]
+        #expect(ARM64Trampoline(words: otherRegister, at: address) == nil)
+        // A call through the loaded register returns; a stub's jump does not.
+        let call = [
+            InstructionEncoding.adrp(16, at: address, page: 0x1_0000_8000),
+            InstructionEncoding.loadUnsignedOffset(16, base: 16, byteOffset: 0x18),
+            InstructionEncoding.callRegisterAuthenticated(16, modifier: 17),
+        ]
+        #expect(ARM64Trampoline(words: call, at: address) == nil)
+        // A literal load the stub's jump does not follow.
+        let literal = [
+            ARM64InstructionWord.noOperation,
+            InstructionEncoding.loadLiteral(8, at: address + 4, slot: address + 0x4_0008),
+            ARM64InstructionWord.noOperation,
+        ]
+        #expect(ARM64Trampoline(words: literal, at: address) == nil)
+    }
+
     @Test func ordinaryCodeIsNoTrampoline() {
         // pacibsp / stp x20, x19, [sp, #-0x20]! / stp x29, x30, [sp, #0x10] / add x29, sp, #0x10
         #expect(ARM64Trampoline(words: [0xD503_237F, 0xA9BE_4FF4, 0xA901_7BFD, 0x9100_43FD], at: address) == nil)

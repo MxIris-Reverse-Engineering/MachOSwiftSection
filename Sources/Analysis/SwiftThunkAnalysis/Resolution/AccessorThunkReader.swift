@@ -1,6 +1,7 @@
 import Foundation
 import FoundationToolbox
 import MachOKit
+import CodeAddressResolution
 import MachOFoundation
 import MachOSwiftSection
 import Demangling
@@ -52,7 +53,7 @@ public enum AccessorThunkReader: AccessorThunkReadingLogging {
     ///
     /// `thunkOffset` is the offset a kind-9 `accessorFunctionReference` node
     /// carries — which for a shared-cache image is *not* a file offset; see
-    /// ``ThunkAddressSpace``. `ownerLayout` describes the generic parameters
+    /// ``ImageAddressSpace``. `ownerLayout` describes the generic parameters
     /// of the declaration the thunk belongs to, so an argument the thunk reads
     /// out of its buffer can be named as that parameter. `searchPaths` says
     /// where the images a standalone file's thunk calls into by GOT bind may
@@ -110,7 +111,7 @@ public enum AccessorThunkReader: AccessorThunkReadingLogging {
     private static func typeNode(
         for reference: ThunkCandidate.Reference,
         nodeBuilder: ThunkTypeNodeBuilder,
-        addressSpace: ThunkAddressSpace,
+        addressSpace: ImageAddressSpace,
         in machO: MachOFile
     ) -> Node? {
         switch reference {

@@ -474,6 +474,7 @@ swift-section symbolicate 0x19012345 0x1e1226590 --dyld-shared-cache /Volumes/Dy
 | `…/CodeAddressResolution/CacheImageLocator.swift` · `CacheImageLocator` | 新增 | 由 `CacheImageResolver` 搬来 | 同上 | 3 |
 | `…/CodeAddressResolution/StubChainResolver.swift` · `StubChainResolver` | 新增 | 由 `MachOThunkEnvironment` 的桩链部分抽出，补 27 的 cache 共用桩，记录每一跳与跳板设定的寄存器常量 | 同上；符号化要每一跳 | 3 |
 | `…/CodeAddressResolution/SlotResolver.swift` · `SlotResolver` | 新增 | 由 `MachOThunkEnvironment` 的槽解析抽出，泛化到任意指针槽 | 同上 | 3 |
+| `Sources/Support/ARM64InstructionDecoding/ARM64Trampoline.swift` | 修改 | GOT 桩的载入之后必须紧跟经同一寄存器的跳转 | 开头是 `adrp; ldr` 的普通函数被误认成桩 | 3 |
 | `Sources/Analysis/SwiftThunkAnalysis/Resolution/MachOThunkEnvironment.swift` | 修改 | 改用上面四个类型，行为不变 | 去重 | 3 |
 | `…/SwiftThunkAnalysis/Resolution/ThunkAddressSpace.swift` · `ThunkAddressSpace` | 删除 | 调用点改用 `ImageAddressSpace` | 已搬走 | 3 |
 | `…/CrossReferenceCore/Memory/FileCrossReferenceMemory.swift` · `FileCrossReferenceMemory` | 新增 | 映射的代码字节；经 `SlotResolver` 解 fixup | 文件模式 | 4 |
@@ -1030,13 +1031,16 @@ RuntimeViewer 的 CLI 使用指南与 `runtime-viewer` skill。
      查询的耗时写进模块文档，增幅超过 5% 时按「详细设计」的退路处理后再量）
    - 行为：`publicNamesStillResolveThroughCrossReferenceAnalysis`（只 `import CrossReferenceAnalysis` 的测试文件
      能用 `CodeLocation`、`CodeReference.Kind.call`、`ReceiverClassHint.methodReceiver`）
-3. **抽出 `CodeAddressResolution`** —— 四个新类型、`MachOThunkEnvironment` 改用它们、删 `ThunkAddressSpace`、
+3. **抽出 `CodeAddressResolution`**（已完成） —— 四个新类型、`MachOThunkEnvironment` 改用它们、删 `ThunkAddressSpace`、
    模块文档。
-   - 行为：`thunkAnalysisResultsAreUnchangedAfterExtraction`
+   - 行为：线程读取的结果不变——由 `SwiftThunkAnalysisTests` 全套守着（归档 iOS 设备 cache 的 stub island、归档
+     macOS cache 的合并 accessor、模拟器运行时、独立文件），不另写测试
    - 行为：`stubChainCarriesTheSelectorRegisterConstantOfACacheSharedSelectorStub`（`x1` 的常量与最终的 `objc_msgSend` 副本；模块本身不认识 selector）
    - 行为：`stubChainRecordsEveryStubIslandHop`
-   - 行为：`slotResolverNamesTheOwnImageClassHeldInAGlobalOffsetTableSlot`
-   - 行为：`slotResolverResolvesStandaloneBindsAndSelfBinds`
+   - 行为：`slotResolverMatchesTheProcessForEveryGlobalOffsetTableSlotOfAppKit`（含指向 AppKit 自己的类对象的槽）
+   - 行为：`slotResolverResolvesStandaloneBinds`
+   - 行为：`cacheImageLocatorFindsTheImageAnAddressLiesIn`
+   - 行为：`aFunctionLoadingAGlobalIsNoSlotStub`（`ARM64Trampoline` 的修复，见决策日志）
 4. **文件模式的分析器** —— `FileCrossReferenceMemory`、两个新构造器、函数起点与类名的文件模式。
    - 行为：`fileModeMatchesInProcessReferencesOnTheRunningSystemCache`（同一个 cache 两种模式逐条比对，
      镜像取 AppKit、SwiftUICore、Foundation）
@@ -1106,3 +1110,5 @@ RuntimeViewer 的 CLI 使用指南与 `runtime-viewer` skill。
 | 2026-11-19 | 修掉第 1 步引入的陷入 | 吞吐基准扫整个 cache 时触发：第 1 步把读指令改成以 `__text` 起点为基的偏移，有些镜像的符号表把 `__text` 的函数起点放在节起点之下，减法下溢陷入。改回按地址经读取层读，`instructionPointer(at:count:)` 由调用方给条数。复现测试 `FunctionStartOutsideTextTests` 修复前陷入、修复后通过。同类排查：`CodeReferenceIndex` 的编码本就先比较再用 `&-`，没有别处 |
 | 2026-11-19 | 吞吐优化 | 第一次量（Ultra，release，对 `next`）超了 5%：整 cache 建表 +8%、`init` 调用者 +8%、`makeKeyAndOrderFront:` +11%、建分析器 +24%。逐项采样后改了四处：读槽先做区间排除再查认领表（原来就是这个顺序）；运行时库的符号只扫一遍；调用计划不再持有数组（复制计划时的引用计数）、只调用角色需要的方法；会话与收集器里热路径上的可变属性标 `@exclusivity(unchecked)`（它们只在一个线程上用）；函数表记下各节，ObjC 层不再为每次扫描遍历一遍 load command。另给读取层加了两个批量读接口（`pointers(inSlotsAt:count:)`、`readablePointers(at:)`），selector 预筛按 256 个槽一块读，不再每个槽一次 existential 调用 |
 | 2026-11-19 | 吞吐验收 | 同一台 Ultra、release、三方交替各三轮取最好：整 cache 建表 `next` 2.42 / 第 1 步 2.54 / 第 2 步 2.52 秒，`init` 调用者 1.70 / 1.71 / 1.74 秒，`makeKeyAndOrderFront:` 调用者 0.36 / 0.37 / 0.38 秒。第 2 步相对拆分前（第 1 步）在 −0.5% 到 +3% 之间，满足 5% 的验收线，不必退到泛型特化；整表多出的约 5% 来自第 1 步的读取层，记进模块文档。debug 下交叉引用全套 99 个测试通过 |
+| 2026-11-19 | 第 3 步完成 | `CodeAddressResolution` 按设计抽出，另有两处细节：它依赖 `MachOReading`（`MachOFile.readElements`，设计里说的读取层）；`CacheImageLocator` 不自带 `SharedCache`，按镜像共用一个 locator 由线程读取器在 `thunkResolution` 组里做，本模块因此不依赖 `MachOCaches`，将来能原样搬走。`SwiftThunkAnalysis` 不再直接依赖 `ARM64InstructionDecoding`。行为清单对齐实际测试：抽取前后结果不变由 `SwiftThunkAnalysisTests` 全套守着；「本镜像类对象在 GOT 里」并进 AppKit 全部 GOT 槽与进程逐个比对的测试；独立文件的 self-bind 在 `SlotResolver` 里只是名字，换成地址是第 4 步文件模式的事，那条行为由第 4 步的 `standaloneAppResolvesImportedAndSelfBoundSymbols` 覆盖 |
+| 2026-11-19 | 修掉跳板把普通函数认成 GOT 桩 | 写 `stubChainRecordsEveryStubIslandHop` 时发现：iOS 26.3.1 设备 cache 里 SwiftUI 经 stub island 调到 UIKitCore 的 `UIHostingViewBase.viewGraph` getter，它开头是 `adrp x8; ldr x8, [x8, #0xb10]; ldr x0, [x20, x8]`（读一个字段偏移），`ARM64Trampoline` 读到 `ldr` 就认定是从槽里取目标的桩，链落到 `sharedRegionStart + 0x38`。这是 `next` 上就有的旧 bug。改成载入之后必须紧跟一条经同一寄存器的非调用跳转（三种 GOT 桩都是这个形状），复现测试 `aFunctionLoadingAGlobalIsNoSlotStub` 修复前四处断言全红、修复后通过。影响面：进程内扫描器只对不落在任何镜像里的地址认跳板，结果不变；线程读取器只在调用目标落在别的镜像、又不是 accessor 或运行时入口时才走到它，原来得出 `unknown`，现在也是。真正会受影响的是第 4 步的文件模式，它经同一个解析器一跳一跳地跟，所以在这一步修掉 |

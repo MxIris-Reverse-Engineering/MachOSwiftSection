@@ -601,6 +601,7 @@ extension Target {
             .target(.SwiftObjCInterop),
             .target(.SwiftLayout),
             .target(.SwiftThunkAnalysis),
+            .target(.CodeAddressResolution),
         ],
         path: "Sources/Output/SwiftDeclarationRendering",
     )
@@ -619,13 +620,13 @@ extension Target {
     static let SwiftThunkAnalysis = Target.target(
         name: "SwiftThunkAnalysis",
         dependencies: [
+            .target(.CodeAddressResolution),
             .product(.MachOKit),
             .product(.MachOKitExtensions),
             .product(.Demangling),
             .product(.Capstone),
             .product(name: "FoundationToolbox", package: "FrameworkToolbox"),
             .target(.Utilities),
-            .target(.ARM64InstructionDecoding),
             .target(.MachOCaches),
             .target(.MachOFoundation),
             .target(.MachOSwiftSection),
@@ -633,6 +634,22 @@ extension Target {
             .target(.SwiftObjCInterop),
         ],
         path: "Sources/Analysis/SwiftThunkAnalysis",
+    )
+
+    /// One image's address space and the stubs and pointer slots on the way
+    /// to a function, read from a Mach-O file: what the accessor-thunk reader
+    /// and the cross-reference analysis share. Moves to MachOKitExtensions
+    /// later as `MachOAddressResolution` (evolution proposal
+    /// `offline-cross-references-and-symbolication`).
+    static let CodeAddressResolution = Target.target(
+        name: "CodeAddressResolution",
+        dependencies: [
+            .product(.MachOKit),
+            .product(.MachOKitExtensions),
+            .target(.MachOReading),
+            .target(.ARM64InstructionDecoding),
+        ],
+        path: "Sources/Analysis/CodeAddressResolution",
     )
 
     /// The language-free core of the cross-reference analysis: image
@@ -1281,6 +1298,7 @@ extension Target {
     static let SwiftThunkAnalysisTests = Target.testTarget(
         name: "SwiftThunkAnalysisTests",
         dependencies: [
+            .target(.CodeAddressResolution),
             .target(.SwiftThunkAnalysis),
             .target(.SwiftDeclarationRendering),
             .target(.SwiftDump),
@@ -1305,6 +1323,19 @@ extension Target {
             .target(.MachOSwiftSection),
             .target(.MachOReading),
             .target(.SwiftInspection),
+        ],
+        swiftSettings: testSettings,
+    )
+
+    static let CodeAddressResolutionTests = Target.testTarget(
+        name: "CodeAddressResolutionTests",
+        dependencies: [
+            .target(.CodeAddressResolution),
+            .target(.CrossReferenceAnalysis),
+            .target(.ARM64InstructionDecoding),
+            .target(.MachOFixtureSupport),
+            .product(.MachOKit),
+            .product(.MachOKitExtensions),
         ],
         swiftSettings: testSettings,
     )
@@ -1519,6 +1550,7 @@ let package = Package(
         .SwiftLayout,
         .SwiftDeclarationRendering,
         .SwiftThunkAnalysis,
+        .CodeAddressResolution,
         .CrossReferenceCore,
         .CrossReferenceObjC,
         .CrossReferenceAnalysis,
@@ -1561,6 +1593,7 @@ let package = Package(
         .SwiftDeclarationRenderingTests,
         .SwiftThunkAnalysisTests,
         .CrossReferenceAnalysisTests,
+        .CodeAddressResolutionTests,
         .SwiftAttributeInferenceTests,
         .SwiftDiffingTests,
         .SwiftSectionCommandTests,
