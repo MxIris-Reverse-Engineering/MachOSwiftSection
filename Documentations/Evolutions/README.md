@@ -105,6 +105,6 @@
 | [0093](0093-observable-macro-folding.md) | 识别 `@Observable` 宏：interface 默认折叠它的展开 | Implemented |
 | [0094](0094-init-accessor-recovery.md) | 还原 SE-0400 的 init accessor | Implemented |
 | [0095](0095-observable-nested-expansion.md) | `@Observable` 的展开分两层：先出 `@ObservationTracked`，再展开它 | Implemented |
+| [0096](0096-swift-first-imported-declarations.md) | Swift 实现的类，导入声明以 Swift 一侧为准 | Implemented |
 | draft | [SwiftDeclaration 的目录分成公开模型与索引代码两块](draft-swift-declaration-model-indexing-layout.md) | In Progress |
 | draft | [SwiftDeclaration 的类型名按角色统一后缀](draft-swift-declaration-type-naming.md) | In Progress |
-| draft | [Swift 实现的类，导入声明以 Swift 一侧为准](draft-swift-first-imported-declarations.md) | In Progress |

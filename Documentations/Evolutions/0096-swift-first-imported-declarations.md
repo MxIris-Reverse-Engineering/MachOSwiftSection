@@ -1,11 +1,12 @@
-# Draft - Swift 实现的类，导入声明以 Swift 一侧为准
+# 0096 - Swift 实现的类，导入声明以 Swift 一侧为准
 
-- **状态**: In Progress
+- **状态**: Implemented
 - **创建日期**: 2026-11-17
-- **最后更新**: 2026-11-17
+- **最后更新**: 2026-11-18
 - **关联提案**: [0090-objc-imported-declarations](0090-objc-imported-declarations.md)（本提案改它的「与 Swift 合并」）、[0048-objc-member-selector-recovery](0048-objc-member-selector-recovery.md)（把 ObjC 方法联结到 Swift 成员的三档证据）、[0046-objc-implementation-class-recognition](0046-objc-implementation-class-recognition.md)（认出 `@objc @implementation` 类）；RuntimeViewer 的提案 0084（Generated Interface）
 - **跨仓库**: 本提案是三个库共用的唯一提案，MachOObjCSection 与 RuntimeViewer 的提案索引各有一行 cross-repository draft 指向这里；各库的部分见「三个库各做什么」
-- **实现分支 / PR**: 三个仓库都是 `feature/swift-first-imported-declarations`（从各自的 `next` 切出）
+- **实现分支 / PR**: 三个仓库都是 `feature/swift-first-imported-declarations`（从各自的 `next` 切出），本地合进各自的 `next`，没开 PR
+- **网页版**: [0096-swift-first-imported-declarations.html](0096-swift-first-imported-declarations.html)
 
 ## 摘要
 
@@ -116,7 +117,7 @@ ObjC 头文件，改后（节选）：
 1. （已完成）MachOObjCSection：头文件渲染接受宿主给的 Swift 导入标注、打出 `NS_REFINED_FOR_SWIFT`；测试覆盖属性、实例方法、类方法，不传标注时输出逐字节不变，marked 形式投影后与普通形式一致；文档写进它的使用指南「库调用方」一节与下一个版本的 Changelog。
 2. （已完成）本库测试先红：夹具加一个照 `SHScenePresentation` 写的 `@implementation` 类，成员 `public`，像系统框架那样留下导出符号——一个头文件用 `NS_SWIFT_NAME` 改了 Swift 名的方法（`isHosting(sceneLayer:)` 那种）、一对 `NS_REFINED_FOR_SWIFT` 属性加同名的纯 Swift 属性（一个留下 `__` 成员的符号、一个不留）、一个 `weak` 可写存储属性、一个只留 ivar 的存储属性。在 `.optimizedStripped` 变体上断言 Generated Interface 与改名查询的结果，先确认它们在改动前失败。
 3. （已完成）本库实现：配对、打印形状、改了 Swift 名字的成员（判定、Swift 视图的注释、给宿主的查询）、存储属性的两条。
-4. RuntimeViewer：（已完成）ObjC 头文件的显示与 Find 语料带上标注，测试接线；（收尾时）抬两个库的修订号；在 App 里看 `SHScenePresentation` 复核（交互验收由用户做）。
+4. RuntimeViewer：（已完成）ObjC 头文件的显示与 Find 语料带上标注，测试接线；（已完成）用户在 App 里看过 `SHScenePresentation`；（收尾时，由 RuntimeViewer 一侧做）两个库落地进各自的 `next` 后，抬锁文件里的修订号。
 5. （已完成）文档：模块参考 SwiftObjCInterop 与 SwiftDeclaration 里「ObjC 声明按 Swift 导入的样子」、命令行指南的「The Swift view」、演进账本、术语表；插件 skill 里讲 `objc interface --swift` 输出的地方一并核对。
 
 ## 后续项
@@ -141,3 +142,4 @@ ObjC 头文件，改后（节选）：
 | 2026-11-17 | 夹具照编译器的要求写：改名属性的实现写成 `@objc(name) var __name`；`isHostingSceneLayer:` 的 Swift 名由头文件的 `NS_SWIFT_NAME` 给，实现写 `@objc(isHostingSceneLayer:)` | 编译器拒绝不写 selector 的 `__name`（它从 Swift 名推出 `__name`，头文件里没有），也从 `isHosting(sceneLayer:)` 推出 `isHostingWithSceneLayer:`；importer 自己不会把 `isHostingSceneLayer:` 拆成 `isHosting(sceneLayer:)`，参数类带前缀也一样，所以 SceneHosting 的这个名字来自 `NS_SWIFT_NAME`，后续项据此更正 |
 | 2026-11-17 | 实现完成，待用户看过后收尾 | 三个库在 JHs-MacBook-Pro（macOS 27.2，Xcode 27.2）上验证：MachOObjCSection 的 `ObjCInterfaceTests` 与 `ObjCDeclarationRenderingTests` 全过；本库新测试改动前失败、改动后通过，相关套件全过，全量（跳过 IntegrationTests）与不含改动的 `next` 失败点完全相同（167 处，SymbolTests 夹具的 ABI 基线按 Xcode 26.6 录、模拟器 runtime 缺文件）；RuntimeViewerCore 的新测试与 Generated Interface 测试全过。RuntimeViewer 锁文件里两个库的修订号留到正式收尾再抬：两个库的改动那时才进各自的 `next`。不另写实现说明与使用指南：契约写进了两份模块参考、命令行指南与 MachOObjCSection 的使用指南；新术语「改名成员」与 MachOObjCSection 的「Swift 导入标注」已登记 |
 | 2026-11-17 | 推断出改了名的属性，注释挂到占了它原名的 Swift 属性正上方（排在那个属性自己的注释之前）；注释里的声明分段：属性名 `.name`、类型 `.type`，`var `、声明里的冒号和访问器块不带角色。类体里没有那个 Swift 属性、或导出过滤滤掉了它时，注释留在原处 | 用户在 RuntimeViewer 里看过效果后定的：注释放在类体末尾，离它说的那个属性太远；整条声明是一个 `.value` 段，宿主只能整段一个颜色。宿主会藏起 `.separator` 里的标点，所以声明里的冒号不能标成 separator |
+| 2026-11-18 | Implemented，取号 0096，合进 `next` 并推送 | 用户在 RuntimeViewer 里看过注释的新位置与分段着色，同意收尾。追加的两处在 JHs-Mac-Studio-Ultra（macOS 27.2，Xcode 27.2）上验证：两个新用例改动前失败、改动后通过，相关的 9 个套件 73 个测试全过。仍不另写实现说明与使用指南：位置与分段写进了命令行指南的「The Swift view」、插件 skill 与术语表的「改名成员」，没有新术语。`NS_SWIFT_NAME` 与 `swift-section` 的 ObjC 头文件打宏两项留作后续项 |
