@@ -1,6 +1,15 @@
 import Foundation
 
 extension CrossReferenceAnalyzer {
+    /// Where the images among `candidates` define a symbol named `name`,
+    /// with its leading underscore — a function, a class object, a variable —
+    /// unslid, in image order: what each image's export trie and the defined
+    /// entries of its symbol table say. A re-export is left out; one image
+    /// may define a name at more than one address.
+    public func locations(ofSymbolNamed name: String, among candidates: some Sequence<Int>) -> [CodeLocation] {
+        imageSet.locations(ofSymbolNamed: name, among: candidates)
+    }
+
     /// The images among `candidates` that can bind to the symbols of the
     /// image at `imageIndex`: the image itself, the images re-exporting it —
     /// SwiftUI re-exports SwiftUICore — and every image linking one of those.

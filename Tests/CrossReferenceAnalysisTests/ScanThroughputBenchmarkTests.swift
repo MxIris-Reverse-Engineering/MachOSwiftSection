@@ -78,13 +78,17 @@ struct ScanThroughputBenchmarkTests {
                 candidates = built.imageIndices(referencingSelector: selector, among: allImages)
             }
             var senderCount = 0
+            // One set of keys for every image, as `refs` and RuntimeViewer
+            // pass it: each scan checking references against one shared set
+            // once made a query 15 to 70 times slower than a set per image.
+            let keys: Set<CodeReferenceTable.Key> = [.selector(selector)]
             let scanTime = try Self.bestOfThree {
                 let counts = UnsafeMutableBufferPointer<Int>.allocate(capacity: candidates.count)
                 counts.initialize(repeating: 0)
                 defer { counts.deallocate() }
                 nonisolated(unsafe) let countsBase = counts.baseAddress!
                 DispatchQueue.concurrentPerform(iterations: candidates.count) { position in
-                    (countsBase + position).pointee = built.references(to: [.selector(selector)], inImageAt: candidates[position]).count
+                    (countsBase + position).pointee = built.references(to: keys, inImageAt: candidates[position]).count
                 }
                 senderCount = counts.reduce(0, +)
             }

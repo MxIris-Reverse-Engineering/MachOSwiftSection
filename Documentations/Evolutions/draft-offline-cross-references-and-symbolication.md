@@ -513,15 +513,19 @@ swift-section symbolicate 0x19012345 0x1e1226590 --dyld-shared-cache /Volumes/Dy
 | `Sources/Commands/SwiftSectionKit/CrossReferences/CrossReferenceInput.swift` | 新增 | 由文件、cache 或本机 cache 建分析器 | 两个子命令共用 | 7 |
 | `…/SwiftSectionKit/CrossReferences/ReferencesRequest.swift` · `ReferencesRequest` | 新增 | 预筛 → 并发逐镜像查 → 起名 → 文本 / JSON | `refs` 的逻辑 | 7 |
 | `…/SwiftSectionKit/CrossReferences/SymbolicateRequest.swift` · `SymbolicateRequest` | 新增 | 批量符号化 → 文本 / JSON | `symbolicate` 的逻辑 | 7 |
+| `…/SwiftSectionKit/CrossReferences/CrossReferenceFormatting.swift` | 新增 | 文本与 JSON 的拼写（`CrossReferenceJSONValue`、目标起名） | 两个子命令共用，JSON 名字即契约 | 7 |
+| `Sources/Analysis/CrossReferenceCore/Images/CodeImageSet+SymbolLookup.swift`；门面 `locations(ofSymbolNamed:among:)` | 新增 | 按名字在导出表与符号表里找定义 | `refs --symbol` / `--class` | 7 |
+| `Sources/Analysis/CrossReferenceAnalysis/CrossReferenceAnalyzer.swift` · `ReferenceCollector` | 修改 | 键集合拷一份自己的 | 并发共用键集合时的引用计数争抢 | 7 |
 | `Sources/Executables/swift-section/Commands/ReferencesCommand.swift`、`SymbolicateCommand.swift` | 新增 | flag、`validate()`、`makeRequest()` | CLI 入口 | 7 |
 | `Sources/Executables/swift-section/Models/CrossReferenceInputOptionGroup.swift` | 新增 | 多文件 / cache / 本机 cache、`-a`、`--in-image` | 现有选项组只产出单个 `MachOFile` | 7 |
 | `Sources/Executables/swift-section/SwiftSectionCommand.swift` | 修改 | 登记两个子命令 | CLI 入口 | 7 |
+| `Sources/Executables/swift-section/Models/CommandLineSupport.swift` | 修改 | `--in-image` / `--function-image` 的错误译成退出码 64 | 用法错误按惯例 | 7 |
 | `Package.swift` | 修改 | 新增 `CrossReferenceCore`、`CrossReferenceObjC`、`CodeAddressResolution` 三个 target（不做 product）；`CrossReferenceAnalysis` 依赖前两个，`CrossReferenceCore` 与 `SwiftThunkAnalysis` 依赖第三个；`SwiftSectionKit` 与 `swift-section` 依赖 `CrossReferenceAnalysis` | 模块图 | 2、3、7 |
 | `Tests/CrossReferenceAnalysisTests/CrossReferenceLayerBoundaryTests.swift` | 新增 | 源码扫描：每层只 import 允许的模块；核心层没有 `objc_` / `swift_` 字面量 | 守住拆分的边界 | 2 |
 | `Tests/CrossReferenceAnalysisTests/…` | 新增 | 对照、按层拆分、文件模式、新种类、符号化测试（见落地步骤） | 验证 | 1–6 |
 | `Tests/CodeAddressResolutionTests/…` | 新增 | 桩链、槽解析测试 | 验证 | 3 |
 | `Tests/SwiftThunkAnalysisTests/…` | 修改 | 抽取前后结果一致的守护测试 | 去重不改行为 | 3 |
-| `Tests/…`（SwiftSectionKit 的命令测试） | 新增 | `refs` / `symbolicate` 的文本与 JSON 输出 | 验证 | 7 |
+| `Tests/SwiftSectionKitTests/CrossReferenceRequestTests.swift`、`Tests/SwiftSectionCommandTests/CrossReferenceCommandTests.swift` | 新增 | `refs` / `symbolicate` 的文本与 JSON 输出、flag 映射与拒绝的组合 | 验证 | 7 |
 | `Documentations/Internal/Modules/CrossReferenceAnalysis.md` | 修改 | 三层的分工与识别器；文件模式、读取抽象、新种类、路线、符号化、拆分前后与离线吞吐实测 | 模块参考 | 2、4–6 |
 | `Documentations/Internal/Modules/CrossReferenceCore.md`、`CrossReferenceObjC.md`、`CodeAddressResolution.md` | 新增 | 三个新模块的参考；各写明将来的落脚处与名字 | 模块参考 | 2、3 |
 | `AGENTS.md`（模块层级图与各模块说明）、`Documentations/README.md` | 修改 | 登记三个新模块与它们的去向 | 项目约定 | 2、3 |
@@ -1111,13 +1115,14 @@ RuntimeViewer 的 CLI 使用指南与 `runtime-viewer` skill。
    - 行为：`symbolicatesAnAddressInsideAnUnnamedFunctionWithItsFallbackName`
    - 行为：`symbolicatesAnUnmappedAddressAsUnmapped`
    - 行为：`symbolicatesStringsAndObjectiveCSlots`（C 字符串、`CFString`、`__objc_ivar` 的偏移变量）
-7. **`swift-section refs` 与 `symbolicate`** —— SwiftSectionKit 的三个类型、两个命令、选项组、登记、README、
+7. **`swift-section refs` 与 `symbolicate`**（已完成） —— SwiftSectionKit 的三个类型、两个命令、选项组、登记、README、
    skill。
    - 行为：`refsListsCallerRowsForASelectorInAnArchivedCache`
    - 行为：`refsJSONUsesHexadecimalStringAddresses`
    - 行为：`refsMarksTruncatedResultsWhenLimited`
    - 行为：`refsRequiresExactlyOneQuery`
    - 行为：`symbolicateAcceptsSeveralAddresses`
+   - 行为：`refsListsTheCalleesOfAFunction`、`refsListsTheCallersOfASymbol`、`refsListsTheReferencesToAClass`、`refsReadsAStandaloneFatExecutable`、`symbolicateJSONUsesHexadecimalStringAddresses`
    - 行为：`crossReferenceCommandsWriteOnlyThroughStandardStreamOutput`（沿用仓库已有的输出扫描测试）
 8. **RuntimeViewer CLI** —— 引擎侧符号化命令、四个子命令、协议版本、文本显示、使用指南、skill。
    - 行为：`callersCommandJSONMatchesTheMCPResponseFields`
@@ -1162,3 +1167,5 @@ RuntimeViewer 的 CLI 使用指南与 `runtime-viewer` skill。
 | 2026-11-19 | 第 5 步完成 | 与设计的出入：路线的最后一种叫 `indirect`，不叫 `authenticatedIndirect`——不带认证的 `blr` / `br` 也得有路线，认证与否已在 `IndirectCallEvidence` 里。Swift 大字符串不需要 Swift 层专门认：`add` 算出的正是字符串起点，核心在那里记下；只是「减法算出的地址」从不当作字符串，否则 `sub #0x20` 之后的地址会落进前一个字符串中间。ivar 只认 `__objc_ivar` 里的偏移变量，即父类不在本镜像的 ObjC 类（父类是 `NSObject` 时 clang 用常量偏移、根本不载入）；Swift 类经 ObjC ivar 列表登记的偏移变量是 `__data` 里的 Swift 字段偏移全局量，不在 `__objc_ivar`，没有收（ControlCenter 的 `BentoBackdrop.maskLayer` 就是这样），留作后续。对导入符号的数据引用记成 `.importedSymbol(name:)`、`kind == .reference`，不另外按名字认成 ObjC 类引用：类引用的 target 要带位置，导入的类没有；查一个类的全部引用时，调用方同时查 `_OBJC_CLASS_$_<类>`。查询里含字符串键时，那次扫描照样找字符串，不受分析器开关限制。32 位载入另认 ld64 改写出的字面量形式（`ldrsw xt, label`）。RuntimeViewer 的穷尽 switch 挪到第 8 步：它经远端版本依赖本库，本库发版之前不受影响 |
 | 2026-11-19 | 第 6 步完成 | 与设计的出入：另有 `symbolication(of:inImageAt:)`——一组独立文件各留自己的地址，两个文件可能都有同一个未滑动地址（进程内，链接在 0 的测试 bundle 就占着 0x10），不指定镜像时取第一个有它的镜像，cache 优先。`Meaning` 多一个 `.data`：映射着、但不是函数、桩、槽、字符串，其下也没有符号，不能说成未映射。槽里的东西按节说：selector 引用给 `.messageSend(selector:receiver: .unknown)`（目标类型里没有单独的 selector），protocol 引用给协议名 `.cString`，GOT 给函数、类、Swift 类型或导入名，`__objc_ivar` 给 ivar。结构由核心层的 `AddressPlace` 判断（函数体、本镜像的桩、镜像之间的跳板链、槽、字符串、最近的符号），ObjC 层的 selector 桩、类与 ivar、Swift 类型与无符号函数的名字在门面补上。符号化用留存的函数表（第一版用不留存的，问 26.7 SwiftUICore 的全部桩花了 207 秒，改后 0.9 秒）。原计划的「对照 MachOKit 的 `Stub.indirectSymbolIndex`」不成立：那批桩上 MachOKit 读间接符号表与 `dyld_info` 一样标错，改为用 `ipsw` 独立核对的 5 个桩钉住、其余全部桩都要解出目标 |
 | 2026-11-19 | ivar 名字改经读取层读 | 第 5 步的 ivar 名字第二来源经 MachOObjCSection 遍历类，每个类都重走一遍加载命令，整 cache 建表因此慢了 30%（3.25 秒）。改为从 `__objc_classlist` 起经读取层读 `class_ro_t` 与 ivar 列表（已 realize 的类经 `class_rw_t` 的第二个字，指针剥签名），两种读取器一套代码；整表回到 2.57–2.66 秒，比第 4 步多约 4%，多出的正是 182 万条 ivar 引用。两条路给的名字有 23 条之差（共约 182 万条），没有逐条追 |
+| 2026-11-19 | 第 7 步完成 | 与设计的出入：`refs --function` 多一个 `--function-image`——一组文件各有各的地址，两个链接在 0 的 dylib 会在同一地址都有函数，此时报错要求指名；`symbolicate` 的文件输入是可重复的 `--file`（位置参数是地址），`--in-image` 指地址属于哪个镜像。胖文件必须给 `-a`，沿用 README 自 0.10.0 起「不默默挑切片」的约定（实现时一度自动挑 arm64e，发现与约定相悖后改回）。`--string` 不需要打开 `recordingStringReferences`：按键查询本来就找字符串。`--class` 先找 `_OBJC_CLASS_$_` 符号，找不到（cache 里多数私有类）再读各镜像的类表，并按类对象位置过滤同名类。`--symbol` 要求名字是函数的起点，变量报错；没有任何镜像定义时按导入名找（一组文件里调用外部库的情形）。为此门面加了 `locations(ofSymbolNamed:among:)`（导出表加符号表），`CodeFunction.Name` 加了 `spelling`。JSON 键排序、地址一律十六进制字符串，每条引用多一个 `isRuntimeHelperCall`。请求的 `run(output:)` 不收环境：不往产物里盖任何东西 |
+| 2026-11-19 | 修共用键集合的争抢 | 写 `refs` 时发现：多个线程并发扫描、共用同一个键集合时，`ReferenceCollector.keep` 每检查一条引用都对该集合 retain/release 一次（`tableKey.map(keptKeys.contains)` 把集合捕获进闭包），28 个核争一个引用计数，整 cache 查 `init` 的调用者用了 152 秒、查 `makeKeyAndOrderFront:` 11.6 秒。`next` 上的 `ReferenceScanner.keep` 是同一写法，RuntimeViewer 并发查调用者时也共用一个键集合，是基线就有的问题；基准每个镜像现建一个集合，所以没暴露。改为收集器各留一份自己的拷贝、去掉闭包捕获：两条查询降到 2.2 秒与 1.05 秒（release CLI，含建分析器与起名）。基准的调用者查询改成共用一个键集合，与真实调用方一致，今后回归能在数字上看出；改后 `init` 的扫描 1.69 秒，与原来每镜像一个集合时相同 |

@@ -98,6 +98,10 @@ enum CommandLineErrorTranslation {
             case .systemDyldSharedCacheUnavailable:
                 return SwiftSectionCommandError.unsupportedSystemVersionForDyldSharedCache
             }
+        case CrossReferenceRequestError.imageNotFound(let name):
+            return ValidationError("No analyzed image is named '\(name)'; --in-image and --function-image take an image's path or its file name.")
+        case CrossReferenceRequestError.ambiguousFunction(let address, let imagePaths):
+            return ValidationError("Several files hold a function at 0x\(String(address, radix: 16)): \(imagePaths.joined(separator: ", ")). Name its image with --function-image.")
         case SnapshotSourceError.binaryRequired(let snapshotPath):
             guard let annotatedInterfaceRequiresBinaries else { return error }
             return ValidationError(annotatedInterfaceRequiresBinaries(snapshotPath))

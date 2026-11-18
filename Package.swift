@@ -951,6 +951,8 @@ extension Target {
             .target(.SwiftPrivateDiscriminators),
             .target(.TypeIndexing),
             .target(.Utilities),
+            // `refs` and `symbolicate`.
+            .target(.CrossReferenceAnalysis),
             .product(.MachOKit),
             .product(.MachOKitExtensions),
             .product(.Semantic),
@@ -1393,6 +1395,8 @@ extension Target {
             .target(.SwiftDeclaration),
             .target(.SwiftDiffing),
             .target(.SwiftOutputTransformer),
+            // What `refs` and `symbolicate` return.
+            .target(.CrossReferenceAnalysis),
             .product(.Semantic),
             .product(.OutputTransformer),
             .product(name: "ObjCDiffing", package: "MachOObjCSection"),

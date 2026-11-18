@@ -105,6 +105,8 @@ swift run swift-section diff <old> <new>              # two-sided ABI diff; eith
 swift run swift-section evolution <v1> <v2> …         # N-version lineage
 swift run swift-section transformer tokens            # also: templates | config — the discovery surface
 swift run swift-section objc dump <binary>            # the Objective-C side: dump | interface | snapshot | diff | evolution
+swift run swift-section refs --selector <sel> --dyld-shared-cache <cache>   # who references a selector / symbol / class / function / ivar / string (arm64 code)
+swift run swift-section symbolicate <address> --uses-system-dyld-shared-cache   # what an unslid address is
 
 # Each subcommand's --help is the authority on its flags. The one that is easy not to
 # know exists: --dependency-search-path (dump / interface / snapshot), which points the

@@ -218,7 +218,7 @@ You can get the swift-section CLI tool in three ways:
 
 ### Usage
 
-The swift-section CLI tool provides seven subcommands: `dump`, `interface`, `diff`, `snapshot`, `evolution`, `transformer`, and `objc` — the Objective-C side, with five subcommands of its own.
+The swift-section CLI tool provides nine subcommands: `dump`, `interface`, `diff`, `snapshot`, `evolution`, `transformer`, `objc` — the Objective-C side, with five subcommands of its own — and `refs` and `symbolicate`, which read arm64 machine code across a whole dyld shared cache or a set of files.
 
 > [!IMPORTANT]
 > As of 0.10.0, when the input is a fat / universal binary you must pass `--architecture <arch>`. The tool no longer picks a default slice silently.
@@ -737,6 +737,75 @@ mis-compared, so regenerate it with the current tool. Baselines written by `objc
 The contracts that neither the signatures nor `--help` show — how file mode truncates the
 superclass chain, why pure-Swift classes' ivar records do not line up, and the rest — are in
 [Objective-C Command Line](Documentations/ObjCCommandLine.md).
+
+#### refs - Find Cross References
+
+Who sends a selector, calls a function, or references a class, an instance variable or a string — across every image of a dyld shared cache (an archived one, another device's, or the running system's, read from its files) or across a set of Mach-O files read together, such as an app's executable and its frameworks. No disassembler and no process: the code is read from the files, through image stubs, the stub islands between a cache's images, and the selector and GOT stubs macOS 27 shares across a cache. Only the images that can reference the subject are scanned — the ones whose selector references, imports or linkage allow it.
+
+```bash
+# Every send of a selector across a whole cache
+swift-section refs --selector makeKeyAndOrderFront: \
+  --dyld-shared-cache /path/to/dyld_shared_cache_arm64e
+
+# The running system's cache, only in the images named (by path or file name)
+swift-section refs --class NSWindow --uses-system-dyld-shared-cache --in-image AppKit
+
+# The callers of a symbol: a C function, a Swift mangled name,
+# _OBJC_CLASS_$_<class> or _OBJC_IVAR_$_<class>.<ivar>
+swift-section refs --symbol _objc_autoreleasePoolPush --uses-system-dyld-shared-cache
+
+# What one function references, in instruction order
+swift-section refs --function 0x18a403858 --callees --uses-system-dyld-shared-cache
+
+# An app's files; a fat file needs --architecture, as everywhere
+swift-section refs --string NSWindowDidBecomeKeyNotification \
+  Foo.app/Contents/MacOS/Foo Foo.app/Contents/Frameworks/Bar.framework/Bar -a arm64e
+```
+
+Each line is one reference: the referencing instruction, its image, its function and the offset into it, the kind (`call`, `tailCall`, `reference`), the route the code took to the target (`direct`, `imageStub`, `stubIsland`, `cacheSharedStub`, `pointerSlot`, `addressMaterialization`, `literalLoad`, `indirect`), and the target. A summary line goes to stderr.
+
+```
+0x18a403a08  AppKit  -[NSApplication _sendFinishLaunchingNotification]+0x1b0  call  cacheSharedStub  send makeKeyAndOrderFront:
+0x18a521430  AppKit  -[NSApplication _handleAppKitDefinedEvent:]+0x264  tailCall  cacheSharedStub  send makeKeyAndOrderFront:
+0x18a6ca864  AppKit  -[NSApplication reportException:]+0x38c  reference  addressMaterialization  CFString @"NSApplicationCrashOnExceptions"
+```
+
+Addresses in and out are unslid — the ones IDA, `ipsw` and `dyld_info` show. A function no symbol names is named from the export trie, the Objective-C method lists or the Swift metadata. `--limit <n>` keeps the first references in image and address order; `--json` prints one document whose addresses are all hexadecimal strings and whose `isTruncated` says whether `--limit` cut it short:
+
+```json
+{
+  "input" : { "imageCount" : 4115, "systemDyldSharedCache" : "/System/Volumes/Preboot/Cryptexes/OS/System/Library/dyld/dyld_shared_cache_arm64e" },
+  "isTruncated" : true,
+  "query" : { "selector" : "makeKeyAndOrderFront:" },
+  "references" : [
+    {
+      "function" : { "address" : "0x18a403858", "name" : "-[NSApplication _sendFinishLaunchingNotification]" },
+      "image" : "/System/Library/Frameworks/AppKit.framework/Versions/C/AppKit",
+      "isRuntimeHelperCall" : false,
+      "kind" : "call",
+      "route" : "cacheSharedStub",
+      "site" : "0x18a403a08",
+      "target" : { "messageSend" : { "receiver" : "unknown", "selector" : "makeKeyAndOrderFront:" } }
+    }
+  ],
+  "scannedImageCount" : 1
+}
+```
+
+On a 28-core Mac a whole macOS 27.2 cache answers `--selector makeKeyAndOrderFront:` in about a second and `--selector init` (334,624 sends in 2,853 images) in about two.
+
+#### symbolicate - Say What an Address Is
+
+```bash
+swift-section symbolicate 0x18a403a08 0x10 --uses-system-dyld-shared-cache
+```
+
+```
+0x18a403a08  AppKit  __TEXT,__text  -[NSApplication _sendFinishLaunchingNotification]+0x1b0
+0x10  -  -  unmapped
+```
+
+Each address is read as a function and the offset into it, a stub or a chain of stub islands and where it leads, a pointer slot (GOT, selector, class, superclass or protocol reference, an instance variable's offset) and what it holds, a C string or `CFString`, or the nearest symbol. Files take `--file <path>`, repeatable; each file keeps its own addresses, so `--in-image` names the one they belong to. `--json` prints `{"symbolications": [ … ]}`.
 
 ## Agent Plugin
 

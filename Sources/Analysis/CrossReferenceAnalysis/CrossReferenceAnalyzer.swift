@@ -484,7 +484,12 @@ final class ReferenceCollector: ObjCCodeReferenceRecording, SwiftCodeReferenceRe
     private var importedNames: [UInt: String] = [:]
 
     init(keeping keptKeys: Set<CodeReferenceTable.Key>?, matching swiftTypeQuery: SwiftTypeQuery?) {
-        self.keptKeys = keptKeys ?? (swiftTypeQuery == nil ? nil : [])
+        // A set of its own, not the caller's: a cross-image query scans its
+        // images on every core with one set of keys, and checking each
+        // reference against it retains and releases the set's storage —
+        // 28 threads contending for one reference count made a whole-cache
+        // query for `init`'s callers take 150 s rather than 3.
+        self.keptKeys = (keptKeys ?? (swiftTypeQuery == nil ? nil : [])).map { Set(Array($0)) }
         self.swiftTypeQuery = swiftTypeQuery
         self.findsTypeReferences = swiftTypeQuery != nil || keptKeys.map { keys in
             keys.contains { key in
@@ -517,7 +522,7 @@ final class ReferenceCollector: ObjCCodeReferenceRecording, SwiftCodeReferenceRe
 
     private func keep(_ target: CodeReferenceTarget, at site: ScanSite, isRuntimeHelperCall: Bool = false) {
         if let keptKeys {
-            let isFiled = target.tableKey.map(keptKeys.contains) ?? false
+            let isFiled = if let key = target.tableKey { keptKeys.contains(key) } else { false }
             guard isFiled || swiftTypeQuery?.matches(target) == true else { return }
         }
         references.append(CodeReference(function: site.function, instructionAddress: site.instructionAddress, kind: site.kind, target: target, route: site.route, isRuntimeHelperCall: isRuntimeHelperCall))
